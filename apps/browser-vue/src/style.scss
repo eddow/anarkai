@@ -1,0 +1,91 @@
+@use '@picocss/pico/css/pico.min.css';
+
+:root {
+	--dockview-background: #13171f;
+	--dockview-border: #2a303c;
+
+	/* Theme Defaults (Light) */
+	color-scheme: light;
+	--app-bg: #f8fafc;
+	--app-surface: rgba(15, 23, 42, 0.05);
+	--app-border: rgba(15, 23, 42, 0.12);
+	--app-text: #0f172a;
+	--app-text-muted: #64748b;
+	--app-surface-tint: rgba(0, 0, 0, 0.03);
+	--toolbar-bg: rgba(15, 23, 42, 0.06);
+	--toolbar-border: rgba(15, 23, 42, 0.15);
+	--toolbar-active: rgba(37, 99, 235, 0.18);
+	--toolbar-active-border: rgba(37, 99, 235, 0.45);
+	--toolbar-text: #0f172a;
+
+	/* Pico Overrides */
+	--pico-background-color: var(--app-bg);
+	--pico-color: var(--app-text);
+}
+
+[data-theme='dark'],
+:root:has([data-theme='dark']) {
+	/* Theme Defaults (Dark) */
+	color-scheme: dark;
+	--app-bg: #0f172a;
+	--app-surface: rgba(148, 163, 184, 0.12);
+	--app-border: rgba(148, 163, 184, 0.25);
+	--app-text: #f1f5f9;
+	--app-text-muted: #94a3b8;
+	--app-surface-tint: rgba(255, 255, 255, 0.06);
+	--toolbar-bg: rgba(30, 41, 59, 0.6);
+	--toolbar-border: rgba(148, 163, 184, 0.25);
+	--toolbar-active: rgba(96, 165, 250, 0.4);
+	--toolbar-active-border: rgba(147, 197, 253, 0.7);
+	--toolbar-text: #e2e8f0;
+
+	/* Override Pico vars for consistent dark mode */
+	--pico-background-color: var(--app-bg);
+	--pico-color: var(--app-text);
+}
+
+body {
+	margin: 0;
+	min-height: 100vh;
+	overflow: hidden;
+	font-family: 'Inter', 'Segoe UI', sans-serif;
+	background: radial-gradient(circle at top, rgba(37, 99, 235, 0.08), transparent 55%), var(--app-bg);
+	color: var(--app-text);
+}
+
+.app-shell {
+	height: 100vh;
+	display: flex;
+	flex-direction: column;
+	width: 100vw;
+	margin: 0;
+	padding: 0;
+	gap: 0;
+}
+
+.app-main {
+	flex: 1;
+	min-height: 0;
+	/* Removed borders and radius for full screen */
+	background: var(--app-surface);
+	overflow: hidden;
+	position: relative;
+	width: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+.dockview-container {
+	width: 100%;
+	height: 100%;
+	position: absolute;
+	top: 0;
+	left: 0;
+	overflow: hidden;
+}
+
+.ssh-resource-image {
+	display: inline-block;
+	background-repeat: no-repeat;
+	image-rendering: pixelated;
+}

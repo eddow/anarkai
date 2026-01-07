@@ -1,0 +1,23 @@
+{
+	"deposits": {
+		"berry_bush": "Berry Bush",
+		"rock": "Rock",
+		"tree": "Tree"
+	},
+	"alveoli": {
+		"tree_chopper": "Tree Chopper",
+		"stonecutter": "Stone Cutter",
+		"sawmill": "Sawmill",
+		"gather": "Gather",
+		"storage": "Store",
+		"building": "Building",
+		"engineer": "Engineer"
+	},
+	"goods": {
+		"berries": "Berries",
+		"mushrooms": "Mushrooms",
+		"planks": "Planks",
+		"stone": "Stone",
+		"wood": "Wood"
+	}
+}

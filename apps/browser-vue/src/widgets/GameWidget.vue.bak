@@ -1,0 +1,206 @@
+<script setup lang="ts">
+import { onMounted, onUnmounted, ref } from 'vue';
+import { GameView } from '@ssh/lib/game/game';
+import { games, interactionMode, selectionState, validateStoredSelectionState } from '@ssh/lib/globals';
+import { Tile } from '@ssh/lib/game/board/tile';
+import type { InteractiveGameObject } from '@ssh/lib/game';
+import type { AlveolusType } from '@ssh/lib/types/base';
+
+const props = defineProps<{
+    params: { game: string };
+    api?: any;
+    container?: HTMLElement;
+}>();
+
+const containerRef = ref<HTMLElement | null>(null);
+let gameView: GameView | undefined;
+
+const handleProjectSelection = (object: InteractiveGameObject) => {
+    selectionState.selectedUid = object.uid;
+    if (!props.api) return;
+    
+    const dock = props.api.accessor; // dockview-core accessor
+    
+    // 1. Try specific tracked panel
+    let panel = selectionState.panelId ? dock.getPanel(selectionState.panelId) : null;
+    
+    // 2. Fallback to default 'info' panel
+    if (!panel) {
+        panel = dock.getPanel('info');
+    }
+
+    if (panel) {
+        panel.api.updateParameters({ uid: object.uid });
+        panel.focus();
+        selectionState.panelId = panel.id;
+        // Update title if needed
+        panel.api.setTitle(object.title ?? 'Selection');
+        return;
+    }
+    
+    // 3. Create new panel if none found
+    try {
+        const newPanel = dock.addPanel({
+            id: 'info',
+            component: 'info',
+            params: { uid: object.uid },
+            title: object.title ?? 'Selection',
+            floating: {
+                width: 400,
+                height: 600
+            }
+        });
+        if (newPanel) {
+            selectionState.panelId = newPanel.id;
+            newPanel.focus();
+        }
+    } catch (e) {
+        console.warn('Failed to add info panel (it might already exist):', e);
+        // last ditch attempt to find it again
+        const fallback = dock.getPanel('info');
+        if (fallback) {
+            fallback.api.updateParameters({ uid: object.uid });
+            fallback.focus();
+            selectionState.panelId = fallback.id;
+        }
+    }
+};
+
+const handleBuildingAction = (_event: MouseEvent, object: InteractiveGameObject) => {
+    if (!(object instanceof Tile)) return false;
+    const action = interactionMode.selectedAction;
+    const alveolusType = action.replace('build:', '') as AlveolusType;
+    const success = object.build(alveolusType);
+    return Boolean(success);
+};
+
+const handleZoningAction = (_event: MouseEvent, object: InteractiveGameObject) => {
+    if (!(object instanceof Tile)) return false;
+    const action = interactionMode.selectedAction;
+    const zoneType = action.replace('zone:', '');
+    if (zoneType === 'none') (object as any).zone = undefined;
+    else (object as any).zone = zoneType as any;
+    return true;
+};
+
+const handleZoningDrag = (tiles: Tile[]) => {
+    const action = interactionMode.selectedAction;
+    const zoneType = action.replace('zone:', '');
+    for (const tile of tiles) {
+        if (tile.content?.canInteract?.(action)) {
+            if (zoneType === 'none') (tile as any).zone = undefined;
+            else (tile as any).zone = zoneType as any;
+        }
+    }
+};
+
+const gameEvents = {
+    objectClick(_event: MouseEvent, object: InteractiveGameObject) {
+        if (_event.button !== 0) return;
+        const action = interactionMode.selectedAction;
+        if (action.startsWith('build:')) {
+            const applied = handleBuildingAction(_event, object);
+            if (applied && !_event.shiftKey) interactionMode.selectedAction = '';
+            return;
+        }
+        if (action.startsWith('zone:')) {
+            const applied = handleZoningAction(_event, object);
+            if (applied && !_event.shiftKey) interactionMode.selectedAction = '';
+            return;
+        }
+        handleProjectSelection(object);
+    },
+    objectDrag(tiles: Tile[], _event: MouseEvent) {
+        if (!interactionMode.selectedAction.startsWith('zone:')) return;
+        handleZoningDrag(tiles);
+        if (!_event.shiftKey) interactionMode.selectedAction = '';
+    },
+};
+
+onMounted(() => {
+    if (!containerRef.value) return;
+
+    const gameName = props.params?.game ?? 'GameX';
+    const game = games.game(gameName);
+
+    game.on(gameEvents);
+
+    game.loaded.then(() => {
+        if (containerRef.value && !gameView) {
+            try {
+                console.log('Mounting GameView');
+                gameView = new GameView(game, containerRef.value);
+                if (props.api?.accessor) {
+                    validateStoredSelectionState(props.api.accessor);
+                }
+            } catch(e) {
+                console.error('Failed to mount GameView', e);
+            }
+        }
+    });
+
+    // Use ResizeObserver for robust sizing
+    const resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+            if (entry.target === containerRef.value && gameView?.pixi?.renderer) {
+                const { width, height } = entry.contentRect;
+                // Ensure non-zero dimensions
+                const w = Math.max(width, 1);
+                const h = Math.max(height, 1);
+                gameView.pixi.renderer.resize(w, h);
+            }
+        }
+    });
+
+    if (containerRef.value) {
+        resizeObserver.observe(containerRef.value);
+    }
+
+    // Polling to ensure we catch the moment Pixi is ready
+    // (GameView init is async and we can't hook into it easily)
+    const initInterval = setInterval(() => {
+        if (gameView?.pixi?.renderer && containerRef.value) {
+            const { width, height } = containerRef.value.getBoundingClientRect();
+            gameView.pixi.renderer.resize(Math.max(width, 1), Math.max(height, 1));
+            // We can clear interval once we successfully resized once, 
+            // relying on ResizeObserver for future updates.
+            // But if resizeTo is fighting us, keeping it for a bit might be safer?
+            // Actually, once we force resize, standard resizeTo might turn off or be overridden.
+            // Let's just run it a few times or clear it.
+            clearInterval(initInterval);
+        }
+    }, 100);
+
+    // Cleanup observer on unmount
+    onUnmounted(() => {
+        resizeObserver.disconnect();
+        clearInterval(initInterval);
+    });
+});
+
+onUnmounted(() => {
+    const gameName = props.params?.game ?? 'GameX';
+    const game = games.game(gameName);
+    game.off(gameEvents);
+
+    if (gameView) {
+        gameView.destroy();
+        gameView = undefined;
+    }
+});
+
+
+</script>
+
+<template>
+  <div ref="containerRef" class="docker-widget-game"></div>
+</template>
+
+<style scoped>
+.docker-widget-game {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: var(--app-bg); /* Use theme background */
+}
+</style>

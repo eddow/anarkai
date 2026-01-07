@@ -1,0 +1,159 @@
+:root {
+	color-scheme: light;
+	--app-bg: #f8fafc;
+	--app-surface: rgba(15, 23, 42, 0.05);
+	--app-border: rgba(15, 23, 42, 0.12);
+	--app-text: #0f172a;
+	--toolbar-bg: rgba(15, 23, 42, 0.06);
+	--toolbar-border: rgba(15, 23, 42, 0.15);
+	--toolbar-active: rgba(37, 99, 235, 0.18);
+	--toolbar-active-border: rgba(37, 99, 235, 0.45);
+	--toolbar-text: #0f172a;
+}
+
+[data-theme='dark'] {
+	color-scheme: dark;
+	--app-bg: #0f172a;
+	--app-surface: rgba(148, 163, 184, 0.12);
+	--app-border: rgba(148, 163, 184, 0.25);
+	--app-text: #e2e8f0;
+	--toolbar-bg: rgba(30, 41, 59, 0.6);
+	--toolbar-border: rgba(148, 163, 184, 0.25);
+	--toolbar-active: rgba(96, 165, 250, 0.4);
+	--toolbar-active-border: rgba(147, 197, 253, 0.7);
+	--toolbar-text: #e2e8f0;
+}
+
+body {
+	margin: 0;
+	min-height: 100vh;
+	overflow: hidden;
+	font-family: 'Inter', 'Segoe UI', sans-serif;
+	background: radial-gradient(circle at top, rgba(37, 99, 235, 0.08), transparent 55%), var(--app-bg);
+	color: var(--app-text);
+}
+
+.app-shell {
+	min-height: 100vh;
+	display: flex;
+	flex-direction: column;
+	gap: 1.5rem;
+	padding: 1.75rem;
+	box-sizing: border-box;
+}
+
+
+
+.app-main {
+	flex: 1;
+	min-height: 0;
+	border-radius: 1rem;
+	border: 1px solid var(--app-border);
+	background: var(--app-surface);
+	overflow: hidden;
+	position: relative;
+}
+
+.dockview-container {
+	height: 100%;
+	width: 100%;
+	position: absolute;
+}
+
+
+.ssh-resource-image {
+	display: inline-block;
+	background-repeat: no-repeat;
+	image-rendering: pixelated;
+}
+
+
+
+.badge {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.25rem 0.5rem;
+	border-radius: 0.25rem;
+	font-size: 0.875rem;
+	font-weight: 500;
+}
+
+.badge-yellow {
+	background-color: rgb(254 240 138);
+	color: rgb(113 63 18);
+}
+
+[data-theme='dark'] .badge-yellow {
+	background-color: rgb(113 63 18);
+	color: rgb(254 240 138);
+}
+
+.badge-red {
+	background-color: rgb(254 202 202);
+	color: rgb(127 29 29);
+}
+
+[data-theme='dark'] .badge-red {
+	background-color: rgb(127 29 29);
+	color: rgb(254 202 202);
+}
+
+.badge-blue {
+	background-color: rgb(191 219 254);
+	color: rgb(30 58 138);
+}
+
+[data-theme='dark'] .badge-blue {
+	background-color: rgb(30 58 138);
+	color: rgb(191 219 254);
+}
+
+.badge-gray {
+	background-color: rgb(229 231 235);
+	color: rgb(55 65 81);
+}
+
+[data-theme='dark'] .badge-gray {
+	background-color: rgb(55 65 81);
+	color: rgb(229 231 235);
+}
+
+.badge-green {
+	background-color: rgb(187 247 208);
+	color: rgb(20 83 45);
+}
+
+[data-theme='dark'] .badge-green {
+	background-color: rgb(20 83 45);
+	color: rgb(187 247 208);
+}
+
+.badge-purple {
+	background-color: rgb(221 214 254);
+	color: rgb(88 28 135);
+}
+
+[data-theme='dark'] .badge-purple {
+	background-color: rgb(88 28 135);
+	color: rgb(221 214 254);
+}
+
+.badge-indigo {
+	background-color: rgb(199 210 254);
+	color: rgb(55 48 163);
+}
+
+[data-theme='dark'] .badge-indigo {
+	background-color: rgb(55 48 163);
+	color: rgb(199 210 254);
+}
+
+.badge-pink {
+	background-color: rgb(251 207 232);
+	color: rgb(131 24 67);
+}
+
+[data-theme='dark'] .badge-pink {
+	background-color: rgb(131 24 67);
+	color: rgb(251 207 232);
+}

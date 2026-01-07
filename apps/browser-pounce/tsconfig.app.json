@@ -1,0 +1,43 @@
+{
+	"compilerOptions": {
+		"composite": true,
+		"target": "ES2022",
+		"lib": ["ES2022", "DOM", "DOM.Iterable"],
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"allowSyntheticDefaultImports": true,
+		"allowImportingTsExtensions": true,
+		"resolveJsonModule": true,
+		"isolatedModules": true,
+		"noEmit": true,
+		"skipLibCheck": false,
+		"useDefineForClassFields": true,
+		"experimentalDecorators": true,
+		"emitDecoratorMetadata": true,
+		"strict": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"noFallthroughCasesInSwitch": true,
+		"jsx": "react",
+		"jsxFactory": "h",
+		"jsxFragmentFactory": "Fragment",
+		"types": ["vite/client"],
+		"baseUrl": ".",
+		"paths": {
+			"$lib/*": ["./src/lib/*"],
+			"$components/*": ["./src/components/*"],
+			"$assets/*": ["./assets/*"],
+			"@app/*": ["./src/*"],
+			"@pounce/*": ["node_modules/pounce-ts/src/*"]
+		}
+	},
+	"include": [
+		"src/**/*.ts",
+		"src/**/*.tsx",
+		"src/**/*.d.ts",
+		"sandbox/**/*.ts",
+		"sandbox/**/*.tsx",
+		"assets/**/*.ts",
+		"assets/**/*.tsx",
+	]
+}

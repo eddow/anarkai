@@ -1,0 +1,127 @@
+function goWork(jobPlan, path)
+	target = jobPlan.target
+	plan jobPlan
+		inventory.dropAllFree
+		if jobPlan.job != "offload" then
+			if tile != target.tile then do
+				walk.until path
+			while tile != target.tile
+				path = find.path(target.tile, false)
+				if not path then error "No path found to target"
+			loop
+			walk.enter
+			work.prepare jobPlan
+		end if
+		// TODO: understand why `work[job](alveolus)` doesn't work/yield
+		work[jobPlan.job] jobPlan
+	end plan
+end function
+
+function harvest(jobPlan)
+	alveolus = jobPlan.target
+	do
+		nextJob = work.myNextJob()
+	while I.keepWorking and nextJob
+		// Use path from nextJob if available for first iteration
+		if nextJob.path and (not tile.content.deposit or tile.content.deposit.name != alveolus.action.deposit) then
+			walk.until nextJob.path
+		end if
+		
+		do while not tile.content.deposit or tile.content.deposit.name != alveolus.action.deposit
+			where = find.deposit(alveolus.action.deposit)
+			if not where then return false
+			walk.until where
+		loop
+		walk.enter
+		work.harvestStep
+		if not I.carry.isEmpty then
+			if isGatherable(alveolus) then
+				inventory.dropAllFree
+			else
+				inventory.dropStored I.carry.stock, alveolus.tile
+			end if
+		end if
+	loop
+end function
+
+function transform(jobPlan)
+	alveolus = jobPlan.target
+	do
+		nextJob = work.myNextJob()
+	while I.keepWorking and nextJob
+		work.transformStep
+	loop
+end function
+
+function convey(jobPlan)
+	alveolus = jobPlan.target
+	do while I.keepWorking and alveolus.aGoodMovement
+		work.conveyStep
+		if not alveolus.aGoodMovement and alveolus.incomingGoods then
+			debugger alveolus
+			work.waitForIncomingGoods
+		end if
+	loop
+end function
+
+function gather(jobPlan)
+	alveolus = jobPlan.target
+	do
+		nextJob = work.myNextJob()
+	while I.keepWorking and nextJob
+		log "Gather more:", nextJob.goodType
+		// Use path and goodType from nextJob
+		if not nextJob.path then error "No path found to gather"
+		if not nextJob.goodType then error "No good type to gather"
+		inventory.grabFree nextJob.goodType, nextJob.path[nextJob.path.length - 1], nextJob.path
+	loop
+	// bring back to alveolus tile (hive edge) if we have goods
+	if not I.carry.isEmpty then
+		log "Dropping goods to alveolus"
+		path = find.path(alveolus.tile, false)
+		if not path then error "No path found to alveolus"
+		inventory.dropStored I.carry.stock, alveolus.tile, path, false
+	else
+		log "Empty handed, no goods to drop"
+	end if
+end function
+
+function construct(jobPlan)
+    engineer = jobPlan.target
+    nextJob = work.myNextJob()
+    if nextJob then
+        if not nextJob.path then return false
+		walk.until nextJob.path
+        walk.enter
+        work.constructionStep
+    end if
+end function
+
+function foundation(jobPlan)
+	engineer = jobPlan.target
+	nextJob = work.myNextJob()
+	if nextJob then
+		if not nextJob.path then return false
+		walk.until nextJob.path
+		walk.enter
+		work.foundationStep
+	end if
+end function
+
+function offload(jobPlan)
+	target = jobPlan.target
+	// Target is the tile for offload jobs
+	if target.availableGoods.length == 0 then error "No goods to offload"
+	inventory.grabFree null, target
+	inventory.dropAllFree()
+end function
+
+function defragment(jobPlan)
+	alveolus = jobPlan.target
+	// Defragment storage by allocating and reserving goods in the same storage
+	do while I.keepWorking and alveolus.storage.fragmented
+		work.defragmentStep
+	loop
+end function
+
+return { goWork, harvest, transform, convey, gather, construct, foundation, offload, defragment }

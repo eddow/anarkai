@@ -1,0 +1,83 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.2.6/schema.json",
+	"files": {
+		"includes": [
+			"src/**/*.ts",
+			"assets/**/*.ts",
+			"src/**/*.js",
+			"src/**/*.svelte",
+			"*.js",
+			"*.ts",
+			".vscode/*.json",
+			"assets/**/*.json"
+		],
+		"ignoreUnknown": true
+	},
+	"formatter": {
+		"lineWidth": 100,
+		"indentStyle": "tab"
+	},
+	"javascript": {
+		"formatter": {
+			"semicolons": "asNeeded",
+			"quoteStyle": "single"
+		}
+	},
+
+	"linter": {
+		"rules": {
+			"style": {
+				"noNonNullAssertion": "off",
+				"useSingleVarDeclarator": {
+					"level": "warn"
+				},
+				"useTemplate": {
+					"level": "warn"
+				},
+				"noParameterAssign": "off"
+			},
+			"suspicious": {
+				"noExplicitAny": "off",
+				"noDebugger": "off",
+				"noConsole": "off",
+				"noConfusingVoidType": "off",
+				"noExtraNonNullAssertion": "off"
+			},
+			"performance": {
+				"noAccumulatingSpread": "off"
+			},
+			"complexity": {
+				"noBannedTypes": "off"
+			},
+			"security": {},
+			"correctness": {
+				"noUnusedImports": {
+					"level": "info",
+					"fix": "safe"
+				},
+				"noUnusedFunctionParameters": {
+					"level": "info",
+					"fix": "safe"
+				}
+			},
+			"nursery": {}
+		}
+	},
+	"overrides": [
+		{
+			"includes": ["**/*.svelte"],
+			"linter": {
+				"rules": {
+					"style": {
+						"useConst": "off",
+						"useImportType": "off"
+					},
+					"correctness": {
+						"noUnusedVariables": "off",
+						"noUnusedImports": "off"
+					}
+				}
+			}
+		}
+	]
+}
