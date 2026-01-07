@@ -20,7 +20,7 @@ defineProps<{
         :alt="text" 
     />
     <span v-if="qty" class="qty">×{{ qty }}</span>
-    <span v-else class="label">{{ text }}</span>
+    <span v-else class="label">{{ text || '?' }}</span>
   </div>
 </template>
 
