@@ -7,6 +7,37 @@
     <title>SSH Vue</title>
   </head>
   <body>
+    <div id="error-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #1a0000; color: #ff6b6b; z-index: 99999; padding: 2rem; font-family: monospace; overflow: auto; pointer-events: none;">
+      <h2 style="margin-top: 0">Bootstrap Error</h2>
+      <pre id="error-content" style="white-space: pre-wrap; word-break: break-all;"></pre>
+    </div>
+    <script>
+      (function() {
+        const overlay = document.getElementById('error-overlay');
+        const content = document.getElementById('error-content');
+        const app = document.getElementById('app');
+        
+        function showError(error) {
+          // If app has mounted (has children), likely purely runtime error handled by Vue or console is enough
+          // But if app is empty, it's a critical bootstrap failure
+          if (app && app.childElementCount > 0) return;
+
+          overlay.style.display = 'block';
+          overlay.style.pointerEvents = 'auto'; // enable interaction to copy
+          const msg = error instanceof Error ? error.stack || error.message : String(error);
+          content.textContent += msg + '\n\n';
+          console.error('[Bootstrap Error]', error);
+        }
+
+        window.addEventListener('error', (event) => {
+          showError(event.error || event.message);
+        });
+
+        window.addEventListener('unhandledrejection', (event) => {
+          showError(event.reason);
+        });
+      })();
+    </script>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

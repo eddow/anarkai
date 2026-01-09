@@ -63,9 +63,9 @@ export default defineConfig({
 	],
 	resolve: {
 		alias: {
-			$lib: resolvePath(projectRootDir, 'src/lib'),
-			$components: resolvePath(projectRootDir, 'src/components'),
-			$assets: resolvePath(projectRootDir, 'assets'),
+			'@ssh': resolvePath(projectRootDir, 'node_modules/ssh/src'),
+			'$lib': resolvePath(projectRootDir, 'node_modules/ssh/src/lib'),
+			'$assets': resolvePath(projectRootDir, 'node_modules/ssh/assets'),
 			'@app': resolvePath(projectRootDir, 'src'),
 			'@pounce': resolvePath(projectRootDir, 'node_modules/pounce-ts/src'),
 		},

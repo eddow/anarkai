@@ -1,9 +1,9 @@
 import { goods as goodsCatalog } from '$assets/game-content'
 import EntityBadge from './EntityBadge'
-import { css } from '$lib/css'
-import type { Game } from '$lib/game'
-import type { GoodType } from '$lib/types/base'
-import { T } from '$lib/i18n'
+import { css } from '@app/lib/css'
+import type { Game } from '@ssh/lib/game'
+import type { GoodType } from '@ssh/lib/types/base'
+import { T } from '@ssh/lib/i18n'
 
 css`
 .goods-list {

@@ -1,5 +1,5 @@
-import { configuration } from '$lib/globals'
-import { css } from '$lib/css'
+import { configuration, uiConfiguration } from '@app/lib/globals'
+import { css } from '@app/lib/css'
 import { type DockviewWidgetProps, Inline, Radio } from 'pounce-ui/src'
 
 css`
@@ -46,13 +46,11 @@ const timeOptions = [
 	{ value: 'gonzales', label: 'Gonzales' },
 ] as const
 
-const ConfigurationWidget = (props: DockviewWidgetProps, scope: Record<string, any>) => {
+const ConfigurationWidget = (props: DockviewWidgetProps) => {
 	props.title = 'Configuration'
 
 	const handleDarkModeToggle = () => {
-		if (scope.toggleTheme) {
-			scope.toggleTheme()
-		}
+		uiConfiguration.darkMode = !uiConfiguration.darkMode
 	}
 
 	return (
@@ -60,7 +58,7 @@ const ConfigurationWidget = (props: DockviewWidgetProps, scope: Record<string, a
 			<label class="configuration-widget__toggle">
 				<input
 					type="checkbox"
-					checked={scope.theme === 'dark'}
+					checked={uiConfiguration.darkMode}
 					onChange={handleDarkModeToggle}
 				/>
 				<span>Dark mode</span>

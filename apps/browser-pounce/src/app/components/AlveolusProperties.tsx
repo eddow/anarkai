@@ -1,10 +1,10 @@
 import { effect, reactive } from 'mutts'
 import { Button } from 'pounce-ui/src'
-import { css } from '$lib/css'
+import { css } from '@app/lib/css'
 import AlveolusFlag from './AlveolusFlag'
 import PropertyGridRow from './PropertyGridRow'
-import type { Alveolus } from '$lib/game/board/content/alveolus'
-import { T } from '$lib/i18n'
+import type { Alveolus } from '@ssh/lib/game/board/content/alveolus'
+import { T } from '@ssh/lib/i18n'
 
 css`
 .alveolus-commands {

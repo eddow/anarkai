@@ -1,16 +1,16 @@
 import { effect, Eventful } from 'mutts'
 
-import type { InteractiveGameObject } from '$lib/game'
-import { css } from '$lib/css'
-import { GameView } from '$lib/game/game'
-import { Tile } from '$lib/game/board/tile'
+import type { InteractiveGameObject } from '@ssh/lib/game'
+import { css } from '@app/lib/css'
+import { GameView } from '@ssh/lib/game/game'
+import { Tile } from '@ssh/lib/game/board/tile'
 import {
 	games,
 	interactionMode,
 	selectionState,
 	validateStoredSelectionState,
-} from '$lib/globals'
-import type { AlveolusType } from '$lib/types/base'
+} from '@app/lib/globals'
+import type { AlveolusType } from '@ssh/lib/types/base'
 import { scope } from 'arktype'
 
 css`

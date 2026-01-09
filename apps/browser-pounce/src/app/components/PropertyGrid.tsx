@@ -1,5 +1,5 @@
 import type { JSX } from 'pounce-ts'
-import { css } from '$lib/css'
+import { css } from '@app/lib/css'
 
 css`
 /* Property Grid Components */

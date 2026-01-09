@@ -1,6 +1,6 @@
 import ResourceImage from './ResourceImage'
-import type { Game } from '$lib/game'
-import { css } from '$lib/css'
+import type { Game } from '@ssh/lib/game'
+import { css } from '@app/lib/css'
 
 css`
 .entity-badge {

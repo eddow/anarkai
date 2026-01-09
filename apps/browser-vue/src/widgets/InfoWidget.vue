@@ -216,39 +216,21 @@ const simulateLeave = () => {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.5rem;
+    padding: 0.25rem; /* Compact */
     border-bottom: 1px solid var(--pico-muted-border-color);
     background: var(--pico-card-background-color);
 }
-.title {
-    font-weight: bold;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.actions {
-    display: flex;
-    gap: 0.25rem;
-}
-.action-btn {
-    padding: 0.25rem; /* Compact */
-}
-
-.properties-container {
-    padding: 0;
-    overflow-y: auto;
-    flex: 0 0 auto; /* Natural height up to a point? */
-    max-height: 50%;
-}
-
+/* ... */
 .logs-container {
     flex: 1;
     overflow-y: auto;
     border-top: 1px solid var(--pico-muted-border-color);
-    background: var(--pico-card-background-color); /* slightly different */
+    background: var(--pico-card-background-color);
     padding: 0;
     font-family: monospace;
     font-size: 0.8em;
+    min-height: 100px; /* needed for resize? */
+    resize: vertical; /* User asked for resizable logs */
 }
 .log-line {
     white-space: pre-wrap;

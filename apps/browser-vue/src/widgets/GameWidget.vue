@@ -98,6 +98,12 @@ onMounted(() => {
             if (entry.target === containerRef.value && gameView?.pixi?.renderer) {
                 const { width, height } = entry.contentRect;
                 if (width > 0 && height > 0) {
+                    // Debug logging
+                    if (typeof (gameView as any).resize !== 'function') {
+                        console.error('gameView.resize is missing!', gameView);
+                        console.log('Prototype:', Object.getPrototypeOf(gameView));
+                        console.log('Constructor:', gameView.constructor);
+                    }
                     gameView.resize(width, height);
                 }
             }

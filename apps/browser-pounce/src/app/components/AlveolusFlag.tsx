@@ -1,5 +1,5 @@
 import { Button } from 'pounce-ui/src'
-import { css } from '$lib/css'
+import { css } from '@app/lib/css'
 
 css`
   .alveolus-flag {

@@ -1,4 +1,4 @@
-import { css } from '$lib/css'
+import { css } from '@app/lib/css'
 
 css`
   .stat-progress-bar {

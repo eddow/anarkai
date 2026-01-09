@@ -222,24 +222,21 @@ const stepLabel = computed(() => {
 }
 
 .action-card {
-    background: var(--pico-card-background-color);
-    border: 1px solid var(--pico-muted-border-color);
-    border-left: 3px solid var(--pico-primary-background);
-    padding: 0.5rem 0.75rem;
-    border-radius: 4px;
-    font-size: 0.9em;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-    position: relative;
-    /* transition: transform 0.2s; */
+    background: #1e1e1e; /* Dark console background */
+    color: #d4d4d4; /* Console text color */
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    border: 1px solid #333;
+    padding: 0.2rem 0.5rem; /* Very compact */
+    border-radius: 2px;
+    font-size: 0.85em;
+    /* box-shadow: none; */
+    border-left: 2px solid var(--pico-primary-background); /* Keep small accent */
 }
 
-/* .action-card:hover {
-    transform: translateX(2px);
-} */
-
 .action-card::before {
-    /* Optional: Index number or icon? */
-    content: ''; 
+    content: '> ';
+    opacity: 0.5;
+    margin-right: 0.3em;
 }
 
 .no-activity {

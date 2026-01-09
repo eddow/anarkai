@@ -6,12 +6,12 @@ import PropertyGrid from './PropertyGrid'
 import PropertyGridRow from './PropertyGridRow'
 import AlveolusProperties from './AlveolusProperties'
 import UnBuiltProperties from './UnBuiltProperties'
-import { css } from '$lib/css'
-import { Alveolus } from '$lib/game/board/content/alveolus'
-import { UnBuiltLand } from '$lib/game/board/content/unbuilt-land'
-import type { Tile } from '$lib/game/board/tile'
-import { T } from '$lib/i18n'
-import { computeStyleFromTexture } from '$lib/utils/images'
+import { css } from '@app/lib/css'
+import { Alveolus } from '@ssh/lib/game/board/content/alveolus'
+import { UnBuiltLand } from '@ssh/lib/game/board/content/unbuilt-land'
+import type { Tile } from '@ssh/lib/game/board/tile'
+import { T } from '@ssh/lib/i18n'
+import { computeStyleFromTexture } from '@ssh/lib/utils/images'
 
 css`
   .tile-properties {

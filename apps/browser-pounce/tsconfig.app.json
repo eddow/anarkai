@@ -24,9 +24,9 @@
 		"types": ["vite/client"],
 		"baseUrl": ".",
 		"paths": {
-			"$lib/*": ["./src/lib/*"],
-			"$components/*": ["./src/components/*"],
-			"$assets/*": ["./assets/*"],
+			"@ssh/*": ["./node_modules/ssh/src/*"],
+			"$lib/*": ["./node_modules/ssh/src/lib/*"],
+			"$assets/*": ["./node_modules/ssh/assets/*"],
 			"@app/*": ["./src/*"],
 			"@pounce/*": ["node_modules/pounce-ts/src/*"]
 		}

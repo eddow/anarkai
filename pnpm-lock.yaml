@@ -49,6 +49,9 @@ importers:
       pounce-ui:
         specifier: workspace:*
         version: link:../../packages/pounce-ui
+      ssh:
+        specifier: workspace:*
+        version: link:../../engines/ssh
       typescript:
         specifier: ~5.8.3
         version: 5.8.3

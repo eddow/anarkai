@@ -1,15 +1,15 @@
 import { effect, reactive, watch } from 'mutts'
 
-import type { InteractiveGameObject } from '$lib/game'
-import { css } from '$lib/css'
-import { Character } from '$lib/game/population/character'
-import { Tile } from '$lib/game/board/tile'
+import type { InteractiveGameObject } from '@ssh/lib/game'
+import { css } from '@app/lib/css'
+import { Character } from '@ssh/lib/game/population/character'
+import { Tile } from '@ssh/lib/game/board/tile'
 import {
 	games,
 	registerObjectInfoPanel,
 	selectionState,
 	unregisterObjectInfoPanel,
-} from '$lib/globals'
+} from '@app/lib/globals'
 import CharacterProperties from '../components/CharacterProperties'
 import TileProperties from '../components/TileProperties'
 

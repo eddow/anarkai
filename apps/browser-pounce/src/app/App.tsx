@@ -1,11 +1,11 @@
 import '../app.css'
-import { initConsoleTrap } from '$lib/debug'
+import { initConsoleTrap } from '@ssh/lib/debug'
 initConsoleTrap()
 import { effect, reactive, trackEffect, untracked } from 'mutts'
 import { Button, ButtonGroup, DarkModeButton, Dockview, RadioButton, Toolbar } from 'pounce-ui/src'
 
 import * as gameContent from '$assets/game-content'
-import { configuration, games, interactionMode, getDockviewLayout, dockviewLayout } from '$lib/globals'
+import { configuration, games, interactionMode, getDockviewLayout, dockviewLayout, uiConfiguration } from '@app/lib/globals'
 import ResourceImage from './components/ResourceImage'
 import widgetsImport from './widgets'
 import { h } from '@pounce/lib'
@@ -159,9 +159,9 @@ const App = (_props: {}) => {
 				</ButtonGroup>
 				<Toolbar.Spacer />
 				<DarkModeButton
-					theme={configuration.darkMode ? 'dark' : 'light'}
+					theme={uiConfiguration.darkMode ? 'dark' : 'light'}
 					update:theme={(theme) => {
-						configuration.darkMode = theme === 'dark'
+						uiConfiguration.darkMode = theme === 'dark'
 					}}
 				/>
 			</Toolbar>
@@ -175,7 +175,7 @@ const App = (_props: {}) => {
 					update:layout={(layout) => {
 						dockviewLayout.sshLayout = layout
 					}}
-					theme={configuration.darkMode ? 'dracula' : 'light'}
+					theme={uiConfiguration.darkMode ? 'dracula' : 'light'}
 				/>
 			</main>
 		</div>
