@@ -3,7 +3,7 @@ import { computed } from 'vue';
 import { Character } from '@ssh/lib/game/population/character';
 import type { ActivityType } from '@ssh/lib/types/base';
 import { Alveolus } from '@ssh/lib/game/board';
-// import { AEvolutionStep } from '@ssh/lib/game/npcs/steps'; // Not easily importable, using duck typing for now
+import { AEvolutionStep, ALerpStep } from '@ssh/lib/game/npcs/steps'; 
 
 import PropertyGrid from '../parts/PropertyGrid.vue';
 import PropertyGridRow from '../parts/PropertyGridRow.vue';
@@ -53,7 +53,7 @@ const state = useMutts(() => {
         triggerLevels: c.triggerLevels,
         stepType: c.stepExecutor?.type as ActivityType | undefined,
         stepDescription: (c.stepExecutor?.description || undefined) as string | undefined,
-        step: (step?.isa === 'AEvolutionStep' || step?.isa === 'ALerpStep') ? step : undefined,
+        step: (step instanceof AEvolutionStep || step instanceof ALerpStep) ? step : undefined,
         goods: c.carry?.stock || {},
         actions: [...(c.actionDescription || [])],
         vehicle: c.vehicle?.name,
@@ -63,7 +63,7 @@ const state = useMutts(() => {
 
 const stepEvolution = computed(() => {
     const step = state.value.step;
-    return step && step.isa !== 'ALerpStep'
+    return step && !(step instanceof ALerpStep)
         ? Math.max(0, Math.min(1, (step as any).evolution))
         : 0;
 });

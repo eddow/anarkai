@@ -107,16 +107,6 @@ const openObjectInfoPanel = (uid: string) => {
     }
 };
 
-const openInfoPanel = () => {
-    if (selectionState.selectedUid) {
-        openObjectInfoPanel(selectionState.selectedUid);
-    } else {
-        // Just focus the 'info' panel if it exists
-        const existing = api.value?.getPanel('info');
-        if (existing) existing.focus();
-    }
-};
-
 const openGamePanel = () => ensurePanel('game', 'game-view', { game: 'GameX' }, { floating: false });
 const openConfigurationPanel = () => ensurePanel('configuration', 'system.configuration');
 
@@ -228,7 +218,6 @@ const buildableAlveoli = Object.entries(gameContent.alveoli).filter(
         <ButtonGroup>
             <Button icon="mdi:settings" aria-label="Open configuration" @click="openConfigurationPanel" />
             <Button icon="mdi:plus" aria-label="Open game view" @click="openGamePanel" />
-            <Button icon="mdi:information-outline" aria-label="Focus selection info" @click="openInfoPanel" />
         </ButtonGroup>
         <ToolbarSpacer visible />
         <ButtonGroup>

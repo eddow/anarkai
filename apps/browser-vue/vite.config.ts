@@ -23,24 +23,22 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@ssh': path.resolve(__dirname, './node_modules/ssh/src'),
-      'ssh': path.resolve(__dirname, './node_modules/ssh/src'), // Force package import to use src
-      '$lib': path.resolve(__dirname, './node_modules/ssh/src/lib'),
-      '$assets': path.resolve(__dirname, './node_modules/ssh/assets'),
-      '@app': path.resolve(__dirname, './node_modules/ssh/src'),
-      'mutts': path.resolve(__dirname, './src/mutts-shim.ts'), // Force everything to use shim
-      'npc-script': path.resolve(__dirname, './node_modules/npc-script'),
-      'npc-script/': path.resolve(__dirname, './node_modules/npc-script/'),
+      '@ssh': path.resolve(__dirname, '../../engines/ssh/src'),
+      'ssh': path.resolve(__dirname, '../../engines/ssh/src'),
+      '$lib': path.resolve(__dirname, '../../engines/ssh/src/lib'),
+      '$assets': path.resolve(__dirname, '../../engines/ssh/assets'),
+      '@app': path.resolve(__dirname, '../../engines/ssh/src'),
+      'mutts': path.resolve(__dirname, './src/mutts-shim.ts'), 
+      'npc-script': path.resolve(__dirname, '../../packages/npcs'),
     },
     preserveSymlinks: false 
-    // Default is false: Vite follows symlinks. Which means it sees the real path.
-    // Use true to keep the symlink path.
+    // Actually, if we point to real paths, preserveSymlinks matters less for these aliases.
   },
   server: {
     port: 5173,
     strictPort: false,
     fs: {
-      allow: ['..', '../../..'], // Allow serving files from monorepo root
+      allow: ['..', '../../..'], 
     },
     watch: {
         usePolling: true,
@@ -65,10 +63,10 @@ export default defineConfig({
               }
           },
           alias: {
-              '@ssh': path.resolve(__dirname, './node_modules/ssh/src'),
-              '$lib': path.resolve(__dirname, './node_modules/ssh/src/lib'),
-              '$assets': path.resolve(__dirname, './node_modules/ssh/assets'),
-              '@app': path.resolve(__dirname, './node_modules/ssh/src'),
+              '@ssh': path.resolve(__dirname, '../../engines/ssh/src'),
+              '$lib': path.resolve(__dirname, '../../engines/ssh/src/lib'),
+              '$assets': path.resolve(__dirname, '../../engines/ssh/assets'),
+              '@app': path.resolve(__dirname, '../../engines/ssh/src'),
           }
       },
       exclude: ['ssh', 'mutts', 'npc-script', 'omni18n', 'pounce-ts', 'pounce-ui'],

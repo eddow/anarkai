@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { UnBuiltLand } from '@ssh/lib/game/board';
+import { UnBuiltLand } from '@ssh/lib/game/board/content/unbuilt-land';
 import PropertyGridRow from '../parts/PropertyGridRow.vue';
 import Badge from '../parts/Badge.vue';
 import EntityBadge from './EntityBadge.vue';

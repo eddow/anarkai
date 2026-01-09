@@ -3,6 +3,8 @@ import { ref, shallowRef, computed, onMounted, onUnmounted, watch as vueWatch } 
 import { games, selectionState, registerObjectInfoPanel, unregisterObjectInfoPanel, mrg } from '@ssh/lib/globals';
 import { effect, watch as muttsWatch } from 'mutts';
 import { toWorldCoord } from '@ssh/lib/utils/position';
+import { Tile } from '@ssh/lib/game/board/tile';
+import { Character } from '@ssh/lib/game/population/character';
 
 import TileProperties from '../components/properties/TileProperties.vue';
 import CharacterProperties from '../components/properties/CharacterProperties.vue';
@@ -180,11 +182,11 @@ const simulateLeave = () => {
            </header>
           
           <div class="properties-container">
-              <TileProperties v-if="String(object.isa) === 'Tile'" :tile="object" :game="game" />
-              <CharacterProperties v-else-if="String(object.isa) === 'Character'" :character="object" :game="game" />
+              <TileProperties v-if="object instanceof Tile" :tile="object" :game="game" :key="'tile-'+object.uid" />
+              <CharacterProperties v-else-if="object instanceof Character" :character="object" :game="game" :key="'char-'+object.uid" />
               <div v-else>
-                  Unknown Object: {{ object.constructor.name }} (isa: {{ object.isa }})
-                  <pre>{{ object.debugInfo }}</pre>
+                  Unknown Object: {{ object?.constructor?.name ?? typeof object }}
+                  <pre>{{ object?.debugInfo }}</pre>
               </div>
           </div>
 

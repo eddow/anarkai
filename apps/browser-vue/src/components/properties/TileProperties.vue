@@ -1,20 +1,21 @@
 <script setup lang="ts">
-import { ref, computed, watchEffect } from 'vue';
-import { Tile } from '@ssh/lib/game/board/tile';
-import { alveoli } from '$assets/game-content';
-import { computeStyleFromTexture } from '@ssh/lib/utils/images';
+import { ref, computed, watchEffect } from 'vue'
+import { Tile } from '@ssh/lib/game/board/tile'
+import { alveoli } from '$assets/game-content'
+import { computeStyleFromTexture } from '@ssh/lib/utils/images'
 
-import PropertyGrid from '../parts/PropertyGrid.vue';
-import PropertyGridRow from '../parts/PropertyGridRow.vue';
-import Badge from '../parts/Badge.vue';
-import EntityBadge from './EntityBadge.vue';
-import GoodsList from './GoodsList.vue';
-import AlveolusProperties from './AlveolusProperties.vue';
-import UnBuiltProperties from './UnBuiltProperties.vue';
+import PropertyGrid from '../parts/PropertyGrid.vue'
+import PropertyGridRow from '../parts/PropertyGridRow.vue'
+import Badge from '../parts/Badge.vue'
+import EntityBadge from './EntityBadge.vue'
+import GoodsList from './GoodsList.vue'
+import AlveolusProperties from './AlveolusProperties.vue'
+import UnBuiltProperties from './UnBuiltProperties.vue'
 
-import { configuration as uiConfig } from '../../lib/globals';
-import { useMutts } from '../../lib/mutts-vue';
-import { Alveolus, UnBuiltLand } from '@ssh/lib/game/board';
+import { configuration as uiConfig } from '../../lib/globals'
+import { useMutts } from '../../lib/mutts-vue'
+import { Alveolus } from '@ssh/lib/game/board/content/alveolus'
+import { UnBuiltLand } from '@ssh/lib/game/board/content/unbuilt-land'
 
 const props = defineProps<{
     tile: Tile;
@@ -28,7 +29,7 @@ const T = {
     goods: { stored: 'Stored', loose: 'Loose' }
 };
 
-const tileContent = useMutts(() => props.tile.content);
+const tileContent = computed(() => props.tile.content);
 const stock = useMutts(() => props.tile.content?.storage?.stock || {});
 
 const freeStock = useMutts(() => {
@@ -40,31 +41,43 @@ const freeStock = useMutts(() => {
     return counts;
 });
 
-const contentInfo = computed(() => {
-    const c = tileContent.value;
-    console.log('[TileProperties] contentInfo calculation', { 
-        isa: c?.isa, 
-        constructor: c?.constructor?.name,
-        name: c?.name,
-        c 
-    });
-    
-    // Support GcClassed names
-    const resolvedType = c?.name;
+interface ContentInfo {
+    type: string;
+    sprite: string;
+    name: string;
+    terrain: string;
+}
 
+const contentInfo = computed<ContentInfo>(() => {
+    const c = tileContent.value;
+    
+    // Check specific types first
+    if (c instanceof UnBuiltLand) {
+         return {
+             type: 'UnBuiltLand',
+             sprite: `terrain.${c.terrain}`, // Use terrain icon for unbuilt land
+             name: c.name,
+             terrain: c.terrain
+         };
+    }
+
+    const resolvedType = c?.name;
     if (c instanceof Alveolus || resolvedType) {
-        // Alveolus
-        const def = resolvedType ? alveoli[resolvedType as keyof typeof alveoli] : undefined;
+        // Use a more relaxed type for dynamic access to avoid 'never' errors
+        const def = resolvedType ? (alveoli as Record<string, any>)[resolvedType] : undefined;
         return {
             type: resolvedType || 'unknown',
-            sprite: def?.sprites?.[0] || '',
-            name: resolvedType || 'Unknown', // i18n missing
-
-            terrain: 'concrete'
+            sprite: def?.icon || (Array.isArray(def?.sprites) ? def.sprites[0] : ''),
+            name: resolvedType || 'Unknown',
+            terrain: (c as any).terrain || 'concrete' // Support Alveolus terrain or fallback
         };
     }
+
     return {
-         terrain: c instanceof UnBuiltLand ? c.terrain : 'concrete'
+         type: '',
+         sprite: '',
+         name: '',
+         terrain: c instanceof UnBuiltLand ? (c as UnBuiltLand).terrain : 'concrete'
     };
 });
 
@@ -108,11 +121,12 @@ const walkTimeColor = computed(() => {
 <template>
     <div class="tile-properties" :class="{ 'dark-terrain': isDark }" :style="terrainBackgroundStyle">
         <!-- Main title/icon -->
-        <div v-if="contentInfo.type" class="header-badge">
+        <div v-if="contentInfo.type || contentInfo.name" class="header-badge">
              <EntityBadge
                 :game="game"
                 :sprite="contentInfo.sprite"
                 :text="contentInfo.name"
+                :height="24"
              />
         </div>
 
