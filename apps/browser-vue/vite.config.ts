@@ -73,8 +73,6 @@ export default defineConfig({
       '$lib': path.resolve(__dirname, '../../engines/ssh/src/lib'),
       '$assets': path.resolve(__dirname, '../../engines/ssh/assets'),
       '@app': path.resolve(__dirname, '../../engines/ssh/src'),
-      'mutts': path.resolve(__dirname, './src/mutts-shim.ts'), 
-      'npc-script': path.resolve(__dirname, '../../packages/npcs'),
     },
     preserveSymlinks: false 
     // Actually, if we point to real paths, preserveSymlinks matters less for these aliases.

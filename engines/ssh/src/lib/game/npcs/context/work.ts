@@ -14,6 +14,7 @@ import { subject } from '../scripts'
 import { DurationStep, MultiMoveStep, WaitForPredicateStep } from '../steps'
 import type { WorkPlan } from '.'
 
+
 // Unified handling for both single and multiple movements
 // Prepare all movements: fulfill source, allocate hop, create moving good
 interface MovementData {
@@ -75,15 +76,11 @@ class WorkFunctions {
 
 		for (const mg of movements) {
 			if (!mg.allocations?.source) {
-				console.error('Source allocation missing for movement', mg)
-				console.log('mg keys:', Object.keys(mg))
-				const proto = Object.getPrototypeOf(mg)
-				console.log('mg prototype:', proto)
-				if (proto) console.log('mg prototype keys:', Object.keys(proto))
-				console.log('mg.allocations:', mg.allocations)
+				console.error('Source allocation missing for movement', mg.goodType, 'path:', mg.path.length)
 				throw new Error('Source allocation missing')
 			}
 			mg.allocations.source.fulfill()
+			const from = mg.from
 			const hop = mg.hop()!
 
 			const nextStorage = hive.storageAt(hop)
@@ -93,7 +90,7 @@ class WorkFunctions {
 				: undefined
 
 			const moving = character.game.hex.freeGoods.add(alveolus.tile, mg.goodType, {
-				position: mg.from,
+				position: from,
 				available: false,
 			})
 
@@ -127,6 +124,7 @@ class WorkFunctions {
 					hopAlloc?.cancel()
 					mg.allocations.source.cancel()
 					mg.allocations.target.cancel()
+					character.game.hex.freeGoods.add(character.tile, mg.goodType)
 					mg.finish()
 				}
 			})
@@ -156,6 +154,7 @@ class WorkFunctions {
 									movement: mg,
 								},
 							)
+							mg.place()
 						}
 					}
 				} catch (e) {

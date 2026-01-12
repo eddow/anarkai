@@ -33,12 +33,17 @@ export class Population extends withContainer(withHittable(GameObject)) {
 		this.add(character)
 		return character
 	}
+	character(uid: string): Character {
+		const character = this.characters.get(uid)
+		if (!character) throw new Error(`Character ${uid} not found`)
+		return character
+	}
 
 	// Remove a character
-	removeCharacter(name: string): boolean {
-		const character = this.characters.get(name)
+	removeCharacter(uid: string): boolean {
+		const character = this.characters.get(uid)
 		if (character) {
-			this.characters.delete(name)
+			this.characters.delete(uid)
 			this.delete(character)
 			return true
 		}

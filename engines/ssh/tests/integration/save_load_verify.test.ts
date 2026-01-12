@@ -57,7 +57,9 @@ if (typeof fetch === 'undefined' || true) {
     })
 }
 
-import { describe, it, expect, vi, beforeAll } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+import { Game } from '$lib/game/game'
+import { MoveToStep, EatStep, DurationStep, MultiMoveStep } from '$lib/game/npcs/steps'
 
 // Mock assets/resources
 vi.mock('$assets/resources', () => ({
@@ -94,29 +96,12 @@ vi.mock('$assets/game-content', () => {
 })
 
 describe('Save/Load Determinism', () => {
-    // Shared types from dynamic import
-    let Game: any
-    let MoveToStep: any
-    let EatStep: any
-    let DurationStep: any
-    let MultiMoveStep: any
-
-    // Use beforeAll to ensure dependencies are loaded before tests run
-    beforeAll(async () => {
-        const gameModule = await import('./game')
-        Game = gameModule.Game
-        const stepsModule = await import('./npcs/steps')
-        MoveToStep = stepsModule.MoveToStep
-        EatStep = stepsModule.EatStep
-        DurationStep = stepsModule.DurationStep
-        MultiMoveStep = stepsModule.MultiMoveStep
-
-        // Patch getTexture to avoid rendering errors in headless mode
-        Game.prototype.getTexture = () => ({ 
-            defaultAnchor: { x: 0.5, y: 0.5 }, 
-            width: 1, 
-            height: 1 
-        })
+    // Use static imports
+    // Patch getTexture to avoid rendering errors in headless mode
+    Game.prototype.getTexture = () => ({ 
+        defaultAnchor: { x: 0.5, y: 0.5 }, 
+        width: 1, 
+        height: 1 
     })
 
 	it('Scenario 1: Movement Persistence', async () => {

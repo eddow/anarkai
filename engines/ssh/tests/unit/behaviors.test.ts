@@ -57,10 +57,14 @@ if (typeof fetch === 'undefined' || true) {
     })
 }
 
-import { describe, it, expect, vi, beforeAll } from 'vitest'
-import fs from 'fs'
-import path from 'path'
-import { loadNpcScripts } from './npcs/scripts'
+import { describe, it, expect, vi } from 'vitest'
+import { Game } from '$lib/game/game'
+import { subject, protoCtx } from '$lib/game/npcs/scripts'
+import { WorkFunctions } from '$lib/game/npcs/context/work'
+import { InventoryFunctions } from '$lib/game/npcs/context/inventory'
+import { WalkFunctions } from '$lib/game/npcs/context/walk'
+import { FindFunctions } from '$lib/game/npcs/context/find'
+import { PlanFunctions } from '$lib/game/npcs/context/plan'
 
 // Mock assets/resources
 vi.mock('$assets/resources', () => ({
@@ -100,17 +104,7 @@ vi.mock('$assets/game-content', () => {
 })
 
 describe('Behavior Verification', () => {
-    let Game: any
-    let workScript: string
-
-    beforeAll(async () => {
-        const gameModule = await import('./game')
-        Game = gameModule.Game
-        
-
-        // Read the actual work.npcs script
-        workScript = fs.readFileSync(path.resolve(__dirname, '../../../assets/scripts/work.npcs'), 'utf-8')
-    })
+    // Scripts and context are now handled via static imports and default char.scriptsContext
 
     it('Harvest Behavior: Runs and Persists (Savegame)', async () => {
         const game = new Game({ boardSize: 12, terrainSeed: 1234, characterCount: 0 })
@@ -161,30 +155,13 @@ describe('Behavior Verification', () => {
              // Game generation creates UnBuiltLand.
         }
         
-        // Create Context
-        const { InteractiveContext, loadNpcScripts, subject, protoCtx } = await import('./npcs/scripts')
-        // Import context classes
-        const { WorkFunctions } = await import('./npcs/context/work')
-        const { InventoryFunctions } = await import('./npcs/context/inventory')
-        const { WalkFunctions } = await import('./npcs/context/walk')
-        const { FindFunctions } = await import('./npcs/context/find')
-        const { PlanFunctions } = await import('./npcs/context/plan')
-
-        const context = new InteractiveContext()
-        ;(context as any)[subject] = char
-        // Helper to bind and assign
-        const bind = (Class: any, name: string) => {
-            const instance = protoCtx(Class)
-            instance[subject] = char
-            ;(context as any)[name] = instance
-        }
+        // Use default scriptsContext which has all scripts loaded
+        const context = char.scriptsContext;
+        void context; // Trigger loading
         
-        bind(WorkFunctions, 'work')
-        bind(InventoryFunctions, 'inventory')
-        bind(WalkFunctions, 'walk')
-        bind(FindFunctions, 'find')
-        bind(PlanFunctions, 'plan')
-        ;(context as any).I = char // Expose I as character
+        // char.scriptsContext already has these bound, but if we want to ensure they are the ones we imported:
+        // bind(WorkFunctions, 'work')
+        // ...
 
         // Mock find.path to avoid complex pathfinding if needed, or let it run if it works.
         // For simple adjacent tiles, it might work.
@@ -193,11 +170,10 @@ describe('Behavior Verification', () => {
         // Let's spy/mock it on the instance.
         // (context as any).find.path = vi.fn().mockReturnValue([{ q: 3, r: 2 }]) // Simple path to target
         
-        // Load scripts
-        // Using a path that splits correctly to 'work'
-        loadNpcScripts({ '/scripts/work.npcs': workScript }, context)
+        // Scripts are loaded by default via scriptsContext
+        void context;
         
-        const work = (context as any).work
+        const work = context.work
         if (!work) throw new Error('work namespace not loaded')
         if (!work.harvest) throw new Error('harvest not loaded') 
         // work.npcs returns { goWork, harvest, ... } so they should be on context.
@@ -245,7 +221,7 @@ describe('Behavior Verification', () => {
         game2.loadGameData(saveState)
         
         // Provide character retrieval logic
-        const char2 = game2.population.characters.get(char.uid)
+        const char2 = game2.population.character(char.uid)
         expect(char2).toBeDefined()
     })
 
@@ -283,17 +259,10 @@ describe('Behavior Verification', () => {
         
         char.assignedAlveolus = alveolus as any
         
-        // Context setup
-        const { InteractiveContext, loadNpcScripts, subject, protoCtx } = await import('./npcs/scripts')
-        // Import context classes
-        const { WorkFunctions } = await import('./npcs/context/work') // Singleton-ish? No, new instance per context.
-        const { InventoryFunctions } = await import('./npcs/context/inventory')
-        const { WalkFunctions } = await import('./npcs/context/walk')
-        const { FindFunctions } = await import('./npcs/context/find')
-        const { PlanFunctions } = await import('./npcs/context/plan')
+        // Use default scriptsContext which has all scripts loaded
+        const context = char.scriptsContext as any;
+        void context; // Trigger loading
 
-        const context = new InteractiveContext()
-        ;(context as any)[subject] = char
         const bind = (Class: any, name: string) => {
             const instance = protoCtx(Class)
             instance[subject] = char
@@ -304,9 +273,9 @@ describe('Behavior Verification', () => {
         bind(WalkFunctions, 'walk')
         bind(FindFunctions, 'find')
         bind(PlanFunctions, 'plan')
-        ;(context as any).I = char
 
-        loadNpcScripts({ '/scripts/work.npcs': workScript }, context)
+        // Scripts are loaded by default via scriptsContext
+        void context;
         
         const work = (context as any).work
         
@@ -340,7 +309,7 @@ describe('Behavior Verification', () => {
         const game2 = new Game({ boardSize: 12, terrainSeed: 555, characterCount: 0 })
         await game2.loaded
         game2.loadGameData(saveState)
-        const char2 = game2.population.characters.get(char.uid)
+        const char2 = game2.population.character(char.uid)
         expect(char2).toBeDefined()
     })
 })

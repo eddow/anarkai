@@ -15,7 +15,11 @@ if (typeof document === 'undefined') {
 if (typeof window === 'undefined') {(global as any).window = global}
 if (typeof navigator === 'undefined') {(global as any).navigator = { userAgent: 'node' }}
 
-import { describe, it, expect, vi, beforeAll } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+import { Game } from '$lib/game/game'
+import { MoveToStep } from '$lib/game/npcs/steps'
+import { InventoryFunctions } from '$lib/game/npcs/context/inventory'
+import { subject } from '$lib/game/npcs/scripts'
 
 // Mock Debug to silence rendering assertions
 vi.mock('$lib/debug', () => ({
@@ -69,15 +73,9 @@ if (typeof fetch === 'undefined' || true) {
 }
 
 describe('Evolutive & Determinism Tests', () => {
-    let Game: any
-    
-    beforeAll(async () => {
-        const gameModule = await import('./game')
-        Game = gameModule.Game
-        
-        // Patch getTexture
-        Game.prototype.getTexture = () => ({ defaultAnchor: { x: 0.5, y: 0.5 }, width: 1, height: 1 })
-    })
+    // Use static imports
+    // Patch getTexture
+    Game.prototype.getTexture = () => ({ defaultAnchor: { x: 0.5, y: 0.5 }, width: 1, height: 1 })
 
     it('Determinism: Complex State Persistence', async () => {
         // Setup a semi-complex state with patches and manual chars
@@ -185,11 +183,7 @@ describe('Evolutive & Determinism Tests', () => {
         
         expect((sourceStorage as any).available('wood')).toBe(1)
         
-        const Steps = await import('./npcs/steps')
-        const MoveToStep = Steps.MoveToStep
-        const { InventoryFunctions } = await import('./npcs/context/inventory')
-        const { subject } = await import('./npcs/scripts')
-        
+        // Use static imports
         // Setup inventory function context
         const inventory = new InventoryFunctions()
         ;(inventory as any)[subject] = worker

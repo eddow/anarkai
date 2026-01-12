@@ -1,6 +1,6 @@
 
 import { describe, it, expect } from 'vitest'
-import { TestEngine } from '../../../test-engine'
+import { TestEngine } from '@app/test-engine'
 
 describe('Hive Offload Scenario', () => {
 
@@ -29,24 +29,14 @@ describe('Hive Offload Scenario', () => {
             ]
         };
         
-        // Helper to load scripts
-        const scripts: Record<string, string> = {};
-        const files = ['work.npcs', 'inventory.npcs', 'walk.npcs', 'selfCare.npcs'];
-        for (const file of files) {
-             scripts['/scripts/' + file] = engine.loadScript(file);
-        }
-        
-        // Import loadNpcScripts to inject
-        const { loadNpcScripts } = await import('../npcs/scripts');
-        
         console.log('Loading scenario...');
         engine.loadScenario(scenario as any);
         
         // Add Character manually
         const char = engine.spawnCharacter('Worker', { q: 2, r: 2 });
         
-        // Inject scripts
-        loadNpcScripts(scripts, char.scriptsContext);
+        // Scripts are loaded by default via scriptsContext access or engine defaults
+        void char.scriptsContext;
         
         // Verify Initial State
         const tile = game.hex.getTile({ q: 2, r: 2 });
@@ -159,16 +149,10 @@ describe('Hive Offload Scenario', () => {
              ]
          };
          
-         const scripts: Record<string, string> = {};
-         const files = ['work.npcs', 'inventory.npcs', 'walk.npcs', 'selfCare.npcs'];
-         for (const file of files) {
-              scripts['/scripts/' + file] = engine.loadScript(file);
-         }
-         const { loadNpcScripts } = await import('../npcs/scripts');
          engine.loadScenario(scenario as any);
          
          const char = engine.spawnCharacter('Worker', center);
-         loadNpcScripts(scripts, char.scriptsContext);
+         void char.scriptsContext;
          
          // Trigger offload
          const bestJob = char.findBestJob();

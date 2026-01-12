@@ -1,7 +1,8 @@
 
 import { describe, it, expect } from 'vitest'
-import { TestEngine } from '../../../test-engine'
-import { UnBuiltLand } from '../board/content/unbuilt-land'
+import { TestEngine } from '@app/test-engine'
+import { UnBuiltLand } from '$lib/game/board/content/unbuilt-land'
+import { GoodType } from '$lib/types';
 
 describe('NPC Behaviors Integration', () => {
     
@@ -10,23 +11,13 @@ describe('NPC Behaviors Integration', () => {
         const engine = new TestEngine(options);
         await engine.init();
         
-        const scripts: Record<string, string> = {};
-        const files = ['work.npcs', 'inventory.npcs', 'walk.npcs', 'selfCare.npcs', 'find.npcs']; 
-        // Note: find.npcs might be implicit context? Usually 'find' is context. 
-        // work.npcs calls find.* context methods.
-        // Assuming strictly needed scripts:
-        const scriptFiles = ['work.npcs', 'inventory.npcs', 'walk.npcs', 'selfCare.npcs'];
-        for (const file of scriptFiles) {
-             scripts['/scripts/' + file] = engine.loadScript(file);
-        }
-        
-        const { loadNpcScripts } = await import('../npcs/scripts');
+        // Scripts are loaded by default in the engine population logic via scriptsContext access.
         
         // Spawn helper
         async function spawnWorker(coord: { q: number, r: number }) {
             const char = await engine.spawnCharacter('Worker', coord);
             char.role = 'worker'; // Should be default
-            loadNpcScripts(scripts, char.scriptsContext);
+            void char.scriptsContext; // Trigger default loading if not already done
             
             // Kickstart the character logic since gameStart has already occurred
             const action = char.findAction();
@@ -196,9 +187,9 @@ describe('NPC Behaviors Integration', () => {
              constructor: { name: 'BuildAlveolus' }, // Fake constructor check
              storage: {
                  // Mock storage behaviors
-                 stock: { wood: 0 },
-                 addGood: function(g: string, n: number) { this.stock[g] = (this.stock[g]||0) + n; },
-                 removeGood: function(g: string, n: number) { this.stock[g] = (this.stock[g]||0) - n; },
+                 stock: { wood: 0 } as Record<GoodType, number | undefined>,
+                 addGood: function(g: GoodType, n: number) { this.stock[g] = (this.stock[g]||0) + n; },
+                 removeGood: function(g: GoodType, n: number) { this.stock[g] = (this.stock[g]||0) - n; },
                  reserve: () => ({ fulfill: () => {}, cancel: () => {} }), 
                  allocate: () => ({ fulfill: () => {}, cancel: () => {} }),
                  maxAmounts: { wood: 10 }
@@ -269,13 +260,7 @@ describe('NPC Behaviors Integration', () => {
 
         // 2. Spawn worker
         const char = await engine.spawnCharacter('Worker', { q: 0, r: 0 });
-        const { loadNpcScripts } = await import('../npcs/scripts');
-        const scriptFiles = ['work.npcs', 'inventory.npcs', 'walk.npcs', 'selfCare.npcs'];
-        const scripts: Record<string, string> = {};
-        for (const file of scriptFiles) {
-             scripts['/scripts/' + file] = engine.loadScript(file);
-        }
-        loadNpcScripts(scripts, char.scriptsContext);
+        void char.scriptsContext;
 
         // 3. Set hunger
         char.hunger = 800;

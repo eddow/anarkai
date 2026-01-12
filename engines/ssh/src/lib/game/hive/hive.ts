@@ -25,6 +25,7 @@ export interface MovingGood {
 		target: AllocationBase
 	}
 	hop(): AxialCoord
+	place(): void
 	finish(): void
 }
 
@@ -229,8 +230,8 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		// Merge manual needs
 		for (const [good, _amount] of Object.entries(this.manualNeeds)) {
 			// Priority 2-use for manual needs to ensure they are picked up
-			if ('priority' in (calculatedNeeds[good as GoodType] || {})) continue // Don't override existing?
-			;(calculatedNeeds as any)[good] = '2-use'
+			if (calculatedNeeds[good as GoodType]) continue // Don't override existing demand
+			calculatedNeeds[good as GoodType] = '2-use'
 		}
 		return calculatedNeeds
 	}
@@ -265,7 +266,9 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		let from = positions.provider
 		let list = this.movingGoods.get(from) ?? []
 		function removeFromList(good: MovingGood) {
-			list.splice(list.indexOf(good), 1)
+			const idx = list.indexOf(good)
+			if (idx === -1) return
+			list.splice(idx, 1)
 			if (list.length === 0) movingGoods.delete(from)
 		}
 		const movingGood: MovingGood = {
@@ -280,13 +283,13 @@ export class Hive extends AdvertisementManager<Alveolus> {
 			hop() {
 				const rv = path.shift()!
 				removeFromList(movingGood)
-				if (movingGood.path.length) {
-					from = rv
-					if (!movingGoods.has(rv)) movingGoods.set(rv, [])
-					list = movingGoods.get(rv)!
-					list.push(movingGood)
-				}
+				from = rv
 				return rv
+			},
+			place() {
+				if (!movingGoods.has(from)) movingGoods.set(from, [])
+				list = movingGoods.get(from)!
+				list.push(movingGood)
 			},
 			finish() {
 				removeFromList(movingGood)

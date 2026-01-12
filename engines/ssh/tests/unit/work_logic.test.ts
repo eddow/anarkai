@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { Game } from './game'
-import { Character } from './population/character'
-import { Position } from '$lib/utils'
-import { InventoryFunctions } from './npcs/context/inventory'
-import { subject } from './npcs/scripts'
-import type { Tile } from './board/tile'
+import { Game } from '$lib/game/game'
+import { Character } from '$lib/game/population/character'
+import { InventoryFunctions } from '$lib/game/npcs/context/inventory'
+import { subject } from '$lib/game/npcs/scripts'
+import type { Tile } from '$lib/game/board/tile'
 
 // Mock Game.prototype.getTexture before imports
 // We still need to patch Game definition because it's not a global, it's a class from valid import.

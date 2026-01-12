@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { AxialCoord } from './axial'
-import { findBest, findNearest, findPath, type GetNeighbors, heuristic } from './pathfinding'
+import type { AxialCoord } from '$lib/utils/axial'
+import { findBest, findNearest, findPath, type GetNeighbors, heuristic } from '$lib/utils/pathfinding'
 
 // Helper function to create a simple grid for testing
 function createGridNeighbors(size: number, obstacles: Set<string> = new Set()): GetNeighbors {

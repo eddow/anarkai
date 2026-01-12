@@ -16,7 +16,7 @@
     "biome": "biome check . --fix",
     "biome:unsafe": "biome check --fix --unsafe",
     "test": "vitest run",
-    "test:core": "vitest run src/lib/game/job.test.ts src/lib/utils/pathfinding.test.ts src/lib/game/storage/storage.test.ts",
+    "test:core": "vitest run tests/unit/work_logic.test.ts tests/unit/pathfinding.test.ts tests/unit/storage.test.ts",
     "test:watch": "vitest",
     "test:ui": "vitest --ui"
   },
@@ -27,9 +27,9 @@
     "arktype": "^2.1.22",
     "dockview-core": "^4.7.1",
     "eventemitter3": "^5.0.1",
-    "mutts": "workspace:*",
-    "npc-script": "workspace:*",
-    "omni18n": "workspace:*",
+    "mutts": "link:../../../ownk/mutts",
+    "npc-script": "link:../../../ownk/npcs",
+    "omni18n": "link:../../../ownk/omni18n",
     "typescript": "~5.8.3",
     "vite": "^7.1.2",
     "vitest": "^3.2.4"

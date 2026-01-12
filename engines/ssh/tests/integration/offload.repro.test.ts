@@ -1,8 +1,7 @@
 
-import { describe, it, expect, vi, beforeAll } from 'vitest'
-import fs from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
+import { describe, it, expect, vi } from 'vitest'
+import { Game } from '$lib/game/game'
+import { InventoryFunctions } from '$lib/game/npcs/context/inventory'
 
 // Mock environment
 if (typeof document === 'undefined') {
@@ -33,41 +32,7 @@ vi.mock('$assets/game-content', () => ({
 }))
 
 describe('Offload Silent Cancellation Reproduction', () => {
-    let Game: any
-    let workScript: string
-    let inventoryScript: string
-    let InteractiveContext: any
-    let loadNpcScripts: any
-    let subject: any
-    let protoCtx: any
-    let WorkFunctions: any
-    let InventoryFunctions: any
-    let WalkFunctions: any
-    let FindFunctions: any
-    let PlanFunctions: any
-
-    beforeAll(async () => {
-        const gameModule = await import('./game')
-        Game = gameModule.Game
-        
-        // Read the actual work.npcs script
-        // Correct path relative to this file: ../../../assets/scripts/work.npcs (since we are in src/lib/game)
-        const __dirname = path.dirname(fileURLToPath(import.meta.url))
-        workScript = fs.readFileSync(path.resolve(__dirname, '../../../assets/scripts/work.npcs'), 'utf-8')
-        inventoryScript = fs.readFileSync(path.resolve(__dirname, '../../../assets/scripts/inventory.npcs'), 'utf-8')
-
-        const scriptsModule = await import('./npcs/scripts')
-        InteractiveContext = scriptsModule.InteractiveContext
-        loadNpcScripts = scriptsModule.loadNpcScripts
-        subject = scriptsModule.subject
-        protoCtx = scriptsModule.protoCtx
-
-        WorkFunctions = (await import('./npcs/context/work')).WorkFunctions
-        InventoryFunctions = (await import('./npcs/context/inventory')).InventoryFunctions
-        WalkFunctions = (await import('./npcs/context/walk')).WalkFunctions
-        FindFunctions = (await import('./npcs/context/find')).FindFunctions
-        PlanFunctions = (await import('./npcs/context/plan')).PlanFunctions
-    })
+    // Scripts and context are now handled via static imports and default char.scriptsContext
 
     it('Reproduction: Offload work cancels silently', async () => {
         const game = new Game({ boardSize: 12, terrainSeed: 1234, characterCount: 0 })
@@ -90,30 +55,14 @@ describe('Offload Silent Cancellation Reproduction', () => {
         expect(goodsAtTile.length).toBeGreaterThan(0)
         expect(goodsAtTile[0].goodType).toBe('wood')
 
-        // Create Context
-        const context = new InteractiveContext()
-        ;(context as any)[subject] = char
-        const bind = (Class: any, name: string) => {
-            const instance = protoCtx(Class)
-            instance[subject] = char
-            ;(context as any)[name] = instance
-        }
+        // Use default scriptsContext which has all scripts loaded
+        const context = char.scriptsContext as any;
         
-        bind(WorkFunctions, 'work')
-        bind(InventoryFunctions, 'inventory')
-        bind(WalkFunctions, 'walk')
-        bind(FindFunctions, 'find')
-        bind(PlanFunctions, 'plan')
-        ;(context as any).I = char
+        // Ensure scripts are loaded (it's a getter that triggers loading)
+        void context; 
 
         // Mock find.path to return a valid path and avoid test environment crash
-        ;(context as any).find.path = vi.fn().mockImplementation((dest) => [dest])
-
-        // Load scripts
-        loadNpcScripts({ 
-            '/scripts/work.npcs': workScript,
-            '/scripts/inventory.npcs': inventoryScript
-        }, context)
+        context.find.path = vi.fn().mockImplementation((dest) => [dest])
         
         const work = (context as any).work
         if (!work.offload) throw new Error('offload not loaded') 
