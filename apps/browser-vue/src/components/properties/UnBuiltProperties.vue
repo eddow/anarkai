@@ -50,7 +50,7 @@ const isClearing = useMutts(() => !props.content.tile.isClear);
 
     <PropertyGridRow v-if="deposit" :label="T.deposit">
         <EntityBadge
-            v-if="deposit.name"
+            v-if="deposit.name && deposit.sprites && deposit.sprites.length > 0"
             :game="game"
             :sprite="deposit.sprites[0]"
             :text="deposit.name"

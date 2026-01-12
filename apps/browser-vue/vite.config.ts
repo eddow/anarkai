@@ -2,16 +2,58 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import fs from 'node:fs'
 import { cssTagPlugin } from './vite-plugin-css-tag'
+
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 // https://vitejs.dev/config/
 export default defineConfig({
+
   plugins: [
     vue(),
-    cssTagPlugin()
+    cssTagPlugin(),
+    {
+        name: 'serve-pixi-assets',
+        configureServer(server) {
+            server.middlewares.use('/pixi-assets', (req, res, next) => {
+                const url = req.url?.split('?')[0] || '';
+                const targetPath = path.resolve(__dirname, '../../engines/pixi/assets', '.' + url);
+                
+                if (fs.existsSync(targetPath) && fs.statSync(targetPath).isFile()) {
+                    const ext = path.extname(targetPath).toLowerCase();
+                    const mimeTypes: Record<string, string> = {
+                        '.png': 'image/png',
+                        '.jpg': 'image/jpeg',
+                        '.jpeg': 'image/jpeg',
+                        '.json': 'application/json',
+                        '.atlas': 'text/plain',
+                        '.txt': 'text/plain'
+                    };
+                    const mime = mimeTypes[ext] || 'application/octet-stream';
+                    res.setHeader('Content-Type', mime);
+                    fs.createReadStream(targetPath).pipe(res);
+                } else {
+                    next();
+                }
+            });
+        },
+        closeBundle() {
+             const src = path.resolve(__dirname, '../../engines/pixi/assets');
+             const dest = path.resolve(__dirname, 'dist/pixi-assets');
+             if (!fs.existsSync(dest)) {
+                 fs.mkdirSync(dest, { recursive: true });
+             }
+             const { execSync } = require('node:child_process');
+             try {
+                execSync(`cp -r "${src}/." "${dest}/"`);
+             } catch (e) {
+                console.warn('Failed to copy pixi assets', e);
+             }
+        }
+    }
   ],
   css: {
     preprocessorOptions: {
@@ -24,7 +66,8 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@ssh': path.resolve(__dirname, '../../engines/ssh/src'),
-      'ssh': path.resolve(__dirname, '../../engines/ssh/src'),
+      'engine-pixi': path.resolve(__dirname, '../../engines/pixi'),
+      'ssh': path.resolve(__dirname, '../../engines/ssh'),
       '$lib': path.resolve(__dirname, '../../engines/ssh/src/lib'),
       '$assets': path.resolve(__dirname, '../../engines/ssh/assets'),
       '@app': path.resolve(__dirname, '../../engines/ssh/src'),
@@ -46,6 +89,8 @@ export default defineConfig({
         ignored: ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/coverage/**'],
     },
   },
+  // Serve engines/pixi/assets as /assets/pixi
+  publicDir: "public",
   esbuild: {
     target: "es2022",
     tsconfigRaw: {
@@ -69,7 +114,7 @@ export default defineConfig({
               '@app': path.resolve(__dirname, '../../engines/ssh/src'),
           }
       },
-      exclude: ['ssh', 'mutts', 'npc-script', 'omni18n', 'pounce-ts', 'pounce-ui'],
+      exclude: ['ssh', 'engine-pixi', 'mutts', 'npc-script', 'omni18n', 'pounce-ts', 'pounce-ui'],
       include: [
         'pixi.js',
         'arktype',

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, shallowRef } from 'vue';
 import { Button, Toolbar, ButtonGroup, ToolbarSpacer } from './components'; 
 import Dockview from './components/Dockview.vue';
 import ResourceImage from './components/ResourceImage.vue';
@@ -14,7 +14,7 @@ import { useMutts, useMuttsEffect } from './lib/mutts-vue';
 const game = games.game('GameX');
 
 // Dockview API Ref
-const api = ref<any>(null);
+const api = shallowRef<any>(null);
 
 // Setup local state synced with globals
 const LAYOUT_KEY = 'ssh-vue:dockview-layout';

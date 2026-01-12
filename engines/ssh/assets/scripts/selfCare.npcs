@@ -1,0 +1,23 @@
+function goEat()
+	do while I.hunger > I.triggerLevels.hunger.satisfied
+		food = I.carriedFood
+		if food then
+			selfCare.eat food
+			continue
+		end if
+		inventory.makeRoom
+		found = find.food()
+		if not found then debugger
+		inventory.grabFree found.good, found.tile, found.path
+	loop
+end function
+
+function wander()
+	destination = find.wanderingTile()
+	if not destination.path then return false
+	walk.into destination.path
+	selfCare.pondering
+end function
+
+return { goEat, wander }
+

@@ -1,0 +1,50 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"lib": [
+			"ESNext",
+			"DOM",
+			"DOM.Iterable"
+		],
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"allowSyntheticDefaultImports": true,
+		"allowImportingTsExtensions": true,
+		"resolveJsonModule": true,
+		"isolatedModules": true,
+		"noEmit": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"experimentalDecorators": true,
+		"emitDecoratorMetadata": true,
+		"noUnusedLocals": false,
+		"noUnusedParameters": false,
+		"noFallthroughCasesInSwitch": true,
+		"types": [
+			"vite/client"
+		],
+		"baseUrl": ".",
+		"paths": {
+			"$lib/*": [
+				"./src/lib/*",
+				"../ssh/src/lib/*"
+			],
+			"@app/*": [
+				"./src/*"
+			],
+			"ssh/*": [
+				"../ssh/*"
+			],
+			// "@ssh/*": [ "../ssh/src/*" ], // Deprecated in favor of ssh package
+			"$assets/*": [
+				"../ssh/assets/*"
+			]
+		}
+	},
+	"include": [
+		"src/**/*.ts",
+		"src/**/*.d.ts",
+		"assets/visual-content.ts",
+		"../ssh/src/**/*.d.ts"
+	]
+}

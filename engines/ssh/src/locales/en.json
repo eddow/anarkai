@@ -1,0 +1,91 @@
+{
+	"ui": {
+		"configuration": "Configuration",
+		"debug": "Debug",
+		"games": "Games",
+		"select": "Select",
+		"toggleDarkMode": "Toggle dark mode",
+		"resetLayout": "Reset layout",
+		"debugInfo": "Debug Info",
+		"selection": "Selection",
+		"none": "None",
+		"wheelZoomLookAt": "Wheel = zoom + look-at",
+		"bothButtonsPan": "Both left+right down = pan",
+		"timeControl": {
+			"pause": "Pause",
+			"play": "Play",
+			"fastForward": "Fast Forward",
+			"gonzales": "Really Fast Forward"
+		}
+	},
+	"game": {
+		"gameTitle": "Game {game}"
+	},
+	"tile": {
+		"content": "Content",
+		"walkTime": "Walk Time",
+		"unwalkable": "Unwalkable"
+	},
+	"character": {
+		"hunger": "Hunger",
+		"tiredness": "Tiredness",
+		"fatigue": "Fatigue",
+		"currentActivity": "Current Activity",
+		"activityDescriptions": "Activity Descriptions",
+		"noActivity": "No activity"
+	},
+	"step": {
+		"idle": "Idle",
+		"move-to": "Move to",
+		"grab": "Grab",
+		"drop": "Drop",
+		"eat": "Chew",
+		"pondering": "Pondering about life",
+		"prepare": "Prepare to work",
+		"harvest": {
+			"tree_chopper": "Chop tree",
+			"stonecutter": "Cut stone"
+		},
+		"transform": {
+			"sawmill": "Saw wood"
+		},
+		"convey": "Convey",
+		"foundation": "Laying foundation",
+		"queue": "Queue",
+		"pickup": "Pick up",
+		"construct": "Construct"
+	},
+	"alveolus": {
+		"alveolus": "Alveolus",
+		"output": "Output",
+		"action": "Action",
+		"time": "Time",
+		"workTime": "Work Time",
+		"configuration": "Configuration",
+		"walkway": "Walkway",
+		"conveyor": "Conveyor",
+		"walkwayTooltip": "Allow characters to walk through this alveolus",
+		"conveyorTooltip": "Allow unrelated goods to pass through this alveolus",
+		"commands": "Commands",
+		"working": "Working",
+		"workingTooltip": "Toggle working state",
+		"cleanUp": "Clean up",
+		"cleanUpTooltip": "Clean up alveolus",
+		"cleanUpConfirmText": "All stocks will be emptied and left on the ground",
+		"clear": "Clear",
+		"keep": "Keep"
+	},
+	"deposit": "Resources",
+	"goods": {
+		"": "Goods",
+		"loose": "On the ground",
+		"stored": "In stock"
+	},
+	"project": "Project",
+	"clearing": "Clearing",
+	"zones": {
+		"residential": "Residential Zone",
+		"harvest": "Harvest Zone",
+		"unzone": "Remove Zone"
+	}
+}

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue';
-import { GameView } from '@ssh/lib/game/game';
+import { PixiGameRenderer } from 'engine-pixi/src/renderer';
 import { games, interactionMode, selectionState } from '@ssh/lib/globals';
 import { Tile } from '@ssh/lib/game/board/tile';
 import type { InteractiveGameObject } from '@ssh/lib/game';
@@ -13,7 +13,7 @@ const props = defineProps<{
 }>();
 
 const containerRef = ref<HTMLElement | null>(null);
-let gameView: GameView | undefined;
+let gameRenderer: PixiGameRenderer | undefined;
 
 const handleProjectSelection = (object: InteractiveGameObject) => {
     selectionState.selectedUid = object.uid;
@@ -79,15 +79,11 @@ onMounted(() => {
     game.on(gameEvents);
 
     game.loaded.then(() => {
-        if (containerRef.value && !gameView) {
-            try {
-                console.log('Mounting GameView');
-                gameView = new GameView(game, containerRef.value);
-                if (props.api?.accessor) {
-                    // Validation moved to App.vue
-                }
-            } catch(e) {
-                console.error('Failed to mount GameView', e);
+        if (containerRef.value && !gameRenderer) {
+            console.log('Mounting PixiGameRenderer');
+            gameRenderer = new PixiGameRenderer(game, containerRef.value);
+            if (props.api?.accessor) {
+                // Validation moved to App.vue
             }
         }
     });
@@ -95,16 +91,16 @@ onMounted(() => {
     // Use ResizeObserver for robust sizing across layout changes
     const resizeObserver = new ResizeObserver((entries) => {
         for (const entry of entries) {
-            if (entry.target === containerRef.value && gameView?.pixi?.renderer) {
+            if (entry.target === containerRef.value && gameRenderer?.app?.renderer) {
                 const { width, height } = entry.contentRect;
                 if (width > 0 && height > 0) {
                     // Debug logging
-                    if (typeof (gameView as any).resize !== 'function') {
-                        console.error('gameView.resize is missing!', gameView);
-                        console.log('Prototype:', Object.getPrototypeOf(gameView));
-                        console.log('Constructor:', gameView.constructor);
+                    if (typeof (gameRenderer as any).resize !== 'function') {
+                        console.error('gameRenderer.resize is missing!', gameRenderer);
+                        console.log('Prototype:', Object.getPrototypeOf(gameRenderer));
+                        console.log('Constructor:', gameRenderer.constructor);
                     }
-                    gameView.resize(width, height);
+                    gameRenderer.resize(width, height);
                 }
             }
         }
@@ -116,10 +112,10 @@ onMounted(() => {
 
     // Polling to ensure initial size is correct even if ResizeObserver misses the first frame
     const initInterval = setInterval(() => {
-        if (gameView?.pixi?.renderer && containerRef.value) {
+        if (gameRenderer?.app?.renderer && containerRef.value) {
             const rect = containerRef.value.getBoundingClientRect();
             if (rect.width > 0 && rect.height > 0) {
-                gameView.resize(rect.width, rect.height);
+                gameRenderer.resize(rect.width, rect.height);
                 clearInterval(initInterval);
             }
         }
@@ -136,9 +132,9 @@ onUnmounted(() => {
     const game = games.game(gameName);
     game.off(gameEvents);
 
-    if (gameView) {
-        gameView.destroy();
-        gameView = undefined;
+    if (gameRenderer) {
+        gameRenderer.destroy();
+        gameRenderer = undefined;
     }
 });
 

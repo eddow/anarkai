@@ -21,6 +21,7 @@
 		"pixi.js": "^8.14.3",
 		"pounce-ui": "workspace:*",
 		"ssh": "workspace:*",
+		"engine-pixi": "workspace:*",
 		"vue": "^3.4.19"
 	},
 	"devDependencies": {

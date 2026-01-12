@@ -1,0 +1,23 @@
+{
+	"deposits": {
+		"berry_bush": "Buisson de Baies",
+		"rock": "Rocher",
+		"tree": "Arbre"
+	},
+	"alveoli": {
+		"tree_chopper": "Bûcheron",
+		"stonecutter": "Tailleur de Pierre",
+		"sawmill": "Scierie",
+		"gather": "Rassembleur",
+		"storage": "Magasin",
+		"building": "Construction",
+		"engineer": "Ingénieur"
+	},
+	"goods": {
+		"berries": "Baies",
+		"mushrooms": "Champignons",
+		"planks": "Planches",
+		"stone": "Pierre",
+		"wood": "Bois"
+	}
+}

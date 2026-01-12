@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>Anarkai: SSH Engine</title>
+		<style>
+			body {
+				margin: 0;
+				padding: 0;
+				overflow: hidden;
+				background-color: #000;
+				color: #fff;
+				font-family: monospace;
+			}
+
+			#game-container {
+				width: 100vw;
+				height: 100vh;
+			}
+
+			#error-overlay {
+				display: none;
+				position: fixed;
+				top: 0;
+				left: 0;
+				width: 100%;
+				height: 100%;
+				background: rgba(50, 0, 0, 0.9);
+				z-index: 9999;
+				padding: 2rem;
+				box-sizing: border-box;
+				overflow: auto;
+			}
+
+			#error-overlay h1 {
+				color: #ff5555;
+			}
+
+			#error-overlay pre {
+				background: rgba(0, 0, 0, 0.5);
+				padding: 1rem;
+				border: 1px solid #aa0000;
+			}
+		</style>
+		</style>
+		<script>
+			window.addEventListener('error', (event) => {
+				const overlay = document.getElementById('error-overlay');
+				const content = document.getElementById('error-content');
+				if (!overlay || !content) return;
+
+				overlay.style.display = 'block';
+
+				let message = 'Unknown Error';
+				let details = '';
+
+				if (event instanceof ErrorEvent) {
+					message = event.message;
+					details = `${event.filename}:${event.lineno}:${event.colno}\n${event.error ? event.error.stack : ''}`;
+				} else if (event.target && (event.target instanceof HTMLScriptElement || event.target instanceof HTMLLinkElement)) {
+					message = `Resource Load Error: ${event.target.src || event.target.href}`;
+					details = 'Failed to load resource';
+				} else {
+					message = event.message || 'Unknown Error';
+					details = JSON.stringify(event, null, 2);
+				}
+
+				content.innerHTML += `<div style="margin-bottom: 1em; border-bottom: 1px solid #444; padding-bottom: 0.5em;">
+					<p style="color: #ff5555; margin: 0 0 0.5em 0;"><strong>${message}</strong></p>
+					<pre style="margin: 0; white-space: pre-wrap; font-size: 0.8em; color: #ccc;">${details}</pre>
+				</div>`;
+			}, true); // Capture phase to catch resource load errors
+
+			window.addEventListener('unhandledrejection', (event) => {
+				const overlay = document.getElementById('error-overlay');
+				const content = document.getElementById('error-content');
+				if (!overlay || !content) return;
+
+				overlay.style.display = 'block';
+				content.innerHTML += `<div style="margin-bottom: 1em; border-bottom: 1px solid #444; padding-bottom: 0.5em;">
+					<p style="color: #ff5555; margin: 0 0 0.5em 0;"><strong>Unhandled Promise Rejection</strong></p>
+					<pre style="margin: 0; white-space: pre-wrap; font-size: 0.8em; color: #ccc;">${event.reason}</pre>
+				</div>`;
+			});
+		</script>
+	</head>
+
+	<body>
+		<div id="game-container"></div>
+		<div id="error-overlay">
+			<h1>Critical Error</h1>
+			<div id="error-content"></div>
+			<button onclick="window.location.reload()"
+				style="padding: 0.5rem 1rem; background: #cc0000; color: white; border: none; cursor: pointer; margin-top: 1rem;">Reload</button>
+		</div>
+		<script type="module" src="/src/main.ts"></script>
+	</body>
+
+</html>

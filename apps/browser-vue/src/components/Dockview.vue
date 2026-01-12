@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, shallowRef, watch } from 'vue';
+import { ref, onMounted, onUnmounted, shallowRef, watch, markRaw } from 'vue';
 import { DockviewComponent } from 'dockview-core';
 import 'dockview-core/dist/styles/dockview.css';
 import { createApp, type Component } from 'vue';
@@ -50,7 +50,7 @@ onMounted(() => {
     if (!container.value) return;
     updateTheme(props.theme || 'light');
 
-    dockview.value = new DockviewComponent(container.value, {
+    dockview.value = markRaw(new DockviewComponent(container.value, {
         createComponent: (options) => {
             const component = props.widgets[options.name];
             if (component) {
@@ -97,7 +97,7 @@ onMounted(() => {
                 dispose: () => { el.remove(); }
             };
         }
-    });
+    }));
 
     if (props.layout) {
         try {
@@ -128,27 +128,11 @@ onMounted(() => {
     );
 
     // Auto-close empty groups when last panel is removed
-    disposables.push(
-        dockview.value.onDidRemovePanel(() => {
-            // After a panel is removed, check if its group is now empty
-            // We need to defer this check since the group state updates after the event
-            if (!dockview.value) return;
-
-            // Find and remove empty groups
-            for (const group of dockview.value.groups) {
-                if (group.panels.length === 0) {
-                    try {
-                        // Ensure group is still attached before removing
-                        if (dockview.value && dockview.value.groups.includes(group)) {
-                            dockview.value.removeGroup(group);
-                        }
-                    } catch (e) {
-                        // Group may already be disposed
-                    }
-                }
-            }
-        })
-    );
+    // disposables.push(
+    //     dockview.value.onDidRemovePanel(() => {
+    //          // Manual cleanup removed to avoid conflicts with dockview internal logic
+    //     })
+    // );
 
     emit('ready', dockview.value);
 });
