@@ -47,7 +47,8 @@ if (debugMutts) {
 }
 reactiveOptions.maxEffectChain = 2000
 reactiveOptions.maxEffectReaction = 'throw'
-// Disable requestAnimationFrame hook to prevent effect context interference with animation frames
+// Disable requestAnimationFrame zone patching: ensures callbacks run without a parent effect context
+// (does not disable the function itself, just the reactivity engine context propagation)
 reactiveOptions.zones.requestAnimationFrame = false
 enableDevTools()
 

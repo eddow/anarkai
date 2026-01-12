@@ -4,6 +4,8 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'node:fs'
 import { cssTagPlugin } from './vite-plugin-css-tag'
+import { execSync } from 'node:child_process';
+
 
 
 const __filename = fileURLToPath(import.meta.url)
@@ -46,7 +48,7 @@ export default defineConfig({
              if (!fs.existsSync(dest)) {
                  fs.mkdirSync(dest, { recursive: true });
              }
-             const { execSync } = require('node:child_process');
+             // execSync imported at top level
              try {
                 execSync(`cp -r "${src}/." "${dest}/"`);
              } catch (e) {

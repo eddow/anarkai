@@ -10,6 +10,7 @@ import * as gameContent from '$assets/game-content';
 import { games, interactionMode, selectionState, getDockviewLayout, configuration as gameConfig, getObjectInfoPanelId, validateStoredSelectionState } from '@ssh/lib/globals';
 import { configuration as uiConfig } from './lib/globals';
 import { useMutts, useMuttsEffect } from './lib/mutts-vue';
+import { assetManager } from 'engine-pixi/src/asset-manager';
 
 const game = games.game('GameX');
 
@@ -31,6 +32,7 @@ const loadLayout = () => {
 };
 
 const savedLayout = ref(loadLayout());
+const assetsLoaded = ref(false);
 
 // Reactive State using Mutts Composables
 const timeControl = useMutts(() => gameConfig.timeControl); 
@@ -191,7 +193,19 @@ onMounted(() => {
     if (!savedLayout.value) {
         openGamePanel();
     }
+
+    // Initialize asset manager and shim game renderer for immediate icon access
+    (window as any).assetManager = assetManager; // Expose for debugging
+    assetManager.load().then(() => {
+        if (!game.renderer) {
+            game.renderer = {
+                getTexture: (spec: string) => assetManager.getTexture(spec)
+            } as any;
+        }
+        assetsLoaded.value = true;
+    });
 });
+
 
 // Constants
 const timeControls = [
@@ -207,9 +221,18 @@ const zoneActions = [
 	{ value: 'zone:none', label: 'Unzone', icon: 'mdi:eraser' },
 ] as const;
 
-const buildableAlveoli = Object.entries(gameContent.alveoli).filter(
-	([, alveolus]) => 'construction' in alveolus,
-);
+import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content';
+
+const buildableAlveoli = Object.entries(gameContent.alveoli)
+    .filter(([, alveolus]) => 'construction' in alveolus)
+    .map(([name, alveolus]) => {
+        const visual = visualAlveoli[name];
+        return [name, {
+            ...alveolus,
+            sprites: visual?.sprites,
+            icon: visual?.icon
+        }];
+    }) as [string, any][];
 </script>
 
 <template>
@@ -240,7 +263,7 @@ const buildableAlveoli = Object.entries(gameContent.alveoli).filter(
             />
         </ButtonGroup>
         <ToolbarSpacer visible />
-         <ButtonGroup>
+         <ButtonGroup :key="String(assetsLoaded)">
              <Button
                 v-for="[name, alveolus] in buildableAlveoli"
                 :key="name"
@@ -252,8 +275,8 @@ const buildableAlveoli = Object.entries(gameContent.alveoli).filter(
                 <ResourceImage 
                     :game="game"
                     :sprite="alveolus.sprites?.[0]"
-                    :width="24"
-                    :height="24"
+                    :width="30"
+                    :height="30"
                     :alt="name"
                 />
              </Button>

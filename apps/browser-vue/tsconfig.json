@@ -39,6 +39,9 @@
 			],
 			"@pounce/*": [
 				"./node_modules/pounce-ts/src/*"
+			],
+			"engine-pixi/*": [
+				"../../engines/pixi/*"
 			]
 		}
 	},

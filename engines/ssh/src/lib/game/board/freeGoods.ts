@@ -1,7 +1,7 @@
-import { atomic, reactive, type ScopedCallback, unreactive } from 'mutts'
+import { atomic, reactive, unreactive, untracked } from 'mutts'
 
 import { goods } from '$assets/game-content'
-import { assert, namedEffect } from '$lib/debug'
+import { assert } from '$lib/debug'
 import type { GoodType } from '$lib/types'
 import { epsilon } from '$lib/utils'
 import { AxialKeyMap } from '$lib/utils/mem'
@@ -143,23 +143,25 @@ export class FreeGoods extends withTicked(GameObject) {
 	}
 
 	update(deltaSeconds: number): void {
-		// Process each coordinate's goods
-		for (const [, goodsList] of this.goods.entries()) {
-			for (const good of goodsList) {
-				const goodDef = goods[good.goodType]
-				const halfLife = goodDef.halfLife // in seconds
+		untracked(() => {
+			// Process each coordinate's goods
+			for (const [, goodsList] of this.goods.entries()) {
+				for (const good of goodsList) {
+					const goodDef = goods[good.goodType]
+					const halfLife = goodDef.halfLife // in seconds
 
-				// Skip decay for goods with infinite half-life
-				if (!Number.isFinite(halfLife)) {
-					continue
+					// Skip decay for goods with infinite half-life
+					if (!Number.isFinite(halfLife)) {
+						continue
+					}
+
+					// Calculate decay probability using the formula: P = 1 - 2^(-deltaTime/halfLife)
+					const decayProbability = 1 - 2 ** (-deltaSeconds / halfLife)
+
+					// Random chance to decay
+					if (this.game.random() < decayProbability) good.remove()
 				}
-
-				// Calculate decay probability using the formula: P = 1 - 2^(-deltaTime/halfLife)
-				const decayProbability = 1 - 2 ** (-deltaSeconds / halfLife)
-
-				// Random chance to decay
-				if (this.game.random() < decayProbability) good.remove()
 			}
-		}
+		})
 	}
 }

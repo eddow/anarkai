@@ -36,7 +36,7 @@ defineEmits<{
   border-radius: var(--pico-border-radius);
   transition: all 0.2s;
   min-height: auto; 
-  height: 2.5rem; /* Standard pounce height */
+  height: 3rem; /* Standard pounce height */
 }
 
 .v-button:hover {
@@ -58,6 +58,6 @@ defineEmits<{
 }
 
 .v-button__icon {
-    font-size: 1.25rem;
+    font-size: 1.5rem;
 }
 </style>

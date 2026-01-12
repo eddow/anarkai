@@ -45,6 +45,14 @@ export class InteractionManager {
     }
 
     private onPointerDown = (e: FederatedPointerEvent) => {
+        // Middle Mouse Button (1) -> Always Pan
+        if (e.button === 1) {
+            this.isDragging = true
+            this.lastPosition = { x: e.global.x, y: e.global.y }
+            return
+        }
+
+        // Other buttons (Left/Right)
         // If clicking a game object, don't drag camera (unless it's background)
         const object = this.findLogicObject(e.target)
         if (object) {
@@ -54,7 +62,7 @@ export class InteractionManager {
                  this.game.simulateObjectClick(object as InteractiveGameObject, e.nativeEvent as MouseEvent)
             }
         } else {
-            // Start Drag
+            // Start Drag (Left/Right click on background)
             this.isDragging = true
             this.lastPosition = { x: e.global.x, y: e.global.y }
         }

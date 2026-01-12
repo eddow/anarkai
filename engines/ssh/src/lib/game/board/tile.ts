@@ -48,6 +48,7 @@ export class Tile extends withInteractive(GameObject) {
 	}
 
 	get title(): string {
+		if (!this.position) return 'Tile (Initializing)'
 		const axial = toAxialCoord(this.position)
 		return axial ? `Tile ${axial.q}, ${axial.r}` : 'Tile (Unknown)'
 	}
