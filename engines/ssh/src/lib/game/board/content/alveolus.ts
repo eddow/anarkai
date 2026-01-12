@@ -99,7 +99,10 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	nextJob?(character?: Character): Job | undefined
 
 	getJob(character?: Character): Job | undefined {
-		if (this.assignedWorker) return undefined
+		if (this.assignedWorker) {
+            console.error(`[Alveolus:${this.name}] getJob blocked: Has assigned worker ${this.assignedWorker.name}`);
+            return undefined
+        }
 		// If the alveolus is burdened by FreeGoods, ask to remove them
 		if (this.isBurdened) {
 			return {
@@ -112,7 +115,12 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		if (carry) return carry
 
 		// Only provide alveolus-specific jobs if working is enabled
-		if (!this.working) return undefined
+		if (!this.working) {
+            console.error(`[Alveolus:${this.name}] getJob blocked: Not working`);
+            return undefined
+        }
+        
+        console.error(`[Alveolus:${this.name}] calling nextJob? ${!!this.nextJob}`);
 		return this.nextJob?.(character)
 	}
 

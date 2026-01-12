@@ -26,7 +26,8 @@ class FindFunctions {
 	food() {
 		const { hex } = this[subject].game
 		function bestFoodOnTile(coord: Positioned): GoodType | null {
-			const tile = hex.getTile(coord)
+			const axialCoord = toAxialCoord(coord)
+			const tile = hex.getTile(axialCoord)
 			if (!tile) return null
 
 			let best: { type: GoodType; fv: number } | null = null
@@ -34,24 +35,23 @@ class FindFunctions {
 			// Check storage goods first (existing behavior)
 			const goodsMap = tile.content!.storage?.stock || {}
 			for (const [good] of Object.entries(goodsMap) as [GoodType, number][]) {
-				if (!tile.content!.storage?.available(good)) continue
-				const def = goodsCatalog[good]
+				if (!tile.content!.storage?.available(good as GoodType)) continue
+				const def = goodsCatalog[good as GoodType]
 				if (!def) continue
-				const fv = 'feedingValue' in def ? def.feedingValue : 0
-				if (fv > 0 && (!best || fv > best.fv)) best = { type: good, fv }
+				const fv = 'feedingValue' in def ? (def as any).feedingValue : 0
+				if (fv > 0 && (!best || fv > best.fv)) best = { type: good as GoodType, fv }
 			}
 
 			// Check free goods on the ground (new behavior)
-			const freeGoods = hex.freeGoods.getGoodsAt(toAxialCoord(coord))
-			for (const freeGood of freeGoods) {
+			const freeGoodsArr = hex.freeGoods.getGoodsAt(axialCoord)
+			for (const freeGood of freeGoodsArr) {
 				// Skip allocated or removed goods
 				if (!freeGood.available) continue
 				const def = goodsCatalog[freeGood.goodType]
 				if (!def) continue
-				const fv = 'feedingValue' in def ? def.feedingValue : 0
+				const fv = 'feedingValue' in def ? (def as any).feedingValue : 0
 				if (fv > 0 && (!best || fv > best.fv)) best = { type: freeGood.goodType, fv }
 			}
-
 			return best?.type ?? null
 		}
 		const start = toAxialCoord(this[subject].tile.position)
@@ -70,6 +70,7 @@ class FindFunctions {
 	}
 	@contract('string')
 	deposit(deposit: string) {
+        console.error(`[FindFunctions] deposit called searching for: ${deposit}`);
 		const { hex } = this[subject].game
 		const start = toAxialCoord(this[subject].tile.position)
 
@@ -220,9 +221,21 @@ class FindFunctions {
 			this[subject],
 			(coord) => {
 				const tile = hex.getTile(coord)
-				// Only allow clearing tiles
-				if (tile?.clearing) return false
-				return 1 / (hex.freeGoods.getGoodsAt(coord).length + 1)
+				if (!tile || !tile.content) return false
+
+                // Must be UnBuiltLand (implies not an Alveolus)
+				if (!(tile.content instanceof UnBuiltLand)) return false
+                
+                // Must not be a project (construction site)
+                if (tile.content.project) return false
+				
+				let score = 1 / (hex.freeGoods.getGoodsAt(coord).length + 1)
+                
+                // Penalize current tile to encourage moving goods away (fixes infinite loop in offload)
+                if (axial.distance(coord, start) < 0.1) {
+                    score *= 0.01
+                }
+                return score
 			},
 			(_coord, walkTime) => walkTime > maxWalkTime,
 			1, // best possible score (minimum cost => score 0 when dist*crowd == 0)

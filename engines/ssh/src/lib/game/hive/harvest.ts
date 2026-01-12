@@ -41,6 +41,7 @@ export class HarvestAlveolus extends TransitAlveolus {
 	// nextJob() replaces both alveolusSpecificJob() and keepWorking
 	// Returns detailed job info including path when called from character
 	nextJob(character?: Character): HarvestJob | undefined {
+        console.error(`[Harvest] nextJob called. Working: ${this.working}, Action: ${this.action.type}, Deposit: ${this.action.deposit}`);
 		if (!this.working) return undefined
 		const startPos = toAxialCoord(character ? character.position : this.tile.position)
 		const hex = this.tile.game.hex
@@ -50,8 +51,20 @@ export class HarvestAlveolus extends TransitAlveolus {
 		const findDeposit = (priority: 'clearing' | 'any') => {
 			const searchFn = (coord: Positioned) => {
 				const tile = hex.getTile(coord)
-				if (!(tile?.content instanceof UnBuiltLand)) return false
-				if (tile.content.deposit?.name !== this.action.deposit) return false
+				if (!(tile?.content instanceof UnBuiltLand)) {
+                    console.error(`[Harvest] Tile ${toAxialCoord(coord)} not UnBuiltLand. Content: ${tile?.content?.constructor.name}`);
+                    return false
+                }
+				if (tile.content.deposit?.name !== this.action.deposit) {
+                    if (tile.content.deposit) {
+                        console.error(`[Harvest] Tile ${toAxialCoord(coord).q},${toAxialCoord(coord).r} deposit mismatch. Expected: ${this.action.deposit}, Found: ${tile.content.deposit?.name}`);
+                    }
+                    return false
+                }
+
+                if (toAxialCoord(coord).q === 2 && toAxialCoord(coord).r === 3) {
+                    console.error(`[Harvest] searchFn checking 2,3. Content: ${tile.content?.constructor.name}, Clearing: ${tile.clearing}, Zone: ${tile.zone}, Priority: ${priority}`);
+                }
 
 				return priority === 'clearing' ? tile.clearing : tile.zone === 'harvest'
 			}
@@ -59,8 +72,15 @@ export class HarvestAlveolus extends TransitAlveolus {
 			return hex.findNearest(startPos, searchFn, searchDistance, false)
 		}
 
+        // Debug check specific tile 2,3
+        const debugTile = hex.getTile({q:2, r:3});
+        if (debugTile) {
+            console.error(`[Harvest] DEBUG TILE 2,3: content=${debugTile.content?.constructor.name}, deposit=${debugTile.content instanceof UnBuiltLand ? debugTile.content.deposit?.name : 'N/A'}`);
+        }
+
 		let path = findDeposit('clearing')
 		if (path) {
+            console.error(`[Harvest] check 1 (clearing) found path: ${path.length}`);
 			return {
 				job: 'harvest',
 				path,
@@ -72,10 +92,14 @@ export class HarvestAlveolus extends TransitAlveolus {
 		}
 
 		// For regular harvesting, only offer if harvester can store
-		if (!this.canStoreInHarvester) return undefined
+		if (!this.canStoreInHarvester) {
+             console.error(`[Harvest] check 2 blocked: cannot store in harvester`);
+             return undefined
+        }
 
 		path = findDeposit('any')
 		if (path) {
+             console.error(`[Harvest] check 3 (any) found path: ${path.length}`);
 			return {
 				job: 'harvest',
 				path,
@@ -86,6 +110,7 @@ export class HarvestAlveolus extends TransitAlveolus {
 			}
 		}
 
+        console.error(`[Harvest] nextJob returning undefined`);
 		return undefined
 	}
 }

@@ -173,7 +173,10 @@ class WorkFunctions {
 	@contract()
 	harvestStep() {
 		const unbuiltLand = this[subject].tile.content as UnBuiltLand
-		if (!(unbuiltLand instanceof UnBuiltLand)) return
+		if (!(unbuiltLand instanceof UnBuiltLand)) {
+            console.error(`[harvestStep] Tile content not UnBuiltLand: ${this[subject].tile.content?.constructor.name}`);
+            return
+        }
 		// assert(unbuiltLand instanceof UnBuiltLand, 'tile.content must be an UnBuiltLand')
 		const alveolus = this[subject].assignedAlveolus as Ssh.AlveolusDefinition<Ssh.HarvestingAction>
 		assert(alveolus, 'assignedAlveolus must be set')
@@ -217,12 +220,21 @@ class WorkFunctions {
 		})
 		allocations.push(inputAllocation)
 
+// 		const outputAllocation = alveolus.storage.allocate(action.output as Goods, {
+// 			type: 'transform.output',
+// 			alveolus,
+// 			output: action.output,
+// 		})
+// 		allocations.push(outputAllocation)
+// ^ Wait. I should replace matching the context.
+
 		const outputAllocation = alveolus.storage.allocate(action.output as Goods, {
 			type: 'transform.output',
 			alveolus,
 			output: action.output,
 		})
-		allocations.push(outputAllocation)
+        allocations.push(outputAllocation)
+
 		return new DurationStep(alveolus.workTime, 'work', `transform.${alveolus.name}`)
 			.finished(() => {
 				for (const allocation of allocations) allocation.fulfill()

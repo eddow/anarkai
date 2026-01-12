@@ -97,6 +97,7 @@ export class Character extends withInteractive(
 	 * @returns Object with job, tile, and path, or false if no job found
 	 */
 	findBestJob(): ScriptExecution | false {
+        // console.error(`[${this.uid}] findBestJob called`);
 		const start = toAxialCoord(this.position)
 
 		// Cache jobs computed during scoring to avoid recomputing
@@ -106,6 +107,7 @@ export class Character extends withInteractive(
 		const scoreJob = (coord: Positioned): number | false => {
 			const tile = this.game.hex.getTile(coord)
 			if (!tile) return false
+            
 			const job = tile.getJob?.(this) // Pass character to compute full job with path
 			if (!job) return false
 
@@ -136,6 +138,7 @@ export class Character extends withInteractive(
 		const jobProvider = targetTile.content!
 
 		this.log('character.beginJob', job.job)
+        console.error(`[${this.uid}] Selected job: ${job.job} at ${key}`);
 
 		// Job already has all details (path, urgency, fatigue) from cached getJob()
 		// Just create WorkPlan by adding plan type and target
@@ -213,16 +216,21 @@ export class Character extends withInteractive(
 	}
 
 	findAction() {
+        console.error(`[${this.uid}] findAction called. Hunger: ${this.hunger}, Fatigue: ${this.fatigue}`);
 		if (this.hunger > this.triggerLevels.hunger.high) return this.scriptsContext.selfCare.goEat()
 
 		if (Object.values(this.carry.availables).some((qty) => qty! > 0)) {
 			// Only try to drop if we can find a spot to drop them
 			if (this.scriptsContext.find.freeSpot()) {
+                console.error(`[${this.uid}] Dropping goods`);
 				return this.scriptsContext.inventory.dropAllFree()
 			}
 		}
 		const tryAnActivity =
 			this.fatigue < this.triggerLevels.fatigue.high ? this.findBestJob() : undefined // goRest
+        
+        if (!tryAnActivity) console.error(`[${this.uid}] No activity found. Wandering.`);
+        
 		// Default to wandering when no specific action is needed
 		return tryAnActivity || this.scriptsContext.selfCare.wander()
 	}

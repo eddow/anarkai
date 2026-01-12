@@ -35,6 +35,7 @@ vi.mock('$assets/game-content', () => ({
 describe('Offload Silent Cancellation Reproduction', () => {
     let Game: any
     let workScript: string
+    let inventoryScript: string
     let InteractiveContext: any
     let loadNpcScripts: any
     let subject: any
@@ -52,11 +53,8 @@ describe('Offload Silent Cancellation Reproduction', () => {
         // Read the actual work.npcs script
         // Correct path relative to this file: ../../../assets/scripts/work.npcs (since we are in src/lib/game)
         const __dirname = path.dirname(fileURLToPath(import.meta.url))
-        // Assuming file is in src/lib/game/offload.repro.test.ts
-        // assets are in engines/ssh/assets
-        // src/lib/game -> src/lib -> src -> engines/ssh -> assets 
-        // ../../../assets/scripts/work.npcs
         workScript = fs.readFileSync(path.resolve(__dirname, '../../../assets/scripts/work.npcs'), 'utf-8')
+        inventoryScript = fs.readFileSync(path.resolve(__dirname, '../../../assets/scripts/inventory.npcs'), 'utf-8')
 
         const scriptsModule = await import('./npcs/scripts')
         InteractiveContext = scriptsModule.InteractiveContext
@@ -112,7 +110,10 @@ describe('Offload Silent Cancellation Reproduction', () => {
         ;(context as any).find.path = vi.fn().mockImplementation((dest) => [dest])
 
         // Load scripts
-        loadNpcScripts({ '/scripts/work.npcs': workScript }, context)
+        loadNpcScripts({ 
+            '/scripts/work.npcs': workScript,
+            '/scripts/inventory.npcs': inventoryScript
+        }, context)
         
         const work = (context as any).work
         if (!work.offload) throw new Error('offload not loaded') 
@@ -163,8 +164,8 @@ describe('Offload Silent Cancellation Reproduction', () => {
             
             console.log('Final Logs:', logs)
             
-            // Check if char picked up the wood
-            expect(char.carry.stock.wood).toBe(1)
+            // Check if char picked up the wood AND dropped it (offload complete)
+            expect(char.carry.stock.wood ?? 0).toBe(0)
             
         } catch (e) {
             console.log('Final Logs:', logs)

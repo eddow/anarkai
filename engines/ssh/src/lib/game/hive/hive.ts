@@ -205,9 +205,10 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		return [border.tile.a.position, border.tile.b.position]
 	}
 	//#region Needy / events
-	//@memoize
+	public manualNeeds: Partial<Record<GoodType, number>> = {}
+
 	get needs() {
-		return Object.fromEntries(
+		const calculatedNeeds = Object.fromEntries(
 			Object.entries(this.advertisements)
 				.filter(([_, { advertisement }]) => advertisement === 'demand')
 				.map(([gt, { advertisers }]) => {
@@ -225,6 +226,13 @@ export class Hive extends AdvertisementManager<Alveolus> {
 					return [gt as GoodType, asPriority]
 				}),
 		)
+		// Merge manual needs
+		for (const [good, _amount] of Object.entries(this.manualNeeds)) {
+			// Priority 2-use for manual needs to ensure they are picked up
+			if ('priority' in (calculatedNeeds[good as GoodType] || {})) continue // Don't override existing?
+			;(calculatedNeeds as any)[good] = '2-use'
+		}
+		return calculatedNeeds
 	}
 
 	movingGoods = reactive(new AxialKeyMap<MovingGood[]>())

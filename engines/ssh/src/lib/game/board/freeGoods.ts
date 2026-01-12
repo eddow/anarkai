@@ -148,6 +148,10 @@ export class FreeGoods extends withTicked(GameObject) {
 			for (const [, goodsList] of this.goods.entries()) {
 				for (const good of goodsList) {
 					const goodDef = goods[good.goodType]
+                    if (!goodDef) {
+                        console.error(`FreeGood update: Unknown good type '${good.goodType}'. Goods keys: ${Object.keys(goods).join(', ')}`);
+                        continue;
+                    }
 					const halfLife = goodDef.halfLife // in seconds
 
 					// Skip decay for goods with infinite half-life

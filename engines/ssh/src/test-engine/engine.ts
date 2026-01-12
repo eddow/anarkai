@@ -32,8 +32,12 @@ export class TestEngine {
      * Use this to setup the test board.
      */
     public loadScenario(scenario: Partial<SaveState>) {
-        // Cast to SaveState if needed for TS.
-        this.game.loadGameData(scenario as SaveState);
+        // Ensure generationOptions are present
+        const fullScenario = {
+            ...scenario,
+            generationOptions: scenario.generationOptions ?? this.options ?? { boardSize: 12, terrainSeed: 1234, characterCount: 0 }
+        } as SaveState;
+        this.game.loadGameData(fullScenario);
     }
 
     /**
@@ -57,6 +61,7 @@ export class TestEngine {
     private step(delta: number) {
         // Access private tickedObjects via type assertion
         const objects = (this.game as any).tickedObjects as Set<{ update(dt: number): void }>;
+        // console.log(`Step ${delta}: ${objects.size} ticked objects`);
         for (const object of objects) {
             // Skip destroyed objects
             if ('destroyed' in object && (object as any).destroyed) continue;

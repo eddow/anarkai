@@ -30,6 +30,7 @@ function harvest(jobPlan)
 		end if
 		
 		do while not tile.content.deposit or tile.content.deposit.name != alveolus.action.deposit
+            log "Checking deposit name: " + (tile.content.deposit.name if tile.content.deposit else "null") + " vs " + alveolus.action.deposit
 			where = find.deposit(alveolus.action.deposit)
 			if not where then return false
 			walk.until where

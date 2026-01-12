@@ -5,21 +5,44 @@ export function loadStandardMocks() {
     vi.mock('$assets/resources', () => ({ resources: {}, prefix: '' }));
 
     // Mock $assets/game-content
-    vi.mock('$assets/game-content', async () => {
+    vi.mock('$assets/game-content', () => {
         return {
             vehicles: {
                 'by-hands': { storage: { slots: 10, capacity: 100 }, transferTime: 1 },
                 worker: { speed: 1, capacity: 10, transferTime: 1 },
             },
             goods: { 
-                wood: {}, 
-                stone: {}, 
-                food: { feedingValue: 1 },
-                mushrooms: { feedingValue: 1 } 
+                wood: { halfLife: 900 }, 
+                stone: { halfLife: Infinity }, 
+                planks: { halfLife: 900 },
+                food: { feedingValue: 70, halfLife: 600 },
+                mushrooms: { feedingValue: 160, halfLife: 600 },
+                berries: { feedingValue: 72, halfLife: 300 },
             },
             terrain: new Proxy({}, { get: () => ({ walkTime: 1, generation: { deposits: {} }, sprites: ['grass.png'] }) }),
-            deposits: { tree: { generation: { frequency: 0.1 }, maxAmount: 100 } },
-            alveoli: { 'tree_chopper': { action: { type: 'harvest', deposit: 'tree', output: { wood: 1 } } } }
+            deposits: { tree: { generation: {}, maxAmount: 100 } },
+            alveoli: { 
+                'tree_chopper': { 
+                    preparationTime: 1, workTime: 2, 
+                    action: { type: 'harvest', deposit: 'tree', output: { wood: 1 } },
+                    construction: { goods: { stone: 1 }, time: 1 }
+                },
+                'saw_mill': { 
+                    preparationTime: 1, workTime: 2, 
+                    action: { type: 'transform', inputs: { wood: 1 }, output: { planks: 1 } },
+                    construction: { goods: { wood: 1 }, time: 1 }
+                },
+                'gatherer_hut': { 
+                    preparationTime: 1, workTime: 2, 
+                    action: { type: 'gather', radius: 9 },
+                    construction: { goods: { wood: 1 }, time: 1 }
+                },
+                'engineer_hut': { 
+                    preparationTime: 1, workTime: 2, 
+                    action: { type: 'engineer', radius: 6 },
+                    construction: { goods: { wood: 1 }, time: 1 }
+                }
+            }
         }
     });
 }

@@ -10,8 +10,6 @@ import { interactionMode, mrg } from '$lib/interactive-state'
 import type { AlveolusType, DepositType, GoodType } from '$lib/types'
 import { axial, axialRectangle, cartesian, fromCartesian } from '$lib/utils/axial'
 import { LCG } from '$lib/utils/numbers'
-import { toAxialCoord } from '$lib/utils/position'
-import { tileSize } from '$lib/utils/varied'
 import { Alveolus } from './board'
 import { HexBoard } from './board/board'
 import { Deposit, UnBuiltLand } from './board/content/unbuilt-land'
@@ -184,11 +182,9 @@ export class Game extends Eventful<GameEvents> {
 		// Create population singleton
 		this.population = new Population(this)
 
-		// Create game generator
 		this.generator = new GameGenerator()
-		// Create game generator
-		this.generator = new GameGenerator()
-		this.loaded
+		
+		this.loaded = this.loaded
 			.then(() => import('./hive'))
 			.then(({ Hive }) => {
 				this.HiveClass = Hive
@@ -256,6 +252,8 @@ export class Game extends Eventful<GameEvents> {
 				const DepositClass = Deposit.class[tileInfo.deposit.type as keyof typeof Deposit.class]
 				if (DepositClass) {
 					deposit = new DepositClass(tileInfo.deposit.amount)
+                    // Ensure name is set (vital for HarvestAlveolus checks)
+                    //if (!deposit.name) deposit.name = tileInfo.deposit.type
 				}
 			}
 
@@ -295,7 +293,14 @@ export class Game extends Eventful<GameEvents> {
 			if (content instanceof UnBuiltLand) {
 				if (p.deposit) {
 					const DepositClass = Deposit.class[p.deposit.type as keyof typeof Deposit.class]
-					if (DepositClass) content.deposit = new DepositClass(p.deposit.amount)
+					if (DepositClass) {
+                        content.deposit = new DepositClass(p.deposit.amount)
+                         // Ensure name is set
+                        if (!content.deposit.name) (content.deposit as any).name = p.deposit.type
+                        console.error(`[applyTilePatches] Set deposit name for ${p.deposit.type}: ${content.deposit.name}`);
+                    } else {
+                        console.error(`[applyTilePatches] DepositClass not found for ${p.deposit.type}`);
+                    }
 				}
 				tile.asGenerated = false
 			}
@@ -335,6 +340,9 @@ export class Game extends Eventful<GameEvents> {
 				tile.asGenerated = false
 			}
 			assert(hiveInstance, 'Alveolus building on load')
+            if ((hive as any).needs && hiveInstance) {
+                Object.assign(hiveInstance.manualNeeds, (hive as any).needs)
+            }
 		}
 	}
 
