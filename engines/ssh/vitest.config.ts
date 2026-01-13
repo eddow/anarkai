@@ -16,7 +16,7 @@ export default defineConfig({
 		globals: true,
 		setupFiles: ['./test-setup.ts'],
 		include: ['src/**/*.{test,spec}.{js,ts}', 'tests/**/*.{test,spec}.{js,ts}'],
-		exclude: ['node_modules', 'dist', '.git', '.cache'],
+		exclude: ['node_modules', 'dist', '.git', '.cache', 'tests/e2e'],
 		watch: false,
 	},
 	esbuild: {

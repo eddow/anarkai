@@ -27,7 +27,7 @@ export function loadStandardMocks() {
                     action: { type: 'harvest', deposit: 'tree', output: { wood: 1 } },
                     construction: { goods: { stone: 1 }, time: 1 }
                 },
-                'saw_mill': { 
+                'sawmill': { 
                     preparationTime: 1, workTime: 2, 
                     action: { type: 'transform', inputs: { wood: 1 }, output: { planks: 1 } },
                     construction: { goods: { wood: 1 }, time: 1 }
@@ -41,6 +41,11 @@ export function loadStandardMocks() {
                     preparationTime: 1, workTime: 2, 
                     action: { type: 'engineer', radius: 6 },
                     construction: { goods: { wood: 1 }, time: 1 }
+                },
+                'storage': {
+                    preparationTime: 1, workTime: 0,
+                    action: { type: 'storage', capacity: 3, slots: 6 },
+                    construction: { goods: { wood: 2 }, time: 6 }
                 }
             }
         }

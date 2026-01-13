@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { goods as goodsCatalog } from '$assets/game-content';
+import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content';
 // @ts-ignore
 import { T } from '$lib/i18n'; // If i18n is available, otherwise mock it? 
 // Actually T is a Svelte store in legacy. In Vue we might not have it or need to mock it.
@@ -25,7 +25,7 @@ const entries = computed(() => {
 });
 
 const getSprite = (good: string) => {
-    return goodsCatalog[good as keyof typeof goodsCatalog]?.sprites?.[0] || 'default';
+    return sensoryGoods[good as keyof typeof sensoryGoods]?.sprites?.[0] || 'default';
 };
 
 const getName = (good: string) => {

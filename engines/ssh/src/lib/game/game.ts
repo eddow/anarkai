@@ -1,14 +1,13 @@
 import { Eventful, reactive, unreactive } from 'mutts'
-import { zip } from '$lib/utils'
 import type { GameRenderer, InputAdapter } from '$lib/types/engine'
 import { SimulationLoop } from '$lib/utils/loop'
 import * as gameContent from '$assets/game-content'
-import { assert, namedEffect } from '$lib/debug'
+import { assert } from '$lib/debug'
 import { configuration } from '$lib/globals'
-import { interactionMode, mrg } from '$lib/interactive-state'
+import { mrg } from '$lib/interactive-state'
 
 import type { AlveolusType, DepositType, GoodType } from '$lib/types'
-import { axial, axialRectangle, cartesian, fromCartesian } from '$lib/utils/axial'
+import { axial } from '$lib/utils/axial'
 import { LCG } from '$lib/utils/numbers'
 import { Alveolus } from './board'
 import { HexBoard } from './board/board'
@@ -116,6 +115,8 @@ export class Game extends Eventful<GameEvents> {
 	public readonly ticker: SimulationLoop
 	private tickedObjects = new Set<{ update(deltaSeconds: number): void }>()
 	public loaded: Promise<void>
+	public rendererReady: Promise<void>
+	private rendererReadyResolver?: () => void
 	private async load() {
         // Headless load - just start ticker?
 		this.ticker.start()
@@ -175,6 +176,10 @@ export class Game extends Eventful<GameEvents> {
 		super()
 		this.ticker = new SimulationLoop()
 		this.loaded = this.load()
+		// Create rendererReady promise that will be resolved when renderer is initialized
+		this.rendererReady = new Promise((resolve) => {
+			this.rendererReadyResolver = resolve
+		})
 
 		// Create hex board
 		this.hex = new HexBoard(this)
@@ -297,9 +302,9 @@ export class Game extends Eventful<GameEvents> {
                         content.deposit = new DepositClass(p.deposit.amount)
                          // Ensure name is set
                         if (!content.deposit.name) (content.deposit as any).name = p.deposit.type
-                        console.error(`[applyTilePatches] Set deposit name for ${p.deposit.type}: ${content.deposit.name}`);
+
                     } else {
-                        console.error(`[applyTilePatches] DepositClass not found for ${p.deposit.type}`);
+
                     }
 				}
 				tile.asGenerated = false

@@ -72,13 +72,20 @@ export class PixiGameRenderer implements GameRenderer {
 
 		// Register for HMR
 		registerPixiApp(this.app)
+		
+		// Signal that renderer is ready and textures can be requested
+		if ((this.game as any).rendererReadyResolver) {
+			(this.game as any).rendererReadyResolver()
+		}
 	}
 
     public layers!: {
         ground: Container
         alveoli: Container
-        characters: Container
+        resources: Container
         storedGoods: Container // e.g. on borders
+        looseGoods: Container
+        characters: Container
         ui: Container // in-game ui overlays
     }
     
@@ -96,9 +103,11 @@ export class PixiGameRenderer implements GameRenderer {
         this.stage.addChild(this.world)
 
         this.layers = {
-            ground: new Container(),
-            alveoli: new Container(),
+            ground: new Container(), // terrain
+            alveoli: new Container(), // structures
+            resources: new Container(), // resources
             storedGoods: new Container(),
+            looseGoods: new Container(), // loose goods
             characters: new Container(),
             ui: new Container() // UI remains in world? Or screen?
             // Usually UI is screen space. Let's keep UI separate or check usage.
@@ -106,12 +115,31 @@ export class PixiGameRenderer implements GameRenderer {
             // For now, let's put UI on stage (screen space) and others in world.
         }
         
+        this.world.sortableChildren = true
         this.world.addChild(
-            this.layers.ground,
-            this.layers.alveoli,
+            this.layers.ground, // terrain
+            this.layers.alveoli, // structures
+            this.layers.resources, // NEW
             this.layers.storedGoods,
+            this.layers.looseGoods, // NEW
             this.layers.characters
         )
+        
+        // Explicit Z-Index to ensure order
+        // - tile background (terrain)
+        // - buildings (structures)
+        // - resources
+        // - stored goods
+        // - loose goods
+        // - characters
+        
+        this.layers.ground.zIndex = 0      // terrain
+        this.layers.alveoli.zIndex = 10     // buildings
+        this.layers.resources.zIndex = 20   // resources
+        this.layers.storedGoods.zIndex = 30 // stored goods
+        this.layers.looseGoods.zIndex = 40  // loose goods
+        this.layers.characters.zIndex = 50  // characters
+
         // Add UI directly to stage so it doesn't zoom/pan
         this.layers.ui = new Container()
         this.stage.addChild(this.layers.ui)

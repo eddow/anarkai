@@ -23,6 +23,10 @@ export class AlveolusVisual extends VisualObject<any> {
     public bind() {
         const worldPos = toWorldCoord(this.object.tile.position)
         
+        // Attach view to structures layer
+        this.view.position.set(worldPos.x, worldPos.y)
+        this.renderer.layers.alveoli.addChild(this.view)
+        
         // 1. Render Structure Sprite (on alveoli layer)
         this.register(namedEffect(`alveolus.${this.object.uid}.sprite`, () => {
              const visualDef = alveoli[this.object.name]
@@ -33,7 +37,7 @@ export class AlveolusVisual extends VisualObject<any> {
                      if (!this.sprite) {
                          this.sprite = new Sprite()
                          this.sprite.anchor.set(0.5)
-                         this.sprite.position.set(0, 0)  // Relative to parent at worldPos
+                         this.sprite.position.set(0, 0)  // Relative to this.view
                          this.view.addChild(this.sprite)
                      }
                      this.sprite.texture = tex
@@ -58,9 +62,9 @@ export class AlveolusVisual extends VisualObject<any> {
         }))
 
         // 2. Render Goods (on storedGoods layer)
-        // GoodsRenderer expects a container to render into.
-        this.goodsContainer.position.set(0, 0)  // Relative positioning
-        this.view.addChild(this.goodsContainer)  // Add to visual's view, not global layer
+        // Goods need to be on a higher layer
+        this.goodsContainer.position.set(worldPos.x, worldPos.y)
+        this.renderer.layers.storedGoods.addChild(this.goodsContainer)
         
         const cleanupGoods = GoodsRenderer.render(
             this.renderer,
@@ -70,7 +74,7 @@ export class AlveolusVisual extends VisualObject<any> {
                 const goods = this.object.storage?.renderedGoods()
                 return { slots: goods ? goods.slots : [] }
             },
-            { x: 0, y: 0 },  // Relative since goodsContainer is in view at worldPos
+            { x: 0, y: 0 },  // Relative since goodsContainer is at worldPos
             `goods.render.${this.object.uid}`
         )
         this.register(cleanupGoods)

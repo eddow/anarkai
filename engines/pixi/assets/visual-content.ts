@@ -53,8 +53,8 @@ export const alveoli: Record<string, VisualDefinition> = {
 		icon: 'buildings.store',
 	},
 	gather: {
-		sprites: ['buildings.store'], // Temporary: transit.png missing
-		icon: 'buildings.store',
+		sprites: ['buildings.load'], // Temporary: transit.png missing
+		icon: 'buildings.load',
 	},
 	engineer: {
 		sprites: ['buildings.engineer'],

@@ -1,4 +1,10 @@
-# SSH Test Engine Documentation
+> [!IMPORTANT]
+> **This documentation has moved!** Please see the SSH engine's dedicated documentation:  
+> **[SSH Test Engine Documentation](../engines/ssh/docs/test-engine.md)**
+>
+> The content below is kept for reference but may be outdated.
+
+
 
 The **SSH Test Engine** is a headless runtime environment designed for integration testing of the `ssh` game core. It replaces the browser-based `pixi` engine for tests running in Node.js (via Vitest), eliminating dependencies on the DOM and providing a deterministic simulation loop.
 

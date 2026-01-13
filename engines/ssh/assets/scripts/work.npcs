@@ -58,10 +58,10 @@ end function
 
 function convey(jobPlan)
 	alveolus = jobPlan.target
-	do while I.keepWorking and alveolus.aGoodMovement
-		work.conveyStep
-		if not alveolus.aGoodMovement and alveolus.incomingGoods then
-			debugger alveolus
+	do while I.keepWorking and (alveolus.aGoodMovement or alveolus.incomingGoods)
+		if alveolus.aGoodMovement then
+			work.conveyStep
+		else
 			work.waitForIncomingGoods
 		end if
 	loop

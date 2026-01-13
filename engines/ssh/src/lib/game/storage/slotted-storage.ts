@@ -246,7 +246,6 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		return total
 	}
 
-	@atomic
 	allocate(goods: Goods, reason: any): SlottedAllocation {
 		const alloc: number[] = Array(this.slots.length).fill(0)
 		let hasAnyAllocation = false
@@ -305,14 +304,13 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		return new SlottedAllocation(this, alloc, reason)
 	}
 
-	@atomic
 	reserve(goods: Goods, reason: any): SlottedAllocation {
 		const alloc: number[] = Array(this.slots.length).fill(0)
 		let hasAnyReservation = false
 
 		for (const [goodType, qty] of Object.entries(goods) as [GoodType, number][]) {
 			assert(qty, 'qty must be set')
-
+			
 			let remaining = Math.min(qty, this.available(goodType))
 			if (remaining <= 0) continue
 

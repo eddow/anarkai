@@ -59,14 +59,14 @@ export class TestEngine {
      * accesses the private tickedObjects of the game to update them.
      */
     private step(delta: number) {
-        // Access private tickedObjects via type assertion
-        const objects = (this.game as any).tickedObjects as Set<{ update(dt: number): void }>;
-        // console.log(`Step ${delta}: ${objects.size} ticked objects`);
-        for (const object of objects) {
-            // Skip destroyed objects
-            if ('destroyed' in object && (object as any).destroyed) continue;
-            object.update(delta);
-        }
+            // Access private tickedObjects via type assertion
+            const objects = (this.game as any).tickedObjects as Set<{ update(dt: number): void }>;
+            // console.log(`Step ${delta}: ${objects.size} ticked objects`);
+            for (const object of objects) {
+                // Skip destroyed objects
+                if ('destroyed' in object && (object as any).destroyed) continue;
+                object.update(delta);
+            }
     }
 
     /**

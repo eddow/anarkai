@@ -124,13 +124,13 @@ describe('Save/Load Determinism', () => {
         const game2 = new Game({ boardSize: 12, terrainSeed: 1234, characterCount: 0 })
         await game2.loaded
         game2.loadGameData(saveState)
-        const char2 = game2.population.characters.get(char1.uid)
+        const char2 = game2.population.character(char1.uid)
         
         for (let i = 0; i < 20; i++) char2.update(dt)
         
         expect(char2.position.q).toBeCloseTo(controlPos.q, 4)
         expect(char2.position.r).toBeCloseTo(controlPos.r, 4)
-        expect(char2.stepExecutor.constructor.name).toBe('MoveToStep')
+        expect(char2.stepExecutor!.constructor.name).toBe('MoveToStep')
 	})
 
     it('Scenario 2: Inventory Persistence', async () => {
@@ -146,11 +146,11 @@ describe('Save/Load Determinism', () => {
         const game2 = new Game({ boardSize: 12, terrainSeed: 555, characterCount: 0 })
         await game2.loaded
         game2.loadGameData(saveState)
-        const char2 = game2.population.characters.get(char.uid)
+        const char2 = game2.population.character(char.uid)
 
         expect(char2.carry.available('wood')).toBe(5)
         expect(char2.carry.available('stone')).toBe(2)
-        expect(char2.carry.available('food')).toBe(0)
+        expect(char2.carry.available('mushrooms')).toBe(0)
     })
 
     it('Scenario 3: Resource Gathering (DurationStep)', async () => {
@@ -170,15 +170,15 @@ describe('Save/Load Determinism', () => {
         const game2 = new Game({ boardSize: 12, terrainSeed: 999, characterCount: 0 })
         await game2.loaded
         game2.loadGameData(saveState)
-        const char2 = game2.population.characters.get(char.uid)
+        const char2 = game2.population.character(char.uid)
         
         expect(char2.stepExecutor).toBeDefined()
-        expect(char2.stepExecutor.constructor.name).toBe('DurationStep')
-        expect(char2.stepExecutor.evolution).toBeCloseTo(0.5, 2)
+        expect(char2.stepExecutor!.constructor.name).toBe('DurationStep')
+        expect((char2.stepExecutor as DurationStep).evolution).toBeCloseTo(0.5, 2)
         
         // Finish work
         let finished = false
-        char2.stepExecutor.final(() => { finished = true })
+        char2.stepExecutor!.final(() => { finished = true })
         for (let i = 0; i < 26; i++) {
              char2.update(dt) 
         }
@@ -215,10 +215,10 @@ describe('Save/Load Determinism', () => {
         const game2 = new Game({ boardSize: 12, terrainSeed: 777, characterCount: 0 })
         await game2.loaded
         game2.loadGameData(saveState)
-        const char2 = game2.population.characters.get(char.uid)
+        const char2 = game2.population.character(char.uid)
 
-        expect(char2.stepExecutor.constructor.name).toBe('MultiMoveStep')
-        expect(char2.stepExecutor.evolution).toBeCloseTo(0.5, 2)
+        expect(char2.stepExecutor!.constructor.name).toBe('MultiMoveStep')
+        expect((char2.stepExecutor as MultiMoveStep).evolution).toBeCloseTo(0.5, 2)
         
         // Check position: Should be halfway between start and end? 
         // Logic says MultiMoveStep updates position based on lerp.

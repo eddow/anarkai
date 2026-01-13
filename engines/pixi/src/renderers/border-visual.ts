@@ -12,8 +12,8 @@ export class BorderVisual extends VisualObject<TileBorder> {
     private gateGraphics: Graphics
     private goodsContainer: Container
     
-    constructor(border: TileBorder, private renderer: PixiGameRenderer) {
-        super(border)
+    constructor(border: TileBorder, renderer: PixiGameRenderer) {
+        super(border, renderer)
         this.gateGraphics = new Graphics()
         this.goodsContainer = new Container()
         
@@ -33,8 +33,9 @@ export class BorderVisual extends VisualObject<TileBorder> {
              this.goodsContainer.removeChildren()
              
              const content = this.object.content
+             
              if (content instanceof AlveolusGate) {
-                 this.renderGate(content, worldPos)
+                 return this.renderGate(content, worldPos)
              }
          }))
     }
@@ -42,38 +43,25 @@ export class BorderVisual extends VisualObject<TileBorder> {
     private renderGate(gate: AlveolusGate, center: {x: number, y: number}) {
 		// Logic ported from AlveolusGate.render
 		const tileAWorld = toWorldCoord(this.object.tile.a.position)
-		const tileBWorld = toWorldCoord(this.object.tile.b.position)
-
-		// Calculate relative position of tile A from the border center
 		const alveolusCenter = {
 			x: tileAWorld.x - center.x,
 			y: tileAWorld.y - center.y,
 		}
-
-		// Calculate the two end positions for the line using the same logic as renderBorderGoods
 		const alveolus2Center = { x: -alveolusCenter.x, y: -alveolusCenter.y }
-
-		// Calculate the line connecting the two alveoli centers
 		const centerLine = {
 			dx: alveolus2Center.x - alveolusCenter.x,
 			dy: alveolus2Center.y - alveolusCenter.y,
 		}
-
-		// Calculate the perpendicular direction (border line direction)
-		// Rotate the center line by 90 degrees: (dx, dy) -> (-dy, dx)
 		const borderDirection = {
 			dx: -centerLine.dy,
 			dy: centerLine.dx,
 		}
-
-		// Normalize the border direction
 		const borderLength = Math.sqrt(borderDirection.dx ** 2 + borderDirection.dy ** 2)
 		const normalizedBorder = {
 			dx: borderDirection.dx / borderLength,
 			dy: borderDirection.dy / borderLength,
 		}
 
-		// Calculate the two end positions for the line (where goods would be displayed)
 		const lineLength = tileSize * 0.8 
 		const startPos = {
 			x: center.x - (lineLength / 2) * normalizedBorder.dx,
@@ -90,53 +78,53 @@ export class BorderVisual extends VisualObject<TileBorder> {
 			.lineTo(endPos.x, endPos.y)
 			.stroke({ color: 0xffff00, width: 2, alpha: 0.7 })
 
-		// Render border goods 
-        // GoodsRenderer helper is NOT suitable because renderBorderGoods (in ssh, now ?? moved?) was different.
-        // Wait, I deleted `ssh/.../goods-renderer.ts` and moved it to `engine/pixi/...`.
-        // But `GoodsRenderer` class in pixi only has `renderTiles`.
-        // `renderBorderGoods` was a function. Did I preserve it?
-        // I created `GoodsRenderer.render` which seems to assume radial layout (alveolus style).
-        
-        // I need `renderBorderGoods` logic for linear layout.
-        // If I lost it, I need to recreate it.
-        // `AlveolusGate` code I viewed earlier used `renderBorderGoods`.
-        // Let's implement specific rendering here for now or add to GoodsRenderer.
-        
-        // Simple implementation reusing logic:
-        const storage = gate.storage
-        if (!storage) return
-        
-        // For linear display along the border.
-        // Logic:
-        const slots = storage.renderedGoods().slots
-        if (slots.length === 0) return
-        
-        // Similar to GoodsRenderer but linear layout along borderDirection
-        // ... Implementation (simplified)
-        // Actually, just render standard goods for now to prove connectivity?
-        // Or re-implement the linear distribution.
-        
-        // TODO: Implement proper linear goods rendering. For now, just circle.
-        // Using existing GoodsRenderer at center as fallback
-        
-        const cleanup = GoodsRenderer.render(
-             this.renderer,
-             this.goodsContainer,
-             tileSize,
-             () => ({ slots }),
-             center
-        )
-        // Cleanup is called when effect re-runs, via registry?
-        // Wait, `namedEffect` returns disposer? No, it executes.
-        // `this.register` handles disposables returned by the callback?
-        // No, `namedEffect` handles reactivity.
-        // I need to manually handle nested cleanups?
-        // `namedEffect` returns void cleanup function from body?
-        // Yes.
-        // So I should return cleanup from effect body.
-        
-        return cleanup 
+        // Render goods
+        return this.renderBorderGoods(gate, center, borderDirection, lineLength)
     }
+
+    private renderBorderGoods(
+        gate: AlveolusGate, 
+        center: {x: number, y: number}, 
+        direction: {dx: number, dy: number}, 
+        length: number
+    ) {
+         // Storage access
+         const storage = gate.storage
+         if (!storage) return
+
+         return namedEffect(`border.${this.object.uid}.goods`, () => {
+             this.goodsContainer.removeChildren()
+             
+             const { slots } = storage.renderedGoods()
+             
+             // Simple linear distribution of slots
+             const count = slots.length
+             const step = length / (count + 1)
+             const startX = center.x - (length / 2) * direction.dx
+             const startY = center.y - (length / 2) * direction.dy
+
+             const subCleanups: (() => void)[] = []
+ 
+             slots.forEach((slot, i) => {
+                 const t = (i + 1) * step
+                 const x = startX + t * direction.dx
+                 const y = startY + t * direction.dy
+                 
+                 // Render single slot via GoodsRenderer
+                 subCleanups.push(GoodsRenderer.render(
+                     this.renderer,
+                     this.goodsContainer,
+                     tileSize,
+                     () => ({ slots: [slot], assumedMaxSlots: 1 }),
+                     { x, y },
+                     `border.${this.object.uid}.goods.${i}`
+                 ))
+             })
+             
+             return () => subCleanups.forEach(c => c())
+         })
+    }
+
 
     public dispose() {
         this.gateGraphics.destroy()

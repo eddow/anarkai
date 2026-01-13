@@ -155,14 +155,12 @@ const pin = () => {
 }
 
 const simulateEnter = () => {
-    console.log('[InfoWidget] simulateEnter', object.value?.uid);
     if (object.value) {
        mrg.hoveredObject = object.value;
     }
 }
 
 const simulateLeave = () => {
-    console.log('[InfoWidget] simulateLeave', object.value?.uid);
     // Only clear if WE are the one being hovered off
     if (mrg.hoveredObject?.uid === object.value?.uid) {
         mrg.hoveredObject = undefined;

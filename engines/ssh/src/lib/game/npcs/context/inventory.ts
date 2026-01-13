@@ -229,14 +229,12 @@ export class InventoryFunctions {
 		return new DurationStep(totalAmount * vehicle.transferTime, 'convey', description)
 			.finished(() => {
 				try {
-                    console.error(`[effectuate] finished for ${action.type}. Fulfilling allocs.`);
 					if (!vehicleAllocation) {
 						console.error('vehicleAllocation is missing in effectuate callback!', action)
 						throw new Error('vehicleAllocation is missing in effectuate callback') // Prevent crash
 					}
 					vehicleAllocation.fulfill()
 					allocation?.fulfill()
-                    console.error(`[effectuate] Fulfill complete.`);
 				} catch (e) {
 					console.error('Error in effectuate finished:', e)
 					console.log('Action:', action)

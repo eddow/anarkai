@@ -4,6 +4,7 @@ import type { UnBuiltLand } from 'ssh/src/lib/game/board/content/unbuilt-land'
 import { tileSize } from 'ssh/src/lib/utils/varied'
 import { toAxialCoord, toWorldCoord } from 'ssh/src/lib/utils/position'
 import { LCG, subSeed } from 'ssh/src/lib/utils/numbers'
+import { deposits as visualDeposits } from '../../assets/visual-content'
 import type { PixiGameRenderer } from '../renderer'
 import { VisualObject } from './visual-object'
 
@@ -19,6 +20,11 @@ export class UnBuiltLandVisual extends VisualObject<UnBuiltLand> {
     }
 
     public bind() {
+        // Attach to resources layer
+        const worldPos = toWorldCoord(this.object.tile.position)
+        this.view.position.set(worldPos.x, worldPos.y)
+        this.renderer.layers.resources.addChild(this.view)
+
         this.register(namedEffect(`unbuilt.${this.object.uid}.render`, () => {
              // Clear previous sprites
              this.unbuiltContainer.removeChildren().forEach(c => c.destroy())
@@ -38,11 +44,19 @@ export class UnBuiltLandVisual extends VisualObject<UnBuiltLand> {
                      const seed = subSeed('deposit-unit', tileCoord.q, tileCoord.r, i)
                      const rnd = LCG('gameSeed', seed)
                      
-                     const tex = this.renderer.getTexture(`deposits.${deposit.name}`)
-                     if (!tex || tex === (this.renderer as any).getTexture('empty')) continue
+                     
+                    const def = visualDeposits[deposit.name]
+                    if (!def || !def.sprites || def.sprites.length === 0) continue
+
+                    // Pick random variant based on seed
+                    const spriteIndex = Math.floor(rnd() * def.sprites.length)
+                    const spriteKey = def.sprites[spriteIndex]
+                    
+                    const tex = this.renderer.getTexture(spriteKey)
+                    if (!tex || tex === (this.renderer as any).getTexture('empty')) continue
                      
                      const sprite = new Sprite(tex)
-                     sprite.anchor.set(0.5)
+                     sprite.anchor.set(0.5, 1.0) // Bottom-center anchor for grounding
                      
                      // Scale
                      // Base scale to fit tile, then shrink by areaScale

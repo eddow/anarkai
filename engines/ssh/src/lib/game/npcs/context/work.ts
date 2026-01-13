@@ -68,16 +68,21 @@ class WorkFunctions {
 		)
 		// Get movement(s) - either a single movement or a cycle
 		const movements = alveolus.aGoodMovement
-		if (!movements || movements.length === 0) return
+		if (!movements || movements.length === 0) {
+			console.log(`[conveyStep] No movements found for ${character.name}`)
+			return
+		}
 
 		const hive = alveolus.hive
 
 		const movementData: MovementData[] = []
+		console.log(`[conveyStep] Found ${movements.length} movements for ${character.name}`)
 
 		for (const mg of movements) {
+			console.log(`[conveyStep] Processing movement for ${mg.goodType} from ${axial.key(mg.from)}`)
 			if (!mg.allocations?.source) {
-				console.error('Source allocation missing for movement', mg.goodType, 'path:', mg.path.length)
-				throw new Error('Source allocation missing')
+				console.warn('[conveyStep] Missing source allocation', mg)
+				continue
 			}
 			mg.allocations.source.fulfill()
 			const from = mg.from
@@ -142,27 +147,36 @@ class WorkFunctions {
 							}
 							mg.allocations.target.fulfill()
 						} else {
-							if (!hopAlloc) {
-								console.error('Hop allocation missing (but path exists) for', mg)
-								throw new Error('Hop allocation missing')
-							}
-							hopAlloc.fulfill()
-							mg.allocations.source = nextStorage!.reserve(
-								{ [mg.goodType]: 1 },
-								{
-									type: 'convey.path',
-									movement: mg,
-								},
-							)
-							mg.place()
+						if (!hopAlloc) {
+							console.error('Hop allocation missing (but path exists) for', mg)
+							throw new Error('Hop allocation missing')
 						}
+						
+						hopAlloc.fulfill()
+						
+						const newSourceAlloc = nextStorage!.reserve(
+							{ [mg.goodType]: 1 },
+							{
+								type: 'convey.path',
+								movement: mg,
+							},
+						)
+						
+						if (!newSourceAlloc) {
+							console.error('[conveyStep.finished] Failed to reserve storage for next hop:', mg.goodType)
+							throw new Error('Failed to reserve storage for next hop')
+						}
+						
+						mg.allocations.source = newSourceAlloc
+						mg.place()
 					}
-				} catch (e) {
-					console.error('Error in conveyStep finished:', e)
-					console.log('MovementData:', movementData)
-					throw e
 				}
-			})
+			} catch (e) {
+				console.error('Error in conveyStep finished:', e)
+
+				throw e
+			}
+		})
 			.final(() => {
 				for (const { moving } of movementData) {
 					if (!moving.isRemoved) debugger

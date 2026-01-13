@@ -16,7 +16,6 @@ defineProps<{
         :game="game" 
         :sprite="sprite" 
         :height="height || 20" 
-        :width="height || 20"
         :alt="text" 
     />
     <span v-if="qty" class="qty">×{{ qty }}</span>

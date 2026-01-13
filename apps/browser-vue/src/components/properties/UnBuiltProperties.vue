@@ -22,7 +22,8 @@ const game = props.content.tile.board.game;
 const deposit = useMutts(() => {
     const d = props.content.deposit;
     return d ? {
-        sprites: d.sprites,
+        // Use logic name to request texture via AssetManager fallback
+        sprite: `deposits.${d.name}`, 
         name: d.name,
         amount: d.amount
     } : undefined;
@@ -50,9 +51,9 @@ const isClearing = useMutts(() => !props.content.tile.isClear);
 
     <PropertyGridRow v-if="deposit" :label="T.deposit">
         <EntityBadge
-            v-if="deposit.name && deposit.sprites && deposit.sprites.length > 0"
+            v-if="deposit.sprite"
             :game="game"
-            :sprite="deposit.sprites[0]"
+            :sprite="deposit.sprite"
             :text="deposit.name"
             :qty="deposit.amount"
         />

@@ -16,12 +16,14 @@ export abstract class TileBorderContent extends GameObject {
 
 @unreactive
 export class TileBorder extends GameObject {
+	readonly uid: string
 	readonly position: Position
 	readonly board: HexBoard
 
 	constructor(board: HexBoard, coord: Positioned) {
 		const axialCoord = toAxialCoord(coord)
 		super(board.game, `border:${axialCoord.q},${axialCoord.r}`)
+		this.uid = `border:${axialCoord.q},${axialCoord.r}`
 		this.board = board
 		this.position = axialCoord
 		this.tile = {

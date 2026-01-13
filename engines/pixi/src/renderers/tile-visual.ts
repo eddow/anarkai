@@ -83,11 +83,13 @@ export class TileVisual extends VisualObject<Tile> {
                  if (content instanceof Alveolus) {
                      this.currentContentVisual = new AlveolusVisual(content, this.renderer)
                      this.currentContentVisual.bind()
-                     this.contentContainer.addChild(this.currentContentVisual.view)
+                     // Decoupled: Visual attaches itself to correct layer
+                     // this.contentContainer.addChild(this.currentContentVisual.view)
                  } else if (content instanceof UnBuiltLand) {
                      this.currentContentVisual = new UnBuiltLandVisual(content, this.renderer)
                      this.currentContentVisual.bind()
-                     this.contentContainer.addChild(this.currentContentVisual.view)
+                     // Decoupled: Visual attaches itself to correct layer
+                     // this.contentContainer.addChild(this.currentContentVisual.view)
                  }
              }
 

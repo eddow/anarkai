@@ -17,7 +17,7 @@ export class FreeGoodsVisual extends VisualObject<FreeGoods> {
         this.container = new Container()
         // Ensure this container (and its children) does not block mouse events
         this.container.eventMode = 'none'
-        this.renderer.layers.storedGoods.addChild(this.container)
+        this.renderer.layers.looseGoods.addChild(this.container)
     }
 
     public bind() {
@@ -46,13 +46,6 @@ export class FreeGoodsVisual extends VisualObject<FreeGoods> {
                          this.activeSprites.set(good, sprite)
                          this.container.addChild(sprite)
                          
-                         const world = toWorldCoord(good.position) // Position might be Positioned or string?
-                         // Good position is usually 'Position'.
-                         if (world) {
-                             sprite.position.set(world.x, world.y)
-                         } else {
-                             console.warn('[FreeGoodsVisual] Invalid world pos for good:', good.position)
-                         }
                          
                          const def = (goodsCatalog as any)[good.goodType]
                          if (def && def.sprites && def.sprites[0]) {
@@ -70,6 +63,15 @@ export class FreeGoodsVisual extends VisualObject<FreeGoods> {
                          } else {
                              console.warn('[FreeGoodsVisual] No definition for goodType:', good.goodType)
                          }
+                     }
+                     
+                     // Update position for both new and existing sprites
+                     const world = toWorldCoord(good.position) // Position might be Positioned or string?
+                     // Good position is usually 'Position'.
+                     if (world) {
+                         sprite.position.set(world.x, world.y)
+                     } else {
+                         console.warn('[FreeGoodsVisual] Invalid world pos for good:', good.position)
                      }
                  }
              }

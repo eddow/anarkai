@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watchEffect } from 'vue'
 import { Tile } from '@ssh/lib/game/board/tile'
-import { alveoli } from '$assets/game-content'
+import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content'
 import { computeStyleFromTexture } from '@ssh/lib/utils/images'
 
 import PropertyGrid from '../parts/PropertyGrid.vue'
@@ -64,7 +64,7 @@ const contentInfo = computed<ContentInfo>(() => {
     const resolvedType = c?.name;
     if (c instanceof Alveolus || resolvedType) {
         // Use a more relaxed type for dynamic access to avoid 'never' errors
-        const def = resolvedType ? (alveoli as Record<string, any>)[resolvedType] : undefined;
+        const def = resolvedType ? (visualAlveoli as Record<string, any>)[resolvedType] : undefined;
         return {
             type: resolvedType || 'unknown',
             sprite: def?.icon || (Array.isArray(def?.sprites) ? def.sprites[0] : ''),
@@ -85,7 +85,7 @@ const terrainBackgroundStyle = ref({});
 
 watchEffect(async () => {
     if (contentInfo.value?.terrain) {
-        await props.game.loaded;
+        await props.game.rendererReady;
         const texture = props.game.getTexture(`terrain.${contentInfo.value.terrain}`);
         if (texture) {
             // computeStyleFromTexture returns object or string? 

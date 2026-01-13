@@ -32,6 +32,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		return this.#assignedWorker
 	}
 	public set assignedWorker(value: Character | undefined) {
+		if (value === this.#assignedWorker) return
 		assert(!value !== !this.#assignedWorker, 'assigned worker mismatch')
 		this.#assignedWorker = value
 	}
@@ -48,16 +49,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		this.storage = storage
 		this.tile = tile
 
-		// Only create gates between two alveoli
-		for (const surrounding of this.tile.surroundings) {
-			// Check if the neighboring tile also contains an alveolus
-			if (surrounding.tile instanceof Alveolus) {
-				// Create gate only if one doesn't already exist
-				if (!(surrounding.border.content instanceof AlveolusGate)) {
-					surrounding.border.content = new AlveolusGate(surrounding.border)
-				}
-			}
-		}
+		// Building gates will now happen during hive attachment
 	}
 
 	get debugInfo() {
@@ -87,7 +79,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		return false
 	}
 
-	@memoize
+	//@memoize
 	get isBurdened(): boolean {
 		// Only consider available (unreserved) goods for burden check
 		// This prevents offering offload jobs for goods that are already being picked up
@@ -99,8 +91,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	nextJob?(character?: Character): Job | undefined
 
 	getJob(character?: Character): Job | undefined {
-		if (this.assignedWorker) {
-            console.error(`[Alveolus:${this.name}] getJob blocked: Has assigned worker ${this.assignedWorker.name}`);
+		if (this.assignedWorker && this.assignedWorker !== character) {
             return undefined
         }
 		// If the alveolus is burdened by FreeGoods, ask to remove them
@@ -116,11 +107,9 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 
 		// Only provide alveolus-specific jobs if working is enabled
 		if (!this.working) {
-            console.error(`[Alveolus:${this.name}] getJob blocked: Not working`);
             return undefined
         }
         
-        console.error(`[Alveolus:${this.name}] calling nextJob? ${!!this.nextJob}`);
 		return this.nextJob?.(character)
 	}
 
@@ -139,15 +128,23 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	 * - Returns a cycle of movements (A->B, B->C, C->A) if circular blockade detected
 	 * - Returns undefined if no movements available
 	 */
-	@memoize
+	//@memoize
 	get aGoodMovement(): LocalMovingGood[] | undefined {
 		const hive = this.hive
 		const here = toAxialCoord(this.tile.position)!
 		const blocked: LocalMovingGood[] = []
 
 		function canAdvance(mg: MovingGood) {
+            if (mg.path.length === 0) {
+                console.log(`[aGoodMovement] REJECT: Empty path`, mg)
+                return false
+            }
 			const storage = hive.storageAt(mg.path[0])
-			return storage?.hasRoom(mg.goodType) || mg.path.length === 1
+            const hasRoom = storage?.hasRoom(mg.goodType)
+            if (!hasRoom && mg.path.length !== 1) {
+                // console.log(`[aGoodMovement] REJECT: No room at next hop`, { hop: mg.path[0], good: mg.goodType, storage: storage })
+            }
+			return hasRoom || mg.path.length === 1
 		}
 		// TODO: take a random movement or keep it arbitrary?
 		// Collect movements at the tile itself
@@ -166,14 +163,20 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		// Collect movements from surroundings (borders)
 		for (const { border } of this.tile.surroundings) {
 			const from = toAxialCoord(border.position)!
+            const fromKey = axial.key(from)
 			const arr = hive.movingGoods.get(from)
-			if (!arr) continue
+			if (!arr) {
+                // if (this.name.includes('stonecutter')) console.log(`[aGoodMovement] No goods at border ${fromKey}`)
+                continue
+            }
+            // console.log(`[aGoodMovement] Found ${arr.length} goods at border ${fromKey}`)
 			for (const mg of arr) {
 				if (axial.distance(mg.path[0], here) < 0.5 + epsilon) {
 					const localMg = Object.setPrototypeOf({ from }, mg) as LocalMovingGood
 					if (canAdvance(mg)) {
 						return [localMg]
 					} else {
+                        // console.log(`[aGoodMovement] BLOCKED from border`, { from, here, path0: mg.path[0] })
 						blocked.push(localMg)
 					}
 				}
@@ -267,15 +270,9 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 
 		return undefined
 	}
-	@memoize
+	//@memoize
 	get incomingGoods(): boolean {
-		if (
-			this.tile.surroundings.some(
-				(s) => s.border.content instanceof AlveolusGate && s.border.content.storage.allocatedSlots,
-			)
-		) {
-			debugger
-		}
+
 		// Note: because borders have 2 neighbors and we check this when no movement is occurring,
 		//  if a good is incoming, it's for you (you're in one of the neighbors)
 		return this.tile.surroundings.some(
@@ -284,9 +281,18 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	}
 
 	private conveyJob(): Job | undefined {
-		// Provide a convey job only when there are pass-through movements via borders
-		// Now handles circular blockades - aGoodMovement will return a cycle to untangle
-		return this.aGoodMovement ? ({ job: 'convey', fatigue: 3, urgency: 2 } as Job) : undefined
+		const movementList = this.aGoodMovement
+		const hasIncoming = this.incomingGoods
+
+        // if (hasIncoming) console.log(`[conveyJob] ${this.name} hasIncoming=${hasIncoming} movementList=${movementList?.length}`);
+
+		if ((!movementList || movementList.length === 0) && !hasIncoming) return undefined
+
+		return {
+			job: 'convey',
+			fatigue: 1,
+			urgency: 2,
+		}
 	}
 
 	// Called even when replacing a Building construction site

@@ -93,7 +93,7 @@ describe('NPC Behaviors Integration', () => {
                     alveoli: [
                         { 
                             coord: [0, 0] as [number, number], 
-                            alveolus: 'saw_mill', // Standard transform alveolus
+                            alveolus: 'sawmill', // Standard transform alveolus
                             goods: { wood: 5 } // Input goods (wood, not log)
                         } 
                     ]

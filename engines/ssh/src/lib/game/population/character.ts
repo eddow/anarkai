@@ -43,6 +43,7 @@ export class Character extends withInteractive(
 		return this._assignedAlveolus
 	}
 	public set assignedAlveolus(value: Alveolus | undefined) {
+		if (value === this._assignedAlveolus) return
 		assert(!value !== !this._assignedAlveolus, 'assigned alveolus mismatch')
 		this._assignedAlveolus = value
 	}
@@ -109,13 +110,20 @@ export class Character extends withInteractive(
 			if (!tile) return false
             
 			const job = tile.getJob?.(this) // Pass character to compute full job with path
-			if (!job) return false
+            const axCoord = toAxialCoord(coord)!
+            const coordKey = axial.key(axCoord);
+			if (!job) {
+                // if (axial.distance(axCoord, start) < 2) console.log(`[scoreJob] ${this.name} at ${coordKey}: no job`);
+                return false
+            }
 
 			// Cache the job for later retrieval
-			const key = `${(coord as AxialCoord).q},${(coord as AxialCoord).r}`
+			const key = coordKey
 			jobCache.set(key, job)
 
-			return calculateJobScore(this, job)
+			const score = calculateJobScore(this, job)
+            console.log(`[scoreJob] ${this.name} at ${coordKey}: job ${job.job}, score ${score}`);
+            return score
 		}
 
 		// Find the best job using the findBest pathfinding function
@@ -138,7 +146,6 @@ export class Character extends withInteractive(
 		const jobProvider = targetTile.content!
 
 		this.log('character.beginJob', job.job)
-        console.error(`[${this.uid}] Selected job: ${job.job} at ${key}`);
 
 		// Job already has all details (path, urgency, fatigue) from cached getJob()
 		// Just create WorkPlan by adding plan type and target
@@ -216,20 +223,16 @@ export class Character extends withInteractive(
 	}
 
 	findAction() {
-        console.error(`[${this.uid}] findAction called. Hunger: ${this.hunger}, Fatigue: ${this.fatigue}`);
 		if (this.hunger > this.triggerLevels.hunger.high) return this.scriptsContext.selfCare.goEat()
 
 		if (Object.values(this.carry.availables).some((qty) => qty! > 0)) {
 			// Only try to drop if we can find a spot to drop them
 			if (this.scriptsContext.find.freeSpot()) {
-                console.error(`[${this.uid}] Dropping goods`);
 				return this.scriptsContext.inventory.dropAllFree()
 			}
 		}
 		const tryAnActivity =
 			this.fatigue < this.triggerLevels.fatigue.high ? this.findBestJob() : undefined // goRest
-        
-        if (!tryAnActivity) console.error(`[${this.uid}] No activity found. Wandering.`);
         
 		// Default to wandering when no specific action is needed
 		return tryAnActivity || this.scriptsContext.selfCare.wander()

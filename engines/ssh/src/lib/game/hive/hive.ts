@@ -1,4 +1,4 @@
-import { reactive, type ScopedCallback, unreactive } from 'mutts'
+import { addBatchCleanup, reactive, type ScopedCallback, unreactive } from 'mutts'
 import { assert, namedEffect, traces } from '$lib/debug'
 import type { GoodType } from '$lib/types'
 import { type AxialCoord, findPath, type Positioned, setPop } from '$lib/utils'
@@ -9,12 +9,13 @@ import {
 } from '$lib/utils/advertisement'
 import { AxialKeyMap } from '$lib/utils/mem'
 import { toAxialCoord } from '../../utils/position'
-import type { AlveolusGate } from '../board'
+import { AlveolusGate } from '../board/border/alveolus-gate'
 import { type HexBoard, isTileCoord } from '../board/board'
 import { Alveolus } from '../board/content/alveolus'
 import type { Tile } from '../board/tile'
 import type { AllocationBase, Storage } from '../storage'
 import type { StorageAlveolus } from './storage'
+
 export interface MovingGood {
 	goodType: GoodType
 	path: AxialCoord[]
@@ -71,6 +72,14 @@ export class Hive extends AdvertisementManager<Alveolus> {
 	private readonly gates = new Set<AlveolusGate>()
 	public attach(alveolus: Alveolus) {
 		this.alveoli.add(alveolus)
+		// Ensure gates exist between neighboring alveoli in the hive
+		for (const surrounding of alveolus.tile.surroundings) {
+			if (surrounding.tile instanceof Alveolus) {
+				if (!(surrounding.border.content instanceof AlveolusGate)) {
+					surrounding.border.content = new AlveolusGate(surrounding.border)
+				}
+			}
+		}
 		for (const gate of alveolus.gates) this.gates.add(gate)
 		alveolus.hive = this
 		this.invalidatePathCache()
@@ -255,14 +264,29 @@ export class Hive extends AdvertisementManager<Alveolus> {
 
 		// Use cached path if available, otherwise calculate it
 		const path = [...this.getPath(provider, demander, goodType)!]
+
 		if (!path || path.length < 1) return false
+
 		const reason = {
 			type: 'hive-transfer',
 			goodType,
 			...positions,
 		}
+
+		/*
+		 * Attempt to reserve the good from the provider and allocate space in the demander.
+		 * If either fails, we cancel the other and return false.
+		 */
 		const providerToken = provider.storage.reserve({ [goodType]: 1 }, reason)
 		const demanderToken = demander.storage.allocate({ [goodType]: 1 }, reason)
+
+		if (!providerToken || !demanderToken) {
+			console.warn('[createMovement] Failed to obtain tokens', { providerToken, demanderToken })
+			if (providerToken) providerToken.cancel()
+			if (demanderToken) demanderToken.cancel()
+			return false
+		}
+
 		let from = positions.provider
 		let list = this.movingGoods.get(from) ?? []
 		function removeFromList(good: MovingGood) {
@@ -271,6 +295,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 			list.splice(idx, 1)
 			if (list.length === 0) movingGoods.delete(from)
 		}
+
 		const movingGood: MovingGood = {
 			goodType,
 			path,
@@ -295,6 +320,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 				removeFromList(movingGood)
 			},
 		}
+	
 		list.push(movingGood)
 		movingGoods.set(from, list)
 		return true
@@ -315,13 +341,27 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		traces.advertising?.log(
 			`Creating movement for ${goodType}: ${alveolus.name} -> ${storage.name}`,
 		)
-		this.createMovement(
-			goodType,
-			...((advertisement === 'provide' ? [alveolus, storage] : [storage, alveolus]) as [
-				Alveolus,
-				Alveolus,
-			]),
-		)
+		// Defer movement creation to avoid reactive cycle:
+		// The advertise effect reads storage state, and createMovement modifies it.
+		//
+		// We use addBatchCleanup instead of queueMicrotask because the game loop is now
+		// atomic (via zoned requestAnimationFrame), so we can rely on synchronous deferral
+		// to the end of the batch.
+		addBatchCleanup(() => {
+			try {
+				this.createMovement(
+					goodType,
+					...((advertisement === 'provide' ? [alveolus, storage] : [storage, alveolus]) as [
+						Alveolus,
+						Alveolus,
+					]),
+				)
+			} catch (e) {
+				// Ignore allocation errors that occur if resources are no longer available
+				// The system will retry naturally on next advertisement if needed
+				if ((e as Error).name !== 'AllocationError') console.error(e)
+			}
+		})
 		return storage
 	}
 	advertise(

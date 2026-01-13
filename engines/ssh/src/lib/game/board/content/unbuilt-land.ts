@@ -131,9 +131,10 @@ export class UnBuiltLand extends withTicked(TileContent) {
 	 * Override colorCode to show pink tint/border when there's a project
 	 */
 	colorCode(): { tint: number; borderColor?: number } {
-		return this.project
-			? { tint: 0xffb4d9, borderColor: 0xff1493 } // pinkish tint, deep pink border
-			: super.colorCode()
+		if (this.project) {
+			return { tint: 0xffb4d9, borderColor: 0xff1493 } // pinkish tint, deep pink border
+		}
+		return super.colorCode()
 	}
 
 

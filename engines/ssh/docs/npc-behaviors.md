@@ -1,10 +1,5 @@
-> [!IMPORTANT]
-> **This documentation has moved!** Please see the SSH engine's dedicated documentation:  
-> **[NPC Behaviors Documentation](../engines/ssh/docs/npc-behaviors.md)**
->
-> The content below is kept for reference but may be outdated.
 
-
+# Character Behavioral Specifications
 
 > [!NOTE]
 > This document serves as the authoritative "Behavioral Specification" for NPC actions within the Anarkai engine. It describes the decision-making logic, execution rules, and state changes for each defined behavior.

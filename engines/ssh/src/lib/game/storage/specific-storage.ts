@@ -171,7 +171,6 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 		}
 		return { slots, assumedMaxSlots: Object.keys(this.maxAmounts).length }
 	}
-	@atomic
 	allocate(goods: Goods, reason: any): SpecificAllocation {
 		const actualGoods: Goods = {}
 		let hasAnyAllocation = false
@@ -199,7 +198,6 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 		return new SpecificAllocation(this, actualGoods, reason)
 	}
 
-	@atomic
 	reserve(goods: Goods, reason: any): SpecificAllocation {
 		const actualGoods: Goods = {}
 		let hasAnyReservation = false

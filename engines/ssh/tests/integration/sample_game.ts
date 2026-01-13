@@ -45,7 +45,7 @@ describe('Source Allocation Stability', () => {
         try {
             // Simulation
             const dt = 0.1
-            for (let i = 0; i < 300; i++) { // 30 seconds
+            for (let i = 0; i < 6000; i++) { // 10 minutes
                 game.ticker.update(dt * 1000)
                 if (errorFound) break
             }

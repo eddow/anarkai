@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watchEffect, toRefs } from 'vue';
+import { ref, watchEffect } from 'vue';
 import type { Game } from '@ssh/lib/game';
 import { computeStyleFromTexture } from '@ssh/lib/utils/images';
 
@@ -22,7 +22,7 @@ watchEffect(() => {
     }
 
     void (async () => {
-        await game.loaded
+        await game.rendererReady
         const texture = game.getTexture(sprite)
         let targetWidth = width
         let targetHeight = height

@@ -29,6 +29,7 @@ export function contractDecorator(validate: (args: any[]) => any) {
 			checkContract(validate, args, propertyKey)
 			return originalMethod.apply(this, args)
 		})
+		Object.defineProperty(descriptor.value, 'name', { value: propertyKey })
 		return descriptor
 	}
 }
