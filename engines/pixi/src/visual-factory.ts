@@ -80,6 +80,7 @@ export class VisualFactory {
         object: T, 
         VisualClass: new (obj: T, renderer: PixiGameRenderer) => VisualObject<T>
     ) {
+        if (!this.renderer?.app) return
         if (this.renderer.visuals.has(object.uid)) return
         
         let visual: VisualObject<T> | undefined

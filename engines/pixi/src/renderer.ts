@@ -6,6 +6,7 @@ import { InteractionManager } from './interaction/interaction-manager.js'
 
 import { VisualFactory } from './visual-factory'
 import { assetManager } from './asset-manager'
+import { DragPreviewOverlay } from './renderers/drag-preview-overlay'
 import { deposits, alveoli, goods, vehicles, characters, commands, terrain } from 'assets/visual-content.js'
 
 export class PixiGameRenderer implements GameRenderer {
@@ -13,6 +14,7 @@ export class PixiGameRenderer implements GameRenderer {
 	public stage?: Container
     private interactionManager?: InteractionManager
     private visualFactory?: VisualFactory
+    private dragPreviewOverlay?: DragPreviewOverlay
 	private container: HTMLElement
 	private canvas: HTMLCanvasElement | null = null
 	private isDestroyed = false
@@ -69,6 +71,10 @@ export class PixiGameRenderer implements GameRenderer {
         // Setup Visuals
         this.visualFactory = new VisualFactory(this)
         this.visualFactory.bind()
+
+        // Setup Drag Preview Overlay
+        this.dragPreviewOverlay = new DragPreviewOverlay(this)
+        this.dragPreviewOverlay.bind()
 
 		// Register for HMR
 		registerPixiApp(this.app)
@@ -164,7 +170,8 @@ export class PixiGameRenderer implements GameRenderer {
 		this.isDestroyed = true
         
         this.interactionManager?.teardown()
-        // this.visualFactory?.destroy()
+        this.dragPreviewOverlay?.dispose()
+        this.visualFactory?.destroy()
 
 		if (this.app) {
 			unregisterPixiApp(this.app)

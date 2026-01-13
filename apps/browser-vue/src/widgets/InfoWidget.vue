@@ -6,6 +6,17 @@ import { toWorldCoord } from '@ssh/lib/utils/position';
 import { Tile } from '@ssh/lib/game/board/tile';
 import { Character } from '@ssh/lib/game/population/character';
 
+/** Renderer interface for goTo functionality */
+interface RendererWithWorld {
+    world: { 
+        position: { x: number; y: number };
+        scale: { x: number; y: number };
+    };
+    app: { 
+        screen: { width: number; height: number };
+    };
+}
+
 import TileProperties from '../components/properties/TileProperties.vue';
 import CharacterProperties from '../components/properties/CharacterProperties.vue';
 import { Button } from '../components';
@@ -126,12 +137,31 @@ onUnmounted(() => {
 });
 
 // Actions
+function isRendererWithWorld(renderer: unknown): renderer is RendererWithWorld {
+    return !!renderer 
+        && typeof renderer === 'object'
+        && 'world' in renderer 
+        && 'app' in renderer
+        && !!renderer.world
+        && !!renderer.app
+}
+
 const goTo = () => {
-    if (!object.value || !object.value.position) return;
-    const coord = toWorldCoord(object.value.position);
-    if (coord && game.gameView) {
-        game.gameView.goTo(coord.x, coord.y);
-    }
+    if (!object.value || !object.value.position) return
+    const coord = toWorldCoord(object.value.position)
+    if (!coord) return
+    
+    const renderer = game.renderer
+    if (!isRendererWithWorld(renderer)) return
+    
+    // Center the camera on the target world position
+    const { screen } = renderer.app
+    const { world } = renderer
+    const scale = world.scale.x
+    
+    // Position world so that the target is at screen center
+    world.position.x = screen.width / 2 - coord.x * scale
+    world.position.y = screen.height / 2 - coord.y * scale
 }
 
 /**

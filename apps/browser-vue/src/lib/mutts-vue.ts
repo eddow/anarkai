@@ -1,4 +1,4 @@
-import { onUnmounted, shallowRef, readonly, type Ref, type DeepReadonly } from 'vue';
+import { onUnmounted, shallowRef, shallowReadonly, type Ref } from 'vue';
 import { effect } from 'mutts';
 
 /**
@@ -25,5 +25,5 @@ export function useMutts<T>(getter: () => T): Readonly<Ref<T>> {
         state.value = getter();
     });
 
-    return readonly(state) as Readonly<Ref<T>>;
+    return shallowReadonly(state) as Readonly<Ref<T>>;
 }

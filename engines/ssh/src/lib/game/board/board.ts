@@ -200,6 +200,8 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 			occupied.push(character)
 			return undefined
 		} else {
+            // If the character is already the current occupant, we're good (e.g. restoration or idempotent move)
+            if (occupied[0] === character) return undefined
 			// Before creating a new queue, check for circular dependencies
 			const circularQueue = this.traceQueueOrigin(character)
 			if (circularQueue) {

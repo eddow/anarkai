@@ -9,6 +9,7 @@ import PropertyGridRow from '../parts/PropertyGridRow.vue'
 import Badge from '../parts/Badge.vue'
 import EntityBadge from './EntityBadge.vue'
 import GoodsList from './GoodsList.vue'
+import StoredGoodsRow from './StoredGoodsRow.vue'
 import AlveolusProperties from './AlveolusProperties.vue'
 import UnBuiltProperties from './UnBuiltProperties.vue'
 
@@ -121,7 +122,7 @@ const walkTimeColor = computed(() => {
 <template>
     <div class="tile-properties" :class="{ 'dark-terrain': isDark }" :style="terrainBackgroundStyle">
         <!-- Main title/icon -->
-        <div v-if="contentInfo.type || contentInfo.name" class="header-badge">
+        <div v-if="contentInfo.name" class="header-badge">
              <EntityBadge
                 :game="game"
                 :sprite="contentInfo.sprite"
@@ -135,18 +136,15 @@ const walkTimeColor = computed(() => {
             <PropertyGridRow :label="T.tile.walkTime">
                 <Badge :color="walkTimeColor">{{ walkTimeDisplay }}</Badge>
             </PropertyGridRow>
-
-            <!-- Elevation & Biome -->
-            <PropertyGridRow label="Elevation">
-                <span>{{ tile.elevation?.toFixed(1) || '0.0' }}</span>
-            </PropertyGridRow>
             
-            <PropertyGridRow v-if="contentInfo.terrain" label="Terrain">
-                <Badge color="indigo">{{ contentInfo.terrain }}</Badge>
-            </PropertyGridRow>
-            
-            <!-- Stored -->
-            <PropertyGridRow v-if="Object.keys(stock).length > 0" :label="T.goods.stored">
+            <!-- Stored (with cleanup for Alveolus) -->
+            <StoredGoodsRow 
+                v-if="tileContent instanceof Alveolus"
+                :content="tileContent" 
+                :game="game" 
+                :label="T.goods.stored" 
+            />
+            <PropertyGridRow v-else-if="Object.keys(stock).length > 0" :label="T.goods.stored">
                 <GoodsList :goods="stock" :game="game" />
             </PropertyGridRow>
 
@@ -160,7 +158,7 @@ const walkTimeColor = computed(() => {
                  <UnBuiltProperties :content="tileContent" />
             </template>
             <template v-else-if="tileContent instanceof Alveolus">
-                 <AlveolusProperties :content="tileContent" />
+                 <AlveolusProperties :content="tileContent" :game="game" />
             </template>
 
         </PropertyGrid>

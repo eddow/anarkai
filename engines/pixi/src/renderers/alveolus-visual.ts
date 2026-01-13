@@ -12,6 +12,7 @@ import { VisualObject } from './visual-object'
 export class AlveolusVisual extends VisualObject<any> {
     private sprite: Sprite | undefined
     private goodsContainer: Container
+    private _disposed = false
 
     constructor(alveolus: Alveolus, renderer: PixiGameRenderer) {
         super(alveolus, renderer)
@@ -21,14 +22,21 @@ export class AlveolusVisual extends VisualObject<any> {
     }
 
     public bind() {
+        if (this._disposed) return
         const worldPos = toWorldCoord(this.object.tile.position)
         
         // Attach view to structures layer
         this.view.position.set(worldPos.x, worldPos.y)
-        this.renderer.layers.alveoli.addChild(this.view)
+        const alveoliLayer = this.renderer.layers?.alveoli
+        if (!alveoliLayer) {
+            console.warn('AlveolusVisual.bind: renderer.layers.alveoli is missing', { disposed: this._disposed, layers: !!this.renderer.layers })
+            return
+        }
+        alveoliLayer.addChild(this.view)
         
         // 1. Render Structure Sprite (on alveoli layer)
         this.register(namedEffect(`alveolus.${this.object.uid}.sprite`, () => {
+             if (this._disposed) return
              const visualDef = alveoli[this.object.name]
              const textureName = visualDef?.sprites?.[0]
              if (textureName) {
@@ -64,7 +72,12 @@ export class AlveolusVisual extends VisualObject<any> {
         // 2. Render Goods (on storedGoods layer)
         // Goods need to be on a higher layer
         this.goodsContainer.position.set(worldPos.x, worldPos.y)
-        this.renderer.layers.storedGoods.addChild(this.goodsContainer)
+        const storedGoodsLayer = this.renderer.layers?.storedGoods
+        if (!storedGoodsLayer) {
+             console.warn('AlveolusVisual.bind: renderer.layers.storedGoods is missing')
+        } else {
+            storedGoodsLayer.addChild(this.goodsContainer)
+        }
         
         const cleanupGoods = GoodsRenderer.render(
             this.renderer,
@@ -81,6 +94,7 @@ export class AlveolusVisual extends VisualObject<any> {
     }
 
     public dispose() {
+        this._disposed = true
         if (this.sprite) {
             this.sprite.destroy()
         }

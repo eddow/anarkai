@@ -12,16 +12,27 @@ import {
 } from '@app/lib/globals'
 import CharacterProperties from '../components/CharacterProperties'
 import TileProperties from '../components/TileProperties'
+import { Button, Toolbar } from 'pounce-ui/src'
+import { toWorldCoord } from '@ssh/lib/utils/position'
 
 css`
 .selection-info-panel {
 	display: flex;
 	flex-direction: column;
-	gap: 1rem;
+	gap: 0;
 	height: 100%;
-	padding: 1rem;
 	color: var(--toolbar-text);
 	box-sizing: border-box;
+    background-color: var(--app-bg);
+}
+
+.selection-info-panel__content-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 1rem;
+    gap: 1rem;
+    overflow-y: auto;
 }
 
 .selection-info-panel__summary h3 {
@@ -44,6 +55,8 @@ css`
 	padding: 0.75rem;
 	overflow-y: auto;
 	background: rgba(15, 23, 42, 0.08);
+    display: flex;
+    flex-direction: column;
 }
 
 .dark .selection-info-panel__logs {
@@ -54,11 +67,14 @@ css`
 	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 	font-size: 0.8rem;
 	line-height: 1.4;
+    word-break: break-all;
+    white-space: pre-wrap;
 }
 
 .selection-info-panel__empty {
 	font-size: 0.9rem;
 	opacity: 0.75;
+    padding: 1rem;
 }
 `
 
@@ -76,6 +92,8 @@ const SelectionInfoWidget = (
 		logs: [] as string[],
 		isPinned: false,
 	})
+
+	const logsRef: { value: HTMLElement | undefined } = { value: undefined }
 
 	let stopLogs: (() => void) | undefined
 
@@ -119,6 +137,12 @@ const SelectionInfoWidget = (
 		}
 		stopLogs = watch(object.logs, (entries: string[]) => {
 			state.logs = [...entries]
+			// Scroll to bottom
+			setTimeout(() => {
+				if (logsRef.value) {
+					logsRef.value.scrollTop = logsRef.value.scrollHeight
+				}
+			}, 10)
 		})
 		return () => {
 			stopLogs?.()
@@ -126,10 +150,65 @@ const SelectionInfoWidget = (
 		}
 	})
 
+	const goTo = () => {
+		if (!state.object || !state.object.position) return
+		const coord = toWorldCoord(state.object.position)
+		if (!coord) return
+
+		const renderer = game.renderer as any
+		if (!renderer || !renderer.world || !renderer.app) return
+
+		const { screen } = renderer.app
+		const { world } = renderer
+		const scale = world.scale.x
+
+		world.position.x = screen.width / 2 - coord.x * scale
+		world.position.y = screen.height / 2 - coord.y * scale
+	}
+
+	const pin = () => {
+		if (!state.object || !props.api) return
+		const uid = state.object.uid
+
+		registerObjectInfoPanel(uid, `pinned:${uid}`)
+
+		// Improve: The Vue version closes the current panel using props.api.close(),
+		// but here we might want to just let the Dockview logic handle it or 
+		// if this is the dynamic panel, we might want to keep it open but switch it to pinned?
+		// Actually, the Vue logic closes the dynamic 'info' panel, forcing the user to open a new one
+		// or effectively "converting" it.
+		// In browser-pounce `ensurePanel` checks for existing.
+		// If we want to Spawn a NEW window, we should add a new panel.
+
+		const dock = props.api.group?.dockview
+		if (dock) {
+			dock.addPanel({
+				id: `pinned:${uid}`,
+				component: 'selection-info',
+				params: { uid },
+				floating: { width: 300, height: 400 } // Default to floating for pinned
+			})
+		}
+	}
+
 	return (
 		<div class="selection-info-panel">
+			<Toolbar>
+				<div style="flex: 1; font-weight: 500; font-size: 0.9em; padding-left: 0.5rem;">
+					{state.object?.title ?? 'Selection'}
+				</div>
+				{state.object && (
+					<>
+						<Button icon="mdi:eye" aria-label="Go to Object" onClick={goTo} />
+						{!state.isPinned && (
+							<Button icon="mdi:pin" aria-label="Pin Panel" onClick={pin} />
+						)}
+					</>
+				)}
+			</Toolbar>
+
 			{state.object ? (
-				<>
+				<div class="selection-info-panel__content-wrapper">
 					<div class="selection-info-panel__content">
 						{state.object instanceof Character ? (
 							<CharacterProperties character={state.object} />
@@ -143,7 +222,11 @@ const SelectionInfoWidget = (
 						)}
 					</div>
 					{state.logs.length > 0 && (
-						<div class="selection-info-panel__logs" role="log">
+						<div
+							class="selection-info-panel__logs"
+							role="log"
+							use={(el: any) => logsRef.value = el}
+						>
 							{state.logs.map((line) => (
 								<div class="selection-info-panel__logs-line">
 									{line}
@@ -151,7 +234,7 @@ const SelectionInfoWidget = (
 							))}
 						</div>
 					)}
-				</>
+				</div>
 			) : (
 				<div class="selection-info-panel__empty">Select an object in the game view to inspect it.</div>
 			)}

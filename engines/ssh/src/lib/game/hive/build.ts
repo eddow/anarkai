@@ -1,4 +1,4 @@
-import { memoize } from 'mutts'
+import { memoize, reactive } from 'mutts'
 import { alveoli as alveoliDefs } from '$assets/game-content'
 import { SpecificStorage } from '$lib/game/storage'
 import type { AlveolusType, GoodType } from '$lib/types'
@@ -6,6 +6,7 @@ import type { GoodsRelations } from '$lib/utils/advertisement'
 import { Alveolus } from '../board/content/alveolus'
 import type { Tile } from '../board/tile'
 
+@reactive
 export class BuildAlveolus extends Alveolus {
 	public readonly target: AlveolusType
 

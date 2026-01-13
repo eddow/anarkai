@@ -122,7 +122,7 @@ export class Character extends withInteractive(
 			jobCache.set(key, job)
 
 			const score = calculateJobScore(this, job)
-            console.log(`[scoreJob] ${this.name} at ${coordKey}: job ${job.job}, score ${score}`);
+            //console.log(`[scoreJob] ${this.name} at ${coordKey}: job ${job.job}, score ${score}`);
             return score
 		}
 

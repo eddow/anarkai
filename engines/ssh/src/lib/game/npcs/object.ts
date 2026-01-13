@@ -60,7 +60,7 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 			while (this.runningScripts.length && !this.stepExecutor) {
 				const executingName = this.runningScript.name
 				const { type, value } = this.makeRun()
-				console.log(`[nextStep] ${this.name}: running ${executingName}, produced ${type} with value ${value?.constructor.name || value}`);
+				//console.log(`[nextStep] ${this.name}: running ${executingName}, produced ${type} with value ${value?.constructor.name || value}`);
 				loopCount.push({ name: executingName, type, value })
 				if (loopCount.length > 50) {
 					console.error('High loop count in nextStep, throttling', executingName, type, value)
@@ -75,7 +75,7 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 					if (value instanceof ScriptExecution) this.runningScripts.unshift(value)
 					else if (value instanceof ASingleStep) {
 						this.stepExecutor = value
-						console.log(`[nextStep] ${this.name}: new stepExecutor set: ${value.constructor.name}`);
+						//console.log(`[nextStep] ${this.name}: new stepExecutor set: ${value.constructor.name}`);
 					}
 					else throw new Error(`Unexpected next action: ${value}`)
 				} else if (!this.runningScripts.length) {
@@ -88,7 +88,7 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 						reentered = true
 					}
 					if (nextAction) {
-						console.log(`[nextStep] ${this.name}: found new action via findAction: ${nextAction.name}`);
+						//console.log(`[nextStep] ${this.name}: found new action via findAction: ${nextAction.name}`);
 						this.runningScripts.unshift(nextAction)
 					}
 				}
@@ -107,11 +107,19 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 				remaining = newRemaining
 				if (remaining !== undefined) {
 					assert(this.stepExecutor.status !== 'pending', 'Step executor is not pending')
-					console.log(`[update] ${this.name}: finished step ${this.stepExecutor.constructor.name}, remaining dt ${remaining}`);
+					//console.log(`[update] ${this.name}: finished step ${this.stepExecutor.constructor.name}, remaining dt ${remaining}`);
 					this.stepExecutor = undefined
 					this.nextStep()
 					const newType = this.stepExecutor!?.constructor
-					if (uselessStepExecutor === newType) throw new Error(`Useless step executor: ${newType.name}`)
+					if (uselessStepExecutor === newType) {
+						console.error('Useless step executor detected:', {
+							object: (this as any).name ?? (this as any).uid ?? 'unknown',
+							stepType: newType?.name,
+							runningScripts: this.runningScripts.map((s) => ({ name: s.name, state: s.state })),
+							actionDescription: this.actionDescription,
+						})
+						throw new Error(`Useless step executor: ${newType.name}`)
+					}
 				}
 			}
 		}

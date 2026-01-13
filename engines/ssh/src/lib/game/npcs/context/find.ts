@@ -74,7 +74,7 @@ class FindFunctions {
 		const { hex } = this[subject].game
 		const start = toAxialCoord(this[subject].tile.position)
 
-		// 1) Prefer deposits near building sites (construction tiles take priority)
+		// 1) Prefer deposits near building sites (clearing)
 		const pathNearConstruction = hex.findNearestForCharacter(
 			start,
 			this[subject],
@@ -82,15 +82,18 @@ class FindFunctions {
 				const tile = hex.getTile(coord)
 				if (!(tile?.content instanceof UnBuiltLand)) return false
 				if (tile.content.deposit?.name !== deposit) return false
-				// Check if any neighbor is a BuildAlveolus (construction site)
-				return tile.neighborTiles.some((neighbor) => neighbor.content instanceof BuildAlveolus)
+				// Check if this tile or any neighbor is a clearing/construction site
+				return (
+					tile.clearing ||
+					tile.neighborTiles.some((neighbor) => neighbor.content instanceof BuildAlveolus)
+				)
 			},
 			maxWalkTime,
 			false,
 		)
 		if (pathNearConstruction?.length) return pathNearConstruction
 
-		// 2) Prefer deposits in harvest zones (cleaning duties)
+		// 2) Prefer deposits in harvest zones
 		const pathInZone = hex.findNearestForCharacter(
 			start,
 			this[subject],
@@ -106,19 +109,7 @@ class FindFunctions {
 		)
 		if (pathInZone?.length) return pathInZone
 
-		// 3) Fallback to any matching deposit
-		const pathAny = hex.findNearestForCharacter(
-			start,
-			this[subject],
-			(coord) => {
-				const tile = hex.getTile(coord)
-				return tile?.content instanceof UnBuiltLand && tile.content.deposit?.name === deposit
-			},
-			maxWalkTime,
-			false,
-		)
-		if (!pathAny || pathAny.length === 0) return false as const
-		return pathAny
+		return false as const
 	}
 
 	@contract()

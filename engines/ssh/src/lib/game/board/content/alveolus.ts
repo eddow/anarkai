@@ -1,4 +1,4 @@
-import { memoize, type ScopedCallback, unreactive } from 'mutts'
+import { memoize, reactive, type ScopedCallback, unreactive } from 'mutts'
 
 import { assert } from '$lib/debug'
 import type { Hive, MovingGood } from '$lib/game/hive/hive'
@@ -21,20 +21,21 @@ interface LocalMovingGood extends MovingGood {
 	from: AxialCoord
 }
 
-@unreactive
+@unreactive('tile', 'hive', 'storage')
+@reactive
 export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof TileContent>(
 	TileContent,
 ) {
 	declare readonly name: string
 
-	#assignedWorker: Character | undefined
+	private _assignedWorker: Character | undefined
 	public get assignedWorker(): Character | undefined {
-		return this.#assignedWorker
+		return this._assignedWorker
 	}
 	public set assignedWorker(value: Character | undefined) {
-		if (value === this.#assignedWorker) return
-		assert(!value !== !this.#assignedWorker, 'assigned worker mismatch')
-		this.#assignedWorker = value
+		if (value === this._assignedWorker) return
+		assert(!value !== !this._assignedWorker, 'assigned worker mismatch')
+		this._assignedWorker = value
 	}
 	public tile: Tile
 	public declare hive: Hive
@@ -355,6 +356,26 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 				this.storage.removeGood(goodType as GoodType, quantity)
 			}
 		}
+	}
+
+	/**
+	 * Clean up a specific good type from storage by creating free goods
+	 * @param goodType - The type of good to clean up
+	 */
+	cleanUpGood(goodType: GoodType): void {
+		const quantity = this.storage.stock[goodType]
+		if (!quantity) return
+
+		const { x: tileX, y: tileY } = toWorldCoord(this.tile.position)!
+
+		for (let i = 0; i < quantity; i++) {
+			const { x, y } = axial.randomPositionInTile(this.game.random, tileSize)
+			this.tile.board.freeGoods.add(this.tile.position, goodType, {
+				position: { x: tileX + x, y: tileY + y },
+			})
+		}
+
+		this.storage.removeGood(goodType, quantity)
 	}
 }
 gameIsaTypes.alveolus = (value: any) => {

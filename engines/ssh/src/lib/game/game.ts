@@ -50,6 +50,8 @@ export type GameEvents = {
 	objectUp(pointer: any, object: InteractiveGameObject): void
 	objectClick(pointer: any, object: InteractiveGameObject): void
 	objectDrag(tiles: Tile[], event: MouseEvent): void
+	dragPreview(tiles: Tile[], zoneType: string): void
+	dragPreviewClear(): void
 }
 unreactive(Eventful)
 export type GameGenerationOptions = {

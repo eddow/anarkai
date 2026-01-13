@@ -1,4 +1,4 @@
-import { memoize } from 'mutts'
+import { memoize, reactive } from 'mutts'
 import { inputBufferSize, outputBufferSize } from '$assets/constants'
 import type { Character } from '$lib/game/population/character'
 import { SpecificStorage } from '$lib/game/storage'
@@ -8,6 +8,7 @@ import { Alveolus } from '../board/content/alveolus'
 import { multiplyGoodsQty } from '../board/content/utils'
 import type { Tile } from '../board/tile'
 
+@reactive
 export class TransformAlveolus extends Alveolus {
 	declare action: Ssh.TransformationAction
 	constructor(tile: Tile) {

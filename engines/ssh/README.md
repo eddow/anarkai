@@ -27,9 +27,7 @@ A small sandbox colony/automation game experiment on a hex grid. NPCs perform jo
 - `npm run test` — run unit tests (Vitest)
 
 ### Tech stack
-- Svelte 5, Vite, Tailwind
 - TypeScript
-- PIXI.js for rendering
 - Vitest for tests
 
 ### Status
@@ -44,12 +42,3 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 - **[NPC Behaviors](docs/npc-behaviors.md)** — Character behavioral specifications
 - **[Test Engine](docs/test-engine.md)** — Headless testing environment
 - **[Development Guide](docs/development-guide.md)** — Contributing and development patterns
-
-# TODO
-
-- "purge" button on buildings: remove all goods (drop free on tile: stored good -> loose good)
-- "buffer" = {good: amount} a storage try (1-buffer) to have: slotted = amount of slot, specific = amount per type.
-   Once done, modify conveying tests in order to check goods are gone *and* have arrived (with 2 storage, one buffering and begining empty)
-
-bugs:
-info icons don't appear

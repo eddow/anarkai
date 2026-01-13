@@ -36,7 +36,7 @@ export class UnBuiltLand extends withTicked(TileContent) {
 	}
 
 	get name() {
-		return this.terrain
+		return ''
 	}
 	get storage() {
 		return undefined

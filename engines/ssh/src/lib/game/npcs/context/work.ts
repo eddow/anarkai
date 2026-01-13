@@ -69,17 +69,17 @@ class WorkFunctions {
 		// Get movement(s) - either a single movement or a cycle
 		const movements = alveolus.aGoodMovement
 		if (!movements || movements.length === 0) {
-			console.log(`[conveyStep] No movements found for ${character.name}`)
+			//console.log(`[conveyStep] No movements found for ${character.name}`)
 			return
 		}
 
 		const hive = alveolus.hive
 
 		const movementData: MovementData[] = []
-		console.log(`[conveyStep] Found ${movements.length} movements for ${character.name}`)
+		//console.log(`[conveyStep] Found ${movements.length} movements for ${character.name}`)
 
 		for (const mg of movements) {
-			console.log(`[conveyStep] Processing movement for ${mg.goodType} from ${axial.key(mg.from)}`)
+			//console.log(`[conveyStep] Processing movement for ${mg.goodType} from ${axial.key(mg.from)}`)
 			if (!mg.allocations?.source) {
 				console.warn('[conveyStep] Missing source allocation', mg)
 				continue

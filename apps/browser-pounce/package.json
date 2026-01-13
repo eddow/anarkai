@@ -23,6 +23,7 @@
   "dependencies": {
     "@iconify-icons/material-symbols": "^1.2.58",
     "@iconify-icons/mdi": "^1.2.48",
+    "engine-pixi": "link:../../engines/pixi",
     "eventemitter3": "^5.0.1",
     "@picocss/pico": "^2.0.6",
     "arktype": "^2.1.22",

@@ -1,6 +1,5 @@
 import '@picocss/pico/css/pico.min.css'
 import './app.css'
-import '@ssh/lib/hmr-pixi'
 import { profileInfo } from 'mutts'
 import { bindApp } from 'pounce-ts'
 import App from '@app/app/App'

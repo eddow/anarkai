@@ -2,7 +2,6 @@
 import { describe, it, expect } from 'vitest'
 import { TestEngine } from '@app/test-engine'
 import { SaveState } from '$lib/game';
-import console from 'console';
 // TODO: When buffering is implemented, set the target to a buffering storage and add in the test that the goods are arrived
 describe('Convey Behavior Integration', () => {
     

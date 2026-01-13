@@ -1,3 +1,4 @@
+import { reactive } from 'mutts'
 import type { Character } from '$lib/game/population/character'
 import { SlottedStorage } from '$lib/game/storage'
 import type { ConstructJob, FoundationJob } from '$lib/types/base'
@@ -8,6 +9,7 @@ import { UnBuiltLand } from '../board/content/unbuilt-land'
 import type { Tile } from '../board/tile'
 import { BuildAlveolus } from './build'
 
+@reactive
 export class EngineerAlveolus extends Alveolus {
 	declare action: Ssh.EngineerAction
 	constructor(tile: Tile) {

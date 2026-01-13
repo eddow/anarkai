@@ -70,8 +70,9 @@
 		"working": "Working",
 		"workingTooltip": "Toggle working state",
 		"cleanUp": "Clean up",
-		"cleanUpTooltip": "Clean up alveolus",
-		"cleanUpConfirmText": "All stocks will be emptied and left on the ground",
+		"cleanUpTooltip": "Empty all stored goods",
+		"cleanUpGoodTooltip": "Empty {goodType}",
+		"cleanUpConfirmText": "Stocks will be emptied and left on the ground. Are you sure? This is irreversible.",
 		"clear": "Clear",
 		"keep": "Keep"
 	},

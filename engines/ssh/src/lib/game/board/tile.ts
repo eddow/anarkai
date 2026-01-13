@@ -98,7 +98,7 @@ export class Tile extends withInteractive(GameObject) {
 	get clearing(): boolean {
 		return (
 			![undefined, 'harvest'].includes(this.zone) ||
-			(!!this.content && ('project' in this.content || this.content instanceof Alveolus))
+			(!!this.content && (('project' in this.content && !!this.content.project) || this.content instanceof Alveolus))
 		)
 	}
 
