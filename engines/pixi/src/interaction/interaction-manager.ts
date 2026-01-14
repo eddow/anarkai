@@ -35,8 +35,9 @@ export class InteractionManager {
         this.app.canvas.addEventListener('contextmenu', this.onContextMenu)
         
         // Center camera initially (rough guess)
-         if (this.game.renderer && 'world' in this.game.renderer) {
-             const world = (this.game.renderer as any).world as Container
+         const renderer = this.game.renderer as any
+         if (renderer?.world) {
+             const world = renderer.world as Container
              world.position.set(this.app.screen.width / 2, this.app.screen.height / 2)
          }
     }

@@ -1,5 +1,5 @@
 import { effect, reactive } from 'mutts'
-import { alveoli } from '$assets/game-content'
+import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content'
 import EntityBadge from './EntityBadge'
 import GoodsList from './GoodsList'
 import PropertyGrid from './PropertyGrid'
@@ -47,7 +47,7 @@ const TileProperties = ({ tile }: TilePropertiesProps) => {
 		freeStock: {} as Record<string, number>,
 		contentInfo: undefined as
 			| {
-				type?: keyof typeof alveoli
+				type?: keyof typeof visualAlveoli
 				sprite?: string
 				name?: string
 				terrain: string
@@ -61,11 +61,11 @@ const TileProperties = ({ tile }: TilePropertiesProps) => {
 		state.tileContent = content
 
 		if (content instanceof Alveolus) {
-			const type = content.name as keyof typeof alveoli
+			const type = content.name as keyof typeof visualAlveoli
 			state.contentInfo = {
 				type,
-				sprite: alveoli[type]?.sprites?.[0],
-				name: T.alveoli[type],
+				sprite: visualAlveoli[type]?.sprites?.[0],
+				name: String(T.alveoli[type]),
 				terrain: 'concrete',
 			}
 		} else if (content instanceof UnBuiltLand) {
@@ -131,27 +131,27 @@ const TileProperties = ({ tile }: TilePropertiesProps) => {
 
 			<div class="tile-properties__content">
 				<PropertyGrid>
-					<PropertyGridRow label={T.tile.walkTime}>
+					<PropertyGridRow label={String(T.tile.walkTime)}>
 						<span
 							class={`badge ${state.tileContent.walkTime === Number.POSITIVE_INFINITY
-									? 'badge-red'
-									: 'badge-yellow'
+								? 'badge-red'
+								: 'badge-yellow'
 								}`}
 						>
 							{state.tileContent.walkTime === Number.POSITIVE_INFINITY
-								? T.tile.unwalkable
+								? String(T.tile.unwalkable)
 								: state.tileContent.walkTime}
 						</span>
 					</PropertyGridRow>
 
-					{state.stock ? (
-						<PropertyGridRow label={T.goods.stored}>
+					{state.stock && !(state.tileContent instanceof Alveolus) ? (
+						<PropertyGridRow label={String(T.goods.stored)}>
 							<GoodsList goods={state.stock} game={tile.board.game} />
 						</PropertyGridRow>
 					) : null}
 
 					{Object.keys(state.freeStock).length > 0 ? (
-						<PropertyGridRow label={T.goods.loose}>
+						<PropertyGridRow label={String(T.goods.loose)}>
 							<GoodsList goods={state.freeStock as any} game={tile.board.game} />
 						</PropertyGridRow>
 					) : null}
@@ -160,7 +160,7 @@ const TileProperties = ({ tile }: TilePropertiesProps) => {
 						<UnBuiltProperties content={state.tileContent} />
 					) : null}
 					{state.tileContent instanceof Alveolus ? (
-						<AlveolusProperties content={state.tileContent} />
+						<AlveolusProperties content={state.tileContent} game={tile.board.game} />
 					) : null}
 				</PropertyGrid>
 			</div>
@@ -169,4 +169,3 @@ const TileProperties = ({ tile }: TilePropertiesProps) => {
 }
 
 export default TileProperties
-

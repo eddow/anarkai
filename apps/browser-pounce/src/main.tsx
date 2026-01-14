@@ -1,7 +1,7 @@
 import '@picocss/pico/css/pico.min.css'
 import './app.css'
 import { profileInfo } from 'mutts'
-import { bindApp } from 'pounce-ts'
+import { bindApp, h } from 'pounce-ts'
 import App from '@app/app/App'
 import { initTranslator } from '@ssh/lib/i18n'
 

@@ -1,10 +1,13 @@
 import { effect, reactive } from 'mutts'
-import { Button } from 'pounce-ui/src'
 import { css } from '@app/lib/css'
 import AlveolusFlag from './AlveolusFlag'
 import PropertyGridRow from './PropertyGridRow'
 import type { Alveolus } from '@ssh/lib/game/board/content/alveolus'
 import { T } from '@ssh/lib/i18n'
+import { StorageAlveolus } from '@ssh/lib/game/hive/storage'
+import StorageConfiguration from './storage/StorageConfiguration'
+import StoredGoodsRow from './storage/StoredGoodsRow'
+import type { Game } from '@ssh/lib/game'
 
 css`
 .alveolus-commands {
@@ -12,33 +15,20 @@ css`
 	gap: 0.5rem;
 	align-items: center;
 }
-
-.alveolus-commands--confirming {
-	display: flex;
-	align-items: center;
-	gap: 0.5rem;
-}
-
-.alveolus-commands__text {
-	font-size: 0.875rem;
-	color: var(--pico-color);
-}
 `
 
 interface AlveolusPropertiesProps {
 	content: Alveolus
+	game: Game
 }
 
-const AlveolusProperties = ({ content }: AlveolusPropertiesProps) => {
+const AlveolusProperties = ({ content, game }: AlveolusPropertiesProps) => {
 	const state = reactive({
 		working: content.working,
-		isStorageEmpty: content.storage?.isEmpty ?? true,
-		isConfirming: false,
 	})
 
 	effect(() => {
 		state.working = content.working
-		state.isStorageEmpty = content.storage?.isEmpty ?? true
 	})
 
 	const handleWorkingChange = (checked: boolean) => {
@@ -46,33 +36,9 @@ const AlveolusProperties = ({ content }: AlveolusPropertiesProps) => {
 		state.working = checked
 	}
 
-	const handleCleanUp = () => {
-		state.isConfirming = true
-	}
-
-	const confirmCleanUp = () => {
-		content.cleanUp()
-		state.isConfirming = false
-		console.log('Clean up completed for alveolus:', content.name)
-	}
-
-	const cancelCleanUp = () => {
-		state.isConfirming = false
-	}
-
 	return (
-		<PropertyGridRow label={String(T.alveolus.commands)}>
-			{state.isConfirming ? (
-				<div class="alveolus-commands alveolus-commands--confirming">
-					<span class="alveolus-commands__text">{String(T.alveolus.cleanUpConfirmText)}</span>
-					<Button onClick={confirmCleanUp}>
-						{String(T.alveolus.clear)}
-					</Button>
-					<Button onClick={cancelCleanUp}>
-						{String(T.alveolus.keep)}
-					</Button>
-				</div>
-			) : (
+		<>
+			<PropertyGridRow label={String(T.alveolus.commands)}>
 				<div class="alveolus-commands">
 					<AlveolusFlag
 						checked={state.working}
@@ -81,16 +47,16 @@ const AlveolusProperties = ({ content }: AlveolusPropertiesProps) => {
 						tooltip={String(T.alveolus.workingTooltip)}
 						onChange={handleWorkingChange}
 					/>
-					{!state.isStorageEmpty && (
-						<Button onClick={handleCleanUp} aria-label={String(T.alveolus.cleanUpTooltip)}>
-							{String(T.alveolus.cleanUp)}
-						</Button>
-					)}
 				</div>
+			</PropertyGridRow>
+
+			<StoredGoodsRow content={content} game={game} label={String(T.goods.stored)} />
+
+			{content instanceof StorageAlveolus && (
+				<StorageConfiguration content={content} game={game} />
 			)}
-		</PropertyGridRow>
+		</>
 	)
 }
 
 export default AlveolusProperties
-

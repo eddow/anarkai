@@ -2,7 +2,11 @@
 	"compilerOptions": {
 		"composite": true,
 		"target": "ES2022",
-		"lib": ["ES2022", "DOM", "DOM.Iterable"],
+		"lib": [
+			"ES2022",
+			"DOM",
+			"DOM.Iterable"
+		],
 		"module": "ESNext",
 		"moduleResolution": "bundler",
 		"allowSyntheticDefaultImports": true,
@@ -21,14 +25,35 @@
 		"jsx": "react",
 		"jsxFactory": "h",
 		"jsxFragmentFactory": "Fragment",
-		"types": ["vite/client"],
+		"types": [
+			"vite/client"
+		],
 		"baseUrl": ".",
 		"paths": {
-			"@ssh/*": ["./node_modules/ssh/src/*"],
-			"$lib/*": ["./node_modules/ssh/src/lib/*"],
-			"$assets/*": ["./node_modules/ssh/assets/*"],
-			"@app/*": ["./src/*"],
-			"@pounce/*": ["node_modules/pounce-ts/src/*"]
+			"@ssh/*": [
+				"./node_modules/ssh/src/*"
+			],
+			"$lib/*": [
+				"./node_modules/ssh/src/lib/*"
+			],
+			"$assets/*": [
+				"./node_modules/ssh/assets/*"
+			],
+			"@app/*": [
+				"./src/*"
+			],
+			"@pounce/*": [
+				"node_modules/pounce-ts/src/*"
+			],
+			"engine-pixi/*": [
+				"../../engines/pixi/*"
+			],
+			"ssh/*": [
+				"../../engines/ssh/*"
+			],
+			"assets/*": [
+				"../../engines/pixi/assets/*"
+			]
 		}
 	},
 	"include": [
@@ -39,5 +64,10 @@
 		"sandbox/**/*.tsx",
 		"assets/**/*.ts",
 		"assets/**/*.tsx",
+		"../../engines/pixi/src/**/*.ts",
+		"../../engines/pixi/src/**/*.d.ts",
+		"../../engines/pixi/assets/**/*.ts",
+		"../../engines/ssh/src/**/*.ts",
+		"../../engines/ssh/assets/**/*.ts"
 	]
 }

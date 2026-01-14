@@ -115,24 +115,28 @@ export default function GameWidget(props: {
 		return () => game.off(gameEvents)
 	})
 
-	const initView = async (el: HTMLElement) => {
+	const initView = (el: HTMLElement) => {
 		console.log('GameWidget: initView called')
 		if (container || gameView) return
 
 		container = el
+		let isMounted = true
 		let resizeObserver: ResizeObserver | undefined
 
 		const setupResizer = () => {
 			if (!container) return
 			resizeObserver = new ResizeObserver((entries) => {
-				for (const entry of entries) {
-					if (entry.target === container && gameView?.app?.renderer) {
-						const { width, height } = entry.contentRect
-						if (width > 0 && height > 0) {
-							gameView.resize(width, height)
+				requestAnimationFrame(() => {
+					if (!isMounted) return
+					for (const entry of entries) {
+						if (entry.target === container && gameView?.app?.renderer) {
+							const { width, height } = entry.contentRect
+							if (width > 0 && height > 0) {
+								gameView.resize(width, height)
+							}
 						}
 					}
-				}
+				})
 			})
 			resizeObserver.observe(container)
 		}
@@ -140,6 +144,7 @@ export default function GameWidget(props: {
 		// Wait for game to load before creating view to ensure content is ready
 		console.log('GameWidget: awaiting game.loaded')
 		game.loaded.then(() => {
+			if (!isMounted) return
 			console.log('GameWidget: game loaded')
 			if (!props.api) return // check if destroyed
 			if (container && !gameView) {
@@ -154,6 +159,7 @@ export default function GameWidget(props: {
 				}
 			}
 		}).catch(err => {
+			if (!isMounted) return
 			console.error('[GameWidget] game.loaded failed:', err)
 			// Try to initialize anyway if it's just a gameStart glitch
 			if (!game.renderer && container) {
@@ -168,6 +174,7 @@ export default function GameWidget(props: {
 		})
 
 		return () => {
+			isMounted = false
 			console.log(`[GameWidget] Unmounting PixiGameRenderer from ${containerId}`)
 			resizeObserver?.disconnect()
 			gameView?.destroy()
@@ -187,9 +194,7 @@ export default function GameWidget(props: {
 	return (
 		<div
 			class="dockview-widget dockview-widget--game"
-			use:initView
+			use={initView}
 		/>
 	)
 }
-
-

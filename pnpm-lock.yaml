@@ -29,6 +29,9 @@ importers:
       dockview-core:
         specifier: ^4.7.1
         version: 4.12.0
+      engine-pixi:
+        specifier: link:../../engines/pixi
+        version: link:../../engines/pixi
       eventemitter3:
         specifier: ^5.0.1
         version: 5.0.1

@@ -4,7 +4,9 @@
 	"type": "module",
 	"exports": {
 		"./src/*": "./src/*",
-		"./package.json": "./package.json"
+		"./package.json": "./package.json",
+		"./vite-plugins": "./vite-plugins.ts",
+		"./vite-config": "./vite-config.ts"
 	},
 	"scripts": {
 		"dev": "vite",

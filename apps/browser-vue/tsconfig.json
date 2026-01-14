@@ -51,8 +51,7 @@
 		"src/**/*.vue",
 		"../ssh/src/**/*.ts",
 		"../ssh/src/**/*.tsx",
-		"../ssh/assets/**/*.ts",
-		"vite-plugin-css-tag.ts"
+		"../ssh/assets/**/*.ts"
 	],
 	"references": [
 		{

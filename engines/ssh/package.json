@@ -6,7 +6,8 @@
   "exports": {
     "./src/*": "./src/*",
     "./assets/*": "./assets/*",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./vite-plugin-css-tag": "./vite-plugin-css-tag.ts"
   },
   "scripts": {
     "dev": "vite",

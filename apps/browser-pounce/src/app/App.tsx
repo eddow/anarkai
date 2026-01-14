@@ -5,6 +5,7 @@ import { effect, reactive, trackEffect, untracked } from 'mutts'
 import { Button, ButtonGroup, DarkModeButton, Dockview, RadioButton, Toolbar } from 'pounce-ui/src'
 
 import * as gameContent from '$assets/game-content'
+import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content.js'
 import { configuration, games, interactionMode, getDockviewLayout, dockviewLayout, uiConfiguration } from '@app/lib/globals'
 import ResourceImage from './components/ResourceImage'
 import widgetsImport from './widgets'
@@ -127,7 +128,7 @@ const App = (_props: {}) => {
 				</ButtonGroup>
 				<Toolbar.Spacer visible />
 				<ButtonGroup>
-					{buildableAlveoli.map(([name, alveolus]) => {
+					{buildableAlveoli.map(([name]) => {
 						const action = `build:${name}`
 						return (
 							<RadioButton
@@ -137,7 +138,7 @@ const App = (_props: {}) => {
 							>
 								<ResourceImage
 									game={game}
-									sprite={alveolus.sprites?.[0]}
+									sprite={visualAlveoli[name]?.sprites?.[0]}
 									width={24}
 									height={24}
 									alt={name}
@@ -172,7 +173,7 @@ const App = (_props: {}) => {
 					api={state.api}
 					widgets={widgets}
 					layout={untracked(getDockviewLayout)}
-					update:layout={(layout) => {
+					update:layout={(layout: any) => {
 						dockviewLayout.sshLayout = layout
 					}}
 					theme={uiConfiguration.darkMode ? 'dracula' : 'light'}

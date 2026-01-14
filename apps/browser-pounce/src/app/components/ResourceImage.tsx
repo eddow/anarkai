@@ -22,7 +22,7 @@ const ResourceImage = (props: ResourceImageProps) => {
 		}
 
 		void (async () => {
-			await game.loaded
+			await game.rendererReady
 			const texture = game.getTexture(sprite)
 			let targetWidth = props.width
 			let targetHeight = props.height
