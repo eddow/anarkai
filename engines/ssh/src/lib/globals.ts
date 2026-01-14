@@ -1,5 +1,5 @@
 import { DockviewApi } from 'dockview-core'
-import { reactive, Eventful } from 'mutts'
+import { reactive, Eventful, untracked } from 'mutts'
 import { Game, type GameEvents, type InteractiveGameObject } from './game'
 import { chopSaw as patches } from './game/exampleGames'
 
@@ -131,7 +131,8 @@ const selectionStateInternal = reactive<SelectionState>(loadSelectionState())
 function persistSelectionState() {
 	if (typeof window === 'undefined') return
 	try {
-		localStorage.setItem('selectionState', JSON.stringify(selectionStateInternal))
+		const data = untracked(() => JSON.stringify(selectionStateInternal))
+		localStorage.setItem('selectionState', data)
 	} catch {
 		// Ignore persistence failures (e.g. quota issues)
 	}

@@ -24,7 +24,8 @@ export default function GameWidget(props: {
 	params: { game: string }
 	container: HTMLElement
 	api?: any
-}) {
+}, scope: { api: any }) {
+	const dock = scope?.api
 	const gameName = props.params?.game ?? 'GameX'
 	const game = games.game(gameName)
 	let container: HTMLElement | undefined
@@ -33,20 +34,31 @@ export default function GameWidget(props: {
 
 	const handleProjectSelection = (object: InteractiveGameObject) => {
 		selectionState.selectedUid = object.uid
-		const panelId = selectionState.panelId ?? 'selection-info'
-		const dock = props.api?.group?.dockview
+		const panelId = (selectionState.panelId && !selectionState.panelId.startsWith('pinned:'))
+			? selectionState.panelId
+			: 'selection-info'
+
+
 		if (!dock) return
+
 		const existing = dock.getPanel?.(panelId)
 		if (existing) {
-			existing.api?.updateParameters?.({ uid: object.uid })
 			existing.focus?.()
-			selectionState.panelId = existing.id
+			// Don't update params here - dynamic panel listens to selectionState
 			return
 		}
+
+		// Ensure we don't accidentally reuse a pinned ID for dynamic usage
+		const targetId = panelId.startsWith('pinned:') ? 'selection-info' : panelId
+
 		const panel = dock.addPanel?.({
-			id: panelId,
+			id: targetId,
 			component: 'selection-info',
-			params: { uid: object.uid },
+			params: {}, // Empty params ensures dynamic mode
+			floating: {
+				width: 400,
+				height: 600,
+			},
 		})
 		if (panel) {
 			selectionState.panelId = panel.id
@@ -152,7 +164,9 @@ export default function GameWidget(props: {
 					console.log(`[GameWidget] Mounting PixiGameRenderer to ${containerId}`)
 					gameView = new PixiGameRenderer(game, container)
 					console.log('GameWidget: PixiGameRenderer created', gameView)
-					if (props.api) validateStoredSelectionState(props.api)
+
+					if (dock) validateStoredSelectionState(dock)
+
 					setupResizer()
 				} catch (e) {
 					console.error("Failed to create PixiGameRenderer", e)

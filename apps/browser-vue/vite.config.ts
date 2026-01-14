@@ -11,7 +11,6 @@ const __dirname = path.dirname(__filename)
 
 // https://vitejs.dev/config/
 export default defineConfig({
-
   plugins: [
     vue(),
     cssTagPlugin(),
@@ -20,7 +19,6 @@ export default defineConfig({
   css: {
     preprocessorOptions: {
       scss: {
-        api: 'modern-compiler'
       }
     }
   },

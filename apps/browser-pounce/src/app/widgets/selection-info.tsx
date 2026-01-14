@@ -9,6 +9,7 @@ import {
 	registerObjectInfoPanel,
 	selectionState,
 	unregisterObjectInfoPanel,
+	mrg,
 } from '@app/lib/globals'
 import CharacterProperties from '../components/CharacterProperties'
 import TileProperties from '../components/TileProperties'
@@ -57,6 +58,7 @@ css`
 	background: rgba(15, 23, 42, 0.08);
     display: flex;
     flex-direction: column;
+	resize: vertical;
 }
 
 .dark .selection-info-panel__logs {
@@ -119,12 +121,12 @@ const SelectionInfoWidget = (
 		if (!uid) {
 			state.object = undefined
 			state.logs = []
-			props.title = 'Selection'
+			props.api?.setTitle('Selection')
 			return
 		}
 		const object = game.getObject(uid)
 		state.object = object
-		props.title = object?.title ?? 'Selection'
+		props.api?.setTitle(object?.title ?? 'Selection')
 	})
 
 	effect(() => {
@@ -189,10 +191,40 @@ const SelectionInfoWidget = (
 				floating: { width: 300, height: 400 } // Default to floating for pinned
 			})
 		}
+
+		props.api.close?.()
+		// If we were the main panel, clear it so a new one can spawn
+		if (selectionState.panelId === props.api.id) {
+			selectionState.panelId = undefined
+		}
+	}
+
+	const simulateEnter = () => {
+		if (state.object) {
+			mrg.hoveredObject = state.object
+		}
+	}
+
+	const simulateLeave = () => {
+		if (mrg.hoveredObject?.uid === state.object?.uid) {
+			mrg.hoveredObject = undefined
+		}
+	}
+
+	const attachHoverHandlers = (el: HTMLElement) => {
+		el.addEventListener('mouseenter', simulateEnter)
+		el.addEventListener('mouseleave', simulateLeave)
+		return () => {
+			el.removeEventListener('mouseenter', simulateEnter)
+			el.removeEventListener('mouseleave', simulateLeave)
+		}
 	}
 
 	return (
-		<div class="selection-info-panel">
+		<div
+			class="selection-info-panel"
+			use={attachHoverHandlers}
+		>
 			<Toolbar>
 				<div style="flex: 1; font-weight: 500; font-size: 0.9em; padding-left: 0.5rem;">
 					{state.object?.title ?? 'Selection'}

@@ -3,9 +3,9 @@ import { fileURLToPath } from 'node:url'
 import { babelPluginJsxReactive } from 'pounce-ts/plugin'
 import { defineConfig, type Plugin } from 'vite'
 import babel from 'vite-plugin-babel'
-import { servePixiAssets } from 'engine-pixi/vite-plugins'
-import { getCommonAliases, commonOptimizeDeps, commonEsbuild } from 'engine-pixi/vite-config'
-import { cssTagPlugin } from 'ssh/vite-plugin-css-tag'
+import { servePixiAssets } from '../../engines/pixi/vite-plugins'
+import { getCommonAliases, commonOptimizeDeps, commonEsbuild } from '../../engines/pixi/vite-config'
+import { cssTagPlugin } from '../../engines/ssh/vite-plugin-css-tag'
 
 const projectRootDir = dirname(fileURLToPath(import.meta.url))
 function stripDeclare(): Plugin {

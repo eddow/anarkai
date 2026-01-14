@@ -1,4 +1,4 @@
-import { goods as goodsCatalog } from '$assets/game-content'
+import { goods as visualGoods } from 'engine-pixi/assets/visual-content'
 import EntityBadge from './EntityBadge'
 import { css } from '@app/lib/css'
 import type { Game } from '@ssh/lib/game'
@@ -35,7 +35,7 @@ const GoodsList = ({ goods, game, itemSize = 20, className = '' }: GoodsListProp
 			{entries.map(([good, qty]) => (
 				<EntityBadge
 					game={game}
-					sprite={goodsCatalog[good].sprites[0]}
+					sprite={visualGoods[good]?.sprites?.[0] ?? 'default'}
 					text={T.goods?.[good] ?? good}
 					qty={qty}
 					height={itemSize}

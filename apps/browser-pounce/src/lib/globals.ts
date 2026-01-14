@@ -11,6 +11,7 @@ export {
 	unregisterObjectInfoPanel,
 	getObjectInfoPanelId,
 	validateStoredSelectionState,
+	mrg,
 } from '@ssh/lib/globals'
 
 // Re-export types
