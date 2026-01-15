@@ -25,6 +25,7 @@ dist-ssr
 
 downloads
 sandbox
+test-results
 
 .windsurf
 playwright-report

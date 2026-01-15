@@ -38,7 +38,7 @@ const UnBuiltProperties = ({ content }: UnBuiltPropertiesProps) => {
     const deposit = content.deposit
     state.deposit = deposit
       ? {
-        sprites: deposit.sprites,
+        sprites: deposit.sprites || [],
         name: deposit.name,
         amount: deposit.amount,
       }
@@ -65,7 +65,7 @@ const UnBuiltProperties = ({ content }: UnBuiltPropertiesProps) => {
         </PropertyGridRow>
       ) : null}
 
-      {state.deposit?.amount !== undefined ? (
+      {state.deposit?.amount !== undefined && state.deposit.sprites && state.deposit.sprites.length > 0 ? (
         <PropertyGridRow label={String(T.deposit)}>
           <EntityBadge
             game={content.tile.board.game}

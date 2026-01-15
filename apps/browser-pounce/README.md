@@ -37,10 +37,7 @@ Active WIP. Systems and naming may change (e.g., convey/collect flows). Expect b
 
 # TODO
 
-- "purge" button on gatherer: remove all goods (drop free somewhere?)
-- separate game/render concerns
-- half-life: make a separate 500ms interval
-Saw a bug:
-work.goWork
-walk.until : zig-zag, then cancel job while still having hands full
-Then, incapable to empty its hands while trying to eat (and not eating the mushrooms it had)
+- openGamePanel: open empty group
+- openSelectionPanel: remove and add a new "open test panel" to test goodList
+- selection-info.tsx: Shouldn't open without a selection
+- dockview layout should save/reload

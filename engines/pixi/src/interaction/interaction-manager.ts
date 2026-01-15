@@ -254,12 +254,21 @@ export class InteractionManager {
 
     /**
      * Traverses up the display tree to find a container bound to a logic object.
+     * Skips objects that report they cannot interact.
      */
     private findLogicObject(target: any): InteractiveGameObject | undefined {
         let current = target
+        const action = interactionMode.selectedAction
+        
         while (current) {
-            if (current._logicObject) {
-                return current._logicObject as InteractiveGameObject
+            const logicObject = current._logicObject as InteractiveGameObject | undefined
+            if (logicObject) {
+                // If the object has interaction logic, check if it allows interaction
+                if (logicObject.canInteract && (!action || logicObject.canInteract(action))) {
+                    return logicObject
+                }
+                // If it has _logicObject but canInteract returns false, we implicitly skip it
+                // effectively treating it as transparent to interaction
             }
             current = current.parent
         }

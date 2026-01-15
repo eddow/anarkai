@@ -1,6 +1,6 @@
 import { effect, reactive } from 'mutts'
 import { css } from '@app/lib/css'
-import AlveolusFlag from './AlveolusFlag'
+import WorkingIndicator from './parts/WorkingIndicator'
 import PropertyGridRow from './PropertyGridRow'
 import type { Alveolus } from '@ssh/lib/game/board/content/alveolus'
 import { T } from '@ssh/lib/i18n'
@@ -40,10 +40,8 @@ const AlveolusProperties = ({ content, game }: AlveolusPropertiesProps) => {
 		<>
 			<PropertyGridRow label={String(T.alveolus.commands)}>
 				<div class="alveolus-commands">
-					<AlveolusFlag
+					<WorkingIndicator
 						checked={state.working}
-						icon="mdi:cog"
-						name={String(T.alveolus.working)}
 						tooltip={String(T.alveolus.workingTooltip)}
 						onChange={handleWorkingChange}
 					/>

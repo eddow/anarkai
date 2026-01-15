@@ -16,6 +16,11 @@ export class TileVisual extends VisualObject<Tile> {
     private backgroundSprite: TilingSprite
     private contentContainer: Container
     private zoneBorder: Graphics
+    
+    // Cache for interaction state to avoid redundant updates
+    private cachedBrightness = 1
+    private cachedTint = 0xffffff
+    private cachedBorderColor = 0
 
 
     constructor(tile: Tile, renderer: PixiGameRenderer) {
@@ -148,23 +153,38 @@ export class TileVisual extends VisualObject<Tile> {
                  }
             }
 
-            this.backgroundSprite.tint = tint
-			if (brightness !== 1) {
-				brightnessFilter.brightness(brightness, false)
-				this.backgroundSprite.filters = [brightnessFilter]
-			} else {
-				this.backgroundSprite.filters = []
+            // OPTIMIZATION: Only update if values changed
+            const tintChanged = this.cachedTint !== tint
+            const brightnessChanged = this.cachedBrightness !== brightness
+            const borderChanged = this.cachedBorderColor !== borderColor
+            
+            if (tintChanged) {
+                this.backgroundSprite.tint = tint
+                this.cachedTint = tint
+            }
+            
+			if (brightnessChanged) {
+                this.cachedBrightness = brightness
+				if (brightness !== 1) {
+					brightnessFilter.brightness(brightness, false)
+					this.backgroundSprite.filters = [brightnessFilter]
+				} else {
+					this.backgroundSprite.filters = []
+				}
 			}
             
-            // Draw border
-			this.zoneBorder.clear()
-			if (borderColor) {
-				const innerSize = tileSize - 3 / 4 // borderWidth=3
-				const points = Array.from({ length: 6 }, (_, i) => {
-					const angle = (Math.PI / 3) * (i + 0.5)
-					return new Point(Math.cos(angle) * innerSize, Math.sin(angle) * innerSize)
-				})
-				this.zoneBorder.poly(points).stroke({ width: 1.5, color: borderColor })
+            // Draw border only if it changed
+			if (borderChanged) {
+                this.cachedBorderColor = borderColor
+				this.zoneBorder.clear()
+				if (borderColor) {
+					const innerSize = tileSize - 3 / 4 // borderWidth=3
+					const points = Array.from({ length: 6 }, (_, i) => {
+						const angle = (Math.PI / 3) * (i + 0.5)
+						return new Point(Math.cos(angle) * innerSize, Math.sin(angle) * innerSize)
+					})
+					this.zoneBorder.poly(points).stroke({ width: 1.5, color: borderColor })
+				}
 			}
         }))
     }

@@ -42,3 +42,15 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 - **[NPC Behaviors](docs/npc-behaviors.md)** — Character behavioral specifications
 - **[Test Engine](docs/test-engine.md)** — Headless testing environment
 - **[Development Guide](docs/development-guide.md)** — Contributing and development patterns
+
+# TODO
+
+- [ ] Finish the tests
+- [ ] Take care of fractional goods: only valid in transformers = specific-storage. It means available goods = floor(amount) and available space = 1 - ceil(amount) or floor(1 - amount)
+
+
+
+# Ideas
+Alveolus of 1, 2, 3 tiles.
+1- multiply room by 1, 3, 6
+2- allow bigger improvements - when a tech is early and expensive

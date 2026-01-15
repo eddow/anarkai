@@ -1,4 +1,4 @@
-import { effect, reactive, watch } from 'mutts'
+import { effect, reactive, watch, untracked } from 'mutts'
 
 import type { InteractiveGameObject } from '@ssh/lib/game'
 import { css } from '@app/lib/css'
@@ -13,8 +13,6 @@ import {
 } from '@app/lib/globals'
 import CharacterProperties from '../components/CharacterProperties'
 import TileProperties from '../components/TileProperties'
-import { Button, Toolbar } from 'pounce-ui/src'
-import { toWorldCoord } from '@ssh/lib/utils/position'
 
 css`
 .selection-info-panel {
@@ -121,12 +119,13 @@ const SelectionInfoWidget = (
 		if (!uid) {
 			state.object = undefined
 			state.logs = []
-			props.api?.setTitle('Selection')
+			// Use untracked to avoid cycle if setTitle triggers re-evaluation of props
+			untracked(() => props.api?.setTitle('Selection'))
 			return
 		}
 		const object = game.getObject(uid)
 		state.object = object
-		props.api?.setTitle(object?.title ?? 'Selection')
+		untracked(() => props.api?.setTitle(object?.title ?? 'Selection'))
 	})
 
 	effect(() => {
@@ -152,52 +151,26 @@ const SelectionInfoWidget = (
 		}
 	})
 
-	const goTo = () => {
-		if (!state.object || !state.object.position) return
-		const coord = toWorldCoord(state.object.position)
-		if (!coord) return
+	// Sync state to parameters for HeaderActions
+	effect(() => {
+		if (!props.api) return
+		const object = state.object
+		const isPinned = state.isPinned
 
-		const renderer = game.renderer as any
-		if (!renderer || !renderer.world || !renderer.app) return
+		// Update parameters without triggering a re-render loop if possible
+		// We only need to update when these change
+		const currentParams = props.api.params || {}
 
-		const { screen } = renderer.app
-		const { world } = renderer
-		const scale = world.scale.x
-
-		world.position.x = screen.width / 2 - coord.x * scale
-		world.position.y = screen.height / 2 - coord.y * scale
-	}
-
-	const pin = () => {
-		if (!state.object || !props.api) return
-		const uid = state.object.uid
-
-		registerObjectInfoPanel(uid, `pinned:${uid}`)
-
-		// Improve: The Vue version closes the current panel using props.api.close(),
-		// but here we might want to just let the Dockview logic handle it or 
-		// if this is the dynamic panel, we might want to keep it open but switch it to pinned?
-		// Actually, the Vue logic closes the dynamic 'info' panel, forcing the user to open a new one
-		// or effectively "converting" it.
-		// In browser-pounce `ensurePanel` checks for existing.
-		// If we want to Spawn a NEW window, we should add a new panel.
-
-		const dock = props.api.group?.dockview
-		if (dock) {
-			dock.addPanel({
-				id: `pinned:${uid}`,
-				component: 'selection-info',
-				params: { uid },
-				floating: { width: 300, height: 400 } // Default to floating for pinned
+		// Check if we need update
+		const hasPosition = object?.position != null
+		if (currentParams.uid !== object?.uid || currentParams.isPinned !== isPinned || currentParams.hasPosition !== hasPosition) {
+			props.api.updateParameters({
+				uid: object?.uid,
+				isPinned,
+				hasPosition
 			})
 		}
-
-		props.api.close?.()
-		// If we were the main panel, clear it so a new one can spawn
-		if (selectionState.panelId === props.api.id) {
-			selectionState.panelId = undefined
-		}
-	}
+	})
 
 	const simulateEnter = () => {
 		if (state.object) {
@@ -225,20 +198,6 @@ const SelectionInfoWidget = (
 			class="selection-info-panel"
 			use={attachHoverHandlers}
 		>
-			<Toolbar>
-				<div style="flex: 1; font-weight: 500; font-size: 0.9em; padding-left: 0.5rem;">
-					{state.object?.title ?? 'Selection'}
-				</div>
-				{state.object && (
-					<>
-						<Button icon="mdi:eye" aria-label="Go to Object" onClick={goTo} />
-						{!state.isPinned && (
-							<Button icon="mdi:pin" aria-label="Pin Panel" onClick={pin} />
-						)}
-					</>
-				)}
-			</Toolbar>
-
 			{state.object ? (
 				<div class="selection-info-panel__content-wrapper">
 					<div class="selection-info-panel__content">

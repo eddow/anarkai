@@ -54,6 +54,7 @@ export default function GameWidget(props: {
 		const panel = dock.addPanel?.({
 			id: targetId,
 			component: 'selection-info',
+			headerRight: 'selection-actions',
 			params: {}, // Empty params ensures dynamic mode
 			floating: {
 				width: 400,

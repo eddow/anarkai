@@ -9,6 +9,7 @@ import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content.js'
 import { configuration, games, interactionMode, getDockviewLayout, dockviewLayout, uiConfiguration } from '@app/lib/globals'
 import ResourceImage from './components/ResourceImage'
 import widgetsImport from './widgets'
+import SelectionHeaderActions from './widgets/header-actions'
 import { h } from '@pounce/lib'
 
 // Create local copy to avoid import reassignment issues
@@ -82,14 +83,9 @@ const App = (_props: {}) => {
 
 	const openConfigurationPanel = () => ensurePanel('configuration', 'system.configuration')
 
-	const openSelectionPanel = () => ensurePanel('selection-info', 'selection-info')
+	const openTestPanel = () => ensurePanel('multiselect-test', 'multiselect-test')
 
-	effect(() => {
-		const shouldOpen = interactionMode.selectedAction === ''
-		if (shouldOpen) {
-			untracked(openSelectionPanel)
-		}
-	})
+
 
 	effect(() => {
 		if (state.api && !getDockviewLayout()) {
@@ -104,7 +100,7 @@ const App = (_props: {}) => {
 				<ButtonGroup>
 					<Button icon="mdi:settings" aria-label="Open configuration" onClick={openConfigurationPanel} />
 					<Button icon="mdi:plus" aria-label="Open game view" onClick={openGamePanel} />
-					<Button icon="mdi:information-outline" aria-label="Focus selection info" onClick={openSelectionPanel} />
+					<Button icon="mdi:test-tube" aria-label="Open multiselect test" onClick={openTestPanel} />
 				</ButtonGroup>
 				<Toolbar.Spacer visible />
 				<ButtonGroup>
@@ -177,6 +173,7 @@ const App = (_props: {}) => {
 						dockviewLayout.sshLayout = layout
 					}}
 					theme={uiConfiguration.darkMode ? 'dracula' : 'light'}
+					headerRight={{ 'selection-actions': SelectionHeaderActions }}
 				/>
 			</main>
 		</div>

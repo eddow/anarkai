@@ -59,8 +59,6 @@ export class InventoryFunctions {
 			const available = vehicle.storage.available(goodType) ?? 0
 			const canStore = content.storage?.hasRoom(goodType) || 0
 			const amount = Math.min(available, canStore, requestedQuantity)
-            
-            console.error(`[planDropStored] ${goodType}: available=${available}, canStore=${canStore}, req=${requestedQuantity} -> amount=${amount}`);
 
 			if (amount > 0) {
 				actualGoods[goodType] = amount

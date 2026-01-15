@@ -8,10 +8,12 @@ describe('Source Allocation Stability', () => {
     it('ChopSaw scenario runs without Source Allocation errors', { timeout: 60000 }, async () => {
         const game = new Game({ 
             boardSize: 12, 
-            terrainSeed: 1, 
+            terrainSeed: 1,
             characterCount: 5,
             characterRadius: 5
         }, chopSaw)
+        // Stop ticker to prevent concurrent simulation during test
+        game.ticker.stop()
         
         await game.loaded
 

@@ -8,6 +8,7 @@ import { getCommonAliases, commonOptimizeDeps, commonEsbuild } from '../../engin
 import { cssTagPlugin } from '../../engines/ssh/vite-plugin-css-tag'
 
 const projectRootDir = dirname(fileURLToPath(import.meta.url))
+
 function stripDeclare(): Plugin {
 	return {
 		name: 'strip-declare',

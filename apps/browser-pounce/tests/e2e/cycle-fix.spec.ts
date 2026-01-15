@@ -19,7 +19,7 @@ test('no ReactiveError when interactionMode.selectedAction changes', async ({ pa
 
   // Trigger the interactionMode.selectedAction change that previously caused the cycle
   // Click a build button to change selectedAction from '' to 'build:...'
-  await page.click('[aria-label="Build residential"]');
+  await page.click('[aria-label="Residential"]');
 
   // Now click the Select button to change it back to ''
   await page.click('[aria-label="Select"]');
