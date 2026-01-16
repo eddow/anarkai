@@ -10,9 +10,14 @@ import {
 	selectionState,
 	unregisterObjectInfoPanel,
 	mrg,
+	appState,
+	unreactiveInfo,
 } from '@app/lib/globals'
 import CharacterProperties from '../components/CharacterProperties'
 import TileProperties from '../components/TileProperties'
+import { toWorldCoord } from '@ssh/lib/utils/position' // Added import for GoTo logic
+import { Button, ButtonGroup } from 'pounce-ui/src' // Added import for buttons
+import { mdiEye, mdiPin, mdiPencil } from 'pure-glyf/icons'
 
 css`
 .selection-info-panel {
@@ -80,53 +85,43 @@ css`
 
 const SelectionInfoWidget = (
 	props: {
-		params?: { uid?: string }
+		params: { uid?: string }
 		api: any
 		title: string
 		size: { width: number; height: number }
 	},
+	scope: any
 ) => {
-	const game = games.game('GameX')
+	console.log('SelectionInfoWidget Rendered with props:', props);
+	let game: any
+	try {
+		game = games.game('GameX')
+	} catch (e) {
+		console.warn('SelectionInfoWidget: GameX not found', e)
+	}
+
 	const state = reactive({
 		object: undefined as InteractiveGameObject | undefined,
 		logs: [] as string[],
-		isPinned: false,
 	})
 
 	const logsRef: { value: HTMLElement | undefined } = { value: undefined }
 
 	let stopLogs: (() => void) | undefined
-
-	const fallbackPanelId = props.api?.id ?? 'selection-info'
-
-	effect(() => {
-		const pinnedUid = props.params?.uid
-		state.isPinned = Boolean(pinnedUid)
-		if (pinnedUid) {
-			registerObjectInfoPanel(pinnedUid, fallbackPanelId)
-			return () => {
-				unregisterObjectInfoPanel(pinnedUid)
-			}
-		}
-		selectionState.panelId = fallbackPanelId
-		return () => {
-			if (selectionState.panelId === fallbackPanelId) selectionState.panelId = undefined
-		}
-	})
+	// TODO: if !shownUid, close this widget
 
 	effect(() => {
-		const uid = props.params?.uid ?? selectionState.selectedUid
-		if (!uid) {
-			state.object = undefined
-			state.logs = []
-			// Use untracked to avoid cycle if setTitle triggers re-evaluation of props
-			untracked(() => props.api?.setTitle('Selection'))
-			return
-		}
-		const object = game.getObject(uid)
-		state.object = object
-		untracked(() => props.api?.setTitle(object?.title ?? 'Selection'))
+		const shownUid = props.params.uid ?? selectionState.selectedUid
+		state.object = shownUid ? game.getObject(shownUid) : undefined
 	})
+
+	const pin = () => {
+		props.params.uid = selectionState.selectedUid
+		unreactiveInfo.hasLastSelectedInfoPanel = false
+	}
+	scope.setTitle = (title: string) => {
+		props.title = title
+	}
 
 	effect(() => {
 		stopLogs?.()
@@ -151,26 +146,21 @@ const SelectionInfoWidget = (
 		}
 	})
 
-	// Sync state to parameters for HeaderActions
-	effect(() => {
-		if (!props.api) return
-		const object = state.object
-		const isPinned = state.isPinned
+	const goTo = () => {
+		if (!state.object?.position) return
+		const coord = toWorldCoord(state.object.position)
+		if (!coord) return
 
-		// Update parameters without triggering a re-render loop if possible
-		// We only need to update when these change
-		const currentParams = props.api.params || {}
+		const renderer = game.renderer as any
+		if (!renderer || !renderer.world || !renderer.app) return
 
-		// Check if we need update
-		const hasPosition = object?.position != null
-		if (currentParams.uid !== object?.uid || currentParams.isPinned !== isPinned || currentParams.hasPosition !== hasPosition) {
-			props.api.updateParameters({
-				uid: object?.uid,
-				isPinned,
-				hasPosition
-			})
-		}
-	})
+		const { screen } = renderer.app
+		const { world } = renderer
+		const scale = world.scale.x
+
+		world.position.x = screen.width / 2 - coord.x * scale
+		world.position.y = screen.height / 2 - coord.y * scale
+	}
 
 	const simulateEnter = () => {
 		if (state.object) {
@@ -198,6 +188,14 @@ const SelectionInfoWidget = (
 			class="selection-info-panel"
 			use={attachHoverHandlers}
 		>
+			<div style="padding: 0.5rem; border-bottom: 1px solid var(--app-border); display: flex; justify-content: space-between;">
+				<div></div>
+				<ButtonGroup>
+					<Button if={state.object?.position} icon={mdiEye} aria-label="Go to Object" onClick={goTo} />
+					<Button if={!props.params.uid} icon={mdiPin} aria-label="Pin Panel" onClick={pin} />
+					<Button icon={mdiPencil} aria-label="Debug Set Title" onClick={() => scope.setTitle('Debug Title')} />
+				</ButtonGroup>
+			</div>
 			{state.object ? (
 				<div class="selection-info-panel__content-wrapper">
 					<div class="selection-info-panel__content">

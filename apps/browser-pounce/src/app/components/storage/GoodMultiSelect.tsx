@@ -1,6 +1,7 @@
 import type { GoodType } from '@ssh/lib/types/base'
 import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
 import { Button } from 'pounce-ui/src'
+import { mdiClose } from 'pure-glyf/icons'
 import EntityBadge from '../EntityBadge'
 import AddGoodButton from './AddGoodButton'
 import { css } from '@app/lib/css'
@@ -100,7 +101,7 @@ export default function GoodMultiSelect(props: GoodMultiSelectProps) {
 							<div class="row-controls">
 								{props.renderItemExtra?.(gt)}
 								<Button
-									icon="mdi:close"
+									icon={mdiClose}
 									onClick={() => handleRemove(gt)}
 									el={{ title: 'Remove', class: 'remove-btn' }}
 								/>

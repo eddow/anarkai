@@ -102,7 +102,7 @@ const activityBadgeColors: Record<Ssh.ActivityType, string> = {
 	gather: 'pink',
 }
 
-const CharacterProperties = ({ character }: CharacterPropertiesProps) => {
+const CharacterProperties = ({ character }: CharacterPropertiesProps, scope: any) => {
 	const state = reactive({
 		actions: [] as string[],
 		hunger: 0,
@@ -118,6 +118,10 @@ const CharacterProperties = ({ character }: CharacterPropertiesProps) => {
 	effect(() => {
 		const actions = character.actionDescription
 		state.actions = Array.isArray(actions) ? actions : []
+	})
+
+	effect(() => {
+		scope.setTitle?.(character.title ?? character.name ?? 'Character')
 	})
 
 	effect(() => {

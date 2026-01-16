@@ -1,4 +1,5 @@
 import { Icon } from 'pounce-ui/src'
+import { mdiCheck, mdiClose, mdiCog } from 'pure-glyf/icons'
 import { css } from '@app/lib/css'
 
 css`
@@ -87,32 +88,32 @@ css`
 `
 
 interface WorkingIndicatorProps {
-	checked: boolean
-	tooltip?: string
-	onChange?: (checked: boolean) => void
+    checked: boolean
+    tooltip?: string
+    onChange?: (checked: boolean) => void
 }
 
 const WorkingIndicator = (props: WorkingIndicatorProps) => {
-	const toggle = () => {
-		props.onChange?.(!props.checked)
-	}
+    const toggle = () => {
+        props.onChange?.(!props.checked)
+    }
 
-	return (
-		<button
-			class={`working-indicator ${!props.checked ? 'not-working' : ''}`}
-			onClick={toggle}
-			title={props.tooltip}
-			aria-checked={props.checked ? 'true' : 'false'}
-			role="switch"
-		>
-			<Icon name="mdi:cog" class="gear-icon" />
-			{props.checked ? (
-				<Icon name="mdi:check" class="status-icon status-ok" />
-			) : (
-				<Icon name="mdi:close" class="status-icon status-off" />
-			)}
-		</button>
-	)
+    return (
+        <button
+            class={`working-indicator ${!props.checked ? 'not-working' : ''}`}
+            onClick={toggle}
+            title={props.tooltip}
+            aria-checked={props.checked ? 'true' : 'false'}
+            role="switch"
+        >
+            <Icon icon={mdiCog} el={{ class: "gear-icon" }} />
+            {props.checked ? (
+                <Icon icon={mdiCheck} el={{ class: "status-icon status-ok" }} />
+            ) : (
+                <Icon icon={mdiClose} el={{ class: "status-icon status-off" }} />
+            )}
+        </button>
+    )
 }
 
 export default WorkingIndicator

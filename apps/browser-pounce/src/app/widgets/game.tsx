@@ -9,6 +9,7 @@ import {
 	interactionMode,
 	selectionState,
 	validateStoredSelectionState,
+	unreactiveInfo,
 } from '@app/lib/globals'
 import type { AlveolusType } from '@ssh/lib/types/base'
 
@@ -32,38 +33,23 @@ export default function GameWidget(props: {
 	let gameView: PixiGameRenderer | undefined
 	const containerId = `game-container-${props.api?.id ?? Math.random().toString(36).substr(2, 9)}`
 
+
 	const handleProjectSelection = (object: InteractiveGameObject) => {
 		selectionState.selectedUid = object.uid
-		const panelId = (selectionState.panelId && !selectionState.panelId.startsWith('pinned:'))
-			? selectionState.panelId
-			: 'selection-info'
-
 
 		if (!dock) return
 
-		const existing = dock.getPanel?.(panelId)
-		if (existing) {
-			existing.focus?.()
-			// Don't update params here - dynamic panel listens to selectionState
-			return
-		}
-
-		// Ensure we don't accidentally reuse a pinned ID for dynamic usage
-		const targetId = panelId.startsWith('pinned:') ? 'selection-info' : panelId
-
-		const panel = dock.addPanel?.({
-			id: targetId,
-			component: 'selection-info',
-			headerRight: 'selection-actions',
-			params: {}, // Empty params ensures dynamic mode
-			floating: {
-				width: 400,
-				height: 600,
-			},
-		})
-		if (panel) {
-			selectionState.panelId = panel.id
-			panel.focus?.()
+		if (!unreactiveInfo.hasLastSelectedInfoPanel) {
+			unreactiveInfo.hasLastSelectedInfoPanel = true
+			dock.addPanel?.({
+				id: `selection-info-${Date.now()}`,
+				component: 'selection-info',
+				params: {}, // Empty params means it follows selectionState
+				floating: {
+					width: 400,
+					height: 600,
+				},
+			})
 		}
 	}
 

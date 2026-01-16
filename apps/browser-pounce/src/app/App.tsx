@@ -3,29 +3,38 @@ import { initConsoleTrap } from '@ssh/lib/debug'
 initConsoleTrap()
 import { effect, reactive, trackEffect, untracked } from 'mutts'
 import { Button, ButtonGroup, DarkModeButton, Dockview, RadioButton, Toolbar } from 'pounce-ui/src'
+import {
+	mdiPause, mdiPlay, mdiFastForward, mdiFastForwardOutline,
+	mdiHomeGroup, mdiTree, mdiEraser, mdiCog, mdiPlus, mdiTestTube, mdiCursorDefaultOutline
+} from 'pure-glyf/icons'
 
 import * as gameContent from '$assets/game-content'
 import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content.js'
-import { configuration, games, interactionMode, getDockviewLayout, dockviewLayout, uiConfiguration } from '@app/lib/globals'
+import { configuration, games, interactionMode, selectionState, getDockviewLayout, dockviewLayout, uiConfiguration } from '@app/lib/globals'
 import ResourceImage from './components/ResourceImage'
 import widgetsImport from './widgets'
-import SelectionHeaderActions from './widgets/header-actions'
 import { h } from '@pounce/lib'
 
 // Create local copy to avoid import reassignment issues
 const widgets = { ...widgetsImport }
 
+// Expose globals for Playwright testing
+if (typeof window !== 'undefined') {
+	(window as any).games = games;
+	(window as any).selectionState = selectionState;
+}
+
 const timeControls = [
-	{ value: 'pause', label: 'Pause', icon: 'mdi:pause' },
-	{ value: 'play', label: 'Play', icon: 'mdi:play' },
-	{ value: 'fast-forward', label: 'Fast Forward', icon: 'mdi:fast-forward' },
-	{ value: 'gonzales', label: 'Gonzales', icon: 'mdi:fast-forward-outline' },
+	{ value: 'pause', label: 'Pause', icon: mdiPause },
+	{ value: 'play', label: 'Play', icon: mdiPlay },
+	{ value: 'fast-forward', label: 'Fast Forward', icon: mdiFastForward },
+	{ value: 'gonzales', label: 'Gonzales', icon: mdiFastForwardOutline },
 ] as const
 
 const zoneActions = [
-	{ value: 'zone:residential', label: 'Residential', icon: 'mdi:home-group' },
-	{ value: 'zone:harvest', label: 'Harvest', icon: 'mdi:tree' },
-	{ value: 'zone:none', label: 'Unzone', icon: 'mdi:eraser' },
+	{ value: 'zone:residential', label: 'Residential', icon: mdiHomeGroup },
+	{ value: 'zone:harvest', label: 'Harvest', icon: mdiTree },
+	{ value: 'zone:none', label: 'Unzone', icon: mdiEraser },
 ] as const
 
 const buildableAlveoli = Object.entries(gameContent.alveoli).filter(
@@ -83,7 +92,7 @@ const App = (_props: {}) => {
 
 	const openConfigurationPanel = () => ensurePanel('configuration', 'system.configuration')
 
-	const openTestPanel = () => ensurePanel('multiselect-test', 'multiselect-test')
+	const openTestPanel = () => ensurePanel('test', 'test')
 
 
 
@@ -98,9 +107,9 @@ const App = (_props: {}) => {
 		<div class="app-shell">
 			<Toolbar>
 				<ButtonGroup>
-					<Button icon="mdi:settings" aria-label="Open configuration" onClick={openConfigurationPanel} />
-					<Button icon="mdi:plus" aria-label="Open game view" onClick={openGamePanel} />
-					<Button icon="mdi:test-tube" aria-label="Open multiselect test" onClick={openTestPanel} />
+					<Button icon={mdiCog} aria-label="Open configuration" onClick={openConfigurationPanel} />
+					<Button icon={mdiPlus} aria-label="Open game view" onClick={openGamePanel} />
+					<Button icon={mdiTestTube} aria-label="Open multiselect test" onClick={openTestPanel} />
 				</ButtonGroup>
 				<Toolbar.Spacer visible />
 				<ButtonGroup>
@@ -116,7 +125,7 @@ const App = (_props: {}) => {
 				<Toolbar.Spacer visible />
 				<ButtonGroup>
 					<RadioButton
-						icon="mdi:cursor-default-outline"
+						icon={mdiCursorDefaultOutline}
 						value=""
 						group={interactionMode.selectedAction}
 						aria-label="Select"
@@ -172,8 +181,11 @@ const App = (_props: {}) => {
 					update:layout={(layout: any) => {
 						dockviewLayout.sshLayout = layout
 					}}
+					onApiChange={(api) => {
+						state.api = api;
+						if (typeof window !== 'undefined') (window as any).dockviewApi = api;
+					}}
 					theme={uiConfiguration.darkMode ? 'dracula' : 'light'}
-					headerRight={{ 'selection-actions': SelectionHeaderActions }}
 				/>
 			</main>
 		</div>

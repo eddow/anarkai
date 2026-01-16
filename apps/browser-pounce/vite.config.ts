@@ -1,10 +1,11 @@
 import { dirname, resolve as resolvePath } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { babelPluginJsxReactive } from 'pounce-ts/plugin'
+import { pureGlyfPlugin } from 'pure-glyf/plugin'
 import { defineConfig, type Plugin } from 'vite'
 import babel from 'vite-plugin-babel'
-import { servePixiAssets } from '../../engines/pixi/vite-plugins'
-import { getCommonAliases, commonOptimizeDeps, commonEsbuild } from '../../engines/pixi/vite-config'
+import { servePixiAssets } from 'engine-pixi/vite-plugins'
+import { getCommonAliases, commonOptimizeDeps, commonEsbuild } from 'engine-pixi/vite-config'
 import { cssTagPlugin } from '../../engines/ssh/vite-plugin-css-tag'
 
 const projectRootDir = dirname(fileURLToPath(import.meta.url))
@@ -26,6 +27,13 @@ void stripDeclare
 
 export default defineConfig({
 	plugins: [
+		pureGlyfPlugin({
+			icons: {
+				mdi: 'node_modules/@mdi/svg/svg',
+				tabler: 'node_modules/@tabler/icons/icons',
+			},
+			dts: 'src/pure-glyf-icons.d.ts',
+		}),
 		//stripDeclare(),
 		cssTagPlugin(),
 		servePixiAssets(),
@@ -71,7 +79,7 @@ export default defineConfig({
 			'@app': resolvePath(projectRootDir, 'src'),
 			'@pounce': resolvePath(projectRootDir, 'node_modules/pounce-ts/src'),
 			'@picocss/pico': resolvePath(projectRootDir, '../../node_modules/.pnpm/@picocss+pico@2.1.1/node_modules/@picocss/pico'),
-			'@iconify/iconify': resolvePath(projectRootDir, '../../node_modules/.pnpm/@iconify+iconify@3.1.1/node_modules/@iconify/iconify'),
+
 			'dockview-core': resolvePath(projectRootDir, '../../node_modules/.pnpm/dockview-core@4.12.0/node_modules/dockview-core'),
 		},
 		preserveSymlinks: false,

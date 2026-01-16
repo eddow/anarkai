@@ -2,6 +2,7 @@ import { reactive } from 'mutts'
 import type { GoodType } from '@ssh/lib/types/base'
 import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
 import { Button } from 'pounce-ui/src'
+import { mdiPlus } from 'pure-glyf/icons'
 import EntityBadge from '../EntityBadge'
 import { css } from '@app/lib/css'
 import type { Game } from '@ssh/lib/game'
@@ -86,7 +87,7 @@ export default function AddGoodButton(props: AddGoodButtonProps) {
 	return (
 		<div class="add-good-wrapper" use={(el: HTMLElement) => buttonWrapper = el}>
 			<Button
-				icon="mdi:plus"
+				icon={mdiPlus}
 				onClick={openMenu}
 				el={{ title: props.title || 'Add' }}
 			>

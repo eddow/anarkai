@@ -1,13 +1,13 @@
 import ConfigurationWidget from './configuration'
 import GameWidget from './game'
 import SelectionInfoWidget from './selection-info'
-import MultiselectTestWidget from './multiselect-test'
+import TestWidget from './test'
 
 export const widgets = {
 	game: GameWidget,
 	configuration: ConfigurationWidget,
 	'selection-info': SelectionInfoWidget,
-	'multiselect-test': MultiselectTestWidget,
+	test: TestWidget,
 }
 
 export default widgets

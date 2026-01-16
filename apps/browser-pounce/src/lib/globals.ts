@@ -14,6 +14,9 @@ export {
 	mrg,
 } from '@ssh/lib/globals'
 
+export const unreactiveInfo = {
+	hasLastSelectedInfoPanel: false,
+}
 // Re-export types
 export type { Configuration } from '@ssh/lib/globals'
 

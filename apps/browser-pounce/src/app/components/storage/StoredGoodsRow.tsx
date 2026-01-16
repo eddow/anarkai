@@ -6,6 +6,7 @@ import type { GoodType } from '@ssh/lib/types/base'
 import PropertyGridRow from '../PropertyGridRow'
 import EntityBadge from '../EntityBadge'
 import { Button } from 'pounce-ui/src'
+import { mdiBroom, mdiCloseCircleOutline } from 'pure-glyf/icons'
 import { T } from '@ssh/lib/i18n'
 import { css } from '@app/lib/css'
 import type { Game } from '@ssh/lib/game'
@@ -129,7 +130,7 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 					) : (
 						<div class="stored-goods-row">
 							<Button
-								icon="mdi:broom"
+								icon={mdiBroom}
 								onClick={startCleanAll}
 								el={{ title: String(T.alveolus.cleanUpTooltip), class: 'cleanup-btn' }}
 							/>
@@ -143,7 +144,7 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 									/>
 									{hasMultipleTypes.value && (
 										<Button
-											icon="mdi:close-circle-outline"
+											icon={mdiCloseCircleOutline}
 											onClick={() => startCleanGood(good)}
 											el={{ title: String(T.alveolus.cleanUpGoodTooltip({ goodType: good })), class: 'cleanup-btn-small' }}
 										/>
