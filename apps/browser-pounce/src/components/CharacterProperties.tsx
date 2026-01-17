@@ -3,6 +3,7 @@ import { AEvolutionStep, ALerpStep } from '@ssh/lib/game/npcs/steps'
 import type { Character } from '@ssh/lib/game/population/character'
 import { T } from '@ssh/lib/i18n'
 import { css } from '@app/lib/css'
+import type { GoodType } from '@ssh/lib/types/base'
 import GoodsList from './GoodsList'
 import PropertyGrid from './PropertyGrid'
 import PropertyGridRow from './PropertyGridRow'
@@ -168,7 +169,11 @@ const CharacterProperties = ({ character }: CharacterPropertiesProps, scope: any
 			)}
 			<PropertyGrid>
 				<PropertyGridRow label={T.goods}>
-					<GoodsList goods={state.goods} game={character.game} />
+					<GoodsList
+						goods={Object.keys(state.goods) as GoodType[]}
+						game={character.game}
+						getBadgeProps={(g) => ({ qty: state.goods[g] })}
+					/>
 				</PropertyGridRow>
 				{state.actions && (
 					<>

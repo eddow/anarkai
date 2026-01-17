@@ -1,4 +1,4 @@
-import '../app.css'
+import './app.css'
 import { initConsoleTrap } from '@ssh/lib/debug'
 initConsoleTrap()
 import { effect, reactive, trackEffect, untracked } from 'mutts'

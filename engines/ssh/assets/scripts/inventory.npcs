@@ -49,14 +49,17 @@ function dropAllFree()
 	while good
 		// Move around the tile for preparationTime before dropping
 		walk.moveTo find.randomPositionInTile()
-		inventory.dropAsFreeGood good
+		print "dropAllFree: trying to drop", good, "available:", I.carry.availables[good]
+		if I.carry.availables[good] > 0 then
+			inventory.dropAsFreeGood good
+		end if
 	loop
 end function
 
 function makeRoom()
 	do while not haveRoom()
 		where = find.freeSpot()
-		if not where then return false
+		if not where then return false	// TODO: failure behaviour
 		walk.into where
 		good = aKey(I.carry.availables)
 		if not good then
@@ -65,7 +68,10 @@ function makeRoom()
 		end if
 		// Move around the tile for preparationTime before dropping
 		walk.moveTo find.randomPositionInTile()
-		inventory.dropAsFreeGood good
+		print "makeRoom: trying to drop", good, "available:", I.carry.availables[good]
+		if I.carry.availables[good] > 0 then
+			inventory.dropAsFreeGood good
+		end if
 	loop
 end function
 

@@ -12,6 +12,7 @@ import { UnBuiltLand } from '@ssh/lib/game/board/content/unbuilt-land'
 import type { Tile } from '@ssh/lib/game/board/tile'
 import { T } from '@ssh/lib/i18n'
 import { computeStyleFromTexture } from '@ssh/lib/utils/images'
+import type { GoodType } from '@ssh/lib/types/base'
 
 css`
   .tile-properties {
@@ -146,13 +147,21 @@ const TileProperties = ({ tile }: TilePropertiesProps) => {
 
 					{state.stock && !(state.tileContent instanceof Alveolus) ? (
 						<PropertyGridRow label={String(T.goods.stored)}>
-							<GoodsList goods={state.stock} game={tile.board.game} />
+							<GoodsList
+								goods={Object.keys(state.stock) as GoodType[]}
+								game={tile.board.game}
+								getBadgeProps={(g) => ({ qty: state.stock![g] })}
+							/>
 						</PropertyGridRow>
 					) : null}
 
 					{Object.keys(state.freeStock).length > 0 ? (
 						<PropertyGridRow label={String(T.goods.loose)}>
-							<GoodsList goods={state.freeStock as any} game={tile.board.game} />
+							<GoodsList
+								goods={Object.keys(state.freeStock) as GoodType[]}
+								game={tile.board.game}
+								getBadgeProps={(g) => ({ qty: state.freeStock[g] })}
+							/>
 						</PropertyGridRow>
 					) : null}
 

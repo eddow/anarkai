@@ -30,4 +30,3 @@ test-results
 .windsurf
 playwright-report
 *.tsbuildinfo
-/bmad/*

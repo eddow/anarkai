@@ -6,10 +6,8 @@ import { games } from '@app/lib/globals'
 
 export default (_props: DockviewWidgetProps) => {
 	const state = reactive({
-		goods: {
-			wood: 5,
-			berries: 3
-		} as { [k in GoodType]?: number }
+		// Now using an array for the goods selection
+		goods: ['wood', 'berries'] as GoodType[]
 	})
 
 	let game: any
@@ -22,7 +20,7 @@ export default (_props: DockviewWidgetProps) => {
 	return (
 		<div style={{ padding: '1rem', height: '100%', overflow: 'auto' }}>
 			<h2>Test Widget</h2>
-			<p>Interactive GoodsList (Two-Way Binding):</p>
+			<p>Interactive GoodsList (Array + Two-Way Binding):</p>
 			{game ? (
 				<>
 					<div style={{ marginTop: '1rem', border: '1px solid var(--pico-border-color)', padding: '1rem', borderRadius: '4px' }}>
@@ -30,6 +28,11 @@ export default (_props: DockviewWidgetProps) => {
 							game={game}
 							goods={state.goods}
 							editable={true}
+							renderItemExtra={(good, index) => (
+								<span style={{ fontSize: '10px', marginLeft: '4px', opacity: 0.7 }}>
+									#{index}
+								</span>
+							)}
 						/>
 					</div>
 					<pre style={{ marginTop: '1rem', padding: '0.5rem', background: 'var(--pico-card-background-color)', fontSize: '0.8rem' }}>
