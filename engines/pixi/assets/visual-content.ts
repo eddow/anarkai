@@ -60,6 +60,10 @@ export const alveoli: Record<string, VisualDefinition> = {
 		sprites: ['buildings.engineer'],
 		icon: 'buildings.engineer',
 	},
+	woodpile: {
+		sprites: ['buildings.woodpile'],
+		icon: 'buildings.woodpile',
+	},
 };
 
 export const goods: Record<string, VisualDefinition> = {

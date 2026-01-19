@@ -1,5 +1,6 @@
 import { type } from 'arktype'
 import { unreactive } from 'mutts'
+import type { GoodType } from '$lib/types/base'
 import {
 	type ExecutionContext,
 	ExecutionError,
@@ -108,9 +109,15 @@ export class GlobalContext {
 	keys(object: object) {
 		return Object.keys(object)
 	}
+	@contract('GoodType')
+	isFood(goodType: GoodType): boolean {
+		return 'feedingValue' in (goods as any)[goodType]
+	}
+
 	@contract('object')
 	aKey(object: object) {
 		const keys = Object.keys(object)
+		if (keys.length === 0) return undefined
 		const rnd = (globalThis as any).__GAME_RANDOM__ as
 			| ((max?: number, min?: number) => number)
 			| undefined

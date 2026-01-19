@@ -17,3 +17,10 @@ Anarkai is a modular monorepo driven by a custom game engine (`engines/ssh`) and
 - **Install**: `pnpm install`
 - **Dev**: `pnpm dev` (starts all). Targeted: `pnpm dev:pounce`.
 - **Test**: `pnpm test` (using Vitest).
+ 
+ ## Content Locations
+ - **Game Definitions**: `engines/ssh/assets/game-content.ts` (stats, timing, costs)
+ - **Visual Definitions**: `engines/pixi/assets/visual-content.ts` (sprites, icons)
+ - **Translations**: `engines/ssh/assets/locales/*.json` (en, fr, etc.)
+ - **Visual Assets**: `engines/pixi/assets/buildings/`, `engines/pixi/assets/goods/`, etc.
+

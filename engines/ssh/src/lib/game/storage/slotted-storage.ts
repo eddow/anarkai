@@ -209,10 +209,16 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 			}
 		}
 
+		if (remaining > 0 && qty > 0) {
+			const available = this.available(goodType)
+			const stock = this.stock[goodType] ?? 0
+			console.warn(`[SlottedStorage] Cannot remove ${goodType} (qty ${qty}): remaining ${remaining}, available ${available}, stock ${stock}.`)
+		}
+
 		return qty - remaining
 	}
 
-	@memoize // When memoize, we can have an empty stock on a nearly filled storage
+	// @memoize // Removed to prevent stale state issues
 	get stock(): { [k in GoodType]?: number } {
 		const result: { [k in GoodType]?: number } = {}
 
@@ -222,7 +228,7 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		return result
 	}
 
-	@memoize
+	// @memoize // Removed to prevent stale state (ghost goods) issues where availables desyncs from available()
 	get availables(): { [k in GoodType]?: number } {
 		const result: { [k in GoodType]?: number } = {}
 
@@ -285,7 +291,7 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 			for (let i = 0; i < this.slots.length && remaining > 0; i++) {
 				if (this.slots[i] !== undefined) continue
 				const take = Math.min(remaining, this.maxQuantityPerSlot)
-				this.slots[i] = { goodType, quantity: 0, allocated: take, reserved: 0 }
+				this.slots[i] = reactive({ goodType, quantity: 0, allocated: take, reserved: 0 })
 				alloc[i] += take
 				remaining -= take
 			}

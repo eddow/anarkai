@@ -16,7 +16,9 @@ export const alveolusClass = GcClasses(
 			transform: TransformAlveolus,
 			gather: GatherAlveolus,
 			engineer: EngineerAlveolus,
-			storage: StorageAlveolus,
+			storage: StorageAlveolus, // kept for backward compatibility if any
+			'slotted-storage': StorageAlveolus,
+			'specific-storage': StorageAlveolus,
 		})[def.action.type],
 	alveoli,
 ) as Partial<Record<AlveolusType, new (tile: Tile) => Alveolus>>

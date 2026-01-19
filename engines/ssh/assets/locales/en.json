@@ -11,7 +11,8 @@
 		"gather": "Gather",
 		"storage": "Store",
 		"building": "Building",
-		"engineer": "Engineer"
+		"engineer": "Engineer",
+		"woodpile": "Woodpile"
 	},
 	"goods": {
 		"berries": "Berries",

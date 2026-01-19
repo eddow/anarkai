@@ -338,7 +338,15 @@ export class EatStep extends AEvolutionStep {
 		super(activityDurations.eating)
 		assert('feedingValue' in goodsCatalog[food], `Food ${food} has no feeding value`)
 		this.feedingValue = goodsCatalog[food].feedingValue as number
-		assert(this.character.carry.removeGood(food, 1) === 1, "Didn't have food he is trying to eat")
+		const removed = this.character.carry.removeGood(food, 1)
+		if (removed <= 0) {
+            const debugInfo = JSON.stringify({
+                availables: this.character.carry.availables,
+                stock: this.character.carry.stock,
+                debug: this.character.carry.debugInfo
+            }, null, 2)
+			throw new Error(`Didn't have food he is trying to eat (${food}). Removed: ${removed}. State: ${debugInfo}`)
+		}
 	}
 	evolve(_: number, dt: number): void {
 		this.character.hunger = Math.max(0, this.character.hunger - this.feedingValue * dt)

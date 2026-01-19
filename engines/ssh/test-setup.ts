@@ -20,6 +20,21 @@ globalThis.beforeAll = vi.beforeAll
 globalThis.afterAll = vi.afterAll
 
 // Mock browser environment for PixiJS
+if (typeof Node === 'undefined') {
+    (global as any).Node = class {}
+}
+if (typeof Element === 'undefined') {
+    (global as any).Element = class {}
+}
+if (typeof HTMLElement === 'undefined') {
+    (global as any).HTMLElement = class {}
+}
+if (typeof SVGElement === 'undefined') {
+    (global as any).SVGElement = class {}
+}
+if (typeof CustomEvent === 'undefined') {
+    (global as any).CustomEvent = class {}
+}
 if (typeof document === 'undefined') {
 	;(global as any).document = {
 		createElement: () => ({

@@ -126,13 +126,17 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 	@atomic
 	removeGood(goodType: GoodType, qty: number): number {
 		const currentAmount = this._goods[goodType] || 0
-		const toRemove = Math.min(qty, currentAmount)
+		const reserved = this._reserved[goodType] || 0
+		const available = Math.max(0, currentAmount - reserved)
+		const toRemove = Math.min(qty, available)
 
 		if (toRemove > 0) {
 			this._goods[goodType] = currentAmount - toRemove
 			if (this._goods[goodType] === 0) {
 				delete this._goods[goodType]
 			}
+		} else if (qty > 0 && currentAmount > 0) {
+			console.warn(`[SpecificStorage] Cannot remove ${goodType} (qty ${qty}): have ${currentAmount} but ${reserved} are reserved.`)
 		}
 
 		return toRemove
@@ -143,7 +147,7 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 		return { ...this._goods }
 	}
 
-	@memoize
+	//@memoize
 	get availables(): { [k in GoodType]?: number } {
 		const result: { [k in GoodType]?: number } = {}
 		for (const [goodType, quantity] of Object.entries(this._goods)) {

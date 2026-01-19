@@ -32,9 +32,15 @@ declare namespace Ssh {
 		type: 'engineer'
 		radius: number
 	}
-	type StorageAction = {
-		type: 'storage'
-	} & StorageSpec
+	interface SlottedStorageAction extends SlottedStorage {
+		type: 'slotted-storage'
+	}
+	interface SpecificStorageAction {
+		type: 'specific-storage'
+		goods: SpecificStorage
+	}
+	type StorageAction = SlottedStorageAction | SpecificStorageAction
+
 	type Action =
 		| HarvestingAction
 		| TransformationAction

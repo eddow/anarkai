@@ -1,1 +1,0 @@
-Project to be forgotten as, as soon as browser-pounce works, we forget about this one.

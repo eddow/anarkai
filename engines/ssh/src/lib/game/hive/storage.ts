@@ -13,17 +13,20 @@ export class StorageAlveolus extends Alveolus {
 	storageMode: 'all-but' | 'only' = 'all-but'
 	storageExceptions: GoodType[] = []
 	storageBuffers: Partial<Record<GoodType, number>> = {}
+	storageLimits: Partial<Record<GoodType, number>> = {}
 
 	constructor(tile: Tile) {
 		const def: Ssh.AlveolusDefinition = new.target.prototype
-		if (def.action.type !== 'storage') {
-			throw new Error('StorageAlveolus can only be created from a storage action')
+		
+		if (def.action.type === 'slotted-storage') {
+			const action = def.action as Ssh.SlottedStorageAction
+			super(tile, new SlottedStorage(action.slots, action.capacity))
+		} else if (def.action.type === 'specific-storage') {
+			const action = def.action as Ssh.SpecificStorageAction
+			super(tile, new SpecificStorage(action.goods))
+		} else {
+			throw new Error('StorageAlveolus created with invalid action type')
 		}
-		const storage =
-			'slots' in def.action
-				? new SlottedStorage(def.action.slots, def.action.capacity)
-				: new SpecificStorage(def.action)
-		super(tile, storage)
 	}
 
 	/**
@@ -38,11 +41,21 @@ export class StorageAlveolus extends Alveolus {
 		const piecesNeeded =
 			this.storage instanceof SlottedStorage ? buffer * this.storage.maxQuantityPerSlot : buffer
 
-		if ((this.storage.stock[goodType] || 0) < piecesNeeded) {
+		const currentStock = this.storage.stock[goodType] || 0
+
+		if (currentStock < piecesNeeded) {
 			return this.storage.hasRoom(goodType) > 0
 		}
 
-		// 2. Acceptance filter
+		// 2. Limit check: if we are above limit, we NEVER accept (unless it was for buffer, checked above)
+		const limit = this.storageLimits[goodType]
+		if (limit !== undefined) {
+			const piecesLimit =
+				this.storage instanceof SlottedStorage ? limit * this.storage.maxQuantityPerSlot : limit
+			if (currentStock >= piecesLimit) return false
+		}
+
+		// 3. Acceptance filter
 		const isException = this.storageExceptions.includes(goodType)
 		const allowedByMode = this.storageMode === 'all-but' ? !isException : isException
 
@@ -65,10 +78,19 @@ export class StorageAlveolus extends Alveolus {
 			}
 		}
 
-		// 2. Acceptance filter as demand (low priority)
+		// 2. Acceptance filter as demand (low priority) - ONLY if below limit
 		if (this.storageMode === 'only') {
 			for (const goodType of this.storageExceptions) {
-				if (!relations[goodType] && this.storage.hasRoom(goodType) > 0) {
+				const limit = this.storageLimits[goodType]
+				const piecesLimit =
+					limit !== undefined
+						? this.storage instanceof SlottedStorage
+							? limit * this.storage.maxQuantityPerSlot
+							: limit
+						: Infinity
+				const current = this.storage.stock[goodType] || 0
+
+				if (current < piecesLimit && !relations[goodType] && this.storage.hasRoom(goodType) > 0) {
 					relations[goodType] = { advertisement: 'demand', priority: '0-store' }
 				}
 			}
@@ -76,7 +98,12 @@ export class StorageAlveolus extends Alveolus {
 			// For SpecificStorage in "all-but" mode, we demand everything we have room for
 			if (this.storage instanceof SpecificStorage) {
 				for (const goodType of Object.keys(this.storage.maxAmounts) as GoodType[]) {
+					const limit = this.storageLimits[goodType]
+					const piecesLimit = limit !== undefined ? limit : Infinity // Specific storage limit is raw amount
+					const current = this.storage.stock[goodType] || 0
+
 					if (
+						current < piecesLimit &&
 						!this.storageExceptions.includes(goodType) &&
 						!relations[goodType] &&
 						this.storage.hasRoom(goodType) > 0

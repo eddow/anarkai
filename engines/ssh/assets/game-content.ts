@@ -76,11 +76,20 @@ export const alveoli = {
 	},
 	storage: {
 		preparationTime: 1,
-		action: { type: 'storage', capacity: 3, slots: 6 },
+		action: { type: 'slotted-storage', capacity: 3, slots: 6 },
 		workTime: 0,
 		construction: {
 			goods: { wood: 2, planks: 2, stone: 1 },
 			time: 6,
+		},
+	},
+	woodpile: {
+		preparationTime: 1,
+		action: { type: 'specific-storage', goods: { wood: 24 } },
+		workTime: 0,
+		construction: {
+			goods: { wood: 10 },
+			time: 4,
 		},
 	},
 	gather: {

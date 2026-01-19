@@ -3,7 +3,7 @@ import type { StorageAlveolus } from '@ssh/lib/game/hive/storage'
 import type { GoodType } from '@ssh/lib/types/base'
 import { goods as goodsCatalog } from 'engine-pixi/assets/visual-content'
 import PropertyGridRow from '../PropertyGridRow'
-import { Button } from 'pounce-ui/src'
+import { Button, Stars } from 'pounce-ui/src'
 import GoodMultiSelect from './GoodMultiSelect'
 import { SlottedStorage } from '@ssh/lib/game/storage/slotted-storage'
 import { SpecificStorage } from '@ssh/lib/game/storage/specific-storage'
@@ -13,6 +13,16 @@ import type { Game } from '@ssh/lib/game'
 css`
 .storage-config {
 	display: contents;
+}
+
+.slotted-todo {
+	padding: 1rem;
+	margin-top: 1rem;
+	border: 1px dashed var(--pico-muted-border-color);
+	border-radius: 4px;
+	color: var(--pico-muted-color);
+	font-style: italic;
+	text-align: center;
 }
 
 .mode-control {
@@ -26,16 +36,16 @@ css`
 	white-space: nowrap;
 }
 
-.buffer-input {
-	width: 60px;
-	padding: 2px 4px;
-	font-size: 0.8rem;
-	height: 24px;
-	text-align: right;
-	border: 1px solid var(--pico-muted-border-color);
-	border-radius: 4px;
-	background: var(--pico-background-color);
-	color: var(--pico-color);
+.buffer-stars-container {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 2px;
+}
+
+.buffer-quantity {
+	font-size: 0.75rem;
+	color: var(--pico-muted-color);
 }
 `
 
@@ -101,7 +111,44 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 		return candidates.filter(gt => !currentBufferKeys.includes(gt))
 	})
 
-	const getBufferValue = (goodType: GoodType) => {
+	const getBufferStars = (goodType: GoodType) => {
+		const val = buffers.value[goodType] || 0
+		if (val <= 0) return 0
+		if (isSlotted.value) {
+			// For SlottedStorage, val is number of slots.
+			// 1 star = 1 slot. Max 5 stars.
+			return Math.min(val, 5)
+		} else {
+			// For SpecificStorage, val is quantity.
+			// 1 star = 20% of maxAmount.
+			const max = props.content.storage instanceof SpecificStorage ? (props.content.storage.maxAmounts[goodType] || 0) : 0
+			if (max === 0) return 0
+			// (val / max) * 5 => stars
+			return Math.round((val / max) * 5)
+		}
+	}
+
+	const setBufferFromStars = (goodType: GoodType, stars: number) => {
+		let newVal = 0
+		if (stars <= 0) {
+			newVal = 0
+		} else if (isSlotted.value) {
+			newVal = stars
+		} else {
+			const max = props.content.storage instanceof SpecificStorage ? (props.content.storage.maxAmounts[goodType] || 0) : 0
+			newVal = Math.round(max * (stars / 5))
+		}
+
+		const newBuffers = { ...props.content.storageBuffers }
+		if (newVal <= 0) {
+			delete newBuffers[goodType]
+		} else {
+			newBuffers[goodType] = newVal
+		}
+		props.content.storageBuffers = newBuffers
+	}
+
+	const getDisplayQuantity = (goodType: GoodType) => {
 		const val = buffers.value[goodType] || 0
 		if (isSlotted.value) {
 			return val * (props.content.storage as SlottedStorage).maxQuantityPerSlot
@@ -109,73 +156,73 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 		return val
 	}
 
-	const setBufferValue = (goodType: GoodType, pieces: number) => {
-		const newBuffers = { ...props.content.storageBuffers }
-		if (pieces <= 0) {
-			delete newBuffers[goodType]
-		} else {
-			if (isSlotted.value) {
-				newBuffers[goodType] = Math.ceil(pieces / (props.content.storage as SlottedStorage).maxQuantityPerSlot)
-			} else {
-				newBuffers[goodType] = pieces;
-			}
-		}
-		props.content.storageBuffers = newBuffers
-	}
-
 	const handleBufferAdd = (gt: GoodType) => {
-		setBufferValue(gt, isSlotted.value ? (props.content.storage as SlottedStorage).maxQuantityPerSlot : 1)
+		// Default to 1 star
+		setBufferFromStars(gt, 1)
 	}
 
 	const handleBufferRemove = (gt: GoodType) => {
-		setBufferValue(gt, 0)
+		setBufferFromStars(gt, 0)
 	}
 
 	return (
 		<div class="storage-config">
 			{/* Acceptance Mode */}
-			<PropertyGridRow label="Acceptance">
-				<div class="mode-control">
-					<Button onClick={toggleMode} el={{ class: 'mode-toggle' }}>
-						{modeLabel.value}
-					</Button>
-
-					<GoodMultiSelect
-						value={exceptions.value}
-						availableGoods={availableExceptionCandidates.value}
-						game={props.game}
-						addTitle="Add Exception"
-						onAdd={addException}
-						onRemove={removeException}
-					>
-						No exceptions
-					</GoodMultiSelect>
+			{/* Acceptance Mode */}
+			{isSlotted.value ? (
+				<div class="slotted-todo">
+					TODO: Slotted Storage Configuration
 				</div>
-			</PropertyGridRow>
+			) : (
+				<>
+					<PropertyGridRow label="Acceptance">
+						<div class="mode-control">
+							<Button onClick={toggleMode} el={{ class: 'mode-toggle' }}>
+								{modeLabel.value}
+							</Button>
 
-			{/* Buffers */}
-			<PropertyGridRow label="Buffers">
-				<GoodMultiSelect
-					value={bufferedGoods.value}
-					availableGoods={availableBufferCandidates.value}
-					game={props.game}
-					addTitle="Add Buffer"
-					addLabel="Add Buffer"
-					onAdd={handleBufferAdd}
-					onRemove={handleBufferRemove}
-					renderItemExtra={(good) => (
-						<input
-							type="number"
-							value={getBufferValue(good)}
-							onInput={(e: Event) => setBufferValue(good, parseInt((e.target as HTMLInputElement).value) || 0)}
-							min={0}
-							class="buffer-input"
-						/>
-					)}
-				>
-					No active buffers
-				</GoodMultiSelect>
-			</PropertyGridRow>
+							<GoodMultiSelect
+								value={exceptions.value}
+								availableGoods={availableExceptionCandidates.value}
+								game={props.game}
+								addTitle="Add Exception"
+								onAdd={addException}
+								onRemove={removeException}
+							>
+								No exceptions
+							</GoodMultiSelect>
+						</div>
+					</PropertyGridRow>
+
+					{/* Buffers */}
+					<PropertyGridRow label="Buffers">
+						<GoodMultiSelect
+							value={bufferedGoods.value}
+							availableGoods={availableBufferCandidates.value}
+							game={props.game}
+							addTitle="Add Buffer"
+							addLabel="Add Buffer"
+							onAdd={handleBufferAdd}
+							onRemove={handleBufferRemove}
+							renderItemExtra={(good) => (
+								<div class="buffer-stars-container">
+									<Stars
+										value={getBufferStars(good)}
+										maximum={5}
+										onChange={(v: number | [number, number]) => setBufferFromStars(good, typeof v === 'number' ? v : v[1])}
+										size="1rem"
+									/>
+									<span class="buffer-quantity">
+										{getDisplayQuantity(good)}
+									</span>
+								</div>
+							)}
+						>
+							No active buffers
+						</GoodMultiSelect>
+					</PropertyGridRow>
+				</>
+			)}
 		</div>
 	)
 }

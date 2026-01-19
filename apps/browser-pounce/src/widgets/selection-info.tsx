@@ -6,11 +6,8 @@ import { Character } from '@ssh/lib/game/population/character'
 import { Tile } from '@ssh/lib/game/board/tile'
 import {
 	games,
-	registerObjectInfoPanel,
 	selectionState,
-	unregisterObjectInfoPanel,
 	mrg,
-	appState,
 	unreactiveInfo,
 } from '@app/lib/globals'
 import CharacterProperties from '../components/CharacterProperties'

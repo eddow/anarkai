@@ -168,20 +168,17 @@ export class Character extends withInteractive(
 
 	get carriedFood(): GoodType | undefined {
 		return maxBy(
-			Object.entries(this.carry.stock) as [GoodType, number][],
-			([goodType]) => {
-				const available = this.carry.available(goodType)
-				if (available > 0 && available < 1 && 'feedingValue' in goodsCatalog[goodType]) {
-					console.warn(
-						`[Character] ${this.name} has fractional food ${goodType}: ${available}. Eating requires >= 1.`,
-					)
+			Object.entries(this.carry.availables) as [GoodType, number][],
+			([goodType, available]) => {
+				const feedingValue = (goodsCatalog[goodType] as any).feedingValue
+				if (!feedingValue || available < 0.1) return undefined
+				
+				if (available < 0.9) {
+					// Only log if it's a significant decay that we are about to eat
+					this.log('character.eatingFractional', { goodType, available })
 				}
-				return (
-					(available >= 1 &&
-						'feedingValue' in goodsCatalog[goodType] &&
-						(goodsCatalog[goodType].feedingValue as number)) ||
-					undefined
-				)
+
+				return feedingValue as number
 			},
 		)?.[0]
 	}

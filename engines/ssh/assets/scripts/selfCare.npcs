@@ -1,8 +1,6 @@
 function goEat()
-	print "goEat: start loop. Hunger:", I.hunger
 	do while I.hunger > I.triggerLevels.hunger.satisfied
 		food = I.carriedFood
-		print "goEat: food found:", food
 		if food then
 			selfCare.eat food
 			continue

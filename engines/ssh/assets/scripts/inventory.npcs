@@ -44,15 +44,16 @@ function dropAllFree()
 	where = find.freeSpot()
 	if not where then return false
 	walk.into where
-	do
-		good = aKey(I.carry.availables)
-	while good
-		// Move around the tile for preparationTime before dropping
-		walk.moveTo find.randomPositionInTile()
-		print "dropAllFree: trying to drop", good, "available:", I.carry.availables[good]
-		if I.carry.availables[good] > 0 then
+	
+	candidateGoods = keys(I.carry.availables)
+	i = 0
+	do while i < candidateGoods.length
+		good = candidateGoods[i]
+		do while I.carry.availables[good] > 0
+			walk.moveTo find.randomPositionInTile()
 			inventory.dropAsFreeGood good
-		end if
+		loop
+		i = i + 1
 	loop
 end function
 
@@ -61,17 +62,29 @@ function makeRoom()
 		where = find.freeSpot()
 		if not where then return false	// TODO: failure behaviour
 		walk.into where
-		good = aKey(I.carry.availables)
-		if not good then
-			debugger I.vehicle
-			error "Try to make room but has no good to drop"
+		
+		candidateGoods = keys(I.carry.availables)
+		// Try to find a non-food item first if hungry
+		dropTarget = null
+		i = 0
+		do while i < candidateGoods.length
+			good = candidateGoods[i]
+			if not isFood(good) or I.hunger < 500 then
+				dropTarget = good
+				break
+			end if
+			i = i + 1
+		loop
+		
+		if not dropTarget then
+			// Force drop food if absolutely no other choice but we are stuck
+			dropTarget = aKey(I.carry.availables)
 		end if
-		// Move around the tile for preparationTime before dropping
+
+		if not dropTarget then error "Try to make room but has no good to drop"
+		
 		walk.moveTo find.randomPositionInTile()
-		print "makeRoom: trying to drop", good, "available:", I.carry.availables[good]
-		if I.carry.availables[good] > 0 then
-			inventory.dropAsFreeGood good
-		end if
+		inventory.dropAsFreeGood dropTarget
 	loop
 end function
 
