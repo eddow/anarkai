@@ -1,7 +1,7 @@
-import { addBatchCleanup, reactive, type ScopedCallback, unreactive } from 'mutts'
+import { reactive, type ScopedCallback, unreactive } from 'mutts'
 import { assert, namedEffect, traces } from '$lib/debug'
 import type { GoodType } from '$lib/types'
-import { type AxialCoord, findPath, type Positioned, setPop } from '$lib/utils'
+import { type AxialCoord, findPath, type Positioned, setPop, axial } from '$lib/utils'
 import {
 	type Advertisement,
 	AdvertisementManager,
@@ -15,12 +15,13 @@ import { Alveolus } from '../board/content/alveolus'
 import type { Tile } from '../board/tile'
 import type { AllocationBase, Storage } from '../storage'
 import type { StorageAlveolus } from './storage'
-
 export interface MovingGood {
+    _mgId?: string
 	goodType: GoodType
 	path: AxialCoord[]
 	provider: Alveolus
 	demander: Alveolus
+    from: AxialCoord
 	allocations: {
 		source: AllocationBase
 		target: AllocationBase
@@ -41,18 +42,23 @@ export class Hive extends AdvertisementManager<Alveolus> {
 	//#region Hives management on tile add/remove
 	static for(tile: Tile) {
 		const hives = new Set<Hive>()
-		for (const neighbor of tile.neighborTiles)
-			if (neighbor?.content instanceof Alveolus) hives.add(neighbor.content.hive)
+		for (const neighbor of tile.neighborTiles) {
+            // Check for hive property to support proxies
+			if (neighbor?.content && 'hive' in neighbor.content) {
+                 const h = (neighbor.content as Alveolus).hive;
+                 hives.add(h)
+            }
+        }
 		if (hives.size === 0) return new Hive(tile.board)
 		if (hives.size === 1) return setPop(hives)!
+
 		const hivesArray = Array.from(hives)
-		// TODO: ask which hive, or detail which configuration to keep in the ui
-		const hive = hivesArray.shift()!
+		const targetHive = hivesArray.shift()!
 		for (const hive of hivesArray) {
-			for (const alveolus of hive.alveoli) hive.attach(alveolus)
+			for (const alveolus of hive.alveoli) targetHive.attach(alveolus)
 			hive.destroy()
 		}
-		return hive
+        return targetHive
 	}
 	public name?: string
 	public readonly alveoli = reactive(new Set<Alveolus>())
@@ -84,9 +90,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		alveolus.hive = this
 		this.invalidatePathCache()
 		this.advertising.push(
-			namedEffect(`${alveolus.name}.advertise`, () =>
-				this.advertise(alveolus, alveolus.goodsRelations),
-			),
+			namedEffect(`${alveolus.name}.advertise`, () => this.advertise(alveolus, alveolus.goodsRelations)),
 		)
 	}
 	/**
@@ -233,8 +237,10 @@ export class Hive extends AdvertisementManager<Alveolus> {
 					const asPriority: ExchangePriority = (['0-store', '1-buffer', '2-use'] as const)[
 						highest as 0 | 1 | 2
 					]
-					return [gt as GoodType, asPriority]
-				}),
+					return [gt as GoodType, asPriority] as const
+				})
+				// Filter out 0-store priority - these are only for internal conveying, not hive needs
+				.filter(([_, priority]) => priority !== '0-store'),
 		)
 		// Merge manual needs
 		for (const [good, _amount] of Object.entries(this.manualNeeds)) {
@@ -287,47 +293,66 @@ export class Hive extends AdvertisementManager<Alveolus> {
 			return false
 		}
 
-		let from = positions.provider
-		let list = this.movingGoods.get(from) ?? []
-		function removeFromList(good: MovingGood) {
-			const idx = list.indexOf(good)
-			if (idx === -1) return
-			list.splice(idx, 1)
-			if (list.length === 0) movingGoods.delete(from)
-		}
-
+		const self = this
 		const movingGood: MovingGood = {
 			goodType,
 			path,
 			provider,
 			demander,
+            from: positions.provider,
 			allocations: {
 				source: providerToken,
 				target: demanderToken,
 			},
-			hop() {
-				const rv = path.shift()!
-				removeFromList(movingGood)
-				from = rv
-				return rv
+				hop() {
+				const fromCoord = this.from
+				const nextCoord = this.path.shift()!
+				
+				const currentList = self.movingGoods.get(fromCoord)
+				if (currentList) {
+					// Find the original movingGood in the list (this might be a wrapper)
+					const original = currentList.find(mg => mg === this || Object.getPrototypeOf(this) === mg)
+					if (original) {
+						const idx = currentList.indexOf(original)
+						currentList.splice(idx, 1)
+						if (currentList.length === 0) self.movingGoods.delete(fromCoord)
+					}
+				}
+				
+				
+				this.from = nextCoord
+				movingGood.from = nextCoord // Also update the canonical movingGood
+				return nextCoord
 			},
-			place() {
-				if (!movingGoods.has(from)) movingGoods.set(from, [])
-				list = movingGoods.get(from)!
-				list.push(movingGood)
+				place() {
+				const here = movingGood.from  // Use movingGood.from, not this.from (which is on the wrapper)
+				if (!self.movingGoods.has(here)) self.movingGoods.set(here, [])
+				// Push the original movingGood, not the wrapper
+				self.movingGoods.get(here)!.push(movingGood)
 			},
 			finish() {
-				removeFromList(movingGood)
+				const fromCoord = this.from
+				const currentList = self.movingGoods.get(fromCoord)
+				if (currentList) {
+					// Find the original movingGood in the list (this might be a wrapper)
+					const original = currentList.find(mg => mg === this || Object.getPrototypeOf(this) === mg)
+					if (original) {
+						const idx = currentList.indexOf(original)
+						currentList.splice(idx, 1)
+						if (currentList.length === 0) self.movingGoods.delete(fromCoord)
+					}
+				}
+				this.allocations.target.fulfill()
+				this.allocations.source.fulfill()
 			},
 		}
 	
-		list.push(movingGood)
-		movingGoods.set(from, list)
+		movingGood.place()
 		return true
 	}
 
 	get generalStorages() {
-		return (this.byActionType.storage || []) as StorageAlveolus[]
+		return (this.byActionType['slotted-storage'] || []) as StorageAlveolus[]
 	}
 	selectMovement(
 		advertisement: Advertisement,
@@ -343,11 +368,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		)
 		// Defer movement creation to avoid reactive cycle:
 		// The advertise effect reads storage state, and createMovement modifies it.
-		//
-		// We use addBatchCleanup instead of queueMicrotask because the game loop is now
-		// atomic (via zoned requestAnimationFrame), so we can rely on synchronous deferral
-		// to the end of the batch.
-		addBatchCleanup(() => {
+		queueMicrotask(() => {
 			try {
 				this.createMovement(
 					goodType,

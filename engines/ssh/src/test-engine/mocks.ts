@@ -32,7 +32,7 @@ export function loadStandardMocks() {
                     action: { type: 'transform', inputs: { wood: 1 }, output: { planks: 1 } },
                     construction: { goods: { wood: 1 }, time: 1 }
                 },
-                'gatherer_hut': { 
+                'gather': { 
                     preparationTime: 1, workTime: 2, 
                     action: { type: 'gather', radius: 9 },
                     construction: { goods: { wood: 1 }, time: 1 }
@@ -44,8 +44,13 @@ export function loadStandardMocks() {
                 },
                 'storage': {
                     preparationTime: 1, workTime: 0,
-                    action: { type: 'storage', capacity: 3, slots: 6 },
+                    action: { type: 'slotted-storage', capacity: 3, slots: 6 },
                     construction: { goods: { wood: 2 }, time: 6 }
+                },
+                'woodpile': {
+                    preparationTime: 1, workTime: 0,
+                    action: { type: 'specific-storage', goods: { wood: 24 } },
+                    construction: { goods: { wood: 10 }, time: 4 }
                 }
             }
         }

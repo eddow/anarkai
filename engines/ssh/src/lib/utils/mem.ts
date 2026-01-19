@@ -1,3 +1,4 @@
+import { reactive } from 'mutts'
 import { type Axial, type AxialKey, type AxialRef, axial } from '.'
 
 export interface AxialKeyDictionary<T> {
@@ -11,17 +12,18 @@ export interface AxialKeyDictionary<T> {
 }
 
 export class AxialKeyMap<T> implements AxialKeyDictionary<T>, Iterable<[AxialKey, T]> {
+	// LLM: No need ot make this map reactive - it will be made reactive automatically if the AxialKeyMap is reactive
 	private map: Map<AxialKey, T>
 
 	constructor(
 		init: Iterable<[AxialRef, T]> = [],
 		private readonly defaultValue?: () => T,
 	) {
-		this.map = new Map(
+		this.map = reactive(new Map(
 			(function* () {
 				for (const [k, v] of init) yield [axial.key(k), v]
 			})(),
-		)
+		))
 	}
 	[Symbol.iterator](): Iterator<[AxialKey, T], any, any> {
 		return this.map[Symbol.iterator]()

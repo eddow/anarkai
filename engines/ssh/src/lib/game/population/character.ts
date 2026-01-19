@@ -113,7 +113,6 @@ export class Character extends withInteractive(
             const axCoord = toAxialCoord(coord)!
             const coordKey = axial.key(axCoord);
 			if (!job) {
-                // if (axial.distance(axCoord, start) < 2) console.log(`[scoreJob] ${this.name} at ${coordKey}: no job`);
                 return false
             }
 
@@ -122,7 +121,6 @@ export class Character extends withInteractive(
 			jobCache.set(key, job)
 
 			const score = calculateJobScore(this, job)
-            //console.log(`[scoreJob] ${this.name} at ${coordKey}: job ${job.job}, score ${score}`);
             return score
 		}
 

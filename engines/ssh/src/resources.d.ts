@@ -2,6 +2,8 @@ declare namespace Ssh {
 	interface SlottedStorage {
 		capacity: number
 		slots: number
+		// TODO: Buffers are not specified in the action (game content) but in the alveolus (alveolus-configuration)
+		buffers?: Record<string, number>
 	}
 	interface SpecificStorage {
 		[goodType: string]: number
@@ -38,6 +40,8 @@ declare namespace Ssh {
 	interface SpecificStorageAction {
 		type: 'specific-storage'
 		goods: SpecificStorage
+		// TODO: Buffers are not specified in the action (game content) but in the alveolus (alveolus-configuration)
+		buffers?: Record<string, number>
 	}
 	type StorageAction = SlottedStorageAction | SpecificStorageAction
 

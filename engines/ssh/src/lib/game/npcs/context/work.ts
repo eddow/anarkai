@@ -21,6 +21,7 @@ interface MovementData {
 	mg: any
 	hopAlloc: any
 	hop: AxialCoord
+	from: AxialCoord
 	moving: any
 }
 
@@ -79,7 +80,7 @@ class WorkFunctions {
 		//console.log(`[conveyStep] Found ${movements.length} movements for ${character.name}`)
 
 		for (const mg of movements) {
-			//console.log(`[conveyStep] Processing movement for ${mg.goodType} from ${axial.key(mg.from)}`)
+			console.log(`[conveyStep] Processing movement for ${mg.goodType} from ${axial.key(mg.from)}`)
 			if (!mg.allocations?.source) {
 				console.warn('[conveyStep] Missing source allocation', mg)
 				continue
@@ -103,6 +104,7 @@ class WorkFunctions {
 				mg,
 				hopAlloc,
 				hop,
+				from,
 				moving,
 			})
 		}
@@ -110,7 +112,7 @@ class WorkFunctions {
 		// Calculate time: O(n²) for cycles, O(n) for single movements
 		let totalTime = 0
 		for (let i = 0; i < movementData.length; i++) {
-			const distance = axial.distance(movementData[i].mg.from, movementData[i].hop)
+			const distance = axial.distance(movementData[i].from, movementData[i].hop)
 			totalTime += character.vehicle.transferTime * distance * movementData.length
 		}
 
@@ -124,6 +126,7 @@ class WorkFunctions {
 		}))
 		return new MultiMoveStep(totalTime, visualMovements, 'work', description)
 			.canceled(() => {
+                console.log(`[conveyStep] CANCELED movement`);
 				debugger
 				for (const { mg, hopAlloc } of movementData) {
 					hopAlloc?.cancel()
@@ -260,7 +263,7 @@ class WorkFunctions {
 	defragmentStep() {
 		const character = this[subject]
 		const alveolus = character.assignedAlveolus as StorageAlveolus
-		assert(alveolus.action.type === 'storage', 'assignedAlveolus must be a StorageAlveolus')
+		assert(alveolus.action.type === 'slotted-storage' || alveolus.action.type === 'specific-storage', 'assignedAlveolus must be a StorageAlveolus')
 		const fragmentedGoodType = alveolus.storage.fragmented
 		assert(fragmentedGoodType, 'alveolus must be fragmented')
 		const take = alveolus.storage.allocate({ [fragmentedGoodType]: 1 }, { type: 'defragment.take' })

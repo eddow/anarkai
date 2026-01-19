@@ -71,6 +71,7 @@ class SpecificAllocation implements AllocationBase {
 	}
 }
 
+@reactive
 export class SpecificStorage extends Storage<SpecificAllocation> {
 	public readonly _goods: { [k in GoodType]?: number } = reactive({})
 	public readonly _allocated: { [k in GoodType]?: number } = reactive({})

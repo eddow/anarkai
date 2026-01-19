@@ -136,15 +136,9 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		const blocked: LocalMovingGood[] = []
 
 		function canAdvance(mg: MovingGood) {
-            if (mg.path.length === 0) {
-                console.log(`[aGoodMovement] REJECT: Empty path`, mg)
-                return false
-            }
+            if (mg.path.length === 0) return false
 			const storage = hive.storageAt(mg.path[0])
             const hasRoom = storage?.hasRoom(mg.goodType)
-            if (!hasRoom && mg.path.length !== 1) {
-                // console.log(`[aGoodMovement] REJECT: No room at next hop`, { hop: mg.path[0], good: mg.goodType, storage: storage })
-            }
 			return hasRoom || mg.path.length === 1
 		}
 		// TODO: take a random movement or keep it arbitrary?
@@ -152,7 +146,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		const atHere = hive.movingGoods.get(here)
 		if (atHere) {
 			for (const mg of atHere) {
-				const localMg = Object.setPrototypeOf({ from: here }, mg) as LocalMovingGood
+				const localMg = Object.setPrototypeOf({ from: mg.from ?? here }, mg) as LocalMovingGood
 				if (canAdvance(mg)) {
 					return [localMg]
 				} else {
@@ -164,16 +158,13 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		// Collect movements from surroundings (borders)
 		for (const { border } of this.tile.surroundings) {
 			const from = toAxialCoord(border.position)!
-            const fromKey = axial.key(from)
 			const arr = hive.movingGoods.get(from)
 			if (!arr) {
-                // if (this.name.includes('stonecutter')) console.log(`[aGoodMovement] No goods at border ${fromKey}`)
                 continue
             }
-            // console.log(`[aGoodMovement] Found ${arr.length} goods at border ${fromKey}`)
 			for (const mg of arr) {
 				if (axial.distance(mg.path[0], here) < 0.5 + epsilon) {
-					const localMg = Object.setPrototypeOf({ from }, mg) as LocalMovingGood
+					const localMg = Object.setPrototypeOf({ from: mg.from ?? from }, mg) as LocalMovingGood
 					if (canAdvance(mg)) {
 						return [localMg]
 					} else {
@@ -285,8 +276,6 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		const movementList = this.aGoodMovement
 		const hasIncoming = this.incomingGoods
 
-        // if (hasIncoming) console.log(`[conveyJob] ${this.name} hasIncoming=${hasIncoming} movementList=${movementList?.length}`);
-
 		if ((!movementList || movementList.length === 0) && !hasIncoming) return undefined
 
 		return {
@@ -300,6 +289,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	destroy() {
 		this.advertisingEffect?.()
 		this.advertisingEffect = undefined
+        this.destroyed = true
 		super.destroy()
 	}
 	// Not yet called (bulldozed alveolus)

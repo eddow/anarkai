@@ -3,7 +3,7 @@ import type { Game } from '@ssh/lib/game'
 import { computeStyleFromTexture } from '@ssh/lib/utils/images'
 
 type ResourceImageProps = {
-	game: Game
+	game: Game | undefined
 	sprite: Ssh.Sprite | undefined
 	width?: number
 	height?: number

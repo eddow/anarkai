@@ -83,6 +83,8 @@ function gather(jobPlan)
 		log "Dropping goods to alveolus"
 		path = find.path(alveolus.tile, false)
 		if not path then error "No path found to alveolus"
+		// Pre-condition: nextJob only returns a job if storage.isEmpty (gather.ts:55)
+		// so we should always have room here
 		inventory.dropStored I.carry.stock, alveolus.tile, path, false
 	else
 		log "Empty handed, no goods to drop"

@@ -1,4 +1,5 @@
 import type { GoodType } from '$lib/types'
+import { reactive } from 'mutts'
 
 type Ctor<T extends object = any> = new (...args: any[]) => T
 
@@ -10,6 +11,13 @@ export function GcClass<BaseCtor extends Ctor<any>>(
 	const BaseClass = Base(def)
 	if (!BaseClass) return undefined
 	class Sub extends BaseClass {
+		constructor(...args: any[]) {
+			super(...args)
+			// TODO: This is a hack that shoud not be necessary
+			// Force reactivity for all game-content generated classes
+			// biome-ignore lint/correctness/noConstructorReturn: Required for reactivity
+			return reactive(this)
+		}
 		static resourceName = name
 	}
 	Object.defineProperties(Sub, { name: { value: `${Base.name}<${name}>` } })

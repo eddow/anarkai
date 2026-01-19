@@ -1,5 +1,4 @@
 import { assert } from '$lib/debug'
-import { Alveolus } from '$lib/game/board'
 import type { TileBorder } from '$lib/game/board/border/border'
 import type { Tile } from '$lib/game/board/tile'
 import type { Character } from '$lib/game/population/character'
@@ -82,7 +81,7 @@ export class InventoryFunctions {
                 const canStore = content.storage?.hasRoom(goodType) || 0
                 if (canStore <= 0) reasons.push(`No room for ${goodType} in target`)
             }
-            throw new Error(`Cannot drop goods: ${reasons.join(', ') || 'Unknown reason'}`)
+			throw new Error(`Cannot drop goods: ${reasons.join(', ') || 'Unknown reason'} (requested: ${JSON.stringify(goods)}, available: ${JSON.stringify(vehicle.storage.availables)}, target-room: ${JSON.stringify(content.storage?.debugInfo || 'no-storage')})`)
 		}
 
 		// Return plan without allocations - they will be created in plan.begin()

@@ -6,14 +6,12 @@ import { Alveolus } from '../board/content/alveolus'
 import type { Tile } from '../board/tile'
 import { SpecificStorage } from '../storage'
 import { SlottedStorage } from '../storage/slotted-storage'
+import { goods as allGoodsList } from '../../../../assets/game-content'
 
 @reactive
 export class StorageAlveolus extends Alveolus {
 	declare action: Ssh.StorageAction
-	storageMode: 'all-but' | 'only' = 'all-but'
-	storageExceptions: GoodType[] = []
-	storageBuffers: Partial<Record<GoodType, number>> = {}
-	storageLimits: Partial<Record<GoodType, number>> = {}
+	public buffers = reactive(new Map<GoodType, number>())
 
 	constructor(tile: Tile) {
 		const def: Ssh.AlveolusDefinition = new.target.prototype
@@ -21,46 +19,33 @@ export class StorageAlveolus extends Alveolus {
 		if (def.action.type === 'slotted-storage') {
 			const action = def.action as Ssh.SlottedStorageAction
 			super(tile, new SlottedStorage(action.slots, action.capacity))
+			if (action.buffers) {
+				for (const [good, amount] of Object.entries(action.buffers)) {
+					this.buffers.set(good as GoodType, amount)
+				}
+			}
 		} else if (def.action.type === 'specific-storage') {
 			const action = def.action as Ssh.SpecificStorageAction
 			super(tile, new SpecificStorage(action.goods))
+			if (action.buffers) {
+				for (const [good, amount] of Object.entries(action.buffers)) {
+					this.buffers.set(good as GoodType, amount)
+				}
+			}
 		} else {
-			throw new Error('StorageAlveolus created with invalid action type')
+			throw new Error(`StorageAlveolus created with invalid action type: ${(def.action as any)?.type}`)
 		}
 	}
 
 	/**
 	 * Check if this storage can store a specific good
 	 */
-	canTake(goodType: GoodType, priority: ExchangePriority) {
+	canTake(goodType: GoodType, _priority: ExchangePriority) {
 		// Only accept goods if working is enabled
-		if (!this.working || Number(priority[0]) <= 0) return false
-
-		// 1. Buffer check: if we are below buffer, we ALWAYS accept (if there is room)
-		const buffer = this.storageBuffers[goodType] || 0
-		const piecesNeeded =
-			this.storage instanceof SlottedStorage ? buffer * this.storage.maxQuantityPerSlot : buffer
-
-		const currentStock = this.storage.stock[goodType] || 0
-
-		if (currentStock < piecesNeeded) {
-			return this.storage.hasRoom(goodType) > 0
-		}
-
-		// 2. Limit check: if we are above limit, we NEVER accept (unless it was for buffer, checked above)
-		const limit = this.storageLimits[goodType]
-		if (limit !== undefined) {
-			const piecesLimit =
-				this.storage instanceof SlottedStorage ? limit * this.storage.maxQuantityPerSlot : limit
-			if (currentStock >= piecesLimit) return false
-		}
-
-		// 3. Acceptance filter
-		const isException = this.storageExceptions.includes(goodType)
-		const allowedByMode = this.storageMode === 'all-but' ? !isException : isException
-
-		return allowedByMode ? this.storage.hasRoom(goodType) > 0 : false
+		if (!this.working) return false
+		return this.storage.hasRoom(goodType) > 0
 	}
+
 	canGive(goodType: GoodType, priority: ExchangePriority) {
 		return this.working && Number(priority[0]) > 0 ? this.storage.available(goodType) > 0 : false
 	}
@@ -68,55 +53,44 @@ export class StorageAlveolus extends Alveolus {
 	get workingGoodsRelations(): GoodsRelations {
 		const relations: GoodsRelations = {}
 
-		// 1. Buffers as demand (high priority)
-		for (const [goodType, buffer] of Object.entries(this.storageBuffers) as [GoodType, number][]) {
-			const piecesNeeded =
-				this.storage instanceof SlottedStorage ? buffer * this.storage.maxQuantityPerSlot : buffer
-			const current = this.storage.stock[goodType] || 0
-			if (current < piecesNeeded) {
-				relations[goodType] = { advertisement: 'demand', priority: '1-buffer' }
-			}
-		}
-
-		// 2. Acceptance filter as demand (low priority) - ONLY if below limit
-		if (this.storageMode === 'only') {
-			for (const goodType of this.storageExceptions) {
-				const limit = this.storageLimits[goodType]
-				const piecesLimit =
-					limit !== undefined
-						? this.storage instanceof SlottedStorage
-							? limit * this.storage.maxQuantityPerSlot
-							: limit
-						: Infinity
-				const current = this.storage.stock[goodType] || 0
-
-				if (current < piecesLimit && !relations[goodType] && this.storage.hasRoom(goodType) > 0) {
-					relations[goodType] = { advertisement: 'demand', priority: '0-store' }
-				}
-			}
-		} else {
-			// For SpecificStorage in "all-but" mode, we demand everything we have room for
-			if (this.storage instanceof SpecificStorage) {
-				for (const goodType of Object.keys(this.storage.maxAmounts) as GoodType[]) {
-					const limit = this.storageLimits[goodType]
-					const piecesLimit = limit !== undefined ? limit : Infinity // Specific storage limit is raw amount
-					const current = this.storage.stock[goodType] || 0
-
-					if (
-						current < piecesLimit &&
-						!this.storageExceptions.includes(goodType) &&
-						!relations[goodType] &&
-						this.storage.hasRoom(goodType) > 0
-					) {
+		// Demand goods at '0-store' priority for internal conveying purposes.
+		// Note: '0-store' demands are filtered OUT of hive.needs, so gatherers
+		// won't collect goods just because storage has room. Only higher
+		// priority demands (1-buffer, 2-use) from consuming alveoli drive gathering.
+		if (this.storage instanceof SlottedStorage) {
+			const allGoods = Object.keys(allGoodsList) as GoodType[]
+			const { buffers } = this
+			for (const goodType of allGoods) {
+				if (this.storage.hasRoom(goodType) > 0) {
+					// Check if we need to buffer this good
+					const bufferAmount = buffers.get(goodType) || 0
+					const currentAmount = this.storage.availables[goodType] || 0
+					
+					if (currentAmount < bufferAmount) {
+						relations[goodType] = { advertisement: 'demand', priority: '1-buffer' }
+					} else {
 						relations[goodType] = { advertisement: 'demand', priority: '0-store' }
 					}
 				}
 			}
-			// For SlottedStorage in "all-but" mode, it's more passive.
-			// It doesn't know what to demand specifically unless buffered, but will accept via canTake.
+		} else if (this.storage instanceof SpecificStorage) {
+			const { buffers } = this
+			for (const goodType of Object.keys(this.storage.maxAmounts) as GoodType[]) {
+				if (this.storage.hasRoom(goodType) > 0) {
+					// Check if we need to buffer this good
+					const bufferAmount = buffers.get(goodType) || 0
+					const currentAmount = this.storage.availables[goodType] || 0
+					
+					if (currentAmount < bufferAmount) {
+						relations[goodType] = { advertisement: 'demand', priority: '1-buffer' }
+					} else {
+						relations[goodType] = { advertisement: 'demand', priority: '0-store' }
+					}
+				}
+			}
 		}
 
-		// 3. Provide for what we have availables
+		// Provide what we have available (for consumption by sawmills, etc.)
 		for (const goodType of Object.keys(this.storage.availables) as GoodType[]) {
 			if (!relations[goodType]) {
 				relations[goodType] = { advertisement: 'provide', priority: '0-store' }

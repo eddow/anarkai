@@ -173,6 +173,7 @@ export class QueueStep<Entity extends ScriptedObject> extends ASingleStep {
 
 export abstract class AEvolutionStep extends ASingleStep {
 	constructor(public readonly duration: number) {
+		if(duration <= 0) debugger
 		super()
 	}
 	evolution = 0

@@ -95,6 +95,7 @@ export interface Slot {
 	reserved: number
 }
 
+@reactive
 export class SlottedStorage extends Storage<SlottedAllocation> {
 	public readonly slots: (Slot | undefined)[]
 
@@ -103,7 +104,7 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		public readonly maxQuantityPerSlot: number = 1,
 	) {
 		super()
-		this.slots = reactive(Array(maxSlots).fill(undefined))
+		this.slots = Array(maxSlots).fill(undefined)
 	}
 
 	@memoize
@@ -291,7 +292,8 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 			for (let i = 0; i < this.slots.length && remaining > 0; i++) {
 				if (this.slots[i] !== undefined) continue
 				const take = Math.min(remaining, this.maxQuantityPerSlot)
-				this.slots[i] = reactive({ goodType, quantity: 0, allocated: take, reserved: 0 })
+				// Use splice to ensure reactivity triggers correctly (assignment on sparse array might be flaky)
+				this.slots.splice(i, 1, { goodType, quantity: 0, allocated: take, reserved: 0 })
 				alloc[i] += take
 				remaining -= take
 			}

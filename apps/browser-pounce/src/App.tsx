@@ -1,7 +1,7 @@
 import './app.css'
-import { initConsoleTrap } from '@ssh/lib/debug'
-initConsoleTrap()
-import { effect, reactive, trackEffect, untracked } from 'mutts'
+// import { initConsoleTrap } from '@ssh/lib/debug'
+// initConsoleTrap()
+import { effect, reactive, untracked } from 'mutts'
 import { Button, ButtonGroup, DarkModeButton, Dockview, RadioButton, Toolbar } from 'pounce-ui/src'
 import {
 	mdiPause, mdiPlay, mdiFastForward, mdiFastForwardOutline,
@@ -9,11 +9,10 @@ import {
 } from 'pure-glyf/icons'
 
 import * as gameContent from '$assets/game-content'
-import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content.js'
+import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content'
 import { configuration, games, interactionMode, selectionState, getDockviewLayout, dockviewLayout, uiConfiguration } from '@app/lib/globals'
 import ResourceImage from './components/ResourceImage'
 import widgetsImport from './widgets'
-import { h } from '@pounce/lib'
 
 // Create local copy to avoid import reassignment issues
 const widgets = { ...widgetsImport }
@@ -42,14 +41,14 @@ const buildableAlveoli = Object.entries(gameContent.alveoli).filter(
 )
 
 const App = (_props: {}) => {
-	trackEffect((obj, evolution, prop) => {
-	});
+	// trackEffect((obj, evolution, prop) => {
+	// });
 	const state = reactive({
 		api: undefined as any,
 		theme: undefined as 'light' | 'dark' | undefined,
 	})
 
-	const game = untracked(() => games.game('GameX'))
+	const gameInstance = games.game('GameX')
 
 	effect(() => {
 		if (typeof window === 'undefined') return
@@ -142,7 +141,7 @@ const App = (_props: {}) => {
 								aria-label={`Build ${name}`}
 							>
 								<ResourceImage
-									game={game}
+									game={gameInstance}
 									sprite={visualAlveoli[name]?.sprites?.[0]}
 									width={24}
 									height={24}
