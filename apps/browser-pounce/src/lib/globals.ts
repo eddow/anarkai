@@ -3,15 +3,15 @@ export {
 	configuration,
 	debugInfo,
 	dockviewLayout,
-	getDockviewLayout,
 	games,
-	interactionMode,
-	selectionState,
-	registerObjectInfoPanel,
-	unregisterObjectInfoPanel,
+	getDockviewLayout,
 	getObjectInfoPanelId,
-	validateStoredSelectionState,
+	interactionMode,
 	mrg,
+	registerObjectInfoPanel,
+	selectionState,
+	unregisterObjectInfoPanel,
+	validateStoredSelectionState,
 } from '@ssh/lib/globals'
 
 export const unreactiveInfo = {

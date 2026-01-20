@@ -8,6 +8,7 @@ import GoodMultiSelect from './GoodMultiSelect'
 import { SlottedStorage } from '@ssh/lib/game/storage/slotted-storage'
 import { SpecificStorage } from '@ssh/lib/game/storage/specific-storage'
 import { css } from '@app/lib/css'
+import SpecificStorageConfiguration from './SpecificStorageConfiguration'
 import type { Game } from '@ssh/lib/game'
 
 css`
@@ -167,62 +168,69 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 
 	return (
 		<div class="storage-config">
-			{/* Acceptance Mode */}
-			{/* Acceptance Mode */}
-			{isSlotted.value ? (
-				<div class="slotted-todo">
-					TODO: Slotted Storage Configuration
-				</div>
-			) : (
-				<>
-					<PropertyGridRow label="Acceptance">
-						<div class="mode-control">
-							<Button onClick={toggleMode} el={{ class: 'mode-toggle' }}>
-								{modeLabel.value}
-							</Button>
+			{/* Slotted Storage: TODO placeholder */}
+			<div class="slotted-todo" if={isSlotted.value}>
+				TODO: Slotted Storage Configuration
+			</div>
 
-							<GoodMultiSelect
-								value={exceptions.value}
-								availableGoods={availableExceptionCandidates.value}
-								game={props.game}
-								addTitle="Add Exception"
-								onAdd={addException}
-								onRemove={removeException}
-							>
-								No exceptions
-							</GoodMultiSelect>
-						</div>
-					</PropertyGridRow>
+			{/* Non-slotted storage configuration */}
+			<div if={!isSlotted.value} style={{ display: 'contents' }}>
+				{/* Acceptance Mode - Hide for SpecificStorage */}
+				<PropertyGridRow label="Acceptance" if={!(props.content.storage instanceof SpecificStorage)}>
+					<div class="mode-control">
+						<Button onClick={toggleMode} el={{ class: 'mode-toggle' }}>
+							{modeLabel.value}
+						</Button>
 
-					{/* Buffers */}
-					<PropertyGridRow label="Buffers">
 						<GoodMultiSelect
-							value={bufferedGoods.value}
-							availableGoods={availableBufferCandidates.value}
+							value={exceptions.value}
+							availableGoods={availableExceptionCandidates.value}
 							game={props.game}
-							addTitle="Add Buffer"
-							addLabel="Add Buffer"
-							onAdd={handleBufferAdd}
-							onRemove={handleBufferRemove}
-							renderItemExtra={(good) => (
-								<div class="buffer-stars-container">
-									<Stars
-										value={getBufferStars(good)}
-										maximum={5}
-										onChange={(v: number | [number, number]) => setBufferFromStars(good, typeof v === 'number' ? v : v[1])}
-										size="1rem"
-									/>
-									<span class="buffer-quantity">
-										{getDisplayQuantity(good)}
-									</span>
-								</div>
-							)}
+							addTitle="Add Exception"
+							onAdd={addException}
+							onRemove={removeException}
 						>
-							No active buffers
+							No exceptions
 						</GoodMultiSelect>
-					</PropertyGridRow>
-				</>
-			)}
+					</div>
+				</PropertyGridRow>
+
+				{/* Buffers - SpecificStorage uses its own component */}
+				<SpecificStorageConfiguration
+					if={props.content.storage instanceof SpecificStorage}
+					action={(props.content.action as Ssh.SpecificStorageAction)}
+					configuration={props.content.storageConfiguration}
+					game={props.game}
+				/>
+
+				{/* Buffers - Non-SpecificStorage uses GoodMultiSelect */}
+				<PropertyGridRow label="Buffers" if={!(props.content.storage instanceof SpecificStorage)}>
+					<GoodMultiSelect
+						value={bufferedGoods.value}
+						availableGoods={availableBufferCandidates.value}
+						game={props.game}
+						addTitle="Add Buffer"
+						addLabel="Add Buffer"
+						onAdd={handleBufferAdd}
+						onRemove={handleBufferRemove}
+						renderItemExtra={(good) => (
+							<div class="buffer-stars-container">
+								<Stars
+									value={getBufferStars(good)}
+									maximum={5}
+									onChange={(v: number | [number, number]) => setBufferFromStars(good, typeof v === 'number' ? v : v[1])}
+									size="1rem"
+								/>
+								<span class="buffer-quantity">
+									{getDisplayQuantity(good)}
+								</span>
+							</div>
+						)}
+					>
+						No active buffers
+					</GoodMultiSelect>
+				</PropertyGridRow>
+			</div>
 		</div>
 	)
 }

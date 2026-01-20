@@ -1,11 +1,11 @@
 import { dirname, resolve as resolvePath } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { commonEsbuild, commonOptimizeDeps, getCommonAliases } from 'engine-pixi/vite-config'
+import { servePixiAssets } from 'engine-pixi/vite-plugins'
 import { babelPluginJsxReactive } from 'pounce-ts/plugin'
 import { pureGlyfPlugin } from 'pure-glyf/plugin'
 import { defineConfig, type Plugin } from 'vite'
 import babel from 'vite-plugin-babel'
-import { servePixiAssets } from 'engine-pixi/vite-plugins'
-import { getCommonAliases, commonOptimizeDeps, commonEsbuild } from 'engine-pixi/vite-config'
 import { cssTagPlugin } from '../../engines/ssh/vite-plugin-css-tag'
 
 const projectRootDir = dirname(fileURLToPath(import.meta.url))
@@ -78,9 +78,16 @@ export default defineConfig({
 			...getCommonAliases(projectRootDir),
 			'@app': resolvePath(projectRootDir, 'src'),
 			'@pounce': resolvePath(projectRootDir, 'node_modules/pounce-ts/src'),
-			'@picocss/pico': resolvePath(projectRootDir, '../../node_modules/.pnpm/@picocss+pico@2.1.1/node_modules/@picocss/pico'),
+			'@picocss/pico': resolvePath(
+				projectRootDir,
+				'../../node_modules/.pnpm/@picocss+pico@2.1.1/node_modules/@picocss/pico',
+			),
 
-			'dockview-core': resolvePath(projectRootDir, '../../node_modules/.pnpm/dockview-core@4.12.0/node_modules/dockview-core'),
+			'dockview-core': resolvePath(
+				projectRootDir,
+				'../../node_modules/.pnpm/dockview-core@4.12.0/node_modules/dockview-core',
+			),
+			mutts: resolvePath(projectRootDir, '../../../ownk/mutts/src'),
 		},
 		preserveSymlinks: false,
 	},
@@ -103,6 +110,6 @@ export default defineConfig({
 				'@app': resolvePath(projectRootDir, 'src'),
 			},
 		},
-		...commonOptimizeDeps
+		...commonOptimizeDeps,
 	},
 })

@@ -99,6 +99,10 @@ vi.mock('$assets/game-content', () => {
             'tree_chopper': {
                 action: { deposit: 'tree' }
             }
+        },
+        configurations: {
+            'specific-storage': { working: true, buffers: {} },
+            default: { working: true }
         }
     }
 })

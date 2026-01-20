@@ -8,6 +8,7 @@ import type { GoodType, Job } from '$lib/types/base'
 import { type AxialCoord, axial, epsilon, tileSize } from '$lib/utils'
 import type { GoodsRelations } from '$lib/utils/advertisement'
 import { toAxialCoord, toWorldCoord } from '$lib/utils/position'
+import { configurations } from '$assets/game-content'
 
 import { type Storage } from '../../storage'
 import { AlveolusGate } from '../border/alveolus-gate'
@@ -42,7 +43,67 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	public storage: Storage
 	// Configurable properties removed - walkway and conveyor are no longer used
 	public advertisingEffect?: ScopedCallback
-	public working: boolean = true
+
+	/**
+	 * Reference to which configuration scope to use.
+	 * Default is hive scope.
+	 */
+	public configurationRef: Ssh.ConfigurationReference = { scope: 'hive' }
+
+	/**
+	 * Individual configuration for this specific alveolus.
+	 * Takes priority when configurationRef.scope is 'individual'.
+	 */
+	public individualConfiguration: Ssh.BaseAlveolusConfiguration | undefined
+
+	/**
+	 * Resolve and return the effective configuration for this alveolus.
+	 * Priority: individual > named > hive > default
+	 */
+	get configuration(): Ssh.BaseAlveolusConfiguration {
+		const { scope } = this.configurationRef
+
+		if (scope === 'individual') {
+			return this.individualConfiguration ?? (configurations.default as Ssh.BaseAlveolusConfiguration)
+		}
+
+		if (scope === 'named') {
+			const name = this.configurationRef.name
+			if (name) {
+				const namedConfig = this.game.configurationManager.getNamedConfiguration(
+					this.name as any,
+					name,
+				)
+				if (namedConfig) return namedConfig as Ssh.BaseAlveolusConfiguration
+			}
+			// Named config not found, fall back to hive
+		}
+
+		// Default to hive scope (also handles 'hive' case and fallback from named)
+		const hiveConfig = this.hive?.configurations?.get(this.name)
+		if (hiveConfig) return hiveConfig as Ssh.BaseAlveolusConfiguration
+		return (configurations.default as Ssh.BaseAlveolusConfiguration)
+	}
+
+	/** Whether this alveolus is working (derived from configuration) */
+	get working(): boolean {
+		return this.configuration.working
+	}
+
+	/** Set working status by updating individual configuration */
+	set working(value: boolean) {
+		// Short-circuit if value is already the same
+		if (this.configuration.working === value) return
+		
+		// Set scope to individual if needed (do this first to batch changes)
+		if (this.configurationRef.scope !== 'individual') {
+			this.configurationRef = { scope: 'individual' }
+		}
+		if (!this.individualConfiguration) {
+			this.individualConfiguration = { ...(configurations.default as Ssh.BaseAlveolusConfiguration) }
+		}
+		this.individualConfiguration.working = value
+	}
 
 	constructor(tile: Tile, storage: Storage) {
 		const tileCoord = toAxialCoord(tile.position)!

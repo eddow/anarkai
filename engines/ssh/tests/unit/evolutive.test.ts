@@ -57,6 +57,10 @@ vi.mock('$assets/game-content', () => {
         alveoli: {
             storage: { action: { type: 'storage', wood: 100, plank: 100, stone: 100 } },
             buffer: { action: { type: 'storage', wood: 100, plank: 100, stone: 100 } }
+        },
+        configurations: {
+            'specific-storage': { working: true, buffers: {} },
+            default: { working: true }
         }
     }
 })

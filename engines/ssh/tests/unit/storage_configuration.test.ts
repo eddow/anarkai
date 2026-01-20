@@ -8,7 +8,11 @@ vi.mock('../../../../assets/game-content', () => ({
         storage: { action: { type: 'slotted-storage', capacity: 10, slots: 5 } } 
     },
     goods: { wood: {}, stone: {}, berries: {} },
-    terrain: {}
+    terrain: {},
+    configurations: {
+        'specific-storage': { working: true, buffers: {} },
+        default: { working: true }
+    }
 }));
 
 // We need to set the prototype action for StorageAlveolus to work in tests
@@ -18,7 +22,14 @@ vi.mock('../../../../assets/game-content', () => ({
 describe('StorageAlveolus Configuration', () => {
     const mockTile = {
         position: { q: 0, r: 0 },
-        board: { game: { random: () => 0.5 } },
+        board: { 
+            game: { 
+                random: () => 0.5,
+                configurationManager: {
+                    getNamedConfiguration: () => undefined
+                }
+            } 
+        },
         log: () => {}
     } as any
 

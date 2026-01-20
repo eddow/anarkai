@@ -20,7 +20,7 @@ import {
 	type GeneratedCharacterData,
 	type GeneratedTileData,
 } from './generation'
-import { alveolusClass, type Hive } from './hive'
+import { alveolusClass, type Hive, AlveolusConfigurationManager } from './hive'
 import type { HittableGameObject, InteractiveGameObject } from './object'
 import { Population } from './population/population'
 
@@ -65,6 +65,11 @@ export interface AlveolusPatch {
 	coord: [number, number]
 	goods?: Partial<Record<GoodType, number>>
 	alveolus: AlveolusType
+	/** Configuration reference and individual config for this alveolus */
+	configuration?: {
+		ref: Ssh.ConfigurationReference
+		individual?: Ssh.AlveolusConfiguration
+	}
 }
 
 export interface TilePatch {
@@ -94,6 +99,10 @@ export interface GamePatches {
 export interface SaveState extends GamePatches {
 	population: any[]
 	generationOptions: GameGenerationOptions
+	/** Global named configurations */
+	namedConfigurations?: Record<AlveolusType, Record<string, Ssh.AlveolusConfiguration>>
+	/** Per-hive configurations by alveolus type */
+	hiveConfigurations?: Record<string, Record<string, Ssh.AlveolusConfiguration>>
 }
 
 export class Game extends Eventful<GameEvents> {
@@ -107,6 +116,7 @@ export class Game extends Eventful<GameEvents> {
 	public renderer?: GameRenderer
 	public input?: InputAdapter
 	public readonly population: Population
+	public readonly configurationManager = new AlveolusConfigurationManager()
 	// Dynamically loaded usage of Hive class
 	private HiveClass?: typeof Hive
 
@@ -116,6 +126,9 @@ export class Game extends Eventful<GameEvents> {
 	public readonly generator: GameGenerator
 	public readonly ticker: SimulationLoop
 	private tickedObjects = new Set<{ update(deltaSeconds: number): void }>()
+	public readonly clock = reactive({
+		virtualTime: 0
+	})
 	public loaded: Promise<void>
 	public rendererReady: Promise<void>
 	private rendererReadyResolver?: () => void
@@ -159,6 +172,8 @@ export class Game extends Eventful<GameEvents> {
 		const deltaSeconds =
 			((rootSpeed * timer.elapsedMS) / 1000) * timeMultiplier[configuration.timeControl]
 		if (deltaSeconds > 1) return // more than 1 second = paused on debugging, skip passing time when debugger paused
+
+		this.clock.virtualTime += deltaSeconds
 
 		for (const object of this.tickedObjects) {
 			if ('destroyed' in object && object.destroyed) continue
@@ -224,7 +239,7 @@ export class Game extends Eventful<GameEvents> {
 	public simulateObjectClick(object: InteractiveGameObject, event: MouseEvent = {} as any) {
 		this.emit('objectClick', event, object)
 	}
-	generate(config: GameGenerationConfig, patches: GamePatches = {}) {
+	generate(config: GameGenerationConfig, patches: GamePatches = {}, saveState?: SaveState) {
 		try {
 			// Generate data from the generator
 			const result = this.generator.generate(config)
@@ -234,7 +249,7 @@ export class Game extends Eventful<GameEvents> {
 			this.loadGeneratedPopulation(result.populationData)
 			// Apply patches if any
 			if (patches.tiles?.length) this.applyTilePatches(patches.tiles)
-			if (patches.hives?.length) this.applyHivesPatches(patches.hives)
+			if (patches.hives?.length) this.applyHivesPatches(patches.hives, saveState?.hiveConfigurations)
 			if (patches.freeGoods?.length) this.applyFreeGoodsPatches(patches.freeGoods)
 			if (patches.zones) this.applyZonePatches(patches.zones)
 			if (patches.projects) this.applyProjectPatches(patches.projects)
@@ -322,7 +337,7 @@ export class Game extends Eventful<GameEvents> {
 		}
 	}
 
-	private applyHivesPatches(hives: NonNullable<GamePatches['hives']>) {
+	private applyHivesPatches(hives: NonNullable<GamePatches['hives']>, hiveConfigurations?: SaveState['hiveConfigurations']) {
 		for (const hive of hives) {
 			let hiveInstance: Hive | undefined
 			for (const a of hive.alveoli) {
@@ -344,12 +359,25 @@ export class Game extends Eventful<GameEvents> {
 				if (a.goods)
 					for (const [good, qty] of Object.entries(a.goods))
 						alv.storage?.addGood(good as GoodType, qty)
+				// Restore configuration if present
+				if (a.configuration) {
+					alv.configurationRef = a.configuration.ref
+					if (a.configuration.individual) {
+						alv.individualConfiguration = a.configuration.individual
+					}
+				}
 				tile.asGenerated = false
 			}
 			assert(hiveInstance, 'Alveolus building on load')
             if ((hive as any).needs && hiveInstance) {
                 Object.assign(hiveInstance.manualNeeds, (hive as any).needs)
             }
+			// Restore hive-level configurations
+			if (hive.name && hiveConfigurations?.[hive.name] && hiveInstance) {
+				for (const [alvType, config] of Object.entries(hiveConfigurations[hive.name])) {
+					hiveInstance.configurations.set(alvType, config)
+				}
+			}
 		}
 	}
 
@@ -420,11 +448,19 @@ export class Game extends Eventful<GameEvents> {
 					// Assume alveolus-like content decorated by GcClassed with resourceName accessible via .name
 					const alveolusName = content.name
 					if (!hives.has(content.hive)) hives.set(content.hive, [])
-					hives.get(content.hive)!.push({
+					const patch: AlveolusPatch = {
 						coord: [q, r],
 						alveolus: alveolusName as AlveolusType,
 						goods: content.storage?.stock || {},
-					})
+					}
+					// Include configuration if not default hive scope
+					if (content.configurationRef.scope !== 'hive' || content.individualConfiguration) {
+						patch.configuration = {
+							ref: content.configurationRef,
+							individual: content.individualConfiguration,
+						}
+					}
+					hives.get(content.hive)!.push(patch)
 				}
 
 				// Save zone information
@@ -451,6 +487,14 @@ export class Game extends Eventful<GameEvents> {
 			}
 		}
 
+		// Serialize hive configurations
+		const hiveConfigurations: Record<string, Record<string, Ssh.AlveolusConfiguration>> = {}
+		for (const [hive, _alveoli] of hives.entries()) {
+			if (hive.name && hive.configurations.size > 0) {
+				hiveConfigurations[hive.name] = Object.fromEntries(hive.configurations)
+			}
+		}
+
 		return {
 			tiles,
 			hives: Array.from(hives.entries()).map(([hive, alveoli]) => ({ name: hive.name, alveoli })),
@@ -459,11 +503,18 @@ export class Game extends Eventful<GameEvents> {
 			projects,
 			population: this.population.serialize(),
 			generationOptions: this.generationOptions,
+			namedConfigurations: this.configurationManager.serialize(),
+			hiveConfigurations,
 		}
 	}
 
 	public loadGameData(state: SaveState) {
-		// 1. Re-generate the base world (terrain)
+		// 1. Restore named configurations first (before alveoli are created)
+		if (state.namedConfigurations) {
+			this.configurationManager.deserialize(state.namedConfigurations)
+		}
+		
+		// 2. Re-generate the base world (terrain)
 		// We assume state.generationOptions has the original seed
 		// TODO: Restore RNG state if necessary, or just rely on seed
 		
@@ -471,10 +522,10 @@ export class Game extends Eventful<GameEvents> {
 		// Ideally we should clear everything first?
 		// for now, let's allow generate to overwrite.
 
-		// 2. Generate and apply patches
-		this.generate(state.generationOptions, state)
+		// 3. Generate and apply patches (passes hive configs for restoration)
+		this.generate(state.generationOptions, state, state)
 
-		// 3. Load Population (after board is ready)
+		// 4. Load Population (after board is ready)
 		if (state.population) {
 			this.population.deserialize(state.population)
 		}

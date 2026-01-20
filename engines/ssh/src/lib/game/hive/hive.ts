@@ -15,6 +15,7 @@ import { Alveolus } from '../board/content/alveolus'
 import type { Tile } from '../board/tile'
 import type { AllocationBase, Storage } from '../storage'
 import type { StorageAlveolus } from './storage'
+import type { AlveolusConfiguration } from './alveolus-configuration'
 export interface MovingGood {
     _mgId?: string
 	goodType: GoodType
@@ -62,6 +63,8 @@ export class Hive extends AdvertisementManager<Alveolus> {
 	}
 	public name?: string
 	public readonly alveoli = reactive(new Set<Alveolus>())
+	/** Hive-level configurations by alveolus type */
+	public readonly configurations = reactive(new Map<string, AlveolusConfiguration>())
 
 	// Structure and content
 	//@memoize

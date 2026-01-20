@@ -28,7 +28,11 @@ vi.mock('$assets/game-content', () => ({
     goods: { wood: {}, stone: {}, food: { feedingValue: 1 } },
     terrain: new Proxy({}, { get: () => ({ walkTime: 1, generation: { deposits: {} } }) }),
     deposits: { tree: { generation: { frequency: 0.1 }, maxAmount: 100 } },
-    alveoli: { 'tree_chopper': { action: { deposit: 'tree' } } }
+    alveoli: { 'tree_chopper': { action: { deposit: 'tree' } } },
+    configurations: {
+        'specific-storage': { working: true, buffers: {} },
+        default: { working: true }
+    }
 }))
 
 describe('Offload Silent Cancellation Reproduction', () => {

@@ -111,6 +111,22 @@ const App = (_props: {}) => {
 					<Button icon={mdiTestTube} aria-label="Open multiselect test" onClick={openTestPanel} />
 				</ButtonGroup>
 				<Toolbar.Spacer visible />
+				<div style={{
+					display: 'flex',
+					alignItems: 'center',
+					fontFamily: 'monospace',
+					padding: '0 8px',
+					fontSize: '14px',
+					fontWeight: 'bold',
+					color: 'var(--pounce-color-text-subtle)'
+				}}>
+					{(() => {
+						const seconds = Math.floor(gameInstance.clock.virtualTime)
+						const minutes = Math.floor(seconds / 60)
+						const displaySeconds = seconds % 60
+						return `${minutes.toString().padStart(2, '0')}:${displaySeconds.toString().padStart(2, '0')}`
+					})()}
+				</div>
 				<ButtonGroup>
 					{timeControls.map((option) => (
 						<RadioButton

@@ -4,7 +4,7 @@ import StorageConfiguration from '../components/storage/StorageConfiguration'
 import { SlottedStorage } from '@ssh/lib/game/storage/slotted-storage'
 import { SpecificStorage } from '@ssh/lib/game/storage/specific-storage'
 import type { StorageAlveolus } from '@ssh/lib/game/hive/storage'
-import type { GoodType } from '@ssh/lib/types/base'
+import { configurations } from '$assets/game-content'
 import { games } from '@app/lib/globals'
 
 // Mocking storage classes purely for the UI test if real ones aren't fully instantiable without game context.
@@ -16,10 +16,8 @@ import { games } from '@app/lib/globals'
 // Hopefully SlottedStorage/SpecificStorage don't have heavy side effects in constructor.
 
 export default (_props: DockviewWidgetProps) => {
-	// Mock Game
-	const mockGame: any = {
-		// Minimum game interface needed
-	}
+	// Use global game
+	const mockGame = games.game('GameX')
 
 	// 1. Slotted Storage Mock
 	// We need to trick TypeScript and runtime checks if we don't instantiate the real class.
@@ -32,12 +30,18 @@ export default (_props: DockviewWidgetProps) => {
 	// The component checks `instanceof SlottedStorage`.
 	// We will assume the classes are available.
 
-	// Helper to create a fake Alveolus
-	const createAlveolus = (storage: any, buffers: Record<string, number> = {}): StorageAlveolus => reactive({
+	// Helper to create a fake Alveolus with action
+	const createAlveolus = (
+		storage: any,
+		action: any,
+		buffers: Record<string, number> = {}
+	): StorageAlveolus => reactive({
 		storage,
+		action,
 		storageMode: 'all-but',
 		storageExceptions: [],
-		storageBuffers: buffers
+		storageBuffers: buffers,
+		storageConfiguration: { ...configurations['specific-storage'], buffers }
 	}) as any
 
 	// We can't easily fetch real instances without a real hive/game probably.
@@ -53,7 +57,19 @@ export default (_props: DockviewWidgetProps) => {
 	slottedStorage.maxSlots = 5
 
 	const specificStorage = Object.create(SpecificStorage.prototype)
-	specificStorage.maxAmounts = { 'wood': 1000, 'stone': 500 }
+	specificStorage.maxAmounts = { 'wood': 60, 'stone': 12 }
+
+	// Action mocks
+	const slottedAction: Ssh.SlottedStorageAction = {
+		type: 'slotted-storage',
+		slots: 5,
+		capacity: 10
+	}
+
+	const specificAction: Ssh.SpecificStorageAction = {
+		type: 'specific-storage',
+		goods: { 'wood': 60, 'stone': 12 }
+	}
 
 	return (
 		<div style={{ padding: '1rem', height: '100%', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -65,18 +81,18 @@ export default (_props: DockviewWidgetProps) => {
 				<div style={{ border: '1px solid var(--pico-border-color)', padding: '1rem' }}>
 					<StorageConfiguration
 						game={mockGame}
-						content={createAlveolus(slottedStorage, { 'wood': 2 })} // 2 slots of wood
+						content={createAlveolus(slottedStorage, slottedAction, { 'wood': 2 })}
 					/>
 				</div>
 			</section>
 
 			<section>
-				<h3>Specific Storage (Wood: 1000, Stone: 500)</h3>
+				<h3>Specific Storage (Wood: 60, Stone: 12)</h3>
 				<p>1 Star = 20%</p>
 				<div style={{ border: '1px solid var(--pico-border-color)', padding: '1rem' }}>
 					<StorageConfiguration
 						game={mockGame}
-						content={createAlveolus(specificStorage, { 'wood': 200 })} // 20% of wood => 1 star
+						content={createAlveolus(specificStorage, specificAction, { 'wood': 12 })}
 					/>
 				</div>
 			</section>

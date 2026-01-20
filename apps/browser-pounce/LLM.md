@@ -25,3 +25,35 @@ For widgets that can be "pinned" or "dynamic":
 ## Reactivity
 Trust the reactive system. Components updates should be driven by reactive data sources changing, not by manual imperative `update()` calls unless absolutely necessary for interop.
 Most of the time, onChange, onInput etc are useless and should be avoided. Two-way binding always the pattern we should use.
+
+## JSX Patterns: Conditionals and Loops
+
+**IMPORTANT:** Do NOT use JavaScript ternary operators or `&&` for conditional rendering, and do NOT use `.map()` for list rendering. Pounce provides dedicated mechanisms:
+
+### Conditionals: Use `if`, `else`, `else-if` Attributes
+```tsx
+// ✗ WRONG: Ternary operator
+{condition ? <ComponentA /> : <ComponentB />}
+
+// ✓ CORRECT: if/else attributes
+<ComponentA if={condition} />
+<ComponentB else />
+
+// For else-if chains:
+<ComponentA if={conditionA} />
+<ComponentB else-if={conditionB} />
+<ComponentC else />
+```
+
+### Loops: Use `<for>` Element
+```tsx
+// ✗ WRONG: .map()
+{items.map((item) => <Item key={item.id} data={item} />)}
+
+// ✓ CORRECT: <for> element (no key needed, handled by framework)
+<for each={items}>
+  {(item: ItemType) => <Item data={item} />}
+</for>
+```
+
+**Note:** Always add explicit type annotations to the callback parameter (e.g., `(item: ItemType)`) for proper TypeScript inference.

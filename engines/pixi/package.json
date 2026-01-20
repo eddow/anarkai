@@ -5,8 +5,14 @@
 	"exports": {
 		"./src/*": "./src/*",
 		"./package.json": "./package.json",
-		"./vite-plugins": "./vite-plugins.js",
-		"./vite-config": "./vite-config.js"
+		"./vite-plugins": {
+			"types": "./vite-plugins.d.ts",
+			"default": "./vite-plugins.js"
+		},
+		"./vite-config": {
+			"types": "./vite-config.d.ts",
+			"default": "./vite-config.js"
+		}
 	},
 	"scripts": {
 		"dev": "vite",

@@ -46,7 +46,7 @@ export function stored<T extends Record<string, any>>(initial: T): T {
 					localStorage.setItem(key, json.stringify(value))
 				}
 				read[key] = true
-			})
+			}),
 		)
 	}
 
@@ -55,4 +55,3 @@ export function stored<T extends Record<string, any>>(initial: T): T {
 		window.removeEventListener('storage', handleStorageEvent)
 	})
 }
-

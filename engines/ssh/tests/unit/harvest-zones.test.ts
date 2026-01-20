@@ -16,7 +16,11 @@ vi.mock('$assets/game-content', () => ({
     goods: { wood: {} },
     terrain: new Proxy({}, { get: () => ({ walkTime: 1, generation: { deposits: {} } }) }),
     deposits: { tree: { generation: { frequency: 0.1 }, maxAmount: 100 } },
-    alveoli: { tree_chopper: { action: { type: 'harvest', deposit: 'tree', output: { wood: 1 } } } }
+    alveoli: { tree_chopper: { action: { type: 'harvest', deposit: 'tree', output: { wood: 1 } } } },
+    configurations: {
+        'specific-storage': { working: true, buffers: {} },
+        default: { working: true }
+    }
 }))
 
 describe('Harvest Zones Restriction', () => {

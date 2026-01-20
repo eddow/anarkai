@@ -91,7 +91,11 @@ vi.mock('$assets/game-content', () => {
                 maxAmount: 100
             }
         },
-        alveoli: {}
+        alveoli: {},
+        configurations: {
+            'specific-storage': { working: true, buffers: {} },
+            default: { working: true }
+        }
     }
 })
 

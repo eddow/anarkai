@@ -52,6 +52,41 @@ declare namespace Ssh {
 		| EngineerAction
 		| StorageAction
 
+	/**
+	 * Configuration scope determines where the configuration is stored and resolved from.
+	 * Priority order: individual > named > hive > default
+	 */
+	type ConfigurationScope = 'individual' | 'hive' | 'named'
+
+	/**
+	 * Reference to a configuration. Used by alveoli to specify which configuration to use.
+	 */
+	interface ConfigurationReference {
+		scope: ConfigurationScope
+		/** Required when scope is 'named' - the name of the global configuration */
+		name?: string
+	}
+
+	/**
+	 * Base configuration for all alveoli types.
+	 * Can be extended by specific alveolus types.
+	 */
+	interface BaseAlveolusConfiguration {
+		working: boolean
+	}
+
+	/**
+	 * Configuration specific to specific-storage alveoli.
+	 * Extends base with buffer settings.
+	 */
+	interface SpecificStorageAlveolusConfiguration extends BaseAlveolusConfiguration {
+		/** Buffer amounts per good type - when stock is below buffer, demand priority is elevated */
+		buffers: Record<string, number>
+	}
+
+	/** Union of all configuration types */
+	type AlveolusConfiguration = BaseAlveolusConfiguration | SpecificStorageAlveolusConfiguration
+
 	interface AlveolusDefinition<ActionType extends Action = Action> {
 		preparationTime: number
 		action: ActionType

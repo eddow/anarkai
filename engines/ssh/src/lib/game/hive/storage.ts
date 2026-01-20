@@ -6,12 +6,68 @@ import { Alveolus } from '../board/content/alveolus'
 import type { Tile } from '../board/tile'
 import { SpecificStorage } from '../storage'
 import { SlottedStorage } from '../storage/slotted-storage'
-import { goods as allGoodsList } from '../../../../assets/game-content'
+import { goods as allGoodsList, configurations } from '$assets/game-content'
+import {
+	isSpecificStorageConfiguration,
+} from './alveolus-configuration'
 
 @reactive
 export class StorageAlveolus extends Alveolus {
 	declare action: Ssh.StorageAction
-	public buffers = reactive(new Map<GoodType, number>())
+
+	/**
+	 * Individual configuration specific to storage alveoli.
+	 * Overrides the base class type to include buffers.
+	 */
+	declare individualConfiguration: Ssh.SpecificStorageAlveolusConfiguration | undefined
+
+	/**
+	 * Get the effective storage configuration.
+	 * Extends base class configuration with storage-specific defaults.
+	 */
+	get storageConfiguration(): Ssh.SpecificStorageAlveolusConfiguration {
+		const baseConfig = this.configuration
+		if (isSpecificStorageConfiguration(baseConfig)) {
+			return baseConfig
+		}
+		// Base config doesn't have buffers, return storage default with working from base
+		return { ...(configurations['specific-storage'] as Ssh.SpecificStorageAlveolusConfiguration), working: baseConfig.working }
+	}
+
+	/**
+	 * Get buffers from configuration.
+	 * Returns a Map for compatibility with existing code.
+	 */
+	get buffers(): Map<GoodType, number> {
+		const config = this.storageConfiguration
+		const map = new Map<GoodType, number>()
+		for (const [good, amount] of Object.entries(config.buffers)) {
+			if (amount !== undefined) {
+				map.set(good as GoodType, amount)
+			}
+		}
+		return map
+	}
+
+	/**
+	 * Set buffers by updating individual configuration.
+	 */
+	setBuffers(buffers: Record<string, number>): void {
+		if (!this.individualConfiguration) {
+			this.individualConfiguration = { ...(configurations['specific-storage'] as Ssh.SpecificStorageAlveolusConfiguration) }
+		}
+		this.individualConfiguration.buffers = { ...this.individualConfiguration.buffers, ...buffers }
+		if (this.configurationRef.scope !== 'individual') {
+			this.configurationRef = { scope: 'individual' }
+		}
+	}
+
+	/**
+	 * Setter for backward compatibility with tests.
+	 */
+	set storageBuffers(buffers: Partial<Record<GoodType, number>>) {
+		this.setBuffers(buffers)
+	}
 
 	constructor(tile: Tile) {
 		const def: Ssh.AlveolusDefinition = new.target.prototype
@@ -19,18 +75,24 @@ export class StorageAlveolus extends Alveolus {
 		if (def.action.type === 'slotted-storage') {
 			const action = def.action as Ssh.SlottedStorageAction
 			super(tile, new SlottedStorage(action.slots, action.capacity))
+			// Legacy: if action has buffers defined, set them as individual config
 			if (action.buffers) {
-				for (const [good, amount] of Object.entries(action.buffers)) {
-					this.buffers.set(good as GoodType, amount)
+				this.individualConfiguration = {
+					working: true,
+					buffers: action.buffers as Partial<Record<GoodType, number>>,
 				}
+				this.configurationRef = { scope: 'individual' }
 			}
 		} else if (def.action.type === 'specific-storage') {
 			const action = def.action as Ssh.SpecificStorageAction
 			super(tile, new SpecificStorage(action.goods))
+			// Legacy: if action has buffers defined, set them as individual config
 			if (action.buffers) {
-				for (const [good, amount] of Object.entries(action.buffers)) {
-					this.buffers.set(good as GoodType, amount)
+				this.individualConfiguration = {
+					working: true,
+					buffers: action.buffers as Partial<Record<GoodType, number>>,
 				}
+				this.configurationRef = { scope: 'individual' }
 			}
 		} else {
 			throw new Error(`StorageAlveolus created with invalid action type: ${(def.action as any)?.type}`)

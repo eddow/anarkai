@@ -24,3 +24,4 @@ export const alveolusClass = GcClasses(
 ) as Partial<Record<AlveolusType, new (tile: Tile) => Alveolus>>
 
 export * from './hive'
+export * from './alveolus-configuration'

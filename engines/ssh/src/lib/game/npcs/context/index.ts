@@ -92,9 +92,25 @@ export default function aCharacterContext(character: Character) {
 		[subject]: { value: character, enumerable: false, configurable: true },
 	})
 	for (const key of Object.keys(nsProtos)) {
-		instance[key] = Object.create(characterContext[key], {
+		const contextProto = characterContext[key]
+		if (!contextProto) {
+			console.error(`[aCharacterContext] Missing context prototype for namespace: ${key}`)
+			console.error('[aCharacterContext] characterContext:', Object.keys(characterContext))
+			console.error('[aCharacterContext] nsProtos keys:', Object.keys(nsProtos))
+			throw new Error(`Missing context prototype for namespace: ${key}`)
+		}
+		instance[key] = Object.create(contextProto, {
 			[subject]: { value: character, enumerable: false, configurable: true },
 		})
 	}
+	
+	// Verify all namespaces are properly set up
+	for (const key of Object.keys(nsProtos)) {
+		if (!instance[key]) {
+			console.error(`[aCharacterContext] Instance missing namespace after creation: ${key}`)
+			throw new Error(`Instance missing namespace after creation: ${key}`)
+		}
+	}
+	
 	return instance as CharacterContract & typeof characterContext
 }

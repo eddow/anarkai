@@ -41,6 +41,26 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
                     this.runningScripts.shift();
                     return { type: 'return', value: undefined };
                 }
+				// Validate scriptsContext before running
+				if (!this.scriptsContext) {
+					console.error('[makeRun] scriptsContext is undefined!', {
+						character: (this as any).name ?? (this as any).uid,
+						runningScript: this.runningScript.name
+					})
+					throw new Error('scriptsContext is undefined')
+				}
+				// Check for critical namespaces
+				const criticalNamespaces = ['inventory', 'walk', 'find', 'work', 'selfCare', 'plan']
+				for (const ns of criticalNamespaces) {
+					if (!(ns in this.scriptsContext)) {
+						console.error(`[makeRun] scriptsContext missing namespace: ${ns}`, {
+							character: (this as any).name ?? (this as any).uid,
+							runningScript: this.runningScript.name,
+							availableKeys: Object.keys(this.scriptsContext)
+						})
+						throw new Error(`scriptsContext missing namespace: ${ns}`)
+					}
+				}
 				return this.runningScript.run(this.scriptsContext)
 			} catch (error) {
 				// Present stack trace

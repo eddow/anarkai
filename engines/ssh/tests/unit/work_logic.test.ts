@@ -36,7 +36,11 @@ vi.mock('$assets/game-content', () => {
         },
         terrain: terrainProxy,
         deposits: {},
-        alveoli: {}
+        alveoli: {},
+        configurations: {
+            'specific-storage': { working: true, buffers: {} },
+            default: { working: true }
+        }
     }
 })
 
