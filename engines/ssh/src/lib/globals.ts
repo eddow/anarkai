@@ -1,5 +1,5 @@
 import { DockviewApi } from 'dockview-core'
-import { reactive, Eventful, untracked, effect } from 'mutts'
+import { reactive, Eventful, untracked, effect, root } from 'mutts'
 import { Game, type GameEvents, type InteractiveGameObject } from './game'
 import { chopSaw as patches } from './game/exampleGames'
 
@@ -119,7 +119,7 @@ export function getDockviewLayout(): any {
 type GamedEvents = {
 	[key in keyof GameEvents]: (game: Game, ...args: Parameters<GameEvents[key]>) => void
 }
-
+// TODO: find a way to make the whole file root() ?
 class Games extends Eventful<GamedEvents> {
 	private games = new Map<string, Game>()
 
@@ -127,7 +127,7 @@ class Games extends Eventful<GamedEvents> {
 		const existing = this.games.get(name)
 		if (existing) return existing
 
-		const instance = new Game(
+		const instance = root(()=> new Game(
 			{
 				boardSize: 12,
 				terrainSeed: 23,
@@ -135,7 +135,7 @@ class Games extends Eventful<GamedEvents> {
 				characterRadius: 5,
 			},
 			patches,
-		)
+		))
 		this.games.set(name, instance)
 		return instance
 	}

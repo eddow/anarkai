@@ -47,7 +47,7 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 
 - [ ] Finish the tests
 - [ ] Take care of fractional goods: only valid in transformers = specific-storage. It means available goods = floor(amount) and available space = 1 - ceil(amount) or floor(1 - amount)
-
+- [ ] `lib/game` doesn't make sense - it *is* the game, it's just a library for the game -> `lib/`
 
 
 # Ideas

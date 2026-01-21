@@ -15,7 +15,7 @@ import { Alveolus } from '../board/content/alveolus'
 import type { Tile } from '../board/tile'
 import type { AllocationBase, Storage } from '../storage'
 import type { StorageAlveolus } from './storage'
-import type { AlveolusConfiguration } from './alveolus-configuration'
+
 export interface MovingGood {
     _mgId?: string
 	goodType: GoodType
@@ -64,7 +64,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 	public name?: string
 	public readonly alveoli = reactive(new Set<Alveolus>())
 	/** Hive-level configurations by alveolus type */
-	public readonly configurations = reactive(new Map<string, AlveolusConfiguration>())
+	public readonly configurations = reactive(new Map<string, Ssh.AlveolusConfiguration>())
 
 	// Structure and content
 	//@memoize
@@ -387,17 +387,6 @@ export class Hive extends AdvertisementManager<Alveolus> {
 			}
 		})
 		return storage
-	}
-	advertise(
-		advertiser: Alveolus,
-		ads: Partial<
-			Record<
-				'berries' | 'mushrooms' | 'planks' | 'stone' | 'wood',
-				{ advertisement: Advertisement; priority: ExchangePriority }
-			>
-		>,
-	): void {
-		super.advertise(advertiser, ads)
 	}
 
 	destroy() {

@@ -10,6 +10,7 @@ import {
 	mrg,
 	unreactiveInfo,
 } from '@app/lib/globals'
+import type { DockviewApi, DockviewPanelApi } from 'dockview-core'
 import CharacterProperties from '../components/CharacterProperties'
 import TileProperties from '../components/TileProperties'
 import { toWorldCoord } from '@ssh/lib/utils/position' // Added import for GoTo logic
@@ -83,11 +84,11 @@ css`
 const SelectionInfoWidget = (
 	props: {
 		params: { uid?: string }
-		api: any
+		api: DockviewPanelApi
 		title: string
 		size: { width: number; height: number }
 	},
-	scope: any
+	scope: { api: DockviewApi; setTitle: (title: string) => void }
 ) => {
 	console.log('SelectionInfoWidget Rendered with props:', props);
 	let game: any
@@ -142,6 +143,18 @@ const SelectionInfoWidget = (
 			stopLogs = undefined
 		}
 	})
+	effect(() => {
+		const disposable = scope.api.onDidRemovePanel((panel) => {
+			if (panel.id === props.api.id) {
+				// If this panel was the one tracking active selection (not pinned)
+				// Reset the flag so selection in game can re-open it.
+				if (!props.params.uid) {
+					unreactiveInfo.hasLastSelectedInfoPanel = false
+				}
+			}
+		})
+		return () => disposable.dispose()
+	})
 
 	const goTo = () => {
 		if (!state.object?.position) return
@@ -193,37 +206,34 @@ const SelectionInfoWidget = (
 					<Button icon={mdiPencil} aria-label="Debug Set Title" onClick={() => scope.setTitle('Debug Title')} />
 				</ButtonGroup>
 			</div>
-			{state.object ? (
-				<div class="selection-info-panel__content-wrapper">
-					<div class="selection-info-panel__content">
-						{state.object instanceof Character ? (
-							<CharacterProperties character={state.object} />
-						) : state.object instanceof Tile ? (
-							<TileProperties tile={state.object} />
-						) : (
-							<div class="selection-info-panel__summary">
-								<h3>{state.object.title ?? 'Object'}</h3>
-								<p>ID: {state.object.uid}</p>
-							</div>
-						)}
-					</div>
-					{state.logs.length > 0 && (
-						<div
-							class="selection-info-panel__logs"
-							role="log"
-							use={(el: any) => logsRef.value = el}
-						>
-							{state.logs.map((line) => (
-								<div class="selection-info-panel__logs-line">
-									{line}
-								</div>
-							))}
+			<div if={state.object} class="selection-info-panel__content-wrapper">
+				<div class="selection-info-panel__content">
+					{state.object instanceof Character ? (
+						<CharacterProperties character={state.object} />
+					) : state.object instanceof Tile ? (
+						<TileProperties tile={state.object} />
+					) : (
+						<div class="selection-info-panel__summary">
+							<h3>{state.object!.title ?? 'Object'}</h3>
+							<p>ID: {state.object!.uid}</p>
 						</div>
 					)}
 				</div>
-			) : (
-				<div class="selection-info-panel__empty">Select an object in the game view to inspect it.</div>
-			)}
+				<div if={state.logs.length > 0}
+					class="selection-info-panel__logs"
+					role="log"
+					use={(el: any) => logsRef.value = el}
+				>
+					<for each={state.logs}>
+						{(line) => (
+							<div class="selection-info-panel__logs-line">
+								{line}
+							</div>
+						)}
+					</for>
+				</div>
+			</div>
+			<div else class="selection-info-panel__empty">Select an object in the game view to inspect it.</div>
 		</div>
 	)
 }

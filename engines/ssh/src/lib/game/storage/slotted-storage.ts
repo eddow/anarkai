@@ -219,7 +219,7 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		return qty - remaining
 	}
 
-	// @memoize // Removed to prevent stale state issues
+	@memoize
 	get stock(): { [k in GoodType]?: number } {
 		const result: { [k in GoodType]?: number } = {}
 
@@ -229,7 +229,7 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		return result
 	}
 
-	// @memoize // Removed to prevent stale state (ghost goods) issues where availables desyncs from available()
+	// @memoize // TODO: Now break the game by making gatherer's goods invisible
 	get availables(): { [k in GoodType]?: number } {
 		const result: { [k in GoodType]?: number } = {}
 

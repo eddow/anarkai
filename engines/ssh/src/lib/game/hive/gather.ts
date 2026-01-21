@@ -25,7 +25,7 @@ export class GatherAlveolus extends TransitAlveolus {
         super(tile, new SlottedStorage(1, 12))
     }
 
-    // @memoize (removed: depends on dynamic hive needs and free goods state) TODO: memoize but make sure that what we depend on is reactive
+    @memoize
     get hasFreeGoodsToGather(): boolean {
             // Check if there are any free goods in the world that the hive needs
             const hiveNeeds = Object.keys(this.hive.needs) as GoodType[]

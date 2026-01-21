@@ -4,7 +4,9 @@ import type { Character } from 'ssh/src/lib/game/population/character'
 import { mrg } from 'ssh/src/lib/interactive-state'
 import { VisualObject } from './visual-object'
 import { toWorldCoord } from 'ssh/src/lib/utils/position' // Verify path
+import { tileSize } from 'ssh/src/lib/utils/varied'
 import type { PixiGameRenderer } from '../renderer'
+import { GoodsRenderer } from './goods-renderer'
 
 export class CharacterVisual extends VisualObject<Character> {
     private sprite: Sprite
@@ -53,6 +55,18 @@ export class CharacterVisual extends VisualObject<Character> {
 			}
 		}))
         
-        // TODO: Goods rendering
+        // 2. Render Goods
+        const cleanupGoods = GoodsRenderer.render(
+            this.renderer,
+            this.view,
+            tileSize, // Slightly smaller for characters
+            () => {
+                const goods = this.object.carry?.renderedGoods()
+                return { slots: goods ? goods.slots : [] }
+            },
+            { x: 0, y: 0 },
+            `goods.render.${this.object.uid}`
+        )
+        this.register(cleanupGoods)
     }
 }
