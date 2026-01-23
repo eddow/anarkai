@@ -2,7 +2,7 @@ import { memoize, reactive, unreactive } from 'mutts'
 import type { ExecutionContext } from 'npc-script'
 import { assert } from '$lib/debug'
 import type { Game, GameObject, TickedGameObject, withTicked } from '$lib/game'
-import { ScriptExecution, getGameScript } from './scripts'
+import { getGameScript, ScriptExecution } from './scripts'
 import { ASingleStep } from './steps'
 
 export function withScripted<T extends abstract new (...args: any[]) => TickedGameObject>(Base: T) {
@@ -35,16 +35,19 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 		}
 		makeRun() {
 			try {
-                if (!this.runningScript.state) {
-                    console.warn('Script finished but still in runningScripts, removing', this.runningScript.name);
-                    this.runningScripts.shift();
-                    return { type: 'return', value: undefined };
-                }
+				if (!this.runningScript.state) {
+					console.warn(
+						'Script finished but still in runningScripts, removing',
+						this.runningScript.name,
+					)
+					this.runningScripts.shift()
+					return { type: 'return', value: undefined }
+				}
 				// Validate scriptsContext before running
 				if (!this.scriptsContext) {
 					console.error('[makeRun] scriptsContext is undefined!', {
 						character: (this as any).name ?? (this as any).uid,
-						runningScript: this.runningScript.name
+						runningScript: this.runningScript.name,
 					})
 					throw new Error('scriptsContext is undefined')
 				}
@@ -55,7 +58,7 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 						console.error(`[makeRun] scriptsContext missing namespace: ${ns}`, {
 							character: (this as any).name ?? (this as any).uid,
 							runningScript: this.runningScript.name,
-							availableKeys: Object.keys(this.scriptsContext)
+							availableKeys: Object.keys(this.scriptsContext),
 						})
 						throw new Error(`scriptsContext missing namespace: ${ns}`)
 					}
@@ -95,13 +98,14 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 					else if (value instanceof ASingleStep) {
 						this.stepExecutor = value
 						//console.log(`[nextStep] ${this.name}: new stepExecutor set: ${value.constructor.name}`);
-					}
-					else throw new Error(`Unexpected next action: ${value}`)
+					} else throw new Error(`Unexpected next action: ${value}`)
 				} else if (!this.runningScripts.length) {
 					const nextAction = this.findAction()
 					if (nextAction?.name === executingName) {
 						if (reentered) {
-							console.error(`Action infinite fail: ${executingName} returned immediately and was selected again.`)
+							console.error(
+								`Action infinite fail: ${executingName} returned immediately and was selected again.`,
+							)
 							throw new Error(`Action infinite fail/foundAction: ${executingName}`)
 						}
 						reentered = true
@@ -202,15 +206,17 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 
 			// Restore running scripts
 			if (data.runningScripts) {
-				const scriptsList = Array.isArray(data.runningScripts) 
-                    ? data.runningScripts 
-                    : Object.values(data.runningScripts)
+				const scriptsList = Array.isArray(data.runningScripts)
+					? data.runningScripts
+					: Object.values(data.runningScripts)
 
 				this.runningScripts = scriptsList
 					.map((s: any) => {
 						const gameScript = getGameScript(s.scriptFileName)
-                        if (!gameScript) {
-							console.warn(`Could not find GameScript for file: ${s.scriptFileName}. Skipping script restoration.`)
+						if (!gameScript) {
+							console.warn(
+								`Could not find GameScript for file: ${s.scriptFileName}. Skipping script restoration.`,
+							)
 							return null
 						}
 						// Assuming ScriptExecution has a constructor compatible
@@ -219,7 +225,6 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 					.filter((s) => s) as ScriptExecution[]
 			}
 		}
-
 	}
 	return ScriptedMixin
 }

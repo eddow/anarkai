@@ -1,15 +1,14 @@
-import { reactive, type ScopedCallback } from 'mutts'
+import { reactive } from 'mutts'
 import { characterEvolutionRates, characterTriggerLevels, maxWalkTime } from '$assets/constants'
 import { goods as goodsCatalog } from '$assets/game-content'
-import { assert, namedEffect } from '$lib/debug'
-import { mrg } from '$lib/interactive-state'
+import type { Alveolus } from '$lib/board/content/alveolus'
+import type { Tile } from '$lib/board/tile'
+import { assert } from '$lib/debug'
+import type { Game } from '$lib/game'
+import type { Storage } from '$lib/storage'
 import type { GoodType, Job, WorkPlan } from '$lib/types/base'
 import { type AxialCoord, axial, maxBy, type Positioned } from '$lib/utils'
 import { axialDistance, type Position, toAxialCoord } from '$lib/utils/position'
-import type { Alveolus } from '$lib/board/content/alveolus'
-import type { Tile } from '$lib/board/tile'
-import type { Game } from '$lib/game'
-import type { Storage } from '$lib/storage'
 
 // Simple job scoring functions
 function calculateJobScore(_character: Character, job: Job): number {
@@ -19,18 +18,16 @@ function bestPossibleJobScore(_character: Character): number {
 	return 3
 }
 
+import { GameObject, withInteractive, withTicked } from '$lib/game/object'
+import { gameIsaTypes } from '$lib/npcs'
 import aCharacterContext from '$lib/npcs/context'
 import { withScripted } from '$lib/npcs/object'
 // biome-ignore lint/correctness/noUnusedImports: We need `subject` for mixins tranquility: all propertyKeys are known
-import { type ScriptExecution } from '$lib/npcs/scripts'
-import { gameIsaTypes } from '$lib/npcs'
-import { GameObject, withInteractive, withTicked } from '$lib/game/object'
+import type { ScriptExecution } from '$lib/npcs/scripts'
 import { Vehicle } from './vehicle/vehicle'
 
 @reactive
-export class Character extends withInteractive(
-	withScripted(withTicked(GameObject)),
-) {
+export class Character extends withInteractive(withScripted(withTicked(GameObject))) {
 	readonly triggerLevels = characterTriggerLevels
 
 	// Character needs levels (starting at 0, incrementing 1 per second)
@@ -52,7 +49,7 @@ export class Character extends withInteractive(
 	public vehicle: Vehicle
 	private _scriptsContext?: any
 	public get scriptsContext() {
-		return this._scriptsContext ??= aCharacterContext(this)
+		return (this._scriptsContext ??= aCharacterContext(this))
 	}
 	private _tile!: Tile
 
@@ -67,7 +64,7 @@ export class Character extends withInteractive(
 		public position: Position,
 	) {
 		super(game, uid)
-        const ax = toAxialCoord(this.position)
+		const ax = toAxialCoord(this.position)
 		this._tile = game.hex.getTile({ q: Math.round(ax.q), r: Math.round(ax.r) })!
 		// Allocate initial occupancy on the board
 		const queueStep = this.game.hex.moveCharacter(this, this._tile.position)
@@ -98,7 +95,7 @@ export class Character extends withInteractive(
 	 * @returns Object with job, tile, and path, or false if no job found
 	 */
 	findBestJob(): ScriptExecution | false {
-        // console.error(`[${this.uid}] findBestJob called`);
+		// console.error(`[${this.uid}] findBestJob called`);
 		const start = toAxialCoord(this.position)
 
 		// Cache jobs computed during scoring to avoid recomputing
@@ -108,20 +105,20 @@ export class Character extends withInteractive(
 		const scoreJob = (coord: Positioned): number | false => {
 			const tile = this.game.hex.getTile(coord)
 			if (!tile) return false
-            
+
 			const job = tile.getJob?.(this) // Pass character to compute full job with path
-            const axCoord = toAxialCoord(coord)!
-            const coordKey = axial.key(axCoord);
+			const axCoord = toAxialCoord(coord)!
+			const coordKey = axial.key(axCoord)
 			if (!job) {
-                return false
-            }
+				return false
+			}
 
 			// Cache the job for later retrieval
 			const key = coordKey
 			jobCache.set(key, job)
 
 			const score = calculateJobScore(this, job)
-            return score
+			return score
 		}
 
 		// Find the best job using the findBest pathfinding function
@@ -170,7 +167,7 @@ export class Character extends withInteractive(
 			([goodType, available]) => {
 				const feedingValue = (goodsCatalog[goodType] as any).feedingValue
 				if (!feedingValue || available < 0.1) return undefined
-				
+
 				if (available < 0.9) {
 					// Only log if it's a significant decay that we are about to eat
 					this.log('character.eatingFractional', { goodType, available })
@@ -237,11 +234,10 @@ export class Character extends withInteractive(
 		}
 		const tryAnActivity =
 			this.fatigue < this.triggerLevels.fatigue.high ? this.findBestJob() : undefined // goRest
-        
+
 		// Default to wandering when no specific action is needed
 		return tryAnActivity || this.scriptsContext.selfCare.wander()
 	}
-
 
 	get carry(): Storage {
 		return this.vehicle.storage

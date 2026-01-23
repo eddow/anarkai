@@ -2,13 +2,13 @@ import { atomic, unreactive } from 'mutts'
 import { activityDurations, ponderingFatigueRecovery } from '$assets/constants'
 import { goods as goodsCatalog } from '$assets/game-content'
 import { assert, namedEffect } from '$lib/debug'
+import type { Game } from '$lib/game/game'
+import type { Character } from '$lib/population/character'
 import type { GoodType } from '$lib/types'
 import { casing } from '$lib/utils'
 import type { Position, Positioned } from '$lib/utils/position'
-import type { Character } from '$lib/population/character'
 import type { ScriptedObject } from './object'
 import { lerp } from './utils'
-import type { Game } from '$lib/game/game'
 
 export interface SerializedStep {
 	type: string
@@ -173,7 +173,7 @@ export class QueueStep<Entity extends ScriptedObject> extends ASingleStep {
 
 export abstract class AEvolutionStep extends ASingleStep {
 	constructor(public readonly duration: number) {
-		if(duration <= 0) debugger
+		if (duration <= 0) debugger
 		super()
 	}
 	evolution = 0
@@ -341,12 +341,18 @@ export class EatStep extends AEvolutionStep {
 		this.feedingValue = goodsCatalog[food].feedingValue as number
 		const removed = this.character.carry.removeGood(food, 1)
 		if (removed <= 0) {
-            const debugInfo = JSON.stringify({
-                availables: this.character.carry.availables,
-                stock: this.character.carry.stock,
-                debug: this.character.carry.debugInfo
-            }, null, 2)
-			throw new Error(`Didn't have food he is trying to eat (${food}). Removed: ${removed}. State: ${debugInfo}`)
+			const debugInfo = JSON.stringify(
+				{
+					availables: this.character.carry.availables,
+					stock: this.character.carry.stock,
+					debug: this.character.carry.debugInfo,
+				},
+				null,
+				2,
+			)
+			throw new Error(
+				`Didn't have food he is trying to eat (${food}). Removed: ${removed}. State: ${debugInfo}`,
+			)
 		}
 	}
 	evolve(_: number, dt: number): void {

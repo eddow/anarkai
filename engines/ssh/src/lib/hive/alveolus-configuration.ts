@@ -16,7 +16,6 @@ export function isSpecificStorageConfiguration(
  */
 @reactive
 export class AlveolusConfigurationManager {
-
 	/** Named configurations by alveolus type, then by name */
 	private namedConfigurations = new Map<AlveolusType, Map<string, Ssh.AlveolusConfiguration>>()
 

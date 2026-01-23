@@ -1,11 +1,11 @@
 import * as gameContent from '$assets/game-content'
 import type { CharacterContract } from '$assets/scripts/contracts'
-import { Alveolus } from '$lib/board/content/alveolus'
+import type { Alveolus } from '$lib/board/content/alveolus'
 import type { HarvestAlveolus } from '$lib/hive/harvest'
+import { InteractiveContext, protoCtx, subject } from '$lib/npcs/scripts'
+import type { Character } from '$lib/population/character'
 import { contract } from '$lib/types'
 import type { GoodType } from '$lib/types/base'
-import type { Character } from '$lib/population/character'
-import { InteractiveContext, protoCtx, subject } from '$lib/npcs/scripts'
 // Import all the function classes
 import { FindFunctions } from './find'
 import { InventoryFunctions } from './inventory'
@@ -28,7 +28,11 @@ class CharacterContext extends InteractiveContext<Character> {
 	@contract('Alveolus')
 	isGatherable(harvestAlveolus: Alveolus) {
 		// Return true if the harvest alveolus is full (can't store more)
-		if ('canStoreInHarvester' in harvestAlveolus && !(harvestAlveolus as HarvestAlveolus).canStoreInHarvester) return true
+		if (
+			'canStoreInHarvester' in harvestAlveolus &&
+			!(harvestAlveolus as HarvestAlveolus).canStoreInHarvester
+		)
+			return true
 
 		// TODO: check all gatherers collected by harvestAlveolus - even outside the hive
 		const gatherers = harvestAlveolus.hive.byActionType.gather
@@ -102,7 +106,7 @@ export default function aCharacterContext(character: Character) {
 			[subject]: { value: character, enumerable: false, configurable: true },
 		})
 	}
-	
+
 	// Verify all namespaces are properly set up
 	for (const key of Object.keys(nsProtos)) {
 		if (!instance[key]) {
@@ -110,6 +114,6 @@ export default function aCharacterContext(character: Character) {
 			throw new Error(`Instance missing namespace after creation: ${key}`)
 		}
 	}
-	
+
 	return instance as CharacterContract & typeof characterContext
 }

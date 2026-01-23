@@ -4,9 +4,9 @@ import {
 	type IsaTypes,
 	jsIsaTypes,
 	jsOperators,
-	ScriptExecutor,
 	NpcScript,
 	type Operators,
+	ScriptExecutor,
 } from 'npc-script'
 import { axial, epsilon } from '$lib/utils'
 import {

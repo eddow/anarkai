@@ -1,7 +1,10 @@
 import { reactive } from 'mutts'
 
 import { assert } from '$lib/debug'
+import type { Game } from '$lib/game'
 import { GameObject, withContainer, withHittable } from '$lib/game/object'
+import { QueueStep } from '$lib/npcs'
+import type { Character } from '$lib/population'
 import {
 	type AxialCoord,
 	axial,
@@ -17,9 +20,6 @@ import {
 	toAxialCoord,
 } from '$lib/utils'
 import { AxialKeyMap } from '$lib/utils/mem'
-import type { Game } from '$lib/game'
-import { QueueStep } from '$lib/npcs'
-import type { Character } from '$lib/population'
 import { TileBorder, type TileBorderContent } from './border/border'
 import type { TileContent } from './content/content'
 import { FreeGoods } from './freeGoods'
@@ -37,16 +37,16 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 	// stopping (or making) a transit, etc.
 	readonly freeGoods: FreeGoods
 	readonly zoneManager: ZoneManager
-    
-    get tiles(): Tile[] {
-        const tiles: Tile[] = []
-        for (const item of this.contents.values()) {
-            if ('tile' in item) {
-                tiles.push((item as TileContent).tile)
-            }
-        }
-        return tiles
-    }
+
+	get tiles(): Tile[] {
+		const tiles: Tile[] = []
+		for (const item of this.contents.values()) {
+			if ('tile' in item) {
+				tiles.push((item as TileContent).tile)
+			}
+		}
+		return tiles
+	}
 
 	constructor(
 		public game: Game,
@@ -200,8 +200,8 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 			occupied.push(character)
 			return undefined
 		} else {
-            // If the character is already the current occupant, we're good (e.g. restoration or idempotent move)
-            if (occupied[0] === character) return undefined
+			// If the character is already the current occupant, we're good (e.g. restoration or idempotent move)
+			if (occupied[0] === character) return undefined
 			// Before creating a new queue, check for circular dependencies
 			const circularQueue = this.traceQueueOrigin(character)
 			if (circularQueue) {

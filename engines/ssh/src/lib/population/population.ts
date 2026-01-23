@@ -1,7 +1,7 @@
-import { type AxialCoord, toAxialCoord } from '$lib/utils'
-import { type RandGenerator, uuid } from '$lib/utils/numbers'
 import type { Game } from '$lib/game/game'
 import { GameObject, withContainer, withHittable } from '$lib/game/object'
+import { type AxialCoord, toAxialCoord } from '$lib/utils'
+import { type RandGenerator, uuid } from '$lib/utils/numbers'
 import { Character } from './character'
 
 export class Population extends withContainer(withHittable(GameObject)) {
@@ -64,15 +64,15 @@ export class Population extends withContainer(withHittable(GameObject)) {
 		this.characters.clear()
 		// Clear existing from container
 		this.clear() // Ensure visual cleanup
-		
+
 		for (const charData of data) {
 			const char = Character.deserialize(this.game, charData)
 			this.characters.set(char.uid, char)
 			this.add(char)
 		}
 	}
-    
-    [Symbol.iterator]() {
-        return this.characters.values()
-    }
+
+	[Symbol.iterator]() {
+		return this.characters.values()
+	}
 }

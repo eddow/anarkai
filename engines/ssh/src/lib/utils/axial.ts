@@ -173,7 +173,6 @@ export function posInTile(aRef: AxialRef, radius: number) {
 	}[signs]!
 }
 
-
 function bitShiftUnpair(z: number): AxialCoord {
 	const rv = { q: z >> 16, r: z & 0xffff }
 	if (rv.r > 32767) rv.r -= 65536

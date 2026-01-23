@@ -1,7 +1,7 @@
 import { atomic } from 'mutts'
 import { alveoli } from '$assets/game-content'
-import { assert } from '$lib/debug'
 import { UnBuiltLand } from '$lib/board/content/unbuilt-land'
+import { assert } from '$lib/debug'
 import { alveolusClass } from '$lib/hive'
 import { BuildAlveolus } from '$lib/hive/build'
 import type { StorageAlveolus } from '$lib/hive/storage'
@@ -13,7 +13,6 @@ import { type AxialCoord, axial } from '$lib/utils'
 import { subject } from '../scripts'
 import { DurationStep, MultiMoveStep, WaitForPredicateStep } from '../steps'
 import type { WorkPlan } from '.'
-
 
 // Unified handling for both single and multiple movements
 // Prepare all movements: fulfill source, allocate hop, create moving good
@@ -126,7 +125,7 @@ class WorkFunctions {
 		}))
 		return new MultiMoveStep(totalTime, visualMovements, 'work', description)
 			.canceled(() => {
-                console.log(`[conveyStep] CANCELED movement`);
+				console.log(`[conveyStep] CANCELED movement`)
 				debugger
 				for (const { mg, hopAlloc } of movementData) {
 					hopAlloc?.cancel()
@@ -150,36 +149,39 @@ class WorkFunctions {
 							}
 							mg.allocations.target.fulfill()
 						} else {
-						if (!hopAlloc) {
-							console.error('Hop allocation missing (but path exists) for', mg)
-							throw new Error('Hop allocation missing')
-						}
-						
-						hopAlloc.fulfill()
-						
-						const newSourceAlloc = nextStorage!.reserve(
-							{ [mg.goodType]: 1 },
-							{
-								type: 'convey.path',
-								movement: mg,
-							},
-						)
-						
-						if (!newSourceAlloc) {
-							console.error('[conveyStep.finished] Failed to reserve storage for next hop:', mg.goodType)
-							throw new Error('Failed to reserve storage for next hop')
-						}
-						
-						mg.allocations.source = newSourceAlloc
-						mg.place()
-					}
-				}
-			} catch (e) {
-				console.error('Error in conveyStep finished:', e)
+							if (!hopAlloc) {
+								console.error('Hop allocation missing (but path exists) for', mg)
+								throw new Error('Hop allocation missing')
+							}
 
-				throw e
-			}
-		})
+							hopAlloc.fulfill()
+
+							const newSourceAlloc = nextStorage!.reserve(
+								{ [mg.goodType]: 1 },
+								{
+									type: 'convey.path',
+									movement: mg,
+								},
+							)
+
+							if (!newSourceAlloc) {
+								console.error(
+									'[conveyStep.finished] Failed to reserve storage for next hop:',
+									mg.goodType,
+								)
+								throw new Error('Failed to reserve storage for next hop')
+							}
+
+							mg.allocations.source = newSourceAlloc
+							mg.place()
+						}
+					}
+				} catch (e) {
+					console.error('Error in conveyStep finished:', e)
+
+					throw e
+				}
+			})
 			.final(() => {
 				for (const { moving } of movementData) {
 					if (!moving.isRemoved) debugger
@@ -190,9 +192,11 @@ class WorkFunctions {
 	harvestStep() {
 		const unbuiltLand = this[subject].tile.content as UnBuiltLand
 		if (!(unbuiltLand instanceof UnBuiltLand)) {
-            console.error(`[harvestStep] Tile content not UnBuiltLand: ${this[subject].tile.content?.constructor.name}`);
-            return
-        }
+			console.error(
+				`[harvestStep] Tile content not UnBuiltLand: ${this[subject].tile.content?.constructor.name}`,
+			)
+			return
+		}
 		// assert(unbuiltLand instanceof UnBuiltLand, 'tile.content must be an UnBuiltLand')
 		const alveolus = this[subject].assignedAlveolus as Ssh.AlveolusDefinition<Ssh.HarvestingAction>
 		assert(alveolus, 'assignedAlveolus must be set')
@@ -236,20 +240,20 @@ class WorkFunctions {
 		})
 		allocations.push(inputAllocation)
 
-// 		const outputAllocation = alveolus.storage.allocate(action.output as Goods, {
-// 			type: 'transform.output',
-// 			alveolus,
-// 			output: action.output,
-// 		})
-// 		allocations.push(outputAllocation)
-// ^ Wait. I should replace matching the context.
+		// 		const outputAllocation = alveolus.storage.allocate(action.output as Goods, {
+		// 			type: 'transform.output',
+		// 			alveolus,
+		// 			output: action.output,
+		// 		})
+		// 		allocations.push(outputAllocation)
+		// ^ Wait. I should replace matching the context.
 
 		const outputAllocation = alveolus.storage.allocate(action.output as Goods, {
 			type: 'transform.output',
 			alveolus,
 			output: action.output,
 		})
-        allocations.push(outputAllocation)
+		allocations.push(outputAllocation)
 
 		return new DurationStep(alveolus.workTime, 'work', `transform.${alveolus.name}`)
 			.finished(() => {
@@ -263,7 +267,10 @@ class WorkFunctions {
 	defragmentStep() {
 		const character = this[subject]
 		const alveolus = character.assignedAlveolus as StorageAlveolus
-		assert(alveolus.action.type === 'slotted-storage' || alveolus.action.type === 'specific-storage', 'assignedAlveolus must be a StorageAlveolus')
+		assert(
+			alveolus.action.type === 'slotted-storage' || alveolus.action.type === 'specific-storage',
+			'assignedAlveolus must be a StorageAlveolus',
+		)
 		const fragmentedGoodType = alveolus.storage.fragmented
 		assert(fragmentedGoodType, 'alveolus must be fragmented')
 		const take = alveolus.storage.allocate({ [fragmentedGoodType]: 1 }, { type: 'defragment.take' })

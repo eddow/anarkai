@@ -1,7 +1,7 @@
 import { scope, type } from 'arktype'
 import { alveoli, deposits, goods as goodsCatalog, terrain } from '$assets/game-content'
-import type { AllocationBase } from '$lib/storage/storage'
 import type { TileContent } from '$lib/board'
+import type { AllocationBase } from '$lib/storage/storage'
 import { type Positioned, positionScope } from '$lib/utils'
 
 /**

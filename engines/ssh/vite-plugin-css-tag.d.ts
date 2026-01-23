@@ -1,2 +1,2 @@
-import type { Plugin } from 'vite';
-export declare function cssTagPlugin(): Plugin;
+import type { Plugin } from 'vite'
+export declare function cssTagPlugin(): Plugin

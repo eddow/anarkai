@@ -1,7 +1,6 @@
 import { atomic, memoize, reactive, unreactive } from 'mutts'
 import { assert } from '$lib/debug'
 import type { Goods, GoodType } from '$lib/types/base'
-import type { RenderedGoodSlot, RenderedGoodSlots } from './types'
 import {
 	AllocationError,
 	allocationEnded,
@@ -10,6 +9,7 @@ import {
 	isAllocationValid,
 } from './guard'
 import { type AllocationBase, Storage } from './storage'
+import type { RenderedGoodSlot, RenderedGoodSlots } from './types'
 
 @unreactive
 class SlottedAllocation implements AllocationBase {
@@ -213,7 +213,9 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		if (remaining > 0 && qty > 0) {
 			const available = this.available(goodType)
 			const stock = this.stock[goodType] ?? 0
-			console.warn(`[SlottedStorage] Cannot remove ${goodType} (qty ${qty}): remaining ${remaining}, available ${available}, stock ${stock}.`)
+			console.warn(
+				`[SlottedStorage] Cannot remove ${goodType} (qty ${qty}): remaining ${remaining}, available ${available}, stock ${stock}.`,
+			)
 		}
 
 		return qty - remaining
@@ -318,7 +320,7 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 
 		for (const [goodType, qty] of Object.entries(goods) as [GoodType, number][]) {
 			assert(qty, 'qty must be set')
-			
+
 			let remaining = Math.min(qty, this.available(goodType))
 			if (remaining <= 0) continue
 

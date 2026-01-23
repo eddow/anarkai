@@ -1,14 +1,14 @@
-import { reactive, type ScopedCallback, unreactive } from 'mutts'
+import { reactive, unreactive } from 'mutts'
 
 import { deposits } from '$assets/game-content'
+import { withTicked } from '$lib/game/object'
+import { gameIsaTypes } from '$lib/npcs/utils'
 import type { TerrainType } from '$lib/types'
 import { LCG, subSeed } from '$lib/utils/numbers'
 import { fastPoissonRandom } from '$lib/utils/poisson'
-import { toAxialCoord, toWorldCoord } from '$lib/utils/position'
-import { withTicked } from '$lib/game/object'
+import { toAxialCoord } from '$lib/utils/position'
 import type { Tile } from '../tile'
 import { TileContent } from './content'
-import { gameIsaTypes } from '$lib/npcs/utils'
 import { GcClassed, GcClasses } from './utils'
 
 export class Deposit extends GcClassed<Ssh.DepositDefinition>() {
@@ -135,8 +135,6 @@ export class UnBuiltLand extends withTicked(TileContent) {
 		}
 		return super.colorCode()
 	}
-
-
 
 	/** Deterministic entry position for deposit interaction on this tile */
 	get depositEntryPosition() {

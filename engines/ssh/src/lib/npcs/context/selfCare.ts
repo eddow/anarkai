@@ -1,7 +1,7 @@
-import type { Character } from '$lib/population/character'
-import { contract, type GoodType } from '$lib/types'
 import { subject } from '$lib/npcs/scripts'
 import { EatStep, PonderingStep } from '$lib/npcs/steps'
+import type { Character } from '$lib/population/character'
+import { contract, type GoodType } from '$lib/types'
 
 class SelfCareFunctions {
 	declare [subject]: Character

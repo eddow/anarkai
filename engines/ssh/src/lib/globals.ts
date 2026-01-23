@@ -1,13 +1,11 @@
-import { DockviewApi } from 'dockview-core'
-import { reactive, Eventful, untracked, effect, root } from 'mutts'
-import { Game, type GameEvents, type InteractiveGameObject } from './game'
+import type { DockviewApi } from 'dockview-core'
+import { Eventful, effect, reactive, root, untracked } from 'mutts'
+import { Game, type GameEvents } from './game'
 import { chopSaw as patches } from './game/exampleGames'
 
 export interface Configuration {
 	timeControl: 'pause' | 'play' | 'fast-forward' | 'gonzales'
 }
-
-
 
 function getDefaultConfiguration(): Configuration {
 	return {
@@ -22,7 +20,7 @@ export const debugInfo = reactive<Record<string, unknown>>({})
 // Helper for stored reactive state (simplified from pounce-ui)
 function stored<T extends object>(key: string, initialValue: T): T {
 	if (typeof window === 'undefined') return reactive(initialValue)
-	
+
 	let value = initialValue
 	try {
 		const item = localStorage.getItem(key)
@@ -32,9 +30,9 @@ function stored<T extends object>(key: string, initialValue: T): T {
 	} catch (e) {
 		console.warn(`Failed to load stored key "${key}":`, e)
 	}
-	
+
 	const state = reactive(value)
-	
+
 	// Persist on change
 	effect(() => {
 		const json = JSON.stringify(state)
@@ -46,7 +44,7 @@ function stored<T extends object>(key: string, initialValue: T): T {
 			}
 		})
 	})
-	
+
 	return state
 }
 
@@ -57,54 +55,55 @@ export const dockviewLayout = stored<{ sshLayout: any }>('dockviewLayout', { ssh
 // otherwise it causes infinite loops when called during component render.
 function validateDockviewLayout(layout: any): any {
 	//return untracked(() => {
-		if (!layout || typeof layout !== 'object') {
-			return undefined
-		}
+	if (!layout || typeof layout !== 'object') {
+		return undefined
+	}
 
-		try {
-			// Deep clone to avoid mutating the input if it's immutable/stored state
-			const cleanLayout = JSON.parse(JSON.stringify(layout))
-			
-			// Check basic structure - the stored object is a DockviewSnapshot, so grid is inside .layout
-			if (!cleanLayout.layout || !cleanLayout.layout.grid || !cleanLayout.layout.grid.root) {
-				console.warn('Dockview layout missing grid/root, clearing.')
-				dockviewLayout.sshLayout = undefined
-				return undefined
-			}
-			
-			// Guard against truly empty layouts that cause dockview-core to crash
-			const root = cleanLayout.layout.grid.root
-			const hasChildren = Array.isArray(root.children) && root.children.length > 0
-			const hasData = root.data && typeof root.data === 'object' && Object.keys(root.data).length > 0
-			const hasFloating = cleanLayout.layout.floatingGroups && Object.values(cleanLayout.layout.floatingGroups).some(fg => fg !== null)
-			const hasPanels = cleanLayout.panels && Object.keys(cleanLayout.panels).length > 0
-			
+	try {
+		// Deep clone to avoid mutating the input if it's immutable/stored state
+		const cleanLayout = JSON.parse(JSON.stringify(layout))
 
-			// dockview-core fromJSON throws "root must be of type branch" if we give it a branch with no children
-			// dockview-core fromJSON throws "root must be of type branch" if we give it a branch with no children
-			// dockview-core fromJSON throws "root must be of type branch" if we give it a branch with no children
-			// BUT: if we have floating panels, we might have an empty grid root.
-			// dockview-core fromJSON throws "root must be of type branch" if we give it a branch with no children
-			// If we have orphaned panels (validation failure), try to REPAIR instead of clearing to avoid loop.
-			// If we have orphaned panels or corrupted root (not a branch), RESET to a valid default layout.
-			if (root.type !== 'branch' || (!hasChildren && !hasFloating)) {
-				console.warn('Dockview layout has invalid branch root. Clearing layout.')
-				dockviewLayout.sshLayout = undefined
-				return undefined
-			}
-			
-			if (root.type === 'branch' && !hasChildren && !hasData && !hasFloating && !hasPanels) {
-				console.warn('Dockview layout is completely empty, clearing.')
-				dockviewLayout.sshLayout = undefined
-				return undefined
-			}
-			
-			return cleanLayout
-		} catch (e) {
-			console.warn('Error validating dockview layout:', e)
+		// Check basic structure - the stored object is a DockviewSnapshot, so grid is inside .layout
+		if (!cleanLayout.layout || !cleanLayout.layout.grid || !cleanLayout.layout.grid.root) {
+			console.warn('Dockview layout missing grid/root, clearing.')
 			dockviewLayout.sshLayout = undefined
 			return undefined
 		}
+
+		// Guard against truly empty layouts that cause dockview-core to crash
+		const root = cleanLayout.layout.grid.root
+		const hasChildren = Array.isArray(root.children) && root.children.length > 0
+		const hasData = root.data && typeof root.data === 'object' && Object.keys(root.data).length > 0
+		const hasFloating =
+			cleanLayout.layout.floatingGroups &&
+			Object.values(cleanLayout.layout.floatingGroups).some((fg) => fg !== null)
+		const hasPanels = cleanLayout.panels && Object.keys(cleanLayout.panels).length > 0
+
+		// dockview-core fromJSON throws "root must be of type branch" if we give it a branch with no children
+		// dockview-core fromJSON throws "root must be of type branch" if we give it a branch with no children
+		// dockview-core fromJSON throws "root must be of type branch" if we give it a branch with no children
+		// BUT: if we have floating panels, we might have an empty grid root.
+		// dockview-core fromJSON throws "root must be of type branch" if we give it a branch with no children
+		// If we have orphaned panels (validation failure), try to REPAIR instead of clearing to avoid loop.
+		// If we have orphaned panels or corrupted root (not a branch), RESET to a valid default layout.
+		if (root.type !== 'branch' || (!hasChildren && !hasFloating)) {
+			console.warn('Dockview layout has invalid branch root. Clearing layout.')
+			dockviewLayout.sshLayout = undefined
+			return undefined
+		}
+
+		if (root.type === 'branch' && !hasChildren && !hasData && !hasFloating && !hasPanels) {
+			console.warn('Dockview layout is completely empty, clearing.')
+			dockviewLayout.sshLayout = undefined
+			return undefined
+		}
+
+		return cleanLayout
+	} catch (e) {
+		console.warn('Error validating dockview layout:', e)
+		dockviewLayout.sshLayout = undefined
+		return undefined
+	}
 	//})
 }
 
@@ -127,15 +126,18 @@ class Games extends Eventful<GamedEvents> {
 		const existing = this.games.get(name)
 		if (existing) return existing
 
-		const instance = root(()=> new Game(
-			{
-				boardSize: 12,
-				terrainSeed: 23,
-				characterCount: 3,
-				characterRadius: 5,
-			},
-			patches,
-		))
+		const instance = root(
+			() =>
+				new Game(
+					{
+						boardSize: 12,
+						terrainSeed: 23,
+						characterCount: 3,
+						characterRadius: 5,
+					},
+					patches,
+				),
+		)
 		this.games.set(name, instance)
 		return instance
 	}

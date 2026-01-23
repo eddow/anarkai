@@ -2,16 +2,6 @@ import { atomic, reactive, unreactive, untracked } from 'mutts'
 
 import { goods } from '$assets/game-content'
 import { assert } from '$lib/debug'
-import type { GoodType } from '$lib/types'
-import { epsilon } from '$lib/utils'
-import { AxialKeyMap } from '$lib/utils/mem'
-import {
-	axialDistance,
-	type Position,
-	type Positioned,
-	toAxialCoord,
-	toWorldCoord,
-} from '$lib/utils/position'
 import { GameObject, withTicked } from '$lib/game/object'
 import {
 	allocationEnded,
@@ -19,6 +9,10 @@ import {
 	invalidateAllocation,
 	isAllocationValid,
 } from '$lib/storage/guard'
+import type { GoodType } from '$lib/types'
+import { epsilon } from '$lib/utils'
+import { AxialKeyMap } from '$lib/utils/mem'
+import { axialDistance, type Position, type Positioned, toAxialCoord } from '$lib/utils/position'
 
 @unreactive
 class FreeGoodAllocation {
@@ -55,7 +49,7 @@ export interface FreeGood {
 }
 
 export class FreeGoods extends withTicked(GameObject) {
-    public readonly uid = 'free-goods-manager'
+	public readonly uid = 'free-goods-manager'
 	public readonly goods = reactive(new AxialKeyMap<FreeGood[]>([], () => []))
 	add(pos: Positioned, goodType: GoodType, options: Partial<FreeGood> = {}) {
 		assert(
@@ -92,7 +86,6 @@ export class FreeGoods extends withTicked(GameObject) {
 
 		// Create sprite after game is loaded
 
-
 		return good
 	}
 	remove(pos: Positioned, good: FreeGood): void {
@@ -107,7 +100,6 @@ export class FreeGoods extends withTicked(GameObject) {
 		else this.goods.delete(coord)
 
 		// Clean up sprite if it exists (might not exist if removed before game loaded)
-
 	}
 
 	getGoodsAt(coord: Positioned): FreeGood[] {
@@ -148,10 +140,12 @@ export class FreeGoods extends withTicked(GameObject) {
 			for (const [, goodsList] of this.goods.entries()) {
 				for (const good of goodsList) {
 					const goodDef = goods[good.goodType]
-                    if (!goodDef) {
-                        console.error(`FreeGood update: Unknown good type '${good.goodType}'. Goods keys: ${Object.keys(goods).join(', ')}`);
-                        continue;
-                    }
+					if (!goodDef) {
+						console.error(
+							`FreeGood update: Unknown good type '${good.goodType}'. Goods keys: ${Object.keys(goods).join(', ')}`,
+						)
+						continue
+					}
 					const halfLife = goodDef.halfLife // in seconds
 
 					// Skip decay for goods with infinite half-life

@@ -1,12 +1,9 @@
 import { scope, type Type, type } from 'arktype'
-import { positionTypes } from '$lib/utils/position'
 import type { ScriptExecution } from '$lib/npcs/scripts'
+import { positionTypes } from '$lib/utils/position'
 import { baseGameScope } from './base'
+import { contractDecorator } from './contracts'
 import { gameObjectsModule } from './game-objects'
-import { contractDecorator, type Contract } from './contracts'
-
-// Re-export contract runtime helpers
-export { checkContract, isContract, registerContract, type Contract } from './contracts'
 
 // Re-export base scope (foundation types)
 export {
@@ -27,6 +24,8 @@ export {
 	TransferPlan,
 	WorkPlan,
 } from './base'
+// Re-export contract runtime helpers
+export { type Contract, checkContract, isContract, registerContract } from './contracts'
 
 // ============================================================
 // Unified Game Scope

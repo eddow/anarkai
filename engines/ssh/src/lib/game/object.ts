@@ -1,8 +1,8 @@
 // Library used by Pixi
 import EventEmitter from 'eventemitter3'
-import { reactive, ReactiveBase, type ScopedCallback, unreactive, unwrap } from 'mutts'
-import type { Position } from '$lib/utils/position'
+import { ReactiveBase, reactive, unreactive, unwrap } from 'mutts'
 import type { Tile } from '$lib/board/tile'
+import type { Position } from '$lib/utils/position'
 import type { Game } from './game'
 
 // All pixi objects extend this `EventEmitter` and should be unreactive
@@ -27,7 +27,6 @@ export abstract class GameObject extends ReactiveBase {
 }
 
 // Mixin functions for composition
-
 
 export function withInteractive<T extends abstract new (...args: any[]) => GameObject>(Base: T) {
 	abstract class InteractiveMixin extends Base {

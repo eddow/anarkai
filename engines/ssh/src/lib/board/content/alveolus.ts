@@ -1,16 +1,14 @@
 import { memoize, reactive, type ScopedCallback, unreactive } from 'mutts'
-
+import { configurations } from '$assets/game-content'
 import { assert } from '$lib/debug'
 import type { Hive, MovingGood } from '$lib/hive/hive'
 import { gameIsaTypes } from '$lib/npcs/utils'
 import type { Character } from '$lib/population/character'
+import type { Storage } from '$lib/storage/storage'
 import type { GoodType, Job } from '$lib/types/base'
 import { type AxialCoord, axial, epsilon, tileSize } from '$lib/utils'
 import type { GoodsRelations } from '$lib/utils/advertisement'
 import { toAxialCoord, toWorldCoord } from '$lib/utils/position'
-import { configurations } from '$assets/game-content'
-
-import { type Storage } from '$lib/storage/storage'
 import { AlveolusGate } from '../border/alveolus-gate'
 import type { Tile } from '../tile'
 import { TileContent } from './content'
@@ -64,7 +62,9 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		const { scope } = this.configurationRef
 
 		if (scope === 'individual') {
-			return this.individualConfiguration ?? (configurations.default as Ssh.BaseAlveolusConfiguration)
+			return (
+				this.individualConfiguration ?? (configurations.default as Ssh.BaseAlveolusConfiguration)
+			)
 		}
 
 		if (scope === 'named') {
@@ -82,7 +82,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		// Default to hive scope (also handles 'hive' case and fallback from named)
 		const hiveConfig = this.hive?.configurations?.get(this.name)
 		if (hiveConfig) return hiveConfig as Ssh.BaseAlveolusConfiguration
-		return (configurations.default as Ssh.BaseAlveolusConfiguration)
+		return configurations.default as Ssh.BaseAlveolusConfiguration
 	}
 
 	/** Whether this alveolus is working (derived from configuration) */
@@ -94,13 +94,15 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	set working(value: boolean) {
 		// Short-circuit if value is already the same
 		if (this.configuration.working === value) return
-		
+
 		// Set scope to individual if needed (do this first to batch changes)
 		if (this.configurationRef.scope !== 'individual') {
 			this.configurationRef = { scope: 'individual' }
 		}
 		if (!this.individualConfiguration) {
-			this.individualConfiguration = { ...(configurations.default as Ssh.BaseAlveolusConfiguration) }
+			this.individualConfiguration = {
+				...(configurations.default as Ssh.BaseAlveolusConfiguration),
+			}
 		}
 		this.individualConfiguration.working = value
 	}
@@ -130,11 +132,10 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	}
 
 	// Render tile background, alveolus sprite + a vertical goods bar on the right side of the tile
-    
-    colorCode() {
-        return { tint: 0xffffff, borderColor: 0xFFFF00 }
-    }
 
+	colorCode() {
+		return { tint: 0xffffff, borderColor: 0xffff00 }
+	}
 
 	canInteract(_action: string): boolean {
 		// Alveoli can't be built on (they already exist)
@@ -154,8 +155,8 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 
 	getJob(character?: Character): Job | undefined {
 		if (this.assignedWorker && this.assignedWorker !== character) {
-            return undefined
-        }
+			return undefined
+		}
 		// If the alveolus is burdened by FreeGoods, ask to remove them
 		if (this.isBurdened) {
 			return {
@@ -169,9 +170,9 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 
 		// Only provide alveolus-specific jobs if working is enabled
 		if (!this.working) {
-            return undefined
-        }
-        
+			return undefined
+		}
+
 		return this.nextJob?.(character)
 	}
 
@@ -197,9 +198,9 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		const blocked: LocalMovingGood[] = []
 
 		function canAdvance(mg: MovingGood) {
-            if (mg.path.length === 0) return false
+			if (mg.path.length === 0) return false
 			const storage = hive.storageAt(mg.path[0])
-            const hasRoom = storage?.hasRoom(mg.goodType)
+			const hasRoom = storage?.hasRoom(mg.goodType)
 			return hasRoom || mg.path.length === 1
 		}
 		// TODO: take a random movement or keep it arbitrary?
@@ -221,15 +222,15 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			const from = toAxialCoord(border.position)!
 			const arr = hive.movingGoods.get(from)
 			if (!arr) {
-                continue
-            }
+				continue
+			}
 			for (const mg of arr) {
 				if (axial.distance(mg.path[0], here) < 0.5 + epsilon) {
 					const localMg = Object.setPrototypeOf({ from: mg.from ?? from }, mg) as LocalMovingGood
 					if (canAdvance(mg)) {
 						return [localMg]
 					} else {
-                        // console.log(`[aGoodMovement] BLOCKED from border`, { from, here, path0: mg.path[0] })
+						// console.log(`[aGoodMovement] BLOCKED from border`, { from, here, path0: mg.path[0] })
 						blocked.push(localMg)
 					}
 				}
@@ -325,7 +326,6 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	}
 	//@memoize
 	get incomingGoods(): boolean {
-
 		// Note: because borders have 2 neighbors and we check this when no movement is occurring,
 		//  if a good is incoming, it's for you (you're in one of the neighbors)
 		return this.tile.surroundings.some(
@@ -350,7 +350,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	destroy() {
 		this.advertisingEffect?.()
 		this.advertisingEffect = undefined
-        this.destroyed = true
+		this.destroyed = true
 		super.destroy()
 	}
 	// Not yet called (bulldozed alveolus)

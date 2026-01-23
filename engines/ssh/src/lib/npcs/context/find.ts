@@ -1,14 +1,14 @@
 import { maxWalkTime } from '$assets/constants'
 import { goods as goodsCatalog } from '$assets/game-content'
+import { UnBuiltLand } from '$lib/board/content/unbuilt-land'
+import type { Tile } from '$lib/board/tile'
 import { BuildAlveolus } from '$lib/hive/build'
 import type { GatherAlveolus } from '$lib/hive/gather'
 import type { Character } from '$lib/population/character'
 import { contract } from '$lib/types'
-import { type GoodType } from '$lib/types/base'
+import type { GoodType } from '$lib/types/base'
 import { type AxialCoord, axial, tileSize, toWorldCoord } from '$lib/utils'
 import { type Positioned, toAxialCoord } from '$lib/utils/position'
-import { UnBuiltLand } from '$lib/board/content/unbuilt-land'
-import type { Tile } from '$lib/board/tile'
 import { subject } from '../scripts'
 
 class FindFunctions {
@@ -71,7 +71,7 @@ class FindFunctions {
 	}
 	@contract('string')
 	deposit(deposit: string) {
-        console.error(`[FindFunctions] deposit called searching for: ${deposit}`);
+		console.error(`[FindFunctions] deposit called searching for: ${deposit}`)
 		const { hex } = this[subject].game
 		const start = toAxialCoord(this[subject].tile.position)
 
@@ -215,19 +215,19 @@ class FindFunctions {
 				const tile = hex.getTile(coord)
 				if (!tile || !tile.content) return false
 
-                // Must be UnBuiltLand (implies not an Alveolus)
+				// Must be UnBuiltLand (implies not an Alveolus)
 				if (!(tile.content instanceof UnBuiltLand)) return false
-                
-                // Must not be a project (construction site)
-                if (tile.content.project) return false
-				
+
+				// Must not be a project (construction site)
+				if (tile.content.project) return false
+
 				let score = 1 / (hex.freeGoods.getGoodsAt(coord).length + 1)
-                
-                // Penalize current tile to encourage moving goods away (fixes infinite loop in offload)
-                if (axial.distance(coord, start) < 0.1) {
-                    score *= 0.01
-                }
-                return score
+
+				// Penalize current tile to encourage moving goods away (fixes infinite loop in offload)
+				if (axial.distance(coord, start) < 0.1) {
+					score *= 0.01
+				}
+				return score
 			},
 			(_coord, walkTime) => walkTime > maxWalkTime,
 			1, // best possible score (minimum cost => score 0 when dist*crowd == 0)

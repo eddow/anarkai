@@ -1,9 +1,9 @@
+import { UnBuiltLand } from '$lib/board/content/unbuilt-land'
+import type { Tile } from '$lib/board/tile'
 import type { Character } from '$lib/population/character'
 import { contract } from '$lib/types'
 import { axial } from '$lib/utils'
 import { type Positioned, positionRoughlyEquals, toAxialCoord } from '$lib/utils/position'
-import { UnBuiltLand } from '$lib/board/content/unbuilt-land'
-import type { Tile } from '$lib/board/tile'
 import { subject } from '../scripts'
 import { MoveToStep } from '../steps'
 

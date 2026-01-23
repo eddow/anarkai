@@ -17,7 +17,8 @@ export function computeStyleFromTexture(
 	if (!texture) return ''
 
 	// Source URL (resource.src doesn't work, resource._sourceOrigin is well set but "private", label seems to work)
-	const src: string | undefined = texture?.source?.resource?.src ?? texture?.source?.label ?? texture?.label
+	const src: string | undefined =
+		texture?.source?.resource?.src ?? texture?.source?.label ?? texture?.label
 	if (!src) return ''
 
 	const frame = texture?.frame ?? {

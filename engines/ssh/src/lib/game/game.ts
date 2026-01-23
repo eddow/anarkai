@@ -1,28 +1,27 @@
 import { Eventful, reactive, unreactive } from 'mutts'
-import type { GameRenderer, InputAdapter } from '$lib/types/engine'
-import { SimulationLoop } from '$lib/utils/loop'
 import * as gameContent from '$assets/game-content'
-import { assert } from '$lib/debug'
-import { configuration } from '$lib/globals'
-import { mrg } from '$lib/interactive-state'
-
-import type { AlveolusType, DepositType, GoodType } from '$lib/types'
-import { axial } from '$lib/utils/axial'
-import { LCG } from '$lib/utils/numbers'
 import { Alveolus } from '$lib/board'
 import { HexBoard } from '$lib/board/board'
 import { Deposit, UnBuiltLand } from '$lib/board/content/unbuilt-land'
 import { Tile } from '$lib/board/tile'
 import type { Zone } from '$lib/board/zone'
+import { assert } from '$lib/debug'
 import {
 	type GameGenerationConfig,
 	GameGenerator,
 	type GeneratedCharacterData,
 	type GeneratedTileData,
 } from '$lib/generation'
-import { alveolusClass, Hive, AlveolusConfigurationManager } from '$lib/hive'
-import type { HittableGameObject, InteractiveGameObject } from './object'
+import { configuration } from '$lib/globals'
+import { AlveolusConfigurationManager, alveolusClass, Hive } from '$lib/hive'
+import { mrg } from '$lib/interactive-state'
 import { Population } from '$lib/population/population'
+import type { AlveolusType, DepositType, GoodType } from '$lib/types'
+import type { GameRenderer, InputAdapter } from '$lib/types/engine'
+import { axial } from '$lib/utils/axial'
+import { SimulationLoop } from '$lib/utils/loop'
+import { LCG } from '$lib/utils/numbers'
+import type { HittableGameObject, InteractiveGameObject } from './object'
 
 try {
 	unreactive(gameContent)
@@ -38,7 +37,7 @@ const timeMultiplier = {
 const rootSpeed = 2
 // Helper function to flatten the tree structure into dot-separated keys
 // (Kept if needed for other logic, but resources import is gone?)
-// actually flattenResources is exported, might be used? 
+// actually flattenResources is exported, might be used?
 // But resources and assetUrls are definitely visual.
 // Let's remove them.
 
@@ -127,13 +126,13 @@ export class Game extends Eventful<GameEvents> {
 	public readonly ticker: SimulationLoop
 	private tickedObjects = new Set<{ update(deltaSeconds: number): void }>()
 	public readonly clock = reactive({
-		virtualTime: 0
+		virtualTime: 0,
 	})
 	public loaded: Promise<void>
 	public rendererReady: Promise<void>
 	private rendererReadyResolver?: () => void
 	private async load() {
-        // Headless load - just start ticker?
+		// Headless load - just start ticker?
 		this.ticker.start()
 	}
 
@@ -148,9 +147,9 @@ export class Game extends Eventful<GameEvents> {
 		this.hittableObjects.delete(object)
 	}
 
-    public getTexture(spec: string) {
-        return this.renderer?.getTexture(spec)
-    }
+	public getTexture(spec: string) {
+		return this.renderer?.getTexture(spec)
+	}
 
 	register(object: InteractiveGameObject, uid?: string) {
 		this.objects.set(uid ?? crypto.randomUUID(), object)
@@ -205,12 +204,11 @@ export class Game extends Eventful<GameEvents> {
 		this.population = new Population(this)
 
 		this.generator = new GameGenerator()
-		
-		this.loaded = this.loaded
-			.then(() => {
-				this.HiveClass = Hive
-				// Initialize base RNG with terrainSeed so everything is reproducible
-				;(this as any).rng = LCG('gameSeed', this.generationOptions.terrainSeed)
+
+		this.loaded = this.loaded.then(() => {
+			this.HiveClass = Hive
+			// Initialize base RNG with terrainSeed so everything is reproducible
+			;(this as any).rng = LCG('gameSeed', this.generationOptions.terrainSeed)
 			// Expose RNG to global for script helpers
 			;(globalThis as any).__GAME_RANDOM__ = (max?: number, min?: number) => this.random(max, min)
 			this.generate(this.generationOptions, this.patches)
@@ -246,7 +244,8 @@ export class Game extends Eventful<GameEvents> {
 			this.loadGeneratedPopulation(result.populationData)
 			// Apply patches if any
 			if (patches.tiles?.length) this.applyTilePatches(patches.tiles)
-			if (patches.hives?.length) this.applyHivesPatches(patches.hives, saveState?.hiveConfigurations)
+			if (patches.hives?.length)
+				this.applyHivesPatches(patches.hives, saveState?.hiveConfigurations)
 			if (patches.freeGoods?.length) this.applyFreeGoodsPatches(patches.freeGoods)
 			if (patches.zones) this.applyZonePatches(patches.zones)
 			if (patches.projects) this.applyProjectPatches(patches.projects)
@@ -271,8 +270,8 @@ export class Game extends Eventful<GameEvents> {
 				const DepositClass = Deposit.class[tileInfo.deposit.type as keyof typeof Deposit.class]
 				if (DepositClass) {
 					deposit = new DepositClass(tileInfo.deposit.amount)
-                    // Ensure name is set (vital for HarvestAlveolus checks)
-                    //if (!deposit.name) deposit.name = tileInfo.deposit.type
+					// Ensure name is set (vital for HarvestAlveolus checks)
+					//if (!deposit.name) deposit.name = tileInfo.deposit.type
 				}
 			}
 
@@ -313,13 +312,11 @@ export class Game extends Eventful<GameEvents> {
 				if (p.deposit) {
 					const DepositClass = Deposit.class[p.deposit.type as keyof typeof Deposit.class]
 					if (DepositClass) {
-                        content.deposit = new DepositClass(p.deposit.amount)
-                         // Ensure name is set
-                        if (!content.deposit.name) (content.deposit as any).name = p.deposit.type
-
-                    } else {
-
-                    }
+						content.deposit = new DepositClass(p.deposit.amount)
+						// Ensure name is set
+						if (!content.deposit.name) (content.deposit as any).name = p.deposit.type
+					} else {
+					}
 				}
 				tile.asGenerated = false
 			}
@@ -334,7 +331,10 @@ export class Game extends Eventful<GameEvents> {
 		}
 	}
 
-	private applyHivesPatches(hives: NonNullable<GamePatches['hives']>, hiveConfigurations?: SaveState['hiveConfigurations']) {
+	private applyHivesPatches(
+		hives: NonNullable<GamePatches['hives']>,
+		hiveConfigurations?: SaveState['hiveConfigurations'],
+	) {
 		for (const hive of hives) {
 			let hiveInstance: Hive | undefined
 			for (const a of hive.alveoli) {
@@ -366,9 +366,9 @@ export class Game extends Eventful<GameEvents> {
 				tile.asGenerated = false
 			}
 			assert(hiveInstance, 'Alveolus building on load')
-            if ((hive as any).needs && hiveInstance) {
-                Object.assign(hiveInstance.manualNeeds, (hive as any).needs)
-            }
+			if ((hive as any).needs && hiveInstance) {
+				Object.assign(hiveInstance.manualNeeds, (hive as any).needs)
+			}
 			// Restore hive-level configurations
 			if (hive.name && hiveConfigurations?.[hive.name] && hiveInstance) {
 				for (const [alvType, config] of Object.entries(hiveConfigurations[hive.name])) {
@@ -510,11 +510,11 @@ export class Game extends Eventful<GameEvents> {
 		if (state.namedConfigurations) {
 			this.configurationManager.deserialize(state.namedConfigurations)
 		}
-		
+
 		// 2. Re-generate the base world (terrain)
 		// We assume state.generationOptions has the original seed
 		// TODO: Restore RNG state if necessary, or just rely on seed
-		
+
 		// Reset simulation if needed (though generate usually overwrites)
 		// Ideally we should clear everything first?
 		// for now, let's allow generate to overwrite.

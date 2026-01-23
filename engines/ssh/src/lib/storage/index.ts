@@ -1,5 +1,5 @@
-export * from './types'
 export * from './no-storage'
 export * from './slotted-storage'
 export * from './specific-storage'
 export * from './storage'
+export * from './types'

@@ -1,6 +1,6 @@
-import { assert } from '$lib/debug'
 import type { TileBorder } from '$lib/board/border/border'
 import type { Tile } from '$lib/board/tile'
+import { assert } from '$lib/debug'
 import type { Character } from '$lib/population/character'
 import { contract, type Goods, type GoodType } from '$lib/types'
 import type { IdlePlan, PickupPlan, TransferPlan } from '$lib/types/base'
@@ -67,21 +67,23 @@ export class InventoryFunctions {
 
 		if (totalAmount <= 0) {
 			// If we wanted to drop specific goods but couldn't (e.g. storage full or we don't have them)
-            // But wait, earlier we check `available` in vehicle.
-            // If we don't have the goods, `available` is 0.
-            // If destination is full, `canStore` is 0.
-            
-            // Check why totalAmount is 0
-            const reasons: string[] = []
-            for (const [goodType, requestedQuantity] of Object.entries(goods) as [GoodType, number][]) {
-                if (!requestedQuantity || requestedQuantity <= 0) continue
-                const available = vehicle.storage.available(goodType) ?? 0
-                if (available <= 0) reasons.push(`No ${goodType} in inventory`)
-                
-                const canStore = content.storage?.hasRoom(goodType) || 0
-                if (canStore <= 0) reasons.push(`No room for ${goodType} in target`)
-            }
-			throw new Error(`Cannot drop goods: ${reasons.join(', ') || 'Unknown reason'} (requested: ${JSON.stringify(goods)}, available: ${JSON.stringify(vehicle.storage.availables)}, target-room: ${JSON.stringify(content.storage?.debugInfo || 'no-storage')})`)
+			// But wait, earlier we check `available` in vehicle.
+			// If we don't have the goods, `available` is 0.
+			// If destination is full, `canStore` is 0.
+
+			// Check why totalAmount is 0
+			const reasons: string[] = []
+			for (const [goodType, requestedQuantity] of Object.entries(goods) as [GoodType, number][]) {
+				if (!requestedQuantity || requestedQuantity <= 0) continue
+				const available = vehicle.storage.available(goodType) ?? 0
+				if (available <= 0) reasons.push(`No ${goodType} in inventory`)
+
+				const canStore = content.storage?.hasRoom(goodType) || 0
+				if (canStore <= 0) reasons.push(`No room for ${goodType} in target`)
+			}
+			throw new Error(
+				`Cannot drop goods: ${reasons.join(', ') || 'Unknown reason'} (requested: ${JSON.stringify(goods)}, available: ${JSON.stringify(vehicle.storage.availables)}, target-room: ${JSON.stringify(content.storage?.debugInfo || 'no-storage')})`,
+			)
 		}
 
 		// Return plan without allocations - they will be created in plan.begin()
@@ -144,12 +146,15 @@ export class InventoryFunctions {
 	 * @param source - The location to grab from.
 	 */
 	@contract('GoodType | null', 'Positioned')
-	planGrabFree(goodType: GoodType | null | undefined, source: Positioned): PickupPlan | TransferPlan | IdlePlan {
+	planGrabFree(
+		goodType: GoodType | null | undefined,
+		source: Positioned,
+	): PickupPlan | TransferPlan | IdlePlan {
 		const character = this[subject]
 		const vehicle = character.vehicle
 		assert(vehicle, 'character.vehicle must be set')
 
-		// If goodType is null (scavenge), we check strict room later per-item. 
+		// If goodType is null (scavenge), we check strict room later per-item.
 		// Here we just ensure we aren't totally full if checking a specific type.
 		const canGrab = goodType ? vehicle.storage.hasRoom(goodType) : 1
 		if (canGrab <= 0) throw new Error('No room in vehicle to grab goods')
@@ -164,24 +169,21 @@ export class InventoryFunctions {
 		)
 
 		if (matchingFreeGoods.length === 0) {
-            // If explicit good requested, throw error (command failed)
-            if (goodType) throw new Error(`No ${goodType} to grab at ${coord}`)
-            
-            // If checking generic "any good" (scavenge), and none found matching criteria:
-            // Return Idle plan to gracefully "cancel" or skip the grab attempt without crashing.
-            return {
-                type: 'idle',
-                duration: 0.1
-            }
+			// If explicit good requested, throw error (command failed)
+			if (goodType) throw new Error(`No ${goodType} to grab at ${coord}`)
+
+			// If checking generic "any good" (scavenge), and none found matching criteria:
+			// Return Idle plan to gracefully "cancel" or skip the grab attempt without crashing.
+			return {
+				type: 'idle',
+				duration: 0.1,
+			}
 		}
 
 		const chosenGood = matchingFreeGoods[0]
-		
+
 		// Create allocations immediately
-		const vehicleAllocation = vehicle.storage.allocate(
-			{ [chosenGood.goodType]: 1 },
-			'plan.pickup',
-		)
+		const vehicleAllocation = vehicle.storage.allocate({ [chosenGood.goodType]: 1 }, 'plan.pickup')
 		const allocation = chosenGood.allocate('plan.pickup')
 
 		return {
@@ -201,7 +203,7 @@ export class InventoryFunctions {
 		} = character
 		assert(content, 'tile.content must be set')
 		assert(vehicle, 'tile.vehicle must be set')
-		
+
 		if (action.type === 'idle') {
 			return new DurationStep(action.duration, 'idle', 'waiting')
 		}

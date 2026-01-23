@@ -1,9 +1,8 @@
 import { dirname, resolve as resolvePath } from 'node:path'
 import { fileURLToPath } from 'node:url'
-
-import { cssTagPlugin } from './vite-plugin-css-tag'
 import { defineConfig, type Plugin } from 'vite'
 import babel from 'vite-plugin-babel'
+import { cssTagPlugin } from './vite-plugin-css-tag'
 
 const projectRootDir = dirname(fileURLToPath(import.meta.url))
 function stripDeclare(): Plugin {
@@ -28,12 +27,7 @@ export default defineConfig({
 		babel({
 			// Babel config (applied to both JS and TS files)
 			babelConfig: {
-				plugins: [
-
-					['@babel/plugin-proposal-decorators', { legacy: true }],
-
-
-				],
+				plugins: [['@babel/plugin-proposal-decorators', { legacy: true }]],
 				overrides: [
 					{
 						test: /\.[mc]?tsx$/,
@@ -66,7 +60,6 @@ export default defineConfig({
 			$components: resolvePath(projectRootDir, 'src/components'),
 			$assets: resolvePath(projectRootDir, 'assets'),
 			'@app': resolvePath(projectRootDir, 'src'),
-
 		},
 	},
 	esbuild: false,

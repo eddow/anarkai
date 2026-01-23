@@ -1,7 +1,12 @@
 import { reactive, type ScopedCallback, unreactive } from 'mutts'
+import { type HexBoard, isTileCoord } from '$lib/board/board'
+import { AlveolusGate } from '$lib/board/border/alveolus-gate'
+import { Alveolus } from '$lib/board/content/alveolus'
+import type { Tile } from '$lib/board/tile'
 import { assert, namedEffect, traces } from '$lib/debug'
+import type { AllocationBase, Storage } from '$lib/storage/storage'
 import type { GoodType } from '$lib/types'
-import { type AxialCoord, findPath, type Positioned, setPop, axial } from '$lib/utils'
+import { type AxialCoord, findPath, type Positioned, setPop } from '$lib/utils'
 import {
 	type Advertisement,
 	AdvertisementManager,
@@ -9,20 +14,15 @@ import {
 } from '$lib/utils/advertisement'
 import { AxialKeyMap } from '$lib/utils/mem'
 import { toAxialCoord } from '$lib/utils/position'
-import { AlveolusGate } from '$lib/board/border/alveolus-gate'
-import { type HexBoard, isTileCoord } from '$lib/board/board'
-import { Alveolus } from '$lib/board/content/alveolus'
-import type { Tile } from '$lib/board/tile'
-import type { AllocationBase, Storage } from '$lib/storage/storage'
 import type { StorageAlveolus } from './storage'
 
 export interface MovingGood {
-    _mgId?: string
+	_mgId?: string
 	goodType: GoodType
 	path: AxialCoord[]
 	provider: Alveolus
 	demander: Alveolus
-    from: AxialCoord
+	from: AxialCoord
 	allocations: {
 		source: AllocationBase
 		target: AllocationBase
@@ -44,12 +44,12 @@ export class Hive extends AdvertisementManager<Alveolus> {
 	static for(tile: Tile) {
 		const hives = new Set<Hive>()
 		for (const neighbor of tile.neighborTiles) {
-            // Check for hive property to support proxies
+			// Check for hive property to support proxies
 			if (neighbor?.content && 'hive' in neighbor.content) {
-                 const h = (neighbor.content as Alveolus).hive;
-                 hives.add(h)
-            }
-        }
+				const h = (neighbor.content as Alveolus).hive
+				hives.add(h)
+			}
+		}
 		if (hives.size === 0) return new Hive(tile.board)
 		if (hives.size === 1) return setPop(hives)!
 
@@ -59,7 +59,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 			for (const alveolus of hive.alveoli) targetHive.attach(alveolus)
 			hive.destroy()
 		}
-        return targetHive
+		return targetHive
 	}
 	public name?: string
 	public readonly alveoli = reactive(new Set<Alveolus>())
@@ -93,7 +93,9 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		alveolus.hive = this
 		this.invalidatePathCache()
 		this.advertising.push(
-			namedEffect(`${alveolus.name}.advertise`, () => this.advertise(alveolus, alveolus.goodsRelations)),
+			namedEffect(`${alveolus.name}.advertise`, () =>
+				this.advertise(alveolus, alveolus.goodsRelations),
+			),
 		)
 	}
 	/**
@@ -302,33 +304,34 @@ export class Hive extends AdvertisementManager<Alveolus> {
 			path,
 			provider,
 			demander,
-            from: positions.provider,
+			from: positions.provider,
 			allocations: {
 				source: providerToken,
 				target: demanderToken,
 			},
-				hop() {
+			hop() {
 				const fromCoord = this.from
 				const nextCoord = this.path.shift()!
-				
+
 				const currentList = self.movingGoods.get(fromCoord)
 				if (currentList) {
 					// Find the original movingGood in the list (this might be a wrapper)
-					const original = currentList.find(mg => mg === this || Object.getPrototypeOf(this) === mg)
+					const original = currentList.find(
+						(mg) => mg === this || Object.getPrototypeOf(this) === mg,
+					)
 					if (original) {
 						const idx = currentList.indexOf(original)
 						currentList.splice(idx, 1)
 						if (currentList.length === 0) self.movingGoods.delete(fromCoord)
 					}
 				}
-				
-				
+
 				this.from = nextCoord
 				movingGood.from = nextCoord // Also update the canonical movingGood
 				return nextCoord
 			},
-				place() {
-				const here = movingGood.from  // Use movingGood.from, not this.from (which is on the wrapper)
+			place() {
+				const here = movingGood.from // Use movingGood.from, not this.from (which is on the wrapper)
 				if (!self.movingGoods.has(here)) self.movingGoods.set(here, [])
 				// Push the original movingGood, not the wrapper
 				self.movingGoods.get(here)!.push(movingGood)
@@ -338,7 +341,9 @@ export class Hive extends AdvertisementManager<Alveolus> {
 				const currentList = self.movingGoods.get(fromCoord)
 				if (currentList) {
 					// Find the original movingGood in the list (this might be a wrapper)
-					const original = currentList.find(mg => mg === this || Object.getPrototypeOf(this) === mg)
+					const original = currentList.find(
+						(mg) => mg === this || Object.getPrototypeOf(this) === mg,
+					)
 					if (original) {
 						const idx = currentList.indexOf(original)
 						currentList.splice(idx, 1)
@@ -349,7 +354,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 				this.allocations.source.fulfill()
 			},
 		}
-	
+
 		movingGood.place()
 		return true
 	}

@@ -1,7 +1,7 @@
 import type { Goods, GoodType } from '$lib/types/base'
-import type { RenderedGoodSlots } from './types'
 import { AllocationError } from './guard'
 import { Storage } from './storage'
+import type { RenderedGoodSlots } from './types'
 
 export class NoStorage extends Storage {
 	hasRoom(_goodType?: GoodType): number {

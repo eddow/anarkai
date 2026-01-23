@@ -1,8 +1,8 @@
 import { alveoli } from '$assets/game-content'
-import type { AlveolusType } from '$lib/types/base'
-import { Tile } from '$lib/board/tile'
 import type { Alveolus } from '$lib/board/content/alveolus'
 import { GcClasses } from '$lib/board/content/utils'
+import type { Tile } from '$lib/board/tile'
+import type { AlveolusType } from '$lib/types/base'
 import { EngineerAlveolus } from './engineer'
 import { GatherAlveolus } from './gather'
 import { HarvestAlveolus } from './harvest'
@@ -23,5 +23,5 @@ export const alveolusClass = GcClasses(
 	alveoli,
 ) as Partial<Record<AlveolusType, new (tile: Tile) => Alveolus>>
 
-export * from './hive'
 export * from './alveolus-configuration'
+export * from './hive'

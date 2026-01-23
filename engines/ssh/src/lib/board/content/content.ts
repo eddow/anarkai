@@ -41,5 +41,4 @@ export abstract class TileContent extends GameObject {
 	 * Helper to render tile background (hexagonal sprite)
 	 * Should be called by subclasses in their render() method
 	 */
-
 }

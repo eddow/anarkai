@@ -1,13 +1,13 @@
 import { memoize } from 'mutts'
 import { maxWalkTime, outputBufferSize } from '$assets/constants'
-import type { Character } from '$lib/population/character'
-import { SpecificStorage } from '$lib/storage/specific-storage'
-import type { HarvestJob } from '$lib/types/base'
-import { axialDistance, type Positioned, toAxialCoord } from '$lib/utils/position'
 import { UnBuiltLand } from '$lib/board/content/unbuilt-land'
 import { multiplyGoodsQty } from '$lib/board/content/utils'
 import type { Tile } from '$lib/board/tile'
 import { TransitAlveolus } from '$lib/hive/transit'
+import type { Character } from '$lib/population/character'
+import { SpecificStorage } from '$lib/storage/specific-storage'
+import type { HarvestJob } from '$lib/types/base'
+import { axialDistance, type Positioned, toAxialCoord } from '$lib/utils/position'
 export class HarvestAlveolus extends TransitAlveolus {
 	declare action: Ssh.HarvestingAction
 	constructor(tile: Tile) {
@@ -51,11 +51,11 @@ export class HarvestAlveolus extends TransitAlveolus {
 			const searchFn = (coord: Positioned) => {
 				const tile = hex.getTile(coord)
 				if (!(tile?.content instanceof UnBuiltLand)) {
-                    return false
-                }
+					return false
+				}
 				if (tile.content.deposit?.name !== this.action.deposit) {
-                    return false
-                }
+					return false
+				}
 
 				return priority === 'clearing' ? tile.clearing : tile.zone === 'harvest'
 			}
@@ -77,8 +77,8 @@ export class HarvestAlveolus extends TransitAlveolus {
 
 		// For regular harvesting, only offer if harvester can store
 		if (!this.canStoreInHarvester) {
-             return undefined
-        }
+			return undefined
+		}
 
 		path = findDeposit('any')
 		if (path) {
@@ -92,6 +92,6 @@ export class HarvestAlveolus extends TransitAlveolus {
 			}
 		}
 
-        return undefined
+		return undefined
 	}
 }

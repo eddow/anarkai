@@ -1,6 +1,5 @@
 import { type } from 'arktype'
 import { unreactive } from 'mutts'
-import type { GoodType } from '$lib/types/base'
 import {
 	type ExecutionContext,
 	ExecutionError,
@@ -11,20 +10,12 @@ import {
 } from 'npc-script'
 import { alveoli, deposits, goods, terrain } from '$assets/game-content'
 import { CharacterContract } from '$assets/scripts/contracts'
-import {
-	contract,
-	contractScope,
-	overloadContract,
-} from '$lib/types'
-import {
-	checkContract,
-	type Contract,
-	isContract,
-	registerContract,
-} from '$lib/types/contracts'
+import type { GameObject, InteractiveGameObject } from '$lib/game/object'
+import { contract, contractScope, overloadContract } from '$lib/types'
+import type { GoodType } from '$lib/types/base'
+import { type Contract, checkContract, isContract, registerContract } from '$lib/types/contracts'
 import { axial, epsilon, objectMap } from '$lib/utils'
 import { Positioned, positionRoughly, toAxialCoord } from '$lib/utils/position'
-import type { GameObject, InteractiveGameObject } from '$lib/game/object'
 import { gameIsaTypes, gameOperators, lerp } from './utils'
 
 type XOrDictX<X> = X | { [k: string]: XOrDictX<X> }
@@ -174,13 +165,17 @@ class GameScript extends NpcScript {
 }
 
 function isXOrDictX<X>(x: XOrDictX<X>, Class: new (...args: any[]) => X): x is XOrDictX<X> {
-    if (x instanceof Class || (x && (x as any).constructor && (x as any).constructor.name === Class.name)) return true
-    if (x && typeof x === 'object') {
-        const values = Object.values(x)
-        if (values.length === 0) return true
-        return values.every((v) => isXOrDictX(v, Class))
-    }
-    return false
+	if (
+		x instanceof Class ||
+		(x && (x as any).constructor && (x as any).constructor.name === Class.name)
+	)
+		return true
+	if (x && typeof x === 'object') {
+		const values = Object.values(x)
+		if (values.length === 0) return true
+		return values.every((v) => isXOrDictX(v, Class))
+	}
+	return false
 }
 @unreactive
 export class ScriptExecution {
@@ -248,7 +243,11 @@ export function loadNpcScripts(alveoli: Record<string, string>, context: Executi
 		name: string,
 		contract: Contract,
 	): XoDe {
-        const isFuncDef = entryPoint instanceof FunctionDefinition || (entryPoint && (entryPoint as any).constructor && (entryPoint as any).constructor.name === 'FunctionDefinition');
+		const isFuncDef =
+			entryPoint instanceof FunctionDefinition ||
+			(entryPoint &&
+				(entryPoint as any).constructor &&
+				(entryPoint as any).constructor.name === 'FunctionDefinition')
 
 		if (isFuncDef && Array.isArray(contract)) {
 			const validate = contractScope.type(contract as any)

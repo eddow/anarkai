@@ -4,10 +4,10 @@
  */
 
 import { deposits, goods as goodsCatalog, terrain as terrainDetails } from '$assets/game-content'
+import { Deposit } from '$lib/board/content/unbuilt-land'
 import type { DepositType, TerrainType } from '$lib/types'
 import type { AxialCoord } from '$lib/utils'
 import { axial } from '$lib/utils'
-import { Deposit } from '$lib/board/content/unbuilt-land'
 import { TerrainGenerator } from './terrain'
 
 export interface BoardGenerationConfig {

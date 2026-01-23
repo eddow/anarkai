@@ -19,11 +19,13 @@ export class AxialKeyMap<T> implements AxialKeyDictionary<T>, Iterable<[AxialKey
 		init: Iterable<[AxialRef, T]> = [],
 		private readonly defaultValue?: () => T,
 	) {
-		this.map = reactive(new Map(
-			(function* () {
-				for (const [k, v] of init) yield [axial.key(k), v]
-			})(),
-		))
+		this.map = reactive(
+			new Map(
+				(function* () {
+					for (const [k, v] of init) yield [axial.key(k), v]
+				})(),
+			),
+		)
 	}
 	[Symbol.iterator](): Iterator<[AxialKey, T], any, any> {
 		return this.map[Symbol.iterator]()

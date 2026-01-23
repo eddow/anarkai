@@ -1,8 +1,5 @@
-import type { ScopedCallback } from 'mutts'
-
 import { SlottedStorage } from '$lib/storage/slotted-storage'
-import { tileSize } from '$lib/utils'
-import { toAxialCoord, toWorldCoord } from '$lib/utils/position'
+import { toAxialCoord } from '$lib/utils/position'
 import type { Alveolus } from '../content/alveolus'
 import { type TileBorder, TileBorderContent } from './border'
 
@@ -42,6 +39,4 @@ export class AlveolusGate extends TileBorderContent {
 			this.border.content = undefined
 		}
 	}
-
-
 }

@@ -120,7 +120,7 @@ export function initConsoleTrap() {
 }
 
 // Black Box Logging System
-export type LogFn = typeof console.log;
+export type LogFn = typeof console.log
 
 export const blackBoxLog = {
 	pathFinding: undefined as LogFn | undefined,
@@ -128,7 +128,7 @@ export const blackBoxLog = {
 	inventory: undefined as LogFn | undefined,
 	jobs: undefined as LogFn | undefined,
 	behavior: undefined as LogFn | undefined,
-};
+}
 
 export function logGroup(logger: LogFn | undefined | false, label: string, body: () => void) {
 	if (logger) {

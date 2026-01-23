@@ -1,15 +1,13 @@
 import { reactive } from 'mutts'
-import type { Character } from '$lib/population/character'
-import type { GoodType, Job } from '$lib/types'
-import type { ExchangePriority, GoodsRelations } from '$lib/utils/advertisement'
+import { goods as allGoodsList, configurations } from '$assets/game-content'
 import { Alveolus } from '$lib/board/content/alveolus'
 import type { Tile } from '$lib/board/tile'
-import { SpecificStorage } from '$lib/storage/specific-storage'
+import type { Character } from '$lib/population/character'
 import { SlottedStorage } from '$lib/storage/slotted-storage'
-import { goods as allGoodsList, configurations } from '$assets/game-content'
-import {
-	isSpecificStorageConfiguration,
-} from './alveolus-configuration'
+import { SpecificStorage } from '$lib/storage/specific-storage'
+import type { GoodType, Job } from '$lib/types'
+import type { ExchangePriority, GoodsRelations } from '$lib/utils/advertisement'
+import { isSpecificStorageConfiguration } from './alveolus-configuration'
 
 @reactive
 export class StorageAlveolus extends Alveolus {
@@ -31,7 +29,10 @@ export class StorageAlveolus extends Alveolus {
 			return baseConfig
 		}
 		// Base config doesn't have buffers, return storage default with working from base
-		return { ...(configurations['specific-storage'] as Ssh.SpecificStorageAlveolusConfiguration), working: baseConfig.working }
+		return {
+			...(configurations['specific-storage'] as Ssh.SpecificStorageAlveolusConfiguration),
+			working: baseConfig.working,
+		}
 	}
 
 	/**
@@ -54,7 +55,9 @@ export class StorageAlveolus extends Alveolus {
 	 */
 	setBuffers(buffers: Record<string, number>): void {
 		if (!this.individualConfiguration) {
-			this.individualConfiguration = { ...(configurations['specific-storage'] as Ssh.SpecificStorageAlveolusConfiguration) }
+			this.individualConfiguration = {
+				...(configurations['specific-storage'] as Ssh.SpecificStorageAlveolusConfiguration),
+			}
 		}
 		this.individualConfiguration.buffers = { ...this.individualConfiguration.buffers, ...buffers }
 		if (this.configurationRef.scope !== 'individual') {
@@ -71,7 +74,7 @@ export class StorageAlveolus extends Alveolus {
 
 	constructor(tile: Tile) {
 		const def: Ssh.AlveolusDefinition = new.target.prototype
-		
+
 		if (def.action.type === 'slotted-storage') {
 			const action = def.action as Ssh.SlottedStorageAction
 			super(tile, new SlottedStorage(action.slots, action.capacity))
@@ -95,7 +98,9 @@ export class StorageAlveolus extends Alveolus {
 				this.configurationRef = { scope: 'individual' }
 			}
 		} else {
-			throw new Error(`StorageAlveolus created with invalid action type: ${(def.action as any)?.type}`)
+			throw new Error(
+				`StorageAlveolus created with invalid action type: ${(def.action as any)?.type}`,
+			)
 		}
 	}
 
@@ -127,7 +132,7 @@ export class StorageAlveolus extends Alveolus {
 					// Check if we need to buffer this good
 					const bufferAmount = buffers.get(goodType) || 0
 					const currentAmount = this.storage.availables[goodType] || 0
-					
+
 					if (currentAmount < bufferAmount) {
 						relations[goodType] = { advertisement: 'demand', priority: '1-buffer' }
 					} else {
@@ -142,7 +147,7 @@ export class StorageAlveolus extends Alveolus {
 					// Check if we need to buffer this good
 					const bufferAmount = buffers.get(goodType) || 0
 					const currentAmount = this.storage.availables[goodType] || 0
-					
+
 					if (currentAmount < bufferAmount) {
 						relations[goodType] = { advertisement: 'demand', priority: '1-buffer' }
 					} else {

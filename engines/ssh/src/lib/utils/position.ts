@@ -2,7 +2,7 @@ import { scope } from 'arktype'
 import { immutables } from 'mutts'
 import {
 	type AxialCoord,
-	AxialKey,
+	type AxialKey,
 	type AxialRef,
 	axial,
 	cartesian,

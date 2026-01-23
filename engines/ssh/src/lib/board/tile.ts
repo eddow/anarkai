@@ -1,11 +1,11 @@
 import { memoize, unreactive } from 'mutts'
+import { GameObject, withInteractive } from '$lib/game/object'
+import { Hive } from '$lib/hive'
+import { gameIsaTypes } from '$lib/npcs/utils'
 import type { Character } from '$lib/population/character'
 import type { AlveolusType, Job } from '$lib/types/base'
 import { type AxialCoord, axial, type NeighborInfo } from '$lib/utils'
 import { axialDistance, type Position, type Positioned, toAxialCoord } from '$lib/utils/position'
-import { Hive } from '$lib/hive'
-import { gameIsaTypes } from '$lib/npcs/utils'
-import { GameObject, withInteractive } from '$lib/game/object'
 import type { HexBoard } from './board'
 import type { TileBorder } from './border/border'
 import { Alveolus } from './content/alveolus'
@@ -98,7 +98,8 @@ export class Tile extends withInteractive(GameObject) {
 	get clearing(): boolean {
 		return (
 			![undefined, 'harvest'].includes(this.zone) ||
-			(!!this.content && (('project' in this.content && !!this.content.project) || this.content instanceof Alveolus))
+			(!!this.content &&
+				(('project' in this.content && !!this.content.project) || this.content instanceof Alveolus))
 		)
 	}
 

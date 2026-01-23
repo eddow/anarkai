@@ -3,7 +3,6 @@ import { assert } from '$lib/debug'
 import type { Goods } from '$lib/types/base'
 import { GoodType } from '$lib/types/base'
 import type { RenderedGoodSlots } from '.'
-import type { RenderedGoodSlot } from './types'
 import {
 	AllocationError,
 	allocationEnded,
@@ -12,6 +11,7 @@ import {
 	isAllocationValid,
 } from './guard'
 import { type AllocationBase, Storage } from './storage'
+import type { RenderedGoodSlot } from './types'
 
 @unreactive
 class SpecificAllocation implements AllocationBase {
@@ -137,7 +137,9 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 				delete this._goods[goodType]
 			}
 		} else if (qty > 0 && currentAmount > 0) {
-			console.warn(`[SpecificStorage] Cannot remove ${goodType} (qty ${qty}): have ${currentAmount} but ${reserved} are reserved.`)
+			console.warn(
+				`[SpecificStorage] Cannot remove ${goodType} (qty ${qty}): have ${currentAmount} but ${reserved} are reserved.`,
+			)
 		}
 
 		return toRemove

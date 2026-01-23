@@ -1,4 +1,4 @@
-import { type ScopedCallback, unreactive } from 'mutts'
+import { unreactive } from 'mutts'
 import { GameObject } from '$lib/game/object'
 import type { Storage } from '$lib/storage/storage'
 import type { Positioned } from '$lib/utils'
@@ -10,8 +10,6 @@ export abstract class TileBorderContent extends GameObject {
 	abstract readonly border: TileBorder
 	abstract readonly storage?: Storage
 	abstract readonly debugInfo: Record<string, any>
-
-
 }
 
 @unreactive

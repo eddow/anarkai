@@ -1,10 +1,10 @@
-import { assert, namedEffect } from '$lib/debug'
 import { type HexBoard, isTileCoord } from '$lib/board'
-import { Alveolus } from '$lib/board/content/alveolus'
+import type { Alveolus } from '$lib/board/content/alveolus'
+import { assert, namedEffect } from '$lib/debug'
 import type { Character } from '$lib/population/character'
 import type { IdlePlan, PickupPlan, Plan, TransferPlan, WorkPlan } from '$lib/types/base'
-import { type Positioned, toAxialCoord } from '$lib/utils'
 import { gameObjectsModule } from '$lib/types/game-objects'
+import { type Positioned, toAxialCoord } from '$lib/utils'
 import { subject } from '../scripts'
 import { DurationStep } from '../steps'
 
@@ -44,7 +44,10 @@ const transferPlanHandler: PlanHandler<TransferPlan> = {
 					assert(target, 'target must be set for drop plan')
 					const content = getContentFromPosition(hex, target)
 					assert(content, 'target content must be set')
-					assert('storage' in content, 'planDropStored only works with TileContent that has storage')
+					assert(
+						'storage' in content,
+						'planDropStored only works with TileContent that has storage',
+					)
 
 					vehicleAllocation = vehicle.storage.reserve(goods, `planDropStored`)
 					allocation = content.storage!.allocate(goods, `planDropStored`)
@@ -53,7 +56,10 @@ const transferPlanHandler: PlanHandler<TransferPlan> = {
 					assert(target, 'target must be set for storage grab')
 					const content = getContentFromPosition(hex, target)
 					assert(content, 'target content must be set')
-					assert('storage' in content, 'planGrabStored only works with TileContent that has storage')
+					assert(
+						'storage' in content,
+						'planGrabStored only works with TileContent that has storage',
+					)
 
 					vehicleAllocation = vehicle.storage.allocate(goods, `planGrab`)
 					allocation = content.storage?.reserve(goods, `planGrabStored`)
@@ -125,10 +131,7 @@ const pickupPlanHandler: PlanHandler<PickupPlan> = {
 				}
 
 				const freeGoodToGrab = matchingFreeGoods[0]
-				vehicleAllocation = vehicle.storage.allocate(
-					{ [goodType]: 1 },
-					`planGrabFree.${goodType}`,
-				)
+				vehicleAllocation = vehicle.storage.allocate({ [goodType]: 1 }, `planGrabFree.${goodType}`)
 				allocation = freeGoodToGrab.allocate(`planGrabFree.${goodType}`)
 				releaseStopper = namedEffect('plan.releaseStopper', () => {
 					if (freeGoodToGrab.isRemoved) character.cancelPlan(plan)
@@ -201,8 +204,8 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 // Idle plan handler
 const idlePlanHandler: PlanHandler<IdlePlan> = {
 	begin(plan: IdlePlan, character: Character) {
-        // Just wait
-        character.stepExecutor = new DurationStep(plan.duration, 'idle', 'panic-wait')
+		// Just wait
+		character.stepExecutor = new DurationStep(plan.duration, 'idle', 'panic-wait')
 	},
 }
 
@@ -240,7 +243,7 @@ class PlanFunctions {
 	conclude(plan: Plan) {
 		if (!plan) return
 		this[subject].logAbout(plan, `${plan.type}: concluded`)
-		
+
 		if (plan.invariant) {
 			try {
 				if (!plan.invariant()) {
@@ -250,7 +253,7 @@ class PlanFunctions {
 					// Usually assertions throw.
 					throw new Error(`Plan ${plan.type} invariant failed`)
 				}
-			} catch(e) {
+			} catch (e) {
 				console.error(`Error executing plan ${plan.type} invariant:`, e)
 				throw e
 			}

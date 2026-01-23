@@ -140,7 +140,6 @@ export const vehicles = {
 	},
 } as const satisfies Record<string, Ssh.VehicleDefinition>
 
-
 /** Default configurations by action type */
 export const configurations: Record<string, Ssh.AlveolusConfiguration> = {
 	'specific-storage': {
