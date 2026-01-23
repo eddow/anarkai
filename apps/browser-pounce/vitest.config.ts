@@ -1,13 +1,7 @@
-import { resolve } from 'node:path'
-import { defineConfig } from 'vitest/config'
+import { mergeConfig } from 'vitest/config'
+import viteConfig from './vite.config'
 
-export default defineConfig({
-	resolve: {
-		alias: {
-			$lib: resolve(__dirname, './src/lib'),
-			$assets: resolve(__dirname, './assets'),
-		},
-	},
+export default mergeConfig(viteConfig as any, {
 	test: {
 		environment: 'node',
 		globals: true,
@@ -15,8 +9,5 @@ export default defineConfig({
 		include: ['src/**/*.{test,spec}.{js,ts}'],
 		exclude: ['node_modules', 'dist', '.git', '.cache'],
 		watch: false,
-	},
-	esbuild: {
-		target: 'node14',
 	},
 })

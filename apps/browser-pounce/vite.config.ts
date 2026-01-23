@@ -6,7 +6,7 @@ import { babelPluginJsxReactive } from 'pounce-ts/plugin'
 import { pureGlyfPlugin } from 'pure-glyf/plugin'
 import { defineConfig, type Plugin } from 'vite'
 import babel from 'vite-plugin-babel'
-import { cssTagPlugin } from '../../engines/ssh/vite-plugin-css-tag'
+import { cssTagPlugin } from 'ssh/vite-plugin-css-tag'
 
 const projectRootDir = dirname(fileURLToPath(import.meta.url))
 
@@ -33,7 +33,7 @@ export default defineConfig({
 				tabler: 'node_modules/@tabler/icons/icons',
 			},
 			dts: 'src/pure-glyf-icons.d.ts',
-		}),
+		}) as any,
 		//stripDeclare(),
 		cssTagPlugin(),
 		servePixiAssets(),
@@ -88,6 +88,8 @@ export default defineConfig({
 				'../../node_modules/.pnpm/dockview-core@4.12.0/node_modules/dockview-core',
 			),
 			mutts: resolvePath(projectRootDir, '../../../ownk/mutts/src'),
+			$lib: resolvePath(projectRootDir, 'src/lib'),
+			$assets: resolvePath(projectRootDir, 'assets'),
 		},
 		preserveSymlinks: false,
 	},
@@ -101,7 +103,10 @@ export default defineConfig({
 			ignored: ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/coverage/**'],
 		},
 	},
-	esbuild: commonEsbuild,
+	esbuild: {
+		...commonEsbuild,
+		target: 'node14',
+	},
 	optimizeDeps: {
 		esbuildOptions: {
 			...commonEsbuild,

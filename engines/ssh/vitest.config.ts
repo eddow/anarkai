@@ -1,16 +1,7 @@
-import { resolve } from 'node:path'
-import { defineConfig } from 'vitest/config'
+import { mergeConfig } from 'vitest/config'
+import viteConfig from './vite.config'
 
-export default defineConfig({
-	resolve: {
-		alias: {
-			'@ssh': resolve(__dirname, './src'),
-			$lib: resolve(__dirname, './src/lib'),
-			$assets: resolve(__dirname, './assets'),
-			'@app': resolve(__dirname, './src'),
-		},
-		preserveSymlinks: false,
-	},
+export default mergeConfig(viteConfig as any, {
 	test: {
 		environment: 'node',
 		globals: true,

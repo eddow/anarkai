@@ -44,6 +44,12 @@
 			],
 			"@pounce/*": [
 				"node_modules/pounce-ts/src/*"
+			],
+			"npc-script": [
+				"../../../ownk/npcs/dist/index.d.ts"
+			],
+			"npc-script/*": [
+				"../../../ownk/npcs/dist/*"
 			]
 		}
 	},
