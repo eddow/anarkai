@@ -2,12 +2,12 @@ import { effect, reactive } from 'mutts'
 import { css } from '@app/lib/css'
 import WorkingIndicator from './parts/WorkingIndicator'
 import PropertyGridRow from './PropertyGridRow'
-import type { Alveolus } from '@ssh/lib/board/content/alveolus'
-import { T } from '@ssh/lib/i18n'
-import { StorageAlveolus } from '@ssh/lib/hive/storage'
+import type { Alveolus } from 'ssh/src/lib/board/content/alveolus'
+import { T } from 'ssh/src/lib/i18n'
+import { StorageAlveolus } from 'ssh/src/lib/hive/storage'
 import StorageConfiguration from './storage/StorageConfiguration.tsx'
 import StoredGoodsRow from './storage/StoredGoodsRow'
-import type { Game } from '@ssh/lib/game'
+import type { Game } from 'ssh/src/lib/game'
 
 css`
 .alveolus-commands {

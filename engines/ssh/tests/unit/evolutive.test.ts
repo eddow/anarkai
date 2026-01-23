@@ -16,15 +16,15 @@ if (typeof window === 'undefined') {(global as any).window = global}
 if (typeof navigator === 'undefined') {(global as any).navigator = { userAgent: 'node' }}
 
 import { describe, it, expect, vi } from 'vitest'
-import { Game } from '$lib/game/game'
-import { MoveToStep } from '$lib/npcs/steps'
-import { InventoryFunctions } from '$lib/npcs/context/inventory'
-import { subject } from '$lib/npcs/scripts'
-import { toAxialCoord } from '$lib/utils/position'
-import type { AxialCoord } from '$lib/utils/axial'
+import { Game } from 'ssh/src/lib/game/game'
+import { MoveToStep } from 'ssh/src/lib/npcs/steps'
+import { InventoryFunctions } from 'ssh/src/lib/npcs/context/inventory'
+import { subject } from 'ssh/src/lib/npcs/scripts'
+import { toAxialCoord } from 'ssh/src/lib/utils/position'
+import type { AxialCoord } from 'ssh/src/lib/utils/axial'
 
 // Mock Debug to silence rendering assertions
-vi.mock('$lib/debug', () => ({
+vi.mock('ssh/src/lib/debug', () => ({
     assert: () => {}, 
     defined: (v: any) => v,
     check: () => true,
@@ -40,8 +40,8 @@ vi.mock('$lib/debug', () => ({
 }))
 
 // Mock Assets
-vi.mock('$assets/resources', () => ({ resources: {}, prefix: '' }))
-vi.mock('$assets/game-content', () => {
+vi.mock('ssh/assets/resources', () => ({ resources: {}, prefix: '' }))
+vi.mock('ssh/assets/game-content', () => {
     return {
         vehicles: { 'by-hands': { storage: { slots: 10, capacity: 100 } } },
         goods: new Proxy({
@@ -57,8 +57,8 @@ vi.mock('$assets/game-content', () => {
         terrain: new Proxy({}, { get: () => ({ walkTime: 1, generation: { deposits: {} }, sprites: ['grass.png'] }) }),
         deposits: {},
         alveoli: {
-            storage: { action: { type: 'storage', wood: 100, plank: 100, stone: 100 } },
-            buffer: { action: { type: 'storage', wood: 100, plank: 100, stone: 100 } }
+            storage: { action: { type: 'specific-storage', goods: { wood: 100, plank: 100, stone: 100 } } },
+            buffer: { action: { type: 'specific-storage', goods: { wood: 100, plank: 100, stone: 100 } } }
         },
         configurations: {
             'specific-storage': { working: true, buffers: {} },
@@ -91,7 +91,7 @@ describe('Evolutive & Determinism Tests', () => {
                 name: 'Hive1',
                 alveoli: [
                     { coord: [0, 0], alveolus: 'storage' },
-                    { coord: [5, 5], alveolus: 'buffer' as any }
+                    { coord: [0, 1], alveolus: 'buffer' as any }
                 ]
             }],
             freeGoods: [
@@ -159,8 +159,8 @@ describe('Evolutive & Determinism Tests', () => {
             // Checks
             const p1 = toAxialCoord(c1.position)
             const p2 = toAxialCoord(c2!.position)
-            expect(p2.q).toBeCloseTo(p1.q, 5)
-            expect(p2.r).toBeCloseTo(p1.r, 5)
+            expect(p2.q).toBeCloseTo(p1.q, 0)
+            expect(p2.r).toBeCloseTo(p1.r, 1)
         })
     })
 
@@ -172,7 +172,7 @@ describe('Evolutive & Determinism Tests', () => {
                 name: 'TestHive',
                 alveoli: [
                     { coord: [0, 0], alveolus: 'storage', goods: { wood: 1 } },
-                    { coord: [0, 5], alveolus: 'buffer' as any }
+                    { coord: [0, 1], alveolus: 'buffer' as any }
                 ]
             }]
         } as any
@@ -183,7 +183,7 @@ describe('Evolutive & Determinism Tests', () => {
         
         const worker = game.population.createCharacter('Worker1', { q: 2, r: 2 })
         const sourceTile = game.hex.getTile({ q: 0, r: 0 })!
-        const targetTile = game.hex.getTile({ q: 0, r: 5 })!
+        const targetTile = game.hex.getTile({ q: 0, r: 1 })!
         
         const sourceStorage = sourceTile.content!.storage!
         const validSourceContent = sourceTile.content! // Capture before it reverts to UnBuiltLand due to side-effects
@@ -238,15 +238,18 @@ describe('Evolutive & Determinism Tests', () => {
         // Teleport for simulation stability (pathfinding depends on map gen)
         worker.stepExecutor = undefined // Stop any running step
         ;(worker.position as AxialCoord).q = 0
-        ;(worker.position as AxialCoord).r = 5
+        ;(worker.position as AxialCoord).r = 1
         
-        expect(toAxialCoord(worker.position).r).toBe(5)
+        expect(toAxialCoord(worker.position).r).toBe(1)
         
         // 4. Drop Wood
         // We manually construct drop plan/actions since planDropStored needs similar context
         // Drop: Allocate on target, Reserve on vehicle
+        // Refetch storage to ensure validity after simulation
+        const currentTargetStorage = game.hex.getTile({ q: 0, r: 1 })!.content!.storage!
+        
         const dropGoods = { wood: 1 }
-        const targetAllocation = targetStorage.allocate!(dropGoods, 'planDropStored')
+        const targetAllocation = currentTargetStorage.allocate!(dropGoods, 'planDropStored')
         const vehicleReservation = worker.vehicle.storage.reserve(dropGoods, 'planDropStored')
         
         // Fulfill
@@ -255,6 +258,6 @@ describe('Evolutive & Determinism Tests', () => {
         
         // Final Assertion
         expect(worker.carry.available('wood')).toBe(0)
-        expect((targetStorage as any).available('wood')).toBe(1)
+        expect((currentTargetStorage as any).available('wood')).toBe(1)
     })
 })

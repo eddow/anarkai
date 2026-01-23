@@ -1,5 +1,5 @@
 import './app.css'
-// import { initConsoleTrap } from '@ssh/lib/debug'
+// import { initConsoleTrap } from 'ssh/src/lib/debug'
 // initConsoleTrap()
 import { effect, reactive, untracked } from 'mutts'
 import { Button, ButtonGroup, DarkModeButton, Dockview, RadioButton, Toolbar } from 'pounce-ui/src'
@@ -8,7 +8,7 @@ import {
 	mdiHomeGroup, mdiTree, mdiEraser, mdiCog, mdiPlus, mdiTestTube, mdiCursorDefaultOutline
 } from 'pure-glyf/icons'
 
-import * as gameContent from '$assets/game-content'
+import * as gameContent from 'ssh/assets/game-content'
 import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content'
 import { configuration, games, interactionMode, selectionState, getDockviewLayout, dockviewLayout, uiConfiguration } from '@app/lib/globals'
 import ResourceImage from './components/ResourceImage'

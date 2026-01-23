@@ -1,11 +1,11 @@
-import * as gameContent from '$assets/game-content'
-import type { CharacterContract } from '$assets/scripts/contracts'
-import type { Alveolus } from '$lib/board/content/alveolus'
-import type { HarvestAlveolus } from '$lib/hive/harvest'
-import { InteractiveContext, protoCtx, subject } from '$lib/npcs/scripts'
-import type { Character } from '$lib/population/character'
-import { contract } from '$lib/types'
-import type { GoodType } from '$lib/types/base'
+import * as gameContent from '../../../../assets/game-content'
+import type { CharacterContract } from '../../../../assets/scripts/contracts'
+import type { Alveolus } from 'ssh/src/lib/board/content/alveolus'
+import type { HarvestAlveolus } from 'ssh/src/lib/hive/harvest'
+import { InteractiveContext, protoCtx, subject } from 'ssh/src/lib/npcs/scripts'
+import type { Character } from 'ssh/src/lib/population/character'
+import { contract } from 'ssh/src/lib/types'
+import type { GoodType } from 'ssh/src/lib/types/base'
 // Import all the function classes
 import { FindFunctions } from './find'
 import { InventoryFunctions } from './inventory'
@@ -15,7 +15,7 @@ import { WalkFunctions } from './walk'
 import { WorkFunctions } from './work'
 
 // Re-export TransferPlan for external use
-export { PickupPlan as GatherPlan, Plan, TransferPlan, WorkPlan } from '$lib/types/base'
+export { PickupPlan as GatherPlan, Plan, TransferPlan, WorkPlan } from 'ssh/src/lib/types/base'
 
 class CharacterContext extends InteractiveContext<Character> {
 	get I() {
@@ -63,10 +63,10 @@ class CharacterContext extends InteractiveContext<Character> {
 	}
 }
 
-import { objectMap } from '$lib/utils'
+import { objectMap } from 'ssh/src/lib/utils'
 import { loadNpcScripts } from '../scripts'
 
-const ScriptFiles = import.meta.glob('$assets/scripts/**/*.npcs', {
+const ScriptFiles = import.meta.glob('../../../../assets/scripts/**/*.npcs', {
 	query: '?raw',
 	eager: true,
 })

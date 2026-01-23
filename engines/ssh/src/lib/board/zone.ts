@@ -1,6 +1,6 @@
 import { reactive } from 'mutts'
-import type { AxialCoord } from '$lib/utils'
-import { AxialKeyMap } from '$lib/utils/mem'
+import type { AxialCoord } from 'ssh/src/lib/utils'
+import { AxialKeyMap } from 'ssh/src/lib/utils/mem'
 
 export type Zone = 'residential' | 'harvest'
 

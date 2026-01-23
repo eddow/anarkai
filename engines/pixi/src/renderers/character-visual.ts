@@ -1,6 +1,6 @@
 import { ColorMatrixFilter, Container, Sprite } from 'pixi.js'
 import { namedEffect } from 'ssh/src/lib/debug'
-import type { Character } from 'ssh/src/lib/game/population/character'
+import type { Character } from 'ssh/src/lib/population/character'
 import { mrg } from 'ssh/src/lib/interactive-state'
 import { VisualObject } from './visual-object'
 import { toWorldCoord } from 'ssh/src/lib/utils/position' // Verify path

@@ -1,6 +1,6 @@
 import { Container, Sprite, Texture } from 'pixi.js'
 import { namedEffect } from 'ssh/src/lib/debug'
-import type { FreeGoods, FreeGood } from 'ssh/src/lib/game/board/freeGoods'
+import type { FreeGoods, FreeGood } from 'ssh/src/lib/board/freeGoods'
 import { tileSize } from 'ssh/src/lib/utils/varied'
 import { toWorldCoord } from 'ssh/src/lib/utils/position' // Verify import
 import { goods as goodsCatalog } from '../../assets/visual-content' 

@@ -1,8 +1,8 @@
 /**
  * @link https://www.redblobgames.com/grids/hexagons/
  */
-import type { Sextuplet } from '@app/types'
-import { assert } from '$lib/debug'
+import type { Sextuplet } from 'ssh/src/types'
+import { assert } from 'ssh/src/lib/debug'
 import type { RandGenerator } from './numbers'
 
 export type AxialKey = string

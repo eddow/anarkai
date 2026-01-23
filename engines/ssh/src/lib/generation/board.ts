@@ -3,11 +3,11 @@
  * Extracted from board/index.ts for better organization
  */
 
-import { deposits, goods as goodsCatalog, terrain as terrainDetails } from '$assets/game-content'
-import { Deposit } from '$lib/board/content/unbuilt-land'
-import type { DepositType, TerrainType } from '$lib/types'
-import type { AxialCoord } from '$lib/utils'
-import { axial } from '$lib/utils'
+import { deposits, goods as goodsCatalog, terrain as terrainDetails } from '../../../assets/game-content'
+import { Deposit } from 'ssh/src/lib/board/content/unbuilt-land'
+import type { DepositType, TerrainType } from 'ssh/src/lib/types'
+import type { AxialCoord } from 'ssh/src/lib/utils'
+import { axial } from 'ssh/src/lib/utils'
 import { TerrainGenerator } from './terrain'
 
 export interface BoardGenerationConfig {

@@ -1,9 +1,9 @@
 import { effect } from 'mutts'
 
-import type { InteractiveGameObject } from '@ssh/lib/game'
+import type { InteractiveGameObject } from 'ssh/src/lib/game'
 import { css } from '@app/lib/css'
 import { PixiGameRenderer } from 'engine-pixi/src/renderer'
-import { Tile } from '@ssh/lib/board/tile'
+import { Tile } from 'ssh/src/lib/board/tile'
 import {
 	games,
 	interactionMode,
@@ -11,7 +11,7 @@ import {
 	validateStoredSelectionState,
 	unreactiveInfo,
 } from '@app/lib/globals'
-import type { AlveolusType } from '@ssh/lib/types/base'
+import type { AlveolusType } from 'ssh/src/lib/types/base'
 
 css`
 	.dockview-widget--game {

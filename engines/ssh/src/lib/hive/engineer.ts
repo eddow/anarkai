@@ -1,13 +1,13 @@
 import { reactive } from 'mutts'
-import { Alveolus } from '$lib/board/content/alveolus'
-import { UnBuiltLand } from '$lib/board/content/unbuilt-land'
-import type { Tile } from '$lib/board/tile'
-import { BuildAlveolus } from '$lib/hive/build'
-import type { Character } from '$lib/population/character'
-import { SlottedStorage } from '$lib/storage/slotted-storage'
-import type { ConstructJob, FoundationJob } from '$lib/types/base'
-import type { GoodsRelations } from '$lib/utils/advertisement'
-import { toAxialCoord } from '$lib/utils/position'
+import { Alveolus } from 'ssh/src/lib/board/content/alveolus'
+import { UnBuiltLand } from 'ssh/src/lib/board/content/unbuilt-land'
+import type { Tile } from 'ssh/src/lib/board/tile'
+import { BuildAlveolus } from 'ssh/src/lib/hive/build'
+import type { Character } from 'ssh/src/lib/population/character'
+import { SlottedStorage } from 'ssh/src/lib/storage/slotted-storage'
+import type { ConstructJob, FoundationJob } from 'ssh/src/lib/types/base'
+import type { GoodsRelations } from 'ssh/src/lib/utils/advertisement'
+import { toAxialCoord } from 'ssh/src/lib/utils/position'
 
 @reactive
 export class EngineerAlveolus extends Alveolus {

@@ -1,6 +1,6 @@
 import { Container, Sprite } from 'pixi.js'
 import { namedEffect } from 'ssh/src/lib/debug'
-import type { UnBuiltLand } from 'ssh/src/lib/game/board/content/unbuilt-land'
+import type { UnBuiltLand } from 'ssh/src/lib/board/content/unbuilt-land'
 import { tileSize } from 'ssh/src/lib/utils/varied'
 import { toAxialCoord, toWorldCoord } from 'ssh/src/lib/utils/position'
 import { LCG, subSeed } from 'ssh/src/lib/utils/numbers'

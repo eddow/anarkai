@@ -1,9 +1,9 @@
 import { scope, type } from 'arktype'
-import { TileBorder } from '$lib/board/border/border'
-import { Alveolus } from '$lib/board/content/alveolus'
-import { TileContent } from '$lib/board/content/content'
-import { Tile } from '$lib/board/tile'
-import { HarvestAlveolus } from '$lib/hive/harvest'
+import { TileBorder } from 'ssh/src/lib/board/border/border'
+import { Alveolus } from 'ssh/src/lib/board/content/alveolus'
+import { TileContent } from 'ssh/src/lib/board/content/content'
+import { Tile } from 'ssh/src/lib/board/tile'
+import { HarvestAlveolus } from 'ssh/src/lib/hive/harvest'
 import { baseGameScope } from './base'
 
 console.log('HarvestAlveolus during registration:', HarvestAlveolus)

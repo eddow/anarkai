@@ -30,14 +30,20 @@
 		],
 		"baseUrl": ".",
 		"paths": {
+			"@ssh/assets/*": [
+				"../../engines/ssh/assets/*"
+			],
+			"@ssh/app/*": [
+				"../../engines/ssh/src/*"
+			],
 			"@ssh/*": [
-				"./node_modules/ssh/src/*"
+				"../../engines/ssh/src/*"
 			],
 			"$lib/*": [
-				"./node_modules/ssh/src/lib/*"
+				"./src/lib/*"
 			],
 			"$assets/*": [
-				"./node_modules/ssh/assets/*"
+				"./assets/*"
 			],
 			"@app/*": [
 				"./src/*"

@@ -8,14 +8,14 @@ import {
 	type Operators,
 	ScriptExecutor,
 } from 'npc-script'
-import { axial, epsilon } from '$lib/utils'
+import { axial, epsilon } from 'ssh/src/lib/utils'
 import {
 	Position,
 	Positioned,
 	positionLerp,
 	positionRoughlyEquals,
 	toAxialCoord,
-} from '$lib/utils/position'
+} from 'ssh/src/lib/utils/position'
 
 const equals = match({})
 	.case([Positioned, Positioned], ([left, right]) => positionRoughlyEquals(left, right))

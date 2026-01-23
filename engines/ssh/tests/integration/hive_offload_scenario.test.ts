@@ -1,6 +1,6 @@
 
 import { describe, it, expect } from 'vitest'
-import { TestEngine } from '@app/test-engine'
+import { TestEngine } from 'ssh/src/test-engine'
 
 describe('Hive Offload Scenario', () => {
 

@@ -1,6 +1,6 @@
 import { effect, reactive } from 'mutts'
-import type { Game } from '@ssh/lib/game'
-import { computeStyleFromTexture } from '@ssh/lib/utils/images'
+import type { Game } from 'ssh/src/lib/game'
+import { computeStyleFromTexture } from 'ssh/src/lib/utils/images'
 
 type ResourceImageProps = {
 	game: Game | undefined

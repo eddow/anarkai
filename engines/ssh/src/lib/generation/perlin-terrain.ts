@@ -3,8 +3,8 @@
  * Based on Ken Perlin's improved noise algorithm
  */
 
-import type { TerrainType } from '$lib/types'
-import type { AxialCoord } from '$lib/utils/axial'
+import type { TerrainType } from 'ssh/src/lib/types'
+import type { AxialCoord } from 'ssh/src/lib/utils/axial'
 
 export interface TerrainConfig {
 	// Noise parameters

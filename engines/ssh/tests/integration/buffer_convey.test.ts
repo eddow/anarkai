@@ -1,9 +1,9 @@
 
 import { describe, it, expect } from 'vitest'
-import { TestEngine } from '@app/test-engine'
-import { SaveState } from '$lib/game';
-import { axial } from '$lib/utils/axial';
-import type { StorageAlveolus } from '$lib/hive/storage';
+import { TestEngine } from 'ssh/src/test-engine'
+import { SaveState } from 'ssh/src/lib/game';
+import { axial } from 'ssh/src/lib/utils/axial';
+import type { StorageAlveolus } from 'ssh/src/lib/hive/storage';
 
 describe('Storage Buffering', () => {
     

@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { Game } from '$lib/game/game'
-import { Character } from '$lib/population/character'
-import { InventoryFunctions } from '$lib/npcs/context/inventory'
-import { subject } from '$lib/npcs/scripts'
-import type { Tile } from '$lib/board/tile'
+import { Game } from 'ssh/src/lib/game/game'
+import { Character } from 'ssh/src/lib/population/character'
+import { InventoryFunctions } from 'ssh/src/lib/npcs/context/inventory'
+import { subject } from 'ssh/src/lib/npcs/scripts'
+import type { Tile } from 'ssh/src/lib/board/tile'
 
 // Mock Game.prototype.getTexture before imports
 // We still need to patch Game definition because it's not a global, it's a class from valid import.
@@ -18,7 +18,7 @@ import type { Tile } from '$lib/board/tile'
 
 // Mock dependencies
 // ... rest of mocks
-vi.mock('$assets/game-content', () => {
+vi.mock('ssh/assets/game-content', () => {
     const defaultTerrain = { walkTime: 1, generation: { deposits: {} } }
     const terrainProxy = new Proxy({}, {
         get: (target, prop) => defaultTerrain

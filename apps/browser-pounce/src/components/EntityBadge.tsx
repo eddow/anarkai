@@ -1,5 +1,5 @@
 import ResourceImage from './ResourceImage'
-import type { Game } from '@ssh/lib/game'
+import type { Game } from 'ssh/src/lib/game'
 import { css } from '@app/lib/css'
 
 css`

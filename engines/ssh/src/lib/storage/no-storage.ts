@@ -1,4 +1,4 @@
-import type { Goods, GoodType } from '$lib/types/base'
+import type { Goods, GoodType } from 'ssh/src/lib/types/base'
 import { AllocationError } from './guard'
 import { Storage } from './storage'
 import type { RenderedGoodSlots } from './types'

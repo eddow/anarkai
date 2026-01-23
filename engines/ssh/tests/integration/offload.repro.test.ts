@@ -1,7 +1,7 @@
 
 import { describe, it, expect, vi } from 'vitest'
-import { Game } from '$lib/game'
-import { InventoryFunctions } from '$lib/npcs/context/inventory'
+import { Game } from 'ssh/src/lib/game'
+import { InventoryFunctions } from 'ssh/src/lib/npcs/context/inventory'
 
 // Mock environment
 if (typeof document === 'undefined') {
@@ -22,8 +22,8 @@ if (typeof navigator === 'undefined') (global as any).navigator = { userAgent: '
 if (typeof requestAnimationFrame === 'undefined') (global as any).requestAnimationFrame = (cb: any) => setTimeout(cb, 16)
 
 // Mock assets/resources
-vi.mock('$assets/resources', () => ({ resources: {}, prefix: '' }))
-vi.mock('$assets/game-content', () => ({
+vi.mock('ssh/assets/resources', () => ({ resources: {}, prefix: '' }))
+vi.mock('ssh/assets/game-content', () => ({
     vehicles: { 'by-hands': { storage: { slots: 10, capacity: 100 } } },
     goods: { wood: {}, stone: {}, food: { feedingValue: 1 } },
     terrain: new Proxy({}, { get: () => ({ walkTime: 1, generation: { deposits: {} } }) }),

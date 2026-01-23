@@ -1,11 +1,11 @@
-import type { GoodType } from '@ssh/lib/types/base'
+import type { GoodType } from 'ssh/src/lib/types/base'
 import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
 import { Button } from 'pounce-ui/src'
 import { mdiClose } from 'pure-glyf/icons'
 import EntityBadge from '../EntityBadge'
 import AddGoodButton from './AddGoodButton'
 import { css } from '@app/lib/css'
-import type { Game } from '@ssh/lib/game'
+import type { Game } from 'ssh/src/lib/game'
 
 css`
 .good-multi-select {

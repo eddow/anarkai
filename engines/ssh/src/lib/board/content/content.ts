@@ -1,5 +1,5 @@
-import { GameObject } from '$lib/game/object'
-import type { Storage } from '$lib/storage/storage'
+import { GameObject } from 'ssh/src/lib/game/object'
+import type { Storage } from 'ssh/src/lib/storage/storage'
 import type { Tile } from '../tile'
 
 export abstract class TileContent extends GameObject {

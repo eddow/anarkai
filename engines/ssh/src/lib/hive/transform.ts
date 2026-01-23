@@ -1,12 +1,12 @@
 import { memoize, reactive } from 'mutts'
-import { inputBufferSize, outputBufferSize } from '$assets/constants'
-import { Alveolus } from '$lib/board/content/alveolus'
-import { multiplyGoodsQty } from '$lib/board/content/utils'
-import type { Tile } from '$lib/board/tile'
-import type { Character } from '$lib/population/character'
-import { SpecificStorage } from '$lib/storage'
-import type { GoodType, TransformJob } from '$lib/types/base'
-import { type GoodsRelations, maxPriority } from '$lib/utils/advertisement'
+import { inputBufferSize, outputBufferSize } from '../../../assets/constants'
+import { Alveolus } from 'ssh/src/lib/board/content/alveolus'
+import { multiplyGoodsQty } from 'ssh/src/lib/board/content/utils'
+import type { Tile } from 'ssh/src/lib/board/tile'
+import type { Character } from 'ssh/src/lib/population/character'
+import { SpecificStorage } from 'ssh/src/lib/storage'
+import type { GoodType, TransformJob } from 'ssh/src/lib/types/base'
+import { type GoodsRelations, maxPriority } from 'ssh/src/lib/utils/advertisement'
 
 @reactive
 export class TransformAlveolus extends Alveolus {

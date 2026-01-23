@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
-import { Game } from '$lib/game'
-import { UnBuiltLand, Deposit } from '$lib/board/content/unbuilt-land'
-import { toAxialCoord } from '$lib/utils/position'
+import { Game } from 'ssh/src/lib/game'
+import { UnBuiltLand, Deposit } from 'ssh/src/lib/board/content/unbuilt-land'
+import { toAxialCoord } from 'ssh/src/lib/utils/position'
 
 // Mock DOM/Pixi environment for Node
 if (typeof document === 'undefined') {
@@ -10,8 +10,8 @@ if (typeof document === 'undefined') {
 }
 if (typeof window === 'undefined') { ;(global as any).window = global }
 
-vi.mock('$assets/resources', () => ({ resources: {}, prefix: '' }))
-vi.mock('$assets/game-content', () => ({
+vi.mock('ssh/assets/resources', () => ({ resources: {}, prefix: '' }))
+vi.mock('ssh/assets/game-content', () => ({
     vehicles: { 'by-hands': { storage: { slots: 10, capacity: 100 } } },
     goods: { wood: {} },
     terrain: new Proxy({}, { get: () => ({ walkTime: 1, generation: { deposits: {} } }) }),

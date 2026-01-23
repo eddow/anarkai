@@ -58,17 +58,17 @@ if (typeof fetch === 'undefined' || true) {
 }
 
 import { describe, it, expect, vi } from 'vitest'
-import { Game } from '$lib/game/game'
-import { MoveToStep, EatStep, DurationStep, MultiMoveStep } from '$lib/npcs/steps'
-import { toAxialCoord } from '$lib/utils/position'
+import { Game } from 'ssh/src/lib/game/game'
+import { MoveToStep, EatStep, DurationStep, MultiMoveStep } from 'ssh/src/lib/npcs/steps'
+import { toAxialCoord } from 'ssh/src/lib/utils/position'
 
 // Mock assets/resources
-vi.mock('$assets/resources', () => ({
+vi.mock('ssh/assets/resources', () => ({
     resources: {}, 
     prefix: ''
 }))
 
-vi.mock('$assets/game-content', () => {
+vi.mock('ssh/assets/game-content', () => {
     const defaultTerrain = { walkTime: 1, generation: { deposits: {} }, sprites: ['grass.png'] }
     const terrainProxy = new Proxy({}, {
         get: (target, prop) => defaultTerrain

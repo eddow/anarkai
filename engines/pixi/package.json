@@ -3,6 +3,7 @@
 	"version": "0.0.0",
 	"type": "module",
 	"exports": {
+		"./assets/*": "./assets/*",
 		"./src/*": "./src/*",
 		"./package.json": "./package.json",
 		"./vite-plugins": {

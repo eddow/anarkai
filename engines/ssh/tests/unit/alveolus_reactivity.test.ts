@@ -1,14 +1,14 @@
 
 import { describe, it, expect, vi } from 'vitest'
 import { effect, reactive } from 'mutts'
-import { Alveolus } from '$lib/board/content/alveolus'
-import { Hive } from '$lib/hive/hive'
-import { Tile } from '$lib/board/tile'
-import { SlottedStorage } from '$lib/storage/slotted-storage'
-import { Game } from '$lib/game'
+import { Alveolus } from 'ssh/src/lib/board/content/alveolus'
+import { Hive } from 'ssh/src/lib/hive/hive'
+import { Tile } from 'ssh/src/lib/board/tile'
+import { SlottedStorage } from 'ssh/src/lib/storage/slotted-storage'
+import { Game } from 'ssh/src/lib/game'
 
 // Mock dependencies
-vi.mock('$assets/game-content', () => ({
+vi.mock('ssh/assets/game-content', () => ({
     alveoli: { test: { action: { type: 'storage' } } },
     deposits: {},
     goods: { wood: { sprites: [] } },
@@ -20,7 +20,7 @@ vi.mock('$assets/game-content', () => ({
 }))
 
 // We need to allow real namedEffect for reactivity to work
-vi.mock('$lib/debug', async () => {
+vi.mock('ssh/src/lib/debug', async () => {
     return {
         assert: () => {},
         namedEffect: (name: string, fn: () => void) => {

@@ -1,6 +1,6 @@
-import { vehicles } from '$assets/game-content'
-import { GcClassed, GcClasses } from '$lib/board/content/utils'
-import { SlottedStorage, SpecificStorage, type Storage } from '$lib/storage'
+import { vehicles } from '../../../../assets/game-content'
+import { GcClassed, GcClasses } from 'ssh/src/lib/board/content/utils'
+import { SlottedStorage, SpecificStorage, type Storage } from 'ssh/src/lib/storage'
 import type { Character } from '../character'
 export class Vehicle extends GcClassed<Omit<Ssh.VehicleDefinition, 'storage'>>() {
 	static class = GcClasses(() => Vehicle, vehicles)

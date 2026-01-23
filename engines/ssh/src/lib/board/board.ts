@@ -1,10 +1,10 @@
 import { reactive } from 'mutts'
 
-import { assert } from '$lib/debug'
-import type { Game } from '$lib/game'
-import { GameObject, withContainer, withHittable } from '$lib/game/object'
-import { QueueStep } from '$lib/npcs'
-import type { Character } from '$lib/population'
+import { assert } from 'ssh/src/lib/debug'
+import type { Game } from 'ssh/src/lib/game'
+import { GameObject, withContainer, withHittable } from 'ssh/src/lib/game/object'
+import { QueueStep } from 'ssh/src/lib/npcs'
+import type { Character } from 'ssh/src/lib/population'
 import {
 	type AxialCoord,
 	axial,
@@ -18,8 +18,8 @@ import {
 	type Scoring,
 	tileSize,
 	toAxialCoord,
-} from '$lib/utils'
-import { AxialKeyMap } from '$lib/utils/mem'
+} from 'ssh/src/lib/utils'
+import { AxialKeyMap } from 'ssh/src/lib/utils/mem'
 import { TileBorder, type TileBorderContent } from './border/border'
 import type { TileContent } from './content/content'
 import { FreeGoods } from './freeGoods'

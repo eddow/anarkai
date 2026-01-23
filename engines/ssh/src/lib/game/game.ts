@@ -1,26 +1,26 @@
 import { Eventful, reactive, unreactive } from 'mutts'
-import * as gameContent from '$assets/game-content'
-import { Alveolus } from '$lib/board'
-import { HexBoard } from '$lib/board/board'
-import { Deposit, UnBuiltLand } from '$lib/board/content/unbuilt-land'
-import { Tile } from '$lib/board/tile'
-import type { Zone } from '$lib/board/zone'
-import { assert } from '$lib/debug'
+import * as gameContent from '../../../assets/game-content'
+import { Alveolus } from 'ssh/src/lib/board'
+import { HexBoard } from 'ssh/src/lib/board/board'
+import { Deposit, UnBuiltLand } from 'ssh/src/lib/board/content/unbuilt-land'
+import { Tile } from 'ssh/src/lib/board/tile'
+import type { Zone } from 'ssh/src/lib/board/zone'
+import { assert } from 'ssh/src/lib/debug'
 import {
 	type GameGenerationConfig,
 	GameGenerator,
 	type GeneratedCharacterData,
 	type GeneratedTileData,
-} from '$lib/generation'
-import { configuration } from '$lib/globals'
-import { AlveolusConfigurationManager, alveolusClass, Hive } from '$lib/hive'
-import { mrg } from '$lib/interactive-state'
-import { Population } from '$lib/population/population'
-import type { AlveolusType, DepositType, GoodType } from '$lib/types'
-import type { GameRenderer, InputAdapter } from '$lib/types/engine'
-import { axial } from '$lib/utils/axial'
-import { SimulationLoop } from '$lib/utils/loop'
-import { LCG } from '$lib/utils/numbers'
+} from 'ssh/src/lib/generation'
+import { configuration } from 'ssh/src/lib/globals'
+import { AlveolusConfigurationManager, alveolusClass, Hive } from 'ssh/src/lib/hive'
+import { mrg } from 'ssh/src/lib/interactive-state'
+import { Population } from 'ssh/src/lib/population/population'
+import type { AlveolusType, DepositType, GoodType } from 'ssh/src/lib/types'
+import type { GameRenderer, InputAdapter } from 'ssh/src/lib/types/engine'
+import { axial } from 'ssh/src/lib/utils/axial'
+import { SimulationLoop } from 'ssh/src/lib/utils/loop'
+import { LCG } from 'ssh/src/lib/utils/numbers'
 import type { HittableGameObject, InteractiveGameObject } from './object'
 
 try {

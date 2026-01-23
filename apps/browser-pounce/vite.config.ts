@@ -1,12 +1,12 @@
 import { dirname, resolve as resolvePath } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { commonEsbuild, commonOptimizeDeps, getCommonAliases } from 'engine-pixi/vite-config'
+import { commonEsbuild, commonOptimizeDeps } from 'engine-pixi/vite-config'
 import { servePixiAssets } from 'engine-pixi/vite-plugins'
 import { babelPluginJsxReactive } from 'pounce-ts/plugin'
 import { pureGlyfPlugin } from 'pure-glyf/plugin'
 import { defineConfig, type Plugin } from 'vite'
 import babel from 'vite-plugin-babel'
-import { cssTagPlugin } from 'ssh/vite-plugin-css-tag'
+import { cssTagPlugin } from '../../engines/ssh/vite-plugin-css-tag'
 
 const projectRootDir = dirname(fileURLToPath(import.meta.url))
 
@@ -24,6 +24,30 @@ function stripDeclare(): Plugin {
 }
 
 void stripDeclare
+
+const aliases = {
+	'@app': resolvePath(projectRootDir, 'src'),
+	'$lib': resolvePath(projectRootDir, 'src/lib'),
+	'$assets': resolvePath(projectRootDir, 'assets'),
+
+	// Workspace Packages (Source Mapping)
+	'ssh': resolvePath(projectRootDir, '../../engines/ssh'),
+	'engine-pixi': resolvePath(projectRootDir, '../../engines/pixi'),
+	
+	// Fallbacks/Legacy
+	'mutts': resolvePath(projectRootDir, '../../../ownk/mutts/src'),
+	'@pounce': resolvePath(projectRootDir, 'node_modules/pounce-ts/src'),
+
+	// Fix dockview and picocss resolution
+	'@picocss/pico': resolvePath(
+		projectRootDir,
+		'../../node_modules/.pnpm/@picocss+pico@2.1.1/node_modules/@picocss/pico',
+	),
+	'dockview-core': resolvePath(
+		projectRootDir,
+		'../../node_modules/.pnpm/dockview-core@4.12.0/node_modules/dockview-core',
+	),
+}
 
 export default defineConfig({
 	plugins: [
@@ -74,23 +98,7 @@ export default defineConfig({
 		}),
 	],
 	resolve: {
-		alias: {
-			...getCommonAliases(projectRootDir),
-			'@app': resolvePath(projectRootDir, 'src'),
-			'@pounce': resolvePath(projectRootDir, 'node_modules/pounce-ts/src'),
-			'@picocss/pico': resolvePath(
-				projectRootDir,
-				'../../node_modules/.pnpm/@picocss+pico@2.1.1/node_modules/@picocss/pico',
-			),
-
-			'dockview-core': resolvePath(
-				projectRootDir,
-				'../../node_modules/.pnpm/dockview-core@4.12.0/node_modules/dockview-core',
-			),
-			mutts: resolvePath(projectRootDir, '../../../ownk/mutts/src'),
-			$lib: resolvePath(projectRootDir, 'src/lib'),
-			$assets: resolvePath(projectRootDir, 'assets'),
-		},
+		alias: aliases,
 		preserveSymlinks: false,
 	},
 	server: {
@@ -110,10 +118,7 @@ export default defineConfig({
 	optimizeDeps: {
 		esbuildOptions: {
 			...commonEsbuild,
-			alias: {
-				...getCommonAliases(projectRootDir),
-				'@app': resolvePath(projectRootDir, 'src'),
-			},
+			alias: aliases,
 		},
 		...commonOptimizeDeps,
 	},

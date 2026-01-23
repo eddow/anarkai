@@ -1,9 +1,9 @@
 import { effect, reactive, watch, untracked } from 'mutts'
 
-import type { InteractiveGameObject } from '@ssh/lib/game'
+import type { InteractiveGameObject } from 'ssh/src/lib/game'
 import { css } from '@app/lib/css'
-import { Character } from '@ssh/lib/population/character'
-import { Tile } from '@ssh/lib/board/tile'
+import { Character } from 'ssh/src/lib/population/character'
+import { Tile } from 'ssh/src/lib/board/tile'
 import {
 	games,
 	selectionState,
@@ -13,7 +13,7 @@ import {
 import type { DockviewApi, DockviewPanelApi } from 'dockview-core'
 import CharacterProperties from '../components/CharacterProperties'
 import TileProperties from '../components/TileProperties'
-import { toWorldCoord } from '@ssh/lib/utils/position' // Added import for GoTo logic
+import { toWorldCoord } from 'ssh/src/lib/utils/position' // Added import for GoTo logic
 import { Button, ButtonGroup } from 'pounce-ui/src' // Added import for buttons
 import { mdiEye, mdiPin, mdiPencil } from 'pure-glyf/icons'
 

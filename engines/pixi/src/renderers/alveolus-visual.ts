@@ -1,6 +1,6 @@
 import { Container, Sprite } from 'pixi.js'
 import { namedEffect } from 'ssh/src/lib/debug'
-import type { Alveolus } from 'ssh/src/lib/game/board/content/alveolus'
+import type { Alveolus } from 'ssh/src/lib/board/content/alveolus'
 import { toWorldCoord } from 'ssh/src/lib/utils/position'
 import { tileSize } from 'ssh/src/lib/utils/varied'
 import { alveoli } from '../../assets/visual-content'

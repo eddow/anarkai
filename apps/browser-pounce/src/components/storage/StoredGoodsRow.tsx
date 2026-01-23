@@ -1,15 +1,15 @@
 import { derived, reactive } from 'mutts'
 import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
-import type { Alveolus } from '@ssh/lib/board/content/alveolus'
-import type { GoodType } from '@ssh/lib/types/base'
+import type { Alveolus } from 'ssh/src/lib/board/content/alveolus'
+import type { GoodType } from 'ssh/src/lib/types/base'
 
 import PropertyGridRow from '../PropertyGridRow'
 import EntityBadge from '../EntityBadge'
 import { Button } from 'pounce-ui/src'
 import { mdiBroom, mdiCloseCircleOutline } from 'pure-glyf/icons'
-import { T } from '@ssh/lib/i18n'
+import { T } from 'ssh/src/lib/i18n'
 import { css } from '@app/lib/css'
-import type { Game } from '@ssh/lib/game'
+import type { Game } from 'ssh/src/lib/game'
 
 css`
 .stored-goods-row {

@@ -2,10 +2,10 @@ import { vi } from 'vitest'
 
 export function loadStandardMocks() {
 	// Mock $assets/resources
-	vi.mock('$assets/resources', () => ({ resources: {}, prefix: '' }))
+	vi.mock('../../assets/resources', () => ({ resources: {}, prefix: '' }))
 
 	// Mock $assets/game-content
-	vi.mock('$assets/game-content', () => {
+	vi.mock('../../assets/game-content', () => {
 		return {
 			vehicles: {
 				'by-hands': { storage: { slots: 10, capacity: 100 }, transferTime: 1 },
@@ -60,6 +60,15 @@ export function loadStandardMocks() {
 					workTime: 0,
 					action: { type: 'specific-storage', goods: { wood: 24 } },
 					construction: { goods: { wood: 10 }, time: 4 },
+				},
+			},
+			configurations: {
+				'specific-storage': {
+					working: true,
+					buffers: {},
+				},
+				default: {
+					working: true,
 				},
 			},
 		}

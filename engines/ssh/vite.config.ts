@@ -2,7 +2,7 @@ import { dirname, resolve as resolvePath } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig, type Plugin } from 'vite'
 import babel from 'vite-plugin-babel'
-import { cssTagPlugin } from './vite-plugin-css-tag'
+import { cssTagPlugin } from './vite-plugin-css-tag.ts'
 
 const projectRootDir = dirname(fileURLToPath(import.meta.url))
 function stripDeclare(): Plugin {

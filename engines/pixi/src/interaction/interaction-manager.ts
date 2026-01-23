@@ -1,7 +1,7 @@
 import { type FederatedPointerEvent, type FederatedWheelEvent, type Application, type Container } from 'pixi.js'
 import type { Game } from 'ssh/src/lib/game/game'
 import type { InteractiveGameObject } from 'ssh/src/lib/game/object'
-import { Tile } from 'ssh/src/lib/game/board/tile'
+import { Tile } from 'ssh/src/lib/board/tile'
 import { interactionMode } from 'ssh/src/lib/interactive-state'
 
 /**

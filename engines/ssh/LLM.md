@@ -1,0 +1,1 @@
+- Hives: set of (hex-)adjacent alveolii. All alveolus should be reachable from any other alveolus in the same hive, moving one tile at a time. No two hives should be adjacent.

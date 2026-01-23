@@ -1,10 +1,10 @@
 import { reactive } from 'mutts'
 import type { DockviewWidgetProps } from 'pounce-ui/src'
 import StorageConfiguration from '../components/storage/StorageConfiguration.tsx'
-import { SlottedStorage } from '@ssh/lib/storage/slotted-storage'
-import { SpecificStorage } from '@ssh/lib/storage/specific-storage'
-import type { StorageAlveolus } from '@ssh/lib/hive/storage'
-import { configurations } from '$assets/game-content'
+import { SlottedStorage } from 'ssh/src/lib/storage/slotted-storage'
+import { SpecificStorage } from 'ssh/src/lib/storage/specific-storage'
+import type { StorageAlveolus } from 'ssh/src/lib/hive/storage'
+import { configurations } from 'ssh/assets/game-content'
 import { games } from '@app/lib/globals'
 
 // Mocking storage classes purely for the UI test if real ones aren't fully instantiable without game context.

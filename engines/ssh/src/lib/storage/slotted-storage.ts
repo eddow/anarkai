@@ -1,6 +1,6 @@
 import { atomic, memoize, reactive, unreactive } from 'mutts'
-import { assert } from '$lib/debug'
-import type { Goods, GoodType } from '$lib/types/base'
+import { assert } from 'ssh/src/lib/debug'
+import type { Goods, GoodType } from 'ssh/src/lib/types/base'
 import {
 	AllocationError,
 	allocationEnded,

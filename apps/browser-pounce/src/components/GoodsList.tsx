@@ -1,9 +1,9 @@
 import { goods as visualGoods } from 'engine-pixi/assets/visual-content'
 import EntityBadge from './EntityBadge'
 import { css } from '@app/lib/css'
-import type { Game } from '@ssh/lib/game'
-import type { GoodType } from '@ssh/lib/types/base'
-import { T } from '@ssh/lib/i18n'
+import type { Game } from 'ssh/src/lib/game'
+import type { GoodType } from 'ssh/src/lib/types/base'
+import { T } from 'ssh/src/lib/i18n'
 import { reactive } from 'mutts'
 
 css`

@@ -1,5 +1,5 @@
 import { ReactiveBase } from 'mutts'
-import type { Goods, GoodType } from '$lib/types/base'
+import type { Goods, GoodType } from 'ssh/src/lib/types/base'
 import type { RenderedGoodSlots } from './types'
 
 export interface AllocationBase {

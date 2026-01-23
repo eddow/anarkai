@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { TestEngine } from '@app/test-engine'
+import { TestEngine } from 'ssh/src/test-engine'
 import { batch } from 'mutts'
-import type { SaveState } from '$lib/game'
+import type { SaveState } from 'ssh/src/lib/game'
 
 describe('Atomicity & Environment Investigation', () => {
     
@@ -70,7 +70,8 @@ describe('Atomicity & Environment Investigation', () => {
             } else {
                 engine.tick(dt, dt);
             }
-
+            // Yield to event loop to allow microtasks (hive advertising/movement creation) to run
+            await new Promise(resolve => setTimeout(resolve, 0))
         }
 
         let freeBerries = 0;

@@ -1,4 +1,4 @@
-import type { GoodType } from '$lib/types/base'
+import type { GoodType } from 'ssh/src/lib/types/base'
 
 export interface RenderedGoodSlot {
 	goodType: GoodType

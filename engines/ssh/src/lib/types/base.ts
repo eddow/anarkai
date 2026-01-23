@@ -1,8 +1,8 @@
 import { scope, type } from 'arktype'
-import { alveoli, deposits, goods as goodsCatalog, terrain } from '$assets/game-content'
-import type { TileContent } from '$lib/board'
-import type { AllocationBase } from '$lib/storage/storage'
-import { type Positioned, positionScope } from '$lib/utils'
+import { alveoli, deposits, goods as goodsCatalog, terrain } from '../../../assets/game-content'
+import type { TileContent } from 'ssh/src/lib/board'
+import type { AllocationBase } from 'ssh/src/lib/storage/storage'
+import { type Positioned, positionScope } from 'ssh/src/lib/utils'
 
 /**
  * Base Game Scope

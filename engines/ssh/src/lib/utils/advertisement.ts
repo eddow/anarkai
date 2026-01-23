@@ -1,6 +1,6 @@
-import { goods as goodsCatalog } from '$assets/game-content'
-import { assert } from '$lib/debug'
-import type { GoodType } from '$lib/types'
+import { goods as goodsCatalog } from '../../../assets/game-content'
+import { assert } from 'ssh/src/lib/debug'
+import type { GoodType } from 'ssh/src/lib/types'
 
 export type ExchangePriority = '0-store' | '1-buffer' | '2-use'
 export type Advertisement = 'demand' | 'provide'

@@ -1,18 +1,18 @@
 import { atomic, reactive, unreactive, untracked } from 'mutts'
 
-import { goods } from '$assets/game-content'
-import { assert } from '$lib/debug'
-import { GameObject, withTicked } from '$lib/game/object'
+import { goods } from '../../../assets/game-content'
+import { assert } from 'ssh/src/lib/debug'
+import { GameObject, withTicked } from 'ssh/src/lib/game/object'
 import {
 	allocationEnded,
 	guardAllocation,
 	invalidateAllocation,
 	isAllocationValid,
-} from '$lib/storage/guard'
-import type { GoodType } from '$lib/types'
-import { epsilon } from '$lib/utils'
-import { AxialKeyMap } from '$lib/utils/mem'
-import { axialDistance, type Position, type Positioned, toAxialCoord } from '$lib/utils/position'
+} from 'ssh/src/lib/storage/guard'
+import type { GoodType } from 'ssh/src/lib/types'
+import { epsilon } from 'ssh/src/lib/utils'
+import { AxialKeyMap } from 'ssh/src/lib/utils/mem'
+import { axialDistance, type Position, type Positioned, toAxialCoord } from 'ssh/src/lib/utils/position'
 
 @unreactive
 class FreeGoodAllocation {

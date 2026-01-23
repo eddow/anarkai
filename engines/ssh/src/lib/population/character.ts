@@ -1,14 +1,14 @@
 import { reactive } from 'mutts'
-import { characterEvolutionRates, characterTriggerLevels, maxWalkTime } from '$assets/constants'
-import { goods as goodsCatalog } from '$assets/game-content'
-import type { Alveolus } from '$lib/board/content/alveolus'
-import type { Tile } from '$lib/board/tile'
-import { assert } from '$lib/debug'
-import type { Game } from '$lib/game'
-import type { Storage } from '$lib/storage'
-import type { GoodType, Job, WorkPlan } from '$lib/types/base'
-import { type AxialCoord, axial, maxBy, type Positioned } from '$lib/utils'
-import { axialDistance, type Position, toAxialCoord } from '$lib/utils/position'
+import { characterEvolutionRates, characterTriggerLevels, maxWalkTime } from '../../../assets/constants'
+import { goods as goodsCatalog } from '../../../assets/game-content'
+import type { Alveolus } from 'ssh/src/lib/board/content/alveolus'
+import type { Tile } from 'ssh/src/lib/board/tile'
+import { assert } from 'ssh/src/lib/debug'
+import type { Game } from 'ssh/src/lib/game'
+import type { Storage } from 'ssh/src/lib/storage'
+import type { GoodType, Job, WorkPlan } from 'ssh/src/lib/types/base'
+import { type AxialCoord, axial, maxBy, type Positioned } from 'ssh/src/lib/utils'
+import { axialDistance, type Position, toAxialCoord } from 'ssh/src/lib/utils/position'
 
 // Simple job scoring functions
 function calculateJobScore(_character: Character, job: Job): number {
@@ -18,12 +18,12 @@ function bestPossibleJobScore(_character: Character): number {
 	return 3
 }
 
-import { GameObject, withInteractive, withTicked } from '$lib/game/object'
-import { gameIsaTypes } from '$lib/npcs'
-import aCharacterContext from '$lib/npcs/context'
-import { withScripted } from '$lib/npcs/object'
+import { GameObject, withInteractive, withTicked } from 'ssh/src/lib/game/object'
+import { gameIsaTypes } from 'ssh/src/lib/npcs'
+import aCharacterContext from 'ssh/src/lib/npcs/context'
+import { withScripted } from 'ssh/src/lib/npcs/object'
 // biome-ignore lint/correctness/noUnusedImports: We need `subject` for mixins tranquility: all propertyKeys are known
-import type { ScriptExecution } from '$lib/npcs/scripts'
+import type { ScriptExecution } from 'ssh/src/lib/npcs/scripts'
 import { Vehicle } from './vehicle/vehicle'
 
 @reactive
@@ -166,12 +166,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			Object.entries(this.carry.availables) as [GoodType, number][],
 			([goodType, available]) => {
 				const feedingValue = (goodsCatalog[goodType] as any).feedingValue
-				if (!feedingValue || available < 0.1) return undefined
-
-				if (available < 0.9) {
-					// Only log if it's a significant decay that we are about to eat
-					this.log('character.eatingFractional', { goodType, available })
-				}
+				if (!feedingValue || available < 1) return undefined
 
 				return feedingValue as number
 			},

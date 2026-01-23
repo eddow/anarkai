@@ -1,8 +1,8 @@
 // Library used by Pixi
 import EventEmitter from 'eventemitter3'
 import { ReactiveBase, reactive, unreactive, unwrap } from 'mutts'
-import type { Tile } from '$lib/board/tile'
-import type { Position } from '$lib/utils/position'
+import type { Tile } from 'ssh/src/lib/board/tile'
+import type { Position } from 'ssh/src/lib/utils/position'
 import type { Game } from './game'
 
 // All pixi objects extend this `EventEmitter` and should be unreactive

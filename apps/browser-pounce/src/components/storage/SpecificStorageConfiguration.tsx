@@ -1,8 +1,8 @@
 
-import type { GoodType } from '@ssh/lib/types/base'
+import type { GoodType } from 'ssh/src/lib/types/base'
 import { Stars } from 'pounce-ui/src'
 import { css } from '@app/lib/css'
-import type { Game } from '@ssh/lib/game'
+import type { Game } from 'ssh/src/lib/game'
 import PropertyGridRow from '../PropertyGridRow'
 import ResourceImage from '../ResourceImage'
 import { tablerOutlinePackage, tablerOutlinePackageOff } from 'pure-glyf/icons'

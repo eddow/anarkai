@@ -1,8 +1,8 @@
 import { unreactive } from 'mutts'
-import { GameObject } from '$lib/game/object'
-import type { Storage } from '$lib/storage/storage'
-import type { Positioned } from '$lib/utils'
-import { type Position, toAxialCoord } from '$lib/utils/position'
+import { GameObject } from 'ssh/src/lib/game/object'
+import type { Storage } from 'ssh/src/lib/storage/storage'
+import type { Positioned } from 'ssh/src/lib/utils'
+import { type Position, toAxialCoord } from 'ssh/src/lib/utils/position'
 import type { HexBoard } from '../board'
 import type { Tile } from '../tile'
 

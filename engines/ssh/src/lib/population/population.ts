@@ -1,7 +1,7 @@
-import type { Game } from '$lib/game/game'
-import { GameObject, withContainer, withHittable } from '$lib/game/object'
-import { type AxialCoord, toAxialCoord } from '$lib/utils'
-import { type RandGenerator, uuid } from '$lib/utils/numbers'
+import type { Game } from 'ssh/src/lib/game/game'
+import { GameObject, withContainer, withHittable } from 'ssh/src/lib/game/object'
+import { type AxialCoord, toAxialCoord } from 'ssh/src/lib/utils'
+import { type RandGenerator, uuid } from 'ssh/src/lib/utils/numbers'
 import { Character } from './character'
 
 export class Population extends withContainer(withHittable(GameObject)) {

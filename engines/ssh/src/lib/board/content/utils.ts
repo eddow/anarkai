@@ -1,5 +1,5 @@
 import { reactive } from 'mutts'
-import type { GoodType } from '$lib/types'
+import type { GoodType } from 'ssh/src/lib/types'
 
 type Ctor<T extends object = any> = new (...args: any[]) => T
 

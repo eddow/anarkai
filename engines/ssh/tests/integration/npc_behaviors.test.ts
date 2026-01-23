@@ -1,8 +1,8 @@
 
 import { describe, it, expect } from 'vitest'
-import { TestEngine } from '@app/test-engine'
-import { UnBuiltLand } from '$lib/board/content/unbuilt-land'
-import { GoodType } from '$lib/types';
+import { TestEngine } from 'ssh/src/test-engine'
+import { UnBuiltLand } from 'ssh/src/lib/board/content/unbuilt-land'
+import { GoodType } from 'ssh/src/lib/types';
 
 describe('NPC Behaviors Integration', () => {
     
@@ -131,7 +131,7 @@ describe('NPC Behaviors Integration', () => {
         const scenario = {
             hives: [{
                 name: 'Gatherers',
-                alveoli: [{ coord: [2, 2] as [number, number], alveolus: 'gatherer_hut' }],
+                alveoli: [{ coord: [2, 2] as [number, number], alveolus: 'gather' }],
                 needs: { mushrooms: 10 } // Hive must NEED mushrooms for gatherer to work
             }],
             freeGoods: [

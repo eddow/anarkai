@@ -1,7 +1,7 @@
 import { Container, Graphics, Point } from 'pixi.js'
 import { tileSize } from 'ssh/src/lib/utils/varied'
 import { toWorldCoord } from 'ssh/src/lib/utils/position'
-import type { Tile } from 'ssh/src/lib/game/board/tile'
+import type { Tile } from 'ssh/src/lib/board/tile'
 import type { PixiGameRenderer } from '../renderer'
 
 /**

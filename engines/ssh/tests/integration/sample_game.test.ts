@@ -1,7 +1,7 @@
 
 import { describe, it, expect } from 'vitest'
-import { Game } from '$lib/game/game'
-import { chopSaw } from '$lib/game/exampleGames'
+import { Game } from 'ssh/src/lib/game/game'
+import { chopSaw } from 'ssh/src/lib/game/exampleGames'
 
 describe('Source Allocation Stability', () => {
     

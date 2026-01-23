@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { GoodType } from '$lib/types/base'
-import { AllocationError } from '$lib/storage/guard'
-import { NoStorage } from '$lib/storage/no-storage'
-import { SlottedStorage } from '$lib/storage/slotted-storage'
-import { SpecificStorage } from '$lib/storage/specific-storage'
+import type { GoodType } from 'ssh/src/lib/types/base'
+import { AllocationError } from 'ssh/src/lib/storage/guard'
+import { NoStorage } from 'ssh/src/lib/storage/no-storage'
+import { SlottedStorage } from 'ssh/src/lib/storage/slotted-storage'
+import { SpecificStorage } from 'ssh/src/lib/storage/specific-storage'
 
 // Test data - keeping for potential future use
 // const TEST_GOODS = {

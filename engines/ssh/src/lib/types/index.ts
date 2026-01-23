@@ -1,6 +1,6 @@
 import { scope, type Type, type } from 'arktype'
-import type { ScriptExecution } from '$lib/npcs/scripts'
-import { positionTypes } from '$lib/utils/position'
+import type { ScriptExecution } from 'ssh/src/lib/npcs/scripts'
+import { positionTypes } from 'ssh/src/lib/utils/position'
 import { baseGameScope } from './base'
 import { contractDecorator } from './contracts'
 import { gameObjectsModule } from './game-objects'

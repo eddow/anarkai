@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { Game } from '$lib/game/game'
-import { chopSaw } from '$lib/game/exampleGames'
-import { Character } from '$lib/population/character'
+import { Game } from 'ssh/src/lib/game/game'
+import { chopSaw } from 'ssh/src/lib/game/exampleGames'
+import { Character } from 'ssh/src/lib/population/character'
 
 describe('Eating Requirement', () => {
     it('carriedFood only returns food if at least 1 unit is available', async () => {

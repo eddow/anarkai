@@ -1,10 +1,10 @@
 import { memoize, reactive } from 'mutts'
-import { alveoli as alveoliDefs } from '$assets/game-content'
-import { Alveolus } from '$lib/board/content/alveolus'
-import type { Tile } from '$lib/board/tile'
-import { SpecificStorage } from '$lib/storage/specific-storage'
-import type { AlveolusType, GoodType } from '$lib/types/base'
-import type { GoodsRelations } from '$lib/utils/advertisement'
+import { alveoli as alveoliDefs } from '../../../assets/game-content'
+import { Alveolus } from 'ssh/src/lib/board/content/alveolus'
+import type { Tile } from 'ssh/src/lib/board/tile'
+import { SpecificStorage } from 'ssh/src/lib/storage/specific-storage'
+import type { AlveolusType, GoodType } from 'ssh/src/lib/types/base'
+import type { GoodsRelations } from 'ssh/src/lib/utils/advertisement'
 
 @reactive
 export class BuildAlveolus extends Alveolus {

@@ -1,14 +1,14 @@
 import { effect } from 'mutts'
-import { AEvolutionStep, ALerpStep } from '@ssh/lib/npcs/steps'
-import type { Character } from '@ssh/lib/population/character'
-import { T } from '@ssh/lib/i18n'
+import { AEvolutionStep, ALerpStep } from 'ssh/src/lib/npcs/steps'
+import type { Character } from 'ssh/src/lib/population/character'
+import { T } from 'ssh/src/lib/i18n'
 import { css } from '@app/lib/css'
-import type { GoodType } from '@ssh/lib/types/base'
+import type { GoodType } from 'ssh/src/lib/types/base'
 import GoodsList from './GoodsList'
 import PropertyGrid from './PropertyGrid'
 import PropertyGridRow from './PropertyGridRow'
 import StatProgressBar from './StatProgressBar'
-import { compose } from '@pounce/lib'
+import { compose } from 'pounce-ts'
 
 css`
 .character-properties {

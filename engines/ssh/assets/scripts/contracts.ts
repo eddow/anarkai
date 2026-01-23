@@ -1,4 +1,4 @@
-import type { Contract, ContractType } from '$lib/types'
+import type { Contract, ContractType } from 'ssh/src/lib/types'
 
 // Contracts defined using pure string arrays validated by contractScope in arktype.ts
 export const CharacterContract = {

@@ -8,14 +8,14 @@ import {
 	NpcScript,
 	ScriptExecutor,
 } from 'npc-script'
-import { alveoli, deposits, goods, terrain } from '$assets/game-content'
-import { CharacterContract } from '$assets/scripts/contracts'
-import type { GameObject, InteractiveGameObject } from '$lib/game/object'
-import { contract, contractScope, overloadContract } from '$lib/types'
-import type { GoodType } from '$lib/types/base'
-import { type Contract, checkContract, isContract, registerContract } from '$lib/types/contracts'
-import { axial, epsilon, objectMap } from '$lib/utils'
-import { Positioned, positionRoughly, toAxialCoord } from '$lib/utils/position'
+import { alveoli, deposits, goods, terrain } from '../../../assets/game-content'
+import { CharacterContract } from '../../../assets/scripts/contracts'
+import type { GameObject, InteractiveGameObject } from 'ssh/src/lib/game/object'
+import { contract, contractScope, overloadContract } from 'ssh/src/lib/types'
+import type { GoodType } from 'ssh/src/lib/types/base'
+import { type Contract, checkContract, isContract, registerContract } from 'ssh/src/lib/types/contracts'
+import { axial, epsilon, objectMap } from 'ssh/src/lib/utils'
+import { Positioned, positionRoughly, toAxialCoord } from 'ssh/src/lib/utils/position'
 import { gameIsaTypes, gameOperators, lerp } from './utils'
 
 type XOrDictX<X> = X | { [k: string]: XOrDictX<X> }

@@ -33,10 +33,20 @@ export function cssTagPlugin(): Plugin {
 			}
 
 			if (!hasInjectCSSImport) {
-				transformedCode = `import { __injectCSS } from '$lib/css'; ${transformedCode}`
+				transformedCode = `import { __injectCSS } from '@ssh/lib/css'; ${transformedCode}`
 			}
 
-			return { code: transformedCode, map: null }
+			return {
+				code: transformedCode,
+				map: {
+					version: 3,
+					file: id,
+					sources: [id],
+					sourcesContent: [code],
+					names: [],
+					mappings: 'AAAA,CAAC', // Identity mapping for the whole file roughly
+				},
+			}
 		},
 	}
 }

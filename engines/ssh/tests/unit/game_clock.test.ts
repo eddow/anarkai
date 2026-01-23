@@ -1,7 +1,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest'
-import { Game } from '$lib/game'
-import { configuration } from '$lib/globals'
+import { Game } from 'ssh/src/lib/game'
+import { configuration } from 'ssh/src/lib/globals'
 
 describe('Game Clock', () => {
     let game: Game
