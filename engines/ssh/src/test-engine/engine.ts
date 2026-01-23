@@ -1,4 +1,4 @@
-import type { Game, GameGenerationOptions, SaveState } from '../lib/game/game';
+import type { Game, GameGenerationOptions, SaveState } from '$lib/game/game';
 import { setupEnvironment } from './environment';
 import { loadStandardMocks } from './mocks';
 import path from 'path';
@@ -22,7 +22,7 @@ export class TestEngine {
      */
     public async init() {
          // Dynamic import to allow mocks to apply
-        const { Game } = await import('../lib/game/game');
+        const { Game } = await import('$lib/game/game');
         this.game = new Game(this.options);
         await this.game.loaded;
     }

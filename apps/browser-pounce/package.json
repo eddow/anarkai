@@ -16,7 +16,7 @@
     "biome": "biome check . --fix",
     "biome:unsafe": "biome check --fix --unsafe",
     "test": "vitest run",
-    "test:core": "vitest run src/lib/game/job.test.ts src/lib/utils/pathfinding.test.ts src/lib/game/storage/storage.test.ts",
+    "test:core": "vitest run src/lib/game/job.test.ts src/lib/utils/pathfinding.test.ts src/lib/board/storage/storage.test.ts",
     "test:watch": "vitest",
     "test:ui": "vitest --ui"
   },

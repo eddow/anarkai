@@ -1,7 +1,7 @@
 
 import { describe, it, expect, vi } from 'vitest'
-import { Game } from '$lib/game/game'
-import { InventoryFunctions } from '$lib/game/npcs/context/inventory'
+import { Game } from '$lib/game'
+import { InventoryFunctions } from '$lib/npcs/context/inventory'
 
 // Mock environment
 if (typeof document === 'undefined') {

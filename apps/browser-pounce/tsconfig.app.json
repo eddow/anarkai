@@ -68,6 +68,7 @@
 		"../../engines/pixi/src/**/*.d.ts",
 		"../../engines/pixi/assets/**/*.ts",
 		"../../engines/ssh/src/**/*.ts",
-		"../../engines/ssh/assets/**/*.ts"
+		"../../engines/ssh/assets/**/*.ts",
+		"src/components/storage/StorageConfiguration.tsx"
 	]
 }

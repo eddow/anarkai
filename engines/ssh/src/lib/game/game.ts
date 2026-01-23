@@ -9,20 +9,20 @@ import { mrg } from '$lib/interactive-state'
 import type { AlveolusType, DepositType, GoodType } from '$lib/types'
 import { axial } from '$lib/utils/axial'
 import { LCG } from '$lib/utils/numbers'
-import { Alveolus } from './board'
-import { HexBoard } from './board/board'
-import { Deposit, UnBuiltLand } from './board/content/unbuilt-land'
-import { Tile } from './board/tile'
-import type { Zone } from './board/zone'
+import { Alveolus } from '$lib/board'
+import { HexBoard } from '$lib/board/board'
+import { Deposit, UnBuiltLand } from '$lib/board/content/unbuilt-land'
+import { Tile } from '$lib/board/tile'
+import type { Zone } from '$lib/board/zone'
 import {
 	type GameGenerationConfig,
 	GameGenerator,
 	type GeneratedCharacterData,
 	type GeneratedTileData,
-} from './generation'
-import { alveolusClass, type Hive, AlveolusConfigurationManager } from './hive'
+} from '$lib/generation'
+import { alveolusClass, Hive, AlveolusConfigurationManager } from '$lib/hive'
 import type { HittableGameObject, InteractiveGameObject } from './object'
-import { Population } from './population/population'
+import { Population } from '$lib/population/population'
 
 try {
 	unreactive(gameContent)
@@ -207,11 +207,8 @@ export class Game extends Eventful<GameEvents> {
 		this.generator = new GameGenerator()
 		
 		this.loaded = this.loaded
-			.then(() => import('./hive'))
-			.then(({ Hive }) => {
-				this.HiveClass = Hive
-			})
 			.then(() => {
+				this.HiveClass = Hive
 				// Initialize base RNG with terrainSeed so everything is reproducible
 				;(this as any).rng = LCG('gameSeed', this.generationOptions.terrainSeed)
 			// Expose RNG to global for script helpers

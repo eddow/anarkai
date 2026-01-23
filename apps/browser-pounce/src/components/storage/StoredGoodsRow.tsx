@@ -1,6 +1,6 @@
 import { derived, reactive } from 'mutts'
 import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
-import type { Alveolus } from '@ssh/lib/game/board/content/alveolus'
+import type { Alveolus } from '@ssh/lib/board/content/alveolus'
 import type { GoodType } from '@ssh/lib/types/base'
 
 import PropertyGridRow from '../PropertyGridRow'

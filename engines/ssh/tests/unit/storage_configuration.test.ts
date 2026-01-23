@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
-import { StorageAlveolus } from '$lib/game/hive/storage'
-import { SlottedStorage } from '$lib/game/storage/slotted-storage'
+import { StorageAlveolus } from '$lib/hive/storage'
+import { SlottedStorage } from '$lib/storage/slotted-storage'
 
 // Mock game-content exports
 vi.mock('../../../../assets/game-content', () => ({

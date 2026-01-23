@@ -1,0 +1,18 @@
+import type { Character } from '$lib/population/character'
+import { contract, type GoodType } from '$lib/types'
+import { subject } from '$lib/npcs/scripts'
+import { EatStep, PonderingStep } from '$lib/npcs/steps'
+
+class SelfCareFunctions {
+	declare [subject]: Character
+	@contract('GoodType')
+	eat(food: GoodType) {
+		return new EatStep(this[subject], food)
+	}
+	@contract()
+	pondering() {
+		return new PonderingStep(this[subject])
+	}
+}
+
+export { SelfCareFunctions }

@@ -1,6 +1,6 @@
 import { effect } from 'mutts'
-import { AEvolutionStep, ALerpStep } from '@ssh/lib/game/npcs/steps'
-import type { Character } from '@ssh/lib/game/population/character'
+import { AEvolutionStep, ALerpStep } from '@ssh/lib/npcs/steps'
+import type { Character } from '@ssh/lib/population/character'
 import { T } from '@ssh/lib/i18n'
 import { css } from '@app/lib/css'
 import type { GoodType } from '@ssh/lib/types/base'

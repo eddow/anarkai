@@ -2,7 +2,7 @@ import { effect, reactive } from 'mutts'
 import EntityBadge from './EntityBadge'
 import PropertyGridRow from './PropertyGridRow'
 import { css } from '@app/lib/css'
-import type { UnBuiltLand } from '@ssh/lib/game/board/content/unbuilt-land'
+import type { UnBuiltLand } from '@ssh/lib/board/content/unbuilt-land'
 import { T } from '@ssh/lib/i18n'
 
 css`

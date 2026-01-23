@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { SlottedStorage } from '$lib/game/storage/slotted-storage'
+import { SlottedStorage } from '$lib/storage/slotted-storage'
 
 describe('SlottedStorage Reactivity', () => {
     it('updates availables when reserved (bug reproduction)', () => {

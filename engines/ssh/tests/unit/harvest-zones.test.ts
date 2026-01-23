@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
-import { Game } from '$lib/game/game'
-import { UnBuiltLand, Deposit } from '$lib/game/board/content/unbuilt-land'
+import { Game } from '$lib/game'
+import { UnBuiltLand, Deposit } from '$lib/board/content/unbuilt-land'
 import { toAxialCoord } from '$lib/utils/position'
 
 // Mock DOM/Pixi environment for Node

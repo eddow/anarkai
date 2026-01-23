@@ -3,7 +3,7 @@ import { effect } from 'mutts'
 import type { InteractiveGameObject } from '@ssh/lib/game'
 import { css } from '@app/lib/css'
 import { PixiGameRenderer } from 'engine-pixi/src/renderer'
-import { Tile } from '@ssh/lib/game/board/tile'
+import { Tile } from '@ssh/lib/board/tile'
 import {
 	games,
 	interactionMode,

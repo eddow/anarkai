@@ -1,8 +1,8 @@
 
 import { describe, it, expect } from 'vitest'
-import { Game } from '$lib/game/game'
-import { StorageAlveolus } from '$lib/game/hive/storage'
-import { SpecificStorage } from '$lib/game/storage'
+import { Game } from '$lib/game'
+import { StorageAlveolus } from '$lib/hive/storage'
+import { SpecificStorage } from '$lib/storage'
 
 describe('Buffering Logic', () => {
 

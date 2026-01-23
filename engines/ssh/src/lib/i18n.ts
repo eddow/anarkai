@@ -35,8 +35,8 @@ let localeRequestToken = 0
 
 const imports = {
 	'': {
-		en: () => import('../locales/en.json'),
-		fr: () => import('../locales/fr.json'),
+		en: () => import('@app/locales/en.json'),
+		fr: () => import('@app/locales/fr.json'),
 	},
 	gameX: {
 		en: () => import('$assets/locales/en.json'),

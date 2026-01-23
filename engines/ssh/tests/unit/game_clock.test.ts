@@ -1,6 +1,6 @@
 
 import { describe, it, expect, beforeEach } from 'vitest'
-import { Game } from '$lib/game/game'
+import { Game } from '$lib/game'
 import { configuration } from '$lib/globals'
 
 describe('Game Clock', () => {

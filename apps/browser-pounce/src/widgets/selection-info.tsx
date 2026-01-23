@@ -2,8 +2,8 @@ import { effect, reactive, watch, untracked } from 'mutts'
 
 import type { InteractiveGameObject } from '@ssh/lib/game'
 import { css } from '@app/lib/css'
-import { Character } from '@ssh/lib/game/population/character'
-import { Tile } from '@ssh/lib/game/board/tile'
+import { Character } from '@ssh/lib/population/character'
+import { Tile } from '@ssh/lib/board/tile'
 import {
 	games,
 	selectionState,

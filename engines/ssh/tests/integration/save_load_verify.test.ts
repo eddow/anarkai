@@ -59,7 +59,8 @@ if (typeof fetch === 'undefined' || true) {
 
 import { describe, it, expect, vi } from 'vitest'
 import { Game } from '$lib/game/game'
-import { MoveToStep, EatStep, DurationStep, MultiMoveStep } from '$lib/game/npcs/steps'
+import { MoveToStep, EatStep, DurationStep, MultiMoveStep } from '$lib/npcs/steps'
+import { toAxialCoord } from '$lib/utils/position'
 
 // Mock assets/resources
 vi.mock('$assets/resources', () => ({
@@ -132,8 +133,10 @@ describe('Save/Load Determinism', () => {
         
         for (let i = 0; i < 20; i++) char2.update(dt)
         
-        expect(char2.position.q).toBeCloseTo(controlPos.q, 4)
-        expect(char2.position.r).toBeCloseTo(controlPos.r, 4)
+        const pos2 = toAxialCoord(char2.position)
+        const ctrlAxial = toAxialCoord(controlPos)
+        expect(pos2.q).toBeCloseTo(ctrlAxial.q, 4)
+        expect(pos2.r).toBeCloseTo(ctrlAxial.r, 4)
         expect(char2.stepExecutor!.constructor.name).toBe('MoveToStep')
 	})
 

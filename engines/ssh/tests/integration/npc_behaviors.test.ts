@@ -1,7 +1,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { TestEngine } from '@app/test-engine'
-import { UnBuiltLand } from '$lib/game/board/content/unbuilt-land'
+import { UnBuiltLand } from '$lib/board/content/unbuilt-land'
 import { GoodType } from '$lib/types';
 
 describe('NPC Behaviors Integration', () => {

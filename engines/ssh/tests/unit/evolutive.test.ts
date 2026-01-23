@@ -17,9 +17,11 @@ if (typeof navigator === 'undefined') {(global as any).navigator = { userAgent: 
 
 import { describe, it, expect, vi } from 'vitest'
 import { Game } from '$lib/game/game'
-import { MoveToStep } from '$lib/game/npcs/steps'
-import { InventoryFunctions } from '$lib/game/npcs/context/inventory'
-import { subject } from '$lib/game/npcs/scripts'
+import { MoveToStep } from '$lib/npcs/steps'
+import { InventoryFunctions } from '$lib/npcs/context/inventory'
+import { subject } from '$lib/npcs/scripts'
+import { toAxialCoord } from '$lib/utils/position'
+import type { AxialCoord } from '$lib/utils/axial'
 
 // Mock Debug to silence rendering assertions
 vi.mock('$lib/debug', () => ({
@@ -110,7 +112,7 @@ describe('Evolutive & Determinism Tests', () => {
         const dt = 0.1
         for (let i = 0; i < 30; i++) {
             game1.ticker.update(dt * 1000)
-            game1.population.characters.forEach((char: any) => char.update(dt))
+            for (const char of game1.population) char.update(dt)
         }
 
         // Save State M
@@ -129,7 +131,7 @@ describe('Evolutive & Determinism Tests', () => {
         // Path A: Continue for T2 = 30 ticks
         for (let i = 0; i < 30; i++) {
             game1.ticker.update(dt * 1000)
-            game1.population.characters.forEach((char: any) => char.update(dt))
+            for (const char of game1.population) char.update(dt)
         }
         
         // Path B: Reload M and run for T2
@@ -140,12 +142,12 @@ describe('Evolutive & Determinism Tests', () => {
         
         for (let i = 0; i < 30; i++) {
             game2.ticker.update(dt * 1000)
-            game2.population.characters.forEach((char: any) => char.update(dt))
+            for (const char of game2.population) char.update(dt)
         }
         
         // Compare F1 and F2
-        const chars1 = Array.from((game1.population as any).characters.values()) as any[]
-        const chars2 = Array.from((game2.population as any).characters.values()) as any[]
+        const chars1 = Array.from(game1.population)
+        const chars2 = Array.from(game2.population)
         
         expect(chars1.length).toBe(chars2.length)
         expect(chars1.length).toBe(2)
@@ -155,8 +157,10 @@ describe('Evolutive & Determinism Tests', () => {
             expect(c2).toBeDefined()
             
             // Checks
-            expect(c2.position.q).toBeCloseTo(c1.position.q, 5)
-            expect(c2.position.r).toBeCloseTo(c1.position.r, 5)
+            const p1 = toAxialCoord(c1.position)
+            const p2 = toAxialCoord(c2!.position)
+            expect(p2.q).toBeCloseTo(p1.q, 5)
+            expect(p2.r).toBeCloseTo(p1.r, 5)
         })
     })
 
@@ -178,12 +182,12 @@ describe('Evolutive & Determinism Tests', () => {
         await game.generate(config, patches)
         
         const worker = game.population.createCharacter('Worker1', { q: 2, r: 2 })
-        const sourceTile = game.hex.getTile({ q: 0, r: 0 })
-        const targetTile = game.hex.getTile({ q: 0, r: 5 })
+        const sourceTile = game.hex.getTile({ q: 0, r: 0 })!
+        const targetTile = game.hex.getTile({ q: 0, r: 5 })!
         
-        const sourceStorage = sourceTile.content.storage
-        const validSourceContent = sourceTile.content // Capture before it reverts to UnBuiltLand due to side-effects
-        const targetStorage = targetTile.content.storage
+        const sourceStorage = sourceTile.content!.storage!
+        const validSourceContent = sourceTile.content! // Capture before it reverts to UnBuiltLand due to side-effects
+        const targetStorage = targetTile.content!.storage!
         
         expect((sourceStorage as any).available('wood')).toBe(1)
         
@@ -201,7 +205,7 @@ describe('Evolutive & Determinism Tests', () => {
              game.ticker.update(dt*1000)
              if (worker.stepExecutor !== moveStep) break
         }
-        expect(worker.position.q).toBeCloseTo(0, 0)
+        expect(toAxialCoord(worker.position).q).toBeCloseTo(0, 0)
         
         // 2. Grab Wood
         // Workaround: Create a fake Tile object that holds the correct content
@@ -233,16 +237,16 @@ describe('Evolutive & Determinism Tests', () => {
         // 3. Move to Target
         // Teleport for simulation stability (pathfinding depends on map gen)
         worker.stepExecutor = undefined // Stop any running step
-        worker.position.q = 0
-        worker.position.r = 5
+        ;(worker.position as AxialCoord).q = 0
+        ;(worker.position as AxialCoord).r = 5
         
-        expect(worker.position.r).toBe(5)
+        expect(toAxialCoord(worker.position).r).toBe(5)
         
         // 4. Drop Wood
         // We manually construct drop plan/actions since planDropStored needs similar context
         // Drop: Allocate on target, Reserve on vehicle
         const dropGoods = { wood: 1 }
-        const targetAllocation = targetStorage.allocate(dropGoods, 'planDropStored')
+        const targetAllocation = targetStorage.allocate!(dropGoods, 'planDropStored')
         const vehicleReservation = worker.vehicle.storage.reserve(dropGoods, 'planDropStored')
         
         // Fulfill
