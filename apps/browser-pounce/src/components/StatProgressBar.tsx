@@ -3,37 +3,47 @@ import { css } from '@app/lib/css'
 css`
   .stat-progress-bar {
     min-width: 0;
+    position: relative;
+    height: 1.25rem;
+    display: flex;
+    align-items: center;
   }
 
   .stat-progress-bar__header {
+    position: absolute;
+    inset: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 0.25rem;
+    padding: 0 0.5rem;
+    z-index: 1;
+    pointer-events: none;
   }
 
   .stat-progress-bar__label {
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: var(--pico-color);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
   }
 
   .stat-progress-bar__value {
-    font-size: 0.875rem;
-    color: var(--pico-muted-color);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
   }
 
   .stat-progress-bar__track {
     width: 100%;
-    height: 0.5rem;
+    height: 100%;
     background-color: var(--pico-secondary-background);
-    border-radius: 9999px;
+    border-radius: 4px;
     overflow: hidden;
   }
 
   .stat-progress-bar__fill {
-    height: 0.5rem;
-    border-radius: 9999px;
+    height: 100%;
     transition: width 0.3s, background-color 0.3s;
   }
 
@@ -66,27 +76,27 @@ interface StatProgressBarProps {
 }
 
 const StatProgressBar = ({ value, levels, label, showValue = true }: StatProgressBarProps) => {
-	const percentage = Math.min(100, Math.max(0, Math.floor((100 * value) / levels.critical)))
-	
-	let colorClass = 'stat-progress-bar__fill--red'
-	if (value < levels.satisfied) colorClass = 'stat-progress-bar__fill--green'
-	else if (value < levels.high) colorClass = 'stat-progress-bar__fill--yellow'
-	else if (value < levels.critical) colorClass = 'stat-progress-bar__fill--orange'
+  const percentage = Math.min(100, Math.max(0, Math.floor((100 * value) / levels.critical)))
 
-	return (
-		<div class="stat-progress-bar">
-			<div class="stat-progress-bar__header">
-				<span class="stat-progress-bar__label">{label}</span>
-				{showValue && <span class="stat-progress-bar__value">{percentage}%</span>}
-			</div>
-			<div class="stat-progress-bar__track">
-				<div
-					class={`stat-progress-bar__fill ${colorClass}`}
-					style={`width: ${percentage}%`}
-				/>
-			</div>
-		</div>
-	)
+  let colorClass = 'stat-progress-bar__fill--red'
+  if (value < levels.satisfied) colorClass = 'stat-progress-bar__fill--green'
+  else if (value < levels.high) colorClass = 'stat-progress-bar__fill--yellow'
+  else if (value < levels.critical) colorClass = 'stat-progress-bar__fill--orange'
+
+  return (
+    <div class="stat-progress-bar">
+      <div class="stat-progress-bar__header">
+        <span class="stat-progress-bar__label">{label}</span>
+        {showValue && <span class="stat-progress-bar__value">{percentage}%</span>}
+      </div>
+      <div class="stat-progress-bar__track">
+        <div
+          class={`stat-progress-bar__fill ${colorClass}`}
+          style={`width: ${percentage}%`}
+        />
+      </div>
+    </div>
+  )
 }
 
 export default StatProgressBar

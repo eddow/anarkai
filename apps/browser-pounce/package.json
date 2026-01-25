@@ -24,7 +24,7 @@
     "@mdi/svg": "^7.4.47",
     "@picocss/pico": "^2.0.6",
     "arktype": "^2.1.22",
-    "dockview-core": "^4.7.1",
+    "dockview-core": "^4.13.1",
     "engine-pixi": "link:../../engines/pixi",
     "eventemitter3": "^5.0.1",
     "madge": "^8.0.0",

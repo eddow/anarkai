@@ -1,6 +1,6 @@
-import { effect, reactive, watch, untracked } from 'mutts'
+import { effect } from 'mutts'
 
-import type { InteractiveGameObject } from 'ssh/src/lib/game'
+import type { Game } from 'ssh/src/lib/game'
 import { css } from '@app/lib/css'
 import { Character } from 'ssh/src/lib/population/character'
 import { Tile } from 'ssh/src/lib/board/tile'
@@ -10,12 +10,13 @@ import {
 	mrg,
 	unreactiveInfo,
 } from '@app/lib/globals'
-import type { DockviewApi, DockviewPanelApi } from 'dockview-core'
+import type { DockviewApi, DockviewPanelApi } from 'pounce-ui/src'
 import CharacterProperties from '../components/CharacterProperties'
 import TileProperties from '../components/TileProperties'
 import { toWorldCoord } from 'ssh/src/lib/utils/position' // Added import for GoTo logic
-import { Button, ButtonGroup } from 'pounce-ui/src' // Added import for buttons
-import { mdiEye, mdiPin, mdiPencil } from 'pure-glyf/icons'
+import { Button, ButtonGroup, InfiniteScroll } from 'pounce-ui/src' // Added import for buttons
+import { mdiEye, mdiPin } from 'pure-glyf/icons'
+import { compose, h } from '@pounce/lib'
 
 css`
 .selection-info-panel {
@@ -32,7 +33,7 @@ css`
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 1rem;
+    padding: 0;
     gap: 1rem;
     overflow-y: auto;
 }
@@ -54,7 +55,7 @@ css`
 	min-height: 5rem;
 	border: 1px solid var(--app-border);
 	border-radius: 0.65rem;
-	padding: 0.75rem;
+	padding: 0;
 	overflow-y: auto;
 	background: rgba(15, 23, 42, 0.08);
     display: flex;
@@ -69,15 +70,17 @@ css`
 .selection-info-panel__logs-line {
 	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 	font-size: 0.8rem;
-	line-height: 1.4;
-    word-break: break-all;
-    white-space: pre-wrap;
+	line-height: 20px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 0.5rem;
 }
 
 .selection-info-panel__empty {
 	font-size: 0.9rem;
 	opacity: 0.75;
-    padding: 1rem;
+    padding: 0;
 }
 `
 
@@ -88,63 +91,49 @@ const SelectionInfoWidget = (
 		title: string
 		size: { width: number; height: number }
 	},
-	scope: { api: DockviewApi; setTitle: (title: string) => void }
+	scope: { dockviewApi: DockviewApi; setTitle?: (title: string) => void },
 ) => {
 	console.log('SelectionInfoWidget Rendered with props:', props);
-	let game: any
+	let game: Game
 	try {
 		game = games.game('GameX')
 	} catch (e) {
 		console.warn('SelectionInfoWidget: GameX not found', e)
 	}
 
-	const state = reactive({
-		object: undefined as InteractiveGameObject | undefined,
-		logs: [] as string[],
-	})
+	const state = compose(props, (state) => ({
+		get object() {
+			const uid = state.params.uid ?? selectionState.selectedUid
+			return uid ? game.getObject(uid) : undefined
+		},
+	}), (state) => ({
+		get logs() {
+			return state.object?.logs ?? []
+		},
+	}))
 
-	const logsRef: { value: HTMLElement | undefined } = { value: undefined }
 
-	let stopLogs: (() => void) | undefined
+
+
 	// TODO: if !shownUid, close this widget
 
-	effect(() => {
-		const shownUid = props.params.uid ?? selectionState.selectedUid
-		state.object = shownUid ? game.getObject(shownUid) : undefined
-	})
-
 	const pin = () => {
-		props.params.uid = selectionState.selectedUid
+		const uid = selectionState.selectedUid
+		if (props.api?.updateParameters) {
+			props.api.updateParameters({ uid })
+		}
+		props.params.uid = uid
 		unreactiveInfo.hasLastSelectedInfoPanel = false
 	}
+	effect(() => {
+		props.title = state.object?.title ?? 'Object'
+	})
+
 	scope.setTitle = (title: string) => {
 		props.title = title
 	}
-
 	effect(() => {
-		stopLogs?.()
-		const object = state.object
-		if (!object) {
-			state.logs = []
-			stopLogs = undefined
-			return
-		}
-		stopLogs = watch(object.logs, (entries: string[]) => {
-			state.logs = [...entries]
-			// Scroll to bottom
-			setTimeout(() => {
-				if (logsRef.value) {
-					logsRef.value.scrollTop = logsRef.value.scrollHeight
-				}
-			}, 10)
-		})
-		return () => {
-			stopLogs?.()
-			stopLogs = undefined
-		}
-	})
-	effect(() => {
-		const disposable = scope.api.onDidRemovePanel((panel) => {
+		const disposable = scope.dockviewApi.onDidRemovePanel((panel) => {
 			if (panel.id === props.api.id) {
 				// If this panel was the one tracking active selection (not pinned)
 				// Reset the flag so selection in game can re-open it.
@@ -172,38 +161,24 @@ const SelectionInfoWidget = (
 		world.position.y = screen.height / 2 - coord.y * scale
 	}
 
-	const simulateEnter = () => {
-		if (state.object) {
-			mrg.hoveredObject = state.object
-		}
-	}
-
-	const simulateLeave = () => {
-		if (mrg.hoveredObject?.uid === state.object?.uid) {
-			mrg.hoveredObject = undefined
-		}
-	}
-
-	const attachHoverHandlers = (el: HTMLElement) => {
-		el.addEventListener('mouseenter', simulateEnter)
-		el.addEventListener('mouseleave', simulateLeave)
-		return () => {
-			el.removeEventListener('mouseenter', simulateEnter)
-			el.removeEventListener('mouseleave', simulateLeave)
-		}
-	}
-
 	return (
 		<div
 			class="selection-info-panel"
-			use={attachHoverHandlers}
+			onMouseenter={() => {
+				if (state.object) mrg.hoveredObject = state.object
+			}}
+			onMouseleave={() => {
+				if (mrg.hoveredObject?.uid === state.object?.uid) {
+					mrg.hoveredObject = undefined
+				}
+			}}
+			data-test-object-uid={state.object?.uid}
 		>
-			<div style="padding: 0.5rem; border-bottom: 1px solid var(--app-border); display: flex; justify-content: space-between;">
+			<div style="border-bottom: 1px solid var(--app-border); display: flex; justify-content: space-between;">
 				<div></div>
 				<ButtonGroup>
 					<Button if={state.object?.position} icon={mdiEye} aria-label="Go to Object" onClick={goTo} />
 					<Button if={!props.params.uid} icon={mdiPin} aria-label="Pin Panel" onClick={pin} />
-					<Button icon={mdiPencil} aria-label="Debug Set Title" onClick={() => scope.setTitle('Debug Title')} />
 				</ButtonGroup>
 			</div>
 			<div if={state.object} class="selection-info-panel__content-wrapper">
@@ -222,15 +197,19 @@ const SelectionInfoWidget = (
 				<div if={state.logs.length > 0}
 					class="selection-info-panel__logs"
 					role="log"
-					use={(el: any) => logsRef.value = el}
+					data-test-owner-uid={state.object?.uid}
 				>
-					<for each={state.logs}>
+					<InfiniteScroll
+						items={state.logs}
+						itemHeight={20}
+						el={{ class: 'selection-info-panel__logs-list' }}
+					>
 						{(line) => (
-							<div class="selection-info-panel__logs-line">
+							<div class="selection-info-panel__logs-line" title={line}>
 								{line}
 							</div>
 						)}
-					</for>
+					</InfiniteScroll>
 				</div>
 			</div>
 			<div else class="selection-info-panel__empty">Select an object in the game view to inspect it.</div>

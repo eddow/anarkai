@@ -61,6 +61,7 @@ export default defineConfig({
 			$assets: resolvePath(projectRootDir, 'assets'),
 			'@app': resolvePath(projectRootDir, 'src'),
 			'@ssh': resolvePath(projectRootDir, 'src'),
+			'ssh': resolvePath(projectRootDir, '.'),
 		},
 	},
 	esbuild: false,

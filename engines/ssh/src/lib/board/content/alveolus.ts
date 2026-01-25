@@ -116,8 +116,11 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		// Building gates will now happen during hive attachment
 	}
 
-	get debugInfo() {
-		return {}
+	get debugInfo(): Record<string, any> {
+		return {
+			aGoodMovement: this.aGoodMovement?.map((mg) => `${mg.goodType} from ${axial.key(mg.from)}`),
+			incomingGoods: this.incomingGoods,
+		}
 	}
 	get walkTime() {
 		return 1
@@ -334,10 +337,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	}
 
 	private conveyJob(): Job | undefined {
-		const movementList = this.aGoodMovement
-		const hasIncoming = this.incomingGoods
-
-		if ((!movementList || movementList.length === 0) && !hasIncoming) return undefined
+		if (!this.aGoodMovement?.length && !this.incomingGoods) return undefined
 
 		return {
 			job: 'convey',

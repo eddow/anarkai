@@ -25,8 +25,8 @@ export default function GameWidget(props: {
 	params: { game: string }
 	container: HTMLElement
 	api?: any
-}, scope: { api: any }) {
-	const dock = scope?.api
+}, scope: { dockviewApi: any }) {
+	const dock = scope?.dockviewApi
 	const gameName = props.params?.game ?? 'GameX'
 	const game = games.game(gameName)
 	let container: HTMLElement | undefined

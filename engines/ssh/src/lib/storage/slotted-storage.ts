@@ -10,6 +10,7 @@ import {
 } from './guard'
 import { type AllocationBase, Storage } from './storage'
 import type { RenderedGoodSlot, RenderedGoodSlots } from './types'
+import { type } from 'os'
 
 @unreactive
 class SlottedAllocation implements AllocationBase {
@@ -221,7 +222,7 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		return qty - remaining
 	}
 
-	@memoize
+	// @memoize
 	get stock(): { [k in GoodType]?: number } {
 		const result: { [k in GoodType]?: number } = {}
 

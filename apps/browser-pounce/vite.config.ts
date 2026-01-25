@@ -27,15 +27,15 @@ void stripDeclare
 
 const aliases = {
 	'@app': resolvePath(projectRootDir, 'src'),
-	'$lib': resolvePath(projectRootDir, 'src/lib'),
-	'$assets': resolvePath(projectRootDir, 'assets'),
+	$lib: resolvePath(projectRootDir, 'src/lib'),
+	$assets: resolvePath(projectRootDir, 'assets'),
 
 	// Workspace Packages (Source Mapping)
-	'ssh': resolvePath(projectRootDir, '../../engines/ssh'),
+	ssh: resolvePath(projectRootDir, '../../engines/ssh'),
 	'engine-pixi': resolvePath(projectRootDir, '../../engines/pixi'),
-	
+
 	// Fallbacks/Legacy
-	'mutts': resolvePath(projectRootDir, '../../../ownk/mutts/src'),
+	mutts: resolvePath(projectRootDir, '../../../ownk/mutts/src'),
 	'@pounce': resolvePath(projectRootDir, 'node_modules/pounce-ts/src'),
 
 	// Fix dockview and picocss resolution

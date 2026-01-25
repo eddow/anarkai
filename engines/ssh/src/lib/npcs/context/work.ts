@@ -53,8 +53,8 @@ class WorkFunctions {
 	@contract()
 	waitForIncomingGoods() {
 		return new WaitForPredicateStep(
-			'waitIncomingGoods',
-			() => !!this[subject].assignedAlveolus!.aGoodMovement,
+			'waitForIncomingGoods',
+			() => !!this[subject].assignedAlveolus!.aGoodMovement || !this[subject].assignedAlveolus!.incomingGoods,
 		)
 	}
 	@contract()

@@ -40,7 +40,7 @@ const buildableAlveoli = Object.entries(gameContent.alveoli).filter(
 	([, alveolus]) => 'construction' in alveolus,
 )
 
-const App = (_props: {}) => {
+const App = () => {
 	// trackEffect((obj, evolution, prop) => {
 	// });
 	const state = reactive({
