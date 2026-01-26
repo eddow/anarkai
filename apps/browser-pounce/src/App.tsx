@@ -1,6 +1,6 @@
 import './app.css'
-// import { initConsoleTrap } from 'ssh/src/lib/debug'
-// initConsoleTrap()
+import { initConsoleTrap } from 'ssh/src/lib/debug'
+initConsoleTrap()
 import { effect, reactive, untracked } from 'mutts'
 import { Button, ButtonGroup, DarkModeButton, Dockview, RadioButton, Toolbar } from 'pounce-ui/src'
 import {

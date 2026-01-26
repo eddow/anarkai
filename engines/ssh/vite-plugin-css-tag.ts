@@ -1,3 +1,4 @@
+import MagicString from 'magic-string'
 import type { Plugin } from 'vite'
 
 interface CSSTagMatch {
@@ -14,38 +15,32 @@ export function cssTagPlugin(): Plugin {
 		async transform(code, id) {
 			if (!/\.(tsx?|jsx?)$/.test(id)) return null
 
+			// Skip library files that might contain the implementation itself to avoid circular issues
 			if (id.includes('/lib/css.ts') || id.endsWith('lib/css.ts')) return null
 
 			const matches = findCSSTagCalls(code)
 			if (matches.length === 0) return null
 
+			const s = new MagicString(code)
 			const hasInjectCSSImport = /import\s+.*__injectCSS.*from/.test(code)
 
-			let transformedCode = code
-			let offset = 0
-
-			for (const match of matches.reverse()) {
+			for (const match of matches) {
 				const replacement = `__injectCSS(${JSON.stringify(match.cssContent)});`
-				const before = transformedCode.substring(0, match.startIndex + offset)
-				const after = transformedCode.substring(match.endIndex + offset)
-				transformedCode = before + replacement + after
-				offset += replacement.length - (match.endIndex - match.startIndex)
+				s.overwrite(match.startIndex, match.endIndex, replacement)
 			}
 
 			if (!hasInjectCSSImport) {
-				transformedCode = `import { __injectCSS } from '@ssh/lib/css'; ${transformedCode}`
+				s.prepend("import { __injectCSS } from '@ssh/lib/css';\n")
 			}
 
 			return {
-				code: transformedCode,
-				map: {
-					version: 3,
+				code: s.toString(),
+				map: s.generateMap({
 					file: id,
-					sources: [id],
-					sourcesContent: [code],
-					names: [],
-					mappings: 'AAAA,CAAC', // Identity mapping for the whole file roughly
-				},
+					source: id,
+					includeContent: true,
+					hires: true,
+				}),
 			}
 		},
 	}

@@ -14,7 +14,9 @@ export class AssertionError extends Error {
 	}
 }
 export function assert(condition: any, message: string): asserts condition {
-	if (!condition) throw new AssertionError(message)
+	if (!condition) {
+		throw new AssertionError(message)
+	}
 }
 export function defined<T>(value: T | undefined, message = 'Value is defined'): T {
 	assert(value !== undefined, message)
@@ -50,6 +52,17 @@ reactiveOptions.maxEffectReaction = 'throw'
 // Disable requestAnimationFrame zone patching: ensures callbacks run without a parent effect context
 // (does not disable the function itself, just the reactivity engine context propagation)
 reactiveOptions.zones.requestAnimationFrame = false
+// TODO: comment it for normal functionment (performances killer) - allow it to test discrepancies
+reactiveOptions.onMemoizationDiscrepancy = (cached: any, fresh: any, fn: any, args: any, cause: string) => {
+	console.error(`Memoization discrepancy in method ${fn?.name || 'unknown'}:`, {
+		cached,
+		fresh,
+		host: args?.[0],
+		cause
+	})
+	debugger
+	throw new Error(`Memoization discrepancy: ${cause}`)
+}
 enableDevTools()
 
 export function initConsoleTrap() {

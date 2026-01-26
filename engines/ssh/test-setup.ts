@@ -2,6 +2,58 @@
 // This file is required by vitest.config.ts
 
 import { vi } from 'vitest'
+import { reactiveOptions, unreactive } from 'mutts'
+
+// Ensure memoization discrepancies throw error in tests
+let inDiscrepancy = false
+reactiveOptions.onMemoizationDiscrepancy = (cached, fresh, fn: any, args, cause) => {
+	if (inDiscrepancy) return
+	inDiscrepancy = true
+	try {
+		// Fast pass: same target object
+		if (unreactive(cached) === unreactive(fresh)) return
+
+		// Second pass: deep equality via safe JSON
+		const safeStringify = (val: any, indent?: number) => {
+			const seen = new WeakSet()
+			try {
+				return JSON.stringify(
+					val,
+					(key, value) => {
+						if (typeof value === 'object' && value !== null) {
+							if (seen.has(value)) return '[Circular]'
+							seen.add(value)
+						}
+						return value
+					},
+					indent,
+				)
+			} catch {
+				return `[Unserializable: ${val?.constructor?.name || typeof val}]`
+			}
+		}
+
+		const cachedJson = safeStringify(cached)
+		const freshJson = safeStringify(fresh)
+		if (cachedJson === freshJson) return
+
+		const methodName = fn?.name || fn?.key || 'unknown'
+		const className = fn?.owner?.name || fn?.owner?.constructor?.name || ''
+		const message = `Memoization discrepancy in ${className ? `${className}.` : ''}${methodName}`
+		console.error('\x1b[31m' + message + '\x1b[0m')
+
+		console.error('Cached:', safeStringify(cached, 2))
+		console.error('Fresh:', safeStringify(fresh, 2))
+		console.error('Cause:', cause)
+		const owner = args?.[0]
+		if (owner) {
+			console.error('Owner state:', safeStringify(owner, 2))
+		}
+		throw new Error(message)
+	} finally {
+		inDiscrepancy = false
+	}
+}
 
 // Setup global test functions for vitest
 // @ts-expect-error - Adding global test functions

@@ -20,7 +20,7 @@ interface LocalMovingGood extends MovingGood {
 	from: AxialCoord
 }
 
-@unreactive('tile', 'hive', 'storage')
+@unreactive('tile', 'hive')
 @reactive
 export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof TileContent>(
 	TileContent,
@@ -100,9 +100,9 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			this.configurationRef = { scope: 'individual' }
 		}
 		if (!this.individualConfiguration) {
-			this.individualConfiguration = {
+			this.individualConfiguration = reactive({
 				...(configurations.default as Ssh.BaseAlveolusConfiguration),
-			}
+			})
 		}
 		this.individualConfiguration.working = value
 	}
@@ -145,7 +145,8 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		return false
 	}
 
-	//@memoize
+	// REHABILITATED MEMOIZE
+	@memoize
 	get isBurdened(): boolean {
 		// Only consider available (unreserved) goods for burden check
 		// This prevents offering offload jobs for goods that are already being picked up
@@ -194,7 +195,8 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	 * - Returns a cycle of movements (A->B, B->C, C->A) if circular blockade detected
 	 * - Returns undefined if no movements available
 	 */
-	//@memoize
+	// REHABILITATED MEMOIZE
+	@memoize
 	get aGoodMovement(): LocalMovingGood[] | undefined {
 		const hive = this.hive
 		const here = toAxialCoord(this.tile.position)!
@@ -327,7 +329,8 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 
 		return undefined
 	}
-	//@memoize
+	// REHABILITATED MEMOIZE
+	@memoize
 	get incomingGoods(): boolean {
 		// Note: because borders have 2 neighbors and we check this when no movement is occurring,
 		//  if a good is incoming, it's for you (you're in one of the neighbors)
@@ -367,7 +370,8 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			.filter((c): c is Alveolus => c instanceof Alveolus)
 	}
 	abstract get workingGoodsRelations(): GoodsRelations
-	//@memoize
+	// REHABILITATED MEMOIZE
+	@memoize
 	get goodsRelations(): GoodsRelations {
 		const rv = this.working
 			? this.workingGoodsRelations
@@ -377,6 +381,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 						{ advertisement: 'provide', priority: '0-store' },
 					]),
 				)
+		// TODO: Display goodrelations in props?
 		this.tile.log(`goodsRelations: ${JSON.stringify(rv)}`)
 		return rv
 	}

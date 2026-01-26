@@ -16,7 +16,7 @@ import { configuration } from 'ssh/src/lib/globals'
 import { AlveolusConfigurationManager, alveolusClass, Hive } from 'ssh/src/lib/hive'
 import { mrg } from 'ssh/src/lib/interactive-state'
 import { Population } from 'ssh/src/lib/population/population'
-import type { AlveolusType, DepositType, GoodType } from 'ssh/src/lib/types'
+import type { AlveolusType, DepositType, GoodType, TerrainType } from 'ssh/src/lib/types'
 import type { GameRenderer, InputAdapter } from 'ssh/src/lib/types/engine'
 import { axial } from 'ssh/src/lib/utils/axial'
 import { SimulationLoop } from 'ssh/src/lib/utils/loop'
@@ -77,6 +77,7 @@ export interface TilePatch {
 		type: DepositType
 		amount: number
 	}
+	terrain?: TerrainType
 }
 export interface GamePatches {
 	tiles?: Array<TilePatch>
@@ -307,15 +308,37 @@ export class Game extends Eventful<GameEvents> {
 			const coord = { q: p.coord[0], r: p.coord[1] }
 			const tile = this.hex.getTile(coord)
 			if (!tile) continue
+			
+			// If missing content and patch defines terrain, create UnBuiltLand
+			if (!tile.content && p.terrain) {
+				// Stub deposit if needed, will be refined below
+				tile.content = new UnBuiltLand(tile, p.terrain, undefined)
+			}
+
 			const content = tile.content
 			if (content instanceof UnBuiltLand) {
+				if (p.terrain) {
+					// Hack: update terrain property if possible, or recreate? 
+					// UnBuiltLand.terrain might be readonly.
+					// Checking UnBuiltLand definition is needed. 
+					// Assuming we can recreate if needed, or cast.
+					// For now let's assume if we just created it, it's fine.
+					// If it existed, we might need to replace.
+					if ((content as any).terrain !== p.terrain) {
+						// Recreate UnBuiltLand with new terrain
+						const deposit = content.deposit
+						tile.content = new UnBuiltLand(tile, p.terrain, deposit)
+					}
+				}
+
 				if (p.deposit) {
 					const DepositClass = Deposit.class[p.deposit.type as keyof typeof Deposit.class]
 					if (DepositClass) {
-						content.deposit = new DepositClass(p.deposit.amount)
+						// Re-fetch content in case it was replaced
+						const currentContent = tile.content as UnBuiltLand
+						currentContent.deposit = new DepositClass(p.deposit.amount)
 						// Ensure name is set
-						if (!content.deposit.name) (content.deposit as any).name = p.deposit.type
-					} else {
+						if (!currentContent.deposit.name) (currentContent.deposit as any).name = p.deposit.type
 					}
 				}
 				tile.asGenerated = false

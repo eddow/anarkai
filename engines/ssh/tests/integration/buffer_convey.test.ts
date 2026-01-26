@@ -56,7 +56,11 @@ describe('Storage Buffering', () => {
                 { position: { q: 2, r: 0 }, goodType: 'wood' },
                 { position: { q: 2, r: 0 }, goodType: 'wood' },
                 { position: { q: 2, r: 0 }, goodType: 'wood' },
+                { position: { q: 2, r: 0 }, goodType: 'wood' },
                 { position: { q: 2, r: 0 }, goodType: 'wood' }
+            ],
+            tiles: [
+                { coord: [2, 0] as [number, number], terrain: 'grass' }
             ]
         };
         
@@ -74,13 +78,14 @@ describe('Storage Buffering', () => {
 
         // Verify setup
         expect(storageAlveolus.storage.available('wood')).toBe(0);
-        // Verify free goods exist
+        
         // (Free goods API might vary, assuming scenario loaded correctly)
 
         // Step 1: Run for a while. Without buffering, nothing should happen.
         // Storage advertises '0-store', Hive ignores it. Gatherer sees no need.
         for (let i = 0; i < 100; i++) {
             engine.tick(0.1);
+            await new Promise(resolve => setTimeout(resolve, 0));
             if (gathererWorker.stepExecutor?.constructor.name === 'GatherStep') {
                 // If it starts gathering, that's unexpected for now (unless default behavior changes)
                 console.log('UNEXPECTED: Gatherer started gathering without buffering config');
@@ -94,15 +99,24 @@ describe('Storage Buffering', () => {
 
         // Step 2: Configure storage to buffer
         // usage: storage.buffers.set('wood', 10);
-        storageAlveolus.buffers.set('wood', 10);
+        storageAlveolus.setBuffers({ wood: 10 });
         
         console.log('Configured storage to buffer 10 wood');
+        console.log('Storage GoodsRelations:', JSON.stringify(storageAlveolus.goodsRelations));
+        console.log('Hive Needs:', JSON.stringify(storageAlveolus.hive.needs));
 
         // Step 3: Run again. Now expecting gathering.
         let gathered = false;
         // Increase timeout/ticks as gathering + walking + conveying takes time
         for (let i = 0; i < 1000; i++) {
             engine.tick(0.1);
+            await new Promise(resolve => setTimeout(resolve, 0));
+            
+            if (i % 50 === 0) {
+                 const stepName = gathererWorker.stepExecutor?.constructor.name;
+                 console.log(`Tick ${i}: Gatherer state: ${stepName}, Storage: ${storageAlveolus.storage.available('wood')}`);
+            }
+
             // Check if wood arrived in storage
             if (storageAlveolus.storage.available('wood') > 0) {
                 gathered = true;
@@ -155,11 +169,12 @@ describe('Storage Buffering', () => {
         gathererAlveolus.assignedWorker = gathererWorker;
 
         // Configure woodpile to buffer
-        woodpileAlveolus.buffers.set('wood', 10);
+        woodpileAlveolus.setBuffers({ wood: 10 });
         
         let gathered = false;
         for (let i = 0; i < 1000; i++) {
             engine.tick(0.1);
+            await new Promise(resolve => setTimeout(resolve, 0));
             if (woodpileAlveolus.storage.available('wood') > 0) {
                 gathered = true;
                 break;

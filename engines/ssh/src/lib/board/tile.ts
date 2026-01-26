@@ -1,4 +1,4 @@
-import { memoize, unreactive } from 'mutts'
+import { memoize, reactive } from 'mutts'
 import { GameObject, withInteractive } from 'ssh/src/lib/game/object'
 import { Hive } from 'ssh/src/lib/hive'
 import { gameIsaTypes } from 'ssh/src/lib/npcs/utils'
@@ -14,11 +14,13 @@ import { UnBuiltLand } from './content/unbuilt-land'
 import type { FreeGood } from './freeGoods'
 import type { Zone } from './zone'
 
-@unreactive
+@reactive // TODO: this might need to be unreactive
 export class Tile extends withInteractive(GameObject) {
 	// True when the tile is exactly as produced by generation
 	public asGenerated: boolean = false
-	//TODO: @memoize
+	
+	// REHABILITATED MEMOIZE
+	@memoize
 	get content(): TileContent | undefined {
 		return this.board.getTileContent(toAxialCoord(this.position))
 	}
@@ -168,29 +170,31 @@ export class Tile extends withInteractive(GameObject) {
 			.filter((tile): tile is Tile => tile !== undefined)
 	}
 
-	@memoize
+	// @memoize
 	get walkNeighbors(): NeighborInfo[] {
 		const coord = toAxialCoord(this.position)
 		const neighbors = axial.neighbors(coord)
 		return neighbors
 			.map((neighbor: Positioned) => {
 				const tile = this.board.getTile(neighbor)
-				return tile
+				return tile && tile.content
 					? {
 							coord: toAxialCoord(neighbor),
-							walkTime: tile.content!.walkTime,
+							walkTime: tile.content.walkTime,
 						}
 					: null
 			})
 			.filter((neighbor): neighbor is NeighborInfo => neighbor !== null)
 	}
 
-	//@memoize
+	// REHABILITATED MEMOIZE
+	@memoize
 	get freeGoods(): FreeGood[] {
 		return this.board.freeGoods.getGoodsAt(this.position)
 	}
 
-	//@memoize
+	// REHABILITATED MEMOIZE
+	@memoize
 	get availableGoods(): FreeGood[] {
 		return this.freeGoods.filter((g) => g.available)
 	}

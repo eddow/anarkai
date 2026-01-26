@@ -10,9 +10,9 @@ import {
 } from './guard'
 import { type AllocationBase, Storage } from './storage'
 import type { RenderedGoodSlot, RenderedGoodSlots } from './types'
-import { type } from 'os'
 
-@unreactive
+
+@reactive
 class SlottedAllocation implements AllocationBase {
 	constructor(
 		private storage: SlottedStorage,
@@ -36,7 +36,7 @@ class SlottedAllocation implements AllocationBase {
 				// Ensure the allocation exists
 				assert(slot.allocated >= amount, 'cancel: allocated less than cancel amount')
 				slot.allocated -= amount
-				if (slot.quantity + slot.allocated === 0) this.storage.slots[i] = undefined
+				if (slot.quantity + slot.allocated === 0) this.storage.slots.splice(i, 1, undefined)
 			} else {
 				const need = -amount
 				assert(slot.reserved >= need, 'cancel: reserved less than cancel amount')
@@ -69,7 +69,7 @@ class SlottedAllocation implements AllocationBase {
 						slot.reserved === 0 && slot.allocated === 0 && slot.quantity === 0,
 						'slot should be empty',
 					)
-					this.storage.slots[i] = undefined
+					this.storage.slots.splice(i, 1, undefined)
 				}
 			} else {
 				const want = -amount
@@ -82,7 +82,7 @@ class SlottedAllocation implements AllocationBase {
 						slot.reserved === 0 && slot.allocated === 0 && slot.quantity === 0,
 						'slot should be empty',
 					)
-					this.storage.slots[i] = undefined
+					this.storage.slots.splice(i, 1, undefined)
 				}
 			}
 		}
@@ -98,17 +98,16 @@ export interface Slot {
 
 @reactive
 export class SlottedStorage extends Storage<SlottedAllocation> {
-	public readonly slots: (Slot | undefined)[]
+	public readonly slots: (Slot | undefined)[] = reactive([])
 
 	constructor(
 		maxSlots: number,
 		public readonly maxQuantityPerSlot: number = 1,
 	) {
 		super()
-		this.slots = Array(maxSlots).fill(undefined)
+		for (let i = 0; i < maxSlots; i++) this.slots.push(undefined)
 	}
 
-	@memoize
 	get allocatedSlots(): boolean {
 		return this.slots.some((slot) => slot?.allocated)
 	}
@@ -160,7 +159,6 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		return totalCapacity
 	}
 
-	@memoize
 	get isEmpty(): boolean {
 		return this.slots.every((slot) => slot === undefined || slot.quantity === 0)
 	}
@@ -207,7 +205,9 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 				remaining -= canRemove
 
 				// Clear slot if empty
-				if (slot.quantity + slot.allocated === 0) this.slots[i] = undefined
+				if (slot.quantity + slot.allocated === 0) {
+					this.slots.splice(i, 1, undefined)
+				}
 			}
 		}
 
@@ -222,7 +222,8 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		return qty - remaining
 	}
 
-	// @memoize
+	// REHABILITATED MEMOIZE
+	@memoize
 	get stock(): { [k in GoodType]?: number } {
 		const result: { [k in GoodType]?: number } = {}
 
@@ -232,7 +233,8 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		return result
 	}
 
-	// @memoize // TODO: Now break the game by making gatherer's goods invisible
+	// REHABILITATED MEMOIZE
+	@memoize
 	get availables(): { [k in GoodType]?: number } {
 		const result: { [k in GoodType]?: number } = {}
 
@@ -296,7 +298,12 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 				if (this.slots[i] !== undefined) continue
 				const take = Math.min(remaining, this.maxQuantityPerSlot)
 				// Use splice to ensure reactivity triggers correctly (assignment on sparse array might be flaky)
-				this.slots.splice(i, 1, { goodType, quantity: 0, allocated: take, reserved: 0 })
+				this.slots.splice(
+					i,
+					1,
+					// TODO: shouldn't this be done in mutts directly?
+					reactive({ goodType, quantity: 0, allocated: take, reserved: 0 }),
+				)
 				alloc[i] += take
 				remaining -= take
 			}

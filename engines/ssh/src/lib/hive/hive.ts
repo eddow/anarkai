@@ -1,4 +1,4 @@
-import { reactive, type ScopedCallback, unreactive } from 'mutts'
+import { reactive, type ScopedCallback, unreactive, memoize } from 'mutts'
 import { type HexBoard, isTileCoord } from 'ssh/src/lib/board/board'
 import { AlveolusGate } from 'ssh/src/lib/board/border/alveolus-gate'
 import { Alveolus } from 'ssh/src/lib/board/content/alveolus'
@@ -67,7 +67,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 	public readonly configurations = reactive(new Map<string, Ssh.AlveolusConfiguration>())
 
 	// Structure and content
-	//@memoize
+	// REHABILITATED MEMOIZE
 	get byActionType() {
 		const rv: Partial<Record<Ssh.Action['type'], Alveolus[]>> = {}
 		for (const alveolus of this.alveoli) {

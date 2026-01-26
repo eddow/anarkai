@@ -1,4 +1,4 @@
-import { reactive } from 'mutts'
+import { reactive, unwrap } from 'mutts'
 import { characterEvolutionRates, characterTriggerLevels, maxWalkTime } from '../../../assets/constants'
 import { goods as goodsCatalog } from '../../../assets/game-content'
 import type { Alveolus } from 'ssh/src/lib/board/content/alveolus'
@@ -40,8 +40,13 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		return this._assignedAlveolus
 	}
 	public set assignedAlveolus(value: Alveolus | undefined) {
-		if (value === this._assignedAlveolus) return
-		assert(!value !== !this._assignedAlveolus, 'assigned alveolus mismatch')
+		const normalize = (v: any) => v === null ? undefined : unwrap(v)
+		value = normalize(value)
+		const current = normalize(this._assignedAlveolus)
+		
+		if (value === current) return
+		
+		assert(!value !== !current, 'assigned alveolus mismatch')
 		this._assignedAlveolus = value
 	}
 

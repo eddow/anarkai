@@ -22,7 +22,7 @@ describe('Deadlock Reproduction', () => {
 
         return { engine, game: engine.game, spawnWorker };
     }
-
+    // TODO: Leaked allocations here - retrieve and heal
     it('Regression: should not deadlock in waitForIncomingGoods during heavy conveyance', { timeout: 60000 }, async () => {
         const { engine, game, spawnWorker } = await setupEngine();
 

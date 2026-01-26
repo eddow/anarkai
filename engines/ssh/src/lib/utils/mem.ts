@@ -1,4 +1,4 @@
-import { reactive } from 'mutts'
+import { reactive, ReactiveBase } from 'mutts'
 import { type Axial, type AxialKey, type AxialRef, axial } from '.'
 
 export interface AxialKeyDictionary<T> {
@@ -11,34 +11,35 @@ export interface AxialKeyDictionary<T> {
 	values(): Iterable<T>
 }
 
-export class AxialKeyMap<T> implements AxialKeyDictionary<T>, Iterable<[AxialKey, T]> {
-	// LLM: No need ot make this map reactive - it will be made reactive automatically if the AxialKeyMap is reactive
+@reactive	// TODO: this reactive might be superfluous
+export class AxialKeyMap<T> extends ReactiveBase implements AxialKeyDictionary<T>, Iterable<[AxialKey, T]> {
 	private map: Map<AxialKey, T>
 
 	constructor(
 		init: Iterable<[AxialRef, T]> = [],
 		private readonly defaultValue?: () => T,
 	) {
-		this.map = reactive(
-			new Map(
-				(function* () {
-					for (const [k, v] of init) yield [axial.key(k), v]
-				})(),
-			),
-		)
+		super()
+		this.map = reactive(new Map(
+			(function* () {
+				for (const [k, v] of init) yield [axial.key(k), v]
+			})(),
+		))
 	}
 	[Symbol.iterator](): Iterator<[AxialKey, T], any, any> {
 		return this.map[Symbol.iterator]()
 	}
 	get(key: AxialRef): T | undefined {
-		if (!this.defaultValue || this.map.has(axial.key(key))) return this.map.get(axial.key(key))!
+		const k = axial.key(key)
+		if (!this.defaultValue || this.map.has(k)) return this.map.get(k)!
 		const value = this.defaultValue()
-		this.map.set(axial.key(key), value)
-		return value
+		this.map.set(k, value)
+		return this.map.get(k)!
 	}
 
 	set(key: AxialRef, value: T): void {
-		this.map.set(axial.key(key), value)
+		const k = axial.key(key)
+		this.map.set(k, value)
 	}
 
 	has(key: AxialRef): boolean {
@@ -69,10 +70,12 @@ export class AxialKeyMap<T> implements AxialKeyDictionary<T>, Iterable<[AxialKey
 	}
 }
 
-export class AxialSet implements Iterable<Axial> {
+@reactive	// TODO: this reactive might be superfluous
+export class AxialSet extends ReactiveBase implements Iterable<Axial> {
 	private set: AxialKeyMap<Axial>
 
 	constructor(init: Iterable<AxialRef> = []) {
+		super()
 		this.set = new AxialKeyMap(
 			(function* () {
 				for (const k of init) yield [axial.key(k), axial.access(k)]

@@ -8,8 +8,11 @@ import { resolve as resolvePath } from 'node:path'
 export function getCommonAliases(projectRootDir) {
 	return {
 		'@ssh': resolvePath(projectRootDir, '../../engines/ssh/src'),
-		'engine-pixi': resolvePath(projectRootDir, '../../engines/pixi'),
-		'ssh': resolvePath(projectRootDir, '../../engines/ssh'),
+		'engine-pixi': resolvePath(projectRootDir, '../../engines/pixi/src'),
+		'ssh': resolvePath(projectRootDir, '../../engines/ssh/src'),
+		'mutts': resolvePath(projectRootDir, '../../../ownk/mutts/src'),
+		'npc-script': resolvePath(projectRootDir, '../../../ownk/npcs/src'),
+		'omni18n': resolvePath(projectRootDir, '../../../ownk/omni18n/src/client.ts'),
 		'$lib': resolvePath(projectRootDir, '../../engines/ssh/src/lib'),
 		'$assets': resolvePath(projectRootDir, '../../engines/ssh/assets'),
 	}

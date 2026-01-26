@@ -29,6 +29,14 @@ describe('NPC Behaviors Integration', () => {
         return { engine, game: engine.game, spawnWorker };
     }
 
+    async function tickAsync(engine: TestEngine, seconds: number) {
+        const steps = Math.ceil(seconds / 0.1);
+        for (let i = 0; i < steps; i++) {
+            engine.tick(0.1);
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
+    }
+
     it('Scenario: Harvest Behavior', { timeout: 10000 }, async () => {
         const { engine, game, spawnWorker } = await setupEngine();
 
@@ -39,7 +47,7 @@ describe('NPC Behaviors Integration', () => {
         
         const scenario = {
             tiles: [
-                { coord: [2, 3] as [number, number], deposit: { type: 'tree', name: 'tree', amount: 10 } }
+                { coord: [2, 3] as [number, number], deposit: { type: 'tree', name: 'tree', amount: 10 }, terrain: 'forest' }
             ],
             hives: [
                 {
@@ -48,7 +56,10 @@ describe('NPC Behaviors Integration', () => {
                         { coord: [2, 2] as [number, number], alveolus: 'tree_chopper' } // Harvesting alveolus
                     ]
                 }
-            ]
+            ],
+            zones: {
+                harvest: [[2, 3]]
+            }
         };
         engine.loadScenario(scenario as any);
 
@@ -57,7 +68,7 @@ describe('NPC Behaviors Integration', () => {
         // 2. Run
         // Character should get job from Alveolus -> Go to Tree -> Harvest -> Return -> Drop
         // 20 seconds should be enough for one cycle
-        engine.tick(20.0);
+        await tickAsync(engine, 20.0);
         
         // 3. Verify
         // Deposit should decrease
@@ -103,7 +114,7 @@ describe('NPC Behaviors Integration', () => {
         engine.loadScenario(scenario as any);
         const char = await spawnWorker({ q: 0, r: 0 });
 
-        engine.tick(30.0); // Increase time slightly to ensure transformation happens
+        await tickAsync(engine, 30.0); // Increase time slightly to ensure transformation happens
 
         const storage = game.hex.getTile({ q: 0, r: 0 })?.content?.storage?.stock;
         console.log('Sawmill Goods:', storage);
@@ -145,7 +156,7 @@ describe('NPC Behaviors Integration', () => {
         const char = await spawnWorker({ q: 2, r: 1 }); // Spawn ON the mushroom/neighbor
         
         // Wait
-        await engine.tick(30.0);
+        await tickAsync(engine, 30.0);
 
         // Verify
          const hiveTile = game.hex.getTile({ q: 2, r: 2 });
@@ -270,7 +281,7 @@ describe('NPC Behaviors Integration', () => {
         const action = char.findAction();
         if (action) char.begin(action);
 
-        engine.tick(20.0);
+        await tickAsync(engine, 20.0);
 
         // Should have eaten
         expect(char.hunger).toBeLessThan(90);

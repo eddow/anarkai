@@ -13,7 +13,7 @@ import {
 import { type AllocationBase, Storage } from './storage'
 import type { RenderedGoodSlot } from './types'
 
-@unreactive
+@reactive
 class SpecificAllocation implements AllocationBase {
 	constructor(
 		private storage: SpecificStorage,
@@ -73,14 +73,17 @@ class SpecificAllocation implements AllocationBase {
 
 @reactive
 export class SpecificStorage extends Storage<SpecificAllocation> {
-	public readonly _goods: { [k in GoodType]?: number } = reactive({})
-	public readonly _allocated: { [k in GoodType]?: number } = reactive({})
-	public readonly _reserved: { [k in GoodType]?: number } = reactive({})
+	public readonly _goods: { [k in GoodType]?: number }
+	public readonly _allocated: { [k in GoodType]?: number }
+	public readonly _reserved: { [k in GoodType]?: number }
 	public readonly maxAmounts: { [k in GoodType]?: number }
 
 	constructor(maxAmounts: Ssh.SpecificStorage) {
 		super()
-		this.maxAmounts = { ...maxAmounts }
+		this._goods = reactive({})
+		this._allocated = reactive({})
+		this._reserved = reactive({})
+		this.maxAmounts = reactive({ ...maxAmounts })
 	}
 
 	@memoize
@@ -145,12 +148,14 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 		return toRemove
 	}
 
-	//@memoize
+	// REHABILITATED MEMOIZE
+	@memoize
 	get stock(): { [k in GoodType]?: number } {
 		return { ...this._goods }
 	}
 
-	//@memoize
+	// REHABILITATED MEMOIZE
+	@memoize
 	get availables(): { [k in GoodType]?: number } {
 		const result: { [k in GoodType]?: number } = {}
 		for (const [goodType, quantity] of Object.entries(this._goods)) {

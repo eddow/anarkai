@@ -27,6 +27,7 @@ export default defineConfig({
 		babel({
 			// Babel config (applied to both JS and TS files)
 			babelConfig: {
+				sourceMaps: true,
 				plugins: [['@babel/plugin-proposal-decorators', { legacy: true }]],
 				overrides: [
 					{
@@ -52,7 +53,7 @@ export default defineConfig({
 		}),
 	],
 	optimizeDeps: {
-		exclude: ['mutts', 'npc-script', 'omni18n', 'ssh'],
+		exclude: ['mutts', 'npc-script', 'omni18n', 'ssh', 'pounce-ts', 'pounce-ui'],
 	},
 	resolve: {
 		alias: {
@@ -61,8 +62,17 @@ export default defineConfig({
 			$assets: resolvePath(projectRootDir, 'assets'),
 			'@app': resolvePath(projectRootDir, 'src'),
 			'@ssh': resolvePath(projectRootDir, 'src'),
-			'ssh': resolvePath(projectRootDir, '.'),
+			'ssh': projectRootDir,
+			'pounce-ts': resolvePath(projectRootDir, '../../../ownk/pounce-ts/src/lib'),
+			'pounce-ui': resolvePath(projectRootDir, '../../../ownk/pounce-ui/src'),
+			'npc-script': resolvePath(projectRootDir, '../../../ownk/npcs/src'),
+			'mutts': resolvePath(projectRootDir, '../../../ownk/mutts/src'),
+			'omni18n': resolvePath(projectRootDir, '../../../ownk/omni18n/src'),
+			'pure-glyf': resolvePath(projectRootDir, '../../../ownk/pure-glyf/src'),
 		},
+	},
+	build: {
+		sourcemap: true,
 	},
 	esbuild: false,
 })

@@ -1,5 +1,4 @@
-import { reactive, unreactive } from 'mutts'
-
+import { reactive } from 'mutts'
 import { deposits } from '../../../../assets/game-content'
 import { withTicked } from 'ssh/src/lib/game/object'
 import { gameIsaTypes } from 'ssh/src/lib/npcs/utils'
@@ -20,7 +19,6 @@ export class Deposit extends GcClassed<Ssh.DepositDefinition>() {
 	}
 }
 
-@unreactive('tile')
 @reactive
 export class UnBuiltLand extends withTicked(TileContent) {
 	/** Project identifier (e.g., "build:sawmill") indicating pending construction */

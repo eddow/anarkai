@@ -1,5 +1,4 @@
 import { reactive } from 'mutts'
-
 import { assert } from 'ssh/src/lib/debug'
 import type { Game } from 'ssh/src/lib/game'
 import { GameObject, withContainer, withHittable } from 'ssh/src/lib/game/object'
@@ -30,9 +29,10 @@ export function isTileCoord(coord: AxialCoord | undefined): boolean {
 	return !!coord && isInteger(coord.q) && isInteger(coord.r)
 }
 
+@reactive
 export class HexBoard extends withContainer(withHittable(GameObject)) {
-	private readonly contents = reactive(new AxialKeyMap<TileContent | TileBorderContent>())
-	private readonly occupied = reactive(new AxialKeyMap<Character[]>([], () => []))
+	private readonly contents = new AxialKeyMap<TileContent | TileBorderContent>()
+	private readonly occupied = new AxialKeyMap<Character[]>([], () => [])
 	// Will contain goods when perhaps destroying a building (war-like destruction), killing a character,
 	// stopping (or making) a transit, etc.
 	readonly freeGoods: FreeGoods

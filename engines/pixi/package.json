@@ -13,7 +13,8 @@
 		"./vite-config": {
 			"types": "./vite-config.d.ts",
 			"default": "./vite-config.js"
-		}
+		},
+		"./src": "./src/index.ts"
 	},
 	"scripts": {
 		"dev": "vite",
@@ -22,7 +23,7 @@
 		"test": "vitest run"
 	},
 	"dependencies": {
-		"mutts": "^1.0.2",
+		"mutts": "link:../../../ownk/mutts",
 		"pixi.js": "^8.14.3",
 		"ssh": "workspace:*",
 		"typescript": "~5.8.3",

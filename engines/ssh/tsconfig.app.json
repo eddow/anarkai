@@ -1,9 +1,9 @@
 {
 	"compilerOptions": {
 		"composite": true,
-		"target": "ES2022",
+		"target": "ES2023",
 		"lib": [
-			"ESNext",
+			"ES2023",
 			"DOM",
 			"DOM.Iterable"
 		],
@@ -22,6 +22,7 @@
 		"noUnusedLocals": false,
 		"noUnusedParameters": false,
 		"noFallthroughCasesInSwitch": true,
+		"sourceMap": true,
 		"jsx": "react",
 		"jsxFactory": "h",
 		"jsxFragmentFactory": "Fragment",
@@ -32,15 +33,6 @@
 		"paths": {
 			"ssh/*": [
 				"./*"
-			],
-			"@pounce/*": [
-				"node_modules/pounce-ts/src/*"
-			],
-			"npc-script": [
-				"../../../ownk/npcs/dist/index.d.ts"
-			],
-			"npc-script/*": [
-				"../../../ownk/npcs/dist/*"
 			]
 		}
 	},
@@ -54,5 +46,11 @@
 		"assets/**/*.ts",
 		"assets/**/*.tsx",
 		"../pixi/assets/resources.ts",
+		"../../../ownk/mutts/src/**/*.ts",
+		"../../../ownk/npcs/src/**/*.ts",
+		"../../../ownk/omni18n/src/**/*.ts",
+		"../../../ownk/pounce-ts/src/**/*.ts",
+		"../../../ownk/pounce-ui/src/**/*.ts",
+		"../../../ownk/pure-glyf/src/**/*.ts"
 	]
 }

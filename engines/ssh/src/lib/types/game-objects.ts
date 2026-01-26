@@ -6,7 +6,7 @@ import { Tile } from 'ssh/src/lib/board/tile'
 import { HarvestAlveolus } from 'ssh/src/lib/hive/harvest'
 import { baseGameScope } from './base'
 
-console.log('HarvestAlveolus during registration:', HarvestAlveolus)
+
 
 /**
  * Game Objects Module

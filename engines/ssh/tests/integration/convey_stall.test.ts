@@ -103,6 +103,7 @@ describe('Convey Stall Reproduction', () => {
         let startedConvey = false;
         for (let i = 0; i < 300; i++) {
             engine.tick(0.1);
+            await new Promise(resolve => setTimeout(resolve, 0)); 
             const executorName = storageWorker.stepExecutor?.constructor.name;
             if (executorName === 'MultiMoveStep') {
                 startedConvey = true;
@@ -124,6 +125,7 @@ describe('Convey Stall Reproduction', () => {
                 break;
             }
             engine.tick(0.1);
+            await new Promise(resolve => setTimeout(resolve, 0));
             if (i % 20 === 0) {
                 console.log(`Tick ${i} after move started, sawmill incoming: ${sawmill.incomingGoods}, sawmill aGoodMovement: ${!!sawmill.aGoodMovement}`);
             }
@@ -137,6 +139,7 @@ describe('Convey Stall Reproduction', () => {
         let sawmillActive = false;
         for (let i = 0; i < 200; i++) {
             engine.tick(0.1);
+            await new Promise(resolve => setTimeout(resolve, 0));
             const executorName = char.stepExecutor?.constructor.name;
             const description = (char.stepExecutor as any)?.descriptionText;
             if (description === 'wait.incoming-goods' || executorName === 'MultiMoveStep' || description === 'convey') {
