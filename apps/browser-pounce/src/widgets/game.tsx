@@ -1,9 +1,10 @@
 import { effect } from 'mutts'
+import type { DockviewWidgetProps, DockviewWidgetScope } from 'pounce-ui'
 
-import type { InteractiveGameObject } from 'ssh/src/lib/game'
+import type { InteractiveGameObject } from 'ssh/game'
 import { css } from '@app/lib/css'
-import { PixiGameRenderer } from 'engine-pixi/src/renderer'
-import { Tile } from 'ssh/src/lib/board/tile'
+import { PixiGameRenderer } from 'engine-pixi/renderer'
+import { Tile } from 'ssh/board/tile'
 import {
 	games,
 	interactionMode,
@@ -11,7 +12,7 @@ import {
 	validateStoredSelectionState,
 	unreactiveInfo,
 } from '@app/lib/globals'
-import type { AlveolusType } from 'ssh/src/lib/types/base'
+import type { AlveolusType } from 'ssh/types/base'
 
 css`
 	.dockview-widget--game {
@@ -21,17 +22,14 @@ css`
 	}
 `
 
-export default function GameWidget(props: {
-	params: { game: string }
-	container: HTMLElement
-	api?: any
-}, scope: { dockviewApi: any }) {
+export default function GameWidget(props: DockviewWidgetProps<{ game: string }>, scope: DockviewWidgetScope) {
 	const dock = scope?.dockviewApi
+	const api = (scope as any).panelApi
 	const gameName = props.params?.game ?? 'GameX'
 	const game = games.game(gameName)
 	let container: HTMLElement | undefined
 	let gameView: PixiGameRenderer | undefined
-	const containerId = `game-container-${props.api?.id ?? Math.random().toString(36).substr(2, 9)}`
+	const containerId = `game-container-${api?.id ?? Math.random().toString(36).substr(2, 9)}`
 
 
 	const handleProjectSelection = (object: InteractiveGameObject) => {
@@ -107,7 +105,7 @@ export default function GameWidget(props: {
 		},
 	}
 
-	props.api?.setTitle?.('Game')
+	props.title = 'Game'
 
 	effect(() => {
 		game.on(gameEvents)
@@ -145,7 +143,6 @@ export default function GameWidget(props: {
 		game.loaded.then(() => {
 			if (!isMounted) return
 			console.log('GameWidget: game loaded')
-			if (!props.api) return // check if destroyed
 			if (container && !gameView) {
 				try {
 					console.log(`[GameWidget] Mounting PixiGameRenderer to ${containerId}`)

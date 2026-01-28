@@ -31,12 +31,18 @@ const aliases = {
 	$assets: resolvePath(projectRootDir, 'assets'),
 
 	// Workspace Packages (Source Mapping)
-	ssh: resolvePath(projectRootDir, '../../engines/ssh'),
-	'engine-pixi': resolvePath(projectRootDir, '../../engines/pixi'),
+	'ssh/assets': resolvePath(projectRootDir, '../../engines/ssh/assets'),
+	ssh: resolvePath(projectRootDir, '../../engines/ssh/src/lib'),
+	'engine-pixi/assets': resolvePath(projectRootDir, '../../engines/pixi/assets'),
+	'engine-pixi': resolvePath(projectRootDir, '../../engines/pixi/src'),
+	'pounce-ui/directives': resolvePath(projectRootDir, '../../../ownk/pounce-ui/src/directives/index.ts'),
+	'pounce-ui/css': resolvePath(projectRootDir, '../../../ownk/pounce-ui/src/lib/css.ts'),
+	'pounce-ui': resolvePath(projectRootDir, '../../../ownk/pounce-ui/src'),
+	'pounce-ts/lib': resolvePath(projectRootDir, '../../../ownk/pounce-ts/src/lib'),
+	'pounce-ts': resolvePath(projectRootDir, '../../../ownk/pounce-ts/src'),
 
 	// Fallbacks/Legacy
 	mutts: resolvePath(projectRootDir, '../../../ownk/mutts/src'),
-	'@pounce': resolvePath(projectRootDir, 'node_modules/pounce-ts/src'),
 
 	// Fix dockview and picocss resolution
 	'@picocss/pico': resolvePath(

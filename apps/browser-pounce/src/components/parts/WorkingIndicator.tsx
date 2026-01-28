@@ -1,4 +1,4 @@
-import { Icon } from 'pounce-ui/src'
+import { Icon } from 'pounce-ui'
 import { mdiCheck, mdiClose, mdiCog } from 'pure-glyf/icons'
 import { css } from '@app/lib/css'
 

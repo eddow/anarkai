@@ -3,9 +3,8 @@
 	"version": "0.0.0",
 	"type": "module",
 	"exports": {
+		".": "./src/index.ts",
 		"./assets/*": "./assets/*",
-		"./src/*": "./src/*",
-		"./package.json": "./package.json",
 		"./vite-plugins": {
 			"types": "./vite-plugins.d.ts",
 			"default": "./vite-plugins.js"
@@ -14,7 +13,7 @@
 			"types": "./vite-config.d.ts",
 			"default": "./vite-config.js"
 		},
-		"./src": "./src/index.ts"
+		"./package.json": "./package.json"
 	},
 	"scripts": {
 		"dev": "vite",

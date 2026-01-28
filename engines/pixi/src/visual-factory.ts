@@ -1,14 +1,14 @@
 import { Container } from 'pixi.js'
-import type { GameObject } from 'ssh/src/lib/game/object'
-import type { Tile } from 'ssh/src/lib/board/tile'
-import type { Character } from 'ssh/src/lib/population/character'
+import type { GameObject } from 'ssh/game/object'
+import type { Tile } from 'ssh/board/tile'
+import type { Character } from 'ssh/population/character'
 import type { PixiGameRenderer } from './renderer'
 import { TileVisual } from './renderers/tile-visual'
 import { CharacterVisual } from './renderers/character-visual'
 import { FreeGoodsVisual } from './renderers/free-goods-visual'
 import { BorderVisual } from './renderers/border-visual'
 import { VisualObject } from './renderers/visual-object'
-import { namedEffect } from 'ssh/src/lib/debug'
+import { namedEffect } from 'ssh/debug'
 
 
 export class VisualFactory {

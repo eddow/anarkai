@@ -1,5 +1,5 @@
-import { SlottedStorage } from 'ssh/src/lib/storage/slotted-storage'
-import { toAxialCoord } from 'ssh/src/lib/utils/position'
+import { SlottedStorage } from 'ssh/storage/slotted-storage'
+import { toAxialCoord } from 'ssh/utils/position'
 import type { Alveolus } from '../content/alveolus'
 import { type TileBorder, TileBorderContent } from './border'
 

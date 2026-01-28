@@ -1,8 +1,9 @@
 import './app.css'
-import { initConsoleTrap } from 'ssh/src/lib/debug'
+import { initConsoleTrap } from 'ssh/debug'
 initConsoleTrap()
 import { effect, reactive, untracked } from 'mutts'
-import { Button, ButtonGroup, DarkModeButton, Dockview, RadioButton, Toolbar } from 'pounce-ui/src'
+import { themeDracula, themeLight } from 'dockview-core'
+import { Button, ButtonGroup, DarkModeButton, Dockview, RadioButton, Toolbar } from 'pounce-ui'
 import {
 	mdiPause, mdiPlay, mdiFastForward, mdiFastForwardOutline,
 	mdiHomeGroup, mdiTree, mdiEraser, mdiCog, mdiPlus, mdiTestTube, mdiCursorDefaultOutline
@@ -39,6 +40,17 @@ const zoneActions = [
 const buildableAlveoli = Object.entries(gameContent.alveoli).filter(
 	([, alveolus]) => 'construction' in alveolus,
 )
+
+const Clock = ({ game }: { game: any }) => {
+	const state = reactive({ time: '--:--' })
+	effect(() => {
+		const seconds = Math.floor(game.clock.virtualTime)
+		const minutes = Math.floor(seconds / 60)
+		const displaySeconds = seconds % 60
+		state.time = `${minutes.toString().padStart(2, '0')}:${displaySeconds.toString().padStart(2, '0')}`
+	})
+	return <span>{state.time}</span>
+}
 
 const App = () => {
 	// trackEffect((obj, evolution, prop) => {
@@ -120,12 +132,7 @@ const App = () => {
 					fontWeight: 'bold',
 					color: 'var(--pounce-color-text-subtle)'
 				}}>
-					{(() => {
-						const seconds = Math.floor(gameInstance.clock.virtualTime)
-						const minutes = Math.floor(seconds / 60)
-						const displaySeconds = seconds % 60
-						return `${minutes.toString().padStart(2, '0')}:${displaySeconds.toString().padStart(2, '0')}`
-					})()}
+					<Clock game={gameInstance} />
 				</div>
 				<ButtonGroup>
 					{timeControls.map((option) => (
@@ -196,11 +203,7 @@ const App = () => {
 					update:layout={(layout: any) => {
 						dockviewLayout.sshLayout = layout
 					}}
-					onApiChange={(api) => {
-						state.api = api;
-						if (typeof window !== 'undefined') (window as any).dockviewApi = api;
-					}}
-					theme={uiConfiguration.darkMode ? 'dracula' : 'light'}
+					options:theme={uiConfiguration.darkMode ? themeDracula : themeLight}
 				/>
 			</main>
 		</div>

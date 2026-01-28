@@ -7,12 +7,12 @@ import PropertyGridRow from './PropertyGridRow'
 import AlveolusProperties from './AlveolusProperties'
 import UnBuiltProperties from './UnBuiltProperties'
 import { css } from '@app/lib/css'
-import { Alveolus } from 'ssh/src/lib/board/content/alveolus'
-import { UnBuiltLand } from 'ssh/src/lib/board/content/unbuilt-land'
-import type { Tile } from 'ssh/src/lib/board/tile'
-import { T, i18nState } from 'ssh/src/lib/i18n'
-import { computeStyleFromTexture } from 'ssh/src/lib/utils/images'
-import type { GoodType } from 'ssh/src/lib/types/base'
+import { Alveolus } from 'ssh/board/content/alveolus'
+import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import type { Tile } from 'ssh/board/tile'
+import { T, i18nState } from 'ssh/i18n'
+import { computeStyleFromTexture } from 'ssh/utils/images'
+import type { GoodType } from 'ssh/types/base'
 
 css`
   .tile-properties {

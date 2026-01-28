@@ -4,8 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "exports": {
-    "./src/*": "./src/*",
-    "./src": "./src/index.ts",
+    ".": "./src/index.ts",
+    "./i18n": "./src/lib/i18n.ts",
+    "./debug": "./src/lib/debug.ts",
     "./assets/*": "./assets/*",
     "./package.json": "./package.json",
     "./vite-plugin-css-tag": "./vite-plugin-css-tag.ts"

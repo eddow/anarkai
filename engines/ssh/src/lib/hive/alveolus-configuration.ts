@@ -1,5 +1,5 @@
 import { reactive } from 'mutts'
-import type { AlveolusType } from 'ssh/src/lib/types/base'
+import type { AlveolusType } from 'ssh/types/base'
 
 /**
  * Type guard to check if a configuration is a storage configuration

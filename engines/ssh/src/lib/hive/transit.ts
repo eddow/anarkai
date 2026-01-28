@@ -1,7 +1,7 @@
 import { reactive } from 'mutts'
-import { Alveolus } from 'ssh/src/lib/board/content/alveolus'
-import type { GoodType } from 'ssh/src/lib/types'
-import type { GoodsRelations } from 'ssh/src/lib/utils/advertisement'
+import { Alveolus } from 'ssh/board/content/alveolus'
+import type { GoodType } from 'ssh/types'
+import type { GoodsRelations } from 'ssh/utils/advertisement'
 
 @reactive
 export class TransitAlveolus extends Alveolus {

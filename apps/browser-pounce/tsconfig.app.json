@@ -51,14 +51,29 @@
 			"@pounce/*": [
 				"node_modules/pounce-ts/src/*"
 			],
+			"engine-pixi/assets/*": [
+				"../../engines/pixi/assets/*"
+			],
 			"engine-pixi/*": [
-				"../../engines/pixi/*"
+				"../../engines/pixi/src/*"
+			],
+			"ssh/assets/*": [
+				"../../engines/ssh/assets/*"
 			],
 			"ssh/*": [
-				"../../engines/ssh/*"
+				"../../engines/ssh/src/lib/*"
 			],
 			"assets/*": [
 				"../../engines/pixi/assets/*"
+			],
+			"pounce-ts/*": [
+				"../../../ownk/pounce-ts/src/*"
+			],
+			"pounce-ui": [
+				"../../../ownk/pounce-ui/src/index.ts"
+			],
+			"pounce-ui/*": [
+				"../../../ownk/pounce-ui/src/*"
 			]
 		}
 	},
@@ -75,6 +90,12 @@
 		"../../engines/pixi/assets/**/*.ts",
 		"../../engines/ssh/src/**/*.ts",
 		"../../engines/ssh/assets/**/*.ts",
+		"../../../ownk/mutts/src/**/*.ts",
+		"../../../ownk/npcs/src/**/*.ts",
+		"../../../ownk/omni18n/src/**/*.ts",
+		"../../../ownk/pounce-ts/src/**/*.ts",
+		"../../../ownk/pounce-ui/src/**/*.ts",
+		"../../../ownk/pounce-ui/src/**/*.tsx",
 		"src/components/storage/StorageConfiguration.tsx"
 	]
 }

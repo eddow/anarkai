@@ -1,6 +1,6 @@
 import { effect, reactive } from 'mutts'
-import type { Game } from 'ssh/src/lib/game'
-import { computeStyleFromTexture } from 'ssh/src/lib/utils/images'
+import type { Game } from 'ssh/game'
+import { computeStyleFromTexture } from 'ssh/utils/images'
 
 type ResourceImageProps = {
 	game: Game | undefined
@@ -15,7 +15,7 @@ const ResourceImage = (props: ResourceImageProps) => {
 	const state = reactive({ style: '' })
 
 	effect(() => {
-		const { game, sprite } = props
+		const { game, sprite } = props // Access props (reactive)
 		if (!game || !sprite) {
 			state.style = ''
 			return
@@ -23,6 +23,7 @@ const ResourceImage = (props: ResourceImageProps) => {
 
 		void (async () => {
 			await game.rendererReady
+			// Re-accessing sprite in async context is fine, but we tracked it above
 			const texture = game.getTexture(sprite)
 			let targetWidth = props.width
 			let targetHeight = props.height

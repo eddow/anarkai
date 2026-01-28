@@ -1,15 +1,15 @@
 import { derived } from 'mutts'
-import type { StorageAlveolus } from 'ssh/src/lib/hive/storage'
-import type { GoodType } from 'ssh/src/lib/types/base'
+import type { StorageAlveolus } from 'ssh/hive/storage'
+import type { GoodType } from 'ssh/types/base'
 import { goods as goodsCatalog } from 'engine-pixi/assets/visual-content'
 import PropertyGridRow from '../PropertyGridRow'
-import { Button, Stars } from 'pounce-ui/src'
+import { Button, Stars } from 'pounce-ui'
 import GoodMultiSelect from './GoodMultiSelect'
-import { SlottedStorage } from 'ssh/src/lib/storage/slotted-storage'
-import { SpecificStorage } from 'ssh/src/lib/storage/specific-storage'
+import { SlottedStorage } from 'ssh/storage/slotted-storage'
+import { SpecificStorage } from 'ssh/storage/specific-storage'
 import { css } from '@app/lib/css'
 import SpecificStorageConfiguration from './SpecificStorageConfiguration'
-import type { Game } from 'ssh/src/lib/game'
+import type { Game } from 'ssh/game'
 
 css`
 .storage-config {

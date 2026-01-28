@@ -1,7 +1,7 @@
 import { atomic, memoize, reactive, unreactive } from 'mutts'
-import { assert } from 'ssh/src/lib/debug'
-import type { Goods } from 'ssh/src/lib/types/base'
-import { GoodType } from 'ssh/src/lib/types/base'
+import { assert } from 'ssh/debug'
+import type { Goods } from 'ssh/types/base'
+import { GoodType } from 'ssh/types/base'
 import type { RenderedGoodSlots } from '.'
 import {
 	AllocationError,

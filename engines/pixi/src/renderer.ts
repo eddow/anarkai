@@ -1,6 +1,6 @@
 import { Application, Assets, Container, Spritesheet, Texture } from 'pixi.js'
-import type { GameRenderer } from 'ssh/src/lib/types/engine'
-import type { Game } from 'ssh/src/lib/game/game'
+import type { GameRenderer } from 'ssh/types/engine'
+import type { Game } from 'ssh/game/game'
 import { registerPixiApp, unregisterPixiApp } from './hmr.js'
 import { InteractionManager } from './interaction/interaction-manager.js'
 

@@ -1,9 +1,9 @@
 import { reactive } from 'mutts'
-import { assert } from 'ssh/src/lib/debug'
-import type { Game } from 'ssh/src/lib/game'
-import { GameObject, withContainer, withHittable } from 'ssh/src/lib/game/object'
-import { QueueStep } from 'ssh/src/lib/npcs'
-import type { Character } from 'ssh/src/lib/population'
+import { assert } from 'ssh/debug'
+import type { Game } from 'ssh/game'
+import { GameObject, withContainer, withHittable } from 'ssh/game/object'
+import { QueueStep } from 'ssh/npcs'
+import type { Character } from 'ssh/population'
 import {
 	type AxialCoord,
 	axial,
@@ -17,8 +17,8 @@ import {
 	type Scoring,
 	tileSize,
 	toAxialCoord,
-} from 'ssh/src/lib/utils'
-import { AxialKeyMap } from 'ssh/src/lib/utils/mem'
+} from 'ssh/utils'
+import { AxialKeyMap } from 'ssh/utils/mem'
 import { TileBorder, type TileBorderContent } from './border/border'
 import type { TileContent } from './content/content'
 import { FreeGoods } from './freeGoods'
@@ -33,8 +33,6 @@ export function isTileCoord(coord: AxialCoord | undefined): boolean {
 export class HexBoard extends withContainer(withHittable(GameObject)) {
 	private readonly contents = new AxialKeyMap<TileContent | TileBorderContent>()
 	private readonly occupied = new AxialKeyMap<Character[]>([], () => [])
-	// Will contain goods when perhaps destroying a building (war-like destruction), killing a character,
-	// stopping (or making) a transit, etc.
 	readonly freeGoods: FreeGoods
 	readonly zoneManager: ZoneManager
 

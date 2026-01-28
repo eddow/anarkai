@@ -1,9 +1,9 @@
 import { reactive } from 'mutts'
-import type { DockviewWidgetProps } from 'pounce-ui/src'
+import type { DockviewWidgetProps } from 'pounce-ui'
 import StorageConfiguration from '../components/storage/StorageConfiguration.tsx'
-import { SlottedStorage } from 'ssh/src/lib/storage/slotted-storage'
-import { SpecificStorage } from 'ssh/src/lib/storage/specific-storage'
-import type { StorageAlveolus } from 'ssh/src/lib/hive/storage'
+import { SlottedStorage } from 'ssh/storage/slotted-storage'
+import { SpecificStorage } from 'ssh/storage/specific-storage'
+import type { StorageAlveolus } from 'ssh/hive/storage'
 import { configurations } from 'ssh/assets/game-content'
 import { games } from '@app/lib/globals'
 

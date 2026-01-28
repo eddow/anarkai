@@ -1,6 +1,6 @@
 import { Container, Graphics, Sprite, ColorMatrixFilter } from 'pixi.js'
-import { namedEffect } from 'ssh/src/lib/debug'
-import type { GoodType } from 'ssh/src/lib/types/base'
+import { namedEffect } from 'ssh/debug'
+import type { GoodType } from 'ssh/types/base'
 import type { PixiGameRenderer } from '../renderer'
 import { goods as goodsCatalog } from '../../assets/visual-content'
 

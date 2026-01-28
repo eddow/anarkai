@@ -1,22 +1,22 @@
 import { effect } from 'mutts'
 
-import type { Game } from 'ssh/src/lib/game'
+import type { Game } from 'ssh/game'
 import { css } from '@app/lib/css'
-import { Character } from 'ssh/src/lib/population/character'
-import { Tile } from 'ssh/src/lib/board/tile'
+import { Character } from 'ssh/population/character'
+import { Tile } from 'ssh/board/tile'
 import {
 	games,
 	selectionState,
 	mrg,
 	unreactiveInfo,
 } from '@app/lib/globals'
-import type { DockviewApi, DockviewPanelApi } from 'pounce-ui/src'
+import type { DockviewWidgetProps, DockviewWidgetScope } from 'pounce-ui'
 import CharacterProperties from '../components/CharacterProperties'
 import TileProperties from '../components/TileProperties'
-import { toWorldCoord } from 'ssh/src/lib/utils/position' // Added import for GoTo logic
-import { Button, ButtonGroup, InfiniteScroll } from 'pounce-ui/src' // Added import for buttons
+import { toWorldCoord } from 'ssh/utils/position' // Added import for GoTo logic
+import { Button, ButtonGroup, InfiniteScroll } from 'pounce-ui' // Added import for buttons
 import { mdiEye, mdiPin } from 'pure-glyf/icons'
-import { compose, h } from '@pounce/lib'
+import { compose, h } from 'pounce-ts/lib'
 
 css`
 .selection-info-panel {
@@ -84,15 +84,8 @@ css`
 }
 `
 
-const SelectionInfoWidget = (
-	props: {
-		params: { uid?: string }
-		api: DockviewPanelApi
-		title: string
-		size: { width: number; height: number }
-	},
-	scope: { dockviewApi: DockviewApi; setTitle?: (title: string) => void },
-) => {
+const SelectionInfoWidget = (props: DockviewWidgetProps<{ uid?: string }>, scope: DockviewWidgetScope) => {
+	const api = (scope as any).panelApi
 	console.log('SelectionInfoWidget Rendered with props:', props);
 	let game: Game
 	try {
@@ -100,7 +93,9 @@ const SelectionInfoWidget = (
 	} catch (e) {
 		console.warn('SelectionInfoWidget: GameX not found', e)
 	}
-
+	scope.setTitle = (title: string) => {
+		props.title = title
+	}
 	const state = compose(props, (state) => ({
 		get object() {
 			const uid = state.params.uid ?? selectionState.selectedUid
@@ -119,9 +114,7 @@ const SelectionInfoWidget = (
 
 	const pin = () => {
 		const uid = selectionState.selectedUid
-		if (props.api?.updateParameters) {
-			props.api.updateParameters({ uid })
-		}
+		api.updateParameters({ uid })
 		props.params.uid = uid
 		unreactiveInfo.hasLastSelectedInfoPanel = false
 	}
@@ -133,8 +126,8 @@ const SelectionInfoWidget = (
 		props.title = title
 	}
 	effect(() => {
-		const disposable = scope.dockviewApi.onDidRemovePanel((panel) => {
-			if (panel.id === props.api.id) {
+		const disposable = scope.dockviewApi!.onDidRemovePanel((panel) => {
+			if (panel.id === api.id) {
 				// If this panel was the one tracking active selection (not pinned)
 				// Reset the flag so selection in game can re-open it.
 				if (!props.params.uid) {

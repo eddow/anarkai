@@ -1,7 +1,7 @@
 import { Container, FederatedPointerEvent } from 'pixi.js'
-import type { GameObject } from 'ssh/src/lib/game/object'
+import type { GameObject } from 'ssh/game/object'
 import type { ScopedCallback } from 'mutts'
-import { mrg } from 'ssh/src/lib/interactive-state'
+import { mrg } from 'ssh/interactive-state'
 import type { PixiGameRenderer } from '../renderer'
 
 

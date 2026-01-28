@@ -1,19 +1,19 @@
 import { reactive, type ScopedCallback, unreactive, memoize } from 'mutts'
-import { type HexBoard, isTileCoord } from 'ssh/src/lib/board/board'
-import { AlveolusGate } from 'ssh/src/lib/board/border/alveolus-gate'
-import { Alveolus } from 'ssh/src/lib/board/content/alveolus'
-import type { Tile } from 'ssh/src/lib/board/tile'
-import { assert, namedEffect, traces } from 'ssh/src/lib/debug'
-import type { AllocationBase, Storage } from 'ssh/src/lib/storage/storage'
-import type { GoodType } from 'ssh/src/lib/types'
-import { type AxialCoord, findPath, type Positioned, setPop } from 'ssh/src/lib/utils'
+import { type HexBoard, isTileCoord } from 'ssh/board/board'
+import { AlveolusGate } from 'ssh/board/border/alveolus-gate'
+import { Alveolus } from 'ssh/board/content/alveolus'
+import type { Tile } from 'ssh/board/tile'
+import { assert, namedEffect, traces } from 'ssh/debug'
+import type { AllocationBase, Storage } from 'ssh/storage/storage'
+import type { GoodType } from 'ssh/types'
+import { type AxialCoord, findPath, type Positioned, setPop } from 'ssh/utils'
 import {
 	type Advertisement,
 	AdvertisementManager,
 	type ExchangePriority,
-} from 'ssh/src/lib/utils/advertisement'
-import { AxialKeyMap } from 'ssh/src/lib/utils/mem'
-import { toAxialCoord } from 'ssh/src/lib/utils/position'
+} from 'ssh/utils/advertisement'
+import { AxialKeyMap } from 'ssh/utils/mem'
+import { toAxialCoord } from 'ssh/utils/position'
 import type { StorageAlveolus } from './storage'
 
 export interface MovingGood {

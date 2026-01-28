@@ -1,9 +1,9 @@
 import { memoize } from 'mutts'
-import type { Tile } from 'ssh/src/lib/board/tile'
-import type { Character } from 'ssh/src/lib/population/character'
-import { SlottedStorage } from 'ssh/src/lib/storage/slotted-storage'
-import type { GatherJob, Goods, GoodType } from 'ssh/src/lib/types/base'
-import { type Positioned, toAxialCoord } from 'ssh/src/lib/utils/position'
+import type { Tile } from 'ssh/board/tile'
+import type { Character } from 'ssh/population/character'
+import { SlottedStorage } from 'ssh/storage/slotted-storage'
+import type { GatherJob, Goods, GoodType } from 'ssh/types/base'
+import { type Positioned, toAxialCoord } from 'ssh/utils/position'
 import { TransitAlveolus } from './transit'
 
 function goodsWith(goods: Goods, other: GoodType, qty: number = 1): Goods {

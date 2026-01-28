@@ -1,26 +1,26 @@
 import { Eventful, reactive, unreactive } from 'mutts'
 import * as gameContent from '../../../assets/game-content'
-import { Alveolus } from 'ssh/src/lib/board'
-import { HexBoard } from 'ssh/src/lib/board/board'
-import { Deposit, UnBuiltLand } from 'ssh/src/lib/board/content/unbuilt-land'
-import { Tile } from 'ssh/src/lib/board/tile'
-import type { Zone } from 'ssh/src/lib/board/zone'
-import { assert } from 'ssh/src/lib/debug'
+import { Alveolus } from 'ssh/board'
+import { HexBoard } from 'ssh/board/board'
+import { Deposit, UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import { Tile } from 'ssh/board/tile'
+import type { Zone } from 'ssh/board/zone'
+import { assert } from 'ssh/debug'
 import {
 	type GameGenerationConfig,
 	GameGenerator,
 	type GeneratedCharacterData,
 	type GeneratedTileData,
-} from 'ssh/src/lib/generation'
-import { configuration } from 'ssh/src/lib/globals'
-import { AlveolusConfigurationManager, alveolusClass, Hive } from 'ssh/src/lib/hive'
-import { mrg } from 'ssh/src/lib/interactive-state'
-import { Population } from 'ssh/src/lib/population/population'
-import type { AlveolusType, DepositType, GoodType, TerrainType } from 'ssh/src/lib/types'
-import type { GameRenderer, InputAdapter } from 'ssh/src/lib/types/engine'
-import { axial } from 'ssh/src/lib/utils/axial'
-import { SimulationLoop } from 'ssh/src/lib/utils/loop'
-import { LCG } from 'ssh/src/lib/utils/numbers'
+} from 'ssh/generation'
+import { configuration } from 'ssh/globals'
+import { AlveolusConfigurationManager, alveolusClass, Hive } from 'ssh/hive'
+import { mrg } from 'ssh/interactive-state'
+import { Population } from 'ssh/population/population'
+import type { AlveolusType, DepositType, GoodType, TerrainType } from 'ssh/types'
+import type { GameRenderer, InputAdapter } from 'ssh/types/engine'
+import { axial } from 'ssh/utils/axial'
+import { SimulationLoop } from 'ssh/utils/loop'
+import { LCG } from 'ssh/utils/numbers'
 import type { HittableGameObject, InteractiveGameObject } from './object'
 
 try {

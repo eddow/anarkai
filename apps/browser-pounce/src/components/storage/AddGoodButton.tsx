@@ -1,11 +1,11 @@
 import { reactive } from 'mutts'
-import type { GoodType } from 'ssh/src/lib/types/base'
+import type { GoodType } from 'ssh/types/base'
 import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
-import { Button } from 'pounce-ui/src'
+import { Button } from 'pounce-ui'
 import { mdiPlus } from 'pure-glyf/icons'
 import EntityBadge from '../EntityBadge'
 import { css } from '@app/lib/css'
-import type { Game } from 'ssh/src/lib/game'
+import type { Game } from 'ssh/game'
 
 css`
 .add-good-wrapper {

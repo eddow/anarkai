@@ -1,6 +1,6 @@
 import { configuration, uiConfiguration } from '@app/lib/globals'
 import { css } from '@app/lib/css'
-import { type DockviewWidgetProps, Inline, Radio } from 'pounce-ui/src'
+import { type DockviewWidgetProps, type DockviewWidgetScope, Inline, Radio } from 'pounce-ui'
 
 css`
 .configuration-widget {
@@ -46,7 +46,8 @@ const timeOptions = [
 	{ value: 'gonzales', label: 'Gonzales' },
 ] as const
 
-const ConfigurationWidget = (props: DockviewWidgetProps) => {
+const ConfigurationWidget = (props: DockviewWidgetProps, scope: DockviewWidgetScope) => {
+	const api = (scope as any).panelApi
 	props.title = 'Configuration'
 
 	const handleDarkModeToggle = () => {
@@ -68,7 +69,7 @@ const ConfigurationWidget = (props: DockviewWidgetProps) => {
 				<Inline gap="sm" class="configuration-widget__radios">
 					{timeOptions.map((option) => (
 						<Radio
-							name={`time-control-${props.api?.id ?? 'panel'}`}
+							name={`time-control-${api?.id ?? 'panel'}`}
 							value={option.value}
 							checked={configuration.timeControl === option.value}
 							onChange={() => {

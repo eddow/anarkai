@@ -1,9 +1,9 @@
 import { scope, type } from 'arktype'
-import { TileBorder } from 'ssh/src/lib/board/border/border'
-import { Alveolus } from 'ssh/src/lib/board/content/alveolus'
-import { TileContent } from 'ssh/src/lib/board/content/content'
-import { Tile } from 'ssh/src/lib/board/tile'
-import { HarvestAlveolus } from 'ssh/src/lib/hive/harvest'
+import { TileBorder } from 'ssh/board/border/border'
+import { Alveolus } from 'ssh/board/content/alveolus'
+import { TileContent } from 'ssh/board/content/content'
+import { Tile } from 'ssh/board/tile'
+import { HarvestAlveolus } from 'ssh/hive/harvest'
 import { baseGameScope } from './base'
 
 

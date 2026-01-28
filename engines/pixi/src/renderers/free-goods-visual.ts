@@ -1,8 +1,8 @@
 import { Container, Sprite, Texture } from 'pixi.js'
-import { namedEffect } from 'ssh/src/lib/debug'
-import type { FreeGoods, FreeGood } from 'ssh/src/lib/board/freeGoods'
-import { tileSize } from 'ssh/src/lib/utils/varied'
-import { toWorldCoord } from 'ssh/src/lib/utils/position' // Verify import
+import { namedEffect } from 'ssh/debug'
+import type { FreeGoods, FreeGood } from 'ssh/board/freeGoods'
+import { tileSize } from 'ssh/utils/varied'
+import { toWorldCoord } from 'ssh/utils/position' // Verify import
 import { goods as goodsCatalog } from '../../assets/visual-content' 
 import type { PixiGameRenderer } from '../renderer'
 import { VisualObject } from './visual-object'

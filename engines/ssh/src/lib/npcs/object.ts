@@ -1,7 +1,7 @@
 import { memoize, reactive, unreactive } from 'mutts'
 import type { ExecutionContext } from 'npc-script'
-import { assert } from 'ssh/src/lib/debug'
-import type { Game, GameObject, TickedGameObject, withTicked } from 'ssh/src/lib/game'
+import { assert } from 'ssh/debug'
+import type { Game, GameObject, TickedGameObject, withTicked } from 'ssh/game'
 import { getGameScript, ScriptExecution } from './scripts'
 import { ASingleStep } from './steps'
 

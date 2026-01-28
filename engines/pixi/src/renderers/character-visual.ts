@@ -1,10 +1,10 @@
 import { ColorMatrixFilter, Container, Sprite } from 'pixi.js'
-import { namedEffect } from 'ssh/src/lib/debug'
-import type { Character } from 'ssh/src/lib/population/character'
-import { mrg } from 'ssh/src/lib/interactive-state'
+import { namedEffect } from 'ssh/debug'
+import type { Character } from 'ssh/population/character'
+import { mrg } from 'ssh/interactive-state'
 import { VisualObject } from './visual-object'
-import { toWorldCoord } from 'ssh/src/lib/utils/position' // Verify path
-import { tileSize } from 'ssh/src/lib/utils/varied'
+import { toWorldCoord } from 'ssh/utils/position' // Verify path
+import { tileSize } from 'ssh/utils/varied'
 import type { PixiGameRenderer } from '../renderer'
 import { GoodsRenderer } from './goods-renderer'
 

@@ -32,6 +32,12 @@
 			"@app/*": [
 				"./src/*"
 			],
+			"ssh/assets/*": [
+				"../ssh/assets/*"
+			],
+			"ssh/*": [
+				"../ssh/src/lib/*"
+			],
 			// "@ssh/*": [ "../ssh/src/*" ], // Deprecated in favor of ssh package
 			"$assets/*": [
 				"../ssh/assets/*"

@@ -12,16 +12,16 @@ export {
 	selectionState,
 	unregisterObjectInfoPanel,
 	validateStoredSelectionState,
-} from 'ssh/src/lib/globals'
+} from 'ssh/globals'
 
 export const unreactiveInfo = {
 	hasLastSelectedInfoPanel: false,
 }
 // Re-export types
-export type { Configuration } from 'ssh/src/lib/globals'
+export type { Configuration } from 'ssh/globals'
 
 // UI-specific configuration (darkMode is UI-specific, not game engine concern)
-import { stored } from 'pounce-ui/src'
+import { stored } from 'pounce-ui'
 
 export interface UIConfiguration {
 	darkMode: boolean

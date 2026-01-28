@@ -1,14 +1,14 @@
 import { reactive, unwrap } from 'mutts'
 import { characterEvolutionRates, characterTriggerLevels, maxWalkTime } from '../../../assets/constants'
 import { goods as goodsCatalog } from '../../../assets/game-content'
-import type { Alveolus } from 'ssh/src/lib/board/content/alveolus'
-import type { Tile } from 'ssh/src/lib/board/tile'
-import { assert } from 'ssh/src/lib/debug'
-import type { Game } from 'ssh/src/lib/game'
-import type { Storage } from 'ssh/src/lib/storage'
-import type { GoodType, Job, WorkPlan } from 'ssh/src/lib/types/base'
-import { type AxialCoord, axial, maxBy, type Positioned } from 'ssh/src/lib/utils'
-import { axialDistance, type Position, toAxialCoord } from 'ssh/src/lib/utils/position'
+import type { Alveolus } from 'ssh/board/content/alveolus'
+import type { Tile } from 'ssh/board/tile'
+import { assert } from 'ssh/debug'
+import type { Game } from 'ssh/game'
+import type { Storage } from 'ssh/storage'
+import type { GoodType, Job, WorkPlan } from 'ssh/types/base'
+import { type AxialCoord, axial, maxBy, type Positioned } from 'ssh/utils'
+import { axialDistance, type Position, toAxialCoord } from 'ssh/utils/position'
 
 // Simple job scoring functions
 function calculateJobScore(_character: Character, job: Job): number {
@@ -18,12 +18,12 @@ function bestPossibleJobScore(_character: Character): number {
 	return 3
 }
 
-import { GameObject, withInteractive, withTicked } from 'ssh/src/lib/game/object'
-import { gameIsaTypes } from 'ssh/src/lib/npcs'
-import aCharacterContext from 'ssh/src/lib/npcs/context'
-import { withScripted } from 'ssh/src/lib/npcs/object'
+import { GameObject, withInteractive, withTicked } from 'ssh/game/object'
+import { gameIsaTypes } from 'ssh/npcs'
+import aCharacterContext from 'ssh/npcs/context'
+import { withScripted } from 'ssh/npcs/object'
 // biome-ignore lint/correctness/noUnusedImports: We need `subject` for mixins tranquility: all propertyKeys are known
-import type { ScriptExecution } from 'ssh/src/lib/npcs/scripts'
+import type { ScriptExecution } from 'ssh/npcs/scripts'
 import { Vehicle } from './vehicle/vehicle'
 
 @reactive

@@ -4,10 +4,10 @@
  */
 
 import { deposits, goods as goodsCatalog, terrain as terrainDetails } from '../../../assets/game-content'
-import { Deposit } from 'ssh/src/lib/board/content/unbuilt-land'
-import type { DepositType, TerrainType } from 'ssh/src/lib/types'
-import type { AxialCoord } from 'ssh/src/lib/utils'
-import { axial } from 'ssh/src/lib/utils'
+import { Deposit } from 'ssh/board/content/unbuilt-land'
+import type { DepositType, TerrainType } from 'ssh/types'
+import type { AxialCoord } from 'ssh/utils'
+import { axial } from 'ssh/utils'
 import { TerrainGenerator } from './terrain'
 
 export interface BoardGenerationConfig {

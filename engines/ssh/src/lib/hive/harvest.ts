@@ -1,13 +1,13 @@
 import { memoize } from 'mutts'
 import { maxWalkTime, outputBufferSize } from '../../../assets/constants'
-import { UnBuiltLand } from 'ssh/src/lib/board/content/unbuilt-land'
-import { multiplyGoodsQty } from 'ssh/src/lib/board/content/utils'
-import type { Tile } from 'ssh/src/lib/board/tile'
-import { TransitAlveolus } from 'ssh/src/lib/hive/transit'
-import type { Character } from 'ssh/src/lib/population/character'
-import { SpecificStorage } from 'ssh/src/lib/storage/specific-storage'
-import type { HarvestJob } from 'ssh/src/lib/types/base'
-import { axialDistance, type Positioned, toAxialCoord } from 'ssh/src/lib/utils/position'
+import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import { multiplyGoodsQty } from 'ssh/board/content/utils'
+import type { Tile } from 'ssh/board/tile'
+import { TransitAlveolus } from 'ssh/hive/transit'
+import type { Character } from 'ssh/population/character'
+import { SpecificStorage } from 'ssh/storage/specific-storage'
+import type { HarvestJob } from 'ssh/types/base'
+import { axialDistance, type Positioned, toAxialCoord } from 'ssh/utils/position'
 export class HarvestAlveolus extends TransitAlveolus {
 	declare action: Ssh.HarvestingAction
 	constructor(tile: Tile) {
