@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { SlottedStorage } from 'ssh/src/lib/storage/slotted-storage'
+import { SlottedStorage } from 'ssh/storage/slotted-storage'
 
 describe('SlottedStorage Reactivity', () => {
     it('updates availables when reserved (bug reproduction)', () => {

@@ -11,7 +11,7 @@ The **SSH Test Engine** is a headless runtime environment designed for integrati
 
 ## Architecture
 
-The test engine is located in `engines/ssh/src/test-engine/`.
+The test engine is located in `engines/ssh/tests/test-engine/`.
 
 ### Core Components
 
@@ -22,7 +22,7 @@ The test engine is located in `engines/ssh/src/test-engine/`.
 ### Directory Structure
 
 ```text
-engines/ssh/src/test-engine/
+engines/ssh/tests/test-engine/
 ├── index.ts            # Entry point
 ├── engine.ts           # TestEngine class implementation
 ├── environment.ts      # Global environment setup and polyfills
@@ -49,7 +49,7 @@ You can inject a specific board state using `loadScenario`. This is useful for s
 
 ```typescript
 const scenario = {
-    freeGoods: [{ goodType: 'mushrooms', position: { q: 2, r: 2 } }],
+    looseGoods: [{ goodType: 'mushrooms', position: { q: 2, r: 2 } }],
     hives: [{ name: 'TestHive', alveoli: [{ coord: [2, 2], alveolus: 'tree_chopper' }] }]
 };
 
@@ -114,7 +114,7 @@ A typical integration test follows this pattern:
 
 ```typescript
 import { describe, test, expect } from 'vitest'
-import { TestEngine } from '@/test-engine'
+import { TestEngine } from '../test-engine'
 
 describe('Feature Name', () => {
   test('should do something', async () => {
@@ -125,7 +125,7 @@ describe('Feature Name', () => {
     // 2. Arrange
     engine.loadScenario({
       hives: [/* ... */],
-      freeGoods: [/* ... */]
+      looseGoods: [/* ... */]
     })
     
     // 3. Act
@@ -152,8 +152,8 @@ const characters = Array.from(engine.game.population.characters.values())
 // Access hives
 const hive = Array.from(engine.game.hex.getTile(coord).content.hive)
 
-// Query free goods
-const goods = engine.game.hex.freeGoods.getAt(coord)
+// Query loose goods
+const goods = engine.game.hex.looseGoods.getAt(coord)
 ```
 
 ### Deterministic Testing
@@ -288,7 +288,7 @@ Use the game's save data for detailed inspection:
 ```typescript
 const saveData = engine.game.saveGameData()
 console.log('Hives:', saveData.hives)
-console.log('Free goods:', saveData.freeGoods)
+console.log('Loose goods:', saveData.looseGoods)
 console.log('Population:', saveData.population)
 ```
 

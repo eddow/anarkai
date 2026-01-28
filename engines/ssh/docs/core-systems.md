@@ -198,7 +198,7 @@ class SawmillAlveolus extends TransformAlveolus {
 
 #### Gatherer Alveolus
 
-Collects free goods from the ground:
+Collects loose goods from the ground:
 
 ```typescript
 class LumberjackAlveolus extends GathererAlveolus {
@@ -208,7 +208,7 @@ class LumberjackAlveolus extends GathererAlveolus {
 ```
 
 **Behavior:**
-- Scouts for matching free goods in radius
+- Scouts for matching loose goods in radius
 - Plans efficient collection path
 - Returns goods to storage
 
@@ -322,7 +322,7 @@ interface JobPlan {
 - Character seeks food from:
   1. Own inventory
   2. Food storage buildings
-  3. Free food on ground
+  3. Loose food on ground
 
 **Future Needs:**
 - Sleep / Rest
@@ -358,22 +358,22 @@ type GoodType =
   // ... etc
 ```
 
-### Free Goods
+### Loose Goods
 
 Goods lying on the ground at specific coordinates:
 
 ```typescript
-// Add free good
-game.hex.freeGoods.add(tile, 'mushrooms', { 
+// Add loose good
+game.hex.looseGoods.add(tile, 'mushrooms', { 
   position: { q: 2.3, r: 1.7 } // Precise sub-tile position
 })
 
-// Query free goods at tile
-const goods = game.hex.freeGoods.getAt({ q: 2, r: 1 })
+// Query loose goods at tile
+const goods = game.hex.looseGoods.getAt({ q: 2, r: 1 })
 // Returns: [{ goodType: 'mushrooms', position: {...} }]
 
-// Remove free good
-game.hex.freeGoods.remove(tile, good)
+// Remove loose good
+game.hex.looseGoods.remove(tile, good)
 ```
 
 **Properties:**
@@ -410,7 +410,7 @@ Goods flow through the system via several mechanisms:
 
 **1. Character Transport:**
 - Pick up from storage → carry → drop to storage
-- Pick up free good → carry → drop to storage
+- Pick up loose good → carry → drop to storage
 
 **2. Conveyance:**
 - Storage A → Transit system → Storage B
@@ -475,7 +475,7 @@ game.generate(config, {
   hives: [
     { alveoli: [{ coord: [0, 0], alveolus: 'sawmill' }] }
   ],
-  freeGoods: [
+  looseGoods: [
     { goodType: 'mushrooms', position: { q: 3, r: 3 } }
   ]
 })

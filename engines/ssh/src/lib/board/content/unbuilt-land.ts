@@ -78,7 +78,7 @@ export class UnBuiltLand extends withTicked(TileContent) {
 	getJob(): any {
 		if (!this.project) return undefined
 
-		// If there are free goods on the tile, provide offload job
+		// If there are loose goods on the tile, provide offload job
 		if (this.tile.availableGoods.length > 0) {
 			return {
 				job: 'offload',
@@ -106,8 +106,8 @@ export class UnBuiltLand extends withTicked(TileContent) {
 			r: tileCoord.r + r,
 		}
 
-		// Create the free good
-		this.tile.board.freeGoods.add(this.tile, goodType as any, { position: randomPos })
+		// Create the loose good
+		this.tile.board.looseGoods.add(this.tile, goodType as any, { position: randomPos })
 	}
 
 	get debugInfo() {

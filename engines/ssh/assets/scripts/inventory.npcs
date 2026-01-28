@@ -26,9 +26,9 @@ function grabStored(goods, place, path = null, punctual = true)
 	end plan
 end function
 
-function grabFree(good, place, path = null, punctual = true)
+function grabLoose(good, place, path = null, punctual = true)
 	if not path then path = find.path(place, punctual)
-	grab = inventory.planGrabFree(good, place)
+	grab = inventory.planGrabLoose(good, place)
 	plan grab
 		if tile != place then do
 			walk.into path
@@ -40,7 +40,7 @@ function grabFree(good, place, path = null, punctual = true)
 	end plan
 end function
 
-function dropAllFree()
+function dropAllLoose()
 	where = find.freeSpot()
 	if not where then return false
 	walk.into where
@@ -51,7 +51,7 @@ function dropAllFree()
 		good = candidateGoods[i]
 		do while I.carry.availables[good] > 0
 			walk.moveTo find.randomPositionInTile()
-			inventory.dropAsFreeGood good
+			inventory.dropAsLooseGood good
 		loop
 		i = i + 1
 	loop
@@ -84,10 +84,10 @@ function makeRoom()
 		if not dropTarget then error "Try to make room but has no good to drop"
 		
 		walk.moveTo find.randomPositionInTile()
-		inventory.dropAsFreeGood dropTarget
+		inventory.dropAsLooseGood dropTarget
 	loop
 end function
 
-return { dropAllFree, makeRoom, dropStored, grabStored, grabFree }
+return { dropAllLoose, makeRoom, dropStored, grabStored, grabLoose }
 
 

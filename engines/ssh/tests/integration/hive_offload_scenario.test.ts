@@ -1,6 +1,6 @@
 
 import { describe, it, expect } from 'vitest'
-import { TestEngine } from 'ssh/src/test-engine'
+import { TestEngine } from '../test-engine'
 
 describe('Hive Offload Scenario', () => {
 
@@ -12,7 +12,7 @@ describe('Hive Offload Scenario', () => {
         // Define Scenario
         const scenario = {
             generationOptions: { boardSize: 12, terrainSeed: 1234, characterCount: 0 },
-            freeGoods: [
+            looseGoods: [
                 { goodType: 'mushrooms', position: { q: 2, r: 2 } }
             ],
             hives: [
@@ -127,7 +127,7 @@ describe('Hive Offload Scenario', () => {
          
          const scenario = {
              generationOptions: { boardSize: 12, terrainSeed: 1234, characterCount: 0 },
-             freeGoods: [
+             looseGoods: [
                  { goodType: 'mushrooms', position: center }
              ],
              hives: [
@@ -171,8 +171,8 @@ describe('Hive Offload Scenario', () => {
          const neighborAlveolusTile = game.hex.getTile({ q: 6, r: 5 });
          const emptyNeighborTile = game.hex.getTile({ q: 4, r: 5 });
          
-         const goodsOnAlveolus = game.hex.freeGoods.getGoodsAt(neighborAlveolusTile!.position);
-         const goodsOnEmpty = game.hex.freeGoods.getGoodsAt(emptyNeighborTile!.position);
+         const goodsOnAlveolus = game.hex.looseGoods.getGoodsAt(neighborAlveolusTile!.position);
+         const goodsOnEmpty = game.hex.looseGoods.getGoodsAt(emptyNeighborTile!.position);
          
          // Should NOT be on alveolus
          expect(goodsOnAlveolus.length).toBe(0);

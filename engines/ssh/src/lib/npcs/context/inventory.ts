@@ -12,7 +12,7 @@ export class InventoryFunctions {
 	declare [subject]: Character
 
 	@contract('GoodType', 'number?')
-	dropAsFreeGood(goodType: GoodType, maxAmount: number = 1) {
+	dropAsLooseGood(goodType: GoodType, maxAmount: number = 1) {
 		const character = this[subject]
 		const { vehicle } = character
 		assert(vehicle, 'tile.vehicle must be set')
@@ -25,13 +25,13 @@ export class InventoryFunctions {
 			.finished(() => {
 				try {
 					while (amount--)
-						character.game.hex.freeGoods.add(character.tile, goodType, {
+						character.game.hex.looseGoods.add(character.tile, goodType, {
 							position: character.position,
 						})
-					if (!vehicleTransfer) console.error('vehicleTransfer missing in dropAsFreeGood callback')
+					if (!vehicleTransfer) console.error('vehicleTransfer missing in dropAsLooseGood callback')
 					vehicleTransfer.fulfill()
 				} catch (e) {
-					console.error('Error in dropAsFreeGood finished:', e)
+					console.error('Error in dropAsLooseGood finished:', e)
 					throw e
 				}
 			})
@@ -141,12 +141,12 @@ export class InventoryFunctions {
 	}
 
 	/**
-	 * Plan to grab free goods from a tile.
+	 * Plan to grab loose goods from a tile.
 	 * @param goodType - Specific good to grab, or null/undefined to grab *any* available good that fits in inventory ("scavenge" mode).
 	 * @param source - The location to grab from.
 	 */
 	@contract('GoodType | null', 'Positioned')
-	planGrabFree(
+	planGrabLoose(
 		goodType: GoodType | null | undefined,
 		source: Positioned,
 	): PickupPlan | TransferPlan | IdlePlan {
@@ -159,16 +159,16 @@ export class InventoryFunctions {
 		const canGrab = goodType ? vehicle.storage.hasRoom(goodType) : 1
 		if (canGrab <= 0) throw new Error('No room in vehicle to grab goods')
 
-		// Check for FreeGoods on the tile - always grab exactly 1
+		// Check for LooseGoods on the tile - always grab exactly 1
 		const coord = toAxialCoord(source)
-		const freeGoods = character.game.hex.freeGoods.getGoodsAt(coord)
-		const matchingFreeGoods = freeGoods.filter(
+		const looseGoods = character.game.hex.looseGoods.getGoodsAt(coord)
+		const matchingLooseGoods = looseGoods.filter(
 			(good) =>
 				(goodType ? good.goodType === goodType : vehicle.storage.hasRoom(good.goodType)) &&
 				good.available,
 		)
 
-		if (matchingFreeGoods.length === 0) {
+		if (matchingLooseGoods.length === 0) {
 			// If explicit good requested, throw error (command failed)
 			if (goodType) throw new Error(`No ${goodType} to grab at ${coord}`)
 
@@ -180,7 +180,7 @@ export class InventoryFunctions {
 			}
 		}
 
-		const chosenGood = matchingFreeGoods[0]
+		const chosenGood = matchingLooseGoods[0]
 
 		// Create allocations immediately
 		const vehicleAllocation = vehicle.storage.allocate({ [chosenGood.goodType]: 1 }, 'plan.pickup')
@@ -219,7 +219,7 @@ export class InventoryFunctions {
 			totalAmount = Object.values(action.goods).reduce((sum, qty) => sum + qty, 0)
 			description = action.description
 		} else if (action.type === 'pickup') {
-			totalAmount = 1 // Always grab exactly 1 FreeGood
+			totalAmount = 1 // Always grab exactly 1 LooseGood
 			description = 'pickup'
 		} else {
 			throw new Error('Unknown plan type')

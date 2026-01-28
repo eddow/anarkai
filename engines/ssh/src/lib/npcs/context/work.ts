@@ -94,7 +94,7 @@ class WorkFunctions {
 				? nextStorage.allocate({ [mg.goodType]: 1 }, { type: 'convey.hop', movement: mg })
 				: undefined
 
-			const moving = character.game.hex.freeGoods.add(alveolus.tile, mg.goodType, {
+			const moving = character.game.hex.looseGoods.add(alveolus.tile, mg.goodType, {
 				position: from,
 				available: false,
 			})
@@ -131,7 +131,7 @@ class WorkFunctions {
 					hopAlloc?.cancel()
 					mg.allocations.source.cancel()
 					mg.allocations.target.cancel()
-					character.game.hex.freeGoods.add(character.tile, mg.goodType)
+					character.game.hex.looseGoods.add(character.tile, mg.goodType)
 					mg.finish()
 				}
 			})

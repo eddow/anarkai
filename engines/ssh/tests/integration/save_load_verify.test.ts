@@ -58,9 +58,9 @@ if (typeof fetch === 'undefined' || true) {
 }
 
 import { describe, it, expect, vi } from 'vitest'
-import { Game } from 'ssh/src/lib/game/game'
-import { MoveToStep, EatStep, DurationStep, MultiMoveStep } from 'ssh/src/lib/npcs/steps'
-import { toAxialCoord } from 'ssh/src/lib/utils/position'
+import { Game } from 'ssh/game/game'
+import { MoveToStep, EatStep, DurationStep, MultiMoveStep } from 'ssh/npcs/steps'
+import { toAxialCoord } from 'ssh/utils/position'
 
 // Mock assets/resources
 vi.mock('ssh/assets/resources', () => ({

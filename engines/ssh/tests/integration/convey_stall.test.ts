@@ -1,8 +1,8 @@
 
 import { describe, it, expect } from 'vitest'
-import { TestEngine } from 'ssh/src/test-engine'
-import { SaveState } from 'ssh/src/lib/game';
-import { axial } from 'ssh/src/lib/utils/axial';
+import { TestEngine } from '../test-engine'
+import { SaveState } from 'ssh/game';
+import { axial } from 'ssh/utils/axial';
 
 describe('Convey Stall Reproduction', () => {
     

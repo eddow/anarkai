@@ -1,11 +1,11 @@
 
 import { describe, it, expect, vi } from 'vitest'
 import { effect, reactive } from 'mutts'
-import { Alveolus } from 'ssh/src/lib/board/content/alveolus'
-import { Hive } from 'ssh/src/lib/hive/hive'
-import { Tile } from 'ssh/src/lib/board/tile'
-import { SlottedStorage } from 'ssh/src/lib/storage/slotted-storage'
-import { Game } from 'ssh/src/lib/game'
+import { Alveolus } from 'ssh/board/content/alveolus'
+import { Hive } from 'ssh/hive/hive'
+import { Tile } from 'ssh/board/tile'
+import { SlottedStorage } from 'ssh/storage/slotted-storage'
+import { Game } from 'ssh/game'
 
 // Mock dependencies
 vi.mock('ssh/assets/game-content', () => ({

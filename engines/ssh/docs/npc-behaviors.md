@@ -16,21 +16,21 @@ Characters operate on a **Job-based system**. They receive `JobPlan` assignments
 ## 1. Offload
 **Role:** Unburdening / Clearing
 **Script:** `work.npcs` -> `offload`
-**Context:** `inventory.ts` -> `dropAllFree`, `find.ts` -> `freeSpot`
+**Context:** `inventory.ts` -> `dropAllLoose`, `find.ts` -> `looseSpot`
 
 ### Behavioral Description
-Crucial maintenance behavior to restore functionality to "burdened" working tiles. An Alveolus or Construction Site cannot function if a "free good" is obstructing it. Offloading removes this obstruction without creating a blockage elsewhere.
+Crucial maintenance behavior to restore functionality to "burdened" working tiles. An Alveolus or Construction Site cannot function if a "loose good" is obstructing it. Offloading removes this obstruction without creating a blockage elsewhere.
 
-1.  **Job Trigger**: The character targets a working tile (Alveolus/Project) that is "burdened" by a loose free good.
-2.  **Acquisition**: The character picks up exactly one available free good from the burdened tile.
+1.  **Job Trigger**: The character targets a working tile (Alveolus/Project) that is "burdened" by a loose loose good.
+2.  **Acquisition**: The character picks up exactly one available loose good from the burdened tile.
 3.  **Disposition Search**:
-    The character searches for a "Safe" disposal spot using the "Nearest and Most Free" algorithm:
+    The character searches for a "Safe" disposal spot using the "Nearest and Most Loose" algorithm:
     *   **Constraint**: Explicitly rejects any other working tile (clearing/alveolus) to avoid shifting the burden.
     *   **Heuristic**: `Score = 1 / (ExistingGoodsCount + 1)`. Prioritizes empty "wild" land; if equal, prioritizes proximity.
 4.  **Execution**:
     *   Walks to the chosen safe tile.
     *   Moves to a random offset within that tile.
-    *   Drops the good, leaving it as a free good in a non-critical area.
+    *   Drops the good, leaving it as a loose good in a non-critical area.
 
 ---
 
@@ -54,7 +54,7 @@ The primary loop for extracting raw resources from `UnBuiltLand` (terrain deposi
     *   Calculates if it has room for more.
     *   If full or finished, it drops the goods.
         *   **Standard**: Drops stored goods into the assigned Alveolus storage.
-        *   **Gatherable**: If the resource is labeled *isGatherable*, it behaves like `Offload` (dropping it as a free good on the nearest empty wild tile).
+        *   **Gatherable**: If the resource is labeled *isGatherable*, it behaves like `Offload` (dropping it as a loose good on the nearest empty wild tile).
 
 ---
 
@@ -101,7 +101,7 @@ Manages the internal transit of goods *within* a Hex (Alveolus) or between adjac
 ## 5. Gather
 **Role:** Scavenger / Collector
 **Script:** `work.npcs` -> `gather`
-**Context:** `find.ts` -> `gatherables`, `inventory.ts` -> `grabFree`
+**Context:** `find.ts` -> `gatherables`, `inventory.ts` -> `grabLoose`
 
 ### Behavioral Description
 Used by Gatherer Alveoli (like a Hunter's Hut or Lumberjack post that collects loose items).
@@ -111,7 +111,7 @@ Used by Gatherer Alveoli (like a Hunter's Hut or Lumberjack post that collects l
     *   Calculates the most efficient loop to pick up items fitting in the inventory.
 2.  **Collection**:
     *   Walks to each item's specific coordinate.
-    *   Executes `grabFree` to pick it up.
+    *   Executes `grabLoose` to pick it up.
 3.  **Return**:
     *   Once the inventory is full or the path is complete, returns to the Alveolus tile.
     *   Drops all collected items into the Alveolus storage.
@@ -180,7 +180,7 @@ High-priority interruption behavior when hunger exceeds critical thresholds.
 1.  **Inventory Check**: First checks if it is already carrying food. If so, eats immediately.
 2.  **Foraging**:
     *   If no food is carried, searching begins via `find.food()`.
-    *   Prioritizes: Existing food storage (larders) first, then free food lying on the ground.
+    *   Prioritizes: Existing food storage (larders) first, then loose food lying on the ground.
     *   Heuristic: Selects food with the highest `feedingValue`.
 3.  **Acquisition**:
     *   Calls `inventory.makeRoom` if necessary (dropping carried tools/items).

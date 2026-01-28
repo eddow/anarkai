@@ -1,7 +1,7 @@
 
 import { describe, it, expect } from 'vitest'
-import { Game } from 'ssh/src/lib/game/game'
-import { chopSaw } from 'ssh/src/lib/game/exampleGames'
+import { Game } from 'ssh/game/game'
+import { chopSaw } from 'ssh/game/exampleGames'
 
 describe('Source Allocation Stability', () => {
     
@@ -22,14 +22,14 @@ describe('Source Allocation Stability', () => {
             void char.scriptsContext
         }
 
-        // Add lots of free goods to increase chance of concurrent interactions
+        // Add lots of loose goods to increase chance of concurrent interactions
         const hex = game.hex
         for (let i = 0; i < 100; i++) {
             const tile = hex.getTile({ 
                 q: Math.floor(game.random() * 10) - 5, 
                 r: Math.floor(game.random() * 10) - 5 
             })
-            if (tile) hex.freeGoods.add(tile, 'wood', { position: tile.position })
+            if (tile) hex.looseGoods.add(tile, 'wood', { position: tile.position })
         }
 
         let errorFound = false

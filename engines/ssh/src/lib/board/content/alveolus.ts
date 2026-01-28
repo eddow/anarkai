@@ -161,7 +161,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		if (this.assignedWorker && this.assignedWorker !== character) {
 			return undefined
 		}
-		// If the alveolus is burdened by FreeGoods, ask to remove them
+		// If the alveolus is burdened by LooseGoods, ask to remove them
 		if (this.isBurdened) {
 			return {
 				job: 'offload',
@@ -386,7 +386,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		return rv
 	}
 	/**
-	 * Clean up the alveolus by creating free goods for each item in storage
+	 * Clean up the alveolus by creating loose goods for each item in storage
 	 * and then emptying the storage. Goods are placed at random positions on the tile.
 	 */
 	cleanUp(): void {
@@ -394,16 +394,16 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		// Get all goods currently in storage
 		const stock = this.storage.stock
 		const { x: tileX, y: tileY } = toWorldCoord(this.tile.position)!
-		// Create free goods for each item in storage
+		// Create loose goods for each item in storage
 		for (const [goodType, quantity] of Object.entries(stock)) {
 			if (quantity > 0) {
-				// Create individual free goods (one per unit)
+				// Create individual loose goods (one per unit)
 				for (let i = 0; i < quantity; i++) {
 					// Generate random position within the tile
 					const { x, y } = axial.randomPositionInTile(this.game.random, tileSize)
 
-					// Add the free good to the tile
-					this.tile.board.freeGoods.add(this.tile.position, goodType as GoodType, {
+					// Add the loose good to the tile
+					this.tile.board.looseGoods.add(this.tile.position, goodType as GoodType, {
 						position: { x: tileX + x, y: tileY + y },
 					})
 				}
@@ -415,7 +415,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	}
 
 	/**
-	 * Clean up a specific good type from storage by creating free goods
+	 * Clean up a specific good type from storage by creating loose goods
 	 * @param goodType - The type of good to clean up
 	 */
 	cleanUpGood(goodType: GoodType): void {
@@ -426,7 +426,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 
 		for (let i = 0; i < quantity; i++) {
 			const { x, y } = axial.randomPositionInTile(this.game.random, tileSize)
-			this.tile.board.freeGoods.add(this.tile.position, goodType, {
+			this.tile.board.looseGoods.add(this.tile.position, goodType, {
 				position: { x: tileX + x, y: tileY + y },
 			})
 		}

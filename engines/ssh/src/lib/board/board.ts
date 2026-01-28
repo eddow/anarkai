@@ -21,7 +21,7 @@ import {
 import { AxialKeyMap } from 'ssh/utils/mem'
 import { TileBorder, type TileBorderContent } from './border/border'
 import type { TileContent } from './content/content'
-import { FreeGoods } from './freeGoods'
+import { LooseGoods } from './looseGoods'
 import { Tile } from './tile'
 import { ZoneManager } from './zone'
 
@@ -33,7 +33,7 @@ export function isTileCoord(coord: AxialCoord | undefined): boolean {
 export class HexBoard extends withContainer(withHittable(GameObject)) {
 	private readonly contents = new AxialKeyMap<TileContent | TileBorderContent>()
 	private readonly occupied = new AxialKeyMap<Character[]>([], () => [])
-	readonly freeGoods: FreeGoods
+	readonly looseGoods: LooseGoods
 	readonly zoneManager: ZoneManager
 
 	get tiles(): Tile[] {
@@ -51,7 +51,7 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		public readonly boardSize: number = 12,
 	) {
 		super(game)
-		this.freeGoods = new FreeGoods(game)
+		this.looseGoods = new LooseGoods(game)
 		this.zoneManager = new ZoneManager()
 		this.zIndex = -1
 	}

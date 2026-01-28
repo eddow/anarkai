@@ -11,7 +11,7 @@ Whenever possible, refer to shared code by its package name, as defined in `pack
 
 Examples:
 ```typescript
-import { Tile } from 'ssh/src/lib/board/tile'
+import { Tile } from 'ssh/board/tile'
 import { goods } from 'ssh/assets/game-content'
 import { compose } from 'pounce-ts'
 ```
@@ -43,5 +43,5 @@ Use aliases to conveniently refer to the current application's folders.
 Within a shared package (e.g. inside `engines/ssh`), always use **relative imports**.
 
 *   ✅ `import { foo } from '../../utils'`
-*   ❌ `import { foo } from 'ssh/src/lib/utils'` (Avoid circular package reference if possible)
+*   ❌ `import { foo } from 'ssh/utils'` (Avoid circular package reference if possible)
 *   ❌ `import { foo } from '$lib/utils'` (Never use app aliases)

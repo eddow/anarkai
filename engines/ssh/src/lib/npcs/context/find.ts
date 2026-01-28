@@ -43,15 +43,15 @@ class FindFunctions {
 				if (fv > 0 && (!best || fv > best.fv)) best = { type: good as GoodType, fv }
 			}
 
-			// Check free goods on the ground (new behavior)
-			const freeGoodsArr = hex.freeGoods.getGoodsAt(axialCoord)
-			for (const freeGood of freeGoodsArr) {
+			// Check loose goods on the ground (new behavior)
+			const looseGoodsArr = hex.looseGoods.getGoodsAt(axialCoord)
+			for (const looseGood of looseGoodsArr) {
 				// Skip allocated or removed goods
-				if (!freeGood.available) continue
-				const def = goodsCatalog[freeGood.goodType]
+				if (!looseGood.available) continue
+				const def = goodsCatalog[looseGood.goodType]
 				if (!def) continue
 				const fv = 'feedingValue' in def ? (def as any).feedingValue : 0
-				if (fv > 0 && (!best || fv > best.fv)) best = { type: freeGood.goodType, fv }
+				if (fv > 0 && (!best || fv > best.fv)) best = { type: looseGood.goodType, fv }
 			}
 			return best?.type ?? null
 		}
@@ -178,7 +178,7 @@ class FindFunctions {
 		// Custom exploration function that counts goods but never returns true
 		const exploreForGoods = (pos: Positioned): boolean => {
 			// Count goods at this tile
-			const goodsAtTile = hex.freeGoods.getGoodsAt(pos)
+			const goodsAtTile = hex.looseGoods.getGoodsAt(pos)
 			for (const good of goodsAtTile) {
 				if (good.available && good.goodType in goodCounts) goodCounts[good.goodType]!++
 			}
@@ -198,7 +198,7 @@ class FindFunctions {
 
 		if (!targetGood) return false as const
 
-		const path = hex.freeGoods.findNearestGoods(start, start, [targetGood], maxWalkTime)
+		const path = hex.looseGoods.findNearestGoods(start, start, [targetGood], maxWalkTime)
 		return path
 	}
 
@@ -221,7 +221,7 @@ class FindFunctions {
 				// Must not be a project (construction site)
 				if (tile.content.project) return false
 
-				let score = 1 / (hex.freeGoods.getGoodsAt(coord).length + 1)
+				let score = 1 / (hex.looseGoods.getGoodsAt(coord).length + 1)
 
 				// Penalize current tile to encourage moving goods away (fixes infinite loop in offload)
 				if (axial.distance(coord, start) < 0.1) {

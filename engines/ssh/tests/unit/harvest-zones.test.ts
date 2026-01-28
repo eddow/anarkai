@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
-import { Game } from 'ssh/src/lib/game'
-import { UnBuiltLand, Deposit } from 'ssh/src/lib/board/content/unbuilt-land'
-import { toAxialCoord } from 'ssh/src/lib/utils/position'
+import { Game } from 'ssh/game'
+import { UnBuiltLand, Deposit } from 'ssh/board/content/unbuilt-land'
+import { toAxialCoord } from 'ssh/utils/position'
 
 // Mock DOM/Pixi environment for Node
 if (typeof document === 'undefined') {

@@ -1,19 +1,19 @@
 import { Container, Sprite, Texture } from 'pixi.js'
 import { namedEffect } from 'ssh/debug'
-import type { FreeGoods, FreeGood } from 'ssh/board/freeGoods'
+import type { LooseGoods, LooseGood } from 'ssh/board/looseGoods'
 import { tileSize } from 'ssh/utils/varied'
 import { toWorldCoord } from 'ssh/utils/position' // Verify import
 import { goods as goodsCatalog } from '../../assets/visual-content' 
 import type { PixiGameRenderer } from '../renderer'
 import { VisualObject } from './visual-object'
 
-export class FreeGoodsVisual extends VisualObject<FreeGoods> {
+export class LooseGoodsVisual extends VisualObject<LooseGoods> {
     private spritePool: Sprite[] = []
-    private activeSprites = new Map<FreeGood, Sprite>()
+    private activeSprites = new Map<LooseGood, Sprite>()
     private container: Container
 
-    constructor(freeGoods: FreeGoods, renderer: PixiGameRenderer) {
-        super(freeGoods, renderer)
+    constructor(looseGoods: LooseGoods, renderer: PixiGameRenderer) {
+        super(looseGoods, renderer)
         this.container = new Container()
         // Ensure this container (and its children) does not block mouse events
         this.container.eventMode = 'none'
@@ -21,20 +21,20 @@ export class FreeGoodsVisual extends VisualObject<FreeGoods> {
     }
 
     public bind() {
-        this.register(namedEffect('freeGoods.render', () => {
+        this.register(namedEffect('looseGoods.render', () => {
              // We need to iterate over all goods.
-             // FreeGoods.goods is a Map<AxialKey, FreeGood[]>
+             // LooseGoods.goods is a Map<AxialKey, LooseGood[]>
              // Ideally we iterate only visible processing, but here we do all for simplicity first.
              
              // Track seen goods to remove vanished ones
-             const seen = new Set<FreeGood>()
+             const seen = new Set<LooseGood>()
 
-             // console.log('[FreeGoodsVisual] Rendering. Goods entries:', Array.from((this.object as any).goods.entries()).length)
+             // console.log('[LooseGoodsVisual] Rendering. Goods entries:', Array.from((this.object as any).goods.entries()).length)
 
              for (const [coordKey, goodsList] of (this.object as any).goods.entries()) {
                  for (const good of goodsList) {
                      // Log first good found
-                     // console.log('[FreeGoodsVisual] Good:', good.goodType, good.available, good.position)
+                     // console.log('[LooseGoodsVisual] Good:', good.goodType, good.available, good.position)
                      
                      // FIX: Allocated goods should still be visible until removed!
                      // if (!good.available) continue 
@@ -54,14 +54,14 @@ export class FreeGoodsVisual extends VisualObject<FreeGoods> {
                              sprite.texture = texture
                              
                              if (texture === Texture.WHITE) {
-                                 console.warn('[FreeGoodsVisual] Missing texture for:', textureKey)
+                                 console.warn('[LooseGoodsVisual] Missing texture for:', textureKey)
                              }
 
                              // Scale?
                              const scale = (tileSize * 0.5) / (sprite.texture.height || 20)
                              sprite.scale.set(scale)
                          } else {
-                             console.warn('[FreeGoodsVisual] No definition for goodType:', good.goodType)
+                             console.warn('[LooseGoodsVisual] No definition for goodType:', good.goodType)
                          }
                      }
                      
@@ -71,7 +71,7 @@ export class FreeGoodsVisual extends VisualObject<FreeGoods> {
                      if (world) {
                          sprite.position.set(world.x, world.y)
                      } else {
-                         console.warn('[FreeGoodsVisual] Invalid world pos for good:', good.position)
+                         console.warn('[LooseGoodsVisual] Invalid world pos for good:', good.position)
                      }
                  }
              }

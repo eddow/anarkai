@@ -229,7 +229,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		if (Object.values(this.carry.availables).some((qty) => qty! > 0)) {
 			// Only try to drop if we can find a spot to drop them
 			if (this.scriptsContext.find.freeSpot()) {
-				return this.scriptsContext.inventory.dropAllFree()
+				return this.scriptsContext.inventory.dropAllLoose()
 			}
 		}
 		const tryAnActivity =

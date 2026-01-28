@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { Game } from 'ssh/src/lib/game/game'
-import { Character } from 'ssh/src/lib/population/character'
-import { InventoryFunctions } from 'ssh/src/lib/npcs/context/inventory'
-import { subject } from 'ssh/src/lib/npcs/scripts'
-import type { Tile } from 'ssh/src/lib/board/tile'
+import { Game } from 'ssh/game/game'
+import { Character } from 'ssh/population/character'
+import { InventoryFunctions } from 'ssh/npcs/context/inventory'
+import { subject } from 'ssh/npcs/scripts'
+import type { Tile } from 'ssh/board/tile'
 
 // Mock Game.prototype.getTexture before imports
 // We still need to patch Game definition because it's not a global, it's a class from valid import.
@@ -69,25 +69,25 @@ describe('Work Logic / Inventory Race Conditions', () => {
 
     it('should throw when planning grab for missing good (Specific Good)', () => {
         const targetPos = { q: 0, r: 1 }
-        expect(() => inventoryFunctions.planGrabFree('wood', targetPos)).toThrow('No wood to grab')
+        expect(() => inventoryFunctions.planGrabLoose('wood', targetPos)).toThrow('No wood to grab')
     })
 
 
     it('should return idle plan when planning grab for missing good (Generic Grab)', () => {
         const targetPos = { q: 0, r: 1 }
-        const plan = inventoryFunctions.planGrabFree(null, targetPos)
+        const plan = inventoryFunctions.planGrabLoose(null, targetPos)
         expect(plan.type).toBe('idle')
     })
 
     it('should return idle plan when inventory is full (Generic Grab)', () => {
         const targetPos = { q: 0, r: 1 }
         const tile = game.hex.getTile(targetPos) as Tile
-        game.hex.freeGoods.add(tile, 'wood', { position: targetPos })
+        game.hex.looseGoods.add(tile, 'wood', { position: targetPos })
         char.vehicle.storage.addGood('stone', 2000)
         
         expect(char.vehicle.storage.hasRoom('wood')).toBe(0)
 
-        const plan = inventoryFunctions.planGrabFree(null, targetPos)
+        const plan = inventoryFunctions.planGrabLoose(null, targetPos)
         expect(plan.type).toBe('idle')
     })
 })

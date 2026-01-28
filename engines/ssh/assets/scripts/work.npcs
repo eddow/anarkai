@@ -1,7 +1,7 @@
 function goWork(jobPlan, path)
 	target = jobPlan.target
 	plan jobPlan
-		inventory.dropAllFree
+		inventory.dropAllLoose
 		if tile != target.tile then do
 			walk.until path
 		while tile != target.tile
@@ -40,7 +40,7 @@ function harvest(jobPlan)
 		if not I.carry.isEmpty then
 			candidateGoods = keys(I.carry.availables)
 			if isGatherable(alveolus) then
-				inventory.dropAllFree
+				inventory.dropAllLoose
 			else if candidateGoods.length > 0 then
 				inventory.dropStored I.carry.stock, alveolus.tile
 			end if
@@ -77,7 +77,7 @@ function gather(jobPlan)
 		// Use path and goodType from nextJob
 		if not nextJob.path then error "No path found to gather"
 		if not nextJob.goodType then error "No good type to gather"
-		inventory.grabFree nextJob.goodType, nextJob.path[nextJob.path.length - 1], nextJob.path
+		inventory.grabLoose nextJob.goodType, nextJob.path[nextJob.path.length - 1], nextJob.path
 	loop
 	// bring back to alveolus tile (hive edge) if we have goods
 	candidateGoods = keys(I.carry.availables)
@@ -119,8 +119,8 @@ function offload(jobPlan)
 	target = jobPlan.target
 	// Target is the tile for offload jobs
 	if target.availableGoods.length == 0 then return
-	inventory.grabFree null, target
-	inventory.dropAllFree()
+	inventory.grabLoose null, target
+	inventory.dropAllLoose()
 end function
 
 function defragment(jobPlan)

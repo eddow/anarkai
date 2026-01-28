@@ -21,7 +21,7 @@ graph TB
     Game --> Input
     
     Board --> Tiles[Tiles & Zones]
-    Board --> FreeGoods[Free Goods System]
+    Board --> LooseGoods[Loose Goods System]
     
     Pop --> Characters[Characters]
     Characters --> Scripts[NPC Scripts]
@@ -66,13 +66,13 @@ Manages the hexagonal grid world and spatial queries.
 **Responsibilities:**
 - Store and retrieve tiles by axial coordinates
 - Manage zones (harvest, residential, etc.)
-- Handle free goods placement and retrieval
+- Handle loose goods placement and retrieval
 - Provide pathfinding utilities
 
 **Key Properties:**
 - `boardSize: number` — Radius of the hex world
 - `zoneManager: ZoneManager` — Zone assignment system
-- `freeGoods: FreeGoodsSystem` — Loose item tracking
+- `looseGoods: LooseGoodsSystem` — Loose item tracking
 
 **Key Methods:**
 - `getTile(coord)` — Retrieve tile at coordinates
@@ -153,7 +153,7 @@ A building/workplace that performs specific game functions.
 **Alveolus Types:**
 - **Harvest** — Extract resources from deposits
 - **Transform** — Convert goods (e.g., Log → Plank)
-- **Gatherer** — Collect free goods
+- **Gatherer** — Collect loose goods
 - **Storage** — Hold goods
 - **Transit** — Internal conveyor system
 - **Build** — Construction site
@@ -272,7 +272,7 @@ graph LR
 - Generation options (terrain seed, board size)
 - Modified tiles (deposits, terrain changes)
 - Hives and their Alveoli with storage contents
-- Free goods with exact positions
+- Loose goods with exact positions
 - Zones (harvest, residential)
 - Projects (construction plans)
 - Population data (character states)
@@ -281,7 +281,7 @@ graph LR
 1. Iterate all tiles, skip `asGenerated` tiles (pristine procedural state)
 2. Serialize tile content, deposits, zones, projects
 3. Serialize hives with all alveoli and storage
-4. Serialize all free goods with precise coordinates
+4. Serialize all loose goods with precise coordinates
 5. Serialize population state
 
 **Load Process:**

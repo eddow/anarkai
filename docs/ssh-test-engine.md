@@ -55,7 +55,7 @@ You can inject a specific board state using `loadScenario`. This is useful for s
 
 ```typescript
 const scenario = {
-    freeGoods: [{ goodType: 'mushrooms', position: { q: 2, r: 2 } }],
+    looseGoods: [{ goodType: 'mushrooms', position: { q: 2, r: 2 } }],
     hives: [{ name: 'TestHive', alveoli: [{ coord: [2, 2], alveolus: 'tree_chopper' }] }]
 };
 

@@ -15,9 +15,9 @@ import { AxialKeyMap } from 'ssh/utils/mem'
 import { axialDistance, type Position, type Positioned, toAxialCoord } from 'ssh/utils/position'
 
 @unreactive
-class FreeGoodAllocation {
+class LooseGoodAllocation {
 	constructor(
-		public readonly freeGood: FreeGood,
+		public readonly looseGood: LooseGood,
 		reason: any,
 	) {
 		guardAllocation(this, reason)
@@ -28,30 +28,30 @@ class FreeGoodAllocation {
 		if (!isAllocationValid(this)) return
 		allocationEnded(this)
 		invalidateAllocation(this)
-		this.freeGood.available = true
+		this.looseGood.available = true
 	}
 	@atomic
 	fulfill(): void {
 		if (!isAllocationValid(this)) return
 		allocationEnded(this)
 		invalidateAllocation(this)
-		this.freeGood.remove()
+		this.looseGood.remove()
 	}
 }
 
-export interface FreeGood {
+export interface LooseGood {
 	goodType: GoodType
 	position: Position
 	available: boolean
 	get isRemoved(): boolean
 	remove(): void
-	allocate(reason: any): FreeGoodAllocation
+	allocate(reason: any): LooseGoodAllocation
 }
 
-export class FreeGoods extends withTicked(GameObject) {
-	public readonly uid = 'free-goods-manager'
-	public readonly goods = reactive(new AxialKeyMap<FreeGood[]>([], () => []))
-	add(pos: Positioned, goodType: GoodType, options: Partial<FreeGood> = {}) {
+export class LooseGoods extends withTicked(GameObject) {
+	public readonly uid = 'loose-goods-manager'
+	public readonly goods = reactive(new AxialKeyMap<LooseGood[]>([], () => []))
+	add(pos: Positioned, goodType: GoodType, options: Partial<LooseGood> = {}) {
 		assert(
 			!('position' in options) ||
 				axialDistance(options.position!, toAxialCoord(pos)) < 0.5 + epsilon,
@@ -59,7 +59,7 @@ export class FreeGoods extends withTicked(GameObject) {
 		)
 		const coord = toAxialCoord(pos)
 		const self = this
-		const good: FreeGood = reactive({
+		const good: LooseGood = reactive({
 			goodType,
 			position: 'position' in pos ? pos.position : pos,
 			available: true,
@@ -69,16 +69,16 @@ export class FreeGoods extends withTicked(GameObject) {
 				return !goodsList.includes(good)
 			},
 			remove: () => this.remove(pos, good),
-			allocate: (reason: any): FreeGoodAllocation => {
+			allocate: (reason: any): LooseGoodAllocation => {
 				if (!good.available) {
-					throw new Error(`FreeGood already allocated: ${reason}`)
+					throw new Error(`LooseGood already allocated: ${reason}`)
 				}
 				if (good.isRemoved) {
 					debugger
-					throw new Error(`FreeGood already removed: ${reason}`)
+					throw new Error(`LooseGood already removed: ${reason}`)
 				}
 				good.available = false
-				return new FreeGoodAllocation(good, reason)
+				return new LooseGoodAllocation(good, reason)
 			},
 			...options,
 		})
@@ -88,21 +88,21 @@ export class FreeGoods extends withTicked(GameObject) {
 
 		return good
 	}
-	remove(pos: Positioned, good: FreeGood): void {
+	remove(pos: Positioned, good: LooseGood): void {
 		// Guard against double-removal
 		if (good.isRemoved) return
 
 		const coord = toAxialCoord(pos)
 		const oldList = this.goods.get(coord)!
 		const newList = oldList.filter((g) => g !== good)
-		assert(newList.length === oldList.length - 1, 'FreeGood not found')
+		assert(newList.length === oldList.length - 1, 'LooseGood not found')
 		if (newList.length) this.goods.set(coord, newList)
 		else this.goods.delete(coord)
 
 		// Clean up sprite if it exists (might not exist if removed before game loaded)
 	}
 
-	getGoodsAt(coord: Positioned): FreeGood[] {
+	getGoodsAt(coord: Positioned): LooseGood[] {
 		return this.goods.get(toAxialCoord(coord)) || []
 	}
 
@@ -142,7 +142,7 @@ export class FreeGoods extends withTicked(GameObject) {
 					const goodDef = goods[good.goodType]
 					if (!goodDef) {
 						console.error(
-							`FreeGood update: Unknown good type '${good.goodType}'. Goods keys: ${Object.keys(goods).join(', ')}`,
+							`LooseGood update: Unknown good type '${good.goodType}'. Goods keys: ${Object.keys(goods).join(', ')}`,
 						)
 						continue
 					}

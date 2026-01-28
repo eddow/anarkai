@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { TestEngine } from 'ssh/src/test-engine'
+import { TestEngine } from '../test-engine'
 import { batch } from 'mutts'
-import type { SaveState } from 'ssh/src/lib/game'
+import type { SaveState } from 'ssh/game'
 
 describe('Atomicity & Environment Investigation', () => {
     
@@ -29,7 +29,7 @@ describe('Atomicity & Environment Investigation', () => {
                 { coord: [1, 0], alveolus: 'storage', goods: {} }
             ]
         }],
-        freeGoods: [
+        looseGoods: [
             { goodType: 'berries', position: { q: 0, r: 1 } },
             { goodType: 'berries', position: { q: 0, r: 1 } }
         ]
@@ -74,9 +74,9 @@ describe('Atomicity & Environment Investigation', () => {
             await new Promise(resolve => setTimeout(resolve, 0))
         }
 
-        let freeBerries = 0;
-        for (const list of game.hex.freeGoods.goods.values()) {
-            freeBerries += list.filter(fg => fg.goodType === 'berries').length;
+        let looseBerries = 0;
+        for (const list of game.hex.looseGoods.goods.values()) {
+            looseBerries += list.filter(fg => fg.goodType === 'berries').length;
         }
 
         const workerBerries = Array.from((game.population as any).characters.values()).reduce((acc: number, char: any) => acc + (char.inventory?.stock?.berries || 0), 0);
@@ -90,9 +90,9 @@ describe('Atomicity & Environment Investigation', () => {
         console.log(`[Test] Mode ${mode} | Total Berries on Board:
             Gatherer: ${gathererStorage?.stock.berries || 0}
             Storage: ${finalStorage?.stock.berries || 0}
-            Free: ${freeBerries}
+            Loose: ${looseBerries}
             Workers: ${workerBerries}
-            Total: ${(gathererStorage?.stock.berries || 0) + (finalStorage?.stock.berries || 0) + freeBerries + workerBerries}
+            Total: ${(gathererStorage?.stock.berries || 0) + (finalStorage?.stock.berries || 0) + looseBerries + workerBerries}
         `);
 
 

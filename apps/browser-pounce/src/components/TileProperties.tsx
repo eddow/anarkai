@@ -92,7 +92,7 @@ const TileProperties = (props: TilePropertiesProps) => {
 
 	effect(() => {
 		const counts: Record<string, number> = {}
-		for (const fg of (props.tile?.freeGoods ?? [])) {
+		for (const fg of (props.tile?.looseGoods ?? [])) {
 			if (!fg.available) continue
 			counts[fg.goodType] = (counts[fg.goodType] || 0) + 1
 		}

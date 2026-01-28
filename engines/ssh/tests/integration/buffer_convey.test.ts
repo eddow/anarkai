@@ -1,9 +1,8 @@
 
 import { describe, it, expect } from 'vitest'
-import { TestEngine } from 'ssh/src/test-engine'
-import { SaveState } from 'ssh/src/lib/game';
-import { axial } from 'ssh/src/lib/utils/axial';
-import type { StorageAlveolus } from 'ssh/src/lib/hive/storage';
+import { TestEngine } from '../test-engine'
+import { SaveState } from 'ssh/game'
+import type { StorageAlveolus } from 'ssh/hive/storage'
 
 describe('Storage Buffering', () => {
     
@@ -31,7 +30,7 @@ describe('Storage Buffering', () => {
         // Setup: 
         // 0,0: Storage (start empty)
         // 1,0: Gatherer
-        // 2,0: Free wood (5 units)
+        // 2,0: Loose wood (5 units)
         const scenario: Partial<SaveState> = {
             hives: [
                 {
@@ -50,8 +49,8 @@ describe('Storage Buffering', () => {
                     ]
                 }
             ],
-            // Add free goods at 2,0
-            freeGoods: [
+            // Add loose goods at 2,0
+            looseGoods: [
                 { position: { q: 2, r: 0 }, goodType: 'wood' },
                 { position: { q: 2, r: 0 }, goodType: 'wood' },
                 { position: { q: 2, r: 0 }, goodType: 'wood' },
@@ -79,7 +78,7 @@ describe('Storage Buffering', () => {
         // Verify setup
         expect(storageAlveolus.storage.available('wood')).toBe(0);
         
-        // (Free goods API might vary, assuming scenario loaded correctly)
+        // (Loose goods API might vary, assuming scenario loaded correctly)
 
         // Step 1: Run for a while. Without buffering, nothing should happen.
         // Storage advertises '0-store', Hive ignores it. Gatherer sees no need.
@@ -147,7 +146,7 @@ describe('Storage Buffering', () => {
                     ]
                 }
             ],
-            freeGoods: [
+            looseGoods: [
                 { position: { q: 2, r: 0 }, goodType: 'wood' },
                 { position: { q: 2, r: 0 }, goodType: 'wood' },
                 { position: { q: 2, r: 0 }, goodType: 'wood' },

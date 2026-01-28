@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { TestEngine } from 'ssh/src/test-engine'
-import { SaveState } from 'ssh/src/lib/game';
+import { TestEngine } from '../test-engine'
+import { SaveState } from 'ssh/game';
 
 describe('Gatherer Conveying Integration', () => {
     
@@ -26,7 +26,7 @@ describe('Gatherer Conveying Integration', () => {
         const { engine, game, spawnWorker } = await setupEngine();
 
         // Setup: Gatherer and Storage.
-        // Free berries nearby.
+        // Loose berries nearby.
         // Storage should demand berries (default behavior for empty storage with room).
         const scenario: Partial<SaveState> = {
             hives: [
@@ -46,7 +46,7 @@ describe('Gatherer Conveying Integration', () => {
                     ]
                 }
             ],
-            freeGoods: [
+            looseGoods: [
                 { goodType: 'berries', position: { q: 0, r: 1 } },
                 { goodType: 'berries', position: { q: 0, r: 1 } },
                 { goodType: 'berries', position: { q: 0, r: 1 } }

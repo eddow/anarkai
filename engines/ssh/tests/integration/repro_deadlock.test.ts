@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { TestEngine } from 'ssh/src/test-engine'
-import { SaveState } from 'ssh/src/lib/game';
-import { UnBuiltLand } from 'ssh/src/lib/board/content/unbuilt-land';
+import { TestEngine } from '../test-engine'
+import { SaveState } from 'ssh/game';
+import { UnBuiltLand } from 'ssh/board/content/unbuilt-land';
 
 describe('Deadlock Reproduction', () => {
 
@@ -38,7 +38,7 @@ describe('Deadlock Reproduction', () => {
                     ]
                 }
             ],
-            freeGoods: []
+            looseGoods: []
         };
 
         engine.loadScenario(scenario);

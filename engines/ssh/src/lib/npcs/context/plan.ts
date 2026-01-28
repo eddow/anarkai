@@ -118,23 +118,23 @@ const pickupPlanHandler: PlanHandler<PickupPlan> = {
 				vehicleAllocation = plan.vehicleAllocation
 				allocation = plan.allocation
 			} else {
-				// Find and allocate the free good
+				// Find and allocate the loose good
 				const coord = toAxialCoord(target)
-				const freeGoods = character.game.hex.freeGoods.getGoodsAt(coord)
-				const matchingFreeGoods = freeGoods.filter(
+				const looseGoods = character.game.hex.looseGoods.getGoodsAt(coord)
+				const matchingLooseGoods = looseGoods.filter(
 					(good) => good.goodType === goodType && good.available,
 				)
 
-				if (matchingFreeGoods.length === 0) {
-					console.warn(`No FreeGoods to grab for ${goodType}`)
+				if (matchingLooseGoods.length === 0) {
+					console.warn(`No LooseGoods to grab for ${goodType}`)
 					return
 				}
 
-				const freeGoodToGrab = matchingFreeGoods[0]
-				vehicleAllocation = vehicle.storage.allocate({ [goodType]: 1 }, `planGrabFree.${goodType}`)
-				allocation = freeGoodToGrab.allocate(`planGrabFree.${goodType}`)
+				const looseGoodToGrab = matchingLooseGoods[0]
+				vehicleAllocation = vehicle.storage.allocate({ [goodType]: 1 }, `planGrabLoose.${goodType}`)
+				allocation = looseGoodToGrab.allocate(`planGrabLoose.${goodType}`)
 				releaseStopper = namedEffect('plan.releaseStopper', () => {
-					if (freeGoodToGrab.isRemoved) character.cancelPlan(plan)
+					if (looseGoodToGrab.isRemoved) character.cancelPlan(plan)
 				})
 				plan.releaseStopper = releaseStopper
 

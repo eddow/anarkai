@@ -1,4 +1,4 @@
-import type { Contract, ContractType } from 'ssh/src/lib/types'
+import type { Contract, ContractType } from 'ssh/types'
 
 // Contracts defined using pure string arrays validated by contractScope in arktype.ts
 export const CharacterContract = {
@@ -7,11 +7,11 @@ export const CharacterContract = {
 		until: ['Position[]'],
 	},
 	inventory: {
-		dropAllFree: [],
+		dropAllLoose: [],
 		makeRoom: [],
 		dropStored: ['Goods', 'Positioned', 'Position[]?', 'boolean?'],
 		grabStored: ['Goods', 'Positioned', 'Position[]?', 'boolean?'],
-		grabFree: ['GoodType | null', 'Positioned', 'Position[]?', 'boolean?'],
+		grabLoose: ['GoodType | null', 'Positioned', 'Position[]?', 'boolean?'],
 	},
 	selfCare: {
 		goEat: [],

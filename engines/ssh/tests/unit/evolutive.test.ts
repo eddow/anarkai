@@ -16,12 +16,12 @@ if (typeof window === 'undefined') {(global as any).window = global}
 if (typeof navigator === 'undefined') {(global as any).navigator = { userAgent: 'node' }}
 
 import { describe, it, expect, vi } from 'vitest'
-import { Game } from 'ssh/src/lib/game/game'
-import { MoveToStep } from 'ssh/src/lib/npcs/steps'
-import { InventoryFunctions } from 'ssh/src/lib/npcs/context/inventory'
-import { subject } from 'ssh/src/lib/npcs/scripts'
-import { toAxialCoord } from 'ssh/src/lib/utils/position'
-import type { AxialCoord } from 'ssh/src/lib/utils/axial'
+import { Game } from 'ssh/game/game'
+import { MoveToStep } from 'ssh/npcs/steps'
+import { InventoryFunctions } from 'ssh/npcs/context/inventory'
+import { subject } from 'ssh/npcs/scripts'
+import { toAxialCoord } from 'ssh/utils/position'
+import type { AxialCoord } from 'ssh/utils/axial'
 
 // Mock Debug to silence rendering assertions
 vi.mock('ssh/src/lib/debug', () => ({
@@ -94,7 +94,7 @@ describe('Evolutive & Determinism Tests', () => {
                     { coord: [0, 1], alveolus: 'buffer' as any }
                 ]
             }],
-            freeGoods: [
+            looseGoods: [
                 { goodType: 'wood', position: { q: 2, r: 2 } },
                 { goodType: 'stone', position: { q: 1, r: 1 } }
             ]

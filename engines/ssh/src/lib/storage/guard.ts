@@ -32,7 +32,6 @@ export function allocationEnded<Allocation extends object>(allocation: Allocatio
 	if (!registry) return
 	const token = tokens.get(allocation)
 	if (!token) return
-	//console.trace('free', allocation)
 	registry.unregister(token)
 	tokens.delete(allocation)
 }

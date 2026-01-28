@@ -58,13 +58,13 @@ if (typeof fetch === 'undefined' || true) {
 }
 
 import { describe, it, expect, vi } from 'vitest'
-import { Game } from 'ssh/src/lib/game'
-import { subject, protoCtx } from 'ssh/src/lib/npcs/scripts'
-import { WorkFunctions } from 'ssh/src/lib/npcs/context/work'
-import { InventoryFunctions } from 'ssh/src/lib/npcs/context/inventory'
-import { WalkFunctions } from 'ssh/src/lib/npcs/context/walk'
-import { FindFunctions } from 'ssh/src/lib/npcs/context/find'
-import { PlanFunctions } from 'ssh/src/lib/npcs/context/plan'
+import { Game } from 'ssh/game'
+import { subject, protoCtx } from 'ssh/npcs/scripts'
+import { WorkFunctions } from 'ssh/npcs/context/work'
+import { InventoryFunctions } from 'ssh/npcs/context/inventory'
+import { WalkFunctions } from 'ssh/npcs/context/walk'
+import { FindFunctions } from 'ssh/npcs/context/find'
+import { PlanFunctions } from 'ssh/npcs/context/plan'
 
 // Mock assets/resources
 vi.mock('ssh/assets/resources', () => ({

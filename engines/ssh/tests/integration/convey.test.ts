@@ -1,7 +1,7 @@
 
 import { describe, it, expect } from 'vitest'
-import { TestEngine } from 'ssh/src/test-engine'
-import { SaveState } from 'ssh/src/lib/game';
+import { TestEngine } from '../test-engine'
+import { SaveState } from 'ssh/game';
 // TODO: When buffering is implemented, set the target to a buffering storage and add in the test that the goods are arrived
 describe('Convey Behavior Integration', () => {
     

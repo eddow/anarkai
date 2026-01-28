@@ -13,7 +13,7 @@ function goodsWith(goods: Goods, other: GoodType, qty: number = 1): Goods {
 }
 
 /**
- * GatherAlveolus handles gathering free goods from the world.
+ * GatherAlveolus handles gathering loose goods from the world.
  */
 export class GatherAlveolus extends TransitAlveolus {
 	declare action: Ssh.GatherAction
@@ -26,13 +26,13 @@ export class GatherAlveolus extends TransitAlveolus {
 	}
 
 	@memoize
-	get hasFreeGoodsToGather(): boolean {
-		// Check if there are any free goods in the world that the hive needs
+	get hasLooseGoodsToGather(): boolean {
+		// Check if there are any loose goods in the world that the hive needs
 		const hiveNeeds = Object.keys(this.hive.needs) as GoodType[]
 		if (hiveNeeds.length === 0) return false
 
-		// Use FreeGoods.findNearestGoods to check if there are any free goods available within walk time
-		const nearestGoods = this.tile.game.hex.freeGoods.findNearestGoods(
+		// Use LooseGoods.findNearestGoods to check if there are any loose goods available within walk time
+		const nearestGoods = this.tile.game.hex.looseGoods.findNearestGoods(
 			toAxialCoord(this.tile.position),
 			toAxialCoord(this.tile.position), // Center is the same as start for gather
 			hiveNeeds,
@@ -44,7 +44,7 @@ export class GatherAlveolus extends TransitAlveolus {
 	// nextJob() replaces both alveolusSpecificJob() and keepWorking
 	// Returns detailed job info including path when called from character
 	nextJob(character?: Character): GatherJob | undefined {
-		if (!this.working || !this.hasFreeGoodsToGather || !this.storage.isEmpty) return undefined
+		if (!this.working || !this.hasLooseGoodsToGather || !this.storage.isEmpty) return undefined
 
 		const startPos = character ? toAxialCoord(character.position) : toAxialCoord(this.tile.position)
 		const hex = this.tile.game.hex
@@ -67,7 +67,7 @@ export class GatherAlveolus extends TransitAlveolus {
 		hex.findNearest(
 			startPos,
 			(pos: Positioned) => {
-				const goodsAtTile = hex.freeGoods.getGoodsAt(pos)
+				const goodsAtTile = hex.looseGoods.getGoodsAt(pos)
 				for (const good of goodsAtTile) {
 					const gt = good.goodType as GoodType
 					if (good.available && gt in goodCounts) goodCounts[gt]!++
@@ -85,7 +85,7 @@ export class GatherAlveolus extends TransitAlveolus {
 
 		if (!targetGood) return undefined
 
-		const result = hex.freeGoods.findNearestGoods(
+		const result = hex.looseGoods.findNearestGoods(
 			startPos,
 			startPos,
 			[targetGood],

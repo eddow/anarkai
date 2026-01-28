@@ -1,7 +1,7 @@
 
 import { describe, it, expect, vi } from 'vitest'
-import { Game } from 'ssh/src/lib/game'
-import { InventoryFunctions } from 'ssh/src/lib/npcs/context/inventory'
+import { Game } from 'ssh/game'
+import { InventoryFunctions } from 'ssh/npcs/context/inventory'
 
 // Mock environment
 if (typeof document === 'undefined') {
@@ -48,14 +48,14 @@ describe('Offload Silent Cancellation Reproduction', () => {
         const targetTile = game.hex.getTile({ q: 3, r: 2 })
         if (!targetTile) throw new Error('Target tile not found')
         
-        // Add free goods to the target tile
-        // We need to mock availableGoods on the tile or ensure freeGoods system works
-        // Tile doesn't have availableGoods by default? It's likely a getter using game.hex.freeGoods
-        // Let's check if we can add to freeGoods directly
-        game.hex.freeGoods.add(targetTile, 'wood', { position: targetTile.position })
+        // Add loose goods to the target tile
+        // We need to mock availableGoods on the tile or ensure looseGoods system works
+        // Tile doesn't have availableGoods by default? It's likely a getter using game.hex.looseGoods
+        // Let's check if we can add to looseGoods directly
+        game.hex.looseGoods.add(targetTile, 'wood', { position: targetTile.position })
         
         // Verify goods are there
-        const goodsAtTile = game.hex.freeGoods.getGoodsAt(targetTile.position)
+        const goodsAtTile = game.hex.looseGoods.getGoodsAt(targetTile.position)
         expect(goodsAtTile.length).toBeGreaterThan(0)
         expect(goodsAtTile[0].goodType).toBe('wood')
 

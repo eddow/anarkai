@@ -85,7 +85,7 @@ export interface GamePatches {
 		name?: string
 		alveoli: Array<AlveolusPatch>
 	}>
-	freeGoods?: Array<{
+	looseGoods?: Array<{
 		goodType: GoodType
 		position: { q: number; r: number }
 	}>
@@ -247,7 +247,7 @@ export class Game extends Eventful<GameEvents> {
 			if (patches.tiles?.length) this.applyTilePatches(patches.tiles)
 			if (patches.hives?.length)
 				this.applyHivesPatches(patches.hives, saveState?.hiveConfigurations)
-			if (patches.freeGoods?.length) this.applyFreeGoodsPatches(patches.freeGoods)
+			if (patches.looseGoods?.length) this.applyLooseGoodsPatches(patches.looseGoods)
 			if (patches.zones) this.applyZonePatches(patches.zones)
 			if (patches.projects) this.applyProjectPatches(patches.projects)
 		} catch (error) {
@@ -296,8 +296,8 @@ export class Game extends Eventful<GameEvents> {
 						r: tileInfo.coord.r + r,
 					}
 
-					// Add the good to the free goods system
-					this.hex.freeGoods.add(tile, goodType as any, { position: randomPos })
+					// Add the good to the loose goods system
+					this.hex.looseGoods.add(tile, goodType as any, { position: randomPos })
 				}
 			}
 		}
@@ -346,11 +346,11 @@ export class Game extends Eventful<GameEvents> {
 		}
 	}
 
-	private applyFreeGoodsPatches(patches: NonNullable<GamePatches['freeGoods']>) {
+	private applyLooseGoodsPatches(patches: NonNullable<GamePatches['looseGoods']>) {
 		for (const fg of patches) {
 			const tile = this.hex.getTile(axial.round(fg.position))
 			if (!tile) continue
-			this.hex.freeGoods.add(tile, fg.goodType, { position: fg.position })
+			this.hex.looseGoods.add(tile, fg.goodType, { position: fg.position })
 		}
 	}
 
@@ -428,7 +428,7 @@ export class Game extends Eventful<GameEvents> {
 	public saveGameData(): SaveState {
 		const tiles: Array<TilePatch> = []
 		const hives = new Map<Hive, Array<AlveolusPatch>>()
-		const freeGoodsPatches: GamePatches['freeGoods'] = []
+		const looseGoodsPatches: GamePatches['looseGoods'] = []
 		const zones: GamePatches['zones'] = {
 			harvest: [],
 			residential: [],
@@ -493,14 +493,14 @@ export class Game extends Eventful<GameEvents> {
 			}
 		}
 
-		// Save all freeGoods with their exact positions
-		const freeGoodsMap = (this.hex.freeGoods as any).goods as Map<
+		// Save all looseGoods with their exact positions
+		const looseGoodsMap = (this.hex.looseGoods as any).goods as Map<
 			string,
 			Array<{ goodType: GoodType; position: { q: number; r: number } }>
 		>
-		for (const [, goodsList] of freeGoodsMap.entries()) {
+		for (const [, goodsList] of looseGoodsMap.entries()) {
 			for (const fg of goodsList) {
-				freeGoodsPatches!.push({
+				looseGoodsPatches!.push({
 					goodType: fg.goodType,
 					position: fg.position,
 				})
@@ -518,7 +518,7 @@ export class Game extends Eventful<GameEvents> {
 		return {
 			tiles,
 			hives: Array.from(hives.entries()).map(([hive, alveoli]) => ({ name: hive.name, alveoli })),
-			freeGoods: freeGoodsPatches,
+			looseGoods: looseGoodsPatches,
 			zones,
 			projects,
 			population: this.population.serialize(),

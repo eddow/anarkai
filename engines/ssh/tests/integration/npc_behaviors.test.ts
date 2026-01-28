@@ -1,8 +1,8 @@
 
 import { describe, it, expect } from 'vitest'
-import { TestEngine } from 'ssh/src/test-engine'
-import { UnBuiltLand } from 'ssh/src/lib/board/content/unbuilt-land'
-import { GoodType } from 'ssh/src/lib/types';
+import { TestEngine } from '../test-engine'
+import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import { GoodType } from 'ssh/types';
 
 describe('NPC Behaviors Integration', () => {
     
@@ -138,14 +138,14 @@ describe('NPC Behaviors Integration', () => {
     it('Scenario: Gather Behavior', { timeout: 10000 }, async () => {
         const { engine, game, spawnWorker } = await setupEngine();
 
-        // Setup: Gatherer Hut surrounded by Mushrooms via FreeGoods logic
+        // Setup: Gatherer Hut surrounded by Mushrooms via LooseGoods logic
         const scenario = {
             hives: [{
                 name: 'Gatherers',
                 alveoli: [{ coord: [2, 2] as [number, number], alveolus: 'gather' }],
                 needs: { mushrooms: 10 } // Hive must NEED mushrooms for gatherer to work
             }],
-            freeGoods: [
+            looseGoods: [
                 { goodType: 'mushrooms', position: { q: 2, r: 1 }, amount: 1 },
                 { goodType: 'mushrooms', position: { q: 3, r: 1 }, amount: 1 }
             ]
@@ -164,7 +164,7 @@ describe('NPC Behaviors Integration', () => {
          console.error(`[GatherTest] Storage stock: ${JSON.stringify(storage)}, availables: ${JSON.stringify(hiveTile?.content?.storage?.availables)}`);
          expect((storage as any).mushrooms).toBe(2); 
          
-         // Verify free goods are gone
+         // Verify loose goods are gone
     });
 
     it('Scenario: Construct Behavior', { timeout: 10000 }, async () => {
@@ -260,7 +260,7 @@ describe('NPC Behaviors Integration', () => {
 
         // 1. Setup scenario FIRST (so food is there)
         engine.loadScenario({
-            freeGoods: [
+            looseGoods: [
                 { goodType: 'mushrooms', position: { q: 0, r: 1 } },
                 { goodType: 'mushrooms', position: { q: 0, r: 1 } },
                 { goodType: 'mushrooms', position: { q: 0, r: 1 } },

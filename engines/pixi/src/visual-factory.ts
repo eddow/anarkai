@@ -5,7 +5,7 @@ import type { Character } from 'ssh/population/character'
 import type { PixiGameRenderer } from './renderer'
 import { TileVisual } from './renderers/tile-visual'
 import { CharacterVisual } from './renderers/character-visual'
-import { FreeGoodsVisual } from './renderers/free-goods-visual'
+import { LooseGoodsVisual } from './renderers/loose-goods-visual'
 import { BorderVisual } from './renderers/border-visual'
 import { VisualObject } from './renderers/visual-object'
 import { namedEffect } from 'ssh/debug'
@@ -32,9 +32,9 @@ export class VisualFactory {
             })
         })
 
-        // 3. FreeGoods Visual (Singleton Manager)
-        console.log('[VisualFactory] Creating FreeGoods Visual...')
-        this.create(board.freeGoods, FreeGoodsVisual)
+        // 3. LooseGoods Visual (Singleton Manager)
+        console.log('[VisualFactory] Creating LooseGoods Visual...')
+        this.create(board.looseGoods, LooseGoodsVisual)
 
         // 4. Character Visuals (Reactive Population)
         console.log('[VisualFactory] Binding Characters...')
@@ -104,16 +104,16 @@ export class VisualFactory {
              this.renderer.layers.ground.addChild(visual.view)
         } else if (visual instanceof CharacterVisual) {
              this.renderer.layers.characters.addChild(visual.view)
-        } else if (visual instanceof FreeGoodsVisual) {
-             // FreeGoodsVisual handles its own attachment (storedGoods layer usually, inside its class)
+        } else if (visual instanceof LooseGoodsVisual) {
+             // LooseGoodsVisual handles its own attachment (storedGoods layer usually, inside its class)
              // But VisualObject.view is what we generically attach.
-             // FreeGoodsVisual implementation I wrote attached internal container to storedGoods.
+             // LooseGoodsVisual implementation I wrote attached internal container to storedGoods.
              // So here we might not need to attach view?
              // Actually VisualObject base creates `this.view`.
              // If child class attaches specialized containers to layers, `this.view` might be empty.
              // Let's leave it detatched or attach to ground?
              // Best to just check if it needs attachment.
-             // FreeGoodsVisual attached `this.container` to `renderer.layers.storedGoods`.
+             // LooseGoodsVisual attached `this.container` to `renderer.layers.storedGoods`.
              // So we don't attach visual.view.
         } else if (visual instanceof BorderVisual) {
              // BorderVisual also managed its own layers (gateGraphics to alveoli, goods to storedGoods).

@@ -11,7 +11,7 @@ import type { TileBorder } from './border/border'
 import { Alveolus } from './content/alveolus'
 import type { TileContent } from './content/content'
 import { UnBuiltLand } from './content/unbuilt-land'
-import type { FreeGood } from './freeGoods'
+import type { LooseGood } from './looseGoods'
 import type { Zone } from './zone'
 
 @reactive // TODO: this might need to be unreactive
@@ -71,12 +71,12 @@ export class Tile extends withInteractive(GameObject) {
 			if (unbuiltJob) return unbuiltJob
 		}
 
-		// Offload if there are free goods on tile and it's a residential zone or alveolus tile
+		// Offload if there are loose goods on tile and it's a residential zone or alveolus tile
 		// Note: harvest zones do NOT trigger offload (goods can be dropped there)
 		// Cache the expensive computation during pathfinding
-		const hasFreeGoods = this.availableGoods.length > 0
+		const hasLooseGoods = this.availableGoods.length > 0
 		const isResidentialOrAlveolus = this.zone === 'residential' || this.content instanceof Alveolus
-		if (hasFreeGoods && isResidentialOrAlveolus) {
+		if (hasLooseGoods && isResidentialOrAlveolus) {
 			return { job: 'offload', fatigue: 1, urgency: 10 }
 		}
 		// Otherwise delegate to alveolus if present
@@ -110,7 +110,7 @@ export class Tile extends withInteractive(GameObject) {
 	}
 
 	/**
-	 * Check if tile is clear of obstacles (no deposits, no free goods)
+	 * Check if tile is clear of obstacles (no deposits, no loose goods)
 	 */
 	get isClear(): boolean {
 		const coord = toAxialCoord(this.position)
@@ -121,9 +121,9 @@ export class Tile extends withInteractive(GameObject) {
 			return false
 		}
 
-		// Check if there are free goods
-		const freeGoods = this.board.freeGoods.getGoodsAt(coord)
-		if (freeGoods.length > 0) {
+		// Check if there are loose goods
+		const looseGoods = this.board.looseGoods.getGoodsAt(coord)
+		if (looseGoods.length > 0) {
 			return false
 		}
 
@@ -189,14 +189,14 @@ export class Tile extends withInteractive(GameObject) {
 
 	// REHABILITATED MEMOIZE
 	@memoize
-	get freeGoods(): FreeGood[] {
-		return this.board.freeGoods.getGoodsAt(this.position)
+	get looseGoods(): LooseGood[] {
+		return this.board.looseGoods.getGoodsAt(this.position)
 	}
 
 	// REHABILITATED MEMOIZE
 	@memoize
-	get availableGoods(): FreeGood[] {
-		return this.freeGoods.filter((g) => g.available)
+	get availableGoods(): LooseGood[] {
+		return this.looseGoods.filter((g) => g.available)
 	}
 }
 

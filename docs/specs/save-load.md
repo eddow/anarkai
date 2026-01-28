@@ -11,7 +11,7 @@ The goal is to achieve complete persistence of the game state, allowing a player
 - **Deposits**: Type and amount.
 - **Projects**: Active projects on tiles.
 - **Zones**: Harvest and Residential zone designations.
-- **Free Goods**: Loose items on the ground.
+- **Loose Goods**: Loose items on the ground.
 
 ### 2.2. Economy
 *Refines existing `Game.saveGameData`*
