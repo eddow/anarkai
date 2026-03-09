@@ -1,4 +1,5 @@
 import { type } from 'arktype'
+import { decorator } from 'mutts'
 
 // ============================================================
 // Contract Registry
@@ -23,15 +24,14 @@ export function checkContract(validate: (args: any[]) => any, args: any[], name:
 }
 
 export function contractDecorator(validate: (args: any[]) => any) {
-	return (_target: any, propertyKey: string, descriptor: PropertyDescriptor) => {
-		const originalMethod = descriptor.value
-		descriptor.value = registerContract(function contractValidator(this: any, ...args: any[]) {
-			checkContract(validate, args, propertyKey)
-			return originalMethod.apply(this, args)
-		})
-		Object.defineProperty(descriptor.value, 'name', { value: propertyKey })
-		return descriptor
-	}
+	return decorator({
+		method(original, _target, name) {
+			return registerContract(function contractValidator(this: any, ...args: any[]) {
+				checkContract(validate, args, String(name))
+				return original.apply(this, args)
+			})
+		},
+	})
 }
 
 export type Contract = readonly string[] | { [K: string]: Contract }

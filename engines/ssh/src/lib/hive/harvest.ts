@@ -50,10 +50,14 @@ export class HarvestAlveolus extends TransitAlveolus {
 		const findDeposit = (priority: 'clearing' | 'any') => {
 			const searchFn = (coord: Positioned) => {
 				const tile = hex.getTile(coord)
-				if (!(tile?.content instanceof UnBuiltLand)) {
+				if (!tile) {
 					return false
 				}
-				if (tile.content.deposit?.name !== this.action.deposit) {
+				const content = tile?.content
+				if (!(content instanceof UnBuiltLand)) {
+					return false
+				}
+				if (content.deposit?.name !== this.action.deposit) {
 					return false
 				}
 

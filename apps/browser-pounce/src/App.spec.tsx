@@ -60,6 +60,20 @@ vi.mock('engine-pixi/assets/visual-content', () => ({
 	},
 }))
 
+vi.mock('pure-glyf/icons', () => ({
+	tablerFilledAdjustments: 'tablerFilledAdjustments',
+	tablerFilledArrowBigRight: 'tablerFilledArrowBigRight',
+	tablerFilledFlask: 'tablerFilledFlask',
+	tablerFilledPlayerPause: 'tablerFilledPlayerPause',
+	tablerFilledPlayerPlay: 'tablerFilledPlayerPlay',
+	tablerFilledPlayerSkipForward: 'tablerFilledPlayerSkipForward',
+	tablerFilledPlayerTrackNext: 'tablerFilledPlayerTrackNext',
+	tablerFilledPointer: 'tablerFilledPointer',
+	tablerFilledSquareRoundedMinus: 'tablerFilledSquareRoundedMinus',
+	tablerFilledZoomMoney: 'tablerFilledZoomMoney',
+	tablerOutlineTrees: 'tablerOutlineTrees',
+}))
+
 vi.mock('./components/ResourceImage', () => ({
 	default: (props: { alt?: string }) => <span data-testid="resource-image">{props.alt ?? ''}</span>,
 }))
@@ -77,6 +91,7 @@ vi.mock('@pounce', () => ({
 		<button onClick={props.onClick} aria-label={props['aria-label']}>{props.children}</button>
 	),
 	ButtonGroup: (props: { children?: any }) => <div class="button-group">{props.children}</div>,
+	DisplayProvider: (props: { children?: any }) => <>{props.children}</>,
 	ThemeToggle: (props: { settings: { theme: 'light' | 'dark' } }) => (
 		<button
 			aria-label="Theme Toggle"
@@ -102,7 +117,13 @@ vi.mock('@pounce', () => ({
 				if (typeof props.group === 'object' && props.group) {
 					if ('selectedAction' in props.group) props.group.selectedAction = props.value
 					if ('timeControl' in props.group) props.group.timeControl = props.value
+					return
 				}
+				if (['Pause', 'Play', 'Fast Forward', 'Gonzales'].includes(props['aria-label'] ?? '')) {
+					globals.configuration.timeControl = props.value
+					return
+				}
+				globals.interactionMode.selectedAction = props.value
 			}}
 		>
 			{props.children}

@@ -8,6 +8,8 @@ import { SpecificStorage } from 'ssh/storage'
 import type { GoodType, TransformJob } from 'ssh/types/base'
 import { type GoodsRelations, maxPriority } from 'ssh/utils/advertisement'
 
+const emptyGoods: Partial<Record<GoodType, number>> = {}
+
 @reactive
 export class TransformAlveolus extends Alveolus {
 	declare action: Ssh.TransformationAction
@@ -26,13 +28,16 @@ export class TransformAlveolus extends Alveolus {
 	}
 	@memoize
 	get canWork(): boolean {
+		const action = this.action
+		const inputs = action?.inputs ?? emptyGoods
+		const output = action?.output ?? emptyGoods
 		return (
 			// If we have all the inputs required
-			Object.entries(this.action.inputs || {}).every(([goodType, required]) => {
+			Object.entries(inputs).every(([goodType, required]) => {
 				return (this.storage.available(goodType as GoodType) || 0) >= (required as number)
 			}) &&
 			// If we have all the room for the outputs
-			this.storage.canStoreAll(this.action.output)
+			this.storage.canStoreAll(output)
 		)
 	}
 	// nextJob() replaces both alveolusSpecificJob() and keepWorking
@@ -46,21 +51,24 @@ export class TransformAlveolus extends Alveolus {
 		}
 	}
 	get workingGoodsRelations(): GoodsRelations {
+		const action = this.action
+		const inputs = action?.inputs ?? emptyGoods
+		const output = action?.output ?? emptyGoods
 		const demandPriority = maxPriority(
-			Object.keys(this.action.output).map((goodType) =>
+			Object.keys(output).map((goodType) =>
 				this.hive.needs[goodType] ? '1-buffer' : '2-use',
 			),
 		)
 		// Note: only depend on stock (actual goods), never on reservation/allocation bookkeeping.
 		const stock = this.storage.stock
 		return Object.fromEntries([
-			...Object.entries(this.action.inputs as Record<GoodType, number>)
+			...Object.entries(inputs)
 				.filter(([goodType, required]) => (stock[goodType as GoodType] ?? 0) < required * inputBufferSize)
 				.map(([goodType]) => [
 					goodType as GoodType,
 					{ advertisement: 'demand', priority: demandPriority },
 				]),
-			...Object.keys(this.action.output)
+			...Object.keys(output)
 				.filter((goodType) => (stock[goodType as GoodType] ?? 0) > 0)
 				.map((goodType) => [goodType as GoodType, { advertisement: 'provide', priority: '2-use' }]),
 		])

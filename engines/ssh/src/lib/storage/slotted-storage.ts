@@ -42,6 +42,7 @@ class SlottedAllocation implements AllocationBase {
 				assert(slot.reserved >= need, 'cancel: reserved less than cancel amount')
 				slot.reserved -= need
 				// Track that reservations changed
+				// TODO: versioning are a kind of hack, let's analyze the use and find a better way
 				this.storage._incrementReservedVersion()
 				// quantity unchanged on cancel of negative allocation
 				if (slot.quantity + slot.allocated === 0) this.storage.slots[i] = undefined
@@ -80,6 +81,7 @@ class SlottedAllocation implements AllocationBase {
 				slot.quantity -= want
 				slot.reserved -= want
 				// Track that reservations changed
+				// TODO: versioning are a kind of hack, let's analyze the use and find a better way
 				this.storage._incrementReservedVersion()
 				if (slot.quantity + slot.allocated === 0) {
 					assert(

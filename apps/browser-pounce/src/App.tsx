@@ -2,8 +2,29 @@ import './app.css'
 import { initConsoleTrap } from 'ssh/debug'
 initConsoleTrap()
 import { effect, reactive, untracked } from 'mutts'
-import { themeDracula, themeLight } from 'dockview-core'
-import { Button, ButtonGroup, ThemeToggle, Dockview, RadioButton, Toolbar } from '@pounce'
+import {
+	Button,
+	ButtonGroup,
+	DisplayProvider,
+	ThemeToggle,
+	type ThemeValue,
+	Dockview,
+	RadioButton,
+	Toolbar,
+} from '@pounce'
+import {
+	tablerFilledAdjustments,
+	tablerFilledArrowBigRight,
+	tablerFilledFlask,
+	tablerFilledPlayerPause,
+	tablerFilledPlayerPlay,
+	tablerFilledPlayerSkipForward,
+	tablerFilledPlayerTrackNext,
+	tablerFilledPointer,
+	tablerFilledSquareRoundedMinus,
+	tablerFilledZoomMoney,
+	tablerOutlineTrees,
+} from 'pure-glyf/icons'
 
 import * as gameContent from 'ssh/assets/game-content'
 import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content'
@@ -21,16 +42,16 @@ if (typeof window !== 'undefined') {
 }
 
 const timeControls = [
-	{ value: 'pause', label: 'Pause', content: '⏸' },
-	{ value: 'play', label: 'Play', content: '▶' },
-	{ value: 'fast-forward', label: 'Fast Forward', content: '⏩' },
-	{ value: 'gonzales', label: 'Gonzales', content: '⏭' },
+	{ value: 'pause', label: 'Pause', icon: tablerFilledPlayerPause },
+	{ value: 'play', label: 'Play', icon: tablerFilledPlayerPlay },
+	{ value: 'fast-forward', label: 'Fast Forward', icon: tablerFilledPlayerSkipForward },
+	{ value: 'gonzales', label: 'Gonzales', icon: tablerFilledPlayerTrackNext },
 ] as const
 
 const zoneActions = [
-	{ value: 'zone:residential', label: 'Residential', content: '🏠' },
-	{ value: 'zone:harvest', label: 'Harvest', content: '🌲' },
-	{ value: 'zone:none', label: 'Unzone', content: '⌫' },
+	{ value: 'zone:residential', label: 'Residential', icon: tablerFilledZoomMoney },
+	{ value: 'zone:harvest', label: 'Harvest', icon: tablerOutlineTrees },
+	{ value: 'zone:none', label: 'Unzone', icon: tablerFilledSquareRoundedMinus },
 ] as const
 
 const buildableAlveoli = Object.entries(gameContent.alveoli).filter(
@@ -41,22 +62,16 @@ const dockviewEl = {
 	class: 'dockview-container',
 }
 
-const dockviewOptions = reactive({
-	theme: themeLight,
-})
+const dockviewOptions = reactive({})
 
-const themeSettings = reactive({
-	theme: uiConfiguration.darkMode ? 'dark' : 'light' as 'dark' | 'light'
-})
-
-// Sync themeSettings with uiConfiguration
-effect(() => {
-	uiConfiguration.darkMode = themeSettings.theme === 'dark'
-})
-
-effect(() => {
-	dockviewOptions.theme = uiConfiguration.darkMode ? themeDracula : themeLight
-})
+const themeSettings: { theme: ThemeValue } = {
+	get theme() {
+		return uiConfiguration.darkMode ? 'dark' : 'light'
+	},
+	set theme(value: ThemeValue) {
+		uiConfiguration.darkMode = value === 'dark'
+	},
+}
 
 const Clock = ({ game }: { game: any }) => {
 	const state = reactive({ time: '--:--' })
@@ -68,6 +83,10 @@ const Clock = ({ game }: { game: any }) => {
 	})
 	return <span>{state.time}</span>
 }
+
+const ToolbarIcon = ({ icon, label }: { icon: string; label: string }) => (
+	<span class={`app-toolbar-icon ${icon}`} aria-hidden="true" title={label} />
+)
 
 const App = () => {
 	// trackEffect((obj, evolution, prop) => {
@@ -122,6 +141,10 @@ const App = () => {
 
 	const openTestPanel = () => ensurePanel('test', 'test')
 
+	const handleDockviewReady = (api: unknown) => {
+		state.api = api
+	}
+
 
 
 	effect(() => {
@@ -132,98 +155,97 @@ const App = () => {
 	})
 
 	return (
-		<div class="app-shell">
-			<Toolbar>
-				<ButtonGroup>
-					<Button aria-label="Open configuration" onClick={openConfigurationPanel}>⚙</Button>
-					<Button aria-label="Open game view" onClick={openGamePanel}>+</Button>
-					<Button aria-label="Open multiselect test" onClick={openTestPanel}>🧪</Button>
-				</ButtonGroup>
-				<Toolbar.Spacer if={timeControls.length > 0} />
-				<div style={{
-					display: 'flex',
-					alignItems: 'center',
-					fontFamily: 'monospace',
-					padding: '0 8px',
-					fontSize: '14px',
-					fontWeight: 'bold',
-					color: 'var(--pounce-color-text-subtle)'
-				}}>
-					<Clock game={gameInstance} />
-				</div>
-				<ButtonGroup>
-					<for each={timeControls}>
-						{(option: (typeof timeControls)[number]) => (
-							<RadioButton
-								value={option.value}
-								group={configuration.timeControl}
-								aria-label={option.label}
-							>
-								{option.content}
-							</RadioButton>
-						)}
-					</for>
-				</ButtonGroup>
-				<Toolbar.Spacer if={timeControls.length > 0} />
-				<ButtonGroup>
-					<RadioButton
-						value=""
-						group={interactionMode.selectedAction}
-						aria-label="Select"
-					>
-						↖
-					</RadioButton>
-				</ButtonGroup>
-				<Toolbar.Spacer if={timeControls.length > 0} />
-				<ButtonGroup>
-					<for each={buildableAlveoli}>
-						{([name]: (typeof buildableAlveoli)[number]) => (
-							<RadioButton
-								value={`build:${name}`}
-								group={interactionMode.selectedAction}
-								aria-label={`Build ${name}`}
-							>
-								<ResourceImage
-									game={gameInstance}
-									sprite={visualAlveoli[name]?.sprites?.[0]}
-									width={24}
-									height={24}
-									alt={name}
-								/>
-							</RadioButton>
-						)}
-					</for>
-				</ButtonGroup>
-				<Toolbar.Spacer if={timeControls.length > 0} />
-				<ButtonGroup>
-					<for each={zoneActions}>
-						{(zone: (typeof zoneActions)[number]) => (
-							<RadioButton
-								value={zone.value}
-								group={interactionMode.selectedAction}
-								aria-label={zone.label}
-							>
-								{zone.content}
-							</RadioButton>
-						)}
-					</for>
-				</ButtonGroup>
-				<Toolbar.Spacer />
-				<ThemeToggle 
-					settings={themeSettings}
-				/>
-			</Toolbar>
+		<DisplayProvider theme={themeSettings.theme}>
+			<div class="app-shell">
+				<Toolbar el={{ class: 'app-toolbar' }}>
+					<ButtonGroup>
+						<Button aria-label="Open configuration" onClick={openConfigurationPanel}>
+							<ToolbarIcon icon={tablerFilledAdjustments} label="Open configuration" />
+						</Button>
+						<Button aria-label="Open game view" onClick={openGamePanel}>
+							<ToolbarIcon icon={tablerFilledArrowBigRight} label="Open game view" />
+						</Button>
+						<Button aria-label="Open multiselect test" onClick={openTestPanel}>
+							<ToolbarIcon icon={tablerFilledFlask} label="Open multiselect test" />
+						</Button>
+					</ButtonGroup>
+					<Toolbar.Spacer if={timeControls.length > 0} />
+					<div class="app-toolbar-clock">
+						<Clock game={gameInstance} />
+					</div>
+					<ButtonGroup>
+						<for each={timeControls}>
+							{(option: (typeof timeControls)[number]) => (
+								<RadioButton
+									value={option.value}
+									group={configuration.timeControl}
+									aria-label={option.label}
+								>
+									<ToolbarIcon icon={option.icon} label={option.label} />
+								</RadioButton>
+							)}
+						</for>
+					</ButtonGroup>
+					<Toolbar.Spacer if={timeControls.length > 0} />
+					<ButtonGroup>
+						<RadioButton
+							value=""
+							group={interactionMode.selectedAction}
+							aria-label="Select"
+						>
+							<ToolbarIcon icon={tablerFilledPointer} label="Select" />
+						</RadioButton>
+					</ButtonGroup>
+					<Toolbar.Spacer if={timeControls.length > 0} />
+					<ButtonGroup>
+						<for each={buildableAlveoli}>
+							{([name]: (typeof buildableAlveoli)[number]) => (
+								<RadioButton
+									value={`build:${name}`}
+									group={interactionMode.selectedAction}
+									aria-label={`Build ${name}`}
+								>
+									<ResourceImage
+										game={gameInstance}
+										sprite={visualAlveoli[name]?.sprites?.[0]}
+										width={24}
+										height={24}
+										alt={name}
+									/>
+								</RadioButton>
+							)}
+						</for>
+					</ButtonGroup>
+					<Toolbar.Spacer if={timeControls.length > 0} />
+					<ButtonGroup>
+						<for each={zoneActions}>
+							{(zone: (typeof zoneActions)[number]) => (
+								<RadioButton
+									value={zone.value}
+									group={interactionMode.selectedAction}
+									aria-label={zone.label}
+								>
+									<ToolbarIcon icon={zone.icon} label={zone.label} />
+								</RadioButton>
+							)}
+						</for>
+					</ButtonGroup>
+					<Toolbar.Spacer />
+					<ThemeToggle settings={themeSettings} simple />
+				</Toolbar>
 
-			<main class="app-main">
-				<Dockview
-					el={dockviewEl}
-					api={state.api}
-					widgets={widgets}
-					layout={dockviewLayout.sshLayout}
-					options={dockviewOptions}
-				/>
-			</main>
-		</div>
+				<main class="app-main">
+					<Dockview
+						el={dockviewEl}
+						api={state.api}
+						onReady={handleDockviewReady}
+						widgets={widgets}
+						layout={dockviewLayout.sshLayout}
+						options={dockviewOptions}
+					/>
+				</main>
+			</div>
+		</DisplayProvider>
 	)
 }
 

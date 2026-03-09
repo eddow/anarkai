@@ -46,19 +46,36 @@ const timeOptions = [
 	{ value: 'gonzales', label: 'Gonzales' },
 ] as const
 
+const themeOptions = [
+	{ value: 'light', label: 'Light' },
+	{ value: 'dark', label: 'Dark' },
+] as const
+
 const ConfigurationWidget = (props: DockviewWidgetProps, scope: DockviewWidgetScope) => {
 	const api = (scope as any).panelApi
 	props.title = 'Configuration'
 
 	return (
 		<div class="configuration-widget">
-			<label class="configuration-widget__toggle">
-				<input
-					type="checkbox"
-					checked={uiConfiguration.darkMode}
-				/>
-				<span>Dark mode</span>
-			</label>
+			<fieldset class="configuration-widget__fieldset">
+				<legend>Theme</legend>
+				<Inline gap="sm" class="configuration-widget__radios">
+					<for each={themeOptions}>
+						{(option: (typeof themeOptions)[number]) => (
+							<Radio
+								name={`theme-${api?.id ?? 'panel'}`}
+								value={option.value}
+								checked={(uiConfiguration.darkMode ? 'dark' : 'light') === option.value}
+								onChange={() => {
+									uiConfiguration.darkMode = option.value === 'dark'
+								}}
+							>
+								{option.label}
+							</Radio>
+						)}
+					</for>
+				</Inline>
+			</fieldset>
 			<fieldset class="configuration-widget__fieldset">
 				<legend>Time control</legend>
 				<Inline gap="sm" class="configuration-widget__radios">

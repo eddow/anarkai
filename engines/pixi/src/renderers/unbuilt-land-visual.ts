@@ -44,9 +44,12 @@ export class UnBuiltLandVisual extends VisualObject<UnBuiltLand> {
                      const seed = subSeed('deposit-unit', tileCoord.q, tileCoord.r, i)
                      const rnd = LCG('gameSeed', seed)
                      
-                     
-                    const def = visualDeposits[deposit.name]
-                    if (!def || !def.sprites || def.sprites.length === 0) continue
+                     const depositName =
+                        deposit.name ||
+                        (deposit.constructor as { resourceName?: string; key?: string }).resourceName ||
+                        (deposit.constructor as { resourceName?: string; key?: string }).key
+                     const def = depositName ? visualDeposits[depositName] : undefined
+                     if (!def || !def.sprites || def.sprites.length === 0) continue
 
                     // Pick random variant based on seed
                     const spriteIndex = Math.floor(rnd() * def.sprites.length)
