@@ -74,7 +74,6 @@ export class LooseGoods extends withTicked(GameObject) {
 					throw new Error(`LooseGood already allocated: ${reason}`)
 				}
 				if (good.isRemoved) {
-					debugger
 					throw new Error(`LooseGood already removed: ${reason}`)
 				}
 				good.available = false
@@ -90,7 +89,10 @@ export class LooseGoods extends withTicked(GameObject) {
 	}
 	remove(pos: Positioned, good: LooseGood): void {
 		// Guard against double-removal
-		if (good.isRemoved) return
+		if (good.isRemoved) {
+			console.warn('LooseGood.remove called on already-removed good', good.goodType, new Error().stack?.split('\n').slice(1, 5).join('\n'))
+			return
+		}
 
 		const coord = toAxialCoord(pos)
 		const oldList = this.goods.get(coord)!
@@ -104,6 +106,24 @@ export class LooseGoods extends withTicked(GameObject) {
 
 	getGoodsAt(coord: Positioned): LooseGood[] {
 		return this.goods.get(toAxialCoord(coord)) || []
+	}
+
+	findAndAllocate(coord: Positioned, goodType?: GoodType, reason?: any): LooseGoodAllocation | null {
+		const goodsList = this.goods.get(toAxialCoord(coord))
+		if (!goodsList) return null
+
+		// Find first available matching good
+		for (const good of goodsList) {
+			if (good.available && (!goodType || good.goodType === goodType)) {
+				try {
+					return good.allocate(reason || 'findAndAllocate')
+				} catch (e) {
+					// Good was already allocated/removed, continue searching
+					continue
+				}
+			}
+		}
+		return null
 	}
 
 	findNearestGoods(
@@ -152,6 +172,9 @@ export class LooseGoods extends withTicked(GameObject) {
 					if (!Number.isFinite(halfLife)) {
 						continue
 					}
+
+					// Skip decay for allocated goods (available=false means being grabbed)
+					if (!good.available) continue
 
 					// Calculate decay probability using the formula: P = 1 - 2^(-deltaTime/halfLife)
 					const decayProbability = 1 - 2 ** (-deltaSeconds / halfLife)

@@ -224,8 +224,10 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	}
 
 	findAction() {
+		// When hungry, eat carried food first before considering dropping
 		if (this.hunger > this.triggerLevels.hunger.high) return this.scriptsContext.selfCare.goEat()
 
+		// Only drop carry if not hungry (goEat will handle eating carried food)
 		if (Object.values(this.carry.availables).some((qty) => qty! > 0)) {
 			// Only try to drop if we can find a spot to drop them
 			if (this.scriptsContext.find.freeSpot()) {

@@ -46,8 +46,8 @@ class FindFunctions {
 			// Check loose goods on the ground (new behavior)
 			const looseGoodsArr = hex.looseGoods.getGoodsAt(axialCoord)
 			for (const looseGood of looseGoodsArr) {
-				// Skip allocated or removed goods
-				if (!looseGood.available) continue
+				// Skip allocated or removed (decayed) goods
+				if (!looseGood.available || looseGood.isRemoved) continue
 				const def = goodsCatalog[looseGood.goodType]
 				if (!def) continue
 				const fv = 'feedingValue' in def ? (def as any).feedingValue : 0

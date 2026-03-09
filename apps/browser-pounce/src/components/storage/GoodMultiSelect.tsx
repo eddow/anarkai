@@ -1,7 +1,6 @@
 import type { GoodType } from 'ssh/types/base'
 import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
-import { Button } from 'pounce-ui'
-import { mdiClose } from 'pure-glyf/icons'
+import { Button } from '@pounce'
 import EntityBadge from '../EntityBadge'
 import AddGoodButton from './AddGoodButton'
 import { css } from '@app/lib/css'
@@ -93,27 +92,30 @@ export default function GoodMultiSelect(props: GoodMultiSelectProps) {
 
 	return (
 		<div class="good-multi-select">
-			{props.value.length > 0 ? (
-				<div class="goods-list">
-					{props.value.map((gt) => (
+			<div if={props.value.length > 0} class="goods-list">
+				<for each={props.value}>
+					{(gt: GoodType) => (
 						<div class="good-row">
 							<EntityBadge game={props.game} sprite={getSprite(gt)} text={gt} />
 							<div class="row-controls">
-								{props.renderItemExtra?.(gt)}
+								<div if={props.renderItemExtra}>
+									{props.renderItemExtra?.(gt)}
+								</div>
 								<Button
-									icon={mdiClose}
 									onClick={() => handleRemove(gt)}
-									el={{ title: 'Remove', class: 'remove-btn' }}
-								/>
+									title="Remove"
+									class="remove-btn"
+								>
+									×
+								</Button>
 							</div>
 						</div>
-					))}
-				</div>
-			) : (
-				<div class="empty-list">
-					{props.children || 'No items selected'}
-				</div>
-			)}
+					)}
+				</for>
+			</div>
+			<div else class="empty-list">
+				{props.children || 'No items selected'}
+			</div>
 
 			<div class="add-btn-wrapper">
 				<AddGoodButton

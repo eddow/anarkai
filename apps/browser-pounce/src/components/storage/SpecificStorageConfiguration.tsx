@@ -1,11 +1,10 @@
 
 import type { GoodType } from 'ssh/types/base'
-import { Stars } from 'pounce-ui'
+import { Stars } from '@pounce'
 import { css } from '@app/lib/css'
 import type { Game } from 'ssh/game'
 import PropertyGridRow from '../PropertyGridRow'
 import ResourceImage from '../ResourceImage'
-import { tablerOutlinePackage, tablerOutlinePackageOff } from 'pure-glyf/icons'
 import { goods as visualGoods } from 'engine-pixi/assets/visual-content'
 
 css`
@@ -123,9 +122,9 @@ export default function SpecificStorageConfiguration(props: SpecificStorageConfi
 												setBufferFromStars(good, typeof v === 'number' ? v : v[1])
 											}
 											size="1rem"
-											zeroElement={tablerOutlinePackageOff}
-											before={tablerOutlinePackage}
-											after={tablerOutlinePackage}
+											zeroElement="□"
+											before="■"
+											after="■"
 										/>
 										<span class="buffer-quantity">
 											{buffers[good] || 0} / {maxQuantity}

@@ -160,12 +160,14 @@ export class InventoryFunctions {
 		if (canGrab <= 0) throw new Error('No room in vehicle to grab goods')
 
 		// Check for LooseGoods on the tile - always grab exactly 1
+		// Filter for available goods that haven't been removed (decayed)
 		const coord = toAxialCoord(source)
 		const looseGoods = character.game.hex.looseGoods.getGoodsAt(coord)
 		const matchingLooseGoods = looseGoods.filter(
 			(good) =>
 				(goodType ? good.goodType === goodType : vehicle.storage.hasRoom(good.goodType)) &&
-				good.available,
+				good.available &&
+				!good.isRemoved,
 		)
 
 		if (matchingLooseGoods.length === 0) {
@@ -182,7 +184,7 @@ export class InventoryFunctions {
 
 		const chosenGood = matchingLooseGoods[0]
 
-		// Create allocations immediately
+		// Create allocations: vehicle first, then loose good
 		const vehicleAllocation = vehicle.storage.allocate({ [chosenGood.goodType]: 1 }, 'plan.pickup')
 		const allocation = chosenGood.allocate('plan.pickup')
 

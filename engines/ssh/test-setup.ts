@@ -2,7 +2,11 @@
 // This file is required by vitest.config.ts
 
 import { vi } from 'vitest'
-import { reactiveOptions, unreactive } from 'mutts'
+
+// Clear mutts instance if it exists
+delete (global as any).__MUTTS_INSTANCE__
+
+import { getActivationLog, reactiveOptions, unreactive } from 'mutts'
 
 // Ensure memoization discrepancies throw error in tests
 let inDiscrepancy = false
@@ -55,6 +59,33 @@ reactiveOptions.onMemoizationDiscrepancy = (cached, fresh, fn: any, args, cause)
 	}
 }
 
+let activationLogDumped = false
+const dumpActivationLog = (error: unknown) => {
+	if (
+		activationLogDumped ||
+		!(error instanceof Error) ||
+		!error.message.includes('Max effect chain reached')
+	) {
+		return
+	}
+	activationLogDumped = true
+	const entries = getActivationLog().filter(Boolean).slice(0, 25)
+	console.error('Recent reactive activations:')
+	for (const entry of entries) {
+		const effectName = entry.effect?.name || 'anonymous'
+		const objectName = entry.obj?.constructor?.name || typeof entry.obj
+		console.error(`${effectName} :: ${objectName}.${String(entry.prop)}`)
+	}
+}
+process.on('uncaughtException', (error) => {
+	dumpActivationLog(error)
+	throw error
+})
+process.on('unhandledRejection', (reason) => {
+	dumpActivationLog(reason)
+	throw reason
+})
+
 // Setup global test functions for vitest
 // @ts-expect-error - Adding global test functions
 globalThis.describe = vi.describe
@@ -83,6 +114,15 @@ if (typeof HTMLElement === 'undefined') {
 }
 if (typeof SVGElement === 'undefined') {
 	;(global as any).SVGElement = class {}
+}
+if (typeof HTMLCollection === 'undefined') {
+	;(global as any).HTMLCollection = class {}
+}
+if (typeof EventTarget === 'undefined') {
+	;(global as any).EventTarget = class {}
+}
+if (typeof NodeList === 'undefined') {
+	;(global as any).NodeList = class {}
 }
 if (typeof CustomEvent === 'undefined') {
 	;(global as any).CustomEvent = class {}

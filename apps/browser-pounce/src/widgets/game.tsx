@@ -1,5 +1,5 @@
 import { effect } from 'mutts'
-import type { DockviewWidgetProps, DockviewWidgetScope } from 'pounce-ui'
+import type { DockviewWidgetProps, DockviewWidgetScope } from '@pounce'
 
 import type { InteractiveGameObject } from 'ssh/game'
 import { css } from '@app/lib/css'

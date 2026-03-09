@@ -62,7 +62,7 @@ export default defineConfig({
 			$assets: resolvePath(projectRootDir, 'assets'),
 			'@app': resolvePath(projectRootDir, 'src'),
 			'@ssh': resolvePath(projectRootDir, 'src'),
-			'ssh': projectRootDir,
+			'ssh': resolvePath(projectRootDir, 'src/lib'),
 			'pounce-ts': resolvePath(projectRootDir, '../../../ownk/pounce-ts/src/lib'),
 			'pounce-ui': resolvePath(projectRootDir, '../../../ownk/pounce-ui/src'),
 			'npc-script': resolvePath(projectRootDir, '../../../ownk/npcs/src'),

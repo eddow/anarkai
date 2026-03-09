@@ -1,5 +1,3 @@
-import { Icon } from 'pounce-ui'
-import { mdiCheck, mdiClose, mdiCog } from 'pure-glyf/icons'
 import { css } from '@app/lib/css'
 
 css`
@@ -106,12 +104,9 @@ const WorkingIndicator = (props: WorkingIndicatorProps) => {
             aria-checked={props.checked ? 'true' : 'false'}
             role="switch"
         >
-            <Icon icon={mdiCog} el={{ class: "gear-icon" }} />
-            {props.checked ? (
-                <Icon icon={mdiCheck} el={{ class: "status-icon status-ok" }} />
-            ) : (
-                <Icon icon={mdiClose} el={{ class: "status-icon status-off" }} />
-            )}
+            <span class="gear-icon">⚙</span>
+            <span if={props.checked} class="status-icon status-ok">✓</span>
+            <span else class="status-icon status-off">✕</span>
         </button>
     )
 }

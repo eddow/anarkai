@@ -1,4 +1,4 @@
-import { atomic, memoize, reactive, unreactive } from 'mutts'
+import { atomic, memoize, reactive, type ScopedCallback, unreactive, unwrap } from 'mutts'
 import { assert } from 'ssh/debug'
 import type { Goods, GoodType } from 'ssh/types/base'
 import {
@@ -41,6 +41,8 @@ class SlottedAllocation implements AllocationBase {
 				const need = -amount
 				assert(slot.reserved >= need, 'cancel: reserved less than cancel amount')
 				slot.reserved -= need
+				// Track that reservations changed
+				this.storage._incrementReservedVersion()
 				// quantity unchanged on cancel of negative allocation
 				if (slot.quantity + slot.allocated === 0) this.storage.slots[i] = undefined
 			}
@@ -77,6 +79,8 @@ class SlottedAllocation implements AllocationBase {
 				assert(slot.quantity >= want, 'fulfill: quantity less than fulfill amount')
 				slot.quantity -= want
 				slot.reserved -= want
+				// Track that reservations changed
+				this.storage._incrementReservedVersion()
 				if (slot.quantity + slot.allocated === 0) {
 					assert(
 						slot.reserved === 0 && slot.allocated === 0 && slot.quantity === 0,
@@ -97,8 +101,26 @@ export interface Slot {
 }
 
 @reactive
+@unreactive('allocated', 'reserved')
+class SlotImpl implements Slot {
+	goodType: GoodType
+	quantity: number
+	allocated = 0
+	reserved = 0
+	constructor(goodType: GoodType, quantity: number) {
+		this.goodType = goodType
+		this.quantity = quantity
+	}
+}
+
+function makeSlot(goodType: GoodType, quantity: number): Slot {
+	return reactive(new SlotImpl(goodType, quantity))
+}
+
+@reactive
 export class SlottedStorage extends Storage<SlottedAllocation> {
 	public readonly slots: (Slot | undefined)[] = reactive([])
+	private _reservedVersion = 0
 
 	constructor(
 		maxSlots: number,
@@ -106,6 +128,11 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 	) {
 		super()
 		for (let i = 0; i < maxSlots; i++) this.slots.push(undefined)
+	}
+
+	/** Increment the reserved version to trigger availables recalculation */
+	_incrementReservedVersion() {
+		this._reservedVersion++
 	}
 
 	get allocatedSlots(): boolean {
@@ -183,7 +210,7 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 			if (remaining <= 0) break
 			if (this.slots[i] === undefined) {
 				const canAdd = Math.min(remaining, this.maxQuantityPerSlot)
-				this.slots[i] = reactive({ goodType, quantity: canAdd, allocated: 0, reserved: 0 })
+				this.slots[i] = makeSlot(goodType, canAdd)
 				remaining -= canAdd
 			}
 		}
@@ -222,24 +249,26 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		return qty - remaining
 	}
 
-	// REHABILITATED MEMOIZE
 	@memoize
 	get stock(): { [k in GoodType]?: number } {
 		const result: { [k in GoodType]?: number } = {}
 
 		for (const slot of this.slots)
-			if (slot?.quantity) result[slot.goodType] = (result[slot.goodType] || 0) + slot.quantity
+			if (slot && slot.quantity > 0) result[slot.goodType] = (result[slot.goodType] || 0) + slot.quantity
 
 		return result
 	}
 
-	// REHABILITATED MEMOIZE
 	@memoize
 	get availables(): { [k in GoodType]?: number } {
+		// Depend on reserved version to track changes
+		void this._reservedVersion
+		
 		const result: { [k in GoodType]?: number } = {}
 
 		for (const slot of this.slots) {
-			if (slot?.quantity) {
+			if (!slot) continue
+			if (slot.quantity > 0) {
 				const available = Math.max(0, slot.quantity - slot.reserved)
 				if (available > 0) {
 					result[slot.goodType] = (result[slot.goodType] || 0) + available
@@ -297,13 +326,10 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 			for (let i = 0; i < this.slots.length && remaining > 0; i++) {
 				if (this.slots[i] !== undefined) continue
 				const take = Math.min(remaining, this.maxQuantityPerSlot)
+				const newSlot = makeSlot(goodType, 0)
+				newSlot.allocated = take
 				// Use splice to ensure reactivity triggers correctly (assignment on sparse array might be flaky)
-				this.slots.splice(
-					i,
-					1,
-					// TODO: shouldn't this be done in mutts directly?
-					reactive({ goodType, quantity: 0, allocated: take, reserved: 0 }),
-				)
+				this.slots.splice(i, 1, newSlot)
 				alloc[i] += take
 				remaining -= take
 			}
@@ -355,6 +381,8 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 				slot.reserved += take
 				alloc[index] -= take // negative marks reservation
 				remaining -= take
+				// Track that reservations changed
+				this._reservedVersion++
 			}
 
 			if (qty - remaining > 0) hasAnyReservation = true

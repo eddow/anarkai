@@ -51,16 +51,17 @@ export class TransformAlveolus extends Alveolus {
 				this.hive.needs[goodType] ? '1-buffer' : '2-use',
 			),
 		)
-		// Note: need input with a priority set 1/2 on hive needing output or not
+		// Note: only depend on stock (actual goods), never on reservation/allocation bookkeeping.
+		const stock = this.storage.stock
 		return Object.fromEntries([
-			...Object.keys(this.action.inputs)
-				.filter((goodType) => this.storage.hasRoom(goodType as GoodType))
-				.map((goodType) => [
+			...Object.entries(this.action.inputs as Record<GoodType, number>)
+				.filter(([goodType, required]) => (stock[goodType as GoodType] ?? 0) < required * inputBufferSize)
+				.map(([goodType]) => [
 					goodType as GoodType,
 					{ advertisement: 'demand', priority: demandPriority },
 				]),
 			...Object.keys(this.action.output)
-				.filter((goodType) => this.storage.available(goodType as GoodType) > 0)
+				.filter((goodType) => (stock[goodType as GoodType] ?? 0) > 0)
 				.map((goodType) => [goodType as GoodType, { advertisement: 'provide', priority: '2-use' }]),
 		])
 	}

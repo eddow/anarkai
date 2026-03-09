@@ -1,4 +1,4 @@
-import { reactive, type ScopedCallback, unreactive, memoize } from 'mutts'
+import { reactive, type ScopedCallback, unreactive, memoize, untracked } from 'mutts'
 import { type HexBoard, isTileCoord } from 'ssh/board/board'
 import { AlveolusGate } from 'ssh/board/border/alveolus-gate'
 import { Alveolus } from 'ssh/board/content/alveolus'
@@ -93,9 +93,13 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		alveolus.hive = this
 		this.invalidatePathCache()
 		this.advertising.push(
-			namedEffect(`${alveolus.name}.advertise`, () =>
-				this.advertise(alveolus, alveolus.goodsRelations),
-			),
+			namedEffect(`${alveolus.name}.advertise`, () => {
+				const goodsRelations = alveolus.goodsRelations
+				traces.advertising?.log(`advertise effect: ${alveolus.name} ${JSON.stringify(goodsRelations)}`)
+				untracked(() => {
+					this.advertise(alveolus, goodsRelations)
+				})
+			}),
 		)
 	}
 	/**
@@ -284,79 +288,78 @@ export class Hive extends AdvertisementManager<Alveolus> {
 			...positions,
 		}
 
-		/*
-		 * Attempt to reserve the good from the provider and allocate space in the demander.
-		 * If either fails, we cancel the other and return false.
-		 */
-		const providerToken = provider.storage.reserve({ [goodType]: 1 }, reason)
-		const demanderToken = demander.storage.allocate({ [goodType]: 1 }, reason)
+		return untracked(() => {
+			traces.advertising?.log(`createMovement:start ${goodType} ${provider.name} -> ${demander.name}`)
+			const providerToken = provider.storage.reserve({ [goodType]: 1 }, reason)
+			traces.advertising?.log(`createMovement:reserved ${goodType} ${provider.name} -> ${demander.name}`)
+			const demanderToken = demander.storage.allocate({ [goodType]: 1 }, reason)
+			traces.advertising?.log(`createMovement:allocated ${goodType} ${provider.name} -> ${demander.name}`)
 
-		if (!providerToken || !demanderToken) {
-			console.warn('[createMovement] Failed to obtain tokens', { providerToken, demanderToken })
-			if (providerToken) providerToken.cancel()
-			if (demanderToken) demanderToken.cancel()
-			return false
-		}
+			if (!providerToken || !demanderToken) {
+				console.warn('[createMovement] Failed to obtain tokens', { providerToken, demanderToken })
+				if (providerToken) providerToken.cancel()
+				if (demanderToken) demanderToken.cancel()
+				return false
+			}
 
-		const self = this
-		const movingGood: MovingGood = {
-			goodType,
-			path,
-			provider,
-			demander,
-			from: positions.provider,
-			allocations: {
-				source: providerToken,
-				target: demanderToken,
-			},
-			hop() {
-				const fromCoord = this.from
-				const nextCoord = this.path.shift()!
+			const self = this
+			const movingGood: MovingGood = {
+				goodType,
+				path,
+				provider,
+				demander,
+				from: positions.provider,
+				allocations: {
+					source: providerToken,
+					target: demanderToken,
+				},
+				hop() {
+					const fromCoord = this.from
+					const nextCoord = this.path.shift()!
 
-				const currentList = self.movingGoods.get(fromCoord)
-				if (currentList) {
-					// Find the original movingGood in the list (this might be a wrapper)
-					const original = currentList.find(
-						(mg) => mg === this || Object.getPrototypeOf(this) === mg,
-					)
-					if (original) {
-						const idx = currentList.indexOf(original)
-						currentList.splice(idx, 1)
-						if (currentList.length === 0) self.movingGoods.delete(fromCoord)
+					const currentList = self.movingGoods.get(fromCoord)
+					if (currentList) {
+						const original = currentList.find(
+							(mg) => mg === this || Object.getPrototypeOf(this) === mg,
+						)
+						if (original) {
+							const idx = currentList.indexOf(original)
+							currentList.splice(idx, 1)
+							if (currentList.length === 0) self.movingGoods.delete(fromCoord)
+						}
 					}
-				}
 
-				this.from = nextCoord
-				movingGood.from = nextCoord // Also update the canonical movingGood
-				return nextCoord
-			},
-			place() {
-				const here = movingGood.from // Use movingGood.from, not this.from (which is on the wrapper)
-				if (!self.movingGoods.has(here)) self.movingGoods.set(here, [])
-				// Push the original movingGood, not the wrapper
-				self.movingGoods.get(here)!.push(movingGood)
-			},
-			finish() {
-				const fromCoord = this.from
-				const currentList = self.movingGoods.get(fromCoord)
-				if (currentList) {
-					// Find the original movingGood in the list (this might be a wrapper)
-					const original = currentList.find(
-						(mg) => mg === this || Object.getPrototypeOf(this) === mg,
-					)
-					if (original) {
-						const idx = currentList.indexOf(original)
-						currentList.splice(idx, 1)
-						if (currentList.length === 0) self.movingGoods.delete(fromCoord)
+					this.from = nextCoord
+					movingGood.from = nextCoord
+					return nextCoord
+				},
+				place() {
+					const here = movingGood.from
+					if (!self.movingGoods.has(here)) self.movingGoods.set(here, [])
+					self.movingGoods.get(here)!.push(movingGood)
+				},
+				finish() {
+					const fromCoord = this.from
+					const currentList = self.movingGoods.get(fromCoord)
+					if (currentList) {
+						const original = currentList.find(
+							(mg) => mg === this || Object.getPrototypeOf(this) === mg,
+						)
+						if (original) {
+							const idx = currentList.indexOf(original)
+							currentList.splice(idx, 1)
+							if (currentList.length === 0) self.movingGoods.delete(fromCoord)
+						}
 					}
-				}
-				this.allocations.target.fulfill()
-				this.allocations.source.fulfill()
-			},
-		}
+					this.allocations.target.fulfill()
+					this.allocations.source.fulfill()
+				},
+			}
 
-		movingGood.place()
-		return true
+			movingGood.place()
+			traces.advertising?.log(`createMovement:placed ${goodType} ${provider.name} -> ${demander.name}`)
+			return true
+		})
 	}
 
 	get generalStorages() {

@@ -7,7 +7,7 @@ import type { GoodsRelations } from 'ssh/utils/advertisement'
 export class TransitAlveolus extends Alveolus {
 	get workingGoodsRelations(): GoodsRelations {
 		return Object.fromEntries(
-			Object.keys(this.storage.availables).map((goodType) => [
+			Object.keys(this.storage.stock).map((goodType) => [
 				goodType as GoodType,
 				{ advertisement: 'provide', priority: '2-use' },
 			]),

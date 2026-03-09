@@ -91,7 +91,7 @@ describe('Evolutive & Determinism Tests', () => {
                 name: 'Hive1',
                 alveoli: [
                     { coord: [0, 0], alveolus: 'storage' },
-                    { coord: [0, 1], alveolus: 'buffer' as any }
+                    { coord: [0, 1], alveolus: 'storage' }
                 ]
             }],
             looseGoods: [
@@ -172,7 +172,7 @@ describe('Evolutive & Determinism Tests', () => {
                 name: 'TestHive',
                 alveoli: [
                     { coord: [0, 0], alveolus: 'storage', goods: { wood: 1 } },
-                    { coord: [0, 1], alveolus: 'buffer' as any }
+                    { coord: [0, 1], alveolus: 'storage' }
                 ]
             }]
         } as any

@@ -131,8 +131,10 @@ const pickupPlanHandler: PlanHandler<PickupPlan> = {
 				}
 
 				const looseGoodToGrab = matchingLooseGoods[0]
-				vehicleAllocation = vehicle.storage.allocate({ [goodType]: 1 }, `planGrabLoose.${goodType}`)
+				// Allocate loose good FIRST (no reactive side-effects) so vehicle.storage.allocate
+				// cannot fire effects that remove the good before it is secured.
 				allocation = looseGoodToGrab.allocate(`planGrabLoose.${goodType}`)
+				vehicleAllocation = vehicle.storage.allocate({ [goodType]: 1 }, `planGrabLoose.${goodType}`)
 				releaseStopper = namedEffect('plan.releaseStopper', () => {
 					if (looseGoodToGrab.isRemoved) character.cancelPlan(plan)
 				})

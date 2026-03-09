@@ -82,9 +82,9 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		const coord = toAxialCoord(ref)
 		if (!coord || !isTileCoord(coord)) return
 		const oldContent = this.contents.get({ q: coord.q, r: coord.r }) as TileContent | undefined
-		if (oldContent) oldContent.destroy()
 		if (!content) this.contents.delete({ q: coord.q, r: coord.r })
 		else this.contents.set({ q: coord.q, r: coord.r }, content)
+		if (oldContent && oldContent !== content) oldContent.destroy()
 		// If a tile content is set programmatically post-generation, mark tile dirty
 		const tile = content?.tile ?? (coord ? this.getTile(coord) : undefined)
 		if (tile) tile.asGenerated = false
@@ -107,6 +107,14 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		if (!coord || isTileCoord(coord)) return
 		if (!content) this.contents.delete({ q: coord.q, r: coord.r })
 		else this.contents.set({ q: coord.q, r: coord.r }, content)
+	}
+
+	reset(): void {
+		for (const content of this.contents.values()) content.destroy()
+		this.contents.clear()
+		this.occupied.clear()
+		this.looseGoods.goods.clear()
+		this.zoneManager.clear()
 	}
 
 	getBorder(ref: Positioned): TileBorder | undefined {

@@ -1,9 +1,9 @@
-import { derived } from 'mutts'
+import { memoize } from 'mutts'
 import type { StorageAlveolus } from 'ssh/hive/storage'
 import type { GoodType } from 'ssh/types/base'
 import { goods as goodsCatalog } from 'engine-pixi/assets/visual-content'
 import PropertyGridRow from '../PropertyGridRow'
-import { Button, Stars } from 'pounce-ui'
+import { Button, Stars } from '@pounce'
 import GoodMultiSelect from './GoodMultiSelect'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
@@ -56,10 +56,10 @@ interface StorageConfigurationProps {
 }
 
 export default function StorageConfiguration(props: StorageConfigurationProps) {
-	// Robust getters using derived
-	const mode = derived(() => props.content.storageMode || 'all-but')
-	const exceptions = derived(() => props.content.storageExceptions || [])
-	const buffers = derived(() => props.content.storageBuffers || {})
+	// Robust getters using memoize
+	const mode = memoize(() => props.content.storageMode || 'all-but')
+	const exceptions = memoize(() => props.content.storageExceptions || [])
+	const buffers = memoize(() => props.content.storageBuffers || {})
 
 	const allGoodTypes = Object.keys(goodsCatalog) as GoodType[]
 
@@ -68,13 +68,13 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 		props.content.storageMode = props.content.storageMode === 'all-but' ? 'only' : 'all-but'
 	}
 
-	const modeLabel = derived(() => {
-		return mode.value === 'all-but' ? 'Store all but...' : 'Store only...'
+	const modeLabel = memoize(() => {
+		return mode() === 'all-but' ? 'Store all but...' : 'Store only...'
 	})
 
 	// --- Exception Logic ---
-	const availableExceptionCandidates = derived(() => {
-		const exc = exceptions.value
+	const availableExceptionCandidates = memoize(() => {
+		const exc = exceptions()
 		return allGoodTypes.filter(gt => !exc.includes(gt))
 	})
 
@@ -93,17 +93,17 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 	}
 
 	// --- Buffer Logic ---
-	const isSlotted = derived(() => props.content.storage instanceof SlottedStorage)
+	const isSlotted = memoize(() => props.content.storage instanceof SlottedStorage)
 
-	const bufferedGoods = derived(() => {
-		return Object.keys(buffers.value) as GoodType[]
+	const bufferedGoods = memoize(() => {
+		return Object.keys(buffers()) as GoodType[]
 	})
 
-	const availableBufferCandidates = derived(() => {
-		const currentBufferKeys = Object.keys(buffers.value)
+	const availableBufferCandidates = memoize(() => {
+		const currentBufferKeys = Object.keys(buffers())
 		let candidates: GoodType[] = []
 
-		if (isSlotted.value) {
+		if (isSlotted()) {
 			candidates = allGoodTypes
 		} else if (props.content.storage instanceof SpecificStorage) {
 			candidates = Object.keys(props.content.storage.maxAmounts) as GoodType[]
@@ -113,9 +113,9 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 	})
 
 	const getBufferStars = (goodType: GoodType) => {
-		const val = buffers.value[goodType] || 0
+		const val = buffers()[goodType] || 0
 		if (val <= 0) return 0
-		if (isSlotted.value) {
+		if (isSlotted()) {
 			// For SlottedStorage, val is number of slots.
 			// 1 star = 1 slot. Max 5 stars.
 			return Math.min(val, 5)
@@ -133,7 +133,7 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 		let newVal = 0
 		if (stars <= 0) {
 			newVal = 0
-		} else if (isSlotted.value) {
+		} else if (isSlotted()) {
 			newVal = stars
 		} else {
 			const max = props.content.storage instanceof SpecificStorage ? (props.content.storage.maxAmounts[goodType] || 0) : 0
@@ -150,8 +150,8 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 	}
 
 	const getDisplayQuantity = (goodType: GoodType) => {
-		const val = buffers.value[goodType] || 0
-		if (isSlotted.value) {
+		const val = buffers()[goodType] || 0
+		if (isSlotted()) {
 			return val * (props.content.storage as SlottedStorage).maxQuantityPerSlot
 		}
 		return val
@@ -169,22 +169,22 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 	return (
 		<div class="storage-config">
 			{/* Slotted Storage: TODO placeholder */}
-			<div class="slotted-todo" if={isSlotted.value}>
+			<div class="slotted-todo" if={isSlotted()}>
 				TODO: Slotted Storage Configuration
 			</div>
 
 			{/* Non-slotted storage configuration */}
-			<div if={!isSlotted.value} style={{ display: 'contents' }}>
+			<div if={!isSlotted()} style={{ display: 'contents' }}>
 				{/* Acceptance Mode - Hide for SpecificStorage */}
 				<PropertyGridRow label="Acceptance" if={!(props.content.storage instanceof SpecificStorage)}>
 					<div class="mode-control">
-						<Button onClick={toggleMode} el={{ class: 'mode-toggle' }}>
-							{modeLabel.value}
+						<Button onClick={toggleMode} class="mode-toggle">
+							{modeLabel()}
 						</Button>
 
 						<GoodMultiSelect
-							value={exceptions.value}
-							availableGoods={availableExceptionCandidates.value}
+							value={exceptions()}
+							availableGoods={availableExceptionCandidates()}
 							game={props.game}
 							addTitle="Add Exception"
 							onAdd={addException}
@@ -206,8 +206,8 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 				{/* Buffers - Non-SpecificStorage uses GoodMultiSelect */}
 				<PropertyGridRow label="Buffers" if={!(props.content.storage instanceof SpecificStorage)}>
 					<GoodMultiSelect
-						value={bufferedGoods.value}
-						availableGoods={availableBufferCandidates.value}
+						value={bufferedGoods()}
+						availableGoods={availableBufferCandidates()}
 						game={props.game}
 						addTitle="Add Buffer"
 						addLabel="Add Buffer"

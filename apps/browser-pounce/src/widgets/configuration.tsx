@@ -1,6 +1,6 @@
 import { configuration, uiConfiguration } from '@app/lib/globals'
 import { css } from '@app/lib/css'
-import { type DockviewWidgetProps, type DockviewWidgetScope, Inline, Radio } from 'pounce-ui'
+import { type DockviewWidgetProps, type DockviewWidgetScope, Inline, Radio } from '@pounce'
 
 css`
 .configuration-widget {
@@ -50,35 +50,32 @@ const ConfigurationWidget = (props: DockviewWidgetProps, scope: DockviewWidgetSc
 	const api = (scope as any).panelApi
 	props.title = 'Configuration'
 
-	const handleDarkModeToggle = () => {
-		uiConfiguration.darkMode = !uiConfiguration.darkMode
-	}
-
 	return (
 		<div class="configuration-widget">
 			<label class="configuration-widget__toggle">
 				<input
 					type="checkbox"
 					checked={uiConfiguration.darkMode}
-					onChange={handleDarkModeToggle}
 				/>
 				<span>Dark mode</span>
 			</label>
 			<fieldset class="configuration-widget__fieldset">
 				<legend>Time control</legend>
 				<Inline gap="sm" class="configuration-widget__radios">
-					{timeOptions.map((option) => (
-						<Radio
-							name={`time-control-${api?.id ?? 'panel'}`}
-							value={option.value}
-							checked={configuration.timeControl === option.value}
-							onChange={() => {
-								configuration.timeControl = option.value
-							}}
-						>
-							{option.label}
-						</Radio>
-					))}
+					<for each={timeOptions}>
+						{(option: (typeof timeOptions)[number]) => (
+							<Radio
+								name={`time-control-${api?.id ?? 'panel'}`}
+								value={option.value}
+								checked={configuration.timeControl === option.value}
+								onChange={() => {
+									configuration.timeControl = option.value
+								}}
+							>
+								{option.label}
+							</Radio>
+						)}
+					</for>
 				</Inline>
 			</fieldset>
 		</div>

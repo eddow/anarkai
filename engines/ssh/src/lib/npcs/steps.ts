@@ -300,21 +300,18 @@ export class WaitForPredicateStep extends ASingleStep {
 	private passed = false
 	constructor(
 		readonly descriptionText: string,
-		predicate: () => boolean,
+		private readonly predicate: () => boolean,
 	) {
 		super()
-		const stop = namedEffect('waitForPredicate', () => {
-			if (predicate()) {
-				this.passed = true
-				this.finish()
-				stop()
-			}
-		})
 	}
 	get description(): string | false {
 		return this.descriptionText
 	}
 	tick(dt: number): number | undefined {
+		if (!this.passed && this.predicate()) {
+			this.passed = true
+			this.finish()
+		}
 		return this.passed ? dt : undefined
 	}
 	serialize(): SerializedStep {

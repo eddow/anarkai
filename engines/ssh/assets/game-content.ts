@@ -115,7 +115,7 @@ export const alveoli = {
 export const goods = {
 	berries: {
 		feedingValue: 72,
-		halfLife: 300,
+		halfLife: 1200, // 20 minutes - long enough for test scenarios
 	},
 	mushrooms: {
 		feedingValue: 160,

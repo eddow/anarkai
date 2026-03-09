@@ -1,12 +1,11 @@
-import { derived, reactive } from 'mutts'
+import { memoize, reactive } from 'mutts'
 import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import type { GoodType } from 'ssh/types/base'
 
 import PropertyGridRow from '../PropertyGridRow'
 import EntityBadge from '../EntityBadge'
-import { Button } from 'pounce-ui'
-import { mdiBroom, mdiCloseCircleOutline } from 'pure-glyf/icons'
+import { Button } from '@pounce'
 import { T } from 'ssh/i18n'
 import { css } from '@app/lib/css'
 import type { Game } from 'ssh/game'
@@ -62,16 +61,16 @@ interface StoredGoodsRowProps {
 
 export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 	// Access stock reactively
-	const stock = derived(() => props.content.storage?.stock || {})
+	const stock = memoize(() => props.content.storage?.stock || {})
 
-	const entries = derived(() =>
-		Object.entries(stock.value)
+	const entries = memoize(() =>
+		Object.entries(stock())
 			.filter(([, qty]) => qty && qty > 0)
 			.sort(([a], [b]) => a.localeCompare(b))
 	)
 
-	const hasGoods = derived(() => entries.value.length > 0)
-	const hasMultipleTypes = derived(() => entries.value.length > 1)
+	const hasGoods = memoize(() => entries().length > 0)
+	const hasMultipleTypes = memoize(() => entries().length > 1)
 
 	const confirmState = reactive({
 		mode: undefined as 'all' | 'good' | undefined,
@@ -108,53 +107,54 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 
 	return (
 		<>
-			{hasGoods.value && (
-				<PropertyGridRow label={props.label}>
-					{confirmState.mode ? (
-						<div class="confirm-overlay">
-							<span>{String(T.alveolus.cleanUpConfirmText)}</span>
-							<Button
-								onClick={doConfirm}
-								el={{ title: 'Confirm' }}
-							>
-								{String(T.alveolus.clear)}
-							</Button>
-							<Button
-								variant="secondary"
-								onClick={cancelConfirm}
-								el={{ title: 'Cancel', class: 'outline' }}
-							>
-								{String(T.alveolus.keep)}
-							</Button>
-						</div>
-					) : (
-						<div class="stored-goods-row">
-							<Button
-								icon={mdiBroom}
-								onClick={startCleanAll}
-								el={{ title: String(T.alveolus.cleanUpTooltip), class: 'cleanup-btn' }}
-							/>
-							{entries.value.map(([good, qty]) => (
-								<div class="good-with-cleanup">
-									<EntityBadge
-										game={props.game}
-										sprite={getSprite(good)}
-										text={good}
-										qty={qty}
-									/>
-									{hasMultipleTypes.value && (
-										<Button
-											icon={mdiCloseCircleOutline}
-											onClick={() => startCleanGood(good)}
-											el={{ title: String(T.alveolus.cleanUpGoodTooltip({ goodType: good })), class: 'cleanup-btn-small' }}
-										/>
-									)}
-								</div>
-							))}
-						</div>
-					)}
-				</PropertyGridRow>
-			)}
+			<PropertyGridRow if={hasGoods()} label={props.label}>
+				<div if={confirmState.mode} class="confirm-overlay">
+					<span>{String(T.alveolus.cleanUpConfirmText)}</span>
+					<Button
+						onClick={doConfirm}
+						title="Confirm"
+					>
+						{String(T.alveolus.clear)}
+					</Button>
+					<Button
+						variant="secondary"
+						onClick={cancelConfirm}
+						title="Cancel"
+						class="outline"
+					>
+						{String(T.alveolus.keep)}
+					</Button>
+				</div>
+				<div else class="stored-goods-row">
+					<Button
+						onClick={startCleanAll}
+						title={String(T.alveolus.cleanUpTooltip)}
+						class="cleanup-btn"
+					>
+						🧹
+					</Button>
+					<for each={entries()}>
+						{([good, qty]: [string, number]) => (
+							<div class="good-with-cleanup">
+								<EntityBadge
+									game={props.game}
+									sprite={getSprite(good)}
+									text={good}
+									qty={qty}
+								/>
+								<Button
+									if={hasMultipleTypes()}
+									onClick={() => startCleanGood(good)}
+									title={String(T.alveolus.cleanUpGoodTooltip({ goodType: good }))}
+									class="cleanup-btn-small"
+								>
+									×
+								</Button>
+							</div>
+						)}
+					</for>
+				</div>
+			</PropertyGridRow>
 		</>
 	)
 }

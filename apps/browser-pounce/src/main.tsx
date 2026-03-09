@@ -1,18 +1,17 @@
 import '@picocss/pico/css/pico.min.css'
 import './app.css'
 import { profileInfo } from 'mutts'
-import { bindApp, h } from 'pounce-ts'
-import App from '@app/App'
+import { latch } from '@pounce'
+import App from './App'
 import { initTranslator } from 'ssh/i18n'
-import * as directives from 'pounce-ui/directives'
 
-	; (globalThis as typeof globalThis & { ['mutts:profile']?: typeof profileInfo })['mutts:profile'] =
-		profileInfo
+latch('#app', <App />)
+
+; (globalThis as typeof globalThis & { ['mutts:profile']?: typeof profileInfo })['mutts:profile'] =
+	profileInfo
 
 async function bootstrap() {
 	await initTranslator()
-	bindApp(<App />, '#app', directives)
 }
 
 bootstrap().catch(console.error)
-

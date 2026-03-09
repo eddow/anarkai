@@ -8,3 +8,9 @@ Translations are merged in memory. `assets/locales` serves as a base, and `src/l
 All previously commented-out `@memoize` decorators have been rehabilitated and identified with the `// REHABILITATED MEMOIZE` marker.
 - **Runtime Guard**: `mutts.reactiveOptions.onMemoizationDiscrepancy` is configured in `debug.ts` to trigger a `debugger` and throw an error if a discrepancy is detected.
 - **Test Enforcement**: This detection is enforced in all unit/integration tests (via `test-setup.ts`) and is captured in browser E2E tests via the `console-trap` (initialized in `App.tsx`).
+
+## Pathfinding and Reactivity
+- Pathfinding must never register reactive dependencies on traversed tiles, borders, loose goods, or scoring targets.
+- Any board scan or path search is a transient query, not a reactive derivation.
+- The shared pathfinding utilities in `src/lib/utils/pathfinding.ts` are wrapped in `untracked(...)` so callers cannot accidentally subscribe to every visited node.
+- Do not put pathfinding-based availability checks behind `@memoize` unless they depend only on stable, coarse invalidation signals.

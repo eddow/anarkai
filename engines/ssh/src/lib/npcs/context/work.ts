@@ -127,10 +127,12 @@ class WorkFunctions {
 			.canceled(() => {
 				console.log(`[conveyStep] CANCELED movement`)
 				debugger
-				for (const { mg, hopAlloc } of movementData) {
+				for (const { mg, hopAlloc, moving } of movementData) {
 					hopAlloc?.cancel()
 					mg.allocations.source.cancel()
 					mg.allocations.target.cancel()
+					// Remove the loose good that was created for this movement
+					if (!moving.isRemoved) moving.remove()
 					character.game.hex.looseGoods.add(character.tile, mg.goodType)
 					mg.finish()
 				}
@@ -141,7 +143,8 @@ class WorkFunctions {
 					for (const { mg, moving, hopAlloc, hop } of movementData) {
 						const nextStorage = hive.storageAt(hop)
 
-						moving.remove()
+						// Remove the loose good that was created for this movement
+						if (!moving.isRemoved) moving.remove()
 						if (!mg.path.length) {
 							if (!mg.allocations?.target) {
 								console.error('Target allocation missing for', mg)
@@ -176,10 +179,9 @@ class WorkFunctions {
 							mg.place()
 						}
 					}
-				} catch (e) {
-					console.error('Error in conveyStep finished:', e)
-
-					throw e
+				} catch (error) {
+					console.error('[conveyStep] Error in finished callback:', error)
+					throw error
 				}
 			})
 			.final(() => {

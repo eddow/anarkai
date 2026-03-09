@@ -120,20 +120,31 @@ export class StorageAlveolus extends Alveolus {
 	get workingGoodsRelations(): GoodsRelations {
 		const relations: GoodsRelations = {}
 
-		// Demand goods at '0-store' priority for internal conveying purposes.
-		// Note: '0-store' demands are filtered OUT of hive.needs, so gatherers
-		// won't collect goods just because storage has room. Only higher
-		// priority demands (1-buffer, 2-use) from consuming alveoli drive gathering.
+		// Demand goods based purely on stock vs. capacity — no reservation/allocation tracking.
+		// reserve()/allocate() must NOT change what we advertise; only actual goods changes should.
 		if (this.storage instanceof SlottedStorage) {
 			const allGoods = Object.keys(allGoodsList) as GoodType[]
 			const { buffers } = this
+			// Count empty slots and stock per type — only reads quantity/goodType, never reserved/allocated
+			let emptySlotCount = 0
+			const stockPerType = new Map<GoodType, number>()
+			const partialSlotRoom = new Map<GoodType, boolean>()
+			for (const slot of this.storage.slots) {
+				if (slot === undefined) {
+					emptySlotCount++
+				} else {
+					stockPerType.set(slot.goodType, (stockPerType.get(slot.goodType) ?? 0) + slot.quantity)
+					if (slot.quantity < this.storage.maxQuantityPerSlot) {
+						partialSlotRoom.set(slot.goodType, true)
+					}
+				}
+			}
 			for (const goodType of allGoods) {
-				if (this.storage.hasRoom(goodType) > 0) {
-					// Check if we need to buffer this good
+				const hasRoom = emptySlotCount > 0 || partialSlotRoom.get(goodType) === true
+				if (hasRoom) {
+					const stockQty = stockPerType.get(goodType) ?? 0
 					const bufferAmount = buffers.get(goodType) || 0
-					const currentAmount = this.storage.availables[goodType] || 0
-
-					if (currentAmount < bufferAmount) {
+					if (stockQty < bufferAmount) {
 						relations[goodType] = { advertisement: 'demand', priority: '1-buffer' }
 					} else {
 						relations[goodType] = { advertisement: 'demand', priority: '0-store' }
@@ -143,12 +154,11 @@ export class StorageAlveolus extends Alveolus {
 		} else if (this.storage instanceof SpecificStorage) {
 			const { buffers } = this
 			for (const goodType of Object.keys(this.storage.maxAmounts) as GoodType[]) {
-				if (this.storage.hasRoom(goodType) > 0) {
-					// Check if we need to buffer this good
+				const maxAmount = this.storage.maxAmounts[goodType] ?? 0
+				const stockQty = this.storage.stock[goodType] ?? 0
+				if (stockQty < maxAmount) {
 					const bufferAmount = buffers.get(goodType) || 0
-					const currentAmount = this.storage.availables[goodType] || 0
-
-					if (currentAmount < bufferAmount) {
+					if (stockQty < bufferAmount) {
 						relations[goodType] = { advertisement: 'demand', priority: '1-buffer' }
 					} else {
 						relations[goodType] = { advertisement: 'demand', priority: '0-store' }
@@ -157,8 +167,8 @@ export class StorageAlveolus extends Alveolus {
 			}
 		}
 
-		// Provide what we have available (for consumption by sawmills, etc.)
-		for (const goodType of Object.keys(this.storage.availables) as GoodType[]) {
+		// Provide what we have in stock (only depends on actual goods, not reservations)
+		for (const goodType of Object.keys(this.storage.stock) as GoodType[]) {
 			if (!relations[goodType]) {
 				relations[goodType] = { advertisement: 'provide', priority: '0-store' }
 			}

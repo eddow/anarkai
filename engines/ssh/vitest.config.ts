@@ -9,6 +9,12 @@ export default mergeConfig(viteConfig as any, {
 		include: ['src/**/*.{test,spec}.{js,ts}', 'tests/**/*.{test,spec}.{js,ts}'],
 		exclude: ['node_modules', 'dist', '.git', '.cache', 'tests/e2e'],
 		watch: false,
+		pool: 'threads',
+		poolOptions: {
+			threads: {
+				singleThread: true,
+			},
+		},
 	},
 	esbuild: {
 		target: 'node14',

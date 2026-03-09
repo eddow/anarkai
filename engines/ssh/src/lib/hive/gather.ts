@@ -1,4 +1,3 @@
-import { memoize } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
 import type { Character } from 'ssh/population/character'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
@@ -25,7 +24,6 @@ export class GatherAlveolus extends TransitAlveolus {
 		super(tile, new SlottedStorage(1, 12))
 	}
 
-	@memoize
 	get hasLooseGoodsToGather(): boolean {
 		// Check if there are any loose goods in the world that the hive needs
 		const hiveNeeds = Object.keys(this.hive.needs) as GoodType[]

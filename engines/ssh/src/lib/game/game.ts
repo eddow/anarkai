@@ -157,7 +157,7 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	unregister(object: InteractiveGameObject) {
-		if (this.objects.delete(object.uid)) object.destroy()
+		this.objects.delete(object.uid)
 	}
 
 	registerTickedObject(object: { update(deltaSeconds: number): void }) {
@@ -280,7 +280,7 @@ export class Game extends Eventful<GameEvents> {
 			// As generated state
 			tile.asGenerated = true
 
-			tile.content = land // Set the UnBuiltLand as tile content
+			this.hex.setTileContent(tile, land)
 
 			// Create initial goods at equilibrium levels
 			for (const [goodType, amount] of Object.entries(tileInfo.goods)) {
@@ -312,7 +312,7 @@ export class Game extends Eventful<GameEvents> {
 			// If missing content and patch defines terrain, create UnBuiltLand
 			if (!tile.content && p.terrain) {
 				// Stub deposit if needed, will be refined below
-				tile.content = new UnBuiltLand(tile, p.terrain, undefined)
+				this.hex.setTileContent(tile, new UnBuiltLand(tile, p.terrain, undefined))
 			}
 
 			const content = tile.content
@@ -327,7 +327,7 @@ export class Game extends Eventful<GameEvents> {
 					if ((content as any).terrain !== p.terrain) {
 						// Recreate UnBuiltLand with new terrain
 						const deposit = content.deposit
-						tile.content = new UnBuiltLand(tile, p.terrain, deposit)
+						this.hex.setTileContent(tile, new UnBuiltLand(tile, p.terrain, deposit))
 					}
 				}
 
@@ -367,7 +367,7 @@ export class Game extends Eventful<GameEvents> {
 				const AlveolusCtor = alveolusClass[a.alveolus as keyof typeof alveolusClass]
 				if (!AlveolusCtor) continue
 				const alv = new AlveolusCtor(tile)
-				tile.content = alv
+				this.hex.setTileContent(tile, alv)
 				if (!alv.hive) {
 					if (this.HiveClass) {
 						const h = this.HiveClass.for(tile)
@@ -538,9 +538,8 @@ export class Game extends Eventful<GameEvents> {
 		// We assume state.generationOptions has the original seed
 		// TODO: Restore RNG state if necessary, or just rely on seed
 
-		// Reset simulation if needed (though generate usually overwrites)
-		// Ideally we should clear everything first?
-		// for now, let's allow generate to overwrite.
+		this.hex.reset()
+		this.population.deserialize([])
 
 		// 3. Generate and apply patches (passes hive configs for restoration)
 		this.generate(state.generationOptions, state, state)

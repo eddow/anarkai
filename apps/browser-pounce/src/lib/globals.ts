@@ -21,7 +21,7 @@ export const unreactiveInfo = {
 export type { Configuration } from 'ssh/globals'
 
 // UI-specific configuration (darkMode is UI-specific, not game engine concern)
-import { stored } from 'pounce-ui'
+import { stored } from '@pounce/kit'
 
 export interface UIConfiguration {
 	darkMode: boolean

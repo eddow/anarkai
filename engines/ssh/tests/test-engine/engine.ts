@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import type { Game, GameGenerationOptions, SaveState } from 'ssh/game/game'
+import type { Game, GameGenerationOptions, SaveState } from 'ssh/game'
 import { setupEnvironment } from './environment'
 import { loadStandardMocks } from './mocks'
 
@@ -22,9 +22,10 @@ export class TestEngine {
 	 */
 	public async init() {
 		// Dynamic import to allow mocks to apply
-		const { Game } = await import('ssh/game/game')
+		const { Game } = await import('ssh/game')
 		this.game = new Game(this.options)
 		await this.game.loaded
+		this.game.ticker.stop()
 	}
 
 	/**

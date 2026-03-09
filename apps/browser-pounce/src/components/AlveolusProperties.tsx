@@ -5,7 +5,7 @@ import PropertyGridRow from './PropertyGridRow'
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import { T } from 'ssh/i18n'
 import { StorageAlveolus } from 'ssh/hive/storage'
-import StorageConfiguration from './storage/StorageConfiguration.tsx'
+import StorageConfiguration from './storage/StorageConfiguration'
 import StoredGoodsRow from './storage/StoredGoodsRow'
 import type { Game } from 'ssh/game'
 
@@ -26,6 +26,11 @@ const AlveolusProperties = ({ content, game }: AlveolusPropertiesProps) => {
 	const state = reactive({
 		working: content.working,
 	})
+
+	let storageConfiguration: JSX.Element | undefined
+	if (content instanceof StorageAlveolus) {
+		storageConfiguration = <StorageConfiguration content={content} game={game} />
+	}
 
 	effect(() => {
 		state.working = content.working
@@ -50,9 +55,7 @@ const AlveolusProperties = ({ content, game }: AlveolusPropertiesProps) => {
 
 			<StoredGoodsRow content={content} game={game} label={String(T.goods.stored)} />
 
-			{content instanceof StorageAlveolus && (
-				<StorageConfiguration content={content} game={game} />
-			)}
+			{storageConfiguration}
 		</>
 	)
 }

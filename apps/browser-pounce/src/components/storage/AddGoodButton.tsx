@@ -1,8 +1,7 @@
 import { reactive } from 'mutts'
 import type { GoodType } from 'ssh/types/base'
 import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
-import { Button } from 'pounce-ui'
-import { mdiPlus } from 'pure-glyf/icons'
+import { Button } from '@pounce'
 import EntityBadge from '../EntityBadge'
 import { css } from '@app/lib/css'
 import type { Game } from 'ssh/game'
@@ -85,46 +84,45 @@ export default function AddGoodButton(props: AddGoodButtonProps) {
 	}
 
 	return (
-		<div class="add-good-wrapper" use={(el: HTMLElement) => buttonWrapper = el}>
+		<div class="add-good-wrapper" use={(el: HTMLElement) => {
+			buttonWrapper = el
+		}}>
 			<Button
-				icon={mdiPlus}
 				onClick={openMenu}
-				el={{ title: props.title || 'Add' }}
+				title={props.title || 'Add'}
 			>
-				{props.children || 'Add'}
+				{props.children || '+'}
 			</Button>
 
-			{menuState.show && (
+			<div
+				if={menuState.show}
+				class="floating-menu-overlay"
+				onClick={() => menuState.show = false}
+			>
 				<div
-					class="floating-menu-overlay"
-					onClick={() => menuState.show = false}
+					class="floating-menu"
+					style={`top: ${menuState.y}px; left: ${menuState.x}px;`}
+					onClick={(e: Event) => e.stopPropagation()}
 				>
-					<div
-						class="floating-menu"
-						style={`top: ${menuState.y}px; left: ${menuState.x}px;`}
-						onClick={(e: Event) => e.stopPropagation()}
-					>
-						{props.availableGoods.length > 0 ? (
-							props.availableGoods.map((gt) => (
-								<div
-									class="menu-item"
-									onClick={() => handleSelect(gt)}
-								>
-									<EntityBadge
-										game={props.game}
-										sprite={getSprite(gt)}
-										text={gt}
-									/>
-								</div>
-							))
-						) : (
-							<div class="menu-empty">
-								No goods available
+					<for each={props.availableGoods}>
+						{(gt: GoodType) => (
+							<div
+								class="menu-item"
+								onClick={() => handleSelect(gt)}
+							>
+								<EntityBadge
+									game={props.game}
+									sprite={getSprite(gt)}
+									text={gt}
+								/>
 							</div>
 						)}
+					</for>
+					<div if={props.availableGoods.length === 0} class="menu-empty">
+						No goods available
 					</div>
 				</div>
-			)}
+			</div>
 		</div>
 	)
 }

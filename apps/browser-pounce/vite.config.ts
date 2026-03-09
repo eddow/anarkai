@@ -2,10 +2,9 @@ import { dirname, resolve as resolvePath } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { commonEsbuild, commonOptimizeDeps } from 'engine-pixi/vite-config'
 import { servePixiAssets } from 'engine-pixi/vite-plugins'
-import { babelPluginJsxReactive } from 'pounce-ts/plugin'
-import { pureGlyfPlugin } from 'pure-glyf/plugin'
+import { pounceCorePlugin, pounceBarrelPlugin } from '@pounce/core/plugin'
+import { pureGlyfPlugin } from '../../../ownk/pounce/packages/pure-glyf/dist/plugin.js'
 import { defineConfig, type Plugin } from 'vite'
-import babel from 'vite-plugin-babel'
 import { cssTagPlugin } from '../../engines/ssh/vite-plugin-css-tag'
 
 const projectRootDir = dirname(fileURLToPath(import.meta.url))
@@ -17,8 +16,7 @@ function stripDeclare(): Plugin {
 		transform(code, id) {
 			if (!/\.[cm]?tsx?$/.test(id)) return null
 
-			// Replace `declare field: Type;` with `field!: Type;`
-			return code.replace(/\bdeclare\s+([\w[].+?):/g, '$1!:')
+			return code.replace(/\bdeclare\s+/g, '')
 		},
 	}
 }
@@ -35,24 +33,14 @@ const aliases = {
 	ssh: resolvePath(projectRootDir, '../../engines/ssh/src/lib'),
 	'engine-pixi/assets': resolvePath(projectRootDir, '../../engines/pixi/assets'),
 	'engine-pixi': resolvePath(projectRootDir, '../../engines/pixi/src'),
-	'pounce-ui/directives': resolvePath(projectRootDir, '../../../ownk/pounce-ui/src/directives/index.ts'),
-	'pounce-ui/css': resolvePath(projectRootDir, '../../../ownk/pounce-ui/src/lib/css.ts'),
-	'pounce-ui': resolvePath(projectRootDir, '../../../ownk/pounce-ui/src'),
-	'pounce-ts/lib': resolvePath(projectRootDir, '../../../ownk/pounce-ts/src/lib'),
-	'pounce-ts': resolvePath(projectRootDir, '../../../ownk/pounce-ts/src'),
+	'pure-glyf': resolvePath(projectRootDir, '../../../ownk/pounce/packages/pure-glyf/src'),
 
 	// Fallbacks/Legacy
 	mutts: resolvePath(projectRootDir, '../../../ownk/mutts/src'),
 
 	// Fix dockview and picocss resolution
-	'@picocss/pico': resolvePath(
-		projectRootDir,
-		'../../node_modules/.pnpm/@picocss+pico@2.1.1/node_modules/@picocss/pico',
-	),
-	'dockview-core': resolvePath(
-		projectRootDir,
-		'../../node_modules/.pnpm/dockview-core@4.12.0/node_modules/dockview-core',
-	),
+	'@picocss/pico': resolvePath(projectRootDir, 'node_modules/@picocss/pico'),
+	'dockview-core': resolvePath(projectRootDir, 'node_modules/dockview-core'),
 }
 
 export default defineConfig({
@@ -64,43 +52,17 @@ export default defineConfig({
 			},
 			dts: 'src/pure-glyf-icons.d.ts',
 		}) as any,
-		//stripDeclare(),
+		stripDeclare(),
 		cssTagPlugin(),
 		servePixiAssets(),
-		babel({
-			// Babel config (applied to both JS and TS files)
-			babelConfig: {
-				plugins: [
-					babelPluginJsxReactive,
-					// Decorators (legacy or new syntax, configure as needed)
-					['@babel/plugin-proposal-decorators', { legacy: true }],
-
-					[
-						'@babel/plugin-transform-react-jsx',
-						{ pragma: 'h', pragmaFrag: 'Fragment', throwIfNamespace: false },
-					],
-				],
-				overrides: [
-					{
-						test: /\.[mc]?tsx$/,
-						plugins: [
-							[
-								'@babel/plugin-transform-typescript',
-								{ isTS: true, isTSX: true, allowDeclareFields: true },
-							],
-						],
-					},
-					{
-						test: /\.[mc]?ts$/,
-						exclude: /\.[mc]?tsx$/,
-						plugins: [
-							['@babel/plugin-transform-typescript', { isTS: true, allowDeclareFields: true }],
-						],
-					},
-				],
-			},
-			// Optional: Extend Babel config for specific file types
-			filter: (id) => /\.[cm]?tsx?$/.test(id),
+		pounceCorePlugin({
+			projectRoot: projectRootDir,
+		}),
+		pounceBarrelPlugin({
+			name: '@pounce',
+			skeleton: 'front-end',
+			adapter: '@pounce/adapter-pico',
+			dts: 'src/@pounce.d.ts',
 		}),
 	],
 	resolve: {

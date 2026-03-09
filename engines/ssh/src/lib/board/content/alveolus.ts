@@ -1,4 +1,4 @@
-import { memoize, reactive, type ScopedCallback, unreactive } from 'mutts'
+import { memoize, reactive, type ScopedCallback, unreactive, unwrap } from 'mutts'
 import { configurations } from '../../../../assets/game-content'
 import { assert } from 'ssh/debug'
 import type { Hive, MovingGood } from 'ssh/hive/hive'
@@ -7,7 +7,7 @@ import type { Character } from 'ssh/population/character'
 import type { Storage } from 'ssh/storage/storage'
 import type { GoodType, Job } from 'ssh/types/base'
 import { type AxialCoord, axial, epsilon, tileSize } from 'ssh/utils'
-import type { GoodsRelations } from 'ssh/utils/advertisement'
+import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
 import { toAxialCoord, toWorldCoord } from 'ssh/utils/position'
 import { AlveolusGate } from '../border/alveolus-gate'
 import type { Tile } from '../tile'
@@ -80,7 +80,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		}
 
 		// Default to hive scope (also handles 'hive' case and fallback from named)
-		const hiveConfig = this.hive?.configurations?.get(this.name)
+		const hiveConfig = this.hive?.configurations && unwrap(this.hive.configurations).get(this.name)
 		if (hiveConfig) return hiveConfig as Ssh.BaseAlveolusConfiguration
 		return configurations.default as Ssh.BaseAlveolusConfiguration
 	}
@@ -195,7 +195,6 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	 * - Returns a cycle of movements (A->B, B->C, C->A) if circular blockade detected
 	 * - Returns undefined if no movements available
 	 */
-	// REHABILITATED MEMOIZE
 	@memoize
 	get aGoodMovement(): LocalMovingGood[] | undefined {
 		const hive = this.hive
@@ -329,7 +328,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 
 		return undefined
 	}
-	// REHABILITATED MEMOIZE
+
 	@memoize
 	get incomingGoods(): boolean {
 		// Note: because borders have 2 neighbors and we check this when no movement is occurring,
@@ -370,7 +369,6 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			.filter((c): c is Alveolus => c instanceof Alveolus)
 	}
 	abstract get workingGoodsRelations(): GoodsRelations
-	// REHABILITATED MEMOIZE
 	@memoize
 	get goodsRelations(): GoodsRelations {
 		const rv = this.working
@@ -378,11 +376,9 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			: Object.fromEntries(
 					Object.keys(this.storage.stock).map((goodType) => [
 						goodType as GoodType,
-						{ advertisement: 'provide', priority: '0-store' },
+						{ advertisement: 'provide', priority: '0-store' as ExchangePriority },
 					]),
 				)
-		// TODO: Display goodrelations in props?
-		this.tile.log(`goodsRelations: ${JSON.stringify(rv)}`)
 		return rv
 	}
 	/**

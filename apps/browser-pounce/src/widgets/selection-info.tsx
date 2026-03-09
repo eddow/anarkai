@@ -1,4 +1,4 @@
-import { effect } from 'mutts'
+import { reactive, effect } from 'mutts'
 
 import type { Game } from 'ssh/game'
 import { css } from '@app/lib/css'
@@ -10,13 +10,11 @@ import {
 	mrg,
 	unreactiveInfo,
 } from '@app/lib/globals'
-import type { DockviewWidgetProps, DockviewWidgetScope } from 'pounce-ui'
+import type { DockviewWidgetProps, DockviewWidgetScope } from '@pounce'
 import CharacterProperties from '../components/CharacterProperties'
 import TileProperties from '../components/TileProperties'
 import { toWorldCoord } from 'ssh/utils/position' // Added import for GoTo logic
-import { Button, ButtonGroup, InfiniteScroll } from 'pounce-ui' // Added import for buttons
-import { mdiEye, mdiPin } from 'pure-glyf/icons'
-import { compose, h } from 'pounce-ts/lib'
+import { Button, ButtonGroup, InfiniteScroll } from '@pounce' // Added import for buttons
 
 css`
 .selection-info-panel {
@@ -96,16 +94,15 @@ const SelectionInfoWidget = (props: DockviewWidgetProps<{ uid?: string }>, scope
 	scope.setTitle = (title: string) => {
 		props.title = title
 	}
-	const state = compose(props, (state) => ({
-		get object() {
-			const uid = state.params.uid ?? selectionState.selectedUid
-			return uid ? game.getObject(uid) : undefined
-		},
-	}), (state) => ({
-		get logs() {
-			return state.object?.logs ?? []
-		},
-	}))
+	const state = reactive({
+	get object() {
+		const uid = props.params.uid ?? selectionState.selectedUid
+		return uid ? game.getObject(uid) : undefined
+	},
+	get logs() {
+		return this.object?.logs ?? []
+	},
+})
 
 
 
@@ -170,8 +167,8 @@ const SelectionInfoWidget = (props: DockviewWidgetProps<{ uid?: string }>, scope
 			<div style="border-bottom: 1px solid var(--app-border); display: flex; justify-content: space-between;">
 				<div></div>
 				<ButtonGroup>
-					<Button if={state.object?.position} icon={mdiEye} aria-label="Go to Object" onClick={goTo} />
-					<Button if={!props.params.uid} icon={mdiPin} aria-label="Pin Panel" onClick={pin} />
+					<Button if={state.object?.position} aria-label="Go to Object" onClick={goTo}>👁</Button>
+					<Button if={!props.params.uid} aria-label="Pin Panel" onClick={pin}>📌</Button>
 				</ButtonGroup>
 			</div>
 			<div if={state.object} class="selection-info-panel__content-wrapper">
@@ -192,17 +189,18 @@ const SelectionInfoWidget = (props: DockviewWidgetProps<{ uid?: string }>, scope
 					role="log"
 					data-test-owner-uid={state.object?.uid}
 				>
-					<InfiniteScroll
-						items={state.logs}
-						itemHeight={20}
-						el={{ class: 'selection-info-panel__logs-list' }}
-					>
-						{(line) => (
-							<div class="selection-info-panel__logs-line" title={line}>
-								{line}
-							</div>
-						)}
-					</InfiniteScroll>
+					<div class="selection-info-panel__logs-list">
+						<InfiniteScroll
+							items={state.logs}
+							itemHeight={20}
+						>
+							{(line) => (
+								<div class="selection-info-panel__logs-line" title={line}>
+									{line}
+								</div>
+							)}
+						</InfiniteScroll>
+					</div>
 				</div>
 			</div>
 			<div else class="selection-info-panel__empty">Select an object in the game view to inspect it.</div>

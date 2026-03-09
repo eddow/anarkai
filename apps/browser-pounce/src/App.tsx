@@ -3,11 +3,7 @@ import { initConsoleTrap } from 'ssh/debug'
 initConsoleTrap()
 import { effect, reactive, untracked } from 'mutts'
 import { themeDracula, themeLight } from 'dockview-core'
-import { Button, ButtonGroup, DarkModeButton, Dockview, RadioButton, Toolbar } from 'pounce-ui'
-import {
-	mdiPause, mdiPlay, mdiFastForward, mdiFastForwardOutline,
-	mdiHomeGroup, mdiTree, mdiEraser, mdiCog, mdiPlus, mdiTestTube, mdiCursorDefaultOutline
-} from 'pure-glyf/icons'
+import { Button, ButtonGroup, ThemeToggle, Dockview, RadioButton, Toolbar } from '@pounce'
 
 import * as gameContent from 'ssh/assets/game-content'
 import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content'
@@ -25,21 +21,42 @@ if (typeof window !== 'undefined') {
 }
 
 const timeControls = [
-	{ value: 'pause', label: 'Pause', icon: mdiPause },
-	{ value: 'play', label: 'Play', icon: mdiPlay },
-	{ value: 'fast-forward', label: 'Fast Forward', icon: mdiFastForward },
-	{ value: 'gonzales', label: 'Gonzales', icon: mdiFastForwardOutline },
+	{ value: 'pause', label: 'Pause', content: '⏸' },
+	{ value: 'play', label: 'Play', content: '▶' },
+	{ value: 'fast-forward', label: 'Fast Forward', content: '⏩' },
+	{ value: 'gonzales', label: 'Gonzales', content: '⏭' },
 ] as const
 
 const zoneActions = [
-	{ value: 'zone:residential', label: 'Residential', icon: mdiHomeGroup },
-	{ value: 'zone:harvest', label: 'Harvest', icon: mdiTree },
-	{ value: 'zone:none', label: 'Unzone', icon: mdiEraser },
+	{ value: 'zone:residential', label: 'Residential', content: '🏠' },
+	{ value: 'zone:harvest', label: 'Harvest', content: '🌲' },
+	{ value: 'zone:none', label: 'Unzone', content: '⌫' },
 ] as const
 
 const buildableAlveoli = Object.entries(gameContent.alveoli).filter(
 	([, alveolus]) => 'construction' in alveolus,
 )
+
+const dockviewEl = {
+	class: 'dockview-container',
+}
+
+const dockviewOptions = reactive({
+	theme: themeLight,
+})
+
+const themeSettings = reactive({
+	theme: uiConfiguration.darkMode ? 'dark' : 'light' as 'dark' | 'light'
+})
+
+// Sync themeSettings with uiConfiguration
+effect(() => {
+	uiConfiguration.darkMode = themeSettings.theme === 'dark'
+})
+
+effect(() => {
+	dockviewOptions.theme = uiConfiguration.darkMode ? themeDracula : themeLight
+})
 
 const Clock = ({ game }: { game: any }) => {
 	const state = reactive({ time: '--:--' })
@@ -118,11 +135,11 @@ const App = () => {
 		<div class="app-shell">
 			<Toolbar>
 				<ButtonGroup>
-					<Button icon={mdiCog} aria-label="Open configuration" onClick={openConfigurationPanel} />
-					<Button icon={mdiPlus} aria-label="Open game view" onClick={openGamePanel} />
-					<Button icon={mdiTestTube} aria-label="Open multiselect test" onClick={openTestPanel} />
+					<Button aria-label="Open configuration" onClick={openConfigurationPanel}>⚙</Button>
+					<Button aria-label="Open game view" onClick={openGamePanel}>+</Button>
+					<Button aria-label="Open multiselect test" onClick={openTestPanel}>🧪</Button>
 				</ButtonGroup>
-				<Toolbar.Spacer visible />
+				<Toolbar.Spacer if={timeControls.length > 0} />
 				<div style={{
 					display: 'flex',
 					alignItems: 'center',
@@ -135,31 +152,34 @@ const App = () => {
 					<Clock game={gameInstance} />
 				</div>
 				<ButtonGroup>
-					{timeControls.map((option) => (
-						<RadioButton
-							icon={option.icon}
-							value={option.value}
-							group={configuration.timeControl}
-							aria-label={option.label}
-						/>
-					))}
+					<for each={timeControls}>
+						{(option: (typeof timeControls)[number]) => (
+							<RadioButton
+								value={option.value}
+								group={configuration.timeControl}
+								aria-label={option.label}
+							>
+								{option.content}
+							</RadioButton>
+						)}
+					</for>
 				</ButtonGroup>
-				<Toolbar.Spacer visible />
+				<Toolbar.Spacer if={timeControls.length > 0} />
 				<ButtonGroup>
 					<RadioButton
-						icon={mdiCursorDefaultOutline}
 						value=""
 						group={interactionMode.selectedAction}
 						aria-label="Select"
-					/>
+					>
+						↖
+					</RadioButton>
 				</ButtonGroup>
-				<Toolbar.Spacer visible />
+				<Toolbar.Spacer if={timeControls.length > 0} />
 				<ButtonGroup>
-					{buildableAlveoli.map(([name]) => {
-						const action = `build:${name}`
-						return (
+					<for each={buildableAlveoli}>
+						{([name]: (typeof buildableAlveoli)[number]) => (
 							<RadioButton
-								value={action}
+								value={`build:${name}`}
 								group={interactionMode.selectedAction}
 								aria-label={`Build ${name}`}
 							>
@@ -171,39 +191,36 @@ const App = () => {
 									alt={name}
 								/>
 							</RadioButton>
-						)
-					})}
+						)}
+					</for>
 				</ButtonGroup>
-				<Toolbar.Spacer visible />
+				<Toolbar.Spacer if={timeControls.length > 0} />
 				<ButtonGroup>
-					{zoneActions.map((zone) => (
-						<RadioButton
-							icon={zone.icon}
-							value={zone.value}
-							group={interactionMode.selectedAction}
-							aria-label={zone.label}
-						/>
-					))}
+					<for each={zoneActions}>
+						{(zone: (typeof zoneActions)[number]) => (
+							<RadioButton
+								value={zone.value}
+								group={interactionMode.selectedAction}
+								aria-label={zone.label}
+							>
+								{zone.content}
+							</RadioButton>
+						)}
+					</for>
 				</ButtonGroup>
 				<Toolbar.Spacer />
-				<DarkModeButton
-					theme={uiConfiguration.darkMode ? 'dark' : 'light'}
-					update:theme={(theme) => {
-						uiConfiguration.darkMode = theme === 'dark'
-					}}
+				<ThemeToggle 
+					settings={themeSettings}
 				/>
 			</Toolbar>
 
 			<main class="app-main">
 				<Dockview
-					el:class="dockview-container"
+					el={dockviewEl}
 					api={state.api}
 					widgets={widgets}
-					layout={untracked(getDockviewLayout)}
-					update:layout={(layout: any) => {
-						dockviewLayout.sshLayout = layout
-					}}
-					options:theme={uiConfiguration.darkMode ? themeDracula : themeLight}
+					layout={dockviewLayout.sshLayout}
+					options={dockviewOptions}
 				/>
 			</main>
 		</div>

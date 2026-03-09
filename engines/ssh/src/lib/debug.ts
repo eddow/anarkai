@@ -1,11 +1,11 @@
-import { effect, enableDevTools, reactiveOptions } from 'mutts'
+import { effect, reactiveOptions } from 'mutts'
 
 export function nf<T extends Function>(name: string, fn: T): T {
 	Object.defineProperty(fn, 'name', { value: name })
 	return fn
 }
 export function namedEffect(name: string, fn: () => void): () => void {
-	return effect(nf(name, fn))
+	return effect.named(name)(fn)
 }
 export class AssertionError extends Error {
 	constructor(message: string) {
@@ -41,17 +41,12 @@ if (debugMutts) {
 	reactiveOptions.endChain = () => {
 		console.groupEnd()
 	}
-	reactiveOptions.skipRunningEffect = (effect: Function, chain: Function[]) => {
-		console.log(
-			`Skipping running effect: ${chain.map((t) => t.name).join(' -> ')} -> ${effect.name}`,
-		)
+	reactiveOptions.skipRunningEffect = (effect: Function) => {
+		console.log(`Skipping running effect: ${effect.name}`)
 	}
 }
 reactiveOptions.maxEffectChain = 2000
 reactiveOptions.maxEffectReaction = 'throw'
-// Disable requestAnimationFrame zone patching: ensures callbacks run without a parent effect context
-// (does not disable the function itself, just the reactivity engine context propagation)
-reactiveOptions.zones.requestAnimationFrame = false
 // TODO: comment it for normal functionment (performances killer) - allow it to test discrepancies
 reactiveOptions.onMemoizationDiscrepancy = (cached: any, fresh: any, fn: any, args: any, cause: string) => {
 	console.error(`Memoization discrepancy in method ${fn?.name || 'unknown'}:`, {
@@ -63,7 +58,6 @@ reactiveOptions.onMemoizationDiscrepancy = (cached: any, fresh: any, fn: any, ar
 	debugger
 	throw new Error(`Memoization discrepancy: ${cause}`)
 }
-enableDevTools()
 
 export function initConsoleTrap() {
 	if (typeof window === 'undefined') return

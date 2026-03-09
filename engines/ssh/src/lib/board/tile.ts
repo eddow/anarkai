@@ -18,14 +18,12 @@ import type { Zone } from './zone'
 export class Tile extends withInteractive(GameObject) {
 	// True when the tile is exactly as produced by generation
 	public asGenerated: boolean = false
-	
-	// REHABILITATED MEMOIZE
+
 	@memoize
 	get content(): TileContent | undefined {
 		return this.board.getTileContent(toAxialCoord(this.position))
 	}
 	set content(content: TileContent) {
-		this.content?.destroy?.()
 		this.board.setTileContent(toAxialCoord(this.position), content)
 		// Mark as modified from generation when content changes
 		this.asGenerated = false

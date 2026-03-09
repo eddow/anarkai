@@ -81,8 +81,8 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 	constructor(maxAmounts: Ssh.SpecificStorage) {
 		super()
 		this._goods = reactive({})
-		this._allocated = reactive({})
-		this._reserved = reactive({})
+		this._allocated = {}
+		this._reserved = {}
 		this.maxAmounts = reactive({ ...maxAmounts })
 	}
 

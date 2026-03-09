@@ -38,13 +38,15 @@ export class BuildAlveolus extends Alveolus {
 	}
 
 	get workingGoodsRelations(): GoodsRelations {
-		// Demand construction materials
+		// Demand construction materials based only on stock vs. required — no reservation tracking.
 		if (this.destroyed) return {}
-
+		const targetDef = alveoliDefs[this.target]
+		const cost = (targetDef.construction?.goods || {}) as Record<GoodType, number>
+		const stock = this.storage.stock
 		return Object.fromEntries(
-			Object.keys(this.remainingNeeds)
-				.filter((goodType) => this.storage.hasRoom(goodType as GoodType))
-				.map((goodType) => [goodType as GoodType, { advertisement: 'demand', priority: '2-use' }]),
+			Object.entries(cost)
+				.filter(([goodType, required]) => (stock[goodType as GoodType] ?? 0) < required)
+				.map(([goodType]) => [goodType as GoodType, { advertisement: 'demand', priority: '2-use' }]),
 		)
 	}
 }

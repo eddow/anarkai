@@ -1,5 +1,4 @@
 import { scope } from 'arktype'
-import { immutables } from 'mutts'
 import {
 	type AxialCoord,
 	type AxialKey,
@@ -36,8 +35,6 @@ export const Position = positionTypes.Position
 export const Positioned = positionTypes.Positioned
 export type Position = typeof Position.infer
 export type Positioned = typeof Positioned.infer
-
-immutables.add((x) => Position.allows(x))
 
 export function isWorldCoord(value: any): value is WorldCoord {
 	return typeof value === 'object' && value !== null && 'x' in value && 'y' in value

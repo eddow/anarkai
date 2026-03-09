@@ -15,6 +15,10 @@ export class ZoneManager {
 		return this.zones.get(coord)
 	}
 
+	clear(): void {
+		this.zones.clear()
+	}
+
 	removeZone(coord: AxialCoord): boolean {
 		return this.zones.delete(coord)
 	}

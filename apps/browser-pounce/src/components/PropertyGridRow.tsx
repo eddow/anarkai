@@ -1,4 +1,5 @@
-import type { JSX } from 'pounce-ts'
+/// <reference types="vite/client" />
+
 import { css } from '@app/lib/css'
 
 css`
