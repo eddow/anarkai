@@ -38,7 +38,7 @@ export class GameGenerator {
 				radius: config.characterRadius,
 				boardSize: config.boardSize,
 			},
-			boardData,
+			boardData
 		)
 
 		return {

@@ -1,11 +1,11 @@
-import * as gameContent from '../../../../assets/game-content'
-import type { CharacterContract } from '../../../../assets/scripts/contracts'
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import type { HarvestAlveolus } from 'ssh/hive/harvest'
 import { InteractiveContext, protoCtx, subject } from 'ssh/npcs/scripts'
 import type { Character } from 'ssh/population/character'
 import { contract } from 'ssh/types'
 import type { GoodType } from 'ssh/types/base'
+import * as gameContent from '../../../../assets/game-content'
+import type { CharacterContract } from '../../../../assets/scripts/contracts'
 // Import all the function classes
 import { FindFunctions } from './find'
 import { InventoryFunctions } from './inventory'
@@ -15,7 +15,12 @@ import { WalkFunctions } from './walk'
 import { WorkFunctions } from './work'
 
 // Re-export TransferPlan for external use
-export { PickupPlan as GatherPlan, Plan, TransferPlan, WorkPlan } from 'ssh/types/base'
+export {
+	PickupPlan as GatherPlan,
+	Plan,
+	TransferPlan,
+	WorkPlan,
+} from 'ssh/types/base'
 
 class CharacterContext extends InteractiveContext<Character> {
 	get I() {
@@ -51,7 +56,7 @@ class CharacterContext extends InteractiveContext<Character> {
 				gatherer.tile.position,
 				currentPos,
 				(gatherer.action as Ssh.GatherAction).radius,
-				false,
+				false
 			)
 
 			// If no path exists within the radius, this gatherer can't reach us
@@ -87,7 +92,7 @@ const characterContext = protoCtx(CharacterContext, {
 
 loadNpcScripts(
 	objectMap(ScriptFiles, (v: any) => v.default) as Record<string, string>,
-	characterContext,
+	characterContext
 )
 
 export default function aCharacterContext(character: Character) {

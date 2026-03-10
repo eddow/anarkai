@@ -2,7 +2,9 @@
 // These control character behavior, survival mechanics, and game balance
 
 export const characterEvolutionRates: {
-	[k in Ssh.NeedType]: Partial<Record<Ssh.ActivityType, number>> & { '*': number }
+	[k in Ssh.NeedType]: Partial<Record<Ssh.ActivityType, number>> & {
+		'*': number
+	}
 } = {
 	// Need evolution per activity, with '*' as default fallback
 	hunger: {

@@ -1,5 +1,4 @@
 import { Eventful, reactive, unreactive } from 'mutts'
-import * as gameContent from '../../../assets/game-content'
 import { Alveolus } from 'ssh/board'
 import { HexBoard } from 'ssh/board/board'
 import { Deposit, UnBuiltLand } from 'ssh/board/content/unbuilt-land'
@@ -21,6 +20,7 @@ import type { GameRenderer, InputAdapter } from 'ssh/types/engine'
 import { axial } from 'ssh/utils/axial'
 import { SimulationLoop } from 'ssh/utils/loop'
 import { LCG } from 'ssh/utils/numbers'
+import * as gameContent from '../../../assets/game-content'
 import type { HittableGameObject, InteractiveGameObject } from './object'
 
 try {
@@ -131,7 +131,6 @@ export class Game extends Eventful<GameEvents> {
 	})
 	public loaded: Promise<void>
 	public rendererReady: Promise<void>
-	private rendererReadyResolver?: () => void
 	private async load() {
 		// Headless load - just start ticker?
 		this.ticker.start()
@@ -188,7 +187,7 @@ export class Game extends Eventful<GameEvents> {
 			characterCount: 1,
 			characterRadius: 200,
 		},
-		private readonly patches: GamePatches = {},
+		private readonly patches: GamePatches = {}
 	) {
 		super()
 		this.ticker = new SimulationLoop()
@@ -297,7 +296,9 @@ export class Game extends Eventful<GameEvents> {
 					}
 
 					// Add the good to the loose goods system
-					this.hex.looseGoods.add(tile, goodType as any, { position: randomPos })
+					this.hex.looseGoods.add(tile, goodType as any, {
+						position: randomPos,
+					})
 				}
 			}
 		}
@@ -308,7 +309,7 @@ export class Game extends Eventful<GameEvents> {
 			const coord = { q: p.coord[0], r: p.coord[1] }
 			const tile = this.hex.getTile(coord)
 			if (!tile) continue
-			
+
 			// If missing content and patch defines terrain, create UnBuiltLand
 			if (!tile.content && p.terrain) {
 				// Stub deposit if needed, will be refined below
@@ -318,9 +319,9 @@ export class Game extends Eventful<GameEvents> {
 			const content = tile.content
 			if (content instanceof UnBuiltLand) {
 				if (p.terrain) {
-					// Hack: update terrain property if possible, or recreate? 
+					// Hack: update terrain property if possible, or recreate?
 					// UnBuiltLand.terrain might be readonly.
-					// Checking UnBuiltLand definition is needed. 
+					// Checking UnBuiltLand definition is needed.
 					// Assuming we can recreate if needed, or cast.
 					// For now let's assume if we just created it, it's fine.
 					// If it existed, we might need to replace.
@@ -356,7 +357,7 @@ export class Game extends Eventful<GameEvents> {
 
 	private applyHivesPatches(
 		hives: NonNullable<GamePatches['hives']>,
-		hiveConfigurations?: SaveState['hiveConfigurations'],
+		hiveConfigurations?: SaveState['hiveConfigurations']
 	) {
 		for (const hive of hives) {
 			let hiveInstance: Hive | undefined
@@ -517,7 +518,10 @@ export class Game extends Eventful<GameEvents> {
 
 		return {
 			tiles,
-			hives: Array.from(hives.entries()).map(([hive, alveoli]) => ({ name: hive.name, alveoli })),
+			hives: Array.from(hives.entries()).map(([hive, alveoli]) => ({
+				name: hive.name,
+				alveoli,
+			})),
 			looseGoods: looseGoodsPatches,
 			zones,
 			projects,

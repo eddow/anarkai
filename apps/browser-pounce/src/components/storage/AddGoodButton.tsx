@@ -1,10 +1,10 @@
-import { reactive } from 'mutts'
-import type { GoodType } from 'ssh/types/base'
-import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
-import { Button } from '@pounce'
-import EntityBadge from '../EntityBadge'
 import { css } from '@app/lib/css'
+import { Button } from '@pounce'
+import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
+import { reactive } from 'mutts'
 import type { Game } from 'ssh/game'
+import type { GoodType } from 'ssh/types/base'
+import EntityBadge from '../EntityBadge'
 
 css`
 .add-good-wrapper {
@@ -84,20 +84,20 @@ export default function AddGoodButton(props: AddGoodButtonProps) {
 	}
 
 	return (
-		<div class="add-good-wrapper" use={(el: HTMLElement) => {
-			buttonWrapper = el
-		}}>
-			<Button
-				onClick={openMenu}
-				title={props.title || 'Add'}
-			>
+		<div
+			class="add-good-wrapper"
+			use={(el: HTMLElement) => {
+				buttonWrapper = el
+			}}
+		>
+			<Button onClick={openMenu} title={props.title || 'Add'}>
 				{props.children || '+'}
 			</Button>
 
 			<div
 				if={menuState.show}
 				class="floating-menu-overlay"
-				onClick={() => menuState.show = false}
+				onClick={() => (menuState.show = false)}
 			>
 				<div
 					class="floating-menu"
@@ -106,15 +106,8 @@ export default function AddGoodButton(props: AddGoodButtonProps) {
 				>
 					<for each={props.availableGoods}>
 						{(gt: GoodType) => (
-							<div
-								class="menu-item"
-								onClick={() => handleSelect(gt)}
-							>
-								<EntityBadge
-									game={props.game}
-									sprite={getSprite(gt)}
-									text={gt}
-								/>
+							<div class="menu-item" onClick={() => handleSelect(gt)}>
+								<EntityBadge game={props.game} sprite={getSprite(gt)} text={gt} />
 							</div>
 						)}
 					</for>

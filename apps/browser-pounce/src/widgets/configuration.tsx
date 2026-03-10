@@ -1,5 +1,5 @@
-import { configuration, uiConfiguration } from '@app/lib/globals'
 import { css } from '@app/lib/css'
+import { configuration, uiConfiguration } from '@app/lib/globals'
 import { type DockviewWidgetProps, type DockviewWidgetScope, Inline, Radio } from '@pounce'
 
 css`

@@ -51,7 +51,7 @@ export class EngineerAlveolus extends Alveolus {
 				return false
 			},
 			this.action.radius,
-			true,
+			true
 		)
 
 		if (!path) return undefined

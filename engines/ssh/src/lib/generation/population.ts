@@ -22,7 +22,7 @@ export interface GeneratedCharacterData {
 export class PopulationGenerator {
 	generateCharacters(
 		config: PopulationGenerationConfig,
-		tileData: any[],
+		tileData: any[]
 	): GeneratedCharacterData[] {
 		const used = new AxialSet()
 		const characters: GeneratedCharacterData[] = []

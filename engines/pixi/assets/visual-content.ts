@@ -1,7 +1,7 @@
 export interface VisualDefinition {
-	sprites?: string[];
-	icon?: string;
-	background?: string;
+	sprites?: string[]
+	icon?: string
+	background?: string
 }
 
 export const deposits: Record<string, VisualDefinition> = {
@@ -33,7 +33,7 @@ export const deposits: Record<string, VisualDefinition> = {
 			'objects.trees/tree11',
 		],
 	},
-};
+}
 
 export const alveoli: Record<string, VisualDefinition> = {
 	tree_chopper: {
@@ -64,7 +64,7 @@ export const alveoli: Record<string, VisualDefinition> = {
 		sprites: ['buildings.woodpile'],
 		icon: 'buildings.woodpile',
 	},
-};
+}
 
 export const goods: Record<string, VisualDefinition> = {
 	berries: {
@@ -87,13 +87,13 @@ export const goods: Record<string, VisualDefinition> = {
 		sprites: ['goods.wood'],
 		icon: 'goods.wood',
 	},
-};
+}
 
 export const vehicles: Record<string, VisualDefinition> = {
 	'by-hands': {
 		sprites: ['vehicles.byHands'],
 	},
-};
+}
 
 export const terrain: Record<string, VisualDefinition> = {
 	water: {}, // TODO: Add visual details
@@ -103,19 +103,19 @@ export const terrain: Record<string, VisualDefinition> = {
 	concrete: { background: 'terrain.concrete' }, // Inferred from Alveolus code
 	sand: {},
 	snow: {},
-};
+}
 
 export const characters: Record<string, VisualDefinition> = {
 	default: {
 		sprites: ['characters.default'],
 	},
-};
+}
 
 export const commands: Record<string, VisualDefinition> = {
 	click: {
 		sprites: ['commands.click'],
 	},
-};
+}
 
 export const visualContent = {
 	deposits,
@@ -123,6 +123,6 @@ export const visualContent = {
 	goods,
 	vehicles,
 	terrain,
-    characters,
-    commands,
-};
+	characters,
+	commands,
+}

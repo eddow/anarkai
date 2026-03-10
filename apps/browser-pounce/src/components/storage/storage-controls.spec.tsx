@@ -2,12 +2,7 @@ import { document, latch } from '@pounce/core'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@pounce', () => ({
-	Button: (props: {
-		onClick?: () => void
-		title?: string
-		class?: string
-		children?: any
-	}) => (
+	Button: (props: { onClick?: () => void; title?: string; class?: string; children?: any }) => (
 		<button onClick={props.onClick} title={props.title} class={props.class}>
 			{props.children}
 		</button>
@@ -59,13 +54,9 @@ describe('storage controls', () => {
 
 		stop = latch(
 			container,
-			<AddGoodButton
-				availableGoods={['wood', 'stone']}
-				game={{} as never}
-				onSelect={onSelect}
-			>
+			<AddGoodButton availableGoods={['wood', 'stone']} game={{} as never} onSelect={onSelect}>
 				Add
-			</AddGoodButton>,
+			</AddGoodButton>
 		)
 
 		const wrapper = container.querySelector('.add-good-wrapper') as HTMLDivElement
@@ -97,11 +88,7 @@ describe('storage controls', () => {
 	it('AddGoodButton shows an empty message when no goods are available', () => {
 		stop = latch(
 			container,
-			<AddGoodButton
-				availableGoods={[]}
-				game={{} as never}
-				onSelect={() => undefined}
-			/>,
+			<AddGoodButton availableGoods={[]} game={{} as never} onSelect={() => undefined} />
 		)
 
 		const wrapper = container.querySelector('.add-good-wrapper') as HTMLDivElement
@@ -135,7 +122,7 @@ describe('storage controls', () => {
 				onRemove={() => undefined}
 			>
 				No items selected
-			</GoodMultiSelect>,
+			</GoodMultiSelect>
 		)
 
 		expect(container.textContent).toContain('No items selected')
@@ -155,13 +142,15 @@ describe('storage controls', () => {
 				onAdd={() => undefined}
 				onRemove={onRemove}
 				onUpdate={onUpdate}
-			/>,
+			/>
 		)
 
 		expect(container.textContent).toContain('wood')
 		expect(container.textContent).toContain('stone')
 
-		const removeButtons = Array.from(container.querySelectorAll('.remove-btn')) as HTMLButtonElement[]
+		const removeButtons = Array.from(
+			container.querySelectorAll('.remove-btn')
+		) as HTMLButtonElement[]
 		removeButtons[0].click()
 
 		expect(onRemove).toHaveBeenCalledWith('wood')

@@ -1,5 +1,4 @@
 import { atomic } from 'mutts'
-import { alveoli } from '../../../../assets/game-content'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { assert } from 'ssh/debug'
 import { alveolusClass } from 'ssh/hive'
@@ -10,6 +9,7 @@ import type { Character } from 'ssh/population/character'
 import type { AllocationBase } from 'ssh/storage'
 import { contract, type Goods, type GoodType } from 'ssh/types'
 import { type AxialCoord, axial } from 'ssh/utils'
+import { alveoli } from '../../../../assets/game-content'
 import { subject } from '../scripts'
 import { DurationStep, MultiMoveStep, WaitForPredicateStep } from '../steps'
 import type { WorkPlan } from '.'
@@ -31,12 +31,12 @@ class WorkFunctions {
 		if (['convey', 'offload'].includes(workPlan.job)) return
 		assert(
 			this[subject].assignedAlveolus?.preparationTime,
-			'assignedAlveolus must be set and have a preparationTime',
+			'assignedAlveolus must be set and have a preparationTime'
 		)
 		return new DurationStep(
 			this[subject].assignedAlveolus!.preparationTime,
 			'work',
-			`prepare.${workPlan.job}`,
+			`prepare.${workPlan.job}`
 		)
 	}
 
@@ -46,7 +46,7 @@ class WorkFunctions {
 		assert(alveolus, 'assignedAlveolus must be set')
 		assert(
 			'nextJob' in alveolus && typeof alveolus.nextJob === 'function',
-			'alveolus must have nextJob method',
+			'alveolus must have nextJob method'
 		)
 		return alveolus.nextJob(this[subject])
 	}
@@ -54,7 +54,9 @@ class WorkFunctions {
 	waitForIncomingGoods() {
 		return new WaitForPredicateStep(
 			'waitForIncomingGoods',
-			() => !!this[subject].assignedAlveolus!.aGoodMovement || !this[subject].assignedAlveolus!.incomingGoods,
+			() =>
+				!!this[subject].assignedAlveolus!.aGoodMovement ||
+				!this[subject].assignedAlveolus!.incomingGoods
 		)
 	}
 	@contract()
@@ -64,7 +66,7 @@ class WorkFunctions {
 		const alveolus = character.assignedAlveolus!
 		assert(
 			alveolus === character.tile.content,
-			'Character must be assigned to the alveolus on the same tile',
+			'Character must be assigned to the alveolus on the same tile'
 		)
 		// Get movement(s) - either a single movement or a cycle
 		const movements = alveolus.aGoodMovement
@@ -150,7 +152,7 @@ class WorkFunctions {
 								console.error('Target allocation missing for', mg)
 								throw new Error('Target allocation missing')
 							}
-							mg.allocations.target.fulfill()
+							mg.finish()
 						} else {
 							if (!hopAlloc) {
 								console.error('Hop allocation missing (but path exists) for', mg)
@@ -164,19 +166,20 @@ class WorkFunctions {
 								{
 									type: 'convey.path',
 									movement: mg,
-								},
+								}
 							)
 
 							if (!newSourceAlloc) {
 								console.error(
 									'[conveyStep.finished] Failed to reserve storage for next hop:',
-									mg.goodType,
+									mg.goodType
 								)
 								throw new Error('Failed to reserve storage for next hop')
 							}
 
 							mg.allocations.source = newSourceAlloc
 							mg.place()
+							hive.wakeWanderingWorkersNear(mg.provider, mg.demander)
 						}
 					}
 				} catch (error) {
@@ -195,7 +198,7 @@ class WorkFunctions {
 		const unbuiltLand = this[subject].tile.content as UnBuiltLand
 		if (!(unbuiltLand instanceof UnBuiltLand)) {
 			console.error(
-				`[harvestStep] Tile content not UnBuiltLand: ${this[subject].tile.content?.constructor.name}`,
+				`[harvestStep] Tile content not UnBuiltLand: ${this[subject].tile.content?.constructor.name}`
 			)
 			return
 		}
@@ -206,13 +209,13 @@ class WorkFunctions {
 		const action = alveolus.action as Ssh.HarvestingAction
 		assert(
 			action.deposit === unbuiltLand.deposit?.name,
-			'assignedAlveolus.action.deposit must be the same as tile.content.deposit.name',
+			'assignedAlveolus.action.deposit must be the same as tile.content.deposit.name'
 		)
 		const deposit = unbuiltLand.deposit!
 		// Check if character can store any of the output goods
 		const outputGoods = alveolus.action.output
 		const canStoreAny = Object.keys(outputGoods).some(
-			(goodType) => this[subject].carry.hasRoom(goodType as GoodType) > 0,
+			(goodType) => this[subject].carry.hasRoom(goodType as GoodType) > 0
 		)
 		if (!canStoreAny) return
 		deposit.amount -= 1
@@ -220,7 +223,7 @@ class WorkFunctions {
 		return new DurationStep(
 			this[subject].assignedAlveolus!.workTime,
 			'work',
-			`harvest.${this[subject].assignedAlveolus!.name}`,
+			`harvest.${this[subject].assignedAlveolus!.name}`
 		).finished(() => {
 			// Add all output goods to character inventory
 			Object.entries(alveolus.action.output).forEach(([goodType, qty]) => {
@@ -271,14 +274,14 @@ class WorkFunctions {
 		const alveolus = character.assignedAlveolus as StorageAlveolus
 		assert(
 			alveolus.action.type === 'slotted-storage' || alveolus.action.type === 'specific-storage',
-			'assignedAlveolus must be a StorageAlveolus',
+			'assignedAlveolus must be a StorageAlveolus'
 		)
 		const fragmentedGoodType = alveolus.storage.fragmented
 		assert(fragmentedGoodType, 'alveolus must be fragmented')
 		const take = alveolus.storage.allocate({ [fragmentedGoodType]: 1 }, { type: 'defragment.take' })
 		const arrange = alveolus.storage.reserve(
 			{ [fragmentedGoodType]: 1 },
-			{ type: 'defragment.arrange' },
+			{ type: 'defragment.arrange' }
 		)
 		return new DurationStep(character.vehicle.transferTime, 'work', `defragment.${alveolus.name}`)
 			.finished(() => {
@@ -324,7 +327,7 @@ class WorkFunctions {
 		return new DurationStep(
 			alveoli[targetType].construction.time,
 			'work',
-			`construct.${targetType}`,
+			`construct.${targetType}`
 		).finished(() => {
 			// Replace the tile content with the target alveolus
 			site.tile.content = new TargetClass(site.tile)

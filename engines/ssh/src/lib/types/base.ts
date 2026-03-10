@@ -1,8 +1,8 @@
 import { scope, type } from 'arktype'
-import { alveoli, deposits, goods as goodsCatalog, terrain } from '../../../assets/game-content'
 import type { TileContent } from 'ssh/board'
 import type { AllocationBase } from 'ssh/storage/storage'
 import { type Positioned, positionScope } from 'ssh/utils'
+import { alveoli, deposits, goods as goodsCatalog, terrain } from '../../../assets/game-content'
 
 /**
  * Base Game Scope
@@ -37,7 +37,7 @@ export const baseGameScope = scope({
 		'gather',
 		'construct',
 		'foundation',
-		'defragment',
+		'defragment'
 	),
 	// These should be only the classes of the activities, it specifies the energy management (hunger, fatigue, ...)
 	ActivityType: type.enumerated('idle', 'walk', 'work', 'eat', 'sleep', 'fight'),

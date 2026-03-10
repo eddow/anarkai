@@ -1,4 +1,4 @@
-import { reactive, type ScopedCallback, unreactive, memoize, untracked } from 'mutts'
+import { defer, reactive, type ScopedCallback, unreactive, untracked } from 'mutts'
 import { type HexBoard, isTileCoord } from 'ssh/board/board'
 import { AlveolusGate } from 'ssh/board/border/alveolus-gate'
 import { Alveolus } from 'ssh/board/content/alveolus'
@@ -37,6 +37,8 @@ export class Hive extends AdvertisementManager<Alveolus> {
 	private constructor(public readonly board: HexBoard) {
 		super()
 	}
+	private destroyed = false
+	private wakeWanderingWorkersScheduled = false
 	// Path cache for complete paths between alveoli
 	private pathCache = new Map<string, AxialCoord[]>()
 
@@ -95,11 +97,13 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		this.advertising.push(
 			namedEffect(`${alveolus.name}.advertise`, () => {
 				const goodsRelations = alveolus.goodsRelations
-				traces.advertising?.log(`advertise effect: ${alveolus.name} ${JSON.stringify(goodsRelations)}`)
+				traces.advertising?.log(
+					`advertise effect: ${alveolus.name} ${JSON.stringify(goodsRelations)}`
+				)
 				untracked(() => {
 					this.advertise(alveolus, goodsRelations)
 				})
-			}),
+			})
 		)
 	}
 	/**
@@ -175,7 +179,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 			fromCoord,
 			toCoord,
 			Number.POSITIVE_INFINITY,
-			true,
+			true
 		)
 
 		if (path && path.length > 0) {
@@ -198,7 +202,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 	private findNearest<T extends Alveolus>(
 		from: Alveolus,
 		candidates: Set<T>,
-		goodType: GoodType,
+		goodType: GoodType
 	): T | undefined {
 		if (candidates.size === 0) return undefined
 
@@ -249,7 +253,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 					return [gt as GoodType, asPriority] as const
 				})
 				// Filter out 0-store priority - these are only for internal conveying, not hive needs
-				.filter(([_, priority]) => priority !== '0-store'),
+				.filter(([_, priority]) => priority !== '0-store')
 		)
 		// Merge manual needs
 		for (const [good, _amount] of Object.entries(this.manualNeeds)) {
@@ -270,12 +274,28 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		return border.content?.storage
 	}
 
+	wakeWanderingWorkersNear(_provider: Alveolus, _demander: Alveolus) {
+		if (this.destroyed) return
+		if (this.wakeWanderingWorkersScheduled) return
+		this.wakeWanderingWorkersScheduled = true
+		defer(() => {
+			if (this.destroyed) return
+			this.wakeWanderingWorkersScheduled = false
+			for (const worker of this.board.game.population) {
+				if (worker.assignedAlveolus && worker.assignedAlveolus.hive !== this) continue
+				if (!worker.actionDescription.includes('selfCare.wander')) continue
+				const nextAction = worker.findAction()
+				if (!nextAction || nextAction.name === worker.runningScript?.name) continue
+				worker.abandonAnd(nextAction)
+			}
+		})
+	}
+
 	public createMovement(goodType: GoodType, provider: Alveolus, demander: Alveolus) {
 		const positions = {
 			provider: toAxialCoord(provider.tile.position),
 			demander: toAxialCoord(demander.tile.position),
 		}
-		const { movingGoods } = this
 
 		// Use cached path if available, otherwise calculate it
 		const path = [...this.getPath(provider, demander, goodType)!]
@@ -289,20 +309,38 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		}
 
 		return untracked(() => {
-			traces.advertising?.log(`createMovement:start ${goodType} ${provider.name} -> ${demander.name}`)
+			traces.advertising?.log(
+				`createMovement:start ${goodType} ${provider.name} -> ${demander.name}`
+			)
 			const providerToken = provider.storage.reserve({ [goodType]: 1 }, reason)
-			traces.advertising?.log(`createMovement:reserved ${goodType} ${provider.name} -> ${demander.name}`)
+			traces.advertising?.log(
+				`createMovement:reserved ${goodType} ${provider.name} -> ${demander.name}`
+			)
 			const demanderToken = demander.storage.allocate({ [goodType]: 1 }, reason)
-			traces.advertising?.log(`createMovement:allocated ${goodType} ${provider.name} -> ${demander.name}`)
+			traces.advertising?.log(
+				`createMovement:allocated ${goodType} ${provider.name} -> ${demander.name}`
+			)
 
 			if (!providerToken || !demanderToken) {
-				console.warn('[createMovement] Failed to obtain tokens', { providerToken, demanderToken })
+				console.warn('[createMovement] Failed to obtain tokens', {
+					providerToken,
+					demanderToken,
+				})
 				if (providerToken) providerToken.cancel()
 				if (demanderToken) demanderToken.cancel()
 				return false
 			}
 
 			const self = this
+			const removeMovingGood = (mgRef: MovingGood) => {
+				for (const [coord, goods] of self.movingGoods.entries()) {
+					const kept = goods.filter((mg) => mg !== mgRef && mg !== movingGood)
+					if (kept.length !== goods.length) {
+						if (kept.length === 0) self.movingGoods.delete(coord)
+						else self.movingGoods.set(coord, kept)
+					}
+				}
+			}
 			const movingGood: MovingGood = {
 				goodType,
 				path,
@@ -314,20 +352,9 @@ export class Hive extends AdvertisementManager<Alveolus> {
 					target: demanderToken,
 				},
 				hop() {
-					const fromCoord = this.from
 					const nextCoord = this.path.shift()!
 
-					const currentList = self.movingGoods.get(fromCoord)
-					if (currentList) {
-						const original = currentList.find(
-							(mg) => mg === this || Object.getPrototypeOf(this) === mg,
-						)
-						if (original) {
-							const idx = currentList.indexOf(original)
-							currentList.splice(idx, 1)
-							if (currentList.length === 0) self.movingGoods.delete(fromCoord)
-						}
-					}
+					removeMovingGood(this)
 
 					this.from = nextCoord
 					movingGood.from = nextCoord
@@ -335,58 +362,54 @@ export class Hive extends AdvertisementManager<Alveolus> {
 				},
 				place() {
 					const here = movingGood.from
-					if (!self.movingGoods.has(here)) self.movingGoods.set(here, [])
-					self.movingGoods.get(here)!.push(movingGood)
+					removeMovingGood(this)
+					const current = self.movingGoods.get(here) ?? []
+					self.movingGoods.set(here, [...current, movingGood])
 				},
 				finish() {
-					const fromCoord = this.from
-					const currentList = self.movingGoods.get(fromCoord)
-					if (currentList) {
-						const original = currentList.find(
-							(mg) => mg === this || Object.getPrototypeOf(this) === mg,
-						)
-						if (original) {
-							const idx = currentList.indexOf(original)
-							currentList.splice(idx, 1)
-							if (currentList.length === 0) self.movingGoods.delete(fromCoord)
-						}
-					}
+					removeMovingGood(this)
 					this.allocations.target.fulfill()
-					this.allocations.source.fulfill()
 				},
 			}
 
 			movingGood.place()
-			traces.advertising?.log(`createMovement:placed ${goodType} ${provider.name} -> ${demander.name}`)
+			this.wakeWanderingWorkersNear(provider, demander)
+			traces.advertising?.log(
+				`createMovement:placed ${goodType} ${provider.name} -> ${demander.name}`
+			)
 			return true
 		})
 	}
 
 	get generalStorages() {
-		return (this.byActionType['slotted-storage'] || []) as StorageAlveolus[]
+		return [
+			...((this.byActionType['slotted-storage'] || []) as StorageAlveolus[]),
+			...((this.byActionType['specific-storage'] || []) as StorageAlveolus[]),
+		]
 	}
 	selectMovement(
 		advertisement: Advertisement,
 		alveolus: Alveolus,
 		storages: Alveolus[],
-		goodType: GoodType,
+		goodType: GoodType
 	): Alveolus {
 		// We consider A->B === B->A
 		const storage = this.findNearest(alveolus, new Set(storages), goodType)
 		assert(storage !== undefined, 'Storage found but none reachable')
 		traces.advertising?.log(
-			`Creating movement for ${goodType}: ${alveolus.name} -> ${storage.name}`,
+			`Creating movement for ${goodType}: ${alveolus.name} -> ${storage.name}`
 		)
 		// Defer movement creation to avoid reactive cycle:
 		// The advertise effect reads storage state, and createMovement modifies it.
-		queueMicrotask(() => {
+		defer(() => {
+			if (this.destroyed) return
 			try {
 				this.createMovement(
 					goodType,
 					...((advertisement === 'provide' ? [alveolus, storage] : [storage, alveolus]) as [
 						Alveolus,
 						Alveolus,
-					]),
+					])
 				)
 			} catch (e) {
 				// Ignore allocation errors that occur if resources are no longer available
@@ -398,6 +421,8 @@ export class Hive extends AdvertisementManager<Alveolus> {
 	}
 
 	destroy() {
+		this.destroyed = true
+		this.wakeWanderingWorkersScheduled = false
 		// Clean up all advertising effects
 		for (const cleanup of this.advertising) {
 			cleanup()

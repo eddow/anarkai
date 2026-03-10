@@ -2,13 +2,13 @@ function goWork(jobPlan, path)
 	target = jobPlan.target
 	plan jobPlan
 		inventory.dropAllLoose
-		if tile != target.tile then do
+		if tile.position.q != target.tile.position.q or tile.position.r != target.tile.position.r then do // TODO: if tile != target.tile then do
 			walk.until path
-		while tile != target.tile
+		while tile.position.q != target.tile.position.q or tile.position.r != target.tile.position.r
 			path = find.path(target.tile, false)
 			if not path then error "No path found to target"
 		loop
-		walk.enter
+		if jobPlan.job != "convey" then walk.enter // TODO: explain what convey has that is so peculiar
 
 		if jobPlan.job != "offload" then
 			I.assignedAlveolus = target

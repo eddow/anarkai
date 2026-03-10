@@ -1,6 +1,6 @@
-import ResourceImage from './ResourceImage'
-import type { Game } from 'ssh/game'
 import { css } from '@app/lib/css'
+import type { Game } from 'ssh/game'
+import ResourceImage from './ResourceImage'
 
 css`
 .entity-badge {
@@ -38,4 +38,3 @@ const EntityBadge = ({ game, sprite, text, qty, height = 20 }: EntityBadgeProps)
 }
 
 export default EntityBadge
-

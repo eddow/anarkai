@@ -3,11 +3,15 @@
  * Extracted from board/index.ts for better organization
  */
 
-import { deposits, goods as goodsCatalog, terrain as terrainDetails } from '../../../assets/game-content'
 import { Deposit } from 'ssh/board/content/unbuilt-land'
 import type { DepositType, TerrainType } from 'ssh/types'
 import type { AxialCoord } from 'ssh/utils'
 import { axial } from 'ssh/utils'
+import {
+	deposits,
+	goods as goodsCatalog,
+	terrain as terrainDetails,
+} from '../../../assets/game-content'
 import { TerrainGenerator } from './terrain'
 
 export interface BoardGenerationConfig {
@@ -61,7 +65,7 @@ export class BoardGenerator {
 	private generateRandomGoods(
 		seed: number,
 		terrain: TerrainType,
-		deposit: GeneratedDepositData | undefined,
+		deposit: GeneratedDepositData | undefined
 	): Record<string, number> {
 		const goods: Record<string, number> = {}
 
@@ -124,7 +128,7 @@ export class BoardGenerator {
 
 	private generateRandomDeposit(
 		seed: number,
-		terrain: TerrainType,
+		terrain: TerrainType
 	): GeneratedDepositData | undefined {
 		const rnd = this.createRNG(`deposit+${seed}`)
 		const details: Ssh.TerrainDefinition = terrainDetails[terrain]

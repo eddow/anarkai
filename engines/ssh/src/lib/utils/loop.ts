@@ -4,8 +4,6 @@ export class SimulationLoop {
 	private callbacks = new Set<(loop: SimulationLoop) => void>()
 	public elapsedMS = 0
 
-	constructor() {}
-
 	public start() {
 		if (this.running) return
 		this.running = true

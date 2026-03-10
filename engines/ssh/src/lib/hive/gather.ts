@@ -34,7 +34,7 @@ export class GatherAlveolus extends TransitAlveolus {
 			toAxialCoord(this.tile.position),
 			toAxialCoord(this.tile.position), // Center is the same as start for gather
 			hiveNeeds,
-			this.action.radius,
+			this.action.radius
 		)
 		return nearestGoods !== undefined
 	}
@@ -54,7 +54,7 @@ export class GatherAlveolus extends TransitAlveolus {
 		const carry = character?.carry
 		if (carry)
 			selectableGoods = selectableGoods.filter(
-				(good) => carry.hasRoom(good) && this.storage.canStoreAll(goodsWith(carry.stock, good)),
+				(good) => carry.hasRoom(good) && this.storage.canStoreAll(goodsWith(carry.stock, good))
 			)
 
 		if (selectableGoods.length === 0) return undefined
@@ -73,12 +73,12 @@ export class GatherAlveolus extends TransitAlveolus {
 				return false
 			},
 			this.action.radius,
-			false,
+			false
 		)
 
 		const targetGood = Object.entries(goodCounts).reduce(
 			(max, [good, count]) => (count > max.count ? { good: good as GoodType, count } : max),
-			{ good: null as GoodType | null, count: 0 },
+			{ good: null as GoodType | null, count: 0 }
 		).good
 
 		if (!targetGood) return undefined
@@ -87,7 +87,7 @@ export class GatherAlveolus extends TransitAlveolus {
 			startPos,
 			startPos,
 			[targetGood],
-			this.action.radius,
+			this.action.radius
 		)
 		if (result) {
 			path = result.path

@@ -1,8 +1,8 @@
-import { alveoli } from '../../../assets/game-content'
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import { GcClasses } from 'ssh/board/content/utils'
 import type { Tile } from 'ssh/board/tile'
 import type { AlveolusType } from 'ssh/types/base'
+import { alveoli } from '../../../assets/game-content'
 import { EngineerAlveolus } from './engineer'
 import { GatherAlveolus } from './gather'
 import { HarvestAlveolus } from './harvest'
@@ -20,7 +20,7 @@ export const alveolusClass = GcClasses(
 			'slotted-storage': StorageAlveolus,
 			'specific-storage': StorageAlveolus,
 		})[def.action.type],
-	alveoli,
+	alveoli
 ) as Partial<Record<AlveolusType, new (tile: Tile) => Alveolus>>
 
 export * from './alveolus-configuration'

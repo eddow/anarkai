@@ -109,7 +109,7 @@ class PerlinNoise {
 		return this.lerp(
 			v,
 			this.lerp(u, this.grad(this.p[AA], x, y), this.grad(this.p[BA], x - 1, y)),
-			this.lerp(u, this.grad(this.p[AB], x, y - 1), this.grad(this.p[BB], x - 1, y - 1)),
+			this.lerp(u, this.grad(this.p[AB], x, y - 1), this.grad(this.p[BB], x - 1, y - 1))
 		)
 	}
 }
@@ -129,7 +129,7 @@ export class PerlinTerrainGenerator {
 		y: number,
 		octaves: number,
 		persistence: number,
-		lacunarity: number,
+		lacunarity: number
 	): number {
 		let value = 0
 		let amplitude = 1
@@ -173,21 +173,21 @@ export class PerlinTerrainGenerator {
 			worldY * config.scale,
 			config.octaves,
 			config.persistence,
-			config.lacunarity,
+			config.lacunarity
 		)
 		const h1 = this.fbm(
 			x1 * config.scale,
 			y1 * config.scale,
 			config.octaves,
 			config.persistence,
-			config.lacunarity,
+			config.lacunarity
 		)
 		const h2 = this.fbm(
 			x2 * config.scale,
 			y2 * config.scale,
 			config.octaves,
 			config.persistence,
-			config.lacunarity,
+			config.lacunarity
 		)
 		const height = (h0 + h1 + h2) / 3
 
@@ -197,7 +197,7 @@ export class PerlinTerrainGenerator {
 			(worldY * 0.9 + x2 * 0.1) * config.temperatureScale,
 			3,
 			0.5,
-			2.0,
+			2.0
 		)
 		const temperature = t
 
@@ -206,7 +206,7 @@ export class PerlinTerrainGenerator {
 			(worldY * 0.85 + y2 * 0.15) * config.humidityScale,
 			3,
 			0.5,
-			2.0,
+			2.0
 		)
 		const humidity = h
 
@@ -218,7 +218,7 @@ export class PerlinTerrainGenerator {
 		height: number,
 		temperature: number,
 		humidity: number,
-		config: TerrainConfig,
+		config: TerrainConfig
 	): TerrainType {
 		// Normalize values to 0-1 range
 		const normalizedHeight = (height + 1) / 2
@@ -271,7 +271,7 @@ export class PerlinTerrainGenerator {
 			worldY * config.scale,
 			config.octaves,
 			config.persistence,
-			config.lacunarity,
+			config.lacunarity
 		)
 	}
 
@@ -280,7 +280,7 @@ export class PerlinTerrainGenerator {
 	 */
 	generateBiomeData(
 		coord: AxialCoord,
-		config: TerrainConfig = DEFAULT_TERRAIN_CONFIG,
+		config: TerrainConfig = DEFAULT_TERRAIN_CONFIG
 	): {
 		temperature: number
 		humidity: number
@@ -294,7 +294,7 @@ export class PerlinTerrainGenerator {
 				worldY * config.temperatureScale,
 				3,
 				0.5,
-				2.0,
+				2.0
 			),
 			humidity: this.fbm(worldX * config.humidityScale, worldY * config.humidityScale, 3, 0.5, 2.0),
 		}
@@ -314,7 +314,7 @@ export function createTerrainGenerator(seed: number = 0): PerlinTerrainGenerator
 export function generateTerrainBatch(
 	coords: AxialCoord[],
 	generator: PerlinTerrainGenerator,
-	config: TerrainConfig = DEFAULT_TERRAIN_CONFIG,
+	config: TerrainConfig = DEFAULT_TERRAIN_CONFIG
 ): Map<string, TerrainType> {
 	const result = new Map<string, TerrainType>()
 

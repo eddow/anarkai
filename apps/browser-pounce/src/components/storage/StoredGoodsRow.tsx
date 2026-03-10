@@ -1,14 +1,13 @@
-import { memoize, reactive } from 'mutts'
-import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
-import type { Alveolus } from 'ssh/board/content/alveolus'
-import type { GoodType } from 'ssh/types/base'
-
-import PropertyGridRow from '../PropertyGridRow'
-import EntityBadge from '../EntityBadge'
-import { Button } from '@pounce'
-import { T } from 'ssh/i18n'
 import { css } from '@app/lib/css'
+import { Button } from '@pounce'
+import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
+import { memoize, reactive } from 'mutts'
+import type { Alveolus } from 'ssh/board/content/alveolus'
 import type { Game } from 'ssh/game'
+import { i18nState } from 'ssh/i18n'
+import type { GoodType } from 'ssh/types/base'
+import EntityBadge from '../EntityBadge'
+import PropertyGridRow from '../PropertyGridRow'
 
 css`
 .stored-goods-row {
@@ -60,6 +59,8 @@ interface StoredGoodsRowProps {
 }
 
 export default function StoredGoodsRow(props: StoredGoodsRowProps) {
+	const translator = i18nState.translator
+	if (!translator) return null
 	// Access stock reactively
 	const stock = memoize(() => props.content.storage?.stock || {})
 
@@ -109,26 +110,18 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 		<>
 			<PropertyGridRow if={hasGoods()} label={props.label}>
 				<div if={confirmState.mode} class="confirm-overlay">
-					<span>{String(T.alveolus.cleanUpConfirmText)}</span>
-					<Button
-						onClick={doConfirm}
-						title="Confirm"
-					>
-						{String(T.alveolus.clear)}
+					<span>{String(translator.alveolus.cleanUpConfirmText)}</span>
+					<Button onClick={doConfirm} title="Confirm">
+						{String(translator.alveolus.clear)}
 					</Button>
-					<Button
-						variant="secondary"
-						onClick={cancelConfirm}
-						title="Cancel"
-						class="outline"
-					>
-						{String(T.alveolus.keep)}
+					<Button variant="secondary" onClick={cancelConfirm} title="Cancel" class="outline">
+						{String(translator.alveolus.keep)}
 					</Button>
 				</div>
 				<div else class="stored-goods-row">
 					<Button
 						onClick={startCleanAll}
-						title={String(T.alveolus.cleanUpTooltip)}
+						title={String(translator.alveolus.cleanUpTooltip)}
 						class="cleanup-btn"
 					>
 						🧹
@@ -136,16 +129,11 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 					<for each={entries()}>
 						{([good, qty]: [string, number]) => (
 							<div class="good-with-cleanup">
-								<EntityBadge
-									game={props.game}
-									sprite={getSprite(good)}
-									text={good}
-									qty={qty}
-								/>
+								<EntityBadge game={props.game} sprite={getSprite(good)} text={good} qty={qty} />
 								<Button
 									if={hasMultipleTypes()}
 									onClick={() => startCleanGood(good)}
-									title={String(T.alveolus.cleanUpGoodTooltip({ goodType: good }))}
+									title={String(translator.alveolus.cleanUpGoodTooltip({ goodType: good }))}
 									class="cleanup-btn-small"
 								>
 									×

@@ -32,6 +32,8 @@ export function isTileCoord(coord: AxialCoord | undefined): boolean {
 @reactive
 export class HexBoard extends withContainer(withHittable(GameObject)) {
 	private readonly contents = new AxialKeyMap<TileContent | TileBorderContent>()
+	private readonly tileCache = new AxialKeyMap<Tile>()
+	private readonly borderCache = new AxialKeyMap<TileBorder>()
 	private readonly occupied = new AxialKeyMap<Character[]>([], () => [])
 	readonly looseGoods: LooseGoods
 	readonly zoneManager: ZoneManager
@@ -48,7 +50,7 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 
 	constructor(
 		public game: Game,
-		public readonly boardSize: number = 12,
+		public readonly boardSize: number = 12
 	) {
 		super(game)
 		this.looseGoods = new LooseGoods(game)
@@ -94,7 +96,15 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		const coord = toAxialCoord(ref)
 		if (!coord || !isTileCoord(coord) || !this.inBound(coord)) return undefined
 		const content = this.contents.get(axial.round(coord)) as TileContent | undefined
-		return content?.tile ?? new Tile(this, coord!)
+		if (content?.tile) {
+			this.tileCache.set(coord, content.tile)
+			return content.tile
+		}
+		const cached = this.tileCache.get(coord)
+		if (cached) return cached
+		const tile = new Tile(this, coord)
+		this.tileCache.set(coord, tile)
+		return tile
 	}
 
 	getBorderContent(ref: Positioned): TileBorderContent | undefined {
@@ -112,6 +122,10 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 	reset(): void {
 		for (const content of this.contents.values()) content.destroy()
 		this.contents.clear()
+		for (const tile of this.tileCache.values()) tile.destroy()
+		for (const border of this.borderCache.values()) border.destroy()
+		this.tileCache.clear()
+		this.borderCache.clear()
 		this.occupied.clear()
 		this.looseGoods.goods.clear()
 		this.zoneManager.clear()
@@ -122,7 +136,15 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		if (!coord || isTileCoord(coord)) return undefined
 		if (!this.inBound(coord)) return undefined
 		const content = this.contents.get({ q: coord.q, r: coord.r }) as TileBorderContent | undefined
-		return content?.border ?? new TileBorder(this, coord!)
+		if (content?.border) {
+			this.borderCache.set(coord, content.border)
+			return content.border
+		}
+		const cached = this.borderCache.get(coord)
+		if (cached) return cached
+		const border = new TileBorder(this, coord)
+		this.borderCache.set(coord, border)
+		return border
 	}
 
 	/**
@@ -181,7 +203,7 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 	moveCharacter(
 		character: Character,
 		to: Positioned,
-		from?: Positioned,
+		from?: Positioned
 	): QueueStep<Character> | undefined {
 		if (from) {
 			const fromCoord = toAxialCoord(from)
@@ -238,14 +260,14 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		goal: Positioned,
 		character: Character,
 		maxTime: number,
-		punctual: boolean = true,
+		punctual: boolean = true
 	) {
 		return findPath(
 			(c) => this.getNeighborsForCharacter(c, character),
 			start,
 			goal,
 			maxTime,
-			punctual,
+			punctual
 		)
 	}
 
@@ -257,7 +279,7 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		start: Positioned,
 		isGoal: Scoring<true>,
 		stop: number | ((coord: Positioned, walkTime: number) => boolean),
-		punctual: boolean = true,
+		punctual: boolean = true
 	) {
 		return findNearest((c) => this.getNeighbors(c), start, isGoal, stop, punctual)
 	}
@@ -267,14 +289,14 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		character: Character,
 		isGoal: Scoring<true>,
 		stop: number | ((coord: Positioned, walkTime: number) => boolean),
-		punctual: boolean = true,
+		punctual: boolean = true
 	) {
 		return findNearest(
 			(c) => this.getNeighborsForCharacter(c, character),
 			start,
 			isGoal,
 			stop,
-			punctual,
+			punctual
 		)
 	}
 
@@ -284,7 +306,7 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		scoring: Scoring<number>,
 		stop: number | ((coord: Positioned, walkTime: number) => boolean),
 		bestPossibleScore: number,
-		punctual: boolean = true,
+		punctual: boolean = true
 	) {
 		return findBest(
 			(c) => this.getNeighborsForCharacter(c, character),
@@ -292,7 +314,7 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 			scoring,
 			stop,
 			bestPossibleScore,
-			punctual,
+			punctual
 		)
 	}
 }

@@ -1,5 +1,5 @@
-import { type Positioned, toAxialCoord } from '.'
 import { untracked } from 'mutts'
+import { type Positioned, toAxialCoord } from '.'
 import type { AxialCoord, AxialKey } from './axial'
 import { axial } from './axial'
 import { AxialKeyMap, HeapMin } from './mem'
@@ -28,7 +28,7 @@ function reconstructPath(
 	goal: AxialCoord,
 	start: AxialCoord,
 	parentMap: AxialKeyMap<AxialCoord>,
-	goalPoint?: AxialCoord,
+	goalPoint?: AxialCoord
 ): AxialCoord[] {
 	const path: AxialCoord[] = goalPoint ? [goalPoint] : []
 	let current: AxialCoord = goal
@@ -63,7 +63,7 @@ export function findPath(
 	start: Positioned,
 	goal: Positioned,
 	maxTime: number,
-	punctual: boolean = true,
+	punctual: boolean = true
 ): AxialCoord[] | undefined {
 	// Pathfinding must never register reactive dependencies on traversed nodes or scored targets.
 	return untracked(() => {
@@ -102,7 +102,12 @@ export function findPath(
 
 			// Check if we reached the goal
 			if (axial.distance(currentCoord, goalCoord) <= goalDistance) {
-				return reconstructPath(currentCoord, startCoord, parentMap, punctual ? undefined : goalCoord)
+				return reconstructPath(
+					currentCoord,
+					startCoord,
+					parentMap,
+					punctual ? undefined : goalCoord
+				)
 			}
 
 			// Explore neighbors
@@ -170,7 +175,7 @@ export function findNearest<_T>(
 	start: Positioned,
 	isGoal: Scoring<true>,
 	stop: number | ((coord: Positioned, walkTime: number) => boolean),
-	punctual: boolean = true,
+	punctual: boolean = true
 ): AxialCoord[] | undefined {
 	return untracked(() => {
 		const startCoord = toAxialCoord(start)
@@ -278,7 +283,7 @@ export function findBest<_T>(
 	scoring: Scoring<number>,
 	stop: number | ((coord: Positioned, walkTime: number) => boolean),
 	bestPossibleScore: number,
-	punctual: boolean = true,
+	punctual: boolean = true
 ): AxialCoord[] | undefined {
 	return untracked(() => {
 		const startCoord = toAxialCoord(start)

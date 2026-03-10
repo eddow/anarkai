@@ -3,13 +3,13 @@ export const epsilon = 1e-6
 
 export function objectMap<T extends Record<string, any>, R extends { [k in keyof T]: any }>(
 	obj: T,
-	fn: <K extends keyof T>(value: T[K], key: K) => R[K],
+	fn: <K extends keyof T>(value: T[K], key: K) => R[K]
 ): Partial<R> {
 	return Object.fromEntries(
 		Object.entries(obj).map(([key, value]) => [key, fn(value, key)] as [keyof R, R[keyof R]]) as [
 			keyof R,
 			R[keyof R],
-		][],
+		][]
 	) as Partial<R>
 }
 

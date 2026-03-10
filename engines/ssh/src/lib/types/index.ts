@@ -25,7 +25,12 @@ export {
 	WorkPlan,
 } from './base'
 // Re-export contract runtime helpers
-export { type Contract, checkContract, isContract, registerContract } from './contracts'
+export {
+	type Contract,
+	checkContract,
+	isContract,
+	registerContract,
+} from './contracts'
 
 // ============================================================
 // Unified Game Scope

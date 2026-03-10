@@ -47,7 +47,7 @@ export function isAllocationValid<Allocation extends object>(allocation: Allocat
 export class AllocationError extends Error {
 	constructor(
 		message: string,
-		public readonly reason: any,
+		public readonly reason: any
 	) {
 		super(message)
 		this.name = 'AllocationError'

@@ -1,4 +1,4 @@
-import { atomic, memoize, reactive, unreactive } from 'mutts'
+import { atomic, memoize, reactive } from 'mutts'
 import { assert } from 'ssh/debug'
 import type { Goods } from 'ssh/types/base'
 import { GoodType } from 'ssh/types/base'
@@ -18,7 +18,7 @@ class SpecificAllocation implements AllocationBase {
 	constructor(
 		private storage: SpecificStorage,
 		public readonly goods: Goods,
-		reason: any,
+		reason: any
 	) {
 		guardAllocation(this, reason)
 	}
@@ -99,7 +99,7 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 
 	canStoreAll(goods: Goods): boolean {
 		return Object.entries(goods).every(
-			([goodType, qty]) => this.hasRoom(goodType as GoodType) >= qty,
+			([goodType, qty]) => this.hasRoom(goodType as GoodType) >= qty
 		)
 	}
 	hasRoom(goodType: GoodType): number {
@@ -141,7 +141,7 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 			}
 		} else if (qty > 0 && currentAmount > 0) {
 			console.warn(
-				`[SpecificStorage] Cannot remove ${goodType} (qty ${qty}): have ${currentAmount} but ${reserved} are reserved.`,
+				`[SpecificStorage] Cannot remove ${goodType} (qty ${qty}): have ${currentAmount} but ${reserved} are reserved.`
 			)
 		}
 

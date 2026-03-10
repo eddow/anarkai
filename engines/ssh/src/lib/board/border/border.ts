@@ -26,10 +26,16 @@ export class TileBorder extends GameObject {
 		this.position = axialCoord
 		this.tile = {
 			get a(): Tile {
-				return board.getTile({ q: Math.ceil(axialCoord.q), r: Math.floor(axialCoord.r) })!
+				return board.getTile({
+					q: Math.ceil(axialCoord.q),
+					r: Math.floor(axialCoord.r),
+				})!
 			},
 			get b(): Tile {
-				return board.getTile({ q: Math.floor(axialCoord.q), r: Math.ceil(axialCoord.r) })!
+				return board.getTile({
+					q: Math.floor(axialCoord.q),
+					r: Math.ceil(axialCoord.r),
+				})!
 			},
 		}
 	}

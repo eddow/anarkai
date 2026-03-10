@@ -1,5 +1,4 @@
 import { memoize, reactive } from 'mutts'
-import { inputBufferSize, outputBufferSize } from '../../../assets/constants'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { multiplyGoodsQty } from 'ssh/board/content/utils'
 import type { Tile } from 'ssh/board/tile'
@@ -7,6 +6,7 @@ import type { Character } from 'ssh/population/character'
 import { SpecificStorage } from 'ssh/storage'
 import type { GoodType, TransformJob } from 'ssh/types/base'
 import { type GoodsRelations, maxPriority } from 'ssh/utils/advertisement'
+import { inputBufferSize, outputBufferSize } from '../../../assets/constants'
 
 const emptyGoods: Partial<Record<GoodType, number>> = {}
 
@@ -23,7 +23,7 @@ export class TransformAlveolus extends Alveolus {
 			new SpecificStorage({
 				...multiplyGoodsQty(def.action.inputs, inputBufferSize),
 				...multiplyGoodsQty(def.action.output, outputBufferSize),
-			}),
+			})
 		)
 	}
 	@memoize
@@ -55,15 +55,15 @@ export class TransformAlveolus extends Alveolus {
 		const inputs = action?.inputs ?? emptyGoods
 		const output = action?.output ?? emptyGoods
 		const demandPriority = maxPriority(
-			Object.keys(output).map((goodType) =>
-				this.hive.needs[goodType] ? '1-buffer' : '2-use',
-			),
+			Object.keys(output).map((goodType) => (this.hive.needs[goodType] ? '1-buffer' : '2-use'))
 		)
 		// Note: only depend on stock (actual goods), never on reservation/allocation bookkeeping.
 		const stock = this.storage.stock
 		return Object.fromEntries([
 			...Object.entries(inputs)
-				.filter(([goodType, required]) => (stock[goodType as GoodType] ?? 0) < required * inputBufferSize)
+				.filter(
+					([goodType, required]) => (stock[goodType as GoodType] ?? 0) < required * inputBufferSize
+				)
 				.map(([goodType]) => [
 					goodType as GoodType,
 					{ advertisement: 'demand', priority: demandPriority },

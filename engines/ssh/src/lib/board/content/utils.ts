@@ -6,7 +6,7 @@ type Ctor<T extends object = any> = new (...args: any[]) => T
 export function GcClass<BaseCtor extends Ctor<any>>(
 	Base: (def: any) => BaseCtor | undefined,
 	name: string,
-	def: any,
+	def: any
 ): BaseCtor | undefined {
 	const BaseClass = Base(def)
 	if (!BaseClass) return undefined
@@ -25,7 +25,10 @@ export function GcClass<BaseCtor extends Ctor<any>>(
 	// Expose a helpful debug label for instances
 	try {
 		Object.defineProperties(Sub.prototype, {
-			[Symbol.toStringTag]: { value: `${Base.name}<${name}>`, configurable: true },
+			[Symbol.toStringTag]: {
+				value: `${Base.name}<${name}>`,
+				configurable: true,
+			},
 			[Symbol.for('nodejs.util.inspect.custom')]: {
 				// eslint-disable-next-line @typescript-eslint/no-unused-vars
 				value(this: unknown, _depth?: number, _options?: unknown, _inspect?: unknown) {
@@ -45,7 +48,7 @@ export function GcClasses<
 	Entries extends Record<string, any> = Record<string, any>,
 >(Base: (def: any) => BaseCtor | undefined, entries: Entries) {
 	return Object.fromEntries(
-		Object.entries(entries).map(([name, def]) => [name, GcClass(Base, name, def)]),
+		Object.entries(entries).map(([name, def]) => [name, GcClass(Base, name, def)])
 	) as { [K in keyof Entries]: BaseCtor & Entries[K] }
 }
 
@@ -72,6 +75,6 @@ export function GcClassed<
 
 export function multiplyGoodsQty(record: Partial<Record<GoodType, number>>, multiplier: number) {
 	return Object.fromEntries(
-		Object.entries(record).map(([goodType, quantity]) => [goodType, quantity * multiplier]),
+		Object.entries(record).map(([goodType, quantity]) => [goodType, quantity * multiplier])
 	)
 }

@@ -1,5 +1,3 @@
-import { maxWalkTime } from '../../../../assets/constants'
-import { goods as goodsCatalog } from '../../../../assets/game-content'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
 import { BuildAlveolus } from 'ssh/hive/build'
@@ -9,6 +7,8 @@ import { contract } from 'ssh/types'
 import type { GoodType } from 'ssh/types/base'
 import { type AxialCoord, axial, tileSize, toWorldCoord } from 'ssh/utils'
 import { type Positioned, toAxialCoord } from 'ssh/utils/position'
+import { maxWalkTime } from '../../../../assets/constants'
+import { goods as goodsCatalog } from '../../../../assets/game-content'
 import { subject } from '../scripts'
 
 class FindFunctions {
@@ -20,7 +20,7 @@ class FindFunctions {
 			axial.round(toAxialCoord(to)),
 			this[subject],
 			maxWalkTime,
-			punctual,
+			punctual
 		)
 	}
 	@contract()
@@ -61,7 +61,7 @@ class FindFunctions {
 			this[subject],
 			(coord) => bestFoodOnTile(coord) !== null,
 			maxWalkTime,
-			true,
+			true
 		)
 		if (!path || path.length === 0) return false as const
 		const targetCoord = path[path.length - 1]
@@ -90,7 +90,7 @@ class FindFunctions {
 				)
 			},
 			maxWalkTime,
-			false,
+			false
 		)
 		if (pathNearConstruction?.length) return pathNearConstruction
 
@@ -106,7 +106,7 @@ class FindFunctions {
 				return tile.zone === 'harvest'
 			},
 			maxWalkTime,
-			false,
+			false
 		)
 		if (pathInZone?.length) return pathInZone
 
@@ -158,7 +158,7 @@ class FindFunctions {
 				targetCoord,
 				this[subject],
 				maxWalkTime,
-				true,
+				true
 			),
 		}
 	}
@@ -167,7 +167,7 @@ class FindFunctions {
 		const { hex } = this[subject].game
 		const start = toAxialCoord(this[subject].tile.position)
 		const selectableGoods = Object.keys(gatherer.hive.needs).filter((good) =>
-			this[subject].carry.hasRoom(good as GoodType),
+			this[subject].carry.hasRoom(good as GoodType)
 		)
 		if (!selectableGoods.length) return false as const
 		// Count all goods within walk time using findNearest exploration
@@ -193,7 +193,7 @@ class FindFunctions {
 		// Find the good with the maximum count
 		const targetGood = Object.entries(goodCounts).reduce(
 			(max, [good, count]) => (count > max.count ? { good: good as GoodType, count } : max),
-			{ good: null as GoodType | null, count: 0 },
+			{ good: null as GoodType | null, count: 0 }
 		).good
 
 		if (!targetGood) return false as const
@@ -231,7 +231,7 @@ class FindFunctions {
 			},
 			(_coord, walkTime) => walkTime > maxWalkTime,
 			1, // best possible score (minimum cost => score 0 when dist*crowd == 0)
-			true,
+			true
 		)
 		if (!result || result.length === 0) return false as const
 		return result

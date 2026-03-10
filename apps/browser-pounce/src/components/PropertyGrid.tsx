@@ -5,16 +5,11 @@ import { css } from '@app/lib/css'
 css`
 /* Property Grid Components */
 .property-grid-container {
-	background-color: rgb(255 255 255);
-	border: 1px solid rgb(229 231 235);
+	background-color: var(--app-bg);
+	border: 1px solid var(--app-border);
 	border-radius: 0.5rem;
 	overflow: hidden;
 	width: 100%;
-}
-
-.dark .property-grid-container {
-	background-color: rgb(31 41 55);
-	border-color: rgb(55 65 81);
 }
 
 .property-grid {
@@ -23,11 +18,7 @@ css`
 }
 
 .property-grid tbody tr:hover {
-	background-color: rgb(249 250 251);
-}
-
-.dark .property-grid tbody tr:hover {
-	background-color: rgb(55 65 81);
+	background-color: var(--app-surface);
 }
 `
 
@@ -47,4 +38,3 @@ const PropertyGrid = ({ class: className = '', children }: PropertyGridProps) =>
 }
 
 export default PropertyGrid
-

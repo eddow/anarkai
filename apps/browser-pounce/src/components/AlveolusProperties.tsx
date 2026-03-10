@@ -1,13 +1,13 @@
-import { effect, reactive } from 'mutts'
 import { css } from '@app/lib/css'
-import WorkingIndicator from './parts/WorkingIndicator'
-import PropertyGridRow from './PropertyGridRow'
+import { effect, reactive } from 'mutts'
 import type { Alveolus } from 'ssh/board/content/alveolus'
-import { T } from 'ssh/i18n'
+import type { Game } from 'ssh/game'
 import { StorageAlveolus } from 'ssh/hive/storage'
+import { i18nState } from 'ssh/i18n'
+import PropertyGridRow from './PropertyGridRow'
+import WorkingIndicator from './parts/WorkingIndicator'
 import StorageConfiguration from './storage/StorageConfiguration'
 import StoredGoodsRow from './storage/StoredGoodsRow'
-import type { Game } from 'ssh/game'
 
 css`
 .alveolus-commands {
@@ -24,15 +24,14 @@ interface AlveolusPropertiesProps {
 
 const AlveolusProperties = ({ content, game }: AlveolusPropertiesProps) => {
 	const state = reactive({
-		working: content.working,
+		working: false,
+		isStorage: false,
+		storageContent: undefined as StorageAlveolus | undefined,
 	})
 
-	let storageConfiguration: JSX.Element | undefined
-	if (content instanceof StorageAlveolus) {
-		storageConfiguration = <StorageConfiguration content={content} game={game} />
-	}
-
 	effect(() => {
+		state.isStorage = content instanceof StorageAlveolus
+		state.storageContent = content instanceof StorageAlveolus ? content : undefined
 		state.working = content.working
 	})
 
@@ -43,19 +42,23 @@ const AlveolusProperties = ({ content, game }: AlveolusPropertiesProps) => {
 
 	return (
 		<>
-			<PropertyGridRow label={String(T.alveolus.commands)}>
+			<PropertyGridRow label={String(i18nState.translator?.alveolus.commands ?? '')}>
 				<div class="alveolus-commands">
 					<WorkingIndicator
 						checked={state.working}
-						tooltip={String(T.alveolus.workingTooltip)}
+						tooltip={String(i18nState.translator?.alveolus.workingTooltip ?? '')}
 						onChange={handleWorkingChange}
 					/>
 				</div>
 			</PropertyGridRow>
 
-			<StoredGoodsRow content={content} game={game} label={String(T.goods.stored)} />
+			<StoredGoodsRow
+				content={content}
+				game={game}
+				label={String(i18nState.translator?.goods.stored ?? '')}
+			/>
 
-			{storageConfiguration}
+			<StorageConfiguration if={state.isStorage} content={state.storageContent!} game={game} />
 		</>
 	)
 }

@@ -1,12 +1,12 @@
 import { atomic, unreactive } from 'mutts'
-import { activityDurations, ponderingFatigueRecovery } from '../../../assets/constants'
-import { goods as goodsCatalog } from '../../../assets/game-content'
 import { assert, namedEffect } from 'ssh/debug'
 import type { Game } from 'ssh/game/game'
 import type { Character } from 'ssh/population/character'
 import type { GoodType } from 'ssh/types'
 import { casing } from 'ssh/utils'
 import type { Position, Positioned } from 'ssh/utils/position'
+import { activityDurations, ponderingFatigueRecovery } from '../../../assets/constants'
+import { goods as goodsCatalog } from '../../../assets/game-content'
 import type { ScriptedObject } from './object'
 import { lerp } from './utils'
 
@@ -67,7 +67,7 @@ export abstract class ASingleStep extends Finalized {
 	static deserialize(
 		game: Game,
 		character: Character,
-		data: SerializedStep,
+		data: SerializedStep
 	): ASingleStep | undefined {
 		switch (data.type) {
 			case 'QueueStep': {
@@ -82,7 +82,7 @@ export abstract class ASingleStep extends Finalized {
 					character,
 					data.to,
 					data.activityType,
-					data.givenDescription,
+					data.givenDescription
 				)
 				step.evolution = data.evolution
 				// Bypass readonly check for restoration
@@ -103,7 +103,7 @@ export abstract class ASingleStep extends Finalized {
 					data.duration,
 					movements,
 					data.activityType,
-					data.givenDescription,
+					data.givenDescription
 				)
 				step.evolution = data.evolution
 				return step
@@ -143,7 +143,7 @@ export class QueueStep<Entity extends ScriptedObject> extends ASingleStep {
 	constructor(
 		waiter: Entity,
 		queue: Entity[],
-		public target: Positioned,
+		public target: Positioned
 	) {
 		super()
 		queue.push(waiter)
@@ -192,7 +192,7 @@ export abstract class ALerpStep<T extends number | Positioned> extends AEvolutio
 	constructor(
 		duration: number,
 		public readonly from: T,
-		public readonly to: T,
+		public readonly to: T
 	) {
 		super(duration)
 	}
@@ -213,7 +213,7 @@ export class MoveToStep extends ALerpStep<Positioned> {
 		readonly who: { position: Position },
 		to: Positioned,
 		readonly type: Ssh.ActivityType = 'walk',
-		readonly givenDescription?: string,
+		readonly givenDescription?: string
 	) {
 		super(duration, who.position, to)
 	}
@@ -239,9 +239,13 @@ export class MultiMoveStep extends AEvolutionStep {
 	}
 	constructor(
 		duration: number,
-		readonly movements: Array<{ who: { position: Position }; from?: Position; to: Positioned }>,
+		readonly movements: Array<{
+			who: { position: Position }
+			from?: Position
+			to: Positioned
+		}>,
 		readonly type: Ssh.ActivityType = 'work',
-		readonly givenDescription?: string,
+		readonly givenDescription?: string
 	) {
 		super(duration)
 		// Capture the starting positions at construction time
@@ -278,7 +282,7 @@ export class DurationStep extends AEvolutionStep {
 	constructor(
 		duration: number,
 		readonly type: Ssh.ActivityType,
-		readonly givenDescription: string,
+		readonly givenDescription: string
 	) {
 		super(duration)
 	}
@@ -300,7 +304,7 @@ export class WaitForPredicateStep extends ASingleStep {
 	private passed = false
 	constructor(
 		readonly descriptionText: string,
-		private readonly predicate: () => boolean,
+		private readonly predicate: () => boolean
 	) {
 		super()
 	}
@@ -329,9 +333,10 @@ export class EatStep extends AEvolutionStep {
 		return 'eat' as const
 	}
 	private readonly feedingValue: number
+	private lastEvolution = 0
 	constructor(
 		readonly character: Character,
-		readonly food: GoodType,
+		readonly food: GoodType
 	) {
 		super(activityDurations.eating)
 		assert('feedingValue' in goodsCatalog[food], `Food ${food} has no feeding value`)
@@ -345,15 +350,17 @@ export class EatStep extends AEvolutionStep {
 					debug: this.character.carry.debugInfo,
 				},
 				null,
-				2,
+				2
 			)
 			throw new Error(
-				`Didn't have food he is trying to eat (${food}). Removed: ${removed}. State: ${debugInfo}`,
+				`Didn't have food he is trying to eat (${food}). Removed: ${removed}. State: ${debugInfo}`
 			)
 		}
 	}
-	evolve(_: number, dt: number): void {
-		this.character.hunger = Math.max(0, this.character.hunger - this.feedingValue * dt)
+	evolve(evolution: number): void {
+		const delta = Math.max(0, evolution - this.lastEvolution)
+		this.lastEvolution = evolution
+		this.character.hunger = Math.max(0, this.character.hunger - this.feedingValue * delta)
 	}
 	serialize(): SerializedStep {
 		return {
@@ -374,11 +381,11 @@ export class PonderingStep extends AEvolutionStep {
 	}
 	constructor(
 		readonly character: Character,
-		duration?: number,
+		duration?: number
 	) {
 		super(
 			duration ??
-				lerp(activityDurations.restMin, activityDurations.restMax, character.game.random()),
+				lerp(activityDurations.restMin, activityDurations.restMax, character.game.random())
 		)
 	}
 	serialize(): SerializedStep {

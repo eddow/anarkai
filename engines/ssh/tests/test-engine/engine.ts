@@ -1,6 +1,6 @@
-import fs from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { Game, GameGenerationOptions, SaveState } from 'ssh/game'
 import { setupEnvironment } from './environment'
 import { loadStandardMocks } from './mocks'
@@ -62,7 +62,9 @@ export class TestEngine {
 	 */
 	private step(delta: number) {
 		// Access private tickedObjects via type assertion
-		const objects = (this.game as any).tickedObjects as Set<{ update(dt: number): void }>
+		const objects = (this.game as any).tickedObjects as Set<{
+			update(dt: number): void
+		}>
 		// console.log(`Step ${delta}: ${objects.size} ticked objects`);
 		for (const object of objects) {
 			// Skip destroyed objects
@@ -83,5 +85,13 @@ export class TestEngine {
 		// engines/ssh/assets/scripts
 		const scriptPath = path.resolve(__dirname, '../../assets/scripts', filename)
 		return fs.readFileSync(scriptPath, 'utf-8')
+	}
+
+	public async destroy() {
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		this.game.population.deserialize([])
+		this.game.hex.reset()
+		this.game.destroy()
 	}
 }

@@ -8,12 +8,13 @@
  *   -> goodsRelations changes -> advertise effect re-runs -> advertise() -> selectMovement()
  *   -> queueMicrotask(createMovement) -> reserve() -> ... infinite loop
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+
 import { effect, getActivationLog, reactiveOptions, reset } from 'mutts'
-import { SlottedStorage } from 'ssh/storage/slotted-storage'
-import { toAxialCoord } from 'ssh/utils/position'
-import { TestEngine } from '../test-engine'
 import type { SaveState } from 'ssh/game'
+import type { SlottedStorage } from 'ssh/storage/slotted-storage'
+import { toAxialCoord } from 'ssh/utils/position'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { TestEngine } from '../test-engine'
 
 describe('Planner loop diagnostic', () => {
 	let originalMaxChain: typeof reactiveOptions.maxEffectChain
@@ -34,16 +35,22 @@ describe('Planner loop diagnostic', () => {
 	})
 
 	async function setupHive() {
-		const engine = new TestEngine({ boardSize: 12, terrainSeed: 1234, characterCount: 0 })
+		const engine = new TestEngine({
+			boardSize: 12,
+			terrainSeed: 1234,
+			characterCount: 0,
+		})
 		await engine.init()
 		const scenario: Partial<SaveState> = {
-			hives: [{
-				name: 'TestHive',
-				alveoli: [
-					{ coord: [0, 0], alveolus: 'gather', goods: {} },
-					{ coord: [1, 0], alveolus: 'woodpile', goods: {} },
-				],
-			}],
+			hives: [
+				{
+					name: 'TestHive',
+					alveoli: [
+						{ coord: [0, 0], alveolus: 'gather', goods: {} },
+						{ coord: [1, 0], alveolus: 'woodpile', goods: {} },
+					],
+				},
+			],
 			looseGoods: [],
 		}
 		engine.loadScenario(scenario)
@@ -64,7 +71,7 @@ describe('Planner loop diagnostic', () => {
 		let woodpileCount = 0
 
 		const origAdvertise = gather.hive!.advertise.bind(gather.hive!)
-		gather.hive!.advertise = function (alveolus: any, ads: any) {
+		gather.hive!.advertise = (alveolus: any, ads: any) => {
 			if (alveolus === gather) gatherCount++
 			if (alveolus === woodpile) woodpileCount++
 			return origAdvertise(alveolus, ads)
@@ -76,7 +83,10 @@ describe('Planner loop diagnostic', () => {
 		for (let i = 0; i < 5; i++) {
 			const snap = { gather: gatherCount, woodpile: woodpileCount }
 			await new Promise((r) => setTimeout(r, 0))
-			counts.push({ gather: gatherCount - snap.gather, woodpile: woodpileCount - snap.woodpile })
+			counts.push({
+				gather: gatherCount - snap.gather,
+				woodpile: woodpileCount - snap.woodpile,
+			})
 		}
 
 		console.log('Advertise fires per drain cycle:', counts)
@@ -93,29 +103,23 @@ describe('Planner loop diagnostic', () => {
 	 * This isolates whether the dependency is gather.storage._reserved -> gather.goodsRelations.
 	 */
 	it('reserve() on gather storage should NOT invalidate gather.goodsRelations', async () => {
-		const { gather, woodpile } = await setupHive()
+		const { gather } = await setupHive()
 
 		// Seed so there's something to reserve
 		gather.storage!.addGood('wood', 5)
 		// Drain microtasks from the initial advertisement
 		await new Promise((r) => setTimeout(r, 10))
 
-		let goodsRelationsRecomputeCount = 0
-		const origGet = Object.getOwnPropertyDescriptor(
-			Object.getPrototypeOf(Object.getPrototypeOf(gather)),
-			'goodsRelations',
-		)
-
 		let gatherFiresAfterReserve = 0
 		const origAdvertise = gather.hive!.advertise.bind(gather.hive!)
-		gather.hive!.advertise = function (alveolus: any, ads: any) {
+		gather.hive!.advertise = (alveolus: any, ads: any) => {
 			if (alveolus === gather) gatherFiresAfterReserve++
 			return origAdvertise(alveolus, ads)
 		}
 
 		// Manually call reserve() — this is what createMovement does
 		const token = gather.storage!.reserve({ wood: 1 }, 'diagnostic-test')
-		
+
 		// Drain
 		await new Promise((r) => setTimeout(r, 10))
 
@@ -136,7 +140,7 @@ describe('Planner loop diagnostic', () => {
 
 		let woodpileFiresAfterAllocate = 0
 		const origAdvertise = gather.hive!.advertise.bind(gather.hive!)
-		gather.hive!.advertise = function (alveolus: any, ads: any) {
+		gather.hive!.advertise = (alveolus: any, ads: any) => {
 			if (alveolus === woodpile) woodpileFiresAfterAllocate++
 			return origAdvertise(alveolus, ads)
 		}
@@ -165,7 +169,7 @@ describe('Planner loop diagnostic', () => {
 		let gatherFires = 0
 		let woodpileFires = 0
 		const origAdvertise = hive.advertise.bind(hive)
-		hive.advertise = function (alveolus: any, ads: any) {
+		hive.advertise = (alveolus: any, ads: any) => {
 			if (alveolus === gather) gatherFires++
 			if (alveolus === woodpile) woodpileFires++
 			return origAdvertise(alveolus, ads)
@@ -177,7 +181,12 @@ describe('Planner loop diagnostic', () => {
 
 		await new Promise((r) => setTimeout(r, 10))
 
-		console.log('Advertise fires after createMovement — gather:', gatherFires, 'woodpile:', woodpileFires)
+		console.log(
+			'Advertise fires after createMovement — gather:',
+			gatherFires,
+			'woodpile:',
+			woodpileFires
+		)
 		expect(gatherFires).toBeLessThanOrEqual(1)
 		expect(woodpileFires).toBeLessThanOrEqual(1)
 	})
@@ -247,16 +256,22 @@ describe('Planner loop diagnostic', () => {
 	it('engine.tick with workers should not overflow effect chain', async () => {
 		reactiveOptions.maxEffectChain = 30 // fail fast
 
-		const engine = new TestEngine({ boardSize: 12, terrainSeed: 1234, characterCount: 0 })
+		const engine = new TestEngine({
+			boardSize: 12,
+			terrainSeed: 1234,
+			characterCount: 0,
+		})
 		await engine.init()
 		const scenario: Partial<SaveState> = {
-			hives: [{
-				name: 'TestHive',
-				alveoli: [
-					{ coord: [0, 0], alveolus: 'gather', goods: {} },
-					{ coord: [1, 0], alveolus: 'woodpile', goods: {} },
-				],
-			}],
+			hives: [
+				{
+					name: 'TestHive',
+					alveoli: [
+						{ coord: [0, 0], alveolus: 'gather', goods: {} },
+						{ coord: [1, 0], alveolus: 'woodpile', goods: {} },
+					],
+				},
+			],
 			looseGoods: [],
 		}
 		engine.loadScenario(scenario)
@@ -290,11 +305,14 @@ describe('Planner loop diagnostic', () => {
 				await new Promise((r) => setTimeout(r, 0))
 			}
 		} catch (e: any) {
-			overflowActivations = getActivationLog().filter(Boolean).slice(-30).map((entry: any) => ({
-				effect: entry.effect?.name || 'anon',
-				obj: entry.obj?.constructor?.name || String(entry.obj),
-				prop: String(entry.prop),
-			}))
+			overflowActivations = getActivationLog()
+				.filter(Boolean)
+				.slice(-30)
+				.map((entry: any) => ({
+					effect: entry.effect?.name || 'anon',
+					obj: entry.obj?.constructor?.name || String(entry.obj),
+					prop: String(entry.prop),
+				}))
 			console.error('OVERFLOW activations:', JSON.stringify(overflowActivations, null, 2))
 			throw e
 		} finally {
@@ -316,7 +334,7 @@ describe('Planner loop diagnostic', () => {
 		let gatherFires = 0
 		let woodpileFires = 0
 		const origAdvertise = hive.advertise.bind(hive)
-		hive.advertise = function (alveolus: any, ads: any) {
+		hive.advertise = (alveolus: any, ads: any) => {
 			if (alveolus === gather) gatherFires++
 			if (alveolus === woodpile) woodpileFires++
 			return origAdvertise(alveolus, ads)
@@ -329,7 +347,12 @@ describe('Planner loop diagnostic', () => {
 
 		await new Promise((r) => setTimeout(r, 10))
 
-		console.log('Advertise fires after movingGoods write — gather:', gatherFires, 'woodpile:', woodpileFires)
+		console.log(
+			'Advertise fires after movingGoods write — gather:',
+			gatherFires,
+			'woodpile:',
+			woodpileFires
+		)
 
 		expect(gatherFires).toBe(0)
 		expect(woodpileFires).toBe(0)

@@ -1,5 +1,4 @@
 import { memoize } from 'mutts'
-import { maxWalkTime, outputBufferSize } from '../../../assets/constants'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { multiplyGoodsQty } from 'ssh/board/content/utils'
 import type { Tile } from 'ssh/board/tile'
@@ -8,6 +7,7 @@ import type { Character } from 'ssh/population/character'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { HarvestJob } from 'ssh/types/base'
 import { axialDistance, type Positioned, toAxialCoord } from 'ssh/utils/position'
+import { maxWalkTime, outputBufferSize } from '../../../assets/constants'
 export class HarvestAlveolus extends TransitAlveolus {
 	declare action: Ssh.HarvestingAction
 	constructor(tile: Tile) {
@@ -19,7 +19,7 @@ export class HarvestAlveolus extends TransitAlveolus {
 			tile,
 			new SpecificStorage({
 				...multiplyGoodsQty(def.action.output, outputBufferSize),
-			}),
+			})
 		)
 	}
 
@@ -40,7 +40,7 @@ export class HarvestAlveolus extends TransitAlveolus {
 		}
 		return Object.keys(output).reduce(
 			(acc, goodType) => acc + (goodType in this.hive.needs ? 1 : 0),
-			0,
+			0
 		)
 	}
 	// nextJob() replaces both alveolusSpecificJob() and keepWorking

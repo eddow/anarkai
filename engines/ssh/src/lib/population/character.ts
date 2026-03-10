@@ -1,7 +1,5 @@
 import { reactive, unwrap } from 'mutts'
-import { characterEvolutionRates, characterTriggerLevels, maxWalkTime } from '../../../assets/constants'
-import { goods as goodsCatalog } from '../../../assets/game-content'
-import type { Alveolus } from 'ssh/board/content/alveolus'
+import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
 import { assert } from 'ssh/debug'
 import type { Game } from 'ssh/game'
@@ -9,6 +7,12 @@ import type { Storage } from 'ssh/storage'
 import type { GoodType, Job, WorkPlan } from 'ssh/types/base'
 import { type AxialCoord, axial, maxBy, type Positioned } from 'ssh/utils'
 import { axialDistance, type Position, toAxialCoord } from 'ssh/utils/position'
+import {
+	characterEvolutionRates,
+	characterTriggerLevels,
+	maxWalkTime,
+} from '../../../assets/constants'
+import { goods as goodsCatalog } from '../../../assets/game-content'
 
 // Simple job scoring functions
 function calculateJobScore(_character: Character, job: Job): number {
@@ -22,7 +26,6 @@ import { GameObject, withInteractive, withTicked } from 'ssh/game/object'
 import { gameIsaTypes } from 'ssh/npcs'
 import aCharacterContext from 'ssh/npcs/context'
 import { withScripted } from 'ssh/npcs/object'
-// biome-ignore lint/correctness/noUnusedImports: We need `subject` for mixins tranquility: all propertyKeys are known
 import type { ScriptExecution } from 'ssh/npcs/scripts'
 import { Vehicle } from './vehicle/vehicle'
 
@@ -40,12 +43,12 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		return this._assignedAlveolus
 	}
 	public set assignedAlveolus(value: Alveolus | undefined) {
-		const normalize = (v: any) => v === null ? undefined : unwrap(v)
+		const normalize = (v: any) => (v === null ? undefined : unwrap(v))
 		value = normalize(value)
 		const current = normalize(this._assignedAlveolus)
-		
+
 		if (value === current) return
-		
+
 		assert(!value !== !current, 'assigned alveolus mismatch')
 		this._assignedAlveolus = value
 	}
@@ -66,11 +69,14 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		game: Game,
 		uid: string,
 		public name: string,
-		public position: Position,
+		public position: Position
 	) {
 		super(game, uid)
 		const ax = toAxialCoord(this.position)
-		this._tile = game.hex.getTile({ q: Math.round(ax.q), r: Math.round(ax.r) })!
+		this._tile = game.hex.getTile({
+			q: Math.round(ax.q),
+			r: Math.round(ax.r),
+		})!
 		// Allocate initial occupancy on the board
 		const queueStep = this.game.hex.moveCharacter(this, this._tile.position)
 		assert(!queueStep, 'Character must not be queuing on creation')
@@ -100,29 +106,23 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	 * @returns Object with job, tile, and path, or false if no job found
 	 */
 	findBestJob(): ScriptExecution | false {
-		// console.error(`[${this.uid}] findBestJob called`);
-		const start = toAxialCoord(this.position)
-
 		// Cache jobs computed during scoring to avoid recomputing
-		const jobCache = new Map<string, Job>()
+		const jobCache = new Map<string, { job: Job; targetTile: Tile }>()
 
 		// Score function: evaluates how good a job is at a given coordinate
 		const scoreJob = (coord: Positioned): number | false => {
 			const tile = this.game.hex.getTile(coord)
 			if (!tile) return false
 
-			const job = tile.getJob?.(this) // Pass character to compute full job with path
 			const axCoord = toAxialCoord(coord)!
 			const coordKey = axial.key(axCoord)
-			if (!job) {
-				return false
-			}
+			const directJob = tile.getJob?.(this)
+			if (!directJob) return false
 
 			// Cache the job for later retrieval
-			const key = coordKey
-			jobCache.set(key, job)
+			jobCache.set(coordKey, { job: directJob, targetTile: tile })
 
-			const score = calculateJobScore(this, job)
+			const score = calculateJobScore(this, directJob)
 			return score
 		}
 
@@ -133,16 +133,44 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			scoreJob,
 			maxWalkTime, // Use maxWalkTime from constants
 			bestPossibleJobScore(this),
-			true, // punctual: only consider exact coordinates
+			false
 		)
 
-		if (!path || path.length === 0) return false
+		let selectedPath = path
+		let match: { job: Job; targetTile: Tile } | undefined
+		if (selectedPath && selectedPath.length > 0) {
+			const targetCoord = selectedPath[selectedPath.length - 1] as AxialCoord
+			const key = `${targetCoord.q},${targetCoord.r}`
+			match = jobCache.get(key)
+		}
+		if (!match) {
+			let bestFallback:
+				| { path: AxialCoord[]; job: Job; targetTile: Tile; score: number }
+				| undefined
+			for (const tile of this.game.hex.tiles) {
+				if (!(tile.content instanceof Alveolus)) continue
+				const job = tile.content.getJob(this)
+				if (!job) continue
+				const fallbackPath = this.game.hex.findPathForCharacter(
+					this.position,
+					tile.position,
+					this,
+					maxWalkTime,
+					false
+				)
+				if (!fallbackPath || fallbackPath.length === 0) continue
+				const score = calculateJobScore(this, job) / (fallbackPath.length + 1)
+				if (!bestFallback || score > bestFallback.score) {
+					bestFallback = { path: fallbackPath, job, targetTile: tile, score }
+				}
+			}
+			if (!bestFallback) return false
+			selectedPath = bestFallback.path
+			match = { job: bestFallback.job, targetTile: bestFallback.targetTile }
+		}
+		if (!selectedPath || selectedPath.length === 0) return false
+		const { job, targetTile } = match
 
-		const targetCoord = path[path.length - 1] as AxialCoord
-		const key = `${targetCoord.q},${targetCoord.r}`
-		const job = jobCache.get(key)!
-
-		const targetTile = this.game.hex.getTile(targetCoord)!
 		const jobProvider = targetTile.content!
 
 		this.log('character.beginJob', job.job)
@@ -155,7 +183,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			type: 'work',
 			target: target,
 		}
-		return this.scriptsContext.work.goWork(workPlan, path)
+		return this.scriptsContext.work.goWork(workPlan, selectedPath)
 	}
 
 	get keepWorking(): boolean {
@@ -174,7 +202,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 				if (!feedingValue || available < 1) return undefined
 
 				return feedingValue as number
-			},
+			}
 		)?.[0]
 	}
 
@@ -287,7 +315,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		// Population is loaded AFTER board. So Alveolus should exist.
 		if (data.assignedAlveolus) {
 			const tile = game.hex.getTile(data.assignedAlveolus)
-			if (tile && tile.content && 'hive' in tile.content) {
+			if (tile?.content && 'hive' in tile.content) {
 				char.assignedAlveolus = tile.content as Alveolus
 			}
 		}

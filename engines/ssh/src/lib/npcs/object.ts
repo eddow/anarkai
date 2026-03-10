@@ -38,7 +38,7 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 				if (!this.runningScript.state) {
 					console.warn(
 						'Script finished but still in runningScripts, removing',
-						this.runningScript.name,
+						this.runningScript.name
 					)
 					this.runningScripts.shift()
 					return { type: 'return', value: undefined }
@@ -104,7 +104,7 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 					if (nextAction?.name === executingName) {
 						if (reentered) {
 							console.error(
-								`Action infinite fail: ${executingName} returned immediately and was selected again.`,
+								`Action infinite fail: ${executingName} returned immediately and was selected again.`
 							)
 							throw new Error(`Action infinite fail/foundAction: ${executingName}`)
 						}
@@ -133,12 +133,15 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 					//console.log(`[update] ${this.name}: finished step ${this.stepExecutor.constructor.name}, remaining dt ${remaining}`);
 					this.stepExecutor = undefined
 					this.nextStep()
-					const newType = this.stepExecutor!?.constructor
+					const newType = this.stepExecutor?.constructor
 					if (uselessStepExecutor === newType) {
 						console.error('Useless step executor detected:', {
 							object: (this as any).name ?? (this as any).uid ?? 'unknown',
 							stepType: newType?.name,
-							runningScripts: this.runningScripts.map((s) => ({ name: s.name, state: s.state })),
+							runningScripts: this.runningScripts.map((s) => ({
+								name: s.name,
+								state: s.state,
+							})),
 							actionDescription: this.actionDescription,
 						})
 						throw new Error(`Useless step executor: ${newType.name}`)
@@ -199,7 +202,7 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 				const step = ASingleStep.deserialize(
 					this.game as unknown as Game,
 					this as unknown as any,
-					data.stepExecutor,
+					data.stepExecutor
 				)
 				if (step) this.stepExecutor = step
 			}
@@ -215,7 +218,7 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 						const gameScript = getGameScript(s.scriptFileName)
 						if (!gameScript) {
 							console.warn(
-								`Could not find GameScript for file: ${s.scriptFileName}. Skipping script restoration.`,
+								`Could not find GameScript for file: ${s.scriptFileName}. Skipping script restoration.`
 							)
 							return null
 						}

@@ -1,11 +1,14 @@
-import { goods as goodsCatalog } from '../../../assets/game-content'
 import { assert } from 'ssh/debug'
 import type { GoodType } from 'ssh/types'
+import { goods as goodsCatalog } from '../../../assets/game-content'
 
 export type ExchangePriority = '0-store' | '1-buffer' | '2-use'
 export type Advertisement = 'demand' | 'provide'
 export type PerGood<T> = Partial<Record<GoodType, T>>
-export type GoodsRelations = PerGood<{ advertisement: Advertisement; priority: ExchangePriority }>
+export type GoodsRelations = PerGood<{
+	advertisement: Advertisement
+	priority: ExchangePriority
+}>
 
 const assertGoodType = (goodType: string): goodType is GoodType => {
 	return goodType in goodsCatalog
@@ -51,7 +54,7 @@ export abstract class AdvertisementManager<Advertiser> {
 		advertisement: Advertisement,
 		giver: Advertiser,
 		storages: Advertiser[],
-		goodType: GoodType,
+		goodType: GoodType
 	): Advertiser
 	advertise(advertiser: Advertiser, ads: GoodsRelations) {
 		if (this.lastAds.has(advertiser)) {
@@ -82,7 +85,7 @@ export abstract class AdvertisementManager<Advertiser> {
 						ad.advertisement,
 						advertiser,
 						maxBucket.list as Advertiser[],
-						goodType,
+						goodType
 					)
 					const list = maxBucket.list as Advertiser[]
 					const removeIdx = list.indexOf(selected)
@@ -91,17 +94,18 @@ export abstract class AdvertisementManager<Advertiser> {
 				}
 			} else {
 				// Try general storages first if applicable
-				const availableGeneralStorages = this.generalStorages.filter(
-					ad.advertisement === 'provide'
-						? (s) => s.canTake(goodType as GoodType, ad.priority)
-						: (s) => s.canGive(goodType as GoodType, ad.priority),
-				)
+				const availableGeneralStorages = this.generalStorages.filter((s) => {
+					if (s === advertiser) return false
+					return ad.advertisement === 'provide'
+						? s.canTake(goodType as GoodType, ad.priority)
+						: s.canGive(goodType as GoodType, ad.priority)
+				})
 				if (availableGeneralStorages.length > 0) {
 					this.selectMovement(
 						ad.advertisement,
 						advertiser,
 						availableGeneralStorages as unknown as Advertiser[],
-						goodType,
+						goodType
 					)
 				} else if (existing) {
 					assert(existing.advertisement === ad.advertisement, 'Advertisement type mismatch')

@@ -21,7 +21,13 @@ export function loadStandardMocks() {
 			},
 			terrain: new Proxy(
 				{},
-				{ get: () => ({ walkTime: 1, generation: { deposits: {} }, sprites: ['grass.png'] }) },
+				{
+					get: () => ({
+						walkTime: 1,
+						generation: { deposits: {} },
+						sprites: ['grass.png'],
+					}),
+				}
 			),
 			deposits: { tree: { generation: {}, maxAmount: 100 } },
 			alveoli: {
@@ -34,7 +40,11 @@ export function loadStandardMocks() {
 				sawmill: {
 					preparationTime: 1,
 					workTime: 2,
-					action: { type: 'transform', inputs: { wood: 1 }, output: { planks: 1 } },
+					action: {
+						type: 'transform',
+						inputs: { wood: 1 },
+						output: { planks: 1 },
+					},
 					construction: { goods: { wood: 1 }, time: 1 },
 				},
 				gather: {

@@ -5,7 +5,9 @@ const goodMultiSelectCalls: Array<Record<string, unknown>> = []
 
 vi.mock('@pounce', () => ({
 	Button: (props: { onClick?: () => void; children?: any; class?: string }) => (
-		<button onClick={props.onClick} class={props.class}>{props.children}</button>
+		<button onClick={props.onClick} class={props.class}>
+			{props.children}
+		</button>
 	),
 	Stars: () => <div data-testid="stars" />,
 }))
@@ -126,7 +128,14 @@ describe('StorageConfiguration', () => {
 			storageConfiguration: { buffers: {} },
 		}
 
-		stop = latch(container, <table><tbody><StorageConfiguration content={content as never} game={{} as never} /></tbody></table>)
+		stop = latch(
+			container,
+			<table>
+				<tbody>
+					<StorageConfiguration content={content as never} game={{} as never} />
+				</tbody>
+			</table>
+		)
 
 		expect(container.textContent).toContain('TODO: Slotted Storage Configuration')
 	})
@@ -140,13 +149,22 @@ describe('StorageConfiguration', () => {
 			storageConfiguration: { buffers: {} },
 		}
 
-		stop = latch(container, <table><tbody><StorageConfiguration content={content as never} game={{} as never} /></tbody></table>)
+		stop = latch(
+			container,
+			<table>
+				<tbody>
+					<StorageConfiguration content={content as never} game={{} as never} />
+				</tbody>
+			</table>
+		)
 
 		expect(container.textContent).toContain('Acceptance')
 		expect(container.textContent).toContain('Store all but...')
 		expect(container.textContent).toContain('Buffers')
 
-		const modeButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Store all but')) as HTMLButtonElement
+		const modeButton = Array.from(container.querySelectorAll('button')).find((button) =>
+			button.textContent?.includes('Store all but')
+		) as HTMLButtonElement
 		modeButton.click()
 		expect(content.storageMode).toBe('only')
 
@@ -154,7 +172,9 @@ describe('StorageConfiguration', () => {
 		addButtons[0].click()
 		expect(content.storageExceptions).toContain('stone')
 
-		const removeButtons = Array.from(container.querySelectorAll('.mock-remove')) as HTMLButtonElement[]
+		const removeButtons = Array.from(
+			container.querySelectorAll('.mock-remove')
+		) as HTMLButtonElement[]
 		removeButtons[0].click()
 		expect(content.storageExceptions).not.toContain('wood')
 	})
@@ -169,7 +189,14 @@ describe('StorageConfiguration', () => {
 			storageConfiguration: { buffers: { wood: 10 } },
 		}
 
-		stop = latch(container, <table><tbody><StorageConfiguration content={content as never} game={{} as never} /></tbody></table>)
+		stop = latch(
+			container,
+			<table>
+				<tbody>
+					<StorageConfiguration content={content as never} game={{} as never} />
+				</tbody>
+			</table>
+		)
 
 		expect(container.querySelector('[data-testid="specific-storage-config"]')).not.toBeNull()
 		expect(container.textContent).not.toContain('Acceptance')

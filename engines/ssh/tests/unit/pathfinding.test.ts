@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest'
 import type { AxialCoord } from 'ssh/utils/axial'
-import { findBest, findNearest, findPath, type GetNeighbors, heuristic } from 'ssh/utils/pathfinding'
+import {
+	findBest,
+	findNearest,
+	findPath,
+	type GetNeighbors,
+	heuristic,
+} from 'ssh/utils/pathfinding'
+import { describe, expect, it } from 'vitest'
 
 // Helper function to create a simple grid for testing
 function createGridNeighbors(size: number, obstacles: Set<string> = new Set()): GetNeighbors {

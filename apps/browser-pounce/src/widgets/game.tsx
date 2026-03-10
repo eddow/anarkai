@@ -1,17 +1,16 @@
-import { effect } from 'mutts'
-import type { DockviewWidgetProps, DockviewWidgetScope } from '@pounce'
-
-import type { InteractiveGameObject } from 'ssh/game'
 import { css } from '@app/lib/css'
-import { PixiGameRenderer } from 'engine-pixi/renderer'
-import { Tile } from 'ssh/board/tile'
 import {
 	games,
 	interactionMode,
 	selectionState,
-	validateStoredSelectionState,
 	unreactiveInfo,
+	validateStoredSelectionState,
 } from '@app/lib/globals'
+import type { DockviewWidgetProps, DockviewWidgetScope } from '@pounce'
+import { PixiGameRenderer } from 'engine-pixi/renderer'
+import { effect } from 'mutts'
+import { Tile } from 'ssh/board/tile'
+import type { InteractiveGameObject } from 'ssh/game'
 import type { AlveolusType } from 'ssh/types/base'
 
 css`
@@ -22,7 +21,10 @@ css`
 	}
 `
 
-export default function GameWidget(props: DockviewWidgetProps<{ game: string }>, scope: DockviewWidgetScope) {
+export default function GameWidget(
+	props: DockviewWidgetProps<{ game: string }>,
+	scope: DockviewWidgetScope
+) {
 	const dock = scope?.dockviewApi
 	const api = (scope as any).panelApi
 	const gameName = props.params?.game ?? 'GameX'
@@ -30,7 +32,6 @@ export default function GameWidget(props: DockviewWidgetProps<{ game: string }>,
 	let container: HTMLElement | undefined
 	let gameView: PixiGameRenderer | undefined
 	const containerId = `game-container-${api?.id ?? Math.random().toString(36).substr(2, 9)}`
-
 
 	const handleProjectSelection = (object: InteractiveGameObject) => {
 		selectionState.selectedUid = object.uid
@@ -140,36 +141,38 @@ export default function GameWidget(props: DockviewWidgetProps<{ game: string }>,
 
 		// Wait for game to load before creating view to ensure content is ready
 		console.log('GameWidget: awaiting game.loaded')
-		game.loaded.then(() => {
-			if (!isMounted) return
-			console.log('GameWidget: game loaded')
-			if (container && !gameView) {
-				try {
-					console.log(`[GameWidget] Mounting PixiGameRenderer to ${containerId}`)
-					gameView = new PixiGameRenderer(game, container)
-					console.log('GameWidget: PixiGameRenderer created', gameView)
+		game.loaded
+			.then(() => {
+				if (!isMounted) return
+				console.log('GameWidget: game loaded')
+				if (container && !gameView) {
+					try {
+						console.log(`[GameWidget] Mounting PixiGameRenderer to ${containerId}`)
+						gameView = new PixiGameRenderer(game, container)
+						console.log('GameWidget: PixiGameRenderer created', gameView)
 
-					if (dock) validateStoredSelectionState(dock)
+						if (dock) validateStoredSelectionState(dock)
 
-					setupResizer()
-				} catch (e) {
-					console.error("Failed to create PixiGameRenderer", e)
+						setupResizer()
+					} catch (e) {
+						console.error('Failed to create PixiGameRenderer', e)
+					}
 				}
-			}
-		}).catch(err => {
-			if (!isMounted) return
-			console.error('[GameWidget] game.loaded failed:', err)
-			// Try to initialize anyway if it's just a gameStart glitch
-			if (!game.renderer && container) {
-				console.log('[GameWidget] Attempting emergency Pixi initialization...')
-				try {
-					gameView = new PixiGameRenderer(game, container)
-					setupResizer()
-				} catch (e) {
-					console.error("Emergency initialization failed", e)
+			})
+			.catch((err) => {
+				if (!isMounted) return
+				console.error('[GameWidget] game.loaded failed:', err)
+				// Try to initialize anyway if it's just a gameStart glitch
+				if (!game.renderer && container) {
+					console.log('[GameWidget] Attempting emergency Pixi initialization...')
+					try {
+						gameView = new PixiGameRenderer(game, container)
+						setupResizer()
+					} catch (e) {
+						console.error('Emergency initialization failed', e)
+					}
 				}
-			}
-		})
+			})
 
 		return () => {
 			isMounted = false
@@ -189,10 +192,5 @@ export default function GameWidget(props: DockviewWidgetProps<{ game: string }>,
 		})
 	}
 
-	return (
-		<div
-			class="dockview-widget dockview-widget--game"
-			use={initView}
-		/>
-	)
+	return <div class="dockview-widget dockview-widget--game" use={initView} />
 }

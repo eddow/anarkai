@@ -1,9 +1,9 @@
-import { beforeEach, describe, expect, it } from 'vitest'
-import type { GoodType } from 'ssh/types/base'
 import { AllocationError } from 'ssh/storage/guard'
 import { NoStorage } from 'ssh/storage/no-storage'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
+import type { GoodType } from 'ssh/types/base'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 // Test data - keeping for potential future use
 // const TEST_GOODS = {
@@ -22,7 +22,7 @@ describe.each([
 			canStore: (_storage: SlottedStorage, goods: Record<string, number>) => {
 				const totalSlotsNeeded = Object.values(goods).reduce(
 					(sum, qty) => sum + Math.ceil(qty / 5),
-					0,
+					0
 				)
 				return totalSlotsNeeded <= 10
 			},
@@ -34,7 +34,7 @@ describe.each([
 		{
 			canStore: (storage: SpecificStorage, goods: Record<string, number>) => {
 				return Object.entries(goods).every(
-					([goodType, qty]) => storage.hasRoom(goodType as GoodType) >= qty,
+					([goodType, qty]) => storage.hasRoom(goodType as GoodType) >= qty
 				)
 			},
 		},

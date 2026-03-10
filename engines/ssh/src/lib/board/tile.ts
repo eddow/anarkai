@@ -36,7 +36,7 @@ export class Tile extends withInteractive(GameObject) {
 	}
 	constructor(
 		public readonly board: HexBoard,
-		coord: AxialCoord,
+		coord: AxialCoord
 	) {
 		super(board.game, `tile:${coord.q},${coord.r}`)
 		this.position = coord
@@ -146,7 +146,10 @@ export class Tile extends withInteractive(GameObject) {
 	get surroundings(): { border: TileBorder; tile: TileContent }[] {
 		return axial
 			.neighbors(toAxialCoord(this.position))
-			.map((n) => ({ border: this.borderWith(n), tile: this.board.getTileContent(n) }))
+			.map((n) => ({
+				border: this.borderWith(n),
+				tile: this.board.getTileContent(n),
+			}))
 			.filter((b) => b.border !== undefined && b.tile !== undefined) as {
 			border: TileBorder
 			tile: TileContent
@@ -175,7 +178,7 @@ export class Tile extends withInteractive(GameObject) {
 		return neighbors
 			.map((neighbor: Positioned) => {
 				const tile = this.board.getTile(neighbor)
-				return tile && tile.content
+				return tile?.content
 					? {
 							coord: toAxialCoord(neighbor),
 							walkTime: tile.content.walkTime,

@@ -1,8 +1,9 @@
 /**
  * @link https://www.redblobgames.com/grids/hexagons/
  */
-import type { Sextuplet } from '../../types'
+
 import { assert } from 'ssh/debug'
+import type { Sextuplet } from '../../types'
 import type { RandGenerator } from './numbers'
 
 export type AxialKey = string
@@ -252,7 +253,7 @@ export const axial = {
 				const { q, r } = axial.coord(aRef)
 				return { q: acc.q + coef * q, r: acc.r + coef * r }
 			},
-			{ q: 0, r: 0 },
+			{ q: 0, r: 0 }
 		)
 	},
 	/**

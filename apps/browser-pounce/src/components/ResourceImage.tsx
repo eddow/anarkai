@@ -27,7 +27,10 @@ const ResourceImage = (props: ResourceImageProps) => {
 			const texture = game.getTexture(sprite)
 			let targetWidth = props.width
 			let targetHeight = props.height
-			const frame = texture?.frame ?? { width: texture?.width ?? 0, height: texture?.height ?? 0 }
+			const frame = texture?.frame ?? {
+				width: texture?.width ?? 0,
+				height: texture?.height ?? 0,
+			}
 			const realWidth = frame?.width ?? texture?.width ?? 0
 			const realHeight = frame?.height ?? texture?.height ?? 0
 

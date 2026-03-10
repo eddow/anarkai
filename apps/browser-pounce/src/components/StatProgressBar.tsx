@@ -47,57 +47,61 @@ css`
     transition: width 0.3s, background-color 0.3s;
   }
 
-  .stat-progress-bar__fill--green {
+  .stat-progress-bar__fill.green {
     background-color: rgb(34 197 94);
   }
 
-  .stat-progress-bar__fill--yellow {
+  .stat-progress-bar__fill.yellow {
     background-color: rgb(234 179 8);
   }
 
-  .stat-progress-bar__fill--orange {
+  .stat-progress-bar__fill.orange {
     background-color: rgb(249 115 22);
   }
 
-  .stat-progress-bar__fill--red {
+  .stat-progress-bar__fill.red {
     background-color: rgb(239 68 68);
   }
 `
 
 interface StatProgressBarProps {
-  value: number
-  levels: {
-    critical: number
-    high: number
-    satisfied: number
-  }
-  label: string
-  showValue?: boolean
+	value: number
+	levels: {
+		critical: number
+		high: number
+		satisfied: number
+	}
+	label: string
+	showValue?: boolean
 }
 
-const StatProgressBar = ({ value, levels, label, showValue = true }: StatProgressBarProps) => {
-  const percentage = Math.min(100, Math.max(0, Math.floor((100 * value) / levels.critical)))
+const StatProgressBar = (props: StatProgressBarProps) => {
+	const computed = {
+		get percentage() {
+			return Math.min(100, Math.max(0, Math.floor((100 * props.value) / props.levels.critical)))
+		},
+		get colorClass() {
+			if (props.value < props.levels.satisfied) return 'green'
+			if (props.value < props.levels.high) return 'yellow'
+			if (props.value < props.levels.critical) return 'orange'
+			return 'red'
+		},
+	}
 
-  let colorClass = 'stat-progress-bar__fill--red'
-  if (value < levels.satisfied) colorClass = 'stat-progress-bar__fill--green'
-  else if (value < levels.high) colorClass = 'stat-progress-bar__fill--yellow'
-  else if (value < levels.critical) colorClass = 'stat-progress-bar__fill--orange'
-
-  return (
-    <div class="stat-progress-bar">
-      <div class="stat-progress-bar__header">
-        <span class="stat-progress-bar__label">{label}</span>
-        {showValue && <span class="stat-progress-bar__value">{percentage}%</span>}
-      </div>
-      <div class="stat-progress-bar__track">
-        <div
-          class={`stat-progress-bar__fill ${colorClass}`}
-          style={`width: ${percentage}%`}
-        />
-      </div>
-    </div>
-  )
+	return (
+		<div class="stat-progress-bar">
+			<div class="stat-progress-bar__header">
+				<span class="stat-progress-bar__label">{props.label}</span>
+				{props.showValue && <span class="stat-progress-bar__value">{computed.percentage}%</span>}
+			</div>
+			<div class="stat-progress-bar__track">
+				<div
+					class={`stat-progress-bar__fill ${computed.colorClass}`}
+					style={`width: ${computed.percentage}%`}
+				/>
+			</div>
+		</div>
+	)
 }
 
 export default StatProgressBar
-

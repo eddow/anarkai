@@ -7,7 +7,7 @@ function goEat()
 		end if
 		inventory.makeRoom
 		found = find.food()
-		if not found then debugger //TODO: -> uncontent because no food exist
+		if not found then return false //TODO: -> uncontent because no food exist
 		inventory.grabLoose found.good, found.tile, found.path
 	loop
 end function

@@ -1,24 +1,24 @@
-import { dirname, resolve as resolvePath } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { defineConfig, type Plugin } from 'vite'
-import babel from 'vite-plugin-babel'
-import { cssTagPlugin } from './vite-plugin-css-tag.ts'
+import { dirname, resolve as resolvePath } from "node:path";
+import { fileURLToPath } from "node:url";
+import { defineConfig, type Plugin } from "vite";
+import babel from "vite-plugin-babel";
+import { cssTagPlugin } from "./vite-plugin-css-tag.ts";
 
-const projectRootDir = dirname(fileURLToPath(import.meta.url))
+const projectRootDir = dirname(fileURLToPath(import.meta.url));
 function stripDeclare(): Plugin {
 	return {
-		name: 'strip-declare',
-		enforce: 'pre',
+		name: "strip-declare",
+		enforce: "pre",
 		transform(code, id) {
-			if (!/\.[cm]?tsx?$/.test(id)) return null
+			if (!/\.[cm]?tsx?$/.test(id)) return null;
 
 			// Replace `declare field: Type;` with `field!: Type;`
-			return code.replace(/\bdeclare\s+([\w[].+?):/g, '$1!:')
+			return code.replace(/\bdeclare\s+([\w[].+?):/g, "$1!:");
 		},
-	}
+	};
 }
 
-void stripDeclare
+void stripDeclare;
 
 export default defineConfig({
 	plugins: [
@@ -28,13 +28,13 @@ export default defineConfig({
 			// Babel config (applied to both JS and TS files)
 			babelConfig: {
 				sourceMaps: true,
-				plugins: [['@babel/plugin-proposal-decorators', { legacy: true }]],
+				plugins: [["@babel/plugin-proposal-decorators", { legacy: true }]],
 				overrides: [
 					{
 						test: /\.[mc]?tsx$/,
 						plugins: [
 							[
-								'@babel/plugin-transform-typescript',
+								"@babel/plugin-transform-typescript",
 								{ isTS: true, isTSX: true, allowDeclareFields: true },
 							],
 						],
@@ -43,7 +43,10 @@ export default defineConfig({
 						test: /\.[mc]?ts$/,
 						exclude: /\.[mc]?tsx$/,
 						plugins: [
-							['@babel/plugin-transform-typescript', { isTS: true, allowDeclareFields: true }],
+							[
+								"@babel/plugin-transform-typescript",
+								{ isTS: true, allowDeclareFields: true },
+							],
 						],
 					},
 				],
@@ -53,26 +56,36 @@ export default defineConfig({
 		}),
 	],
 	optimizeDeps: {
-		exclude: ['mutts', 'npc-script', 'omni18n', 'ssh', 'pounce-ts', 'pounce-ui'],
+		exclude: [
+			"mutts",
+			"npc-script",
+			"omni18n",
+			"ssh",
+			"pounce-ts",
+			"pounce-ui",
+		],
 	},
 	resolve: {
 		alias: {
-			$lib: resolvePath(projectRootDir, 'src/lib'),
-			$components: resolvePath(projectRootDir, 'src/components'),
-			$assets: resolvePath(projectRootDir, 'assets'),
-			'@app': resolvePath(projectRootDir, 'src'),
-			'@ssh': resolvePath(projectRootDir, 'src'),
-			'ssh': resolvePath(projectRootDir, 'src/lib'),
-			'pounce-ts': resolvePath(projectRootDir, '../../../ownk/pounce-ts/src/lib'),
-			'pounce-ui': resolvePath(projectRootDir, '../../../ownk/pounce-ui/src'),
-			'npc-script': resolvePath(projectRootDir, '../../../ownk/npcs/src'),
-			'mutts': resolvePath(projectRootDir, '../../../ownk/mutts/src'),
-			'omni18n': resolvePath(projectRootDir, '../../../ownk/omni18n/src'),
-			'pure-glyf': resolvePath(projectRootDir, '../../../ownk/pure-glyf/src'),
+			$lib: resolvePath(projectRootDir, "src/lib"),
+			$components: resolvePath(projectRootDir, "src/components"),
+			$assets: resolvePath(projectRootDir, "assets"),
+			"@app": resolvePath(projectRootDir, "src"),
+			"@ssh": resolvePath(projectRootDir, "src"),
+			ssh: resolvePath(projectRootDir, "src/lib"),
+			"pounce-ts": resolvePath(
+				projectRootDir,
+				"../../../ownk/pounce-ts/src/lib",
+			),
+			"pounce-ui": resolvePath(projectRootDir, "../../../ownk/pounce-ui/src"),
+			"npc-script": resolvePath(projectRootDir, "../../../ownk/npcs/src"),
+			mutts: resolvePath(projectRootDir, "../../../ownk/mutts/src"),
+			omni18n: resolvePath(projectRootDir, "../../../ownk/omni18n/src"),
+			"pure-glyf": resolvePath(projectRootDir, "../../../ownk/pure-glyf/src"),
 		},
 	},
 	build: {
 		sourcemap: true,
 	},
 	esbuild: false,
-})
+});

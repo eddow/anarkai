@@ -46,7 +46,7 @@ const imports = {
 
 async function condense(_lng: string[], zones: string[]) {
 	return Promise.all(
-		zones.map((zone) => imports[zone as keyof typeof imports][queryLocale]()),
+		zones.map((zone) => imports[zone as keyof typeof imports][queryLocale]())
 	).then((cds) => cds.map((cd) => cd.default) as CondensedDictionary[])
 }
 

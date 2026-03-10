@@ -86,29 +86,33 @@ css`
 `
 
 interface WorkingIndicatorProps {
-    checked: boolean
-    tooltip?: string
-    onChange?: (checked: boolean) => void
+	checked: boolean
+	tooltip?: string
+	onChange?: (checked: boolean) => void
 }
 
 const WorkingIndicator = (props: WorkingIndicatorProps) => {
-    const toggle = () => {
-        props.onChange?.(!props.checked)
-    }
+	const toggle = () => {
+		props.onChange?.(!props.checked)
+	}
 
-    return (
-        <button
-            class={`working-indicator ${!props.checked ? 'not-working' : ''}`}
-            onClick={toggle}
-            title={props.tooltip}
-            aria-checked={props.checked ? 'true' : 'false'}
-            role="switch"
-        >
-            <span class="gear-icon">⚙</span>
-            <span if={props.checked} class="status-icon status-ok">✓</span>
-            <span else class="status-icon status-off">✕</span>
-        </button>
-    )
+	return (
+		<button
+			class={`working-indicator ${!props.checked ? 'not-working' : ''}`}
+			onClick={toggle}
+			title={props.tooltip}
+			aria-checked={props.checked ? 'true' : 'false'}
+			role="switch"
+		>
+			<span class="gear-icon">⚙</span>
+			<span if={props.checked} class="status-icon status-ok">
+				✓
+			</span>
+			<span else class="status-icon status-off">
+				✕
+			</span>
+		</button>
+	)
 }
 
 export default WorkingIndicator

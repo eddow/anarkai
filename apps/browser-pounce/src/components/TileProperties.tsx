@@ -1,18 +1,18 @@
-import { effect, reactive } from 'mutts'
+import { css } from '@app/lib/css'
 import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content'
+import { effect, reactive } from 'mutts'
+import { Alveolus } from 'ssh/board/content/alveolus'
+import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import type { Tile } from 'ssh/board/tile'
+import { i18nState } from 'ssh/i18n'
+import type { GoodType } from 'ssh/types/base'
+import { computeStyleFromTexture } from 'ssh/utils/images'
+import AlveolusProperties from './AlveolusProperties'
 import EntityBadge from './EntityBadge'
 import GoodsList from './GoodsList'
 import PropertyGrid from './PropertyGrid'
 import PropertyGridRow from './PropertyGridRow'
-import AlveolusProperties from './AlveolusProperties'
 import UnBuiltProperties from './UnBuiltProperties'
-import { css } from '@app/lib/css'
-import { Alveolus } from 'ssh/board/content/alveolus'
-import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
-import type { Tile } from 'ssh/board/tile'
-import { T, i18nState } from 'ssh/i18n'
-import { computeStyleFromTexture } from 'ssh/utils/images'
-import type { GoodType } from 'ssh/types/base'
 
 css`
   .tile-properties {
@@ -42,32 +42,33 @@ interface TilePropertiesProps {
 }
 
 const TileProperties = (props: TilePropertiesProps) => {
-	if (!i18nState.translator) return null
 	const state = reactive({
 		tileContent: undefined as Tile['content'],
 		stock: undefined as Record<string, number> | undefined,
 		freeStock: {} as Record<string, number>,
 		contentInfo: undefined as
 			| {
-				type?: keyof typeof visualAlveoli
-				sprite?: string
-				name?: string
-				terrain: string
-			}
+					type?: keyof typeof visualAlveoli
+					sprite?: string
+					name?: string
+					terrain: string
+			  }
 			| undefined,
 		terrainBackgroundStyle: '',
 	})
 
 	effect(() => {
 		const content = props.tile?.content
+		const translator = i18nState.translator
 		state.tileContent = content
 
 		if (content instanceof Alveolus) {
-			const type = content.name as keyof typeof visualAlveoli
+			const type = content.name as keyof typeof visualAlveoli | undefined
+			const visual = type ? visualAlveoli[type] : undefined
 			state.contentInfo = {
 				type,
-				sprite: visualAlveoli[type]?.sprites?.[0],
-				name: String(T.alveoli[type]),
+				sprite: visual?.sprites?.[0],
+				name: type && translator ? String(translator.alveoli[type]) : content.title,
 				terrain: 'concrete',
 			}
 		} else if (content instanceof UnBuiltLand) {
@@ -92,7 +93,7 @@ const TileProperties = (props: TilePropertiesProps) => {
 
 	effect(() => {
 		const counts: Record<string, number> = {}
-		for (const fg of (props.tile?.looseGoods ?? [])) {
+		for (const fg of props.tile?.looseGoods ?? []) {
 			if (!fg.available) continue
 			counts[fg.goodType] = (counts[fg.goodType] || 0) + 1
 		}
@@ -133,21 +134,22 @@ const TileProperties = (props: TilePropertiesProps) => {
 
 			<div class="tile-properties__content">
 				<PropertyGrid>
-					<PropertyGridRow label={String(T.tile.walkTime)}>
+					<PropertyGridRow label={String(i18nState.translator?.tile.walkTime ?? '')}>
 						<span
-							class={`badge ${state.tileContent?.walkTime === Number.POSITIVE_INFINITY
-								? 'badge-red'
-								: 'badge-yellow'
-								}`}
+							class={`badge ${
+								state.tileContent?.walkTime === Number.POSITIVE_INFINITY
+									? 'badge-red'
+									: 'badge-yellow'
+							}`}
 						>
 							{state.tileContent?.walkTime === Number.POSITIVE_INFINITY
-								? String(T.tile.unwalkable)
+								? String(i18nState.translator?.tile.unwalkable ?? '')
 								: state.tileContent?.walkTime}
 						</span>
 					</PropertyGridRow>
 
 					{state.stock && !(state.tileContent instanceof Alveolus) ? (
-						<PropertyGridRow label={String(T.goods.stored)}>
+						<PropertyGridRow label={String(i18nState.translator?.goods.stored ?? '')}>
 							<GoodsList
 								goods={Object.keys(state.stock) as GoodType[]}
 								game={props.tile?.board?.game}
@@ -157,7 +159,7 @@ const TileProperties = (props: TilePropertiesProps) => {
 					) : null}
 
 					{Object.keys(state.freeStock).length > 0 ? (
-						<PropertyGridRow label={String(T.goods.loose)}>
+						<PropertyGridRow label={String(i18nState.translator?.goods.loose ?? '')}>
 							<GoodsList
 								goods={Object.keys(state.freeStock) as GoodType[]}
 								game={props.tile?.board?.game}

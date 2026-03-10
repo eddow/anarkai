@@ -1,5 +1,4 @@
 import { reactive } from 'mutts'
-import { goods as allGoodsList, configurations } from '../../../assets/game-content'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
 import type { Character } from 'ssh/population/character'
@@ -7,6 +6,7 @@ import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { GoodType, Job } from 'ssh/types'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
+import { goods as allGoodsList, configurations } from '../../../assets/game-content'
 import { isSpecificStorageConfiguration } from './alveolus-configuration'
 
 @reactive
@@ -59,7 +59,10 @@ export class StorageAlveolus extends Alveolus {
 				...(configurations['specific-storage'] as Ssh.SpecificStorageAlveolusConfiguration),
 			}
 		}
-		this.individualConfiguration.buffers = { ...this.individualConfiguration.buffers, ...buffers }
+		this.individualConfiguration.buffers = {
+			...this.individualConfiguration.buffers,
+			...buffers,
+		}
 		if (this.configurationRef.scope !== 'individual') {
 			this.configurationRef = { scope: 'individual' }
 		}
@@ -99,7 +102,7 @@ export class StorageAlveolus extends Alveolus {
 			}
 		} else {
 			throw new Error(
-				`StorageAlveolus created with invalid action type: ${(def.action as any)?.type}`,
+				`StorageAlveolus created with invalid action type: ${(def.action as any)?.type}`
 			)
 		}
 	}
@@ -140,14 +143,27 @@ export class StorageAlveolus extends Alveolus {
 				}
 			}
 			for (const goodType of allGoods) {
+				const stockQty = stockPerType.get(goodType) ?? 0
+				const bufferAmount = buffers.get(goodType) || 0
+				if (stockQty > bufferAmount) {
+					relations[goodType] = {
+						advertisement: 'provide',
+						priority: '0-store',
+					}
+					continue
+				}
 				const hasRoom = emptySlotCount > 0 || partialSlotRoom.get(goodType) === true
 				if (hasRoom) {
-					const stockQty = stockPerType.get(goodType) ?? 0
-					const bufferAmount = buffers.get(goodType) || 0
 					if (stockQty < bufferAmount) {
-						relations[goodType] = { advertisement: 'demand', priority: '1-buffer' }
+						relations[goodType] = {
+							advertisement: 'demand',
+							priority: '1-buffer',
+						}
 					} else {
-						relations[goodType] = { advertisement: 'demand', priority: '0-store' }
+						relations[goodType] = {
+							advertisement: 'demand',
+							priority: '0-store',
+						}
 					}
 				}
 			}
@@ -156,21 +172,27 @@ export class StorageAlveolus extends Alveolus {
 			for (const goodType of Object.keys(this.storage.maxAmounts) as GoodType[]) {
 				const maxAmount = this.storage.maxAmounts[goodType] ?? 0
 				const stockQty = this.storage.stock[goodType] ?? 0
+				const bufferAmount = buffers.get(goodType) || 0
+				if (stockQty > bufferAmount) {
+					relations[goodType] = {
+						advertisement: 'provide',
+						priority: '0-store',
+					}
+					continue
+				}
 				if (stockQty < maxAmount) {
-					const bufferAmount = buffers.get(goodType) || 0
 					if (stockQty < bufferAmount) {
-						relations[goodType] = { advertisement: 'demand', priority: '1-buffer' }
+						relations[goodType] = {
+							advertisement: 'demand',
+							priority: '1-buffer',
+						}
 					} else {
-						relations[goodType] = { advertisement: 'demand', priority: '0-store' }
+						relations[goodType] = {
+							advertisement: 'demand',
+							priority: '0-store',
+						}
 					}
 				}
-			}
-		}
-
-		// Provide what we have in stock (only depends on actual goods, not reservations)
-		for (const goodType of Object.keys(this.storage.stock) as GoodType[]) {
-			if (!relations[goodType]) {
-				relations[goodType] = { advertisement: 'provide', priority: '0-store' }
 			}
 		}
 
@@ -181,7 +203,12 @@ export class StorageAlveolus extends Alveolus {
 		// Check for defragment job if storage is fragmented
 		const fragmentedGoodType = this.storage.fragmented
 		return fragmentedGoodType
-			? ({ job: 'defragment', fatigue: 1, urgency: 0.9, goodType: fragmentedGoodType } as Job)
+			? ({
+					job: 'defragment',
+					fatigue: 1,
+					urgency: 0.9,
+					goodType: fragmentedGoodType,
+				} as Job)
 			: undefined
 	}
 }

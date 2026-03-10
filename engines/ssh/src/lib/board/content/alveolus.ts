@@ -1,5 +1,4 @@
 import { memoize, reactive, type ScopedCallback, unreactive, unwrap } from 'mutts'
-import { configurations } from '../../../../assets/game-content'
 import { assert } from 'ssh/debug'
 import type { Hive, MovingGood } from 'ssh/hive/hive'
 import { gameIsaTypes } from 'ssh/npcs/utils'
@@ -9,6 +8,7 @@ import type { GoodType, Job } from 'ssh/types/base'
 import { type AxialCoord, axial, epsilon, tileSize } from 'ssh/utils'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
 import { toAxialCoord, toWorldCoord } from 'ssh/utils/position'
+import { configurations } from '../../../../assets/game-content'
 import { AlveolusGate } from '../border/alveolus-gate'
 import type { Tile } from '../tile'
 import { TileContent } from './content'
@@ -23,7 +23,7 @@ interface LocalMovingGood extends MovingGood {
 @unreactive('tile', 'hive')
 @reactive
 export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof TileContent>(
-	TileContent,
+	TileContent
 ) {
 	declare readonly name: string
 
@@ -72,7 +72,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			if (name) {
 				const namedConfig = this.game.configurationManager.getNamedConfiguration(
 					this.name as any,
-					name,
+					name
 				)
 				if (namedConfig) return namedConfig as Ssh.BaseAlveolusConfiguration
 			}
@@ -228,17 +228,18 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			if (!arr) {
 				continue
 			}
-			for (const mg of arr) {
-				if (axial.distance(mg.path[0], here) < 0.5 + epsilon) {
-					const localMg = Object.setPrototypeOf({ from: mg.from ?? from }, mg) as LocalMovingGood
-					if (canAdvance(mg)) {
-						return [localMg]
-					} else {
-						// console.log(`[aGoodMovement] BLOCKED from border`, { from, here, path0: mg.path[0] })
-						blocked.push(localMg)
+			for (const mg of arr)
+				if (mg.path.length) {
+					if (axial.distance(mg.path[0], here) < 0.5 + epsilon) {
+						const localMg = Object.setPrototypeOf({ from: mg.from ?? from }, mg) as LocalMovingGood
+						if (canAdvance(mg)) {
+							return [localMg]
+						} else {
+							// console.log(`[aGoodMovement] BLOCKED from border`, { from, here, path0: mg.path[0] })
+							blocked.push(localMg)
+						}
 					}
 				}
-			}
 		}
 
 		// No available movements - try to find circular blocks
@@ -259,13 +260,14 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		// Build a map from current position to movements
 		const movementsByPosition = new Map<string, LocalMovingGood[]>()
 
-		for (const mg of blocked) {
-			const key = `${mg.from.q},${mg.from.r}`
-			if (!movementsByPosition.has(key)) {
-				movementsByPosition.set(key, [])
+		for (const mg of blocked)
+			if (mg.path.length) {
+				const key = `${mg.from.q},${mg.from.r}`
+				if (!movementsByPosition.has(key)) {
+					movementsByPosition.set(key, [])
+				}
+				movementsByPosition.get(key)!.push(mg)
 			}
-			movementsByPosition.get(key)!.push(mg)
-		}
 
 		// Try to find a cycle starting from each blocked movement
 		const visited = new Set<string>()
@@ -287,6 +289,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		 * - Backtracks by removing from recursion stack and path when exploring branch completes
 		 */
 		function depthFirstSearchForCycle(mg: LocalMovingGood): LocalMovingGood[] | undefined {
+			if (mg.path.length === 0) return undefined
 			const currentKey = `${mg.from.q},${mg.from.r}`
 			const nextKey = `${mg.path[0].q},${mg.path[0].r}`
 
@@ -318,13 +321,14 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		}
 
 		// Try DFS from each unvisited blocked movement
-		for (const mg of blocked) {
-			const key = `${mg.from.q},${mg.from.r}`
-			if (!visited.has(key)) {
-				const cycle = depthFirstSearchForCycle(mg)
-				if (cycle) return cycle
+		for (const mg of blocked)
+			if (mg.path.length) {
+				const key = `${mg.from.q},${mg.from.r}`
+				if (!visited.has(key)) {
+					const cycle = depthFirstSearchForCycle(mg)
+					if (cycle) return cycle
+				}
 			}
-		}
 
 		return undefined
 	}
@@ -334,7 +338,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		// Note: because borders have 2 neighbors and we check this when no movement is occurring,
 		//  if a good is incoming, it's for you (you're in one of the neighbors)
 		return this.tile.surroundings.some(
-			(s) => s.border.content instanceof AlveolusGate && s.border.content.storage.allocatedSlots,
+			(s) => s.border.content instanceof AlveolusGate && s.border.content.storage.allocatedSlots
 		)
 	}
 
@@ -376,8 +380,11 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			: Object.fromEntries(
 					Object.keys(this.storage.stock).map((goodType) => [
 						goodType as GoodType,
-						{ advertisement: 'provide', priority: '0-store' as ExchangePriority },
-					]),
+						{
+							advertisement: 'provide',
+							priority: '0-store' as ExchangePriority,
+						},
+					])
 				)
 		return rv
 	}

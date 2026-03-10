@@ -88,7 +88,9 @@ vi.mock('./widgets', () => ({
 
 vi.mock('@pounce', () => ({
 	Button: (props: { onClick?: () => void; children?: any; ['aria-label']?: string }) => (
-		<button onClick={props.onClick} aria-label={props['aria-label']}>{props.children}</button>
+		<button onClick={props.onClick} aria-label={props['aria-label']}>
+			{props.children}
+		</button>
 	),
 	ButtonGroup: (props: { children?: any }) => <div class="button-group">{props.children}</div>,
 	DisplayProvider: (props: { children?: any }) => <>{props.children}</>,
@@ -104,7 +106,9 @@ vi.mock('@pounce', () => ({
 	),
 	Toolbar: Object.assign(
 		(props: { children?: any }) => <div class="toolbar">{props.children}</div>,
-		{ Spacer: (props: { children?: any }) => <div class="toolbar-spacer">{props.children}</div> },
+		{
+			Spacer: (props: { children?: any }) => <div class="toolbar-spacer">{props.children}</div>,
+		}
 	),
 	RadioButton: (props: { value: string; group: any; children?: any; ['aria-label']?: string }) => (
 		<button
@@ -183,9 +187,13 @@ describe('App toolbar interactions', () => {
 		stop = latch(container, <App />)
 		addPanel.mockClear()
 
-		const configButton = container.querySelector('[aria-label="Open configuration"]') as HTMLButtonElement
+		const configButton = container.querySelector(
+			'[aria-label="Open configuration"]'
+		) as HTMLButtonElement
 		const gameButton = container.querySelector('[aria-label="Open game view"]') as HTMLButtonElement
-		const testButton = container.querySelector('[aria-label="Open multiselect test"]') as HTMLButtonElement
+		const testButton = container.querySelector(
+			'[aria-label="Open multiselect test"]'
+		) as HTMLButtonElement
 
 		configButton.click()
 		gameButton.click()
@@ -215,7 +223,9 @@ describe('App toolbar interactions', () => {
 		stop = latch(container, <App />)
 
 		const playButton = container.querySelector('[aria-label="Play"]') as HTMLButtonElement
-		const buildHouseButton = container.querySelector('[aria-label="Build house"]') as HTMLButtonElement
+		const buildHouseButton = container.querySelector(
+			'[aria-label="Build house"]'
+		) as HTMLButtonElement
 		const zoneButton = container.querySelector('[aria-label="Residential"]') as HTMLButtonElement
 
 		playButton.click()

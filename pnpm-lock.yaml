@@ -18,6 +18,9 @@ importers:
       '@babel/plugin-transform-typescript':
         specifier: ^7.28.0
         version: 7.28.5(@babel/core@7.28.5)
+      '@biomejs/biome':
+        specifier: ^2.4.6
+        version: 2.4.6
       vitest:
         specifier: ^3.2.4
         version: 3.2.4(@types/node@25.0.10)(jsdom@27.4.0)(sass-embedded@1.97.1)(sass@1.97.1)(terser@5.44.1)(tsx@4.21.0)

@@ -44,9 +44,11 @@ interface PropertyGridRowProps {
 	children: JSX.Element | (JSX.Element | null | undefined | false)[]
 }
 
-export default function PropertyGridRow(
-	{ label, class: className = '', children }: PropertyGridRowProps
-): JSX.Element {
+export default function PropertyGridRow({
+	label,
+	class: className = '',
+	children,
+}: PropertyGridRowProps): JSX.Element {
 	return (
 		<tr class="property-grid-row">
 			{label && (

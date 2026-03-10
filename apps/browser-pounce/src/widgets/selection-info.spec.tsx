@@ -1,6 +1,6 @@
+import type { DockviewWidgetProps } from '@pounce'
 import { document, latch } from '@pounce/core'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DockviewWidgetProps } from '@pounce'
 
 const updateParameters = vi.fn<(params: { uid?: string }) => void>()
 const onDidRemovePanel = vi.fn((handler: (panel: { id: string }) => void) => {
@@ -42,11 +42,7 @@ const globals = {
 }
 
 vi.mock('@pounce', () => ({
-	Button: (props: {
-		onClick?: () => void
-		children?: any
-		['aria-label']?: string
-	}) => (
+	Button: (props: { onClick?: () => void; children?: any; 'aria-label'?: string }) => (
 		<button onClick={props.onClick} aria-label={props['aria-label']}>
 			{props.children}
 		</button>

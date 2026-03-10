@@ -10,7 +10,7 @@ export class TransitAlveolus extends Alveolus {
 			Object.keys(this.storage.stock).map((goodType) => [
 				goodType as GoodType,
 				{ advertisement: 'provide', priority: '2-use' },
-			]),
+			])
 		)
 	}
 }

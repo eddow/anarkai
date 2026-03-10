@@ -9,7 +9,7 @@
  */
 export function poissonRandom(
 	lambda: number,
-	rnd: (max?: number, min?: number) => number = Math.random,
+	rnd: (max?: number, min?: number) => number = Math.random
 ): number {
 	if (lambda <= 0) return 0
 	if (lambda > 100) {
@@ -114,7 +114,7 @@ const poissonTable = new PoissonLookupTable()
  */
 export function fastPoissonRandom(
 	lambda: number,
-	rnd: (max?: number, min?: number) => number = Math.random,
+	rnd: (max?: number, min?: number) => number = Math.random
 ): number {
 	return poissonTable.get(lambda, rnd)
 }

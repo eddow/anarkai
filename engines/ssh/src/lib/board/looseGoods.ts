@@ -1,6 +1,4 @@
-import { atomic, reactive, unreactive, untracked } from 'mutts'
-
-import { goods } from '../../../assets/game-content'
+import { atomic, reactive, unreactive, untracked, unwrap } from 'mutts'
 import { assert } from 'ssh/debug'
 import { GameObject, withTicked } from 'ssh/game/object'
 import {
@@ -13,12 +11,13 @@ import type { GoodType } from 'ssh/types'
 import { epsilon } from 'ssh/utils'
 import { AxialKeyMap } from 'ssh/utils/mem'
 import { axialDistance, type Position, type Positioned, toAxialCoord } from 'ssh/utils/position'
+import { goods } from '../../../assets/game-content'
 
 @unreactive
 class LooseGoodAllocation {
 	constructor(
 		public readonly looseGood: LooseGood,
-		reason: any,
+		reason: any
 	) {
 		guardAllocation(this, reason)
 	}
@@ -55,20 +54,23 @@ export class LooseGoods extends withTicked(GameObject) {
 		assert(
 			!('position' in options) ||
 				axialDistance(options.position!, toAxialCoord(pos)) < 0.5 + epsilon,
-			'`position` in options must be roughly the same as pos.position',
+			'`position` in options must be roughly the same as pos.position'
 		)
 		const coord = toAxialCoord(pos)
 		const self = this
+		const hasSameIdentity = (candidate: LooseGood) => unwrap(candidate) === unwrap(good)
 		const good: LooseGood = reactive({
 			goodType,
 			position: 'position' in pos ? pos.position : pos,
 			available: true,
 			get isRemoved() {
-				const coord = toAxialCoord(pos)
+				const coord = toAxialCoord(this.position)
 				const goodsList = self.goods.get(coord) || []
-				return !goodsList.includes(good)
+				return !goodsList.some(hasSameIdentity)
 			},
-			remove: () => this.remove(pos, good),
+			remove() {
+				self.remove(this.position, good)
+			},
 			allocate: (reason: any): LooseGoodAllocation => {
 				if (!good.available) {
 					throw new Error(`LooseGood already allocated: ${reason}`)
@@ -90,13 +92,17 @@ export class LooseGoods extends withTicked(GameObject) {
 	remove(pos: Positioned, good: LooseGood): void {
 		// Guard against double-removal
 		if (good.isRemoved) {
-			console.warn('LooseGood.remove called on already-removed good', good.goodType, new Error().stack?.split('\n').slice(1, 5).join('\n'))
+			console.warn(
+				'LooseGood.remove called on already-removed good',
+				good.goodType,
+				new Error().stack?.split('\n').slice(1, 5).join('\n')
+			)
 			return
 		}
 
 		const coord = toAxialCoord(pos)
 		const oldList = this.goods.get(coord)!
-		const newList = oldList.filter((g) => g !== good)
+		const newList = oldList.filter((g) => unwrap(g) !== unwrap(good))
 		assert(newList.length === oldList.length - 1, 'LooseGood not found')
 		if (newList.length) this.goods.set(coord, newList)
 		else this.goods.delete(coord)
@@ -108,7 +114,11 @@ export class LooseGoods extends withTicked(GameObject) {
 		return this.goods.get(toAxialCoord(coord)) || []
 	}
 
-	findAndAllocate(coord: Positioned, goodType?: GoodType, reason?: any): LooseGoodAllocation | null {
+	findAndAllocate(
+		coord: Positioned,
+		goodType?: GoodType,
+		reason?: any
+	): LooseGoodAllocation | null {
 		const goodsList = this.goods.get(toAxialCoord(coord))
 		if (!goodsList) return null
 
@@ -117,10 +127,7 @@ export class LooseGoods extends withTicked(GameObject) {
 			if (good.available && (!goodType || good.goodType === goodType)) {
 				try {
 					return good.allocate(reason || 'findAndAllocate')
-				} catch (e) {
-					// Good was already allocated/removed, continue searching
-					continue
-				}
+				} catch (_e) {}
 			}
 		}
 		return null
@@ -130,7 +137,7 @@ export class LooseGoods extends withTicked(GameObject) {
 		start: Positioned,
 		_center: Positioned,
 		goodTypes: GoodType[],
-		maxWalkTime: number,
+		maxWalkTime: number
 	): { goodType: GoodType; path: Positioned[] } | undefined {
 		const path = this.game.hex.findNearest(
 			start,
@@ -138,7 +145,7 @@ export class LooseGoods extends withTicked(GameObject) {
 				const goodsList = this.getGoodsAt(coord)
 				return goodsList.some((g) => goodTypes.includes(g.goodType) && g.available)
 			},
-			maxWalkTime, // Use walk time directly as stop condition
+			maxWalkTime // Use walk time directly as stop condition
 		)
 
 		if (path) {
@@ -163,7 +170,7 @@ export class LooseGoods extends withTicked(GameObject) {
 					const goodDef = goods[good.goodType]
 					if (!goodDef) {
 						console.error(
-							`LooseGood update: Unknown good type '${good.goodType}'. Goods keys: ${Object.keys(goods).join(', ')}`,
+							`LooseGood update: Unknown good type '${good.goodType}'. Goods keys: ${Object.keys(goods).join(', ')}`
 						)
 						continue
 					}

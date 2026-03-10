@@ -1,10 +1,10 @@
-import type { GoodType } from 'ssh/types/base'
-import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
+import { css } from '@app/lib/css'
 import { Button } from '@pounce'
+import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
+import type { Game } from 'ssh/game'
+import type { GoodType } from 'ssh/types/base'
 import EntityBadge from '../EntityBadge'
 import AddGoodButton from './AddGoodButton'
-import { css } from '@app/lib/css'
-import type { Game } from 'ssh/game'
 
 css`
 .good-multi-select {
@@ -82,7 +82,7 @@ export default function GoodMultiSelect(props: GoodMultiSelectProps) {
 	const handleRemove = (good: GoodType) => {
 		props.onRemove(good)
 		if (props.onUpdate) {
-			props.onUpdate(props.value.filter(g => g !== good))
+			props.onUpdate(props.value.filter((g) => g !== good))
 		}
 	}
 
@@ -98,14 +98,8 @@ export default function GoodMultiSelect(props: GoodMultiSelectProps) {
 						<div class="good-row">
 							<EntityBadge game={props.game} sprite={getSprite(gt)} text={gt} />
 							<div class="row-controls">
-								<div if={props.renderItemExtra}>
-									{props.renderItemExtra?.(gt)}
-								</div>
-								<Button
-									onClick={() => handleRemove(gt)}
-									title="Remove"
-									class="remove-btn"
-								>
+								<div if={props.renderItemExtra}>{props.renderItemExtra?.(gt)}</div>
+								<Button onClick={() => handleRemove(gt)} title="Remove" class="remove-btn">
 									×
 								</Button>
 							</div>

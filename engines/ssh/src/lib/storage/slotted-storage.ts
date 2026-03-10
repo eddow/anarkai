@@ -1,4 +1,4 @@
-import { atomic, memoize, reactive, type ScopedCallback, unreactive, unwrap } from 'mutts'
+import { atomic, memoize, reactive, unreactive } from 'mutts'
 import { assert } from 'ssh/debug'
 import type { Goods, GoodType } from 'ssh/types/base'
 import {
@@ -11,13 +11,12 @@ import {
 import { type AllocationBase, Storage } from './storage'
 import type { RenderedGoodSlot, RenderedGoodSlots } from './types'
 
-
 @reactive
 class SlottedAllocation implements AllocationBase {
 	constructor(
 		private storage: SlottedStorage,
 		public readonly allocation: number[],
-		reason: any,
+		reason: any
 	) {
 		guardAllocation(this, reason)
 	}
@@ -70,7 +69,7 @@ class SlottedAllocation implements AllocationBase {
 				if (slot.quantity + slot.allocated === 0) {
 					assert(
 						slot.reserved === 0 && slot.allocated === 0 && slot.quantity === 0,
-						'slot should be empty',
+						'slot should be empty'
 					)
 					this.storage.slots.splice(i, 1, undefined)
 				}
@@ -86,7 +85,7 @@ class SlottedAllocation implements AllocationBase {
 				if (slot.quantity + slot.allocated === 0) {
 					assert(
 						slot.reserved === 0 && slot.allocated === 0 && slot.quantity === 0,
-						'slot should be empty',
+						'slot should be empty'
 					)
 					this.storage.slots.splice(i, 1, undefined)
 				}
@@ -126,7 +125,7 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 
 	constructor(
 		maxSlots: number,
-		public readonly maxQuantityPerSlot: number = 1,
+		public readonly maxQuantityPerSlot: number = 1
 	) {
 		super()
 		for (let i = 0; i < maxSlots; i++) this.slots.push(undefined)
@@ -244,7 +243,7 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 			const available = this.available(goodType)
 			const stock = this.stock[goodType] ?? 0
 			console.warn(
-				`[SlottedStorage] Cannot remove ${goodType} (qty ${qty}): remaining ${remaining}, available ${available}, stock ${stock}.`,
+				`[SlottedStorage] Cannot remove ${goodType} (qty ${qty}): remaining ${remaining}, available ${available}, stock ${stock}.`
 			)
 		}
 
@@ -256,7 +255,8 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		const result: { [k in GoodType]?: number } = {}
 
 		for (const slot of this.slots)
-			if (slot && slot.quantity > 0) result[slot.goodType] = (result[slot.goodType] || 0) + slot.quantity
+			if (slot && slot.quantity > 0)
+				result[slot.goodType] = (result[slot.goodType] || 0) + slot.quantity
 
 		return result
 	}
@@ -265,7 +265,7 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 	get availables(): { [k in GoodType]?: number } {
 		// Depend on reserved version to track changes
 		void this._reservedVersion
-		
+
 		const result: { [k in GoodType]?: number } = {}
 
 		for (const slot of this.slots) {
@@ -300,7 +300,11 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 			if (remaining <= 0) continue
 
 			// Create list of slots with their final quantities for sorting
-			const slotCandidates: { index: number; slot: Slot; finalQuantity: number }[] = []
+			const slotCandidates: {
+				index: number
+				slot: Slot
+				finalQuantity: number
+			}[] = []
 			for (let i = 0; i < this.slots.length; i++) {
 				const slot = this.slots[i]
 				if (!slot || slot.goodType !== goodType) continue
@@ -361,7 +365,11 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 			if (remaining <= 0) continue
 
 			// Create list of slots with their final quantities for sorting
-			const slotCandidates: { index: number; slot: Slot; finalQuantity: number }[] = []
+			const slotCandidates: {
+				index: number
+				slot: Slot
+				finalQuantity: number
+			}[] = []
 			for (let i = 0; i < this.slots.length; i++) {
 				const slot = this.slots[i]
 				if (!slot || slot.goodType !== goodType) continue

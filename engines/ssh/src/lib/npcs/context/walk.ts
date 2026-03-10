@@ -18,7 +18,7 @@ class WalkFunctions {
 			return new MoveToStep(
 				this[subject].tile.content!.walkTime * axial.distance(fromAxial, toAxial),
 				this[subject],
-				to,
+				to
 			)
 	}
 	/**

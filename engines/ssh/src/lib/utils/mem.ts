@@ -1,4 +1,4 @@
-import { reactive, ReactiveBase } from 'mutts'
+import { ReactiveBase, reactive } from 'mutts'
 import { type Axial, type AxialKey, type AxialRef, axial } from '.'
 
 export interface AxialKeyDictionary<T> {
@@ -11,20 +11,25 @@ export interface AxialKeyDictionary<T> {
 	values(): Iterable<T>
 }
 
-@reactive	// TODO: this reactive might be superfluous
-export class AxialKeyMap<T> extends ReactiveBase implements AxialKeyDictionary<T>, Iterable<[AxialKey, T]> {
+@reactive // TODO: this reactive might be superfluous
+export class AxialKeyMap<T>
+	extends ReactiveBase
+	implements AxialKeyDictionary<T>, Iterable<[AxialKey, T]>
+{
 	private map: Map<AxialKey, T>
 
 	constructor(
 		init: Iterable<[AxialRef, T]> = [],
-		private readonly defaultValue?: () => T,
+		private readonly defaultValue?: () => T
 	) {
 		super()
-		this.map = reactive(new Map(
-			(function* () {
-				for (const [k, v] of init) yield [axial.key(k), v]
-			})(),
-		))
+		this.map = reactive(
+			new Map(
+				(function* () {
+					for (const [k, v] of init) yield [axial.key(k), v]
+				})()
+			)
+		)
 	}
 	[Symbol.iterator](): Iterator<[AxialKey, T], any, any> {
 		return this.map[Symbol.iterator]()
@@ -70,7 +75,7 @@ export class AxialKeyMap<T> extends ReactiveBase implements AxialKeyDictionary<T
 	}
 }
 
-@reactive	// TODO: this reactive might be superfluous
+@reactive // TODO: this reactive might be superfluous
 export class AxialSet extends ReactiveBase implements Iterable<Axial> {
 	private set: AxialKeyMap<Axial>
 
@@ -79,7 +84,7 @@ export class AxialSet extends ReactiveBase implements Iterable<Axial> {
 		this.set = new AxialKeyMap(
 			(function* () {
 				for (const k of init) yield [axial.key(k), axial.access(k)]
-			})(),
+			})()
 		)
 	}
 	[Symbol.iterator](): Iterator<Axial, any, any> {

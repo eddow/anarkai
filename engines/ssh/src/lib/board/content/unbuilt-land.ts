@@ -1,11 +1,11 @@
 import { reactive } from 'mutts'
-import { deposits } from '../../../../assets/game-content'
 import { withTicked } from 'ssh/game/object'
 import { gameIsaTypes } from 'ssh/npcs/utils'
 import type { TerrainType } from 'ssh/types'
 import { LCG, subSeed } from 'ssh/utils/numbers'
 import { fastPoissonRandom } from 'ssh/utils/poisson'
 import { toAxialCoord } from 'ssh/utils/position'
+import { deposits } from '../../../../assets/game-content'
 import type { Tile } from '../tile'
 import { TileContent } from './content'
 import { GcClassed, GcClasses } from './utils'
@@ -42,7 +42,7 @@ export class UnBuiltLand extends withTicked(TileContent) {
 	constructor(
 		public readonly tile: Tile,
 		public terrain: TerrainType,
-		public deposit?: Deposit,
+		public deposit?: Deposit
 	) {
 		const tileCoord = toAxialCoord(tile.position)!
 		super(tile.board.game, `unbuilt-${tileCoord.q}-${tileCoord.r}`)
@@ -62,7 +62,7 @@ export class UnBuiltLand extends withTicked(TileContent) {
 
 			// Use proper Poisson distribution for bursty generation
 			const goodsToSpawn = fastPoissonRandom(lambda, (max?: number, min?: number) =>
-				this.game.random(max, min),
+				this.game.random(max, min)
 			)
 
 			// Spawn the calculated number of goods
@@ -107,7 +107,9 @@ export class UnBuiltLand extends withTicked(TileContent) {
 		}
 
 		// Create the loose good
-		this.tile.board.looseGoods.add(this.tile, goodType as any, { position: randomPos })
+		this.tile.board.looseGoods.add(this.tile, goodType as any, {
+			position: randomPos,
+		})
 	}
 
 	get debugInfo() {

@@ -1,11 +1,11 @@
-import { reactive } from 'mutts'
+import { games } from '@app/lib/globals'
 import type { DockviewWidgetProps } from '@pounce'
-import StorageConfiguration from '../components/storage/StorageConfiguration'
+import { reactive } from 'mutts'
+import { configurations } from 'ssh/assets/game-content'
+import type { StorageAlveolus } from 'ssh/hive/storage'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
-import type { StorageAlveolus } from 'ssh/hive/storage'
-import { configurations } from 'ssh/assets/game-content'
-import { games } from '@app/lib/globals'
+import StorageConfiguration from '../components/storage/StorageConfiguration'
 
 // Mocking storage classes purely for the UI test if real ones aren't fully instantiable without game context.
 // However, since we import them, we try to use them or at least mock objects that satisfy the instanceof check if possible.
@@ -24,7 +24,7 @@ export default (_props: DockviewWidgetProps) => {
 	// But let's assume we can instantiate them or we are running in an env where we can.
 	// If not, we might fail. Given the imports exist, we try to use them.
 
-	// Using "as any" to bypass strict constructor requirements for the test widget if needed, 
+	// Using "as any" to bypass strict constructor requirements for the test widget if needed,
 	// but ideally we should construct them properly.
 	// Let's create simple reactive objects that Mimic them for the components needs.
 	// The component checks `instanceof SlottedStorage`.
@@ -35,17 +35,18 @@ export default (_props: DockviewWidgetProps) => {
 		storage: any,
 		action: any,
 		buffers: Record<string, number> = {}
-	): StorageAlveolus => reactive({
-		storage,
-		action,
-		storageMode: 'all-but',
-		storageExceptions: [],
-		storageBuffers: buffers,
-		storageConfiguration: { ...configurations['specific-storage'], buffers }
-	}) as any
+	): StorageAlveolus =>
+		reactive({
+			storage,
+			action,
+			storageMode: 'all-but',
+			storageExceptions: [],
+			storageBuffers: buffers,
+			storageConfiguration: { ...configurations['specific-storage'], buffers },
+		}) as any
 
 	// We can't easily fetch real instances without a real hive/game probably.
-	// So for this test widget, we might just have to rely on the fact that if it builds, it works, 
+	// So for this test widget, we might just have to rely on the fact that if it builds, it works,
 	// OR we rely on the component using the `isSlotted` derived which does `instanceof`.
 	// If we can't create a real `SlottedStorage`, `instanceof` will fail if we just make a plain object.
 
@@ -57,31 +58,45 @@ export default (_props: DockviewWidgetProps) => {
 	slottedStorage.maxSlots = 5
 
 	const specificStorage = Object.create(SpecificStorage.prototype)
-	specificStorage.maxAmounts = { 'wood': 60, 'stone': 12 }
+	specificStorage.maxAmounts = { wood: 60, stone: 12 }
 
 	// Action mocks
 	const slottedAction: Ssh.SlottedStorageAction = {
 		type: 'slotted-storage',
 		slots: 5,
-		capacity: 10
+		capacity: 10,
 	}
 
 	const specificAction: Ssh.SpecificStorageAction = {
 		type: 'specific-storage',
-		goods: { 'wood': 60, 'stone': 12 }
+		goods: { wood: 60, stone: 12 },
 	}
 
 	return (
-		<div style={{ padding: '1rem', height: '100%', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+		<div
+			style={{
+				padding: '1rem',
+				height: '100%',
+				overflow: 'auto',
+				display: 'flex',
+				flexDirection: 'column',
+				gap: '2rem',
+			}}
+		>
 			<h2>Storage Config Test</h2>
 
 			<section>
 				<h3>Slotted Storage (Max 10 per slot)</h3>
 				<p>1 Star = 1 Slot (10 items)</p>
-				<div style={{ border: '1px solid var(--pico-border-color)', padding: '1rem' }}>
+				<div
+					style={{
+						border: '1px solid var(--pico-border-color)',
+						padding: '1rem',
+					}}
+				>
 					<StorageConfiguration
 						game={mockGame}
-						content={createAlveolus(slottedStorage, slottedAction, { 'wood': 2 })}
+						content={createAlveolus(slottedStorage, slottedAction, { wood: 2 })}
 					/>
 				</div>
 			</section>
@@ -89,10 +104,17 @@ export default (_props: DockviewWidgetProps) => {
 			<section>
 				<h3>Specific Storage (Wood: 60, Stone: 12)</h3>
 				<p>1 Star = 20%</p>
-				<div style={{ border: '1px solid var(--pico-border-color)', padding: '1rem' }}>
+				<div
+					style={{
+						border: '1px solid var(--pico-border-color)',
+						padding: '1rem',
+					}}
+				>
 					<StorageConfiguration
 						game={mockGame}
-						content={createAlveolus(specificStorage, specificAction, { 'wood': 12 })}
+						content={createAlveolus(specificStorage, specificAction, {
+							wood: 12,
+						})}
 					/>
 				</div>
 			</section>

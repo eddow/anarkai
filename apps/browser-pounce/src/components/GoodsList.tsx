@@ -1,10 +1,10 @@
-import { goods as visualGoods } from 'engine-pixi/assets/visual-content'
-import EntityBadge from './EntityBadge'
 import { css } from '@app/lib/css'
-import type { Game } from 'ssh/game'
-import type { GoodType } from 'ssh/types/base'
-import { T } from 'ssh/i18n'
+import { goods as visualGoods } from 'engine-pixi/assets/visual-content'
 import { reactive } from 'mutts'
+import type { Game } from 'ssh/game'
+import { i18nState } from 'ssh/i18n'
+import type { GoodType } from 'ssh/types/base'
+import EntityBadge from './EntityBadge'
 
 css`
 .goods-list {
@@ -99,13 +99,13 @@ css`
  */
 interface GoodsListProps {
 	/**
-	 * An ordered list of goods to display. 
+	 * An ordered list of goods to display.
 	 * Supports reactive two-way binding: modifying this array (push/splice) will update the UI.
 	 */
 	goods: GoodType[]
 
 	/**
-	 * Example usage of Game instance for retrieving visual assets logic (if needed deep down) 
+	 * Example usage of Game instance for retrieving visual assets logic (if needed deep down)
 	 * though mostly used for badge rendering context.
 	 */
 	game: Game
@@ -130,7 +130,7 @@ interface GoodsListProps {
 	/**
 	 * Optional render prop to display custom content between the badge and the remove button.
 	 * Useful for displaying extra data like IDs or small status indicators.
-	 * 
+	 *
 	 * @param good The good type being rendered.
 	 * @param index The index of the good in the list.
 	 */
@@ -139,50 +139,59 @@ interface GoodsListProps {
 	/**
 	 * Callback to inject extra props into the `EntityBadge` component.
 	 * Essential for legacy support where quantity is stored separately from the list.
-	 * 
+	 *
 	 * @param good The good type.
 	 * @param index The index in the list.
 	 * @returns Partial props for EntityBadge (e.g., `{ qty: 5 }`).
 	 */
-	getBadgeProps?: (good: GoodType, index: number) => Partial<{ qty: number, [key: string]: any }>
+	getBadgeProps?: (good: GoodType, index: number) => Partial<{ qty: number; [key: string]: any }>
 }
 
 /**
  * A reactive component dealing with a list of goods.
- * 
+ *
  * It supports:
  * - Read-only display (default).
  * - "Two-way binding" editing (via `editable={true}`), where the `goods` array is mutated directly.
  * - Custom badge properties (e.g. quantity display) via `getBadgeProps`.
  * - Custom extra content per item via `renderItemExtra`.
- * 
+ *
  * @example
  * // Basic Read-Only Usage with Quantities
- * <GoodsList 
- *   goods={Object.keys(stock)} 
- *   game={game} 
- *   getBadgeProps={(g) => ({ qty: stock[g] })} 
+ * <GoodsList
+ *   goods={Object.keys(stock)}
+ *   game={game}
+ *   getBadgeProps={(g) => ({ qty: stock[g] })}
  * />
- * 
+ *
  * @example
  * // Editable List (Two-Way Binding)
- * <GoodsList 
- *   goods={state.selectedGoods} 
- *   game={game} 
- *   editable={true} 
+ * <GoodsList
+ *   goods={state.selectedGoods}
+ *   game={game}
+ *   editable={true}
  * />
- * 
+ *
  * @example
  * // With Custom Extra Content
- * <GoodsList 
- *   goods={state.items} 
- *   game={game} 
+ * <GoodsList
+ *   goods={state.items}
+ *   game={game}
  *   renderItemExtra={(good, index) => <span>#{index}</span>}
  * />
  */
-const GoodsList = ({ goods, game, itemSize = 20, className = '', editable = false, renderItemExtra, getBadgeProps }: GoodsListProps) => {
+const GoodsList = ({
+	goods,
+	game,
+	itemSize = 20,
+	className = '',
+	editable = false,
+	renderItemExtra,
+	getBadgeProps,
+}: GoodsListProps) => {
+	const translator = i18nState.translator
 	const state = reactive({
-		isDropdownOpen: false
+		isDropdownOpen: false,
 	})
 
 	// Reactive derivation of available goods (exclude those already in list?)
@@ -193,7 +202,7 @@ const GoodsList = ({ goods, game, itemSize = 20, className = '', editable = fals
 	const getAvailableGoods = () => {
 		const allGoods = Object.keys(visualGoods) as GoodType[]
 		const currentSet = new Set(goods)
-		return allGoods.filter(g => !currentSet.has(g))
+		return allGoods.filter((g) => !currentSet.has(g))
 	}
 
 	const handleAdd = (good: GoodType) => {
@@ -213,10 +222,7 @@ const GoodsList = ({ goods, game, itemSize = 20, className = '', editable = fals
 	}
 
 	return (
-		<div
-			class={`goods-list ${className}`}
-			if={goods.length > 0 || editable}
-		>
+		<div class={`goods-list ${className}`} if={goods.length > 0 || editable}>
 			{/* Dropdown for adding goods (only in editable mode) */}
 			<div class="goods-dropdown" if={editable}>
 				<div
@@ -230,14 +236,11 @@ const GoodsList = ({ goods, game, itemSize = 20, className = '', editable = fals
 					{/* Using <for> for available goods */}
 					<for each={getAvailableGoods()}>
 						{(good: GoodType) => (
-							<div
-								class="goods-dropdown__item"
-								onClick={() => handleAdd(good)}
-							>
+							<div class="goods-dropdown__item" onClick={() => handleAdd(good)}>
 								<EntityBadge
 									game={game}
 									sprite={visualGoods[good]?.sprites?.[0] ?? 'default'}
-									text={T.goods?.[good] ?? good}
+									text={translator?.goods?.[good] ?? good}
 									height={itemSize}
 								/>
 							</div>
@@ -265,7 +268,7 @@ const GoodsList = ({ goods, game, itemSize = 20, className = '', editable = fals
 							<EntityBadge
 								game={game}
 								sprite={visualGoods[good]?.sprites?.[0] ?? 'default'}
-								text={T.goods?.[good] ?? good}
+								text={translator?.goods?.[good] ?? good}
 								height={itemSize}
 								{...badgeProps}
 							/>

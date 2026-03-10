@@ -1,0 +1,106 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.4.6/schema.json",
+	"files": {
+		"includes": [
+			"apps/**/src/**/*.ts",
+			"apps/**/src/**/*.tsx",
+			"apps/**/tests/**/*.ts",
+			"apps/**/tests/**/*.tsx",
+			"engines/**/src/**/*.ts",
+			"engines/**/src/**/*.tsx",
+			"engines/**/tests/**/*.ts",
+			"engines/**/tests/**/*.tsx",
+			"engines/**/assets/**/*.ts",
+			"src/**/*.ts",
+			"sandbox/**/*.ts",
+			"sandbox/**/*.tsx",
+			"!**/node_modules",
+			"!**/dist",
+			"!**/build",
+			"!**/.turbo",
+			"!**/.vite",
+			"!**/coverage",
+			"!**/out"
+		]
+	},
+	"javascript": {
+		"formatter": {
+			"lineWidth": 100,
+			"quoteStyle": "single",
+			"semicolons": "asNeeded",
+			"trailingCommas": "es5",
+			"indentStyle": "tab"
+		}
+	},
+	"linter": {
+		"rules": {
+			"style": {
+				"noNonNullAssertion": "off",
+				"useSingleVarDeclarator": {
+					"level": "warn",
+					"fix": "safe"
+				},
+				"useTemplate": {
+					"level": "warn",
+					"fix": "safe"
+				},
+				"noParameterAssign": "off",
+				"useImportType": { "level": "warn", "fix": "safe" },
+				"useConst": {
+					"level": "info",
+					"fix": "none"
+				}
+			},
+			"suspicious": {
+				"noExplicitAny": "off",
+				"noDebugger": "off",
+				"noConsole": "off",
+				"noConfusingVoidType": "off",
+				"noAssignInExpressions": "off",
+				"noImplicitAnyLet": "off",
+				"useIterableCallbackReturn": "off",
+				"noRedeclare": "off",
+				"noShadowRestrictedNames": "off"
+			},
+			"performance": {
+				"noAccumulatingSpread": "off"
+			},
+			"complexity": {
+				"noUselessFragments": "off",
+				"noBannedTypes": "off",
+				"useLiteralKeys": { "level": "off", "fix": "unsafe" }
+			},
+			"security": {},
+			"correctness": {
+				"noUnusedImports": {
+					"level": "info",
+					"fix": "safe"
+				},
+				"noUnusedFunctionParameters": {
+					"level": "info",
+					"fix": "safe"
+				},
+				"noUnusedLabels": "off"
+			},
+			"nursery": {},
+			"a11y": {
+				"useButtonType": "off",
+				"noStaticElementInteractions": "off",
+				"useValidAnchor": "off",
+				"useSemanticElements": "off",
+				"useKeyWithClickEvents": "off",
+				"useAriaPropsSupportedByRole": "off",
+				"noLabelWithoutControl": "off",
+				"noNoninteractiveElementToInteractiveRole": "off",
+				"noRedundantRoles": "off"
+			}
+		}
+	},
+	"assist": {
+		"actions": {
+			"source": {
+				"organizeImports": "on"
+			}
+		}
+	}
+}

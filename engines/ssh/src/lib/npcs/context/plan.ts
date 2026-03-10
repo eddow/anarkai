@@ -46,7 +46,7 @@ const transferPlanHandler: PlanHandler<TransferPlan> = {
 					assert(content, 'target content must be set')
 					assert(
 						'storage' in content,
-						'planDropStored only works with TileContent that has storage',
+						'planDropStored only works with TileContent that has storage'
 					)
 
 					vehicleAllocation = vehicle.storage.reserve(goods, `planDropStored`)
@@ -58,7 +58,7 @@ const transferPlanHandler: PlanHandler<TransferPlan> = {
 					assert(content, 'target content must be set')
 					assert(
 						'storage' in content,
-						'planGrabStored only works with TileContent that has storage',
+						'planGrabStored only works with TileContent that has storage'
 					)
 
 					vehicleAllocation = vehicle.storage.allocate(goods, `planGrab`)
@@ -122,7 +122,7 @@ const pickupPlanHandler: PlanHandler<PickupPlan> = {
 				const coord = toAxialCoord(target)
 				const looseGoods = character.game.hex.looseGoods.getGoodsAt(coord)
 				const matchingLooseGoods = looseGoods.filter(
-					(good) => good.goodType === goodType && good.available,
+					(good) => good.goodType === goodType && good.available
 				)
 
 				if (matchingLooseGoods.length === 0) {

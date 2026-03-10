@@ -1,11 +1,10 @@
-
-import type { GoodType } from 'ssh/types/base'
-import { Stars } from '@pounce'
 import { css } from '@app/lib/css'
+import { Stars } from '@pounce'
+import { goods as visualGoods } from 'engine-pixi/assets/visual-content'
 import type { Game } from 'ssh/game'
+import type { GoodType } from 'ssh/types/base'
 import PropertyGridRow from '../PropertyGridRow'
 import ResourceImage from '../ResourceImage'
-import { goods as visualGoods } from 'engine-pixi/assets/visual-content'
 
 css`
 .specific-storage-config {

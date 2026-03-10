@@ -8,14 +8,14 @@ import {
 	NpcScript,
 	ScriptExecutor,
 } from 'npc-script'
-import { alveoli, deposits, goods, terrain } from '../../../assets/game-content'
-import { CharacterContract } from '../../../assets/scripts/contracts'
 import type { GameObject, InteractiveGameObject } from 'ssh/game/object'
 import { contract, contractScope, overloadContract } from 'ssh/types'
 import type { GoodType } from 'ssh/types/base'
 import { type Contract, checkContract, isContract, registerContract } from 'ssh/types/contracts'
 import { axial, epsilon, objectMap } from 'ssh/utils'
 import { Positioned, positionRoughly, toAxialCoord } from 'ssh/utils/position'
+import { alveoli, deposits, goods, terrain } from '../../../assets/game-content'
+import { CharacterContract } from '../../../assets/scripts/contracts'
 import { gameIsaTypes, gameOperators, lerp } from './utils'
 
 type XOrDictX<X> = X | { [k: string]: XOrDictX<X> }
@@ -120,7 +120,7 @@ export class GlobalContext {
 export const subject = Symbol('subject')
 export function protoCtx<Class extends abstract new () => object, Ext extends object>(
 	concept: Class,
-	ext?: Ext,
+	ext?: Ext
 ): InstanceType<Class> & Ext {
 	const cp = concept.prototype
 	delete cp.constructor
@@ -154,7 +154,7 @@ class GameScript extends NpcScript {
 	constructor(
 		public readonly name: string,
 		public readonly fileName: string,
-		source: string,
+		source: string
 	) {
 		super(source, gameOperators, gameIsaTypes)
 	}
@@ -182,7 +182,7 @@ export class ScriptExecution {
 	constructor(
 		public readonly script: GameScript,
 		public readonly name: string,
-		public state?: ExecutionState,
+		public state?: ExecutionState
 	) {}
 	run(context: ExecutionContext) {
 		if (!this.state) throw new Error('ScriptExecution was finished')
@@ -216,24 +216,24 @@ export function loadNpcScripts(alveoli: Record<string, string>, context: Executi
 			const name = path
 				.split('/scripts/')
 				.pop()!
-				.match(/(.*)\.npcs$/)?.[1]!
-				.replace(/\//g, '.')!
-				.replace(/\//g, '.')!
+				.match(/(.*)\.npcs$/)![1]!
+				.replace(/\//g, '.')
+				.replace(/\//g, '.')
 			const gameScript = new GameScript(name, path, source)
 			scriptRegistry.set(name, gameScript)
 			const executed = gameScript.execute(context)
 			if (executed.type !== 'return') {
 				throw new Error(
-					`Script ${gameScript.name} did not return a value. Expected: a function or a map of functions. Got: ${executed.type}`,
+					`Script ${gameScript.name} did not return a value. Expected: a function or a map of functions. Got: ${executed.type}`
 				)
 			}
 			if (!isXOrDictX(executed.value, FunctionDefinition)) {
 				throw new Error(
-					`Script ${gameScript.name} returned a value that is not a function or a map of functions. Got: ${executed.value}`,
+					`Script ${gameScript.name} returned a value that is not a function or a map of functions. Got: ${executed.value}`
 				)
 			}
 			return [name, { gameScript, value: executed.value }]
-		}),
+		})
 	)
 
 	type XoDe = XOrDictX<(...args: any[]) => ScriptExecution>
@@ -241,7 +241,7 @@ export function loadNpcScripts(alveoli: Record<string, string>, context: Executi
 		script: GameScript,
 		entryPoint: XOrDictX<FunctionDefinition>,
 		name: string,
-		contract: Contract,
+		contract: Contract
 	): XoDe {
 		const isFuncDef =
 			entryPoint instanceof FunctionDefinition ||
@@ -274,7 +274,7 @@ export function loadNpcScripts(alveoli: Record<string, string>, context: Executi
 			gameScript,
 			value,
 			name,
-			CharacterContract[name as keyof typeof CharacterContract],
+			CharacterContract[name as keyof typeof CharacterContract]
 		)
 		const existing = context[name]
 		if (name in context && typeof context[name] === 'object') {

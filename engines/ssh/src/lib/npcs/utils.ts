@@ -25,13 +25,13 @@ const equals = match({})
 
 const subtract = match({})
 	.case([Positioned, Positioned], ([left, right]) =>
-		axial.linear(toAxialCoord(left), [-1, toAxialCoord(right)]),
+		axial.linear(toAxialCoord(left), [-1, toAxialCoord(right)])
 	)
 	.case(['unknown', 'unknown'], ([left, right]) => jsOperators['-'](left, right))
 	.default('assert')
 const add = match({})
 	.case([Positioned, Positioned], ([left, right]) =>
-		axial.linear(toAxialCoord(left), toAxialCoord(right)),
+		axial.linear(toAxialCoord(left), toAxialCoord(right))
 	)
 	.case(['unknown', 'unknown'], ([left, right]) => jsOperators['+'](left, right))
 	.default('assert')
@@ -60,7 +60,7 @@ export const gameOperators: Operators = Object.setPrototypeOf(
 		'*': (left: any, right: any) => multiply([left, right]),
 		'/': (left: any, right: any) => divide([left, right]),
 	},
-	jsOperators,
+	jsOperators
 )
 
 /**
@@ -70,7 +70,7 @@ export const gameIsaTypes: IsaTypes = Object.setPrototypeOf(
 	{
 		position: (_value: any) => Position.infer,
 	},
-	jsIsaTypes,
+	jsIsaTypes
 )
 // Math utilities
 

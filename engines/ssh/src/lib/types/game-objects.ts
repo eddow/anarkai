@@ -3,10 +3,7 @@ import { TileBorder } from 'ssh/board/border/border'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { TileContent } from 'ssh/board/content/content'
 import { Tile } from 'ssh/board/tile'
-import { HarvestAlveolus } from 'ssh/hive/harvest'
 import { baseGameScope } from './base'
-
-
 
 /**
  * Game Objects Module
@@ -19,7 +16,7 @@ import { baseGameScope } from './base'
 // For base classes, we use strict instanceof checks.
 const instance = <T extends abstract new (...args: any[]) => any>(
 	clsFn: T | (() => T),
-	className: string,
+	className: string
 ) =>
 	(
 		type('object').narrow((data): data is InstanceType<T> => {
@@ -42,8 +39,8 @@ export const gameObjectsModule = scope({
 	// Specific Alveoli are refined from the base Alveolus by checking their action type
 	HarvestAlveolus: AlveolusDef.and({ action: { type: "'harvest'" } }).describe('HarvestAlveolus'),
 	GatherAlveolus: AlveolusDef.and({ action: { type: "'gather'" } }).describe('GatherAlveolus'),
-	EngineerAlveolus: AlveolusDef.and({ action: { type: "'engineer'" } }).describe(
-		'EngineerAlveolus',
-	),
+	EngineerAlveolus: AlveolusDef.and({
+		action: { type: "'engineer'" },
+	}).describe('EngineerAlveolus'),
 	BuildAlveolus: AlveolusDef.and({ target: 'string' }).describe('BuildAlveolus'), // BuildAlveolus has a 'target' property
 }).export()

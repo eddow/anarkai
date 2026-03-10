@@ -1,15 +1,15 @@
-import { memoize } from 'mutts'
-import type { StorageAlveolus } from 'ssh/hive/storage'
-import type { GoodType } from 'ssh/types/base'
-import { goods as goodsCatalog } from 'engine-pixi/assets/visual-content'
-import PropertyGridRow from '../PropertyGridRow'
+import { css } from '@app/lib/css'
 import { Button, Stars } from '@pounce'
-import GoodMultiSelect from './GoodMultiSelect'
+import { goods as goodsCatalog } from 'engine-pixi/assets/visual-content'
+import { memoize } from 'mutts'
+import type { Game } from 'ssh/game'
+import type { StorageAlveolus } from 'ssh/hive/storage'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
-import { css } from '@app/lib/css'
+import type { GoodType } from 'ssh/types/base'
+import PropertyGridRow from '../PropertyGridRow'
+import GoodMultiSelect from './GoodMultiSelect'
 import SpecificStorageConfiguration from './SpecificStorageConfiguration'
-import type { Game } from 'ssh/game'
 
 css`
 .storage-config {
@@ -75,7 +75,7 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 	// --- Exception Logic ---
 	const availableExceptionCandidates = memoize(() => {
 		const exc = exceptions()
-		return allGoodTypes.filter(gt => !exc.includes(gt))
+		return allGoodTypes.filter((gt) => !exc.includes(gt))
 	})
 
 	const addException = (good: GoodType) => {
@@ -109,7 +109,7 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 			candidates = Object.keys(props.content.storage.maxAmounts) as GoodType[]
 		}
 
-		return candidates.filter(gt => !currentBufferKeys.includes(gt))
+		return candidates.filter((gt) => !currentBufferKeys.includes(gt))
 	})
 
 	const getBufferStars = (goodType: GoodType) => {
@@ -122,7 +122,10 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 		} else {
 			// For SpecificStorage, val is quantity.
 			// 1 star = 20% of maxAmount.
-			const max = props.content.storage instanceof SpecificStorage ? (props.content.storage.maxAmounts[goodType] || 0) : 0
+			const max =
+				props.content.storage instanceof SpecificStorage
+					? props.content.storage.maxAmounts[goodType] || 0
+					: 0
 			if (max === 0) return 0
 			// (val / max) * 5 => stars
 			return Math.round((val / max) * 5)
@@ -136,7 +139,10 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 		} else if (isSlotted()) {
 			newVal = stars
 		} else {
-			const max = props.content.storage instanceof SpecificStorage ? (props.content.storage.maxAmounts[goodType] || 0) : 0
+			const max =
+				props.content.storage instanceof SpecificStorage
+					? props.content.storage.maxAmounts[goodType] || 0
+					: 0
 			newVal = Math.round(max * (stars / 5))
 		}
 
@@ -176,7 +182,10 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 			{/* Non-slotted storage configuration */}
 			<div if={!isSlotted()} style={{ display: 'contents' }}>
 				{/* Acceptance Mode - Hide for SpecificStorage */}
-				<PropertyGridRow label="Acceptance" if={!(props.content.storage instanceof SpecificStorage)}>
+				<PropertyGridRow
+					label="Acceptance"
+					if={!(props.content.storage instanceof SpecificStorage)}
+				>
 					<div class="mode-control">
 						<Button onClick={toggleMode} class="mode-toggle">
 							{modeLabel()}
@@ -198,7 +207,7 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 				{/* Buffers - SpecificStorage uses its own component */}
 				<SpecificStorageConfiguration
 					if={props.content.storage instanceof SpecificStorage}
-					action={(props.content.action as Ssh.SpecificStorageAction)}
+					action={props.content.action as Ssh.SpecificStorageAction}
 					configuration={props.content.storageConfiguration}
 					game={props.game}
 				/>
@@ -218,12 +227,12 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 								<Stars
 									value={getBufferStars(good)}
 									maximum={5}
-									onChange={(v: number | [number, number]) => setBufferFromStars(good, typeof v === 'number' ? v : v[1])}
+									onChange={(v: number | [number, number]) =>
+										setBufferFromStars(good, typeof v === 'number' ? v : v[1])
+									}
 									size="1rem"
 								/>
-								<span class="buffer-quantity">
-									{getDisplayQuantity(good)}
-								</span>
+								<span class="buffer-quantity">{getDisplayQuantity(good)}</span>
 							</div>
 						)}
 					>

@@ -2,11 +2,7 @@
 	"compilerOptions": {
 		"composite": true,
 		"target": "ES2023",
-		"lib": [
-			"ES2023",
-			"DOM",
-			"DOM.Iterable"
-		],
+		"lib": ["ES2023", "DOM", "DOM.Iterable"],
 		"module": "ESNext",
 		"moduleResolution": "bundler",
 		"allowSyntheticDefaultImports": true,
@@ -26,14 +22,10 @@
 		"jsx": "react",
 		"jsxFactory": "h",
 		"jsxFragmentFactory": "Fragment",
-		"types": [
-			"vite/client"
-		],
+		"types": ["vite/client"],
 		"baseUrl": ".",
 		"paths": {
-			"ssh/*": [
-				"./src/lib/*"
-			]
+			"ssh/*": ["./src/lib/*"]
 		}
 	},
 	"include": [

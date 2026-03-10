@@ -32,7 +32,7 @@ if (debugMutts) {
 		console.log(
 			caller
 				? `${caller.name} -> ${targets.map((t) => t.name).join(' -> ')}`
-				: `-> ${targets.map((t) => t.name).join(' -> ')}`,
+				: `-> ${targets.map((t) => t.name).join(' -> ')}`
 		)
 	}
 	reactiveOptions.beginChain = (targets: Function[]) => {
@@ -48,12 +48,18 @@ if (debugMutts) {
 reactiveOptions.maxEffectChain = 2000
 reactiveOptions.maxEffectReaction = 'throw'
 // TODO: comment it for normal functionment (performances killer) - allow it to test discrepancies
-reactiveOptions.onMemoizationDiscrepancy = (cached: any, fresh: any, fn: any, args: any, cause: string) => {
+reactiveOptions.onMemoizationDiscrepancy = (
+	cached: any,
+	fresh: any,
+	fn: any,
+	args: any,
+	cause: string
+) => {
 	console.error(`Memoization discrepancy in method ${fn?.name || 'unknown'}:`, {
 		cached,
 		fresh,
 		host: args?.[0],
-		cause
+		cause,
 	})
 	debugger
 	throw new Error(`Memoization discrepancy: ${cause}`)
@@ -81,10 +87,10 @@ export function initConsoleTrap() {
 		return args
 			.map((a) => {
 				if (typeof a === 'string') return a
-				if (a instanceof Error) return a.message + '\n' + a.stack
+				if (a instanceof Error) return `${a.message}\n${a.stack}`
 				try {
 					return JSON.stringify(a)
-				} catch (e) {
+				} catch (_e) {
 					return String(a)
 				}
 			})

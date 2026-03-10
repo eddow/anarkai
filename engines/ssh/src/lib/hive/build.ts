@@ -1,10 +1,10 @@
 import { memoize, reactive } from 'mutts'
-import { alveoli as alveoliDefs } from '../../../assets/game-content'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { AlveolusType, GoodType } from 'ssh/types/base'
 import type { GoodsRelations } from 'ssh/utils/advertisement'
+import { alveoli as alveoliDefs } from '../../../assets/game-content'
 
 @reactive
 export class BuildAlveolus extends Alveolus {
@@ -46,7 +46,7 @@ export class BuildAlveolus extends Alveolus {
 		return Object.fromEntries(
 			Object.entries(cost)
 				.filter(([goodType, required]) => (stock[goodType as GoodType] ?? 0) < required)
-				.map(([goodType]) => [goodType as GoodType, { advertisement: 'demand', priority: '2-use' }]),
+				.map(([goodType]) => [goodType as GoodType, { advertisement: 'demand', priority: '2-use' }])
 		)
 	}
 }

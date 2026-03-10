@@ -5,7 +5,7 @@ import type { AlveolusType } from 'ssh/types/base'
  * Type guard to check if a configuration is a storage configuration
  */
 export function isSpecificStorageConfiguration(
-	config: Ssh.AlveolusConfiguration,
+	config: Ssh.AlveolusConfiguration
 ): config is Ssh.SpecificStorageAlveolusConfiguration {
 	return 'buffers' in config
 }
@@ -24,7 +24,7 @@ export class AlveolusConfigurationManager {
 	 */
 	getNamedConfiguration(
 		alveolusType: AlveolusType,
-		name: string,
+		name: string
 	): Ssh.AlveolusConfiguration | undefined {
 		return this.namedConfigurations.get(alveolusType)?.get(name)
 	}
@@ -35,7 +35,7 @@ export class AlveolusConfigurationManager {
 	setNamedConfiguration(
 		alveolusType: AlveolusType,
 		name: string,
-		config: Ssh.AlveolusConfiguration,
+		config: Ssh.AlveolusConfiguration
 	): void {
 		if (!this.namedConfigurations.has(alveolusType)) {
 			this.namedConfigurations.set(alveolusType, new Map())

@@ -12,7 +12,7 @@ export function computeStyleFromTexture(
 		backgroundRepeat?: string
 		imageRendering?: string
 		opacity?: number
-	} = {},
+	} = {}
 ) {
 	if (!texture) return ''
 
@@ -42,7 +42,7 @@ export function computeStyleFromTexture(
 	// Fit scale so frame fits inside target maintaining aspect ratio
 	const fitScale = Math.min(
 		targetW / Math.max(1, frame?.width || 0),
-		targetH / Math.max(1, frame?.height || 0),
+		targetH / Math.max(1, frame?.height || 0)
 	)
 
 	// Background-size scales the entire source image

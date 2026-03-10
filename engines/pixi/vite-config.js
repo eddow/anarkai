@@ -1,4 +1,4 @@
-import { resolve as resolvePath } from 'node:path'
+import { resolve as resolvePath } from "node:path";
 
 /**
  * Get common path aliases for Vite config.
@@ -7,42 +7,50 @@ import { resolve as resolvePath } from 'node:path'
  */
 export function getCommonAliases(projectRootDir) {
 	return {
-		'@ssh': resolvePath(projectRootDir, '../../engines/ssh/src'),
-		'engine-pixi': resolvePath(projectRootDir, '../../engines/pixi/src'),
-		'ssh': resolvePath(projectRootDir, '../../engines/ssh/src'),
-		'mutts': resolvePath(projectRootDir, '../../../ownk/mutts/src'),
-		'npc-script': resolvePath(projectRootDir, '../../../ownk/npcs/src'),
-		'omni18n': resolvePath(projectRootDir, '../../../ownk/omni18n/src/client.ts'),
-		'$lib': resolvePath(projectRootDir, '../../engines/ssh/src/lib'),
-		'$assets': resolvePath(projectRootDir, '../../engines/ssh/assets'),
-	}
+		"@ssh": resolvePath(projectRootDir, "../../engines/ssh/src"),
+		"engine-pixi": resolvePath(projectRootDir, "../../engines/pixi/src"),
+		ssh: resolvePath(projectRootDir, "../../engines/ssh/src"),
+		mutts: resolvePath(projectRootDir, "../../../ownk/mutts/src"),
+		"npc-script": resolvePath(projectRootDir, "../../../ownk/npcs/src"),
+		omni18n: resolvePath(projectRootDir, "../../../ownk/omni18n/src/client.ts"),
+		$lib: resolvePath(projectRootDir, "../../engines/ssh/src/lib"),
+		$assets: resolvePath(projectRootDir, "../../engines/ssh/assets"),
+	};
 }
 
 /** @type {{ exclude: string[], include: string[] }} */
 export const commonOptimizeDeps = {
-	exclude: ['ssh', 'engine-pixi', 'mutts', 'npc-script', 'omni18n', 'pounce-ts', 'pounce-ui'],
+	exclude: [
+		"ssh",
+		"engine-pixi",
+		"mutts",
+		"npc-script",
+		"omni18n",
+		"pounce-ts",
+		"pounce-ui",
+	],
 	include: [
-		'pixi.js',
-		'arktype',
-		'@ark/schema',
-		'@ark/util',
-		'earcut',
-		'tiny-lru',
-		'@pixi/colord',
-		'@pixi/colord/plugins/names',
-		'parse-svg-path',
-		'ismobilejs',
-		'@xmldom/xmldom',
-		'eventemitter3'
-	]
-}
+		"pixi.js",
+		"arktype",
+		"@ark/schema",
+		"@ark/util",
+		"earcut",
+		"tiny-lru",
+		"@pixi/colord",
+		"@pixi/colord/plugins/names",
+		"parse-svg-path",
+		"ismobilejs",
+		"@xmldom/xmldom",
+		"eventemitter3",
+	],
+};
 
 /** @type {{ target: string, tsconfigRaw: { compilerOptions: { experimentalDecorators: boolean } } }} */
 export const commonEsbuild = {
-	target: 'es2022',
+	target: "es2022",
 	tsconfigRaw: {
 		compilerOptions: {
 			experimentalDecorators: true,
 		},
 	},
-}
+};

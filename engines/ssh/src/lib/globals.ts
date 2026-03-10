@@ -39,7 +39,7 @@ function stored<T extends object>(key: string, initialValue: T): T {
 		untracked(() => {
 			try {
 				localStorage.setItem(key, json)
-			} catch (e) {
+			} catch (_e) {
 				// Ignore quota exceeded etc
 			}
 		})
@@ -48,7 +48,9 @@ function stored<T extends object>(key: string, initialValue: T): T {
 	return state
 }
 
-export const dockviewLayout = stored<{ sshLayout: any }>('dockviewLayout', { sshLayout: undefined })
+export const dockviewLayout = stored<{ sshLayout: any }>('dockviewLayout', {
+	sshLayout: undefined,
+})
 
 // Validate and fix dockview layout data
 // This function MUST NOT trigger reactive updates while validating,
@@ -135,8 +137,8 @@ class Games extends Eventful<GamedEvents> {
 						characterCount: 3,
 						characterRadius: 5,
 					},
-					patches,
-				),
+					patches
+				)
 		)
 		this.games.set(name, instance)
 		return instance

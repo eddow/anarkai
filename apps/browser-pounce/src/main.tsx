@@ -1,17 +1,17 @@
 import './app.css'
-import { profileInfo } from 'mutts'
 import { latch } from '@pounce'
+import { profileInfo } from 'mutts'
 import { mount } from 'pure-glyf/icons'
 import { registerGlyfIconFactory } from 'pure-glyf/pounce'
-import App from './App'
 import { initTranslator } from 'ssh/i18n'
+import App from './App'
 
 mount()
 registerGlyfIconFactory()
 
 latch('#app', <App />)
 
-; (globalThis as typeof globalThis & { ['mutts:profile']?: typeof profileInfo })['mutts:profile'] =
+;(globalThis as typeof globalThis & { ['mutts:profile']?: typeof profileInfo })['mutts:profile'] =
 	profileInfo
 
 async function bootstrap() {

@@ -1,20 +1,14 @@
-import { reactive, effect } from 'mutts'
-
-import type { Game } from 'ssh/game'
 import { css } from '@app/lib/css'
-import { Character } from 'ssh/population/character'
-import { Tile } from 'ssh/board/tile'
-import {
-	games,
-	selectionState,
-	mrg,
-	unreactiveInfo,
-} from '@app/lib/globals'
+import { games, mrg, selectionState, unreactiveInfo } from '@app/lib/globals'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@pounce'
+import { Button, ButtonGroup } from '@pounce' // Added import for buttons
+import { effect, reactive } from 'mutts'
+import { Tile } from 'ssh/board/tile'
+import type { Game } from 'ssh/game'
+import { Character } from 'ssh/population/character'
+import { toWorldCoord } from 'ssh/utils/position' // Added import for GoTo logic
 import CharacterProperties from '../components/CharacterProperties'
 import TileProperties from '../components/TileProperties'
-import { toWorldCoord } from 'ssh/utils/position' // Added import for GoTo logic
-import { Button, ButtonGroup, InfiniteScroll } from '@pounce' // Added import for buttons
 
 css`
 .selection-info-panel {
@@ -82,9 +76,12 @@ css`
 }
 `
 
-const SelectionInfoWidget = (props: DockviewWidgetProps<{ uid?: string }>, scope: DockviewWidgetScope) => {
+const SelectionInfoWidget = (
+	props: DockviewWidgetProps<{ uid?: string }>,
+	scope: DockviewWidgetScope
+) => {
 	const api = (scope as any).panelApi
-	console.log('SelectionInfoWidget Rendered with props:', props);
+	console.log('SelectionInfoWidget Rendered with props:', props)
 	let game: Game
 	try {
 		game = games.game('GameX')
@@ -95,26 +92,27 @@ const SelectionInfoWidget = (props: DockviewWidgetProps<{ uid?: string }>, scope
 		props.title = title
 	}
 	const state = reactive({
-	get object() {
-		const uid = props.params.uid ?? selectionState.selectedUid
-		return uid ? game.getObject(uid) : undefined
-	},
-	get logs() {
-		return this.object?.logs ?? []
-	},
-})
-
-
-
+		pinnedUid: undefined as string | undefined,
+		get object() {
+			const uid = this.pinnedUid ?? selectionState.selectedUid
+			return uid ? game.getObject(uid) : undefined
+		},
+		get logs() {
+			return this.object?.logs ?? []
+		},
+	})
 
 	// TODO: if !shownUid, close this widget
 
 	const pin = () => {
 		const uid = selectionState.selectedUid
 		api.updateParameters({ uid })
-		props.params.uid = uid
+		state.pinnedUid = uid
 		unreactiveInfo.hasLastSelectedInfoPanel = false
 	}
+	effect(() => {
+		state.pinnedUid = props.params.uid
+	})
 	effect(() => {
 		props.title = state.object?.title ?? 'Object'
 	})
@@ -127,7 +125,7 @@ const SelectionInfoWidget = (props: DockviewWidgetProps<{ uid?: string }>, scope
 			if (panel.id === api.id) {
 				// If this panel was the one tracking active selection (not pinned)
 				// Reset the flag so selection in game can re-open it.
-				if (!props.params.uid) {
+				if (!state.pinnedUid) {
 					unreactiveInfo.hasLastSelectedInfoPanel = false
 				}
 			}
@@ -167,8 +165,12 @@ const SelectionInfoWidget = (props: DockviewWidgetProps<{ uid?: string }>, scope
 			<div style="border-bottom: 1px solid var(--app-border); display: flex; justify-content: space-between;">
 				<div></div>
 				<ButtonGroup>
-					<Button if={state.object?.position} aria-label="Go to Object" onClick={goTo}>👁</Button>
-					<Button if={!props.params.uid} aria-label="Pin Panel" onClick={pin}>📌</Button>
+					<Button if={state.object?.position} aria-label="Go to Object" onClick={goTo}>
+						👁
+					</Button>
+					<Button if={!state.pinnedUid} aria-label="Pin Panel" onClick={pin}>
+						📌
+					</Button>
 				</ButtonGroup>
 			</div>
 			<div if={state.object} class="selection-info-panel__content-wrapper">
@@ -184,26 +186,26 @@ const SelectionInfoWidget = (props: DockviewWidgetProps<{ uid?: string }>, scope
 						</div>
 					)}
 				</div>
-				<div if={state.logs.length > 0}
+				<div
+					if={state.logs.length > 0}
 					class="selection-info-panel__logs"
 					role="log"
 					data-test-owner-uid={state.object?.uid}
 				>
 					<div class="selection-info-panel__logs-list">
-						<InfiniteScroll
-							items={state.logs}
-							itemHeight={20}
-						>
+						<for each={state.logs}>
 							{(line) => (
 								<div class="selection-info-panel__logs-line" title={line}>
 									{line}
 								</div>
 							)}
-						</InfiniteScroll>
+						</for>
 					</div>
 				</div>
 			</div>
-			<div else class="selection-info-panel__empty">Select an object in the game view to inspect it.</div>
+			<div else class="selection-info-panel__empty">
+				Select an object in the game view to inspect it.
+			</div>
 		</div>
 	)
 }

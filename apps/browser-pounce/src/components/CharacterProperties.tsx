@@ -1,14 +1,13 @@
-import { effect, reactive, untracked } from 'mutts'
+import { css } from '@app/lib/css'
+import { effect } from 'mutts'
+import { i18nState } from 'ssh/i18n'
 import { AEvolutionStep, ALerpStep } from 'ssh/npcs/steps'
 import type { Character } from 'ssh/population/character'
-import { T } from 'ssh/i18n'
-import { css } from '@app/lib/css'
 import type { GoodType } from 'ssh/types/base'
 import GoodsList from './GoodsList'
 import PropertyGrid from './PropertyGrid'
 import PropertyGridRow from './PropertyGridRow'
 import StatProgressBar from './StatProgressBar'
-
 
 css`/*
 .character-properties {
@@ -105,94 +104,100 @@ const activityBadgeColors: Record<Ssh.ActivityType, string> = {
 }
 
 const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
-	if (!props) return null
-	const state = reactive({
-		step: undefined as AEvolutionStep | undefined,
-		goods: {} as Record<string, number>,
-		actions: [] as string[],
-		stepEvolution: 0,
-	})
+	const computed = {
+		get hasTriggerLevels() {
+			return !!props.character?.triggerLevels
+		},
+		get step() {
+			return props.character?.stepExecutor instanceof AEvolutionStep
+				? props.character.stepExecutor
+				: undefined
+		},
+		get goods() {
+			return props.character?.carry?.stock ?? {}
+		},
+		get actions() {
+			return Array.isArray(props.character?.actionDescription)
+				? props.character.actionDescription
+				: []
+		},
+		get stepEvolution() {
+			return computed.step && !(computed.step instanceof ALerpStep)
+				? Math.max(0, Math.min(1, computed.step.evolution))
+				: 0
+		},
+	}
 
 	effect(() => {
-		state.step = props.character?.stepExecutor instanceof AEvolutionStep ? props.character.stepExecutor : undefined
-		state.goods = props.character?.carry?.stock ?? {}
-		state.actions = Array.isArray(props.character?.actionDescription) ? props.character.actionDescription : []
-
-		state.stepEvolution = state.step && !(state.step instanceof ALerpStep)
-			? Math.max(0, Math.min(1, state.step.evolution))
-			: 0
-
-		scope.setTitle?.(props.character?.title ?? props.character?.name ?? 'Character')
+		scope.setTitle?.(props.character?.title ?? props.character?.name ?? 'Object')
 	})
 
-	if (!props.character || !props.character.triggerLevels) return null
-
 	return (
-		<div class="character-properties">
-			{props.character?.triggerLevels && (
-				<div class="character-properties__stats">
+		<>
+			<div if={props.character} class="character-properties">
+				<div if={computed.hasTriggerLevels} class="character-properties__stats">
 					<div class="character-properties__stats-grid">
 						<StatProgressBar
 							value={props.character?.hunger ?? 0}
 							levels={props.character?.triggerLevels?.hunger}
-							label={T.character.hunger}
+							label={i18nState.translator?.character.hunger ?? ''}
 						/>
 						<StatProgressBar
 							value={props.character?.tiredness ?? 0}
 							levels={props.character?.triggerLevels?.tiredness}
-							label={T.character.tiredness}
+							label={i18nState.translator?.character.tiredness ?? ''}
 						/>
 						<StatProgressBar
 							value={props.character?.fatigue ?? 0}
 							levels={props.character?.triggerLevels?.fatigue}
-							label={T.character.fatigue}
+							label={i18nState.translator?.character.fatigue ?? ''}
 						/>
 					</div>
 				</div>
-			)}
-			<PropertyGrid>
-				<PropertyGridRow label={T.goods}>
-					<GoodsList
-						goods={Object.keys(state.goods) as GoodType[]}
-						game={props.character?.game}
-						getBadgeProps={(g) => ({ qty: state.goods[g] })}
-					/>
-				</PropertyGridRow>
-				<PropertyGridRow label={T.character.currentActivity}>
-					<div class="character-activity">
-						<span
-							class={`badge badge-${activityBadgeColors[props.character?.stepExecutor?.type ?? 'idle'] ?? 'gray'}`}
-						>
-							{props.character?.stepExecutor?.description
-								? T.step[props.character.stepExecutor.description]
-								: T.step.idle}
-						</span>
-						<div if={state.stepEvolution > 0} class="character-activity__progress">
-							<div
-								class="character-activity__progress-fill"
-								style={`width: ${Math.floor(state.stepEvolution * 100)}%`}
-							/>
+				<PropertyGrid>
+					<PropertyGridRow label={i18nState.translator?.goods ?? ''}>
+						<GoodsList
+							goods={Object.keys(computed.goods) as GoodType[]}
+							game={props.character?.game}
+							getBadgeProps={(g) => ({ qty: computed.goods[g] })}
+						/>
+					</PropertyGridRow>
+					<PropertyGridRow label={i18nState.translator?.character.currentActivity ?? ''}>
+						<div class="character-activity">
+							<span
+								class={`badge badge-${activityBadgeColors[props.character?.stepExecutor?.type ?? 'idle'] ?? 'gray'}`}
+							>
+								{props.character?.stepExecutor?.description
+									? (i18nState.translator?.step[props.character.stepExecutor.description] ?? '')
+									: (i18nState.translator?.step.idle ?? '')}
+							</span>
+							<div if={computed.stepEvolution > 0} class="character-activity__progress">
+								<div
+									class="character-activity__progress-fill"
+									style={`width: ${Math.floor(computed.stepEvolution * 100)}%`}
+								/>
+							</div>
 						</div>
-					</div>
-				</PropertyGridRow>
-				<PropertyGridRow>
-					<ul class="character-actions" if={state.actions.length > 0}>
-						<for each={state.actions}>
-							{(description) => (
-								<li class="character-actions__item">
-									<span>{description}</span>
-								</li>
-							)}
-						</for>
-					</ul>
-					<div else class="character-actions__empty">
-						{T.character.noActivity}
-					</div>
-				</PropertyGridRow>
-			</PropertyGrid>
-		</div>
+					</PropertyGridRow>
+					<PropertyGridRow>
+						<ul class="character-actions" if={computed.actions.length > 0}>
+							<for each={computed.actions}>
+								{(description) => (
+									<li class="character-actions__item">
+										<span>{description}</span>
+									</li>
+								)}
+							</for>
+						</ul>
+						<div else class="character-actions__empty">
+							{i18nState.translator?.character.noActivity ?? ''}
+						</div>
+					</PropertyGridRow>
+				</PropertyGrid>
+			</div>
+			<div else />
+		</>
 	)
 }
 
 export default CharacterProperties
-

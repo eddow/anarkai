@@ -82,7 +82,7 @@ export class InventoryFunctions {
 				if (canStore <= 0) reasons.push(`No room for ${goodType} in target`)
 			}
 			throw new Error(
-				`Cannot drop goods: ${reasons.join(', ') || 'Unknown reason'} (requested: ${JSON.stringify(goods)}, available: ${JSON.stringify(vehicle.storage.availables)}, target-room: ${JSON.stringify(content.storage?.debugInfo || 'no-storage')})`,
+				`Cannot drop goods: ${reasons.join(', ') || 'Unknown reason'} (requested: ${JSON.stringify(goods)}, available: ${JSON.stringify(vehicle.storage.availables)}, target-room: ${JSON.stringify(content.storage?.debugInfo || 'no-storage')})`
 			)
 		}
 
@@ -148,7 +148,7 @@ export class InventoryFunctions {
 	@contract('GoodType | null', 'Positioned')
 	planGrabLoose(
 		goodType: GoodType | null | undefined,
-		source: Positioned,
+		source: Positioned
 	): PickupPlan | TransferPlan | IdlePlan {
 		const character = this[subject]
 		const vehicle = character.vehicle
@@ -167,7 +167,7 @@ export class InventoryFunctions {
 			(good) =>
 				(goodType ? good.goodType === goodType : vehicle.storage.hasRoom(good.goodType)) &&
 				good.available &&
-				!good.isRemoved,
+				!good.isRemoved
 		)
 
 		if (matchingLooseGoods.length === 0) {

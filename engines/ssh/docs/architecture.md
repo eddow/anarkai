@@ -79,6 +79,29 @@ Manages the hexagonal grid world and spatial queries.
 - `findPath(from, to, options)` — A* pathfinding
 - `getNeighbors(coord)` — Get adjacent tiles
 
+**Board Entity Split:**
+- `TileContent` and `TileBorderContent` are the authoritative world state stored in `HexBoard.contents`.
+- `Tile` and `TileBorder` are coordinate wrappers cached lazily in `tileCache` and `borderCache`.
+- The wrapper gives stable spatial identity and helper behavior (`neighborTiles`, `borderWith`, `debugInfo`, interaction forwarding), while the content carries the domain payload (terrain/building/storage/gate-specific logic).
+- The same pattern is used for borders so edge gameplay can evolve independently from tile gameplay without forcing everything into the tile model.
+
+**Why this exists:**
+- The board can answer spatial queries even when a coordinate has no specialized content yet.
+- Domain state stays attached to the thing that can be replaced (`UnBuiltLand`, `Alveolus`, gate content), while the coordinate wrapper can stay stable and reusable.
+- Lazy caching avoids materializing every `Tile` and `TileBorder` up front for the whole board.
+- It helps keep rendering and interaction adapters talking to stable board entities while gameplay swaps content objects underneath.
+
+**Costs and burdens:**
+- There are two names for each location concept, so the model is harder to learn at first.
+- Callers must know whether they need the wrapper (`getTile`, `getBorder`) or the payload (`getTileContent`, `getBorderContent`).
+- Lifecycle rules become stricter: replacing content must destroy old content and keep wrapper/content links coherent.
+- Some logic is split across both layers, which increases navigation cost during refactors and debugging.
+
+**Net assessment:**
+- The split is useful when the engine benefits from stable coordinate objects plus replaceable gameplay payloads.
+- It is a burden when code only needs one abstraction and still has to cross the wrapper/content boundary.
+- In this engine the trade usually pays off because tiles, borders, pathfinding, save/load diffs, and rendering all need a spatial shell even when the actual gameplay content changes over time.
+
 ### Tile (`board/tile.ts`)
 
 Represents a single hex tile in the world.
