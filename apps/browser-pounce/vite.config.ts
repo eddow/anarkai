@@ -1,10 +1,10 @@
 import { dirname, resolve as resolvePath } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { pounceBarrelPlugin, pounceCorePlugin } from '@pounce/core/plugin'
 import { commonEsbuild, commonOptimizeDeps } from 'engine-pixi/vite-config'
 import { servePixiAssets } from 'engine-pixi/vite-plugins'
-import { pounceCorePlugin, pounceBarrelPlugin } from '@pounce/core/plugin'
+import { type Alias, defineConfig, type Plugin } from 'vite'
 import { pureGlyfPlugin } from '../../../ownk/pounce/packages/pure-glyf/dist/plugin.js'
-import { defineConfig, type Alias, type Plugin } from 'vite'
 import { cssTagPlugin } from '../../engines/ssh/vite-plugin-css-tag'
 
 const projectRootDir = dirname(fileURLToPath(import.meta.url))
@@ -30,7 +30,7 @@ function stripDeclare(): Plugin {
 			// plugin (running before babelPluginTs) rejects 'declare' fields outright.
 			if (!id.includes('/engines/ssh/')) return null
 
-			const result = code.replace(/\bdeclare\s+(?=[a-zA-Z_$\[])/g, (match, offset) => {
+			const result = code.replace(/\bdeclare\s+(?=[a-zA-Z_$[])/g, (match, offset) => {
 				const after = code.slice(offset + match.length)
 				if (ambientKeywords.test(after)) return match
 				return ''
@@ -44,18 +44,27 @@ function stripDeclare(): Plugin {
 const aliases: Alias[] = [
 	{
 		find: /^pure-glyf$/,
-		replacement: resolvePath(projectRootDir, '../../../ownk/pounce/packages/pure-glyf/dist/index.js'),
+		replacement: resolvePath(
+			projectRootDir,
+			'../../../ownk/pounce/packages/pure-glyf/src/index.ts',
+		),
 	},
 	{
 		find: /^pure-glyf\/pounce$/,
-		replacement: resolvePath(projectRootDir, '../../../ownk/pounce/packages/pure-glyf/dist/pounce.js'),
+		replacement: resolvePath(
+			projectRootDir,
+			'../../../ownk/pounce/packages/pure-glyf/src/pounce.tsx',
+		),
 	},
 	{ find: '@app', replacement: resolvePath(projectRootDir, 'src') },
 	{ find: '$lib', replacement: resolvePath(projectRootDir, 'src/lib') },
 	{ find: '$assets', replacement: resolvePath(projectRootDir, 'assets') },
 	{ find: 'ssh/assets', replacement: resolvePath(projectRootDir, '../../engines/ssh/assets') },
 	{ find: 'ssh', replacement: resolvePath(projectRootDir, '../../engines/ssh/src/lib') },
-	{ find: 'engine-pixi/assets', replacement: resolvePath(projectRootDir, '../../engines/pixi/assets') },
+	{
+		find: 'engine-pixi/assets',
+		replacement: resolvePath(projectRootDir, '../../engines/pixi/assets'),
+	},
 	{ find: 'engine-pixi', replacement: resolvePath(projectRootDir, '../../engines/pixi/src') },
 	{ find: 'mutts', replacement: resolvePath(projectRootDir, '../../../ownk/mutts/src') },
 	{ find: '@picocss/pico', replacement: resolvePath(projectRootDir, 'node_modules/@picocss/pico') },
@@ -73,8 +82,11 @@ const optimizeAliases = {
 	mutts: resolvePath(projectRootDir, '../../../ownk/mutts/src'),
 	'@picocss/pico': resolvePath(projectRootDir, 'node_modules/@picocss/pico'),
 	'dockview-core': resolvePath(projectRootDir, 'node_modules/dockview-core'),
-	'pure-glyf': resolvePath(projectRootDir, '../../../ownk/pounce/packages/pure-glyf/dist/index.js'),
-	'pure-glyf/pounce': resolvePath(projectRootDir, '../../../ownk/pounce/packages/pure-glyf/dist/pounce.js'),
+	'pure-glyf': resolvePath(projectRootDir, '../../../ownk/pounce/packages/pure-glyf/src/index.ts'),
+	'pure-glyf/pounce': resolvePath(
+		projectRootDir,
+		'../../../ownk/pounce/packages/pure-glyf/src/pounce.tsx',
+	),
 }
 
 export default defineConfig({

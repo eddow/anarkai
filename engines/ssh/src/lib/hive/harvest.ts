@@ -25,7 +25,8 @@ export class HarvestAlveolus extends TransitAlveolus {
 
 	@memoize
 	get canStoreInHarvester() {
-		return this.storage.canStoreAll(this.action.output)
+		const output = this.action?.output
+		return output ? this.storage.canStoreAll(output) : false
 	}
 	@memoize
 	get hiveHasCollector() {
@@ -33,7 +34,11 @@ export class HarvestAlveolus extends TransitAlveolus {
 	}
 	@memoize
 	get alveoliNeedingGood() {
-		return Object.keys(this.action.output).reduce(
+		const output = this.action?.output
+		if (!output) {
+			return 0
+		}
+		return Object.keys(output).reduce(
 			(acc, goodType) => acc + (goodType in this.hive.needs ? 1 : 0),
 			0,
 		)
@@ -42,6 +47,10 @@ export class HarvestAlveolus extends TransitAlveolus {
 	// Returns detailed job info including path when called from character
 	nextJob(character?: Character): HarvestJob | undefined {
 		if (!this.working) return undefined
+		const action = this.action
+		if (!action) {
+			return undefined
+		}
 		const startPos = toAxialCoord(character ? character.position : this.tile.position)
 		const hex = this.tile.game.hex
 		const searchDistance = character ? maxWalkTime : 6
@@ -53,11 +62,11 @@ export class HarvestAlveolus extends TransitAlveolus {
 				if (!tile) {
 					return false
 				}
-				const content = tile?.content
+				const content = tile.content
 				if (!(content instanceof UnBuiltLand)) {
 					return false
 				}
-				if (content.deposit?.name !== this.action.deposit) {
+				if (content?.deposit?.name !== action.deposit) {
 					return false
 				}
 

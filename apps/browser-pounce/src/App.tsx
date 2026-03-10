@@ -9,6 +9,7 @@ import {
 	ThemeToggle,
 	type ThemeValue,
 	Dockview,
+	Icon,
 	RadioButton,
 	Toolbar,
 } from '@pounce'
@@ -85,7 +86,7 @@ const Clock = ({ game }: { game: any }) => {
 }
 
 const ToolbarIcon = ({ icon, label }: { icon: string; label: string }) => (
-	<span class={`app-toolbar-icon ${icon}`} aria-hidden="true" title={label} />
+	<Icon name={icon} el:class="app-toolbar-icon" el:aria-hidden el:title={label} />
 )
 
 const App = () => {

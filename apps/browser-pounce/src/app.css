@@ -78,7 +78,19 @@ body {
 	border-color: color-mix(in srgb, var(--toolbar-border) 55%, white);
 }
 
+.app-toolbar button[role='radio'][aria-checked='true'] {
+	background: linear-gradient(
+		180deg,
+		color-mix(in srgb, var(--toolbar-active) 88%, white 12%),
+		var(--toolbar-active)
+	);
+	border-color: var(--toolbar-active-border);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 0 0 1px var(--toolbar-active-border);
+	color: var(--pico-primary-inverse);
+}
+
 .app-toolbar button[aria-pressed='true'],
+.app-toolbar button[role='radio'][aria-checked='true'],
 .app-toolbar button:active,
 .app-toolbar button:focus-visible {
 	background: var(--toolbar-active);

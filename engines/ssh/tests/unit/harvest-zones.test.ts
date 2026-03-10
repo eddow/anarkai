@@ -1,7 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
 import { Game } from 'ssh/game'
 import { UnBuiltLand, Deposit } from 'ssh/board/content/unbuilt-land'
+import type { HarvestAlveolus } from 'ssh/hive/harvest'
 import { toAxialCoord } from 'ssh/utils/position'
+import { TestEngine } from '../test-engine/engine'
 
 // Mock DOM/Pixi environment for Node
 if (typeof document === 'undefined') {
@@ -64,5 +66,39 @@ describe('Harvest Zones Restriction', () => {
         const pathInClearing = find.deposit('tree')
         expect(pathInClearing).not.toBe(false)
         expect(toAxialCoord(pathInClearing[pathInClearing.length - 1])).toMatchObject({ q: 1, r: 0 })
+    })
+
+    it('harvest alveolus nextJob returns undefined instead of throwing when action is missing at runtime', async () => {
+        const engine = new TestEngine({ boardSize: 2, terrainSeed: 123, characterCount: 0 })
+        await engine.init()
+        const { game } = engine
+
+        engine.loadScenario({
+            tiles: [
+                { coord: [1, 0] as [number, number], deposit: { type: 'tree', name: 'tree', amount: 10 }, terrain: 'forest' },
+            ],
+            hives: [
+                {
+                    name: 'LumberJack',
+                    alveoli: [{ coord: [0, 0] as [number, number], alveolus: 'tree_chopper' }],
+                },
+            ],
+            zones: {
+                harvest: [[1, 0] as [number, number]],
+            },
+        } as any)
+
+        const harvestTile = game.hex.getTile({ q: 0, r: 0 })
+        const alveolus = harvestTile?.content as HarvestAlveolus | undefined
+        expect(alveolus).toBeDefined()
+
+        Object.defineProperty(alveolus!, 'action', {
+            value: undefined,
+            writable: true,
+            configurable: true,
+        })
+
+        expect(() => alveolus!.nextJob()).not.toThrow()
+        expect(alveolus!.nextJob()).toBeUndefined()
     })
 })
