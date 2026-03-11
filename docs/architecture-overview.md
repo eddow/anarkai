@@ -9,7 +9,7 @@ Anarkai is a modular system composed of a shared game engine, reusable libraries
 ```mermaid
 graph TD
     subgraph Apps
-        BP[browser-pounce]
+        BP[browser]
         BV[browser-vue]
     end
 
@@ -59,4 +59,4 @@ The `ssh` engine encapsulates the domain logic. It depends on `mutts` for state,
 `pounce-ts` is a custom UI framework built on top of `mutts`. It offers a JSX-based component model similar to React or Solid but with direct DOM manipulation and fine-grained reactivity.
 
 ### 4. UI Layer (`pounce-ui`)
-Built on `pounce-ts`, this library provides the concrete UI widgets (buttons, panels, etc.) used by the `browser-pounce` application.
+Built on `pounce-ts`, this library provides the concrete UI widgets (buttons, panels, etc.) used by the `browser` application.

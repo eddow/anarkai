@@ -9,13 +9,13 @@ Anarkai is a modular monorepo driven by a custom game engine (`engines/ssh`) and
 - **Game Engine**: `ssh` encapsulates domain logic, using `npcs` for behaviors.
 
 ## Project Structure
-- `apps/`: Consumers (e.g., `browser-pounce`).
+- `apps/`: Consumers (e.g., `browser`).
 - `engines/`: Core logic (e.g., `ssh`).
 - **Libraries**: Shared libraries (`mutts`, `pounce-ts`, `npcs`, `omni18n`) are located in `~/dev/ownk` and linked via the workspace.
 
 ## Development
 - **Install**: `pnpm install`
-- **Dev**: `pnpm dev` (starts all). Targeted: `pnpm dev:pounce`.
+- **Dev**: `pnpm dev` (starts all). Targeted: `pnpm dev:browser`.
 - **Test**: `pnpm test` (using Vitest).
  
  ## Content Locations

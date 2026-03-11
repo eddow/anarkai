@@ -2,10 +2,10 @@
 
 ## 📱 Applications
 
-### [browser-pounce](../apps/browser-pounce)
+### [browser](../apps/browser)
 **Type**: Web Application
 **Tech Stack**: Vite, Pounce-TS
-**Description**: browser-pounce is a web client implementation using the custom Pounce-TS framework.
+**Description**: browser is a web client implementation using the custom Pounce-TS framework.
 
 ### [browser-vue](../apps/browser-vue)
 **Type**: Web Application

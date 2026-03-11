@@ -14,7 +14,7 @@ This documentation is generated to help developers understand the structure and 
 The project is organized as a monorepo using **pnpm** workspaces.
 
 ### 📱 Applications (`apps/`)
-- **browser-pounce**: Web application built with Pounce-TS.
+- **browser**: Web application built with Pounce-TS.
 - **browser-vue**: Web application built with Vue 3.
 
 ### 🎮 Engines (`engines/`)

@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "dev:pounce": "pnpm --filter ssh-pounce dev",
+    "dev:browser": "pnpm --filter ssh-browser dev",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "biome": "biome check .",

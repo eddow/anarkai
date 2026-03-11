@@ -5,7 +5,7 @@ import { commonEsbuild, commonOptimizeDeps } from "engine-pixi/vite-config";
 import { servePixiAssets } from "engine-pixi/vite-plugins";
 import { type Alias, defineConfig, type Plugin } from "vite";
 import { pureGlyfPlugin } from "../../../ownk/pounce/packages/pure-glyf/dist/plugin.js";
-import { cssTagPlugin } from "../../engines/ssh/vite-plugin-css-tag";
+import { cssTagPlugin } from "../../engines/ssh/vite-plugin-css-tag.js";
 
 const projectRootDir = dirname(fileURLToPath(import.meta.url));
 
