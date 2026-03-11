@@ -78,6 +78,10 @@ vi.mock('./components/ResourceImage', () => ({
 	default: (props: { alt?: string }) => <span data-testid="resource-image">{props.alt ?? ''}</span>,
 }))
 
+vi.mock('./widgets/selection-info-tab', () => ({
+	default: () => <div>selection-info-tab</div>,
+}))
+
 vi.mock('./widgets', () => ({
 	default: {
 		game: () => <div>game</div>,
@@ -133,6 +137,9 @@ vi.mock('@pounce', () => ({
 			{props.children}
 		</button>
 	),
+}))
+
+vi.mock('@pounce/ui/dockview', () => ({
 	Dockview: (props: { api?: any; onReady?: (api: typeof dockviewApi) => void }) => {
 		if (props.api && typeof props.api.set === 'function') {
 			props.api.set(dockviewApi)

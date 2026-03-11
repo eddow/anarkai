@@ -1,6 +1,7 @@
 import { css } from '@app/lib/css'
 import { configuration, uiConfiguration } from '@app/lib/globals'
-import { type DockviewWidgetProps, type DockviewWidgetScope, Inline, Radio } from '@pounce'
+import { Inline, Radio } from '@pounce'
+import { type DockviewWidgetProps, type DockviewWidgetScope } from '@pounce/ui/dockview'
 
 css`
 .configuration-widget {

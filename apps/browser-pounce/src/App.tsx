@@ -16,12 +16,12 @@ import {
 	Button,
 	ButtonGroup,
 	DisplayProvider,
-	Dockview,
 	RadioButton,
 	ThemeToggle,
 	type ThemeValue,
 	Toolbar,
 } from '@pounce'
+import { Dockview } from '@pounce/ui/dockview'
 import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content'
 import { effect, reactive, untracked } from 'mutts'
 import {
@@ -39,10 +39,14 @@ import {
 } from 'pure-glyf/icons'
 import * as gameContent from 'ssh/assets/game-content'
 import ResourceImage from './components/ResourceImage'
+import SelectionInfoTab from './widgets/selection-info-tab'
 import widgetsImport from './widgets'
 
 // Create local copy to avoid import reassignment issues
 const widgets = { ...widgetsImport }
+const tabs = {
+	'selection-info-tab': SelectionInfoTab,
+}
 
 // Expose globals for Playwright testing
 if (typeof window !== 'undefined') {
@@ -277,6 +281,7 @@ const App = () => {
 						api={state.api}
 						onReady={handleDockviewReady}
 						widgets={widgets}
+						tabs={tabs}
 						layout={dockviewLayout.sshLayout}
 						options={dockviewOptions}
 					/>

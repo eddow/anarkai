@@ -4,6 +4,7 @@ import { mrg } from 'ssh/interactive-state'
 import type { Character } from 'ssh/population/character'
 import { toWorldCoord } from 'ssh/utils/position' // Verify path
 import { tileSize } from 'ssh/utils/varied'
+import { scopedPixiName, setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
 import { renderGoods } from './goods-renderer'
 import { VisualObject } from './visual-object'
@@ -14,11 +15,14 @@ export class CharacterVisual extends VisualObject<Character> {
 
 	constructor(character: Character, renderer: PixiGameRenderer) {
 		super(character, renderer)
+		const scope = `character:${character.uid}`
+		this.view.name = scope
 
 		// Create container structure
 		const charTex = renderer.getTexture('characters.default')
-		this.sprite = new Sprite(
-			charTex && (charTex as any).orig ? charTex : renderer.getTexture('empty')
+		this.sprite = setPixiName(
+			new Sprite(charTex && (charTex as any).orig ? charTex : renderer.getTexture('empty')),
+			scopedPixiName(scope, 'body')
 		)
 		this.sprite.anchor.set(0.5, 0.5)
 		// User feedback: 90% (36px instead of 40px)
@@ -26,8 +30,9 @@ export class CharacterVisual extends VisualObject<Character> {
 		this.sprite.height = 36
 
 		const vehTex = renderer.getTexture('vehicles.byHands')
-		this.vehicleSprite = new Sprite(
-			vehTex && (vehTex as any).orig ? vehTex : renderer.getTexture('empty')
+		this.vehicleSprite = setPixiName(
+			new Sprite(vehTex && (vehTex as any).orig ? vehTex : renderer.getTexture('empty')),
+			scopedPixiName(scope, 'vehicle')
 		)
 		this.vehicleSprite.anchor.set(0.5, 0.5)
 		this.vehicleSprite.width = 30
@@ -73,7 +78,7 @@ export class CharacterVisual extends VisualObject<Character> {
 				return { slots: goods ? goods.slots : [] }
 			},
 			{ x: 0, y: 0 },
-			`goods.render.${this.object.uid}`
+			`character.${this.object.uid}.goods`
 		)
 		this.register(cleanupGoods)
 	}

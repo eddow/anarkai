@@ -6,7 +6,7 @@ import {
 	unreactiveInfo,
 	validateStoredSelectionState,
 } from '@app/lib/globals'
-import type { DockviewWidgetProps, DockviewWidgetScope } from '@pounce'
+import type { DockviewWidgetProps, DockviewWidgetScope } from '@pounce/ui/dockview'
 import { PixiGameRenderer } from 'engine-pixi/renderer'
 import { effect } from 'mutts'
 import { Tile } from 'ssh/board/tile'
@@ -44,6 +44,7 @@ export default function GameWidget(
 				id: `selection-info-${Date.now()}`,
 				component: 'selection-info',
 				params: {}, // Empty params means it follows selectionState
+				tabComponent: 'selection-info-tab',
 				floating: {
 					width: 400,
 					height: 600,

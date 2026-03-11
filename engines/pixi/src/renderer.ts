@@ -2,6 +2,7 @@ import { Application, Container, type Texture } from 'pixi.js'
 import type { Game } from 'ssh/game/game'
 import type { GameRenderer } from 'ssh/types/engine'
 import { assetManager } from './asset-manager'
+import { setPixiName } from './debug-names'
 import { registerPixiApp, unregisterPixiApp } from './hmr.js'
 import { InteractionManager } from './interaction/interaction-manager.js'
 import { DragPreviewOverlay } from './renderers/drag-preview-overlay'
@@ -32,6 +33,8 @@ export class PixiGameRenderer implements GameRenderer {
 		if (this.isDestroyed) return
 
 		this.app = new Application()
+		// @ts-expect-error pixi-debug
+		globalThis.__PIXI_APP__ = this.app
 		await this.app.init({
 			width: 800,
 			height: 600,
@@ -103,17 +106,18 @@ export class PixiGameRenderer implements GameRenderer {
 		if (!this.stage) return
 
 		// World container holds all game content and acts as the camera
-		this.world = new Container()
+		this.stage.name = 'renderer.stage'
+		this.world = setPixiName(new Container(), 'renderer.world')
 		this.stage.addChild(this.world)
 
 		this.layers = {
-			ground: new Container(), // terrain
-			alveoli: new Container(), // structures
-			resources: new Container(), // resources
-			storedGoods: new Container(),
-			looseGoods: new Container(), // loose goods
-			characters: new Container(),
-			ui: new Container(), // UI remains in world? Or screen?
+			ground: setPixiName(new Container(), 'layer.ground'), // terrain
+			alveoli: setPixiName(new Container(), 'layer.alveoli'), // structures
+			resources: setPixiName(new Container(), 'layer.resources'), // resources
+			storedGoods: setPixiName(new Container(), 'layer.storedGoods'),
+			looseGoods: setPixiName(new Container(), 'layer.looseGoods'), // loose goods
+			characters: setPixiName(new Container(), 'layer.characters'),
+			ui: setPixiName(new Container(), 'layer.ui'), // UI remains in world? Or screen?
 			// Usually UI is screen space. Let's keep UI separate or check usage.
 			// GameWidget.vue overlay is DOM based. In-game UI usually stays on screen.
 			// For now, let's put UI on stage (screen space) and others in world.
@@ -145,7 +149,6 @@ export class PixiGameRenderer implements GameRenderer {
 		this.layers.characters.zIndex = 50 // characters
 
 		// Add UI directly to stage so it doesn't zoom/pan
-		this.layers.ui = new Container()
 		this.stage.addChild(this.layers.ui)
 	}
 

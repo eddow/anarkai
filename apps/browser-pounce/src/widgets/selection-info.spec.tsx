@@ -1,6 +1,7 @@
-import type { DockviewWidgetProps } from '@pounce'
+import type { DockviewWidgetProps } from '@pounce/ui/dockview'
 import { document, latch } from '@pounce/core'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { SelectionInfoContext, SelectionInfoTool } from './selection-info-tab'
 
 const updateParameters = vi.fn<(params: { uid?: string }) => void>()
 const onDidRemovePanel = vi.fn((handler: (panel: { id: string }) => void) => {
@@ -41,22 +42,6 @@ const globals = {
 	},
 }
 
-vi.mock('@pounce', () => ({
-	Button: (props: { onClick?: () => void; children?: any; 'aria-label'?: string }) => (
-		<button onClick={props.onClick} aria-label={props['aria-label']}>
-			{props.children}
-		</button>
-	),
-	ButtonGroup: (props: { children?: any }) => <div class="button-group">{props.children}</div>,
-	InfiniteScroll: (props: { items: string[] }) => (
-		<div class="infinite-scroll">
-			<for each={props.items}>
-				{(line: string) => <div class="selection-info-panel__logs-line">{line}</div>}
-			</for>
-		</div>
-	),
-}))
-
 vi.mock('@app/lib/css', () => ({
 	css: () => '',
 }))
@@ -87,7 +72,7 @@ let SelectionInfoWidget: typeof import('./selection-info').default
 
 type SelectionInfoParams = { uid?: string }
 
-const createProps = (): DockviewWidgetProps<SelectionInfoParams> => ({
+const createProps = (): DockviewWidgetProps<SelectionInfoParams, SelectionInfoContext> => ({
 	title: '',
 	size: {
 		width: 320,
@@ -96,6 +81,9 @@ const createProps = (): DockviewWidgetProps<SelectionInfoParams> => ({
 	params: {},
 	context: {},
 })
+
+const getTool = (props: DockviewWidgetProps<SelectionInfoParams, SelectionInfoContext>, ariaLabel: string) =>
+	props.context.tools?.find((tool: SelectionInfoTool) => tool.ariaLabel === ariaLabel)
 
 const createScope = () => ({
 	panelApi: {
@@ -143,7 +131,8 @@ describe('SelectionInfoWidget', () => {
 		stop = latch(container, <SelectionInfoWidget {...props} />, scope as never)
 
 		expect(container.textContent).toContain('Select an object in the game view to inspect it.')
-		expect(container.querySelector('[aria-label="Pin Panel"]')).not.toBeNull()
+		expect(getTool(props, 'Pin Panel')).toBeDefined()
+		expect(getTool(props, 'Go to Object')).toBeUndefined()
 	})
 
 	it('renders the generic object summary and logs for the selected object', () => {
@@ -157,33 +146,34 @@ describe('SelectionInfoWidget', () => {
 		expect(container.textContent).toContain('ID: object-1')
 		expect(container.textContent).toContain('log line 1')
 		expect(container.textContent).toContain('log line 2')
+		expect(getTool(props, 'Go to Object')).toBeDefined()
+		expect(getTool(props, 'Pin Panel')).toBeDefined()
 		expect(game.getObject).toHaveBeenCalledWith('object-1')
 	})
 
-	it('pins the currently selected object into widget params', () => {
+	it('pins the currently selected object from the shared tab tools', () => {
 		globals.selectionState.selectedUid = 'object-1'
 		const props = createProps()
 		const scope = createScope()
 
 		stop = latch(container, <SelectionInfoWidget {...props} />, scope as never)
 
-		const pinButton = container.querySelector('[aria-label="Pin Panel"]') as HTMLButtonElement
-		pinButton.click()
+		getTool(props, 'Pin Panel')?.onClick()
 
 		expect(updateParameters).toHaveBeenCalledWith({ uid: 'object-1' })
 		expect(props.params.uid).toBe('object-1')
 		expect(globals.unreactiveInfo.hasLastSelectedInfoPanel).toBe(false)
+		expect(getTool(props, 'Pin Panel')).toBeUndefined()
 	})
 
-	it('moves the renderer world when go-to is clicked', () => {
+	it('moves the renderer world from the shared tab tools', () => {
 		globals.selectionState.selectedUid = 'object-1'
 		const props = createProps()
 		const scope = createScope()
 
 		stop = latch(container, <SelectionInfoWidget {...props} />, scope as never)
 
-		const goToButton = container.querySelector('[aria-label="Go to Object"]') as HTMLButtonElement
-		goToButton.click()
+		getTool(props, 'Go to Object')?.onClick()
 
 		expect(world.position.x).toBe(20)
 		expect(world.position.y).toBe(30)

@@ -2,6 +2,7 @@ import { ColorMatrixFilter, Container, Graphics, Sprite } from 'pixi.js'
 import { namedEffect } from 'ssh/debug'
 import type { GoodType } from 'ssh/types/base'
 import { goods as goodsCatalog } from '../../assets/visual-content'
+import { scopedPixiName, setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
 
 const sharedGrayscaleFilter = new ColorMatrixFilter()
@@ -23,7 +24,8 @@ export function renderGoods(
 	worldPosition: { x: number; y: number },
 	label: string
 ) {
-	const root = new Container()
+	const scope = label.replace(/\./g, ':')
+	const root = setPixiName(new Container(), scopedPixiName(scope, 'root'))
 	root.position.set(worldPosition.x, worldPosition.y)
 	container.addChild(root)
 
@@ -40,6 +42,7 @@ export function renderGoods(
 
 		for (let i = 0; i < slots.length; i++) {
 			const slot = slots[i]
+			const slotScope = scopedPixiName(scope, `slot:${i}`)
 			const goodDef = goodsCatalog[slot.goodType as string]
 			if (!goodDef || !goodDef.sprites) {
 				console.warn('[GoodsRenderer] Missing visual definition for good:', slot.goodType)
@@ -65,7 +68,7 @@ export function renderGoods(
 			const presentOffset = dy - totalHeight / 2
 
 			const gaugeWidth = spriteSize * 0.6
-			const gauge = new Graphics()
+			const gauge = setPixiName(new Graphics(), scopedPixiName(slotScope, 'gauge'))
 				.rect(x - gaugeWidth / 2, y - totalHeight / 2, gaugeWidth, totalHeight)
 				.fill({ color: 0x000080, alpha: 0.5 })
 			root.addChild(gauge)
@@ -73,12 +76,13 @@ export function renderGoods(
 			const drawSprites = (
 				count: number,
 				offset: number,
+				kind: string,
 				tint = 0xffffff,
 				alpha = 1,
 				filter?: boolean
 			) => {
 				for (let q = 0; q < count; q++) {
-					const s = new Sprite(texture)
+					const s = setPixiName(new Sprite(texture), scopedPixiName(slotScope, `${kind}:${q}`))
 					s.scale.set(scale)
 					s.anchor.set(0.5)
 					s.position.set(x, y - q * dy - offset)
@@ -89,11 +93,11 @@ export function renderGoods(
 				}
 			}
 
-			drawSprites(slot.present, presentOffset)
+			drawSprites(slot.present, presentOffset, 'present')
 			const reservedOffset = presentOffset + slot.present * dy
-			drawSprites(slot.reserved, reservedOffset, 0xff6666, 0.7)
+			drawSprites(slot.reserved, reservedOffset, 'reserved', 0xff6666, 0.7)
 			const allocatedOffset = reservedOffset + slot.reserved * dy
-			drawSprites(slot.allocated, allocatedOffset, 0xffffff, 0.5, true)
+			drawSprites(slot.allocated, allocatedOffset, 'allocated', 0xffffff, 0.5, true)
 		}
 	})
 

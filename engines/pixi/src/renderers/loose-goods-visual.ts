@@ -4,6 +4,7 @@ import { namedEffect } from 'ssh/debug'
 import { toWorldCoord } from 'ssh/utils/position' // Verify import
 import { tileSize } from 'ssh/utils/varied'
 import { goods as goodsCatalog } from '../../assets/visual-content'
+import { scopedPixiName, setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
 import { VisualObject } from './visual-object'
 
@@ -14,7 +15,9 @@ export class LooseGoodsVisual extends VisualObject<LooseGoods> {
 
 	constructor(looseGoods: LooseGoods, renderer: PixiGameRenderer) {
 		super(looseGoods, renderer)
-		this.container = new Container()
+		const scope = `looseGoods:${looseGoods.uid}`
+		this.view.name = scope
+		this.container = setPixiName(new Container(), scopedPixiName(scope, 'container'))
 		// Ensure this container (and its children) does not block mouse events
 		this.container.eventMode = 'none'
 		this.renderer.layers.looseGoods.addChild(this.container)
@@ -44,6 +47,7 @@ export class LooseGoodsVisual extends VisualObject<LooseGoods> {
 						let sprite = this.activeSprites.get(good)
 						if (!sprite) {
 							sprite = this.getSprite()
+							setPixiName(sprite, `looseGood:${String(good.goodType)}:${this.activeSprites.size}`)
 							this.activeSprites.set(good, sprite)
 							this.container.addChild(sprite)
 
@@ -88,12 +92,13 @@ export class LooseGoodsVisual extends VisualObject<LooseGoods> {
 	}
 
 	private getSprite(): Sprite {
-		const s = this.spritePool.pop() || new Sprite()
+		const s = this.spritePool.pop() || setPixiName(new Sprite(), 'looseGood:pooled')
 		s.anchor.set(0.5)
 		return s
 	}
 
 	private returnSprite(s: Sprite) {
+		s.name = 'looseGood:pooled'
 		s.parent?.removeChild(s)
 		this.spritePool.push(s)
 	}

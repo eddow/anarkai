@@ -1,14 +1,14 @@
 import { css } from '@app/lib/css'
 import { games, mrg, selectionState, unreactiveInfo } from '@app/lib/globals'
-import type { DockviewWidgetProps, DockviewWidgetScope } from '@pounce'
-import { Button, ButtonGroup } from '@pounce' // Added import for buttons
-import { effect, reactive } from 'mutts'
+import type { DockviewWidgetProps, DockviewWidgetScope } from '@pounce/ui/dockview'
+import { effect } from 'mutts'
 import { Tile } from 'ssh/board/tile'
 import type { Game } from 'ssh/game'
 import { Character } from 'ssh/population/character'
-import { toWorldCoord } from 'ssh/utils/position' // Added import for GoTo logic
+import { toWorldCoord } from 'ssh/utils/position'
 import CharacterProperties from '../components/CharacterProperties'
 import TileProperties from '../components/TileProperties'
+import type { SelectionInfoContext, SelectionInfoTool } from './selection-info-tab'
 
 css`
 .selection-info-panel {
@@ -77,11 +77,10 @@ css`
 `
 
 const SelectionInfoWidget = (
-	props: DockviewWidgetProps<{ uid?: string }>,
+	props: DockviewWidgetProps<{ uid?: string }, SelectionInfoContext>,
 	scope: DockviewWidgetScope
 ) => {
 	const api = (scope as any).panelApi
-	console.log('SelectionInfoWidget Rendered with props:', props)
 	let game: Game
 	try {
 		game = games.game('GameX')
@@ -91,51 +90,32 @@ const SelectionInfoWidget = (
 	scope.setTitle = (title: string) => {
 		props.title = title
 	}
-	const state = reactive({
-		pinnedUid: undefined as string | undefined,
+	const current = {
+		get uid() {
+			return props.params.uid ?? selectionState.selectedUid
+		},
 		get object() {
-			const uid = this.pinnedUid ?? selectionState.selectedUid
+			const uid = this.uid
 			return uid ? game.getObject(uid) : undefined
 		},
 		get logs() {
 			return this.object?.logs ?? []
-		},
-	})
-
-	// TODO: if !shownUid, close this widget
+		}
+	}
 
 	const pin = () => {
 		const uid = selectionState.selectedUid
+		if (!uid) return
 		api.updateParameters({ uid })
-		state.pinnedUid = uid
+		props.params.uid = uid
+		props.context.tools = (props.context.tools ?? []).filter((tool) => tool.ariaLabel !== 'Pin Panel')
 		unreactiveInfo.hasLastSelectedInfoPanel = false
 	}
-	effect(() => {
-		state.pinnedUid = props.params.uid
-	})
-	effect(() => {
-		props.title = state.object?.title ?? 'Object'
-	})
-
-	scope.setTitle = (title: string) => {
-		props.title = title
-	}
-	effect(() => {
-		const disposable = scope.dockviewApi!.onDidRemovePanel((panel) => {
-			if (panel.id === api.id) {
-				// If this panel was the one tracking active selection (not pinned)
-				// Reset the flag so selection in game can re-open it.
-				if (!state.pinnedUid) {
-					unreactiveInfo.hasLastSelectedInfoPanel = false
-				}
-			}
-		})
-		return () => disposable.dispose()
-	})
 
 	const goTo = () => {
-		if (!state.object?.position) return
-		const coord = toWorldCoord(state.object.position)
+		const object = current.object
+		if (!object?.position) return
+		const coord = toWorldCoord(object.position)
 		if (!coord) return
 
 		const renderer = game.renderer as any
@@ -149,51 +129,79 @@ const SelectionInfoWidget = (
 		world.position.y = screen.height / 2 - coord.y * scale
 	}
 
+	effect(() => {
+		props.title = current.object?.title ?? 'Object'
+	})
+
+	effect(() => {
+		const tools: SelectionInfoTool[] = []
+		if (current.object?.position) {
+			tools.push({
+				ariaLabel: 'Go to Object',
+				icon: '👁',
+				onClick: goTo,
+			})
+		}
+		if (!props.params.uid) {
+			tools.push({
+				ariaLabel: 'Pin Panel',
+				icon: '📌',
+				onClick: pin,
+			})
+		}
+		props.context.tools = tools
+		return () => {
+			if (props.context.tools === tools) props.context.tools = []
+		}
+	})
+	effect(() => {
+		const disposable = scope.dockviewApi!.onDidRemovePanel((panel) => {
+			if (panel.id === api.id) {
+				// If this panel was the one tracking active selection (not pinned)
+				// Reset the flag so selection in game can re-open it.
+				if (!props.params.uid) {
+					unreactiveInfo.hasLastSelectedInfoPanel = false
+				}
+			}
+		})
+		return () => disposable.dispose()
+	})
+
 	return (
 		<div
 			class="selection-info-panel"
 			onMouseenter={() => {
-				if (state.object) mrg.hoveredObject = state.object
+				const object = current.object
+				if (object) mrg.hoveredObject = object
 			}}
 			onMouseleave={() => {
-				if (mrg.hoveredObject?.uid === state.object?.uid) {
+				if (mrg.hoveredObject?.uid === current.object?.uid) {
 					mrg.hoveredObject = undefined
 				}
 			}}
-			data-test-object-uid={state.object?.uid}
+			data-test-object-uid={current.object?.uid}
 		>
-			<div style="border-bottom: 1px solid var(--app-border); display: flex; justify-content: space-between;">
-				<div></div>
-				<ButtonGroup>
-					<Button if={state.object?.position} aria-label="Go to Object" onClick={goTo}>
-						👁
-					</Button>
-					<Button if={!state.pinnedUid} aria-label="Pin Panel" onClick={pin}>
-						📌
-					</Button>
-				</ButtonGroup>
-			</div>
-			<div if={state.object} class="selection-info-panel__content-wrapper">
+			<div if={current.object} class="selection-info-panel__content-wrapper">
 				<div class="selection-info-panel__content">
-					{state.object instanceof Character ? (
-						<CharacterProperties character={state.object} />
-					) : state.object instanceof Tile ? (
-						<TileProperties tile={state.object} />
+					{current.object instanceof Character ? (
+						<CharacterProperties character={current.object as Character} />
+					) : current.object instanceof Tile ? (
+						<TileProperties tile={current.object as Tile} />
 					) : (
 						<div class="selection-info-panel__summary">
-							<h3>{state.object!.title ?? 'Object'}</h3>
-							<p>ID: {state.object!.uid}</p>
+							<h3>{current.object!.title ?? 'Object'}</h3>
+							<p>ID: {current.object!.uid}</p>
 						</div>
 					)}
 				</div>
 				<div
-					if={state.logs.length > 0}
+					if={current.logs.length}
 					class="selection-info-panel__logs"
 					role="log"
-					data-test-owner-uid={state.object?.uid}
+					data-test-owner-uid={current.object?.uid}
 				>
 					<div class="selection-info-panel__logs-list">
-						<for each={state.logs}>
+						<for each={current.logs}>
 							{(line) => (
 								<div class="selection-info-panel__logs-line" title={line}>
 									{line}

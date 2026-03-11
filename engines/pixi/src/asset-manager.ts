@@ -9,6 +9,12 @@ import {
 	vehicles,
 } from '../assets/visual-content'
 
+const hasUsableTexture = (texture: Texture | undefined) => {
+	if (!texture || texture === Texture.WHITE) return false
+	const frame = texture.frame
+	return frame.width > 0 && frame.height > 0
+}
+
 export class PixiAssetManager {
 	private assetMap = new Map<string, Texture>()
 	private assetsLoaded = false
@@ -146,8 +152,8 @@ export class PixiAssetManager {
 		// 1. Try direct lookup in our asset map
 		if (this.assetMap.has(spec)) {
 			const t = this.assetMap.get(spec)!
-			if (!(t as any).orig) {
-				console.warn(`[PixiAssetManager] AssetMap Texture ${spec} missing orig.`, t)
+			if (!hasUsableTexture(t)) {
+				console.warn(`[PixiAssetManager] AssetMap Texture ${spec} is not usable.`, t)
 				return Texture.WHITE
 			}
 			return t

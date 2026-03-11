@@ -2,6 +2,7 @@ import { Container, Graphics, Point } from 'pixi.js'
 import type { Tile } from 'ssh/board/tile'
 import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
+import { scopedPixiName, setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
 
 /**
@@ -24,8 +25,9 @@ export class DragPreviewOverlay {
 	private cleanups: (() => void)[] = []
 
 	constructor(private renderer: PixiGameRenderer) {
-		this.container = new Container()
-		this.graphics = new Graphics()
+		const scope = 'overlay:dragPreview'
+		this.container = setPixiName(new Container(), scope)
+		this.graphics = setPixiName(new Graphics(), scopedPixiName(scope, 'graphics'))
 		this.container.addChild(this.graphics)
 
 		// Add to the UI layer (above game content but follows world transform)

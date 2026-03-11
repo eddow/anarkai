@@ -2,6 +2,7 @@ import type { ScopedCallback } from 'mutts'
 import { Container, type FederatedPointerEvent } from 'pixi.js'
 import type { GameObject } from 'ssh/game/object'
 import { mrg } from 'ssh/interactive-state'
+import { setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
 
 /**
@@ -18,7 +19,7 @@ export abstract class VisualObject<T extends GameObject = GameObject> {
 		public readonly object: T,
 		protected renderer: PixiGameRenderer
 	) {
-		this.view = new Container()
+		this.view = setPixiName(new Container(), `${this.object.constructor.name}:${this.object.uid}`)
 		// Link the visual object back to the logic object for interaction handling
 		;(this.view as any)._logicObject = object
 

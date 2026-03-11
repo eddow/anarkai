@@ -4,6 +4,7 @@ import type { TileBorder } from 'ssh/board/border/border'
 import { namedEffect } from 'ssh/debug'
 import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
+import { scopedPixiName, setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
 import { renderGoods } from './goods-renderer'
 import { VisualObject } from './visual-object'
@@ -14,8 +15,10 @@ export class BorderVisual extends VisualObject<TileBorder> {
 
 	constructor(border: TileBorder, renderer: PixiGameRenderer) {
 		super(border, renderer)
-		this.gateGraphics = new Graphics()
-		this.goodsContainer = new Container()
+		const scope = `border:${border.uid}`
+		this.view.name = scope
+		this.gateGraphics = setPixiName(new Graphics(), scopedPixiName(scope, 'gate'))
+		this.goodsContainer = setPixiName(new Container(), scopedPixiName(scope, 'goods'))
 
 		// Borders are rendered on storedGoods layer usually (for gates) or ground layer?
 		// Gates are "connections" between alveoli.

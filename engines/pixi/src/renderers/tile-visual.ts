@@ -6,6 +6,7 @@ import { namedEffect } from 'ssh/debug'
 import { interactionMode, mrg } from 'ssh/interactive-state'
 import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
+import { scopedPixiName, setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
 import { AlveolusVisual } from './alveolus-visual'
 import { UnBuiltLandVisual } from './unbuilt-land-visual'
@@ -24,29 +25,34 @@ export class TileVisual extends VisualObject<Tile> {
 
 	constructor(tile: Tile, renderer: PixiGameRenderer) {
 		super(tile, renderer)
+		const scope = `tile:${tile.uid}`
 
-		this.tileContainer = new Container()
+		this.view.name = scope
+		this.tileContainer = setPixiName(new Container(), scopedPixiName(scope, 'container'))
 		this.view.addChild(this.tileContainer)
 
 		// Setup layers
-		const backgroundLayer = new Container()
-		this.contentContainer = new Container()
+		const backgroundLayer = setPixiName(new Container(), scopedPixiName(scope, 'backgroundLayer'))
+		this.contentContainer = setPixiName(new Container(), scopedPixiName(scope, 'content'))
 		this.tileContainer.addChild(backgroundLayer, this.contentContainer)
 
-		this.zoneBorder = new Graphics()
+		this.zoneBorder = setPixiName(new Graphics(), scopedPixiName(scope, 'zoneBorder'))
 		this.tileContainer.addChild(this.zoneBorder)
 
 		// Initialize background (won't change often)
 		const bgTex = renderer.getTexture('terrain.grass')
-		this.backgroundSprite = new TilingSprite({
-			texture: bgTex && (bgTex as any).orig ? bgTex : renderer.getTexture('empty'),
-			width: tileSize * 2,
-			height: tileSize * 2,
-		})
+		this.backgroundSprite = setPixiName(
+			new TilingSprite({
+				texture: bgTex && (bgTex as any).orig ? bgTex : renderer.getTexture('empty'),
+				width: tileSize * 2,
+				height: tileSize * 2,
+			}),
+			scopedPixiName(scope, 'background')
+		)
 		this.backgroundSprite.anchor.set(0.5)
 
 		// Hex mask
-		const mask = new Graphics()
+		const mask = setPixiName(new Graphics(), scopedPixiName(scope, 'mask'))
 		const points = Array.from({ length: 6 }, (_, i) => {
 			const angle = (Math.PI / 3) * (i + 0.5)
 			return new Point(Math.cos(angle) * tileSize, Math.sin(angle) * tileSize)

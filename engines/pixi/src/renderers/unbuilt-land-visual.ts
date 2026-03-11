@@ -5,6 +5,7 @@ import { LCG, subSeed } from 'ssh/utils/numbers'
 import { toAxialCoord, toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
 import { deposits as visualDeposits } from '../../assets/visual-content'
+import { scopedPixiName, setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
 import { VisualObject } from './visual-object'
 
@@ -13,9 +14,11 @@ export class UnBuiltLandVisual extends VisualObject<UnBuiltLand> {
 
 	constructor(content: UnBuiltLand, renderer: PixiGameRenderer) {
 		super(content, renderer)
+		const scope = `unbuilt:${content.uid}`
+		this.view.name = scope
 		// Ensure deposit visuals do not block mouse events
 		this.view.eventMode = 'none'
-		this.unbuiltContainer = new Container()
+		this.unbuiltContainer = setPixiName(new Container(), scopedPixiName(scope, 'deposits'))
 		this.view.addChild(this.unbuiltContainer)
 	}
 
@@ -59,7 +62,7 @@ export class UnBuiltLandVisual extends VisualObject<UnBuiltLand> {
 						const tex = this.renderer.getTexture(spriteKey)
 						if (!tex || tex === (this.renderer as any).getTexture('empty')) continue
 
-						const sprite = new Sprite(tex)
+						const sprite = setPixiName(new Sprite(tex), `deposit:${this.object.uid}/sprite:${i}`)
 						sprite.anchor.set(0.5, 1.0) // Bottom-center anchor for grounding
 
 						// Scale

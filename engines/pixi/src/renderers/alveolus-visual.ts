@@ -1,23 +1,33 @@
-import { Container, Sprite } from 'pixi.js'
+import { Container, Sprite, Texture } from 'pixi.js'
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import { namedEffect } from 'ssh/debug'
 import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
 import { alveoli } from '../../assets/visual-content'
+import { scopedPixiName, setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
 import { renderGoods } from './goods-renderer'
 import { VisualObject } from './visual-object'
 
+const hasUsableTexture = (texture: Texture | undefined) => {
+	if (!texture || texture === Texture.WHITE) return false
+	const frame = texture.frame
+	return frame.width > 0 && frame.height > 0
+}
+
 export class AlveolusVisual extends VisualObject<any> {
+	private readonly scope: string
 	private sprite: Sprite | undefined
 	private goodsContainer: Container
 	private _disposed = false
 
 	constructor(alveolus: Alveolus, renderer: PixiGameRenderer) {
 		super(alveolus, renderer)
+		this.scope = `alveolus:${alveolus.uid}`
+		this.view.name = this.scope
 		// Ensure the building visual does not block mouse events (Tile handles selection)
 		this.view.eventMode = 'none'
-		this.goodsContainer = new Container()
+		this.goodsContainer = setPixiName(new Container(), scopedPixiName(this.scope, 'goods'))
 	}
 
 	public bind() {
@@ -44,9 +54,9 @@ export class AlveolusVisual extends VisualObject<any> {
 				const textureName = visualDef?.sprites?.[0]
 				if (textureName) {
 					const tex = this.renderer.getTexture(textureName)
-					if (tex && (tex as any).orig) {
+					if (hasUsableTexture(tex)) {
 						if (!this.sprite) {
-							this.sprite = new Sprite()
+							this.sprite = setPixiName(new Sprite(), scopedPixiName(this.scope, 'sprite'))
 							this.sprite.anchor.set(0.5)
 							this.sprite.position.set(0, 0) // Relative to this.view
 							this.view.addChild(this.sprite)
@@ -92,7 +102,7 @@ export class AlveolusVisual extends VisualObject<any> {
 				return { slots: goods ? goods.slots : [] }
 			},
 			{ x: 0, y: 0 }, // Relative since goodsContainer is at worldPos
-			`goods.render.${this.object.uid}`
+			`alveolus.${this.object.uid}.goods`
 		)
 		this.register(cleanupGoods)
 	}

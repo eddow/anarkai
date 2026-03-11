@@ -1,5 +1,5 @@
 import { games } from '@app/lib/globals'
-import type { DockviewWidgetProps } from '@pounce'
+import type { DockviewWidgetProps } from '@pounce/ui/dockview'
 import { reactive } from 'mutts'
 import { configurations } from 'ssh/assets/game-content'
 import type { StorageAlveolus } from 'ssh/hive/storage'
