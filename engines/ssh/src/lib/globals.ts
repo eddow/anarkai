@@ -26,7 +26,7 @@ class Games extends Eventful<GamedEvents> {
 		const existing = this.games.get(name)
 		if (existing) return existing
 
-		const instance = root(
+		const instance = root`game`(
 			() =>
 				new Game(
 					{

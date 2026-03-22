@@ -1,5 +1,5 @@
-import type { DockviewWidgetProps } from '@pounce/ui/dockview'
-import { document, latch } from '@pounce/core'
+import type { DockviewWidgetProps } from '@sursaut/ui/dockview'
+import { document, latch } from '@sursaut/core'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SelectionInfoContext, SelectionInfoTool } from './selection-info-tab'
 

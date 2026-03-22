@@ -28,11 +28,11 @@ interface EntityBadgeProps {
 	height?: number
 }
 
-const EntityBadge = ({ game, sprite, text, qty, height = 20 }: EntityBadgeProps) => {
+const EntityBadge = (props: EntityBadgeProps) => {
 	return (
 		<div class="entity-badge">
-			<ResourceImage game={game} sprite={sprite} height={height} alt={text} />
-			{qty && <span class="entity-badge__qty">×{qty}</span>}
+			<ResourceImage game={props.game} sprite={props.sprite} height={props.height ?? 20} alt={props.text} />
+			<span if={props.qty} class="entity-badge__qty">×{props.qty}</span>
 		</div>
 	)
 }

@@ -1,5 +1,5 @@
 import type { Tile } from 'ssh/board/tile'
-import { namedEffect } from 'ssh/debug'
+import { effect } from 'mutts'
 import type { GameObject } from 'ssh/game/object'
 import type { Character } from 'ssh/population/character'
 import type { PixiGameRenderer } from './renderer'
@@ -48,7 +48,7 @@ export class VisualFactory {
 		// Based on Population class (viewed next), likely has `characters` array or map.
 
 		this.cleanups.push(
-			namedEffect('visuals.characters', () => {
+			effect`visuals.characters`(() => {
 				// Reactive set of active characters
 				const activeChars = new Set<Character>()
 

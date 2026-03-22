@@ -19,9 +19,9 @@ import {
 	RadioButton,
 	ThemeToggle,
 	type ThemeValue,
-	Toolbar,
-} from '@pounce'
-import { Dockview } from '@pounce/ui/dockview'
+} from '@sursaut'
+import { Toolbar } from '@sursaut/adapter-pico'
+import { Dockview } from '@sursaut/ui/dockview'
 import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content'
 import { effect, reactive, untracked } from 'mutts'
 import {
@@ -96,7 +96,7 @@ const themeSettings: { theme: ThemeValue } = {
 
 const Clock = ({ game }: { game: any }) => {
 	const state = reactive({ time: '--:--' })
-	effect(() => {
+	effect`app:clock`(() => {
 		const seconds = Math.floor(game.clock.virtualTime)
 		const minutes = Math.floor(seconds / 60)
 		const displaySeconds = seconds % 60
@@ -115,7 +115,7 @@ const App = () => {
 
 	const gameInstance = games.game('GameX')
 
-	effect(() => {
+	effect`app:prevent-back-nav`(() => {
 		if (typeof window === 'undefined') return
 		const preventBackNavigation = (event: MouseEvent) => {
 			if (event.button === 3 || event.button === 4) {
@@ -175,7 +175,7 @@ const App = () => {
 		state.api = api
 	}
 
-	effect(() => {
+	effect`app:dockview-layout`(() => {
 		if (state.api && !getDockviewLayout()) {
 			// If no layout is saved, open a game by default
 			untracked(openGamePanel)

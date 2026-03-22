@@ -1,1 +1,1 @@
-export { __injectCSS, css, sass, scss } from '@pounce/kit'
+export { __injectCSS, css, sass, scss } from '@sursaut/kit'

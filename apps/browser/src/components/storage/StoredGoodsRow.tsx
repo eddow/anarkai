@@ -1,5 +1,5 @@
 import { css } from '@app/lib/css'
-import { Button } from '@pounce'
+import { Button } from '@sursaut'
 import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
 import { memoize, reactive } from 'mutts'
 import type { Alveolus } from 'ssh/board/content/alveolus'
@@ -59,8 +59,6 @@ interface StoredGoodsRowProps {
 }
 
 export default function StoredGoodsRow(props: StoredGoodsRowProps) {
-	const translator = i18nState.translator
-	if (!translator) return null
 	// Access stock reactively
 	const stock = memoize(() => props.content.storage?.stock || {})
 
@@ -110,18 +108,18 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 		<>
 			<PropertyGridRow if={hasGoods()} label={props.label}>
 				<div if={confirmState.mode} class="confirm-overlay">
-					<span>{String(translator.alveolus.cleanUpConfirmText)}</span>
+					<span>{String(i18nState.translator?.alveolus.cleanUpConfirmText ?? '')}</span>
 					<Button onClick={doConfirm} title="Confirm">
-						{String(translator.alveolus.clear)}
+						{String(i18nState.translator?.alveolus.clear ?? '')}
 					</Button>
 					<Button variant="secondary" onClick={cancelConfirm} title="Cancel" class="outline">
-						{String(translator.alveolus.keep)}
+						{String(i18nState.translator?.alveolus.keep ?? '')}
 					</Button>
 				</div>
 				<div else class="stored-goods-row">
 					<Button
 						onClick={startCleanAll}
-						title={String(translator.alveolus.cleanUpTooltip)}
+						title={String(i18nState.translator?.alveolus.cleanUpTooltip ?? '')}
 						class="cleanup-btn"
 					>
 						🧹
@@ -133,7 +131,7 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 								<Button
 									if={hasMultipleTypes()}
 									onClick={() => startCleanGood(good)}
-									title={String(translator.alveolus.cleanUpGoodTooltip({ goodType: good }))}
+									title={String(i18nState.translator?.alveolus.cleanUpGoodTooltip?.({ goodType: good }) ?? '')}
 									class="cleanup-btn-small"
 								>
 									×

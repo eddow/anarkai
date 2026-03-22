@@ -6,7 +6,7 @@ import {
 	unreactiveInfo,
 	validateStoredSelectionState,
 } from '@app/lib/globals'
-import type { DockviewWidgetProps, DockviewWidgetScope } from '@pounce/ui/dockview'
+import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
 import { PixiGameRenderer } from 'engine-pixi/renderer'
 import { effect } from 'mutts'
 import { Tile } from 'ssh/board/tile'
@@ -109,7 +109,7 @@ export default function GameWidget(
 
 	props.title = 'Game'
 
-	effect(() => {
+	effect`game:events`(() => {
 		game.on(gameEvents)
 		return () => game.off(gameEvents)
 	})

@@ -1,6 +1,6 @@
 import { Container, Sprite } from 'pixi.js'
 import type { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
-import { namedEffect } from 'ssh/debug'
+import { effect } from 'mutts'
 import { LCG, subSeed } from 'ssh/utils/numbers'
 import { toAxialCoord, toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
@@ -29,7 +29,7 @@ export class UnBuiltLandVisual extends VisualObject<UnBuiltLand> {
 		this.renderer.layers.resources.addChild(this.view)
 
 		this.register(
-			namedEffect(`unbuilt.${this.object.uid}.render`, () => {
+			effect`unbuilt.${this.object.uid}.render`(() => {
 				// Clear previous sprites
 				this.unbuiltContainer.removeChildren().forEach((c) => c.destroy())
 

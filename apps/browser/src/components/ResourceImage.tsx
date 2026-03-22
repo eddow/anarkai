@@ -14,7 +14,7 @@ type ResourceImageProps = {
 const ResourceImage = (props: ResourceImageProps) => {
 	const state = reactive({ style: '' })
 
-	effect(() => {
+	effect`resource-image:style`(() => {
 		const { game, sprite } = props // Access props (reactive)
 		if (!game || !sprite) {
 			state.style = ''

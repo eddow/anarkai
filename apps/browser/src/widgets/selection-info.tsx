@@ -1,6 +1,6 @@
 import { css } from '@app/lib/css'
 import { games, mrg, selectionState, unreactiveInfo } from '@app/lib/globals'
-import type { DockviewWidgetProps, DockviewWidgetScope } from '@pounce/ui/dockview'
+import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
 import { effect } from 'mutts'
 import { Tile } from 'ssh/board/tile'
 import type { Game } from 'ssh/game'
@@ -129,11 +129,11 @@ const SelectionInfoWidget = (
 		world.position.y = screen.height / 2 - coord.y * scale
 	}
 
-	effect(() => {
+	effect`selection-info:title`(() => {
 		props.title = current.object?.title ?? 'Object'
 	})
 
-	effect(() => {
+	effect`selection-info:tools`(() => {
 		const tools: SelectionInfoTool[] = []
 		if (current.object?.position) {
 			tools.push({
@@ -154,7 +154,7 @@ const SelectionInfoWidget = (
 			if (props.context.tools === tools) props.context.tools = []
 		}
 	})
-	effect(() => {
+	effect`selection-info:panel-cleanup`(() => {
 		const disposable = scope.dockviewApi!.onDidRemovePanel((panel) => {
 			if (panel.id === api.id) {
 				// If this panel was the one tracking active selection (not pinned)

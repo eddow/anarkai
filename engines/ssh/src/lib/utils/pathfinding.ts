@@ -66,7 +66,7 @@ export function findPath(
 	punctual: boolean = true
 ): AxialCoord[] | undefined {
 	// Pathfinding must never register reactive dependencies on traversed nodes or scored targets.
-	return untracked(() => {
+	return untracked`findPath`(() => {
 		// use bidirectional if the function becomes used
 		const startCoord = toAxialCoord(start)
 		const goalCoord = toAxialCoord(goal)
@@ -177,7 +177,7 @@ export function findNearest<_T>(
 	stop: number | ((coord: Positioned, walkTime: number) => boolean),
 	punctual: boolean = true
 ): AxialCoord[] | undefined {
-	return untracked(() => {
+	return untracked`findNearest`(() => {
 		const startCoord = toAxialCoord(start)
 		if (typeof stop === 'number')
 			stop = (
@@ -285,7 +285,7 @@ export function findBest<_T>(
 	bestPossibleScore: number,
 	punctual: boolean = true
 ): AxialCoord[] | undefined {
-	return untracked(() => {
+	return untracked`findBest`(() => {
 		const startCoord = toAxialCoord(start)
 		if (typeof stop === 'number')
 			stop = (

@@ -1,7 +1,7 @@
 import { Container, Graphics } from 'pixi.js'
 import { AlveolusGate } from 'ssh/board/border/alveolus-gate'
 import type { TileBorder } from 'ssh/board/border/border'
-import { namedEffect } from 'ssh/debug'
+import { effect } from 'mutts'
 import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
 import { scopedPixiName, setPixiName } from '../debug-names'
@@ -32,7 +32,7 @@ export class BorderVisual extends VisualObject<TileBorder> {
 		const worldPos = toWorldCoord(this.object.position) // Border position is mid-point
 
 		this.register(
-			namedEffect(`border.${this.object.uid}.render`, () => {
+			effect`border.${this.object.uid}.render`(() => {
 				this.gateGraphics.clear()
 				this.goodsContainer.removeChildren()
 
@@ -97,7 +97,7 @@ export class BorderVisual extends VisualObject<TileBorder> {
 		const storage = gate.storage
 		if (!storage) return
 
-		return namedEffect(`border.${this.object.uid}.goods`, () => {
+		return effect`border.${this.object.uid}.goods`(() => {
 			this.goodsContainer.removeChildren()
 
 			const { slots } = storage.renderedGoods()

@@ -4,8 +4,8 @@
 
 ### [browser](../apps/browser)
 **Type**: Web Application
-**Tech Stack**: Vite, Pounce-TS
-**Description**: browser is a web client implementation using the custom Pounce-TS framework.
+**Tech Stack**: Vite, Sursaut-TS
+**Description**: browser is a web client implementation using the custom Sursaut-TS framework.
 
 ### [browser-vue](../apps/browser-vue)
 **Type**: Web Application
@@ -33,10 +33,10 @@
 **Type**: Library (i18n)
 **Description**: A full-stack internationalization library supporting locales, zones, and dynamic loading. Used for translating the application interface and game content.
 
-### [pounce-ts](../packages/pounce-ts)
+### [sursaut-ts](../packages/sursaut-ts)
 **Type**: Library (Framework)
 **Description**: A custom, lightweight reactive web framework built with TypeScript and JSX. It leverages `mutts` for reactivity and avoids a virtual DOM for performance.
 
-### [pounce-ui](../packages/pounce-ui)
+### [sursaut-ui](../packages/sursaut-ui)
 **Type**: Library (UI Components)
-**Description**: A collection of reusable UI components built using `pounce-ts` and `pico.css`. Provides the visual building blocks for the Pounce-based client.
+**Description**: A collection of reusable UI components built using `sursaut-ts` and `pico.css`. Provides the visual building blocks for the Sursaut-based client.

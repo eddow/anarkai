@@ -7,13 +7,13 @@ Whenever possible, refer to shared code by its package name, as defined in `pack
 
 *   **`ssh`**: The core logic engine.
 *   **`engine-pixi`**: The PixiJS rendering engine.
-*   **`pounce-ts`**: The reactive framework.
+*   **`sursaut-ts`**: The reactive framework.
 
 Examples:
 ```typescript
 import { Tile } from 'ssh/board/tile'
 import { goods } from 'ssh/assets/game-content'
-import { compose } from 'pounce-ts'
+import { compose } from 'sursaut-ts'
 ```
 
 ## 2. Workspace Linking (The "Self" Alias)

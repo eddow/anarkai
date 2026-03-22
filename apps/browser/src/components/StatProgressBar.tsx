@@ -92,7 +92,7 @@ const StatProgressBar = (props: StatProgressBarProps) => {
 		<div class="stat-progress-bar">
 			<div class="stat-progress-bar__header">
 				<span class="stat-progress-bar__label">{props.label}</span>
-				{props.showValue && <span class="stat-progress-bar__value">{computed.percentage}%</span>}
+				<span if={props.showValue} class="stat-progress-bar__value">{computed.percentage}%</span>
 			</div>
 			<div class="stat-progress-bar__track">
 				<div

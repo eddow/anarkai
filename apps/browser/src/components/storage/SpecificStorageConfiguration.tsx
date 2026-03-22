@@ -1,5 +1,5 @@
 import { css } from '@app/lib/css'
-import { Stars } from '@pounce'
+import { Stars } from '@sursaut'
 import { goods as visualGoods } from 'engine-pixi/assets/visual-content'
 import type { Game } from 'ssh/game'
 import type { GoodType } from 'ssh/types/base'

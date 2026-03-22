@@ -21,8 +21,8 @@ graph TD
         M[mutts]
         NPC[npcs]
         I18N[omni18n]
-        PTS[pounce-ts]
-        PUI[pounce-ui]
+        PTS[sursaut-ts]
+        PUI[sursaut-ui]
     end
 
     %% Dependencies
@@ -50,13 +50,13 @@ graph TD
 ## Core Components
 
 ### 1. Reactivity Layer (`mutts`)
-At the heart of the system lies `mutts`, the reactivity engine. It powers state management in the game engine, the Pounce framework, and even the Vue integration shim.
+At the heart of the system lies `mutts`, the reactivity engine. It powers state management in the game engine, the Sursaut framework, and even the Vue integration shim.
 
 ### 2. Game Engine (`ssh`)
 The `ssh` engine encapsulates the domain logic. It depends on `mutts` for state, `npcs` for AI/behavior, and `omni18n` for text. It abstracts the game rules and state from the specific rendering technology, though it currently leverages PixiJS.
 
-### 3. Framework Layer (`pounce-ts`)
-`pounce-ts` is a custom UI framework built on top of `mutts`. It offers a JSX-based component model similar to React or Solid but with direct DOM manipulation and fine-grained reactivity.
+### 3. Framework Layer (`sursaut-ts`)
+`sursaut-ts` is a custom UI framework built on top of `mutts`. It offers a JSX-based component model similar to React or Solid but with direct DOM manipulation and fine-grained reactivity.
 
-### 4. UI Layer (`pounce-ui`)
-Built on `pounce-ts`, this library provides the concrete UI widgets (buttons, panels, etc.) used by the `browser` application.
+### 4. UI Layer (`sursaut-ui`)
+Built on `sursaut-ts`, this library provides the concrete UI widgets (buttons, panels, etc.) used by the `browser` application.

@@ -57,7 +57,7 @@ const TileProperties = (props: TilePropertiesProps) => {
 		terrainBackgroundStyle: '',
 	})
 
-	effect(() => {
+	effect`tile-properties:content`(() => {
 		const content = props.tile?.content
 		const translator = i18nState.translator
 		state.tileContent = content
@@ -82,7 +82,7 @@ const TileProperties = (props: TilePropertiesProps) => {
 		}
 	})
 
-	effect(() => {
+	effect`tile-properties:stock`(() => {
 		const content = state.tileContent
 		if (content?.storage) {
 			state.stock = content.storage.stock
@@ -91,24 +91,24 @@ const TileProperties = (props: TilePropertiesProps) => {
 		}
 	})
 
-	effect(() => {
+	effect`tile-properties:free-stock`(() => {
 		const counts: Record<string, number> = {}
 		for (const fg of props.tile?.looseGoods ?? []) {
 			if (!fg.available) continue
-			counts[fg.goodType] = (counts[fg.goodType] || 0) + 1
+			counts[fg.goodType] = (counts[fg.goodType] ?? 0) + 1
 		}
 		state.freeStock = counts
 	})
 
-	effect(() => {
+	effect`tile-properties:terrain-bg`(() => {
 		if (state.contentInfo?.terrain) {
 			void (async () => {
 				await props.tile?.board?.game?.loaded
 				if (!props.tile?.board?.game) return
-				const texture = props.tile.board.game.getTexture(`terrain.${state.contentInfo?.terrain}`)
-				state.terrainBackgroundStyle = computeStyleFromTexture(texture, {
+				const texture = props.tile?.board?.game?.getTexture(`terrain.${state.contentInfo?.terrain}`)
+				state.terrainBackgroundStyle = texture ? computeStyleFromTexture(texture, {
 					backgroundRepeat: 'repeat',
-				})
+				}) : ''
 			})()
 		} else {
 			state.terrainBackgroundStyle = ''

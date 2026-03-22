@@ -1,8 +1,8 @@
 import './app.css'
-import { latch } from '@pounce'
+import { latch } from '@sursaut'
 import { profileInfo } from 'mutts'
 import { mount } from 'pure-glyf/icons'
-import { registerGlyfIconFactory } from 'pure-glyf/pounce'
+import { registerGlyfIconFactory } from 'pure-glyf/sursaut'
 import { initTranslator } from 'ssh/i18n'
 import App from './App'
 

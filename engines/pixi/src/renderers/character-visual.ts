@@ -1,5 +1,5 @@
 import { ColorMatrixFilter, Sprite } from 'pixi.js'
-import { namedEffect } from 'ssh/debug'
+import { effect } from 'mutts'
 import { mrg } from 'ssh/interactive-state'
 import type { Character } from 'ssh/population/character'
 import { toWorldCoord } from 'ssh/utils/position' // Verify path
@@ -45,18 +45,18 @@ export class CharacterVisual extends VisualObject<Character> {
 
 	public bind() {
 		// Position binding
-		this.register(
-			namedEffect('character.position', () => {
-				const world = toWorldCoord(this.object.position)
-				// Need tileSize or similar context? toWorldCoord handles it if imports are correct
-				if (world) this.view.position.set(world.x, world.y)
-			})
-		)
+			this.register(
+				effect`character.position`(() => {
+					const world = toWorldCoord(this.object.position)
+					// Need tileSize or similar context? toWorldCoord handles it if imports are correct
+					if (world) this.view.position.set(world.x, world.y)
+				})
+			)
 
 		// Hover effect
 		const brightnessFilter = new ColorMatrixFilter()
 		this.register(
-			namedEffect(`character.${this.object.uid}.mouseover`, () => {
+			effect`character.${this.object.uid}.mouseover`(() => {
 				if (mrg.hoveredObject?.uid === this.object.uid) {
 					this.sprite.tint = 0xaaaaff
 					brightnessFilter.brightness(1.2, false)

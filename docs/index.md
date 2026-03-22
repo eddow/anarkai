@@ -14,7 +14,7 @@ This documentation is generated to help developers understand the structure and 
 The project is organized as a monorepo using **pnpm** workspaces.
 
 ### 📱 Applications (`apps/`)
-- **browser**: Web application built with Pounce-TS.
+- **browser**: Web application built with Sursaut-TS.
 - **browser-vue**: Web application built with Vue 3.
 
 ### 🎮 Engines (`engines/`)
@@ -24,8 +24,8 @@ The project is organized as a monorepo using **pnpm** workspaces.
 - **mutts**: Core reactive utility library.
 - **npcs**: NPC behavior and script execution system.
 - **omni18n**: Internationalization library.
-- **pounce-ts**: Lightweight reactive web framework.
-- **pounce-ui**: UI component library.
+- **sursaut-ts**: Lightweight reactive web framework.
+- **sursaut-ui**: UI component library.
 
 ## 🚀 Getting Started
 

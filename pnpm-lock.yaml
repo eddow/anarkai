@@ -25,7 +25,7 @@ importers:
         specifier: ^3.2.4
         version: 3.2.4(@types/node@25.0.10)(jsdom@27.4.0)(sass-embedded@1.97.1)(sass@1.97.1)(terser@5.44.1)(tsx@4.21.0)
 
-  apps/browser-pounce:
+  apps/browser:
     dependencies:
       '@mdi/svg':
         specifier: ^7.4.47
@@ -33,18 +33,18 @@ importers:
       '@picocss/pico':
         specifier: ^2.0.6
         version: 2.1.1
-      '@pounce/adapter-pico':
-        specifier: link:../../../ownk/pounce/packages/adapters/pico
-        version: link:../../../ownk/pounce/packages/adapters/pico
-      '@pounce/core':
-        specifier: link:../../../ownk/pounce/packages/core
-        version: link:../../../ownk/pounce/packages/core
-      '@pounce/kit':
-        specifier: link:../../../ownk/pounce/packages/kit
-        version: link:../../../ownk/pounce/packages/kit
-      '@pounce/ui':
-        specifier: link:../../../ownk/pounce/packages/ui
-        version: link:../../../ownk/pounce/packages/ui
+      '@sursaut/adapter-pico':
+        specifier: link:../../../ownk/sursaut/packages/adapters/pico
+        version: link:../../../ownk/sursaut/packages/adapters/pico
+      '@sursaut/core':
+        specifier: link:../../../ownk/sursaut/packages/core
+        version: link:../../../ownk/sursaut/packages/core
+      '@sursaut/kit':
+        specifier: link:../../../ownk/sursaut/packages/kit
+        version: link:../../../ownk/sursaut/packages/kit
+      '@sursaut/ui':
+        specifier: link:../../../ownk/sursaut/packages/ui
+        version: link:../../../ownk/sursaut/packages/ui
       arktype:
         specifier: ^2.1.22
         version: 2.1.29
@@ -73,8 +73,8 @@ importers:
         specifier: ^8.13.0
         version: 8.14.3
       pure-glyf:
-        specifier: link:../../../ownk/pounce/packages/pure-glyf
-        version: link:../../../ownk/pounce/packages/pure-glyf
+        specifier: link:../../../ownk/sursaut/packages/pure-glyf
+        version: link:../../../ownk/sursaut/packages/pure-glyf
       ssh:
         specifier: workspace:*
         version: link:../../engines/ssh
@@ -176,9 +176,6 @@ importers:
       arktype:
         specifier: ^2.1.22
         version: 2.1.29
-      dockview-core:
-        specifier: ^4.13.1
-        version: 4.13.1
       eventemitter3:
         specifier: ^5.0.1
         version: 5.0.1
@@ -1687,9 +1684,6 @@ packages:
     engines: {node: '>=18'}
     peerDependencies:
       typescript: ^5.4.4
-
-  dockview-core@4.13.1:
-    resolution: {integrity: sha512-+7vR0ZEoL8CNck6NqDVUMqBT22niwBu5CMMI137dZ3c8NDc7c5Si+3dGEqQgM4lNtHBLAtvypo1C4p21J2wkiQ==}
 
   dockview-core@5.1.0:
     resolution: {integrity: sha512-fqfr/mRUxL9Ap2gegGUW5EUL19nyvnHhXPTJ4PbbOjTBXu1g4rYN2gY9uSF3zfYdS3TVXY/jGXuGNKxoes1GHw==}
@@ -4135,8 +4129,6 @@ snapshots:
       typescript: 5.8.3
     transitivePeerDependencies:
       - supports-color
-
-  dockview-core@4.13.1: {}
 
   dockview-core@5.1.0: {}
 

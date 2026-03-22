@@ -1,5 +1,5 @@
 import { ColorMatrixFilter, Container, Graphics, Sprite } from 'pixi.js'
-import { namedEffect } from 'ssh/debug'
+import { effect } from 'mutts'
 import type { GoodType } from 'ssh/types/base'
 import { goods as goodsCatalog } from '../../assets/visual-content'
 import { scopedPixiName, setPixiName } from '../debug-names'
@@ -29,7 +29,7 @@ export function renderGoods(
 	root.position.set(worldPosition.x, worldPosition.y)
 	container.addChild(root)
 
-	const cleanup = namedEffect(label, () => {
+	const cleanup = effect`${scope}`(() => {
 		root.removeChildren().forEach((c) => c.destroy())
 
 		const { slots, assumedMaxSlots } = getSlots()

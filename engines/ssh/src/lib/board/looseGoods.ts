@@ -162,7 +162,7 @@ export class LooseGoods extends withTicked(GameObject) {
 	}
 
 	update(deltaSeconds: number): void {
-		untracked(() => {
+		untracked`update`(() => {
 			// Process each coordinate's goods
 			for (const [, goodsList] of Array.from(this.goods.entries())) {
 				for (const good of [...goodsList]) {

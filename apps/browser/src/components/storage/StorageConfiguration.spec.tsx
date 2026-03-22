@@ -1,9 +1,9 @@
-import { document, latch } from '@pounce/core'
+import { document, latch } from '@sursaut/core'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const goodMultiSelectCalls: Array<Record<string, unknown>> = []
 
-vi.mock('@pounce', () => ({
+vi.mock('@sursaut', () => ({
 	Button: (props: { onClick?: () => void; children?: any; class?: string }) => (
 		<button onClick={props.onClick} class={props.class}>
 			{props.children}

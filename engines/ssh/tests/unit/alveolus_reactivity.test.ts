@@ -23,7 +23,7 @@ vi.mock('ssh/src/lib/debug', async () => {
 	return {
 		assert: () => {},
 		namedEffect: (_name: string, fn: () => void) => {
-			return effect(fn)
+			return effect`test:named-effect`(fn)
 		},
 		traces: {},
 	}

@@ -17,9 +17,7 @@ interface UnBuiltPropertiesProps {
 	content: UnBuiltLand
 }
 
-const UnBuiltProperties = ({ content }: UnBuiltPropertiesProps) => {
-	const translator = i18nState.translator
-	if (!translator) return null
+const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 	const state = reactive({
 		deposit: undefined as
 			| {
@@ -36,36 +34,36 @@ const UnBuiltProperties = ({ content }: UnBuiltPropertiesProps) => {
 			| undefined,
 	})
 
-	effect(() => {
-		const deposit = content.deposit
+	effect`unbuilt-properties:deposit`(() => {
+		const deposit = props.content?.deposit
 		state.deposit = deposit
 			? {
-					sprites: deposit.sprites || [],
-					name: deposit.name,
-					amount: deposit.amount,
+					title: deposit.title,
+					cost: deposit.cost,
+					progress: deposit.progress,
 				}
 			: undefined
 	})
 
-	effect(() => {
-		const proj = content.project
+	effect`unbuilt-properties:project`(() => {
+		const proj = props.content?.project
 		state.projectData = proj ? { project: proj, name: proj.replace('build:', '') } : undefined
 	})
 
 	return (
 		<>
 			{state.projectData ? (
-				<PropertyGridRow label={String(translator.project)}>
+				<PropertyGridRow label={String(i18nState.translator?.project ?? '')}>
 					<div class="unbuilt-project">
 						<span class="badge badge-blue">
 							{state.projectData.name
 								? String(
-										translator.alveoli[state.projectData.name as keyof typeof translator.alveoli]
+										i18nState.translator?.alveoli?.[state.projectData.name as keyof typeof i18nState.translator.alveoli] ?? ''
 									)
 								: state.projectData.project}
 						</span>
-						{!content.tile.isClear ? (
-							<span class="badge badge-yellow">{String(translator.clearing)}</span>
+						{!props.content?.tile?.isClear ? (
+							<span class="badge badge-yellow">{String(i18nState.translator?.clearing ?? '')}</span>
 						) : null}
 					</div>
 				</PropertyGridRow>
@@ -74,13 +72,13 @@ const UnBuiltProperties = ({ content }: UnBuiltPropertiesProps) => {
 			{state.deposit?.amount !== undefined &&
 			state.deposit.sprites &&
 			state.deposit.sprites.length > 0 ? (
-				<PropertyGridRow label={String(translator.deposit)}>
+				<PropertyGridRow label={String(i18nState.translator?.deposit ?? '')}>
 					<EntityBadge
-						game={content.tile.board.game}
+						game={props.content?.tile?.board?.game}
 						height={16}
 						sprite={state.deposit.sprites[0]}
 						text={String(
-							translator.deposits[state.deposit.name as keyof typeof translator.deposits]
+							i18nState.translator?.deposits?.[state.deposit.name as keyof typeof i18nState.translator.deposits] ?? ''
 						)}
 						qty={state.deposit.amount}
 					/>

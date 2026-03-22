@@ -2,7 +2,7 @@ import { ColorMatrixFilter, Container, Graphics, Point, TilingSprite } from 'pix
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
-import { namedEffect } from 'ssh/debug'
+import { effect } from 'mutts'
 import { interactionMode, mrg } from 'ssh/interactive-state'
 import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
@@ -80,7 +80,7 @@ export class TileVisual extends VisualObject<Tile> {
 
 		// React to content changes and specific interactions
 		this.register(
-			namedEffect(`tile.${this.object.uid}.render`, () => {
+			effect`tile.${this.object.uid}.render`(() => {
 				const content = this.object.content
 
 				// Manage Content Visual
@@ -121,7 +121,7 @@ export class TileVisual extends VisualObject<Tile> {
 		)
 
 		this.register(
-			namedEffect(`tile.${this.object.uid}.interaction`, () => {
+			effect`tile.${this.object.uid}.interaction`(() => {
 				const content = this.object.content
 				// Handle Hover/Selection State (Logic reused from previous TileContent.render)
 				let brightness = 1

@@ -55,14 +55,14 @@ run_all_tests() {
     echo "$(date)"
     echo "================================"
     
-    # pounce-ts (Playwright)
-    run_tests "pounce-ts" "${OWNK_DIR}/pounce-ts" "npm test" || ((failed++))
+    # sursaut-ts (Playwright)
+    run_tests "sursaut-ts" "${OWNK_DIR}/sursaut-ts" "npm test" || ((failed++))
     
-    # pounce-ui (Jest)
-    run_tests "pounce-ui" "${OWNK_DIR}/pounce-ui" "npm test" || ((failed++))
+    # sursaut-ui (Jest)
+    run_tests "sursaut-ui" "${OWNK_DIR}/sursaut-ui" "npm test" || ((failed++))
     
-    # browser-pounce (Playwright)
-    run_tests "browser-pounce" "${ANARKAI_DIR}/apps/browser-pounce" "npx playwright test" || ((failed++))
+    # browser-sursaut (Playwright)
+    run_tests "browser-sursaut" "${ANARKAI_DIR}/apps/browser-sursaut" "npx playwright test" || ((failed++))
     
     echo ""
     if [ $failed -gt 0 ]; then
@@ -77,7 +77,7 @@ run_all_tests() {
 # Watch mode - uses inotifywait to watch for file changes
 watch_mode() {
     echo "Starting OWNk test watcher..."
-    echo "Watching: pounce-ts, pounce-ui, browser-pounce"
+    echo "Watching: sursaut-ts, sursaut-ui, browser-sursaut"
     echo "Press Ctrl+C to stop"
     echo ""
     
@@ -88,9 +88,9 @@ watch_mode() {
     while true; do
         # Wait for file changes in any of the source directories
         inotifywait -q -r -e modify,create,delete \
-            "${OWNK_DIR}/pounce-ts/src" \
-            "${OWNK_DIR}/pounce-ui/src" \
-            "${ANARKAI_DIR}/apps/browser-pounce/src" \
+            "${OWNK_DIR}/sursaut-ts/src" \
+            "${OWNK_DIR}/sursaut-ui/src" \
+            "${ANARKAI_DIR}/apps/browser-sursaut/src" \
             2>/dev/null
         
         echo ""

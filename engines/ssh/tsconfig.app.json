@@ -41,8 +41,8 @@
 		"../../../ownk/mutts/src/**/*.ts",
 		"../../../ownk/npcs/src/**/*.ts",
 		"../../../ownk/omni18n/src/**/*.ts",
-		"../../../ownk/pounce-ts/src/**/*.ts",
-		"../../../ownk/pounce-ui/src/**/*.ts",
+		"../../../ownk/sursaut-ts/src/**/*.ts",
+		"../../../ownk/sursaut-ui/src/**/*.ts",
 		"../../../ownk/pure-glyf/src/**/*.ts"
 	]
 }

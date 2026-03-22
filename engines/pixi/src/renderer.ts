@@ -106,7 +106,7 @@ export class PixiGameRenderer implements GameRenderer {
 		if (!this.stage) return
 
 		// World container holds all game content and acts as the camera
-		this.stage.name = 'renderer.stage'
+		this.stage.label = 'renderer.stage'
 		this.world = setPixiName(new Container(), 'renderer.world')
 		this.stage.addChild(this.world)
 

@@ -204,7 +204,7 @@ describe('Planner loop diagnostic', () => {
 		expect(slot).toBeDefined()
 
 		let effectFired = 0
-		const cleanup = effect(() => {
+		const cleanup = effect`test:planner-slot-reserved`(() => {
 			void slot.reserved
 			effectFired++
 		})
@@ -235,7 +235,7 @@ describe('Planner loop diagnostic', () => {
 		expect(slot).toBeDefined()
 
 		let effectFired = 0
-		const cleanup = effect(() => {
+		const cleanup = effect`test:planner-slot-allocated`(() => {
 			void slot.allocated
 			effectFired++
 		})

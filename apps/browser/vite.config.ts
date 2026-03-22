@@ -1,10 +1,10 @@
 import { dirname, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
-import { pounceBarrelPlugin, pounceCorePlugin } from "@pounce/core/plugin";
+import { sursautBarrelPlugin, sursautCorePlugin } from "@sursaut/core/plugin";
 import { commonEsbuild, commonOptimizeDeps } from "engine-pixi/vite-config";
 import { servePixiAssets } from "engine-pixi/vite-plugins";
 import { type Alias, defineConfig, type Plugin } from "vite";
-import { pureGlyfPlugin } from "../../../ownk/pounce/packages/pure-glyf/dist/plugin.js";
+import { pureGlyfPlugin } from "../../../ownk/sursaut/packages/pure-glyf/dist/plugin.js";
 import { cssTagPlugin } from "../../engines/ssh/vite-plugin-css-tag.js";
 
 const projectRootDir = dirname(fileURLToPath(import.meta.url));
@@ -49,14 +49,14 @@ const aliases: Alias[] = [
 		find: /^pure-glyf$/,
 		replacement: resolvePath(
 			projectRootDir,
-			"../../../ownk/pounce/packages/pure-glyf/src/index.ts",
+			"../../../ownk/sursaut/packages/pure-glyf/src/index.ts",
 		),
 	},
 	{
-		find: /^pure-glyf\/pounce$/,
+		find: /^pure-glyf\/sursaut$/,
 		replacement: resolvePath(
 			projectRootDir,
-			"../../../ownk/pounce/packages/pure-glyf/src/pounce.tsx",
+			"../../../ownk/sursaut/packages/pure-glyf/src/sursaut.tsx",
 		),
 	},
 	{ find: "@app", replacement: resolvePath(projectRootDir, "src") },
@@ -108,11 +108,11 @@ const optimizeAliases = {
 	"dockview-core": resolvePath(projectRootDir, "node_modules/dockview-core"),
 	"pure-glyf": resolvePath(
 		projectRootDir,
-		"../../../ownk/pounce/packages/pure-glyf/src/index.ts",
+		"../../../ownk/sursaut/packages/pure-glyf/src/index.ts",
 	),
-	"pure-glyf/pounce": resolvePath(
+	"pure-glyf/sursaut": resolvePath(
 		projectRootDir,
-		"../../../ownk/pounce/packages/pure-glyf/src/pounce.tsx",
+		"../../../ownk/sursaut/packages/pure-glyf/src/sursaut.tsx",
 	),
 };
 
@@ -128,15 +128,15 @@ export default defineConfig({
 		}) as any,
 		cssTagPlugin(),
 		servePixiAssets(),
-		pounceCorePlugin({
+		sursautCorePlugin({
 			projectRoot: projectRootDir,
 			onlyRemoveTypeImports: true,
 		}),
-		pounceBarrelPlugin({
-			name: "@pounce",
+		sursautBarrelPlugin({
+			name: "@sursaut",
 			skeleton: "front-end",
-			adapter: "@pounce/adapter-pico",
-			dts: "src/@pounce.d.ts",
+			adapter: "@sursaut/adapter-pico",
+			dts: "src/@sursaut.d.ts",
 		}),
 	],
 	resolve: {

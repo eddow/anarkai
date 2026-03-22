@@ -1,4 +1,4 @@
-import { document, latch } from '@pounce/core'
+import { document, latch } from '@sursaut/core'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const addPanel = vi.fn((panel: Record<string, unknown>) => panel)
@@ -90,7 +90,7 @@ vi.mock('./widgets', () => ({
 	},
 }))
 
-vi.mock('@pounce', () => ({
+vi.mock('@sursaut', () => ({
 	Button: (props: { onClick?: () => void; children?: any; ['aria-label']?: string }) => (
 		<button onClick={props.onClick} aria-label={props['aria-label']}>
 			{props.children}
@@ -139,7 +139,7 @@ vi.mock('@pounce', () => ({
 	),
 }))
 
-vi.mock('@pounce/ui/dockview', () => ({
+vi.mock('@sursaut/ui/dockview', () => ({
 	Dockview: (props: { api?: any; onReady?: (api: typeof dockviewApi) => void }) => {
 		if (props.api && typeof props.api.set === 'function') {
 			props.api.set(dockviewApi)

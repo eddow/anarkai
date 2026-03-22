@@ -1,6 +1,7 @@
 import { type HexBoard, isTileCoord } from 'ssh/board'
 import type { Alveolus } from 'ssh/board/content/alveolus'
-import { assert, namedEffect } from 'ssh/debug'
+import { assert } from 'ssh/debug'
+import { effect } from 'mutts'
 import type { Character } from 'ssh/population/character'
 import type { IdlePlan, PickupPlan, Plan, TransferPlan, WorkPlan } from 'ssh/types/base'
 import { gameObjectsModule } from 'ssh/types/game-objects'
@@ -135,7 +136,7 @@ const pickupPlanHandler: PlanHandler<PickupPlan> = {
 				// cannot fire effects that remove the good before it is secured.
 				allocation = looseGoodToGrab.allocate(`planGrabLoose.${goodType}`)
 				vehicleAllocation = vehicle.storage.allocate({ [goodType]: 1 }, `planGrabLoose.${goodType}`)
-				releaseStopper = namedEffect('plan.releaseStopper', () => {
+				releaseStopper = effect`plan.releaseStopper`(() => {
 					if (looseGoodToGrab.isRemoved) character.cancelPlan(plan)
 				})
 				plan.releaseStopper = releaseStopper

@@ -1,5 +1,5 @@
-import { stored } from '@pounce'
-import type { DockviewWidgetScope } from '@pounce/ui/dockview'
+import { stored } from '@sursaut'
+import type { DockviewWidgetScope } from '@sursaut/ui/dockview'
 
 // Re-export all game-related globals from ssh engine
 export {

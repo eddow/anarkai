@@ -1,9 +1,9 @@
-import { defer, reactive, type ScopedCallback, unreactive, untracked } from 'mutts'
+import { defer, effect, reactive, type ScopedCallback, unreactive, untracked } from 'mutts'
 import { type HexBoard, isTileCoord } from 'ssh/board/board'
 import { AlveolusGate } from 'ssh/board/border/alveolus-gate'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
-import { assert, namedEffect, traces } from 'ssh/debug'
+import { assert, traces } from 'ssh/debug'
 import type { AllocationBase, Storage } from 'ssh/storage/storage'
 import type { GoodType } from 'ssh/types'
 import { type AxialCoord, findPath, type Positioned, setPop } from 'ssh/utils'
@@ -95,12 +95,12 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		alveolus.hive = this
 		this.invalidatePathCache()
 		this.advertising.push(
-			namedEffect(`${alveolus.name}.advertise`, () => {
+			effect`alveolus.advertise`(() => {
 				const goodsRelations = alveolus.goodsRelations
 				traces.advertising?.log(
 					`advertise effect: ${alveolus.name} ${JSON.stringify(goodsRelations)}`
 				)
-				untracked(() => {
+				untracked`alveolus.advertise`(() => {
 					this.advertise(alveolus, goodsRelations)
 				})
 			})

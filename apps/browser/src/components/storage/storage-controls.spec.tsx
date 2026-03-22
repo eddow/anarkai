@@ -1,7 +1,7 @@
-import { document, latch } from '@pounce/core'
+import { document, latch } from '@sursaut/core'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@pounce', () => ({
+vi.mock('@sursaut', () => ({
 	Button: (props: { onClick?: () => void; title?: string; class?: string; children?: any }) => (
 		<button onClick={props.onClick} title={props.title} class={props.class}>
 			{props.children}

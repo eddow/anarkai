@@ -1,6 +1,6 @@
 import { Container, Sprite, Texture } from 'pixi.js'
 import type { LooseGood, LooseGoods } from 'ssh/board/looseGoods'
-import { namedEffect } from 'ssh/debug'
+import { effect } from 'mutts'
 import { toWorldCoord } from 'ssh/utils/position' // Verify import
 import { tileSize } from 'ssh/utils/varied'
 import { goods as goodsCatalog } from '../../assets/visual-content'
@@ -25,7 +25,7 @@ export class LooseGoodsVisual extends VisualObject<LooseGoods> {
 
 	public bind() {
 		this.register(
-			namedEffect('looseGoods.render', () => {
+			effect`looseGoods.render`(() => {
 				// We need to iterate over all goods.
 				// LooseGoods.goods is a Map<AxialKey, LooseGood[]>
 				// Ideally we iterate only visible processing, but here we do all for simplicity first.

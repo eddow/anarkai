@@ -1,4 +1,4 @@
-Refer to `pounce-ts/LLM.md` and `pounce-ui/LLM.md` for introduction to the Pounce framework.
+Refer to `sursaut-ts/LLM.md` and `sursaut-ui/LLM.md` for introduction to the Sursaut framework.
 
 # Widget Logic & State Simplification
 
@@ -7,7 +7,7 @@ When designing widgets that interact with global state (like selection), follow 
 
 1.  **Single Source of Truth**: Avoid duplicating global state into local state. If a widget needs to know about a global selection, read it directly or derive it reactively from parameters.
     - *Example (Selection Info)*: Instead of a local `isPinned` boolean, simply check if `props.params.uid` is populated.
-2.  **Avoid Redundant Synchronization**: Do not create generic "sync" effects that just copy values from A to B. `mutts` / `pounce` reactivity allows you to use the values directly.
+2.  **Avoid Redundant Synchronization**: Do not create generic "sync" effects that just copy values from A to B. `mutts` / `sursaut` reactivity allows you to use the values directly.
     - *Anti-Pattern*: `effect(() => state.localVal = globalVal)`
     - *Pattern*: `const derivedVal = () => globalVal` (or used directly in effects/JSX)
 3.  **Minimal Global Registry**: Avoid complex global registries for UI state (like tracking every single open panel ID) if a simple flagged state (e.g., "is dynamic panel open") suffices.
@@ -28,7 +28,7 @@ Most of the time, onChange, onInput etc are useless and should be avoided. Two-w
 
 ## JSX Patterns: Conditionals and Loops
 
-**IMPORTANT:** Do NOT use JavaScript ternary operators or `&&` for conditional rendering, and do NOT use `.map()` for list rendering. Pounce provides dedicated mechanisms:
+**IMPORTANT:** Do NOT use JavaScript ternary operators or `&&` for conditional rendering, and do NOT use `.map()` for list rendering. Sursaut provides dedicated mechanisms:
 
 ### Conditionals: Use `if`, `else`, `else-if` Attributes
 ```tsx

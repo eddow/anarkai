@@ -58,7 +58,7 @@ export const i18nState: I18nState = reactive({
 	localeFlags: undefined,
 })
 export let T: Translator = null!
-effect(() => {
+effect`i18n:translator-sync`(() => {
 	T = i18nState.translator!
 })
 async function loadLocale(locale: Locale, requestId: number) {
@@ -69,7 +69,7 @@ async function loadLocale(locale: Locale, requestId: number) {
 	i18nState.translator = translator
 }
 
-const translationEffect = effect(() => {
+const translationEffect = effect`i18n:locale-loader`(() => {
 	const currentLocale = i18nState.locale
 	const requestId = ++localeRequestToken
 	void loadLocale(currentLocale, requestId)

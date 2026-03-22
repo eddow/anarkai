@@ -1,5 +1,5 @@
 import { css } from '@app/lib/css'
-import { Button } from '@pounce'
+import { Button } from '@sursaut'
 import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
 import type { Game } from 'ssh/game'
 import type { GoodType } from 'ssh/types/base'

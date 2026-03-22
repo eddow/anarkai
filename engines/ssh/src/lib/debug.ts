@@ -4,9 +4,6 @@ export function nf<T extends Function>(name: string, fn: T): T {
 	Object.defineProperty(fn, 'name', { value: name })
 	return fn
 }
-export function namedEffect(name: string, fn: () => void): () => void {
-	return effect.named(name)(fn)
-}
 export class AssertionError extends Error {
 	constructor(message: string) {
 		super(`Assertion failure: ${message}`)

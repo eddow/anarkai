@@ -1,6 +1,6 @@
 import { Container, Sprite, Texture } from 'pixi.js'
 import type { Alveolus } from 'ssh/board/content/alveolus'
-import { namedEffect } from 'ssh/debug'
+import { effect } from 'mutts'
 import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
 import { alveoli } from '../../assets/visual-content'
@@ -48,7 +48,7 @@ export class AlveolusVisual extends VisualObject<any> {
 
 		// 1. Render Structure Sprite (on alveoli layer)
 		this.register(
-			namedEffect(`alveolus.${this.object.uid}.sprite`, () => {
+			effect`alveolus.${this.object.uid}.sprite`(() => {
 				if (this._disposed) return
 				const visualDef = alveoli[this.object.name]
 				const textureName = visualDef?.sprites?.[0]

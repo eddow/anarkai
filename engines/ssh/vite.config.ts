@@ -61,8 +61,8 @@ export default defineConfig({
 			"npc-script",
 			"omni18n",
 			"ssh",
-			"pounce-ts",
-			"pounce-ui",
+			"sursaut-ts",
+			"sursaut-ui",
 		],
 	},
 	resolve: {
@@ -73,11 +73,11 @@ export default defineConfig({
 			"@app": resolvePath(projectRootDir, "src"),
 			"@ssh": resolvePath(projectRootDir, "src"),
 			ssh: resolvePath(projectRootDir, "src/lib"),
-			"pounce-ts": resolvePath(
+			"sursaut-ts": resolvePath(
 				projectRootDir,
-				"../../../ownk/pounce-ts/src/lib",
+				"../../../ownk/sursaut-ts/src/lib",
 			),
-			"pounce-ui": resolvePath(projectRootDir, "../../../ownk/pounce-ui/src"),
+			"sursaut-ui": resolvePath(projectRootDir, "../../../ownk/sursaut-ui/src"),
 			"npc-script": resolvePath(projectRootDir, "../../../ownk/npcs/src"),
 			mutts: resolvePath(projectRootDir, "../../../ownk/mutts/src"),
 			omni18n: resolvePath(projectRootDir, "../../../ownk/omni18n/src"),

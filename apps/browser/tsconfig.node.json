@@ -29,13 +29,13 @@
 			"$assets/*": ["./assets/*"],
 			"$components/*": ["./src/components/*"],
 			"@app/*": ["./src/*"],
-			"@pounce/*": ["node_modules/pounce-ts/src/*"],
-			"@pounce/runtime": ["node_modules/pounce-ts/src/lib/index.ts"],
-			"@pounce/runtime/jsx-runtime": [
-				"node_modules/pounce-ts/src/runtime/jsx-runtime.ts"
+			"@sursaut/*": ["node_modules/sursaut-ts/src/*"],
+			"@sursaut/runtime": ["node_modules/sursaut-ts/src/lib/index.ts"],
+			"@sursaut/runtime/jsx-runtime": [
+				"node_modules/sursaut-ts/src/runtime/jsx-runtime.ts"
 			],
-			"@pounce/runtime/jsx-dev-runtime": [
-				"node_modules/pounce-ts/src/runtime/jsx-dev-runtime.ts"
+			"@sursaut/runtime/jsx-dev-runtime": [
+				"node_modules/sursaut-ts/src/runtime/jsx-dev-runtime.ts"
 			]
 		}
 	},

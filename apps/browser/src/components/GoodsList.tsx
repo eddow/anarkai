@@ -180,16 +180,7 @@ interface GoodsListProps {
  *   renderItemExtra={(good, index) => <span>#{index}</span>}
  * />
  */
-const GoodsList = ({
-	goods,
-	game,
-	itemSize = 20,
-	className = '',
-	editable = false,
-	renderItemExtra,
-	getBadgeProps,
-}: GoodsListProps) => {
-	const translator = i18nState.translator
+const GoodsList = (props: GoodsListProps) => {
 	const state = reactive({
 		isDropdownOpen: false,
 	})
@@ -201,30 +192,30 @@ const GoodsList = ({
 	// I will assume UNIQUE items for now in the dropdown filter.
 	const getAvailableGoods = () => {
 		const allGoods = Object.keys(visualGoods) as GoodType[]
-		const currentSet = new Set(goods)
+		const currentSet = new Set(props.goods ?? [])
 		return allGoods.filter((g) => !currentSet.has(g))
 	}
 
 	const handleAdd = (good: GoodType) => {
-		if (editable && goods) {
-			goods.push(good)
+		if (props.editable && props.goods) {
+			props.goods.push(good)
 			state.isDropdownOpen = false
 		}
 	}
 
 	const handleRemove = (good: GoodType) => {
-		if (editable && goods) {
-			const index = goods.indexOf(good)
+		if (props.editable && props.goods) {
+			const index = props.goods.indexOf(good)
 			if (index > -1) {
-				goods.splice(index, 1)
+				props.goods.splice(index, 1)
 			}
 		}
 	}
 
 	return (
-		<div class={`goods-list ${className}`} if={goods.length > 0 || editable}>
+		<div class={`goods-list ${props.className ?? ''}`} if={(props.goods?.length ?? 0) > 0 || props.editable}>
 			{/* Dropdown for adding goods (only in editable mode) */}
-			<div class="goods-dropdown" if={editable}>
+			<div class="goods-dropdown" if={props.editable}>
 				<div
 					class="goods-dropdown__trigger"
 					onClick={() => (state.isDropdownOpen = !state.isDropdownOpen)}
@@ -238,10 +229,10 @@ const GoodsList = ({
 						{(good: GoodType) => (
 							<div class="goods-dropdown__item" onClick={() => handleAdd(good)}>
 								<EntityBadge
-									game={game}
+									game={props.game}
 									sprite={visualGoods[good]?.sprites?.[0] ?? 'default'}
-									text={translator?.goods?.[good] ?? good}
-									height={itemSize}
+									text={i18nState.translator?.goods?.[good] ?? good}
+									height={props.itemSize ?? 20}
 								/>
 							</div>
 						)}
@@ -257,29 +248,29 @@ const GoodsList = ({
 			</div>
 
 			{/* List of selected goods using <for> */}
-			<for each={goods}>
+			<for each={props.goods ?? []}>
 				{(good: GoodType) => {
 					// Get index manually to be safe if <for> doesn't provide it reliably as 2nd arg
-					const index = goods.indexOf(good)
+					const index = props.goods?.indexOf(good) ?? -1
 					// Get optional badge props
-					const badgeProps = getBadgeProps ? getBadgeProps(good, index) : {}
+					const badgeProps = props.getBadgeProps ? props.getBadgeProps(good, index) : {}
 					return (
 						<div class="goods-list__item">
 							<EntityBadge
-								game={game}
+								game={props.game}
 								sprite={visualGoods[good]?.sprites?.[0] ?? 'default'}
-								text={translator?.goods?.[good] ?? good}
-								height={itemSize}
+								text={i18nState.translator?.goods?.[good] ?? good}
+								height={props.itemSize ?? 20}
 								{...badgeProps}
 							/>
-							<div if={renderItemExtra} style={{ display: 'inline-flex', alignItems: 'center' }}>
-								{renderItemExtra?.(good, index)}
+							<div if={props.renderItemExtra} style={{ display: 'inline-flex', alignItems: 'center' }}>
+								{props.renderItemExtra?.(good, index)}
 							</div>
 							<div
 								class="goods-list__remove"
 								onClick={() => handleRemove(good)}
 								title="Remove"
-								if={editable}
+								if={props.editable}
 							>
 								×
 							</div>

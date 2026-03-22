@@ -9,7 +9,7 @@ describe('AxialKeyMap Reactivity', () => {
 		let count = 0
 		let lastValue: string | undefined
 
-		effect(() => {
+		effect`test:axial-reactivity`(() => {
 			count++
 			lastValue = map.get(key)
 		})

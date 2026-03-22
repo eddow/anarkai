@@ -128,7 +128,7 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 		},
 	}
 
-	effect(() => {
+	effect`character-properties:title`(() => {
 		scope.setTitle?.(props.character?.title ?? props.character?.name ?? 'Object')
 	})
 

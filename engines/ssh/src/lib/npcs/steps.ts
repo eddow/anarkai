@@ -1,5 +1,5 @@
-import { atomic, unreactive } from 'mutts'
-import { assert, namedEffect } from 'ssh/debug'
+import { atomic, effect, unreactive } from 'mutts'
+import { assert } from 'ssh/debug'
 import type { Game } from 'ssh/game/game'
 import type { Character } from 'ssh/population/character'
 import type { GoodType } from 'ssh/types'
@@ -147,7 +147,7 @@ export class QueueStep<Entity extends ScriptedObject> extends ASingleStep {
 	) {
 		super()
 		queue.push(waiter)
-		const waiting = namedEffect('queue.wait', () => {
+		const waiting = effect`queue.wait`(() => {
 			if (queue[0] === waiter) {
 				this.finish()
 				this.passed = true

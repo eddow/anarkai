@@ -4,14 +4,14 @@
 **Goal:** Verifying and fixing bi-directional title synchronization between `SelectionInfoWidget` and `Dockview`.
 
 ## Problems Encountered
-1.  **Selection Info Title Update Failure**: `SelectionInfoWidget` attempted to set the title via `scope.setTitle`, but `pounce-ts` component props are read-only (or static) by default when passed as plain values.
+1.  **Selection Info Title Update Failure**: `SelectionInfoWidget` attempted to set the title via `scope.setTitle`, but `sursaut-ts` component props are read-only (or static) by default when passed as plain values.
 2.  **Proxy TypeError**: Attempting to assign `props.title = ...` caused `TypeError: 'set' on proxy: trap returned falsish for property 'title'`.
 3.  **E2E Test Instability**: Initial E2E tests failed to reliably select a game object to open the widget.
 4.  **Locator Failures**: The debug button had an unexpected `aria-label` ("Action" instead of "Debug Set Title"), causing Playwright locator failures.
 
 ## Investigation & Fixes
--   **Analyzed `pounce-ts`**: Confirmed that `pounce-ts` processes static props as immutable unless they are binding objects (`{ get, set }`).
--   **Fix in `pounce-ui`**: Modified `pounce-ui/src/components/dockview.tsx` to wrap `link.props` in getter/setter bindings when passing them to `h(widget, ...)`. This ensures the widget receives mutable props that propagate changes back to the Dockview container.
+-   **Analyzed `sursaut-ts`**: Confirmed that `sursaut-ts` processes static props as immutable unless they are binding objects (`{ get, set }`).
+-   **Fix in `sursaut-ui`**: Modified `sursaut-ui/src/components/dockview.tsx` to wrap `link.props` in getter/setter bindings when passing them to `h(widget, ...)`. This ensures the widget receives mutable props that propagate changes back to the Dockview container.
 -   **Refactor `selection-info.tsx`**: Updated `scope.setTitle` to simply assign `props.title = title`.
 
 ## Temporary Structures & Changes

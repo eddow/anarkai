@@ -1,5 +1,5 @@
 import { css } from '@app/lib/css'
-import { Button, Stars } from '@pounce'
+import { Button, Stars } from '@sursaut'
 import { goods as goodsCatalog } from 'engine-pixi/assets/visual-content'
 import { memoize } from 'mutts'
 import type { Game } from 'ssh/game'

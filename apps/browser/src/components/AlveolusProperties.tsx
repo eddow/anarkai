@@ -22,21 +22,21 @@ interface AlveolusPropertiesProps {
 	game: Game
 }
 
-const AlveolusProperties = ({ content, game }: AlveolusPropertiesProps) => {
+const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 	const state = reactive({
 		working: false,
 		isStorage: false,
 		storageContent: undefined as StorageAlveolus | undefined,
 	})
 
-	effect(() => {
-		state.isStorage = content instanceof StorageAlveolus
-		state.storageContent = content instanceof StorageAlveolus ? content : undefined
-		state.working = content.working
+	effect`alveolus-properties:storage-check`(() => {
+		state.isStorage = props.content instanceof StorageAlveolus
+		state.storageContent = props.content instanceof StorageAlveolus ? props.content : undefined
+		state.working = props.content.working
 	})
 
 	const handleWorkingChange = (checked: boolean) => {
-		content.working = checked
+		props.content.working = checked
 		state.working = checked
 	}
 
@@ -53,12 +53,12 @@ const AlveolusProperties = ({ content, game }: AlveolusPropertiesProps) => {
 			</PropertyGridRow>
 
 			<StoredGoodsRow
-				content={content}
-				game={game}
+				content={props.content}
+				game={props.game}
 				label={String(i18nState.translator?.goods.stored ?? '')}
 			/>
 
-			<StorageConfiguration if={state.isStorage} content={state.storageContent!} game={game} />
+			<StorageConfiguration if={state.isStorage} content={state.storageContent!} game={props.game} />
 		</>
 	)
 }

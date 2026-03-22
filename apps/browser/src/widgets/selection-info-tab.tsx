@@ -1,5 +1,5 @@
 import { css } from '@app/lib/css'
-import type { DockviewWidget, DockviewWidgetScope } from '@pounce/ui/dockview'
+import type { DockviewWidget, DockviewWidgetScope } from '@sursaut/ui/dockview'
 
 export type SelectionInfoTool = {
 	ariaLabel: string
