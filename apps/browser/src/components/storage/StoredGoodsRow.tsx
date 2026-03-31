@@ -1,5 +1,5 @@
 import { css } from '@app/lib/css'
-import { Button } from '@sursaut'
+import { Button } from '@app/ui/anarkai'
 import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
 import { memoize, reactive } from 'mutts'
 import type { Alveolus } from 'ssh/board/content/alveolus'
@@ -28,7 +28,7 @@ css`
 	padding: 0.25rem;
 	min-height: auto;
 	height: auto;
-	color: var(--pico-del-color, #ef4444);
+	color: #ef4444;
 }
 
 .cleanup-btn-small {
@@ -36,7 +36,7 @@ css`
 	min-height: auto;
 	height: auto;
 	font-size: 0.75rem;
-	color: var(--pico-del-color, #ef4444);
+	color: #ef4444;
 	opacity: 0.7;
 }
 
@@ -109,18 +109,18 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 			<PropertyGridRow if={hasGoods()} label={props.label}>
 				<div if={confirmState.mode} class="confirm-overlay">
 					<span>{String(i18nState.translator?.alveolus.cleanUpConfirmText ?? '')}</span>
-					<Button onClick={doConfirm} title="Confirm">
+					<Button onClick={doConfirm} el:title="Confirm">
 						{String(i18nState.translator?.alveolus.clear ?? '')}
 					</Button>
-					<Button variant="secondary" onClick={cancelConfirm} title="Cancel" class="outline">
+					<Button onClick={cancelConfirm} el:title="Cancel">
 						{String(i18nState.translator?.alveolus.keep ?? '')}
 					</Button>
 				</div>
 				<div else class="stored-goods-row">
 					<Button
 						onClick={startCleanAll}
-						title={String(i18nState.translator?.alveolus.cleanUpTooltip ?? '')}
-						class="cleanup-btn"
+						el:title={String(i18nState.translator?.alveolus.cleanUpTooltip ?? '')}
+						el:class="cleanup-btn"
 					>
 						🧹
 					</Button>
@@ -131,8 +131,10 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 								<Button
 									if={hasMultipleTypes()}
 									onClick={() => startCleanGood(good)}
-									title={String(i18nState.translator?.alveolus.cleanUpGoodTooltip?.({ goodType: good }) ?? '')}
-									class="cleanup-btn-small"
+									el:title={String(
+										i18nState.translator?.alveolus.cleanUpGoodTooltip?.({ goodType: good }) ?? ''
+									)}
+									el:class="cleanup-btn-small"
 								>
 									×
 								</Button>

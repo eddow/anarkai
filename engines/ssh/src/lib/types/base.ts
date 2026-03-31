@@ -1,5 +1,6 @@
 import { scope, type } from 'arktype'
 import type { TileContent } from 'ssh/board'
+import type { LooseGood } from 'ssh/board/looseGoods'
 import type { AllocationBase } from 'ssh/storage/storage'
 import { type Positioned, positionScope } from 'ssh/utils'
 import { alveoli, deposits, goods as goodsCatalog, terrain } from '../../../assets/game-content'
@@ -73,12 +74,23 @@ export const baseGameScope = scope({
 		'target?': 'object',
 	},
 
-	WorkPlan: {
+	GenericWorkPlan: {
 		type: "'work'",
-		job: 'JobType',
+		job: "'harvest' | 'transform' | 'convey' | 'gather' | 'construct' | 'foundation' | 'defragment'",
 		target: 'object', // TileContent validated at runtime
 		urgency: 'number',
 		fatigue: 'number',
+		'goodType?': 'GoodType',
+		// Additional fields depend on job type (path, etc.)
+	},
+
+	OffloadWorkPlan: {
+		type: "'work'",
+		job: "'offload'",
+		target: 'object',
+		urgency: 'number',
+		fatigue: 'number',
+		looseGood: 'object',
 		// Additional fields depend on job type (path, etc.)
 	},
 
@@ -87,6 +99,7 @@ export const baseGameScope = scope({
 		duration: 'number',
 	},
 
+	WorkPlan: () => baseGameScope.type('GenericWorkPlan | OffloadWorkPlan'),
 	Plan: () => baseGameScope.type('TransferPlan | PickupPlan | WorkPlan | IdlePlan'),
 })
 
@@ -129,6 +142,7 @@ export interface TransferPlan<T extends AllocationBase = AllocationBase> {
 	readonly description: 'grab' | 'drop'
 	vehicleAllocation?: T // Runtime-only field
 	allocation?: T // Runtime-only field
+	resolvedGoods?: Goods // Runtime-only field
 	readonly goods: Goods
 	readonly target?: Positioned
 	readonly sourceTile?: Positioned
@@ -186,6 +200,7 @@ export interface OffloadJob {
 	job: 'offload'
 	urgency: number
 	fatigue: number
+	looseGood: LooseGood
 }
 
 export interface FoundationJob {
@@ -213,11 +228,19 @@ export type Job =
 	| FoundationJob
 	| DefragmentJob
 
-export type WorkPlan = Job & {
-	readonly type: 'work'
-	readonly target: TileContent | any // Allow Tile or other targets
-	invariant?: () => boolean
-}
+export type WorkPlan =
+	| (Exclude<Job, OffloadJob> & {
+			readonly type: 'work'
+			readonly target: TileContent | any // Allow Tile or other targets
+			offloadPickupPlan?: PickupPlan
+			invariant?: () => boolean
+	  })
+	| (OffloadJob & {
+			readonly type: 'work'
+			readonly target: TileContent | any // Allow Tile or other targets
+			offloadPickupPlan?: PickupPlan
+			invariant?: () => boolean
+	  })
 
 export interface IdlePlan {
 	readonly type: 'idle'

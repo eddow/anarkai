@@ -1,10 +1,11 @@
-import { stored } from '@sursaut'
+import { stored } from '@sursaut/kit/dom'
 import type { DockviewWidgetScope } from '@sursaut/ui/dockview'
 
 // Re-export all game-related globals from ssh engine
 export {
 	configuration,
 	debugInfo,
+	game,
 	games,
 	interactionMode,
 	mrg,

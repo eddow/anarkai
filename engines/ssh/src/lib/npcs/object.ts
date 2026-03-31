@@ -3,7 +3,7 @@ import type { ExecutionContext } from 'npc-script'
 import { assert } from 'ssh/debug'
 import type { Game, GameObject, TickedGameObject, withTicked } from 'ssh/game'
 import { getGameScript, ScriptExecution } from './scripts'
-import { ASingleStep } from './steps'
+import { ASingleStep, PonderingStep } from './steps'
 
 export function withScripted<T extends abstract new (...args: any[]) => TickedGameObject>(Base: T) {
 	@unreactive('runningScripts')
@@ -86,9 +86,8 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 				loopCount.push({ name: executingName, type, value })
 				if (loopCount.length > 50) {
 					console.error('High loop count in nextStep, throttling', executingName, type, value)
-					// throw new Error(`High loop count in nextStep: ${executingName}`)
-					this.stepExecutor = undefined
-					this.runningScripts = [] // Stop all scripts
+					this.runningScripts = []
+					this.stepExecutor = new PonderingStep(this as any, 0.25)
 					return
 				}
 				if (type === 'return') this.runningScripts.shift()
@@ -106,7 +105,8 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 							console.error(
 								`Action infinite fail: ${executingName} returned immediately and was selected again.`
 							)
-							throw new Error(`Action infinite fail/foundAction: ${executingName}`)
+							this.stepExecutor = new PonderingStep(this as any, 0.25)
+							return
 						}
 						reentered = true
 					}
@@ -131,6 +131,7 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 				if (remaining !== undefined) {
 					assert(this.stepExecutor.status !== 'pending', 'Step executor is not pending')
 					//console.log(`[update] ${this.name}: finished step ${this.stepExecutor.constructor.name}, remaining dt ${remaining}`);
+					this._lastCompletedStepType = this.stepExecutor.constructor.name
 					this.stepExecutor = undefined
 					this.nextStep()
 					const newType = this.stepExecutor?.constructor
@@ -144,6 +145,11 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 							})),
 							actionDescription: this.actionDescription,
 						})
+						// Cancel the stuck step to trigger cleanup callbacks and prevent allocation leaks
+						if (this.stepExecutor) {
+							this.stepExecutor.cancel()
+							this.stepExecutor = undefined
+						}
 						throw new Error(`Useless step executor: ${newType.name}`)
 					}
 				}

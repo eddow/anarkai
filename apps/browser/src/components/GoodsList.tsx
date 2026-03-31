@@ -26,7 +26,7 @@ css`
 	right: -6px;
 	width: 14px;
 	height: 14px;
-	background: var(--pico-del-color);
+	background: #ef4444;
 	color: white;
 	border-radius: 50%;
 	display: flex;
@@ -53,15 +53,15 @@ css`
 	justify-content: center;
 	width: 2rem;
 	height: 2rem;
-	border: 1px solid var(--pico-border-color);
-	border-radius: var(--pico-border-radius);
-	background: var(--pico-card-background-color);
+	border: 1px solid var(--ak-border);
+	border-radius: var(--ak-radius-sm);
+	background: color-mix(in srgb, var(--ak-surface-panel) 92%, transparent);
 	cursor: pointer;
-	color: var(--pico-color);
+	color: var(--ak-text);
 }
 
 .goods-dropdown__trigger:hover {
-	background: var(--pico-secondary-background);
+	background: var(--ak-surface-1);
 }
 
 .goods-dropdown__menu {
@@ -71,9 +71,9 @@ css`
 	z-index: 100;
 	margin-top: 0.25rem;
 	padding: 0.5rem;
-	background: var(--pico-card-background-color);
-	border: 1px solid var(--pico-border-color);
-	border-radius: var(--pico-border-radius);
+	background: color-mix(in srgb, var(--ak-surface-panel) 92%, transparent);
+	border: 1px solid var(--ak-border);
+	border-radius: var(--ak-radius-sm);
 	box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 	display: flex;
 	flex-direction: column;
@@ -84,13 +84,13 @@ css`
 .goods-dropdown__item {
 	cursor: pointer;
 	padding: 0.25rem;
-	border-radius: var(--pico-border-radius);
+	border-radius: var(--ak-radius-sm);
 	display: flex;
 	align-items: center;
 }
 
 .goods-dropdown__item:hover {
-	background: var(--pico-secondary-background);
+	background: var(--ak-surface-1);
 }
 `
 
@@ -213,7 +213,10 @@ const GoodsList = (props: GoodsListProps) => {
 	}
 
 	return (
-		<div class={`goods-list ${props.className ?? ''}`} if={(props.goods?.length ?? 0) > 0 || props.editable}>
+		<div
+			class={`goods-list ${props.className ?? ''}`}
+			if={(props.goods?.length ?? 0) > 0 || props.editable}
+		>
 			{/* Dropdown for adding goods (only in editable mode) */}
 			<div class="goods-dropdown" if={props.editable}>
 				<div
@@ -239,7 +242,7 @@ const GoodsList = (props: GoodsListProps) => {
 					</for>
 
 					<div
-						style="padding: 0.5rem; font-size: 0.875rem; color: var(--pico-muted-color);"
+						style="padding: 0.5rem; font-size: 0.875rem; color: var(--ak-text-muted);"
 						if={getAvailableGoods().length === 0}
 					>
 						No more goods available
@@ -263,7 +266,10 @@ const GoodsList = (props: GoodsListProps) => {
 								height={props.itemSize ?? 20}
 								{...badgeProps}
 							/>
-							<div if={props.renderItemExtra} style={{ display: 'inline-flex', alignItems: 'center' }}>
+							<div
+								if={props.renderItemExtra}
+								style={{ display: 'inline-flex', alignItems: 'center' }}
+							>
 								{props.renderItemExtra?.(good, index)}
 							</div>
 							<div

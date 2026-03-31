@@ -1,26 +1,30 @@
 import './app.css'
+import {
+	browserPaletteIdeConfig,
+	disposeBrowserPalette,
+	getBrowserPalette,
+	palettePanelBridge,
+} from '@app/palette/browser-palette'
+import { Button, ButtonGroup, CheckButton, RadioButton, Toolbar } from '@app/ui/anarkai'
 import { initConsoleTrap } from 'ssh/debug'
 
 initConsoleTrap()
 
 import {
+	appShellTimeControls,
+	appShellZoneActions,
+	getAppShellBuildableAlveoli,
+} from '@app/lib/app-shell-controls'
+import {
 	configuration,
 	dockviewLayout,
-	games,
+	game,
 	getDockviewLayout,
 	interactionMode,
 	selectionState,
 	uiConfiguration,
 } from '@app/lib/globals'
-import {
-	Button,
-	ButtonGroup,
-	DisplayProvider,
-	RadioButton,
-	ThemeToggle,
-	type ThemeValue,
-} from '@sursaut'
-import { Toolbar } from '@sursaut/adapter-pico'
+import { DisplayProvider } from '@sursaut/kit'
 import { Dockview } from '@sursaut/ui/dockview'
 import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content'
 import { effect, reactive, untracked } from 'mutts'
@@ -28,19 +32,11 @@ import {
 	tablerFilledAdjustments,
 	tablerFilledArrowBigRight,
 	tablerFilledFlask,
-	tablerFilledPlayerPause,
-	tablerFilledPlayerPlay,
-	tablerFilledPlayerSkipForward,
-	tablerFilledPlayerTrackNext,
 	tablerFilledPointer,
-	tablerFilledSquareRoundedMinus,
-	tablerFilledZoomMoney,
-	tablerOutlineTrees,
 } from 'pure-glyf/icons'
-import * as gameContent from 'ssh/assets/game-content'
 import ResourceImage from './components/ResourceImage'
-import SelectionInfoTab from './widgets/selection-info-tab'
 import widgetsImport from './widgets'
+import SelectionInfoTab from './widgets/selection-info-tab'
 
 // Create local copy to avoid import reassignment issues
 const widgets = { ...widgetsImport }
@@ -50,34 +46,13 @@ const tabs = {
 
 // Expose globals for Playwright testing
 if (typeof window !== 'undefined') {
-	;(window as any).games = games
+	;(window as any).game = game
 	;(window as any).selectionState = selectionState
 }
 
-const timeControls = [
-	{ value: 'pause', label: 'Pause', icon: tablerFilledPlayerPause },
-	{ value: 'play', label: 'Play', icon: tablerFilledPlayerPlay },
-	{
-		value: 'fast-forward',
-		label: 'Fast Forward',
-		icon: tablerFilledPlayerSkipForward,
-	},
-	{ value: 'gonzales', label: 'Gonzales', icon: tablerFilledPlayerTrackNext },
-] as const
-
-const zoneActions = [
-	{
-		value: 'zone:residential',
-		label: 'Residential',
-		icon: tablerFilledZoomMoney,
-	},
-	{ value: 'zone:harvest', label: 'Harvest', icon: tablerOutlineTrees },
-	{ value: 'zone:none', label: 'Unzone', icon: tablerFilledSquareRoundedMinus },
-] as const
-
-const buildableAlveoli = Object.entries(gameContent.alveoli).filter(
-	([, alveolus]) => 'construction' in alveolus
-)
+const timeControls = appShellTimeControls
+const zoneActions = appShellZoneActions
+const buildableAlveoli = getAppShellBuildableAlveoli()
 
 const dockviewEl = {
 	class: 'dockview-container',
@@ -85,16 +60,16 @@ const dockviewEl = {
 
 const dockviewOptions = reactive({})
 
-const themeSettings: { theme: ThemeValue } = {
+const themeSettings: { theme: 'light' | 'dark' } = {
 	get theme() {
 		return uiConfiguration.darkMode ? 'dark' : 'light'
 	},
-	set theme(value: ThemeValue) {
+	set theme(value: 'light' | 'dark') {
 		uiConfiguration.darkMode = value === 'dark'
 	},
 }
 
-const Clock = ({ game }: { game: any }) => {
+const Clock = ({ game }: { game: { clock: { virtualTime: number } } }) => {
 	const state = reactive({ time: '--:--' })
 	effect`app:clock`(() => {
 		const seconds = Math.floor(game.clock.virtualTime)
@@ -113,7 +88,7 @@ const App = () => {
 		theme: undefined as 'light' | 'dark' | undefined,
 	})
 
-	const gameInstance = games.game('GameX')
+	const gameInstance = game
 
 	effect`app:prevent-back-nav`(() => {
 		if (typeof window === 'undefined') return
@@ -157,15 +132,7 @@ const App = () => {
 		})
 	}
 
-	const openGamePanel = () =>
-		ensurePanel(
-			'game',
-			'game-view',
-			{
-				game: 'GameX',
-			},
-			{ floating: false }
-		)
+	const openGamePanel = () => ensurePanel('game', 'game-view', undefined, { floating: false })
 
 	const openConfigurationPanel = () => ensurePanel('configuration', 'system.configuration')
 
@@ -182,41 +149,55 @@ const App = () => {
 		}
 	})
 
+	const { PaletteIde } = getBrowserPalette()
+
+	effect`app:palette-bridge`(() => {
+		palettePanelBridge.openConfiguration = openConfigurationPanel
+		palettePanelBridge.openGame = openGamePanel
+		palettePanelBridge.openTest = openTestPanel
+	})
+
+	effect`app:palette-dispose`(() => {
+		return () => {
+			disposeBrowserPalette()
+		}
+	})
+
 	return (
 		<DisplayProvider theme={themeSettings.theme}>
 			<div class="app-shell">
-				<Toolbar el={{ class: 'app-toolbar' }}>
+				<Toolbar el={{ class: 'ak-app-toolbar' }}>
 					<ButtonGroup>
 						<Button
-							aria-label="Open configuration"
+							ariaLabel="Open configuration"
 							el:title="Open configuration"
 							onClick={openConfigurationPanel}
 							icon={tablerFilledAdjustments}
 						/>
 						<Button
-							aria-label="Open game view"
+							ariaLabel="Open game view"
 							el:title="Open game view"
 							onClick={openGamePanel}
 							icon={tablerFilledArrowBigRight}
 						/>
 						<Button
-							aria-label="Open multiselect test"
+							ariaLabel="Open multiselect test"
 							el:title="Open multiselect test"
 							onClick={openTestPanel}
 							icon={tablerFilledFlask}
 						/>
 					</ButtonGroup>
 					<Toolbar.Spacer if={timeControls.length > 0} />
-					<div class="app-toolbar-clock">
+					<div class="ak-app-toolbar__clock">
 						<Clock game={gameInstance} />
 					</div>
 					<ButtonGroup>
 						<for each={timeControls}>
-							{(option: (typeof timeControls)[number]) => (
+							{(option: (typeof appShellTimeControls)[number]) => (
 								<RadioButton
 									value={option.value}
 									group={configuration.timeControl}
-									aria-label={option.label}
+									ariaLabel={option.label}
 									el:title={option.label}
 									icon={option.icon}
 								/>
@@ -228,7 +209,7 @@ const App = () => {
 						<RadioButton
 							value=""
 							group={interactionMode.selectedAction}
-							aria-label="Select"
+							ariaLabel="Select"
 							el:title="Select"
 							icon={tablerFilledPointer}
 						/>
@@ -240,7 +221,7 @@ const App = () => {
 								<RadioButton
 									value={`build:${name}`}
 									group={interactionMode.selectedAction}
-									aria-label={`Build ${name}`}
+									ariaLabel={`Build ${name}`}
 									el:title={`Build ${name}`}
 									icon={
 										visualAlveoli[name]?.sprites?.[0] && (
@@ -260,11 +241,11 @@ const App = () => {
 					<Toolbar.Spacer if={timeControls.length > 0} />
 					<ButtonGroup>
 						<for each={zoneActions}>
-							{(zone: (typeof zoneActions)[number]) => (
+							{(zone: (typeof appShellZoneActions)[number]) => (
 								<RadioButton
 									value={zone.value}
 									group={interactionMode.selectedAction}
-									aria-label={zone.label}
+									ariaLabel={zone.label}
 									el:title={zone.label}
 									icon={zone.icon}
 								/>
@@ -272,20 +253,36 @@ const App = () => {
 						</for>
 					</ButtonGroup>
 					<Toolbar.Spacer />
-					<ThemeToggle settings={themeSettings} simple />
+					<CheckButton
+						checked={uiConfiguration.darkMode}
+						ariaLabel="Theme Toggle"
+						el:title="Toggle theme"
+						icon={<span aria-hidden="true">{uiConfiguration.darkMode ? '☾' : '☀'}</span>}
+					/>
 				</Toolbar>
 
-				<main class="app-main">
-					<Dockview
-						el={dockviewEl}
-						api={state.api}
-						onReady={handleDockviewReady}
-						widgets={widgets}
-						tabs={tabs}
-						layout={dockviewLayout.sshLayout}
-						options={dockviewOptions}
-					/>
-				</main>
+				<div class="app-palette-wrap">
+					<env clockGame={gameInstance}>
+						<PaletteIde
+							config={browserPaletteIdeConfig}
+							el={{ class: 'app-palette-ide' }}
+							center={{ class: 'app-palette-center' }}
+							toolbar={{ class: 'secondary' }}
+						>
+							<main class="app-main">
+								<Dockview
+									el={dockviewEl}
+									api={state.api}
+									onReady={handleDockviewReady}
+									widgets={widgets}
+									tabs={tabs}
+									layout={dockviewLayout.sshLayout}
+									options={dockviewOptions}
+								/>
+							</main>
+						</PaletteIde>
+					</env>
+				</div>
 			</div>
 		</DisplayProvider>
 	)

@@ -1,4 +1,10 @@
 import { css } from '@app/lib/css'
+import {
+	Badge,
+	type AnarkaiBadgeTone,
+	InspectorSection,
+	Panel,
+} from '@app/ui/anarkai'
 import { effect } from 'mutts'
 import { i18nState } from 'ssh/i18n'
 import { AEvolutionStep, ALerpStep } from 'ssh/npcs/steps'
@@ -45,26 +51,25 @@ css`/*
 .character-activity__progress {
 	flex: 1;
 	height: 0.5rem;
-	background-color: var(--pico-secondary-background);
+	background-color: var(--ak-surface-1);
 	border-radius: 9999px;
 	overflow: hidden;
 }
 
 .character-activity__progress-fill {
 	height: 0.5rem;
-	background-color: var(--pico-muted-color);
+	background-color: var(--ak-text-muted);
 	border-radius: 9999px;
 }
 
 .character-actions {
 	font-size: 0.875rem;
-	color: var(--pico-color);
-	background-color: var(--pico-card-background-color);
-	padding: 0.5rem;
-	border-radius: var(--pico-border-radius);
-	border: 1px solid var(--pico-border-color);
+}
+
+.character-actions__list {
 	list-style: none;
 	margin: 0;
+	padding: 0;
 }
 
 .character-actions__item {
@@ -79,11 +84,7 @@ css`/*
 
 .character-actions__empty {
 	font-size: 0.875rem;
-	color: var(--pico-muted-color);
-	background-color: var(--pico-card-background-color);
-	padding: 0.5rem;
-	border-radius: var(--pico-border-radius);
-	border: 1px solid var(--pico-border-color);
+	color: var(--ak-text-muted);
 	font-style: italic;
 }
 `
@@ -92,7 +93,7 @@ interface CharacterPropertiesProps {
 	character: Character
 }
 
-const activityBadgeColors: Record<Ssh.ActivityType, string> = {
+const activityBadgeColors: Record<Ssh.ActivityType, AnarkaiBadgeTone> = {
 	walk: 'yellow',
 	work: 'red',
 	eat: 'green',
@@ -135,7 +136,7 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 	return (
 		<>
 			<div if={props.character} class="character-properties">
-				<div if={computed.hasTriggerLevels} class="character-properties__stats">
+				<InspectorSection if={computed.hasTriggerLevels} class="character-properties__stats">
 					<div class="character-properties__stats-grid">
 						<StatProgressBar
 							value={props.character?.hunger ?? 0}
@@ -153,7 +154,7 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 							label={i18nState.translator?.character.fatigue ?? ''}
 						/>
 					</div>
-				</div>
+				</InspectorSection>
 				<PropertyGrid>
 					<PropertyGridRow label={i18nState.translator?.goods ?? ''}>
 						<GoodsList
@@ -164,13 +165,13 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 					</PropertyGridRow>
 					<PropertyGridRow label={i18nState.translator?.character.currentActivity ?? ''}>
 						<div class="character-activity">
-							<span
-								class={`badge badge-${activityBadgeColors[props.character?.stepExecutor?.type ?? 'idle'] ?? 'gray'}`}
+							<Badge
+								tone={activityBadgeColors[props.character?.stepExecutor?.type ?? 'idle'] ?? 'gray'}
 							>
 								{props.character?.stepExecutor?.description
 									? (i18nState.translator?.step[props.character.stepExecutor.description] ?? '')
 									: (i18nState.translator?.step.idle ?? '')}
-							</span>
+							</Badge>
 							<div if={computed.stepEvolution > 0} class="character-activity__progress">
 								<div
 									class="character-activity__progress-fill"
@@ -180,18 +181,20 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 						</div>
 					</PropertyGridRow>
 					<PropertyGridRow>
-						<ul class="character-actions" if={computed.actions.length > 0}>
-							<for each={computed.actions}>
-								{(description) => (
-									<li class="character-actions__item">
-										<span>{description}</span>
-									</li>
-								)}
-							</for>
-						</ul>
-						<div else class="character-actions__empty">
+						<Panel class="character-actions" if={computed.actions.length > 0}>
+							<ul class="character-actions__list">
+								<for each={computed.actions}>
+									{(description) => (
+										<li class="character-actions__item">
+											<span>{description}</span>
+										</li>
+									)}
+								</for>
+							</ul>
+						</Panel>
+						<Panel else class="character-actions__empty">
 							{i18nState.translator?.character.noActivity ?? ''}
-						</div>
+						</Panel>
 					</PropertyGridRow>
 				</PropertyGrid>
 			</div>

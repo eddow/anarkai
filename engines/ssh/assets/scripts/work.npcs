@@ -8,7 +8,7 @@ function goWork(jobPlan, path)
 			path = find.path(target.tile, false)
 			if not path then error "No path found to target"
 		loop
-		if jobPlan.job != "convey" then walk.enter // TODO: explain what convey has that is so peculiar
+		walk.enter
 
 		if jobPlan.job != "offload" then
 			I.assignedAlveolus = target
@@ -117,9 +117,10 @@ end function
 
 function offload(jobPlan)
 	target = jobPlan.target
-	// Target is the tile for offload jobs
-	if target.availableGoods.length == 0 then return
-	inventory.grabLoose null, target
+	grab = jobPlan.offloadPickupPlan
+	if not grab then return
+	if tile != target then walk.into target
+	inventory.effectuate grab
 	inventory.dropAllLoose()
 end function
 

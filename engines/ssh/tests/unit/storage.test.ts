@@ -373,6 +373,18 @@ describe.each([
 	})
 })
 
+describe('SlottedStorage renderedGoods', () => {
+	it('pads with empty slots so layout uses total capacity', () => {
+		const storage = new SlottedStorage(4, 5)
+		storage.addGood('wood', 3)
+		const rendered = storage.renderedGoods()
+		expect(rendered.slots).toHaveLength(4)
+		expect(rendered.assumedMaxSlots).toBe(4)
+		expect(rendered.slots.filter((s) => s.goodType === undefined)).toHaveLength(3)
+		expect(rendered.slots.find((s) => s.goodType === 'wood')?.present).toBe(3)
+	})
+})
+
 describe('NoStorage', () => {
 	let storage: NoStorage
 

@@ -1,4 +1,4 @@
-import { reactive, unwrap } from 'mutts'
+import { inert, reactive, unwrap } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
 import { assert } from 'ssh/debug'
@@ -19,7 +19,7 @@ function calculateJobScore(_character: Character, job: Job): number {
 	return job.urgency
 }
 function bestPossibleJobScore(_character: Character): number {
-	return 3
+	return Number.POSITIVE_INFINITY
 }
 
 import { GameObject, withInteractive, withTicked } from 'ssh/game/object'
@@ -101,89 +101,96 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		return this.name
 	}
 
+	private workExecution(job: Job, targetTile: Tile, path: AxialCoord[]): ScriptExecution {
+		const jobProvider = targetTile.content!
+		const target = job.job === 'offload' ? targetTile : jobProvider
+		const workPlan: WorkPlan = {
+			...job,
+			type: 'work',
+			target,
+		}
+		return this.scriptsContext.work.goWork(workPlan, path)
+	}
+
 	/**
 	 * Find the best available job using pathfinding
 	 * @returns Object with job, tile, and path, or false if no job found
 	 */
 	findBestJob(): ScriptExecution | false {
-		// Cache jobs computed during scoring to avoid recomputing
-		const jobCache = new Map<string, { job: Job; targetTile: Tile }>()
+		return inert(() => {
+			const jobCache = new Map<string, { job: Job; targetTile: Tile }>()
 
-		// Score function: evaluates how good a job is at a given coordinate
-		const scoreJob = (coord: Positioned): number | false => {
-			const tile = this.game.hex.getTile(coord)
-			if (!tile) return false
+			const scoreJob = (coord: Positioned): number | false => {
+				const tile = this.game.hex.getTile(coord)
+				if (!tile) return false
 
-			const axCoord = toAxialCoord(coord)!
-			const coordKey = axial.key(axCoord)
-			const directJob = tile.getJob?.(this)
-			if (!directJob) return false
+				const axCoord = toAxialCoord(coord)!
+				const coordKey = axial.key(axCoord)
+				const directJob = tile.getJob?.(this)
+				if (!directJob) return false
 
-			// Cache the job for later retrieval
-			jobCache.set(coordKey, { job: directJob, targetTile: tile })
+				jobCache.set(coordKey, { job: directJob, targetTile: tile })
 
-			const score = calculateJobScore(this, directJob)
-			return score
-		}
-
-		// Find the best job using the findBest pathfinding function
-		const path = this.game.hex.findBestForCharacter(
-			this.position,
-			this,
-			scoreJob,
-			maxWalkTime, // Use maxWalkTime from constants
-			bestPossibleJobScore(this),
-			false
-		)
-
-		let selectedPath = path
-		let match: { job: Job; targetTile: Tile } | undefined
-		if (selectedPath && selectedPath.length > 0) {
-			const targetCoord = selectedPath[selectedPath.length - 1] as AxialCoord
-			const key = `${targetCoord.q},${targetCoord.r}`
-			match = jobCache.get(key)
-		}
-		if (!match) {
-			let bestFallback:
-				| { path: AxialCoord[]; job: Job; targetTile: Tile; score: number }
-				| undefined
-			for (const tile of this.game.hex.tiles) {
-				if (!(tile.content instanceof Alveolus)) continue
-				const job = tile.content.getJob(this)
-				if (!job) continue
-				const fallbackPath = this.game.hex.findPathForCharacter(
-					this.position,
-					tile.position,
-					this,
-					maxWalkTime,
-					false
-				)
-				if (!fallbackPath || fallbackPath.length === 0) continue
-				const score = calculateJobScore(this, job) / (fallbackPath.length + 1)
-				if (!bestFallback || score > bestFallback.score) {
-					bestFallback = { path: fallbackPath, job, targetTile: tile, score }
-				}
+				const score = calculateJobScore(this, directJob)
+				return score
 			}
-			if (!bestFallback) return false
-			selectedPath = bestFallback.path
-			match = { job: bestFallback.job, targetTile: bestFallback.targetTile }
-		}
-		if (!selectedPath || selectedPath.length === 0) return false
-		const { job, targetTile } = match
 
-		const jobProvider = targetTile.content!
+			const path = this.game.hex.findBestForCharacter(
+				this.position,
+				this,
+				scoreJob,
+				maxWalkTime,
+				bestPossibleJobScore(this),
+				false
+			)
 
-		this.log('character.beginJob', job.job)
+			let selectedPath = path
+			let match: { job: Job; targetTile: Tile } | undefined
+			if (selectedPath && selectedPath.length > 0) {
+				const targetCoord = selectedPath[selectedPath.length - 1] as AxialCoord
+				const key = `${targetCoord.q},${targetCoord.r}`
+				match = jobCache.get(key)
+			}
+			if (!match) {
+				let bestFallback:
+					| { path: AxialCoord[]; job: Job; targetTile: Tile; score: number }
+					| undefined
+				for (const tile of this.game.hex.tiles) {
+					if (!(tile.content instanceof Alveolus)) continue
+					const job = tile.content.getJob(this)
+					if (!job) continue
+					const isSameTile =
+						axial.key(toAxialCoord(tile.position)!) === axial.key(toAxialCoord(this.position)!)
+					const fallbackPath = isSameTile
+						? []
+						: this.game.hex.findPathForCharacter(
+								this.position,
+								tile.position,
+								this,
+								maxWalkTime,
+								false
+							)
+					if (!fallbackPath) continue
+					const score = calculateJobScore(this, job) / (fallbackPath.length + 1)
+					if (!bestFallback || score > bestFallback.score) {
+						bestFallback = { path: fallbackPath, job, targetTile: tile, score }
+					}
+				}
+				if (!bestFallback) return false
+				selectedPath = bestFallback.path
+				match = { job: bestFallback.job, targetTile: bestFallback.targetTile }
+			}
+			const { job, targetTile } = match
+			if (!selectedPath) {
+				const isSameTile =
+					axial.key(toAxialCoord(targetTile.position)!) === axial.key(toAxialCoord(this.position)!)
+				if (!isSameTile) return false
+				selectedPath = []
+			}
 
-		// Job already has all details (path, urgency, fatigue) from cached getJob()
-		// Just create WorkPlan by adding plan type and target
-		const target = job.job === 'offload' ? targetTile : jobProvider
-		const workPlan: WorkPlan = {
-			...job,
-			type: 'work',
-			target: target,
-		}
-		return this.scriptsContext.work.goWork(workPlan, selectedPath)
+			this.log('character.beginJob', job.job)
+			return this.workExecution(job, targetTile, selectedPath)
+		})
 	}
 
 	get keepWorking(): boolean {
@@ -252,21 +259,38 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	}
 
 	findAction() {
-		// When hungry, eat carried food first before considering dropping
-		if (this.hunger > this.triggerLevels.hunger.high) return this.scriptsContext.selfCare.goEat()
+		return inert(() => {
+			if (this.hunger > this.triggerLevels.hunger.high) return this.scriptsContext.selfCare.goEat()
 
-		// Only drop carry if not hungry (goEat will handle eating carried food)
-		if (Object.values(this.carry.availables).some((qty) => qty! > 0)) {
-			// Only try to drop if we can find a spot to drop them
-			if (this.scriptsContext.find.freeSpot()) {
-				return this.scriptsContext.inventory.dropAllLoose()
+			if (Object.values(this.carry.availables).some((qty) => qty! > 0)) {
+				if (this.scriptsContext.find.freeSpot()) {
+					return this.scriptsContext.inventory.dropAllLoose()
+				}
 			}
-		}
-		const tryAnActivity =
-			this.fatigue < this.triggerLevels.fatigue.high ? this.findBestJob() : undefined // goRest
+			let tryAnActivity: ScriptExecution | false | undefined
+			if (this.fatigue < this.triggerLevels.fatigue.high) {
+				const assignedTile = this.assignedAlveolus?.tile
+				const assignedJob = assignedTile?.content?.getJob?.(this)
+				if (assignedTile && assignedJob) {
+					const isSameTile =
+						axial.key(toAxialCoord(assignedTile.position)!) ===
+						axial.key(toAxialCoord(this.position)!)
+					const path = isSameTile
+						? []
+						: this.game.hex.findPathForCharacter(
+								this.position,
+								assignedTile.position,
+								this,
+								maxWalkTime,
+								false
+							)
+					if (path) return this.workExecution(assignedJob, assignedTile, path)
+				}
+				tryAnActivity = this.findBestJob()
+			}
 
-		// Default to wandering when no specific action is needed
-		return tryAnActivity || this.scriptsContext.selfCare.wander()
+			return tryAnActivity || this.scriptsContext.selfCare.wander()
+		})
 	}
 
 	get carry(): Storage {

@@ -262,16 +262,7 @@ hive.detach(alveolus)  // Remove from hive
 
 ### Production Priorities
 
-Manual needs system for setting production goals:
-
-```typescript
-hive.manualNeeds = {
-  planks: 50,
-  stone: 20
-}
-```
-
-The Hive logic uses this to prioritize work assignments.
+Hive needs are computed automatically from alveolus demand advertisements. The system prioritizes work assignments based on these aggregated needs.
 
 ---
 

@@ -6,7 +6,7 @@ test.describe('Property Widget Selection Switching Repro', () => {
 
 		// Wait for game to be loaded
 		await page.waitForFunction(async () => {
-			const game = (window as any).games?.game('GameX')
+			const game = (window as any).game
 			if (!game) return false
 			await game.loaded
 			return !!game.hex
@@ -14,7 +14,7 @@ test.describe('Property Widget Selection Switching Repro', () => {
 
 		// Find two characters and one tile
 		const objects = await page.evaluate(() => {
-			const game = (window as any).games.game('GameX')
+			const game = (window as any).game
 			const characters = [...game.population]
 			// Search for a tile
 			const tile = game.hex.getTile({ q: -11, r: 0 })
@@ -34,7 +34,7 @@ test.describe('Property Widget Selection Switching Repro', () => {
 
 			// Trigger selection via game.clickObject
 			await page.evaluate((uid) => {
-				const game = (window as any).games.game('GameX')
+				const game = (window as any).game
 				const obj = game.getObject(uid)
 				game.clickObject({ button: 0 }, obj)
 			}, id)

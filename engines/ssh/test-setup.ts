@@ -6,7 +6,7 @@ import { vi } from "vitest";
 // Clear mutts instance if it exists
 delete (global as any).__MUTTS_INSTANCE__;
 
-import { getActivationLog, reactiveOptions, unreactive } from "mutts";
+import { getActivationLog, reactiveOptions, reset, unreactive } from "mutts";
 
 // Ensure memoization discrepancies throw error in tests
 let inDiscrepancy = false;
@@ -84,14 +84,18 @@ const dumpActivationLog = (error: unknown) => {
 		console.error(`${effectName} :: ${objectName}.${String(entry.prop)}`);
 	}
 };
-process.on("uncaughtException", (error) => {
-	dumpActivationLog(error);
-	throw error;
-});
-process.on("unhandledRejection", (reason) => {
-	dumpActivationLog(reason);
-	throw reason;
-});
+const processListenerKey = "__SSH_TEST_SETUP_PROCESS_LISTENERS__";
+if (!(globalThis as any)[processListenerKey]) {
+	(globalThis as any)[processListenerKey] = true;
+	process.on("uncaughtException", (error) => {
+		dumpActivationLog(error);
+		throw error;
+	});
+	process.on("unhandledRejection", (reason) => {
+		dumpActivationLog(reason);
+		throw reason;
+	});
+}
 
 // Setup global test functions for vitest
 // @ts-expect-error - Adding global test functions

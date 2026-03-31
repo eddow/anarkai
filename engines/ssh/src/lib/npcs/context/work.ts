@@ -1,5 +1,7 @@
 import { atomic } from 'mutts'
+import type { LocalMovingGood } from 'ssh/board'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import type { LooseGood } from 'ssh/board/looseGoods'
 import { assert } from 'ssh/debug'
 import { alveolusClass } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
@@ -14,14 +16,21 @@ import { subject } from '../scripts'
 import { DurationStep, MultiMoveStep, WaitForPredicateStep } from '../steps'
 import type { WorkPlan } from '.'
 
-// Unified handling for both single and multiple movements
-// Prepare all movements: fulfill source, allocate hop, create moving good
+/**
+ * Runtime snapshot for a single convey sub-movement.
+ *
+ * - `mg` is the authoritative transfer token tracked by the hive.
+ * - `from` is the origin snapshot captured before `mg.hop()` mutates `mg.from`.
+ * - `hop` is the coordinate reached by this step.
+ * - `hopAlloc` is the temporary destination allocation for intermediate hops only.
+ * - `moving` is the transient loose-good used for the visual in-transit representation.
+ */
 interface MovementData {
-	mg: any
-	hopAlloc: any
+	mg: LocalMovingGood
+	hopAlloc?: AllocationBase
 	hop: AxialCoord
 	from: AxialCoord
-	moving: any
+	moving: LooseGood
 }
 
 class WorkFunctions {
@@ -71,17 +80,14 @@ class WorkFunctions {
 		// Get movement(s) - either a single movement or a cycle
 		const movements = alveolus.aGoodMovement
 		if (!movements || movements.length === 0) {
-			//console.log(`[conveyStep] No movements found for ${character.name}`)
 			return
 		}
 
 		const hive = alveolus.hive
 
 		const movementData: MovementData[] = []
-		//console.log(`[conveyStep] Found ${movements.length} movements for ${character.name}`)
 
 		for (const mg of movements) {
-			console.log(`[conveyStep] Processing movement for ${mg.goodType} from ${axial.key(mg.from)}`)
 			if (!mg.allocations?.source) {
 				console.warn('[conveyStep] Missing source allocation', mg)
 				continue
@@ -90,13 +96,17 @@ class WorkFunctions {
 			const from = mg.from
 			const hop = mg.hop()!
 
+			// IMPORTANT: Call place() immediately after hop() to ensure the moving good
+			// is tracked in hive.movingGoods at the new position for the next alveolus
+			mg.place()
+
 			const nextStorage = hive.storageAt(hop)
 			assert(nextStorage, 'nextStorage must be defined')
 			const hopAlloc = mg.path.length
 				? nextStorage.allocate({ [mg.goodType]: 1 }, { type: 'convey.hop', movement: mg })
 				: undefined
 
-			const moving = character.game.hex.looseGoods.add(alveolus.tile, mg.goodType, {
+			const moving = character.game.hex.looseGoods.add(from, mg.goodType, {
 				position: from,
 				available: false,
 			})
@@ -127,8 +137,6 @@ class WorkFunctions {
 		}))
 		return new MultiMoveStep(totalTime, visualMovements, 'work', description)
 			.canceled(() => {
-				console.log(`[conveyStep] CANCELED movement`)
-				debugger
 				for (const { mg, hopAlloc, moving } of movementData) {
 					hopAlloc?.cancel()
 					mg.allocations.source.cancel()
@@ -178,7 +186,6 @@ class WorkFunctions {
 							}
 
 							mg.allocations.source = newSourceAlloc
-							mg.place()
 							hive.wakeWanderingWorkersNear(mg.provider, mg.demander)
 						}
 					}
@@ -188,6 +195,7 @@ class WorkFunctions {
 				}
 			})
 			.final(() => {
+				// Clean up any remaining loose goods. Note: looseGoods should *not* disappear. For now, this shouldn't happen - but if it happened, looseGoods should be stored as looseGoods
 				for (const { moving } of movementData) {
 					if (!moving.isRemoved) debugger
 				}

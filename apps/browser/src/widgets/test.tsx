@@ -1,4 +1,4 @@
-import { games } from '@app/lib/globals'
+import { game } from '@app/lib/globals'
 import type { DockviewWidgetProps } from '@sursaut/ui/dockview'
 import { reactive } from 'mutts'
 import { configurations } from 'ssh/assets/game-content'
@@ -17,7 +17,7 @@ import StorageConfiguration from '../components/storage/StorageConfiguration'
 
 export default (_props: DockviewWidgetProps) => {
 	// Use global game
-	const mockGame = games.game('GameX')
+	const mockGame = game
 
 	// 1. Slotted Storage Mock
 	// We need to trick TypeScript and runtime checks if we don't instantiate the real class.
@@ -90,7 +90,7 @@ export default (_props: DockviewWidgetProps) => {
 				<p>1 Star = 1 Slot (10 items)</p>
 				<div
 					style={{
-						border: '1px solid var(--pico-border-color)',
+						border: '1px solid var(--ak-border)',
 						padding: '1rem',
 					}}
 				>
@@ -106,7 +106,7 @@ export default (_props: DockviewWidgetProps) => {
 				<p>1 Star = 20%</p>
 				<div
 					style={{
-						border: '1px solid var(--pico-border-color)',
+						border: '1px solid var(--ak-border)',
 						padding: '1rem',
 					}}
 				>

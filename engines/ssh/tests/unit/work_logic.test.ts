@@ -81,6 +81,9 @@ describe('Work Logic / Inventory Race Conditions', () => {
 
 	it('should return idle plan when planning grab for missing good (Generic Grab)', () => {
 		const targetPos = { q: 0, r: 1 }
+		for (const good of game.hex.looseGoods.getGoodsAt(targetPos)) {
+			good.remove()
+		}
 		const plan = inventoryFunctions.planGrabLoose(null, targetPos)
 		expect(plan.type).toBe('idle')
 	})

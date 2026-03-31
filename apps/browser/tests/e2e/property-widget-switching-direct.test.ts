@@ -6,7 +6,7 @@ test.describe('Property Widget Switching Direct', () => {
 
 		// Wait for game to be loaded
 		await page.waitForFunction(async () => {
-			const game = (window as any).games?.game('GameX')
+			const game = (window as any).game
 			if (!game) return false
 			await game.loaded
 			return !!game.hex
@@ -14,7 +14,7 @@ test.describe('Property Widget Switching Direct', () => {
 
 		// Find two characters
 		const objects = await page.evaluate(() => {
-			const game = (window as any).games.game('GameX')
+			const game = (window as any).game
 			const characters = [...game.population]
 			return {
 				charA: { uid: characters[0].uid },
@@ -27,7 +27,7 @@ test.describe('Property Widget Switching Direct', () => {
 		const selectAndVerify = async (id: string) => {
 			// Trigger selection via game.clickObject
 			await page.evaluate((uid) => {
-				const game = (window as any).games.game('GameX')
+				const game = (window as any).game
 				const obj = game.getObject(uid)
 				game.clickObject({ button: 0 }, obj)
 			}, id)

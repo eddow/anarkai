@@ -1,101 +1,52 @@
 import { css } from '@app/lib/css'
-import { configuration, uiConfiguration } from '@app/lib/globals'
-import { Inline, Radio } from '@sursaut'
-import { type DockviewWidgetProps, type DockviewWidgetScope } from '@sursaut/ui/dockview'
+import { getBrowserPalette } from '@app/palette/browser-palette'
+import { AnarkaiPaletteCommandBox, InspectorSection } from '@app/ui/anarkai'
+import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
 
 css`
 .configuration-widget {
 	display: flex;
 	flex-direction: column;
-	gap: 1rem;
+	gap: 0.9rem;
 	padding: 1.2rem;
-	color: var(--toolbar-text);
+	color: var(--ak-text);
+	height: 100%;
+	box-sizing: border-box;
 }
 
-.configuration-widget__toggle {
-	display: flex;
-	align-items: center;
-	gap: 0.6rem;
-	font-weight: 500;
-}
-
-.configuration-widget__fieldset {
+.configuration-widget__lead {
 	margin: 0;
-	border-radius: 0.75rem;
-	border: 1px solid var(--app-border);
-	padding: 0.75rem 1rem 1rem;
+	font-size: 0.92rem;
+	line-height: 1.4;
+	color: var(--ak-text-muted);
 }
 
-.configuration-widget__radios {
-	display: flex;
-	flex-direction: column;
-	gap: 0.5rem;
-	margin-top: 0.5rem;
-}
-
-.configuration-widget__radio {
-	display: flex;
-	align-items: center;
-	gap: 0.5rem;
+.configuration-widget__command {
+	display: grid;
+	gap: 0.75rem;
 }
 `
 
-const timeOptions = [
-	{ value: 'pause', label: 'Pause' },
-	{ value: 'play', label: 'Play' },
-	{ value: 'fast-forward', label: 'Fast forward' },
-	{ value: 'gonzales', label: 'Gonzales' },
-] as const
-
-const themeOptions = [
-	{ value: 'light', label: 'Light' },
-	{ value: 'dark', label: 'Dark' },
-] as const
-
 const ConfigurationWidget = (props: DockviewWidgetProps, scope: DockviewWidgetScope) => {
-	const api = (scope as any).panelApi
+	void scope
 	props.title = 'Configuration'
+	const { commandBox, palette } = getBrowserPalette()
 
 	return (
 		<div class="configuration-widget">
-			<fieldset class="configuration-widget__fieldset">
-				<legend>Theme</legend>
-				<Inline gap="sm" class="configuration-widget__radios">
-					<for each={themeOptions}>
-						{(option: (typeof themeOptions)[number]) => (
-							<Radio
-								name={`theme-${api?.id ?? 'panel'}`}
-								value={option.value}
-								checked={(uiConfiguration.darkMode ? 'dark' : 'light') === option.value}
-								onChange={() => {
-									uiConfiguration.darkMode = option.value === 'dark'
-								}}
-							>
-								{option.label}
-							</Radio>
-						)}
-					</for>
-				</Inline>
-			</fieldset>
-			<fieldset class="configuration-widget__fieldset">
-				<legend>Time control</legend>
-				<Inline gap="sm" class="configuration-widget__radios">
-					<for each={timeOptions}>
-						{(option: (typeof timeOptions)[number]) => (
-							<Radio
-								name={`time-control-${api?.id ?? 'panel'}`}
-								value={option.value}
-								checked={configuration.timeControl === option.value}
-								onChange={() => {
-									configuration.timeControl = option.value
-								}}
-							>
-								{option.label}
-							</Radio>
-						)}
-					</for>
-				</Inline>
-			</fieldset>
+			<p class="configuration-widget__lead">
+				Use the command box to drive tools and the pencil button to edit the palette layout.
+			</p>
+			<InspectorSection class="configuration-widget__command" title="Command Box">
+				<AnarkaiPaletteCommandBox
+					commandBox={commandBox}
+					palette={palette}
+					editable
+					expanded
+					floating={false}
+					title="Configuration command box"
+				/>
+			</InspectorSection>
 		</div>
 	)
 }

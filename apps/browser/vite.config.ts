@@ -1,6 +1,6 @@
 import { dirname, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
-import { sursautBarrelPlugin, sursautCorePlugin } from "@sursaut/core/plugin";
+import { sursautCorePlugin } from "@sursaut/core/plugin";
 import { commonEsbuild, commonOptimizeDeps } from "engine-pixi/vite-config";
 import { servePixiAssets } from "engine-pixi/vite-plugins";
 import { type Alias, defineConfig, type Plugin } from "vite";
@@ -132,18 +132,13 @@ export default defineConfig({
 			projectRoot: projectRootDir,
 			onlyRemoveTypeImports: true,
 		}),
-		sursautBarrelPlugin({
-			name: "@sursaut",
-			skeleton: "front-end",
-			adapter: "@sursaut/adapter-pico",
-			dts: "src/@sursaut.d.ts",
-		}),
 	],
 	resolve: {
 		alias: aliases,
 		preserveSymlinks: false,
 	},
 	server: {
+		port: 5360,
 		fs: {
 			allow: ["..", "../../.."],
 		},

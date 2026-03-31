@@ -6,7 +6,11 @@ export const characterEvolutionRates: {
 		'*': number
 	}
 } = {
-	// Need evolution per activity, with '*' as default fallback
+	// test values
+	hunger: { '*': 0 } as const,
+	tiredness: { '*': 0 } as const,
+	fatigue: { '*': 0 } as const,
+	/*// Need evolution per activity, with '*' as default fallback
 	hunger: {
 		'*': 2,
 		walk: 8,
@@ -23,7 +27,7 @@ export const characterEvolutionRates: {
 		'*': 0,
 		walk: 3,
 		work: 5,
-	} as const,
+	} as const,*/
 } as const
 
 export const characterTriggerLevels = {

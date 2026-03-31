@@ -16,7 +16,7 @@ A small sandbox colony/automation game experiment on a hex grid. NPCs perform jo
 3. Start the dev server:
    - `npm run dev`
 4. Open the app (if not auto‑opened):
-   - `http://localhost:5173`
+   - `http://localhost:5370`
 
 ### Scripts
 - `npm run dev` — start Vite dev server

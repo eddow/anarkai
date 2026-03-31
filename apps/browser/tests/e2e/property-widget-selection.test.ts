@@ -6,34 +6,27 @@ test.describe('Property Widget Selection', () => {
 		// 1. Navigate to app
 		await page.goto('/')
 		await page.waitForSelector('.app-shell')
-		// Check window.games composition
+		// Check window.game (single global instance)
 		await page
-			.waitForFunction(() => !!(window as any).games, { timeout: 10000 })
-			.catch(() => console.log('Games not found on window'))
+			.waitForFunction(() => !!(window as any).game, { timeout: 10000 })
+			.catch(() => console.log('game not found on window'))
 		await page.evaluate(() => {
 			console.log('Window keys:', Object.keys(window))
-			const g = (window as any).games
-			if (g) {
-				console.log('Games:', g)
-				// Try to list games if Map or similar
-				console.log('GameX:', g.game('GameX'))
-				const game = g.game('GameX')
-				if (game) {
-					const popSize = [...game.population].length
-					console.log('Pop size:', popSize)
-					console.log('Clock:', game.clock?.virtualTime)
-				}
+			const game = (window as any).game
+			if (game) {
+				const popSize = [...game.population].length
+				console.log('Pop size:', popSize)
+				console.log('Clock:', game.clock?.virtualTime)
 			}
 		})
 
-		await page.waitForFunction(
-			() => [...((window as any).games?.game('GameX')?.population || [])].length > 0,
-			{ timeout: 30000 }
-		)
+		await page.waitForFunction(() => [...((window as any).game?.population || [])].length > 0, {
+			timeout: 30000,
+		})
 
 		// 2. Select a character via script
 		const charUid = await page.evaluate(async () => {
-			const game = (window as any).games.game('GameX')
+			const game = (window as any).game
 			const char = [...game.population][0]
 			if (char) {
 				// Determine dockview API

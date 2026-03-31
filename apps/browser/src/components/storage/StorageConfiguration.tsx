@@ -1,5 +1,6 @@
 import { css } from '@app/lib/css'
-import { Button, Stars } from '@sursaut'
+import { Button, Stars } from '@app/ui/anarkai'
+import type { StarsValue } from '@sursaut/ui/models'
 import { goods as goodsCatalog } from 'engine-pixi/assets/visual-content'
 import { memoize } from 'mutts'
 import type { Game } from 'ssh/game'
@@ -19,9 +20,9 @@ css`
 .slotted-todo {
 	padding: 1rem;
 	margin-top: 1rem;
-	border: 1px dashed var(--pico-muted-border-color);
+	border: 1px dashed var(--ak-border);
 	border-radius: 4px;
-	color: var(--pico-muted-color);
+	color: var(--ak-text-muted);
 	font-style: italic;
 	text-align: center;
 }
@@ -46,7 +47,7 @@ css`
 
 .buffer-quantity {
 	font-size: 0.75rem;
-	color: var(--pico-muted-color);
+	color: var(--ak-text-muted);
 }
 `
 
@@ -146,13 +147,12 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 			newVal = Math.round(max * (stars / 5))
 		}
 
-		const newBuffers = { ...props.content.storageBuffers }
+		const liveBuffers = props.content.storageBuffers ?? (props.content.storageBuffers = {})
 		if (newVal <= 0) {
-			delete newBuffers[goodType]
+			delete liveBuffers[goodType]
 		} else {
-			newBuffers[goodType] = newVal
+			liveBuffers[goodType] = newVal
 		}
-		props.content.storageBuffers = newBuffers
 	}
 
 	const getDisplayQuantity = (goodType: GoodType) => {
@@ -187,7 +187,7 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 					if={!(props.content.storage instanceof SpecificStorage)}
 				>
 					<div class="mode-control">
-						<Button onClick={toggleMode} class="mode-toggle">
+						<Button onClick={toggleMode} el:class="mode-toggle">
 							{modeLabel()}
 						</Button>
 
@@ -227,7 +227,7 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 								<Stars
 									value={getBufferStars(good)}
 									maximum={5}
-									onChange={(v: number | [number, number]) =>
+									onChange={(v: StarsValue) =>
 										setBufferFromStars(good, typeof v === 'number' ? v : v[1])
 									}
 									size="1rem"

@@ -1,4 +1,4 @@
-import { atomic, memoize, reactive, unreactive } from 'mutts'
+import { atomic, memoize, reactive } from 'mutts'
 import { assert } from 'ssh/debug'
 import type { Goods, GoodType } from 'ssh/types/base'
 import {
@@ -40,9 +40,6 @@ class SlottedAllocation implements AllocationBase {
 				const need = -amount
 				assert(slot.reserved >= need, 'cancel: reserved less than cancel amount')
 				slot.reserved -= need
-				// Track that reservations changed
-				// TODO: versioning are a kind of hack, let's analyze the use and find a better way
-				this.storage._incrementReservedVersion()
 				// quantity unchanged on cancel of negative allocation
 				if (slot.quantity + slot.allocated === 0) this.storage.slots[i] = undefined
 			}
@@ -79,9 +76,6 @@ class SlottedAllocation implements AllocationBase {
 				assert(slot.quantity >= want, 'fulfill: quantity less than fulfill amount')
 				slot.quantity -= want
 				slot.reserved -= want
-				// Track that reservations changed
-				// TODO: versioning are a kind of hack, let's analyze the use and find a better way
-				this.storage._incrementReservedVersion()
 				if (slot.quantity + slot.allocated === 0) {
 					assert(
 						slot.reserved === 0 && slot.allocated === 0 && slot.quantity === 0,
@@ -102,7 +96,6 @@ export interface Slot {
 }
 
 @reactive
-@unreactive('allocated', 'reserved')
 class SlotImpl implements Slot {
 	goodType: GoodType
 	quantity: number
@@ -121,7 +114,6 @@ function makeSlot(goodType: GoodType, quantity: number): Slot {
 @reactive
 export class SlottedStorage extends Storage<SlottedAllocation> {
 	public readonly slots: (Slot | undefined)[] = reactive([])
-	private _reservedVersion = 0
 
 	constructor(
 		maxSlots: number,
@@ -129,11 +121,6 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 	) {
 		super()
 		for (let i = 0; i < maxSlots; i++) this.slots.push(undefined)
-	}
-
-	/** Increment the reserved version to trigger availables recalculation */
-	_incrementReservedVersion() {
-		this._reservedVersion++
 	}
 
 	get allocatedSlots(): boolean {
@@ -250,7 +237,6 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		return qty - remaining
 	}
 
-	@memoize
 	get stock(): { [k in GoodType]?: number } {
 		const result: { [k in GoodType]?: number } = {}
 
@@ -261,11 +247,8 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		return result
 	}
 
-	@memoize
+	// TODO: @memoize
 	get availables(): { [k in GoodType]?: number } {
-		// Depend on reserved version to track changes
-		void this._reservedVersion
-
 		const result: { [k in GoodType]?: number } = {}
 
 		for (const slot of this.slots) {
@@ -391,8 +374,6 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 				slot.reserved += take
 				alloc[index] -= take // negative marks reservation
 				remaining -= take
-				// Track that reservations changed
-				this._reservedVersion++
 			}
 
 			if (qty - remaining > 0) hasAnyReservation = true
@@ -438,16 +419,31 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 	// presentAmount replaced by available()
 	renderedGoods(): RenderedGoodSlots {
 		const slots: RenderedGoodSlot[] = []
-		for (const slot of this.slots) {
-			if (!slot) continue
+		let anyContent = false
+		for (let i = 0; i < this.slots.length; i++) {
+			const slot = this.slots[i]
+			if (!slot) {
+				slots.push({
+					present: 0,
+					reserved: 0,
+					allocated: 0,
+					allowed: this.maxQuantityPerSlot,
+				})
+				continue
+			}
+			const present = Math.max(0, slot.quantity - slot.reserved)
+			const reserved = Math.max(0, slot.reserved)
+			const allocated = Math.max(0, slot.allocated)
+			if (present || reserved || allocated) anyContent = true
 			slots.push({
 				goodType: slot.goodType,
-				present: Math.max(0, slot.quantity - slot.reserved),
-				reserved: Math.max(0, slot.reserved),
-				allocated: Math.max(0, slot.allocated),
+				present,
+				reserved,
+				allocated,
 				allowed: this.maxQuantityPerSlot,
 			})
 		}
+		if (!anyContent) return { slots: [] }
 		return { slots, assumedMaxSlots: this.slots.length }
 	}
 

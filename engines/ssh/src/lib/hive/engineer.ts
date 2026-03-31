@@ -1,4 +1,4 @@
-import { reactive } from 'mutts'
+import { inert, reactive } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
@@ -21,57 +21,61 @@ export class EngineerAlveolus extends Alveolus {
 	}
 
 	nextJob(character?: Character): ConstructJob | FoundationJob | undefined {
-		if (!this.working) return undefined
-		const hex = this.tile.game.hex
-		const startPos = character ? toAxialCoord(character.position) : toAxialCoord(this.tile.position)
+		return inert(() => {
+			if (!this.working) return undefined
+			const hex = this.tile.game.hex
+			const startPos = character
+				? toAxialCoord(character.position)
+				: toAxialCoord(this.tile.position)
 
-		// Find nearest site needing foundation or construction (whichever is closest)
-		let jobType: 'foundation' | 'construct' | undefined
-		const path = hex.findNearest(
-			startPos,
-			(coord) => {
-				const tile = hex.getTile(coord)
+			// Find nearest site needing foundation or construction (whichever is closest)
+			let jobType: 'foundation' | 'construct' | undefined
+			const path = hex.findNearest(
+				startPos,
+				(coord) => {
+					const tile = hex.getTile(coord)
 
-				// Check for UnBuiltLand with clear project (needs foundation)
-				if (tile?.content instanceof UnBuiltLand && !!tile.content.project && tile.isClear) {
-					jobType = 'foundation'
-					return true
+					// Check for UnBuiltLand with clear project (needs foundation)
+					if (tile?.content instanceof UnBuiltLand && !!tile.content.project && tile.isClear) {
+						jobType = 'foundation'
+						return true
+					}
+
+					// Check for BuildAlveolus ready to be built (needs construction)
+					if (
+						tile?.content instanceof BuildAlveolus &&
+						tile.content.isReady &&
+						!tile.content.destroyed
+					) {
+						jobType = 'construct'
+						return true
+					}
+
+					return false
+				},
+				this.action.radius,
+				true
+			)
+
+			if (!path) return undefined
+
+			// Return appropriate job based on what was found
+			if (jobType === 'foundation') {
+				return {
+					job: 'foundation',
+					path: character ? path : undefined,
+					urgency: 3,
+					fatigue: 3,
 				}
-
-				// Check for BuildAlveolus ready to be built (needs construction)
-				if (
-					tile?.content instanceof BuildAlveolus &&
-					tile.content.isReady &&
-					!tile.content.destroyed
-				) {
-					jobType = 'construct'
-					return true
+			} else {
+				return {
+					job: 'construct',
+					path: character ? path : undefined,
+					urgency: 2,
+					fatigue: this.getFatigueCost(),
 				}
-
-				return false
-			},
-			this.action.radius,
-			true
-		)
-
-		if (!path) return undefined
-
-		// Return appropriate job based on what was found
-		if (jobType === 'foundation') {
-			return {
-				job: 'foundation',
-				path: character ? path : undefined,
-				urgency: 3,
-				fatigue: 3,
 			}
-		} else {
-			return {
-				job: 'construct',
-				path: character ? path : undefined,
-				urgency: 2,
-				fatigue: this.getFatigueCost(),
-			}
-		}
+		})
 	}
 
 	get workingGoodsRelations(): GoodsRelations {

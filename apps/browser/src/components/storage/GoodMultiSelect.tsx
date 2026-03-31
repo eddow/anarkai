@@ -1,5 +1,5 @@
 import { css } from '@app/lib/css'
-import { Button } from '@sursaut'
+import { Button } from '@app/ui/anarkai'
 import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
 import type { Game } from 'ssh/game'
 import type { GoodType } from 'ssh/types/base'
@@ -44,12 +44,12 @@ css`
 
 .remove-btn:hover {
 	opacity: 1;
-	color: var(--pico-del-color);
+	color: #ef4444;
 }
 
 .empty-list {
 	font-style: italic;
-	color: var(--pico-muted-color);
+	color: var(--ak-text-muted);
 	font-size: 0.8rem;
 }
 
@@ -99,7 +99,11 @@ export default function GoodMultiSelect(props: GoodMultiSelectProps) {
 							<EntityBadge game={props.game} sprite={getSprite(gt)} text={gt} />
 							<div class="row-controls">
 								<div if={props.renderItemExtra}>{props.renderItemExtra?.(gt)}</div>
-								<Button onClick={() => handleRemove(gt)} title="Remove" class="remove-btn">
+								<Button
+									onClick={() => handleRemove(gt)}
+									el:title="Remove"
+									el:class="remove-btn"
+								>
 									×
 								</Button>
 							</div>

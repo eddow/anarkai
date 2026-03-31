@@ -1,5 +1,5 @@
-import { ColorMatrixFilter, Sprite } from 'pixi.js'
 import { effect } from 'mutts'
+import { ColorMatrixFilter, Sprite } from 'pixi.js'
 import { mrg } from 'ssh/interactive-state'
 import type { Character } from 'ssh/population/character'
 import { toWorldCoord } from 'ssh/utils/position' // Verify path
@@ -16,7 +16,7 @@ export class CharacterVisual extends VisualObject<Character> {
 	constructor(character: Character, renderer: PixiGameRenderer) {
 		super(character, renderer)
 		const scope = `character:${character.uid}`
-		this.view.name = scope
+		this.view.label = scope
 
 		// Create container structure
 		const charTex = renderer.getTexture('characters.default')
@@ -45,13 +45,13 @@ export class CharacterVisual extends VisualObject<Character> {
 
 	public bind() {
 		// Position binding
-			this.register(
-				effect`character.position`(() => {
-					const world = toWorldCoord(this.object.position)
-					// Need tileSize or similar context? toWorldCoord handles it if imports are correct
-					if (world) this.view.position.set(world.x, world.y)
-				})
-			)
+		this.register(
+			effect`character.position`(() => {
+				const world = toWorldCoord(this.object.position)
+				// Need tileSize or similar context? toWorldCoord handles it if imports are correct
+				if (world) this.view.position.set(world.x, world.y)
+			})
+		)
 
 		// Hover effect
 		const brightnessFilter = new ColorMatrixFilter()
@@ -75,7 +75,9 @@ export class CharacterVisual extends VisualObject<Character> {
 			tileSize, // Slightly smaller for characters
 			() => {
 				const goods = this.object.carry?.renderedGoods()
-				return { slots: goods ? goods.slots : [] }
+				return goods
+					? { slots: goods.slots, assumedMaxSlots: goods.assumedMaxSlots }
+					: { slots: [] }
 			},
 			{ x: 0, y: 0 },
 			`character.${this.object.uid}.goods`

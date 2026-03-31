@@ -1,4 +1,5 @@
-import { effect, reactiveOptions } from 'mutts'
+import { reactiveOptions } from 'mutts'
+import { debugActiveAllocations, getAllocationStats } from 'ssh/storage/guard'
 
 export function nf<T extends Function>(name: string, fn: T): T {
 	Object.defineProperty(fn, 'name', { value: name })
@@ -22,7 +23,8 @@ export function defined<T>(value: T | undefined, message = 'Value is defined'): 
 
 export const traces: Record<string, typeof console | undefined> = {}
 
-//traces.advertising = console
+traces.advertising = console
+traces.allocations = console
 const debugMutts = false
 if (debugMutts) {
 	reactiveOptions.chain = (targets: Function[], caller?: Function) => {
@@ -44,7 +46,7 @@ if (debugMutts) {
 }
 reactiveOptions.maxEffectChain = 2000
 reactiveOptions.maxEffectReaction = 'throw'
-// TODO: comment it for normal functionment (performances killer) - allow it to test discrepancies
+// TODO: comment it for normal functioning (performances killer) - allow it to test discrepancies
 reactiveOptions.onMemoizationDiscrepancy = (
 	cached: any,
 	fresh: any,
@@ -149,4 +151,70 @@ export function logGroup(logger: LogFn | undefined | false, label: string, body:
 			console.groupEnd()
 		}
 	}
+}
+
+// Allocation debugging helpers
+export function debugAllocations() {
+	if (!traces.allocations) {
+		console.warn('Allocation tracing is not enabled. Set traces.allocations = console to enable.')
+		return
+	}
+
+	const stats = getAllocationStats()
+	const active = debugActiveAllocations()
+
+	console.group('🔍 Allocation Debug Report')
+	console.log('📊 Stats:', stats)
+	console.log(`📝 Active allocations: ${active.length}`)
+
+	if (active.length > 0) {
+		console.group('📋 Active allocations details')
+		active.forEach((held: any, index: number) => {
+			const age = Date.now() - held.createdAt
+			console.group(`${index + 1}. ${held.id} (${age}ms old)`)
+			console.log('Type:', held.reason?.type || 'unknown')
+			console.log('Good Type:', held.reason?.goodType || 'unknown')
+			console.log('Provider:', held.reason?.providerName || held.reason?.provider || 'unknown')
+			console.log('Demander:', held.reason?.demanderName || held.reason?.demander || 'unknown')
+			console.log('Movement ID:', held.reason?.movementId || 'unknown')
+			console.log('Created:', new Date(held.createdAt).toISOString())
+			console.log('Stack trace:', held.stack)
+			console.groupEnd()
+		})
+		console.groupEnd()
+	}
+
+	console.groupEnd()
+}
+
+export function findAllocationByMovementId(movementId: string) {
+	if (!traces.allocations) {
+		console.warn('Allocation tracing is not enabled. Set traces.allocations = console to enable.')
+		return
+	}
+
+	const active = debugActiveAllocations()
+
+	const found = active.filter((held: any) => held.reason?.movementId === movementId)
+
+	if (found.length === 0) {
+		console.log(`No active allocations found for movement ID: ${movementId}`)
+		return
+	}
+
+	console.group(`🔍 Found ${found.length} allocations for movement: ${movementId}`)
+	found.forEach((held: any, index: number) => {
+		const age = Date.now() - held.createdAt
+		console.group(`${index + 1}. ${held.id} (${age}ms old)`)
+		console.log('Type:', held.reason?.type || 'unknown')
+		console.log('Good Type:', held.reason?.goodType || 'unknown')
+		console.log('Provider:', held.reason?.providerName || held.reason?.provider || 'unknown')
+		console.log('Demander:', held.reason?.demanderName || held.reason?.demander || 'unknown')
+		console.log('Created:', new Date(held.createdAt).toISOString())
+		console.log('Stack trace:', held.stack)
+		console.groupEnd()
+	})
+	console.groupEnd()
+
+	return found
 }

@@ -1,6 +1,6 @@
+import { effect } from 'mutts'
 import { Container, Sprite, Texture } from 'pixi.js'
 import type { Alveolus } from 'ssh/board/content/alveolus'
-import { effect } from 'mutts'
 import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
 import { alveoli } from '../../assets/visual-content'
@@ -24,7 +24,7 @@ export class AlveolusVisual extends VisualObject<any> {
 	constructor(alveolus: Alveolus, renderer: PixiGameRenderer) {
 		super(alveolus, renderer)
 		this.scope = `alveolus:${alveolus.uid}`
-		this.view.name = this.scope
+		this.view.label = this.scope
 		// Ensure the building visual does not block mouse events (Tile handles selection)
 		this.view.eventMode = 'none'
 		this.goodsContainer = setPixiName(new Container(), scopedPixiName(this.scope, 'goods'))
@@ -99,7 +99,9 @@ export class AlveolusVisual extends VisualObject<any> {
 			tileSize,
 			() => {
 				const goods = this.object.storage?.renderedGoods()
-				return { slots: goods ? goods.slots : [] }
+				return goods
+					? { slots: goods.slots, assumedMaxSlots: goods.assumedMaxSlots }
+					: { slots: [] }
 			},
 			{ x: 0, y: 0 }, // Relative since goodsContainer is at worldPos
 			`alveolus.${this.object.uid}.goods`

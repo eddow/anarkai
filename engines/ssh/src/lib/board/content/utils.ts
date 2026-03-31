@@ -13,6 +13,16 @@ export function GcClass<BaseCtor extends Ctor<any>>(
 	class Sub extends BaseClass {
 		constructor(...args: any[]) {
 			super(...args)
+
+			// Remove own undefined fields that shadow definition properties
+			// This prevents Babel-emitted class fields from masking prototype values
+			// in extenso: `declare` is not recognized by babel as a keyword
+			for (const key of Object.keys(def)) {
+				if (Object.hasOwn(this, key) && (this as Record<string, unknown>)[key] === undefined) {
+					Reflect.deleteProperty(this, key)
+				}
+			}
+
 			// TODO: This is a hack that shoud not be necessary
 			// Force reactivity for all game-content generated classes
 			// biome-ignore lint/correctness/noConstructorReturn: Required for reactivity

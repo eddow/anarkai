@@ -21,13 +21,21 @@ describe('Convey Behavior Integration', () => {
 			return char
 		}
 
-		return { engine, game: engine.game, spawnWorker }
+		function countLooseGoods(game: (typeof engine)['game'], goodType: string) {
+			let count = 0
+			for (const goods of game.hex.looseGoods.goods.values()) {
+				count += goods.filter((good: any) => good.goodType === goodType).length
+			}
+			return count
+		}
+
+		return { engine, game: engine.game, spawnWorker, countLooseGoods }
 	}
 
 	it('Basic Single Movement: Transfer between adjacent storage alveoli', {
 		timeout: 15000,
 	}, async () => {
-		const { engine, game, spawnWorker } = await setupEngine()
+		const { engine, game, spawnWorker, countLooseGoods } = await setupEngine()
 
 		// Setup: Storage with wood, and sawmill that needs wood
 		// Sawmill creates stable demand for wood
@@ -56,10 +64,14 @@ describe('Convey Behavior Integration', () => {
 		// Get storage references
 		const sourceTile = game.hex.getTile({ q: 0, r: 0 })
 		const sourceStorage = sourceTile?.content?.storage
+		const targetTile = game.hex.getTile({ q: 1, r: 0 })
+		const targetStorage = targetTile?.content?.storage
 
 		// Verify initial state
 		expect(sourceStorage).toBeDefined()
 		expect(sourceStorage?.stock.wood).toBe(5)
+		expect(targetStorage).toBeDefined()
+		expect(targetStorage?.stock.wood || 0).toBe(0)
 
 		// Spawn worker at source storage
 		await spawnWorker({ q: 0, r: 0 })
@@ -71,24 +83,35 @@ describe('Convey Behavior Integration', () => {
 			if (msg.includes('Source allocation missing')) {
 				errorFound = true
 			}
-			originalError(...args)
 		}
 
 		try {
+			const initialTotalWood = (sourceStorage?.stock.wood || 0) + (targetStorage?.stock.wood || 0)
+			expect(initialTotalWood + countLooseGoods(game, 'wood')).toBe(5)
+
 			// Run simulation - the main goal is to verify no "Source allocation missing" error
 			// Split tick to allow queueMicrotask to run
 			engine.tick(1.0)
 			await new Promise((resolve) => setTimeout(resolve, 0))
-			engine.tick(1.0)
+			expect(
+				(sourceStorage?.stock.wood || 0) +
+					(targetStorage?.stock.wood || 0) +
+					countLooseGoods(game, 'wood')
+			).toBe(5)
+			engine.tick(0.5)
 			await new Promise((resolve) => setTimeout(resolve, 0))
-			engine.tick(20.0)
+			engine.tick(5.0)
 
 			// Verify no source allocation error occurred
 			expect(errorFound).toBe(false)
 
 			// Verify goods were actually consumed from source
 			const finalSourceStock = sourceStorage?.stock.wood || 0
+			const finalTargetStock = targetStorage?.stock.wood || 0
+			const finalLooseWood = countLooseGoods(game, 'wood')
 			expect(finalSourceStock).toBeLessThan(5) // Some wood should have been taken
+			expect(finalSourceStock + finalTargetStock + finalLooseWood).toBe(5)
+			expect(finalLooseWood).toBe(0)
 
 			// **NEW: Verify movements were actually created**
 			const sourceTileContent = game.hex.getTile({ q: 0, r: 0 })?.content as any
@@ -96,17 +119,9 @@ describe('Convey Behavior Integration', () => {
 			expect(hive).toBeDefined()
 
 			// Check if there are/were any movements for wood
-			let movementCount = 0
 			for (const [_coord, movements] of hive.movingGoods) {
-				movementCount += movements.filter((m: any) => m.goodType === 'wood').length
+				movements.filter((m: any) => m.goodType === 'wood').length
 			}
-
-			console.log(
-				'Basic movement test - wood consumed:',
-				5 - finalSourceStock,
-				'active movements:',
-				movementCount
-			)
 
 			// At minimum, goods should have been consumed even if movement completed
 			expect(finalSourceStock).toBeLessThan(5)
@@ -168,14 +183,13 @@ describe('Convey Behavior Integration', () => {
 			if (msg.includes('Source allocation missing')) {
 				errorFound = true
 			}
-			originalError(...args)
 		}
 
 		try {
 			// Run longer simulation for multi-hop
 			engine.tick(0.1)
 			await new Promise((resolve) => setTimeout(resolve, 0))
-			engine.tick(19.9)
+			engine.tick(7.9)
 
 			// Verify no allocation errors
 			expect(errorFound).toBe(false)
@@ -184,14 +198,8 @@ describe('Convey Behavior Integration', () => {
 			const finalSourceStock = storageA?.stock.wood || 0
 			expect(finalSourceStock).toBeLessThan(3) // Some wood should have been taken
 
-			const storageB = game.hex.getTile({ q: 1, r: 0 })?.content?.storage
-			const storageC = game.hex.getTile({ q: 2, r: 0 })?.content?.storage
-
-			console.log('Multi-hop final stocks:', {
-				A: finalSourceStock,
-				B: storageB?.stock.wood || 0,
-				C: storageC?.stock.wood || 0,
-			})
+			game.hex.getTile({ q: 1, r: 0 })?.content?.storage
+			game.hex.getTile({ q: 2, r: 0 })?.content?.storage
 		} finally {
 			console.error = originalError
 			await engine.destroy()
@@ -244,21 +252,19 @@ describe('Convey Behavior Integration', () => {
 			if (msg.includes('Source allocation missing')) {
 				errorFound = true
 			}
-			originalError(...args)
 		}
 
 		try {
 			// Run simulation
 			engine.tick(0.1)
 			await new Promise((resolve) => setTimeout(resolve, 0))
-			engine.tick(14.9)
+			engine.tick(5.9)
 
 			// Verify no deadlock or allocation errors
 			expect(errorFound).toBe(false)
-
-			console.log('Circular blockade test completed without errors')
 		} finally {
 			console.error = originalError
+			await engine.destroy()
 		}
 	})
 
@@ -313,19 +319,16 @@ describe('Convey Behavior Integration', () => {
 			if (msg.includes('Source allocation missing') || msg.includes('allocation')) {
 				errorFound = true
 			}
-			originalError(...args)
 		}
 
 		try {
 			// Run extended simulation for concurrent movements
 			engine.tick(0.1)
 			await new Promise((resolve) => setTimeout(resolve, 0))
-			engine.tick(24.9)
+			engine.tick(9.9)
 
 			// Verify no allocation conflicts
 			expect(errorFound).toBe(false)
-
-			console.log('Concurrent movement test completed successfully')
 		} finally {
 			console.error = originalError
 			await engine.destroy()

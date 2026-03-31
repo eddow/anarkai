@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { reset } from 'mutts'
 import type { Game, GameGenerationOptions, SaveState } from 'ssh/game'
 import { setupEnvironment } from './environment'
 import { loadStandardMocks } from './mocks'
@@ -93,5 +94,6 @@ export class TestEngine {
 		this.game.population.deserialize([])
 		this.game.hex.reset()
 		this.game.destroy()
+		reset()
 	}
 }

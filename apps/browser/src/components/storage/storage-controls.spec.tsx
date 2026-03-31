@@ -1,9 +1,20 @@
 import { document, latch } from '@sursaut/core'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sursaut', () => ({
-	Button: (props: { onClick?: () => void; title?: string; class?: string; children?: any }) => (
-		<button onClick={props.onClick} title={props.title} class={props.class}>
+vi.mock('@app/ui/anarkai', () => ({
+	Button: (props: {
+		onClick?: () => void
+		title?: string
+		class?: string
+		children?: any
+		'el:title'?: string
+		'el:class'?: string
+	}) => (
+		<button
+			onClick={props.onClick}
+			title={props.title ?? props['el:title']}
+			class={props.class ?? props['el:class']}
+		>
 			{props.children}
 		</button>
 	),
@@ -137,7 +148,7 @@ describe('storage controls', () => {
 			container,
 			<GoodMultiSelect
 				value={['wood', 'stone']}
-				availableGoods={['food']}
+				availableGoods={['berries']}
 				game={{} as never}
 				onAdd={() => undefined}
 				onRemove={onRemove}

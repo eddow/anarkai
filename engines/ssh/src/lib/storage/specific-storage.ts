@@ -81,8 +81,8 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 	constructor(maxAmounts: Ssh.SpecificStorage) {
 		super()
 		this._goods = reactive({})
-		this._allocated = {}
-		this._reserved = {}
+		this._allocated = reactive({})
+		this._reserved = reactive({})
 		this.maxAmounts = reactive({ ...maxAmounts })
 	}
 
@@ -148,14 +148,11 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 		return toRemove
 	}
 
-	// REHABILITATED MEMOIZE
-	@memoize
 	get stock(): { [k in GoodType]?: number } {
 		return { ...this._goods }
 	}
 
-	// REHABILITATED MEMOIZE
-	@memoize
+	// TODO: @memoize
 	get availables(): { [k in GoodType]?: number } {
 		const result: { [k in GoodType]?: number } = {}
 		for (const [goodType, quantity] of Object.entries(this._goods)) {

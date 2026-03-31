@@ -2,14 +2,36 @@ import { document, latch } from '@sursaut/core'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const goodMultiSelectCalls: Array<Record<string, unknown>> = []
+const starsCalls: Array<Record<string, unknown>> = []
 
-vi.mock('@sursaut', () => ({
-	Button: (props: { onClick?: () => void; children?: any; class?: string }) => (
-		<button onClick={props.onClick} class={props.class}>
+vi.mock('@app/ui/anarkai', () => ({
+	Button: (props: {
+		onClick?: () => void
+		children?: any
+		class?: string
+		'el:class'?: string
+		'el:title'?: string
+	}) => (
+		<button
+			onClick={props.onClick}
+			class={props.class ?? props['el:class']}
+			title={props['el:title']}
+		>
 			{props.children}
 		</button>
 	),
-	Stars: () => <div data-testid="stars" />,
+	Stars: (props: { onChange?: (value: number) => void; value?: number }) => {
+		starsCalls.push(props)
+		return (
+			<button
+				data-testid="stars"
+				data-value={String(props.value ?? 0)}
+				onClick={() => props.onChange?.(0)}
+			>
+				stars
+			</button>
+		)
+	},
 }))
 
 vi.mock('@app/lib/css', () => ({
@@ -39,6 +61,7 @@ vi.mock('./GoodMultiSelect', () => ({
 		availableGoods: string[]
 		onAdd: (good: string) => void
 		onRemove: (good: string) => void
+		renderItemExtra?: (good: string) => any
 		children?: any
 	}) => {
 		goodMultiSelectCalls.push(props)
@@ -47,6 +70,9 @@ vi.mock('./GoodMultiSelect', () => ({
 				<div class="value">{props.value.join(',')}</div>
 				<div class="available">{props.availableGoods.join(',')}</div>
 				<div class="fallback">{props.children}</div>
+				<div class="extras">
+					<for each={props.value}>{(good: string) => props.renderItemExtra?.(good)}</for>
+				</div>
 				<button
 					class="mock-add"
 					onClick={() => {
@@ -110,6 +136,7 @@ describe('StorageConfiguration', () => {
 		container = document.createElement('div')
 		document.body.appendChild(container)
 		goodMultiSelectCalls.length = 0
+		starsCalls.length = 0
 	})
 
 	afterEach(() => {
@@ -200,5 +227,31 @@ describe('StorageConfiguration', () => {
 
 		expect(container.querySelector('[data-testid="specific-storage-config"]')).not.toBeNull()
 		expect(container.textContent).not.toContain('Acceptance')
+	})
+
+	it('mutates the live buffer object instead of replacing it', () => {
+		const liveBuffers = { wood: 10 }
+		const content = {
+			storage: {},
+			storageMode: 'all-but' as 'all-but' | 'only',
+			storageExceptions: [],
+			storageBuffers: liveBuffers,
+			storageConfiguration: { buffers: {} },
+		}
+
+		stop = latch(
+			container,
+			<table>
+				<tbody>
+					<StorageConfiguration content={content as never} game={{} as never} />
+				</tbody>
+			</table>
+		)
+
+		const starButton = container.querySelector('[data-testid="stars"]') as HTMLButtonElement
+		starButton.click()
+
+		expect(content.storageBuffers).toBe(liveBuffers)
+		expect(content.storageBuffers.wood).toBeUndefined()
 	})
 })

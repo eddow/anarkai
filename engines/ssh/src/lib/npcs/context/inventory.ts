@@ -1,4 +1,5 @@
 import type { TileBorder } from 'ssh/board/border/border'
+import type { LooseGood } from 'ssh/board/looseGoods'
 import type { Tile } from 'ssh/board/tile'
 import { assert } from 'ssh/debug'
 import type { Character } from 'ssh/population/character'
@@ -7,6 +8,31 @@ import type { IdlePlan, PickupPlan, TransferPlan } from 'ssh/types/base'
 import { type Positioned, toAxialCoord } from 'ssh/utils'
 import { subject } from '../scripts'
 import { DurationStep } from '../steps'
+
+function planSpecificLoosePickup(
+	character: Character,
+	looseGood: LooseGood,
+	source: Positioned
+): PickupPlan {
+	const vehicle = character.vehicle
+	assert(vehicle, 'character.vehicle must be set')
+	assert(!looseGood.isRemoved, 'LooseGood already removed')
+	assert(looseGood.available, 'LooseGood already allocated')
+
+	const canGrab = vehicle.storage.hasRoom(looseGood.goodType)
+	if (canGrab <= 0) throw new Error(`No room in vehicle to grab ${looseGood.goodType}`)
+
+	const vehicleAllocation = vehicle.storage.allocate({ [looseGood.goodType]: 1 }, 'plan.pickup')
+	const allocation = looseGood.allocate('plan.pickup')
+
+	return {
+		type: 'pickup' as const,
+		goodType: looseGood.goodType,
+		target: source,
+		vehicleAllocation,
+		allocation,
+	}
+}
 
 export class InventoryFunctions {
 	declare [subject]: Character
@@ -145,6 +171,10 @@ export class InventoryFunctions {
 	 * @param goodType - Specific good to grab, or null/undefined to grab *any* available good that fits in inventory ("scavenge" mode).
 	 * @param source - The location to grab from.
 	 */
+	planGrabSpecificLoose(looseGood: LooseGood, source: Positioned): PickupPlan {
+		return planSpecificLoosePickup(this[subject], looseGood, source)
+	}
+
 	@contract('GoodType | null', 'Positioned')
 	planGrabLoose(
 		goodType: GoodType | null | undefined,
@@ -183,18 +213,7 @@ export class InventoryFunctions {
 		}
 
 		const chosenGood = matchingLooseGoods[0]
-
-		// Create allocations: vehicle first, then loose good
-		const vehicleAllocation = vehicle.storage.allocate({ [chosenGood.goodType]: 1 }, 'plan.pickup')
-		const allocation = chosenGood.allocate('plan.pickup')
-
-		return {
-			type: 'pickup' as const,
-			goodType: chosenGood.goodType,
-			target: source,
-			vehicleAllocation,
-			allocation,
-		}
+		return planSpecificLoosePickup(character, chosenGood, source)
 	}
 	@contract('TransferPlan | PickupPlan | IdlePlan')
 	effectuate(action: TransferPlan | PickupPlan | IdlePlan) {
@@ -218,7 +237,8 @@ export class InventoryFunctions {
 		let description: string
 
 		if (action.type === 'transfer') {
-			totalAmount = Object.values(action.goods).reduce((sum, qty) => sum + qty, 0)
+			const goods = action.resolvedGoods ?? action.goods
+			totalAmount = Object.values(goods).reduce((sum, qty) => sum + qty, 0)
 			description = action.description
 		} else if (action.type === 'pickup') {
 			totalAmount = 1 // Always grab exactly 1 LooseGood

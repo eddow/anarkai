@@ -1,11 +1,11 @@
-import { memoize, reactive } from 'mutts'
+import { inert, memoize, reactive, untracked } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { multiplyGoodsQty } from 'ssh/board/content/utils'
 import type { Tile } from 'ssh/board/tile'
 import type { Character } from 'ssh/population/character'
 import { SpecificStorage } from 'ssh/storage'
 import type { GoodType, TransformJob } from 'ssh/types/base'
-import { type GoodsRelations, maxPriority } from 'ssh/utils/advertisement'
+import { type ExchangePriority, type GoodsRelations, maxPriority } from 'ssh/utils/advertisement'
 import { inputBufferSize, outputBufferSize } from '../../../assets/constants'
 
 const emptyGoods: Partial<Record<GoodType, number>> = {}
@@ -26,6 +26,44 @@ export class TransformAlveolus extends Alveolus {
 			})
 		)
 	}
+
+	/**
+	 * Check if this transformer can take a specific good as input
+	 */
+	canTake(goodType: GoodType, _priority: ExchangePriority): boolean {
+		if (!this.working) return false
+
+		const action = this.action
+		const inputs = action?.inputs ?? emptyGoods
+
+		// Can only take goods that are defined as inputs
+		const isInput = goodType in inputs
+
+		// Check if storage has capacity for this input
+		// Use canStoreAll to check if we can store at least 1 of this good type
+		const hasCapacity = this.storage.canStoreAll({ [goodType]: 1 })
+
+		return isInput && hasCapacity
+	}
+
+	/**
+	 * Check if this transformer can give a specific good as output
+	 */
+	canGive(goodType: GoodType, _priority: ExchangePriority): boolean {
+		if (!this.working) return false
+
+		const action = this.action
+		const output = action?.output ?? emptyGoods
+
+		// Can only give goods that are defined as outputs
+		const isOutput = goodType in output
+
+		// Check if storage has available goods of this type
+		const hasAvailable = this.storage.available(goodType) > 0
+
+		return isOutput && hasAvailable
+	}
+
 	@memoize
 	get canWork(): boolean {
 		const action = this.action
@@ -42,20 +80,26 @@ export class TransformAlveolus extends Alveolus {
 	}
 	// nextJob() replaces both alveolusSpecificJob() and keepWorking
 	nextJob(_character?: Character): TransformJob | undefined {
-		if (!this.working || !this.canWork) return undefined
+		return inert(() => {
+			if (!this.working || !this.canWork) return undefined
 
-		return {
-			job: 'transform',
-			urgency: 1,
-			fatigue: this.getFatigueCost(),
-		}
+			return {
+				job: 'transform',
+				urgency: 1,
+				fatigue: this.getFatigueCost(),
+			}
+		})
 	}
 	get workingGoodsRelations(): GoodsRelations {
 		const action = this.action
 		const inputs = action?.inputs ?? emptyGoods
 		const output = action?.output ?? emptyGoods
-		const demandPriority = maxPriority(
-			Object.keys(output).map((goodType) => (this.hive.needs[goodType] ? '1-buffer' : '2-use'))
+		const demandPriority = untracked`transform.workingGoodsRelations.demandPriority`(() =>
+			maxPriority(
+				Object.keys(output).map((goodType) =>
+					this.hive.needs[goodType as GoodType] ? '1-buffer' : '2-use'
+				)
+			)
 		)
 		// Note: only depend on stock (actual goods), never on reservation/allocation bookkeeping.
 		const stock = this.storage.stock

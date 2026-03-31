@@ -38,7 +38,7 @@ describe('NPC Behaviors Integration', () => {
 	}
 
 	it('Scenario: Harvest Behavior', { timeout: 10000 }, async () => {
-		const { engine, game } = await setupEngine()
+		const { engine, game, spawnWorker } = await setupEngine()
 
 		// 1. Setup: Harvest Alveolus (Woodcutter) and a Tree deposit
 		// We use 'tree_chopper' alveolus which harvests 'wood' from 'tree' deposit?
@@ -66,6 +66,7 @@ describe('NPC Behaviors Integration', () => {
 			},
 		}
 		engine.loadScenario(scenario as any)
+		await spawnWorker({ q: 2, r: 2 })
 
 		// 2. Run
 		// Character should get job from Alveolus -> Go to Tree -> Harvest -> Return -> Drop
@@ -95,7 +96,7 @@ describe('NPC Behaviors Integration', () => {
 	})
 
 	it('Scenario: Transform Behavior', { timeout: 10000 }, async () => {
-		const { engine, game } = await setupEngine()
+		const { engine, game, spawnWorker } = await setupEngine()
 
 		// Setup: Sawmill (Transform) with Logs in storage.
 		// Sawmill: log -> plank
@@ -114,6 +115,7 @@ describe('NPC Behaviors Integration', () => {
 			],
 		}
 		engine.loadScenario(scenario as any)
+		await spawnWorker({ q: 0, r: 0 })
 
 		await tickAsync(engine, 30.0) // Increase time slightly to ensure transformation happens
 

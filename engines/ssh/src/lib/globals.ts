@@ -1,5 +1,5 @@
-import { Eventful, reactive, root } from 'mutts'
-import { Game, type GameEvents } from './game'
+import { reactive, root } from 'mutts'
+import { Game } from './game'
 import { chopSaw as patches } from './game/exampleGames'
 
 export interface Configuration {
@@ -14,19 +14,16 @@ function getDefaultConfiguration(): Configuration {
 
 export const configuration = reactive<Configuration>(getDefaultConfiguration())
 export const debugInfo = reactive<Record<string, unknown>>({})
-
-type GamedEvents = {
-	[key in keyof GameEvents]: (game: Game, ...args: Parameters<GameEvents[key]>) => void
+export const options = {
+	stalledMovementScanIntervalMs: 1000 as number | false,
+	stalledMovementSettleMs: 1000,
 }
-// TODO: find a way to make the whole file root() ?
-class Games extends Eventful<GamedEvents> {
-	private games = new Map<string, Game>()
 
-	game(name: string) {
-		const existing = this.games.get(name)
-		if (existing) return existing
+let gameSingleton: Game | undefined
 
-		const instance = root`game`(
+function ensureGame(): Game {
+	if (!gameSingleton) {
+		gameSingleton = root`game`(
 			() =>
 				new Game(
 					{
@@ -38,11 +35,46 @@ class Games extends Eventful<GamedEvents> {
 					patches
 				)
 		)
-		this.games.set(name, instance)
-		return instance
 	}
+	return gameSingleton
 }
 
-export const games = new Games()
+/**
+ * Single global game instance for the main shell (browser or any one-game host).
+ * Lazily created on first access so `ssh/globals` can load before `Game` is constructed.
+ * Do not create additional named games; multi-game registries are legacy.
+ */
+export const game: Game = new Proxy({} as Game, {
+	get(_, prop) {
+		const instance = ensureGame()
+		// Receiver must be the reactive `instance`: if it were the outer proxy, Mutts would
+		// mis-route sets (e.g. `game.renderer = …`) and proxy invariants would break on read.
+		return Reflect.get(instance, prop, instance)
+	},
+	set(_, prop, value) {
+		const instance = ensureGame()
+		return Reflect.set(instance, prop, value, instance)
+	},
+	has(_, prop) {
+		return Reflect.has(ensureGame(), prop)
+	},
+	ownKeys() {
+		return Reflect.ownKeys(ensureGame())
+	},
+	getOwnPropertyDescriptor(_, prop) {
+		return Reflect.getOwnPropertyDescriptor(ensureGame(), prop)
+	},
+})
+
+/**
+ * Legacy shape for callers that used `games.game(name)`. The name is ignored; returns {@link game}.
+ * Prefer importing `game` directly.
+ */
+export const games = {
+	game(_name?: string) {
+		void _name
+		return ensureGame()
+	},
+}
 
 export * from './interactive-state'

@@ -1,6 +1,6 @@
 import { css } from '@app/lib/css'
 import {
-	games,
+	game,
 	interactionMode,
 	selectionState,
 	unreactiveInfo,
@@ -22,13 +22,11 @@ css`
 `
 
 export default function GameWidget(
-	props: DockviewWidgetProps<{ game: string }>,
+	props: DockviewWidgetProps<Record<string, never>>,
 	scope: DockviewWidgetScope
 ) {
 	const dock = scope?.dockviewApi
 	const api = (scope as any).panelApi
-	const gameName = props.params?.game ?? 'GameX'
-	const game = games.game(gameName)
 	let container: HTMLElement | undefined
 	let gameView: PixiGameRenderer | undefined
 	const containerId = `game-container-${api?.id ?? Math.random().toString(36).substr(2, 9)}`

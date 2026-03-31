@@ -1,0 +1,41 @@
+:root {
+	color-scheme: light;
+	--ak-surface-0: #f8fafc;
+	--ak-surface-1: rgba(15, 23, 42, 0.05);
+	--ak-surface-panel: rgba(255, 255, 255, 0.78);
+	--ak-border: rgba(15, 23, 42, 0.12);
+	--ak-border-strong: rgba(15, 23, 42, 0.24);
+	--ak-accent: #2563eb;
+	--ak-accent-active: rgba(37, 99, 235, 0.18);
+	--ak-text: #0f172a;
+	--ak-text-muted: rgba(15, 23, 42, 0.64);
+	--ak-radius-sm: 0.2rem;
+	--ak-radius-md: 0.35rem;
+	--ak-shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+	--ak-shadow-raised:
+		0 1px 2px rgba(15, 23, 42, 0.08),
+		0 8px 20px rgba(15, 23, 42, 0.08);
+	--ak-space-xs: 0.15rem;
+	--ak-space-sm: 0.3rem;
+	--ak-space-md: 0.45rem;
+	--ak-control-height-compact: 2rem;
+	--ak-icon-size-sm: 1rem;
+	--ak-icon-size-md: 1.2rem;
+}
+
+[data-theme='dark'] {
+	color-scheme: dark;
+	--ak-surface-0: #0f172a;
+	--ak-surface-1: rgba(148, 163, 184, 0.12);
+	--ak-surface-panel: rgba(30, 41, 59, 0.72);
+	--ak-border: rgba(148, 163, 184, 0.24);
+	--ak-border-strong: rgba(148, 163, 184, 0.38);
+	--ak-accent: #93c5fd;
+	--ak-accent-active: rgba(96, 165, 250, 0.34);
+	--ak-text: #e2e8f0;
+	--ak-text-muted: rgba(226, 232, 240, 0.72);
+	--ak-shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+	--ak-shadow-raised:
+		0 1px 2px rgba(2, 6, 23, 0.4),
+		0 10px 24px rgba(2, 6, 23, 0.35);
+}

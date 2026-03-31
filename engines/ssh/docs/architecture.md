@@ -162,7 +162,6 @@ A network of connected Alveoli that share resources and workforce.
 **Key Properties:**
 - `alveoli: Set<Alveolus>` — Connected buildings
 - `name: string` — Hive identifier
-- `manualNeeds: Record<GoodType, number>` — Manual production goals
 
 **Key Methods:**
 - `attach(alveolus)` — Add building to hive

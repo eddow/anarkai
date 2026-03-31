@@ -1,9 +1,9 @@
-import { memoize, reactive } from 'mutts'
+import { reactive } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { AlveolusType, GoodType } from 'ssh/types/base'
-import type { GoodsRelations } from 'ssh/utils/advertisement'
+import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
 import { alveoli as alveoliDefs } from '../../../assets/game-content'
 
 @reactive
@@ -18,34 +18,77 @@ export class BuildAlveolus extends Alveolus {
 
 		// Store properties
 		this.target = target
+
+		// Override name property to provide build-specific naming
+		Object.defineProperty(this, 'name', {
+			value: `build.${this.target}`,
+			writable: false,
+			configurable: false,
+			enumerable: true,
+		})
 	}
 
-	@memoize
+	/**
+	 * Buildings can take goods they still need for construction
+	 */
+	canTake(goodType: GoodType, _priority: ExchangePriority): boolean {
+		if (!this.working) return false
+
+		return (this.advertisedNeeds[goodType] ?? 0) > 0 && !this.destroyed
+	}
+
+	/**
+	 * Buildings typically don't give goods back (default false)
+	 */
+	canGive(_goodType: GoodType, _priority: ExchangePriority): boolean {
+		return false
+	}
+
 	get remainingNeeds(): Record<string, number> {
 		const targetDef = alveoliDefs[this.target]
 		const cost = targetDef.construction?.goods || {}
 		const needs: Record<string, number> = {}
+
+		// Guard against uninitialized storage
+		if (!this.storage || !this.storage.stock) {
+			return cost // If storage isn't ready, we need everything
+		}
+
 		for (const [good, qty] of Object.entries(cost)) {
-			const have = this.storage.available(good as GoodType) || 0
+			const goodType = good as GoodType
+			const have = this.storage.available(goodType) || 0
 			if (have < qty) needs[good] = qty - have
 		}
 		return needs
 	}
 
-	@memoize
+	get advertisedNeeds(): Record<string, number> {
+		const targetDef = alveoliDefs[this.target]
+		const cost = targetDef.construction?.goods || {}
+		const needs: Record<string, number> = {}
+
+		for (const [good, qty] of Object.entries(cost)) {
+			const goodType = good as GoodType
+			const room = Math.max(0, this.storage.hasRoom(goodType))
+			if (room > 0) needs[good] = Math.min(qty, room)
+		}
+
+		return needs
+	}
+
 	get isReady(): boolean {
 		return Object.keys(this.remainingNeeds).length === 0 && !this.destroyed
 	}
 
 	get workingGoodsRelations(): GoodsRelations {
-		// Demand construction materials based only on stock vs. required — no reservation tracking.
+		// TODO: Implement more sophisticated priority system that considers construction urgency,
+		// resource scarcity, and build order rather than just using distance as tie-breaker
 		if (this.destroyed) return {}
 		const targetDef = alveoliDefs[this.target]
 		const cost = (targetDef.construction?.goods || {}) as Record<GoodType, number>
-		const stock = this.storage.stock
 		return Object.fromEntries(
 			Object.entries(cost)
-				.filter(([goodType, required]) => (stock[goodType as GoodType] ?? 0) < required)
+				.filter(([goodType]) => (this.advertisedNeeds[goodType] ?? 0) > 0)
 				.map(([goodType]) => [goodType as GoodType, { advertisement: 'demand', priority: '2-use' }])
 		)
 	}

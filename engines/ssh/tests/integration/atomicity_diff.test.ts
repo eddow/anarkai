@@ -1,4 +1,7 @@
+import { getActivationLog } from 'mutts'
+import { traces } from 'ssh/debug'
 import type { SaveState } from 'ssh/game'
+import { StorageAlveolus } from 'ssh/hive/storage'
 import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
 
@@ -43,48 +46,48 @@ describe('Atomicity & Environment Investigation', () => {
 	 */
 	async function runSimulation(mode: 'batched' | 'unbatched') {
 		const { engine, game, spawnWorker } = await setupEngine()
-		engine.loadScenario(scenario)
+		const previousAdvertisingTrace = traces.advertising
+		traces.advertising = console
+		try {
+			engine.loadScenario(scenario)
 
-		const gathererTile = game.hex.getTile({ q: 0, r: 0 })
-		const gatherer = gathererTile?.content
+			const gathererTile = game.hex.getTile({ q: 0, r: 0 })
+			const gatherer = gathererTile?.content
 
-		// Manual need for berries
-		if (gatherer?.hive) gatherer.hive.manualNeeds = { berries: 10 }
-
-		spawnWorker({ q: 0, r: 0 })
-		spawnWorker({ q: 1, r: 0 }) // Worker at storage to complete convey
-
-		// Run loop
-		// 40 seconds total
-		// engine.tick(1.0) advances 1.0s. It calls step(0.1) 10 times.
-		// If we want to simulate batch-per-step or batch-per-tick-call.
-		// Let's do batch-per-step manually.
-		const dt = 0.1
-		const totalSteps = 40 / dt // 400 steps
-
-		for (let i = 0; i < totalSteps; i++) {
-			engine.tick(dt, dt)
-			// Yield to event loop to allow microtasks (hive advertising/movement creation) to run
+			const storageContent = game.hex.getTile({ q: 1, r: 0 })?.content
+			if (storageContent instanceof StorageAlveolus) {
+				storageContent.setBuffers({ berries: 10 })
+			}
 			await new Promise((resolve) => setTimeout(resolve, 0))
-		}
 
-		let looseBerries = 0
-		for (const list of game.hex.looseGoods.goods.values()) {
-			looseBerries += list.filter((fg) => fg.goodType === 'berries').length
-		}
+			spawnWorker({ q: 0, r: 0 })
+			spawnWorker({ q: 1, r: 0 }) // Worker at storage to complete convey
 
-		const workerBerries = Array.from((game.population as any).characters.values()).reduce(
-			(acc: number, char: any) => acc + (char.inventory?.stock?.berries || 0),
-			0
-		)
+			// Run loop
+			const dt = 0.1
+			const totalSteps = 40 / dt
 
-		// Re-fetch storage to ensure we have the latest instance
-		const finalTile = game.hex.getTile({ q: 1, r: 0 })
-		const finalContent = finalTile?.content as any
-		const finalStorage = finalContent?.storage
-		const gathererStorage = gatherer?.storage
+			for (let i = 0; i < totalSteps; i++) {
+				engine.tick(dt, dt)
+				await new Promise((resolve) => setTimeout(resolve, 0))
+			}
 
-		console.log(`[Test] Mode ${mode} | Total Berries on Board:
+			let looseBerries = 0
+			for (const list of game.hex.looseGoods.goods.values()) {
+				looseBerries += list.filter((fg) => fg.goodType === 'berries').length
+			}
+
+			const workerBerries = Array.from((game.population as any).characters.values()).reduce(
+				(acc: number, char: any) => acc + (char.inventory?.stock?.berries || 0),
+				0
+			)
+
+			const finalTile = game.hex.getTile({ q: 1, r: 0 })
+			const finalContent = finalTile?.content as any
+			const finalStorage = finalContent?.storage
+			const gathererStorage = gatherer?.storage
+
+			console.log(`[Test] Mode ${mode} | Total Berries on Board:
             Gatherer: ${gathererStorage?.stock.berries || 0}
             Storage: ${finalStorage?.stock.berries || 0}
             Loose: ${looseBerries}
@@ -92,9 +95,25 @@ describe('Atomicity & Environment Investigation', () => {
             Total: ${(gathererStorage?.stock.berries || 0) + (finalStorage?.stock.berries || 0) + looseBerries + workerBerries}
         `)
 
-		return {
-			gathererStock: gathererStorage?.stock.berries || 0,
-			storageStock: finalStorage?.stock.berries || 0,
+			return {
+				gathererStock: gathererStorage?.stock.berries || 0,
+				storageStock: finalStorage?.stock.berries || 0,
+			}
+		} catch (error) {
+			if (error instanceof Error && error.message.includes('Max effect chain')) {
+				const recentActivations = getActivationLog()
+					.filter(Boolean)
+					.slice(-40)
+					.map((entry) => ({
+						effect: entry.effect?.name || 'anon',
+						object: entry.obj?.constructor?.name || typeof entry.obj,
+						property: String(entry.prop),
+					}))
+				console.error('ATOMICITY recentActivations:', recentActivations)
+			}
+			throw error
+		} finally {
+			traces.advertising = previousAdvertisingTrace
 		}
 	}
 

@@ -1,5 +1,5 @@
-import type { Tile } from 'ssh/board/tile'
 import { effect } from 'mutts'
+import type { Tile } from 'ssh/board/tile'
 import type { GameObject } from 'ssh/game/object'
 import type { Character } from 'ssh/population/character'
 import type { PixiGameRenderer } from './renderer'

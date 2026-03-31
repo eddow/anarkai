@@ -7,14 +7,13 @@ test.describe('Property Widget Switching', () => {
 		await page.waitForSelector('.app-shell')
 
 		// Wait for population > 1 (need at least 2 chars)
-		await page.waitForFunction(
-			() => [...((window as any).games?.game('GameX')?.population || [])].length >= 2,
-			{ timeout: 30000 }
-		)
+		await page.waitForFunction(() => [...((window as any).game?.population || [])].length >= 2, {
+			timeout: 30000,
+		})
 
 		// Get two character UIDs
 		const [charA, charB] = await page.evaluate(() => {
-			const game = (window as any).games.game('GameX')
+			const game = (window as any).game
 			const chars = [...game.population]
 			return [chars[0].uid, chars[1].uid]
 		})

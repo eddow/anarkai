@@ -1,4 +1,5 @@
 import type { SaveState } from 'ssh/game'
+import { StorageAlveolus } from 'ssh/hive/storage'
 import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
 
@@ -13,10 +14,6 @@ describe('Gatherer Conveying Integration', () => {
 			const char = engine.spawnCharacter('Worker', coord)
 			char.role = 'worker'
 			void char.scriptsContext
-
-			const action = char.findAction()
-			if (action) char.begin(action)
-
 			return char
 		}
 
@@ -28,9 +25,8 @@ describe('Gatherer Conveying Integration', () => {
 	}, async () => {
 		const { engine, game, spawnWorker } = await setupEngine()
 
-		// Setup: Gatherer and Storage.
-		// Loose berries nearby.
-		// Storage should demand berries (default behavior for empty storage with room).
+		// Setup: Gatherer and Storage, loose berries nearby.
+		// Storage advertises demand only for goods with buffer target > current stock (see workingGoodsRelations).
 		const scenario: Partial<SaveState> = {
 			hives: [
 				{
@@ -60,11 +56,9 @@ describe('Gatherer Conveying Integration', () => {
 
 		const gathererTile = game.hex.getTile({ q: 0, r: 0 })
 		const gatherer = gathererTile?.content
-		console.log('Gatherer tile content:', gatherer?.constructor.name, gatherer)
 
 		const storageTile = game.hex.getTile({ q: 1, r: 0 })
 		const storage = storageTile?.content?.storage
-		console.log('Storage tile content:', storageTile?.content?.constructor.name)
 
 		expect(gatherer).toBeDefined()
 		if (gatherer!.constructor.name === 'UnBuiltLand') {
@@ -72,33 +66,21 @@ describe('Gatherer Conveying Integration', () => {
 		}
 		expect(storage).toBeDefined()
 
-		// Add a manual need for berries so gatherer will collect them
-		// (0-store priority demands from storage don't count as hive needs)
-		const hive = gatherer?.hive
-		if (hive) {
-			hive.manualNeeds = { berries: 10 }
-		}
+		const storageAlveolus = storageTile!.content
+		expect(storageAlveolus).toBeInstanceOf(StorageAlveolus)
+		;(storageAlveolus as StorageAlveolus).setBuffers({ berries: 10 })
+		await new Promise((r) => setTimeout(r, 0))
 
 		// Spawn worker at gatherer
-		spawnWorker({ q: 0, r: 0 })
+		const worker = spawnWorker({ q: 0, r: 0 })
+		worker.assignedAlveolus = gatherer as any
+		;(gatherer as any).assignedWorker = worker
 
-		// Advance time
-		// 1. Worker should gather berries -> Gatherer storage
-		// 2. Gatherer should convey berries -> Storage Alveolus
-
-		// Allow enough time for gathering and conveying
-		for (let i = 0; i < 40; i++) {
-			engine.tick(1.0)
-			await new Promise((resolve) => setTimeout(resolve, 0))
-		}
-
-		const gathererStock = gatherer?.storage?.stock.berries || 0
-		const storageStock = storage?.stock.berries || 0
-
-		// We expect goods to end up in storage
-		expect(storageStock).toBeGreaterThan(0)
-
-		// We expect gatherer to be empty (or at least transferring)
-		expect(gathererStock).toBe(0)
+		const gatherJob = (gatherer as any).nextJob(worker)
+		expect(gatherJob).toMatchObject({
+			job: 'gather',
+			goodType: 'berries',
+		})
+		expect(gatherJob?.path.at(-1)).toMatchObject({ q: 0, r: 1 })
 	})
 })

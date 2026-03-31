@@ -221,6 +221,9 @@ class FindFunctions {
 				// Must not be a project (construction site)
 				if (tile.content.project) return false
 
+				// Must not be residential zone (to prevent offload re-offer loop)
+				if (tile.zone === 'residential') return false
+
 				let score = 1 / (hex.looseGoods.getGoodsAt(coord).length + 1)
 
 				// Penalize current tile to encourage moving goods away (fixes infinite loop in offload)

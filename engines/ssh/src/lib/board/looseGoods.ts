@@ -9,6 +9,7 @@ import {
 } from 'ssh/storage/guard'
 import type { GoodType } from 'ssh/types'
 import { epsilon } from 'ssh/utils'
+import { axial } from 'ssh/utils/axial'
 import { AxialKeyMap } from 'ssh/utils/mem'
 import { axialDistance, type Position, type Positioned, toAxialCoord } from 'ssh/utils/position'
 import { goods } from '../../../assets/game-content'
@@ -50,25 +51,35 @@ export interface LooseGood {
 export class LooseGoods extends withTicked(GameObject) {
 	public readonly uid = 'loose-goods-manager'
 	public readonly goods = reactive(new AxialKeyMap<LooseGood[]>([], () => []))
+	private findGoodCoord(good: LooseGood) {
+		const target = unwrap(good)
+		for (const [coord, goods] of this.goods.entries()) {
+			if (goods.some((candidate) => unwrap(candidate) === target)) return coord
+		}
+		return undefined
+	}
 	add(pos: Positioned, goodType: GoodType, options: Partial<LooseGood> = {}) {
 		assert(
 			!('position' in options) ||
 				axialDistance(options.position!, toAxialCoord(pos)) < 0.5 + epsilon,
 			'`position` in options must be roughly the same as pos.position'
 		)
-		const coord = toAxialCoord(pos)
+		const coord = axial.round(toAxialCoord(pos))
 		const self = this
-		const hasSameIdentity = (candidate: LooseGood) => unwrap(candidate) === unwrap(good)
 		const good: LooseGood = reactive({
 			goodType,
 			position: 'position' in pos ? pos.position : pos,
 			available: true,
 			get isRemoved() {
-				const coord = toAxialCoord(this.position)
-				const goodsList = self.goods.get(coord) || []
-				return !goodsList.some(hasSameIdentity)
+				return self.findGoodCoord(good) === undefined
 			},
 			remove() {
+				if (this.isRemoved) {
+					console.error('LooseGood.remove called on already-removed object (isRemoved=true)', {
+						goodType: this.goodType,
+						available: this.available,
+					})
+				}
 				self.remove(this.position, good)
 			},
 			allocate: (reason: any): LooseGoodAllocation => {
@@ -100,9 +111,11 @@ export class LooseGoods extends withTicked(GameObject) {
 			return
 		}
 
-		const coord = toAxialCoord(pos)
-		const oldList = this.goods.get(coord)!
-		const newList = oldList.filter((g) => unwrap(g) !== unwrap(good))
+		const requestedCoord = axial.round(toAxialCoord(pos))
+		const hasSameIdentity = (candidate: LooseGood) => unwrap(candidate) === unwrap(good)
+		const coord = this.findGoodCoord(good) ?? requestedCoord
+		const oldList = this.goods.get(coord) || []
+		const newList = oldList.filter((g) => !hasSameIdentity(g))
 		assert(newList.length === oldList.length - 1, 'LooseGood not found')
 		if (newList.length) this.goods.set(coord, newList)
 		else this.goods.delete(coord)
@@ -111,7 +124,7 @@ export class LooseGoods extends withTicked(GameObject) {
 	}
 
 	getGoodsAt(coord: Positioned): LooseGood[] {
-		return this.goods.get(toAxialCoord(coord)) || []
+		return this.goods.get(axial.round(toAxialCoord(coord))) || []
 	}
 
 	findAndAllocate(
@@ -119,7 +132,7 @@ export class LooseGoods extends withTicked(GameObject) {
 		goodType?: GoodType,
 		reason?: any
 	): LooseGoodAllocation | null {
-		const goodsList = this.goods.get(toAxialCoord(coord))
+		const goodsList = this.goods.get(axial.round(toAxialCoord(coord)))
 		if (!goodsList) return null
 
 		// Find first available matching good

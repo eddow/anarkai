@@ -1,6 +1,6 @@
+import { effect } from 'mutts'
 import { Container, Sprite } from 'pixi.js'
 import type { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
-import { effect } from 'mutts'
 import { LCG, subSeed } from 'ssh/utils/numbers'
 import { toAxialCoord, toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
@@ -15,7 +15,7 @@ export class UnBuiltLandVisual extends VisualObject<UnBuiltLand> {
 	constructor(content: UnBuiltLand, renderer: PixiGameRenderer) {
 		super(content, renderer)
 		const scope = `unbuilt:${content.uid}`
-		this.view.name = scope
+		this.view.label = scope
 		// Ensure deposit visuals do not block mouse events
 		this.view.eventMode = 'none'
 		this.unbuiltContainer = setPixiName(new Container(), scopedPixiName(scope, 'deposits'))

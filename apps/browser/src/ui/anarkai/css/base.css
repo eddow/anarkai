@@ -1,0 +1,15 @@
+:where(*, *::before, *::after) {
+	box-sizing: border-box;
+}
+
+:where(button, input, select, textarea) {
+	font: inherit;
+}
+
+:where(img, svg) {
+	display: block;
+}
+
+:where(.ak-ui) {
+	color: var(--ak-text);
+}

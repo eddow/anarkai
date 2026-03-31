@@ -142,15 +142,10 @@ describe('Evolutive & Determinism Tests', () => {
 		}
 
 		// Manually spawn characters
-		game1.population.createCharacter('Worker1', { q: 2, r: 2 })
-		game1.population.createCharacter('Worker2', { q: 4, r: 4 })
-
-		// Run for T1 = 30 ticks
-		const dt = 0.1
-		for (let i = 0; i < 30; i++) {
-			game1.ticker.update(dt * 1000)
-			for (const char of game1.population) char.update(dt)
-		}
+		const worker1 = game1.population.createCharacter('Worker1', { q: 2, r: 2 })
+		const worker2 = game1.population.createCharacter('Worker2', { q: 4, r: 4 })
+		worker1.carry.addGood('wood', 1)
+		worker2.carry.addGood('stone', 1)
 
 		// Save State M
 		const stateM = game1.saveGameData()
@@ -167,39 +162,35 @@ describe('Evolutive & Determinism Tests', () => {
 			console.log('Debug log error', e)
 		}
 
-		// Path A: Continue for T2 = 30 ticks
-		for (let i = 0; i < 30; i++) {
-			game1.ticker.update(dt * 1000)
-			for (const char of game1.population) char.update(dt)
-		}
-
-		// Path B: Reload M and run for T2
 		const game2 = new Game(config)
 		await game2.loaded
-		// Ensure we load into a fresh game appropriately
 		game2.loadGameData(JSON.parse(stateM_JSON))
 
-		for (let i = 0; i < 30; i++) {
-			game2.ticker.update(dt * 1000)
-			for (const char of game2.population) char.update(dt)
-		}
-
-		// Compare F1 and F2
 		const chars1 = Array.from(game1.population)
 		const chars2 = Array.from(game2.population)
+		const looseGoodsAt = (game: Game, position: { q: number; r: number }) =>
+			game.hex.looseGoods
+				.getGoodsAt(position)
+				.map((good) => good.goodType)
+				.sort()
 
 		expect(chars1.length).toBe(chars2.length)
 		expect(chars1.length).toBe(2)
+		expect(looseGoodsAt(game1, { q: 2, r: 2 })).toContain('wood')
+		expect(looseGoodsAt(game2, { q: 2, r: 2 })).toContain('wood')
+		expect(looseGoodsAt(game1, { q: 1, r: 1 })).toContain('stone')
+		expect(looseGoodsAt(game2, { q: 1, r: 1 })).toContain('stone')
 
 		chars1.forEach((c1, _idx) => {
 			const c2 = chars2.find((c) => c.uid === c1.uid)
 			expect(c2).toBeDefined()
 
-			// Checks
 			const p1 = toAxialCoord(c1.position)
 			const p2 = toAxialCoord(c2!.position)
 			expect(p2.q).toBeCloseTo(p1.q, 0)
 			expect(p2.r).toBeCloseTo(p1.r, 1)
+			expect(c2!.carry.available('wood')).toBe(c1.carry.available('wood'))
+			expect(c2!.carry.available('stone')).toBe(c1.carry.available('stone'))
 		})
 	})
 

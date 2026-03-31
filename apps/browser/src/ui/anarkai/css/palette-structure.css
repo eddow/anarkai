@@ -1,0 +1,278 @@
+.palette-ide {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	min-height: 0;
+}
+
+.palette-ide-middle {
+	display: flex;
+	flex: 1 1 auto;
+	min-width: 0;
+	min-height: 0;
+}
+
+.palette-ide-center {
+	flex: 1 1 auto;
+	min-width: 0;
+	min-height: 0;
+}
+
+.toolbar-border {
+	display: flex;
+	min-width: 0;
+	min-height: 0;
+}
+
+.toolbar-border.stack-vertical,
+.palette-parking.stack-vertical {
+	flex-direction: column;
+}
+
+.toolbar-border.stack-horizontal,
+.palette-parking.stack-horizontal {
+	flex-direction: row;
+}
+
+.toolbar-track {
+	display: flex;
+	min-width: 0;
+	min-height: 0;
+}
+
+.toolbar-border.palette-horizontal > .toolbar-track {
+	flex-direction: row;
+	width: 100%;
+}
+
+.toolbar-border.palette-vertical > .toolbar-track {
+	flex-direction: column;
+	height: 100%;
+}
+
+.toolbar-track-slot {
+	display: flex;
+	min-width: 0;
+	min-height: 0;
+	flex: 0 0 auto;
+}
+
+.toolbar-track-space {
+	display: flex;
+	min-width: 0;
+	min-height: 0;
+	flex: 1 1 0;
+	flex-shrink: 1;
+	position: relative;
+	transition:
+		background 120ms ease,
+		box-shadow 120ms ease;
+}
+
+.toolbar-item-space {
+	display: flex;
+	min-width: 0;
+	min-height: 0;
+	flex: 0 0 auto;
+	position: relative;
+	transition:
+		background 120ms ease,
+		box-shadow 120ms ease,
+		min-inline-size 120ms ease,
+		min-block-size 120ms ease;
+}
+
+.toolbar-stack-space {
+	display: flex;
+	min-width: 0;
+	min-height: 0;
+	flex: 0 0 auto;
+	position: relative;
+	transition:
+		background 120ms ease,
+		box-shadow 120ms ease;
+}
+
+.toolbar-border.stack-vertical > .toolbar-stack-space,
+.palette-parking.stack-vertical > .toolbar-stack-space {
+	width: 100%;
+	min-block-size: 0;
+}
+
+.toolbar-border.stack-horizontal > .toolbar-stack-space,
+.palette-parking.stack-horizontal > .toolbar-stack-space {
+	height: 100%;
+	min-inline-size: 0;
+}
+
+.toolbar-track-space[data-active='true'] {
+	background: rgba(59, 130, 246, 0.16);
+	box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.55);
+}
+
+.toolbar-border.stack-vertical .toolbar-stack-space[data-proximity='true'],
+.toolbar-border.stack-vertical .toolbar-stack-space[data-active='true'],
+.palette-parking.stack-vertical .toolbar-stack-space[data-proximity='true'],
+.palette-parking.stack-vertical .toolbar-stack-space[data-active='true'] {
+	min-block-size: 8px;
+	background: rgba(59, 130, 246, 0.16);
+	box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.55);
+}
+
+.toolbar-border.stack-horizontal .toolbar-stack-space[data-proximity='true'],
+.toolbar-border.stack-horizontal .toolbar-stack-space[data-active='true'],
+.palette-parking.stack-horizontal .toolbar-stack-space[data-proximity='true'],
+.palette-parking.stack-horizontal .toolbar-stack-space[data-active='true'] {
+	min-inline-size: 8px;
+	background: rgba(59, 130, 246, 0.16);
+	box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.55);
+}
+
+.toolbar-border.palette-horizontal .toolbar-item-space,
+.palette-parking.palette-horizontal .toolbar-item-space {
+	align-self: stretch;
+}
+
+.toolbar-border.palette-vertical .toolbar-item-space,
+.palette-parking.palette-vertical .toolbar-item-space {
+	justify-self: stretch;
+}
+
+.toolbar-border.palette-horizontal .toolbar-item-space[data-proximity='true'],
+.toolbar-border.palette-horizontal .toolbar-item-space[data-active='true'],
+.palette-parking.palette-horizontal .toolbar-item-space[data-proximity='true'],
+.palette-parking.palette-horizontal .toolbar-item-space[data-active='true'] {
+	min-inline-size: 8px;
+	background: rgba(59, 130, 246, 0.16);
+	box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.55);
+}
+
+.toolbar-border.palette-vertical .toolbar-item-space[data-proximity='true'],
+.toolbar-border.palette-vertical .toolbar-item-space[data-active='true'],
+.palette-parking.palette-vertical .toolbar-item-space[data-proximity='true'],
+.palette-parking.palette-vertical .toolbar-item-space[data-active='true'] {
+	min-block-size: 8px;
+	background: rgba(59, 130, 246, 0.16);
+	box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.55);
+}
+
+.toolbar-border.palette-horizontal .toolbar-track-slot {
+	flex-direction: row;
+}
+
+.toolbar-border.palette-vertical .toolbar-track-slot {
+	flex-direction: column;
+}
+
+.toolbar-item {
+	position: relative;
+	display: flex;
+	min-width: 0;
+	min-height: 0;
+}
+
+.toolbar-item-guard {
+	position: absolute;
+	inset: -3px;
+	border-radius: 10px;
+	z-index: 1;
+	cursor: grab;
+	background: transparent;
+	transition:
+		background 120ms ease,
+		box-shadow 120ms ease,
+		border-radius 120ms ease;
+}
+
+.toolbar {
+	display: flex;
+	min-width: 0;
+	min-height: 0;
+	position: relative;
+	transition:
+		opacity 120ms ease,
+		box-shadow 120ms ease;
+}
+
+.toolbar::before {
+	content: '';
+	position: absolute;
+	inset: -6px;
+	border-radius: 14px;
+	opacity: 0;
+	pointer-events: none;
+	background: rgba(96, 165, 250, 0.08);
+	box-shadow:
+		0 0 0 1px rgba(147, 197, 253, 0.26),
+		0 0 0 4px rgba(96, 165, 250, 0.14);
+	transition:
+		opacity 120ms ease,
+		background-color 120ms ease,
+		box-shadow 120ms ease;
+}
+
+.toolbar[data-editing='true'] {
+	cursor: grab;
+}
+
+.toolbar[data-dragging='true'] {
+	opacity: 0.82;
+	cursor: grabbing;
+	box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.55);
+	pointer-events: none;
+}
+
+.toolbar[data-dragging='true'] * {
+	pointer-events: none;
+}
+
+.toolbar-border.palette-horizontal .toolbar,
+.palette-parking.palette-horizontal .toolbar {
+	flex-direction: row;
+	align-items: center;
+}
+
+.toolbar-border.palette-vertical .toolbar,
+.palette-parking.palette-vertical .toolbar {
+	flex-direction: column;
+	align-items: stretch;
+}
+
+.palette-parking-row {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	min-width: 0;
+	width: 100%;
+}
+
+.palette-parking-row > .toolbar {
+	min-width: 0;
+	flex: 1 1 auto;
+}
+
+.palette-parking-remove {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	inline-size: 1.5rem;
+	block-size: 1.5rem;
+	padding: 0;
+	border: 1px solid rgba(148, 163, 184, 0.38);
+	border-radius: 999px;
+	background: rgba(15, 23, 42, 0.72);
+	color: rgba(226, 232, 240, 0.92);
+	cursor: pointer;
+	flex: 0 0 auto;
+	line-height: 1;
+	transition:
+		border-color 120ms ease,
+		background 120ms ease,
+		color 120ms ease;
+}
+
+.palette-parking-remove:hover {
+	border-color: rgba(96, 165, 250, 0.9);
+	background: rgba(29, 78, 216, 0.9);
+	color: #eff6ff;
+}

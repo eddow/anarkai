@@ -1,5 +1,5 @@
 import { css } from '@app/lib/css'
-import { Button } from '@sursaut'
+import { Button } from '@app/ui/anarkai'
 import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
 import { reactive } from 'mutts'
 import type { Game } from 'ssh/game'
@@ -23,7 +23,7 @@ css`
 .floating-menu {
 	position: fixed;
 	background: var(--app-bg);
-	border: 1px solid var(--pico-muted-border-color);
+	border: 1px solid var(--ak-border);
 	box-shadow: 0 4px 6px rgba(0,0,0,0.3);
 	min-width: 120px;
 	max-height: 200px;
@@ -45,7 +45,7 @@ css`
 .menu-empty {
 	padding: 0.5rem;
 	font-size: 0.8rem;
-	color: var(--pico-muted-color);
+	color: var(--ak-text-muted);
 }
 `
 
@@ -90,7 +90,7 @@ export default function AddGoodButton(props: AddGoodButtonProps) {
 				buttonWrapper = el
 			}}
 		>
-			<Button onClick={openMenu} title={props.title || 'Add'}>
+			<Button onClick={openMenu} el:title={props.title || 'Add'}>
 				{props.children || '+'}
 			</Button>
 

@@ -4,11 +4,6 @@
 	--app-surface: rgba(15, 23, 42, 0.05);
 	--app-border: rgba(15, 23, 42, 0.12);
 	--app-text: #0f172a;
-	--toolbar-bg: rgba(15, 23, 42, 0.06);
-	--toolbar-border: rgba(15, 23, 42, 0.15);
-	--toolbar-active: rgba(37, 99, 235, 0.18);
-	--toolbar-active-border: rgba(37, 99, 235, 0.45);
-	--toolbar-text: #0f172a;
 }
 
 [data-theme="dark"] {
@@ -17,11 +12,6 @@
 	--app-surface: rgba(148, 163, 184, 0.12);
 	--app-border: rgba(148, 163, 184, 0.25);
 	--app-text: #e2e8f0;
-	--toolbar-bg: rgba(30, 41, 59, 0.6);
-	--toolbar-border: rgba(148, 163, 184, 0.25);
-	--toolbar-active: rgba(96, 165, 250, 0.4);
-	--toolbar-active-border: rgba(147, 197, 253, 0.7);
-	--toolbar-text: #e2e8f0;
 }
 
 body {
@@ -29,118 +19,6 @@ body {
 	min-height: 100vh;
 	overflow: hidden;
 	font-family: "Inter", "Segoe UI", sans-serif;
-	background:
-		radial-gradient(circle at top, rgba(37, 99, 235, 0.08), transparent 55%),
-		var(--app-bg);
-	color: var(--app-text);
-}
-
-.app-toolbar {
-	padding: 0.2rem 0.35rem !important;
-	gap: 0.3rem !important;
-	min-height: 0;
-	background: var(--toolbar-bg);
-	border-bottom: 1px solid var(--toolbar-border);
-	box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.06);
-	backdrop-filter: blur(10px);
-	color: var(--toolbar-text);
-	overflow-x: auto;
-	overflow-y: hidden;
-	scrollbar-width: thin;
-}
-
-.app-toolbar [role="group"] {
-	display: inline-flex;
-	align-items: center;
-	gap: 0.15rem;
-	margin: 0;
-	flex-wrap: nowrap;
-}
-
-.app-toolbar button {
-	min-width: 2rem;
-	min-height: 2rem;
-	height: 2rem;
-	padding: 0.2rem !important;
-	margin: 0 !important;
-	border: 1px solid var(--toolbar-border);
-	border-radius: 0.2rem;
-	background: linear-gradient(
-		180deg,
-		rgba(255, 255, 255, 0.08),
-		rgba(15, 23, 42, 0.06)
-	);
-	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
-	color: var(--toolbar-text);
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	line-height: 1;
-	vertical-align: middle;
-}
-
-.app-toolbar button:hover {
-	background: linear-gradient(
-		180deg,
-		rgba(255, 255, 255, 0.14),
-		rgba(15, 23, 42, 0.12)
-	);
-	border-color: color-mix(in srgb, var(--toolbar-border) 55%, white);
-}
-
-.app-toolbar button[role="radio"][aria-checked="true"] {
-	background: linear-gradient(
-		180deg,
-		color-mix(in srgb, var(--toolbar-active) 88%, white 12%),
-		var(--toolbar-active)
-	);
-	border-color: var(--toolbar-active-border);
-	box-shadow:
-		inset 0 1px 0 rgba(255, 255, 255, 0.24),
-		0 0 0 1px var(--toolbar-active-border);
-	color: var(--pico-primary-inverse);
-}
-
-.app-toolbar button[aria-pressed="true"],
-.app-toolbar button[role="radio"][aria-checked="true"],
-.app-toolbar button:active,
-.app-toolbar button:focus-visible {
-	background: var(--toolbar-active);
-	border-color: var(--toolbar-active-border);
-	box-shadow:
-		inset 0 1px 0 rgba(255, 255, 255, 0.2),
-		0 0 0 1px var(--toolbar-active-border);
-	outline: none;
-}
-
-.app-toolbar-icon {
-	font-size: 1rem;
-	width: 1rem;
-	height: 1rem;
-	flex: 0 0 auto;
-	pointer-events: none;
-}
-
-.app-toolbar .ssh-resource-image {
-	width: 1.2rem;
-	height: 1.2rem;
-	flex: 0 0 auto;
-	pointer-events: none;
-}
-
-.app-toolbar-clock {
-	display: inline-flex;
-	align-items: center;
-	height: 2rem;
-	padding: 0 0.45rem;
-	border: 1px solid var(--toolbar-border);
-	border-radius: 0.2rem;
-	background: rgba(15, 23, 42, 0.08);
-	font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
-	font-size: 0.82rem;
-	font-weight: 700;
-	letter-spacing: 0.04em;
-	white-space: nowrap;
 }
 
 .app-shell {
@@ -150,6 +28,18 @@ body {
 	gap: 0;
 	padding: 0;
 	box-sizing: border-box;
+	background:
+		radial-gradient(circle at top, rgba(37, 99, 235, 0.08), transparent 55%),
+		var(--app-bg);
+	color: var(--app-text);
+}
+
+.app-palette-wrap {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+	position: relative;
 }
 
 .app-main {
@@ -161,119 +51,9 @@ body {
 	position: relative;
 }
 
-.dockview-container {
-	height: 100%;
-	width: 100%;
-	position: absolute;
-	inset: 0;
-}
-
-.sursaut-dv-item.body {
-	width: 100%;
-	height: 100%;
-	min-width: 0;
-	min-height: 0;
-	display: flex;
-	flex: 1 1 auto;
-}
-
-.sursaut-dv-item.body > * {
-	flex: 1 1 auto;
-	min-width: 0;
-	min-height: 0;
-}
-
 .ssh-resource-image {
 	display: inline-block;
 	background-repeat: no-repeat;
 	image-rendering: pixelated;
 }
 
-.badge {
-	display: inline-flex;
-	align-items: center;
-	padding: 0.25rem 0.5rem;
-	border-radius: 0.25rem;
-	font-size: 0.875rem;
-	font-weight: 500;
-}
-
-.badge-yellow {
-	background-color: rgb(254 240 138);
-	color: rgb(113 63 18);
-}
-
-[data-theme="dark"] .badge-yellow {
-	background-color: rgb(113 63 18);
-	color: rgb(254 240 138);
-}
-
-.badge-red {
-	background-color: rgb(254 202 202);
-	color: rgb(127 29 29);
-}
-
-[data-theme="dark"] .badge-red {
-	background-color: rgb(127 29 29);
-	color: rgb(254 202 202);
-}
-
-.badge-blue {
-	background-color: rgb(191 219 254);
-	color: rgb(30 58 138);
-}
-
-[data-theme="dark"] .badge-blue {
-	background-color: rgb(30 58 138);
-	color: rgb(191 219 254);
-}
-
-.badge-gray {
-	background-color: rgb(229 231 235);
-	color: rgb(55 65 81);
-}
-
-[data-theme="dark"] .badge-gray {
-	background-color: rgb(55 65 81);
-	color: rgb(229 231 235);
-}
-
-.badge-green {
-	background-color: rgb(187 247 208);
-	color: rgb(20 83 45);
-}
-
-[data-theme="dark"] .badge-green {
-	background-color: rgb(20 83 45);
-	color: rgb(187 247 208);
-}
-
-.badge-purple {
-	background-color: rgb(221 214 254);
-	color: rgb(88 28 135);
-}
-
-[data-theme="dark"] .badge-purple {
-	background-color: rgb(88 28 135);
-	color: rgb(221 214 254);
-}
-
-.badge-indigo {
-	background-color: rgb(199 210 254);
-	color: rgb(55 48 163);
-}
-
-[data-theme="dark"] .badge-indigo {
-	background-color: rgb(55 48 163);
-	color: rgb(199 210 254);
-}
-
-.badge-pink {
-	background-color: rgb(251 207 232);
-	color: rgb(131 24 67);
-}
-
-[data-theme="dark"] .badge-pink {
-	background-color: rgb(131 24 67);
-	color: rgb(251 207 232);
-}

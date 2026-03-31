@@ -37,7 +37,7 @@ css`
   .stat-progress-bar__track {
     width: 100%;
     height: 100%;
-    background-color: var(--pico-secondary-background);
+    background-color: var(--ak-surface-1);
     border-radius: 4px;
     overflow: hidden;
   }
@@ -66,7 +66,7 @@ css`
 
 interface StatProgressBarProps {
 	value: number
-	levels: {
+	levels?: {
 		critical: number
 		high: number
 		satisfied: number
@@ -76,14 +76,15 @@ interface StatProgressBarProps {
 }
 
 const StatProgressBar = (props: StatProgressBarProps) => {
+	const levels = () => props.levels ?? { critical: 100, high: 66, satisfied: 33 }
 	const computed = {
 		get percentage() {
-			return Math.min(100, Math.max(0, Math.floor((100 * props.value) / props.levels.critical)))
+			return Math.min(100, Math.max(0, Math.floor((100 * props.value) / levels().critical)))
 		},
 		get colorClass() {
-			if (props.value < props.levels.satisfied) return 'green'
-			if (props.value < props.levels.high) return 'yellow'
-			if (props.value < props.levels.critical) return 'orange'
+			if (props.value < levels().satisfied) return 'green'
+			if (props.value < levels().high) return 'yellow'
+			if (props.value < levels().critical) return 'orange'
 			return 'red'
 		},
 	}
@@ -92,7 +93,9 @@ const StatProgressBar = (props: StatProgressBarProps) => {
 		<div class="stat-progress-bar">
 			<div class="stat-progress-bar__header">
 				<span class="stat-progress-bar__label">{props.label}</span>
-				<span if={props.showValue} class="stat-progress-bar__value">{computed.percentage}%</span>
+				<span if={props.showValue} class="stat-progress-bar__value">
+					{computed.percentage}%
+				</span>
 			</div>
 			<div class="stat-progress-bar__track">
 				<div

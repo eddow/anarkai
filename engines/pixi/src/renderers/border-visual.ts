@@ -1,7 +1,7 @@
+import { effect } from 'mutts'
 import { Container, Graphics } from 'pixi.js'
 import { AlveolusGate } from 'ssh/board/border/alveolus-gate'
 import type { TileBorder } from 'ssh/board/border/border'
-import { effect } from 'mutts'
 import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
 import { scopedPixiName, setPixiName } from '../debug-names'
@@ -16,7 +16,7 @@ export class BorderVisual extends VisualObject<TileBorder> {
 	constructor(border: TileBorder, renderer: PixiGameRenderer) {
 		super(border, renderer)
 		const scope = `border:${border.uid}`
-		this.view.name = scope
+		this.view.label = scope
 		this.gateGraphics = setPixiName(new Graphics(), scopedPixiName(scope, 'gate'))
 		this.goodsContainer = setPixiName(new Container(), scopedPixiName(scope, 'goods'))
 

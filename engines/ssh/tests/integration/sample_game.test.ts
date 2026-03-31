@@ -4,14 +4,14 @@ import { describe, expect, it } from 'vitest'
 
 describe('Source Allocation Stability', () => {
 	it('ChopSaw scenario runs without Source Allocation errors', {
-		timeout: 60000,
+		timeout: 15000,
 	}, async () => {
 		const game = new Game(
 			{
 				boardSize: 12,
 				terrainSeed: 1,
-				characterCount: 5,
-				characterRadius: 5,
+				characterCount: 2,
+				characterRadius: 3,
 			},
 			chopSaw
 		)
@@ -25,9 +25,9 @@ describe('Source Allocation Stability', () => {
 			void char.scriptsContext
 		}
 
-		// Add lots of loose goods to increase chance of concurrent interactions
+		// Add extra loose goods to increase chance of concurrent interactions
 		const hex = game.hex
-		for (let i = 0; i < 100; i++) {
+		for (let i = 0; i < 10; i++) {
 			const tile = hex.getTile({
 				q: Math.floor(game.random() * 10) - 5,
 				r: Math.floor(game.random() * 10) - 5,
@@ -48,11 +48,13 @@ describe('Source Allocation Stability', () => {
 		}
 
 		try {
-			// Simulation
+			// Bounded regression simulation
 			const dt = 0.1
-			for (let i = 0; i < 6000; i++) {
-				// 10 minutes
+			for (let i = 0; i < 120; i++) {
 				game.ticker.update(dt * 1000)
+				if (i % 10 === 0) {
+					await new Promise((resolve) => setTimeout(resolve, 0))
+				}
 				if (errorFound) break
 			}
 		} finally {

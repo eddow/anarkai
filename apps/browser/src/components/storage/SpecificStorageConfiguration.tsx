@@ -1,5 +1,6 @@
 import { css } from '@app/lib/css'
-import { Stars } from '@sursaut'
+import { Stars } from '@app/ui/anarkai'
+import type { StarsValue } from '@sursaut/ui/models'
 import { goods as visualGoods } from 'engine-pixi/assets/visual-content'
 import type { Game } from 'ssh/game'
 import type { GoodType } from 'ssh/types/base'
@@ -28,7 +29,7 @@ css`
 
 .buffer-quantity {
 	font-size: 0.75rem;
-	color: var(--pico-muted-color);
+	color: var(--ak-text-muted);
     min-width: 3rem;
     text-align: right;
 }
@@ -76,6 +77,7 @@ export default function SpecificStorageConfiguration(props: SpecificStorageConfi
 
 	const setBufferFromStars = (goodType: GoodType, stars: number) => {
 		if (!props.configuration) return
+		const liveBuffers = props.configuration.buffers ?? (props.configuration.buffers = {})
 
 		let newVal = 0
 		if (stars > 0) {
@@ -89,9 +91,9 @@ export default function SpecificStorageConfiguration(props: SpecificStorageConfi
 		}
 
 		if (newVal <= 0) {
-			delete props.configuration.buffers[goodType]
+			delete liveBuffers[goodType]
 		} else {
-			props.configuration.buffers[goodType] = newVal
+			liveBuffers[goodType] = newVal
 		}
 	}
 
@@ -117,7 +119,7 @@ export default function SpecificStorageConfiguration(props: SpecificStorageConfi
 										<Stars
 											maximum={maxStars}
 											value={getBufferStars(good)}
-											onChange={(v: number | [number, number]) =>
+											onChange={(v: StarsValue) =>
 												setBufferFromStars(good, typeof v === 'number' ? v : v[1])
 											}
 											size="1rem"

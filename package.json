@@ -5,6 +5,9 @@
   "scripts": {
     "dev:browser": "pnpm --filter ssh-browser dev",
     "build": "pnpm -r build",
+    "typecheck": "pnpm -r check",
+    "typecheck:ssh": "pnpm --filter ssh check",
+    "typecheck:pixi": "pnpm --filter engine-pixi check",
     "test": "pnpm -r test",
     "biome": "biome check .",
     "biome:fix": "biome check --write .",
@@ -13,11 +16,11 @@
     "ownk:test:watch": "./scripts/ownk-test-watch.sh --watch",
     "clean:cache": "(pkill -f 'v[i]test' || true) && find . -type d -name \".vite\" -prune -exec rm -rf {} +"
   },
-  "packageManager": "pnpm@10.7.1+sha512.2d92c86b7928dc8284f53494fb4201f983da65f0fb4f0d40baafa5cf628fa31dae3e5968f12466f17df7e97310e30f343a648baea1b9b350685dafafffdf5808",
+  "packageManager": "pnpm@10.33.0",
   "devDependencies": {
-    "@biomejs/biome": "^2.4.6",
     "@babel/plugin-proposal-decorators": "^7.28.0",
     "@babel/plugin-transform-typescript": "^7.28.0",
+    "@biomejs/biome": "^2.4.6",
     "vitest": "^3.2.4"
   },
   "pnpm": {

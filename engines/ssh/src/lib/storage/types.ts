@@ -1,7 +1,8 @@
 import type { GoodType } from 'ssh/types/base'
 
 export interface RenderedGoodSlot {
-	goodType: GoodType
+	/** Omitted when the physical slot is empty (unused capacity). */
+	goodType?: GoodType
 	present: number
 	reserved: number
 	allocated: number

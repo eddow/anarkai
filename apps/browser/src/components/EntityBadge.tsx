@@ -8,15 +8,15 @@ css`
 	align-items: center;
 	gap: 0.25rem;
 	padding: 0.25rem 0.5rem;
-	border: 1px solid var(--pico-border-color);
-	border-radius: var(--pico-border-radius);
-	background-color: var(--pico-card-background-color);
+	border: 1px solid var(--ak-border);
+	border-radius: var(--ak-radius-sm);
+	background-color: color-mix(in srgb, var(--ak-surface-panel) 92%, transparent);
 }
 
 .entity-badge__qty {
 	font-size: 0.875rem;
 	font-weight: 600;
-	color: var(--pico-color);
+	color: var(--ak-text);
 }
 `
 
@@ -31,8 +31,15 @@ interface EntityBadgeProps {
 const EntityBadge = (props: EntityBadgeProps) => {
 	return (
 		<div class="entity-badge">
-			<ResourceImage game={props.game} sprite={props.sprite} height={props.height ?? 20} alt={props.text} />
-			<span if={props.qty} class="entity-badge__qty">×{props.qty}</span>
+			<ResourceImage
+				game={props.game}
+				sprite={props.sprite}
+				height={props.height ?? 20}
+				alt={props.text}
+			/>
+			<span if={props.qty} class="entity-badge__qty">
+				×{props.qty}
+			</span>
 		</div>
 	)
 }

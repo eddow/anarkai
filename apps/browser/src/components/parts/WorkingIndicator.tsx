@@ -9,7 +9,7 @@ css`
     width: 2.5rem;
     height: 2.5rem;
     padding: 0;
-    border: 1px solid var(--pico-muted-border-color);
+    border: 1px solid var(--ak-border);
     border-radius: 50%;
     background: var(--app-surface-tint, transparent);
     cursor: pointer;
@@ -17,7 +17,7 @@ css`
 }
 
 .working-indicator:hover {
-    background: var(--pico-secondary-hover-background);
+    background: var(--ak-surface-1);
     transform: scale(1.05);
 }
 
@@ -28,7 +28,7 @@ css`
 
 .working-indicator .gear-icon {
     font-size: 1.5rem;
-    color: var(--pico-primary, #3b82f6);
+    color: var(--ak-accent);
     transition: color 0.3s, transform 0.5s;
     /* Ensure iconify icon inside scales */
     width: 1.5rem;
@@ -36,7 +36,7 @@ css`
 }
 
 .working-indicator.not-working .gear-icon {
-    color: var(--pico-muted-color, #94a3b8);
+    color: var(--ak-text-muted);
     filter: grayscale(1);
 }
 
@@ -55,7 +55,7 @@ css`
     right: -2px;
     font-size: 1rem;
     /* In browser-vue, background uses variable, falling back to white. */
-    background: var(--pico-background-color, #fff);
+    background: var(--ak-surface-0);
     border-radius: 50%;
     padding: 1px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.2);

@@ -22,7 +22,7 @@ describe('Buffering Logic', () => {
 							{
 								coord: [0, 0],
 								alveolus: 'woodpile', // Should map to StorageAlveolus now
-								goods: { wood: 72 },
+								goods: { wood: 24 },
 							},
 							{
 								coord: [1, 0],
@@ -50,11 +50,11 @@ describe('Buffering Logic', () => {
 		expect(woodpileB).toBeInstanceOf(StorageAlveolus)
 		expect(woodpileA.storage).toBeInstanceOf(SpecificStorage)
 
-		expect(woodpileA.storage.stock.wood).toBe(72)
+		expect(woodpileA.storage.stock.wood).toBe(24)
 		expect(woodpileB.storage.stock.wood).toBeUndefined()
 
-		// Configure Buffer on B: demand 72 wood (Full buffer)
-		woodpileB.storageBuffers = { wood: 72 }
+		// Configure Buffer on B: demand full woodpile capacity
+		woodpileB.storageBuffers = { wood: 24 }
 
 		// Initialize scripts context for population
 		for (const char of game.population) {
@@ -75,7 +75,7 @@ describe('Buffering Logic', () => {
 
 				// If we moved some wood, success basically.
 				// We want to see if A decreased.
-				if ((woodpileA.storage.stock.wood || 0) < 72) {
+				if ((woodpileA.storage.stock.wood || 0) < 24) {
 					break
 				}
 			}
@@ -83,6 +83,6 @@ describe('Buffering Logic', () => {
 
 		expect(woodMoved).toBe(true)
 		expect(woodpileB.storage.stock.wood).toBeGreaterThan(0)
-		expect(woodpileA.storage.stock.wood).toBeLessThan(72)
+		expect(woodpileA.storage.stock.wood).toBeLessThan(24)
 	})
 })

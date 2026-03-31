@@ -1,4 +1,4 @@
-import { memoize, reactive } from 'mutts'
+import { inert, reactive } from 'mutts'
 import { GameObject, withInteractive } from 'ssh/game/object'
 import { Hive } from 'ssh/hive'
 import { gameIsaTypes } from 'ssh/npcs/utils'
@@ -19,7 +19,6 @@ export class Tile extends withInteractive(GameObject) {
 	// True when the tile is exactly as produced by generation
 	public asGenerated: boolean = false
 
-	@memoize
 	get content(): TileContent | undefined {
 		return this.board.getTileContent(toAxialCoord(this.position))
 	}
@@ -63,22 +62,32 @@ export class Tile extends withInteractive(GameObject) {
 
 	// Tile-level job offering
 	getJob(character?: Character): Job | undefined {
-		// Check if UnBuiltLand has a project-related job (clearing for construction)
-		if (this.content instanceof UnBuiltLand) {
-			const unbuiltJob = this.content.getJob()
-			if (unbuiltJob) return unbuiltJob
-		}
+		return inert(() => {
+			// Check if UnBuiltLand has a project-related job (clearing for construction)
+			if (this.content instanceof UnBuiltLand) {
+				const unbuiltJob = this.content.getJob()
+				if (unbuiltJob) return unbuiltJob
+			}
 
-		// Offload if there are loose goods on tile and it's a residential zone or alveolus tile
-		// Note: harvest zones do NOT trigger offload (goods can be dropped there)
-		// Cache the expensive computation during pathfinding
-		const hasLooseGoods = this.availableGoods.length > 0
-		const isResidentialOrAlveolus = this.zone === 'residential' || this.content instanceof Alveolus
-		if (hasLooseGoods && isResidentialOrAlveolus) {
-			return { job: 'offload', fatigue: 1, urgency: 10 }
-		}
-		// Otherwise delegate to alveolus if present
-		if (this.content instanceof Alveolus) return this.content.getJob(character)
+			// Offload if there are loose goods on tile and it's a residential zone or alveolus tile
+			// Note: harvest zones do NOT trigger offload (goods can be dropped there)
+			// Cache the expensive computation during pathfinding
+			const hasLooseGoods = this.availableGoods.length > 0
+			if (hasLooseGoods && this.zone === 'residential') {
+				const looseGood = this.availableGoods.find(
+					(good) => !character || character.carry.hasRoom(good.goodType) > 0
+				)
+				if (!looseGood) return undefined
+				return {
+					job: 'offload',
+					fatigue: 1,
+					urgency: 1.25,
+					looseGood,
+				}
+			}
+			// Otherwise delegate to alveolus if present
+			if (this.content instanceof Alveolus) return this.content.getJob(character)
+		})
 	}
 
 	// Zone getter/setter
@@ -94,7 +103,6 @@ export class Tile extends withInteractive(GameObject) {
 		}
 	}
 
-	@memoize
 	get clearing(): boolean {
 		return (
 			![undefined, 'harvest'].includes(this.zone) ||
@@ -163,7 +171,6 @@ export class Tile extends withInteractive(GameObject) {
 		const coord = axial.linear([0.5, thisCoord], [0.5, otherCoord])
 		return this.board.getBorder(coord)
 	}
-	@memoize
 	get neighborTiles(): Tile[] {
 		return axial
 			.neighbors(toAxialCoord(this.position))
@@ -171,7 +178,7 @@ export class Tile extends withInteractive(GameObject) {
 			.filter((tile): tile is Tile => tile !== undefined)
 	}
 
-	// @memoize
+	// TODO: @memoize
 	get walkNeighbors(): NeighborInfo[] {
 		const coord = toAxialCoord(this.position)
 		const neighbors = axial.neighbors(coord)
@@ -189,13 +196,11 @@ export class Tile extends withInteractive(GameObject) {
 	}
 
 	// REHABILITATED MEMOIZE
-	@memoize
 	get looseGoods(): LooseGood[] {
 		return this.board.looseGoods.getGoodsAt(this.position)
 	}
 
 	// REHABILITATED MEMOIZE
-	@memoize
 	get availableGoods(): LooseGood[] {
 		return this.looseGoods.filter((g) => g.available)
 	}

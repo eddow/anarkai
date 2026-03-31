@@ -1,8 +1,8 @@
+import { effect } from 'mutts'
 import { ColorMatrixFilter, Container, Graphics, Point, TilingSprite } from 'pixi.js'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
-import { effect } from 'mutts'
 import { interactionMode, mrg } from 'ssh/interactive-state'
 import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
@@ -27,7 +27,7 @@ export class TileVisual extends VisualObject<Tile> {
 		super(tile, renderer)
 		const scope = `tile:${tile.uid}`
 
-		this.view.name = scope
+		this.view.label = scope
 		this.tileContainer = setPixiName(new Container(), scopedPixiName(scope, 'container'))
 		this.view.addChild(this.tileContainer)
 

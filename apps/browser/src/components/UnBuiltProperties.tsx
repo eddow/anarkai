@@ -1,4 +1,6 @@
 import { css } from '@app/lib/css'
+import { Badge } from '@app/ui/anarkai'
+import { deposits as visualDeposits } from 'engine-pixi/assets/visual-content'
 import { effect, reactive } from 'mutts'
 import type { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { i18nState } from 'ssh/i18n'
@@ -36,11 +38,12 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 
 	effect`unbuilt-properties:deposit`(() => {
 		const deposit = props.content?.deposit
+		const name = deposit ? ((deposit.constructor as { key?: string }).key ?? deposit.constructor.name) : ''
 		state.deposit = deposit
 			? {
-					title: deposit.title,
-					cost: deposit.cost,
-					progress: deposit.progress,
+					sprites: visualDeposits[name as keyof typeof visualDeposits]?.sprites ?? [],
+					name,
+					amount: deposit.amount,
 				}
 			: undefined
 	})
@@ -55,15 +58,17 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 			{state.projectData ? (
 				<PropertyGridRow label={String(i18nState.translator?.project ?? '')}>
 					<div class="unbuilt-project">
-						<span class="badge badge-blue">
+						<Badge tone="blue">
 							{state.projectData.name
 								? String(
-										i18nState.translator?.alveoli?.[state.projectData.name as keyof typeof i18nState.translator.alveoli] ?? ''
+										i18nState.translator?.alveoli?.[
+											state.projectData.name as keyof typeof i18nState.translator.alveoli
+										] ?? ''
 									)
 								: state.projectData.project}
-						</span>
+						</Badge>
 						{!props.content?.tile?.isClear ? (
-							<span class="badge badge-yellow">{String(i18nState.translator?.clearing ?? '')}</span>
+							<Badge tone="yellow">{String(i18nState.translator?.clearing ?? '')}</Badge>
 						) : null}
 					</div>
 				</PropertyGridRow>
@@ -78,7 +83,9 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 						height={16}
 						sprite={state.deposit.sprites[0]}
 						text={String(
-							i18nState.translator?.deposits?.[state.deposit.name as keyof typeof i18nState.translator.deposits] ?? ''
+							i18nState.translator?.deposits?.[
+								state.deposit.name as keyof typeof i18nState.translator.deposits
+							] ?? ''
 						)}
 						qty={state.deposit.amount}
 					/>

@@ -1,12 +1,9 @@
 /**
  * Diagnostic test: proves and characterises the reactive planner loop.
  *
- * Hypothesis:
- *   gather.goodsRelations <- workingGoodsRelations <- storage.availables
- *   storage.availables depends on _reserved (memoized)
- *   createMovement calls reserve() -> mutates slot.reserved -> invalidates availables
- *   -> goodsRelations changes -> advertise effect re-runs -> advertise() -> selectMovement()
- *   -> queueMicrotask(createMovement) -> reserve() -> ... infinite loop
+ * gather.goodsRelations <- workingGoodsRelations <- storage.availables
+ * SlottedStorage tracks `slot.reserved` / `slot.allocated` reactively so availables and
+ * allocatedSlots update without manual version counters.
  */
 
 import { effect, getActivationLog, reactiveOptions, reset } from 'mutts'
@@ -192,9 +189,9 @@ describe('Planner loop diagnostic', () => {
 	})
 
 	/**
-	 * Test 6: Verify slot.reserved is NOT reactive (does not trigger effects when written)
+	 * Test 6: slot.reserved is reactive (SlottedStorage.availables / goodsRelations depend on it)
 	 */
-	it('slot.reserved writes should NOT trigger reactive effects', async () => {
+	it('slot.reserved writes should trigger reactive effects', async () => {
 		const { gather } = await setupHive()
 		gather.storage!.addGood('wood', 3)
 		await new Promise((r) => setTimeout(r, 10))
@@ -211,19 +208,18 @@ describe('Planner loop diagnostic', () => {
 		// effect fires once on setup
 		expect(effectFired).toBe(1)
 
-		// Now write to slot.reserved — should NOT re-fire effect
 		slot.reserved += 1
 		await new Promise((r) => setTimeout(r, 0))
 		console.log('Effect fires after slot.reserved write:', effectFired)
-		expect(effectFired).toBe(1) // unchanged
+		expect(effectFired).toBe(2)
 
 		cleanup()
 	})
 
 	/**
-	 * Test 7: Verify slot.allocated is NOT reactive (SlottedStorage)
+	 * Test 7: slot.allocated is reactive (SlottedStorage.allocatedSlots depends on it)
 	 */
-	it('slot.allocated writes should NOT trigger reactive effects', async () => {
+	it('slot.allocated writes should trigger reactive effects', async () => {
 		const { gather } = await setupHive()
 		// gather uses SlottedStorage
 		const storage = gather.storage as SlottedStorage
@@ -244,7 +240,7 @@ describe('Planner loop diagnostic', () => {
 		slot.allocated += 1
 		await new Promise((r) => setTimeout(r, 0))
 		console.log('Effect fires after slot.allocated write:', effectFired)
-		expect(effectFired).toBe(1)
+		expect(effectFired).toBe(2)
 
 		cleanup()
 		token.cancel()
@@ -280,10 +276,6 @@ describe('Planner loop diagnostic', () => {
 
 		// Seed gatherer with wood
 		gather.storage!.addGood('wood', 5)
-		await new Promise((r) => setTimeout(r, 0))
-
-		// Set manual needs to trigger movement planning
-		gather.hive!.manualNeeds = { wood: 50 }
 		await new Promise((r) => setTimeout(r, 0))
 
 		// Spawn a worker at the gatherer

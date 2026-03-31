@@ -1,4 +1,5 @@
 import { css } from '@app/lib/css'
+import { Badge, InspectorSection } from '@app/ui/anarkai'
 import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content'
 import { effect, reactive } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
@@ -106,9 +107,11 @@ const TileProperties = (props: TilePropertiesProps) => {
 				await props.tile?.board?.game?.loaded
 				if (!props.tile?.board?.game) return
 				const texture = props.tile?.board?.game?.getTexture(`terrain.${state.contentInfo?.terrain}`)
-				state.terrainBackgroundStyle = texture ? computeStyleFromTexture(texture, {
-					backgroundRepeat: 'repeat',
-				}) : ''
+				state.terrainBackgroundStyle = texture
+					? computeStyleFromTexture(texture, {
+							backgroundRepeat: 'repeat',
+						})
+					: ''
 			})()
 		} else {
 			state.terrainBackgroundStyle = ''
@@ -132,20 +135,18 @@ const TileProperties = (props: TilePropertiesProps) => {
 				</div>
 			)}
 
-			<div class="tile-properties__content">
+			<InspectorSection class="tile-properties__content">
 				<PropertyGrid>
 					<PropertyGridRow label={String(i18nState.translator?.tile.walkTime ?? '')}>
-						<span
-							class={`badge ${
-								state.tileContent?.walkTime === Number.POSITIVE_INFINITY
-									? 'badge-red'
-									: 'badge-yellow'
-							}`}
+						<Badge
+							tone={
+								state.tileContent?.walkTime === Number.POSITIVE_INFINITY ? 'red' : 'yellow'
+							}
 						>
 							{state.tileContent?.walkTime === Number.POSITIVE_INFINITY
 								? String(i18nState.translator?.tile.unwalkable ?? '')
 								: state.tileContent?.walkTime}
-						</span>
+						</Badge>
 					</PropertyGridRow>
 
 					{state.stock && !(state.tileContent instanceof Alveolus) ? (
@@ -175,7 +176,7 @@ const TileProperties = (props: TilePropertiesProps) => {
 						<AlveolusProperties content={state.tileContent} game={props.tile?.board?.game} />
 					) : null}
 				</PropertyGrid>
-			</div>
+			</InspectorSection>
 		</div>
 	)
 }

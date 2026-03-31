@@ -1,8 +1,9 @@
+import { effect } from 'mutts'
 import { type HexBoard, isTileCoord } from 'ssh/board'
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import { assert } from 'ssh/debug'
-import { effect } from 'mutts'
 import type { Character } from 'ssh/population/character'
+import type { Goods, GoodType } from 'ssh/types'
 import type { IdlePlan, PickupPlan, Plan, TransferPlan, WorkPlan } from 'ssh/types/base'
 import { gameObjectsModule } from 'ssh/types/game-objects'
 import { type Positioned, toAxialCoord } from 'ssh/utils'
@@ -13,6 +14,41 @@ function getContentFromPosition(hex: HexBoard, position: Positioned) {
 	const coord = toAxialCoord(position)
 	if (!coord) return undefined
 	return isTileCoord(coord) ? hex.getTileContent(coord) : hex.getBorderContent(coord)
+}
+
+function computeDropGoods(plan: TransferPlan, character: Character, target: Positioned): Goods {
+	const vehicle = character.vehicle
+	assert(vehicle, 'vehicle must be set')
+	const content = getContentFromPosition(character.game.hex, target)
+	assert(content, 'target content must be set')
+	assert('storage' in content, 'drop target must expose storage')
+	const actualGoods: Goods = {}
+	for (const [goodType, requestedQuantity] of Object.entries(plan.goods) as [GoodType, number][]) {
+		if (!requestedQuantity || requestedQuantity <= 0) continue
+		const available = vehicle.storage.available(goodType) ?? 0
+		const canStore = content.storage?.hasRoom(goodType) ?? 0
+		const amount = Math.min(available, canStore, requestedQuantity)
+		if (amount > 0) actualGoods[goodType] = amount
+	}
+	return actualGoods
+}
+
+function computeGrabGoods(plan: TransferPlan, character: Character, target: Positioned): Goods {
+	const vehicle = character.vehicle
+	assert(vehicle, 'vehicle must be set')
+	const content = getContentFromPosition(character.game.hex, target)
+	assert(content, 'target content must be set')
+	assert('storage' in content, 'grab source must expose storage')
+	const actualGoods: Goods = {}
+	for (const [goodType, requestedQuantity] of Object.entries(plan.goods) as [GoodType, number][]) {
+		if (!requestedQuantity || requestedQuantity <= 0) continue
+		const canGrab = vehicle.storage.hasRoom(goodType)
+		if (canGrab <= 0) continue
+		const available = content.storage?.available(goodType) ?? 0
+		const amount = Math.min(canGrab, available, requestedQuantity)
+		if (amount > 0) actualGoods[goodType] = amount
+	}
+	return actualGoods
 }
 
 // Plan handler interface
@@ -27,7 +63,7 @@ interface PlanHandler<T extends Plan> {
 const transferPlanHandler: PlanHandler<TransferPlan> = {
 	begin(plan: TransferPlan, character: Character) {
 		const hex = character.game.hex
-		const { goods, description, target } = plan
+		const { description, target } = plan
 		const vehicle = character.vehicle
 
 		assert(vehicle, 'vehicle must be set')
@@ -49,6 +85,9 @@ const transferPlanHandler: PlanHandler<TransferPlan> = {
 						'storage' in content,
 						'planDropStored only works with TileContent that has storage'
 					)
+					const goods = computeDropGoods(plan, character, target)
+					if (Object.keys(goods).length === 0) throw new Error('No goods to drop at execution time')
+					plan.resolvedGoods = goods
 
 					vehicleAllocation = vehicle.storage.reserve(goods, `planDropStored`)
 					allocation = content.storage!.allocate(goods, `planDropStored`)
@@ -61,6 +100,9 @@ const transferPlanHandler: PlanHandler<TransferPlan> = {
 						'storage' in content,
 						'planGrabStored only works with TileContent that has storage'
 					)
+					const goods = computeGrabGoods(plan, character, target)
+					if (Object.keys(goods).length === 0) throw new Error('No goods to grab at execution time')
+					plan.resolvedGoods = goods
 
 					vehicleAllocation = vehicle.storage.allocate(goods, `planGrab`)
 					allocation = content.storage?.reserve(goods, `planGrabStored`)
@@ -100,6 +142,7 @@ const transferPlanHandler: PlanHandler<TransferPlan> = {
 		// Clear allocations back to undefined
 		delete plan.vehicleAllocation
 		delete plan.allocation
+		delete plan.resolvedGoods
 	},
 }
 
@@ -184,6 +227,15 @@ const pickupPlanHandler: PlanHandler<PickupPlan> = {
 const workPlanHandler: PlanHandler<WorkPlan> = {
 	begin(plan: WorkPlan, character: Character) {
 		const { target } = plan
+		if (plan.job === 'offload') {
+			assert(target && 'availableGoods' in target, 'offload target must be a tile')
+			const pickupPlan = character.scriptsContext.inventory.planGrabSpecificLoose(
+				plan.looseGood,
+				target
+			)
+			assert(pickupPlan.type === 'pickup', 'offload engagement must bind to a pickup plan')
+			plan.offloadPickupPlan = pickupPlan
+		}
 		// Assign worker only for alveoli
 		if (gameObjectsModule.Alveolus.allows(target)) {
 			target.assignedWorker = character
@@ -196,7 +248,17 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 		})
 	},
 
+	cancel(plan: WorkPlan, character: Character) {
+		if (plan.offloadPickupPlan) {
+			pickupPlanHandler.cancel?.(plan.offloadPickupPlan, character)
+		}
+	},
+
 	finally(plan: WorkPlan, character: Character) {
+		if (plan.offloadPickupPlan) {
+			pickupPlanHandler.finally?.(plan.offloadPickupPlan, character)
+			delete plan.offloadPickupPlan
+		}
 		if (gameObjectsModule.Alveolus.allows(plan.target)) {
 			plan.target.assignedWorker = undefined
 			character.assignedAlveolus = undefined

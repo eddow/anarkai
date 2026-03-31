@@ -390,9 +390,6 @@ export class Game extends Eventful<GameEvents> {
 				tile.asGenerated = false
 			}
 			assert(hiveInstance, 'Alveolus building on load')
-			if ((hive as any).needs && hiveInstance) {
-				Object.assign(hiveInstance.manualNeeds, (hive as any).needs)
-			}
 			// Restore hive-level configurations
 			if (hive.name && hiveConfigurations?.[hive.name] && hiveInstance) {
 				for (const [alvType, config] of Object.entries(hiveConfigurations[hive.name])) {

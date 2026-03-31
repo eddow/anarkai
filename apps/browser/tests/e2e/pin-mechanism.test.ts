@@ -5,11 +5,11 @@ test.describe('Pin Mechanism', () => {
 		await page.goto('/')
 
 		// Wait for game
-		await page.waitForFunction(() => (window as any).games?.game('GameX')?.loaded)
+		await page.waitForFunction(() => (window as any).game?.loaded)
 
 		// 1. Select Char A and ensuring panel is open (Dynamic mode)
 		const charA = await page.evaluate(() => {
-			const game = (window as any).games.game('GameX')
+			const game = (window as any).game
 			const chars = [...game.population]
 			const char = chars[0]
 			;(window as any).selectionState.selectedUid = char.uid
@@ -41,7 +41,7 @@ test.describe('Pin Mechanism', () => {
 
 		// 3. Select Char B
 		await page.evaluate(() => {
-			const game = (window as any).games.game('GameX')
+			const game = (window as any).game
 			const chars = [...game.population]
 			const char = chars[1]
 			;(window as any).selectionState.selectedUid = char.uid
@@ -62,11 +62,11 @@ test.describe('Pin Mechanism', () => {
 
 	test('should allow highlighting selected object when panel is open', async ({ page }) => {
 		await page.goto('/')
-		await page.waitForFunction(() => (window as any).games?.game('GameX')?.loaded)
+		await page.waitForFunction(() => (window as any).game?.loaded)
 
 		// Select Char A
 		const charA = await page.evaluate(() => {
-			const game = (window as any).games.game('GameX')
+			const game = (window as any).game
 			const char = [...game.population][0]
 			;(window as any).selectionState.selectedUid = char.uid
 			return char.uid
@@ -74,7 +74,7 @@ test.describe('Pin Mechanism', () => {
 
 		// Hover Char A in game (simulate via mrg)
 		await page.evaluate((uid) => {
-			const game = (window as any).games.game('GameX')
+			const game = (window as any).game
 			const char = game.getObject(uid)
 			;(window as any).mrg.hoveredObject = char
 		}, charA)

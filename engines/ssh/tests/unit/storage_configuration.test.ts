@@ -1,11 +1,13 @@
 import { StorageAlveolus } from 'ssh/hive/storage'
 import type { SlottedStorage } from 'ssh/storage/slotted-storage'
+import type { SpecificStorage } from 'ssh/storage/specific-storage'
 import { describe, expect, it, vi } from 'vitest'
 
 // Mock game-content exports
 vi.mock('../../../../assets/game-content', () => ({
 	alveoli: {
 		storage: { action: { type: 'slotted-storage', capacity: 10, slots: 5 } },
+		warehouse: { action: { type: 'specific-storage', goods: { wood: 2, stone: 1 } } },
 	},
 	goods: { wood: {}, stone: {}, berries: {} },
 	terrain: {},
@@ -23,6 +25,15 @@ vi.mock('../../../../assets/game-content', () => ({
 	slots: 5,
 }
 
+class SpecificStorageTestAlveolus extends StorageAlveolus {
+	declare action: Ssh.SpecificStorageAction
+}
+
+;(SpecificStorageTestAlveolus.prototype as any).action = {
+	type: 'specific-storage',
+	goods: { wood: 2, stone: 1 },
+}
+
 describe('StorageAlveolus Configuration', () => {
 	const mockTile = {
 		position: { q: 0, r: 0 },
@@ -37,27 +48,31 @@ describe('StorageAlveolus Configuration', () => {
 		log: () => {},
 	} as any
 
-	it('should demand all known goods if it has room (default behavior)', () => {
+	it('should not advertise generic store-anything demand by default', () => {
 		const alveolus = new StorageAlveolus(mockTile)
-		// Enable working
 		alveolus.working = true
 
-		// Check workingGoodsRelations
 		const relations = alveolus.workingGoodsRelations
 
-		// Should demand wood, stone, berries because it has room
+		expect(relations).toEqual({})
+	})
+
+	it('should advertise buffered goods as demand when below configured buffer', () => {
+		const alveolus = new StorageAlveolus(mockTile)
+		alveolus.working = true
+		alveolus.storageBuffers = { wood: 2, berries: 1 }
+
+		const relations = alveolus.workingGoodsRelations
+
 		expect(relations['wood']).toMatchObject({
 			advertisement: 'demand',
-			priority: '0-store',
-		})
-		expect(relations['stone']).toMatchObject({
-			advertisement: 'demand',
-			priority: '0-store',
+			priority: '1-buffer',
 		})
 		expect(relations['berries']).toMatchObject({
 			advertisement: 'demand',
-			priority: '0-store',
+			priority: '1-buffer',
 		})
+		expect(relations['stone']).toBeUndefined()
 	})
 
 	it('should NOT demand goods if it has no room/slots full', () => {
@@ -78,5 +93,44 @@ describe('StorageAlveolus Configuration', () => {
 
 		// If we want to test that it stops demanding, we need to fill it.
 		// But for unit test simplicity, verifying default demand is sufficient for now.
+	})
+
+	it('should not report slotted storage canTake when matching room is fully allocated', () => {
+		const alveolus = new StorageAlveolus(mockTile)
+		alveolus.working = true
+
+		const storage = alveolus.storage as SlottedStorage
+		const initialRoom = storage.hasRoom('wood')
+		const inbound = storage.allocate({ wood: initialRoom }, 'test.allocated-slot-room')
+
+		expect(storage.hasRoom('wood')).toBe(0)
+		expect(alveolus.canTake('wood', '2-use')).toBe(false)
+		expect(() => storage.allocate({ wood: 1 }, 'test.over-allocate-slot-room')).toThrow(
+			'Insufficient room to allocate any goods'
+		)
+
+		inbound.cancel()
+
+		expect(storage.hasRoom('wood')).toBe(initialRoom)
+		expect(alveolus.canTake('wood', '2-use')).toBe(true)
+	})
+
+	it('should not report specific storage canTake when capacity is fully allocated', () => {
+		const alveolus = new SpecificStorageTestAlveolus(mockTile)
+		alveolus.working = true
+
+		const storage = alveolus.storage as SpecificStorage
+		const inbound = storage.allocate({ wood: 2 }, 'test.allocated-specific-room')
+
+		expect(storage.hasRoom('wood')).toBe(0)
+		expect(alveolus.canTake('wood', '2-use')).toBe(false)
+		expect(() => storage.allocate({ wood: 1 }, 'test.over-allocate-specific-room')).toThrow(
+			'Insufficient room to allocate any goods'
+		)
+
+		inbound.cancel()
+
+		expect(storage.hasRoom('wood')).toBe(2)
+		expect(alveolus.canTake('wood', '2-use')).toBe(true)
 	})
 })

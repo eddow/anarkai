@@ -1,5 +1,6 @@
 import './app.css'
-import { latch } from '@sursaut'
+import { latch } from '@sursaut/core/dom'
+import '@sursaut/kit/dom'
 import { profileInfo } from 'mutts'
 import { mount } from 'pure-glyf/icons'
 import { registerGlyfIconFactory } from 'pure-glyf/sursaut'

@@ -1,9 +1,9 @@
 type NamedPixiObject = {
-	name: string
+	label: string
 }
 
 export function setPixiName<T extends NamedPixiObject>(displayObject: T, name: string): T {
-	displayObject.name = name
+	displayObject.label = name
 	return displayObject
 }
 

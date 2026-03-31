@@ -14,3 +14,6 @@ All previously commented-out `@memoize` decorators have been rehabilitated and i
 - Any board scan or path search is a transient query, not a reactive derivation.
 - The shared pathfinding utilities in `src/lib/utils/pathfinding.ts` are wrapped in `untracked(...)` so callers cannot accidentally subscribe to every visited node.
 - Do not put pathfinding-based availability checks behind `@memoize` unless they depend only on stable, coarse invalidation signals.
+## Advertising / Movement
+- Movement selection is deferred in `src/lib/hive/hive.ts` to avoid reactive cycles, so anything that treats a selected partner as an already-created movement is suspect.
+- Optional stalled-exchange recovery lives in `src/lib/globals.ts` as `options`; when enabled, hives rescan for stable provide+demand pairs that still have no active `movingGoods` and re-advertise them.

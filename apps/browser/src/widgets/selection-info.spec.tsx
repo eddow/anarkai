@@ -1,5 +1,5 @@
-import type { DockviewWidgetProps } from '@sursaut/ui/dockview'
 import { document, latch } from '@sursaut/core'
+import type { DockviewWidgetProps } from '@sursaut/ui/dockview'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SelectionInfoContext, SelectionInfoTool } from './selection-info-tab'
 
@@ -28,9 +28,7 @@ const game = {
 	},
 }
 const globals = {
-	games: {
-		game: vi.fn(() => game),
-	},
+	game,
 	selectionState: {
 		selectedUid: undefined as string | undefined,
 	},
@@ -82,8 +80,10 @@ const createProps = (): DockviewWidgetProps<SelectionInfoParams, SelectionInfoCo
 	context: {},
 })
 
-const getTool = (props: DockviewWidgetProps<SelectionInfoParams, SelectionInfoContext>, ariaLabel: string) =>
-	props.context.tools?.find((tool: SelectionInfoTool) => tool.ariaLabel === ariaLabel)
+const getTool = (
+	props: DockviewWidgetProps<SelectionInfoParams, SelectionInfoContext>,
+	ariaLabel: string
+) => props.context.tools?.find((tool: SelectionInfoTool) => tool.ariaLabel === ariaLabel)
 
 const createScope = () => ({
 	panelApi: {

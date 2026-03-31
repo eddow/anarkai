@@ -6,13 +6,13 @@ test.describe('Character Properties Display', () => {
 
 		// Wait for game to be loaded
 		await page.waitForFunction(async () => {
-			const game = (window as any).games?.game('GameX')
+			const game = (window as any).game
 			return game?.loaded
 		})
 
 		// Select a character and ensure panel is open
 		await page.evaluate(() => {
-			const game = (window as any).games.game('GameX')
+			const game = (window as any).game
 			const char = [...game.population][0]
 			;(window as any).selectionState.selectedUid = char.uid
 

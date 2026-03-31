@@ -1,11 +1,11 @@
-import { memoize, reactive, type ScopedCallback, unreactive, unwrap } from 'mutts'
+import { inert, memoize, reactive, type ScopedCallback, unreactive, unwrap } from 'mutts'
 import { assert } from 'ssh/debug'
 import type { Hive, MovingGood } from 'ssh/hive/hive'
 import { gameIsaTypes } from 'ssh/npcs/utils'
 import type { Character } from 'ssh/population/character'
 import type { Storage } from 'ssh/storage/storage'
 import type { GoodType, Job } from 'ssh/types/base'
-import { type AxialCoord, axial, epsilon, tileSize } from 'ssh/utils'
+import { type AxialCoord, axial, tileSize } from 'ssh/utils'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
 import { toAxialCoord, toWorldCoord } from 'ssh/utils/position'
 import { configurations } from '../../../../assets/game-content'
@@ -16,7 +16,7 @@ import { UnBuiltLand } from './unbuilt-land'
 import { GcClassed } from './utils'
 
 //reactiveOptions.maxEffectChain = 1000
-interface LocalMovingGood extends MovingGood {
+export interface LocalMovingGood extends MovingGood {
 	from: AxialCoord
 }
 
@@ -25,14 +25,15 @@ interface LocalMovingGood extends MovingGood {
 export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof TileContent>(
 	TileContent
 ) {
-	declare readonly name: string
-
 	private _assignedWorker: Character | undefined
 	public get assignedWorker(): Character | undefined {
 		return this._assignedWorker
 	}
 	public set assignedWorker(value: Character | undefined) {
-		if (value === this._assignedWorker) return
+		const normalize = (v: Character | undefined) => (v === undefined ? undefined : unwrap(v))
+		value = normalize(value)
+		const current = normalize(this._assignedWorker)
+		if (value === current) return
 		assert(!value !== !this._assignedWorker, 'assigned worker mismatch')
 		this._assignedWorker = value
 	}
@@ -116,6 +117,20 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		// Building gates will now happen during hive attachment
 	}
 
+	/**
+	 * Default implementation - alveoli that don't override this cannot give goods
+	 */
+	canGive(_goodType: GoodType, _priority: ExchangePriority): boolean {
+		return false
+	}
+
+	/**
+	 * Default implementation - alveoli that don't override this cannot take goods
+	 */
+	canTake(_goodType: GoodType, _priority: ExchangePriority): boolean {
+		return false
+	}
+
 	get debugInfo(): Record<string, any> {
 		return {
 			aGoodMovement: this.aGoodMovement?.map((mg) => `${mg.goodType} from ${axial.key(mg.from)}`),
@@ -158,26 +173,35 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	nextJob?(character?: Character): Job | undefined
 
 	getJob(character?: Character): Job | undefined {
-		if (this.assignedWorker && this.assignedWorker !== character) {
-			return undefined
-		}
-		// If the alveolus is burdened by LooseGoods, ask to remove them
-		if (this.isBurdened) {
-			return {
-				job: 'offload',
-				urgency: 4, // High urgency to clear blockages
-				fatigue: 1,
-			} as Job
-		}
-		const carry = this.conveyJob()
-		if (carry) return carry
+		return inert(() => {
+			const assignedWorker = this.assignedWorker ? unwrap(this.assignedWorker) : undefined
+			const currentCharacter = character ? unwrap(character) : undefined
+			if (assignedWorker && assignedWorker !== currentCharacter) {
+				return undefined
+			}
+			// If the alveolus is burdened by LooseGoods, ask to remove them
+			if (this.isBurdened) {
+				const looseGood = this.tile.availableGoods.find(
+					(good) => !character || character.carry.hasRoom(good.goodType) > 0
+				)
+				if (!looseGood) return undefined
+				return {
+					job: 'offload',
+					urgency: 4, // High urgency to clear blockages
+					fatigue: 1,
+					looseGood,
+				} as Job
+			}
+			const carry = this.conveyJob()
+			if (carry) return carry
 
-		// Only provide alveolus-specific jobs if working is enabled
-		if (!this.working) {
-			return undefined
-		}
+			// Only provide alveolus-specific jobs if working is enabled
+			if (!this.working) {
+				return undefined
+			}
 
-		return this.nextJob?.(character)
+			return this.nextJob?.(character)
+		})
 	}
 
 	getFatigueCost(): number {
@@ -195,7 +219,6 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	 * - Returns a cycle of movements (A->B, B->C, C->A) if circular blockade detected
 	 * - Returns undefined if no movements available
 	 */
-	@memoize
 	get aGoodMovement(): LocalMovingGood[] | undefined {
 		const hive = this.hive
 		const here = toAxialCoord(this.tile.position)!
@@ -207,11 +230,24 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			const hasRoom = storage?.hasRoom(mg.goodType)
 			return hasRoom || mg.path.length === 1
 		}
+		const borderKeys = new Set(
+			this.tile.surroundings.map(({ border }) => axial.key(toAxialCoord(border.position)!))
+		)
+		const canHandleFromHere = (from: AxialCoord, to: AxialCoord) => {
+			const fromKey = axial.key(from)
+			const toKey = axial.key(to)
+			const hereKey = axial.key(here)
+			if (fromKey === hereKey) return borderKeys.has(toKey)
+			if (!borderKeys.has(fromKey)) return false
+			return toKey === hereKey || borderKeys.has(toKey)
+		}
 		// TODO: take a random movement or keep it arbitrary?
 		// Collect movements at the tile itself
 		const atHere = hive.movingGoods.get(here)
 		if (atHere) {
 			for (const mg of atHere) {
+				if (mg.path.length === 0) continue
+				if (!canHandleFromHere(here, mg.path[0]!)) continue
 				const localMg = Object.setPrototypeOf({ from: mg.from ?? here }, mg) as LocalMovingGood
 				if (canAdvance(mg)) {
 					return [localMg]
@@ -230,7 +266,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			}
 			for (const mg of arr)
 				if (mg.path.length) {
-					if (axial.distance(mg.path[0], here) < 0.5 + epsilon) {
+					if (canHandleFromHere(from, mg.path[0]!)) {
 						const localMg = Object.setPrototypeOf({ from: mg.from ?? from }, mg) as LocalMovingGood
 						if (canAdvance(mg)) {
 							return [localMg]
@@ -333,7 +369,6 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		return undefined
 	}
 
-	@memoize
 	get incomingGoods(): boolean {
 		// Note: because borders have 2 neighbors and we check this when no movement is occurring,
 		//  if a good is incoming, it's for you (you're in one of the neighbors)
@@ -348,7 +383,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		return {
 			job: 'convey',
 			fatigue: 1,
-			urgency: 2,
+			urgency: 3, // Higher than harvest (2.5) but below offload (4)
 		}
 	}
 
@@ -373,7 +408,6 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			.filter((c): c is Alveolus => c instanceof Alveolus)
 	}
 	abstract get workingGoodsRelations(): GoodsRelations
-	@memoize
 	get goodsRelations(): GoodsRelations {
 		const rv = this.working
 			? this.workingGoodsRelations

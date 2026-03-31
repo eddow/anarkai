@@ -1,9 +1,9 @@
 import { css } from '@app/lib/css'
-import { games, mrg, selectionState, unreactiveInfo } from '@app/lib/globals'
+import { game, mrg, selectionState, unreactiveInfo } from '@app/lib/globals'
+import { InspectorSection, Panel } from '@app/ui/anarkai'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
 import { effect } from 'mutts'
 import { Tile } from 'ssh/board/tile'
-import type { Game } from 'ssh/game'
 import { Character } from 'ssh/population/character'
 import { toWorldCoord } from 'ssh/utils/position'
 import CharacterProperties from '../components/CharacterProperties'
@@ -16,7 +16,7 @@ css`
 	flex-direction: column;
 	gap: 0;
 	height: 100%;
-	color: var(--toolbar-text);
+	color: var(--ak-text);
 	box-sizing: border-box;
     background-color: var(--app-bg);
 }
@@ -45,18 +45,11 @@ css`
 .selection-info-panel__logs {
 	flex: 1;
 	min-height: 5rem;
-	border: 1px solid var(--app-border);
-	border-radius: 0.65rem;
 	padding: 0;
 	overflow-y: auto;
-	background: rgba(15, 23, 42, 0.08);
-    display: flex;
-    flex-direction: column;
+	display: flex;
+	flex-direction: column;
 	resize: vertical;
-}
-
-.dark .selection-info-panel__logs {
-	background: rgba(148, 163, 184, 0.12);
 }
 
 .selection-info-panel__logs-line {
@@ -81,12 +74,6 @@ const SelectionInfoWidget = (
 	scope: DockviewWidgetScope
 ) => {
 	const api = (scope as any).panelApi
-	let game: Game
-	try {
-		game = games.game('GameX')
-	} catch (e) {
-		console.warn('SelectionInfoWidget: GameX not found', e)
-	}
 	scope.setTitle = (title: string) => {
 		props.title = title
 	}
@@ -100,7 +87,7 @@ const SelectionInfoWidget = (
 		},
 		get logs() {
 			return this.object?.logs ?? []
-		}
+		},
 	}
 
 	const pin = () => {
@@ -108,7 +95,9 @@ const SelectionInfoWidget = (
 		if (!uid) return
 		api.updateParameters({ uid })
 		props.params.uid = uid
-		props.context.tools = (props.context.tools ?? []).filter((tool) => tool.ariaLabel !== 'Pin Panel')
+		props.context.tools = (props.context.tools ?? []).filter(
+			(tool) => tool.ariaLabel !== 'Pin Panel'
+		)
 		unreactiveInfo.hasLastSelectedInfoPanel = false
 	}
 
@@ -188,28 +177,35 @@ const SelectionInfoWidget = (
 					) : current.object instanceof Tile ? (
 						<TileProperties tile={current.object as Tile} />
 					) : (
-						<div class="selection-info-panel__summary">
-							<h3>{current.object!.title ?? 'Object'}</h3>
+						<InspectorSection
+							class="selection-info-panel__summary"
+							title={current.object!.title ?? 'Object'}
+						>
 							<p>ID: {current.object!.uid}</p>
-						</div>
+						</InspectorSection>
 					)}
 				</div>
-				<div
+				<InspectorSection
 					if={current.logs.length}
-					class="selection-info-panel__logs"
-					role="log"
-					data-test-owner-uid={current.object?.uid}
+					title="Logs"
+					class="selection-info-panel__logs-section"
 				>
-					<div class="selection-info-panel__logs-list">
-						<for each={current.logs}>
-							{(line) => (
-								<div class="selection-info-panel__logs-line" title={line}>
-									{line}
-								</div>
-							)}
-						</for>
-					</div>
-				</div>
+					<Panel
+						class="selection-info-panel__logs"
+						el:role="log"
+						el:data-test-owner-uid={current.object?.uid}
+					>
+						<div class="selection-info-panel__logs-list">
+							<for each={current.logs}>
+								{(line) => (
+									<div class="selection-info-panel__logs-line" title={line}>
+										{line}
+									</div>
+								)}
+							</for>
+						</div>
+					</Panel>
+				</InspectorSection>
 			</div>
 			<div else class="selection-info-panel__empty">
 				Select an object in the game view to inspect it.

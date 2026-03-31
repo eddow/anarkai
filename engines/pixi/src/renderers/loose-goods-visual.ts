@@ -1,6 +1,6 @@
+import { effect } from 'mutts'
 import { Container, Sprite, Texture } from 'pixi.js'
 import type { LooseGood, LooseGoods } from 'ssh/board/looseGoods'
-import { effect } from 'mutts'
 import { toWorldCoord } from 'ssh/utils/position' // Verify import
 import { tileSize } from 'ssh/utils/varied'
 import { goods as goodsCatalog } from '../../assets/visual-content'
@@ -16,7 +16,7 @@ export class LooseGoodsVisual extends VisualObject<LooseGoods> {
 	constructor(looseGoods: LooseGoods, renderer: PixiGameRenderer) {
 		super(looseGoods, renderer)
 		const scope = `looseGoods:${looseGoods.uid}`
-		this.view.name = scope
+		this.view.label = scope
 		this.container = setPixiName(new Container(), scopedPixiName(scope, 'container'))
 		// Ensure this container (and its children) does not block mouse events
 		this.container.eventMode = 'none'
@@ -35,7 +35,18 @@ export class LooseGoodsVisual extends VisualObject<LooseGoods> {
 
 				// console.log('[LooseGoodsVisual] Rendering. Goods entries:', Array.from((this.object as any).goods.entries()).length)
 
-				for (const goodsList of (this.object as any).goods.values()) {
+				// Track goods count per coordinate for stacking offset
+				const coordCounts = new Map<string, number>()
+
+				for (const [coord, goodsList] of (this.object as any).goods.entries()) {
+					const count = coordCounts.get(coord) ?? 0
+					coordCounts.set(coord, count + goodsList.length)
+				}
+
+				// Reset counter for actual rendering
+				const coordIndices = new Map<string, number>()
+
+				for (const [coord, goodsList] of (this.object as any).goods.entries()) {
 					for (const good of goodsList) {
 						// Log first good found
 						// console.log('[LooseGoodsVisual] Good:', good.goodType, good.available, good.position)
@@ -73,10 +84,22 @@ export class LooseGoodsVisual extends VisualObject<LooseGoods> {
 						const world = toWorldCoord(good.position) // Position might be Positioned or string?
 						// Good position is usually 'Position'.
 						if (world) {
-							sprite.position.set(world.x, world.y)
+							// Add small offset for stacking when multiple goods are on same coordinate
+							const currentIndex = coordIndices.get(coord) ?? 0
+							coordIndices.set(coord, currentIndex + 1)
+							const totalOnCoord = coordCounts.get(coord) ?? 1
+
+							// Calculate offset: spread goods in a small circle
+							const offsetRadius = Math.min(totalOnCoord * 2, 8) // Max 8px radius
+							const angle = (currentIndex * 2 * Math.PI) / totalOnCoord
+							const offsetX = Math.cos(angle) * offsetRadius
+							const offsetY = Math.sin(angle) * offsetRadius
+
+							sprite.position.set(world.x + offsetX, world.y + offsetY)
 						} else {
 							console.warn('[LooseGoodsVisual] Invalid world pos for good:', good.position)
 						}
+						sprite.tint = good.available ? 0xffffff : 0xff6666
 					}
 				}
 
@@ -98,7 +121,8 @@ export class LooseGoodsVisual extends VisualObject<LooseGoods> {
 	}
 
 	private returnSprite(s: Sprite) {
-		s.name = 'looseGood:pooled'
+		s.label = 'looseGood:pooled'
+		s.tint = 0xffffff
 		s.parent?.removeChild(s)
 		this.spritePool.push(s)
 	}

@@ -1,36 +1,44 @@
+import { getBrowserPalette } from '@app/palette/browser-palette'
 import { document, latch } from '@sursaut/core'
+import { registerGlyfIconFactory } from 'pure-glyf/sursaut'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const addPanel = vi.fn((panel: Record<string, unknown>) => panel)
-const getPanel = vi.fn(() => undefined)
-const dockviewApi = {
-	addPanel,
-	getPanel,
+type PaletteToolRun = {
+	run(): void
 }
-const gameInstance = {
-	clock: {
-		virtualTime: 125,
-	},
+
+type PaletteToolEnum<T extends string> = {
+	value: T
 }
-const globals = {
-	configuration: {
-		timeControl: 'pause',
-	},
-	games: {
-		game: vi.fn(() => gameInstance),
-	},
-	interactionMode: {
-		selectedAction: '',
-	},
-	selectionState: {},
-	getDockviewLayout: vi.fn(() => undefined),
-	dockviewLayout: {
-		sshLayout: { root: 'layout' },
-	},
-	uiConfiguration: {
-		darkMode: false,
-	},
-}
+
+const { addPanel, getPanel, dockviewApi, gameInstance, globals } = vi.hoisted(() => {
+	const addPanel = vi.fn((panel: Record<string, unknown>) => panel)
+	const getPanel = vi.fn(() => undefined)
+	const dockviewApi = { addPanel, getPanel }
+	const gameInstance = {
+		clock: {
+			virtualTime: 125,
+		},
+	}
+	const globals = {
+		configuration: {
+			timeControl: 'pause',
+		},
+		game: gameInstance,
+		interactionMode: {
+			selectedAction: '',
+		},
+		selectionState: {},
+		getDockviewLayout: vi.fn(() => undefined),
+		dockviewLayout: {
+			sshLayout: { root: 'layout' },
+		},
+		uiConfiguration: {
+			darkMode: false,
+		},
+	}
+	return { addPanel, getPanel, dockviewApi, gameInstance, globals }
+})
 
 vi.mock('./app.css', () => ({}))
 
@@ -61,17 +69,17 @@ vi.mock('engine-pixi/assets/visual-content', () => ({
 }))
 
 vi.mock('pure-glyf/icons', () => ({
-	tablerFilledAdjustments: 'tablerFilledAdjustments',
-	tablerFilledArrowBigRight: 'tablerFilledArrowBigRight',
-	tablerFilledFlask: 'tablerFilledFlask',
-	tablerFilledPlayerPause: 'tablerFilledPlayerPause',
-	tablerFilledPlayerPlay: 'tablerFilledPlayerPlay',
-	tablerFilledPlayerSkipForward: 'tablerFilledPlayerSkipForward',
-	tablerFilledPlayerTrackNext: 'tablerFilledPlayerTrackNext',
-	tablerFilledPointer: 'tablerFilledPointer',
-	tablerFilledSquareRoundedMinus: 'tablerFilledSquareRoundedMinus',
-	tablerFilledZoomMoney: 'tablerFilledZoomMoney',
-	tablerOutlineTrees: 'tablerOutlineTrees',
+	tablerFilledAdjustments: 'pure-glyf-icon glyf-tabler-filled-adjustments',
+	tablerFilledArrowBigRight: 'pure-glyf-icon glyf-tabler-filled-arrow-big-right',
+	tablerFilledFlask: 'pure-glyf-icon glyf-tabler-filled-flask',
+	tablerFilledPlayerPause: 'pure-glyf-icon glyf-tabler-filled-player-pause',
+	tablerFilledPlayerPlay: 'pure-glyf-icon glyf-tabler-filled-player-play',
+	tablerFilledPlayerSkipForward: 'pure-glyf-icon glyf-tabler-filled-player-skip-forward',
+	tablerFilledPlayerTrackNext: 'pure-glyf-icon glyf-tabler-filled-player-track-next',
+	tablerFilledPointer: 'pure-glyf-icon glyf-tabler-filled-pointer',
+	tablerFilledSquareRoundedMinus: 'pure-glyf-icon glyf-tabler-filled-square-rounded-minus',
+	tablerFilledZoomMoney: 'pure-glyf-icon glyf-tabler-filled-zoom-money',
+	tablerOutlineTrees: 'pure-glyf-icon glyf-tabler-outline-trees',
 }))
 
 vi.mock('./components/ResourceImage', () => ({
@@ -156,6 +164,7 @@ describe('App toolbar interactions', () => {
 	let stop: (() => void) | undefined
 
 	beforeAll(async () => {
+		registerGlyfIconFactory()
 		;({ default: App } = await import('./App'))
 	})
 
@@ -184,7 +193,7 @@ describe('App toolbar interactions', () => {
 		expect(addPanel).toHaveBeenCalledWith({
 			id: 'game-view',
 			component: 'game',
-			params: { game: 'GameX' },
+			params: undefined,
 			floating: undefined,
 		})
 		expect(container.textContent).toContain('02:05')
@@ -215,7 +224,7 @@ describe('App toolbar interactions', () => {
 		expect(addPanel).toHaveBeenNthCalledWith(2, {
 			id: 'game-view',
 			component: 'game',
-			params: { game: 'GameX' },
+			params: undefined,
 			floating: undefined,
 		})
 		expect(addPanel).toHaveBeenNthCalledWith(3, {
@@ -243,12 +252,89 @@ describe('App toolbar interactions', () => {
 		expect(globals.interactionMode.selectedAction).toBe('zone:residential')
 	})
 
-	it('toggles theme through ThemeToggle binding', () => {
+	it('toggles theme through CheckButton binding', () => {
 		stop = latch(container, <App />)
 
 		const toggle = container.querySelector('[aria-label="Theme Toggle"]') as HTMLButtonElement
 		toggle.click()
 
 		expect(globals.uiConfiguration.darkMode).toBe(true)
+	})
+})
+
+describe('Palette IDE shell', () => {
+	let container: HTMLElement
+	let stop: (() => void) | undefined
+
+	beforeEach(() => {
+		container = document.createElement('div')
+		document.body.appendChild(container)
+		addPanel.mockClear()
+		getPanel.mockClear()
+		globals.configuration.timeControl = 'pause'
+		globals.interactionMode.selectedAction = ''
+		globals.uiConfiguration.darkMode = false
+		globals.getDockviewLayout.mockReturnValue(undefined)
+		gameInstance.clock.virtualTime = 125
+	})
+
+	afterEach(() => {
+		stop?.()
+		stop = undefined
+		container.remove()
+		document.body.innerHTML = ''
+	})
+
+	it('opens dockview panels and syncs time, theme, and action via palette tools', () => {
+		stop = latch(container, <App />)
+
+		const { palette } = getBrowserPalette()
+		const openConfiguration = palette.tool('openConfiguration') as PaletteToolRun
+		const openGame = palette.tool('openGame') as PaletteToolRun
+		const openTest = palette.tool('openTest') as PaletteToolRun
+		const timeControl = palette.tool('timeControl') as PaletteToolEnum<
+			(typeof globals.configuration)['timeControl']
+		>
+		const theme = palette.tool('theme') as PaletteToolEnum<'light' | 'dark'>
+		const selectedAction = palette.tool('selectedAction') as PaletteToolEnum<string>
+		addPanel.mockClear()
+
+		openConfiguration.run()
+		expect(addPanel).toHaveBeenCalledWith({
+			id: 'system.configuration',
+			component: 'configuration',
+			params: undefined,
+			floating: { width: 400, height: 600 },
+		})
+
+		addPanel.mockClear()
+		openGame.run()
+		expect(addPanel).toHaveBeenCalledWith({
+			id: 'game-view',
+			component: 'game',
+			params: undefined,
+			floating: undefined,
+		})
+
+		addPanel.mockClear()
+		openTest.run()
+		expect(addPanel).toHaveBeenCalledWith({
+			id: 'test',
+			component: 'test',
+			params: undefined,
+			floating: { width: 400, height: 600 },
+		})
+
+		timeControl.value = 'play'
+		expect(globals.configuration.timeControl).toBe('play')
+
+		theme.value = 'dark'
+		expect(globals.uiConfiguration.darkMode).toBe(true)
+
+		selectedAction.value = 'zone:residential'
+		expect(globals.interactionMode.selectedAction).toBe('zone:residential')
+
+		selectedAction.value = 'build:house'
+		expect(globals.interactionMode.selectedAction).toBe('build:house')
 	})
 })

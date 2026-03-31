@@ -12,7 +12,7 @@ import { GcClassed, GcClasses } from './utils'
 
 export class Deposit extends GcClassed<Ssh.DepositDefinition>() {
 	static class = GcClasses(() => Deposit, deposits)
-	declare readonly name: string
+	//declare readonly name: string
 
 	constructor(public amount: number) {
 		super()
@@ -80,10 +80,13 @@ export class UnBuiltLand extends withTicked(TileContent) {
 
 		// If there are loose goods on the tile, provide offload job
 		if (this.tile.availableGoods.length > 0) {
+			const looseGood = this.tile.availableGoods[0]
+			if (!looseGood) return undefined
 			return {
 				job: 'offload',
 				fatigue: 1,
 				urgency: 15,
+				looseGood,
 			}
 		}
 
