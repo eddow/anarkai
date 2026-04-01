@@ -9,7 +9,7 @@ export type AnarkaiPaletteTone = 'neutral' | 'accent'
 export type AnarkaiPaletteChoiceDisplay = 'icon' | 'text' | 'both'
 
 export type AnarkaiPaletteItemConfigBase = {
-	icon?: string | JSX.Element
+	icon?: string | JSX.Element | (() => JSX.Element)
 	label?: string
 	hint?: string
 	tone?: AnarkaiPaletteTone
@@ -17,12 +17,16 @@ export type AnarkaiPaletteItemConfigBase = {
 
 export type AnarkaiPaletteEnumConfig = AnarkaiPaletteItemConfigBase & {
 	choiceDisplay?: AnarkaiPaletteChoiceDisplay
+	/** Subset of tool enum values offered by this slot (order preserved). */
 	values?: readonly string[]
+	/** Show values whose derived keywords match any of these tokens. */
+	acceptedKeywords?: readonly string[]
 	keywords?: readonly string[]
 }
 
 export type AnarkaiPaletteEditorConfigByVariant = {
 	button: AnarkaiPaletteItemConfigBase
+	cycle: AnarkaiPaletteEnumConfig
 	commandBox: AnarkaiPaletteItemConfigBase
 	select: AnarkaiPaletteEnumConfig
 	segmented: AnarkaiPaletteEnumConfig

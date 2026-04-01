@@ -1,5 +1,9 @@
 import { arranged } from '@sursaut/ui'
-import { type StarItemState, type StarsProps as BaseStarsProps, starsModel } from '@sursaut/ui/models'
+import {
+	type StarsProps as BaseStarsProps,
+	type StarItemState,
+	starsModel,
+} from '@sursaut/ui/models'
 
 export type StarsProps = BaseStarsProps
 

@@ -5,6 +5,7 @@ import {
 	getBrowserPalette,
 	palettePanelBridge,
 } from '@app/palette/browser-palette'
+import { PALETTE_INSPECTOR_DOCK_PANEL_ID } from '@app/palette/palette-inspector'
 import { Button, ButtonGroup, CheckButton, RadioButton, Toolbar } from '@app/ui/anarkai'
 import { initConsoleTrap } from 'ssh/debug'
 
@@ -26,6 +27,7 @@ import {
 } from '@app/lib/globals'
 import { DisplayProvider } from '@sursaut/kit'
 import { Dockview } from '@sursaut/ui/dockview'
+import type { DockviewApi } from 'dockview-core'
 import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content'
 import { effect, reactive, untracked } from 'mutts'
 import {
@@ -163,6 +165,24 @@ const App = () => {
 		}
 	})
 
+	effect`app:palette-inspector-dock`(() => {
+		const api = state.api as DockviewApi | undefined
+		if (!api?.getPanel || !api.addPanel || !api.removePanel) return
+		const { palette } = getBrowserPalette()
+		if (!palette.editing) {
+			const panel = api.getPanel(PALETTE_INSPECTOR_DOCK_PANEL_ID)
+			if (panel) api.removePanel(panel)
+			return
+		}
+		if (api.getPanel(PALETTE_INSPECTOR_DOCK_PANEL_ID)) return
+		api.addPanel({
+			id: PALETTE_INSPECTOR_DOCK_PANEL_ID,
+			component: 'paletteInspector',
+			title: 'Toolbar item',
+			floating: { width: 400, height: 520 },
+		})
+	})
+
 	return (
 		<DisplayProvider theme={themeSettings.theme}>
 			<div class="app-shell">
@@ -266,7 +286,6 @@ const App = () => {
 						<PaletteIde
 							config={browserPaletteIdeConfig}
 							el={{ class: 'app-palette-ide' }}
-							center={{ class: 'app-palette-center' }}
 							toolbar={{ class: 'secondary' }}
 						>
 							<main class="app-main">

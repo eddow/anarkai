@@ -4,7 +4,8 @@ import {
 	getAppShellBuildableAlveoli,
 } from '@app/lib/app-shell-controls'
 import type { Configuration } from '@app/lib/globals'
-import { configuration, interactionMode, uiConfiguration } from '@app/lib/globals'
+import { configuration, game, interactionMode, uiConfiguration } from '@app/lib/globals'
+import ResourceImage from '@app/components/ResourceImage'
 import {
 	type AnarkaiPaletteEditorConfigByVariant,
 	type AnarkaiPaletteSchema,
@@ -15,15 +16,18 @@ import {
 	createPaletteKeys,
 	Palette,
 	type PaletteBorder,
-	type PaletteConfig,
 	type PaletteCommandBoxModel,
+	type PaletteConfig,
 	type PaletteEditorContext,
 	type PaletteEditorRegistry,
 	type PaletteToolbarItem,
+	paletteCatalogEntries,
 	paletteCommandBoxModel,
 	paletteCommandEntries,
+	palettes,
 } from '@sursaut/ui/palette'
-import { effect, reactive } from 'mutts'
+import { effect, reactive, unwrap } from 'mutts'
+import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content'
 import {
 	tablerFilledAdjustments,
 	tablerFilledArrowBigRight,
@@ -39,7 +43,13 @@ export const palettePanelBridge = reactive({
 
 const browserPaletteBuildableAlveoli = getAppShellBuildableAlveoli()
 const browserPaletteSelectedActionValues = buildPaletteSelectedActionValues(
-	browserPaletteBuildableAlveoli
+	browserPaletteBuildableAlveoli,
+	(name) => {
+		const sprite = visualAlveoli[name]?.sprites?.[0]
+		return sprite
+			? () => <ResourceImage game={game} sprite={sprite} width={20} height={20} alt={name} />
+			: undefined
+	}
 )
 
 const themeSettingsProxy: { theme: AnarkaiThemeMode } = {
@@ -51,30 +61,8 @@ const themeSettingsProxy: { theme: AnarkaiThemeMode } = {
 	},
 }
 
-function ClockPaletteEditor(
-	_context: PaletteEditorContext<undefined, BrowserPaletteToolbarItem, BrowserPaletteSchema>
-) {
-	const game = _context.scope.clockGame as Game | undefined
-	const state = reactive({ time: '--:--' })
-	effect`palette:clock`(() => {
-		if (!game) {
-			state.time = '--:--'
-			return
-		}
-		const seconds = Math.floor(game.clock.virtualTime)
-		const minutes = Math.floor(seconds / 60)
-		const displaySeconds = seconds % 60
-		state.time = `${minutes.toString().padStart(2, '0')}:${displaySeconds.toString().padStart(2, '0')}`
-	})
-	return (
-		<div class="app-palette-clock" title="In-game clock">
-			<span>{state.time}</span>
-		</div>
-	)
-}
-
 type BrowserPaletteEditorConfigByVariant = AnarkaiPaletteEditorConfigByVariant & {
-	clock: { label?: string }
+	clock: { label?: string; hint?: string }
 }
 
 const tools = {
@@ -113,8 +101,8 @@ const tools = {
 	},
 	timeControl: {
 		type: 'enum' as const,
-		label: 'Time',
-		keywords: ['time', 'pause', 'play', 'speed', 'clock'],
+		label: 'Speed',
+		keywords: ['speed', 'time', 'pause', 'play', 'clock', 'rate'],
 		get value() {
 			return configuration.timeControl
 		},
@@ -173,6 +161,39 @@ type BrowserPaletteSchema = AnarkaiPaletteSchema<
 	BrowserPaletteToolbarItem
 >
 
+function clockPaletteTitle(item: BrowserPaletteToolbarItem): string {
+	const c = item.config
+	if (c && typeof c === 'object') {
+		const hint = 'hint' in c && typeof c.hint === 'string' ? c.hint : undefined
+		const label = 'label' in c && typeof c.label === 'string' ? c.label : undefined
+		if (hint) return hint
+		if (label) return label
+	}
+	return item.tool ?? item.editor
+}
+
+function ClockPaletteEditor(
+	_context: PaletteEditorContext<undefined, BrowserPaletteToolbarItem, BrowserPaletteSchema>
+) {
+	const game = _context.scope.clockGame as Game | undefined
+	const state = reactive({ time: '--:--' })
+	effect`palette:clock`(() => {
+		if (!game) {
+			state.time = '--:--'
+			return
+		}
+		const seconds = Math.floor(game.clock.virtualTime)
+		const minutes = Math.floor(seconds / 60)
+		const displaySeconds = seconds % 60
+		state.time = `${minutes.toString().padStart(2, '0')}:${displaySeconds.toString().padStart(2, '0')}`
+	})
+	return (
+		<div class="app-palette-clock" title={clockPaletteTitle(_context.item)}>
+			<span>{state.time}</span>
+		</div>
+	)
+}
+
 const anarkaiEditors = createAnarkaiPaletteEditors()
 const browserPaletteEditors = {
 	...(anarkaiEditors as PaletteEditorRegistry<BrowserPaletteSchema>),
@@ -185,7 +206,7 @@ const browserPaletteEditors = {
 			flags: { footprint: 'horizontal' as const },
 		},
 	},
-} satisfies PaletteEditorRegistry<BrowserPaletteSchema>
+} as PaletteEditorRegistry<BrowserPaletteSchema>
 
 const browserPaletteEditorDefaults = {
 	enum: 'select',
@@ -193,7 +214,7 @@ const browserPaletteEditorDefaults = {
 } satisfies NonNullable<PaletteConfig<BrowserPaletteSchema>['editorDefaults']>
 
 const paletteKeys = createPaletteKeys({
-	',': 'openConfiguration',
+	'`': 'openConfiguration',
 	g: 'openGame',
 	h: 'openTest',
 })
@@ -206,8 +227,12 @@ function createBrowserPaletteBundle() {
 		editors: browserPaletteEditors,
 	})
 	const commandBox = paletteCommandBoxModel({
-		entries: paletteCommandEntries({ palette }),
+		entries: () =>
+			unwrap(palettes.editing) === unwrap(palette)
+				? paletteCatalogEntries({ palette })
+				: paletteCommandEntries({ palette }),
 		placeholder: 'Command...',
+		enterAction: () => (unwrap(palettes.editing) === unwrap(palette) ? 'select' : 'execute'),
 	})
 	return {
 		commandBox,
@@ -250,14 +275,17 @@ const ideToolbar: BrowserPaletteToolbarItem[] = [
 			hint: 'Open test panel',
 		},
 	},
-	{ editor: 'clock', config: { label: 'Clock' } },
+	{
+		editor: 'clock',
+		config: { label: 'Clock', hint: 'In-game clock' },
+	},
 	{
 		tool: 'timeControl',
 		editor: 'segmented',
 		config: {
-			label: 'Time',
+			label: 'Speed',
 			choiceDisplay: 'icon',
-			keywords: ['time', 'pause', 'play'],
+			keywords: ['speed', 'pause', 'play', 'time'],
 		},
 	},
 	{
@@ -271,7 +299,7 @@ const ideToolbar: BrowserPaletteToolbarItem[] = [
 	},
 	{
 		tool: 'theme',
-		editor: 'segmented',
+		editor: 'cycle',
 		config: { label: 'Theme', choiceDisplay: 'icon', keywords: ['theme', 'dark', 'light'] },
 	},
 ]

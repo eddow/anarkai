@@ -4,4 +4,5 @@ export {
 	anarkaiPalettePreset,
 	createAnarkaiPaletteEditors,
 	createAnarkaiPalettePreset,
+	paletteToolbarControlTitle,
 } from './editors'

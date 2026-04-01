@@ -1,5 +1,6 @@
 import { Button, ButtonGroup, CheckButton, RadioButton } from '@app/ui/anarkai'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons'
+import { document, latch } from '@sursaut/core'
 import type {
 	PaletteConfig,
 	PaletteEditorContext,
@@ -7,6 +8,7 @@ import type {
 	PaletteTool,
 } from '@sursaut/ui/palette'
 import { paletteToolFamily } from '@sursaut/ui/palette'
+import { effect, reactive } from 'mutts'
 import { AnarkaiCommandBoxEditor } from './command-box'
 import type {
 	AnarkaiPaletteChoiceDisplay,
@@ -27,9 +29,11 @@ type AnarkaiPaletteAnyItem = AnarkaiPaletteToolbarItem
 type AnarkaiPaletteRunTool = Extract<PaletteTool, { run(): void }>
 type AnarkaiPaletteBooleanTool = Extract<PaletteTool, { type: 'boolean' }>
 type AnarkaiPaletteEnumTool = Extract<PaletteTool, { type: 'enum' }>
+type AnarkaiPaletteEnumValue = AnarkaiPaletteEnumTool['values'][number]
 
 const anarkaiPaletteEditorLabels = {
 	button: 'Button',
+	cycle: 'Cycle',
 	commandBox: 'Command box',
 	select: 'Select',
 	segmented: 'Segmented',
@@ -84,18 +88,125 @@ function itemMeta(item: AnarkaiPaletteAnyItem) {
 	}
 }
 
+/** Native `title` / `el:title` text: item hint, else accessible label (matches `aria-label`). */
+export function paletteToolbarControlTitle(item: AnarkaiPaletteAnyItem): string {
+	const meta = itemMeta(item)
+	return meta.hint ?? meta.label
+}
+
 function choiceDisplay(item: AnarkaiPaletteAnyItem): AnarkaiPaletteChoiceDisplay {
 	const display = enumConfig(item)?.choiceDisplay
 	return display === 'icon' || display === 'text' || display === 'both' ? display : 'both'
 }
 
+function normalizeEnumKeyword(value: string): string {
+	return value.trim().toLowerCase()
+}
+
+function splitEnumWords(value: string): string[] {
+	return value
+		.replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+		.replace(/[^a-zA-Z0-9]+/g, ' ')
+		.split(/\s+/)
+		.map((part) => part.trim())
+		.filter((part) => part.length > 0)
+}
+
+function enumValueKeywords(entry: AnarkaiPaletteEnumValue): string[] {
+	const seen = new Set<string>()
+	const values: string[] = []
+	const push = (source: string | readonly string[] | undefined) => {
+		if (!source) return
+		const list = typeof source === 'string' ? [source] : source
+		for (const value of list) {
+			const exact = normalizeEnumKeyword(value)
+			if (exact && !seen.has(exact)) {
+				seen.add(exact)
+				values.push(exact)
+			}
+			for (const word of splitEnumWords(value)) {
+				const normalized = normalizeEnumKeyword(word)
+				if (!normalized || seen.has(normalized)) continue
+				seen.add(normalized)
+				values.push(normalized)
+			}
+		}
+	}
+	push(String(entry.value))
+	push(entry.label)
+	push(entry.categories)
+	push(entry.keywords)
+	return values
+}
+
+function enumAcceptedKeywords(item: AnarkaiPaletteAnyItem): readonly string[] {
+	return enumConfig(item)?.acceptedKeywords ?? []
+}
+
 function filteredEnumValues(item: AnarkaiPaletteAnyItem, tool: AnarkaiPaletteEnumTool) {
+	const acceptedKeywords = enumAcceptedKeywords(item)
+	if (acceptedKeywords.length > 0) {
+		const allowed = new Set(acceptedKeywords.map((value) => normalizeEnumKeyword(value)))
+		return tool.values.filter((entry: AnarkaiPaletteEnumValue) =>
+			enumValueKeywords(entry).some((keyword) => allowed.has(keyword))
+		)
+	}
 	const subset = enumConfig(item)?.values
 	if (!subset?.length) return tool.values
 	const allowed = new Set(subset)
-	return tool.values.filter((entry: AnarkaiPaletteEnumTool['values'][number]) =>
-		allowed.has(String(entry.value))
+	return tool.values.filter((entry: AnarkaiPaletteEnumValue) => allowed.has(String(entry.value)))
+}
+
+function enumValueLabel(entry: AnarkaiPaletteEnumValue): string {
+	return entry.label ?? String(entry.value)
+}
+
+function enumChoiceParts(
+	entry: AnarkaiPaletteEnumValue,
+	display: AnarkaiPaletteChoiceDisplay
+): {
+	icon: string | JSX.Element | undefined
+	label: string
+	showLabel: boolean
+} {
+	const label = enumValueLabel(entry)
+	const icon =
+		display !== 'text'
+			? controlIcon(entry.icon ?? (display === 'icon' ? String(entry.value) : undefined))
+			: undefined
+	return {
+		icon,
+		label,
+		showLabel: display !== 'icon' || icon === undefined,
+	}
+}
+
+function selectedEnumValue(
+	item: AnarkaiPaletteAnyItem,
+	tool: AnarkaiPaletteEnumTool
+): AnarkaiPaletteEnumValue | undefined {
+	const visible = filteredEnumValues(item, tool)
+	return (
+		visible.find((entry: AnarkaiPaletteEnumValue) => String(entry.value) === String(tool.value)) ??
+		visible[0]
 	)
+}
+
+function enumChoiceTitle(itemTitle: string, entry: AnarkaiPaletteEnumValue): string {
+	const label = enumValueLabel(entry)
+	return itemTitle === label ? itemTitle : `${itemTitle} — ${label}`
+}
+
+function nextEnumValue(
+	item: AnarkaiPaletteAnyItem,
+	tool: AnarkaiPaletteEnumTool
+): AnarkaiPaletteEnumValue | undefined {
+	const visible = filteredEnumValues(item, tool)
+	if (visible.length === 0) return undefined
+	const currentIndex = visible.findIndex(
+		(entry: AnarkaiPaletteEnumValue) => String(entry.value) === String(tool.value)
+	)
+	return visible[(currentIndex >= 0 ? currentIndex + 1 : 0) % visible.length]
 }
 
 function editorOptions(
@@ -109,6 +220,7 @@ function editorOptions(
 	if (family === 'boolean') return [{ value: 'toggle', label: anarkaiPaletteEditorLabels.toggle }]
 	if (family === 'enum')
 		return [
+			{ value: 'cycle', label: anarkaiPaletteEditorLabels.cycle },
 			{ value: 'select', label: anarkaiPaletteEditorLabels.select },
 			{ value: 'segmented', label: anarkaiPaletteEditorLabels.segmented },
 		]
@@ -135,7 +247,11 @@ function setConfigChoiceDisplay(item: AnarkaiPaletteAnyItem, value: string) {
 	config.choiceDisplay = value === 'icon' || value === 'text' || value === 'both' ? value : 'both'
 }
 
-function setConfigList(item: AnarkaiPaletteAnyItem, key: 'values' | 'keywords', value: string) {
+function setConfigList(
+	item: AnarkaiPaletteAnyItem,
+	key: 'acceptedKeywords' | 'keywords' | 'values',
+	value: string
+) {
 	const config = ensureItemConfig(item) as AnarkaiPaletteEnumConfig
 	const next = value
 		.split(',')
@@ -144,9 +260,9 @@ function setConfigList(item: AnarkaiPaletteAnyItem, key: 'values' | 'keywords', 
 	config[key] = next.length > 0 ? next : undefined
 }
 
-function controlIcon(icon: string | JSX.Element | undefined): string | JSX.Element | undefined {
+function controlIcon(icon: string | JSX.Element | undefined): JSX.Element | undefined {
 	if (!icon) return undefined
-	return typeof icon === 'string' ? (renderAnarkaiIcon(icon) ?? undefined) : icon
+	return renderAnarkaiIcon(icon, { class: 'ak-palette-rendered-icon' }) ?? undefined
 }
 
 function ConfigRow(props: { label: string; description?: string; children?: JSX.Children }) {
@@ -158,6 +274,44 @@ function ConfigRow(props: { label: string; description?: string; children?: JSX.
 			</div>
 			<div class="ak-palette-config-value">{props.children}</div>
 		</div>
+	)
+}
+
+function EnumChoicePreview(props: {
+	entry: AnarkaiPaletteEnumValue
+	display: AnarkaiPaletteChoiceDisplay
+}) {
+	const parts = enumChoiceParts(props.entry, props.display)
+	return (
+		<span class="ak-palette-choice">
+			<span if={parts.icon} class="ak-palette-choice__icon">
+				{parts.icon}
+			</span>
+			<span if={parts.showLabel} class="ak-palette-choice__label">
+				{parts.label}
+			</span>
+		</span>
+	)
+}
+
+function CurrentEnumChoicePreview(props: {
+	entry: () => AnarkaiPaletteEnumValue
+	display: () => AnarkaiPaletteChoiceDisplay
+}) {
+	const view = {
+		get parts() {
+			return enumChoiceParts(props.entry(), props.display())
+		},
+	}
+	return (
+		<span class="ak-palette-choice">
+			<span if={view.parts.icon} class="ak-palette-choice__icon">
+				{view.parts.icon}
+			</span>
+			<span if={view.parts.showLabel} class="ak-palette-choice__label">
+				{view.parts.label}
+			</span>
+		</span>
 	)
 }
 
@@ -184,7 +338,14 @@ function BaseConfigurator(props: { item: AnarkaiPaletteAnyItem; tool: PaletteToo
 					update:value={(value: string) => setConfigText(props.item, 'hint', value)}
 				/>
 			</ConfigRow>
-			<ConfigRow label="Editor">
+			<ConfigRow
+				label="Editor"
+				description={
+					props.tool && paletteToolFamily(props.tool) === 'enum'
+						? 'Toolbar control shape (e.g. dropdown vs segmented). Does not set the live value.'
+						: undefined
+				}
+			>
 				<select
 					value={props.item.editor}
 					update:value={(value: string) => {
@@ -213,6 +374,21 @@ function BaseConfigurator(props: { item: AnarkaiPaletteAnyItem; tool: PaletteToo
 	)
 }
 
+/** Enum EE: editor shape and options only — not the live tool value (that comes from the app / tool binding). */
+function EnumInspectorConfigure(props: {
+	readonly context: PaletteEditorContext<
+		AnarkaiPaletteEnumTool,
+		AnarkaiPaletteAnyItem,
+		AnarkaiPaletteSchema
+	>
+}) {
+	return (
+		<div class="ak-palette-config-stack">
+			<EnumConfigurator item={props.context.item as AnarkaiPaletteAnyItem} tool={props.context.tool} />
+		</div>
+	)
+}
+
 function EnumConfigurator(props: { item: AnarkaiPaletteAnyItem; tool: AnarkaiPaletteEnumTool }) {
 	const config = enumConfig(props.item)
 	return (
@@ -228,16 +404,21 @@ function EnumConfigurator(props: { item: AnarkaiPaletteAnyItem; tool: AnarkaiPal
 					<option value="text">Text only</option>
 				</select>
 			</ConfigRow>
-			<ConfigRow label="Allowed values">
+			<ConfigRow
+				label="Accepted keywords"
+				description="Show values whose keywords or id parts match any of these tokens."
+			>
 				<input
-					value={config?.values?.join(', ') ?? ''}
-					placeholder={props.tool.values
-						.map((entry: AnarkaiPaletteEnumTool['values'][number]) => String(entry.value))
-						.join(', ')}
-					update:value={(value: string) => setConfigList(props.item, 'values', value)}
+					value={config?.acceptedKeywords?.join(', ') ?? ''}
+					placeholder={Array.from(
+						new Set(
+							props.tool.values.flatMap((entry: AnarkaiPaletteEnumValue) => enumValueKeywords(entry))
+						)
+					).join(', ')}
+					update:value={(value: string) => setConfigList(props.item, 'acceptedKeywords', value)}
 				/>
 			</ConfigRow>
-			<ConfigRow label="Keywords">
+			<ConfigRow label="Item keywords">
 				<input
 					value={config?.keywords?.join(', ') ?? ''}
 					placeholder="layout, theme"
@@ -253,10 +434,11 @@ function ButtonEditor(
 ) {
 	const meta = itemMeta(context.item as AnarkaiPaletteAnyItem)
 	const icon = controlIcon(meta.icon)
+	const title = paletteToolbarControlTitle(context.item as AnarkaiPaletteAnyItem)
 	return icon ? (
-		<Button ariaLabel={meta.label} icon={icon} onClick={context.tool.run} />
+		<Button ariaLabel={meta.label} el:title={title} icon={icon} onClick={context.tool.run} />
 	) : (
-		<Button ariaLabel={meta.label} onClick={context.tool.run}>
+		<Button ariaLabel={meta.label} el:title={title} onClick={context.tool.run}>
 			{meta.label}
 		</Button>
 	)
@@ -270,10 +452,12 @@ function ToggleEditor(
 	>
 ) {
 	const meta = itemMeta(context.item as AnarkaiPaletteAnyItem)
+	const title = paletteToolbarControlTitle(context.item as AnarkaiPaletteAnyItem)
 	return (
 		<CheckButton
 			checked={context.tool.value}
 			ariaLabel={meta.label}
+			el:title={title}
 			icon={controlIcon(meta.icon ?? (context.tool.value ? '●' : '○'))}
 		>
 			{meta.label}
@@ -284,84 +468,260 @@ function ToggleEditor(
 function SelectEditor(
 	context: PaletteEditorContext<AnarkaiPaletteEnumTool, AnarkaiPaletteAnyItem, AnarkaiPaletteSchema>
 ) {
-	const meta = itemMeta(context.item as AnarkaiPaletteAnyItem)
+	const item = context.item as AnarkaiPaletteAnyItem
+	const meta = itemMeta(item)
+	const title = paletteToolbarControlTitle(item)
+	const ui = reactive({
+		left: 0,
+		open: false,
+		top: 0,
+		width: 0,
+	})
+	let trigger: HTMLButtonElement | undefined
+	const syncPopup = () => {
+		if (!trigger) return
+		const rect = trigger.getBoundingClientRect()
+		const nextWidth = Math.max(rect.width, 160)
+		const estimatedHeight = Math.min(view.values.length, 8) * 36 + 8
+		const spaceBelow = window.innerHeight - rect.bottom
+		ui.width = nextWidth
+		ui.left = rect.left
+		ui.top =
+			spaceBelow >= estimatedHeight
+				? rect.bottom + 4
+				: Math.max(8, rect.top - estimatedHeight - 4)
+	}
 	const view = {
+		get open() {
+			return ui.open
+		},
+		get popupStyle() {
+			return {
+				left: `${ui.left}px`,
+				top: `${ui.top}px`,
+				width: `${ui.width}px`,
+			}
+		},
 		get values() {
-			return filteredEnumValues(context.item as AnarkaiPaletteAnyItem, context.tool)
+			return filteredEnumValues(item, context.tool)
 		},
 		get display() {
-			return choiceDisplay(context.item as AnarkaiPaletteAnyItem)
+			return choiceDisplay(item)
+		},
+		get selected() {
+			return (
+				selectedEnumValue(item, context.tool) ?? {
+					value: context.tool.value,
+					label: String(context.tool.value),
+				}
+			)
 		},
 	}
+	effect`anarkai-palette-select-popup`(() => {
+		if (!view.open) return
+		syncPopup()
+		const host = document.createElement('div')
+		document.body.appendChild(host)
+		const stopLatch = latch(
+			host,
+			<div class="ak-palette-select-field__overlay" onClick={() => (ui.open = false)}>
+				<div
+					class="ak-palette-select-field__popup"
+					style={view.popupStyle}
+					onClick={(event: Event) => event.stopPropagation()}
+				>
+					<ul class="ak-palette-select-field__list">
+						<for each={view.values}>
+							{(entry: AnarkaiPaletteEnumValue) => (
+								<li class="ak-palette-select-field__item">
+									<button
+										type="button"
+										class={[
+											'ak-palette-select-field__option',
+											String(entry.value) === String(context.tool.value)
+												? 'is-selected'
+												: undefined,
+										]}
+										aria-pressed={
+											String(entry.value) === String(context.tool.value) ? 'true' : 'false'
+										}
+										title={enumChoiceTitle(title, entry)}
+										onClick={() => {
+											context.tool.value = entry.value
+											ui.open = false
+											trigger?.focus()
+										}}
+									>
+										<EnumChoicePreview entry={entry} display={view.display} />
+									</button>
+								</li>
+							)}
+						</for>
+					</ul>
+				</div>
+			</div>
+		)
+		const onKey = (event: KeyboardEvent) => {
+			if (event.key !== 'Escape') return
+			ui.open = false
+			trigger?.focus()
+		}
+		const onLayout = () => syncPopup()
+		window.addEventListener('resize', onLayout)
+		window.addEventListener('scroll', onLayout, true)
+		window.addEventListener('keydown', onKey)
+		return () => {
+			window.removeEventListener('resize', onLayout)
+			window.removeEventListener('scroll', onLayout, true)
+			window.removeEventListener('keydown', onKey)
+			stopLatch()
+			host.remove()
+		}
+	})
 	return (
-		<label class="ak-palette-select-field">
+		<div class="ak-palette-select-field">
 			<span if={meta.icon} class="ak-palette-select-field__icon">
 				{renderAnarkaiIcon(meta.icon)}
 			</span>
-			<select
-				value={context.tool.value}
-				update:value={(value: string) => {
-					context.tool.value = value
+			<button
+				this={trigger}
+				type="button"
+				class={['ak-palette-select-field__trigger', view.open ? 'is-open' : undefined]}
+				aria-expanded={view.open ? 'true' : 'false'}
+				title={title}
+				onClick={() => {
+					if (!view.open) syncPopup()
+					ui.open = !ui.open
 				}}
 			>
-				<for each={view.values}>
-					{(entry: AnarkaiPaletteEnumTool['values'][number]) => (
-						<option value={String(entry.value)}>
-							{view.display === 'icon'
-								? (entry.icon ?? entry.label ?? String(entry.value))
-								: view.display === 'text'
-									? (entry.label ?? String(entry.value))
-									: [entry.icon, entry.label ?? String(entry.value)].filter(Boolean).join(' ')}
-						</option>
-					)}
-				</for>
-			</select>
-		</label>
+				<span class="ak-palette-select-field__current">
+					<CurrentEnumChoicePreview entry={() => view.selected} display={() => view.display} />
+				</span>
+				<span class="ak-palette-select-field__chevron" aria-hidden="true">
+					▾
+				</span>
+			</button>
+		</div>
+	)
+}
+
+function CycleEditor(
+	context: PaletteEditorContext<AnarkaiPaletteEnumTool, AnarkaiPaletteAnyItem, AnarkaiPaletteSchema>
+) {
+	const item = context.item as AnarkaiPaletteAnyItem
+	const ui = reactive({ previewReady: false })
+	let button: HTMLButtonElement | undefined
+	let preview: HTMLElement | undefined
+	let stopPreview: (() => void) | undefined
+	const view = {
+		get current() {
+			return (
+				selectedEnumValue(item, context.tool) ?? {
+					value: context.tool.value,
+					label: String(context.tool.value),
+				}
+			)
+		},
+		get currentParts() {
+			return enumChoiceParts(this.current, choiceDisplay(item))
+		},
+		get next() {
+			return nextEnumValue(item, context.tool)
+		},
+		get nextValue() {
+			return this.next?.value
+		},
+		get title() {
+			const base = paletteToolbarControlTitle(item)
+			const current = enumValueLabel(this.current)
+			const next = this.next ? enumValueLabel(this.next) : current
+			return next === current ? `${base} — ${current}` : `${base} — ${current} → ${next}`
+		},
+	}
+	const syncButton = (entry: AnarkaiPaletteEnumValue = view.current) => {
+		const parts = enumChoiceParts(entry, choiceDisplay(item))
+		if (button) {
+			button.title = view.title
+			button.setAttribute('aria-label', enumValueLabel(entry))
+			if (parts.showLabel) delete button.dataset.iconOnly
+			else button.dataset.iconOnly = 'true'
+		}
+		if (preview) {
+			stopPreview?.()
+			stopPreview = latch(preview, <EnumChoicePreview entry={entry} display={choiceDisplay(item)} />)
+		}
+	}
+	effect`anarkai-palette-cycle-button`(() => {
+		if (!ui.previewReady || !button) return
+		syncButton()
+	})
+	return (
+		<button
+			this={button}
+			type="button"
+			class={['ak-control-button', 'ak-button']}
+			onClick={() => {
+				const next = view.next
+				if (!next) return
+				context.tool.value = next.value
+				syncButton(next)
+			}}
+		>
+			<span
+				use={(element: HTMLElement) => {
+					preview = element
+					ui.previewReady = true
+					return () => {
+						stopPreview?.()
+						stopPreview = undefined
+					}
+				}}
+			/>
+		</button>
 	)
 }
 
 function SegmentedEditor(
 	context: PaletteEditorContext<AnarkaiPaletteEnumTool, AnarkaiPaletteAnyItem, AnarkaiPaletteSchema>
 ) {
+	const item = context.item as AnarkaiPaletteAnyItem
+	const itemTip = paletteToolbarControlTitle(item)
 	const view = {
 		get values() {
-			return filteredEnumValues(context.item as AnarkaiPaletteAnyItem, context.tool)
+			return filteredEnumValues(item, context.tool)
 		},
 		get display() {
-			return choiceDisplay(context.item as AnarkaiPaletteAnyItem)
+			return choiceDisplay(item)
 		},
 	}
 	return (
 		<ButtonGroup roleFilter="radio">
 			<for each={view.values}>
-				{(entry: AnarkaiPaletteEnumTool['values'][number]) => (
+				{(entry: AnarkaiPaletteEnumValue) =>
 					(() => {
-						const icon =
-							view.display !== 'text'
-								? controlIcon(
-										entry.icon ?? (view.display === 'icon' ? String(entry.value) : undefined)
-									)
-								: undefined
-						const label = entry.label ?? String(entry.value)
-						return view.display === 'icon' && icon ? (
+						const parts = enumChoiceParts(entry, view.display)
+						const segmentTitle = enumChoiceTitle(itemTip, entry)
+						return parts.icon && !parts.showLabel ? (
 							<RadioButton
 								value={entry.value}
 								group={context.tool.value}
-								ariaLabel={label}
-								icon={icon}
+								ariaLabel={parts.label}
+								el:title={segmentTitle}
+								icon={parts.icon}
 							/>
 						) : (
 							<RadioButton
 								value={entry.value}
 								group={context.tool.value}
-								ariaLabel={label}
-								icon={icon}
+								ariaLabel={parts.label}
+								el:title={segmentTitle}
+								icon={parts.icon}
 							>
-								{label}
+								{parts.label}
 							</RadioButton>
 						)
 					})()
-				)}
+				}
 			</for>
 		</ButtonGroup>
 	)
@@ -379,12 +739,32 @@ export function createAnarkaiPaletteEditors(): PaletteEditorRegistry<AnarkaiPale
 			},
 		},
 		enum: {
+			cycle: {
+				editor: CycleEditor,
+				configure: (context) => (
+					<EnumInspectorConfigure
+						context={
+							context as PaletteEditorContext<
+								AnarkaiPaletteEnumTool,
+								AnarkaiPaletteAnyItem,
+								AnarkaiPaletteSchema
+							>
+						}
+					/>
+				),
+				flags: { footprint: 'horizontal' },
+			},
 			select: {
 				editor: SelectEditor,
 				configure: (context) => (
-					<EnumConfigurator
-						item={context.item as AnarkaiPaletteAnyItem}
-						tool={context.tool as AnarkaiPaletteEnumTool}
+					<EnumInspectorConfigure
+						context={
+							context as PaletteEditorContext<
+								AnarkaiPaletteEnumTool,
+								AnarkaiPaletteAnyItem,
+								AnarkaiPaletteSchema
+							>
+						}
 					/>
 				),
 				flags: { footprint: 'horizontal' },
@@ -392,9 +772,14 @@ export function createAnarkaiPaletteEditors(): PaletteEditorRegistry<AnarkaiPale
 			segmented: {
 				editor: SegmentedEditor,
 				configure: (context) => (
-					<EnumConfigurator
-						item={context.item as AnarkaiPaletteAnyItem}
-						tool={context.tool as AnarkaiPaletteEnumTool}
+					<EnumInspectorConfigure
+						context={
+							context as PaletteEditorContext<
+								AnarkaiPaletteEnumTool,
+								AnarkaiPaletteAnyItem,
+								AnarkaiPaletteSchema
+							>
+						}
 					/>
 				),
 				flags: { footprint: 'free' },
@@ -436,6 +821,7 @@ export const anarkaiPalettePreset = createAnarkaiPalettePreset()
 
 export const anarkaiPaletteEditorSpecs = {
 	button: anarkaiPaletteEditors.run?.button,
+	cycle: anarkaiPaletteEditors.enum?.cycle,
 	commandBox: anarkaiPaletteEditors.item?.commandBox,
 	select: anarkaiPaletteEditors.enum?.select,
 	segmented: anarkaiPaletteEditors.enum?.segmented,

@@ -139,9 +139,7 @@ const TileProperties = (props: TilePropertiesProps) => {
 				<PropertyGrid>
 					<PropertyGridRow label={String(i18nState.translator?.tile.walkTime ?? '')}>
 						<Badge
-							tone={
-								state.tileContent?.walkTime === Number.POSITIVE_INFINITY ? 'red' : 'yellow'
-							}
+							tone={state.tileContent?.walkTime === Number.POSITIVE_INFINITY ? 'red' : 'yellow'}
 						>
 							{state.tileContent?.walkTime === Number.POSITIVE_INFINITY
 								? String(i18nState.translator?.tile.unwalkable ?? '')

@@ -99,11 +99,7 @@ export default function GoodMultiSelect(props: GoodMultiSelectProps) {
 							<EntityBadge game={props.game} sprite={getSprite(gt)} text={gt} />
 							<div class="row-controls">
 								<div if={props.renderItemExtra}>{props.renderItemExtra?.(gt)}</div>
-								<Button
-									onClick={() => handleRemove(gt)}
-									el:title="Remove"
-									el:class="remove-btn"
-								>
+								<Button onClick={() => handleRemove(gt)} el:title="Remove" el:class="remove-btn">
 									×
 								</Button>
 							</div>

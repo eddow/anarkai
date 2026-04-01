@@ -1,5 +1,7 @@
 import { getBrowserPalette } from '@app/palette/browser-palette'
+import { PALETTE_INSPECTOR_DOCK_PANEL_ID } from '@app/palette/palette-inspector'
 import { document, latch } from '@sursaut/core'
+import { palettes } from '@sursaut/ui/palette'
 import { registerGlyfIconFactory } from 'pure-glyf/sursaut'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -11,10 +13,11 @@ type PaletteToolEnum<T extends string> = {
 	value: T
 }
 
-const { addPanel, getPanel, dockviewApi, gameInstance, globals } = vi.hoisted(() => {
+const { addPanel, getPanel, removePanel, dockviewApi, gameInstance, globals } = vi.hoisted(() => {
 	const addPanel = vi.fn((panel: Record<string, unknown>) => panel)
 	const getPanel = vi.fn(() => undefined)
-	const dockviewApi = { addPanel, getPanel }
+	const removePanel = vi.fn()
+	const dockviewApi = { addPanel, getPanel, removePanel }
 	const gameInstance = {
 		clock: {
 			virtualTime: 125,
@@ -37,7 +40,7 @@ const { addPanel, getPanel, dockviewApi, gameInstance, globals } = vi.hoisted(()
 			darkMode: false,
 		},
 	}
-	return { addPanel, getPanel, dockviewApi, gameInstance, globals }
+	return { addPanel, getPanel, removePanel, dockviewApi, gameInstance, globals }
 })
 
 vi.mock('./app.css', () => ({}))
@@ -94,6 +97,7 @@ vi.mock('./widgets', () => ({
 	default: {
 		game: () => <div>game</div>,
 		configuration: () => <div>configuration</div>,
+		paletteInspector: () => <div data-testid="palette-inspector-widget">palette-inspector</div>,
 		test: () => <div>test</div>,
 	},
 }))
@@ -173,6 +177,9 @@ describe('App toolbar interactions', () => {
 		document.body.appendChild(container)
 		addPanel.mockClear()
 		getPanel.mockClear()
+		removePanel.mockClear()
+		getPanel.mockImplementation(() => undefined)
+		delete palettes.editing
 		globals.configuration.timeControl = 'pause'
 		globals.interactionMode.selectedAction = ''
 		globals.uiConfiguration.darkMode = false
@@ -183,6 +190,7 @@ describe('App toolbar interactions', () => {
 	afterEach(() => {
 		stop?.()
 		stop = undefined
+		delete palettes.editing
 		container.remove()
 		document.body.innerHTML = ''
 	})
@@ -271,6 +279,9 @@ describe('Palette IDE shell', () => {
 		document.body.appendChild(container)
 		addPanel.mockClear()
 		getPanel.mockClear()
+		removePanel.mockClear()
+		getPanel.mockImplementation(() => undefined)
+		delete palettes.editing
 		globals.configuration.timeControl = 'pause'
 		globals.interactionMode.selectedAction = ''
 		globals.uiConfiguration.darkMode = false
@@ -281,6 +292,7 @@ describe('Palette IDE shell', () => {
 	afterEach(() => {
 		stop?.()
 		stop = undefined
+		delete palettes.editing
 		container.remove()
 		document.body.innerHTML = ''
 	})
@@ -336,5 +348,33 @@ describe('Palette IDE shell', () => {
 
 		selectedAction.value = 'build:house'
 		expect(globals.interactionMode.selectedAction).toBe('build:house')
+	})
+
+	it('adds a floating palette inspector panel when palette edit mode is enabled', () => {
+		stop = latch(container, <App />)
+		addPanel.mockClear()
+		const { palette } = getBrowserPalette()
+		palettes.editing = palette
+		expect(addPanel).toHaveBeenCalledWith(
+			expect.objectContaining({
+				id: PALETTE_INSPECTOR_DOCK_PANEL_ID,
+				component: 'paletteInspector',
+				title: 'Toolbar item',
+				floating: { width: 400, height: 520 },
+			})
+		)
+	})
+
+	it('removes the palette inspector panel when palette edit mode ends', () => {
+		stop = latch(container, <App />)
+		const { palette } = getBrowserPalette()
+		const fakePanel = { id: PALETTE_INSPECTOR_DOCK_PANEL_ID }
+		palettes.editing = palette
+		getPanel.mockImplementation((id: string) =>
+			id === PALETTE_INSPECTOR_DOCK_PANEL_ID ? fakePanel : undefined
+		)
+		removePanel.mockClear()
+		delete palettes.editing
+		expect(removePanel).toHaveBeenCalledWith(fakePanel)
 	})
 })

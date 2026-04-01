@@ -1,9 +1,18 @@
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons'
-import type { PaletteCommandBoxModel, PaletteSchema, PaletteScope } from '@sursaut/ui/palette'
+import type {
+	PaletteCatalogDragPayload,
+	PaletteCommandBoxModel,
+	PaletteSchema,
+	PaletteScope,
+} from '@sursaut/ui/palette'
 import {
+	beginPaletteCatalogInsertDrag,
 	handlePaletteCommandBoxInputKeydown,
 	handlePaletteCommandChipKeydown,
+	PALETTE_CATALOG_DRAG_MIME,
 	palettes,
+	paletteToolbarItemFromCatalogPayload,
+	serializePaletteCatalogDragPayload,
 	setPaletteCommandBoxInput,
 } from '@sursaut/ui/palette'
 import { reactive, unwrap } from 'mutts'
@@ -24,6 +33,12 @@ export type AnarkaiPaletteCommandBoxProps<TSchema extends PaletteSchema = Anarka
 	readonly onInputMount?: (input: HTMLInputElement) => void
 	readonly onSuggestionPick?: () => void
 	readonly selectOnPick?: boolean
+}
+
+/** Native tooltip for popover rows: full label plus meta when present (truncation / long rows). */
+export function paletteCommandResultTitle(entry: { label: string; meta?: string }): string {
+	const meta = entry.meta?.trim()
+	return meta ? `${entry.label} — ${meta}` : entry.label
 }
 
 export type AnarkaiPaletteScopeExtras = {
@@ -79,6 +94,7 @@ export function AnarkaiPaletteCommandBox<TSchema extends PaletteSchema = Anarkai
 					]}
 					aria-label="Toggle palette editing"
 					aria-pressed={edition.checked ? 'true' : 'false'}
+					title="Toggle palette editing"
 					onClick={() => edition.toggle()}
 				>
 					✎
@@ -92,6 +108,7 @@ export function AnarkaiPaletteCommandBox<TSchema extends PaletteSchema = Anarkai
 							<button
 								type="button"
 								class="ak-palette-command-box__token"
+								title={`Filter by category: ${category}`}
 								onClick={() => props.commandBox.categories.toggle(category)}
 								onKeydown={(event) =>
 									handlePaletteCommandChipKeydown({
@@ -111,6 +128,7 @@ export function AnarkaiPaletteCommandBox<TSchema extends PaletteSchema = Anarkai
 							<button
 								type="button"
 								class="ak-palette-command-box__token"
+								title={`Remove keyword: ${token.keyword}`}
 								onClick={() => props.commandBox.keywords.removeToken(token.keyword)}
 								onKeydown={(event) =>
 									handlePaletteCommandChipKeydown({
@@ -154,34 +172,120 @@ export function AnarkaiPaletteCommandBox<TSchema extends PaletteSchema = Anarkai
 				</div>
 			</div>
 			<div if={props.expanded} class="ak-palette-command-box__popover">
-				<for each={props.commandBox.results.slice(0, 6)}>
-					{(entry: { id: string; icon?: string; label: string; meta?: string; can?: boolean }) => (
-						<button
-							type="button"
-							class={[
-								'ak-palette-command-box__result',
-								props.commandBox.selection.item?.id === entry.id ? 'is-selected' : undefined,
-							]}
-							disabled={entry.can === false}
-							onClick={() => {
-								if (props.selectOnPick) {
-									props.commandBox.select(entry.id)
-									props.onEntryPick?.(entry.id)
-									return
-								}
-								props.commandBox.execute(entry.id)
-								props.onEscapeOrExecute?.()
-							}}
-						>
-							<span class="ak-palette-command-box__result-icon">
-								{renderAnarkaiIcon(entry.icon)}
-							</span>
-							<span class="ak-palette-command-box__result-label">{entry.label}</span>
-							<span if={entry.meta} class="ak-palette-command-box__result-meta">
-								{entry.meta}
-							</span>
-						</button>
+				<for
+					each={props.commandBox.results.slice(
+						0,
+						edition.checked ? Math.min(props.commandBox.results.length, 24) : 6
 					)}
+				>
+					{(entry: {
+						id: string
+						icon?: string
+						label: string
+						meta?: string
+						can?: boolean
+						catalogDrag?: PaletteCatalogDragPayload
+					}) => {
+						const resultClass = [
+							'ak-palette-command-box__result',
+							props.commandBox.selection.item?.id === entry.id ? 'is-selected' : undefined,
+							edition.checked ? 'is-catalog' : undefined,
+						]
+						const titleText = paletteCommandResultTitle(entry)
+						const startCatalogDrag = (event: DragEvent) => {
+							const palette = props.palette
+							const payload = entry.catalogDrag ?? {
+								kind: 'spec' as const,
+								spec: entry.id,
+							}
+							const serialized = serializePaletteCatalogDragPayload(payload)
+							event.dataTransfer?.setData(PALETTE_CATALOG_DRAG_MIME, serialized)
+							event.dataTransfer?.setData('text/plain', entry.id)
+							if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copy'
+							if (palette && event.dataTransfer) {
+								const item = paletteToolbarItemFromCatalogPayload(palette, payload)
+								if (item)
+									beginPaletteCatalogInsertDrag(palette, item, {
+										x: event.clientX,
+										y: event.clientY,
+									})
+							}
+							const row = event.currentTarget
+							if (row instanceof HTMLElement && event.dataTransfer) {
+								const ghost = row.cloneNode(true) as HTMLElement
+								ghost.style.cssText =
+									'position:fixed;left:-9999px;top:0;pointer-events:none;opacity:0.92;max-width:min(90vw,22rem);'
+								document.body.appendChild(ghost)
+								event.dataTransfer.setDragImage(ghost, event.offsetX, event.offsetY)
+								queueMicrotask(() => ghost.remove())
+							}
+						}
+						const attachCatalogDrag = (node: Node | readonly Node[]) => {
+							const el = node instanceof HTMLElement ? node : undefined
+							if (!el) return
+							el.draggable = true
+							const listener = (event: DragEvent) => {
+								startCatalogDrag(event)
+							}
+							el.addEventListener('dragstart', listener)
+							return () => {
+								el.removeEventListener('dragstart', listener)
+								el.draggable = false
+							}
+						}
+						const inner = (
+							<>
+								<span class="ak-palette-command-box__result-icon">
+									{renderAnarkaiIcon(entry.icon)}
+								</span>
+								<span class="ak-palette-command-box__result-label">{entry.label}</span>
+								<span if={entry.meta} class="ak-palette-command-box__result-meta">
+									{entry.meta}
+								</span>
+							</>
+						)
+						if (edition.checked) {
+							return (
+								<div
+									role="button"
+									tabIndex={0}
+									class={resultClass}
+									title={titleText}
+									use={attachCatalogDrag}
+									onClick={() => {
+										props.commandBox.select(entry.id)
+									}}
+									onKeydown={(event: KeyboardEvent) => {
+										if (event.key === 'Enter' || event.key === ' ') {
+											event.preventDefault()
+											props.commandBox.select(entry.id)
+										}
+									}}
+								>
+									{inner}
+								</div>
+							)
+						}
+						return (
+							<button
+								type="button"
+								class={resultClass}
+								title={titleText}
+								disabled={entry.can === false}
+								onClick={() => {
+									if (props.selectOnPick) {
+										props.commandBox.select(entry.id)
+										props.onEntryPick?.(entry.id)
+										return
+									}
+									props.commandBox.execute(entry.id)
+									props.onEscapeOrExecute?.()
+								}}
+							>
+								{inner}
+							</button>
+						)
+					}}
 				</for>
 			</div>
 		</div>

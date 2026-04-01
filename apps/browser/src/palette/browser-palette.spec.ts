@@ -6,6 +6,10 @@ vi.mock('@app/lib/globals', () => ({
 	configuration: reactive({
 		timeControl: 'pause' as 'pause' | 'play' | 'fast-forward' | 'gonzales',
 	}),
+	game: {
+		rendererReady: Promise.resolve(),
+		getTexture: vi.fn(),
+	},
 	interactionMode: reactive({ selectedAction: '' }),
 	uiConfiguration: reactive({ darkMode: false }),
 }))
@@ -14,6 +18,12 @@ vi.mock('ssh/assets/game-content', () => ({
 	alveoli: {
 		house: { construction: true },
 		decor: {},
+	},
+}))
+
+vi.mock('engine-pixi/assets/visual-content', () => ({
+	alveoli: {
+		house: { sprites: ['house-sprite'] },
 	},
 }))
 
@@ -50,5 +60,15 @@ describe('browser palette registry & palettePanelBridge', () => {
 		expect(spyConfiguration).toHaveBeenCalledTimes(1)
 		expect(spyGame).toHaveBeenCalledTimes(1)
 		expect(spyTest).toHaveBeenCalledTimes(1)
+	})
+
+	it('provides an icon for build selectedAction entries', () => {
+		const palette = getBrowserPalette().palette
+		const selectedAction = palette.tool('selectedAction') as {
+			values: Array<{ value: string; icon?: string | JSX.Element }>
+		}
+
+		const buildHouse = selectedAction.values.find((entry) => entry.value === 'build:house')
+		expect(buildHouse?.icon).toBeTruthy()
 	})
 })

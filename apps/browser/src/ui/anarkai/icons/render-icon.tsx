@@ -20,9 +20,12 @@ export type AnarkaiNodeIcon = {
 	node: JSX.Element
 }
 
+export type AnarkaiIconFactory = () => JSX.Element
+
 export type AnarkaiIconSource =
 	| string
 	| JSX.Element
+	| AnarkaiIconFactory
 	| AnarkaiGlyphIcon
 	| AnarkaiImageIcon
 	| AnarkaiSvgIcon
@@ -64,6 +67,8 @@ const isGlyphIcon = (icon: AnarkaiIconSource): icon is AnarkaiGlyphIcon =>
 const isNodeIcon = (icon: AnarkaiIconSource): icon is AnarkaiNodeIcon =>
 	typeof icon === 'object' && icon !== null && 'kind' in icon && icon.kind === 'node'
 
+const isIconFactory = (icon: AnarkaiIconSource): icon is AnarkaiIconFactory => typeof icon === 'function'
+
 const getAccessibleIconAttributes = (label: string | undefined) =>
 	label
 		? {
@@ -79,6 +84,8 @@ export function renderAnarkaiIcon(
 	options: RenderAnarkaiIconOptions = {}
 ): JSX.Element | null {
 	if (!icon) return null
+
+	if (isIconFactory(icon)) return renderAnarkaiIcon(icon(), options)
 
 	const size = formatSize(options.size)
 	const style = size ? { '--ak-icon-size': size } : undefined

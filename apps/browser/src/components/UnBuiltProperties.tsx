@@ -38,7 +38,9 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 
 	effect`unbuilt-properties:deposit`(() => {
 		const deposit = props.content?.deposit
-		const name = deposit ? ((deposit.constructor as { key?: string }).key ?? deposit.constructor.name) : ''
+		const name = deposit
+			? ((deposit.constructor as { key?: string }).key ?? deposit.constructor.name)
+			: ''
 		state.deposit = deposit
 			? {
 					sprites: visualDeposits[name as keyof typeof visualDeposits]?.sprites ?? [],

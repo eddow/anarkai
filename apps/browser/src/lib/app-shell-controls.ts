@@ -56,7 +56,7 @@ export function getAppShellBuildableAlveoli(): GameAlveolusEntry[] {
 export type PaletteSelectedActionValue = {
 	value: string
 	label: string
-	icon?: string
+	icon?: string | JSX.Element | (() => JSX.Element)
 	keywords?: string[]
 }
 
@@ -64,7 +64,8 @@ export type PaletteSelectedActionValue = {
  * Enum options for the palette `selectedAction` tool (command box keywords stay aligned with labels).
  */
 export function buildPaletteSelectedActionValues(
-	buildableAlveoli: readonly GameAlveolusEntry[]
+	buildableAlveoli: readonly GameAlveolusEntry[],
+	getBuildIcon?: (name: string) => string | JSX.Element | (() => JSX.Element) | undefined
 ): PaletteSelectedActionValue[] {
 	const select: PaletteSelectedActionValue[] = [
 		{
@@ -77,6 +78,7 @@ export function buildPaletteSelectedActionValues(
 	const build = buildableAlveoli.map(([name]) => ({
 		value: `build:${name}`,
 		label: `Build ${name}`,
+		icon: getBuildIcon?.(name),
 		keywords: ['build', 'construction', name],
 	}))
 	const zones = appShellZoneActions.map((z) => ({

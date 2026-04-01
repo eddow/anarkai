@@ -90,6 +90,36 @@ const aliases: Alias[] = [
 		find: "dockview-core",
 		replacement: resolvePath(projectRootDir, "node_modules/dockview-core"),
 	},
+	// Use sursaut UI source in dev so palette/API changes are not blocked on `pnpm -C …/ui build`.
+	{
+		find: "@sursaut/ui/palette",
+		replacement: resolvePath(
+			projectRootDir,
+			"../../../ownk/sursaut/packages/ui/src/palette/index.ts",
+		),
+	},
+	{
+		find: "@sursaut/ui/dockview",
+		replacement: resolvePath(
+			projectRootDir,
+			"../../../ownk/sursaut/packages/ui/src/dockview.ts",
+		),
+	},
+	{
+		find: "@sursaut/ui/models",
+		replacement: resolvePath(
+			projectRootDir,
+			"../../../ownk/sursaut/packages/ui/src/models/index.ts",
+		),
+	},
+	// String "@sursaut/ui" is a prefix in Vite and would swallow "@sursaut/ui/models", etc.
+	{
+		find: /^@sursaut\/ui$/,
+		replacement: resolvePath(
+			projectRootDir,
+			"../../../ownk/sursaut/packages/ui/src/index.ts",
+		),
+	},
 ];
 
 const optimizeAliases = {
@@ -114,6 +144,19 @@ const optimizeAliases = {
 		projectRootDir,
 		"../../../ownk/sursaut/packages/pure-glyf/src/sursaut.tsx",
 	),
+	"@sursaut/ui/palette": resolvePath(
+		projectRootDir,
+		"../../../ownk/sursaut/packages/ui/src/palette/index.ts",
+	),
+	"@sursaut/ui/dockview": resolvePath(
+		projectRootDir,
+		"../../../ownk/sursaut/packages/ui/src/dockview.ts",
+	),
+	"@sursaut/ui/models": resolvePath(
+		projectRootDir,
+		"../../../ownk/sursaut/packages/ui/src/models/index.ts",
+	),
+	// Avoid prefix alias "@sursaut/ui" → index.ts breaking "@sursaut/ui/models" (esbuild).
 };
 
 export default defineConfig({

@@ -1,5 +1,13 @@
 Refer to `sursaut-ts/LLM.md` and `sursaut-ui/LLM.md` for introduction to the Sursaut framework.
 
+# Palette (browser)
+
+- **Edit mode** is toggled from the command box pencil; `palettes.editing` tracks which `Palette` instance is being edited.
+- **Inspect** (which item is being configured) uses global `palettes.inspecting` (`item`, `palette`, optional `region`). Sursaut sets it when clicking a toolbar **guard** strip or starting a guard drag; clearing happens when edit mode ends or after a successful drag move.
+- **Toolbar item inspector** (`PaletteToolbarInspectorPanel` in `src/palette/palette-inspector.tsx`) renders inside Dockview widget **`paletteInspector`** (`src/widgets/palette-inspector-widget.tsx`). **`App.tsx`** opens a **floating** panel (`PALETTE_INSPECTOR_DOCK_PANEL_ID`, `palette.toolbar-inspector`) when `palette.editing` is on and **removes** it when edit mode ends. Inside the panel: hint until `palettes.inspecting` is set, then identity + configurator (same as before).
+- **Reactivity**: Do not read `palettes.inspecting` **once** in the component body; use getters or `if={}` so Sursaut re-runs when selection changes (see Sursaut LLM “component body rules”). The Dock open/close effect must read `palette.editing` inside `effect` so it tracks `palettes.editing`. The **configurator** must be produced from getters that read `view.inspectingItem` in **`PaletteToolbarInspectorPanel`** (not only from a child that receives `item` as props), so changing the selected toolbar item updates the “editor’s editor” under Dockview.
+- **Escape** clears `palettes.inspecting` only (stays in edit mode). The floating panel’s chrome **Close** is Dockview’s; no duplicate close control in the inspector body.
+
 # Widget Logic & State Simplification
 
 ## Core Principle: Simplify State Management

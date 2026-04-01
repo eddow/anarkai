@@ -1,10 +1,5 @@
 import { css } from '@app/lib/css'
-import {
-	Badge,
-	type AnarkaiBadgeTone,
-	InspectorSection,
-	Panel,
-} from '@app/ui/anarkai'
+import { type AnarkaiBadgeTone, Badge, InspectorSection, Panel } from '@app/ui/anarkai'
 import { effect } from 'mutts'
 import { i18nState } from 'ssh/i18n'
 import { AEvolutionStep, ALerpStep } from 'ssh/npcs/steps'
