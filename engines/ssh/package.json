@@ -18,10 +18,11 @@
 		"check": "tsc -p tsconfig.app.json && tsc -p tsconfig.node.json",
 		"biome": "biome check . --fix",
 		"biome:unsafe": "biome check --fix --unsafe",
-		"test": "vitest run",
+		"test": "vitest run --silent --reporter=dot",
 		"test:core": "vitest run tests/unit/work_logic.test.ts tests/unit/pathfinding.test.ts tests/unit/storage.test.ts",
 		"test:watch": "vitest",
-		"test:ui": "vitest --ui"
+		"test:ui": "vitest --ui",
+		"test:verbose": "vitest run"
 	},
 	"dependencies": {
 		"@iconify-icons/material-symbols": "^1.2.58",

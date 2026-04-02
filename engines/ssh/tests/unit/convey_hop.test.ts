@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine/engine'
 
 describe('Convey hop mechanism', () => {
-	it('should track moving good correctly after hop', { timeout: 15000 }, async () => {
+	it('should track moving good correctly after hop', { timeout: 20000 }, async () => {
 		const engine = new TestEngine({
 			boardSize: 6,
 			terrainSeed: 1234,

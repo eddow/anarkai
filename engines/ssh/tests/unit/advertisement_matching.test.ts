@@ -264,4 +264,26 @@ describe('Advertisement matching', () => {
 		// Should not create movement through general storage fallback
 		expect(manager.movements).toEqual([])
 	})
+
+	it('prevents 1-buffer storage provider from using general storage fallback to empty storage', async () => {
+		const manager = new TestManager()
+		const provider = mkStorage('storage1')
+		const targetStorage = mkStorage('storage2')
+
+		manager.generalStorages.push(provider, targetStorage)
+
+		provider.canGive = (_goodType, _priority) => true
+		provider.canTake = (_goodType, _priority) => true
+		targetStorage.canGive = (_goodType, _priority) => false
+		targetStorage.canTake = (_goodType, _priority) => true
+
+		const provide: GoodsRelations = {
+			wood: { advertisement: 'provide', priority: '1-buffer' },
+		}
+
+		manager.advertise(provider, provide)
+		await new Promise((resolve) => setTimeout(resolve, 10))
+
+		expect(manager.movements).toEqual([])
+	})
 })

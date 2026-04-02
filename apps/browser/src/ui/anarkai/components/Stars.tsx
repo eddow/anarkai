@@ -46,11 +46,13 @@ function StarItem(props: {
 
 export const Stars = (props: StarsProps, scope: Record<string, unknown>) => {
 	const layout = arranged(scope, props)
-	const model = starsModel(extend(props, {
-		get orientation() {
-			return layout.orientation
-		},
-	}))
+	const model = starsModel(
+		extend(props, {
+			get orientation() {
+				return layout.orientation
+			},
+		})
+	)
 
 	return (
 		<div
@@ -67,7 +69,7 @@ export const Stars = (props: StarsProps, scope: Record<string, unknown>) => {
 				item={model.zeroItem}
 				size={model.size}
 				readonly={model.readonly}
-				selectedZero={() => !Array.isArray(props.value) && props.value === 0}
+				selectedZero={() => !Array.isArray(model.value) && model.value === 0}
 			/>
 			<for each={model.starItems}>
 				{(item: StarItemState) => (

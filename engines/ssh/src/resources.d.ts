@@ -84,8 +84,26 @@ declare namespace Ssh {
 		buffers: Record<string, number>
 	}
 
+	interface SlottedStorageGoodConfiguration {
+		minSlots: number
+		maxSlots: number
+	}
+
+	/**
+	 * Configuration specific to slotted-storage alveoli.
+	 * `generalSlots` limits how many non-configured goods may occupy slots.
+	 */
+	interface SlottedStorageAlveolusConfiguration extends BaseAlveolusConfiguration {
+		generalSlots: number
+		goods: Record<string, SlottedStorageGoodConfiguration>
+	}
+
+	type StorageAlveolusConfiguration =
+		| SpecificStorageAlveolusConfiguration
+		| SlottedStorageAlveolusConfiguration
+
 	/** Union of all configuration types */
-	type AlveolusConfiguration = BaseAlveolusConfiguration | SpecificStorageAlveolusConfiguration
+	type AlveolusConfiguration = BaseAlveolusConfiguration | StorageAlveolusConfiguration
 
 	interface AlveolusDefinition<ActionType extends Action = Action> {
 		preparationTime: number

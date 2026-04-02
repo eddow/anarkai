@@ -25,6 +25,8 @@ export interface MovingGood {
 	provider: Alveolus
 	demander: Alveolus
 	from: AxialCoord
+	/** Set by conveyStep to prevent a second worker from picking up the same movement */
+	claimed: boolean
 	allocations: {
 		source: AllocationBase
 		target: AllocationBase
@@ -618,16 +620,17 @@ export class Hive extends AdvertisementManager<Alveolus> {
 					}
 				}
 			}
-			const movingGood: MovingGood = {
-				goodType,
-				path,
-				provider,
-				demander,
-				from: positions.provider,
-				allocations: {
-					source: providerToken!,
-					target: targetToken!,
-				},
+		const movingGood: MovingGood = {
+			goodType,
+			path,
+			provider,
+			demander,
+			from: positions.provider,
+			claimed: false,
+			allocations: {
+				source: providerToken!,
+				target: targetToken!,
+			},
 				hop() {
 					const nextCoord = this.path.shift()!
 					traces.advertising?.log(
@@ -678,6 +681,20 @@ export class Hive extends AdvertisementManager<Alveolus> {
 							demander: this.demander.name,
 							error: error instanceof Error ? error.message : String(error),
 						})
+						try {
+							this.allocations.target.cancel()
+						} catch (cancelError) {
+							traces.allocations?.error(
+								`[MOVEMENT] TARGET CANCEL AFTER FAILED FULFILL FAILED: ${this.goodType}`,
+								{
+									movementId: reason.movementId,
+									goodType,
+									provider: this.provider.name,
+									demander: this.demander.name,
+									error: cancelError instanceof Error ? cancelError.message : String(cancelError),
+								}
+							)
+						}
 					}
 
 					// Source allocation should be automatically fulfilled when goods are removed from storage
@@ -699,28 +716,6 @@ export class Hive extends AdvertisementManager<Alveolus> {
 			traces.advertising?.log(
 				`[CREATE] SUCCESS: ${goodType} ${provider.name} -> ${demander.name} movement active`
 			)
-
-			// Add tracking for incomplete movements
-			setTimeout(() => {
-				const isStillActive =
-					this.movingGoods.has(positions.provider) ||
-					Array.from(this.movingGoods.values()).some((goods) =>
-						goods.some((mg) => mg === movingGood)
-					)
-
-				if (isStillActive) {
-					traces.allocations?.warn(
-						`[MOVEMENT] LONG-RUNNING: ${goodType} ${provider.name} -> ${demander.name}`,
-						{
-							movementId: reason.movementId,
-							goodType,
-							provider: provider.name,
-							demander: demander.name,
-							age: '5+ seconds',
-						}
-					)
-				}
-			}, 5000)
 
 			return true
 		})

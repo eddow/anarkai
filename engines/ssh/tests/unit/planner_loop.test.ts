@@ -258,57 +258,61 @@ describe('Planner loop diagnostic', () => {
 			characterCount: 0,
 		})
 		await engine.init()
-		const scenario: Partial<SaveState> = {
-			hives: [
-				{
-					name: 'TestHive',
-					alveoli: [
-						{ coord: [0, 0], alveolus: 'gather', goods: {} },
-						{ coord: [1, 0], alveolus: 'woodpile', goods: {} },
-					],
-				},
-			],
-			looseGoods: [],
-		}
-		engine.loadScenario(scenario)
-		const { game } = engine
-		const gather = game.hex.getTile({ q: 0, r: 0 })!.content!
-
-		// Seed gatherer with wood
-		gather.storage!.addGood('wood', 5)
-		await new Promise((r) => setTimeout(r, 0))
-
-		// Spawn a worker at the gatherer
-		const worker = engine.spawnCharacter('TestWorker', { q: 0, r: 0 })
-		worker.role = 'worker'
-		void worker.scriptsContext
-		const action = worker.findAction()
-		if (action) worker.begin(action)
-
-		await new Promise((r) => setTimeout(r, 0))
-
-		// Run up to 100 ticks — should not throw
-		let overflowActivations: any[] = []
-		const origMaxReaction = reactiveOptions.maxEffectReaction
-		reactiveOptions.maxEffectReaction = 'warn'
 		try {
-			for (let i = 0; i < 100; i++) {
-				engine.tick(0.5)
-				await new Promise((r) => setTimeout(r, 0))
+			const scenario: Partial<SaveState> = {
+				hives: [
+					{
+						name: 'TestHive',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'gather', goods: {} },
+							{ coord: [1, 0], alveolus: 'woodpile', goods: {} },
+						],
+					},
+				],
+				looseGoods: [],
 			}
-		} catch (e: any) {
-			overflowActivations = getActivationLog()
-				.filter(Boolean)
-				.slice(-30)
-				.map((entry: any) => ({
-					effect: entry.effect?.name || 'anon',
-					obj: entry.obj?.constructor?.name || String(entry.obj),
-					prop: String(entry.prop),
-				}))
-			console.error('OVERFLOW activations:', JSON.stringify(overflowActivations, null, 2))
-			throw e
+			engine.loadScenario(scenario)
+			const { game } = engine
+			const gather = game.hex.getTile({ q: 0, r: 0 })!.content!
+
+			// Seed gatherer with wood
+			gather.storage!.addGood('wood', 5)
+			await new Promise((r) => setTimeout(r, 0))
+
+			// Spawn a worker at the gatherer
+			const worker = engine.spawnCharacter('TestWorker', { q: 0, r: 0 })
+			worker.role = 'worker'
+			void worker.scriptsContext
+			const action = worker.findAction()
+			if (action) worker.begin(action)
+
+			await new Promise((r) => setTimeout(r, 0))
+
+			// Run up to 100 ticks — should not throw
+			let overflowActivations: any[] = []
+			const origMaxReaction = reactiveOptions.maxEffectReaction
+			reactiveOptions.maxEffectReaction = 'warn'
+			try {
+				for (let i = 0; i < 100; i++) {
+					engine.tick(0.5)
+					await new Promise((r) => setTimeout(r, 0))
+				}
+			} catch (e: any) {
+				overflowActivations = getActivationLog()
+					.filter(Boolean)
+					.slice(-30)
+					.map((entry: any) => ({
+						effect: entry.effect?.name || 'anon',
+						obj: entry.obj?.constructor?.name || String(entry.obj),
+						prop: String(entry.prop),
+					}))
+				console.error('OVERFLOW activations:', JSON.stringify(overflowActivations, null, 2))
+				throw e
+			} finally {
+				reactiveOptions.maxEffectReaction = origMaxReaction
+			}
 		} finally {
-			reactiveOptions.maxEffectReaction = origMaxReaction
+			await engine.destroy()
 		}
 	})
 

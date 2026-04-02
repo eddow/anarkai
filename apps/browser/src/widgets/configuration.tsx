@@ -1,15 +1,12 @@
 import { css } from '@app/lib/css'
-import {
-	getBrowserPalette,
-	getBrowserPaletteConfigurationJson,
-} from '@app/palette/browser-palette'
+import { getBrowserPalette, getBrowserPaletteConfigurationJson } from '@app/palette/browser-palette'
 import {
 	AnarkaiPaletteCommandBox,
 	AnarkaiPaletteKeyBindingsEditor,
 	InspectorSection,
 } from '@app/ui/anarkai'
-import { paletteCommandEntries, type Palette } from '@sursaut/ui/palette'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
+import { type Palette, paletteCommandEntries } from '@sursaut/ui/palette'
 
 css`
 .configuration-widget {
@@ -44,8 +41,7 @@ const ConfigurationWidget = (props: DockviewWidgetProps, scope: DockviewWidgetSc
 	void scope
 	props.title = 'Configuration'
 	const { commandBox, palette } = getBrowserPalette()
-	const keyBindingEntries = () =>
-		paletteCommandEntries({ palette: palette as unknown as Palette })
+	const keyBindingEntries = () => paletteCommandEntries({ palette: palette as unknown as Palette })
 
 	return (
 		<div class="configuration-widget">

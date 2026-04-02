@@ -16,23 +16,6 @@ function getContentFromPosition(hex: HexBoard, position: Positioned) {
 	return isTileCoord(coord) ? hex.getTileContent(coord) : hex.getBorderContent(coord)
 }
 
-function computeDropGoods(plan: TransferPlan, character: Character, target: Positioned): Goods {
-	const vehicle = character.vehicle
-	assert(vehicle, 'vehicle must be set')
-	const content = getContentFromPosition(character.game.hex, target)
-	assert(content, 'target content must be set')
-	assert('storage' in content, 'drop target must expose storage')
-	const actualGoods: Goods = {}
-	for (const [goodType, requestedQuantity] of Object.entries(plan.goods) as [GoodType, number][]) {
-		if (!requestedQuantity || requestedQuantity <= 0) continue
-		const available = vehicle.storage.available(goodType) ?? 0
-		const canStore = content.storage?.hasRoom(goodType) ?? 0
-		const amount = Math.min(available, canStore, requestedQuantity)
-		if (amount > 0) actualGoods[goodType] = amount
-	}
-	return actualGoods
-}
-
 function computeGrabGoods(plan: TransferPlan, character: Character, target: Positioned): Goods {
 	const vehicle = character.vehicle
 	assert(vehicle, 'vehicle must be set')
@@ -77,20 +60,9 @@ const transferPlanHandler: PlanHandler<TransferPlan> = {
 				allocation = plan.allocation
 			} else {
 				if (description === 'drop') {
-					// Drop plan: allocate vehicle space and destination storage
-					assert(target, 'target must be set for drop plan')
-					const content = getContentFromPosition(hex, target)
-					assert(content, 'target content must be set')
-					assert(
-						'storage' in content,
-						'planDropStored only works with TileContent that has storage'
-					)
-					const goods = computeDropGoods(plan, character, target)
-					if (Object.keys(goods).length === 0) throw new Error('No goods to drop at execution time')
-					plan.resolvedGoods = goods
-
-					vehicleAllocation = vehicle.storage.reserve(goods, `planDropStored`)
-					allocation = content.storage!.allocate(goods, `planDropStored`)
+					// Drop plans reserve destination storage only when the worker is
+					// actually performing the transfer, otherwise border slots can be
+					// "incoming" long before any good physically reaches them.
 				} else if (description === 'grab') {
 					// Grab plan: allocate vehicle space and reserve source storage
 					assert(target, 'target must be set for storage grab')

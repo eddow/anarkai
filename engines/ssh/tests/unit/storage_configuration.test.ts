@@ -12,6 +12,7 @@ vi.mock('../../../../assets/game-content', () => ({
 	goods: { wood: {}, stone: {}, berries: {} },
 	terrain: {},
 	configurations: {
+		'slotted-storage': { working: true, generalSlots: 0, goods: {} },
 		'specific-storage': { working: true, buffers: {} },
 		default: { working: true },
 	},
@@ -60,7 +61,8 @@ describe('StorageAlveolus Configuration', () => {
 	it('should advertise buffered goods as demand when below configured buffer', () => {
 		const alveolus = new StorageAlveolus(mockTile)
 		alveolus.working = true
-		alveolus.storageBuffers = { wood: 2, berries: 1 }
+		alveolus.setSlottedGoodConfiguration('wood', { minSlots: 2, maxSlots: 1 })
+		alveolus.setSlottedGoodConfiguration('berries', { minSlots: 1, maxSlots: 0 })
 
 		const relations = alveolus.workingGoodsRelations
 
@@ -75,24 +77,75 @@ describe('StorageAlveolus Configuration', () => {
 		expect(relations['stone']).toBeUndefined()
 	})
 
-	it('should NOT demand goods if it has no room/slots full', () => {
+	it('allows buffered goods to satisfy 2-use while still demanding 1-buffer', () => {
 		const alveolus = new StorageAlveolus(mockTile)
 		alveolus.working = true
+		alveolus.setSlottedGoodConfiguration('wood', { minSlots: 2, maxSlots: 0 })
 
-		// Fill up all slots with wood (5 slots max)
-		// Def has 5 slots.
-		// Let's add 5 separate lots of wood to fill slots
-		// But SlottedStorage logic depends on maxQuantityPerSlot too.
-		// Assuming implementation allows filling slots.
+		alveolus.storage.addGood('wood', 1)
 
-		// Easier: mock hasRoom to return 0
-		;(alveolus.storage as SlottedStorage).limit = 0 // Full
+		expect(alveolus.workingGoodsRelations.wood).toMatchObject({
+			advertisement: 'demand',
+			priority: '1-buffer',
+		})
+		expect(alveolus.canGive('wood', '0-store')).toBe(false)
+		expect(alveolus.canGive('wood', '1-buffer')).toBe(false)
+		expect(alveolus.canGive('wood', '2-use')).toBe(true)
+	})
 
-		// Actually, just mocking behavior might be fragile.
-		// Let's rely on hasRoom.
+	it('keeps demanding until buffered slots are filled to their full quantity capacity', () => {
+		const alveolus = new StorageAlveolus(mockTile)
+		alveolus.working = true
+		alveolus.setSlottedGoodConfiguration('wood', { minSlots: 2, maxSlots: 1 })
 
-		// If we want to test that it stops demanding, we need to fill it.
-		// But for unit test simplicity, verifying default demand is sufficient for now.
+		alveolus.storage.addGood('wood', 11)
+
+		expect((alveolus.storage as SlottedStorage).occupiedSlots('wood')).toBe(2)
+		expect(alveolus.workingGoodsRelations.wood).toMatchObject({
+			advertisement: 'demand',
+			priority: '1-buffer',
+		})
+		expect(alveolus.canGive('wood', '0-store')).toBe(false)
+		expect(alveolus.canGive('wood', '1-buffer')).toBe(false)
+		expect(alveolus.canGive('wood', '2-use')).toBe(true)
+	})
+
+	it('allows 0-store and 1-buffer gives only from slots above the buffered floor', () => {
+		const alveolus = new StorageAlveolus(mockTile)
+		alveolus.working = true
+		alveolus.setSlottedGoodConfiguration('wood', { minSlots: 1, maxSlots: 1 })
+
+		alveolus.storage.addGood('wood', 20)
+
+		expect((alveolus.storage as SlottedStorage).occupiedSlots('wood')).toBe(2)
+		expect(alveolus.canGive('wood', '0-store')).toBe(true)
+		expect(alveolus.canGive('wood', '1-buffer')).toBe(true)
+		expect(alveolus.canGive('wood', '2-use')).toBe(true)
+	})
+
+	it('caps configured goods by buffered plus allowed slots', () => {
+		const alveolus = new StorageAlveolus(mockTile)
+		alveolus.working = true
+		alveolus.setSlottedGoodConfiguration('wood', { minSlots: 1, maxSlots: 1 })
+
+		alveolus.storage.addGood('wood', 20)
+
+		expect((alveolus.storage as SlottedStorage).occupiedSlots('wood')).toBe(2)
+		expect(alveolus.canTake('wood', '2-use')).toBe(false)
+	})
+
+	it('rejects unspecified goods once the general slot pool is full', () => {
+		const alveolus = new StorageAlveolus(mockTile)
+		alveolus.working = true
+		alveolus.setSlottedGeneralSlots(1)
+
+		alveolus.storage.addGood('stone', 2)
+
+		expect(alveolus.canTake('berries', '2-use')).toBe(false)
+		expect(alveolus.workingGoodsRelations.stone).toMatchObject({
+			advertisement: 'provide',
+			priority: '0-store',
+		})
 	})
 
 	it('should not report slotted storage canTake when matching room is fully allocated', () => {
@@ -132,5 +185,20 @@ describe('StorageAlveolus Configuration', () => {
 
 		expect(storage.hasRoom('wood')).toBe(2)
 		expect(alveolus.canTake('wood', '2-use')).toBe(true)
+	})
+
+	it('keeps specific-storage buffers protected from 1-buffer gives while allowing 2-use', () => {
+		const alveolus = new SpecificStorageTestAlveolus(mockTile)
+		alveolus.working = true
+		alveolus.storageBuffers = { wood: 1 }
+
+		alveolus.storage.addGood('wood', 1)
+		expect(alveolus.canGive('wood', '0-store')).toBe(false)
+		expect(alveolus.canGive('wood', '1-buffer')).toBe(false)
+		expect(alveolus.canGive('wood', '2-use')).toBe(true)
+
+		alveolus.storage.addGood('wood', 1)
+		expect(alveolus.canGive('wood', '0-store')).toBe(true)
+		expect(alveolus.canGive('wood', '1-buffer')).toBe(true)
 	})
 })

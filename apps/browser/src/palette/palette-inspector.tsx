@@ -1,7 +1,4 @@
-import type {
-	BrowserPaletteSchema,
-	BrowserPaletteToolbarItem,
-} from '@app/palette/browser-palette'
+import type { BrowserPaletteSchema, BrowserPaletteToolbarItem } from '@app/palette/browser-palette'
 import { getBrowserPalette } from '@app/palette/browser-palette'
 import type {
 	Palette,

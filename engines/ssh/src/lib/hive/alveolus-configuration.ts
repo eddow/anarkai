@@ -10,6 +10,12 @@ export function isSpecificStorageConfiguration(
 	return 'buffers' in config
 }
 
+export function isSlottedStorageConfiguration(
+	config: Ssh.AlveolusConfiguration
+): config is Ssh.SlottedStorageAlveolusConfiguration {
+	return 'generalSlots' in config && 'goods' in config
+}
+
 /**
  * Global manager for named configurations.
  * Named configurations are shared across all hives.

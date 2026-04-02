@@ -9,6 +9,10 @@ export default mergeConfig(viteConfig as any, {
 		include: ["src/**/*.{test,spec}.{js,ts}", "tests/**/*.{test,spec}.{js,ts}"],
 		exclude: ["node_modules", "dist", ".git", ".cache", "tests/e2e"],
 		watch: false,
+		testTimeout: 15000,
+		hookTimeout: 10000,
+		teardownTimeout: 10000,
+		silent: true,
 		pool: "threads",
 		poolOptions: {
 			threads: {

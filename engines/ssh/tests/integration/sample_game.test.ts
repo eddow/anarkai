@@ -49,8 +49,8 @@ describe('Source Allocation Stability', () => {
 
 		try {
 			// Bounded regression simulation
-			const dt = 0.1
-			for (let i = 0; i < 120; i++) {
+			const dt = 0.2
+			for (let i = 0; i < 60; i++) {
 				game.ticker.update(dt * 1000)
 				if (i % 10 === 0) {
 					await new Promise((resolve) => setTimeout(resolve, 0))
@@ -59,6 +59,7 @@ describe('Source Allocation Stability', () => {
 			}
 		} finally {
 			console.error = originalError
+			game.destroy()
 		}
 
 		expect(errorFound).toBe(false)

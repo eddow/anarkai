@@ -475,7 +475,10 @@ function NumberInspectorConfigure(props: {
 }) {
 	return (
 		<div class="ak-palette-config-stack">
-			<StarsConfigurator item={props.context.item as AnarkaiPaletteAnyItem} tool={props.context.tool} />
+			<StarsConfigurator
+				item={props.context.item as AnarkaiPaletteAnyItem}
+				tool={props.context.tool}
+			/>
 		</div>
 	)
 }
@@ -561,7 +564,11 @@ function ToggleEditor(
 }
 
 function StarsEditor(
-	context: PaletteEditorContext<AnarkaiPaletteNumberTool, AnarkaiPaletteAnyItem, AnarkaiPaletteSchema>
+	context: PaletteEditorContext<
+		AnarkaiPaletteNumberTool,
+		AnarkaiPaletteAnyItem,
+		AnarkaiPaletteSchema
+	>
 ) {
 	const item = context.item as AnarkaiPaletteAnyItem
 	const config = starsConfig(item)

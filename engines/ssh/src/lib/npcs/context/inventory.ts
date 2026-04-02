@@ -34,6 +34,35 @@ function planSpecificLoosePickup(
 	}
 }
 
+function ensureDropPlanAllocations(action: TransferPlan, character: Character) {
+	if (action.vehicleAllocation && action.allocation) return
+	assert(action.description === 'drop', 'drop allocations can only be created for drop plans')
+	assert(action.target, 'drop target must be set')
+	const vehicle = character.vehicle
+	const content = action.target.content
+	assert(vehicle, 'tile.vehicle must be set')
+	assert(content, 'destination.content must be set')
+	assert('storage' in content, 'planDropStored only works with TileContent that has storage')
+
+	let vehicleAllocation: TransferPlan['vehicleAllocation']
+	let allocation: TransferPlan['allocation']
+	try {
+		vehicleAllocation = vehicle.storage.reserve(action.goods, `planDropStored`)
+		allocation = content.storage!.allocate(action.goods, `planDropStored`)
+		action.vehicleAllocation = vehicleAllocation
+		action.allocation = allocation
+		action.resolvedGoods = action.goods
+	} catch (error) {
+		try {
+			allocation?.cancel()
+		} catch {}
+		try {
+			vehicleAllocation?.cancel()
+		} catch {}
+		throw error
+	}
+}
+
 export class InventoryFunctions {
 	declare [subject]: Character
 
@@ -112,7 +141,8 @@ export class InventoryFunctions {
 			)
 		}
 
-		// Return plan without allocations - they will be created in plan.begin()
+		// Return plan without allocations - they will be created when the drop is
+		// actually effectuated so border slots only reserve space for real transfers.
 		return {
 			type: 'transfer' as const,
 			description: 'drop' as const,
@@ -229,14 +259,12 @@ export class InventoryFunctions {
 			return new DurationStep(action.duration, 'idle', 'waiting')
 		}
 
-		const { vehicleAllocation, allocation } = action
-		assert(vehicleAllocation, 'vehicleAllocation must be set - plan should be in begin() state')
-
 		// Calculate total transfer time based on plan type
 		let totalAmount: number
 		let description: string
 
 		if (action.type === 'transfer') {
+			if (action.description === 'drop') ensureDropPlanAllocations(action, character)
 			const goods = action.resolvedGoods ?? action.goods
 			totalAmount = Object.values(goods).reduce((sum, qty) => sum + qty, 0)
 			description = action.description
@@ -246,6 +274,8 @@ export class InventoryFunctions {
 		} else {
 			throw new Error('Unknown plan type')
 		}
+		const { vehicleAllocation, allocation } = action
+		assert(vehicleAllocation, 'vehicleAllocation must be set before effectuating transfer')
 
 		return new DurationStep(totalAmount * vehicle.transferTime, 'convey', description)
 			.finished(() => {

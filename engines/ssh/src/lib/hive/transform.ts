@@ -115,7 +115,7 @@ export class TransformAlveolus extends Alveolus {
 					{ advertisement: 'demand', priority: demandPriority },
 				]),
 			...Object.keys(output)
-				.filter((goodType) => (stock[goodType as GoodType] ?? 0) > 0)
+				.filter((goodType) => this.canGive(goodType as GoodType, '2-use'))
 				.map((goodType) => [goodType as GoodType, { advertisement: 'provide', priority: '2-use' }]),
 		])
 	}

@@ -106,6 +106,10 @@ vi.mock('./SpecificStorageConfiguration', () => ({
 	),
 }))
 
+vi.mock('./SlottedStorageConfiguration', () => ({
+	default: () => <div data-testid="slotted-storage-config" />,
+}))
+
 vi.mock('ssh/storage/slotted-storage', () => ({
 	SlottedStorage: class SlottedStorage {
 		maxQuantityPerSlot = 10
@@ -146,7 +150,7 @@ describe('StorageConfiguration', () => {
 		document.body.innerHTML = ''
 	})
 
-	it('shows the slotted placeholder for slotted storage', () => {
+	it('delegates slotted storage to the dedicated editor', () => {
 		const content = {
 			storage: new SlottedStorage(2, 10),
 			storageMode: 'all-but',
@@ -164,7 +168,7 @@ describe('StorageConfiguration', () => {
 			</table>
 		)
 
-		expect(container.textContent).toContain('TODO: Slotted Storage Configuration')
+		expect(container.querySelector('[data-testid="slotted-storage-config"]')).not.toBeNull()
 	})
 
 	it('toggles acceptance mode and mutates exception lists for generic storage', () => {

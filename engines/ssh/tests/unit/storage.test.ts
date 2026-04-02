@@ -386,6 +386,31 @@ describe.each([
 			expect(Array.isArray(rendered.slots)).toBe(true)
 		})
 	})
+
+	describe('Defragmentation', () => {
+		it('should consolidate slotted goods instead of swapping fragmentation forever', () => {
+			if (!(storage instanceof SlottedStorage)) return
+
+			storage.slots.splice(
+				0,
+				storage.slots.length,
+				{ goodType: 'wood', quantity: 2, allocated: 0, reserved: 0 } as any,
+				{ goodType: 'wood', quantity: 1, allocated: 0, reserved: 0 } as any,
+				...Array(storage.slots.length - 2).fill(undefined)
+			)
+
+			expect(storage.fragmented).toBe('wood')
+
+			const take = storage.allocate({ wood: 1 }, { type: 'defragment.take' })
+			const arrange = storage.reserve({ wood: 1 }, { type: 'defragment.arrange' })
+
+			take.fulfill()
+			arrange.fulfill()
+
+			expect(storage.stock.wood).toBe(3)
+			expect(storage.fragmented).toBeUndefined()
+		})
+	})
 })
 
 describe('SlottedStorage renderedGoods', () => {
@@ -397,6 +422,24 @@ describe('SlottedStorage renderedGoods', () => {
 		expect(rendered.assumedMaxSlots).toBe(4)
 		expect(rendered.slots.filter((s) => s.goodType === undefined)).toHaveLength(3)
 		expect(rendered.slots.find((s) => s.goodType === 'wood')?.present).toBe(3)
+	})
+})
+
+describe('SlottedStorage slot helpers', () => {
+	it('tracks occupied slots, empty slots, and partial room per good', () => {
+		const storage = new SlottedStorage(4, 2)
+
+		storage.addGood('wood', 3)
+		storage.addGood('stone', 2)
+
+		expect(storage.usedSlots).toBe(3)
+		expect(storage.emptySlots).toBe(1)
+		expect(storage.occupiedSlots('wood')).toBe(2)
+		expect(storage.occupiedSlots('stone')).toBe(1)
+		expect(storage.slotUsage()).toEqual({ wood: 2, stone: 1 })
+		expect(storage.hasPartialRoomFor('wood')).toBe(true)
+		expect(storage.hasPartialRoomFor('stone')).toBe(false)
+		expect(storage.hasPartialRoomFor('berries')).toBe(false)
 	})
 })
 

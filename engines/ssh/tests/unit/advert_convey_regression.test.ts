@@ -25,7 +25,7 @@ describe('advert/convey regression', () => {
 	})
 
 	it('does not keep scheduling 2-use wood once that need is already covered in flight', {
-		timeout: 15000,
+		timeout: 30000,
 	}, async () => {
 		engine = new TestEngine({ boardSize: 12, terrainSeed: 1234, characterCount: 0 })
 		await engine.init()

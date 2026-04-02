@@ -1,4 +1,4 @@
-import { axial, type AxialCoord, type Positioned } from 'ssh/utils'
+import { type AxialCoord, axial, type Positioned } from 'ssh/utils'
 import type { Position } from 'ssh/utils/position'
 
 export interface ConveyMovementSnapshot {

@@ -142,6 +142,11 @@ export const vehicles = {
 
 /** Default configurations by action type */
 export const configurations: Record<string, Ssh.AlveolusConfiguration> = {
+	'slotted-storage': {
+		working: true,
+		generalSlots: 0,
+		goods: {},
+	},
 	'specific-storage': {
 		working: true,
 		buffers: {},

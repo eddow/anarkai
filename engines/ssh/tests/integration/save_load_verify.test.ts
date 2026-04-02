@@ -70,7 +70,7 @@ if (typeof Image === 'undefined') {
 import { Game } from 'ssh/game/game'
 import { DurationStep, MoveToStep, MultiMoveStep } from 'ssh/npcs/steps'
 import { toAxialCoord } from 'ssh/utils/position'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 // Mock assets/resources
 vi.mock('ssh/assets/resources', () => ({
@@ -118,6 +118,13 @@ vi.mock('ssh/assets/game-content', () => {
 })
 
 describe('Save/Load Determinism', () => {
+	const games = new Set<Game>()
+
+	afterEach(() => {
+		for (const game of games) game.destroy()
+		games.clear()
+	})
+
 	// Use static imports
 	// Patch getTexture to avoid rendering errors in headless mode
 	Game.prototype.getTexture = () => ({
@@ -132,6 +139,7 @@ describe('Save/Load Determinism', () => {
 			terrainSeed: 1234,
 			characterCount: 0,
 		})
+		games.add(game1)
 		await game1.loaded
 		const char1 = game1.population.createCharacter('Walker', { q: 0, r: 0 })
 		char1.stepExecutor = new MoveToStep(10, char1, { q: 10, r: 0 })
@@ -152,6 +160,7 @@ describe('Save/Load Determinism', () => {
 			terrainSeed: 1234,
 			characterCount: 0,
 		})
+		games.add(game2)
 		await game2.loaded
 		game2.loadGameData(saveState)
 		const char2 = game2.population.character(char1.uid)
@@ -171,6 +180,7 @@ describe('Save/Load Determinism', () => {
 			terrainSeed: 555,
 			characterCount: 0,
 		})
+		games.add(game)
 		await game.loaded
 		const char = game.population.createCharacter('Carrier', { q: 0, r: 0 })
 
@@ -184,6 +194,7 @@ describe('Save/Load Determinism', () => {
 			terrainSeed: 555,
 			characterCount: 0,
 		})
+		games.add(game2)
 		await game2.loaded
 		game2.loadGameData(saveState)
 		const char2 = game2.population.character(char.uid)
@@ -199,6 +210,7 @@ describe('Save/Load Determinism', () => {
 			terrainSeed: 999,
 			characterCount: 0,
 		})
+		games.add(game)
 		await game.loaded
 		const char = game.population.createCharacter('Worker', { q: 2, r: 2 })
 
@@ -216,6 +228,7 @@ describe('Save/Load Determinism', () => {
 			terrainSeed: 999,
 			characterCount: 0,
 		})
+		games.add(game2)
 		await game2.loaded
 		game2.loadGameData(saveState)
 		const char2 = game2.population.character(char.uid)
@@ -242,6 +255,7 @@ describe('Save/Load Determinism', () => {
 			terrainSeed: 777,
 			characterCount: 0,
 		})
+		games.add(game)
 		await game.loaded
 		const char = game.population.createCharacter('Hauler', { q: 0, r: 0 })
 
@@ -271,6 +285,7 @@ describe('Save/Load Determinism', () => {
 			terrainSeed: 777,
 			characterCount: 0,
 		})
+		games.add(game2)
 		await game2.loaded
 		game2.loadGameData(saveState)
 		const char2 = game2.population.character(char.uid)

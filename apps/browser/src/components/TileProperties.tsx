@@ -42,6 +42,18 @@ interface TilePropertiesProps {
 	tile: Tile
 }
 
+const toDisplayText = (value: unknown, fallback = ''): string => {
+	switch (typeof value) {
+		case 'string':
+			return value
+		case 'number':
+		case 'boolean':
+			return `${value}`
+		default:
+			return fallback
+	}
+}
+
 const TileProperties = (props: TilePropertiesProps) => {
 	const state = reactive({
 		tileContent: undefined as Tile['content'],
@@ -69,7 +81,13 @@ const TileProperties = (props: TilePropertiesProps) => {
 			state.contentInfo = {
 				type,
 				sprite: visual?.sprites?.[0],
-				name: type && translator ? String(translator.alveoli[type]) : content.title,
+				name:
+					type && translator
+						? toDisplayText(
+								translator.alveoli?.[type as keyof typeof translator.alveoli],
+								content.title
+							)
+						: content.title,
 				terrain: 'concrete',
 			}
 		} else if (content instanceof UnBuiltLand) {

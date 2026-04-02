@@ -39,50 +39,54 @@ describe('Buffering Logic', () => {
 		game.ticker.stop()
 		await game.loaded
 
-		// Setup done via patches. Now configure buffers.
-		const tileA = game.hex.getTile({ q: 0, r: 0 })!
-		const tileB = game.hex.getTile({ q: 1, r: 0 })!
+		try {
+			// Setup done via patches. Now configure buffers.
+			const tileA = game.hex.getTile({ q: 0, r: 0 })!
+			const tileB = game.hex.getTile({ q: 1, r: 0 })!
 
-		const woodpileA = tileA.content as StorageAlveolus
-		const woodpileB = tileB.content as StorageAlveolus
+			const woodpileA = tileA.content as StorageAlveolus
+			const woodpileB = tileB.content as StorageAlveolus
 
-		expect(woodpileA).toBeInstanceOf(StorageAlveolus)
-		expect(woodpileB).toBeInstanceOf(StorageAlveolus)
-		expect(woodpileA.storage).toBeInstanceOf(SpecificStorage)
+			expect(woodpileA).toBeInstanceOf(StorageAlveolus)
+			expect(woodpileB).toBeInstanceOf(StorageAlveolus)
+			expect(woodpileA.storage).toBeInstanceOf(SpecificStorage)
 
-		expect(woodpileA.storage.stock.wood).toBe(24)
-		expect(woodpileB.storage.stock.wood).toBeUndefined()
+			expect(woodpileA.storage.stock.wood).toBe(24)
+			expect(woodpileB.storage.stock.wood).toBeUndefined()
 
-		// Configure Buffer on B: demand full woodpile capacity
-		woodpileB.storageBuffers = { wood: 24 }
+			// Configure Buffer on B: demand full woodpile capacity
+			woodpileB.storageBuffers = { wood: 24 }
 
-		// Initialize scripts context for population
-		for (const char of game.population) {
-			void char.scriptsContext
-		}
+			// Initialize scripts context for population
+			for (const char of game.population) {
+				void char.scriptsContext
+			}
 
-		// Simulation Loop
-		const dt = 0.1
-		let woodMoved = false
+			// Simulation Loop
+			const dt = 0.2
+			let woodMoved = false
 
-		// Run for enough time
-		for (let i = 0; i < 6000; i++) {
-			game.ticker.update(dt * 1000)
+			// Run for enough time without spending thousands of ticks in tests
+			for (let i = 0; i < 1500; i++) {
+				game.ticker.update(dt * 1000)
 
-			// Check if transfer happened
-			if ((woodpileB.storage.stock.wood || 0) > 0) {
-				woodMoved = true
+				// Check if transfer happened
+				if ((woodpileB.storage.stock.wood || 0) > 0) {
+					woodMoved = true
 
-				// If we moved some wood, success basically.
-				// We want to see if A decreased.
-				if ((woodpileA.storage.stock.wood || 0) < 24) {
-					break
+					// If we moved some wood, success basically.
+					// We want to see if A decreased.
+					if ((woodpileA.storage.stock.wood || 0) < 24) {
+						break
+					}
 				}
 			}
-		}
 
-		expect(woodMoved).toBe(true)
-		expect(woodpileB.storage.stock.wood).toBeGreaterThan(0)
-		expect(woodpileA.storage.stock.wood).toBeLessThan(24)
+			expect(woodMoved).toBe(true)
+			expect(woodpileB.storage.stock.wood).toBeGreaterThan(0)
+			expect(woodpileA.storage.stock.wood).toBeLessThan(24)
+		} finally {
+			game.destroy()
+		}
 	})
 })

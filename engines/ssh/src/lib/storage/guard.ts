@@ -30,17 +30,25 @@ const registry: FinalizationRegistry<Held> | null =
 			})
 		: null
 
-// Track unregister tokens per allocation object
+// Track unregister tokens per allocation object. Some callers hold reactive proxies while
+// constructors and internal methods may see the raw instance, so register both identities.
 const tokens = new WeakMap<object, object>()
 const activeAllocations = new Map<object, Held>()
 
 // Track invalidated allocations (fulfilled or cancelled)
 const invalidatedAllocations = new WeakSet<object>()
+
+function allocationVariants<Allocation extends object>(allocation: Allocation): object[] {
+	const direct = allocation as object
+	const unwrapped = unwrap(allocation) as object
+	return direct === unwrapped ? [direct] : [direct, unwrapped]
+}
+
 export function guardAllocation<Allocation extends object>(allocation: Allocation, reason: any) {
 	if (!registry) return
-	const target = unwrap(allocation) as Allocation
+	const variants = allocationVariants(allocation)
 	const token = {}
-	tokens.set(target, token)
+	for (const target of variants) tokens.set(target, token)
 
 	// Enhanced allocation info for debugging
 	const allocationInfo = {
@@ -55,13 +63,13 @@ export function guardAllocation<Allocation extends object>(allocation: Allocatio
 	traces.allocations?.groupCollapsed('Allocation created:', allocationInfo)
 	traces.allocations?.trace()
 	traces.allocations?.groupEnd()
-	registry.register(target, allocationInfo, token)
+	registry.register(variants[0], allocationInfo, token)
 }
 
 export function allocationEnded<Allocation extends object>(allocation: Allocation) {
 	if (!registry) return
-	const target = unwrap(allocation) as Allocation
-	const token = tokens.get(target)
+	const variants = allocationVariants(allocation)
+	const token = variants.map((target) => tokens.get(target)).find((candidate) => !!candidate)
 	if (!token) return
 
 	const held = activeAllocations.get(token)
@@ -75,16 +83,16 @@ export function allocationEnded<Allocation extends object>(allocation: Allocatio
 	}
 
 	registry.unregister(token)
-	tokens.delete(target)
+	for (const target of variants) tokens.delete(target)
 	activeAllocations.delete(token)
 }
 
 export function invalidateAllocation<Allocation extends object>(allocation: Allocation) {
-	invalidatedAllocations.add(unwrap(allocation) as Allocation)
+	for (const target of allocationVariants(allocation)) invalidatedAllocations.add(target)
 }
 
 export function isAllocationValid<Allocation extends object>(allocation: Allocation): boolean {
-	return !invalidatedAllocations.has(unwrap(allocation) as Allocation)
+	return allocationVariants(allocation).every((target) => !invalidatedAllocations.has(target))
 }
 
 export function debugActiveAllocations(): Held[] {

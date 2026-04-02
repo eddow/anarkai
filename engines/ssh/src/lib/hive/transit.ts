@@ -15,8 +15,8 @@ export class TransitAlveolus extends Alveolus {
 
 	get workingGoodsRelations(): GoodsRelations {
 		return Object.fromEntries(
-			Object.entries(this.storage.stock)
-				.filter(([, quantity]) => quantity > 0) // Only advertise goods we actually have
+			Object.entries(this.storage.availables)
+				.filter(([, quantity]) => quantity > 0)
 				.map(([goodType]) => [
 					goodType as GoodType,
 					{ advertisement: 'provide', priority: '2-use' },

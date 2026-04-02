@@ -64,10 +64,7 @@ function paletteCatalogItem(
 	palette: AnarkaiPaletteCommandBoxPalette,
 	payload: PaletteCatalogDragPayload
 ) {
-	return paletteToolbarItemFromCatalogPayload(
-		palette as unknown as Palette<PaletteSchema>,
-		payload
-	)
+	return paletteToolbarItemFromCatalogPayload(palette as unknown as Palette<PaletteSchema>, payload)
 }
 
 function beginCatalogInsertDrag(
@@ -337,9 +334,7 @@ export function AnarkaiCommandBoxEditor(context: {
 			<AnarkaiPaletteCommandBox
 				commandBox={commandBox}
 				editable={extras.commandBoxEditable}
-				palette={
-					context.scope.palette as AnarkaiPaletteCommandBoxPalette | undefined
-				}
+				palette={context.scope.palette as AnarkaiPaletteCommandBoxPalette | undefined}
 				icon={extras.commandBoxIcon ?? '⌘'}
 				expanded={extras.commandBoxExpanded ?? ui.focused}
 				floating={extras.commandBoxFloating ?? true}

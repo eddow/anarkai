@@ -241,14 +241,30 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			if (!borderKeys.has(fromKey)) return false
 			return toKey === hereKey || borderKeys.has(toKey)
 		}
+		// Wrap a MovingGood into a LocalMovingGood with a snapshotted `from`.
+		// `claimed` is a write-through accessor so that setting it on the wrapper
+		// propagates to the real MovingGood stored in hive.movingGoods.
+		function wrapLocal(mg: MovingGood, snapshotFrom: AxialCoord): LocalMovingGood {
+			const wrapper = Object.setPrototypeOf({ from: snapshotFrom }, mg)
+			Object.defineProperty(wrapper, 'claimed', {
+				get: () => mg.claimed,
+				set: (v: boolean) => {
+					mg.claimed = v
+				},
+				enumerable: true,
+				configurable: true,
+			})
+			return wrapper as LocalMovingGood
+		}
+
 		// TODO: take a random movement or keep it arbitrary?
 		// Collect movements at the tile itself
 		const atHere = hive.movingGoods.get(here)
 		if (atHere) {
 			for (const mg of atHere) {
-				if (mg.path.length === 0) continue
+				if (mg.claimed || mg.path.length === 0) continue
 				if (!canHandleFromHere(here, mg.path[0]!)) continue
-				const localMg = Object.setPrototypeOf({ from: mg.from ?? here }, mg) as LocalMovingGood
+				const localMg = wrapLocal(mg, mg.from ?? here)
 				if (canAdvance(mg)) {
 					return [localMg]
 				} else {
@@ -265,13 +281,12 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 				continue
 			}
 			for (const mg of arr)
-				if (mg.path.length) {
+				if (!mg.claimed && mg.path.length) {
 					if (canHandleFromHere(from, mg.path[0]!)) {
-						const localMg = Object.setPrototypeOf({ from: mg.from ?? from }, mg) as LocalMovingGood
+						const localMg = wrapLocal(mg, mg.from ?? from)
 						if (canAdvance(mg)) {
 							return [localMg]
 						} else {
-							// console.log(`[aGoodMovement] BLOCKED from border`, { from, here, path0: mg.path[0] })
 							blocked.push(localMg)
 						}
 					}

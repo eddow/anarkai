@@ -1,4 +1,5 @@
 import type { Alveolus } from 'ssh/board/content/alveolus'
+import { traces } from 'ssh/debug'
 import type { SaveState } from 'ssh/game'
 import { options } from 'ssh/globals'
 import type { Hive, MovingGood } from 'ssh/hive/hive'
@@ -23,9 +24,12 @@ describe('Stalled Exchange Watchdog', () => {
 		options.stalledMovementSettleMs = 20
 
 		const warnings: string[] = []
-		const originalWarn = console.warn
-		console.warn = (...args: unknown[]) => {
-			warnings.push(args.map(String).join(' '))
+		const originalAdvertisingTrace = traces.advertising
+		traces.advertising = {
+			...console,
+			warn: (...args: unknown[]) => {
+				warnings.push(args.map(String).join(' '))
+			},
 		}
 
 		const engine = new TestEngine({ boardSize: 12, terrainSeed: 1234, characterCount: 0 })
@@ -68,7 +72,7 @@ describe('Stalled Exchange Watchdog', () => {
 			await new Promise((resolve) => setTimeout(resolve, 80))
 			expect(warnings.some((warning) => warning.includes('[WATCHDOG] STALLED EXCHANGE'))).toBe(true)
 		} finally {
-			console.warn = originalWarn
+			traces.advertising = originalAdvertisingTrace
 			await engine.destroy()
 		}
 	})

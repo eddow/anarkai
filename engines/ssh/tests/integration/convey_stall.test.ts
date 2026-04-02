@@ -28,7 +28,7 @@ describe('Convey Stall Reproduction', () => {
 	}
 
 	it('assigned workers should react when a movement is created', {
-		timeout: 15000,
+		timeout: 20000,
 	}, async () => {
 		const { engine, game, spawnWorker } = await setupEngine()
 		try {

@@ -45,7 +45,9 @@ describe('Reactive boundaries', () => {
 		return { engine, worker, harvest }
 	}
 
-	it('harvest demand getter invalidates when hive advertisements change', { timeout: 15000 }, async () => {
+	it('harvest demand getter invalidates when hive advertisements change', {
+		timeout: 15000,
+	}, async () => {
 		const { engine, harvest } = await setupHarvestScenario()
 		try {
 			const woodDemand = { wood: { advertisement: 'demand', priority: '2-use' } } as const
@@ -59,7 +61,9 @@ describe('Reactive boundaries', () => {
 		}
 	})
 
-	it('findBestJob remains a momentaneous query across hive demand changes', { timeout: 15000 }, async () => {
+	it('findBestJob remains a momentaneous query across hive demand changes', {
+		timeout: 15000,
+	}, async () => {
 		const { engine, worker, harvest } = await setupHarvestScenario(true)
 		let runs = 0
 		const stop = effect`test:findBestJob-boundary`(() => {

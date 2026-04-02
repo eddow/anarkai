@@ -25,10 +25,17 @@ interface EntityBadgeProps {
 	sprite: string
 	text: string
 	qty?: number
+	qtyLabel?: string
 	height?: number
 }
 
 const EntityBadge = (props: EntityBadgeProps) => {
+	const view = {
+		get qtyLabel() {
+			return props.qtyLabel ?? (props.qty !== undefined ? `×${props.qty}` : undefined)
+		},
+	}
+
 	return (
 		<div class="entity-badge">
 			<ResourceImage
@@ -37,8 +44,8 @@ const EntityBadge = (props: EntityBadgeProps) => {
 				height={props.height ?? 20}
 				alt={props.text}
 			/>
-			<span if={props.qty} class="entity-badge__qty">
-				×{props.qty}
+			<span if={view.qtyLabel} class="entity-badge__qty">
+				{view.qtyLabel}
 			</span>
 		</div>
 	)

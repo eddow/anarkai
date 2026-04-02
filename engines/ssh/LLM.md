@@ -18,3 +18,4 @@ All previously commented-out `@memoize` decorators have been rehabilitated and i
 - Movement selection is deferred in `src/lib/hive/hive.ts` to avoid reactive cycles, so anything that treats a selected partner as an already-created movement is suspect.
 - Optional stalled-exchange recovery lives in `src/lib/globals.ts` as `options`; when enabled, hives rescan for stable provide+demand pairs that still have no active `movingGoods` and re-advertise them.
 - Convey visuals in `src/lib/npcs/context/work.ts` must use the pre-`hop()` origin snapshot for interpolation; `MovingGood.hop()` mutates `mg.from` to the destination immediately.
+- `MovingGood.claimed` prevents two workers from picking up the same movement simultaneously. `conveyStep()` sets it to `true` immediately; `finished()` clears it after re-reserving the next hop; `canceled()` and `cleanupFailedConveyMovement()` also clear it. `aGoodMovement` skips claimed movements.

@@ -5,6 +5,7 @@ import {
 } from '@app/lib/app-shell-controls'
 import type { Configuration } from '@app/lib/globals'
 import { configuration, game, interactionMode, uiConfiguration } from '@app/lib/globals'
+import browserPaletteDefaultJson from '@app/palette/palette.default.json'
 import {
 	type AnarkaiPaletteEditorConfigByVariant,
 	type AnarkaiPaletteEnumConfig,
@@ -14,7 +15,6 @@ import {
 	type AnarkaiThemeMode,
 	createAnarkaiPaletteEditors,
 } from '@app/ui/anarkai'
-import browserPaletteDefaultJson from '@app/palette/palette.default.json'
 import {
 	createPaletteKeys,
 	Palette,
@@ -154,11 +154,12 @@ const tools = {
 
 type BrowserPaletteTool = keyof typeof tools & string
 
-export type BrowserPaletteToolbarItem<TTool extends string = BrowserPaletteTool> = PaletteToolbarItem<
-	TTool,
-	keyof BrowserPaletteEditorConfigByVariant,
-	BrowserPaletteEditorConfigByVariant[keyof BrowserPaletteEditorConfigByVariant]
->
+export type BrowserPaletteToolbarItem<TTool extends string = BrowserPaletteTool> =
+	PaletteToolbarItem<
+		TTool,
+		keyof BrowserPaletteEditorConfigByVariant,
+		BrowserPaletteEditorConfigByVariant[keyof BrowserPaletteEditorConfigByVariant]
+	>
 
 export type BrowserPaletteSchema = AnarkaiPaletteSchema<
 	typeof tools,
@@ -180,9 +181,14 @@ function clockPaletteTitle(item: BrowserPaletteToolbarItem): string {
 function ClockPaletteEditor(
 	_context: PaletteEditorContext<undefined, BrowserPaletteToolbarItem, BrowserPaletteSchema>
 ) {
-	const game = _context.scope.clockGame as Game | undefined
+	const view = {
+		get game() {
+			return _context.scope.clockGame as Game | undefined
+		},
+	}
 	const state = reactive({ time: '--:--' })
 	effect`palette:clock`(() => {
+		const game = view.game
 		if (!game) {
 			state.time = '--:--'
 			return
@@ -299,7 +305,8 @@ function parseBrowserPaletteItemConfig(value: unknown): BrowserPaletteToolbarIte
 	const values = parseStringArray(value.values, 'config.values')
 	if (values) next.values = values
 	if (value.before !== undefined) {
-		if (typeof value.before !== 'string') browserPaletteDefaultError('config.before must be a string')
+		if (typeof value.before !== 'string')
+			browserPaletteDefaultError('config.before must be a string')
 		next.before = value.before
 	}
 	if (value.after !== undefined) {
@@ -307,7 +314,8 @@ function parseBrowserPaletteItemConfig(value: unknown): BrowserPaletteToolbarIte
 		next.after = value.after
 	}
 	if (value.inside !== undefined) {
-		if (typeof value.inside !== 'string') browserPaletteDefaultError('config.inside must be a string')
+		if (typeof value.inside !== 'string')
+			browserPaletteDefaultError('config.inside must be a string')
 		next.inside = value.inside
 	}
 	if (value.zeroElement !== undefined) {

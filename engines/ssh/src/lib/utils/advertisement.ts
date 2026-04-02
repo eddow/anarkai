@@ -159,24 +159,21 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 					continue
 				}
 
+				const advertiserIsGeneralStorage = this.generalStorages.includes(
+					advertiser as unknown as TAdvertiser
+				)
 				const availableGeneralStorages = this.generalStorages.filter((s) => {
 					if (s === advertiser) return false
+					const candidateIsGeneralStorage = this.generalStorages.includes(s)
 
-					// Prevent storage-to-storage movements - storage should only interact with producers/consumers
-					// Check if both can actually give AND take (not just have the methods)
-					const advertiserCanGive = advertiser.canGive?.(goodType as any, '1-buffer')
-					const advertiserCanTake = advertiser.canTake?.(goodType as any, '1-buffer')
-					const candidateCanGive = s.canGive?.(goodType as any, '1-buffer')
-					const candidateCanTake = s.canTake?.(goodType as any, '1-buffer')
-
-					const isAdvertiserStorage = advertiserCanGive && advertiserCanTake
-					const isCandidateStorage = candidateCanGive && candidateCanTake
-
-					if (isAdvertiserStorage && isCandidateStorage) {
+					// General storage fallback should bridge producers/consumers with storages,
+					// not create storage-to-storage transfers.
+					if (advertiserIsGeneralStorage && candidateIsGeneralStorage) {
 						return false
 					}
+
 					// Prevent 0-store providers from using general storage fallback to other storages
-					if (Number(ad.priority[0]) === 0 && isCandidateStorage) {
+					if (Number(ad.priority[0]) === 0 && candidateIsGeneralStorage) {
 						return false
 					}
 

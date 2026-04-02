@@ -10,21 +10,12 @@ import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { GoodType } from 'ssh/types/base'
 import PropertyGridRow from '../PropertyGridRow'
 import GoodMultiSelect from './GoodMultiSelect'
+import SlottedStorageConfiguration from './SlottedStorageConfiguration'
 import SpecificStorageConfiguration from './SpecificStorageConfiguration'
 
 css`
 .storage-config {
 	display: contents;
-}
-
-.slotted-todo {
-	padding: 1rem;
-	margin-top: 1rem;
-	border: 1px dashed var(--ak-border);
-	border-radius: 4px;
-	color: var(--ak-text-muted);
-	font-style: italic;
-	text-align: center;
 }
 
 .mode-control {
@@ -174,10 +165,7 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 
 	return (
 		<div class="storage-config">
-			{/* Slotted Storage: TODO placeholder */}
-			<div class="slotted-todo" if={isSlotted()}>
-				TODO: Slotted Storage Configuration
-			</div>
+			<SlottedStorageConfiguration if={isSlotted()} content={props.content} game={props.game} />
 
 			{/* Non-slotted storage configuration */}
 			<div if={!isSlotted()} style={{ display: 'contents' }}>
@@ -208,7 +196,7 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 				<SpecificStorageConfiguration
 					if={props.content.storage instanceof SpecificStorage}
 					action={props.content.action as Ssh.SpecificStorageAction}
-					configuration={props.content.storageConfiguration}
+					configuration={props.content.specificStorageConfiguration}
 					game={props.game}
 				/>
 

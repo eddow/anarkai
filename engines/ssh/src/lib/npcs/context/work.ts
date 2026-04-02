@@ -12,10 +12,11 @@ import type { AllocationBase } from 'ssh/storage'
 import { contract, type Goods, type GoodType } from 'ssh/types'
 import type { AxialCoord } from 'ssh/utils'
 import { alveoli } from '../../../../assets/game-content'
-import { getConveyDuration, getConveyVisualMovements } from './convey'
 import { subject } from '../scripts'
 import { DurationStep, MultiMoveStep, WaitForPredicateStep } from '../steps'
 import type { WorkPlan } from '.'
+import { getConveyDuration, getConveyVisualMovements } from './convey'
+import { cleanupFailedConveyMovement, type FailedConveyMovementData } from './convey-cleanup'
 
 /**
  * Runtime snapshot for a single convey sub-movement.
@@ -84,41 +85,59 @@ class WorkFunctions {
 			return
 		}
 
+		for (const mg of movements) mg.claimed = true
+
 		const hive = alveolus.hive
 
 		const movementData: MovementData[] = []
 
 		for (const mg of movements) {
+			const from = mg.from
+			let sourceFulfilled = false
+			let hopAlloc: AllocationBase | undefined
+			let moving: LooseGood | undefined
 			if (!mg.allocations?.source) {
 				console.warn('[conveyStep] Missing source allocation', mg)
 				continue
 			}
-			mg.allocations.source.fulfill()
-			const from = mg.from
-			const hop = mg.hop()!
+			try {
+				mg.allocations.source.fulfill()
+				sourceFulfilled = true
+				const hop = mg.hop()!
 
-			// IMPORTANT: Call place() immediately after hop() to ensure the moving good
-			// is tracked in hive.movingGoods at the new position for the next alveolus
-			mg.place()
+				// IMPORTANT: Call place() immediately after hop() to ensure the moving good
+				// is tracked in hive.movingGoods at the new position for the next alveolus
+				mg.place()
 
-			const nextStorage = hive.storageAt(hop)
-			assert(nextStorage, 'nextStorage must be defined')
-			const hopAlloc = mg.path.length
-				? nextStorage.allocate({ [mg.goodType]: 1 }, { type: 'convey.hop', movement: mg })
-				: undefined
+				const nextStorage = hive.storageAt(hop)
+				assert(nextStorage, 'nextStorage must be defined')
+				hopAlloc = mg.path.length
+					? nextStorage.allocate({ [mg.goodType]: 1 }, { type: 'convey.hop', movement: mg })
+					: undefined
 
-			const moving = character.game.hex.looseGoods.add(from, mg.goodType, {
-				position: from,
-				available: false,
-			})
+				moving = character.game.hex.looseGoods.add(from, mg.goodType, {
+					position: from,
+					available: false,
+				})
 
-			movementData.push({
-				mg,
-				hopAlloc,
-				hop,
-				from,
-				moving,
-			})
+				movementData.push({
+					mg,
+					hopAlloc,
+					hop,
+					from,
+					moving,
+				})
+			} catch (error) {
+				cleanupFailedConveyMovement(character, {
+					mg,
+					hopAlloc,
+					from,
+					moving,
+					sourceFulfilled,
+				} satisfies FailedConveyMovementData)
+				for (const prev of movementData) cleanupFailedConveyMovement(character, prev)
+				throw error
+			}
 		}
 
 		const totalTime = getConveyDuration(character.vehicle.transferTime, movementData)
@@ -128,64 +147,64 @@ class WorkFunctions {
 			movementData.length === 1 ? `convey.${movementData[0].mg.goodType}` : `convey.cycle`
 		const visualMovements = getConveyVisualMovements(movementData)
 		return new MultiMoveStep(totalTime, visualMovements, 'work', description)
-			.canceled(() => {
-				for (const { mg, hopAlloc, moving } of movementData) {
-					hopAlloc?.cancel()
-					mg.allocations.source.cancel()
-					mg.allocations.target.cancel()
-					// Remove the loose good that was created for this movement
+		.canceled(() => {
+			for (const { mg, hopAlloc, moving } of movementData) {
+				mg.claimed = false
+				hopAlloc?.cancel()
+				mg.allocations.source.cancel()
+				mg.allocations.target.cancel()
+				if (!moving.isRemoved) moving.remove()
+				character.game.hex.looseGoods.add(character.tile, mg.goodType)
+				mg.finish()
+			}
+		})
+		.finished(() => {
+			try {
+				for (const { mg, moving, hopAlloc, hop } of movementData) {
+					const nextStorage = hive.storageAt(hop)
+
 					if (!moving.isRemoved) moving.remove()
-					character.game.hex.looseGoods.add(character.tile, mg.goodType)
-					mg.finish()
-				}
-			})
-			.finished(() => {
-				try {
-					// Complete all movements
-					for (const { mg, moving, hopAlloc, hop } of movementData) {
-						const nextStorage = hive.storageAt(hop)
-
-						// Remove the loose good that was created for this movement
-						if (!moving.isRemoved) moving.remove()
-						if (!mg.path.length) {
-							if (!mg.allocations?.target) {
-								console.error('Target allocation missing for', mg)
-								throw new Error('Target allocation missing')
-							}
-							mg.finish()
-						} else {
-							if (!hopAlloc) {
-								console.error('Hop allocation missing (but path exists) for', mg)
-								throw new Error('Hop allocation missing')
-							}
-
-							hopAlloc.fulfill()
-
-							const newSourceAlloc = nextStorage!.reserve(
-								{ [mg.goodType]: 1 },
-								{
-									type: 'convey.path',
-									movement: mg,
-								}
-							)
-
-							if (!newSourceAlloc) {
-								console.error(
-									'[conveyStep.finished] Failed to reserve storage for next hop:',
-									mg.goodType
-								)
-								throw new Error('Failed to reserve storage for next hop')
-							}
-
-							mg.allocations.source = newSourceAlloc
-							hive.wakeWanderingWorkersNear(mg.provider, mg.demander)
+					if (!mg.path.length) {
+						if (!mg.allocations?.target) {
+							console.error('Target allocation missing for', mg)
+							throw new Error('Target allocation missing')
 						}
+						mg.finish()
+					} else {
+						if (!hopAlloc) {
+							console.error('Hop allocation missing (but path exists) for', mg)
+							throw new Error('Hop allocation missing')
+						}
+
+						hopAlloc.fulfill()
+
+						const newSourceAlloc = nextStorage!.reserve(
+							{ [mg.goodType]: 1 },
+							{
+								type: 'convey.path',
+								movement: mg,
+							}
+						)
+
+						if (!newSourceAlloc) {
+							console.error(
+								'[conveyStep.finished] Failed to reserve storage for next hop:',
+								mg.goodType
+							)
+							throw new Error('Failed to reserve storage for next hop')
+						}
+
+						mg.allocations.source = newSourceAlloc
+						mg.claimed = false
+						hive.wakeWanderingWorkersNear(mg.provider, mg.demander)
 					}
-				} catch (error) {
-					console.error('[conveyStep] Error in finished callback:', error)
-					throw error
 				}
-			})
+			} catch (error) {
+				for (const movement of movementData) cleanupFailedConveyMovement(character, movement)
+				console.error('[conveyStep] Error in finished callback:', error)
+				throw error
+			}
+		})
 			.final(() => {
 				// Clean up any remaining loose goods. Note: looseGoods should *not* disappear. For now, this shouldn't happen - but if it happened, looseGoods should be stored as looseGoods
 				for (const { moving } of movementData) {

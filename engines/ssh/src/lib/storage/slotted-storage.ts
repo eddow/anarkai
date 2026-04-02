@@ -147,7 +147,7 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 			// Count slots that have quantity > 0 and final quantity < maximum
 			const defragmentableSlots = slots.filter((slot) => {
 				const finalQuantity = slot.quantity - slot.reserved + slot.allocated
-				return slot.quantity > 0 && finalQuantity < this.maxQuantityPerSlot
+				return slot.quantity > 0 && finalQuantity > 0 && finalQuantity < this.maxQuantityPerSlot
 			})
 
 			// Need at least 2 slots that can be defragmented
@@ -157,6 +157,40 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		}
 
 		return undefined
+	}
+
+	get usedSlots(): number {
+		return this.slots.reduce((count, slot) => count + (slot ? 1 : 0), 0)
+	}
+
+	get emptySlots(): number {
+		return this.slots.length - this.usedSlots
+	}
+
+	occupiedSlots(goodType: GoodType): number {
+		let total = 0
+		for (const slot of this.slots) {
+			if (slot?.goodType === goodType) total++
+		}
+		return total
+	}
+
+	slotUsage(): Partial<Record<GoodType, number>> {
+		const usage: Partial<Record<GoodType, number>> = {}
+		for (const slot of this.slots) {
+			if (!slot) continue
+			usage[slot.goodType] = (usage[slot.goodType] ?? 0) + 1
+		}
+		return usage
+	}
+
+	hasPartialRoomFor(goodType: GoodType): boolean {
+		return this.slots.some(
+			(slot) =>
+				!!slot &&
+				slot.goodType === goodType &&
+				slot.quantity + slot.allocated < this.maxQuantityPerSlot
+		)
 	}
 
 	hasRoom(goodType?: GoodType): number {
@@ -185,7 +219,11 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		for (let i = 0; i < this.slots.length; i++) {
 			if (remaining <= 0) break
 			const slot = this.slots[i]
-			if (slot && slot.goodType === goodType && slot.quantity + slot.allocated < this.maxQuantityPerSlot) {
+			if (
+				slot &&
+				slot.goodType === goodType &&
+				slot.quantity + slot.allocated < this.maxQuantityPerSlot
+			) {
 				const free = this.maxQuantityPerSlot - slot.quantity - slot.allocated
 				const canAdd = Math.min(remaining, free)
 				slot.quantity += canAdd
@@ -302,7 +340,7 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 				const free = this.maxQuantityPerSlot - slot.quantity - slot.allocated
 				if (free <= 0) continue
 				const finalQuantity = slot.quantity - slot.reserved + slot.allocated
-				slotCandidates.push({ index: i, slot, finalQuantity })
+				if (finalQuantity > 0) slotCandidates.push({ index: i, slot, finalQuantity })
 			}
 
 			// Sort by final quantity (lowest first) for allocation
@@ -367,7 +405,7 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 				const freeReservable = Math.max(0, slot.quantity - slot.reserved)
 				if (freeReservable <= 0) continue
 				const finalQuantity = slot.quantity - slot.reserved + slot.allocated
-				slotCandidates.push({ index: i, slot, finalQuantity })
+				if (finalQuantity > 0) slotCandidates.push({ index: i, slot, finalQuantity })
 			}
 
 			// Sort by final quantity (highest first) for reservation

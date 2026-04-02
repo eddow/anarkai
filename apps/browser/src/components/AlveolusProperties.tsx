@@ -1,11 +1,9 @@
 import { css } from '@app/lib/css'
-import { Pill } from '@app/ui/anarkai'
 import { effect, reactive } from 'mutts'
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import type { Game } from 'ssh/game'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { i18nState } from 'ssh/i18n'
-import type { GoodsRelations } from 'ssh/utils/advertisement'
 import PropertyGridRow from './PropertyGridRow'
 import WorkingIndicator from './parts/WorkingIndicator'
 import StorageConfiguration from './storage/StorageConfiguration'
@@ -16,14 +14,6 @@ css`
 	display: flex;
 	gap: 0.5rem;
 	align-items: center;
-}
-.alveolus-advertisement {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 0.25rem;
-}
-.alveolus-advertisement-priority {
-	font-weight: 600;
 }
 .alveolus-hive-summary {
 	display: flex;
@@ -68,8 +58,6 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 		state.working = checked
 	}
 
-	// Compute advertisement summary from goodsRelations
-	const advertisementSummary = (): GoodsRelations => props.content?.goodsRelations ?? {}
 	const hiveAdvertisementSummary = () => {
 		const hive = props.content?.hive
 		if (!hive) return []
@@ -88,11 +76,6 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 			}
 		})
 	}
-	const hiveNeedsSummary = () => {
-		const hive = props.content?.hive
-		return hive ? Object.entries(hive.needs) : []
-	}
-
 	const formatPriority = (priority: string) => {
 		switch (priority) {
 			case '0-store':
@@ -118,25 +101,6 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 				</div>
 			</PropertyGridRow>
 
-			<PropertyGridRow if={props.content} label="Advertisement">
-				<div class="alveolus-advertisement">
-					<for each={Object.entries(advertisementSummary())}>
-						{([goodType, relation]) => (
-							<Pill
-								tone={relation.advertisement}
-								el:title={`${goodType}: ${relation.advertisement} (${relation.priority})`}
-							>
-								<span>{goodType}</span>
-								<span class="alveolus-advertisement-priority">
-									{relation.advertisement === 'demand' ? '↓' : '↑'}
-									{formatPriority(relation.priority)}
-								</span>
-							</Pill>
-						)}
-					</for>
-				</div>
-			</PropertyGridRow>
-
 			<PropertyGridRow if={props.content?.hive} label="Hive ads">
 				<div class="alveolus-hive-summary">
 					<for each={hiveAdvertisementSummary()}>
@@ -148,19 +112,6 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 									{formatPriority(entry.priority)}
 								</span>
 								<span class="alveolus-hive-summary-types">{entry.types.join(', ')}</span>
-							</div>
-						)}
-					</for>
-				</div>
-			</PropertyGridRow>
-
-			<PropertyGridRow if={props.content?.hive} label="Hive needs">
-				<div class="alveolus-hive-summary">
-					<for each={hiveNeedsSummary()}>
-						{([goodType, priority]) => (
-							<div class="alveolus-hive-summary-item">
-								<span>{goodType}</span>
-								<span>↓{formatPriority(priority)}</span>
 							</div>
 						)}
 					</for>
