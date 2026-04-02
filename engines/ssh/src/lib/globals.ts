@@ -3,12 +3,12 @@ import { Game } from './game'
 import { chopSaw as patches } from './game/exampleGames'
 
 export interface Configuration {
-	timeControl: 'pause' | 'play' | 'fast-forward' | 'gonzales'
+	timeControl: 0 | 1 | 2 | 3
 }
 
 function getDefaultConfiguration(): Configuration {
 	return {
-		timeControl: 'play',
+		timeControl: 1,
 	}
 }
 

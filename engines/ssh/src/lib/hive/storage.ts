@@ -239,8 +239,9 @@ export class StorageAlveolus extends Alveolus {
 			}
 			for (const goodType of allGoods) {
 				const stockQty = stockPerType.get(goodType) ?? 0
+				const plannedQty = stockQty + this.storage.allocated(goodType)
 				const bufferAmount = buffers.get(goodType) || 0
-				if (stockQty > bufferAmount) {
+				if (plannedQty > bufferAmount) {
 					relations[goodType] = {
 						advertisement: 'provide',
 						priority: '0-store',
@@ -248,7 +249,7 @@ export class StorageAlveolus extends Alveolus {
 					continue
 				}
 				const hasRoom = emptySlotCount > 0 || partialSlotRoom.get(goodType) === true
-				if (hasRoom && stockQty < bufferAmount) {
+				if (hasRoom && plannedQty < bufferAmount) {
 					relations[goodType] = {
 						advertisement: 'demand',
 						priority: '1-buffer',
@@ -260,15 +261,16 @@ export class StorageAlveolus extends Alveolus {
 			for (const goodType of Object.keys(this.storage.maxAmounts) as GoodType[]) {
 				const maxAmount = this.storage.maxAmounts[goodType] ?? 0
 				const stockQty = this.storage.stock[goodType] ?? 0
+				const plannedQty = stockQty + this.storage.allocated(goodType)
 				const bufferAmount = buffers.get(goodType) || 0
-				if (stockQty > bufferAmount) {
+				if (plannedQty > bufferAmount) {
 					relations[goodType] = {
 						advertisement: 'provide',
 						priority: '0-store',
 					}
 					continue
 				}
-				if (stockQty < maxAmount && stockQty < bufferAmount) {
+				if (plannedQty < maxAmount && plannedQty < bufferAmount) {
 					relations[goodType] = {
 						advertisement: 'demand',
 						priority: '1-buffer',

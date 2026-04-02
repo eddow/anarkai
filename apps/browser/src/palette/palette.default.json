@@ -1,0 +1,145 @@
+{
+  "top": [
+    [
+      {
+        "space": 0,
+        "toolbar": [
+          {
+            "tool": "openConfiguration",
+            "editor": "button",
+            "config": {
+              "label": "Configuration",
+              "icon": "pure-glyf-icon glyf-tabler-filled-adjustments",
+              "hint": "Open configuration panel",
+              "tone": "neutral"
+            }
+          },
+          {
+            "tool": "openGame",
+            "editor": "button",
+            "config": {
+              "label": "Game",
+              "icon": "pure-glyf-icon glyf-tabler-filled-arrow-big-right",
+              "hint": "Open game panel",
+              "tone": "neutral"
+            }
+          },
+          {
+            "tool": "openTest",
+            "editor": "button",
+            "config": {
+              "label": "Test",
+              "icon": "pure-glyf-icon glyf-tabler-filled-flask",
+              "hint": "Open test panel",
+              "tone": "neutral"
+            }
+          }
+        ]
+      },
+      {
+        "space": 0.16087526114708497,
+        "toolbar": [
+          {
+            "editor": "clock",
+            "config": {
+              "label": "Clock",
+              "hint": "In-game clock"
+            }
+          },
+          {
+            "tool": "timeControl",
+            "editor": "stars",
+            "config": {
+              "label": "Speed",
+              "keywords": [
+                "speed",
+                "pause",
+                "play",
+                "time"
+              ],
+              "before": "▶",
+              "after": "▷",
+              "zeroElement": "⏸",
+              "size": "1rem"
+            }
+          }
+        ]
+      },
+      {
+        "space": 0.21721507791081734,
+        "toolbar": [
+          {
+            "tool": "selectedAction",
+            "editor": "segmented",
+            "config": {
+              "label": "Action",
+              "hint": "Control — choose mode in inspector",
+              "acceptedKeywords": [
+                "select"
+              ],
+              "choiceDisplay": "icon"
+            }
+          }
+        ]
+      },
+      {
+        "space": 0.24835415770255725,
+        "toolbar": [
+          {
+            "tool": "selectedAction",
+            "editor": "segmented",
+            "config": {
+              "label": "Action",
+              "hint": "Control — choose mode in inspector",
+              "acceptedKeywords": [
+                "build"
+              ],
+              "choiceDisplay": "icon"
+            }
+          }
+        ]
+      },
+      {
+        "space": 0.24702783578675575,
+        "toolbar": [
+          {
+            "tool": "selectedAction",
+            "editor": "segmented",
+            "config": {
+              "label": "Action",
+              "hint": "Control — choose mode in inspector",
+              "choiceDisplay": "icon",
+              "acceptedKeywords": [
+                "zone"
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "space": 0.12652766745278476,
+        "toolbar": [
+          {
+            "tool": "theme",
+            "editor": "cycle",
+            "config": {
+              "label": "Theme",
+              "choiceDisplay": "icon",
+              "keywords": [
+                "theme",
+                "dark",
+                "light"
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  ],
+  "keyBindings": {
+    "`": "openConfiguration",
+    "G": "openGame",
+    "H": "openTest",
+    "Space": "timeControl|0"
+  }
+}

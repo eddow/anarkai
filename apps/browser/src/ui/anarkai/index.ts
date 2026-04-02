@@ -18,6 +18,7 @@ export * from './components/Stars'
 export * from './components/Toolbar'
 export * from './icons'
 export * from './palette/command-box'
+export * from './palette/key-bindings'
 export * from './palette/preset'
 export * from './palette/types'
 export {

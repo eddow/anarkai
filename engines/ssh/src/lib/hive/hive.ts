@@ -378,6 +378,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		const coord = toAxialCoord(ref)
 		if (isTileCoord(coord)) {
 			const content = this.board.getTileContent(ref) as Alveolus
+			if (!content?.tile) return []
 			return content.gates.map((g) => g.border.position)
 		}
 		// Get a border's neighbors - find tileA's and tileB's borders who are gates but not me

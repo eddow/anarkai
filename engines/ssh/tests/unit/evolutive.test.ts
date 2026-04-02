@@ -134,64 +134,69 @@ describe('Evolutive & Determinism Tests', () => {
 		} as any
 
 		const game1 = new Game(config)
-		await game1.loaded
-		try {
-			await game1.generate(config, patches)
-		} catch (e) {
-			console.warn('G1 Generate error', e)
-		}
-
-		// Manually spawn characters
-		const worker1 = game1.population.createCharacter('Worker1', { q: 2, r: 2 })
-		const worker2 = game1.population.createCharacter('Worker2', { q: 4, r: 4 })
-		worker1.carry.addGood('wood', 1)
-		worker2.carry.addGood('stone', 1)
-
-		// Save State M
-		const stateM = game1.saveGameData()
-		const stateM_JSON = JSON.stringify(stateM)
-
-		// Debug logging
-		try {
-			const parsed = JSON.parse(stateM_JSON)
-			console.log('Population Data Keys:', Object.keys(parsed.population || {}))
-			if (parsed.population?.['0']) {
-				console.log('Char 0:', JSON.stringify(parsed.population['0']))
-			}
-		} catch (e) {
-			console.log('Debug log error', e)
-		}
-
 		const game2 = new Game(config)
+		await game1.loaded
 		await game2.loaded
-		game2.loadGameData(JSON.parse(stateM_JSON))
+		try {
+			try {
+				await game1.generate(config, patches)
+			} catch (e) {
+				console.warn('G1 Generate error', e)
+			}
 
-		const chars1 = Array.from(game1.population)
-		const chars2 = Array.from(game2.population)
-		const looseGoodsAt = (game: Game, position: { q: number; r: number }) =>
-			game.hex.looseGoods
-				.getGoodsAt(position)
-				.map((good) => good.goodType)
-				.sort()
+			// Manually spawn characters
+			const worker1 = game1.population.createCharacter('Worker1', { q: 2, r: 2 })
+			const worker2 = game1.population.createCharacter('Worker2', { q: 4, r: 4 })
+			worker1.carry.addGood('wood', 1)
+			worker2.carry.addGood('stone', 1)
 
-		expect(chars1.length).toBe(chars2.length)
-		expect(chars1.length).toBe(2)
-		expect(looseGoodsAt(game1, { q: 2, r: 2 })).toContain('wood')
-		expect(looseGoodsAt(game2, { q: 2, r: 2 })).toContain('wood')
-		expect(looseGoodsAt(game1, { q: 1, r: 1 })).toContain('stone')
-		expect(looseGoodsAt(game2, { q: 1, r: 1 })).toContain('stone')
+			// Save State M
+			const stateM = game1.saveGameData()
+			const stateM_JSON = JSON.stringify(stateM)
 
-		chars1.forEach((c1, _idx) => {
-			const c2 = chars2.find((c) => c.uid === c1.uid)
-			expect(c2).toBeDefined()
+			// Debug logging
+			try {
+				const parsed = JSON.parse(stateM_JSON)
+				console.log('Population Data Keys:', Object.keys(parsed.population || {}))
+				if (parsed.population?.['0']) {
+					console.log('Char 0:', JSON.stringify(parsed.population['0']))
+				}
+			} catch (e) {
+				console.log('Debug log error', e)
+			}
 
-			const p1 = toAxialCoord(c1.position)
-			const p2 = toAxialCoord(c2!.position)
-			expect(p2.q).toBeCloseTo(p1.q, 0)
-			expect(p2.r).toBeCloseTo(p1.r, 1)
-			expect(c2!.carry.available('wood')).toBe(c1.carry.available('wood'))
-			expect(c2!.carry.available('stone')).toBe(c1.carry.available('stone'))
-		})
+			game2.loadGameData(JSON.parse(stateM_JSON))
+
+			const chars1 = Array.from(game1.population)
+			const chars2 = Array.from(game2.population)
+			const looseGoodsAt = (game: Game, position: { q: number; r: number }) =>
+				game.hex.looseGoods
+					.getGoodsAt(position)
+					.map((good) => good.goodType)
+					.sort()
+
+			expect(chars1.length).toBe(chars2.length)
+			expect(chars1.length).toBe(2)
+			expect(looseGoodsAt(game1, { q: 2, r: 2 })).toContain('wood')
+			expect(looseGoodsAt(game2, { q: 2, r: 2 })).toContain('wood')
+			expect(looseGoodsAt(game1, { q: 1, r: 1 })).toContain('stone')
+			expect(looseGoodsAt(game2, { q: 1, r: 1 })).toContain('stone')
+
+			chars1.forEach((c1, _idx) => {
+				const c2 = chars2.find((c) => c.uid === c1.uid)
+				expect(c2).toBeDefined()
+
+				const p1 = toAxialCoord(c1.position)
+				const p2 = toAxialCoord(c2!.position)
+				expect(p2.q).toBeCloseTo(p1.q, 0)
+				expect(p2.r).toBeCloseTo(p1.r, 1)
+				expect(c2!.carry.available('wood')).toBe(c1.carry.available('wood'))
+				expect(c2!.carry.available('stone')).toBe(c1.carry.available('stone'))
+			})
+		} finally {
+			game2.destroy()
+			game1.destroy()
+		}
 	})
 
 	it('Simulation: Plank Transfer (Logistics)', async () => {
@@ -211,90 +216,94 @@ describe('Evolutive & Determinism Tests', () => {
 
 		const game = new Game(config)
 		await game.loaded
-		await game.generate(config, patches)
+		try {
+			await game.generate(config, patches)
 
-		const worker = game.population.createCharacter('Worker1', { q: 2, r: 2 })
-		const sourceTile = game.hex.getTile({ q: 0, r: 0 })!
-		const targetTile = game.hex.getTile({ q: 0, r: 1 })!
-		sourceTile.content!.working = false
-		targetTile.content!.working = false
+			const worker = game.population.createCharacter('Worker1', { q: 2, r: 2 })
+			const sourceTile = game.hex.getTile({ q: 0, r: 0 })!
+			const targetTile = game.hex.getTile({ q: 0, r: 1 })!
+			sourceTile.content!.working = false
+			targetTile.content!.working = false
 
-		const sourceStorage = sourceTile.content!.storage!
-		const validSourceContent = sourceTile.content! // Capture before it reverts to UnBuiltLand due to side-effects
-		if ('slots' in (sourceStorage as any)) {
-			for (let i = 0; i < (sourceStorage as any).slots.length; i++) {
-				;(sourceStorage as any).slots[i] = undefined
+			const sourceStorage = sourceTile.content!.storage!
+			const validSourceContent = sourceTile.content! // Capture before it reverts to UnBuiltLand due to side-effects
+			if ('slots' in (sourceStorage as any)) {
+				for (let i = 0; i < (sourceStorage as any).slots.length; i++) {
+					;(sourceStorage as any).slots[i] = undefined
+				}
+				sourceStorage.addGood('wood', 1)
 			}
-			sourceStorage.addGood('wood', 1)
+
+			expect((sourceStorage as any).stock.wood || 0).toBe(1)
+
+			// Use static imports
+			// Setup inventory function context
+			const inventory = new InventoryFunctions()
+			;(inventory as any)[subject] = worker
+
+			const moveStep = new MoveToStep(1, worker, { q: 0, r: 0 })
+			worker.stepExecutor = moveStep
+			const dt = 0.1
+			for (let i = 0; i < 50; i++) {
+				worker.update(dt)
+				game.ticker.update(dt * 1000)
+				if (worker.stepExecutor !== moveStep) break
+			}
+			expect(toAxialCoord(worker.position).q).toBeCloseTo(0, 0)
+
+			// 2. Grab Wood
+			// Workaround: Create a fake Tile object that holds the correct content
+			// This avoids the Proxy/Target split issue where the Target (stripped by contracts) is stale.
+			const fakeTile = Object.create(Object.getPrototypeOf(sourceTile))
+			Object.defineProperty(fakeTile, 'content', {
+				value: validSourceContent,
+				configurable: true,
+			})
+			Object.defineProperty(fakeTile, 'position', { value: sourceTile.position })
+			Object.defineProperty(fakeTile, 'uid', { value: sourceTile.uid })
+
+			const grabGoods = { wood: 1 }
+			const vehicleAllocation = worker.vehicle.storage.allocate(grabGoods, 'planGrabStored')
+			const sourceReservation = sourceStorage.reserve(grabGoods, 'planGrabStored')
+
+			// Assert Reservations (Allocations created immediately in planGrab)
+			expect((sourceStorage as any).available('wood')).toBe(0)
+			expect(worker.carry.available('wood')).toBe(0) // Not yet fulfilled
+
+			// Simulate Conclude
+			sourceReservation.fulfill()
+			vehicleAllocation.fulfill()
+
+			// Assert Possession
+			expect(worker.carry.available('wood')).toBe(1)
+
+			// 3. Move to Target
+			// Teleport for simulation stability (pathfinding depends on map gen)
+			worker.stepExecutor = undefined // Stop any running step
+			;(worker.position as AxialCoord).q = 0
+			;(worker.position as AxialCoord).r = 1
+
+			expect(toAxialCoord(worker.position).r).toBe(1)
+
+			// 4. Drop Wood
+			// We manually construct drop plan/actions since planDropStored needs similar context
+			// Drop: Allocate on target, Reserve on vehicle
+			// Refetch storage to ensure validity after simulation
+			const currentTargetStorage = game.hex.getTile({ q: 0, r: 1 })!.content!.storage!
+
+			const dropGoods = { wood: 1 }
+			const targetAllocation = currentTargetStorage.allocate!(dropGoods, 'planDropStored')
+			const vehicleReservation = worker.vehicle.storage.reserve(dropGoods, 'planDropStored')
+
+			// Fulfill
+			targetAllocation.fulfill()
+			vehicleReservation.fulfill()
+
+			// Final Assertion
+			expect(worker.carry.available('wood')).toBe(0)
+			expect((currentTargetStorage as any).available('wood')).toBe(1)
+		} finally {
+			game.destroy()
 		}
-
-		expect((sourceStorage as any).stock.wood || 0).toBe(1)
-
-		// Use static imports
-		// Setup inventory function context
-		const inventory = new InventoryFunctions()
-		;(inventory as any)[subject] = worker
-
-		const moveStep = new MoveToStep(1, worker, { q: 0, r: 0 })
-		worker.stepExecutor = moveStep
-		const dt = 0.1
-		for (let i = 0; i < 50; i++) {
-			worker.update(dt)
-			game.ticker.update(dt * 1000)
-			if (worker.stepExecutor !== moveStep) break
-		}
-		expect(toAxialCoord(worker.position).q).toBeCloseTo(0, 0)
-
-		// 2. Grab Wood
-		// Workaround: Create a fake Tile object that holds the correct content
-		// This avoids the Proxy/Target split issue where the Target (stripped by contracts) is stale.
-		const fakeTile = Object.create(Object.getPrototypeOf(sourceTile))
-		Object.defineProperty(fakeTile, 'content', {
-			value: validSourceContent,
-			configurable: true,
-		})
-		Object.defineProperty(fakeTile, 'position', { value: sourceTile.position })
-		Object.defineProperty(fakeTile, 'uid', { value: sourceTile.uid })
-
-		const grabGoods = { wood: 1 }
-		const vehicleAllocation = worker.vehicle.storage.allocate(grabGoods, 'planGrabStored')
-		const sourceReservation = sourceStorage.reserve(grabGoods, 'planGrabStored')
-
-		// Assert Reservations (Allocations created immediately in planGrab)
-		expect((sourceStorage as any).available('wood')).toBe(0)
-		expect(worker.carry.available('wood')).toBe(0) // Not yet fulfilled
-
-		// Simulate Conclude
-		sourceReservation.fulfill()
-		vehicleAllocation.fulfill()
-
-		// Assert Possession
-		expect(worker.carry.available('wood')).toBe(1)
-
-		// 3. Move to Target
-		// Teleport for simulation stability (pathfinding depends on map gen)
-		worker.stepExecutor = undefined // Stop any running step
-		;(worker.position as AxialCoord).q = 0
-		;(worker.position as AxialCoord).r = 1
-
-		expect(toAxialCoord(worker.position).r).toBe(1)
-
-		// 4. Drop Wood
-		// We manually construct drop plan/actions since planDropStored needs similar context
-		// Drop: Allocate on target, Reserve on vehicle
-		// Refetch storage to ensure validity after simulation
-		const currentTargetStorage = game.hex.getTile({ q: 0, r: 1 })!.content!.storage!
-
-		const dropGoods = { wood: 1 }
-		const targetAllocation = currentTargetStorage.allocate!(dropGoods, 'planDropStored')
-		const vehicleReservation = worker.vehicle.storage.reserve(dropGoods, 'planDropStored')
-
-		// Fulfill
-		targetAllocation.fulfill()
-		vehicleReservation.fulfill()
-
-		// Final Assertion
-		expect(worker.carry.available('wood')).toBe(0)
-		expect((currentTargetStorage as any).available('wood')).toBe(1)
 	})
 })

@@ -185,8 +185,8 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		for (let i = 0; i < this.slots.length; i++) {
 			if (remaining <= 0) break
 			const slot = this.slots[i]
-			if (slot && slot.goodType === goodType && slot.quantity < this.maxQuantityPerSlot) {
-				const free = this.maxQuantityPerSlot - slot.quantity
+			if (slot && slot.goodType === goodType && slot.quantity + slot.allocated < this.maxQuantityPerSlot) {
+				const free = this.maxQuantityPerSlot - slot.quantity - slot.allocated
 				const canAdd = Math.min(remaining, free)
 				slot.quantity += canAdd
 				remaining -= canAdd
@@ -268,6 +268,14 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		let total = 0
 		for (const slot of this.slots) {
 			if (slot?.goodType === goodType) total += Math.max(0, slot.quantity - slot.reserved)
+		}
+		return total
+	}
+
+	allocated(goodType: GoodType): number {
+		let total = 0
+		for (const slot of this.slots) {
+			if (slot?.goodType === goodType) total += slot.allocated
 		}
 		return total
 	}

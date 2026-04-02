@@ -31,27 +31,8 @@ function ensureBucket<T>(buckets: T[][], index: number) {
 	while (buckets.length <= index) buckets.push([] as T[])
 }
 
-function getMaxPriorityBucket<T>(buckets: T[][]): { index: number; list: T[] } | undefined {
-	for (let i = buckets.length - 1; i >= 0; i--) {
-		const list = buckets[i]
-		if (list && list.length > 0) return { index: i, list }
-	}
-	return undefined
-}
-
 function isAllBucketsEmpty<T>(buckets: T[][]): boolean {
 	return buckets.every((b) => b.length === 0)
-}
-
-function removeFromBuckets<T>(buckets: T[][], advertiser: T): boolean {
-	for (const bucket of buckets) {
-		const index = bucket.indexOf(advertiser)
-		if (index !== -1) {
-			bucket.splice(index, 1)
-			return true
-		}
-	}
-	return false
 }
 
 let movementIds = 0
@@ -207,14 +188,20 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 					traces.advertising?.log(
 						`[ADVERTISE] GENERAL STORAGE: ${goodType} -> ${availableGeneralStorages.length} options`
 					)
-					this.selectMovement(
-						ad.advertisement,
-						advertiser,
-						availableGeneralStorages,
-						goodType,
-						ad.priority,
-						ad.priority
-					)
+					try {
+						this.selectMovement(
+							ad.advertisement,
+							advertiser,
+							availableGeneralStorages,
+							goodType,
+							ad.priority,
+							ad.priority
+						)
+					} catch (e) {
+						traces.advertising?.log(
+							`[ADVERTISE] GENERAL STORAGE FAILED: ${goodType} - ${(e as Error).message}`
+						)
+					}
 					continue
 				}
 

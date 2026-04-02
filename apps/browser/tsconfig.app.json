@@ -2,7 +2,7 @@
 	"compilerOptions": {
 		"composite": true,
 		"target": "ES2023",
-		"lib": ["ES2023", "DOM", "DOM.Iterable"],
+		"lib": ["ES2023", "ESNext", "DOM", "DOM.Iterable"],
 		"module": "ESNext",
 		"moduleResolution": "bundler",
 		"allowSyntheticDefaultImports": true,
@@ -31,10 +31,6 @@
 			"$assets/*": ["./assets/*"],
 			"@app/*": ["./src/*"],
 			"@sursaut": ["src/@sursaut.d.ts"],
-			"@sursaut/*": [
-				"../../../ownk/sursaut/packages/*/src",
-				"../../../ownk/sursaut/packages/adapters/*/src"
-			],
 			"engine-pixi/assets/*": ["../../engines/pixi/assets/*"],
 			"engine-pixi/*": ["../../engines/pixi/src/*"],
 			"ssh/assets/*": ["../../engines/ssh/assets/*"],
@@ -55,13 +51,6 @@
 		"../../engines/pixi/assets/**/*.ts",
 		"../../engines/ssh/src/**/*.ts",
 		"../../engines/ssh/assets/**/*.ts",
-		"../../../ownk/mutts/src/**/*.ts",
-		"../../../ownk/npcs/src/**/*.ts",
-		"../../../ownk/omni18n/src/**/*.ts",
-		"../../../ownk/sursaut/packages/*/src/**/*.ts",
-		"../../../ownk/sursaut/packages/*/src/**/*.tsx",
-		"../../../ownk/sursaut/packages/adapters/*/src/**/*.ts",
-		"../../../ownk/sursaut/packages/adapters/*/src/**/*.tsx",
 		"src/components/storage/StorageConfiguration.tsx"
 	]
 }

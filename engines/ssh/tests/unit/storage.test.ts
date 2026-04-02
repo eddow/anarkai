@@ -159,6 +159,21 @@ describe.each([
 				storage.allocate({ wood: 1 }, 'test')
 			}).toThrow(AllocationError)
 		})
+
+		it('should not let addGood consume allocated room', () => {
+			const initialRoom = storage.hasRoom('wood')
+			const allocation = storage.allocate({ wood: 2 }, 'incoming')
+
+			expect(storage.hasRoom('wood')).toBe(initialRoom - 2)
+
+			const added = storage.addGood('wood', initialRoom)
+			expect(added).toBe(initialRoom - 2)
+
+			allocation.fulfill()
+
+			expect(storage.stock.wood).toBe(initialRoom)
+			expect(storage.hasRoom('wood')).toBe(0)
+		})
 	})
 
 	describe('Reservation System', () => {

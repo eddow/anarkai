@@ -128,9 +128,9 @@ describe('Planner loop diagnostic', () => {
 	})
 
 	/**
-	 * Test 3: Does woodpile.storage.allocate() re-fire woodpile advertise effect?
+	 * Test 3: woodpile allocation should re-fire advertise because planned incoming stock changed.
 	 */
-	it('allocate() on woodpile storage should NOT re-fire woodpile advertise effect', async () => {
+	it('allocate() on woodpile storage should re-fire woodpile advertise effect', async () => {
 		const { gather, woodpile } = await setupHive()
 
 		await new Promise((r) => setTimeout(r, 10))
@@ -148,7 +148,7 @@ describe('Planner loop diagnostic', () => {
 		console.log('woodpile advertise fires after manual allocate():', woodpileFiresAfterAllocate)
 		token.cancel()
 
-		expect(woodpileFiresAfterAllocate).toBe(0)
+		expect(woodpileFiresAfterAllocate).toBeGreaterThan(0)
 	})
 
 	/**

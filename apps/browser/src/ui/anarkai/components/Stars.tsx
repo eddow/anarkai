@@ -1,3 +1,4 @@
+import { extend } from '@sursaut/core'
 import { arranged } from '@sursaut/ui'
 import {
 	type StarsProps as BaseStarsProps,
@@ -16,11 +17,21 @@ function starGlyph(iconName: string): string {
 	return STAR_GLYPHS[iconName] ?? iconName
 }
 
-function StarItem(props: { item: StarItemState; size: string; readonly?: boolean }) {
+function StarItem(props: {
+	item: StarItemState
+	size: string
+	readonly?: boolean
+	selectedZero?: () => boolean
+}) {
 	return (
 		<span
 			{...(props.item.el ?? {})}
-			class={['ak-stars__item', `ak-stars__item--${props.item.status}`, props.item.el?.class]}
+			class={[
+				'ak-stars__item',
+				`ak-stars__item--${props.item.status}`,
+				props.selectedZero?.() ? 'is-selected-zero' : undefined,
+				props.item.el?.class,
+			]}
 			style={{
 				...(typeof props.item.el?.style === 'object' ? props.item.el.style : {}),
 				fontSize: props.size,
@@ -35,12 +46,11 @@ function StarItem(props: { item: StarItemState; size: string; readonly?: boolean
 
 export const Stars = (props: StarsProps, scope: Record<string, unknown>) => {
 	const layout = arranged(scope, props)
-	const model = starsModel({
-		...props,
+	const model = starsModel(extend(props, {
 		get orientation() {
 			return layout.orientation
 		},
-	})
+	}))
 
 	return (
 		<div
@@ -57,6 +67,7 @@ export const Stars = (props: StarsProps, scope: Record<string, unknown>) => {
 				item={model.zeroItem}
 				size={model.size}
 				readonly={model.readonly}
+				selectedZero={() => !Array.isArray(props.value) && props.value === 0}
 			/>
 			<for each={model.starItems}>
 				{(item: StarItemState) => (

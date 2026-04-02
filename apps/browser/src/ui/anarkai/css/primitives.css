@@ -365,16 +365,22 @@
 
 .ak-stars__item--before {
 	opacity: 1;
+	color: rgb(254 240 138);
 }
 
 .ak-stars__item--inside {
 	opacity: 0.6;
+	color: rgb(254 240 138);
 }
 
 .ak-stars__item--after,
 .ak-stars__item--zero {
 	opacity: 0.82;
-	color: var(--ak-text-muted);
+	color: rgb(120 53 15);
+}
+
+.ak-stars__item--zero.is-selected-zero {
+	color: rgb(254 240 138);
 }
 
 .ak-stars[data-readonly='true'] .ak-stars__item {

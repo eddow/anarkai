@@ -1,4 +1,5 @@
-import { getBrowserPalette } from '@app/palette/browser-palette'
+import { browserPaletteIdeConfig, getBrowserPalette } from '@app/palette/browser-palette'
+import paletteDefaultJson from '@app/palette/palette.default.json'
 import { PALETTE_INSPECTOR_DOCK_PANEL_ID } from '@app/palette/palette-inspector'
 import { document, latch } from '@sursaut/core'
 import { palettes } from '@sursaut/ui/palette'
@@ -9,13 +10,13 @@ type PaletteToolRun = {
 	run(): void
 }
 
-type PaletteToolEnum<T extends string> = {
+type PaletteToolValue<T> = {
 	value: T
 }
 
 const { addPanel, getPanel, removePanel, dockviewApi, gameInstance, globals } = vi.hoisted(() => {
 	const addPanel = vi.fn((panel: Record<string, unknown>) => panel)
-	const getPanel = vi.fn(() => undefined)
+	const getPanel = vi.fn<(id?: string) => { id: string } | undefined>(() => undefined)
 	const removePanel = vi.fn()
 	const dockviewApi = { addPanel, getPanel, removePanel }
 	const gameInstance = {
@@ -25,7 +26,7 @@ const { addPanel, getPanel, removePanel, dockviewApi, gameInstance, globals } = 
 	}
 	const globals = {
 		configuration: {
-			timeControl: 'pause',
+			timeControl: 0 as 0 | 1 | 2 | 3,
 		},
 		game: gameInstance,
 		interactionMode: {
@@ -126,7 +127,7 @@ vi.mock('@sursaut', () => ({
 			Spacer: (props: { children?: any }) => <div class="toolbar-spacer">{props.children}</div>,
 		}
 	),
-	RadioButton: (props: { value: string; group: any; children?: any; ['aria-label']?: string }) => (
+	RadioButton: (props: { value: unknown; group: any; children?: any; ['aria-label']?: string }) => (
 		<button
 			aria-label={props['aria-label']}
 			onClick={() => {
@@ -139,10 +140,16 @@ vi.mock('@sursaut', () => ({
 					if ('timeControl' in props.group) props.group.timeControl = props.value
 					return
 				}
-				if (['Pause', 'Play', 'Fast Forward', 'Gonzales'].includes(props['aria-label'] ?? '')) {
-					globals.configuration.timeControl = props.value
+				if (
+					['Pause', 'Play', 'Fast Forward', 'Gonzales'].includes(props['aria-label'] ?? '') &&
+					typeof props.value === 'number'
+				) {
+					if ([0, 1, 2, 3].includes(props.value)) {
+						globals.configuration.timeControl = props.value as 0 | 1 | 2 | 3
+					}
 					return
 				}
+				if (typeof props.value !== 'string') return
 				globals.interactionMode.selectedAction = props.value
 			}}
 		>
@@ -163,7 +170,7 @@ vi.mock('@sursaut/ui/dockview', () => ({
 
 let App: typeof import('./App').default
 
-describe('App toolbar interactions', () => {
+describe('App shell', () => {
 	let container: HTMLElement
 	let stop: (() => void) | undefined
 
@@ -180,7 +187,7 @@ describe('App toolbar interactions', () => {
 		removePanel.mockClear()
 		getPanel.mockImplementation(() => undefined)
 		delete palettes.editing
-		globals.configuration.timeControl = 'pause'
+		globals.configuration.timeControl = 0
 		globals.interactionMode.selectedAction = ''
 		globals.uiConfiguration.darkMode = false
 		globals.getDockviewLayout.mockReturnValue(undefined)
@@ -206,68 +213,6 @@ describe('App toolbar interactions', () => {
 		})
 		expect(container.textContent).toContain('02:05')
 	})
-
-	it('opens toolbar panels from the top action buttons', () => {
-		stop = latch(container, <App />)
-		addPanel.mockClear()
-
-		const configButton = container.querySelector(
-			'[aria-label="Open configuration"]'
-		) as HTMLButtonElement
-		const gameButton = container.querySelector('[aria-label="Open game view"]') as HTMLButtonElement
-		const testButton = container.querySelector(
-			'[aria-label="Open multiselect test"]'
-		) as HTMLButtonElement
-
-		configButton.click()
-		gameButton.click()
-		testButton.click()
-
-		expect(addPanel).toHaveBeenNthCalledWith(1, {
-			id: 'system.configuration',
-			component: 'configuration',
-			params: undefined,
-			floating: { width: 400, height: 600 },
-		})
-		expect(addPanel).toHaveBeenNthCalledWith(2, {
-			id: 'game-view',
-			component: 'game',
-			params: undefined,
-			floating: undefined,
-		})
-		expect(addPanel).toHaveBeenNthCalledWith(3, {
-			id: 'test',
-			component: 'test',
-			params: undefined,
-			floating: { width: 400, height: 600 },
-		})
-	})
-
-	it('updates time and interaction reactive groups from radio buttons', () => {
-		stop = latch(container, <App />)
-
-		const playButton = container.querySelector('[aria-label="Play"]') as HTMLButtonElement
-		const buildHouseButton = container.querySelector(
-			'[aria-label="Build house"]'
-		) as HTMLButtonElement
-		const zoneButton = container.querySelector('[aria-label="Residential"]') as HTMLButtonElement
-
-		playButton.click()
-		buildHouseButton.click()
-		zoneButton.click()
-
-		expect(globals.configuration.timeControl).toBe('play')
-		expect(globals.interactionMode.selectedAction).toBe('zone:residential')
-	})
-
-	it('toggles theme through CheckButton binding', () => {
-		stop = latch(container, <App />)
-
-		const toggle = container.querySelector('[aria-label="Theme Toggle"]') as HTMLButtonElement
-		toggle.click()
-
-		expect(globals.uiConfiguration.darkMode).toBe(true)
-	})
 })
 
 describe('Palette IDE shell', () => {
@@ -282,7 +227,7 @@ describe('Palette IDE shell', () => {
 		removePanel.mockClear()
 		getPanel.mockImplementation(() => undefined)
 		delete palettes.editing
-		globals.configuration.timeControl = 'pause'
+		globals.configuration.timeControl = 0
 		globals.interactionMode.selectedAction = ''
 		globals.uiConfiguration.darkMode = false
 		globals.getDockviewLayout.mockReturnValue(undefined)
@@ -304,11 +249,11 @@ describe('Palette IDE shell', () => {
 		const openConfiguration = palette.tool('openConfiguration') as PaletteToolRun
 		const openGame = palette.tool('openGame') as PaletteToolRun
 		const openTest = palette.tool('openTest') as PaletteToolRun
-		const timeControl = palette.tool('timeControl') as PaletteToolEnum<
+		const timeControl = palette.tool('timeControl') as PaletteToolValue<
 			(typeof globals.configuration)['timeControl']
 		>
-		const theme = palette.tool('theme') as PaletteToolEnum<'light' | 'dark'>
-		const selectedAction = palette.tool('selectedAction') as PaletteToolEnum<string>
+		const theme = palette.tool('theme') as PaletteToolValue<'light' | 'dark'>
+		const selectedAction = palette.tool('selectedAction') as PaletteToolValue<string>
 		addPanel.mockClear()
 
 		openConfiguration.run()
@@ -337,8 +282,8 @@ describe('Palette IDE shell', () => {
 			floating: { width: 400, height: 600 },
 		})
 
-		timeControl.value = 'play'
-		expect(globals.configuration.timeControl).toBe('play')
+		timeControl.value = 1
+		expect(globals.configuration.timeControl).toBe(1)
 
 		theme.value = 'dark'
 		expect(globals.uiConfiguration.darkMode).toBe(true)
@@ -370,11 +315,15 @@ describe('Palette IDE shell', () => {
 		const { palette } = getBrowserPalette()
 		const fakePanel = { id: PALETTE_INSPECTOR_DOCK_PANEL_ID }
 		palettes.editing = palette
-		getPanel.mockImplementation((id: string) =>
-			id === PALETTE_INSPECTOR_DOCK_PANEL_ID ? fakePanel : undefined
-		)
+		getPanel.mockReturnValue(fakePanel)
 		removePanel.mockClear()
 		delete palettes.editing
 		expect(removePanel).toHaveBeenCalledWith(fakePanel)
+	})
+
+	it('initializes the browser palette from the json preset', () => {
+		const { palette } = getBrowserPalette()
+		expect(browserPaletteIdeConfig.top).toEqual(paletteDefaultJson.top)
+		expect(palette.keys.bindings).toEqual(paletteDefaultJson.keyBindings)
 	})
 })

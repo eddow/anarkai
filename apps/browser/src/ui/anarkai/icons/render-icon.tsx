@@ -67,7 +67,8 @@ const isGlyphIcon = (icon: AnarkaiIconSource): icon is AnarkaiGlyphIcon =>
 const isNodeIcon = (icon: AnarkaiIconSource): icon is AnarkaiNodeIcon =>
 	typeof icon === 'object' && icon !== null && 'kind' in icon && icon.kind === 'node'
 
-const isIconFactory = (icon: AnarkaiIconSource): icon is AnarkaiIconFactory => typeof icon === 'function'
+const isIconFactory = (icon: AnarkaiIconSource): icon is AnarkaiIconFactory =>
+	typeof icon === 'function'
 
 const getAccessibleIconAttributes = (label: string | undefined) =>
 	label

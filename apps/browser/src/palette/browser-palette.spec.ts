@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@app/lib/globals', () => ({
 	configuration: reactive({
-		timeControl: 'pause' as 'pause' | 'play' | 'fast-forward' | 'gonzales',
+		timeControl: 0 as 0 | 1 | 2 | 3,
 	}),
 	game: {
 		rendererReady: Promise.resolve(),

@@ -1,6 +1,14 @@
 import { css } from '@app/lib/css'
-import { getBrowserPalette } from '@app/palette/browser-palette'
-import { AnarkaiPaletteCommandBox, InspectorSection } from '@app/ui/anarkai'
+import {
+	getBrowserPalette,
+	getBrowserPaletteConfigurationJson,
+} from '@app/palette/browser-palette'
+import {
+	AnarkaiPaletteCommandBox,
+	AnarkaiPaletteKeyBindingsEditor,
+	InspectorSection,
+} from '@app/ui/anarkai'
+import { paletteCommandEntries, type Palette } from '@sursaut/ui/palette'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
 
 css`
@@ -25,12 +33,19 @@ css`
 	display: grid;
 	gap: 0.75rem;
 }
+
+.configuration-widget__keys {
+	display: grid;
+	gap: 0.75rem;
+}
 `
 
 const ConfigurationWidget = (props: DockviewWidgetProps, scope: DockviewWidgetScope) => {
 	void scope
 	props.title = 'Configuration'
 	const { commandBox, palette } = getBrowserPalette()
+	const keyBindingEntries = () =>
+		paletteCommandEntries({ palette: palette as unknown as Palette })
 
 	return (
 		<div class="configuration-widget">
@@ -44,8 +59,12 @@ const ConfigurationWidget = (props: DockviewWidgetProps, scope: DockviewWidgetSc
 					editable
 					expanded
 					floating={false}
+					onEditStop={() => console.log(getBrowserPaletteConfigurationJson())}
 					title="Configuration command box"
 				/>
+			</InspectorSection>
+			<InspectorSection class="configuration-widget__keys" title="Key Bindings">
+				<AnarkaiPaletteKeyBindingsEditor palette={palette} entries={keyBindingEntries} />
 			</InspectorSection>
 		</div>
 	)

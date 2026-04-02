@@ -5,6 +5,10 @@ import type { Game, GameObject, TickedGameObject, withTicked } from 'ssh/game'
 import { getGameScript, ScriptExecution } from './scripts'
 import { ASingleStep, PonderingStep } from './steps'
 
+function currentStepExecutor(target: { stepExecutor?: ASingleStep }): ASingleStep | undefined {
+	return target.stepExecutor
+}
+
 export function withScripted<T extends abstract new (...args: any[]) => TickedGameObject>(Base: T) {
 	@unreactive('runningScripts')
 	abstract class ScriptedMixin extends Base {
@@ -121,7 +125,7 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 
 		update(dt: number) {
 			let remaining: number | undefined = dt
-			let uselessStepExecutor: Function | false = false
+			let uselessStepExecutor: Function | undefined
 			while (remaining !== undefined && this.stepExecutor) {
 				const newRemaining = this.stepExecutor.tick(remaining)
 				if (typeof newRemaining === 'number' && !Number.isFinite(newRemaining)) debugger
@@ -134,8 +138,9 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 					this._lastCompletedStepType = this.stepExecutor.constructor.name
 					this.stepExecutor = undefined
 					this.nextStep()
-					const newType = this.stepExecutor?.constructor
-					if (uselessStepExecutor === newType) {
+					const repeatedStepExecutor = currentStepExecutor(this)
+					const newType = repeatedStepExecutor?.constructor
+					if (uselessStepExecutor && repeatedStepExecutor && uselessStepExecutor === newType) {
 						console.error('Useless step executor detected:', {
 							object: (this as any).name ?? (this as any).uid ?? 'unknown',
 							stepType: newType?.name,
@@ -146,10 +151,8 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 							actionDescription: this.actionDescription,
 						})
 						// Cancel the stuck step to trigger cleanup callbacks and prevent allocation leaks
-						if (this.stepExecutor) {
-							this.stepExecutor.cancel()
-							this.stepExecutor = undefined
-						}
+						repeatedStepExecutor.cancel()
+						this.stepExecutor = undefined
 						throw new Error(`Useless step executor: ${newType.name}`)
 					}
 				}

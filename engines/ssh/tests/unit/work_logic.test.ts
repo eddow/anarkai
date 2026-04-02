@@ -3,7 +3,7 @@ import { Game } from 'ssh/game/game'
 import { InventoryFunctions } from 'ssh/npcs/context/inventory'
 import { subject } from 'ssh/npcs/scripts'
 import { Character } from 'ssh/population/character'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock Game.prototype.getTexture before imports
 // We still need to patch Game definition because it's not a global, it's a class from valid import.
@@ -72,6 +72,10 @@ describe('Work Logic / Inventory Race Conditions', () => {
 		// Initialize InventoryContext bound to character
 		inventoryFunctions = new InventoryFunctions()
 		Object.assign(inventoryFunctions, { [subject]: char })
+	})
+
+	afterEach(() => {
+		game.destroy()
 	})
 
 	it('should throw when planning grab for missing good (Specific Good)', () => {

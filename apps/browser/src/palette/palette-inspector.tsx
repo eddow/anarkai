@@ -1,9 +1,12 @@
+import type {
+	BrowserPaletteSchema,
+	BrowserPaletteToolbarItem,
+} from '@app/palette/browser-palette'
 import { getBrowserPalette } from '@app/palette/browser-palette'
 import type {
 	Palette,
 	PaletteItem,
 	PaletteRegion,
-	PaletteSchema,
 	PaletteScope,
 	PaletteTool,
 	PaletteToolbarItem,
@@ -28,13 +31,15 @@ function inspectorPrimaryLabel(item: PaletteToolbarItem): string {
 	return item.tool ?? item.editor
 }
 
-function inspectionEntryForPalette(palette: Palette<PaletteSchema>) {
+type BrowserPaletteInstance = ReturnType<typeof getBrowserPalette>['palette']
+
+function inspectionEntryForPalette(palette: BrowserPaletteInstance) {
 	const entry = palettes.inspecting
 	if (unwrap(entry?.palette) !== unwrap(palette)) return undefined
 	return entry
 }
 
-export function BrowserPaletteInspectorBody<TSchema extends PaletteSchema>(props: {
+export function BrowserPaletteInspectorBody<TSchema extends BrowserPaletteSchema>(props: {
 	readonly palette: Palette<TSchema>
 	readonly item: PaletteItem<TSchema>
 	readonly tool: PaletteTool<TSchema['tools']> | undefined
@@ -128,7 +133,7 @@ export function PaletteToolbarInspectorPanel(props: BrowserPaletteInspectorProps
 		get item() {
 			return view.inspectingItem
 		},
-		get scope(): PaletteScope<PaletteSchema> | undefined {
+		get scope(): PaletteScope<BrowserPaletteSchema> | undefined {
 			const item = this.item
 			if (!item) return undefined
 			return {
@@ -143,7 +148,7 @@ export function PaletteToolbarInspectorPanel(props: BrowserPaletteInspectorProps
 			return palette.tool(item.tool)
 		},
 		get configurator() {
-			const item = this.item
+			const item = this.item as BrowserPaletteToolbarItem | undefined
 			const scope = this.scope
 			if (!item || !scope) return undefined
 			return renderPaletteConfigurator(palette, item, this.tool, scope)

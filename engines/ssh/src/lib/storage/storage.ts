@@ -64,6 +64,10 @@ export abstract class Storage<
 	 * Get currently available (unreserved) quantity for a good type
 	 */
 	abstract available(goodType: GoodType): number
+	/**
+	 * Get currently allocated incoming quantity for a good type
+	 */
+	abstract allocated(goodType: GoodType): number
 
 	/** Render a visualization of stored goods */
 	abstract renderedGoods(): RenderedGoodSlots

@@ -14,14 +14,14 @@ import * as gameContent from 'ssh/assets/game-content'
  * Single source of truth for toolbar + palette time controls (legacy bar and IDE palette).
  */
 export const appShellTimeControls = [
-	{ value: 'pause', label: 'Pause', icon: tablerFilledPlayerPause },
-	{ value: 'play', label: 'Play', icon: tablerFilledPlayerPlay },
+	{ value: 0, label: 'Pause', icon: tablerFilledPlayerPause },
+	{ value: 1, label: 'Play', icon: tablerFilledPlayerPlay },
 	{
-		value: 'fast-forward',
+		value: 2,
 		label: 'Fast Forward',
 		icon: tablerFilledPlayerSkipForward,
 	},
-	{ value: 'gonzales', label: 'Gonzales', icon: tablerFilledPlayerTrackNext },
+	{ value: 3, label: 'Gonzales', icon: tablerFilledPlayerTrackNext },
 ] as const
 
 export type AppShellTimeControl = (typeof appShellTimeControls)[number]

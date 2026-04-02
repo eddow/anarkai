@@ -1,6 +1,6 @@
 import { Game } from 'ssh/game'
 import { configuration } from 'ssh/globals'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 describe('Game Clock', () => {
 	let game: Game
@@ -18,13 +18,21 @@ describe('Game Clock', () => {
 		game.clock.virtualTime = 0
 	})
 
+	afterEach(() => {
+		game.destroy()
+	})
+
 	it('increments time correctly based on time controls', () => {
 		// Default to play
 		configuration.timeControl = 'play'
 
+		const tick = (deltaMs: number) => {
+			;(game as any).tickerCallback({ elapsedMS: deltaMs })
+		}
+
 		// Tick 1 second of real time in 100ms chunks (10 steps)
 		for (let i = 0; i < 10; i++) {
-			game.ticker.update(100)
+			tick(100)
 		}
 
 		// rootSpeed = 2, multiplier = 1 -> delta = 2s total
@@ -34,7 +42,7 @@ describe('Game Clock', () => {
 		configuration.timeControl = 'fast-forward'
 		// multiplier = 2 -> delta should be 2 * 2 = 4s
 		for (let i = 0; i < 10; i++) {
-			game.ticker.update(100)
+			tick(100)
 		}
 
 		expect(game.clock.virtualTime).toBeCloseTo(2 + 4, 0.1) // 6
@@ -43,7 +51,7 @@ describe('Game Clock', () => {
 		configuration.timeControl = 'pause'
 		// multiplier = 0 -> delta should be 0
 		for (let i = 0; i < 10; i++) {
-			game.ticker.update(100)
+			tick(100)
 		}
 
 		expect(game.clock.virtualTime).toBeCloseTo(6, 0.1)

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 
 describe('Buffering Logic', () => {
 	it('transfers goods from full non-buffering storage to empty buffering storage', {
-		timeout: 60000,
+		timeout: 20000,
 	}, async () => {
 		const game = new Game(
 			{

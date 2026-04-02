@@ -24,12 +24,22 @@ export type AnarkaiPaletteEnumConfig = AnarkaiPaletteItemConfigBase & {
 	keywords?: readonly string[]
 }
 
+export type AnarkaiPaletteStarsConfig = AnarkaiPaletteItemConfigBase & {
+	after?: string
+	before?: string
+	inside?: string
+	keywords?: readonly string[]
+	size?: string
+	zeroElement?: string
+}
+
 export type AnarkaiPaletteEditorConfigByVariant = {
 	button: AnarkaiPaletteItemConfigBase
 	cycle: AnarkaiPaletteEnumConfig
 	commandBox: AnarkaiPaletteItemConfigBase
 	select: AnarkaiPaletteEnumConfig
 	segmented: AnarkaiPaletteEnumConfig
+	stars: AnarkaiPaletteStarsConfig
 	toggle: AnarkaiPaletteItemConfigBase
 }
 

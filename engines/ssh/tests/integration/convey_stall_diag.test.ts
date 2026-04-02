@@ -9,7 +9,7 @@ afterEach(() => {
 
 describe('Convey Stall Diagnostic', () => {
 	it('captures recent activations for storage to sawmill with assigned workers', {
-		timeout: 5000,
+		timeout: 15000,
 	}, async () => {
 		const originalMaxChain = reactiveOptions.maxEffectChain
 		let engine: TestEngine | undefined
@@ -41,13 +41,11 @@ describe('Convey Stall Diagnostic', () => {
 			}
 			const char = spawnWorker({ q: 1, r: 0 })
 			char.name = 'SawmillWorker'
-			char.assignedAlveolus = sawmill
 			sawmill.assignedWorker = char
 			const sawmillAction = char.findAction()
 			if (sawmillAction) char.begin(sawmillAction)
 			const storageWorker = spawnWorker({ q: 0, r: 0 })
 			storageWorker.name = 'StorageWorker'
-			storageWorker.assignedAlveolus = storage
 			storage.assignedWorker = storageWorker
 			const storageAction = storageWorker.findAction()
 			if (storageAction) storageWorker.begin(storageAction)

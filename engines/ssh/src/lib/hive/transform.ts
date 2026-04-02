@@ -105,9 +105,11 @@ export class TransformAlveolus extends Alveolus {
 		const stock = this.storage.stock
 		return Object.fromEntries([
 			...Object.entries(inputs)
-				.filter(
-					([goodType, required]) => (stock[goodType as GoodType] ?? 0) < required * inputBufferSize
-				)
+				.filter(([goodType, required]) => {
+					const plannedStock =
+						(stock[goodType as GoodType] ?? 0) + this.storage.allocated(goodType as GoodType)
+					return plannedStock < required * inputBufferSize
+				})
 				.map(([goodType]) => [
 					goodType as GoodType,
 					{ advertisement: 'demand', priority: demandPriority },

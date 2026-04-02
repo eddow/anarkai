@@ -279,6 +279,100 @@
 	font-size: 0.82rem;
 }
 
+.ak-palette-keybindings {
+	display: grid;
+	gap: var(--ak-space-sm);
+}
+
+.ak-palette-keybindings__hint,
+.ak-palette-keybindings__empty {
+	margin: 0;
+	font-size: 0.84rem;
+	line-height: 1.45;
+	color: var(--ak-text-muted);
+}
+
+.ak-palette-keybindings__list {
+	display: grid;
+	gap: var(--ak-space-xs);
+}
+
+.ak-palette-keybindings__row {
+	display: grid;
+	grid-template-columns: minmax(8rem, 10rem) minmax(0, 1fr) auto;
+	align-items: center;
+	gap: var(--ak-space-sm);
+}
+
+.ak-palette-keybindings__capture,
+.ak-palette-keybindings__command,
+.ak-palette-keybindings__remove,
+.ak-palette-keybindings__add {
+	height: var(--ak-control-height-compact);
+	border: 1px solid var(--ak-border);
+	border-radius: var(--ak-radius-sm);
+	background: color-mix(in srgb, var(--ak-surface-panel) 92%, transparent);
+	color: var(--ak-text);
+	font: inherit;
+}
+
+.ak-palette-keybindings__capture,
+.ak-palette-keybindings__remove,
+.ak-palette-keybindings__add {
+	cursor: pointer;
+}
+
+.ak-palette-keybindings__capture {
+	display: inline-flex;
+	align-items: center;
+	justify-content: flex-start;
+	padding: 0 0.55rem;
+	background: color-mix(in srgb, var(--ak-surface-1) 86%, transparent);
+	font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+	font-size: 0.82rem;
+	font-weight: 600;
+}
+
+.ak-palette-keybindings__capture.is-recording {
+	border-color: color-mix(in srgb, var(--ak-accent) 55%, white);
+	box-shadow: 0 0 0 1px color-mix(in srgb, var(--ak-accent) 55%, white);
+	color: var(--ak-accent);
+}
+
+.ak-palette-keybindings__command {
+	min-width: 0;
+	padding: 0 0.45rem;
+}
+
+.ak-palette-keybindings__remove {
+	width: var(--ak-control-height-compact);
+	padding: 0;
+	justify-self: end;
+	background: color-mix(in srgb, var(--ak-surface-1) 82%, transparent);
+}
+
+.ak-palette-keybindings__add {
+	padding: 0 0.7rem;
+	justify-self: start;
+	background: color-mix(in srgb, var(--ak-surface-1) 82%, transparent);
+}
+
+.ak-palette-keybindings__capture:hover,
+.ak-palette-keybindings__remove:hover,
+.ak-palette-keybindings__add:hover {
+	border-color: color-mix(in srgb, var(--ak-border) 55%, white);
+	background: color-mix(in srgb, var(--ak-surface-1) 72%, transparent);
+}
+
+.ak-palette-keybindings__capture:focus-visible,
+.ak-palette-keybindings__command:focus-visible,
+.ak-palette-keybindings__remove:focus-visible,
+.ak-palette-keybindings__add:focus-visible {
+	outline: none;
+	border-color: color-mix(in srgb, var(--ak-accent) 55%, white);
+	box-shadow: 0 0 0 1px color-mix(in srgb, var(--ak-accent) 55%, white);
+}
+
 .ak-palette-select-field {
 	display: inline-flex;
 	align-items: center;

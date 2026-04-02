@@ -1,0 +1,8 @@
+{
+	"recommendations": [
+		"vitest.explorer"
+	],
+	"unwantedRecommendations": [
+		"Orta.vscode-jest"
+	]
+}

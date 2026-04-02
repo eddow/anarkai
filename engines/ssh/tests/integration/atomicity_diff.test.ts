@@ -114,6 +114,7 @@ describe('Atomicity & Environment Investigation', () => {
 			throw error
 		} finally {
 			traces.advertising = previousAdvertisingTrace
+			await engine.destroy()
 		}
 	}
 

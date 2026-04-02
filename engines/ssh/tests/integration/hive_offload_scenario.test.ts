@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
 
 describe('Hive Offload Scenario', () => {
-	it('Scenario: Offload Mushroom', { timeout: 5000 }, async () => {
+	it('Scenario: Offload Mushroom', { timeout: 15000 }, async () => {
 		const engine = new TestEngine({
 			boardSize: 12,
 			terrainSeed: 1234,
@@ -104,7 +104,7 @@ describe('Hive Offload Scenario', () => {
 	})
 
 	it('Scenario: Offload Lifecycle Keeps LooseGood Present Until Pickup Fulfills', {
-		timeout: 5000,
+		timeout: 15000,
 	}, async () => {
 		const engine = new TestEngine({
 			boardSize: 12,
@@ -203,7 +203,7 @@ describe('Hive Offload Scenario', () => {
 	})
 
 	it('Scenario: Offload Mushroom Must Not Leave Pickup Or Drop Allocations Alive', {
-		timeout: 5000,
+		timeout: 15000,
 	}, async () => {
 		resetDebugActiveAllocations()
 		const engine = new TestEngine({

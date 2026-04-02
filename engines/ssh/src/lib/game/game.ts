@@ -29,6 +29,10 @@ try {
 	// Ignore errors in test environment where gameContent might be a mock namespace
 }
 const timeMultiplier = {
+	0: 0,
+	1: 1,
+	2: 2,
+	3: 4,
 	pause: 0,
 	play: 1,
 	'fast-forward': 2,
@@ -131,6 +135,7 @@ export class Game extends Eventful<GameEvents> {
 	})
 	public loaded: Promise<void>
 	public rendererReady: Promise<void>
+	public rendererReadyResolver?: () => void
 	private async load() {
 		// Headless load - just start ticker?
 		this.ticker.start()

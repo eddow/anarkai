@@ -34,7 +34,7 @@ describe('Deadlock Reproduction', () => {
 	}
 	// TODO: Leaked allocations here - retrieve and heal
 	it('Regression: should not deadlock in waitForIncomingGoods during heavy conveyance', {
-		timeout: 60000,
+		timeout: 20000,
 	}, async () => {
 		const origMaxChain = reactiveOptions.maxEffectChain
 		const originalRates = {

@@ -101,19 +101,13 @@ export class BorderVisual extends VisualObject<TileBorder> {
 			this.goodsContainer.removeChildren()
 
 			const { slots } = storage.renderedGoods()
-
-			// Simple linear distribution of slots
-			const count = slots.length
-			const step = length / (count + 1)
-			const startX = center.x - (length / 2) * direction.dx
-			const startY = center.y - (length / 2) * direction.dy
+			const positions = getBorderGoodsPositions(center, direction, length, slots.length)
 
 			const subCleanups: (() => void)[] = []
 
 			slots.forEach((slot, i) => {
-				const t = (i + 1) * step
-				const x = startX + t * direction.dx
-				const y = startY + t * direction.dy
+				const position = positions[i]
+				if (!position) return
 
 				// Render single slot via GoodsRenderer
 				subCleanups.push(
@@ -122,7 +116,7 @@ export class BorderVisual extends VisualObject<TileBorder> {
 						this.goodsContainer,
 						tileSize,
 						() => ({ slots: [slot], assumedMaxSlots: 1 }),
-						{ x, y },
+						position,
 						`border.${this.object.uid}.goods.${i}`
 					)
 				)
@@ -137,4 +131,29 @@ export class BorderVisual extends VisualObject<TileBorder> {
 		this.goodsContainer.destroy({ children: true })
 		super.dispose()
 	}
+}
+
+export function getBorderGoodsPositions(
+	center: { x: number; y: number },
+	direction: { dx: number; dy: number },
+	length: number,
+	count: number
+) {
+	if (count === 0) return []
+	const magnitude = Math.hypot(direction.dx, direction.dy)
+	if (magnitude === 0) return Array.from({ length: count }, () => ({ ...center }))
+	const normalizedDirection = {
+		dx: direction.dx / magnitude,
+		dy: direction.dy / magnitude,
+	}
+	const step = length / (count + 1)
+	const startX = center.x - (length / 2) * normalizedDirection.dx
+	const startY = center.y - (length / 2) * normalizedDirection.dy
+	return Array.from({ length: count }, (_, i) => {
+		const t = (i + 1) * step
+		return {
+			x: startX + t * normalizedDirection.dx,
+			y: startY + t * normalizedDirection.dy,
+		}
+	})
 }

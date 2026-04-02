@@ -1,33 +1,38 @@
+import ResourceImage from '@app/components/ResourceImage'
 import {
-	appShellTimeControls,
 	buildPaletteSelectedActionValues,
 	getAppShellBuildableAlveoli,
 } from '@app/lib/app-shell-controls'
 import type { Configuration } from '@app/lib/globals'
 import { configuration, game, interactionMode, uiConfiguration } from '@app/lib/globals'
-import ResourceImage from '@app/components/ResourceImage'
 import {
 	type AnarkaiPaletteEditorConfigByVariant,
+	type AnarkaiPaletteEnumConfig,
+	type AnarkaiPaletteItemConfigBase,
 	type AnarkaiPaletteSchema,
+	type AnarkaiPaletteStarsConfig,
 	type AnarkaiThemeMode,
 	createAnarkaiPaletteEditors,
 } from '@app/ui/anarkai'
+import browserPaletteDefaultJson from '@app/palette/palette.default.json'
 import {
 	createPaletteKeys,
 	Palette,
 	type PaletteBorder,
+	type PaletteCommandBoxEntry,
 	type PaletteCommandBoxModel,
 	type PaletteConfig,
 	type PaletteEditorContext,
 	type PaletteEditorRegistry,
+	type PaletteKeyBinding,
 	type PaletteToolbarItem,
 	paletteCatalogEntries,
 	paletteCommandBoxModel,
 	paletteCommandEntries,
 	palettes,
 } from '@sursaut/ui/palette'
-import { effect, reactive, unwrap } from 'mutts'
 import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content'
+import { effect, reactive, unwrap } from 'mutts'
 import {
 	tablerFilledAdjustments,
 	tablerFilledArrowBigRight,
@@ -65,6 +70,8 @@ type BrowserPaletteEditorConfigByVariant = AnarkaiPaletteEditorConfigByVariant &
 	clock: { label?: string; hint?: string }
 }
 
+type BrowserPaletteEditorVariant = keyof BrowserPaletteEditorConfigByVariant
+
 const tools = {
 	openConfiguration: {
 		label: 'Open configuration',
@@ -100,7 +107,7 @@ const tools = {
 		},
 	},
 	timeControl: {
-		type: 'enum' as const,
+		type: 'number' as const,
 		label: 'Speed',
 		keywords: ['speed', 'time', 'pause', 'play', 'clock', 'rate'],
 		get value() {
@@ -109,12 +116,10 @@ const tools = {
 		set value(next: Configuration['timeControl']) {
 			configuration.timeControl = next
 		},
-		default: 'play' as const,
-		values: appShellTimeControls.map((o) => ({
-			value: o.value,
-			label: o.label,
-			icon: typeof o.icon === 'string' ? o.icon : undefined,
-		})),
+		default: 1 as const,
+		min: 0,
+		max: 3,
+		step: 1,
 	},
 	selectedAction: {
 		type: 'enum' as const,
@@ -149,13 +154,13 @@ const tools = {
 
 type BrowserPaletteTool = keyof typeof tools & string
 
-type BrowserPaletteToolbarItem<TTool extends string = BrowserPaletteTool> = PaletteToolbarItem<
+export type BrowserPaletteToolbarItem<TTool extends string = BrowserPaletteTool> = PaletteToolbarItem<
 	TTool,
 	keyof BrowserPaletteEditorConfigByVariant,
 	BrowserPaletteEditorConfigByVariant[keyof BrowserPaletteEditorConfigByVariant]
 >
 
-type BrowserPaletteSchema = AnarkaiPaletteSchema<
+export type BrowserPaletteSchema = AnarkaiPaletteSchema<
 	typeof tools,
 	BrowserPaletteEditorConfigByVariant,
 	BrowserPaletteToolbarItem
@@ -210,27 +215,183 @@ const browserPaletteEditors = {
 
 const browserPaletteEditorDefaults = {
 	enum: 'select',
+	number: 'stars',
 	run: 'button',
 } satisfies NonNullable<PaletteConfig<BrowserPaletteSchema>['editorDefaults']>
 
-const paletteKeys = createPaletteKeys({
-	'`': 'openConfiguration',
-	g: 'openGame',
-	h: 'openTest',
-})
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null
+}
+
+function browserPaletteDefaultError(message: string): never {
+	throw new Error(`Invalid browser palette default config: ${message}`)
+}
+
+function parseStringArray(value: unknown, field: string): string[] | undefined {
+	if (value === undefined) return undefined
+	if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string')) {
+		browserPaletteDefaultError(`${field} must be an array of strings`)
+	}
+	return [...value]
+}
+
+function parseBrowserPaletteEditorVariant(value: unknown): BrowserPaletteEditorVariant {
+	if (
+		value === 'button' ||
+		value === 'commandBox' ||
+		value === 'cycle' ||
+		value === 'select' ||
+		value === 'segmented' ||
+		value === 'stars' ||
+		value === 'toggle' ||
+		value === 'clock'
+	)
+		return value
+	browserPaletteDefaultError(`unknown editor "${String(value)}"`)
+}
+
+function parseBrowserPaletteTool(value: unknown): BrowserPaletteTool {
+	if (typeof value === 'string' && value in tools) return value as BrowserPaletteTool
+	browserPaletteDefaultError(`unknown tool "${String(value)}"`)
+}
+
+function parseBrowserPaletteItemConfig(value: unknown): BrowserPaletteToolbarItem['config'] {
+	if (value === undefined) return undefined
+	if (!isRecord(value)) browserPaletteDefaultError('item config must be an object')
+	const next: Partial<
+		BrowserPaletteEditorConfigByVariant['clock'] &
+			AnarkaiPaletteItemConfigBase &
+			AnarkaiPaletteEnumConfig &
+			AnarkaiPaletteStarsConfig
+	> = {}
+	if (value.label !== undefined) {
+		if (typeof value.label !== 'string') browserPaletteDefaultError('config.label must be a string')
+		next.label = value.label
+	}
+	if (value.icon !== undefined) {
+		if (typeof value.icon !== 'string') browserPaletteDefaultError('config.icon must be a string')
+		next.icon = value.icon
+	}
+	if (value.hint !== undefined) {
+		if (typeof value.hint !== 'string') browserPaletteDefaultError('config.hint must be a string')
+		next.hint = value.hint
+	}
+	if (value.tone !== undefined) {
+		if (value.tone !== 'accent' && value.tone !== 'neutral') {
+			browserPaletteDefaultError('config.tone must be "accent" or "neutral"')
+		}
+		next.tone = value.tone
+	}
+	if (value.choiceDisplay !== undefined) {
+		if (
+			value.choiceDisplay !== 'both' &&
+			value.choiceDisplay !== 'icon' &&
+			value.choiceDisplay !== 'text'
+		) {
+			browserPaletteDefaultError('config.choiceDisplay must be "both", "icon", or "text"')
+		}
+		next.choiceDisplay = value.choiceDisplay
+	}
+	const keywords = parseStringArray(value.keywords, 'config.keywords')
+	if (keywords) next.keywords = keywords
+	const acceptedKeywords = parseStringArray(value.acceptedKeywords, 'config.acceptedKeywords')
+	if (acceptedKeywords) next.acceptedKeywords = acceptedKeywords
+	const values = parseStringArray(value.values, 'config.values')
+	if (values) next.values = values
+	if (value.before !== undefined) {
+		if (typeof value.before !== 'string') browserPaletteDefaultError('config.before must be a string')
+		next.before = value.before
+	}
+	if (value.after !== undefined) {
+		if (typeof value.after !== 'string') browserPaletteDefaultError('config.after must be a string')
+		next.after = value.after
+	}
+	if (value.inside !== undefined) {
+		if (typeof value.inside !== 'string') browserPaletteDefaultError('config.inside must be a string')
+		next.inside = value.inside
+	}
+	if (value.zeroElement !== undefined) {
+		if (typeof value.zeroElement !== 'string') {
+			browserPaletteDefaultError('config.zeroElement must be a string')
+		}
+		next.zeroElement = value.zeroElement
+	}
+	if (value.size !== undefined) {
+		if (typeof value.size !== 'string') browserPaletteDefaultError('config.size must be a string')
+		next.size = value.size
+	}
+	return next
+}
+
+function parseBrowserPaletteToolbarItem(value: unknown): BrowserPaletteToolbarItem {
+	if (!isRecord(value)) browserPaletteDefaultError('toolbar item must be an object')
+	const editor = parseBrowserPaletteEditorVariant(value.editor)
+	const config = parseBrowserPaletteItemConfig(value.config)
+	if (value.tool === undefined) return { editor, config }
+	return {
+		tool: parseBrowserPaletteTool(value.tool),
+		editor,
+		config,
+	}
+}
+
+function parseBrowserPaletteDefaults(source: unknown): {
+	top: PaletteBorder<BrowserPaletteToolbarItem>
+	keyBindings: PaletteKeyBinding
+} {
+	if (!isRecord(source)) browserPaletteDefaultError('root must be an object')
+	if (!Array.isArray(source.top)) browserPaletteDefaultError('top must be an array of tracks')
+	const top: PaletteBorder<BrowserPaletteToolbarItem> = source.top.map((track, trackIndex) => {
+		if (!Array.isArray(track)) {
+			browserPaletteDefaultError(`top[${trackIndex}] must be an array of sections`)
+		}
+		return track.map((section, sectionIndex) => {
+			if (!isRecord(section)) {
+				browserPaletteDefaultError(`top[${trackIndex}][${sectionIndex}] must be an object`)
+			}
+			if (typeof section.space !== 'number') {
+				browserPaletteDefaultError(`top[${trackIndex}][${sectionIndex}].space must be a number`)
+			}
+			if (!Array.isArray(section.toolbar)) {
+				browserPaletteDefaultError(`top[${trackIndex}][${sectionIndex}].toolbar must be an array`)
+			}
+			return {
+				space: section.space,
+				toolbar: section.toolbar.map(parseBrowserPaletteToolbarItem),
+			}
+		})
+	})
+	if (!isRecord(source.keyBindings)) browserPaletteDefaultError('keyBindings must be an object')
+	const keyBindings: PaletteKeyBinding = {}
+	for (const [keystroke, command] of Object.entries(source.keyBindings)) {
+		if (typeof command !== 'string') {
+			browserPaletteDefaultError(`keyBindings.${keystroke} must be a string`)
+		}
+		keyBindings[keystroke] = command
+	}
+	return { top, keyBindings }
+}
+
+const browserPaletteDefaults = parseBrowserPaletteDefaults(browserPaletteDefaultJson)
+
+export const browserPaletteDefaultKeyBindings: PaletteKeyBinding = structuredClone(
+	browserPaletteDefaults.keyBindings
+)
+
+const browserPaletteKeys = createPaletteKeys(browserPaletteDefaultKeyBindings)
 
 function createBrowserPaletteBundle() {
 	const palette = new Palette<BrowserPaletteSchema>({
 		tools,
-		keys: paletteKeys,
+		keys: browserPaletteKeys,
 		editorDefaults: browserPaletteEditorDefaults,
 		editors: browserPaletteEditors,
 	})
 	const commandBox = paletteCommandBoxModel({
-		entries: () =>
+		entries: (): readonly PaletteCommandBoxEntry[] =>
 			unwrap(palettes.editing) === unwrap(palette)
-				? paletteCatalogEntries({ palette })
-				: paletteCommandEntries({ palette }),
+				? (paletteCatalogEntries({ palette }) as unknown as readonly PaletteCommandBoxEntry[])
+				: (paletteCommandEntries({ palette }) as unknown as readonly PaletteCommandBoxEntry[]),
 		placeholder: 'Command...',
 		enterAction: () => (unwrap(palettes.editing) === unwrap(palette) ? 'select' : 'execute'),
 	})
@@ -244,68 +405,8 @@ function createBrowserPaletteBundle() {
 	}
 }
 
-const ideToolbar: BrowserPaletteToolbarItem[] = [
-	{
-		tool: 'openConfiguration',
-		editor: 'button',
-		config: {
-			label: 'Configuration',
-			icon: tablerFilledAdjustments,
-			tone: 'neutral' as const,
-			hint: 'Open configuration panel',
-		},
-	},
-	{
-		tool: 'openGame',
-		editor: 'button',
-		config: {
-			label: 'Game',
-			icon: tablerFilledArrowBigRight,
-			tone: 'neutral' as const,
-			hint: 'Open game panel',
-		},
-	},
-	{
-		tool: 'openTest',
-		editor: 'button',
-		config: {
-			label: 'Test',
-			icon: tablerFilledFlask,
-			tone: 'neutral' as const,
-			hint: 'Open test panel',
-		},
-	},
-	{
-		editor: 'clock',
-		config: { label: 'Clock', hint: 'In-game clock' },
-	},
-	{
-		tool: 'timeControl',
-		editor: 'segmented',
-		config: {
-			label: 'Speed',
-			choiceDisplay: 'icon',
-			keywords: ['speed', 'pause', 'play', 'time'],
-		},
-	},
-	{
-		tool: 'selectedAction',
-		editor: 'select',
-		config: {
-			label: 'Action',
-			choiceDisplay: 'both',
-			keywords: ['action', 'select', 'build', 'zone'],
-		},
-	},
-	{
-		tool: 'theme',
-		editor: 'cycle',
-		config: { label: 'Theme', choiceDisplay: 'icon', keywords: ['theme', 'dark', 'light'] },
-	},
-]
-
 export const browserPaletteIdeConfig = {
-	top: [[{ space: 1, toolbar: ideToolbar }]],
+	top: structuredClone(browserPaletteDefaults.top),
 } satisfies { top: PaletteBorder<BrowserPaletteToolbarItem> }
 
 export type BrowserPaletteBundle = {
@@ -313,6 +414,43 @@ export type BrowserPaletteBundle = {
 	readonly palette: ReturnType<typeof createBrowserPaletteBundle>['palette']
 	readonly PaletteIde: ReturnType<typeof createBrowserPaletteBundle>['PaletteIde']
 	dispose(): void
+}
+
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
+
+function browserPaletteJsonValue(value: unknown): JsonValue | undefined {
+	if (
+		value === null ||
+		typeof value === 'string' ||
+		typeof value === 'number' ||
+		typeof value === 'boolean'
+	)
+		return value
+	if (Array.isArray(value)) {
+		return value
+			.map((entry) => browserPaletteJsonValue(entry))
+			.filter((entry): entry is JsonValue => entry !== undefined)
+	}
+	if (typeof value !== 'object') return undefined
+	const entries = Object.entries(value)
+	const next: { [key: string]: JsonValue } = {}
+	for (const [key, entry] of entries) {
+		const serialized = browserPaletteJsonValue(entry)
+		if (serialized !== undefined) next[key] = serialized
+	}
+	return next
+}
+
+export function getBrowserPaletteConfigurationJson(): string {
+	const { palette } = getBrowserPalette()
+	return JSON.stringify(
+		{
+			top: browserPaletteJsonValue(browserPaletteIdeConfig.top),
+			keyBindings: browserPaletteJsonValue(palette.keys.bindings) ?? {},
+		},
+		null,
+		2
+	)
 }
 
 let browserPaletteBundle: BrowserPaletteBundle | undefined

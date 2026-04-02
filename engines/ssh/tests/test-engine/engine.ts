@@ -34,6 +34,9 @@ export class TestEngine {
 	 * Use this to setup the test board.
 	 */
 	public loadScenario(scenario: Partial<SaveState>) {
+		if (!this.game) {
+			throw new Error('TestEngine.init() must be awaited before loadScenario()')
+		}
 		// Ensure generationOptions are present
 		const fullScenario = {
 			...scenario,
@@ -89,6 +92,10 @@ export class TestEngine {
 	}
 
 	public async destroy() {
+		if (!this.game) {
+			reset()
+			return
+		}
 		await new Promise((resolve) => setTimeout(resolve, 0))
 		await new Promise((resolve) => setTimeout(resolve, 0))
 		this.game.population.deserialize([])

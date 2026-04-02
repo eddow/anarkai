@@ -54,6 +54,7 @@ describe('createAnarkaiPaletteEditors enum editors', () => {
 		const tool = reactive({
 			type: 'enum' as const,
 			value: 'light',
+			default: 'light',
 			values: [
 				{
 					value: 'light',
@@ -71,9 +72,10 @@ describe('createAnarkaiPaletteEditors enum editors', () => {
 		const stop = latch(
 			root,
 			editor?.({
-				item,
+				item: item as never,
 				tool,
 				scope: {} as never,
+				flags: {},
 			})
 		)
 
@@ -109,6 +111,7 @@ describe('createAnarkaiPaletteEditors enum editors', () => {
 		const tool = {
 			type: 'enum' as const,
 			value: 'light',
+			default: 'light',
 			values: [
 				{
 					value: 'light',
@@ -126,9 +129,10 @@ describe('createAnarkaiPaletteEditors enum editors', () => {
 		const stop = latch(
 			root,
 			editor?.({
-				item,
+				item: item as never,
 				tool,
 				scope: {} as never,
+				flags: {},
 			})
 		)
 
@@ -149,6 +153,7 @@ describe('createAnarkaiPaletteEditors enum editors', () => {
 		const tool = {
 			type: 'enum' as const,
 			value: 'build:house',
+			default: '',
 			values: [
 				{ value: '', label: 'Select' },
 				{ value: 'build:house', label: 'Build house' },
@@ -160,9 +165,10 @@ describe('createAnarkaiPaletteEditors enum editors', () => {
 		const stop = latch(
 			root,
 			editor?.({
-				item,
+				item: item as never,
 				tool,
 				scope: {} as never,
+				flags: {},
 			})
 		)
 
@@ -186,6 +192,7 @@ describe('createAnarkaiPaletteEditors enum editors', () => {
 		const tool = {
 			type: 'enum' as const,
 			value: 'light',
+			default: 'light',
 			values: [
 				{ value: 'light', label: 'Light', icon: '☀' },
 				{ value: 'dark', label: 'Dark', icon: '☾' },
@@ -195,9 +202,10 @@ describe('createAnarkaiPaletteEditors enum editors', () => {
 		const stop = latch(
 			root,
 			editor?.({
-				item,
+				item: item as never,
 				tool,
 				scope: {} as never,
+				flags: {},
 			})
 		)
 
@@ -214,4 +222,45 @@ describe('createAnarkaiPaletteEditors enum editors', () => {
 		root.remove()
 	})
 
+	it('renders numeric stars editor with a zero pause state', () => {
+		const root = document.createElement('div')
+		document.body.appendChild(root)
+		const item = {
+			tool: 'timeControl',
+			editor: 'stars',
+			config: { label: 'Speed', before: '▶', after: '▷', zeroElement: '⏸' },
+		} satisfies AnarkaiPaletteToolbarItem
+		const tool = reactive({
+			type: 'number' as const,
+			value: 2,
+			default: 1,
+			min: 0,
+			max: 3,
+			step: 1,
+		})
+		const editor = createAnarkaiPaletteEditors().number?.stars?.editor
+		const stop = latch(
+			root,
+			editor?.({
+				item: item as never,
+				tool,
+				scope: {} as never,
+				flags: {},
+			})
+		)
+
+		const glyphs = Array.from(root.querySelectorAll('.ak-stars__item')).map(
+			(node) => node.textContent ?? ''
+		)
+		expect(glyphs).toEqual(['⏸', '▶', '▶', '▷'])
+
+		const stars = Array.from(root.querySelectorAll('.ak-stars__item')) as HTMLSpanElement[]
+		stars[0]?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }))
+		expect(tool.value).toBe(0)
+		stars[3]?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }))
+		expect(tool.value).toBe(3)
+
+		stop?.()
+		root.remove()
+	})
 })

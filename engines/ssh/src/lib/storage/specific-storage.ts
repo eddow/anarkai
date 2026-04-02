@@ -118,7 +118,8 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 	addGood(goodType: GoodType, qty: number): number {
 		const maxAmount = this.maxAmounts[goodType] || 0
 		const currentAmount = this._goods[goodType] || 0
-		const canStore = maxAmount - currentAmount
+		const allocated = this._allocated[goodType] || 0
+		const canStore = maxAmount - currentAmount - allocated
 		const toStore = Math.min(qty, canStore)
 
 		if (toStore > 0) {
@@ -166,6 +167,10 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 
 	available(goodType: GoodType): number {
 		return (this._goods[goodType] || 0) - (this._reserved[goodType] || 0)
+	}
+
+	allocated(goodType: GoodType): number {
+		return this._allocated[goodType] || 0
 	}
 
 	renderedGoods(): RenderedGoodSlots {

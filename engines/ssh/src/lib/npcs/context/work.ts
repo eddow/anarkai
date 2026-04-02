@@ -10,8 +10,9 @@ import type { TransformAlveolus } from 'ssh/hive/transform'
 import type { Character } from 'ssh/population/character'
 import type { AllocationBase } from 'ssh/storage'
 import { contract, type Goods, type GoodType } from 'ssh/types'
-import { type AxialCoord, axial } from 'ssh/utils'
+import type { AxialCoord } from 'ssh/utils'
 import { alveoli } from '../../../../assets/game-content'
+import { getConveyDuration, getConveyVisualMovements } from './convey'
 import { subject } from '../scripts'
 import { DurationStep, MultiMoveStep, WaitForPredicateStep } from '../steps'
 import type { WorkPlan } from '.'
@@ -120,21 +121,12 @@ class WorkFunctions {
 			})
 		}
 
-		// Calculate time: O(n²) for cycles, O(n) for single movements
-		let totalTime = 0
-		for (let i = 0; i < movementData.length; i++) {
-			const distance = axial.distance(movementData[i].from, movementData[i].hop)
-			totalTime += character.vehicle.transferTime * distance * movementData.length
-		}
+		const totalTime = getConveyDuration(character.vehicle.transferTime, movementData)
 
 		// Create unified MultiMoveStep that animates all movements
 		const description =
 			movementData.length === 1 ? `convey.${movementData[0].mg.goodType}` : `convey.cycle`
-		const visualMovements = movementData.map(({ moving, mg, hop }) => ({
-			who: moving,
-			from: mg.from,
-			to: hop,
-		}))
+		const visualMovements = getConveyVisualMovements(movementData)
 		return new MultiMoveStep(totalTime, visualMovements, 'work', description)
 			.canceled(() => {
 				for (const { mg, hopAlloc, moving } of movementData) {

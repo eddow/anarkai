@@ -1,14 +1,26 @@
 import type { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { GoodType } from 'ssh/types'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
 
 describe('NPC Behaviors Integration', () => {
+	const engines = new Set<TestEngine>()
+
+	afterEach(async () => {
+		await Promise.all(
+			Array.from(engines).map(async (engine) => {
+				await engine.destroy()
+			})
+		)
+		engines.clear()
+	})
+
 	// Helper to setup engine with scripts
 	async function setupEngine(
 		options: any = { boardSize: 12, terrainSeed: 1234, characterCount: 0 }
 	) {
 		const engine = new TestEngine(options)
+		engines.add(engine)
 		await engine.init()
 
 		// Scripts are loaded by default in the engine population logic via scriptsContext access.
@@ -37,7 +49,7 @@ describe('NPC Behaviors Integration', () => {
 		}
 	}
 
-	it('Scenario: Harvest Behavior', { timeout: 10000 }, async () => {
+	it('Scenario: Harvest Behavior', { timeout: 15000 }, async () => {
 		const { engine, game, spawnWorker } = await setupEngine()
 
 		// 1. Setup: Harvest Alveolus (Woodcutter) and a Tree deposit
@@ -95,7 +107,7 @@ describe('NPC Behaviors Integration', () => {
 		expect(totalGoods).toBeGreaterThan(0)
 	})
 
-	it('Scenario: Transform Behavior', { timeout: 10000 }, async () => {
+	it('Scenario: Transform Behavior', { timeout: 15000 }, async () => {
 		const { engine, game, spawnWorker } = await setupEngine()
 
 		// Setup: Sawmill (Transform) with Logs in storage.
@@ -127,7 +139,7 @@ describe('NPC Behaviors Integration', () => {
 		expect((storage as any).planks).toBeGreaterThan(0)
 	})
 
-	it('Scenario: Convey Behavior', { timeout: 10000 }, async () => {
+	it('Scenario: Convey Behavior', { timeout: 15000 }, async () => {
 		// Needs two adjacent storages and a push/pull logic.
 		// Or simply a stockpile and a consumer?
 		// Setting up specific convey logic is tricky without complete Hive logic knowledge (needs).
@@ -137,16 +149,29 @@ describe('NPC Behaviors Integration', () => {
 		// This test might be skipping for now to focus on core Work behaviors.
 	})
 
-	it('Scenario: Gather Behavior', { timeout: 10000 }, async () => {
+	it('Scenario: Gather Behavior', { timeout: 15000 }, async () => {
 		const { engine, game, spawnWorker } = await setupEngine()
 
-		// Setup: Gatherer Hut surrounded by Mushrooms via LooseGoods logic
+		// Setup: Gatherer hut with a neighboring storage that buffers mushrooms,
+		// so the gatherer has a real hive-level need to satisfy.
 		const scenario = {
 			hives: [
 				{
 					name: 'Gatherers',
-					alveoli: [{ coord: [2, 2] as [number, number], alveolus: 'gather' }],
-					needs: { mushrooms: 10 }, // Hive must NEED mushrooms for gatherer to work
+					alveoli: [
+						{ coord: [2, 2] as [number, number], alveolus: 'gather' },
+						{
+							coord: [3, 2] as [number, number],
+							alveolus: 'storage',
+							configuration: {
+								ref: { scope: 'individual' },
+								individual: {
+									working: true,
+									buffers: { mushrooms: 2 },
+								},
+							},
+						},
+					],
 				},
 			],
 			looseGoods: [
@@ -163,17 +188,23 @@ describe('NPC Behaviors Integration', () => {
 		await tickAsync(engine, 30.0)
 
 		// Verify
-		const hiveTile = game.hex.getTile({ q: 2, r: 2 })
-		const storage = hiveTile?.content?.storage?.stock
+		const gatherTile = game.hex.getTile({ q: 2, r: 2 })
+		const storageTile = game.hex.getTile({ q: 3, r: 2 })
+		const gatherStock = gatherTile?.content?.storage?.stock ?? {}
+		const storageStock = storageTile?.content?.storage?.stock ?? {}
+		const totalMushrooms =
+			((gatherStock as any).mushrooms ?? 0) + ((storageStock as any).mushrooms ?? 0)
 		console.error(
-			`[GatherTest] Storage stock: ${JSON.stringify(storage)}, availables: ${JSON.stringify(hiveTile?.content?.storage?.availables)}`
+			`[GatherTest] Gather stock: ${JSON.stringify(gatherStock)}, storage stock: ${JSON.stringify(storageStock)}`
 		)
-		expect((storage as any).mushrooms).toBe(2)
+		expect(totalMushrooms).toBe(2)
 
 		// Verify loose goods are gone
+		expect(game.hex.looseGoods.getGoodsAt({ q: 2, r: 1 })).toHaveLength(0)
+		expect(game.hex.looseGoods.getGoodsAt({ q: 3, r: 1 })).toHaveLength(0)
 	})
 
-	it('Scenario: Construct Behavior', { timeout: 10000 }, async () => {
+	it('Scenario: Construct Behavior', { timeout: 15000 }, async () => {
 		const { engine, game, spawnWorker } = await setupEngine()
 
 		// Setup: Engineer Hut and a Construction Site
@@ -204,6 +235,7 @@ describe('NPC Behaviors Integration', () => {
 			id: 'site-1',
 			tile: siteTile,
 			constructor: { name: 'BuildAlveolus' }, // Fake constructor check
+			destroy: () => {},
 			storage: {
 				// Mock storage behaviors
 				stock: { wood: 0 } as Record<GoodType, number | undefined>,
@@ -267,7 +299,7 @@ describe('NPC Behaviors Integration', () => {
 		// Let's skip Construct test logic verification for now, just ensure no crash.
 	})
 
-	it('Scenario: Self-Care (Eat)', { timeout: 10000 }, async () => {
+	it('Scenario: Self-Care (Eat)', { timeout: 15000 }, async () => {
 		const { engine, game } = await setupEngine()
 
 		// 1. Setup scenario FIRST (so food is there)

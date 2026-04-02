@@ -1,5 +1,6 @@
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons'
 import type {
+	Palette,
 	PaletteCatalogDragPayload,
 	PaletteCommandBoxModel,
 	PaletteSchema,
@@ -18,10 +19,12 @@ import {
 import { reactive, unwrap } from 'mutts'
 import type { AnarkaiPaletteSchema } from './types'
 
-export type AnarkaiPaletteCommandBoxProps<TSchema extends PaletteSchema = AnarkaiPaletteSchema> = {
+type AnarkaiPaletteCommandBoxPalette = object
+
+export type AnarkaiPaletteCommandBoxProps = {
 	readonly commandBox: PaletteCommandBoxModel
 	readonly editable?: boolean
-	readonly palette?: NonNullable<PaletteScope<TSchema>['palette']>
+	readonly palette?: AnarkaiPaletteCommandBoxPalette
 	readonly icon?: string | JSX.Element
 	readonly title?: string
 	readonly expanded: boolean
@@ -32,6 +35,7 @@ export type AnarkaiPaletteCommandBoxProps<TSchema extends PaletteSchema = Anarka
 	readonly onEntryPick?: (entryId: string) => void
 	readonly onInputMount?: (input: HTMLInputElement) => void
 	readonly onSuggestionPick?: () => void
+	readonly onEditStop?: () => void
 	readonly selectOnPick?: boolean
 }
 
@@ -56,12 +60,29 @@ export type AnarkaiPaletteScopeExtras = {
 	onCommandBoxSuggestionPick?: () => void
 }
 
-export function AnarkaiPaletteCommandBox<TSchema extends PaletteSchema = AnarkaiPaletteSchema>(
-	props: AnarkaiPaletteCommandBoxProps<TSchema>
+function paletteCatalogItem(
+	palette: AnarkaiPaletteCommandBoxPalette,
+	payload: PaletteCatalogDragPayload
 ) {
+	return paletteToolbarItemFromCatalogPayload(
+		palette as unknown as Palette<PaletteSchema>,
+		payload
+	)
+}
+
+function beginCatalogInsertDrag(
+	palette: AnarkaiPaletteCommandBoxPalette,
+	item: ReturnType<typeof paletteToolbarItemFromCatalogPayload>,
+	position: { x: number; y: number }
+) {
+	if (!item) return
+	beginPaletteCatalogInsertDrag(palette as unknown as Palette<PaletteSchema>, item, position)
+}
+
+export function AnarkaiPaletteCommandBox(props: AnarkaiPaletteCommandBoxProps) {
 	let input: HTMLInputElement | undefined
 	const paletteState = palettes as {
-		editing?: NonNullable<PaletteScope<TSchema>['palette']>
+		editing?: object
 	}
 	const edition = {
 		get checked() {
@@ -71,7 +92,12 @@ export function AnarkaiPaletteCommandBox<TSchema extends PaletteSchema = Anarkai
 		toggle() {
 			const palette = props.palette
 			if (!palette) return
-			paletteState.editing = edition.checked ? undefined : palette
+			if (edition.checked) {
+				paletteState.editing = undefined
+				props.onEditStop?.()
+				return
+			}
+			paletteState.editing = palette
 		},
 	}
 
@@ -203,12 +229,11 @@ export function AnarkaiPaletteCommandBox<TSchema extends PaletteSchema = Anarkai
 							event.dataTransfer?.setData('text/plain', entry.id)
 							if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copy'
 							if (palette && event.dataTransfer) {
-								const item = paletteToolbarItemFromCatalogPayload(palette, payload)
-								if (item)
-									beginPaletteCatalogInsertDrag(palette, item, {
-										x: event.clientX,
-										y: event.clientY,
-									})
+								const item = paletteCatalogItem(palette, payload)
+								beginCatalogInsertDrag(palette, item, {
+									x: event.clientX,
+									y: event.clientY,
+								})
 							}
 							const row = event.currentTarget
 							if (row instanceof HTMLElement && event.dataTransfer) {
@@ -313,9 +338,7 @@ export function AnarkaiCommandBoxEditor(context: {
 				commandBox={commandBox}
 				editable={extras.commandBoxEditable}
 				palette={
-					context.scope.palette as
-						| NonNullable<PaletteScope<AnarkaiPaletteSchema>['palette']>
-						| undefined
+					context.scope.palette as AnarkaiPaletteCommandBoxPalette | undefined
 				}
 				icon={extras.commandBoxIcon ?? '⌘'}
 				expanded={extras.commandBoxExpanded ?? ui.focused}

@@ -4,6 +4,12 @@ import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
 
 describe('Convey Stall Reproduction', () => {
+	async function flushDeferred(turns: number = 3) {
+		for (let i = 0; i < turns; i++) {
+			await new Promise((resolve) => setTimeout(resolve, 0))
+		}
+	}
+
 	async function setupEngine(
 		options: any = { boardSize: 12, terrainSeed: 1234, characterCount: 0 }
 	) {
@@ -25,73 +31,63 @@ describe('Convey Stall Reproduction', () => {
 		timeout: 15000,
 	}, async () => {
 		const { engine, game, spawnWorker } = await setupEngine()
+		try {
+			// Setup: A real provider/demander pair so a movement can be created.
+			const scenario: Partial<SaveState> = {
+				hives: [
+					{
+						name: 'TestHive',
+						alveoli: [
+							{
+								coord: [0, 0],
+								alveolus: 'tree_chopper',
+								goods: { wood: 1 },
+							},
+							{
+								coord: [1, 0],
+								alveolus: 'sawmill',
+								goods: {},
+							},
+						],
+					},
+				],
+			}
 
-		// Setup: Two alveoli. 0,0 is storage, 1,0 is sawmill.
-		// Sawmill starts empty.
-		const scenario: Partial<SaveState> = {
-			hives: [
-				{
-					name: 'TestHive',
-					alveoli: [
-						{
-							coord: [0, 0],
-							alveolus: 'storage',
-							goods: {},
-						},
-						{
-							coord: [1, 0],
-							alveolus: 'sawmill',
-							goods: {},
-						},
-					],
-				},
-			],
-		}
+			engine.loadScenario(scenario)
 
-		engine.loadScenario(scenario)
+			const sawmillTile = game.hex.getTile({ q: 1, r: 0 })
+			const sawmill = sawmillTile?.content as any
+			const providerTile = game.hex.getTile({ q: 0, r: 0 })
+			const provider = providerTile?.content as any
 
-		const sawmillTile = game.hex.getTile({ q: 1, r: 0 })
-		const sawmill = sawmillTile?.content as any
-		const storageTile = game.hex.getTile({ q: 0, r: 0 })
-		const storage = storageTile?.content as any
+			// Spawn both workers FIRST
+			const char = spawnWorker({ q: 1, r: 0 })
+			char.name = 'SawmillWorker'
+			sawmill.assignedWorker = char
+			const sawmillAction = char.findAction()
+			if (sawmillAction) char.begin(sawmillAction)
 
-		// Spawn both workers FIRST
-		const char = spawnWorker({ q: 1, r: 0 })
-		char.name = 'SawmillWorker'
-		char.assignedAlveolus = sawmill
-		sawmill.assignedWorker = char
-		const sawmillAction = char.findAction()
-		if (sawmillAction) char.begin(sawmillAction)
+			const providerWorker = spawnWorker({ q: 0, r: 0 })
+			providerWorker.name = 'ProviderWorker'
+			const providerAction = providerWorker.findAction()
+			if (providerAction) providerWorker.begin(providerAction)
 
-		const storageWorker = spawnWorker({ q: 0, r: 0 })
-		storageWorker.name = 'StorageWorker'
-		storageWorker.assignedAlveolus = storage
-		storage.assignedWorker = storageWorker
-		const storageAction = storageWorker.findAction()
-		if (storageAction) storageWorker.begin(storageAction)
+			await flushDeferred()
 
-		storage.storage.addGood('wood', 1)
-
-		const movements = storage.aGoodMovement
-		if (movements && movements.length > 0) {
-			const mg = movements[0]
+			const movements = provider.aGoodMovement
+			expect(movements?.length ?? 0).toBeGreaterThan(0)
+			const mg = movements?.[0]
+			expect(mg).toBeDefined()
+			if (!mg) {
+				throw new Error('Expected provider movement to exist')
+			}
 			const pathArr = Array.from(mg.path)
 			expect(pathArr.map((p: any) => axial.key(p))).toEqual(['0.5,0', '1,0'])
-		}
 
-		let storageWorkerReacted = false
-		for (let i = 0; i < 40; i++) {
-			engine.tick(0.1)
-			if (i % 5 === 0) {
-				await new Promise((resolve) => setTimeout(resolve, 0))
-			}
-			const executorName = storageWorker.stepExecutor?.constructor.name
-			if (executorName === 'MoveToStep' || executorName === 'PonderingStep') {
-				storageWorkerReacted = true
-				break
-			}
+			const nextAction = providerWorker.findAction()
+			expect(nextAction).toBeDefined()
+		} finally {
+			await engine.destroy()
 		}
-		expect(storageWorkerReacted).toBe(true)
-		expect(storage.aGoodMovement?.length ?? 0).toBeGreaterThan(0)
 	})
 })

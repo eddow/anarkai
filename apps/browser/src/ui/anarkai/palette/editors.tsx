@@ -9,6 +9,7 @@ import type {
 } from '@sursaut/ui/palette'
 import { paletteToolFamily } from '@sursaut/ui/palette'
 import { effect, reactive } from 'mutts'
+import { Stars } from '../components/Stars'
 import { AnarkaiCommandBoxEditor } from './command-box'
 import type {
 	AnarkaiPaletteChoiceDisplay,
@@ -17,6 +18,7 @@ import type {
 	AnarkaiPaletteEnumConfig,
 	AnarkaiPaletteItemConfigBase,
 	AnarkaiPaletteSchema,
+	AnarkaiPaletteStarsConfig,
 	AnarkaiPaletteToolbarItem,
 } from './types'
 
@@ -28,6 +30,7 @@ type AnarkaiPaletteEditorOption = {
 type AnarkaiPaletteAnyItem = AnarkaiPaletteToolbarItem
 type AnarkaiPaletteRunTool = Extract<PaletteTool, { run(): void }>
 type AnarkaiPaletteBooleanTool = Extract<PaletteTool, { type: 'boolean' }>
+type AnarkaiPaletteNumberTool = Extract<PaletteTool, { type: 'number' }>
 type AnarkaiPaletteEnumTool = Extract<PaletteTool, { type: 'enum' }>
 type AnarkaiPaletteEnumValue = AnarkaiPaletteEnumTool['values'][number]
 
@@ -37,12 +40,14 @@ const anarkaiPaletteEditorLabels = {
 	commandBox: 'Command box',
 	select: 'Select',
 	segmented: 'Segmented',
+	stars: 'Stars',
 	toggle: 'Toggle',
 } satisfies Record<AnarkaiPaletteEditorVariant, string>
 
 const anarkaiPaletteEditorDefaults = {
 	boolean: 'toggle',
 	enum: 'select',
+	number: 'stars',
 	run: 'button',
 } as const satisfies Pick<PaletteConfig<AnarkaiPaletteSchema>, 'editorDefaults'>['editorDefaults']
 
@@ -68,6 +73,11 @@ function ensureItemConfig(
 function enumConfig(item: AnarkaiPaletteAnyItem): AnarkaiPaletteEnumConfig | undefined {
 	const config = itemConfig(item)
 	return config ? (config as AnarkaiPaletteEnumConfig) : undefined
+}
+
+function starsConfig(item: AnarkaiPaletteAnyItem): AnarkaiPaletteStarsConfig | undefined {
+	const config = itemConfig(item)
+	return config ? (config as AnarkaiPaletteStarsConfig) : undefined
 }
 
 function itemMeta(item: AnarkaiPaletteAnyItem) {
@@ -218,6 +228,7 @@ function editorOptions(
 	const family = paletteToolFamily(tool)
 	if (family === 'run') return [{ value: 'button', label: anarkaiPaletteEditorLabels.button }]
 	if (family === 'boolean') return [{ value: 'toggle', label: anarkaiPaletteEditorLabels.toggle }]
+	if (family === 'number') return [{ value: 'stars', label: anarkaiPaletteEditorLabels.stars }]
 	if (family === 'enum')
 		return [
 			{ value: 'cycle', label: anarkaiPaletteEditorLabels.cycle },
@@ -260,7 +271,28 @@ function setConfigList(
 	config[key] = next.length > 0 ? next : undefined
 }
 
-function controlIcon(icon: string | JSX.Element | undefined): JSX.Element | undefined {
+function setStarsConfigText(
+	item: AnarkaiPaletteAnyItem,
+	key: 'after' | 'before' | 'inside' | 'size' | 'zeroElement',
+	value: string
+) {
+	const config = ensureItemConfig(item) as AnarkaiPaletteStarsConfig
+	const next = value.trim()
+	config[key] = next.length > 0 ? value : undefined
+}
+
+function setStarsConfigKeywords(item: AnarkaiPaletteAnyItem, value: string) {
+	const config = ensureItemConfig(item) as AnarkaiPaletteStarsConfig
+	const next = value
+		.split(',')
+		.map((entry) => entry.trim())
+		.filter((entry) => entry.length > 0)
+	config.keywords = next.length > 0 ? next : undefined
+}
+
+function controlIcon(
+	icon: string | JSX.Element | (() => JSX.Element) | undefined
+): JSX.Element | undefined {
 	if (!icon) return undefined
 	return renderAnarkaiIcon(icon, { class: 'ak-palette-rendered-icon' }) ?? undefined
 }
@@ -384,7 +416,10 @@ function EnumInspectorConfigure(props: {
 }) {
 	return (
 		<div class="ak-palette-config-stack">
-			<EnumConfigurator item={props.context.item as AnarkaiPaletteAnyItem} tool={props.context.tool} />
+			<EnumConfigurator
+				item={props.context.item as AnarkaiPaletteAnyItem}
+				tool={props.context.tool}
+			/>
 		</div>
 	)
 }
@@ -412,7 +447,9 @@ function EnumConfigurator(props: { item: AnarkaiPaletteAnyItem; tool: AnarkaiPal
 					value={config?.acceptedKeywords?.join(', ') ?? ''}
 					placeholder={Array.from(
 						new Set(
-							props.tool.values.flatMap((entry: AnarkaiPaletteEnumValue) => enumValueKeywords(entry))
+							props.tool.values.flatMap((entry: AnarkaiPaletteEnumValue) =>
+								enumValueKeywords(entry)
+							)
 						)
 					).join(', ')}
 					update:value={(value: string) => setConfigList(props.item, 'acceptedKeywords', value)}
@@ -423,6 +460,64 @@ function EnumConfigurator(props: { item: AnarkaiPaletteAnyItem; tool: AnarkaiPal
 					value={config?.keywords?.join(', ') ?? ''}
 					placeholder="layout, theme"
 					update:value={(value: string) => setConfigList(props.item, 'keywords', value)}
+				/>
+			</ConfigRow>
+		</div>
+	)
+}
+
+function NumberInspectorConfigure(props: {
+	readonly context: PaletteEditorContext<
+		AnarkaiPaletteNumberTool,
+		AnarkaiPaletteAnyItem,
+		AnarkaiPaletteSchema
+	>
+}) {
+	return (
+		<div class="ak-palette-config-stack">
+			<StarsConfigurator item={props.context.item as AnarkaiPaletteAnyItem} tool={props.context.tool} />
+		</div>
+	)
+}
+
+function StarsConfigurator(props: { item: AnarkaiPaletteAnyItem; tool: AnarkaiPaletteNumberTool }) {
+	const config = starsConfig(props.item)
+	return (
+		<div class="ak-palette-config-stack">
+			<BaseConfigurator item={props.item} tool={props.tool} />
+			<ConfigRow label="Filled glyph" description="Rendered literally, e.g. ▶">
+				<input
+					value={config?.before ?? ''}
+					placeholder="▶"
+					update:value={(value: string) => setStarsConfigText(props.item, 'before', value)}
+				/>
+			</ConfigRow>
+			<ConfigRow label="Empty glyph" description="Rendered literally, e.g. ▷">
+				<input
+					value={config?.after ?? ''}
+					placeholder="▷"
+					update:value={(value: string) => setStarsConfigText(props.item, 'after', value)}
+				/>
+			</ConfigRow>
+			<ConfigRow label="Zero glyph" description="Rendered before the first slot for pause">
+				<input
+					value={config?.zeroElement ?? ''}
+					placeholder="⏸"
+					update:value={(value: string) => setStarsConfigText(props.item, 'zeroElement', value)}
+				/>
+			</ConfigRow>
+			<ConfigRow label="Size" description="CSS font-size value">
+				<input
+					value={config?.size ?? ''}
+					placeholder="1rem"
+					update:value={(value: string) => setStarsConfigText(props.item, 'size', value)}
+				/>
+			</ConfigRow>
+			<ConfigRow label="Item keywords">
+				<input
+					value={config?.keywords?.join(', ') ?? ''}
+					placeholder="speed, time, play"
+					update:value={(value: string) => setStarsConfigKeywords(props.item, value)}
 				/>
 			</ConfigRow>
 		</div>
@@ -465,6 +560,34 @@ function ToggleEditor(
 	)
 }
 
+function StarsEditor(
+	context: PaletteEditorContext<AnarkaiPaletteNumberTool, AnarkaiPaletteAnyItem, AnarkaiPaletteSchema>
+) {
+	const item = context.item as AnarkaiPaletteAnyItem
+	const config = starsConfig(item)
+	const title = paletteToolbarControlTitle(item)
+	const meta = itemMeta(item)
+	const minimum = Math.ceil(context.tool.min ?? 0)
+	const maximum = Math.max(minimum, Math.floor(context.tool.max ?? 3))
+	return (
+		<div class="ak-palette-stars-field" role="group" aria-label={meta.label} title={title}>
+			<Stars
+				maximum={maximum}
+				value={context.tool.value}
+				size={config?.size ?? '1rem'}
+				before={config?.before ?? '▶'}
+				inside={config?.inside ?? config?.before ?? '▶'}
+				after={config?.after ?? '▷'}
+				zeroElement={minimum <= 0 ? (config?.zeroElement ?? '⏸') : undefined}
+				onChange={(value) => {
+					if (typeof value !== 'number') return
+					context.tool.value = Math.min(maximum, Math.max(minimum, Math.round(value)))
+				}}
+			/>
+		</div>
+	)
+}
+
 function SelectEditor(
 	context: PaletteEditorContext<AnarkaiPaletteEnumTool, AnarkaiPaletteAnyItem, AnarkaiPaletteSchema>
 ) {
@@ -487,9 +610,7 @@ function SelectEditor(
 		ui.width = nextWidth
 		ui.left = rect.left
 		ui.top =
-			spaceBelow >= estimatedHeight
-				? rect.bottom + 4
-				: Math.max(8, rect.top - estimatedHeight - 4)
+			spaceBelow >= estimatedHeight ? rect.bottom + 4 : Math.max(8, rect.top - estimatedHeight - 4)
 	}
 	const view = {
 		get open() {
@@ -648,7 +769,10 @@ function CycleEditor(
 		}
 		if (preview) {
 			stopPreview?.()
-			stopPreview = latch(preview, <EnumChoicePreview entry={entry} display={choiceDisplay(item)} />)
+			stopPreview = latch(
+				preview,
+				<EnumChoicePreview entry={entry} display={choiceDisplay(item)} />
+			)
 		}
 	}
 	effect`anarkai-palette-cycle-button`(() => {
@@ -738,6 +862,23 @@ export function createAnarkaiPaletteEditors(): PaletteEditorRegistry<AnarkaiPale
 				flags: { footprint: 'square' },
 			},
 		},
+		number: {
+			stars: {
+				editor: StarsEditor,
+				configure: (context) => (
+					<NumberInspectorConfigure
+						context={
+							context as PaletteEditorContext<
+								AnarkaiPaletteNumberTool,
+								AnarkaiPaletteAnyItem,
+								AnarkaiPaletteSchema
+							>
+						}
+					/>
+				),
+				flags: { footprint: 'horizontal' },
+			},
+		},
 		enum: {
 			cycle: {
 				editor: CycleEditor,
@@ -825,5 +966,6 @@ export const anarkaiPaletteEditorSpecs = {
 	commandBox: anarkaiPaletteEditors.item?.commandBox,
 	select: anarkaiPaletteEditors.enum?.select,
 	segmented: anarkaiPaletteEditors.enum?.segmented,
+	stars: anarkaiPaletteEditors.number?.stars,
 	toggle: anarkaiPaletteEditors.boolean?.toggle,
 } satisfies Record<AnarkaiPaletteEditorVariant, unknown>
