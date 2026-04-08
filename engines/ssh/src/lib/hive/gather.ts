@@ -4,6 +4,7 @@ import type { Character } from 'ssh/population/character'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import type { GatherJob, Goods, GoodType } from 'ssh/types/base'
 import { type Positioned, toAxialCoord } from 'ssh/utils/position'
+import { jobBalance } from '../../../assets/game-content'
 import { TransitAlveolus } from './transit'
 
 function goodsWith(goods: Goods, other: GoodType, qty: number = 1): Goods {
@@ -105,7 +106,7 @@ export class GatherAlveolus extends TransitAlveolus {
 					job: 'gather',
 					path,
 					goodType,
-					urgency: 2.5,
+					urgency: jobBalance.gather,
 					fatigue: this.getFatigueCost(),
 				}
 			)

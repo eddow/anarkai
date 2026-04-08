@@ -8,6 +8,7 @@ import type { Character } from 'ssh/population/character'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { HarvestJob } from 'ssh/types/base'
 import { axialDistance, type Positioned, toAxialCoord } from 'ssh/utils/position'
+import { jobBalance } from '../../../assets/game-content'
 import { maxWalkTime, outputBufferSize } from '../../../assets/constants'
 export class HarvestAlveolus extends TransitAlveolus {
 	declare action: Ssh.HarvestingAction
@@ -87,7 +88,7 @@ export class HarvestAlveolus extends TransitAlveolus {
 				return {
 					job: 'harvest',
 					path,
-					urgency: 2.5,
+					urgency: jobBalance.harvest.clearing,
 					fatigue:
 						this.getFatigueCost() +
 						(character ? axialDistance(startPos, path[path.length - 1]!) * 2 : 0),
@@ -103,7 +104,9 @@ export class HarvestAlveolus extends TransitAlveolus {
 				return {
 					job: 'harvest',
 					path,
-					urgency: (this.alveoliNeedingGood ? 0.5 : 0) + 0.25,
+					urgency:
+						(this.alveoliNeedingGood ? jobBalance.harvest.needsBonus : 0) +
+						jobBalance.harvest.fallbackBase,
 					fatigue:
 						this.getFatigueCost() +
 						(character ? axialDistance(startPos, path[path.length - 1]!) * 2 : 0),

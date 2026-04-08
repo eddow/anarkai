@@ -132,6 +132,27 @@ export const goods = {
 	},
 } as const satisfies Record<string, Ssh.GoodsDefinition>
 
+export const jobBalance = {
+	offload: {
+		projectTile: 15,
+		alveolusBlocked: 4,
+		residentialTile: 1.25,
+	},
+	convey: 3,
+	gather: 2,
+	harvest: {
+		clearing: 2.5,
+		fallbackBase: 0.25,
+		needsBonus: 0.5,
+	},
+	transform: 2,
+	engineer: {
+		foundation: 3,
+		construct: 2,
+	},
+	defragment: 0.9,
+} as const
+
 export const vehicles = {
 	'by-hands': {
 		storage: { capacity: 1, slots: 2 },

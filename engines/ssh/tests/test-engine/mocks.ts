@@ -72,6 +72,26 @@ export function loadStandardMocks() {
 					construction: { goods: { wood: 10 }, time: 4 },
 				},
 			},
+			jobBalance: {
+				offload: {
+					projectTile: 15,
+					alveolusBlocked: 4,
+					residentialTile: 1.25,
+				},
+				convey: 3,
+				gather: 2.5,
+				harvest: {
+					clearing: 2.5,
+					fallbackBase: 0.25,
+					needsBonus: 0.5,
+				},
+				transform: 1,
+				engineer: {
+					foundation: 3,
+					construct: 2,
+				},
+				defragment: 0.9,
+			},
 			configurations: {
 				'specific-storage': {
 					working: true,

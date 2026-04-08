@@ -7,7 +7,7 @@ import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { GoodType, Job } from 'ssh/types'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
-import { goods as allGoodsList, configurations } from '../../../assets/game-content'
+import { goods as allGoodsList, configurations, jobBalance } from '../../../assets/game-content'
 import {
 	isSlottedStorageConfiguration,
 	isSpecificStorageConfiguration,
@@ -421,7 +421,7 @@ export class StorageAlveolus extends Alveolus {
 				? ({
 						job: 'defragment',
 						fatigue: 1,
-						urgency: 0.9,
+						urgency: jobBalance.defragment,
 						goodType: fragmentedGoodType,
 					} as Job)
 				: undefined

@@ -8,7 +8,7 @@ import type { GoodType, Job } from 'ssh/types/base'
 import { type AxialCoord, axial, tileSize } from 'ssh/utils'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
 import { toAxialCoord, toWorldCoord } from 'ssh/utils/position'
-import { configurations } from '../../../../assets/game-content'
+import { configurations, jobBalance } from '../../../../assets/game-content'
 import { AlveolusGate } from '../border/alveolus-gate'
 import type { Tile } from '../tile'
 import { TileContent } from './content'
@@ -187,7 +187,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 				if (!looseGood) return undefined
 				return {
 					job: 'offload',
-					urgency: 4, // High urgency to clear blockages
+					urgency: jobBalance.offload.alveolusBlocked,
 					fatigue: 1,
 					looseGood,
 				} as Job
@@ -398,7 +398,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		return {
 			job: 'convey',
 			fatigue: 1,
-			urgency: 3, // Higher than harvest (2.5) but below offload (4)
+			urgency: jobBalance.convey,
 		}
 	}
 

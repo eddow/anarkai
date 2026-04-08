@@ -7,6 +7,7 @@ import type { TerrainType } from 'ssh/types'
 import type { AlveolusType, Job } from 'ssh/types/base'
 import { type AxialCoord, axial, type NeighborInfo } from 'ssh/utils'
 import { axialDistance, type Position, type Positioned, toAxialCoord } from 'ssh/utils/position'
+import { jobBalance } from '../../../assets/game-content'
 import type { HexBoard } from './board'
 import type { TileBorder } from './border/border'
 import { Alveolus } from './content/alveolus'
@@ -95,7 +96,7 @@ export class Tile extends withInteractive(GameObject) {
 				return {
 					job: 'offload',
 					fatigue: 1,
-					urgency: 1.25,
+					urgency: jobBalance.offload.residentialTile,
 					looseGood,
 				}
 			}

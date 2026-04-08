@@ -5,7 +5,7 @@ import type { TerrainType } from 'ssh/types'
 import { LCG, subSeed } from 'ssh/utils/numbers'
 import { fastPoissonRandom } from 'ssh/utils/poisson'
 import { toAxialCoord } from 'ssh/utils/position'
-import { deposits } from '../../../../assets/game-content'
+import { deposits, jobBalance } from '../../../../assets/game-content'
 import type { Tile } from '../tile'
 import { TileContent } from './content'
 import { GcClassed, GcClasses } from './utils'
@@ -85,7 +85,7 @@ export class UnBuiltLand extends withTicked(TileContent) {
 			return {
 				job: 'offload',
 				fatigue: 1,
-				urgency: 15,
+				urgency: jobBalance.offload.projectTile,
 				looseGood,
 			}
 		}

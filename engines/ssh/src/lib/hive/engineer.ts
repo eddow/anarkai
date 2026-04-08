@@ -8,6 +8,7 @@ import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import type { ConstructJob, FoundationJob } from 'ssh/types/base'
 import type { GoodsRelations } from 'ssh/utils/advertisement'
 import { toAxialCoord } from 'ssh/utils/position'
+import { jobBalance } from '../../../assets/game-content'
 
 @reactive
 export class EngineerAlveolus extends Alveolus {
@@ -64,14 +65,14 @@ export class EngineerAlveolus extends Alveolus {
 				return {
 					job: 'foundation',
 					path: character ? path : undefined,
-					urgency: 3,
+					urgency: jobBalance.engineer.foundation,
 					fatigue: 3,
 				}
 			} else {
 				return {
 					job: 'construct',
 					path: character ? path : undefined,
-					urgency: 2,
+					urgency: jobBalance.engineer.construct,
 					fatigue: this.getFatigueCost(),
 				}
 			}
