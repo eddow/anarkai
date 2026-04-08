@@ -34,12 +34,33 @@ function planSpecificLoosePickup(
 	}
 }
 
+type StorageTarget = {
+	content: {
+		storage?: {
+			allocate(goods: Goods, reason: string): TransferPlan['allocation']
+		}
+	}
+}
+
+function hasStorageContent(target: Positioned): target is Positioned & StorageTarget {
+	return (
+		typeof target === 'object' &&
+		target !== null &&
+		'content' in target &&
+		typeof target.content === 'object' &&
+		target.content !== null &&
+		'storage' in target.content
+	)
+}
+
 function ensureDropPlanAllocations(action: TransferPlan, character: Character) {
 	if (action.vehicleAllocation && action.allocation) return
 	assert(action.description === 'drop', 'drop allocations can only be created for drop plans')
 	assert(action.target, 'drop target must be set')
 	const vehicle = character.vehicle
-	const content = action.target.content
+	const target = action.target
+	assert(hasStorageContent(target), 'planDropStored only works with TileContent that has storage')
+	const content = target.content
 	assert(vehicle, 'tile.vehicle must be set')
 	assert(content, 'destination.content must be set')
 	assert('storage' in content, 'planDropStored only works with TileContent that has storage')

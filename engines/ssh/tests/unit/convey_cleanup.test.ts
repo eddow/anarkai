@@ -29,13 +29,13 @@ describe('Convey cleanup', () => {
 
 		cleanupFailedConveyMovement(character as never, {
 			mg: movement as never,
-			from: { q: 0, r: 0, key: '0,0' },
+			from: { q: 0, r: 0 },
 			sourceFulfilled: true,
 		})
 
 		expect(sourceCancel).toHaveBeenCalledTimes(1)
 		expect(targetCancel).toHaveBeenCalledTimes(1)
-		expect(addLooseGood).toHaveBeenCalledWith({ q: 0, r: 0, key: '0,0' }, 'wood')
+		expect(addLooseGood).toHaveBeenCalledWith({ q: 0, r: 0 }, 'wood')
 		expect(finish).toHaveBeenCalledTimes(1)
 	})
 
@@ -67,7 +67,7 @@ describe('Convey cleanup', () => {
 
 		cleanupFailedConveyMovement(character as never, {
 			mg: movement as never,
-			from: { q: 0, r: 0, key: '0,0' },
+			from: { q: 0, r: 0 },
 			moving: { isRemoved: false, remove } as never,
 			sourceFulfilled: true,
 		})

@@ -31,7 +31,6 @@ vi.mock('npc-script', () => {
 describe('MovingGood.claimed prevents double pickup', () => {
 	it('aGoodMovement skips a movement that is already claimed', { timeout: 15000 }, async () => {
 		const engine = new TestEngine({
-			boardSize: 6,
 			terrainSeed: 1234,
 			characterCount: 0,
 		})
@@ -40,7 +39,6 @@ describe('MovingGood.claimed prevents double pickup', () => {
 		try {
 			engine.loadScenario({
 				generationOptions: {
-					boardSize: 6,
 					terrainSeed: 1234,
 					characterCount: 0,
 				},
@@ -90,9 +88,10 @@ describe('MovingGood.claimed prevents double pickup', () => {
 		}
 	})
 
-	it('setting claimed on LocalMovingGood wrapper writes through to real MovingGood', { timeout: 15000 }, async () => {
+	it('setting claimed on LocalMovingGood wrapper writes through to real MovingGood', {
+		timeout: 15000,
+	}, async () => {
 		const engine = new TestEngine({
-			boardSize: 6,
 			terrainSeed: 1234,
 			characterCount: 0,
 		})
@@ -101,7 +100,6 @@ describe('MovingGood.claimed prevents double pickup', () => {
 		try {
 			engine.loadScenario({
 				generationOptions: {
-					boardSize: 6,
 					terrainSeed: 1234,
 					characterCount: 0,
 				},
@@ -150,7 +148,6 @@ describe('MovingGood.claimed prevents double pickup', () => {
 
 	it('claimed is initialized to false on new movements', { timeout: 15000 }, async () => {
 		const engine = new TestEngine({
-			boardSize: 6,
 			terrainSeed: 1234,
 			characterCount: 0,
 		})
@@ -159,7 +156,6 @@ describe('MovingGood.claimed prevents double pickup', () => {
 		try {
 			engine.loadScenario({
 				generationOptions: {
-					boardSize: 6,
 					terrainSeed: 1234,
 					characterCount: 0,
 				},

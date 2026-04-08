@@ -129,20 +129,14 @@ export default function SlottedStorageConfiguration(props: SlottedStorageConfigu
 					onRemove={removeGood}
 					renderItemExtra={(goodType) => {
 						const rule = view.rule(goodType)
-						const displayedRange: [number, number] = [
-							rule.minSlots,
-							rule.minSlots + rule.maxSlots,
-						]
+						const displayedRange: [number, number] = [rule.minSlots, rule.minSlots + rule.maxSlots]
 						return (
 							<div class="slotted-storage-stars">
 								<Stars
 									maximum={view.totalSlots}
 									value={displayedRange}
 									onChange={(value: StarsValue) => {
-										const [nextMinSlots, nextTotalSlots] = starsRangeValue(
-											value,
-											displayedRange
-										)
+										const [nextMinSlots, nextTotalSlots] = starsRangeValue(value, displayedRange)
 										view.content?.setSlottedGoodConfiguration(goodType, {
 											minSlots: nextMinSlots,
 											maxSlots: Math.max(0, nextTotalSlots - nextMinSlots),
@@ -153,10 +147,10 @@ export default function SlottedStorageConfiguration(props: SlottedStorageConfigu
 									before="■"
 									after="■"
 								/>
-							<span class="slotted-storage-summary">
-								buffer {displayedRange[0] * view.capacity}, total{' '}
-								{displayedRange[1] * view.capacity}
-							</span>
+								<span class="slotted-storage-summary">
+									buffer {displayedRange[0] * view.capacity}, total{' '}
+									{displayedRange[1] * view.capacity}
+								</span>
 							</div>
 						)
 					}}

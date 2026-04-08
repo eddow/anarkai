@@ -41,7 +41,10 @@ export function withInteractive<T extends abstract new (...args: any[]) => GameO
 			const [game, uid] = args
 			super(...args)
 			this.uid = uid
-			game.register(this, uid)
+			queueMicrotask(() => {
+				if (this.destroyed) return
+				game.register(this, uid)
+			})
 		}
 
 		lastTopic: any | undefined = undefined

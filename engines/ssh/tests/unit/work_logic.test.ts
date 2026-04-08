@@ -35,7 +35,7 @@ vi.mock('ssh/assets/game-content', () => {
 		goods: {
 			wood: {},
 			stone: {},
-			food: { feedingValue: 1 },
+			food: { satiationStrength: 0.5 },
 		},
 		terrain: terrainProxy,
 		deposits: {},
@@ -53,7 +53,7 @@ describe('Work Logic / Inventory Race Conditions', () => {
 	let inventoryFunctions: InventoryFunctions
 
 	beforeEach(async () => {
-		const config = { boardSize: 12, terrainSeed: 123, characterCount: 0 }
+		const config = { terrainSeed: 123, characterCount: 0 }
 		game = new Game(config)
 
 		// Ensure generation (if constructor's async chain hasn't finished)

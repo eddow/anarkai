@@ -2,7 +2,7 @@ import type { Application, Container, FederatedPointerEvent, FederatedWheelEvent
 import { Tile } from 'ssh/board/tile'
 import type { Game } from 'ssh/game/game'
 import type { InteractiveGameObject } from 'ssh/game/object'
-import { interactionMode } from 'ssh/interactive-state'
+import { interactionMode, mrg } from 'ssh/interactive-state'
 
 /**
  * Bridges Pixi interactions to Logic interactions.
@@ -173,14 +173,22 @@ export class InteractionManager {
 			// Non-tile interactive object - click immediately
 			this.game.simulateObjectClick(object, e.nativeEvent as MouseEvent)
 		} else {
-			// Background click - start panning
-			this.isPanning = true
-			this.lastPosition = { x: e.global.x, y: e.global.y }
+			// No visual logic target: fall back to board hit-test so tiles remain
+			// interactable when ground is rendered by TerrainVisual.
+			const tile = this.getTileAtPosition(e.global)
+			if (tile) {
+				this.dragStartTile = tile
+			} else {
+				// Background click - start panning
+				this.isPanning = true
+				this.lastPosition = { x: e.global.x, y: e.global.y }
+			}
 		}
 	}
 
 	private onPointerMove = (e: FederatedPointerEvent) => {
 		if (this.isPanning) {
+			mrg.hoveredObject = undefined
 			const dx = e.global.x - this.lastPosition.x
 			const dy = e.global.y - this.lastPosition.y
 
@@ -192,6 +200,7 @@ export class InteractionManager {
 
 			this.lastPosition = { x: e.global.x, y: e.global.y }
 		} else if (this.dragStartTile) {
+			mrg.hoveredObject = this.dragStartTile
 			// Tile drag in progress - emit preview
 			const currentTile = this.getTileAtPosition(e.global)
 			if (currentTile && currentTile !== this.dragStartTile) {
@@ -204,6 +213,13 @@ export class InteractionManager {
 				// Clear preview if back to start tile or off-board
 				this.game.emit('dragPreviewClear')
 			}
+		} else {
+			const object = this.findLogicObject(e.target)
+			if (object) {
+				mrg.hoveredObject = object
+				return
+			}
+			mrg.hoveredObject = this.getTileAtPosition(e.global)
 		}
 	}
 
@@ -229,7 +245,15 @@ export class InteractionManager {
 
 			this.dragStartTile = undefined
 		}
+
+		if (!this.dragStartTile) {
+			const object = this.findLogicObject(e.target)
+			mrg.hoveredObject = object ?? this.getTileAtPosition(e.global)
+		}
 	}
+
+	static readonly MIN_SCALE = 0.15
+	static readonly MAX_SCALE = 4.0
 
 	private onWheel = (e: FederatedWheelEvent) => {
 		const renderer = this.game.renderer as any
@@ -237,22 +261,18 @@ export class InteractionManager {
 
 		const world = renderer.world as Container
 		const scaleFactor = 1.1
-		const direction = e.deltaY > 0 ? 1 / scaleFactor : scaleFactor // Zoom in or out
+		const direction = e.deltaY > 0 ? 1 / scaleFactor : scaleFactor
 
-		// Scale relative to mouse position
-		// 1. Convert mouse to world space
-		// This is simplified, can improve with actual matrix transform if needed
+		const newScale = Math.max(
+			InteractionManager.MIN_SCALE,
+			Math.min(InteractionManager.MAX_SCALE, world.scale.x * direction)
+		)
+		if (newScale === world.scale.x) return
+
 		const localPos = world.toLocal(e.global)
-
-		world.scale.x *= direction
-		world.scale.y *= direction
-
-		// 2. Adjust position to keep mouse over same world point
-		// worldPos = (elementPos - containerPos) / scale
-		// newContainerPos = elementPos - (worldPos * newScale)
-
-		world.position.x = e.global.x - localPos.x * world.scale.x
-		world.position.y = e.global.y - localPos.y * world.scale.y
+		world.scale.set(newScale)
+		world.position.x = e.global.x - localPos.x * newScale
+		world.position.y = e.global.y - localPos.y * newScale
 	}
 
 	/**
@@ -266,8 +286,13 @@ export class InteractionManager {
 		while (current) {
 			const logicObject = current._logicObject as InteractiveGameObject | undefined
 			if (logicObject) {
-				// If the object has interaction logic, check if it allows interaction
-				if (logicObject.canInteract && (!action || logicObject.canInteract(action))) {
+				// With no selected action, default hover/click should still resolve to the
+				// underlying logic object even if canInteract('') is false.
+				if (!action) {
+					return logicObject
+				}
+				// If an action is selected, only return objects that accept it.
+				if (logicObject.canInteract && logicObject.canInteract(action)) {
 					return logicObject
 				}
 				// If it has _logicObject but canInteract returns false, we implicitly skip it

@@ -1,16 +1,26 @@
 import { inert, reactive, unwrap } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
-import { assert } from 'ssh/debug'
+import { assert, traceIdleDiagnosis } from 'ssh/debug'
 import type { Game } from 'ssh/game'
+import {
+	activityUtilityConfig,
+	applyActivityHysteresis,
+	computeActivityScores,
+	excludeWanderAfterWanderWhenEmployable,
+	type NextActivityKind,
+	type PlannerFindActionSnapshot,
+} from 'ssh/population/findNextActivity'
 import type { Storage } from 'ssh/storage'
 import type { GoodType, Job, WorkPlan } from 'ssh/types/base'
 import { type AxialCoord, axial, maxBy, type Positioned } from 'ssh/utils'
 import { axialDistance, type Position, toAxialCoord } from 'ssh/utils/position'
 import {
+	applyNeedRate,
 	characterEvolutionRates,
 	characterTriggerLevels,
 	maxWalkTime,
+	residentialRecoveryRates,
 } from '../../../assets/constants'
 import { goods as goodsCatalog } from '../../../assets/game-content'
 
@@ -37,6 +47,16 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	public hunger: number = 0
 	public tiredness: number = 0
 	public fatigue: number = 0
+
+	/** Stabilizes `findNextActivity` picks across replans. */
+	lastPickedActivityKind: NextActivityKind | undefined
+
+	/**
+	 * Last `findAction` resolution: post-hysteresis ranked utilities and whether the script came
+	 * from that list (`ranked`) or from the emergency `wander()` when every ranked kind failed
+	 * `tryScript` (`fallback-wander`). See `traceIdleDiagnosis` / `blackBoxLog.idleDiagnosis`.
+	 */
+	lastPlannerSnapshot?: PlannerFindActionSnapshot
 
 	private _assignedAlveolus: Alveolus | undefined
 	public get assignedAlveolus(): Alveolus | undefined {
@@ -113,10 +133,9 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	}
 
 	/**
-	 * Find the best available job using pathfinding
-	 * @returns Object with job, tile, and path, or false if no job found
+	 * Resolve best job without starting a script (for planning / utility).
 	 */
-	findBestJob(): ScriptExecution | false {
+	resolveBestJobMatch(): { job: Job; targetTile: Tile; path: AxialCoord[] } | false {
 		return inert(() => {
 			const jobCache = new Map<string, { job: Job; targetTile: Tile }>()
 
@@ -188,16 +207,26 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 				selectedPath = []
 			}
 
-			this.log('character.beginJob', job.job)
-			return this.workExecution(job, targetTile, selectedPath)
+			return { job, targetTile, path: selectedPath }
 		})
+	}
+
+	/**
+	 * Find the best available job using pathfinding
+	 * @returns Object with job, tile, and path, or false if no job found
+	 */
+	findBestJob(): ScriptExecution | false {
+		const match = this.resolveBestJobMatch()
+		if (!match) return false
+		this.log('character.beginJob', match.job.job)
+		return this.workExecution(match.job, match.targetTile, match.path)
 	}
 
 	get keepWorking(): boolean {
 		return (
 			this.hunger < this.triggerLevels.hunger.high &&
-			this.fatigue < this.triggerLevels.fatigue.high /*&&
-			this.tiredness < this.triggerLevels.tiredness.high*/
+			this.fatigue < this.triggerLevels.fatigue.high &&
+			this.tiredness < this.triggerLevels.tiredness.high
 		)
 	}
 
@@ -205,10 +234,9 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		return maxBy(
 			Object.entries(this.carry.availables) as [GoodType, number][],
 			([goodType, available]) => {
-				const feedingValue = (goodsCatalog[goodType] as any).feedingValue
-				if (!feedingValue || available < 1) return undefined
-
-				return feedingValue as number
+				const def: Ssh.GoodsDefinition = goodsCatalog[goodType]
+				if (!def.satiationStrength || available < 1) return undefined
+				return def.satiationStrength
 			}
 		)?.[0]
 	}
@@ -227,6 +255,14 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		return {
 			name: this.name,
 			coord: this.position,
+			needs: {
+				hunger: this.hunger,
+				fatigue: this.fatigue,
+				tiredness: this.tiredness,
+			},
+			keepWorking: this.keepWorking,
+			lastPickedActivity: this.lastPickedActivityKind,
+			lastPlannerSnapshot: this.lastPlannerSnapshot,
 			vehicle: {
 				name: this.vehicle.name,
 				storage: this.carry,
@@ -243,7 +279,14 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		return axial.distance(coord, toAxialCoord(this.position)) <= 0.3
 	}
 
-	// Update character needs levels based on time elapsed
+	/** Whether this character is currently standing on their reserved residential tile. */
+	get isAtHome(): boolean {
+		const reservation = this.game.hex.zoneManager.getReservation(this)
+		if (!reservation) return false
+		const pos = toAxialCoord(this.position)
+		return Math.round(pos.q) === reservation.q && Math.round(pos.r) === reservation.r
+	}
+
 	update(deltaSeconds: number) {
 		const activity: Ssh.ActivityType = (this.stepExecutor?.type ?? 'idle') as Ssh.ActivityType
 		const hungerRate =
@@ -252,45 +295,107 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			characterEvolutionRates.tiredness[activity] ?? characterEvolutionRates.tiredness['*'] ?? 0
 		const fatigueRate =
 			characterEvolutionRates.fatigue[activity] ?? characterEvolutionRates.fatigue['*'] ?? 0
-		this.hunger += hungerRate * deltaSeconds
-		this.tiredness += tirednessRate * deltaSeconds
-		this.fatigue += fatigueRate * deltaSeconds
+		this.hunger = applyNeedRate(this.hunger, hungerRate, deltaSeconds)
+		this.tiredness = applyNeedRate(this.tiredness, tirednessRate, deltaSeconds)
+		this.fatigue = applyNeedRate(this.fatigue, fatigueRate, deltaSeconds)
+
+		if (this.isAtHome) {
+			this.hunger = applyNeedRate(this.hunger, -residentialRecoveryRates.hunger, deltaSeconds)
+			this.fatigue = applyNeedRate(this.fatigue, -residentialRecoveryRates.fatigue, deltaSeconds)
+			this.tiredness = applyNeedRate(
+				this.tiredness,
+				-residentialRecoveryRates.tiredness,
+				deltaSeconds
+			)
+		}
+
 		super.update(deltaSeconds)
 	}
 
 	findAction() {
 		return inert(() => {
-			if (this.hunger > this.triggerLevels.hunger.high) return this.scriptsContext.selfCare.goEat()
+			this.game.hex.zoneManager.releaseReservation(this)
 
-			if (Object.values(this.carry.availables).some((qty) => qty! > 0)) {
-				if (this.scriptsContext.find.freeSpot()) {
-					return this.scriptsContext.inventory.dropAllLoose()
+			const ranked = excludeWanderAfterWanderWhenEmployable(
+				applyActivityHysteresis(
+					computeActivityScores(this),
+					this.lastPickedActivityKind,
+					activityUtilityConfig.hysteresis
+				),
+				this.lastPickedActivityKind,
+				this
+			)
+			const rankedSnapshot = ranked.map((s) => ({
+				kind: s.kind,
+				utility: Math.round(s.utility * 1000) / 1000,
+			}))
+
+			for (const pick of ranked) {
+				const exec = this.tryScriptForActivityKind(pick.kind)
+				if (exec) {
+					this.lastPickedActivityKind = pick.kind
+					this.lastPlannerSnapshot = {
+						ranked: rankedSnapshot,
+						outcome: { kind: pick.kind, source: 'ranked' },
+					}
+					traceIdleDiagnosis({
+						name: this.name,
+						...this.lastPlannerSnapshot,
+					})
+					return exec
 				}
 			}
-			let tryAnActivity: ScriptExecution | false | undefined
-			if (this.fatigue < this.triggerLevels.fatigue.high) {
+
+			this.lastPlannerSnapshot = {
+				ranked: rankedSnapshot,
+				outcome: { kind: 'wander', source: 'fallback-wander' },
+			}
+			traceIdleDiagnosis({
+				name: this.name,
+				...this.lastPlannerSnapshot,
+				note: 'all ranked kinds failed tryScript (stale job, no path, guards, …)',
+			})
+			return this.scriptsContext.selfCare.wander()
+		})
+	}
+
+	private tryScriptForActivityKind(kind: NextActivityKind): ScriptExecution | false | undefined {
+		switch (kind) {
+			case 'eat':
+				if (!(this.hunger > this.triggerLevels.hunger.satisfied)) return false
+				return this.scriptsContext.selfCare.goEat()
+			case 'home':
+				if (this.keepWorking) return false
+				return this.scriptsContext.selfCare.goHome()
+			case 'drop':
+				return this.scriptsContext.inventory.dropAllLoose()
+			case 'assignedWork': {
 				const assignedTile = this.assignedAlveolus?.tile
 				const assignedJob = assignedTile?.content?.getJob?.(this)
-				if (assignedTile && assignedJob) {
-					const isSameTile =
-						axial.key(toAxialCoord(assignedTile.position)!) ===
-						axial.key(toAxialCoord(this.position)!)
-					const path = isSameTile
-						? []
-						: this.game.hex.findPathForCharacter(
-								this.position,
-								assignedTile.position,
-								this,
-								maxWalkTime,
-								false
-							)
-					if (path) return this.workExecution(assignedJob, assignedTile, path)
-				}
-				tryAnActivity = this.findBestJob()
+				if (!assignedTile || !assignedJob) return false
+				const isSameTile =
+					axial.key(toAxialCoord(assignedTile.position)!) ===
+					axial.key(toAxialCoord(this.position)!)
+				const path = isSameTile
+					? []
+					: this.game.hex.findPathForCharacter(
+							this.position,
+							assignedTile.position,
+							this,
+							maxWalkTime,
+							false
+						)
+				if (!path) return false
+				this.log('character.beginJob', assignedJob.job)
+				return this.workExecution(assignedJob, assignedTile, path)
 			}
-
-			return tryAnActivity || this.scriptsContext.selfCare.wander()
-		})
+			case 'bestWork':
+				return this.findBestJob()
+			case 'wander':
+				return this.scriptsContext.selfCare.wander()
+			default:
+				return undefined
+		}
 	}
 
 	get carry(): Storage {

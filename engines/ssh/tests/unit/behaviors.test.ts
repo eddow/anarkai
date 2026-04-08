@@ -99,7 +99,7 @@ vi.mock('ssh/assets/game-content', () => {
 		goods: {
 			wood: {},
 			stone: {},
-			food: { feedingValue: 1 },
+			food: { satiationStrength: 0.5 },
 		},
 		terrain: terrainProxy,
 		deposits: {
@@ -125,7 +125,6 @@ describe('Behavior Verification', () => {
 
 	it('Harvest Behavior: Runs and Persists (Savegame)', async () => {
 		const game = new Game({
-			boardSize: 12,
 			terrainSeed: 1234,
 			characterCount: 0,
 		})
@@ -245,12 +244,11 @@ describe('Behavior Verification', () => {
 
 		// Reload
 		const game2 = new Game({
-			boardSize: 12,
 			terrainSeed: 1234,
 			characterCount: 0,
 		})
 		await game2.loaded
-		game2.loadGameData(saveState)
+		await game2.loadGameData(saveState)
 
 		// Provide character retrieval logic
 		const char2 = game2.population.character(char.uid)
@@ -259,7 +257,6 @@ describe('Behavior Verification', () => {
 
 	it('Transform Behavior: Runs and Persists', async () => {
 		const game = new Game({
-			boardSize: 12,
 			terrainSeed: 555,
 			characterCount: 0,
 		})
@@ -349,12 +346,11 @@ describe('Behavior Verification', () => {
 		// Persistence check
 		const saveState = game.saveGameData()
 		const game2 = new Game({
-			boardSize: 12,
 			terrainSeed: 555,
 			characterCount: 0,
 		})
 		await game2.loaded
-		game2.loadGameData(saveState)
+		await game2.loadGameData(saveState)
 		const char2 = game2.population.character(char.uid)
 		expect(char2).toBeDefined()
 	})

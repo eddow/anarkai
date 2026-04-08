@@ -17,10 +17,12 @@
 		"noUnusedParameters": false,
 		"noFallthroughCasesInSwitch": true,
 		"types": ["vite/client"],
-		"baseUrl": ".",
 		"paths": {
 			"$lib/*": ["./src/lib/*", "../ssh/src/lib/*"],
 			"@app/*": ["./src/*"],
+			"engine-terrain": ["../terrain/src/index.ts"],
+			"engine-terrain/hex": ["../terrain/src/hex/index.ts"],
+			"engine-terrain/*": ["../terrain/src/*"],
 			"ssh/assets/*": ["../ssh/assets/*"],
 			"ssh/*": ["../ssh/src/lib/*"],
 			// "@ssh/*": [ "../ssh/src/*" ], // Deprecated in favor of ssh package

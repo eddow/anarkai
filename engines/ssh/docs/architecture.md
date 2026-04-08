@@ -70,7 +70,6 @@ Manages the hexagonal grid world and spatial queries.
 - Provide pathfinding utilities
 
 **Key Properties:**
-- `boardSize: number` — Radius of the hex world
 - `zoneManager: ZoneManager` — Zone assignment system
 - `looseGoods: LooseGoodsSystem` — Loose item tracking
 

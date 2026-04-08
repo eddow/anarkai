@@ -57,6 +57,7 @@ export default defineConfig({
 	],
 	optimizeDeps: {
 		exclude: [
+			"engine-terrain",
 			"mutts",
 			"npc-script",
 			"omni18n",
@@ -66,23 +67,38 @@ export default defineConfig({
 		],
 	},
 	resolve: {
-		alias: {
-			$lib: resolvePath(projectRootDir, "src/lib"),
-			$components: resolvePath(projectRootDir, "src/components"),
-			$assets: resolvePath(projectRootDir, "assets"),
-			"@app": resolvePath(projectRootDir, "src"),
-			"@ssh": resolvePath(projectRootDir, "src"),
-			ssh: resolvePath(projectRootDir, "src/lib"),
-			"sursaut-ts": resolvePath(
-				projectRootDir,
-				"../../../ownk/sursaut-ts/src/lib",
-			),
-			"sursaut-ui": resolvePath(projectRootDir, "../../../ownk/sursaut-ui/src"),
-			"npc-script": resolvePath(projectRootDir, "../../../ownk/npcs/src"),
-			mutts: resolvePath(projectRootDir, "../../../ownk/mutts/src"),
-			omni18n: resolvePath(projectRootDir, "../../../ownk/omni18n/src"),
-			"pure-glyf": resolvePath(projectRootDir, "../../../ownk/pure-glyf/src"),
-		},
+		alias: [
+			{ find: /^engine-terrain\/hex$/, replacement: resolvePath(projectRootDir, "../terrain/src/hex/index.ts") },
+			{ find: /^engine-terrain$/, replacement: resolvePath(projectRootDir, "../terrain/src/index.ts") },
+			{
+				find: /^ssh\/(.*)$/,
+				replacement: `${resolvePath(projectRootDir, "src/lib")}/$1`,
+			},
+			{ find: /^ssh$/, replacement: resolvePath(projectRootDir, "src/lib") },
+			{ find: /^@app$/, replacement: resolvePath(projectRootDir, "src") },
+			{ find: /^@ssh$/, replacement: resolvePath(projectRootDir, "src") },
+			{ find: /^\$lib$/, replacement: resolvePath(projectRootDir, "src/lib") },
+			{ find: /^\$components$/, replacement: resolvePath(projectRootDir, "src/components") },
+			{ find: /^\$assets$/, replacement: resolvePath(projectRootDir, "assets") },
+			{
+				find: /^sursaut-ts$/,
+				replacement: resolvePath(projectRootDir, "../../../ownk/sursaut-ts/src/lib"),
+			},
+			{
+				find: /^sursaut-ui$/,
+				replacement: resolvePath(projectRootDir, "../../../ownk/sursaut-ui/src"),
+			},
+			{
+				find: /^npc-script$/,
+				replacement: resolvePath(projectRootDir, "../../../ownk/npcs/src"),
+			},
+			{ find: /^mutts$/, replacement: resolvePath(projectRootDir, "../../../ownk/mutts/src") },
+			{ find: /^omni18n$/, replacement: resolvePath(projectRootDir, "../../../ownk/omni18n/src") },
+			{
+				find: /^pure-glyf$/,
+				replacement: resolvePath(projectRootDir, "../../../ownk/pure-glyf/src"),
+			},
+		],
 	},
 	build: {
 		sourcemap: true,

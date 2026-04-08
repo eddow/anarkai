@@ -7,7 +7,6 @@ import { TestEngine } from '../test-engine/engine'
 describe('Convey hop mechanism', () => {
 	it('should track moving good correctly after hop', { timeout: 20000 }, async () => {
 		const engine = new TestEngine({
-			boardSize: 6,
 			terrainSeed: 1234,
 			characterCount: 0,
 		})
@@ -17,7 +16,6 @@ describe('Convey hop mechanism', () => {
 			// Load scenario with pre-built storage alveoli
 			engine.loadScenario({
 				generationOptions: {
-					boardSize: 6,
 					terrainSeed: 1234,
 					characterCount: 0,
 				},

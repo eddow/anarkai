@@ -10,8 +10,8 @@ import { AxialSet } from 'ssh/utils/mem'
 export interface PopulationGenerationConfig {
 	characterCount: number
 	radius?: number
-	boardSize: number
 	minRadiusFromOrigin?: number
+	origin?: AxialCoord
 }
 
 export interface GeneratedCharacterData {
@@ -28,7 +28,7 @@ export class PopulationGenerator {
 		const characters: GeneratedCharacterData[] = []
 
 		// Recover original behavior: iteratively pick nearest fitting tiles around (0,0)
-		const origin = { q: 0, r: 0 }
+		const origin = config.origin ?? { q: 0, r: 0 }
 		const minR = config.minRadiusFromOrigin ?? 2
 		const maxR = config.radius ?? 5
 

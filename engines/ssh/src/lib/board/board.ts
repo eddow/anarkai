@@ -20,6 +20,7 @@ import {
 } from 'ssh/utils'
 import { AxialKeyMap } from 'ssh/utils/mem'
 import { TileBorder, type TileBorderContent } from './border/border'
+import { UnBuiltLand } from './content/unbuilt-land'
 import type { TileContent } from './content/content'
 import { LooseGoods } from './looseGoods'
 import { Tile } from './tile'
@@ -49,8 +50,7 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 	}
 
 	constructor(
-		public game: Game,
-		public readonly boardSize: number = 12
+		public game: Game
 	) {
 		super(game)
 		this.looseGoods = new LooseGoods(game)
@@ -58,9 +58,16 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		this.zIndex = -1
 	}
 
+	private hasGeneratedCoord(coord: AxialCoord): boolean {
+		return (
+			this.contents.has(coord) ||
+			this.tileCache.has(coord) ||
+			this.borderCache.has(coord)
+		)
+	}
+
 	hitTest(worldX: number, worldY: number, selectedAction?: string): any {
 		const coord = axial.round(fromCartesian({ x: worldX, y: worldY }, tileSize))
-		if (axial.distance(coord, { q: 0, r: 0 }) > this.boardSize) return false
 		const tile = this.getTile(coord)
 		if (!tile) return false
 		if (selectedAction && !tile.canInteract(selectedAction)) {
@@ -72,7 +79,7 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 	inBound(coord: Positioned): boolean {
 		const ax = toAxialCoord(coord)
 		if (!ax) return false
-		return axial.distance(ax) < this.boardSize
+		return true
 	}
 	getTileContent(ref: Positioned): TileContent | undefined {
 		const coord = toAxialCoord(ref)
@@ -84,17 +91,32 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		const coord = toAxialCoord(ref)
 		if (!coord || !isTileCoord(coord)) return
 		const oldContent = this.contents.get({ q: coord.q, r: coord.r }) as TileContent | undefined
+		const changedGroundSemantics =
+			!!oldContent &&
+			!!content &&
+			(oldContent instanceof UnBuiltLand) !== (content instanceof UnBuiltLand)
 		if (!content) this.contents.delete({ q: coord.q, r: coord.r })
 		else this.contents.set({ q: coord.q, r: coord.r }, content)
 		if (oldContent && oldContent !== content) oldContent.destroy()
 		// If a tile content is set programmatically post-generation, mark tile dirty
 		const tile = content?.tile ?? (coord ? this.getTile(coord) : undefined)
 		if (tile) tile.asGenerated = false
+		if (changedGroundSemantics) {
+			;(
+				this.game.renderer as
+					| {
+							invalidateTerrainHard?: () => void
+							invalidateTerrain?: () => void
+					  }
+					| undefined
+			)?.invalidateTerrainHard?.() ??
+				(this.game.renderer as { invalidateTerrain?: () => void } | undefined)?.invalidateTerrain?.()
+		}
 	}
 
 	getTile(ref: Positioned): Tile | undefined {
 		const coord = toAxialCoord(ref)
-		if (!coord || !isTileCoord(coord) || !this.inBound(coord)) return undefined
+		if (!coord || !isTileCoord(coord)) return undefined
 		const content = this.contents.get(axial.round(coord)) as TileContent | undefined
 		if (content?.tile) {
 			this.tileCache.set(coord, content.tile)
@@ -102,6 +124,7 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		}
 		const cached = this.tileCache.get(coord)
 		if (cached) return cached
+		if (!this.inBound(coord)) return undefined
 		const tile = new Tile(this, coord)
 		this.tileCache.set(coord, tile)
 		return tile

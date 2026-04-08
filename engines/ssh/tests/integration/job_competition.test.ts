@@ -4,7 +4,7 @@ import { TestEngine } from '../test-engine'
 
 describe('Job Competition Tests', () => {
 	async function setupEngine(
-		options: any = { boardSize: 12, terrainSeed: 1234, characterCount: 0 }
+		options: any = { terrainSeed: 1234, characterCount: 0 }
 	) {
 		const engine = new TestEngine(options)
 		await engine.init()

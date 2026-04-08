@@ -5,8 +5,14 @@ import { goods as goodsCatalog } from '../../assets/visual-content'
 import { scopedPixiName, setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
 
-const sharedGrayscaleFilter = new ColorMatrixFilter()
-sharedGrayscaleFilter.desaturate()
+let sharedGrayscaleFilter: ColorMatrixFilter | undefined
+
+function getSharedGrayscaleFilter() {
+	if (sharedGrayscaleFilter) return sharedGrayscaleFilter
+	sharedGrayscaleFilter = new ColorMatrixFilter()
+	sharedGrayscaleFilter.desaturate()
+	return sharedGrayscaleFilter
+}
 
 export function renderGoods(
 	renderer: PixiGameRenderer,
@@ -18,6 +24,7 @@ export function renderGoods(
 ) {
 	const scope = label.replace(/\./g, ':')
 	const root = setPixiName(new Container(), scopedPixiName(scope, 'root'))
+	root.eventMode = 'none'
 	root.position.set(worldPosition.x, worldPosition.y)
 	container.addChild(root)
 
@@ -65,8 +72,11 @@ export function renderGoods(
 
 			const gaugeWidth = spriteSize * 0.6
 			const gauge = setPixiName(new Graphics(), scopedPixiName(slotScope, 'gauge'))
-				.rect(x - gaugeWidth / 2, y - totalHeight / 2, gaugeWidth, totalHeight)
-				.fill({ color: 0x000080, alpha: 0.5 })
+			gauge.eventMode = 'none'
+			gauge.rect(x - gaugeWidth / 2, y - totalHeight / 2, gaugeWidth, totalHeight).fill({
+				color: 0x000080,
+				alpha: 0.5,
+			})
 			root.addChild(gauge)
 
 			const drawSprites = (
@@ -79,12 +89,13 @@ export function renderGoods(
 			) => {
 				for (let q = 0; q < count; q++) {
 					const s = setPixiName(new Sprite(texture), scopedPixiName(slotScope, `${kind}:${q}`))
+					s.eventMode = 'none'
 					s.scale.set(scale)
 					s.anchor.set(0.5)
 					s.position.set(x, y - q * dy - offset)
 					s.tint = tint
 					s.alpha = alpha
-					if (filter) s.filters = [sharedGrayscaleFilter]
+					if (filter) s.filters = [getSharedGrayscaleFilter()]
 					root.addChild(s)
 				}
 			}

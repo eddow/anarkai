@@ -1,0 +1,21 @@
+{
+	"name": "engine-terrain",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./hex": "./src/hex/index.ts"
+	},
+	"scripts": {
+		"check": "tsc",
+		"test": "vitest run --silent --reporter=dot"
+	},
+	"dependencies": {
+		"@webgpu/types": "^0.1.69",
+		"typescript": "~5.8.3",
+		"webgpgpu.ts": "link:/home/fmdm/dev/ownk/webgpgpu"
+	},
+	"devDependencies": {
+		"vitest": "^3.2.4"
+	}
+}

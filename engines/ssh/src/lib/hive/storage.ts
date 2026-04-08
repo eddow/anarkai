@@ -90,8 +90,7 @@ export class StorageAlveolus extends Alveolus {
 		}
 
 		const buffers: Partial<Record<GoodType, number>> = {}
-		const capacity =
-			this.storage instanceof SlottedStorage ? this.storage.maxQuantityPerSlot : 1
+		const capacity = this.storage instanceof SlottedStorage ? this.storage.maxQuantityPerSlot : 1
 		for (const [goodType, rule] of Object.entries(this.slottedStorageConfiguration.goods)) {
 			if (!rule || rule.minSlots <= 0) continue
 			buffers[goodType as GoodType] = rule.minSlots * capacity
@@ -284,30 +283,15 @@ export class StorageAlveolus extends Alveolus {
 					? this.slottedCanGive(goodType)
 					: releasable > 0
 
-		// Debug logging - always log to console for visibility (log both success and failure)
-		console.log(`[CANGIVE] ${this.name} can give ${goodType}:`, {
+		traces.allocations?.log(`[CANGIVE] ${this.name} can give ${goodType}:`, {
 			available,
 			stock,
 			bufferedProtected,
 			releasable,
 			working: this.working,
 			priority,
-			result,
 			timestamp: Date.now(),
 		})
-
-		if (result && traces.allocations) {
-			traces.allocations.log(`[CANGIVE] ${this.name} can give ${goodType}:`, {
-				available,
-				stock,
-				bufferedProtected,
-				releasable,
-				working: this.working,
-				priority,
-				timestamp: Date.now(),
-			})
-		}
-
 		return result
 	}
 
@@ -334,8 +318,7 @@ export class StorageAlveolus extends Alveolus {
 					continue
 				}
 
-				const plannedQty =
-					(this.storage.stock[goodType] ?? 0) + this.storage.allocated(goodType)
+				const plannedQty = (this.storage.stock[goodType] ?? 0) + this.storage.allocated(goodType)
 				const bufferQty = rule.minSlots * capacity
 
 				if (plannedQty > bufferQty && this.canGive(goodType, '0-store')) {

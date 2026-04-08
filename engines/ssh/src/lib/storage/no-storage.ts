@@ -36,6 +36,10 @@ export class NoStorage extends Storage {
 		return 0
 	}
 
+	allocated(_goodType: GoodType): number {
+		return 0
+	}
+
 	allocate(_goods: Goods, reason: any): never {
 		throw new AllocationError(`Cannot allocate goods - no storage available`, reason)
 	}

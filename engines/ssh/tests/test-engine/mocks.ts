@@ -15,9 +15,9 @@ export function loadStandardMocks() {
 				wood: { halfLife: 900 },
 				stone: { halfLife: Infinity },
 				planks: { halfLife: 900 },
-				food: { feedingValue: 70, halfLife: 600 },
-				mushrooms: { feedingValue: 160, halfLife: 600 },
-				berries: { feedingValue: 72, halfLife: 300 },
+				food: { satiationStrength: 0.3567, halfLife: 600 },
+				mushrooms: { satiationStrength: 0.6931, halfLife: 600 },
+				berries: { satiationStrength: 0.3567, halfLife: 300 },
 			},
 			terrain: new Proxy(
 				{},

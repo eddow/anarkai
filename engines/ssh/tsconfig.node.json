@@ -30,6 +30,8 @@
 			"$assets/*": ["./assets/*"],
 			"$components/*": ["./src/components/*"],
 			"@app/*": ["./src/*"],
+			"engine-terrain": ["../terrain/src/index.ts"],
+			"engine-terrain/hex": ["../terrain/src/hex/index.ts"],
 			"@sursaut/*": ["node_modules/sursaut-ts/src/*"],
 			"@sursaut/runtime": ["node_modules/sursaut-ts/src/lib/index.ts"],
 			"@sursaut/runtime/jsx-runtime": [

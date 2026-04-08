@@ -39,15 +39,15 @@ vi.mock('ssh/assets/game-content', () => ({
 describe('Harvest Zones Restriction', () => {
 	it('find.deposit should ignore deposits outside of zones/clearing', async () => {
 		const game = new Game({
-			boardSize: 2,
 			terrainSeed: 123,
 			characterCount: 0,
 		})
 		await game.loaded
+		const bootstrapRadius = 2
 
 		// Ensure all tiles have content to avoid walkNeighbors error
-		for (let q = -game.hex.boardSize; q <= game.hex.boardSize; q++) {
-			for (let r = -game.hex.boardSize; r <= game.hex.boardSize; r++) {
+		for (let q = -bootstrapRadius; q <= bootstrapRadius; q++) {
+			for (let r = -bootstrapRadius; r <= bootstrapRadius; r++) {
 				const coord = { q, r }
 				const tile = game.hex.getTile(coord)
 				if (tile && !tile.content) {
@@ -87,7 +87,6 @@ describe('Harvest Zones Restriction', () => {
 
 	it('harvest alveolus nextJob returns undefined instead of throwing when action is missing at runtime', async () => {
 		const engine = new TestEngine({
-			boardSize: 2,
 			terrainSeed: 123,
 			characterCount: 0,
 		})

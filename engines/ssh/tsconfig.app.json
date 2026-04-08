@@ -23,9 +23,10 @@
 		"jsxFactory": "h",
 		"jsxFragmentFactory": "Fragment",
 		"types": ["vite/client"],
-		"baseUrl": ".",
 		"paths": {
-			"ssh/*": ["./src/lib/*"]
+			"ssh/*": ["./src/lib/*"],
+			"engine-terrain": ["../terrain/src/index.ts"],
+			"engine-terrain/hex": ["../terrain/src/hex/index.ts"]
 		}
 	},
 	"include": [
@@ -37,6 +38,7 @@
 		"sandbox/**/*.tsx",
 		"assets/**/*.ts",
 		"assets/**/*.tsx",
+		"../terrain/src/**/*.ts",
 		"../pixi/assets/resources.ts",
 		"../../../ownk/mutts/src/**/*.ts",
 		"../../../ownk/npcs/src/**/*.ts",

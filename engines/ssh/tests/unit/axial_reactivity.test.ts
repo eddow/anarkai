@@ -1,6 +1,6 @@
 import { effect } from 'mutts'
 import { describe, expect, it } from 'vitest'
-import { AxialKeyMap } from './src/lib/utils/mem'
+import { AxialKeyMap } from 'ssh/utils/mem'
 
 describe('AxialKeyMap Reactivity', () => {
 	it('should be reactive', () => {

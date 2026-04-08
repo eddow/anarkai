@@ -8,7 +8,6 @@ import { TestEngine } from '../test-engine'
 describe('Hive Offload Scenario', () => {
 	it('Scenario: Offload Mushroom', { timeout: 15000 }, async () => {
 		const engine = new TestEngine({
-			boardSize: 12,
 			terrainSeed: 1234,
 			characterCount: 0,
 		})
@@ -17,7 +16,6 @@ describe('Hive Offload Scenario', () => {
 		try {
 			const scenario = {
 				generationOptions: {
-					boardSize: 12,
 					terrainSeed: 1234,
 					characterCount: 0,
 				},
@@ -107,7 +105,6 @@ describe('Hive Offload Scenario', () => {
 		timeout: 15000,
 	}, async () => {
 		const engine = new TestEngine({
-			boardSize: 12,
 			terrainSeed: 1234,
 			characterCount: 0,
 		})
@@ -117,7 +114,6 @@ describe('Hive Offload Scenario', () => {
 			const target = { q: 2, r: 2 }
 			engine.loadScenario({
 				generationOptions: {
-					boardSize: 12,
 					terrainSeed: 1234,
 					characterCount: 0,
 				},
@@ -207,7 +203,6 @@ describe('Hive Offload Scenario', () => {
 	}, async () => {
 		resetDebugActiveAllocations()
 		const engine = new TestEngine({
-			boardSize: 12,
 			terrainSeed: 1234,
 			characterCount: 0,
 		})
@@ -217,7 +212,6 @@ describe('Hive Offload Scenario', () => {
 			const center = { q: 2, r: 2 }
 			engine.loadScenario({
 				generationOptions: {
-					boardSize: 12,
 					terrainSeed: 1234,
 					characterCount: 0,
 				},
@@ -262,7 +256,6 @@ describe('Hive Offload Scenario', () => {
 
 	it('Scenario: Avoid Dropping on Alveoli', { timeout: 5000 }, async () => {
 		const engine = new TestEngine({
-			boardSize: 12,
 			terrainSeed: 1234,
 			characterCount: 0,
 		})
@@ -279,7 +272,6 @@ describe('Hive Offload Scenario', () => {
 
 		const scenario = {
 			generationOptions: {
-				boardSize: 12,
 				terrainSeed: 1234,
 				characterCount: 0,
 			},
@@ -337,7 +329,6 @@ describe('Hive Offload Scenario', () => {
 		timeout: 5000,
 	}, async () => {
 		const engine = new TestEngine({
-			boardSize: 12,
 			terrainSeed: 1234,
 			characterCount: 0,
 		})
@@ -347,7 +338,6 @@ describe('Hive Offload Scenario', () => {
 		const target = { q: 4, r: 4 }
 		const scenario = {
 			generationOptions: {
-				boardSize: 12,
 				terrainSeed: 1234,
 				characterCount: 0,
 			},
@@ -424,7 +414,6 @@ describe('Hive Offload Scenario', () => {
 		timeout: 5000,
 	}, async () => {
 		const engine = new TestEngine({
-			boardSize: 12,
 			terrainSeed: 1234,
 			characterCount: 0,
 		})
@@ -434,7 +423,6 @@ describe('Hive Offload Scenario', () => {
 		const target = { q: 4, r: 4 }
 		engine.loadScenario({
 			generationOptions: {
-				boardSize: 12,
 				terrainSeed: 1234,
 				characterCount: 0,
 			},
@@ -474,7 +462,6 @@ describe('Hive Offload Scenario', () => {
 		timeout: 5000,
 	}, async () => {
 		const engine = new TestEngine({
-			boardSize: 12,
 			terrainSeed: 1234,
 			characterCount: 0,
 		})
@@ -485,7 +472,6 @@ describe('Hive Offload Scenario', () => {
 		const residentialDrop = { q: 4, r: 5 }
 		engine.loadScenario({
 			generationOptions: {
-				boardSize: 12,
 				terrainSeed: 1234,
 				characterCount: 0,
 			},
@@ -550,7 +536,6 @@ describe('Hive Offload Scenario', () => {
 		timeout: 5000,
 	}, async () => {
 		const engine = new TestEngine({
-			boardSize: 12,
 			terrainSeed: 1234,
 			characterCount: 0,
 		})
@@ -560,7 +545,6 @@ describe('Hive Offload Scenario', () => {
 		const center = { q: 5, r: 5 }
 		engine.loadScenario({
 			generationOptions: {
-				boardSize: 12,
 				terrainSeed: 1234,
 				characterCount: 0,
 			},
@@ -649,7 +633,6 @@ describe('Hive Offload Scenario', () => {
 		timeout: 10000,
 	}, async () => {
 		const engine = new TestEngine({
-			boardSize: 12,
 			terrainSeed: 1234,
 			characterCount: 0,
 		})
@@ -661,7 +644,6 @@ describe('Hive Offload Scenario', () => {
 		const treeLocation = { q: 4, r: 4 }
 		engine.loadScenario({
 			generationOptions: {
-				boardSize: 12,
 				terrainSeed: 1234,
 				characterCount: 0,
 			},

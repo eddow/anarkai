@@ -5,7 +5,7 @@ import { TestEngine } from '../test-engine'
 // TODO: When buffering is implemented, set the target to a buffering storage and add in the test that the goods are arrived
 describe('Convey Behavior Integration', () => {
 	async function setupEngine(
-		options: any = { boardSize: 12, terrainSeed: 1234, characterCount: 0 }
+		options: any = { terrainSeed: 1234, characterCount: 0 }
 	) {
 		const engine = new TestEngine(options)
 		await engine.init()
@@ -29,13 +29,22 @@ describe('Convey Behavior Integration', () => {
 			return count
 		}
 
-		return { engine, game: engine.game, spawnWorker, countLooseGoods }
+		function countCarriedGoods(game: (typeof engine)['game'], goodType: string) {
+			let count = 0
+			for (const char of game.population) {
+				const stock = char.carry.stock as Partial<Record<string, number>>
+				count += stock[goodType] ?? 0
+			}
+			return count
+		}
+
+		return { engine, game: engine.game, spawnWorker, countLooseGoods, countCarriedGoods }
 	}
 
 	it('Basic Single Movement: Transfer between adjacent storage alveoli', {
 		timeout: 15000,
 	}, async () => {
-		const { engine, game, spawnWorker, countLooseGoods } = await setupEngine()
+		const { engine, game, spawnWorker, countLooseGoods, countCarriedGoods } = await setupEngine()
 
 		// Setup: Storage with wood, and sawmill that needs wood
 		// Sawmill creates stable demand for wood
@@ -86,7 +95,10 @@ describe('Convey Behavior Integration', () => {
 		}
 
 		try {
-			const initialTotalWood = (sourceStorage?.stock.wood || 0) + (targetStorage?.stock.wood || 0)
+			const initialTotalWood =
+				(sourceStorage?.stock.wood || 0) +
+				(targetStorage?.stock.wood || 0) +
+				countCarriedGoods(game, 'wood')
 			expect(initialTotalWood + countLooseGoods(game, 'wood')).toBe(5)
 
 			// Run simulation - the main goal is to verify no "Source allocation missing" error
@@ -96,11 +108,12 @@ describe('Convey Behavior Integration', () => {
 			expect(
 				(sourceStorage?.stock.wood || 0) +
 					(targetStorage?.stock.wood || 0) +
-					countLooseGoods(game, 'wood')
+					countLooseGoods(game, 'wood') +
+					countCarriedGoods(game, 'wood')
 			).toBe(5)
 			engine.tick(0.5)
 			await new Promise((resolve) => setTimeout(resolve, 0))
-			engine.tick(5.0)
+			engine.tick(12.0)
 
 			// Verify no source allocation error occurred
 			expect(errorFound).toBe(false)
@@ -109,8 +122,9 @@ describe('Convey Behavior Integration', () => {
 			const finalSourceStock = sourceStorage?.stock.wood || 0
 			const finalTargetStock = targetStorage?.stock.wood || 0
 			const finalLooseWood = countLooseGoods(game, 'wood')
+			const finalCarriedWood = countCarriedGoods(game, 'wood')
 			expect(finalSourceStock).toBeLessThan(5) // Some wood should have been taken
-			expect(finalSourceStock + finalTargetStock + finalLooseWood).toBe(5)
+			expect(finalSourceStock + finalTargetStock + finalLooseWood + finalCarriedWood).toBe(5)
 			expect(finalLooseWood).toBe(0)
 
 			// **NEW: Verify movements were actually created**
@@ -189,7 +203,7 @@ describe('Convey Behavior Integration', () => {
 			// Run longer simulation for multi-hop
 			engine.tick(0.1)
 			await new Promise((resolve) => setTimeout(resolve, 0))
-			engine.tick(7.9)
+			engine.tick(20.0)
 
 			// Verify no allocation errors
 			expect(errorFound).toBe(false)

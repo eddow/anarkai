@@ -2,14 +2,15 @@ import { Eventful, reactive, unreactive } from 'mutts'
 import { Alveolus } from 'ssh/board'
 import { HexBoard } from 'ssh/board/board'
 import { Deposit, UnBuiltLand } from 'ssh/board/content/unbuilt-land'
-import { Tile } from 'ssh/board/tile'
+import { Tile, type TileTerrainState } from 'ssh/board/tile'
 import type { Zone } from 'ssh/board/zone'
 import { assert } from 'ssh/debug'
 import {
-	type GameGenerationConfig,
 	GameGenerator,
 	type GeneratedCharacterData,
 	type GeneratedTileData,
+	PopulationGenerator,
+	type TerrainTerraformPatch,
 } from 'ssh/generation'
 import { configuration } from 'ssh/globals'
 import { AlveolusConfigurationManager, alveolusClass, Hive } from 'ssh/hive'
@@ -20,7 +21,10 @@ import type { GameRenderer, InputAdapter } from 'ssh/types/engine'
 import { axial } from 'ssh/utils/axial'
 import { SimulationLoop } from 'ssh/utils/loop'
 import { LCG } from 'ssh/utils/numbers'
+import type { AxialCoord } from 'ssh/utils'
+import { toAxialCoord } from 'ssh/utils/position'
 import * as gameContent from '../../../assets/game-content'
+import { GameplayFrontierController } from './gameplay-frontier'
 import type { HittableGameObject, InteractiveGameObject } from './object'
 
 try {
@@ -58,14 +62,13 @@ export type GameEvents = {
 }
 unreactive(Eventful)
 export type GameGenerationOptions = {
-	boardSize: number
 	terrainSeed: number
 	characterCount: number
 	characterRadius?: number
 }
 
 export interface AlveolusPatch {
-	coord: [number, number]
+	coord: readonly [number, number]
 	goods?: Partial<Record<GoodType, number>>
 	alveolus: AlveolusType
 	/** Configuration reference and individual config for this alveolus */
@@ -76,33 +79,40 @@ export interface AlveolusPatch {
 }
 
 export interface TilePatch {
-	coord: [number, number]
+	coord: readonly [number, number]
 	deposit?: {
 		type: DepositType
+		name?: string
 		amount: number
 	}
 	terrain?: TerrainType
+	height?: number
+	temperature?: number
+	humidity?: number
+	sediment?: number
+	waterTable?: number
 }
 export interface GamePatches {
-	tiles?: Array<TilePatch>
-	hives?: Array<{
+	tiles?: ReadonlyArray<TilePatch>
+	hives?: ReadonlyArray<{
 		name?: string
-		alveoli: Array<AlveolusPatch>
+		alveoli: ReadonlyArray<AlveolusPatch>
 	}>
-	looseGoods?: Array<{
+	looseGoods?: ReadonlyArray<{
 		goodType: GoodType
 		position: { q: number; r: number }
 	}>
 	zones?: {
-		harvest?: Array<[number, number]>
-		residential?: Array<[number, number]>
+		harvest?: ReadonlyArray<readonly [number, number]>
+		residential?: ReadonlyArray<readonly [number, number]>
 	}
-	projects?: Record<string, Array<[number, number]>>
+	projects?: Record<string, ReadonlyArray<readonly [number, number]>>
 }
 
 export interface SaveState extends GamePatches {
 	population: any[]
 	generationOptions: GameGenerationOptions
+	streamedFrontier?: Array<[number, number]>
 	/** Global named configurations */
 	namedConfigurations?: Record<AlveolusType, Record<string, Ssh.AlveolusConfiguration>>
 	/** Per-hive configurations by alveolus type */
@@ -112,6 +122,35 @@ export interface SaveState extends GamePatches {
 export class Game extends Eventful<GameEvents> {
 	public get name() {
 		return 'GameX'
+	}
+	public get terrainSeed() {
+		return this.generationOptions.terrainSeed
+	}
+	public get terrainOverrides(): ReadonlyArray<TerrainTerraformPatch> {
+		return this.terrainTerraforming
+	}
+	public upsertTerrainOverride(
+		coord: AxialCoord,
+		override: Omit<TerrainTerraformPatch, 'coord'>
+	): void {
+		const next = [...this.terrainTerraforming]
+		const index = next.findIndex((entry) => entry.coord[0] === coord.q && entry.coord[1] === coord.r)
+		const merged: TerrainTerraformPatch = {
+			...(index >= 0 ? next[index] : { coord: [coord.q, coord.r] as [number, number] }),
+			coord: [coord.q, coord.r],
+			...override,
+		}
+		if (index >= 0) next[index] = merged
+		else next.push(merged)
+		this.terrainTerraforming = next
+		;(
+			this.renderer as
+				| {
+						invalidateTerrainHard?: () => void
+						invalidateTerrain?: () => void
+				  }
+				| undefined
+		)?.invalidateTerrainHard?.() ?? (this.renderer as { invalidateTerrain?: () => void } | undefined)?.invalidateTerrain?.()
 	}
 	readonly random: ReturnType<typeof LCG> = LCG('gameSeed', 0)
 	public lcg(seed: string | number) {
@@ -130,6 +169,15 @@ export class Game extends Eventful<GameEvents> {
 	public readonly generator: GameGenerator
 	public readonly ticker: SimulationLoop
 	private tickedObjects = new Set<{ update(deltaSeconds: number): void }>()
+	private terrainTerraforming: TerrainTerraformPatch[] = []
+	private readonly bootstrapGameplayCoords = new Set<string>()
+	private readonly materializedGameplayCoords = new Map<string, AxialCoord>()
+	private readonly gameplayFrontier = new GameplayFrontierController({
+		hasMaterializedTile: (coord) => this.hasMaterializedGameplayTile(coord),
+		materialize: async (coords) => {
+			await this.materializeGameplayTilesAsync(coords)
+		},
+	})
 	public readonly clock = reactive({
 		virtualTime: 0,
 	})
@@ -172,7 +220,7 @@ export class Game extends Eventful<GameEvents> {
 		this.tickedObjects.delete(object)
 	}
 
-	private tickerCallback = (timer: SimulationLoop) => {
+	public tickerCallback = (timer: SimulationLoop) => {
 		const deltaSeconds =
 			((rootSpeed * timer.elapsedMS) / 1000) * timeMultiplier[configuration.timeControl]
 		if (deltaSeconds > 1) return // more than 1 second = paused on debugging, skip passing time when debugger paused
@@ -187,7 +235,6 @@ export class Game extends Eventful<GameEvents> {
 
 	constructor(
 		private readonly generationOptions: GameGenerationOptions = {
-			boardSize: 12,
 			terrainSeed: 1234,
 			characterCount: 1,
 			characterRadius: 200,
@@ -202,7 +249,6 @@ export class Game extends Eventful<GameEvents> {
 			this.rendererReadyResolver = resolve
 		})
 
-		// Create hex board
 		this.hex = new HexBoard(this)
 
 		// Create population singleton
@@ -210,13 +256,13 @@ export class Game extends Eventful<GameEvents> {
 
 		this.generator = new GameGenerator()
 
-		this.loaded = this.loaded.then(() => {
+		this.loaded = this.loaded.then(async () => {
 			this.HiveClass = Hive
 			// Initialize base RNG with terrainSeed so everything is reproducible
 			;(this as any).rng = LCG('gameSeed', this.generationOptions.terrainSeed)
 			// Expose RNG to global for script helpers
 			;(globalThis as any).__GAME_RANDOM__ = (max?: number, min?: number) => this.random(max, min)
-			this.generate(this.generationOptions, this.patches)
+			await this.generateAsync(this.generationOptions, this.patches)
 			try {
 				this.emit('gameStart')
 			} catch (e) {
@@ -239,14 +285,207 @@ export class Game extends Eventful<GameEvents> {
 	public simulateObjectClick(object: InteractiveGameObject, event: MouseEvent = {} as any) {
 		this.emit('objectClick', event, object)
 	}
-	generate(config: GameGenerationConfig, patches: GamePatches = {}, saveState?: SaveState) {
-		try {
-			// Generate data from the generator
-			const result = this.generator.generate(config)
 
-			// Load the generated data into the game
-			this.loadGeneratedBoard(result.boardData)
-			this.loadGeneratedPopulation(result.populationData)
+	private addBootstrapStateCoords(
+		coords: AxialCoord[],
+		patches: GamePatches | SaveState
+	) {
+		const streamedFrontier = 'streamedFrontier' in patches ? patches.streamedFrontier : undefined
+		for (const coord of streamedFrontier ?? []) {
+			coords.push({ q: coord[0], r: coord[1] })
+		}
+		const population = 'population' in patches ? patches.population : undefined
+		for (const character of population ?? []) {
+			const coord = toAxialCoord(character.position)
+			if (coord) coords.push(axial.round(coord))
+		}
+	}
+
+	private bootstrapAnchor(patches: GamePatches | SaveState): AxialCoord {
+		const coords: AxialCoord[] = []
+		for (const tile of patches.tiles ?? []) coords.push({ q: tile.coord[0], r: tile.coord[1] })
+		for (const hive of patches.hives ?? []) {
+			for (const alveolus of hive.alveoli) coords.push({ q: alveolus.coord[0], r: alveolus.coord[1] })
+		}
+		for (const coord of patches.zones?.harvest ?? []) coords.push({ q: coord[0], r: coord[1] })
+		for (const coord of patches.zones?.residential ?? []) coords.push({ q: coord[0], r: coord[1] })
+		for (const coordsForProject of Object.values(patches.projects ?? {})) {
+			for (const coord of coordsForProject) coords.push({ q: coord[0], r: coord[1] })
+		}
+		for (const good of patches.looseGoods ?? []) coords.push(axial.round(good.position))
+		this.addBootstrapStateCoords(coords, patches)
+		if (coords.length === 0) return { q: 0, r: 0 }
+
+		const q = Math.round(coords.reduce((sum, coord) => sum + coord.q, 0) / coords.length)
+		const r = Math.round(coords.reduce((sum, coord) => sum + coord.r, 0) / coords.length)
+		return { q, r }
+	}
+
+	private collectBootstrapCoords(
+		config: GameGenerationOptions,
+		patches: GamePatches | SaveState
+	): { coords: AxialCoord[]; anchor: AxialCoord } {
+		const anchor = this.bootstrapAnchor(patches)
+		const coords = new Map<string, AxialCoord>()
+		const addCoord = (coord: AxialCoord) => {
+			coords.set(`${coord.q},${coord.r}`, coord)
+		}
+		const addPatchCoord = (coord: readonly [number, number]) => {
+			addCoord({ q: coord[0], r: coord[1] })
+		}
+
+		for (const tile of patches.tiles ?? []) addPatchCoord(tile.coord)
+		for (const hive of patches.hives ?? []) {
+			for (const alveolus of hive.alveoli) addPatchCoord(alveolus.coord)
+		}
+		for (const coord of patches.zones?.harvest ?? []) addPatchCoord(coord)
+		for (const coord of patches.zones?.residential ?? []) addPatchCoord(coord)
+		for (const coordsForProject of Object.values(patches.projects ?? {})) {
+			for (const coord of coordsForProject) addPatchCoord(coord)
+		}
+		for (const good of patches.looseGoods ?? []) addCoord(axial.round(good.position))
+		const streamedFrontier = 'streamedFrontier' in patches ? patches.streamedFrontier : undefined
+		for (const coord of streamedFrontier ?? []) addPatchCoord(coord)
+		const population = 'population' in patches ? patches.population : undefined
+		for (const character of population ?? []) {
+			const coord = toAxialCoord(character.position)
+			if (coord) addCoord(axial.round(coord))
+		}
+
+		const spawnRadius = Math.max(2, config.characterRadius ?? 5)
+		if (config.characterCount > 0 || coords.size > 0) {
+			for (const coord of axial.allTiles(anchor, spawnRadius)) addCoord(coord)
+		}
+
+		return { coords: [...coords.values()], anchor }
+	}
+
+	private collectCoreBootstrapCoords(
+		config: GameGenerationOptions,
+		patches: GamePatches
+	): AxialCoord[] {
+		return this.collectBootstrapCoords(config, patches).coords
+	}
+
+	private generateInitialWorld(config: GameGenerationOptions, patches: GamePatches) {
+		this.bootstrapGameplayCoords.clear()
+		for (const coord of this.collectCoreBootstrapCoords(config, patches)) {
+			this.bootstrapGameplayCoords.add(axial.key(coord))
+		}
+		const { coords, anchor } = this.collectBootstrapCoords(config, patches)
+		if (coords.length > 0) {
+			const boardData = this.generator.generateRegion(config, coords, this.terrainTerraforming)
+			this.loadGeneratedBoard(boardData)
+			if (config.characterCount > 0) {
+				const populationData = new PopulationGenerator().generateCharacters(
+					{
+						characterCount: config.characterCount,
+						radius: config.characterRadius,
+						origin: anchor,
+					},
+					boardData
+				)
+				this.loadGeneratedPopulation(populationData)
+			}
+		}
+	}
+
+	private async generateInitialWorldAsync(config: GameGenerationOptions, patches: GamePatches) {
+		this.bootstrapGameplayCoords.clear()
+		for (const coord of this.collectCoreBootstrapCoords(config, patches)) {
+			this.bootstrapGameplayCoords.add(axial.key(coord))
+		}
+		const { coords, anchor } = this.collectBootstrapCoords(config, patches)
+		if (coords.length > 0) {
+			const boardData = await this.generator.generateRegionAsync(config, coords, this.terrainTerraforming)
+			this.loadGeneratedBoard(boardData)
+			if (config.characterCount > 0) {
+				const populationData = new PopulationGenerator().generateCharacters(
+					{
+						characterCount: config.characterCount,
+						radius: config.characterRadius,
+						origin: anchor,
+					},
+					boardData
+				)
+				this.loadGeneratedPopulation(populationData)
+			}
+		}
+	}
+
+	private hasMaterializedGameplayTile(coord: AxialCoord) {
+		return this.hex.getTileContent(coord) !== undefined
+	}
+
+	private materializeGameplayTiles(coords: Iterable<AxialCoord>) {
+		const missingCoords: AxialCoord[] = []
+		for (const coord of coords) {
+			if (this.hasMaterializedGameplayTile(coord)) continue
+			missingCoords.push(coord)
+		}
+		if (missingCoords.length === 0) return
+
+		const boardData = this.generator.generateRegion(
+			this.generationOptions,
+			missingCoords,
+			this.terrainTerraforming
+		)
+		this.loadGeneratedBoard(boardData)
+	}
+
+	private async materializeGameplayTilesAsync(coords: Iterable<AxialCoord>) {
+		const missingCoords: AxialCoord[] = []
+		for (const coord of coords) {
+			if (this.hasMaterializedGameplayTile(coord)) continue
+			missingCoords.push(coord)
+		}
+		if (missingCoords.length === 0) return
+
+		const boardData = await this.generator.generateRegionAsync(
+			this.generationOptions,
+			missingCoords,
+			this.terrainTerraforming
+		)
+		this.loadGeneratedBoard(boardData)
+	}
+
+	public requestGameplayFrontier(
+		center: AxialCoord,
+		radius: number,
+		options: { maxBatchSize?: number } = {}
+	): Promise<boolean> {
+		return this.gameplayFrontier.request({
+			center,
+			radius,
+			maxBatchSize: options.maxBatchSize,
+		})
+	}
+
+	public ensureGeneratedTiles(coords: Iterable<AxialCoord>) {
+		this.materializeGameplayTiles(coords)
+	}
+	async ensureGeneratedTilesAsync(coords: Iterable<AxialCoord>) {
+		await this.materializeGameplayTilesAsync(coords)
+	}
+	generate(config: GameGenerationOptions, patches: GamePatches = {}, saveState?: SaveState) {
+		try {
+			const terraforming: TerrainTerraformPatch[] = (patches.tiles ?? []).filter(
+				(p) =>
+					p.height !== undefined ||
+					p.temperature !== undefined ||
+					p.humidity !== undefined ||
+					p.sediment !== undefined ||
+					p.waterTable !== undefined ||
+					p.terrain !== undefined
+			).map((patch) => ({
+				...patch,
+				coord: [patch.coord[0], patch.coord[1]] as [number, number],
+			}))
+			this.terrainTerraforming = terraforming
+			this.bootstrapGameplayCoords.clear()
+			this.materializedGameplayCoords.clear()
+
+			this.generateInitialWorld(config, patches)
 			// Apply patches if any
 			if (patches.tiles?.length) this.applyTilePatches(patches.tiles)
 			if (patches.hives?.length)
@@ -258,6 +497,35 @@ export class Game extends Eventful<GameEvents> {
 			console.error('Generation failed:', error)
 		}
 	}
+	async generateAsync(config: GameGenerationOptions, patches: GamePatches = {}, saveState?: SaveState) {
+		try {
+			const terraforming: TerrainTerraformPatch[] = (patches.tiles ?? []).filter(
+				(p) =>
+					p.height !== undefined ||
+					p.temperature !== undefined ||
+					p.humidity !== undefined ||
+					p.sediment !== undefined ||
+					p.waterTable !== undefined ||
+					p.terrain !== undefined
+			).map((patch) => ({
+				...patch,
+				coord: [patch.coord[0], patch.coord[1]] as [number, number],
+			}))
+			this.terrainTerraforming = terraforming
+			this.bootstrapGameplayCoords.clear()
+			this.materializedGameplayCoords.clear()
+
+			await this.generateInitialWorldAsync(config, patches)
+			if (patches.tiles?.length) this.applyTilePatches(patches.tiles)
+			if (patches.hives?.length)
+				this.applyHivesPatches(patches.hives, saveState?.hiveConfigurations)
+			if (patches.looseGoods?.length) this.applyLooseGoodsPatches(patches.looseGoods)
+			if (patches.zones) this.applyZonePatches(patches.zones)
+			if (patches.projects) this.applyProjectPatches(patches.projects)
+		} catch (error) {
+			console.error('Async generation failed:', error)
+		}
+	}
 	clickObject(event: any, object: InteractiveGameObject) {
 		this.emit('objectClick', event, object)
 	}
@@ -267,7 +535,14 @@ export class Game extends Eventful<GameEvents> {
 	 */
 	private loadGeneratedBoard(tileData: GeneratedTileData[]): void {
 		for (const tileInfo of tileData) {
-			const tile = new Tile(this.hex, tileInfo.coord)
+			this.materializedGameplayCoords.set(axial.key(tileInfo.coord), {
+				q: tileInfo.coord.q,
+				r: tileInfo.coord.r,
+			})
+			if (this.hex.getTileContent(tileInfo.coord)) continue
+			const tile = this.hex.getTile(tileInfo.coord) ?? new Tile(this.hex, tileInfo.coord)
+			tile.baseTerrain = tileInfo.terrain
+			tile.terrainHeight = tileInfo.height
 
 			// Create deposit if present
 			let deposit: Deposit | undefined
@@ -281,10 +556,9 @@ export class Game extends Eventful<GameEvents> {
 			}
 
 			const land = new UnBuiltLand(tile, tileInfo.terrain, deposit)
-			// As generated state
-			tile.asGenerated = true
-
 			this.hex.setTileContent(tile, land)
+			// Mark as generated after the content attach path, which otherwise dirties the tile.
+			tile.asGenerated = true
 
 			// Create initial goods at equilibrium levels
 			for (const [goodType, amount] of Object.entries(tileInfo.goods)) {
@@ -314,6 +588,45 @@ export class Game extends Eventful<GameEvents> {
 			const coord = { q: p.coord[0], r: p.coord[1] }
 			const tile = this.hex.getTile(coord)
 			if (!tile) continue
+			const terrainState: TileTerrainState = { ...(tile.terrainState ?? {}) }
+			let hasTerrainState = false
+			if (p.terrain !== undefined) {
+				tile.baseTerrain = p.terrain
+				terrainState.terrain = p.terrain
+				hasTerrainState = true
+			}
+			if (p.height !== undefined) {
+				tile.terrainHeight = p.height
+				terrainState.height = p.height
+				hasTerrainState = true
+			}
+			if (p.temperature !== undefined) {
+				terrainState.temperature = p.temperature
+				hasTerrainState = true
+			}
+			if (p.humidity !== undefined) {
+				terrainState.humidity = p.humidity
+				hasTerrainState = true
+			}
+			if (p.sediment !== undefined) {
+				terrainState.sediment = p.sediment
+				hasTerrainState = true
+			}
+			if (p.waterTable !== undefined) {
+				terrainState.waterTable = p.waterTable
+				hasTerrainState = true
+			}
+			if (hasTerrainState) {
+				tile.terrainState = terrainState
+				this.upsertTerrainOverride(coord, {
+					terrain: terrainState.terrain,
+					height: terrainState.height,
+					temperature: terrainState.temperature,
+					humidity: terrainState.humidity,
+					sediment: terrainState.sediment,
+					waterTable: terrainState.waterTable,
+				})
+			}
 
 			// If missing content and patch defines terrain, create UnBuiltLand
 			if (!tile.content && p.terrain) {
@@ -347,7 +660,17 @@ export class Game extends Eventful<GameEvents> {
 						if (!currentContent.deposit.name) (currentContent.deposit as any).name = p.deposit.type
 					}
 				}
-				tile.asGenerated = false
+				if (
+					p.terrain !== undefined ||
+					p.deposit !== undefined ||
+					p.height !== undefined ||
+					p.temperature !== undefined ||
+					p.humidity !== undefined ||
+					p.sediment !== undefined ||
+					p.waterTable !== undefined
+				) {
+					tile.asGenerated = false
+				}
 			}
 		}
 	}
@@ -370,6 +693,12 @@ export class Game extends Eventful<GameEvents> {
 				const coord = { q: a.coord[0], r: a.coord[1] }
 				const tile = this.hex.getTile(coord)
 				if (!tile) continue
+				tile.baseTerrain = 'concrete'
+				tile.terrainState = {
+					...(tile.terrainState ?? {}),
+					terrain: 'concrete',
+				}
+				this.upsertTerrainOverride(coord, { terrain: 'concrete' })
 				const AlveolusCtor = alveolusClass[a.alveolus as keyof typeof alveolusClass]
 				if (!AlveolusCtor) continue
 				const alv = new AlveolusCtor(tile)
@@ -431,25 +760,42 @@ export class Game extends Eventful<GameEvents> {
 	public saveGameData(): SaveState {
 		const tiles: Array<TilePatch> = []
 		const hives = new Map<Hive, Array<AlveolusPatch>>()
-		const looseGoodsPatches: GamePatches['looseGoods'] = []
-		const zones: GamePatches['zones'] = {
+		const looseGoodsPatches: Array<{ goodType: GoodType; position: { q: number; r: number } }> = []
+		const streamedFrontier = [...this.materializedGameplayCoords.values()]
+			.filter((coord) => !this.bootstrapGameplayCoords.has(axial.key(coord)))
+			.filter((coord) => this.hex.getTile(coord)?.asGenerated)
+			.map((coord) => [coord.q, coord.r] as [number, number])
+		const zones: { harvest: Array<[number, number]>; residential: Array<[number, number]> } = {
 			harvest: [],
 			residential: [],
 		}
-		const projects: GamePatches['projects'] = {}
+		const projects: Record<string, Array<[number, number]>> = {}
 
 		// Enumerate using hex board contents map by sampling existing tiles
-		for (let q = -this.hex.boardSize; q <= this.hex.boardSize; q++) {
-			for (let r = -this.hex.boardSize; r <= this.hex.boardSize; r++) {
-				const coord = { q, r }
-				const tile = this.hex.getTile(coord)
-				if (!tile || tile.asGenerated) continue
+		for (const tile of this.hex.tiles) {
+			const coord = toAxialCoord(tile.position)
+			if (!coord) continue
+			const { q, r } = coord
+			const zone = this.hex.zoneManager.getZone(coord)
+			if (zone === 'harvest') {
+				zones.harvest!.push([q, r])
+			} else if (zone === 'residential') {
+				zones.residential!.push([q, r])
+			}
+			if (tile.asGenerated) continue
+				const terrainState = tile.terrainState
 				const content = tile.content
-				if (!content) continue
+				if (!content && !terrainState) continue
 				// Serialize minimal content state
 				if (content instanceof UnBuiltLand) {
 					tiles.push({
 						coord: [q, r],
+						terrain: terrainState?.terrain ?? content.terrain,
+						height: terrainState?.height ?? tile.terrainHeight,
+						temperature: terrainState?.temperature,
+						humidity: terrainState?.humidity,
+						sediment: terrainState?.sediment,
+						waterTable: terrainState?.waterTable,
 						deposit: content.deposit
 							? {
 									type:
@@ -467,7 +813,21 @@ export class Game extends Eventful<GameEvents> {
 						}
 						projects[content.project].push([q, r])
 					}
-				} else if (content instanceof Alveolus) {
+				}
+
+				if (terrainState && !(content instanceof UnBuiltLand)) {
+					tiles.push({
+						coord: [q, r],
+						terrain: terrainState.terrain,
+						height: terrainState.height ?? tile.terrainHeight,
+						temperature: terrainState.temperature,
+						humidity: terrainState.humidity,
+						sediment: terrainState.sediment,
+						waterTable: terrainState.waterTable,
+					})
+				}
+
+				if (content instanceof Alveolus) {
 					// Assume alveolus-like content decorated by GcClassed with resourceName accessible via .name
 					const alveolusName = content.name
 					if (!hives.has(content.hive)) hives.set(content.hive, [])
@@ -485,15 +845,6 @@ export class Game extends Eventful<GameEvents> {
 					}
 					hives.get(content.hive)!.push(patch)
 				}
-
-				// Save zone information
-				const zone = this.hex.zoneManager.getZone(coord)
-				if (zone === 'harvest') {
-					zones.harvest!.push([q, r])
-				} else if (zone === 'residential') {
-					zones.residential!.push([q, r])
-				}
-			}
 		}
 
 		// Save all looseGoods with their exact positions
@@ -525,6 +876,7 @@ export class Game extends Eventful<GameEvents> {
 				alveoli,
 			})),
 			looseGoods: looseGoodsPatches,
+			streamedFrontier,
 			zones,
 			projects,
 			population: this.population.serialize(),
@@ -534,7 +886,7 @@ export class Game extends Eventful<GameEvents> {
 		}
 	}
 
-	public loadGameData(state: SaveState) {
+	public async loadGameData(state: SaveState) {
 		// 1. Restore named configurations first (before alveoli are created)
 		if (state.namedConfigurations) {
 			this.configurationManager.deserialize(state.namedConfigurations)
@@ -545,10 +897,12 @@ export class Game extends Eventful<GameEvents> {
 		// TODO: Restore RNG state if necessary, or just rely on seed
 
 		this.hex.reset()
+		this.bootstrapGameplayCoords.clear()
+		this.materializedGameplayCoords.clear()
 		this.population.deserialize([])
 
 		// 3. Generate and apply patches (passes hive configs for restoration)
-		this.generate(state.generationOptions, state, state)
+		await this.generateAsync(state.generationOptions, state, state)
 
 		// 4. Load Population (after board is ready)
 		if (state.population) {

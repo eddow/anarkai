@@ -32,7 +32,7 @@ describe('Stalled Exchange Watchdog', () => {
 			},
 		}
 
-		const engine = new TestEngine({ boardSize: 12, terrainSeed: 1234, characterCount: 0 })
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
 		await engine.init()
 
 		try {
@@ -69,7 +69,13 @@ describe('Stalled Exchange Watchdog', () => {
 			firstMovement.allocations.target.cancel()
 			hive.movingGoods.clear()
 
-			await new Promise((resolve) => setTimeout(resolve, 80))
+			// Drive the stalled-exchange scan deterministically (interval timing can be flaky in CI).
+			const scan = () =>
+				(hive as unknown as { scanForStalledExchanges(): void }).scanForStalledExchanges()
+			for (let i = 0; i < 6; i++) {
+				await new Promise((resolve) => setTimeout(resolve, 25))
+				scan()
+			}
 			expect(warnings.some((warning) => warning.includes('[WATCHDOG] STALLED EXCHANGE'))).toBe(true)
 		} finally {
 			traces.advertising = originalAdvertisingTrace
@@ -83,7 +89,7 @@ describe('Stalled Exchange Watchdog', () => {
 		options.stalledMovementScanIntervalMs = 20
 		options.stalledMovementSettleMs = 20
 
-		const engine = new TestEngine({ boardSize: 12, terrainSeed: 1234, characterCount: 0 })
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
 		await engine.init()
 
 		try {
@@ -126,7 +132,12 @@ describe('Stalled Exchange Watchdog', () => {
 			}
 			expect(woodMovements).toBe(0)
 
-			await new Promise((resolve) => setTimeout(resolve, 80))
+			const scan = () =>
+				(hive as unknown as { scanForStalledExchanges(): void }).scanForStalledExchanges()
+			for (let i = 0; i < 6; i++) {
+				await new Promise((resolve) => setTimeout(resolve, 25))
+				scan()
+			}
 			await new Promise((resolve) => setTimeout(resolve, 0))
 
 			woodMovements = 0

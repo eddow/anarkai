@@ -3,6 +3,7 @@ import { GameObject, withInteractive } from 'ssh/game/object'
 import { Hive } from 'ssh/hive'
 import { gameIsaTypes } from 'ssh/npcs/utils'
 import type { Character } from 'ssh/population/character'
+import type { TerrainType } from 'ssh/types'
 import type { AlveolusType, Job } from 'ssh/types/base'
 import { type AxialCoord, axial, type NeighborInfo } from 'ssh/utils'
 import { axialDistance, type Position, type Positioned, toAxialCoord } from 'ssh/utils/position'
@@ -14,10 +15,23 @@ import { UnBuiltLand } from './content/unbuilt-land'
 import type { LooseGood } from './looseGoods'
 import type { Zone } from './zone'
 
+export interface TileTerrainState {
+	terrain?: TerrainType
+	height?: number
+	temperature?: number
+	humidity?: number
+	sediment?: number
+	waterTable?: number
+}
+
 @reactive // TODO: this might need to be unreactive
 export class Tile extends withInteractive(GameObject) {
 	// True when the tile is exactly as produced by generation
 	public asGenerated: boolean = false
+	// Raw terrain height from engine-terrain, optionally patched by terraforming.
+	public terrainHeight?: number
+	public baseTerrain?: TerrainType
+	public terrainState?: TileTerrainState
 
 	get content(): TileContent | undefined {
 		return this.board.getTileContent(toAxialCoord(this.position))

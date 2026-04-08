@@ -3,7 +3,7 @@ import type { ExecutionContext } from 'npc-script'
 import { assert } from 'ssh/debug'
 import type { Game, GameObject, TickedGameObject, withTicked } from 'ssh/game'
 import { getGameScript, ScriptExecution } from './scripts'
-import { ASingleStep, PonderingStep } from './steps'
+import { ASingleStep, PonderingStep, stepPassesFullRemainingOnComplete } from './steps'
 
 function currentStepExecutor(target: { stepExecutor?: ASingleStep }): ASingleStep | undefined {
 	return target.stepExecutor
@@ -129,7 +129,11 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 			while (remaining !== undefined && this.stepExecutor) {
 				const newRemaining = this.stepExecutor.tick(remaining)
 				if (typeof newRemaining === 'number' && !Number.isFinite(newRemaining)) debugger
-				if (newRemaining === remaining && this.stepExecutor)
+				if (
+					newRemaining === remaining &&
+					this.stepExecutor &&
+					!stepPassesFullRemainingOnComplete(this.stepExecutor.constructor)
+				)
 					uselessStepExecutor = this.stepExecutor.constructor
 				remaining = newRemaining
 				if (remaining !== undefined) {

@@ -141,7 +141,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		return 1
 	}
 	get background() {
-		return 'terrain.concrete'
+		return `terrain.${this.tile.terrainState?.terrain ?? this.tile.baseTerrain ?? 'grass'}`
 	}
 	get gates(): AlveolusGate[] {
 		return this.tile.surroundings
@@ -412,7 +412,10 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	// Not yet called (bulldozed alveolus)
 	deconstruct() {
 		for (const gate of this.gates) gate.border.content = undefined
-		this.tile.content = new UnBuiltLand(this.tile, 'concrete')
+		this.tile.content = new UnBuiltLand(
+			this.tile,
+			this.tile.terrainState?.terrain ?? this.tile.baseTerrain ?? 'grass'
+		)
 		this.hive.removeAlveolus(this)
 	}
 

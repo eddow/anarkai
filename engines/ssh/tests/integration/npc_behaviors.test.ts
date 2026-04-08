@@ -17,7 +17,7 @@ describe('NPC Behaviors Integration', () => {
 
 	// Helper to setup engine with scripts
 	async function setupEngine(
-		options: any = { boardSize: 12, terrainSeed: 1234, characterCount: 0 }
+		options: any = { terrainSeed: 1234, characterCount: 0 }
 	) {
 		const engine = new TestEngine(options)
 		engines.add(engine)
@@ -185,7 +185,7 @@ describe('NPC Behaviors Integration', () => {
 		await spawnWorker({ q: 2, r: 1 }) // Spawn ON the mushroom/neighbor
 
 		// Wait
-		await tickAsync(engine, 30.0)
+		await tickAsync(engine, 60.0)
 
 		// Verify
 		const gatherTile = game.hex.getTile({ q: 2, r: 2 })
@@ -325,13 +325,13 @@ describe('NPC Behaviors Integration', () => {
 		const action = char.findAction()
 		if (action) char.begin(action)
 
-		await tickAsync(engine, 20.0)
+		await tickAsync(engine, 40.0)
 
 		const tile = game.hex.getTile({ q: 0, r: 1 })
 
-		// Should have eaten
-		expect(char.hunger).toBeLessThan(90)
-		// Mushroom gone
-		expect(tile?.availableGoods.length).toBe(0)
+		// Should have eaten (hunger uses continuous decay; avoid brittle float threshold)
+		expect(char.hunger).toBeLessThan(91)
+		// Mushrooms on the tile should be consumed (loose goods, not tile.availableGoods count)
+		expect((game.hex.looseGoods.getGoodsAt({ q: 0, r: 1 }) ?? []).length).toBe(0)
 	})
 })

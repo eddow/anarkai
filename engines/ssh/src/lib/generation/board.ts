@@ -1,8 +1,9 @@
 /**
- * Board generation logic
- * Extracted from board/index.ts for better organization
+ * Board generation logic — consumes a TerrainSnapshot from engine-terrain
+ * and produces ssh-native GeneratedTileData with deposits and goods.
  */
 
+import type { BiomeHint, TerrainSnapshot } from 'engine-terrain'
 import { Deposit } from 'ssh/board/content/unbuilt-land'
 import type { DepositType, TerrainType } from 'ssh/types'
 import type { AxialCoord } from 'ssh/utils'
@@ -12,16 +13,11 @@ import {
 	goods as goodsCatalog,
 	terrain as terrainDetails,
 } from '../../../assets/game-content'
-import { TerrainGenerator } from './terrain'
-
-export interface BoardGenerationConfig {
-	boardSize: number
-	terrainSeed: number
-}
 
 export interface GeneratedTileData {
 	coord: AxialCoord
 	terrain: TerrainType
+	height: number
 	deposit?: GeneratedDepositData
 	goods: Record<string, number>
 	walkTime: number
@@ -32,30 +28,38 @@ export interface GeneratedDepositData {
 	amount: number
 }
 
+const biomeToTerrain: Record<BiomeHint, TerrainType> = {
+	ocean: 'water',
+	lake: 'water',
+	'river-bank': 'grass',
+	wetland: 'grass',
+	sand: 'sand',
+	grass: 'grass',
+	forest: 'forest',
+	rocky: 'rocky',
+	snow: 'snow',
+}
+
 export class BoardGenerator {
-	private terrainGenerator: TerrainGenerator
-
-	constructor(private config: BoardGenerationConfig) {
-		this.terrainGenerator = new TerrainGenerator({
-			seed: config.terrainSeed,
-		})
-	}
-
-	generateBoard(): GeneratedTileData[] {
+	generateBoard(snapshot: TerrainSnapshot): GeneratedTileData[] {
 		const tiles: GeneratedTileData[] = []
 
-		for (const coord of axial.enum(this.config.boardSize - 1)) {
+		for (const [key, tileField] of snapshot.tiles) {
+			const coord = axial.coord(key)
+			const biome = snapshot.biomes.get(key)!
+			const terrain = biomeToTerrain[biome]
+
 			const seed = this.coordSeed(coord)
-			const terrain = this.terrainGenerator.generateTerrain(coord)
 			const deposit = this.generateRandomDeposit(seed, terrain)
 			const goods = this.generateRandomGoods(seed, terrain, deposit)
 
 			tiles.push({
 				coord,
 				terrain,
+				height: tileField.height,
 				deposit,
 				goods,
-				walkTime: 3, // Default walk time for UnBuiltLand
+				walkTime: 3,
 			})
 		}
 
@@ -68,38 +72,25 @@ export class BoardGenerator {
 		deposit: GeneratedDepositData | undefined
 	): Record<string, number> {
 		const goods: Record<string, number> = {}
-
-		// Create a simple RNG for this generation
 		const rnd = this.createRNG(`goods-${seed}`)
 
 		if (deposit) {
-			// Generate equilibrium goods based on deposit type and amount
 			const depositDef = deposits[deposit.type]
 			if ('generation' in depositDef && depositDef.generation) {
 				for (const [goodType, generationRate] of Object.entries(depositDef.generation)) {
-					// Calculate equilibrium amount based on decay and generation rates
 					const goodDef = goodsCatalog[goodType as keyof typeof goodsCatalog]
 					if (!goodDef) continue
 
-					// Total generation rate for this deposit: generationRate * depositAmount
 					const totalGenerationRate = generationRate * deposit.amount
-
 					let equilibriumAmount: number
 
 					if (goodDef.halfLife === Infinity) {
-						// For infinite half-life goods, use a reasonable base amount
-						// Since they don't decay, we generate a moderate amount
-						equilibriumAmount = totalGenerationRate * 10 // 10x the generation rate as base amount
+						equilibriumAmount = totalGenerationRate * 10
 					} else {
-						// Calculate decay rate per second: 1 - 2^(-1/halfLife)
 						const decayRate = 1 - 2 ** (-1 / goodDef.halfLife)
-
-						// At equilibrium: totalGenerationRate = decayRate * equilibriumAmount
-						// So: equilibriumAmount = totalGenerationRate / decayRate
 						equilibriumAmount = totalGenerationRate / decayRate
 					}
 
-					// Add some randomness (±30%) to make it feel natural
 					const variance = 0.3
 					const randomFactor = 1 + (rnd() - 0.5) * variance
 					const finalAmount = Math.max(0, Math.floor(equilibriumAmount * randomFactor))
@@ -111,12 +102,10 @@ export class BoardGenerator {
 			}
 		}
 
-		// Also generate ambient goods from terrain (like mushrooms in forest)
 		const terrainDef = terrainDetails[terrain]
 		if ('generation' in terrainDef && terrainDef.generation && 'goods' in terrainDef.generation) {
 			for (const [goodType, _chance] of Object.entries(terrainDef.generation.goods)) {
-				// Generate a small amount of ambient goods
-				const ambientAmount = Math.floor(rnd() * 3) // 0-2 goods
+				const ambientAmount = Math.floor(rnd() * 3)
 				if (ambientAmount > 0) {
 					goods[goodType] = (goods[goodType] || 0) + ambientAmount
 				}
@@ -136,20 +125,15 @@ export class BoardGenerator {
 
 		for (const [depKey, chance] of Object.entries(table)) {
 			if (rnd() < (chance as number)) {
-				// Create deposit data instead of actual deposit object
 				const Kind = Deposit.class[depKey as DepositType]
 				const amount = Math.floor(((1 + rnd() * 2) * Kind.prototype.maxAmount) / 3)
-				return {
-					type: depKey as DepositType,
-					amount,
-				}
+				return { type: depKey as DepositType, amount }
 			}
 		}
 		return undefined
 	}
 
 	private createRNG(seed: string): () => number {
-		// Simple LCG implementation for generation
 		let state = this.hashString(seed)
 		return () => {
 			state = (state * 1664525 + 1013904223) % 4294967296
@@ -166,7 +150,7 @@ export class BoardGenerator {
 		for (let i = 0; i < str.length; i++) {
 			const char = str.charCodeAt(i)
 			hash = (hash << 5) - hash + char
-			hash = hash & hash // Convert to 32-bit integer
+			hash = hash & hash
 		}
 		return Math.abs(hash)
 	}

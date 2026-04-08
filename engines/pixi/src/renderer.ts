@@ -2,6 +2,7 @@ import { Application, Container, type Texture } from 'pixi.js'
 import type { Game } from 'ssh/game/game'
 import type { GameRenderer } from 'ssh/types/engine'
 import { assetManager } from './asset-manager'
+import { TerrainVisual, type TerrainStreamingDiagnostics } from './continuous-terrain'
 import { setPixiName } from './debug-names'
 import { registerPixiApp, unregisterPixiApp } from './hmr.js'
 import { InteractionManager } from './interaction/interaction-manager.js'
@@ -14,6 +15,7 @@ export class PixiGameRenderer implements GameRenderer {
 	private interactionManager?: InteractionManager
 	private visualFactory?: VisualFactory
 	private dragPreviewOverlay?: DragPreviewOverlay
+	private terrainVisual?: TerrainVisual
 	private container: HTMLElement
 	private canvas: HTMLCanvasElement | null = null
 	private isDestroyed = false
@@ -73,6 +75,11 @@ export class PixiGameRenderer implements GameRenderer {
 		this.visualFactory = new VisualFactory(this)
 		this.visualFactory.bind()
 
+		this.terrainVisual = new TerrainVisual(this)
+		this.terrainVisual.bind()
+		// @ts-expect-error debug
+		globalThis.__ANARKAI_TERRAIN_DIAGNOSTICS__ = () => this.getTerrainDiagnostics()
+
 		// Setup Drag Preview Overlay
 		this.dragPreviewOverlay = new DragPreviewOverlay(this)
 		this.dragPreviewOverlay.bind()
@@ -101,6 +108,16 @@ export class PixiGameRenderer implements GameRenderer {
 	public missingTextures: string[] = []
 
 	public world!: Container
+
+	get viewState() {
+		return {
+			zoom: this.world?.scale.x ?? 1,
+			camera: {
+				x: this.world?.position.x ?? 0,
+				y: this.world?.position.y ?? 0,
+			},
+		}
+	}
 
 	private setupLayers() {
 		if (!this.stage) return
@@ -155,6 +172,19 @@ export class PixiGameRenderer implements GameRenderer {
 	public resize(width: number, height: number) {
 		if (!this.app?.renderer) return
 		this.app.renderer.resize(width, height)
+		this.terrainVisual?.invalidate()
+	}
+
+	public invalidateTerrain() {
+		this.terrainVisual?.invalidate()
+	}
+
+	public invalidateTerrainHard() {
+		this.terrainVisual?.invalidate(true)
+	}
+
+	public getTerrainDiagnostics(): TerrainStreamingDiagnostics | undefined {
+		return this.terrainVisual?.getDiagnostics()
 	}
 
 	// Resource management
@@ -168,6 +198,7 @@ export class PixiGameRenderer implements GameRenderer {
 		this.interactionManager?.teardown()
 		this.dragPreviewOverlay?.dispose()
 		this.visualFactory?.destroy()
+		this.terrainVisual?.dispose()
 
 		if (this.app) {
 			unregisterPixiApp(this.app)
@@ -184,6 +215,9 @@ export class PixiGameRenderer implements GameRenderer {
 		this.stage = undefined
 		this.layers = {} as any
 		this.visuals.clear()
+		this.terrainVisual = undefined
+		// @ts-expect-error debug
+		delete globalThis.__ANARKAI_TERRAIN_DIAGNOSTICS__
 	}
 
 	public async reload() {

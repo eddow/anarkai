@@ -15,6 +15,7 @@ export const CharacterContract = {
 	},
 	selfCare: {
 		goEat: [],
+		goHome: [],
 		wander: [],
 	},
 	work: {

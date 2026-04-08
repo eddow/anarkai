@@ -102,7 +102,7 @@ export class GlobalContext {
 	}
 	@contract('GoodType')
 	isFood(goodType: GoodType): boolean {
-		return 'feedingValue' in (goods as any)[goodType]
+		return 'satiationStrength' in (goods as any)[goodType]
 	}
 
 	@contract('object')

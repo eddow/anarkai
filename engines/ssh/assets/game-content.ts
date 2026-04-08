@@ -114,11 +114,11 @@ export const alveoli = {
 
 export const goods = {
 	berries: {
-		feedingValue: 72,
-		halfLife: 1200, // 20 minutes - long enough for test scenarios
+		satiationStrength: 0.3567, // felt ~0.3 hunger relief at equilibrium
+		halfLife: 1200,
 	},
 	mushrooms: {
-		feedingValue: 160,
+		satiationStrength: 0.6931, // felt ~0.5 hunger relief at equilibrium
 		halfLife: 600,
 	},
 	planks: {

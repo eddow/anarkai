@@ -133,6 +133,9 @@ importers:
 
   engines/pixi:
     dependencies:
+      engine-terrain:
+        specifier: workspace:*
+        version: link:../terrain
       mutts:
         specifier: link:../../../ownk/mutts
         version: link:../../../ownk/mutts
@@ -170,6 +173,9 @@ importers:
       arktype:
         specifier: ^2.1.22
         version: 2.1.29
+      engine-terrain:
+        specifier: workspace:*
+        version: link:../terrain
       eventemitter3:
         specifier: ^5.0.1
         version: 5.0.1
@@ -237,6 +243,22 @@ importers:
       vite-plugin-babel:
         specifier: ^1.3.2
         version: 1.3.2(@babel/core@7.28.5)(vite@7.3.1(@types/node@25.0.10)(sass-embedded@1.97.1)(sass@1.97.1)(terser@5.44.1)(tsx@4.21.0))
+
+  engines/terrain:
+    dependencies:
+      '@webgpu/types':
+        specifier: ^0.1.69
+        version: 0.1.69
+      typescript:
+        specifier: ~5.8.3
+        version: 5.8.3
+      webgpgpu.ts:
+        specifier: link:/home/fmdm/dev/ownk/webgpgpu
+        version: link:../../../ownk/webgpgpu
+    devDependencies:
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.4(@types/node@25.0.10)(jsdom@27.4.0)(sass-embedded@1.97.1)(sass@1.97.1)(terser@5.44.1)(tsx@4.21.0)
 
 packages:
 
@@ -1447,6 +1469,9 @@ packages:
 
   '@webgpu/types@0.1.68':
     resolution: {integrity: sha512-3ab1B59Ojb6RwjOspYLsTpCzbNB3ZaamIAxBMmvnNkiDoLTZUOBXZ9p5nAYVEkQlDdf6qAZWi1pqj9+ypiqznA==}
+
+  '@webgpu/types@0.1.69':
+    resolution: {integrity: sha512-RPmm6kgRbI8e98zSD3RVACvnuktIja5+yLgDAkTmxLr90BEwdTXRQWNLF3ETTTyH/8mKhznZuN5AveXYFEsMGQ==}
 
   '@xmldom/xmldom@0.8.11':
     resolution: {integrity: sha512-cQzWCtO6C8TQiYl1ruKNn2U6Ao4o4WBBcbL61yJl84x+j5sOWWFU9X7DpND8XZG3daDppSsigMdfAIl2upQBRw==}
@@ -3788,33 +3813,33 @@ snapshots:
     dependencies:
       undici-types: 7.16.0
 
-  '@typescript-eslint/project-service@8.50.1(typescript@5.8.3)':
+  '@typescript-eslint/project-service@8.50.1(typescript@5.9.3)':
     dependencies:
-      '@typescript-eslint/tsconfig-utils': 8.50.1(typescript@5.8.3)
+      '@typescript-eslint/tsconfig-utils': 8.50.1(typescript@5.9.3)
       '@typescript-eslint/types': 8.50.1
       debug: 4.4.3
-      typescript: 5.8.3
+      typescript: 5.9.3
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/tsconfig-utils@8.50.1(typescript@5.8.3)':
+  '@typescript-eslint/tsconfig-utils@8.50.1(typescript@5.9.3)':
     dependencies:
-      typescript: 5.8.3
+      typescript: 5.9.3
 
   '@typescript-eslint/types@8.50.1': {}
 
-  '@typescript-eslint/typescript-estree@8.50.1(typescript@5.8.3)':
+  '@typescript-eslint/typescript-estree@8.50.1(typescript@5.9.3)':
     dependencies:
-      '@typescript-eslint/project-service': 8.50.1(typescript@5.8.3)
-      '@typescript-eslint/tsconfig-utils': 8.50.1(typescript@5.8.3)
+      '@typescript-eslint/project-service': 8.50.1(typescript@5.9.3)
+      '@typescript-eslint/tsconfig-utils': 8.50.1(typescript@5.9.3)
       '@typescript-eslint/types': 8.50.1
       '@typescript-eslint/visitor-keys': 8.50.1
       debug: 4.4.3
       minimatch: 9.0.5
       semver: 7.7.3
       tinyglobby: 0.2.15
-      ts-api-utils: 2.1.0(typescript@5.8.3)
-      typescript: 5.8.3
+      ts-api-utils: 2.1.0(typescript@5.9.3)
+      typescript: 5.9.3
     transitivePeerDependencies:
       - supports-color
 
@@ -3898,6 +3923,8 @@ snapshots:
   '@vue/shared@3.5.26': {}
 
   '@webgpu/types@0.1.68': {}
+
+  '@webgpu/types@0.1.69': {}
 
   '@xmldom/xmldom@0.8.11': {}
 
@@ -4095,7 +4122,7 @@ snapshots:
       commander: 12.1.0
       filing-cabinet: 5.0.3
       precinct: 12.2.0
-      typescript: 5.8.3
+      typescript: 5.9.3
     transitivePeerDependencies:
       - supports-color
 
@@ -4136,16 +4163,16 @@ snapshots:
 
   detective-stylus@5.0.1: {}
 
-  detective-typescript@14.0.0(typescript@5.8.3):
+  detective-typescript@14.0.0(typescript@5.9.3):
     dependencies:
-      '@typescript-eslint/typescript-estree': 8.50.1(typescript@5.8.3)
+      '@typescript-eslint/typescript-estree': 8.50.1(typescript@5.9.3)
       ast-module-types: 6.0.1
       node-source-walk: 7.0.1
-      typescript: 5.8.3
+      typescript: 5.9.3
     transitivePeerDependencies:
       - supports-color
 
-  detective-vue2@2.2.0(typescript@5.8.3):
+  detective-vue2@2.2.0(typescript@5.9.3):
     dependencies:
       '@dependents/detective-less': 5.0.1
       '@vue/compiler-sfc': 3.5.26
@@ -4153,8 +4180,8 @@ snapshots:
       detective-sass: 6.0.1
       detective-scss: 5.0.1
       detective-stylus: 5.0.1
-      detective-typescript: 14.0.0(typescript@5.8.3)
-      typescript: 5.8.3
+      detective-typescript: 14.0.0(typescript@5.9.3)
+      typescript: 5.9.3
     transitivePeerDependencies:
       - supports-color
 
@@ -4248,7 +4275,7 @@ snapshots:
       sass-lookup: 6.1.0
       stylus-lookup: 6.1.0
       tsconfig-paths: 4.2.0
-      typescript: 5.8.3
+      typescript: 5.9.3
 
   fill-range@7.1.1:
     dependencies:
@@ -4582,12 +4609,12 @@ snapshots:
       detective-sass: 6.0.1
       detective-scss: 5.0.1
       detective-stylus: 5.0.1
-      detective-typescript: 14.0.0(typescript@5.8.3)
-      detective-vue2: 2.2.0(typescript@5.8.3)
+      detective-typescript: 14.0.0(typescript@5.9.3)
+      detective-vue2: 2.2.0(typescript@5.9.3)
       module-definition: 6.0.1
       node-source-walk: 7.0.1
       postcss: 8.5.6
-      typescript: 5.8.3
+      typescript: 5.9.3
     transitivePeerDependencies:
       - supports-color
 
@@ -4918,9 +4945,9 @@ snapshots:
     dependencies:
       punycode: 2.3.1
 
-  ts-api-utils@2.1.0(typescript@5.8.3):
+  ts-api-utils@2.1.0(typescript@5.9.3):
     dependencies:
-      typescript: 5.8.3
+      typescript: 5.9.3
 
   ts-graphviz@2.1.6:
     dependencies:

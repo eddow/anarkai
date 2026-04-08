@@ -3,7 +3,7 @@ import { TestEngine } from '../test-engine'
 
 describe('Offload Silent Cancellation Reproduction', () => {
 	it('Reproduction: Offload work cancels silently', async () => {
-		const engine = new TestEngine({ boardSize: 12, terrainSeed: 1234, characterCount: 0 })
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
 		await engine.init()
 		const { game } = engine
 

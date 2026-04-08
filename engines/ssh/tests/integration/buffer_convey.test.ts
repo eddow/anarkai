@@ -7,7 +7,6 @@ describe('Storage Buffering', () => {
 	async function setupEngine() {
 		// Fix: Provide required characterCount
 		const engine = new TestEngine({
-			boardSize: 6,
 			terrainSeed: 1234,
 			characterCount: 0,
 		})

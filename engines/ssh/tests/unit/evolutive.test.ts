@@ -116,7 +116,7 @@ describe('Evolutive & Determinism Tests', () => {
 
 	it('Determinism: Complex State Persistence', async () => {
 		// Setup a semi-complex state with patches and manual chars
-		const config = { boardSize: 12, terrainSeed: 888, characterCount: 0 }
+		const config = { terrainSeed: 888, characterCount: 0 }
 		const patches = {
 			hives: [
 				{
@@ -165,7 +165,7 @@ describe('Evolutive & Determinism Tests', () => {
 				console.log('Debug log error', e)
 			}
 
-			game2.loadGameData(JSON.parse(stateM_JSON))
+			await game2.loadGameData(JSON.parse(stateM_JSON))
 
 			const chars1 = Array.from(game1.population)
 			const chars2 = Array.from(game2.population)
@@ -201,7 +201,7 @@ describe('Evolutive & Determinism Tests', () => {
 
 	it('Simulation: Plank Transfer (Logistics)', async () => {
 		// Setup: Source (0,0) with Wood, Target (0,5) Empty, Worker (2,2)
-		const config = { boardSize: 12, terrainSeed: 101, characterCount: 0 }
+		const config = { terrainSeed: 101, characterCount: 0 }
 		const patches = {
 			hives: [
 				{

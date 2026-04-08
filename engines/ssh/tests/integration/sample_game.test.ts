@@ -8,7 +8,6 @@ describe('Source Allocation Stability', () => {
 	}, async () => {
 		const game = new Game(
 			{
-				boardSize: 12,
 				terrainSeed: 1,
 				characterCount: 2,
 				characterRadius: 3,

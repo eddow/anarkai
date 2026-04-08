@@ -41,15 +41,26 @@ export class TestEngine {
 		const fullScenario = {
 			...scenario,
 			generationOptions: scenario.generationOptions ??
-				this.options ?? { boardSize: 12, terrainSeed: 1234, characterCount: 0 },
+				this.options ?? { terrainSeed: 1234, characterCount: 0 },
 		} as SaveState
-		this.game.loadGameData(fullScenario)
+		if (fullScenario.namedConfigurations) {
+			this.game.configurationManager.deserialize(fullScenario.namedConfigurations)
+		}
+		this.game.hex.reset()
+		this.game.population.deserialize([])
+		this.game.generate(fullScenario.generationOptions, fullScenario, fullScenario)
+		if (fullScenario.population) {
+			this.game.population.deserialize(fullScenario.population)
+		}
 	}
 
 	/**
-	 * advances the game simulation by a specific amount of time.
+	 * Advances ticked objects only (does not drive `Game` clock / `tickerCallback`).
+	 * For scenarios that need the real clock and full ticker behaviour (and to assert on
+	 * `console.error` such as `Action infinite fail`), use `runViabilityScenario` from `./viability`.
+	 *
 	 * @param seconds Total time to advance
-	 * @param tickRate Time per tick (default 0.1s)
+	 * @param tickRate Delta seconds per step (default 0.1s)
 	 */
 	public tick(seconds: number, tickRate: number = 0.1) {
 		let elapsed = 0

@@ -42,6 +42,21 @@ interface TilePropertiesProps {
 	tile: Tile
 }
 
+const resolveTileTerrain = (tile: Tile | undefined): string => {
+	if (!tile) return 'grass'
+	return tile.terrainState?.terrain ?? tile.baseTerrain ?? 'grass'
+}
+
+const resolveTileTerrainForContent = (tile: Tile | undefined, content: Tile['content']): string => {
+	const terrain = resolveTileTerrain(tile)
+	if (content instanceof Alveolus && terrain === 'grass') {
+		// Backward-compatible inspector fallback for older states where alveolus tiles
+		// were concrete visually but no explicit terrain patch was persisted.
+		return 'concrete'
+	}
+	return terrain
+}
+
 const toDisplayText = (value: unknown, fallback = ''): string => {
 	switch (typeof value) {
 		case 'string':
@@ -88,7 +103,7 @@ const TileProperties = (props: TilePropertiesProps) => {
 								content.title
 							)
 						: content.title,
-				terrain: 'concrete',
+				terrain: resolveTileTerrainForContent(props.tile, content),
 			}
 		} else if (content instanceof UnBuiltLand) {
 			state.contentInfo = {
@@ -96,7 +111,7 @@ const TileProperties = (props: TilePropertiesProps) => {
 			}
 		} else {
 			state.contentInfo = {
-				terrain: 'concrete',
+				terrain: resolveTileTerrainForContent(props.tile, content),
 			}
 		}
 	})

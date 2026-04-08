@@ -147,64 +147,64 @@ class WorkFunctions {
 			movementData.length === 1 ? `convey.${movementData[0].mg.goodType}` : `convey.cycle`
 		const visualMovements = getConveyVisualMovements(movementData)
 		return new MultiMoveStep(totalTime, visualMovements, 'work', description)
-		.canceled(() => {
-			for (const { mg, hopAlloc, moving } of movementData) {
-				mg.claimed = false
-				hopAlloc?.cancel()
-				mg.allocations.source.cancel()
-				mg.allocations.target.cancel()
-				if (!moving.isRemoved) moving.remove()
-				character.game.hex.looseGoods.add(character.tile, mg.goodType)
-				mg.finish()
-			}
-		})
-		.finished(() => {
-			try {
-				for (const { mg, moving, hopAlloc, hop } of movementData) {
-					const nextStorage = hive.storageAt(hop)
-
+			.canceled(() => {
+				for (const { mg, hopAlloc, moving } of movementData) {
+					mg.claimed = false
+					hopAlloc?.cancel()
+					mg.allocations.source.cancel()
+					mg.allocations.target.cancel()
 					if (!moving.isRemoved) moving.remove()
-					if (!mg.path.length) {
-						if (!mg.allocations?.target) {
-							console.error('Target allocation missing for', mg)
-							throw new Error('Target allocation missing')
-						}
-						mg.finish()
-					} else {
-						if (!hopAlloc) {
-							console.error('Hop allocation missing (but path exists) for', mg)
-							throw new Error('Hop allocation missing')
-						}
-
-						hopAlloc.fulfill()
-
-						const newSourceAlloc = nextStorage!.reserve(
-							{ [mg.goodType]: 1 },
-							{
-								type: 'convey.path',
-								movement: mg,
-							}
-						)
-
-						if (!newSourceAlloc) {
-							console.error(
-								'[conveyStep.finished] Failed to reserve storage for next hop:',
-								mg.goodType
-							)
-							throw new Error('Failed to reserve storage for next hop')
-						}
-
-						mg.allocations.source = newSourceAlloc
-						mg.claimed = false
-						hive.wakeWanderingWorkersNear(mg.provider, mg.demander)
-					}
+					character.game.hex.looseGoods.add(character.tile, mg.goodType)
+					mg.finish()
 				}
-			} catch (error) {
-				for (const movement of movementData) cleanupFailedConveyMovement(character, movement)
-				console.error('[conveyStep] Error in finished callback:', error)
-				throw error
-			}
-		})
+			})
+			.finished(() => {
+				try {
+					for (const { mg, moving, hopAlloc, hop } of movementData) {
+						const nextStorage = hive.storageAt(hop)
+
+						if (!moving.isRemoved) moving.remove()
+						if (!mg.path.length) {
+							if (!mg.allocations?.target) {
+								console.error('Target allocation missing for', mg)
+								throw new Error('Target allocation missing')
+							}
+							mg.finish()
+						} else {
+							if (!hopAlloc) {
+								console.error('Hop allocation missing (but path exists) for', mg)
+								throw new Error('Hop allocation missing')
+							}
+
+							hopAlloc.fulfill()
+
+							const newSourceAlloc = nextStorage!.reserve(
+								{ [mg.goodType]: 1 },
+								{
+									type: 'convey.path',
+									movement: mg,
+								}
+							)
+
+							if (!newSourceAlloc) {
+								console.error(
+									'[conveyStep.finished] Failed to reserve storage for next hop:',
+									mg.goodType
+								)
+								throw new Error('Failed to reserve storage for next hop')
+							}
+
+							mg.allocations.source = newSourceAlloc
+							mg.claimed = false
+							hive.wakeWanderingWorkersNear(mg.provider, mg.demander)
+						}
+					}
+				} catch (error) {
+					for (const movement of movementData) cleanupFailedConveyMovement(character, movement)
+					console.error('[conveyStep] Error in finished callback:', error)
+					throw error
+				}
+			})
 			.final(() => {
 				// Clean up any remaining loose goods. Note: looseGoods should *not* disappear. For now, this shouldn't happen - but if it happened, looseGoods should be stored as looseGoods
 				for (const { moving } of movementData) {
@@ -348,6 +348,14 @@ class WorkFunctions {
 			'work',
 			`construct.${targetType}`
 		).finished(() => {
+			site.tile.baseTerrain = 'concrete'
+			site.tile.terrainState = {
+				...(site.tile.terrainState ?? {}),
+				terrain: 'concrete',
+			}
+			site.tile.game.upsertTerrainOverride(site.tile.position as { q: number; r: number }, {
+				terrain: 'concrete',
+			})
 			// Replace the tile content with the target alveolus
 			site.tile.content = new TargetClass(site.tile)
 		})

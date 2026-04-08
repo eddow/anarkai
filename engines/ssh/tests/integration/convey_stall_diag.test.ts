@@ -15,7 +15,7 @@ describe('Convey Stall Diagnostic', () => {
 		let engine: TestEngine | undefined
 		reactiveOptions.maxEffectChain = 40
 		try {
-			engine = new TestEngine({ boardSize: 12, terrainSeed: 1234, characterCount: 0 })
+			engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
 			await engine.init()
 			const currentEngine = engine
 			const scenario: Partial<SaveState> = {

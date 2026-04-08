@@ -6,14 +6,12 @@ import { TestEngine } from '../test-engine/engine'
 describe('Reactive boundaries', () => {
 	async function setupHarvestScenario(withWorker: boolean = false) {
 		const engine = new TestEngine({
-			boardSize: 6,
 			terrainSeed: 1234,
 			characterCount: 0,
 		})
 		await engine.init()
 		engine.loadScenario({
 			generationOptions: {
-				boardSize: 6,
 				terrainSeed: 1234,
 				characterCount: 0,
 			},

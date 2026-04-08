@@ -1,6 +1,5 @@
 import { effect } from 'mutts'
 import { Container, Graphics } from 'pixi.js'
-import { AlveolusGate } from 'ssh/board/border/alveolus-gate'
 import type { TileBorder } from 'ssh/board/border/border'
 import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
@@ -8,6 +7,18 @@ import { scopedPixiName, setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
 import { renderGoods } from './goods-renderer'
 import { VisualObject } from './visual-object'
+
+type GateLike = {
+	storage?: {
+		renderedGoods(): {
+			slots: unknown[]
+		}
+	}
+}
+
+function isGateLike(value: unknown): value is GateLike {
+	return !!value && typeof value === 'object' && 'storage' in value
+}
 
 export class BorderVisual extends VisualObject<TileBorder> {
 	private gateGraphics: Graphics
@@ -19,6 +30,8 @@ export class BorderVisual extends VisualObject<TileBorder> {
 		this.view.label = scope
 		this.gateGraphics = setPixiName(new Graphics(), scopedPixiName(scope, 'gate'))
 		this.goodsContainer = setPixiName(new Container(), scopedPixiName(scope, 'goods'))
+		this.gateGraphics.eventMode = 'none'
+		this.goodsContainer.eventMode = 'none'
 
 		// Borders are rendered on storedGoods layer usually (for gates) or ground layer?
 		// Gates are "connections" between alveoli.
@@ -38,14 +51,14 @@ export class BorderVisual extends VisualObject<TileBorder> {
 
 				const content = this.object.content
 
-				if (content instanceof AlveolusGate) {
+				if (isGateLike(content)) {
 					return this.renderGate(content, worldPos)
 				}
 			})
 		)
 	}
 
-	private renderGate(gate: AlveolusGate, center: { x: number; y: number }) {
+	private renderGate(gate: GateLike, center: { x: number; y: number }) {
 		// Logic ported from AlveolusGate.render
 		const tileAWorld = toWorldCoord(this.object.tile.a.position)
 		const alveolusCenter = {
@@ -88,7 +101,7 @@ export class BorderVisual extends VisualObject<TileBorder> {
 	}
 
 	private renderBorderGoods(
-		gate: AlveolusGate,
+		gate: GateLike,
 		center: { x: number; y: number },
 		direction: { dx: number; dy: number },
 		length: number

@@ -20,9 +20,7 @@ vi.mock('@app/ui/anarkai', () => ({
 				data-maximum={String(props.maximum)}
 				data-value={serialized}
 				onClick={() =>
-					props.onChange?.(
-						Array.isArray(value) ? [value[0] + 1, value[1] + 1] : value + 1
-					)
+					props.onChange?.(Array.isArray(value) ? [value[0] + 1, value[1] + 1] : value + 1)
 				}
 			>
 				stars

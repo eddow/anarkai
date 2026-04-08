@@ -1,6 +1,14 @@
 import type { GamePatches } from './game'
 
 export const chopSaw = {
+	tiles: [
+		{ coord: [0, 0], terrain: 'concrete' },
+		{ coord: [0, -1], terrain: 'concrete' },
+		{ coord: [1, 0], terrain: 'concrete' },
+		{ coord: [1, 1], terrain: 'concrete' },
+		{ coord: [2, 0], terrain: 'concrete' },
+		{ coord: [0, 1], terrain: 'concrete' },
+	],
 	hives: [
 		{
 			name: 'ChopSaw',
@@ -20,6 +28,10 @@ export const chopSaw = {
 			[-2, 2],
 			[-2, 3],
 			[-3, 3],
+		],
+		residential: [
+			[-2, 0],
+			[-3, 1],
 		],
 	},
 	projects: {

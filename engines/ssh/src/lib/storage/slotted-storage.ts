@@ -44,6 +44,7 @@ class SlottedAllocation implements AllocationBase {
 				if (slot.quantity + slot.allocated === 0) this.storage.slots[i] = undefined
 			}
 		}
+		this.storage.compactIdleSameGoodTypeSlots()
 	}
 
 	@atomic
@@ -85,6 +86,7 @@ class SlottedAllocation implements AllocationBase {
 				}
 			}
 		}
+		this.storage.compactIdleSameGoodTypeSlots()
 	}
 }
 
@@ -157,6 +159,35 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		}
 
 		return undefined
+	}
+
+	/**
+	 * Merge multiple non-pending slots of the same good type into fewer slots (pack by addGood).
+	 */
+	@atomic
+	compactIdleSameGoodTypeSlots(): void {
+		const byType = new Map<GoodType, number[]>()
+		for (let i = 0; i < this.slots.length; i++) {
+			const s = this.slots[i]
+			if (!s || s.allocated !== 0 || s.reserved !== 0) continue
+			const list = byType.get(s.goodType) ?? []
+			list.push(i)
+			byType.set(s.goodType, list)
+		}
+		for (const [goodType, indices] of byType) {
+			if (indices.length < 2) continue
+			let total = 0
+			for (const i of indices) {
+				const s = this.slots[i]
+				if (s?.goodType === goodType) total += s.quantity
+			}
+			if (total <= 0) continue
+			indices.sort((a, b) => b - a)
+			for (const i of indices) {
+				this.slots.splice(i, 1, undefined)
+			}
+			this.addGood(goodType, total)
+		}
 	}
 
 	get usedSlots(): number {

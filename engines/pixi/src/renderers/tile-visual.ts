@@ -9,6 +9,7 @@ import { tileSize } from 'ssh/utils/varied'
 import { scopedPixiName, setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
 import { AlveolusVisual } from './alveolus-visual'
+import { createTerrainHexSprite } from './terrain-hex-sprite'
 import { UnBuiltLandVisual } from './unbuilt-land-visual'
 import { VisualObject } from './visual-object'
 
@@ -41,35 +42,22 @@ export class TileVisual extends VisualObject<Tile> {
 
 		// Initialize background (won't change often)
 		const bgTex = renderer.getTexture('terrain.grass')
-		this.backgroundSprite = setPixiName(
-			new TilingSprite({
-				texture: bgTex && (bgTex as any).orig ? bgTex : renderer.getTexture('empty'),
-				width: tileSize * 2,
-				height: tileSize * 2,
-			}),
-			scopedPixiName(scope, 'background')
-		)
-		this.backgroundSprite.anchor.set(0.5)
-
-		// Hex mask
-		const mask = setPixiName(new Graphics(), scopedPixiName(scope, 'mask'))
-		const points = Array.from({ length: 6 }, (_, i) => {
-			const angle = (Math.PI / 3) * (i + 0.5)
-			return new Point(Math.cos(angle) * tileSize, Math.sin(angle) * tileSize)
+		const world = toWorldCoord(tile.position)
+		const { sprite, container } = createTerrainHexSprite({
+			scope: scopedPixiName(scope, 'terrain'),
+			texture: bgTex && (bgTex as any).orig ? bgTex : renderer.getTexture('empty'),
+			position: { x: 0, y: 0 },
+			tileOrigin: world ?? { x: 0, y: 0 },
 		})
-		mask.poly(points).fill(0xffffff)
-		this.backgroundSprite.mask = mask
-		backgroundLayer.addChild(this.backgroundSprite, mask)
+		this.backgroundSprite = sprite
+		// TerrainVisual is the canonical terrain renderer.
+		// Keep TileVisual for content and gameplay overlays, but hide its ground texture.
+		this.backgroundSprite.alpha = 0
+		backgroundLayer.addChild(container)
 
 		// Position
-		const world = toWorldCoord(tile.position)
 		if (world) {
 			this.view.position.set(world.x, world.y)
-			// Tiling sprite offset for seamless texture
-			this.backgroundSprite.tilePosition.set(
-				-world.x % (this.backgroundSprite.texture.width || tileSize),
-				-world.y % (this.backgroundSprite.texture.height || tileSize)
-			)
 		}
 	}
 

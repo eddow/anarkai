@@ -1,7 +1,7 @@
 import { effect } from 'mutts'
-import type { Tile } from 'ssh/board/tile'
+import { Tile } from 'ssh/board/tile'
 import type { GameObject } from 'ssh/game/object'
-import type { Character } from 'ssh/population/character'
+import { Character } from 'ssh/population/character'
 import type { PixiGameRenderer } from './renderer'
 import { BorderVisual } from './renderers/border-visual'
 import { CharacterVisual } from './renderers/character-visual'
@@ -18,25 +18,26 @@ export class VisualFactory {
 		console.log('[VisualFactory] Binding visuals...')
 		const board = this.renderer.game.hex
 
-		// 1. Tile Visuals
+		// 1. Tile gameplay overlays (content, zones, borders).
+		// Ground terrain itself is rendered by TerrainVisual.
 		console.log('[VisualFactory] Creating Tile Visuals...')
 		board.tiles.forEach((tile: Tile) => {
 			this.create(tile, TileVisual)
-
-			// 2. Border Visuals (traverse via tiles)
-			// Note: This iterates borders multiple times, but create() dedups by UID
 			tile.surroundings.forEach(({ border }) => {
 				this.create(border, BorderVisual)
 			})
 		})
 
-		// 3. LooseGoods Visual (Singleton Manager)
+		// 2. LooseGoods Visual (Singleton Manager)
 		console.log('[VisualFactory] Creating LooseGoods Visual...')
 		this.create(board.looseGoods, LooseGoodsVisual)
 
-		// 4. Character Visuals (Reactive Population)
+		// 3. Character Visuals (Reactive Population)
 		console.log('[VisualFactory] Binding Characters...')
 		this.bindCharacters()
+
+		// 4. Dynamically materialized objects (streamed tiles, late characters)
+		this.bindGameObjects()
 	}
 
 	private bindCharacters() {
@@ -70,6 +71,26 @@ export class VisualFactory {
 					if (visual instanceof CharacterVisual && !activeChars.has(visual.object)) {
 						visual.dispose()
 						this.renderer.visuals.delete(uid)
+					}
+				}
+			})
+		)
+	}
+
+	private bindGameObjects() {
+		this.cleanups.push(
+			effect`visuals.gameObjects`(() => {
+				for (const object of this.renderer.game.objects.values()) {
+					if (this.renderer.visuals.has(object.uid)) continue
+					if (object instanceof Tile) {
+						this.create(object, TileVisual)
+						object.surroundings.forEach(({ border }) => {
+							this.create(border, BorderVisual)
+						})
+						continue
+					}
+					if (object instanceof Character) {
+						this.create(object, CharacterVisual)
 					}
 				}
 			})
@@ -116,7 +137,7 @@ export class VisualFactory {
 			// LooseGoodsVisual attached `this.container` to `renderer.layers.storedGoods`.
 			// So we don't attach visual.view.
 		} else if (visual instanceof BorderVisual) {
-			// BorderVisual also managed its own layers (gateGraphics to alveoli, goods to storedGoods).
+			// BorderVisual manages its own layer attachment.
 		}
 
 		// Cleanup when object executes destroy?

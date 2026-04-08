@@ -6,7 +6,7 @@ import { TestEngine } from '../test-engine'
 
 describe('Deadlock Reproduction', () => {
 	async function setupEngine(
-		options: any = { boardSize: 12, terrainSeed: 1234, characterCount: 0 }
+		options: any = { terrainSeed: 1234, characterCount: 0 }
 	) {
 		// Disable need drift for this test so we isolate planner behavior.
 		characterEvolutionRates.hunger['*'] = 0

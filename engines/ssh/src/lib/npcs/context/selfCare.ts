@@ -13,6 +13,10 @@ class SelfCareFunctions {
 	pondering() {
 		return new PonderingStep(this[subject])
 	}
+	@contract()
+	releaseHome() {
+		this[subject].game.hex.zoneManager.releaseReservation(this[subject])
+	}
 }
 
 export { SelfCareFunctions }

@@ -8,7 +8,7 @@ import { TestEngine } from '../test-engine'
 describe('Atomicity & Environment Investigation', () => {
 	// Setup identical to gather_convey.test.ts
 	async function setupEngine(
-		options: any = { boardSize: 12, terrainSeed: 1234, characterCount: 0 }
+		options: any = { terrainSeed: 1234, characterCount: 0 }
 	) {
 		const engine = new TestEngine(options)
 		await engine.init()
@@ -37,6 +37,8 @@ describe('Atomicity & Environment Investigation', () => {
 		looseGoods: [
 			{ goodType: 'berries', position: { q: 0, r: 1 } },
 			{ goodType: 'berries', position: { q: 0, r: 1 } },
+			{ goodType: 'berries', position: { q: 0, r: 1 } },
+			{ goodType: 'berries', position: { q: 0, r: 1 } },
 		],
 	}
 
@@ -61,7 +63,8 @@ describe('Atomicity & Environment Investigation', () => {
 			await new Promise((resolve) => setTimeout(resolve, 0))
 
 			spawnWorker({ q: 0, r: 0 })
-			spawnWorker({ q: 1, r: 0 }) // Worker at storage to complete convey
+			// One worker at storage is enough to complete convey once berries arrive; two workers can race the same loose stack.
+			spawnWorker({ q: 1, r: 0 })
 
 			// Run loop
 			const dt = 0.1

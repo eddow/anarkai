@@ -10,7 +10,7 @@ describe('Multi-Hop Convey Tests', () => {
 	it('creates a movement that can be handed through an intermediate storage', {
 		timeout: 15000,
 	}, async () => {
-		const engine = new TestEngine({ boardSize: 12, terrainSeed: 1234, characterCount: 0 })
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
 		await engine.init()
 		try {
 			const scenario: Partial<SaveState> = {

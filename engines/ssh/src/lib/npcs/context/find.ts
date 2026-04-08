@@ -31,27 +31,24 @@ class FindFunctions {
 			const tile = hex.getTile(axialCoord)
 			if (!tile) return null
 
-			let best: { type: GoodType; fv: number } | null = null
+			let best: { type: GoodType; strength: number } | null = null
 
-			// Check storage goods first (existing behavior)
 			const goodsMap = tile.content!.storage?.stock || {}
 			for (const [good] of Object.entries(goodsMap) as [GoodType, number][]) {
 				if (!tile.content!.storage?.available(good as GoodType)) continue
-				const def = goodsCatalog[good as GoodType]
+				const def: Ssh.GoodsDefinition = goodsCatalog[good as GoodType]
 				if (!def) continue
-				const fv = 'feedingValue' in def ? (def as any).feedingValue : 0
-				if (fv > 0 && (!best || fv > best.fv)) best = { type: good as GoodType, fv }
+				const s = def.satiationStrength ?? 0
+				if (s > 0 && (!best || s > best.strength)) best = { type: good as GoodType, strength: s }
 			}
 
-			// Check loose goods on the ground (new behavior)
 			const looseGoodsArr = hex.looseGoods.getGoodsAt(axialCoord)
 			for (const looseGood of looseGoodsArr) {
-				// Skip allocated or removed (decayed) goods
 				if (!looseGood.available || looseGood.isRemoved) continue
-				const def = goodsCatalog[looseGood.goodType]
+				const def: Ssh.GoodsDefinition = goodsCatalog[looseGood.goodType]
 				if (!def) continue
-				const fv = 'feedingValue' in def ? (def as any).feedingValue : 0
-				if (fv > 0 && (!best || fv > best.fv)) best = { type: looseGood.goodType, fv }
+				const s = def.satiationStrength ?? 0
+				if (s > 0 && (!best || s > best.strength)) best = { type: looseGood.goodType, strength: s }
 			}
 			return best?.type ?? null
 		}
@@ -138,7 +135,8 @@ class FindFunctions {
 				const actualDistance = axial.distance(start, coord)
 				if (actualDistance >= 2) {
 					const tile = hex.getTile(coord)
-					if (tile && Number.isFinite(tile.content!.walkTime)) {
+					const content = tile?.content
+					if (content && Number.isFinite(content.walkTime)) {
 						walkableTiles.push({ coord, tile })
 					}
 				}
@@ -200,6 +198,30 @@ class FindFunctions {
 
 		const path = hex.looseGoods.findNearestGoods(start, start, [targetGood], maxWalkTime)
 		return path
+	}
+
+	@contract()
+	homeTile() {
+		const character = this[subject]
+		const { hex } = character.game
+		const zm = hex.zoneManager
+		const existing = zm.getReservation(character)
+		if (existing) {
+			const start = toAxialCoord(character.tile.position)
+			const path = hex.findPathForCharacter(start, existing, character, maxWalkTime, true)
+			if (path) return { coord: existing, path }
+			zm.releaseReservation(character)
+		}
+		const start = toAxialCoord(character.tile.position)
+		let best: { coord: AxialCoord; path: AxialCoord[] } | undefined
+		for (const coord of zm.listUnreservedResidentialCoords()) {
+			const path = hex.findPathForCharacter(start, coord, character, maxWalkTime, true)
+			if (!path) continue
+			if (!best || path.length < best.path.length) best = { coord, path }
+		}
+		if (!best) return false as const
+		if (!zm.tryReserveResidentialAt(character, best.coord)) return false as const
+		return { coord: best.coord, path: best.path }
 	}
 
 	@contract()

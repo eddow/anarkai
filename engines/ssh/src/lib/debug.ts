@@ -1,4 +1,5 @@
 import { reactiveOptions } from 'mutts'
+import type { PlannerFindActionSnapshot } from 'ssh/population/findNextActivity'
 import { debugActiveAllocations, getAllocationStats } from 'ssh/storage/guard'
 
 export function nf<T extends Function>(name: string, fn: T): T {
@@ -23,8 +24,8 @@ export function defined<T>(value: T | undefined, message = 'Value is defined'): 
 
 export const traces: Record<string, typeof console | undefined> = {}
 
-traces.advertising = console
-traces.allocations = console
+//traces.advertising = console
+//traces.allocations = console
 const debugMutts = false
 if (debugMutts) {
 	reactiveOptions.chain = (targets: Function[], caller?: Function) => {
@@ -140,6 +141,33 @@ export const blackBoxLog = {
 	inventory: undefined as LogFn | undefined,
 	jobs: undefined as LogFn | undefined,
 	behavior: undefined as LogFn | undefined,
+	/** Set to `console.log` to print utility-ranked activities from `findNextActivity`. */
+	characterNeeds: undefined as LogFn | undefined,
+	/** Set to `console.log` to print each `findAction` resolution (ranked utilities vs fallback wander). */
+	idleDiagnosis: undefined as LogFn | undefined,
+}
+
+/** Structured hook for tests / devtools: assign `traces.characterNeeds = console` */
+export function traceNeeds(topic: string, payload: unknown) {
+	traces.characterNeeds?.log(topic, payload)
+}
+
+export type IdleDiagnosisPayload = PlannerFindActionSnapshot & {
+	name?: string
+	/** Extra context when `outcome.source === 'fallback-wander'`. */
+	note?: string
+}
+
+/** Assign `traces.idleDiagnosis = console` and/or `blackBoxLog.idleDiagnosis = console.log` to inspect `findAction`. */
+export function traceIdleDiagnosis(payload: IdleDiagnosisPayload) {
+	traces.idleDiagnosis?.log('findAction', payload)
+	if (blackBoxLog.idleDiagnosis) {
+		const ranked = payload.ranked.map((r) => `${r.kind}:${r.utility}`).join(' | ')
+		blackBoxLog.idleDiagnosis(
+			`[idleDiagnosis] ${payload.name ?? 'character'}`,
+			`${payload.outcome.source} → ${payload.outcome.kind} | ${ranked}${payload.note ? ` | ${payload.note}` : ''}`
+		)
+	}
 }
 
 export function logGroup(logger: LogFn | undefined | false, label: string, body: () => void) {

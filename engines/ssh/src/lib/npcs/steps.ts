@@ -5,7 +5,7 @@ import type { Character } from 'ssh/population/character'
 import type { GoodType } from 'ssh/types'
 import { casing } from 'ssh/utils'
 import type { Position, Positioned } from 'ssh/utils/position'
-import { activityDurations, ponderingFatigueRecovery } from '../../../assets/constants'
+import { activityDurations, needUpdate } from '../../../assets/constants'
 import { goods as goodsCatalog } from '../../../assets/game-content'
 import type { ScriptedObject } from './object'
 import { lerp } from './utils'
@@ -47,6 +47,12 @@ export class Finalized {
 	}
 }
 export abstract class ASingleStep extends Finalized {
+	/**
+	 * When true, finishing successfully makes `tick(dt)` return the full `dt` (no partial consumption).
+	 * Another instance of the same kind may legitimately follow in the same frame (e.g. a new queue wait).
+	 */
+	static readonly fullRemainingOnComplete: boolean = false
+
 	get description(): string | false {
 		return casing(this.constructor.name).transform((terms) => {
 			const lastTerm = terms.pop()
@@ -134,7 +140,14 @@ export abstract class ASingleStep extends Finalized {
 	}
 }
 
+/** Used by scripted object update: skip “useless same-kind step” when completion always passes full dt through. */
+export function stepPassesFullRemainingOnComplete(ctor: Function): boolean {
+	return (ctor as { fullRemainingOnComplete?: boolean }).fullRemainingOnComplete === true
+}
+
 export class QueueStep<Entity extends ScriptedObject> extends ASingleStep {
+	static override readonly fullRemainingOnComplete = true
+
 	get type() {
 		return 'idle' as const
 	}
@@ -298,6 +311,8 @@ export class DurationStep extends AEvolutionStep {
 }
 
 export class WaitForPredicateStep extends ASingleStep {
+	static override readonly fullRemainingOnComplete = true
+
 	get type() {
 		return 'idle' as const
 	}
@@ -332,15 +347,15 @@ export class EatStep extends AEvolutionStep {
 	get type() {
 		return 'eat' as const
 	}
-	private readonly feedingValue: number
+	private readonly satiationStrength: number
 	private lastEvolution = 0
 	constructor(
 		readonly character: Character,
 		readonly food: GoodType
 	) {
 		super(activityDurations.eating)
-		assert('feedingValue' in goodsCatalog[food], `Food ${food} has no feeding value`)
-		this.feedingValue = goodsCatalog[food].feedingValue as number
+		assert('satiationStrength' in goodsCatalog[food], `Food ${food} has no satiation strength`)
+		this.satiationStrength = goodsCatalog[food].satiationStrength as number
 		const removed = this.character.carry.removeGood(food, 1)
 		if (removed <= 0) {
 			const debugInfo = JSON.stringify(
@@ -360,14 +375,14 @@ export class EatStep extends AEvolutionStep {
 	evolve(evolution: number): void {
 		const delta = Math.max(0, evolution - this.lastEvolution)
 		this.lastEvolution = evolution
-		this.character.hunger = Math.max(0, this.character.hunger - this.feedingValue * delta)
+		this.character.hunger = needUpdate(this.character.hunger, -1, this.satiationStrength * delta)
 	}
 	serialize(): SerializedStep {
 		return {
 			type: 'EatStep',
 			food: this.food,
 			evolution: this.evolution,
-			duration: this.duration, // Should we save duration? It's constant for EatStep but AEvolutionStep has it
+			duration: this.duration,
 		}
 	}
 }
@@ -375,9 +390,6 @@ export class EatStep extends AEvolutionStep {
 export class PonderingStep extends AEvolutionStep {
 	get type() {
 		return 'rest' as const
-	}
-	evolve(_: number, dt: number): void {
-		this.character.fatigue = Math.max(0, this.character.fatigue - ponderingFatigueRecovery * dt)
 	}
 	constructor(
 		readonly character: Character,

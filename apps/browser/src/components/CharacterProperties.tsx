@@ -4,6 +4,7 @@ import { effect } from 'mutts'
 import { i18nState } from 'ssh/i18n'
 import { AEvolutionStep, ALerpStep } from 'ssh/npcs/steps'
 import type { Character } from 'ssh/population/character'
+import type { PlannerFindActionSnapshot } from 'ssh/population/findNextActivity'
 import type { GoodType } from 'ssh/types/base'
 import GoodsList from './GoodsList'
 import PropertyGrid from './PropertyGrid'
@@ -82,6 +83,16 @@ css`/*
 	color: var(--ak-text-muted);
 	font-style: italic;
 }
+
+.character-planner__mono {
+	font-family: ui-monospace, monospace;
+	font-size: 0.75rem;
+	line-height: 1.35;
+	white-space: pre-wrap;
+	word-break: break-word;
+	color: var(--ak-text-muted);
+	margin: 0;
+}
 `
 
 interface CharacterPropertiesProps {
@@ -121,6 +132,20 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 			return computed.step && !(computed.step instanceof ALerpStep)
 				? Math.max(0, Math.min(1, computed.step.evolution))
 				: 0
+		},
+		get plannerSnapshot(): PlannerFindActionSnapshot | undefined {
+			return props.character?.lastPlannerSnapshot
+		},
+		get plannerRankedText() {
+			const snap = computed.plannerSnapshot
+			if (!snap) return ''
+			return snap.ranked.map((r) => `${r.kind}: ${r.utility}`).join('\n')
+		},
+		get plannerOutcomeText() {
+			const snap = computed.plannerSnapshot
+			if (!snap) return ''
+			const { kind, source } = snap.outcome
+			return `${source} → ${kind}`
 		},
 	}
 
@@ -192,6 +217,29 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 						</Panel>
 					</PropertyGridRow>
 				</PropertyGrid>
+				<InspectorSection class="character-properties__stats">
+					<PropertyGrid>
+						<PropertyGridRow label={i18nState.translator?.character.plannerSection ?? 'Planning'}>
+							<span class="character-planner__mono">
+								{i18nState.translator?.character.plannerKeepWorking ?? 'keepWorking'}:{' '}
+								{String(props.character?.keepWorking ?? false)}
+							</span>
+						</PropertyGridRow>
+						<PropertyGridRow
+							label={i18nState.translator?.character.plannerLastPick ?? 'lastPicked'}
+						>
+							<span class="character-planner__mono">
+								{String(props.character?.lastPickedActivityKind ?? '—')}
+							</span>
+						</PropertyGridRow>
+						<PropertyGridRow label={i18nState.translator?.character.plannerOutcome ?? 'outcome'}>
+							<span class="character-planner__mono">{computed.plannerOutcomeText || '—'}</span>
+						</PropertyGridRow>
+						<PropertyGridRow label={i18nState.translator?.character.plannerRanked ?? 'ranked'}>
+							<pre class="character-planner__mono">{computed.plannerRankedText || '—'}</pre>
+						</PropertyGridRow>
+					</PropertyGrid>
+				</InspectorSection>
 			</div>
 			<div else />
 		</>

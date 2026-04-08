@@ -235,11 +235,13 @@ export class Hive extends AdvertisementManager<Alveolus> {
 
 		if (path && path.length > 0) {
 			// path is tile - border - tile - border - ... - tile
-			// We should keep only the borders and the last tile
-			const maxNdx = Math.floor(path.length / 2)
-			for (let i = 0; i < maxNdx; i++) path.splice(i, 1)
-			this.pathCache.set(key, path)
-			return path
+			// Keep only the borders and the last tile: drop the first floor(n/2) nodes (tile/border pairs).
+			const trimmed = path.slice()
+			const drop = Math.floor(trimmed.length / 2)
+			for (let i = 0; i < drop; i++) trimmed.splice(0, 1)
+			if (trimmed.length < 1) return undefined
+			this.pathCache.set(key, trimmed)
+			return trimmed
 		}
 
 		return undefined
@@ -334,7 +336,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 					this.stalledExchangeSeenAt.set(key, firstSeenAt)
 					if (now - firstSeenAt < settleMs) continue
 
-					traces.advertising?.warn(
+					;(traces.advertising ?? console).warn?.(
 						`[WATCHDOG] STALLED EXCHANGE: ${goodType} ${provider.name} -> ${demander.name}`,
 						{
 							goodType,
@@ -620,17 +622,17 @@ export class Hive extends AdvertisementManager<Alveolus> {
 					}
 				}
 			}
-		const movingGood: MovingGood = {
-			goodType,
-			path,
-			provider,
-			demander,
-			from: positions.provider,
-			claimed: false,
-			allocations: {
-				source: providerToken!,
-				target: targetToken!,
-			},
+			const movingGood: MovingGood = {
+				goodType,
+				path,
+				provider,
+				demander,
+				from: positions.provider,
+				claimed: false,
+				allocations: {
+					source: providerToken!,
+					target: targetToken!,
+				},
 				hop() {
 					const nextCoord = this.path.shift()!
 					traces.advertising?.log(

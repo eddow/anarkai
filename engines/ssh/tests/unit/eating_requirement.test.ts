@@ -7,7 +7,6 @@ describe('Eating Requirement', () => {
 	it('carriedFood only returns food if at least 1 unit is available', async () => {
 		const game = new Game(
 			{
-				boardSize: 12,
 				terrainSeed: 1,
 				characterCount: 0, // No random characters
 				characterRadius: 5,

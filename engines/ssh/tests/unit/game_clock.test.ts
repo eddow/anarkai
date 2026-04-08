@@ -7,7 +7,6 @@ describe('Game Clock', () => {
 
 	beforeEach(async () => {
 		game = new Game({
-			boardSize: 12,
 			terrainSeed: 1,
 			characterCount: 1,
 			characterRadius: 5,

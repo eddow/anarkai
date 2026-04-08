@@ -32,7 +32,12 @@
 		"fatigue": "Fatigue",
 		"currentActivity": "Current Activity",
 		"activityDescriptions": "Activity Descriptions",
-		"noActivity": "No activity"
+		"noActivity": "No activity",
+		"plannerSection": "Planning (diagnostics)",
+		"plannerKeepWorking": "Fit for work",
+		"plannerLastPick": "Last stabilized pick",
+		"plannerOutcome": "Last findAction outcome",
+		"plannerRanked": "Ranked utilities"
 	},
 	"step": {
 		"idle": "Idle",

@@ -32,7 +32,12 @@
 		"fatigue": "Fatigue",
 		"currentActivity": "Activité actuelle",
 		"activityDescriptions": "Descriptions d'activité",
-		"noActivity": "Aucune activité"
+		"noActivity": "Aucune activité",
+		"plannerSection": "Planification (diagnostic)",
+		"plannerKeepWorking": "Encore apte au travail",
+		"plannerLastPick": "Dernier choix stabilisé",
+		"plannerOutcome": "Dernier résultat findAction",
+		"plannerRanked": "Utilités classées"
 	},
 	"step": {
 		"idle": "Inactif",

@@ -115,7 +115,7 @@ declare namespace Ssh {
 		}
 	}
 	interface GoodsDefinition {
-		feedingValue?: number
+		satiationStrength?: number
 		halfLife: number
 	}
 

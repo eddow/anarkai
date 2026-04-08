@@ -426,7 +426,6 @@ Procedural generation uses seeded RNG for reproducibility:
 
 ```typescript
 const config: GameGenerationConfig = {
-  boardSize: 12,        // Hex radius
   terrainSeed: 1234,    // RNG seed
   characterCount: 3,    // Initial population
   characterRadius: 200  // Spawn radius

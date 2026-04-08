@@ -3,7 +3,7 @@ import { Game } from './game'
 import { chopSaw as patches } from './game/exampleGames'
 
 export interface Configuration {
-	timeControl: 0 | 1 | 2 | 3
+	timeControl: 0 | 1 | 2 | 3 | 'pause' | 'play' | 'fast-forward' | 'gonzales'
 }
 
 function getDefaultConfiguration(): Configuration {
@@ -27,7 +27,6 @@ function ensureGame(): Game {
 			() =>
 				new Game(
 					{
-						boardSize: 12,
 						terrainSeed: 23,
 						characterCount: 3,
 						characterRadius: 5,

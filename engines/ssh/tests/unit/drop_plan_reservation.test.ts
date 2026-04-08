@@ -14,7 +14,6 @@ describe('Drop plan reservations', () => {
 
 	it('reserves gate storage only when the drop is effectuated', async () => {
 		engine = new TestEngine({
-			boardSize: 6,
 			terrainSeed: 1234,
 			characterCount: 0,
 		})
@@ -22,7 +21,6 @@ describe('Drop plan reservations', () => {
 
 		engine.loadScenario({
 			generationOptions: {
-				boardSize: 6,
 				terrainSeed: 1234,
 				characterCount: 0,
 			},

@@ -68,6 +68,7 @@ if (typeof Image === 'undefined') {
 })
 
 import { Game } from 'ssh/game/game'
+import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { DurationStep, MoveToStep, MultiMoveStep } from 'ssh/npcs/steps'
 import { toAxialCoord } from 'ssh/utils/position'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -99,7 +100,7 @@ vi.mock('ssh/assets/game-content', () => {
 		goods: {
 			wood: { sprites: ['wood.png'] },
 			stone: { sprites: ['stone.png'] },
-			food: { feedingValue: 1, sprites: ['food.png'] },
+			food: { satiationStrength: 0.5, sprites: ['food.png'] },
 		},
 		terrain: terrainProxy,
 		deposits: {
@@ -135,7 +136,6 @@ describe('Save/Load Determinism', () => {
 
 	it('Scenario 1: Movement Persistence', async () => {
 		const game1 = new Game({
-			boardSize: 12,
 			terrainSeed: 1234,
 			characterCount: 0,
 		})
@@ -156,13 +156,12 @@ describe('Save/Load Determinism', () => {
 		const controlPos = { ...char1.position }
 
 		const game2 = new Game({
-			boardSize: 12,
 			terrainSeed: 1234,
 			characterCount: 0,
 		})
 		games.add(game2)
 		await game2.loaded
-		game2.loadGameData(saveState)
+		await game2.loadGameData(saveState)
 		const char2 = game2.population.character(char1.uid)
 
 		for (let i = 0; i < 20; i++) char2.update(dt)
@@ -176,7 +175,6 @@ describe('Save/Load Determinism', () => {
 
 	it('Scenario 2: Inventory Persistence', async () => {
 		const game = new Game({
-			boardSize: 12,
 			terrainSeed: 555,
 			characterCount: 0,
 		})
@@ -190,13 +188,12 @@ describe('Save/Load Determinism', () => {
 		const saveState = game.saveGameData()
 
 		const game2 = new Game({
-			boardSize: 12,
 			terrainSeed: 555,
 			characterCount: 0,
 		})
 		games.add(game2)
 		await game2.loaded
-		game2.loadGameData(saveState)
+		await game2.loadGameData(saveState)
 		const char2 = game2.population.character(char.uid)
 
 		expect(char2.carry.available('wood')).toBe(1)
@@ -206,7 +203,6 @@ describe('Save/Load Determinism', () => {
 
 	it('Scenario 3: Resource Gathering (DurationStep)', async () => {
 		const game = new Game({
-			boardSize: 12,
 			terrainSeed: 999,
 			characterCount: 0,
 		})
@@ -224,13 +220,12 @@ describe('Save/Load Determinism', () => {
 		const saveState = game.saveGameData()
 
 		const game2 = new Game({
-			boardSize: 12,
 			terrainSeed: 999,
 			characterCount: 0,
 		})
 		games.add(game2)
 		await game2.loaded
-		game2.loadGameData(saveState)
+		await game2.loadGameData(saveState)
 		const char2 = game2.population.character(char.uid)
 
 		expect(char2.stepExecutor).toBeDefined()
@@ -248,10 +243,100 @@ describe('Save/Load Determinism', () => {
 		expect(finished).toBe(true)
 	})
 
+	it('reloads untouched streamed gameplay tiles from saved frontier coords', async () => {
+		const game = new Game({
+			terrainSeed: 321,
+			characterCount: 0,
+		})
+		games.add(game)
+		await game.loaded
+
+		const streamedCoord = { q: 14, r: 0 }
+		expect(game.hex.getTileContent(streamedCoord)).toBeUndefined()
+
+		await game.requestGameplayFrontier(streamedCoord, 0, { maxBatchSize: 1 })
+
+		const tile = game.hex.getTile(streamedCoord)
+		expect(tile).toBeDefined()
+		expect(tile?.content).toBeDefined()
+
+		const saveState = game.saveGameData()
+		expect(saveState.tiles?.some((entry) => entry.coord[0] === 14 && entry.coord[1] === 0)).toBe(
+			false
+		)
+		expect(
+			saveState.streamedFrontier?.some((entry) => entry[0] === streamedCoord.q && entry[1] === streamedCoord.r)
+		).toBe(true)
+
+		const game2 = new Game({
+			terrainSeed: 321,
+			characterCount: 0,
+		})
+		games.add(game2)
+		await game2.loaded
+		await game2.loadGameData(saveState)
+
+		expect(game2.hex.getTile(streamedCoord)).toBeDefined()
+		expect(game2.hex.getTileContent(streamedCoord)).toBeDefined()
+	})
+
+	it('does not serialize the untouched bootstrap region into streamed frontier coords', async () => {
+		const game = new Game({
+			terrainSeed: 987,
+			characterCount: 0,
+		})
+		games.add(game)
+		await game.loaded
+
+		const saveState = game.saveGameData()
+		expect(saveState.streamedFrontier ?? []).toHaveLength(0)
+
+		const streamedCoord = { q: 14, r: 0 }
+		await game.requestGameplayFrontier(streamedCoord, 0, { maxBatchSize: 1 })
+		const saveStateAfterStreaming = game.saveGameData()
+		expect(saveStateAfterStreaming.streamedFrontier).toEqual([[14, 0]])
+	})
+
+	it('preserves zones and projects placed on streamed gameplay tiles', async () => {
+		const game = new Game({
+			terrainSeed: 654,
+			characterCount: 0,
+		})
+		games.add(game)
+		await game.loaded
+
+		const residentialCoord = { q: 15, r: 0 }
+		const projectCoord = { q: 16, r: 0 }
+		await game.requestGameplayFrontier(residentialCoord, 1, { maxBatchSize: 7 })
+
+		const residentialTile = game.hex.getTile(residentialCoord)
+		const projectTile = game.hex.getTile(projectCoord)
+		expect(residentialTile?.content).toBeDefined()
+		expect(projectTile?.content).toBeDefined()
+
+		residentialTile!.zone = 'residential'
+		expect(projectTile!.content instanceof UnBuiltLand).toBe(true)
+		;(projectTile!.content as UnBuiltLand).setProject('build:test')
+		projectTile!.asGenerated = false
+
+		const saveState = game.saveGameData()
+		const game2 = new Game({
+			terrainSeed: 654,
+			characterCount: 0,
+		})
+		games.add(game2)
+		await game2.loaded
+		await game2.loadGameData(saveState)
+
+		expect(game2.hex.zoneManager.getZone(residentialCoord)).toBe('residential')
+		const loadedProjectTile = game2.hex.getTile(projectCoord)
+		expect(loadedProjectTile?.content instanceof UnBuiltLand).toBe(true)
+		expect((loadedProjectTile?.content as UnBuiltLand).project).toBe('build:test')
+	})
+
 	it('Scenario 4: Logistics/MultiMoveStep', async () => {
 		// Simulates a complex movement often used when hauling goods
 		const game = new Game({
-			boardSize: 12,
 			terrainSeed: 777,
 			characterCount: 0,
 		})
@@ -281,13 +366,12 @@ describe('Save/Load Determinism', () => {
 
 		// Reload
 		const game2 = new Game({
-			boardSize: 12,
 			terrainSeed: 777,
 			characterCount: 0,
 		})
 		games.add(game2)
 		await game2.loaded
-		game2.loadGameData(saveState)
+		await game2.loadGameData(saveState)
 		const char2 = game2.population.character(char.uid)
 
 		expect(char2.stepExecutor!.constructor.name).toBe('MultiMoveStep')
@@ -305,5 +389,66 @@ describe('Save/Load Determinism', () => {
 		// The last movement targeting q:10,r:0 should be reflected if it was applied.
 		// expect(char2.position.q).toBeCloseTo(10, 1)
 		// (This depends on MultiMoveStep logic detail, verified by runtime)
+	})
+
+	it('Scenario 5: Terraform Patch Roundtrip', async () => {
+		const game = new Game({
+			terrainSeed: 2024,
+			characterCount: 0,
+		})
+		games.add(game)
+		await game.loaded
+
+		game.generate(
+			{
+				terrainSeed: 2024,
+				characterCount: 0,
+			},
+			{
+				tiles: [
+					{
+						coord: [1, -1],
+						terrain: 'rocky',
+						height: 0.77,
+						temperature: 0.31,
+						humidity: -0.22,
+						sediment: 0.4,
+						waterTable: 0.12,
+					},
+				],
+			}
+		)
+
+		const saveState = game.saveGameData()
+		expect(saveState.tiles).toContainEqual(
+			expect.objectContaining({
+				coord: [1, -1],
+				terrain: 'rocky',
+				height: 0.77,
+				temperature: 0.31,
+				humidity: -0.22,
+				sediment: 0.4,
+				waterTable: 0.12,
+			})
+		)
+
+		const game2 = new Game({
+			terrainSeed: 2024,
+			characterCount: 0,
+		})
+		games.add(game2)
+		await game2.loaded
+		await game2.loadGameData(saveState)
+
+		const tile = game2.hex.getTile({ q: 1, r: -1 })!
+		expect(tile.terrainHeight).toBe(0.77)
+		expect(tile.terrainState).toMatchObject({
+			height: 0.77,
+			temperature: 0.31,
+			humidity: -0.22,
+			sediment: 0.4,
+			waterTable: 0.12,
+		})
+		expect(tile.content?.debugInfo?.terrain).toBe('rocky')
 	})
 })
