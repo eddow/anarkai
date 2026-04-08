@@ -22,8 +22,6 @@ describe('LooseGoods', () => {
 	it('marks goods as removed in O(1) state and safely ignores double removal', () => {
 		const tile = game.hex.getTile({ q: 0, r: 0 }) as Tile
 		const good = game.hex.looseGoods.add(tile, 'wood', { position: tile.position })
-		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-		const error = vi.spyOn(console, 'error').mockImplementation(() => {})
 
 		expect(good.isRemoved).toBe(false)
 		expect(game.hex.looseGoods.getGoodsAt(tile.position)).toContain(good)
@@ -35,10 +33,22 @@ describe('LooseGoods', () => {
 
 		good.remove()
 
-		expect(warn).toHaveBeenCalledTimes(1)
 		expect(game.hex.looseGoods.getGoodsAt(tile.position)).toHaveLength(0)
-		warn.mockRestore()
-		error.mockRestore()
+	})
+
+	it('removes a moving good by stored ownership even after its position changes', () => {
+		const startTile = game.hex.getTile({ q: 0, r: 0 }) as Tile
+		const moving = game.hex.looseGoods.add(startTile, 'wood', {
+			position: startTile.position,
+			available: false,
+		})
+
+		moving.position = { q: 1, r: 0 }
+		moving.remove()
+
+		expect(moving.isRemoved).toBe(true)
+		expect(game.hex.looseGoods.getGoodsAt({ q: 0, r: 0 })).not.toContain(moving)
+		expect(game.hex.looseGoods.getGoodsAt({ q: 1, r: 0 })).not.toContain(moving)
 	})
 
 	it('decays only eligible loose goods during grouped updates', () => {

@@ -252,11 +252,9 @@ export class InventoryFunctions {
 		)
 
 		if (matchingLooseGoods.length === 0) {
-			// If explicit good requested, throw error (command failed)
-			if (goodType) throw new Error(`No ${goodType} to grab at ${coord}`)
-
-			// If checking generic "any good" (scavenge), and none found matching criteria:
-			// Return Idle plan to gracefully "cancel" or skip the grab attempt without crashing.
+			// Loose goods can disappear between pathfinding and execution (another worker picks them,
+			// they are reserved, etc). Fail softly so the caller can re-plan instead of breaking the
+			// whole reactive batch.
 			return {
 				type: 'idle',
 				duration: 0.1,

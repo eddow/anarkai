@@ -164,8 +164,8 @@ export default defineConfig({
 		stripDeclare(), // Must run first, before Babel
 		pureGlyfPlugin({
 			icons: {
-				mdi: "node_modules/@mdi/svg/svg",
-				tabler: "node_modules/@tabler/icons/icons",
+				mdi: resolvePath(projectRootDir, "node_modules/@mdi/svg/svg"),
+				tabler: resolvePath(projectRootDir, "node_modules/@tabler/icons/icons"),
 			},
 			dts: "src/pure-glyf-icons.d.ts",
 		}) as any,

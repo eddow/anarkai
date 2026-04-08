@@ -12,27 +12,31 @@ type ResourceImageProps = {
 }
 
 const ResourceImage = (props: ResourceImageProps) => {
-	const state = reactive({ style: '' })
+	const state = reactive({
+		style: '',
+		resolvedSprite: undefined as Ssh.Sprite | undefined,
+	})
 
 	effect`resource-image:style`(() => {
 		const { game, sprite } = props // Access props (reactive)
 		if (!game || !sprite) {
 			state.style = ''
+			state.resolvedSprite = undefined
 			return
 		}
 
-		void (async () => {
-			await game.rendererReady
-			// Re-accessing sprite in async context is fine, but we tracked it above
-			const texture = game.getTexture(sprite)
+		const requestSprite = sprite
+		const applyResolvedTexture = (texture: any) => {
+			if (!texture) return false
+
 			let targetWidth = props.width
 			let targetHeight = props.height
-			const frame = texture?.frame ?? {
-				width: texture?.width ?? 0,
-				height: texture?.height ?? 0,
+			const frame = texture.frame ?? {
+				width: texture.width ?? 0,
+				height: texture.height ?? 0,
 			}
-			const realWidth = frame?.width ?? texture?.width ?? 0
-			const realHeight = frame?.height ?? texture?.height ?? 0
+			const realWidth = frame?.width ?? texture.width ?? 0
+			const realHeight = frame?.height ?? texture.height ?? 0
 
 			if (targetHeight !== undefined && targetWidth === undefined) {
 				targetWidth = (targetHeight * realWidth) / Math.max(realHeight, 1)
@@ -49,6 +53,18 @@ const ResourceImage = (props: ResourceImageProps) => {
 					? `width: ${targetWidth}px; height: ${targetHeight}px;`
 					: ''
 			state.style = `${dimensions}${backgroundStyle}`
+			state.resolvedSprite = requestSprite
+			return true
+		}
+
+		const syncTexture = game.getTexture(requestSprite)
+		if (applyResolvedTexture(syncTexture)) return
+
+		void (async () => {
+			await game.rendererReady
+			if (props.game !== game || props.sprite !== requestSprite) return
+			const texture = game.getTexture(requestSprite)
+			applyResolvedTexture(texture)
 		})()
 	})
 

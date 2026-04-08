@@ -67,6 +67,7 @@ vi.mock('ssh/utils/position', () => ({
 }))
 
 let SelectionInfoWidget: typeof import('./selection-info').default
+let SelectionInfoTab: typeof import('./selection-info-tab').default
 
 type SelectionInfoParams = { uid?: string }
 
@@ -102,6 +103,7 @@ describe('SelectionInfoWidget', () => {
 
 	beforeAll(async () => {
 		;({ default: SelectionInfoWidget } = await import('./selection-info'))
+		;({ default: SelectionInfoTab } = await import('./selection-info-tab'))
 	})
 
 	beforeEach(() => {
@@ -177,5 +179,41 @@ describe('SelectionInfoWidget', () => {
 
 		expect(world.position.x).toBe(20)
 		expect(world.position.y).toBe(30)
+	})
+
+	it('keeps the inspected object in shared context for hover handling', () => {
+		globals.selectionState.selectedUid = 'object-1'
+		const props = createProps()
+		const scope = createScope()
+
+		stop = latch(container, <SelectionInfoWidget {...props} />, scope as never)
+
+		expect(props.context.hoveredObject).toBe(gameObject)
+	})
+
+	it('highlights the inspected object while hovering the tab', () => {
+		const props: DockviewWidgetProps<Record<string, never>, SelectionInfoContext> = {
+			title: 'Workbench',
+			size: {
+				width: 180,
+				height: 40,
+			},
+			params: {},
+			context: {
+				hoveredObject: gameObject as never,
+			},
+		}
+		const scope = createScope()
+
+		stop = latch(container, <SelectionInfoTab {...props} />, scope as never)
+
+		const tab = container.querySelector('.selection-info-tab')
+		expect(tab).not.toBeNull()
+
+		tab!.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }))
+		expect(globals.mrg.hoveredObject?.uid).toBe(gameObject.uid)
+
+		tab!.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }))
+		expect(globals.mrg.hoveredObject).toBeUndefined()
 	})
 })

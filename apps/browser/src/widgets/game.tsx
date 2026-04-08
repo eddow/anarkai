@@ -1,9 +1,8 @@
 import { css } from '@app/lib/css'
+import { selectInspectorObject } from '@app/lib/follow-selection'
 import {
 	game,
 	interactionMode,
-	selectionState,
-	unreactiveInfo,
 	validateStoredSelectionState,
 } from '@app/lib/globals'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
@@ -32,23 +31,7 @@ export default function GameWidget(
 	const containerId = `game-container-${api?.id ?? Math.random().toString(36).substr(2, 9)}`
 
 	const handleProjectSelection = (object: InteractiveGameObject) => {
-		selectionState.selectedUid = object.uid
-
-		if (!dock) return
-
-		if (!unreactiveInfo.hasLastSelectedInfoPanel) {
-			unreactiveInfo.hasLastSelectedInfoPanel = true
-			dock.addPanel?.({
-				id: `selection-info-${Date.now()}`,
-				component: 'selection-info',
-				params: {}, // Empty params means it follows selectionState
-				tabComponent: 'selection-info-tab',
-				floating: {
-					width: 400,
-					height: 600,
-				},
-			})
-		}
+		selectInspectorObject(object, dock)
 	}
 
 	const handleBuildingAction = (_event: MouseEvent, object: InteractiveGameObject) => {

@@ -1,9 +1,11 @@
 import { css } from '@app/lib/css'
-import { game, mrg, selectionState, unreactiveInfo } from '@app/lib/globals'
+import { clearFollowSelectionPanel } from '@app/lib/follow-selection'
+import { game, mrg, selectionState } from '@app/lib/globals'
 import { InspectorSection, Panel } from '@app/ui/anarkai'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
 import { effect } from 'mutts'
 import { Tile } from 'ssh/board/tile'
+import type { InteractiveGameObject } from 'ssh/game/object'
 import { Character } from 'ssh/population/character'
 import { toWorldCoord } from 'ssh/utils/position'
 import CharacterProperties from '../components/CharacterProperties'
@@ -74,6 +76,7 @@ const SelectionInfoWidget = (
 	scope: DockviewWidgetScope
 ) => {
 	const api = (scope as any).panelApi
+	let isPanelHovered = false
 	scope.setTitle = (title: string) => {
 		props.title = title
 	}
@@ -98,7 +101,7 @@ const SelectionInfoWidget = (
 		props.context.tools = (props.context.tools ?? []).filter(
 			(tool) => tool.ariaLabel !== 'Pin Panel'
 		)
-		unreactiveInfo.hasLastSelectedInfoPanel = false
+		clearFollowSelectionPanel(api.id)
 	}
 
 	const goTo = () => {
@@ -120,6 +123,22 @@ const SelectionInfoWidget = (
 
 	effect`selection-info:title`(() => {
 		props.title = current.object?.title ?? 'Object'
+	})
+
+	effect`selection-info:hovered-object`(() => {
+		const object = current.object as InteractiveGameObject | undefined
+		props.context.hoveredObject = object
+		if (isPanelHovered && object) {
+			mrg.hoveredObject = object
+		}
+		return () => {
+			if (props.context.hoveredObject === object) {
+				props.context.hoveredObject = undefined
+			}
+			if (isPanelHovered && object && mrg.hoveredObject?.uid === object.uid) {
+				mrg.hoveredObject = undefined
+			}
+		}
 	})
 
 	effect`selection-info:tools`(() => {
@@ -149,25 +168,40 @@ const SelectionInfoWidget = (
 				// If this panel was the one tracking active selection (not pinned)
 				// Reset the flag so selection in game can re-open it.
 				if (!props.params.uid) {
-					unreactiveInfo.hasLastSelectedInfoPanel = false
+					clearFollowSelectionPanel(api.id)
 				}
 			}
 		})
 		return () => disposable.dispose()
 	})
 
+	const attachHoverTracking = (element: HTMLElement) => {
+		const handleMove = () => {
+			isPanelHovered = true
+			const object = current.object as InteractiveGameObject | undefined
+			if (object) mrg.hoveredObject = object
+		}
+		const handleLeave = () => {
+			isPanelHovered = false
+			const object = current.object as InteractiveGameObject | undefined
+			if (object && mrg.hoveredObject?.uid === object.uid) {
+				mrg.hoveredObject = undefined
+			}
+		}
+
+		element.addEventListener('mousemove', handleMove)
+		element.addEventListener('mouseleave', handleLeave)
+
+		return () => {
+			element.removeEventListener('mousemove', handleMove)
+			element.removeEventListener('mouseleave', handleLeave)
+		}
+	}
+
 	return (
 		<div
 			class="selection-info-panel"
-			onMouseenter={() => {
-				const object = current.object
-				if (object) mrg.hoveredObject = object
-			}}
-			onMouseleave={() => {
-				if (mrg.hoveredObject?.uid === current.object?.uid) {
-					mrg.hoveredObject = undefined
-				}
-			}}
+			use={attachHoverTracking}
 			data-test-object-uid={current.object?.uid}
 		>
 			<div if={current.object} class="selection-info-panel__content-wrapper">

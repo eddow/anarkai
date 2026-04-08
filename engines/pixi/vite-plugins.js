@@ -1,4 +1,3 @@
-import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -40,11 +39,12 @@ export function servePixiAssets() {
 		closeBundle() {
 			const src = path.resolve(__dirname, "assets");
 			const dest = path.resolve(process.cwd(), "dist/pixi-assets");
+			if (!fs.existsSync(src)) return;
 			if (!fs.existsSync(dest)) {
 				fs.mkdirSync(dest, { recursive: true });
 			}
 			try {
-				execSync(`cp -r "${src}/." "${dest}/"`);
+				fs.cpSync(src, dest, { recursive: true, force: true });
 			} catch (e) {
 				console.warn("Failed to copy pixi assets", e);
 			}

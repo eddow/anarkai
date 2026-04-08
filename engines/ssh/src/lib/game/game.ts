@@ -14,6 +14,7 @@ import {
 } from 'ssh/generation'
 import { configuration } from 'ssh/globals'
 import { AlveolusConfigurationManager, alveolusClass, Hive } from 'ssh/hive'
+import { StorageAlveolus } from 'ssh/hive/storage'
 import { mrg } from 'ssh/interactive-state'
 import { Population } from 'ssh/population/population'
 import type { AlveolusType, DepositType, GoodType, TerrainType } from 'ssh/types'
@@ -718,7 +719,34 @@ export class Game extends Eventful<GameEvents> {
 				if (a.configuration) {
 					alv.configurationRef = a.configuration.ref
 					if (a.configuration.individual) {
-						alv.individualConfiguration = a.configuration.individual
+						const individual = reactive({ ...a.configuration.individual })
+						if (
+							alv instanceof StorageAlveolus &&
+							alv.action.type === 'slotted-storage' &&
+							'buffers' in individual &&
+							individual.buffers
+						) {
+							const goods = Object.fromEntries(
+								Object.entries(individual.buffers).map(([goodType, minSlots]) => [
+									goodType,
+									{
+										minSlots: Math.max(0, Math.min(alv.action.slots, Math.floor(minSlots))),
+										maxSlots: 0,
+									},
+								])
+							)
+							const usedSlots = Object.values(goods).reduce(
+								(total, rule) => total + rule.minSlots,
+								0
+							)
+							alv.individualConfiguration = reactive({
+								working: individual.working ?? true,
+								generalSlots: Math.max(0, alv.action.slots - usedSlots),
+								goods,
+							})
+						} else {
+							alv.individualConfiguration = individual
+						}
 					}
 				}
 				tile.asGenerated = false

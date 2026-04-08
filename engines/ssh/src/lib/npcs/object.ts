@@ -9,6 +9,26 @@ function currentStepExecutor(target: { stepExecutor?: ASingleStep }): ASingleSte
 	return target.stepExecutor
 }
 
+function debugStepSnapshot(step: ASingleStep | undefined) {
+	if (!step) return undefined
+	const serialized = (() => {
+		try {
+			return step.serialize()
+		} catch (error) {
+			return {
+				serializeError: error instanceof Error ? error.message : String(error),
+			}
+		}
+	})()
+	return {
+		type: step.constructor.name,
+		status: step.status,
+		description: step.description,
+		fullRemainingOnComplete: stepPassesFullRemainingOnComplete(step.constructor),
+		serialized,
+	}
+}
+
 export function withScripted<T extends abstract new (...args: any[]) => TickedGameObject>(Base: T) {
 	@unreactive('runningScripts')
 	abstract class ScriptedMixin extends Base {
@@ -127,19 +147,21 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 			let remaining: number | undefined = dt
 			let uselessStepExecutor: Function | undefined
 			while (remaining !== undefined && this.stepExecutor) {
-				const newRemaining = this.stepExecutor.tick(remaining)
+				const previousStepExecutor = this.stepExecutor
+				const previousStepBeforeTick = debugStepSnapshot(previousStepExecutor)
+				const newRemaining = previousStepExecutor.tick(remaining)
 				if (typeof newRemaining === 'number' && !Number.isFinite(newRemaining)) debugger
 				if (
 					newRemaining === remaining &&
-					this.stepExecutor &&
-					!stepPassesFullRemainingOnComplete(this.stepExecutor.constructor)
+					previousStepExecutor &&
+					!stepPassesFullRemainingOnComplete(previousStepExecutor.constructor)
 				)
-					uselessStepExecutor = this.stepExecutor.constructor
+					uselessStepExecutor = previousStepExecutor.constructor
 				remaining = newRemaining
 				if (remaining !== undefined) {
-					assert(this.stepExecutor.status !== 'pending', 'Step executor is not pending')
-					//console.log(`[update] ${this.name}: finished step ${this.stepExecutor.constructor.name}, remaining dt ${remaining}`);
-					this._lastCompletedStepType = this.stepExecutor.constructor.name
+					assert(previousStepExecutor.status !== 'pending', 'Step executor is not pending')
+					//console.log(`[update] ${this.name}: finished step ${previousStepExecutor.constructor.name}, remaining dt ${remaining}`);
+					this._lastCompletedStepType = previousStepExecutor.constructor.name
 					this.stepExecutor = undefined
 					this.nextStep()
 					const repeatedStepExecutor = currentStepExecutor(this)
@@ -147,7 +169,14 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 					if (uselessStepExecutor && repeatedStepExecutor && uselessStepExecutor === newType) {
 						console.error('Useless step executor detected:', {
 							object: (this as any).name ?? (this as any).uid ?? 'unknown',
+							dt,
+							remainingBeforeTick: remaining,
+							newRemaining,
 							stepType: newType?.name,
+							previousStepBeforeTick,
+							previousStepAfterTick: debugStepSnapshot(previousStepExecutor),
+							repeatedStep: debugStepSnapshot(repeatedStepExecutor),
+							lastCompletedStepType: this._lastCompletedStepType,
 							runningScripts: this.runningScripts.map((s) => ({
 								name: s.name,
 								state: s.state,

@@ -115,8 +115,9 @@ export class TileVisual extends VisualObject<Tile> {
 				let brightness = 1
 				let tint = 0xffffff
 				let borderColor = 0
+				const isActive = mrg.hoveredObject?.uid === this.object.uid
 
-				if (mrg.hoveredObject?.uid === this.object.uid) {
+				if (isActive) {
 					const action = interactionMode.selectedAction
 					const canInteract =
 						content && (content as any).canInteract && (content as any).canInteract(action)
@@ -127,14 +128,14 @@ export class TileVisual extends VisualObject<Tile> {
 							// simplified zone colors
 							tint =
 								zoneType === 'residential' ? 0x88ff88 : zoneType === 'harvest' ? 0xddbb99 : 0xbbbbbb
-							brightness = 1.1
+							brightness = 1.16
 						} else {
-							tint = 0xaaaaff
-							brightness = 1.2
+							tint = 0x7fb8ff
+							brightness = 1.32
 						}
 					} else if (!action || action === '' || action === 'select') {
-						tint = 0xaaaaff
-						brightness = 1.2
+						tint = 0x7fb8ff
+						brightness = 1.32
 					}
 				}
 
@@ -144,7 +145,7 @@ export class TileVisual extends VisualObject<Tile> {
 					const cc =
 						typeof (content as any).colorCode === 'function' ? (content as any).colorCode() : null
 					if (cc) {
-						if (mrg.hoveredObject?.uid !== this.object.uid) {
+						if (!isActive) {
 							// Don't override hover tint completely?
 							if (cc.tint) tint = cc.tint
 						}

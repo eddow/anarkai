@@ -17,6 +17,8 @@ export function cleanupFailedConveyMovement(
 	{ mg, hopAlloc, from, moving, sourceFulfilled }: FailedConveyMovementData
 ) {
 	mg.claimed = false
+	delete (mg as any).claimedBy
+	delete (mg as any).claimedAtMs
 	hopAlloc?.cancel()
 	mg.allocations.source.cancel()
 	mg.allocations.target.cancel()

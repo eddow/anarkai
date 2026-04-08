@@ -37,7 +37,29 @@
 		"plannerKeepWorking": "Fit for work",
 		"plannerLastPick": "Last stabilized pick",
 		"plannerOutcome": "Last findAction outcome",
-		"plannerRanked": "Ranked utilities"
+		"plannerRanked": "Ranked utilities",
+		"plannerRankedWork": "Ranked work",
+		"plannerWorkUrgency": "urgency",
+		"plannerWorkPath": "path",
+		"plannerWorkWinner": "winner",
+		"plannerKinds": {
+			"eat": "Eat",
+			"home": "Go home",
+			"drop": "Drop goods",
+			"assignedWork": "Assigned work",
+			"bestWork": "Best work",
+			"wander": "Wander"
+		},
+		"plannerWorkKinds": {
+			"harvest": "Harvest",
+			"transform": "Transform",
+			"gather": "Gather",
+			"convey": "Convey",
+			"construct": "Construct",
+			"offload": "Offload",
+			"foundation": "Foundation",
+			"defragment": "Defragment"
+		}
 	},
 	"step": {
 		"idle": "Idle",

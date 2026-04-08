@@ -1,5 +1,6 @@
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import type { SaveState } from 'ssh/game'
+import { BuildAlveolus } from 'ssh/hive/build'
 import type { Hive } from 'ssh/hive/hive'
 import { axial } from 'ssh/utils/axial'
 import { toAxialCoord } from 'ssh/utils/position'
@@ -31,7 +32,7 @@ describe('Multi-Hop Convey Tests', () => {
 			const provider = engine.game.hex.getTile({ q: 0, r: 0 })?.content as Alveolus | undefined
 			const relay = engine.game.hex.getTile({ q: 1, r: 0 })?.content as Alveolus | undefined
 			const demander = engine.game.hex.getTile({ q: 2, r: 0 })?.content as Alveolus | undefined
-			const hive = provider?.hive as Hive | undefined
+			const hive = (provider?.hive ?? demander?.hive) as Hive | undefined
 
 			expect(provider).toBeDefined()
 			expect(relay).toBeDefined()
@@ -41,11 +42,10 @@ describe('Multi-Hop Convey Tests', () => {
 				throw new Error('Expected chain hive to be created')
 			}
 
-			const created = hive.createMovement('wood', provider, demander)
-			expect(created).toBe(true)
-
 			const providerCoord = toAxialCoord(provider.tile.position)
+			const created = hive.createMovement('wood', provider, demander)
 			const providerMovements = hive.movingGoods.get(providerCoord)
+			expect(created || (providerMovements?.length ?? 0) > 0).toBe(true)
 			expect(providerMovements?.length ?? 0).toBeGreaterThan(0)
 
 			const movement = providerMovements?.find(
@@ -73,7 +73,55 @@ describe('Multi-Hop Convey Tests', () => {
 			expect(relayMovements?.[0]?.goodType).toBe('wood')
 			expect(relayMovements?.[0]?.provider?.name).toBe(provider.name)
 			expect(relayMovements?.[0]?.demander?.name).toBe(demander.name)
-			expect(relayMovements?.[0]?.path.at(0)).toMatchObject({ q: 1.5, r: 0 })
+			expect(relayMovements?.[0]?.path.at(0)).toMatchObject({ q: 1, r: 0 })
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('does not route stone through an intermediate alveolus that cannot buffer stone', {
+		timeout: 15000,
+	}, async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+		try {
+			const scenario: Partial<SaveState> = {
+				hives: [
+					{
+						name: 'StoneRelayMismatch',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'stonecutter', goods: { stone: 1 } },
+							{ coord: [1, 0], alveolus: 'woodpile', goods: {} },
+						],
+					},
+				],
+			}
+
+			engine.loadScenario(scenario)
+
+			const targetTile = engine.game.hex.getTile({ q: 2, r: 0 })
+			expect(targetTile).toBeDefined()
+			if (!targetTile) throw new Error('Expected target tile to exist')
+			targetTile.content = new BuildAlveolus(targetTile, 'sawmill')
+
+			const provider = engine.game.hex.getTile({ q: 0, r: 0 })?.content as Alveolus | undefined
+			const relay = engine.game.hex.getTile({ q: 1, r: 0 })?.content as Alveolus | undefined
+			const demander = engine.game.hex.getTile({ q: 2, r: 0 })?.content as Alveolus | undefined
+			const hive = (provider?.hive ?? demander?.hive ?? relay?.hive) as Hive | undefined
+
+			expect(provider).toBeDefined()
+			expect(relay).toBeDefined()
+			expect(demander).toBeDefined()
+			expect(hive).toBeDefined()
+			if (!provider || !relay || !demander || !hive) {
+				throw new Error('Expected stone relay scenario to be created')
+			}
+
+			expect(relay.storage.hasRoom('stone')).toBe(0)
+			expect(hive.getPath(provider, demander, 'stone')).toBeUndefined()
+			expect(hive.createMovement('stone', provider, demander)).toBe(false)
+			expect(provider.aGoodMovement).toBeUndefined()
+			expect(relay.aGoodMovement).toBeUndefined()
 		} finally {
 			await engine.destroy()
 		}

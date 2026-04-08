@@ -467,8 +467,8 @@ export class TerrainVisual {
 		})
 		this.hoverOverlay
 			.poly(points)
-			.fill({ color: 0xaaaaff, alpha: 0.18 })
-			.stroke({ width: 1.5, color: 0xaaaaff, alpha: 0.6 })
+			.fill({ color: 0x7fb8ff, alpha: 0.28 })
+			.stroke({ width: 2.5, color: 0x7fb8ff, alpha: 0.92 })
 	}
 
 	private createTerrainTileSprite(

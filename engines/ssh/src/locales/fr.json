@@ -37,7 +37,29 @@
 		"plannerKeepWorking": "Encore apte au travail",
 		"plannerLastPick": "Dernier choix stabilisé",
 		"plannerOutcome": "Dernier résultat findAction",
-		"plannerRanked": "Utilités classées"
+		"plannerRanked": "Utilités classées",
+		"plannerRankedWork": "Travaux classés",
+		"plannerWorkUrgency": "urgence",
+		"plannerWorkPath": "trajet",
+		"plannerWorkWinner": "gagnant",
+		"plannerKinds": {
+			"eat": "Manger",
+			"home": "Rentrer",
+			"drop": "Déposer les biens",
+			"assignedWork": "Travail assigné",
+			"bestWork": "Meilleur travail",
+			"wander": "Errer"
+		},
+		"plannerWorkKinds": {
+			"harvest": "Récolter",
+			"transform": "Transformer",
+			"gather": "Ramasser",
+			"convey": "Convoyer",
+			"construct": "Construire",
+			"offload": "Décharger",
+			"foundation": "Fondation",
+			"defragment": "Défragmenter"
+		}
 	},
 	"step": {
 		"idle": "Inactif",

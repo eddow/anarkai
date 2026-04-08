@@ -41,11 +41,12 @@ function grabLoose(good, place, path = null, punctual = true)
 end function
 
 function dropAllLoose()
+	candidateGoods = keys(I.carry.availables)
+	if candidateGoods.length == 0 then return false
 	where = find.freeSpot()
 	if not where then return false
 	walk.into where
 	
-	candidateGoods = keys(I.carry.availables)
 	i = 0
 	do while i < candidateGoods.length
 		good = candidateGoods[i]
@@ -89,5 +90,4 @@ function makeRoom()
 end function
 
 return { dropAllLoose, makeRoom, dropStored, grabStored, grabLoose }
-
 

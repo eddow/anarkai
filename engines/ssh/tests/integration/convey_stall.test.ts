@@ -90,4 +90,57 @@ describe('Convey Stall Reproduction', () => {
 			await engine.destroy()
 		}
 	})
+
+	it('assigned wandering workers should be woken when their alveolus gains a convey job', {
+		timeout: 20000,
+	}, async () => {
+		const { engine, game, spawnWorker } = await setupEngine()
+		try {
+			const scenario: Partial<SaveState> = {
+				hives: [
+					{
+						name: 'WakeAssignedHive',
+						alveoli: [
+							{
+								coord: [0, 0],
+								alveolus: 'gather',
+								goods: {},
+							},
+							{
+								coord: [1, 0],
+								alveolus: 'woodpile',
+								goods: {},
+							},
+						],
+					},
+				],
+			}
+
+			engine.loadScenario(scenario)
+
+			const gather = game.hex.getTile({ q: 0, r: 0 })?.content as any
+			expect(gather).toBeDefined()
+			if (!gather) throw new Error('Expected gather alveolus to exist')
+
+			const worker = spawnWorker({ q: 0, r: 0 })
+			worker.name = 'AssignedGatherWorker'
+			worker.assignedAlveolus = gather
+			gather.assignedWorker = worker
+
+			const initialAction = worker.findAction()
+			expect(initialAction).toBeDefined()
+			if (!initialAction) throw new Error('Expected assigned worker to find an initial action')
+			worker.begin(initialAction)
+
+			expect(worker.actionDescription).toContain('selfCare.wander')
+
+			gather.storage.addGood('wood', 1)
+			await flushDeferred()
+
+			expect(worker.actionDescription).toContain('work.goWork')
+			expect(gather.getJob(worker)?.job).toBe('convey')
+		} finally {
+			await engine.destroy()
+		}
+	})
 })

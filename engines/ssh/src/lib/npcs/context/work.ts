@@ -13,7 +13,7 @@ import { contract, type Goods, type GoodType } from 'ssh/types'
 import type { AxialCoord } from 'ssh/utils'
 import { alveoli } from '../../../../assets/game-content'
 import { subject } from '../scripts'
-import { DurationStep, MultiMoveStep, WaitForPredicateStep } from '../steps'
+import { DurationStep, MultiMoveStep } from '../steps'
 import type { WorkPlan } from '.'
 import { getConveyDuration, getConveyVisualMovements } from './convey'
 import { cleanupFailedConveyMovement, type FailedConveyMovementData } from './convey-cleanup'
@@ -63,17 +63,24 @@ class WorkFunctions {
 	}
 	@contract()
 	waitForIncomingGoods() {
-		return new WaitForPredicateStep(
-			'waitForIncomingGoods',
-			() =>
-				!!this[subject].assignedAlveolus!.aGoodMovement ||
-				!this[subject].assignedAlveolus!.incomingGoods
-		)
+		// Bounded poll to avoid getting stuck forever on one alveolus while
+		// the actionable movement is elsewhere in the hive.
+		return new DurationStep(0.3, 'idle', 'waitForIncomingGoods')
 	}
 	@contract()
 	@atomic
 	conveyStep() {
 		const character = this[subject]
+		const claimMovement = (mg: LocalMovingGood) => {
+			mg.claimed = true
+			;(mg as any).claimedBy = character.uid
+			;(mg as any).claimedAtMs = Date.now()
+		}
+		const releaseMovementClaim = (mg: LocalMovingGood) => {
+			mg.claimed = false
+			delete (mg as any).claimedBy
+			delete (mg as any).claimedAtMs
+		}
 		const alveolus = character.assignedAlveolus!
 		assert(
 			alveolus === character.tile.content,
@@ -81,11 +88,9 @@ class WorkFunctions {
 		)
 		// Get movement(s) - either a single movement or a cycle
 		const movements = alveolus.aGoodMovement
-		if (!movements || movements.length === 0) {
-			return
-		}
+		if (!movements || movements.length === 0) return
 
-		for (const mg of movements) mg.claimed = true
+		for (const mg of movements) claimMovement(mg)
 
 		const hive = alveolus.hive
 
@@ -98,6 +103,9 @@ class WorkFunctions {
 			let moving: LooseGood | undefined
 			if (!mg.allocations?.source) {
 				console.warn('[conveyStep] Missing source allocation', mg)
+				// Never leave a movement claimed when it cannot be processed.
+				// Otherwise it disappears from job selection forever.
+				releaseMovementClaim(mg)
 				continue
 			}
 			try {
@@ -105,9 +113,10 @@ class WorkFunctions {
 				sourceFulfilled = true
 				const hop = mg.hop()!
 
-				// IMPORTANT: Call place() immediately after hop() to ensure the moving good
-				// is tracked in hive.movingGoods at the new position for the next alveolus
-				mg.place()
+				// Only re-index the movement when another conveyor still needs to pick it up.
+				// Final-hop movements should stay out of hive.movingGoods; otherwise terminal
+				// path=[] ghost entries can linger at the destination and poison job selection.
+				if (mg.path.length) mg.place()
 
 				const nextStorage = hive.storageAt(hop)
 				assert(nextStorage, 'nextStorage must be defined')
@@ -139,6 +148,7 @@ class WorkFunctions {
 				throw error
 			}
 		}
+		if (movementData.length === 0) return
 
 		const totalTime = getConveyDuration(character.vehicle.transferTime, movementData)
 
@@ -149,7 +159,7 @@ class WorkFunctions {
 		return new MultiMoveStep(totalTime, visualMovements, 'work', description)
 			.canceled(() => {
 				for (const { mg, hopAlloc, moving } of movementData) {
-					mg.claimed = false
+					releaseMovementClaim(mg)
 					hopAlloc?.cancel()
 					mg.allocations.source.cancel()
 					mg.allocations.target.cancel()
@@ -169,6 +179,7 @@ class WorkFunctions {
 								console.error('Target allocation missing for', mg)
 								throw new Error('Target allocation missing')
 							}
+							releaseMovementClaim(mg)
 							mg.finish()
 						} else {
 							if (!hopAlloc) {
@@ -195,7 +206,7 @@ class WorkFunctions {
 							}
 
 							mg.allocations.source = newSourceAlloc
-							mg.claimed = false
+							releaseMovementClaim(mg)
 							hive.wakeWanderingWorkersNear(mg.provider, mg.demander)
 						}
 					}

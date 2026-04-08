@@ -7,7 +7,7 @@ import { traces } from 'ssh/debug'
 import { options } from 'ssh/globals'
 import type { AllocationBase, Storage } from 'ssh/storage/storage'
 import type { GoodType } from 'ssh/types'
-import { type AxialCoord, findPath, type Positioned, setPop } from 'ssh/utils'
+import { axial, type AxialCoord, findPath, type Positioned, setPop } from 'ssh/utils'
 import {
 	type Advertisement,
 	AdvertisementManager,
@@ -27,6 +27,10 @@ export interface MovingGood {
 	from: AxialCoord
 	/** Set by conveyStep to prevent a second worker from picking up the same movement */
 	claimed: boolean
+	/** Character uid that currently owns the claim (best-effort diagnostic metadata). */
+	claimedBy?: string
+	/** Epoch millis when claim was taken (best-effort watchdog metadata). */
+	claimedAtMs?: number
 	allocations: {
 		source: AllocationBase
 		target: AllocationBase
@@ -53,6 +57,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		Alveolus,
 		import('ssh/utils/advertisement').GoodsRelations
 	>()
+	private activeMovementKeys = reactive(new Set<string>())
 	// Path cache for complete paths between alveoli
 	private pathCache = new Map<string, AxialCoord[]>()
 	private exchangeWatchdogTimer: ReturnType<typeof setInterval> | undefined
@@ -164,6 +169,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 	private copyFrom(hive: Hive) {
 		if (hive.name) this.name = hive.name
 		this.movingGoods = hive.movingGoods
+		this.activeMovementKeys = hive.activeMovementKeys
 	}
 	/**
 	 * This hive is defined as a part of another hive who had just been divided by an alveolus removal
@@ -215,6 +221,24 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		this.pathCache.clear()
 	}
 
+	private isTraversableRelayTile(
+		coord: AxialCoord,
+		goodType: GoodType,
+		source: AxialCoord,
+		destination: AxialCoord
+	): boolean {
+		const key = axial.key(coord)
+		if (key === axial.key(source) || key === axial.key(destination)) return true
+
+		const content = this.board.getTileContent(coord)
+		const storage = content?.storage
+		if (!storage || typeof storage.hasRoom !== 'function') return false
+
+		// Multi-hop convey requires intermediate tiles to buffer one unit before the next worker
+		// can reserve and continue the movement.
+		return storage.hasRoom(goodType) > 0
+	}
+
 	private getPath(from: Alveolus, to: Alveolus, goodType: GoodType): AxialCoord[] | undefined {
 		const fromCoord = toAxialCoord(from.tile.position)
 		const toCoord = toAxialCoord(to.tile.position)
@@ -226,7 +250,8 @@ export class Hive extends AdvertisementManager<Alveolus> {
 
 		// Use actual pathfinding to get the complete path
 		const path = findPath(
-			(c) => this.getNeighborsForGood(c, goodType).map((n) => toAxialCoord(n)),
+			(c) =>
+				this.getNeighborsForGood(c, goodType, fromCoord, toCoord).map((n) => toAxialCoord(n)),
 			fromCoord,
 			toCoord,
 			Number.POSITIVE_INFINITY,
@@ -234,11 +259,11 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		)
 
 		if (path && path.length > 0) {
-			// path is tile - border - tile - border - ... - tile
-			// Keep only the borders and the last tile: drop the first floor(n/2) nodes (tile/border pairs).
-			const trimmed = path.slice()
-			const drop = Math.floor(trimmed.length / 2)
-			for (let i = 0; i < drop; i++) trimmed.splice(0, 1)
+			// Pathfinding returns a full route starting on the provider tile:
+			// tile -> border -> tile -> border -> ... -> destination tile.
+			// Convey movements must keep every hop after the origin tile so workers see:
+			// border -> tile -> border -> ... -> destination tile.
+			const trimmed = path.slice(1)
 			if (trimmed.length < 1) return undefined
 			this.pathCache.set(key, trimmed)
 			return trimmed
@@ -310,6 +335,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 			options.stalledMovementSettleMs,
 			Number(options.stalledMovementScanIntervalMs) || 0
 		)
+		this.scanForStuckClaimedMovements(now, settleMs)
 		const activeKeys = new Set<string>()
 
 		for (const provider of this.alveoli) {
@@ -359,6 +385,58 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		}
 	}
 
+	private scanForStuckClaimedMovements(now: number, settleMs: number) {
+		for (const [, goods] of this.movingGoods.entries()) {
+			for (const mg of goods) {
+				if (!mg.claimed) continue
+
+				// If the movement is claimed but no longer has a source allocation, it can never progress.
+				if (!mg.allocations?.source) {
+					;(traces.advertising ?? console).warn?.('[WATCHDOG] Releasing invalid claimed movement', {
+						goodType: mg.goodType,
+						provider: mg.provider.name,
+						demander: mg.demander.name,
+						reason: 'missing-source-allocation',
+					})
+					mg.claimed = false
+					delete mg.claimedBy
+					delete mg.claimedAtMs
+					this.scheduleAdvertisement(mg.provider)
+					this.scheduleAdvertisement(mg.demander)
+					this.wakeWanderingWorkersNear(mg.provider, mg.demander)
+					continue
+				}
+
+				const claimedAt = mg.claimedAtMs ?? now
+				if (now - claimedAt < settleMs) continue
+
+				const claimer =
+					mg.claimedBy &&
+					Array.from(this.board.game.population).find((worker) => worker.uid === mg.claimedBy)
+				const claimerRunningConvey = !!(
+					claimer && claimer.actionDescription?.includes('work.conveyStep')
+				)
+
+				// Claimed long enough and no active conveyor looks responsible: release the claim.
+				if (!claimerRunningConvey) {
+					;(traces.advertising ?? console).warn?.('[WATCHDOG] Releasing stale claimed movement', {
+						goodType: mg.goodType,
+						provider: mg.provider.name,
+						demander: mg.demander.name,
+						claimedBy: mg.claimedBy,
+						claimedForMs: now - claimedAt,
+					})
+					mg.claimed = false
+					delete mg.claimedBy
+					delete mg.claimedAtMs
+					this.scheduleAdvertisement(mg.provider)
+					this.scheduleAdvertisement(mg.demander)
+					this.wakeWanderingWorkersNear(mg.provider, mg.demander)
+				}
+			}
+		}
+	}
+
 	private stalledExchangeKey(provider: Alveolus, demander: Alveolus, goodType: GoodType) {
 		const from = toAxialCoord(provider.tile.position)
 		const to = toAxialCoord(demander.tile.position)
@@ -366,10 +444,18 @@ export class Hive extends AdvertisementManager<Alveolus> {
 	}
 
 	private hasActiveMovement(provider: Alveolus, demander: Alveolus, goodType: GoodType) {
+		const key = this.stalledExchangeKey(provider, demander, goodType)
+		if (this.activeMovementKeys.has(key)) return true
+
+		const providerCoord = toAxialCoord(provider.tile.position)
+		const demanderCoord = toAxialCoord(demander.tile.position)
 		for (const goods of this.movingGoods.values()) {
 			if (
 				goods.some(
-					(mg) => mg.goodType === goodType && mg.provider === provider && mg.demander === demander
+					(mg) =>
+						mg.goodType === goodType &&
+						axial.key(toAxialCoord(mg.provider.tile.position)) === axial.key(providerCoord) &&
+						axial.key(toAxialCoord(mg.demander.tile.position)) === axial.key(demanderCoord)
 				)
 			) {
 				return true
@@ -378,16 +464,26 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		return false
 	}
 
-	getNeighborsForGood(ref: Positioned, _goodType: GoodType) {
+	getNeighborsForGood(
+		ref: Positioned,
+		goodType: GoodType,
+		source?: AxialCoord,
+		destination?: AxialCoord
+	) {
 		const coord = toAxialCoord(ref)
 		if (isTileCoord(coord)) {
-			const content = this.board.getTileContent(ref) as Alveolus
-			if (!content?.tile) return []
-			return content.gates.map((g) => g.border.position)
+			const content = this.board.getTileContent(ref)
+			const gates = (content as Alveolus | undefined)?.gates
+			if (!content?.tile || !gates) return []
+			return gates.map((g) => g.border.position)
 		}
 		// Get a border's neighbors - find tileA's and tileB's borders who are gates but not me
 		const border = this.board.getBorder(ref)!
-		return [border.tile.a.position, border.tile.b.position]
+		return [border.tile.a.position, border.tile.b.position].filter((tilePosition) => {
+			const tileCoord = toAxialCoord(tilePosition)
+			if (!source || !destination) return true
+			return this.isTraversableRelayTile(tileCoord, goodType, source, destination)
+		})
 	}
 	//#region Needy / events
 
@@ -440,11 +536,19 @@ export class Hive extends AdvertisementManager<Alveolus> {
 			if (this.destroyed) return
 			this.wakeWanderingWorkersScheduled = false
 			for (const worker of this.board.game.population) {
-				if (worker.assignedAlveolus) continue
-				if (worker.stepExecutor) continue
-				if (!worker.actionDescription.includes('selfCare.wander')) continue
+				const actionDescription = worker.actionDescription || []
+				const wandering = actionDescription.includes('selfCare.wander')
+				const waitingIncoming = actionDescription.includes('waitForIncomingGoods')
+				if (!wandering && !waitingIncoming) continue
+				const assignedHere =
+					worker.assignedAlveolus === _provider || worker.assignedAlveolus === _demander
+				if (worker.assignedAlveolus && !assignedHere) continue
 				const nextAction = worker.findAction()
-				if (!nextAction || nextAction.name === worker.runningScript?.name) continue
+				if (!nextAction) continue
+				const running = worker.runningScript
+				// Same script name can still be a different target/job (e.g. goWork on another alveolus).
+				// Only suppress if it is truly the same execution object.
+				if (running && nextAction === running) continue
 				worker.abandonAnd(nextAction)
 			}
 		})
@@ -460,6 +564,16 @@ export class Hive extends AdvertisementManager<Alveolus> {
 				providerDestroyed: !provider.tile || provider.destroyed,
 				demanderDestroyed: !demander.tile || demander.destroyed,
 			})
+			return false
+		}
+
+		// Provider and demander advertisements can both try to create the same transfer.
+		// Keep only one active movement per provider/demander/good pair at a time.
+		const movementKey = this.stalledExchangeKey(provider, demander, goodType)
+		if (this.hasActiveMovement(provider, demander, goodType)) {
+			traces.advertising?.log(
+				`[CREATE] SKIP DUPLICATE ACTIVE: ${goodType} ${provider.name} -> ${demander.name}`
+			)
 			return false
 		}
 
@@ -481,12 +595,12 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		traces.advertising?.log(`[CREATE] START: ${goodType} ${provider.name} -> ${demander.name}`)
 
 		// Use cached path if available, otherwise calculate it
-		const path = [...this.getPath(provider, demander, goodType)!]
-
-		if (!path || path.length < 1) {
+		const computedPath = this.getPath(provider, demander, goodType)
+		if (!computedPath || computedPath.length < 1) {
 			traces.advertising?.log(`[CREATE] NO PATH: ${goodType} ${provider.name} -> ${demander.name}`)
 			return false
 		}
+		const path = [...computedPath]
 
 		traces.advertising?.log(
 			`[CREATE] PATH FOUND: ${goodType} ${provider.name} -> ${demander.name} length=${path.length}`
@@ -571,6 +685,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 				}
 
 				// Step 3: Both allocations succeeded - proceed with movement
+				this.activeMovementKeys.add(movementKey)
 				traces.allocations?.log(`[MOVEMENT] TWIN ALLOCATION SUCCESS: ${goodType}`, {
 					movementId: reason.movementId,
 					provider: provider.name,
@@ -609,13 +724,17 @@ export class Hive extends AdvertisementManager<Alveolus> {
 				}
 
 				// Target allocation doesn't need cleanup since allocate() throws on failure
+				this.activeMovementKeys.delete(movementKey)
 				return false
 			}
 
 			const self = this
 			const removeMovingGood = (mgRef: MovingGood) => {
+				const targetId = mgRef._mgId ?? movingGood._mgId
 				for (const [coord, goods] of self.movingGoods.entries()) {
-					const kept = goods.filter((mg) => mg !== mgRef && mg !== movingGood)
+					const kept = goods.filter((mg) =>
+						targetId ? mg._mgId !== targetId : mg !== mgRef && mg !== movingGood
+					)
 					if (kept.length !== goods.length) {
 						if (kept.length === 0) self.movingGoods.delete(coord)
 						else self.movingGoods.set(coord, kept)
@@ -623,6 +742,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 				}
 			}
 			const movingGood: MovingGood = {
+				_mgId: reason.movementId,
 				goodType,
 				path,
 				provider,
@@ -664,7 +784,11 @@ export class Hive extends AdvertisementManager<Alveolus> {
 							demander: this.demander.name,
 						}
 					)
+					this.claimed = false
+					delete this.claimedBy
+					delete this.claimedAtMs
 					removeMovingGood(this)
+					self.activeMovementKeys.delete(movementKey)
 
 					// CRITICAL: Both allocations must be properly handled
 					try {
@@ -768,30 +892,14 @@ export class Hive extends AdvertisementManager<Alveolus> {
 				const targetStorage = isDemand ? alveolus : storage
 				const providerStorage = isDemand ? storage : alveolus
 
-				console.log(
-					`[SELECT] DEBUG: advertisement=${advertisement}, alveolus=${alveolus.name}, storage=${storage.name}`
-				)
-				console.log(`[SELECT] DEBUG: isDemand=${isDemand}, targetStorage=${targetStorage.name}`)
-
 				// Check provider can give the goods
 				if ('canGive' in providerStorage && typeof providerStorage.canGive === 'function') {
 					const providerCanGive = providerStorage.canGive(goodType, sourcePriority)
-					console.log(
-						`[SELECT] PROVIDER CHECK: ${providerStorage.name} can give ${goodType}: ${providerCanGive}`
-					)
 
 					if (!providerCanGive) {
 						traces.advertising?.log(
 							`[SELECT] SKIP: ${goodType} - ${providerStorage.name} has no goods to give`
 						)
-						console.log(`[SELECT] SKIP: ${goodType} - ${providerStorage.name} has no goods to give`)
-
-						// Debug why provider can't give
-						console.log(`[SELECT] PROVIDER DEBUG: ${providerStorage.name}`, {
-							available: providerStorage.storage.available(goodType),
-							stock: providerStorage.storage.stock[goodType] || 0,
-							working: (providerStorage as any).working,
-						})
 						return storage
 					}
 				}
@@ -799,28 +907,14 @@ export class Hive extends AdvertisementManager<Alveolus> {
 				// Check target can take the goods
 				if ('canTake' in targetStorage && typeof targetStorage.canTake === 'function') {
 					const targetCanTake = targetStorage.canTake(goodType, targetPriority)
-					console.log(
-						`[SELECT] TARGET CHECK: ${targetStorage.name} can take ${goodType}: ${targetCanTake}`
-					)
 
 					if (!targetCanTake) {
 						traces.advertising?.log(
 							`[SELECT] SKIP: ${goodType} - ${targetStorage.name} cannot accept goods`
 						)
-						console.log(`[SELECT] SKIP: ${goodType} - ${targetStorage.name} cannot accept goods`)
-
-						// Debug why target can't take
-						console.log(`[SELECT] TARGET DEBUG: ${targetStorage.name}`, {
-							hasRoom: targetStorage.storage.hasRoom(goodType),
-							stock: targetStorage.storage.stock[goodType] || 0,
-							available: targetStorage.storage.available(goodType),
-							working: (targetStorage as any).working,
-						})
 						return storage
 					}
 				}
-
-				console.log(`[SELECT] PROCEEDING: ${goodType} - validation passed, creating movement`)
 
 				const created = this.createMovement(
 					goodType,
@@ -883,6 +977,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 			}
 		}
 		this.movingGoods.clear()
+		this.activeMovementKeys.clear()
 
 		// Clean up all advertising effects
 		for (const cleanup of this.advertising) {

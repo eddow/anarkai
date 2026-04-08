@@ -1,7 +1,7 @@
 function goWork(jobPlan, path)
 	target = jobPlan.target
 	plan jobPlan
-		inventory.dropAllLoose
+		if keys(I.carry.availables).length > 0 then inventory.dropAllLoose
 		if tile.position.q != target.tile.position.q or tile.position.r != target.tile.position.r then do // TODO: if tile != target.tile then do
 			walk.until path
 		while tile.position.q != target.tile.position.q or tile.position.r != target.tile.position.r
@@ -59,11 +59,19 @@ end function
 
 function convey(jobPlan)
 	alveolus = jobPlan.target
+	idlePolls = 0
 	do while I.keepWorking and (alveolus.aGoodMovement or alveolus.incomingGoods)
 		if alveolus.aGoodMovement then
+			idlePolls = 0
 			work.conveyStep
 		else
 			work.waitForIncomingGoods
+			if not alveolus.aGoodMovement then
+				idlePolls = idlePolls + 1
+				// Do not pin the worker forever on a passive incoming-only job.
+				// Let planner run again and potentially pick another convey source.
+				if idlePolls >= 3 then return
+			end if
 		end if
 	loop
 end function

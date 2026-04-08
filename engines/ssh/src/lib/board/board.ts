@@ -222,31 +222,47 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		}
 	}
 
+	private removeCharacterFromOccupation(
+		character: Character,
+		preferredCoord?: AxialCoord
+	): AxialCoord | undefined {
+		const candidates = preferredCoord
+			? [preferredCoord, ...Array.from(this.occupied.coords()).filter((coord) => axial.key(coord) !== axial.key(preferredCoord))]
+			: Array.from(this.occupied.coords())
+
+		for (const coord of candidates) {
+			const occupation = this.occupied.get(coord)
+			if (!occupation?.length) continue
+			const index = occupation.indexOf(character)
+			if (index < 0) continue
+			occupation.splice(index, 1)
+			if (index === 0 && occupation[0]?.stepExecutor instanceof QueueStep) {
+				occupation[0].stepExecutor.pass()
+			}
+			if (!occupation.length) this.occupied.delete(coord)
+			return coord
+		}
+
+		if (preferredCoord) {
+			throw new Error('Character has no tracked board occupation at the expected from coordinate')
+		}
+		return undefined
+	}
+
 	/** Attempts to move a character onto a coordinate. Returns true if successful. */
 	moveCharacter(
 		character: Character,
 		to: Positioned,
 		from?: Positioned
 	): QueueStep<Character> | undefined {
-		if (from) {
-			const fromCoord = toAxialCoord(from)
-			if (fromCoord) {
-				const occupation = this.occupied.get(fromCoord!)!
-				const occupant = occupation.shift()
-				assert(occupant === character, 'Character is not the occupant of the from coordinate')
-				if (occupation[0]) {
-					assert(occupation[0].stepExecutor instanceof QueueStep, 'Occupant is queuing')
-					occupation[0].stepExecutor.pass()
-				} else {
-					this.occupied.delete(fromCoord!)
-				}
-			}
-		}
+		const fromCoord = from ? toAxialCoord(from) : undefined
 		const toCoord = toAxialCoord(to)
 		if (!toCoord) return undefined
 		const occupied = this.occupied.get(toCoord!)! /*
 		console.trace(character, toCoord.q, toCoord.r)
 		if (occupied[0] === character) debugger*/
+		if (occupied.includes(character)) return undefined
+		if (fromCoord) this.removeCharacterFromOccupation(character, fromCoord)
 		if (!occupied.length) {
 			occupied.push(character)
 			return undefined

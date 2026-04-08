@@ -85,13 +85,7 @@ export class LooseGoods extends withTicked(GameObject) {
 				return good.removed
 			},
 			remove() {
-				if (this.isRemoved) {
-					console.error('LooseGood.remove called on already-removed object (isRemoved=true)', {
-						goodType: this.goodType,
-						available: this.available,
-					})
-				}
-				self.remove(this.position, good)
+				self.remove(good)
 			},
 			allocate: (reason: any): LooseGoodAllocation => {
 				if (!good.available) {
@@ -111,26 +105,13 @@ export class LooseGoods extends withTicked(GameObject) {
 
 		return good
 	}
-	remove(pos: Positioned, good: LooseGood): void {
+	private remove(good: LooseGood): void {
 		// Guard against double-removal
 		if (good.isRemoved) {
-			console.warn(
-				'LooseGood.remove called on already-removed good',
-				good.goodType,
-				new Error().stack?.split('\n').slice(1, 5).join('\n')
-			)
 			return
 		}
 
 		const internalGood = good as InternalLooseGood
-		const requestedCoord = axial.key(axial.round(toAxialCoord(pos)))
-		if (internalGood.coordKey !== requestedCoord) {
-			console.warn('LooseGood.remove called with mismatched position', {
-				requestedCoord,
-				storedCoord: internalGood.coordKey,
-				goodType: good.goodType,
-			})
-		}
 		this.removeKnownGood(internalGood)
 
 		// Clean up sprite if it exists (might not exist if removed before game loaded)

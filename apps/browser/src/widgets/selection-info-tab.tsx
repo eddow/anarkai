@@ -1,5 +1,8 @@
 import { css } from '@app/lib/css'
+import { mrg } from '@app/lib/globals'
 import type { DockviewWidget, DockviewWidgetScope } from '@sursaut/ui/dockview'
+import { effect } from 'mutts'
+import type { InteractiveGameObject } from 'ssh/game/object'
 
 export type SelectionInfoTool = {
 	ariaLabel: string
@@ -9,6 +12,7 @@ export type SelectionInfoTool = {
 
 export type SelectionInfoContext = {
 	tools?: readonly SelectionInfoTool[]
+	hoveredObject?: InteractiveGameObject
 }
 
 css`
@@ -60,9 +64,55 @@ const SelectionInfoTab: DockviewWidget<Record<string, never>, SelectionInfoConte
 	props,
 	scope: DockviewWidgetScope
 ) => {
+	let isHovered = false
+	const hoveredObject = () => props.context.hoveredObject
+	const applyHover = () => {
+		const object = hoveredObject()
+		if (object) mrg.hoveredObject = object
+	}
+	const clearHover = () => {
+		const object = hoveredObject()
+		if (object && mrg.hoveredObject?.uid === object.uid) {
+			mrg.hoveredObject = undefined
+		}
+	}
+
+	effect`selection-info-tab:hover-sync`(() => {
+		const object = hoveredObject()
+		if (!isHovered || !object) return
+		mrg.hoveredObject = object
+		return () => {
+			if (mrg.hoveredObject?.uid === object.uid) {
+				mrg.hoveredObject = undefined
+			}
+		}
+	})
+
+	const attachHoverTracking = (element: HTMLElement) => {
+		const handleMove = () => {
+			isHovered = true
+			applyHover()
+		}
+		const handleLeave = () => {
+			isHovered = false
+			clearHover()
+		}
+
+		element.addEventListener('mousemove', handleMove)
+		element.addEventListener('mouseleave', handleLeave)
+
+		return () => {
+			element.removeEventListener('mousemove', handleMove)
+			element.removeEventListener('mouseleave', handleLeave)
+		}
+	}
+
 	const tools = () => props.context.tools ?? []
 	return (
-		<div class="selection-info-tab">
+		<div
+			class="selection-info-tab"
+			use={attachHoverTracking}
+		>
 			<span class="selection-info-tab__title title" title={props.title}>
 				{props.title}
 			</span>

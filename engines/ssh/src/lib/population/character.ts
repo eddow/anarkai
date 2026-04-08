@@ -32,12 +32,42 @@ function bestPossibleJobScore(_character: Character): number {
 	return Number.POSITIVE_INFINITY
 }
 
+function relativeJobScore(score: number, pathLength: number): number {
+	return score / (pathLength + 1)
+}
+
+function roundDiagnosticValue(value: number): number {
+	return Math.round(value * 1000) / 1000
+}
+
 import { GameObject, withInteractive, withTicked } from 'ssh/game/object'
 import { gameIsaTypes } from 'ssh/npcs'
 import aCharacterContext from 'ssh/npcs/context'
 import { withScripted } from 'ssh/npcs/object'
 import type { ScriptExecution } from 'ssh/npcs/scripts'
 import { Vehicle } from './vehicle/vehicle'
+
+export interface RankedWorkCandidateSnapshot {
+	jobKind: Job['job']
+	targetLabel: string
+	targetCoord: { q: number; r: number }
+	urgency: number
+	pathLength: number
+	score: number
+	selected: boolean
+}
+
+export interface RankedWorkPlannerSnapshot {
+	ranked: ReadonlyArray<RankedWorkCandidateSnapshot>
+}
+
+interface RankedWorkCandidate {
+	job: Job
+	targetTile: Tile
+	path: AxialCoord[]
+	pathLength: number
+	score: number
+}
 
 @reactive
 export class Character extends withInteractive(withScripted(withTicked(GameObject))) {
@@ -57,6 +87,11 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	 * `tryScript` (`fallback-wander`). See `traceIdleDiagnosis` / `blackBoxLog.idleDiagnosis`.
 	 */
 	lastPlannerSnapshot?: PlannerFindActionSnapshot
+	lastWorkPlannerSnapshot?: RankedWorkPlannerSnapshot
+
+	get workPlannerSnapshot(): RankedWorkPlannerSnapshot | undefined {
+		return this.buildRankedWorkSnapshot(this.resolveBestJobMatch()) ?? this.lastWorkPlannerSnapshot
+	}
 
 	private _assignedAlveolus: Alveolus | undefined
 	public get assignedAlveolus(): Alveolus | undefined {
@@ -124,12 +159,112 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	private workExecution(job: Job, targetTile: Tile, path: AxialCoord[]): ScriptExecution {
 		const jobProvider = targetTile.content!
 		const target = job.job === 'offload' ? targetTile : jobProvider
+		const safePath = path.filter((step): step is AxialCoord => !!step)
 		const workPlan: WorkPlan = {
 			...job,
 			type: 'work',
 			target,
 		}
-		return this.scriptsContext.work.goWork(workPlan, path)
+		return this.scriptsContext.work.goWork(workPlan, safePath)
+	}
+
+	private sameTilePath(targetTile: Tile): AxialCoord[] | false {
+		const isSameTile =
+			axial.key(toAxialCoord(targetTile.position)!) === axial.key(toAxialCoord(this.position)!)
+		if (isSameTile) return []
+		return (
+			this.game.hex.findPathForCharacter(this.position, targetTile.position, this, maxWalkTime, false) ??
+			false
+		)
+	}
+
+	private describeWorkTarget(job: Job, targetTile: Tile): string {
+		const coord = toAxialCoord(targetTile.position)!
+		const tileLabel = `Tile ${coord.q}, ${coord.r}`
+		const targetName = targetTile.content?.name ? `${targetTile.content.name} @ ${coord.q}, ${coord.r}` : tileLabel
+
+		switch (job.job) {
+			case 'offload':
+				return `${job.looseGood.goodType} @ ${coord.q}, ${coord.r}`
+			case 'defragment':
+				return `${job.goodType} @ ${targetName}`
+			case 'gather':
+				return job.goodType ? `${job.goodType} @ ${targetName}` : targetName
+			default:
+				return targetName
+		}
+	}
+
+	private rankedWorkCandidates(): RankedWorkCandidate[] {
+		return inert(() => {
+			const candidates: RankedWorkCandidate[] = []
+			for (const tile of this.game.hex.tiles) {
+				const job = tile.getJob?.(this)
+				if (!job) continue
+
+				const path = this.sameTilePath(tile)
+				if (path === false) continue
+
+				const pathLength = path.length
+				candidates.push({
+					job,
+					targetTile: tile,
+					path,
+					pathLength,
+					score: relativeJobScore(calculateJobScore(this, job), pathLength),
+				})
+			}
+
+			return candidates.sort((a, b) => {
+				if (b.score !== a.score) return b.score - a.score
+				if (b.job.urgency !== a.job.urgency) return b.job.urgency - a.job.urgency
+				if (a.pathLength !== b.pathLength) return a.pathLength - b.pathLength
+				return axial.key(toAxialCoord(a.targetTile.position)!).localeCompare(
+					axial.key(toAxialCoord(b.targetTile.position)!)
+				)
+			})
+		})
+	}
+
+	private sameWorkMatch(
+		candidate: Pick<RankedWorkCandidate, 'job' | 'targetTile'>,
+		match: { job: Job; targetTile: Tile } | false
+	): boolean {
+		if (!match) return false
+		const candidateCoord = axial.key(toAxialCoord(candidate.targetTile.position)!)
+		const matchCoord = axial.key(toAxialCoord(match.targetTile.position)!)
+		if (candidateCoord !== matchCoord || candidate.job.job !== match.job.job) return false
+		if (candidate.job.job === 'offload' && match.job.job === 'offload') {
+			return candidate.job.looseGood.goodType === match.job.looseGood.goodType
+		}
+		if (candidate.job.job === 'defragment' && match.job.job === 'defragment') {
+			return candidate.job.goodType === match.job.goodType
+		}
+		if (candidate.job.job === 'gather' && match.job.job === 'gather') {
+			return candidate.job.goodType === match.job.goodType
+		}
+		return true
+	}
+
+	private buildRankedWorkSnapshot(
+		match: { job: Job; targetTile: Tile } | false
+	): RankedWorkPlannerSnapshot | undefined {
+		const ranked = this.rankedWorkCandidates()
+		if (ranked.length === 0) return undefined
+		return {
+			ranked: ranked.map((candidate) => {
+				const coord = toAxialCoord(candidate.targetTile.position)!
+				return {
+					jobKind: candidate.job.job,
+					targetLabel: this.describeWorkTarget(candidate.job, candidate.targetTile),
+					targetCoord: { q: coord.q, r: coord.r },
+					urgency: roundDiagnosticValue(candidate.job.urgency),
+					pathLength: candidate.pathLength,
+					score: roundDiagnosticValue(candidate.score),
+					selected: this.sameWorkMatch(candidate, match),
+				}
+			}),
+		}
 	}
 
 	/**
@@ -260,12 +395,13 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 				fatigue: this.fatigue,
 				tiredness: this.tiredness,
 			},
-			keepWorking: this.keepWorking,
-			lastPickedActivity: this.lastPickedActivityKind,
-			lastPlannerSnapshot: this.lastPlannerSnapshot,
-			vehicle: {
-				name: this.vehicle.name,
-				storage: this.carry,
+				keepWorking: this.keepWorking,
+				lastPickedActivity: this.lastPickedActivityKind,
+				lastPlannerSnapshot: this.lastPlannerSnapshot,
+				lastWorkPlannerSnapshot: this.lastWorkPlannerSnapshot,
+				vehicle: {
+					name: this.vehicle.name,
+					storage: this.carry,
 			},
 		}
 	}
@@ -315,6 +451,40 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	findAction() {
 		return inert(() => {
 			this.game.hex.zoneManager.releaseReservation(this)
+			const bestWorkMatch = this.resolveBestJobMatch()
+			const workSnapshot = this.buildRankedWorkSnapshot(bestWorkMatch)
+			if (workSnapshot) this.lastWorkPlannerSnapshot = workSnapshot
+
+			if (this.keepWorking) {
+				const assignedExec = this.tryScriptForActivityKind('assignedWork')
+				if (assignedExec) {
+					this.lastPickedActivityKind = 'assignedWork'
+					this.lastPlannerSnapshot = {
+						ranked: [],
+						outcome: { kind: 'assignedWork', source: 'ranked' },
+					}
+					traceIdleDiagnosis({
+						name: this.name,
+						...this.lastPlannerSnapshot,
+					})
+					return assignedExec
+				}
+				if (bestWorkMatch) {
+					const bestWorkExec = this.findBestJob()
+					if (bestWorkExec) {
+						this.lastPickedActivityKind = 'bestWork'
+						this.lastPlannerSnapshot = {
+							ranked: [],
+							outcome: { kind: 'bestWork', source: 'ranked' },
+						}
+						traceIdleDiagnosis({
+							name: this.name,
+							...this.lastPlannerSnapshot,
+						})
+						return bestWorkExec
+					}
+				}
+			}
 
 			const ranked = excludeWanderAfterWanderWhenEmployable(
 				applyActivityHysteresis(
@@ -390,6 +560,16 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 				return this.workExecution(assignedJob, assignedTile, path)
 			}
 			case 'bestWork':
+				if (this.assignedAlveolus) {
+					const assigned = this.assignedAlveolus
+					const assignedJob = assigned.tile?.content?.getJob?.(this)
+					// Stay pinned while the assigned alveolus still has actionable work.
+					if (assignedJob) return false
+					// If assignment is idle, release it so the worker can pick pending hive work
+					// (e.g. another convey source in the same hive).
+					if (assigned.assignedWorker === this) assigned.assignedWorker = undefined
+					this.assignedAlveolus = undefined
+				}
 				return this.findBestJob()
 			case 'wander':
 				return this.scriptsContext.selfCare.wander()

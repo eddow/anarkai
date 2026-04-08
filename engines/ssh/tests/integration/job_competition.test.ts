@@ -122,4 +122,61 @@ describe('Job Competition Tests', () => {
 
 		await engine.destroy()
 	})
+
+	it('gather job should be at least as urgent as harvest job', {
+		timeout: 10000,
+	}, async () => {
+		const { engine, game } = await setupEngine()
+
+		const scenario: Partial<SaveState> = {
+			hives: [
+				{
+					name: 'GatherVsHarvest',
+					alveoli: [
+						{
+							coord: [0, 0],
+							alveolus: 'gather',
+							goods: {},
+						},
+						{
+							coord: [1, 0],
+							alveolus: 'tree_chopper',
+							goods: {},
+						},
+						{
+							coord: [2, 0],
+							alveolus: 'sawmill',
+							goods: {},
+						},
+					],
+				},
+			],
+			looseGoods: [{ goodType: 'wood', position: { q: 0, r: 1 } }],
+			tiles: [
+				{
+					coord: [1, 1],
+					deposit: { type: 'tree', amount: 1 },
+				},
+			],
+			zones: {
+				harvest: [[1, 1]],
+			},
+		}
+
+		engine.loadScenario(scenario)
+
+		const gather = game.hex.getTile({ q: 0, r: 0 })?.content as any
+		const harvest = game.hex.getTile({ q: 1, r: 0 })?.content as any
+
+		const gatherJob = gather?.getJob()
+		const harvestJob = harvest?.getJob()
+
+		expect(gatherJob?.job).toBe('gather')
+		expect(harvestJob?.job).toBe('harvest')
+		expect(gatherJob?.urgency).toBeGreaterThanOrEqual(harvestJob?.urgency ?? 0)
+		expect(gatherJob?.urgency).toBe(2.5)
+		expect(harvestJob?.urgency).toBe(2.5)
+
+		await engine.destroy()
+	})
 })

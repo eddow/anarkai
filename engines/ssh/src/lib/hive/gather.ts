@@ -56,10 +56,13 @@ export class GatherAlveolus extends TransitAlveolus {
 			let goodType: GoodType | undefined
 			let selectableGoods = Object.keys(this.hive.needs) as GoodType[]
 			const carry = character?.carry
-			if (carry)
+			if (carry) {
+				const carriedGoods = Object.keys(carry.availables) as GoodType[]
+				selectableGoods = [...new Set([...selectableGoods, ...carriedGoods])]
 				selectableGoods = selectableGoods.filter(
 					(good) => carry.hasRoom(good) && this.storage.canStoreAll(goodsWith(carry.stock, good))
 				)
+			}
 
 			if (selectableGoods.length === 0) return undefined
 
@@ -102,7 +105,7 @@ export class GatherAlveolus extends TransitAlveolus {
 					job: 'gather',
 					path,
 					goodType,
-					urgency: 1.5,
+					urgency: 2.5,
 					fatigue: this.getFatigueCost(),
 				}
 			)

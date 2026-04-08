@@ -111,6 +111,9 @@ const App = () => {
 
 	const handleDockviewReady = (api: unknown) => {
 		state.api = api
+		if (typeof window !== 'undefined') {
+			;(window as any).dockviewApi = api
+		}
 	}
 
 	effect`app:dockview-layout`(() => {

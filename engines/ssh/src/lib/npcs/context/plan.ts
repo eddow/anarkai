@@ -210,8 +210,13 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 		}
 		// Assign worker only for alveoli
 		if (gameObjectsModule.Alveolus.allows(target)) {
-			target.assignedWorker = character
-			character.assignedAlveolus = target as Alveolus
+			const alreadyAssigned =
+				target.assignedWorker === character && character.assignedAlveolus === (target as Alveolus)
+			;(plan as WorkPlan & { preserveAssignment?: boolean }).preserveAssignment = alreadyAssigned
+			if (!alreadyAssigned) {
+				target.assignedWorker = character
+				character.assignedAlveolus = target as Alveolus
+			}
 		}
 
 		// Set the assigned worker in the plan
@@ -231,7 +236,10 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 			pickupPlanHandler.finally?.(plan.offloadPickupPlan, character)
 			delete plan.offloadPickupPlan
 		}
-		if (gameObjectsModule.Alveolus.allows(plan.target)) {
+		if (
+			gameObjectsModule.Alveolus.allows(plan.target) &&
+			!(plan as WorkPlan & { preserveAssignment?: boolean }).preserveAssignment
+		) {
 			plan.target.assignedWorker = undefined
 			character.assignedAlveolus = undefined
 		}

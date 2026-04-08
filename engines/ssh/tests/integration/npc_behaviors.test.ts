@@ -331,7 +331,8 @@ describe('NPC Behaviors Integration', () => {
 
 		// Should have eaten (hunger uses continuous decay; avoid brittle float threshold)
 		expect(char.hunger).toBeLessThan(91)
-		// Mushrooms on the tile should be consumed (loose goods, not tile.availableGoods count)
-		expect((game.hex.looseGoods.getGoodsAt({ q: 0, r: 1 }) ?? []).length).toBe(0)
+		// Eating stops once satisfied, so the worker should consume some mushrooms but not
+		// necessarily clear the tile.
+		expect((game.hex.looseGoods.getGoodsAt({ q: 0, r: 1 }) ?? []).length).toBeLessThan(5)
 	})
 })
