@@ -9,7 +9,7 @@ import {
 } from 'ssh/storage/guard'
 import type { GoodType } from 'ssh/types'
 import { epsilon } from 'ssh/utils'
-import { axial } from 'ssh/utils/axial'
+import { type AxialKey, axial } from 'ssh/utils/axial'
 import { AxialKeyMap } from 'ssh/utils/mem'
 import { axialDistance, type Position, type Positioned, toAxialCoord } from 'ssh/utils/position'
 import { goods } from '../../../assets/game-content'
@@ -48,15 +48,23 @@ export interface LooseGood {
 	allocate(reason: any): LooseGoodAllocation
 }
 
+type InternalLooseGood = LooseGood & {
+	coordKey: AxialKey
+	removed: boolean
+}
+
 export class LooseGoods extends withTicked(GameObject) {
 	public readonly uid = 'loose-goods-manager'
 	public readonly goods = reactive(new AxialKeyMap<LooseGood[]>([], () => []))
-	private findGoodCoord(good: LooseGood) {
+	private removeKnownGood(good: InternalLooseGood): void {
+		const coord = good.coordKey
+		const oldList = this.goods.get(coord) || []
 		const target = unwrap(good)
-		for (const [coord, goods] of this.goods.entries()) {
-			if (goods.some((candidate) => unwrap(candidate) === target)) return coord
-		}
-		return undefined
+		const newList = oldList.filter((candidate) => unwrap(candidate) !== target)
+		assert(newList.length === oldList.length - 1, 'LooseGood not found')
+		if (newList.length) this.goods.set(coord, newList)
+		else this.goods.delete(coord)
+		good.removed = true
 	}
 	add(pos: Positioned, goodType: GoodType, options: Partial<LooseGood> = {}) {
 		assert(
@@ -65,13 +73,16 @@ export class LooseGoods extends withTicked(GameObject) {
 			'`position` in options must be roughly the same as pos.position'
 		)
 		const coord = axial.round(toAxialCoord(pos))
+		const coordKey = axial.key(coord)
 		const self = this
-		const good: LooseGood = reactive({
+		const good: InternalLooseGood = reactive({
 			goodType,
 			position: 'position' in pos ? pos.position : pos,
 			available: true,
+			coordKey,
+			removed: false,
 			get isRemoved() {
-				return self.findGoodCoord(good) === undefined
+				return good.removed
 			},
 			remove() {
 				if (this.isRemoved) {
@@ -94,7 +105,7 @@ export class LooseGoods extends withTicked(GameObject) {
 			},
 			...options,
 		})
-		this.goods.set(coord, [...(this.goods.get(coord) || []), good])
+		this.goods.set(coordKey, [...(this.goods.get(coordKey) || []), good])
 
 		// Create sprite after game is loaded
 
@@ -111,14 +122,16 @@ export class LooseGoods extends withTicked(GameObject) {
 			return
 		}
 
-		const requestedCoord = axial.round(toAxialCoord(pos))
-		const hasSameIdentity = (candidate: LooseGood) => unwrap(candidate) === unwrap(good)
-		const coord = this.findGoodCoord(good) ?? requestedCoord
-		const oldList = this.goods.get(coord) || []
-		const newList = oldList.filter((g) => !hasSameIdentity(g))
-		assert(newList.length === oldList.length - 1, 'LooseGood not found')
-		if (newList.length) this.goods.set(coord, newList)
-		else this.goods.delete(coord)
+		const internalGood = good as InternalLooseGood
+		const requestedCoord = axial.key(axial.round(toAxialCoord(pos)))
+		if (internalGood.coordKey !== requestedCoord) {
+			console.warn('LooseGood.remove called with mismatched position', {
+				requestedCoord,
+				storedCoord: internalGood.coordKey,
+				goodType: good.goodType,
+			})
+		}
+		this.removeKnownGood(internalGood)
 
 		// Clean up sprite if it exists (might not exist if removed before game loaded)
 	}
@@ -174,12 +187,54 @@ export class LooseGoods extends withTicked(GameObject) {
 		return undefined
 	}
 
+	private samplePoisson(mean: number): number {
+		if (mean <= 0) return 0
+		const threshold = Math.exp(-mean)
+		let product = 1
+		let count = 0
+		while (product > threshold) {
+			product *= this.game.random()
+			count++
+		}
+		return count - 1
+	}
+
+	private sampleBinomial(trials: number, probability: number): number {
+		if (trials <= 0 || probability <= 0) return 0
+		if (probability >= 1) return trials
+
+		const mean = trials * probability
+		if (trials <= 16) {
+			let hits = 0
+			for (let i = 0; i < trials; i++) {
+				if (this.game.random() < probability) hits++
+			}
+			return hits
+		}
+		if (mean < 1) return Math.min(trials, this.samplePoisson(mean))
+
+		const variance = mean * (1 - probability)
+		const u1 = Math.max(this.game.random(), Number.MIN_VALUE)
+		const u2 = this.game.random()
+		const normal = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2)
+		return Math.max(0, Math.min(trials, Math.round(mean + normal * Math.sqrt(variance))))
+	}
+
+	private selectRandomGoods(bucket: InternalLooseGood[], count: number): InternalLooseGood[] {
+		const selectedCount = Math.min(count, bucket.length)
+		for (let i = 0; i < selectedCount; i++) {
+			const swapIndex = i + Math.floor(this.game.random(bucket.length - i))
+			;[bucket[i], bucket[swapIndex]] = [bucket[swapIndex], bucket[i]]
+		}
+		return bucket.slice(0, selectedCount)
+	}
+
 	update(deltaSeconds: number): void {
 		untracked`update`(() => {
 			// Process each coordinate's goods
 			for (const [, goodsList] of Array.from(this.goods.entries())) {
-				for (const good of [...goodsList]) {
-					if (good.isRemoved) continue
+				const decayBuckets = new Map<GoodType, InternalLooseGood[]>()
+				for (const good of goodsList as InternalLooseGood[]) {
 					const goodDef = goods[good.goodType]
 					if (!goodDef) {
 						console.error(
@@ -197,11 +252,24 @@ export class LooseGoods extends withTicked(GameObject) {
 					// Skip decay for allocated goods (available=false means being grabbed)
 					if (!good.available) continue
 
-					// Calculate decay probability using the formula: P = 1 - 2^(-deltaTime/halfLife)
-					const decayProbability = 1 - 2 ** (-deltaSeconds / halfLife)
+					const bucket = decayBuckets.get(good.goodType)
+					if (bucket) bucket.push(good)
+					else decayBuckets.set(good.goodType, [good])
+				}
 
-					// Random chance to decay
-					if (this.game.random() < decayProbability) good.remove()
+				const goodsToRemove: InternalLooseGood[] = []
+				for (const [goodType, bucket] of decayBuckets) {
+					const halfLife = goods[goodType]?.halfLife
+					if (!Number.isFinite(halfLife)) continue
+					const decayProbability = 1 - 2 ** (-deltaSeconds / halfLife)
+					const kills = this.sampleBinomial(bucket.length, decayProbability)
+					if (kills <= 0) continue
+					goodsToRemove.push(...this.selectRandomGoods(bucket, kills))
+				}
+
+				for (const good of goodsToRemove) {
+					if (good.removed) continue
+					this.removeKnownGood(good)
 				}
 			}
 		})
