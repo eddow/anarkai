@@ -87,9 +87,10 @@ describe('Work Logic / Inventory Race Conditions', () => {
 		game.destroy()
 	})
 
-	it('should throw when planning grab for missing good (Specific Good)', () => {
+	it('returns idle when planning grab for missing specific loose good', () => {
 		const targetPos = { q: 0, r: 1 }
-		expect(() => inventoryFunctions.planGrabLoose('wood', targetPos)).toThrow('No wood to grab')
+		const plan = inventoryFunctions.planGrabLoose('wood', targetPos)
+		expect(plan.type).toBe('idle')
 	})
 
 	it('should return idle plan when planning grab for missing good (Generic Grab)', () => {

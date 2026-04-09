@@ -13,9 +13,11 @@ describe('Offload Silent Cancellation Reproduction', () => {
 
 		try {
 			// Setup target tile for offloading
+			await game.requestGameplayFrontier({ q: 3, r: 2 }, 0, { maxBatchSize: 1 })
 			const targetTile = game.hex.getTile({ q: 3, r: 2 })
 			if (!targetTile) throw new Error('Target tile not found')
-			;(targetTile.content as any).setProject?.('build:storage')
+			expect(targetTile.content).toBeDefined()
+			expect(targetTile.build('storage')).toBe(true)
 
 			// Add loose goods to the target tile
 			const looseGood = game.hex.looseGoods.add(targetTile, 'wood', {

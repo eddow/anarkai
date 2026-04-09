@@ -236,6 +236,6 @@ describe('SlottedStorageConfiguration', () => {
 		expect(updatedStars[1].dataset.maximum).toBe('6')
 		expect(updatedStars[1].dataset.value).toBe('2,4')
 		expect(container.textContent).toContain('2 / 4 slots')
-		expect(container.textContent).toContain('buffer 2, total 4')
+		expect(container.textContent).toContain('buffer 6, total 12')
 	})
 })

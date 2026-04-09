@@ -67,6 +67,9 @@ describe('Multi-Hop Convey Tests', () => {
 			const firstHop = movement.hop()
 			expect(firstHop).toMatchObject({ q: 0.5, r: 0 })
 			movement.place()
+			movement.allocations.source = hive
+				.storageAt(firstHop)!
+				.reserve({ wood: 1 }, { type: 'convey.path', movement })
 
 			const relayMovements = relay.aGoodMovement
 			expect(relayMovements?.length ?? 0).toBeGreaterThan(0)

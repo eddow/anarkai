@@ -152,6 +152,8 @@ Individual NPC with inventory, needs, and scripts.
 
 A network of connected Alveoli that share resources and workforce.
 
+For the current topology-refresh and GM persistence rules, see [`./hive-refresh-and-good-movements.md`](./hive-refresh-and-good-movements.md).
+
 **Responsibilities:**
 - Connect multiple Alveoli into production chains
 - Distribute jobs to workers

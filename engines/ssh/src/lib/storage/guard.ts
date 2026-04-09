@@ -34,6 +34,7 @@ const registry: FinalizationRegistry<Held> | null =
 // constructors and internal methods may see the raw instance, so register both identities.
 const tokens = new WeakMap<object, object>()
 const activeAllocations = new Map<object, Held>()
+const activeLiveAllocations = new Map<object, object>()
 
 // Track invalidated allocations (fulfilled or cancelled)
 const invalidatedAllocations = new WeakSet<object>()
@@ -60,6 +61,7 @@ export function guardAllocation<Allocation extends object>(allocation: Allocatio
 	}
 
 	activeAllocations.set(token, allocationInfo)
+	activeLiveAllocations.set(token, variants[0])
 	traces.allocations?.groupCollapsed('Allocation created:', allocationInfo)
 	traces.allocations?.trace()
 	traces.allocations?.groupEnd()
@@ -85,6 +87,7 @@ export function allocationEnded<Allocation extends object>(allocation: Allocatio
 	registry.unregister(token)
 	for (const target of variants) tokens.delete(target)
 	activeAllocations.delete(token)
+	activeLiveAllocations.delete(token)
 }
 
 export function invalidateAllocation<Allocation extends object>(allocation: Allocation) {
@@ -106,6 +109,19 @@ export function debugActiveAllocationById(id: string): Held | undefined {
 	return undefined
 }
 
+export function findLiveAllocations(
+	predicate: (held: Held) => boolean
+): Array<{ held: Held; allocation: object }> {
+	const matches: Array<{ held: Held; allocation: object }> = []
+	for (const [token, held] of activeAllocations.entries()) {
+		if (!predicate(held)) continue
+		const allocation = activeLiveAllocations.get(token)
+		if (!allocation) continue
+		matches.push({ held, allocation })
+	}
+	return matches
+}
+
 export function getAllocationStats(): { total: number; byType: Record<string, number> } {
 	const stats = { total: activeAllocations.size, byType: {} as Record<string, number> }
 	for (const held of activeAllocations.values()) {
@@ -117,6 +133,7 @@ export function getAllocationStats(): { total: number; byType: Record<string, nu
 
 export function resetDebugActiveAllocations(): void {
 	activeAllocations.clear()
+	activeLiveAllocations.clear()
 }
 
 export class AllocationError extends Error {

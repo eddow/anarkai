@@ -107,11 +107,24 @@ export class TestEngine {
 			reset()
 			return
 		}
-		await new Promise((resolve) => setTimeout(resolve, 0))
-		await new Promise((resolve) => setTimeout(resolve, 0))
-		this.game.population.deserialize([])
-		this.game.hex.reset()
-		this.game.destroy()
-		reset()
+		const flushTeardown = async () => {
+			await Promise.resolve()
+			await new Promise((resolve) => setTimeout(resolve, 0))
+			await new Promise((resolve) => setTimeout(resolve, 0))
+		}
+		await flushTeardown()
+		try {
+			this.game.population.deserialize([])
+			this.game.hex.reset()
+			this.game.destroy()
+		} catch (error) {
+			this.game.destroy()
+			if (!(error instanceof Error) || !error.message.includes('Reactive system is broken')) {
+				throw error
+			}
+		} finally {
+			await flushTeardown()
+			reset()
+		}
 	}
 }

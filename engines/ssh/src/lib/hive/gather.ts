@@ -13,6 +13,15 @@ function goodsWith(goods: Goods, other: GoodType, qty: number = 1): Goods {
 	return rv
 }
 
+function gatherUrgency(availableCount: number): number {
+	// Gather runs are most worthwhile when they can pick up a full small batch.
+	// Discount partial availability aggressively so one loose good rarely wins
+	// against more productive work when gather can usually collect two goods.
+	const targetBatchSize = 2 // TODO: select this size out of attached vehicle's capacity 
+	const fillRatio = Math.max(0, Math.min(1, availableCount / targetBatchSize))
+	return jobBalance.gather * fillRatio * fillRatio
+}
+
 /**
  * GatherAlveolus handles gathering loose goods from the world.
  */
@@ -86,19 +95,19 @@ export class GatherAlveolus extends TransitAlveolus {
 			const targetGood = Object.entries(goodCounts).reduce(
 				(max, [good, count]) => (count > max.count ? { good: good as GoodType, count } : max),
 				{ good: null as GoodType | null, count: 0 }
-			).good
+			)
 
-			if (!targetGood) return undefined
+			if (!targetGood.good) return undefined
 
 			const result = hex.looseGoods.findNearestGoods(
 				startPos,
 				startPos,
-				[targetGood],
+				[targetGood.good],
 				this.action.radius
 			)
 			if (result) {
 				path = result.path
-				goodType = targetGood
+				goodType = targetGood.good
 			}
 
 			return (
@@ -106,7 +115,7 @@ export class GatherAlveolus extends TransitAlveolus {
 					job: 'gather',
 					path,
 					goodType,
-					urgency: jobBalance.gather,
+					urgency: gatherUrgency(targetGood.count),
 					fatigue: this.getFatigueCost(),
 				}
 			)

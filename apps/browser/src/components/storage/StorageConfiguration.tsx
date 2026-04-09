@@ -2,7 +2,7 @@ import { css } from '@app/lib/css'
 import { Button, Stars } from '@app/ui/anarkai'
 import type { StarsValue } from '@sursaut/ui/models'
 import { goods as goodsCatalog } from 'engine-pixi/assets/visual-content'
-import { memoize } from 'mutts'
+import { effect, memoize, reactive } from 'mutts'
 import type { Game } from 'ssh/game'
 import type { StorageAlveolus } from 'ssh/hive/storage'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
@@ -48,6 +48,10 @@ interface StorageConfigurationProps {
 }
 
 export default function StorageConfiguration(props: StorageConfigurationProps) {
+	const draft = reactive({
+		bufferStars: {} as Partial<Record<GoodType, number>>,
+	})
+
 	// Robust getters using memoize
 	const mode = memoize(() => props.content.storageMode || 'all-but')
 	const exceptions = memoize(() => props.content.storageExceptions || [])
@@ -163,6 +167,18 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 		setBufferFromStars(gt, 0)
 	}
 
+	effect`storage-configuration:buffer-draft-sync`(() => {
+		for (const goodType of bufferedGoods()) {
+			draft.bufferStars[goodType] = getBufferStars(goodType)
+		}
+		const activeGoods = new Set(bufferedGoods())
+		for (const goodType of Object.keys(draft.bufferStars) as GoodType[]) {
+			if (!activeGoods.has(goodType)) {
+				delete draft.bufferStars[goodType]
+			}
+		}
+	})
+
 	return (
 		<div class="storage-config">
 			<SlottedStorageConfiguration if={isSlotted()} content={props.content} game={props.game} />
@@ -213,11 +229,13 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 						renderItemExtra={(good) => (
 							<div class="buffer-stars-container">
 								<Stars
-									value={getBufferStars(good)}
+									value={draft.bufferStars[good] ?? getBufferStars(good)}
 									maximum={5}
-									onChange={(v: StarsValue) =>
-										setBufferFromStars(good, typeof v === 'number' ? v : v[1])
-									}
+									onChange={(v: StarsValue) => {
+										const nextStars = typeof v === 'number' ? v : v[1]
+										draft.bufferStars[good] = nextStars
+										setBufferFromStars(good, nextStars)
+									}}
 									size="1rem"
 								/>
 								<span class="buffer-quantity">{getDisplayQuantity(good)}</span>

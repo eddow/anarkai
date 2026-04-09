@@ -262,7 +262,16 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		const atHere = hive.movingGoods.get(here)
 		if (atHere) {
 			for (const mg of atHere) {
-				if (mg.claimed || mg.path.length === 0) continue
+				if (mg.claimed) continue
+				if (
+					!hive.queueBrokenMovementDiscard(mg, {
+						expectedFrom: here,
+						warnLabel: '[aGoodMovement] Invalid tile movement',
+					})
+				) {
+					continue
+				}
+				if (mg.path.length === 0) continue
 				if (!canHandleFromHere(here, mg.path[0]!)) continue
 				const localMg = wrapLocal(mg, mg.from ?? here)
 				if (canAdvance(mg)) {
@@ -280,8 +289,15 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			if (!arr) {
 				continue
 			}
-			for (const mg of arr)
-				if (!mg.claimed && mg.path.length) {
+			for (const mg of arr) {
+				if (mg.claimed) continue
+				if (
+					hive.queueBrokenMovementDiscard(mg, {
+						expectedFrom: from,
+						warnLabel: '[aGoodMovement] Invalid border movement',
+					}) &&
+					mg.path.length
+				) {
 					if (canHandleFromHere(from, mg.path[0]!)) {
 						const localMg = wrapLocal(mg, mg.from ?? from)
 						if (canAdvance(mg)) {
@@ -291,6 +307,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 						}
 					}
 				}
+			}
 		}
 
 		// No available movements - try to find circular blocks
@@ -385,11 +402,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	}
 
 	get incomingGoods(): boolean {
-		// Note: because borders have 2 neighbors and we check this when no movement is occurring,
-		//  if a good is incoming, it's for you (you're in one of the neighbors)
-		return this.tile.surroundings.some(
-			(s) => s.border.content instanceof AlveolusGate && s.border.content.storage.allocatedSlots
-		)
+		return this.hive.hasIncomingMovementFor(this)
 	}
 
 	private conveyJob(): Job | undefined {
@@ -419,7 +432,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		this.hive.removeAlveolus(this)
 	}
 
-	@memoize
+	// TODO: @memoize() - First, check if it's worth, second, make sure all changes bring recomputation
 	get neighborAlveoli(): Alveolus[] {
 		return this.tile.neighborTiles
 			.map((neighbor) => neighbor?.content)

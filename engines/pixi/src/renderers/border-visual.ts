@@ -1,6 +1,7 @@
 import { effect } from 'mutts'
 import { Container, Graphics } from 'pixi.js'
 import type { TileBorder } from 'ssh/board/border/border'
+import type { RenderedGoodSlot } from 'ssh/storage/types'
 import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
 import { scopedPixiName, setPixiName } from '../debug-names'
@@ -11,7 +12,7 @@ import { VisualObject } from './visual-object'
 type GateLike = {
 	storage?: {
 		renderedGoods(): {
-			slots: unknown[]
+			slots: RenderedGoodSlot[]
 		}
 	}
 }
@@ -32,17 +33,15 @@ export class BorderVisual extends VisualObject<TileBorder> {
 		this.goodsContainer = setPixiName(new Container(), scopedPixiName(scope, 'goods'))
 		this.gateGraphics.eventMode = 'none'
 		this.goodsContainer.eventMode = 'none'
-
-		// Borders are rendered on storedGoods layer usually (for gates) or ground layer?
-		// Gates are "connections" between alveoli.
-		// Let's use alveoli layer for the structure/line, storedGoods for goods.
-
-		this.renderer.layers.alveoli.addChild(this.gateGraphics)
-		this.renderer.layers.storedGoods.addChild(this.goodsContainer)
+		this.view.addChild(this.gateGraphics, this.goodsContainer)
 	}
 
 	public bind() {
 		const worldPos = toWorldCoord(this.object.position) // Border position is mid-point
+		this.view.position.set(worldPos.x, worldPos.y)
+		this.view.zIndex = worldPos.y
+		this.goodsContainer.zIndex = worldPos.y
+		this.renderer.attachToLayer(this.renderer.layers.storedGoods, this.goodsContainer)
 
 		this.register(
 			effect`border.${this.object.uid}.render`(() => {
@@ -58,12 +57,11 @@ export class BorderVisual extends VisualObject<TileBorder> {
 		)
 	}
 
-	private renderGate(gate: GateLike, center: { x: number; y: number }) {
-		// Logic ported from AlveolusGate.render
+	private renderGate(gate: GateLike, centerWorld: { x: number; y: number }) {
 		const tileAWorld = toWorldCoord(this.object.tile.a.position)
 		const alveolusCenter = {
-			x: tileAWorld.x - center.x,
-			y: tileAWorld.y - center.y,
+			x: tileAWorld.x - centerWorld.x,
+			y: tileAWorld.y - centerWorld.y,
 		}
 		const alveolus2Center = { x: -alveolusCenter.x, y: -alveolusCenter.y }
 		const centerLine = {
@@ -74,30 +72,8 @@ export class BorderVisual extends VisualObject<TileBorder> {
 			dx: -centerLine.dy,
 			dy: centerLine.dx,
 		}
-		const borderLength = Math.sqrt(borderDirection.dx ** 2 + borderDirection.dy ** 2)
-		const normalizedBorder = {
-			dx: borderDirection.dx / borderLength,
-			dy: borderDirection.dy / borderLength,
-		}
 
-		const lineLength = tileSize * 0.8
-		const startPos = {
-			x: center.x - (lineLength / 2) * normalizedBorder.dx,
-			y: center.y - (lineLength / 2) * normalizedBorder.dy,
-		}
-		const endPos = {
-			x: center.x + (lineLength / 2) * normalizedBorder.dx,
-			y: center.y + (lineLength / 2) * normalizedBorder.dy,
-		}
-
-		// Draw the yellow line
-		this.gateGraphics
-			.moveTo(startPos.x, startPos.y)
-			.lineTo(endPos.x, endPos.y)
-			.stroke({ color: 0xffff00, width: 2, alpha: 0.7 })
-
-		// Render goods
-		return this.renderBorderGoods(gate, center, borderDirection, lineLength)
+		return this.renderBorderGoods(gate, { x: 0, y: 0 }, borderDirection, tileSize * 0.8)
 	}
 
 	private renderBorderGoods(
@@ -140,6 +116,12 @@ export class BorderVisual extends VisualObject<TileBorder> {
 	}
 
 	public dispose() {
+		if (this.renderer.layers?.ground) {
+			this.renderer.detachFromLayer(this.renderer.layers.ground, this.view)
+		}
+		if (this.renderer.layers?.storedGoods) {
+			this.renderer.detachFromLayer(this.renderer.layers.storedGoods, this.goodsContainer)
+		}
 		this.gateGraphics.destroy()
 		this.goodsContainer.destroy({ children: true })
 		super.dispose()

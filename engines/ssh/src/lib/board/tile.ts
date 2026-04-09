@@ -44,8 +44,16 @@ export class Tile extends withInteractive(GameObject) {
 
 		// If content is an Alveolus, handle hive attachment
 		if (content instanceof Alveolus) {
-			const hive = Hive.for(this)
+			const neighboringHives = new Set<Hive>()
+			for (const neighbor of this.neighborTiles) {
+				const neighborContent = neighbor?.content
+				if (!(neighborContent instanceof Alveolus)) continue
+				neighboringHives.add(neighborContent.hive)
+			}
+			const hive = Array.from(neighboringHives)[0] ?? new Hive(this.board)
 			hive.attach(content)
+			this.board.markHiveTopologyDirty(hive)
+			for (const neighborHive of neighboringHives) this.board.markHiveTopologyDirty(neighborHive)
 		}
 	}
 	constructor(

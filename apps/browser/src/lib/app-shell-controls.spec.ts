@@ -16,12 +16,7 @@ vi.mock('ssh/assets/game-content', () => ({
 
 describe('app-shell-controls', () => {
 	it('shares one time-control catalog for toolbar and palette', () => {
-		expect(appShellTimeControls.map((t) => t.value)).toEqual([
-			'pause',
-			'play',
-			'fast-forward',
-			'gonzales',
-		])
+		expect(appShellTimeControls.map((t) => t.value)).toEqual([0, 1, 2, 3])
 	})
 
 	it('shares zone action values between toolbar and palette', () => {

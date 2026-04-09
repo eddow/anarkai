@@ -464,7 +464,6 @@ export function applyActivityHysteresis(
 	hysteresis: number
 ): ActivityScore[] {
 	if (!preferred || scores.length === 0) return [...scores].sort((a, b) => b.utility - a.utility)
-	if (preferred === 'wander') return [...scores].sort((a, b) => b.utility - a.utility)
 	const sorted = [...scores].sort((a, b) => b.utility - a.utility)
 	const top = sorted[0]!
 	const pref = sorted.find((s) => s.kind === preferred)

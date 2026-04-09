@@ -1,7 +1,8 @@
-import { reactive } from 'mutts'
+import { defer, reactive } from 'mutts'
 import { assert } from 'ssh/debug'
 import type { Game } from 'ssh/game'
 import { GameObject, withContainer, withHittable } from 'ssh/game/object'
+import type { Hive } from 'ssh/hive/hive'
 import { QueueStep } from 'ssh/npcs'
 import type { Character } from 'ssh/population'
 import {
@@ -20,6 +21,7 @@ import {
 } from 'ssh/utils'
 import { AxialKeyMap } from 'ssh/utils/mem'
 import { TileBorder, type TileBorderContent } from './border/border'
+import { Alveolus } from './content/alveolus'
 import { UnBuiltLand } from './content/unbuilt-land'
 import type { TileContent } from './content/content'
 import { LooseGoods } from './looseGoods'
@@ -36,6 +38,8 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 	private readonly tileCache = new AxialKeyMap<Tile>()
 	private readonly borderCache = new AxialKeyMap<TileBorder>()
 	private readonly occupied = new AxialKeyMap<Character[]>([], () => [])
+	private readonly pendingHiveRefresh = new Set<Hive>()
+	private topologyRefreshScheduled = false
 	readonly looseGoods: LooseGoods
 	readonly zoneManager: ZoneManager
 
@@ -97,7 +101,13 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 			(oldContent instanceof UnBuiltLand) !== (content instanceof UnBuiltLand)
 		if (!content) this.contents.delete({ q: coord.q, r: coord.r })
 		else this.contents.set({ q: coord.q, r: coord.r }, content)
-		if (oldContent && oldContent !== content) oldContent.destroy()
+		if (oldContent && oldContent !== content) {
+			if (oldContent instanceof Alveolus) {
+				oldContent.hive.detachAlveolusForRefresh(oldContent)
+				this.markHiveTopologyDirty(oldContent.hive)
+			}
+			oldContent.destroy()
+		}
 		// If a tile content is set programmatically post-generation, mark tile dirty
 		const tile = content?.tile ?? (coord ? this.getTile(coord) : undefined)
 		if (tile) tile.asGenerated = false
@@ -112,6 +122,27 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 			)?.invalidateTerrainHard?.() ??
 				(this.game.renderer as { invalidateTerrain?: () => void } | undefined)?.invalidateTerrain?.()
 		}
+	}
+
+	markHiveTopologyDirty(hive: Hive | undefined) {
+		if (!hive || hive.isDestroyed) return
+		hive.markTopologyRefreshPending()
+		this.pendingHiveRefresh.add(hive)
+		if (this.topologyRefreshScheduled) return
+		this.topologyRefreshScheduled = true
+		defer(() => {
+			this.topologyRefreshScheduled = false
+			this.flushHiveTopologyRefresh()
+		})
+	}
+
+	flushHiveTopologyRefresh() {
+		if (this.pendingHiveRefresh.size === 0) return
+		const pending = new Set(Array.from(this.pendingHiveRefresh).filter((hive) => !hive.isDestroyed))
+		this.pendingHiveRefresh.clear()
+		if (pending.size === 0) return
+		const [anchor] = pending
+		anchor.flushTopologyRefreshBatch(pending)
 	}
 
 	getTile(ref: Positioned): Tile | undefined {

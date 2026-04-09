@@ -1,62 +1,74 @@
 # Architecture Overview
 
-## System Context
+## System Shape
 
-Anarkai is a modular system composed of a shared game engine, reusable libraries, and multiple frontend consumers (clients). The architecture emphasizes separation of concerns between core logic, state management, and rendering/UI.
+Anarkai is split into a playable client plus three focused engines:
 
-## Dependency Graph
+- `apps/browser` presents the game and editor-style panels
+- `engines/ssh` owns gameplay state and simulation
+- `engines/pixi` renders the world and entities
+- `engines/terrain` generates terrain data used by both gameplay and rendering
+
+## Dependency Outline
 
 ```mermaid
 graph TD
-    subgraph Apps
-        BP[browser]
-        BV[browser-vue]
-    end
+    Browser[apps/browser]
+    SSH[engines/ssh]
+    Pixi[engines/pixi]
+    Terrain[engines/terrain]
+    Ownk[linked ownk libraries]
 
-    subgraph Engines
-        SSH[ssh (Game Engine)]
-    end
-
-    subgraph Packages
-        M[mutts]
-        NPC[npcs]
-        I18N[omni18n]
-        PTS[sursaut-ts]
-        PUI[sursaut-ui]
-    end
-
-    %% Dependencies
-    BP --> PUI
-    BP --> PTS
-    BP --> SSH
-    
-    BV --> SSH
-    BV --> M
-    
-    SSH --> M
-    SSH --> NPC
-    SSH --> I18N
-    
-    PUI --> PTS
-    PUI --> M
-    
-    PTS --> M
-    
-    NPC --> M
-    
-    I18N --> M
+    Browser --> SSH
+    Browser --> Pixi
+    SSH --> Terrain
+    SSH --> Ownk
+    Pixi --> SSH
+    Pixi --> Terrain
+    Browser --> Ownk
 ```
 
-## Core Components
+## Responsibilities
 
-### 1. Reactivity Layer (`mutts`)
-At the heart of the system lies `mutts`, the reactivity engine. It powers state management in the game engine, the Sursaut framework, and even the Vue integration shim.
+### `engines/terrain`
 
-### 2. Game Engine (`ssh`)
-The `ssh` engine encapsulates the domain logic. It depends on `mutts` for state, `npcs` for AI/behavior, and `omni18n` for text. It abstracts the game rules and state from the specific rendering technology, though it currently leverages PixiJS.
+Pure terrain data generation:
 
-### 3. Framework Layer (`sursaut-ts`)
-`sursaut-ts` is a custom UI framework built on top of `mutts`. It offers a JSX-based component model similar to React or Solid but with direct DOM manipulation and fine-grained reactivity.
+- tile fields
+- hydrology
+- biome hints
+- streamed snapshot merge/prune operations
 
-### 4. UI Layer (`sursaut-ui`)
-Built on `sursaut-ts`, this library provides the concrete UI widgets (buttons, panels, etc.) used by the `browser` application.
+### `engines/ssh`
+
+Gameplay and persistence:
+
+- board and tile content
+- hive and alveolus logic
+- worker behavior and job selection
+- storage reservation/allocation semantics
+- save/load and streamed gameplay frontier management
+
+### `engines/pixi`
+
+Visual ownership:
+
+- continuous terrain sectors
+- entity visuals
+- renderer diagnostics
+- visibility-driven requests for more world data
+
+### `apps/browser`
+
+User-facing integration:
+
+- application shell
+- inspector widgets
+- palette controls
+- selection-follow behavior
+
+## Current Tension
+
+The architecture is healthiest at the terrain seam and the weakest at the gameplay streaming seam.
+
+`engine-terrain` already behaves like an open-ended streamed world. `ssh` and `pixi` are close, but gameplay frontier ownership still needs to be made more explicit so rendering interest does not become gameplay policy.

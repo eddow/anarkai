@@ -141,7 +141,7 @@ export const jobBalance = {
 	convey: 3,
 	gather: 2,
 	harvest: {
-		clearing: 2.5,
+		clearing: 1.5,
 		fallbackBase: 0.25,
 		needsBonus: 0.5,
 	},

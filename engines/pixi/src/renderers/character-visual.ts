@@ -44,12 +44,17 @@ export class CharacterVisual extends VisualObject<Character> {
 	}
 
 	public bind() {
+		this.renderer.attachToLayer(this.renderer.layers.characters, this.view)
+
 		// Position binding
 		this.register(
 			effect`character.position`(() => {
 				const world = toWorldCoord(this.object.position)
 				// Need tileSize or similar context? toWorldCoord handles it if imports are correct
-				if (world) this.view.position.set(world.x, world.y)
+				if (world) {
+					this.view.position.set(world.x, world.y)
+					this.view.zIndex = world.y
+				}
 			})
 		)
 
@@ -83,5 +88,12 @@ export class CharacterVisual extends VisualObject<Character> {
 			`character.${this.object.uid}.goods`
 		)
 		this.register(cleanupGoods)
+	}
+
+	public dispose() {
+		if (this.renderer.layers?.characters) {
+			this.renderer.detachFromLayer(this.renderer.layers.characters, this.view)
+		}
+		super.dispose()
 	}
 }

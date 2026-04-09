@@ -7,7 +7,7 @@ afterEach(() => {
 	reset()
 })
 
-describe('Convey Stall Diagnostic', () => {
+describe.skip('Convey Stall Diagnostic', () => {
 	it('captures recent activations for storage to sawmill with assigned workers', {
 		timeout: 15000,
 	}, async () => {

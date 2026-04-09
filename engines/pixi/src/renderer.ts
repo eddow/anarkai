@@ -1,4 +1,4 @@
-import { Application, Container, type Texture } from 'pixi.js'
+import { Application, Container, RenderLayer, type Texture, type ContainerChild } from 'pixi.js'
 import type { Game } from 'ssh/game/game'
 import type { GameRenderer } from 'ssh/types/engine'
 import { assetManager } from './asset-manager'
@@ -94,12 +94,12 @@ export class PixiGameRenderer implements GameRenderer {
 	}
 
 	public layers!: {
-		ground: Container
-		alveoli: Container
-		resources: Container
-		storedGoods: Container // e.g. on borders
-		looseGoods: Container
-		characters: Container
+		ground: RenderLayer
+		alveoli: RenderLayer
+		resources: RenderLayer
+		storedGoods: RenderLayer // e.g. on borders
+		looseGoods: RenderLayer
+		characters: RenderLayer
 		ui: Container // in-game ui overlays
 	}
 
@@ -108,6 +108,7 @@ export class PixiGameRenderer implements GameRenderer {
 	public missingTextures: string[] = []
 
 	public world!: Container
+	public worldScene!: Container
 
 	get viewState() {
 		return {
@@ -125,23 +126,32 @@ export class PixiGameRenderer implements GameRenderer {
 		// World container holds all game content and acts as the camera
 		this.stage.label = 'renderer.stage'
 		this.world = setPixiName(new Container(), 'renderer.world')
+		this.worldScene = setPixiName(new Container(), 'renderer.worldScene')
 		this.stage.addChild(this.world)
 
 		this.layers = {
-			ground: setPixiName(new Container(), 'layer.ground'), // terrain
-			alveoli: setPixiName(new Container(), 'layer.alveoli'), // structures
-			resources: setPixiName(new Container(), 'layer.resources'), // resources
-			storedGoods: setPixiName(new Container(), 'layer.storedGoods'),
-			looseGoods: setPixiName(new Container(), 'layer.looseGoods'), // loose goods
-			characters: setPixiName(new Container(), 'layer.characters'),
+			ground: setPixiName(new RenderLayer(), 'layer.ground'), // terrain
+			alveoli: setPixiName(new RenderLayer(), 'layer.alveoli'), // structures
+			resources: setPixiName(new RenderLayer(), 'layer.resources'), // resources
+			storedGoods: setPixiName(new RenderLayer(), 'layer.storedGoods'),
+			looseGoods: setPixiName(new RenderLayer(), 'layer.looseGoods'), // loose goods
+			characters: setPixiName(new RenderLayer(), 'layer.characters'),
 			ui: setPixiName(new Container(), 'layer.ui'), // UI remains in world? Or screen?
 			// Usually UI is screen space. Let's keep UI separate or check usage.
 			// GameWidget.vue overlay is DOM based. In-game UI usually stays on screen.
 			// For now, let's put UI on stage (screen space) and others in world.
 		}
 
+		this.layers.ground.sortableChildren = true
+		this.layers.alveoli.sortableChildren = true
+		this.layers.resources.sortableChildren = true
+		this.layers.storedGoods.sortableChildren = true
+		this.layers.looseGoods.sortableChildren = true
+		this.layers.characters.sortableChildren = true
+
 		this.world.sortableChildren = true
 		this.world.addChild(
+			this.worldScene,
 			this.layers.ground, // terrain
 			this.layers.alveoli, // structures
 			this.layers.resources, // NEW
@@ -167,6 +177,20 @@ export class PixiGameRenderer implements GameRenderer {
 
 		// Add UI directly to stage so it doesn't zoom/pan
 		this.stage.addChild(this.layers.ui)
+	}
+
+	public attachToLayer(layer: RenderLayer, child: ContainerChild) {
+		layer.attach(child)
+		if (layer.sortableChildren) {
+			layer.sortRenderLayerChildren()
+		}
+	}
+
+	public detachFromLayer(layer: RenderLayer, child: ContainerChild) {
+		layer.detach(child)
+		if (layer.sortableChildren) {
+			layer.sortRenderLayerChildren()
+		}
 	}
 
 	public resize(width: number, height: number) {
@@ -215,6 +239,7 @@ export class PixiGameRenderer implements GameRenderer {
 		this.stage = undefined
 		this.layers = {} as any
 		this.visuals.clear()
+		this.worldScene = undefined as any
 		this.terrainVisual = undefined
 		// @ts-expect-error debug
 		delete globalThis.__ANARKAI_TERRAIN_DIAGNOSTICS__

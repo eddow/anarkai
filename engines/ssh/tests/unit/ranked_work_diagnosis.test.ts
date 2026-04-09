@@ -11,7 +11,8 @@ describe('Ranked work diagnostics', () => {
 		})
 		await engine.init()
 
-		try {
+	try {
+			;(globalThis as any).allowExpectedDiagnostics?.(/\[WATCHDOG\] STALLED EXCHANGE/)
 			const scenario: Partial<SaveState> = {
 				generationOptions: {
 					terrainSeed: 42_001,
@@ -68,8 +69,8 @@ describe('Ranked work diagnostics', () => {
 					{
 						name: 'DiagHive',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'storage', goods: {} },
-							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
+							{ coord: [0, 0], alveolus: 'storage', goods: { wood: 1 } },
+							{ coord: [1, 0], alveolus: 'storage', goods: {} },
 							{ coord: [0, 1], alveolus: 'storage', goods: {} },
 						],
 					},
@@ -80,16 +81,8 @@ describe('Ranked work diagnostics', () => {
 			engine.loadScenario(scenario)
 
 			const storage = engine.game.hex.getTile({ q: 0, r: 0 })?.content as any
-			storage.hive.movingGoods.set({ q: 0, r: 0 }, [
-				{
-					goodType: 'wood',
-					from: { q: 0, r: 0 },
-					path: [
-						{ q: 0.5, r: 0 },
-						{ q: 1, r: 0 },
-					],
-				},
-			])
+			const destination = engine.game.hex.getTile({ q: 1, r: 0 })?.content as any
+			expect(storage.hive.createMovement('wood', storage, destination)).toBe(true)
 
 			const worker = engine.spawnCharacter('Worker', { q: 1, r: 1 })
 			;(worker as { role?: string }).role = 'worker'

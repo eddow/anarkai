@@ -14,6 +14,7 @@ import { UnBuiltLandVisual } from './unbuilt-land-visual'
 import { VisualObject } from './visual-object'
 
 export class TileVisual extends VisualObject<Tile> {
+	private static readonly OVERLAY_Z_OFFSET = 1_000_000
 	private tileContainer: Container
 	private backgroundSprite: TilingSprite
 	private contentContainer: Container
@@ -58,6 +59,9 @@ export class TileVisual extends VisualObject<Tile> {
 		// Position
 		if (world) {
 			this.view.position.set(world.x, world.y)
+			// Keep tile overlays above streamed terrain regardless of board quadrant,
+			// while preserving front/back ordering between tiles.
+			this.view.zIndex = TileVisual.OVERLAY_Z_OFFSET + world.y
 		}
 	}
 
@@ -80,14 +84,12 @@ export class TileVisual extends VisualObject<Tile> {
 				if (content && !this.currentContentVisual) {
 					if (content instanceof Alveolus) {
 						this.currentContentVisual = new AlveolusVisual(content, this.renderer)
+						this.contentContainer.addChild(this.currentContentVisual.view)
 						this.currentContentVisual.bind()
-						// Decoupled: Visual attaches itself to correct layer
-						// this.contentContainer.addChild(this.currentContentVisual.view)
 					} else if (content instanceof UnBuiltLand) {
 						this.currentContentVisual = new UnBuiltLandVisual(content, this.renderer)
+						this.contentContainer.addChild(this.currentContentVisual.view)
 						this.currentContentVisual.bind()
-						// Decoupled: Visual attaches itself to correct layer
-						// this.contentContainer.addChild(this.currentContentVisual.view)
 					}
 				}
 
@@ -153,6 +155,11 @@ export class TileVisual extends VisualObject<Tile> {
 					}
 				}
 
+				if (!borderColor) {
+					if (this.object.zone === 'residential') borderColor = 0x44dd44
+					else if (this.object.zone === 'harvest') borderColor = 0xaa7744
+				}
+
 				// OPTIMIZATION: Only update if values changed
 				const tintChanged = this.cachedTint !== tint
 				const brightnessChanged = this.cachedBrightness !== brightness
@@ -191,6 +198,9 @@ export class TileVisual extends VisualObject<Tile> {
 	}
 
 	public dispose() {
+		if (this.renderer.layers?.ground) {
+			this.renderer.detachFromLayer(this.renderer.layers.ground, this.view)
+		}
 		this.currentContentVisual?.dispose()
 		super.dispose()
 	}

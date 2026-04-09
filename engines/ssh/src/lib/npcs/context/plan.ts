@@ -214,6 +214,18 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 				target.assignedWorker === character && character.assignedAlveolus === (target as Alveolus)
 			;(plan as WorkPlan & { preserveAssignment?: boolean }).preserveAssignment = alreadyAssigned
 			if (!alreadyAssigned) {
+				const currentAssigned = character.assignedAlveolus
+				if (currentAssigned && currentAssigned !== target) {
+					if (currentAssigned.assignedWorker === character) currentAssigned.assignedWorker = undefined
+					character.assignedAlveolus = undefined
+				}
+				if (target.assignedWorker && target.assignedWorker !== character) {
+					const previousWorker = target.assignedWorker
+					target.assignedWorker = undefined
+					if (previousWorker.assignedAlveolus === (target as Alveolus)) {
+						previousWorker.assignedAlveolus = undefined
+					}
+				}
 				target.assignedWorker = character
 				character.assignedAlveolus = target as Alveolus
 			}
@@ -240,8 +252,12 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 			gameObjectsModule.Alveolus.allows(plan.target) &&
 			!(plan as WorkPlan & { preserveAssignment?: boolean }).preserveAssignment
 		) {
-			plan.target.assignedWorker = undefined
-			character.assignedAlveolus = undefined
+			if (plan.target.assignedWorker === character) {
+				plan.target.assignedWorker = undefined
+			}
+			if (character.assignedAlveolus === plan.target) {
+				character.assignedAlveolus = undefined
+			}
 		}
 	},
 }

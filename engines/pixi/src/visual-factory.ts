@@ -122,22 +122,15 @@ export class VisualFactory {
 		// TileVisual should attach to 'ground' layer?
 
 		if (visual instanceof TileVisual) {
-			this.renderer.layers.ground.addChild(visual.view)
+			this.renderer.worldScene.addChild(visual.view)
+			this.renderer.attachToLayer(this.renderer.layers.ground, visual.view)
 		} else if (visual instanceof CharacterVisual) {
-			this.renderer.layers.characters.addChild(visual.view)
+			this.renderer.worldScene.addChild(visual.view)
 		} else if (visual instanceof LooseGoodsVisual) {
-			// LooseGoodsVisual handles its own attachment (storedGoods layer usually, inside its class)
-			// But VisualObject.view is what we generically attach.
-			// LooseGoodsVisual implementation I wrote attached internal container to storedGoods.
-			// So here we might not need to attach view?
-			// Actually VisualObject base creates `this.view`.
-			// If child class attaches specialized containers to layers, `this.view` might be empty.
-			// Let's leave it detatched or attach to ground?
-			// Best to just check if it needs attachment.
-			// LooseGoodsVisual attached `this.container` to `renderer.layers.storedGoods`.
-			// So we don't attach visual.view.
+			this.renderer.worldScene.addChild(visual.view)
 		} else if (visual instanceof BorderVisual) {
-			// BorderVisual manages its own layer attachment.
+			this.renderer.worldScene.addChild(visual.view)
+			this.renderer.attachToLayer(this.renderer.layers.ground, visual.view)
 		}
 
 		// Cleanup when object executes destroy?

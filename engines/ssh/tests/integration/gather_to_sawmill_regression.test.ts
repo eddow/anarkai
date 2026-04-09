@@ -234,7 +234,7 @@ describe('Gather to sawmill regression', () => {
 					`tick=${i} gatherStock=${gatherStock} gatherReserved=${gatherReserved} planks=${sawmillPlanks} moving=${movingGoods} gatherJob=${gatherJob} sawmillJob=${sawmillJob} gatherAction=${gatherWorker.actionDescription.join('/') || 'none'} sawmillAction=${sawmillWorker.actionDescription.join('/') || 'none'}`
 				)
 
-				if (gatherStock >= 2 && gatherReserved >= 1) {
+				if (gatherStock + gatherReserved >= 2 && (gatherReserved >= 1 || movingGoods >= 1)) {
 					sawDropWithReservations = true
 				}
 				if (sawmillPlanks >= 2) {

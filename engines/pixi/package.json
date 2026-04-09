@@ -19,7 +19,7 @@
 		"dev": "vite",
 		"build": "tsc",
 		"check": "tsc",
-		"test": "vitest run"
+		"test": "vitest run --config vitest.config.ts"
 	},
 	"dependencies": {
 		"engine-terrain": "workspace:*",

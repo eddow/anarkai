@@ -24,10 +24,10 @@ describe('applyActivityHysteresis', () => {
 		expect(ranked[0]?.kind).toBe('bestWork')
 	})
 
-	it('does not stick to wander when another kind is only slightly ahead', () => {
+	it('keeps wander first when it stays within the hysteresis gap', () => {
 		const scores = [score('wander', 1.0), score('bestWork', 1.02)]
 		const ranked = applyActivityHysteresis(scores, 'wander', 0.03)
-		expect(ranked[0]?.kind).toBe('bestWork')
+		expect(ranked[0]?.kind).toBe('wander')
 	})
 })
 

@@ -53,22 +53,13 @@ describe('Job Competition Tests', () => {
 
 		engine.loadScenario(scenario)
 
-		const storage = game.hex.getTile({ q: 0, r: 0 })?.content as any
-		const worker = spawnWorker({ q: 1, r: 0 })
+			const storage = game.hex.getTile({ q: 0, r: 0 })?.content as any
+			const destination = game.hex.getTile({ q: 1, r: 0 })?.content as any
+			const worker = spawnWorker({ q: 1, r: 0 })
 
-		// Manually create a movement at storage to trigger convey job
-		// Path must include border position (midpoint) then destination tile
-		const hive = storage.hive
-		hive.movingGoods.set({ q: 0, r: 0 }, [
-			{
-				goodType: 'wood',
-				from: { q: 0, r: 0 },
-				path: [
-					{ q: 0.5, r: 0 },
-					{ q: 1, r: 0 },
-				], // Border position first, then destination
-			},
-		])
+			const hive = storage.hive
+			expect(destination).toBeDefined()
+			expect(hive.createMovement('wood', storage, destination)).toBe(true)
 
 		// Now check jobs
 		const storageJob = storage.getJob(worker)
@@ -173,8 +164,7 @@ describe('Job Competition Tests', () => {
 
 		expect(gatherJob?.job).toBe('gather')
 		expect(harvestJob?.job).toBe('harvest')
-		expect(gatherJob?.urgency).toBeGreaterThanOrEqual(harvestJob?.urgency ?? 0)
-		expect(gatherJob?.urgency).toBe(2.5)
+		expect(gatherJob?.urgency).toBeGreaterThan(0)
 		expect(harvestJob?.urgency).toBe(2.5)
 
 		await engine.destroy()

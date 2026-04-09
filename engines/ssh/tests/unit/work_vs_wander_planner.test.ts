@@ -1,5 +1,6 @@
 import { inert } from 'mutts'
 import type { SaveState } from 'ssh/game'
+import { options } from 'ssh/globals'
 import type { Character } from 'ssh/population/character'
 import {
 	activityUtilityConfig,
@@ -17,6 +18,8 @@ import { TestEngine } from '../test-engine/engine'
  */
 describe('Planner: work preferred over wander when fit and a job exists', () => {
 	async function harvestScenario() {
+		const previousWatchdogInterval = options.stalledMovementScanIntervalMs
+		options.stalledMovementScanIntervalMs = 0
 		const engine = new TestEngine({
 			terrainSeed: 42_001,
 			characterCount: 0,
@@ -48,7 +51,7 @@ describe('Planner: work preferred over wander when fit and a job exists', () => 
 		const worker = engine.spawnCharacter('Worker', { q: 2, r: 2 })
 		;(worker as { role?: string }).role = 'worker'
 		void worker.scriptsContext
-		return { engine, worker }
+		return { engine, worker, previousWatchdogInterval }
 	}
 
 	function assertBestWorkFirst(worker: Character) {
@@ -65,25 +68,27 @@ describe('Planner: work preferred over wander when fit and a job exists', () => 
 	}
 
 	it('all needs negative (well rested): bestWork still beats wander when a job exists', async () => {
-		const { engine, worker } = await harvestScenario()
+		const { engine, worker, previousWatchdogInterval } = await harvestScenario()
 		try {
 			worker.hunger = -0.35
 			worker.fatigue = -0.28
 			worker.tiredness = -0.4
 			assertBestWorkFirst(worker)
 		} finally {
+			options.stalledMovementScanIntervalMs = previousWatchdogInterval
 			await engine.destroy()
 		}
 	})
 
 	it('bestWork ranks above wander (mild positive needs, keepWorking, resolveBestJobMatch truthy)', async () => {
-		const { engine, worker } = await harvestScenario()
+		const { engine, worker, previousWatchdogInterval } = await harvestScenario()
 		try {
 			worker.hunger = 0.05
 			worker.fatigue = 0.05
 			worker.tiredness = 0.05
 			assertBestWorkFirst(worker)
 		} finally {
+			options.stalledMovementScanIntervalMs = previousWatchdogInterval
 			await engine.destroy()
 		}
 	})

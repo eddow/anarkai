@@ -1,54 +1,23 @@
-# Anarkai Monorepo Documentation
+# Anarkai Documentation
 
-Welcome to the documentation for the **Anarkai** project.
+## Start Here
 
-## 📚 Documentation Overview
+- [`./current-status.md`](./current-status.md): what is implemented, what drifted, and what to tackle next
+- [`./project-inventory.md`](./project-inventory.md): current repo layout
+- [`./architecture-overview.md`](./architecture-overview.md): high-level system boundaries
 
-This documentation is generated to help developers understand the structure and architecture of the Anarkai monorepo.
-
-- **[Project Inventory](./project-inventory.md)**: detailed list of apps, engines, and packages.
-- **[Architecture Overview](./architecture-overview.md)**: High-level system design and dependencies.
-
-## 🏗️ Project Structure
-
-The project is organized as a monorepo using **pnpm** workspaces.
-
-### 📱 Applications (`apps/`)
-- **browser**: Web application built with Sursaut-TS.
-- **browser-vue**: Web application built with Vue 3.
-
-### 🎮 Engines (`engines/`)
-- **ssh**: The core Game Engine.
-
-### 📦 Packages (`packages/`)
-- **mutts**: Core reactive utility library.
-- **npcs**: NPC behavior and script execution system.
-- **omni18n**: Internationalization library.
-- **sursaut-ts**: Lightweight reactive web framework.
-- **sursaut-ui**: UI component library.
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Node.js
-- pnpm
-
-### Installation
+## Workspace Commands
 
 ```bash
-pnpm install
+pnpm dev:browser
+pnpm test
+pnpm typecheck
 ```
 
-### Development
-
-Run all applications in development mode:
+Useful focused commands:
 
 ```bash
-pnpm dev
-```
-
-Run specific app:
-
-```bash
-pnpm --filter <package-name> dev
+pnpm --filter ssh-browser dev
+pnpm --filter ssh test
+pnpm --filter engine-terrain test
 ```

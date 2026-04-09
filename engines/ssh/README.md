@@ -1,56 +1,31 @@
-## SSH — Hex Colony Sandbox (work-in-progress)
+# ssh
 
-A small sandbox colony/automation game experiment on a hex grid. NPCs perform jobs (harvest, transform, convey), move goods across borders, and keep inventories balanced while you place buildings and shape the flow of resources.
+`engines/ssh` is the gameplay engine for Anarkai.
 
-### Highlights
-- **Hex grid world** with terrain generation and objects (trees, rocks, bushes).
-- **Jobs and NPC scripting** for harvesting, transforming, self‑care, walking, inventory and conveying goods.
-- **Goods flow** across tile borders with reservations/allocations to avoid conflicts.
-- **PIXl/Canvas rendering** via `pixi.js` with Svelte UI.
-- **Type‑safe gameplay code** in TypeScript.
+It owns:
 
-### Getting started
-1. Install Node 18+.
-2. Install dependencies:
-   - `npm install`
-3. Start the dev server:
-   - `npm run dev`
-4. Open the app (if not auto‑opened):
-   - `http://localhost:5173`
+- the board and tile-content model
+- alveolus and hive behavior
+- NPC work logic
+- storage reservations and allocations
+- save/load
+- streamed gameplay materialization on top of deterministic terrain
 
-### Scripts
-- `npm run dev` — start Vite dev server
-- `npm run build` — production build
-- `npm run preview` — preview the production build
-- `npm run check` — typecheck (Svelte + TS)
-- `npm run biome` — lint and format
-- `npm run test` — run unit tests (Vitest)
+## Run Checks
 
-### Tech stack
-- TypeScript
-- Vitest for tests
+```bash
+pnpm --filter ssh check
+pnpm --filter ssh test
+```
 
-### Status
-Active WIP. Systems and naming may change (e.g., convey/collect flows). Expect breaking changes.
+## Key Docs
 
-## Documentation
+- [`./docs/architecture.md`](./docs/architecture.md)
+- [`./docs/core-systems.md`](./docs/core-systems.md)
+- [`./docs/hive-refresh-and-good-movements.md`](./docs/hive-refresh-and-good-movements.md)
+- [`./docs/npc-behaviors.md`](./docs/npc-behaviors.md)
+- [`./docs/test-engine.md`](./docs/test-engine.md)
 
-Comprehensive documentation is available in the [`docs/`](docs/) directory:
+## Current Focus
 
-- **[Architecture Overview](docs/architecture.md)** — System design and core components
-- **[Core Systems](docs/core-systems.md)** — Detailed documentation of game systems
-- **[NPC Behaviors](docs/npc-behaviors.md)** — Character behavioral specifications
-- **[Test Engine](docs/test-engine.md)** — Headless testing environment
-- **[Development Guide](docs/development-guide.md)** — Contributing and development patterns
-
-# TODO
-
-- [ ] Finish the tests
-- [ ] Take care of fractional goods: only valid in transformers = specific-storage. It means available goods = floor(amount) and available space = 1 - ceil(amount) or floor(1 - amount)
-- [ ] `lib/game` doesn't make sense - it *is* the game, it's just a library for the game -> `lib/`
-
-
-# Ideas
-Alveolus of 1, 2, 3 tiles.
-1- multiply room by 1, 3, 6
-2- allow bigger improvements - when a tech is early and expensive
+The main remaining architectural job is making gameplay streaming a first-class concern, not extending basic hive mechanics.

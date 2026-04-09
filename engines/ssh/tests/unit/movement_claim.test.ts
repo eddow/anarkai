@@ -186,4 +186,123 @@ describe('MovingGood.claimed prevents double pickup', () => {
 			await engine.destroy()
 		}
 	})
+
+	it('claimed terminal-hop movements are tolerated while the worker finishes the handoff', {
+		timeout: 15000,
+	}, async () => {
+		const engine = new TestEngine({
+			terrainSeed: 1234,
+			characterCount: 0,
+		})
+
+		await engine.init()
+		try {
+			engine.loadScenario({
+				generationOptions: {
+					terrainSeed: 1234,
+					characterCount: 0,
+				},
+				hives: [
+					{
+						name: 'TerminalHopHive',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'storage', goods: { wood: 2 } },
+							{ coord: [1, 0], alveolus: 'storage', goods: {} },
+						],
+					},
+				],
+			} as any)
+
+			const board = engine.game.hex
+			const provider = board.getTile({ q: 0, r: 0 })!.content as StorageAlveolus
+			const demander = board.getTile({ q: 1, r: 0 })!.content as StorageAlveolus
+			const hive = provider.hive as Hive
+
+			expect(hive.createMovement('wood', provider, demander)).toBe(true)
+
+			const provCoord = toAxialCoord(provider.tile.position)!
+			const mg = hive.movingGoods.get(provCoord)![0]
+
+			mg.claimed = true
+			mg.hop()
+			mg.hop()
+
+			expect(mg.path).toHaveLength(0)
+			expect(
+				hive.validateMovementInvariant(mg, {
+					requireTracked: false,
+					allowClaimedSourceGap: true,
+					allowClaimedTerminalPath: true,
+				})
+			).toBeUndefined()
+			expect(provider.aGoodMovement).toBeUndefined()
+
+			mg.finish()
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('incomingGoods only reflects live movement tokens, not stray border allocations', {
+		timeout: 15000,
+	}, async () => {
+		const engine = new TestEngine({
+			terrainSeed: 1234,
+			characterCount: 0,
+		})
+
+		await engine.init()
+		try {
+			engine.loadScenario({
+				generationOptions: {
+					terrainSeed: 1234,
+					characterCount: 0,
+				},
+				hives: [
+					{
+						name: 'IncomingMovementHive',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'storage', goods: { wood: 1 } },
+							{ coord: [1, 0], alveolus: 'storage', goods: {} },
+						],
+					},
+				],
+			} as any)
+
+			const board = engine.game.hex
+			const provider = board.getTile({ q: 0, r: 0 })!.content as StorageAlveolus
+			const demander = board.getTile({ q: 1, r: 0 })!.content as StorageAlveolus
+			const hive = provider.hive as Hive
+
+			expect(demander.incomingGoods).toBe(false)
+
+			const borderGate = provider.gates.find(
+				(gate) => gate.alveolusA === demander || gate.alveolusB === demander
+			)
+			expect(borderGate).toBeDefined()
+			if (!borderGate) throw new Error('Expected border gate between provider and demander')
+
+			const ghostAllocation = borderGate.storage.allocate({ wood: 1 }, { type: 'test.ghost' })
+			expect(borderGate.storage.allocatedSlots).toBe(true)
+			expect(demander.incomingGoods).toBe(false)
+
+			expect(hive.createMovement('wood', provider, demander)).toBe(true)
+			expect(demander.incomingGoods).toBe(false)
+
+			const provCoord = toAxialCoord(provider.tile.position)!
+			const movement = hive.movingGoods.get(provCoord)?.[0]
+			expect(movement).toBeDefined()
+			movement?.allocations.source.fulfill()
+			movement?.hop()
+			movement?.place()
+			const hopAlloc = borderGate.storage.allocate({ wood: 1 }, { type: 'test.hop' })
+			hopAlloc.fulfill()
+			movement!.allocations.source = borderGate.storage.reserve({ wood: 1 }, { type: 'test.hop.reserve' })
+			expect(demander.incomingGoods).toBe(true)
+			movement?.finish()
+			ghostAllocation.cancel()
+		} finally {
+			await engine.destroy()
+		}
+	})
 })

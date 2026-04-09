@@ -20,10 +20,12 @@ export class LooseGoodsVisual extends VisualObject<LooseGoods> {
 		this.container = setPixiName(new Container(), scopedPixiName(scope, 'container'))
 		// Ensure this container (and its children) does not block mouse events
 		this.container.eventMode = 'none'
-		this.renderer.layers.looseGoods.addChild(this.container)
+		this.view.addChild(this.container)
 	}
 
 	public bind() {
+		this.renderer.attachToLayer(this.renderer.layers.looseGoods, this.container)
+
 		this.register(
 			effect`looseGoods.render`(() => {
 				// We need to iterate over all goods.
@@ -96,6 +98,7 @@ export class LooseGoodsVisual extends VisualObject<LooseGoods> {
 							const offsetY = Math.sin(angle) * offsetRadius
 
 							sprite.position.set(world.x + offsetX, world.y + offsetY)
+							sprite.zIndex = world.y + offsetY
 						} else {
 							console.warn('[LooseGoodsVisual] Invalid world pos for good:', good.position)
 						}
@@ -128,6 +131,9 @@ export class LooseGoodsVisual extends VisualObject<LooseGoods> {
 	}
 
 	public dispose() {
+		if (this.renderer.layers?.looseGoods) {
+			this.renderer.detachFromLayer(this.renderer.layers.looseGoods, this.container)
+		}
 		this.container.destroy({ children: true }) // destroys all sprites
 		super.dispose()
 	}

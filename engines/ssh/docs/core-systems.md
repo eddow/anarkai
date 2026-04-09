@@ -260,6 +260,8 @@ hive.attach(alveolus)  // Add to hive
 hive.detach(alveolus)  // Remove from hive
 ```
 
+For the current deferred topology refresh and Good Movement persistence rules, see [`./hive-refresh-and-good-movements.md`](./hive-refresh-and-good-movements.md).
+
 ### Production Priorities
 
 Hive needs are computed automatically from alveolus demand advertisements. The system prioritizes work assignments based on these aggregated needs.

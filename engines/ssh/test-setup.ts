@@ -1,12 +1,69 @@
 // Basic test setup for ssh project
 // This file is required by vitest.config.ts
 
-import { vi } from "vitest";
+import { inspect } from "node:util";
+import { afterEach, beforeEach, vi } from "vitest";
 
 // Clear mutts instance if it exists
 delete (global as any).__MUTTS_INSTANCE__;
 
 import { getActivationLog, reactiveOptions, reset, unreactive } from "mutts";
+import { options } from "ssh/globals";
+
+type TestDiagnosticEntry = {
+	level: "warn" | "error";
+	text: string;
+};
+
+const originalConsoleWarn = console.warn.bind(console);
+const originalConsoleError = console.error.bind(console);
+const defaultDisallowedDiagnostics = [
+	/\[WATCHDOG\]/,
+	/\[aGoodMovement\]/,
+	/\[conveyStep\]/,
+	/\[INCOMING\]/,
+	/Invalid movement token/,
+	/Broken movement/,
+	/Detached movement allocation/,
+	/Offloaded broken border movement/,
+	/Movement became invalid/,
+];
+let capturedDiagnostics: TestDiagnosticEntry[] = [];
+let allowedDiagnosticPatterns: RegExp[] = [];
+const defaultStalledMovementScanIntervalMs = options.stalledMovementScanIntervalMs;
+
+const formatDiagnosticArg = (arg: unknown): string => {
+	if (typeof arg === "string") return arg;
+	return inspect(arg, { depth: 4, breakLength: Infinity });
+};
+
+const recordDiagnostic = (level: "warn" | "error", args: unknown[]) => {
+	capturedDiagnostics.push({
+		level,
+		text: args.map(formatDiagnosticArg).join(" "),
+	});
+};
+
+console.warn = (...args: Parameters<typeof console.warn>) => {
+	recordDiagnostic("warn", args);
+	return originalConsoleWarn(...args);
+};
+
+console.error = (...args: Parameters<typeof console.error>) => {
+	recordDiagnostic("error", args);
+	return originalConsoleError(...args);
+};
+
+const allowExpectedDiagnostics = (...patterns: (string | RegExp)[]) => {
+	for (const pattern of patterns) {
+		allowedDiagnosticPatterns.push(
+			typeof pattern === "string" ? new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) : pattern,
+		);
+	}
+};
+
+// @ts-expect-error - test helper injected globally
+globalThis.allowExpectedDiagnostics = allowExpectedDiagnostics;
 
 // Ensure memoization discrepancies throw error in tests
 let inDiscrepancy = false;
@@ -112,6 +169,39 @@ globalThis.afterEach = vi.afterEach;
 globalThis.beforeAll = vi.beforeAll;
 // @ts-expect-error - Adding global test functions
 globalThis.afterAll = vi.afterAll;
+
+beforeEach(() => {
+	activationLogDumped = false;
+	capturedDiagnostics = [];
+	allowedDiagnosticPatterns = [];
+	options.stalledMovementScanIntervalMs = 0;
+	reset();
+});
+
+afterEach(async () => {
+	await Promise.resolve();
+	await new Promise((resolve) => setTimeout(resolve, 0));
+	await new Promise((resolve) => setTimeout(resolve, 0));
+	const unexpectedDiagnostics = capturedDiagnostics.filter(({ text }) => {
+		const isDisallowed = defaultDisallowedDiagnostics.some((pattern) => pattern.test(text));
+		if (!isDisallowed) return false;
+		return !allowedDiagnosticPatterns.some((pattern) => pattern.test(text));
+	});
+	capturedDiagnostics = [];
+	allowedDiagnosticPatterns = [];
+	activationLogDumped = false;
+	options.stalledMovementScanIntervalMs = defaultStalledMovementScanIntervalMs;
+	reset();
+	if (unexpectedDiagnostics.length > 0) {
+		const lines = unexpectedDiagnostics
+			.slice(0, 5)
+			.map(({ level, text }) => `[${level}] ${text}`)
+			.join("\n\n");
+		throw new Error(
+			`Unexpected convey/watchdog diagnostics were emitted during the test:\n\n${lines}`,
+		);
+	}
+});
 
 // Mock browser environment for PixiJS
 if (typeof Node === "undefined") {

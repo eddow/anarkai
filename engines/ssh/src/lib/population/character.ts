@@ -454,38 +454,6 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			const bestWorkMatch = this.resolveBestJobMatch()
 			const workSnapshot = this.buildRankedWorkSnapshot(bestWorkMatch)
 			if (workSnapshot) this.lastWorkPlannerSnapshot = workSnapshot
-
-			if (this.keepWorking) {
-				const assignedExec = this.tryScriptForActivityKind('assignedWork')
-				if (assignedExec) {
-					this.lastPickedActivityKind = 'assignedWork'
-					this.lastPlannerSnapshot = {
-						ranked: [],
-						outcome: { kind: 'assignedWork', source: 'ranked' },
-					}
-					traceIdleDiagnosis({
-						name: this.name,
-						...this.lastPlannerSnapshot,
-					})
-					return assignedExec
-				}
-				if (bestWorkMatch) {
-					const bestWorkExec = this.findBestJob()
-					if (bestWorkExec) {
-						this.lastPickedActivityKind = 'bestWork'
-						this.lastPlannerSnapshot = {
-							ranked: [],
-							outcome: { kind: 'bestWork', source: 'ranked' },
-						}
-						traceIdleDiagnosis({
-							name: this.name,
-							...this.lastPlannerSnapshot,
-						})
-						return bestWorkExec
-					}
-				}
-			}
-
 			const ranked = excludeWanderAfterWanderWhenEmployable(
 				applyActivityHysteresis(
 					computeActivityScores(this),
@@ -499,6 +467,37 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 				kind: s.kind,
 				utility: Math.round(s.utility * 1000) / 1000,
 			}))
+
+			if (this.keepWorking) {
+				const assignedExec = this.tryScriptForActivityKind('assignedWork')
+				if (assignedExec) {
+					this.lastPickedActivityKind = 'assignedWork'
+					this.lastPlannerSnapshot = {
+						ranked: rankedSnapshot,
+						outcome: { kind: 'assignedWork', source: 'ranked' },
+					}
+					traceIdleDiagnosis({
+						name: this.name,
+						...this.lastPlannerSnapshot,
+					})
+					return assignedExec
+				}
+				if (bestWorkMatch) {
+					const bestWorkExec = this.findBestJob()
+					if (bestWorkExec) {
+						this.lastPickedActivityKind = 'bestWork'
+						this.lastPlannerSnapshot = {
+							ranked: rankedSnapshot,
+							outcome: { kind: 'bestWork', source: 'ranked' },
+						}
+						traceIdleDiagnosis({
+							name: this.name,
+							...this.lastPlannerSnapshot,
+						})
+						return bestWorkExec
+					}
+				}
+			}
 
 			for (const pick of ranked) {
 				const exec = this.tryScriptForActivityKind(pick.kind)

@@ -2,6 +2,7 @@ import { css } from '@app/lib/css'
 import { Stars } from '@app/ui/anarkai'
 import type { StarsValue } from '@sursaut/ui/models'
 import { goods as visualGoods } from 'engine-pixi/assets/visual-content'
+import { effect, reactive } from 'mutts'
 import type { Game } from 'ssh/game'
 import type { GoodType } from 'ssh/types/base'
 import PropertyGridRow from '../PropertyGridRow'
@@ -42,10 +43,14 @@ interface SpecificStorageConfigurationProps {
 }
 
 export default function SpecificStorageConfiguration(props: SpecificStorageConfigurationProps) {
-	const buffers = props.configuration?.buffers || {}
 	// Verify action exists before accessing properties
 	if (!props.action) return null
 	const goods = Object.keys(props.action.goods) as GoodType[]
+	const draft = reactive({
+		bufferStars: {} as Partial<Record<GoodType, number>>,
+	})
+
+	const buffers = props.configuration?.buffers || {}
 
 	// Calculate scale parameters: { maxStars, step }
 	const getScaleParams = (max: number) => {
@@ -74,6 +79,17 @@ export default function SpecificStorageConfiguration(props: SpecificStorageConfi
 		// val / step => number of stars
 		return Math.round(val / step)
 	}
+
+	effect`specific-storage-configuration:draft-sync`(() => {
+		for (const goodType of goods) {
+			draft.bufferStars[goodType] = getBufferStars(goodType)
+		}
+		for (const goodType of Object.keys(draft.bufferStars) as GoodType[]) {
+			if (!goods.includes(goodType)) {
+				delete draft.bufferStars[goodType]
+			}
+		}
+	})
 
 	const setBufferFromStars = (goodType: GoodType, stars: number) => {
 		if (!props.configuration) return
@@ -118,10 +134,12 @@ export default function SpecificStorageConfiguration(props: SpecificStorageConfi
 									<div class="buffer-stars-container">
 										<Stars
 											maximum={maxStars}
-											value={getBufferStars(good)}
-											onChange={(v: StarsValue) =>
-												setBufferFromStars(good, typeof v === 'number' ? v : v[1])
-											}
+											value={draft.bufferStars[good] ?? getBufferStars(good)}
+											onChange={(v: StarsValue) => {
+												const nextStars = typeof v === 'number' ? v : v[1]
+												draft.bufferStars[good] = nextStars
+												setBufferFromStars(good, nextStars)
+											}}
 											size="1rem"
 											zeroElement="□"
 											before="■"

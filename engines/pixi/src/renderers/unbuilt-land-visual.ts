@@ -23,10 +23,10 @@ export class UnBuiltLandVisual extends VisualObject<UnBuiltLand> {
 	}
 
 	public bind() {
-		// Attach to resources layer
 		const worldPos = toWorldCoord(this.object.tile.position)
-		this.view.position.set(worldPos.x, worldPos.y)
-		this.renderer.layers.resources.addChild(this.view)
+		this.view.position.set(0, 0)
+		this.view.zIndex = worldPos.y
+		this.renderer.attachToLayer(this.renderer.layers.resources, this.view)
 
 		this.register(
 			effect`unbuilt.${this.object.uid}.render`(() => {
@@ -98,6 +98,9 @@ export class UnBuiltLandVisual extends VisualObject<UnBuiltLand> {
 	}
 
 	public dispose() {
+		if (this.renderer.layers?.resources) {
+			this.renderer.detachFromLayer(this.renderer.layers.resources, this.view)
+		}
 		this.unbuiltContainer.destroy({ children: true })
 		super.dispose()
 	}

@@ -257,7 +257,8 @@ export class TerrainVisual {
 	}
 
 	public bind() {
-		this.renderer.layers.ground.addChildAt(this.container, 0)
+		this.renderer.worldScene.addChild(this.container)
+		this.renderer.attachToLayer(this.renderer.layers.ground, this.container)
 		this.renderer.app?.ticker.add(this.refresh)
 		this.hoverCleanup = effect`terrain.hover`(() => {
 			this.renderHoverOverlay(isHoveredTileObject(mrg.hoveredObject) ? mrg.hoveredObject : undefined)
@@ -276,6 +277,9 @@ export class TerrainVisual {
 		this.renderer.app?.ticker.remove(this.refresh)
 		this.hoverCleanup?.()
 		this.hoverCleanup = undefined
+		if (this.renderer.layers?.ground) {
+			this.renderer.detachFromLayer(this.renderer.layers.ground, this.container)
+		}
 		for (const sector of this.sectors.values()) sector.container.destroy({ children: true })
 		this.sectors.clear()
 		this.container.destroy({ children: true })

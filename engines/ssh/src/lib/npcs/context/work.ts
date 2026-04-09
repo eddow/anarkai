@@ -16,7 +16,11 @@ import { subject } from '../scripts'
 import { DurationStep, MultiMoveStep } from '../steps'
 import type { WorkPlan } from '.'
 import { getConveyDuration, getConveyVisualMovements } from './convey'
-import { cleanupFailedConveyMovement, type FailedConveyMovementData } from './convey-cleanup'
+import {
+	cleanupFailedConveyMovement,
+	type FailedConveyMovementData,
+	isRecoverableConveyError,
+} from './convey-cleanup'
 
 /**
  * Runtime snapshot for a single convey sub-movement.
@@ -90,8 +94,6 @@ class WorkFunctions {
 		const movements = alveolus.aGoodMovement
 		if (!movements || movements.length === 0) return
 
-		for (const mg of movements) claimMovement(mg)
-
 		const hive = alveolus.hive
 
 		const movementData: MovementData[] = []
@@ -101,14 +103,21 @@ class WorkFunctions {
 			let sourceFulfilled = false
 			let hopAlloc: AllocationBase | undefined
 			let moving: LooseGood | undefined
+			if (
+				!hive.ensureMovementInvariant(mg, {
+					expectedFrom: from,
+					warnLabel: '[conveyStep] Invalid movement before pickup',
+					allowClaimedSourceGap: false,
+				})
+			) {
+				continue
+			}
 			if (!mg.allocations?.source) {
 				console.warn('[conveyStep] Missing source allocation', mg)
-				// Never leave a movement claimed when it cannot be processed.
-				// Otherwise it disappears from job selection forever.
-				releaseMovementClaim(mg)
 				continue
 			}
 			try {
+				claimMovement(mg)
 				mg.allocations.source.fulfill()
 				sourceFulfilled = true
 				const hop = mg.hop()!
@@ -116,7 +125,18 @@ class WorkFunctions {
 				// Only re-index the movement when another conveyor still needs to pick it up.
 				// Final-hop movements should stay out of hive.movingGoods; otherwise terminal
 				// path=[] ghost entries can linger at the destination and poison job selection.
-				if (mg.path.length) mg.place()
+				if (mg.path.length) {
+					mg.place()
+					if (
+						!hive.ensureMovementInvariant(mg, {
+							expectedFrom: hop,
+							warnLabel: '[conveyStep] Invalid movement after place',
+							allowClaimedSourceGap: true,
+						})
+					) {
+						throw new Error('Movement became invalid after place')
+					}
+				}
 
 				const nextStorage = hive.storageAt(hop)
 				assert(nextStorage, 'nextStorage must be defined')
@@ -145,6 +165,16 @@ class WorkFunctions {
 					sourceFulfilled,
 				} satisfies FailedConveyMovementData)
 				for (const prev of movementData) cleanupFailedConveyMovement(character, prev)
+				if (isRecoverableConveyError(error)) {
+					console.warn('[conveyStep] Recovered from stale movement bookkeeping', {
+						goodType: mg.goodType,
+						provider: mg.provider.name,
+						demander: mg.demander.name,
+						error: error.message,
+					})
+					hive.wakeWanderingWorkersNear(mg.provider, mg.demander)
+					return
+				}
 				throw error
 			}
 		}
@@ -193,6 +223,12 @@ class WorkFunctions {
 								{ [mg.goodType]: 1 },
 								{
 									type: 'convey.path',
+									goodType: mg.goodType,
+									movementId: mg._mgId,
+									providerRef: mg.provider,
+									demanderRef: mg.demander,
+									providerName: mg.provider.name,
+									demanderName: mg.demander.name,
 									movement: mg,
 								}
 							)
@@ -206,12 +242,34 @@ class WorkFunctions {
 							}
 
 							mg.allocations.source = newSourceAlloc
+							if (
+								!hive.ensureMovementInvariant(mg, {
+									expectedFrom: hop,
+									warnLabel: '[conveyStep] Invalid movement after hop handoff',
+								})
+							) {
+								throw new Error('Movement became invalid after hop handoff')
+							}
 							releaseMovementClaim(mg)
 							hive.wakeWanderingWorkersNear(mg.provider, mg.demander)
 						}
 					}
 				} catch (error) {
 					for (const movement of movementData) cleanupFailedConveyMovement(character, movement)
+					if (isRecoverableConveyError(error)) {
+						console.warn('[conveyStep] Recovered from stale movement bookkeeping in finish', {
+							error: error.message,
+							movements: movementData.map(({ mg }) => ({
+								goodType: mg.goodType,
+								provider: mg.provider.name,
+								demander: mg.demander.name,
+							})),
+						})
+						for (const { mg } of movementData) {
+							hive.wakeWanderingWorkersNear(mg.provider, mg.demander)
+						}
+						return
+					}
 					console.error('[conveyStep] Error in finished callback:', error)
 					throw error
 				}
