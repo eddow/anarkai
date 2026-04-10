@@ -1,7 +1,7 @@
 function goEat()
 	// If already satisfied, `goEat` must not return immediately (falsy) or `findAction` can
 	// re-select `goEat` in the same tick when scores wrongly include eat (e.g. carried food).
-	if not (I.hunger > I.triggerLevels.hunger.satisfied) then return selfCare.pondering
+	if not (I.hunger > I.triggerLevels.hunger.satisfied) then return selfCare.pondering()
 	do while I.hunger > I.triggerLevels.hunger.satisfied
 		food = I.carriedFood
 		if food then
@@ -12,14 +12,14 @@ function goEat()
 		found = find.food()
 		// Yield a timed step instead of `return false`: a falsy return lets `findAction`
 		// pick `goEat` again in the same `nextStep` tick and triggers "Action infinite fail".
-		if not found then return selfCare.pondering
+		if not found then return selfCare.pondering()
 		inventory.grabLoose found.good, found.tile, found.path
 	loop
 end function
 
 function goHome()
 	home = find.homeTile()
-	if not home then return selfCare.pondering
+	if not home then return selfCare.pondering()
 	if home.path.length > 0 then
 		walk.into home.path
 	end if
@@ -29,10 +29,9 @@ end function
 
 function wander()
 	destination = find.wanderingTile()
-	if not destination.path then return selfCare.pondering
+	if not destination.path then return selfCare.pondering()
 	walk.into destination.path
 	selfCare.pondering
 end function
 
 return { goEat, goHome, wander }
-

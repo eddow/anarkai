@@ -116,12 +116,16 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 			;(
 				this.game.renderer as
 					| {
-							invalidateTerrainHard?: () => void
-							invalidateTerrain?: () => void
+							invalidateTerrainHard?: (coord?: { q: number; r: number }) => void
+							invalidateTerrain?: (coord?: { q: number; r: number }) => void
 					  }
 					| undefined
-			)?.invalidateTerrainHard?.() ??
-				(this.game.renderer as { invalidateTerrain?: () => void } | undefined)?.invalidateTerrain?.()
+			)?.invalidateTerrainHard?.(coord) ??
+				(
+					this.game.renderer as {
+						invalidateTerrain?: (coord?: { q: number; r: number }) => void
+					} | undefined
+				)?.invalidateTerrain?.(coord)
 		}
 	}
 

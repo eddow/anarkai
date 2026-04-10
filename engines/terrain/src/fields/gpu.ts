@@ -25,6 +25,7 @@ interface GpuFieldKernelInput {
 	persistence: number
 	lacunarity: number
 	scale: number
+	terrainTypeScale: number
 	rockyLevel: number
 	temperatureScale: number
 	humidityScale: number
@@ -132,6 +133,7 @@ export async function generateFieldsGpu(
 			persistence: config.persistence,
 			lacunarity: config.lacunarity,
 			scale: config.scale,
+			terrainTypeScale: config.terrainTypeScale,
 			rockyLevel: config.rockyLevel,
 			temperatureScale: config.temperatureScale,
 			humidityScale: config.humidityScale,
@@ -226,6 +228,7 @@ async function createGpuFieldRuntime(): Promise<GpuFieldRuntime> {
 			persistence: f32,
 			lacunarity: f32,
 			scale: f32,
+			terrainTypeScale: f32,
 			rockyLevel: f32,
 			temperatureScale: f32,
 			humidityScale: f32,
@@ -311,7 +314,7 @@ fn hash01(seedV: u32, x: i32, y: i32) -> f32 {
 }
 
 fn terrainRegionType(wx: f32, wy: f32) -> f32 {
-	let regionScale = max(scale * terrainTypeScaleFactor * terrainRegionScaleFactor, 0.000001);
+	let regionScale = max(terrainTypeScale * terrainRegionScaleFactor, 0.000001);
 	let sampleX = wx * regionScale;
 	let sampleY = wy * regionScale;
 	let baseX = i32(floor(sampleX));
@@ -375,7 +378,6 @@ let macroHeightStrength = 0.32;
 let macroOctaves = 3u;
 let macroPersistence = 0.55;
 let macroLacunarity = 2.0;
-let terrainTypeScaleFactor = 1.8;
 let terrainRegionScaleFactor = 0.16;
 let terrainRegionJitter = 0.35;
 let rockyNoiseScaleFactor = 8.0;

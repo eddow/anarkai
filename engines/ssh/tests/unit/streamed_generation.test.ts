@@ -1,6 +1,6 @@
-import { generate as generateTerrain } from 'engine-terrain'
 import { Game } from 'ssh/game/game'
 import { BoardGenerator, GameGenerator, type GameGenerationConfig } from 'ssh/generation'
+import { axial } from 'ssh/utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('ssh/assets/resources', () => ({ resources: {}, prefix: '' }))
@@ -15,16 +15,6 @@ vi.mock('ssh/assets/game-content', () => ({
 		default: { working: true },
 	},
 }))
-
-function findRiverInfluencedCoord(seed: number, boardSize: number) {
-	const snapshot = generateTerrain(seed, boardSize)
-	for (const [key, biome] of snapshot.biomes) {
-		if (biome !== 'river-bank' && biome !== 'lake') continue
-		const [q, r] = key.split(',').map(Number)
-		return { q, r }
-	}
-	return undefined
-}
 
 describe('streamed region generation', () => {
 	const games = new Set<Game>()
@@ -41,18 +31,107 @@ describe('streamed region generation', () => {
 			terrainSeed: 42,
 			characterCount: 0,
 		}
-		const coord = findRiverInfluencedCoord(config.terrainSeed, boardSize)
+		const full = generator.generateRegion(config, [...axial.enum(boardSize - 1)])
+		const coord = full.find(
+			(tile) =>
+				tile.hydrology?.isChannel || Object.keys(tile.hydrology?.edges ?? {}).length > 0
+		)?.coord
 		expect(coord).toBeDefined()
+		if (!coord) throw new Error('Expected hydrology-bearing tile')
+		const streamedRegion = generator.generateRegion(config, [...axial.allTiles(coord, 8)])
+		const streamed = streamedRegion.filter((tile) => tile.coord.q === coord.q && tile.coord.r === coord.r)
 
-		const snapshot = generateTerrain(config.terrainSeed, boardSize)
-		const full = new BoardGenerator().generateBoard(snapshot)
-		const streamed = generator.generateRegion(config, [coord!])
-
-		const fullTile = full.find((tile) => tile.coord.q === coord!.q && tile.coord.r === coord!.r)
+		const fullTile = full.find((tile) => tile.coord.q === coord.q && tile.coord.r === coord.r)
 		expect(fullTile).toBeDefined()
 		expect(streamed).toHaveLength(1)
 		expect(streamed[0]!.terrain).toBe(fullTile!.terrain)
 		expect(streamed[0]!.height).toBe(fullTile!.height)
+		expect(streamed[0]!.hydrology).toEqual(fullTile!.hydrology)
+	})
+
+	it('preserves highland terrain under river-bank biomes', () => {
+		const tiles = new Map([
+			[
+				'0,0',
+				{
+					height: 0.2,
+					temperature: 0,
+					humidity: 0,
+					terrainType: 0,
+					rockyNoise: 0,
+					sediment: 0,
+					waterTable: 0,
+				},
+			],
+		])
+		const biomes = new Map([['0,0', 'river-bank' as const]])
+		const snapshot = {
+			seed: 1,
+			tiles,
+			edges: new Map(),
+			biomes,
+			hydrology: {
+				banks: new Map(),
+				channels: new Set(),
+				channelInfluence: new Map(),
+			},
+		}
+
+		const [tile] = new BoardGenerator().generateBoard(snapshot)
+		expect(tile?.terrain).toBe('snow')
+	})
+
+	it('returns hydrology metadata from render terrain samples', async () => {
+		const generator = new GameGenerator()
+		const generated = generator.generateRegion(
+			{ terrainSeed: 42, characterCount: 0 },
+			[...axial.enum(11)]
+		)
+		const coord = generated.find(
+			(tile) =>
+				tile.hydrology?.isChannel || Object.keys(tile.hydrology?.edges ?? {}).length > 0
+		)?.coord
+		expect(coord).toBeDefined()
+		if (!coord) throw new Error('Expected hydrology-bearing coord')
+
+		const game = new Game({
+			terrainSeed: 42,
+			characterCount: 0,
+		})
+		games.add(game)
+		await game.loaded
+
+		await game.ensureTerrainSamples(axial.allTiles(coord, 8))
+		const sample = game.getTerrainSample(coord)
+		expect(sample?.hydrology).toBeDefined()
+		expect(sample?.hydrology?.isChannel || (sample?.hydrology?.bankInfluence ?? 0) > 0).toBe(true)
+	})
+
+	it('applies the river walk-time multiplier only on channel tiles', async () => {
+		const game = new Game({
+			terrainSeed: 42,
+			characterCount: 0,
+		})
+		games.add(game)
+		await game.loaded
+
+		game.generate(
+			{ terrainSeed: 42, characterCount: 0 },
+			{ tiles: [{ coord: [2, 3], terrain: 'grass', height: 0.1 }] }
+		)
+		const tile = game.hex.getTile({ q: 2, r: 3 })
+		expect(tile?.effectiveWalkTime).toBe(1)
+		if (!tile) throw new Error('Expected tile to exist')
+
+		tile.terrainHydrology = {
+			isChannel: true,
+			edges: {
+				0: { flux: 12, width: 4, depth: 2 },
+			},
+		}
+
+		expect(tile.riverWalkTimeMultiplier).toBe(2)
+		expect(tile.effectiveWalkTime).toBe(2)
 	})
 
 	it('coalesces overlapping gameplay frontier requests without duplicating in-flight coords', async () => {

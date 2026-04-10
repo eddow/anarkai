@@ -2,7 +2,7 @@ import type { Application, Container, FederatedPointerEvent, FederatedWheelEvent
 import { Tile } from 'ssh/board/tile'
 import type { Game } from 'ssh/game/game'
 import type { InteractiveGameObject } from 'ssh/game/object'
-import { interactionMode, mrg } from 'ssh/interactive-state'
+import { interactionMode, mrg, setHoveredObject } from 'ssh/interactive-state'
 
 /**
  * Bridges Pixi interactions to Logic interactions.
@@ -200,7 +200,7 @@ export class InteractionManager {
 
 			this.lastPosition = { x: e.global.x, y: e.global.y }
 		} else if (this.dragStartTile) {
-			mrg.hoveredObject = this.dragStartTile
+			setHoveredObject(this.dragStartTile)
 			// Tile drag in progress - emit preview
 			const currentTile = this.getTileAtPosition(e.global)
 			if (currentTile && currentTile !== this.dragStartTile) {
@@ -216,10 +216,10 @@ export class InteractionManager {
 		} else {
 			const object = this.findLogicObject(e.target)
 			if (object) {
-				mrg.hoveredObject = object
+				setHoveredObject(object)
 				return
 			}
-			mrg.hoveredObject = this.getTileAtPosition(e.global)
+			setHoveredObject(this.getTileAtPosition(e.global))
 		}
 	}
 
@@ -248,7 +248,7 @@ export class InteractionManager {
 
 		if (!this.dragStartTile) {
 			const object = this.findLogicObject(e.target)
-			mrg.hoveredObject = object ?? this.getTileAtPosition(e.global)
+			setHoveredObject(object ?? this.getTileAtPosition(e.global))
 		}
 	}
 

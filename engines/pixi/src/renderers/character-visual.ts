@@ -1,6 +1,5 @@
 import { effect } from 'mutts'
 import { ColorMatrixFilter, Sprite } from 'pixi.js'
-import { mrg } from 'ssh/interactive-state'
 import type { Character } from 'ssh/population/character'
 import { toWorldCoord } from 'ssh/utils/position' // Verify path
 import { tileSize } from 'ssh/utils/varied'
@@ -12,6 +11,7 @@ import { VisualObject } from './visual-object'
 export class CharacterVisual extends VisualObject<Character> {
 	private sprite: Sprite
 	private vehicleSprite: Sprite
+	private isHovered = false
 
 	constructor(character: Character, renderer: PixiGameRenderer) {
 		super(character, renderer)
@@ -62,14 +62,7 @@ export class CharacterVisual extends VisualObject<Character> {
 		const brightnessFilter = new ColorMatrixFilter()
 		this.register(
 			effect`character.${this.object.uid}.mouseover`(() => {
-				if (mrg.hoveredObject?.uid === this.object.uid) {
-					this.sprite.tint = 0xaaaaff
-					brightnessFilter.brightness(1.2, false)
-					this.sprite.filters = [brightnessFilter]
-				} else {
-					this.sprite.tint = 0xffffff
-					this.sprite.filters = []
-				}
+				this.renderHover(brightnessFilter)
 			})
 		)
 
@@ -95,5 +88,22 @@ export class CharacterVisual extends VisualObject<Character> {
 			this.renderer.detachFromLayer(this.renderer.layers.characters, this.view)
 		}
 		super.dispose()
+	}
+
+	public setHoverActive(active: boolean) {
+		if (this.isHovered === active) return
+		this.isHovered = active
+		this.renderHover()
+	}
+
+	private renderHover(brightnessFilter = new ColorMatrixFilter()) {
+		if (this.isHovered) {
+			this.sprite.tint = 0xaaaaff
+			brightnessFilter.brightness(1.2, false)
+			this.sprite.filters = [brightnessFilter]
+		} else {
+			this.sprite.tint = 0xffffff
+			this.sprite.filters = []
+		}
 	}
 }

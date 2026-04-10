@@ -3,8 +3,16 @@
  * and produces ssh-native GeneratedTileData with deposits and goods.
  */
 
-import type { BiomeHint, TerrainSnapshot } from 'engine-terrain'
+import {
+	classifyTile,
+	DEFAULT_TERRAIN_CONFIG,
+	edgeKey,
+	type BiomeHint,
+	type EdgeField,
+	type TerrainSnapshot,
+} from 'engine-terrain'
 import { Deposit } from 'ssh/board/content/unbuilt-land'
+import type { TerrainHydrologySample } from 'ssh/game/terrain-provider'
 import type { DepositType, TerrainType } from 'ssh/types'
 import type { AxialCoord } from 'ssh/utils'
 import { axial } from 'ssh/utils'
@@ -18,6 +26,7 @@ export interface GeneratedTileData {
 	coord: AxialCoord
 	terrain: TerrainType
 	height: number
+	hydrology?: TerrainHydrologySample
 	deposit?: GeneratedDepositData
 	goods: Record<string, number>
 	walkTime: number
@@ -40,6 +49,51 @@ const biomeToTerrain: Record<BiomeHint, TerrainType> = {
 	snow: 'snow',
 }
 
+function resolveTerrainForTile(biome: BiomeHint, tileField: TerrainSnapshot['tiles'] extends Map<any, infer T> ? T : never): TerrainType {
+	if (biome !== 'river-bank' && biome !== 'wetland') {
+		return biomeToTerrain[biome]
+	}
+
+	// Hydrology is rendered separately now, so keep the underlying landform terrain
+	// instead of flattening river-influenced mountains into grass.
+	const baseBiome = classifyTile(tileField, [], DEFAULT_TERRAIN_CONFIG)
+	return biomeToTerrain[baseBiome]
+}
+
+function resolveHydrologyForTile(snapshot: TerrainSnapshot, key: string, coord: AxialCoord): TerrainHydrologySample | undefined {
+	const bankInfluence = snapshot.hydrology.banks.get(key)
+	const channelInfluence = snapshot.hydrology.channelInfluence.get(key)
+	const isChannel = snapshot.hydrology.channels.has(key)
+	const edges: TerrainHydrologySample['edges'] = {}
+
+	for (const neighbor of axial.neighbors(coord)) {
+		const direction = axial.neighborIndex(axial.linear(neighbor, [-1, coord]))
+		if (direction === undefined || direction === null) continue
+		const edge = snapshot.edges.get(edgeKey(key, axial.key(neighbor)))
+		if (!edge) continue
+		edges[direction] = toHydrologyEdge(edge)
+	}
+
+	if (!isChannel && bankInfluence === undefined && channelInfluence === undefined && Object.keys(edges).length === 0) {
+		return undefined
+	}
+
+	return {
+		isChannel,
+		bankInfluence,
+		channelInfluence,
+		edges,
+	}
+}
+
+function toHydrologyEdge(edge: EdgeField): NonNullable<TerrainHydrologySample['edges'][0]> {
+	return {
+		flux: edge.flux,
+		width: edge.width,
+		depth: edge.depth,
+	}
+}
+
 export class BoardGenerator {
 	generateBoard(snapshot: TerrainSnapshot): GeneratedTileData[] {
 		const tiles: GeneratedTileData[] = []
@@ -47,7 +101,8 @@ export class BoardGenerator {
 		for (const [key, tileField] of snapshot.tiles) {
 			const coord = axial.coord(key)
 			const biome = snapshot.biomes.get(key)!
-			const terrain = biomeToTerrain[biome]
+			const terrain = resolveTerrainForTile(biome, tileField)
+			const hydrology = resolveHydrologyForTile(snapshot, key, coord)
 
 			const seed = this.coordSeed(coord)
 			const deposit = this.generateRandomDeposit(seed, terrain)
@@ -57,6 +112,7 @@ export class BoardGenerator {
 				coord,
 				terrain,
 				height: tileField.height,
+				hydrology,
 				deposit,
 				goods,
 				walkTime: 3,

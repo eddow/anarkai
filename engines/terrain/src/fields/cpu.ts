@@ -24,7 +24,6 @@ const MACRO_HEIGHT_OCTAVES = 3
 const MACRO_HEIGHT_PERSISTENCE = 0.55
 const MACRO_HEIGHT_LACUNARITY = 2.0
 const MACRO_HEIGHT_STRENGTH = 0.32
-const TERRAIN_TYPE_SCALE_FACTOR = 1.8
 const TERRAIN_REGION_SCALE_FACTOR = 0.16
 const TERRAIN_REGION_JITTER = 0.35
 const ROCKY_NOISE_SCALE_FACTOR = 8
@@ -136,7 +135,7 @@ export function generateTileField(
 	const macroHeight = (macro0 + macro1 + macro2) / 3
 	const terrainType = terrainRegionType(seed, wx, wy, {
 		...config,
-		scale: config.scale * TERRAIN_TYPE_SCALE_FACTOR,
+		scale: config.terrainTypeScale,
 	})
 	const rockyNoiseScale = config.scale * ROCKY_NOISE_SCALE_FACTOR
 	const rockyNoise = fbm(

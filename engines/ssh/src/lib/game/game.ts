@@ -15,7 +15,7 @@ import {
 import { configuration } from 'ssh/globals'
 import { AlveolusConfigurationManager, alveolusClass, Hive } from 'ssh/hive'
 import { StorageAlveolus } from 'ssh/hive/storage'
-import { mrg } from 'ssh/interactive-state'
+import { mrg, setHoveredObject } from 'ssh/interactive-state'
 import { Population } from 'ssh/population/population'
 import type { AlveolusType, DepositType, GoodType, TerrainType } from 'ssh/types'
 import type { GameRenderer, InputAdapter } from 'ssh/types/engine'
@@ -27,6 +27,11 @@ import { toAxialCoord } from 'ssh/utils/position'
 import * as gameContent from '../../../assets/game-content'
 import { GameplayFrontierController } from './gameplay-frontier'
 import type { HittableGameObject, InteractiveGameObject } from './object'
+import {
+	TerrainProvider,
+	type TerrainProviderDiagnostics,
+	type TerrainSample,
+} from './terrain-provider'
 
 try {
 	unreactive(gameContent)
@@ -71,10 +76,7 @@ export type GameGenerationOptions = {
 	characterRadius?: number
 }
 
-export interface RenderableTerrainTile {
-	terrain: TerrainType
-	height?: number
-}
+export type RenderableTerrainTile = TerrainSample
 
 function hasTerrainProperty(value: unknown): value is { terrain: TerrainType } {
 	return (
@@ -160,14 +162,21 @@ export class Game extends Eventful<GameEvents> {
 		if (index >= 0) next[index] = merged
 		else next.push(merged)
 		this.terrainTerraforming = next
+		// Overrides can affect hydrology neighborhood, so invalidate prefill cache conservatively.
+		this.terrainProvider.invalidateAll()
 		;(
 			this.renderer as
 				| {
-						invalidateTerrainHard?: () => void
-						invalidateTerrain?: () => void
+						invalidateTerrainHard?: (coord?: AxialCoord) => void
+						invalidateTerrain?: (coord?: AxialCoord) => void
 				  }
 				| undefined
-		)?.invalidateTerrainHard?.() ?? (this.renderer as { invalidateTerrain?: () => void } | undefined)?.invalidateTerrain?.()
+		)?.invalidateTerrainHard?.(coord) ??
+			(
+				this.renderer as {
+					invalidateTerrain?: (coord?: AxialCoord) => void
+				} | undefined
+			)?.invalidateTerrain?.(coord)
 	}
 	readonly random: ReturnType<typeof LCG> = LCG('gameSeed', 0)
 	public lcg(seed: string | number) {
@@ -194,6 +203,7 @@ export class Game extends Eventful<GameEvents> {
 	private terrainTerraforming: TerrainTerraformPatch[] = []
 	private readonly bootstrapGameplayCoords = new Set<string>()
 	private readonly materializedGameplayCoords = new Map<string, AxialCoord>()
+	private readonly terrainProvider: TerrainProvider
 	private readonly gameplayFrontier = new GameplayFrontierController({
 		hasMaterializedTile: (coord) => this.hasMaterializedGameplayTile(coord),
 		materialize: async (coords) => {
@@ -377,6 +387,12 @@ export class Game extends Eventful<GameEvents> {
 		this.population = new Population(this)
 
 		this.generator = new GameGenerator()
+		this.terrainProvider = new TerrainProvider({
+			generator: this.generator,
+			getGenerationConfig: () => this.generationOptions,
+			getTerraformingPatches: () => this.terrainTerraforming,
+			getGameplayTerrainSample: (coord) => this.getGameplayTerrainSample(coord),
+		})
 
 		this.loaded = this.loaded.then(async () => {
 			this.HiveClass = Hive
@@ -398,7 +414,7 @@ export class Game extends Eventful<GameEvents> {
 			;(globalThis as any).mrg = mrg
 			;(globalThis as any).testHover = (uid?: string) => {
 				const obj = uid ? this.getObject(uid) : undefined
-				mrg.hoveredObject = obj
+				setHoveredObject(obj)
 				console.log(`[testHover] set to ${uid} (${obj?.constructor.name})`)
 			}
 		})
@@ -540,12 +556,17 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	public hasRenderableTerrainAt(coord: AxialCoord): boolean {
-		return this.hasMaterializedGameplayTile(coord)
+		return this.getRenderableTerrainAt(coord) !== undefined
 	}
 
 	public getRenderableTerrainAt(coord: AxialCoord): RenderableTerrainTile | undefined {
-		if (!this.hasMaterializedGameplayTile(coord)) return undefined
+		const gameplay = this.getGameplayTerrainSample(coord)
+		if (gameplay) return gameplay
+		return this.terrainProvider.getTerrainSample(coord)
+	}
 
+	private getGameplayTerrainSample(coord: AxialCoord): TerrainSample | undefined {
+		if (!this.hasMaterializedGameplayTile(coord)) return undefined
 		const content = this.hex.getTileContent(coord)
 		const tile = content?.tile ?? this.hex.getTile(coord)
 		const terrain =
@@ -557,10 +578,48 @@ export class Game extends Eventful<GameEvents> {
 
 		if (!terrain) return undefined
 
-		return {
+		const deposit =
+			content instanceof UnBuiltLand && content.deposit && content.deposit.amount > 0
+				? {
+						type:
+							content.deposit.name ||
+							(content.deposit.constructor as { resourceName?: string; key?: string }).resourceName ||
+							(content.deposit.constructor as { resourceName?: string; key?: string }).key ||
+							(content.deposit.constructor as { name?: string }).name ||
+							'rock',
+						amount: content.deposit.amount,
+						name: content.deposit.name,
+					}
+				: undefined
+
+		const sample: TerrainSample = {
 			terrain,
 			height: tile?.terrainState?.height ?? tile?.terrainHeight,
+			deposit,
 		}
+		const hydrology = tile?.terrainState?.hydrology ?? tile?.terrainHydrology
+		if (hydrology) sample.hydrology = hydrology
+		return sample
+	}
+
+	public getTerrainSample(coord: AxialCoord): TerrainSample | undefined {
+		return this.terrainProvider.getTerrainSample(coord)
+	}
+
+	public async ensureTerrainSamples(coords: Iterable<AxialCoord>): Promise<void> {
+		await this.terrainProvider.ensureTerrainSamples(coords)
+	}
+
+	public getTerrainProviderDiagnostics(): TerrainProviderDiagnostics {
+		return this.terrainProvider.getDiagnostics()
+	}
+
+	public updateTerrainViewportDemand(viewportId: string, coords: Iterable<AxialCoord>) {
+		this.terrainProvider.updateViewportDemand(viewportId, coords)
+	}
+
+	public clearTerrainViewportDemand(viewportId: string) {
+		this.terrainProvider.clearViewportDemand(viewportId)
 	}
 
 	private materializeGameplayTiles(coords: Iterable<AxialCoord>) {
@@ -628,6 +687,7 @@ export class Game extends Eventful<GameEvents> {
 				coord: [patch.coord[0], patch.coord[1]] as [number, number],
 			}))
 			this.terrainTerraforming = terraforming
+			this.terrainProvider.invalidateAll()
 			this.bootstrapGameplayCoords.clear()
 			this.materializedGameplayCoords.clear()
 
@@ -658,6 +718,7 @@ export class Game extends Eventful<GameEvents> {
 				coord: [patch.coord[0], patch.coord[1]] as [number, number],
 			}))
 			this.terrainTerraforming = terraforming
+			this.terrainProvider.invalidateAll()
 			this.bootstrapGameplayCoords.clear()
 			this.materializedGameplayCoords.clear()
 
@@ -696,6 +757,7 @@ export class Game extends Eventful<GameEvents> {
 					this.withObjectRegistrationBatch(() => new Tile(this.hex, tileInfo.coord))
 				tile.baseTerrain = tileInfo.terrain
 				tile.terrainHeight = tileInfo.height
+				tile.terrainHydrology = tileInfo.hydrology
 
 				// Create deposit if present
 				let deposit: Deposit | undefined
@@ -745,11 +807,13 @@ export class Game extends Eventful<GameEvents> {
 				tile.baseTerrain = p.terrain
 				terrainState.terrain = p.terrain
 				hasTerrainState = true
+				this.terrainProvider.invalidateCoord(coord)
 			}
 			if (p.height !== undefined) {
 				tile.terrainHeight = p.height
 				terrainState.height = p.height
 				hasTerrainState = true
+				this.terrainProvider.invalidateCoord(coord)
 			}
 			if (p.temperature !== undefined) {
 				terrainState.temperature = p.temperature
@@ -768,6 +832,7 @@ export class Game extends Eventful<GameEvents> {
 				hasTerrainState = true
 			}
 			if (hasTerrainState) {
+				terrainState.hydrology = tile.terrainHydrology
 				tile.terrainState = terrainState
 				this.upsertTerrainOverride(coord, {
 					terrain: terrainState.terrain,

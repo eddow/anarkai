@@ -1,7 +1,7 @@
 import type { ScopedCallback } from 'mutts'
 import { Container, type FederatedPointerEvent } from 'pixi.js'
 import type { GameObject } from 'ssh/game/object'
-import { mrg } from 'ssh/interactive-state'
+import { isHoveredObject, mrg, setHoveredObject } from 'ssh/interactive-state'
 import { setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
 
@@ -44,11 +44,11 @@ export abstract class VisualObject<T extends GameObject = GameObject> {
 			// Stop propagation to avoid hovering tiles underneath when over a unit?
 			// Usually yes for units/buildings.
 			e.stopPropagation()
-			mrg.hoveredObject = this.object as any
+			setHoveredObject(this.object as any)
 		})
 
 		this.view.on('pointerout', (_e: FederatedPointerEvent) => {
-			if (mrg.hoveredObject === (this.object as any)) {
+			if (isHoveredObject(this.object as any)) {
 				mrg.hoveredObject = undefined
 			}
 		})

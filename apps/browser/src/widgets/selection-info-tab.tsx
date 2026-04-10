@@ -3,6 +3,7 @@ import { mrg } from '@app/lib/globals'
 import type { DockviewWidget, DockviewWidgetScope } from '@sursaut/ui/dockview'
 import { effect } from 'mutts'
 import type { InteractiveGameObject } from 'ssh/game/object'
+import { isHoveredObject, setHoveredObject } from 'ssh/interactive-state'
 
 export type SelectionInfoTool = {
 	ariaLabel: string
@@ -68,11 +69,11 @@ const SelectionInfoTab: DockviewWidget<Record<string, never>, SelectionInfoConte
 	const hoveredObject = () => props.context.hoveredObject
 	const applyHover = () => {
 		const object = hoveredObject()
-		if (object) mrg.hoveredObject = object
+		if (object) setHoveredObject(object)
 	}
 	const clearHover = () => {
 		const object = hoveredObject()
-		if (object && mrg.hoveredObject?.uid === object.uid) {
+		if (isHoveredObject(object)) {
 			mrg.hoveredObject = undefined
 		}
 	}
@@ -80,9 +81,9 @@ const SelectionInfoTab: DockviewWidget<Record<string, never>, SelectionInfoConte
 	effect`selection-info-tab:hover-sync`(() => {
 		const object = hoveredObject()
 		if (!isHovered || !object) return
-		mrg.hoveredObject = object
+		setHoveredObject(object)
 		return () => {
-			if (mrg.hoveredObject?.uid === object.uid) {
+			if (isHoveredObject(object)) {
 				mrg.hoveredObject = undefined
 			}
 		}

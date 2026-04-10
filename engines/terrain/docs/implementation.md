@@ -263,7 +263,7 @@ The tests in `tests/snapshot.test.ts` enforce these assumptions, including parit
 
 `DEFAULT_TERRAIN_CONFIG` defines:
 
-- FBM controls: `scale`, `octaves`, `persistence`, `lacunarity`
+- FBM controls: `scale`, `terrainTypeScale`, `octaves`, `persistence`, `lacunarity`
 - climate scales: `temperatureScale`, `humidityScale`
 - biome thresholds: `seaLevel`, `snowLevel`, `rockyLevel`, `forestLevel`, `sandTemperature`, `sandHumidity`, `wetlandHumidity`, `forestHumidity`
 - hydrology controls: `hydrologySourcesPerTile`, `hydrologyLandCeiling`, `hydrologyMaxTraceSteps`, `hydrologyFluxStepWeight`

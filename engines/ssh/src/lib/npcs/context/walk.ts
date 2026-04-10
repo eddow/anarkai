@@ -16,7 +16,7 @@ class WalkFunctions {
 		// ArkType validation now handles argument validation
 		if (!positionRoughlyEquals(fromAxial, toAxial))
 			return new MoveToStep(
-				this[subject].tile.content!.walkTime * axial.distance(fromAxial, toAxial),
+				this[subject].tile.effectiveWalkTime * axial.distance(fromAxial, toAxial),
 				this[subject],
 				to
 			)
@@ -43,7 +43,7 @@ class WalkFunctions {
 	}
 	@contract('Tile')
 	can(_tile: Tile) {
-		return Number.isFinite(this[subject].tile.content!.walkTime)
+		return Number.isFinite(this[subject].tile.effectiveWalkTime)
 	}
 }
 

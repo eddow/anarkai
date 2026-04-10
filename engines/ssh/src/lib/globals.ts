@@ -27,7 +27,7 @@ function ensureGame(): Game {
 			() =>
 				new Game(
 					{
-						terrainSeed: 12,
+						terrainSeed: 549,
 						characterCount: 3,
 						characterRadius: 5,
 					},

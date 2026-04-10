@@ -1671,6 +1671,19 @@ export class Hive extends AdvertisementManager<Alveolus> {
 			if (isTileCoord(coord)) return this.recoverTileMovement(mg, coord)
 			return this.recoverBorderMovement(mg, coord)
 		}
+		if (failure === 'tracked-at-wrong-position') {
+			this.forgetMovementTracking(mg)
+			mg.from = coord
+			if (mg._mgId) this.activeMovementsById.set(mg._mgId, mg)
+			this.ensureMovementTrackedAt(mg, coord)
+			;(traces.advertising ?? console).warn?.('[WATCHDOG] Recovered stale movement tracking', {
+				goodType: mg.goodType,
+				provider: this.movementProviderName(mg),
+				demander: this.movementDemanderName(mg),
+				coord,
+			})
+			return true
+		}
 		return false
 	}
 

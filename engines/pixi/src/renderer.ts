@@ -1,8 +1,14 @@
 import { Application, Container, RenderLayer, type Texture, type ContainerChild } from 'pixi.js'
 import type { Game } from 'ssh/game/game'
 import type { GameRenderer } from 'ssh/types/engine'
+import type { AxialCoord } from 'ssh/utils'
 import { assetManager } from './asset-manager'
-import { TerrainVisual, type TerrainStreamingDiagnostics } from './continuous-terrain'
+import {
+	TerrainVisual,
+	type TerrainBakeDebugSnapshot,
+	type TerrainQueueDebugSnapshot,
+	type TerrainStreamingDiagnostics,
+} from './continuous-terrain'
 import { setPixiName } from './debug-names'
 import { registerPixiApp, unregisterPixiApp } from './hmr.js'
 import { InteractionManager } from './interaction/interaction-manager.js'
@@ -80,6 +86,10 @@ export class PixiGameRenderer implements GameRenderer {
 		this.terrainVisual.bind()
 		// @ts-expect-error debug
 		globalThis.__ANARKAI_TERRAIN_DIAGNOSTICS__ = () => this.getTerrainDiagnostics()
+		// @ts-expect-error debug
+		globalThis.__ANARKAI_TERRAIN_BAKE_DEBUG__ = () => this.getTerrainBakeDebug()
+		// @ts-expect-error debug
+		globalThis.__ANARKAI_TERRAIN_QUEUE_DEBUG__ = () => this.getTerrainQueueDebug()
 		// @ts-expect-error debug
 		globalThis.__ANARKAI_VISUAL_DIAGNOSTICS__ = () => this.getVisualDiagnostics()
 
@@ -202,16 +212,26 @@ export class PixiGameRenderer implements GameRenderer {
 		this.terrainVisual?.invalidate()
 	}
 
-	public invalidateTerrain() {
-		this.terrainVisual?.invalidate()
+	public invalidateTerrain(coord?: AxialCoord) {
+		if (coord) this.terrainVisual?.invalidateAt(coord)
+		else this.terrainVisual?.invalidate()
 	}
 
-	public invalidateTerrainHard() {
-		this.terrainVisual?.invalidate(true)
+	public invalidateTerrainHard(coord?: AxialCoord) {
+		if (coord) this.terrainVisual?.invalidateAt(coord, true)
+		else this.terrainVisual?.invalidate(true)
 	}
 
 	public getTerrainDiagnostics(): TerrainStreamingDiagnostics | undefined {
 		return this.terrainVisual?.getDiagnostics()
+	}
+
+	public getTerrainBakeDebug(): TerrainBakeDebugSnapshot | undefined {
+		return this.terrainVisual?.getBakeDebug()
+	}
+
+	public getTerrainQueueDebug(): TerrainQueueDebugSnapshot | undefined {
+		return this.terrainVisual?.getQueueDebug()
 	}
 
 	public getVisualDiagnostics(): VisualFactoryDiagnostics | undefined {
@@ -250,6 +270,10 @@ export class PixiGameRenderer implements GameRenderer {
 		this.terrainVisual = undefined
 		// @ts-expect-error debug
 		delete globalThis.__ANARKAI_TERRAIN_DIAGNOSTICS__
+		// @ts-expect-error debug
+		delete globalThis.__ANARKAI_TERRAIN_BAKE_DEBUG__
+		// @ts-expect-error debug
+		delete globalThis.__ANARKAI_TERRAIN_QUEUE_DEBUG__
 		// @ts-expect-error debug
 		delete globalThis.__ANARKAI_VISUAL_DIAGNOSTICS__
 	}

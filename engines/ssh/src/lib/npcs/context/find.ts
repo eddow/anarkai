@@ -135,8 +135,7 @@ class FindFunctions {
 				const actualDistance = axial.distance(start, coord)
 				if (actualDistance >= 2) {
 					const tile = hex.getTile(coord)
-					const content = tile?.content
-					if (content && Number.isFinite(content.walkTime)) {
+					if (tile?.content && Number.isFinite(tile.effectiveWalkTime)) {
 						walkableTiles.push({ coord, tile })
 					}
 				}

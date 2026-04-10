@@ -72,6 +72,13 @@ function assertSnapshot(snapshot: TerrainSnapshot): void {
 	if (!(snapshot.biomes instanceof Map)) {
 		throw new Error('Invalid TerrainSnapshot: biomes must be a Map')
 	}
+	if (
+		!(snapshot.hydrology?.banks instanceof Map) ||
+		!(snapshot.hydrology?.channels instanceof Set) ||
+		!(snapshot.hydrology?.channelInfluence instanceof Map)
+	) {
+		throw new Error('Invalid TerrainSnapshot: hydrology must contain banks, channels, and channelInfluence')
+	}
 }
 
 export function createSnapshot(seed: number): TerrainSnapshot {
@@ -83,6 +90,11 @@ export function createSnapshot(seed: number): TerrainSnapshot {
 		tiles: new Map<AxialKey, ReturnType<typeof generateTileField>>(),
 		edges: new Map<EdgeKey, EdgeField>(),
 		biomes: new Map<AxialKey, BiomeHint>(),
+		hydrology: {
+			banks: new Map(),
+			channels: new Set(),
+			channelInfluence: new Map(),
+		},
 	}
 }
 
@@ -228,7 +240,17 @@ export function generateHydratedRegionWithMetrics(
 	const startedAt = nowMs()
 	const tiles = generateFields(paddedCoords, seed, config, options?.fieldBackend)
 	const afterFieldsAt = nowMs()
-	const workingSnapshot: TerrainSnapshot = { seed, tiles, edges: new Map(), biomes: new Map() }
+	const workingSnapshot: TerrainSnapshot = {
+		seed,
+		tiles,
+		edges: new Map(),
+		biomes: new Map(),
+		hydrology: {
+			banks: new Map(),
+			channels: new Set(),
+			channelInfluence: new Map(),
+		},
+	}
 	if (tileOverrides) {
 		applyTileOverrides(workingSnapshot, tileOverrides, options)
 	}
@@ -292,7 +314,17 @@ export async function generateHydratedRegionAsyncWithMetrics(
 	const startedAt = nowMs()
 	const tiles = await generateFieldsAsync(paddedCoords, seed, config, options?.fieldBackend)
 	const afterFieldsAt = nowMs()
-	const workingSnapshot: TerrainSnapshot = { seed, tiles, edges: new Map(), biomes: new Map() }
+	const workingSnapshot: TerrainSnapshot = {
+		seed,
+		tiles,
+		edges: new Map(),
+		biomes: new Map(),
+		hydrology: {
+			banks: new Map(),
+			channels: new Set(),
+			channelInfluence: new Map(),
+		},
+	}
 	if (tileOverrides) {
 		applyTileOverrides(workingSnapshot, tileOverrides, options)
 	}
@@ -352,6 +384,15 @@ export function mergeSnapshotRegion(
 	for (const [key, edge] of region.edges) {
 		snapshot.edges.set(key, edge)
 	}
+	for (const [key, influence] of region.hydrology.banks) {
+		snapshot.hydrology.banks.set(key, influence)
+	}
+	for (const key of region.hydrology.channels) {
+		snapshot.hydrology.channels.add(key)
+	}
+	for (const [key, influence] of region.hydrology.channelInfluence) {
+		snapshot.hydrology.channelInfluence.set(key, influence)
+	}
 	return { addedTiles, removedTiles: [] }
 }
 
@@ -368,6 +409,9 @@ export function pruneSnapshot(
 		if (retainedKeys.has(key)) continue
 		snapshot.tiles.delete(key)
 		snapshot.biomes.delete(key)
+		snapshot.hydrology.banks.delete(key)
+		snapshot.hydrology.channels.delete(key)
+		snapshot.hydrology.channelInfluence.delete(key)
 		removedTiles.push(key)
 	}
 
@@ -407,7 +451,17 @@ export function generate(
 
 	const coords = [...axial.enum(boardSize - 1)]
 	const tiles = generateFields(coords, seed, config, options?.fieldBackend)
-	const snapshot: TerrainSnapshot = { seed, tiles, edges: new Map(), biomes: new Map() }
+	const snapshot: TerrainSnapshot = {
+		seed,
+		tiles,
+		edges: new Map(),
+		biomes: new Map(),
+		hydrology: {
+			banks: new Map(),
+			channels: new Set(),
+			channelInfluence: new Map(),
+		},
+	}
 	if (tileOverrides) {
 		applyTileOverrides(snapshot, tileOverrides, options)
 	}
@@ -439,7 +493,17 @@ export function generate(
 		)
 	}
 
-	return { seed, tiles, edges, biomes }
+	return {
+		seed,
+		tiles,
+		edges,
+		biomes,
+		hydrology: {
+			banks: hydrology.banks,
+			channels: hydrology.channels,
+			channelInfluence: hydrology.channelInfluence,
+		},
+	}
 }
 
 export async function generateAsync(
@@ -452,7 +516,17 @@ export async function generateAsync(
 
 	const coords = [...axial.enum(boardSize - 1)]
 	const tiles = await generateFieldsAsync(coords, seed, config, options?.fieldBackend)
-	const snapshot: TerrainSnapshot = { seed, tiles, edges: new Map(), biomes: new Map() }
+	const snapshot: TerrainSnapshot = {
+		seed,
+		tiles,
+		edges: new Map(),
+		biomes: new Map(),
+		hydrology: {
+			banks: new Map(),
+			channels: new Set(),
+			channelInfluence: new Map(),
+		},
+	}
 	if (tileOverrides) {
 		applyTileOverrides(snapshot, tileOverrides, options)
 	}
@@ -484,7 +558,17 @@ export async function generateAsync(
 		)
 	}
 
-	return { seed, tiles, edges, biomes }
+	return {
+		seed,
+		tiles,
+		edges,
+		biomes,
+		hydrology: {
+			banks: hydrology.banks,
+			channels: hydrology.channels,
+			channelInfluence: hydrology.channelInfluence,
+		},
+	}
 }
 
 function expandCoords(coords: Iterable<AxialCoord>, padding: number): AxialCoord[] {
@@ -513,6 +597,9 @@ function clipHydratedSnapshot(
 	const tiles = new Map<AxialKey, TileField>()
 	const edges = new Map<EdgeKey, EdgeField>()
 	const biomes = new Map<AxialKey, BiomeHint>()
+	const clippedBanks = new Map<AxialKey, number>()
+	const clippedChannels = new Set<AxialKey>()
+	const clippedChannelInfluence = new Map<AxialKey, number>()
 
 	for (const key of requestedKeys) {
 		const tile = allTiles.get(key)
@@ -526,16 +613,31 @@ function clipHydratedSnapshot(
 	}
 
 	for (const [key, tile] of tiles) {
+		const bankInfluence = banks.get(key)
+		const tileChannelInfluence = channelInfluence.get(key)
+		if (bankInfluence !== undefined) clippedBanks.set(key, bankInfluence)
+		if (tileChannelInfluence !== undefined) clippedChannelInfluence.set(key, tileChannelInfluence)
+		if (tileChannelInfluence !== undefined && tileChannelInfluence > 0) clippedChannels.add(key)
 		biomes.set(
 			key,
 			classifyTile(tile, edgesForTile(key, edges), config, {
-				bankInfluence: banks.get(key),
-				channelInfluence: channelInfluence.get(key),
+				bankInfluence,
+				channelInfluence: tileChannelInfluence,
 			})
 		)
 	}
 
-	return { seed, tiles, edges, biomes }
+	return {
+		seed,
+		tiles,
+		edges,
+		biomes,
+		hydrology: {
+			banks: clippedBanks,
+			channels: clippedChannels,
+			channelInfluence: clippedChannelInfluence,
+		},
+	}
 }
 
 function edgeTouchesRequestedKey(key: EdgeKey, requestedKeys: Set<AxialKey>): boolean {

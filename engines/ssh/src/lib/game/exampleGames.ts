@@ -1,44 +1,46 @@
 import type { GamePatches } from './game'
-
+// TODO: check how goods are rendered. Hint: on tick, some are created, some are removed (especially with a wide view) => if we have to re-generate a whole sector's good on each change, it's on each tick, which is a perf nightmare. Instead, we should be able to just add/remove the delta of goods on each tick, which is much more efficient. This is a good example of a place where we should be using patches instead of re-generating the whole world on each tick.
 export const chopSaw = {
+	// TODO: use this as terrain seed
+	seed: 549,
+	// TODO: terrain-types should be made another way {type: axial[]}, we'll add next patches in tiles, even though even these ones will be optimized
 	tiles: [
-		{ coord: [0, 0], terrain: 'concrete' },
-		{ coord: [0, -1], terrain: 'concrete' },
-		{ coord: [1, 0], terrain: 'concrete' },
-		{ coord: [1, 1], terrain: 'concrete' },
-		{ coord: [2, 0], terrain: 'concrete' },
-		{ coord: [0, 1], terrain: 'concrete' },
-		{ coord: [-1, 1], terrain: 'grass' },
+		{ coord: [10, -8], terrain: 'concrete' },
+		{ coord: [10, -6], terrain: 'concrete' },
+		{ coord: [11, -8], terrain: 'concrete' },
+		{ coord: [11, -7], terrain: 'concrete' },
+		{ coord: [12, -8], terrain: 'concrete' },
+		{ coord: [12, -7], terrain: 'concrete' },
 	],
 	hives: [
 		{
 			name: 'ChopSaw',
 			alveoli: [
-				{ alveolus: 'tree_chopper', coord: [0, 0] },
-				{ alveolus: 'stonecutter', coord: [0, -1] },
-				{ alveolus: 'gather', coord: [1, 0] },
-				{ alveolus: 'sawmill', coord: [1, 1] },
-				{ alveolus: 'engineer', coord: [2, 0] },
-				{ alveolus: 'storage', coord: [0, 1] },
+				{ alveolus: 'tree_chopper', coord: [10, -8] },
+				{ alveolus: 'stonecutter', coord: [10, -6] },
+				{ alveolus: 'storage', coord: [11, -8] },
+				{ alveolus: 'gather', coord: [11, -7] },
+				{ alveolus: 'engineer', coord: [12, -8] },
+				{ alveolus: 'sawmill', coord: [12, -7] },
 			],
 		},
 	],
 	zones: {
 		harvest: [
-			[0, 3],
-			[-1, 4],
-			[-1, 5],
-			[0, 4],
+			[14, -7],
+			[14, -6],
+			[13, -6],
+			[13, -5],
 		],
 		residential: [
-			[2, 2],
-			[3, 1],
+			[7, -6],
+			[7, -7],
 		],
 	},
 	projects: {
 		'build:storage': [
-			[-1, 1],
-			[0, 2],
+			[9, -7],
+			[10, -7],
 		],
 	},
 } satisfies GamePatches

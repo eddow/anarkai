@@ -6,6 +6,7 @@ import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockv
 import { effect } from 'mutts'
 import { Tile } from 'ssh/board/tile'
 import type { InteractiveGameObject } from 'ssh/game/object'
+import { isHoveredObject, setHoveredObject } from 'ssh/interactive-state'
 import { Character } from 'ssh/population/character'
 import { toWorldCoord } from 'ssh/utils/position'
 import CharacterProperties from '../components/CharacterProperties'
@@ -129,13 +130,13 @@ const SelectionInfoWidget = (
 		const object = current.object as InteractiveGameObject | undefined
 		props.context.hoveredObject = object
 		if (isPanelHovered && object) {
-			mrg.hoveredObject = object
+			setHoveredObject(object)
 		}
 		return () => {
 			if (props.context.hoveredObject === object) {
 				props.context.hoveredObject = undefined
 			}
-			if (isPanelHovered && object && mrg.hoveredObject?.uid === object.uid) {
+			if (isPanelHovered && isHoveredObject(object)) {
 				mrg.hoveredObject = undefined
 			}
 		}
@@ -179,12 +180,12 @@ const SelectionInfoWidget = (
 		const handleMove = () => {
 			isPanelHovered = true
 			const object = current.object as InteractiveGameObject | undefined
-			if (object) mrg.hoveredObject = object
+			if (object) setHoveredObject(object)
 		}
 		const handleLeave = () => {
 			isPanelHovered = false
 			const object = current.object as InteractiveGameObject | undefined
-			if (object && mrg.hoveredObject?.uid === object.uid) {
+			if (isHoveredObject(object)) {
 				mrg.hoveredObject = undefined
 			}
 		}

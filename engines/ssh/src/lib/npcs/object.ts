@@ -29,6 +29,13 @@ function debugStepSnapshot(step: ASingleStep | undefined) {
 	}
 }
 
+function assertScriptExecution(value: unknown, context: string): asserts value is ScriptExecution {
+	if (value instanceof ScriptExecution) return
+	throw new Error(
+		`${context} must be a ScriptExecution, got ${value instanceof Function ? value.toString() : String(value)}`
+	)
+}
+
 export function withScripted<T extends abstract new (...args: any[]) => TickedGameObject>(Base: T) {
 	@unreactive('runningScripts')
 	abstract class ScriptedMixin extends Base {
@@ -99,7 +106,10 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 			if (this.stepExecutor) throw new Error('Cannot begin a new script while another is running')
 			if (!this.runningScripts.length) {
 				const nextAction = this.findAction()
-				if (nextAction) this.runningScripts.unshift(nextAction)
+				if (nextAction) {
+					assertScriptExecution(nextAction, 'findAction result')
+					this.runningScripts.unshift(nextAction)
+				}
 			}
 			let reentered = false
 			const loopCount: any[] = []
@@ -135,6 +145,7 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 						reentered = true
 					}
 					if (nextAction) {
+						assertScriptExecution(nextAction, 'findAction result')
 						//console.log(`[nextStep] ${this.name}: found new action via findAction: ${nextAction.name}`);
 						this.runningScripts.unshift(nextAction)
 					}
@@ -193,6 +204,7 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 		}
 		begin(exec: ScriptExecution) {
 			if (this.stepExecutor) throw new Error('Cannot begin a new script while another is running')
+			assertScriptExecution(exec, 'begin() argument')
 			this.runningScripts.unshift(exec)
 			this.nextStep()
 		}
@@ -201,6 +213,7 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 			for (const script of this.runningScripts) script.cancel(this.scriptsContext)
 			this.runningScripts.splice(0, this.runningScripts.length)
 			this.stepExecutor = undefined
+			assertScriptExecution(exec, 'abandonAnd() argument')
 			this.begin(exec)
 		}
 

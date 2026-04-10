@@ -1,6 +1,7 @@
 import { inert, reactive } from 'mutts'
 import { GameObject, withInteractive } from 'ssh/game/object'
 import { Hive } from 'ssh/hive'
+import type { TerrainHydrologySample } from 'ssh/game/terrain-provider'
 import { gameIsaTypes } from 'ssh/npcs/utils'
 import type { Character } from 'ssh/population/character'
 import type { TerrainType } from 'ssh/types'
@@ -23,7 +24,10 @@ export interface TileTerrainState {
 	humidity?: number
 	sediment?: number
 	waterTable?: number
+	hydrology?: TerrainHydrologySample
 }
+
+const CHANNEL_WALK_TIME_MULTIPLIER = 2
 
 @reactive // TODO: this might need to be unreactive
 export class Tile extends withInteractive(GameObject) {
@@ -32,6 +36,7 @@ export class Tile extends withInteractive(GameObject) {
 	// Raw terrain height from engine-terrain, optionally patched by terraforming.
 	public terrainHeight?: number
 	public baseTerrain?: TerrainType
+	public terrainHydrology?: TerrainHydrologySample
 	public terrainState?: TileTerrainState
 
 	get content(): TileContent | undefined {
@@ -80,7 +85,22 @@ export class Tile extends withInteractive(GameObject) {
 			position: this.position,
 			content: this.content?.debugInfo,
 			zone: this.zone,
+			hydrology: this.hydrology,
 		}
+	}
+
+	get hydrology(): TerrainHydrologySample | undefined {
+		return this.terrainState?.hydrology ?? this.terrainHydrology
+	}
+
+	get riverWalkTimeMultiplier(): number {
+		return this.hydrology?.isChannel ? CHANNEL_WALK_TIME_MULTIPLIER : 1
+	}
+
+	get effectiveWalkTime(): number {
+		const baseWalkTime = this.content?.walkTime ?? Number.POSITIVE_INFINITY
+		if (!Number.isFinite(baseWalkTime)) return baseWalkTime
+		return baseWalkTime * this.riverWalkTimeMultiplier
 	}
 
 	// Tile-level job offering
@@ -212,7 +232,7 @@ export class Tile extends withInteractive(GameObject) {
 				return tile?.content
 					? {
 							coord: toAxialCoord(neighbor),
-							walkTime: tile.content.walkTime,
+							walkTime: tile.effectiveWalkTime,
 						}
 					: null
 			})

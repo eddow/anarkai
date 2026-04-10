@@ -6,8 +6,8 @@ import { effect, reactive } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { Tile } from 'ssh/board/tile'
 import type { InteractiveGameObject } from 'ssh/game/object'
+import { isHoveredObject, setHoveredObject } from 'ssh/interactive-state'
 import { computeStyleFromTexture } from 'ssh/utils/images'
-import { toAxialCoord } from 'ssh/utils/position'
 import ResourceImage from './ResourceImage'
 
 css`
@@ -145,12 +145,12 @@ const LinkedEntityControl = (props: LinkedEntityControlProps) => {
 
 	const applyHover = (event: MouseEvent) => {
 		event.stopPropagation()
-		mrg.hoveredObject = props.object
+		setHoveredObject(props.object)
 	}
 
 	const clearHover = (event: MouseEvent) => {
 		event.stopPropagation()
-		if (mrg.hoveredObject?.uid === props.object.uid) {
+		if (isHoveredObject(props.object)) {
 			mrg.hoveredObject = undefined
 		}
 	}

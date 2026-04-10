@@ -1,8 +1,10 @@
+import { effect } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { Tile } from 'ssh/board/tile'
 import type { GameObject } from 'ssh/game/object'
 import type { InteractiveGameObject } from 'ssh/game/object'
+import { getHoveredUid } from 'ssh/interactive-state'
 import { Character } from 'ssh/population/character'
 import type { PixiGameRenderer } from './renderer'
 import { CharacterVisual } from './renderers/character-visual'
@@ -51,6 +53,7 @@ export interface VisualFactoryDiagnostics {
 
 export class VisualFactory {
 	private cleanups: (() => void)[] = []
+	private hoveredVisualUid?: string
 	private diagnostics: VisualFactoryDiagnostics = {
 		recentBatches: [],
 		totals: {
@@ -112,6 +115,11 @@ export class VisualFactory {
 				objectsRemoved: onObjectsRemoved,
 			})
 		})
+		this.cleanups.push(
+			effect`visual-factory:hover-sync`(() => {
+				this.syncHoveredVisual(getHoveredUid())
+			})
+		)
 	}
 
 	public getDiagnostics(): VisualFactoryDiagnostics {
@@ -176,6 +184,7 @@ export class VisualFactory {
 			visual = new VisualClass(object, this.renderer)
 			visual.bind()
 			this.renderer.visuals.set(object.uid, visual)
+			this.setVisualHoverState(visual, object.uid === this.hoveredVisualUid)
 		} catch (e) {
 			console.error('[VisualFactory] Error creating visual:', e)
 			return { visual: undefined, reused: false }
@@ -267,6 +276,24 @@ export class VisualFactory {
 
 		if (batchMs >= SLOW_VISUAL_BATCH_THRESHOLD_MS) {
 			console.debug('[VisualFactory] Slow visual batch', batchDiagnostics)
+		}
+	}
+
+	private syncHoveredVisual(nextUid: string | undefined) {
+		if (this.hoveredVisualUid === nextUid) return
+		if (this.hoveredVisualUid) {
+			this.setVisualHoverState(this.renderer.visuals.get(this.hoveredVisualUid), false)
+		}
+		this.hoveredVisualUid = nextUid
+		if (nextUid) {
+			this.setVisualHoverState(this.renderer.visuals.get(nextUid), true)
+		}
+	}
+
+	private setVisualHoverState(visual: unknown, active: boolean) {
+		if (!visual || typeof visual !== 'object') return
+		if ('setHoverActive' in visual && typeof visual.setHoverActive === 'function') {
+			visual.setHoverActive(active)
 		}
 	}
 

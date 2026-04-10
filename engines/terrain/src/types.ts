@@ -24,6 +24,12 @@ export interface EdgeField {
 	slope: number
 }
 
+export interface TerrainHydrologySnapshot {
+	banks: Map<AxialKey, number>
+	channels: Set<AxialKey>
+	channelInfluence: Map<AxialKey, number>
+}
+
 // ─── Per-vertex fields (optional, for lakes/deltas) ─────────────
 
 /** Canonical vertex key: sorted triple of adjacent tile keys */
@@ -40,6 +46,7 @@ export interface TerrainSnapshot {
 	tiles: Map<AxialKey, TileField>
 	edges: Map<EdgeKey, EdgeField>
 	biomes: Map<AxialKey, BiomeHint>
+	hydrology: TerrainHydrologySnapshot
 	vertices?: Map<VertexKey, VertexField>
 }
 
@@ -81,7 +88,10 @@ export type BiomeHint =
 // ─── Generation config ──────────────────────────────────────────
 
 export interface TerrainConfig {
+	/** Base Perlin scale for elevation/macro/rocky height synthesis. */
 	scale: number
+	/** Independent Perlin scale for grass-vs-forest regional typing. */
+	terrainTypeScale: number
 	octaves: number
 	persistence: number
 	lacunarity: number
@@ -115,15 +125,16 @@ export interface TerrainConfig {
 }
 
 export const DEFAULT_TERRAIN_CONFIG: TerrainConfig = {
-	scale: 0.03,
+	scale: 0.05,
+	terrainTypeScale: 1.2,
 	octaves: 5,
 	persistence: 0.6,
 	lacunarity: 2.2,
 	temperatureScale: 0.08,
 	humidityScale: 0.08,
 	seaLevel: -0.02,
-	snowLevel: 0.11,
-	rockyLevel: 0.06,
+	snowLevel: 0.15,
+	rockyLevel: 0.08,
 	forestLevel: 0.0,
 	sandTemperature: 0.15,
 	sandHumidity: -0.05,
