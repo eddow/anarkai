@@ -8,6 +8,7 @@ export const chopSaw = {
 		{ coord: [1, 1], terrain: 'concrete' },
 		{ coord: [2, 0], terrain: 'concrete' },
 		{ coord: [0, 1], terrain: 'concrete' },
+		{ coord: [-1, 1], terrain: 'grass' },
 	],
 	hives: [
 		{
@@ -30,8 +31,8 @@ export const chopSaw = {
 			[0, 4],
 		],
 		residential: [
-			[-2, 0],
-			[-3, 1],
+			[2, 2],
+			[3, 1],
 		],
 	},
 	projects: {

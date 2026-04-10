@@ -298,13 +298,21 @@ describe('incremental snapshots', () => {
 	})
 
 	it('keeps border-touching edges even when the requested tile is the second endpoint', () => {
-		const full = generate(42, 12)
-		const candidate = [...full.edges.keys()].find((key) => {
-			const requestedKey = key.split('-')[1]!
-			const [q, r] = requestedKey.split(',').map(Number)
-			const clipped = generateHydratedRegion(42, [{ q, r }], { hydrologyPadding: 4 })
-			return clipped.edges.has(key)
-		})
+		const candidate = [
+			{ seed: 42, size: 12 },
+			{ seed: 100, size: 12 },
+			{ seed: 999, size: 12 },
+		]
+			.map(({ seed, size }) => {
+				const full = generate(seed, size)
+				return [...full.edges.keys()].find((key) => {
+					const requestedKey = key.split('-')[1]!
+					const [q, r] = requestedKey.split(',').map(Number)
+					const clipped = generateHydratedRegion(seed, [{ q, r }], { hydrologyPadding: 4 })
+					return clipped.edges.has(key)
+				})
+			})
+			.find((value) => value !== undefined)
 
 		expect(candidate).toBeDefined()
 	})
@@ -434,6 +442,112 @@ describe('incremental snapshots', () => {
 		)
 		expect([...snapshot.tiles.keys()].sort()).toEqual([...combined.tiles.keys()].sort())
 		expect([...snapshot.edges.keys()].sort()).toEqual([...combined.edges.keys()].sort())
+	})
+
+	it('keeps overlapping hydrated tiles stable while merging pan-like region requests', () => {
+		const snapshot = createSnapshot(42)
+		const firstWindow = [
+			{ q: -2, r: 0 },
+			{ q: -1, r: 0 },
+			{ q: 0, r: 0 },
+			{ q: -2, r: 1 },
+			{ q: -1, r: 1 },
+			{ q: 0, r: 1 },
+		]
+		const secondWindow = [
+			{ q: -1, r: 0 },
+			{ q: 0, r: 0 },
+			{ q: 1, r: 0 },
+			{ q: -1, r: 1 },
+			{ q: 0, r: 1 },
+			{ q: 1, r: 1 },
+		]
+		const overlap = firstWindow.filter((coord) =>
+			secondWindow.some((candidate) => candidate.q === coord.q && candidate.r === coord.r)
+		)
+
+		const first = generateHydratedRegion(42, firstWindow, { hydrologyPadding: 4 })
+		mergeSnapshotRegion(snapshot, first)
+		const beforeMerge = new Map(
+			overlap.map((coord) => {
+				const key = `${coord.q},${coord.r}`
+				return [
+					key,
+					{
+						tile: snapshot.tiles.get(key),
+						biome: snapshot.biomes.get(key),
+					},
+				]
+			})
+		)
+
+		const second = generateHydratedRegion(42, secondWindow, { hydrologyPadding: 4 })
+		mergeSnapshotRegion(snapshot, second)
+		const union = generateHydratedRegion(42, [...firstWindow, ...secondWindow], { hydrologyPadding: 4 })
+
+		for (const coord of overlap) {
+			const key = `${coord.q},${coord.r}`
+			const previous = beforeMerge.get(key)
+			const mergedTile = snapshot.tiles.get(key)
+			const unionTile = union.tiles.get(key)
+			expect(previous).toBeDefined()
+			expect(mergedTile).toBeDefined()
+			expect(unionTile).toBeDefined()
+			expect(mergedTile?.height).toBe(previous?.tile?.height)
+			expect(mergedTile?.temperature).toBe(previous?.tile?.temperature)
+			expect(mergedTile?.humidity).toBe(previous?.tile?.humidity)
+			expect(snapshot.biomes.get(key)).toBe(previous?.biome)
+			expect(mergedTile?.height).toBe(unionTile?.height)
+			expect(mergedTile?.temperature).toBe(unionTile?.temperature)
+			expect(mergedTile?.humidity).toBe(unionTile?.humidity)
+			expect(snapshot.biomes.get(key)).toBe(union.biomes.get(key))
+		}
+	})
+
+	it('matches union generation when hydrated requests are split into multiple visible batches', () => {
+		const snapshot = createSnapshot(77)
+		const leftBatch = [
+			{ q: -1, r: -1 },
+			{ q: 0, r: -1 },
+			{ q: -1, r: 0 },
+			{ q: 0, r: 0 },
+		]
+		const rightBatch = [
+			{ q: 1, r: -1 },
+			{ q: 2, r: -1 },
+			{ q: 1, r: 0 },
+			{ q: 2, r: 0 },
+		]
+		const bridgeBatch = [
+			{ q: 0, r: -1 },
+			{ q: 1, r: -1 },
+			{ q: 0, r: 0 },
+			{ q: 1, r: 0 },
+		]
+
+		for (const batch of [leftBatch, rightBatch, bridgeBatch]) {
+			mergeSnapshotRegion(snapshot, generateHydratedRegion(77, batch, { hydrologyPadding: 4 }))
+		}
+
+		const unionCoords = [...leftBatch, ...rightBatch, ...bridgeBatch]
+		const union = generateHydratedRegion(77, unionCoords, { hydrologyPadding: 4 })
+
+		expect([...snapshot.tiles.keys()].sort()).toEqual([...union.tiles.keys()].sort())
+		expect([...snapshot.biomes.keys()].sort()).toEqual([...union.biomes.keys()].sort())
+		expect([...snapshot.edges.keys()].sort()).toEqual([...union.edges.keys()].sort())
+
+		for (const [key, tile] of union.tiles) {
+			expect(snapshot.tiles.get(key)?.height).toBe(tile.height)
+			expect(snapshot.tiles.get(key)?.temperature).toBe(tile.temperature)
+			expect(snapshot.tiles.get(key)?.humidity).toBe(tile.humidity)
+			expect(snapshot.biomes.get(key)).toBe(union.biomes.get(key))
+		}
+
+		for (const [key, edge] of union.edges) {
+			expect(snapshot.edges.get(key)?.flux).toBe(edge.flux)
+			expect(snapshot.edges.get(key)?.width).toBe(edge.width)
+			expect(snapshot.edges.get(key)?.depth).toBe(edge.depth)
+		}
 	})
 
 	it('can prune a long-lived snapshot to retained coords', () => {

@@ -32,21 +32,25 @@ describe('GPU field groundwork', () => {
 		const tiles = unpackFieldResult(request, {
 			stride: FIELD_RESULT_STRIDE,
 			values: Float32Array.from([
-				0.1, 0.2, 0.3, 0.4, 0.5,
-				0.6, 0.7, 0.8, 0.9, 1.0,
+				0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7,
+				0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4,
 			]),
 		})
 
 		expect(tiles.get('0,0')?.height).toBeCloseTo(0.1)
 		expect(tiles.get('0,0')?.temperature).toBeCloseTo(0.2)
 		expect(tiles.get('0,0')?.humidity).toBeCloseTo(0.3)
-		expect(tiles.get('0,0')?.sediment).toBeCloseTo(0.4)
-		expect(tiles.get('0,0')?.waterTable).toBeCloseTo(0.5)
-		expect(tiles.get('2,-1')?.height).toBeCloseTo(0.6)
-		expect(tiles.get('2,-1')?.temperature).toBeCloseTo(0.7)
-		expect(tiles.get('2,-1')?.humidity).toBeCloseTo(0.8)
-		expect(tiles.get('2,-1')?.sediment).toBeCloseTo(0.9)
-		expect(tiles.get('2,-1')?.waterTable).toBeCloseTo(1.0)
+		expect(tiles.get('0,0')?.terrainType).toBeCloseTo(0.4)
+		expect(tiles.get('0,0')?.rockyNoise).toBeCloseTo(0.5)
+		expect(tiles.get('0,0')?.sediment).toBeCloseTo(0.6)
+		expect(tiles.get('0,0')?.waterTable).toBeCloseTo(0.7)
+		expect(tiles.get('2,-1')?.height).toBeCloseTo(0.8)
+		expect(tiles.get('2,-1')?.temperature).toBeCloseTo(0.9)
+		expect(tiles.get('2,-1')?.humidity).toBeCloseTo(1.0)
+		expect(tiles.get('2,-1')?.terrainType).toBeCloseTo(1.1)
+		expect(tiles.get('2,-1')?.rockyNoise).toBeCloseTo(1.2)
+		expect(tiles.get('2,-1')?.sediment).toBeCloseTo(1.3)
+		expect(tiles.get('2,-1')?.waterTable).toBeCloseTo(1.4)
 	})
 
 	it('exposes a shader body seam with the expected helpers and output writes', () => {
@@ -84,6 +88,8 @@ describe('GPU field groundwork', () => {
 			expect(gpu.get(key)?.height).toBeCloseTo(cpu.get(key)?.height ?? 0, 5)
 			expect(gpu.get(key)?.temperature).toBeCloseTo(cpu.get(key)?.temperature ?? 0, 5)
 			expect(gpu.get(key)?.humidity).toBeCloseTo(cpu.get(key)?.humidity ?? 0, 5)
+			expect(gpu.get(key)?.terrainType).toBeCloseTo(cpu.get(key)?.terrainType ?? 0, 5)
+			expect(gpu.get(key)?.rockyNoise).toBeCloseTo(cpu.get(key)?.rockyNoise ?? 0, 5)
 			expect(gpu.get(key)?.sediment).toBeCloseTo(cpu.get(key)?.sediment ?? 0, 5)
 			expect(gpu.get(key)?.waterTable).toBeCloseTo(cpu.get(key)?.waterTable ?? 0, 5)
 		}

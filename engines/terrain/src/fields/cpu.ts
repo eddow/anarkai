@@ -18,10 +18,60 @@ const SIN1 = Math.sin(ANGLE1)
 const ANGLE2 = -Math.PI / 6
 const COS2 = Math.cos(ANGLE2)
 const SIN2 = Math.sin(ANGLE2)
+const LOCAL_RELIEF_STRENGTH = 0.58
+const MACRO_HEIGHT_SCALE_FACTOR = 0.22
+const MACRO_HEIGHT_OCTAVES = 3
+const MACRO_HEIGHT_PERSISTENCE = 0.55
+const MACRO_HEIGHT_LACUNARITY = 2.0
+const MACRO_HEIGHT_STRENGTH = 0.32
+const TERRAIN_TYPE_SCALE_FACTOR = 1.8
+const TERRAIN_REGION_SCALE_FACTOR = 0.16
+const TERRAIN_REGION_JITTER = 0.35
+const ROCKY_NOISE_SCALE_FACTOR = 8
+const ROCKY_NOISE_OCTAVES = 4
+const ROCKY_NOISE_PERSISTENCE = 0.5
+const ROCKY_NOISE_LACUNARITY = 2.2
+const MOUNTAIN_ROUGHNESS_STRENGTH = 1.35
+
+function hash01(seed: number, x: number, y: number): number {
+	let state = (seed ^ Math.imul(x, 374761393) ^ Math.imul(y, 668265263)) >>> 0
+	state = Math.imul(state ^ (state >>> 13), 1274126177) >>> 0
+	return ((state ^ (state >>> 16)) >>> 0) / 4294967296
+}
+
+function terrainRegionType(seed: number, wx: number, wy: number, config: TerrainConfig): number {
+	const regionScale = Math.max(config.scale * TERRAIN_REGION_SCALE_FACTOR, 1e-6)
+	const sampleX = wx * regionScale
+	const sampleY = wy * regionScale
+	const baseX = Math.floor(sampleX)
+	const baseY = Math.floor(sampleY)
+	let bestDist = Number.POSITIVE_INFINITY
+	let bestCellX = baseX
+	let bestCellY = baseY
+
+	for (let offsetX = -1; offsetX <= 1; offsetX++) {
+		for (let offsetY = -1; offsetY <= 1; offsetY++) {
+			const cellX = baseX + offsetX
+			const cellY = baseY + offsetY
+			const jitterX = (hash01(seed ^ 0x68bc21eb, cellX, cellY) - 0.5) * TERRAIN_REGION_JITTER
+			const jitterY = (hash01(seed ^ 0x02e5be93, cellX, cellY) - 0.5) * TERRAIN_REGION_JITTER
+			const centerX = cellX + 0.5 + jitterX
+			const centerY = cellY + 0.5 + jitterY
+			const dist = (sampleX - centerX) ** 2 + (sampleY - centerY) ** 2
+			if (dist >= bestDist) continue
+			bestDist = dist
+			bestCellX = cellX
+			bestCellY = cellY
+		}
+	}
+
+	return hash01(seed ^ 0x7f4a7c15, bestCellX, bestCellY) * 2 - 1
+}
 
 /** Generate a single tile's fields. Pure function of (noise, coord, config). */
 export function generateTileField(
 	noise: PerlinNoise,
+	seed: number,
 	coord: AxialCoord,
 	config: TerrainConfig
 ): TileField {
@@ -57,9 +107,54 @@ export function generateTileField(
 		config.persistence,
 		config.lacunarity
 	)
+	const macroScale = config.scale * MACRO_HEIGHT_SCALE_FACTOR
+	const macro0 = fbm(
+		noise,
+		wx * macroScale,
+		wy * macroScale,
+		MACRO_HEIGHT_OCTAVES,
+		MACRO_HEIGHT_PERSISTENCE,
+		MACRO_HEIGHT_LACUNARITY
+	)
+	const macro1 = fbm(
+		noise,
+		x1 * macroScale,
+		y1 * macroScale,
+		MACRO_HEIGHT_OCTAVES,
+		MACRO_HEIGHT_PERSISTENCE,
+		MACRO_HEIGHT_LACUNARITY
+	)
+	const macro2 = fbm(
+		noise,
+		x2 * macroScale,
+		y2 * macroScale,
+		MACRO_HEIGHT_OCTAVES,
+		MACRO_HEIGHT_PERSISTENCE,
+		MACRO_HEIGHT_LACUNARITY
+	)
+	const localHeight = (h0 + h1 + h2) / 3
+	const macroHeight = (macro0 + macro1 + macro2) / 3
+	const terrainType = terrainRegionType(seed, wx, wy, {
+		...config,
+		scale: config.scale * TERRAIN_TYPE_SCALE_FACTOR,
+	})
+	const rockyNoiseScale = config.scale * ROCKY_NOISE_SCALE_FACTOR
+	const rockyNoise = fbm(
+		noise,
+		(wx * 0.8 + x1 * 0.2) * rockyNoiseScale,
+		(wy * 0.8 + y2 * 0.2) * rockyNoiseScale,
+		ROCKY_NOISE_OCTAVES,
+		ROCKY_NOISE_PERSISTENCE,
+		ROCKY_NOISE_LACUNARITY
+	)
+	const baseHeight = localHeight * LOCAL_RELIEF_STRENGTH + macroHeight * MACRO_HEIGHT_STRENGTH
+	const mountainWeight = Math.max(0, baseHeight - config.rockyLevel)
+	const height = baseHeight + rockyNoise * mountainWeight * MOUNTAIN_ROUGHNESS_STRENGTH
 
 	return {
-		height: (h0 + h1 + h2) / 3,
+		// Use a broad landform field for regional shape, then add mountain roughness
+		// only where elevation is already high enough to support it.
+		height,
 		temperature: fbm(
 			noise,
 			(wx * 0.9 + y1 * 0.1) * config.temperatureScale,
@@ -76,6 +171,8 @@ export function generateTileField(
 			0.5,
 			2.0
 		),
+		terrainType,
+		rockyNoise,
 		sediment: 0,
 		waterTable: 0,
 	}
@@ -86,7 +183,7 @@ export function generateTileFieldCpu(
 	coord: AxialCoord,
 	config: TerrainConfig
 ): TileField {
-	return generateTileField(new PerlinNoise(seed), coord, config)
+	return generateTileField(new PerlinNoise(seed), seed, coord, config)
 }
 
 /** Batch: generate fields for a set of coordinates. */
@@ -98,7 +195,7 @@ export function generateFieldsCpu(
 	const noise = new PerlinNoise(seed)
 	const tiles = new Map<AxialKey, TileField>()
 	for (const coord of coords) {
-		tiles.set(axial.key(coord), generateTileField(noise, coord, config))
+		tiles.set(axial.key(coord), generateTileField(noise, seed, coord, config))
 	}
 	return tiles
 }

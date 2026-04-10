@@ -61,9 +61,8 @@ Use those helpers instead of calling `attach`/`detach` directly so the render-la
 - tile overlays are parented in `worldScene` and attached to `ground`
 - alveolus roots are parented under their tile visuals and attached to `alveoli`
 - stored-goods containers for alveoli are parented under the alveolus visual and attached to `storedGoods`
+- gate-goods containers are parented under the owning alveolus visual and attached to `storedGoods`
 - unbuilt-land roots are parented under their tile visuals and attached to `resources`
-- border roots are parented in `worldScene` and attached to `ground`
-- border stored-goods containers are attached to `storedGoods`
 - loose-goods manager root is parented in `worldScene`; its content container is attached to `looseGoods`
 - character roots are parented in `worldScene` and attached to `characters`
 
@@ -83,9 +82,9 @@ The build-site -> finished-alveolus path replaces tile content on the same tile/
 
 ### Border visuals
 
-The old `BorderVisual` used to draw a small yellow line between adjacent alveoli. That line is now removed. Border visuals remain only for border-stored goods.
+The old `BorderVisual` used to draw a small yellow line between adjacent alveoli and to host border-stored goods. It is now removed entirely.
 
-Full hex outlines are rendered by tile visuals, not border visuals.
+Full hex outlines are rendered by tile visuals, and gate goods are rendered by the owning alveolus visual.
 
 ### Loose goods
 

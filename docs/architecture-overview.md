@@ -7,7 +7,7 @@ Anarkai is split into a playable client plus three focused engines:
 - `apps/browser` presents the game and editor-style panels
 - `engines/ssh` owns gameplay state and simulation
 - `engines/pixi` renders the world and entities
-- `engines/terrain` generates terrain data used by both gameplay and rendering
+- `engines/terrain` generates terrain data consumed at runtime by `ssh`
 
 ## Dependency Outline
 
@@ -24,7 +24,6 @@ graph TD
     SSH --> Terrain
     SSH --> Ownk
     Pixi --> SSH
-    Pixi --> Terrain
     Browser --> Ownk
 ```
 
@@ -57,6 +56,7 @@ Visual ownership:
 - entity visuals
 - renderer diagnostics
 - visibility-driven requests for more world data
+- no runtime terrain generation or private terrain snapshot ownership
 
 ### `apps/browser`
 
@@ -67,8 +67,12 @@ User-facing integration:
 - palette controls
 - selection-follow behavior
 
-## Current Tension
+## Runtime Terrain Flow
 
-The architecture is healthiest at the terrain seam and the weakest at the gameplay streaming seam.
+1. `engine-pixi` computes the visible tile set from the camera.
+2. `engine-pixi` checks whether SSH has already materialized those tiles.
+3. If visible tiles are missing, `engine-pixi` requests gameplay frontier expansion from `ssh`.
+4. `ssh` uses `engine-terrain` to materialize authoritative board tiles.
+5. `engine-pixi` re-renders from SSH board state only.
 
-`engine-terrain` already behaves like an open-ended streamed world. `ssh` and `pixi` are close, but gameplay frontier ownership still needs to be made more explicit so rendering interest does not become gameplay policy.
+This keeps one runtime source of truth for terrain: the SSH board.

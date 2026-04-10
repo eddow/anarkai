@@ -34,10 +34,25 @@ export function terrainTextureSpec(
 	terrain: TerrainTextureOverride,
 	biome: BiomeHint
 ): string {
-	if (terrain === 'concrete') return 'terrain.concrete'
+	switch (terrain) {
+		case 'concrete':
+			return 'terrain.concrete'
+		case 'water':
+			return 'terrain.water'
+		case 'sand':
+			return 'terrain.sand'
+		case 'grass':
+			return 'terrain.grass'
+		case 'forest':
+			return 'terrain.forest'
+		case 'rocky':
+			return 'terrain.stone'
+		case 'snow':
+			return 'terrain.snow'
+	}
 	return biomeTextureSpec(biome)
 }
 
-export function terrainTintForTile(_biome: BiomeHint, _tile: TileField): number {
+export function terrainTintForTile(_biome?: BiomeHint, _tile?: TileField): number {
 	return 0xffffff
 }

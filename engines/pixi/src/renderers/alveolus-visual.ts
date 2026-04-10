@@ -1,6 +1,7 @@
 import { effect } from 'mutts'
 import { Container, Sprite, Texture } from 'pixi.js'
 import type { Alveolus } from 'ssh/board/content/alveolus'
+import type { AlveolusGate } from 'ssh/board/border/alveolus-gate'
 import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
 import { alveoli } from '../../assets/visual-content'
@@ -21,6 +22,7 @@ export class AlveolusVisual extends VisualObject<any> {
 	private readonly scope: string
 	private sprite: Sprite | undefined
 	private goodsContainer: Container
+	private gateGoodsContainer: Container
 	private _disposed = false
 
 	constructor(alveolus: Alveolus, renderer: PixiGameRenderer) {
@@ -31,6 +33,7 @@ export class AlveolusVisual extends VisualObject<any> {
 		// Ensure the building visual does not block mouse events (Tile handles selection)
 		this.view.eventMode = 'none'
 		this.goodsContainer = setPixiName(new Container(), scopedPixiName(this.scope, 'goods'))
+		this.gateGoodsContainer = setPixiName(new Container(), scopedPixiName(this.scope, 'gates'))
 	}
 
 	public bind() {
@@ -93,8 +96,13 @@ export class AlveolusVisual extends VisualObject<any> {
 		if (this.goodsContainer.parent !== this.view) {
 			this.view.addChild(this.goodsContainer)
 		}
+		if (this.gateGoodsContainer.parent !== this.view) {
+			this.view.addChild(this.gateGoodsContainer)
+		}
 		this.goodsContainer.position.set(0, 0)
 		this.goodsContainer.zIndex = worldPos.y
+		this.gateGoodsContainer.position.set(0, 0)
+		this.gateGoodsContainer.zIndex = worldPos.y
 		const storedGoodsLayer = this.renderer.layers?.storedGoods
 		if (!storedGoodsLayer) {
 			console.warn('AlveolusVisual.bind: renderer.layers.storedGoods is missing')
@@ -116,6 +124,53 @@ export class AlveolusVisual extends VisualObject<any> {
 			`${this.scope}.goods`
 		)
 		this.register(cleanupGoods)
+
+		this.register(
+			effect`${this.scope}.gates`(() => {
+				const ownedGates = this.object.gates.filter((gate: AlveolusGate) => this.ownsGateVisual(gate))
+				if (ownedGates.length > 0 && storedGoodsLayer) {
+					this.renderer.attachToLayer(storedGoodsLayer, this.gateGoodsContainer)
+				} else if (storedGoodsLayer) {
+					this.renderer.detachFromLayer(storedGoodsLayer, this.gateGoodsContainer)
+				}
+				const gateCleanups = ownedGates
+					.map((gate: AlveolusGate) =>
+						renderGoods(
+							this.renderer,
+							this.gateGoodsContainer,
+							tileSize * 0.8,
+							() => {
+								const goods = gate.storage.renderedGoods()
+								return goods
+									? { slots: goods.slots, assumedMaxSlots: goods.assumedMaxSlots }
+									: { slots: [] }
+							},
+							this.relativeGateWorldPosition(gate),
+							`${this.scope}.gate.${gate.uid}`
+						)
+					)
+				return () => gateCleanups.forEach((cleanup) => cleanup())
+			})
+		)
+	}
+
+	private ownsGateVisual(gate: AlveolusGate): boolean {
+		const selfCoord = this.object.tile.position
+		const other =
+			gate.alveolusA === this.object ? gate.alveolusB : gate.alveolusA
+		if (!other) return false
+		const otherCoord = other.tile.position
+		if (selfCoord.q !== otherCoord.q) return selfCoord.q < otherCoord.q
+		return selfCoord.r < otherCoord.r
+	}
+
+	private relativeGateWorldPosition(gate: AlveolusGate) {
+		const gateWorld = toWorldCoord(gate.border.position)
+		const tileWorld = toWorldCoord(this.object.tile.position)
+		return {
+			x: gateWorld.x - tileWorld.x,
+			y: gateWorld.y - tileWorld.y,
+		}
 	}
 
 	public dispose() {
@@ -125,11 +180,13 @@ export class AlveolusVisual extends VisualObject<any> {
 		}
 		if (this.renderer.layers?.storedGoods) {
 			this.renderer.detachFromLayer(this.renderer.layers.storedGoods, this.goodsContainer)
+			this.renderer.detachFromLayer(this.renderer.layers.storedGoods, this.gateGoodsContainer)
 		}
 		if (this.sprite) {
 			this.sprite.destroy()
 		}
 		this.goodsContainer.destroy({ children: true }) // Cleanup goods container
+		this.gateGoodsContainer.destroy({ children: true })
 		super.dispose()
 	}
 }

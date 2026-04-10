@@ -1,4 +1,4 @@
-import { Eventful, reactive, unreactive } from 'mutts'
+import { atomic, defer, Eventful, reactive, unreactive } from 'mutts'
 import { Alveolus } from 'ssh/board'
 import { HexBoard } from 'ssh/board/board'
 import { Deposit, UnBuiltLand } from 'ssh/board/content/unbuilt-land'
@@ -52,6 +52,9 @@ const rootSpeed = 2
 
 export type GameEvents = {
 	gameStart(): void
+	objectsAdded(objects: InteractiveGameObject[]): void
+	objectsChanged(objects: InteractiveGameObject[]): void
+	objectsRemoved(objects: InteractiveGameObject[]): void
 	objectOver(pointer: any, object: InteractiveGameObject, stopPropagation?: () => void): void
 	objectOut(pointer: any, object: InteractiveGameObject): void
 	objectDown(pointer: any, object: InteractiveGameObject, stopPropagation?: () => void): void
@@ -66,6 +69,19 @@ export type GameGenerationOptions = {
 	terrainSeed: number
 	characterCount: number
 	characterRadius?: number
+}
+
+export interface RenderableTerrainTile {
+	terrain: TerrainType
+	height?: number
+}
+
+function hasTerrainProperty(value: unknown): value is { terrain: TerrainType } {
+	return (
+		!!value &&
+		typeof value === 'object' &&
+		typeof (value as { terrain?: unknown }).terrain === 'string'
+	)
 }
 
 export interface AlveolusPatch {
@@ -170,6 +186,11 @@ export class Game extends Eventful<GameEvents> {
 	public readonly generator: GameGenerator
 	public readonly ticker: SimulationLoop
 	private tickedObjects = new Set<{ update(deltaSeconds: number): void }>()
+	private readonly pendingInteractiveRegistrations = new Map<string, InteractiveGameObject>()
+	private readonly pendingInteractiveChanges = new Map<string, InteractiveGameObject>()
+	private readonly pendingInteractiveUnregistrations = new Map<string, InteractiveGameObject>()
+	private interactiveRegistrationBatchDepth = 0
+	private interactiveLifecycleFlushScheduled = false
 	private terrainTerraforming: TerrainTerraformPatch[] = []
 	private readonly bootstrapGameplayCoords = new Set<string>()
 	private readonly materializedGameplayCoords = new Map<string, AxialCoord>()
@@ -211,6 +232,106 @@ export class Game extends Eventful<GameEvents> {
 
 	unregister(object: InteractiveGameObject) {
 		this.objects.delete(object.uid)
+	}
+
+	public enqueueInteractiveRegistration(object: InteractiveGameObject, uid?: string) {
+		const key = uid ?? object.uid
+		this.pendingInteractiveUnregistrations.delete(key)
+		this.pendingInteractiveChanges.delete(key)
+		this.pendingInteractiveRegistrations.set(key, object)
+		this.scheduleInteractiveLifecycleFlush()
+	}
+
+	public enqueueInteractiveChange(object: InteractiveGameObject) {
+		const key = object.uid
+		if (this.pendingInteractiveRegistrations.has(key) || this.pendingInteractiveUnregistrations.has(key)) {
+			return
+		}
+		if (!this.objects.has(key)) return
+		this.pendingInteractiveChanges.set(key, object)
+		this.scheduleInteractiveLifecycleFlush()
+	}
+
+	public enqueueInteractiveUnregistration(object: InteractiveGameObject) {
+		const key = object.uid
+		if (this.pendingInteractiveRegistrations.get(key) === object) {
+			this.pendingInteractiveRegistrations.delete(key)
+			return
+		}
+		this.pendingInteractiveRegistrations.delete(key)
+		this.pendingInteractiveChanges.delete(key)
+		if (this.objects.has(key)) {
+			this.pendingInteractiveUnregistrations.set(key, object)
+		}
+		this.scheduleInteractiveLifecycleFlush()
+	}
+
+	public flushInteractiveChanges(): InteractiveGameObject[] {
+		if (this.pendingInteractiveChanges.size === 0) return []
+		const changed = [...this.pendingInteractiveChanges.values()]
+		this.pendingInteractiveChanges.clear()
+		return changed.filter((object) => this.objects.get(object.uid) === object)
+	}
+
+	public flushInteractiveUnregistrations(): InteractiveGameObject[] {
+		if (this.pendingInteractiveUnregistrations.size === 0) return []
+		const pending = [...this.pendingInteractiveUnregistrations.entries()]
+		this.pendingInteractiveUnregistrations.clear()
+		const removed: InteractiveGameObject[] = []
+		atomic(() => {
+			for (const [key, object] of pending) {
+				const existing = this.objects.get(key)
+				if (!existing || existing !== object) continue
+				this.objects.delete(key)
+				removed.push(existing)
+			}
+		})()
+		return removed
+	}
+
+	public flushInteractiveRegistrations(): InteractiveGameObject[] {
+		if (this.pendingInteractiveRegistrations.size === 0) return []
+		const pending = [...this.pendingInteractiveRegistrations.entries()]
+		this.pendingInteractiveRegistrations.clear()
+		const added: InteractiveGameObject[] = []
+		atomic(() => {
+			for (const [key, object] of pending) {
+				if (this.objects.get(key) === object) continue
+				this.objects.set(key, object)
+				added.push(object)
+			}
+		})()
+		return added
+	}
+
+	private flushInteractiveLifecycleQueues() {
+		this.interactiveLifecycleFlushScheduled = false
+		const removed = this.flushInteractiveUnregistrations()
+		const added = this.flushInteractiveRegistrations()
+		const changed = this.flushInteractiveChanges()
+		if (removed.length > 0) this.emit('objectsRemoved', removed)
+		if (added.length > 0) this.emit('objectsAdded', added)
+		if (changed.length > 0) this.emit('objectsChanged', changed)
+	}
+
+	private scheduleInteractiveLifecycleFlush() {
+		if (this.interactiveRegistrationBatchDepth > 0 || this.interactiveLifecycleFlushScheduled) return
+		this.interactiveLifecycleFlushScheduled = true
+		defer(() => {
+			this.flushInteractiveLifecycleQueues()
+		})
+	}
+
+	public withObjectRegistrationBatch<T>(fn: () => T): T {
+		this.interactiveRegistrationBatchDepth++
+		try {
+			return fn()
+		} finally {
+			this.interactiveRegistrationBatchDepth--
+			if (this.interactiveRegistrationBatchDepth === 0) {
+				this.flushInteractiveLifecycleQueues()
+			}
+		}
 	}
 
 	registerTickedObject(object: { update(deltaSeconds: number): void }) {
@@ -418,6 +539,30 @@ export class Game extends Eventful<GameEvents> {
 		return this.hex.getTileContent(coord) !== undefined
 	}
 
+	public hasRenderableTerrainAt(coord: AxialCoord): boolean {
+		return this.hasMaterializedGameplayTile(coord)
+	}
+
+	public getRenderableTerrainAt(coord: AxialCoord): RenderableTerrainTile | undefined {
+		if (!this.hasMaterializedGameplayTile(coord)) return undefined
+
+		const content = this.hex.getTileContent(coord)
+		const tile = content?.tile ?? this.hex.getTile(coord)
+		const terrain =
+			tile?.terrainState?.terrain ??
+			tile?.baseTerrain ??
+			(content instanceof UnBuiltLand ? content.terrain : undefined) ??
+			(hasTerrainProperty(content) ? content.terrain : undefined) ??
+			(content ? 'concrete' : undefined)
+
+		if (!terrain) return undefined
+
+		return {
+			terrain,
+			height: tile?.terrainState?.height ?? tile?.terrainHeight,
+		}
+	}
+
 	private materializeGameplayTiles(coords: Iterable<AxialCoord>) {
 		const missingCoords: AxialCoord[] = []
 		for (const coord of coords) {
@@ -431,7 +576,7 @@ export class Game extends Eventful<GameEvents> {
 			missingCoords,
 			this.terrainTerraforming
 		)
-		this.loadGeneratedBoard(boardData)
+		this.loadGeneratedBoard(boardData, { populateInitialGoods: false })
 	}
 
 	private async materializeGameplayTilesAsync(coords: Iterable<AxialCoord>) {
@@ -447,7 +592,7 @@ export class Game extends Eventful<GameEvents> {
 			missingCoords,
 			this.terrainTerraforming
 		)
-		this.loadGeneratedBoard(boardData)
+		this.loadGeneratedBoard(boardData, { populateInitialGoods: false })
 	}
 
 	public requestGameplayFrontier(
@@ -534,54 +679,59 @@ export class Game extends Eventful<GameEvents> {
 	/**
 	 * Load generated board data into the game
 	 */
-	private loadGeneratedBoard(tileData: GeneratedTileData[]): void {
-		for (const tileInfo of tileData) {
-			this.materializedGameplayCoords.set(axial.key(tileInfo.coord), {
-				q: tileInfo.coord.q,
-				r: tileInfo.coord.r,
-			})
-			if (this.hex.getTileContent(tileInfo.coord)) continue
-			const tile = this.hex.getTile(tileInfo.coord) ?? new Tile(this.hex, tileInfo.coord)
-			tile.baseTerrain = tileInfo.terrain
-			tile.terrainHeight = tileInfo.height
+	private loadGeneratedBoard(
+		tileData: GeneratedTileData[],
+		options: { populateInitialGoods?: boolean } = {}
+	): void {
+		const populateInitialGoods = options.populateInitialGoods ?? true
+		this.withObjectRegistrationBatch(() => {
+			for (const tileInfo of tileData) {
+				this.materializedGameplayCoords.set(axial.key(tileInfo.coord), {
+					q: tileInfo.coord.q,
+					r: tileInfo.coord.r,
+				})
+				if (this.hex.getTileContent(tileInfo.coord)) continue
+				const tile =
+					this.hex.getTile(tileInfo.coord) ??
+					this.withObjectRegistrationBatch(() => new Tile(this.hex, tileInfo.coord))
+				tile.baseTerrain = tileInfo.terrain
+				tile.terrainHeight = tileInfo.height
 
-			// Create deposit if present
-			let deposit: Deposit | undefined
-			if (tileInfo.deposit) {
-				const DepositClass = Deposit.class[tileInfo.deposit.type as keyof typeof Deposit.class]
-				if (DepositClass) {
-					deposit = new DepositClass(tileInfo.deposit.amount)
-					// Ensure name is set (vital for HarvestAlveolus checks)
-					//if (!deposit.name) deposit.name = tileInfo.deposit.type
-				}
-			}
-
-			const land = new UnBuiltLand(tile, tileInfo.terrain, deposit)
-			this.hex.setTileContent(tile, land)
-			// Mark as generated after the content attach path, which otherwise dirties the tile.
-			tile.asGenerated = true
-
-			// Create initial goods at equilibrium levels
-			for (const [goodType, amount] of Object.entries(tileInfo.goods)) {
-				for (let i = 0; i < amount; i++) {
-					// Generate random position within the tile using triangular distribution
-					const u = this.random()
-					const v = this.random()
-					const q = (u - v) * 0.5
-					const r = v - 0.5
-
-					const randomPos = {
-						q: tileInfo.coord.q + q,
-						r: tileInfo.coord.r + r,
+				// Create deposit if present
+				let deposit: Deposit | undefined
+				if (tileInfo.deposit) {
+					const DepositClass = Deposit.class[tileInfo.deposit.type as keyof typeof Deposit.class]
+					if (DepositClass) {
+						deposit = new DepositClass(tileInfo.deposit.amount)
 					}
+				}
 
-					// Add the good to the loose goods system
-					this.hex.looseGoods.add(tile, goodType as any, {
-						position: randomPos,
-					})
+				const land = new UnBuiltLand(tile, tileInfo.terrain, deposit)
+				this.hex.setTileContent(tile, land)
+				// Mark as generated after the content attach path, which otherwise dirties the tile.
+				tile.asGenerated = true
+
+				if (!populateInitialGoods) continue
+
+				for (const [goodType, amount] of Object.entries(tileInfo.goods)) {
+					for (let i = 0; i < amount; i++) {
+						const u = this.random()
+						const v = this.random()
+						const q = (u - v) * 0.5
+						const r = v - 0.5
+
+						const randomPos = {
+							q: tileInfo.coord.q + q,
+							r: tileInfo.coord.r + r,
+						}
+
+						this.hex.looseGoods.add(tile, goodType as any, {
+							position: randomPos,
+						})
+					}
 				}
 			}
-		}
+		})
 	}
 
 	private applyTilePatches(patches: NonNullable<GamePatches['tiles']>) {
@@ -659,6 +809,7 @@ export class Game extends Eventful<GameEvents> {
 						currentContent.deposit = new DepositClass(p.deposit.amount)
 						// Ensure name is set
 						if (!currentContent.deposit.name) (currentContent.deposit as any).name = p.deposit.type
+						this.enqueueInteractiveChange(tile)
 					}
 				}
 				if (
@@ -765,7 +916,9 @@ export class Game extends Eventful<GameEvents> {
 		for (const [zone, coords] of Object.entries(zones)) {
 			for (const coord of coords) {
 				const coordObj = { q: coord[0], r: coord[1] }
-				this.hex.zoneManager.setZone(coordObj, zone as Zone)
+				const tile = this.hex.getTile(coordObj)
+				if (!tile) continue
+				tile.zone = zone as Zone
 			}
 		}
 	}

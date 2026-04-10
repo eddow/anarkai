@@ -1,0 +1,3 @@
+- when the "total goods" of a store is over the configured accepted goods (after configuration), the store should publish "provide, 2-use"
+- hive property window
+- building alveolus configuration

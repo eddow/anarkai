@@ -4,7 +4,8 @@ import { riverRng } from './rng'
 
 /**
  * Deterministic spring test per tile (hexaboard-style).
- * Parity mask prevents adjacent springs on a rectangular-ish pairing of the lattice.
+ * Parity mask prevents adjacent springs while keeping the candidate lattice dense
+ * enough for medium boards after the macro-elevation terrain pass.
  */
 export function isSpring(
 	coord: AxialCoord,
@@ -13,7 +14,7 @@ export function isSpring(
 	config: TerrainConfig
 ): boolean {
 	if (height < config.seaLevel) return false
-	if ((coord.q | coord.r) & 1) return false
+	if ((coord.q + coord.r) & 1) return false
 
 	const span = config.hydrologyLandCeiling - config.seaLevel
 	if (span <= 0) return false

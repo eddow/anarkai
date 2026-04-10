@@ -1,4 +1,4 @@
-import { reactiveOptions } from 'mutts'
+import { debugPreset, devPreset, reactiveOptions } from 'mutts'
 import type { PlannerFindActionSnapshot } from 'ssh/population/findNextActivity'
 import { debugActiveAllocations, getAllocationStats } from 'ssh/storage/guard'
 
@@ -26,25 +26,8 @@ export const traces: Record<string, typeof console | undefined> = {}
 
 //traces.advertising = console
 //traces.allocations = console
-const debugMutts = false
-if (debugMutts) {
-	reactiveOptions.chain = (targets: Function[], caller?: Function) => {
-		console.log(
-			caller
-				? `${caller.name} -> ${targets.map((t) => t.name).join(' -> ')}`
-				: `-> ${targets.map((t) => t.name).join(' -> ')}`
-		)
-	}
-	reactiveOptions.beginChain = (targets: Function[]) => {
-		console.groupCollapsed(`${targets.map((t) => t.name).join(' -> ')}`)
-	}
-	reactiveOptions.endChain = () => {
-		console.groupEnd()
-	}
-	reactiveOptions.skipRunningEffect = (effect: Function) => {
-		console.log(`Skipping running effect: ${effect.name}`)
-	}
-}
+//Object.assign(reactiveOptions, debugPreset)
+Object.assign(reactiveOptions, devPreset)
 reactiveOptions.maxEffectChain = 2000
 reactiveOptions.maxEffectReaction = 'throw'
 // TODO: comment it for normal functioning (performances killer) - allow it to test discrepancies

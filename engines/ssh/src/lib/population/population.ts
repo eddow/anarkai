@@ -26,12 +26,13 @@ export class Population extends withContainer(withHittable(GameObject)) {
 
 	// Create a new character
 	createCharacter(name: string, coord: AxialCoord): Character {
-		// Generate a proper UUID for the character
-		const characterUid = uuid(this.characterGen)
-		const character = new Character(this.game, characterUid, name, coord)
-		this.characters.set(characterUid, character)
-		this.add(character)
-		return character
+		return this.game.withObjectRegistrationBatch(() => {
+			const characterUid = uuid(this.characterGen)
+			const character = new Character(this.game, characterUid, name, coord)
+			this.characters.set(characterUid, character)
+			this.add(character)
+			return character
+		})
 	}
 	character(uid: string): Character {
 		const character = this.characters.get(uid)
@@ -61,15 +62,17 @@ export class Population extends withContainer(withHittable(GameObject)) {
 	}
 
 	deserialize(data: any[]) {
-		this.characters.clear()
-		// Clear existing from container
-		this.clear() // Ensure visual cleanup
+		this.game.withObjectRegistrationBatch(() => {
+			this.characters.clear()
+			// Clear existing from container
+			this.clear() // Ensure visual cleanup
 
-		for (const charData of data) {
-			const char = Character.deserialize(this.game, charData)
-			this.characters.set(char.uid, char)
-			this.add(char)
-		}
+			for (const charData of data) {
+				const char = Character.deserialize(this.game, charData)
+				this.characters.set(char.uid, char)
+				this.add(char)
+			}
+		})
 	}
 
 	[Symbol.iterator]() {

@@ -124,6 +124,7 @@ export class Tile extends withInteractive(GameObject) {
 		} else {
 			this.board.zoneManager.setZone(toAxialCoord(this.position), zone)
 		}
+		this.board.game.enqueueInteractiveChange(this)
 	}
 
 	get clearing(): boolean {

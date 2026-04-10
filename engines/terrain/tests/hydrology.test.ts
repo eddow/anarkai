@@ -10,6 +10,8 @@ function baseTile(overrides: Partial<TileField> = {}): TileField {
 		height: 0,
 		temperature: 0,
 		humidity: 0,
+		terrainType: 0,
+		rockyNoise: 0,
 		sediment: 0,
 		waterTable: 0,
 		...overrides,

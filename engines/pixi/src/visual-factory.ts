@@ -1,16 +1,75 @@
-import { effect } from 'mutts'
+import { Alveolus } from 'ssh/board/content/alveolus'
+import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { Tile } from 'ssh/board/tile'
 import type { GameObject } from 'ssh/game/object'
+import type { InteractiveGameObject } from 'ssh/game/object'
 import { Character } from 'ssh/population/character'
 import type { PixiGameRenderer } from './renderer'
-import { BorderVisual } from './renderers/border-visual'
 import { CharacterVisual } from './renderers/character-visual'
 import { LooseGoodsVisual } from './renderers/loose-goods-visual'
 import { TileVisual } from './renderers/tile-visual'
 import type { VisualObject } from './renderers/visual-object'
 
+const VISUAL_DIAGNOSTIC_HISTORY_LIMIT = 12
+const SLOW_VISUAL_BATCH_THRESHOLD_MS = 8
+
+export interface VisualBatchDiagnostics {
+	reason: 'bootstrap' | 'objectsAdded' | 'objectsChanged'
+	objectCount: number
+	tileCount: number
+	characterCount: number
+	tileVisualCreatedCount: number
+	skippedPlainTileCount: number
+	gateOverlayCount: number
+	createdVisualCount: number
+	reusedVisualCount: number
+	groundAttachCount: number
+	worldAttachCount: number
+	totalVisualsAfterBatch: number
+	batchMs: number
+}
+
+export interface VisualFactoryDiagnostics {
+	recentBatches: VisualBatchDiagnostics[]
+	totals: {
+		batches: number
+		createdVisuals: number
+		reusedVisuals: number
+		groundAttachments: number
+		worldAttachments: number
+		maxBatchMs: number
+	}
+	current: {
+		totalVisuals: number
+		tileVisuals: number
+		gateOverlayVisuals: number
+		characterVisuals: number
+		looseGoodsVisuals: number
+		alveolusVisuals: number
+	}
+}
+
 export class VisualFactory {
 	private cleanups: (() => void)[] = []
+	private diagnostics: VisualFactoryDiagnostics = {
+		recentBatches: [],
+		totals: {
+			batches: 0,
+			createdVisuals: 0,
+			reusedVisuals: 0,
+			groundAttachments: 0,
+			worldAttachments: 0,
+			maxBatchMs: 0,
+		},
+		current: {
+			totalVisuals: 0,
+			tileVisuals: 0,
+			gateOverlayVisuals: 0,
+			characterVisuals: 0,
+			looseGoodsVisuals: 0,
+			alveolusVisuals: 0,
+		},
+	}
 
 	constructor(private renderer: PixiGameRenderer) {}
 
@@ -18,91 +77,98 @@ export class VisualFactory {
 		console.log('[VisualFactory] Binding visuals...')
 		const board = this.renderer.game.hex
 
-		// 1. Tile gameplay overlays (content, zones, borders).
-		// Ground terrain itself is rendered by TerrainVisual.
-		console.log('[VisualFactory] Creating Tile Visuals...')
-		board.tiles.forEach((tile: Tile) => {
-			this.create(tile, TileVisual)
-			tile.surroundings.forEach(({ border }) => {
-				this.create(border, BorderVisual)
+		console.log('[VisualFactory] Creating bootstrap visuals...')
+		this.createBatch(Array.from(this.renderer.game.objects.values()), 'bootstrap')
+
+		console.log('[VisualFactory] Creating LooseGoods Visual...')
+		const looseGoodsVisual = this.create(board.looseGoods, LooseGoodsVisual).visual
+		if (looseGoodsVisual) {
+			this.renderer.worldScene.addChild(looseGoodsVisual.view)
+		}
+
+		const onObjectsAdded = (objects: InteractiveGameObject[]) => {
+			this.createBatch(objects, 'objectsAdded')
+		}
+		const onObjectsChanged = (objects: InteractiveGameObject[]) => {
+			this.syncChangedObjects(objects)
+		}
+		const onObjectsRemoved = (objects: InteractiveGameObject[]) => {
+			for (const object of objects) {
+				const visual = this.renderer.visuals.get(object.uid)
+				if (!visual) continue
+				visual.dispose()
+				this.renderer.visuals.delete(object.uid)
+			}
+		}
+		this.renderer.game.on({
+			objectsAdded: onObjectsAdded,
+			objectsChanged: onObjectsChanged,
+			objectsRemoved: onObjectsRemoved,
+		})
+		this.cleanups.push(() => {
+			this.renderer.game.off({
+				objectsAdded: onObjectsAdded,
+				objectsChanged: onObjectsChanged,
+				objectsRemoved: onObjectsRemoved,
 			})
 		})
-
-		// 2. LooseGoods Visual (Singleton Manager)
-		console.log('[VisualFactory] Creating LooseGoods Visual...')
-		this.create(board.looseGoods, LooseGoodsVisual)
-
-		// 3. Character Visuals (Reactive Population)
-		console.log('[VisualFactory] Binding Characters...')
-		this.bindCharacters()
-
-		// 4. Dynamically materialized objects (streamed tiles, late characters)
-		this.bindGameObjects()
 	}
 
-	private bindCharacters() {
-		const population = this.renderer.game.population
-
-		// Watch for changes in population.
-		// Assuming population.characters is iterable or we can just react to it.
-		// If population is a GcClassed or has 'characters' list.
-		// Based on Population class (viewed next), likely has `characters` array or map.
-
-		this.cleanups.push(
-			effect`visuals.characters`(() => {
-				// Reactive set of active characters
-				const activeChars = new Set<Character>()
-
-				// Iterate population (assuming iterator or property)
-				for (const char of population) {
-					activeChars.add(char)
-					if (!this.renderer.visuals.has(char.uid)) {
-						this.create(char, CharacterVisual)
-					}
-				}
-
-				// Cleanup missing characters (if they were removed from population but not destroyed?)
-				// VisualObject usually cleans up on dispose, but we might want to ensure sync.
-				// Actually, if a character is destroyed, it should be removed from population.
-				// And we should dispose the visual.
-
-				// Check for visuals that are characters but no longer in activeChars
-				for (const [uid, visual] of this.renderer.visuals) {
-					if (visual instanceof CharacterVisual && !activeChars.has(visual.object)) {
-						visual.dispose()
-						this.renderer.visuals.delete(uid)
-					}
-				}
-			})
-		)
+	public getDiagnostics(): VisualFactoryDiagnostics {
+		const currentCounts = this.getCurrentVisualCounts()
+		return {
+			recentBatches: this.diagnostics.recentBatches.map((batch) => ({ ...batch })),
+			totals: { ...this.diagnostics.totals },
+			current: currentCounts,
+		}
 	}
 
-	private bindGameObjects() {
-		this.cleanups.push(
-			effect`visuals.gameObjects`(() => {
-				for (const object of this.renderer.game.objects.values()) {
-					if (this.renderer.visuals.has(object.uid)) continue
-					if (object instanceof Tile) {
-						this.create(object, TileVisual)
-						object.surroundings.forEach(({ border }) => {
-							this.create(border, BorderVisual)
-						})
-						continue
-					}
-					if (object instanceof Character) {
-						this.create(object, CharacterVisual)
-					}
-				}
-			})
-		)
+	private getCurrentVisualCounts(): VisualFactoryDiagnostics['current'] {
+		const tileVisuals = Array.from(this.renderer.visuals.values()).filter(
+			(visual) => visual instanceof TileVisual
+		).length
+		const characterVisuals = Array.from(this.renderer.visuals.values()).filter(
+			(visual) => visual instanceof CharacterVisual
+		).length
+		const looseGoodsVisuals = Array.from(this.renderer.visuals.values()).filter(
+			(visual) => visual instanceof LooseGoodsVisual
+		).length
+		const alveolusVisuals = this.renderer.layers.alveoli.renderLayerChildren.length
+		const gateOverlayVisuals = this.renderer.layers.storedGoods.renderLayerChildren.filter((child) =>
+			child.label.includes('/gates')
+		).length
+		return {
+			totalVisuals: this.renderer.visuals.size,
+			tileVisuals,
+			gateOverlayVisuals,
+			characterVisuals,
+			looseGoodsVisuals,
+			alveolusVisuals,
+		}
+	}
+
+	private shouldCreateTileVisual(tile: Tile): boolean {
+		if (tile.zone !== undefined) return true
+		const content = tile.content
+		if (!content) return false
+		if (content instanceof Alveolus) return true
+		if (content instanceof UnBuiltLand) {
+			return !!content.project || !!content.deposit
+		}
+		return true
 	}
 
 	private create<T extends GameObject>(
 		object: T,
 		VisualClass: new (obj: T, renderer: PixiGameRenderer) => VisualObject<T>
-	) {
-		if (!this.renderer?.app) return
-		if (this.renderer.visuals.has(object.uid)) return
+	): { visual: VisualObject<T> | undefined; reused: boolean } {
+		if (!this.renderer?.app) return { visual: undefined, reused: false }
+		if (this.renderer.visuals.has(object.uid)) {
+			return {
+				visual: this.renderer.visuals.get(object.uid) as VisualObject<T>,
+				reused: true,
+			}
+		}
 
 		let visual: VisualObject<T> | undefined
 
@@ -112,32 +178,117 @@ export class VisualFactory {
 			this.renderer.visuals.set(object.uid, visual)
 		} catch (e) {
 			console.error('[VisualFactory] Error creating visual:', e)
-			return
+			return { visual: undefined, reused: false }
 		}
 
-		if (!visual) return
+		return { visual, reused: false }
+	}
 
-		// Handle layer attachment if visual doesn't do it itself
-		// TileVisual handles its own layers inside its container, but where does container go?
-		// TileVisual should attach to 'ground' layer?
+	private createBatch(
+		objects: Iterable<InteractiveGameObject>,
+		reason: VisualBatchDiagnostics['reason']
+	) {
+		const batchStartedAt = globalThis.performance?.now() ?? Date.now()
+		const groundViews: VisualObject[] = []
+		const worldViews: VisualObject[] = []
+		let objectCount = 0
+		let tileCount = 0
+		let characterCount = 0
+		let tileVisualCreatedCount = 0
+		let skippedPlainTileCount = 0
+		let createdVisualCount = 0
+		let reusedVisualCount = 0
 
-		if (visual instanceof TileVisual) {
-			this.renderer.worldScene.addChild(visual.view)
-			this.renderer.attachToLayer(this.renderer.layers.ground, visual.view)
-		} else if (visual instanceof CharacterVisual) {
-			this.renderer.worldScene.addChild(visual.view)
-		} else if (visual instanceof LooseGoodsVisual) {
-			this.renderer.worldScene.addChild(visual.view)
-		} else if (visual instanceof BorderVisual) {
+		for (const object of objects) {
+			objectCount++
+			if (object instanceof Tile) {
+				tileCount++
+				if (!this.shouldCreateTileVisual(object)) {
+					skippedPlainTileCount++
+					continue
+				}
+				const tileVisualResult = this.create(object, TileVisual)
+				const tileVisual = tileVisualResult.visual
+				if (tileVisualResult.reused) reusedVisualCount++
+				else if (tileVisual) {
+					createdVisualCount++
+					tileVisualCreatedCount++
+				}
+				if (tileVisual) groundViews.push(tileVisual)
+				continue
+			}
+			if (object instanceof Character) {
+				characterCount++
+				const characterVisualResult = this.create(object, CharacterVisual)
+				const characterVisual = characterVisualResult.visual
+				if (characterVisualResult.reused) reusedVisualCount++
+				else if (characterVisual) createdVisualCount++
+				if (characterVisual) worldViews.push(characterVisual)
+			}
+		}
+
+		for (const visual of groundViews) {
 			this.renderer.worldScene.addChild(visual.view)
 			this.renderer.attachToLayer(this.renderer.layers.ground, visual.view)
 		}
 
-		// Cleanup when object executes destroy?
-		// VisualObject should persist until GameObject is destroyed.
-		// We can hook into GameObject.destroyed?
-		if ('destroyed' in object) {
-			// Watch destroyed property if reactive
+		for (const visual of worldViews) {
+			this.renderer.worldScene.addChild(visual.view)
+		}
+
+		const batchMs = (globalThis.performance?.now() ?? Date.now()) - batchStartedAt
+		const batchDiagnostics: VisualBatchDiagnostics = {
+			reason,
+			objectCount,
+			tileCount,
+			characterCount,
+			tileVisualCreatedCount,
+			skippedPlainTileCount,
+			gateOverlayCount: this.getCurrentVisualCounts().gateOverlayVisuals,
+			createdVisualCount,
+			reusedVisualCount,
+			groundAttachCount: groundViews.length,
+			worldAttachCount: worldViews.length,
+			totalVisualsAfterBatch: this.renderer.visuals.size,
+			batchMs,
+		}
+		this.diagnostics.recentBatches.unshift(batchDiagnostics)
+		this.diagnostics.recentBatches = this.diagnostics.recentBatches.slice(
+			0,
+			VISUAL_DIAGNOSTIC_HISTORY_LIMIT
+		)
+		this.diagnostics.totals.batches++
+		this.diagnostics.totals.createdVisuals += createdVisualCount
+		this.diagnostics.totals.reusedVisuals += reusedVisualCount
+		this.diagnostics.totals.groundAttachments += groundViews.length
+		this.diagnostics.totals.worldAttachments += worldViews.length
+		this.diagnostics.totals.maxBatchMs = Math.max(this.diagnostics.totals.maxBatchMs, batchMs)
+		this.diagnostics.current = this.getCurrentVisualCounts()
+
+		if (batchMs >= SLOW_VISUAL_BATCH_THRESHOLD_MS) {
+			console.debug('[VisualFactory] Slow visual batch', batchDiagnostics)
+		}
+	}
+
+	private syncChangedObjects(objects: Iterable<InteractiveGameObject>) {
+		const changedForCreation: InteractiveGameObject[] = []
+		for (const object of objects) {
+			if (object instanceof Tile) {
+				const existing = this.renderer.visuals.get(object.uid)
+				if (this.shouldCreateTileVisual(object)) {
+					if (!existing) changedForCreation.push(object)
+				} else if (existing) {
+					existing.dispose()
+					this.renderer.visuals.delete(object.uid)
+				}
+				continue
+			}
+			if (!this.renderer.visuals.has(object.uid)) changedForCreation.push(object)
+		}
+		if (changedForCreation.length > 0) {
+			this.createBatch(changedForCreation, 'objectsChanged')
+		} else {
+			this.diagnostics.current = this.getCurrentVisualCounts()
 		}
 	}
 

@@ -111,6 +111,7 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		// If a tile content is set programmatically post-generation, mark tile dirty
 		const tile = content?.tile ?? (coord ? this.getTile(coord) : undefined)
 		if (tile) tile.asGenerated = false
+		if (tile) this.game.enqueueInteractiveChange(tile)
 		if (changedGroundSemantics) {
 			;(
 				this.game.renderer as
@@ -156,7 +157,7 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		const cached = this.tileCache.get(coord)
 		if (cached) return cached
 		if (!this.inBound(coord)) return undefined
-		const tile = new Tile(this, coord)
+		const tile = this.game.withObjectRegistrationBatch(() => new Tile(this, coord))
 		this.tileCache.set(coord, tile)
 		return tile
 	}
@@ -174,15 +175,17 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 	}
 
 	reset(): void {
-		for (const content of this.contents.values()) content.destroy()
-		this.contents.clear()
-		for (const tile of this.tileCache.values()) tile.destroy()
-		for (const border of this.borderCache.values()) border.destroy()
-		this.tileCache.clear()
-		this.borderCache.clear()
-		this.occupied.clear()
-		this.looseGoods.goods.clear()
-		this.zoneManager.clear()
+		this.game.withObjectRegistrationBatch(() => {
+			for (const content of this.contents.values()) content.destroy()
+			this.contents.clear()
+			for (const tile of this.tileCache.values()) tile.destroy()
+			for (const border of this.borderCache.values()) border.destroy()
+			this.tileCache.clear()
+			this.borderCache.clear()
+			this.occupied.clear()
+			this.looseGoods.goods.clear()
+			this.zoneManager.clear()
+		})
 	}
 
 	getBorder(ref: Positioned): TileBorder | undefined {
@@ -196,7 +199,7 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		}
 		const cached = this.borderCache.get(coord)
 		if (cached) return cached
-		const border = new TileBorder(this, coord)
+		const border = this.game.withObjectRegistrationBatch(() => new TileBorder(this, coord))
 		this.borderCache.set(coord, border)
 		return border
 	}

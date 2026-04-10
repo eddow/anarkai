@@ -8,6 +8,7 @@ import { registerPixiApp, unregisterPixiApp } from './hmr.js'
 import { InteractionManager } from './interaction/interaction-manager.js'
 import { DragPreviewOverlay } from './renderers/drag-preview-overlay'
 import { VisualFactory } from './visual-factory'
+import type { VisualFactoryDiagnostics } from './visual-factory'
 
 export class PixiGameRenderer implements GameRenderer {
 	public app?: Application
@@ -79,6 +80,8 @@ export class PixiGameRenderer implements GameRenderer {
 		this.terrainVisual.bind()
 		// @ts-expect-error debug
 		globalThis.__ANARKAI_TERRAIN_DIAGNOSTICS__ = () => this.getTerrainDiagnostics()
+		// @ts-expect-error debug
+		globalThis.__ANARKAI_VISUAL_DIAGNOSTICS__ = () => this.getVisualDiagnostics()
 
 		// Setup Drag Preview Overlay
 		this.dragPreviewOverlay = new DragPreviewOverlay(this)
@@ -211,6 +214,10 @@ export class PixiGameRenderer implements GameRenderer {
 		return this.terrainVisual?.getDiagnostics()
 	}
 
+	public getVisualDiagnostics(): VisualFactoryDiagnostics | undefined {
+		return this.visualFactory?.getDiagnostics()
+	}
+
 	// Resource management
 	public getTexture(spec: string): Texture {
 		return assetManager.getTexture(spec)
@@ -243,6 +250,8 @@ export class PixiGameRenderer implements GameRenderer {
 		this.terrainVisual = undefined
 		// @ts-expect-error debug
 		delete globalThis.__ANARKAI_TERRAIN_DIAGNOSTICS__
+		// @ts-expect-error debug
+		delete globalThis.__ANARKAI_VISUAL_DIAGNOSTICS__
 	}
 
 	public async reload() {

@@ -30,6 +30,7 @@ export class UnBuiltLand extends withTicked(TileContent) {
 	setProject(project: string): void {
 		this.project = project
 		this.tile.zone = undefined // Clear zone when project is set
+		this.game.enqueueInteractiveChange(this.tile)
 	}
 
 	get name() {

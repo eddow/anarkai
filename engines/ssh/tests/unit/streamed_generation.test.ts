@@ -95,6 +95,43 @@ describe('streamed region generation', () => {
 		expect(game.hex.getTileContent({ q: 10, r: 0 })).toBeDefined()
 	})
 
+	it('publishes streamed tile objects as one batched objectsAdded event', async () => {
+		const game = new Game({
+			terrainSeed: 78,
+			characterCount: 0,
+		})
+		games.add(game)
+		await game.loaded
+
+		const batches: string[][] = []
+		game.on({
+			objectsAdded: (objects) => {
+				batches.push(objects.map((object) => object.uid).sort())
+			},
+		})
+
+		const generateRegionAsync = vi
+			.spyOn(game.generator, 'generateRegionAsync')
+			.mockImplementation(async (_config, coords) =>
+				[...coords].map((coord) => ({
+					coord,
+					terrain: 'grass' as const,
+					height: 0,
+					goods: {},
+					walkTime: 3,
+				}))
+			)
+
+		const generated = await game.requestGameplayFrontier({ q: 4, r: -1 }, 1, { maxBatchSize: 7 })
+
+		expect(generated).toBe(true)
+		expect(generateRegionAsync).toHaveBeenCalledTimes(1)
+		expect(batches).toHaveLength(1)
+		expect(batches[0]).toHaveLength(7)
+		expect(game.objects.size).toBe(7)
+		expect(game.getObject('tile:4,-1')).toBeDefined()
+	})
+
 	it('does not rematerialize already generated gameplay frontier tiles', async () => {
 		const game = new Game({
 			terrainSeed: 91,
@@ -120,6 +157,42 @@ describe('streamed region generation', () => {
 
 		await game.requestGameplayFrontier({ q: 6, r: -2 }, 1, { maxBatchSize: 7 })
 		expect(generateRegionAsync).toHaveBeenCalledTimes(1)
+	})
+
+	it('exposes authoritative render terrain from materialized SSH tiles', async () => {
+		const game = new Game({
+			terrainSeed: 93,
+			characterCount: 0,
+		})
+		games.add(game)
+		await game.loaded
+
+		expect(game.hasRenderableTerrainAt({ q: 20, r: 20 })).toBe(false)
+		expect(game.getRenderableTerrainAt({ q: 20, r: 20 })).toBeUndefined()
+
+		game.generate(
+			{ terrainSeed: 93, characterCount: 0 },
+			{ tiles: [{ coord: [1, 2], terrain: 'grass', height: 0.2 }] }
+		)
+
+		const tile = game.hex.getTile({ q: 1, r: 2 })
+		const content = game.hex.getTileContent({ q: 1, r: 2 })
+		expect(tile).toBeDefined()
+		expect(content).toBeDefined()
+		if (!tile) throw new Error('Expected tile to be materialized')
+		if (!content?.tile) throw new Error('Expected content-backed tile to be materialized')
+
+		expect(game.getRenderableTerrainAt({ q: 1, r: 2 })).toEqual({
+			terrain: 'grass',
+			height: 0.2,
+		})
+
+		content.tile.terrainState = { terrain: 'rocky', height: 0.9 }
+		expect(game.hasRenderableTerrainAt({ q: 1, r: 2 })).toBe(true)
+		expect(game.getRenderableTerrainAt({ q: 1, r: 2 })).toEqual({
+			terrain: 'rocky',
+			height: 0.9,
+		})
 	})
 
 	it('keeps enforcing the batch cap across queued frontier requests', async () => {
@@ -163,5 +236,63 @@ describe('streamed region generation', () => {
 
 		expect(batchSizes.every((size) => size <= 3)).toBe(true)
 		expect(generateRegionAsync.mock.calls.length).toBeGreaterThan(1)
+	})
+
+	it('does not spawn equilibrium loose goods during streamed frontier materialization', async () => {
+		const game = new Game({
+			terrainSeed: 94,
+			characterCount: 0,
+		})
+		games.add(game)
+		await game.loaded
+
+		const addLooseGood = vi.spyOn(game.hex.looseGoods, 'add')
+		addLooseGood.mockClear()
+
+		const generateRegionAsync = vi
+			.spyOn(game.generator, 'generateRegionAsync')
+			.mockImplementation(async (_config, coords) =>
+				[...coords].map((coord) => ({
+					coord,
+					terrain: 'grass' as const,
+					height: 0,
+					goods: { wood: 4, mushroom: 2 },
+					walkTime: 3,
+				}))
+			)
+
+		const generated = await game.requestGameplayFrontier({ q: 8, r: -3 }, 1, { maxBatchSize: 7 })
+
+		expect(generated).toBe(true)
+		expect(generateRegionAsync).toHaveBeenCalledTimes(1)
+		expect(addLooseGood).not.toHaveBeenCalled()
+		expect(game.hasRenderableTerrainAt({ q: 8, r: -3 })).toBe(true)
+	})
+
+	it('publishes reset removals as one batched objectsRemoved event', async () => {
+		const game = new Game({
+			terrainSeed: 95,
+			characterCount: 0,
+		})
+		games.add(game)
+		await game.loaded
+
+		game.hex.getTile({ q: 0, r: 0 })
+		game.hex.getTile({ q: 1, r: 0 })
+		game.hex.getTile({ q: 0, r: 1 })
+		expect(game.objects.size).toBe(3)
+
+		const removedBatches: string[][] = []
+		game.on({
+			objectsRemoved: (objects) => {
+				removedBatches.push(objects.map((object) => object.uid).sort())
+			},
+		})
+
+		game.hex.reset()
+
+		expect(removedBatches).toHaveLength(1)
+		expect(removedBatches[0]).toEqual(['tile:0,0', 'tile:0,1', 'tile:1,0'])
+		expect(game.objects.size).toBe(0)
 	})
 })

@@ -6,6 +6,8 @@ export interface TileField {
 	height: number
 	temperature: number
 	humidity: number
+	terrainType: number
+	rockyNoise: number
 	sediment: number
 	waterTable: number
 }
@@ -113,21 +115,21 @@ export interface TerrainConfig {
 }
 
 export const DEFAULT_TERRAIN_CONFIG: TerrainConfig = {
-	scale: 0.8,
+	scale: 0.03,
 	octaves: 5,
 	persistence: 0.6,
 	lacunarity: 2.2,
 	temperatureScale: 0.08,
 	humidityScale: 0.08,
-	seaLevel: -0.07,
-	snowLevel: 0.15,
-	rockyLevel: 0.09,
+	seaLevel: -0.02,
+	snowLevel: 0.11,
+	rockyLevel: 0.06,
 	forestLevel: 0.0,
 	sandTemperature: 0.15,
 	sandHumidity: -0.05,
 	wetlandHumidity: 0.15,
 	forestHumidity: 0.03,
-	hydrologySourcesPerTile: 0.14,
+	hydrologySourcesPerTile: 0.1,
 	hydrologyLandCeiling: 0.2,
 	hydrologyMaxTraceSteps: 64,
 	hydrologyFluxStepWeight: 6,

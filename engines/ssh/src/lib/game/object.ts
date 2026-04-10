@@ -41,10 +41,11 @@ export function withInteractive<T extends abstract new (...args: any[]) => GameO
 			const [game, uid] = args
 			super(...args)
 			this.uid = uid
-			queueMicrotask(() => {
-				if (this.destroyed) return
-				game.register(this, uid)
-			})
+			// Interactive objects should not become externally visible while subclass construction
+			// is still running. We still defer publication until after the current construction/
+			// reactive batch, but we do it through the game's batch-aware lifecycle queue rather
+			// than `queueMicrotask`, which is not coordinated with Mutts batching.
+			game.enqueueInteractiveRegistration(this, uid)
 		}
 
 		lastTopic: any | undefined = undefined
@@ -78,7 +79,7 @@ export function withInteractive<T extends abstract new (...args: any[]) => GameO
 		abstract readonly tile: Tile
 
 		destroy(): void {
-			this.game.unregister(this)
+			this.game.enqueueInteractiveUnregistration(this)
 			super.destroy()
 		}
 	}

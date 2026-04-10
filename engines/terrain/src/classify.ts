@@ -1,6 +1,7 @@
 import type { BiomeHint, EdgeField, TerrainConfig, TileField } from './types'
 
 const RIVER_FLUX_THRESHOLD = 5
+const RIVER_BANK_INFLUENCE_THRESHOLD = 1.1
 
 export interface HydrologyClassification {
 	bankInfluence?: number
@@ -34,20 +35,19 @@ export function classifyTile(
 		return 'lake'
 	}
 
-	if (maxFlux > RIVER_FLUX_THRESHOLD || riverInfluence > 0) return 'river-bank'
+	if (maxFlux > RIVER_FLUX_THRESHOLD || riverInfluence > RIVER_BANK_INFLUENCE_THRESHOLD) {
+		return 'river-bank'
+	}
 
 	if (riverInfluence > 0.35 && tile.height < config.forestLevel) return 'wetland'
 
-	if (tile.height > config.snowLevel) return 'snow'
-	if (tile.height > config.rockyLevel) return 'rocky'
+	if (tile.height > config.rockyLevel) return tile.height > config.snowLevel ? 'snow' : 'rocky'
 
-	if (tile.temperature > config.sandTemperature && tile.humidity < config.sandHumidity) {
-		return 'sand'
-	}
+	if (tile.height <= config.forestLevel) return 'sand'
 
 	if (tile.humidity > config.wetlandHumidity && tile.height < config.forestLevel) return 'wetland'
 
-	if (tile.humidity > config.forestHumidity && tile.height > config.forestLevel) return 'forest'
+	if (tile.terrainType > 0) return 'forest'
 
 	return 'grass'
 }

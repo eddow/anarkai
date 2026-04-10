@@ -5,7 +5,7 @@ import type { TerrainConfig, TileField } from '../types'
 import { generateFieldsCpu, generateTileFieldCpu } from './cpu'
 import createWebGpGpu, { f32, u32, vec2i, vec4f } from 'webgpgpu.ts'
 
-export const FIELD_RESULT_STRIDE = 5
+export const FIELD_RESULT_STRIDE = 7
 export const FIELD_SHADER_ENTRYPOINT = 'main'
 
 export interface PackedFieldRequest {
@@ -25,6 +25,7 @@ interface GpuFieldKernelInput {
 	persistence: number
 	lacunarity: number
 	scale: number
+	rockyLevel: number
 	temperatureScale: number
 	humidityScale: number
 	perm: Uint32Array
@@ -33,7 +34,7 @@ interface GpuFieldKernelInput {
 
 interface GpuFieldKernelResult {
 	values0: ArrayLike<[number, number, number, number]>
-	values1: ArrayLike<number>
+	values1: ArrayLike<[number, number, number, number]>
 }
 
 interface GpuFieldRuntime {
@@ -96,8 +97,10 @@ export function unpackFieldResult(
 			height: result.values[valueIndex]!,
 			temperature: result.values[valueIndex + 1]!,
 			humidity: result.values[valueIndex + 2]!,
-			sediment: result.values[valueIndex + 3]!,
-			waterTable: result.values[valueIndex + 4]!,
+			terrainType: result.values[valueIndex + 3]!,
+			rockyNoise: result.values[valueIndex + 4]!,
+			sediment: result.values[valueIndex + 5]!,
+			waterTable: result.values[valueIndex + 6]!,
 		})
 		valueIndex += result.stride
 	}
@@ -129,6 +132,7 @@ export async function generateFieldsGpu(
 			persistence: config.persistence,
 			lacunarity: config.lacunarity,
 			scale: config.scale,
+			rockyLevel: config.rockyLevel,
 			temperatureScale: config.temperatureScale,
 			humidityScale: config.humidityScale,
 			perm: getPermutationTable(seed),
@@ -185,17 +189,20 @@ function unpackVec2i(coords: Int32Array): Int32Array[] {
 
 function flattenKernelResult(
 	values0: ArrayLike<[number, number, number, number]>,
-	values1: ArrayLike<number>
+	values1: ArrayLike<[number, number, number, number]>
 ): Float32Array {
 	const flat = new Float32Array(values0.length * FIELD_RESULT_STRIDE)
 	for (let index = 0; index < values0.length; index++) {
 		const base = index * FIELD_RESULT_STRIDE
 		const value0 = values0[index]!
+		const value1 = values1[index]!
 		flat[base] = value0[0]
 		flat[base + 1] = value0[1]
 		flat[base + 2] = value0[2]
 		flat[base + 3] = value0[3]
-		flat[base + 4] = values1[index]!
+		flat[base + 4] = value1[0]
+		flat[base + 5] = value1[1]
+		flat[base + 6] = value1[2]
 	}
 	return flat
 }
@@ -219,6 +226,7 @@ async function createGpuFieldRuntime(): Promise<GpuFieldRuntime> {
 			persistence: f32,
 			lacunarity: f32,
 			scale: f32,
+			rockyLevel: f32,
 			temperatureScale: f32,
 			humidityScale: f32,
 			perm: u32.array(512),
@@ -226,7 +234,7 @@ async function createGpuFieldRuntime(): Promise<GpuFieldRuntime> {
 		})
 		.output({
 			values0: vec4f.array('threads.x'),
-			values1: f32.array('threads.x'),
+			values1: vec4f.array('threads.x'),
 		})
 		.kernel(createFieldGenerationShaderSource())
 
@@ -296,6 +304,45 @@ fn perlin(sampleX: f32, sampleY: f32) -> f32 {
 	);
 }
 
+fn hash01(seedV: u32, x: i32, y: i32) -> f32 {
+	var state = seedV ^ u32(x * 374761393) ^ u32(y * 668265263);
+	state = (state ^ (state >> 13u)) * 1274126177u;
+	return f32(state ^ (state >> 16u)) / 4294967296.0;
+}
+
+fn terrainRegionType(wx: f32, wy: f32) -> f32 {
+	let regionScale = max(scale * terrainTypeScaleFactor * terrainRegionScaleFactor, 0.000001);
+	let sampleX = wx * regionScale;
+	let sampleY = wy * regionScale;
+	let baseX = i32(floor(sampleX));
+	let baseY = i32(floor(sampleY));
+	var bestDist = 1e30;
+	var bestCellX = baseX;
+	var bestCellY = baseY;
+
+	for (var offsetX = -1; offsetX <= 1; offsetX++) {
+		for (var offsetY = -1; offsetY <= 1; offsetY++) {
+			let cellX = baseX + offsetX;
+			let cellY = baseY + offsetY;
+			let jitterX = (hash01(seed ^ 1757157867u, cellX, cellY) - 0.5) * terrainRegionJitter;
+			let jitterY = (hash01(seed ^ 48610963u, cellX, cellY) - 0.5) * terrainRegionJitter;
+			let centerX = f32(cellX) + 0.5 + jitterX;
+			let centerY = f32(cellY) + 0.5 + jitterY;
+			let dx = sampleX - centerX;
+			let dy = sampleY - centerY;
+			let dist = dx * dx + dy * dy;
+			if (dist >= bestDist) {
+				continue;
+			}
+			bestDist = dist;
+			bestCellX = cellX;
+			bestCellY = cellY;
+		}
+	}
+
+	return hash01(seed ^ 2135581717u, bestCellX, bestCellY) * 2.0 - 1.0;
+}
+
 fn fbmSample(sampleX: f32, sampleY: f32, octs: u32, persistenceV: f32, lacunarityV: f32) -> f32 {
 	var value = 0.0;
 	var amplitude = 1.0;
@@ -322,6 +369,20 @@ let cos1 = 0.8660254037844386;
 let sin1 = 0.5;
 let cos2 = 0.8660254037844386;
 let sin2 = -0.5;
+let localReliefStrength = 0.58;
+let macroHeightScaleFactor = 0.22;
+let macroHeightStrength = 0.32;
+let macroOctaves = 3u;
+let macroPersistence = 0.55;
+let macroLacunarity = 2.0;
+let terrainTypeScaleFactor = 1.8;
+let terrainRegionScaleFactor = 0.16;
+let terrainRegionJitter = 0.35;
+let rockyNoiseScaleFactor = 8.0;
+let rockyNoiseOctaves = 4u;
+let rockyNoisePersistence = 0.5;
+let rockyNoiseLacunarity = 2.2;
+let mountainRoughnessStrength = 1.35;
 
 let x1 = wx * cos1 - wy * sin1;
 let y1 = wx * sin1 + wy * cos1;
@@ -331,8 +392,25 @@ let y2 = wx * sin2 + wy * cos2;
 let h0 = fbmSample(wx * scale, wy * scale, octaves, persistence, lacunarity);
 let h1 = fbmSample(x1 * scale, y1 * scale, octaves, persistence, lacunarity);
 let h2 = fbmSample(x2 * scale, y2 * scale, octaves, persistence, lacunarity);
+let macroScale = scale * macroHeightScaleFactor;
+let macro0 = fbmSample(wx * macroScale, wy * macroScale, macroOctaves, macroPersistence, macroLacunarity);
+let macro1 = fbmSample(x1 * macroScale, y1 * macroScale, macroOctaves, macroPersistence, macroLacunarity);
+let macro2 = fbmSample(x2 * macroScale, y2 * macroScale, macroOctaves, macroPersistence, macroLacunarity);
+let terrainType = terrainRegionType(wx, wy);
+let rockyNoiseScaleV = scale * rockyNoiseScaleFactor;
+let rockyNoise = fbmSample(
+	(wx * 0.8 + x1 * 0.2) * rockyNoiseScaleV,
+	(wy * 0.8 + y2 * 0.2) * rockyNoiseScaleV,
+	rockyNoiseOctaves,
+	rockyNoisePersistence,
+	rockyNoiseLacunarity
+);
 
-let height = (h0 + h1 + h2) / 3.0;
+let localHeight = (h0 + h1 + h2) / 3.0;
+let macroHeight = (macro0 + macro1 + macro2) / 3.0;
+let baseHeight = localHeight * localReliefStrength + macroHeight * macroHeightStrength;
+let mountainWeight = max(0.0, baseHeight - rockyLevel);
+let height = baseHeight + rockyNoise * mountainWeight * mountainRoughnessStrength;
 let temperature = fbmSample(
 	(wx * 0.9 + y1 * 0.1) * temperatureScale,
 	(wy * 0.9 + x2 * 0.1) * temperatureScale,
@@ -348,7 +426,7 @@ let humidity = fbmSample(
 	2.0
 );
 
-values0[thread.x] = vec4<f32>(height, temperature, humidity, 0.0);
-values1[thread.x] = 0.0;
+values0[thread.x] = vec4<f32>(height, temperature, humidity, terrainType);
+values1[thread.x] = vec4<f32>(rockyNoise, 0.0, 0.0, 0.0);
 `
 }

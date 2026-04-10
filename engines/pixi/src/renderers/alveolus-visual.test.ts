@@ -153,4 +153,48 @@ describe('TileVisual storage goods layering', () => {
 
 		expect(layer.renderLayerChildren).toEqual([back, front])
 	})
+
+	it('renders gate goods once from the owning alveolus without a border visual', async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+
+		try {
+			engine.loadScenario({
+				hives: [
+					{
+						name: 'paired',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'storage' },
+							{ coord: [1, 0], alveolus: 'storage' },
+						],
+					},
+				],
+				population: [],
+			})
+
+			const left = engine.game.hex.getTile({ q: 0, r: 0 })
+			const right = engine.game.hex.getTile({ q: 1, r: 0 })
+			if (!left?.content || !right?.content) throw new Error('Expected adjacent alveoli to exist')
+
+			const leftContent = left.content
+			if (!('gates' in leftContent) || !leftContent.gates[0]) {
+				throw new Error('Expected adjacent alveoli to expose a gate')
+			}
+			leftContent.gates[0].storage.addGood('wood', 1)
+
+			const renderer = createRendererStub()
+			const leftVisual = new TileVisual(left, renderer)
+			const rightVisual = new TileVisual(right, renderer)
+			leftVisual.bind()
+			rightVisual.bind()
+
+			expect(storageLayerSpriteCount(renderer)).toBe(1)
+			expect(nonStorageGoodsAttachmentCount(renderer)).toBe(0)
+
+			leftVisual.dispose()
+			rightVisual.dispose()
+		} finally {
+			await engine.destroy()
+		}
+	})
 })

@@ -1,7 +1,6 @@
 import { effect } from 'mutts'
 import { ColorMatrixFilter, Container, Graphics, Point, TilingSprite } from 'pixi.js'
 import { Alveolus } from 'ssh/board/content/alveolus'
-import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
 import { interactionMode, mrg } from 'ssh/interactive-state'
 import { toWorldCoord } from 'ssh/utils/position'
@@ -10,7 +9,6 @@ import { scopedPixiName, setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
 import { AlveolusVisual } from './alveolus-visual'
 import { createTerrainHexSprite } from './terrain-hex-sprite'
-import { UnBuiltLandVisual } from './unbuilt-land-visual'
 import { VisualObject } from './visual-object'
 
 export class TileVisual extends VisualObject<Tile> {
@@ -84,10 +82,6 @@ export class TileVisual extends VisualObject<Tile> {
 				if (content && !this.currentContentVisual) {
 					if (content instanceof Alveolus) {
 						this.currentContentVisual = new AlveolusVisual(content, this.renderer)
-						this.contentContainer.addChild(this.currentContentVisual.view)
-						this.currentContentVisual.bind()
-					} else if (content instanceof UnBuiltLand) {
-						this.currentContentVisual = new UnBuiltLandVisual(content, this.renderer)
 						this.contentContainer.addChild(this.currentContentVisual.view)
 						this.currentContentVisual.bind()
 					}
