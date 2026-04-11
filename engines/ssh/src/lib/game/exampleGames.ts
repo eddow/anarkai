@@ -27,10 +27,9 @@ export const chopSaw = {
 	],
 	zones: {
 		harvest: [
-			[14, -7],
-			[14, -6],
-			[13, -6],
-			[13, -5],
+			[8, -8],
+			[8, -7],
+			[8, -6],
 		],
 		residential: [
 			[7, -6],

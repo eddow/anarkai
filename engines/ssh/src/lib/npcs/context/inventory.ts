@@ -1,4 +1,5 @@
 import type { TileBorder } from 'ssh/board/border/border'
+import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { LooseGood } from 'ssh/board/looseGoods'
 import type { Tile } from 'ssh/board/tile'
 import { assert } from 'ssh/debug'
@@ -86,6 +87,13 @@ function ensureDropPlanAllocations(action: TransferPlan, character: Character) {
 
 export class InventoryFunctions {
 	declare [subject]: Character
+
+	@contract()
+	canDropLooseHere(): boolean {
+		const tile = this[subject].tile
+		const content = tile.content
+		return content instanceof UnBuiltLand && !content.project && tile.zone !== 'residential'
+	}
 
 	@contract('GoodType', 'number?')
 	dropAsLooseGood(goodType: GoodType, maxAmount: number = 1) {

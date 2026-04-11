@@ -1,5 +1,6 @@
 import { atomic, memoize, reactive } from 'mutts'
 import { assert } from 'ssh/debug'
+import { traces } from 'ssh/debug'
 import type { Goods } from 'ssh/types/base'
 import { GoodType } from 'ssh/types/base'
 import type { RenderedGoodSlots } from '.'
@@ -141,7 +142,7 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 				delete this._goods[goodType]
 			}
 		} else if (qty > 0 && currentAmount > 0) {
-			console.warn(
+			traces.allocations?.warn?.(
 				`[SpecificStorage] Cannot remove ${goodType} (qty ${qty}): have ${currentAmount} but ${reserved} are reserved.`
 			)
 		}

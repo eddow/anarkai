@@ -257,7 +257,7 @@ export function loadNpcScripts(alveoli: Record<string, string>, context: Executi
 					return new ScriptExecution(script, name, entryPoint.call(args))
 				}
 				throw new Error(`Entry point ${name} is not a FunctionDefinition`)
-			})
+			}, {name}) as XoDe
 		}
 		if (!isFuncDef && !Array.isArray(contract)) {
 			return objectMap(entryPoint, (value, key) => {

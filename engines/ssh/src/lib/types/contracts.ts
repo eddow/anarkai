@@ -10,8 +10,12 @@ export function isContract(validate: (args: any[]) => any) {
 	return contractRegistry.has(validate)
 }
 
-export function registerContract(validate: (args: any[]) => any) {
+export function registerContract(validate: (args: any[]) => any, original: {name: string}) {
 	contractRegistry.add(validate)
+	Object.defineProperties(validate, {
+		name: { value: `Contract(${original.name})` },
+		original: { value: original },
+	})
 	return validate
 }
 
@@ -29,7 +33,7 @@ export function contractDecorator(validate: (args: any[]) => any) {
 			return registerContract(function contractValidator(this: any, ...args: any[]) {
 				checkContract(validate, args, String(name))
 				return original.apply(this, args)
-			})
+			}, original)
 		},
 	})
 }

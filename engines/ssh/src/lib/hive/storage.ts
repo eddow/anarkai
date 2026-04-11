@@ -256,15 +256,11 @@ export class StorageAlveolus extends Alveolus {
 			result = hasRoom > 0
 		}
 
-		// Debug logging - always log to console for visibility (log both success and failure)
-		console.log(`[CANTAKE] ${this.name} can take ${goodType}:`, {
+		traces.allocations?.log(`[CANTAKE] ${this.name} can take ${goodType}:`, {
 			...debugInfo,
 			result,
 			timestamp: Date.now(),
 		})
-		if (result && traces.allocations) {
-			traces.allocations.log(`[CANTAKE] ${this.name} can take ${goodType}:`, debugInfo)
-		}
 
 		return result
 	}

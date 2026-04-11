@@ -893,6 +893,17 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	private applyLooseGoodsPatches(patches: NonNullable<GamePatches['looseGoods']>) {
+		const patchedCoords = new Map<string, AxialCoord>()
+		for (const fg of patches) {
+			const coord = axial.round(fg.position)
+			patchedCoords.set(axial.key(coord), coord)
+		}
+		for (const coord of patchedCoords.values()) {
+			const existingGoods = [...this.hex.looseGoods.getGoodsAt(coord)]
+			for (const good of existingGoods) {
+				if (!good.isRemoved) good.remove()
+			}
+		}
 		for (const fg of patches) {
 			const tile = this.hex.getTile(axial.round(fg.position))
 			if (!tile) continue
@@ -1166,8 +1177,21 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	public destroy() {
-		// Remove the ticker callback and stop the game ticker
+		// Stop clock-driven work first so teardown does not race with pending simulation ticks.
 		this.ticker.remove(this.tickerCallback)
 		this.ticker.stop()
+		try {
+			this.population.deserialize([])
+		} catch {}
+		try {
+			this.hex.reset()
+		} catch {}
+		this.tickedObjects.clear()
+		this.hittableObjects.clear()
+		this.pendingInteractiveRegistrations.clear()
+		this.pendingInteractiveChanges.clear()
+		this.pendingInteractiveUnregistrations.clear()
+		this.objects.clear()
+		this.interactiveLifecycleFlushScheduled = false
 	}
 }

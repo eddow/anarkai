@@ -1,5 +1,6 @@
 import { atomic, memoize, reactive } from 'mutts'
 import { assert } from 'ssh/debug'
+import { traces } from 'ssh/debug'
 import type { Goods, GoodType } from 'ssh/types/base'
 import {
 	AllocationError,
@@ -298,7 +299,7 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		if (remaining > 0 && qty > 0) {
 			const available = this.available(goodType)
 			const stock = this.stock[goodType] ?? 0
-			console.warn(
+			traces.allocations?.warn?.(
 				`[SlottedStorage] Cannot remove ${goodType} (qty ${qty}): remaining ${remaining}, available ${available}, stock ${stock}.`
 			)
 		}
