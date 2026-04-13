@@ -54,7 +54,7 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 		sourcePriority: ExchangePriority,
 		targetPriority: ExchangePriority,
 		onCreated?: (storage: TAdvertiser) => void
-	): TAdvertiser
+	): TAdvertiser | undefined
 
 	advertise(advertiser: TAdvertiser, ads: GoodsRelations) {
 		if (isReactive(ads)) debugger
@@ -141,12 +141,17 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 									}
 								}
 							)
+							if (movementTarget) {
+								traces.advertising?.log(
+									`[ADVERTISE] MOVEMENT SELECTED: ${goodType} -> ${(movementTarget as any)?.name ?? 'undefined'} (movement: ${movementId})`
+								)
+								// Successfully matched, break out of priority loop
+								movementCreated = true
+								break
+							}
 							traces.advertising?.log(
-								`[ADVERTISE] MOVEMENT SELECTED: ${goodType} -> ${(movementTarget as any)?.name ?? 'undefined'} (movement: ${movementId})`
+								`[ADVERTISE] MOVEMENT REFUSED: ${goodType} (movement: ${movementId})`
 							)
-							// Successfully matched, break out of priority loop
-							movementCreated = true
-							break
 						} catch (e) {
 							traces.advertising?.log(
 								`[ADVERTISE] MOVEMENT FAILED: ${goodType} - ${(e as Error).message}`

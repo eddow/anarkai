@@ -1,10 +1,12 @@
 import type { DockviewWidgetScope } from '@sursaut/ui/dockview'
+import { game } from './globals'
 import { selectionState, unreactiveInfo, validateStoredSelectionState } from './globals'
 
 type DockviewApiLike = DockviewWidgetScope['dockviewApi']
 
 type SelectableObject = {
 	uid: string
+	title?: string
 }
 
 function getGlobalDockviewApi(): DockviewApiLike | undefined {
@@ -24,7 +26,16 @@ export function clearFollowSelectionPanel(panelId?: string) {
 	unreactiveInfo.hasLastSelectedInfoPanel = false
 }
 
-export function ensureFollowSelectionPanel(preferredApi?: DockviewApiLike) {
+function resolveSelectionPanelTitle(initialTitle?: string) {
+	if (initialTitle) return initialTitle
+
+	const selectedUid = selectionState.selectedUid
+	if (!selectedUid) return 'Selection'
+
+	return game.getObject(selectedUid)?.title ?? 'Selection'
+}
+
+export function ensureFollowSelectionPanel(preferredApi?: DockviewApiLike, initialTitle?: string) {
 	const dockviewApi = preferredApi ?? getGlobalDockviewApi()
 	if (!dockviewApi) return undefined
 
@@ -39,6 +50,7 @@ export function ensureFollowSelectionPanel(preferredApi?: DockviewApiLike) {
 		panel = dockviewApi.addPanel?.({
 			id,
 			component: 'selection-info',
+			title: resolveSelectionPanelTitle(initialTitle),
 			params: {},
 			tabComponent: 'selection-info-tab',
 			floating: {
@@ -56,5 +68,5 @@ export function ensureFollowSelectionPanel(preferredApi?: DockviewApiLike) {
 
 export function selectInspectorObject(object: SelectableObject, preferredApi?: DockviewApiLike) {
 	selectionState.selectedUid = object.uid
-	return ensureFollowSelectionPanel(preferredApi)
+	return ensureFollowSelectionPanel(preferredApi, object.title)
 }

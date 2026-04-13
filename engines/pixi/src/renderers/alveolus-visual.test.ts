@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { BuildAlveolus } from 'ssh/hive/build'
 import { alveolusClass } from 'ssh/hive/index'
 import type { PixiGameRenderer } from '../renderer'
+import { BorderVisual } from './border-visual'
 import { TileVisual } from './tile-visual'
 import { TestEngine } from '../../../ssh/tests/test-engine/engine'
 
@@ -154,7 +155,7 @@ describe('TileVisual storage goods layering', () => {
 		expect(layer.renderLayerChildren).toEqual([back, front])
 	})
 
-	it('renders gate goods once from the owning alveolus without a border visual', async () => {
+	it('renders gate goods once from the restored border visual parent', async () => {
 		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
 		await engine.init()
 
@@ -185,14 +186,17 @@ describe('TileVisual storage goods layering', () => {
 			const renderer = createRendererStub()
 			const leftVisual = new TileVisual(left, renderer)
 			const rightVisual = new TileVisual(right, renderer)
+			const gateVisual = new BorderVisual(leftContent.gates[0].border, renderer)
 			leftVisual.bind()
 			rightVisual.bind()
+			gateVisual.bind()
 
 			expect(storageLayerSpriteCount(renderer)).toBe(1)
 			expect(nonStorageGoodsAttachmentCount(renderer)).toBe(0)
 
 			leftVisual.dispose()
 			rightVisual.dispose()
+			gateVisual.dispose()
 		} finally {
 			await engine.destroy()
 		}

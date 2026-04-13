@@ -1,6 +1,6 @@
 import { inert, memoize, reactive, type ScopedCallback, unreactive, unwrap } from 'mutts'
 import { assert } from 'ssh/debug'
-import type { Hive, MovingGood } from 'ssh/hive/hive'
+import type { Hive, MovementSelection, TrackedMovement } from 'ssh/hive/hive'
 import { gameIsaTypes } from 'ssh/npcs/utils'
 import type { Character } from 'ssh/population/character'
 import type { Storage } from 'ssh/storage/storage'
@@ -16,9 +16,6 @@ import { UnBuiltLand } from './unbuilt-land'
 import { GcClassed } from './utils'
 
 //reactiveOptions.maxEffectChain = 1000
-export interface LocalMovingGood extends MovingGood {
-	from: AxialCoord
-}
 
 @unreactive('tile', 'hive')
 @reactive
@@ -133,7 +130,10 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 
 	get debugInfo(): Record<string, any> {
 		return {
-			aGoodMovement: this.aGoodMovement?.map((mg) => `${mg.goodType} from ${axial.key(mg.from)}`),
+			aGoodMovement: this.aGoodMovement?.map(
+				(selection) =>
+					`${selection.movement.goodType} from ${axial.key(selection.fromSnapshot)}`
+			),
 			incomingGoods: this.incomingGoods,
 		}
 	}
@@ -219,12 +219,12 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	 * - Returns a cycle of movements (A->B, B->C, C->A) if circular blockade detected
 	 * - Returns undefined if no movements available
 	 */
-	get aGoodMovement(): LocalMovingGood[] | undefined {
+	get aGoodMovement(): MovementSelection[] | undefined {
 		const hive = this.hive
 		const here = toAxialCoord(this.tile.position)!
-		const blocked: LocalMovingGood[] = []
+		const blocked: MovementSelection[] = []
 
-		function canAdvance(mg: MovingGood) {
+		function canAdvance(mg: TrackedMovement) {
 			if (mg.path.length === 0) return false
 			const storage = hive.storageAt(mg.path[0])
 			const hasRoom = storage?.hasRoom(mg.goodType)
@@ -241,20 +241,15 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			if (!borderKeys.has(fromKey)) return false
 			return toKey === hereKey || borderKeys.has(toKey)
 		}
-		// Wrap a MovingGood into a LocalMovingGood with a snapshotted `from`.
-		// `claimed` is a write-through accessor so that setting it on the wrapper
-		// propagates to the real MovingGood stored in hive.movingGoods.
-		function wrapLocal(mg: MovingGood, snapshotFrom: AxialCoord): LocalMovingGood {
-			const wrapper = Object.setPrototypeOf({ from: snapshotFrom }, mg)
-			Object.defineProperty(wrapper, 'claimed', {
-				get: () => mg.claimed,
-				set: (v: boolean) => {
-					mg.claimed = v
-				},
-				enumerable: true,
-				configurable: true,
-			})
-			return wrapper as LocalMovingGood
+		function selectMovement(
+			movement: TrackedMovement,
+			fromSnapshot: AxialCoord
+		): MovementSelection {
+			return {
+				movementId: movement._mgId,
+				fromSnapshot,
+				movement,
+			}
 		}
 
 		// TODO: take a random movement or keep it arbitrary?
@@ -273,11 +268,11 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 				}
 				if (mg.path.length === 0) continue
 				if (!canHandleFromHere(here, mg.path[0]!)) continue
-				const localMg = wrapLocal(mg, mg.from ?? here)
+				const selection = selectMovement(mg, mg.from ?? here)
 				if (canAdvance(mg)) {
-					return [localMg]
+					return [selection]
 				} else {
-					blocked.push(localMg)
+					blocked.push(selection)
 				}
 			}
 		}
@@ -299,11 +294,11 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 					mg.path.length
 				) {
 					if (canHandleFromHere(from, mg.path[0]!)) {
-						const localMg = wrapLocal(mg, mg.from ?? from)
+						const selection = selectMovement(mg, mg.from ?? from)
 						if (canAdvance(mg)) {
-							return [localMg]
+							return [selection]
 						} else {
-							blocked.push(localMg)
+							blocked.push(selection)
 						}
 					}
 				}
@@ -324,13 +319,13 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	 * Find a circular blockade in the list of blocked movements
 	 * Returns the cycle as an array of movements, or undefined if no cycle found
 	 */
-	private findCircularBlock(blocked: LocalMovingGood[]): LocalMovingGood[] | undefined {
+	private findCircularBlock(blocked: MovementSelection[]): MovementSelection[] | undefined {
 		// Build a map from current position to movements
-		const movementsByPosition = new Map<string, LocalMovingGood[]>()
+		const movementsByPosition = new Map<string, MovementSelection[]>()
 
 		for (const mg of blocked)
-			if (mg.path.length) {
-				const key = `${mg.from.q},${mg.from.r}`
+			if (mg.movement.path.length) {
+				const key = `${mg.fromSnapshot.q},${mg.fromSnapshot.r}`
 				if (!movementsByPosition.has(key)) {
 					movementsByPosition.set(key, [])
 				}
@@ -340,7 +335,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		// Try to find a cycle starting from each blocked movement
 		const visited = new Set<string>()
 		const recursionStack = new Set<string>()
-		const path: LocalMovingGood[] = []
+		const path: MovementSelection[] = []
 
 		/**
 		 * Depth-First Search to detect cycles in the movement graph.
@@ -356,10 +351,10 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		 * - When a back edge is found (next position is in recursion stack), extracts the cycle
 		 * - Backtracks by removing from recursion stack and path when exploring branch completes
 		 */
-		function depthFirstSearchForCycle(mg: LocalMovingGood): LocalMovingGood[] | undefined {
-			if (mg.path.length === 0) return undefined
-			const currentKey = `${mg.from.q},${mg.from.r}`
-			const nextKey = `${mg.path[0].q},${mg.path[0].r}`
+		function depthFirstSearchForCycle(mg: MovementSelection): MovementSelection[] | undefined {
+			if (mg.movement.path.length === 0) return undefined
+			const currentKey = `${mg.fromSnapshot.q},${mg.fromSnapshot.r}`
+			const nextKey = `${mg.movement.path[0].q},${mg.movement.path[0].r}`
 
 			visited.add(currentKey)
 			recursionStack.add(currentKey)
@@ -368,14 +363,16 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			// Check if next position creates a cycle (back edge detected)
 			if (recursionStack.has(nextKey)) {
 				// Found a cycle! Extract the cycle from path
-				const cycleStart = path.findIndex((m) => `${m.path[0].q},${m.path[0].r}` === nextKey)
+				const cycleStart = path.findIndex(
+					(m) => `${m.movement.path[0].q},${m.movement.path[0].r}` === nextKey
+				)
 				return path.slice(cycleStart)
 			}
 
 			// Explore movements from the next position
 			const nextMovements = movementsByPosition.get(nextKey) || []
 			for (const nextMg of nextMovements) {
-				const nextNextKey = `${nextMg.from.q},${nextMg.from.r}`
+				const nextNextKey = `${nextMg.fromSnapshot.q},${nextMg.fromSnapshot.r}`
 				if (!visited.has(nextNextKey)) {
 					const result = depthFirstSearchForCycle(nextMg)
 					if (result) return result
@@ -390,8 +387,8 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 
 		// Try DFS from each unvisited blocked movement
 		for (const mg of blocked)
-			if (mg.path.length) {
-				const key = `${mg.from.q},${mg.from.r}`
+			if (mg.movement.path.length) {
+				const key = `${mg.fromSnapshot.q},${mg.fromSnapshot.r}`
 				if (!visited.has(key)) {
 					const cycle = depthFirstSearchForCycle(mg)
 					if (cycle) return cycle

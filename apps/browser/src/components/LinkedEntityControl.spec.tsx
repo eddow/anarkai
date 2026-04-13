@@ -5,6 +5,9 @@ const addPanel = vi.fn()
 const getPanel = vi.fn()
 const focus = vi.fn()
 const globals = {
+	game: {
+		getObject: vi.fn(),
+	},
 	mrg: {
 		hoveredObject: undefined as any,
 	},
@@ -99,6 +102,7 @@ describe('LinkedEntityControl', () => {
 		globals.selectionState.panelId = undefined
 		globals.selectionState.selectedUid = undefined
 		globals.unreactiveInfo.hasLastSelectedInfoPanel = false
+		globals.game.getObject.mockClear()
 		globals.validateStoredSelectionState.mockClear()
 		addPanel.mockClear()
 		getPanel.mockClear()
@@ -143,6 +147,7 @@ describe('LinkedEntityControl', () => {
 		expect(addPanel).toHaveBeenCalledWith({
 			id: expect.stringMatching(/^selection-info-/),
 			component: 'selection-info',
+			title: 'Tile 0, 1',
 			params: {},
 			tabComponent: 'selection-info-tab',
 			floating: {

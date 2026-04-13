@@ -6,7 +6,14 @@ describe('Convey cleanup', () => {
 		const addLooseGood = vi.fn()
 		const sourceCancel = vi.fn()
 		const targetCancel = vi.fn()
-		const finish = vi.fn()
+		const abort = vi.fn()
+		const hive = {
+			noteMovementLifecycle: vi.fn(),
+			movementLifecycleIncludes: vi.fn(() => false),
+			describeMovementMineContext: vi.fn(() => 'context'),
+			assertMovementMine: vi.fn(),
+			cancelMovementSource: vi.fn(),
+		}
 
 		const character = {
 			game: {
@@ -20,23 +27,26 @@ describe('Convey cleanup', () => {
 
 		const movement = {
 			goodType: 'wood',
+			claimed: false,
+			from: { q: 0, r: 0 },
 			allocations: {
 				source: { cancel: sourceCancel },
 				target: { cancel: targetCancel },
 			},
-			finish,
+			provider: { hive },
+			abort,
 		}
 
 		cleanupFailedConveyMovement(character as never, {
-			mg: movement as never,
+			movement: movement as never,
 			from: { q: 0, r: 0 },
 			sourceFulfilled: true,
 		})
 
-		expect(sourceCancel).toHaveBeenCalledTimes(1)
+		expect(hive.cancelMovementSource).toHaveBeenCalledTimes(1)
 		expect(targetCancel).toHaveBeenCalledTimes(1)
 		expect(addLooseGood).toHaveBeenCalledWith({ q: 0, r: 0 }, 'wood')
-		expect(finish).toHaveBeenCalledTimes(1)
+		expect(abort).toHaveBeenCalledTimes(1)
 	})
 
 	it('removes the transient moving good instead of dropping another loose good', () => {
@@ -44,7 +54,14 @@ describe('Convey cleanup', () => {
 		const remove = vi.fn()
 		const sourceCancel = vi.fn()
 		const targetCancel = vi.fn()
-		const finish = vi.fn()
+		const abort = vi.fn()
+		const hive = {
+			noteMovementLifecycle: vi.fn(),
+			movementLifecycleIncludes: vi.fn(() => false),
+			describeMovementMineContext: vi.fn(() => 'context'),
+			assertMovementMine: vi.fn(),
+			cancelMovementSource: vi.fn(),
+		}
 
 		const character = {
 			game: {
@@ -58,24 +75,27 @@ describe('Convey cleanup', () => {
 
 		const movement = {
 			goodType: 'wood',
+			claimed: false,
+			from: { q: 0, r: 0 },
 			allocations: {
 				source: { cancel: sourceCancel },
 				target: { cancel: targetCancel },
 			},
-			finish,
+			provider: { hive },
+			abort,
 		}
 
 		cleanupFailedConveyMovement(character as never, {
-			mg: movement as never,
+			movement: movement as never,
 			from: { q: 0, r: 0 },
 			moving: { isRemoved: false, remove } as never,
 			sourceFulfilled: true,
 		})
 
-		expect(sourceCancel).toHaveBeenCalledTimes(1)
+		expect(hive.cancelMovementSource).toHaveBeenCalledTimes(1)
 		expect(targetCancel).toHaveBeenCalledTimes(1)
 		expect(remove).toHaveBeenCalledTimes(1)
 		expect(addLooseGood).not.toHaveBeenCalled()
-		expect(finish).toHaveBeenCalledTimes(1)
+		expect(abort).toHaveBeenCalledTimes(1)
 	})
 })

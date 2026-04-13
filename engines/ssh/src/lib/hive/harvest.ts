@@ -60,7 +60,7 @@ export class HarvestAlveolus extends TransitAlveolus {
 			const hex = this.tile.game.hex
 			const searchDistance = character ? maxWalkTime : 6
 
-			const findDeposit = (priority: 'clearing' | 'any') => {
+			const findDeposit = (priority: 'project' | 'clearing' | 'any') => {
 				const searchFn = (coord: Positioned) => {
 					const tile = hex.getTile(coord)
 					if (!tile) {
@@ -74,16 +74,36 @@ export class HarvestAlveolus extends TransitAlveolus {
 						return false
 					}
 
-					return priority === 'clearing'
-						? tile.clearing ||
-								tile.neighborTiles.some((neighbor) => neighbor.content instanceof Alveolus)
-						: tile.zone === 'harvest'
+					if (priority === 'project') {
+						return !!content.project
+					}
+
+					if (priority === 'clearing') {
+						return (
+							tile.clearing ||
+							tile.neighborTiles.some((neighbor) => neighbor.content instanceof Alveolus)
+						)
+					}
+
+					return tile.zone === 'harvest'
 				}
 
 				return hex.findNearest(startPos, searchFn, searchDistance, false)
 			}
 
-			let path = findDeposit('clearing')
+			let path = findDeposit('project')
+			if (path) {
+				return {
+					job: 'harvest',
+					path,
+					urgency: jobBalance.harvest.project ?? jobBalance.harvest.clearing,
+					fatigue:
+						this.getFatigueCost() +
+						(character ? axialDistance(startPos, path[path.length - 1]!) * 2 : 0),
+				}
+			}
+
+			path = findDeposit('clearing')
 			if (path) {
 				return {
 					job: 'harvest',

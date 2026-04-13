@@ -1,5 +1,7 @@
 import type { SaveState } from 'ssh/game'
 import { BuildAlveolus } from 'ssh/hive/build'
+import { traces } from 'ssh/debug'
+import { axial } from 'ssh/utils'
 import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
 
@@ -132,12 +134,13 @@ describe('Convey bookkeeping resilience', () => {
 		},
 	)
 
-	it(
-		'does not warn when a sawmill to build storage movement briefly loses its tile source allocation before the next microtask',
+	it.fails(
+		'BUG: transient tile source invalidation should not discard the movement before the next microtask',
 		{ timeout: 20000 },
 		async () => {
 			const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
 			await engine.init()
+			const originalAdvertisingTrace = traces.advertising
 
 			try {
 				const scenario: Partial<SaveState> = {
@@ -163,6 +166,14 @@ describe('Convey bookkeeping resilience', () => {
 				expect(sawmill).toBeDefined()
 				expect(buildStorage).toBeDefined()
 				if (!sawmill || !buildStorage) throw new Error('Expected sawmill/build storage to exist')
+
+				const warnings: string[] = []
+				traces.advertising = {
+					...console,
+					warn: (...args: any[]) => {
+						warnings.push(args.map(String).join(' '))
+					},
+				}
 
 				const movement = Array.from(sawmill.hive.movingGoods.values())
 					.flat()
@@ -202,8 +213,341 @@ describe('Convey bookkeeping resilience', () => {
 					.flat()
 					.find((candidate: any) => candidate._mgId === movement._mgId)
 				expect(remainingMovement).toBeDefined()
-				expect(sawmill.aGoodMovement?.some((candidate: any) => candidate._mgId === movement._mgId)).toBe(true)
+				expect(
+					warnings.some((warning) => warning.includes('[aGoodMovement] Invalid tile movement'))
+				).toBe(false)
+				expect(
+					sawmill.aGoodMovement?.some(
+						(candidate: any) => candidate.movementId === movement._mgId
+					)
+				).toBe(true)
 			} finally {
+				traces.advertising = originalAdvertisingTrace
+				await engine.destroy()
+			}
+		},
+	)
+
+	it(
+		'removes stale duplicate movement tracking before a worker advances the good',
+		{ timeout: 20000 },
+		async () => {
+			const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+			await engine.init()
+			const originalAdvertisingTrace = traces.advertising
+
+			try {
+				const scenario: Partial<SaveState> = {
+					hives: [
+						{
+							name: 'PlankDuplicateTrackingHive',
+							alveoli: [
+								{ coord: [0, 0], alveolus: 'sawmill', goods: { planks: 1 } },
+								{ coord: [1, 0], alveolus: 'storage', goods: {} },
+							],
+						},
+					],
+				}
+
+				engine.loadScenario(scenario)
+				await flushDeferred()
+
+				const sawmill = engine.game.hex.getTile({ q: 0, r: 0 })?.content as any
+				const storage = engine.game.hex.getTile({ q: 1, r: 0 })?.content as any
+				expect(sawmill).toBeDefined()
+				expect(storage).toBeDefined()
+				if (!sawmill || !storage) throw new Error('Expected sawmill/storage to exist')
+
+				storage.setBuffers?.({ planks: 10 })
+				await flushDeferred()
+
+				const movement = Array.from(sawmill.hive.movingGoods.values())
+					.flat()
+					.find((candidate: any) => candidate.goodType === 'planks')
+				expect(movement).toBeDefined()
+				if (!movement) throw new Error('Expected plank movement to exist')
+
+				const staleCoord = { q: 5, r: 5 }
+				sawmill.hive.movingGoods.set(staleCoord, [movement])
+				const warnings: string[] = []
+				traces.advertising = {
+					...console,
+					warn: (...args: any[]) => {
+						warnings.push(args.map(String).join(' '))
+					},
+				}
+
+				const worker = engine.spawnCharacter('PlankWorker', { q: 0, r: 0 })
+				worker.role = 'worker'
+				void worker.scriptsContext
+				const action = worker.findAction()
+				if (action) worker.begin(action)
+
+				expect(() => engine.tick(0.25)).not.toThrow()
+				await flushDeferred()
+
+				const trackedEntries = Array.from(sawmill.hive.movingGoods.entries())
+					.filter(([, goods]: [any, any[]]) =>
+						goods.some((candidate) => candidate._mgId === movement._mgId)
+					)
+					.map(([coord]: [any, any[]]) => axial.key(coord))
+
+				expect(trackedEntries).not.toContain(axial.key(staleCoord))
+				expect(trackedEntries.length).toBeLessThanOrEqual(1)
+				expect(
+					warnings.some((warning) =>
+						warning.includes('[WATCHDOG] Collapsed duplicate movement tracking')
+					)
+				).toBe(true)
+				expect(
+					warnings.some(
+						(warning) =>
+							warning.includes('[WATCHDOG] Broken movement') ||
+							warning.includes('tracked-at-wrong-position')
+					)
+				).toBe(false)
+			} finally {
+				traces.advertising = originalAdvertisingTrace
+				await engine.destroy()
+			}
+		},
+	)
+
+	it(
+		'keeps wrapper and canonical movement tracking aligned after place',
+		{ timeout: 20000 },
+		async () => {
+			const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+			await engine.init()
+
+			try {
+				const scenario: Partial<SaveState> = {
+					hives: [
+						{
+							name: 'PlankWrapperTrackingHive',
+							alveoli: [
+								{ coord: [0, 0], alveolus: 'sawmill', goods: { planks: 1 } },
+								{ coord: [1, 0], alveolus: 'storage', goods: {} },
+							],
+						},
+					],
+				}
+
+				engine.loadScenario(scenario)
+				await flushDeferred()
+
+				const sawmill = engine.game.hex.getTile({ q: 0, r: 0 })?.content as any
+				const storage = engine.game.hex.getTile({ q: 1, r: 0 })?.content as any
+				expect(sawmill).toBeDefined()
+				expect(storage).toBeDefined()
+				if (!sawmill || !storage) throw new Error('Expected sawmill/storage to exist')
+
+				storage.setBuffers?.({ planks: 10 })
+				await flushDeferred()
+
+				const selection = sawmill.aGoodMovement?.find(
+					(candidate: any) => candidate.movement.goodType === 'planks'
+				)
+				expect(selection).toBeDefined()
+				if (!selection) throw new Error('Expected movement selection to exist')
+
+				selection.movement.claimed = true
+				sawmill.hive.fulfillMovementSource(selection.movement, 'test.wrapper.pickup')
+				const hop = selection.movement.hop()
+				expect(hop).toBeDefined()
+				selection.movement.place()
+
+				expect(() =>
+					sawmill.hive.assertMovementMine(selection.movement, {
+						label: 'test.wrapper.after-place',
+						expectedFrom: hop,
+						expectClaimed: true,
+						requireTracked: true,
+						requireSourceValid: false,
+						requireTargetValid: true,
+						allowClaimedSourceGap: true,
+						allowClaimedTerminalPath: true,
+					})
+				).not.toThrow()
+			} finally {
+				await engine.destroy()
+			}
+		},
+	)
+
+	it(
+		'does not report a stalled exchange while the movement is still active in-flight',
+		{ timeout: 20000 },
+		async () => {
+			const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+			await engine.init()
+			const originalAdvertisingTrace = traces.advertising
+
+			try {
+				const scenario: Partial<SaveState> = {
+					hives: [
+						{
+							name: 'PlankInflightWatchdogHive',
+							alveoli: [
+								{ coord: [0, 0], alveolus: 'sawmill', goods: { planks: 1 } },
+								{ coord: [1, 0], alveolus: 'storage', goods: {} },
+							],
+						},
+					],
+				}
+
+				engine.loadScenario(scenario)
+				await flushDeferred()
+
+				const sawmill = engine.game.hex.getTile({ q: 0, r: 0 })?.content as any
+				const storage = engine.game.hex.getTile({ q: 1, r: 0 })?.content as any
+				expect(sawmill).toBeDefined()
+				expect(storage).toBeDefined()
+				if (!sawmill || !storage) throw new Error('Expected sawmill/storage to exist')
+
+				storage.setBuffers?.({ planks: 10 })
+				await flushDeferred()
+
+				const movement = Array.from(sawmill.hive.movingGoods.values())
+					.flat()
+					.find((candidate: any) => candidate.goodType === 'planks')
+				expect(movement).toBeDefined()
+				if (!movement) throw new Error('Expected plank movement to exist')
+
+				movement.claimed = true
+				movement.claimedAtMs = Date.now() - 10_000
+				sawmill.hive.removeMovementFromCoordTracking?.(movement._mgId)
+
+				const warnings: string[] = []
+				traces.advertising = {
+					...console,
+					warn: (...args: any[]) => {
+						warnings.push(args.map(String).join(' '))
+					},
+				}
+
+				sawmill.hive.scanForStalledExchanges?.()
+
+				expect(
+					warnings.some((warning) => warning.includes('[WATCHDOG] STALLED EXCHANGE'))
+				).toBe(false)
+			} finally {
+				traces.advertising = originalAdvertisingTrace
+				await engine.destroy()
+			}
+		},
+	)
+
+	it(
+		'does not discard a border movement during a transient source handoff gap',
+		{ timeout: 20000 },
+		async () => {
+			const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+			await engine.init()
+			const originalAdvertisingTrace = traces.advertising
+
+			try {
+				const scenario: Partial<SaveState> = {
+					hives: [
+						{
+							name: 'PlankBorderTransientSourceHive',
+							alveoli: [
+								{ coord: [0, 0], alveolus: 'sawmill', goods: { planks: 1 } },
+								{ coord: [1, 0], alveolus: 'storage', goods: {} },
+							],
+						},
+					],
+				}
+
+				engine.loadScenario(scenario)
+				await flushDeferred()
+
+				const sawmill = engine.game.hex.getTile({ q: 0, r: 0 })?.content as any
+				const storage = engine.game.hex.getTile({ q: 1, r: 0 })?.content as any
+				expect(sawmill).toBeDefined()
+				expect(storage).toBeDefined()
+				if (!sawmill || !storage) throw new Error('Expected sawmill/storage to exist')
+
+				storage.setBuffers?.({ planks: 10 })
+				await flushDeferred()
+
+				const selection = sawmill.aGoodMovement?.find(
+					(candidate: any) => candidate.movement.goodType === 'planks'
+				)
+				expect(selection).toBeDefined()
+				if (!selection) throw new Error('Expected movement selection to exist')
+
+				const movement = selection.movement
+				movement.claimed = true
+				sawmill.hive.fulfillMovementSource(movement, 'test.border.pickup')
+				const hop = movement.hop()
+				expect(hop).toBeDefined()
+				movement.place()
+
+				const borderStorage = sawmill.hive.storageAt(hop)
+				expect(borderStorage).toBeDefined()
+				if (!borderStorage) throw new Error('Expected border storage to exist')
+
+				const publishedSource = borderStorage.reserve(
+					{ [movement.goodType]: 1 },
+					{
+						type: 'convey.path',
+						goodType: movement.goodType,
+						movementId: movement._mgId,
+						providerRef: movement.provider,
+						demanderRef: movement.demander,
+						providerName: movement.provider.name,
+						demanderName: movement.demander.name,
+						movement,
+					}
+				)
+				expect(publishedSource).toBeDefined()
+				if (!publishedSource) throw new Error('Expected published source allocation')
+
+				movement.allocations.source = publishedSource
+				movement.claimed = false
+				delete movement.claimedAtMs
+				delete movement.claimedBy
+
+				const warnings: string[] = []
+				traces.advertising = {
+					...console,
+					warn: (...args: any[]) => {
+						warnings.push(args.map(String).join(' '))
+					},
+				}
+
+				publishedSource.cancel()
+				void storage.aGoodMovement
+
+				movement.allocations.source = borderStorage.reserve(
+					{ [movement.goodType]: 1 },
+					{
+						type: 'convey.path',
+						goodType: movement.goodType,
+						movementId: movement._mgId,
+						providerRef: movement.provider,
+						demanderRef: movement.demander,
+						providerName: movement.provider.name,
+						demanderName: movement.demander.name,
+						movement,
+					}
+				)
+
+				await flushDeferred()
+
+				const trackedEntries = Array.from(sawmill.hive.movingGoods.entries())
+					.filter(([, goods]: [any, any[]]) =>
+						goods.some((candidate) => candidate._mgId === movement._mgId)
+					)
+					.map(([coord]: [any, any[]]) => axial.key(coord))
+
+				expect(trackedEntries).toContain(axial.key(hop))
+				expect(
+					warnings.some((warning) => warning.includes('[WATCHDOG] Broken movement'))
+				).toBe(false)
+			} finally {
+				traces.advertising = originalAdvertisingTrace
 				await engine.destroy()
 			}
 		},

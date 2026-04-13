@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { reset } from 'mutts'
+import { reactiveOptions, reset } from 'mutts'
 import type { Game, GameGenerationOptions, SaveState } from 'ssh/game'
 import { setupEnvironment } from './environment'
 import { loadStandardMocks } from './mocks'
@@ -11,6 +11,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 export class TestEngine {
 	public game!: Game
 	private options?: GameGenerationOptions
+	private firstReactiveBatchError: unknown
+	private previousReactiveErrorHandler = reactiveOptions.error
 
 	constructor(options?: GameGenerationOptions) {
 		this.options = options
@@ -22,6 +24,17 @@ export class TestEngine {
 	 * Waits for the game to be fully loaded (including dynamic imports like Hive)
 	 */
 	public async init() {
+		this.firstReactiveBatchError = undefined
+		this.previousReactiveErrorHandler = reactiveOptions.error
+		reactiveOptions.error = (...args: any[]) => {
+			this.previousReactiveErrorHandler?.(...args)
+			if (
+				this.firstReactiveBatchError === undefined &&
+				args[0] === '[reactive] Root batch failure before broken state:'
+			) {
+				this.firstReactiveBatchError = args[1]
+			}
+		}
 		// Dynamic import to allow mocks to apply
 		const { Game } = await import('ssh/game')
 		this.game = new Game(this.options)
@@ -67,6 +80,7 @@ export class TestEngine {
 		// Avoid infinite loop if seconds is huge, but usually fine
 		while (elapsed < seconds) {
 			this.step(tickRate)
+			if (this.firstReactiveBatchError) throw this.firstReactiveBatchError
 			elapsed += tickRate
 		}
 	}
@@ -104,6 +118,7 @@ export class TestEngine {
 
 	public async destroy() {
 		if (!this.game) {
+			reactiveOptions.error = this.previousReactiveErrorHandler
 			reset()
 			return
 		}
@@ -118,12 +133,13 @@ export class TestEngine {
 			this.game.hex.reset()
 			this.game.destroy()
 		} catch (error) {
-			this.game.destroy()
+			if (this.firstReactiveBatchError) throw this.firstReactiveBatchError
 			if (!(error instanceof Error) || !error.message.includes('Reactive system is broken')) {
 				throw error
 			}
 		} finally {
 			await flushTeardown()
+			reactiveOptions.error = this.previousReactiveErrorHandler
 			reset()
 		}
 	}

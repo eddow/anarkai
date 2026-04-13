@@ -1,12 +1,14 @@
 import { effect } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import { TileBorder } from 'ssh/board/border/border'
 import { Tile } from 'ssh/board/tile'
 import type { GameObject } from 'ssh/game/object'
 import type { InteractiveGameObject } from 'ssh/game/object'
 import { getHoveredUid } from 'ssh/interactive-state'
 import { Character } from 'ssh/population/character'
 import type { PixiGameRenderer } from './renderer'
+import { BorderVisual } from './renderers/border-visual'
 import { CharacterVisual } from './renderers/character-visual'
 import { LooseGoodsVisual } from './renderers/loose-goods-visual'
 import { TileVisual } from './renderers/tile-visual'
@@ -135,6 +137,9 @@ export class VisualFactory {
 		const tileVisuals = Array.from(this.renderer.visuals.values()).filter(
 			(visual) => visual instanceof TileVisual
 		).length
+		const gateOverlayVisuals = Array.from(this.renderer.visuals.values()).filter(
+			(visual) => visual instanceof BorderVisual
+		).length
 		const characterVisuals = Array.from(this.renderer.visuals.values()).filter(
 			(visual) => visual instanceof CharacterVisual
 		).length
@@ -142,9 +147,6 @@ export class VisualFactory {
 			(visual) => visual instanceof LooseGoodsVisual
 		).length
 		const alveolusVisuals = this.renderer.layers.alveoli.renderLayerChildren.length
-		const gateOverlayVisuals = this.renderer.layers.storedGoods.renderLayerChildren.filter((child) =>
-			child.label.includes('/gates')
-		).length
 		return {
 			totalVisuals: this.renderer.visuals.size,
 			tileVisuals,
@@ -204,9 +206,11 @@ export class VisualFactory {
 		let tileCount = 0
 		let characterCount = 0
 		let tileVisualCreatedCount = 0
+		let borderVisualCreatedCount = 0
 		let skippedPlainTileCount = 0
 		let createdVisualCount = 0
 		let reusedVisualCount = 0
+		const borderViews: VisualObject[] = []
 
 		for (const object of objects) {
 			objectCount++
@@ -224,6 +228,27 @@ export class VisualFactory {
 					tileVisualCreatedCount++
 				}
 				if (tileVisual) groundViews.push(tileVisual)
+				for (const { border } of object.surroundings) {
+					const borderVisualResult = this.create(border, BorderVisual)
+					const borderVisual = borderVisualResult.visual
+					if (borderVisualResult.reused) reusedVisualCount++
+					else if (borderVisual) {
+						createdVisualCount++
+						borderVisualCreatedCount++
+					}
+					if (borderVisual) borderViews.push(borderVisual)
+				}
+				continue
+			}
+			if (object instanceof TileBorder) {
+				const borderVisualResult = this.create(object, BorderVisual)
+				const borderVisual = borderVisualResult.visual
+				if (borderVisualResult.reused) reusedVisualCount++
+				else if (borderVisual) {
+					createdVisualCount++
+					borderVisualCreatedCount++
+				}
+				if (borderVisual) borderViews.push(borderVisual)
 				continue
 			}
 			if (object instanceof Character) {
@@ -245,6 +270,10 @@ export class VisualFactory {
 			this.renderer.worldScene.addChild(visual.view)
 		}
 
+		for (const visual of borderViews) {
+			this.renderer.worldScene.addChild(visual.view)
+		}
+
 		const batchMs = (globalThis.performance?.now() ?? Date.now()) - batchStartedAt
 		const batchDiagnostics: VisualBatchDiagnostics = {
 			reason,
@@ -253,11 +282,11 @@ export class VisualFactory {
 			characterCount,
 			tileVisualCreatedCount,
 			skippedPlainTileCount,
-			gateOverlayCount: this.getCurrentVisualCounts().gateOverlayVisuals,
+			gateOverlayCount: borderVisualCreatedCount,
 			createdVisualCount,
 			reusedVisualCount,
 			groundAttachCount: groundViews.length,
-			worldAttachCount: worldViews.length,
+			worldAttachCount: worldViews.length + borderViews.length,
 			totalVisualsAfterBatch: this.renderer.visuals.size,
 			batchMs,
 		}

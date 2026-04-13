@@ -37,6 +37,58 @@ vi.mock('ssh/assets/game-content', () => ({
 }))
 
 describe('Harvest Zones Restriction', () => {
+	it('prefers project deposits over harvest zones', async () => {
+		const engine = new TestEngine({
+			terrainSeed: 123,
+			characterCount: 0,
+		})
+		await engine.init()
+		const { game } = engine
+
+		engine.loadScenario({
+			tiles: [
+				{
+					coord: [1, 0] as [number, number],
+					deposit: { type: 'tree', name: 'tree', amount: 10 },
+					terrain: 'forest',
+				},
+				{
+					coord: [0, 1] as [number, number],
+					deposit: { type: 'tree', name: 'tree', amount: 10 },
+					terrain: 'forest',
+				},
+			],
+			hives: [
+				{
+					name: 'LumberJack',
+					alveoli: [{ coord: [0, 0] as [number, number], alveolus: 'tree_chopper' }],
+				},
+			],
+			zones: {
+				harvest: [[1, 0] as [number, number]],
+			},
+			projects: {
+				'build:storage': [[0, 1] as [number, number]],
+			},
+		} as any)
+
+		const char = game.population.createCharacter('Worker', { q: 0, r: 0 })
+		const find = char.scriptsContext.find
+
+		const path = find.deposit('tree')
+		expect(path).not.toBe(false)
+		expect(toAxialCoord(path[path.length - 1])).toMatchObject({ q: 0, r: 1 })
+
+		const alveolus = game.hex.getTile({ q: 0, r: 0 })?.content as HarvestAlveolus | undefined
+		expect(alveolus).toBeDefined()
+
+		const nextJob = alveolus?.nextJob(char)
+		expect(nextJob?.job).toBe('harvest')
+		expect(nextJob?.path?.at(-1)).toMatchObject({ q: 0, r: 1 })
+
+		engine.destroy()
+	})
+
 	it('find.deposit should ignore deposits outside of zones/clearing', async () => {
 		const game = new Game({
 			terrainSeed: 123,

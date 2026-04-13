@@ -6,6 +6,11 @@ import { traces } from 'ssh/debug'
 // without being fulfilled/cancelled, and logs the provided reason.
 
 type Held = { reason: any; allocation: object; createdAt: number; id: string; stack?: string }
+type InvalidationInfo = {
+	label: string
+	at: number
+	stack?: string
+}
 
 // Global allocation counter for unique IDs
 let allocationCounter = 0
@@ -38,6 +43,7 @@ const activeLiveAllocations = new Map<object, object>()
 
 // Track invalidated allocations (fulfilled or cancelled)
 const invalidatedAllocations = new WeakSet<object>()
+const invalidationInfos = new WeakMap<object, InvalidationInfo>()
 
 function allocationVariants<Allocation extends object>(allocation: Allocation): object[] {
 	const direct = allocation as object
@@ -90,12 +96,33 @@ export function allocationEnded<Allocation extends object>(allocation: Allocatio
 	activeLiveAllocations.delete(token)
 }
 
-export function invalidateAllocation<Allocation extends object>(allocation: Allocation) {
-	for (const target of allocationVariants(allocation)) invalidatedAllocations.add(target)
+export function invalidateAllocation<Allocation extends object>(
+	allocation: Allocation,
+	label: string = 'invalidateAllocation'
+) {
+	const info: InvalidationInfo = {
+		label,
+		at: Date.now(),
+		stack: new Error().stack,
+	}
+	for (const target of allocationVariants(allocation)) {
+		invalidatedAllocations.add(target)
+		invalidationInfos.set(target, info)
+	}
 }
 
 export function isAllocationValid<Allocation extends object>(allocation: Allocation): boolean {
 	return allocationVariants(allocation).every((target) => !invalidatedAllocations.has(target))
+}
+
+export function allocationInvalidationInfo<Allocation extends object>(
+	allocation: Allocation
+): InvalidationInfo | undefined {
+	for (const target of allocationVariants(allocation)) {
+		const info = invalidationInfos.get(target)
+		if (info) return info
+	}
+	return undefined
 }
 
 export function debugActiveAllocations(): Held[] {

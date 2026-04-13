@@ -72,7 +72,22 @@ class FindFunctions {
 		const { hex } = this[subject].game
 		const start = toAxialCoord(this[subject].tile.position)
 
-		// 1) Prefer deposits near building sites (clearing)
+		// 1) Prefer deposits that block an active project directly.
+		const pathOnProject = hex.findNearestForCharacter(
+			start,
+			this[subject],
+			(coord) => {
+				const tile = hex.getTile(coord)
+				if (!(tile?.content instanceof UnBuiltLand)) return false
+				if (tile.content.deposit?.name !== deposit) return false
+				return !!tile.content.project
+			},
+			maxWalkTime,
+			false
+		)
+		if (pathOnProject?.length) return pathOnProject
+
+		// 2) Prefer deposits near building sites (clearing)
 		const pathNearConstruction = hex.findNearestForCharacter(
 			start,
 			this[subject],
@@ -91,7 +106,7 @@ class FindFunctions {
 		)
 		if (pathNearConstruction?.length) return pathNearConstruction
 
-		// 2) Prefer deposits in harvest zones
+		// 3) Prefer deposits in harvest zones
 		const pathInZone = hex.findNearestForCharacter(
 			start,
 			this[subject],

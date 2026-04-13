@@ -16,19 +16,22 @@ import type { RenderedGoodSlot } from './types'
 
 @reactive
 class SpecificAllocation implements AllocationBase {
+	public readonly reason: unknown
 	constructor(
 		private storage: SpecificStorage,
 		public readonly goods: Goods,
-		reason: any
+		reason: unknown
 	) {
+		this.reason = reason
 		guardAllocation(this, reason)
 	}
 
 	@atomic
 	cancel(): void {
 		if (!isAllocationValid(this)) return
+		this.storage.assertIntegrity('SpecificAllocation.cancel.before')
 		allocationEnded(this)
-		invalidateAllocation(this)
+		invalidateAllocation(this, 'SpecificAllocation.cancel')
 
 		for (const [goodType, qty] of Object.entries(this.goods) as [GoodType, number][]) {
 			assert(qty, 'qty must be set')
@@ -43,13 +46,15 @@ class SpecificAllocation implements AllocationBase {
 				this.storage._reserved[goodType] = curRes + qty
 			}
 		}
+		this.storage.assertIntegrity('SpecificAllocation.cancel.after')
 	}
 
 	@atomic
 	fulfill(): void {
 		if (!isAllocationValid(this)) return
+		this.storage.assertIntegrity('SpecificAllocation.fulfill.before')
 		allocationEnded(this)
-		invalidateAllocation(this)
+		invalidateAllocation(this, 'SpecificAllocation.fulfill')
 
 		for (const [goodType, qty] of Object.entries(this.goods) as [GoodType, number][]) {
 			assert(qty, 'qty must be set')
@@ -69,6 +74,7 @@ class SpecificAllocation implements AllocationBase {
 				this.storage._goods[goodType] = have - want
 			}
 		}
+		this.storage.assertIntegrity('SpecificAllocation.fulfill.after')
 	}
 }
 
@@ -85,6 +91,35 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 		this._allocated = reactive({})
 		this._reserved = reactive({})
 		this.maxAmounts = reactive({ ...maxAmounts })
+	}
+
+	assertIntegrity(label: string): void {
+		const goodTypes = new Set<GoodType>([
+			...(Object.keys(this.maxAmounts) as GoodType[]),
+			...(Object.keys(this._goods) as GoodType[]),
+			...(Object.keys(this._allocated) as GoodType[]),
+			...(Object.keys(this._reserved) as GoodType[]),
+		])
+		for (const goodType of goodTypes) {
+			assert(GoodType.allows(goodType), `${label}: invalid good type ${goodType}`)
+			const goods = this._goods[goodType] || 0
+			const allocated = this._allocated[goodType] || 0
+			const reserved = this._reserved[goodType] || 0
+			const maxAmount = this.maxAmounts[goodType] || 0
+			assert(goods >= 0, `${label}: goods for ${goodType} must be >= 0`)
+			assert(allocated >= 0, `${label}: allocated for ${goodType} must be >= 0`)
+			assert(reserved >= 0, `${label}: reserved for ${goodType} must be >= 0`)
+			assert(reserved <= goods, `${label}: reserved for ${goodType} exceeds goods`)
+			assert(goods + allocated <= maxAmount, `${label}: goods+allocated for ${goodType} exceeds max`)
+			assert(
+				this.available(goodType) === goods - reserved,
+				`${label}: available mismatch for ${goodType}`
+			)
+			assert(
+				(this.stock[goodType] || 0) === goods,
+				`${label}: stock mismatch for ${goodType}`
+			)
+		}
 	}
 
 	@memoize
@@ -117,6 +152,7 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 
 	@atomic
 	addGood(goodType: GoodType, qty: number): number {
+		this.assertIntegrity('SpecificStorage.addGood.before')
 		const maxAmount = this.maxAmounts[goodType] || 0
 		const currentAmount = this._goods[goodType] || 0
 		const allocated = this._allocated[goodType] || 0
@@ -127,10 +163,12 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 			this._goods[goodType] = currentAmount + toStore
 		}
 
+		this.assertIntegrity('SpecificStorage.addGood.after')
 		return toStore
 	}
 	@atomic
 	removeGood(goodType: GoodType, qty: number): number {
+		this.assertIntegrity('SpecificStorage.removeGood.before')
 		const currentAmount = this._goods[goodType] || 0
 		const reserved = this._reserved[goodType] || 0
 		const available = Math.max(0, currentAmount - reserved)
@@ -147,6 +185,7 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 			)
 		}
 
+		this.assertIntegrity('SpecificStorage.removeGood.after')
 		return toRemove
 	}
 
@@ -187,6 +226,7 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 		return { slots, assumedMaxSlots: Object.keys(this.maxAmounts).length }
 	}
 	allocate(goods: Goods, reason: any): SpecificAllocation {
+		this.assertIntegrity('SpecificStorage.allocate.before')
 		const actualGoods: Goods = {}
 		let hasAnyAllocation = false
 
@@ -210,10 +250,12 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 			throw new AllocationError(`Empty goods object provided for allocation`, reason)
 		}
 
+		this.assertIntegrity('SpecificStorage.allocate.after')
 		return new SpecificAllocation(this, actualGoods, reason)
 	}
 
 	reserve(goods: Goods, reason: any): SpecificAllocation {
+		this.assertIntegrity('SpecificStorage.reserve.before')
 		const actualGoods: Goods = {}
 		let hasAnyReservation = false
 
@@ -233,6 +275,7 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 			throw new AllocationError(`Insufficient goods to reserve any goods`, reason)
 		}
 
+		this.assertIntegrity('SpecificStorage.reserve.after')
 		return new SpecificAllocation(this, actualGoods, reason)
 	}
 

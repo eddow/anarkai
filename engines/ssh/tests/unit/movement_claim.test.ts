@@ -88,7 +88,7 @@ describe('MovingGood.claimed prevents double pickup', () => {
 		}
 	})
 
-	it('setting claimed on LocalMovingGood wrapper writes through to real MovingGood', {
+	it('movement selections expose the canonical movement explicitly', {
 		timeout: 15000,
 	}, async () => {
 		const engine = new TestEngine({
@@ -124,19 +124,22 @@ describe('MovingGood.claimed prevents double pickup', () => {
 			const provCoord = toAxialCoord(provider.tile.position)!
 			const realMg = hive.movingGoods.get(provCoord)![0]
 
-			// Get the wrapper from aGoodMovement
-			const wrapper = provider.aGoodMovement![0]
+			// Get the selection from aGoodMovement
+			const selection = provider.aGoodMovement![0]
 			expect(realMg.claimed).toBe(false)
+			expect(selection.movement).toBe(realMg)
+			expect(selection.movementId).toBe(realMg._mgId)
+			expect(selection.fromSnapshot).toEqual(realMg.from)
 
-			// Set claimed on the wrapper — must propagate to the real MovingGood
-			wrapper.claimed = true
+			// Claim via the canonical movement
+			selection.movement.claimed = true
 			expect(realMg.claimed).toBe(true)
 
 			// aGoodMovement should now return undefined (the real object is claimed)
 			expect(provider.aGoodMovement).toBeUndefined()
 
-			// Unclaim via the wrapper
-			wrapper.claimed = false
+			// Unclaim via the canonical movement
+			selection.movement.claimed = false
 			expect(realMg.claimed).toBe(false)
 			expect(provider.aGoodMovement).toBeTruthy()
 
@@ -234,10 +237,11 @@ describe('MovingGood.claimed prevents double pickup', () => {
 					allowClaimedSourceGap: true,
 					allowClaimedTerminalPath: true,
 				})
-			).toBeUndefined()
-			expect(provider.aGoodMovement).toBeUndefined()
+				).toBeUndefined()
+				expect(provider.aGoodMovement).toBeUndefined()
 
-			mg.finish()
+				mg.claimed = false
+				mg.finish()
 		} finally {
 			await engine.destroy()
 		}
@@ -289,18 +293,20 @@ describe('MovingGood.claimed prevents double pickup', () => {
 			expect(hive.createMovement('wood', provider, demander)).toBe(true)
 			expect(demander.incomingGoods).toBe(false)
 
-			const provCoord = toAxialCoord(provider.tile.position)!
-			const movement = hive.movingGoods.get(provCoord)?.[0]
-			expect(movement).toBeDefined()
-			movement?.allocations.source.fulfill()
-			movement?.hop()
-			movement?.place()
-			const hopAlloc = borderGate.storage.allocate({ wood: 1 }, { type: 'test.hop' })
-			hopAlloc.fulfill()
-			movement!.allocations.source = borderGate.storage.reserve({ wood: 1 }, { type: 'test.hop.reserve' })
-			expect(demander.incomingGoods).toBe(true)
-			movement?.finish()
-			ghostAllocation.cancel()
+				const provCoord = toAxialCoord(provider.tile.position)!
+				const movement = hive.movingGoods.get(provCoord)?.[0]
+				expect(movement).toBeDefined()
+				movement!.claimed = true
+				movement?.allocations.source.fulfill()
+				movement?.hop()
+				movement?.place()
+				const hopAlloc = borderGate.storage.allocate({ wood: 1 }, { type: 'test.hop' })
+				hopAlloc.fulfill()
+				movement!.allocations.source = borderGate.storage.reserve({ wood: 1 }, { type: 'test.hop.reserve' })
+				movement!.claimed = false
+				expect(demander.incomingGoods).toBe(true)
+				movement?.abort()
+				ghostAllocation.cancel()
 		} finally {
 			await engine.destroy()
 		}

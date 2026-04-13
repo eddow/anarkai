@@ -1,5 +1,5 @@
 import { atomic } from 'mutts'
-import type { LocalMovingGood } from 'ssh/board'
+import type { TrackedMovement } from 'ssh/hive/hive'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { LooseGood } from 'ssh/board/looseGoods'
 import { assert } from 'ssh/debug'
@@ -25,14 +25,14 @@ import {
 /**
  * Runtime snapshot for a single convey sub-movement.
  *
- * - `mg` is the authoritative transfer token tracked by the hive.
- * - `from` is the origin snapshot captured before `mg.hop()` mutates `mg.from`.
+ * - `movement` is the authoritative transfer token tracked by the hive.
+ * - `from` is the origin snapshot captured before `movement.hop()` mutates `movement.from`.
  * - `hop` is the coordinate reached by this step.
  * - `hopAlloc` is the temporary destination allocation for intermediate hops only.
  * - `moving` is the transient loose-good used for the visual in-transit representation.
  */
 interface MovementData {
-	mg: LocalMovingGood
+	movement: TrackedMovement
 	hopAlloc?: AllocationBase
 	hop: AxialCoord
 	from: AxialCoord
@@ -75,15 +75,35 @@ class WorkFunctions {
 	@atomic
 	conveyStep() {
 		const character = this[subject]
-		const claimMovement = (mg: LocalMovingGood) => {
-			mg.claimed = true
-			;(mg as any).claimedBy = character.uid
-			;(mg as any).claimedAtMs = Date.now()
+		const currentHive = (movement: TrackedMovement) => {
+			const hive = movement.provider.hive
+			assert(hive, `conveyStep: provider hive missing for ${movement._mgId}`)
+			assert(
+				movement.demander.hive === hive,
+				`conveyStep: provider/demander hive mismatch for ${movement._mgId}`
+			)
+			return hive
 		}
-		const releaseMovementClaim = (mg: LocalMovingGood) => {
-			mg.claimed = false
-			delete (mg as any).claimedBy
-			delete (mg as any).claimedAtMs
+		const claimMovement = (movement: TrackedMovement) => {
+			assert(!movement.claimed, `claimMovement: movement already claimed ${movement._mgId}`)
+			assert(!movement.claimedBy, `claimMovement: movement already has claimedBy ${movement._mgId}`)
+			assert(!movement.claimedAtMs, `claimMovement: movement already has claimedAtMs ${movement._mgId}`)
+			movement.claimed = true
+			movement.claimedBy = character.uid
+			movement.claimedAtMs = Date.now()
+			movement.provider.hive.noteMovementLifecycle(movement, `movement.claimed.by:${character.uid}`)
+		}
+		const releaseMovementClaim = (movement: TrackedMovement) => {
+			assert(movement.claimed, `releaseMovementClaim: movement not claimed ${movement._mgId}`)
+			assert(
+				movement.claimedBy === character.uid,
+				`releaseMovementClaim: movement claimed by ${movement.claimedBy ?? 'nobody'} not ${character.uid}`
+			)
+			assert(!!movement.claimedAtMs, `releaseMovementClaim: movement missing claimedAtMs ${movement._mgId}`)
+			movement.provider.hive.noteMovementLifecycle(movement, `movement.unclaimed.by:${character.uid}`)
+			movement.claimed = false
+			delete movement.claimedBy
+			delete movement.claimedAtMs
 		}
 		const alveolus = character.assignedAlveolus!
 		assert(
@@ -98,13 +118,14 @@ class WorkFunctions {
 
 		const movementData: MovementData[] = []
 
-		for (const mg of movements) {
-			const from = mg.from
+		for (const selection of movements) {
+			const movement = selection.movement
+			const from = selection.fromSnapshot
 			let sourceFulfilled = false
 			let hopAlloc: AllocationBase | undefined
 			let moving: LooseGood | undefined
 			if (
-				!hive.ensureMovementInvariant(mg, {
+				!hive.ensureMovementInvariant(movement, {
 					expectedFrom: from,
 					warnLabel: '[conveyStep] Invalid movement before pickup',
 					allowClaimedSourceGap: false,
@@ -112,23 +133,85 @@ class WorkFunctions {
 			) {
 				continue
 			}
-			if (!mg.allocations?.source) {
-				console.warn('[conveyStep] Missing source allocation', mg)
+			hive.assertMovementMine(movement, {
+				label: 'conveyStep.before-pickup',
+				expectedFrom: from,
+				expectClaimed: false,
+				requireTracked: true,
+				requireSourceValid: true,
+				requireTargetValid: true,
+			})
+			if (!movement.allocations?.source) {
+				console.warn('[conveyStep] Missing source allocation', movement)
 				continue
 			}
 			try {
-				claimMovement(mg)
-				mg.allocations.source.fulfill()
+				const movementHive = currentHive(movement)
+				movementHive.noteMovementLifecycle(movement, 'conveyStep.start')
+				movementHive.noteMovementStorageCheckpoint(
+					movement,
+					'conveyStep.before-claim.storage',
+					from
+				)
+				claimMovement(movement)
+				movementHive.assertMovementMine(movement, {
+					label: 'conveyStep.after-claim.before-source-fulfill',
+					expectedFrom: from,
+					expectClaimed: true,
+					requireTracked: false,
+					requireSourceValid: true,
+					requireTargetValid: true,
+					allowClaimedSourceGap: true,
+					allowClaimedTerminalPath: true,
+					allowUntracked: true,
+				})
+				movementHive.noteMovementStorageCheckpoint(
+					movement,
+					'conveyStep.before-source-fulfill.storage',
+					from
+				)
+				movementHive.fulfillMovementSource(movement, 'conveyStep.pickup')
 				sourceFulfilled = true
-				const hop = mg.hop()!
+				movementHive.noteMovementStorageCheckpoint(
+					movement,
+					'conveyStep.after-source-fulfill.storage',
+					from
+				)
+				movementHive.assertMovementMine(movement, {
+					label: 'conveyStep.after-source-fulfill.before-hop',
+					expectedFrom: from,
+					expectClaimed: true,
+					requireTracked: false,
+					requireSourceValid: false,
+					requireTargetValid: true,
+					allowClaimedSourceGap: true,
+					allowClaimedTerminalPath: true,
+					allowUntracked: true,
+				})
+				const hop = movement.hop()!
 
 				// Only re-index the movement when another conveyor still needs to pick it up.
 				// Final-hop movements should stay out of hive.movingGoods; otherwise terminal
 				// path=[] ghost entries can linger at the destination and poison job selection.
-				if (mg.path.length) {
-					mg.place()
+				if (movement.path.length) {
+					movement.place()
+					currentHive(movement).noteMovementStorageCheckpoint(
+						movement,
+						'conveyStep.after-place.storage',
+						hop
+					)
+					currentHive(movement).assertMovementMine(movement, {
+						label: 'conveyStep.after-place',
+						expectedFrom: hop,
+						expectClaimed: true,
+						requireTracked: true,
+						requireSourceValid: false,
+						requireTargetValid: true,
+						allowClaimedSourceGap: true,
+						allowClaimedTerminalPath: true,
+					})
 					if (
-						!hive.ensureMovementInvariant(mg, {
+						!currentHive(movement).ensureMovementInvariant(movement, {
 							expectedFrom: hop,
 							warnLabel: '[conveyStep] Invalid movement after place',
 							allowClaimedSourceGap: true,
@@ -138,19 +221,36 @@ class WorkFunctions {
 					}
 				}
 
-				const nextStorage = hive.storageAt(hop)
+				const nextStorage = currentHive(movement).storageAt(hop)
 				assert(nextStorage, 'nextStorage must be defined')
-				hopAlloc = mg.path.length
-					? nextStorage.allocate({ [mg.goodType]: 1 }, { type: 'convey.hop', movement: mg })
+				currentHive(movement).noteMovementStorageCheckpoint(
+					movement,
+					'conveyStep.before-hop-alloc',
+					hop
+				)
+				hopAlloc = movement.path.length
+					? nextStorage.allocate(
+							{ [movement.goodType]: 1 },
+							{
+								type: 'convey.hop',
+								goodType: movement.goodType,
+								movementId: movement._mgId,
+								providerRef: movement.provider,
+								demanderRef: movement.demander,
+								providerName: movement.provider.name,
+								demanderName: movement.demander.name,
+								movement,
+							}
+						)
 					: undefined
 
-				moving = character.game.hex.looseGoods.add(from, mg.goodType, {
+				moving = character.game.hex.looseGoods.add(from, movement.goodType, {
 					position: from,
 					available: false,
 				})
 
 				movementData.push({
-					mg,
+					movement,
 					hopAlloc,
 					hop,
 					from,
@@ -158,7 +258,7 @@ class WorkFunctions {
 				})
 			} catch (error) {
 				cleanupFailedConveyMovement(character, {
-					mg,
+					movement,
 					hopAlloc,
 					from,
 					moving,
@@ -167,12 +267,12 @@ class WorkFunctions {
 				for (const prev of movementData) cleanupFailedConveyMovement(character, prev)
 				if (isRecoverableConveyError(error)) {
 					console.warn('[conveyStep] Recovered from stale movement bookkeeping', {
-						goodType: mg.goodType,
-						provider: mg.provider.name,
-						demander: mg.demander.name,
+						goodType: movement.goodType,
+						provider: movement.provider.name,
+						demander: movement.demander.name,
 						error: error.message,
 					})
-					hive.wakeWanderingWorkersNear(mg.provider, mg.demander)
+					currentHive(movement).wakeWanderingWorkersNear(movement.provider, movement.demander)
 					return
 				}
 				throw error
@@ -184,89 +284,144 @@ class WorkFunctions {
 
 		// Create unified MultiMoveStep that animates all movements
 		const description =
-			movementData.length === 1 ? `convey.${movementData[0].mg.goodType}` : `convey.cycle`
+			movementData.length === 1
+				? `convey.${movementData[0].movement.goodType}`
+				: `convey.cycle`
 		const visualMovements = getConveyVisualMovements(movementData)
 		return new MultiMoveStep(totalTime, visualMovements, 'work', description)
 			.canceled(() => {
-				for (const { mg, hopAlloc, moving } of movementData) {
-					releaseMovementClaim(mg)
+				for (const { movement, hopAlloc, moving } of movementData) {
+					const movementHive = currentHive(movement)
+					movementHive.noteMovementLifecycle(movement, 'conveyStep.canceled')
+					releaseMovementClaim(movement)
 					hopAlloc?.cancel()
-					mg.allocations.source.cancel()
-					mg.allocations.target.cancel()
+					movementHive.cancelMovementSource(movement, 'conveyStep.canceled')
+					movement.allocations.target.cancel()
 					if (!moving.isRemoved) moving.remove()
-					character.game.hex.looseGoods.add(character.tile, mg.goodType)
-					mg.finish()
+					character.game.hex.looseGoods.add(character.tile, movement.goodType)
+					movement.abort()
 				}
 			})
 			.finished(() => {
 				try {
-					for (const { mg, moving, hopAlloc, hop } of movementData) {
-						const nextStorage = hive.storageAt(hop)
+					for (const { movement, moving, hopAlloc, hop } of movementData) {
+						const movementHive = currentHive(movement)
+						const nextStorage = movementHive.storageAt(hop)
 
 						if (!moving.isRemoved) moving.remove()
-						if (!mg.path.length) {
-							if (!mg.allocations?.target) {
-								console.error('Target allocation missing for', mg)
+						if (!movement.path.length) {
+							if (!movement.allocations?.target) {
+								console.error('Target allocation missing for', movement)
 								throw new Error('Target allocation missing')
 							}
-							releaseMovementClaim(mg)
-							mg.finish()
+							releaseMovementClaim(movement)
+							movementHive.noteMovementLifecycle(movement, 'conveyStep.finished.terminal')
+							movement.finish()
 						} else {
 							if (!hopAlloc) {
-								console.error('Hop allocation missing (but path exists) for', mg)
+								console.error('Hop allocation missing (but path exists) for', movement)
 								throw new Error('Hop allocation missing')
 							}
 
 							hopAlloc.fulfill()
+							movementHive.noteMovementLifecycle(
+								movement,
+								'conveyStep.finished.after-hop-alloc-fulfill'
+							)
+							movementHive.noteMovementStorageCheckpoint(
+								movement,
+								'conveyStep.finished.after-hop-alloc-fulfill.storage',
+								hop
+							)
 
+							movementHive.noteMovementStorageCheckpoint(
+								movement,
+								'conveyStep.finished.before-hop-rebind',
+								hop
+							)
 							const newSourceAlloc = nextStorage!.reserve(
-								{ [mg.goodType]: 1 },
+								{ [movement.goodType]: 1 },
 								{
 									type: 'convey.path',
-									goodType: mg.goodType,
-									movementId: mg._mgId,
-									providerRef: mg.provider,
-									demanderRef: mg.demander,
-									providerName: mg.provider.name,
-									demanderName: mg.demander.name,
-									movement: mg,
+									goodType: movement.goodType,
+									movementId: movement._mgId,
+									providerRef: movement.provider,
+									demanderRef: movement.demander,
+									providerName: movement.provider.name,
+									demanderName: movement.demander.name,
+									movement,
 								}
 							)
 
 							if (!newSourceAlloc) {
 								console.error(
 									'[conveyStep.finished] Failed to reserve storage for next hop:',
-									mg.goodType
+									movement.goodType
 								)
 								throw new Error('Failed to reserve storage for next hop')
 							}
 
-							mg.allocations.source = newSourceAlloc
+							movementHive.assignMovementSource(
+								movement,
+								newSourceAlloc,
+								'conveyStep.finished.rebind'
+							)
+							currentHive(movement).assertMovementMine(movement, {
+								label: 'conveyStep.after-hop-rebind.before-unclaim',
+								expectedFrom: hop,
+								expectClaimed: true,
+								requireTracked: true,
+								requireSourceValid: true,
+								requireTargetValid: true,
+								allowClaimedSourceGap: true,
+								allowClaimedTerminalPath: true,
+							})
 							if (
-								!hive.ensureMovementInvariant(mg, {
+								!currentHive(movement).ensureMovementInvariant(movement, {
 									expectedFrom: hop,
 									warnLabel: '[conveyStep] Invalid movement after hop handoff',
 								})
 							) {
 								throw new Error('Movement became invalid after hop handoff')
 							}
-							releaseMovementClaim(mg)
-							hive.wakeWanderingWorkersNear(mg.provider, mg.demander)
+							releaseMovementClaim(movement)
+							currentHive(movement).assertMovementMine(movement, {
+								label: 'conveyStep.after-hop-handoff',
+								expectedFrom: hop,
+								expectClaimed: false,
+								requireTracked: true,
+								requireSourceValid: true,
+								requireTargetValid: true,
+							})
+							currentHive(movement).wakeWanderingWorkersNear(
+								movement.provider,
+								movement.demander
+							)
 						}
 					}
 				} catch (error) {
+					for (const { movement } of movementData) {
+						currentHive(movement).noteMovementCaughtError(
+							movement,
+							'conveyStep.finished.catch',
+							error
+						)
+					}
 					for (const movement of movementData) cleanupFailedConveyMovement(character, movement)
 					if (isRecoverableConveyError(error)) {
 						console.warn('[conveyStep] Recovered from stale movement bookkeeping in finish', {
 							error: error.message,
-							movements: movementData.map(({ mg }) => ({
-								goodType: mg.goodType,
-								provider: mg.provider.name,
-								demander: mg.demander.name,
+							movements: movementData.map(({ movement }) => ({
+								goodType: movement.goodType,
+								provider: movement.provider.name,
+								demander: movement.demander.name,
 							})),
 						})
-						for (const { mg } of movementData) {
-							hive.wakeWanderingWorkersNear(mg.provider, mg.demander)
+						for (const { movement } of movementData) {
+						currentHive(movement).wakeWanderingWorkersNear(
+							movement.provider,
+							movement.demander
+						)
 						}
 						return
 					}

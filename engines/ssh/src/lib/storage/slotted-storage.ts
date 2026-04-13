@@ -1,7 +1,7 @@
 import { atomic, memoize, reactive } from 'mutts'
 import { assert } from 'ssh/debug'
 import { traces } from 'ssh/debug'
-import type { Goods, GoodType } from 'ssh/types/base'
+import { type Goods, GoodType } from 'ssh/types/base'
 import {
 	AllocationError,
 	allocationEnded,
@@ -14,19 +14,22 @@ import type { RenderedGoodSlot, RenderedGoodSlots } from './types'
 
 @reactive
 class SlottedAllocation implements AllocationBase {
+	public readonly reason: unknown
 	constructor(
 		private storage: SlottedStorage,
 		public readonly allocation: number[],
-		reason: any
+		reason: unknown
 	) {
+		this.reason = reason
 		guardAllocation(this, reason)
 	}
 
 	@atomic
 	cancel(): void {
 		if (!isAllocationValid(this)) return
+		this.storage.assertIntegrity('SlottedAllocation.cancel.before')
 		allocationEnded(this)
-		invalidateAllocation(this)
+		invalidateAllocation(this, 'SlottedAllocation.cancel')
 		for (let i = 0; i < this.allocation.length; i++) {
 			const amount = this.allocation[i]
 			if (amount === 0) continue
@@ -46,13 +49,15 @@ class SlottedAllocation implements AllocationBase {
 			}
 		}
 		this.storage.compactIdleSameGoodTypeSlots()
+		this.storage.assertIntegrity('SlottedAllocation.cancel.after')
 	}
 
 	@atomic
 	fulfill(): void {
 		if (!isAllocationValid(this)) return
+		this.storage.assertIntegrity('SlottedAllocation.fulfill.before')
 		allocationEnded(this)
-		invalidateAllocation(this)
+		invalidateAllocation(this, 'SlottedAllocation.fulfill')
 		for (let i = 0; i < this.allocation.length; i++) {
 			const amount = this.allocation[i]
 			if (amount === 0) continue
@@ -88,6 +93,7 @@ class SlottedAllocation implements AllocationBase {
 			}
 		}
 		this.storage.compactIdleSameGoodTypeSlots()
+		this.storage.assertIntegrity('SlottedAllocation.fulfill.after')
 	}
 }
 
@@ -124,6 +130,54 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 	) {
 		super()
 		for (let i = 0; i < maxSlots; i++) this.slots.push(undefined)
+	}
+
+	assertIntegrity(label: string): void {
+		const stockTotals: Partial<Record<GoodType, number>> = {}
+		const availableTotals: Partial<Record<GoodType, number>> = {}
+		const allocatedTotals: Partial<Record<GoodType, number>> = {}
+
+		for (let i = 0; i < this.slots.length; i++) {
+			const slot = this.slots[i]
+			if (!slot) continue
+			assert(GoodType.allows(slot.goodType), `${label}: invalid good type at slot ${i}`)
+			assert(Number.isFinite(slot.quantity), `${label}: slot ${i} quantity must be finite`)
+			assert(Number.isFinite(slot.allocated), `${label}: slot ${i} allocated must be finite`)
+			assert(Number.isFinite(slot.reserved), `${label}: slot ${i} reserved must be finite`)
+			assert(slot.quantity >= 0, `${label}: slot ${i} quantity must be >= 0`)
+			assert(slot.allocated >= 0, `${label}: slot ${i} allocated must be >= 0`)
+			assert(slot.reserved >= 0, `${label}: slot ${i} reserved must be >= 0`)
+			assert(slot.reserved <= slot.quantity, `${label}: slot ${i} reserved exceeds quantity`)
+			assert(slot.quantity <= this.maxQuantityPerSlot, `${label}: slot ${i} quantity exceeds slot max`)
+			assert(
+				slot.quantity + slot.allocated <= this.maxQuantityPerSlot,
+				`${label}: slot ${i} quantity+allocated exceeds slot max`
+			)
+			assert(
+				slot.quantity + slot.allocated > 0,
+				`${label}: slot ${i} is empty but still present`
+			)
+
+			stockTotals[slot.goodType] = (stockTotals[slot.goodType] ?? 0) + slot.quantity
+			availableTotals[slot.goodType] =
+				(availableTotals[slot.goodType] ?? 0) + Math.max(0, slot.quantity - slot.reserved)
+			allocatedTotals[slot.goodType] = (allocatedTotals[slot.goodType] ?? 0) + slot.allocated
+		}
+
+		for (const goodType of Object.keys(stockTotals) as GoodType[]) {
+			assert(
+				(stockTotals[goodType] ?? 0) === (this.stock[goodType] ?? 0),
+				`${label}: stock mismatch for ${goodType}`
+			)
+			assert(
+				(availableTotals[goodType] ?? 0) === this.available(goodType),
+				`${label}: available mismatch for ${goodType}`
+			)
+			assert(
+				(allocatedTotals[goodType] ?? 0) === this.allocated(goodType),
+				`${label}: allocated mismatch for ${goodType}`
+			)
+		}
 	}
 
 	get allocatedSlots(): boolean {
@@ -167,6 +221,7 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 	 */
 	@atomic
 	compactIdleSameGoodTypeSlots(): void {
+		this.assertIntegrity('SlottedStorage.compactIdleSameGoodTypeSlots.before')
 		const byType = new Map<GoodType, number[]>()
 		for (let i = 0; i < this.slots.length; i++) {
 			const s = this.slots[i]
@@ -189,6 +244,7 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 			}
 			this.addGood(goodType, total)
 		}
+		this.assertIntegrity('SlottedStorage.compactIdleSameGoodTypeSlots.after')
 	}
 
 	get usedSlots(): number {
@@ -245,6 +301,7 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 	}
 	@atomic
 	addGood(goodType: GoodType, qty: number): number {
+		this.assertIntegrity('SlottedStorage.addGood.before')
 		let remaining = qty
 
 		// First, try to fill existing slots with the same good type
@@ -273,11 +330,14 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 			}
 		}
 
-		return qty - remaining
+		const stored = qty - remaining
+		this.assertIntegrity('SlottedStorage.addGood.after')
+		return stored
 	}
 
 	@atomic
 	removeGood(goodType: GoodType, qty: number): number {
+		this.assertIntegrity('SlottedStorage.removeGood.before')
 		let remaining = qty
 
 		// Remove from slots containing this good type
@@ -304,7 +364,9 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 			)
 		}
 
-		return qty - remaining
+		const removed = qty - remaining
+		this.assertIntegrity('SlottedStorage.removeGood.after')
+		return removed
 	}
 
 	get stock(): { [k in GoodType]?: number } {
@@ -351,6 +413,7 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 	}
 
 	allocate(goods: Goods, reason: any): SlottedAllocation {
+		this.assertIntegrity('SlottedStorage.allocate.before')
 		const alloc: number[] = Array(this.slots.length).fill(0)
 		let hasAnyAllocation = false
 
@@ -412,10 +475,12 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 			throw new AllocationError(`Empty goods object provided for allocation`, reason)
 		}
 
+		this.assertIntegrity('SlottedStorage.allocate.after')
 		return new SlottedAllocation(this, alloc, reason)
 	}
 
 	reserve(goods: Goods, reason: any): SlottedAllocation {
+		this.assertIntegrity('SlottedStorage.reserve.before')
 		const alloc: number[] = Array(this.slots.length).fill(0)
 		let hasAnyReservation = false
 
@@ -461,6 +526,7 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 			throw new AllocationError(`Insufficient goods to reserve any goods`, reason)
 		}
 
+		this.assertIntegrity('SlottedStorage.reserve.after')
 		return new SlottedAllocation(this, alloc, reason)
 	}
 

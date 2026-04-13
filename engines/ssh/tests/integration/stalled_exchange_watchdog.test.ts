@@ -450,7 +450,11 @@ describe('Stalled Exchange Watchdog', () => {
 			}
 			expect(!!recreatedMovement || remainingReserved === 0).toBe(true)
 			if (recreatedMovement) {
-				expect(gatherer.aGoodMovement?.some((movement) => movement.goodType === 'wood')).toBe(true)
+				expect(
+					gatherer.aGoodMovement?.some(
+						(selection) => selection.movement.goodType === 'wood'
+					)
+				).toBe(true)
 				expect(remainingReserved).toBe(1)
 				expect(!!recreatedMovement.allocations.source).toBe(true)
 				expect(!!recreatedMovement.allocations.target).toBe(true)

@@ -63,6 +63,7 @@ describe('Multi-Hop Convey Tests', () => {
 			expect(movement.path.map((step) => axial.key(step))).toContain('1.5,0')
 			expect(movement.path.at(-1)).toMatchObject({ q: 2, r: 0 })
 
+			movement.claimed = true
 			movement.allocations.source.fulfill()
 			const firstHop = movement.hop()
 			expect(firstHop).toMatchObject({ q: 0.5, r: 0 })
@@ -70,13 +71,14 @@ describe('Multi-Hop Convey Tests', () => {
 			movement.allocations.source = hive
 				.storageAt(firstHop)!
 				.reserve({ wood: 1 }, { type: 'convey.path', movement })
+			movement.claimed = false
 
 			const relayMovements = relay.aGoodMovement
 			expect(relayMovements?.length ?? 0).toBeGreaterThan(0)
-			expect(relayMovements?.[0]?.goodType).toBe('wood')
-			expect(relayMovements?.[0]?.provider?.name).toBe(provider.name)
-			expect(relayMovements?.[0]?.demander?.name).toBe(demander.name)
-			expect(relayMovements?.[0]?.path.at(0)).toMatchObject({ q: 1, r: 0 })
+			expect(relayMovements?.[0]?.movement.goodType).toBe('wood')
+			expect(relayMovements?.[0]?.movement.provider?.name).toBe(provider.name)
+			expect(relayMovements?.[0]?.movement.demander?.name).toBe(demander.name)
+			expect(relayMovements?.[0]?.movement.path.at(0)).toMatchObject({ q: 1, r: 0 })
 		} finally {
 			await engine.destroy()
 		}
