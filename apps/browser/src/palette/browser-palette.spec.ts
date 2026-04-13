@@ -1,4 +1,3 @@
-import { isRunTool } from '@sursaut/ui/palette'
 import { reactive } from 'mutts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -17,6 +16,7 @@ vi.mock('@app/lib/globals', () => ({
 vi.mock('ssh/assets/game-content', () => ({
 	alveoli: {
 		house: { construction: true },
+		freight_bay: { construction: true },
 		decor: {},
 	},
 }))
@@ -24,6 +24,8 @@ vi.mock('ssh/assets/game-content', () => ({
 vi.mock('engine-pixi/assets/visual-content', () => ({
 	alveoli: {
 		house: { sprites: ['house-sprite'] },
+		freight_bay: { sprites: ['freight-bay-sprite'] },
+		storage: { sprites: ['storage-sprite'] },
 	},
 }))
 
@@ -39,12 +41,9 @@ describe('browser palette registry & palettePanelBridge', () => {
 
 	it('run tools resolve to palettePanelBridge panel openers', () => {
 		const palette = getBrowserPalette().palette
-		const openCfg = palette.tool('openConfiguration')
-		const openGame = palette.tool('openGame')
-		const openTest = palette.tool('openTest')
-		expect(isRunTool(openCfg)).toBe(true)
-		expect(isRunTool(openGame)).toBe(true)
-		expect(isRunTool(openTest)).toBe(true)
+		const openCfg = palette.tool('openConfiguration') as { run(): void }
+		const openGame = palette.tool('openGame') as { run(): void }
+		const openTest = palette.tool('openTest') as { run(): void }
 
 		const spyConfiguration = vi.fn()
 		const spyGame = vi.fn()
@@ -53,9 +52,9 @@ describe('browser palette registry & palettePanelBridge', () => {
 		palettePanelBridge.openGame = spyGame
 		palettePanelBridge.openTest = spyTest
 
-		if (isRunTool(openCfg)) openCfg.run()
-		if (isRunTool(openGame)) openGame.run()
-		if (isRunTool(openTest)) openTest.run()
+		openCfg.run()
+		openGame.run()
+		openTest.run()
 
 		expect(spyConfiguration).toHaveBeenCalledTimes(1)
 		expect(spyGame).toHaveBeenCalledTimes(1)
@@ -70,5 +69,24 @@ describe('browser palette registry & palettePanelBridge', () => {
 
 		const buildHouse = selectedAction.values.find((entry) => entry.value === 'build:house')
 		expect(buildHouse?.icon).toBeTruthy()
+	})
+
+	it('keeps freight bay in build selectedAction entries', () => {
+		const palette = getBrowserPalette().palette
+		const selectedAction = palette.tool('selectedAction') as {
+			values: Array<{ value: string }>
+		}
+
+		expect(selectedAction.values.some((entry) => entry.value === 'build:freight_bay')).toBe(true)
+	})
+
+	it('uses the freight bay visual for the freight bay build entry', () => {
+		const palette = getBrowserPalette().palette
+		const selectedAction = palette.tool('selectedAction') as {
+			values: Array<{ value: string; icon?: string | JSX.Element | (() => JSX.Element) }>
+		}
+
+		const freightBay = selectedAction.values.find((entry) => entry.value === 'build:freight_bay')
+		expect(freightBay?.icon).toBeTruthy()
 	})
 })

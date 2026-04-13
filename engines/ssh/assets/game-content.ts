@@ -76,7 +76,7 @@ export const alveoli = {
 	},
 	storage: {
 		preparationTime: 1,
-		action: { type: 'slotted-storage', capacity: 3, slots: 6 },
+		action: { type: 'storage', kind: 'slotted', capacity: 3, slots: 6 },
 		workTime: 0,
 		construction: {
 			goods: { wood: 2, planks: 2, stone: 1 },
@@ -85,20 +85,22 @@ export const alveoli = {
 	},
 	woodpile: {
 		preparationTime: 1,
-		action: { type: 'specific-storage', goods: { wood: 24 } },
+		action: { type: 'storage', kind: 'specific', goods: { wood: 24 } },
 		workTime: 0,
 		construction: {
 			goods: { wood: 10 },
 			time: 4,
 		},
 	},
-	gather: {
+	freight_bay: {
 		preparationTime: 1,
-		action: { type: 'gather', radius: 9 },
+		// Transitional bridge: freight_bay is the named building, but it still uses
+		// gather runtime semantics until road-fret absorbs that behavior fully.
+		action: { type: 'gather' },
 		workTime: 2,
 		construction: {
-			goods: { wood: 1, planks: 1, stone: 1 },
-			time: 5,
+			goods: { wood: 2, planks: 1 },
+			time: 4,
 		},
 	},
 	engineer: {
@@ -118,14 +120,14 @@ export const goods = {
 		halfLife: 1200,
 	},
 	mushrooms: {
-		satiationStrength: 0.6931, // felt ~0.5 hunger relief at equilibrium
+		satiationStrength: Math.LN2, // felt ~0.5 hunger relief at equilibrium
 		halfLife: 600,
 	},
 	planks: {
 		halfLife: 1200,
 	},
 	stone: {
-		halfLife: Infinity, // infinite half-life
+		halfLife: Number.POSITIVE_INFINITY, // infinite half-life
 	},
 	wood: {
 		halfLife: 900,

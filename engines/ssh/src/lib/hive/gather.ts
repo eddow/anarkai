@@ -1,5 +1,10 @@
 import { inert } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
+import {
+	DEFAULT_GATHER_FREIGHT_RADIUS,
+	findGatherFreightLine,
+	gatherSelectableGoodTypes,
+} from 'ssh/freight/freight-line'
 import type { Character } from 'ssh/population/character'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import type { GatherJob, Goods, GoodType } from 'ssh/types/base'
@@ -35,17 +40,27 @@ export class GatherAlveolus extends TransitAlveolus {
 		super(tile, new SlottedStorage(1, 12))
 	}
 
+	private gatherFreightLine() {
+		const freightLines = this.tile?.game?.freightLines
+		if (!freightLines?.length) return undefined
+		return findGatherFreightLine(freightLines, this)
+	}
+
+	private effectiveGatherRadius(): number {
+		return this.gatherFreightLine()?.radius ?? DEFAULT_GATHER_FREIGHT_RADIUS
+	}
+
 	get hasLooseGoodsToGather(): boolean {
-		// Check if there are any loose goods in the world that the hive needs
 		const hiveNeeds = Object.keys(this.hive.needs) as GoodType[]
-		if (hiveNeeds.length === 0) return false
+		const selectable = gatherSelectableGoodTypes(this.gatherFreightLine(), hiveNeeds)
+		if (selectable.length === 0) return false
 
 		// Use LooseGoods.findNearestGoods to check if there are any loose goods available within walk time
 		const nearestGoods = this.tile.game.hex.looseGoods.findNearestGoods(
 			toAxialCoord(this.tile.position),
 			toAxialCoord(this.tile.position), // Center is the same as start for gather
-			hiveNeeds,
-			this.action.radius
+			selectable,
+			this.effectiveGatherRadius()
 		)
 		return nearestGoods !== undefined
 	}
@@ -61,16 +76,23 @@ export class GatherAlveolus extends TransitAlveolus {
 				? toAxialCoord(character.position)
 				: toAxialCoord(this.tile.position)
 			const hex = this.tile.game.hex
+			const radius = this.effectiveGatherRadius()
+			const line = this.gatherFreightLine()
+			const hiveNeedTypes = Object.keys(this.hive.needs) as GoodType[]
 
 			let path: Positioned[] | undefined
 			let goodType: GoodType | undefined
-			let selectableGoods = Object.keys(this.hive.needs) as GoodType[]
+			let selectableGoods = gatherSelectableGoodTypes(line, hiveNeedTypes)
 			const carry = character?.carry
 			if (carry) {
+				const allowedGoods = line?.filters?.length ? new Set(line.filters) : undefined
 				const carriedGoods = Object.keys(carry.availables) as GoodType[]
 				selectableGoods = [...new Set([...selectableGoods, ...carriedGoods])]
 				selectableGoods = selectableGoods.filter(
-					(good) => carry.hasRoom(good) && this.storage.canStoreAll(goodsWith(carry.stock, good))
+					(good) =>
+						(!allowedGoods || allowedGoods.has(good)) &&
+						carry.hasRoom(good) &&
+						this.storage.canStoreAll(goodsWith(carry.stock, good))
 				)
 			}
 
@@ -88,7 +110,7 @@ export class GatherAlveolus extends TransitAlveolus {
 					}
 					return false
 				},
-				this.action.radius,
+				radius,
 				false
 			)
 
@@ -103,7 +125,7 @@ export class GatherAlveolus extends TransitAlveolus {
 				startPos,
 				startPos,
 				[targetGood.good],
-				this.action.radius
+				radius
 			)
 			if (result) {
 				path = result.path

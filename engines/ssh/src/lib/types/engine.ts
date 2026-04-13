@@ -1,3 +1,5 @@
+import type { AxialCoord } from 'ssh/utils'
+
 export interface GameRenderer {
 	/**
 	 * Initialize the renderer into the target element.
@@ -29,6 +31,16 @@ export interface GameRenderer {
 		zoom: number
 		camera: { x: number; y: number }
 	}
+
+	/**
+	 * Optional: sector-baked terrain/resources (e.g. Pixi) should refresh for this tile/world.
+	 */
+	invalidateTerrain?(coord?: AxialCoord): void
+
+	/**
+	 * Optional: stronger invalidation (e.g. clear caches) for terraforming-scale changes.
+	 */
+	invalidateTerrainHard?(coord?: AxialCoord): void
 }
 
 export interface InputAdapter {

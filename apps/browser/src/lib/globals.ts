@@ -20,12 +20,18 @@ export type { Configuration } from 'ssh/globals'
 export interface SelectionState {
 	panelId?: string
 	selectedUid?: string
+	titleVersion: number
 }
 
 export const selectionState = stored<SelectionState>({
 	panelId: undefined,
 	selectedUid: undefined,
+	titleVersion: 0,
 })
+
+export function bumpSelectionTitleVersion(): void {
+	selectionState.titleVersion++
+}
 
 export const dockviewLayout = stored<{ sshLayout: any }>({
 	sshLayout: undefined,

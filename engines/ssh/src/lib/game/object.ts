@@ -172,3 +172,19 @@ export type InteractiveGameObject = InstanceType<
 	ReturnType<typeof withInteractive<typeof GameObject>>
 >
 export type TickedGameObject = InstanceType<ReturnType<typeof withTicked<typeof GameObject>>>
+
+export interface InspectorSelectableObject {
+	readonly uid: string
+	readonly title: string
+	readonly game: Game
+	readonly logs: readonly string[]
+	readonly position?: Position
+	readonly hoverObject?: InteractiveGameObject
+}
+
+export function resolveSelectableHoverObject(
+	object: InspectorSelectableObject | InteractiveGameObject | undefined
+): InteractiveGameObject | undefined {
+	if (!object) return undefined
+	return 'canInteract' in object ? object : object.hoverObject
+}

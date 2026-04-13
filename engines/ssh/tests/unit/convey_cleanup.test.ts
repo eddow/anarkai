@@ -9,6 +9,7 @@ describe('Convey cleanup', () => {
 		const abort = vi.fn()
 		const hive = {
 			noteMovementLifecycle: vi.fn(),
+			noteMovementStorageCheckpoint: vi.fn(),
 			movementLifecycleIncludes: vi.fn(() => false),
 			describeMovementMineContext: vi.fn(() => 'context'),
 			assertMovementMine: vi.fn(),
@@ -57,6 +58,7 @@ describe('Convey cleanup', () => {
 		const abort = vi.fn()
 		const hive = {
 			noteMovementLifecycle: vi.fn(),
+			noteMovementStorageCheckpoint: vi.fn(),
 			movementLifecycleIncludes: vi.fn(() => false),
 			describeMovementMineContext: vi.fn(() => 'context'),
 			assertMovementMine: vi.fn(),

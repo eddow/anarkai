@@ -14,7 +14,9 @@ const globals = {
 	selectionState: {
 		panelId: undefined as string | undefined,
 		selectedUid: undefined as string | undefined,
+		titleVersion: 0,
 	},
+	bumpSelectionTitleVersion: vi.fn(),
 	unreactiveInfo: {
 		hasLastSelectedInfoPanel: false,
 	},
@@ -73,6 +75,17 @@ vi.mock('ssh/board/tile', () => ({
 	Tile: MockTile,
 }))
 
+vi.mock('ssh/game/object', () => ({
+	resolveSelectableHoverObject: vi.fn((object: unknown) => object),
+}))
+
+vi.mock('ssh/interactive-state', () => ({
+	setHoveredObject: vi.fn((object: unknown) => {
+		globals.mrg.hoveredObject = object
+	}),
+	isHoveredObject: vi.fn((object: unknown) => globals.mrg.hoveredObject === object),
+}))
+
 vi.mock('ssh/utils/images', () => ({
 	computeStyleFromTexture: vi.fn(() => 'background-image: url(test);'),
 }))
@@ -101,6 +114,7 @@ describe('LinkedEntityControl', () => {
 		globals.mrg.hoveredObject = undefined
 		globals.selectionState.panelId = undefined
 		globals.selectionState.selectedUid = undefined
+		globals.selectionState.titleVersion = 0
 		globals.unreactiveInfo.hasLastSelectedInfoPanel = false
 		globals.game.getObject.mockClear()
 		globals.validateStoredSelectionState.mockClear()
@@ -158,6 +172,29 @@ describe('LinkedEntityControl', () => {
 		expect(globals.selectionState.panelId).toMatch(/^selection-info-/)
 		expect(globals.unreactiveInfo.hasLastSelectedInfoPanel).toBe(true)
 		expect(focus).toHaveBeenCalled()
+	})
+
+	it('focuses an existing pinned inspector instead of adding a new one on click', async () => {
+		const { registerPinnedInspectorPanel } = await import('@app/lib/follow-selection')
+		const tile = new MockTile({ q: 3, r: 4 })
+		const existingPanel = {
+			id: 'panel-existing-tile',
+			focus,
+		}
+		getPanel.mockImplementation((panelId?: string) =>
+			panelId === 'panel-existing-tile' ? existingPanel : undefined
+		)
+		registerPinnedInspectorPanel('panel-existing-tile', tile.uid)
+		globals.selectionState.selectedUid = 'tile:0,1'
+
+		stop = latch(container, <LinkedEntityControl object={tile as never} />)
+
+		const button = container.querySelector('[data-testid="linked-entity-control"]') as HTMLButtonElement
+		button.click()
+
+		expect(globals.selectionState.selectedUid).toBe('tile:0,1')
+		expect(addPanel).not.toHaveBeenCalled()
+		expect(focus).toHaveBeenCalledTimes(1)
 	})
 
 	it('keeps the last resolved sprite while the same target tile churns data', () => {

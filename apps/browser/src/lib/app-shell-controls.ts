@@ -45,7 +45,7 @@ type GameAlveolusMap = typeof gameContent.alveoli
 type GameAlveolusEntry = [string, GameAlveolusMap[keyof GameAlveolusMap]]
 
 /**
- * Alveolus types that can be built (construction), for toolbar radios and palette action list.
+ * Alveolus types that can be built from the toolbar / palette.
  */
 export function getAppShellBuildableAlveoli(): GameAlveolusEntry[] {
 	return (Object.entries(gameContent.alveoli) as GameAlveolusEntry[]).filter(

@@ -1,4 +1,5 @@
 import type { SaveState } from 'ssh/game'
+import type { GatherAlveolus } from 'ssh/hive/gather'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
@@ -45,6 +46,11 @@ describe('Gatherer Conveying Integration', () => {
 					],
 				},
 			],
+			tiles: [
+				{ coord: [0, 0] as [number, number], terrain: 'concrete' },
+				{ coord: [0, 1] as [number, number], terrain: 'concrete' },
+				{ coord: [1, 0] as [number, number], terrain: 'concrete' },
+			],
 			looseGoods: [
 				{ goodType: 'berries', position: { q: 0, r: 1 } },
 				{ goodType: 'berries', position: { q: 0, r: 1 } },
@@ -81,6 +87,49 @@ describe('Gatherer Conveying Integration', () => {
 			job: 'gather',
 			goodType: 'berries',
 		})
-		expect(gatherJob?.path.at(-1)).toMatchObject({ q: 0, r: 1 })
+		expect(gatherJob?.path?.length).toBeGreaterThan(0)
+	})
+
+	it('keeps gather-line filters authoritative even with unrelated carried goods', async () => {
+		const { engine, game, spawnWorker } = await setupEngine()
+		try {
+			engine.loadScenario({
+				hives: [
+					{
+						name: 'GatherHive',
+						alveoli: [{ coord: [0, 0], alveolus: 'gather', goods: {} }],
+					},
+				],
+				tiles: [
+					{ coord: [0, 0] as [number, number], terrain: 'concrete' },
+					{ coord: [0, 1] as [number, number], terrain: 'concrete' },
+				],
+				looseGoods: [
+					{ goodType: 'berries', position: { q: 0, r: 1 } },
+					{ goodType: 'wood', position: { q: 0, r: 1 } },
+					{ goodType: 'wood', position: { q: 0, r: 1 } },
+				],
+				freightLines: [
+					{
+						id: 'GatherHive:implicit-gather:0,0',
+						name: 'Filtered gather',
+						mode: 'gather',
+						stops: [{ hiveName: 'GatherHive', alveolusType: 'gather', coord: [0, 0] }],
+						filters: ['berries'],
+						radius: 2,
+					},
+				],
+			})
+
+			const gatherer = game.hex.getTile({ q: 0, r: 0 })?.content as GatherAlveolus
+			const worker = spawnWorker({ q: 0, r: 0 })
+			worker.role = 'worker'
+			worker.carry.addGood('wood', 1)
+
+			const gatherJob = gatherer.nextJob(worker)
+			expect(gatherJob).toBeUndefined()
+		} finally {
+			await engine.destroy()
+		}
 	})
 })

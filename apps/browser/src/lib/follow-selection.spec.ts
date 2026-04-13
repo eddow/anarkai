@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const addPanel = vi.fn()
 const getPanel = vi.fn()
+const focus = vi.fn()
 
 const globals = {
 	game: {
@@ -10,7 +11,9 @@ const globals = {
 	selectionState: {
 		panelId: undefined as string | undefined,
 		selectedUid: undefined as string | undefined,
+		titleVersion: 0,
 	},
+	bumpSelectionTitleVersion: vi.fn(),
 	unreactiveInfo: {
 		hasLastSelectedInfoPanel: false,
 	},
@@ -24,10 +27,12 @@ describe('follow-selection', () => {
 		globals.game.getObject.mockClear()
 		globals.selectionState.panelId = undefined
 		globals.selectionState.selectedUid = undefined
+		globals.selectionState.titleVersion = 0
 		globals.unreactiveInfo.hasLastSelectedInfoPanel = false
 		globals.validateStoredSelectionState.mockClear()
 		addPanel.mockClear()
 		getPanel.mockClear()
+		focus.mockClear()
 		getPanel.mockReturnValue(undefined)
 	})
 
@@ -79,5 +84,31 @@ describe('follow-selection', () => {
 				title: 'Character Ada',
 			})
 		)
+	})
+
+	it('focuses an existing pinned inspector instead of opening a duplicate panel', async () => {
+		const { registerPinnedInspectorPanel, showProps } = await import('./follow-selection')
+		const existingPanel = {
+			id: 'panel-existing-tile',
+			focus,
+		}
+		;(window as any).dockviewApi = {
+			addPanel,
+			getPanel,
+		}
+		getPanel.mockImplementation((panelId?: string) =>
+			panelId === 'panel-existing-tile' ? existingPanel : undefined
+		)
+		registerPinnedInspectorPanel('panel-existing-tile', 'tile:9,9')
+		globals.selectionState.selectedUid = 'character-1'
+
+		showProps({
+			uid: 'tile:9,9',
+			title: 'Tile 9, 9',
+		})
+
+		expect(globals.selectionState.selectedUid).toBe('character-1')
+		expect(addPanel).not.toHaveBeenCalled()
+		expect(focus).toHaveBeenCalledTimes(1)
 	})
 })

@@ -59,6 +59,10 @@ describe('Convey hop mechanism', () => {
 			])
 			expect(movingGood.from).toEqual(initialCoord)
 
+			movingGood.claimed = true
+			movingGood.claimedBy = 'test-worker'
+			movingGood.claimedAtMs = Date.now()
+
 			// Perform first hop
 			const firstHop = movingGood.hop()!
 			expect(firstHop).toMatchObject({ q: 0.5, r: 0 })
@@ -83,7 +87,10 @@ describe('Convey hop mechanism', () => {
 			expect(finalHopMovements[0]).toBe(movingGood)
 			expect(movingGood.from).toEqual(finalHop)
 
-			// Finish the movement
+			// Release claim and finish the movement
+			movingGood.claimed = false
+			delete movingGood.claimedBy
+			delete movingGood.claimedAtMs
 			movingGood.finish()
 
 			// Verify the moving good is removed from tracking

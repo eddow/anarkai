@@ -8,6 +8,18 @@ async function flushDeferred(turns: number = 3) {
 	}
 }
 
+function claimMovementForTest(movement: { claimed?: boolean; claimedBy?: string; claimedAtMs?: number }) {
+	movement.claimed = true
+	movement.claimedBy = 'gather-to-sawmill-regression'
+	movement.claimedAtMs = Date.now()
+}
+
+function releaseMovementClaimForTest(movement: { claimed?: boolean; claimedBy?: string; claimedAtMs?: number }) {
+	movement.claimed = false
+	delete movement.claimedBy
+	delete movement.claimedAtMs
+}
+
 describe('Gather to sawmill regression', () => {
 	it('keeps exposing a convey job for the second reserved wood after the first wood advances', {
 		timeout: 20000,
@@ -71,6 +83,7 @@ describe('Gather to sawmill regression', () => {
 			expect(gather.getJob()?.job, debugTimeline.join('\n')).toBe('convey')
 
 			const firstMovement = initialMovements[0]
+			claimMovementForTest(firstMovement)
 			firstMovement.allocations.source.fulfill()
 			firstMovement.hop()
 			firstMovement.place()
@@ -80,9 +93,11 @@ describe('Gather to sawmill regression', () => {
 
 			expect(gather.getJob()?.job, debugTimeline.join('\n')).toBe('convey')
 
+			claimMovementForTest(firstMovement)
 			firstMovement.allocations.source.fulfill()
 			firstMovement.hop()
 			firstMovement.place()
+			releaseMovementClaimForTest(firstMovement)
 			firstMovement.finish()
 			await flushDeferred()
 

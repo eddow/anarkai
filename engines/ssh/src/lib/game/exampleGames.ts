@@ -19,7 +19,7 @@ export const chopSaw = {
 				{ alveolus: 'tree_chopper', coord: [10, -8] },
 				{ alveolus: 'stonecutter', coord: [10, -6] },
 				{ alveolus: 'storage', coord: [11, -8] },
-				{ alveolus: 'gather', coord: [11, -7] },
+				{ alveolus: 'freight_bay', coord: [11, -7] },
 				{ alveolus: 'engineer', coord: [12, -8] },
 				{ alveolus: 'sawmill', coord: [12, -7] },
 			],

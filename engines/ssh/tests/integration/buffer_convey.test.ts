@@ -114,6 +114,7 @@ describe('Storage Buffering', () => {
 					{ position: { q: 2, r: 0 }, goodType: 'wood' },
 					{ position: { q: 2, r: 0 }, goodType: 'wood' },
 				],
+				tiles: [{ coord: [2, 0] as [number, number], terrain: 'grass' }],
 			}
 
 			engine.loadScenario(scenario)

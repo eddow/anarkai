@@ -28,12 +28,13 @@ declare namespace Ssh {
 	}
 	interface GatherAction {
 		type: 'gather'
-		radius: number
 	}
 	interface EngineerAction {
 		type: 'engineer'
 		radius: number
 	}
+	type StorageKind = 'slotted' | 'specific'
+
 	interface SlottedStorageAction extends SlottedStorage {
 		type: 'slotted-storage'
 	}
@@ -43,7 +44,37 @@ declare namespace Ssh {
 		// TODO: Buffers are not specified in the action (game content) but in the alveolus (alveolus-configuration)
 		buffers?: Record<string, number>
 	}
-	type StorageAction = SlottedStorageAction | SpecificStorageAction
+
+	/** Unified storage building: role is `storage`, layout is `kind`. */
+	interface UnifiedSlottedStorageAction extends SlottedStorage {
+		type: 'storage'
+		kind: 'slotted'
+	}
+	interface UnifiedSpecificStorageAction {
+		type: 'storage'
+		kind: 'specific'
+		goods: SpecificStorage
+		buffers?: Record<string, number>
+	}
+
+	/** Roadside freight stop: same storage layouts as `storage`, transport-facing role. */
+	interface RoadFretSlottedAction extends SlottedStorage {
+		type: 'road-fret'
+		kind: 'slotted'
+	}
+	interface RoadFretSpecificAction {
+		type: 'road-fret'
+		kind: 'specific'
+		goods: SpecificStorage
+		buffers?: Record<string, number>
+	}
+
+	type LegacyStorageAction = SlottedStorageAction | SpecificStorageAction
+	type UnifiedStorageAction = UnifiedSlottedStorageAction | UnifiedSpecificStorageAction
+	type RoadFretAction = RoadFretSlottedAction | RoadFretSpecificAction
+	/** Any alveolus action that backs a {@link StorageAlveolus} instance. */
+	type AlveolusStorageAction = LegacyStorageAction | UnifiedStorageAction | RoadFretAction
+	type StorageAction = LegacyStorageAction | UnifiedStorageAction
 
 	type Action =
 		| HarvestingAction
@@ -51,6 +82,7 @@ declare namespace Ssh {
 		| GatherAction
 		| EngineerAction
 		| StorageAction
+		| RoadFretAction
 
 	/**
 	 * Configuration scope determines where the configuration is stored and resolved from.

@@ -1,15 +1,28 @@
 import { css } from '@app/lib/css'
-import { clearFollowSelectionPanel } from '@app/lib/follow-selection'
+import {
+	clearFollowSelectionPanel,
+	registerPinnedInspectorPanel,
+	unregisterPinnedInspectorPanel,
+} from '@app/lib/follow-selection'
 import { game, mrg, selectionState } from '@app/lib/globals'
 import { InspectorSection, Panel } from '@app/ui/anarkai'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
 import { effect } from 'mutts'
 import { Tile } from 'ssh/board/tile'
-import type { InteractiveGameObject } from 'ssh/game/object'
+import {
+	freightLineIdFromUid,
+	isFreightLineUid,
+	type SyntheticFreightLineObject,
+} from 'ssh/freight/freight-line'
+import { hiveInspectorTitle, isHiveUid, resolveHiveFromAnchorTile, type SyntheticHiveObject } from 'ssh/hive'
+import type { InspectorSelectableObject, InteractiveGameObject } from 'ssh/game/object'
+import { resolveSelectableHoverObject } from 'ssh/game/object'
 import { isHoveredObject, setHoveredObject } from 'ssh/interactive-state'
 import { Character } from 'ssh/population/character'
 import { toWorldCoord } from 'ssh/utils/position'
 import CharacterProperties from '../components/CharacterProperties'
+import FreightLineProperties from '../components/FreightLineProperties'
+import HiveProperties from '../components/HiveProperties'
 import TileProperties from '../components/TileProperties'
 import type { SelectionInfoContext, SelectionInfoTool } from './selection-info-tab'
 
@@ -93,12 +106,42 @@ const SelectionInfoWidget = (
 			return this.object?.logs ?? []
 		},
 	}
+	const resolvePanelTitle = () => {
+		const object = current.object
+		if (!object) return 'Object'
+		const uid = current.uid
+		if (!uid) return object.title ?? 'Object'
+
+		if (isFreightLineUid(uid)) {
+			const lineId = freightLineIdFromUid(uid)
+			const lines = game.freightLines
+			const line =
+				lineId && Array.isArray(lines) ? lines.find((entry) => entry.id === lineId) : undefined
+			if (line) {
+				const modeLabel = line.mode[0].toUpperCase() + line.mode.slice(1)
+				return `${line.name} (${modeLabel})`
+			}
+		}
+
+		if (
+			isHiveUid(uid) &&
+			'anchorTileUid' in object &&
+			game.objects &&
+			typeof game.objects.get === 'function'
+		) {
+			const hive = resolveHiveFromAnchorTile(game, object.anchorTileUid)
+			return hiveInspectorTitle(hive)
+		}
+
+		return object.title ?? 'Object'
+	}
 
 	const pin = () => {
 		const uid = selectionState.selectedUid
 		if (!uid) return
 		api.updateParameters({ uid })
 		props.params.uid = uid
+		registerPinnedInspectorPanel(api.id, uid)
 		props.context.tools = (props.context.tools ?? []).filter(
 			(tool) => tool.ariaLabel !== 'Pin Panel'
 		)
@@ -123,20 +166,23 @@ const SelectionInfoWidget = (
 	}
 
 	effect`selection-info:title`(() => {
-		props.title = current.object?.title ?? 'Object'
+		selectionState.titleVersion
+		props.title = resolvePanelTitle()
 	})
 
 	effect`selection-info:hovered-object`(() => {
-		const object = current.object as InteractiveGameObject | undefined
-		props.context.hoveredObject = object
-		if (isPanelHovered && object) {
-			setHoveredObject(object)
+		const hoverObject = resolveSelectableHoverObject(
+			current.object as InspectorSelectableObject | InteractiveGameObject | undefined
+		)
+		props.context.hoveredObject = hoverObject
+		if (isPanelHovered && hoverObject) {
+			setHoveredObject(hoverObject)
 		}
 		return () => {
-			if (props.context.hoveredObject === object) {
+			if (props.context.hoveredObject === hoverObject) {
 				props.context.hoveredObject = undefined
 			}
-			if (isPanelHovered && isHoveredObject(object)) {
+			if (isPanelHovered && isHoveredObject(hoverObject)) {
 				mrg.hoveredObject = undefined
 			}
 		}
@@ -163,9 +209,16 @@ const SelectionInfoWidget = (
 			if (props.context.tools === tools) props.context.tools = []
 		}
 	})
+	effect`selection-info:pinned-panel-registration`(() => {
+		const uid = props.params.uid
+		if (!uid) return
+		registerPinnedInspectorPanel(api.id, uid)
+		return () => unregisterPinnedInspectorPanel(api.id, uid)
+	})
 	effect`selection-info:panel-cleanup`(() => {
 		const disposable = scope.dockviewApi!.onDidRemovePanel((panel) => {
 			if (panel.id === api.id) {
+				unregisterPinnedInspectorPanel(api.id, props.params.uid)
 				// If this panel was the one tracking active selection (not pinned)
 				// Reset the flag so selection in game can re-open it.
 				if (!props.params.uid) {
@@ -179,13 +232,17 @@ const SelectionInfoWidget = (
 	const attachHoverTracking = (element: HTMLElement) => {
 		const handleMove = () => {
 			isPanelHovered = true
-			const object = current.object as InteractiveGameObject | undefined
-			if (object) setHoveredObject(object)
+			const hoverObject = resolveSelectableHoverObject(
+				current.object as InspectorSelectableObject | InteractiveGameObject | undefined
+			)
+			if (hoverObject) setHoveredObject(hoverObject)
 		}
 		const handleLeave = () => {
 			isPanelHovered = false
-			const object = current.object as InteractiveGameObject | undefined
-			if (isHoveredObject(object)) {
+			const hoverObject = resolveSelectableHoverObject(
+				current.object as InspectorSelectableObject | InteractiveGameObject | undefined
+			)
+			if (isHoveredObject(hoverObject)) {
 				mrg.hoveredObject = undefined
 			}
 		}
@@ -211,6 +268,12 @@ const SelectionInfoWidget = (
 						<CharacterProperties character={current.object as Character} />
 					) : current.object instanceof Tile ? (
 						<TileProperties tile={current.object as Tile} />
+					) : current.object && isFreightLineUid(current.object.uid) ? (
+						<FreightLineProperties
+							lineObject={current.object as SyntheticFreightLineObject}
+						/>
+					) : current.object && isHiveUid(current.object.uid) ? (
+						<HiveProperties hiveObject={current.object as SyntheticHiveObject} />
 					) : (
 						<InspectorSection
 							class="selection-info-panel__summary"

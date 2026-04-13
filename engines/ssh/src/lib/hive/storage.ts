@@ -7,11 +7,19 @@ import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { GoodType, Job } from 'ssh/types'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
+import { findDistributeFreightLine } from 'ssh/freight/freight-line'
 import { goods as allGoodsList, configurations, jobBalance } from '../../../assets/game-content'
 import {
 	isSlottedStorageConfiguration,
 	isSpecificStorageConfiguration,
 } from './alveolus-configuration'
+import {
+	isAlveolusStorageAction,
+	readSlottedStorageParams,
+	readSpecificStorageParams,
+	usesSlottedStorageLayout,
+	usesSpecificStorageLayout,
+} from './storage-action'
 
 function clampSlotCount(value: number, maximum: number): number {
 	if (!Number.isFinite(value)) return 0
@@ -31,7 +39,7 @@ function sumBufferedSlots(
 
 @reactive
 export class StorageAlveolus extends Alveolus {
-	declare action: Ssh.StorageAction
+	declare action: Ssh.AlveolusStorageAction
 
 	/**
 	 * Individual configuration specific to storage alveoli.
@@ -44,7 +52,7 @@ export class StorageAlveolus extends Alveolus {
 	 * Extends base class configuration with storage-specific defaults.
 	 */
 	get storageConfiguration(): Ssh.StorageAlveolusConfiguration {
-		return this.action.type === 'slotted-storage'
+		return usesSlottedStorageLayout(this.action)
 			? this.slottedStorageConfiguration
 			: this.specificStorageConfiguration
 	}
@@ -79,13 +87,13 @@ export class StorageAlveolus extends Alveolus {
 		return {
 			...defaults,
 			working: baseConfig.working,
-			generalSlots: this.slottedAction.slots,
+			generalSlots: this.slottedDefinition.slots,
 			goods: {},
 		}
 	}
 
 	get storageBuffers(): Partial<Record<GoodType, number>> {
-		if (this.action.type === 'specific-storage') {
+		if (usesSpecificStorageLayout(this.action)) {
 			return this.specificStorageConfiguration.buffers
 		}
 
@@ -116,7 +124,7 @@ export class StorageAlveolus extends Alveolus {
 	 * Set buffers by updating individual configuration.
 	 */
 	setBuffers(buffers: Record<string, number>): void {
-		if (this.action.type === 'specific-storage') {
+		if (usesSpecificStorageLayout(this.action)) {
 			const config = this.ensureSpecificStorageConfiguration()
 			config.buffers = {
 				...config.buffers,
@@ -144,16 +152,22 @@ export class StorageAlveolus extends Alveolus {
 
 	constructor(tile: Tile) {
 		const def: Ssh.AlveolusDefinition = new.target.prototype
+		const rawAction = def.action
+		if (!isAlveolusStorageAction(rawAction)) {
+			throw new Error(
+				`StorageAlveolus created with invalid action type: ${(rawAction as Ssh.Action).type}`
+			)
+		}
 
-		if (def.action.type === 'slotted-storage') {
-			const action = def.action as Ssh.SlottedStorageAction
-			super(tile, new SlottedStorage(action.slots, action.capacity))
+		if (usesSlottedStorageLayout(rawAction)) {
+			const { slots, capacity, buffers } = readSlottedStorageParams(rawAction)
+			super(tile, new SlottedStorage(slots, capacity))
 
 			// Legacy: if action has buffers defined, set them as individual config
-			if (action.buffers) {
+			if (buffers) {
 				const goods: Record<string, Ssh.SlottedStorageGoodConfiguration> = {}
-				for (const [goodType, minSlots] of Object.entries(action.buffers)) {
-					const safeMin = clampSlotCount(minSlots, action.slots)
+				for (const [goodType, minSlots] of Object.entries(buffers)) {
+					const safeMin = clampSlotCount(minSlots, slots)
 					if (safeMin <= 0) continue
 					goods[goodType] = {
 						minSlots: safeMin,
@@ -162,24 +176,24 @@ export class StorageAlveolus extends Alveolus {
 				}
 				this.individualConfiguration = reactive({
 					working: true,
-					generalSlots: action.slots - sumBufferedSlots(goods),
+					generalSlots: slots - sumBufferedSlots(goods),
 					goods,
 				})
 				this.normalizeEditableSlottedConfiguration()
 			}
-		} else if (def.action.type === 'specific-storage') {
-			const action = def.action as Ssh.SpecificStorageAction
-			super(tile, new SpecificStorage(action.goods))
+		} else if (usesSpecificStorageLayout(rawAction)) {
+			const { goods, buffers } = readSpecificStorageParams(rawAction)
+			super(tile, new SpecificStorage(goods))
 
 			// Legacy: if action has buffers defined, set them as individual config
-			if (action.buffers) {
+			if (buffers) {
 				this.individualConfiguration = reactive({
 					working: true,
-					buffers: action.buffers,
+					buffers: buffers,
 				})
 			}
 		} else {
-			throw new Error(`StorageAlveolus created with invalid action type: ${def.action.type}`)
+			throw new Error(`StorageAlveolus created with invalid storage layout`)
 		}
 
 		if (this.individualConfiguration) {
@@ -355,6 +369,18 @@ export class StorageAlveolus extends Alveolus {
 			}
 		}
 
+		const freightLines = this.tile?.game?.freightLines
+		const distributeLine =
+			freightLines && freightLines.length > 0
+				? findDistributeFreightLine(freightLines, this)
+				: undefined
+		if (distributeLine?.filters?.length) {
+			const allowed = new Set(distributeLine.filters)
+			for (const goodType of Object.keys(relations) as GoodType[]) {
+				if (!allowed.has(goodType)) delete relations[goodType]
+			}
+		}
+
 		return relations
 	}
 
@@ -380,7 +406,7 @@ export class StorageAlveolus extends Alveolus {
 			return
 		}
 
-		const nextMinSlots = clampSlotCount(rule.minSlots ?? 0, this.slottedAction.slots)
+		const nextMinSlots = clampSlotCount(rule.minSlots ?? 0, this.slottedDefinition.slots)
 		if (nextMinSlots <= 0 && (rule.maxSlots ?? 0) <= 0) {
 			delete config.goods[goodType]
 			config.generalSlots = clampSlotCount(
@@ -395,7 +421,7 @@ export class StorageAlveolus extends Alveolus {
 			minSlots: nextMinSlots,
 			maxSlots: clampSlotCount(
 				rule.maxSlots ?? currentRule?.maxSlots ?? 0,
-				this.slottedAction.slots
+				this.slottedDefinition.slots
 			),
 		}
 		this.normalizeEditableSlottedConfiguration()
@@ -424,11 +450,11 @@ export class StorageAlveolus extends Alveolus {
 		})
 	}
 
-	private get slottedAction(): Ssh.SlottedStorageAction {
-		if (this.action.type !== 'slotted-storage') {
-			throw new Error(`Expected slotted-storage action, got ${this.action.type}`)
+	private get slottedDefinition(): { slots: number; capacity: number } {
+		if (!usesSlottedStorageLayout(this.action)) {
+			throw new Error(`Expected slotted storage layout, got ${this.action.type}`)
 		}
-		return this.action
+		return readSlottedStorageParams(this.action)
 	}
 
 	private ensureSpecificStorageConfiguration(): Ssh.SpecificStorageAlveolusConfiguration {
@@ -457,7 +483,7 @@ export class StorageAlveolus extends Alveolus {
 		) {
 			this.individualConfiguration = reactive({
 				working: this.configuration.working,
-				generalSlots: this.slottedAction.slots,
+				generalSlots: this.slottedDefinition.slots,
 				goods: {},
 			})
 		}
@@ -477,7 +503,7 @@ export class StorageAlveolus extends Alveolus {
 				delete this.individualConfiguration.goods[goodType]
 				continue
 			}
-			rule.minSlots = clampSlotCount(rule.minSlots, this.slottedAction.slots)
+			rule.minSlots = clampSlotCount(rule.minSlots, this.slottedDefinition.slots)
 		}
 
 		const maxBudget = this.slottedRemainingSlotBudget(this.individualConfiguration.goods)
@@ -534,6 +560,6 @@ export class StorageAlveolus extends Alveolus {
 		goods: Record<string, Ssh.SlottedStorageGoodConfiguration | undefined> = this
 			.slottedStorageConfiguration.goods
 	): number {
-		return Math.max(0, this.slottedAction.slots - sumBufferedSlots(goods))
+		return Math.max(0, this.slottedDefinition.slots - sumBufferedSlots(goods))
 	}
 }

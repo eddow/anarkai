@@ -12,7 +12,31 @@
 		"storage": "Store",
 		"building": "Building",
 		"engineer": "Engineer",
-		"woodpile": "Woodpile"
+		"woodpile": "Woodpile",
+		"freight_bay": "Freight Bay"
+	},
+	"hive": {
+		"section": "Hive",
+		"name": "Name",
+		"ads": "Ads",
+		"noAds": "No advertisements for this hive anchor.",
+		"sourcesHint": "Number of contributing alveolus types",
+		"demand": "Demand",
+		"provide": "Provide"
+	},
+	"line": {
+		"section": "Freight line",
+		"name": "Name",
+		"mode": "Mode",
+		"radius": "Radius",
+		"filters": "Filters",
+		"stations": "Stations",
+		"stop": "Stop",
+		"unavailable": "Line is no longer available.",
+		"modes": {
+			"gather": "Gather",
+			"distribute": "Distribute"
+		}
 	},
 	"goods": {
 		"berries": "Berries",

@@ -11,6 +11,7 @@ import { computeStyleFromTexture } from 'ssh/utils/images'
 import AlveolusProperties from './AlveolusProperties'
 import EntityBadge from './EntityBadge'
 import GoodsList from './GoodsList'
+import HiveAnchorButton from './HiveAnchorButton'
 import PropertyGrid from './PropertyGrid'
 import PropertyGridRow from './PropertyGridRow'
 import UnBuiltProperties from './UnBuiltProperties'
@@ -27,8 +28,15 @@ css`
   .tile-properties__header {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 0.75rem;
+    width: 100%;
     margin-bottom: 1rem;
+  }
+
+  .tile-properties__header-hive {
+    flex: none;
+    margin-inline-start: auto;
   }
 
   .tile-properties__content {
@@ -83,6 +91,7 @@ const TileProperties = (props: TilePropertiesProps) => {
 			  }
 			| undefined,
 		terrainBackgroundStyle: '',
+		hiveHeaderTitle: '',
 	})
 
 	effect`tile-properties:content`(() => {
@@ -105,11 +114,15 @@ const TileProperties = (props: TilePropertiesProps) => {
 						: content.title,
 				terrain: resolveTileTerrainForContent(props.tile, content),
 			}
+			const hiveName = content.hive?.name?.trim()
+			state.hiveHeaderTitle = hiveName ? hiveName : 'Hive'
 		} else if (content instanceof UnBuiltLand) {
+			state.hiveHeaderTitle = ''
 			state.contentInfo = {
 				terrain: content.terrain,
 			}
 		} else {
+			state.hiveHeaderTitle = ''
 			state.contentInfo = {
 				terrain: resolveTileTerrainForContent(props.tile, content),
 			}
@@ -165,6 +178,9 @@ const TileProperties = (props: TilePropertiesProps) => {
 						text={state.contentInfo.name ?? ''}
 						height={32}
 					/>
+					<div if={state.tileContent instanceof Alveolus} class="tile-properties__header-hive">
+						<HiveAnchorButton tile={props.tile} title={state.hiveHeaderTitle} />
+					</div>
 				</div>
 			)}
 

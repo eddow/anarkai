@@ -1,5 +1,5 @@
 import { css } from '@app/lib/css'
-import { selectInspectorObject } from '@app/lib/follow-selection'
+import { showProps } from '@app/lib/follow-selection'
 import {
 	game,
 	interactionMode,
@@ -31,7 +31,7 @@ export default function GameWidget(
 	const containerId = `game-container-${api?.id ?? Math.random().toString(36).substr(2, 9)}`
 
 	const handleProjectSelection = (object: InteractiveGameObject) => {
-		selectInspectorObject(object, dock)
+		showProps(object, dock)
 	}
 
 	const handleBuildingAction = (_event: MouseEvent, object: InteractiveGameObject) => {

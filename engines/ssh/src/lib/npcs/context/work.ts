@@ -5,7 +5,8 @@ import type { LooseGood } from 'ssh/board/looseGoods'
 import { assert } from 'ssh/debug'
 import { alveolusClass } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
-import type { StorageAlveolus } from 'ssh/hive/storage'
+import { StorageAlveolus } from 'ssh/hive/storage'
+import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import type { TransformAlveolus } from 'ssh/hive/transform'
 import type { Character } from 'ssh/population/character'
 import type { AllocationBase } from 'ssh/storage'
@@ -266,11 +267,15 @@ class WorkFunctions {
 				} satisfies FailedConveyMovementData)
 				for (const prev of movementData) cleanupFailedConveyMovement(character, prev)
 				if (isRecoverableConveyError(error)) {
+					const errorMessage = error instanceof Error ? error.message : String(error)
+					// Recovery here is intentionally narrow: this branch is for transient mid-convey races
+					// after state has already been mutated. Do not extend it for ordinary "cannot proceed"
+					// outcomes; prefer preventing those earlier or modeling them as non-throwing refusals.
 					console.warn('[conveyStep] Recovered from stale movement bookkeeping', {
 						goodType: movement.goodType,
 						provider: movement.provider.name,
 						demander: movement.demander.name,
-						error: error.message,
+						error: errorMessage,
 					})
 					currentHive(movement).wakeWanderingWorkersNear(movement.provider, movement.demander)
 					return
@@ -289,23 +294,31 @@ class WorkFunctions {
 				: `convey.cycle`
 		const visualMovements = getConveyVisualMovements(movementData)
 		return new MultiMoveStep(totalTime, visualMovements, 'work', description)
-			.canceled(() => {
-				for (const { movement, hopAlloc, moving } of movementData) {
-					const movementHive = currentHive(movement)
-					movementHive.noteMovementLifecycle(movement, 'conveyStep.canceled')
-					releaseMovementClaim(movement)
-					hopAlloc?.cancel()
-					movementHive.cancelMovementSource(movement, 'conveyStep.canceled')
-					movement.allocations.target.cancel()
-					if (!moving.isRemoved) moving.remove()
-					character.game.hex.looseGoods.add(character.tile, movement.goodType)
-					movement.abort()
+		.canceled(() => {
+			for (const { movement, hopAlloc, moving } of movementData) {
+				if (!moving.isRemoved) moving.remove()
+				if (!currentHive(movement).isMovementAlive(movement)) continue
+				const movementHive = currentHive(movement)
+				movementHive.noteMovementLifecycle(movement, 'conveyStep.canceled')
+				releaseMovementClaim(movement)
+				hopAlloc?.cancel()
+				movementHive.cancelMovementSource(movement, 'conveyStep.canceled')
+				movement.allocations.target.cancel()
+				character.game.hex.looseGoods.add(character.tile, movement.goodType)
+				movement.abort()
+			}
+		})
+		.finished(() => {
+			try {
+				for (const { movement } of movementData) {
+					if (!currentHive(movement).isMovementAlive(movement)) {
+						throw new Error(
+							'Movement became invalid after hop handoff'
+						)
+					}
 				}
-			})
-			.finished(() => {
-				try {
-					for (const { movement, moving, hopAlloc, hop } of movementData) {
-						const movementHive = currentHive(movement)
+				for (const { movement, moving, hopAlloc, hop } of movementData) {
+					const movementHive = currentHive(movement)
 						const nextStorage = movementHive.storageAt(hop)
 
 						if (!moving.isRemoved) moving.remove()
@@ -409,8 +422,9 @@ class WorkFunctions {
 					}
 					for (const movement of movementData) cleanupFailedConveyMovement(character, movement)
 					if (isRecoverableConveyError(error)) {
+						const errorMessage = error instanceof Error ? error.message : String(error)
 						console.warn('[conveyStep] Recovered from stale movement bookkeeping in finish', {
-							error: error.message,
+							error: errorMessage,
 							movements: movementData.map(({ movement }) => ({
 								goodType: movement.goodType,
 								provider: movement.provider.name,
@@ -463,6 +477,7 @@ class WorkFunctions {
 		if (!canStoreAny) return
 		deposit.amount -= 1
 		if (deposit.amount <= 0) unbuiltLand.deposit = undefined
+		this[subject].game.notifyTerrainDepositsChanged(this[subject].tile)
 		return new DurationStep(
 			this[subject].assignedAlveolus!.workTime,
 			'work',
@@ -516,8 +531,8 @@ class WorkFunctions {
 		const character = this[subject]
 		const alveolus = character.assignedAlveolus as StorageAlveolus
 		assert(
-			alveolus.action.type === 'slotted-storage' || alveolus.action.type === 'specific-storage',
-			'assignedAlveolus must be a StorageAlveolus'
+			alveolus instanceof StorageAlveolus && alveolus.storage instanceof SlottedStorage,
+			'assignedAlveolus must be a slotted StorageAlveolus'
 		)
 		const fragmentedGoodType = alveolus.storage.fragmented
 		assert(fragmentedGoodType, 'alveolus must be fragmented')

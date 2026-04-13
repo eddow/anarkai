@@ -13,8 +13,28 @@ import {
 	type TerrainTerraformPatch,
 } from 'ssh/generation'
 import { configuration } from 'ssh/globals'
-import { AlveolusConfigurationManager, alveolusClass, Hive } from 'ssh/hive'
+import type {
+	FreightLineDefinition,
+	SyntheticFreightLineObject,
+} from 'ssh/freight/freight-line'
+import {
+	createSyntheticFreightLineObject,
+	findFreightLineByUid,
+	implicitGatherFreightLinesFromHivePatches,
+	isFreightLineUid,
+	normalizeFreightLineDefinition,
+} from 'ssh/freight/freight-line'
+import {
+	AlveolusConfigurationManager,
+	alveolusClass,
+	anchorTileUidFromHiveUid,
+	createSyntheticHiveObject,
+	Hive,
+	isHiveUid,
+	type SyntheticHiveObject,
+} from 'ssh/hive'
 import { StorageAlveolus } from 'ssh/hive/storage'
+import { readSlottedStorageParams, usesSlottedStorageLayout } from 'ssh/hive/storage-action'
 import { mrg, setHoveredObject } from 'ssh/interactive-state'
 import { Population } from 'ssh/population/population'
 import type { AlveolusType, DepositType, GoodType, TerrainType } from 'ssh/types'
@@ -89,7 +109,7 @@ function hasTerrainProperty(value: unknown): value is { terrain: TerrainType } {
 export interface AlveolusPatch {
 	coord: readonly [number, number]
 	goods?: Partial<Record<GoodType, number>>
-	alveolus: AlveolusType
+	alveolus: AlveolusType | 'gather'
 	/** Configuration reference and individual config for this alveolus */
 	configuration?: {
 		ref: Ssh.ConfigurationReference
@@ -117,6 +137,8 @@ export interface GamePatches {
 		name?: string
 		alveoli: ReadonlyArray<AlveolusPatch>
 	}>
+	/** Explicit freight lines; implicit one-stop gather lines are merged from hive patches unless overridden by id. */
+	freightLines?: ReadonlyArray<FreightLineDefinition>
 	looseGoods?: ReadonlyArray<{
 		goodType: GoodType
 		position: { q: number; r: number }
@@ -136,6 +158,10 @@ export interface SaveState extends GamePatches {
 	namedConfigurations?: Record<AlveolusType, Record<string, Ssh.AlveolusConfiguration>>
 	/** Per-hive configurations by alveolus type */
 	hiveConfigurations?: Record<string, Record<string, Ssh.AlveolusConfiguration>>
+}
+
+function canonicalPatchedAlveolusType(alveolus: AlveolusPatch['alveolus']): AlveolusType {
+	return alveolus === 'gather' ? 'freight_bay' : alveolus
 }
 
 export class Game extends Eventful<GameEvents> {
@@ -164,19 +190,7 @@ export class Game extends Eventful<GameEvents> {
 		this.terrainTerraforming = next
 		// Overrides can affect hydrology neighborhood, so invalidate prefill cache conservatively.
 		this.terrainProvider.invalidateAll()
-		;(
-			this.renderer as
-				| {
-						invalidateTerrainHard?: (coord?: AxialCoord) => void
-						invalidateTerrain?: (coord?: AxialCoord) => void
-				  }
-				| undefined
-		)?.invalidateTerrainHard?.(coord) ??
-			(
-				this.renderer as {
-					invalidateTerrain?: (coord?: AxialCoord) => void
-				} | undefined
-			)?.invalidateTerrain?.(coord)
+		this.renderer?.invalidateTerrainHard?.(coord) ?? this.renderer?.invalidateTerrain?.(coord)
 	}
 	readonly random: ReturnType<typeof LCG> = LCG('gameSeed', 0)
 	public lcg(seed: string | number) {
@@ -186,6 +200,8 @@ export class Game extends Eventful<GameEvents> {
 	public input?: InputAdapter
 	public readonly population: Population
 	public readonly configurationManager = new AlveolusConfigurationManager()
+	/** Registered freight lines (gather/distribute); merged at bootstrap from hive patches and explicit saves. */
+	public freightLines: FreightLineDefinition[] = []
 	// Dynamically loaded usage of Hive class
 	private HiveClass?: typeof Hive
 
@@ -222,7 +238,38 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	getObject(uid: string) {
-		return this.objects.get(uid)
+		return (
+			this.objects.get(uid) ??
+			this.getSyntheticFreightLineObject(uid) ??
+			this.getSyntheticHiveObject(uid)
+		)
+	}
+
+	getSyntheticFreightLineObject(uid: string): SyntheticFreightLineObject | undefined {
+		if (!isFreightLineUid(uid)) return undefined
+		const line = findFreightLineByUid(this.freightLines, uid)
+		return line ? createSyntheticFreightLineObject(this, line) : undefined
+	}
+
+	getSyntheticHiveObject(uid: string): SyntheticHiveObject | undefined {
+		if (!isHiveUid(uid)) return undefined
+		const anchorTileUid = anchorTileUidFromHiveUid(uid)
+		if (!anchorTileUid) return undefined
+		const tile = this.objects.get(anchorTileUid)
+		if (!(tile instanceof Tile)) return undefined
+		return createSyntheticHiveObject(this, tile)
+	}
+
+	replaceFreightLine(line: FreightLineDefinition): void {
+		const normalized = normalizeFreightLineDefinition(line)
+		const index = this.freightLines.findIndex((entry) => entry.id === line.id)
+		if (index < 0) {
+			this.freightLines = [...this.freightLines, normalized]
+			return
+		}
+		const next = [...this.freightLines]
+		next[index] = normalized
+		this.freightLines = next
 	}
 
 	registerHittable(object: HittableGameObject) {
@@ -260,6 +307,17 @@ export class Game extends Eventful<GameEvents> {
 		if (!this.objects.has(key)) return
 		this.pendingInteractiveChanges.set(key, object)
 		this.scheduleInteractiveLifecycleFlush()
+	}
+
+	/**
+	 * After mutating `UnBuiltLand.deposit` or its `amount`, notify tile observers and refresh
+	 * sector-baked resource visuals when a renderer implements `invalidateTerrain`.
+	 */
+	public notifyTerrainDepositsChanged(tile: Tile): void {
+		this.enqueueInteractiveChange(tile)
+		const coord = toAxialCoord(tile.position)
+		if (!coord) return
+		this.renderer?.invalidateTerrain?.(coord)
 	}
 
 	public enqueueInteractiveUnregistration(object: InteractiveGameObject) {
@@ -414,7 +472,7 @@ export class Game extends Eventful<GameEvents> {
 			;(globalThis as any).mrg = mrg
 			;(globalThis as any).testHover = (uid?: string) => {
 				const obj = uid ? this.getObject(uid) : undefined
-				setHoveredObject(obj)
+				if (obj && 'canInteract' in obj) setHoveredObject(obj)
 				console.log(`[testHover] set to ${uid} (${obj?.constructor.name})`)
 			}
 		})
@@ -437,6 +495,11 @@ export class Game extends Eventful<GameEvents> {
 			const coord = toAxialCoord(character.position)
 			if (coord) coords.push(axial.round(coord))
 		}
+		for (const line of patches.freightLines ?? []) {
+			for (const stop of line.stops) {
+				coords.push({ q: stop.coord[0], r: stop.coord[1] })
+			}
+		}
 	}
 
 	private bootstrapAnchor(patches: GamePatches | SaveState): AxialCoord {
@@ -451,6 +514,11 @@ export class Game extends Eventful<GameEvents> {
 			for (const coord of coordsForProject) coords.push({ q: coord[0], r: coord[1] })
 		}
 		for (const good of patches.looseGoods ?? []) coords.push(axial.round(good.position))
+		for (const line of patches.freightLines ?? []) {
+			for (const stop of line.stops) {
+				coords.push({ q: stop.coord[0], r: stop.coord[1] })
+			}
+		}
 		this.addBootstrapStateCoords(coords, patches)
 		if (coords.length === 0) return { q: 0, r: 0 }
 
@@ -482,6 +550,11 @@ export class Game extends Eventful<GameEvents> {
 			for (const coord of coordsForProject) addPatchCoord(coord)
 		}
 		for (const good of patches.looseGoods ?? []) addCoord(axial.round(good.position))
+		for (const line of patches.freightLines ?? []) {
+			for (const stop of line.stops) {
+				addCoord({ q: stop.coord[0], r: stop.coord[1] })
+			}
+		}
 		const streamedFrontier = 'streamedFrontier' in patches ? patches.streamedFrontier : undefined
 		for (const coord of streamedFrontier ?? []) addPatchCoord(coord)
 		const population = 'population' in patches ? patches.population : undefined
@@ -699,6 +772,7 @@ export class Game extends Eventful<GameEvents> {
 			if (patches.looseGoods?.length) this.applyLooseGoodsPatches(patches.looseGoods)
 			if (patches.zones) this.applyZonePatches(patches.zones)
 			if (patches.projects) this.applyProjectPatches(patches.projects)
+			this.bootstrapFreightLines(patches)
 		} catch (error) {
 			console.error('Generation failed:', error)
 		}
@@ -729,6 +803,7 @@ export class Game extends Eventful<GameEvents> {
 			if (patches.looseGoods?.length) this.applyLooseGoodsPatches(patches.looseGoods)
 			if (patches.zones) this.applyZonePatches(patches.zones)
 			if (patches.projects) this.applyProjectPatches(patches.projects)
+			this.bootstrapFreightLines(patches)
 		} catch (error) {
 			console.error('Async generation failed:', error)
 		}
@@ -794,6 +869,15 @@ export class Game extends Eventful<GameEvents> {
 				}
 			}
 		})
+	}
+
+	private bootstrapFreightLines(patches: GamePatches | SaveState): void {
+		const merged = new Map<string, FreightLineDefinition>()
+		const implicit =
+			patches.hives?.length ? implicitGatherFreightLinesFromHivePatches(patches.hives) : []
+		for (const line of implicit) merged.set(line.id, normalizeFreightLineDefinition(line))
+		for (const line of patches.freightLines ?? []) merged.set(line.id, normalizeFreightLineDefinition(line))
+		this.freightLines = [...merged.values()]
 	}
 
 	private applyTilePatches(patches: NonNullable<GamePatches['tiles']>) {
@@ -874,7 +958,7 @@ export class Game extends Eventful<GameEvents> {
 						currentContent.deposit = new DepositClass(p.deposit.amount)
 						// Ensure name is set
 						if (!currentContent.deposit.name) (currentContent.deposit as any).name = p.deposit.type
-						this.enqueueInteractiveChange(tile)
+						this.notifyTerrainDepositsChanged(tile)
 					}
 				}
 				if (
@@ -927,7 +1011,8 @@ export class Game extends Eventful<GameEvents> {
 					terrain: 'concrete',
 				}
 				this.upsertTerrainOverride(coord, { terrain: 'concrete' })
-				const AlveolusCtor = alveolusClass[a.alveolus as keyof typeof alveolusClass]
+				const alveolusType = canonicalPatchedAlveolusType(a.alveolus)
+				const AlveolusCtor = alveolusClass[alveolusType as keyof typeof alveolusClass]
 				if (!AlveolusCtor) continue
 				const alv = new AlveolusCtor(tile)
 				this.hex.setTileContent(tile, alv)
@@ -949,15 +1034,16 @@ export class Game extends Eventful<GameEvents> {
 						const individual = reactive({ ...a.configuration.individual })
 						if (
 							alv instanceof StorageAlveolus &&
-							alv.action.type === 'slotted-storage' &&
+							usesSlottedStorageLayout(alv.action) &&
 							'buffers' in individual &&
 							individual.buffers
 						) {
+							const slotCount = readSlottedStorageParams(alv.action).slots
 							const goods = Object.fromEntries(
 								Object.entries(individual.buffers).map(([goodType, minSlots]) => [
 									goodType,
 									{
-										minSlots: Math.max(0, Math.min(alv.action.slots, Math.floor(minSlots))),
+										minSlots: Math.max(0, Math.min(slotCount, Math.floor(minSlots))),
 										maxSlots: 0,
 									},
 								])
@@ -968,7 +1054,7 @@ export class Game extends Eventful<GameEvents> {
 							)
 							alv.individualConfiguration = reactive({
 								working: individual.working ?? true,
-								generalSlots: Math.max(0, alv.action.slots - usedSlots),
+								generalSlots: Math.max(0, slotCount - usedSlots),
 								goods,
 							})
 						} else {
@@ -1132,6 +1218,7 @@ export class Game extends Eventful<GameEvents> {
 				name: hive.name,
 				alveoli,
 			})),
+			freightLines: [...this.freightLines],
 			looseGoods: looseGoodsPatches,
 			streamedFrontier,
 			zones,

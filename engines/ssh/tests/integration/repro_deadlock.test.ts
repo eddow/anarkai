@@ -54,8 +54,8 @@ describe('Deadlock Reproduction', () => {
 				work: characterEvolutionRates.tiredness['work'],
 			},
 		}
-		reactiveOptions.maxEffectChain = 12
 		try {
+			reactiveOptions.maxEffectChain = 2000
 			const { engine, game, spawnWorker } = await setupEngine()
 
 			// Scenario:
@@ -74,6 +74,7 @@ describe('Deadlock Reproduction', () => {
 			}
 
 			engine.loadScenario(scenario)
+			reactiveOptions.maxEffectChain = 12
 			console.log('Repro milestone: scenario loaded')
 			await new Promise((r) => setTimeout(r, 0))
 			console.log('Repro milestone: after scenario drain')

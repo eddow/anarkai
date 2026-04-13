@@ -13,10 +13,10 @@ export function loadStandardMocks() {
 			},
 			goods: {
 				wood: { halfLife: 900 },
-				stone: { halfLife: Infinity },
+				stone: { halfLife: Number.POSITIVE_INFINITY },
 				planks: { halfLife: 900 },
 				food: { satiationStrength: 0.3567, halfLife: 600 },
-				mushrooms: { satiationStrength: 0.6931, halfLife: 600 },
+				mushrooms: { satiationStrength: Math.LN2, halfLife: 600 },
 				berries: { satiationStrength: 0.3567, halfLife: 300 },
 			},
 			terrain: new Proxy(
@@ -47,10 +47,10 @@ export function loadStandardMocks() {
 					},
 					construction: { goods: { wood: 1 }, time: 1 },
 				},
-				gather: {
+				freight_bay: {
 					preparationTime: 1,
 					workTime: 2,
-					action: { type: 'gather', radius: 9 },
+					action: { type: 'gather' },
 					construction: { goods: { wood: 1 }, time: 1 },
 				},
 				engineer_hut: {
@@ -62,13 +62,13 @@ export function loadStandardMocks() {
 				storage: {
 					preparationTime: 1,
 					workTime: 0,
-					action: { type: 'slotted-storage', capacity: 3, slots: 6 },
+					action: { type: 'storage', kind: 'slotted', capacity: 3, slots: 6 },
 					construction: { goods: { wood: 2 }, time: 6 },
 				},
 				woodpile: {
 					preparationTime: 1,
 					workTime: 0,
-					action: { type: 'specific-storage', goods: { wood: 24 } },
+					action: { type: 'storage', kind: 'specific', goods: { wood: 24 } },
 					construction: { goods: { wood: 10 }, time: 4 },
 				},
 			},
@@ -93,6 +93,11 @@ export function loadStandardMocks() {
 				defragment: 0.9,
 			},
 			configurations: {
+				'slotted-storage': {
+					working: true,
+					generalSlots: 0,
+					goods: {},
+				},
 				'specific-storage': {
 					working: true,
 					buffers: {},

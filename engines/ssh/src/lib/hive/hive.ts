@@ -19,6 +19,15 @@ import { AxialKeyMap } from 'ssh/utils/mem'
 import { toAxialCoord } from 'ssh/utils/position'
 import type { StorageAlveolus } from './storage'
 
+function isLogisticsStorageAlveolusAction(actionType: string | undefined): boolean {
+	return (
+		actionType === 'slotted-storage' ||
+		actionType === 'specific-storage' ||
+		actionType === 'storage' ||
+		actionType === 'road-fret'
+	)
+}
+
 /**
  * Canonical in-flight logistics token owned by a {@link Hive}.
  *
@@ -145,6 +154,8 @@ type MovementMineOptions = {
 	allowClaimedTerminalPath?: boolean
 	allowTerminalSourceGap?: boolean
 	allowTerminalPath?: boolean
+	/** After `fulfillMovementSource`, the source allocation is intentionally invalid while in-flight. */
+	allowFulfilledSourceAllocation?: boolean
 	allowUntracked?: boolean
 	label: string
 }
@@ -867,9 +878,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 	}
 
 	private isGeneralStorageAlveolus(alveolus: Alveolus): alveolus is StorageAlveolus {
-		return (
-			alveolus.action?.type === 'slotted-storage' || alveolus.action?.type === 'specific-storage'
-		)
+		return isLogisticsStorageAlveolusAction(alveolus.action?.type)
 	}
 
 	private movementRefsBelongToThisHive(provider?: Alveolus, demander?: Alveolus): boolean {
@@ -979,6 +988,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 			allowClaimedTerminalPath?: boolean
 			allowTerminalSourceGap?: boolean
 			allowTerminalPath?: boolean
+			allowFulfilledSourceAllocation?: boolean
 		} = {}
 	): MovementInvariantFailure | undefined {
 		if (this.isMovementRefreshSuspended(movement)) return undefined
@@ -986,6 +996,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		if (!movement.provider.tile || movement.provider.destroyed) return 'destroyed-provider'
 		if (!movement.demander.tile || movement.demander.destroyed) return 'destroyed-demander'
 		const allowClaimedSourceGap = options.allowClaimedSourceGap !== false && movement.claimed
+		const allowFulfilledSourceAllocation = options.allowFulfilledSourceAllocation === true
 		const allowClaimedTerminalPath = options.allowClaimedTerminalPath !== false && movement.claimed
 		const allowTerminalSourceGap =
 			options.allowTerminalSourceGap === true && movement.path.length === 0
@@ -997,6 +1008,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 			movement.allocations?.source &&
 			!isAllocationValid(movement.allocations.source) &&
 			!allowClaimedSourceGap &&
+			!allowFulfilledSourceAllocation &&
 			!allowTerminalSourceGap
 		) {
 			return 'invalid-source-allocation'
@@ -1190,6 +1202,15 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		)
 	}
 
+	/**
+	 * Returns true when this hive still owns the exact object reference.
+	 * After a topology refresh that falls through to `rebindMovementSnapshot`,
+	 * the old movement becomes a zombie: same `_mgId`, different object.
+	 */
+	isMovementAlive(movement: TrackedMovement): boolean {
+		return this.activeMovementsById.get(movement._mgId) === movement
+	}
+
 	assertMovementMine(
 		movement: TrackedMovement,
 		{
@@ -1202,6 +1223,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 			allowClaimedTerminalPath,
 			allowTerminalSourceGap,
 			allowTerminalPath,
+			allowFulfilledSourceAllocation,
 			allowUntracked = false,
 			label,
 		}: MovementMineOptions
@@ -1216,6 +1238,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 			allowClaimedTerminalPath,
 			allowTerminalSourceGap,
 			allowTerminalPath,
+			allowFulfilledSourceAllocation,
 		}
 		let failure = this.validateMovementInvariant(movement, validateOpts)
 		if (
@@ -1569,6 +1592,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 				requireTargetValid: true,
 				allowClaimedSourceGap: true,
 				allowClaimedTerminalPath: true,
+				allowFulfilledSourceAllocation: true,
 				allowUntracked: true,
 			})
 			assert(this.path.length > 0, `movement.hop.before: empty path; ${hive.describeMovementMineContext(this)}`)
@@ -1635,6 +1659,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 				allowClaimedTerminalPath: true,
 				allowTerminalSourceGap: true,
 				allowTerminalPath: true,
+				allowFulfilledSourceAllocation: true,
 			})
 			traces.allocations?.log(
 				`[MOVEMENT] FINISH: ${this.goodType} ${this.provider.name} -> ${this.demander.name}`,
@@ -2681,6 +2706,8 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		return [
 			...((this.byActionType['slotted-storage'] || []) as StorageAlveolus[]),
 			...((this.byActionType['specific-storage'] || []) as StorageAlveolus[]),
+			...((this.byActionType['storage'] || []) as StorageAlveolus[]),
+			...((this.byActionType['road-fret'] || []) as StorageAlveolus[]),
 		]
 	}
 	selectMovement(

@@ -39,6 +39,7 @@ describe('Single worker gather->sawmill regression', () => {
 
 				const worker = engine.spawnCharacter('SoloWorker', { q: 0, r: 0 })
 				worker.role = 'worker'
+				worker.hunger = 0
 				void worker.scriptsContext
 				const action = worker.findAction()
 				if (action) worker.begin(action)
@@ -116,6 +117,7 @@ describe('Single worker gather->sawmill regression', () => {
 
 				const worker = engine.spawnCharacter('SoloWorker', { q: 0, r: 0 })
 				worker.role = 'worker'
+				worker.hunger = 0
 				void worker.scriptsContext
 				const action = worker.findAction()
 				if (action) worker.begin(action)

@@ -1,4 +1,9 @@
 import type { Alveolus } from 'ssh/board/content/alveolus'
+import {
+	DEFAULT_GATHER_FREIGHT_RADIUS,
+	findGatherFreightLine,
+	gatherLineAcceptsProducedGood,
+} from 'ssh/freight/freight-line'
 import type { HarvestAlveolus } from 'ssh/hive/harvest'
 import { InteractiveContext, protoCtx, subject } from 'ssh/npcs/scripts'
 import type { Character } from 'ssh/population/character'
@@ -51,11 +56,13 @@ class CharacterContext extends InteractiveContext<Character> {
 		const currentPos = this[subject].tile.position
 
 		return gatherers.some((gatherer) => {
+			const line = findGatherFreightLine(this[subject].game.freightLines, gatherer)
+			const gatherRadius = line?.radius ?? DEFAULT_GATHER_FREIGHT_RADIUS
 			// Check if the gatherer can reach this position within its radius (walk time)
 			const path = this[subject].game.hex.findPath(
 				gatherer.tile.position,
 				currentPos,
-				(gatherer.action as Ssh.GatherAction).radius,
+				gatherRadius,
 				false
 			)
 
@@ -63,7 +70,9 @@ class CharacterContext extends InteractiveContext<Character> {
 			if (!path) return false
 
 			// Check if the hive needs any of the produced goods
-			return producedGoods.some((good) => good in harvestAlveolus.hive.needs)
+			return producedGoods.some((good) =>
+				gatherLineAcceptsProducedGood(line, harvestAlveolus.hive.needs, good)
+			)
 		})
 	}
 }

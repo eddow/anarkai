@@ -12,12 +12,25 @@ export interface FailedConveyMovementData {
 	sourceFulfilled?: boolean
 }
 
+// This list is an operational containment boundary, not a semantic model of all convey failures.
+// Keep it narrow: only errors that happen after convey has already mutated the world and that can
+// be safely unwound by cleanup belong here. If a failure can be prevented by re-checking preconditions
+// or represented as an ordinary "refusal / stale job" result, do that instead of extending this list.
+//
+// TODO: Replace this string-based triage with typed failure kinds and a two-phase convey handoff:
+// 1. preflight next-hop room / source validity without mutating world state
+// 2. only then fulfill source, advance tracking, and publish the visual move
+// After that structural change, this list should shrink to true invariant-break / teardown recovery only.
 const recoverableConveyErrorSnippets = [
+	// Accounting changed under us after the step started, but cleanup can safely roll back.
 	'reserved less than fulfill qty',
 	'allocated less than fulfill qty',
 	'goods less than fulfill qty',
 	'slot missing for allocated/reserved entry',
 	'not enough room in slot',
+	'Insufficient room to allocate any goods',
+	'Insufficient goods to reserve any goods',
+	// Mid-handoff bookkeeping drift: cleanup can restore a consistent baseline and let jobs retry.
 	'Target allocation missing',
 	'Failed to reserve storage for next hop',
 	'Movement became invalid after place',

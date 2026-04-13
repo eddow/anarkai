@@ -20,8 +20,9 @@ describe('Planner loop diagnostic', () => {
 	beforeEach(() => {
 		originalMaxChain = reactiveOptions.maxEffectChain
 		originalMaxReaction = reactiveOptions.maxEffectReaction
-		// Lower limit so the loop fails fast and we don't wait 2000 iterations
-		reactiveOptions.maxEffectChain = 30
+		// Keep headroom for world bootstrap (tile generation + hive attach). Individual tests
+		// that intentionally probe overflow tighten `maxEffectChain` locally.
+		reactiveOptions.maxEffectChain = 2000
 		reactiveOptions.maxEffectReaction = 'throw'
 	})
 
@@ -272,8 +273,6 @@ describe('Planner loop diagnostic', () => {
 	 * Test 8: Full tick cycle - does running engine.tick() with workers overflow?
 	 */
 	it('engine.tick with workers should not overflow effect chain', async () => {
-		reactiveOptions.maxEffectChain = 30 // fail fast
-
 		const engine = new TestEngine({
 			terrainSeed: 1234,
 			characterCount: 0,
@@ -293,6 +292,7 @@ describe('Planner loop diagnostic', () => {
 				looseGoods: [],
 			}
 			engine.loadScenario(scenario)
+			reactiveOptions.maxEffectChain = 30 // fail fast (after bootstrap)
 			const { game } = engine
 			const gather = game.hex.getTile({ q: 0, r: 0 })!.content!
 
@@ -333,6 +333,8 @@ describe('Planner loop diagnostic', () => {
 				reactiveOptions.maxEffectReaction = origMaxReaction
 			}
 		} finally {
+			// `hex.reset()` can flush large reactive batches; restore headroom before teardown.
+			reactiveOptions.maxEffectChain = originalMaxChain
 			await engine.destroy()
 		}
 	})

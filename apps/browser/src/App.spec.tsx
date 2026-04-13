@@ -33,6 +33,7 @@ const { addPanel, getPanel, removePanel, dockviewApi, gameInstance, globals } = 
 			selectedAction: '',
 		},
 		selectionState: {},
+		bumpSelectionTitleVersion: vi.fn(),
 		getDockviewLayout: vi.fn(() => undefined),
 		dockviewLayout: {
 			sshLayout: { root: 'layout' },

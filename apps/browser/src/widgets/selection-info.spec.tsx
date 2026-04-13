@@ -2,6 +2,7 @@ import { document, latch } from '@sursaut/core'
 import type { DockviewWidgetProps } from '@sursaut/ui/dockview'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SelectionInfoContext, SelectionInfoTool } from './selection-info-tab'
+import { hiveUidForAnchorTile } from 'ssh/hive'
 
 const updateParameters = vi.fn<(params: { uid?: string }) => void>()
 const onDidRemovePanel = vi.fn((handler: (panel: { id: string }) => void) => {
@@ -14,24 +15,40 @@ const gameObject = {
 	logs: ['log line 1', 'log line 2'],
 	position: { x: 2, y: 4 },
 }
+
+const hiveSyntheticUid = hiveUidForAnchorTile('tile:0,0')
+const hiveSyntheticObject = {
+	uid: hiveSyntheticUid,
+	kind: 'hive' as const,
+	title: 'Test Hive',
+	logs: [] as const,
+	anchorTileUid: 'tile:0,0',
+}
 const world = {
 	position: { x: 0, y: 0 },
 	scale: { x: 2 },
 }
 const game = {
-	getObject: vi.fn((uid: string) => (uid === 'object-1' ? gameObject : undefined)),
+	getObject: vi.fn((uid: string) => {
+		if (uid === 'object-1') return gameObject
+		if (uid === hiveSyntheticUid) return hiveSyntheticObject
+		return undefined
+	}),
 	renderer: {
 		world,
 		app: {
 			screen: { width: 200, height: 100 },
 		},
 	},
+	freightLines: [],
 }
 const globals = {
 	game,
 	selectionState: {
 		selectedUid: undefined as string | undefined,
+		titleVersion: 0,
 	},
+	bumpSelectionTitleVersion: vi.fn(),
 	mrg: {
 		hoveredObject: undefined as typeof gameObject | undefined,
 	},
@@ -54,6 +71,14 @@ vi.mock('../components/TileProperties', () => ({
 	default: () => <div data-testid="tile-properties">tile</div>,
 }))
 
+vi.mock('../components/FreightLineProperties', () => ({
+	default: () => <div data-testid="freight-line-properties">freight</div>,
+}))
+
+vi.mock('../components/HiveProperties', () => ({
+	default: () => <div data-testid="hive-properties">hive</div>,
+}))
+
 vi.mock('ssh/population/character', () => ({
 	Character: class Character {},
 }))
@@ -62,9 +87,28 @@ vi.mock('ssh/board/tile', () => ({
 	Tile: class Tile {},
 }))
 
-vi.mock('ssh/utils/position', () => ({
-	toWorldCoord: vi.fn(() => ({ x: 40, y: 10 })),
+vi.mock('ssh/game/object', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('ssh/game/object')>()
+	return {
+		...actual,
+		resolveSelectableHoverObject: vi.fn((object: unknown) => object),
+	}
+})
+
+vi.mock('ssh/interactive-state', () => ({
+	setHoveredObject: vi.fn((object: unknown) => {
+		globals.mrg.hoveredObject = object
+	}),
+	isHoveredObject: vi.fn((object: unknown) => globals.mrg.hoveredObject === object),
 }))
+
+vi.mock('ssh/utils/position', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('ssh/utils/position')>()
+	return {
+		...actual,
+		toWorldCoord: vi.fn(() => ({ x: 40, y: 10 })),
+	}
+})
 
 let SelectionInfoWidget: typeof import('./selection-info').default
 let SelectionInfoTab: typeof import('./selection-info-tab').default
@@ -110,6 +154,7 @@ describe('SelectionInfoWidget', () => {
 		container = document.createElement('div')
 		document.body.appendChild(container)
 		globals.selectionState.selectedUid = undefined
+		globals.selectionState.titleVersion = 0
 		globals.mrg.hoveredObject = undefined
 		globals.unreactiveInfo.hasLastSelectedInfoPanel = true
 		updateParameters.mockClear()
@@ -151,6 +196,17 @@ describe('SelectionInfoWidget', () => {
 		expect(getTool(props, 'Go to Object')).toBeDefined()
 		expect(getTool(props, 'Pin Panel')).toBeDefined()
 		expect(game.getObject).toHaveBeenCalledWith('object-1')
+	})
+
+	it('renders HiveProperties for a synthetic hive uid', () => {
+		globals.selectionState.selectedUid = hiveSyntheticUid
+		const props = createProps()
+		const scope = createScope()
+
+		stop = latch(container, <SelectionInfoWidget {...props} />, scope as never)
+
+		expect(container.querySelector('[data-testid="hive-properties"]')).not.toBeNull()
+		expect(game.getObject).toHaveBeenCalledWith(hiveSyntheticUid)
 	})
 
 	it('pins the currently selected object from the shared tab tools', () => {

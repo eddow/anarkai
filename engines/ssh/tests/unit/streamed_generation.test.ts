@@ -261,17 +261,21 @@ describe('streamed region generation', () => {
 		if (!tile) throw new Error('Expected tile to be materialized')
 		if (!content?.tile) throw new Error('Expected content-backed tile to be materialized')
 
-		expect(game.getRenderableTerrainAt({ q: 1, r: 2 })).toEqual({
-			terrain: 'grass',
-			height: 0.2,
-		})
+		expect(game.getRenderableTerrainAt({ q: 1, r: 2 })).toEqual(
+			expect.objectContaining({
+				terrain: 'grass',
+				height: 0.2,
+			})
+		)
 
 		content.tile.terrainState = { terrain: 'rocky', height: 0.9 }
 		expect(game.hasRenderableTerrainAt({ q: 1, r: 2 })).toBe(true)
-		expect(game.getRenderableTerrainAt({ q: 1, r: 2 })).toEqual({
-			terrain: 'rocky',
-			height: 0.9,
-		})
+		expect(game.getRenderableTerrainAt({ q: 1, r: 2 })).toEqual(
+			expect.objectContaining({
+				terrain: 'rocky',
+				height: 0.9,
+			})
+		)
 	})
 
 	it('keeps enforcing the batch cap across queued frontier requests', async () => {

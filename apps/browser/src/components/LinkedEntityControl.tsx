@@ -1,11 +1,14 @@
 import { css } from '@app/lib/css'
-import { selectInspectorObject } from '@app/lib/follow-selection'
+import { showProps } from '@app/lib/follow-selection'
 import { mrg } from '@app/lib/globals'
 import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content'
 import { effect, reactive } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { Tile } from 'ssh/board/tile'
-import type { InteractiveGameObject } from 'ssh/game/object'
+import type { InspectorSelectableObject, InteractiveGameObject } from 'ssh/game/object'
+import { resolveSelectableHoverObject } from 'ssh/game/object'
+import type { SyntheticFreightLineObject } from 'ssh/freight/freight-line'
+import type { SyntheticHiveObject } from 'ssh/hive'
 import { isHoveredObject, setHoveredObject } from 'ssh/interactive-state'
 import { computeStyleFromTexture } from 'ssh/utils/images'
 import ResourceImage from './ResourceImage'
@@ -77,9 +80,11 @@ css`
 `
 
 interface LinkedEntityControlProps {
-	object: InteractiveGameObject
-	title?: string
-	subtitle?: string
+	object:
+		| InspectorSelectableObject
+		| InteractiveGameObject
+		| SyntheticFreightLineObject
+		| SyntheticHiveObject
 	class?: string
 }
 
@@ -91,6 +96,11 @@ const LinkedEntityControl = (props: LinkedEntityControlProps) => {
 		objectTitle: '',
 		objectGame: undefined as typeof props.object.game | undefined,
 	})
+	const visualTile = () => {
+		const object = props.object
+		if (object instanceof Tile) return object
+		return 'tile' in object ? object.tile : undefined
+	}
 
 	effect`linked-entity:object-meta`(() => {
 		state.visualObjectUid = props.object.uid
@@ -106,7 +116,7 @@ const LinkedEntityControl = (props: LinkedEntityControlProps) => {
 	})
 
 	effect`linked-entity:sprite`(() => {
-		const object = props.object
+		const object = visualTile()
 		if (!(object instanceof Tile)) {
 			state.sprite = undefined
 			return
@@ -118,7 +128,7 @@ const LinkedEntityControl = (props: LinkedEntityControlProps) => {
 	})
 
 	effect`linked-entity:terrain-style`(() => {
-		const object = props.object
+		const object = visualTile()
 		if (!(object instanceof Tile)) {
 			state.backgroundStyle = ''
 			return
@@ -145,12 +155,16 @@ const LinkedEntityControl = (props: LinkedEntityControlProps) => {
 
 	const applyHover = (event: MouseEvent) => {
 		event.stopPropagation()
-		setHoveredObject(props.object)
+		const hoverObject = resolveSelectableHoverObject(props.object)
+		if (!hoverObject) return
+		setHoveredObject(hoverObject)
 	}
 
 	const clearHover = (event: MouseEvent) => {
 		event.stopPropagation()
-		if (isHoveredObject(props.object)) {
+		const hoverObject = resolveSelectableHoverObject(props.object)
+		if (!hoverObject) return
+		if (isHoveredObject(hoverObject)) {
 			mrg.hoveredObject = undefined
 		}
 	}
@@ -158,7 +172,7 @@ const LinkedEntityControl = (props: LinkedEntityControlProps) => {
 	const handleClick = (event: MouseEvent) => {
 		event.preventDefault()
 		event.stopPropagation()
-		selectInspectorObject(props.object)
+		showProps(props.object)
 	}
 
 	const attachHoverTracking = (element: HTMLElement) => {

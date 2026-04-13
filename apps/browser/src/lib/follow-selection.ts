@@ -1,13 +1,12 @@
 import type { DockviewWidgetScope } from '@sursaut/ui/dockview'
+import type { InspectorSelectableObject } from 'ssh/game/object'
 import { game } from './globals'
 import { selectionState, unreactiveInfo, validateStoredSelectionState } from './globals'
 
 type DockviewApiLike = DockviewWidgetScope['dockviewApi']
 
-type SelectableObject = {
-	uid: string
-	title?: string
-}
+type SelectableObject = Pick<InspectorSelectableObject, 'uid' | 'title'>
+const pinnedInspectorPanelIdsByUid = new Map<string, string>()
 
 function getGlobalDockviewApi(): DockviewApiLike | undefined {
 	if (typeof window === 'undefined') return undefined
@@ -20,10 +19,44 @@ function focusPanel(panel: any) {
 	panel?.api?.setActive?.()
 }
 
+function getRegisteredInspectorPanel(uid: string, dockviewApi: DockviewApiLike | undefined) {
+	if (!dockviewApi) return undefined
+	const panelId = pinnedInspectorPanelIdsByUid.get(uid)
+	if (!panelId) return undefined
+	const panel = dockviewApi.getPanel?.(panelId)
+	if (panel) return panel
+	pinnedInspectorPanelIdsByUid.delete(uid)
+	return undefined
+}
+
 export function clearFollowSelectionPanel(panelId?: string) {
 	if (panelId && selectionState.panelId && selectionState.panelId !== panelId) return
 	selectionState.panelId = undefined
 	unreactiveInfo.hasLastSelectedInfoPanel = false
+}
+
+export function registerPinnedInspectorPanel(panelId: string, uid?: string) {
+	if (!uid) return
+	for (const [mappedUid, mappedPanelId] of pinnedInspectorPanelIdsByUid) {
+		if (mappedPanelId === panelId && mappedUid !== uid) {
+			pinnedInspectorPanelIdsByUid.delete(mappedUid)
+		}
+	}
+	pinnedInspectorPanelIdsByUid.set(uid, panelId)
+}
+
+export function unregisterPinnedInspectorPanel(panelId: string, uid?: string) {
+	if (uid) {
+		if (pinnedInspectorPanelIdsByUid.get(uid) === panelId) {
+			pinnedInspectorPanelIdsByUid.delete(uid)
+		}
+		return
+	}
+	for (const [mappedUid, mappedPanelId] of pinnedInspectorPanelIdsByUid) {
+		if (mappedPanelId === panelId) {
+			pinnedInspectorPanelIdsByUid.delete(mappedUid)
+		}
+	}
 }
 
 function resolveSelectionPanelTitle(initialTitle?: string) {
@@ -66,7 +99,23 @@ export function ensureFollowSelectionPanel(preferredApi?: DockviewApiLike, initi
 	return panel
 }
 
-export function selectInspectorObject(object: SelectableObject, preferredApi?: DockviewApiLike) {
+export function showProps(object: SelectableObject, preferredApi?: DockviewApiLike) {
+	const dockviewApi = preferredApi ?? getGlobalDockviewApi()
+	if (dockviewApi) {
+		validateStoredSelectionState(dockviewApi)
+
+		const pinnedPanel = getRegisteredInspectorPanel(object.uid, dockviewApi)
+		if (pinnedPanel) {
+			focusPanel(pinnedPanel)
+			return pinnedPanel
+		}
+	}
+
 	selectionState.selectedUid = object.uid
-	return ensureFollowSelectionPanel(preferredApi, object.title)
+	if (!dockviewApi) return undefined
+	return ensureFollowSelectionPanel(dockviewApi, object.title)
+}
+
+export function selectInspectorObject(object: SelectableObject, preferredApi?: DockviewApiLike) {
+	return showProps(object, preferredApi)
 }

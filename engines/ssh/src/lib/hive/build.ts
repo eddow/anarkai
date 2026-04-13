@@ -11,10 +11,10 @@ export class BuildAlveolus extends Alveolus {
 	public readonly target: AlveolusType
 
 	constructor(tile: Tile, target: AlveolusType) {
-		const targetDef = alveoliDefs[target]
-		const cost = (targetDef.construction?.goods || {}) as Record<GoodType, number>
-
-		super(tile, new SpecificStorage(cost))
+		super(tile, new SpecificStorage((alveoliDefs[target].construction?.goods || {}) as Record<
+			GoodType,
+			number
+		>))
 
 		// Store properties
 		this.target = target
@@ -44,17 +44,19 @@ export class BuildAlveolus extends Alveolus {
 		return false
 	}
 
+	get requiredGoods(): Record<GoodType, number> {
+		return (alveoliDefs[this.target].construction?.goods || {}) as Record<GoodType, number>
+	}
+
 	get remainingNeeds(): Record<string, number> {
-		const targetDef = alveoliDefs[this.target]
-		const cost = targetDef.construction?.goods || {}
 		const needs: Record<string, number> = {}
 
 		// Guard against uninitialized storage
 		if (!this.storage || !this.storage.stock) {
-			return cost // If storage isn't ready, we need everything
+			return this.requiredGoods // If storage isn't ready, we need everything
 		}
 
-		for (const [good, qty] of Object.entries(cost)) {
+		for (const [good, qty] of Object.entries(this.requiredGoods)) {
 			const goodType = good as GoodType
 			const have = this.storage.available(goodType) || 0
 			if (have < qty) needs[good] = qty - have
@@ -63,11 +65,9 @@ export class BuildAlveolus extends Alveolus {
 	}
 
 	get advertisedNeeds(): Record<string, number> {
-		const targetDef = alveoliDefs[this.target]
-		const cost = targetDef.construction?.goods || {}
 		const needs: Record<string, number> = {}
 
-		for (const [good, qty] of Object.entries(cost)) {
+		for (const [good, qty] of Object.entries(this.requiredGoods)) {
 			const goodType = good as GoodType
 			const room = Math.max(0, this.storage.hasRoom(goodType))
 			if (room > 0) needs[good] = Math.min(qty, room)
@@ -84,10 +84,8 @@ export class BuildAlveolus extends Alveolus {
 		// TODO: Implement more sophisticated priority system that considers construction urgency,
 		// resource scarcity, and build order rather than just using distance as tie-breaker
 		if (this.destroyed) return {}
-		const targetDef = alveoliDefs[this.target]
-		const cost = (targetDef.construction?.goods || {}) as Record<GoodType, number>
 		return Object.fromEntries(
-			Object.entries(cost)
+			Object.entries(this.requiredGoods)
 				.filter(([goodType]) => (this.advertisedNeeds[goodType] ?? 0) > 0)
 				.map(([goodType]) => [goodType as GoodType, { advertisement: 'demand', priority: '2-use' }])
 		)

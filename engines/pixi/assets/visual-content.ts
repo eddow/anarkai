@@ -52,10 +52,6 @@ export const alveoli: Record<string, VisualDefinition> = {
 		sprites: ['buildings.store'],
 		icon: 'buildings.store',
 	},
-	gather: {
-		sprites: ['buildings.load'], // Temporary: transit.png missing
-		icon: 'buildings.load',
-	},
 	engineer: {
 		sprites: ['buildings.engineer'],
 		icon: 'buildings.engineer',
@@ -63,6 +59,11 @@ export const alveoli: Record<string, VisualDefinition> = {
 	woodpile: {
 		sprites: ['buildings.woodpile'],
 		icon: 'buildings.woodpile',
+	},
+	freight_bay: {
+		// Freight bays replace the old visible gather-stop role.
+		sprites: ['buildings.load'],
+		icon: 'buildings.load',
 	},
 }
 

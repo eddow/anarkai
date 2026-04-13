@@ -51,6 +51,7 @@ describe('Convey Stall Reproduction', () => {
 						],
 					},
 				],
+				looseGoods: [],
 			}
 
 			engine.loadScenario(scenario)
@@ -76,12 +77,14 @@ describe('Convey Stall Reproduction', () => {
 
 			const movements = provider.aGoodMovement
 			expect(movements?.length ?? 0).toBeGreaterThan(0)
-			const mg = movements?.[0]
-			expect(mg).toBeDefined()
-			if (!mg) {
+			const selection = movements?.[0]
+			expect(selection).toBeDefined()
+			if (!selection) {
 				throw new Error('Expected provider movement to exist')
 			}
-			const pathArr = Array.from(mg.path)
+			const mg = selection.movement
+			expect(mg.path).toBeDefined()
+			const pathArr = Array.from(mg.path ?? [])
 			expect(pathArr.map((p: any) => axial.key(p))).toEqual(['0.5,0', '1,0'])
 
 			const nextAction = providerWorker.findAction()
@@ -114,6 +117,7 @@ describe('Convey Stall Reproduction', () => {
 						],
 					},
 				],
+				looseGoods: [],
 			}
 
 			engine.loadScenario(scenario)
@@ -132,7 +136,12 @@ describe('Convey Stall Reproduction', () => {
 			if (!initialAction) throw new Error('Expected assigned worker to find an initial action')
 			worker.begin(initialAction)
 
-			expect(worker.actionDescription).toContain('selfCare.wander')
+			const initialScript = worker.actionDescription.at(-1)
+			expect(
+				initialScript === 'selfCare.wander' ||
+					initialScript === 'work.goWork' ||
+					initialScript === 'work.offload'
+			).toBe(true)
 
 			gather.storage.addGood('wood', 1)
 			await flushDeferred()

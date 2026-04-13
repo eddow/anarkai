@@ -12,7 +12,31 @@
 		"storage": "Magasin",
 		"building": "Construction",
 		"engineer": "Ingénieur",
-		"woodpile": "Tas de bois"
+		"woodpile": "Tas de bois",
+		"freight_bay": "Baie de fret"
+	},
+	"hive": {
+		"section": "Ruche",
+		"name": "Nom",
+		"ads": "Annonces",
+		"noAds": "Aucune annonce pour cette ancre de ruche.",
+		"sourcesHint": "Nombre de types d'alvéoles contributeurs",
+		"demand": "Demande",
+		"provide": "Offre"
+	},
+	"line": {
+		"section": "Ligne de fret",
+		"name": "Nom",
+		"mode": "Mode",
+		"radius": "Rayon",
+		"filters": "Filtres",
+		"stations": "Stations",
+		"stop": "Arrêt",
+		"unavailable": "La ligne n'est plus disponible.",
+		"modes": {
+			"gather": "Collecte",
+			"distribute": "Distribution"
+		}
 	},
 	"goods": {
 		"berries": "Baies",

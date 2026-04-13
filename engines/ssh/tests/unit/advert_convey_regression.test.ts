@@ -77,6 +77,9 @@ describe('advert/convey regression', () => {
 
 		expect(hive.needs.wood).toBe('1-buffer')
 
+		firstMovement.claimed = true
+		firstMovement.claimedBy = 'advert-convey-regression'
+		firstMovement.claimedAtMs = Date.now()
 		firstMovement.allocations.source.fulfill()
 		firstMovement.hop()
 		await flushDeferred()
@@ -90,7 +93,18 @@ describe('advert/convey regression', () => {
 
 		const woodpileMovement = movementsToWoodpile[0]
 		woodpileMovement.allocations.source.fulfill()
+		const releaseClaim = (movement: {
+			claimed?: boolean
+			claimedBy?: string
+			claimedAtMs?: number
+		}) => {
+			movement.claimed = false
+			delete movement.claimedBy
+			delete movement.claimedAtMs
+		}
+		releaseClaim(firstMovement)
 		firstMovement.finish()
+		releaseClaim(woodpileMovement)
 		woodpileMovement.finish()
 		await flushDeferred()
 

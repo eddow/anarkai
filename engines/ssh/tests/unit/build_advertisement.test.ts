@@ -22,6 +22,7 @@ describe('BuildAlveolus advertisement', () => {
 	it('advertises every missing construction good before any inbound allocation', () => {
 		const site = makeSite()
 
+		expect(site.requiredGoods).toEqual({ wood: 1, stone: 1 })
 		expect(site.remainingNeeds).toEqual({ wood: 1, stone: 1 })
 		expect(site.advertisedNeeds).toEqual({ wood: 1, stone: 1 })
 		expect(site.workingGoodsRelations).toEqual({

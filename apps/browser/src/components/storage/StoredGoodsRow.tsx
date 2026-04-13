@@ -5,6 +5,7 @@ import { memoize, reactive } from 'mutts'
 import { inputBufferSize } from 'ssh/assets/constants'
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import type { Game } from 'ssh/game'
+import { BuildAlveolus } from 'ssh/hive/build'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { TransformAlveolus } from 'ssh/hive/transform'
 import { i18nState } from 'ssh/i18n'
@@ -174,6 +175,10 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 		if (props.content instanceof TransformAlveolus) {
 			const expectedQty = (props.content.action?.inputs?.[good] ?? 0) * inputBufferSize
 			return expectedQty > 0 ? expectedQty : undefined
+		}
+
+		if (props.content instanceof BuildAlveolus) {
+			return props.content.requiredGoods[good]
 		}
 
 		return undefined

@@ -1,0 +1,126 @@
+import { document, latch } from '@sursaut/core'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const hive = {
+	name: 'North Hive',
+	alveoli: [
+		{
+			name: 'gather',
+			action: { type: 'gather' },
+			goodsRelations: {
+				wood: { advertisement: 'provide', priority: '1-buffer' },
+			},
+		},
+		{
+			name: 'sawmill',
+			action: { type: 'transform' },
+			goodsRelations: {
+				wood: { advertisement: 'demand', priority: '2-use' },
+			},
+		},
+	],
+}
+
+const resolveHiveFromAnchorTile = vi.fn(() => hive)
+
+vi.mock('@app/lib/css', () => ({
+	css: () => '',
+}))
+
+vi.mock('@app/ui/anarkai', () => ({
+	InspectorSection: (props: { title?: string; children?: JSX.Element }) => (
+		<section data-testid="inspector-section" data-title={props.title}>
+			{props.children}
+		</section>
+	),
+	Panel: (props: { class?: string; children?: JSX.Element }) => (
+		<div class={props.class}>{props.children}</div>
+	),
+}))
+
+vi.mock('ssh/hive', () => ({
+	resolveHiveFromAnchorTile,
+}))
+
+vi.mock('ssh/hive/build', () => ({
+	BuildAlveolus: class BuildAlveolus {},
+}))
+
+vi.mock('ssh/i18n', () => ({
+	i18nState: {
+		translator: {
+			hive: {
+				section: 'Hive',
+				name: 'Name',
+				ads: 'Ads',
+				noAds: 'No ads',
+				sourcesHint: 'Sources',
+				demand: 'Demand',
+				provide: 'Provide',
+			},
+			goods: {
+				wood: 'Wood',
+			},
+		},
+	},
+}))
+
+vi.mock('./EntityBadge', () => ({
+	default: (props: { text: string }) => <span data-testid={`badge-${props.text}`}>{props.text}</span>,
+}))
+
+let HiveProperties: typeof import('./HiveProperties').default
+
+describe('HiveProperties', () => {
+	let container: HTMLElement
+	let stop: (() => void) | undefined
+
+	beforeAll(async () => {
+		;({ default: HiveProperties } = await import('./HiveProperties'))
+	})
+
+	beforeEach(() => {
+		container = document.createElement('div')
+		document.body.appendChild(container)
+		hive.name = 'North Hive'
+		resolveHiveFromAnchorTile.mockClear()
+		resolveHiveFromAnchorTile.mockReturnValue(hive)
+	})
+
+	afterEach(() => {
+		stop?.()
+		stop = undefined
+		container.remove()
+		document.body.innerHTML = ''
+	})
+
+	it('renders ads and allows editing the hive name', () => {
+		stop = latch(
+			container,
+			<HiveProperties
+				hiveObject={{
+					uid: 'hive:tile%3A0%2C0',
+					kind: 'hive',
+					title: 'North Hive',
+					game: {} as never,
+					logs: [],
+					anchorTileUid: 'tile:0,0',
+					tile: {} as never,
+				}}
+			/>
+		)
+
+		const nameInput = container.querySelector('input') as HTMLInputElement
+		expect(nameInput).not.toBeNull()
+		expect(nameInput.value).toBe('North Hive')
+		expect(container.querySelector('[data-testid="hive-ad-row-wood-demand"]')).not.toBeNull()
+		expect(container.querySelector('[data-testid="hive-ad-row-wood-provide"]')).not.toBeNull()
+		expect(container.querySelector('[data-testid="badge-Wood"]')).not.toBeNull()
+
+		nameInput.value = 'Workshop Ring'
+		nameInput.dispatchEvent(new Event('input', { bubbles: true }))
+
+		expect(hive.name).toBe('Workshop Ring')
+		expect(nameInput.value).toBe('Workshop Ring')
+	})
+})

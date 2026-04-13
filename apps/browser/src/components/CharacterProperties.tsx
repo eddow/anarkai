@@ -1,12 +1,17 @@
 import { css } from '@app/lib/css'
 import { type AnarkaiBadgeTone, Badge, InspectorSection, Panel } from '@app/ui/anarkai'
 import { effect } from 'mutts'
+import {
+	createSyntheticFreightLineObject,
+	findFreightLineForStop,
+} from 'ssh/freight/freight-line'
 import { i18nState } from 'ssh/i18n'
 import { AEvolutionStep, ALerpStep } from 'ssh/npcs/steps'
 import type { Character, RankedWorkPlannerSnapshot } from 'ssh/population/character'
 import type { NextActivityKind, PlannerFindActionSnapshot } from 'ssh/population/findNextActivity'
 import type { GoodType, JobType } from 'ssh/types/base'
 import GoodsList from './GoodsList'
+import InspectorObjectLink from './InspectorObjectLink'
 import LinkedEntityControl from './LinkedEntityControl'
 import PropertyGrid from './PropertyGrid'
 import PropertyGridRow from './PropertyGridRow'
@@ -196,6 +201,12 @@ css`/*
 	color: var(--ak-text-muted);
 	margin: 0;
 }
+
+.character-linked-object {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
 `
 
 interface CharacterPropertiesProps {
@@ -304,6 +315,12 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 					.join(' · '),
 			}))
 		},
+		get assignedLineObject() {
+			const alveolus = props.character?.assignedAlveolus
+			if (!alveolus) return undefined
+			const line = findFreightLineForStop(props.character.game.freightLines, alveolus)
+			return line ? createSyntheticFreightLineObject(props.character.game, line) : undefined
+		},
 	}
 
 	effect`character-properties:title`(() => {
@@ -373,6 +390,15 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 						<Panel else class="character-actions__empty">
 							{i18nState.translator?.character.noActivity ?? ''}
 						</Panel>
+					</PropertyGridRow>
+					<PropertyGridRow
+						if={computed.assignedLineObject}
+						label={i18nState.translator?.line?.section ?? 'Line'}
+					>
+						<div class="character-linked-object">
+							<LinkedEntityControl object={computed.assignedLineObject!} />
+							<InspectorObjectLink object={computed.assignedLineObject!} />
+						</div>
 					</PropertyGridRow>
 				</PropertyGrid>
 				<InspectorSection class="character-properties__stats">

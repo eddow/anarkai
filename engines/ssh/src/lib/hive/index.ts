@@ -16,7 +16,8 @@ export const alveolusClass = GcClasses(
 			transform: TransformAlveolus,
 			gather: GatherAlveolus,
 			engineer: EngineerAlveolus,
-			storage: StorageAlveolus, // kept for backward compatibility if any
+			storage: StorageAlveolus,
+			'road-fret': StorageAlveolus,
 			'slotted-storage': StorageAlveolus,
 			'specific-storage': StorageAlveolus,
 		})[def.action.type],
@@ -25,3 +26,4 @@ export const alveolusClass = GcClasses(
 
 export * from './alveolus-configuration'
 export * from './hive'
+export * from './hive-inspector'
