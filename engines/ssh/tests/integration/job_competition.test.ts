@@ -3,9 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
 
 describe('Job Competition Tests', () => {
-	async function setupEngine(
-		options: any = { terrainSeed: 1234, characterCount: 0 }
-	) {
+	async function setupEngine(options: any = { terrainSeed: 1234, characterCount: 0 }) {
 		const engine = new TestEngine(options)
 		await engine.init()
 
@@ -53,13 +51,13 @@ describe('Job Competition Tests', () => {
 
 		engine.loadScenario(scenario)
 
-			const storage = game.hex.getTile({ q: 0, r: 0 })?.content as any
-			const destination = game.hex.getTile({ q: 1, r: 0 })?.content as any
-			const worker = spawnWorker({ q: 1, r: 0 })
+		const storage = game.hex.getTile({ q: 0, r: 0 })?.content as any
+		const destination = game.hex.getTile({ q: 1, r: 0 })?.content as any
+		const worker = spawnWorker({ q: 1, r: 0 })
 
-			const hive = storage.hive
-			expect(destination).toBeDefined()
-			expect(hive.createMovement('wood', storage, destination)).toBe(true)
+		const hive = storage.hive
+		expect(destination).toBeDefined()
+		expect(hive.createMovement('wood', storage, destination)).toBe(true)
 
 		// Now check jobs
 		const storageJob = storage.getJob(worker)

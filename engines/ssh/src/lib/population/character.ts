@@ -1,3 +1,4 @@
+import { goods as goodsCatalog } from 'engine-rules'
 import { inert, reactive, unwrap } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
@@ -20,9 +21,9 @@ import {
 	characterEvolutionRates,
 	characterTriggerLevels,
 	maxWalkTime,
+	readCharacterEvolutionRate,
 	residentialRecoveryRates,
 } from '../../../assets/constants'
-import { goods as goodsCatalog } from '../../../assets/game-content'
 
 // Simple job scoring functions
 function calculateJobScore(_character: Character, job: Job): number {
@@ -173,15 +174,22 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			axial.key(toAxialCoord(targetTile.position)!) === axial.key(toAxialCoord(this.position)!)
 		if (isSameTile) return []
 		return (
-			this.game.hex.findPathForCharacter(this.position, targetTile.position, this, maxWalkTime, false) ??
-			false
+			this.game.hex.findPathForCharacter(
+				this.position,
+				targetTile.position,
+				this,
+				maxWalkTime,
+				false
+			) ?? false
 		)
 	}
 
 	private describeWorkTarget(job: Job, targetTile: Tile): string {
 		const coord = toAxialCoord(targetTile.position)!
 		const tileLabel = `Tile ${coord.q}, ${coord.r}`
-		const targetName = targetTile.content?.name ? `${targetTile.content.name} @ ${coord.q}, ${coord.r}` : tileLabel
+		const targetName = targetTile.content?.name
+			? `${targetTile.content.name} @ ${coord.q}, ${coord.r}`
+			: tileLabel
 
 		switch (job.job) {
 			case 'offload':
@@ -219,9 +227,9 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 				if (b.score !== a.score) return b.score - a.score
 				if (b.job.urgency !== a.job.urgency) return b.job.urgency - a.job.urgency
 				if (a.pathLength !== b.pathLength) return a.pathLength - b.pathLength
-				return axial.key(toAxialCoord(a.targetTile.position)!).localeCompare(
-					axial.key(toAxialCoord(b.targetTile.position)!)
-				)
+				return axial
+					.key(toAxialCoord(a.targetTile.position)!)
+					.localeCompare(axial.key(toAxialCoord(b.targetTile.position)!))
 			})
 		})
 	}
@@ -395,13 +403,13 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 				fatigue: this.fatigue,
 				tiredness: this.tiredness,
 			},
-				keepWorking: this.keepWorking,
-				lastPickedActivity: this.lastPickedActivityKind,
-				lastPlannerSnapshot: this.lastPlannerSnapshot,
-				lastWorkPlannerSnapshot: this.lastWorkPlannerSnapshot,
-				vehicle: {
-					name: this.vehicle.name,
-					storage: this.carry,
+			keepWorking: this.keepWorking,
+			lastPickedActivity: this.lastPickedActivityKind,
+			lastPlannerSnapshot: this.lastPlannerSnapshot,
+			lastWorkPlannerSnapshot: this.lastWorkPlannerSnapshot,
+			vehicle: {
+				name: this.vehicle.name,
+				storage: this.carry,
 			},
 		}
 	}
@@ -425,12 +433,9 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 
 	update(deltaSeconds: number) {
 		const activity: Ssh.ActivityType = (this.stepExecutor?.type ?? 'idle') as Ssh.ActivityType
-		const hungerRate =
-			characterEvolutionRates.hunger[activity] ?? characterEvolutionRates.hunger['*'] ?? 0
-		const tirednessRate =
-			characterEvolutionRates.tiredness[activity] ?? characterEvolutionRates.tiredness['*'] ?? 0
-		const fatigueRate =
-			characterEvolutionRates.fatigue[activity] ?? characterEvolutionRates.fatigue['*'] ?? 0
+		const hungerRate = readCharacterEvolutionRate(characterEvolutionRates.hunger, activity)
+		const tirednessRate = readCharacterEvolutionRate(characterEvolutionRates.tiredness, activity)
+		const fatigueRate = readCharacterEvolutionRate(characterEvolutionRates.fatigue, activity)
 		this.hunger = applyNeedRate(this.hunger, hungerRate, deltaSeconds)
 		this.tiredness = applyNeedRate(this.tiredness, tirednessRate, deltaSeconds)
 		this.fatigue = applyNeedRate(this.fatigue, fatigueRate, deltaSeconds)

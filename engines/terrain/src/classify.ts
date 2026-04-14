@@ -1,7 +1,13 @@
+import { defaultBiomeClassificationThresholds } from 'engine-rules'
 import type { BiomeHint, EdgeField, TerrainConfig, TileField } from './types'
 
-const RIVER_FLUX_THRESHOLD = 5
-const RIVER_BANK_INFLUENCE_THRESHOLD = 1.1
+const {
+	riverFluxThreshold,
+	riverBankInfluenceThreshold,
+	channelInfluenceLake,
+	riverFluxLakeMultiplier,
+	wetlandRiverInfluence,
+} = defaultBiomeClassificationThresholds
 
 export interface HydrologyClassification {
 	bankInfluence?: number
@@ -24,22 +30,22 @@ export function classifyTile(
 	const channelInfluence = hydrology.channelInfluence ?? 0
 
 	if (tile.height < config.seaLevel) {
-		return maxFlux > RIVER_FLUX_THRESHOLD ? 'lake' : 'ocean'
+		return maxFlux > riverFluxThreshold ? 'lake' : 'ocean'
 	}
 
 	if (
-		channelInfluence > 1.15 &&
-		maxFlux > RIVER_FLUX_THRESHOLD * 2 &&
+		channelInfluence > channelInfluenceLake &&
+		maxFlux > riverFluxThreshold * riverFluxLakeMultiplier &&
 		tile.height < config.forestLevel
 	) {
 		return 'lake'
 	}
 
-	if (maxFlux > RIVER_FLUX_THRESHOLD || riverInfluence > RIVER_BANK_INFLUENCE_THRESHOLD) {
+	if (maxFlux > riverFluxThreshold || riverInfluence > riverBankInfluenceThreshold) {
 		return 'river-bank'
 	}
 
-	if (riverInfluence > 0.35 && tile.height < config.forestLevel) return 'wetland'
+	if (riverInfluence > wetlandRiverInfluence && tile.height < config.forestLevel) return 'wetland'
 
 	if (tile.height > config.rockyLevel) return tile.height > config.snowLevel ? 'snow' : 'rocky'
 

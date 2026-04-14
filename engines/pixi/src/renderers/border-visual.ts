@@ -81,7 +81,12 @@ export class BorderVisual extends VisualObject<TileBorder> {
 
 			this.goodsContainer.removeChildren().forEach((c) => c.destroy())
 			const { slots } = storage.renderedGoods()
-			const positions = getBorderGoodsPositions({ x: 0, y: 0 }, borderDirection, tileSize * 0.8, slots.length)
+			const positions = getBorderGoodsPositions(
+				{ x: 0, y: 0 },
+				borderDirection,
+				tileSize * 0.8,
+				slots.length
+			)
 			const cleanups = slots.map((slot, i) => {
 				const position = positions[i]
 				if (!position) return undefined

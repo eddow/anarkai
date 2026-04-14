@@ -1,14 +1,23 @@
+import { jobBalance } from 'engine-rules'
 import { inert, reactive } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
-import { BuildAlveolus } from 'ssh/hive/build'
 import type { Character } from 'ssh/population/character'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import type { ConstructJob, FoundationJob } from 'ssh/types/base'
 import type { GoodsRelations } from 'ssh/utils/advertisement'
 import { toAxialCoord } from 'ssh/utils/position'
-import { jobBalance } from '../../../assets/game-content'
+import { buildAlveolusMarker } from './build-marker'
+
+function isUndestroyedReadyBuildAlveolus(content: unknown): boolean {
+	if (!content || typeof content !== 'object') return false
+	if (!(buildAlveolusMarker in content)) return false
+	if (!('isReady' in content) || !('destroyed' in content)) return false
+	const ready = Reflect.get(content, 'isReady')
+	const destroyed = Reflect.get(content, 'destroyed')
+	return ready === true && destroyed === false
+}
 
 @reactive
 export class EngineerAlveolus extends Alveolus {
@@ -43,11 +52,7 @@ export class EngineerAlveolus extends Alveolus {
 					}
 
 					// Check for BuildAlveolus ready to be built (needs construction)
-					if (
-						tile?.content instanceof BuildAlveolus &&
-						tile.content.isReady &&
-						!tile.content.destroyed
-					) {
+					if (tile?.content && isUndestroyedReadyBuildAlveolus(tile.content)) {
 						jobType = 'construct'
 						return true
 					}

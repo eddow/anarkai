@@ -6,7 +6,6 @@ import { TestEngine } from '../test-engine/engine'
 
 vi.mock('npc-script', () => {
 	class NpcScript {
-		constructor(_name: string, _path: string, _source: string) {}
 		execute(_ctx: unknown) {
 			return { type: 'return', value: {} }
 		}
@@ -237,11 +236,11 @@ describe('MovingGood.claimed prevents double pickup', () => {
 					allowClaimedSourceGap: true,
 					allowClaimedTerminalPath: true,
 				})
-				).toBeUndefined()
-				expect(provider.aGoodMovement).toBeUndefined()
+			).toBeUndefined()
+			expect(provider.aGoodMovement).toBeUndefined()
 
-				mg.claimed = false
-				mg.finish()
+			mg.claimed = false
+			mg.finish()
 		} finally {
 			await engine.destroy()
 		}
@@ -293,20 +292,23 @@ describe('MovingGood.claimed prevents double pickup', () => {
 			expect(hive.createMovement('wood', provider, demander)).toBe(true)
 			expect(demander.incomingGoods).toBe(false)
 
-				const provCoord = toAxialCoord(provider.tile.position)!
-				const movement = hive.movingGoods.get(provCoord)?.[0]
-				expect(movement).toBeDefined()
-				movement!.claimed = true
-				movement?.allocations.source.fulfill()
-				movement?.hop()
-				movement?.place()
-				const hopAlloc = borderGate.storage.allocate({ wood: 1 }, { type: 'test.hop' })
-				hopAlloc.fulfill()
-				movement!.allocations.source = borderGate.storage.reserve({ wood: 1 }, { type: 'test.hop.reserve' })
-				movement!.claimed = false
-				expect(demander.incomingGoods).toBe(true)
-				movement?.abort()
-				ghostAllocation.cancel()
+			const provCoord = toAxialCoord(provider.tile.position)!
+			const movement = hive.movingGoods.get(provCoord)?.[0]
+			expect(movement).toBeDefined()
+			movement!.claimed = true
+			movement?.allocations.source.fulfill()
+			movement?.hop()
+			movement?.place()
+			const hopAlloc = borderGate.storage.allocate({ wood: 1 }, { type: 'test.hop' })
+			hopAlloc.fulfill()
+			movement!.allocations.source = borderGate.storage.reserve(
+				{ wood: 1 },
+				{ type: 'test.hop.reserve' }
+			)
+			movement!.claimed = false
+			expect(demander.incomingGoods).toBe(true)
+			movement?.abort()
+			ghostAllocation.cancel()
 		} finally {
 			await engine.destroy()
 		}

@@ -53,9 +53,8 @@
               "label": "Speed",
               "keywords": [
                 "speed",
-                "pause",
-                "play",
-                "time"
+                "time",
+                "clock"
               ],
               "before": "▶",
               "after": "▷",
@@ -139,7 +138,6 @@
   "keyBindings": {
     "`": "openConfiguration",
     "G": "openGame",
-    "H": "openTest",
-    "Space": "timeControl|0"
+    "H": "openTest"
   }
 }

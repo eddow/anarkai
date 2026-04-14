@@ -1,181 +1,25 @@
-export const terrain = {
-	water: {},
-	forest: {
-		generation: {
-			deposits: { tree: 0.7 },
-			goods: { mushrooms: 0.3 },
-		},
-	},
-	rocky: {
-		generation: {
-			deposits: { rock: 0.6 },
-		},
-	},
-	grass: {
-		generation: {
-			deposits: { berry_bush: 0.1 },
-		},
-	},
-	concrete: {},
-	sand: {
-		generation: {
-			deposits: { rock: 0.3 },
-			goods: { berries: 0.05 },
-		},
-	},
-	snow: {},
-} as const satisfies Record<string, Ssh.TerrainDefinition>
+import {
+	alveoli as alveoliRules,
+	configurations as configurationsRules,
+	deposits as depositsRules,
+	goods as goodsRules,
+	jobBalance as jobBalanceRules,
+	terrain as terrainRules,
+	vehicles as vehiclesRules,
+} from 'engine-rules'
 
-export const deposits = {
-	berry_bush: {
-		maxAmount: 18,
-		regenerate: 0.01,
-		generation: {
-			berries: 0.000214, // Balanced for 1 berry per bush at equilibrium
-		},
-	},
-	rock: {
-		maxAmount: 18,
-	},
-	tree: {
-		maxAmount: 12,
-		regenerate: 0.01,
-		generation: {
-			mushrooms: 0.000097, // Balanced for 1 mushroom per 2 trees at equilibrium
-		},
-	},
-} as const satisfies Record<string, Ssh.DepositDefinition>
+/** Authoritative gameplay catalogs live in `engine-rules`; this module re-exports with ssh contract typing. */
+export const terrain = terrainRules satisfies Record<string, Ssh.TerrainDefinition>
 
-export const alveoli = {
-	tree_chopper: {
-		preparationTime: 2,
-		action: { type: 'harvest', deposit: 'tree', output: { wood: 1 } },
-		workTime: 3,
-		construction: {
-			goods: { stone: 2 }, // No wood/plank cost for the wood-chopper itself
-			time: 4,
-		},
-	},
-	stonecutter: {
-		preparationTime: 3,
-		action: { type: 'harvest', deposit: 'rock', output: { stone: 1 } },
-		workTime: 4,
-		construction: {
-			goods: { wood: 2, planks: 1 }, // No stone cost for the stone cutter
-			time: 5,
-		},
-	},
-	sawmill: {
-		preparationTime: 1,
-		action: { type: 'transform', inputs: { wood: 1 }, output: { planks: 1 } },
-		workTime: 2,
-		construction: {
-			goods: { wood: 3, stone: 2 }, // No planks cost for the sawmill
-			time: 6,
-		},
-	},
-	storage: {
-		preparationTime: 1,
-		action: { type: 'storage', kind: 'slotted', capacity: 3, slots: 6 },
-		workTime: 0,
-		construction: {
-			goods: { wood: 2, planks: 2, stone: 1 },
-			time: 6,
-		},
-	},
-	woodpile: {
-		preparationTime: 1,
-		action: { type: 'storage', kind: 'specific', goods: { wood: 24 } },
-		workTime: 0,
-		construction: {
-			goods: { wood: 10 },
-			time: 4,
-		},
-	},
-	freight_bay: {
-		preparationTime: 1,
-		// Transitional bridge: freight_bay is the named building, but it still uses
-		// gather runtime semantics until road-fret absorbs that behavior fully.
-		action: { type: 'gather' },
-		workTime: 2,
-		construction: {
-			goods: { wood: 2, planks: 1 },
-			time: 4,
-		},
-	},
-	engineer: {
-		preparationTime: 1,
-		action: { type: 'engineer', radius: 6 },
-		workTime: 2,
-		construction: {
-			goods: { wood: 1, stone: 1 },
-			time: 4,
-		},
-	},
-} as const satisfies Record<string, Ssh.AlveolusDefinition>
+export const deposits = depositsRules satisfies Record<string, Ssh.DepositDefinition>
 
-export const goods = {
-	berries: {
-		satiationStrength: 0.3567, // felt ~0.3 hunger relief at equilibrium
-		halfLife: 1200,
-	},
-	mushrooms: {
-		satiationStrength: Math.LN2, // felt ~0.5 hunger relief at equilibrium
-		halfLife: 600,
-	},
-	planks: {
-		halfLife: 1200,
-	},
-	stone: {
-		halfLife: Number.POSITIVE_INFINITY, // infinite half-life
-	},
-	wood: {
-		halfLife: 900,
-	},
-} as const satisfies Record<string, Ssh.GoodsDefinition>
+export const alveoli = alveoliRules satisfies Record<string, Ssh.AlveolusDefinition>
 
-export const jobBalance = {
-	offload: {
-		projectTile: 15,
-		alveolusBlocked: 4,
-		residentialTile: 1.25,
-	},
-	convey: 3,
-	gather: 2,
-	harvest: {
-		project: 2,
-		clearing: 1.5,
-		fallbackBase: 0.25,
-		needsBonus: 0.5,
-	},
-	transform: 2,
-	engineer: {
-		foundation: 3,
-		construct: 2,
-	},
-	defragment: 0.9,
-} as const
+export const goods = goodsRules satisfies Record<string, Ssh.GoodsDefinition>
 
-export const vehicles = {
-	'by-hands': {
-		storage: { capacity: 1, slots: 2 },
-		walkTime: 1, // Time to walk by foot
-		transferTime: 1.5, // Slightly slower so hand-offs remain visible
-	},
-} as const satisfies Record<string, Ssh.VehicleDefinition>
+export const jobBalance = jobBalanceRules
+
+export const vehicles = vehiclesRules satisfies Record<string, Ssh.VehicleDefinition>
 
 /** Default configurations by action type */
-export const configurations: Record<string, Ssh.AlveolusConfiguration> = {
-	'slotted-storage': {
-		working: true,
-		generalSlots: 0,
-		goods: {},
-	},
-	'specific-storage': {
-		working: true,
-		buffers: {},
-	},
-	default: {
-		working: true,
-	},
-}
+export const configurations = configurationsRules as Record<string, Ssh.AlveolusConfiguration>

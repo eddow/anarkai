@@ -5,7 +5,11 @@ import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
 import { assert, traces } from 'ssh/debug'
 import { options } from 'ssh/globals'
-import { allocationInvalidationInfo, findLiveAllocations, isAllocationValid } from 'ssh/storage/guard'
+import {
+	allocationInvalidationInfo,
+	findLiveAllocations,
+	isAllocationValid,
+} from 'ssh/storage/guard'
 import type { AllocationBase, Storage } from 'ssh/storage/storage'
 import type { GoodType } from 'ssh/types'
 import { type AxialCoord, axial, findPath, type Positioned, setPop } from 'ssh/utils'
@@ -26,6 +30,48 @@ function isLogisticsStorageAlveolusAction(actionType: string | undefined): boole
 		actionType === 'storage' ||
 		actionType === 'road-fret'
 	)
+}
+
+function collectSortedHiveTiles(hive: { alveoli: Iterable<Alveolus> }): AxialCoord[] {
+	return Array.from(hive.alveoli, (alveolus) => toAxialCoord(alveolus.tile.position))
+		.filter((coord): coord is AxialCoord => !!coord)
+		.sort((a, b) => axial.key(a).localeCompare(axial.key(b)))
+}
+
+function sameTileSet(a: readonly AxialCoord[], b: readonly AxialCoord[]): boolean {
+	if (a.length !== b.length) return false
+	const aKeys = a.map((coord) => axial.key(coord))
+	const bKeys = b.map((coord) => axial.key(coord))
+	return aKeys.every((key, index) => key === bKeys[index])
+}
+
+export function generateRebuiltHiveName({
+	originalTiles,
+	originalName,
+	resultingTiles,
+	random,
+}: {
+	originalTiles: readonly AxialCoord[]
+	originalName?: string
+	resultingTiles: readonly AxialCoord[]
+	random: (max?: number, min?: number) => number
+}): string | undefined {
+	const baseName = originalName?.trim()
+	if (!baseName) return undefined
+	if (sameTileSet(originalTiles, resultingTiles)) return baseName
+	const suffix = String.fromCharCode(65 + Math.floor(random(26)))
+	return `${baseName}-${suffix}`
+}
+
+function hiveSourceSortKey(hive: Hive): string {
+	const [firstTile] = collectSortedHiveTiles(hive)
+	return `${axial.key(firstTile ?? { q: 0, r: 0 })}:${hive.name ?? ''}`
+}
+
+function pickMetadataSourceHive(hives: Iterable<Hive>): Hive | undefined {
+	return Array.from(hives).sort((a, b) =>
+		hiveSourceSortKey(a).localeCompare(hiveSourceSortKey(b))
+	)[0]
 }
 
 /**
@@ -199,7 +245,9 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		if (hives.size === 0) return new Hive(tile.board)
 		if (hives.size === 1) return setPop(hives)!
 
-		const hivesArray = Array.from(hives)
+		const hivesArray = Array.from(hives).sort((a, b) =>
+			hiveSourceSortKey(a).localeCompare(hiveSourceSortKey(b))
+		)
 		const targetHive = hivesArray.shift()!
 		for (const hive of hivesArray) {
 			for (const alveolus of hive.alveoli) targetHive.attach(alveolus)
@@ -210,7 +258,22 @@ export class Hive extends AdvertisementManager<Alveolus> {
 	get isDestroyed() {
 		return this.destroyed
 	}
-	public name?: string
+	private readonly metadata = reactive({
+		name: undefined as string | undefined,
+		working: true,
+	})
+	get name() {
+		return this.metadata.name
+	}
+	set name(value: string | undefined) {
+		this.metadata.name = value?.trim() ? value : undefined
+	}
+	get working() {
+		return this.metadata.working
+	}
+	set working(value: boolean) {
+		this.metadata.working = value
+	}
 	public readonly alveoli = reactive(new Set<Alveolus>())
 	/** Hive-level configurations by alveolus type */
 	public readonly configurations = reactive(new Map<string, Ssh.AlveolusConfiguration>())
@@ -293,7 +356,13 @@ export class Hive extends AdvertisementManager<Alveolus> {
 	 * @param hive
 	 */
 	private copyFrom(hive: Hive) {
-		if (hive.name) this.name = hive.name
+		this.name = generateRebuiltHiveName({
+			originalTiles: collectSortedHiveTiles(hive),
+			originalName: hive.name,
+			resultingTiles: collectSortedHiveTiles(this),
+			random: this.board.game.random,
+		})
+		this.working = hive.working
 		this.configurations.clear()
 		for (const [key, value] of hive.configurations.entries()) this.configurations.set(key, value)
 		return this
@@ -303,10 +372,13 @@ export class Hive extends AdvertisementManager<Alveolus> {
 	 * @param hive
 	 */
 	private partOf(hive: Hive) {
-		if (hive.name)
-			this.name = `${hive.name} - ${Math.floor(this.board.game.random(36 ** 3))
-				.toString(36)
-				.padStart(3, '0')}`
+		this.name = generateRebuiltHiveName({
+			originalTiles: collectSortedHiveTiles(hive),
+			originalName: hive.name,
+			resultingTiles: collectSortedHiveTiles(this),
+			random: this.board.game.random,
+		})
+		this.working = hive.working
 		for (const [key, value] of hive.configurations.entries()) {
 			if (!this.configurations.has(key)) this.configurations.set(key, value)
 		}
@@ -383,7 +455,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 					toAddSet.add(neighbor)
 				}
 			}
-			const [primarySourceHive] = sourceHives
+			const primarySourceHive = pickMetadataSourceHive(sourceHives)
 			if (sourceHives.size <= 1 && primarySourceHive) hive.copyFrom(primarySourceHive)
 			else if (primarySourceHive) hive.partOf(primarySourceHive)
 		}
@@ -412,7 +484,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 
 	private isTraversableRelayTile(
 		coord: AxialCoord,
-		goodType: GoodType,
+		_goodType: GoodType,
 		source: AxialCoord,
 		destination: AxialCoord
 	): boolean {
@@ -420,12 +492,11 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		if (key === axial.key(source) || key === axial.key(destination)) return true
 
 		const content = this.board.getTileContent(coord)
-		const storage = content?.storage
-		if (!storage || typeof storage.hasRoom !== 'function') return false
 
-		// Multi-hop convey requires intermediate tiles to buffer one unit before the next worker
-		// can reserve and continue the movement.
-		return storage.hasRoom(goodType) > 0
+		// Border -> tile -> border is a pure bridge handoff. The good does not
+		// logically enter the alveolus storage, so relay traversability must not
+		// depend on current room or on whether that alveolus stores this good.
+		return content instanceof Alveolus
 	}
 
 	private getPath(from: Alveolus, to: Alveolus, goodType: GoodType): AxialCoord[] | undefined {
@@ -962,7 +1033,9 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		preferredCoord: AxialCoord
 	) {
 		const trackedCoords = Array.from(this.movingGoods.entries())
-			.filter(([, goods]) => goods.some((candidate) => this.movementIdentityMatches(candidate, movement)))
+			.filter(([, goods]) =>
+				goods.some((candidate) => this.movementIdentityMatches(candidate, movement))
+			)
 			.map(([coord]) => axial.keyAccess(coord))
 		if (trackedCoords.length <= 1) return
 
@@ -1278,10 +1351,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		}
 		if (requireSourceValid) {
 			const source = movement.allocations.source
-			assert(
-				source,
-				`${label}: source allocation missing; ${this.movementMineContext(movement)}`
-			)
+			assert(source, `${label}: source allocation missing; ${this.movementMineContext(movement)}`)
 			assert(
 				isAllocationValid(source),
 				`${label}: source allocation invalid; ${this.movementMineContext(movement)}`
@@ -1289,10 +1359,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		}
 		if (requireTargetValid) {
 			const target = movement.allocations.target
-			assert(
-				target,
-				`${label}: target allocation missing; ${this.movementMineContext(movement)}`
-			)
+			assert(target, `${label}: target allocation missing; ${this.movementMineContext(movement)}`)
 			assert(
 				isAllocationValid(target),
 				`${label}: target allocation invalid; ${this.movementMineContext(movement)}`
@@ -1526,7 +1593,8 @@ export class Hive extends AdvertisementManager<Alveolus> {
 					? Array.from(this.board.game.population).find((worker) => worker.uid === mg.claimedBy)
 					: undefined
 				const claimerActionDescription = claimer ? claimer.actionDescription : []
-				const claimerStillBusy = !!claimer && (!!claimer.stepExecutor || claimer.runningScripts.length > 0)
+				const claimerStillBusy =
+					!!claimer && (!!claimer.stepExecutor || claimer.runningScripts.length > 0)
 				const claimerLikelyOwnsMovement =
 					claimerStillBusy &&
 					(claimerActionDescription.includes('work.conveyStep') ||
@@ -1595,7 +1663,10 @@ export class Hive extends AdvertisementManager<Alveolus> {
 				allowFulfilledSourceAllocation: true,
 				allowUntracked: true,
 			})
-			assert(this.path.length > 0, `movement.hop.before: empty path; ${hive.describeMovementMineContext(this)}`)
+			assert(
+				this.path.length > 0,
+				`movement.hop.before: empty path; ${hive.describeMovementMineContext(this)}`
+			)
 			const nextCoord = this.path.shift()!
 			traces.advertising?.log(
 				`[MOVEMENT] HOP: ${this.goodType} ${this.provider.name} -> ${this.demander.name} to ${nextCoord.q},${nextCoord.r} (path left: ${this.path.length})`
@@ -1631,9 +1702,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 				allowClaimedTerminalPath: this.claimed,
 			})
 			hive.noteMovementStorageCheckpoint(this, 'movement.place.after.storage', here)
-			traces.advertising?.log(
-				`[MOVEMENT] PLACE: ${this.goodType} placed at ${here.q},${here.r}`
-			)
+			traces.advertising?.log(`[MOVEMENT] PLACE: ${this.goodType} placed at ${here.q},${here.r}`)
 		}
 
 		movement.finish = function (this: TrackedMovement) {
@@ -2270,20 +2339,12 @@ export class Hive extends AdvertisementManager<Alveolus> {
 			return this.recoverBorderMovement(mg, coord)
 		}
 		if (failure === 'tracked-at-wrong-position') {
-			this.noteMovementStorageCheckpoint(
-				mg,
-				'recover.tracked-at-wrong-position.before',
-				coord
-			)
+			this.noteMovementStorageCheckpoint(mg, 'recover.tracked-at-wrong-position.before', coord)
 			this.forgetMovementTracking(mg)
 			mg.from = coord
 			this.activeMovementsById.set(mg._mgId, mg)
 			this.ensureMovementTrackedAt(mg, coord)
-			this.noteMovementStorageCheckpoint(
-				mg,
-				'recover.tracked-at-wrong-position.after',
-				coord
-			)
+			this.noteMovementStorageCheckpoint(mg, 'recover.tracked-at-wrong-position.after', coord)
 			;(traces.advertising ?? console).warn?.('[WATCHDOG] Recovered stale movement tracking', {
 				goodType: mg.goodType,
 				provider: this.movementProviderName(mg),
@@ -2359,11 +2420,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 
 	private hasActiveMovement(provider: Alveolus, demander: Alveolus, goodType: GoodType) {
 		for (const mg of this.activeMovementsById.values()) {
-			if (
-				mg.goodType === goodType &&
-				mg.provider === provider &&
-				mg.demander === demander
-			) {
+			if (mg.goodType === goodType && mg.provider === provider && mg.demander === demander) {
 				return true
 			}
 		}

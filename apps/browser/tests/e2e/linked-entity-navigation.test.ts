@@ -47,7 +47,9 @@ test.describe('Linked Entity Navigation', () => {
 			}
 		})
 
-		const pinnedPanel = page.locator(`.selection-info-panel[data-test-object-uid="${context.charUid}"]`)
+		const pinnedPanel = page.locator(
+			`.selection-info-panel[data-test-object-uid="${context.charUid}"]`
+		)
 		await expect(pinnedPanel).toBeVisible()
 
 		const link = pinnedPanel.locator('[data-testid="linked-entity-control"]')
@@ -61,7 +63,9 @@ test.describe('Linked Entity Navigation', () => {
 		await link.click()
 
 		await expect(pinnedPanel).toHaveAttribute('data-test-object-uid', context.charUid)
-		const tilePanel = page.locator(`.selection-info-panel[data-test-object-uid="${context.tileUid}"]`)
+		const tilePanel = page.locator(
+			`.selection-info-panel[data-test-object-uid="${context.tileUid}"]`
+		)
 		await expect(tilePanel).toBeVisible()
 	})
 })

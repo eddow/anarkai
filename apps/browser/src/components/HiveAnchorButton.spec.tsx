@@ -92,7 +92,9 @@ describe('HiveAnchorButton', () => {
 
 		stop = latch(container, <HiveAnchorButton tile={tile as never} title="Hive" />)
 
-		const button = container.querySelector('[data-testid="hive-anchor-button"]') as HTMLButtonElement
+		const button = container.querySelector(
+			'[data-testid="hive-anchor-button"]'
+		) as HTMLButtonElement
 		expect(container.querySelector('[data-testid="hive-anchor-icon"]')).not.toBeNull()
 
 		button.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }))

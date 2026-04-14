@@ -25,6 +25,7 @@
 		"types": ["vite/client"],
 		"paths": {
 			"ssh/*": ["./src/lib/*"],
+			"engine-rules": ["../rules/src/index.ts"],
 			"engine-terrain": ["../terrain/src/index.ts"],
 			"engine-terrain/hex": ["../terrain/src/hex/index.ts"]
 		}
@@ -38,6 +39,7 @@
 		"sandbox/**/*.tsx",
 		"assets/**/*.ts",
 		"assets/**/*.tsx",
+		"../rules/src/**/*.ts",
 		"../terrain/src/**/*.ts",
 		"../pixi/assets/resources.ts",
 		"../../../ownk/mutts/src/**/*.ts",

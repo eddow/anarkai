@@ -1,4 +1,5 @@
 import { type } from 'arktype'
+import { alveoli, deposits, goods, terrain } from 'engine-rules'
 import { unreactive } from 'mutts'
 import {
 	type ExecutionContext,
@@ -14,7 +15,6 @@ import type { GoodType } from 'ssh/types/base'
 import { type Contract, checkContract, isContract, registerContract } from 'ssh/types/contracts'
 import { axial, epsilon, objectMap } from 'ssh/utils'
 import { Positioned, positionRoughly, toAxialCoord } from 'ssh/utils/position'
-import { alveoli, deposits, goods, terrain } from '../../../assets/game-content'
 import { CharacterContract } from '../../../assets/scripts/contracts'
 import { gameIsaTypes, gameOperators, lerp } from './utils'
 
@@ -251,13 +251,16 @@ export function loadNpcScripts(alveoli: Record<string, string>, context: Executi
 
 		if (isFuncDef && Array.isArray(contract)) {
 			const validate = contractScope.type(contract as any)
-			return registerContract((...args: any[]) => {
-				checkContract(validate, args, name)
-				if (entryPoint instanceof FunctionDefinition) {
-					return new ScriptExecution(script, name, entryPoint.call(args))
-				}
-				throw new Error(`Entry point ${name} is not a FunctionDefinition`)
-			}, {name}) as XoDe
+			return registerContract(
+				(...args: any[]) => {
+					checkContract(validate, args, name)
+					if (entryPoint instanceof FunctionDefinition) {
+						return new ScriptExecution(script, name, entryPoint.call(args))
+					}
+					throw new Error(`Entry point ${name} is not a FunctionDefinition`)
+				},
+				{ name }
+			) as XoDe
 		}
 		if (!isFuncDef && !Array.isArray(contract)) {
 			return objectMap(entryPoint, (value, key) => {

@@ -33,19 +33,14 @@ const toDisplayText = (value: unknown, fallback = ''): string => {
 
 const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 	const state = reactive({
-		deposit: undefined as
-			| {
-					sprites: string[]
-					name: string
-					amount: number
-			  }
-			| undefined,
-		projectData: undefined as
-			| {
-					project: string
-					name: string
-			  }
-			| undefined,
+		depositAmount: undefined as number | undefined,
+		depositName: '',
+		depositSprite: '',
+		showDeposit: false,
+		project: '',
+		projectName: '',
+		showProject: false,
+		isClearing: false,
 	})
 
 	effect`unbuilt-properties:deposit`(() => {
@@ -54,63 +49,53 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 			? ((deposit.constructor as { key?: unknown }).key ?? deposit.constructor.name)
 			: ''
 		const name = toDisplayText(rawName)
-		state.deposit = deposit
-			? {
-					sprites: visualDeposits[name as keyof typeof visualDeposits]?.sprites ?? [],
-					name,
-					amount: deposit.amount,
-				}
-			: undefined
+		const sprite = visualDeposits[name as keyof typeof visualDeposits]?.sprites?.[0] ?? ''
+		state.depositName = name
+		state.depositAmount = deposit?.amount
+		state.depositSprite = sprite
+		state.showDeposit = deposit?.amount !== undefined && sprite.length > 0
 	})
 
 	effect`unbuilt-properties:project`(() => {
 		const proj = props.content?.project
-		state.projectData =
-			typeof proj === 'string' ? { project: proj, name: proj.replace('build:', '') } : undefined
+		state.showProject = typeof proj === 'string'
+		state.project = typeof proj === 'string' ? proj : ''
+		state.projectName = typeof proj === 'string' ? proj.replace('build:', '') : ''
+		state.isClearing = !props.content?.tile?.isClear
 	})
 
 	return (
 		<>
-			{state.projectData ? (
-				<PropertyGridRow label={toDisplayText(i18nState.translator?.project)}>
-					<div class="unbuilt-project">
-						<Badge tone="blue">
-							{state.projectData.name
-								? toDisplayText(
-										i18nState.translator?.alveoli?.[
-											state.projectData.name as keyof NonNullable<
-												typeof i18nState.translator
-											>['alveoli']
-										],
-										state.projectData.project
-									)
-								: state.projectData.project}
-						</Badge>
-						{!props.content?.tile?.isClear ? (
-							<Badge tone="yellow">{toDisplayText(i18nState.translator?.clearing)}</Badge>
-						) : null}
-					</div>
-				</PropertyGridRow>
-			) : null}
-
-			{state.deposit?.amount !== undefined &&
-			state.deposit.sprites &&
-			state.deposit.sprites.length > 0 ? (
-				<PropertyGridRow label={toDisplayText(i18nState.translator?.deposit)}>
-					<EntityBadge
-						game={props.content?.tile?.board?.game}
-						height={16}
-						sprite={state.deposit.sprites[0]}
-						text={toDisplayText(
-							i18nState.translator?.deposits?.[
-								state.deposit.name as keyof NonNullable<typeof i18nState.translator>['deposits']
+			<PropertyGridRow if={state.showProject} label={toDisplayText(i18nState.translator?.project)}>
+				<div class="unbuilt-project">
+					<Badge tone="blue">
+						{toDisplayText(
+							i18nState.translator?.alveoli?.[
+								state.projectName as keyof NonNullable<typeof i18nState.translator>['alveoli']
 							],
-							state.deposit.name
+							state.project
 						)}
-						qty={state.deposit.amount}
-					/>
-				</PropertyGridRow>
-			) : null}
+					</Badge>
+					<Badge if={state.isClearing} tone="yellow">
+						{toDisplayText(i18nState.translator?.clearing)}
+					</Badge>
+				</div>
+			</PropertyGridRow>
+
+			<PropertyGridRow if={state.showDeposit} label={toDisplayText(i18nState.translator?.deposit)}>
+				<EntityBadge
+					game={props.content?.tile?.board?.game}
+					height={16}
+					sprite={state.depositSprite}
+					text={toDisplayText(
+						i18nState.translator?.deposits?.[
+							state.depositName as keyof NonNullable<typeof i18nState.translator>['deposits']
+						],
+						state.depositName
+					)}
+					qty={state.depositAmount}
+				/>
+			</PropertyGridRow>
 		</>
 	)
 }

@@ -5,6 +5,7 @@
 - [`./current-status.md`](./current-status.md): what is implemented, what drifted, and what to tackle next
 - [`./project-inventory.md`](./project-inventory.md): current repo layout
 - [`./architecture-overview.md`](./architecture-overview.md): high-level system boundaries
+- [`./freight-lines.md`](./freight-lines.md): transport-layer v1 (gather/distribute lines, stops, compatibility)
 
 ## Workspace Commands
 

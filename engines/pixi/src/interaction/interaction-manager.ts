@@ -292,7 +292,7 @@ export class InteractionManager {
 					return logicObject
 				}
 				// If an action is selected, only return objects that accept it.
-				if (logicObject.canInteract && logicObject.canInteract(action)) {
+				if (logicObject.canInteract?.(action)) {
 					return logicObject
 				}
 				// If it has _logicObject but canInteract returns false, we implicitly skip it

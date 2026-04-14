@@ -67,8 +67,8 @@ if (typeof Image === 'undefined') {
 	headers: new Map(),
 })
 
-import { Game } from 'ssh/game/game'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import { Game } from 'ssh/game/game'
 import { DurationStep, MoveToStep, MultiMoveStep } from 'ssh/npcs/steps'
 import { toAxialCoord } from 'ssh/utils/position'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -265,7 +265,9 @@ describe('Save/Load Determinism', () => {
 			false
 		)
 		expect(
-			saveState.streamedFrontier?.some((entry) => entry[0] === streamedCoord.q && entry[1] === streamedCoord.r)
+			saveState.streamedFrontier?.some(
+				(entry) => entry[0] === streamedCoord.q && entry[1] === streamedCoord.r
+			)
 		).toBe(true)
 
 		const game2 = new Game({

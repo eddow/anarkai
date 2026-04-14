@@ -1,4 +1,3 @@
-import type { SaveState } from 'ssh/game'
 import {
 	DEFAULT_GATHER_FREIGHT_RADIUS,
 	findDistributeFreightLine,
@@ -6,7 +5,8 @@ import {
 	freightLineStationLabel,
 	freightLineUid,
 } from 'ssh/freight/freight-line'
-import { GatherAlveolus } from 'ssh/hive/gather'
+import type { SaveState } from 'ssh/game'
+import { StorageAlveolus } from 'ssh/hive/storage'
 import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
 
@@ -19,8 +19,8 @@ describe('Freight line bootstrap', () => {
 		}
 		engine.loadScenario(scenario)
 		const content = engine.game.hex.getTile({ q: 0, r: 0 })?.content
-		expect(content).toBeInstanceOf(GatherAlveolus)
-		const gather = content as GatherAlveolus
+		expect(content).toBeInstanceOf(StorageAlveolus)
+		const gather = content as StorageAlveolus
 		expect(gather.hive).toBeDefined()
 		expect(engine.game.freightLines.length).toBeGreaterThan(0)
 		expect(gather.action).not.toHaveProperty('radius')
@@ -44,7 +44,7 @@ describe('Freight line bootstrap', () => {
 			looseGoods: [],
 		}
 		engine.loadScenario(scenario)
-		expect(engine.game.hex.getTile({ q: 0, r: 0 })?.content).toBeInstanceOf(GatherAlveolus)
+		expect(engine.game.hex.getTile({ q: 0, r: 0 })?.content).toBeInstanceOf(StorageAlveolus)
 		expect(engine.game.hex.getTile({ q: 1, r: 0 })?.content).toBeDefined()
 		await engine.destroy()
 	})
@@ -95,7 +95,7 @@ describe('Freight line bootstrap', () => {
 				],
 			}
 			engine.loadScenario(scenario)
-			const gather = engine.game.hex.getTile({ q: 0, r: 0 })?.content as GatherAlveolus
+			const gather = engine.game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus
 			expect(gather.hasLooseGoodsToGather).toBe(false)
 			engine.game.replaceFreightLine({
 				...engine.game.freightLines[0],
@@ -143,7 +143,7 @@ describe('Freight line bootstrap', () => {
 				hives: [{ alveoli: [{ coord: [0, 0], alveolus: 'gather', goods: {} }] }],
 			})
 
-			const gather = engine.game.hex.getTile({ q: 0, r: 0 })?.content as GatherAlveolus
+			const gather = engine.game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus
 			const implicit = findGatherFreightLine(engine.game.freightLines, gather)
 			expect(implicit).toBeDefined()
 			expect(implicit?.stops[0]).toMatchObject({
@@ -158,7 +158,9 @@ describe('Freight line bootstrap', () => {
 	})
 
 	it('formats station labels as hive name with coordinates', () => {
-		expect(freightLineStationLabel({ hiveName: 'ChopSaw', coord: [10, -8] })).toBe('ChopSaw (10, -8)')
+		expect(freightLineStationLabel({ hiveName: 'ChopSaw', coord: [10, -8] })).toBe(
+			'ChopSaw (10, -8)'
+		)
 		expect(freightLineStationLabel({ hiveName: '', coord: [0, 0] })).toBe('Hive (0, 0)')
 	})
 
@@ -189,7 +191,14 @@ describe('Freight line bootstrap', () => {
 				id: initial!.id,
 				name: 'Edited gather line',
 				mode: 'gather',
-				filters: ['wood', 'berries'],
+				goodsSelection: {
+					goodRules: [
+						{ goodType: 'wood', effect: 'allow' },
+						{ goodType: 'berries', effect: 'allow' },
+					],
+					tagRules: [],
+					defaultEffect: 'deny',
+				},
 				radius: 4,
 			})
 		} finally {
@@ -225,7 +234,14 @@ describe('Freight line bootstrap', () => {
 				id: 'H:line',
 				mode: 'distribute',
 				stops: [{ hiveName: 'H', alveolusType: 'freight_bay', coord: [0, 0] }],
-				filters: ['wood', 'berries'],
+				goodsSelection: {
+					goodRules: [
+						{ goodType: 'wood', effect: 'allow' },
+						{ goodType: 'berries', effect: 'allow' },
+					],
+					tagRules: [],
+					defaultEffect: 'deny',
+				},
 			})
 			expect(normalized?.stops).toHaveLength(1)
 			expect(normalized?.radius).toBeUndefined()

@@ -1,9 +1,27 @@
-import type { AlveolusType, GoodType } from 'ssh/types'
-import type { Positioned } from 'ssh/utils'
-import { toAxialCoord } from 'ssh/utils/position'
+import { defaultGatherFreightRadius } from 'engine-rules'
 import type { Tile } from 'ssh/board/tile'
 import type { Game } from 'ssh/game'
 import type { InspectorSelectableObject } from 'ssh/game/object'
+import type { AlveolusType, GoodType } from 'ssh/types'
+import type { Positioned } from 'ssh/utils'
+import { toAxialCoord } from 'ssh/utils/position'
+import type { GoodSelectionPolicy } from './goods-selection-policy'
+import {
+	evaluateGoodSelectionPolicy,
+	isUnrestrictedGoodsSelectionPolicy,
+	listGoodTypesMatchingSelectionPolicy,
+	migrateV1FiltersToGoodsSelection,
+	normalizeGoodSelectionPolicy,
+	resolveFreightLineGoodsSelectionPolicy,
+} from './goods-selection-policy'
+
+export type {
+	GoodSelectionEffect,
+	GoodSelectionGoodRule,
+	GoodSelectionPolicy,
+	GoodSelectionTagMatch,
+	GoodSelectionTagRule,
+} from './goods-selection-policy'
 
 export type FreightLineMode = 'gather' | 'distribute'
 export type FreightLineStopAlveolusType = AlveolusType | 'gather'
@@ -20,10 +38,15 @@ export interface FreightLineDefinition {
 	readonly mode: FreightLineMode
 	readonly stops: ReadonlyArray<FreightLineStop>
 	readonly radius?: number
+	/** Layered goods filter: explicit goods, ordered tag rules, then default. */
+	readonly goodsSelection?: GoodSelectionPolicy
+	/**
+	 * @deprecated Legacy v1 allow-list; merged into `goodsSelection` by `normalizeFreightLineDefinition`.
+	 */
 	readonly filters?: ReadonlyArray<GoodType>
 }
 
-export const DEFAULT_GATHER_FREIGHT_RADIUS = 9
+export const DEFAULT_GATHER_FREIGHT_RADIUS = defaultGatherFreightRadius
 export const FREIGHT_LINE_UID_PREFIX = 'freight-line:'
 
 export function freightLineStopHiveName(hiveName?: string): string {
@@ -98,11 +121,14 @@ export function findFreightLineByUid(
 	return id ? findFreightLineById(lines, id) : undefined
 }
 
-export function normalizeFreightLineDefinition(
-	line: FreightLineDefinition
-): FreightLineDefinition {
+export function normalizeFreightLineDefinition(line: FreightLineDefinition): FreightLineDefinition {
 	const firstStop = line.stops[0]
-	const filters = line.filters?.length ? [...new Set(line.filters)] : undefined
+	const rawPolicy =
+		line.goodsSelection ??
+		(line.filters?.length ? migrateV1FiltersToGoodsSelection(line.filters) : undefined)
+	const normalizedSelection = rawPolicy ? normalizeGoodSelectionPolicy(rawPolicy) : undefined
+	const unrestricted =
+		!normalizedSelection || isUnrestrictedGoodsSelectionPolicy(normalizedSelection)
 	return {
 		...line,
 		stops: firstStop
@@ -113,7 +139,8 @@ export function normalizeFreightLineDefinition(
 					},
 				]
 			: [],
-		filters,
+		goodsSelection: unrestricted ? undefined : normalizedSelection,
+		filters: undefined,
 		radius: line.mode === 'gather' ? line.radius : undefined,
 	}
 }
@@ -170,13 +197,17 @@ export function findDistributeFreightLine(
 	return findFreightLineForStopAndMode(lines, alveolus, 'distribute')
 }
 
-/** When a gather line lists filters, only those goods are gathered; otherwise hive needs drive selection. */
+/**
+ * When a gather line defines a restrictive `goodsSelection` policy, only goods allowed by that policy are
+ * considered for gather targeting; otherwise hive needs drive selection.
+ */
 export function gatherSelectableGoodTypes(
 	line: FreightLineDefinition | undefined,
 	hiveNeedTypes: readonly GoodType[]
 ): GoodType[] {
-	if (line?.filters?.length) return [...line.filters]
-	return [...hiveNeedTypes]
+	const policy = line ? resolveFreightLineGoodsSelectionPolicy(line) : undefined
+	if (!policy || isUnrestrictedGoodsSelectionPolicy(policy)) return [...hiveNeedTypes]
+	return listGoodTypesMatchingSelectionPolicy(policy)
 }
 
 export function gatherLineAcceptsProducedGood(
@@ -185,8 +216,25 @@ export function gatherLineAcceptsProducedGood(
 	good: GoodType
 ): boolean {
 	if (!(good in hiveNeeds)) return false
-	if (!line?.filters?.length) return true
-	return line.filters.includes(good)
+	return freightLineAllowsGoodType(line, good)
+}
+
+export function freightLineUsesGoodsSelectionPolicy(
+	line: FreightLineDefinition | undefined
+): boolean {
+	if (!line) return false
+	const policy = resolveFreightLineGoodsSelectionPolicy(line)
+	return !!policy && !isUnrestrictedGoodsSelectionPolicy(policy)
+}
+
+export function freightLineAllowsGoodType(
+	line: FreightLineDefinition | undefined,
+	good: GoodType
+): boolean {
+	if (!line) return true
+	const policy = resolveFreightLineGoodsSelectionPolicy(line)
+	if (!policy || isUnrestrictedGoodsSelectionPolicy(policy)) return true
+	return evaluateGoodSelectionPolicy(policy, good) === 'allow'
 }
 
 export function implicitGatherFreightLinesFromHivePatches(

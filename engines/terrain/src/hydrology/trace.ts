@@ -1,10 +1,12 @@
+import { defaultHydrologyTraceConstants } from 'engine-rules'
 import { edgeKey } from '../edge-key'
 import { axial } from '../hex/axial'
 import type { AxialCoord, AxialKey } from '../hex/types'
 import type { EdgeField, EdgeKey, TerrainConfig, TileField } from '../types'
 import { isSpring } from './springs'
 
-const MIN_TERMINAL_PATH_LENGTH = 1
+const t = defaultHydrologyTraceConstants
+const MIN_TERMINAL_PATH_LENGTH = t.minTerminalPathLength
 
 export interface HydrologyResult {
 	edges: Map<EdgeKey, EdgeField>
@@ -29,8 +31,11 @@ function addEdgeFlux(
 	const prev = edges.get(key)
 	const flux = (prev?.flux ?? 0) + increment
 	const slope = Math.abs(h1 - h2)
-	const width = Math.sqrt(flux) * 1.8 + 0.35
-	const depth = Math.min(8, 0.08 * flux + 0.5 * slope)
+	const width = Math.sqrt(flux) * t.edgeFluxWidthSqrtScale + t.edgeFluxWidthOffset
+	const depth = Math.min(
+		t.edgeFluxDepthCap,
+		t.edgeFluxDepthFluxScale * flux + t.edgeFluxDepthSlopeScale * slope
+	)
 	edges.set(key, { flux, depth, width, slope })
 }
 
@@ -104,14 +109,14 @@ function traceFromSpring(
 		const currentCoord = axial.coord(current.key)
 		const neighborCoords = [...axial.neighbors(currentCoord)].filter((coord) => {
 			const key = axial.key(coord)
-			return (
-				tileKeys.has(key) && axial.distance(coord, startCoord) <= config.hydrologyMaxTraceSteps
-			)
+			return tileKeys.has(key) && axial.distance(coord, startCoord) <= config.hydrologyMaxTraceSteps
 		})
 		if (neighborCoords.length === 0) continue
 
 		const minNeighborHeight = Math.min(
-			...neighborCoords.map((coord) => tiles.get(axial.key(coord))?.height ?? Number.POSITIVE_INFINITY)
+			...neighborCoords.map(
+				(coord) => tiles.get(axial.key(coord))?.height ?? Number.POSITIVE_INFINITY
+			)
 		)
 
 		for (const neighborCoord of neighborCoords) {
@@ -126,7 +131,8 @@ function traceFromSpring(
 			const improves =
 				prevCost === undefined ||
 				nextCost < prevCost - 1e-9 ||
-				(Math.abs(nextCost - prevCost) <= 1e-9 && nextSteps < (prevSteps ?? Number.POSITIVE_INFINITY))
+				(Math.abs(nextCost - prevCost) <= 1e-9 &&
+					nextSteps < (prevSteps ?? Number.POSITIVE_INFINITY))
 			if (!improves) continue
 
 			costs.set(nextKey, nextCost)
@@ -151,10 +157,12 @@ function traceFromSpring(
 
 function transitionCost(from: TileField, to: TileField, minNeighborHeight: number): number {
 	const uphill = Math.max(0, to.height - from.height)
-	const uphillPenalty = uphill === 0 ? 0 : 1 + (uphill * 24) ** 2
-	const missedDescentPenalty = Math.max(0, to.height - minNeighborHeight) * 18
-	const nonDescendingPenalty = to.height >= from.height ? 0.75 : 0
-	return 1 + uphillPenalty + missedDescentPenalty + nonDescendingPenalty
+	const uphillPenalty =
+		uphill === 0 ? 0 : t.uphillPenaltyInner + (uphill * t.uphillLinearFactor) ** 2
+	const missedDescentPenalty =
+		Math.max(0, to.height - minNeighborHeight) * t.missedDescentLinearFactor
+	const nonDescendingPenalty = to.height >= from.height ? t.nonDescendingPenalty : 0
+	return t.pathTransitionBase + uphillPenalty + missedDescentPenalty + nonDescendingPenalty
 }
 
 function trimSeaEntry(
@@ -171,7 +179,7 @@ function trimSeaEntry(
 				oceanNeighbors++
 			}
 		}
-		if (oceanNeighbors < 4) break
+		if (oceanNeighbors < t.trimSeaEntryOceanNeighborThreshold) break
 		path.pop()
 	}
 }
@@ -185,7 +193,8 @@ function applyRiverPath(
 	for (let index = 0; index < path.length; index++) {
 		const key = path[index]!
 		result.channels.add(key)
-		const downstreamWeight = 0.8 + (path.length - index) / Math.max(1, path.length)
+		const downstreamWeight =
+			t.channelDownstreamWeightBase + (path.length - index) / Math.max(1, path.length)
 		result.channelInfluence.set(
 			key,
 			Math.max(result.channelInfluence.get(key) ?? 0, downstreamWeight)
@@ -204,7 +213,7 @@ function applyRiverPath(
 			const influence = 1 + (path.length - index) / path.length
 			result.banks.set(neighborKey, Math.max(result.banks.get(neighborKey) ?? 0, influence))
 
-			if (downstreamWeight <= 1.25) continue
+			if (downstreamWeight <= t.channelHighDownstreamThreshold) continue
 			for (const outer of axial.neighbors(neighbor)) {
 				const outerKey = axial.key(outer)
 				if (outerKey === key || outerKey === previous || outerKey === next) continue
@@ -212,7 +221,7 @@ function applyRiverPath(
 				if (result.channels.has(outerKey)) continue
 				const outerTile = tiles.get(outerKey)
 				if (!outerTile || outerTile.height < config.seaLevel) continue
-				const outerInfluence = influence * 0.38
+				const outerInfluence = influence * t.outerBankInfluenceScale
 				result.banks.set(outerKey, Math.max(result.banks.get(outerKey) ?? 0, outerInfluence))
 			}
 		}

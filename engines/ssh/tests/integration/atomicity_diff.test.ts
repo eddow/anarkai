@@ -7,9 +7,7 @@ import { TestEngine } from '../test-engine'
 
 describe('Atomicity & Environment Investigation', () => {
 	// Setup identical to gather_convey.test.ts
-	async function setupEngine(
-		options: any = { terrainSeed: 1234, characterCount: 0 }
-	) {
+	async function setupEngine(options: any = { terrainSeed: 1234, characterCount: 0 }) {
 		const engine = new TestEngine(options)
 		await engine.init()
 

@@ -84,12 +84,16 @@ describe('Stalled Exchange Watchdog', () => {
 
 		const warnings: string[] = []
 		const originalAdvertisingTrace = traces.advertising
+		const noop = () => {}
 		traces.advertising = {
-			...console,
+			log: noop,
+			info: noop,
+			debug: noop,
+			error: noop,
 			warn: (...args: unknown[]) => {
 				warnings.push(args.map(String).join(' '))
 			},
-		}
+		} as typeof console
 
 		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
 		await engine.init()
@@ -232,7 +236,7 @@ describe('Stalled Exchange Watchdog', () => {
 		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
 		await engine.init()
 
-	try {
+		try {
 			const scenario: Partial<SaveState> = {
 				hives: [
 					{
@@ -273,9 +277,9 @@ describe('Stalled Exchange Watchdog', () => {
 			})
 			clearWoodBookkeeping(source, orphanTarget, liveTarget)
 
-				const orphanCreated = hive.createMovement('wood', source, orphanTarget)
-				const liveCreated = hive.createMovement('wood', source, liveTarget)
-				expect(orphanCreated || liveCreated).toBe(true)
+			const orphanCreated = hive.createMovement('wood', source, orphanTarget)
+			const liveCreated = hive.createMovement('wood', source, liveTarget)
+			expect(orphanCreated || liveCreated).toBe(true)
 
 			const woodMovements = Array.from(hive.movingGoods.values())
 				.flat()
@@ -301,13 +305,15 @@ describe('Stalled Exchange Watchdog', () => {
 				}
 			).activeMovementsById.delete(orphanMovement._mgId)
 
-			const cancelOrphans = (hive as unknown as {
-				cancelOrphanedExchangeAllocations(
-					provider: Alveolus,
-					demander: Alveolus,
-					goodType: 'wood'
-				): number
-			}).cancelOrphanedExchangeAllocations.bind(hive)
+			const cancelOrphans = (
+				hive as unknown as {
+					cancelOrphanedExchangeAllocations(
+						provider: Alveolus,
+						demander: Alveolus,
+						goodType: 'wood'
+					): number
+				}
+			).cancelOrphanedExchangeAllocations.bind(hive)
 
 			const canceled = cancelOrphans(source, orphanTarget, 'wood')
 			expect(canceled).toBeGreaterThan(0)
@@ -390,13 +396,13 @@ describe('Stalled Exchange Watchdog', () => {
 		try {
 			const scenario: Partial<SaveState> = {
 				hives: [
-						{
-							name: 'WatchdogHive',
-							alveoli: [
-								{ coord: [0, 0], alveolus: 'gather', goods: { wood: 1 } },
-								{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
-							],
-						},
+					{
+						name: 'WatchdogHive',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'gather', goods: { wood: 1 } },
+							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
+						],
+					},
 				],
 			}
 
@@ -451,9 +457,7 @@ describe('Stalled Exchange Watchdog', () => {
 			expect(!!recreatedMovement || remainingReserved === 0).toBe(true)
 			if (recreatedMovement) {
 				expect(
-					gatherer.aGoodMovement?.some(
-						(selection) => selection.movement.goodType === 'wood'
-					)
+					gatherer.aGoodMovement?.some((selection) => selection.movement.goodType === 'wood')
 				).toBe(true)
 				expect(remainingReserved).toBe(1)
 				expect(!!recreatedMovement.allocations.source).toBe(true)
@@ -470,12 +474,16 @@ describe('Stalled Exchange Watchdog', () => {
 	}, async () => {
 		const warnings: string[] = []
 		const originalAdvertisingTrace = traces.advertising
+		const noop = () => {}
 		traces.advertising = {
-			...console,
+			log: noop,
+			info: noop,
+			debug: noop,
+			error: noop,
 			warn: (...args: unknown[]) => {
 				warnings.push(args.map(String).join(' '))
 			},
-		}
+		} as typeof console
 
 		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
 		await engine.init()
@@ -728,7 +736,9 @@ describe('Stalled Exchange Watchdog', () => {
 			const rightGatherer = engine.game.hex.getTile({ q: 2, r: 0 })?.content as Alveolus | undefined
 			const rightStorage = engine.game.hex.getTile({ q: 2, r: 1 })?.content as Alveolus | undefined
 			const bridgeTile = engine.game.hex.getTile({ q: 1, r: 0 })
-			expect(leftGatherer && leftStorage && rightGatherer && rightStorage && bridgeTile).toBeTruthy()
+			expect(
+				leftGatherer && leftStorage && rightGatherer && rightStorage && bridgeTile
+			).toBeTruthy()
 			if (!leftGatherer || !leftStorage || !rightGatherer || !rightStorage || !bridgeTile) {
 				throw new Error('Expected merge scenario tiles to exist')
 			}

@@ -1,18 +1,19 @@
+import { alveoli, waitForIncomingGoodsPollSeconds } from 'engine-rules'
 import { atomic } from 'mutts'
-import type { TrackedMovement } from 'ssh/hive/hive'
+import { isTileCoord } from 'ssh/board/board'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { LooseGood } from 'ssh/board/looseGoods'
 import { assert } from 'ssh/debug'
 import { alveolusClass } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
+import type { TrackedMovement } from 'ssh/hive/hive'
 import { StorageAlveolus } from 'ssh/hive/storage'
-import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import type { TransformAlveolus } from 'ssh/hive/transform'
 import type { Character } from 'ssh/population/character'
 import type { AllocationBase } from 'ssh/storage'
+import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import { contract, type Goods, type GoodType } from 'ssh/types'
-import type { AxialCoord } from 'ssh/utils'
-import { alveoli } from '../../../../assets/game-content'
+import { type AxialCoord, axial } from 'ssh/utils'
 import { subject } from '../scripts'
 import { DurationStep, MultiMoveStep } from '../steps'
 import type { WorkPlan } from '.'
@@ -38,6 +39,10 @@ interface MovementData {
 	hop: AxialCoord
 	from: AxialCoord
 	moving: LooseGood
+}
+
+function waitStep() {
+	return new DurationStep(waitForIncomingGoodsPollSeconds, 'idle', 'waitForIncomingGoods')
 }
 
 class WorkFunctions {
@@ -68,9 +73,7 @@ class WorkFunctions {
 	}
 	@contract()
 	waitForIncomingGoods() {
-		// Bounded poll to avoid getting stuck forever on one alveolus while
-		// the actionable movement is elsewhere in the hive.
-		return new DurationStep(0.3, 'idle', 'waitForIncomingGoods')
+		return waitStep()
 	}
 	@contract()
 	@atomic
@@ -88,7 +91,10 @@ class WorkFunctions {
 		const claimMovement = (movement: TrackedMovement) => {
 			assert(!movement.claimed, `claimMovement: movement already claimed ${movement._mgId}`)
 			assert(!movement.claimedBy, `claimMovement: movement already has claimedBy ${movement._mgId}`)
-			assert(!movement.claimedAtMs, `claimMovement: movement already has claimedAtMs ${movement._mgId}`)
+			assert(
+				!movement.claimedAtMs,
+				`claimMovement: movement already has claimedAtMs ${movement._mgId}`
+			)
 			movement.claimed = true
 			movement.claimedBy = character.uid
 			movement.claimedAtMs = Date.now()
@@ -100,20 +106,29 @@ class WorkFunctions {
 				movement.claimedBy === character.uid,
 				`releaseMovementClaim: movement claimed by ${movement.claimedBy ?? 'nobody'} not ${character.uid}`
 			)
-			assert(!!movement.claimedAtMs, `releaseMovementClaim: movement missing claimedAtMs ${movement._mgId}`)
-			movement.provider.hive.noteMovementLifecycle(movement, `movement.unclaimed.by:${character.uid}`)
+			assert(
+				!!movement.claimedAtMs,
+				`releaseMovementClaim: movement missing claimedAtMs ${movement._mgId}`
+			)
+			movement.provider.hive.noteMovementLifecycle(
+				movement,
+				`movement.unclaimed.by:${character.uid}`
+			)
 			movement.claimed = false
 			delete movement.claimedBy
 			delete movement.claimedAtMs
 		}
 		const alveolus = character.assignedAlveolus!
+		const assignedCoord = axial.key(alveolus.tile.position as AxialCoord)
 		assert(
 			alveolus === character.tile.content,
 			'Character must be assigned to the alveolus on the same tile'
 		)
 		// Get movement(s) - either a single movement or a cycle
 		const movements = alveolus.aGoodMovement
-		if (!movements || movements.length === 0) return
+		if (!movements || movements.length === 0) {
+			return alveolus.incomingGoods ? waitStep() : undefined
+		}
 
 		const hive = alveolus.hive
 
@@ -189,7 +204,30 @@ class WorkFunctions {
 					allowClaimedTerminalPath: true,
 					allowUntracked: true,
 				})
-				const hop = movement.hop()!
+				const nextTile = movement.path[0]
+				const nextBorder = movement.path[1]
+				const bridgeCandidate =
+					!isTileCoord(from) &&
+					!!nextTile &&
+					!!nextBorder &&
+					isTileCoord(nextTile) &&
+					!isTileCoord(nextBorder) &&
+					axial.key(nextTile) === assignedCoord
+				let hop = movement.hop()!
+				if (bridgeCandidate) {
+					const bridgeTile = hop
+					movementHive.noteMovementLifecycle(
+						movement,
+						`conveyStep.bridge.enter:${axial.key(bridgeTile)}`
+					)
+					hop = movement.hop()!
+					movementHive.noteMovementLifecycle(movement, `conveyStep.bridge.exit:${axial.key(hop)}`)
+					movementHive.noteMovementStorageCheckpoint(
+						movement,
+						'conveyStep.bridge.exit.storage',
+						hop
+					)
+				}
 
 				// Only re-index the movement when another conveyor still needs to pick it up.
 				// Final-hop movements should stay out of hive.movingGoods; otherwise terminal
@@ -258,6 +296,57 @@ class WorkFunctions {
 					moving,
 				})
 			} catch (error) {
+				// When an intermediate storage is full, park the movement at its
+				// previous coord instead of aborting. The movement stays alive and
+				// another worker will retry when room opens up.
+				if (
+					sourceFulfilled &&
+					movement.path.length > 0 &&
+					movementData.length === 0 &&
+					error instanceof Error &&
+					error.message.includes('Insufficient room to allocate any goods')
+				) {
+					const blockedAt = movement.from
+					const movementHive = currentHive(movement)
+					const fromStorage = movementHive.storageAt(from)
+					if (fromStorage) {
+						try {
+							movement.path.unshift(blockedAt)
+							movement.from = from
+							movement.place()
+							const restored = fromStorage.addGood(movement.goodType, 1)
+							assert(restored === 1, 'conveyStep.park: failed to restore good to from-storage')
+							const newSource = fromStorage.reserve(
+								{ [movement.goodType]: 1 },
+								{
+									type: 'convey.path',
+									goodType: movement.goodType,
+									movementId: movement._mgId,
+									providerRef: movement.provider,
+									demanderRef: movement.demander,
+									providerName: movement.provider.name,
+									demanderName: movement.demander.name,
+									movement,
+								}
+							)
+							movementHive.assignMovementSource(movement, newSource, 'conveyStep.park')
+							movementHive.noteMovementLifecycle(movement, `conveyStep.parked:${from.q},${from.r}`)
+							releaseMovementClaim(movement)
+							console.warn('[conveyStep] Parked movement - intermediate storage full', {
+								goodType: movement.goodType,
+								provider: movement.provider.name,
+								demander: movement.demander.name,
+								parkedAt: `${from.q},${from.r}`,
+								blockedAt: `${blockedAt.q},${blockedAt.r}`,
+								blockedStorage: movementHive.storageAt(blockedAt)?.renderedGoods(),
+							})
+							movementHive.wakeWanderingWorkersNear(movement.provider, movement.demander)
+							return waitStep()
+						} catch {
+							// Parking failed, fall through to normal cleanup
+						}
+					}
+				}
 				cleanupFailedConveyMovement(character, {
 					movement,
 					hopAlloc,
@@ -268,9 +357,6 @@ class WorkFunctions {
 				for (const prev of movementData) cleanupFailedConveyMovement(character, prev)
 				if (isRecoverableConveyError(error)) {
 					const errorMessage = error instanceof Error ? error.message : String(error)
-					// Recovery here is intentionally narrow: this branch is for transient mid-convey races
-					// after state has already been mutated. Do not extend it for ordinary "cannot proceed"
-					// outcomes; prefer preventing those earlier or modeling them as non-throwing refusals.
 					console.warn('[conveyStep] Recovered from stale movement bookkeeping', {
 						goodType: movement.goodType,
 						provider: movement.provider.name,
@@ -278,47 +364,45 @@ class WorkFunctions {
 						error: errorMessage,
 					})
 					currentHive(movement).wakeWanderingWorkersNear(movement.provider, movement.demander)
-					return
+					return waitStep()
 				}
 				throw error
 			}
 		}
-		if (movementData.length === 0) return
+		if (movementData.length === 0) {
+			return waitStep()
+		}
 
 		const totalTime = getConveyDuration(character.vehicle.transferTime, movementData)
 
 		// Create unified MultiMoveStep that animates all movements
 		const description =
-			movementData.length === 1
-				? `convey.${movementData[0].movement.goodType}`
-				: `convey.cycle`
+			movementData.length === 1 ? `convey.${movementData[0].movement.goodType}` : `convey.cycle`
 		const visualMovements = getConveyVisualMovements(movementData)
 		return new MultiMoveStep(totalTime, visualMovements, 'work', description)
-		.canceled(() => {
-			for (const { movement, hopAlloc, moving } of movementData) {
-				if (!moving.isRemoved) moving.remove()
-				if (!currentHive(movement).isMovementAlive(movement)) continue
-				const movementHive = currentHive(movement)
-				movementHive.noteMovementLifecycle(movement, 'conveyStep.canceled')
-				releaseMovementClaim(movement)
-				hopAlloc?.cancel()
-				movementHive.cancelMovementSource(movement, 'conveyStep.canceled')
-				movement.allocations.target.cancel()
-				character.game.hex.looseGoods.add(character.tile, movement.goodType)
-				movement.abort()
-			}
-		})
-		.finished(() => {
-			try {
-				for (const { movement } of movementData) {
-					if (!currentHive(movement).isMovementAlive(movement)) {
-						throw new Error(
-							'Movement became invalid after hop handoff'
-						)
-					}
-				}
-				for (const { movement, moving, hopAlloc, hop } of movementData) {
+			.canceled(() => {
+				for (const { movement, hopAlloc, moving } of movementData) {
+					if (!moving.isRemoved) moving.remove()
+					if (!currentHive(movement).isMovementAlive(movement)) continue
 					const movementHive = currentHive(movement)
+					movementHive.noteMovementLifecycle(movement, 'conveyStep.canceled')
+					releaseMovementClaim(movement)
+					hopAlloc?.cancel()
+					movementHive.cancelMovementSource(movement, 'conveyStep.canceled')
+					movement.allocations.target.cancel()
+					character.game.hex.looseGoods.add(character.tile, movement.goodType)
+					movement.abort()
+				}
+			})
+			.finished(() => {
+				try {
+					for (const { movement } of movementData) {
+						if (!currentHive(movement).isMovementAlive(movement)) {
+							throw new Error('Movement became invalid after hop handoff')
+						}
+					}
+					for (const { movement, moving, hopAlloc, hop } of movementData) {
+						const movementHive = currentHive(movement)
 						const nextStorage = movementHive.storageAt(hop)
 
 						if (!moving.isRemoved) moving.remove()
@@ -406,10 +490,7 @@ class WorkFunctions {
 								requireSourceValid: true,
 								requireTargetValid: true,
 							})
-							currentHive(movement).wakeWanderingWorkersNear(
-								movement.provider,
-								movement.demander
-							)
+							currentHive(movement).wakeWanderingWorkersNear(movement.provider, movement.demander)
 						}
 					}
 				} catch (error) {
@@ -432,10 +513,7 @@ class WorkFunctions {
 							})),
 						})
 						for (const { movement } of movementData) {
-						currentHive(movement).wakeWanderingWorkersNear(
-							movement.provider,
-							movement.demander
-						)
+							currentHive(movement).wakeWanderingWorkersNear(movement.provider, movement.demander)
 						}
 						return
 					}

@@ -45,6 +45,7 @@ Gameplay and persistence:
 - board and tile content
 - hive and alveolus logic
 - worker behavior and job selection
+- freight-line transport bridge (`gather` / `distribute`, stop matching, compatibility)
 - storage reservation/allocation semantics
 - save/load and streamed gameplay frontier management
 

@@ -8,7 +8,6 @@
 		"tree_chopper": "Bûcheron",
 		"stonecutter": "Tailleur de Pierre",
 		"sawmill": "Scierie",
-		"gather": "Rassembleur",
 		"storage": "Magasin",
 		"building": "Construction",
 		"engineer": "Ingénieur",
@@ -18,6 +17,8 @@
 	"hive": {
 		"section": "Ruche",
 		"name": "Nom",
+		"commands": "Commandes",
+		"workingTooltip": "Activer ou mettre en pause toute la ruche",
 		"ads": "Annonces",
 		"noAds": "Aucune annonce pour cette ancre de ruche.",
 		"sourcesHint": "Nombre de types d'alvéoles contributeurs",
@@ -30,6 +31,25 @@
 		"mode": "Mode",
 		"radius": "Rayon",
 		"filters": "Filtres",
+		"goodsSelection": {
+			"section": "Sélection des marchandises",
+			"goodRules": "Règles par marchandise",
+			"tagRules": "Règles par étiquette",
+			"fallback": "Défaut",
+			"fallbackHint": "Si aucune règle ne correspond :",
+			"addGoodRule": "Ajouter une règle de marchandise",
+			"addTagRule": "Ajouter une règle d'étiquette",
+			"remove": "Retirer",
+			"moveUp": "Monter",
+			"moveDown": "Descendre",
+			"reorderTagRule": "Réordonner la règle d’étiquette",
+			"effectAllow": "Autoriser",
+			"effectDeny": "Refuser",
+			"matchPresent": "Présent",
+			"matchAbsent": "Absent",
+			"noGoodsToAdd": "Aucune marchandise à ajouter",
+			"noTagsToAdd": "Aucune étiquette à ajouter"
+		},
 		"stations": "Stations",
 		"stop": "Arrêt",
 		"unavailable": "La ligne n'est plus disponible.",
@@ -38,11 +58,21 @@
 			"distribute": "Distribution"
 		}
 	},
+	"goodsTags": {
+		"food": "Nourriture",
+		"bulk": "Vrac",
+		"piece": "Pièces",
+		"construction/lumber": "Construction — bois",
+		"construction/stone": "Construction — pierre"
+	},
 	"goods": {
 		"berries": "Baies",
 		"mushrooms": "Champignons",
 		"planks": "Planches",
 		"stone": "Pierre",
 		"wood": "Bois"
+	},
+	"step": {
+		"waitForIncomingGoods": "Attendre des marchandises entrantes"
 	}
 }

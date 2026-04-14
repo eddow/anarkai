@@ -1,2 +1,2 @@
 export { isSpring } from './springs'
-export { runHydrology, runHydrologyDetailed, type HydrologyResult } from './trace'
+export { type HydrologyResult, runHydrology, runHydrologyDetailed } from './trace'

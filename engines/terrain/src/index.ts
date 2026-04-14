@@ -1,32 +1,34 @@
 export { classifyTile, type HydrologyClassification } from './classify'
 export {
+	AUTO_GPU_MIN_TILES,
 	canUseWebGpuFields,
 	createFieldGenerationShaderSource,
 	disposeGpuFieldRuntime,
-	AUTO_GPU_MIN_TILES,
 	FIELD_RESULT_STRIDE,
 	FIELD_SHADER_ENTRYPOINT,
-	generateFieldsAsync,
 	generateFields,
+	generateFieldsAsync,
 	generateFieldsGpu,
-	generateTileFieldAsync,
 	generateTileField,
+	generateTileFieldAsync,
 	generateTileFieldGpu,
 	isGpuFieldRuntimeReady,
+	type PackedFieldRequest,
+	type PackedFieldResult,
 	packFieldRequest,
 	resolveAsyncFieldGenerationBackend,
 	resolveFieldGenerationBackend,
 	resolveSyncFieldGenerationBackend,
 	unpackFieldResult,
 	warmGpuFieldRuntime,
-	type PackedFieldRequest,
-	type PackedFieldResult,
 } from './fields'
 export { generateFieldsCpu, generateTileFieldCpu } from './fields/cpu'
 export {
 	applyTileOverrides,
 	createSnapshot,
 	edgeKey,
+	type GenerateHydratedRegionOptions,
+	type GenerateHydratedRegionWithMetricsResult,
 	type GenerateOptions,
 	generate,
 	generateAsync,
@@ -37,8 +39,6 @@ export {
 	generateRegion,
 	generateRegionAsync,
 	generateTile,
-	type GenerateHydratedRegionOptions,
-	type GenerateHydratedRegionWithMetricsResult,
 	type MergeSnapshotResult,
 	mergeSnapshotRegion,
 	type PopulateSnapshotResult,
@@ -48,6 +48,6 @@ export {
 	type TileOverride,
 } from './generate'
 export * from './hex/index'
-export { isSpring, runHydrology, runHydrologyDetailed, type HydrologyResult } from './hydrology'
+export { type HydrologyResult, isSpring, runHydrology, runHydrologyDetailed } from './hydrology'
 export { fbm, PerlinNoise } from './noise'
 export * from './types'

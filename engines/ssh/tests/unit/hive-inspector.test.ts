@@ -6,7 +6,7 @@ import {
 	isHiveUid,
 	resolveHiveFromAnchorTile,
 } from 'ssh/hive'
-import { GatherAlveolus } from 'ssh/hive/gather'
+import { StorageAlveolus } from 'ssh/hive/storage'
 import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
 
@@ -28,7 +28,7 @@ describe('hive inspector synthetic object', () => {
 			engine.loadScenario(scenario)
 			const tile = engine.game.hex.getTile({ q: 0, r: 0 })
 			expect(tile).toBeDefined()
-			expect(tile?.content).toBeInstanceOf(GatherAlveolus)
+			expect(tile?.content).toBeInstanceOf(StorageAlveolus)
 			const uid = hiveUidForAnchorTile(tile!.uid)
 			const synthetic = engine.game.getObject(uid)
 			expect(synthetic).toBeDefined()

@@ -3,6 +3,7 @@
  * Coordinates all generation activities for the game
  */
 
+import { streamHydrologyPadding } from 'engine-rules'
 import {
 	type BiomeHint,
 	generateHydratedRegion as generateTerrainRegion,
@@ -12,7 +13,6 @@ import {
 import type { TerrainType } from 'ssh/types'
 import type { AxialCoord } from 'ssh/utils'
 import { BoardGenerator, type GeneratedTileData } from './board'
-import { type GeneratedCharacterData, PopulationGenerator } from './population'
 
 export interface GameGenerationConfig {
 	terrainSeed: number
@@ -38,8 +38,6 @@ const terrainToBiome: Partial<Record<TerrainType, BiomeHint>> = {
 	rocky: 'rocky',
 	snow: 'snow',
 }
-const STREAM_HYDROLOGY_PADDING = 4
-
 function toTileOverrides(terraforming: TerrainTerraformPatch[]): TileOverride[] {
 	const overrides: TileOverride[] = []
 	for (const patch of terraforming) {
@@ -66,7 +64,7 @@ export class GameGenerator {
 		terraforming: TerrainTerraformPatch[] = []
 	): GeneratedTileData[] {
 		const snapshot = generateTerrainRegion(config.terrainSeed, coords, {
-			hydrologyPadding: STREAM_HYDROLOGY_PADDING,
+			hydrologyPadding: streamHydrologyPadding,
 			tileOverrides: toTileOverrides(terraforming),
 		})
 
@@ -81,7 +79,7 @@ export class GameGenerator {
 	): Promise<GeneratedTileData[]> {
 		const snapshot = await generateTerrainRegionAsync(config.terrainSeed, coords, {
 			fieldBackend: 'auto',
-			hydrologyPadding: STREAM_HYDROLOGY_PADDING,
+			hydrologyPadding: streamHydrologyPadding,
 			tileOverrides: toTileOverrides(terraforming),
 		})
 

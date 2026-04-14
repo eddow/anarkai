@@ -1,4 +1,4 @@
-import { Container, Graphics, Point, TilingSprite, type Texture } from 'pixi.js'
+import { Container, Graphics, Point, type Texture, TilingSprite } from 'pixi.js'
 import { tileSize } from 'ssh/utils/varied'
 import { setPixiName } from '../debug-names'
 

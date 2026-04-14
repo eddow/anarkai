@@ -1,14 +1,14 @@
+import { jobBalance } from 'engine-rules'
 import { inert, reactive } from 'mutts'
 import { GameObject, withInteractive } from 'ssh/game/object'
-import { Hive } from 'ssh/hive'
 import type { TerrainHydrologySample } from 'ssh/game/terrain-provider'
+import { Hive } from 'ssh/hive/hive'
 import { gameIsaTypes } from 'ssh/npcs/utils'
 import type { Character } from 'ssh/population/character'
 import type { TerrainType } from 'ssh/types'
 import type { AlveolusType, Job } from 'ssh/types/base'
 import { type AxialCoord, axial, type NeighborInfo } from 'ssh/utils'
 import { axialDistance, type Position, type Positioned, toAxialCoord } from 'ssh/utils/position'
-import { jobBalance } from '../../../assets/game-content'
 import type { HexBoard } from './board'
 import type { TileBorder } from './border/border'
 import { Alveolus } from './content/alveolus'
@@ -55,7 +55,7 @@ export class Tile extends withInteractive(GameObject) {
 				if (!(neighborContent instanceof Alveolus)) continue
 				neighboringHives.add(neighborContent.hive)
 			}
-			const hive = Array.from(neighboringHives)[0] ?? new Hive(this.board)
+			const hive = Array.from(neighboringHives)[0] ?? Hive.for(this)
 			hive.attach(content)
 			this.board.markHiveTopologyDirty(hive)
 			for (const neighborHive of neighboringHives) this.board.markHiveTopologyDirty(neighborHive)

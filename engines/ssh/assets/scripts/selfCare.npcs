@@ -1,19 +1,21 @@
 function goEat()
 	// If already satisfied, `goEat` must not return immediately (falsy) or `findAction` can
 	// re-select `goEat` in the same tick when scores wrongly include eat (e.g. carried food).
-	if not (I.hunger > I.triggerLevels.hunger.satisfied) then return selfCare.pondering()
-	do while I.hunger > I.triggerLevels.hunger.satisfied
+	satisfied = I.triggerLevels.hunger.satisfied
+	if not (I.hunger > satisfied) then return selfCare.pondering()
+	do
 		food = I.carriedFood
 		if food then
 			selfCare.eat food
-			continue
+		else
+			if not haveRoom() then inventory.makeRoom
+			found = find.food()
+			// Yield a timed step instead of `return false`: a falsy return lets `findAction`
+			// pick `goEat` again in the same `nextStep` tick and triggers "Action infinite fail".
+			if not found then return selfCare.pondering()
+			inventory.grabLoose found.good, found.tile, found.path
 		end if
-		inventory.makeRoom
-		found = find.food()
-		// Yield a timed step instead of `return false`: a falsy return lets `findAction`
-		// pick `goEat` again in the same `nextStep` tick and triggers "Action infinite fail".
-		if not found then return selfCare.pondering()
-		inventory.grabLoose found.good, found.tile, found.path
+	while I.hunger > satisfied
 	loop
 end function
 

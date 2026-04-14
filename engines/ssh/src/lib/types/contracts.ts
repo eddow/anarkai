@@ -10,7 +10,7 @@ export function isContract(validate: (args: any[]) => any) {
 	return contractRegistry.has(validate)
 }
 
-export function registerContract(validate: (args: any[]) => any, original: {name: string}) {
+export function registerContract(validate: (args: any[]) => any, original: { name: string }) {
 	contractRegistry.add(validate)
 	Object.defineProperties(validate, {
 		name: { value: `Contract(${original.name})` },

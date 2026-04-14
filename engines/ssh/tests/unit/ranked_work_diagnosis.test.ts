@@ -11,7 +11,7 @@ describe('Ranked work diagnostics', () => {
 		})
 		await engine.init()
 
-	try {
+		try {
 			;(globalThis as any).allowExpectedDiagnostics?.(/\[WATCHDOG\] STALLED EXCHANGE/)
 			const scenario: Partial<SaveState> = {
 				generationOptions: {
@@ -53,7 +53,11 @@ describe('Ranked work diagnostics', () => {
 			expect(ranked.length).toBeGreaterThan(0)
 			expect(ranked[0]?.jobKind).toBe('harvest')
 			expect(ranked[0]?.selected).toBe(true)
-			expect(ranked.every((candidate, index, arr) => index === 0 || arr[index - 1]!.score >= candidate.score)).toBe(true)
+			expect(
+				ranked.every(
+					(candidate, index, arr) => index === 0 || arr[index - 1]!.score >= candidate.score
+				)
+			).toBe(true)
 		} finally {
 			await engine.destroy()
 		}

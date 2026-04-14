@@ -1,13 +1,23 @@
 import { BuildAlveolus } from 'ssh/hive/build'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 describe('BuildAlveolus advertisement', () => {
+	const mockHive = {
+		working: true,
+		needs: {},
+		configurations: new Map(),
+		movingGoods: new Map(),
+		removeAlveolus: vi.fn(),
+		hasIncomingMovementFor: vi.fn(() => false),
+	} as any
+
 	function makeSite() {
 		const mockTile = {
 			position: { q: 0, r: 0 },
 			board: {
 				game: {
 					random: () => 0.5,
+					freightLines: [],
 					configurationManager: {
 						getNamedConfiguration: () => undefined,
 					},
@@ -16,7 +26,9 @@ describe('BuildAlveolus advertisement', () => {
 			log: () => {},
 		} as any
 
-		return new BuildAlveolus(mockTile, 'engineer')
+		const site = new BuildAlveolus(mockTile, 'engineer')
+		;(site as any).hive = mockHive
+		return site
 	}
 
 	it('advertises every missing construction good before any inbound allocation', () => {

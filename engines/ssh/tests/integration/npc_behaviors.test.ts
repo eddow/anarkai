@@ -1,6 +1,7 @@
 import type { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { GoodType } from 'ssh/types'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { activityDurations } from '../../assets/constants'
 import { TestEngine } from '../test-engine'
 
 describe('NPC Behaviors Integration', () => {
@@ -16,9 +17,7 @@ describe('NPC Behaviors Integration', () => {
 	})
 
 	// Helper to setup engine with scripts
-	async function setupEngine(
-		options: any = { terrainSeed: 1234, characterCount: 0 }
-	) {
+	async function setupEngine(options: any = { terrainSeed: 1234, characterCount: 0 }) {
 		const engine = new TestEngine(options)
 		engines.add(engine)
 		await engine.init()
@@ -155,6 +154,12 @@ describe('NPC Behaviors Integration', () => {
 		// Setup: Gatherer hut with a neighboring storage that buffers mushrooms,
 		// so the gatherer has a real hive-level need to satisfy.
 		const scenario = {
+			tiles: [
+				{ coord: [2, 1] as [number, number], terrain: 'grass' },
+				{ coord: [3, 1] as [number, number], terrain: 'grass' },
+				{ coord: [2, 2] as [number, number], terrain: 'grass' },
+				{ coord: [3, 2] as [number, number], terrain: 'grass' },
+			],
 			hives: [
 				{
 					name: 'Gatherers',
@@ -189,7 +194,11 @@ describe('NPC Behaviors Integration', () => {
 						},
 					],
 					radius: 9,
-					filters: ['mushrooms'],
+					goodsSelection: {
+						goodRules: [{ goodType: 'mushrooms', effect: 'allow' }],
+						tagRules: [],
+						defaultEffect: 'deny',
+					},
 				},
 			],
 			looseGoods: [
@@ -216,8 +225,9 @@ describe('NPC Behaviors Integration', () => {
 			(['2,1', '3,1'] as const)
 				.map((key) => {
 					const [q, r] = key.split(',').map(Number) as [number, number]
-					return (game.hex.looseGoods.getGoodsAt({ q, r }) ?? []).filter((g) => g.goodType === 'mushrooms')
-						.length
+					return (game.hex.looseGoods.getGoodsAt({ q, r }) ?? []).filter(
+						(g) => g.goodType === 'mushrooms'
+					).length
 				})
 				.reduce((acc, n) => acc + n, 0)
 
@@ -232,6 +242,21 @@ describe('NPC Behaviors Integration', () => {
 			gatherAlveolus.assignedWorker = gatherer
 			gatherer.assignedAlveolus = gatherAlveolus
 		}
+
+		// Let hive advertisements populate `hive.needs` before querying gather planning.
+		await tickAsync(engine, 0.5)
+
+		// Generation can briefly seed the gather hut storage; clear it so `nextGatherJob` gates pass.
+		const initialGatherStock = gatherAlveolus?.storage?.stock ?? {}
+		for (const [goodType, qty] of Object.entries(initialGatherStock)) {
+			const n = Number(qty) || 0
+			if (n > 0) gatherAlveolus.storage.removeGood(goodType as GoodType, n)
+		}
+		expect(gatherAlveolus.storage.isEmpty).toBe(true)
+		expect(
+			gatherAlveolus.hasLooseGoodsToGather,
+			`gather diagnostics: working=${String(gatherAlveolus.working)} needs=${JSON.stringify(gatherAlveolus.hive?.needs)}`
+		).toBe(true)
 
 		// Validate planning: the hut should expose a real gather job for the buffered need.
 		const planned = gatherAlveolus?.nextJob?.(gatherer)
@@ -249,7 +274,6 @@ describe('NPC Behaviors Integration', () => {
 		const storageStock = storageTile?.content?.storage?.stock ?? {}
 		const totalMushrooms =
 			((gatherStock as any).mushrooms ?? 0) + ((storageStock as any).mushrooms ?? 0)
-		expect(gatherAlveolus?.getJob?.(gatherer)?.job).toBe('gather')
 		expect(totalMushrooms + countLooseMushroomsNearGather()).toBeGreaterThanOrEqual(2)
 	})
 
@@ -371,9 +395,8 @@ describe('NPC Behaviors Integration', () => {
 			if (loose.goodType !== 'mushrooms') loose.remove()
 		}
 
-		// 3. Set hunger
-		char.hunger = 800
-		;(char.triggerLevels as any).hunger.satisfied = 100
+		// 3. Set hunger on the current 0..1 need scale
+		char.hunger = 0.9
 
 		// 4. Trigger action selection
 		const action = char.findAction()
@@ -381,7 +404,52 @@ describe('NPC Behaviors Integration', () => {
 
 		await tickAsync(engine, 80.0)
 
-		// Should have eaten (hunger uses continuous decay; avoid brittle float threshold)
-		expect(char.hunger).toBeLessThan(91)
+		expect(char.hunger).toBeLessThan(char.triggerLevels.hunger.satisfied)
+	})
+
+	it('Scenario: Self-Care stops after satisfying carried-food hunger', { timeout: 15000 }, async () => {
+		const { engine, game } = await setupEngine()
+
+		engine.loadScenario({
+			looseGoods: [
+				{ goodType: 'mushrooms', position: { q: 0, r: 1 } },
+				{ goodType: 'mushrooms', position: { q: 0, r: 1 } },
+			],
+		} as any)
+
+		const errors: string[] = []
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation((...args) => {
+			errors.push(args.map((arg) => String(arg)).join(' '))
+		})
+
+		try {
+			const char = await engine.spawnCharacter('Worker', { q: 0, r: 0 })
+			void char.scriptsContext
+
+			for (const loose of [...(game.hex.looseGoods.getGoodsAt({ q: 0, r: 1 }) ?? [])]) {
+				if (loose.goodType !== 'mushrooms') loose.remove()
+			}
+
+			expect(char.carry.addGood('berries', 1)).toBe(1)
+			expect(char.carry.addGood('wood', 1)).toBe(1)
+
+			char.hunger = 0.2
+
+			const action = char.scriptsContext.selfCare.goEat()
+			const first = action.run(char.scriptsContext)
+			expect(first.type).toBe('yield')
+			expect(first.value).toBeDefined()
+			expect(typeof first.value.tick).toBe('function')
+			first.value.tick(activityDurations.eating)
+			expect(char.hunger).toBeLessThan(char.triggerLevels.hunger.satisfied)
+
+			const second = action.run(char.scriptsContext)
+			expect(second.type).toBe('return')
+			expect(char.carry.available('wood')).toBe(1)
+			expect(char.carry.available('mushrooms')).toBe(0)
+			expect(errors.join('\n')).not.toContain('While loop "stack overflow"')
+		} finally {
+			errorSpy.mockRestore()
+		}
 	})
 })

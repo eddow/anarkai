@@ -4,11 +4,22 @@
  */
 
 import {
+	boardAmbientGoodsMaxPerType,
+	boardDefaultTileWalkTime,
+	boardDepositFillDivisor,
+	boardDepositFillRandomSpread,
+	boardGoodsEquilibriumVariance,
+	boardInfiniteHalfLifeEquilibriumMultiplier,
+	deposits,
+	goods as goodsCatalog,
+	terrain as terrainDetails,
+} from 'engine-rules'
+import {
+	type BiomeHint,
 	classifyTile,
 	DEFAULT_TERRAIN_CONFIG,
-	edgeKey,
-	type BiomeHint,
 	type EdgeField,
+	edgeKey,
 	type TerrainSnapshot,
 } from 'engine-terrain'
 import { Deposit } from 'ssh/board/content/unbuilt-land'
@@ -16,12 +27,6 @@ import type { TerrainHydrologySample } from 'ssh/game/terrain-provider'
 import type { DepositType, TerrainType } from 'ssh/types'
 import type { AxialCoord } from 'ssh/utils'
 import { axial } from 'ssh/utils'
-import {
-	deposits,
-	goods as goodsCatalog,
-	terrain as terrainDetails,
-} from '../../../assets/game-content'
-
 export interface GeneratedTileData {
 	coord: AxialCoord
 	terrain: TerrainType
@@ -49,7 +54,10 @@ const biomeToTerrain: Record<BiomeHint, TerrainType> = {
 	snow: 'snow',
 }
 
-function resolveTerrainForTile(biome: BiomeHint, tileField: TerrainSnapshot['tiles'] extends Map<any, infer T> ? T : never): TerrainType {
+function resolveTerrainForTile(
+	biome: BiomeHint,
+	tileField: TerrainSnapshot['tiles'] extends Map<any, infer T> ? T : never
+): TerrainType {
 	if (biome !== 'river-bank' && biome !== 'wetland') {
 		return biomeToTerrain[biome]
 	}
@@ -60,7 +68,11 @@ function resolveTerrainForTile(biome: BiomeHint, tileField: TerrainSnapshot['til
 	return biomeToTerrain[baseBiome]
 }
 
-function resolveHydrologyForTile(snapshot: TerrainSnapshot, key: string, coord: AxialCoord): TerrainHydrologySample | undefined {
+function resolveHydrologyForTile(
+	snapshot: TerrainSnapshot,
+	key: string,
+	coord: AxialCoord
+): TerrainHydrologySample | undefined {
 	const bankInfluence = snapshot.hydrology.banks.get(key)
 	const channelInfluence = snapshot.hydrology.channelInfluence.get(key)
 	const isChannel = snapshot.hydrology.channels.has(key)
@@ -74,7 +86,12 @@ function resolveHydrologyForTile(snapshot: TerrainSnapshot, key: string, coord: 
 		edges[direction] = toHydrologyEdge(edge)
 	}
 
-	if (!isChannel && bankInfluence === undefined && channelInfluence === undefined && Object.keys(edges).length === 0) {
+	if (
+		!isChannel &&
+		bankInfluence === undefined &&
+		channelInfluence === undefined &&
+		Object.keys(edges).length === 0
+	) {
 		return undefined
 	}
 
@@ -115,7 +132,7 @@ export class BoardGenerator {
 				hydrology,
 				deposit,
 				goods,
-				walkTime: 3,
+				walkTime: boardDefaultTileWalkTime,
 			})
 		}
 
@@ -141,13 +158,13 @@ export class BoardGenerator {
 					let equilibriumAmount: number
 
 					if (goodDef.halfLife === Infinity) {
-						equilibriumAmount = totalGenerationRate * 10
+						equilibriumAmount = totalGenerationRate * boardInfiniteHalfLifeEquilibriumMultiplier
 					} else {
 						const decayRate = 1 - 2 ** (-1 / goodDef.halfLife)
 						equilibriumAmount = totalGenerationRate / decayRate
 					}
 
-					const variance = 0.3
+					const variance = boardGoodsEquilibriumVariance
 					const randomFactor = 1 + (rnd() - 0.5) * variance
 					const finalAmount = Math.max(0, Math.floor(equilibriumAmount * randomFactor))
 
@@ -161,7 +178,7 @@ export class BoardGenerator {
 		const terrainDef = terrainDetails[terrain]
 		if ('generation' in terrainDef && terrainDef.generation && 'goods' in terrainDef.generation) {
 			for (const [goodType, _chance] of Object.entries(terrainDef.generation.goods)) {
-				const ambientAmount = Math.floor(rnd() * 3)
+				const ambientAmount = Math.floor(rnd() * boardAmbientGoodsMaxPerType)
 				if (ambientAmount > 0) {
 					goods[goodType] = (goods[goodType] || 0) + ambientAmount
 				}
@@ -182,7 +199,10 @@ export class BoardGenerator {
 		for (const [depKey, chance] of Object.entries(table)) {
 			if (rnd() < (chance as number)) {
 				const Kind = Deposit.class[depKey as DepositType]
-				const amount = Math.floor(((1 + rnd() * 2) * Kind.prototype.maxAmount) / 3)
+				const amount = Math.floor(
+					((1 + rnd() * boardDepositFillRandomSpread) * Kind.prototype.maxAmount) /
+						boardDepositFillDivisor
+				)
 				return { type: depKey as DepositType, amount }
 			}
 		}

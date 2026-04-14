@@ -265,6 +265,8 @@ describe('Planner loop diagnostic', () => {
 		console.log('Effect fires after slot.allocated write:', effectFired)
 		expect(effectFired).toBe(2)
 
+		// Restore the slot invariant before cancelling the allocation token.
+		slot.allocated -= 1
 		cleanup()
 		token.cancel()
 	})

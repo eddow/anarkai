@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
-import type { GameGenerationConfig, TerrainTerraformPatch } from 'ssh/generation'
 import { TerrainProvider, type TerrainSample } from 'ssh/game/terrain-provider'
+import type { GameGenerationConfig, TerrainTerraformPatch } from 'ssh/generation'
+import { describe, expect, it, vi } from 'vitest'
 
 describe('terrain provider', () => {
 	it('resolves terrain samples deterministically and honors overrides', async () => {
@@ -10,7 +10,11 @@ describe('terrain provider', () => {
 		}
 		const overrides: TerrainTerraformPatch[] = [{ coord: [1, 1], terrain: 'sand', height: 0.7 }]
 		const generateRegionAsync = vi.fn(
-			async (_config: GameGenerationConfig, coords: Iterable<{ q: number; r: number }>, patches = []) =>
+			async (
+				_config: GameGenerationConfig,
+				coords: Iterable<{ q: number; r: number }>,
+				patches = []
+			) =>
 				[...coords].map((coord) => {
 					const patch = patches.find(
 						(entry: TerrainTerraformPatch) =>
@@ -48,7 +52,8 @@ describe('terrain provider', () => {
 			generator: { generateRegionAsync } as any,
 			getGenerationConfig: () => ({ terrainSeed: 1, characterCount: 0 }),
 			getTerraformingPatches: () => [],
-			getGameplayTerrainSample: (coord) => (coord.q === 0 && coord.r === 0 ? gameplaySample : undefined),
+			getGameplayTerrainSample: (coord) =>
+				coord.q === 0 && coord.r === 0 ? gameplaySample : undefined,
 		})
 
 		await provider.ensureTerrainSamples([{ q: 0, r: 0 }])
@@ -61,16 +66,18 @@ describe('terrain provider', () => {
 		const started = new Promise<void>((resolve) => {
 			resolveBatch = resolve
 		})
-		const generateRegionAsync = vi.fn(async (_config, coords: Iterable<{ q: number; r: number }>) => {
-			await started
-			return [...coords].map((coord) => ({
-				coord,
-				terrain: 'grass' as const,
-				height: 0,
-				goods: {},
-				walkTime: 3,
-			}))
-		})
+		const generateRegionAsync = vi.fn(
+			async (_config, coords: Iterable<{ q: number; r: number }>) => {
+				await started
+				return [...coords].map((coord) => ({
+					coord,
+					terrain: 'grass' as const,
+					height: 0,
+					goods: {},
+					walkTime: 3,
+				}))
+			}
+		)
 		const provider = new TerrainProvider({
 			generator: { generateRegionAsync } as any,
 			getGenerationConfig: () => ({ terrainSeed: 9, characterCount: 0 }),
@@ -90,15 +97,17 @@ describe('terrain provider', () => {
 	})
 
 	it('tracks viewport demand and evicts non-demanded cache entries', async () => {
-		const generateRegionAsync = vi.fn(async (_config, coords: Iterable<{ q: number; r: number }>) => {
-			return [...coords].map((coord) => ({
-				coord,
-				terrain: 'grass' as const,
-				height: 0,
-				goods: {},
-				walkTime: 3,
-			}))
-		})
+		const generateRegionAsync = vi.fn(
+			async (_config, coords: Iterable<{ q: number; r: number }>) => {
+				return [...coords].map((coord) => ({
+					coord,
+					terrain: 'grass' as const,
+					height: 0,
+					goods: {},
+					walkTime: 3,
+				}))
+			}
+		)
 		const provider = new TerrainProvider({
 			generator: { generateRegionAsync } as any,
 			getGenerationConfig: () => ({ terrainSeed: 5, characterCount: 0 }),
@@ -124,23 +133,25 @@ describe('terrain provider', () => {
 	})
 
 	it('preserves deposit metadata in generated render samples', async () => {
-		const generateRegionAsync = vi.fn(async (_config, coords: Iterable<{ q: number; r: number }>) => {
-			return [...coords].map((coord) => ({
-				coord,
-				terrain: 'forest' as const,
-				height: 0.3,
-				hydrology: {
-					isChannel: true,
-					channelInfluence: 1.5,
-					edges: {
-						0: { flux: 12, width: 4, depth: 2 },
+		const generateRegionAsync = vi.fn(
+			async (_config, coords: Iterable<{ q: number; r: number }>) => {
+				return [...coords].map((coord) => ({
+					coord,
+					terrain: 'forest' as const,
+					height: 0.3,
+					hydrology: {
+						isChannel: true,
+						channelInfluence: 1.5,
+						edges: {
+							0: { flux: 12, width: 4, depth: 2 },
+						},
 					},
-				},
-				deposit: { type: 'tree' as const, amount: 3 },
-				goods: {},
-				walkTime: 3,
-			}))
-		})
+					deposit: { type: 'tree' as const, amount: 3 },
+					goods: {},
+					walkTime: 3,
+				}))
+			}
+		)
 		const provider = new TerrainProvider({
 			generator: { generateRegionAsync } as any,
 			getGenerationConfig: () => ({ terrainSeed: 5, characterCount: 0 }),

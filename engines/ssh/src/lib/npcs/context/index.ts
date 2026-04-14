@@ -45,7 +45,9 @@ class CharacterContext extends InteractiveContext<Character> {
 			return true
 
 		// TODO: check all gatherers collected by harvestAlveolus - even outside the hive
-		const gatherers = harvestAlveolus.hive.byActionType.gather
+		const gatherers = Array.from(harvestAlveolus.hive.alveoli).filter(
+			(alveolus) => !!findGatherFreightLine(this[subject].game.freightLines, alveolus)
+		)
 		if (!gatherers || gatherers.length === 0) return false
 
 		// Get the goods produced by this harvest alveolus

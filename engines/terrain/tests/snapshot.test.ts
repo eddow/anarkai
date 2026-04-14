@@ -245,8 +245,22 @@ describe('incremental snapshots', () => {
 	})
 
 	it('field backend seam keeps deterministic output when gpu is requested', () => {
-		const cpu = generateRegion(42, [{ q: 0, r: 0 }, { q: 1, r: 0 }], { fieldBackend: 'cpu' })
-		const gpu = generateRegion(42, [{ q: 0, r: 0 }, { q: 1, r: 0 }], { fieldBackend: 'gpu' })
+		const cpu = generateRegion(
+			42,
+			[
+				{ q: 0, r: 0 },
+				{ q: 1, r: 0 },
+			],
+			{ fieldBackend: 'cpu' }
+		)
+		const gpu = generateRegion(
+			42,
+			[
+				{ q: 0, r: 0 },
+				{ q: 1, r: 0 },
+			],
+			{ fieldBackend: 'gpu' }
+		)
 
 		for (const [key, tile] of cpu.tiles) {
 			expect(gpu.tiles.get(key)?.height).toBe(tile.height)
@@ -483,7 +497,9 @@ describe('incremental snapshots', () => {
 
 		const second = generateHydratedRegion(42, secondWindow, { hydrologyPadding: 4 })
 		mergeSnapshotRegion(snapshot, second)
-		const union = generateHydratedRegion(42, [...firstWindow, ...secondWindow], { hydrologyPadding: 4 })
+		const union = generateHydratedRegion(42, [...firstWindow, ...secondWindow], {
+			hydrologyPadding: 4,
+		})
 
 		for (const coord of overlap) {
 			const key = `${coord.q},${coord.r}`

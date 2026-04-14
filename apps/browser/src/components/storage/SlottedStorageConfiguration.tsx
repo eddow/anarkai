@@ -148,15 +148,11 @@ export default function SlottedStorageConfiguration(props: SlottedStorageConfigu
 					availableGoods={view.availableGoods}
 					game={props.game}
 					addTitle="Add specific good"
-					addLabel="Add good"
 					onAdd={addGood}
 					onRemove={removeGood}
 					renderItemExtra={(goodType) => {
 						const rule = view.rule(goodType)
-						const displayedRange: [number, number] = [
-							rule.minSlots,
-							rule.minSlots + rule.maxSlots,
-						]
+						const displayedRange: [number, number] = [rule.minSlots, rule.minSlots + rule.maxSlots]
 						const range = draft.ranges[goodType] ?? displayedRange
 						return (
 							<div class="slotted-storage-stars">

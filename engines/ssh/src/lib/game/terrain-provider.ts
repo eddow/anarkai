@@ -1,7 +1,8 @@
+import { deposits as depositDefinitions } from 'engine-rules'
 import type { GameGenerationConfig, GameGenerator, TerrainTerraformPatch } from 'ssh/generation'
-import type { AxialDirection } from 'ssh/utils'
-import { axial, type AxialCoord } from 'ssh/utils'
 import type { TerrainType } from 'ssh/types'
+import type { AxialDirection } from 'ssh/utils'
+import { type AxialCoord, axial } from 'ssh/utils'
 
 export type TerrainHydrologyDirection = Exclude<AxialDirection, null>
 
@@ -26,6 +27,7 @@ export interface TerrainSample {
 		type: string
 		amount: number
 		name?: string
+		maxAmount?: number
 	}
 }
 
@@ -194,6 +196,8 @@ export class TerrainProvider {
 							type: deposit.type,
 							amount: deposit.amount,
 							name: deposit.type,
+							maxAmount:
+								depositDefinitions[deposit.type as keyof typeof depositDefinitions]?.maxAmount,
 						}
 					: undefined,
 			}

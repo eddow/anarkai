@@ -49,6 +49,7 @@ export function buildStaticResourceSpriteSpecsFromTerrainSample(
 		{
 			name: sample.deposit.name || sample.deposit.type,
 			amount: sample.deposit.amount,
+			maxAmount: sample.deposit.maxAmount,
 		},
 		resolveTexture
 	)
@@ -59,15 +60,15 @@ function buildStaticResourceSpriteSpecsForCoord(
 	deposit: { name?: string; amount: number; maxAmount?: number },
 	resolveTexture: (spec: string) => Texture | undefined
 ): StaticResourceSpriteSpec[] {
-	const currentCount = Math.max(1, Math.floor(deposit.amount))
-	const meanQuantity = Math.max(1, deposit.maxAmount ?? currentCount)
-	const areaScale = Math.max(2 / Math.sqrt(meanQuantity), 0.5)
+	const visibleCount = Math.max(1, Math.floor(deposit.amount))
+	const stableSlotCount = Math.max(1, Math.floor(deposit.maxAmount ?? visibleCount))
+	const areaScale = Math.max(2 / Math.sqrt(stableSlotCount), 0.5)
 	const tileWorld = toWorldCoord(tileCoord)
 	const def = deposit.name ? visualDeposits[deposit.name] : undefined
 	if (!def?.sprites?.length) return []
 
 	const specs: StaticResourceSpriteSpec[] = []
-	for (let i = 0; i < currentCount; i++) {
+	for (let i = 0; i < visibleCount; i++) {
 		const seed = subSeed('deposit-unit', tileCoord.q, tileCoord.r, i)
 		const rnd = LCG('gameSeed', seed)
 		const spriteIndex = Math.floor(rnd() * def.sprites.length)

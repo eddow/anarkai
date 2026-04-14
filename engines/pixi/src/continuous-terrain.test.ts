@@ -1,25 +1,19 @@
 import { Container, RenderLayer, Texture } from 'pixi.js'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
-import { Tile } from 'ssh/board/tile'
+import type { RenderableTerrainTile } from 'ssh/game/game'
 import { axial } from 'ssh/utils'
 import { describe, expect, it, vi } from 'vitest'
-import type { RenderableTerrainTile } from 'ssh/game/game'
-import type { TerrainType } from 'ssh/types'
 import type { BiomeHint, TileField } from '../../terrain/src'
 import { TerrainVisual } from './continuous-terrain'
+import type { PixiGameRenderer } from './renderer'
 import { collectRenderableTriangles } from './terrain-sector-baker'
-import {
-	biomeTextureSpec,
-	terrainTextureSpec,
-	terrainTintForTile,
-} from './terrain-visual-helpers'
 import {
 	computeSectorDisplayBounds,
 	coordsForSectorBakeDomain,
 	coordsForSectorInterior,
 	sectorsAffectedByTile,
 } from './terrain-sector-topology'
-import type { PixiGameRenderer } from './renderer'
+import { biomeTextureSpec, terrainTextureSpec, terrainTintForTile } from './terrain-visual-helpers'
 
 describe('continuous terrain helpers', () => {
 	it('maps biomes to the shared terrain texture set', () => {
@@ -102,7 +96,9 @@ describe('continuous terrain helpers', () => {
 		expect(triangles.length).toBeGreaterThan(0)
 		expect(collected.totalTriangleCandidates).toBeGreaterThan(triangles.length)
 		expect(
-			triangles.some((triangle) => triangle.tiles.some(({ coord }) => coord.q === -1 || coord.r === -1))
+			triangles.some((triangle) =>
+				triangle.tiles.some(({ coord }) => coord.q === -1 || coord.r === -1)
+			)
 		).toBe(true)
 	})
 
@@ -249,17 +245,19 @@ describe('continuous terrain helpers', () => {
 	it('materializes the corridor between three adjacent sector centers', async () => {
 		const materialized = new Set<string>()
 		const requestResults: boolean[] = []
-		const requestGameplayFrontier = vi.fn(async (center: { q: number; r: number }, radius: number) => {
-			let generated = false
-			for (const coord of axial.allTiles(center, radius)) {
-				const key = axial.key(coord)
-				if (materialized.has(key)) continue
-				materialized.add(key)
-				generated = true
+		const requestGameplayFrontier = vi.fn(
+			async (center: { q: number; r: number }, radius: number) => {
+				let generated = false
+				for (const coord of axial.allTiles(center, radius)) {
+					const key = axial.key(coord)
+					if (materialized.has(key)) continue
+					materialized.add(key)
+					generated = true
+				}
+				requestResults.push(generated)
+				return generated
 			}
-			requestResults.push(generated)
-			return generated
-		})
+		)
 		const renderer = createTerrainRendererStub({
 			hasRenderableTerrainAt: (coord) => materialized.has(axial.key(coord)),
 			getRenderableTerrainAt: (coord) =>

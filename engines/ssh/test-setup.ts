@@ -1,6 +1,11 @@
 // Basic test setup for ssh project
 // This file is required by vitest.config.ts
 
+// Register rules/content mocks before any test file import can pull `engine-rules`
+// transitively (e.g. `ssh/utils/axial` → `engine-terrain`), which would otherwise
+// cache the real module before `vi.mock` runs.
+import "./tests/test-engine/mocks";
+
 import { inspect } from "node:util";
 import { afterEach, beforeEach, vi } from "vitest";
 

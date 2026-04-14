@@ -30,10 +30,7 @@ export function biomeTextureSpec(biome: BiomeHint): string {
 	}
 }
 
-export function terrainTextureSpec(
-	terrain: TerrainTextureOverride,
-	biome: BiomeHint
-): string {
+export function terrainTextureSpec(terrain: TerrainTextureOverride, biome: BiomeHint): string {
 	switch (terrain) {
 		case 'concrete':
 			return 'terrain.concrete'

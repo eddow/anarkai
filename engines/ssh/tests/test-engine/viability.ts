@@ -1,5 +1,4 @@
 import { Game, type GameGenerationOptions, type GamePatches, type SaveState } from 'ssh/game'
-import { configuration } from 'ssh/globals'
 import { vi } from 'vitest'
 
 /** Same cap as `Game` ticker: larger `elapsedMS` skips the tick entirely. */
@@ -82,9 +81,6 @@ export async function runViabilityScenario(
 
 	const forbidden = [...defaultForbidden, ...(runOpts?.forbiddenErrorSubstrings ?? [])]
 
-	const savedTimeControl = configuration.timeControl
-	configuration.timeControl = 1
-
 	const errors: string[] = []
 	const originalError = console.error
 	const spy = vi
@@ -129,7 +125,6 @@ export async function runViabilityScenario(
 		return ctx
 	} finally {
 		spy.mockRestore()
-		configuration.timeControl = savedTimeControl
 		game?.destroy()
 	}
 }

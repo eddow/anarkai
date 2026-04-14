@@ -1,9 +1,9 @@
+import createWebGpGpu, { f32, u32, vec2i, vec4f } from 'webgpgpu.ts'
 import { axial } from '../hex/axial'
 import type { AxialCoord, AxialKey } from '../hex/types'
 import { createPermutationTable } from '../noise'
 import type { TerrainConfig, TileField } from '../types'
 import { generateFieldsCpu, generateTileFieldCpu } from './cpu'
-import createWebGpGpu, { f32, u32, vec2i, vec4f } from 'webgpgpu.ts'
 
 export const FIELD_RESULT_STRIDE = 7
 export const FIELD_SHADER_ENTRYPOINT = 'main'
@@ -81,11 +81,15 @@ export function unpackFieldResult(
 	result: PackedFieldResult
 ): Map<AxialKey, TileField> {
 	if (result.stride !== FIELD_RESULT_STRIDE) {
-		throw new Error(`Invalid GPU field result stride: expected ${FIELD_RESULT_STRIDE}, got ${result.stride}`)
+		throw new Error(
+			`Invalid GPU field result stride: expected ${FIELD_RESULT_STRIDE}, got ${result.stride}`
+		)
 	}
 	const expected = (request.coords.length / 2) * result.stride
 	if (result.values.length !== expected) {
-		throw new Error(`Invalid GPU field result length: expected ${expected}, got ${result.values.length}`)
+		throw new Error(
+			`Invalid GPU field result length: expected ${expected}, got ${result.values.length}`
+		)
 	}
 
 	const tiles = new Map<AxialKey, TileField>()

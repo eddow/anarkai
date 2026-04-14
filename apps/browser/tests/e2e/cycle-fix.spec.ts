@@ -73,7 +73,8 @@ test('no ReactiveError when hovering the board', async ({ page }) => {
 	const reactiveErrors = errors.filter(
 		(err) =>
 			err.includes('ReactiveError') &&
-			(err.includes('Max effect chain reached') || err.includes('broken after an unrecoverable error'))
+			(err.includes('Max effect chain reached') ||
+				err.includes('broken after an unrecoverable error'))
 	)
 	expect(reactiveErrors).toHaveLength(0)
 })

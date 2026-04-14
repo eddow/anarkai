@@ -1,7 +1,6 @@
 import type { DockviewWidgetScope } from '@sursaut/ui/dockview'
 import type { InspectorSelectableObject } from 'ssh/game/object'
-import { game } from './globals'
-import { selectionState, unreactiveInfo, validateStoredSelectionState } from './globals'
+import { game, selectionState, unreactiveInfo, validateStoredSelectionState } from './globals'
 
 type DockviewApiLike = DockviewWidgetScope['dockviewApi']
 
@@ -75,7 +74,9 @@ export function ensureFollowSelectionPanel(preferredApi?: DockviewApiLike, initi
 	validateStoredSelectionState(dockviewApi)
 
 	let panel =
-		selectionState.panelId !== undefined ? dockviewApi.getPanel?.(selectionState.panelId) : undefined
+		selectionState.panelId !== undefined
+			? dockviewApi.getPanel?.(selectionState.panelId)
+			: undefined
 
 	if (!panel) {
 		clearFollowSelectionPanel()

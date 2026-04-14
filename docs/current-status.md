@@ -16,6 +16,17 @@
 - storage reservations and allocations
 - save/load coverage and many regression tests around stalled conveyance and job selection
 
+### Freight Lines (v1 bridge)
+
+`ssh` now includes a first transport bridge based on freight lines and freight stops:
+
+- first-class line data (`gather` / `distribute`) in save patches
+- one-stop gather lines with line-owned radius and filters
+- `freight_bay` stop content backed by `road-fret` storage semantics
+- synthetic inspector objects for line selection and editing
+
+Details and constraints are documented in [`./freight-lines.md`](./freight-lines.md).
+
 ### Browser Client
 
 `apps/browser` is the active client. It uses Sursaut UI with Dockview-based panels and Pixi-backed world rendering.
@@ -50,4 +61,4 @@ Terrain already streams well, but gameplay still sits in a transitional state wh
 1. Finish the gameplay frontier contract around [`engines/ssh/src/lib/game/gameplay-frontier.ts`](/home/fmdm/dev/anarkai/engines/ssh/src/lib/game/gameplay-frontier.ts).
 2. Define save/load retention rules for streamed but mutated tiles.
 3. Review hive split/removal semantics, especially movement cleanup when an alveolus disappears.
-4. Add one concise roadmap doc instead of accumulating more sandbox handoff notes.
+4. Continue line gameplay work after v1 bridge (`distribute` worker loop, transfer mode, good-group filters).

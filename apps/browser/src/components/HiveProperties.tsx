@@ -12,6 +12,7 @@ import { summarizeHiveGoodsRelations } from './alveolus-summary'
 import EntityBadge from './EntityBadge'
 import PropertyGrid from './PropertyGrid'
 import PropertyGridRow from './PropertyGridRow'
+import WorkingIndicator from './parts/WorkingIndicator'
 
 css`
 .hive-properties__ads {
@@ -103,6 +104,7 @@ interface HivePropertiesProps {
 const HiveProperties = (props: HivePropertiesProps) => {
 	const state = reactive({
 		hiveName: '',
+		working: true,
 		entries: [] as ReturnType<typeof summarizeHiveGoodsRelations>,
 	})
 	const currentHive = () =>
@@ -112,10 +114,12 @@ const HiveProperties = (props: HivePropertiesProps) => {
 		const hive = currentHive()
 		if (!hive) {
 			state.hiveName = ''
+			state.working = false
 			state.entries = []
 			return
 		}
 		state.hiveName = hive.name?.trim() ?? ''
+		state.working = hive.working
 		state.entries = summarizeHiveGoodsRelations(
 			Array.from(hive.alveoli).map((alveolus) => ({
 				name: alveolus.name,
@@ -146,6 +150,13 @@ const HiveProperties = (props: HivePropertiesProps) => {
 		}
 	}
 
+	const handleWorkingChange = (checked: boolean) => {
+		const hive = currentHive()
+		if (!hive) return
+		hive.working = checked
+		state.working = checked
+	}
+
 	return (
 		<InspectorSection title={i18nState.translator?.hive?.section ?? 'Hive'}>
 			<PropertyGrid>
@@ -154,9 +165,14 @@ const HiveProperties = (props: HivePropertiesProps) => {
 						class="hive-properties__name"
 						type="text"
 						value={state.hiveName}
-						onInput={(event) =>
-							handleNameInput((event.currentTarget as HTMLInputElement).value)
-						}
+						onInput={(event) => handleNameInput((event.currentTarget as HTMLInputElement).value)}
+					/>
+				</PropertyGridRow>
+				<PropertyGridRow label={i18nState.translator?.hive?.commands ?? 'Commands'}>
+					<WorkingIndicator
+						checked={state.working}
+						tooltip={i18nState.translator?.hive?.workingTooltip ?? 'Toggle hive activity'}
+						onChange={handleWorkingChange}
 					/>
 				</PropertyGridRow>
 				<PropertyGridRow if={state.entries.length === 0} label="">
@@ -164,7 +180,10 @@ const HiveProperties = (props: HivePropertiesProps) => {
 						{i18nState.translator?.hive?.noAds ?? 'No hive advertisements on this anchor.'}
 					</span>
 				</PropertyGridRow>
-				<PropertyGridRow if={state.entries.length > 0} label={i18nState.translator?.hive?.ads ?? 'Ads'}>
+				<PropertyGridRow
+					if={state.entries.length > 0}
+					label={i18nState.translator?.hive?.ads ?? 'Ads'}
+				>
 					<div class="hive-properties__ads">
 						<for each={state.entries}>
 							{(entry) => {

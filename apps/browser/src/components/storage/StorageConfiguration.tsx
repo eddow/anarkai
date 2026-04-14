@@ -5,6 +5,7 @@ import { goods as goodsCatalog } from 'engine-pixi/assets/visual-content'
 import { effect, memoize, reactive } from 'mutts'
 import type { Game } from 'ssh/game'
 import type { StorageAlveolus } from 'ssh/hive/storage'
+import { isRoadFretAction } from 'ssh/hive/storage-action'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { GoodType } from 'ssh/types/base'
@@ -90,6 +91,10 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 
 	// --- Buffer Logic ---
 	const isSlotted = memoize(() => props.content.storage instanceof SlottedStorage)
+	const allowStorageEditors = memoize(() => {
+		const action = props.content.action
+		return action === undefined ? true : !isRoadFretAction(action)
+	})
 
 	const bufferedGoods = memoize(() => {
 		return Object.keys(buffers()) as GoodType[]
@@ -181,10 +186,14 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 
 	return (
 		<div class="storage-config">
-			<SlottedStorageConfiguration if={isSlotted()} content={props.content} game={props.game} />
+			<SlottedStorageConfiguration
+				if={isSlotted() && allowStorageEditors()}
+				content={props.content}
+				game={props.game}
+			/>
 
 			{/* Non-slotted storage configuration */}
-			<div if={!isSlotted()} style={{ display: 'contents' }}>
+			<div if={!isSlotted() && allowStorageEditors()} style={{ display: 'contents' }}>
 				{/* Acceptance Mode - Hide for SpecificStorage */}
 				<PropertyGridRow
 					label="Acceptance"
@@ -223,7 +232,6 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 						availableGoods={availableBufferCandidates()}
 						game={props.game}
 						addTitle="Add Buffer"
-						addLabel="Add Buffer"
 						onAdd={handleBufferAdd}
 						onRemove={handleBufferRemove}
 						renderItemExtra={(good) => (

@@ -1,20 +1,20 @@
-import { Application, Container, RenderLayer, type Texture, type ContainerChild } from 'pixi.js'
+import { Application, Container, type ContainerChild, RenderLayer, type Texture } from 'pixi.js'
 import type { Game } from 'ssh/game/game'
 import type { GameRenderer } from 'ssh/types/engine'
 import type { AxialCoord } from 'ssh/utils'
 import { assetManager } from './asset-manager'
 import {
-	TerrainVisual,
 	type TerrainBakeDebugSnapshot,
 	type TerrainQueueDebugSnapshot,
 	type TerrainStreamingDiagnostics,
+	TerrainVisual,
 } from './continuous-terrain'
 import { setPixiName } from './debug-names'
 import { registerPixiApp, unregisterPixiApp } from './hmr.js'
 import { InteractionManager } from './interaction/interaction-manager.js'
 import { DragPreviewOverlay } from './renderers/drag-preview-overlay'
-import { VisualFactory } from './visual-factory'
 import type { VisualFactoryDiagnostics } from './visual-factory'
+import { VisualFactory } from './visual-factory'
 
 export class PixiGameRenderer implements GameRenderer {
 	public app?: Application

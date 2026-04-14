@@ -1,3 +1,4 @@
+import { activityUtilityConfig, goods as goodsCatalog } from 'engine-rules'
 import type { Tile } from 'ssh/board/tile'
 import { blackBoxLog, traceNeeds } from 'ssh/debug'
 import type { Game } from 'ssh/game'
@@ -11,36 +12,11 @@ import {
 	characterTriggerLevels,
 	maxWalkTime,
 	needUpdate,
+	readCharacterEvolutionRate,
 	residentialRecoveryRates,
 } from '../../../assets/constants'
-import { goods as goodsCatalog } from '../../../assets/game-content'
 
-/** Tunable weights for projected-discomfort scoring (not final balance). */
-export const activityUtilityConfig = {
-	hungerPos: 4,
-	hungerNeg: 1,
-	fatiguePos: 3,
-	fatigueNeg: 1,
-	tirednessPos: 3,
-	tirednessNeg: 1,
-	exponent: 2,
-	/** Penalty per simulated second of activity (travel + dwell). */
-	timeCostPerSecond: 0.08,
-	/** Rough work segment for projection when real duration is unknown. */
-	workHorizonSeconds: 8,
-	/** Midpoint of restMin/restMax for wander/home ponder. */
-	wanderRestSeconds: (activityDurations.restMin + activityDurations.restMax) / 2,
-	/** Prefer previous pick if within this utility gap (reduces thrash). */
-	hysteresis: 0.03,
-	/**
-	 * Added to `bestWork` / `assignedWork` utility when {@link ActivityPlanningCharacter.keepWorking}
-	 * is true. Without it, **wander** often wins: its projection ends with a `rest` segment that
-	 * recovers fatigue, while **work** projects 8s of `work` activity that worsens needs — so raw
-	 * `penaltyBefore - penaltyAfter` favors strolling. This bias keeps employable pawns from picking
-	 * walk when a job path exists (tune with playtests).
-	 */
-	workPreferenceWhenFit: 0.55,
-} as const
+export { activityUtilityConfig }
 
 export type NextActivityKind = 'eat' | 'home' | 'drop' | 'assignedWork' | 'bestWork' | 'wander'
 
@@ -112,9 +88,9 @@ export function totalNeedPenalty(
 
 function ratesFor(activity: Ssh.ActivityType): { h: number; f: number; t: number } {
 	return {
-		h: characterEvolutionRates.hunger[activity] ?? characterEvolutionRates.hunger['*'],
-		f: characterEvolutionRates.fatigue[activity] ?? characterEvolutionRates.fatigue['*'],
-		t: characterEvolutionRates.tiredness[activity] ?? characterEvolutionRates.tiredness['*'],
+		h: readCharacterEvolutionRate(characterEvolutionRates.hunger, activity),
+		f: readCharacterEvolutionRate(characterEvolutionRates.fatigue, activity),
+		t: readCharacterEvolutionRate(characterEvolutionRates.tiredness, activity),
 	}
 }
 

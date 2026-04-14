@@ -32,6 +32,7 @@ import {
 	palettes,
 } from '@sursaut/ui/palette'
 import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content'
+import { gameTimeSpeedFactors } from 'engine-rules'
 import { effect, reactive, unwrap } from 'mutts'
 import {
 	tablerFilledAdjustments,
@@ -109,7 +110,7 @@ const tools = {
 	timeControl: {
 		type: 'number' as const,
 		label: 'Speed',
-		keywords: ['speed', 'time', 'pause', 'play', 'clock', 'rate'],
+		keywords: ['speed', 'time', 'clock', 'rate'],
 		get value() {
 			return configuration.timeControl
 		},
@@ -118,7 +119,7 @@ const tools = {
 		},
 		default: 1 as const,
 		min: 0,
-		max: 3,
+		max: gameTimeSpeedFactors.length - 1,
 		step: 1,
 	},
 	selectedAction: {

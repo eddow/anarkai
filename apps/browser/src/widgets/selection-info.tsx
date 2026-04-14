@@ -14,9 +14,14 @@ import {
 	isFreightLineUid,
 	type SyntheticFreightLineObject,
 } from 'ssh/freight/freight-line'
-import { hiveInspectorTitle, isHiveUid, resolveHiveFromAnchorTile, type SyntheticHiveObject } from 'ssh/hive'
 import type { InspectorSelectableObject, InteractiveGameObject } from 'ssh/game/object'
 import { resolveSelectableHoverObject } from 'ssh/game/object'
+import {
+	hiveInspectorTitle,
+	isHiveUid,
+	resolveHiveFromAnchorTile,
+	type SyntheticHiveObject,
+} from 'ssh/hive'
 import { isHoveredObject, setHoveredObject } from 'ssh/interactive-state'
 import { Character } from 'ssh/population/character'
 import { toWorldCoord } from 'ssh/utils/position'
@@ -269,9 +274,7 @@ const SelectionInfoWidget = (
 					) : current.object instanceof Tile ? (
 						<TileProperties tile={current.object as Tile} />
 					) : current.object && isFreightLineUid(current.object.uid) ? (
-						<FreightLineProperties
-							lineObject={current.object as SyntheticFreightLineObject}
-						/>
+						<FreightLineProperties lineObject={current.object as SyntheticFreightLineObject} />
 					) : current.object && isHiveUid(current.object.uid) ? (
 						<HiveProperties hiveObject={current.object as SyntheticHiveObject} />
 					) : (

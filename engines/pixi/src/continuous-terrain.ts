@@ -1,9 +1,18 @@
 import { defer, effect, type ScopedCallback } from 'mutts'
-import { Container, Graphics, Particle, ParticleContainer, Point, Rectangle, Sprite, Texture } from 'pixi.js'
+import {
+	Container,
+	Graphics,
+	Particle,
+	ParticleContainer,
+	Point,
+	Rectangle,
+	Sprite,
+	type Texture,
+} from 'pixi.js'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
-import { mrg } from 'ssh/interactive-state'
 import type { RenderableTerrainTile } from 'ssh/game/game'
-import { axial, cartesian, fromCartesian, type AxialCoord } from 'ssh/utils'
+import { mrg } from 'ssh/interactive-state'
+import { type AxialCoord, axial, cartesian, fromCartesian } from 'ssh/utils'
 import { tileSize } from 'ssh/utils/varied'
 import { setPixiName } from './debug-names'
 import type { PixiGameRenderer } from './renderer'
@@ -13,9 +22,9 @@ import {
 	resolveUsableTexture,
 } from './renderers/static-resource-sprites'
 import {
-	SectorTerrainBaker,
 	type SectorTerrainBakeDebug,
 	type SectorTerrainBakeInput,
+	SectorTerrainBaker,
 } from './terrain-sector-baker'
 import {
 	coordsForSectorBakeDomain,
@@ -26,7 +35,6 @@ import {
 	terrainSectorStep,
 } from './terrain-sector-topology'
 
-const SECTOR_RADIUS = 8
 // Hex regions of radius R tile edge-to-edge when their centers are spaced by 2R + 1.
 const SECTOR_STEP = terrainSectorStep
 // Keep nearby sectors in memory to reduce render churn while panning.
@@ -262,7 +270,9 @@ export class TerrainVisual {
 		this.renderer.attachToLayer(this.renderer.layers.ground, this.container)
 		this.renderer.app?.ticker.add(this.refresh)
 		this.hoverCleanup = effect`terrain.hover`(() => {
-			this.renderHoverOverlay(isHoveredTileObject(mrg.hoveredObject) ? mrg.hoveredObject : undefined)
+			this.renderHoverOverlay(
+				isHoveredTileObject(mrg.hoveredObject) ? mrg.hoveredObject : undefined
+			)
 		})
 		this.refresh()
 	}
@@ -423,13 +433,15 @@ export class TerrainVisual {
 			this.sectorsContainer.addChild(state.container)
 		}
 
-		const materializedVisibleTileCount = countMaterializedVisibleTiles(this.visibleTileKeys, this.renderer)
+		const materializedVisibleTileCount = countMaterializedVisibleTiles(
+			this.visibleTileKeys,
+			this.renderer
+		)
 		this.syncLoadedSectorVisuals()
 		this.visibleSectorQueue = this.buildVisibleSectorQueue(center)
 		this.pumpVisibleSectorQueue()
 
 		const loadedVisibleSectorCount = countMatchingKeys(this.visibleSectorKeys, this.sectors)
-		const pendingVisibleSectorCount = countMatchingKeys(this.visibleSectorKeys, this.pendingSectors)
 		const missingVisibleSectorCount =
 			this.visibleSectorKeys.size - loadedVisibleSectorCount + this.visibleSectorQueue.length
 
@@ -537,7 +549,11 @@ export class TerrainVisual {
 			if (!this.renderer.game.hasRenderableTerrainAt(coord)) missingTileCount++
 		}
 		const isDirty = sectorState.dirty || this.dirtySectorKeys.has(sectorKey)
-		const renderedTileCount = countMaterializedCoords(visibleCoords, this.visibleTileKeys, this.renderer)
+		const renderedTileCount = countMaterializedCoords(
+			visibleCoords,
+			this.visibleTileKeys,
+			this.renderer
+		)
 		if (missingTileCount > 0) {
 			sectorState.container.visible = !!sectorState.groundSprite && renderedTileCount > 0
 			return {
@@ -545,7 +561,12 @@ export class TerrainVisual {
 				missingTileCount,
 			}
 		}
-		if (!isDirty && missingTileCount === 0 && sectorState.groundSprite && sectorState.resourcesBuilt) {
+		if (
+			!isDirty &&
+			missingTileCount === 0 &&
+			sectorState.groundSprite &&
+			sectorState.resourcesBuilt
+		) {
 			sectorState.container.visible = renderedTileCount > 0
 			return {
 				renderedTileCount,
@@ -557,7 +578,10 @@ export class TerrainVisual {
 		const groundBatchCount = this.rebuildSectorGround(sectorKey, sectorState)
 		const groundBatchBuildMs = nowMs() - groundStartedAt
 		const resourceStartedAt = nowMs()
-		const { resourceBatchCount, staticResourceSpriteCount } = this.rebuildSectorResources(sectorKey, sectorState)
+		const { resourceBatchCount, staticResourceSpriteCount } = this.rebuildSectorResources(
+			sectorKey,
+			sectorState
+		)
 		const resourceBatchBuildMs = nowMs() - resourceStartedAt
 
 		sectorState.container.visible = renderedTileCount > 0
@@ -580,15 +604,6 @@ export class TerrainVisual {
 		)
 
 		return { renderedTileCount, missingTileCount }
-	}
-
-	private clearSectorVisuals(sectorState: SectorVisualState) {
-		for (const child of sectorState.groundLayer.removeChildren()) child.destroy({ children: true })
-		for (const child of sectorState.resourceLayer.removeChildren()) {
-			child.destroy({ children: true })
-		}
-		sectorState.groundSprite = undefined
-		sectorState.resourcesBuilt = false
 	}
 
 	private rebuildSectorGround(sectorKey: string, sectorState: SectorVisualState): number {
@@ -624,10 +639,7 @@ export class TerrainVisual {
 			`terrain.continuous:${sectorKey}:baked-ground`
 		)
 		sprite.eventMode = 'none'
-		sprite.position.set(
-			sectorState.coverage.displayBounds.x,
-			sectorState.coverage.displayBounds.y
-		)
+		sprite.position.set(sectorState.coverage.displayBounds.x, sectorState.coverage.displayBounds.y)
 		sectorState.groundLayer.addChild(sprite)
 		sectorState.groundSprite = sprite
 		return 1
@@ -657,8 +669,10 @@ export class TerrainVisual {
 		for (const coord of sectorState.coverage.interiorTileCoords) {
 			const terrainSample = this.renderer.game.getRenderableTerrainAt(coord)
 			if (terrainSample?.deposit) {
-				const specs = buildStaticResourceSpriteSpecsFromTerrainSample(coord, terrainSample, (spec) =>
-					resolveUsableTexture(this.renderer, spec)
+				const specs = buildStaticResourceSpriteSpecsFromTerrainSample(
+					coord,
+					terrainSample,
+					(spec) => resolveUsableTexture(this.renderer, spec)
 				)
 				for (const spec of specs) {
 					const texture = resolveUsableTexture(this.renderer, spec.textureKey)
@@ -731,17 +745,17 @@ export class TerrainVisual {
 			let maxY = Number.NEGATIVE_INFINITY
 			for (const build of builds) {
 				if (USE_PARTICLE_RESOURCE_BATCH) {
-						;(particleContainer as ParticleContainer).addParticle(
-							new Particle({
-								texture: build.texture,
-								anchorX: 0.5,
-								anchorY: 1,
-								x: build.x,
-								y: build.y,
-								scaleX: build.scale,
-								scaleY: build.scale,
-							})
-						)
+					;(particleContainer as ParticleContainer).addParticle(
+						new Particle({
+							texture: build.texture,
+							anchorX: 0.5,
+							anchorY: 1,
+							x: build.x,
+							y: build.y,
+							scaleX: build.scale,
+							scaleY: build.scale,
+						})
+					)
 				} else {
 					const sprite = new Sprite(build.texture)
 					sprite.anchor.set(0.5, 1)
@@ -953,9 +967,7 @@ export class TerrainVisual {
 						? this.collectMissingBakeCoordsForKeys(this.visibleSectorKeys)
 						: missingBakeCoords
 					await this.renderer.game.ensureTerrainSamples(ensureCoords)
-					generated = bakeCoords.every((coord) =>
-						this.renderer.game.hasRenderableTerrainAt(coord)
-					)
+					generated = bakeCoords.every((coord) => this.renderer.game.hasRenderableTerrainAt(coord))
 				} else {
 					generated = await this.renderer.game.requestGameplayFrontier(
 						this.sectorCenter(next.sectorQ, next.sectorR),
@@ -974,7 +986,11 @@ export class TerrainVisual {
 				next.key,
 				countVisibleCoords(interiorCoords, this.visibleTileKeys),
 				countMaterializedCoords(interiorCoords, this.visibleTileKeys, this.renderer),
-				countMissingCoords(bakeCoords, new Set(bakeCoords.map((coord) => axial.key(coord))), this.renderer),
+				countMissingCoords(
+					bakeCoords,
+					new Set(bakeCoords.map((coord) => axial.key(coord))),
+					this.renderer
+				),
 				pendingSectorCountAtStart,
 				0,
 				0,
@@ -1136,14 +1152,6 @@ function countMatchingKeys(keys: Set<string>, loaded: Map<string, unknown> | Set
 		if (loaded.has(key)) count++
 	}
 	return count
-}
-
-function setsEqual<T>(left: Set<T>, right: Set<T>): boolean {
-	if (left.size !== right.size) return false
-	for (const value of left) {
-		if (!right.has(value)) return false
-	}
-	return true
 }
 
 function collectVisibleTileKeys(

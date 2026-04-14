@@ -1,3 +1,4 @@
+import { deposits, jobBalance } from 'engine-rules'
 import { reactive } from 'mutts'
 import { withTicked } from 'ssh/game/object'
 import { gameIsaTypes } from 'ssh/npcs/utils'
@@ -5,7 +6,6 @@ import type { TerrainType } from 'ssh/types'
 import { LCG, subSeed } from 'ssh/utils/numbers'
 import { fastPoissonRandom } from 'ssh/utils/poisson'
 import { toAxialCoord } from 'ssh/utils/position'
-import { deposits, jobBalance } from '../../../../assets/game-content'
 import type { Tile } from '../tile'
 import { TileContent } from './content'
 import { GcClassed, GcClasses } from './utils'
@@ -29,6 +29,15 @@ export class UnBuiltLand extends withTicked(TileContent) {
 	 */
 	setProject(project: string): void {
 		this.project = project
+		this.terrain = 'concrete'
+		this.tile.baseTerrain = 'concrete'
+		this.tile.terrainState = {
+			...(this.tile.terrainState ?? {}),
+			terrain: 'concrete',
+		}
+		this.game.upsertTerrainOverride(this.tile.position as { q: number; r: number }, {
+			terrain: 'concrete',
+		})
 		this.tile.zone = undefined // Clear zone when project is set
 		this.game.enqueueInteractiveChange(this.tile)
 	}

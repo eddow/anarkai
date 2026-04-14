@@ -6,7 +6,9 @@ import { subject } from 'ssh/npcs/scripts'
 import type { GameRenderer } from 'ssh/types/engine'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-function headlessRenderer(invalidateTerrain: (coord?: { q: number; r: number }) => void): GameRenderer {
+function headlessRenderer(
+	invalidateTerrain: (coord?: { q: number; r: number }) => void
+): GameRenderer {
 	return {
 		initialize: async () => {},
 		destroy: () => {},
@@ -63,6 +65,36 @@ describe('notifyTerrainDepositsChanged / sector resource refresh hooks', () => {
 			if (content instanceof UnBuiltLand) {
 				expect(content.deposit?.amount).toBe(4)
 			}
+		})
+	})
+
+	describe('UnBuiltLand.setProject', () => {
+		beforeEach(async () => {
+			game = new Game(
+				{ terrainSeed: 17, characterCount: 0 },
+				{
+					tiles: [{ coord: [0, 0], terrain: 'forest' }],
+				}
+			)
+			await game.loaded
+			game.ticker.stop()
+		})
+
+		it('patches project tiles to concrete and invalidates terrain', () => {
+			const invalidateTerrain = vi.fn()
+			game.renderer = headlessRenderer(invalidateTerrain)
+			const tile = game.hex.getTile({ q: 0, r: 0 })!
+			const content = tile.content
+			expect(content).toBeInstanceOf(UnBuiltLand)
+			if (!(content instanceof UnBuiltLand)) return
+
+			content.setProject('build:sawmill')
+
+			expect(content.project).toBe('build:sawmill')
+			expect(content.terrain).toBe('concrete')
+			expect(tile.baseTerrain).toBe('concrete')
+			expect(tile.terrainState?.terrain).toBe('concrete')
+			expect(invalidateTerrain).toHaveBeenCalledWith(expect.objectContaining({ q: 0, r: 0 }))
 		})
 	})
 

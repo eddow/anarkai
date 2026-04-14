@@ -1,9 +1,9 @@
 import { scope, type } from 'arktype'
+import { alveoli, deposits, goods as goodsCatalog, terrain } from 'engine-rules'
 import type { TileContent } from 'ssh/board'
 import type { LooseGood } from 'ssh/board/looseGoods'
 import type { AllocationBase } from 'ssh/storage/storage'
 import { type Positioned, positionScope } from 'ssh/utils'
-import { alveoli, deposits, goods as goodsCatalog, terrain } from '../../../assets/game-content'
 
 /**
  * Base Game Scope

@@ -1,5 +1,5 @@
 import { Rectangle } from 'pixi.js'
-import { axial, cartesian, type AxialCoord } from 'ssh/utils'
+import { type AxialCoord, axial, cartesian } from 'ssh/utils'
 import { tileSize } from 'ssh/utils/varied'
 
 const SECTOR_STEP = 17
@@ -71,10 +71,7 @@ export function sectorsAffectedByTile(coord: AxialCoord, sectorStep = SECTOR_STE
 	})
 }
 
-export function computeSectorDisplayBounds(
-	sectorKey: string,
-	sectorStep = SECTOR_STEP
-): Rectangle {
+export function computeSectorDisplayBounds(sectorKey: string, sectorStep = SECTOR_STEP): Rectangle {
 	const interior = coordsForSectorInterior(sectorKey, sectorStep)
 	return computeWorldBounds(interior)
 }

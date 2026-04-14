@@ -216,7 +216,8 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 			if (!alreadyAssigned) {
 				const currentAssigned = character.assignedAlveolus
 				if (currentAssigned && currentAssigned !== target) {
-					if (currentAssigned.assignedWorker === character) currentAssigned.assignedWorker = undefined
+					if (currentAssigned.assignedWorker === character)
+						currentAssigned.assignedWorker = undefined
 					character.assignedAlveolus = undefined
 				}
 				if (target.assignedWorker && target.assignedWorker !== character) {

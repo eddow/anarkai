@@ -1,3 +1,4 @@
+import { goods } from 'engine-rules'
 import { atomic, reactive, unreactive, untracked, unwrap } from 'mutts'
 import { assert } from 'ssh/debug'
 import { GameObject, withTicked } from 'ssh/game/object'
@@ -12,7 +13,6 @@ import { epsilon } from 'ssh/utils'
 import { type AxialKey, axial } from 'ssh/utils/axial'
 import { AxialKeyMap } from 'ssh/utils/mem'
 import { axialDistance, type Position, type Positioned, toAxialCoord } from 'ssh/utils/position'
-import { goods } from '../../../assets/game-content'
 
 @unreactive
 class LooseGoodAllocation {

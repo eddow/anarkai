@@ -1,10 +1,6 @@
 import { css } from '@app/lib/css'
 import { showProps } from '@app/lib/follow-selection'
-import {
-	game,
-	interactionMode,
-	validateStoredSelectionState,
-} from '@app/lib/globals'
+import { game, interactionMode, validateStoredSelectionState } from '@app/lib/globals'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
 import { PixiGameRenderer } from 'engine-pixi/renderer'
 import { effect } from 'mutts'

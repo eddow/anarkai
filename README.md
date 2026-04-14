@@ -39,3 +39,4 @@ Useful workspace commands:
 - [`docs/current-status.md`](./docs/current-status.md)
 - [`docs/project-inventory.md`](./docs/project-inventory.md)
 - [`docs/architecture-overview.md`](./docs/architecture-overview.md)
+- [`docs/freight-lines.md`](./docs/freight-lines.md)

@@ -1,14 +1,26 @@
+import {
+	goods as allGoodsList,
+	configurations,
+	gatherTargetBatchSize,
+	jobBalance,
+} from 'engine-rules'
 import { inert, reactive } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
 import { traces } from 'ssh/debug'
+import {
+	DEFAULT_GATHER_FREIGHT_RADIUS,
+	findDistributeFreightLine,
+	findGatherFreightLine,
+	freightLineAllowsGoodType,
+	gatherSelectableGoodTypes,
+} from 'ssh/freight/freight-line'
 import type { Character } from 'ssh/population/character'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
-import type { GoodType, Job } from 'ssh/types'
+import type { GatherJob, Goods, GoodType, Job } from 'ssh/types/base'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
-import { findDistributeFreightLine } from 'ssh/freight/freight-line'
-import { goods as allGoodsList, configurations, jobBalance } from '../../../assets/game-content'
+import { type Positioned, toAxialCoord } from 'ssh/utils/position'
 import {
 	isSlottedStorageConfiguration,
 	isSpecificStorageConfiguration,
@@ -35,6 +47,18 @@ function sumBufferedSlots(
 		total += rule.minSlots
 	}
 	return total
+}
+
+function goodsWith(goods: Goods, other: GoodType, qty: number = 1): Goods {
+	const rv = { ...goods }
+	rv[other] = (goods[other] || 0) + qty
+	return rv
+}
+
+function gatherUrgency(availableCount: number): number {
+	const targetBatchSize = gatherTargetBatchSize
+	const fillRatio = Math.max(0, Math.min(1, availableCount / targetBatchSize))
+	return jobBalance.gather * fillRatio * fillRatio
 }
 
 @reactive
@@ -207,6 +231,7 @@ export class StorageAlveolus extends Alveolus {
 	canTake(goodType: GoodType, _priority: ExchangePriority) {
 		// Only accept goods if working is enabled
 		if (!this.working) return false
+		if (this.gatherFreightLine()) return false
 
 		let result = false
 		let debugInfo: Record<string, unknown> = { working: this.working }
@@ -306,6 +331,21 @@ export class StorageAlveolus extends Alveolus {
 	}
 
 	get workingGoodsRelations(): GoodsRelations {
+		const gatherLine = this.gatherFreightLine()
+		if (gatherLine) {
+			return Object.fromEntries(
+				Object.entries(this.storage.availables)
+					.filter(
+						([goodType, quantity]) =>
+							quantity > 0 && freightLineAllowsGoodType(gatherLine, goodType as GoodType)
+					)
+					.map(([goodType]) => [
+						goodType as GoodType,
+						{ advertisement: 'provide', priority: '2-use' as const },
+					])
+			)
+		}
+
 		const relations: GoodsRelations = {}
 
 		// General storages already participate in matching through Hive.generalStorages.canTake/canGive.
@@ -374,14 +414,96 @@ export class StorageAlveolus extends Alveolus {
 			freightLines && freightLines.length > 0
 				? findDistributeFreightLine(freightLines, this)
 				: undefined
-		if (distributeLine?.filters?.length) {
-			const allowed = new Set(distributeLine.filters)
+		if (distributeLine) {
 			for (const goodType of Object.keys(relations) as GoodType[]) {
-				if (!allowed.has(goodType)) delete relations[goodType]
+				if (!freightLineAllowsGoodType(distributeLine, goodType)) delete relations[goodType]
 			}
 		}
 
 		return relations
+	}
+
+	private gatherFreightLine() {
+		if (this.action?.type !== 'road-fret') return undefined
+		const freightLines = this.tile?.game?.freightLines
+		if (!freightLines?.length) return undefined
+		return findGatherFreightLine(freightLines, this)
+	}
+
+	private effectiveGatherRadius(): number {
+		return this.gatherFreightLine()?.radius ?? DEFAULT_GATHER_FREIGHT_RADIUS
+	}
+
+	get hasLooseGoodsToGather(): boolean {
+		if (this.action?.type !== 'road-fret') return false
+		const hiveNeeds = Object.keys(this.hive.needs) as GoodType[]
+		const selectable = gatherSelectableGoodTypes(this.gatherFreightLine(), hiveNeeds)
+		if (selectable.length === 0) return false
+		const nearestGoods = this.tile.game.hex.looseGoods.findNearestGoods(
+			toAxialCoord(this.tile.position),
+			toAxialCoord(this.tile.position),
+			selectable,
+			this.effectiveGatherRadius()
+		)
+		return nearestGoods !== undefined
+	}
+
+	private nextGatherJob(character?: Character): GatherJob | undefined {
+		if (this.action?.type !== 'road-fret') return undefined
+		if (!this.working || !this.hasLooseGoodsToGather || !this.storage.isEmpty) return undefined
+		const startPos = character ? toAxialCoord(character.position) : toAxialCoord(this.tile.position)
+		const hex = this.tile.game.hex
+		const radius = this.effectiveGatherRadius()
+		const line = this.gatherFreightLine()
+		const hiveNeedTypes = Object.keys(this.hive.needs) as GoodType[]
+		let path: Positioned[] | undefined
+		let goodType: GoodType | undefined
+		let selectableGoods = gatherSelectableGoodTypes(line, hiveNeedTypes)
+		const carry = character?.carry
+		if (carry) {
+			const carriedGoods = Object.keys(carry.availables) as GoodType[]
+			selectableGoods = [...new Set([...selectableGoods, ...carriedGoods])]
+			selectableGoods = selectableGoods.filter(
+				(good) =>
+					freightLineAllowsGoodType(line, good) &&
+					carry.hasRoom(good) &&
+					this.storage.canStoreAll(goodsWith(carry.stock, good))
+			)
+		}
+		if (selectableGoods.length === 0) return undefined
+		const goodCounts = Object.fromEntries(selectableGoods.map((good) => [good, 0])) as Goods
+		hex.findNearest(
+			startPos,
+			(pos: Positioned) => {
+				const goodsAtTile = hex.looseGoods.getGoodsAt(pos)
+				for (const good of goodsAtTile) {
+					const gt = good.goodType as GoodType
+					if (good.available && gt in goodCounts) goodCounts[gt]!++
+				}
+				return false
+			},
+			radius,
+			false
+		)
+		const targetGood = Object.entries(goodCounts).reduce(
+			(max, [good, count]) => (count > max.count ? { good: good as GoodType, count } : max),
+			{ good: null as GoodType | null, count: 0 }
+		)
+		if (!targetGood.good) return undefined
+		const result = hex.looseGoods.findNearestGoods(startPos, startPos, [targetGood.good], radius)
+		if (result) {
+			path = result.path
+			goodType = targetGood.good
+		}
+		return (
+			path && {
+				job: 'gather',
+				path,
+				goodType,
+				urgency: gatherUrgency(targetGood.count),
+				fatigue: this.getFatigueCost(),
+			}
+		)
 	}
 
 	setSlottedGeneralSlots(generalSlots: number): void {
@@ -436,8 +558,10 @@ export class StorageAlveolus extends Alveolus {
 		)
 	}
 
-	nextJob(_character?: Character): Job | undefined {
+	nextJob(character?: Character): Job | undefined {
 		return inert(() => {
+			const gatherJob = this.nextGatherJob(character)
+			if (gatherJob) return gatherJob
 			const fragmentedGoodType = this.storage.fragmented
 			return fragmentedGoodType
 				? ({

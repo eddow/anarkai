@@ -110,10 +110,7 @@ const SelectionInfoTab: DockviewWidget<Record<string, never>, SelectionInfoConte
 
 	const tools = () => props.context.tools ?? []
 	return (
-		<div
-			class="selection-info-tab"
-			use={attachHoverTracking}
-		>
+		<div class="selection-info-tab" use={attachHoverTracking}>
 			<span class="selection-info-tab__title title" title={props.title}>
 				{props.title}
 			</span>

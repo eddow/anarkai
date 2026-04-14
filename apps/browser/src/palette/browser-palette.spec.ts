@@ -1,3 +1,4 @@
+import { gameTimeSpeedFactors } from 'engine-rules'
 import { reactive } from 'mutts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -88,5 +89,20 @@ describe('browser palette registry & palettePanelBridge', () => {
 
 		const freightBay = selectedAction.values.find((entry) => entry.value === 'build:freight_bay')
 		expect(freightBay?.icon).toBeTruthy()
+	})
+
+	it('derives the speed tool max from gameTimeSpeedFactors length', () => {
+		const palette = getBrowserPalette().palette
+		const timeControl = palette.tool('timeControl') as {
+			min: number
+			max: number
+			step: number
+			value: number
+		}
+
+		expect(timeControl.min).toBe(0)
+		expect(timeControl.max).toBe(gameTimeSpeedFactors.length - 1)
+		expect(timeControl.step).toBe(1)
+		expect(timeControl.value).toBe(0)
 	})
 })

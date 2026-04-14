@@ -1,10 +1,7 @@
 import { css } from '@app/lib/css'
 import { type AnarkaiBadgeTone, Badge, InspectorSection, Panel } from '@app/ui/anarkai'
 import { effect } from 'mutts'
-import {
-	createSyntheticFreightLineObject,
-	findFreightLineForStop,
-} from 'ssh/freight/freight-line'
+import { createSyntheticFreightLineObject, findFreightLineForStop } from 'ssh/freight/freight-line'
 import { i18nState } from 'ssh/i18n'
 import { AEvolutionStep, ALerpStep } from 'ssh/npcs/steps'
 import type { Character, RankedWorkPlannerSnapshot } from 'ssh/population/character'
@@ -423,10 +420,7 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 							<div if={computed.plannerChoices.length > 0} class="character-planner__choices">
 								<for each={computed.plannerChoices}>
 									{(choice) => (
-										<div
-											class="character-planner__choice"
-											data-testid="character-planner-choice"
-										>
+										<div class="character-planner__choice" data-testid="character-planner-choice">
 											<div class="character-planner__choice-header">
 												<span class="character-planner__choice-label">{choice.label}</span>
 												<span class="character-planner__choice-value">{choice.utilityText}</span>
@@ -441,7 +435,9 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 									)}
 								</for>
 							</div>
-							<span else class="character-planner__mono">—</span>
+							<span else class="character-planner__mono">
+								—
+							</span>
 						</PropertyGridRow>
 						<PropertyGridRow
 							if={computed.workChoices.length > 0}
@@ -465,9 +461,7 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 											/>
 											<div class="character-work__content">
 												<div class="character-work__header">
-													<span class="character-work__type">
-														{choice.jobLabel}
-													</span>
+													<span class="character-work__type">{choice.jobLabel}</span>
 													<span class="character-work__score">{choice.scoreText}</span>
 												</div>
 												<div if={!resolveWorkTarget(choice)} class="character-work__meta">

@@ -55,11 +55,12 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 		state.isStorage = content instanceof StorageAlveolus
 		state.storageContent = content instanceof StorageAlveolus ? content : undefined
 		state.working = content?.working ?? false
-		state.lineObjects = game
-			? findFreightLinesForStop(game.freightLines, content).map((line) =>
-					createSyntheticFreightLineObject(game, line)
-				)
-			: []
+		state.lineObjects =
+			game && content
+				? findFreightLinesForStop(game.freightLines, content).map((line) =>
+						createSyntheticFreightLineObject(game, line)
+					)
+				: []
 	})
 
 	const handleWorkingChange = (checked: boolean) => {

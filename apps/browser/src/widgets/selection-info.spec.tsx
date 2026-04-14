@@ -1,8 +1,8 @@
 import { document, latch } from '@sursaut/core'
 import type { DockviewWidgetProps } from '@sursaut/ui/dockview'
+import { hiveUidForAnchorTile } from 'ssh/hive'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SelectionInfoContext, SelectionInfoTool } from './selection-info-tab'
-import { hiveUidForAnchorTile } from 'ssh/hive'
 
 const updateParameters = vi.fn<(params: { uid?: string }) => void>()
 const onDidRemovePanel = vi.fn((handler: (panel: { id: string }) => void) => {

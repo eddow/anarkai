@@ -31,6 +31,7 @@
 			"$assets/*": ["./assets/*"],
 			"@app/*": ["./src/*"],
 			"@sursaut": ["src/@sursaut.d.ts"],
+			"engine-rules": ["../../engines/rules/src/index.ts"],
 			"engine-pixi/assets/*": ["../../engines/pixi/assets/*"],
 			"engine-pixi/*": ["../../engines/pixi/src/*"],
 			"ssh/assets/*": ["../../engines/ssh/assets/*"],

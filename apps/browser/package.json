@@ -27,6 +27,7 @@
 		"@sursaut/ui": "link:../../../ownk/sursaut/packages/ui",
 		"arktype": "^2.1.22",
 		"dockview-core": "^5.0.0",
+		"engine-rules": "workspace:*",
 		"engine-pixi": "link:../../engines/pixi",
 		"eventemitter3": "^5.0.1",
 		"madge": "^8.0.0",

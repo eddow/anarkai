@@ -4,9 +4,7 @@ import { TestEngine } from '../test-engine'
 
 // TODO: When buffering is implemented, set the target to a buffering storage and add in the test that the goods are arrived
 describe('Convey Behavior Integration', () => {
-	async function setupEngine(
-		options: any = { terrainSeed: 1234, characterCount: 0 }
-	) {
+	async function setupEngine(options: any = { terrainSeed: 1234, characterCount: 0 }) {
 		const engine = new TestEngine(options)
 		await engine.init()
 

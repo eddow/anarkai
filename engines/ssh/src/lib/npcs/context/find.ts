@@ -1,6 +1,7 @@
+import { goods as goodsCatalog } from 'engine-rules'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
-import { BuildAlveolus } from 'ssh/hive/build'
+import { buildAlveolusMarker } from 'ssh/hive/build-marker'
 import type { GatherAlveolus } from 'ssh/hive/gather'
 import type { Character } from 'ssh/population/character'
 import { contract } from 'ssh/types'
@@ -8,7 +9,6 @@ import type { GoodType } from 'ssh/types/base'
 import { type AxialCoord, axial, tileSize, toWorldCoord } from 'ssh/utils'
 import { type Positioned, toAxialCoord } from 'ssh/utils/position'
 import { maxWalkTime } from '../../../../assets/constants'
-import { goods as goodsCatalog } from '../../../../assets/game-content'
 import { subject } from '../scripts'
 
 class FindFunctions {
@@ -98,7 +98,9 @@ class FindFunctions {
 				// Check if this tile or any neighbor is a clearing/construction site
 				return (
 					tile.clearing ||
-					tile.neighborTiles.some((neighbor) => neighbor.content instanceof BuildAlveolus)
+					tile.neighborTiles.some(
+						(neighbor) => !!neighbor.content && buildAlveolusMarker in neighbor.content
+					)
 				)
 			},
 			maxWalkTime,

@@ -64,7 +64,7 @@ function dropAllLoose()
 end function
 
 function makeRoom()
-	do while not haveRoom()
+	if not haveRoom() then do
 		where = find.freeSpot()
 		if not where then return false	// TODO: failure behaviour
 		walk.into where
@@ -91,6 +91,7 @@ function makeRoom()
 		
 		walk.moveTo find.randomPositionInTile()
 		inventory.dropAsLooseGood dropTarget
+	while not haveRoom()
 	loop
 end function
 

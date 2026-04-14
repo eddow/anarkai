@@ -1,6 +1,5 @@
 import { atomic, memoize, reactive } from 'mutts'
-import { assert } from 'ssh/debug'
-import { traces } from 'ssh/debug'
+import { assert, traces } from 'ssh/debug'
 import type { Goods } from 'ssh/types/base'
 import { GoodType } from 'ssh/types/base'
 import type { RenderedGoodSlots } from '.'
@@ -110,15 +109,15 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 			assert(allocated >= 0, `${label}: allocated for ${goodType} must be >= 0`)
 			assert(reserved >= 0, `${label}: reserved for ${goodType} must be >= 0`)
 			assert(reserved <= goods, `${label}: reserved for ${goodType} exceeds goods`)
-			assert(goods + allocated <= maxAmount, `${label}: goods+allocated for ${goodType} exceeds max`)
+			assert(
+				goods + allocated <= maxAmount,
+				`${label}: goods+allocated for ${goodType} exceeds max`
+			)
 			assert(
 				this.available(goodType) === goods - reserved,
 				`${label}: available mismatch for ${goodType}`
 			)
-			assert(
-				(this.stock[goodType] || 0) === goods,
-				`${label}: stock mismatch for ${goodType}`
-			)
+			assert((this.stock[goodType] || 0) === goods, `${label}: stock mismatch for ${goodType}`)
 		}
 	}
 

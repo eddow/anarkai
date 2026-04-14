@@ -1,6 +1,7 @@
 import type { AxialCoord, AxialKey } from '../hex/types'
 import type { FieldGenerationBackend, TerrainConfig, TileField } from '../types'
 import { generateFieldsCpu, generateTileFieldCpu } from './cpu'
+
 export {
 	canUseWebGpuFields,
 	createFieldGenerationShaderSource,
@@ -10,12 +11,13 @@ export {
 	generateFieldsGpu,
 	generateTileFieldGpu,
 	isGpuFieldRuntimeReady,
+	type PackedFieldRequest,
+	type PackedFieldResult,
 	packFieldRequest,
 	unpackFieldResult,
 	warmGpuFieldRuntime,
-	type PackedFieldRequest,
-	type PackedFieldResult,
 } from './gpu'
+
 import {
 	canUseWebGpuFields,
 	generateFieldsGpu,

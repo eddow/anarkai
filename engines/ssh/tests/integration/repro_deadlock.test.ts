@@ -1,13 +1,12 @@
 import { getActivationLog, reactiveOptions } from 'mutts'
 import type { SaveState } from 'ssh/game'
+import type { StorageAlveolus } from 'ssh/hive/storage'
 import { describe, expect, it } from 'vitest'
 import { characterEvolutionRates } from '../../assets/constants'
 import { TestEngine } from '../test-engine'
 
 describe('Deadlock Reproduction', () => {
-	async function setupEngine(
-		options: any = { terrainSeed: 1234, characterCount: 0 }
-	) {
+	async function setupEngine(options: any = { terrainSeed: 1234, characterCount: 0 }) {
 		// Disable need drift for this test so we isolate planner behavior.
 		characterEvolutionRates.hunger['*'] = 0
 		characterEvolutionRates.hunger['walk'] = 0
@@ -74,13 +73,22 @@ describe('Deadlock Reproduction', () => {
 			}
 
 			engine.loadScenario(scenario)
-			reactiveOptions.maxEffectChain = 12
+			// Keep this high enough that normal goods/freight-line bookkeeping effects
+			// cannot starve the conveyance effects this regression is meant to exercise.
+			reactiveOptions.maxEffectChain = 2000
 			console.log('Repro milestone: scenario loaded')
 			await new Promise((r) => setTimeout(r, 0))
 			console.log('Repro milestone: after scenario drain')
 
 			const gatherer = game.hex.getTile({ q: 0, r: 0 })!.content!
-			const woodpile = game.hex.getTile({ q: 1, r: 0 })!.content!.storage!
+			const woodpileAlveolus = game.hex.getTile({ q: 1, r: 0 })!.content as StorageAlveolus
+			const woodpile = woodpileAlveolus.storage
+
+			// Match logistics expectations: implicit gather tiles are freight bays; woodpile must
+			// advertise buffer demand so hive bookkeeping creates movements (see convey_stall).
+			gatherer.working = true
+			woodpileAlveolus.working = true
+			woodpileAlveolus.setBuffers({ wood: 1 })
 
 			// Pre-fill gatherer storage with wood
 			const woodCount = 10
@@ -126,7 +134,9 @@ describe('Deadlock Reproduction', () => {
 				engine.tick(0.1)
 				if ((gatherer.hive?.movingGoods.size ?? 0) > 0) {
 					movementObserved = true
-					if (gatherer.getJob?.(gatherWorker)?.job === 'convey') {
+					const conveyOnGather = gatherer.getJob?.(gatherWorker)?.job === 'convey'
+					const conveyOnWoodpile = woodpileAlveolus.getJob?.(woodpileWorker)?.job === 'convey'
+					if (conveyOnGather || conveyOnWoodpile) {
 						localConveyObserved = true
 						break
 					}

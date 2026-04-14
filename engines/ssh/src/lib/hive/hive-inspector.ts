@@ -41,7 +41,10 @@ export function hiveInspectorTitle(hive: Hive | undefined): string {
 	return name ? name : 'Hive'
 }
 
-export function createSyntheticHiveObject(game: Game, anchorTile: Tile): SyntheticHiveObject | undefined {
+export function createSyntheticHiveObject(
+	game: Game,
+	anchorTile: Tile
+): SyntheticHiveObject | undefined {
 	const content = anchorTile.content
 	if (!(content instanceof Alveolus)) return undefined
 	const hive = content.hive

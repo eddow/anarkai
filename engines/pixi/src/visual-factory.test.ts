@@ -1,9 +1,9 @@
 import { reset } from 'mutts'
 import { Container, RenderLayer, Texture } from 'pixi.js'
 import { afterEach, describe, expect, it } from 'vitest'
+import { TestEngine } from '../../ssh/tests/test-engine/engine'
 import type { PixiGameRenderer } from './renderer'
 import { VisualFactory } from './visual-factory'
-import { TestEngine } from '../../ssh/tests/test-engine/engine'
 
 function createRendererStub(game: TestEngine['game']): PixiGameRenderer {
 	return {

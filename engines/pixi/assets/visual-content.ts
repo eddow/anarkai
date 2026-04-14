@@ -118,6 +118,67 @@ export const commands: Record<string, VisualDefinition> = {
 	},
 }
 
+/** River body PNGs (served from `/pixi-assets/rivers/*.png`). */
+export const rivers: Record<string, VisualDefinition> = {
+	bodies: {
+		sprites: [
+			'rivers.body_straight_180__narrow',
+			'rivers.body_straight_180__medium',
+			'rivers.body_straight_180__wide',
+			'rivers.body_bend_60__narrow',
+			'rivers.body_bend_60__medium',
+			'rivers.body_bend_60__wide',
+			'rivers.body_bend_120__narrow',
+			'rivers.body_bend_120__medium',
+			'rivers.body_bend_120__wide',
+		],
+	},
+	terminals: {
+		sprites: [
+			'rivers.terminal_source__narrow',
+			'rivers.terminal_source__medium',
+			'rivers.terminal_source__wide',
+			'rivers.terminal_pool__narrow',
+			'rivers.terminal_pool__medium',
+			'rivers.terminal_pool__wide',
+			'rivers.terminal_mouth__narrow',
+			'rivers.terminal_mouth__medium',
+			'rivers.terminal_mouth__wide',
+			'rivers.terminal_delta__narrow',
+			'rivers.terminal_delta__medium',
+			'rivers.terminal_delta__wide',
+		],
+	},
+	junctions: {
+		sprites: [
+			'rivers.junction_y_120__narrow',
+			'rivers.junction_y_120__medium',
+			'rivers.junction_y_120__wide',
+			'rivers.junction_arc_stub__narrow',
+			'rivers.junction_arc_stub__medium',
+			'rivers.junction_arc_stub__wide',
+			'rivers.junction_skew__narrow',
+			'rivers.junction_skew__medium',
+			'rivers.junction_skew__wide',
+			'rivers.junction_4a__narrow',
+			'rivers.junction_4a__medium',
+			'rivers.junction_4a__wide',
+			'rivers.junction_4b__narrow',
+			'rivers.junction_4b__medium',
+			'rivers.junction_4b__wide',
+			'rivers.junction_4c__narrow',
+			'rivers.junction_4c__medium',
+			'rivers.junction_4c__wide',
+			'rivers.junction_5way__narrow',
+			'rivers.junction_5way__medium',
+			'rivers.junction_5way__wide',
+			'rivers.junction_6hub__narrow',
+			'rivers.junction_6hub__medium',
+			'rivers.junction_6hub__wide',
+		],
+	},
+}
+
 export const visualContent = {
 	deposits,
 	alveoli,
@@ -126,4 +187,5 @@ export const visualContent = {
 	terrain,
 	characters,
 	commands,
+	rivers,
 }

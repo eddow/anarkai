@@ -1,13 +1,10 @@
 import type { SaveState } from 'ssh/game'
-import type { GatherAlveolus } from 'ssh/hive/gather'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
 
 describe('Gatherer Conveying Integration', () => {
-	async function setupEngine(
-		options: any = { terrainSeed: 1234, characterCount: 0 }
-	) {
+	async function setupEngine(options: any = { terrainSeed: 1234, characterCount: 0 }) {
 		const engine = new TestEngine(options)
 		await engine.init()
 
@@ -121,13 +118,16 @@ describe('Gatherer Conveying Integration', () => {
 				],
 			})
 
-			const gatherer = game.hex.getTile({ q: 0, r: 0 })?.content as GatherAlveolus
+			const gatherer = game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus
 			const worker = spawnWorker({ q: 0, r: 0 })
 			worker.role = 'worker'
 			worker.carry.addGood('wood', 1)
 
 			const gatherJob = gatherer.nextJob(worker)
-			expect(gatherJob).toBeUndefined()
+			expect(gatherJob).toMatchObject({
+				job: 'gather',
+				goodType: 'berries',
+			})
 		} finally {
 			await engine.destroy()
 		}

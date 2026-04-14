@@ -1,5 +1,4 @@
 import { defer, reactive } from 'mutts'
-import { assert } from 'ssh/debug'
 import type { Game } from 'ssh/game'
 import { GameObject, withContainer, withHittable } from 'ssh/game/object'
 import type { Hive } from 'ssh/hive/hive'
@@ -12,7 +11,6 @@ import {
 	findNearest,
 	findPath,
 	fromCartesian,
-	isInteger,
 	type NeighborInfo,
 	type Positioned,
 	type Scoring,
@@ -22,15 +20,14 @@ import {
 import { AxialKeyMap } from 'ssh/utils/mem'
 import { TileBorder, type TileBorderContent } from './border/border'
 import { Alveolus } from './content/alveolus'
-import { UnBuiltLand } from './content/unbuilt-land'
 import type { TileContent } from './content/content'
+import { UnBuiltLand } from './content/unbuilt-land'
 import { LooseGoods } from './looseGoods'
 import { Tile } from './tile'
+import { isTileCoord } from './tile-coord'
 import { ZoneManager } from './zone'
 
-export function isTileCoord(coord: AxialCoord | undefined): boolean {
-	return !!coord && isInteger(coord.q) && isInteger(coord.r)
-}
+export { isTileCoord } from './tile-coord'
 
 @reactive
 export class HexBoard extends withContainer(withHittable(GameObject)) {
@@ -53,21 +50,11 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		return tiles
 	}
 
-	constructor(
-		public game: Game
-	) {
+	constructor(public game: Game) {
 		super(game)
 		this.looseGoods = new LooseGoods(game)
 		this.zoneManager = new ZoneManager()
 		this.zIndex = -1
-	}
-
-	private hasGeneratedCoord(coord: AxialCoord): boolean {
-		return (
-			this.contents.has(coord) ||
-			this.tileCache.has(coord) ||
-			this.borderCache.has(coord)
-		)
 	}
 
 	hitTest(worldX: number, worldY: number, selectedAction?: string): any {
@@ -98,7 +85,7 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		const changedGroundSemantics =
 			!!oldContent &&
 			!!content &&
-			(oldContent instanceof UnBuiltLand) !== (content instanceof UnBuiltLand)
+			oldContent instanceof UnBuiltLand !== content instanceof UnBuiltLand
 		if (!content) this.contents.delete({ q: coord.q, r: coord.r })
 		else this.contents.set({ q: coord.q, r: coord.r }, content)
 		if (oldContent && oldContent !== content) {
@@ -122,9 +109,11 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 					| undefined
 			)?.invalidateTerrainHard?.(coord) ??
 				(
-					this.game.renderer as {
-						invalidateTerrain?: (coord?: { q: number; r: number }) => void
-					} | undefined
+					this.game.renderer as
+						| {
+								invalidateTerrain?: (coord?: { q: number; r: number }) => void
+						  }
+						| undefined
 				)?.invalidateTerrain?.(coord)
 		}
 	}
@@ -265,7 +254,12 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		preferredCoord?: AxialCoord
 	): AxialCoord | undefined {
 		const candidates = preferredCoord
-			? [preferredCoord, ...Array.from(this.occupied.coords()).filter((coord) => axial.key(coord) !== axial.key(preferredCoord))]
+			? [
+					preferredCoord,
+					...Array.from(this.occupied.coords()).filter(
+						(coord) => axial.key(coord) !== axial.key(preferredCoord)
+					),
+				]
 			: Array.from(this.occupied.coords())
 
 		for (const coord of candidates) {

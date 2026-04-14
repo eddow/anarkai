@@ -154,7 +154,9 @@ describe('LinkedEntityControl', () => {
 
 		stop = latch(container, <LinkedEntityControl object={tile as never} />)
 
-		const button = container.querySelector('[data-testid="linked-entity-control"]') as HTMLButtonElement
+		const button = container.querySelector(
+			'[data-testid="linked-entity-control"]'
+		) as HTMLButtonElement
 		button.click()
 
 		expect(globals.selectionState.selectedUid).toBe(tile.uid)
@@ -189,7 +191,9 @@ describe('LinkedEntityControl', () => {
 
 		stop = latch(container, <LinkedEntityControl object={tile as never} />)
 
-		const button = container.querySelector('[data-testid="linked-entity-control"]') as HTMLButtonElement
+		const button = container.querySelector(
+			'[data-testid="linked-entity-control"]'
+		) as HTMLButtonElement
 		button.click()
 
 		expect(globals.selectionState.selectedUid).toBe('tile:0,1')

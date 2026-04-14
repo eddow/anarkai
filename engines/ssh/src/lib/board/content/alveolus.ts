@@ -1,4 +1,6 @@
+import { configurations, harvestFatiguePremium, jobBalance } from 'engine-rules'
 import { inert, memoize, reactive, type ScopedCallback, unreactive, unwrap } from 'mutts'
+import { isTileCoord } from 'ssh/board/tile-coord'
 import { assert } from 'ssh/debug'
 import type { Hive, MovementSelection, TrackedMovement } from 'ssh/hive/hive'
 import { gameIsaTypes } from 'ssh/npcs/utils'
@@ -8,7 +10,6 @@ import type { GoodType, Job } from 'ssh/types/base'
 import { type AxialCoord, axial, tileSize } from 'ssh/utils'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
 import { toAxialCoord, toWorldCoord } from 'ssh/utils/position'
-import { configurations, jobBalance } from '../../../../assets/game-content'
 import { AlveolusGate } from '../border/alveolus-gate'
 import type { Tile } from '../tile'
 import { TileContent } from './content'
@@ -85,7 +86,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 
 	/** Whether this alveolus is working (derived from configuration) */
 	get working(): boolean {
-		return this.configuration.working
+		return this.configuration.working && this.hive.working
 	}
 
 	/** Set working status by updating individual configuration */
@@ -131,8 +132,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	get debugInfo(): Record<string, any> {
 		return {
 			aGoodMovement: this.aGoodMovement?.map(
-				(selection) =>
-					`${selection.movement.goodType} from ${axial.key(selection.fromSnapshot)}`
+				(selection) => `${selection.movement.goodType} from ${axial.key(selection.fromSnapshot)}`
 			),
 			incomingGoods: this.incomingGoods,
 		}
@@ -206,7 +206,8 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 
 	getFatigueCost(): number {
 		// Base fatigue based on action type
-		const baseFatigue = this.action.type === 'harvest' ? this.workTime + 2 : this.workTime
+		const baseFatigue =
+			this.action.type === 'harvest' ? this.workTime + harvestFatiguePremium : this.workTime
 
 		// Add time-based fatigue (if alveolus has time configuration)
 		// For now, just return base fatigue
@@ -226,6 +227,16 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 
 		function canAdvance(mg: TrackedMovement) {
 			if (mg.path.length === 0) return false
+			const nextStep = mg.path[0]
+			const afterNext = mg.path[1]
+			const bridgeTransit =
+				!isTileCoord(mg.from) &&
+				!!nextStep &&
+				!!afterNext &&
+				isTileCoord(nextStep) &&
+				axial.key(nextStep) === axial.key(here) &&
+				!isTileCoord(afterNext)
+			if (bridgeTransit) return true
 			const storage = hive.storageAt(mg.path[0])
 			const hasRoom = storage?.hasRoom(mg.goodType)
 			return hasRoom || mg.path.length === 1

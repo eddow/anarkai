@@ -1,20 +1,23 @@
+import { alveoli as alveoliDefs } from 'engine-rules'
 import { reactive } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { AlveolusType, GoodType } from 'ssh/types/base'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
-import { alveoli as alveoliDefs } from '../../../assets/game-content'
+import { buildAlveolusMarker } from './build-marker'
 
 @reactive
 export class BuildAlveolus extends Alveolus {
 	public readonly target: AlveolusType
 
 	constructor(tile: Tile, target: AlveolusType) {
-		super(tile, new SpecificStorage((alveoliDefs[target].construction?.goods || {}) as Record<
-			GoodType,
-			number
-		>))
+		super(
+			tile,
+			new SpecificStorage(
+				(alveoliDefs[target].construction?.goods || {}) as Record<GoodType, number>
+			)
+		)
 
 		// Store properties
 		this.target = target
@@ -91,3 +94,10 @@ export class BuildAlveolus extends Alveolus {
 		)
 	}
 }
+
+Object.defineProperty(BuildAlveolus.prototype, buildAlveolusMarker, {
+	value: true,
+	configurable: false,
+	enumerable: false,
+	writable: false,
+})

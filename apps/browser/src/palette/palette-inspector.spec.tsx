@@ -5,7 +5,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@app/lib/globals', () => ({
 	configuration: reactive({
-		timeControl: 'pause' as 'pause' | 'play' | 'fast-forward' | 'gonzales',
+		timeControl: 1 as 0 | 1 | 2 | 3,
 	}),
 	interactionMode: reactive({ selectedAction: '' }),
 	uiConfiguration: reactive({ darkMode: false }),

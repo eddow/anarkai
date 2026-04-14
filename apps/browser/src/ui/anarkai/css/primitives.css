@@ -288,7 +288,7 @@
 }
 
 .ak-property-grid {
-	overflow: hidden;
+	overflow: visible;
 	width: 100%;
 }
 

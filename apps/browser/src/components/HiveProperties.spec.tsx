@@ -3,6 +3,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 
 const hive = {
 	name: 'North Hive',
+	working: true,
 	alveoli: [
 		{
 			name: 'gather',
@@ -25,6 +26,10 @@ const resolveHiveFromAnchorTile = vi.fn(() => hive)
 
 vi.mock('@app/lib/css', () => ({
 	css: () => '',
+}))
+
+vi.mock('@app/lib/globals', () => ({
+	bumpSelectionTitleVersion: vi.fn(),
 }))
 
 vi.mock('@app/ui/anarkai', () => ({
@@ -66,7 +71,19 @@ vi.mock('ssh/i18n', () => ({
 }))
 
 vi.mock('./EntityBadge', () => ({
-	default: (props: { text: string }) => <span data-testid={`badge-${props.text}`}>{props.text}</span>,
+	default: (props: { text: string }) => (
+		<span data-testid={`badge-${props.text}`}>{props.text}</span>
+	),
+}))
+
+vi.mock('./parts/WorkingIndicator', () => ({
+	default: (props: { checked: boolean; onChange?: (checked: boolean) => void }) => (
+		<button
+			data-testid="hive-working-toggle"
+			data-checked={String(props.checked)}
+			onClick={() => props.onChange?.(!props.checked)}
+		/>
+	),
 }))
 
 let HiveProperties: typeof import('./HiveProperties').default
@@ -83,6 +100,7 @@ describe('HiveProperties', () => {
 		container = document.createElement('div')
 		document.body.appendChild(container)
 		hive.name = 'North Hive'
+		hive.working = true
 		resolveHiveFromAnchorTile.mockClear()
 		resolveHiveFromAnchorTile.mockReturnValue(hive)
 	})
@@ -94,7 +112,7 @@ describe('HiveProperties', () => {
 		document.body.innerHTML = ''
 	})
 
-	it('renders ads and allows editing the hive name', () => {
+	it('renders ads and allows editing hive metadata', () => {
 		stop = latch(
 			container,
 			<HiveProperties
@@ -116,11 +134,17 @@ describe('HiveProperties', () => {
 		expect(container.querySelector('[data-testid="hive-ad-row-wood-demand"]')).not.toBeNull()
 		expect(container.querySelector('[data-testid="hive-ad-row-wood-provide"]')).not.toBeNull()
 		expect(container.querySelector('[data-testid="badge-Wood"]')).not.toBeNull()
+		expect(
+			container.querySelector('[data-testid="hive-working-toggle"]')?.getAttribute('data-checked')
+		).toBe('true')
 
 		nameInput.value = 'Workshop Ring'
 		nameInput.dispatchEvent(new Event('input', { bubbles: true }))
 
 		expect(hive.name).toBe('Workshop Ring')
 		expect(nameInput.value).toBe('Workshop Ring')
+
+		;(container.querySelector('[data-testid="hive-working-toggle"]') as HTMLButtonElement).click()
+		expect(hive.working).toBe(false)
 	})
 })

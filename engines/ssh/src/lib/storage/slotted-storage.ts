@@ -1,6 +1,5 @@
 import { atomic, memoize, reactive } from 'mutts'
-import { assert } from 'ssh/debug'
-import { traces } from 'ssh/debug'
+import { assert, traces } from 'ssh/debug'
 import { type Goods, GoodType } from 'ssh/types/base'
 import {
 	AllocationError,
@@ -148,15 +147,15 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 			assert(slot.allocated >= 0, `${label}: slot ${i} allocated must be >= 0`)
 			assert(slot.reserved >= 0, `${label}: slot ${i} reserved must be >= 0`)
 			assert(slot.reserved <= slot.quantity, `${label}: slot ${i} reserved exceeds quantity`)
-			assert(slot.quantity <= this.maxQuantityPerSlot, `${label}: slot ${i} quantity exceeds slot max`)
+			assert(
+				slot.quantity <= this.maxQuantityPerSlot,
+				`${label}: slot ${i} quantity exceeds slot max`
+			)
 			assert(
 				slot.quantity + slot.allocated <= this.maxQuantityPerSlot,
 				`${label}: slot ${i} quantity+allocated exceeds slot max`
 			)
-			assert(
-				slot.quantity + slot.allocated > 0,
-				`${label}: slot ${i} is empty but still present`
-			)
+			assert(slot.quantity + slot.allocated > 0, `${label}: slot ${i} is empty but still present`)
 
 			stockTotals[slot.goodType] = (stockTotals[slot.goodType] ?? 0) + slot.quantity
 			availableTotals[slot.goodType] =

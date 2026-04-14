@@ -1,14 +1,15 @@
+import { harvestNpcSearchDistance, harvestTravelFatiguePerStep, jobBalance } from 'engine-rules'
 import { inert, memoize } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { multiplyGoodsQty } from 'ssh/board/content/utils'
 import type { Tile } from 'ssh/board/tile'
+import { findGatherFreightLine } from 'ssh/freight/freight-line'
 import { TransitAlveolus } from 'ssh/hive/transit'
 import type { Character } from 'ssh/population/character'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { HarvestJob } from 'ssh/types/base'
 import { axialDistance, type Positioned, toAxialCoord } from 'ssh/utils/position'
-import { jobBalance } from '../../../assets/game-content'
 import { maxWalkTime, outputBufferSize } from '../../../assets/constants'
 export class HarvestAlveolus extends TransitAlveolus {
 	declare action: Ssh.HarvestingAction
@@ -32,7 +33,11 @@ export class HarvestAlveolus extends TransitAlveolus {
 	}
 	@memoize
 	get hiveHasCollector() {
-		return this.hive.byActionType.gather?.length
+		const freightLines = this.tile?.game?.freightLines
+		if (!freightLines?.length) return 0
+		return Array.from(this.hive.alveoli).filter(
+			(alveolus) => !!findGatherFreightLine(freightLines, alveolus)
+		).length
 	}
 
 	@memoize
@@ -58,7 +63,7 @@ export class HarvestAlveolus extends TransitAlveolus {
 			}
 			const startPos = toAxialCoord(character ? character.position : this.tile.position)
 			const hex = this.tile.game.hex
-			const searchDistance = character ? maxWalkTime : 6
+			const searchDistance = character ? maxWalkTime : harvestNpcSearchDistance
 
 			const findDeposit = (priority: 'project' | 'clearing' | 'any') => {
 				const searchFn = (coord: Positioned) => {
@@ -99,7 +104,9 @@ export class HarvestAlveolus extends TransitAlveolus {
 					urgency: jobBalance.harvest.project ?? jobBalance.harvest.clearing,
 					fatigue:
 						this.getFatigueCost() +
-						(character ? axialDistance(startPos, path[path.length - 1]!) * 2 : 0),
+						(character
+							? axialDistance(startPos, path[path.length - 1]!) * harvestTravelFatiguePerStep
+							: 0),
 				}
 			}
 
@@ -111,7 +118,9 @@ export class HarvestAlveolus extends TransitAlveolus {
 					urgency: jobBalance.harvest.clearing,
 					fatigue:
 						this.getFatigueCost() +
-						(character ? axialDistance(startPos, path[path.length - 1]!) * 2 : 0),
+						(character
+							? axialDistance(startPos, path[path.length - 1]!) * harvestTravelFatiguePerStep
+							: 0),
 				}
 			}
 
@@ -129,7 +138,9 @@ export class HarvestAlveolus extends TransitAlveolus {
 						jobBalance.harvest.fallbackBase,
 					fatigue:
 						this.getFatigueCost() +
-						(character ? axialDistance(startPos, path[path.length - 1]!) * 2 : 0),
+						(character
+							? axialDistance(startPos, path[path.length - 1]!) * harvestTravelFatiguePerStep
+							: 0),
 				}
 			}
 

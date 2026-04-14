@@ -234,11 +234,9 @@ describe('CharacterProperties', () => {
 			},
 		}
 
-		stop = latch(
-			container,
-			<CharacterProperties character={character as never} />,
-			{ setTitle: vi.fn() } as never
-		)
+		stop = latch(container, <CharacterProperties character={character as never} />, {
+			setTitle: vi.fn(),
+		} as never)
 
 		const rows = Array.from(
 			container.querySelectorAll('[data-testid="character-planner-choice"]')
@@ -296,11 +294,9 @@ describe('CharacterProperties', () => {
 			game: {},
 		}
 
-		stop = latch(
-			container,
-			<CharacterProperties character={character as never} />,
-			{ setTitle: vi.fn() } as never
-		)
+		stop = latch(container, <CharacterProperties character={character as never} />, {
+			setTitle: vi.fn(),
+		} as never)
 
 		const actionPath = container.querySelector(
 			'[data-testid="character-action-path"]'

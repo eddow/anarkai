@@ -68,9 +68,8 @@ export class TestEngine {
 	}
 
 	/**
-	 * Advances ticked objects only (does not drive `Game` clock / `tickerCallback`).
-	 * For scenarios that need the real clock and full ticker behaviour (and to assert on
-	 * `console.error` such as `Action infinite fail`), use `runViabilityScenario` from `./viability`.
+	 * Advances ticked objects and the game's virtual clock (mirrors the essentials of
+	 * `Game.tickerCallback` while the Pixi ticker stays stopped in tests).
 	 *
 	 * @param seconds Total time to advance
 	 * @param tickRate Delta seconds per step (default 0.1s)
@@ -90,6 +89,7 @@ export class TestEngine {
 	 * accesses the private tickedObjects of the game to update them.
 	 */
 	private step(delta: number) {
+		this.game.clock.virtualTime += delta
 		// Access private tickedObjects via type assertion
 		const objects = (this.game as any).tickedObjects as Set<{
 			update(dt: number): void

@@ -1,7 +1,7 @@
+import { goods as goodsCatalog } from 'engine-rules'
 import { inert, isReactive, reactive } from 'mutts'
 import { traces } from 'ssh/debug'
 import type { GoodType } from 'ssh/types'
-import { goods as goodsCatalog } from '../../../assets/game-content'
 
 export type ExchangePriority = '0-store' | '1-buffer' | '2-use'
 export type Advertisement = 'demand' | 'provide'

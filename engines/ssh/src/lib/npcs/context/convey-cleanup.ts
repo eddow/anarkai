@@ -1,5 +1,5 @@
-import type { TrackedMovement } from 'ssh/hive/hive'
 import type { LooseGood } from 'ssh/board/looseGoods'
+import type { TrackedMovement } from 'ssh/hive/hive'
 import type { Character } from 'ssh/population/character'
 import type { AllocationBase } from 'ssh/storage'
 import type { AxialCoord } from 'ssh/utils'
@@ -73,7 +73,11 @@ export function cleanupFailedConveyMovement(
 	hopAlloc?.cancel()
 	hive.cancelMovementSource(movement, 'cleanupFailedConveyMovement')
 	movement.allocations.target.cancel()
-	hive.noteMovementStorageCheckpoint(movement, 'cleanupFailedConveyMovement.after-cancel', movement.from)
+	hive.noteMovementStorageCheckpoint(
+		movement,
+		'cleanupFailedConveyMovement.after-cancel',
+		movement.from
+	)
 	if (moving) {
 		if (!moving.isRemoved) moving.remove()
 	} else if (sourceFulfilled) {

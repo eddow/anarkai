@@ -10,13 +10,7 @@
 		"selection": "Selection",
 		"none": "None",
 		"wheelZoomLookAt": "Wheel = zoom + look-at",
-		"bothButtonsPan": "Both left+right down = pan",
-		"timeControl": {
-			"pause": "Pause",
-			"play": "Play",
-			"fastForward": "Fast Forward",
-			"gonzales": "Really Fast Forward"
-		}
+		"bothButtonsPan": "Both left+right down = pan"
 	},
 	"game": {
 		"gameTitle": "Game {game}"

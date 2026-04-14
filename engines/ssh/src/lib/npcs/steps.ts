@@ -1,3 +1,4 @@
+import { goods as goodsCatalog } from 'engine-rules'
 import { atomic, effect, unreactive } from 'mutts'
 import { assert } from 'ssh/debug'
 import type { Game } from 'ssh/game/game'
@@ -6,7 +7,6 @@ import type { GoodType } from 'ssh/types'
 import { casing } from 'ssh/utils'
 import type { Position, Positioned } from 'ssh/utils/position'
 import { activityDurations, needUpdate } from '../../../assets/constants'
-import { goods as goodsCatalog } from '../../../assets/game-content'
 import type { ScriptedObject } from './object'
 import { lerp } from './utils'
 

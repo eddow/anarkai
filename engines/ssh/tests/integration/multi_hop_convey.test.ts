@@ -84,7 +84,7 @@ describe('Multi-Hop Convey Tests', () => {
 		}
 	})
 
-	it('does not route stone through an intermediate alveolus that cannot buffer stone', {
+	it('finds a border-to-border path through an intermediate alveolus even when that alveolus cannot buffer stone', {
 		timeout: 15000,
 	}, async () => {
 		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
@@ -123,10 +123,94 @@ describe('Multi-Hop Convey Tests', () => {
 			}
 
 			expect(relay.storage.hasRoom('stone')).toBe(0)
-			expect(hive.getPath(provider, demander, 'stone')).toBeUndefined()
-			expect(hive.createMovement('stone', provider, demander)).toBe(false)
-			expect(provider.aGoodMovement).toBeUndefined()
-			expect(relay.aGoodMovement).toBeUndefined()
+			const path = hive.getPath(provider, demander, 'stone')
+			expect(path).toBeDefined()
+			expect(path?.map((step) => axial.key(step))).toContain('1,0')
+			expect(path?.map((step) => axial.key(step))).toContain('1.5,0')
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('bridges border-to-border through a full relay storage without parking on the tile', {
+		timeout: 15000,
+	}, async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+		try {
+			const scenario: Partial<SaveState> = {
+				hives: [
+					{
+						name: 'FullRelayBridge',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'storage', goods: { planks: 1 } },
+							{
+								coord: [1, 0],
+								alveolus: 'storage',
+								goods: { wood: 6, stone: 3, planks: 3, berries: 3, mushrooms: 3 },
+							},
+							{ coord: [2, 0], alveolus: 'storage', goods: {} },
+						],
+					},
+				],
+			}
+
+			engine.loadScenario(scenario)
+
+			const provider = engine.game.hex.getTile({ q: 0, r: 0 })?.content as Alveolus | undefined
+			const relay = engine.game.hex.getTile({ q: 1, r: 0 })?.content as Alveolus | undefined
+			const demander = engine.game.hex.getTile({ q: 2, r: 0 })?.content as Alveolus | undefined
+			const hive = (provider?.hive ?? demander?.hive ?? relay?.hive) as Hive | undefined
+
+			expect(provider).toBeDefined()
+			expect(relay).toBeDefined()
+			expect(demander).toBeDefined()
+			expect(hive).toBeDefined()
+			if (!provider || !relay || !demander || !hive) {
+				throw new Error('Expected full relay bridge scenario to be created')
+			}
+
+			expect(relay.storage.hasRoom('planks')).toBe(0)
+			expect(hive.getPath(provider, demander, 'planks')).toBeDefined()
+			expect(hive.createMovement('planks', provider, demander)).toBe(true)
+
+			const providerCoord = toAxialCoord(provider.tile.position)
+			const movement = hive.movingGoods
+				.get(providerCoord)
+				?.find((candidate) => candidate.goodType === 'planks')
+			expect(movement).toBeDefined()
+			if (!movement) throw new Error('Expected planks movement from provider')
+
+			movement.claimed = true
+			movement.claimedBy = 'test-provider'
+			movement.claimedAtMs = Date.now()
+			movement.allocations.source.fulfill()
+			const firstHop = movement.hop()
+			expect(firstHop).toMatchObject({ q: 0.5, r: 0 })
+			movement.place()
+			movement.allocations.source = hive
+				.storageAt(firstHop)!
+				.reserve({ planks: 1 }, { type: 'convey.path', movement })
+			movement.claimed = false
+			delete movement.claimedBy
+			delete movement.claimedAtMs
+
+			const relayWorker = engine.spawnCharacter('relay-worker', { q: 1, r: 0 })
+			relayWorker.assignedAlveolus = relay
+			expect(relay.aGoodMovement?.length ?? 0).toBeGreaterThan(0)
+			const step = relayWorker.scriptsContext.work.conveyStep()
+			expect(step).toBeDefined()
+			expect(movement.from).toMatchObject({ q: 1.5, r: 0 })
+			expect(hive.movingGoods.get({ q: 1, r: 0 })).toBeUndefined()
+			expect(hive.movingGoods.get({ q: 1.5, r: 0 })?.[0]).toBe(movement)
+			expect(relay.storage.stock.planks ?? 0).toBe(3)
+
+			step?.finish()
+
+			expect(movement.from).toMatchObject({ q: 1.5, r: 0 })
+			expect(hive.movingGoods.get({ q: 1, r: 0 })).toBeUndefined()
+			expect(hive.movingGoods.get({ q: 1.5, r: 0 })?.[0]).toBe(movement)
+			expect(relay.storage.stock.planks ?? 0).toBe(3)
 		} finally {
 			await engine.destroy()
 		}

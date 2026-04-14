@@ -16,7 +16,10 @@ test('pixi terrain baker initializes and survives terrain invalidation', async (
 	await page.goto('/')
 
 	await page.waitForFunction(() => {
-		return typeof (window as any).__ANARKAI_TERRAIN_DIAGNOSTICS__ === 'function' && !!(window as any).game
+		return (
+			typeof (window as any).__ANARKAI_TERRAIN_DIAGNOSTICS__ === 'function' &&
+			!!(window as any).game
+		)
 	})
 
 	const initialDiagnostics = await page.evaluate(async () => {
@@ -42,7 +45,9 @@ test('pixi terrain baker initializes and survives terrain invalidation', async (
 
 	await page.waitForTimeout(1500)
 
-	const updatedDiagnostics = await page.evaluate(() => (window as any).__ANARKAI_TERRAIN_DIAGNOSTICS__?.())
+	const updatedDiagnostics = await page.evaluate(() =>
+		(window as any).__ANARKAI_TERRAIN_DIAGNOSTICS__?.()
+	)
 	expect(updatedDiagnostics).toBeTruthy()
 	expect(updatedDiagnostics?.totals?.sectorsRendered ?? 0).toBeGreaterThan(0)
 

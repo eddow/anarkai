@@ -1,3 +1,4 @@
+import { jobBalance } from 'engine-rules'
 import { inert, memoize, reactive, untracked } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { multiplyGoodsQty } from 'ssh/board/content/utils'
@@ -7,7 +8,6 @@ import { SpecificStorage } from 'ssh/storage'
 import type { GoodType, TransformJob } from 'ssh/types/base'
 import { type ExchangePriority, type GoodsRelations, maxPriority } from 'ssh/utils/advertisement'
 import { inputBufferSize, outputBufferSize } from '../../../assets/constants'
-import { jobBalance } from '../../../assets/game-content'
 
 const emptyGoods: Partial<Record<GoodType, number>> = {}
 
@@ -81,15 +81,15 @@ export class TransformAlveolus extends Alveolus {
 	}
 	// nextJob() replaces both alveolusSpecificJob() and keepWorking
 	nextJob(_character?: Character): TransformJob | undefined {
-			return inert(() => {
-				if (!this.working || !this.canWork) return undefined
+		return inert(() => {
+			if (!this.working || !this.canWork) return undefined
 
-				return {
-					job: 'transform',
-					urgency: jobBalance.transform,
-					fatigue: this.getFatigueCost(),
-				}
-			})
+			return {
+				job: 'transform',
+				urgency: jobBalance.transform,
+				fatigue: this.getFatigueCost(),
+			}
+		})
 	}
 	get workingGoodsRelations(): GoodsRelations {
 		const action = this.action

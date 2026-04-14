@@ -5,6 +5,7 @@ import {
 	commands,
 	deposits,
 	goods,
+	rivers,
 	terrain,
 	vehicles,
 } from '../assets/visual-content'
@@ -55,6 +56,7 @@ export class PixiAssetManager {
 		extractKeys(vehicles)
 		extractKeys(characters)
 		extractKeys(commands)
+		extractKeys(rivers)
 
 		// Terrain is special: keys imply assets 'terrain.NAME' only if definition doesn't override it
 		for (const [key, def] of Object.entries(terrain)) {

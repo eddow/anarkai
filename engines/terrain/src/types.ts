@@ -1,3 +1,4 @@
+import { defaultTerrainConfig } from 'engine-rules'
 import type { AxialKey } from './hex/types'
 
 // ─── Per-tile fields ─────────────────────────────────────────────
@@ -124,24 +125,4 @@ export interface TerrainConfig {
 	hydrologyFluxStepWeight: number
 }
 
-export const DEFAULT_TERRAIN_CONFIG: TerrainConfig = {
-	scale: 0.05,
-	terrainTypeScale: 1.2,
-	octaves: 5,
-	persistence: 0.6,
-	lacunarity: 2.2,
-	temperatureScale: 0.08,
-	humidityScale: 0.08,
-	seaLevel: -0.02,
-	snowLevel: 0.15,
-	rockyLevel: 0.08,
-	forestLevel: 0.0,
-	sandTemperature: 0.15,
-	sandHumidity: -0.05,
-	wetlandHumidity: 0.15,
-	forestHumidity: 0.03,
-	hydrologySourcesPerTile: 0.1,
-	hydrologyLandCeiling: 0.2,
-	hydrologyMaxTraceSteps: 64,
-	hydrologyFluxStepWeight: 6,
-}
+export const DEFAULT_TERRAIN_CONFIG: TerrainConfig = defaultTerrainConfig

@@ -5,8 +5,8 @@ import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
 import { tablerOutlineHexagons } from 'pure-glyf/icons'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
-import { createSyntheticHiveObject } from 'ssh/hive'
 import type { InteractiveGameObject } from 'ssh/game/object'
+import { createSyntheticHiveObject } from 'ssh/hive'
 import { isHoveredObject, setHoveredObject } from 'ssh/interactive-state'
 
 css`

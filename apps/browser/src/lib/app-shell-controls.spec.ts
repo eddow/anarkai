@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-	appShellTimeControls,
 	appShellZoneActions,
 	buildPaletteSelectedActionValues,
 	getAppShellBuildableAlveoli,
@@ -15,10 +14,6 @@ vi.mock('ssh/assets/game-content', () => ({
 }))
 
 describe('app-shell-controls', () => {
-	it('shares one time-control catalog for toolbar and palette', () => {
-		expect(appShellTimeControls.map((t) => t.value)).toEqual([0, 1, 2, 3])
-	})
-
 	it('shares zone action values between toolbar and palette', () => {
 		expect(appShellZoneActions.map((z) => z.value)).toEqual([
 			'zone:residential',

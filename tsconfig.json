@@ -13,6 +13,6 @@
 		]
 	},
 	"include": [
-		"vitest.workspace.ts"
+		"vitest.config.ts"
 	]
 }

@@ -1,15 +1,20 @@
+import {
+	gatherFreightBayStorageCapacityPerSlot,
+	gatherFreightBayStorageSlots,
+	jobBalance,
+} from 'engine-rules'
 import { inert } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
 import {
 	DEFAULT_GATHER_FREIGHT_RADIUS,
 	findGatherFreightLine,
+	freightLineAllowsGoodType,
 	gatherSelectableGoodTypes,
 } from 'ssh/freight/freight-line'
 import type { Character } from 'ssh/population/character'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import type { GatherJob, Goods, GoodType } from 'ssh/types/base'
 import { type Positioned, toAxialCoord } from 'ssh/utils/position'
-import { jobBalance } from '../../../assets/game-content'
 import { TransitAlveolus } from './transit'
 
 function goodsWith(goods: Goods, other: GoodType, qty: number = 1): Goods {
@@ -22,7 +27,7 @@ function gatherUrgency(availableCount: number): number {
 	// Gather runs are most worthwhile when they can pick up a full small batch.
 	// Discount partial availability aggressively so one loose good rarely wins
 	// against more productive work when gather can usually collect two goods.
-	const targetBatchSize = 2 // TODO: select this size out of attached vehicle's capacity 
+	const targetBatchSize = 2 // TODO: select this size out of attached vehicle's capacity
 	const fillRatio = Math.max(0, Math.min(1, availableCount / targetBatchSize))
 	return jobBalance.gather * fillRatio * fillRatio
 }
@@ -37,7 +42,10 @@ export class GatherAlveolus extends TransitAlveolus {
 		if (def.action.type !== 'gather') {
 			throw new Error('GatherAlveolus can only be created from a gather action')
 		}
-		super(tile, new SlottedStorage(1, 12))
+		super(
+			tile,
+			new SlottedStorage(gatherFreightBayStorageSlots, gatherFreightBayStorageCapacityPerSlot)
+		)
 	}
 
 	private gatherFreightLine() {
@@ -85,12 +93,11 @@ export class GatherAlveolus extends TransitAlveolus {
 			let selectableGoods = gatherSelectableGoodTypes(line, hiveNeedTypes)
 			const carry = character?.carry
 			if (carry) {
-				const allowedGoods = line?.filters?.length ? new Set(line.filters) : undefined
 				const carriedGoods = Object.keys(carry.availables) as GoodType[]
 				selectableGoods = [...new Set([...selectableGoods, ...carriedGoods])]
 				selectableGoods = selectableGoods.filter(
 					(good) =>
-						(!allowedGoods || allowedGoods.has(good)) &&
+						freightLineAllowsGoodType(line, good) &&
 						carry.hasRoom(good) &&
 						this.storage.canStoreAll(goodsWith(carry.stock, good))
 				)
@@ -121,12 +128,7 @@ export class GatherAlveolus extends TransitAlveolus {
 
 			if (!targetGood.good) return undefined
 
-			const result = hex.looseGoods.findNearestGoods(
-				startPos,
-				startPos,
-				[targetGood.good],
-				radius
-			)
+			const result = hex.looseGoods.findNearestGoods(startPos, startPos, [targetGood.good], radius)
 			if (result) {
 				path = result.path
 				goodType = targetGood.good

@@ -8,7 +8,6 @@
 		"tree_chopper": "Tree Chopper",
 		"stonecutter": "Stone Cutter",
 		"sawmill": "Sawmill",
-		"gather": "Gather",
 		"storage": "Store",
 		"building": "Building",
 		"engineer": "Engineer",
@@ -18,6 +17,8 @@
 	"hive": {
 		"section": "Hive",
 		"name": "Name",
+		"commands": "Commands",
+		"workingTooltip": "Enable or pause the whole hive",
 		"ads": "Ads",
 		"noAds": "No advertisements for this hive anchor.",
 		"sourcesHint": "Number of contributing alveolus types",
@@ -30,6 +31,25 @@
 		"mode": "Mode",
 		"radius": "Radius",
 		"filters": "Filters",
+		"goodsSelection": {
+			"section": "Goods selection",
+			"goodRules": "Goods rules",
+			"tagRules": "Tag rules",
+			"fallback": "Default",
+			"fallbackHint": "When no rule matches:",
+			"addGoodRule": "Add good rule",
+			"addTagRule": "Add tag rule",
+			"remove": "Remove",
+			"moveUp": "Up",
+			"moveDown": "Down",
+			"reorderTagRule": "Reorder tag rule",
+			"effectAllow": "Allow",
+			"effectDeny": "Deny",
+			"matchPresent": "Present",
+			"matchAbsent": "Absent",
+			"noGoodsToAdd": "No goods left to add",
+			"noTagsToAdd": "No tags left to add"
+		},
 		"stations": "Stations",
 		"stop": "Stop",
 		"unavailable": "Line is no longer available.",
@@ -38,11 +58,21 @@
 			"distribute": "Distribute"
 		}
 	},
+	"goodsTags": {
+		"food": "Food",
+		"bulk": "Bulk",
+		"piece": "Piece goods",
+		"construction/lumber": "Construction — lumber",
+		"construction/stone": "Construction — stone"
+	},
 	"goods": {
 		"berries": "Berries",
 		"mushrooms": "Mushrooms",
 		"planks": "Planks",
 		"stone": "Stone",
 		"wood": "Wood"
+	},
+	"step": {
+		"waitForIncomingGoods": "Wait for incoming goods"
 	}
 }

@@ -30,6 +30,7 @@
 			"$assets/*": ["./assets/*"],
 			"$components/*": ["./src/components/*"],
 			"@app/*": ["./src/*"],
+			"engine-rules": ["../rules/src/index.ts"],
 			"engine-terrain": ["../terrain/src/index.ts"],
 			"engine-terrain/hex": ["../terrain/src/hex/index.ts"],
 			"@sursaut/*": ["node_modules/sursaut-ts/src/*"],

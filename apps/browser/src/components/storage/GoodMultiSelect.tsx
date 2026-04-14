@@ -1,10 +1,11 @@
 import { css } from '@app/lib/css'
 import { Button } from '@app/ui/anarkai'
 import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
+import { tablerFilledSquareRoundedMinus } from 'pure-glyf/icons'
 import type { Game } from 'ssh/game'
 import type { GoodType } from 'ssh/types/base'
 import EntityBadge from '../EntityBadge'
-import AddGoodButton from './AddGoodButton'
+import GoodPickerButton from '../GoodPickerButton'
 
 css`
 .good-multi-select {
@@ -35,16 +36,21 @@ css`
 }
 
 .remove-btn {
-	padding: 2px;
+	padding: 0;
 	min-height: auto;
-	height: 18px;
-	width: 18px;
-	opacity: 0.6;
+	height: 1.35rem;
+	width: 1.35rem;
+	border-radius: 999px;
+	border-color: color-mix(in srgb, #ef4444 35%, var(--ak-border));
+	color: #ef4444;
+	background: color-mix(in srgb, #ef4444 10%, var(--ak-surface-panel));
+	opacity: 0.85;
 }
 
 .remove-btn:hover {
 	opacity: 1;
-	color: #ef4444;
+	border-color: color-mix(in srgb, #ef4444 55%, var(--ak-border));
+	color: #dc2626;
 }
 
 .empty-list {
@@ -63,7 +69,6 @@ interface GoodMultiSelectProps {
 	availableGoods: GoodType[]
 	game: Game
 	addTitle?: string
-	addLabel?: string
 	onAdd: (good: GoodType) => void
 	onRemove: (good: GoodType) => void
 	onUpdate?: (value: GoodType[]) => void
@@ -99,9 +104,13 @@ export default function GoodMultiSelect(props: GoodMultiSelectProps) {
 							<EntityBadge game={props.game} sprite={getSprite(gt)} text={gt} />
 							<div class="row-controls">
 								<div if={props.renderItemExtra}>{props.renderItemExtra?.(gt)}</div>
-								<Button onClick={() => handleRemove(gt)} el:title="Remove" el:class="remove-btn">
-									×
-								</Button>
+								<Button
+									icon={tablerFilledSquareRoundedMinus}
+									ariaLabel="Remove"
+									onClick={() => handleRemove(gt)}
+									el:title="Remove"
+									el:class="remove-btn"
+								/>
 							</div>
 						</div>
 					)}
@@ -112,14 +121,12 @@ export default function GoodMultiSelect(props: GoodMultiSelectProps) {
 			</div>
 
 			<div class="add-btn-wrapper">
-				<AddGoodButton
+				<GoodPickerButton
 					availableGoods={props.availableGoods}
 					game={props.game}
 					title={props.addTitle}
 					onSelect={handleAdd}
-				>
-					{props.addLabel || 'Add'}
-				</AddGoodButton>
+				/>
 			</div>
 		</div>
 	)

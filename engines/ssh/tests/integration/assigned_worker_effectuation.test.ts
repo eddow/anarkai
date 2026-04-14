@@ -45,9 +45,10 @@ describe('Assigned worker effectuation', () => {
 			const firstAction = worker.findAction()
 			expect(firstAction).toBeDefined()
 			expect(firstAction?.name).toBe('work.goWork')
-			expect(worker.resolveBestJobMatch()?.targetTile.content, 'best job should respect assignment').toBe(
-				gather.tile.content
-			)
+			expect(
+				worker.resolveBestJobMatch()?.targetTile.content,
+				'best job should respect assignment'
+			).toBe(gather.tile.content)
 			expect(worker.assignedAlveolus).toBe(gather)
 			expect(gather.assignedWorker).toBe(worker)
 		} finally {

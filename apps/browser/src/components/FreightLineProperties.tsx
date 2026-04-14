@@ -1,15 +1,23 @@
 import { css } from '@app/lib/css'
 import { bumpSelectionTitleVersion } from '@app/lib/globals'
 import { InspectorSection } from '@app/ui/anarkai'
+import { goods as gameGoods } from 'engine-rules'
 import type {
 	FreightLineDefinition,
 	FreightLineMode,
 	SyntheticFreightLineObject,
 } from 'ssh/freight/freight-line'
 import { freightLineStationLabel } from 'ssh/freight/freight-line'
+import type { GoodSelectionPolicy } from 'ssh/freight/goods-selection-policy'
+import {
+	collectSortedDistinctTagsFromGoodsCatalog,
+	freightLineEditorGoodsSelectionPolicy,
+	patchGoodsSelectionFromEditor,
+	UNRESTRICTED_GOODS_SELECTION_POLICY,
+} from 'ssh/freight/goods-selection-policy'
 import { i18nState } from 'ssh/i18n'
 import type { GoodType } from 'ssh/types/base'
-import { goods as gameGoods } from '../../../../engines/ssh/assets/game-content'
+import GoodSelectionRulesEditor from './GoodSelectionRulesEditor'
 import InspectorObjectLink from './InspectorObjectLink'
 import LinkedEntityControl from './LinkedEntityControl'
 import PropertyGrid from './PropertyGrid'
@@ -103,20 +111,8 @@ css`
 	gap: 0.5rem;
 }
 
-.freight-line-properties__filters {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 0.5rem;
-}
-
-.freight-line-properties__filter {
-	display: inline-flex;
-	align-items: center;
-	gap: 0.35rem;
-	padding: 0.2rem 0.4rem;
-	border-radius: 999px;
-	background: color-mix(in srgb, var(--ak-surface-1) 82%, transparent);
-	font-size: 0.75rem;
+.freight-line-properties__goods-selection {
+	width: 100%;
 }
 `
 
@@ -125,6 +121,8 @@ interface FreightLinePropertiesProps {
 }
 
 const goodsList = Object.keys(gameGoods) as GoodType[]
+
+const sortedDistinctTags = collectSortedDistinctTagsFromGoodsCatalog(gameGoods)
 
 const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 	const currentGame = () => props.lineObject?.game
@@ -159,13 +157,32 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 		})
 		if (hasTitleChange) bumpSelectionTitleVersion()
 	}
-	const selectedFilters = () => new Set(currentLine()?.filters ?? [])
-	const toggleFilter = (good: GoodType, enabled: boolean) => {
-		const next = new Set(selectedFilters())
-		if (enabled) next.add(good)
-		else next.delete(good)
+	const goodsSelectionPolicy = () => {
+		const line = currentLine()
+		if (!line) return UNRESTRICTED_GOODS_SELECTION_POLICY
+		return freightLineEditorGoodsSelectionPolicy(line)
+	}
+	const goodOptions = () =>
+		goodsList.map((id) => ({
+			id,
+			label: i18nState.translator?.goods?.[id] ?? id,
+		}))
+	const tagOptions = () =>
+		sortedDistinctTags.map((id) => ({
+			id,
+			label: i18nState.translator?.goodsTags?.[id] ?? id,
+		}))
+	const isGoodEligibleForLine = (_good: GoodType) => true
+	const handleGoodsSelectionChange = (next: GoodSelectionPolicy) => {
+		const line = currentLine()
+		if (!line) return
+		const filtered = {
+			...next,
+			goodRules: next.goodRules.filter((rule) => isGoodEligibleForLine(rule.goodType)),
+		}
 		updateLine({
-			filters: next.size > 0 ? [...next] : undefined,
+			...patchGoodsSelectionFromEditor(filtered),
+			filters: undefined,
 		})
 	}
 	const handleModeChange = (mode: FreightLineMode) => {
@@ -211,9 +228,7 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 						value={currentMode()}
 						update:value={(value: string) => handleModeChange(value as FreightLineMode)}
 					>
-						<option value="gather">
-							{i18nState.translator?.line?.modes?.gather ?? 'Gather'}
-						</option>
+						<option value="gather">{i18nState.translator?.line?.modes?.gather ?? 'Gather'}</option>
 						<option value="distribute">
 							{i18nState.translator?.line?.modes?.distribute ?? 'Distribute'}
 						</option>
@@ -229,23 +244,19 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 						update:value={handleRadiusChange}
 					/>
 				</PropertyGridRow>
-				<PropertyGridRow label={i18nState.translator?.line?.filters ?? 'Filters'}>
-					<div class="freight-line-properties__filters">
-						<for each={goodsList}>
-							{(good) => (
-								<label class="freight-line-properties__filter">
-									<input
-										type="checkbox"
-										disabled={!isAvailable()}
-										checked={selectedFilters().has(good)}
-										onInput={(event) =>
-											toggleFilter(good, (event.currentTarget as HTMLInputElement).checked)
-										}
-									/>
-									<span>{i18nState.translator?.goods?.[good] ?? good}</span>
-								</label>
-							)}
-						</for>
+				<PropertyGridRow
+					label={i18nState.translator?.line?.goodsSelection?.section ?? 'Goods selection'}
+				>
+					<div class="freight-line-properties__goods-selection">
+						<GoodSelectionRulesEditor
+							if={isAvailable()}
+							policy={goodsSelectionPolicy()}
+							disabled={!isAvailable()}
+							game={currentGame()!}
+							goodOptions={goodOptions().filter((entry) => isGoodEligibleForLine(entry.id))}
+							tagOptions={tagOptions()}
+							onPolicyChange={handleGoodsSelectionChange}
+						/>
 					</div>
 				</PropertyGridRow>
 			</PropertyGrid>

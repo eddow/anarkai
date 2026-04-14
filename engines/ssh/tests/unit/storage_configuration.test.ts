@@ -50,6 +50,7 @@ describe('StorageAlveolus Configuration', () => {
 		board: {
 			game: {
 				random: () => 0.5,
+				freightLines: [],
 				configurationManager: {
 					getNamedConfiguration: () => undefined,
 				},
@@ -58,8 +59,22 @@ describe('StorageAlveolus Configuration', () => {
 		log: () => {},
 	} as any
 
+	const mockHive = {
+		working: true,
+		needs: {},
+		configurations: new Map(),
+		movingGoods: new Map(),
+		removeAlveolus: vi.fn(),
+		hasIncomingMovementFor: vi.fn(() => false),
+	} as any
+
+	const withHive = <T extends StorageAlveolus>(alveolus: T): T => {
+		;(alveolus as any).hive = mockHive
+		return alveolus
+	}
+
 	it('should not advertise generic store-anything demand by default', () => {
-		const alveolus = new StorageAlveolus(mockTile)
+		const alveolus = withHive(new StorageAlveolus(mockTile))
 		alveolus.working = true
 
 		const relations = alveolus.workingGoodsRelations
@@ -68,7 +83,7 @@ describe('StorageAlveolus Configuration', () => {
 	})
 
 	it('should advertise buffered goods as demand when below configured buffer', () => {
-		const alveolus = new StorageAlveolus(mockTile)
+		const alveolus = withHive(new StorageAlveolus(mockTile))
 		alveolus.working = true
 		alveolus.setSlottedGoodConfiguration('wood', { minSlots: 2, maxSlots: 1 })
 		alveolus.setSlottedGoodConfiguration('berries', { minSlots: 1, maxSlots: 0 })
@@ -87,7 +102,7 @@ describe('StorageAlveolus Configuration', () => {
 	})
 
 	it('allows buffered goods to satisfy 2-use while still demanding 1-buffer', () => {
-		const alveolus = new StorageAlveolus(mockTile)
+		const alveolus = withHive(new StorageAlveolus(mockTile))
 		alveolus.working = true
 		alveolus.setSlottedGoodConfiguration('wood', { minSlots: 2, maxSlots: 0 })
 
@@ -103,7 +118,7 @@ describe('StorageAlveolus Configuration', () => {
 	})
 
 	it('keeps demanding until buffered slots are filled to their full quantity capacity', () => {
-		const alveolus = new StorageAlveolus(mockTile)
+		const alveolus = withHive(new StorageAlveolus(mockTile))
 		alveolus.working = true
 		alveolus.setSlottedGoodConfiguration('wood', { minSlots: 2, maxSlots: 1 })
 
@@ -120,7 +135,7 @@ describe('StorageAlveolus Configuration', () => {
 	})
 
 	it('allows 0-store and 1-buffer gives only from slots above the buffered floor', () => {
-		const alveolus = new StorageAlveolus(mockTile)
+		const alveolus = withHive(new StorageAlveolus(mockTile))
 		alveolus.working = true
 		alveolus.setSlottedGoodConfiguration('wood', { minSlots: 1, maxSlots: 1 })
 
@@ -133,7 +148,7 @@ describe('StorageAlveolus Configuration', () => {
 	})
 
 	it('caps configured goods by buffered plus allowed slots', () => {
-		const alveolus = new StorageAlveolus(mockTile)
+		const alveolus = withHive(new StorageAlveolus(mockTile))
 		alveolus.working = true
 		alveolus.setSlottedGoodConfiguration('wood', { minSlots: 1, maxSlots: 1 })
 
@@ -144,7 +159,7 @@ describe('StorageAlveolus Configuration', () => {
 	})
 
 	it('rejects unspecified goods once the general slot pool is full', () => {
-		const alveolus = new StorageAlveolus(mockTile)
+		const alveolus = withHive(new StorageAlveolus(mockTile))
 		alveolus.working = true
 		alveolus.setSlottedGeneralSlots(1)
 
@@ -158,7 +173,7 @@ describe('StorageAlveolus Configuration', () => {
 	})
 
 	it('should not report slotted storage canTake when matching room is fully allocated', () => {
-		const alveolus = new StorageAlveolus(mockTile)
+		const alveolus = withHive(new StorageAlveolus(mockTile))
 		alveolus.working = true
 
 		const storage = alveolus.storage as SlottedStorage
@@ -178,7 +193,7 @@ describe('StorageAlveolus Configuration', () => {
 	})
 
 	it('should not report specific storage canTake when capacity is fully allocated', () => {
-		const alveolus = new SpecificStorageTestAlveolus(mockTile)
+		const alveolus = withHive(new SpecificStorageTestAlveolus(mockTile))
 		alveolus.working = true
 
 		const storage = alveolus.storage as SpecificStorage
@@ -197,7 +212,7 @@ describe('StorageAlveolus Configuration', () => {
 	})
 
 	it('keeps specific-storage buffers protected from 1-buffer gives while allowing 2-use', () => {
-		const alveolus = new SpecificStorageTestAlveolus(mockTile)
+		const alveolus = withHive(new SpecificStorageTestAlveolus(mockTile))
 		alveolus.working = true
 		alveolus.storageBuffers = { wood: 1 }
 

@@ -1,12 +1,12 @@
 import { reset } from 'mutts'
 import { Container, RenderLayer, Sprite, Texture } from 'pixi.js'
-import { afterEach, describe, expect, it } from 'vitest'
+import { alveolusClass } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
-import { alveolusClass } from 'ssh/hive/index'
+import { afterEach, describe, expect, it } from 'vitest'
+import { TestEngine } from '../../../ssh/tests/test-engine/engine'
 import type { PixiGameRenderer } from '../renderer'
 import { BorderVisual } from './border-visual'
 import { TileVisual } from './tile-visual'
-import { TestEngine } from '../../../ssh/tests/test-engine/engine'
 
 function createRendererStub(): PixiGameRenderer {
 	return {
@@ -43,7 +43,10 @@ function countSprites(node: Container): number {
 }
 
 function countSpritesInLayer(layer: RenderLayer): number {
-	return layer.renderLayerChildren.reduce((total, child) => total + countSprites(child as Container), 0)
+	return layer.renderLayerChildren.reduce(
+		(total, child) => total + countSprites(child as Container),
+		0
+	)
 }
 
 function storageLayerSpriteCount(renderer: PixiGameRenderer): number {
@@ -59,8 +62,7 @@ function nonStorageGoodsAttachmentCount(renderer: PixiGameRenderer): number {
 		renderer.layers.characters,
 	].reduce(
 		(total, layer) =>
-			total +
-			layer.renderLayerChildren.filter((child) => child.label.includes('/goods')).length,
+			total + layer.renderLayerChildren.filter((child) => child.label.includes('/goods')).length,
 		0
 	)
 }

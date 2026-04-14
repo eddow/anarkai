@@ -1,5 +1,5 @@
 import { Game } from 'ssh/game/game'
-import { BoardGenerator, GameGenerator, type GameGenerationConfig } from 'ssh/generation'
+import { BoardGenerator, type GameGenerationConfig, GameGenerator } from 'ssh/generation'
 import { axial } from 'ssh/utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -33,13 +33,14 @@ describe('streamed region generation', () => {
 		}
 		const full = generator.generateRegion(config, [...axial.enum(boardSize - 1)])
 		const coord = full.find(
-			(tile) =>
-				tile.hydrology?.isChannel || Object.keys(tile.hydrology?.edges ?? {}).length > 0
+			(tile) => tile.hydrology?.isChannel || Object.keys(tile.hydrology?.edges ?? {}).length > 0
 		)?.coord
 		expect(coord).toBeDefined()
 		if (!coord) throw new Error('Expected hydrology-bearing tile')
 		const streamedRegion = generator.generateRegion(config, [...axial.allTiles(coord, 8)])
-		const streamed = streamedRegion.filter((tile) => tile.coord.q === coord.q && tile.coord.r === coord.r)
+		const streamed = streamedRegion.filter(
+			(tile) => tile.coord.q === coord.q && tile.coord.r === coord.r
+		)
 
 		const fullTile = full.find((tile) => tile.coord.q === coord.q && tile.coord.r === coord.r)
 		expect(fullTile).toBeDefined()
@@ -83,13 +84,11 @@ describe('streamed region generation', () => {
 
 	it('returns hydrology metadata from render terrain samples', async () => {
 		const generator = new GameGenerator()
-		const generated = generator.generateRegion(
-			{ terrainSeed: 42, characterCount: 0 },
-			[...axial.enum(11)]
-		)
+		const generated = generator.generateRegion({ terrainSeed: 42, characterCount: 0 }, [
+			...axial.enum(11),
+		])
 		const coord = generated.find(
-			(tile) =>
-				tile.hydrology?.isChannel || Object.keys(tile.hydrology?.edges ?? {}).length > 0
+			(tile) => tile.hydrology?.isChannel || Object.keys(tile.hydrology?.edges ?? {}).length > 0
 		)?.coord
 		expect(coord).toBeDefined()
 		if (!coord) throw new Error('Expected hydrology-bearing coord')

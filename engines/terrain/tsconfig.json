@@ -11,7 +11,8 @@
 		"noFallthroughCasesInSwitch": true,
 		"sourceMap": true,
 		"paths": {
-			"terrain/*": ["./src/*"]
+			"terrain/*": ["./src/*"],
+			"engine-rules": ["../rules/src/index.ts"]
 		}
 	},
 	"include": ["src/**/*.ts", "tests/**/*.ts"]

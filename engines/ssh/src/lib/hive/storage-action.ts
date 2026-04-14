@@ -23,9 +23,11 @@ export function isRoadFretAction(action: Ssh.Action): action is Ssh.RoadFretActi
 	return action.type === 'road-fret'
 }
 
-export function readSlottedStorageParams(
-	action: Ssh.AlveolusStorageAction
-): { slots: number; capacity: number; buffers?: Record<string, number> } {
+export function readSlottedStorageParams(action: Ssh.AlveolusStorageAction): {
+	slots: number
+	capacity: number
+	buffers?: Record<string, number>
+} {
 	if (action.type === 'slotted-storage') {
 		return { slots: action.slots, capacity: action.capacity, buffers: action.buffers }
 	}
@@ -45,5 +47,7 @@ export function readSpecificStorageParams(action: Ssh.AlveolusStorageAction): {
 	if ((action.type === 'storage' || action.type === 'road-fret') && action.kind === 'specific') {
 		return { goods: action.goods, buffers: action.buffers }
 	}
-	throw new Error(`Expected specific storage layout, got action type ${(action as Ssh.Action).type}`)
+	throw new Error(
+		`Expected specific storage layout, got action type ${(action as Ssh.Action).type}`
+	)
 }

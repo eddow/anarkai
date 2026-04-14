@@ -3,6 +3,7 @@
  * Extracted from population/index.ts for better organization
  */
 
+import { populationSpawnMaxRadius, populationSpawnMinRadiusFromOrigin } from 'engine-rules'
 import type { AxialCoord } from 'ssh/utils'
 import { axial } from 'ssh/utils'
 import { AxialSet } from 'ssh/utils/mem'
@@ -29,8 +30,8 @@ export class PopulationGenerator {
 
 		// Recover original behavior: iteratively pick nearest fitting tiles around (0,0)
 		const origin = config.origin ?? { q: 0, r: 0 }
-		const minR = config.minRadiusFromOrigin ?? 2
-		const maxR = config.radius ?? 5
+		const minR = config.minRadiusFromOrigin ?? populationSpawnMinRadiusFromOrigin
+		const maxR = config.radius ?? populationSpawnMaxRadius
 
 		// Precompute eligible tiles with their distance to origin
 		const eligible = tileData

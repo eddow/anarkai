@@ -1,4 +1,10 @@
 import {
+	AUTO_GPU_MIN_TILES,
+	resolveAsyncFieldGenerationBackend,
+	resolveSyncFieldGenerationBackend,
+} from 'terrain/fields'
+import { generateFieldsCpu } from 'terrain/fields/cpu'
+import {
 	canUseWebGpuFields,
 	createFieldGenerationShaderSource,
 	disposeGpuFieldRuntime,
@@ -9,12 +15,6 @@ import {
 	unpackFieldResult,
 	warmGpuFieldRuntime,
 } from 'terrain/fields/gpu'
-import {
-	AUTO_GPU_MIN_TILES,
-	resolveAsyncFieldGenerationBackend,
-	resolveSyncFieldGenerationBackend,
-} from 'terrain/fields'
-import { generateFieldsCpu } from 'terrain/fields/cpu'
 import { DEFAULT_TERRAIN_CONFIG } from 'terrain/types'
 import { describe, expect, it } from 'vitest'
 
@@ -32,8 +32,7 @@ describe('GPU field groundwork', () => {
 		const tiles = unpackFieldResult(request, {
 			stride: FIELD_RESULT_STRIDE,
 			values: Float32Array.from([
-				0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7,
-				0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4,
+				0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4,
 			]),
 		})
 

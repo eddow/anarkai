@@ -1,3 +1,4 @@
+import { streamHydrologyPadding } from 'engine-rules'
 import { classifyTile } from './classify'
 import { edgeKey } from './edge-key'
 import {
@@ -77,7 +78,9 @@ function assertSnapshot(snapshot: TerrainSnapshot): void {
 		!(snapshot.hydrology?.channels instanceof Set) ||
 		!(snapshot.hydrology?.channelInfluence instanceof Map)
 	) {
-		throw new Error('Invalid TerrainSnapshot: hydrology must contain banks, channels, and channelInfluence')
+		throw new Error(
+			'Invalid TerrainSnapshot: hydrology must contain banks, channels, and channelInfluence'
+		)
 	}
 }
 
@@ -232,7 +235,10 @@ export function generateHydratedRegionWithMetrics(
 	const config = resolveConfig(options)
 	const tileOverrides = options?.tileOverrides ? [...options.tileOverrides] : undefined
 	const requestedKeys = new Set(requestedCoords.map((coord) => axial.key(coord)))
-	const paddedCoords = expandCoords(requestedCoords, options?.hydrologyPadding ?? 4)
+	const paddedCoords = expandCoords(
+		requestedCoords,
+		options?.hydrologyPadding ?? streamHydrologyPadding
+	)
 	const requestedBackend = options?.fieldBackend ?? 'auto'
 	const resolvedBackend = resolveSyncFieldGenerationBackend(options?.fieldBackend)
 	const gpuRuntimeReadyAtStart = isGpuFieldRuntimeReady()
@@ -306,10 +312,16 @@ export async function generateHydratedRegionAsyncWithMetrics(
 	const config = resolveConfig(options)
 	const tileOverrides = options?.tileOverrides ? [...options.tileOverrides] : undefined
 	const requestedKeys = new Set(requestedCoords.map((coord) => axial.key(coord)))
-	const paddedCoords = expandCoords(requestedCoords, options?.hydrologyPadding ?? 4)
+	const paddedCoords = expandCoords(
+		requestedCoords,
+		options?.hydrologyPadding ?? streamHydrologyPadding
+	)
 	const requestedBackend = options?.fieldBackend ?? 'auto'
 	const gpuRuntimeReadyAtStart = isGpuFieldRuntimeReady()
-	const resolvedBackend = resolveAsyncFieldGenerationBackend(options?.fieldBackend, paddedCoords.length)
+	const resolvedBackend = resolveAsyncFieldGenerationBackend(
+		options?.fieldBackend,
+		paddedCoords.length
+	)
 
 	const startedAt = nowMs()
 	const tiles = await generateFieldsAsync(paddedCoords, seed, config, options?.fieldBackend)
@@ -370,7 +382,9 @@ export function mergeSnapshotRegion(
 	assertSnapshot(snapshot)
 	assertSnapshot(region)
 	if (snapshot.seed !== region.seed) {
-		throw new Error(`Cannot merge TerrainSnapshot with mismatched seed: ${snapshot.seed} !== ${region.seed}`)
+		throw new Error(
+			`Cannot merge TerrainSnapshot with mismatched seed: ${snapshot.seed} !== ${region.seed}`
+		)
 	}
 
 	const addedTiles: AxialKey[] = []

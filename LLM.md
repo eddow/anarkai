@@ -22,19 +22,23 @@ Anarkai is a modular monorepo driven by a custom game engine (`engines/ssh`) and
 - Sector-baked **resource** sprites (`TerrainVisual` in `engines/pixi`) only rebuild when sectors are dirtied. After changing `UnBuiltLand.deposit` or `Deposit.amount` in gameplay, call `Game.notifyTerrainDepositsChanged(tile)` so `renderer.invalidateTerrain(coord)` runs (see `engines/ssh` tests `deposit-terrain-notify.test.ts`).
  
  ## Content Locations
- - **Game Definitions**: `engines/ssh/assets/game-content.ts` (stats, timing, costs)
+ - **Game rules (authoritative)**: `engines/rules` (`engine-rules` workspace package: terrain/deposits/alveoli/goods, job balance, character/planner tuning, terrain defaults)
+ - **SSH typed re-exports**: `engines/ssh/assets/game-content.ts` (wraps `engine-rules` with `Ssh.*` contract `satisfies`)
  - **Visual Definitions**: `engines/pixi/assets/visual-content.ts` (sprites, icons)
  - **Translations**: `engines/ssh/assets/locales/*.json` (en, fr, etc.)
  - **Visual Assets**: `engines/pixi/assets/buildings/`, `engines/pixi/assets/goods/`, etc.
 
 ## `engines/ssh` freight lines (v1)
+- Gather/distribute goods filtering is stored on each line as `goodsSelection` (`goodRules` then ordered `tagRules`, then `defaultEffect`). Legacy saves may still carry `filters: GoodType[]`; `normalizeFreightLineDefinition` migrates that shape into `goodsSelection` and strips `filters` on load/replace.
 - `Game.freightLines` is a **plain array** (not a reactive `Map`) merged from save patches plus implicit gather lines derived from hive alveolus patches (`implicitGatherFreightLinesFromHivePatches` in `src/lib/freight/freight-line.ts`).
 - Gather radius is now **line-owned**: the `gather` alveolus definition no longer carries a radius, and implicit one-stop gather lines use the single `DEFAULT_GATHER_FREIGHT_RADIUS` constant in `src/lib/freight/freight-line.ts`.
 - Synthetic inspector line objects use stable uids derived from line ids (`freight-line:${encodeURIComponent(id)}`) and are resolved through `Game.getObject(uid)` without becoming board-registered interactive objects.
 - `movement.finish` / `movement.hop` invariants allow a **fulfilled (invalid) source allocation** via `allowFulfilledSourceAllocation` — after pickup the source reservation is fulfilled while the good is in-flight.
+- Multi-hop convey now treats `border -> tile -> border` as a **bridge handoff**: relay traversability is independent from storage room and independent from whether the relay alveolus can store that good at all. A full storage or a typed storage mismatch (for example `woodpile` while `stone` is merely passing through) must not block the route.
 - Follow-on compatibility note: `freight_bay` is now the named gather-stop building and reuses the old `buildings.load` icon. The `gather` alveolus content key is gone; old hive patches using `gather` are migrated to `freight_bay` during load while the runtime still uses `GatherAlveolus` semantics as a bridge.
 
 ## Hive inspector (browser)
 - Synthetic hive uids are anchored to the **tile** hosting the alveolus: `hive:${encodeURIComponent(tileUid)}` (`hiveUidForAnchorTile`, `engines/ssh/src/lib/hive/hive-inspector.ts`). `Game.getObject` resolves them like freight lines; the live `Hive` instance comes from `resolveHiveFromAnchorTile` so pinned panels **retarget** after hive topology refresh as long as that tile still has an alveolus in a hive.
 - Inspector UI: tile alveolus header uses `HiveAnchorButton` → `showProps(syntheticHive)`. The button now uses a **glyph icon** from `pure-glyf/icons` rather than a borrowed building sprite, so avoid reintroducing hive-specific art in `visual-content.ts` unless you truly want terrain/rendered world usage too.
+- Hive metadata is now two-layered: alveolus `working` remains the local flag/config, while effective runtime activity is `alveolus.configuration.working && hive.working`. Hive `name`/`working` are preserved through save-load and topology rebuilds; rebuilt names must go through `generateRebuiltHiveName(...)` instead of open-coding suffixes.
 

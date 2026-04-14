@@ -87,9 +87,7 @@ describe('classifyTile()', () => {
 	})
 
 	it('wetland: low height + very humid', () => {
-		expect(classifyTile(tile({ height: cfg.seaLevel + 0.01, humidity: 0.2 }), [], cfg)).toBe(
-			'sand'
-		)
+		expect(classifyTile(tile({ height: cfg.seaLevel + 0.01, humidity: 0.2 }), [], cfg)).toBe('sand')
 	})
 
 	it('bank influence marks land tile as river-bank even without direct flux on all sides', () => {
@@ -98,12 +96,9 @@ describe('classifyTile()', () => {
 
 	it('strong channel influence can widen a lowland river tile into lake biome', () => {
 		expect(
-			classifyTile(
-				tile({ height: -0.02 }),
-				[{ flux: 14, width: 4, depth: 2, slope: 0.1 }],
-				cfg,
-				{ channelInfluence: 1.4 }
-			)
+			classifyTile(tile({ height: -0.02 }), [{ flux: 14, width: 4, depth: 2, slope: 0.1 }], cfg, {
+				channelInfluence: 1.4,
+			})
 		).toBe('lake')
 	})
 })

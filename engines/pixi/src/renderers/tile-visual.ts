@@ -1,5 +1,5 @@
 import { effect } from 'mutts'
-import { ColorMatrixFilter, Container, Graphics, Point, TilingSprite } from 'pixi.js'
+import { ColorMatrixFilter, Container, Graphics, Point, type TilingSprite } from 'pixi.js'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
 import { interactionMode } from 'ssh/interactive-state'

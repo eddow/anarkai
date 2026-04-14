@@ -48,6 +48,9 @@ importers:
       engine-pixi:
         specifier: link:../../engines/pixi
         version: link:../../engines/pixi
+      engine-rules:
+        specifier: workspace:*
+        version: link:../../engines/rules
       eventemitter3:
         specifier: ^5.0.1
         version: 5.0.1
@@ -159,6 +162,15 @@ importers:
         specifier: 25.0.10
         version: 25.0.10
 
+  engines/rules:
+    devDependencies:
+      typescript:
+        specifier: ~5.8.3
+        version: 5.8.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.4(@types/node@25.0.10)(jsdom@27.4.0)(sass-embedded@1.97.1)(sass@1.97.1)(terser@5.44.1)(tsx@4.21.0)
+
   engines/ssh:
     dependencies:
       '@iconify-icons/material-symbols':
@@ -173,6 +185,9 @@ importers:
       arktype:
         specifier: ^2.1.22
         version: 2.1.29
+      engine-rules:
+        specifier: workspace:*
+        version: link:../rules
       engine-terrain:
         specifier: workspace:*
         version: link:../terrain
@@ -249,6 +264,9 @@ importers:
       '@webgpu/types':
         specifier: ^0.1.69
         version: 0.1.69
+      engine-rules:
+        specifier: workspace:*
+        version: link:../rules
       typescript:
         specifier: ~5.8.3
         version: 5.8.3

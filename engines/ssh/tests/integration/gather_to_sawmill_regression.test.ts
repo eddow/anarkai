@@ -8,13 +8,21 @@ async function flushDeferred(turns: number = 3) {
 	}
 }
 
-function claimMovementForTest(movement: { claimed?: boolean; claimedBy?: string; claimedAtMs?: number }) {
+function claimMovementForTest(movement: {
+	claimed?: boolean
+	claimedBy?: string
+	claimedAtMs?: number
+}) {
 	movement.claimed = true
 	movement.claimedBy = 'gather-to-sawmill-regression'
 	movement.claimedAtMs = Date.now()
 }
 
-function releaseMovementClaimForTest(movement: { claimed?: boolean; claimedBy?: string; claimedAtMs?: number }) {
+function releaseMovementClaimForTest(movement: {
+	claimed?: boolean
+	claimedBy?: string
+	claimedAtMs?: number
+}) {
 	movement.claimed = false
 	delete movement.claimedBy
 	delete movement.claimedAtMs

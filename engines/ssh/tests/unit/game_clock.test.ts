@@ -1,5 +1,7 @@
+import { gameRootSpeed, gameTimeSpeedFactors } from 'engine-rules'
 import { Game } from 'ssh/game'
 import { configuration } from 'ssh/globals'
+import type { SimulationLoop } from 'ssh/utils/loop'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 describe('Game Clock', () => {
@@ -13,46 +15,40 @@ describe('Game Clock', () => {
 		})
 		game.ticker.stop()
 		await game.loaded
-		// Reset time to 0 manually if needed or just instantiate new game
 		game.clock.virtualTime = 0
 	})
 
 	afterEach(() => {
+		configuration.timeControl = 1
 		game.destroy()
 	})
 
-	it('increments time correctly based on time controls', () => {
-		// Default to play
-		configuration.timeControl = 'play'
-
+	it('advances virtual time using the selected numeric speed slot', () => {
 		const tick = (deltaMs: number) => {
-			;(game as any).tickerCallback({ elapsedMS: deltaMs })
+			game.tickerCallback({ elapsedMS: deltaMs } as SimulationLoop)
 		}
 
-		// Tick 1 second of real time in 100ms chunks (10 steps)
+		configuration.timeControl = 0
+		for (let i = 0; i < 10; i++) {
+			tick(100)
+		}
+		expect(game.clock.virtualTime).toBeCloseTo(0, 0.1)
+
+		configuration.timeControl = 1
+		for (let i = 0; i < 10; i++) {
+			tick(100)
+		}
+		expect(game.clock.virtualTime).toBeCloseTo(gameRootSpeed * gameTimeSpeedFactors[1], 0.1)
+
+		configuration.timeControl = gameTimeSpeedFactors.length - 1
 		for (let i = 0; i < 10; i++) {
 			tick(100)
 		}
 
-		// rootSpeed = 2, multiplier = 1 -> delta = 2s total
-		expect(game.clock.virtualTime).toBeCloseTo(2, 0.1)
-
-		// Switch to fast-forward
-		configuration.timeControl = 'fast-forward'
-		// multiplier = 2 -> delta should be 2 * 2 = 4s
-		for (let i = 0; i < 10; i++) {
-			tick(100)
-		}
-
-		expect(game.clock.virtualTime).toBeCloseTo(2 + 4, 0.1) // 6
-
-		// Switch to pause
-		configuration.timeControl = 'pause'
-		// multiplier = 0 -> delta should be 0
-		for (let i = 0; i < 10; i++) {
-			tick(100)
-		}
-
-		expect(game.clock.virtualTime).toBeCloseTo(6, 0.1)
+		expect(game.clock.virtualTime).toBeCloseTo(
+			gameRootSpeed * (gameTimeSpeedFactors[1] + gameTimeSpeedFactors.at(-1)!),
+			0.1
+		)
+		expect(gameRootSpeed).toBe(2)
 	})
 })

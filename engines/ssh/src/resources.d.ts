@@ -149,6 +149,12 @@ declare namespace Ssh {
 	interface GoodsDefinition {
 		satiationStrength?: number
 		halfLife: number
+		/** Integer mass in kilograms for logistics and balancing. */
+		massKg?: number
+		/** Integer trade hint in abstract value points (smallest indivisible unit). */
+		baseValueVp?: number
+		/** Slash-separated hierarchical tags, e.g. `liquid/water`, `temperature/chilled`. */
+		tags?: readonly string[]
 	}
 
 	interface VehicleDefinition {

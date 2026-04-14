@@ -1,9 +1,16 @@
+import type { gameTimeSpeedFactors } from 'engine-rules'
 import { reactive, root } from 'mutts'
 import { Game } from './game'
 import { chopSaw as patches } from './game/exampleGames'
 
+type TupleIndexStrings<T extends readonly unknown[]> = Exclude<keyof T, keyof (readonly unknown[])>
+type TupleIndexNumbers<T extends readonly unknown[]> =
+	TupleIndexStrings<T> extends `${infer N extends number}` ? N : never
+
+export type TimeControl = TupleIndexNumbers<typeof gameTimeSpeedFactors>
+
 export interface Configuration {
-	timeControl: 0 | 1 | 2 | 3 | 'pause' | 'play' | 'fast-forward' | 'gonzales'
+	timeControl: TimeControl
 }
 
 function getDefaultConfiguration(): Configuration {

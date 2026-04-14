@@ -1,4 +1,5 @@
-import { document, latch } from '@sursaut/core'
+import { document, latch, sursautOptions } from '@sursaut/core'
+import { reactive } from 'mutts'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const i18nState = {
@@ -24,7 +25,9 @@ vi.mock('@app/ui/anarkai', () => ({
 }))
 
 vi.mock('engine-pixi/assets/visual-content', () => ({
-	deposits: {},
+	deposits: {
+		stone: { sprites: ['stone-sprite'] },
+	},
 }))
 
 vi.mock('ssh/i18n', () => ({
@@ -69,6 +72,7 @@ describe('UnBuiltProperties', () => {
 		stop = undefined
 		container.remove()
 		document.body.innerHTML = ''
+		sursautOptions.checkRebuild = 'warn'
 	})
 
 	it('falls back safely when translator values are non-primitive', () => {
@@ -124,5 +128,37 @@ describe('UnBuiltProperties', () => {
 		)
 
 		expect(container.innerHTML).toBeTruthy()
+	})
+
+	it('does not trip the rebuild fence when deposit amount changes', () => {
+		sursautOptions.checkRebuild = 'error'
+		const content = reactive({
+			project: undefined as string | undefined,
+			deposit: reactive({
+				amount: 3,
+				constructor: {
+					key: 'stone',
+					name: 'stone',
+				},
+			}),
+			tile: reactive({
+				isClear: true,
+				board: { game: {} },
+			}),
+		})
+
+		stop = latch(
+			container,
+			<table>
+				<tbody>
+					<UnBuiltProperties content={content as never} />
+				</tbody>
+			</table>
+		)
+
+		expect(() => {
+			content.deposit.amount = 2
+		}).not.toThrow()
+		expect(container.textContent).toContain('2')
 	})
 })
