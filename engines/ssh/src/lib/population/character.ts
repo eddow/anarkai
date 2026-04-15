@@ -20,6 +20,7 @@ import {
 	applyNeedRate,
 	characterEvolutionRates,
 	characterTriggerLevels,
+	dwellingRecoveryRates,
 	maxWalkTime,
 	readCharacterEvolutionRate,
 	residentialRecoveryRates,
@@ -41,11 +42,13 @@ function roundDiagnosticValue(value: number): number {
 	return Math.round(value * 1000) / 1000
 }
 
+import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { GameObject, withInteractive, withTicked } from 'ssh/game/object'
 import { gameIsaTypes } from 'ssh/npcs'
 import aCharacterContext from 'ssh/npcs/context'
 import { withScripted } from 'ssh/npcs/object'
 import type { ScriptExecution } from 'ssh/npcs/scripts'
+import { releaseAllHomeReservations } from 'ssh/residential/housing-reservations'
 import { Vehicle } from './vehicle/vehicle'
 
 export interface RankedWorkCandidateSnapshot {
@@ -198,6 +201,8 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 				return `${job.goodType} @ ${targetName}`
 			case 'gather':
 				return job.goodType ? `${job.goodType} @ ${targetName}` : targetName
+			case 'freightDeliver':
+				return `${job.goodType} freightDeliver @ ${coord.q}, ${coord.r}`
 			default:
 				return targetName
 		}
@@ -250,6 +255,13 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		}
 		if (candidate.job.job === 'gather' && match.job.job === 'gather') {
 			return candidate.job.goodType === match.job.goodType
+		}
+		if (candidate.job.job === 'freightDeliver' && match.job.job === 'freightDeliver') {
+			return (
+				candidate.job.goodType === match.job.goodType &&
+				axial.key(candidate.job.site) === axial.key(match.job.site) &&
+				axial.key(candidate.job.bay) === axial.key(match.job.bay)
+			)
 		}
 		return true
 	}
@@ -423,11 +435,17 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		return axial.distance(coord, toAxialCoord(this.position)) <= 0.3
 	}
 
-	/** Whether this character is currently standing on their reserved residential tile. */
+	/** Whether this character is currently standing on their reserved home (dwelling or residential tile). */
 	get isAtHome(): boolean {
+		const pos = toAxialCoord(this.position)
+		if (!pos) return false
+		const tile = this.game.hex.getTile(pos)
+		const content = tile?.content
+		if (content instanceof BasicDwelling && content.isReservedBy(this)) {
+			return true
+		}
 		const reservation = this.game.hex.zoneManager.getReservation(this)
 		if (!reservation) return false
-		const pos = toAxialCoord(this.position)
 		return Math.round(pos.q) === reservation.q && Math.round(pos.r) === reservation.r
 	}
 
@@ -441,13 +459,16 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		this.fatigue = applyNeedRate(this.fatigue, fatigueRate, deltaSeconds)
 
 		if (this.isAtHome) {
-			this.hunger = applyNeedRate(this.hunger, -residentialRecoveryRates.hunger, deltaSeconds)
-			this.fatigue = applyNeedRate(this.fatigue, -residentialRecoveryRates.fatigue, deltaSeconds)
-			this.tiredness = applyNeedRate(
-				this.tiredness,
-				-residentialRecoveryRates.tiredness,
-				deltaSeconds
-			)
+			const pos = toAxialCoord(this.position)
+			const tile = pos ? this.game.hex.getTile(pos) : undefined
+			const dwelling =
+				tile?.content instanceof BasicDwelling && tile.content.isReservedBy(this)
+					? tile.content
+					: undefined
+			const rates = dwelling ? dwellingRecoveryRates : residentialRecoveryRates
+			this.hunger = applyNeedRate(this.hunger, -rates.hunger, deltaSeconds)
+			this.fatigue = applyNeedRate(this.fatigue, -rates.fatigue, deltaSeconds)
+			this.tiredness = applyNeedRate(this.tiredness, -rates.tiredness, deltaSeconds)
 		}
 
 		super.update(deltaSeconds)
@@ -455,7 +476,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 
 	findAction() {
 		return inert(() => {
-			this.game.hex.zoneManager.releaseReservation(this)
+			releaseAllHomeReservations(this.game, this)
 			const bestWorkMatch = this.resolveBestJobMatch()
 			const workSnapshot = this.buildRankedWorkSnapshot(bestWorkMatch)
 			if (workSnapshot) this.lastWorkPlannerSnapshot = workSnapshot

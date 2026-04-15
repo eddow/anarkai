@@ -80,7 +80,7 @@ css`
 `
 
 interface LinkedEntityControlProps {
-	object:
+	object?:
 		| InspectorSelectableObject
 		| InteractiveGameObject
 		| SyntheticFreightLineObject
@@ -89,28 +89,34 @@ interface LinkedEntityControlProps {
 }
 
 const LinkedEntityControl = (props: LinkedEntityControlProps) => {
+	type LinkedEntityTarget = NonNullable<LinkedEntityControlProps['object']>
 	const state = reactive({
 		backgroundStyle: '',
 		sprite: undefined as string | undefined,
 		visualObjectUid: '',
 		objectTitle: '',
-		objectGame: undefined as typeof props.object.game | undefined,
+		objectGame: undefined as LinkedEntityTarget['game'] | undefined,
 	})
+	const currentObject = (): LinkedEntityTarget | undefined => props.object
 	const visualTile = () => {
-		const object = props.object
+		const object = currentObject()
+		if (!object) return undefined
 		if (object instanceof Tile) return object
 		return 'tile' in object ? object.tile : undefined
 	}
 
 	effect`linked-entity:object-meta`(() => {
-		state.visualObjectUid = props.object.uid
-		state.objectTitle = props.object.title
-		state.objectGame = props.object.game
+		const object = currentObject()
+		state.visualObjectUid = object?.uid ?? ''
+		state.objectTitle = object?.title ?? ''
+		state.objectGame = object?.game
 	})
 
 	effect`linked-entity:visual-object`(() => {
-		if (state.visualObjectUid === props.object.uid) return
-		state.visualObjectUid = props.object.uid
+		const object = currentObject()
+		const nextUid = object?.uid ?? ''
+		if (state.visualObjectUid === nextUid) return
+		state.visualObjectUid = nextUid
 		state.sprite = undefined
 		state.backgroundStyle = ''
 	})
@@ -155,14 +161,14 @@ const LinkedEntityControl = (props: LinkedEntityControlProps) => {
 
 	const applyHover = (event: MouseEvent) => {
 		event.stopPropagation()
-		const hoverObject = resolveSelectableHoverObject(props.object)
+		const hoverObject = resolveSelectableHoverObject(currentObject())
 		if (!hoverObject) return
 		setHoveredObject(hoverObject)
 	}
 
 	const clearHover = (event: MouseEvent) => {
 		event.stopPropagation()
-		const hoverObject = resolveSelectableHoverObject(props.object)
+		const hoverObject = resolveSelectableHoverObject(currentObject())
 		if (!hoverObject) return
 		if (isHoveredObject(hoverObject)) {
 			mrg.hoveredObject = undefined
@@ -172,7 +178,9 @@ const LinkedEntityControl = (props: LinkedEntityControlProps) => {
 	const handleClick = (event: MouseEvent) => {
 		event.preventDefault()
 		event.stopPropagation()
-		showProps(props.object)
+		const object = currentObject()
+		if (!object) return
+		showProps(object)
 	}
 
 	const attachHoverTracking = (element: HTMLElement) => {
@@ -193,6 +201,7 @@ const LinkedEntityControl = (props: LinkedEntityControlProps) => {
 
 	return (
 		<button
+			if={currentObject()}
 			type="button"
 			use={attachHoverTracking}
 			class={['linked-entity-control', props.class]}

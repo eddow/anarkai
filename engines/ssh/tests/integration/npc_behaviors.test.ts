@@ -2,6 +2,7 @@ import type { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { GoodType } from 'ssh/types'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { activityDurations } from '../../assets/constants'
+import { gatherFreightLine } from '../freight-fixtures'
 import { TestEngine } from '../test-engine'
 
 describe('NPC Behaviors Integration', () => {
@@ -182,24 +183,14 @@ describe('NPC Behaviors Integration', () => {
 			// Explicit gather-line filter keeps the hut from opportunistically targeting unrelated
 			// equilibrium loose goods that can appear on the hive footprint during generation.
 			freightLines: [
-				{
+				gatherFreightLine({
 					id: 'gatherers:gather:mushrooms-only',
 					name: 'Gatherers mushroom shuttle',
-					mode: 'gather' as const,
-					stops: [
-						{
-							hiveName: 'Gatherers',
-							alveolusType: 'gather' as const,
-							coord: [2, 2] as const,
-						},
-					],
+					hiveName: 'Gatherers',
+					coord: [2, 2],
+					filters: ['mushrooms'],
 					radius: 9,
-					goodsSelection: {
-						goodRules: [{ goodType: 'mushrooms', effect: 'allow' }],
-						tagRules: [],
-						defaultEffect: 'deny',
-					},
-				},
+				}),
 			],
 			looseGoods: [
 				{ goodType: 'mushrooms', position: { q: 2, r: 1 }, amount: 1 },
@@ -407,7 +398,9 @@ describe('NPC Behaviors Integration', () => {
 		expect(char.hunger).toBeLessThan(char.triggerLevels.hunger.satisfied)
 	})
 
-	it('Scenario: Self-Care stops after satisfying carried-food hunger', { timeout: 15000 }, async () => {
+	it('Scenario: Self-Care stops after satisfying carried-food hunger', {
+		timeout: 15000,
+	}, async () => {
 		const { engine, game } = await setupEngine()
 
 		engine.loadScenario({

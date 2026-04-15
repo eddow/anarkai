@@ -51,17 +51,29 @@ describe('goods selection policy', () => {
 		expect(new Set(allowed)).toEqual(new Set<GoodType>(['wood', 'berries']))
 	})
 
-	it('normalizes freight lines by merging legacy filters into goodsSelection', () => {
+	it('normalizes freight line stops (anchors, zones, selection policies)', () => {
 		const normalized = normalizeFreightLineDefinition({
 			id: 'L',
 			name: 'Line',
-			mode: 'gather',
-			stops: [{ hiveName: 'H', alveolusType: 'freight_bay', coord: [0, 0] }],
-			filters: ['wood', 'wood', 'berries'],
-			radius: 2,
+			stops: [
+				{
+					id: 'z',
+					loadSelection: migrateV1FiltersToGoodsSelection(['wood', 'wood', 'berries']),
+					zone: { kind: 'radius', center: [0, 0], radius: 2 },
+				},
+				{
+					id: 'b',
+					anchor: {
+						kind: 'alveolus',
+						hiveName: 'H',
+						alveolusType: 'freight_bay',
+						coord: [0, 0],
+					},
+				},
+			],
 		})
-		expect(normalized.filters).toBeUndefined()
-		expect(normalized.goodsSelection).toEqual({
+		const loadStop = normalized.stops[0]
+		expect(loadStop?.loadSelection).toEqual({
 			goodRules: [
 				{ goodType: 'wood', effect: 'allow' },
 				{ goodType: 'berries', effect: 'allow' },

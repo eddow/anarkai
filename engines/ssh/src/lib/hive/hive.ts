@@ -318,7 +318,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 					})
 					continue
 				}
-				this.advertise(alveolus, unwrap(relations))
+				this.advertise(alveolus, unwrap(relations) ?? {})
 			}
 		})
 	}
@@ -482,21 +482,39 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		this.pathCache.clear()
 	}
 
-	private isTraversableRelayTile(
-		coord: AxialCoord,
+	/**
+	 * Whether a good may cross this **tile** when moving **border to border** (transit only).
+	 * Does not depend on storage room or whether the alveolus stores the good type.
+	 */
+	private isRelayTransitTile(
+		tileCoord: AxialCoord,
 		_goodType: GoodType,
-		source: AxialCoord,
-		destination: AxialCoord
+		source: AxialCoord | undefined,
+		destination: AxialCoord | undefined
 	): boolean {
-		const key = axial.key(coord)
-		if (key === axial.key(source) || key === axial.key(destination)) return true
+		if (source && axial.key(tileCoord) === axial.key(source)) return true
+		if (destination && axial.key(tileCoord) === axial.key(destination)) return true
 
-		const content = this.board.getTileContent(coord)
-
-		// Border -> tile -> border is a pure bridge handoff. The good does not
-		// logically enter the alveolus storage, so relay traversability must not
-		// depend on current room or on whether that alveolus stores this good.
+		const content = this.board.getTileContent(tileCoord)
 		return content instanceof Alveolus
+	}
+
+	/** Trimmed convey routes: border hops then a single terminal demander tile. */
+	private assertLogisticsPathShape(path: readonly AxialCoord[], context: string) {
+		assert(path.length >= 1, `${context}: convey path must be non-empty`)
+		const last = path[path.length - 1]!
+		assert(isTileCoord(last), `${context}: convey path must end on the demander tile`)
+		if (path.length === 1) {
+			assert(isTileCoord(path[0]!), `${context}: terminal-only remainder must be a tile`)
+			return
+		}
+		assert(!isTileCoord(path[0]!), `${context}: multi-hop convey path must begin on a border hop`)
+		for (let i = 0; i < path.length - 1; i++) {
+			assert(
+				!(isTileCoord(path[i]!) && isTileCoord(path[i + 1]!)),
+				`${context}: convey path must not contain consecutive tile nodes`
+			)
+		}
 	}
 
 	private getPath(from: Alveolus, to: Alveolus, goodType: GoodType): AxialCoord[] | undefined {
@@ -518,12 +536,11 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		)
 
 		if (path && path.length > 0) {
-			// Pathfinding returns a full route starting on the provider tile:
-			// tile -> border -> tile -> border -> ... -> destination tile.
-			// Convey movements must keep every hop after the origin tile so workers see:
-			// border -> tile -> border -> ... -> destination tile.
+			// Full route: provider tile -> border -> border -> ... -> border -> demander tile.
+			// Movements keep hops after the origin tile: first hop is onto a gate border.
 			const trimmed = path.slice(1)
 			if (trimmed.length < 1) return undefined
+			this.assertLogisticsPathShape(trimmed, 'getPath')
 			this.pathCache.set(key, trimmed)
 			return trimmed
 		}
@@ -1458,6 +1475,9 @@ export class Hive extends AdvertisementManager<Alveolus> {
 
 	hasIncomingMovementFor(alveolus: Alveolus): boolean {
 		const here = toAxialCoord(alveolus.tile.position)!
+		const surroundingBorderKeys = new Set(
+			alveolus.tile.surroundings.map(({ border }) => axial.key(toAxialCoord(border.position)!))
+		)
 		for (const { border } of alveolus.tile.surroundings) {
 			const borderCoord = toAxialCoord(border.position)!
 			const goods = this.movingGoods.get(borderCoord)
@@ -1474,6 +1494,7 @@ export class Hive extends AdvertisementManager<Alveolus> {
 				const nextStep = movement.path[0]
 				if (!nextStep) continue
 				if (axial.key(nextStep) === axial.key(here)) return true
+				if (!isTileCoord(nextStep) && surroundingBorderKeys.has(axial.key(nextStep))) return true
 			}
 		}
 		return false
@@ -1842,7 +1863,9 @@ export class Hive extends AdvertisementManager<Alveolus> {
 		if (!path) return undefined
 		if (path.length === 1) return []
 		if (path.length < 2) return undefined
-		return path.slice(1)
+		const trimmed = path.slice(1)
+		if (trimmed.length) this.assertLogisticsPathShape(trimmed, 'getPathFromCoord')
+		return trimmed
 	}
 
 	private sourceHiveAt(coord: AxialCoord): Hive | undefined {
@@ -2454,13 +2477,38 @@ export class Hive extends AdvertisementManager<Alveolus> {
 			if (!content?.tile || !gates) return []
 			return gates.map((g) => g.border.position)
 		}
-		// Get a border's neighbors - find tileA's and tileB's borders who are gates but not me
 		const border = this.board.getBorder(ref)!
-		return [border.tile.a.position, border.tile.b.position].filter((tilePosition) => {
-			const tileCoord = toAxialCoord(tilePosition)
-			if (!source || !destination) return true
-			return this.isTraversableRelayTile(tileCoord, goodType, source, destination)
-		})
+		const hereKey = axial.key(coord)
+		const seen = new Set<string>()
+		const out: AxialCoord[] = []
+		const push = (p: AxialCoord) => {
+			const k = axial.key(p)
+			if (seen.has(k)) return
+			seen.add(k)
+			out.push(p)
+		}
+		for (const tile of [border.tile.a, border.tile.b] as const) {
+			const tileCoord = toAxialCoord(tile.position)
+			if (source && destination) {
+				if (!this.isRelayTransitTile(tileCoord, goodType, source, destination)) continue
+			} else if (!this.isRelayTransitTile(tileCoord, goodType, undefined, undefined)) {
+				continue
+			}
+			const content = tile.content
+			if (!(content instanceof Alveolus)) continue
+			for (const gate of content.gates) {
+				const b = toAxialCoord(gate.border.position)
+				if (axial.key(b) === hereKey) continue
+				push(b)
+			}
+			if (destination && axial.key(tileCoord) === axial.key(destination)) {
+				push(toAxialCoord(destination))
+			}
+			if (source && axial.key(tileCoord) === axial.key(source)) {
+				push(toAxialCoord(source))
+			}
+		}
+		return out
 	}
 	//#region Needy / events
 

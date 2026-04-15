@@ -1,13 +1,17 @@
 import {
+	applyGatherRadiusFromEditor,
 	DEFAULT_GATHER_FREIGHT_RADIUS,
 	findDistributeFreightLine,
 	findGatherFreightLine,
+	freightLineEditorGatherRadius,
 	freightLineStationLabel,
 	freightLineUid,
+	normalizeFreightLineDefinition,
 } from 'ssh/freight/freight-line'
 import type { SaveState } from 'ssh/game'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { describe, expect, it } from 'vitest'
+import { distributeFreightLine, gatherFreightLine } from '../freight-fixtures'
 import { TestEngine } from '../test-engine'
 
 describe('Freight line bootstrap', () => {
@@ -24,7 +28,8 @@ describe('Freight line bootstrap', () => {
 		expect(gather.hive).toBeDefined()
 		expect(engine.game.freightLines.length).toBeGreaterThan(0)
 		expect(gather.action).not.toHaveProperty('radius')
-		expect(engine.game.freightLines[0]?.radius).toBe(DEFAULT_GATHER_FREIGHT_RADIUS)
+		const implicit = engine.game.freightLines[0]
+		expect(freightLineEditorGatherRadius(implicit!)).toBe(DEFAULT_GATHER_FREIGHT_RADIUS)
 		await engine.destroy()
 	})
 
@@ -68,7 +73,7 @@ describe('Freight line bootstrap', () => {
 		}
 	})
 
-	it('uses the freight line radius as the gather authority', async () => {
+	it('uses the gather load zone radius as the gather authority', async () => {
 		const engine = new TestEngine({ terrainSeed: 1, characterCount: 0 })
 		await engine.init()
 		try {
@@ -84,23 +89,22 @@ describe('Freight line bootstrap', () => {
 				],
 				looseGoods: [{ goodType: 'wood', position: { q: 0, r: 2 } }],
 				freightLines: [
-					{
+					gatherFreightLine({
 						id: 'GatherRadiusHive:implicit-gather:0,0',
 						name: 'Gather radius',
-						mode: 'gather',
-						stops: [{ hiveName: 'GatherRadiusHive', alveolusType: 'gather', coord: [0, 0] }],
+						hiveName: 'GatherRadiusHive',
+						coord: [0, 0],
 						filters: ['wood'],
 						radius: 1,
-					},
+					}),
 				],
 			}
 			engine.loadScenario(scenario)
 			const gather = engine.game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus
 			expect(gather.hasLooseGoodsToGather).toBe(false)
-			engine.game.replaceFreightLine({
-				...engine.game.freightLines[0],
-				radius: 2,
-			})
+			const line = engine.game.freightLines.find((l) => l.id === 'GatherRadiusHive:implicit-gather:0,0')
+			expect(line).toBeDefined()
+			engine.game.replaceFreightLine(applyGatherRadiusFromEditor(line!, 2))
 			expect(gather.hasLooseGoodsToGather).toBe(true)
 		} finally {
 			await engine.destroy()
@@ -114,21 +118,21 @@ describe('Freight line bootstrap', () => {
 			tile: { position: { q: 0, r: 0 } },
 		}
 		const lines = [
-			{
+			distributeFreightLine({
 				id: 'H:distribute',
 				name: 'Distribute first',
-				mode: 'distribute' as const,
-				stops: [{ hiveName: 'H', alveolusType: 'gather' as const, coord: [0, 0] as const }],
-				filters: ['wood' as const],
-			},
-			{
+				hiveName: 'H',
+				coord: [0, 0],
+				filters: ['wood'],
+			}),
+			gatherFreightLine({
 				id: 'H:gather',
 				name: 'Gather second',
-				mode: 'gather' as const,
-				stops: [{ hiveName: 'H', alveolusType: 'gather' as const, coord: [0, 0] as const }],
-				filters: ['berries' as const],
+				hiveName: 'H',
+				coord: [0, 0],
+				filters: ['berries'],
 				radius: 3,
-			},
+			}),
 		]
 
 		expect(findGatherFreightLine(lines, stop)?.id).toBe('H:gather')
@@ -146,21 +150,22 @@ describe('Freight line bootstrap', () => {
 			const gather = engine.game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus
 			const implicit = findGatherFreightLine(engine.game.freightLines, gather)
 			expect(implicit).toBeDefined()
-			expect(implicit?.stops[0]).toMatchObject({
+			const unload = implicit?.stops[1]
+			const anchor = unload && 'anchor' in unload ? unload.anchor : undefined
+			expect(anchor).toMatchObject({
+				kind: 'alveolus',
 				hiveName: '',
 				alveolusType: 'freight_bay',
 				coord: [0, 0],
 			})
-			expect(implicit?.radius).toBe(DEFAULT_GATHER_FREIGHT_RADIUS)
+			expect(freightLineEditorGatherRadius(implicit!)).toBe(DEFAULT_GATHER_FREIGHT_RADIUS)
 		} finally {
 			await engine.destroy()
 		}
 	})
 
 	it('formats station labels as hive name with coordinates', () => {
-		expect(freightLineStationLabel({ hiveName: 'ChopSaw', coord: [10, -8] })).toBe(
-			'ChopSaw (10, -8)'
-		)
+		expect(freightLineStationLabel({ hiveName: 'ChopSaw', coord: [10, -8] })).toBe('ChopSaw (10, -8)')
 		expect(freightLineStationLabel({ hiveName: '', coord: [0, 0] })).toBe('Hive (0, 0)')
 	})
 
@@ -176,75 +181,88 @@ describe('Freight line bootstrap', () => {
 			engine.loadScenario(scenario)
 			const initial = engine.game.freightLines[0]
 			expect(initial).toBeDefined()
-			engine.game.replaceFreightLine({
-				...initial!,
-				name: 'Edited gather line',
-				filters: ['wood', 'berries'],
-				radius: 4,
-			})
+			const edited = applyGatherRadiusFromEditor(
+				normalizeFreightLineDefinition({
+					...initial!,
+					name: 'Edited gather line',
+					stops: initial!.stops.map((stop, index) =>
+						index === 0 && 'zone' in stop
+							? {
+									...stop,
+									loadSelection: {
+										goodRules: [
+											{ goodType: 'wood', effect: 'allow' as const },
+											{ goodType: 'berries', effect: 'allow' as const },
+										],
+										tagRules: [],
+										defaultEffect: 'deny' as const,
+									},
+								}
+							: stop
+					),
+				}),
+				4
+			)
+			engine.game.replaceFreightLine(edited)
 
 			const saved = engine.game.saveGameData()
 			await reloaded.game.loadGameData(saved)
 
 			expect(reloaded.game.freightLines).toHaveLength(1)
-			expect(reloaded.game.freightLines[0]).toMatchObject({
-				id: initial!.id,
-				name: 'Edited gather line',
-				mode: 'gather',
-				goodsSelection: {
-					goodRules: [
-						{ goodType: 'wood', effect: 'allow' },
-						{ goodType: 'berries', effect: 'allow' },
-					],
-					tagRules: [],
-					defaultEffect: 'deny',
-				},
-				radius: 4,
+			const reloadedLine = reloaded.game.freightLines[0]!
+			const loadStop = reloadedLine.stops[0]
+			expect(reloadedLine.id).toBe(initial!.id)
+			expect(reloadedLine.name).toBe('Edited gather line')
+			expect(loadStop?.loadSelection).toEqual({
+				goodRules: [
+					{ goodType: 'wood', effect: 'allow' },
+					{ goodType: 'berries', effect: 'allow' },
+				],
+				tagRules: [],
+				defaultEffect: 'deny',
 			})
+			expect(freightLineEditorGatherRadius(reloadedLine)).toBe(4)
 		} finally {
 			await engine.destroy()
 			await reloaded.destroy()
 		}
 	})
 
-	it('normalizes v1 freight lines to one stop and gather-only radius', async () => {
+	it('loads explicit distribute lines with unload radius zones', async () => {
 		const engine = new TestEngine({ terrainSeed: 1, characterCount: 0 })
 		await engine.init()
 		try {
 			engine.loadScenario({
 				hives: [{ name: 'H', alveoli: [{ coord: [0, 0], alveolus: 'gather', goods: {} }] }],
 				freightLines: [
-					{
+					distributeFreightLine({
 						id: 'H:line',
-						name: 'Needs normalization',
-						mode: 'distribute',
-						stops: [
-							{ hiveName: 'H', alveolusType: 'gather', coord: [0, 0] },
-							{ hiveName: 'H', alveolusType: 'storage', coord: [1, 0] },
-						],
-						filters: ['wood', 'wood', 'berries'],
-						radius: 6,
-					},
+						name: 'Distribute with radius',
+						hiveName: 'H',
+						coord: [0, 0],
+						filters: ['wood', 'berries'],
+						unloadRadius: 6,
+					}),
 				],
 			})
 
-			const normalized = engine.game.freightLines.find((line) => line.id === 'H:line')
-			expect(normalized).toBeDefined()
-			expect(normalized).toMatchObject({
-				id: 'H:line',
-				mode: 'distribute',
-				stops: [{ hiveName: 'H', alveolusType: 'freight_bay', coord: [0, 0] }],
-				goodsSelection: {
-					goodRules: [
-						{ goodType: 'wood', effect: 'allow' },
-						{ goodType: 'berries', effect: 'allow' },
-					],
-					tagRules: [],
-					defaultEffect: 'deny',
-				},
+			const line = engine.game.freightLines.find((l) => l.id === 'H:line')
+			expect(line).toBeDefined()
+			expect(line?.stops).toHaveLength(2)
+			expect(line?.stops[0]?.loadSelection).toEqual({
+				goodRules: [
+					{ goodType: 'wood', effect: 'allow' },
+					{ goodType: 'berries', effect: 'allow' },
+				],
+				tagRules: [],
+				defaultEffect: 'deny',
 			})
-			expect(normalized?.stops).toHaveLength(1)
-			expect(normalized?.radius).toBeUndefined()
+			const unloadStop = line?.stops[1]
+			expect(unloadStop && 'zone' in unloadStop ? unloadStop.zone : undefined).toEqual({
+				kind: 'radius',
+				center: [0, 0],
+				radius: 6,
+			})
 		} finally {
 			await engine.destroy()
 		}

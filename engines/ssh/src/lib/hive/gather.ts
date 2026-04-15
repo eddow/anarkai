@@ -8,7 +8,8 @@ import type { Tile } from 'ssh/board/tile'
 import {
 	DEFAULT_GATHER_FREIGHT_RADIUS,
 	findGatherFreightLine,
-	freightLineAllowsGoodType,
+	gatherLoadRadiusForLineAtStop,
+	gatherSegmentAllowsGoodType,
 	gatherSelectableGoodTypes,
 } from 'ssh/freight/freight-line'
 import type { Character } from 'ssh/population/character'
@@ -55,7 +56,8 @@ export class GatherAlveolus extends TransitAlveolus {
 	}
 
 	private effectiveGatherRadius(): number {
-		return this.gatherFreightLine()?.radius ?? DEFAULT_GATHER_FREIGHT_RADIUS
+		const line = this.gatherFreightLine()
+		return gatherLoadRadiusForLineAtStop(line, this) ?? DEFAULT_GATHER_FREIGHT_RADIUS
 	}
 
 	get hasLooseGoodsToGather(): boolean {
@@ -97,7 +99,7 @@ export class GatherAlveolus extends TransitAlveolus {
 				selectableGoods = [...new Set([...selectableGoods, ...carriedGoods])]
 				selectableGoods = selectableGoods.filter(
 					(good) =>
-						freightLineAllowsGoodType(line, good) &&
+						gatherSegmentAllowsGoodType(line, good) &&
 						carry.hasRoom(good) &&
 						this.storage.canStoreAll(goodsWith(carry.stock, good))
 				)

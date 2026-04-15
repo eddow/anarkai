@@ -2,20 +2,24 @@ function goWork(jobPlan, path)
 	target = jobPlan.target
 	plan jobPlan
 		if keys(I.carry.availables).length > 0 then inventory.dropAllLoose
-		if tile.position.q != target.tile.position.q or tile.position.r != target.tile.position.r then do // TODO: if tile != target.tile then do
-			walk.until path
-		while tile.position.q != target.tile.position.q or tile.position.r != target.tile.position.r
-			path = find.path(target.tile, false)
-			if not path then error "No path found to target"
-		loop
-		walk.enter
+		if jobPlan.job == "freightDeliver" then
+			work.freightDeliver jobPlan
+		else
+			if tile.position.q != target.tile.position.q or tile.position.r != target.tile.position.r then do // TODO: if tile != target.tile then do
+				walk.until path
+			while tile.position.q != target.tile.position.q or tile.position.r != target.tile.position.r
+				path = find.path(target.tile, false)
+				if not path then error "No path found to target"
+			loop
+			walk.enter
 
-		if jobPlan.job != "offload" then
-			I.assignedAlveolus = target
-			work.prepare jobPlan
+			if jobPlan.job != "offload" then
+				I.assignedAlveolus = target
+				work.prepare jobPlan
+			end if
+			// TODO: understand why `work[job](alveolus)` doesn't work/yield
+			work[jobPlan.job] jobPlan
 		end if
-		// TODO: understand why `work[job](alveolus)` doesn't work/yield
-		work[jobPlan.job] jobPlan
 	end plan
 end function
 
@@ -140,4 +144,23 @@ function defragment(jobPlan)
 	loop
 end function
 
-return { goWork, harvest, transform, convey, gather, construct, foundation, offload, defragment }
+function freightDeliver(jobPlan)
+	if not jobPlan.pathToBay then error "freightDeliver missing pathToBay"
+	if not jobPlan.pathToSite then error "freightDeliver missing pathToSite"
+	bayTile = tileAt(jobPlan.bay)
+	siteTile = tileAt(jobPlan.site)
+	if not bayTile then error "freightDeliver missing bay tile"
+	if not siteTile then error "freightDeliver missing site tile"
+	goods = {}
+	goods[jobPlan.goodType] = jobPlan.quantity
+	walk.until jobPlan.pathToBay
+	walk.enter
+	inventory.grabStored goods, bayTile, null, false
+	work.freightDeliverPickedUp jobPlan.goodType, jobPlan.quantity
+	walk.until jobPlan.pathToSite
+	walk.enter
+	inventory.dropStored I.carry.stock, siteTile, null, false
+	work.freightDeliverUnloaded jobPlan.goodType, jobPlan.quantity
+end function
+
+return { goWork, harvest, transform, convey, gather, construct, foundation, offload, defragment, freightDeliver }

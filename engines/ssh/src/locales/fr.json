@@ -18,7 +18,10 @@
 	"tile": {
 		"content": "Contenu",
 		"walkTime": "Temps de marche",
-		"unwalkable": "Impraticable"
+		"unwalkable": "Impraticable",
+		"zone": "Zone",
+		"zoneResidential": "Résidentiel",
+		"zoneHarvest": "Récolte"
 	},
 	"character": {
 		"hunger": "Faim",

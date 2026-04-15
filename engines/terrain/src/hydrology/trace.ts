@@ -1,8 +1,15 @@
 import { defaultHydrologyTraceConstants } from 'engine-rules'
 import { edgeKey } from '../edge-key'
-import { axial } from '../hex/axial'
+import { axial, hexSides } from '../hex/axial'
 import type { AxialCoord, AxialKey } from '../hex/types'
-import type { EdgeField, EdgeKey, TerrainConfig, TileField } from '../types'
+import type {
+	EdgeField,
+	EdgeKey,
+	HydrologyPathTerminalKind,
+	TerrainConfig,
+	TileField,
+	TileRiverFlow,
+} from '../types'
 import { isSpring } from './springs'
 
 const t = defaultHydrologyTraceConstants
@@ -13,6 +20,95 @@ export interface HydrologyResult {
 	banks: Map<AxialKey, number>
 	channels: Set<AxialKey>
 	channelInfluence: Map<AxialKey, number>
+	/** Per-tile river path directions; omitted when no river paths were traced. */
+	riverFlow?: Map<AxialKey, TileRiverFlow>
+}
+
+interface TileRiverFlowBuilder {
+	upstream: Set<number>
+	downstream: Set<number>
+	rankFromSource: number
+	rankToSea: number
+	pathTerminalKind?: HydrologyPathTerminalKind
+}
+
+function directionFromTileToNeighbor(fromCoord: AxialCoord, toKey: AxialKey): number | undefined {
+	const to = axial.coord(toKey)
+	const dq = to.q - fromCoord.q
+	const dr = to.r - fromCoord.r
+	const idx = hexSides.findIndex((s) => s.q === dq && s.r === dr)
+	return idx >= 0 ? idx : undefined
+}
+
+function ensureFlowBuilder(
+	builders: Map<AxialKey, TileRiverFlowBuilder>,
+	key: AxialKey
+): TileRiverFlowBuilder {
+	let b = builders.get(key)
+	if (!b) {
+		b = {
+			upstream: new Set(),
+			downstream: new Set(),
+			rankFromSource: Number.NEGATIVE_INFINITY,
+			rankToSea: Number.POSITIVE_INFINITY,
+		}
+		builders.set(key, b)
+	}
+	return b
+}
+
+function mergeSeaDownstreamForLandTerminal(
+	key: AxialKey,
+	tiles: Map<AxialKey, TileField>,
+	config: TerrainConfig,
+	builders: Map<AxialKey, TileRiverFlowBuilder>
+): void {
+	const tile = tiles.get(key)
+	if (!tile || tile.height < config.seaLevel) return
+	const coord = axial.coord(key)
+	const b = ensureFlowBuilder(builders, key)
+	if (b.downstream.size > 0) return
+	for (const neighbor of axial.neighbors(coord)) {
+		const nk = axial.key(neighbor)
+		const nt = tiles.get(nk)
+		if (!nt || nt.height >= config.seaLevel) continue
+		const d = directionFromTileToNeighbor(coord, nk)
+		if (d !== undefined) b.downstream.add(d)
+	}
+}
+
+function terminalKindRank(k: HydrologyPathTerminalKind): number {
+	return k === 'sea' ? 2 : k === 'coast' ? 1 : 0
+}
+
+function mergePathTerminalKind(
+	prev: HydrologyPathTerminalKind | undefined,
+	next: HydrologyPathTerminalKind
+): HydrologyPathTerminalKind {
+	if (prev === undefined) return next
+	return terminalKindRank(next) > terminalKindRank(prev) ? next : prev
+}
+
+function finalizeRiverFlow(
+	builders: Map<AxialKey, TileRiverFlowBuilder>
+): Map<AxialKey, TileRiverFlow> | undefined {
+	if (builders.size === 0) return undefined
+	const out = new Map<AxialKey, TileRiverFlow>()
+	for (const [key, b] of builders) {
+		const rankToSea = Number.isFinite(b.rankToSea) ? b.rankToSea : 0
+		const rankFromSource = Number.isFinite(b.rankFromSource) ? Math.max(0, b.rankFromSource) : 0
+		const base: TileRiverFlow = {
+			upstreamDirections: [...b.upstream].sort((a, c) => a - c),
+			downstreamDirections: [...b.downstream].sort((a, c) => a - c),
+			rankFromSource,
+			rankToSea,
+		}
+		out.set(
+			key,
+			b.pathTerminalKind !== undefined ? { ...base, pathTerminalKind: b.pathTerminalKind } : base
+		)
+	}
+	return out
 }
 
 interface FrontierNode {
@@ -55,6 +151,7 @@ export function runHydrologyDetailed(
 		channels: new Set<AxialKey>(),
 		channelInfluence: new Map<AxialKey, number>(),
 	}
+	const flowBuilders = new Map<AxialKey, TileRiverFlowBuilder>()
 	const tileKeys = new Set(tiles.keys())
 
 	for (const [tileKey, tile] of tiles) {
@@ -62,9 +159,14 @@ export function runHydrologyDetailed(
 		if (!isSpring(coord, tile.height, seed, config)) continue
 		const path = traceFromSpring(tileKey, coord, tiles, tileKeys, config)
 		if (!path) continue
-		applyRiverPath(path, tiles, result, config)
+		const terminalKind = pathTerminalKindFromPath(path, tiles, config)
+		applyRiverPath(path, tiles, result, config, flowBuilders, terminalKind)
 	}
 
+	const riverFlow = finalizeRiverFlow(flowBuilders)
+	if (riverFlow) {
+		result.riverFlow = riverFlow
+	}
 	return result
 }
 
@@ -142,7 +244,25 @@ function traceFromSpring(
 		}
 	}
 
-	if (!bestGoal) return undefined
+	if (!bestGoal) {
+		let fallbackKey: AxialKey | undefined
+		let fallbackCost = Number.POSITIVE_INFINITY
+		for (const [k, c] of costs) {
+			const t = tiles.get(k)
+			if (!t || t.height < config.seaLevel) continue
+			if (k === startKey) continue
+			if (c < fallbackCost) {
+				fallbackCost = c
+				fallbackKey = k
+			}
+		}
+		if (fallbackKey === undefined || !Number.isFinite(fallbackCost)) return undefined
+		bestGoal = {
+			key: fallbackKey,
+			cost: fallbackCost,
+			steps: stepsTo.get(fallbackKey) ?? 0,
+		}
+	}
 
 	const path: AxialKey[] = []
 	let current: AxialKey | undefined = bestGoal.key
@@ -153,6 +273,23 @@ function traceFromSpring(
 	path.reverse()
 	trimSeaEntry(path, tiles, config)
 	return path.length > MIN_TERMINAL_PATH_LENGTH ? path : undefined
+}
+
+function pathTerminalKindFromPath(
+	path: AxialKey[],
+	tiles: Map<AxialKey, TileField>,
+	config: TerrainConfig
+): HydrologyPathTerminalKind {
+	const lastKey = path[path.length - 1]!
+	const lastTile = tiles.get(lastKey)
+	if (!lastTile) return 'inland'
+	if (lastTile.height < config.seaLevel) return 'sea'
+	const coord = axial.coord(lastKey)
+	for (const neighbor of axial.neighbors(coord)) {
+		const nt = tiles.get(axial.key(neighbor))
+		if (nt && nt.height < config.seaLevel) return 'coast'
+	}
+	return 'inland'
 }
 
 function transitionCost(from: TileField, to: TileField, minNeighborHeight: number): number {
@@ -188,10 +325,34 @@ function applyRiverPath(
 	path: AxialKey[],
 	tiles: Map<AxialKey, TileField>,
 	result: HydrologyResult,
-	config: TerrainConfig
+	config: TerrainConfig,
+	flowBuilders: Map<AxialKey, TileRiverFlowBuilder>,
+	pathTerminalKind: HydrologyPathTerminalKind
 ): void {
 	for (let index = 0; index < path.length; index++) {
 		const key = path[index]!
+		const coord = axial.coord(key)
+		const flow = ensureFlowBuilder(flowBuilders, key)
+		flow.rankFromSource = Math.max(flow.rankFromSource, index)
+		flow.rankToSea = Math.min(flow.rankToSea, path.length - 1 - index)
+
+		const prevKey = index > 0 ? path[index - 1] : undefined
+		const nextKey = index + 1 < path.length ? path[index + 1] : undefined
+		if (prevKey) {
+			const d = directionFromTileToNeighbor(coord, prevKey)
+			if (d !== undefined) flow.upstream.add(d)
+		}
+		if (nextKey) {
+			const d = directionFromTileToNeighbor(coord, nextKey)
+			if (d !== undefined) flow.downstream.add(d)
+		} else if (pathTerminalKind === 'coast' || pathTerminalKind === 'sea') {
+			mergeSeaDownstreamForLandTerminal(key, tiles, config, flowBuilders)
+		}
+
+		if (index === path.length - 1) {
+			flow.pathTerminalKind = mergePathTerminalKind(flow.pathTerminalKind, pathTerminalKind)
+		}
+
 		result.channels.add(key)
 		const downstreamWeight =
 			t.channelDownstreamWeightBase + (path.length - index) / Math.max(1, path.length)
@@ -200,12 +361,10 @@ function applyRiverPath(
 			Math.max(result.channelInfluence.get(key) ?? 0, downstreamWeight)
 		)
 
-		const previous = index > 0 ? path[index - 1] : undefined
-		const next = index + 1 < path.length ? path[index + 1] : undefined
 		const neighbors = axial.neighbors(axial.coord(key))
 		for (const neighbor of neighbors) {
 			const neighborKey = axial.key(neighbor)
-			if (neighborKey === previous || neighborKey === next) continue
+			if (neighborKey === prevKey || neighborKey === nextKey) continue
 			if (!tiles.has(neighborKey)) continue
 			if (result.channels.has(neighborKey)) continue
 			const neighborTile = tiles.get(neighborKey)
@@ -216,7 +375,7 @@ function applyRiverPath(
 			if (downstreamWeight <= t.channelHighDownstreamThreshold) continue
 			for (const outer of axial.neighbors(neighbor)) {
 				const outerKey = axial.key(outer)
-				if (outerKey === key || outerKey === previous || outerKey === next) continue
+				if (outerKey === key || outerKey === prevKey || outerKey === nextKey) continue
 				if (!tiles.has(outerKey)) continue
 				if (result.channels.has(outerKey)) continue
 				const outerTile = tiles.get(outerKey)
@@ -226,11 +385,11 @@ function applyRiverPath(
 			}
 		}
 
-		if (!next) continue
+		if (!nextKey) continue
 		const currentTile = tiles.get(key)
-		const nextTile = tiles.get(next)
+		const nextTile = tiles.get(nextKey)
 		if (!currentTile || !nextTile) continue
-		const ek = edgeKey(key, next)
+		const ek = edgeKey(key, nextKey)
 		const increment = (index + 1) * config.hydrologyFluxStepWeight
 		addEdgeFlux(result.edges, ek, increment, currentTile.height, nextTile.height)
 	}

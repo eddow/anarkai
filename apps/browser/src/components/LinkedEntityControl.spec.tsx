@@ -212,4 +212,12 @@ describe('LinkedEntityControl', () => {
 
 		expect(container.querySelector('[data-testid="resource-image"]')).not.toBeNull()
 	})
+
+	it('renders nothing when the target object is temporarily unavailable', () => {
+		expect(() => {
+			stop = latch(container, <LinkedEntityControl object={undefined} />)
+		}).not.toThrow()
+
+		expect(container.querySelector('[data-testid="linked-entity-control"]')).toBeNull()
+	})
 })

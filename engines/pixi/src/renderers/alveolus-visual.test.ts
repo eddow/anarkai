@@ -9,6 +9,11 @@ import { BorderVisual } from './border-visual'
 import { TileVisual } from './tile-visual'
 
 function createRendererStub(): PixiGameRenderer {
+	const fakeTexture = {
+		frame: { width: 16, height: 16 },
+		width: 16,
+		height: 16,
+	} as never
 	return {
 		layers: {
 			ground: new RenderLayer(),
@@ -27,7 +32,7 @@ function createRendererStub(): PixiGameRenderer {
 			layer.detach(child)
 			layer.sortRenderLayerChildren()
 		},
-		getTexture: () => Texture.WHITE,
+		getTexture: () => fakeTexture,
 	} as unknown as PixiGameRenderer
 }
 
@@ -122,6 +127,7 @@ describe('TileVisual storage goods layering', () => {
 			visual.bind()
 
 			tile.content = new BuildAlveolus(tile, 'storage')
+			expect(countSpritesInLayer(renderer.layers.alveoli)).toBe(1)
 
 			const StorageCtor = alveolusClass.storage
 			if (!StorageCtor) throw new Error('Expected storage alveolus constructor')

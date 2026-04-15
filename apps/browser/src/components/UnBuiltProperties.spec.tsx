@@ -7,12 +7,23 @@ const i18nState = {
 		project: 'Project',
 		clearing: 'Clearing',
 		deposit: 'Deposit',
+		construction: {
+			section: 'Construction',
+			phases: {
+				foundation: 'Foundation',
+			},
+			blocking: {
+				no_engineer_in_range: 'No engineer in range',
+			},
+		},
 		alveoli: {
 			sawmill: { label: 'Sawmill' },
 		},
 		deposits: {},
 	},
 }
+
+const queryConstructionSiteView = vi.fn()
 
 vi.mock('@app/lib/css', () => ({
 	css: () => '',
@@ -32,6 +43,10 @@ vi.mock('engine-pixi/assets/visual-content', () => ({
 
 vi.mock('ssh/i18n', () => ({
 	i18nState,
+}))
+
+vi.mock('ssh/construction', () => ({
+	queryConstructionSiteView,
 }))
 
 vi.mock('./EntityBadge', () => ({
@@ -65,6 +80,8 @@ describe('UnBuiltProperties', () => {
 	beforeEach(() => {
 		container = document.createElement('div')
 		document.body.appendChild(container)
+		queryConstructionSiteView.mockReset()
+		queryConstructionSiteView.mockReturnValue(undefined)
 	})
 
 	afterEach(() => {
@@ -160,5 +177,33 @@ describe('UnBuiltProperties', () => {
 			content.deposit.amount = 2
 		}).not.toThrow()
 		expect(container.textContent).toContain('2')
+	})
+
+	it('renders construction phase and blocking labels through the shared formatter path', () => {
+		const content = {
+			project: 'build:sawmill',
+			constructionSite: {},
+			tile: {
+				isClear: true,
+				board: { game: {} },
+			},
+		}
+		queryConstructionSiteView.mockReturnValue({
+			phase: 'foundation',
+			blockingReasons: ['no_engineer_in_range'],
+		})
+
+		stop = latch(
+			container,
+			<table>
+				<tbody>
+					<UnBuiltProperties content={content as never} />
+				</tbody>
+			</table>
+		)
+
+		expect(container.textContent).toContain('Construction')
+		expect(container.textContent).toContain('Foundation')
+		expect(container.textContent).toContain('No engineer in range')
 	})
 })

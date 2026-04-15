@@ -3,7 +3,9 @@ import { Button } from '@app/ui/anarkai'
 import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
 import { memoize, reactive } from 'mutts'
 import { inputBufferSize } from 'ssh/assets/constants'
-import type { Alveolus } from 'ssh/board/content/alveolus'
+import { Alveolus } from 'ssh/board/content/alveolus'
+import type { BasicDwelling } from 'ssh/board/content/basic-dwelling'
+import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import type { Game } from 'ssh/game'
 import { BuildAlveolus } from 'ssh/hive/build'
 import { StorageAlveolus } from 'ssh/hive/storage'
@@ -155,7 +157,7 @@ interface StoredGoodEntry {
 }
 
 interface StoredGoodsRowProps {
-	content: Alveolus
+	content: Alveolus | BuildDwelling | BasicDwelling
 	game: Game
 	label: string
 }
@@ -165,6 +167,10 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 	const relations = memoize(() => props.content.goodsRelations ?? {})
 
 	const getExpectedQty = (good: GoodType, relation?: GoodsRelation) => {
+		if (props.content instanceof BuildDwelling || props.content instanceof BuildAlveolus) {
+			return props.content.requiredGoods[good]
+		}
+
 		if (relation?.advertisement !== 'demand') return undefined
 
 		if (props.content instanceof StorageAlveolus) {
@@ -176,11 +182,6 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 			const expectedQty = (props.content.action?.inputs?.[good] ?? 0) * inputBufferSize
 			return expectedQty > 0 ? expectedQty : undefined
 		}
-
-		if (props.content instanceof BuildAlveolus) {
-			return props.content.requiredGoods[good]
-		}
-
 		return undefined
 	}
 
@@ -209,6 +210,7 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 	const hasGoods = memoize(() => entries().length > 0)
 	const storedEntries = memoize(() => entries().filter((entry: StoredGoodEntry) => entry.qty > 0))
 	const hasMultipleTypes = memoize(() => storedEntries().length > 1)
+	const supportsCleanup = memoize(() => props.content instanceof Alveolus)
 
 	const confirmState = reactive({
 		mode: undefined as 'all' | 'good' | undefined,
@@ -236,10 +238,12 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 	}
 
 	const doConfirm = () => {
+		const content = props.content as Alveolus
+		if (!supportsCleanup()) return
 		if (confirmState.mode === 'all') {
-			props.content.cleanUp()
+			content.cleanUp()
 		} else if (confirmState.mode === 'good' && confirmState.good) {
-			props.content.cleanUpGood(confirmState.good as GoodType)
+			content.cleanUpGood(confirmState.good as GoodType)
 		}
 		cancelConfirm()
 	}
@@ -274,6 +278,12 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 	}
 
 	const getQtyLabel = (entry: StoredGoodEntry) => {
+		if (
+			(props.content instanceof BuildAlveolus || props.content instanceof BuildDwelling) &&
+			entry.expectedQty !== undefined
+		) {
+			return `${entry.qty}/${entry.expectedQty}`
+		}
 		if (entry.expectedQty !== undefined && entry.relation?.advertisement === 'demand') {
 			return `${entry.qty}/${entry.expectedQty}`
 		}
@@ -306,7 +316,7 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 						{statusGlyph}
 					</span>
 					<Button
-						if={confirmState.expanded && entry.qty > 0 && hasMultipleTypes()}
+						if={supportsCleanup() && confirmState.expanded && entry.qty > 0 && hasMultipleTypes()}
 						onClick={() => startCleanGood(entry.good)}
 						el:title={String(
 							i18nState.translator?.alveolus.cleanUpGoodTooltip?.({
@@ -361,7 +371,7 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 
 					<div else class="stored-goods-list">
 						<Button
-							if={confirmState.expanded && storedEntries().length > 0}
+							if={supportsCleanup() && confirmState.expanded && storedEntries().length > 0}
 							onClick={startCleanAll}
 							el:title={String(i18nState.translator?.alveolus.cleanUpTooltip ?? '')}
 							el:class="cleanup-btn"

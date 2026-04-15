@@ -193,7 +193,9 @@ export default function ComboDropdownPicker(props: ComboDropdownPickerProps) {
 				onClick={toggle}
 			>
 				{props.renderValueTrigger ? props.renderValueTrigger() : <span>{triggerValueLabel()}</span>}
-				<span class="combo-picker__trigger-value-caret" aria-hidden="true">▾</span>
+				<span class="combo-picker__trigger-value-caret" aria-hidden="true">
+					▾
+				</span>
 			</button>
 
 			<div if={menuState.show} class="combo-picker__backdrop" onClick={() => close()} />

@@ -10,16 +10,25 @@ import {
 import { atomic, defer, Eventful, reactive, unreactive } from 'mutts'
 import { Alveolus } from 'ssh/board'
 import { HexBoard } from 'ssh/board/board'
+import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
+import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import { Deposit, UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { Tile, type TileTerrainState } from 'ssh/board/tile'
 import type { Zone } from 'ssh/board/zone'
+import {
+	type ConstructionPhase,
+	createConstructionSiteState,
+	type DwellingTier,
+} from 'ssh/construction-state'
 import { assert } from 'ssh/debug'
 import type { FreightLineDefinition, SyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import {
+	collectFreightLineBootstrapCoords,
 	createSyntheticFreightLineObject,
 	findFreightLineByUid,
 	implicitGatherFreightLinesFromHivePatches,
 	isFreightLineUid,
+	isImplicitGatherFreightLineId,
 	normalizeFreightLineDefinition,
 } from 'ssh/freight/freight-line'
 import {
@@ -39,10 +48,12 @@ import {
 	isHiveUid,
 	type SyntheticHiveObject,
 } from 'ssh/hive'
+import { BuildAlveolus } from 'ssh/hive/build'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { readSlottedStorageParams, usesSlottedStorageLayout } from 'ssh/hive/storage-action'
 import { mrg, setHoveredObject } from 'ssh/interactive-state'
 import { Population } from 'ssh/population/population'
+import { ResidentialDemandTicker } from 'ssh/residential/demand'
 import type { AlveolusType, DepositType, GoodType, TerrainType } from 'ssh/types'
 import type { GameRenderer, InputAdapter } from 'ssh/types/engine'
 import type { AxialCoord } from 'ssh/utils'
@@ -102,11 +113,26 @@ export interface AlveolusPatch {
 	coord: readonly [number, number]
 	goods?: Partial<Record<GoodType, number>>
 	alveolus: AlveolusType | 'gather'
+	/** When true, tile hosts a build shell for `alveolus` target, not the finished building. */
+	underConstruction?: boolean
+	/** Persisted construction work seconds on the build shell. */
+	constructionWorkSecondsApplied?: number
+	constructionPhase?: ConstructionPhase
 	/** Configuration reference and individual config for this alveolus */
 	configuration?: {
 		ref: Ssh.ConfigurationReference
 		individual?: Ssh.AlveolusConfiguration
 	}
+}
+
+export interface DwellingPatch {
+	coord: readonly [number, number]
+	tier: DwellingTier
+	/** When true, tile hosts an in-progress `BuildDwelling` shell. */
+	underConstruction?: boolean
+	constructionWorkSecondsApplied?: number
+	constructionPhase?: ConstructionPhase
+	goods?: Partial<Record<GoodType, number>>
 }
 
 export interface TilePatch {
@@ -130,7 +156,7 @@ export interface GamePatches {
 		working?: boolean
 		alveoli: ReadonlyArray<AlveolusPatch>
 	}>
-	/** Explicit freight lines; implicit one-stop gather lines are merged from hive patches unless overridden by id. */
+	/** Explicit freight lines; implicit gather routes are merged from hive patches unless overridden by id. */
 	freightLines?: ReadonlyArray<FreightLineDefinition>
 	looseGoods?: ReadonlyArray<{
 		goodType: GoodType
@@ -141,6 +167,7 @@ export interface GamePatches {
 		residential?: ReadonlyArray<readonly [number, number]>
 	}
 	projects?: Record<string, ReadonlyArray<readonly [number, number]>>
+	dwellings?: ReadonlyArray<DwellingPatch>
 }
 
 export interface SaveState extends GamePatches {
@@ -221,6 +248,7 @@ export class Game extends Eventful<GameEvents> {
 			await this.materializeGameplayTilesAsync(coords)
 		},
 	})
+	private residentialDemandTicker?: ResidentialDemandTicker
 	public readonly clock = reactive({
 		virtualTime: 0,
 	})
@@ -265,6 +293,18 @@ export class Game extends Eventful<GameEvents> {
 		const next = [...this.freightLines]
 		next[index] = normalized
 		this.freightLines = next
+	}
+
+	/**
+	 * Removes an explicit freight line by id. Implicit hive gather lines cannot be removed
+	 * (they are re-derived from hive patches on bootstrap).
+	 */
+	removeFreightLineById(lineId: string): boolean {
+		if (isImplicitGatherFreightLineId(lineId)) return false
+		const next = this.freightLines.filter((entry) => entry.id !== lineId)
+		if (next.length === this.freightLines.length) return false
+		this.freightLines = next
+		return true
 	}
 
 	registerHittable(object: HittableGameObject) {
@@ -468,6 +508,8 @@ export class Game extends Eventful<GameEvents> {
 				console.error('Error during gameStart emission:', e)
 			}
 
+			this.residentialDemandTicker?.destroy()
+			this.residentialDemandTicker = new ResidentialDemandTicker(this)
 			// Register the main ticker callback and start the game ticker after everything is built
 			this.ticker.add(this.tickerCallback)
 
@@ -496,8 +538,8 @@ export class Game extends Eventful<GameEvents> {
 			if (coord) coords.push(axial.round(coord))
 		}
 		for (const line of patches.freightLines ?? []) {
-			for (const stop of line.stops) {
-				coords.push({ q: stop.coord[0], r: stop.coord[1] })
+			for (const coord of collectFreightLineBootstrapCoords(line)) {
+				coords.push(coord)
 			}
 		}
 	}
@@ -514,10 +556,13 @@ export class Game extends Eventful<GameEvents> {
 		for (const coordsForProject of Object.values(patches.projects ?? {})) {
 			for (const coord of coordsForProject) coords.push({ q: coord[0], r: coord[1] })
 		}
+		for (const dwelling of patches.dwellings ?? []) {
+			coords.push({ q: dwelling.coord[0], r: dwelling.coord[1] })
+		}
 		for (const good of patches.looseGoods ?? []) coords.push(axial.round(good.position))
 		for (const line of patches.freightLines ?? []) {
-			for (const stop of line.stops) {
-				coords.push({ q: stop.coord[0], r: stop.coord[1] })
+			for (const coord of collectFreightLineBootstrapCoords(line)) {
+				coords.push(coord)
 			}
 		}
 		this.addBootstrapStateCoords(coords, patches)
@@ -550,10 +595,11 @@ export class Game extends Eventful<GameEvents> {
 		for (const coordsForProject of Object.values(patches.projects ?? {})) {
 			for (const coord of coordsForProject) addPatchCoord(coord)
 		}
+		for (const dwelling of patches.dwellings ?? []) addPatchCoord(dwelling.coord)
 		for (const good of patches.looseGoods ?? []) addCoord(axial.round(good.position))
 		for (const line of patches.freightLines ?? []) {
-			for (const stop of line.stops) {
-				addCoord({ q: stop.coord[0], r: stop.coord[1] })
+			for (const coord of collectFreightLineBootstrapCoords(line)) {
+				addCoord(coord)
 			}
 		}
 		const streamedFrontier = 'streamedFrontier' in patches ? patches.streamedFrontier : undefined
@@ -680,7 +726,7 @@ export class Game extends Eventful<GameEvents> {
 			height: tile?.terrainState?.height ?? tile?.terrainHeight,
 			deposit,
 		}
-		const hydrology = tile?.terrainState?.hydrology ?? tile?.terrainHydrology
+		const hydrology = tile?.terrainHydrology ?? tile?.terrainState?.hydrology
 		if (hydrology) sample.hydrology = hydrology
 		return sample
 	}
@@ -784,6 +830,7 @@ export class Game extends Eventful<GameEvents> {
 			if (patches.looseGoods?.length) this.applyLooseGoodsPatches(patches.looseGoods)
 			if (patches.zones) this.applyZonePatches(patches.zones)
 			if (patches.projects) this.applyProjectPatches(patches.projects)
+			if (patches.dwellings?.length) this.applyDwellingPatches(patches.dwellings)
 			this.bootstrapFreightLines(patches)
 		} catch (error) {
 			console.error('Generation failed:', error)
@@ -821,6 +868,7 @@ export class Game extends Eventful<GameEvents> {
 			if (patches.looseGoods?.length) this.applyLooseGoodsPatches(patches.looseGoods)
 			if (patches.zones) this.applyZonePatches(patches.zones)
 			if (patches.projects) this.applyProjectPatches(patches.projects)
+			if (patches.dwellings?.length) this.applyDwellingPatches(patches.dwellings)
 			this.bootstrapFreightLines(patches)
 		} catch (error) {
 			console.error('Async generation failed:', error)
@@ -1032,6 +1080,37 @@ export class Game extends Eventful<GameEvents> {
 				}
 				this.upsertTerrainOverride(coord, { terrain: 'concrete' })
 				const alveolusType = canonicalPatchedAlveolusType(a.alveolus)
+				if (a.underConstruction) {
+					const constructionSite = createConstructionSiteState({
+						kind: 'alveolus',
+						alveolusType,
+					})
+					constructionSite.phase = a.constructionPhase ?? 'waiting_materials'
+					constructionSite.workSecondsApplied = a.constructionWorkSecondsApplied ?? 0
+					const build = new BuildAlveolus(tile, alveolusType, constructionSite)
+					build.constructionWorkSecondsApplied = a.constructionWorkSecondsApplied ?? 0
+					this.hex.setTileContent(tile, build)
+					if (!build.hive) {
+						if (this.HiveClass) {
+							const h = this.HiveClass.for(tile)
+							h.attach(build)
+						}
+					}
+					hiveInstance = build.hive
+					hiveInstance.name = hive.name
+					hiveInstance.working = hive.working ?? true
+					if (a.goods)
+						for (const [good, qty] of Object.entries(a.goods))
+							build.storage?.addGood(good as GoodType, qty)
+					if (a.configuration) {
+						build.configurationRef = a.configuration.ref
+						if (a.configuration.individual) {
+							build.individualConfiguration = reactive({ ...a.configuration.individual })
+						}
+					}
+					tile.asGenerated = false
+					continue
+				}
 				const AlveolusCtor = alveolusClass[alveolusType as keyof typeof alveolusClass]
 				if (!AlveolusCtor) continue
 				const alv = new AlveolusCtor(tile)
@@ -1121,6 +1200,38 @@ export class Game extends Eventful<GameEvents> {
 		}
 	}
 
+	private applyDwellingPatches(dwellings: NonNullable<GamePatches['dwellings']>) {
+		for (const entry of dwellings) {
+			const coordObj = { q: entry.coord[0], r: entry.coord[1] }
+			const tile = this.hex.getTile(coordObj)
+			if (!tile) continue
+			tile.baseTerrain = 'concrete'
+			tile.terrainState = {
+				...(tile.terrainState ?? {}),
+				terrain: 'concrete',
+			}
+			this.upsertTerrainOverride(coordObj, { terrain: 'concrete' })
+			if (entry.underConstruction) {
+				const constructionSite = createConstructionSiteState({
+					kind: 'dwelling',
+					tier: entry.tier,
+				})
+				constructionSite.phase = entry.constructionPhase ?? 'waiting_materials'
+				constructionSite.workSecondsApplied = entry.constructionWorkSecondsApplied ?? 0
+				const build = new BuildDwelling(tile, entry.tier, constructionSite)
+				build.constructionWorkSecondsApplied = entry.constructionWorkSecondsApplied ?? 0
+				this.hex.setTileContent(tile, build)
+				if (entry.goods) {
+					for (const [good, qty] of Object.entries(entry.goods))
+						build.storage?.addGood(good as GoodType, qty as number)
+				}
+			} else {
+				this.hex.setTileContent(tile, new BasicDwelling(tile))
+			}
+			tile.asGenerated = false
+		}
+	}
+
 	public saveGameData(): SaveState {
 		const tiles: Array<TilePatch> = []
 		const hives = new Map<Hive, Array<AlveolusPatch>>()
@@ -1134,6 +1245,7 @@ export class Game extends Eventful<GameEvents> {
 			residential: [],
 		}
 		const projects: Record<string, Array<[number, number]>> = {}
+		const dwellings: DwellingPatch[] = []
 
 		// Enumerate using hex board contents map by sampling existing tiles
 		for (const tile of this.hex.tiles) {
@@ -1195,11 +1307,21 @@ export class Game extends Eventful<GameEvents> {
 				// Assume alveolus-like content decorated by GcClassed with resourceName accessible via .name
 				const alveolusName = content.name
 				if (!hives.has(content.hive)) hives.set(content.hive, [])
-				const patch: AlveolusPatch = {
-					coord: [q, r],
-					alveolus: alveolusName as AlveolusType,
-					goods: content.storage?.stock || {},
-				}
+				const patch: AlveolusPatch =
+					content instanceof BuildAlveolus
+						? {
+								coord: [q, r],
+								alveolus: content.target,
+								underConstruction: true,
+								constructionWorkSecondsApplied: content.constructionWorkSecondsApplied,
+								constructionPhase: content.constructionSite.phase,
+								goods: content.storage?.stock || {},
+							}
+						: {
+								coord: [q, r],
+								alveolus: alveolusName as AlveolusType,
+								goods: content.storage?.stock || {},
+							}
 				// Include configuration if not default hive scope
 				if (content.configurationRef.scope !== 'hive' || content.individualConfiguration) {
 					patch.configuration = {
@@ -1208,6 +1330,22 @@ export class Game extends Eventful<GameEvents> {
 					}
 				}
 				hives.get(content.hive)!.push(patch)
+			}
+
+			if (content instanceof BuildDwelling) {
+				dwellings.push({
+					coord: [q, r],
+					tier: content.targetTier,
+					underConstruction: true,
+					constructionWorkSecondsApplied: content.constructionWorkSecondsApplied,
+					constructionPhase: content.constructionSite.phase,
+					goods: content.storage?.stock || {},
+				})
+			} else if (content instanceof BasicDwelling) {
+				dwellings.push({
+					coord: [q, r],
+					tier: 'basic_dwelling',
+				})
 			}
 		}
 
@@ -1245,6 +1383,7 @@ export class Game extends Eventful<GameEvents> {
 			streamedFrontier,
 			zones,
 			projects,
+			dwellings,
 			population: this.population.serialize(),
 			generationOptions: this.generationOptions,
 			namedConfigurations: this.configurationManager.serialize(),
@@ -1262,6 +1401,9 @@ export class Game extends Eventful<GameEvents> {
 		// We assume state.generationOptions has the original seed
 		// TODO: Restore RNG state if necessary, or just rely on seed
 
+		this.residentialDemandTicker?.destroy()
+		this.residentialDemandTicker = undefined
+
 		this.hex.reset()
 		this.bootstrapGameplayCoords.clear()
 		this.materializedGameplayCoords.clear()
@@ -1269,6 +1411,8 @@ export class Game extends Eventful<GameEvents> {
 
 		// 3. Generate and apply patches (passes hive configs for restoration)
 		await this.generateAsync(state.generationOptions, state, state)
+
+		this.residentialDemandTicker = new ResidentialDemandTicker(this)
 
 		// 4. Load Population (after board is ready)
 		if (state.population) {
@@ -1289,6 +1433,8 @@ export class Game extends Eventful<GameEvents> {
 		// Stop clock-driven work first so teardown does not race with pending simulation ticks.
 		this.ticker.remove(this.tickerCallback)
 		this.ticker.stop()
+		this.residentialDemandTicker?.destroy()
+		this.residentialDemandTicker = undefined
 		try {
 			this.population.deserialize([])
 		} catch {}

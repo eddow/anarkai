@@ -1,7 +1,13 @@
 import { deposits, jobBalance } from 'engine-rules'
-import { reactive } from 'mutts'
+import { effect, reactive } from 'mutts'
+import {
+	type ConstructionSiteState,
+	constructionTargetFromProject,
+	createConstructionSiteState,
+} from 'ssh/construction-state'
 import { withTicked } from 'ssh/game/object'
 import { gameIsaTypes } from 'ssh/npcs/utils'
+import { residentialBasicDwellingProject } from 'ssh/residential/constants'
 import type { TerrainType } from 'ssh/types'
 import { LCG, subSeed } from 'ssh/utils/numbers'
 import { fastPoissonRandom } from 'ssh/utils/poisson'
@@ -23,12 +29,22 @@ export class Deposit extends GcClassed<Ssh.DepositDefinition>() {
 export class UnBuiltLand extends withTicked(TileContent) {
 	/** Project identifier (e.g., "build:sawmill") indicating pending construction */
 	public project?: string
+	public constructionSite?: ConstructionSiteState
 
 	/**
 	 * Set a project and clear any existing zone
 	 */
-	setProject(project: string): void {
+	setProject(project: string, constructionSite?: ConstructionSiteState): void {
 		this.project = project
+		const target = constructionTargetFromProject(project)
+		this.constructionSite =
+			constructionSite ?? (target ? createConstructionSiteState(target) : undefined)
+		if (this.constructionSite) {
+			effect`unbuilt-land:construction-phase`(() => {
+				if (!this.project || !this.constructionSite) return
+				this.constructionSite.phase = this.tile.isClear ? 'foundation' : 'planned'
+			})
+		}
 		this.terrain = 'concrete'
 		this.tile.baseTerrain = 'concrete'
 		this.tile.terrainState = {
@@ -38,7 +54,10 @@ export class UnBuiltLand extends withTicked(TileContent) {
 		this.game.upsertTerrainOverride(this.tile.position as { q: number; r: number }, {
 			terrain: 'concrete',
 		})
-		this.tile.zone = undefined // Clear zone when project is set
+		// Residential construction keeps the residential zone marker; alveolus projects clear it.
+		if (project !== residentialBasicDwellingProject) {
+			this.tile.zone = undefined
+		}
 		this.game.enqueueInteractiveChange(this.tile)
 	}
 

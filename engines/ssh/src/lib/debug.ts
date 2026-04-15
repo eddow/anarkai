@@ -26,6 +26,7 @@ export const traces: Record<string, typeof console | undefined> = {}
 
 //traces.advertising = console
 //traces.allocations = console
+//traces.residential = console
 //Object.assign(reactiveOptions, debugPreset)
 Object.assign(reactiveOptions, devPreset)
 reactiveOptions.maxEffectChain = 2000

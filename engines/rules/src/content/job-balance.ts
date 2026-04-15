@@ -17,5 +17,7 @@ export const jobBalance = {
 		foundation: 3,
 		construct: 2,
 	},
+	/** Direct freight-bay to non-hive construction site transport work. */
+	freightDeliver: 2.2,
 	defragment: 0.9,
 } as const

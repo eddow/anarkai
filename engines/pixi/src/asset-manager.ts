@@ -4,6 +4,7 @@ import {
 	characters,
 	commands,
 	deposits,
+	dwellings,
 	goods,
 	rivers,
 	terrain,
@@ -57,6 +58,7 @@ export class PixiAssetManager {
 		extractKeys(characters)
 		extractKeys(commands)
 		extractKeys(rivers)
+		extractKeys(dwellings)
 
 		// Terrain is special: keys imply assets 'terrain.NAME' only if definition doesn't override it
 		for (const [key, def] of Object.entries(terrain)) {

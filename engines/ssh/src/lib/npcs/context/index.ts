@@ -3,6 +3,7 @@ import {
 	DEFAULT_GATHER_FREIGHT_RADIUS,
 	findGatherFreightLine,
 	gatherLineAcceptsProducedGood,
+	gatherLoadRadiusForLineAtStop,
 } from 'ssh/freight/freight-line'
 import type { HarvestAlveolus } from 'ssh/hive/harvest'
 import { InteractiveContext, protoCtx, subject } from 'ssh/npcs/scripts'
@@ -59,7 +60,8 @@ class CharacterContext extends InteractiveContext<Character> {
 
 		return gatherers.some((gatherer) => {
 			const line = findGatherFreightLine(this[subject].game.freightLines, gatherer)
-			const gatherRadius = line?.radius ?? DEFAULT_GATHER_FREIGHT_RADIUS
+			const gatherRadius =
+				gatherLoadRadiusForLineAtStop(line, gatherer) ?? DEFAULT_GATHER_FREIGHT_RADIUS
 			// Check if the gatherer can reach this position within its radius (walk time)
 			const path = this[subject].game.hex.findPath(
 				gatherer.tile.position,

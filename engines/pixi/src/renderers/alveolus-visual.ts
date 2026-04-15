@@ -1,6 +1,7 @@
 import { effect } from 'mutts'
 import { Container, Sprite, Texture } from 'pixi.js'
 import type { Alveolus } from 'ssh/board/content/alveolus'
+import { BuildAlveolus } from 'ssh/hive/build'
 import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
 import { alveoli } from '../../assets/visual-content'
@@ -16,6 +17,13 @@ const hasUsableTexture = (texture: Texture | undefined) => {
 }
 
 let alveolusVisualInstanceCounter = 0
+
+function alveolusVisualKey(alveolus: Alveolus): keyof typeof alveoli | undefined {
+	if (alveolus instanceof BuildAlveolus) {
+		return alveolus.target as keyof typeof alveoli
+	}
+	return alveolus.name as keyof typeof alveoli | undefined
+}
 
 export class AlveolusVisual extends VisualObject<any> {
 	private readonly scope: string
@@ -55,7 +63,7 @@ export class AlveolusVisual extends VisualObject<any> {
 		this.register(
 			effect`${this.scope}.sprite`(() => {
 				if (this._disposed) return
-				const visualDef = alveoli[this.object.name]
+				const visualDef = alveoli[alveolusVisualKey(this.object)]
 				const textureName = visualDef?.sprites?.[0]
 				if (textureName) {
 					const tex = this.renderer.getTexture(textureName)

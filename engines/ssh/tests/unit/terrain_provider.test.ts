@@ -146,7 +146,7 @@ describe('terrain provider', () => {
 							0: { flux: 12, width: 4, depth: 2 },
 						},
 					},
-					deposit: { type: 'tree' as const, amount: 3 },
+					deposit: { type: 'tree' as const, amount: 3, maxAmount: 100, name: 'tree' },
 					goods: {},
 					walkTime: 3,
 				}))
@@ -173,6 +173,7 @@ describe('terrain provider', () => {
 			deposit: {
 				type: 'tree',
 				amount: 3,
+				maxAmount: 100,
 				name: 'tree',
 			},
 		})

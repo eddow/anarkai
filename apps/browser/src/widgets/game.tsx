@@ -1,5 +1,6 @@
 import { css } from '@app/lib/css'
 import { showProps } from '@app/lib/follow-selection'
+import { tryConsumeFreightMapPick } from '@app/lib/freight-map-pick'
 import { game, interactionMode, validateStoredSelectionState } from '@app/lib/globals'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
 import { PixiGameRenderer } from 'engine-pixi/renderer'
@@ -75,6 +76,7 @@ export default function GameWidget(
 				if (applied && !event.shiftKey) interactionMode.selectedAction = ''
 				return
 			}
+			if (tryConsumeFreightMapPick(game, object)) return
 			handleProjectSelection(object)
 		},
 		objectDrag(tiles: Tile[], event: MouseEvent) {

@@ -1,6 +1,12 @@
 import { document, latch } from '@sursaut/core'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+class MockBuildAlveolus {
+	uid!: string
+	target!: string
+	tile!: { uid: string }
+}
+
 const hive = {
 	name: 'North Hive',
 	working: true,
@@ -19,6 +25,16 @@ const hive = {
 				wood: { advertisement: 'demand', priority: '2-use' },
 			},
 		},
+		Object.assign(new MockBuildAlveolus(), {
+			uid: 'build:1',
+			name: 'build.storage',
+			target: 'storage',
+			tile: { uid: 'tile:1,0' },
+			action: { type: 'storage' },
+			goodsRelations: {
+				wood: { advertisement: 'demand', priority: '2-use' },
+			},
+		}),
 	],
 }
 
@@ -48,7 +64,20 @@ vi.mock('ssh/hive', () => ({
 }))
 
 vi.mock('ssh/hive/build', () => ({
-	BuildAlveolus: class BuildAlveolus {},
+	BuildAlveolus: MockBuildAlveolus,
+}))
+
+vi.mock('ssh/construction', () => ({
+	queryConstructionSiteView: vi.fn((_game: unknown, tile: { uid?: string }) =>
+		tile?.uid === 'tile:1,0'
+			? {
+					phase: 'waiting_construction',
+					constructionWorkSecondsApplied: 2,
+					constructionTotalSeconds: 6,
+					blockingReasons: ['no_engineer_in_range'],
+				}
+			: undefined
+	),
 }))
 
 vi.mock('ssh/i18n', () => ({
@@ -57,14 +86,29 @@ vi.mock('ssh/i18n', () => ({
 			hive: {
 				section: 'Hive',
 				name: 'Name',
+				commands: 'Commands',
+				workingTooltip: 'Toggle hive activity',
 				ads: 'Ads',
 				noAds: 'No ads',
 				sourcesHint: 'Sources',
 				demand: 'Demand',
 				provide: 'Provide',
 			},
+			alveoli: {
+				storage: 'Storage',
+			},
 			goods: {
 				wood: 'Wood',
+			},
+			construction: {
+				section: 'Construction',
+				phases: {
+					waiting_construction: 'Waiting for builder',
+				},
+				blocking: {
+					no_engineer_in_range: 'No engineer in range',
+				},
+				workProgress: 'Work: {applied}s / {total}s',
 			},
 		},
 	},
@@ -134,6 +178,16 @@ describe('HiveProperties', () => {
 		expect(container.querySelector('[data-testid="hive-ad-row-wood-demand"]')).not.toBeNull()
 		expect(container.querySelector('[data-testid="hive-ad-row-wood-provide"]')).not.toBeNull()
 		expect(container.querySelector('[data-testid="badge-Wood"]')).not.toBeNull()
+		expect(
+			container.querySelector('[data-testid="hive-build-site-build:1"]')?.textContent
+		).toContain('Storage')
+		expect(
+			container.querySelector('[data-testid="hive-build-site-build:1"]')?.textContent
+		).toContain('Waiting for builder')
+		expect(
+			container.querySelector('[data-testid="hive-build-site-build:1"]')?.textContent
+		).toContain('No engineer in range')
+		expect(container.querySelector('[data-testid="hive-build-progress-build:1"]')).not.toBeNull()
 		expect(
 			container.querySelector('[data-testid="hive-working-toggle"]')?.getAttribute('data-checked')
 		).toBe('true')

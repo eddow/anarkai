@@ -21,12 +21,21 @@ import {
 	type EdgeField,
 	edgeKey,
 	type TerrainSnapshot,
+	type TileRiverFlow,
 } from 'engine-terrain'
 import { Deposit } from 'ssh/board/content/unbuilt-land'
-import type { TerrainHydrologySample } from 'ssh/game/terrain-provider'
+import type {
+	HydrologyTileRole,
+	TerrainHydrologyDirection,
+	TerrainHydrologySample,
+	TerrainRiverFlowSample,
+} from 'ssh/game/terrain-provider'
 import type { DepositType, TerrainType } from 'ssh/types'
 import type { AxialCoord } from 'ssh/utils'
-import { axial } from 'ssh/utils'
+import { axial, hexSides } from 'ssh/utils'
+
+const HEX_SIDES = hexSides as readonly AxialCoord[]
+
 export interface GeneratedTileData {
 	coord: AxialCoord
 	terrain: TerrainType
@@ -68,6 +77,135 @@ function resolveTerrainForTile(
 	return biomeToTerrain[baseBiome]
 }
 
+function directionsFromHydrologyEdges(edges: TerrainHydrologySample['edges']): readonly number[] {
+	return Object.keys(edges)
+		.map(Number)
+		.filter(
+			(d) =>
+				Number.isInteger(d) &&
+				d >= 0 &&
+				d <= 5 &&
+				edges[d as TerrainHydrologyDirection] !== undefined
+		)
+		.sort((a, b) => a - b)
+}
+
+function maxEdgeWidthFromHydrologyEdges(edges: TerrainHydrologySample['edges']): number {
+	let maxW = 0
+	for (const e of Object.values(edges)) {
+		if (e) maxW = Math.max(maxW, e.width)
+	}
+	return maxW
+}
+
+function terrainTypeAtSnapshotKey(
+	snapshot: TerrainSnapshot,
+	tileKey: string
+): TerrainType | undefined {
+	const biome = snapshot.biomes.get(tileKey)
+	const tileField = snapshot.tiles.get(tileKey)
+	if (biome === undefined || tileField === undefined) return undefined
+	return resolveTerrainForTile(biome, tileField)
+}
+
+function neighborTerrainAtDirection(
+	snapshot: TerrainSnapshot,
+	coord: AxialCoord,
+	direction: number
+): TerrainType | undefined {
+	const side = HEX_SIDES[direction]
+	if (!side) return undefined
+	const nk = axial.key({ q: coord.q + side.q, r: coord.r + side.r })
+	return terrainTypeAtSnapshotKey(snapshot, nk)
+}
+
+function toTerrainHydrologyDirection(direction: number): TerrainHydrologyDirection {
+	if (!Number.isInteger(direction) || direction < 0 || direction > 5) {
+		throw new Error(`Invalid hydrology direction: ${direction}`)
+	}
+	return direction as TerrainHydrologyDirection
+}
+
+function inferHydrologyTileRole(
+	snapshot: TerrainSnapshot,
+	coord: AxialCoord,
+	flow: TileRiverFlow,
+	edges: TerrainHydrologySample['edges']
+): HydrologyTileRole {
+	const selfKey = axial.key(coord)
+	const selfTerrain = terrainTypeAtSnapshotKey(snapshot, selfKey)
+	if (selfTerrain === undefined || selfTerrain === 'water') return 'none'
+
+	const directions = directionsFromHydrologyEdges(edges)
+	const maxW = maxEdgeWidthFromHydrologyEdges(edges)
+	const neighbor = (d: number) => neighborTerrainAtDirection(snapshot, coord, d)
+	const term = flow.pathTerminalKind
+
+	if (directions.length >= 3) {
+		const waterArms = directions.filter((d) => neighbor(d) === 'water').length
+		if (waterArms >= 2 && maxW >= 4.25) return 'delta'
+		return 'junction'
+	}
+
+	if (directions.length === 2) {
+		const waterDirs = directions.filter((d) => neighbor(d) === 'water')
+		if (waterDirs.length === 1) return 'mouth'
+		return 'through'
+	}
+
+	if (term === 'inland') {
+		if (directions.length === 1) return 'inlandTerminal'
+		if (
+			directions.length === 0 &&
+			flow.upstreamDirections.length > 0 &&
+			flow.downstreamDirections.length === 0
+		) {
+			return 'inlandTerminal'
+		}
+	}
+	if (term === 'coast' || term === 'sea') {
+		if (directions.length === 1) return 'mouth'
+	}
+
+	if (directions.length === 1) {
+		const d0 = directions[0]!
+		if (neighbor(d0) === 'water') return 'mouth'
+		const downstreamToWater = flow.downstreamDirections.some(
+			(d) => neighborTerrainAtDirection(snapshot, coord, Number(d)) === 'water'
+		)
+		if (downstreamToWater) return 'mouth'
+		if (flow.upstreamDirections.length > 0 && flow.downstreamDirections.length > 0) return 'through'
+		if (flow.upstreamDirections.length > 0 && flow.downstreamDirections.length === 0) {
+			return 'inlandTerminal'
+		}
+		if (flow.upstreamDirections.length === 0 && flow.downstreamDirections.length > 0) {
+			return 'source'
+		}
+		return 'none'
+	}
+
+	return 'none'
+}
+
+function projectRiverFlowSample(
+	snapshot: TerrainSnapshot,
+	coord: AxialCoord,
+	flow: TileRiverFlow,
+	edges: TerrainHydrologySample['edges']
+): TerrainRiverFlowSample {
+	const tileRole = inferHydrologyTileRole(snapshot, coord, flow, edges)
+	const base: TerrainRiverFlowSample = {
+		upstreamDirections: flow.upstreamDirections.map(toTerrainHydrologyDirection),
+		downstreamDirections: flow.downstreamDirections.map(toTerrainHydrologyDirection),
+		rankFromSource: flow.rankFromSource,
+		rankToSea: flow.rankToSea,
+		tileRole,
+	}
+	return flow.pathTerminalKind !== undefined
+		? { ...base, pathTerminalKind: flow.pathTerminalKind }
+		: base
+}
+
 function resolveHydrologyForTile(
 	snapshot: TerrainSnapshot,
 	key: string,
@@ -95,11 +233,16 @@ function resolveHydrologyForTile(
 		return undefined
 	}
 
+	const rawFlow = snapshot.hydrology.riverFlow?.get(key)
+	const riverFlow =
+		rawFlow !== undefined ? projectRiverFlowSample(snapshot, coord, rawFlow, edges) : undefined
+
 	return {
 		isChannel,
 		bankInfluence,
 		channelInfluence,
 		edges,
+		...(riverFlow ? { riverFlow } : {}),
 	}
 }
 

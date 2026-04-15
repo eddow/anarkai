@@ -22,6 +22,7 @@ import {
 	type TerrainConfig,
 	type TerrainSnapshot,
 	type TileField,
+	type TileRiverFlow,
 } from './types'
 
 export { edgeKey } from './edge-key'
@@ -81,6 +82,12 @@ function assertSnapshot(snapshot: TerrainSnapshot): void {
 		throw new Error(
 			'Invalid TerrainSnapshot: hydrology must contain banks, channels, and channelInfluence'
 		)
+	}
+	if (
+		snapshot.hydrology.riverFlow !== undefined &&
+		!(snapshot.hydrology.riverFlow instanceof Map)
+	) {
+		throw new Error('Invalid TerrainSnapshot: hydrology.riverFlow must be a Map when present')
 	}
 }
 
@@ -269,6 +276,7 @@ export function generateHydratedRegionWithMetrics(
 		hydrology.edges,
 		hydrology.banks,
 		hydrology.channelInfluence,
+		hydrology.riverFlow,
 		config
 	)
 	const completedAt = nowMs()
@@ -349,6 +357,7 @@ export async function generateHydratedRegionAsyncWithMetrics(
 		hydrology.edges,
 		hydrology.banks,
 		hydrology.channelInfluence,
+		hydrology.riverFlow,
 		config
 	)
 	const completedAt = nowMs()
@@ -407,6 +416,14 @@ export function mergeSnapshotRegion(
 	for (const [key, influence] of region.hydrology.channelInfluence) {
 		snapshot.hydrology.channelInfluence.set(key, influence)
 	}
+	if (region.hydrology.riverFlow) {
+		if (!snapshot.hydrology.riverFlow) {
+			snapshot.hydrology.riverFlow = new Map()
+		}
+		for (const [key, flow] of region.hydrology.riverFlow) {
+			snapshot.hydrology.riverFlow.set(key, flow)
+		}
+	}
 	return { addedTiles, removedTiles: [] }
 }
 
@@ -426,6 +443,7 @@ export function pruneSnapshot(
 		snapshot.hydrology.banks.delete(key)
 		snapshot.hydrology.channels.delete(key)
 		snapshot.hydrology.channelInfluence.delete(key)
+		snapshot.hydrology.riverFlow?.delete(key)
 		removedTiles.push(key)
 	}
 
@@ -516,6 +534,7 @@ export function generate(
 			banks: hydrology.banks,
 			channels: hydrology.channels,
 			channelInfluence: hydrology.channelInfluence,
+			riverFlow: hydrology.riverFlow,
 		},
 	}
 }
@@ -581,6 +600,7 @@ export async function generateAsync(
 			banks: hydrology.banks,
 			channels: hydrology.channels,
 			channelInfluence: hydrology.channelInfluence,
+			riverFlow: hydrology.riverFlow,
 		},
 	}
 }
@@ -606,6 +626,7 @@ function clipHydratedSnapshot(
 	allEdges: Map<EdgeKey, EdgeField>,
 	banks: Map<AxialKey, number>,
 	channelInfluence: Map<AxialKey, number>,
+	riverFlow: Map<AxialKey, TileRiverFlow> | undefined,
 	config: TerrainConfig
 ): TerrainSnapshot {
 	const tiles = new Map<AxialKey, TileField>()
@@ -614,6 +635,7 @@ function clipHydratedSnapshot(
 	const clippedBanks = new Map<AxialKey, number>()
 	const clippedChannels = new Set<AxialKey>()
 	const clippedChannelInfluence = new Map<AxialKey, number>()
+	const clippedRiverFlow = new Map<AxialKey, TileRiverFlow>()
 
 	for (const key of requestedKeys) {
 		const tile = allTiles.get(key)
@@ -632,6 +654,8 @@ function clipHydratedSnapshot(
 		if (bankInfluence !== undefined) clippedBanks.set(key, bankInfluence)
 		if (tileChannelInfluence !== undefined) clippedChannelInfluence.set(key, tileChannelInfluence)
 		if (tileChannelInfluence !== undefined && tileChannelInfluence > 0) clippedChannels.add(key)
+		const tileFlow = riverFlow?.get(key)
+		if (tileFlow) clippedRiverFlow.set(key, tileFlow)
 		biomes.set(
 			key,
 			classifyTile(tile, edgesForTile(key, edges), config, {
@@ -650,6 +674,7 @@ function clipHydratedSnapshot(
 			banks: clippedBanks,
 			channels: clippedChannels,
 			channelInfluence: clippedChannelInfluence,
+			riverFlow: clippedRiverFlow.size > 0 ? clippedRiverFlow : undefined,
 		},
 	}
 }

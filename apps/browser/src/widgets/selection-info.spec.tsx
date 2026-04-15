@@ -5,6 +5,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import type { SelectionInfoContext, SelectionInfoTool } from './selection-info-tab'
 
 const updateParameters = vi.fn<(params: { uid?: string }) => void>()
+const removePanel = vi.fn()
 const onDidRemovePanel = vi.fn((handler: (panel: { id: string }) => void) => {
 	void handler
 	return { dispose: vi.fn() }
@@ -137,6 +138,7 @@ const createScope = () => ({
 	},
 	dockviewApi: {
 		onDidRemovePanel,
+		removePanel,
 	},
 	setTitle: vi.fn<(title: string) => void>(),
 })
@@ -158,6 +160,7 @@ describe('SelectionInfoWidget', () => {
 		globals.mrg.hoveredObject = undefined
 		globals.unreactiveInfo.hasLastSelectedInfoPanel = true
 		updateParameters.mockClear()
+		removePanel.mockClear()
 		onDidRemovePanel.mockClear()
 		game.getObject.mockClear()
 		world.position.x = 0
@@ -207,6 +210,17 @@ describe('SelectionInfoWidget', () => {
 
 		expect(container.querySelector('[data-testid="hive-properties"]')).not.toBeNull()
 		expect(game.getObject).toHaveBeenCalledWith(hiveSyntheticUid)
+	})
+
+	it('closes the panel when the inspected object disappears', () => {
+		globals.selectionState.selectedUid = 'missing-object'
+		const props = createProps()
+		const scope = createScope()
+
+		stop = latch(container, <SelectionInfoWidget {...props} />, scope as never)
+
+		expect(removePanel).toHaveBeenCalledTimes(1)
+		expect(globals.selectionState.selectedUid).toBeUndefined()
 	})
 
 	it('pins the currently selected object from the shared tab tools', () => {

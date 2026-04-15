@@ -228,18 +228,11 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		function canAdvance(mg: TrackedMovement) {
 			if (mg.path.length === 0) return false
 			const nextStep = mg.path[0]
-			const afterNext = mg.path[1]
-			const bridgeTransit =
-				!isTileCoord(mg.from) &&
-				!!nextStep &&
-				!!afterNext &&
-				isTileCoord(nextStep) &&
-				axial.key(nextStep) === axial.key(here) &&
-				!isTileCoord(afterNext)
-			if (bridgeTransit) return true
-			const storage = hive.storageAt(mg.path[0])
-			const hasRoom = storage?.hasRoom(mg.goodType)
-			return hasRoom || mg.path.length === 1
+			const storage = hive.storageAt(nextStep)
+			if (!storage) return false
+			// Final hop onto the demander tile: room is already represented by the twin target allocation.
+			if (mg.path.length === 1 && isTileCoord(nextStep)) return true
+			return storage.hasRoom(mg.goodType) > 0
 		}
 		const borderKeys = new Set(
 			this.tile.surroundings.map(({ border }) => axial.key(toAxialCoord(border.position)!))
@@ -250,7 +243,8 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			const hereKey = axial.key(here)
 			if (fromKey === hereKey) return borderKeys.has(toKey)
 			if (!borderKeys.has(fromKey)) return false
-			return toKey === hereKey || borderKeys.has(toKey)
+			if (toKey === hereKey) return true
+			return borderKeys.has(toKey)
 		}
 		function selectMovement(
 			movement: TrackedMovement,
@@ -459,7 +453,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 						},
 					])
 				)
-		return rv
+		return rv ?? {}
 	}
 	/**
 	 * Clean up the alveolus by creating loose goods for each item in storage

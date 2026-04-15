@@ -1,6 +1,7 @@
 import type { SaveState } from 'ssh/game'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { describe, expect, it } from 'vitest'
+import { gatherFreightLine } from '../freight-fixtures'
 import { TestEngine } from '../test-engine'
 
 describe('Gatherer Conveying Integration', () => {
@@ -107,14 +108,14 @@ describe('Gatherer Conveying Integration', () => {
 					{ goodType: 'wood', position: { q: 0, r: 1 } },
 				],
 				freightLines: [
-					{
+					gatherFreightLine({
 						id: 'GatherHive:implicit-gather:0,0',
 						name: 'Filtered gather',
-						mode: 'gather',
-						stops: [{ hiveName: 'GatherHive', alveolusType: 'gather', coord: [0, 0] }],
+						hiveName: 'GatherHive',
+						coord: [0, 0],
 						filters: ['berries'],
 						radius: 2,
-					},
+					}),
 				],
 			})
 

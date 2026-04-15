@@ -27,6 +27,7 @@
 	},
 	"line": {
 		"section": "Freight line",
+		"linesSection": "Freight lines",
 		"name": "Name",
 		"mode": "Mode",
 		"radius": "Radius",
@@ -56,7 +57,48 @@
 		"modes": {
 			"gather": "Gather",
 			"distribute": "Distribute"
+		},
+		"deleteLine": {
+			"section": "Danger zone",
+			"action": "Delete line"
+		},
+		"mapPick": {
+			"pending": "Choose a map tile to finish the freight pick.",
+			"cancel": "Cancel pick"
+		},
+		"stopsEditor": {
+			"stopLabel": "Stop",
+			"moveUp": "Up",
+			"moveDown": "Down",
+			"removeStop": "Remove",
+			"locationKind": "Location",
+			"kindAnchor": "Bay anchor",
+			"kindZone": "Radius zone",
+			"anchorLocation": "Bay",
+			"zoneLocation": "Zone",
+			"zoneRadius": "Radius",
+			"pickBay": "Pick bay",
+			"pickCenter": "Pick center",
+			"pickBayPending": "Click a freight bay tile on the map…",
+			"pickCenterPending": "Click a tile for the zone center…",
+			"unloadPolicy": "Unload selection",
+			"loadPolicy": "Load selection",
+			"addStop": "Add stop",
+			"validation": "Validation",
+			"actions": "Changes",
+			"save": "Save",
+			"cancel": "Cancel",
+			"issues": {
+				"noStops": "Add at least one stop before saving.",
+				"noBay": "At least one stop must reference a freight bay anchor.",
+				"badRadius": "Each radius zone needs a valid non-negative radius."
+			}
 		}
+	},
+	"bay": {
+		"linesAtThisBay": "Lines at this bay",
+		"addGather": "Add gather line",
+		"addDistribute": "Add distribute line"
 	},
 	"goodsTags": {
 		"food": "Food",
@@ -74,5 +116,37 @@
 	},
 	"step": {
 		"waitForIncomingGoods": "Wait for incoming goods"
+	},
+	"construction": {
+		"section": "Construction",
+		"phases": {
+			"planned": "Planned",
+			"foundation": "Foundation (concrete)",
+			"waiting_materials": "Waiting for materials",
+			"waiting_construction": "Waiting for builder",
+			"building": "Building in progress",
+			"failed": "Failed",
+			"active": "Complete"
+		},
+		"blocking": {
+			"tile_not_clear": "Clear the tile (deposit or loose goods)",
+			"no_engineer_in_range": "No engineer in range",
+			"engineer_hive_paused": "Engineer hive is paused",
+			"construction_site_paused": "Construction site is paused",
+			"missing_goods": "Missing goods"
+		},
+		"materials": "Materials",
+		"workProgress": "Work: {applied}s / {total}s"
+	},
+	"residential": {
+		"projectBasicDwelling": "Basic dwelling (construction)",
+		"dwelling": {
+			"section": "Housing",
+			"tier": "Dwelling",
+			"tierBasic": "Basic dwelling",
+			"capacity": "Home slots",
+			"occupied": "Occupied",
+			"vacant": "Vacant"
+		}
 	}
 }

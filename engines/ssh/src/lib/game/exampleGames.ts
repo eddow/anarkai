@@ -27,9 +27,21 @@ export const chopSaw = {
 		{
 			id: 'ChopSaw:implicit-gather:11,-7',
 			name: 'ChopSaw (11, -7) gather',
-			mode: 'gather',
-			stops: [{ hiveName: 'ChopSaw', alveolusType: 'freight_bay', coord: [11, -7] }],
-			radius: 9,
+			stops: [
+				{
+					id: 'ChopSaw:ig-load',
+					zone: { kind: 'radius', center: [11, -7], radius: 9 },
+				},
+				{
+					id: 'ChopSaw:ig-unload',
+					anchor: {
+						kind: 'alveolus',
+						hiveName: 'ChopSaw',
+						alveolusType: 'freight_bay',
+						coord: [11, -7],
+					},
+				},
+			],
 		},
 	],
 	zones: {

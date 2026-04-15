@@ -1,5 +1,6 @@
 import { jobBalance } from 'engine-rules'
 import { inert, reactive } from 'mutts'
+import { findFreightDeliverJob } from 'ssh/freight/residential-freight-deliver'
 import { GameObject, withInteractive } from 'ssh/game/object'
 import type { TerrainHydrologySample } from 'ssh/game/terrain-provider'
 import { Hive } from 'ssh/hive/hive'
@@ -12,6 +13,7 @@ import { axialDistance, type Position, type Positioned, toAxialCoord } from 'ssh
 import type { HexBoard } from './board'
 import type { TileBorder } from './border/border'
 import { Alveolus } from './content/alveolus'
+import { BuildDwelling } from './content/build-dwelling'
 import type { TileContent } from './content/content'
 import { UnBuiltLand } from './content/unbuilt-land'
 import type { LooseGood } from './looseGoods'
@@ -90,7 +92,7 @@ export class Tile extends withInteractive(GameObject) {
 	}
 
 	get hydrology(): TerrainHydrologySample | undefined {
-		return this.terrainState?.hydrology ?? this.terrainHydrology
+		return this.terrainHydrology ?? this.terrainState?.hydrology
 	}
 
 	get riverWalkTimeMultiplier(): number {
@@ -110,6 +112,11 @@ export class Tile extends withInteractive(GameObject) {
 			if (this.content instanceof UnBuiltLand) {
 				const unbuiltJob = this.content.getJob()
 				if (unbuiltJob) return unbuiltJob
+			}
+
+			if (this.content instanceof BuildDwelling && character) {
+				const freightJob = findFreightDeliverJob(this.board.game, this, character)
+				if (freightJob) return freightJob
 			}
 
 			// Offload if there are loose goods on tile and it's a residential zone or alveolus tile

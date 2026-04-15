@@ -25,10 +25,33 @@ export interface EdgeField {
 	slope: number
 }
 
+/** How a traced river path ends at this tile when it is a path endpoint (merged across paths). */
+export type HydrologyPathTerminalKind = 'sea' | 'coast' | 'inland'
+
+/**
+ * Authoritative river path direction on a channel tile (neighbor direction indices 0..5).
+ * Derived from hydrology traces; merged when multiple paths visit the same tile.
+ */
+export interface TileRiverFlow {
+	readonly upstreamDirections: readonly number[]
+	readonly downstreamDirections: readonly number[]
+	/** Max path index from a spring among contributing paths (0 at source tiles). */
+	readonly rankFromSource: number
+	/** Min steps along a contributing path to reach sea (0 on sea tiles / path end). */
+	readonly rankToSea: number
+	/**
+	 * When this tile is an endpoint of a traced path, how that path terminates.
+	 * Omitted on older snapshots or non-endpoint tiles.
+	 */
+	readonly pathTerminalKind?: HydrologyPathTerminalKind
+}
+
 export interface TerrainHydrologySnapshot {
 	banks: Map<AxialKey, number>
 	channels: Set<AxialKey>
 	channelInfluence: Map<AxialKey, number>
+	/** Optional per-tile flow metadata from river tracing (undefined on older snapshots). */
+	riverFlow?: Map<AxialKey, TileRiverFlow>
 }
 
 // ─── Per-vertex fields (optional, for lakes/deltas) ─────────────

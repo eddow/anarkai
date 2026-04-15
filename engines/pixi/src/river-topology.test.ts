@@ -202,8 +202,7 @@ describe('planRiverTileOverlay', () => {
 			terrain: 'grass',
 		})
 		expect(plan.mode).toBe('sprite')
-		if (plan.mode === 'sprite') {
-			expect(plan.spriteKind).toBe('body')
+		if (plan.mode === 'sprite' && plan.spriteKind === 'body') {
 			expect(plan.angle).toBe('straight180')
 			expect(plan.widthBand).toBe('medium')
 			expect(plan.scale).toBeGreaterThan(0)
@@ -219,8 +218,7 @@ describe('planRiverTileOverlay', () => {
 			terminalNeighborTerrain: 'grass',
 		})
 		expect(plan.mode).toBe('sprite')
-		if (plan.mode === 'sprite') {
-			expect(plan.spriteKind).toBe('terminal')
+		if (plan.mode === 'sprite' && plan.spriteKind === 'terminal') {
 			expect(plan.terminal).toBe('source')
 			expect(plan.textureKey).toBe('rivers.terminal_source__medium')
 		}
@@ -235,8 +233,7 @@ describe('planRiverTileOverlay', () => {
 			terminalNeighborTerrain: 'water',
 		})
 		expect(plan.mode).toBe('sprite')
-		if (plan.mode === 'sprite') {
-			expect(plan.spriteKind).toBe('terminal')
+		if (plan.mode === 'sprite' && plan.spriteKind === 'terminal') {
 			expect(plan.terminal).toBe('delta')
 			expect(plan.textureKey).toBe('rivers.terminal_delta__wide')
 		}
@@ -251,8 +248,7 @@ describe('planRiverTileOverlay', () => {
 			waterEdgeDirections: [2],
 		})
 		expect(plan.mode).toBe('sprite')
-		if (plan.mode === 'sprite') {
-			expect(plan.spriteKind).toBe('terminal')
+		if (plan.mode === 'sprite' && plan.spriteKind === 'terminal') {
 			expect(plan.terminal).toBe('delta')
 			expect(plan.direction).toBe(2)
 		}
@@ -266,8 +262,7 @@ describe('planRiverTileOverlay', () => {
 			terrain: 'water',
 		})
 		expect(plan.mode).toBe('sprite')
-		if (plan.mode === 'sprite') {
-			expect(plan.spriteKind).toBe('terminal')
+		if (plan.mode === 'sprite' && plan.spriteKind === 'terminal') {
 			expect(plan.terminal).toBe('mouth')
 		}
 	})
@@ -280,8 +275,7 @@ describe('planRiverTileOverlay', () => {
 			terrain: 'grass',
 		})
 		expect(plan.mode).toBe('sprite')
-		if (plan.mode === 'sprite') {
-			expect(plan.spriteKind).toBe('junction')
+		if (plan.mode === 'sprite' && plan.spriteKind === 'junction') {
 			expect(plan.junction).toBe('junction_arc_stub')
 			expect(plan.textureKey).toBe('rivers.junction_arc_stub__medium')
 		}

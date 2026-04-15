@@ -1,9 +1,11 @@
 import { goods as goodsCatalog } from 'engine-rules'
+import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
 import { buildAlveolusMarker } from 'ssh/hive/build-marker'
 import type { GatherAlveolus } from 'ssh/hive/gather'
 import type { Character } from 'ssh/population/character'
+import { findDwellingReservedBy } from 'ssh/residential/housing-reservations'
 import { contract } from 'ssh/types'
 import type { GoodType } from 'ssh/types/base'
 import { type AxialCoord, axial, tileSize, toWorldCoord } from 'ssh/utils'
@@ -221,20 +223,52 @@ class FindFunctions {
 		const character = this[subject]
 		const { hex } = character.game
 		const zm = hex.zoneManager
+		const start = toAxialCoord(character.tile.position)
+		if (!start) return false as const
+
+		const existingDwelling = findDwellingReservedBy(character.game, character)
+		if (existingDwelling) {
+			const dest = toAxialCoord(existingDwelling.tile.position)
+			if (!dest) return false as const
+			const path = hex.findPathForCharacter(start, dest, character, maxWalkTime, true)
+			if (path) return { coord: dest, path }
+			existingDwelling.releaseHome(character)
+		}
+
 		const existing = zm.getReservation(character)
 		if (existing) {
-			const start = toAxialCoord(character.tile.position)
 			const path = hex.findPathForCharacter(start, existing, character, maxWalkTime, true)
 			if (path) return { coord: existing, path }
 			zm.releaseReservation(character)
 		}
-		const start = toAxialCoord(character.tile.position)
+
+		let bestDwelling: { dwelling: BasicDwelling; coord: AxialCoord; path: AxialCoord[] } | undefined
+		for (const tile of hex.tiles) {
+			const content = tile.content
+			if (!(content instanceof BasicDwelling)) continue
+			if (content.freeHomeSlots <= 0) continue
+			const coord = toAxialCoord(tile.position)
+			if (!coord) continue
+			const path = hex.findPathForCharacter(start, coord, character, maxWalkTime, true)
+			if (!path) continue
+			if (!bestDwelling || path.length < bestDwelling.path.length) {
+				bestDwelling = { dwelling: content, coord, path }
+			}
+		}
+
 		let best: { coord: AxialCoord; path: AxialCoord[] } | undefined
 		for (const coord of zm.listUnreservedResidentialCoords()) {
 			const path = hex.findPathForCharacter(start, coord, character, maxWalkTime, true)
 			if (!path) continue
 			if (!best || path.length < best.path.length) best = { coord, path }
 		}
+
+		if (bestDwelling && (!best || bestDwelling.path.length <= best.path.length)) {
+			zm.releaseReservation(character)
+			if (!bestDwelling.dwelling.tryReserveHome(character)) return false as const
+			return { coord: bestDwelling.coord, path: bestDwelling.path }
+		}
+
 		if (!best) return false as const
 		if (!zm.tryReserveResidentialAt(character, best.coord)) return false as const
 		return { coord: best.coord, path: best.path }

@@ -1,9 +1,12 @@
 import { jobBalance } from 'engine-rules'
 import { inert, reactive } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
+import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
+import { traces } from 'ssh/debug'
 import type { Character } from 'ssh/population/character'
+import { residentialBasicDwellingProject } from 'ssh/residential/constants'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import type { ConstructJob, FoundationJob } from 'ssh/types/base'
 import type { GoodsRelations } from 'ssh/utils/advertisement'
@@ -38,49 +41,78 @@ export class EngineerAlveolus extends Alveolus {
 				? toAxialCoord(character.position)
 				: toAxialCoord(this.tile.position)
 
-			// Find nearest site needing foundation or construction (whichever is closest)
-			let jobType: 'foundation' | 'construct' | undefined
-			const path = hex.findNearest(
+			// Prefer finishing ready build shells (including dwellings) over starting new foundations.
+			// A single combined nearest-search can starve farther construction sites when nearer
+			// foundation-only tiles exist within the engineer radius.
+			const constructPath = hex.findNearest(
 				startPos,
 				(coord) => {
 					const tile = hex.getTile(coord)
-
-					// Check for UnBuiltLand with clear project (needs foundation)
-					if (tile?.content instanceof UnBuiltLand && !!tile.content.project && tile.isClear) {
-						jobType = 'foundation'
-						return true
-					}
-
-					// Check for BuildAlveolus ready to be built (needs construction)
-					if (tile?.content && isUndestroyedReadyBuildAlveolus(tile.content)) {
-						jobType = 'construct'
-						return true
-					}
-
-					return false
+					return Boolean(tile?.content && isUndestroyedReadyBuildAlveolus(tile.content))
 				},
 				this.action.radius,
 				true
 			)
 
-			if (!path) return undefined
-
-			// Return appropriate job based on what was found
-			if (jobType === 'foundation') {
-				return {
-					job: 'foundation',
-					path: character ? path : undefined,
-					urgency: jobBalance.engineer.foundation,
-					fatigue: 3,
+			if (constructPath) {
+				const terminal = constructPath[constructPath.length - 1]
+				const terminalTile = terminal ? hex.getTile(terminal) : undefined
+				const c = terminalTile?.content
+				if (c instanceof BuildDwelling) {
+					traces.residential?.log('[engineer] nextJob', {
+						job: 'construct',
+						fromQ: startPos?.q,
+						fromR: startPos?.r,
+						radius: this.action.radius,
+						targetQ: terminal?.q,
+						targetR: terminal?.r,
+						tier: c.targetTier,
+					})
 				}
-			} else {
 				return {
 					job: 'construct',
-					path: character ? path : undefined,
+					path: character ? constructPath : undefined,
 					urgency: jobBalance.engineer.construct,
 					fatigue: this.getFatigueCost(),
 				}
 			}
+
+			const foundationPath = hex.findNearest(
+				startPos,
+				(coord) => {
+					const tile = hex.getTile(coord)
+					return Boolean(
+						tile?.content instanceof UnBuiltLand && !!tile.content.project && tile.isClear
+					)
+				},
+				this.action.radius,
+				true
+			)
+
+			if (foundationPath) {
+				const terminal = foundationPath[foundationPath.length - 1]
+				const terminalTile = terminal ? hex.getTile(terminal) : undefined
+				const land = terminalTile?.content
+				if (land instanceof UnBuiltLand && land.project === residentialBasicDwellingProject) {
+					traces.residential?.log('[engineer] nextJob', {
+						job: 'foundation',
+						fromQ: startPos?.q,
+						fromR: startPos?.r,
+						radius: this.action.radius,
+						targetQ: terminal?.q,
+						targetR: terminal?.r,
+						project: land.project,
+					})
+				}
+				return {
+					job: 'foundation',
+					path: character ? foundationPath : undefined,
+					urgency: jobBalance.engineer.foundation,
+					fatigue: 3,
+				}
+			}
+
+			return undefined
 		})
 	}
 

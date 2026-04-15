@@ -2,6 +2,8 @@ import { alveoli as alveoliDefs } from 'engine-rules'
 import { reactive } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
+import { installBuildSitePrototype, registerConstructionMaterialPhaseEffect } from 'ssh/build-site'
+import { type ConstructionSiteState, createConstructionSiteState } from 'ssh/construction-state'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { AlveolusType, GoodType } from 'ssh/types/base'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
@@ -10,8 +12,23 @@ import { buildAlveolusMarker } from './build-marker'
 @reactive
 export class BuildAlveolus extends Alveolus {
 	public readonly target: AlveolusType
+	public readonly constructionSite: ConstructionSiteState
+	public declare readonly storage: SpecificStorage
+	public declare canTake: (goodType: GoodType, priority: ExchangePriority) => boolean
+	public declare canGive: (goodType: GoodType, priority: ExchangePriority) => boolean
+	public declare readonly requiredGoods: Record<GoodType, number>
+	public declare readonly remainingNeeds: Record<string, number>
+	public declare readonly advertisedNeeds: Record<string, number>
+	public declare readonly isReady: boolean
+	public declare readonly workingGoodsRelations: GoodsRelations
 
-	constructor(tile: Tile, target: AlveolusType) {
+	/**
+	 * Seconds of work already applied toward {@link alveoli}[target].construction.time.
+	 * Increments when a construction work step completes or is canceled mid-way (partial credit).
+	 */
+	public constructionWorkSecondsApplied = 0
+
+	constructor(tile: Tile, target: AlveolusType, constructionSite?: ConstructionSiteState) {
 		super(
 			tile,
 			new SpecificStorage(
@@ -21,6 +38,12 @@ export class BuildAlveolus extends Alveolus {
 
 		// Store properties
 		this.target = target
+		this.constructionSite =
+			constructionSite ?? createConstructionSiteState({ kind: 'alveolus', alveolusType: target })
+		if (['planned', 'foundation'].includes(this.constructionSite.phase)) {
+			this.constructionSite.phase = 'waiting_materials'
+		}
+		registerConstructionMaterialPhaseEffect(`build-alveolus:${this.uid}`, this)
 
 		// Override name property to provide build-specific naming
 		Object.defineProperty(this, 'name', {
@@ -30,70 +53,9 @@ export class BuildAlveolus extends Alveolus {
 			enumerable: true,
 		})
 	}
-
-	/**
-	 * Buildings can take goods they still need for construction
-	 */
-	canTake(goodType: GoodType, _priority: ExchangePriority): boolean {
-		if (!this.working) return false
-
-		return (this.advertisedNeeds[goodType] ?? 0) > 0 && !this.destroyed
-	}
-
-	/**
-	 * Buildings typically don't give goods back (default false)
-	 */
-	canGive(_goodType: GoodType, _priority: ExchangePriority): boolean {
-		return false
-	}
-
-	get requiredGoods(): Record<GoodType, number> {
-		return (alveoliDefs[this.target].construction?.goods || {}) as Record<GoodType, number>
-	}
-
-	get remainingNeeds(): Record<string, number> {
-		const needs: Record<string, number> = {}
-
-		// Guard against uninitialized storage
-		if (!this.storage || !this.storage.stock) {
-			return this.requiredGoods // If storage isn't ready, we need everything
-		}
-
-		for (const [good, qty] of Object.entries(this.requiredGoods)) {
-			const goodType = good as GoodType
-			const have = this.storage.available(goodType) || 0
-			if (have < qty) needs[good] = qty - have
-		}
-		return needs
-	}
-
-	get advertisedNeeds(): Record<string, number> {
-		const needs: Record<string, number> = {}
-
-		for (const [good, qty] of Object.entries(this.requiredGoods)) {
-			const goodType = good as GoodType
-			const room = Math.max(0, this.storage.hasRoom(goodType))
-			if (room > 0) needs[good] = Math.min(qty, room)
-		}
-
-		return needs
-	}
-
-	get isReady(): boolean {
-		return Object.keys(this.remainingNeeds).length === 0 && !this.destroyed
-	}
-
-	get workingGoodsRelations(): GoodsRelations {
-		// TODO: Implement more sophisticated priority system that considers construction urgency,
-		// resource scarcity, and build order rather than just using distance as tie-breaker
-		if (this.destroyed) return {}
-		return Object.fromEntries(
-			Object.entries(this.requiredGoods)
-				.filter(([goodType]) => (this.advertisedNeeds[goodType] ?? 0) > 0)
-				.map(([goodType]) => [goodType as GoodType, { advertisement: 'demand', priority: '2-use' }])
-		)
-	}
 }
+
+installBuildSitePrototype(BuildAlveolus.prototype)
 
 Object.defineProperty(BuildAlveolus.prototype, buildAlveolusMarker, {
 	value: true,

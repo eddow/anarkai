@@ -65,6 +65,13 @@ export const activityDurations = { ...activityDurationsRules }
 /** Continuous recovery rates while standing on a reserved residential tile (all toward −1). */
 export const residentialRecoveryRates = { ...residentialRecoveryRatesRules }
 
+/** Slightly stronger recovery while at home in a completed basic dwelling (v1 tier). */
+export const dwellingRecoveryRates = {
+	hunger: residentialRecoveryRates.hunger * 1.25,
+	tiredness: residentialRecoveryRates.tiredness * 1.25,
+	fatigue: residentialRecoveryRates.fatigue * 1.25,
+}
+
 export const maxWalkTime = maxWalkTimeRules
 
 // Storage and building constants

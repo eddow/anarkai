@@ -27,6 +27,7 @@
 	},
 	"line": {
 		"section": "Ligne de fret",
+		"linesSection": "Lignes de fret",
 		"name": "Nom",
 		"mode": "Mode",
 		"radius": "Rayon",
@@ -56,7 +57,48 @@
 		"modes": {
 			"gather": "Collecte",
 			"distribute": "Distribution"
+		},
+		"deleteLine": {
+			"section": "Zone sensible",
+			"action": "Supprimer la ligne"
+		},
+		"mapPick": {
+			"pending": "Choisissez une tuile sur la carte pour terminer la sélection fret.",
+			"cancel": "Annuler la sélection"
+		},
+		"stopsEditor": {
+			"stopLabel": "Étape",
+			"moveUp": "Monter",
+			"moveDown": "Descendre",
+			"removeStop": "Retirer",
+			"locationKind": "Emplacement",
+			"kindAnchor": "Ancre de baie",
+			"kindZone": "Zone (rayon)",
+			"anchorLocation": "Baie",
+			"zoneLocation": "Zone",
+			"zoneRadius": "Rayon",
+			"pickBay": "Choisir la baie",
+			"pickCenter": "Choisir le centre",
+			"pickBayPending": "Cliquez une baie de fret sur la carte…",
+			"pickCenterPending": "Cliquez une tuile pour le centre de la zone…",
+			"unloadPolicy": "Sélection au déchargement",
+			"loadPolicy": "Sélection au chargement",
+			"addStop": "Ajouter une étape",
+			"validation": "Validation",
+			"actions": "Modifications",
+			"save": "Enregistrer",
+			"cancel": "Annuler",
+			"issues": {
+				"noStops": "Ajoutez au moins une étape avant d’enregistrer.",
+				"noBay": "Au moins une étape doit référencer une ancre de baie de fret.",
+				"badRadius": "Chaque zone en rayon doit avoir un rayon valide (≥ 0)."
+			}
 		}
+	},
+	"bay": {
+		"linesAtThisBay": "Lignes à cette baie",
+		"addGather": "Ajouter une ligne de collecte",
+		"addDistribute": "Ajouter une ligne de distribution"
 	},
 	"goodsTags": {
 		"food": "Nourriture",
@@ -74,5 +116,37 @@
 	},
 	"step": {
 		"waitForIncomingGoods": "Attendre des marchandises entrantes"
+	},
+	"construction": {
+		"section": "Construction",
+		"phases": {
+			"planned": "Planifié",
+			"foundation": "Fondation (béton)",
+			"waiting_materials": "En attente de matériaux",
+			"waiting_construction": "En attente du constructeur",
+			"building": "Construction en cours",
+			"failed": "Échec",
+			"active": "Terminé"
+		},
+		"blocking": {
+			"tile_not_clear": "Dégager la tuile (gisement ou biens au sol)",
+			"no_engineer_in_range": "Aucun ingénieur à portée",
+			"engineer_hive_paused": "La ruche de l’ingénieur est en pause",
+			"construction_site_paused": "Chantier en pause",
+			"missing_goods": "Marchandises manquantes"
+		},
+		"materials": "Matériaux",
+		"workProgress": "Travail : {applied}s / {total}s"
+	},
+	"residential": {
+		"projectBasicDwelling": "Logement de base (construction)",
+		"dwelling": {
+			"section": "Logement",
+			"tier": "Type de logement",
+			"tierBasic": "Logement de base",
+			"capacity": "Places d’accueil",
+			"occupied": "Occupé",
+			"vacant": "Libre"
+		}
 	}
 }

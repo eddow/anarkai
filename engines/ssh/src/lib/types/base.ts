@@ -3,7 +3,7 @@ import { alveoli, deposits, goods as goodsCatalog, terrain } from 'engine-rules'
 import type { TileContent } from 'ssh/board'
 import type { LooseGood } from 'ssh/board/looseGoods'
 import type { AllocationBase } from 'ssh/storage/storage'
-import { type Positioned, positionScope } from 'ssh/utils'
+import { type AxialCoord, type Positioned, positionScope } from 'ssh/utils'
 
 /**
  * Base Game Scope
@@ -38,7 +38,8 @@ export const baseGameScope = scope({
 		'gather',
 		'construct',
 		'foundation',
-		'defragment'
+		'defragment',
+		'freightDeliver'
 	),
 	// These should be only the classes of the activities, it specifies the energy management (hunger, fatigue, ...)
 	ActivityType: type.enumerated('idle', 'walk', 'work', 'eat', 'sleep', 'fight'),
@@ -76,11 +77,17 @@ export const baseGameScope = scope({
 
 	GenericWorkPlan: {
 		type: "'work'",
-		job: "'harvest' | 'transform' | 'convey' | 'gather' | 'construct' | 'foundation' | 'defragment'",
+		job: "'harvest' | 'transform' | 'convey' | 'gather' | 'construct' | 'foundation' | 'defragment' | 'freightDeliver'",
 		target: 'object', // TileContent validated at runtime
 		urgency: 'number',
 		fatigue: 'number',
 		'goodType?': 'GoodType',
+		'quantity?': 'number',
+		'lineId?': 'string',
+		'bay?': 'AxialCoord',
+		'site?': 'AxialCoord',
+		'pathToBay?': 'AxialCoord[]',
+		'pathToSite?': 'AxialCoord[]',
 		// Additional fields depend on job type (path, etc.)
 	},
 
@@ -181,6 +188,8 @@ export interface GatherJob {
 	fatigue: number
 	path?: Positioned[] // Path to gatherable good
 	goodType?: GoodType // Which good to gather
+	/** When several gather lines share the stop, identifies which line this run fulfills. */
+	lineId?: string
 }
 
 export interface ConveyJob {
@@ -217,6 +226,19 @@ export interface DefragmentJob {
 	fatigue: number
 }
 
+export interface FreightDeliverJob {
+	job: 'freightDeliver'
+	urgency: number
+	fatigue: number
+	goodType: GoodType
+	quantity: number
+	lineId: string
+	bay: AxialCoord
+	site: AxialCoord
+	pathToBay: AxialCoord[]
+	pathToSite: AxialCoord[]
+}
+
 // Job is the union of all job types
 export type Job =
 	| HarvestJob
@@ -227,6 +249,7 @@ export type Job =
 	| OffloadJob
 	| FoundationJob
 	| DefragmentJob
+	| FreightDeliverJob
 
 export type WorkPlan =
 	| (Exclude<Job, OffloadJob> & {

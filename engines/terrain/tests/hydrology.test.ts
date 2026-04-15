@@ -115,6 +115,63 @@ describe('runHydrology()', () => {
 		expect(hydrology.channelInfluence.get('1,0') ?? 0).toBeGreaterThan(0)
 		expect(hydrology.banks.get('1,-1') ?? 0).toBeGreaterThan(0)
 	})
+
+	it('runHydrologyDetailed records riverFlow on traced channel tiles', () => {
+		const cfg = {
+			...DEFAULT_TERRAIN_CONFIG,
+			hydrologySourcesPerTile: 1,
+			hydrologyLandCeiling: 0.3,
+			hydrologyMaxTraceSteps: 8,
+			hydrologyFluxStepWeight: 6,
+		}
+		const tiles = new Map<string, TileField>()
+		tiles.set('0,0', baseTile({ height: 0.24 }))
+		tiles.set('-1,0', baseTile({ height: 0.18 }))
+		tiles.set('-2,0', baseTile({ height: 0.2 }))
+		tiles.set('-3,0', baseTile({ height: 0.22 }))
+		tiles.set('1,0', baseTile({ height: 0.23 }))
+		tiles.set('2,0', baseTile({ height: 0.16 }))
+		tiles.set('3,0', baseTile({ height: cfg.seaLevel - 0.04 }))
+		tiles.set('0,1', baseTile({ height: 0.22 }))
+		tiles.set('1,-1', baseTile({ height: 0.21 }))
+		tiles.set('2,-1', baseTile({ height: 0.18 }))
+		tiles.set('3,-1', baseTile({ height: 0.14 }))
+
+		const hydrology = runHydrologyDetailed(tiles, 17, cfg)
+		expect(hydrology.riverFlow).toBeDefined()
+		expect(hydrology.riverFlow!.size).toBeGreaterThan(0)
+		for (const key of hydrology.channels) {
+			const flow = hydrology.riverFlow!.get(key)
+			expect(flow).toBeDefined()
+			expect(flow!.upstreamDirections.length + flow!.downstreamDirections.length).toBeGreaterThan(0)
+		}
+	})
+
+	it('runHydrologyDetailed marks landlocked path end as inland pathTerminalKind', () => {
+		const cfg = {
+			...DEFAULT_TERRAIN_CONFIG,
+			hydrologySourcesPerTile: 1,
+			hydrologyLandCeiling: 1,
+			hydrologyMaxTraceSteps: 6,
+			hydrologyFluxStepWeight: 6,
+		}
+		const tiles = new Map<string, TileField>()
+		tiles.set('0,0', baseTile({ height: 0.5 }))
+		for (const c of axial.neighbors({ q: 0, r: 0 })) {
+			tiles.set(axial.key(c), baseTile({ height: 0.22 }))
+		}
+		tiles.set('2,0', baseTile({ height: 0.2 }))
+		tiles.set('-2,0', baseTile({ height: 0.21 }))
+
+		const hydrology = runHydrologyDetailed(tiles, 99, cfg)
+		expect(hydrology.riverFlow).toBeDefined()
+		const inlandEnd = [...hydrology.riverFlow!.values()].find(
+			(f) => f.pathTerminalKind === 'inland'
+		)
+		expect(inlandEnd).toBeDefined()
+		expect(inlandEnd!.downstreamDirections.length).toBe(0)
+		expect(inlandEnd!.upstreamDirections.length).toBeGreaterThan(0)
+	})
 })
 
 describe('generate() hydrology', () => {

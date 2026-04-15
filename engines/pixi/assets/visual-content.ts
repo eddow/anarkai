@@ -179,6 +179,15 @@ export const rivers: Record<string, VisualDefinition> = {
 	},
 }
 
+/** Non-alveolus tile content sprites (served from `/pixi-assets/buildings/*.png`). */
+export const dwellings: Record<string, VisualDefinition> = {
+	basic_dwelling: {
+		sprites: ['buildings.cabin'],
+		icon: 'buildings.cabin',
+		background: 'buildings.cabin',
+	},
+}
+
 export const visualContent = {
 	deposits,
 	alveoli,
@@ -188,4 +197,5 @@ export const visualContent = {
 	characters,
 	commands,
 	rivers,
+	dwellings,
 }

@@ -28,6 +28,9 @@ export const CharacterContract = {
 		construct: ['WorkPlan'],
 		foundation: ['WorkPlan'],
 		defragment: ['WorkPlan'],
+		freightDeliver: ['WorkPlan'],
+		freightDeliverPickedUp: ['GoodType', 'number'],
+		freightDeliverUnloaded: ['GoodType', 'number'],
 	},
 } as const satisfies Contract
 

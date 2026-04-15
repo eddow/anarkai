@@ -56,14 +56,15 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 		onCreated?: (storage: TAdvertiser) => void
 	): TAdvertiser | undefined
 
-	advertise(advertiser: TAdvertiser, ads: GoodsRelations) {
-		if (isReactive(ads)) debugger
+	advertise(advertiser: TAdvertiser, ads: GoodsRelations | undefined) {
+		if (ads !== undefined && isReactive(ads)) debugger
 		inert(() => {
 			if (!advertiser) {
 				traces.advertising?.log(`[ADVERTISE] SKIP: undefined advertiser`)
 				return
 			}
-			traces.advertising?.log(`[ADVERTISE] START: ${advertiser}`, { ads })
+			const adsRecord: GoodsRelations = ads ?? {}
+			traces.advertising?.log(`[ADVERTISE] START: ${advertiser}`, { ads: adsRecord })
 
 			if (this.lastAds.has(advertiser)) {
 				const lastAds = this.lastAds.get(advertiser)!
@@ -89,8 +90,8 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 					}
 				}
 			}
-			this.lastAds.set(advertiser, ads)
-			for (const [goodType, ad] of Object.entries(ads)) {
+			this.lastAds.set(advertiser, adsRecord)
+			for (const [goodType, ad] of Object.entries(adsRecord)) {
 				if (!assertGoodType(goodType)) continue
 				const existing = this.advertisements[goodType]
 				let movementCreated = false

@@ -4,6 +4,7 @@ import {
 	registerPinnedInspectorPanel,
 	unregisterPinnedInspectorPanel,
 } from '@app/lib/follow-selection'
+import { cancelFreightMapPick, freightMapPick } from '@app/lib/freight-map-pick'
 import { game, mrg, selectionState } from '@app/lib/globals'
 import { InspectorSection, Panel } from '@app/ui/anarkai'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
@@ -11,6 +12,7 @@ import { effect } from 'mutts'
 import { Tile } from 'ssh/board/tile'
 import {
 	freightLineIdFromUid,
+	freightLineSummary,
 	isFreightLineUid,
 	type SyntheticFreightLineObject,
 } from 'ssh/freight/freight-line'
@@ -22,6 +24,7 @@ import {
 	resolveHiveFromAnchorTile,
 	type SyntheticHiveObject,
 } from 'ssh/hive'
+import { i18nState } from 'ssh/i18n'
 import { isHoveredObject, setHoveredObject } from 'ssh/interactive-state'
 import { Character } from 'ssh/population/character'
 import { toWorldCoord } from 'ssh/utils/position'
@@ -88,6 +91,28 @@ css`
 	opacity: 0.75;
     padding: 0;
 }
+
+.selection-info-panel__pick-banner {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.65rem;
+	padding: 0.55rem 0.75rem;
+	border-bottom: 1px solid color-mix(in srgb, var(--ak-accent, #8b5cf6) 35%, transparent);
+	background: color-mix(in srgb, var(--ak-accent, #8b5cf6) 10%, var(--ak-surface-panel));
+	color: var(--ak-text);
+	font-size: 0.82rem;
+}
+
+.selection-info-panel__pick-banner button {
+	padding: 0.25rem 0.5rem;
+	border-radius: 0.35rem;
+	border: 1px solid color-mix(in srgb, var(--ak-text-muted) 22%, transparent);
+	background: color-mix(in srgb, var(--ak-surface-panel) 92%, transparent);
+	color: var(--ak-text);
+	cursor: pointer;
+	font-size: 0.78rem;
+}
 `
 
 const SelectionInfoWidget = (
@@ -123,8 +148,8 @@ const SelectionInfoWidget = (
 			const line =
 				lineId && Array.isArray(lines) ? lines.find((entry) => entry.id === lineId) : undefined
 			if (line) {
-				const modeLabel = line.mode[0].toUpperCase() + line.mode.slice(1)
-				return `${line.name} (${modeLabel})`
+				const summaryLabel = freightLineSummary(line)
+				return `${line.name} (${summaryLabel})`
 			}
 		}
 
@@ -220,6 +245,14 @@ const SelectionInfoWidget = (
 		registerPinnedInspectorPanel(api.id, uid)
 		return () => unregisterPinnedInspectorPanel(api.id, uid)
 	})
+	effect`selection-info:close-missing-object`(() => {
+		const uid = current.uid
+		if (!uid || current.object) return
+		if (!props.params.uid && selectionState.selectedUid === uid) {
+			selectionState.selectedUid = undefined
+		}
+		scope.dockviewApi?.removePanel?.(api)
+	})
 	effect`selection-info:panel-cleanup`(() => {
 		const disposable = scope.dockviewApi!.onDidRemovePanel((panel) => {
 			if (panel.id === api.id) {
@@ -261,6 +294,11 @@ const SelectionInfoWidget = (
 		}
 	}
 
+	const mapPick = () => freightMapPick.pending
+	const mapPickHint = () =>
+		i18nState.translator?.line?.mapPick?.pending ?? 'Click the map to finish the freight pick.'
+	const mapPickCancel = () => i18nState.translator?.line?.mapPick?.cancel ?? 'Cancel pick'
+
 	return (
 		<div
 			class="selection-info-panel"
@@ -268,6 +306,12 @@ const SelectionInfoWidget = (
 			data-test-object-uid={current.object?.uid}
 		>
 			<div if={current.object} class="selection-info-panel__content-wrapper">
+				<div if={mapPick()} class="selection-info-panel__pick-banner" data-testid="freight-map-pick-banner">
+					<span>{mapPickHint()}</span>
+					<button type="button" onClick={() => cancelFreightMapPick()}>
+						{mapPickCancel()}
+					</button>
+				</div>
 				<div class="selection-info-panel__content">
 					{current.object instanceof Character ? (
 						<CharacterProperties character={current.object as Character} />

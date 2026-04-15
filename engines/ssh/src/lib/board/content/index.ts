@@ -1,3 +1,5 @@
 export * from './alveolus'
+export * from './basic-dwelling'
+export * from './build-dwelling'
 export * from './content'
 export * from './unbuilt-land'

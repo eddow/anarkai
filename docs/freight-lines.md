@@ -1,76 +1,91 @@
-# Freight Lines (v1)
+# Freight lines and routes (`engines/ssh`)
 
 ## Scope
 
-Freight lines are the first transport layer in `engines/ssh`, introduced before explicit vehicle simulation.
+Freight is the first **by-hand** transport layer in `engines/ssh` (no vehicle simulation yet). A **freight line** is an ordered route: a list of **stops**, each stop being one step at a **bay tile** or in a **zone** (not both).
 
-The current v1 shape focuses on:
+## Data model
 
-- one-stop lines attached to hive alveoli
-- line modes `gather` and `distribute`
-- line-owned goods selection rules and gather radius
-- worker execution through the existing `by-hands` carrier
+### Canonical shape (`FreightLineDefinition`)
 
-## Data Model
+- `id`, `name`
+- `stops`: `ReadonlyArray<FreightStop>`
 
-`Game` owns `freightLines` as an array of `FreightLineDefinition`:
+### Stop shape (`FreightStop`)
 
-- `id`
-- `name`
-- `mode` (`gather` or `distribute`)
-- `stops` (currently normalized to one stop)
-- optional `radius` (gather only)
-- optional `goodsSelection` (explicit good rules, ordered tag rules, then a default allow/deny for all goods)
-- legacy `filters` (`GoodType[]`) is still accepted on load but is migrated into `goodsSelection` and stripped on normalize
+Each stop has:
 
-Stops are station-facing and hive-anchored:
+- `id`: string
+- optional `loadSelection` / `unloadSelection`: layered `GoodSelectionPolicy` (good rules, tag rules, default allow/deny). Omitted or unrestricted policies are stripped on normalize.
 
-- `hiveName` + `coord` identify the station
-- labels are rendered as `<HiveName> (q, r)`
-- legacy stop type `gather` is canonicalized to `freight_bay`
+…and **exactly one** of:
 
-## Bootstrap And Compatibility
+- `anchor`: `FreightBayAnchor` — hive name + alveolus type + axial `coord` (typically `freight_bay`)
+- `zone`: `FreightZoneDefinition` — currently `kind: 'radius'` with `center` + `radius`
 
-At game bootstrap:
+There is **no** stored `op`. Gather vs distribute is inferred **only from geometry** (see segments below).
 
-- implicit one-stop gather lines are derived from hive patches (`gather`/`freight_bay` alveoli)
-- explicit `patches.freightLines` override implicit entries with the same id
-- all lines are normalized before storage
+### Route segments (derived, not stored)
 
-Compatibility bridge kept in v1:
+The engine derives **segments** from consecutive stops:
 
-- legacy patched alveolus type `gather` is migrated to `freight_bay` at load
-- runtime still supports matching legacy gather stop references through canonicalization
+- **Gather segment:** a **radius zone** stop whose **center matches** the next stop’s **bay anchor** coordinates → loose goods into that bay. (Zone and anchor at different tiles are *not* gather — e.g. distribute unload radius → next bay.)
+- **Distribute segment:** **load** at a **bay anchor** that is **not** the unload anchor of a gather segment, then **unload** at an anchor and/or radius zone (optional cap on delivery path length via unload `zone`).
 
-## Runtime Behavior
+`findDistributeRouteSegments` skips the bay anchor that **ends** a gather pair so gather and distribute chains can sit on the same line without false positives.
 
-### Gather mode
+See `findGatherRouteSegments` / `findDistributeRouteSegments` in `engines/ssh/src/lib/freight/freight-line.ts`.
 
-- gather radius is line-owned (`line.radius`) and defaults to `DEFAULT_GATHER_FREIGHT_RADIUS` when absent
-- gather selection uses `goodsSelection` when it is restrictive; otherwise it falls back to hive needs
-- for `road-fret` stops with an active gather line, `StorageAlveolus.canTake` blocks generic incoming transfers so the stop behaves as a collector
+### Goods selection
 
-### Distribute mode
+Restrictive policies on segment **pickup** are read from the segment **load** stop’s `loadSelection` (gather: zone stop; distribute: bay anchor stop). `unloadSelection` is available when a stop needs an explicit unload-side filter.
 
-- distribute lines are persisted and editable
-- distribute `goodsSelection` currently constrains storage advertisement exposure
-- dedicated worker-side distribute job flow is still pending
+### Persistence and normalization
 
-## Inspector And UI
+`GamePatches.freightLines` and `Game.replaceFreightLine` accept **`FreightLineDefinition`** (canonical `stops[]`). `normalizeFreightLineDefinition` trims ids, snaps coordinates, and strips unrestricted policies — call it when replacing a line so `game.freightLines` stays normalized.
 
-Browser inspector exposes synthetic freight line objects:
+## Bootstrap and implicit lines
 
-- UID format: `freight-line:${encodeURIComponent(line.id)}`
-- resolved through `Game.getObject`
-- properties panel supports name, mode, gather radius (numeric input), and layered goods selection rules
+- Implicit gather routes are generated per `gather` / `freight_bay` hive patch (`implicitGatherFreightLinesFromHivePatches`); ids contain `:implicit-gather:`.
+- Explicit patches with the same `id` override implicit lines.
+- `collectFreightLineBootstrapCoords` collects anchor tiles and zone centers for materialization.
 
-## Current Limits
+## Runtime contracts
 
-- modes are limited to `gather` and `distribute`
-- `transfer` mode is not implemented yet
-- goods selection is rule-based; richer vehicle-specific treatments are future work
-- only gather currently uses radius semantics
+- **Segment-scoped checks:** use `gatherSegmentAllowsGoodTypeForSegment` / `distributeSegmentAllowsGoodTypeForSegment` with the **active** `FreightGatherRouteSegment` / `FreightDistributeRouteSegment` in loops (e.g. residential `freightDeliver`, bay requisition).
+- **Broad checks:** `gatherSegmentAllowsGoodType` / `distributeSegmentAllowsGoodType` OR across segments — for aggregate behavior (e.g. `distributeLinesAllowGoodType`, hive storage ads).
+- **UI / summary:** `freightLineAllowsGoodType` ORs gather and distribute sides — **not** for tight runtime authority on a single segment.
+- **Radius:** `distributeSegmentWithinRadius(line, segment, pathLength)` uses the **unload** stop’s zone when present; missing zone means no path-length cap for that segment.
+- **Deprecated:** `freightLineWithinRadius` / `freightDistributeDeliveryWithinRadius` — prefer per-segment APIs.
 
-## Example Save Shape
+## Browser UI
 
-`exampleGames.chopSaw` includes an explicit gather line in `freightLines` with stop type `freight_bay`.
+**Implemented**
+
+- Synthetic line objects: `freight-line:${encodeURIComponent(id)}`, `Game.getObject`.
+- Bay inspector: list lines, add gather/distribute **presets** (`createExplicitFreightLineDraftForFreightBay` + `Game.replaceFreightLine`). Per-line remove was removed from the bay list; **delete** is on the **line** inspector (`FreightLineProperties`).
+- Line inspector: name, **mode** (when unambiguous) + **radius** for the first matching segment, **Delete line** (`Game.removeFreightLineById`; implicit `:implicit-gather:` ids refused in engine). Stations list shows `load`/`unload` policy hints from `loadSelection` / `unloadSelection`.
+
+**Remaining / handoff**
+
+- Full **stop list** editing (reorder, add/remove steps, pick bay vs zone per step).
+- Multi-segment lines: edit **per-segment** goods and radius, not only the first gather/distribute segment (helpers such as `applyFreightLineGoodsSelectionFromEditor` still target the first segment when used programmatically).
+- Optional: expose distribute default (bay→bay unload = unlimited delivery radius) in copy/tooltips.
+- Future **non-radius** zones: extend `FreightZoneDefinition` and segment finders when implemented.
+
+See also `sandbox/freight-handoff.md` for a concise task list.
+
+## Related files
+
+| Area | Path |
+|------|------|
+| Domain + normalize | `engines/ssh/src/lib/freight/freight-line.ts` |
+| Residential delivery | `engines/ssh/src/lib/freight/residential-freight-deliver.ts` |
+| Bay demand augmentation | `engines/ssh/src/lib/freight/residential-freight-requisition.ts` |
+| Bay gather / road-fret | `engines/ssh/src/lib/hive/storage.ts` |
+| Line inspector UI | `apps/browser/src/components/FreightLineProperties.tsx` |
+| Bay line list | `apps/browser/src/components/AlveolusProperties.tsx` |
+
+## Cheat sheet
+
+`engines/ssh/LLM.md` (Residential / freight bullets) mirrors engine-specific pitfalls and the generic `freightDeliver` discovery roadmap.

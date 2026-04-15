@@ -1,6 +1,8 @@
 import { effect } from 'mutts'
 import { ColorMatrixFilter, Container, Graphics, Point, type TilingSprite } from 'pixi.js'
 import { Alveolus } from 'ssh/board/content/alveolus'
+import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
+import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import type { Tile } from 'ssh/board/tile'
 import { interactionMode } from 'ssh/interactive-state'
 import { toWorldCoord } from 'ssh/utils/position'
@@ -8,6 +10,7 @@ import { tileSize } from 'ssh/utils/varied'
 import { scopedPixiName, setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
 import { AlveolusVisual } from './alveolus-visual'
+import { DwellingVisual } from './dwelling-visual'
 import { createTerrainHexSprite } from './terrain-hex-sprite'
 import { VisualObject } from './visual-object'
 
@@ -83,6 +86,10 @@ export class TileVisual extends VisualObject<Tile> {
 				if (content && !this.currentContentVisual) {
 					if (content instanceof Alveolus) {
 						this.currentContentVisual = new AlveolusVisual(content, this.renderer)
+						this.contentContainer.addChild(this.currentContentVisual.view)
+						this.currentContentVisual.bind()
+					} else if (content instanceof BasicDwelling || content instanceof BuildDwelling) {
+						this.currentContentVisual = new DwellingVisual(content, this.renderer)
 						this.contentContainer.addChild(this.currentContentVisual.view)
 						this.currentContentVisual.bind()
 					}

@@ -1,9 +1,19 @@
-import { alveoli, waitForIncomingGoodsPollSeconds } from 'engine-rules'
+import { waitForIncomingGoodsPollSeconds } from 'engine-rules'
 import { atomic } from 'mutts'
 import { isTileCoord } from 'ssh/board/board'
+import type { Alveolus } from 'ssh/board/content/alveolus'
+import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
+import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { LooseGood } from 'ssh/board/looseGoods'
-import { assert } from 'ssh/debug'
+import type { Tile } from 'ssh/board/tile'
+import { isBuildSite } from 'ssh/build-site'
+import {
+	constructionTargetFromProject,
+	createConstructionSiteState,
+	setConstructionConsumedGoods,
+} from 'ssh/construction-state'
+import { assert, traces } from 'ssh/debug'
 import { alveolusClass } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
 import type { TrackedMovement } from 'ssh/hive/hive'
@@ -13,7 +23,8 @@ import type { Character } from 'ssh/population/character'
 import type { AllocationBase } from 'ssh/storage'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import { contract, type Goods, type GoodType } from 'ssh/types'
-import { type AxialCoord, axial } from 'ssh/utils'
+import type { AxialCoord } from 'ssh/utils'
+import { toAxialCoord } from 'ssh/utils/position'
 import { subject } from '../scripts'
 import { DurationStep, MultiMoveStep } from '../steps'
 import type { WorkPlan } from '.'
@@ -23,6 +34,35 @@ import {
 	type FailedConveyMovementData,
 	isRecoverableConveyError,
 } from './convey-cleanup'
+
+function applyConcreteTerrain(tile: Tile): void {
+	tile.baseTerrain = 'concrete'
+	tile.terrainState = {
+		...(tile.terrainState ?? {}),
+		terrain: 'concrete',
+	}
+	tile.game.upsertTerrainOverride(tile.position as { q: number; r: number }, {
+		terrain: 'concrete',
+	})
+}
+
+function finalizeBuildAlveolusToTarget(
+	site: BuildAlveolus,
+	TargetClass: new (tile: Tile) => Alveolus
+) {
+	applyConcreteTerrain(site.tile)
+	site.tile.content = new TargetClass(site.tile)
+}
+
+function finalizeBuildDwellingToBasicDwelling(site: BuildDwelling) {
+	applyConcreteTerrain(site.tile)
+	site.tile.content = new BasicDwelling(site.tile)
+	traces.residential?.log('[residential] dwelling complete', {
+		q: toAxialCoord(site.tile.position)?.q,
+		r: toAxialCoord(site.tile.position)?.r,
+		tier: site.targetTier,
+	})
+}
 
 /**
  * Runtime snapshot for a single convey sub-movement.
@@ -45,11 +85,26 @@ function waitStep() {
 	return new DurationStep(waitForIncomingGoodsPollSeconds, 'idle', 'waitForIncomingGoods')
 }
 
+class ConstructionDurationStep extends DurationStep {
+	constructor(
+		duration: number,
+		description: string,
+		private readonly onProgress: (evolution: number) => void
+	) {
+		super(duration, 'work', description)
+	}
+
+	override evolve(evolution: number, dt: number): void {
+		super.evolve(evolution, dt)
+		this.onProgress(evolution)
+	}
+}
+
 class WorkFunctions {
 	declare [subject]: Character
 	@contract('WorkPlan')
 	prepare(workPlan: WorkPlan) {
-		if (['convey', 'offload'].includes(workPlan.job)) return
+		if (['convey', 'offload', 'freightDeliver'].includes(workPlan.job)) return
 		assert(
 			this[subject].assignedAlveolus?.preparationTime,
 			'assignedAlveolus must be set and have a preparationTime'
@@ -119,7 +174,6 @@ class WorkFunctions {
 			delete movement.claimedAtMs
 		}
 		const alveolus = character.assignedAlveolus!
-		const assignedCoord = axial.key(alveolus.tile.position as AxialCoord)
 		assert(
 			alveolus === character.tile.content,
 			'Character must be assigned to the alveolus on the same tile'
@@ -131,8 +185,10 @@ class WorkFunctions {
 		}
 
 		const hive = alveolus.hive
+		const isCycleResolution = movements.length >= 2
 
 		const movementData: MovementData[] = []
+		let cycleLeaderHandled = false
 
 		for (const selection of movements) {
 			const movement = selection.movement
@@ -181,6 +237,35 @@ class WorkFunctions {
 					allowClaimedTerminalPath: true,
 					allowUntracked: true,
 				})
+				assert(movement.path.length > 0, 'conveyStep: empty movement path')
+				const nextCoord = movement.path[0]!
+				const terminalHop = movement.path.length === 1 && isTileCoord(nextCoord)
+				const skipPreflight = isCycleResolution && !cycleLeaderHandled && !terminalHop
+
+				if (!terminalHop && !skipPreflight) {
+					const nextStorage = movementHive.storageAt(nextCoord)
+					assert(nextStorage, 'nextStorage must be defined')
+					movementHive.noteMovementStorageCheckpoint(
+						movement,
+						'conveyStep.before-hop-alloc',
+						nextCoord
+					)
+					hopAlloc = nextStorage.allocate(
+						{ [movement.goodType]: 1 },
+						{
+							type: 'convey.hop',
+							goodType: movement.goodType,
+							movementId: movement._mgId,
+							providerRef: movement.provider,
+							demanderRef: movement.demander,
+							providerName: movement.provider.name,
+							demanderName: movement.demander.name,
+							movement,
+						}
+					)
+				}
+				if (skipPreflight) cycleLeaderHandled = true
+
 				movementHive.noteMovementStorageCheckpoint(
 					movement,
 					'conveyStep.before-source-fulfill.storage',
@@ -204,30 +289,8 @@ class WorkFunctions {
 					allowClaimedTerminalPath: true,
 					allowUntracked: true,
 				})
-				const nextTile = movement.path[0]
-				const nextBorder = movement.path[1]
-				const bridgeCandidate =
-					!isTileCoord(from) &&
-					!!nextTile &&
-					!!nextBorder &&
-					isTileCoord(nextTile) &&
-					!isTileCoord(nextBorder) &&
-					axial.key(nextTile) === assignedCoord
-				let hop = movement.hop()!
-				if (bridgeCandidate) {
-					const bridgeTile = hop
-					movementHive.noteMovementLifecycle(
-						movement,
-						`conveyStep.bridge.enter:${axial.key(bridgeTile)}`
-					)
-					hop = movement.hop()!
-					movementHive.noteMovementLifecycle(movement, `conveyStep.bridge.exit:${axial.key(hop)}`)
-					movementHive.noteMovementStorageCheckpoint(
-						movement,
-						'conveyStep.bridge.exit.storage',
-						hop
-					)
-				}
+
+				const hop = movement.hop()!
 
 				// Only re-index the movement when another conveyor still needs to pick it up.
 				// Final-hop movements should stay out of hive.movingGoods; otherwise terminal
@@ -260,29 +323,6 @@ class WorkFunctions {
 					}
 				}
 
-				const nextStorage = currentHive(movement).storageAt(hop)
-				assert(nextStorage, 'nextStorage must be defined')
-				currentHive(movement).noteMovementStorageCheckpoint(
-					movement,
-					'conveyStep.before-hop-alloc',
-					hop
-				)
-				hopAlloc = movement.path.length
-					? nextStorage.allocate(
-							{ [movement.goodType]: 1 },
-							{
-								type: 'convey.hop',
-								goodType: movement.goodType,
-								movementId: movement._mgId,
-								providerRef: movement.provider,
-								demanderRef: movement.demander,
-								providerName: movement.provider.name,
-								demanderName: movement.demander.name,
-								movement,
-							}
-						)
-					: undefined
-
 				moving = character.game.hex.looseGoods.add(from, movement.goodType, {
 					position: from,
 					available: false,
@@ -296,57 +336,6 @@ class WorkFunctions {
 					moving,
 				})
 			} catch (error) {
-				// When an intermediate storage is full, park the movement at its
-				// previous coord instead of aborting. The movement stays alive and
-				// another worker will retry when room opens up.
-				if (
-					sourceFulfilled &&
-					movement.path.length > 0 &&
-					movementData.length === 0 &&
-					error instanceof Error &&
-					error.message.includes('Insufficient room to allocate any goods')
-				) {
-					const blockedAt = movement.from
-					const movementHive = currentHive(movement)
-					const fromStorage = movementHive.storageAt(from)
-					if (fromStorage) {
-						try {
-							movement.path.unshift(blockedAt)
-							movement.from = from
-							movement.place()
-							const restored = fromStorage.addGood(movement.goodType, 1)
-							assert(restored === 1, 'conveyStep.park: failed to restore good to from-storage')
-							const newSource = fromStorage.reserve(
-								{ [movement.goodType]: 1 },
-								{
-									type: 'convey.path',
-									goodType: movement.goodType,
-									movementId: movement._mgId,
-									providerRef: movement.provider,
-									demanderRef: movement.demander,
-									providerName: movement.provider.name,
-									demanderName: movement.demander.name,
-									movement,
-								}
-							)
-							movementHive.assignMovementSource(movement, newSource, 'conveyStep.park')
-							movementHive.noteMovementLifecycle(movement, `conveyStep.parked:${from.q},${from.r}`)
-							releaseMovementClaim(movement)
-							console.warn('[conveyStep] Parked movement - intermediate storage full', {
-								goodType: movement.goodType,
-								provider: movement.provider.name,
-								demander: movement.demander.name,
-								parkedAt: `${from.q},${from.r}`,
-								blockedAt: `${blockedAt.q},${blockedAt.r}`,
-								blockedStorage: movementHive.storageAt(blockedAt)?.renderedGoods(),
-							})
-							movementHive.wakeWanderingWorkersNear(movement.provider, movement.demander)
-							return waitStep()
-						} catch {
-							// Parking failed, fall through to normal cleanup
-						}
-					}
-				}
 				cleanupFailedConveyMovement(character, {
 					movement,
 					hopAlloc,
@@ -401,7 +390,7 @@ class WorkFunctions {
 							throw new Error('Movement became invalid after hop handoff')
 						}
 					}
-					for (const { movement, moving, hopAlloc, hop } of movementData) {
+					for (const { movement, moving, hopAlloc: rawHopAlloc, hop } of movementData) {
 						const movementHive = currentHive(movement)
 						const nextStorage = movementHive.storageAt(hop)
 
@@ -415,9 +404,26 @@ class WorkFunctions {
 							movementHive.noteMovementLifecycle(movement, 'conveyStep.finished.terminal')
 							movement.finish()
 						} else {
+							let hopAlloc = rawHopAlloc
 							if (!hopAlloc) {
-								console.error('Hop allocation missing (but path exists) for', movement)
-								throw new Error('Hop allocation missing')
+								assert(nextStorage, 'nextStorage must be defined for deferred cycle-leader alloc')
+								hopAlloc = nextStorage.allocate(
+									{ [movement.goodType]: 1 },
+									{
+										type: 'convey.hop',
+										goodType: movement.goodType,
+										movementId: movement._mgId,
+										providerRef: movement.provider,
+										demanderRef: movement.demander,
+										providerName: movement.provider.name,
+										demanderName: movement.demander.name,
+										movement,
+									}
+								)
+								movementHive.noteMovementLifecycle(
+									movement,
+									'conveyStep.finished.deferred-cycle-leader-alloc'
+								)
 							}
 
 							hopAlloc.fulfill()
@@ -636,17 +642,40 @@ class WorkFunctions {
 		if (!(content instanceof UnBuiltLand) || !content.project) {
 			return
 		}
+		const project = content.project
 		// Redundant assert for TS narrowing, or just cast
 		// assert(content instanceof UnBuiltLand, 'Tile must be UnBuiltLand')
 		// assert(content.project, 'UnBuiltLand must have a project')
 
-		// Extract the alveolus type from project (e.g., "build:sawmill" -> "sawmill")
-		const alveolusType = content.project.replace('build:', '')
+		const constructionSite =
+			content.constructionSite ??
+			(() => {
+				const target = constructionTargetFromProject(project)
+				assert(target, 'UnBuiltLand project must map to a construction target')
+				return createConstructionSiteState(target)
+			})()
 
+		content.constructionSite = constructionSite
+		constructionSite.phase = 'foundation'
 		return new DurationStep(3, 'work', 'foundation').finished(() => {
-			// Create BuildAlveolus
-			const buildAlveolus = new BuildAlveolus(content.tile, alveolusType as any)
-			content.tile.content = buildAlveolus
+			const target = constructionTargetFromProject(project)
+			assert(target, 'UnBuiltLand project must map to a construction target')
+			if (target.kind === 'alveolus') {
+				content.tile.content = new BuildAlveolus(
+					content.tile,
+					target.alveolusType,
+					constructionSite
+				)
+			} else {
+				applyConcreteTerrain(content.tile)
+				content.tile.content = new BuildDwelling(content.tile, target.tier, constructionSite)
+				const ac = toAxialCoord(content.tile.position)
+				traces.residential?.log('[residential] foundation -> BuildDwelling', {
+					tier: target.tier,
+					q: ac?.q,
+					r: ac?.r,
+				})
+			}
 		})
 	}
 
@@ -654,27 +683,75 @@ class WorkFunctions {
 	constructionStep() {
 		// Character must already be on the construction site tile
 		const content = this[subject].tile.content
-		assert(content instanceof BuildAlveolus, 'Tile must be a BuildAlveolus')
-		const site = content as BuildAlveolus
-		assert(site.isReady, 'Construction site must be ready')
-		const targetType = site.target as keyof typeof alveolusClass
-		const TargetClass = alveolusClass[targetType]
-		assert(TargetClass, 'Target alveolus class must exist')
-		return new DurationStep(
-			alveoli[targetType].construction.time,
-			'work',
-			`construct.${targetType}`
-		).finished(() => {
-			site.tile.baseTerrain = 'concrete'
-			site.tile.terrainState = {
-				...(site.tile.terrainState ?? {}),
-				terrain: 'concrete',
+		if (isBuildSite(content)) {
+			const site = content
+			assert(site.isReady, 'Construction site must be ready')
+			const totalSeconds = site.constructionSite.recipe.workSeconds
+			const remaining = Math.max(0, totalSeconds - site.constructionWorkSecondsApplied)
+			const stepDescription =
+				site instanceof BuildAlveolus
+					? `construct.${String(site.target)}`
+					: `construct.dwelling.${site.targetTier}`
+			const finalize = () => {
+				setConstructionConsumedGoods(site.constructionSite, site.constructionSite.requiredGoods)
+				if (site instanceof BuildAlveolus) {
+					const targetType = site.target as keyof typeof alveolusClass
+					const TargetClass = alveolusClass[targetType]
+					assert(TargetClass, 'Target alveolus class must exist')
+					finalizeBuildAlveolusToTarget(site, TargetClass)
+				} else if (site instanceof BuildDwelling) {
+					finalizeBuildDwellingToBasicDwelling(site)
+				} else {
+					assert(false, 'BuildSite must resolve to BuildAlveolus or BuildDwelling')
+				}
 			}
-			site.tile.game.upsertTerrainOverride(site.tile.position as { q: number; r: number }, {
-				terrain: 'concrete',
+			if (remaining <= 0) {
+				site.constructionSite.phase = 'building'
+				site.constructionSite.workSecondsApplied = totalSeconds
+				site.constructionWorkSecondsApplied = totalSeconds
+				finalize()
+				return
+			}
+			site.constructionSite.phase = 'building'
+			const baselineApplied = site.constructionWorkSecondsApplied
+			const step = new ConstructionDurationStep(remaining, stepDescription, (evolution) => {
+				site.constructionSite.workSecondsApplied = baselineApplied + evolution * remaining
 			})
-			// Replace the tile content with the target alveolus
-			site.tile.content = new TargetClass(site.tile)
+			return step
+				.finished(() => {
+					site.constructionWorkSecondsApplied = totalSeconds
+					site.constructionSite.workSecondsApplied = totalSeconds
+					finalize()
+				})
+				.canceled(() => {
+					const progressFraction = Math.min(1, Math.max(0, step.evolution))
+					site.constructionWorkSecondsApplied += progressFraction * remaining
+					site.constructionSite.workSecondsApplied = site.constructionWorkSecondsApplied
+					site.constructionSite.phase = 'waiting_construction'
+				})
+		}
+		assert(false, 'Tile must be a BuildAlveolus or BuildDwelling')
+	}
+
+	@contract('GoodType', 'number')
+	freightDeliverPickedUp(goodType: GoodType, qty: number) {
+		const pos = toAxialCoord(this[subject].tile.position)
+		traces.residential?.log('[residential] freightDeliver picked up', {
+			goodType,
+			qty,
+			q: pos?.q,
+			r: pos?.r,
+		})
+	}
+
+	@contract('GoodType', 'number')
+	freightDeliverUnloaded(goodType: GoodType, qty: number) {
+		const pos = toAxialCoord(this[subject].tile.position)
+		traces.residential?.log('[residential] freightDeliver unloaded', {
+			goodType,
+			qty,
+			q: pos?.q,
+			r: pos?.r,
 		})
 	}
 }

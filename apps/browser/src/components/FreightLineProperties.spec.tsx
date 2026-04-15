@@ -58,23 +58,14 @@ vi.mock('ssh/i18n', () => ({
 					gather: 'Gather',
 					distribute: 'Distribute',
 				},
-				goodsSelection: {
-					section: 'Goods selection',
-					goodRules: 'Goods rules',
-					tagRules: 'Tag rules',
-					fallback: 'Default',
-					fallbackHint: 'When no rule matches:',
-					addGoodRule: 'Add good rule',
-					addTagRule: 'Add tag rule',
-					remove: 'Remove',
-					moveUp: 'Up',
-					moveDown: 'Down',
-					effectAllow: 'Allow',
-					effectDeny: 'Deny',
-					matchPresent: 'Present',
-					matchAbsent: 'Absent',
-					noGoodsToAdd: 'No goods left to add',
-					noTagsToAdd: 'No tags left to add',
+				deleteLine: {
+					section: 'Danger zone',
+					action: 'Delete line',
+				},
+				stopsEditor: {
+					actions: 'Changes',
+					save: 'Save',
+					cancel: 'Cancel',
 				},
 			},
 			goods: {
@@ -118,13 +109,35 @@ vi.mock('./PropertyGridRow', () => ({
 		),
 }))
 
+vi.mock('./FreightStopList', () => ({
+	default: (props: {
+		draft: { name: string }
+		onChange: (next: { name: string }) => void
+	}) => (
+		<button
+			type="button"
+			data-testid="freight-mock-dirty"
+			onClick={() => props.onChange({ ...props.draft, name: `${props.draft.name}!` })}
+		>
+			Dirty
+		</button>
+	),
+}))
+
+import { normalizeFreightLineDefinition } from 'ssh/freight/freight-line'
+
 let FreightLineProperties: typeof import('./FreightLineProperties').default
 
 describe('FreightLineProperties', () => {
 	let container: HTMLElement
 	let stop: (() => void) | undefined
-	let replaceFreightLine: ReturnType<typeof vi.fn>
-	let game: any
+	let removeFreightLineById: ReturnType<typeof vi.fn>
+	let game: {
+		freightLines: ReturnType<typeof normalizeFreightLineDefinition>[]
+		replaceFreightLine: ReturnType<typeof vi.fn>
+		removeFreightLineById: ReturnType<typeof vi.fn>
+		hex: { getTile: ReturnType<typeof vi.fn> }
+	}
 
 	beforeAll(async () => {
 		;({ default: FreightLineProperties } = await import('./FreightLineProperties'))
@@ -133,20 +146,33 @@ describe('FreightLineProperties', () => {
 	beforeEach(() => {
 		container = document.createElement('div')
 		document.body.appendChild(container)
-		replaceFreightLine = vi.fn((next) => {
-			game.freightLines = [next]
-		})
+		removeFreightLineById = vi.fn()
 		game = {
 			freightLines: [
-				{
+				normalizeFreightLineDefinition({
 					id: 'line-1',
 					name: 'Line 1',
-					mode: 'gather',
-					stops: [{ hiveName: 'H', alveolusType: 'freight_bay', coord: [0, 0] as const }],
-					radius: 3,
-				},
+					stops: [
+						{
+							id: 'line-1-z',
+							zone: { kind: 'radius', center: [0, 0], radius: 3 },
+						},
+						{
+							id: 'line-1-b',
+							anchor: {
+								kind: 'alveolus',
+								hiveName: 'H',
+								alveolusType: 'freight_bay',
+								coord: [0, 0],
+							},
+						},
+					],
+				}),
 			],
-			replaceFreightLine,
+			replaceFreightLine: vi.fn((next) => {
+				game.freightLines = [next]
+			}),
+			removeFreightLineById,
 			hex: {
 				getTile: vi.fn(() => undefined),
 			},
@@ -160,7 +186,7 @@ describe('FreightLineProperties', () => {
 		document.body.innerHTML = ''
 	})
 
-	it('replaces checkbox filters with the layered goods selection editor', () => {
+	it('removes the freight line when Delete is used on an explicit line', () => {
 		stop = latch(
 			container,
 			<FreightLineProperties
@@ -168,7 +194,7 @@ describe('FreightLineProperties', () => {
 					uid: 'freight-line:line-1',
 					kind: 'freight-line',
 					title: 'Line 1 (Gather)',
-					game,
+					game: game as never,
 					line: game.freightLines[0],
 					lineId: 'line-1',
 					logs: [],
@@ -176,23 +202,67 @@ describe('FreightLineProperties', () => {
 			/>
 		)
 
-		const pickerTrigger = container.querySelector(
-			'[data-testid="good-selection-add-good-rule"] button'
-		) as HTMLButtonElement | null
-		pickerTrigger?.click()
+		const deleteBtn = container.querySelector('[data-testid="freight-line-delete"]') as
+			| HTMLButtonElement
+			| null
+		expect(deleteBtn?.disabled).toBe(false)
+		deleteBtn?.click()
 
-		const firstGood = container.querySelector('.menu-item') as HTMLDivElement | null
-		firstGood?.click()
+		expect(removeFreightLineById).toHaveBeenCalledTimes(1)
+		expect(removeFreightLineById.mock.calls[0]?.[0]).toBe('line-1')
+	})
 
-		expect(replaceFreightLine).toHaveBeenCalledTimes(1)
-		expect(replaceFreightLine.mock.calls[0]?.[0]).toMatchObject({
-			id: 'line-1',
-			goodsSelection: {
-				goodRules: [{ goodType: 'berries', effect: 'allow' }],
-				tagRules: [],
-				defaultEffect: 'allow',
-			},
-			filters: undefined,
-		})
+	it('keeps Save disabled until the draft is dirty, then persists on Save', () => {
+		stop = latch(
+			container,
+			<FreightLineProperties
+				lineObject={{
+					uid: 'freight-line:line-1',
+					kind: 'freight-line',
+					title: 'Line 1 (Gather)',
+					game: game as never,
+					line: game.freightLines[0],
+					lineId: 'line-1',
+					logs: [],
+				}}
+			/>
+		)
+
+		const nameInput = container.querySelector('[data-testid="freight-line-name"]') as
+			| HTMLInputElement
+			| null
+		nameInput!.value = 'Immediate rename'
+		nameInput?.dispatchEvent(new Event('input', { bubbles: true }))
+
+		expect(game.replaceFreightLine).toHaveBeenCalled()
+		const arg = game.replaceFreightLine.mock.calls.at(-1)?.[0] as { name: string }
+		expect(arg.name).toBe('Immediate rename')
+	})
+
+	it('allows editing and deleting an implicit gather line', () => {
+		stop = latch(
+			container,
+			<FreightLineProperties
+				lineObject={{
+					uid: 'freight-line:Hive%3Aimplicit-gather%3A0%2C0',
+					kind: 'freight-line',
+					title: 'Line 1 (Gather)',
+					game: game as never,
+					line: game.freightLines[0],
+					lineId: 'Hive:implicit-gather:0,0',
+					logs: [],
+				}}
+			/>
+		)
+
+		const nameInput = container.querySelector('[data-testid="freight-line-name"]') as
+			| HTMLInputElement
+			| null
+		const deleteBtn = container.querySelector('[data-testid="freight-line-delete"]') as
+			| HTMLButtonElement
+			| null
+
+		expect(nameInput?.disabled).toBe(false)
+		expect(deleteBtn?.disabled).not.toBe(true)
 	})
 })

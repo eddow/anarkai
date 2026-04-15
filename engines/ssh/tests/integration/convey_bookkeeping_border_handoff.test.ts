@@ -10,11 +10,11 @@ async function flushDeferred(turns: number = 3) {
 	}
 }
 
-describe('Convey bookkeeping border handoff', () => {
+describe('Convey bookkeeping border source rebind', () => {
 	// Skipped: running this test alone triggers Vitest 3.2 worker RPC stack overflow while
 	// postMessage-serializing task results (likely reactive logistics graphs). Keep the body for
 	// local debugging; re-enable when Vitest fixes serialization or the scenario is refactored.
-	it.skip('does not discard a border movement during a transient source handoff gap', {
+	it.skip('does not discard a border movement during a transient source rebind gap', {
 		timeout: 20000,
 	}, async () => {
 		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })

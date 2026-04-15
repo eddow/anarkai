@@ -10,9 +10,12 @@ import type { Tile } from 'ssh/board/tile'
 import { traces } from 'ssh/debug'
 import {
 	DEFAULT_GATHER_FREIGHT_RADIUS,
-	findDistributeFreightLine,
-	findGatherFreightLine,
-	freightLineAllowsGoodType,
+	distributeLinesAllowGoodType,
+	type FreightLineDefinition,
+	findDistributeFreightLines,
+	findGatherFreightLines,
+	gatherLoadRadiusForLineAtStop,
+	gatherSegmentAllowsGoodType,
 	gatherSelectableGoodTypes,
 } from 'ssh/freight/freight-line'
 import type { Character } from 'ssh/population/character'
@@ -231,7 +234,21 @@ export class StorageAlveolus extends Alveolus {
 	canTake(goodType: GoodType, _priority: ExchangePriority) {
 		// Only accept goods if working is enabled
 		if (!this.working) return false
-		if (this.gatherFreightLine()) return false
+		if (this.action?.type === 'road-fret') {
+			const freightLines = this.tile?.game?.freightLines
+			if (freightLines?.length) {
+				const gatherLines = findGatherFreightLines(freightLines, this)
+				if (gatherLines.length > 0) {
+					const distributeLines = findDistributeFreightLines(freightLines, this)
+					if (
+						distributeLines.length === 0 ||
+						!distributeLinesAllowGoodType(distributeLines, goodType)
+					) {
+						return false
+					}
+				}
+			}
+		}
 
 		let result = false
 		let debugInfo: Record<string, unknown> = { working: this.working }
@@ -331,13 +348,14 @@ export class StorageAlveolus extends Alveolus {
 	}
 
 	get workingGoodsRelations(): GoodsRelations {
-		const gatherLine = this.gatherFreightLine()
-		if (gatherLine) {
+		const gatherLines = this.roadFretGatherFreightLines()
+		if (gatherLines.length > 0) {
 			return Object.fromEntries(
 				Object.entries(this.storage.availables)
 					.filter(
 						([goodType, quantity]) =>
-							quantity > 0 && freightLineAllowsGoodType(gatherLine, goodType as GoodType)
+							quantity > 0 &&
+							gatherLines.some((line) => gatherSegmentAllowsGoodType(line, goodType as GoodType))
 					)
 					.map(([goodType]) => [
 						goodType as GoodType,
@@ -410,42 +428,39 @@ export class StorageAlveolus extends Alveolus {
 		}
 
 		const freightLines = this.tile?.game?.freightLines
-		const distributeLine =
-			freightLines && freightLines.length > 0
-				? findDistributeFreightLine(freightLines, this)
-				: undefined
-		if (distributeLine) {
+		const distributeLines =
+			freightLines && freightLines.length > 0 ? findDistributeFreightLines(freightLines, this) : []
+		if (distributeLines.length > 0) {
 			for (const goodType of Object.keys(relations) as GoodType[]) {
-				if (!freightLineAllowsGoodType(distributeLine, goodType)) delete relations[goodType]
+				if (!distributeLinesAllowGoodType(distributeLines, goodType)) delete relations[goodType]
 			}
 		}
 
 		return relations
 	}
 
-	private gatherFreightLine() {
-		if (this.action?.type !== 'road-fret') return undefined
+	private roadFretGatherFreightLines(): FreightLineDefinition[] {
+		if (this.action?.type !== 'road-fret') return []
 		const freightLines = this.tile?.game?.freightLines
-		if (!freightLines?.length) return undefined
-		return findGatherFreightLine(freightLines, this)
-	}
-
-	private effectiveGatherRadius(): number {
-		return this.gatherFreightLine()?.radius ?? DEFAULT_GATHER_FREIGHT_RADIUS
+		if (!freightLines?.length) return []
+		return findGatherFreightLines(freightLines, this)
 	}
 
 	get hasLooseGoodsToGather(): boolean {
 		if (this.action?.type !== 'road-fret') return false
 		const hiveNeeds = Object.keys(this.hive.needs) as GoodType[]
-		const selectable = gatherSelectableGoodTypes(this.gatherFreightLine(), hiveNeeds)
-		if (selectable.length === 0) return false
-		const nearestGoods = this.tile.game.hex.looseGoods.findNearestGoods(
-			toAxialCoord(this.tile.position),
-			toAxialCoord(this.tile.position),
-			selectable,
-			this.effectiveGatherRadius()
-		)
-		return nearestGoods !== undefined
+		const hex = this.tile.game.hex
+		const start = toAxialCoord(this.tile.position)
+		for (const line of this.roadFretGatherFreightLines()) {
+			const selectable = gatherSelectableGoodTypes(line, hiveNeeds)
+			if (selectable.length === 0) continue
+			const radius =
+				gatherLoadRadiusForLineAtStop(line, this) ?? DEFAULT_GATHER_FREIGHT_RADIUS
+			if (hex.looseGoods.findNearestGoods(start, start, selectable, radius) !== undefined) {
+				return true
+			}
+		}
+		return false
 	}
 
 	private nextGatherJob(character?: Character): GatherJob | undefined {
@@ -453,57 +468,88 @@ export class StorageAlveolus extends Alveolus {
 		if (!this.working || !this.hasLooseGoodsToGather || !this.storage.isEmpty) return undefined
 		const startPos = character ? toAxialCoord(character.position) : toAxialCoord(this.tile.position)
 		const hex = this.tile.game.hex
-		const radius = this.effectiveGatherRadius()
-		const line = this.gatherFreightLine()
 		const hiveNeedTypes = Object.keys(this.hive.needs) as GoodType[]
-		let path: Positioned[] | undefined
-		let goodType: GoodType | undefined
-		let selectableGoods = gatherSelectableGoodTypes(line, hiveNeedTypes)
 		const carry = character?.carry
-		if (carry) {
-			const carriedGoods = Object.keys(carry.availables) as GoodType[]
-			selectableGoods = [...new Set([...selectableGoods, ...carriedGoods])]
-			selectableGoods = selectableGoods.filter(
-				(good) =>
-					freightLineAllowsGoodType(line, good) &&
-					carry.hasRoom(good) &&
-					this.storage.canStoreAll(goodsWith(carry.stock, good))
-			)
+
+		type BestPick = {
+			line: FreightLineDefinition
+			goodType: GoodType
+			path: Positioned[]
+			count: number
+			pathLen: number
 		}
-		if (selectableGoods.length === 0) return undefined
-		const goodCounts = Object.fromEntries(selectableGoods.map((good) => [good, 0])) as Goods
-		hex.findNearest(
-			startPos,
-			(pos: Positioned) => {
-				const goodsAtTile = hex.looseGoods.getGoodsAt(pos)
-				for (const good of goodsAtTile) {
-					const gt = good.goodType as GoodType
-					if (good.available && gt in goodCounts) goodCounts[gt]!++
-				}
-				return false
-			},
-			radius,
-			false
-		)
-		const targetGood = Object.entries(goodCounts).reduce(
-			(max, [good, count]) => (count > max.count ? { good: good as GoodType, count } : max),
-			{ good: null as GoodType | null, count: 0 }
-		)
-		if (!targetGood.good) return undefined
-		const result = hex.looseGoods.findNearestGoods(startPos, startPos, [targetGood.good], radius)
-		if (result) {
-			path = result.path
-			goodType = targetGood.good
-		}
-		return (
-			path && {
-				job: 'gather',
-				path,
-				goodType,
-				urgency: gatherUrgency(targetGood.count),
-				fatigue: this.getFatigueCost(),
+		let best: BestPick | undefined
+
+		for (const line of this.roadFretGatherFreightLines()) {
+			const radius =
+				gatherLoadRadiusForLineAtStop(line, this) ?? DEFAULT_GATHER_FREIGHT_RADIUS
+			let selectableGoods = gatherSelectableGoodTypes(line, hiveNeedTypes)
+			if (carry) {
+				const carriedGoods = Object.keys(carry.availables) as GoodType[]
+				selectableGoods = [...new Set([...selectableGoods, ...carriedGoods])]
+				selectableGoods = selectableGoods.filter(
+					(good) =>
+						gatherSegmentAllowsGoodType(line, good) &&
+						carry.hasRoom(good) &&
+						this.storage.canStoreAll(goodsWith(carry.stock, good))
+				)
 			}
-		)
+			if (selectableGoods.length === 0) continue
+
+			const goodCounts = Object.fromEntries(selectableGoods.map((good) => [good, 0])) as Goods
+			hex.findNearest(
+				startPos,
+				(pos: Positioned) => {
+					const goodsAtTile = hex.looseGoods.getGoodsAt(pos)
+					for (const good of goodsAtTile) {
+						const gt = good.goodType as GoodType
+						if (good.available && gt in goodCounts) goodCounts[gt]!++
+					}
+					return false
+				},
+				radius,
+				false
+			)
+			const targetGood = Object.entries(goodCounts).reduce(
+				(max, [good, count]) => (count > max.count ? { good: good as GoodType, count } : max),
+				{ good: null as GoodType | null, count: 0 }
+			)
+			if (!targetGood.good) continue
+			const result = hex.looseGoods.findNearestGoods(startPos, startPos, [targetGood.good], radius)
+			if (!result?.path) continue
+			const pick: BestPick = {
+				line,
+				goodType: targetGood.good,
+				path: result.path,
+				count: targetGood.count,
+				pathLen: result.path.length,
+			}
+			if (!best) {
+				best = pick
+				continue
+			}
+			if (pick.count > best.count) {
+				best = pick
+				continue
+			}
+			if (pick.count < best.count) continue
+			if (pick.pathLen < best.pathLen) {
+				best = pick
+				continue
+			}
+			if (pick.pathLen > best.pathLen) continue
+			if (pick.line.id.localeCompare(best.line.id) < 0) best = pick
+		}
+
+		if (!best) return undefined
+		return {
+			job: 'gather',
+			path: best.path,
+			goodType: best.goodType,
+			lineId: best.line.id,
+			urgency: gatherUrgency(best.count),
+			fatigue: this.getFatigueCost(),
+		}
 	}
 
 	setSlottedGeneralSlots(generalSlots: number): void {

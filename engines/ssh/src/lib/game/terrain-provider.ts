@@ -1,4 +1,5 @@
 import { deposits as depositDefinitions } from 'engine-rules'
+import type { HydrologyPathTerminalKind } from 'engine-terrain'
 import type { GameGenerationConfig, GameGenerator, TerrainTerraformPatch } from 'ssh/generation'
 import type { TerrainType } from 'ssh/types'
 import type { AxialDirection } from 'ssh/utils'
@@ -6,10 +7,30 @@ import { type AxialCoord, axial } from 'ssh/utils'
 
 export type TerrainHydrologyDirection = Exclude<AxialDirection, null>
 
+export type HydrologyTileRole =
+	| 'none'
+	| 'source'
+	| 'through'
+	| 'junction'
+	| 'mouth'
+	| 'inlandTerminal'
+	| 'delta'
+
 export interface TerrainHydrologyEdgeSample {
 	flux: number
 	width: number
 	depth: number
+}
+
+/** Authoritative river path metadata projected from terrain generation. */
+export interface TerrainRiverFlowSample {
+	readonly upstreamDirections: readonly TerrainHydrologyDirection[]
+	readonly downstreamDirections: readonly TerrainHydrologyDirection[]
+	readonly rankFromSource: number
+	readonly rankToSea: number
+	readonly tileRole: HydrologyTileRole
+	/** Present when terrain traced this tile as a path endpoint. */
+	readonly pathTerminalKind?: HydrologyPathTerminalKind
 }
 
 export interface TerrainHydrologySample {
@@ -17,6 +38,7 @@ export interface TerrainHydrologySample {
 	channelInfluence?: number
 	bankInfluence?: number
 	edges: Partial<Record<TerrainHydrologyDirection, TerrainHydrologyEdgeSample>>
+	riverFlow?: TerrainRiverFlowSample
 }
 
 export interface TerrainSample {

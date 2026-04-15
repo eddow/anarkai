@@ -6,12 +6,10 @@ import {
 	Mesh,
 	Rectangle,
 	Shader,
-	Sprite,
 	Texture,
 	UniformGroup,
 } from 'pixi.js'
 import type { RenderableTerrainTile } from 'ssh/game/game'
-import type { TerrainHydrologyEdgeSample } from 'ssh/game/terrain-provider'
 import { type AxialCoord, axial, cartesian, hexSides } from 'ssh/utils'
 
 const HEX_SIDES = hexSides as unknown as readonly [
@@ -26,7 +24,14 @@ const HEX_SIDES = hexSides as unknown as readonly [
 import { tileSize } from 'ssh/utils/varied'
 import { setPixiName } from './debug-names'
 import type { PixiGameRenderer } from './renderer'
-import { planRiverTileOverlay } from './river-topology'
+import {
+	buildRiverTileNode,
+	computeRiverBakeMonotoneHalfOuterMap,
+	halfDrageaSampledFillPolygonWorld,
+	type RiverHalfDragea,
+	type RiverTileNode,
+	tileKeyForCoord,
+} from './river-quarter-model'
 import { terrainTextureSpec } from './terrain-visual-helpers'
 
 const TRIANGLE_DIRECTIONS: readonly [AxialCoord, AxialCoord][] = [
@@ -185,7 +190,7 @@ export class SectorTerrainBaker {
 			const mesh = this.createTriangleMesh(triangle, input.displayBounds)
 			if (mesh) bakeContainer.addChild(mesh)
 		}
-		const riverOverlay = buildRiverOverlay(this.renderer, input)
+		const riverOverlay = buildRiverOverlay(input)
 		if (riverOverlay) bakeContainer.addChild(riverOverlay)
 		debug.meshesCreated = bakeContainer.children.length
 
@@ -397,82 +402,308 @@ function inspectRiverOverlay(input: SectorTerrainBakeInput): RiverOverlayDebug {
 	}
 }
 
-function isUsableRiverTexture(texture: Texture | undefined): texture is Texture {
-	if (!texture || texture === Texture.WHITE) return false
-	const frame = texture.frame
-	return frame.width > 0 && frame.height > 0
+/** Group adjacent `inlandTerminal` hydrology tiles in the bake domain for pooled lake fill. */
+export function collectInlandLakeTileComponents(
+	bakeTileCoords: readonly AxialCoord[],
+	terrainTiles: Map<string, RenderableTerrainTile>
+): AxialCoord[][] {
+	const keySet = new Set(bakeTileCoords.map((c) => axial.key(c)))
+	const isInlandLakeTile = (coord: AxialCoord): boolean => {
+		const sample = terrainTiles.get(axial.key(coord))
+		if (sample === undefined || sample.terrain === 'water') return false
+		return sample.hydrology?.riverFlow?.tileRole === 'inlandTerminal'
+	}
+	const visited = new Set<string>()
+	const components: AxialCoord[][] = []
+	for (const start of bakeTileCoords) {
+		if (!isInlandLakeTile(start)) continue
+		const startKey = axial.key(start)
+		if (visited.has(startKey)) continue
+		const stack: AxialCoord[] = [start]
+		const comp: AxialCoord[] = []
+		visited.add(startKey)
+		while (stack.length > 0) {
+			const c = stack.pop()!
+			comp.push(c)
+			for (let d = 0; d < 6; d += 1) {
+				const side = HEX_SIDES[d]
+				if (!side) continue
+				const n = { q: c.q + side.q, r: c.r + side.r }
+				const nk = axial.key(n)
+				if (!keySet.has(nk) || visited.has(nk)) continue
+				if (!isInlandLakeTile(n)) continue
+				visited.add(nk)
+				stack.push(n)
+			}
+		}
+		if (comp.length > 0) components.push(comp)
+	}
+	return components
 }
 
-type RiverDebugEdgeEntry = readonly [string, TerrainHydrologyEdgeSample | undefined]
+interface LakeHullPoint {
+	readonly x: number
+	readonly y: number
+}
 
-function drawRiverDebugForTile(
-	overlay: Graphics,
+function convexHullMonotoneChain(points: readonly LakeHullPoint[]): LakeHullPoint[] {
+	if (points.length <= 2) return [...points]
+	const sorted = [...points].sort((a, b) => a.x - b.x || a.y - b.y)
+	const cross = (o: LakeHullPoint, a: LakeHullPoint, b: LakeHullPoint) =>
+		(a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x)
+	const lower: LakeHullPoint[] = []
+	for (const p of sorted) {
+		while (lower.length >= 2 && cross(lower[lower.length - 2]!, lower[lower.length - 1]!, p) <= 0) {
+			lower.pop()
+		}
+		lower.push(p)
+	}
+	const upper: LakeHullPoint[] = []
+	for (let i = sorted.length - 1; i >= 0; i -= 1) {
+		const p = sorted[i]!
+		while (upper.length >= 2 && cross(upper[upper.length - 2]!, upper[upper.length - 1]!, p) <= 0) {
+			upper.pop()
+		}
+		upper.push(p)
+	}
+	lower.pop()
+	upper.pop()
+	return [...lower, ...upper]
+}
+
+function centroidOfHull(hull: readonly LakeHullPoint[]): LakeHullPoint {
+	let x = 0
+	let y = 0
+	for (const p of hull) {
+		x += p.x
+		y += p.y
+	}
+	const n = hull.length
+	return { x: x / n, y: y / n }
+}
+
+function inflateHullOutward(
+	hull: readonly LakeHullPoint[],
+	origin: LakeHullPoint,
+	factor: number
+): LakeHullPoint[] {
+	return hull.map((p) => ({
+		x: origin.x + (p.x - origin.x) * factor,
+		y: origin.y + (p.y - origin.y) * factor,
+	}))
+}
+
+const INLAND_HULL_INFLATE_FACTOR = 1.3
+const SINGLE_INLAND_BASIN_MAJOR = 0.58
+const SINGLE_INLAND_BASIN_MINOR = 0.4
+const SINGLE_INLAND_BASIN_CENTER_NUDGE = 0.16
+const SINGLE_INLAND_BASIN_SEGMENTS = 22
+
+function normalize2d(x: number, y: number): { x: number; y: number } {
+	const len = Math.hypot(x, y)
+	if (len < 1e-9) return { x: 0, y: 0 }
+	return { x: x / len, y: y / len }
+}
+
+/**
+ * Bake-local polygon for one inland-terminal basin (rotated ellipse along upstream).
+ * Exported for unit tests.
+ */
+export function singleInlandTerminalBasinPolygonLocal(
 	coord: AxialCoord,
-	edgeEntries: ReadonlyArray<RiverDebugEdgeEntry>,
-	displayBounds: Rectangle
-): void {
-	const center = cartesian(coord, tileSize)
-	const localCenterX = center.x - displayBounds.x
-	const localCenterY = center.y - displayBounds.y
-	const riverHalfWidth = maxRiverHalfWidth(edgeEntries.map(([, edge]) => edge?.width ?? 0))
+	displayBounds: Rectangle,
+	terrainTiles: Map<string, RenderableTerrainTile>
+): readonly { readonly x: number; readonly y: number }[] {
+	const sample = terrainTiles.get(axial.key(coord))
+	if (!sample) return []
+	const bx = displayBounds.x
+	const by = displayBounds.y
 
-	for (const [directionKey, edge] of edgeEntries) {
-		if (!edge) continue
-		const direction = Number(directionKey)
-		if (!Number.isInteger(direction) || direction < 0 || direction > 5) continue
-		const side = HEX_SIDES[direction]
-
-		const midpoint = cartesian(
-			{
-				q: coord.q + side.q * 0.5,
-				r: coord.r + side.r * 0.5,
-			},
+	const centerWorld = cartesian(coord, tileSize)
+	const upstream = sample.hydrology?.riverFlow?.upstreamDirections?.[0]
+	let inward: { x: number; y: number }
+	if (upstream !== undefined && HEX_SIDES[upstream]) {
+		const side = HEX_SIDES[upstream]!
+		const edgeMidWorld = cartesian(
+			{ q: coord.q + side.q * 0.5, r: coord.r + side.r * 0.5 },
 			tileSize
 		)
-		const localMidpointX = midpoint.x - displayBounds.x
-		const localMidpointY = midpoint.y - displayBounds.y
-		const branchWidth = riverStrokeWidth(edge.width)
-
-		overlay
-			.moveTo(localCenterX, localCenterY)
-			.lineTo(localMidpointX, localMidpointY)
-			.stroke({
-				width: branchWidth + 2,
-				color: 0x6b5a3e,
-				alpha: 0.72,
-				cap: 'round',
-				join: 'round',
-			})
-		overlay
-			.moveTo(localCenterX, localCenterY)
-			.lineTo(localMidpointX, localMidpointY)
-			.stroke({
-				width: Math.max(2, branchWidth),
-				color: 0x4ea6d8,
-				alpha: 0.9,
-				cap: 'round',
-				join: 'round',
-			})
+		inward = normalize2d(centerWorld.x - edgeMidWorld.x, centerWorld.y - edgeMidWorld.y)
+	} else {
+		inward = { x: 0, y: 1 }
 	}
 
-	if (edgeEntries.length >= 2) {
-		overlay.circle(localCenterX, localCenterY, riverHalfWidth + 1).fill({
-			color: 0x6b5a3e,
-			alpha: 0.68,
+	const poolCenterWorld = {
+		x: centerWorld.x + inward.x * tileSize * SINGLE_INLAND_BASIN_CENTER_NUDGE,
+		y: centerWorld.y + inward.y * tileSize * SINGLE_INLAND_BASIN_CENTER_NUDGE,
+	}
+	const phi = Math.atan2(inward.y, inward.x)
+	const cosP = Math.cos(phi)
+	const sinP = Math.sin(phi)
+	const a = tileSize * SINGLE_INLAND_BASIN_MAJOR
+	const b = tileSize * SINGLE_INLAND_BASIN_MINOR
+	const cx = poolCenterWorld.x - bx
+	const cy = poolCenterWorld.y - by
+	const poly: { x: number; y: number }[] = []
+	for (let i = 0; i < SINGLE_INLAND_BASIN_SEGMENTS; i += 1) {
+		const t = (i / SINGLE_INLAND_BASIN_SEGMENTS) * Math.PI * 2
+		const ct = Math.cos(t)
+		const st = Math.sin(t)
+		const wx = a * ct
+		const wy = b * st
+		poly.push({
+			x: cx + wx * cosP - wy * sinP,
+			y: cy + wx * sinP + wy * cosP,
 		})
-		overlay.circle(localCenterX, localCenterY, Math.max(2, riverHalfWidth)).fill({
-			color: 0x4ea6d8,
-			alpha: 0.9,
-		})
+	}
+	return poly
+}
+
+function drawSingleInlandTerminalBasin(
+	graphics: Graphics,
+	coord: AxialCoord,
+	displayBounds: Rectangle,
+	terrainTiles: Map<string, RenderableTerrainTile>
+): void {
+	const poly = singleInlandTerminalBasinPolygonLocal(coord, displayBounds, terrainTiles)
+	if (poly.length === 0) return
+	graphics.poly(poly.map((p) => ({ x: p.x, y: p.y }))).fill({ color: 0x4ea6d8, alpha: 0.5 })
+}
+
+function expandInlandLakeComponentWithShoreWater(
+	comp: readonly AxialCoord[],
+	bakeKeySet: ReadonlySet<string>,
+	terrainTiles: Map<string, RenderableTerrainTile>
+): AxialCoord[] {
+	const seen = new Set<string>(comp.map((c) => axial.key(c)))
+	const out: AxialCoord[] = [...comp]
+	for (const c of comp) {
+		for (let d = 0; d < 6; d += 1) {
+			const side = HEX_SIDES[d]
+			if (!side) continue
+			const n = { q: c.q + side.q, r: c.r + side.r }
+			const nk = axial.key(n)
+			if (!bakeKeySet.has(nk) || seen.has(nk)) continue
+			const sample = terrainTiles.get(nk)
+			if (sample?.terrain !== 'water') continue
+			seen.add(nk)
+			out.push(n)
+		}
+	}
+	return out
+}
+
+function drawInlandLakeRegions(
+	graphics: Graphics,
+	components: readonly (readonly AxialCoord[])[],
+	displayBounds: Rectangle,
+	terrainTiles: Map<string, RenderableTerrainTile>,
+	bakeKeySet: ReadonlySet<string>
+): void {
+	const bx = displayBounds.x
+	const by = displayBounds.y
+	for (const comp of components) {
+		if (comp.length === 1) {
+			drawSingleInlandTerminalBasin(graphics, comp[0]!, displayBounds, terrainTiles)
+			continue
+		}
+		const expanded = expandInlandLakeComponentWithShoreWater(comp, bakeKeySet, terrainTiles)
+		const world = expanded.map((coord) => cartesian(coord, tileSize))
+		const hull = convexHullMonotoneChain(world)
+		if (hull.length < 3) {
+			for (const coord of expanded) {
+				const w = cartesian(coord, tileSize)
+				graphics.circle(w.x - bx, w.y - by, tileSize * 0.36).fill({ color: 0x4ea6d8, alpha: 0.42 })
+			}
+			continue
+		}
+		const c = centroidOfHull(hull)
+		const inflated = inflateHullOutward(hull, c, INLAND_HULL_INFLATE_FACTOR)
+		const local = inflated.map((p) => ({ x: p.x - bx, y: p.y - by }))
+		graphics.poly(local).fill({ color: 0x4ea6d8, alpha: 0.44 })
 	}
 }
 
-function buildRiverOverlay(
-	renderer: PixiGameRenderer,
-	input: SectorTerrainBakeInput
-): Container | undefined {
+function shouldSuppressWaterRiverTerminal(
+	coord: AxialCoord,
+	sample: RenderableTerrainTile | undefined,
+	directions: readonly number[],
+	terrainTiles: Map<string, RenderableTerrainTile>
+): boolean {
+	if (sample?.terrain !== 'water' || directions.length !== 1) return false
+	const upstreamDirection = directions[0]
+	if (upstreamDirection === undefined) return false
+	const upstreamCoord = {
+		q: coord.q + HEX_SIDES[upstreamDirection]!.q,
+		r: coord.r + HEX_SIDES[upstreamDirection]!.r,
+	}
+	const upstreamSample = terrainTiles.get(axial.key(upstreamCoord))
+	const upstreamDirections = upstreamSample?.hydrology?.edges
+		? Object.keys(upstreamSample.hydrology.edges)
+				.map(Number)
+				.filter((d) => Number.isInteger(d) && d >= 0 && d <= 5)
+		: []
+	if (upstreamSample?.terrain === 'water' || upstreamDirections.length !== 2) return false
+	return upstreamDirections.some((direction) => {
+		const neighbor = terrainTiles.get(
+			axial.key({
+				q: upstreamCoord.q + HEX_SIDES[direction]!.q,
+				r: upstreamCoord.r + HEX_SIDES[direction]!.r,
+			})
+		)
+		return neighbor?.terrain === 'water'
+	})
+}
+
+function drawRiverQuarterModelForTile(
+	graphics: Graphics,
+	node: RiverTileNode,
+	displayBounds: Rectangle
+): void {
+	const bx = displayBounds.x
+	const by = displayBounds.y
+	const local = (p: { x: number; y: number }) => ({ x: p.x - bx, y: p.y - by })
+
+	const fillAlphaForHalf = (half: RiverHalfDragea): number => {
+		const mouthLip =
+			half.leftQuarter.terminalRole === 'mouthLip' || half.rightQuarter.terminalRole === 'mouthLip'
+		if (mouthLip && half.terminalCap === 'open') return 0.28
+		if (half.terminalCap === 'fanned') return 0.44
+		return 0.52
+	}
+
+	for (const branch of node.branches) {
+		for (const half of branch.halfDrageas) {
+			const wedge = halfDrageaSampledFillPolygonWorld(half).map(local)
+			graphics.poly(wedge).fill({ color: 0x4ea6d8, alpha: fillAlphaForHalf(half) })
+		}
+		for (const half of branch.halfDrageas) {
+			for (const quarter of [half.leftQuarter, half.rightQuarter]) {
+				const [p0, p1, p2] = quarter.bankCurve
+				const a = local(p0)
+				const b = local(p1)
+				const c = local(p2)
+				graphics
+					.moveTo(a.x, a.y)
+					.quadraticCurveTo(b.x, b.y, c.x, c.y)
+					.stroke({ width: 2.5, color: 0x6b5a3e, alpha: 0.85, cap: 'round', join: 'round' })
+			}
+		}
+	}
+}
+
+function buildRiverOverlay(input: SectorTerrainBakeInput): Container | undefined {
 	const debug = inspectRiverOverlay(input)
-	if (debug.riverBranchCount === 0) return undefined
+	const lakeComponents = collectInlandLakeTileComponents(input.bakeTileCoords, input.terrainTiles)
+	const drewLake = lakeComponents.length > 0
+	if (debug.riverBranchCount === 0 && !drewLake) return undefined
+
+	const bakeKeySet = new Set(input.bakeTileCoords.map((c) => axial.key(c)))
+	const widthMap = computeRiverBakeMonotoneHalfOuterMap(
+		input.bakeTileCoords,
+		tileSize,
+		input.terrainTiles
+	)
 
 	const root = setPixiName(
 		new Container({ label: `terrain.continuous:${input.sectorKey}:rivers` }),
@@ -480,126 +711,78 @@ function buildRiverOverlay(
 	)
 	root.eventMode = 'none'
 
-	const debugGraphics = setPixiName(
+	if (drewLake) {
+		const lakeGraphics = setPixiName(
+			new Graphics(),
+			`terrain.continuous:${input.sectorKey}:rivers:inland-lakes`
+		)
+		lakeGraphics.eventMode = 'none'
+		drawInlandLakeRegions(
+			lakeGraphics,
+			lakeComponents,
+			input.displayBounds,
+			input.terrainTiles,
+			bakeKeySet
+		)
+		root.addChild(lakeGraphics)
+	}
+
+	if (debug.riverBranchCount === 0) {
+		return root
+	}
+
+	const graphics = setPixiName(
 		new Graphics(),
-		`terrain.continuous:${input.sectorKey}:rivers:debug`
+		`terrain.continuous:${input.sectorKey}:rivers:quarters`
 	)
-	debugGraphics.eventMode = 'none'
-	let drewDebug = false
+	graphics.eventMode = 'none'
+	let drew = false
 
 	for (const coord of input.bakeTileCoords) {
 		const sample = input.terrainTiles.get(axial.key(coord))
-		const edgeEntries: RiverDebugEdgeEntry[] = sample?.hydrology?.edges
-			? (Object.entries(sample.hydrology.edges) as RiverDebugEdgeEntry[])
-			: []
-		if (edgeEntries.length === 0) continue
+		const edges = sample?.hydrology?.edges
+		if (!edges || Object.keys(edges).length === 0) continue
 
-		const directions = edgeEntries
-			.map(([key]) => Number(key))
+		const directions = Object.keys(edges)
+			.map(Number)
 			.filter((d) => Number.isInteger(d) && d >= 0 && d <= 5)
-		const maxEdgeWidth = Math.max(...edgeEntries.map(([, edge]) => edge?.width ?? 0), 0)
-		const terminalDirection = directions.length === 1 ? directions[0] : undefined
-		const terminalNeighborTerrain =
-			terminalDirection === undefined
-				? undefined
-				: input.terrainTiles.get(
-						axial.key({
-							q: coord.q + HEX_SIDES[terminalDirection]!.q,
-							r: coord.r + HEX_SIDES[terminalDirection]!.r,
-						})
-					)?.terrain
-		const waterEdgeDirections = directions.filter((direction) => {
-			const neighbor = input.terrainTiles.get(
-				axial.key({
-					q: coord.q + HEX_SIDES[direction]!.q,
-					r: coord.r + HEX_SIDES[direction]!.r,
-				})
-			)
-			return neighbor?.terrain === 'water'
-		})
-		const shouldSuppressWaterTerminal =
-			sample?.terrain === 'water' &&
-			directions.length === 1 &&
-			(() => {
-				const upstreamDirection = directions[0]
-				if (upstreamDirection === undefined) return false
-				const upstreamCoord = {
-					q: coord.q + HEX_SIDES[upstreamDirection]!.q,
-					r: coord.r + HEX_SIDES[upstreamDirection]!.r,
-				}
-				const upstreamSample = input.terrainTiles.get(axial.key(upstreamCoord))
-				const upstreamDirections = upstreamSample?.hydrology?.edges
-					? Object.keys(upstreamSample.hydrology.edges)
-							.map(Number)
-							.filter((d) => Number.isInteger(d) && d >= 0 && d <= 5)
-					: []
-				if (upstreamSample?.terrain === 'water' || upstreamDirections.length !== 2) return false
-				return upstreamDirections.some((direction) => {
-					const neighbor = input.terrainTiles.get(
-						axial.key({
-							q: upstreamCoord.q + HEX_SIDES[direction]!.q,
-							r: upstreamCoord.r + HEX_SIDES[direction]!.r,
-						})
-					)
-					return neighbor?.terrain === 'water'
-				})
-			})()
-		if (shouldSuppressWaterTerminal) continue
+		if (directions.length === 0) continue
 
-		const plan = planRiverTileOverlay({
-			edgeDirections: directions,
-			maxEdgeWidth,
+		const suppressed = shouldSuppressWaterRiverTerminal(
+			coord,
+			sample,
+			directions,
+			input.terrainTiles
+		)
+
+		const node = buildRiverTileNode({
+			tileKey: tileKeyForCoord(coord),
+			coord,
 			tileSize,
 			terrain: sample?.terrain,
-			terminalNeighborTerrain,
-			waterEdgeDirections,
+			hydrologyEdges: edges,
+			riverFlow: sample?.hydrology?.riverFlow,
+			tileHalfOuterFromBake: widthMap.get(axial.key(coord)),
+			neighborTerrain: (direction) => {
+				const side = HEX_SIDES[direction]
+				if (!side) return undefined
+				return input.terrainTiles.get(axial.key({ q: coord.q + side.q, r: coord.r + side.r }))
+					?.terrain
+			},
+			suppressed,
 		})
 
-		if (plan.mode === 'none') continue
+		if (node.suppressed || node.branches.length === 0) continue
 
-		if (plan.mode === 'sprite') {
-			const texture = resolveBakeTexture(renderer, plan.textureKey)
-			if (!isUsableRiverTexture(texture)) {
-				drawRiverDebugForTile(debugGraphics, coord, edgeEntries, input.displayBounds)
-				drewDebug = true
-				continue
-			}
-
-			const center = cartesian(coord, tileSize)
-			const sprite = setPixiName(
-				new Sprite({
-					texture,
-					label: `terrain.continuous:${input.sectorKey}:river:${axial.key(coord)}`,
-				}),
-				`terrain.continuous:${input.sectorKey}:river:${axial.key(coord)}`
-			)
-			sprite.anchor.set(0.5)
-			sprite.position.set(center.x - input.displayBounds.x, center.y - input.displayBounds.y)
-			sprite.rotation = plan.rotation
-			sprite.scale.set(plan.scale)
-			sprite.eventMode = 'none'
-			root.addChild(sprite)
-			continue
-		}
-
-		drawRiverDebugForTile(debugGraphics, coord, edgeEntries, input.displayBounds)
-		drewDebug = true
+		drawRiverQuarterModelForTile(graphics, node, input.displayBounds)
+		drew = true
 	}
 
-	if (drewDebug) {
-		root.addChild(debugGraphics)
+	if (drew) {
+		root.addChild(graphics)
 	} else {
-		debugGraphics.destroy()
+		graphics.destroy()
 	}
 
 	return root.children.length > 0 ? root : undefined
-}
-
-function riverStrokeWidth(edgeWidth: number): number {
-	return Math.max(tileSize * 0.16, Math.min(tileSize * 0.46, edgeWidth * 1.9))
-}
-
-function maxRiverHalfWidth(widths: number[]): number {
-	if (widths.length === 0) return tileSize * 0.08
-	return Math.max(...widths.map((width) => riverStrokeWidth(width) / 2))
 }

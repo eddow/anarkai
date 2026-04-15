@@ -1,14 +1,20 @@
+import {
+	buildConstructionViewModel,
+	type ConstructionTranslatorShape,
+} from '@app/lib/construction-view'
 import { css } from '@app/lib/css'
 import { bumpSelectionTitleVersion } from '@app/lib/globals'
 import { InspectorSection } from '@app/ui/anarkai'
 import { goods as visualGoods } from 'engine-pixi/assets/visual-content'
 import { effect, reactive } from 'mutts'
+import { queryConstructionSiteView } from 'ssh/construction'
 import { resolveHiveFromAnchorTile, type SyntheticHiveObject } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
 import { i18nState } from 'ssh/i18n'
 import type { GoodType } from 'ssh/types/base'
 import type { ExchangePriority } from 'ssh/utils/advertisement'
 import { summarizeHiveGoodsRelations } from './alveolus-summary'
+import ConstructionProgressBar from './ConstructionProgressBar'
 import EntityBadge from './EntityBadge'
 import PropertyGrid from './PropertyGrid'
 import PropertyGridRow from './PropertyGridRow'
@@ -101,11 +107,22 @@ interface HivePropertiesProps {
 	hiveObject: SyntheticHiveObject
 }
 
+interface HiveBuildSiteEntry {
+	uid: string
+	title: string
+	phaseLabel: string
+	blockingLabels: string[]
+	workLine: string
+	applied: number
+	total: number
+}
+
 const HiveProperties = (props: HivePropertiesProps) => {
 	const state = reactive({
 		hiveName: '',
 		working: true,
 		entries: [] as ReturnType<typeof summarizeHiveGoodsRelations>,
+		buildSites: [] as HiveBuildSiteEntry[],
 	})
 	const currentHive = () =>
 		resolveHiveFromAnchorTile(props.hiveObject.game, props.hiveObject.anchorTileUid)
@@ -116,6 +133,7 @@ const HiveProperties = (props: HivePropertiesProps) => {
 			state.hiveName = ''
 			state.working = false
 			state.entries = []
+			state.buildSites = []
 			return
 		}
 		state.hiveName = hive.name?.trim() ?? ''
@@ -128,16 +146,51 @@ const HiveProperties = (props: HivePropertiesProps) => {
 				goodsRelations: alveolus.goodsRelations,
 			}))
 		)
+		const constructionTranslator = i18nState.translator as ConstructionTranslatorShape | undefined
+		state.buildSites = Array.from(hive.alveoli)
+			.filter((alveolus): alveolus is BuildAlveolus => alveolus instanceof BuildAlveolus)
+			.map((site) => {
+				const snap = queryConstructionSiteView(props.hiveObject.game, site.tile)
+				if (!snap) {
+					return {
+						uid: site.uid,
+						title: site.target,
+						phaseLabel: site.target,
+						blockingLabels: [],
+						workLine: '',
+						applied: 0,
+						total: 0,
+					}
+				}
+				const model = buildConstructionViewModel(snap, constructionTranslator)
+				return {
+					uid: site.uid,
+					title: alveolusLabel(site.target),
+					phaseLabel: model.phaseLabel,
+					blockingLabels: model.blockingLabels,
+					workLine: model.workLine,
+					applied: model.applied,
+					total: model.total,
+				}
+			})
 	})
 
-	const goodSprite = (goodType: string): string => {
+	function goodSprite(goodType: string): string {
 		const key = goodType as keyof typeof visualGoods
 		return visualGoods[key]?.sprites?.[0] ?? visualGoods[key]?.icon ?? ''
 	}
 
-	const goodLabel = (goodType: string): string => {
+	function goodLabel(goodType: string): string {
 		const t = i18nState.translator?.goods?.[goodType as GoodType]
 		return typeof t === 'string' && t.length > 0 ? t : goodType
+	}
+
+	function alveolusLabel(alveolusType: string): string {
+		const t =
+			i18nState.translator?.alveoli?.[
+				alveolusType as keyof NonNullable<typeof i18nState.translator>['alveoli']
+			]
+		return typeof t === 'string' && t.length > 0 ? t : alveolusType
 	}
 	const handleNameInput = (value: string) => {
 		const hive = currentHive()
@@ -230,6 +283,38 @@ const HiveProperties = (props: HivePropertiesProps) => {
 									</div>
 								)
 							}}
+						</for>
+					</div>
+				</PropertyGridRow>
+				<PropertyGridRow
+					if={state.buildSites.length > 0}
+					label={
+						(i18nState.translator as { construction?: { section?: string } } | undefined)
+							?.construction?.section ?? 'Construction'
+					}
+				>
+					<div class="hive-properties__ads">
+						<for each={state.buildSites}>
+							{(site) => (
+								<div class="hive-properties__ad-row" data-testid={`hive-build-site-${site.uid}`}>
+									<div style="display:grid; gap:0.4rem; width:100%;">
+										<div class="hive-properties__ad-row">
+											<strong>{site.title}</strong>
+											<span>{site.phaseLabel}</span>
+											<for each={site.blockingLabels}>
+												{(label) => <span style="color: var(--ak-text-muted)"> · {label}</span>}
+											</for>
+										</div>
+										<ConstructionProgressBar
+											if={site.total > 0}
+											applied={site.applied}
+											total={site.total}
+											label={site.workLine}
+											testId={`hive-build-progress-${site.uid}`}
+										/>
+									</div>
+								</div>
+							)}
 						</for>
 					</div>
 				</PropertyGridRow>
