@@ -40,7 +40,7 @@ describe('Job Competition Tests', () => {
 						},
 						{
 							coord: [2, 0],
-							alveolus: 'gather',
+							alveolus: 'freight_bay',
 							goods: {},
 						},
 					],
@@ -130,7 +130,7 @@ describe('Job Competition Tests', () => {
 					alveoli: [
 						{
 							coord: [0, 0],
-							alveolus: 'gather',
+							alveolus: 'freight_bay',
 							goods: {},
 						},
 						{
@@ -171,15 +171,11 @@ describe('Job Competition Tests', () => {
 		}
 		game.hex.looseGoods.add({ q: 0, r: 1 }, 'wood')
 
-		const gather = game.hex.getTile({ q: 0, r: 0 })?.content as any
 		const harvest = game.hex.getTile({ q: 1, r: 0 })?.content as any
 
-		const gatherJob = gather?.getJob()
 		const harvestJob = harvest?.getJob()
 
-		expect(gatherJob?.job).toBe('gather')
 		expect(harvestJob?.job).toBe('harvest')
-		expect(gatherJob?.urgency).toBeGreaterThan(0)
 		// Harvest urgency scales with deposit clearing headroom; small deposits can land below 2.5.
 		expect(harvestJob?.urgency).toBeGreaterThanOrEqual(1.4)
 		expect(harvestJob?.urgency).toBeLessThanOrEqual(2.5)

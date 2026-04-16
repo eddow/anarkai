@@ -5,7 +5,6 @@ export const jobBalance = {
 		residentialTile: 1.25,
 	},
 	convey: 3,
-	gather: 2,
 	harvest: {
 		project: 2,
 		clearing: 1.5,
@@ -17,7 +16,17 @@ export const jobBalance = {
 		foundation: 3,
 		construct: 2,
 	},
-	/** Direct freight-bay to non-hive construction site transport work. */
-	freightDeliver: 2.2,
+	/** Walk to a wheelbarrow and board (line freight). */
+	vehicleApproach: 2.0,
+	/** Attach line service after boarding (no movement). */
+	vehicleBeginService: 2.07,
+	/** Pick up loose goods into the operated vehicle (gather zone). */
+	loadOntoVehicle: 2.15,
+	/** Move goods from operated vehicle into bay storage (gather unload anchor). */
+	unloadFromVehicle: 2.16,
+	/** Provide goods from operated vehicle into a standalone construction site (active need sink). */
+	provideFromVehicle: 2.25,
+	/** Move along a freight line while operating a vehicle (hop to next meaningful tile/stop). */
+	vehicleHop: 2.1,
 	defragment: 0.9,
 } as const

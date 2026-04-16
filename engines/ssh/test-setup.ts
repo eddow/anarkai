@@ -13,6 +13,7 @@ import { afterEach, beforeEach, vi } from "vitest";
 delete (global as any).__MUTTS_INSTANCE__;
 
 import { getActivationLog, reactiveOptions, reset, unreactive } from "mutts";
+import { disconnectAllTraces } from "ssh/debug";
 import { options } from "ssh/globals";
 
 type TestDiagnosticEntry = {
@@ -180,6 +181,7 @@ beforeEach(() => {
 	capturedDiagnostics = [];
 	allowedDiagnosticPatterns = [];
 	options.stalledMovementScanIntervalMs = 0;
+	disconnectAllTraces();
 	reset();
 });
 
@@ -196,6 +198,7 @@ afterEach(async () => {
 	allowedDiagnosticPatterns = [];
 	activationLogDumped = false;
 	options.stalledMovementScanIntervalMs = defaultStalledMovementScanIntervalMs;
+	disconnectAllTraces();
 	reset();
 	if (unexpectedDiagnostics.length > 0) {
 		const lines = unexpectedDiagnostics

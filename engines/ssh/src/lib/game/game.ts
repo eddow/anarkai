@@ -49,10 +49,18 @@ import {
 	type SyntheticHiveObject,
 } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
+import {
+	collectSerializedConveyMovementsWithIndex,
+	restoreSerializedConveyMovements,
+} from 'ssh/hive/convey-restore'
+import type { SerializedConveyMovement } from 'ssh/hive/convey-serialize'
+import type { TrackedMovement } from 'ssh/hive/hive'
+import type { MovementRef } from 'ssh/hive/movement-ref'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { readSlottedStorageParams, usesSlottedStorageLayout } from 'ssh/hive/storage-action'
 import { mrg, setHoveredObject } from 'ssh/interactive-state'
 import { Population } from 'ssh/population/population'
+import { type VehicleSerializedState, Vehicles } from 'ssh/population/vehicle'
 import { ResidentialDemandTicker } from 'ssh/residential/demand'
 import type { AlveolusType, DepositType, GoodType, TerrainType } from 'ssh/types'
 import type { GameRenderer, InputAdapter } from 'ssh/types/engine'
@@ -149,6 +157,9 @@ export interface TilePatch {
 	sediment?: number
 	waterTable?: number
 }
+
+export interface VehiclePatch extends VehicleSerializedState {}
+
 export interface GamePatches {
 	tiles?: ReadonlyArray<TilePatch>
 	hives?: ReadonlyArray<{
@@ -168,9 +179,12 @@ export interface GamePatches {
 	}
 	projects?: Record<string, ReadonlyArray<readonly [number, number]>>
 	dwellings?: ReadonlyArray<DwellingPatch>
+	vehicles?: ReadonlyArray<VehiclePatch>
 }
 
 export interface SaveState extends GamePatches {
+	/** In-flight convey movements; array index is the serialization identity for resume. */
+	conveyMovements?: ReadonlyArray<SerializedConveyMovement>
 	population: any[]
 	generationOptions: GameGenerationOptions
 	streamedFrontier?: Array<[number, number]>
@@ -221,6 +235,7 @@ export class Game extends Eventful<GameEvents> {
 	public renderer?: GameRenderer
 	public input?: InputAdapter
 	public readonly population: Population
+	public readonly vehicles: Vehicles
 	public readonly configurationManager = new AlveolusConfigurationManager()
 	/** Registered freight lines (gather/distribute); merged at bootstrap from hive patches and explicit saves. */
 	public freightLines: FreightLineDefinition[] = []
@@ -249,6 +264,17 @@ export class Game extends Eventful<GameEvents> {
 		},
 	})
 	private residentialDemandTicker?: ResidentialDemandTicker
+	private conveyRestoredAtLoad: TrackedMovement[] = []
+	private conveySaveIndexByRef: Map<MovementRef, number> | undefined
+	/** Active convey movements last restored from save (indexed by save order). */
+	get conveyRestoredMovements(): readonly TrackedMovement[] {
+		return this.conveyRestoredAtLoad
+	}
+
+	conveyMovementSaveIndex(ref: MovementRef): number | undefined {
+		return this.conveySaveIndexByRef?.get(ref)
+	}
+
 	public readonly clock = reactive({
 		virtualTime: 0,
 	})
@@ -467,7 +493,7 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	constructor(
-		private readonly generationOptions: GameGenerationOptions = {
+		readonly generationOptions: GameGenerationOptions = {
 			terrainSeed: UNSAVED_DEFAULT_TERRAIN_SEED,
 			characterCount: defaultNewGameCharacterCount,
 			characterRadius: defaultNewGameCharacterRadius,
@@ -486,6 +512,7 @@ export class Game extends Eventful<GameEvents> {
 
 		// Create population singleton
 		this.population = new Population(this)
+		this.vehicles = new Vehicles(this)
 
 		this.generator = new GameGenerator()
 		this.terrainProvider = new TerrainProvider({
@@ -537,6 +564,9 @@ export class Game extends Eventful<GameEvents> {
 			const coord = toAxialCoord(character.position)
 			if (coord) coords.push(axial.round(coord))
 		}
+		for (const vehicle of patches.vehicles ?? []) {
+			coords.push({ q: vehicle.position.q, r: vehicle.position.r })
+		}
 		for (const line of patches.freightLines ?? []) {
 			for (const coord of collectFreightLineBootstrapCoords(line)) {
 				coords.push(coord)
@@ -560,6 +590,9 @@ export class Game extends Eventful<GameEvents> {
 			coords.push({ q: dwelling.coord[0], r: dwelling.coord[1] })
 		}
 		for (const good of patches.looseGoods ?? []) coords.push(axial.round(good.position))
+		for (const vehicle of patches.vehicles ?? []) {
+			coords.push({ q: vehicle.position.q, r: vehicle.position.r })
+		}
 		for (const line of patches.freightLines ?? []) {
 			for (const coord of collectFreightLineBootstrapCoords(line)) {
 				coords.push(coord)
@@ -597,6 +630,9 @@ export class Game extends Eventful<GameEvents> {
 		}
 		for (const dwelling of patches.dwellings ?? []) addPatchCoord(dwelling.coord)
 		for (const good of patches.looseGoods ?? []) addCoord(axial.round(good.position))
+		for (const vehicle of patches.vehicles ?? []) {
+			addCoord({ q: vehicle.position.q, r: vehicle.position.r })
+		}
 		for (const line of patches.freightLines ?? []) {
 			for (const coord of collectFreightLineBootstrapCoords(line)) {
 				addCoord(coord)
@@ -821,6 +857,7 @@ export class Game extends Eventful<GameEvents> {
 			this.terrainProvider.invalidateAll()
 			this.bootstrapGameplayCoords.clear()
 			this.materializedGameplayCoords.clear()
+			this.vehicles.deserialize([])
 
 			this.generateInitialWorld(config, patches)
 			// Apply patches if any
@@ -832,6 +869,7 @@ export class Game extends Eventful<GameEvents> {
 			if (patches.projects) this.applyProjectPatches(patches.projects)
 			if (patches.dwellings?.length) this.applyDwellingPatches(patches.dwellings)
 			this.bootstrapFreightLines(patches)
+			if (patches.vehicles?.length) this.applyVehiclePatches(patches.vehicles)
 		} catch (error) {
 			console.error('Generation failed:', error)
 		}
@@ -860,6 +898,7 @@ export class Game extends Eventful<GameEvents> {
 			this.terrainProvider.invalidateAll()
 			this.bootstrapGameplayCoords.clear()
 			this.materializedGameplayCoords.clear()
+			this.vehicles.deserialize([])
 
 			await this.generateInitialWorldAsync(config, patches)
 			if (patches.tiles?.length) this.applyTilePatches(patches.tiles)
@@ -870,6 +909,7 @@ export class Game extends Eventful<GameEvents> {
 			if (patches.projects) this.applyProjectPatches(patches.projects)
 			if (patches.dwellings?.length) this.applyDwellingPatches(patches.dwellings)
 			this.bootstrapFreightLines(patches)
+			if (patches.vehicles?.length) this.applyVehiclePatches(patches.vehicles)
 		} catch (error) {
 			console.error('Async generation failed:', error)
 		}
@@ -1232,6 +1272,10 @@ export class Game extends Eventful<GameEvents> {
 		}
 	}
 
+	private applyVehiclePatches(vehicles: NonNullable<GamePatches['vehicles']>) {
+		this.vehicles.deserialize(vehicles.map((entry) => ({ ...entry })))
+	}
+
 	public saveGameData(): SaveState {
 		const tiles: Array<TilePatch> = []
 		const hives = new Map<Hive, Array<AlveolusPatch>>()
@@ -1371,27 +1415,36 @@ export class Game extends Eventful<GameEvents> {
 			}
 		}
 
-		return {
-			tiles,
-			hives: Array.from(hives.entries()).map(([hive, alveoli]) => ({
-				name: hive.name,
-				working: hive.working,
-				alveoli,
-			})),
-			freightLines: [...this.freightLines],
-			looseGoods: looseGoodsPatches,
-			streamedFrontier,
-			zones,
-			projects,
-			dwellings,
-			population: this.population.serialize(),
-			generationOptions: this.generationOptions,
-			namedConfigurations: this.configurationManager.serialize(),
-			hiveConfigurations,
+		const { rows: conveyMovements, indexByRef } = collectSerializedConveyMovementsWithIndex(this)
+		this.conveySaveIndexByRef = indexByRef
+		try {
+			return {
+				tiles,
+				hives: Array.from(hives.entries()).map(([hive, alveoli]) => ({
+					name: hive.name,
+					working: hive.working,
+					alveoli,
+				})),
+				freightLines: [...this.freightLines],
+				looseGoods: looseGoodsPatches,
+				streamedFrontier,
+				zones,
+				projects,
+				dwellings,
+				vehicles: this.vehicles.serialize(),
+				conveyMovements,
+				population: this.population.serialize(),
+				generationOptions: this.generationOptions,
+				namedConfigurations: this.configurationManager.serialize(),
+				hiveConfigurations,
+			}
+		} finally {
+			this.conveySaveIndexByRef = undefined
 		}
 	}
 
 	public async loadGameData(state: SaveState) {
+		this.conveyRestoredAtLoad = []
 		// 1. Restore named configurations first (before alveoli are created)
 		if (state.namedConfigurations) {
 			this.configurationManager.deserialize(state.namedConfigurations)
@@ -1407,12 +1460,15 @@ export class Game extends Eventful<GameEvents> {
 		this.hex.reset()
 		this.bootstrapGameplayCoords.clear()
 		this.materializedGameplayCoords.clear()
+		this.vehicles.deserialize([])
 		this.population.deserialize([])
 
 		// 3. Generate and apply patches (passes hive configs for restoration)
 		await this.generateAsync(state.generationOptions, state, state)
 
 		this.residentialDemandTicker = new ResidentialDemandTicker(this)
+
+		this.conveyRestoredAtLoad = restoreSerializedConveyMovements(this, state.conveyMovements)
 
 		// 4. Load Population (after board is ready)
 		if (state.population) {
@@ -1435,6 +1491,9 @@ export class Game extends Eventful<GameEvents> {
 		this.ticker.stop()
 		this.residentialDemandTicker?.destroy()
 		this.residentialDemandTicker = undefined
+		try {
+			this.vehicles.deserialize([])
+		} catch {}
 		try {
 			this.population.deserialize([])
 		} catch {}

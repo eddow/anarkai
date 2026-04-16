@@ -3,7 +3,7 @@ import { vi } from 'vitest'
 function rulesTestOverrides() {
 	return {
 		vehicles: {
-			'by-hands': { storage: { slots: 10, capacity: 100 }, transferTime: 1 },
+			wheelbarrow: { storage: { slots: 10, capacity: 100 }, transferTime: 1, walkTime: 1.45 },
 			worker: { speed: 1, capacity: 10, transferTime: 1 },
 		},
 		goods: {
@@ -127,6 +127,12 @@ function rulesTestOverrides() {
 				construct: 2,
 			},
 			defragment: 0.9,
+			vehicleApproach: 2,
+			vehicleBeginService: 2.07,
+			loadOntoVehicle: 2.15,
+			unloadFromVehicle: 2.16,
+			provideFromVehicle: 2.25,
+			vehicleHop: 2.1,
 		},
 		configurations: {
 			'slotted-storage': {

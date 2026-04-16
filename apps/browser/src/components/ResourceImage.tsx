@@ -2,8 +2,10 @@ import { effect, reactive } from 'mutts'
 import type { Game } from 'ssh/game'
 import { computeStyleFromTexture } from 'ssh/utils/images'
 
+type ResourceImageGameHost = Pick<Game, 'rendererReady' | 'getTexture'>
+
 type ResourceImageProps = {
-	game: Game | undefined
+	game: ResourceImageGameHost | undefined
 	sprite: Ssh.Sprite | undefined
 	width?: number
 	height?: number

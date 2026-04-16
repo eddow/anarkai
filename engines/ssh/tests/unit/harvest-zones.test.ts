@@ -21,7 +21,9 @@ if (typeof window === 'undefined') {
 
 vi.mock('ssh/assets/resources', () => ({ resources: {}, prefix: '' }))
 vi.mock('ssh/assets/game-content', () => ({
-	vehicles: { 'by-hands': { storage: { slots: 10, capacity: 100 } } },
+	vehicles: {
+		wheelbarrow: { storage: { slots: 10, capacity: 100 }, walkTime: 1, transferTime: 1 },
+	},
 	goods: { wood: {} },
 	terrain: new Proxy({}, { get: () => ({ walkTime: 1, generation: { deposits: {} } }) }),
 	deposits: { tree: { generation: { frequency: 0.1 }, maxAmount: 100 } },

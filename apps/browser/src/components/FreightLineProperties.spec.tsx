@@ -110,10 +110,7 @@ vi.mock('./PropertyGridRow', () => ({
 }))
 
 vi.mock('./FreightStopList', () => ({
-	default: (props: {
-		draft: { name: string }
-		onChange: (next: { name: string }) => void
-	}) => (
+	default: (props: { draft: { name: string }; onChange: (next: { name: string }) => void }) => (
 		<button
 			type="button"
 			data-testid="freight-mock-dirty"
@@ -202,9 +199,9 @@ describe('FreightLineProperties', () => {
 			/>
 		)
 
-		const deleteBtn = container.querySelector('[data-testid="freight-line-delete"]') as
-			| HTMLButtonElement
-			| null
+		const deleteBtn = container.querySelector(
+			'[data-testid="freight-line-delete"]'
+		) as HTMLButtonElement | null
 		expect(deleteBtn?.disabled).toBe(false)
 		deleteBtn?.click()
 
@@ -228,9 +225,9 @@ describe('FreightLineProperties', () => {
 			/>
 		)
 
-		const nameInput = container.querySelector('[data-testid="freight-line-name"]') as
-			| HTMLInputElement
-			| null
+		const nameInput = container.querySelector(
+			'[data-testid="freight-line-name"]'
+		) as HTMLInputElement | null
 		nameInput!.value = 'Immediate rename'
 		nameInput?.dispatchEvent(new Event('input', { bubbles: true }))
 
@@ -255,12 +252,12 @@ describe('FreightLineProperties', () => {
 			/>
 		)
 
-		const nameInput = container.querySelector('[data-testid="freight-line-name"]') as
-			| HTMLInputElement
-			| null
-		const deleteBtn = container.querySelector('[data-testid="freight-line-delete"]') as
-			| HTMLButtonElement
-			| null
+		const nameInput = container.querySelector(
+			'[data-testid="freight-line-name"]'
+		) as HTMLInputElement | null
+		const deleteBtn = container.querySelector(
+			'[data-testid="freight-line-delete"]'
+		) as HTMLButtonElement | null
 
 		expect(nameInput?.disabled).toBe(false)
 		expect(deleteBtn?.disabled).not.toBe(true)

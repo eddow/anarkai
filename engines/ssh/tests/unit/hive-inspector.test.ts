@@ -23,7 +23,7 @@ describe('hive inspector synthetic object', () => {
 		await engine.init()
 		try {
 			const scenario: Partial<SaveState> = {
-				hives: [{ name: 'H', alveoli: [{ coord: [0, 0], alveolus: 'gather', goods: {} }] }],
+				hives: [{ name: 'H', alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }] }],
 			}
 			engine.loadScenario(scenario)
 			const tile = engine.game.hex.getTile({ q: 0, r: 0 })
@@ -47,7 +47,9 @@ describe('hive inspector synthetic object', () => {
 		await engine.init()
 		try {
 			engine.loadScenario({
-				hives: [{ name: 'HiveA', alveoli: [{ coord: [1, 1], alveolus: 'gather', goods: {} }] }],
+				hives: [
+					{ name: 'HiveA', alveoli: [{ coord: [1, 1], alveolus: 'freight_bay', goods: {} }] },
+				],
 			})
 			const tile = engine.game.hex.getTile({ q: 1, r: 1 })
 			expect(tile).toBeDefined()
@@ -56,7 +58,9 @@ describe('hive inspector synthetic object', () => {
 			expect(before?.title).toBe('HiveA')
 
 			engine.loadScenario({
-				hives: [{ name: 'HiveB', alveoli: [{ coord: [1, 1], alveolus: 'gather', goods: {} }] }],
+				hives: [
+					{ name: 'HiveB', alveoli: [{ coord: [1, 1], alveolus: 'freight_bay', goods: {} }] },
+				],
 			})
 			const afterTile = engine.game.hex.getTile({ q: 1, r: 1 })
 			expect(afterTile?.uid).toBe(tile!.uid)

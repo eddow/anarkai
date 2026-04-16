@@ -16,7 +16,9 @@ Characters operate on a **Job-based system**. They receive `JobPlan` assignments
 ## 1. Offload
 **Role:** Unburdening / Clearing
 **Script:** `work.npcs` -> `offload`
-**Context:** `inventory.ts` -> `dropAllLoose`, `find.ts` -> `looseSpot`
+**Context:** `inventory.ts` -> `offloadDropBuffer`, `find.ts` -> `freeSpot` (see `assets/scripts/inventory.npcs`)
+
+> **Note:** Offload is slated for redesign; walking workers do not keep a personal goods buffer (`Character.carry` is only vehicle storage while driving).
 
 ### Behavioral Description
 Crucial maintenance behavior to restore functionality to "burdened" working tiles. An Alveolus or Construction Site cannot function if a "loose good" is obstructing it. Offloading removes this obstruction without creating a blockage elsewhere.
@@ -49,12 +51,8 @@ The primary loop for extracting raw resources from `UnBuiltLand` (terrain deposi
     *   *Pathfinding Priority*: 1. Near construction sites (clearing land for builders). 2. Inside harvest zones. 3. Any matching deposit.
 3.  **Extraction**:
     *   Walks to the deposit.
-    *   Executes `harvestStep`: Consumes `workTime`, decreases deposit amount by 1, and adds the output good to the character's tailored inventory (`carry`).
-4.  **Delivery**:
-    *   Calculates if it has room for more.
-    *   If full or finished, it drops the goods.
-        *   **Standard**: Drops stored goods into the assigned Alveolus storage.
-        *   **Gatherable**: If the resource is labeled *isGatherable*, it behaves like `Offload` (dropping it as a loose good on the nearest empty wild tile).
+    *   Executes `harvestStep`: Consumes `workTime`, decreases deposit amount by 1, and spawns the output as **loose goods on the harvest tile** (no character buffer).
+4.  **Follow-up**: Gather / freight lines collect loose output from the world.
 
 ---
 
@@ -98,23 +96,9 @@ Manages the internal transit of goods *within* a Hex (Alveolus) or between adjac
 
 ---
 
-## 5. Gather
-**Role:** Scavenger / Collector
-**Script:** `work.npcs` -> `gather`
-**Context:** `find.ts` -> `gatherables`, `inventory.ts` -> `grabLoose`
+## 5. Gather (legacy alveolus type removed)
 
-### Behavioral Description
-Used by Gatherer Alveoli (like a Hunter's Hut or Lumberjack post that collects loose items).
-
-1.  **Scouting**:
-    *   Queries `move.nextJob()` which calls `find.gatherables` to scan the vicinity for requested loose goods.
-    *   Calculates the most efficient loop to pick up items fitting in the inventory.
-2.  **Collection**:
-    *   Walks to each item's specific coordinate.
-    *   Executes `grabLoose` to pick it up.
-3.  **Return**:
-    *   Once the inventory is full or the path is complete, returns to the Alveolus tile.
-    *   Drops all collected items into the Alveolus storage.
+Line freight uses **wheelbarrow** `VehicleEntity` jobs (`vehicleApproach` → load/unload) instead of a dedicated `gather` worker script. Historical docs referred to `grabLoose` into a walking inventory; the engine now moves harvest output and collection through **world loose goods**, **storage**, and **vehicle storage** only.
 
 ---
 
@@ -172,20 +156,14 @@ Maintenance behavior for optimizing storage slots, ensuring efficient space usag
 ## 9. Self-Care: GoEat
 **Role:** Survivor
 **Script:** `selfCare.npcs` -> `goEat`
-**Context:** `find.ts` -> `food`, `selfCare.ts` -> `eat`
+**Context:** `find.ts` -> `food`, `selfCare.ts` -> `eatFromWorld`
 
 ### Behavioral Description
 High-priority interruption behavior when hunger exceeds critical thresholds.
 
-1.  **Inventory Check**: First checks if it is already carrying food. If so, eats immediately.
-2.  **Foraging**:
-    *   If no food is carried, searching begins via `find.food()`.
-    *   Prioritizes: Existing food storage (larders) first, then loose food lying on the ground.
-    *   Heuristic: Selects food with the highest `feedingValue`.
-3.  **Acquisition**:
-    *   Calls `inventory.makeRoom` if necessary (dropping carried tools/items).
-    *   Travels to food source and grabs it.
-4.  **Consumption**: Consumes the item to reduce hunger levels.
+1.  **Path to food**: `find.food()` locates reachable edible goods on a tile (hive storage and/or loose goods). There is **no** “eat from personal inventory” path for walking characters.
+2.  **Travel**: Walks along the returned path to the food tile.
+3.  **Consumption**: `selfCare.eatFromWorld(goodType, tile)` removes the good from **world** storage or loose goods and applies satiation (no `grabLoose` / `makeRoom` / walking carry).
 
 ## 10. Self-Care: Wander
 **Role:** Idler

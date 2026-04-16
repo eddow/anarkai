@@ -2,7 +2,7 @@
 
 ## Scope
 
-Freight is the first **by-hand** transport layer in `engines/ssh` (no vehicle simulation yet). A **freight line** is an ordered route: a list of **stops**, each stop being one step at a **bay tile** or in a **zone** (not both).
+Line freight routes **wheelbarrow** `VehicleEntity` instances along **freight lines**. A **freight line** is an ordered route: a list of **stops**, each stop being one step at a **bay tile** or in a **zone** (not both).
 
 ## Data model
 
@@ -52,7 +52,7 @@ Restrictive policies on segment **pickup** are read from the segment **load** st
 
 ## Runtime contracts
 
-- **Segment-scoped checks:** use `gatherSegmentAllowsGoodTypeForSegment` / `distributeSegmentAllowsGoodTypeForSegment` with the **active** `FreightGatherRouteSegment` / `FreightDistributeRouteSegment` in loops (e.g. residential `freightDeliver`, bay requisition).
+- **Segment-scoped checks:** use `gatherSegmentAllowsGoodTypeForSegment` / `distributeSegmentAllowsGoodTypeForSegment` with the **active** `FreightGatherRouteSegment` / `FreightDistributeRouteSegment` in loops (e.g. bay requisition, line-vehicle work).
 - **Broad checks:** `gatherSegmentAllowsGoodType` / `distributeSegmentAllowsGoodType` OR across segments — for aggregate behavior (e.g. `distributeLinesAllowGoodType`, hive storage ads).
 - **UI / summary:** `freightLineAllowsGoodType` ORs gather and distribute sides — **not** for tight runtime authority on a single segment.
 - **Radius:** `distributeSegmentWithinRadius(line, segment, pathLength)` uses the **unload** stop’s zone when present; missing zone means no path-length cap for that segment.
@@ -80,12 +80,12 @@ See also `sandbox/freight-handoff.md` for a concise task list.
 | Area | Path |
 |------|------|
 | Domain + normalize | `engines/ssh/src/lib/freight/freight-line.ts` |
-| Residential delivery | `engines/ssh/src/lib/freight/residential-freight-deliver.ts` |
-| Bay demand augmentation | `engines/ssh/src/lib/freight/residential-freight-requisition.ts` |
+| Standalone construction site scan (segment radius) | `engines/ssh/src/lib/freight/construction-demand.ts` |
+| Construction bay demand augmentation | `engines/ssh/src/lib/freight/construction-freight-requisition.ts` |
 | Bay gather / road-fret | `engines/ssh/src/lib/hive/storage.ts` |
 | Line inspector UI | `apps/browser/src/components/FreightLineProperties.tsx` |
 | Bay line list | `apps/browser/src/components/AlveolusProperties.tsx` |
 
 ## Cheat sheet
 
-`engines/ssh/LLM.md` (Residential / freight bullets) mirrors engine-specific pitfalls and the generic `freightDeliver` discovery roadmap.
+`engines/ssh/LLM.md` (Residential / freight bullets) mirrors engine-specific pitfalls and line-vehicle job wiring (`vehicleApproach` → `provideFromVehicle`, etc.).

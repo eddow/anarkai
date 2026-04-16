@@ -3,9 +3,7 @@ import { Game } from 'ssh/game/game'
 import { describe, expect, it } from 'vitest'
 
 describe('Source Allocation Stability', () => {
-	it('ChopSaw scenario runs without Source Allocation errors', {
-		timeout: 15000,
-	}, async () => {
+	it('ChopSaw scenario runs without errors', async () => {
 		const game = new Game(
 			{
 				terrainSeed: 1,
@@ -37,10 +35,7 @@ describe('Source Allocation Stability', () => {
 		let errorFound = false
 		const originalError = console.error
 		console.error = (...args: any[]) => {
-			const msg = args.join(' ')
-			if (msg.includes('Source allocation missing')) {
-				errorFound = true
-			}
+			errorFound = true
 			// Still log but avoid circularity by not passing the full mg object
 			const safeArgs = args.map((a) => (typeof a === 'object' && a !== null ? '[Object]' : a))
 			originalError(...safeArgs)
@@ -49,7 +44,7 @@ describe('Source Allocation Stability', () => {
 		try {
 			// Bounded regression simulation
 			const dt = 0.2
-			for (let i = 0; i < 60; i++) {
+			for (let i = 0; i < 30; i++) {
 				game.ticker.update(dt * 1000)
 				if (i % 10 === 0) {
 					await new Promise((resolve) => setTimeout(resolve, 0))

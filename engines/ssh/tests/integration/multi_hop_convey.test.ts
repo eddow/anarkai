@@ -1,7 +1,9 @@
 import type { Alveolus } from 'ssh/board/content/alveolus'
+import { isTileCoord } from 'ssh/board/tile-coord'
 import type { SaveState } from 'ssh/game'
 import { BuildAlveolus } from 'ssh/hive/build'
 import type { Hive } from 'ssh/hive/hive'
+import type { StorageAlveolus } from 'ssh/hive/storage'
 import { axial } from 'ssh/utils/axial'
 import { toAxialCoord } from 'ssh/utils/position'
 import { describe, expect, it } from 'vitest'
@@ -79,6 +81,90 @@ describe('Multi-Hop Convey Tests', () => {
 			expect(relayMovements?.[0]?.movement.provider?.name).toBe(provider.name)
 			expect(relayMovements?.[0]?.movement.demander?.name).toBe(demander.name)
 			expect(relayMovements?.[0]?.movement.path.at(0)).toMatchObject({ q: 1, r: 0 })
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('prefers a border-tracked advanceable movement over a tile-tracked one on the same relay', {
+		timeout: 15000,
+	}, async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+		try {
+			const scenario: Partial<SaveState> = {
+				hives: [
+					{
+						name: 'BorderFirstHive',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'storage', goods: { wood: 3 } },
+							{ coord: [1, 0], alveolus: 'storage', goods: { wood: 1 } },
+							{ coord: [2, 0], alveolus: 'storage', goods: {} },
+						],
+					},
+				],
+			}
+
+			engine.loadScenario(scenario)
+
+			const provider = engine.game.hex.getTile({ q: 0, r: 0 })?.content as
+				| StorageAlveolus
+				| undefined
+			const relay = engine.game.hex.getTile({ q: 1, r: 0 })?.content as StorageAlveolus | undefined
+			const demander = engine.game.hex.getTile({ q: 2, r: 0 })?.content as
+				| StorageAlveolus
+				| undefined
+			const hive = (provider?.hive ?? demander?.hive) as Hive | undefined
+
+			expect(provider).toBeDefined()
+			expect(relay).toBeDefined()
+			expect(demander).toBeDefined()
+			expect(hive).toBeDefined()
+			if (!provider || !relay || !demander || !hive) {
+				throw new Error('Expected chain hive')
+			}
+
+			expect(hive.createMovement('wood', provider, demander)).toBe(true)
+
+			const providerCoord = toAxialCoord(provider.tile.position)!
+			const inbound = hive.movingGoods
+				.get(providerCoord)
+				?.find((m) => m.goodType === 'wood' && m.provider === provider && m.demander === demander)
+			expect(inbound).toBeDefined()
+			if (!inbound) throw new Error('Expected inbound movement')
+
+			inbound.claimed = true
+			inbound.allocations.source!.fulfill()
+			const firstHop = inbound.hop()
+			expect(firstHop).toMatchObject({ q: 0.5, r: 0 })
+			inbound.place()
+			inbound.allocations.source = hive
+				.storageAt(firstHop)!
+				.reserve({ wood: 1 }, { type: 'convey.path', movement: inbound })
+			inbound.claimed = false
+
+			expect(hive.createMovement('wood', relay, demander)).toBe(true)
+
+			const relayTileCoord = toAxialCoord(relay.tile.position)!
+			const relayTileMovements = hive.movingGoods.get(relayTileCoord) ?? []
+			expect(
+				relayTileMovements.some((m) => m.provider === relay && m.demander === demander),
+				'expected a relay-originated movement tracked on the relay tile'
+			).toBe(true)
+
+			const borderKeys = new Set(
+				relay.tile.surroundings.map(({ border }) => axial.key(toAxialCoord(border.position)!))
+			)
+			const inboundTrackedOnBorder = [...hive.movingGoods.entries()].some(
+				([coord, goods]) => borderKeys.has(axial.key(coord)) && goods.includes(inbound)
+			)
+			expect(inboundTrackedOnBorder, 'inbound movement should be tracked on a border').toBe(true)
+
+			const pick = relay.aGoodMovement
+			expect(pick?.length).toBeGreaterThan(0)
+			const first = pick![0]!
+			expect(isTileCoord(first.fromSnapshot), 'border-tracked movement should win').toBe(false)
+			expect(first.movement.ref).toBe(inbound.ref)
 		} finally {
 			await engine.destroy()
 		}

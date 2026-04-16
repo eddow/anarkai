@@ -1,6 +1,8 @@
 import type { GamePatches } from './game'
 // TODO: check how goods are rendered. Hint: on tick, some are created, some are removed (especially with a wide view) => if we have to re-generate a whole sector's good on each change, it's on each tick, which is a perf nightmare. Instead, we should be able to just add/remove the delta of goods on each tick, which is much more efficient. This is a good example of a place where we should be using patches instead of re-generating the whole world on each tick.
 export const chopSaw = {
+	// @ts-expect-error TODO: use this as terrain seed
+	seed: 549,
 	// TODO: terrain-types should be made another way {type: axial[]}, we'll add next patches in tiles, even though even these ones will be optimized
 	tiles: [
 		{ coord: [10, -8], terrain: 'concrete' },
@@ -63,4 +65,13 @@ export const chopSaw = {
 			[10, -7],
 		],
 	},
+	vehicles: [
+		{
+			// TODO: replace uids by indexes in serializations
+			uid: 'ChopSaw:wheelbarrow',
+			vehicleType: 'wheelbarrow',
+			position: { q: 10, r: -6 },
+			servedLineIds: ['ChopSaw:implicit-gather:11,-7'],
+		},
+	],
 } satisfies GamePatches

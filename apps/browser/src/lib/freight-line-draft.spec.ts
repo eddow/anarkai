@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
 import { normalizeFreightLineDefinition } from 'ssh/freight/freight-line'
+import { describe, expect, it } from 'vitest'
 import {
 	addFreightDraftStop,
 	applyFreightDraftBayAnchor,

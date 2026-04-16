@@ -26,9 +26,6 @@ declare namespace Ssh {
 		inputs: Record<string, number>
 		output: Record<string, number>
 	}
-	interface GatherAction {
-		type: 'gather'
-	}
 	interface EngineerAction {
 		type: 'engineer'
 		radius: number
@@ -79,7 +76,6 @@ declare namespace Ssh {
 	type Action =
 		| HarvestingAction
 		| TransformationAction
-		| GatherAction
 		| EngineerAction
 		| StorageAction
 		| RoadFretAction
@@ -169,7 +165,7 @@ declare namespace Ssh {
 		}
 	}
 
-	type ActivityType = 'idle' | 'walk' | 'work' | 'eat' | 'sleep' | 'rest' | 'convey' | 'gather'
+	type ActivityType = 'idle' | 'walk' | 'work' | 'eat' | 'sleep' | 'rest' | 'convey'
 
 	type NeedType = 'hunger' | 'tiredness' | 'fatigue'
 }

@@ -43,14 +43,13 @@ describe('Viability: self-care + minimal hive', () => {
 		delete (Game.prototype as Partial<Game>).getTexture
 	})
 
-	it('sated (-1 hunger) with carried berries: no Action infinite fail (must not plan goEat)', async () => {
+	it('sated (-1 hunger): no Action infinite fail (must not plan goEat)', async () => {
 		let workerUid = ''
 		await runViabilityScenario(
 			minimalSelfCareHiveSetup(({ game }) => {
 				const w = game.population.createCharacter('Sated', { q: 0, r: -1 })
 				workerUid = w.uid
 				w.hunger = -1
-				w.carry.addGood('berries', 6)
 			}),
 			({ game, errors, virtualTime }) => {
 				expect(virtualTime).toBeGreaterThanOrEqual(44)

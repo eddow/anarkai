@@ -77,7 +77,7 @@ inventory.addGood('logs', 5)
 ```
 
 **Use Cases:**
-- Character inventory
+- Vehicle and building storage (slot-limited buffers)
 - Limited-capacity containers
 
 #### SpecificStorage
@@ -173,8 +173,7 @@ class TreeChopperAlveolus extends HarvestAlveolus {
 
 **Behavior:**
 - Workers find nearest matching deposit
-- Harvest resources into carrying inventory
-- Deliver to Alveolus storage
+- Harvest spawns output as **loose goods on the tile**; gather/freight collects from the world (no walking carry buffer)
 
 #### Transform Alveolus
 
@@ -280,7 +279,7 @@ const char = game.population.createCharacter('Worker', { q: 2, r: 2 })
 **Properties:**
 - `name: string` — Unique identifier
 - `position: AxialCoord` — Current location
-- `carry: SlottedStorage` — Inventory (default 10 slots)
+- `carry: Storage | undefined` — **Active transport storage** only while **driving** an operated `VehicleEntity` (typically line-freight `wheelbarrow`); `undefined` when walking (no personal inventory buffer)
 - `hunger: number` — 0-100, increases over time
 - `currentJob: JobPlan | null` — Active work assignment
 
@@ -312,10 +311,7 @@ interface JobPlan {
 **Hunger:**
 - Increases at constant rate (~1 per game second)
 - Critical threshold: 70 (triggers `goEat` behavior)
-- Character seeks food from:
-  1. Own inventory
-  2. Food storage buildings
-  3. Loose food on ground
+- Character seeks food from **world** sources only (tile storage and loose goods via `find.food()` → `eatFromWorld`), not from a walking inventory
 
 **Future Needs:**
 - Sleep / Rest
@@ -387,23 +383,21 @@ storage.removeGood('logs', 3)
 storage.stock // { logs: 7, ... }
 ```
 
-### Carried Goods
+### Active transport (vehicle only)
 
-Goods in character inventory:
+While **driving** a world vehicle, `char.carry` aliases that vehicle’s `storage`. Walking characters have **no** carry buffer (`char.carry === undefined`). Scripted transfers that need stock call `char.requireActiveTransportStorage()` in engine code.
 
 ```typescript
 const char = game.population.createCharacter('Worker', coord)
-char.carry.addGood('logs', 5)
-char.carry.isFull // Check if at capacity
+// Board a wheelbarrow, then e.g. load/unload plans use vehicle storage via `char.carry`
 ```
 
 ### Good Movement
 
 Goods flow through the system via several mechanisms:
 
-**1. Character Transport:**
-- Pick up from storage → carry → drop to storage
-- Pick up loose good → carry → drop to storage
+**1. Vehicle / line freight:**
+- Load loose goods into an operated vehicle, unload into bay storage or construction sinks per freight-line rules
 
 **2. Conveyance:**
 - Storage A → Transit system → Storage B

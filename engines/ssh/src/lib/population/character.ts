@@ -1,8 +1,8 @@
-import { goods as goodsCatalog } from 'engine-rules'
+import { vehicles as vehicleRules } from 'engine-rules'
 import { inert, reactive, unwrap } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
-import { assert, traceIdleDiagnosis } from 'ssh/debug'
+import { assert, traceIdleDiagnosis, traces } from 'ssh/debug'
 import type { Game } from 'ssh/game'
 import {
 	activityUtilityConfig,
@@ -13,8 +13,8 @@ import {
 	type PlannerFindActionSnapshot,
 } from 'ssh/population/findNextActivity'
 import type { Storage } from 'ssh/storage'
-import type { GoodType, Job, WorkPlan } from 'ssh/types/base'
-import { type AxialCoord, axial, maxBy, type Positioned } from 'ssh/utils'
+import type { Job, WorkPlan } from 'ssh/types/base'
+import { type AxialCoord, axial, epsilon, type Positioned } from 'ssh/utils'
 import { axialDistance, type Position, toAxialCoord } from 'ssh/utils/position'
 import {
 	applyNeedRate,
@@ -38,18 +38,62 @@ function relativeJobScore(score: number, pathLength: number): number {
 	return score / (pathLength + 1)
 }
 
+function vehicleFreightJobTracePayload(job: Job): Record<string, unknown> {
+	switch (job.job) {
+		case 'vehicleHop':
+			return {
+				job: job.job,
+				vehicleUid: job.vehicleUid,
+				lineId: job.lineId,
+				stopId: job.stopId,
+				dockEnter: job.dockEnter,
+				needsBeginService: job.needsBeginService,
+				approachLen: job.approachPath?.length ?? 0,
+				zoneBrowseAction: job.zoneBrowseAction,
+				goodType: job.goodType,
+				quantity: job.quantity,
+				targetCoord: job.targetCoord,
+				pathLen: job.path.length,
+			}
+		case 'zoneBrowse':
+			return {
+				job: job.job,
+				vehicleUid: job.vehicleUid,
+				lineId: job.lineId,
+				stopId: job.stopId,
+				zoneBrowseAction: job.zoneBrowseAction,
+				goodType: job.goodType,
+				quantity: job.quantity,
+				targetCoord: job.targetCoord,
+				pathLen: job.path.length,
+			}
+		case 'vehicleOffload':
+			return {
+				job: job.job,
+				vehicleUid: job.vehicleUid,
+				goodType: job.looseGood.goodType,
+				targetCoord: job.targetCoord,
+				pathLen: job.path.length,
+			}
+		default:
+			return { job: job.job }
+	}
+}
+
 function roundDiagnosticValue(value: number): number {
 	return Math.round(value * 1000) / 1000
 }
 
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
+import { collectVehicleWorkPicks, isVehicleFreightJob } from 'ssh/freight/vehicle-work'
 import { GameObject, withInteractive, withTicked } from 'ssh/game/object'
 import { gameIsaTypes } from 'ssh/npcs'
 import aCharacterContext from 'ssh/npcs/context'
 import { withScripted } from 'ssh/npcs/object'
 import type { ScriptExecution } from 'ssh/npcs/scripts'
+import type { ASingleStep } from 'ssh/npcs/steps'
 import { releaseAllHomeReservations } from 'ssh/residential/housing-reservations'
-import { Vehicle } from './vehicle/vehicle'
+import type { VehicleEntity } from './vehicle/entity'
 
 export interface RankedWorkCandidateSnapshot {
 	jobKind: Job['job']
@@ -111,9 +155,30 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		assert(!value !== !current, 'assigned alveolus mismatch')
 		this._assignedAlveolus = value
 	}
+	private _operatedVehicle?: VehicleEntity
+	public get operates(): VehicleEntity | undefined {
+		return this._operatedVehicle
+	}
+	public set operates(value: VehicleEntity | undefined) {
+		const current = this._operatedVehicle
+		if (current?.uid === value?.uid) return
+		if (value) {
+			assert(
+				value.service,
+				`Vehicle ${value.uid} must have an active service before operates assignment`
+			)
+			value.setServiceOperator(this)
+			return
+		}
+		if (current) current.releaseOperator(this)
+	}
 
-	// Character vehicle (like Tile has content)
-	public vehicle: Vehicle
+	setOperatedVehicleFromService(vehicle: VehicleEntity | undefined): void {
+		const current = this._operatedVehicle
+		if (current?.uid === vehicle?.uid) return
+		this._operatedVehicle = vehicle
+	}
+	private _footPosition?: Position
 	private _scriptsContext?: any
 	public get scriptsContext() {
 		return (this._scriptsContext ??= aCharacterContext(this))
@@ -124,13 +189,31 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		return this._tile
 	}
 
+	get driving(): boolean {
+		return !!this.operates && !this._footPosition
+	}
+
+	get position(): Position {
+		return this._footPosition ?? this.operates?.position ?? this._tile.position
+	}
+
+	set position(value: Position) {
+		if (this._footPosition) {
+			this._footPosition = reactive(value)
+			return
+		}
+		assert(this.operates, 'position set requires an operated vehicle')
+		this.operates.position = reactive(value)
+	}
+
 	constructor(
 		game: Game,
 		uid: string,
 		public name: string,
-		public position: Position
+		position: Position
 	) {
 		super(game, uid)
+		this._footPosition = reactive(position)
 		const ax = toAxialCoord(this.position)
 		this._tile = game.hex.getTile({
 			q: Math.round(ax.q),
@@ -140,15 +223,91 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		const queueStep = this.game.hex.moveCharacter(this, this._tile.position)
 		assert(!queueStep, 'Character must not be queuing on creation')
 		if (queueStep) this.stepExecutor = queueStep
+	}
 
-		// Create vehicle (by hands for now) - direct instantiation like Tile->TileContent
-		this.vehicle = new Vehicle.class['by-hands'](this)
+	/** Requires `operates` to already reference the vehicle being boarded (same tile). */
+	onboard(): void {
+		const vehicle = this.operates
+		assert(vehicle, 'Character must have operates before boarding')
+		assert(
+			axialDistance(this.position, vehicle.position) < epsilon,
+			`Character must be at vehicle position before boarding`
+		)
+		// While onboard, character position is fully delegated to the operated vehicle.
+		this._footPosition = undefined
+		this._tile = this.game.hex.getTile(axial.round(toAxialCoord(vehicle.position)))!
+	}
+
+	offboard(): void {
+		const v = this.operates
+		assert(v, 'offboard requires an operated vehicle')
+		if (v.service) {
+			traces.vehicle?.log?.('vehicleJob.offboard.endService', { vehicleUid: v.uid })
+			v.endService()
+		}
+		traces.vehicle?.log?.('vehicleJob.offboard', {
+			character: this.name,
+			characterUid: this.uid,
+			vehicleUid: v.uid,
+		})
+		this._footPosition = reactive({ ...v.position })
+		this.operates = undefined
+	}
+
+	/**
+	 * Step off the operated vehicle while still keeping the operator <-> vehicle link.
+	 * Used by zone browse flows: the character regains a foot position for the local transfer but
+	 * the vehicle remains the active transport seam until the script explicitly disengages.
+	 */
+	stepOffVehicleKeepingControl(): void {
+		const v = this.operates
+		assert(v, 'stepOffVehicleKeepingControl requires an operated vehicle')
+		this._footPosition = reactive({ ...v.position })
+		traces.vehicle?.log?.('vehicleJob.offboard.keepControl', {
+			characterUid: this.uid,
+			vehicleUid: v.uid,
+		})
+	}
+
+	/** Re-board the currently linked vehicle after {@link stepOffVehicleKeepingControl}. */
+	boardLinkedVehicle(): void {
+		assert(this.operates, 'boardLinkedVehicle requires an operated vehicle')
+		this.onboard()
+	}
+
+	/**
+	 * Release the operator <-> vehicle link while the vehicle keeps {@link VehicleEntity.service}.
+	 * Used by both docked bay and zone browse flows.
+	 */
+	disengageVehicleKeepingService(): void {
+		const v = this.operates
+		assert(v, 'disengageVehicleKeepingService requires an operated vehicle')
+		v.releaseOperator(this)
+		traces.vehicle?.log?.('vehicleJob.offboard.keepService', {
+			characterUid: this.uid,
+			vehicleUid: v.uid,
+		})
+		this._footPosition = reactive({ ...v.position })
+		this.operates = undefined
+	}
+
+	/** @deprecated Prefer {@link disengageVehicleKeepingService}. */
+	disembarkVehicleKeepingService(): void {
+		this.disengageVehicleKeepingService()
 	}
 
 	/** Attempt to step onto a tile, managing board occupancy. */
 	stepOn(tile: Tile) {
-		if (axialDistance(this.position, tile.position) > 1.1) return false
-		const queue = this.game.hex.moveCharacter(this, tile.position, this._tile.position)
+		// Discrete hex adjacency: fractional lerp positions (e.g. `walk.until` midpoints) must not
+		// spuriously fail the old float `axialDistance > 1.1` guard on otherwise valid neighbor steps.
+		const curAx = toAxialCoord(this.position)
+		const destAx = toAxialCoord(tile.position)
+		if (!curAx || !destAx) return false
+		const here = axial.round(curAx)
+		const there = axial.round(destAx)
+		if (axial.distance(here, there) > 1) return false
+		const fromPos = this.driving && this.operates ? this.position : this._tile.position
+		const queue = this.game.hex.moveCharacter(this, tile.position, fromPos)
 		if (queue)
 			return queue.finished(() => {
 				this._tile = tile
@@ -161,15 +320,31 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	}
 
 	private workExecution(job: Job, targetTile: Tile, path: AxialCoord[]): ScriptExecution {
-		const jobProvider = targetTile.content!
-		const target = job.job === 'offload' ? targetTile : jobProvider
 		const safePath = path.filter((step): step is AxialCoord => !!step)
+		// TODO: organise a bit so we don't have hard-coded type list, or at minimum make an array.includes - but at best, find a logical way to test (existence of job.vehicleUid?) instead
+		if (isVehicleFreightJob(job)) {
+			const vehicle = this.game.vehicles.vehicle(job.vehicleUid)
+			if (!vehicle) return this.scriptsContext.selfCare.wander()
+			if (this._operatedVehicle && this._operatedVehicle.uid !== vehicle.uid) {
+				return this.scriptsContext.selfCare.wander()
+			}
+			const workPlan: WorkPlan = {
+				...job,
+				type: 'work',
+				target: vehicle,
+				path: safePath,
+			}
+			return this.scriptsContext.work.goWork(workPlan)
+		}
+		const jobProvider = targetTile.content!
+		const target = jobProvider
 		const workPlan: WorkPlan = {
 			...job,
 			type: 'work',
 			target,
+			path: safePath,
 		}
-		return this.scriptsContext.work.goWork(workPlan, safePath)
+		return this.scriptsContext.work.goWork(workPlan)
 	}
 
 	private sameTilePath(targetTile: Tile): AxialCoord[] | false {
@@ -195,14 +370,16 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			: tileLabel
 
 		switch (job.job) {
-			case 'offload':
-				return `${job.looseGood.goodType} @ ${coord.q}, ${coord.r}`
+			case 'vehicleOffload': {
+				const t = job.targetCoord
+				return `vehicleOffload ${job.looseGood.goodType} @ ${t.q},${t.r} (${job.vehicleUid})`
+			}
 			case 'defragment':
 				return `${job.goodType} @ ${targetName}`
-			case 'gather':
-				return job.goodType ? `${job.goodType} @ ${targetName}` : targetName
-			case 'freightDeliver':
-				return `${job.goodType} freightDeliver @ ${coord.q}, ${coord.r}`
+			case 'vehicleHop':
+				return `vehicleHop ${job.lineId}/${job.stopId} @ ${coord.q}, ${coord.r}`
+			case 'zoneBrowse':
+				return `zoneBrowse ${job.zoneBrowseAction}:${job.goodType} @ ${job.targetCoord.q}, ${job.targetCoord.r}`
 			default:
 				return targetName
 		}
@@ -211,6 +388,17 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	private rankedWorkCandidates(): RankedWorkCandidate[] {
 		return inert(() => {
 			const candidates: RankedWorkCandidate[] = []
+			for (const pick of collectVehicleWorkPicks(this.game, this)) {
+				const path = pick.job.path
+				const pathLength = path.length
+				candidates.push({
+					job: pick.job,
+					targetTile: pick.targetTile,
+					path,
+					pathLength,
+					score: relativeJobScore(calculateJobScore(this, pick.job), pathLength),
+				})
+			}
 			for (const tile of this.game.hex.tiles) {
 				const job = tile.getJob?.(this)
 				if (!job) continue
@@ -247,21 +435,41 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		const candidateCoord = axial.key(toAxialCoord(candidate.targetTile.position)!)
 		const matchCoord = axial.key(toAxialCoord(match.targetTile.position)!)
 		if (candidateCoord !== matchCoord || candidate.job.job !== match.job.job) return false
-		if (candidate.job.job === 'offload' && match.job.job === 'offload') {
-			return candidate.job.looseGood.goodType === match.job.looseGood.goodType
+		if (candidate.job.job === 'vehicleOffload' && match.job.job === 'vehicleOffload') {
+			return (
+				candidate.job.vehicleUid === match.job.vehicleUid &&
+				axial.key(candidate.job.targetCoord) === axial.key(match.job.targetCoord) &&
+				candidate.job.looseGood.goodType === match.job.looseGood.goodType
+			)
+		}
+		if (candidate.job.job === 'zoneBrowse' && match.job.job === 'zoneBrowse') {
+			return (
+				candidate.job.vehicleUid === match.job.vehicleUid &&
+				candidate.job.zoneBrowseAction === match.job.zoneBrowseAction &&
+				candidate.job.goodType === match.job.goodType &&
+				axial.key(candidate.job.targetCoord) === axial.key(match.job.targetCoord)
+			)
+		}
+		if (candidate.job.job === 'vehicleHop' && match.job.job === 'vehicleHop') {
+			const sameTarget =
+				(!candidate.job.targetCoord && !match.job.targetCoord) ||
+				(!!candidate.job.targetCoord &&
+					!!match.job.targetCoord &&
+					axial.key(candidate.job.targetCoord) === axial.key(match.job.targetCoord))
+			return (
+				candidate.job.vehicleUid === match.job.vehicleUid &&
+				candidate.job.lineId === match.job.lineId &&
+				candidate.job.stopId === match.job.stopId &&
+				candidate.job.dockEnter === match.job.dockEnter &&
+				candidate.job.needsBeginService === match.job.needsBeginService &&
+				(candidate.job.approachPath?.length ?? 0) === (match.job.approachPath?.length ?? 0) &&
+				candidate.job.zoneBrowseAction === match.job.zoneBrowseAction &&
+				candidate.job.goodType === match.job.goodType &&
+				sameTarget
+			)
 		}
 		if (candidate.job.job === 'defragment' && match.job.job === 'defragment') {
 			return candidate.job.goodType === match.job.goodType
-		}
-		if (candidate.job.job === 'gather' && match.job.job === 'gather') {
-			return candidate.job.goodType === match.job.goodType
-		}
-		if (candidate.job.job === 'freightDeliver' && match.job.job === 'freightDeliver') {
-			return (
-				candidate.job.goodType === match.job.goodType &&
-				axial.key(candidate.job.site) === axial.key(match.job.site) &&
-				axial.key(candidate.job.bay) === axial.key(match.job.bay)
-			)
 		}
 		return true
 	}
@@ -287,11 +495,27 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		}
 	}
 
+	private bestVehicleJobMatch():
+		| { job: Job; targetTile: Tile; path: AxialCoord[]; score: number }
+		| false {
+		let best: { job: Job; targetTile: Tile; path: AxialCoord[]; score: number } | undefined
+		for (const pick of collectVehicleWorkPicks(this.game, this)) {
+			const path = pick.job.path
+			const score = relativeJobScore(calculateJobScore(this, pick.job), path.length)
+			if (!best || score > best.score) {
+				best = { job: pick.job, targetTile: pick.targetTile, path, score }
+			}
+		}
+		return best ?? false
+	}
+
 	/**
 	 * Resolve best job without starting a script (for planning / utility).
 	 */
 	resolveBestJobMatch(): { job: Job; targetTile: Tile; path: AxialCoord[] } | false {
 		return inert(() => {
+			const vehiclePick = this.bestVehicleJobMatch()
+
 			const jobCache = new Map<string, { job: Job; targetTile: Tile }>()
 
 			const scoreJob = (coord: Positioned): number | false => {
@@ -350,7 +574,14 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 						bestFallback = { path: fallbackPath, job, targetTile: tile, score }
 					}
 				}
-				if (!bestFallback) return false
+				if (!bestFallback) {
+					if (!vehiclePick) return false
+					return {
+						job: vehiclePick.job,
+						targetTile: vehiclePick.targetTile,
+						path: vehiclePick.path,
+					}
+				}
 				selectedPath = bestFallback.path
 				match = { job: bestFallback.job, targetTile: bestFallback.targetTile }
 			}
@@ -358,11 +589,24 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			if (!selectedPath) {
 				const isSameTile =
 					axial.key(toAxialCoord(targetTile.position)!) === axial.key(toAxialCoord(this.position)!)
-				if (!isSameTile) return false
+				if (!isSameTile) {
+					if (!vehiclePick) return false
+					return {
+						job: vehiclePick.job,
+						targetTile: vehiclePick.targetTile,
+						path: vehiclePick.path,
+					}
+				}
 				selectedPath = []
 			}
 
-			return { job, targetTile, path: selectedPath }
+			const tileMatch = { job, targetTile, path: selectedPath }
+			if (!vehiclePick) return tileMatch
+			const vs = vehiclePick.score
+			const ts = relativeJobScore(calculateJobScore(this, tileMatch.job), tileMatch.path.length)
+			return vs > ts
+				? { job: vehiclePick.job, targetTile: vehiclePick.targetTile, path: vehiclePick.path }
+				: tileMatch
 		})
 	}
 
@@ -373,6 +617,16 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	findBestJob(): ScriptExecution | false {
 		const match = this.resolveBestJobMatch()
 		if (!match) return false
+		if (isVehicleFreightJob(match.job)) {
+			const pos = toAxialCoord(this.position)
+			traces.vehicle?.log?.('vehicleJob.selected', {
+				character: this.name,
+				characterUid: this.uid,
+				...vehicleFreightJobTracePayload(match.job),
+				pathLen: match.path.length,
+				characterAxial: pos ? axial.key(pos) : undefined,
+			})
+		}
 		this.log('character.beginJob', match.job.job)
 		return this.workExecution(match.job, match.targetTile, match.path)
 	}
@@ -383,17 +637,6 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			this.fatigue < this.triggerLevels.fatigue.high &&
 			this.tiredness < this.triggerLevels.tiredness.high
 		)
-	}
-
-	get carriedFood(): GoodType | undefined {
-		return maxBy(
-			Object.entries(this.carry.availables) as [GoodType, number][],
-			([goodType, available]) => {
-				const def: Ssh.GoodsDefinition = goodsCatalog[goodType]
-				if (!def.satiationStrength || available < 1) return undefined
-				return def.satiationStrength
-			}
-		)?.[0]
 	}
 
 	canInteract(action: string): boolean {
@@ -420,8 +663,9 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			lastPlannerSnapshot: this.lastPlannerSnapshot,
 			lastWorkPlannerSnapshot: this.lastWorkPlannerSnapshot,
 			vehicle: {
-				name: this.vehicle.name,
-				storage: this.carry,
+				operatedVehicleUid: this.operates?.uid,
+				driving: this.driving,
+				activeTransportStorage: this.carry,
 			},
 		}
 	}
@@ -477,6 +721,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	findAction() {
 		return inert(() => {
 			releaseAllHomeReservations(this.game, this)
+
 			const bestWorkMatch = this.resolveBestJobMatch()
 			const workSnapshot = this.buildRankedWorkSnapshot(bestWorkMatch)
 			if (workSnapshot) this.lastWorkPlannerSnapshot = workSnapshot
@@ -525,6 +770,9 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 				}
 			}
 
+			const offloadDrain = this.tryTransportOffloadDrain()
+			if (offloadDrain) return offloadDrain
+
 			for (const pick of ranked) {
 				const exec = this.tryScriptForActivityKind(pick.kind)
 				if (exec) {
@@ -554,6 +802,34 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		})
 	}
 
+	/**
+	 * If we're operating a vehicle but still have offloadable loose-good buffer in active transport,
+	 * finish draining it before picking wander/eat/etc. Otherwise work scripts can end while stock
+	 * remains trapped on the wheelbarrow (vehicleOffload returns after `inventory.offloadDropBuffer`
+	 * yields walking steps; the planner may pick wander before drops complete).
+	 */
+	/** @internal Used by scripted object update to preempt long rests while stock can be offloaded. */
+	maybeTransportOffloadDrain(): ScriptExecution | ASingleStep | false {
+		return this.tryTransportOffloadDrain()
+	}
+
+	private tryTransportOffloadDrain(): ScriptExecution | ASingleStep | false {
+		if (!this.driving || !this.operates) return false
+		const carry = this.carry
+		if (!carry) return false
+		// Use stock (not only `dropCandidateGoodTypes`) — reactive `Object.keys(stock)` can be flaky in some
+		// edge cases, and we still gate actual dropping on `available()` inside `dropAsLooseGood`.
+		const hasStock = Object.values(carry.stock).some((q) => typeof q === 'number' && q > 0)
+		if (!hasStock) return false
+		const inv = this.scriptsContext.inventory
+		// Only drain once we're already on a legal wild offload tile. Otherwise `inventory.offloadDropBuffer`
+		// may return `false` without yielding (walk attempts exhausted / no path), which would spin `findAction`
+		// forever if we always re-select this script. Walking to a valid offload tile is handled by work scripts
+		// like `vehicleOffload` / scripted `walk.into` inside `offloadDropBuffer`.
+		if (!inv.canDropLooseHere()) return false
+		return inv.offloadDropBuffer()
+	}
+
 	private tryScriptForActivityKind(kind: NextActivityKind): ScriptExecution | false | undefined {
 		switch (kind) {
 			case 'eat':
@@ -562,8 +838,6 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			case 'home':
 				if (this.keepWorking) return false
 				return this.scriptsContext.selfCare.goHome()
-			case 'drop':
-				return this.scriptsContext.inventory.dropAllLoose()
 			case 'assignedWork': {
 				const assignedTile = this.assignedAlveolus?.tile
 				const assignedJob = assignedTile?.content?.getJob?.(this)
@@ -602,9 +876,57 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 				return undefined
 		}
 	}
+	/**
+	 * **Active transport storage** while {@link driving}: the operated {@link VehicleEntity}'s
+	 * `storage`. `undefined` when walking — there is no walking goods buffer. Prefer
+	 * {@link requireActiveTransportStorage} at freight/transfer call sites that must have stock;
+	 * see `sandbox/roadmap-no-character-inventory.md`.
+	 */
+	get carry(): Storage | undefined {
+		return this.driving ? this.operates?.storage : undefined
+	}
 
-	get carry(): Storage {
-		return this.vehicle.storage
+	/**
+	 * Transport storage linked to the operated vehicle, even while temporarily offboard but still in
+	 * control of that vehicle (zone browse).
+	 */
+	get transportStorage(): Storage | undefined {
+		return this.operates?.storage
+	}
+
+	/**
+	 * Resolves {@link carry} and asserts it is present. Use in code paths that only make sense on
+	 * an operated vehicle (line freight load/unload/provide, gate drops, etc.).
+	 */
+	requireActiveTransportStorage(): Storage {
+		const s = this.carry
+		assert(s, `${this.name}: active transport storage requires driving with an operated vehicle`)
+		return s
+	}
+
+	/**
+	 * Resolves {@link transportStorage}. Unlike {@link requireActiveTransportStorage}, this also
+	 * works while stepped off but still controlling the same vehicle during a zone browse transfer.
+	 */
+	requireTransportStorage(): Storage {
+		const s = this.transportStorage
+		assert(s, `${this.name}: transport storage requires an operated vehicle`)
+		return s
+	}
+
+	/** Engine-rules `transferTime` for grab/drop durations (operated world vehicle when driving). */
+	get freightTransferTime(): number {
+		if (this.operates) {
+			return vehicleRules[this.operates.vehicleType as keyof typeof vehicleRules].transferTime
+		}
+		/** Walking grab/drop step duration when not operating a line vehicle. */
+		return 1.5
+	}
+
+	/** Applied to tile walk duration in `WalkFunctions.moveTo` when driving (wheelbarrow > 1 => slower). */
+	get mobilityMultiplier(): number {
+		if (!this.driving || !this.operates) return 1
+		return vehicleRules[this.operates.vehicleType as keyof typeof vehicleRules].walkTime
 	}
 
 	serialize() {
@@ -623,7 +945,8 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 						r: (this.assignedAlveolus.tile.position as any).r,
 					} // Save coordinate of alveolus
 				: undefined,
-			inventory: this.carry.stock,
+			operatedVehicleUid: this.operates?.uid,
+			driving: this.driving,
 			scripts: (this as any).getScriptState(), // Access mixin method
 		}
 	}
@@ -637,10 +960,8 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		char.fatigue = data.stats.fatigue
 		char.tiredness = data.stats.tiredness
 
-		// Restore Inventory
-		for (const [good, qty] of Object.entries(data.inventory)) {
-			char.carry.addGood(good as GoodType, qty as number)
-		}
+		// Legacy saves may include `inventory`; ignore (goods were never re-applied after removal).
+		void data.inventory
 
 		// Restore Scripts (after Character is created and context is available)
 		// We need to defer assignments that depend on other objects (e.g. Alveolus)?
@@ -651,6 +972,13 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			const tile = game.hex.getTile(data.assignedAlveolus)
 			if (tile?.content && 'hive' in tile.content) {
 				char.assignedAlveolus = tile.content as Alveolus
+			}
+		}
+		if (data.operatedVehicleUid) {
+			const vehicle = game.vehicles.vehicle(data.operatedVehicleUid)
+			if (vehicle) {
+				char.operates = vehicle
+				if (data.driving) char.onboard()
 			}
 		}
 

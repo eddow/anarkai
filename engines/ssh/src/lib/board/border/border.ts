@@ -57,7 +57,7 @@ export class TileBorder extends GameObject {
 	get debugInfo(): Record<string, any> {
 		return {
 			position: this.position,
-			content: this.content?.debugInfo,
+			content: this.content?.logInfo,
 		}
 	}
 }

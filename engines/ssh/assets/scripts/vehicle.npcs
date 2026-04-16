@@ -1,0 +1,87 @@
+// Line-freight / operator vehicle scripts.
+// Runtime state transitions live in `npcs/context/vehicle.ts`; the procedures below make the
+// intended vehicle interaction flows explicit at the script level.
+// Planner-visible work jobs are `vehicleHop`, `zoneBrowse`, and `vehicleOffload` only; approach,
+// begin-service, tile load/unload, and construction provide are preludes or `zoneBrowse` branches.
+
+function approachVehicle(jobPlan)
+	path = find.pathToVehicle(jobPlan.vehicleUid)
+	if not path then path = jobPlan.path
+	if not path then error "No path found to vehicle"
+	if path.length > 0 then
+		walk.until path
+	end if
+	walk.enter
+	vehicle.vehicleApproachStep jobPlan
+end function
+
+function driveJobPath(jobPlan)
+	path = jobPlan.path
+	if path and path.length > 0 then
+		walk.until path
+	end if
+end function
+
+function zoneBrowseTransferAtCurrentTile(jobPlan)
+	walk.enter
+	vehicle.vehicleStepOffKeepingControl jobPlan
+	vehicle.vehicleZoneBrowseTransferStep jobPlan
+	vehicle.vehicleDisengageKeepingService jobPlan
+end function
+
+function zoneBrowseTransfer(jobPlan)
+	driveJobPath jobPlan
+	zoneBrowseTransferAtCurrentTile jobPlan
+end function
+
+function zoneBrowse(jobPlan)
+	zoneBrowseTransfer jobPlan
+end function
+
+function vehicleHop(jobPlan)
+	if jobPlan.approachPath and jobPlan.approachPath.length > 0 then
+		walk.until jobPlan.approachPath
+		walk.enter
+		vehicle.vehicleApproachStep jobPlan
+	end if
+	if jobPlan.needsBeginService then
+		vehicle.vehicleBeginServiceStep jobPlan
+	end if
+	vehicle.vehicleHopPrepare jobPlan
+	if jobPlan.vehicleHopRunEnded then
+		return
+	end if
+	driveJobPath jobPlan
+	if jobPlan.dockEnter then
+		walk.enter
+	end if
+	vehicle.vehicleHopDockStep jobPlan
+	// Zone stops: operator is still driving; step off then transfer then disengage.
+	// Bay anchor: `vehicleHopDockStep` already disembarked the operator while keeping line service.
+	if not jobPlan.dockEnter and not jobPlan.vehicleHopAnchorDockDisembarked then
+		zoneBrowseTransferAtCurrentTile jobPlan
+	end if
+end function
+
+// TODO: batch offloading: grab several, drop several; Use zone load/unload when finished
+function vehicleOffload(jobPlan)
+	if not I.driving then
+		approachVehicle jobPlan
+	end if
+	vehicle.ensureVehicleOffloadPickupPlan jobPlan
+	targetPath = find.path(jobPlan.targetCoord, true)
+	if not targetPath then error "No path to vehicleOffload pickup tile"
+	if targetPath.length > 0 then walk.until targetPath
+	walk.enter
+	grab = jobPlan.offloadPickupPlan
+	if not grab then return
+	inventory.effectuate grab
+	do while not inventory.canDropLooseHere()
+		fp = find.freeSpot()
+		if not fp then error "No offload free spot path"
+		walk.until fp
+	loop
+	inventory.offloadDropBuffer()
+end function
+
+return { vehicleHop, zoneBrowse, vehicleOffload }

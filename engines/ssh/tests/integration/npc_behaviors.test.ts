@@ -1,7 +1,7 @@
 import type { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import { findLoadOntoVehicleJob } from 'ssh/freight/vehicle-work'
 import type { GoodType } from 'ssh/types'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { activityDurations } from '../../assets/constants'
 import { gatherFreightLine } from '../freight-fixtures'
 import { TestEngine } from '../test-engine'
 
@@ -93,18 +93,10 @@ describe('NPC Behaviors Integration', () => {
 		console.log('Deposit amount:', deposit!.amount)
 		expect(deposit!.amount).toBeLessThan(10) // Should have harvested at least 1
 
-		// Alveolus storage should have wood
-		const hiveTile = game.hex.getTile({ q: 2, r: 2 })
-		const storage = hiveTile?.content?.storage
-		// tree_chopper produces 'logs' usually? or 'wood'?
-		// 'tree' deposit produces 'wood' or 'log'?
-		// 'tree_chopper' usually transforms or harvests?
-		// Let's check logic: HarvestAlveolus has 'action' -> 'deposit'.
-		// Assuming it worked, storage has goods.
-		const goods = storage?.stock
-		const totalGoods = Object.values(goods || {}).reduce((a, b) => a + b, 0)
-		console.log('Hive Goods:', goods)
-		expect(totalGoods).toBeGreaterThan(0)
+		// Harvest output is loose goods on the deposit tile (not character/hive buffer)
+		const looseAtTree = game.hex.looseGoods.getGoodsAt({ q: 2, r: 3 })
+		const woodLoose = looseAtTree.filter((g) => g.goodType === 'wood' && g.available)
+		expect(woodLoose.length).toBeGreaterThan(0)
 	})
 
 	it('Scenario: Transform Behavior', { timeout: 15000 }, async () => {
@@ -165,7 +157,7 @@ describe('NPC Behaviors Integration', () => {
 				{
 					name: 'Gatherers',
 					alveoli: [
-						{ coord: [2, 2] as [number, number], alveolus: 'gather' },
+						{ coord: [2, 2] as [number, number], alveolus: 'freight_bay' },
 						{
 							coord: [3, 2] as [number, number],
 							alveolus: 'storage',
@@ -212,15 +204,6 @@ describe('NPC Behaviors Integration', () => {
 		}
 
 		const gatherTile = game.hex.getTile({ q: 2, r: 2 })
-		const countLooseMushroomsNearGather = () =>
-			(['2,1', '3,1'] as const)
-				.map((key) => {
-					const [q, r] = key.split(',').map(Number) as [number, number]
-					return (game.hex.looseGoods.getGoodsAt({ q, r }) ?? []).filter(
-						(g) => g.goodType === 'mushrooms'
-					).length
-				})
-				.reduce((acc, n) => acc + n, 0)
 
 		// Drive gathering deterministically: default `spawnWorker` auto-begins an action that may
 		// not be the gather hut job in this layout/time budget.
@@ -237,7 +220,7 @@ describe('NPC Behaviors Integration', () => {
 		// Let hive advertisements populate `hive.needs` before querying gather planning.
 		await tickAsync(engine, 0.5)
 
-		// Generation can briefly seed the gather hut storage; clear it so `nextGatherJob` gates pass.
+		// Generation can briefly seed the gather hut storage; clear it so empty-bay gather-zone checks pass.
 		const initialGatherStock = gatherAlveolus?.storage?.stock ?? {}
 		for (const [goodType, qty] of Object.entries(initialGatherStock)) {
 			const n = Number(qty) || 0
@@ -249,23 +232,22 @@ describe('NPC Behaviors Integration', () => {
 			`gather diagnostics: working=${String(gatherAlveolus.working)} needs=${JSON.stringify(gatherAlveolus.hive?.needs)}`
 		).toBe(true)
 
-		// Validate planning: the hut should expose a real gather job for the buffered need.
 		const planned = gatherAlveolus?.nextJob?.(gatherer)
-		expect(planned?.job).toBe('gather')
+		expect(planned).toBeUndefined()
 
-		const action = gatherer.findAction()
-		if (action) gatherer.begin(action)
+		const line = game.freightLines.find((l) => l.id === 'gatherers:gather:mushrooms-only')!
+		expect(line).toBeDefined()
+		const vehicle = game.vehicles.createVehicle('npc-gather-wb', 'wheelbarrow', { q: 2, r: 1 }, [
+			line,
+		])
+		vehicle.beginService(line, line.stops[0]!, gatherer)
+		gatherer.operates = vehicle
+		gatherer.onboard()
 
-		// Wait
-		await tickAsync(engine, 60.0)
-
-		// Verify
-		const storageTile = game.hex.getTile({ q: 3, r: 2 })
-		const gatherStock = gatherTile?.content?.storage?.stock ?? {}
-		const storageStock = storageTile?.content?.storage?.stock ?? {}
-		const totalMushrooms =
-			((gatherStock as any).mushrooms ?? 0) + ((storageStock as any).mushrooms ?? 0)
-		expect(totalMushrooms + countLooseMushroomsNearGather()).toBeGreaterThanOrEqual(2)
+		const loadJob = findLoadOntoVehicleJob(game, gatherer)
+		expect(loadJob?.job).toBe('zoneBrowse')
+		expect(loadJob?.zoneBrowseAction).toBe('load')
+		expect(loadJob?.goodType).toBe('mushrooms')
 	})
 
 	it('Scenario: Construct Behavior', { timeout: 15000 }, async () => {
@@ -398,7 +380,7 @@ describe('NPC Behaviors Integration', () => {
 		expect(char.hunger).toBeLessThan(char.triggerLevels.hunger.satisfied)
 	})
 
-	it('Scenario: Self-Care stops after satisfying carried-food hunger', {
+	it('Scenario: Self-Care eats loose food without using character carry', {
 		timeout: 15000,
 	}, async () => {
 		const { engine, game } = await setupEngine()
@@ -423,23 +405,14 @@ describe('NPC Behaviors Integration', () => {
 				if (loose.goodType !== 'mushrooms') loose.remove()
 			}
 
-			expect(char.carry.addGood('berries', 1)).toBe(1)
-			expect(char.carry.addGood('wood', 1)).toBe(1)
+			char.hunger = 0.92
 
-			char.hunger = 0.2
+			const eatAction = char.findAction()
+			if (eatAction) char.begin(eatAction)
 
-			const action = char.scriptsContext.selfCare.goEat()
-			const first = action.run(char.scriptsContext)
-			expect(first.type).toBe('yield')
-			expect(first.value).toBeDefined()
-			expect(typeof first.value.tick).toBe('function')
-			first.value.tick(activityDurations.eating)
+			await tickAsync(engine, 80.0)
+
 			expect(char.hunger).toBeLessThan(char.triggerLevels.hunger.satisfied)
-
-			const second = action.run(char.scriptsContext)
-			expect(second.type).toBe('return')
-			expect(char.carry.available('wood')).toBe(1)
-			expect(char.carry.available('mushrooms')).toBe(0)
 			expect(errors.join('\n')).not.toContain('While loop "stack overflow"')
 		} finally {
 			errorSpy.mockRestore()

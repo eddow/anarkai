@@ -1,8 +1,10 @@
 import { goods as goodsCatalog } from 'engine-rules'
 import { atomic, effect, unreactive } from 'mutts'
+import type { LooseGood } from 'ssh/board/looseGoods'
 import { assert } from 'ssh/debug'
 import type { Game } from 'ssh/game/game'
 import type { Character } from 'ssh/population/character'
+import type { Storage } from 'ssh/storage'
 import type { GoodType } from 'ssh/types'
 import { casing } from 'ssh/utils'
 import type { Position, Positioned } from 'ssh/utils/position'
@@ -42,6 +44,7 @@ export class Finalized {
 	}
 	@atomic
 	finish() {
+		if (this.status !== 'pending') return
 		for (const callback of [...this.#finished, ...this.#final]) callback()
 		this.status = 'finished'
 	}
@@ -124,9 +127,9 @@ export abstract class ASingleStep extends Finalized {
 				// Fallback: Return undefined to skip this step, character becomes idle/decides again.
 				return undefined
 			case 'EatStep': {
-				const step = new EatStep(character, data.food)
-				step.evolution = data.evolution
-				return step
+				// World-sourced eating cannot be faithfully restored without the consumed good reference.
+				console.warn('[EatStep] deserialize skipped (world eat sources not serialized)')
+				return undefined
 			}
 			case 'PonderingStep': {
 				const step = new PonderingStep(character, data.duration)
@@ -258,7 +261,8 @@ export class MultiMoveStep extends AEvolutionStep {
 			to: Positioned
 		}>,
 		readonly type: Ssh.ActivityType = 'work',
-		readonly givenDescription?: string
+		readonly givenDescription?: string,
+		private readonly beforeEvolve?: () => void
 	) {
 		super(duration)
 		// Capture the starting positions at construction time
@@ -267,6 +271,8 @@ export class MultiMoveStep extends AEvolutionStep {
 		}
 	}
 	evolve(evolution: number): void {
+		this.beforeEvolve?.()
+		if (this.status !== 'pending') return
 		// Lerp each movement independently
 		for (const movement of this.movements) {
 			movement.who.position = lerp(movement.from!, movement.to, evolution) as Position
@@ -343,6 +349,12 @@ export class WaitForPredicateStep extends ASingleStep {
 
 //#endregion
 //#region self-care
+
+/** Eat from loose goods or tile storage (not character carry). Food is committed at step start. */
+export type EatWorldSource =
+	| { kind: 'loose'; looseGood: LooseGood }
+	| { kind: 'storage'; storage: Storage }
+
 export class EatStep extends AEvolutionStep {
 	get type() {
 		return 'eat' as const
@@ -351,25 +363,16 @@ export class EatStep extends AEvolutionStep {
 	private lastEvolution = 0
 	constructor(
 		readonly character: Character,
-		readonly food: GoodType
+		readonly food: GoodType,
+		source: EatWorldSource
 	) {
 		super(activityDurations.eating)
 		assert('satiationStrength' in goodsCatalog[food], `Food ${food} has no satiation strength`)
 		this.satiationStrength = goodsCatalog[food].satiationStrength as number
-		const removed = this.character.carry.removeGood(food, 1)
-		if (removed <= 0) {
-			const debugInfo = JSON.stringify(
-				{
-					availables: this.character.carry.availables,
-					stock: this.character.carry.stock,
-					debug: this.character.carry.debugInfo,
-				},
-				null,
-				2
-			)
-			throw new Error(
-				`Didn't have food he is trying to eat (${food}). Removed: ${removed}. State: ${debugInfo}`
-			)
+		if (source.kind === 'loose') {
+			source.looseGood.allocate('eat').fulfill()
+		} else {
+			source.storage.reserve({ [food]: 1 }, 'eat').fulfill()
 		}
 	}
 	evolve(evolution: number): void {

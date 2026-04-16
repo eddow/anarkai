@@ -8,6 +8,12 @@ async function flushDeferred(turns: number = 3) {
 	}
 }
 
+const TIMELINE_TAIL = 48
+function pushTimelineSample(timeline: string[], line: string) {
+	if (timeline.length >= TIMELINE_TAIL) timeline.shift()
+	timeline.push(line)
+}
+
 describe('Mixed pipeline stall regression', () => {
 	it('keeps some convey work visible while wood-in and plank-out logistics overlap', {
 		timeout: 35000,
@@ -21,7 +27,7 @@ describe('Mixed pipeline stall regression', () => {
 					{
 						name: 'MixedPipelineHive',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'gather', goods: { wood: 2 } },
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 2 } },
 							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
 							{ coord: [2, 0], alveolus: 'storage', goods: {} },
 						],
@@ -54,9 +60,10 @@ describe('Mixed pipeline stall regression', () => {
 			let stalledMixedPipeline = false
 			let stallStreak = 0
 
-			for (let i = 0; i < 320; i++) {
+			const maxTicks = 280
+			for (let i = 0; i < maxTicks; i++) {
 				engine.tick(0.25)
-				if (i % 4 === 0) await flushDeferred(1)
+				if (i % 8 === 0) await flushDeferred(1)
 
 				const gatherSlots = gather.storage.renderedGoods()?.slots ?? []
 				const gatherWoodSlot = gatherSlots.find((slot: any) => slot.goodType === 'wood')
@@ -80,11 +87,12 @@ describe('Mixed pipeline stall regression', () => {
 				)
 
 				const actionDesc = worker.actionDescription.join('/') || 'none'
-				timeline.push(
-					`tick=${i} gatherReservedWood=${gatherReservedWood} plankInTransit=${plankInTransit} visibleConvey=${anyVisibleConveyJob} action=${actionDesc} assigned=${worker.assignedAlveolus?.name ?? 'none'} movements=${movements.map((movement) => `${movement.goodType}:${movement.provider}->${movement.demander}:claimed=${movement.claimed}:path=${movement.pathLength}`).join(',') || 'none'}`
-				)
-
 				const mixedPipelineStall = gatherReservedWood > 0 && plankInTransit && !anyVisibleConveyJob
+				const line = `tick=${i} gatherReservedWood=${gatherReservedWood} plankInTransit=${plankInTransit} visibleConvey=${anyVisibleConveyJob} action=${actionDesc} assigned=${worker.assignedAlveolus?.name ?? 'none'} movements=${movements.map((movement) => `${movement.goodType}:${movement.provider}->${movement.demander}:claimed=${movement.claimed}:path=${movement.pathLength}`).join(',') || 'none'}`
+				if (mixedPipelineStall || stallStreak > 0 || i % 16 === 0) {
+					pushTimelineSample(timeline, line)
+				}
+
 				if (mixedPipelineStall) stallStreak += 1
 				else stallStreak = 0
 

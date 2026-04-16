@@ -55,8 +55,18 @@
 			"construct": "Construire",
 			"offload": "Décharger",
 			"foundation": "Fondation",
-			"defragment": "Défragmenter"
-		}
+			"defragment": "Défragmenter",
+			"loadOntoVehicle": "Charger sur le véhicule"
+		},
+		"operates": "Opère"
+	},
+	"vehicle": {
+		"operator": "Opérateur",
+		"service": "Service",
+		"idle": "Inactif",
+		"offloadService": "Déchargement",
+		"docked": "À quai",
+		"underway": "En route"
 	},
 	"step": {
 		"idle": "Inactif",

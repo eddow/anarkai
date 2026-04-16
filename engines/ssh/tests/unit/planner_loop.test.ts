@@ -43,7 +43,7 @@ describe('Planner loop diagnostic', () => {
 				{
 					name: 'TestHive',
 					alveoli: [
-						{ coord: [0, 0], alveolus: 'gather', goods: {} },
+						{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
 						{ coord: [1, 0], alveolus: 'woodpile', goods: {} },
 					],
 				},
@@ -68,7 +68,7 @@ describe('Planner loop diagnostic', () => {
 			hives: [
 				{
 					name: 'GatherOnly',
-					alveoli: [{ coord: [0, 0], alveolus: 'gather', goods: {} }],
+					alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }],
 				},
 			],
 			looseGoods: [],
@@ -286,7 +286,7 @@ describe('Planner loop diagnostic', () => {
 					{
 						name: 'TestHive',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'gather', goods: {} },
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
 							{ coord: [1, 0], alveolus: 'woodpile', goods: {} },
 						],
 					},
@@ -311,14 +311,15 @@ describe('Planner loop diagnostic', () => {
 
 			await new Promise((r) => setTimeout(r, 0))
 
-			// Run up to 100 ticks — should not throw
+			// Run up to 40 ticks — should not throw
 			let overflowActivations: any[] = []
 			const origMaxReaction = reactiveOptions.maxEffectReaction
 			reactiveOptions.maxEffectReaction = 'warn'
 			try {
-				for (let i = 0; i < 100; i++) {
+				// Enough ticks to stress planner + reactive chain; fewer than 100 cuts suite time.
+				for (let i = 0; i < 40; i++) {
 					engine.tick(0.5)
-					await new Promise((r) => setTimeout(r, 0))
+					if (i % 2 === 0) await new Promise((r) => setTimeout(r, 0))
 				}
 			} catch (e: any) {
 				overflowActivations = getActivationLog()

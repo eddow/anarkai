@@ -1,29 +1,37 @@
+/**
+ * Scripted transfer steps (`grab` / `drop` plans, loose pickup) for the operated vehicle storage.
+ * Most freight paths are still driving, but zone browse temporarily steps off while keeping control
+ * of the same vehicle, so these helpers resolve {@link Character.transportStorage} rather than only
+ * `carry`. See
+ * `sandbox/roadmap-no-character-inventory.md`.
+ */
+import { goods as goodsCatalog } from 'engine-rules'
 import type { TileBorder } from 'ssh/board/border/border'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { LooseGood } from 'ssh/board/looseGoods'
 import type { Tile } from 'ssh/board/tile'
 import { assert } from 'ssh/debug'
+import { detachVehicleServiceIfStorageEmpty } from 'ssh/freight/vehicle-run'
 import type { Character } from 'ssh/population/character'
+import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { contract, type Goods, type GoodType } from 'ssh/types'
 import type { IdlePlan, PickupPlan, TransferPlan } from 'ssh/types/base'
 import { type Positioned, toAxialCoord } from 'ssh/utils'
 import { subject } from '../scripts'
-import { DurationStep } from '../steps'
+import { type ASingleStep, DurationStep } from '../steps'
 
 function planSpecificLoosePickup(
 	character: Character,
 	looseGood: LooseGood,
 	source: Positioned
 ): PickupPlan {
-	const vehicle = character.vehicle
-	assert(vehicle, 'character.vehicle must be set')
-	assert(!looseGood.isRemoved, 'LooseGood already removed')
-	assert(looseGood.available, 'LooseGood already allocated')
+	const transport = character.requireTransportStorage()
+	const canGrab = transport.hasRoom(looseGood.goodType)
+	if (canGrab <= 0) {
+		throw new Error(`No room in active transport storage for ${looseGood.goodType}`)
+	}
 
-	const canGrab = vehicle.storage.hasRoom(looseGood.goodType)
-	if (canGrab <= 0) throw new Error(`No room in vehicle to grab ${looseGood.goodType}`)
-
-	const vehicleAllocation = vehicle.storage.allocate({ [looseGood.goodType]: 1 }, 'plan.pickup')
+	const vehicleAllocation = transport.allocate({ [looseGood.goodType]: 1 }, 'plan.pickup')
 	const allocation = looseGood.allocate('plan.pickup')
 
 	return {
@@ -58,18 +66,17 @@ function ensureDropPlanAllocations(action: TransferPlan, character: Character) {
 	if (action.vehicleAllocation && action.allocation) return
 	assert(action.description === 'drop', 'drop allocations can only be created for drop plans')
 	assert(action.target, 'drop target must be set')
-	const vehicle = character.vehicle
+	const transport = character.requireTransportStorage()
 	const target = action.target
 	assert(hasStorageContent(target), 'planDropStored only works with TileContent that has storage')
 	const content = target.content
-	assert(vehicle, 'tile.vehicle must be set')
 	assert(content, 'destination.content must be set')
 	assert('storage' in content, 'planDropStored only works with TileContent that has storage')
 
 	let vehicleAllocation: TransferPlan['vehicleAllocation']
 	let allocation: TransferPlan['allocation']
 	try {
-		vehicleAllocation = vehicle.storage.reserve(action.goods, `planDropStored`)
+		vehicleAllocation = transport.reserve(action.goods, `planDropStored`)
 		allocation = content.storage!.allocate(action.goods, `planDropStored`)
 		action.vehicleAllocation = vehicleAllocation
 		action.allocation = allocation
@@ -85,6 +92,10 @@ function ensureDropPlanAllocations(action: TransferPlan, character: Character) {
 	}
 }
 
+/**
+ * NPC-bound transfer helpers. Stock moves through {@link Character.carry} (vehicle storage when
+ * driving). Offload-only helpers tolerate missing transport; freight paths assert it.
+ */
 export class InventoryFunctions {
 	declare [subject]: Character
 
@@ -95,23 +106,47 @@ export class InventoryFunctions {
 		return content instanceof UnBuiltLand && !content.project && tile.zone !== 'residential'
 	}
 
+	/**
+	 * Good types with a positive available quantity in {@link Character.carry} (active transport).
+	 * Used by `offloadDropBuffer` instead of `Object.keys(carry.availables)` — reactive getters may
+	 * not enumerate reliably from NPC `keys()`.
+	 */
+	@contract()
+	dropCandidateGoodTypes(): GoodType[] {
+		const transport = this[subject].transportStorage
+		if (!transport) return []
+		const types: GoodType[] = []
+		// Enumerate from the goods catalog — `Object.keys(transport.stock)` can miss reactive keys when
+		// called from NPC scripts (`inventory.offloadDropBuffer` uses this list as the entry gate).
+		for (const goodType of Object.keys(goodsCatalog) as GoodType[]) {
+			const qty = transport.stock[goodType]
+			if (!qty || qty <= 0) continue
+			if ((transport.available(goodType) ?? 0) > 0) types.push(goodType)
+		}
+		return types
+	}
+
+	@contract('GoodType')
+	carryAvailable(goodType: GoodType): number {
+		return this[subject].carry?.available(goodType) ?? 0
+	}
+
 	@contract('GoodType', 'number?')
 	dropAsLooseGood(goodType: GoodType, maxAmount: number = 1) {
 		const character = this[subject]
-		const { vehicle } = character
-		assert(vehicle, 'tile.vehicle must be set')
+		const transport = character.requireTransportStorage()
 
-		const available = vehicle.storage.available(goodType) ?? 0
+		const available = transport.available(goodType) ?? 0
 		let amount = Math.min(available, maxAmount)
 		if (amount <= 0) throw new Error(`No ${goodType} to drop (available: ${available})`)
-		const vehicleTransfer = vehicle.storage.reserve({ [goodType]: amount }, `drop.${goodType}`)
-		return new DurationStep(amount * vehicle.transferTime, 'convey', `drop.${goodType}`)
+		const vehicleTransfer = transport.reserve({ [goodType]: amount }, `drop.${goodType}`)
+		return new DurationStep(amount * character.freightTransferTime, 'convey', `drop.${goodType}`)
 			.finished(() => {
 				try {
-					while (amount--)
-						character.game.hex.looseGoods.add(character.tile, goodType, {
-							position: character.position,
-						})
+					// Do not pass `position` here: `character.position` may still be mid-walk while the
+					// loose-good placement is keyed by `character.tile`; `looseGoods.add` asserts axial
+					// agreement between optional position and the tile.
+					while (amount--) character.game.hex.looseGoods.add(character.tile, goodType)
 					if (!vehicleTransfer) console.error('vehicleTransfer missing in dropAsLooseGood callback')
 					vehicleTransfer.fulfill()
 				} catch (e) {
@@ -127,8 +162,7 @@ export class InventoryFunctions {
 	planDropStored(goods: Goods, destination: Tile | TileBorder): TransferPlan | IdlePlan {
 		const character = this[subject]
 		const content = destination.content
-		const vehicle = character.vehicle
-		assert(vehicle, 'tile.vehicle must be set')
+		const transport = character.requireTransportStorage()
 		assert(content, 'destination.content must be set')
 		assert('storage' in content, 'planDropStored only works with TileContent that has storage')
 
@@ -139,7 +173,7 @@ export class InventoryFunctions {
 		for (const [goodType, requestedQuantity] of Object.entries(goods) as [GoodType, number][]) {
 			if (!requestedQuantity || requestedQuantity <= 0) continue
 
-			const available = vehicle.storage.available(goodType) ?? 0
+			const available = transport.available(goodType) ?? 0
 			const canStore = content.storage?.hasRoom(goodType) || 0
 			const amount = Math.min(available, canStore, requestedQuantity)
 
@@ -151,7 +185,7 @@ export class InventoryFunctions {
 
 		if (totalAmount <= 0) {
 			// If we wanted to drop specific goods but couldn't (e.g. storage full or we don't have them)
-			// But wait, earlier we check `available` in vehicle.
+			// But wait, earlier we check `available` in transport.
 			// If we don't have the goods, `available` is 0.
 			// If destination is full, `canStore` is 0.
 
@@ -159,14 +193,14 @@ export class InventoryFunctions {
 			const reasons: string[] = []
 			for (const [goodType, requestedQuantity] of Object.entries(goods) as [GoodType, number][]) {
 				if (!requestedQuantity || requestedQuantity <= 0) continue
-				const available = vehicle.storage.available(goodType) ?? 0
-				if (available <= 0) reasons.push(`No ${goodType} in inventory`)
+				const available = transport.available(goodType) ?? 0
+				if (available <= 0) reasons.push(`No ${goodType} in active transport storage`)
 
 				const canStore = content.storage?.hasRoom(goodType) || 0
 				if (canStore <= 0) reasons.push(`No room for ${goodType} in target`)
 			}
 			throw new Error(
-				`Cannot drop goods: ${reasons.join(', ') || 'Unknown reason'} (requested: ${JSON.stringify(goods)}, available: ${JSON.stringify(vehicle.storage.availables)}, target-room: ${JSON.stringify(content.storage?.debugInfo || 'no-storage')})`
+				`Cannot drop goods: ${reasons.join(', ') || 'Unknown reason'} (requested: ${JSON.stringify(goods)}, available: ${JSON.stringify(transport.availables)}, target-room: ${JSON.stringify(content.storage?.logInfo || 'no-storage')})`
 			)
 		}
 
@@ -182,8 +216,7 @@ export class InventoryFunctions {
 	@contract('Goods', 'Tile | TileBorder')
 	planGrabStored(goods: Goods, source: Tile | TileBorder): TransferPlan | IdlePlan {
 		const character = this[subject]
-		const vehicle = character.vehicle
-		assert(vehicle, 'tile.vehicle must be set')
+		const transport = character.requireTransportStorage()
 		const content = source.content
 		assert(content, 'source.content must be set')
 		assert('storage' in content, 'planGrabStored only works with TileContent that has storage')
@@ -195,7 +228,7 @@ export class InventoryFunctions {
 		for (const [goodType, requestedQuantity] of Object.entries(goods) as [GoodType, number][]) {
 			if (!requestedQuantity || requestedQuantity <= 0) continue
 
-			const canGrab = vehicle.storage.hasRoom(goodType)
+			const canGrab = transport.hasRoom(goodType)
 			if (canGrab <= 0) continue // Skip this good type if no room
 
 			const available = content.storage?.available(goodType) ?? 0
@@ -212,7 +245,7 @@ export class InventoryFunctions {
 		}
 
 		// Create allocations immediately
-		const vehicleAllocation = vehicle.storage.allocate(actualGoods, 'plan.grab')
+		const vehicleAllocation = transport.allocate(actualGoods, 'plan.grab')
 		const allocation = content.storage!.reserve(actualGoods, 'plan.get')
 
 		return {
@@ -227,7 +260,7 @@ export class InventoryFunctions {
 
 	/**
 	 * Plan to grab loose goods from a tile.
-	 * @param goodType - Specific good to grab, or null/undefined to grab *any* available good that fits in inventory ("scavenge" mode).
+	 * @param goodType - Specific good to grab, or null/undefined to grab *any* available good that fits in active transport storage ("scavenge" mode).
 	 * @param source - The location to grab from.
 	 */
 	planGrabSpecificLoose(looseGood: LooseGood, source: Positioned): PickupPlan {
@@ -240,13 +273,17 @@ export class InventoryFunctions {
 		source: Positioned
 	): PickupPlan | TransferPlan | IdlePlan {
 		const character = this[subject]
-		const vehicle = character.vehicle
-		assert(vehicle, 'character.vehicle must be set')
+		const transport = character.transportStorage
+		if (!transport) {
+			return { type: 'idle' as const, duration: 0.1 }
+		}
 
 		// If goodType is null (scavenge), we check strict room later per-item.
-		// Here we just ensure we aren't totally full if checking a specific type.
-		const canGrab = goodType ? vehicle.storage.hasRoom(goodType) : 1
-		if (canGrab <= 0) throw new Error('No room in vehicle to grab goods')
+		// Here we bail softly if the carrier cannot hold the requested type (same as missing goods).
+		const canGrab = goodType ? transport.hasRoom(goodType) : 1
+		if (canGrab <= 0) {
+			return { type: 'idle' as const, duration: 0.1 }
+		}
 
 		// Check for LooseGoods on the tile - always grab exactly 1
 		// Filter for available goods that haven't been removed (decayed)
@@ -254,7 +291,7 @@ export class InventoryFunctions {
 		const looseGoods = character.game.hex.looseGoods.getGoodsAt(coord)
 		const matchingLooseGoods = looseGoods.filter(
 			(good) =>
-				(goodType ? good.goodType === goodType : vehicle.storage.hasRoom(good.goodType)) &&
+				(goodType ? good.goodType === goodType : transport.hasRoom(good.goodType)) &&
 				good.available &&
 				!good.isRemoved
 		)
@@ -277,10 +314,8 @@ export class InventoryFunctions {
 		const character = this[subject]
 		const {
 			tile: { content },
-			vehicle,
 		} = character
 		assert(content, 'tile.content must be set')
-		assert(vehicle, 'tile.vehicle must be set')
 
 		if (action.type === 'idle') {
 			return new DurationStep(action.duration, 'idle', 'waiting')
@@ -304,7 +339,7 @@ export class InventoryFunctions {
 		const { vehicleAllocation, allocation } = action
 		assert(vehicleAllocation, 'vehicleAllocation must be set before effectuating transfer')
 
-		return new DurationStep(totalAmount * vehicle.transferTime, 'convey', description)
+		return new DurationStep(totalAmount * character.freightTransferTime, 'convey', description)
 			.finished(() => {
 				try {
 					if (!vehicleAllocation) {
@@ -325,4 +360,33 @@ export class InventoryFunctions {
 				allocation?.cancel()
 			})
 	}
+
+	/**
+	 * Drops one unit of buffered active-transport stock as a loose good on the current tile.
+	 * Caller must ensure {@link canDropLooseHere} before invoking (see `vehicle.npcs` offload prelude).
+	 * Clears offload/line service when storage becomes empty via {@link detachVehicleServiceIfStorageEmpty}.
+	 */
+	@contract()
+	offloadDropBuffer(): ASingleStep | false {
+		return offloadDropBufferNative(this)
+	}
+}
+// TODO: this is `scriptContext` indeed, not InventoryFunctions
+
+/** Test hook for {@link InventoryFunctions.offloadDropBuffer} (same implementation as the method). */
+export function offloadDropBufferNative(inv: InventoryFunctions): ASingleStep | false {
+	const character = inv[subject]
+	const vehicle: VehicleEntity | undefined = character.operates
+	const types = character.scriptsContext.inventory.dropCandidateGoodTypes()
+	if (types.length === 0) {
+		if (vehicle) detachVehicleServiceIfStorageEmpty(vehicle)
+		return false
+	}
+	const goodType = types[0]!
+	const step = character.scriptsContext.inventory.dropAsLooseGood(goodType, 1)
+	step.final(() => {
+		const v = character.operates
+		if (v) detachVehicleServiceIfStorageEmpty(v)
+	})
+	return step
 }

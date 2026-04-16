@@ -21,7 +21,7 @@ describe('Assigned second wood debug', () => {
 					{
 						name: 'AssignedSecondWoodHive',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'gather', goods: { wood: 2 } },
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 2 } },
 							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
 						],
 					},

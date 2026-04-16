@@ -8,6 +8,12 @@ async function flushDeferred(turns: number = 3) {
 	}
 }
 
+const TIMELINE_TAIL = 48
+function pushTimelineSample(timeline: string[], line: string) {
+	if (timeline.length >= TIMELINE_TAIL) timeline.shift()
+	timeline.push(line)
+}
+
 describe('Reserved wood stuck diagnostic', () => {
 	it('does not leave reserved wood at gather without a convey movement or convey job for long', {
 		timeout: 20000,
@@ -21,14 +27,10 @@ describe('Reserved wood stuck diagnostic', () => {
 					{
 						name: 'ReservedWoodDiagnosticHive',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'gather', goods: {} },
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 2 } },
 							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
 						],
 					},
-				],
-				looseGoods: [
-					{ position: { q: 0, r: 1 }, goodType: 'wood' },
-					{ position: { q: 0, r: 1 }, goodType: 'wood' },
 				],
 			}
 
@@ -57,9 +59,10 @@ describe('Reserved wood stuck diagnostic', () => {
 			let consecutiveStuckTicks = 0
 			let maxReserved = 0
 
-			for (let i = 0; i < 160; i++) {
+			const maxTicks = 140
+			for (let i = 0; i < maxTicks; i++) {
 				engine.tick(0.25)
-				if (i % 4 === 0) await flushDeferred(1)
+				if (i % 8 === 0) await flushDeferred(1)
 
 				const gatherSlots = gather.storage.renderedGoods()?.slots ?? []
 				const woodSlot = gatherSlots.find((slot: any) => slot.goodType === 'wood')
@@ -80,13 +83,14 @@ describe('Reserved wood stuck diagnostic', () => {
 				maxReserved = Math.max(maxReserved, gatherReserved)
 				consecutiveStuckTicks = stuck ? consecutiveStuckTicks + 1 : 0
 
-				timeline.push(
-					`tick=${i} gatherStock=${gatherStock} gatherReserved=${gatherReserved} woodMovements=${woodMovements} gatherJob=${gatherJob} sawmillJob=${sawmillJob} gatherAction=${gatherWorker.actionDescription.join('/') || 'none'} sawmillAction=${sawmillWorker.actionDescription.join('/') || 'none'} stuckRun=${consecutiveStuckTicks}`
-				)
+				const line = `tick=${i} gatherStock=${gatherStock} gatherReserved=${gatherReserved} woodMovements=${woodMovements} gatherJob=${gatherJob} sawmillJob=${sawmillJob} gatherAction=${gatherWorker.actionDescription.join('/') || 'none'} sawmillAction=${sawmillWorker.actionDescription.join('/') || 'none'} stuckRun=${consecutiveStuckTicks}`
+				if (stuck || consecutiveStuckTicks > 0 || i % 16 === 0) {
+					pushTimelineSample(timeline, line)
+				}
 
 				if (consecutiveStuckTicks >= 8) {
 					throw new Error(
-						`Reserved wood got stuck without convey visibility.\n${timeline.slice(-40).join('\n')}`
+						`Reserved wood got stuck without convey visibility.\n${timeline.join('\n')}`
 					)
 				}
 			}

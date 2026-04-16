@@ -99,7 +99,7 @@ const mkDemander = (name: string): TestAdvertiser => ({
 describe('Advertisement matching', () => {
 	it('matches opposite advertisements when demand arrives after provide', async () => {
 		const manager = new TestManager()
-		const provider = mkProvider('gather')
+		const provider = mkProvider('producer')
 		const demander = mkDemander('sawmill')
 
 		const provide: GoodsRelations = {
@@ -117,13 +117,13 @@ describe('Advertisement matching', () => {
 		// Wait a bit for the async callback to complete
 		await new Promise((resolve) => setTimeout(resolve, 10))
 
-		expect(manager.movements).toEqual([{ goodType: 'wood', giver: 'gather', taker: 'sawmill' }])
+		expect(manager.movements).toEqual([{ goodType: 'wood', giver: 'producer', taker: 'sawmill' }])
 		expect(manager.advertisements.wood).toBeUndefined()
 	})
 
 	it('matches opposite advertisements when provide arrives after demand', () => {
 		const manager = new TestManager()
-		const provider = mkProvider('gather')
+		const provider = mkProvider('producer')
 		const demander = mkDemander('sawmill')
 
 		const provide: GoodsRelations = {
@@ -138,13 +138,13 @@ describe('Advertisement matching', () => {
 
 		manager.advertise(provider, provide)
 
-		expect(manager.movements).toEqual([{ goodType: 'wood', giver: 'gather', taker: 'sawmill' }])
+		expect(manager.movements).toEqual([{ goodType: 'wood', giver: 'producer', taker: 'sawmill' }])
 		expect(manager.advertisements.wood).toBeUndefined()
 	})
 
 	it('prefers 2-use over 1-buffer when both are available', () => {
 		const manager = new TestManager()
-		const provider = mkProvider('gather')
+		const provider = mkProvider('producer')
 		const lowPriorityDemander = mkDemander('storage')
 		const highPriorityDemander = mkDemander('build')
 
@@ -168,7 +168,7 @@ describe('Advertisement matching', () => {
 		// When provider arrives, it should match with high priority (2-use) first
 		manager.advertise(provider, provide)
 
-		expect(manager.movements).toEqual([{ goodType: 'wood', giver: 'gather', taker: 'build' }])
+		expect(manager.movements).toEqual([{ goodType: 'wood', giver: 'producer', taker: 'build' }])
 		// Low priority demand should still be available
 		expect(manager.advertisements.wood?.advertisement).toBe('demand')
 	})

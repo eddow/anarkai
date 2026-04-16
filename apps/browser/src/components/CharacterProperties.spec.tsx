@@ -30,13 +30,14 @@ const i18nState = {
 			plannerWorkKinds: {
 				harvest: 'Harvest',
 				transform: 'Transform',
-				gather: 'Gather',
 				convey: 'Convey',
 				construct: 'Construct',
 				offload: 'Offload',
 				foundation: 'Foundation',
 				defragment: 'Defragment',
+				loadOntoVehicle: 'Load onto vehicle',
 			},
+			operates: 'Operates',
 		},
 		step: {
 			idle: 'Idle',
@@ -78,7 +79,15 @@ vi.mock('./GoodsList', () => ({
 
 vi.mock('./LinkedEntityControl', () => ({
 	default: (props: { object?: { uid?: string; title?: string } }) => (
-		<div data-testid="linked-entity-control">{props.object?.uid ?? 'linked'}</div>
+		<div data-testid="linked-entity-control" data-target-uid={props.object?.uid ?? ''}>
+			{props.object?.uid ?? 'linked'}
+		</div>
+	),
+}))
+
+vi.mock('./InspectorObjectLink', () => ({
+	default: (props: { object?: { uid?: string } }) => (
+		<span data-testid="inspector-object-link" data-target-uid={props.object?.uid ?? ''} />
 	),
 }))
 
@@ -196,8 +205,8 @@ describe('CharacterProperties', () => {
 						selected: false,
 					},
 					{
-						jobKind: 'gather',
-						targetLabel: 'berries @ 2, 2',
+						jobKind: 'loadOntoVehicle',
+						targetLabel: 'loadOntoVehicle berries @ 2, 2',
 						targetCoord: { q: 2, r: 2 },
 						urgency: 0.9,
 						pathLength: 3,
@@ -269,7 +278,7 @@ describe('CharacterProperties', () => {
 		expect(container.textContent).not.toContain('Tile 4, 4')
 	})
 
-	it('renders a compact action path summary with the full path in the title', () => {
+	it('renders the full action path on one line (scrollable when wide)', () => {
 		const character = {
 			title: 'Milo',
 			name: 'Milo',
@@ -302,9 +311,40 @@ describe('CharacterProperties', () => {
 			'[data-testid="character-action-path"]'
 		) as HTMLSpanElement | null
 		expect(actionPath).not.toBeNull()
-		expect(actionPath?.textContent).toBe('work.goWork / … / walk.until')
-		expect(actionPath?.getAttribute('title')).toBe(
-			'work.goWork / walk.until / inventory.drop / walk.until'
+		expect(actionPath?.textContent).toBe('work.goWork / walk.until / inventory.drop / walk.until')
+	})
+
+	it('renders operates row linking to the operated vehicle', () => {
+		const operates = { uid: 'vehicle-1', title: 'wheelbarrow vehicle-1', tile: { uid: 'tile:1,1' } }
+		const character = {
+			title: 'Rex',
+			name: 'Rex',
+			hunger: 0,
+			tiredness: 0,
+			fatigue: 0,
+			stepExecutor: {
+				type: 'idle',
+				description: undefined,
+			},
+			carry: { stock: {} },
+			actionDescription: [],
+			lastPlannerSnapshot: undefined,
+			lastWorkPlannerSnapshot: undefined,
+			game: {},
+			operates,
+		}
+
+		stop = latch(container, <CharacterProperties character={character as never} />, {
+			setTitle: vi.fn(),
+		} as never)
+
+		expect(container.textContent).toContain('Operates')
+		const vehicleControl = container.querySelector(
+			'[data-testid="linked-entity-control"][data-target-uid="vehicle-1"]'
 		)
+		expect(vehicleControl).not.toBeNull()
+		expect(
+			container.querySelector('[data-testid="inspector-object-link"][data-target-uid="vehicle-1"]')
+		).not.toBeNull()
 	})
 })

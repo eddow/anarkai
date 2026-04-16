@@ -68,12 +68,6 @@ if (typeof Image === 'undefined') {
 })
 
 import { Game } from 'ssh/game'
-import { FindFunctions } from 'ssh/npcs/context/find'
-import { InventoryFunctions } from 'ssh/npcs/context/inventory'
-import { PlanFunctions } from 'ssh/npcs/context/plan'
-import { WalkFunctions } from 'ssh/npcs/context/walk'
-import { WorkFunctions } from 'ssh/npcs/context/work'
-import { protoCtx, subject } from 'ssh/npcs/scripts'
 import { describe, expect, it, vi } from 'vitest'
 
 // Mock assets/resources
@@ -92,8 +86,10 @@ vi.mock('ssh/assets/game-content', () => {
 	)
 	return {
 		vehicles: {
-			'by-hands': {
+			wheelbarrow: {
 				storage: { slots: 10, capacity: 100 },
+				walkTime: 1,
+				transferTime: 1,
 			},
 		},
 		goods: {
@@ -139,7 +135,7 @@ describe('Behavior Verification', () => {
 		})
 		await game.loaded
 
-		const char = game.population.createCharacter('Worker', { q: 2, r: 2 })
+		const char = game.population.createCharacter('Worker', { q: 3, r: 2 })
 
 		// Mock alveolus target
 		const targetTile = game.hex.getTile({ q: 3, r: 2 })
@@ -148,6 +144,7 @@ describe('Behavior Verification', () => {
 		// Create Mock Alveolus
 		const alveolus = {
 			tile: targetTile,
+			preparationTime: 0.01,
 			action: {
 				type: 'harvest', // Required by harvestStep
 				deposit: 'tree',
@@ -229,7 +226,10 @@ describe('Behavior Verification', () => {
 		}
 
 		// Execute Harvest
-		const execution = work.harvest(plan)
+		const execution = work.harvest({
+			...plan,
+			path: [],
+		})
 
 		// Run execution steps
 		// execution.run(context) returns result or yields.
@@ -271,7 +271,7 @@ describe('Behavior Verification', () => {
 		})
 		await game.loaded
 
-		const char = game.population.createCharacter('Worker', { q: 2, r: 2 })
+		const char = game.population.createCharacter('Worker', { q: 3, r: 2 })
 
 		// Mock alveolus
 		const targetTile = game.hex.getTile({ q: 3, r: 2 })
@@ -284,6 +284,7 @@ describe('Behavior Verification', () => {
 
 		const alveolus = {
 			tile: targetTile,
+			preparationTime: 0.01,
 			action: {
 				type: 'transform',
 				inputs: { wood: 1 },
@@ -307,25 +308,10 @@ describe('Behavior Verification', () => {
 
 		char.assignedAlveolus = alveolus as any
 
-		// Use default scriptsContext which has all scripts loaded
-		const context = char.scriptsContext as any
-		void context // Trigger loading
-
-		const bind = (Class: any, name: string) => {
-			const instance = protoCtx(Class)
-			instance[subject] = char
-			;(context as any)[name] = instance
-		}
-		bind(WorkFunctions, 'work')
-		bind(InventoryFunctions, 'inventory')
-		bind(WalkFunctions, 'walk')
-		bind(FindFunctions, 'find')
-		bind(PlanFunctions, 'plan')
-
-		// Scripts are loaded by default via scriptsContext
+		const context = char.scriptsContext
 		void context
 
-		const work = (context as any).work
+		const work = context.work
 
 		// Set invariant
 		const plan = {
@@ -337,7 +323,10 @@ describe('Behavior Verification', () => {
 			fatigue: 0,
 		}
 
-		const execution = work.transform(plan)
+		const execution = work.transform({
+			...plan,
+			path: [],
+		})
 
 		let result = execution.run(context)
 		let loops = 0

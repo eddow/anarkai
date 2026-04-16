@@ -179,19 +179,6 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			if (assignedWorker && assignedWorker !== currentCharacter) {
 				return undefined
 			}
-			// If the alveolus is burdened by LooseGoods, ask to remove them
-			if (this.isBurdened) {
-				const looseGood = this.tile.availableGoods.find(
-					(good) => !character || character.carry.hasRoom(good.goodType) > 0
-				)
-				if (!looseGood) return undefined
-				return {
-					job: 'offload',
-					urgency: jobBalance.offload.alveolusBlocked,
-					fatigue: 1,
-					looseGood,
-				} as Job
-			}
 			const carry = this.conveyJob()
 			if (carry) return carry
 
@@ -251,37 +238,12 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			fromSnapshot: AxialCoord
 		): MovementSelection {
 			return {
-				movementId: movement._mgId,
 				fromSnapshot,
 				movement,
 			}
 		}
 
-		// TODO: take a random movement or keep it arbitrary?
-		// Collect movements at the tile itself
-		const atHere = hive.movingGoods.get(here)
-		if (atHere) {
-			for (const mg of atHere) {
-				if (mg.claimed) continue
-				if (
-					!hive.queueBrokenMovementDiscard(mg, {
-						expectedFrom: here,
-						warnLabel: '[aGoodMovement] Invalid tile movement',
-					})
-				) {
-					continue
-				}
-				if (mg.path.length === 0) continue
-				if (!canHandleFromHere(here, mg.path[0]!)) continue
-				const selection = selectMovement(mg, mg.from ?? here)
-				if (canAdvance(mg)) {
-					return [selection]
-				} else {
-					blocked.push(selection)
-				}
-			}
-		}
-
+		// Deterministic priority: border-tracked movements before tile-center (several can exist per tile).
 		// Collect movements from surroundings (borders)
 		for (const { border } of this.tile.surroundings) {
 			const from = toAxialCoord(border.position)!
@@ -306,6 +268,30 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 							blocked.push(selection)
 						}
 					}
+				}
+			}
+		}
+
+		// Collect movements at the tile itself
+		const atHere = hive.movingGoods.get(here)
+		if (atHere) {
+			for (const mg of atHere) {
+				if (mg.claimed) continue
+				if (
+					!hive.queueBrokenMovementDiscard(mg, {
+						expectedFrom: here,
+						warnLabel: '[aGoodMovement] Invalid tile movement',
+					})
+				) {
+					continue
+				}
+				if (mg.path.length === 0) continue
+				if (!canHandleFromHere(here, mg.path[0]!)) continue
+				const selection = selectMovement(mg, mg.from ?? here)
+				if (canAdvance(mg)) {
+					return [selection]
+				} else {
+					blocked.push(selection)
 				}
 			}
 		}

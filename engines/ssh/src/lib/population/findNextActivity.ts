@@ -18,7 +18,7 @@ import {
 
 export { activityUtilityConfig }
 
-export type NextActivityKind = 'eat' | 'home' | 'drop' | 'assignedWork' | 'bestWork' | 'wander'
+export type NextActivityKind = 'eat' | 'home' | 'assignedWork' | 'bestWork' | 'wander'
 
 /**
  * How `Character.findAction` chose the script: from the post-hysteresis ranked list, or
@@ -41,15 +41,16 @@ export interface ActivityScore {
 	detail: Record<string, unknown>
 }
 
-/** Minimal surface for utility planning (avoids circular import with `character.ts`). */
+/**
+ * Minimal surface for utility planning (avoids circular import with `character.ts`).
+ * Does not include transport/carry: need scoring uses paths and needs only, not inventory state.
+ */
 export interface ActivityPlanningCharacter {
 	readonly name?: string
 	readonly hunger: number
 	readonly fatigue: number
 	readonly tiredness: number
 	readonly position: { q: number; r: number } | { x: number; y: number }
-	readonly carry: { availables: Partial<Record<GoodType, number>> }
-	readonly carriedFood: GoodType | undefined
 	readonly scriptsContext: {
 		find: {
 			food(): unknown
@@ -188,29 +189,7 @@ export function computeActivityScores(character: ActivityPlanningCharacter): Act
 	// Match `selfCare.goEat`: do not plan eat when already satisfied, or `goEat` returns
 	// immediately (falsy) and `findAction` can re-pick eat in the same tick → infinite fail.
 	const wantsEat = h0 > characterTriggerLevels.hunger.satisfied
-	const carried = character.carriedFood
-	if (wantsEat && carried && satiationForGood(carried) > 0) {
-		push(
-			scoreFromProjection(
-				'eat',
-				h0,
-				f0,
-				t0,
-				(h, f, t) => {
-					let hh = h
-					let ff = f
-					let tt = t
-					let time = 0
-					const eatDt = activityDurations.eating
-					;({ h: hh, f: ff, t: tt } = evolveSeconds(hh, ff, tt, 'eat', eatDt))
-					hh = needUpdate(hh, -1, satiationForGood(carried))
-					time += eatDt
-					return { h: hh, f: ff, t: tt, time }
-				},
-				c
-			)
-		)
-	} else if (wantsEat) {
+	if (wantsEat) {
 		const found = find.food()
 		if (
 			found &&
@@ -280,27 +259,6 @@ export function computeActivityScores(character: ActivityPlanningCharacter): Act
 				c
 			)
 		)
-	}
-
-	if (Object.values(character.carry.availables).some((qty) => qty! > 0)) {
-		const free = find.freeSpot()
-		if (free && free !== false && Array.isArray(free)) {
-			const pathLen = free.length
-			push(
-				scoreFromProjection(
-					'drop',
-					h0,
-					f0,
-					t0,
-					(h, f, t) => {
-						const walkDt = travelTimeSeconds(pathLen)
-						const next = evolveSeconds(h, f, t, 'walk', walkDt)
-						return { ...next, time: walkDt + activityDurations.handTransfer }
-					},
-					c
-				)
-			)
-		}
 	}
 
 	const assignedTile = character.assignedAlveolus?.tile
@@ -452,7 +410,7 @@ export function applyActivityHysteresis(
 
 /**
  * After a full wander → ponder cycle, avoid immediately choosing wander again while still fit for
- * work and a job path exists — try eat/home/drop/work first; fallback wander remains if all fail.
+ * work and a job path exists — try eat/home/work first; fallback wander remains if all fail.
  */
 export function excludeWanderAfterWanderWhenEmployable(
 	ranked: ActivityScore[],

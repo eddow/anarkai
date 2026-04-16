@@ -29,17 +29,17 @@ export const baseGameScope = scope({
 	DepositType: type.enumerated(...depositTypes),
 	AlveolusType: type.enumerated(...alveolusTypes),
 
-	// Job and activity types
+	// Job and activity types (planner-visible vehicle freight: vehicleOffload, vehicleHop, zoneBrowse only)
 	JobType: type.enumerated(
 		'harvest',
 		'transform',
 		'convey',
-		'offload',
-		'gather',
+		'vehicleOffload',
 		'construct',
 		'foundation',
 		'defragment',
-		'freightDeliver'
+		'vehicleHop',
+		'zoneBrowse'
 	),
 	// These should be only the classes of the activities, it specifies the energy management (hunger, fatigue, ...)
 	ActivityType: type.enumerated('idle', 'walk', 'work', 'eat', 'sleep', 'fight'),
@@ -77,28 +77,84 @@ export const baseGameScope = scope({
 
 	GenericWorkPlan: {
 		type: "'work'",
-		job: "'harvest' | 'transform' | 'convey' | 'gather' | 'construct' | 'foundation' | 'defragment' | 'freightDeliver'",
+		job: "'harvest' | 'transform' | 'convey' | 'construct' | 'foundation' | 'defragment' | 'vehicleHop' | 'zoneBrowse'",
 		target: 'object', // TileContent validated at runtime
 		urgency: 'number',
 		fatigue: 'number',
 		'goodType?': 'GoodType',
 		'quantity?': 'number',
+		'zoneBrowseAction?': "'load' | 'provide'",
 		'lineId?': 'string',
 		'bay?': 'AxialCoord',
 		'site?': 'AxialCoord',
 		'pathToBay?': 'AxialCoord[]',
 		'pathToSite?': 'AxialCoord[]',
+		'vehicleUid?': 'string',
+		'stopId?': 'string',
+		'targetCoord?': 'AxialCoord',
+		'path?': 'AxialCoord[]',
+		'dockEnter?': 'boolean',
+		/** Walk to vehicle hex before boarding (line-hop prelude; not a separate planner job). */
+		'approachPath?': 'AxialCoord[]',
+		/** True when the wheelbarrow still needs line service attached before hop prepare. */
+		'needsBeginService?': 'boolean',
+		/** Set by `vehicleHopPrepare` when line service ends before travel/dock; NPC script skips tail. */
+		'vehicleHopRunEnded?': 'boolean',
+		/**
+		 * `vehicleHop` only: set by `vehicleHopDockStep` after a bay anchor dock — the operator already
+		 * disembarked while keeping line service; NPC script must not run zone-browse transfer prelude.
+		 */
+		'vehicleHopAnchorDockDisembarked?': 'boolean',
 		// Additional fields depend on job type (path, etc.)
 	},
 
-	OffloadWorkPlan: {
+	VehicleOffloadWorkPlan: {
 		type: "'work'",
-		job: "'offload'",
+		job: "'vehicleOffload'",
 		target: 'object',
 		urgency: 'number',
 		fatigue: 'number',
 		looseGood: 'object',
-		// Additional fields depend on job type (path, etc.)
+		vehicleUid: 'string',
+		targetCoord: 'Position',
+		'path?': 'AxialCoord[]',
+		'offloadPickupPlan?': 'PickupPlan',
+	},
+
+	/** Runtime contract only; matches {@link LoadOntoVehicleWorkPlan} (script step, not a {@link Job}). */
+	LoadOntoVehicleWorkPlanArk: {
+		type: "'work'",
+		job: "'loadOntoVehicle'",
+		target: 'object',
+		urgency: 'number',
+		fatigue: 'number',
+		vehicleUid: 'string',
+		goodType: 'GoodType',
+		path: 'AxialCoord[]',
+	},
+
+	UnloadFromVehicleWorkPlanArk: {
+		type: "'work'",
+		job: "'unloadFromVehicle'",
+		target: 'object',
+		urgency: 'number',
+		fatigue: 'number',
+		vehicleUid: 'string',
+		goodType: 'GoodType',
+		quantity: 'number',
+		path: 'AxialCoord[]',
+	},
+
+	ProvideFromVehicleWorkPlanArk: {
+		type: "'work'",
+		job: "'provideFromVehicle'",
+		target: 'object',
+		urgency: 'number',
+		fatigue: 'number',
+		vehicleUid: 'string',
+		goodType: 'GoodType',
+		quantity: 'number',
+		path: 'AxialCoord[]',
 	},
 
 	IdlePlan: {
@@ -106,7 +162,10 @@ export const baseGameScope = scope({
 		duration: 'number',
 	},
 
-	WorkPlan: () => baseGameScope.type('GenericWorkPlan | OffloadWorkPlan'),
+	WorkPlan: () =>
+		baseGameScope.type(
+			'GenericWorkPlan | VehicleOffloadWorkPlan | LoadOntoVehicleWorkPlanArk | UnloadFromVehicleWorkPlanArk | ProvideFromVehicleWorkPlanArk'
+		),
 	Plan: () => baseGameScope.type('TransferPlan | PickupPlan | WorkPlan | IdlePlan'),
 })
 
@@ -182,16 +241,6 @@ export interface TransformJob {
 	fatigue: number
 }
 
-export interface GatherJob {
-	job: 'gather'
-	urgency: number
-	fatigue: number
-	path?: Positioned[] // Path to gatherable good
-	goodType?: GoodType // Which good to gather
-	/** When several gather lines share the stop, identifies which line this run fulfills. */
-	lineId?: string
-}
-
 export interface ConveyJob {
 	job: 'convey'
 	urgency: number
@@ -205,11 +254,14 @@ export interface ConstructJob {
 	path?: Positioned[] // Path to construction site
 }
 
-export interface OffloadJob {
-	job: 'offload'
+export interface VehicleOffloadJob {
+	job: 'vehicleOffload'
 	urgency: number
 	fatigue: number
+	vehicleUid: string
 	looseGood: LooseGood
+	targetCoord: AxialCoord
+	path: AxialCoord[]
 }
 
 export interface FoundationJob {
@@ -226,44 +278,152 @@ export interface DefragmentJob {
 	fatigue: number
 }
 
-export interface FreightDeliverJob {
-	job: 'freightDeliver'
+export interface VehicleJob {
+	vehicleUid: string
+}
+
+/** @internal Script/transfer step payloads only; not emitted by the work planner. */
+export interface LoadOntoVehicleStepPayload extends VehicleJob {
+	job: 'loadOntoVehicle'
+	urgency: number
+	fatigue: number
+	goodType: GoodType
+	path: AxialCoord[]
+}
+
+/** @internal Script/transfer step payloads only; not emitted by the work planner. */
+export interface UnloadFromVehicleStepPayload extends VehicleJob {
+	job: 'unloadFromVehicle'
 	urgency: number
 	fatigue: number
 	goodType: GoodType
 	quantity: number
+	path: AxialCoord[]
+}
+
+/** @internal Script/transfer step payloads only; not emitted by the work planner. */
+export interface ProvideFromVehicleStepPayload extends VehicleJob {
+	job: 'provideFromVehicle'
+	urgency: number
+	fatigue: number
+	goodType: GoodType
+	quantity: number
+	path: AxialCoord[]
+}
+
+/** @internal Unit-test / diagnostics probe; not a planner {@link Job}. */
+export interface UnloadFromVehicleProbe extends VehicleJob {
+	job: 'unloadFromVehicle'
+	urgency: number
+	fatigue: number
+	goodType: GoodType
+	quantity: number
+	path: AxialCoord[]
+}
+
+export interface VehicleHopJob extends VehicleJob {
+	job: 'vehicleHop'
+	urgency: number
+	fatigue: number
 	lineId: string
-	bay: AxialCoord
-	site: AxialCoord
-	pathToBay: AxialCoord[]
-	pathToSite: AxialCoord[]
+	stopId: string
+	path: AxialCoord[]
+	/** True when the hop ends at a freight bay anchor (explicit `walk.enter` to dock at tile center). */
+	dockEnter: boolean
+	/** Zone hop continuation chosen for the destination stop. */
+	zoneBrowseAction?: 'load' | 'provide'
+	goodType?: GoodType
+	quantity?: number
+	targetCoord?: AxialCoord
+	/**
+	 * Walk to the vehicle hex before boarding. Planner scoring uses {@link path} (typically the same
+	 * length until onboard). Script runs this prelude before {@link VehicleFunctions.vehicleApproachStep}.
+	 */
+	approachPath?: AxialCoord[]
+	/**
+	 * When true, the wheelbarrow has no line `service` yet; the script runs the former
+	 * `vehicleBeginService` step before hop prepare.
+	 */
+	needsBeginService?: boolean
+}
+
+export interface ZoneBrowseJob extends VehicleJob {
+	job: 'zoneBrowse'
+	urgency: number
+	fatigue: number
+	lineId: string
+	stopId: string
+	path: AxialCoord[]
+	zoneBrowseAction: 'load' | 'provide'
+	goodType: GoodType
+	quantity?: number
+	targetCoord: AxialCoord
 }
 
 // Job is the union of all job types
 export type Job =
 	| HarvestJob
 	| TransformJob
-	| GatherJob
 	| ConveyJob
 	| ConstructJob
-	| OffloadJob
+	| VehicleOffloadJob
 	| FoundationJob
 	| DefragmentJob
-	| FreightDeliverJob
+	| VehicleHopJob
+	| ZoneBrowseJob
+
+/**
+ * Script-internal `type: 'work'` payloads for vehicle transfer primitives.
+ * These are **not** {@link Job} values and are not chosen by the planner; NPC scripts and tests
+ * construct them while executing `zoneBrowse` / hop flows.
+ */
+export type LoadOntoVehicleWorkPlan = LoadOntoVehicleStepPayload & {
+	readonly type: 'work'
+	readonly target: TileContent | any
+	invariant?: () => boolean
+}
+
+export type UnloadFromVehicleWorkPlan = UnloadFromVehicleStepPayload & {
+	readonly type: 'work'
+	readonly target: TileContent | any
+	invariant?: () => boolean
+}
+
+export type ProvideFromVehicleWorkPlan = ProvideFromVehicleStepPayload & {
+	readonly type: 'work'
+	readonly target: TileContent | any
+	invariant?: () => boolean
+}
 
 export type WorkPlan =
-	| (Exclude<Job, OffloadJob> & {
+	| (Exclude<Job, VehicleOffloadJob> & {
 			readonly type: 'work'
 			readonly target: TileContent | any // Allow Tile or other targets
 			offloadPickupPlan?: PickupPlan
 			invariant?: () => boolean
+			/** Planner walk path to the target; set by {@link Character.workExecution}. */
+			path?: AxialCoord[]
+			/**
+			 * `vehicleHop` only: set when `vehicleHopPrepare` ends line service before travel; the NPC
+			 * script skips walk + dock so `vehicleHopDockStep` is not invoked without `vehicle.service`.
+			 */
+			vehicleHopRunEnded?: boolean
+			/**
+			 * `vehicleHop` only: after a bay anchor dock, the operator already stepped off while the
+			 * vehicle keeps line service; skip `vehicleStepOffKeepingControl` / zone-browse prelude.
+			 */
+			vehicleHopAnchorDockDisembarked?: boolean
 	  })
-	| (OffloadJob & {
+	| (VehicleOffloadJob & {
 			readonly type: 'work'
-			readonly target: TileContent | any // Allow Tile or other targets
+			readonly target: TileContent | any
 			offloadPickupPlan?: PickupPlan
 			invariant?: () => boolean
+			path?: AxialCoord[]
 	  })
+	| LoadOntoVehicleWorkPlan
+	| UnloadFromVehicleWorkPlan
+	| ProvideFromVehicleWorkPlan
 
 export interface IdlePlan {
 	readonly type: 'idle'

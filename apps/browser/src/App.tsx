@@ -21,6 +21,11 @@ import { DisplayProvider } from '@sursaut/kit'
 import { Dockview } from '@sursaut/ui/dockview'
 import type { DockviewApi } from 'dockview-core'
 import { effect, reactive, untracked } from 'mutts'
+import {
+	type BuildGameDebugDumpOptions,
+	buildGameDebugDump,
+	stringifyDebugValue,
+} from 'ssh/debug-game-state'
 import widgetsImport from './widgets'
 import SelectionInfoTab from './widgets/selection-info-tab'
 
@@ -32,8 +37,25 @@ const tabs = {
 
 // Expose globals for Playwright testing
 if (typeof window !== 'undefined') {
-	;(window as any).game = game
-	;(window as any).selectionState = selectionState
+	type BrowserDebugWindow = Window &
+		typeof globalThis & {
+			game?: typeof game
+			selectionState?: typeof selectionState
+			dumpSshDebugState?: (
+				options?: BuildGameDebugDumpOptions
+			) => ReturnType<typeof buildGameDebugDump>
+			dumpSshDebugStateJson?: (options?: BuildGameDebugDumpOptions) => string
+		}
+	const debugWindow = window as BrowserDebugWindow
+	debugWindow.game = game
+	debugWindow.selectionState = selectionState
+	debugWindow.dumpSshDebugState = (options = {}) =>
+		buildGameDebugDump(game, {
+			...options,
+			selectedUid: options.selectedUid ?? selectionState.selectedUid,
+		})
+	debugWindow.dumpSshDebugStateJson = (options = {}) =>
+		stringifyDebugValue(debugWindow.dumpSshDebugState?.(options) ?? {})
 }
 
 const dockviewEl = {

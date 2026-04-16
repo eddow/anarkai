@@ -41,7 +41,7 @@ describe('Gather to sawmill regression', () => {
 					{
 						name: 'GatherSawmillDiagnosticHive',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'gather', goods: { wood: 2 } },
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 2 } },
 							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
 						],
 					},
@@ -131,7 +131,7 @@ describe('Gather to sawmill regression', () => {
 					{
 						name: 'GatherSawmillHive',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'gather', goods: { wood: 2 } },
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 2 } },
 							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
 						],
 					},
@@ -186,89 +186,6 @@ describe('Gather to sawmill regression', () => {
 			expect(reachedGoal, timeline.join('\n')).toBe(true)
 			expect(sawmill.storage.stock.planks || 0, timeline.join('\n')).toBe(2)
 			expect(gather.storage.stock.wood || 0, timeline.join('\n')).toBe(0)
-		} finally {
-			await engine.destroy()
-		}
-	})
-
-	it('still exposes convey work when two loose wood are gathered and dropped into the gatherer', {
-		timeout: 20000,
-	}, async () => {
-		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
-		await engine.init()
-
-		try {
-			const scenario: Partial<SaveState> = {
-				hives: [
-					{
-						name: 'GatherDropHive',
-						alveoli: [
-							{ coord: [0, 0], alveolus: 'gather', goods: {} },
-							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
-						],
-					},
-				],
-				looseGoods: [
-					{ position: { q: 0, r: 1 }, goodType: 'wood' },
-					{ position: { q: 0, r: 1 }, goodType: 'wood' },
-				],
-			}
-
-			engine.loadScenario(scenario)
-			await flushDeferred()
-
-			const gather = engine.game.hex.getTile({ q: 0, r: 0 })?.content as any
-			const sawmill = engine.game.hex.getTile({ q: 1, r: 0 })?.content as any
-			expect(gather).toBeDefined()
-			expect(sawmill).toBeDefined()
-			if (!gather || !sawmill) throw new Error('Expected gatherer and sawmill to exist')
-
-			const spawnWorker = (name: string, coord: { q: number; r: number }) => {
-				const worker = engine.spawnCharacter(name, coord)
-				worker.role = 'worker'
-				void worker.scriptsContext
-				const action = worker.findAction()
-				if (action) worker.begin(action)
-				return worker
-			}
-
-			const gatherWorker = spawnWorker('GatherWorker', { q: 0, r: 0 })
-			const sawmillWorker = spawnWorker('SawmillWorker', { q: 1, r: 0 })
-			const timeline: string[] = []
-			let sawDropWithReservations = false
-			let reachedGoal = false
-			let maxGatherReserved = 0
-
-			for (let i = 0; i < 120; i++) {
-				engine.tick(0.25)
-				if (i % 4 === 0) await flushDeferred(1)
-
-				const gatherSlots = gather.storage.renderedGoods()?.slots ?? []
-				const gatherWoodSlot = gatherSlots.find((slot: any) => slot.goodType === 'wood')
-				const gatherStock = gather.storage.stock.wood || 0
-				const gatherReserved = gatherWoodSlot?.reserved || 0
-				maxGatherReserved = Math.max(maxGatherReserved, gatherReserved)
-				const sawmillPlanks = sawmill.storage.stock.planks || 0
-				const movingGoods = Array.from(gather.hive.movingGoods.values()).flat().length
-				const gatherJob = gather.getJob(gatherWorker)?.job ?? 'none'
-				const sawmillJob = sawmill.getJob(sawmillWorker)?.job ?? 'none'
-
-				timeline.push(
-					`tick=${i} gatherStock=${gatherStock} gatherReserved=${gatherReserved} planks=${sawmillPlanks} moving=${movingGoods} gatherJob=${gatherJob} sawmillJob=${sawmillJob} gatherAction=${gatherWorker.actionDescription.join('/') || 'none'} sawmillAction=${sawmillWorker.actionDescription.join('/') || 'none'}`
-				)
-
-				if (gatherStock + gatherReserved >= 2 && (gatherReserved >= 1 || movingGoods >= 1)) {
-					sawDropWithReservations = true
-				}
-				if (sawmillPlanks >= 2) {
-					reachedGoal = true
-					break
-				}
-			}
-
-			expect(sawDropWithReservations, timeline.join('\n')).toBe(true)
-			expect(maxGatherReserved, timeline.join('\n')).toBeGreaterThanOrEqual(1)
-			expect(reachedGoal, timeline.join('\n')).toBe(true)
 		} finally {
 			await engine.destroy()
 		}

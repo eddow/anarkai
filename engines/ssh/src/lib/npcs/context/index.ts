@@ -1,15 +1,5 @@
-import type { Alveolus } from 'ssh/board/content/alveolus'
-import {
-	DEFAULT_GATHER_FREIGHT_RADIUS,
-	findGatherFreightLine,
-	gatherLineAcceptsProducedGood,
-	gatherLoadRadiusForLineAtStop,
-} from 'ssh/freight/freight-line'
-import type { HarvestAlveolus } from 'ssh/hive/harvest'
 import { InteractiveContext, protoCtx, subject } from 'ssh/npcs/scripts'
 import type { Character } from 'ssh/population/character'
-import { contract } from 'ssh/types'
-import type { GoodType } from 'ssh/types/base'
 import * as gameContent from '../../../../assets/game-content'
 import type { CharacterContract } from '../../../../assets/scripts/contracts'
 // Import all the function classes
@@ -17,6 +7,7 @@ import { FindFunctions } from './find'
 import { InventoryFunctions } from './inventory'
 import { PlanFunctions } from './plan'
 import { SelfCareFunctions } from './selfCare'
+import { VehicleFunctions } from './vehicle'
 import { WalkFunctions } from './walk'
 import { WorkFunctions } from './work'
 
@@ -31,53 +22,6 @@ export {
 class CharacterContext extends InteractiveContext<Character> {
 	get I() {
 		return this[subject]
-	}
-	@contract('GoodType?')
-	haveRoom(goodType?: GoodType): number {
-		return this[subject].carry.hasRoom(goodType)
-	}
-	@contract('Alveolus')
-	isGatherable(harvestAlveolus: Alveolus) {
-		// Return true if the harvest alveolus is full (can't store more)
-		if (
-			'canStoreInHarvester' in harvestAlveolus &&
-			!(harvestAlveolus as HarvestAlveolus).canStoreInHarvester
-		)
-			return true
-
-		// TODO: check all gatherers collected by harvestAlveolus - even outside the hive
-		const gatherers = Array.from(harvestAlveolus.hive.alveoli).filter(
-			(alveolus) => !!findGatherFreightLine(this[subject].game.freightLines, alveolus)
-		)
-		if (!gatherers || gatherers.length === 0) return false
-
-		// Get the goods produced by this harvest alveolus
-		if (!('output' in harvestAlveolus.action)) return false
-		const producedGoods = Object.keys(harvestAlveolus.action.output) as GoodType[]
-
-		// Check if any gatherer can reach this position and gather the produced goods
-		const currentPos = this[subject].tile.position
-
-		return gatherers.some((gatherer) => {
-			const line = findGatherFreightLine(this[subject].game.freightLines, gatherer)
-			const gatherRadius =
-				gatherLoadRadiusForLineAtStop(line, gatherer) ?? DEFAULT_GATHER_FREIGHT_RADIUS
-			// Check if the gatherer can reach this position within its radius (walk time)
-			const path = this[subject].game.hex.findPath(
-				gatherer.tile.position,
-				currentPos,
-				gatherRadius,
-				false
-			)
-
-			// If no path exists within the radius, this gatherer can't reach us
-			if (!path) return false
-
-			// Check if the hive needs any of the produced goods
-			return producedGoods.some((good) =>
-				gatherLineAcceptsProducedGood(line, harvestAlveolus.hive.needs, good)
-			)
-		})
 	}
 }
 
@@ -94,6 +38,7 @@ const nsProtos: any = {
 	inventory: protoCtx(InventoryFunctions),
 	walk: protoCtx(WalkFunctions),
 	selfCare: protoCtx(SelfCareFunctions),
+	vehicle: protoCtx(VehicleFunctions),
 	work: protoCtx(WorkFunctions),
 	plan: protoCtx(PlanFunctions),
 }

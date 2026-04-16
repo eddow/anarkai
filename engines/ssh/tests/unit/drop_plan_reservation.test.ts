@@ -3,6 +3,7 @@ import type { Alveolus } from 'ssh/board/content/alveolus'
 import type { TransferPlan } from 'ssh/types/base'
 import { afterEach, describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine/engine'
+import { bindOperatedWheelbarrowOffload } from '../test-engine/vehicle-bind'
 
 describe('Drop plan reservations', () => {
 	let engine: TestEngine | undefined
@@ -44,7 +45,11 @@ describe('Drop plan reservations', () => {
 		if (!gate) throw new Error('Expected adjacent alveoli to share a gate')
 
 		const worker = engine.spawnCharacter('Carrier', { q: 0, r: 0 })
-		worker.vehicle.storage.addGood('wood', 1)
+		const vehicle = engine.game.vehicles.createVehicle('wb-drop-res', 'wheelbarrow', { q: 0, r: 0 })
+		bindOperatedWheelbarrowOffload(worker, vehicle)
+		worker.onboard()
+		const transport = worker.requireActiveTransportStorage()
+		transport.addGood('wood', 1)
 
 		const plan = worker.scriptsContext.inventory.planDropStored(
 			{ wood: 1 },
@@ -64,7 +69,7 @@ describe('Drop plan reservations', () => {
 		step.finish()
 		expect(gate.storage.allocatedSlots).toBe(false)
 		expect(gate.storage.stock.wood).toBe(1)
-		expect(worker.vehicle.storage.stock.wood ?? 0).toBe(0)
+		expect(transport.stock.wood ?? 0).toBe(0)
 
 		worker.scriptsContext.plan.finally(plan)
 	})

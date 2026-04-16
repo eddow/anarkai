@@ -1,5 +1,5 @@
 import { reset } from 'mutts'
-import { Container, RenderLayer, Sprite, Texture } from 'pixi.js'
+import { Container, RenderLayer, Sprite } from 'pixi.js'
 import { alveolusClass } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
 import { afterEach, describe, expect, it } from 'vitest'

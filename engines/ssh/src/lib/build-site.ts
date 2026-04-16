@@ -1,4 +1,5 @@
 import { effect } from 'mutts'
+import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
 import { type ConstructionSiteState, setConstructionDeliveredGoods } from 'ssh/construction-state'
 import type { AllocationBase, Storage } from 'ssh/storage/storage'
@@ -46,6 +47,11 @@ export function isBuildSite(value: unknown): value is BuildSite {
 		'storage' in value &&
 		'constructionWorkSecondsApplied' in value
 	)
+}
+
+/** Standalone construction shells (`BuildDwelling`, …); excludes hive-attached `BuildAlveolus`. */
+export function isStandaloneBuildSiteShell(content: unknown): content is BuildSite {
+	return isBuildSite(content) && !(content instanceof Alveolus)
 }
 
 export function materialRemainingNeeds(

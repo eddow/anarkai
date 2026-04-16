@@ -104,7 +104,7 @@ describe('Stalled Exchange Watchdog', () => {
 					{
 						name: 'WatchdogHive',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'gather', goods: { wood: 1 } },
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 1 } },
 							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
 						],
 					},
@@ -177,7 +177,7 @@ describe('Stalled Exchange Watchdog', () => {
 					{
 						name: 'WatchdogHive',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'gather', goods: { wood: 1 } },
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 1 } },
 							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
 						],
 					},
@@ -241,7 +241,7 @@ describe('Stalled Exchange Watchdog', () => {
 				hives: [
 					{
 						name: 'WatchdogHive',
-						alveoli: [{ coord: [0, 0], alveolus: 'gather', goods: { wood: 2 } }],
+						alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 2 } }],
 					},
 				],
 			}
@@ -294,16 +294,14 @@ describe('Stalled Exchange Watchdog', () => {
 
 			inert(() => {
 				for (const [coord, goods] of Array.from(hive.movingGoods.entries())) {
-					const kept = goods.filter((movement) => movement._mgId !== orphanMovement._mgId)
+					const kept = goods.filter((movement) => movement.ref !== orphanMovement.ref)
 					if (kept.length === 0) hive.movingGoods.delete(coord)
 					else hive.movingGoods.set(coord, kept)
 				}
 			})
-			;(
-				hive as unknown as {
-					activeMovementsById: Map<string, MovingGood>
-				}
-			).activeMovementsById.delete(orphanMovement._mgId)
+			;(hive as unknown as { activeMovements: Set<MovingGood> }).activeMovements.delete(
+				orphanMovement
+			)
 
 			const cancelOrphans = (
 				hive as unknown as {
@@ -323,7 +321,7 @@ describe('Stalled Exchange Watchdog', () => {
 			const remainingWoodMovements = Array.from(hive.movingGoods.values())
 				.flat()
 				.filter((movement) => movement.goodType === 'wood')
-			expect(remainingWoodMovements.map((movement) => movement._mgId)).toContain(liveMovement._mgId)
+			expect(remainingWoodMovements.map((movement) => movement.ref)).toContain(liveMovement.ref)
 			await flushWatchdogWork()
 		} finally {
 			await engine.destroy()
@@ -399,7 +397,7 @@ describe('Stalled Exchange Watchdog', () => {
 					{
 						name: 'WatchdogHive',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'gather', goods: { wood: 1 } },
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 1 } },
 							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
 						],
 					},
@@ -493,7 +491,7 @@ describe('Stalled Exchange Watchdog', () => {
 				hives: [
 					{
 						name: 'WatchdogHive',
-						alveoli: [{ coord: [0, 0], alveolus: 'gather', goods: { wood: 1 } }],
+						alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 1 } }],
 					},
 				],
 			}
@@ -569,7 +567,7 @@ describe('Stalled Exchange Watchdog', () => {
 				hives: [
 					{
 						name: 'WatchdogHive',
-						alveoli: [{ coord: [0, 0], alveolus: 'gather', goods: { wood: 1 } }],
+						alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 1 } }],
 					},
 				],
 			}
@@ -600,11 +598,11 @@ describe('Stalled Exchange Watchdog', () => {
 						movement.provider === gatherer &&
 						movement.demander === buildStorage
 				)
-			expect(initialMovement?._mgId).toBeDefined()
-			if (!initialMovement?._mgId) throw new Error('Expected initial movement to exist')
+			expect(initialMovement?.ref).toBeDefined()
+			if (!initialMovement?.ref) throw new Error('Expected initial movement to exist')
 
 			initialMovement.claimed = true
-			initialMovement.claimedBy = 'worker-claim-test'
+			;(initialMovement as any).claimedBy = { uid: 'worker-claim-test' }
 			initialMovement.claimedAtMs = 12345
 
 			inert(() => {
@@ -616,25 +614,25 @@ describe('Stalled Exchange Watchdog', () => {
 			expect(rebuiltStorage).toBeDefined()
 			if (!rebuiltStorage) throw new Error('Expected rebuilt storage target')
 
-			const reboundCandidates = Array.from((gatherer.hive as any).activeMovementsById.values()).map(
-				(movement: MovingGood) => ({
-					id: movement._mgId,
-					demander: movement.demander?.name,
-					demanderCoord: movement.demander?.tile?.position,
-					claimed: movement.claimed,
-					claimedBy: movement.claimedBy,
-				})
-			)
-			const reboundMovement = Array.from((gatherer.hive as any).activeMovementsById.values()).find(
-				(movement: MovingGood) => movement._mgId === initialMovement._mgId
-			)
+			const reboundCandidates = Array.from(
+				(gatherer.hive as any).activeMovements as Set<MovingGood>
+			).map((movement: MovingGood) => ({
+				id: movement.ref,
+				demander: movement.demander?.name,
+				demanderCoord: movement.demander?.tile?.position,
+				claimed: movement.claimed,
+				claimedBy: movement.claimedBy,
+			}))
+			const reboundMovement = Array.from(
+				(gatherer.hive as any).activeMovements as Set<MovingGood>
+			).find((movement: MovingGood) => movement.ref === initialMovement.ref)
 			expect(reboundCandidates).toHaveLength(1)
 			expect(reboundCandidates[0].demanderCoord).toEqual(rebuiltStorage.tile.position)
 			expect(reboundMovement).toBeDefined()
 			if (!reboundMovement) throw new Error('Expected claimed rebound movement to exist')
-			expect(reboundMovement._mgId).toBe(initialMovement._mgId)
+			expect(reboundMovement.ref).toBe(initialMovement.ref)
 			expect(reboundMovement.claimed).toBe(true)
-			expect(reboundMovement.claimedBy).toBe('worker-claim-test')
+			expect((reboundMovement.claimedBy as any)?.uid).toBe('worker-claim-test')
 			expect(reboundMovement.claimedAtMs).toBe(12345)
 		} finally {
 			await engine.destroy()
@@ -653,7 +651,7 @@ describe('Stalled Exchange Watchdog', () => {
 					{
 						name: 'WatchdogHive',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'gather', goods: { wood: 1 } },
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 1 } },
 							{ coord: [1, 0], alveolus: 'storage', goods: {} },
 							{ coord: [2, 0], alveolus: 'storage', goods: {} },
 						],
@@ -714,14 +712,14 @@ describe('Stalled Exchange Watchdog', () => {
 					{
 						name: 'LeftHive',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'gather', goods: { wood: 1 } },
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 1 } },
 							{ coord: [0, 1], alveolus: 'storage', goods: {} },
 						],
 					},
 					{
 						name: 'RightHive',
 						alveoli: [
-							{ coord: [2, 0], alveolus: 'gather', goods: { wood: 1 } },
+							{ coord: [2, 0], alveolus: 'freight_bay', goods: { wood: 1 } },
 							{ coord: [2, 1], alveolus: 'storage', goods: {} },
 						],
 					},
@@ -749,8 +747,8 @@ describe('Stalled Exchange Watchdog', () => {
 			const leftMovement = Array.from(leftHive.movingGoods.values())
 				.flat()
 				.find((movement) => movement.goodType === 'wood' && movement.demander === leftStorage)
-			expect(leftMovement?._mgId).toBeDefined()
-			if (!leftMovement?._mgId) {
+			expect(leftMovement?.ref).toBeDefined()
+			if (!leftMovement?.ref) {
 				throw new Error('Expected initial movement to exist')
 			}
 
@@ -758,16 +756,16 @@ describe('Stalled Exchange Watchdog', () => {
 			await flushWatchdogWork()
 
 			const mergedHive = leftGatherer.hive as Hive
-			const activeIds = Array.from((mergedHive as any).activeMovementsById.values()).map(
-				(movement: MovingGood) => movement._mgId
+			const activeIds = Array.from((mergedHive as any).activeMovements as Set<MovingGood>).map(
+				(movement: MovingGood) => movement.ref
 			)
 			const trackedIds = Array.from(mergedHive.movingGoods.values())
 				.flat()
-				.map((movement) => movement._mgId)
+				.map((movement) => movement.ref)
 			if (activeIds.length === 0 && trackedIds.length === 0) {
 				throw new Error('Expected merged hive to keep at least one movement id alive')
 			}
-			expect(activeIds).toContain(leftMovement._mgId)
+			expect(activeIds).toContain(leftMovement.ref)
 			expect(leftGatherer.hive).toBe(rightGatherer.hive)
 		} finally {
 			await engine.destroy()

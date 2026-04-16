@@ -6,11 +6,13 @@ import { Tile } from 'ssh/board/tile'
 import type { GameObject, InteractiveGameObject } from 'ssh/game/object'
 import { getHoveredUid } from 'ssh/interactive-state'
 import { Character } from 'ssh/population/character'
+import { VehicleEntity } from 'ssh/population/vehicle/entity'
 import type { PixiGameRenderer } from './renderer'
 import { BorderVisual } from './renderers/border-visual'
 import { CharacterVisual } from './renderers/character-visual'
 import { LooseGoodsVisual } from './renderers/loose-goods-visual'
 import { TileVisual } from './renderers/tile-visual'
+import { VehicleVisual } from './renderers/vehicle-visual'
 import type { VisualObject } from './renderers/visual-object'
 
 const VISUAL_DIAGNOSTIC_HISTORY_LIMIT = 12
@@ -257,6 +259,14 @@ export class VisualFactory {
 				if (characterVisualResult.reused) reusedVisualCount++
 				else if (characterVisual) createdVisualCount++
 				if (characterVisual) worldViews.push(characterVisual)
+				continue
+			}
+			if (object instanceof VehicleEntity) {
+				const vehicleVisualResult = this.create(object, VehicleVisual)
+				const vehicleVisual = vehicleVisualResult.visual
+				if (vehicleVisualResult.reused) reusedVisualCount++
+				else if (vehicleVisual) createdVisualCount++
+				if (vehicleVisual) worldViews.push(vehicleVisual)
 			}
 		}
 

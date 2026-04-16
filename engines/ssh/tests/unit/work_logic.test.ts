@@ -28,8 +28,10 @@ vi.mock('ssh/assets/game-content', () => {
 	)
 	return {
 		vehicles: {
-			'by-hands': {
+			wheelbarrow: {
 				storage: { slots: 10, capacity: 100 },
+				walkTime: 1,
+				transferTime: 1,
 			},
 		},
 		goods: {
@@ -102,13 +104,12 @@ describe('Work Logic / Inventory Race Conditions', () => {
 		expect(plan.type).toBe('idle')
 	})
 
-	it('should return idle plan when inventory is full (Generic Grab)', () => {
+	it('should return idle plan when there is no active transport (walking)', () => {
 		const targetPos = { q: 0, r: 1 }
 		const tile = game.hex.getTile(targetPos) as Tile
 		game.hex.looseGoods.add(tile, 'wood', { position: targetPos })
-		char.vehicle.storage.addGood('stone', 2000)
 
-		expect(char.vehicle.storage.hasRoom('wood')).toBe(0)
+		expect(char.carry).toBeUndefined()
 
 		const plan = inventoryFunctions.planGrabLoose(null, targetPos)
 		expect(plan.type).toBe('idle')

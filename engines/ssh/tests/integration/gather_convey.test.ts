@@ -1,8 +1,16 @@
+import type { FreightStop, FreightZoneDefinitionRadius } from 'ssh/freight/freight-line'
+import {
+	aggregateHiveNeedTypes,
+	gatherZoneLoadStopForBay,
+	pickGatherTargetInZoneStop,
+} from 'ssh/freight/freight-zone-gather-target'
+import { findLoadOntoVehicleJob } from 'ssh/freight/vehicle-work'
 import type { SaveState } from 'ssh/game'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { describe, expect, it } from 'vitest'
 import { gatherFreightLine } from '../freight-fixtures'
 import { TestEngine } from '../test-engine'
+import { bindOperatedWheelbarrowOffload } from '../test-engine/vehicle-bind'
 
 describe('Gatherer Conveying Integration', () => {
 	async function setupEngine(options: any = { terrainSeed: 1234, characterCount: 0 }) {
@@ -19,13 +27,11 @@ describe('Gatherer Conveying Integration', () => {
 		return { engine, game: engine.game, spawnWorker }
 	}
 
-	it('Gatherer should gather goods and convey them to storage', {
+	it('line-freight gather uses loadOntoVehicle (bay does not emit gather jobs)', {
 		timeout: 15000,
 	}, async () => {
 		const { engine, game, spawnWorker } = await setupEngine()
 
-		// Setup: Gatherer and Storage, loose berries nearby.
-		// Storage advertises demand only for goods with buffer target > current stock (see workingGoodsRelations).
 		const scenario: Partial<SaveState> = {
 			hives: [
 				{
@@ -33,12 +39,12 @@ describe('Gatherer Conveying Integration', () => {
 					alveoli: [
 						{
 							coord: [0, 0],
-							alveolus: 'gather',
+							alveolus: 'freight_bay',
 							goods: {},
 						},
 						{
 							coord: [1, 0],
-							alveolus: 'storage', // Should accept berries
+							alveolus: 'storage',
 							goods: {},
 						},
 					],
@@ -53,6 +59,16 @@ describe('Gatherer Conveying Integration', () => {
 				{ goodType: 'berries', position: { q: 0, r: 1 } },
 				{ goodType: 'berries', position: { q: 0, r: 1 } },
 				{ goodType: 'berries', position: { q: 0, r: 1 } },
+			],
+			freightLines: [
+				gatherFreightLine({
+					id: 'GatherHive:implicit-gather:0,0',
+					name: 'Berries gather',
+					hiveName: 'GatherHive',
+					coord: [0, 0],
+					filters: ['berries'],
+					radius: 3,
+				}),
 			],
 		}
 
@@ -75,17 +91,23 @@ describe('Gatherer Conveying Integration', () => {
 		;(storageAlveolus as StorageAlveolus).setBuffers({ berries: 10 })
 		await new Promise((r) => setTimeout(r, 0))
 
-		// Spawn worker at gatherer
-		const worker = spawnWorker({ q: 0, r: 0 })
-		worker.assignedAlveolus = gatherer as any
-		;(gatherer as any).assignedWorker = worker
+		const bay = gatherer as StorageAlveolus
+		const worker = spawnWorker({ q: 0, r: 1 })
+		worker.assignedAlveolus = bay
+		bay.assignedWorker = worker
 
-		const gatherJob = (gatherer as any).nextJob(worker)
-		expect(gatherJob).toMatchObject({
-			job: 'gather',
+		const line = game.freightLines[0]!
+		const vehicle = game.vehicles.createVehicle('gc-wb', 'wheelbarrow', { q: 0, r: 1 }, [line])
+		vehicle.beginService(line, line.stops[0]!, worker)
+		worker.operates = vehicle
+		worker.onboard()
+
+		const loadJob = findLoadOntoVehicleJob(game, worker)
+		expect(loadJob).toMatchObject({
+			job: 'zoneBrowse',
+			zoneBrowseAction: 'load',
 			goodType: 'berries',
 		})
-		expect(gatherJob?.path?.length).toBeGreaterThan(0)
 	})
 
 	it('keeps gather-line filters authoritative even with unrelated carried goods', async () => {
@@ -95,7 +117,7 @@ describe('Gatherer Conveying Integration', () => {
 				hives: [
 					{
 						name: 'GatherHive',
-						alveoli: [{ coord: [0, 0], alveolus: 'gather', goods: {} }],
+						alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }],
 					},
 				],
 				tiles: [
@@ -120,15 +142,33 @@ describe('Gatherer Conveying Integration', () => {
 			})
 
 			const gatherer = game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus
-			const worker = spawnWorker({ q: 0, r: 0 })
+			const worker = spawnWorker({ q: 0, r: 1 })
 			worker.role = 'worker'
-			worker.carry.addGood('wood', 1)
+			const vehicle = game.vehicles.createVehicle('wb-gather-filter', 'wheelbarrow', { q: 0, r: 1 })
+			bindOperatedWheelbarrowOffload(worker, vehicle)
+			worker.onboard()
+			vehicle.storage.addGood('wood', 1)
 
-			const gatherJob = gatherer.nextJob(worker)
-			expect(gatherJob).toMatchObject({
-				job: 'gather',
-				goodType: 'berries',
-			})
+			const line = game.freightLines[0]!
+			const zoneStop = gatherZoneLoadStopForBay(line, gatherer)
+			expect(zoneStop).toBeDefined()
+			const hiveNeeds = aggregateHiveNeedTypes(game)
+			const transport = worker.requireActiveTransportStorage()
+			const pick = pickGatherTargetInZoneStop(
+				game,
+				line,
+				zoneStop as FreightStop & { zone: FreightZoneDefinitionRadius },
+				worker.position,
+				hiveNeeds,
+				{
+					bayAlveolus: gatherer,
+					carrier: {
+						hasRoom: (good) => transport.hasRoom(good),
+						stock: transport.stock,
+					},
+				}
+			)
+			expect(pick?.goodType).toBe('berries')
 		} finally {
 			await engine.destroy()
 		}

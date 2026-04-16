@@ -38,7 +38,6 @@ export const gameObjectsModule = scope({
 
 	// Specific Alveoli are refined from the base Alveolus by checking their action type
 	HarvestAlveolus: AlveolusDef.and({ action: { type: "'harvest'" } }).describe('HarvestAlveolus'),
-	GatherAlveolus: AlveolusDef.and({ action: { type: "'gather'" } }).describe('GatherAlveolus'),
 	EngineerAlveolus: AlveolusDef.and({
 		action: { type: "'engineer'" },
 	}).describe('EngineerAlveolus'),

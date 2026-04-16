@@ -1,10 +1,14 @@
 export { alveoli } from './content/alveoli'
 export { configurations } from './content/configurations'
 export { deposits } from './content/deposits'
+export {
+	freightLineHiveNeedPriorityWeight,
+	freightLineUtilityWeights,
+} from './content/freight-line-utility'
 export { goods } from './content/goods'
 export { jobBalance } from './content/job-balance'
 export { terrain } from './content/terrain'
-export { vehicles } from './content/vehicles'
+export { offloadRange, vehicles } from './content/vehicles'
 
 export {
 	activityDurations,

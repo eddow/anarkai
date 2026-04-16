@@ -1,14 +1,75 @@
-import { effect } from 'mutts'
+/** Plan begin/conclude for transfers; reservations use {@link Character.carry} (vehicle storage when driving). */
 import { type HexBoard, isTileCoord } from 'ssh/board'
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import { assert } from 'ssh/debug'
+import {
+	offboardOperatorAfterFreightWorkComplete,
+	releaseVehicleFreightWorkOnPlanInterrupt,
+} from 'ssh/freight/vehicle-run'
+import { allocateVehicleServiceForJob } from 'ssh/freight/vehicle-work'
 import type { Character } from 'ssh/population/character'
+import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import type { Goods, GoodType } from 'ssh/types'
-import type { IdlePlan, PickupPlan, Plan, TransferPlan, WorkPlan } from 'ssh/types/base'
+import type { IdlePlan, Job, PickupPlan, Plan, TransferPlan, WorkPlan } from 'ssh/types/base'
 import { gameObjectsModule } from 'ssh/types/game-objects'
-import { type Positioned, toAxialCoord } from 'ssh/utils'
+import { axial, type Positioned, toAxialCoord } from 'ssh/utils'
 import { subject } from '../scripts'
 import { DurationStep } from '../steps'
+
+function characterSameHexAsVehicle(character: Character, vehicle: VehicleEntity): boolean {
+	const a = axial.round(toAxialCoord(character.position)!)
+	const b = axial.round(toAxialCoord(vehicle.position)!)
+	return axial.key(a) === axial.key(b)
+}
+
+/**
+ * Claim line/offload service and `operates` at work-plan start; onboard when the job begins
+ * driving on the vehicle hex (not when a `vehicleHop` still has a walk prelude via `approachPath`).
+ */
+function beginVehicleFreightWorkPlan(plan: WorkPlan, character: Character): void {
+	if (plan.type !== 'work' || !('vehicleUid' in plan)) return
+	const uid = plan.vehicleUid
+	assert(uid, 'vehicle work plan: vehicleUid required')
+	const vehicle = character.game.vehicles.vehicle(uid)
+	assert(vehicle, 'vehicle work plan: vehicle missing')
+	allocateVehicleServiceForJob(character.game, character, vehicle, plan as unknown as Job)
+	character.operates = vehicle
+
+	const job = plan.job
+	const hopNeedsWalkToVehicle = job === 'vehicleHop' && !!plan.approachPath?.length
+	/** `vehicleOffload` carries the walk-to-vehicle prefix in `path`; length 0 means already at the vehicle hex. */
+	const vehicleOffloadAtVehicleHex = job === 'vehicleOffload' && (plan.path?.length ?? 0) === 0
+	const needsImmediateBoard =
+		!hopNeedsWalkToVehicle &&
+		(job === 'vehicleHop' || job === 'zoneBrowse' || vehicleOffloadAtVehicleHex)
+
+	if (needsImmediateBoard && !character.driving && characterSameHexAsVehicle(character, vehicle)) {
+		character.onboard()
+	}
+}
+
+/**
+ * Leave the operated vehicle when the work plan is done for jobs that end the driving session.
+ * Multi-step line runs keep occupancy until an explicit end (`vehicleHopRunEnded`, offload complete, …).
+ */
+function finalizeVehicleFreightWorkPlanOccupancy(plan: WorkPlan, character: Character): void {
+	if (plan.type !== 'work' || !('vehicleUid' in plan)) return
+
+	const job = plan.job
+	if (job === 'vehicleHop') {
+		if (!plan.vehicleHopRunEnded) return
+		if (character.driving && character.operates) {
+			offboardOperatorAfterFreightWorkComplete(character)
+		}
+		return
+	}
+	if (job === 'zoneBrowse') return
+	if (job === 'vehicleOffload') {
+		if (character.driving && character.operates) {
+			offboardOperatorAfterFreightWorkComplete(character)
+		}
+	}
+}
 
 function getContentFromPosition(hex: HexBoard, position: Positioned) {
 	const coord = toAxialCoord(position)
@@ -17,15 +78,15 @@ function getContentFromPosition(hex: HexBoard, position: Positioned) {
 }
 
 function computeGrabGoods(plan: TransferPlan, character: Character, target: Positioned): Goods {
-	const vehicle = character.vehicle
-	assert(vehicle, 'vehicle must be set')
+	const transport = character.carry
+	assert(transport, 'grab plan requires active transport (driving)')
 	const content = getContentFromPosition(character.game.hex, target)
 	assert(content, 'target content must be set')
 	assert('storage' in content, 'grab source must expose storage')
 	const actualGoods: Goods = {}
 	for (const [goodType, requestedQuantity] of Object.entries(plan.goods) as [GoodType, number][]) {
 		if (!requestedQuantity || requestedQuantity <= 0) continue
-		const canGrab = vehicle.storage.hasRoom(goodType)
+		const canGrab = transport.hasRoom(goodType)
 		if (canGrab <= 0) continue
 		const available = content.storage?.available(goodType) ?? 0
 		const amount = Math.min(canGrab, available, requestedQuantity)
@@ -47,9 +108,7 @@ const transferPlanHandler: PlanHandler<TransferPlan> = {
 	begin(plan: TransferPlan, character: Character) {
 		const hex = character.game.hex
 		const { description, target } = plan
-		const vehicle = character.vehicle
-
-		assert(vehicle, 'vehicle must be set')
+		const transport = character.carry
 
 		// Create allocations based on plan type
 		let vehicleAllocation: any
@@ -65,6 +124,7 @@ const transferPlanHandler: PlanHandler<TransferPlan> = {
 					// "incoming" long before any good physically reaches them.
 				} else if (description === 'grab') {
 					// Grab plan: allocate vehicle space and reserve source storage
+					assert(transport, 'grab requires active transport (driving)')
 					assert(target, 'target must be set for storage grab')
 					const content = getContentFromPosition(hex, target)
 					assert(content, 'target content must be set')
@@ -76,7 +136,7 @@ const transferPlanHandler: PlanHandler<TransferPlan> = {
 					if (Object.keys(goods).length === 0) throw new Error('No goods to grab at execution time')
 					plan.resolvedGoods = goods
 
-					vehicleAllocation = vehicle.storage.allocate(goods, `planGrab`)
+					vehicleAllocation = transport.allocate(goods, `planGrab`)
 					allocation = content.storage?.reserve(goods, `planGrabStored`)
 				} else if (description === 'idle') {
 					// Idle plan: do nothing (safe fallback)
@@ -122,18 +182,16 @@ const transferPlanHandler: PlanHandler<TransferPlan> = {
 const pickupPlanHandler: PlanHandler<PickupPlan> = {
 	begin(plan: PickupPlan, character: Character) {
 		const { goodType, target } = plan
-		const vehicle = character.vehicle
-
-		assert(vehicle, 'vehicle must be set')
+		const transport = character.carry
 
 		let vehicleAllocation: any
 		let allocation: any
-		let releaseStopper: any
 		try {
 			if (plan.vehicleAllocation && plan.allocation) {
 				vehicleAllocation = plan.vehicleAllocation
 				allocation = plan.allocation
 			} else {
+				assert(transport, 'loose pickup requires active transport (driving)')
 				// Find and allocate the loose good
 				const coord = toAxialCoord(target)
 				const looseGoods = character.game.hex.looseGoods.getGoodsAt(coord)
@@ -147,14 +205,13 @@ const pickupPlanHandler: PlanHandler<PickupPlan> = {
 				}
 
 				const looseGoodToGrab = matchingLooseGoods[0]
-				// Allocate loose good FIRST (no reactive side-effects) so vehicle.storage.allocate
+				// Allocate loose good FIRST (no reactive side-effects) so active-transport `allocate`
 				// cannot fire effects that remove the good before it is secured.
 				allocation = looseGoodToGrab.allocate(`planGrabLoose.${goodType}`)
-				vehicleAllocation = vehicle.storage.allocate({ [goodType]: 1 }, `planGrabLoose.${goodType}`)
-				releaseStopper = effect`plan.releaseStopper`(() => {
-					if (looseGoodToGrab.isRemoved) character.cancelPlan(plan)
-				})
-				plan.releaseStopper = releaseStopper
+				vehicleAllocation = transport.allocate({ [goodType]: 1 }, `planGrabLoose.${goodType}`)
+				// NOTE: A prior `effect` on `looseGoodToGrab.isRemoved` called `cancelPlan` on removal.
+				// Successful pickup removes the loose good after the vehicle allocation is fulfilled, which
+				// aborted offload before `inventory.offloadDropBuffer()` could run.
 
 				// Set allocations on the plan
 				Object.assign(plan, {
@@ -163,9 +220,6 @@ const pickupPlanHandler: PlanHandler<PickupPlan> = {
 				})
 			}
 		} catch (error) {
-			try {
-				releaseStopper?.()
-			} catch {}
 			try {
 				allocation?.cancel()
 			} catch {}
@@ -198,15 +252,24 @@ const pickupPlanHandler: PlanHandler<PickupPlan> = {
 // Work plan handler
 const workPlanHandler: PlanHandler<WorkPlan> = {
 	begin(plan: WorkPlan, character: Character) {
+		beginVehicleFreightWorkPlan(plan, character)
 		const { target } = plan
-		if (plan.job === 'offload') {
-			assert(target && 'availableGoods' in target, 'offload target must be a tile')
-			const pickupPlan = character.scriptsContext.inventory.planGrabSpecificLoose(
-				plan.looseGood,
-				target
-			)
-			assert(pickupPlan.type === 'pickup', 'offload engagement must bind to a pickup plan')
-			plan.offloadPickupPlan = pickupPlan
+		if (plan.job === 'vehicleOffload') {
+			assert('targetCoord' in plan, 'vehicleOffload requires targetCoord')
+			// Pickup allocation needs {@link Character.requireActiveTransportStorage} — only after boarding.
+			if (character.driving) {
+				const pickupTile = character.game.hex.getTile(plan.targetCoord)
+				assert(
+					pickupTile && 'availableGoods' in pickupTile,
+					'vehicleOffload pickup target must be a tile with loose goods'
+				)
+				const pickupPlan = character.scriptsContext.inventory.planGrabSpecificLoose(
+					plan.looseGood,
+					pickupTile
+				)
+				assert(pickupPlan.type === 'pickup', 'vehicleOffload engagement must bind to a pickup plan')
+				plan.offloadPickupPlan = pickupPlan
+			}
 		}
 		// Assign worker only for alveoli
 		if (gameObjectsModule.Alveolus.allows(target)) {
@@ -239,16 +302,21 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 	},
 
 	cancel(plan: WorkPlan, character: Character) {
-		if (plan.offloadPickupPlan) {
+		if ('offloadPickupPlan' in plan && plan.offloadPickupPlan) {
 			pickupPlanHandler.cancel?.(plan.offloadPickupPlan, character)
+		}
+		if ('vehicleUid' in plan) {
+			releaseVehicleFreightWorkOnPlanInterrupt(character)
+			if (character.operates) character.operates = undefined
 		}
 	},
 
 	finally(plan: WorkPlan, character: Character) {
-		if (plan.offloadPickupPlan) {
+		if ('offloadPickupPlan' in plan && plan.offloadPickupPlan) {
 			pickupPlanHandler.finally?.(plan.offloadPickupPlan, character)
 			delete plan.offloadPickupPlan
 		}
+		finalizeVehicleFreightWorkPlanOccupancy(plan, character)
 		if (
 			gameObjectsModule.Alveolus.allows(plan.target) &&
 			!(plan as WorkPlan & { preserveAssignment?: boolean }).preserveAssignment

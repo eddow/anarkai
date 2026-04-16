@@ -3,7 +3,6 @@ import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
 import { buildAlveolusMarker } from 'ssh/hive/build-marker'
-import type { GatherAlveolus } from 'ssh/hive/gather'
 import type { Character } from 'ssh/population/character'
 import { findDwellingReservedBy } from 'ssh/residential/housing-reservations'
 import { contract } from 'ssh/types'
@@ -178,45 +177,6 @@ class FindFunctions {
 			),
 		}
 	}
-	@contract('GatherAlveolus', 'number')
-	gatherables(gatherer: GatherAlveolus, maxWalkTime: number) {
-		const { hex } = this[subject].game
-		const start = toAxialCoord(this[subject].tile.position)
-		const selectableGoods = Object.keys(gatherer.hive.needs).filter((good) =>
-			this[subject].carry.hasRoom(good as GoodType)
-		)
-		if (!selectableGoods.length) return false as const
-		// Count all goods within walk time using findNearest exploration
-		const goodCounts = Object.fromEntries(selectableGoods.map((good) => [good, 0])) as Partial<
-			Record<GoodType, number>
-		>
-
-		// Custom exploration function that counts goods but never returns true
-		const exploreForGoods = (pos: Positioned): boolean => {
-			// Count goods at this tile
-			const goodsAtTile = hex.looseGoods.getGoodsAt(pos)
-			for (const good of goodsAtTile) {
-				if (good.available && good.goodType in goodCounts) goodCounts[good.goodType]!++
-			}
-
-			// Never return true - we just want to explore and count
-			return false
-		}
-
-		// Explore all tiles within walk time
-		hex.findNearest(start, exploreForGoods, maxWalkTime, false)
-
-		// Find the good with the maximum count
-		const targetGood = Object.entries(goodCounts).reduce(
-			(max, [good, count]) => (count > max.count ? { good: good as GoodType, count } : max),
-			{ good: null as GoodType | null, count: 0 }
-		).good
-
-		if (!targetGood) return false as const
-
-		const path = hex.looseGoods.findNearestGoods(start, start, [targetGood], maxWalkTime)
-		return path
-	}
 
 	@contract()
 	homeTile() {
@@ -276,13 +236,17 @@ class FindFunctions {
 
 	@contract()
 	freeSpot() {
-		const { hex } = this[subject].game
-		const start = toAxialCoord(this[subject].tile.position)
+		const character = this[subject]
+		const { hex } = character.game
+		const start = toAxialCoord(character.tile.position)
+		// Wheelbarrows apply {@link Character.mobilityMultiplier} per step; scale the walk budget so
+		// reachable hex radius matches on-foot search (vehicle-offload drop uses this path).
+		const walkBudget = maxWalkTime * character.mobilityMultiplier
 		// Use findBest with a cost function: walkTime * crowding
 		// Only drop in non-clearing tiles (UnBuiltLand with no/harvest zone and no project)
 		const result = hex.findBestForCharacter(
 			start,
-			this[subject],
+			character,
 			(coord) => {
 				const tile = hex.getTile(coord)
 				if (!tile || !tile.content) return false
@@ -304,12 +268,39 @@ class FindFunctions {
 				}
 				return score
 			},
-			(_coord, walkTime) => walkTime > maxWalkTime,
+			(_coord, walkTime) => walkTime > walkBudget,
 			1, // best possible score (minimum cost => score 0 when dist*crowd == 0)
 			true
 		)
 		if (!result || result.length === 0) return false as const
 		return result
+	}
+
+	/** Walk path to the vehicle's tile (`punctual`: exact vehicle hex). Matches {@link findVehicleApproachJob} / {@link FindFunctions.path}. */
+	@contract('string')
+	pathToVehicle(vehicleUid: string): AxialCoord[] | undefined {
+		const character = this[subject]
+		const vehicle = character.game.vehicles.vehicle(vehicleUid)
+		if (!vehicle) return undefined
+		return character.game.hex.findPathForCharacter(
+			character.tile.position,
+			vehicle.tile.position,
+			character,
+			maxWalkTime,
+			true
+		)
+	}
+
+	/** Whether the character's foot hex matches the vehicle hex (same predicate as boarding). */
+	@contract('string')
+	isAtVehicle(vehicleUid: string): boolean {
+		const character = this[subject]
+		const vehicle = character.game.vehicles.vehicle(vehicleUid)
+		if (!vehicle) return false
+		const a = toAxialCoord(character.position)
+		const b = toAxialCoord(vehicle.position)
+		if (!a || !b) return false
+		return axial.key(a) === axial.key(b)
 	}
 }
 

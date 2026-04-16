@@ -5,7 +5,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('ssh/assets/resources', () => ({ resources: {}, prefix: '' }))
 vi.mock('ssh/assets/game-content', () => ({
-	vehicles: { 'by-hands': { storage: { slots: 10, capacity: 100 } } },
+	vehicles: {
+		wheelbarrow: { storage: { slots: 10, capacity: 100 }, walkTime: 1, transferTime: 1 },
+	},
 	goods: {},
 	terrain: new Proxy({}, { get: () => ({ walkTime: 1, generation: { deposits: {} } }) }),
 	deposits: {},

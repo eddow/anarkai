@@ -64,7 +64,7 @@ describe('Deadlock Reproduction', () => {
 					{
 						name: 'MainHive',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'gather', goods: {} },
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
 							{ coord: [1, 0], alveolus: 'woodpile', goods: {} },
 						],
 					},
@@ -158,7 +158,7 @@ describe('Deadlock Reproduction', () => {
 						step: w.stepExecutor?.constructor.name,
 						action: [...w.actionDescription],
 						assigned: w.assignedAlveolus?.tile?.position,
-						carry: w.carry.stock,
+						carry: w.carry?.stock ?? {},
 						nextAction: w.findAction()?.name,
 					})),
 					movingGoods: gatherer.hive

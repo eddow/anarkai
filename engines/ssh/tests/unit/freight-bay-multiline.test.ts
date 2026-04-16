@@ -1,8 +1,8 @@
 import {
-	type FreightLineDefinition,
 	distributeSegmentAllowsGoodType,
 	distributeSegmentAllowsGoodTypeForSegment,
 	distributeSegmentWithinRadius,
+	type FreightLineDefinition,
 	findDistributeFreightLines,
 	findDistributeRouteSegments,
 	findGatherFreightLine,
@@ -86,7 +86,7 @@ describe('Freight bay multi-line', () => {
 				hives: [
 					{
 						name: 'MultiBayHive',
-						alveoli: [{ coord: [0, 0], alveolus: 'gather', goods: { wood: 2 } }],
+						alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 2 } }],
 					},
 				],
 				freightLines: [
@@ -133,7 +133,7 @@ describe('Freight bay multi-line', () => {
 		}
 	})
 
-	it('picks a gather line id when several gather lines share the bay', async () => {
+	it('does not issue on-foot gather jobs from a road-fret bay (wheelbarrow-only collection)', async () => {
 		const engine = new TestEngine({ terrainSeed: 1, characterCount: 0 })
 		await engine.init()
 		try {
@@ -141,7 +141,7 @@ describe('Freight bay multi-line', () => {
 				hives: [
 					{
 						name: 'PickHive',
-						alveoli: [{ coord: [0, 0], alveolus: 'gather', goods: {} }],
+						alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }],
 					},
 				],
 				looseGoods: [{ goodType: 'wood', position: { q: 0, r: 2 } }],
@@ -167,12 +167,9 @@ describe('Freight bay multi-line', () => {
 			engine.loadScenario(scenario)
 			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content
 			expect(bay).toBeInstanceOf(StorageAlveolus)
-			const job = (bay as StorageAlveolus).nextJob()
-			expect(job?.job).toBe('gather')
-			if (job?.job === 'gather') {
-				expect(job.lineId).toBe('PickHive:gather-wood')
-				expect(job.goodType).toBe('wood')
-			}
+			const storage = bay as StorageAlveolus
+			expect(storage.hasLooseGoodsToGather).toBe(true)
+			expect(storage.nextJob()).toBeUndefined()
 		} finally {
 			await engine.destroy()
 		}
@@ -321,7 +318,7 @@ describe('Freight bay multi-line', () => {
 				hives: [
 					{
 						name: 'TakeHive',
-						alveoli: [{ coord: [0, 0], alveolus: 'gather', goods: {} }],
+						alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }],
 					},
 				],
 				freightLines: [

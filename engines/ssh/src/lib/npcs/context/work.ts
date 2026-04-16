@@ -17,6 +17,7 @@ import { assert, traces } from 'ssh/debug'
 import { alveolusClass } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
 import type { TrackedMovement } from 'ssh/hive/hive'
+import { movementRefId } from 'ssh/hive/movement-ref'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import type { TransformAlveolus } from 'ssh/hive/transform'
 import type { Character } from 'ssh/population/character'
@@ -25,15 +26,13 @@ import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import { contract, type Goods, type GoodType } from 'ssh/types'
 import type { AxialCoord } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
+import { epsilon } from 'ssh/utils/varied'
 import { subject } from '../scripts'
 import { DurationStep, MultiMoveStep } from '../steps'
 import type { WorkPlan } from '.'
-import { getConveyDuration, getConveyVisualMovements } from './convey'
-import {
-	cleanupFailedConveyMovement,
-	type FailedConveyMovementData,
-	isRecoverableConveyError,
-} from './convey-cleanup'
+import { getConveyDuration, getConveyVisualMovements, rebindConveyMovementRows } from './convey'
+import { cleanupFailedConveyMovement, type FailedConveyMovementData } from './convey-cleanup'
+import { ConveyStaleBookkeepingError, isConveyRollbackableError } from './convey-errors'
 
 function applyConcreteTerrain(tile: Tile): void {
 	tile.baseTerrain = 'concrete'
@@ -104,7 +103,7 @@ class WorkFunctions {
 	declare [subject]: Character
 	@contract('WorkPlan')
 	prepare(workPlan: WorkPlan) {
-		if (['convey', 'offload', 'freightDeliver'].includes(workPlan.job)) return
+		if (['convey', 'vehicleOffload'].includes(workPlan.job)) return
 		assert(
 			this[subject].assignedAlveolus?.preparationTime,
 			'assignedAlveolus must be set and have a preparationTime'
@@ -136,34 +135,43 @@ class WorkFunctions {
 		const character = this[subject]
 		const currentHive = (movement: TrackedMovement) => {
 			const hive = movement.provider.hive
-			assert(hive, `conveyStep: provider hive missing for ${movement._mgId}`)
+			assert(hive, `conveyStep: provider hive missing for ref#${movementRefId(movement.ref)}`)
 			assert(
 				movement.demander.hive === hive,
-				`conveyStep: provider/demander hive mismatch for ${movement._mgId}`
+				`conveyStep: provider/demander hive mismatch for ref#${movementRefId(movement.ref)}`
 			)
 			return hive
 		}
 		const claimMovement = (movement: TrackedMovement) => {
-			assert(!movement.claimed, `claimMovement: movement already claimed ${movement._mgId}`)
-			assert(!movement.claimedBy, `claimMovement: movement already has claimedBy ${movement._mgId}`)
+			assert(
+				!movement.claimed,
+				`claimMovement: movement already claimed ref#${movementRefId(movement.ref)}`
+			)
+			assert(
+				!movement.claimedBy,
+				`claimMovement: movement already has claimedBy ref#${movementRefId(movement.ref)}`
+			)
 			assert(
 				!movement.claimedAtMs,
-				`claimMovement: movement already has claimedAtMs ${movement._mgId}`
+				`claimMovement: movement already has claimedAtMs ref#${movementRefId(movement.ref)}`
 			)
 			movement.claimed = true
-			movement.claimedBy = character.uid
+			movement.claimedBy = character
 			movement.claimedAtMs = Date.now()
 			movement.provider.hive.noteMovementLifecycle(movement, `movement.claimed.by:${character.uid}`)
 		}
 		const releaseMovementClaim = (movement: TrackedMovement) => {
-			assert(movement.claimed, `releaseMovementClaim: movement not claimed ${movement._mgId}`)
 			assert(
-				movement.claimedBy === character.uid,
-				`releaseMovementClaim: movement claimed by ${movement.claimedBy ?? 'nobody'} not ${character.uid}`
+				movement.claimed,
+				`releaseMovementClaim: movement not claimed ref#${movementRefId(movement.ref)}`
+			)
+			assert(
+				movement.claimedBy === character,
+				`releaseMovementClaim: movement claimed by ${movement.claimedBy?.uid ?? 'nobody'} not ${character.uid}`
 			)
 			assert(
 				!!movement.claimedAtMs,
-				`releaseMovementClaim: movement missing claimedAtMs ${movement._mgId}`
+				`releaseMovementClaim: movement missing claimedAtMs ref#${movementRefId(movement.ref)}`
 			)
 			movement.provider.hive.noteMovementLifecycle(
 				movement,
@@ -255,7 +263,7 @@ class WorkFunctions {
 						{
 							type: 'convey.hop',
 							goodType: movement.goodType,
-							movementId: movement._mgId,
+							movementRef: movement.ref,
 							providerRef: movement.provider,
 							demanderRef: movement.demander,
 							providerName: movement.provider.name,
@@ -319,7 +327,7 @@ class WorkFunctions {
 							allowClaimedSourceGap: true,
 						})
 					) {
-						throw new Error('Movement became invalid after place')
+						throw new ConveyStaleBookkeepingError('Movement became invalid after place')
 					}
 				}
 
@@ -344,7 +352,7 @@ class WorkFunctions {
 					sourceFulfilled,
 				} satisfies FailedConveyMovementData)
 				for (const prev of movementData) cleanupFailedConveyMovement(character, prev)
-				if (isRecoverableConveyError(error)) {
+				if (isConveyRollbackableError(error)) {
 					const errorMessage = error instanceof Error ? error.message : String(error)
 					console.warn('[conveyStep] Recovered from stale movement bookkeeping', {
 						goodType: movement.goodType,
@@ -362,14 +370,38 @@ class WorkFunctions {
 			return waitStep()
 		}
 
-		const totalTime = getConveyDuration(character.vehicle.transferTime, movementData)
+		if (!rebindConveyMovementRows(movementData)) {
+			for (const row of movementData) {
+				cleanupFailedConveyMovement(character, {
+					movement: row.movement,
+					hopAlloc: row.hopAlloc,
+					from: row.from,
+					moving: row.moving,
+					sourceFulfilled: true,
+				} satisfies FailedConveyMovementData)
+			}
+			for (const { movement } of movementData) {
+				currentHive(movement).wakeWanderingWorkersNear(movement.provider, movement.demander)
+			}
+			return waitStep()
+		}
+
+		const totalTime = getConveyDuration(character.freightTransferTime, movementData)
 
 		// Create unified MultiMoveStep that animates all movements
 		const description =
 			movementData.length === 1 ? `convey.${movementData[0].movement.goodType}` : `convey.cycle`
 		const visualMovements = getConveyVisualMovements(movementData)
-		return new MultiMoveStep(totalTime, visualMovements, 'work', description)
+		const conveyStepRef: { step?: MultiMoveStep } = {}
+		const step = new MultiMoveStep(totalTime, visualMovements, 'work', description, () => {
+			if (!rebindConveyMovementRows(movementData)) {
+				conveyStepRef.step?.cancel()
+			}
+		})
+		conveyStepRef.step = step
+		return step
 			.canceled(() => {
+				rebindConveyMovementRows(movementData)
 				for (const { movement, hopAlloc, moving } of movementData) {
 					if (!moving.isRemoved) moving.remove()
 					if (!currentHive(movement).isMovementAlive(movement)) continue
@@ -385,10 +417,8 @@ class WorkFunctions {
 			})
 			.finished(() => {
 				try {
-					for (const { movement } of movementData) {
-						if (!currentHive(movement).isMovementAlive(movement)) {
-							throw new Error('Movement became invalid after hop handoff')
-						}
+					if (!rebindConveyMovementRows(movementData)) {
+						throw new ConveyStaleBookkeepingError('Movement became invalid after hop handoff')
 					}
 					for (const { movement, moving, hopAlloc: rawHopAlloc, hop } of movementData) {
 						const movementHive = currentHive(movement)
@@ -398,7 +428,7 @@ class WorkFunctions {
 						if (!movement.path.length) {
 							if (!movement.allocations?.target) {
 								console.error('Target allocation missing for', movement)
-								throw new Error('Target allocation missing')
+								throw new ConveyStaleBookkeepingError('Target allocation missing')
 							}
 							releaseMovementClaim(movement)
 							movementHive.noteMovementLifecycle(movement, 'conveyStep.finished.terminal')
@@ -412,7 +442,7 @@ class WorkFunctions {
 									{
 										type: 'convey.hop',
 										goodType: movement.goodType,
-										movementId: movement._mgId,
+										movementRef: movement.ref,
 										providerRef: movement.provider,
 										demanderRef: movement.demander,
 										providerName: movement.provider.name,
@@ -447,7 +477,7 @@ class WorkFunctions {
 								{
 									type: 'convey.path',
 									goodType: movement.goodType,
-									movementId: movement._mgId,
+									movementRef: movement.ref,
 									providerRef: movement.provider,
 									demanderRef: movement.demander,
 									providerName: movement.provider.name,
@@ -461,7 +491,7 @@ class WorkFunctions {
 									'[conveyStep.finished] Failed to reserve storage for next hop:',
 									movement.goodType
 								)
-								throw new Error('Failed to reserve storage for next hop')
+								throw new ConveyStaleBookkeepingError('Failed to reserve storage for next hop')
 							}
 
 							movementHive.assignMovementSource(
@@ -485,7 +515,7 @@ class WorkFunctions {
 									warnLabel: '[conveyStep] Invalid movement after hop handoff',
 								})
 							) {
-								throw new Error('Movement became invalid after hop handoff')
+								throw new ConveyStaleBookkeepingError('Movement became invalid after hop handoff')
 							}
 							releaseMovementClaim(movement)
 							currentHive(movement).assertMovementMine(movement, {
@@ -500,6 +530,7 @@ class WorkFunctions {
 						}
 					}
 				} catch (error) {
+					rebindConveyMovementRows(movementData)
 					for (const { movement } of movementData) {
 						currentHive(movement).noteMovementCaughtError(
 							movement,
@@ -508,7 +539,7 @@ class WorkFunctions {
 						)
 					}
 					for (const movement of movementData) cleanupFailedConveyMovement(character, movement)
-					if (isRecoverableConveyError(error)) {
+					if (isConveyRollbackableError(error)) {
 						const errorMessage = error instanceof Error ? error.message : String(error)
 						console.warn('[conveyStep] Recovered from stale movement bookkeeping in finish', {
 							error: errorMessage,
@@ -553,12 +584,6 @@ class WorkFunctions {
 			'assignedAlveolus.action.deposit must be the same as tile.content.deposit.name'
 		)
 		const deposit = unbuiltLand.deposit!
-		// Check if character can store any of the output goods
-		const outputGoods = alveolus.action.output
-		const canStoreAny = Object.keys(outputGoods).some(
-			(goodType) => this[subject].carry.hasRoom(goodType as GoodType) > 0
-		)
-		if (!canStoreAny) return
 		deposit.amount -= 1
 		if (deposit.amount <= 0) unbuiltLand.deposit = undefined
 		this[subject].game.notifyTerrainDepositsChanged(this[subject].tile)
@@ -567,10 +592,21 @@ class WorkFunctions {
 			'work',
 			`harvest.${this[subject].assignedAlveolus!.name}`
 		).finished(() => {
-			// Add all output goods to character inventory
-			Object.entries(alveolus.action.output).forEach(([goodType, qty]) => {
-				this[subject].carry.addGood(goodType as GoodType, qty)
-			})
+			const character = this[subject]
+			const { game, tile } = character
+			for (const [goodType, qty] of Object.entries(alveolus.action.output) as [
+				GoodType,
+				number,
+			][]) {
+				let remaining = qty
+				while (remaining > epsilon) {
+					const chunk = remaining >= 1 ? 1 : remaining
+					// Omit `position` in options so loose good uses `tile.position` (character.position
+					// can be fine-grained and fail looseGoods.add's axial proximity assert).
+					game.hex.looseGoods.add(tile, goodType)
+					remaining -= chunk
+				}
+			}
 		})
 	}
 	@contract()
@@ -625,7 +661,7 @@ class WorkFunctions {
 			{ [fragmentedGoodType]: 1 },
 			{ type: 'defragment.arrange' }
 		)
-		return new DurationStep(character.vehicle.transferTime, 'work', `defragment.${alveolus.name}`)
+		return new DurationStep(character.freightTransferTime, 'work', `defragment.${alveolus.name}`)
 			.finished(() => {
 				take.fulfill()
 				arrange.fulfill()
@@ -646,20 +682,14 @@ class WorkFunctions {
 		// Redundant assert for TS narrowing, or just cast
 		// assert(content instanceof UnBuiltLand, 'Tile must be UnBuiltLand')
 		// assert(content.project, 'UnBuiltLand must have a project')
+		const target = constructionTargetFromProject(project)
+		assert(target, 'UnBuiltLand project must map to a construction target')
 
-		const constructionSite =
-			content.constructionSite ??
-			(() => {
-				const target = constructionTargetFromProject(project)
-				assert(target, 'UnBuiltLand project must map to a construction target')
-				return createConstructionSiteState(target)
-			})()
+		const constructionSite = content.constructionSite ?? createConstructionSiteState(target)
 
 		content.constructionSite = constructionSite
 		constructionSite.phase = 'foundation'
 		return new DurationStep(3, 'work', 'foundation').finished(() => {
-			const target = constructionTargetFromProject(project)
-			assert(target, 'UnBuiltLand project must map to a construction target')
 			if (target.kind === 'alveolus') {
 				content.tile.content = new BuildAlveolus(
 					content.tile,
@@ -731,28 +761,6 @@ class WorkFunctions {
 				})
 		}
 		assert(false, 'Tile must be a BuildAlveolus or BuildDwelling')
-	}
-
-	@contract('GoodType', 'number')
-	freightDeliverPickedUp(goodType: GoodType, qty: number) {
-		const pos = toAxialCoord(this[subject].tile.position)
-		traces.residential?.log('[residential] freightDeliver picked up', {
-			goodType,
-			qty,
-			q: pos?.q,
-			r: pos?.r,
-		})
-	}
-
-	@contract('GoodType', 'number')
-	freightDeliverUnloaded(goodType: GoodType, qty: number) {
-		const pos = toAxialCoord(this[subject].tile.position)
-		traces.residential?.log('[residential] freightDeliver unloaded', {
-			goodType,
-			qty,
-			q: pos?.q,
-			r: pos?.r,
-		})
 	}
 }
 

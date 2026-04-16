@@ -1,5 +1,8 @@
 import { css } from '@app/lib/css'
-import { freightInspectorGoodOptions, freightInspectorTagOptions } from '@app/lib/freight-inspector-options'
+import {
+	freightInspectorGoodOptions,
+	freightInspectorTagOptions,
+} from '@app/lib/freight-inspector-options'
 import {
 	applyFreightDraftBayAnchor,
 	applyFreightDraftZoneCenter,
@@ -20,8 +23,8 @@ import type {
 	FreightZoneDefinitionRadius,
 } from 'ssh/freight/freight-line'
 import { freightLineStationLabel } from 'ssh/freight/freight-line'
-import { UNRESTRICTED_GOODS_SELECTION_POLICY } from 'ssh/freight/goods-selection-policy'
 import type { GoodSelectionPolicy } from 'ssh/freight/goods-selection-policy'
+import { UNRESTRICTED_GOODS_SELECTION_POLICY } from 'ssh/freight/goods-selection-policy'
 import type { Game } from 'ssh/game'
 import { i18nState } from 'ssh/i18n'
 import GoodSelectionRulesEditor from './GoodSelectionRulesEditor'
@@ -149,9 +152,7 @@ const FreightStopCard = (props: FreightStopCardProps) => {
 	const tile = () => stationTileForStop(props.game, props.stop)
 	const pickPending = () => freightMapPick.pending
 	const isBayPickActive = () =>
-		pickPending()?.lineId === props.lineId &&
-		pickPending()?.pickKind === 'bay' &&
-		!props.readOnly
+		pickPending()?.lineId === props.lineId && pickPending()?.pickKind === 'bay' && !props.readOnly
 	const isCenterPickActive = () =>
 		pickPending()?.lineId === props.lineId &&
 		pickPending()?.pickKind === 'center' &&
@@ -229,9 +230,7 @@ const FreightStopCard = (props: FreightStopCardProps) => {
 		<div class="freight-stop-card" data-testid={`freight-stop-card-${props.index}`}>
 			<div class="freight-stop-card__head">
 				<div class="freight-stop-card__title">
-					{t()?.stopLabel
-						? `${t()?.stopLabel} ${props.index + 1}`
-						: `Stop ${props.index + 1}`}
+					{t()?.stopLabel ? `${t()?.stopLabel} ${props.index + 1}` : `Stop ${props.index + 1}`}
 				</div>
 				<div class="freight-stop-card__toolbar">
 					<button

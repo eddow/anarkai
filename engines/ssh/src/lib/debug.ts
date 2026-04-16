@@ -22,11 +22,78 @@ export function defined<T>(value: T | undefined, message = 'Value is defined'): 
 	return value
 }
 
-export const traces: Record<string, typeof console | undefined> = {}
+/** Known `traces.*` channels used across the engine (optional chaining at call sites). */
+const TRACE_CHANNEL_KEYS = [
+	'vehicle',
+	'npc',
+	'advertising',
+	'allocations',
+	'residential',
+	'characterNeeds',
+	'idleDiagnosis',
+] as const
 
-//traces.advertising = console
-//traces.allocations = console
-//traces.residential = console
+/**
+ * Clears all trace hooks. Used by Vitest setup so tests start with no `traces.*` output unless a
+ * test assigns them. Dev: uncomment lines below or assign `traces.* = console` locally.
+ */
+export function disconnectAllTraces(): void {
+	for (const key of TRACE_CHANNEL_KEYS) {
+		traces[key] = undefined
+	}
+}
+
+export type NamedTrace = ReturnType<typeof namedTrace>
+
+export const traces: Record<string, NamedTrace | undefined> = {}
+if (typeof window !== 'undefined') {
+	// @ts-expect-error - for use in devtools
+	window.traces = traces
+}
+function namedTrace(name: string) {
+	const marker = `<[${name}]>`
+	const list: any[] = []
+	const methods = {
+		log(...args: any[]) {
+			list.push(['log', ...args])
+			console.log(marker, ...args)
+		},
+		warn(...args: any[]) {
+			list.push(['warn', ...args])
+			console.warn(marker, ...args)
+		},
+		error(...args: any[]) {
+			list.push(['error', ...args])
+			console.error(marker, ...args)
+		},
+		debug(...args: any[]) {
+			list.push(['debug', ...args])
+			console.debug(marker, ...args)
+		},
+		info(...args: any[]) {
+			list.push(['info', ...args])
+			console.info(marker, ...args)
+		},
+		trace(...args: any[]) {
+			list.push(['trace', ...args])
+			console.trace(marker, ...args)
+		},
+		assert(condition: any, ...args: any[]) {
+			if (!condition) list.push(['assert failure', ...args])
+			console.assert(condition, marker, ...args)
+		},
+	}
+	return Object.defineProperties(
+		list,
+		Object.fromEntries(Object.entries(methods).map(([key, value]) => [key, { value }]))
+	) as any[] & typeof methods
+}
+
+traces.vehicle = namedTrace('vehicle')
+//traces.npc = namedTrace('npc')
+//traces.advertising = namedTrace('advertising')
+//traces.allocations = namedTrace('allocations')
+//traces.residential = namedTrace('residential')
 //Object.assign(reactiveOptions, debugPreset)
 Object.assign(reactiveOptions, devPreset)
 reactiveOptions.maxEffectChain = 2000

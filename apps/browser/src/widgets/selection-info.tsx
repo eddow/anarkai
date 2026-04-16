@@ -27,11 +27,13 @@ import {
 import { i18nState } from 'ssh/i18n'
 import { isHoveredObject, setHoveredObject } from 'ssh/interactive-state'
 import { Character } from 'ssh/population/character'
+import { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { toWorldCoord } from 'ssh/utils/position'
 import CharacterProperties from '../components/CharacterProperties'
 import FreightLineProperties from '../components/FreightLineProperties'
 import HiveProperties from '../components/HiveProperties'
 import TileProperties from '../components/TileProperties'
+import VehicleProperties from '../components/VehicleProperties'
 import type { SelectionInfoContext, SelectionInfoTool } from './selection-info-tab'
 
 css`
@@ -306,7 +308,11 @@ const SelectionInfoWidget = (
 			data-test-object-uid={current.object?.uid}
 		>
 			<div if={current.object} class="selection-info-panel__content-wrapper">
-				<div if={mapPick()} class="selection-info-panel__pick-banner" data-testid="freight-map-pick-banner">
+				<div
+					if={mapPick()}
+					class="selection-info-panel__pick-banner"
+					data-testid="freight-map-pick-banner"
+				>
 					<span>{mapPickHint()}</span>
 					<button type="button" onClick={() => cancelFreightMapPick()}>
 						{mapPickCancel()}
@@ -321,6 +327,8 @@ const SelectionInfoWidget = (
 						<FreightLineProperties lineObject={current.object as SyntheticFreightLineObject} />
 					) : current.object && isHiveUid(current.object.uid) ? (
 						<HiveProperties hiveObject={current.object as SyntheticHiveObject} />
+					) : current.object instanceof VehicleEntity ? (
+						<VehicleProperties vehicle={current.object as VehicleEntity} />
 					) : (
 						<InspectorSection
 							class="selection-info-panel__summary"

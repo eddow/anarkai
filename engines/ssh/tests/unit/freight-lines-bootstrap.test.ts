@@ -19,7 +19,7 @@ describe('Freight line bootstrap', () => {
 		const engine = new TestEngine({ terrainSeed: 1, characterCount: 0 })
 		await engine.init()
 		const scenario: Partial<SaveState> = {
-			hives: [{ name: 'H', alveoli: [{ coord: [0, 0], alveolus: 'gather', goods: {} }] }],
+			hives: [{ name: 'H', alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }] }],
 		}
 		engine.loadScenario(scenario)
 		const content = engine.game.hex.getTile({ q: 0, r: 0 })?.content
@@ -41,7 +41,7 @@ describe('Freight line bootstrap', () => {
 				{
 					name: 'TestHive',
 					alveoli: [
-						{ coord: [0, 0], alveolus: 'gather', goods: {} },
+						{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
 						{ coord: [1, 0], alveolus: 'woodpile', goods: {} },
 					],
 				},
@@ -59,7 +59,7 @@ describe('Freight line bootstrap', () => {
 		await engine.init()
 		try {
 			const scenario: Partial<SaveState> = {
-				hives: [{ name: 'H', alveoli: [{ coord: [0, 0], alveolus: 'gather', goods: {} }] }],
+				hives: [{ name: 'H', alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }] }],
 			}
 			engine.loadScenario(scenario)
 			const line = engine.game.freightLines[0]
@@ -82,7 +82,7 @@ describe('Freight line bootstrap', () => {
 					{
 						name: 'GatherRadiusHive',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'gather', goods: {} },
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
 							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
 						],
 					},
@@ -102,7 +102,9 @@ describe('Freight line bootstrap', () => {
 			engine.loadScenario(scenario)
 			const gather = engine.game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus
 			expect(gather.hasLooseGoodsToGather).toBe(false)
-			const line = engine.game.freightLines.find((l) => l.id === 'GatherRadiusHive:implicit-gather:0,0')
+			const line = engine.game.freightLines.find(
+				(l) => l.id === 'GatherRadiusHive:implicit-gather:0,0'
+			)
 			expect(line).toBeDefined()
 			engine.game.replaceFreightLine(applyGatherRadiusFromEditor(line!, 2))
 			expect(gather.hasLooseGoodsToGather).toBe(true)
@@ -144,7 +146,7 @@ describe('Freight line bootstrap', () => {
 		await engine.init()
 		try {
 			engine.loadScenario({
-				hives: [{ alveoli: [{ coord: [0, 0], alveolus: 'gather', goods: {} }] }],
+				hives: [{ alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }] }],
 			})
 
 			const gather = engine.game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus
@@ -165,7 +167,9 @@ describe('Freight line bootstrap', () => {
 	})
 
 	it('formats station labels as hive name with coordinates', () => {
-		expect(freightLineStationLabel({ hiveName: 'ChopSaw', coord: [10, -8] })).toBe('ChopSaw (10, -8)')
+		expect(freightLineStationLabel({ hiveName: 'ChopSaw', coord: [10, -8] })).toBe(
+			'ChopSaw (10, -8)'
+		)
 		expect(freightLineStationLabel({ hiveName: '', coord: [0, 0] })).toBe('Hive (0, 0)')
 	})
 
@@ -176,7 +180,7 @@ describe('Freight line bootstrap', () => {
 		await reloaded.init()
 		try {
 			const scenario: Partial<SaveState> = {
-				hives: [{ name: 'H', alveoli: [{ coord: [0, 0], alveolus: 'gather', goods: {} }] }],
+				hives: [{ name: 'H', alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }] }],
 			}
 			engine.loadScenario(scenario)
 			const initial = engine.game.freightLines[0]
@@ -233,7 +237,7 @@ describe('Freight line bootstrap', () => {
 		await engine.init()
 		try {
 			engine.loadScenario({
-				hives: [{ name: 'H', alveoli: [{ coord: [0, 0], alveolus: 'gather', goods: {} }] }],
+				hives: [{ name: 'H', alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }] }],
 				freightLines: [
 					distributeFreightLine({
 						id: 'H:line',

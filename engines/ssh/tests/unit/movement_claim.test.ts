@@ -127,7 +127,7 @@ describe('MovingGood.claimed prevents double pickup', () => {
 			const selection = provider.aGoodMovement![0]
 			expect(realMg.claimed).toBe(false)
 			expect(selection.movement).toBe(realMg)
-			expect(selection.movementId).toBe(realMg._mgId)
+			expect(selection.movement.ref).toBe(realMg.ref)
 			expect(selection.fromSnapshot).toEqual(realMg.from)
 
 			// Claim via the canonical movement

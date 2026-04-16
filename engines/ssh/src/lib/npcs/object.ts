@@ -1,7 +1,18 @@
 import { memoize, reactive, unreactive } from 'mutts'
 import type { ExecutionContext } from 'npc-script'
-import { assert } from 'ssh/debug'
+import { assert, traces } from 'ssh/debug'
+import {
+	releaseVehicleFreightWorkOnPlanInterrupt,
+	type VehicleFreightInterruptSubject,
+} from 'ssh/freight/vehicle-run'
 import type { Game, GameObject, TickedGameObject, withTicked } from 'ssh/game'
+import {
+	loopEntriesForNpcTrace,
+	npcSubjectSnapshot,
+	plannerSnapshotsFromSubject,
+	summarizeScriptExecutionForInfiniteFail,
+	summarizeScriptRunValueKind,
+} from './npc-diagnostics'
 import { getGameScript, ScriptExecution } from './scripts'
 import { ASingleStep, PonderingStep, stepPassesFullRemainingOnComplete } from './steps'
 
@@ -46,7 +57,13 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 				if (this.stepExecutor) return
 				try {
 					const firstAction = this.findAction()
-					if (firstAction) this.begin(firstAction)
+					if (!firstAction) return
+					if (firstAction instanceof ASingleStep) {
+						this.stepExecutor = firstAction
+						this.nextStep()
+					} else {
+						this.begin(firstAction)
+					}
 				} catch (e) {
 					console.warn('Script error on gameStart', e)
 				}
@@ -58,7 +75,7 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 			return this.runningScripts[0]
 		}
 		abstract scriptsContext: ExecutionContext
-		abstract findAction(): ScriptExecution | undefined
+		abstract findAction(): ScriptExecution | ASingleStep | undefined
 
 		@memoize
 		get actionDescription(): string[] {
@@ -107,8 +124,12 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 			if (!this.runningScripts.length) {
 				const nextAction = this.findAction()
 				if (nextAction) {
-					assertScriptExecution(nextAction, 'findAction result')
-					this.runningScripts.unshift(nextAction)
+					if (nextAction instanceof ASingleStep) {
+						this.stepExecutor = nextAction
+					} else {
+						assertScriptExecution(nextAction, 'findAction result')
+						this.runningScripts.unshift(nextAction)
+					}
 				}
 			}
 			let reentered = false
@@ -136,18 +157,46 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 					const nextAction = this.findAction()
 					if (nextAction?.name === executingName) {
 						if (reentered) {
+							const last = loopCount[loopCount.length - 1] as
+								| { name: string; type: string; value: unknown }
+								| undefined
+							const subject = npcSubjectSnapshot(this)
+							const planner = plannerSnapshotsFromSubject(this)
+							const context = {
+								subject,
+								executingName,
+								lastMakeRun: last
+									? {
+											type: last.type,
+											valueKind: summarizeScriptRunValueKind(last.value),
+										}
+									: undefined,
+								nextAction: nextAction
+									? summarizeScriptExecutionForInfiniteFail(nextAction)
+									: undefined,
+								planner,
+							}
 							console.error(
-								`Action infinite fail: ${executingName} returned immediately and was selected again.`
+								`Action infinite fail: ${executingName} returned immediately and was selected again.`,
+								context
 							)
+							traces.npc?.log?.('nextStep.infiniteFail', {
+								...context,
+								loopTail: loopEntriesForNpcTrace(loopCount, 5),
+							})
 							this.stepExecutor = new PonderingStep(this as any, 0.25)
 							return
 						}
 						reentered = true
 					}
 					if (nextAction) {
-						assertScriptExecution(nextAction, 'findAction result')
-						//console.log(`[nextStep] ${this.name}: found new action via findAction: ${nextAction.name}`);
-						this.runningScripts.unshift(nextAction)
+						if (nextAction instanceof ASingleStep) {
+							this.stepExecutor = nextAction
+						} else {
+							assertScriptExecution(nextAction, 'findAction result')
+							//console.log(`[nextStep] ${this.name}: found new action via findAction: ${nextAction.name}`);
+							this.runningScripts.unshift(nextAction)
+						}
 					}
 				}
 			}
@@ -155,6 +204,30 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 		}
 
 		update(dt: number) {
+			// If we're in a long ponder/rest step but already standing on a legal wild offload tile with
+			// stock in active transport, prefer draining the buffer now — `findAction` won't run until the
+			// ponder step completes, which can stall gameplay/tests for a long time.
+			if (
+				this.stepExecutor instanceof PonderingStep ||
+				this.stepExecutor?.constructor?.name === 'PonderingStep'
+			) {
+				const subject = this as unknown as {
+					maybeTransportOffloadDrain?: () => ScriptExecution | false
+				}
+				const drain = subject.maybeTransportOffloadDrain?.()
+				if (drain) {
+					this.stepExecutor.cancel()
+					this.stepExecutor = undefined
+					if (drain instanceof ASingleStep) {
+						this.stepExecutor = drain
+					} else {
+						assertScriptExecution(drain, 'maybeTransportOffloadDrain result')
+						this.begin(drain)
+					}
+					return
+				}
+			}
+
 			let remaining: number | undefined = dt
 			let uselessStepExecutor: Function | undefined
 			while (remaining !== undefined && this.stepExecutor) {
@@ -208,13 +281,19 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 			this.runningScripts.unshift(exec)
 			this.nextStep()
 		}
-		abandonAnd(exec: ScriptExecution) {
+		abandonAnd(exec: ScriptExecution | ASingleStep) {
 			if (this.stepExecutor) this.stepExecutor.cancel()
 			for (const script of this.runningScripts) script.cancel(this.scriptsContext)
 			this.runningScripts.splice(0, this.runningScripts.length)
 			this.stepExecutor = undefined
-			assertScriptExecution(exec, 'abandonAnd() argument')
-			this.begin(exec)
+			releaseVehicleFreightWorkOnPlanInterrupt(this as unknown as VehicleFreightInterruptSubject)
+			if (exec instanceof ASingleStep) {
+				this.stepExecutor = exec
+				this.nextStep()
+			} else {
+				assertScriptExecution(exec, 'abandonAnd() argument')
+				this.begin(exec)
+			}
 		}
 
 		cancelPlan(plan: any) {
@@ -226,6 +305,9 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 					this.runningScripts.unshift(cancelling)
 					break
 				}
+			}
+			if (!this.runningScripts.length) {
+				releaseVehicleFreightWorkOnPlanInterrupt(this as unknown as VehicleFreightInterruptSubject)
 			}
 		}
 

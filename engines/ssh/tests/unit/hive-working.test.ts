@@ -1,6 +1,6 @@
 import type { SaveState } from 'ssh/game'
 import { alveolusClass, Hive } from 'ssh/hive'
-import type { GatherAlveolus } from 'ssh/hive/gather'
+import type { StorageAlveolus } from 'ssh/hive/storage'
 import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
 
@@ -16,10 +16,12 @@ describe('Hive working and metadata preservation', () => {
 		await engine.init()
 		try {
 			const scenario: Partial<SaveState> = {
-				hives: [{ name: 'North', alveoli: [{ coord: [0, 0], alveolus: 'gather', goods: {} }] }],
+				hives: [
+					{ name: 'North', alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }] },
+				],
 			}
 			engine.loadScenario(scenario)
-			const gather = engine.game.hex.getTile({ q: 0, r: 0 })?.content as GatherAlveolus | undefined
+			const gather = engine.game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus | undefined
 			expect(gather).toBeDefined()
 			expect(gather?.working).toBe(true)
 
@@ -46,20 +48,20 @@ describe('Hive working and metadata preservation', () => {
 						name: 'Chain',
 						working: false,
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'gather', goods: {} },
-							{ coord: [1, 0], alveolus: 'gather', goods: {} },
-							{ coord: [2, 0], alveolus: 'gather', goods: {} },
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
+							{ coord: [1, 0], alveolus: 'freight_bay', goods: {} },
+							{ coord: [2, 0], alveolus: 'freight_bay', goods: {} },
 						],
 					},
 				],
 			})
 
-			const middle = engine.game.hex.getTile({ q: 1, r: 0 })?.content as GatherAlveolus | undefined
+			const middle = engine.game.hex.getTile({ q: 1, r: 0 })?.content as StorageAlveolus | undefined
 			middle?.deconstruct()
 			await flushHiveRefresh(engine)
 
-			const left = engine.game.hex.getTile({ q: 0, r: 0 })?.content as GatherAlveolus | undefined
-			const right = engine.game.hex.getTile({ q: 2, r: 0 })?.content as GatherAlveolus | undefined
+			const left = engine.game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus | undefined
+			const right = engine.game.hex.getTile({ q: 2, r: 0 })?.content as StorageAlveolus | undefined
 			const hives = new Set([left?.hive, right?.hive])
 
 			expect(hives.size).toBe(2)
@@ -81,12 +83,12 @@ describe('Hive working and metadata preservation', () => {
 					{
 						name: 'Alpha',
 						working: false,
-						alveoli: [{ coord: [0, 0], alveolus: 'gather', goods: {} }],
+						alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }],
 					},
 					{
 						name: 'Beta',
 						working: true,
-						alveoli: [{ coord: [2, 0], alveolus: 'gather', goods: {} }],
+						alveoli: [{ coord: [2, 0], alveolus: 'freight_bay', goods: {} }],
 					},
 				],
 			})
@@ -104,7 +106,7 @@ describe('Hive working and metadata preservation', () => {
 			expect(bridge.hive.name).toBe('Alpha')
 			expect(bridge.hive.working).toBe(false)
 			expect(
-				(engine.game.hex.getTile({ q: 2, r: 0 })?.content as GatherAlveolus | undefined)?.hive
+				(engine.game.hex.getTile({ q: 2, r: 0 })?.content as StorageAlveolus | undefined)?.hive
 			).toBe(bridge.hive)
 		} finally {
 			await engine.destroy()
@@ -120,7 +122,7 @@ describe('Hive working and metadata preservation', () => {
 					{
 						name: 'Saved Hive',
 						working: false,
-						alveoli: [{ coord: [0, 0], alveolus: 'gather', goods: {} }],
+						alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }],
 					},
 				],
 			})
@@ -133,7 +135,7 @@ describe('Hive working and metadata preservation', () => {
 			try {
 				await restored.game.loadGameData(saved)
 				const gather = restored.game.hex.getTile({ q: 0, r: 0 })?.content as
-					| GatherAlveolus
+					| StorageAlveolus
 					| undefined
 				expect(gather?.hive.name).toBe('Saved Hive')
 				expect(gather?.hive.working).toBe(false)

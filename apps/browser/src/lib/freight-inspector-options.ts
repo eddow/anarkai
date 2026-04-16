@@ -1,7 +1,4 @@
-import {
-	FREIGHT_LINE_ALL_GOOD_TYPES,
-	getDefaultGoodTags,
-} from 'ssh/freight/goods-selection-policy'
+import { FREIGHT_LINE_ALL_GOOD_TYPES, getDefaultGoodTags } from 'ssh/freight/goods-selection-policy'
 
 type GoodsTranslator = Record<string, string> | undefined
 type TagsTranslator = Record<string, string> | undefined

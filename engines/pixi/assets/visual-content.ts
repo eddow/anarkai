@@ -91,8 +91,8 @@ export const goods: Record<string, VisualDefinition> = {
 }
 
 export const vehicles: Record<string, VisualDefinition> = {
-	'by-hands': {
-		sprites: ['vehicles.byHands'],
+	wheelbarrow: {
+		sprites: ['vehicles.wheelbarrow'],
 	},
 }
 

@@ -1,3 +1,4 @@
+import type { TrackedMovement } from 'ssh/hive/hive'
 import { type AxialCoord, axial, type Positioned } from 'ssh/utils'
 import type { Position } from 'ssh/utils/position'
 
@@ -26,4 +27,24 @@ export function getConveyVisualMovements(movements: readonly ConveyMovementSnaps
 		from,
 		to: hop,
 	}))
+}
+
+/**
+ * Rebinds each row's `movement` to the hive's canonical active entry when the {@link TrackedMovement.ref}
+ * matches but the reference diverged (e.g. hive rebind). Returns false if any movement is no longer active.
+ */
+export function rebindConveyMovementRows<T extends { movement: TrackedMovement }>(
+	rows: T[]
+): boolean {
+	for (const row of rows) {
+		const hive = row.movement.provider.hive
+		if (!hive) return false
+		const live = hive.getCanonicalMovement(row.movement)
+		if (!live) return false
+		if (live !== row.movement) {
+			hive.noteMovementLifecycle(live, 'convey.rebind-to-canonical')
+			row.movement = live
+		}
+	}
+	return true
 }

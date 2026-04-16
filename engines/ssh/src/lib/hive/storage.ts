@@ -1,29 +1,27 @@
-import {
-	goods as allGoodsList,
-	configurations,
-	gatherTargetBatchSize,
-	jobBalance,
-} from 'engine-rules'
+import { goods as allGoodsList, configurations, jobBalance } from 'engine-rules'
 import { inert, reactive } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
 import { traces } from 'ssh/debug'
+import { augmentFreightBayGoodsRelationsForConstruction } from 'ssh/freight/construction-freight-requisition'
+import type { FreightStop, FreightZoneDefinitionRadius } from 'ssh/freight/freight-line'
 import {
-	DEFAULT_GATHER_FREIGHT_RADIUS,
 	distributeLinesAllowGoodType,
 	type FreightLineDefinition,
 	findDistributeFreightLines,
 	findGatherFreightLines,
-	gatherLoadRadiusForLineAtStop,
 	gatherSegmentAllowsGoodType,
-	gatherSelectableGoodTypes,
 } from 'ssh/freight/freight-line'
+import {
+	gatherZoneLoadStopForBay,
+	goodsWith,
+	pickGatherTargetInZoneStop,
+} from 'ssh/freight/freight-zone-gather-target'
 import type { Character } from 'ssh/population/character'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
-import type { GatherJob, Goods, GoodType, Job } from 'ssh/types/base'
+import type { GoodType, Job } from 'ssh/types/base'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
-import { type Positioned, toAxialCoord } from 'ssh/utils/position'
 import {
 	isSlottedStorageConfiguration,
 	isSpecificStorageConfiguration,
@@ -50,18 +48,6 @@ function sumBufferedSlots(
 		total += rule.minSlots
 	}
 	return total
-}
-
-function goodsWith(goods: Goods, other: GoodType, qty: number = 1): Goods {
-	const rv = { ...goods }
-	rv[other] = (goods[other] || 0) + qty
-	return rv
-}
-
-function gatherUrgency(availableCount: number): number {
-	const targetBatchSize = gatherTargetBatchSize
-	const fillRatio = Math.max(0, Math.min(1, availableCount / targetBatchSize))
-	return jobBalance.gather * fillRatio * fillRatio
 }
 
 @reactive
@@ -430,6 +416,9 @@ export class StorageAlveolus extends Alveolus {
 		const freightLines = this.tile?.game?.freightLines
 		const distributeLines =
 			freightLines && freightLines.length > 0 ? findDistributeFreightLines(freightLines, this) : []
+		if (this.tile?.game) {
+			augmentFreightBayGoodsRelationsForConstruction(this.tile.game, this, relations)
+		}
 		if (distributeLines.length > 0) {
 			for (const goodType of Object.keys(relations) as GoodType[]) {
 				if (!distributeLinesAllowGoodType(distributeLines, goodType)) delete relations[goodType]
@@ -449,107 +438,23 @@ export class StorageAlveolus extends Alveolus {
 	get hasLooseGoodsToGather(): boolean {
 		if (this.action?.type !== 'road-fret') return false
 		const hiveNeeds = Object.keys(this.hive.needs) as GoodType[]
-		const hex = this.tile.game.hex
-		const start = toAxialCoord(this.tile.position)
 		for (const line of this.roadFretGatherFreightLines()) {
-			const selectable = gatherSelectableGoodTypes(line, hiveNeeds)
-			if (selectable.length === 0) continue
-			const radius =
-				gatherLoadRadiusForLineAtStop(line, this) ?? DEFAULT_GATHER_FREIGHT_RADIUS
-			if (hex.looseGoods.findNearestGoods(start, start, selectable, radius) !== undefined) {
-				return true
-			}
+			const zoneStop = gatherZoneLoadStopForBay(line, this)
+			if (!zoneStop) continue
+			const pick = pickGatherTargetInZoneStop(
+				this.tile.game,
+				line,
+				zoneStop as FreightStop & { zone: FreightZoneDefinitionRadius },
+				this.tile.position,
+				hiveNeeds,
+				{
+					bayAlveolus: this,
+					canAcceptGood: (good) => this.storage.canStoreAll(goodsWith({}, good)),
+				}
+			)
+			if (pick) return true
 		}
 		return false
-	}
-
-	private nextGatherJob(character?: Character): GatherJob | undefined {
-		if (this.action?.type !== 'road-fret') return undefined
-		if (!this.working || !this.hasLooseGoodsToGather || !this.storage.isEmpty) return undefined
-		const startPos = character ? toAxialCoord(character.position) : toAxialCoord(this.tile.position)
-		const hex = this.tile.game.hex
-		const hiveNeedTypes = Object.keys(this.hive.needs) as GoodType[]
-		const carry = character?.carry
-
-		type BestPick = {
-			line: FreightLineDefinition
-			goodType: GoodType
-			path: Positioned[]
-			count: number
-			pathLen: number
-		}
-		let best: BestPick | undefined
-
-		for (const line of this.roadFretGatherFreightLines()) {
-			const radius =
-				gatherLoadRadiusForLineAtStop(line, this) ?? DEFAULT_GATHER_FREIGHT_RADIUS
-			let selectableGoods = gatherSelectableGoodTypes(line, hiveNeedTypes)
-			if (carry) {
-				const carriedGoods = Object.keys(carry.availables) as GoodType[]
-				selectableGoods = [...new Set([...selectableGoods, ...carriedGoods])]
-				selectableGoods = selectableGoods.filter(
-					(good) =>
-						gatherSegmentAllowsGoodType(line, good) &&
-						carry.hasRoom(good) &&
-						this.storage.canStoreAll(goodsWith(carry.stock, good))
-				)
-			}
-			if (selectableGoods.length === 0) continue
-
-			const goodCounts = Object.fromEntries(selectableGoods.map((good) => [good, 0])) as Goods
-			hex.findNearest(
-				startPos,
-				(pos: Positioned) => {
-					const goodsAtTile = hex.looseGoods.getGoodsAt(pos)
-					for (const good of goodsAtTile) {
-						const gt = good.goodType as GoodType
-						if (good.available && gt in goodCounts) goodCounts[gt]!++
-					}
-					return false
-				},
-				radius,
-				false
-			)
-			const targetGood = Object.entries(goodCounts).reduce(
-				(max, [good, count]) => (count > max.count ? { good: good as GoodType, count } : max),
-				{ good: null as GoodType | null, count: 0 }
-			)
-			if (!targetGood.good) continue
-			const result = hex.looseGoods.findNearestGoods(startPos, startPos, [targetGood.good], radius)
-			if (!result?.path) continue
-			const pick: BestPick = {
-				line,
-				goodType: targetGood.good,
-				path: result.path,
-				count: targetGood.count,
-				pathLen: result.path.length,
-			}
-			if (!best) {
-				best = pick
-				continue
-			}
-			if (pick.count > best.count) {
-				best = pick
-				continue
-			}
-			if (pick.count < best.count) continue
-			if (pick.pathLen < best.pathLen) {
-				best = pick
-				continue
-			}
-			if (pick.pathLen > best.pathLen) continue
-			if (pick.line.id.localeCompare(best.line.id) < 0) best = pick
-		}
-
-		if (!best) return undefined
-		return {
-			job: 'gather',
-			path: best.path,
-			goodType: best.goodType,
-			lineId: best.line.id,
-			urgency: gatherUrgency(best.count),
-			fatigue: this.getFatigueCost(),
-		}
 	}
 
 	setSlottedGeneralSlots(generalSlots: number): void {
@@ -604,10 +509,8 @@ export class StorageAlveolus extends Alveolus {
 		)
 	}
 
-	nextJob(character?: Character): Job | undefined {
+	nextJob(_character?: Character): Job | undefined {
 		return inert(() => {
-			const gatherJob = this.nextGatherJob(character)
-			if (gatherJob) return gatherJob
 			const fragmentedGoodType = this.storage.fragmented
 			return fragmentedGoodType
 				? ({

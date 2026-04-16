@@ -13,7 +13,7 @@ describe('Game freight line lifecycle', () => {
 		await engine.init()
 		try {
 			const scenario: Partial<SaveState> = {
-				hives: [{ name: 'H', alveoli: [{ coord: [0, 0], alveolus: 'gather', goods: {} }] }],
+				hives: [{ name: 'H', alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }] }],
 			}
 			engine.loadScenario(scenario)
 			const implicit = engine.game.freightLines.find((l) => isImplicitGatherFreightLineId(l.id))
@@ -30,7 +30,9 @@ describe('Game freight line lifecycle', () => {
 		await engine.init()
 		try {
 			const scenario: Partial<SaveState> = {
-				hives: [{ name: 'HiveX', alveoli: [{ coord: [0, 0], alveolus: 'gather', goods: {} }] }],
+				hives: [
+					{ name: 'HiveX', alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }] },
+				],
 			}
 			engine.loadScenario(scenario)
 			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content

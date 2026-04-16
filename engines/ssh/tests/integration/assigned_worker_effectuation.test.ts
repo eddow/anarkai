@@ -21,7 +21,7 @@ describe('Assigned worker effectuation', () => {
 					{
 						name: 'AssignedGatherHive',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'gather', goods: {} },
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
 							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
 						],
 					},
@@ -36,9 +36,23 @@ describe('Assigned worker effectuation', () => {
 			expect(gather).toBeDefined()
 			if (!gather) throw new Error('Expected gatherer to exist')
 
+			const line = engine.game.freightLines[0]
+			if (!line) throw new Error('Expected implicit gather freight line for road-fret bay')
+
 			const worker = engine.spawnCharacter('AssignedGatherWorker', { q: 0, r: 0 })
 			worker.role = 'worker'
 			void worker.scriptsContext
+
+			const vehicle = engine.game.vehicles.createVehicle(
+				'assigned-wb',
+				'wheelbarrow',
+				{ q: 0, r: 0 },
+				[line]
+			)
+			vehicle.beginService(line, line.stops[0]!, worker)
+			worker.operates = vehicle
+			worker.onboard()
+
 			worker.assignedAlveolus = gather
 			gather.assignedWorker = worker
 
@@ -46,7 +60,7 @@ describe('Assigned worker effectuation', () => {
 			expect(firstAction).toBeDefined()
 			expect(firstAction?.name).toBe('work.goWork')
 			expect(
-				worker.resolveBestJobMatch()?.targetTile.content,
+				worker.resolveBestJobMatch()?.targetTile?.content,
 				'best job should respect assignment'
 			).toBe(gather.tile.content)
 			expect(worker.assignedAlveolus).toBe(gather)

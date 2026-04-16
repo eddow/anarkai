@@ -55,8 +55,18 @@
 			"construct": "Construct",
 			"offload": "Offload",
 			"foundation": "Foundation",
-			"defragment": "Defragment"
-		}
+			"defragment": "Defragment",
+			"loadOntoVehicle": "Load onto vehicle"
+		},
+		"operates": "Operates"
+	},
+	"vehicle": {
+		"operator": "Operator",
+		"service": "Service",
+		"idle": "Idle",
+		"offloadService": "Offload",
+		"docked": "Docked",
+		"underway": "Underway"
 	},
 	"step": {
 		"idle": "Idle",

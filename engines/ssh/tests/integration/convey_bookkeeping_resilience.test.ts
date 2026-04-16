@@ -201,7 +201,7 @@ describe('Convey bookkeeping resilience', () => {
 
 			const trackedEntries = Array.from(sawmill.hive.movingGoods.entries())
 				.filter(([, goods]: [any, any[]]) =>
-					goods.some((candidate) => candidate._mgId === movement._mgId)
+					goods.some((candidate) => candidate?.ref === movement.ref)
 				)
 				.map(([coord]: [any, any[]]) => axial.key(coord))
 
@@ -325,7 +325,7 @@ describe('Convey bookkeeping resilience', () => {
 
 			movement.claimed = true
 			movement.claimedAtMs = Date.now() - 10_000
-			sawmill.hive.removeMovementFromCoordTracking?.(movement._mgId)
+			;(sawmill.hive as any).removeMovementFromCoordTracking?.(movement)
 
 			const warnings: string[] = []
 			const noop = () => {}

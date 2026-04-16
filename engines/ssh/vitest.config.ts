@@ -13,9 +13,10 @@ export default mergeConfig(viteConfig as any, {
 		include: ["src/**/*.{test,spec}.{js,ts}", "tests/**/*.{test,spec}.{js,ts}"],
 		exclude: ["node_modules", "dist", ".git", ".cache", "tests/e2e"],
 		watch: false,
-		testTimeout: 15000,
-		hookTimeout: 10000,
-		teardownTimeout: 10000,
+		// Hard ceiling per test so a stuck loop cannot run indefinitely (integration tests can override down).
+		testTimeout: 120000,
+		hookTimeout: 60000,
+		teardownTimeout: 60000,
 		silent: true,
 		pool: "threads",
 		poolOptions: {

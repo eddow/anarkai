@@ -1,7 +1,11 @@
+/** Axial distance within which idle vehicles may consider vehicle-offload burdened tiles. */
+export const offloadRange = 6
+
 export const vehicles = {
-	'by-hands': {
+	/** Line freight carrier (world `VehicleEntity` + operated storage when driving). */
+	wheelbarrow: {
 		storage: { capacity: 1, slots: 2 },
-		walkTime: 1, // Time to walk by foot
-		transferTime: 1.5, // Slightly slower so hand-offs remain visible
+		walkTime: 1.45,
+		transferTime: 1.5,
 	},
 } as const

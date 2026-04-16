@@ -173,7 +173,8 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 		if (!draft) return
 		game.replaceFreightLine(draft)
 		const merged =
-			game.freightLines.find((line) => line.id === draft.id) ?? normalizeFreightLineDefinition(draft)
+			game.freightLines.find((line) => line.id === draft.id) ??
+			normalizeFreightLineDefinition(draft)
 		selectInspectorObject(createSyntheticFreightLineObject(game, merged))
 	}
 

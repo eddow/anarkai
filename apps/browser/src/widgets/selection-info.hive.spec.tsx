@@ -14,8 +14,8 @@ const hive = {
 	working: true,
 	alveoli: [
 		{
-			name: 'gather',
-			action: { type: 'gather' },
+			name: 'freight_bay',
+			action: { type: 'road-fret', kind: 'slotted', capacity: 2, slots: 4 },
 			goodsRelations: {
 				wood: { advertisement: 'provide', priority: '1-buffer' },
 			},

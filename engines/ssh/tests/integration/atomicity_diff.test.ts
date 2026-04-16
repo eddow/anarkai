@@ -1,12 +1,11 @@
 import { getActivationLog } from 'mutts'
 import { traces } from 'ssh/debug'
-import type { SaveState } from 'ssh/game'
+import type { Game, SaveState } from 'ssh/game'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
 
 describe('Atomicity & Environment Investigation', () => {
-	// Setup identical to gather_convey.test.ts
 	async function setupEngine(options: any = { terrainSeed: 1234, characterCount: 0 }) {
 		const engine = new TestEngine(options)
 		await engine.init()
@@ -27,24 +26,28 @@ describe('Atomicity & Environment Investigation', () => {
 			{
 				name: 'GatherHive',
 				alveoli: [
-					{ coord: [0, 0], alveolus: 'gather', goods: {} },
+					{ coord: [0, 0], alveolus: 'freight_bay', goods: { berries: 4 } },
 					{ coord: [1, 0], alveolus: 'storage', goods: {} },
 				],
 			},
 		],
-		looseGoods: [
-			{ goodType: 'berries', position: { q: 0, r: 1 } },
-			{ goodType: 'berries', position: { q: 0, r: 1 } },
-			{ goodType: 'berries', position: { q: 0, r: 1 } },
-			{ goodType: 'berries', position: { q: 0, r: 1 } },
-		],
+	}
+
+	function storageBerriesAt(game: Game): number {
+		const finalTile = game.hex.getTile({ q: 1, r: 0 })
+		const finalContent = finalTile?.content
+		if (finalContent instanceof StorageAlveolus) {
+			return finalContent.storage?.stock?.berries ?? 0
+		}
+		const s = (finalContent as { storage?: { stock?: { berries?: number } } })?.storage
+		return s?.stock?.berries ?? 0
 	}
 
 	/**
-	 * Helper to run the simulation
-	 * @param mode 'batched' wraps the tick in a batch (simulating zoned rAF). 'unbatched' runs tick raw (simulating disabled rAF).
+	 * Berry convey from freight_bay to adjacent storage; stops as soon as storage receives berries
+	 * (same assertion as before: storageStock > 0), with a hard cap instead of 400 fixed microtask drains.
 	 */
-	async function runSimulation(mode: 'batched' | 'unbatched') {
+	it('conveys berries into adjacent storage without max effect chain overflow', async () => {
 		const { engine, game, spawnWorker } = await setupEngine()
 		const previousAdvertisingTrace = traces.advertising
 		traces.advertising = console
@@ -61,16 +64,18 @@ describe('Atomicity & Environment Investigation', () => {
 			await new Promise((resolve) => setTimeout(resolve, 0))
 
 			spawnWorker({ q: 0, r: 0 })
-			// One worker at storage is enough to complete convey once berries arrive; two workers can race the same loose stack.
 			spawnWorker({ q: 1, r: 0 })
 
-			// Run loop
 			const dt = 0.1
-			const totalSteps = 40 / dt
+			const maxSimSeconds = 40
+			let elapsed = 0
+			let storageStock = 0
 
-			for (let i = 0; i < totalSteps; i++) {
+			while (elapsed < maxSimSeconds) {
 				engine.tick(dt, dt)
-				await new Promise((resolve) => setTimeout(resolve, 0))
+				storageStock = storageBerriesAt(game)
+				if (storageStock > 0) break
+				elapsed += dt
 			}
 
 			let looseBerries = 0
@@ -83,12 +88,10 @@ describe('Atomicity & Environment Investigation', () => {
 				0
 			)
 
-			const finalTile = game.hex.getTile({ q: 1, r: 0 })
-			const finalContent = finalTile?.content as any
-			const finalStorage = finalContent?.storage
+			const finalStorage = (game.hex.getTile({ q: 1, r: 0 })?.content as any)?.storage
 			const gathererStorage = gatherer?.storage
 
-			console.log(`[Test] Mode ${mode} | Total Berries on Board:
+			console.log(`[Test] Atomicity | Total Berries on Board:
             Gatherer: ${gathererStorage?.stock.berries || 0}
             Storage: ${finalStorage?.stock.berries || 0}
             Loose: ${looseBerries}
@@ -96,10 +99,7 @@ describe('Atomicity & Environment Investigation', () => {
             Total: ${(gathererStorage?.stock.berries || 0) + (finalStorage?.stock.berries || 0) + looseBerries + workerBerries}
         `)
 
-			return {
-				gathererStock: gathererStorage?.stock.berries || 0,
-				storageStock: finalStorage?.stock.berries || 0,
-			}
+			expect(storageStock).toBeGreaterThan(0)
 		} catch (error) {
 			if (error instanceof Error && error.message.includes('Max effect chain')) {
 				const recentActivations = getActivationLog()
@@ -117,15 +117,5 @@ describe('Atomicity & Environment Investigation', () => {
 			traces.advertising = previousAdvertisingTrace
 			await engine.destroy()
 		}
-	}
-
-	it('should work when batched (Test/Zoned simulation)', async () => {
-		const result = await runSimulation('batched')
-		expect(result.storageStock).toBeGreaterThan(0)
-	})
-
-	it('should work when unbatched (Browser simulation - currently works due to Fix)', async () => {
-		const result = await runSimulation('unbatched')
-		expect(result.storageStock).toBeGreaterThan(0)
 	})
 })

@@ -54,12 +54,7 @@ describe('FreightStopList', () => {
 		expect(() => {
 			stop = latch(
 				container,
-				<FreightStopList
-					draft={undefined}
-					game={{} as never}
-					readOnly={false}
-					onChange={vi.fn()}
-				/>
+				<FreightStopList draft={undefined} game={{} as never} readOnly={false} onChange={vi.fn()} />
 			)
 		}).not.toThrow()
 

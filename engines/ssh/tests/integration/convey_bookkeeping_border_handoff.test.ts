@@ -68,7 +68,7 @@ describe('Convey bookkeeping border source rebind', () => {
 				{
 					type: 'convey.path',
 					goodType: movement.goodType,
-					movementId: movement._mgId,
+					movementRef: movement.ref,
 					providerRef: movement.provider,
 					demanderRef: movement.demander,
 					providerName: movement.provider.name,
@@ -104,7 +104,7 @@ describe('Convey bookkeeping border source rebind', () => {
 				{
 					type: 'convey.path',
 					goodType: movement.goodType,
-					movementId: movement._mgId,
+					movementRef: movement.ref,
 					providerRef: movement.provider,
 					demanderRef: movement.demander,
 					providerName: movement.provider.name,
@@ -117,7 +117,7 @@ describe('Convey bookkeeping border source rebind', () => {
 
 			const trackedEntries = Array.from(sawmill.hive.movingGoods.entries())
 				.filter(([, goods]: [any, any[]]) =>
-					goods.some((candidate) => candidate._mgId === movement._mgId)
+					goods.some((candidate) => candidate?.ref === movement.ref)
 				)
 				.map(([coord]: [any, any[]]) => axial.key(coord))
 

@@ -46,8 +46,8 @@ describe('summarizeHiveGoodsRelations', () => {
 				},
 			},
 			{
-				name: 'gather',
-				action: { type: 'gather' },
+				name: 'freight_bay',
+				action: { type: 'road-fret', kind: 'slotted', capacity: 2, slots: 4 },
 				goodsRelations: {
 					wood: { advertisement: 'provide', priority: '2-use' },
 				},
@@ -59,7 +59,7 @@ describe('summarizeHiveGoodsRelations', () => {
 				goodType: 'wood',
 				advertisement: 'provide',
 				priority: '2-use',
-				types: ['storage', 'gather'],
+				types: ['storage', 'road-fret'],
 			},
 		])
 	})

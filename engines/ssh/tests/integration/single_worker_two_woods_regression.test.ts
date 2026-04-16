@@ -8,6 +8,12 @@ async function flushDeferred(turns: number = 3) {
 	}
 }
 
+const TIMELINE_TAIL = 48
+function pushTimelineSample(timeline: string[], line: string) {
+	if (timeline.length >= TIMELINE_TAIL) timeline.shift()
+	timeline.push(line)
+}
+
 describe('Single worker gather->sawmill regression', () => {
 	it('moves and transforms two starting wood with one worker without stalling the second reserved wood', {
 		timeout: 30000,
@@ -21,7 +27,7 @@ describe('Single worker gather->sawmill regression', () => {
 					{
 						name: 'SingleWorkerGatherSawmill',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'gather', goods: { wood: 2 } },
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 2 } },
 							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
 						],
 					},
@@ -46,9 +52,10 @@ describe('Single worker gather->sawmill regression', () => {
 			const timeline: string[] = []
 			let reachedGoal = false
 
-			for (let i = 0; i < 200; i++) {
+			const maxTicksFirst = 160
+			for (let i = 0; i < maxTicksFirst; i++) {
 				engine.tick(0.25)
-				if (i % 4 === 0) await flushDeferred(1)
+				if (i % 8 === 0) await flushDeferred(1)
 
 				const gatherWood = gather.storage.stock.wood || 0
 				const sawmillWood = sawmill.storage.stock.wood || 0
@@ -63,9 +70,10 @@ describe('Single worker gather->sawmill regression', () => {
 				const sawmillReservedWood = sawmillWoodSlot?.reserved || 0
 				const assigned = worker.assignedAlveolus?.name ?? 'none'
 
-				timeline.push(
-					`tick=${i} gatherWood=${gatherWood} gatherReserved=${gatherReserved} sawmillWood=${sawmillWood} sawmillReservedWood=${sawmillReservedWood} planks=${sawmillPlanks} woodMovements=${woodMovements.length} assigned=${assigned} action=${worker.actionDescription.join('/') || 'none'} gatherJob=${gather.getJob?.(worker)?.job ?? 'none'} sawmillJob=${sawmill.getJob?.(worker)?.job ?? 'none'}`
-				)
+				const line = `tick=${i} gatherWood=${gatherWood} gatherReserved=${gatherReserved} sawmillWood=${sawmillWood} sawmillReservedWood=${sawmillReservedWood} planks=${sawmillPlanks} woodMovements=${woodMovements.length} assigned=${assigned} action=${worker.actionDescription.join('/') || 'none'} gatherJob=${gather.getJob?.(worker)?.job ?? 'none'} sawmillJob=${sawmill.getJob?.(worker)?.job ?? 'none'}`
+				if (i % 12 === 0 || sawmillPlanks > 0 || gatherWood < 2) {
+					pushTimelineSample(timeline, line)
+				}
 
 				if (sawmillPlanks >= 2 && gatherWood === 0) {
 					reachedGoal = true
@@ -76,85 +84,6 @@ describe('Single worker gather->sawmill regression', () => {
 			expect(reachedGoal, timeline.join('\n')).toBe(true)
 			expect(sawmill.storage.stock.planks || 0, timeline.join('\n')).toBe(2)
 			expect(gather.storage.stock.wood || 0, timeline.join('\n')).toBe(0)
-		} finally {
-			await engine.destroy()
-		}
-	})
-
-	it('does not stall after dropping two loose woods into gatherer with one worker', {
-		timeout: 30000,
-	}, async () => {
-		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
-		await engine.init()
-
-		try {
-			const scenario: Partial<SaveState> = {
-				hives: [
-					{
-						name: 'SingleWorkerDropThenConvey',
-						alveoli: [
-							{ coord: [0, 0], alveolus: 'gather', goods: {} },
-							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
-						],
-					},
-				],
-				looseGoods: [
-					{ position: { q: 0, r: 1 }, goodType: 'wood' },
-					{ position: { q: 0, r: 1 }, goodType: 'wood' },
-				],
-			}
-			engine.loadScenario(scenario)
-			await flushDeferred()
-
-			const gather = engine.game.hex.getTile({ q: 0, r: 0 })?.content as any
-			const sawmill = engine.game.hex.getTile({ q: 1, r: 0 })?.content as any
-			expect(gather).toBeDefined()
-			expect(sawmill).toBeDefined()
-			if (!gather || !sawmill) throw new Error('Expected gatherer and sawmill to exist')
-
-			const worker = engine.spawnCharacter('SoloWorker', { q: 0, r: 0 })
-			worker.role = 'worker'
-			worker.hunger = 0
-			void worker.scriptsContext
-			const action = worker.findAction()
-			if (action) worker.begin(action)
-
-			const timeline: string[] = []
-			let sawSecondWoodQueued = false
-			let reachedGoal = false
-
-			for (let i = 0; i < 260; i++) {
-				engine.tick(0.25)
-				if (i % 4 === 0) await flushDeferred(1)
-
-				const gatherWood = gather.storage.stock.wood || 0
-				const sawmillWood = sawmill.storage.stock.wood || 0
-				const sawmillPlanks = sawmill.storage.stock.planks || 0
-				const movements = Array.from(gather.hive.movingGoods.values()).flat()
-				const woodMovements = movements.filter((mg: any) => mg.goodType === 'wood')
-				const gatherSlots = gather.storage.renderedGoods()?.slots ?? []
-				const woodSlot = gatherSlots.find((slot: any) => slot.goodType === 'wood')
-				const gatherReserved = woodSlot?.reserved || 0
-				const sawmillSlots = sawmill.storage.renderedGoods()?.slots ?? []
-				const sawmillWoodSlot = sawmillSlots.find((slot: any) => slot.goodType === 'wood')
-				const sawmillReservedWood = sawmillWoodSlot?.reserved || 0
-
-				if (gatherWood >= 1 && (gatherReserved >= 1 || woodMovements >= 1 || sawmillWood >= 1)) {
-					sawSecondWoodQueued = true
-				}
-				if (sawmillPlanks >= 2) {
-					reachedGoal = true
-					break
-				}
-
-				timeline.push(
-					`tick=${i} gatherWood=${gatherWood} gatherReserved=${gatherReserved} sawmillWood=${sawmillWood} sawmillReservedWood=${sawmillReservedWood} planks=${sawmillPlanks} woodMovements=${woodMovements.length} assigned=${worker.assignedAlveolus?.name ?? 'none'} action=${worker.actionDescription.join('/') || 'none'} gatherJob=${gather.getJob?.(worker)?.job ?? 'none'} sawmillJob=${sawmill.getJob?.(worker)?.job ?? 'none'}`
-				)
-			}
-
-			expect(sawSecondWoodQueued, timeline.join('\n')).toBe(true)
-			expect(reachedGoal, timeline.join('\n')).toBe(true)
-			expect(sawmill.storage.stock.planks || 0, timeline.join('\n')).toBe(2)
 		} finally {
 			await engine.destroy()
 		}
@@ -172,7 +101,7 @@ describe('Single worker gather->sawmill regression', () => {
 					{
 						name: 'SingleWorkerBuildDemand',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'gather', goods: { wood: 2 } },
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 2 } },
 							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
 							{ coord: [2, 0], alveolus: 'storage', goods: {} },
 						],
@@ -204,9 +133,10 @@ describe('Single worker gather->sawmill regression', () => {
 			let incomingOnlyStreak = 0
 			let sawAnyProgress = false
 
-			for (let i = 0; i < 260; i++) {
+			const maxTicksSecond = 220
+			for (let i = 0; i < maxTicksSecond; i++) {
 				engine.tick(0.25)
-				if (i % 4 === 0) await flushDeferred(1)
+				if (i % 8 === 0) await flushDeferred(1)
 
 				const gatherWood = gather.storage.stock.wood || 0
 				const sawmillPlanks = sawmill.storage.stock.planks || 0
@@ -227,9 +157,10 @@ describe('Single worker gather->sawmill regression', () => {
 				else incomingOnlyStreak = 0
 				if (incomingOnlyStreak >= 24) prolongedPinnedIncomingOnly = true // ~6s
 
-				timeline.push(
-					`tick=${i} gatherWood=${gatherWood} sawmillPlanks=${sawmillPlanks} storageWood=${storageWood} storagePlanks=${storagePlanks} assigned=${assigned} incoming=${incoming} hasMove=${hasAGoodMovement} action=${actionDesc}`
-				)
+				const line2 = `tick=${i} gatherWood=${gatherWood} sawmillPlanks=${sawmillPlanks} storageWood=${storageWood} storagePlanks=${storagePlanks} assigned=${assigned} incoming=${incoming} hasMove=${hasAGoodMovement} action=${actionDesc}`
+				if (incomingOnlyStreak > 0 || incomingOnly || i % 16 === 0) {
+					pushTimelineSample(timeline, line2)
+				}
 			}
 
 			expect(prolongedPinnedIncomingOnly, timeline.join('\n')).toBe(false)

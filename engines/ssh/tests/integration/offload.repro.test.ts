@@ -1,5 +1,7 @@
+import { toAxialCoord } from 'ssh/utils/position'
 import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
+import { bindOperatedWheelbarrowOffload } from '../test-engine/vehicle-bind'
 
 describe('Offload Silent Cancellation Reproduction', () => {
 	it('Reproduction: Offload work cancels silently', async () => {
@@ -27,6 +29,10 @@ describe('Offload Silent Cancellation Reproduction', () => {
 			const goodsAtTile = game.hex.looseGoods.getGoodsAt(targetTile.position)
 			expect(goodsAtTile.some((g) => g.goodType === 'wood')).toBe(true)
 
+			const vehicle = game.vehicles.createVehicle('wb-offload-repro', 'wheelbarrow', char.position)
+			bindOperatedWheelbarrowOffload(char, vehicle)
+			char.onboard()
+
 			// Use default scriptsContext which has all scripts loaded
 			const context = char.scriptsContext as any
 
@@ -35,14 +41,16 @@ describe('Offload Silent Cancellation Reproduction', () => {
 
 			context.find.path = (_dest: any) => [targetTile]
 
-			const work = (context as any).work
-			if (!work.offload) throw new Error('offload not loaded')
+			const vehicleNs = (context as any).vehicle
+			if (!vehicleNs?.vehicleOffload) throw new Error('vehicleOffload not loaded')
 
 			// Construct Plan
 			const plan = {
 				type: 'work',
-				job: 'offload',
-				target: targetTile,
+				job: 'vehicleOffload' as const,
+				target: vehicle,
+				vehicleUid: vehicle.uid,
+				targetCoord: toAxialCoord(targetTile.position)!,
 				urgency: 1,
 				fatigue: 0,
 				looseGood,
@@ -50,7 +58,8 @@ describe('Offload Silent Cancellation Reproduction', () => {
 			}
 
 			context.plan.begin(plan)
-			const execution = work.offload(plan)
+			vehicleNs.ensureVehicleOffloadPickupPlan(plan)
+			const execution = vehicleNs.vehicleOffload({ ...plan, path: [] })
 			let result = execution.run(context)
 			let loops = 0
 			while (result && result.type === 'yield' && loops < 50) {

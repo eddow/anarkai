@@ -1,10 +1,17 @@
-import type { FreightLineDefinition, FreightStop, FreightStopAnchorAlveolus } from 'ssh/freight/freight-line'
+import type {
+	FreightLineDefinition,
+	FreightStop,
+	FreightStopAnchorAlveolus,
+} from 'ssh/freight/freight-line'
 import {
 	DEFAULT_GATHER_FREIGHT_RADIUS,
 	normalizeFreightLineDefinition,
 } from 'ssh/freight/freight-line'
 import type { GoodSelectionPolicy } from 'ssh/freight/goods-selection-policy'
-import { isUnrestrictedGoodsSelectionPolicy, normalizeGoodSelectionPolicy } from 'ssh/freight/goods-selection-policy'
+import {
+	isUnrestrictedGoodsSelectionPolicy,
+	normalizeGoodSelectionPolicy,
+} from 'ssh/freight/goods-selection-policy'
 
 export type FreightDraftIssueCode = 'no_stops' | 'no_freight_bay_anchor' | 'invalid_zone_radius'
 
@@ -12,10 +19,7 @@ export function freightDraftIssueCodes(line: FreightLineDefinition): FreightDraf
 	const issues: FreightDraftIssueCode[] = []
 	if (line.stops.length === 0) issues.push('no_stops')
 	const hasBay = line.stops.some(
-		(s) =>
-			'anchor' in s &&
-			s.anchor.kind === 'alveolus' &&
-			s.anchor.alveolusType === 'freight_bay'
+		(s) => 'anchor' in s && s.anchor.kind === 'alveolus' && s.anchor.alveolusType === 'freight_bay'
 	)
 	if (!hasBay) issues.push('no_freight_bay_anchor')
 	for (const stop of line.stops) {
@@ -75,7 +79,10 @@ export function newFreightStopId(): string {
 	return `stop-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
 }
 
-export function addFreightDraftStop(line: FreightLineDefinition, insertIndex: number): FreightLineDefinition {
+export function addFreightDraftStop(
+	line: FreightLineDefinition,
+	insertIndex: number
+): FreightLineDefinition {
 	const stops = [...line.stops]
 	const placeholderAnchor: FreightStopAnchorAlveolus = {
 		kind: 'alveolus',
@@ -91,11 +98,18 @@ export function addFreightDraftStop(line: FreightLineDefinition, insertIndex: nu
 	return { ...line, stops }
 }
 
-export function removeFreightDraftStop(line: FreightLineDefinition, index: number): FreightLineDefinition {
+export function removeFreightDraftStop(
+	line: FreightLineDefinition,
+	index: number
+): FreightLineDefinition {
 	return { ...line, stops: line.stops.filter((_, i) => i !== index) }
 }
 
-export function moveFreightDraftStop(line: FreightLineDefinition, from: number, to: number): FreightLineDefinition {
+export function moveFreightDraftStop(
+	line: FreightLineDefinition,
+	from: number,
+	to: number
+): FreightLineDefinition {
 	if (from === to) return line
 	const stops = [...line.stops]
 	const [item] = stops.splice(from, 1)

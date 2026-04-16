@@ -63,14 +63,17 @@ css`/*
 
 .character-actions {
 	font-size: 0.875rem;
+	min-width: 0;
+	max-width: 100%;
 }
 
 .character-actions__path {
 	display: block;
+	width: 100%;
 	max-width: 100%;
-	overflow: hidden;
+	overflow-x: auto;
+	overflow-y: hidden;
 	white-space: nowrap;
-	text-overflow: ellipsis;
 	font-family: ui-monospace, monospace;
 	color: var(--ak-text-muted);
 }
@@ -218,7 +221,6 @@ const activityBadgeColors: Record<Ssh.ActivityType, AnarkaiBadgeTone> = {
 	rest: 'indigo',
 	convey: 'blue',
 	idle: 'gray',
-	gather: 'pink',
 }
 
 const plannerChoiceLimit = 6
@@ -230,11 +232,6 @@ function formatPlannerUtility(value: number): string {
 
 function utilityBarPercent(value: number): number {
 	return Math.max(0, Math.min(100, value))
-}
-
-function summarizeActionPath(actions: string[]): string {
-	if (actions.length <= 2) return actions.join(' / ')
-	return `${actions[0]} / … / ${actions[actions.length - 1]}`
 }
 
 function plannerKindLabel(kind: NextActivityKind): string {
@@ -263,8 +260,8 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 				? props.character.actionDescription
 				: []
 		},
-		get actionPathSummary() {
-			return summarizeActionPath(computed.actions)
+		get actionPathText() {
+			return computed.actions.join(' / ')
 		},
 		get stepEvolution() {
 			return computed.step && !(computed.step instanceof ALerpStep)
@@ -318,6 +315,9 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 			const line = findFreightLineForStop(props.character.game.freightLines, alveolus)
 			return line ? createSyntheticFreightLineObject(props.character.game, line) : undefined
 		},
+		get operatedVehicle() {
+			return props.character?.operates
+		},
 	}
 
 	effect`character-properties:title`(() => {
@@ -357,6 +357,15 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 							getBadgeProps={(g) => ({ qty: computed.goods[g] })}
 						/>
 					</PropertyGridRow>
+					<PropertyGridRow
+						if={computed.operatedVehicle}
+						label={i18nState.translator?.character?.operates ?? 'Operates'}
+					>
+						<div class="character-linked-object">
+							<LinkedEntityControl object={computed.operatedVehicle!} />
+							<InspectorObjectLink object={computed.operatedVehicle!} />
+						</div>
+					</PropertyGridRow>
 					<PropertyGridRow label={i18nState.translator?.character.currentActivity ?? ''}>
 						<div class="character-activity">
 							<Badge
@@ -376,12 +385,8 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 					</PropertyGridRow>
 					<PropertyGridRow>
 						<Panel class="character-actions" if={computed.actions.length > 0}>
-							<span
-								class="character-actions__path"
-								title={computed.actions.join(' / ')}
-								data-testid="character-action-path"
-							>
-								{computed.actionPathSummary}
+							<span class="character-actions__path" data-testid="character-action-path">
+								{computed.actionPathText}
 							</span>
 						</Panel>
 						<Panel else class="character-actions__empty">

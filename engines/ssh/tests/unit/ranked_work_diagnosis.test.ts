@@ -63,7 +63,7 @@ describe('Ranked work diagnostics', () => {
 		}
 	})
 
-	it('keeps a convey candidate visible when a higher-priority work job wins', async () => {
+	it('keeps a convey candidate visible in diagnostics when it wins best-work selection', async () => {
 		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
 		await engine.init()
 
@@ -102,9 +102,9 @@ describe('Ranked work diagnostics', () => {
 			const ranked = worker.lastWorkPlannerSnapshot!.ranked
 			expect(ranked.some((candidate) => candidate.jobKind === 'convey')).toBe(true)
 			const winner = ranked.find((candidate) => candidate.selected)
-			expect(winner?.jobKind).toBe('offload')
+			expect(winner?.jobKind).toBe('convey')
 			const convey = ranked.find((candidate) => candidate.jobKind === 'convey')
-			expect(convey?.selected).toBe(false)
+			expect(convey?.selected).toBe(true)
 		} finally {
 			await engine.destroy()
 		}

@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
 import { Tile } from 'ssh/board/tile'
 import { StorageAlveolus } from 'ssh/hive/storage'
+import { describe, expect, it, vi } from 'vitest'
 import { cancelFreightMapPick, freightMapPick, tryConsumeFreightMapPick } from './freight-map-pick'
 
 const makeTile = (position: { q: number; r: number }, content?: unknown): Tile => {

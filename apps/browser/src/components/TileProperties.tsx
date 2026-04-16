@@ -91,9 +91,7 @@ const toDisplayText = (value: unknown, fallback = ''): string => {
 	}
 }
 
-const resolveAlveolusVisualType = (
-	content: Alveolus
-): keyof typeof visualAlveoli | undefined => {
+const resolveAlveolusVisualType = (content: Alveolus): keyof typeof visualAlveoli | undefined => {
 	if (content instanceof BuildAlveolus) {
 		return content.target as keyof typeof visualAlveoli
 	}

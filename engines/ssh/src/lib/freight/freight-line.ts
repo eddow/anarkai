@@ -116,12 +116,18 @@ export function freightLineIdFromUid(uid: string): string | undefined {
 
 export function freightStopAnchorMatchesAlveolus(
 	anchor: FreightStopAnchor,
-	alveolus: { hive: { name?: string }; name: string; tile: { position: Positioned } }
+	alveolus: {
+		hive?: { name?: string } | null
+		name: string
+		tile?: { position: Positioned } | null
+	}
 ): boolean {
 	if (anchor.kind !== 'alveolus') return false
-	const coord = toAxialCoord(alveolus.tile.position)
+	const tile = alveolus.tile
+	if (!tile) return false
+	const coord = toAxialCoord(tile.position)
 	if (!coord) return false
-	const hiveName = freightLineStopHiveName(alveolus.hive.name)
+	const hiveName = freightLineStopHiveName(alveolus.hive?.name)
 	return (
 		anchor.hiveName === hiveName &&
 		canonicalFreightLineStopAlveolusType(anchor.alveolusType) ===

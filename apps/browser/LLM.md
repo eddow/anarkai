@@ -66,6 +66,11 @@ Most of the time, onChange, onInput etc are useless and should be avoided. Two-w
 
 **Note:** Always add explicit type annotations to the callback parameter (e.g., `(item: ItemType)`) for proper TypeScript inference.
 
+# Selection inspector (characters / vehicles)
+
+- **`VehicleProperties`** (`src/components/VehicleProperties.tsx`): selected **`VehicleEntity`** objects render here (routed from `selection-info.tsx`). Header uses **`EntityBadge`** with the base vehicle sprite from **`engine-pixi/assets/visual-content`** / **`vehicleTextureKey`**. Rows: **operator** (`LinkedEntityControl` + **`InspectorObjectLink`**), **goods** (`storage.stock` via **`GoodsList`**), **service** (idle / offload / line stop + docked state; line service also links the synthetic freight line from **`createSyntheticFreightLineObject`**). **`CharacterProperties`** adds an **Operates** row when `character.operates` is set, linking back to that vehicle. **Sursaut rebuild fence:** do not assign `const spriteKey = f(props.vehicle…)` in the component body — `props.vehicle` tracks `selectionState.selectedUid` via the parent; a bare read retriggers the body when selection changes. Put the sprite key in JSX (e.g. `sprite={resolveVehicleSpriteKey(props.vehicle.vehicleType)}`) or an **`effect`** instead.
+- **Component tests:** mock **`./InspectorObjectLink`** in **`CharacterProperties.spec.tsx`** so the spec does not import **`@sursaut/kit/dom`** via **`follow-selection`** / **`globals`** (avoids `window.addEventListener` / `EventTarget` issues under jsdom).
+
 # Inspector goods / tags UI
 
 - **`ComboDropdownPicker`** (`src/components/ComboDropdownPicker.tsx`): combo-style dropdown — trigger stays in flow; menu is **`position: absolute`** (`top: 100%`, `left: 0`, `min-width: 100%`) under the trigger; full-screen **`position: fixed`** backdrop behind it for outside dismiss; wrapper gets **`z-index`** + **`isolation: isolate`** when open. Modes: **`icon`** (uses shared **`Button`**) or **`value`** (native-looking text + caret). **`goodsAddComboIcon`** / **`tagsAddComboIcon`**: **`tablerOutlinePackage`** / **`tablerOutlineTags`** from `pure-glyf/icons` via **`renderAnarkaiIcon`**, plus a small green **`+`** overlay. Optional **`renderValueTrigger`** on **`value`** mode replaces the label span before the caret (used for tag icon + label on the trigger).

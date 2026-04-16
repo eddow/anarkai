@@ -1,36 +1,37 @@
 import type { Contract, ContractType } from 'ssh/types'
 
 // Contracts defined using pure string arrays validated by contractScope in arktype.ts
+// List of functions (scripts) that are defined *in the npcs* - the contracts defined in ts (steps, ...) are defined there, no need for them here.
 export const CharacterContract = {
 	walk: {
 		into: ['Position[]'],
 		until: ['Position[]'],
-	},
-	inventory: {
-		dropAllLoose: [],
-		makeRoom: [],
-		dropStored: ['Goods', 'Positioned', 'Position[]?', 'boolean?'],
-		grabStored: ['Goods', 'Positioned', 'Position[]?', 'boolean?'],
-		grabLoose: ['GoodType | null', 'Positioned', 'Position[]?', 'boolean?'],
+		untilTileBorder: ['Position[]'],
+		stepUntilGood: ['Positioned'],
 	},
 	selfCare: {
 		goEat: [],
 		goHome: [],
 		wander: [],
+		eatFromWorld: ['GoodType', 'Tile'],
 	},
 	work: {
-		goWork: ['WorkPlan', 'Position[]'],
+		goWork: ['WorkPlan'],
 		harvest: ['WorkPlan'],
 		convey: ['WorkPlan'],
-		offload: ['WorkPlan'],
-		gather: ['WorkPlan'],
+		vehicleOffload: ['WorkPlan'],
 		transform: ['WorkPlan'],
 		construct: ['WorkPlan'],
 		foundation: ['WorkPlan'],
 		defragment: ['WorkPlan'],
-		freightDeliver: ['WorkPlan'],
-		freightDeliverPickedUp: ['GoodType', 'number'],
-		freightDeliverUnloaded: ['GoodType', 'number'],
+		vehicleHop: ['WorkPlan'],
+		zoneBrowse: ['WorkPlan'],
+		ensureVehicleOffloadPickupPlan: ['WorkPlan'],
+	},
+	vehicle: {
+		vehicleHop: ['WorkPlan'],
+		zoneBrowse: ['WorkPlan'],
+		vehicleOffload: ['WorkPlan'],
 	},
 } as const satisfies Contract
 

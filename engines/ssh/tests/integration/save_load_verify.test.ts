@@ -93,8 +93,10 @@ vi.mock('ssh/assets/game-content', () => {
 	)
 	return {
 		vehicles: {
-			'by-hands': {
+			wheelbarrow: {
 				storage: { slots: 10, capacity: 100 },
+				walkTime: 1,
+				transferTime: 1,
 			},
 		},
 		goods: {
@@ -122,7 +124,13 @@ describe('Save/Load Determinism', () => {
 	const games = new Set<Game>()
 
 	afterEach(() => {
-		for (const game of games) game.destroy()
+		for (const game of games) {
+			try {
+				game.destroy()
+			} catch {
+				// Destroy can throw if mutts is already broken; global `test-setup` `afterEach` runs `reset()` next.
+			}
+		}
 		games.clear()
 	})
 
@@ -173,7 +181,7 @@ describe('Save/Load Determinism', () => {
 		expect(char2.stepExecutor!.constructor.name).toBe('MoveToStep')
 	})
 
-	it('Scenario 2: Inventory Persistence', async () => {
+	it('Scenario 2: Walking characters have no persisted transport stock (legacy inventory dropped on load)', async () => {
 		const game = new Game({
 			terrainSeed: 555,
 			characterCount: 0,
@@ -182,8 +190,7 @@ describe('Save/Load Determinism', () => {
 		await game.loaded
 		const char = game.population.createCharacter('Carrier', { q: 0, r: 0 })
 
-		char.carry.addGood('wood', 1)
-		char.carry.addGood('stone', 1)
+		expect(char.carry).toBeUndefined()
 
 		const saveState = game.saveGameData()
 
@@ -196,9 +203,9 @@ describe('Save/Load Determinism', () => {
 		await game2.loadGameData(saveState)
 		const char2 = game2.population.character(char.uid)
 
-		expect(char2.carry.available('wood')).toBe(1)
-		expect(char2.carry.available('stone')).toBe(1)
-		expect(char2.carry.available('mushrooms')).toBe(0)
+		expect(char2.carry?.available('wood') ?? 0).toBe(0)
+		expect(char2.carry?.available('stone') ?? 0).toBe(0)
+		expect(char2.carry?.available('mushrooms') ?? 0).toBe(0)
 	})
 
 	it('Scenario 3: Resource Gathering (DurationStep)', async () => {
@@ -451,6 +458,6 @@ describe('Save/Load Determinism', () => {
 			sediment: 0.4,
 			waterTable: 0.12,
 		})
-		expect(tile.content?.debugInfo?.terrain).toBe('rocky')
+		expect(tile.content?.logInfo?.terrain).toBe('rocky')
 	})
 })

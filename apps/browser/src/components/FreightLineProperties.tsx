@@ -1,7 +1,7 @@
 import { css } from '@app/lib/css'
-import { bumpSelectionTitleVersion } from '@app/lib/globals'
-import { freightDraftIssueCodes, type FreightDraftIssueCode } from '@app/lib/freight-line-draft'
+import { type FreightDraftIssueCode, freightDraftIssueCodes } from '@app/lib/freight-line-draft'
 import { clearFreightMapPickForLine } from '@app/lib/freight-map-pick'
+import { bumpSelectionTitleVersion } from '@app/lib/globals'
 import { InspectorSection } from '@app/ui/anarkai'
 import { effect } from 'mutts'
 import type { FreightLineDefinition, SyntheticFreightLineObject } from 'ssh/freight/freight-line'
@@ -131,9 +131,7 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 						type="text"
 						disabled={!isAvailable()}
 						value={lineName()}
-						onInput={(event) =>
-							handleNameInput((event.currentTarget as HTMLInputElement).value)
-						}
+						onInput={(event) => handleNameInput((event.currentTarget as HTMLInputElement).value)}
 						data-testid="freight-line-name"
 					/>
 				</PropertyGridRow>

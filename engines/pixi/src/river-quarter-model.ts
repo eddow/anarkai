@@ -318,7 +318,6 @@ function resolveRiverTerminalSummary(args: {
 			return 'delta'
 		case 'mouth':
 			return classified === 'lake' || classified === 'mouth' ? classified : 'mouth'
-		case 'none':
 		default:
 			return classified
 	}

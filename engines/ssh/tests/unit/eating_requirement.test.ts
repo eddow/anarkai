@@ -3,12 +3,12 @@ import { Game } from 'ssh/game/game'
 import { Character } from 'ssh/population/character'
 import { describe, expect, it } from 'vitest'
 
-describe('Eating Requirement', () => {
-	it('carriedFood only returns food if at least 1 unit is available', async () => {
+describe('Eating (no carried-food buffer)', () => {
+	it('Character prototype has no carriedFood getter', async () => {
 		const game = new Game(
 			{
 				terrainSeed: 1,
-				characterCount: 0, // No random characters
+				characterCount: 0,
 				characterRadius: 5,
 			},
 			chopSaw
@@ -17,23 +17,7 @@ describe('Eating Requirement', () => {
 		await game.loaded
 
 		const char = new Character(game, 'test-char', 'Tester', { x: 0, y: 0 })
-
-		// initially no food
-		expect(char.carriedFood).toBeUndefined()
-
-		// Add 0.5 food
-		// Note: we inject directly into carry.slots or use addGood if possible.
-		// SlottedStorage addGood adds to quantity.
-		char.carry.addGood('berries', 0.5)
-
-		// Should be undefined because 0.5 < 1
-		// Currently (before fix) this will likely fail (return 'berries')
-		expect(char.carriedFood).toBeUndefined()
-
-		// Add another 0.5
-		char.carry.addGood('berries', 0.5)
-
-		// Now should have 1.0, so should be visible
-		expect(char.carriedFood).toBe('berries')
+		expect(Object.getOwnPropertyDescriptor(Character.prototype, 'carriedFood')).toBeUndefined()
+		expect(Object.getOwnPropertyNames(Object.getPrototypeOf(char))).not.toContain('carriedFood')
 	})
 })

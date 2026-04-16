@@ -1,6 +1,6 @@
 import { reactive } from 'mutts'
 import { Tile } from 'ssh/board/tile'
-import { freightLineStopHiveName, type FreightStopAnchorAlveolus } from 'ssh/freight/freight-line'
+import { type FreightStopAnchorAlveolus, freightLineStopHiveName } from 'ssh/freight/freight-line'
 import type { Game } from 'ssh/game'
 import type { InteractiveGameObject } from 'ssh/game/object'
 import { StorageAlveolus } from 'ssh/hive/storage'

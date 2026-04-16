@@ -1,4 +1,4 @@
-import { deposits, jobBalance } from 'engine-rules'
+import { deposits } from 'engine-rules'
 import { effect, reactive } from 'mutts'
 import {
 	type ConstructionSiteState,
@@ -106,18 +106,6 @@ export class UnBuiltLand extends withTicked(TileContent) {
 	 */
 	getJob(): any {
 		if (!this.project) return undefined
-
-		// If there are loose goods on the tile, provide offload job
-		if (this.tile.availableGoods.length > 0) {
-			const looseGood = this.tile.availableGoods[0]
-			if (!looseGood) return undefined
-			return {
-				job: 'offload',
-				fatigue: 1,
-				urgency: jobBalance.offload.projectTile,
-				looseGood,
-			}
-		}
 
 		// Note: Foundation jobs are provided by engineer alveolus, not by UnBuiltLand
 		return undefined

@@ -219,9 +219,9 @@ describe('AlveolusProperties', () => {
 				</tbody>
 			</table>
 		)
-		container.querySelector('[data-testid="freight-bay-add-gather"]')?.dispatchEvent(
-			new MouseEvent('click', { bubbles: true })
-		)
+		container
+			.querySelector('[data-testid="freight-bay-add-gather"]')
+			?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
 		expect(selectInspectorObject).toHaveBeenCalledTimes(1)
 	})
 

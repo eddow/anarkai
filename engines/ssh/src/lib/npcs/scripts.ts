@@ -1,6 +1,6 @@
 import { type } from 'arktype'
 import { alveoli, deposits, goods, terrain } from 'engine-rules'
-import { unreactive } from 'mutts'
+import { unreactive, untracked } from 'mutts'
 import {
 	type ExecutionContext,
 	ExecutionError,
@@ -188,7 +188,7 @@ export class ScriptExecution {
 		if (!this.state) throw new Error('ScriptExecution was finished')
 		const executor = this.script.executor(context, this.state)
 		try {
-			const result = executor.execute()
+			const result = untracked`npcs.execute`(() => executor.execute())
 			this.state = result.type === 'yield' ? executor.state : undefined
 			return result
 		} catch (error) {

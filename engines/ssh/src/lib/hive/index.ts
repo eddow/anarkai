@@ -4,7 +4,6 @@ import { GcClasses } from 'ssh/board/content/utils'
 import type { Tile } from 'ssh/board/tile'
 import type { AlveolusType } from 'ssh/types/base'
 import { EngineerAlveolus } from './engineer'
-import { GatherAlveolus } from './gather'
 import { HarvestAlveolus } from './harvest'
 import { StorageAlveolus } from './storage'
 import { TransformAlveolus } from './transform'
@@ -14,7 +13,6 @@ export const alveolusClass = GcClasses(
 		({
 			harvest: HarvestAlveolus,
 			transform: TransformAlveolus,
-			gather: GatherAlveolus,
 			engineer: EngineerAlveolus,
 			storage: StorageAlveolus,
 			'road-fret': StorageAlveolus,

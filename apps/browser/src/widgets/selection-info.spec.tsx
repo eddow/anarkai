@@ -1,6 +1,7 @@
 import { document, latch } from '@sursaut/core'
 import type { DockviewWidgetProps } from '@sursaut/ui/dockview'
 import { hiveUidForAnchorTile } from 'ssh/hive'
+import { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SelectionInfoContext, SelectionInfoTool } from './selection-info-tab'
 
@@ -25,6 +26,14 @@ const hiveSyntheticObject = {
 	logs: [] as const,
 	anchorTileUid: 'tile:0,0',
 }
+
+const vehicleUid = 'vehicle-1'
+const VehicleForTest = VehicleEntity as unknown as new () => Record<string, unknown>
+const vehicleObject = Object.assign(new VehicleForTest(), {
+	uid: vehicleUid,
+	title: 'wheelbarrow vehicle-1',
+	logs: [] as string[],
+}) as InstanceType<typeof VehicleEntity>
 const world = {
 	position: { x: 0, y: 0 },
 	scale: { x: 2 },
@@ -33,6 +42,7 @@ const game = {
 	getObject: vi.fn((uid: string) => {
 		if (uid === 'object-1') return gameObject
 		if (uid === hiveSyntheticUid) return hiveSyntheticObject
+		if (uid === vehicleUid) return vehicleObject
 		return undefined
 	}),
 	renderer: {
@@ -80,8 +90,16 @@ vi.mock('../components/HiveProperties', () => ({
 	default: () => <div data-testid="hive-properties">hive</div>,
 }))
 
+vi.mock('../components/VehicleProperties', () => ({
+	default: () => <div data-testid="vehicle-properties">vehicle</div>,
+}))
+
 vi.mock('ssh/population/character', () => ({
 	Character: class Character {},
+}))
+
+vi.mock('ssh/population/vehicle/entity', () => ({
+	VehicleEntity: class VehicleEntity {},
 }))
 
 vi.mock('ssh/board/tile', () => ({
@@ -98,7 +116,7 @@ vi.mock('ssh/game/object', async (importOriginal) => {
 
 vi.mock('ssh/interactive-state', () => ({
 	setHoveredObject: vi.fn((object: unknown) => {
-		globals.mrg.hoveredObject = object
+		globals.mrg.hoveredObject = object as typeof gameObject | undefined
 	}),
 	isHoveredObject: vi.fn((object: unknown) => globals.mrg.hoveredObject === object),
 }))
@@ -210,6 +228,17 @@ describe('SelectionInfoWidget', () => {
 
 		expect(container.querySelector('[data-testid="hive-properties"]')).not.toBeNull()
 		expect(game.getObject).toHaveBeenCalledWith(hiveSyntheticUid)
+	})
+
+	it('renders VehicleProperties for a vehicle entity', () => {
+		globals.selectionState.selectedUid = vehicleUid
+		const props = createProps()
+		const scope = createScope()
+
+		stop = latch(container, <SelectionInfoWidget {...props} />, scope as never)
+
+		expect(container.querySelector('[data-testid="vehicle-properties"]')).not.toBeNull()
+		expect(game.getObject).toHaveBeenCalledWith(vehicleUid)
 	})
 
 	it('closes the panel when the inspected object disappears', () => {

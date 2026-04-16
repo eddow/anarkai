@@ -53,11 +53,10 @@ describe('Eat planning vs hunger (no goEat when sated)', () => {
 		return game
 	}
 
-	it('computeActivityScores omits eat when hunger is fully sated (-1) despite carried food', async () => {
+	it('computeActivityScores omits eat when hunger is fully sated (-1) despite reachable food', async () => {
 		const game = await loadMiniGame()
 		try {
 			const c = game.population.createCharacter('Sated', { q: 0, r: -1 })
-			c.carry.addGood('berries', 4)
 			c.hunger = -1
 			const scores = inert(() => computeActivityScores(c))
 			expect(scores.some((s) => s.kind === 'eat')).toBe(false)
@@ -66,11 +65,10 @@ describe('Eat planning vs hunger (no goEat when sated)', () => {
 		}
 	})
 
-	it('computeActivityScores includes eat when hungry with carried food', async () => {
+	it('computeActivityScores includes eat when hungry with reachable food', async () => {
 		const game = await loadMiniGame()
 		try {
 			const c = game.population.createCharacter('Hungry', { q: 0, r: -1 })
-			c.carry.addGood('berries', 4)
 			c.hunger = 0.92
 			const scores = inert(() => computeActivityScores(c))
 			expect(scores.some((s) => s.kind === 'eat')).toBe(true)
@@ -79,11 +77,10 @@ describe('Eat planning vs hunger (no goEat when sated)', () => {
 		}
 	})
 
-	it('tryScriptForActivityKind(eat) is false when sated even with carried food', async () => {
+	it('tryScriptForActivityKind(eat) is false when sated even with reachable food', async () => {
 		const game = await loadMiniGame()
 		try {
 			const c = game.population.createCharacter('Sated2', { q: 0, r: -1 })
-			c.carry.addGood('berries', 4)
 			c.hunger = -1
 			const exec = inert(() => (c as unknown as TryKind).tryScriptForActivityKind('eat'))
 			expect(exec).toBe(false)
@@ -92,11 +89,10 @@ describe('Eat planning vs hunger (no goEat when sated)', () => {
 		}
 	})
 
-	it('tryScriptForActivityKind(eat) returns execution when hungry with carried food', async () => {
+	it('tryScriptForActivityKind(eat) returns execution when hungry with reachable food', async () => {
 		const game = await loadMiniGame()
 		try {
 			const c = game.population.createCharacter('Hungry2', { q: 0, r: -1 })
-			c.carry.addGood('berries', 4)
 			c.hunger = 0.92
 			const exec = inert(() => (c as unknown as TryKind).tryScriptForActivityKind('eat'))
 			expect(exec).not.toBe(false)
