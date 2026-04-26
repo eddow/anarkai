@@ -23,10 +23,7 @@ function driveJobPath(jobPlan)
 end function
 
 function zoneBrowseTransferAtCurrentTile(jobPlan)
-	walk.enter
-	vehicle.vehicleStepOffKeepingControl jobPlan
-	vehicle.vehicleZoneBrowseTransferStep jobPlan
-	vehicle.vehicleDisengageKeepingService jobPlan
+	vehicleTransferAtCurrentTile jobPlan
 end function
 
 function zoneBrowseTransfer(jobPlan)
@@ -36,6 +33,40 @@ end function
 
 function zoneBrowse(jobPlan)
 	zoneBrowseTransfer jobPlan
+end function
+
+function vehicleTransferAtCurrentTile(jobPlan)
+	if jobPlan.job == "vehicleOffload" then
+		kind = vehicle.maintenanceKind()
+		walk.enter
+		if kind == "unloadToTile" then
+			do while not inventory.canDropLooseHere()
+				fp = find.freeSpot()
+				if not fp then error "No unload free spot path"
+				walk.until fp
+			loop
+			vehicle.vehicleUnloadTransferStep jobPlan
+			vehicle.completeVehicleMaintenanceService jobPlan
+			return
+		end if
+		if kind == "loadFromBurden" then
+			grab = jobPlan.offloadPickupPlan
+			if not grab then return
+			vehicle.vehicleLoadTransferStep jobPlan
+			do while not inventory.canDropLooseHere()
+				fp = find.freeSpot()
+				if not fp then error "No offload free spot path"
+				walk.until fp
+			loop
+			vehicle.vehicleUnloadTransferStep jobPlan
+			vehicle.completeVehicleMaintenanceService jobPlan
+			return
+		end if
+	end if
+	walk.enter
+	vehicle.vehicleStepOffKeepingControl jobPlan
+	vehicle.vehicleZoneBrowseTransferStep jobPlan
+	vehicle.vehicleDisengageKeepingService jobPlan
 end function
 
 function vehicleHop(jobPlan)
@@ -49,6 +80,9 @@ function vehicleHop(jobPlan)
 	end if
 	vehicle.vehicleHopPrepare jobPlan
 	if jobPlan.vehicleHopRunEnded then
+		return
+	end if
+	if jobPlan.vehicleHopReplanRequired then
 		return
 	end if
 	driveJobPath jobPlan
@@ -68,20 +102,27 @@ function vehicleOffload(jobPlan)
 	if not I.driving then
 		approachVehicle jobPlan
 	end if
+	kind = vehicle.maintenanceKind()
+	if kind == "park" then
+		targetPath = find.path(jobPlan.targetCoord, true)
+		if not targetPath then error "No path to park target"
+		if targetPath.length > 0 then walk.until targetPath
+		walk.enter
+		vehicle.completeVehicleMaintenanceService jobPlan
+		return
+	end if
+	if kind == "unloadToTile" then
+		targetPath = find.path(jobPlan.targetCoord, true)
+		if not targetPath then error "No path to unloadToTile target"
+		if targetPath.length > 0 then walk.until targetPath
+		vehicleTransferAtCurrentTile jobPlan
+		return
+	end if
 	vehicle.ensureVehicleOffloadPickupPlan jobPlan
 	targetPath = find.path(jobPlan.targetCoord, true)
 	if not targetPath then error "No path to vehicleOffload pickup tile"
 	if targetPath.length > 0 then walk.until targetPath
-	walk.enter
-	grab = jobPlan.offloadPickupPlan
-	if not grab then return
-	inventory.effectuate grab
-	do while not inventory.canDropLooseHere()
-		fp = find.freeSpot()
-		if not fp then error "No offload free spot path"
-		walk.until fp
-	loop
-	inventory.offloadDropBuffer()
+	vehicleTransferAtCurrentTile jobPlan
 end function
 
 return { vehicleHop, zoneBrowse, vehicleOffload }

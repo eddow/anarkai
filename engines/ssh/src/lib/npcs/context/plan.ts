@@ -2,10 +2,8 @@
 import { type HexBoard, isTileCoord } from 'ssh/board'
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import { assert } from 'ssh/debug'
-import {
-	offboardOperatorAfterFreightWorkComplete,
-	releaseVehicleFreightWorkOnPlanInterrupt,
-} from 'ssh/freight/vehicle-run'
+import { assertVehicleOperationConsistency } from 'ssh/freight/vehicle-invariants'
+import { releaseVehicleFreightWorkOnPlanInterrupt } from 'ssh/freight/vehicle-run'
 import { allocateVehicleServiceForJob } from 'ssh/freight/vehicle-work'
 import type { Character } from 'ssh/population/character'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
@@ -33,10 +31,12 @@ function beginVehicleFreightWorkPlan(plan: WorkPlan, character: Character): void
 	const vehicle = character.game.vehicles.vehicle(uid)
 	assert(vehicle, 'vehicle work plan: vehicle missing')
 	allocateVehicleServiceForJob(character.game, character, vehicle, plan as unknown as Job)
-	character.operates = vehicle
 
 	const job = plan.job
 	const hopNeedsWalkToVehicle = job === 'vehicleHop' && !!plan.approachPath?.length
+	if (hopNeedsWalkToVehicle) return
+
+	character.operates = vehicle
 	/** `vehicleOffload` carries the walk-to-vehicle prefix in `path`; length 0 means already at the vehicle hex. */
 	const vehicleOffloadAtVehicleHex = job === 'vehicleOffload' && (plan.path?.length ?? 0) === 0
 	const needsImmediateBoard =
@@ -46,29 +46,39 @@ function beginVehicleFreightWorkPlan(plan: WorkPlan, character: Character): void
 	if (needsImmediateBoard && !character.driving && characterSameHexAsVehicle(character, vehicle)) {
 		character.onboard()
 	}
+	assertVehicleOperationConsistency(vehicle, character)
+}
+
+function releaseStaleVehicleBeforeNonVehicleWork(plan: WorkPlan, character: Character): void {
+	if (plan.type !== 'work' || 'vehicleUid' in plan) return
+	if (!character.operates) return
+	releaseVehicleFreightWorkOnPlanInterrupt(character)
 }
 
 /**
- * Leave the operated vehicle when the work plan is done for jobs that end the driving session.
- * Multi-step line runs keep occupancy until an explicit end (`vehicleHopRunEnded`, offload complete, …).
+ * A vehicle work plan owns the operator/control link for its duration. Service completion is decided
+ * by vehicle-specific script steps; this finalizer only guarantees that a finished/interrupted plan
+ * cannot leave the character still operating a wheelbarrow before self-care or other work resumes.
  */
 function finalizeVehicleFreightWorkPlanOccupancy(plan: WorkPlan, character: Character): void {
 	if (plan.type !== 'work' || !('vehicleUid' in plan)) return
-
-	const job = plan.job
-	if (job === 'vehicleHop') {
-		if (!plan.vehicleHopRunEnded) return
-		if (character.driving && character.operates) {
-			offboardOperatorAfterFreightWorkComplete(character)
+	const vehicle = character.game.vehicles.vehicle(plan.vehicleUid)
+	if (!vehicle) return
+	const controlsPlanVehicle = character.operates?.uid === vehicle.uid
+	const isPlanOperator = vehicle.operator?.uid === character.uid
+	if (!controlsPlanVehicle && !isPlanOperator) return
+	if (!vehicle.service) {
+		if (controlsPlanVehicle) {
+			if (character.driving) character.offboard()
+			else character.operates = undefined
 		}
 		return
 	}
-	if (job === 'zoneBrowse') return
-	if (job === 'vehicleOffload') {
-		if (character.driving && character.operates) {
-			offboardOperatorAfterFreightWorkComplete(character)
-		}
+	if (controlsPlanVehicle) {
+		character.disengageVehicleKeepingService()
+		return
 	}
+	if (isPlanOperator) vehicle.releaseOperator(character)
 }
 
 function getContentFromPosition(hex: HexBoard, position: Positioned) {
@@ -253,16 +263,20 @@ const pickupPlanHandler: PlanHandler<PickupPlan> = {
 const workPlanHandler: PlanHandler<WorkPlan> = {
 	begin(plan: WorkPlan, character: Character) {
 		beginVehicleFreightWorkPlan(plan, character)
+		releaseStaleVehicleBeforeNonVehicleWork(plan, character)
 		const { target } = plan
 		if (plan.job === 'vehicleOffload') {
 			assert('targetCoord' in plan, 'vehicleOffload requires targetCoord')
+			// Only `loadFromBurden` needs an upfront pickup binding; `unloadToTile` / `park` carry no
+			// pickup payload (their drop / park targets are read from `vehicle.service` at run time).
 			// Pickup allocation needs {@link Character.requireActiveTransportStorage} — only after boarding.
-			if (character.driving) {
+			if (character.driving && plan.maintenanceKind === 'loadFromBurden') {
 				const pickupTile = character.game.hex.getTile(plan.targetCoord)
 				assert(
 					pickupTile && 'availableGoods' in pickupTile,
 					'vehicleOffload pickup target must be a tile with loose goods'
 				)
+				assert(plan.looseGood, 'loadFromBurden plan must carry a looseGood')
 				const pickupPlan = character.scriptsContext.inventory.planGrabSpecificLoose(
 					plan.looseGood,
 					pickupTile

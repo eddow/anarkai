@@ -1,3 +1,4 @@
+import { registerContract } from 'ssh/types'
 import { toAxialCoord } from 'ssh/utils/position'
 import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
@@ -16,6 +17,7 @@ describe('Offload Silent Cancellation Reproduction', () => {
 		try {
 			// Setup target tile for offloading
 			await game.requestGameplayFrontier({ q: 3, r: 2 }, 0, { maxBatchSize: 1 })
+			await game.requestGameplayFrontier({ q: 4, r: 2 }, 0, { maxBatchSize: 1 })
 			const targetTile = game.hex.getTile({ q: 3, r: 2 })
 			if (!targetTile) throw new Error('Target tile not found')
 			expect(targetTile.content).toBeDefined()
@@ -39,7 +41,14 @@ describe('Offload Silent Cancellation Reproduction', () => {
 			// Ensure scripts are loaded (it's a getter that triggers loading)
 			void context
 
-			context.find.path = (_dest: any) => [targetTile]
+			function pathOverride() {
+				return [toAxialCoord(targetTile.position)!]
+			}
+			function freeSpotOverride() {
+				return [{ q: 4, r: 2 }]
+			}
+			context.find.path = registerContract(pathOverride, pathOverride)
+			context.find.freeSpot = registerContract(freeSpotOverride, freeSpotOverride)
 
 			const vehicleNs = (context as any).vehicle
 			if (!vehicleNs?.vehicleOffload) throw new Error('vehicleOffload not loaded')
@@ -51,16 +60,31 @@ describe('Offload Silent Cancellation Reproduction', () => {
 				target: vehicle,
 				vehicleUid: vehicle.uid,
 				targetCoord: toAxialCoord(targetTile.position)!,
+				maintenanceKind: 'loadFromBurden' as const,
 				urgency: 1,
 				fatigue: 0,
 				looseGood,
 				invariant: () => true,
 			}
 
-			context.plan.begin(plan)
-			vehicleNs.ensureVehicleOffloadPickupPlan(plan)
-			const execution = vehicleNs.vehicleOffload({ ...plan, path: [] })
-			let result = execution.run(context)
+			let execution
+			try {
+				context.plan.begin(plan)
+				vehicleNs.ensureVehicleOffloadPickupPlan(plan)
+				execution = vehicleNs.vehicleOffload({ ...plan, path: [] })
+			} catch (error) {
+				throw new Error(
+					`vehicleOffload setup failed: ${error instanceof Error ? error.message : String(error)}`
+				)
+			}
+			let result
+			try {
+				result = execution.run(context)
+			} catch (error) {
+				throw new Error(
+					`vehicleOffload initial run failed: ${error instanceof Error ? error.message : String(error)}`
+				)
+			}
 			let loops = 0
 			while (result && result.type === 'yield' && loops < 50) {
 				char.update(0.1)
@@ -72,7 +96,13 @@ describe('Offload Silent Cancellation Reproduction', () => {
 						ticks++
 					}
 				}
-				result = execution.run(context)
+				try {
+					result = execution.run(context)
+				} catch (error) {
+					throw new Error(
+						`vehicleOffload loop ${loops} failed: ${error instanceof Error ? error.message : String(error)}`
+					)
+				}
 				loops++
 			}
 

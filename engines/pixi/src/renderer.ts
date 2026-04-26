@@ -112,6 +112,7 @@ export class PixiGameRenderer implements GameRenderer {
 		resources: RenderLayer
 		storedGoods: RenderLayer // e.g. on borders
 		looseGoods: RenderLayer
+		vehicles: RenderLayer
 		characters: RenderLayer
 		ui: Container // in-game ui overlays
 	}
@@ -148,6 +149,7 @@ export class PixiGameRenderer implements GameRenderer {
 			resources: setPixiName(new RenderLayer(), 'layer.resources'), // resources
 			storedGoods: setPixiName(new RenderLayer(), 'layer.storedGoods'),
 			looseGoods: setPixiName(new RenderLayer(), 'layer.looseGoods'), // loose goods
+			vehicles: setPixiName(new RenderLayer(), 'layer.vehicles'),
 			characters: setPixiName(new RenderLayer(), 'layer.characters'),
 			ui: setPixiName(new Container(), 'layer.ui'), // UI remains in world? Or screen?
 			// Usually UI is screen space. Let's keep UI separate or check usage.
@@ -160,6 +162,7 @@ export class PixiGameRenderer implements GameRenderer {
 		this.layers.resources.sortableChildren = true
 		this.layers.storedGoods.sortableChildren = true
 		this.layers.looseGoods.sortableChildren = true
+		this.layers.vehicles.sortableChildren = true
 		this.layers.characters.sortableChildren = true
 
 		this.world.sortableChildren = true
@@ -167,9 +170,10 @@ export class PixiGameRenderer implements GameRenderer {
 			this.worldScene,
 			this.layers.ground, // terrain
 			this.layers.alveoli, // structures
-			this.layers.resources, // NEW
+			this.layers.resources,
 			this.layers.storedGoods,
-			this.layers.looseGoods, // NEW
+			this.layers.looseGoods,
+			this.layers.vehicles,
 			this.layers.characters
 		)
 
@@ -179,6 +183,7 @@ export class PixiGameRenderer implements GameRenderer {
 		// - resources
 		// - stored goods
 		// - loose goods
+		// - vehicles (always under standalone characters)
 		// - characters
 
 		this.layers.ground.zIndex = 0 // terrain
@@ -186,6 +191,7 @@ export class PixiGameRenderer implements GameRenderer {
 		this.layers.resources.zIndex = 20 // resources
 		this.layers.storedGoods.zIndex = 30 // stored goods
 		this.layers.looseGoods.zIndex = 40 // loose goods
+		this.layers.vehicles.zIndex = 45 // vehicles
 		this.layers.characters.zIndex = 50 // characters
 
 		// Add UI directly to stage so it doesn't zoom/pan

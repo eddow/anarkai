@@ -34,22 +34,38 @@ interface InspectorObjectLinkProps {
 		| InteractiveGameObject
 		| SyntheticFreightLineObject
 		| SyntheticHiveObject
+		| undefined
 	label?: string
 	class?: string
 }
 
 const InspectorObjectLink = (props: InspectorObjectLinkProps) => {
+	const view = {
+		get class() {
+			return ['inspector-object-link', props.class]
+		},
+		get disabled() {
+			return !props.object
+		},
+		get text() {
+			return props.label ?? props.object?.title ?? '—'
+		},
+	}
+
 	return (
 		<button
 			type="button"
-			class={['inspector-object-link', props.class]}
+			class={view.class}
+			disabled={view.disabled}
 			onClick={(event) => {
 				event.preventDefault()
 				event.stopPropagation()
-				showProps(props.object)
+				const object = props.object
+				if (!object) return
+				showProps(object)
 			}}
 		>
-			{props.label ?? props.object.title}
+			{view.text}
 		</button>
 	)
 }

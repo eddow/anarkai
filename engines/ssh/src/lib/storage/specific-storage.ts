@@ -179,7 +179,7 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 				delete this._goods[goodType]
 			}
 		} else if (qty > 0 && currentAmount > 0) {
-			traces.allocations?.warn?.(
+			traces.allocations.warn?.(
 				`[SpecificStorage] Cannot remove ${goodType} (qty ${qty}): have ${currentAmount} but ${reserved} are reserved.`
 			)
 		}

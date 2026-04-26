@@ -21,6 +21,7 @@ function createRendererStub(): PixiGameRenderer {
 			resources: new RenderLayer(),
 			storedGoods: new RenderLayer(),
 			looseGoods: new RenderLayer(),
+			vehicles: new RenderLayer(),
 			characters: new RenderLayer(),
 			ui: new Container(),
 		},
@@ -64,6 +65,7 @@ function nonStorageGoodsAttachmentCount(renderer: PixiGameRenderer): number {
 		renderer.layers.alveoli,
 		renderer.layers.resources,
 		renderer.layers.looseGoods,
+		renderer.layers.vehicles,
 		renderer.layers.characters,
 	].reduce(
 		(total, layer) =>

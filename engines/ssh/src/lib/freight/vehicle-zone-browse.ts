@@ -1,18 +1,23 @@
 import { jobBalance } from 'engine-rules'
+import { Alveolus } from 'ssh/board/content/alveolus'
+import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
 import { isStandaloneBuildSiteShell } from 'ssh/build-site'
+import { CONSTRUCTION_DEMAND_AD_SOURCE } from 'ssh/freight/construction-demand'
 import {
 	distributeSegmentAllowsGoodTypeForSegment,
 	type FreightLineDefinition,
 	type FreightStop,
 	type FreightZoneDefinitionRadius,
 	findDistributeRouteSegments,
+	gatherSelectableGoodTypes,
 } from 'ssh/freight/freight-line'
 import {
 	computeLineFurtherGoods,
 	projectLoadedGoodsAgainstFurtherNeeds,
 } from 'ssh/freight/freight-stop-utility'
-import { pickGatherTargetInZoneStop } from 'ssh/freight/freight-zone-gather-target'
+import { aggregateHiveNeedTypes } from 'ssh/freight/freight-zone-gather-target'
+import type { FreightAdSource, FreightPriorityTier } from 'ssh/freight/priority-channel'
 import type { Game } from 'ssh/game/game'
 import type { Character } from 'ssh/population/character'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
@@ -27,12 +32,36 @@ export interface VehicleZoneBrowseSelection {
 	readonly quantity?: number
 	readonly targetTile: Tile
 	readonly path: AxialCoord[]
+	readonly adSource: FreightAdSource
+	readonly priorityTier: FreightPriorityTier
 }
 
 interface ZoneBrowseUtilityContext {
 	readonly stopIndex: number
 	readonly remainingNeededGoods: Partial<Record<GoodType, number>>
 	readonly surplusLoadedGoods: Partial<Record<GoodType, number>>
+}
+
+export function zoneBrowseTierWeight(priorityTier: FreightPriorityTier): number {
+	return jobBalance.priorityTier[priorityTier]
+}
+
+export function zoneBrowseUrgency(
+	action: VehicleZoneBrowseSelection['action'],
+	priorityTier: FreightPriorityTier
+): number {
+	const base = action === 'load' ? jobBalance.loadOntoVehicle : jobBalance.provideFromVehicle
+	return base * zoneBrowseTierWeight(priorityTier)
+}
+
+export function inferZoneLoadAdSource(targetTile: Tile): FreightAdSource {
+	if (targetTile.content instanceof UnBuiltLand && targetTile.content.project) return 'project'
+	if (targetTile.content instanceof Alveolus || targetTile.zone === 'residential') return 'hive'
+	return 'vehicle-station'
+}
+
+export function zoneBrowseLoadPriorityTier(adSource: FreightAdSource): FreightPriorityTier {
+	return adSource === 'vehicle-station' ? 'pureLine' : 'lineAndOffloadJoint'
 }
 
 function pathToTile(
@@ -84,29 +113,42 @@ function pickZoneLoadSelection(
 	startPos: Positioned,
 	utility: ZoneBrowseUtilityContext
 ): VehicleZoneBrowseSelection | undefined {
-	const downstreamNeededGoods = Object.keys(utility.remainingNeededGoods) as GoodType[]
-	if (downstreamNeededGoods.length === 0) return undefined
-	const pick = pickGatherTargetInZoneStop(game, line, zoneStop, startPos, downstreamNeededGoods, {
-		carrier: {
-			hasRoom: (goodType) =>
-				Math.min(vehicle.storage.hasRoom(goodType), utility.remainingNeededGoods[goodType] ?? 0),
-			stock: vehicle.storage.stock,
-		},
-		canAcceptGood: (goodType) => (utility.remainingNeededGoods[goodType] ?? 0) > 0,
-	})
-	if (!pick || pick.path.length === 0) return undefined
-	const last = toAxialCoord(pick.path[pick.path.length - 1]!)
-	if (!last) return undefined
-	const targetTile = game.hex.getTile(last)
-	if (!targetTile) return undefined
-	const path = pathToTile(game, character, startPos, targetTile)
-	if (!path) return undefined
-	return {
-		action: 'load',
-		goodType: pick.goodType,
-		targetTile,
-		path,
+	const neededGoods = new Set([
+		...(Object.keys(utility.remainingNeededGoods) as GoodType[]),
+		...aggregateHiveNeedTypes(game),
+	])
+	const selectableGoods = new Set(gatherSelectableGoodTypes(line, [...neededGoods]))
+	const center: AxialCoord = { q: zoneStop.zone.center[0], r: zoneStop.zone.center[1] }
+	let best: (VehicleZoneBrowseSelection & { score: number }) | undefined
+	for (const tile of game.hex.tiles) {
+		const tileCoord = toAxialCoord(tile.position)
+		if (!tileCoord || axial.distance(center, tileCoord) > zoneStop.zone.radius) continue
+		const path = pathToTile(game, character, startPos, tile)
+		if (!path) continue
+		const adSource = inferZoneLoadAdSource(tile)
+		const priorityTier = zoneBrowseLoadPriorityTier(adSource)
+		const urgency = zoneBrowseUrgency('load', priorityTier)
+		for (const loose of tile.availableGoods) {
+			if (!loose.available || loose.isRemoved) continue
+			const goodType = loose.goodType as GoodType
+			if (!selectableGoods.has(goodType)) continue
+			if ((utility.remainingNeededGoods[goodType] ?? 0) <= 0 && !neededGoods.has(goodType)) continue
+			if (vehicle.storage.hasRoom(goodType) <= 0) continue
+			const score = urgency / (path.length + 1)
+			if (!best || score > best.score || (score === best.score && path.length < best.path.length)) {
+				best = {
+					action: 'load',
+					goodType,
+					targetTile: tile,
+					path,
+					adSource,
+					priorityTier,
+					score,
+				}
+			}
+		}
 	}
+	return best
 }
 
 function pickZoneProvideSelection(
@@ -123,6 +165,8 @@ function pickZoneProvideSelection(
 	)
 	if (segments.length === 0) return undefined
 	const center: AxialCoord = { q: zoneStop.zone.center[0], r: zoneStop.zone.center[1] }
+	const priorityTier: FreightPriorityTier = 'pureOffload'
+	const urgency = zoneBrowseUrgency('provide', priorityTier)
 	let best: (VehicleZoneBrowseSelection & { score: number }) | undefined
 	for (const tile of game.hex.tiles) {
 		const tileCoord = toAxialCoord(tile.position)
@@ -149,7 +193,7 @@ function pickZoneProvideSelection(
 			if (quantity <= 0) continue
 			const path = pathToTile(game, character, startPos, tile)
 			if (!path) continue
-			const score = quantity / (path.length + 1)
+			const score = (urgency * quantity) / (path.length + 1)
 			if (!best || score > best.score) {
 				best = {
 					action: 'provide',
@@ -157,6 +201,8 @@ function pickZoneProvideSelection(
 					quantity,
 					targetTile: tile,
 					path,
+					adSource: CONSTRUCTION_DEMAND_AD_SOURCE,
+					priorityTier,
 					score,
 				}
 			}
@@ -189,7 +235,9 @@ export function pickVehicleZoneBrowseSelection(
 	)
 	if (!load) return provide
 	if (!provide) return load
-	const loadScore = jobBalance.loadOntoVehicle / (load.path.length + 1)
-	const provideScore = jobBalance.provideFromVehicle / (provide.path.length + 1)
+	const loadScore = zoneBrowseUrgency('load', load.priorityTier) / (load.path.length + 1)
+	const provideScore =
+		(zoneBrowseUrgency('provide', provide.priorityTier) * (provide.quantity ?? 1)) /
+		(provide.path.length + 1)
 	return provideScore >= loadScore ? provide : load
 }

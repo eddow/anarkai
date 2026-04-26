@@ -4,6 +4,15 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 const i18nState = {
 	translator: {
 		goods: 'Goods',
+		character: {
+			plannerRankedWork: 'Ranked work',
+			plannerWorkUrgency: 'urgency',
+			plannerWorkPath: 'path',
+			plannerWorkKinds: {
+				convey: 'Convey',
+				vehicleHop: 'Vehicle hop',
+			},
+		},
 		line: { stop: 'Stop' },
 		vehicle: {
 			operator: 'Operator',
@@ -74,7 +83,9 @@ vi.mock('./InspectorObjectLink', () => ({
 
 vi.mock('./LinkedEntityControl', () => ({
 	default: (props: { object?: { uid?: string } }) => (
-		<div data-testid="linked-entity-control" data-target-uid={props.object?.uid ?? ''} />
+		<div data-testid="linked-entity-control" data-target-uid={props.object?.uid ?? ''}>
+			{props.object?.uid ?? 'linked'}
+		</div>
 	),
 }))
 
@@ -194,7 +205,10 @@ describe('VehicleProperties', () => {
 			vehicleType: 'wheelbarrow',
 			game: {},
 			storage: { stock: {} },
-			service: {},
+			service: {
+				kind: 'park' as const,
+				targetCoord: { q: 0, r: 0 },
+			},
 		}
 
 		stop = latch(container, <VehicleProperties vehicle={vehicle as never} />, {
@@ -207,6 +221,65 @@ describe('VehicleProperties', () => {
 				el.getAttribute('data-target-uid')?.startsWith('freight-line:')
 			)
 		).toBe(false)
+	})
+
+	it('shows operator ranked work when the operator has a work planner snapshot', () => {
+		const operator = {
+			uid: 'char-jobs',
+			title: 'Bo',
+			game: {
+				hex: {
+					getTile: ({ q, r }: { q: number; r: number }) => ({
+						uid: `tile:${q},${r}`,
+						title: `Tile ${q}, ${r}`,
+					}),
+				},
+			},
+			workPlannerSnapshot: {
+				ranked: [
+					{
+						jobKind: 'convey',
+						targetLabel: 'wood @ 0, 1',
+						targetCoord: { q: 0, r: 1 },
+						urgency: 4,
+						pathLength: 1,
+						score: 2,
+						selected: true,
+					},
+					{
+						jobKind: 'vehicleHop',
+						targetLabel: 'bay @ 2, 0',
+						targetCoord: { q: 2, r: 0 },
+						urgency: 1,
+						pathLength: 3,
+						score: 0.5,
+						selected: false,
+					},
+				],
+			},
+		}
+		const vehicle = {
+			uid: 'veh-jobs',
+			title: 'wheelbarrow veh-jobs',
+			vehicleType: 'wheelbarrow',
+			game: operator.game,
+			operator,
+			storage: { stock: {} },
+			service: undefined,
+		}
+
+		stop = latch(container, <VehicleProperties vehicle={vehicle as never} />, {
+			setTitle: vi.fn(),
+		} as never)
+
+		const rows = Array.from(
+			container.querySelectorAll('[data-testid="vehicle-ranked-work"]')
+		) as HTMLDivElement[]
+		expect(rows).toHaveLength(2)
+		expect(rows[0]?.textContent).toContain('Convey')
+		expect(rows[0]?.textContent).toContain('tile:0,1')
+		expect(rows[0]?.getAttribute('data-selected')).toBe('true')
+		expect(rows[1]?.textContent).toContain('Vehicle hop')
 	})
 
 	it('shows idle when there is no service', () => {

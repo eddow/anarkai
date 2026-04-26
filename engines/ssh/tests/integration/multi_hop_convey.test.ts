@@ -2,12 +2,51 @@ import type { Alveolus } from 'ssh/board/content/alveolus'
 import { isTileCoord } from 'ssh/board/tile-coord'
 import type { SaveState } from 'ssh/game'
 import { BuildAlveolus } from 'ssh/hive/build'
-import type { Hive } from 'ssh/hive/hive'
+import type { Hive, TrackedMovement } from 'ssh/hive/hive'
 import type { StorageAlveolus } from 'ssh/hive/storage'
 import { axial } from 'ssh/utils/axial'
 import { toAxialCoord } from 'ssh/utils/position'
 import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
+
+function movementReason(movement: TrackedMovement, type: 'convey.hop' | 'convey.path') {
+	return {
+		type,
+		goodType: movement.goodType,
+		movementRef: movement.ref,
+		providerRef: movement.provider,
+		demanderRef: movement.demander,
+		providerName: movement.provider.name,
+		demanderName: movement.demander.name,
+		movement,
+	}
+}
+
+function handOffFirstHop(hive: Hive, movement: TrackedMovement, label: string) {
+	const nextHop = movement.path[0]
+	expect(nextHop).toBeDefined()
+	if (!nextHop) throw new Error(`${label}: expected a next hop`)
+
+	const hopStorage = hive.storageAt(nextHop)
+	expect(hopStorage).toBeDefined()
+	if (!hopStorage) throw new Error(`${label}: expected hop storage`)
+
+	const hopAllocation = hopStorage.allocate(
+		{ [movement.goodType]: 1 },
+		movementReason(movement, 'convey.hop')
+	)
+
+	hive.fulfillMovementSource(movement, label)
+	const firstHop = movement.hop()
+	movement.place()
+	hopAllocation.fulfill()
+	hive.assignMovementSource(
+		movement,
+		hopStorage.reserve({ [movement.goodType]: 1 }, movementReason(movement, 'convey.path')),
+		label
+	)
+	return firstHop
+}
 
 describe('Multi-Hop Convey Tests', () => {
 	it('creates a movement that can be handed through an intermediate storage', {
@@ -66,13 +105,8 @@ describe('Multi-Hop Convey Tests', () => {
 			expect(movement.path.at(-1)).toMatchObject({ q: 2, r: 0 })
 
 			movement.claimed = true
-			movement.allocations.source.fulfill()
-			const firstHop = movement.hop()
+			const firstHop = handOffFirstHop(hive, movement, 'test.multi-hop.first')
 			expect(firstHop).toMatchObject({ q: 0.5, r: 0 })
-			movement.place()
-			movement.allocations.source = hive
-				.storageAt(firstHop)!
-				.reserve({ wood: 1 }, { type: 'convey.path', movement })
 			movement.claimed = false
 
 			const relayMovements = relay.aGoodMovement
@@ -80,7 +114,7 @@ describe('Multi-Hop Convey Tests', () => {
 			expect(relayMovements?.[0]?.movement.goodType).toBe('wood')
 			expect(relayMovements?.[0]?.movement.provider?.name).toBe(provider.name)
 			expect(relayMovements?.[0]?.movement.demander?.name).toBe(demander.name)
-			expect(relayMovements?.[0]?.movement.path.at(0)).toMatchObject({ q: 1, r: 0 })
+			expect(relayMovements?.[0]?.movement.path.at(0)).toMatchObject({ q: 1.5, r: 0 })
 		} finally {
 			await engine.destroy()
 		}
@@ -134,13 +168,8 @@ describe('Multi-Hop Convey Tests', () => {
 			if (!inbound) throw new Error('Expected inbound movement')
 
 			inbound.claimed = true
-			inbound.allocations.source!.fulfill()
-			const firstHop = inbound.hop()
+			const firstHop = handOffFirstHop(hive, inbound, 'test.multi-hop.border-first')
 			expect(firstHop).toMatchObject({ q: 0.5, r: 0 })
-			inbound.place()
-			inbound.allocations.source = hive
-				.storageAt(firstHop)!
-				.reserve({ wood: 1 }, { type: 'convey.path', movement: inbound })
 			inbound.claimed = false
 
 			expect(hive.createMovement('wood', relay, demander)).toBe(true)
@@ -170,7 +199,7 @@ describe('Multi-Hop Convey Tests', () => {
 		}
 	})
 
-	it('finds a border-to-border path through an intermediate alveolus even when that alveolus cannot buffer stone', {
+	it('does not route stone through an intermediate alveolus that cannot buffer stone', {
 		timeout: 15000,
 	}, async () => {
 		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
@@ -210,9 +239,7 @@ describe('Multi-Hop Convey Tests', () => {
 
 			expect(relay.storage.hasRoom('stone')).toBe(0)
 			const path = hive.getPath(provider, demander, 'stone')
-			expect(path).toBeDefined()
-			expect(path?.map((step) => axial.key(step))).toContain('1,0')
-			expect(path?.map((step) => axial.key(step))).toContain('1.5,0')
+			expect(path).toBeUndefined()
 		} finally {
 			await engine.destroy()
 		}
@@ -270,13 +297,8 @@ describe('Multi-Hop Convey Tests', () => {
 			movement.claimed = true
 			movement.claimedBy = 'test-provider'
 			movement.claimedAtMs = Date.now()
-			movement.allocations.source.fulfill()
-			const firstHop = movement.hop()
+			const firstHop = handOffFirstHop(hive, movement, 'test.multi-hop.full-relay')
 			expect(firstHop).toMatchObject({ q: 0.5, r: 0 })
-			movement.place()
-			movement.allocations.source = hive
-				.storageAt(firstHop)!
-				.reserve({ planks: 1 }, { type: 'convey.path', movement })
 			movement.claimed = false
 			delete movement.claimedBy
 			delete movement.claimedAtMs

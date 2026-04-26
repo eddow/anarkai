@@ -13,6 +13,10 @@ function createRendererStub(game: Game): PixiGameRenderer {
 		width: 16,
 		height: 16,
 	} as never
+	const vehicles = new RenderLayer()
+	const characters = new RenderLayer()
+	vehicles.zIndex = 45
+	characters.zIndex = 50
 	return {
 		game,
 		layers: {
@@ -21,7 +25,8 @@ function createRendererStub(game: Game): PixiGameRenderer {
 			resources: new RenderLayer(),
 			storedGoods: new RenderLayer(),
 			looseGoods: new RenderLayer(),
-			characters: new RenderLayer(),
+			vehicles,
+			characters,
 			ui: new Container(),
 		},
 		attachToLayer(layer: RenderLayer, child: Container) {
@@ -81,6 +86,9 @@ describe('VehicleVisual cargo', () => {
 			expect(vehicle.operator).toBeUndefined()
 			expect(collectLabelsIncluding(visual.view, 'goods').length).toBeGreaterThan(0)
 			expect(visual.view.visible).toBe(true)
+			expect(renderer.layers.vehicles.renderLayerChildren).toContain(visual.view)
+			expect(renderer.layers.characters.renderLayerChildren).not.toContain(visual.view)
+			expect(renderer.layers.vehicles.zIndex).toBeLessThan(renderer.layers.characters.zIndex)
 
 			visual.dispose()
 		} finally {

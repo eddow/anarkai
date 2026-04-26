@@ -59,7 +59,7 @@ export class EngineerAlveolus extends Alveolus {
 				const terminalTile = terminal ? hex.getTile(terminal) : undefined
 				const c = terminalTile?.content
 				if (c instanceof BuildDwelling) {
-					traces.residential?.log('[engineer] nextJob', {
+					traces.residential.log?.('[engineer] nextJob', {
 						job: 'construct',
 						fromQ: startPos?.q,
 						fromR: startPos?.r,
@@ -94,7 +94,7 @@ export class EngineerAlveolus extends Alveolus {
 				const terminalTile = terminal ? hex.getTile(terminal) : undefined
 				const land = terminalTile?.content
 				if (land instanceof UnBuiltLand && land.project === residentialBasicDwellingProject) {
-					traces.residential?.log('[engineer] nextJob', {
+					traces.residential.log?.('[engineer] nextJob', {
 						job: 'foundation',
 						fromQ: startPos?.q,
 						fromR: startPos?.r,

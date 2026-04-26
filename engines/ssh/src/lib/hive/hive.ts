@@ -303,7 +303,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 
 	private scheduleAdvertisement(party: FreightMovementParty, goodsRelations?: GoodsRelations) {
 		if (this.destroyed || this.reconstructing || !party || !party.tile) {
-			traces.advertising?.log(`[SCHEDULE] SKIP: invalid party`, {
+			traces.advertising.log?.(`[SCHEDULE] SKIP: invalid party`, {
 				party: party?.name,
 				hasTile: !!party?.tile,
 			})
@@ -324,7 +324,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			this.pendingAdvertisements.clear()
 			for (const [advertiser, relations] of pending) {
 				if (!advertiser || !advertiser.tile) {
-					traces.advertising?.log(`[SCHEDULE] SKIP PENDING: invalid advertiser`, {
+					traces.advertising.log?.(`[SCHEDULE] SKIP PENDING: invalid advertiser`, {
 						advertiser: advertiser?.name,
 					})
 					continue
@@ -392,11 +392,11 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			effect`alveolus.advertise`(() => {
 				const goodsRelations = alveolus.goodsRelations
 				if (traces.advertising) {
-					traces.advertising.log(
+					traces.advertising.log?.(
 						`advertise effect source: ${alveolus.name} action=${alveolus.action?.type ?? 'unknown'} relations=${JSON.stringify(goodsRelations)}`
 					)
 				}
-				traces.advertising?.log(
+				traces.advertising.log?.(
 					`advertise effect: ${alveolus.name} ${JSON.stringify(goodsRelations)}`
 				)
 				this.scheduleAdvertisement(alveolus, goodsRelations)
@@ -482,7 +482,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			}
 		}
 
-		traces.advertising?.log?.('[HIVE] Reorganisation begin', {
+		traces.advertising.log?.('[HIVE] Reorganisation begin', {
 			hives: touchedHives.map((hive) => hive.name),
 			alveoliBefore: Array.from(toPlaceAlveoli).map((alveolus) => alveolus.name),
 			snapshottedMovements: snapshots.length,
@@ -512,7 +512,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			else if (primarySourceHive) hive.partOf(primarySourceHive)
 		}
 
-		traces.advertising?.log?.('[HIVE] Reorganisation topology rebuilt', {
+		traces.advertising.log?.('[HIVE] Reorganisation topology rebuilt', {
 			resultingHiveCount: rebuiltHives.length,
 			resultingHives: rebuiltHives.map((hive) => ({
 				name: hive.name,
@@ -638,7 +638,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		// - Storage capacity utilization
 		// Currently just uses distance as the primary factor
 
-		traces.advertising?.log(
+		traces.advertising.log?.(
 			`[FIND] START: ${from.name} to ${candidates.size} candidates for ${goodType}`,
 			Array.from(candidates).map((c) => ({ name: c.name, type: c.constructor.name }))
 		)
@@ -648,14 +648,14 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 
 		for (const candidate of candidates) {
 			const distance = this.getPathDistance(from, candidate, goodType)
-			traces.advertising?.log(`[FIND] CANDIDATE: ${candidate.name} distance=${distance}`)
+			traces.advertising.log?.(`[FIND] CANDIDATE: ${candidate.name} distance=${distance}`)
 			if (distance < minDistance) {
 				minDistance = distance
 				nearest = candidate
 			}
 		}
 
-		traces.advertising?.log(
+		traces.advertising.log?.(
 			`[FIND] RESULT: ${nearest?.name ?? 'undefined'} distance=${minDistance}`
 		)
 		return nearest
@@ -678,7 +678,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 					clearInterval(this.exchangeWatchdogTimer)
 					this.exchangeWatchdogTimer = undefined
 				}
-				traces.allocations?.log?.('[WATCHDOG] Exchange watchdog stopped after internal error', {
+				traces.allocations.log?.('[WATCHDOG] Exchange watchdog stopped after internal error', {
 					hive: this.name,
 					error: error instanceof Error ? error.message : String(error),
 				})
@@ -742,7 +742,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 					)
 					const recreated = this.createMovement(goodType, provider, demander)
 					if (!recreated) {
-						;(traces.advertising ?? console).warn?.(
+						traces.advertising.warn?.(
 							`[WATCHDOG] STALLED EXCHANGE: ${goodType} ${provider.name} -> ${demander.name}`,
 							{
 								goodType,
@@ -757,7 +757,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 						this.scheduleAdvertisement(provider)
 						this.scheduleAdvertisement(demander)
 					} else {
-						traces.advertising?.log?.('[WATCHDOG] Recreated stalled exchange', {
+						traces.advertising.log?.('[WATCHDOG] Recreated stalled exchange', {
 							goodType,
 							provider: provider.name,
 							demander: demander.name,
@@ -859,7 +859,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 					candidateAllocation.cancel()
 				}
 				if (details.silent) {
-					traces.advertising?.log?.(
+					traces.advertising.log?.(
 						'[WATCHDOG] Cancelled detached allocation during structural teardown',
 						{
 							goodType: details.goodType,
@@ -871,20 +871,17 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 						}
 					)
 				} else {
-					;(traces.advertising ?? console).warn?.(
-						'[WATCHDOG] Cancelled detached movement allocation',
-						{
-							goodType: details.goodType,
-							provider: details.provider?.name,
-							demander: details.demander?.name,
-							movementRef: details.movementRef,
-							reasonType: details.reasonType,
-							cancelledAllocations: allocationsToCancel.size,
-						}
-					)
+					traces.advertising.warn?.('[WATCHDOG] Cancelled detached movement allocation', {
+						goodType: details.goodType,
+						provider: details.provider?.name,
+						demander: details.demander?.name,
+						movementRef: details.movementRef,
+						reasonType: details.reasonType,
+						cancelledAllocations: allocationsToCancel.size,
+					})
 				}
 			} catch (error) {
-				traces.allocations?.warn?.('[WATCHDOG] Failed to cancel detached movement allocation', {
+				traces.allocations.warn?.('[WATCHDOG] Failed to cancel detached movement allocation', {
 					goodType: details.goodType,
 					provider: details.provider?.name,
 					demander: details.demander?.name,
@@ -934,7 +931,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			const trackedMovement = movementRef ? this.activeMovementByRef(movementRef) : undefined
 			if (structuralTeardown) {
 				if (trackedMovement) this.activeMovements.delete(trackedMovement)
-				traces.advertising?.log?.(
+				traces.advertising.log?.(
 					'[WATCHDOG] Dropping detached allocation during structural teardown',
 					{
 						goodType,
@@ -1003,7 +1000,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				continue
 			}
 
-			;(traces.advertising ?? console).warn?.('[WATCHDOG] Detached movement allocation', {
+			traces.advertising.warn?.('[WATCHDOG] Detached movement allocation', {
 				goodType,
 				provider: provider?.name,
 				demander: demander?.name,
@@ -1166,7 +1163,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		movement.from = preferredCoord
 		this.activeMovements.add(movement)
 		this.ensureMovementTrackedAt(movement, preferredCoord)
-		;(traces.advertising ?? console).warn?.('[WATCHDOG] Collapsed duplicate movement tracking', {
+		traces.advertising.warn?.('[WATCHDOG] Collapsed duplicate movement tracking', {
 			goodType: movement.goodType,
 			provider: this.movementProviderName(movement),
 			demander: this.movementDemanderName(movement),
@@ -1344,7 +1341,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		error: unknown
 	) {
 		const storage = this.storageSnapshot(this.storageAt(coord), movement.goodType)
-		;(traces.advertising ?? console).warn?.(`[WATCHDOG] ${label}`, {
+		traces.advertising.warn?.(`[WATCHDOG] ${label}`, {
 			goodType: movement.goodType,
 			provider: this.movementProviderName(movement),
 			demander: this.movementDemanderName(movement),
@@ -1531,17 +1528,14 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		const failure = this.validateMovementInvariant(canonical, options)
 		if (!failure) return true
 		if (this.tryRecoverMovementInvariant(canonical, failure, options)) return true
-		;(traces.advertising ?? console).warn?.(
-			options.warnLabel ?? '[WATCHDOG] Invalid movement token',
-			{
-				goodType: canonical.goodType,
-				provider: this.movementProviderName(canonical),
-				demander: this.movementDemanderName(canonical),
-				failure,
-				from: canonical.from,
-				pathLength: canonical.path.length,
-			}
-		)
+		traces.advertising.warn?.(options.warnLabel ?? '[WATCHDOG] Invalid movement token', {
+			goodType: canonical.goodType,
+			provider: this.movementProviderName(canonical),
+			demander: this.movementDemanderName(canonical),
+			failure,
+			from: canonical.from,
+			pathLength: canonical.path.length,
+		})
 		this.discardBrokenMovement(canonical)
 		return false
 	}
@@ -1574,32 +1568,26 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				const retriedFailure = this.validateMovementInvariant(retry, options)
 				if (!retriedFailure) return
 				if (this.tryRecoverMovementInvariant(retry, retriedFailure, options)) return
-				;(traces.advertising ?? console).warn?.(
-					options.warnLabel ?? '[WATCHDOG] Invalid movement token',
-					{
-						goodType: retry.goodType,
-						provider: this.movementProviderName(retry),
-						demander: this.movementDemanderName(retry),
-						failure: retriedFailure,
-						from: retry.from,
-						pathLength: retry.path.length,
-					}
-				)
+				traces.advertising.warn?.(options.warnLabel ?? '[WATCHDOG] Invalid movement token', {
+					goodType: retry.goodType,
+					provider: this.movementProviderName(retry),
+					demander: this.movementDemanderName(retry),
+					failure: retriedFailure,
+					from: retry.from,
+					pathLength: retry.path.length,
+				})
 				this.discardBrokenMovement(retry)
 			})
 			return false
 		}
-		;(traces.advertising ?? console).warn?.(
-			options.warnLabel ?? '[WATCHDOG] Invalid movement token',
-			{
-				goodType: canonical.goodType,
-				provider: this.movementProviderName(canonical),
-				demander: this.movementDemanderName(canonical),
-				failure,
-				from: canonical.from,
-				pathLength: canonical.path.length,
-			}
-		)
+		traces.advertising.warn?.(options.warnLabel ?? '[WATCHDOG] Invalid movement token', {
+			goodType: canonical.goodType,
+			provider: this.movementProviderName(canonical),
+			demander: this.movementDemanderName(canonical),
+			failure,
+			from: canonical.from,
+			pathLength: canonical.path.length,
+		})
 		defer(() => {
 			this.pendingBrokenMovementDiscardIds.delete(discardId)
 			if (this.destroyed || this.reconstructing) return
@@ -1689,7 +1677,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				token.cancel()
 				canceled += 1
 			} catch (error) {
-				traces.allocations?.warn?.('[WATCHDOG] Failed to cancel orphaned allocation', {
+				traces.allocations.warn?.('[WATCHDOG] Failed to cancel orphaned allocation', {
 					goodType,
 					provider: provider.name,
 					demander: demander.name,
@@ -1698,15 +1686,12 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			}
 		}
 		if (canceled > 0) {
-			;(traces.advertising ?? console).warn?.(
-				'[WATCHDOG] Cancelled orphaned exchange allocations',
-				{
-					goodType,
-					provider: provider.name,
-					demander: demander.name,
-					canceled,
-				}
-			)
+			traces.advertising.warn?.('[WATCHDOG] Cancelled orphaned exchange allocations', {
+				goodType,
+				provider: provider.name,
+				demander: demander.name,
+				canceled,
+			})
 		}
 		return canceled
 	}
@@ -1728,7 +1713,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 
 				// If the movement is claimed but no longer has a source allocation, it can never progress.
 				if (!mg.allocations?.source) {
-					;(traces.advertising ?? console).warn?.('[WATCHDOG] Releasing invalid claimed movement', {
+					traces.advertising.warn?.('[WATCHDOG] Releasing invalid claimed movement', {
 						goodType: mg.goodType,
 						provider: mg.provider.name,
 						demander: mg.demander.name,
@@ -1759,7 +1744,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 
 				// Claimed long enough and no active conveyor looks responsible: release the claim.
 				if (!claimerLikelyOwnsMovement) {
-					;(traces.advertising ?? console).warn?.('[WATCHDOG] Releasing stale claimed movement', {
+					traces.advertising.warn?.('[WATCHDOG] Releasing stale claimed movement', {
 						goodType: mg.goodType,
 						provider: mg.provider.name,
 						demander: mg.demander.name,
@@ -1823,7 +1808,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				`movement.hop.before: empty path; ${hive.describeMovementMineContext(this)}`
 			)
 			const nextCoord = this.path.shift()!
-			traces.advertising?.log(
+			traces.advertising.log?.(
 				`[MOVEMENT] HOP: ${this.goodType} ${this.provider.name} -> ${this.demander.name} to ${nextCoord.q},${nextCoord.r} (path left: ${this.path.length})`
 			)
 			hive.removeMovementFromCoordTracking(this)
@@ -1860,7 +1845,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				allowClaimedTerminalPath: this.claimed,
 			})
 			hive.noteMovementStorageCheckpoint(this, 'movement.place.after.storage', here)
-			traces.advertising?.log(`[MOVEMENT] PLACE: ${this.goodType} placed at ${here.q},${here.r}`)
+			traces.advertising.log?.(`[MOVEMENT] PLACE: ${this.goodType} placed at ${here.q},${here.r}`)
 		}
 
 		movement.finish = function (this: TrackedMovement) {
@@ -1891,7 +1876,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				allowTerminalPath: true,
 				allowFulfilledSourceAllocation: true,
 			})
-			traces.allocations?.log(
+			traces.allocations.log?.(
 				`[MOVEMENT] FINISH: ${this.goodType} ${this.provider.name} -> ${this.demander.name}`,
 				{
 					movementRef: movementRefId(this.ref),
@@ -1910,14 +1895,14 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				hive.noteMovementLifecycle(this, 'movement.finish.target-fulfill.before')
 				this.allocations.target.fulfill()
 				hive.noteMovementLifecycle(this, 'movement.finish.target-fulfill.after')
-				traces.allocations?.log(`[MOVEMENT] TARGET FULFILLED: ${this.goodType}`, {
+				traces.allocations.log?.(`[MOVEMENT] TARGET FULFILLED: ${this.goodType}`, {
 					movementRef: movementRefId(this.ref),
 					goodType: this.goodType,
 					provider: this.provider.name,
 					demander: this.demander.name,
 				})
 			} catch (error) {
-				traces.allocations?.error(`[MOVEMENT] TARGET FULFILL FAILED: ${this.goodType}`, {
+				traces.allocations.error?.(`[MOVEMENT] TARGET FULFILL FAILED: ${this.goodType}`, {
 					movementRef: movementRefId(this.ref),
 					goodType: this.goodType,
 					provider: this.provider.name,
@@ -1935,7 +1920,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 						'movement.finish.target-cancel.after-failed-fulfill.after'
 					)
 				} catch (cancelError) {
-					traces.allocations?.error(
+					traces.allocations.error?.(
 						`[MOVEMENT] TARGET CANCEL AFTER FAILED FULFILL FAILED: ${this.goodType}`,
 						{
 							movementRef: movementRefId(this.ref),
@@ -1948,7 +1933,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				}
 			}
 
-			traces.allocations?.log(`[MOVEMENT] SOURCE SHOULD AUTO-FULFILL: ${this.goodType}`, {
+			traces.allocations.log?.(`[MOVEMENT] SOURCE SHOULD AUTO-FULFILL: ${this.goodType}`, {
 				movementRef: movementRefId(this.ref),
 				goodType: this.goodType,
 				provider: this.provider.name,
@@ -2072,7 +2057,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			sourceStorage?.removeGood(snapshot.goodType, 1)
 		} catch {}
 		this.board.looseGoods.add(tile, snapshot.goodType)
-		traces.advertising?.log?.('[RECONSTRUCT] Cancelled movement as free good', {
+		traces.advertising.log?.('[RECONSTRUCT] Cancelled movement as free good', {
 			goodType: snapshot.goodType,
 			movementRef: movementRefId(snapshot.movementRef),
 			coord: snapshot.currentCoord,
@@ -2238,7 +2223,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		this.activeMovements.add(movingGood)
 		if (!movingGood.claimed) movingGood.place()
 		this.wakeWanderingWorkersNear(provider, demander)
-		traces.advertising?.log?.('[RECONSTRUCT] Rebound movement after hive reconstruction', {
+		traces.advertising.log?.('[RECONSTRUCT] Rebound movement after hive reconstruction', {
 			goodType: snapshot.goodType,
 			provider: provider.name,
 			demander: demander.name,
@@ -2250,7 +2235,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 	}
 
 	private finalizeReconstructedMovements(snapshots: PersistentMovementSnapshot[]) {
-		traces.advertising?.log?.('[HIVE] Reorganisation finalize begin', {
+		traces.advertising.log?.('[HIVE] Reorganisation finalize begin', {
 			hive: this.name,
 			snapshottedMovements: snapshots.length,
 			movementRefs: snapshots.map((snapshot) => movementRefId(snapshot.movementRef)),
@@ -2267,7 +2252,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				orphaned += 1
 			}
 		}
-		traces.advertising?.log?.('[HIVE] Reorganisation finalize end', {
+		traces.advertising.log?.('[HIVE] Reorganisation finalize end', {
 			hive: this.name,
 			snapshottedMovements: snapshots.length,
 			rebound,
@@ -2376,7 +2361,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		this.scheduleAdvertisement(mg.provider)
 		this.scheduleAdvertisement(mg.demander)
 		this.wakeWanderingWorkersNear(mg.provider, mg.demander)
-		;(traces.advertising ?? console).warn?.('[WATCHDOG] Offloaded broken border movement', {
+		traces.advertising.warn?.('[WATCHDOG] Offloaded broken border movement', {
 			goodType: mg.goodType,
 			provider: mg.provider.name,
 			demander: mg.demander.name,
@@ -2417,7 +2402,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			this.scheduleAdvertisement(mg.demander)
 			this.wakeWanderingWorkersNear(mg.provider, mg.demander)
 			this.noteMovementStorageCheckpoint(mg, 'recoverBorderMovement.after', coord)
-			;(traces.advertising ?? console).warn?.('[WATCHDOG] Recovered border movement bookkeeping', {
+			traces.advertising.warn?.('[WATCHDOG] Recovered border movement bookkeeping', {
 				goodType: mg.goodType,
 				provider: mg.provider.name,
 				demander: mg.demander.name,
@@ -2473,8 +2458,8 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				coord,
 				failure,
 			}
-			if (traces.advertising?.warn)
-				traces.advertising.warn('[WATCHDOG] Recovered tile movement bookkeeping', payload)
+			if (traces.advertising.warn)
+				traces.advertising.warn?.('[WATCHDOG] Recovered tile movement bookkeeping', payload)
 			else console.debug('[WATCHDOG] Recovered tile movement bookkeeping', payload)
 			return true
 		} catch (error) {
@@ -2547,7 +2532,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			this.activeMovements.add(mg)
 			this.ensureMovementTrackedAt(mg, coord)
 			this.noteMovementStorageCheckpoint(mg, 'recover.tracked-at-wrong-position.after', coord)
-			;(traces.advertising ?? console).warn?.('[WATCHDOG] Recovered stale movement tracking', {
+			traces.advertising.warn?.('[WATCHDOG] Recovered stale movement tracking', {
 				goodType: mg.goodType,
 				provider: this.movementProviderName(mg),
 				demander: this.movementDemanderName(mg),
@@ -2574,7 +2559,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 	discardBrokenMovement(mg: TrackedMovement) {
 		this.activeMovements.delete(mg)
 		const trackedCoord = this.trackedMovementCoord(mg) ?? mg.from
-		;(traces.advertising ?? console).warn?.('[WATCHDOG] Broken movement', {
+		traces.advertising.warn?.('[WATCHDOG] Broken movement', {
 			goodType: mg.goodType,
 			provider: this.movementProviderName(mg),
 			demander: this.movementDemanderName(mg),
@@ -2782,7 +2767,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		if (this.reconstructing) return false
 		// Check if either alveolus is destroyed
 		if (!provider.tile || !demander.tile || provider.destroyed || demander.destroyed) {
-			traces.advertising?.log(`[CREATE] SKIP: destroyed alveolus`, {
+			traces.advertising.log?.(`[CREATE] SKIP: destroyed alveolus`, {
 				goodType,
 				provider: provider.name,
 				demander: demander.name,
@@ -2794,7 +2779,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 
 		const providePriority = this.movementProvidePriority(provider, goodType)
 		if (!providePriority) {
-			traces.advertising?.log(`[CREATE] SKIP PROVIDER: ${goodType} ${provider.name} cannot give`, {
+			traces.advertising.log?.(`[CREATE] SKIP PROVIDER: ${goodType} ${provider.name} cannot give`, {
 				goodType,
 				provider: provider.name,
 				demander: demander.name,
@@ -2807,7 +2792,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		const currentStock = demander.storage.stock[goodType] || 0
 		const capacity = demander.storage.capacity
 		if (currentStock >= capacity) {
-			traces.advertising?.log(
+			traces.advertising.log?.(
 				`[CREATE] SKIP CAPACITY: ${goodType} ${provider.name} -> ${demander.name} (stock: ${currentStock}/${capacity})`
 			)
 			return false
@@ -2818,17 +2803,17 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			demander: toAxialCoord(demander.tile.position),
 		}
 
-		traces.advertising?.log(`[CREATE] START: ${goodType} ${provider.name} -> ${demander.name}`)
+		traces.advertising.log?.(`[CREATE] START: ${goodType} ${provider.name} -> ${demander.name}`)
 
 		// Use cached path if available, otherwise calculate it
 		const computedPath = this.getPath(provider, demander, goodType)
 		if (!computedPath || computedPath.length < 1) {
-			traces.advertising?.log(`[CREATE] NO PATH: ${goodType} ${provider.name} -> ${demander.name}`)
+			traces.advertising.log?.(`[CREATE] NO PATH: ${goodType} ${provider.name} -> ${demander.name}`)
 			return false
 		}
 		const path = [...computedPath]
 
-		traces.advertising?.log(
+		traces.advertising.log?.(
 			`[CREATE] PATH FOUND: ${goodType} ${provider.name} -> ${demander.name} length=${path.length}`
 		)
 
@@ -2846,7 +2831,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		}
 
 		return inert(() => {
-			traces.advertising?.log(
+			traces.advertising.log?.(
 				`[CREATE] INERT START: ${goodType} ${provider.name} -> ${demander.name}`,
 				reason
 			)
@@ -2864,7 +2849,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				const providerStock = provider.storage.stock[goodType] ?? 0
 
 				providerToken = provider.storage.reserve({ [goodType]: 1 }, reason)
-				traces.allocations?.log(`[MOVEMENT] Provider allocation created:`, {
+				traces.allocations.log?.(`[MOVEMENT] Provider allocation created:`, {
 					movementRef: movementRefId(reason.movementRef),
 					type: 'source',
 					goodType,
@@ -2886,7 +2871,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 
 				// Step 2: Create target allocation
 				targetToken = demander.storage.allocate({ [goodType]: 1 }, reason)
-				traces.allocations?.log(`[MOVEMENT] Demander allocation created:`, {
+				traces.allocations.log?.(`[MOVEMENT] Demander allocation created:`, {
 					movementRef: movementRefId(reason.movementRef),
 					type: 'target',
 					goodType,
@@ -2914,14 +2899,14 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				}
 
 				// Step 3: Both allocations succeeded - proceed with movement
-				traces.allocations?.log(`[MOVEMENT] TWIN ALLOCATION SUCCESS: ${goodType}`, {
+				traces.allocations.log?.(`[MOVEMENT] TWIN ALLOCATION SUCCESS: ${goodType}`, {
 					movementRef: movementRefId(reason.movementRef),
 					provider: provider.name,
 					demander: demander.name,
 				})
 			} catch (error) {
 				// TWIN ALLOCATION FAILED: Clean up any partial allocation
-				traces.allocations?.error(`[MOVEMENT] TWIN ALLOCATION FAILED: ${goodType}`, {
+				traces.allocations.error?.(`[MOVEMENT] TWIN ALLOCATION FAILED: ${goodType}`, {
 					movementRef: movementRefId(reason.movementRef),
 					goodType,
 					provider: provider.name,
@@ -2935,7 +2920,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				if (providerToken) {
 					try {
 						providerToken.cancel()
-						traces.allocations?.log(
+						traces.allocations.log?.(
 							`[MOVEMENT] Cleaned up provider allocation after twin failure:`,
 							{
 								movementRef: movementRefId(reason.movementRef),
@@ -2944,7 +2929,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 							}
 						)
 					} catch (cancelError) {
-						traces.allocations?.error(`[MOVEMENT] Failed to cleanup provider allocation:`, {
+						traces.allocations.error?.(`[MOVEMENT] Failed to cleanup provider allocation:`, {
 							movementRef: movementRefId(reason.movementRef),
 							error: cancelError instanceof Error ? cancelError.message : String(cancelError),
 						})
@@ -3000,7 +2985,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				requireTargetValid: true,
 			})
 			this.wakeWanderingWorkersNear(provider, demander)
-			traces.advertising?.log(
+			traces.advertising.log?.(
 				`[CREATE] SUCCESS: ${goodType} ${provider.name} -> ${demander.name} movement active`
 			)
 
@@ -3025,19 +3010,19 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		targetPriority: ExchangePriority,
 		onCreated?: (storage: FreightMovementParty) => void
 	): FreightMovementParty | undefined {
-		traces.advertising?.log(
+		traces.advertising.log?.(
 			`[SELECT] START: ${goodType} ${advertisement} from ${alveolus.name} to ${storages.length} candidates`
 		)
 
 		// We consider A->B === B->A
 		const storage = inert(() => this.findNearest(alveolus, new Set(storages), goodType))
 		if (storage === undefined) {
-			traces.advertising?.log(
+			traces.advertising.log?.(
 				`[SELECT] NO REACHABLE: ${goodType} from ${alveolus.name} to any of: ${storages.map((s) => (s as any).name || 'unnamed').join(', ')}`
 			)
 			return undefined
 		}
-		traces.advertising?.log(
+		traces.advertising.log?.(
 			`[SELECT] FOUND: ${goodType} ${advertisement} ${alveolus.name} -> ${storage.name}`
 		)
 		// Defer movement creation to avoid reactive cycle:
@@ -3045,7 +3030,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		defer(() => {
 			if (this.destroyed) return
 			try {
-				traces.advertising?.log(
+				traces.advertising.log?.(
 					`[SELECT] DEFERRED CREATE: ${goodType} ${alveolus.name} -> ${storage.name}`
 				)
 
@@ -3060,7 +3045,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 					const providerCanGive = providerStorage.canGive(goodType, sourcePriority)
 
 					if (!providerCanGive) {
-						traces.advertising?.log(
+						traces.advertising.log?.(
 							`[SELECT] SKIP: ${goodType} - ${providerStorage.name} has no goods to give`
 						)
 						return storage
@@ -3072,7 +3057,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 					const targetCanTake = targetStorage.canTake(goodType, targetPriority)
 
 					if (!targetCanTake) {
-						traces.advertising?.log(
+						traces.advertising.log?.(
 							`[SELECT] SKIP: ${goodType} - ${targetStorage.name} cannot accept goods`
 						)
 						return storage
@@ -3086,21 +3071,21 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 					])
 				)
 				if (!created) {
-					traces.advertising?.log(
+					traces.advertising.log?.(
 						`[SELECT] DEFERRED NOOP: ${goodType} ${alveolus.name} -> ${storage.name}`
 					)
 					return storage
 				}
 				onCreated?.(storage)
-				traces.advertising?.log(`[SELECT] DEFERRED SUCCESS: ${goodType} movement created`)
+				traces.advertising.log?.(`[SELECT] DEFERRED SUCCESS: ${goodType} movement created`)
 			} catch (e) {
 				// Ignore allocation errors that occur if resources are no longer available
 				// The system will retry naturally on next advertisement if needed
 				const error = e as Error
 				if (error.name === 'AllocationError') {
-					traces.advertising?.log(`[SELECT] ALLOCATION ERROR: ${goodType} - ${error.message}`)
+					traces.advertising.log?.(`[SELECT] ALLOCATION ERROR: ${goodType} - ${error.message}`)
 				} else {
-					traces.advertising?.log(`[SELECT] ERROR: ${goodType} - ${error.message}`)
+					traces.advertising.log?.(`[SELECT] ERROR: ${goodType} - ${error.message}`)
 					console.error(e)
 				}
 			}
@@ -3218,7 +3203,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				movingGood.allocations?.source &&
 				(movingGood.allocations.source as { reason?: { movementRef?: MovementRef } }).reason
 					?.movementRef
-			traces.allocations?.log(
+			traces.allocations.log?.(
 				`[MOVEMENT] CANCELLED DURING DESTROY: ${movingGood.goodType} ${movingGood.provider.name} -> ${movingGood.demander.name}`,
 				{
 					movementRef: movementRef ? movementRefId(movementRef) : undefined,

@@ -7,7 +7,9 @@ import {
 } from 'ssh/freight/vehicle-run'
 import { findVehicleApproachJob } from 'ssh/freight/vehicle-work'
 import { Game } from 'ssh/game/game'
-import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
+import { offloadDropBufferNative } from 'ssh/npcs/context/inventory'
+import { getGameScript, ScriptExecution } from 'ssh/npcs/scripts'
+import { isVehicleLineService, isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
 import { axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -149,6 +151,7 @@ describe('Character vehicle seam', () => {
 					radius: 2,
 				}),
 			],
+			looseGoods: [{ goodType: 'wood' as const, position: { q: 1, r: 0 } }],
 		}
 		game = new Game({ terrainSeed: 9311, characterCount: 0 }, patches)
 		await game.loaded
@@ -185,6 +188,7 @@ describe('Character vehicle seam', () => {
 					radius: 2,
 				}),
 			],
+			looseGoods: [{ goodType: 'wood' as const, position: { q: 1, r: 0 } }],
 		}
 		game = new Game({ terrainSeed: 9313, characterCount: 0 }, patches)
 		await game.loaded
@@ -198,7 +202,7 @@ describe('Character vehicle seam', () => {
 		expect(action).toBeTruthy()
 		if (!action) throw new Error('Expected a vehicle approach action')
 		first.begin(action)
-		expect(findVehicleApproachJob(game, second)).toBeUndefined()
+		expect(findVehicleApproachJob(game, second)).toBeDefined()
 	})
 
 	it('rejects boarding without operates', async () => {
@@ -232,6 +236,43 @@ describe('Character vehicle seam', () => {
 		expect(() => character.onboard()).toThrow(AssertionError)
 	})
 
+	it('actionDescription reflects current runningScripts after script stack changes', async () => {
+		game = new Game(
+			{ terrainSeed: 9320, characterCount: 0 },
+			{ tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }] }
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		const character = game.population.createCharacter('ActionDesc', { q: 0, r: 0 })
+		void character.scriptsContext
+
+		const selfCareScript = getGameScript('selfCare')
+		const workScript = getGameScript('work')
+		const vehicleScript = getGameScript('vehicle')
+		const walkScript = getGameScript('walk')
+		if (!selfCareScript || !workScript || !vehicleScript || !walkScript) {
+			throw new Error('Expected core NPC scripts to be loaded')
+		}
+
+		character.runningScripts = [new ScriptExecution(selfCareScript, 'selfCare.wander')]
+		expect(character.actionDescription).toEqual(['selfCare.wander'])
+
+		character.runningScripts = [
+			new ScriptExecution(walkScript, 'walk.until'),
+			new ScriptExecution(vehicleScript, 'vehicle.vehicleOffload'),
+			new ScriptExecution(workScript, 'work.goWork'),
+		]
+		expect(character.actionDescription).toEqual([
+			'work.goWork',
+			'vehicle.vehicleOffload',
+			'walk.until',
+		])
+
+		character.runningScripts = [new ScriptExecution(selfCareScript, 'selfCare.wander')]
+		expect(character.actionDescription).toEqual(['selfCare.wander'])
+	})
+
 	it('empty transport with offload service detaches service and clears operated vehicle without plan.finally offboarding', async () => {
 		game = new Game(
 			{ terrainSeed: 9314, characterCount: 0 },
@@ -250,6 +291,34 @@ describe('Character vehicle seam', () => {
 		expect(character.driving).toBe(false)
 		expect(character.operates).toBeUndefined()
 		expect(vehicle.service).toBeUndefined()
+	})
+
+	it('offloadDropBufferNative drops stock without completing maintenance service', async () => {
+		game = new Game(
+			{ terrainSeed: 9315, characterCount: 0 },
+			{ tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }] }
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		const vehicle = game.vehicles.createVehicle('v-off-drain', 'wheelbarrow', { q: 0, r: 0 })
+		vehicle.storage.addGood('wood', 1)
+		const character = game.population.createCharacter('OffDrain', { q: 0, r: 0 })
+		vehicle.beginMaintenanceService(
+			{ kind: 'unloadToTile', targetCoord: { q: 0, r: 0 } },
+			character
+		)
+		character.operates = vehicle
+		character.onboard()
+
+		const step = offloadDropBufferNative(character.scriptsContext.inventory)
+		expect(step).toBeTruthy()
+		step?.finish()
+
+		expect(character.driving).toBe(true)
+		expect(character.operates?.uid).toBe(vehicle.uid)
+		expect(isVehicleMaintenanceService(vehicle.service)).toBe(true)
+		expect(vehicle.storage.available('wood')).toBe(0)
 	})
 
 	it('disembarkVehicleKeepingService clears operator but keeps line service', async () => {
@@ -367,7 +436,7 @@ describe('Character vehicle seam', () => {
 		expect(vehicle.storage.stock.wood).toBe(2)
 	})
 
-	it('releaseVehicleFreightWorkOnPlanInterrupt clears operator and drops empty service', async () => {
+	it('releaseVehicleFreightWorkOnPlanInterrupt clears operator and keeps unfinished empty line service', async () => {
 		const patches = {
 			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
 			freightLines: [
@@ -392,7 +461,9 @@ describe('Character vehicle seam', () => {
 		character.operates = vehicle
 
 		releaseVehicleFreightWorkOnPlanInterrupt(character)
-		expect(vehicle.service).toBeUndefined()
+		expect(isVehicleLineService(vehicle.service)).toBe(true)
+		expect(vehicle.operator).toBeUndefined()
+		expect(character.operates).toBeUndefined()
 	})
 
 	it('releaseVehicleFreightWorkOnPlanInterrupt keeps service when storage is non-empty', async () => {
@@ -425,7 +496,7 @@ describe('Character vehicle seam', () => {
 		expect(vehicle.service!.operator).toBeUndefined()
 	})
 
-	it('releaseVehicleFreightWorkOnPlanInterrupt clears offload service when storage is empty', async () => {
+	it('releaseVehicleFreightWorkOnPlanInterrupt keeps unfinished offload service when storage is empty', async () => {
 		game = new Game(
 			{ terrainSeed: 9312, characterCount: 0 },
 			{ tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }] }
@@ -441,10 +512,11 @@ describe('Character vehicle seam', () => {
 
 		releaseVehicleFreightWorkOnPlanInterrupt(character)
 		expect(vehicle.operator).toBeUndefined()
-		expect(vehicle.service).toBeUndefined()
+		expect(isVehicleMaintenanceService(vehicle.service)).toBe(true)
+		expect(character.operates).toBeUndefined()
 	})
 
-	it('releaseVehicleFreightWorkOnPlanInterrupt traces operator release and detach when storage empty', async () => {
+	it('releaseVehicleFreightWorkOnPlanInterrupt traces operator release while keeping empty service', async () => {
 		const patches = {
 			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
 			freightLines: [
@@ -468,21 +540,21 @@ describe('Character vehicle seam', () => {
 		vehicle.beginService(line, line.stops[0]!, character)
 		character.operates = vehicle
 
-		const debug = vi.fn()
+		const log = vi.fn()
 		const prev = traces.vehicle
 		traces.vehicle = {
-			debug,
+			debug: vi.fn(),
 			error: vi.fn(),
 			info: vi.fn(),
-			log: vi.fn(),
+			log,
 			warn: vi.fn(),
 		} as unknown as typeof console
 		try {
 			releaseVehicleFreightWorkOnPlanInterrupt(character)
-			expect(debug).toHaveBeenCalledWith('vehicle freight operator released on plan interrupt', {
+			expect(log).toHaveBeenCalledWith('vehicle freight operator released on plan interrupt', {
 				vehicleUid: vehicle.uid,
 				characterUid: character.uid,
-				stillHasService: false,
+				stillHasService: true,
 			})
 		} finally {
 			traces.vehicle = prev
@@ -514,18 +586,18 @@ describe('Character vehicle seam', () => {
 		vehicle.storage.addGood('wood', 1)
 		character.operates = vehicle
 
-		const debug = vi.fn()
+		const log = vi.fn()
 		const prev = traces.vehicle
 		traces.vehicle = {
-			debug,
+			debug: vi.fn(),
 			error: vi.fn(),
 			info: vi.fn(),
-			log: vi.fn(),
+			log,
 			warn: vi.fn(),
 		} as unknown as typeof console
 		try {
 			releaseVehicleFreightWorkOnPlanInterrupt(character)
-			expect(debug).toHaveBeenCalledWith('vehicle freight operator released on plan interrupt', {
+			expect(log).toHaveBeenCalledWith('vehicle freight operator released on plan interrupt', {
 				vehicleUid: vehicle.uid,
 				characterUid: character.uid,
 				stillHasService: true,
@@ -557,18 +629,18 @@ describe('Character vehicle seam', () => {
 		const op = game.population.createCharacter('Detach', { q: 0, r: 0 })
 		vehicle.beginService(line, line.stops[0]!, op)
 
-		const debug = vi.fn()
+		const log = vi.fn()
 		const prev = traces.vehicle
 		traces.vehicle = {
-			debug,
+			debug: vi.fn(),
 			error: vi.fn(),
 			info: vi.fn(),
-			log: vi.fn(),
+			log,
 			warn: vi.fn(),
 		} as unknown as typeof console
 		try {
 			detachVehicleServiceIfStorageEmpty(vehicle)
-			expect(debug).toHaveBeenCalledWith(
+			expect(log).toHaveBeenCalledWith(
 				'vehicle freight service detached (empty storage)',
 				vehicle.uid
 			)

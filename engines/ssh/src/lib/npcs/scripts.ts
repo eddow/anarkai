@@ -20,6 +20,25 @@ import { gameIsaTypes, gameOperators, lerp } from './utils'
 
 type XOrDictX<X> = X | { [k: string]: XOrDictX<X> }
 
+export type ScriptExecutionErrorDiagnostic = {
+	readonly event: 'script.executionError'
+	readonly scriptModule: string
+	readonly executionName: string
+	readonly source?: string
+	readonly message?: string
+	readonly stack?: string
+}
+
+const scriptExecutionErrorDiagnostics = new WeakMap<object, ScriptExecutionErrorDiagnostic>()
+
+export function scriptExecutionErrorDiagnostic(
+	error: unknown
+): ScriptExecutionErrorDiagnostic | undefined {
+	return typeof error === 'object' && error !== null
+		? scriptExecutionErrorDiagnostics.get(error)
+		: undefined
+}
+
 unreactive(ScriptExecutor)
 unreactive(NpcScript)
 
@@ -193,8 +212,14 @@ export class ScriptExecution {
 			return result
 		} catch (error) {
 			if (error instanceof ExecutionError) {
-				console.error(`${this.script.sourceLocation(error.statement)}\n${error.error?.message}`)
-				console.error(error.stack)
+				scriptExecutionErrorDiagnostics.set(error, {
+					event: 'script.executionError',
+					scriptModule: this.script.name,
+					executionName: this.name,
+					source: this.script.sourceLocation(error.statement),
+					message: error.error?.message,
+					stack: error.stack,
+				})
 			}
 			throw error
 		}

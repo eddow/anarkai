@@ -6,6 +6,7 @@ import { syncFreightVehicleDockRegistration } from 'ssh/freight/vehicle-freight-
 import type { Game } from 'ssh/game/game'
 import { GameObject, withInteractive } from 'ssh/game/object'
 import type { Storage } from 'ssh/storage'
+import { traceProjection } from 'ssh/trace'
 import type { GoodType } from 'ssh/types'
 import { axial } from 'ssh/utils'
 import { type Position, toAxialCoord } from 'ssh/utils/position'
@@ -13,10 +14,12 @@ import type { Character } from '../character'
 import {
 	createVehicleStorage,
 	isVehicleLineService,
-	isVehicleOffloadService,
+	isVehicleMaintenanceService,
 	type LegacyLineVehicleServiceSerialized,
+	type LegacyOffloadVehicleServiceSerialized,
 	type VehicleLineService,
-	type VehicleOffloadService,
+	type VehicleMaintenanceService,
+	type VehicleMaintenanceServiceSpec,
 	type VehicleSerializedState,
 	type VehicleService,
 	type VehicleServiceSerialized,
@@ -70,10 +73,45 @@ export class VehicleEntity extends withInteractive(GameObject) {
 							docked: svc.docked,
 							operatorUid: svc.operator?.uid,
 						}
-					: svc && isVehicleOffloadService(svc)
-						? { kind: 'offload' as const, operatorUid: svc.operator?.uid }
+					: svc && isVehicleMaintenanceService(svc)
+						? {
+								kind: 'maintenance' as const,
+								maintenanceKind: svc.kind,
+								targetCoord: svc.targetCoord,
+								operatorUid: svc.operator?.uid,
+							}
 						: undefined,
 			storage: this.storage.stock,
+		}
+	}
+
+	get [traceProjection]() {
+		const svc = this.service
+		return {
+			$type: 'Vehicle',
+			uid: this.uid,
+			vehicleType: this.vehicleType,
+			position: this.position,
+			operatorUid: this.operator?.uid,
+			service:
+				svc && isVehicleLineService(svc)
+					? {
+							kind: 'line' as const,
+							lineId: svc.line.id,
+							stopId: svc.stop.id,
+							docked: svc.docked,
+							operatorUid: svc.operator?.uid,
+						}
+					: svc && isVehicleMaintenanceService(svc)
+						? {
+								kind: 'maintenance' as const,
+								maintenanceKind: svc.kind,
+								targetCoord: svc.targetCoord,
+								operatorUid: svc.operator?.uid,
+							}
+						: undefined,
+			servedLineIds: this.servedLines.map((line) => line.id),
+			stock: this.storage.stock,
 		}
 	}
 
@@ -83,7 +121,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 
 	/**
 	 * Sets `service.operator`. The vehicle must already have a {@link service} object
-	 * (line or offload); use {@link beginLineService} / {@link beginOffloadService} first.
+	 * (line or maintenance); use {@link beginLineService} / {@link beginMaintenanceService} first.
 	 */
 	setServiceOperator(operator: Character | undefined): void {
 		assert(this.service, `Vehicle ${this.uid}: setServiceOperator requires an active service`)
@@ -121,10 +159,29 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		syncFreightVehicleDockRegistration(this)
 	}
 
-	beginOffloadService(operator?: Character): void {
-		const next: VehicleOffloadService = { operator }
+	/**
+	 * Attach a maintenance offload service describing one of the three sub-kinds
+	 * (`loadFromBurden` / `unloadToTile` / `park`). Per-kind state lives on the service so scripts
+	 * read intent from `vehicle.service` rather than the transient job payload.
+	 */
+	beginMaintenanceService(spec: VehicleMaintenanceServiceSpec, operator?: Character): void {
+		// Distribute over the discriminated union via the spec helper so each kind keeps its fields.
+		const next = { ...spec, operator } as VehicleMaintenanceService
 		this.service = next
 		syncFreightVehicleDockRegistration(this)
+	}
+
+	/**
+	 * Test seam: attach a generic `park` maintenance service pointing at the current vehicle tile.
+	 * Production code uses {@link beginMaintenanceService} with the concrete sub-kind chosen by
+	 * the planner (`vehicle-work.ts:allocateVehicleServiceForJob`).
+	 */
+	beginOffloadService(operator?: Character): void {
+		const coord = axial.round(toAxialCoord(this.position)!)
+		this.beginMaintenanceService(
+			{ kind: 'park', targetCoord: { q: coord.q, r: coord.r } },
+			operator
+		)
 	}
 
 	/** @deprecated Prefer {@link beginLineService}. */
@@ -172,8 +229,11 @@ export class VehicleEntity extends withInteractive(GameObject) {
 				operatorUid: svc.operator?.uid,
 			}
 		}
+		if (!isVehicleMaintenanceService(svc)) return undefined
 		return {
-			kind: 'offload',
+			kind: 'maintenance',
+			maintenanceKind: svc.kind,
+			targetCoord: { q: svc.targetCoord.q, r: svc.targetCoord.r },
 			operatorUid: svc.operator?.uid,
 		}
 	}
@@ -212,13 +272,16 @@ export class VehicleEntity extends withInteractive(GameObject) {
 	private static restoreService(
 		game: Game,
 		vehicle: VehicleEntity,
-		saved: VehicleServiceSerialized | LegacyLineVehicleServiceSerialized
+		saved:
+			| VehicleServiceSerialized
+			| LegacyLineVehicleServiceSerialized
+			| LegacyOffloadVehicleServiceSerialized
 	): void {
 		const operator = saved.operatorUid ? game.population.character(saved.operatorUid) : undefined
-		if ('kind' in saved && saved.kind === 'offload') {
-			vehicle.service = { operator }
-			return
-		}
+		// Pre-discriminator legacy offload save: the planner re-discovers maintenance work.
+		if ('kind' in saved && saved.kind === 'offload') return
+		// New maintenance save: also transient — planner re-validates targets against current world.
+		if ('kind' in saved && saved.kind === 'maintenance') return
 		const linePayload = saved as
 			| LegacyLineVehicleServiceSerialized
 			| Extract<VehicleServiceSerialized, { kind: 'line' }>

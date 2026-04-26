@@ -13,7 +13,10 @@ describe('work.npcs dispatch', () => {
 		game = new Game(
 			{ terrainSeed: 9501, characterCount: 0 },
 			{
-				tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
+				tiles: [
+					{ coord: [0, 0] as const, terrain: 'grass' as const },
+					{ coord: [1, 0] as const, terrain: 'grass' as const },
+				],
 				freightLines: [
 					gatherFreightLine({
 						id: 'dispatch:gather',
@@ -24,6 +27,7 @@ describe('work.npcs dispatch', () => {
 						radius: 2,
 					}),
 				],
+				looseGoods: [{ goodType: 'wood' as const, position: { q: 1, r: 0 } }],
 			}
 		)
 		await game.loaded
@@ -47,11 +51,14 @@ describe('work.npcs dispatch', () => {
 			path: [],
 			dockEnter: false,
 			approachPath: [{ q: 0, r: 0 }],
+			needsBeginService: true,
 		}
 
 		const execution = character.scriptsContext.work.goWork(workPlan)
+		expect(vehicle.service).toBeUndefined()
 		const first = execution.run(character.scriptsContext)
 		expect(first.type === 'yield' || first.type === 'return').toBe(true)
+		expect(character.operates).toBeUndefined()
 		vi.restoreAllMocks()
 	})
 

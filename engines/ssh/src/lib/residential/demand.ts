@@ -89,7 +89,7 @@ export function trySpawnResidentialProject(game: Game): void {
 	if (!(land instanceof UnBuiltLand)) return
 	if (land.project) return
 	land.setProject(residentialBasicDwellingProject)
-	traces.residential?.log('[residential] spawned basic dwelling project', {
+	traces.residential.log?.('[residential] spawned basic dwelling project', {
 		q: best.q,
 		r: best.r,
 		pressure: best.pressure,

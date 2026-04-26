@@ -2,9 +2,10 @@ import { assert, traces } from 'ssh/debug'
 import type { Character } from 'ssh/population/character'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
-/** Prefer `traces.vehicle?.error` before `assert` so enabled traces show context. */
+
 export function vehicleTraceAssert(condition: unknown, message: string): asserts condition {
-	if (!condition) traces.vehicle?.error?.(message)
+	if (condition) return
+	traces.vehicle.error?.(message)
 	assert(condition, message)
 }
 
@@ -16,15 +17,23 @@ export function assertDrivingVehicleSeam(character: Character): void {
 	)
 }
 
-export function assertVehicleServiceOperator(vehicle: VehicleEntity, character: Character): void {
+export function assertVehicleOperationConsistency(
+	vehicle: VehicleEntity,
+	character: Character
+): void {
 	const op = vehicle.service?.operator
-	if (!op) return
-	vehicleTraceAssert(
-		op.uid === character.uid &&
-			character.operates?.uid === vehicle.uid &&
-			vehicle.operator?.uid === character.uid,
-		'vehicle.service.operator must be the operating character'
-	)
+	if (op?.uid !== character.uid)
+		vehicleTraceAssert(
+			character.operates?.uid !== vehicle.uid,
+			'vehicle.service.operator must be set to the character operating the vehicle'
+		)
+	else
+		vehicleTraceAssert(
+			op.uid === character.uid &&
+				character.operates?.uid === vehicle.uid &&
+				vehicle.operator?.uid === character.uid,
+			'vehicle.service.operator must be the operating character'
+		)
 }
 
 export function assertDockedSemantics(vehicle: VehicleEntity): void {
@@ -38,5 +47,5 @@ export function traceVehicleStockWithoutService(vehicle: VehicleEntity): void {
 	if (vehicle.service) return
 	const stock = vehicle.storage.stock
 	const hasStock = Object.values(stock).some((n) => (n ?? 0) > 0)
-	if (hasStock) traces.vehicle?.log?.('vehicle has stock without active service', vehicle.uid)
+	if (hasStock) traces.vehicle.log?.('vehicle has stock without active service', vehicle.uid)
 }

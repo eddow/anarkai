@@ -90,7 +90,6 @@ describe('NPC Behaviors Integration', () => {
 		const depositTile = game.hex.getTile({ q: 2, r: 3 })
 		const deposit = (depositTile?.content as UnBuiltLand)?.deposit
 		expect(deposit).toBeDefined()
-		console.log('Deposit amount:', deposit!.amount)
 		expect(deposit!.amount).toBeLessThan(10) // Should have harvested at least 1
 
 		// Harvest output is loose goods on the deposit tile (not character/hive buffer)
@@ -124,7 +123,6 @@ describe('NPC Behaviors Integration', () => {
 		await tickAsync(engine, 30.0) // Increase time slightly to ensure transformation happens
 
 		const storage = game.hex.getTile({ q: 0, r: 0 })?.content?.storage?.stock
-		console.log('Sawmill Goods:', storage)
 
 		// Should have consumed wood and produced planks
 		expect((storage as any).wood).toBeLessThan(5)

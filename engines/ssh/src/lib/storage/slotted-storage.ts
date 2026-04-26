@@ -358,7 +358,7 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		if (remaining > 0 && qty > 0) {
 			const available = this.available(goodType)
 			const stock = this.stock[goodType] ?? 0
-			traces.allocations?.warn?.(
+			traces.allocations.warn?.(
 				`[SlottedStorage] Cannot remove ${goodType} (qty ${qty}): remaining ${remaining}, available ${available}, stock ${stock}.`
 			)
 		}

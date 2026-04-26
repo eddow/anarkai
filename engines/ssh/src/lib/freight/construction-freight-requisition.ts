@@ -64,7 +64,7 @@ export function augmentFreightBayGoodsRelationsForConstruction(
 			)
 
 			if (Object.keys(demanded).length > 0) {
-				traces.residential?.log('[construction] freight-bay requisition', {
+				traces.residential.log?.('[construction] freight-bay requisition', {
 					lineId: line.id,
 					bayQ: bayPos.q,
 					bayR: bayPos.r,

@@ -4,6 +4,8 @@ import type { TerrainHydrologySample } from 'ssh/game/terrain-provider'
 import { Hive } from 'ssh/hive/hive'
 import { gameIsaTypes } from 'ssh/npcs/utils'
 import type { Character } from 'ssh/population/character'
+import { isVehicleLineService, isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
+import { traceProjection } from 'ssh/trace'
 import type { TerrainType } from 'ssh/types'
 import type { AlveolusType, Job } from 'ssh/types/base'
 import { type AxialCoord, axial, type NeighborInfo } from 'ssh/utils'
@@ -88,6 +90,15 @@ export class Tile extends withInteractive(GameObject) {
 		}
 	}
 
+	get [traceProjection]() {
+		return {
+			$type: 'Tile',
+			uid: this.uid,
+			position: this.position,
+			zone: this.zone,
+		}
+	}
+
 	get hydrology(): TerrainHydrologySample | undefined {
 		return this.terrainHydrology ?? this.terrainState?.hydrology
 	}
@@ -143,24 +154,48 @@ export class Tile extends withInteractive(GameObject) {
 	}
 
 	/**
-	 * Check if tile is clear of obstacles (no deposits, no loose goods)
+	 * Narrower predicate than {@link isBurdened}: true when the tile carries no deposit and no
+	 * loose goods. Vehicles are intentionally ignored — they can move out of the way, so the
+	 * construction-phase effect (`unbuilt-land.ts:43-46`) treats them as transient. Use
+	 * {@link isBurdened} when "is this hex blocked for parking / dumping" is the actual question.
 	 */
 	get isClear(): boolean {
 		const coord = toAxialCoord(this.position)
 		const content = this.board.getTileContent(coord)
 
-		// Check content for deposit (only applicable to UnBuiltLand)
 		if (content && 'deposit' in content && content.deposit) {
 			return false
 		}
 
-		// Check if there are loose goods
 		const looseGoods = this.board.looseGoods.getGoodsAt(coord)
 		if (looseGoods.length > 0) {
 			return false
 		}
 
 		return true
+	}
+
+	/**
+	 * True when the tile is "in the way" for parking, dumping, or starting a build phase: deposit
+	 * or loose goods (per {@link isClear}) **or** an idle / non-docked line-freight vehicle sits on
+	 * it. Docked vehicles do not burden — they advertise dock work via the bay; the
+	 * dock-completion path (chunk B Phase 6) routes the empty wheelbarrow into a `parkVehicle` job.
+	 */
+	get isBurdened(): boolean {
+		if (!this.isClear) return true
+		const coord = toAxialCoord(this.position)
+		const game = this.board.game
+		for (const vehicle of game.vehicles) {
+			const vp = toAxialCoord(vehicle.position)
+			if (!vp) continue
+			if (Math.round(vp.q) !== coord.q || Math.round(vp.r) !== coord.r) continue
+			const svc = vehicle.service
+			if (isVehicleLineService(svc) && svc.docked) continue
+			if (isVehicleLineService(svc) || isVehicleMaintenanceService(svc) || svc === undefined) {
+				return true
+			}
+		}
+		return false
 	}
 
 	build(alveolusType: AlveolusType): boolean {

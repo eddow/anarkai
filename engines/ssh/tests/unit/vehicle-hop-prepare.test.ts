@@ -166,8 +166,13 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			dockEnter: false,
 		}
 
-		vf.vehicleHopDockStep(jobPlan)
+		const step = vf.vehicleHopDockStep(jobPlan)
 		expect(jobPlan.vehicleHopAnchorDockDisembarked).toBe(true)
+		expect(character.operates?.uid).toBe(vehicle.uid)
+		expect(vehicle.service).toBeDefined()
+		// Disembark is deferred to the DurationStep's finished callback so the operator
+		// stays attached for the dock animation; flush it to assert the post-dock state.
+		step?.finish?.()
 		expect(character.operates).toBeUndefined()
 		expect(vehicle.service).toBeDefined()
 	})
@@ -218,5 +223,60 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		vf.vehicleHopDockStep(jobPlan)
 		expect(jobPlan.vehicleHopAnchorDockDisembarked).toBe(false)
 		expect(character.operates?.uid).toBe(vehicle.uid)
+	})
+
+	it('vehicleHopDockStep refuses to dock when live service drifted from the planned stop', async () => {
+		// Reproduces the trace where a vehicleHop selected for a zone stop ends up running the dock
+		// against the next anchor stop because `vehicleHopPrepare` advanced the live service. Even if
+		// the .npcs script body is stale and skips the replan return, the engine-level guard keeps the
+		// dock + offboard from running and prevents the selected/onboard/dock/offboard infinite loop.
+		const patches = {
+			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
+			freightLines: [
+				gatherFreightLine({
+					id: 'hop:drift-guard',
+					name: 'Gather',
+					hiveName: 'H',
+					coord: [0, 0],
+					filters: ['wood'],
+					radius: 2,
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 9614, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines[0]!
+		const zoneStop = line.stops[0]!
+		const anchorStop = line.stops[1]!
+		const vehicle = game.vehicles.createVehicle('hop-drift', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const character = game.population.createCharacter('Drift', { q: 0, r: 0 })
+		// Live service is on the anchor stop, but the (stale) plan still targets the zone stop.
+		vehicle.beginLineService(line, anchorStop, character)
+		character.operates = vehicle
+		character.onboard()
+
+		const vf = new VehicleFunctions()
+		Object.assign(vf, { [subject]: character })
+
+		const jobPlan: WorkPlan = {
+			type: 'work',
+			job: 'vehicleHop',
+			target: character.tile,
+			urgency: 1,
+			fatigue: 1,
+			vehicleUid: vehicle.uid,
+			lineId: line.id,
+			stopId: zoneStop.id,
+			path: [],
+			dockEnter: false,
+		}
+
+		const step = vf.vehicleHopDockStep(jobPlan)
+		expect(step).toBeUndefined()
+		expect(jobPlan.vehicleHopAnchorDockDisembarked).toBeFalsy()
+		expect(character.operates?.uid).toBe(vehicle.uid)
+		expect(vehicle.service).toBeDefined()
 	})
 })

@@ -20,6 +20,7 @@ function createRendererStub(): PixiGameRenderer {
 			resources: new RenderLayer(),
 			storedGoods: new RenderLayer(),
 			looseGoods: new RenderLayer(),
+			vehicles: new RenderLayer(),
 			characters: new RenderLayer(),
 			ui: new Container(),
 		},

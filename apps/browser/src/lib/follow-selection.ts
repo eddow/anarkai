@@ -3,19 +3,21 @@ import type { InspectorSelectableObject } from 'ssh/game/object'
 import { game, selectionState, unreactiveInfo, validateStoredSelectionState } from './globals'
 
 type DockviewApiLike = DockviewWidgetScope['dockviewApi']
+type DockviewApi = NonNullable<DockviewApiLike>
+type InspectorPanel = NonNullable<ReturnType<DockviewApi['getPanel']>>
+type DockviewWindow = Window & { dockviewApi?: DockviewApiLike }
 
 type SelectableObject = Pick<InspectorSelectableObject, 'uid' | 'title'>
 const pinnedInspectorPanelIdsByUid = new Map<string, string>()
 
 function getGlobalDockviewApi(): DockviewApiLike | undefined {
 	if (typeof window === 'undefined') return undefined
-	return (window as any).dockviewApi as DockviewApiLike | undefined
+	return (window as DockviewWindow).dockviewApi
 }
 
-function focusPanel(panel: any) {
-	panel?.focus?.()
-	panel?.api?.focus?.()
-	panel?.api?.setActive?.()
+function focusPanel(panel: InspectorPanel | undefined) {
+	panel?.focus()
+	panel?.api?.setActive()
 }
 
 function getRegisteredInspectorPanel(uid: string, dockviewApi: DockviewApiLike | undefined) {
@@ -26,6 +28,19 @@ function getRegisteredInspectorPanel(uid: string, dockviewApi: DockviewApiLike |
 	if (panel) return panel
 	pinnedInspectorPanelIdsByUid.delete(uid)
 	return undefined
+}
+
+function isRegisteredPinnedInspectorPanelId(panelId: string) {
+	for (const registeredPanelId of pinnedInspectorPanelIdsByUid.values()) {
+		if (registeredPanelId === panelId) return true
+	}
+	return false
+}
+
+function getActivePinnedInspectorPanel(dockviewApi: DockviewApi) {
+	const panel = dockviewApi.activePanel
+	if (!panel || !isRegisteredPinnedInspectorPanelId(panel.id)) return undefined
+	return panel
 }
 
 export function clearFollowSelectionPanel(panelId?: string) {
@@ -67,7 +82,47 @@ function resolveSelectionPanelTitle(initialTitle?: string) {
 	return game.getObject(selectedUid)?.title ?? 'Selection'
 }
 
-export function ensureFollowSelectionPanel(preferredApi?: DockviewApiLike, initialTitle?: string) {
+function addFollowSelectionPanel(
+	dockviewApi: DockviewApi,
+	id: string,
+	initialTitle?: string,
+	sourcePanel?: InspectorPanel
+) {
+	const commonOptions = {
+		id,
+		component: 'selection-info',
+		title: resolveSelectionPanelTitle(initialTitle),
+		params: {},
+		tabComponent: 'selection-info-tab',
+	}
+
+	if (!sourcePanel) {
+		return dockviewApi.addPanel({
+			...commonOptions,
+			floating: {
+				width: 400,
+				height: 600,
+			},
+		})
+	}
+
+	const sourceIndex = sourcePanel.group.panels.findIndex((panel) => panel.id === sourcePanel.id)
+	return dockviewApi.addPanel({
+		...commonOptions,
+		floating: false,
+		position: {
+			referencePanel: sourcePanel,
+			direction: 'within',
+			...(sourceIndex >= 0 ? { index: sourceIndex + 1 } : {}),
+		},
+	})
+}
+
+export function ensureFollowSelectionPanel(
+	preferredApi?: DockviewApiLike,
+	initialTitle?: string,
+	sourcePanel?: InspectorPanel
+) {
 	const dockviewApi = preferredApi ?? getGlobalDockviewApi()
 	if (!dockviewApi) return undefined
 
@@ -81,17 +136,7 @@ export function ensureFollowSelectionPanel(preferredApi?: DockviewApiLike, initi
 	if (!panel) {
 		clearFollowSelectionPanel()
 		const id = `selection-info-${Date.now()}`
-		panel = dockviewApi.addPanel?.({
-			id,
-			component: 'selection-info',
-			title: resolveSelectionPanelTitle(initialTitle),
-			params: {},
-			tabComponent: 'selection-info-tab',
-			floating: {
-				width: 400,
-				height: 600,
-			},
-		})
+		panel = addFollowSelectionPanel(dockviewApi, id, initialTitle, sourcePanel)
 		selectionState.panelId = panel?.id ?? id
 		unreactiveInfo.hasLastSelectedInfoPanel = true
 	}
@@ -114,7 +159,11 @@ export function showProps(object: SelectableObject, preferredApi?: DockviewApiLi
 
 	selectionState.selectedUid = object.uid
 	if (!dockviewApi) return undefined
-	return ensureFollowSelectionPanel(dockviewApi, object.title)
+	return ensureFollowSelectionPanel(
+		dockviewApi,
+		object.title,
+		getActivePinnedInspectorPanel(dockviewApi)
+	)
 }
 
 export function selectInspectorObject(object: SelectableObject, preferredApi?: DockviewApiLike) {

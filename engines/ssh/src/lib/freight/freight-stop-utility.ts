@@ -17,6 +17,7 @@ import {
 	type GoodSelectionPolicy,
 	listGoodTypesMatchingSelectionPolicy,
 } from 'ssh/freight/goods-selection-policy'
+import type { FreightAdSource } from 'ssh/freight/priority-channel'
 import type { Game } from 'ssh/game/game'
 import type { Hive } from 'ssh/hive/hive'
 import type { GoodType } from 'ssh/types/base'
@@ -29,6 +30,8 @@ export interface FreightStopGoodsSnapshot {
 	readonly perGood: Readonly<Partial<Record<GoodType, number>>>
 	/** Sum of {@link perGood} values. */
 	readonly total: number
+	/** Optional provenance for snapshots that come from one concrete ad / policy channel. */
+	readonly adSource?: FreightAdSource
 }
 
 /** Optional per-good priority metadata for hive need sinks. */
@@ -84,10 +87,11 @@ export function normalizeGoodsCounts(
 
 /** Turns a raw per-good map into a stable goods snapshot. */
 export function snapshotFromGoodsCounts(
-	map: Partial<Record<GoodType, number>>
+	map: Partial<Record<GoodType, number>>,
+	adSource?: FreightAdSource
 ): FreightStopGoodsSnapshot {
 	const perGood = normalizeGoodsCounts(map)
-	return { perGood, total: sumRecord(perGood) }
+	return { perGood, total: sumRecord(perGood), adSource }
 }
 
 /** Per-good additive merge. */
@@ -263,7 +267,7 @@ export function measureZoneLooseGoodsSource(
 			perGood[gt] = (perGood[gt] ?? 0) + 1
 		}
 	}
-	return snapshotFromGoodsCounts(perGood)
+	return snapshotFromGoodsCounts(perGood, 'vehicle-station')
 }
 
 /**
@@ -287,7 +291,7 @@ export function measureZoneStandaloneConstructionNeedSink(
 			perGood[g] = (perGood[g] ?? 0) + need
 		}
 	}
-	return snapshotFromGoodsCounts(perGood)
+	return snapshotFromGoodsCounts(perGood, 'project')
 }
 
 function sumHiveStorageAvailableForGood(hive: Hive, goodType: GoodType): number {
@@ -312,7 +316,7 @@ export function measureHiveStoredGoodsSource(
 		const q = sumHiveStorageAvailableForGood(hive, g)
 		if (q > 0) perGood[g] = q
 	}
-	return snapshotFromGoodsCounts(perGood)
+	return snapshotFromGoodsCounts(perGood, 'hive')
 }
 
 function sumHiveStorageHasRoomForGood(hive: Hive, goodType: GoodType): number {
@@ -344,7 +348,7 @@ export function measureHiveNeedRoomSink(
 		}
 	}
 	return {
-		...snapshotFromGoodsCounts(perGood),
+		...snapshotFromGoodsCounts(perGood, 'hive'),
 		meta: { perGoodPriority },
 	}
 }
@@ -365,7 +369,7 @@ export function measureHiveNeedSink(
 		perGood[goodType] = quantity * freightLineHiveNeedPriorityWeight[priority]
 	}
 	return {
-		...snapshotFromGoodsCounts(perGood),
+		...snapshotFromGoodsCounts(perGood, 'hive'),
 		meta: base.meta,
 	}
 }

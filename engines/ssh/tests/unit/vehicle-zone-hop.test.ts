@@ -14,12 +14,14 @@ import { freightStopMovementTarget, previewInitialVehicleService } from 'ssh/fre
 import {
 	findVehicleBeginServiceJob,
 	findVehicleHopJob,
+	findVehicleOffloadJob,
 	findZoneBrowseJob,
 } from 'ssh/freight/vehicle-work'
 import type { GamePatches } from 'ssh/game/game'
 import { Game } from 'ssh/game/game'
 import type { StorageAlveolus } from 'ssh/hive/storage'
-import { isVehicleOffloadService } from 'ssh/population/vehicle/vehicle'
+import { isVehicleLineService, isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
+import type { WorkPlan } from 'ssh/types/base'
 import { axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -69,7 +71,7 @@ describe('Vehicle zone hop semantics', () => {
 		character.onboard()
 
 		expect(character.driving).toBe(true)
-		expect(isVehicleOffloadService(vehicle.service)).toBe(true)
+		expect(isVehicleMaintenanceService(vehicle.service)).toBe(true)
 	})
 
 	it('falls back to the zone center when no downstream utility makes a loose-good target actionable', async () => {
@@ -151,9 +153,12 @@ describe('Vehicle zone hop semantics', () => {
 		expect(preview?.stop.id).toBeDefined()
 	})
 
-	it('offers vehicleHop with needsBeginService before line-hop when only offload service is bound', async () => {
+	it('does not begin a line while an unfinished maintenance service is bound', async () => {
 		const patches = {
-			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'grass' as const },
+				{ coord: [1, 0] as const, terrain: 'grass' as const },
+			],
 			freightLines: [
 				gatherFreightLine({
 					id: 'VH:begin',
@@ -164,6 +169,7 @@ describe('Vehicle zone hop semantics', () => {
 					radius: 2,
 				}),
 			],
+			looseGoods: [{ goodType: 'wood' as const, position: { q: 1, r: 0 } }],
 		}
 		game = new Game({ terrainSeed: 9404, characterCount: 0 }, patches)
 		await game.loaded
@@ -175,10 +181,8 @@ describe('Vehicle zone hop semantics', () => {
 		bindOperatedWheelbarrowOffload(character, vehicle)
 		character.onboard()
 
-		const begin = findVehicleBeginServiceJob(game, character)
-		expect(begin?.job).toBe('vehicleHop')
-		expect(begin?.needsBeginService).toBe(true)
-		expect(findVehicleHopJob(game, character)).toEqual(begin)
+		expect(findVehicleBeginServiceJob(game, character)).toBeUndefined()
+		expect(findVehicleHopJob(game, character)).toBeUndefined()
 	})
 
 	it('does not offer zoneBrowse on the current zone stop when downstream utility says no further load is needed', async () => {
@@ -215,6 +219,61 @@ describe('Vehicle zone hop semantics', () => {
 		character.onboard()
 
 		expect(findZoneBrowseJob(game, character)).toBeUndefined()
+	})
+
+	it('prefers a project-tile load that also serves the line over a plain pure-line gather', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'grass' as const },
+				{ coord: [1, 0] as const, terrain: 'grass' as const },
+				{ coord: [2, 0] as const, terrain: 'grass' as const },
+				{ coord: [1, 1] as const, terrain: 'grass' as const },
+			],
+			hives: [
+				{
+					name: 'JointPriority',
+					alveoli: [
+						{ coord: [0, 0] as const, alveolus: 'freight_bay', goods: {} },
+						{ coord: [1, 0] as const, alveolus: 'sawmill', goods: {} },
+					],
+				},
+			],
+			projects: {
+				'build:storage': [[2, 0] as [number, number]],
+			},
+			looseGoods: [
+				{ goodType: 'wood' as const, position: { q: 2, r: 0 } },
+				{ goodType: 'wood' as const, position: { q: 1, r: 1 } },
+			],
+			freightLines: [
+				gatherFreightLine({
+					id: 'VH:joint-priority',
+					name: 'Joint priority',
+					hiveName: 'JointPriority',
+					coord: [0, 0],
+					filters: ['wood'],
+					radius: 3,
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 94055, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines[0]!
+		const zoneStop = line.stops[0]!
+		const vehicle = game.vehicles.createVehicle('joint-zone', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const character = game.population.createCharacter('JointBrowse', { q: 0, r: 0 })
+		vehicle.beginLineService(line, zoneStop, character)
+		character.operates = vehicle
+		character.onboard()
+
+		const job = findZoneBrowseJob(game, character)
+		expect(job?.job).toBe('zoneBrowse')
+		expect(job?.zoneBrowseAction).toBe('load')
+		expect(job?.targetCoord).toMatchObject({ q: 2, r: 0 })
+		expect(job?.adSource).toBe('project')
+		expect(job?.priorityTier).toBe('lineAndOffloadJoint')
 	})
 
 	it('zoneBrowse does not offer provide work when current cargo is reserved for later stops', async () => {
@@ -274,5 +333,346 @@ describe('Vehicle zone hop semantics', () => {
 
 		vehicle.storage.addGood('wood', 1)
 		expect(findZoneBrowseJob(game, character)).toBeUndefined()
+	})
+
+	it('work-plan finalizer releases a line operator while preserving unfinished service', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'grass' as const },
+				{ coord: [1, 0] as const, terrain: 'grass' as const },
+			],
+			freightLines: [
+				gatherFreightLine({
+					id: 'VH:lifecycle-line',
+					name: 'Lifecycle line',
+					hiveName: 'H',
+					coord: [0, 0],
+					filters: ['wood'],
+					radius: 2,
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 9407, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines[0]!
+		const stop = line.stops[0]!
+		const vehicle = game.vehicles.createVehicle('vlifecycle', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const character = game.population.createCharacter('Lifecycle', { q: 0, r: 0 })
+		const plan = {
+			type: 'work',
+			job: 'zoneBrowse',
+			vehicleUid: vehicle.uid,
+			target: vehicle,
+			path: [],
+			lineId: line.id,
+			stopId: stop.id,
+			zoneBrowseAction: 'load',
+			goodType: 'wood',
+			quantity: 1,
+			targetCoord: { q: 1, r: 0 },
+			adSource: 'hive',
+			priorityTier: 'pureLine',
+			urgency: 1,
+			fatigue: 0,
+		} as const
+
+		vehicle.beginLineService(line, stop)
+		character.scriptsContext.plan.begin(plan as any)
+		expect(character.operates?.uid).toBe(vehicle.uid)
+		expect(vehicle.operator?.uid).toBe(character.uid)
+
+		character.scriptsContext.plan.finally(plan as any)
+
+		expect(character.operates).toBeUndefined()
+		expect(vehicle.operator).toBeUndefined()
+		const serviceAfterRelease = vehicle.service
+		expect(isVehicleLineService(serviceAfterRelease)).toBe(true)
+		if (!isVehicleLineService(serviceAfterRelease)) throw new Error('Expected line service')
+		expect(serviceAfterRelease.stop.id).toBe(stop.id)
+	})
+
+	it('work-plan finalizer preserves unfinished maintenance service for another operator', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'grass' as const },
+				{ coord: [1, 0] as const, terrain: 'grass' as const },
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 9408, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const vehicle = game.vehicles.createVehicle('vmaint', 'wheelbarrow', { q: 0, r: 0 }, [])
+		vehicle.storage.addGood('wood', 1)
+		const character = game.population.createCharacter('Maintenance', { q: 0, r: 0 })
+		const plan = {
+			type: 'work',
+			job: 'vehicleOffload',
+			maintenanceKind: 'unloadToTile',
+			vehicleUid: vehicle.uid,
+			target: vehicle,
+			path: [],
+			targetCoord: { q: 1, r: 0 },
+			urgency: 1,
+			fatigue: 0,
+		} as const
+
+		character.scriptsContext.plan.begin(plan as any)
+		expect(character.operates?.uid).toBe(vehicle.uid)
+		expect(vehicle.operator?.uid).toBe(character.uid)
+
+		character.scriptsContext.plan.finally(plan as any)
+
+		expect(character.operates).toBeUndefined()
+		expect(vehicle.operator).toBeUndefined()
+		const serviceAfterRelease = vehicle.service
+		expect(isVehicleMaintenanceService(serviceAfterRelease)).toBe(true)
+		if (!isVehicleMaintenanceService(serviceAfterRelease))
+			throw new Error('Expected maintenance service')
+		expect(serviceAfterRelease.kind).toBe('unloadToTile')
+	})
+
+	it('explicit maintenance completion ends service before work-plan cleanup', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'grass' as const },
+				{ coord: [1, 0] as const, terrain: 'grass' as const },
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 9409, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const vehicle = game.vehicles.createVehicle('vcomplete', 'wheelbarrow', { q: 0, r: 0 }, [])
+		const character = game.population.createCharacter('Complete', { q: 0, r: 0 })
+		const plan = {
+			type: 'work',
+			job: 'vehicleOffload',
+			maintenanceKind: 'park',
+			vehicleUid: vehicle.uid,
+			target: vehicle,
+			path: [],
+			targetCoord: { q: 1, r: 0 },
+			urgency: 1,
+			fatigue: 0,
+		} as const
+
+		character.scriptsContext.plan.begin(plan as any)
+		expect(character.operates?.uid).toBe(vehicle.uid)
+		expect(isVehicleMaintenanceService(vehicle.service)).toBe(true)
+
+		character.scriptsContext.vehicle.completeVehicleMaintenanceService(plan as any)
+		character.scriptsContext.plan.finally(plan as any)
+
+		expect(character.operates).toBeUndefined()
+		expect(vehicle.operator).toBeUndefined()
+		expect(vehicle.service).toBeUndefined()
+	})
+
+	it('maintenance unload transfer keeps operator link until explicit completion', async () => {
+		const patches = {
+			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 9410, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const vehicle = game.vehicles.createVehicle(
+			'vunload-lifecycle',
+			'wheelbarrow',
+			{ q: 0, r: 0 },
+			[]
+		)
+		vehicle.storage.addGood('wood', 1)
+		const character = game.population.createCharacter('UnloadLifecycle', { q: 0, r: 0 })
+		const plan: WorkPlan = {
+			type: 'work',
+			job: 'vehicleOffload',
+			maintenanceKind: 'unloadToTile',
+			vehicleUid: vehicle.uid,
+			target: vehicle,
+			path: [],
+			targetCoord: { q: 0, r: 0 },
+			urgency: 1,
+			fatigue: 0,
+		}
+
+		character.scriptsContext.plan.begin(plan)
+		const step = character.scriptsContext.vehicle.vehicleUnloadTransferStep(plan)
+		if (!step || !('tick' in step)) throw new Error('Expected unload transfer step')
+		step.tick(999)
+
+		expect(character.operates?.uid).toBe(vehicle.uid)
+		expect(vehicle.operator?.uid).toBe(character.uid)
+		expect(isVehicleMaintenanceService(vehicle.service)).toBe(true)
+
+		character.scriptsContext.vehicle.completeVehicleMaintenanceService(plan)
+
+		expect(character.operates).toBeUndefined()
+		expect(vehicle.operator).toBeUndefined()
+		expect(vehicle.service).toBeUndefined()
+	})
+
+	it('zoneBrowse transfer dispatch uses native helpers without relying on this-bound siblings', async () => {
+		const patches = {
+			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
+			looseGoods: [{ goodType: 'wood' as const, position: { q: 0, r: 0 } }],
+			freightLines: [
+				gatherFreightLine({
+					id: 'VH:native-dispatch',
+					name: 'Native dispatch',
+					hiveName: 'H',
+					coord: [0, 0],
+					filters: ['wood'],
+					radius: 1,
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 9411, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines[0]!
+		const stop = line.stops[0]!
+		const vehicle = game.vehicles.createVehicle('vnative-dispatch', 'wheelbarrow', { q: 0, r: 0 }, [
+			line,
+		])
+		const character = game.population.createCharacter('NativeDispatch', { q: 0, r: 0 })
+		vehicle.beginLineService(line, stop, character)
+		character.operates = vehicle
+		const plan: WorkPlan = {
+			type: 'work',
+			job: 'zoneBrowse',
+			vehicleUid: vehicle.uid,
+			target: vehicle,
+			path: [],
+			lineId: line.id,
+			stopId: stop.id,
+			zoneBrowseAction: 'load',
+			goodType: 'wood',
+			quantity: 1,
+			targetCoord: { q: 0, r: 0 },
+			adSource: 'hive',
+			priorityTier: 'pureLine',
+			urgency: 1,
+			fatigue: 0,
+		}
+
+		const step = character.scriptsContext.vehicle.vehicleZoneBrowseTransferStep(plan)
+
+		expect(step).toBeTruthy()
+		step?.cancel()
+		expect(character.operates?.uid).toBe(vehicle.uid)
+		expect(vehicle.operator?.uid).toBe(character.uid)
+	})
+
+	it('non-vehicle work plan releases stale vehicle usage before preparing work', async () => {
+		const patches = {
+			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 9412, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const vehicle = game.vehicles.createVehicle(
+			'vnon-vehicle-plan',
+			'wheelbarrow',
+			{ q: 0, r: 0 },
+			[]
+		)
+		const character = game.population.createCharacter('NonVehiclePlan', { q: 0, r: 0 })
+		bindOperatedWheelbarrowOffload(character, vehicle)
+		character.onboard()
+		const target = game.hex.getTile({ q: 0, r: 0 })!.content!
+		const plan = {
+			type: 'work',
+			job: 'harvest',
+			target,
+			path: [],
+			urgency: 1,
+			fatigue: 0,
+		} as const
+
+		character.scriptsContext.plan.begin(plan as any)
+
+		expect(character.operates).toBeUndefined()
+		expect(vehicle.operator).toBeUndefined()
+		expect(vehicle.service).toBeDefined()
+	})
+
+	it('self-care selection releases stale vehicle usage before returning eat/rest activity', async () => {
+		const patches = {
+			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 9413, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const vehicle = game.vehicles.createVehicle('vself-care', 'wheelbarrow', { q: 0, r: 0 }, [])
+		const character = game.population.createCharacter('SelfCare', { q: 0, r: 0 })
+		bindOperatedWheelbarrowOffload(character, vehicle)
+		character.onboard()
+		character.hunger = character.triggerLevels.hunger.critical + 1
+
+		const action = character.findAction()
+
+		expect(action).toBeTruthy()
+		expect(character.operates).toBeUndefined()
+		expect(vehicle.operator).toBeUndefined()
+		expect(vehicle.service).toBeDefined()
+	})
+
+	it('disengaging after vehicle movement restores the character foot tile at the vehicle location', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'grass' as const },
+				{ coord: [1, 0] as const, terrain: 'grass' as const },
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 9414, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const vehicle = game.vehicles.createVehicle('vfoot-sync', 'wheelbarrow', { q: 0, r: 0 }, [])
+		const character = game.population.createCharacter('FootSync', { q: 0, r: 0 })
+		bindOperatedWheelbarrowOffload(character, vehicle)
+		character.onboard()
+		character.position = { q: 1, r: 0 }
+
+		character.disengageVehicleKeepingService()
+
+		expect(character.operates).toBeUndefined()
+		expect(toAxialCoord(character.position)).toMatchObject({ q: 1, r: 0 })
+		expect(toAxialCoord(character.tile.position)).toMatchObject({ q: 1, r: 0 })
+	})
+
+	it('unfinished maintenance service without operator is offered to another worker', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'grass' as const },
+				{ coord: [1, 0] as const, terrain: 'grass' as const },
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 9415, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const vehicle = game.vehicles.createVehicle(
+			'vresume-maintenance',
+			'wheelbarrow',
+			{ q: 0, r: 0 },
+			[]
+		)
+		vehicle.storage.addGood('wood', 1)
+		vehicle.beginMaintenanceService({ kind: 'unloadToTile', targetCoord: { q: 1, r: 0 } })
+		const character = game.population.createCharacter('ResumeMaintenance', { q: 1, r: 0 })
+
+		const job = findVehicleOffloadJob(game, character)
+
+		expect(job?.job).toBe('vehicleOffload')
+		expect(job?.maintenanceKind).toBe('unloadToTile')
+		expect(job?.vehicleUid).toBe(vehicle.uid)
 	})
 })

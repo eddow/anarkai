@@ -14,11 +14,13 @@ import type { Character } from 'ssh/population/character'
 import { afterEach, describe, expect, it } from 'vitest'
 import { distributeFreightLine, gatherFreightLine } from '../freight-fixtures'
 import { TestEngine } from '../test-engine'
-import { bindOperatedWheelbarrowLine } from '../test-engine/vehicle-bind'
 
 type NpcTraceRecord = { method: string; message: string }
 
 const noop = () => undefined
+
+type VehicleTraceSink = NonNullable<typeof traces.vehicle>
+type NpcTraceSink = NonNullable<typeof traces.npc>
 
 /** Long simulations can spam traces; keep compact buffers to avoid huge Vitest RPC payloads. */
 const MAX_VEHICLE_DEBUG = 2_000
@@ -52,11 +54,12 @@ function createTraceCollector() {
 		}
 
 	const vehicle = {
-		log: noop,
+		log: (message?: unknown, ..._rest: unknown[]) => pushVehicleDebug(message),
 		info: noop,
 		debug: (message?: unknown, ..._rest: unknown[]) => pushVehicleDebug(message),
 		warn: noop,
 		error: noop,
+		assert: noop,
 	}
 	const npc = {
 		log: captureNpc('log'),
@@ -135,8 +138,8 @@ async function simulateFreightUntil(
 
 describe('Freight simulation (gather + distribute)', () => {
 	afterEach(() => {
-		traces.vehicle = undefined
-		traces.npc = undefined
+		delete traces.vehicle
+		delete traces.npc
 	})
 
 	async function tickAsync(engine: TestEngine, seconds: number, step = 0.1) {
@@ -151,8 +154,8 @@ describe('Freight simulation (gather + distribute)', () => {
 		timeout: 60000,
 	}, async () => {
 		const collector = createTraceCollector()
-		traces.vehicle = collector.vehicle as typeof console
-		traces.npc = collector.npc as typeof console
+		traces.vehicle = collector.vehicle as unknown as VehicleTraceSink
+		traces.npc = collector.npc as unknown as NpcTraceSink
 
 		let engine: TestEngine | undefined
 		try {
@@ -259,8 +262,8 @@ describe('Freight simulation (gather + distribute)', () => {
 		timeout: 60000,
 	}, async () => {
 		const collector = createTraceCollector()
-		traces.vehicle = collector.vehicle as typeof console
-		traces.npc = collector.npc as typeof console
+		traces.vehicle = collector.vehicle as unknown as VehicleTraceSink
+		traces.npc = collector.npc as unknown as NpcTraceSink
 
 		let engine: TestEngine | undefined
 		try {
@@ -314,7 +317,8 @@ describe('Freight simulation (gather + distribute)', () => {
 			const worker = engine.spawnCharacter('Hauler', { q: 0, r: 0 })
 			worker.role = 'worker'
 			void worker.scriptsContext
-			bindOperatedWheelbarrowLine(engine.game, worker, vehicle)
+			vehicle.beginLineService(distLine, distLine.stops[1]!, worker)
+			worker.operates = vehicle
 			worker.onboard()
 			vehicle.storage.addGood('wood', Math.max(woodNeedBefore, 5))
 			expect(vehicle.storage.available('wood')).toBeGreaterThan(0)

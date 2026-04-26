@@ -54,7 +54,7 @@ export class VehicleVisual extends VisualObject<VehicleEntity> {
 	}
 
 	public bind() {
-		this.renderer.attachToLayer(this.renderer.layers.characters, this.view)
+		this.renderer.attachToLayer(this.renderer.layers.vehicles, this.view)
 
 		this.register(
 			effect`vehicle.position:${this.object.uid}`(() => {
@@ -101,8 +101,8 @@ export class VehicleVisual extends VisualObject<VehicleEntity> {
 	}
 
 	public dispose() {
-		if (this.renderer.layers?.characters) {
-			this.renderer.detachFromLayer(this.renderer.layers.characters, this.view)
+		if (this.renderer.layers?.vehicles) {
+			this.renderer.detachFromLayer(this.renderer.layers.vehicles, this.view)
 		}
 		super.dispose()
 	}

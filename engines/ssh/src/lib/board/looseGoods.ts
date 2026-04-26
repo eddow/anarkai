@@ -8,6 +8,7 @@ import {
 	invalidateAllocation,
 	isAllocationValid,
 } from 'ssh/storage/guard'
+import { traceProjection } from 'ssh/trace'
 import type { GoodType } from 'ssh/types'
 import { epsilon } from 'ssh/utils'
 import { type AxialKey, axial } from 'ssh/utils/axial'
@@ -83,6 +84,15 @@ export class LooseGoods extends withTicked(GameObject) {
 			removed: false,
 			get isRemoved() {
 				return good.removed
+			},
+			get [traceProjection]() {
+				return {
+					$type: 'LooseGood',
+					goodType: good.goodType,
+					position: good.position,
+					available: good.available,
+					removed: good.isRemoved,
+				}
 			},
 			remove() {
 				self.remove(good)

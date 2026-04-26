@@ -11,12 +11,10 @@ import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { LooseGood } from 'ssh/board/looseGoods'
 import type { Tile } from 'ssh/board/tile'
 import { assert } from 'ssh/debug'
-import { detachVehicleServiceIfStorageEmpty } from 'ssh/freight/vehicle-run'
 import type { Character } from 'ssh/population/character'
-import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { contract, type Goods, type GoodType } from 'ssh/types'
 import type { IdlePlan, PickupPlan, TransferPlan } from 'ssh/types/base'
-import { type Positioned, toAxialCoord } from 'ssh/utils'
+import { axial, type Positioned, tileSize, toAxialCoord, toWorldCoord } from 'ssh/utils'
 import { subject } from '../scripts'
 import { type ASingleStep, DurationStep } from '../steps'
 
@@ -101,9 +99,32 @@ export class InventoryFunctions {
 
 	@contract()
 	canDropLooseHere(): boolean {
-		const tile = this[subject].tile
+		const character = this[subject]
+		const tile = character.tile
 		const content = tile.content
-		return content instanceof UnBuiltLand && !content.project && tile.zone !== 'residential'
+		if (!(content instanceof UnBuiltLand)) return false
+		if (content.project) return false
+		if (tile.zone === 'residential') return false
+		if (!tile.isBurdened) return true
+		// Maintenance unload still needs one legal state while the operator is actively driving the
+		// wheelbarrow: the current tile may be marked burdened solely by that operated vehicle. Keep
+		// deposit / loose-good / "another vehicle already here" cases blocked.
+		const vehicle = character.operates
+		if (!vehicle) return false
+		if (!tile.isClear) return false
+		const tileCoord = toAxialCoord(tile.position)
+		const vehicleCoord = toAxialCoord(vehicle.position)
+		if (Math.round(vehicleCoord.q) !== tileCoord.q || Math.round(vehicleCoord.r) !== tileCoord.r) {
+			return false
+		}
+		for (const other of character.game.vehicles) {
+			if (other.uid === vehicle.uid) continue
+			const otherCoord = toAxialCoord(other.position)
+			if (Math.round(otherCoord.q) === tileCoord.q && Math.round(otherCoord.r) === tileCoord.r) {
+				return false
+			}
+		}
+		return true
 	}
 
 	/**
@@ -140,13 +161,21 @@ export class InventoryFunctions {
 		let amount = Math.min(available, maxAmount)
 		if (amount <= 0) throw new Error(`No ${goodType} to drop (available: ${available})`)
 		const vehicleTransfer = transport.reserve({ [goodType]: amount }, `drop.${goodType}`)
+		const tileCenter = toWorldCoord(character.tile.position)
 		return new DurationStep(amount * character.freightTransferTime, 'convey', `drop.${goodType}`)
 			.finished(() => {
 				try {
-					// Do not pass `position` here: `character.position` may still be mid-walk while the
-					// loose-good placement is keyed by `character.tile`; `looseGoods.add` asserts axial
-					// agreement between optional position and the tile.
-					while (amount--) character.game.hex.looseGoods.add(character.tile, goodType)
+					// Use the tile as the bucket key but jitter the exact world position inside it so
+					// repeated unloads do not perfectly overlap on the tile center.
+					while (amount--) {
+						const offset = axial.randomPositionInTile(character.game.random, tileSize)
+						character.game.hex.looseGoods.add(character.tile, goodType, {
+							position: {
+								x: tileCenter.x + offset.x,
+								y: tileCenter.y + offset.y,
+							},
+						})
+					}
 					if (!vehicleTransfer) console.error('vehicleTransfer missing in dropAsLooseGood callback')
 					vehicleTransfer.fulfill()
 				} catch (e) {
@@ -364,7 +393,7 @@ export class InventoryFunctions {
 	/**
 	 * Drops one unit of buffered active-transport stock as a loose good on the current tile.
 	 * Caller must ensure {@link canDropLooseHere} before invoking (see `vehicle.npcs` offload prelude).
-	 * Clears offload/line service when storage becomes empty via {@link detachVehicleServiceIfStorageEmpty}.
+	 * Vehicle service completion is owned by the vehicle job script after this step resumes.
 	 */
 	@contract()
 	offloadDropBuffer(): ASingleStep | false {
@@ -376,17 +405,8 @@ export class InventoryFunctions {
 /** Test hook for {@link InventoryFunctions.offloadDropBuffer} (same implementation as the method). */
 export function offloadDropBufferNative(inv: InventoryFunctions): ASingleStep | false {
 	const character = inv[subject]
-	const vehicle: VehicleEntity | undefined = character.operates
 	const types = character.scriptsContext.inventory.dropCandidateGoodTypes()
-	if (types.length === 0) {
-		if (vehicle) detachVehicleServiceIfStorageEmpty(vehicle)
-		return false
-	}
+	if (types.length === 0) return false
 	const goodType = types[0]!
-	const step = character.scriptsContext.inventory.dropAsLooseGood(goodType, 1)
-	step.final(() => {
-		const v = character.operates
-		if (v) detachVehicleServiceIfStorageEmpty(v)
-	})
-	return step
+	return character.scriptsContext.inventory.dropAsLooseGood(goodType, 1)
 }

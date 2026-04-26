@@ -138,6 +138,7 @@ class FindFunctions {
 		const { x, y } = axial.randomPositionInTile(this[subject].game.random, tileSize)
 		return { x: tileX + x, y: tileY + y }
 	}
+
 	@contract()
 	wanderingTile() {
 		const { hex } = this[subject].game
@@ -242,34 +243,28 @@ class FindFunctions {
 		// Wheelbarrows apply {@link Character.mobilityMultiplier} per step; scale the walk budget so
 		// reachable hex radius matches on-foot search (vehicle-offload drop uses this path).
 		const walkBudget = maxWalkTime * character.mobilityMultiplier
-		// Use findBest with a cost function: walkTime * crowding
-		// Only drop in non-clearing tiles (UnBuiltLand with no/harvest zone and no project)
 		const result = hex.findBestForCharacter(
 			start,
 			character,
 			(coord) => {
 				const tile = hex.getTile(coord)
 				if (!tile || !tile.content) return false
-
-				// Must be UnBuiltLand (implies not an Alveolus)
 				if (!(tile.content instanceof UnBuiltLand)) return false
-
-				// Must not be a project (construction site)
 				if (tile.content.project) return false
-
-				// Must not be residential zone (to prevent offload re-offer loop)
 				if (tile.zone === 'residential') return false
 
-				let score = 1 / (hex.looseGoods.getGoodsAt(coord).length + 1)
-
-				// Penalize current tile to encourage moving goods away (fixes infinite loop in offload)
+				const looseCount = hex.looseGoods.getGoodsAt(coord).length
+				let score = 1 / (looseCount + 1)
+				// Penalize current tile (`isBurdened` would tautologically include the operator's own
+				// vehicle here — drop scoring uses {@link Tile.isClear} which ignores vehicles, since
+				// they can move out of the way and the script will drop after walking off).
 				if (axial.distance(coord, start) < 0.1) {
 					score *= 0.01
 				}
 				return score
 			},
 			(_coord, walkTime) => walkTime > walkBudget,
-			1, // best possible score (minimum cost => score 0 when dist*crowd == 0)
+			1,
 			true
 		)
 		if (!result || result.length === 0) return false as const

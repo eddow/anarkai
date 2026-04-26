@@ -1,8 +1,30 @@
 export const jobBalance = {
+	priorityTier: {
+		/** Gather now, and the same pickup also clears a project / offload burden. */
+		lineAndOffloadJoint: 1.35,
+		/** Pure maintenance / offload follow-up without a simultaneous line pickup. */
+		pureOffload: 1.1,
+		/** Baseline line-only pickup / transfer. */
+		pureLine: 1,
+	},
 	offload: {
-		projectTile: 15,
-		alveolusBlocked: 4,
-		residentialTile: 1.25,
+		/**
+		 * Loose-good loads (un-burdening) must dominate line service: scoring is
+		 * `urgency / (pathLength + 1)`, so to keep un-burden ~10× more important than
+		 * {@link jobBalance.vehicleHop} (`2.1`) at any reachable path, every load tier sits ≥ 21
+		 * (`10 * 2.1`). Tiers stay ordered project > alveolus > residential by burdening severity.
+		 */
+		projectTile: 30,
+		alveolusBlocked: 25,
+		residentialTile: 21,
+		/** Drop loaded cargo from an idle wheelbarrow onto a non-burdening tile. */
+		unloadToTile: 8,
+		/**
+		 * Move an empty burdening wheelbarrow off a docked / idle hex. Set high enough that
+		 * `urgency / (pathLength + 1)` outranks {@link jobBalance.vehicleHop} at any path within
+		 * {@link offloadRange}: 2.1 * (6 + 2) = 16.8 → 17.
+		 */
+		park: 17,
 	},
 	convey: 3,
 	harvest: {

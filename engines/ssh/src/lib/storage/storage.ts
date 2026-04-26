@@ -1,4 +1,5 @@
 import { ReactiveBase } from 'mutts'
+import { traceProjection } from 'ssh/trace'
 import type { Goods, GoodType } from 'ssh/types/base'
 import type { RenderedGoodSlots } from './types'
 
@@ -78,4 +79,13 @@ export abstract class Storage<
 	 * @returns the fragmented GoodType if storage is fragmented, undefined otherwise
 	 */
 	abstract get fragmented(): GoodType | undefined
+
+	get [traceProjection]() {
+		return {
+			$type: 'Storage',
+			stock: this.stock,
+			available: this.availables,
+			isEmpty: this.isEmpty,
+		}
+	}
 }

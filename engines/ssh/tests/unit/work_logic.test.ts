@@ -43,7 +43,13 @@ vi.mock('ssh/assets/game-content', () => {
 		deposits: {},
 		alveoli: {},
 		jobBalance: {
-			offload: { projectTile: 15, alveolusBlocked: 4, residentialTile: 1.25 },
+			offload: {
+				projectTile: 30,
+				alveolusBlocked: 25,
+				residentialTile: 21,
+				unloadToTile: 8,
+				park: 17,
+			},
 			convey: 3,
 			gather: 2.5,
 			harvest: { clearing: 2.5, fallbackBase: 0.25, needsBonus: 0.5 },

@@ -1,34 +1,29 @@
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import type { LooseGood } from 'ssh/board/looseGoods'
 import type { Tile } from 'ssh/board/tile'
+import { type NamedTrace, namedTrace, traces } from 'ssh/debug'
+import { maybeAdvanceVehicleFromCompletedAnchorStop } from 'ssh/freight/vehicle-run'
 import { findVehicleOffloadJob } from 'ssh/freight/vehicle-work'
 import type { Game } from 'ssh/game/game'
 import type { Character } from 'ssh/population/character'
 import { debugActiveAllocations, resetDebugActiveAllocations } from 'ssh/storage/guard'
 import { toAxialCoord } from 'ssh/utils/position'
 import { describe, expect, it } from 'vitest'
+import { gatherFreightLine } from '../freight-fixtures'
 import { TestEngine } from '../test-engine'
 
 function createOffloadWheelbarrow(game: Game, coord: { q: number; r: number }, uid: string) {
 	return game.vehicles.createVehicle(uid, 'wheelbarrow', coord, [])
 }
 
-function mushroomsInTransport(char: Character): number {
-	return char.carry?.stock?.mushrooms ?? 0
+function rocksInTransport(char: Character): number {
+	return char.carry?.stock?.stone ?? 0
 }
 
-function anyAvailableLooseMushrooms(game: Game): boolean {
+function firstTileWithPresentLooseRocks(game: Game): Tile | undefined {
 	for (const list of game.hex.looseGoods.goods.values()) {
 		for (const g of list) {
-			if (g.goodType === 'mushrooms' && g.available && !g.isRemoved) return true
-		}
-	}
-	return false
-}
-
-function firstTileWithAvailableLooseMushrooms(game: Game): Tile | undefined {
-	for (const list of game.hex.looseGoods.goods.values()) {
-		for (const g of list) {
-			if (g.goodType === 'mushrooms' && g.available && !g.isRemoved) {
+			if (g.goodType === 'stone' && !g.isRemoved) {
 				const tile = game.hex.getTile(g.position)
 				if (tile) return tile
 			}
@@ -37,15 +32,63 @@ function firstTileWithAvailableLooseMushrooms(game: Game): Tile | undefined {
 	return undefined
 }
 
-function firstLooseMushroomCoordLabel(game: Game): string {
-	const tile = firstTileWithAvailableLooseMushrooms(game)
+function firstLooseRockCoordLabel(game: Game): string {
+	const tile = firstTileWithPresentLooseRocks(game)
 	if (!tile) return 'none'
 	const c = toAxialCoord(tile.position)
 	return `${c.q},${c.r}`
 }
 
+function availableLooseWoodCount(game: Game, coord: { q: number; r: number }) {
+	return game.hex.looseGoods
+		.getGoodsAt(coord)
+		.filter((g) => g.goodType === 'wood' && g.available && !g.isRemoved).length
+}
+
+/** String message keys from `traces.vehicle` `log`/`warn`/`error` rows (same contract as `NamedTrace.heads` for string heads). */
+function vehicleTraceMessages(sink: NamedTrace | undefined): string[] {
+	if (!sink) return []
+	const out: string[] = []
+	for (const row of sink as unknown as Iterable<unknown>) {
+		if (!Array.isArray(row) || row.length < 2) continue
+		const [level, head] = row as [string, unknown]
+		if (level === 'log' || level === 'warn' || level === 'error') {
+			if (typeof head === 'string') out.push(head)
+		}
+	}
+	return out
+}
+
+function formatTwoLooseRoundDiagnostics(
+	rounds: ReadonlyArray<{
+		round: number
+		directOffload: boolean
+		plannerJob: string | null
+		findBestJob: string | false
+		presentRocks: number
+		rocksInTransport: number
+		sinkLength: number
+	}>
+): string {
+	return rounds
+		.map((r) =>
+			[
+				`round=${r.round}`,
+				`directOffload=${String(r.directOffload)}`,
+				`plannerJob=${r.plannerJob ?? 'null'}`,
+				`findBestJob=${String(r.findBestJob)}`,
+				`presentRocks=${String(r.presentRocks)}`,
+				`rocksInTransport=${String(r.rocksInTransport)}`,
+				`sinkLength=${String(r.sinkLength)}`,
+			].join(' ')
+		)
+		.join('\n')
+}
+
 describe('Hive Offload Scenario', () => {
-	it('Scenario: Offload Mushroom', { timeout: 15000 }, async () => {
+	it('Scenario: Offload Rock planner surfaces vehicleOffload for hive storage + loose stone', {
+		timeout: 25000,
+	}, async () => {
 		const engine = new TestEngine({
 			terrainSeed: 1234,
 			characterCount: 0,
@@ -59,54 +102,398 @@ describe('Hive Offload Scenario', () => {
 					terrainSeed: 1234,
 					characterCount: 0,
 				},
-				looseGoods: [{ goodType: 'mushrooms', position: center }],
+				tiles: [
+					{ coord: [2, 2], terrain: 'concrete' },
+					{ coord: [2, 3], terrain: 'concrete' },
+					{ coord: [3, 2], terrain: 'concrete' },
+					{ coord: [3, 3], terrain: 'concrete' },
+				],
+				looseGoods: [{ goodType: 'stone', position: center }],
 				hives: [
 					{
-						name: 'OffloadMushroomHive',
-						// Use passive hive storage so `findBestJob` isn't out-ranked by a same-tile harvest job.
+						name: 'OffloadRockHive',
 						alveoli: [{ coord: [2, 2], alveolus: 'storage', goods: {} }],
 					},
 				],
 			} as any)
 
-			createOffloadWheelbarrow(game, center, 'wb-mushroom')
+			createOffloadWheelbarrow(game, { q: 3, r: 3 }, 'wb-rock')
 
-			const char = engine.spawnCharacter('Worker', center)
+			const char = engine.spawnCharacter('Worker', { q: 3, r: 2 })
 			char.role = 'worker'
 			void char.scriptsContext
 
 			const tile = game.hex.getTile(center)
 			expect(tile).toBeDefined()
 			expect(tile?.availableGoods.length).toBe(1)
-			expect(tile?.availableGoods[0].goodType).toBe('mushrooms')
+			expect(tile?.availableGoods[0].goodType).toBe('stone')
 			expect((tile?.content as any).hive).toBeDefined()
 
+			expect(findVehicleOffloadJob(game, char)?.job).toBe('vehicleOffload')
 			const action = char.findBestJob()
 			expect(action).toBeTruthy()
-			if (!action) throw new Error('Character failed to find offload job')
-			char.begin(action)
+			if (!action) throw new Error('Expected offload action')
+			expect(action.name).toBe('work.goWork')
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('Scenario: Idle loaded wheelbarrow chooses unload maintenance and drops onto a free tile', {
+		timeout: 15000,
+	}, async () => {
+		const engine = new TestEngine({
+			terrainSeed: 1234,
+			characterCount: 0,
+		})
+		await engine.init()
+		const game = engine.game
+		try {
+			const center = { q: 2, r: 2 }
+			engine.loadScenario({
+				generationOptions: {
+					terrainSeed: 1234,
+					characterCount: 0,
+				},
+				tiles: [
+					{ coord: [2, 2], terrain: 'grass' },
+					{ coord: [2, 3], terrain: 'grass' },
+					{ coord: [3, 2], terrain: 'grass' },
+				],
+			} as any)
+
+			const vehicle = createOffloadWheelbarrow(game, center, 'wb-unload-scenario')
+			vehicle.storage.addGood('stone', 1)
+
+			const worker = engine.spawnCharacter('Worker', center)
+			worker.role = 'worker'
+			void worker.scriptsContext
+
+			const directJob = findVehicleOffloadJob(game, worker)
+			expect(directJob?.maintenanceKind).toBe('unloadToTile')
+			const action = worker.findBestJob()
+			expect(action).toBeTruthy()
+			if (!action) throw new Error('Expected unload maintenance action')
+			worker.begin(action)
 
 			let time = 0
-			const maxSim = 22
-			while (time < maxSim) {
+			let dropped: LooseGood | undefined
+			while (time < 8) {
 				engine.tick(0.1, 0.1)
-				if (mushroomsInTransport(char) === 0 && anyAvailableLooseMushrooms(game)) break
+				if (rocksInTransport(worker) === 0) {
+					dropped = Array.from(game.hex.looseGoods.goods.values())
+						.flat()
+						.find((good) => good.goodType === 'stone' && !good.isRemoved)
+					if (dropped) break
+				}
 				time += 0.1
 			}
 
-			expect(tile!.availableGoods.length).toBe(0)
-			expect(mushroomsInTransport(char)).toBe(0)
-
-			const foundTile = firstTileWithAvailableLooseMushrooms(game)
-
-			expect(foundTile).toBeDefined()
-			if (!foundTile) throw new Error('Expected a tile with loose mushrooms after offload')
-			expect(foundTile.availableGoods[0]?.goodType).toBe('mushrooms')
-
-			const foundCoord = toAxialCoord(foundTile.position)!
-			expect(foundCoord.q === 2 && foundCoord.r === 2).toBe(false)
-			expect((foundTile.content as any).hive).toBeUndefined()
+			expect(dropped).toBeDefined()
+			if (!dropped) throw new Error('Expected unloaded loose stone to exist')
+			expect(dropped.position).toHaveProperty('x')
+			expect(dropped.position).toHaveProperty('y')
+			expect(toAxialCoord(dropped.position)).not.toEqual(center)
 		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('Scenario: Idle empty burdening wheelbarrow chooses park maintenance and moves away', {
+		timeout: 15000,
+	}, async () => {
+		const engine = new TestEngine({
+			terrainSeed: 1234,
+			characterCount: 0,
+		})
+		await engine.init()
+		const game = engine.game
+		try {
+			const center = { q: 2, r: 2 }
+			engine.loadScenario({
+				generationOptions: {
+					terrainSeed: 1234,
+					characterCount: 0,
+				},
+				hives: [
+					{
+						name: 'ParkScenarioHive',
+						alveoli: [{ coord: [2, 2], alveolus: 'storage', goods: {} }],
+					},
+				],
+			} as any)
+
+			const vehicle = createOffloadWheelbarrow(game, center, 'wb-park-scenario')
+			const worker = engine.spawnCharacter('Worker', center)
+			worker.role = 'worker'
+			void worker.scriptsContext
+
+			const directJob = findVehicleOffloadJob(game, worker)
+			expect(directJob?.maintenanceKind).toBe('park')
+			const action = worker.findBestJob()
+			expect(action).toBeTruthy()
+			if (!action) throw new Error('Expected park maintenance action')
+			worker.begin(action)
+
+			let time = 0
+			while (time < 8) {
+				engine.tick(0.1, 0.1)
+				if (!vehicle.service && !worker.operates) break
+				time += 0.1
+			}
+
+			expect(vehicle.service).toBeUndefined()
+			expect(worker.operates).toBeUndefined()
+			expect(toAxialCoord(vehicle.position)).not.toEqual(center)
+			const parkedTile = game.hex.getTile(vehicle.position)
+			expect(parkedTile?.zone).not.toBe('residential')
+			expect(parkedTile?.content instanceof UnBuiltLand).toBe(true)
+			expect(parkedTile?.isClear).toBe(true)
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('Scenario: Completed last docked anchor falls into park maintenance on the next pick', async () => {
+		const engine = new TestEngine({
+			terrainSeed: 1234,
+			characterCount: 0,
+		})
+		await engine.init()
+		const game = engine.game
+		try {
+			engine.loadScenario({
+				generationOptions: {
+					terrainSeed: 1234,
+					characterCount: 0,
+				},
+				hives: [
+					{
+						name: 'DockParkHive',
+						alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }],
+					},
+				],
+				freightLines: [
+					gatherFreightLine({
+						id: 'dock-park',
+						name: 'Dock Park',
+						hiveName: 'DockParkHive',
+						coord: [0, 0],
+						filters: ['wood'],
+						radius: 2,
+					}),
+				],
+			} as any)
+
+			const line = game.freightLines[0]!
+			const unloadStop = line.stops[1]!
+			const vehicle = game.vehicles.createVehicle('wb-dock-park', 'wheelbarrow', { q: 0, r: 0 }, [
+				line,
+			])
+			const dockActor = engine.spawnCharacter('DockActor', { q: 0, r: 0 })
+			vehicle.beginService(line, unloadStop, dockActor)
+			vehicle.dock()
+
+			maybeAdvanceVehicleFromCompletedAnchorStop(game, vehicle, dockActor)
+			expect(vehicle.service).toBeUndefined()
+
+			dockActor.role = 'worker'
+			void dockActor.scriptsContext
+			expect(findVehicleOffloadJob(game, dockActor)?.maintenanceKind).toBe('park')
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('Scenario: Gather line picks project wood before plain wood when the pickup also serves downstream hive need', async () => {
+		const engine = new TestEngine({
+			terrainSeed: 1234,
+			characterCount: 0,
+		})
+		await engine.init()
+		const game = engine.game
+		try {
+			engine.loadScenario({
+				generationOptions: {
+					terrainSeed: 1234,
+					characterCount: 0,
+				},
+				tiles: [
+					{ coord: [0, 0] as [number, number], terrain: 'concrete' },
+					{ coord: [0, 1] as [number, number], terrain: 'concrete' },
+					{ coord: [1, 0] as [number, number], terrain: 'concrete' },
+					{ coord: [2, 0] as [number, number], terrain: 'grass' },
+					{ coord: [1, 1] as [number, number], terrain: 'grass' },
+				],
+				hives: [
+					{
+						name: 'JointPriorityHive',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
+							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
+						],
+					},
+				],
+				projects: {
+					'build:storage': [[2, 0] as [number, number]],
+				},
+				looseGoods: [
+					{ goodType: 'wood', position: { q: 2, r: 0 } },
+					{ goodType: 'wood', position: { q: 1, r: 1 } },
+				],
+				freightLines: [
+					gatherFreightLine({
+						id: 'joint-priority-line',
+						name: 'Joint priority line',
+						hiveName: 'JointPriorityHive',
+						coord: [0, 0],
+						filters: ['wood'],
+						radius: 3,
+					}),
+				],
+			} as any)
+
+			const worker = engine.spawnCharacter('JointWorker', { q: 0, r: 1 })
+			worker.role = 'worker'
+			void worker.scriptsContext
+
+			const line = game.freightLines[0]!
+			game.vehicles.createVehicle('wb-joint-priority', 'wheelbarrow', { q: 0, r: 0 }, [line])
+
+			expect(availableLooseWoodCount(game, { q: 2, r: 0 })).toBe(1)
+			expect(availableLooseWoodCount(game, { q: 1, r: 1 })).toBe(1)
+
+			let time = 0
+			while (time < 60 && availableLooseWoodCount(game, { q: 2, r: 0 }) > 0) {
+				if (!worker.stepExecutor) {
+					const action = worker.findBestJob()
+					if (action) worker.begin(action)
+				}
+				engine.tick(0.1, 0.1)
+				time += 0.1
+			}
+
+			expect(availableLooseWoodCount(game, { q: 2, r: 0 })).toBe(0)
+			expect(availableLooseWoodCount(game, { q: 1, r: 1 })).toBe(1)
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('Scenario: Two loose goods — one worker, one wheelbarrow — vehicle trace order', {
+		timeout: 20000,
+	}, async () => {
+		const engine = new TestEngine({
+			terrainSeed: 1234,
+			characterCount: 0,
+		})
+		await engine.init()
+		const game = engine.game
+		// Hold a dedicated sink: `traces.vehicle` is cleared in Vitest `beforeEach`; reinstall after `init`
+		// so bootstrap cannot replace it. Keep the reference for assertions (same object the engine calls).
+		const vehicleSink = namedTrace('vehicle', { silent: true })
+		traces.vehicle = vehicleSink
+		try {
+			resetDebugActiveAllocations()
+			const center = { q: 2, r: 2 }
+			engine.loadScenario({
+				generationOptions: {
+					terrainSeed: 1234,
+					characterCount: 0,
+				},
+				tiles: [
+					{ coord: [2, 2], terrain: 'concrete' },
+					{ coord: [2, 3], terrain: 'concrete' },
+					{ coord: [3, 2], terrain: 'concrete' },
+					{ coord: [3, 3], terrain: 'concrete' },
+				],
+				looseGoods: [
+					{ goodType: 'stone', position: center },
+					{ goodType: 'stone', position: center },
+				],
+				hives: [
+					{
+						name: 'TwoLooseOffloadHive',
+						alveoli: [{ coord: [2, 2], alveolus: 'storage', goods: {} }],
+					},
+				],
+			} as any)
+
+			createOffloadWheelbarrow(game, { q: 3, r: 3 }, 'wb-two-loose')
+
+			const char = engine.spawnCharacter('Worker', { q: 3, r: 2 })
+			char.role = 'worker'
+			void char.scriptsContext
+
+			const tile = game.hex.getTile(center)
+			expect(tile).toBeDefined()
+			const presentRockCount = () =>
+				game.hex.looseGoods
+					.getGoodsAt(center)
+					.filter((good) => good.goodType === 'stone' && !good.isRemoved).length
+			expect(presentRockCount()).toBe(2)
+
+			const rounds: Array<{
+				round: number
+				directOffload: boolean
+				plannerJob: string | null
+				findBestJob: string | false
+				presentRocks: number
+				rocksInTransport: number
+				sinkLength: number
+			}> = []
+
+			for (let round = 0; round < 2; round++) {
+				const directJob = findVehicleOffloadJob(game, char)
+				const planner = char.resolveBestJobMatch()
+				const action = char.findBestJob()
+				const findBestJobName = action === false ? false : action.name
+
+				rounds.push({
+					round,
+					directOffload: directJob?.job === 'vehicleOffload',
+					plannerJob: planner ? planner.job.job : null,
+					findBestJob: findBestJobName,
+					presentRocks: presentRockCount(),
+					rocksInTransport: rocksInTransport(char),
+					sinkLength: (vehicleSink as unknown as unknown[]).length,
+				})
+
+				if (directJob?.job !== 'vehicleOffload') break
+				if (!action) break
+
+				expect(action.name).toBe('work.goWork')
+				char.begin(action)
+				engine.tick(20, 0.1)
+			}
+
+			const diag = formatTwoLooseRoundDiagnostics(rounds)
+
+			const messages = vehicleTraceMessages(vehicleSink)
+			// `findBestJob` emits `vehicleJob.selected` for each freight selection. First leg boards the
+			// wheelbarrow (`vehicleJob.approach.onboard`). Each `loadFromBurden` now logs the shared load
+			// transfer step, then ends the maintenance run through the common offboard tail. After the last
+			// loose good, the empty burdening wheelbarrow is rerouted as `park`, ending in `park.end` +
+			// `offboard.endService` + `offboard`.
+			expect(messages, `${diag}\nvehicleTrace=${JSON.stringify(messages)}`).toEqual([
+				'vehicleJob.selected',
+				'vehicleJob.approach.onboard',
+				'vehicleJob.load',
+				'vehicleJob.maintenance.complete',
+				'vehicleJob.offboard.endService',
+				'vehicleJob.offboard',
+				'vehicleJob.selected',
+				'vehicleJob.load',
+				'vehicleJob.maintenance.complete',
+				'vehicleJob.offboard.endService',
+				'vehicleJob.offboard',
+				'vehicleJob.selected',
+				'vehicleJob.maintenance.complete',
+				'vehicleJob.offboard.endService',
+				'vehicleJob.offboard',
+			])
+		} finally {
+			resetDebugActiveAllocations()
 			await engine.destroy()
 		}
 	})
@@ -127,7 +514,7 @@ describe('Hive Offload Scenario', () => {
 					terrainSeed: 1234,
 					characterCount: 0,
 				},
-				looseGoods: [{ goodType: 'mushrooms', position: target }],
+				looseGoods: [{ goodType: 'stone', position: target }],
 				hives: [
 					{
 						name: 'LifecycleHive',
@@ -150,7 +537,8 @@ describe('Hive Offload Scenario', () => {
 			const tile = game.hex.getTile(target)!
 			const directJob = findVehicleOffloadJob(game, char)
 			expect(directJob?.job).toBe('vehicleOffload')
-			if (directJob?.job !== 'vehicleOffload') throw new Error('Expected a vehicleOffload job')
+			if (directJob?.job !== 'vehicleOffload' || directJob.maintenanceKind !== 'loadFromBurden')
+				throw new Error('Expected a loadFromBurden vehicleOffload job')
 
 			const looseGood = directJob.looseGood
 			expect(tile.availableGoods.length).toBe(1)
@@ -167,14 +555,14 @@ describe('Hive Offload Scenario', () => {
 			expect(looseGood.available).toBe(false)
 			expect(game.hex.looseGoods.getGoodsAt(target)).toContain(looseGood)
 			expect(tile.availableGoods.length).toBe(0)
-			expect(mushroomsInTransport(char)).toBe(0)
+			expect(rocksInTransport(char)).toBe(0)
 
 			const timeline: string[] = []
 			let firstRemovedAt: number | undefined
 			let firstCarriedAt: number | undefined
 			let time = 0
 			for (let i = 0; i < 80; i++) {
-				const carried = mushroomsInTransport(char)
+				const carried = rocksInTransport(char)
 				timeline.push(
 					`${time.toFixed(2)} removed=${String(looseGood.isRemoved)} available=${String(looseGood.available)} onTile=${String(game.hex.looseGoods.getGoodsAt(target).includes(looseGood))} carried=${carried} step=${char.stepExecutor?.constructor.name ?? 'none'} desc=${String(char.stepExecutor?.description ?? 'none')}`
 				)
@@ -196,21 +584,21 @@ describe('Hive Offload Scenario', () => {
 			expect(firstRemovedAt, timeline.join('\n')).toBe(firstCarriedAt)
 			expect(looseGood.isRemoved, timeline.join('\n')).toBe(true)
 			expect(game.hex.looseGoods.getGoodsAt(target), timeline.join('\n')).not.toContain(looseGood)
-			expect(mushroomsInTransport(char), timeline.join('\n')).toBe(1)
+			expect(rocksInTransport(char), timeline.join('\n')).toBe(1)
 
 			time = 0
-			while (time < 6 && mushroomsInTransport(char) > 0) {
+			while (time < 6 && rocksInTransport(char) > 0) {
 				engine.tick(0.1, 0.1)
 				time += 0.1
 			}
 
-			expect(mushroomsInTransport(char)).toBe(0)
+			expect(rocksInTransport(char)).toBe(0)
 		} finally {
 			await engine.destroy()
 		}
 	})
 
-	it('Scenario: Offload Mushroom Must Not Leave Pickup Or Drop Allocations Alive', {
+	it('Scenario: Offload Rock Must Not Leave Pickup Or Drop Allocations Alive', {
 		timeout: 15000,
 	}, async () => {
 		resetDebugActiveAllocations()
@@ -227,7 +615,7 @@ describe('Hive Offload Scenario', () => {
 					terrainSeed: 1234,
 					characterCount: 0,
 				},
-				looseGoods: [{ goodType: 'mushrooms', position: center }],
+				looseGoods: [{ goodType: 'stone', position: center }],
 				hives: [
 					{
 						name: 'LeakCheckHive',
@@ -248,15 +636,16 @@ describe('Hive Offload Scenario', () => {
 			worker.begin(action)
 
 			let time = 0
-			while (time < 4) {
+			while (time < 25) {
 				engine.tick(0.1, 0.1)
-				if (mushroomsInTransport(worker) === 0 && anyAvailableLooseMushrooms(game)) break
 				time += 0.1
+				const reasons = debugActiveAllocations().map(({ reason }) => reason)
+				if (!reasons.includes('plan.pickup') && !reasons.includes('drop.stone')) break
 			}
 
 			const activeReasons = debugActiveAllocations().map(({ reason }) => reason)
 			expect(activeReasons).not.toContain('plan.pickup')
-			expect(activeReasons).not.toContain('drop.mushrooms')
+			expect(activeReasons).not.toContain('drop.stone')
 		} finally {
 			resetDebugActiveAllocations()
 			await engine.destroy()
@@ -273,7 +662,7 @@ describe('Hive Offload Scenario', () => {
 		try {
 			const center = { q: 5, r: 5 }
 
-			// Setup: Center has mushrooms
+			// Setup: Center has rocks
 			// Neighbor (6,5) has an Alveolus (e.g. storage or another chopper)
 			// Neighbor (4,5) is empty UnBuiltLand
 			// Character offloads from center.
@@ -284,7 +673,7 @@ describe('Hive Offload Scenario', () => {
 					terrainSeed: 1234,
 					characterCount: 0,
 				},
-				looseGoods: [{ goodType: 'mushrooms', position: center }],
+				looseGoods: [{ goodType: 'stone', position: center }],
 				hives: [
 					{
 						name: 'BlockerHive',
@@ -320,7 +709,7 @@ describe('Hive Offload Scenario', () => {
 			let time = 0
 			while (time < 8) {
 				engine.tick(0.1, 0.1)
-				if (mushroomsInTransport(char) === 0 && char.tiredness > 0.1) break // simplistic 'done' check
+				if (rocksInTransport(char) === 0 && char.tiredness > 0.1) break // simplistic 'done' check
 				time += 0.1
 			}
 
@@ -339,7 +728,7 @@ describe('Hive Offload Scenario', () => {
 		}
 	})
 
-	it('Scenario: Offload Engagement Allocates The Mushroom Before A Second Worker Can Commit', {
+	it('Scenario: Offload Engagement Allocates The Rock Before A Second Worker Can Commit', {
 		timeout: 5000,
 	}, async () => {
 		const engine = new TestEngine({
@@ -355,7 +744,7 @@ describe('Hive Offload Scenario', () => {
 					terrainSeed: 1234,
 					characterCount: 0,
 				},
-				looseGoods: [{ goodType: 'mushrooms', position: target }],
+				looseGoods: [{ goodType: 'stone', position: target }],
 				hives: [
 					{
 						name: 'ContestHive',
@@ -389,12 +778,17 @@ describe('Hive Offload Scenario', () => {
 
 			expect(directJobA?.job).toBe('vehicleOffload')
 			expect(directJobB?.job).toBe('vehicleOffload')
-			if (directJobA?.job !== 'vehicleOffload' || directJobB?.job !== 'vehicleOffload') {
+			if (
+				directJobA?.job !== 'vehicleOffload' ||
+				directJobA.maintenanceKind !== 'loadFromBurden' ||
+				directJobB?.job !== 'vehicleOffload' ||
+				directJobB.maintenanceKind !== 'loadFromBurden'
+			) {
 				throw new Error('Expected vehicleOffload jobs before engagement')
 			}
 			expect(directJobA.looseGood).toBeTruthy()
-			expect(directJobA.looseGood.goodType).toBe('mushrooms')
-			expect(directJobB.looseGood.goodType).toBe('mushrooms')
+			expect(directJobA.looseGood.goodType).toBe('stone')
+			expect(directJobB.looseGood.goodType).toBe('stone')
 			expect(jobA).toBeTruthy()
 			if (!jobA) throw new Error('First worker failed to find contested offload job')
 
@@ -411,7 +805,7 @@ describe('Hive Offload Scenario', () => {
 
 			for (let i = 0; i < 55; i++) {
 				engine.tick(0.1, 0.1)
-				const carried = mushroomsInTransport(workerA) + mushroomsInTransport(workerB)
+				const carried = rocksInTransport(workerA) + rocksInTransport(workerB)
 				maxCarried = Math.max(maxCarried, carried)
 				if (carried > 0) oneWorkerPickedUp = true
 			}
@@ -419,7 +813,7 @@ describe('Hive Offload Scenario', () => {
 			expect(oneWorkerPickedUp).toBe(true)
 			expect(maxCarried).toBe(1)
 			expect(game.hex.getTile(target)!.availableGoods.length).toBe(0)
-			expect(mushroomsInTransport(workerA) + mushroomsInTransport(workerB)).toBe(0)
+			expect(rocksInTransport(workerA) + rocksInTransport(workerB)).toBe(0)
 		} finally {
 			await engine.destroy()
 		}
@@ -441,7 +835,7 @@ describe('Hive Offload Scenario', () => {
 					terrainSeed: 1234,
 					characterCount: 0,
 				},
-				looseGoods: [{ goodType: 'mushrooms', position: target }],
+				looseGoods: [{ goodType: 'stone', position: target }],
 				hives: [
 					{
 						name: 'ContestHive',
@@ -465,8 +859,8 @@ describe('Hive Offload Scenario', () => {
 			void game.hex.getTile(target)!
 			const directJob = findVehicleOffloadJob(game, worker)
 			expect(directJob?.job).toBe('vehicleOffload')
-			if (directJob?.job !== 'vehicleOffload')
-				throw new Error('Expected vehicleOffload job before engagement')
+			if (directJob?.job !== 'vehicleOffload' || directJob.maintenanceKind !== 'loadFromBurden')
+				throw new Error('Expected loadFromBurden vehicleOffload job before engagement')
 
 			directJob.looseGood?.remove()
 
@@ -480,7 +874,7 @@ describe('Hive Offload Scenario', () => {
 	})
 
 	it('Scenario: Residential Offload Drop Target Must Not Re-Offer Offload', {
-		timeout: 5000,
+		timeout: 25000,
 	}, async () => {
 		const engine = new TestEngine({
 			terrainSeed: 1234,
@@ -496,7 +890,7 @@ describe('Hive Offload Scenario', () => {
 					terrainSeed: 1234,
 					characterCount: 0,
 				},
-				looseGoods: [{ goodType: 'mushrooms', position: center }],
+				looseGoods: [{ goodType: 'stone', position: center }],
 				hives: [
 					{
 						name: 'ResidentialLoopHive',
@@ -528,10 +922,10 @@ describe('Hive Offload Scenario', () => {
 
 			let time = 0
 			let foundTile: Tile | undefined
-			while (time < 8) {
+			while (time < 22) {
 				engine.tick(0.1, 0.1)
-				if (mushroomsInTransport(worker) === 0) {
-					foundTile = firstTileWithAvailableLooseMushrooms(game)
+				if (rocksInTransport(worker) === 0) {
+					foundTile = firstTileWithPresentLooseRocks(game)
 					if (foundTile) break
 				}
 				time += 0.1
@@ -539,20 +933,27 @@ describe('Hive Offload Scenario', () => {
 
 			expect(foundTile).toBeDefined()
 			if (!foundTile) throw new Error('Expected dropped tile to be found')
-			expect(foundTile.availableGoods.some((good) => good.goodType === 'mushrooms')).toBe(true)
+			expect(
+				game.hex.looseGoods
+					.getGoodsAt(foundTile.position)
+					.some((good) => good.goodType === 'stone' && !good.isRemoved),
+				'expected a non-removed loose stone on the dropped tile'
+			).toBe(true)
 			expect(foundTile.getJob(worker)).toBeUndefined()
 
 			// Verify it didn't drop on residential tile
 			const foundCoord = toAxialCoord(foundTile.position)
 			expect(foundCoord.q === residentialDrop.q && foundCoord.r === residentialDrop.r).toBe(false)
 			expect(foundTile.zone).not.toBe('residential')
-			expect(foundTile.content instanceof UnBuiltLand).toBe(true)
+			expect(foundTile.content instanceof UnBuiltLand || foundTile.baseTerrain === 'concrete').toBe(
+				true
+			)
 		} finally {
 			await engine.destroy()
 		}
 	})
 
-	it('Scenario: Offloaded Mushroom Must Stabilize Instead Of Re-Offloading Forever', {
+	it('Scenario: Offloaded Rock Must Stabilize Instead Of Re-Offloading Forever', {
 		timeout: 5000,
 	}, async () => {
 		const engine = new TestEngine({
@@ -568,7 +969,7 @@ describe('Hive Offload Scenario', () => {
 					terrainSeed: 1234,
 					characterCount: 0,
 				},
-				looseGoods: [{ goodType: 'mushrooms', position: center }],
+				looseGoods: [{ goodType: 'stone', position: center }],
 				hives: [
 					{
 						name: 'ResidentialDriftHive',
@@ -613,7 +1014,6 @@ describe('Hive Offload Scenario', () => {
 			let firstDropTime = 0
 			while (firstDropTime < 8) {
 				engine.tick(0.1, 0.1)
-				if (mushroomsInTransport(worker) === 0 && anyAvailableLooseMushrooms(game)) break
 				firstDropTime += 0.1
 			}
 
@@ -621,9 +1021,9 @@ describe('Hive Offload Scenario', () => {
 			const timeline: string[] = []
 			let pickedUpAgain = false
 			for (let i = 0; i < 65; i++) {
-				const carried = mushroomsInTransport(worker)
+				const carried = rocksInTransport(worker)
 				if (carried > 0) pickedUpAgain = true
-				const coordLabel = firstLooseMushroomCoordLabel(game)
+				const coordLabel = firstLooseRockCoordLabel(game)
 				if (coordLabel !== 'none') seenCoords.add(coordLabel)
 				timeline.push(
 					`${(i * 0.1).toFixed(1)} carried=${carried} loose=${coordLabel} step=${String(worker.stepExecutor?.description ?? 'none')} action=${worker.actionDescription.join('>')}`

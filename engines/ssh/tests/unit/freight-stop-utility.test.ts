@@ -90,6 +90,7 @@ describe('freight-stop-utility', () => {
 		game.ticker.stop()
 		try {
 			const snap = measureZoneLooseGoodsSource(game, { q: 0, r: 0 }, 3, new Set(['wood'] as const))
+			expect(snap.adSource).toBe('vehicle-station')
 			expect(snap.perGood.wood).toBe(1)
 			expect(snap.total).toBe(1)
 		} finally {
@@ -116,6 +117,7 @@ describe('freight-stop-utility', () => {
 				2,
 				new Set(['wood', 'berries', 'planks'] as const)
 			)
+			expect(snap.adSource).toBe('project')
 			expect(snap.perGood.wood).toBe(site.remainingNeeds.wood)
 			expect(snap.perGood.planks).toBe(site.remainingNeeds.planks)
 			expect(snap.total).toBe((snap.perGood.wood ?? 0) + (snap.perGood.planks ?? 0))
@@ -138,6 +140,7 @@ describe('freight-stop-utility', () => {
 			expect(gather).toBeDefined()
 			const hive = gather!.hive
 			const snap = measureHiveStoredGoodsSource(hive, new Set(['wood', 'berries'] as const))
+			expect(snap.adSource).toBe('hive')
 			expect(snap.perGood.wood).toBe(3)
 			expect(snap.perGood.berries).toBeUndefined()
 			expect(snap.total).toBe(3)

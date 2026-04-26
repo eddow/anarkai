@@ -1,4 +1,4 @@
-import { memoize, reactive, unreactive } from 'mutts'
+import { reactive, unreactive } from 'mutts'
 import type { ExecutionContext } from 'npc-script'
 import { assert, traces } from 'ssh/debug'
 import {
@@ -13,7 +13,7 @@ import {
 	summarizeScriptExecutionForInfiniteFail,
 	summarizeScriptRunValueKind,
 } from './npc-diagnostics'
-import { getGameScript, ScriptExecution } from './scripts'
+import { getGameScript, ScriptExecution, scriptExecutionErrorDiagnostic } from './scripts'
 import { ASingleStep, PonderingStep, stepPassesFullRemainingOnComplete } from './steps'
 
 function currentStepExecutor(target: { stepExecutor?: ASingleStep }): ASingleStep | undefined {
@@ -77,8 +77,8 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 		abstract scriptsContext: ExecutionContext
 		abstract findAction(): ScriptExecution | ASingleStep | undefined
 
-		@memoize
 		get actionDescription(): string[] {
+			// `runningScripts` is intentionally `@unreactive`; keep this as a fresh diagnostic snapshot.
 			return this.runningScripts.map((s) => s.name).reverse()
 		}
 		makeRun() {
@@ -113,9 +113,18 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 				}
 				return this.runningScript.run(this.scriptsContext)
 			} catch (error) {
-				// Present stack trace
-				console.error(this.runningScripts.map((s) => [s.name, s.state]))
-				if (error instanceof Error) console.error(error.stack)
+				const diagnostic = {
+					subject: npcSubjectSnapshot(this),
+					error:
+						scriptExecutionErrorDiagnostic(error) ??
+						(error instanceof Error
+							? { message: error.message, stack: error.stack }
+							: { message: String(error) }),
+					runningScripts: this.runningScripts.map((script) =>
+						summarizeScriptExecutionForInfiniteFail(script)
+					),
+				}
+				traces.script.error?.('script.makeRun.error', diagnostic)
 				throw error
 			}
 		}
@@ -137,7 +146,6 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 			while (this.runningScripts.length && !this.stepExecutor) {
 				const executingName = this.runningScript.name
 				const { type, value } = this.makeRun()
-				//console.log(`[nextStep] ${this.name}: running ${executingName}, produced ${type} with value ${value?.constructor.name || value}`);
 				loopCount.push({ name: executingName, type, value })
 				if (loopCount.length > 50) {
 					console.error('High loop count in nextStep, throttling', executingName, type, value)
@@ -151,11 +159,10 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 					if (value instanceof ScriptExecution) this.runningScripts.unshift(value)
 					else if (value instanceof ASingleStep) {
 						this.stepExecutor = value
-						//console.log(`[nextStep] ${this.name}: new stepExecutor set: ${value.constructor.name}`);
 					} else throw new Error(`Unexpected next action: ${value}`)
 				} else if (!this.runningScripts.length) {
 					const nextAction = this.findAction()
-					if (nextAction?.name === executingName) {
+					if (nextAction instanceof ScriptExecution && nextAction.name === executingName) {
 						if (reentered) {
 							const last = loopCount[loopCount.length - 1] as
 								| { name: string; type: string; value: unknown }
@@ -180,7 +187,7 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 								`Action infinite fail: ${executingName} returned immediately and was selected again.`,
 								context
 							)
-							traces.npc?.log?.('nextStep.infiniteFail', {
+							traces.npc.log?.('nextStep.infiniteFail', {
 								...context,
 								loopTail: loopEntriesForNpcTrace(loopCount, 5),
 							})

@@ -56,7 +56,7 @@ function finalizeBuildAlveolusToTarget(
 function finalizeBuildDwellingToBasicDwelling(site: BuildDwelling) {
 	applyConcreteTerrain(site.tile)
 	site.tile.content = new BasicDwelling(site.tile)
-	traces.residential?.log('[residential] dwelling complete', {
+	traces.residential.log?.('[residential] dwelling complete', {
 		q: toAxialCoord(site.tile.position)?.q,
 		r: toAxialCoord(site.tile.position)?.r,
 		tier: site.targetTier,
@@ -700,7 +700,7 @@ class WorkFunctions {
 				applyConcreteTerrain(content.tile)
 				content.tile.content = new BuildDwelling(content.tile, target.tier, constructionSite)
 				const ac = toAxialCoord(content.tile.position)
-				traces.residential?.log('[residential] foundation -> BuildDwelling', {
+				traces.residential.log?.('[residential] foundation -> BuildDwelling', {
 					tier: target.tier,
 					q: ac?.q,
 					r: ac?.r,

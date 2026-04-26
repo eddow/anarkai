@@ -30,7 +30,7 @@ const registry: FinalizationRegistry<Held> | null =
 						stack,
 					}
 					console.error('Leaked allocation (not fulfilled/cancelled):', errorInfo)
-					traces.allocations?.error('Leaked allocation detected:', errorInfo)
+					traces.allocations.error?.('Leaked allocation detected:', errorInfo)
 				} catch {}
 			})
 		: null
@@ -68,9 +68,9 @@ export function guardAllocation<Allocation extends object>(allocation: Allocatio
 
 	activeAllocations.set(token, allocationInfo)
 	activeLiveAllocations.set(token, variants[0])
-	traces.allocations?.groupCollapsed('Allocation created:', allocationInfo)
-	traces.allocations?.trace()
-	traces.allocations?.groupEnd()
+	traces.allocations.groupCollapsed?.('Allocation created:', allocationInfo)
+	traces.allocations.trace?.()
+	traces.allocations.groupEnd?.()
 	registry.register(variants[0], allocationInfo, token)
 }
 
@@ -83,7 +83,7 @@ export function allocationEnded<Allocation extends object>(allocation: Allocatio
 	const held = activeAllocations.get(token)
 	if (held) {
 		const duration = Date.now() - (held.createdAt || Date.now())
-		traces.allocations?.log('Allocation ended:', {
+		traces.allocations.log?.('Allocation ended:', {
 			id: held.id,
 			reason: held.reason,
 			duration: `${duration}ms`,
@@ -164,11 +164,15 @@ export function resetDebugActiveAllocations(): void {
 }
 
 export class AllocationError extends Error {
-	constructor(
-		message: string,
-		public readonly reason: any
-	) {
+	readonly reason: unknown
+
+	constructor(message: string, reason: unknown) {
 		super(message)
 		this.name = 'AllocationError'
+		Object.defineProperty(this, 'reason', {
+			value: reason,
+			enumerable: false,
+			configurable: true,
+		})
 	}
 }

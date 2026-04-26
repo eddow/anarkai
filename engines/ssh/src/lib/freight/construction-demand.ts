@@ -5,12 +5,16 @@ import {
 	type FreightDistributeRouteSegment,
 	type FreightLineDefinition,
 } from 'ssh/freight/freight-line'
+import type { FreightAdSource } from 'ssh/freight/priority-channel'
 import type { Game } from 'ssh/game/game'
 import { type AxialCoord, axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
 
 /** @deprecated Prefer {@link isStandaloneBuildSiteShell} from `ssh/build-site`. */
 export const isStandaloneFreightConstructionSite = isStandaloneBuildSiteShell
+
+/** Channel used when a freight candidate is driven by a temporary / project-local construction sink. */
+export const CONSTRUCTION_DEMAND_AD_SOURCE: FreightAdSource = 'project'
 
 /**
  * Visits each in-progress standalone construction tile whose axial distance from `bayPos` satisfies

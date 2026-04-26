@@ -109,10 +109,17 @@ function rulesTestOverrides() {
 			},
 		},
 		jobBalance: {
+			priorityTier: {
+				lineAndOffloadJoint: 1.35,
+				pureOffload: 1.1,
+				pureLine: 1,
+			},
 			offload: {
-				projectTile: 15,
-				alveolusBlocked: 4,
-				residentialTile: 1.25,
+				projectTile: 30,
+				alveolusBlocked: 25,
+				residentialTile: 21,
+				unloadToTile: 8,
+				park: 17,
 			},
 			convey: 3,
 			gather: 2.5,

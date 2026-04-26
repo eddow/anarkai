@@ -60,11 +60,11 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 		if (ads !== undefined && isReactive(ads)) debugger
 		inert(() => {
 			if (!advertiser) {
-				traces.advertising?.log(`[ADVERTISE] SKIP: undefined advertiser`)
+				traces.advertising.log?.(`[ADVERTISE] SKIP: undefined advertiser`)
 				return
 			}
 			const adsRecord: GoodsRelations = ads ?? {}
-			traces.advertising?.log(`[ADVERTISE] START: ${advertiser}`, { ads: adsRecord })
+			traces.advertising.log?.(`[ADVERTISE] START: ${advertiser}`, { ads: adsRecord })
 
 			if (this.lastAds.has(advertiser)) {
 				const lastAds = this.lastAds.get(advertiser)!
@@ -79,13 +79,13 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 						const idx = bucket.indexOf(advertiser)
 						if (idx !== -1) {
 							bucket.splice(idx, 1)
-							traces.advertising?.log(
+							traces.advertising.log?.(
 								`[ADVERTISE] REMOVE OLD: ${goodType} ${last.advertisement} from ${advertiser}`
 							)
 						}
 						if (isAllBucketsEmpty(current.advertisers)) {
 							delete this.advertisements[goodType]
-							traces.advertising?.log(`[ADVERTISE] DELETE EMPTY: ${goodType}`)
+							traces.advertising.log?.(`[ADVERTISE] DELETE EMPTY: ${goodType}`)
 						}
 					}
 				}
@@ -106,7 +106,7 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 
 						if (!bucket?.length) continue
 
-						traces.advertising?.log(`[ADVERTISE] MATCH OPPOSITE: ${goodType}`, {
+						traces.advertising.log?.(`[ADVERTISE] MATCH OPPOSITE: ${goodType}`, {
 							newAd: `${ad.advertisement} priority ${ad.priority} from ${advertiser}`,
 							existingAd: `${existing.advertisement} priority ${oppositePriority}`,
 							bucket,
@@ -128,14 +128,14 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 									const idx = bucket.indexOf(movedAdvertiser)
 									if (idx !== -1) {
 										bucket.splice(idx, 1)
-										traces.advertising?.log(
+										traces.advertising.log?.(
 											`[ADVERTISE] REMOVE MATCHED: ${goodType} - removed ${movedAdvertiser.name || 'unnamed'} from bucket ${oppositePriority} (movement: ${movementId})`
 										)
 										if (bucket.length === 0) {
 											// Only remove bucket if empty
 											existing.advertisers.splice(oppositePriority, 1)
 											if (isAllBucketsEmpty(existing.advertisers)) {
-												traces.advertising?.log(`[ADVERTISE] BUCKET EMPTY - DELETE: ${goodType}`)
+												traces.advertising.log?.(`[ADVERTISE] BUCKET EMPTY - DELETE: ${goodType}`)
 												delete this.advertisements[goodType]
 											}
 										}
@@ -143,18 +143,18 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 								}
 							)
 							if (movementTarget) {
-								traces.advertising?.log(
+								traces.advertising.log?.(
 									`[ADVERTISE] MOVEMENT SELECTED: ${goodType} -> ${(movementTarget as any)?.name ?? 'undefined'} (movement: ${movementId})`
 								)
 								// Successfully matched, break out of priority loop
 								movementCreated = true
 								break
 							}
-							traces.advertising?.log(
+							traces.advertising.log?.(
 								`[ADVERTISE] MOVEMENT REFUSED: ${goodType} (movement: ${movementId})`
 							)
 						} catch (e) {
-							traces.advertising?.log(
+							traces.advertising.log?.(
 								`[ADVERTISE] MOVEMENT FAILED: ${goodType} - ${(e as Error).message}`
 							)
 						}
@@ -188,7 +188,7 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 						: s.canGive(goodType as GoodType, ad.priority)
 				})
 				if (availableGeneralStorages.length > 0) {
-					traces.advertising?.log(
+					traces.advertising.log?.(
 						`[ADVERTISE] GENERAL STORAGE: ${goodType} -> ${availableGeneralStorages.length} options`
 					)
 					try {
@@ -201,7 +201,7 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 							ad.priority
 						)
 					} catch (e) {
-						traces.advertising?.log(
+						traces.advertising.log?.(
 							`[ADVERTISE] GENERAL STORAGE FAILED: ${goodType} - ${(e as Error).message}`
 						)
 					}
@@ -214,13 +214,13 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 						const index = Number(ad.priority[0])
 						ensureBucket(existing.advertisers, index)
 						existing.advertisers[index].push(advertiser)
-						traces.advertising?.log(
+						traces.advertising.log?.(
 							`[ADVERTISE] ADD TO BUCKET: ${goodType} ${ad.advertisement} priority ${ad.priority} - now ${existing.advertisers[index].length} in bucket`
 						)
 						continue
 					} else {
 						// Different advertisement type - replace existing entirely
-						traces.advertising?.log(
+						traces.advertising.log?.(
 							`[ADVERTISE] REPLACE: ${goodType} ${existing.advertisement} -> ${ad.advertisement}`
 						)
 						const advertisers: TAdvertiser[][] = []
@@ -231,7 +231,7 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 							advertisement: ad.advertisement,
 							advertisers,
 						}
-						traces.advertising?.log(
+						traces.advertising.log?.(
 							`[ADVERTISE] NEW BUCKET: ${goodType} ${ad.advertisement} priority ${ad.priority}`
 						)
 						continue
@@ -246,12 +246,12 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 					advertisement: ad.advertisement,
 					advertisers,
 				}
-				traces.advertising?.log(
+				traces.advertising.log?.(
 					`[ADVERTISE] NEW BUCKET: ${goodType} ${ad.advertisement} priority ${ad.priority}`
 				)
 			}
 
-			traces.advertising?.log(`[ADVERTISE] END: ${advertiser}`)
+			traces.advertising.log?.(`[ADVERTISE] END: ${advertiser}`)
 		})
 	}
 }

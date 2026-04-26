@@ -298,7 +298,7 @@ export class StorageAlveolus extends Alveolus {
 			result = hasRoom > 0
 		}
 
-		traces.allocations?.log(`[CANTAKE] ${this.name} can take ${goodType}:`, {
+		traces.allocations.log?.(`[CANTAKE] ${this.name} can take ${goodType}:`, {
 			...debugInfo,
 			result,
 			timestamp: Date.now(),
@@ -321,7 +321,7 @@ export class StorageAlveolus extends Alveolus {
 					? this.slottedCanGive(goodType)
 					: releasable > 0
 
-		traces.allocations?.log(`[CANGIVE] ${this.name} can give ${goodType}:`, {
+		traces.allocations.log?.(`[CANGIVE] ${this.name} can give ${goodType}:`, {
 			available,
 			stock,
 			bufferedProtected,

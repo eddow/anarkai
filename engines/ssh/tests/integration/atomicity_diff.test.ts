@@ -1,5 +1,4 @@
 import { getActivationLog } from 'mutts'
-import { traces } from 'ssh/debug'
 import type { Game, SaveState } from 'ssh/game'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { describe, expect, it } from 'vitest'
@@ -49,8 +48,6 @@ describe('Atomicity & Environment Investigation', () => {
 	 */
 	it('conveys berries into adjacent storage without max effect chain overflow', async () => {
 		const { engine, game, spawnWorker } = await setupEngine()
-		const previousAdvertisingTrace = traces.advertising
-		traces.advertising = console
 		try {
 			engine.loadScenario(scenario)
 
@@ -114,7 +111,6 @@ describe('Atomicity & Environment Investigation', () => {
 			}
 			throw error
 		} finally {
-			traces.advertising = previousAdvertisingTrace
 			await engine.destroy()
 		}
 	})

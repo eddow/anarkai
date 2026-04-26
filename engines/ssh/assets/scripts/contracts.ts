@@ -32,6 +32,9 @@ export const CharacterContract = {
 		vehicleHop: ['WorkPlan'],
 		zoneBrowse: ['WorkPlan'],
 		vehicleOffload: ['WorkPlan'],
+		maintenanceKind: [],
+		completeVehicleMaintenanceService: ['WorkPlan'],
+		endParkingService: [],
 	},
 } as const satisfies Contract
 

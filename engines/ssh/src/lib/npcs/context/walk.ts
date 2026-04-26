@@ -5,7 +5,7 @@ import { contract } from 'ssh/types'
 import { axial } from 'ssh/utils'
 import { type Positioned, positionRoughlyEquals, toAxialCoord } from 'ssh/utils/position'
 import { subject } from '../scripts'
-import { MoveToStep } from '../steps'
+import { DurationStep, MoveToStep } from '../steps'
 
 class WalkFunctions {
 	declare [subject]: Character
@@ -42,6 +42,10 @@ class WalkFunctions {
 	@contract('Tile')
 	stepOn(tile: Tile) {
 		return this[subject].stepOn(tile)
+	}
+	@contract()
+	pause() {
+		return new DurationStep(0.01, 'idle', 'walk.pause')
 	}
 	@contract('Tile')
 	can(_tile: Tile) {

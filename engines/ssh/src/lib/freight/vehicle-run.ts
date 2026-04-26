@@ -1,4 +1,5 @@
 import { Alveolus } from 'ssh/board/content/alveolus'
+import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { isStandaloneBuildSiteShell } from 'ssh/build-site'
 import { assert, traces } from 'ssh/debug'
 import type {
@@ -13,30 +14,31 @@ import {
 	findDistributeRouteSegments,
 	findGatherRouteSegments,
 	gatherSegmentAllowsGoodType,
+	gatherSegmentAllowsGoodTypeForSegment,
 } from 'ssh/freight/freight-line'
-import {
-	aggregateHiveNeedTypes,
-	pickGatherTargetInZoneStop,
-	type ZoneGatherCarrier,
-} from 'ssh/freight/freight-zone-gather-target'
 import { dockedVehicleGoodsRelations } from 'ssh/freight/vehicle-freight-dock'
 import { syncFreightVehicleDockRegistration } from 'ssh/freight/vehicle-freight-dock-sync'
 import { pickVehicleZoneBrowseSelection } from 'ssh/freight/vehicle-zone-browse'
 import type { Game } from 'ssh/game/game'
 import type { Character } from 'ssh/population/character'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
-import { isVehicleLineService, isVehicleOffloadService } from 'ssh/population/vehicle/vehicle'
+import { isVehicleLineService, isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
 import type { GoodType } from 'ssh/types/base'
-import { axial } from 'ssh/utils/axial'
+import { type AxialCoord, axial } from 'ssh/utils/axial'
 import { axialDistance, type Position, toAxialCoord } from 'ssh/utils/position'
 
-/** Zone gather helpers need vehicle capacity + stock; undefined when not operating a vehicle. */
-function zoneGatherCarrier(character: Character): ZoneGatherCarrier {
-	const s = character.operates?.storage
-	if (!s) {
-		return { hasRoom: () => 0, stock: {} }
-	}
-	return { hasRoom: (good) => s.hasRoom(good), stock: s.stock }
+/**
+ * `parkVehicle` is only meaningful when the current hex matters for the board independently of the
+ * wheelbarrow itself. A clean `UnBuiltLand` rest tile is fine; alveoli, projects, residential, and
+ * tiles with loose goods / deposits should be vacated.
+ */
+export function vehicleNeedsParkingOnCurrentTile(vehicle: VehicleEntity): boolean {
+	const here = vehicle.tile
+	if (!(here.content instanceof UnBuiltLand)) return true
+	if (here.content.project) return true
+	if (here.zone === 'residential') return true
+	if (!here.isClear) return true
+	return false
 }
 
 /** Tile center for an anchor stop; best loose-good tile target for a gather zone stop. */
@@ -108,38 +110,55 @@ function vehicleLineStockAffinity(line: FreightLineDefinition, vehicle: VehicleE
 	return score
 }
 
+type BeginServiceActionableWork = {
+	readonly target: Position
+}
+
 /**
- * True when the line plausibly has work for {@link vehicleBeginService}: gather routes always
- * qualify (zone loose goods are preferred but not required); distribute routes qualify only when a
- * standalone construction shell in range still advertises segment-allowed needs.
+ * Finds the first meaningful target for {@link vehicleBeginService}. Gather routes need at least one
+ * reachable loose good of an allowed type within zone radius (with carrier room); distribute routes
+ * qualify only when a standalone construction shell in range still advertises segment-allowed needs.
  */
-function lineHasBeginServiceActionableWork(
+function findBeginServiceActionableWork(
 	game: Game,
 	character: Character,
+	vehicle: VehicleEntity,
 	line: FreightLineDefinition
-): boolean {
-	const hiveNeeds = aggregateHiveNeedTypes(game)
+): BeginServiceActionableWork | undefined {
 	const gatherSegs = findGatherRouteSegments(line)
 	if (gatherSegs.length > 0) {
+		let best: { target: Position; pathLen: number } | undefined
 		for (const segment of gatherSegs) {
 			const zoneLoad = line.stops[segment.loadStopIndex]
 			if (!zoneLoad || !('zone' in zoneLoad) || zoneLoad.zone.kind !== 'radius') continue
-			const carrier = zoneGatherCarrier(character)
-			const pick = pickGatherTargetInZoneStop(
-				game,
-				line,
-				zoneLoad as FreightStop & { zone: FreightZoneDefinitionRadius },
-				character.position,
-				hiveNeeds,
-				{ carrier }
-			)
-			if (pick && pick.path.length > 0) return true
+			const center: AxialCoord = { q: zoneLoad.zone.center[0], r: zoneLoad.zone.center[1] }
+			for (const tile of game.hex.tiles) {
+				const tileCoord = toAxialCoord(tile.position)
+				if (!tileCoord || axial.distance(center, tileCoord) > zoneLoad.zone.radius) continue
+				for (const loose of tile.availableGoods) {
+					const goodType = loose.goodType as GoodType
+					if (!loose.available || loose.isRemoved) continue
+					if (!gatherSegmentAllowsGoodTypeForSegment(line, segment, goodType)) continue
+					if (vehicle.storage.hasRoom(goodType) <= 0) continue
+					const path = game.hex.findPathForCharacter(
+						vehicle.position,
+						tile.position,
+						character,
+						Number.POSITIVE_INFINITY,
+						true
+					)
+					if (path && (!best || path.length < best.pathLen)) {
+						best = { target: tile.position, pathLen: path.length }
+					}
+				}
+			}
 		}
-		return true
+		return best ? { target: best.target } : undefined
 	}
 	for (const segment of findDistributeRouteSegments(line)) {
 		const bayTile = distributeSegmentBayTile(game, line, segment)
-		const bayPos = bayTile ? toAxialCoord(bayTile.position) : undefined
+		if (!bayTile) continue
+		const bayPos = toAxialCoord(bayTile.position)
 		if (!bayPos) continue
 		for (const tile of game.hex.tiles) {
 			const c = tile.content
@@ -149,11 +168,13 @@ function lineHasBeginServiceActionableWork(
 			if (!distributeSegmentWithinRadius(line, segment, axial.distance(bayPos, tilePos))) continue
 			for (const g of Object.keys(c.remainingNeeds) as GoodType[]) {
 				if ((c.remainingNeeds[g] ?? 0) <= 0) continue
-				if (distributeSegmentAllowsGoodTypeForSegment(line, segment, g)) return true
+				if (distributeSegmentAllowsGoodTypeForSegment(line, segment, g)) {
+					return { target: bayTile.position }
+				}
 			}
 		}
 	}
-	return false
+	return undefined
 }
 
 /**
@@ -170,14 +191,11 @@ export function pickInitialVehicleServiceCandidate(
 		| { line: FreightLineDefinition; stop: FreightStop; dist: number; affinity: number }
 		| undefined
 	for (const line of vehicle.servedLines) {
-		if (!lineHasBeginServiceActionableWork(game, character, line)) continue
+		const actionable = findBeginServiceActionableWork(game, character, vehicle, line)
+		if (!actionable) continue
 		const stop = line.stops[0]
 		if (!stop) continue
-		const target =
-			freightStopMovementTarget(game, character, line, stop) ??
-			freightStopTargetPosition(game, stop)
-		if (!target) continue
-		const dist = axialDistance(vehicle.position, target)
+		const dist = axialDistance(vehicle.position, actionable.target)
 		const affinity = vehicleLineStockAffinity(line, vehicle)
 		if (!best || dist < best.dist || (dist === best.dist && affinity > best.affinity)) {
 			best = { line, stop, dist, affinity }
@@ -246,7 +264,7 @@ export function ensureVehicleServiceStarted(
 		vehicle.setServiceOperator(operator)
 		return true
 	}
-	if (isVehicleOffloadService(existing)) {
+	if (isVehicleMaintenanceService(existing)) {
 		vehicle.endService()
 	}
 	let chosen: { line: FreightLineDefinition; stop: FreightStop } | undefined
@@ -324,6 +342,17 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 	if (!dock) return
 	if (hive.hasPendingVehicleDockMovement(dock)) return
 	if (Object.keys(dockedVehicleGoodsRelations(vehicle, dock.bay)).length > 0) return
+	const idx = svc.line.stops.findIndex((s) => s.id === stop.id)
+	const isLastStop = idx < 0 || idx >= svc.line.stops.length - 1
+	const hasStock = Object.values(vehicle.storage.stock).some((n) => (n ?? 0) > 0)
+	const parkNext = isLastStop && !hasStock && vehicleNeedsParkingOnCurrentTile(vehicle)
+	traces.vehicle.log?.('vehicleJob.dock.complete', {
+		vehicleUid: vehicle.uid,
+		lineId: svc.line.id,
+		stopId: stop.id,
+		outcome: isLastStop ? (parkNext ? 'park-next' : 'end-service') : 'advance',
+		hasStock,
+	})
 	advanceVehicleAfterDock(vehicle)
 	syncFreightVehicleDockRegistration(vehicle)
 }
@@ -355,7 +384,7 @@ export function detachVehicleServiceIfStorageEmpty(vehicle: VehicleEntity): void
 	const hasStock = Object.values(vehicle.storage.stock).some((n) => (n ?? 0) > 0)
 	if (hasStock) return
 	vehicle.endService()
-	traces.vehicle?.log?.('vehicle freight service detached (empty storage)', vehicle.uid)
+	traces.vehicle.log?.('vehicle freight service detached (empty storage)', vehicle.uid)
 }
 
 /**
@@ -383,21 +412,43 @@ export function disembarkOperatorLeavingDockedVehicleInService(
 export type VehicleFreightInterruptSubject = {
 	readonly uid: string
 	operates?: VehicleEntity
+	readonly driving?: boolean
+	offboard?: () => void
+	disengageVehicleKeepingService?: () => void
 }
 
 /**
  * When a scripted work plan is abandoned or fully canceled while this subject still references the
- * operated vehicle, clear `service.operator` and drop line attachment if storage is empty (roadmap §9).
+ * operated vehicle, clear only the operator/control link. The service itself remains the vehicle's
+ * unfinished work contract and may be continued by another worker.
  */
 export function releaseVehicleFreightWorkOnPlanInterrupt(
 	subject: VehicleFreightInterruptSubject
 ): void {
 	const v = subject.operates
 	if (!v) return
-	if (v.operator?.uid !== subject.uid) return
-	v.releaseOperator()
-	detachVehicleServiceIfStorageEmpty(v)
-	traces.vehicle?.log?.('vehicle freight operator released on plan interrupt', {
+	if (!v.service) {
+		if (subject.driving && subject.offboard) subject.offboard()
+		else subject.operates = undefined
+		traces.vehicle.log?.('vehicle freight stale operator link cleared on plan interrupt', {
+			vehicleUid: v.uid,
+			characterUid: subject.uid,
+		})
+		return
+	}
+	if (v.operator?.uid !== subject.uid) {
+		if (subject.disengageVehicleKeepingService) subject.disengageVehicleKeepingService()
+		else subject.operates = undefined
+		traces.vehicle.log?.('vehicle freight stale operator mismatch cleared on plan interrupt', {
+			vehicleUid: v.uid,
+			characterUid: subject.uid,
+			operatorUid: v.operator?.uid,
+		})
+		return
+	}
+	if (subject.disengageVehicleKeepingService) subject.disengageVehicleKeepingService()
+	else v.releaseOperator()
+	traces.vehicle.log?.('vehicle freight operator released on plan interrupt', {
 		vehicleUid: v.uid,
 		characterUid: subject.uid,
 		stillHasService: !!v.service,

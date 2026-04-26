@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const addPanel = vi.fn()
 const getPanel = vi.fn()
 const focus = vi.fn()
+type DockviewTestWindow = Window & { dockviewApi?: unknown }
 
 const globals = {
 	game: {
@@ -37,12 +38,12 @@ describe('follow-selection', () => {
 	})
 
 	afterEach(() => {
-		delete (window as any).dockviewApi
+		delete (window as DockviewTestWindow).dockviewApi
 	})
 
 	it('seeds a new follow-selection panel with the clicked object title', async () => {
 		const { selectInspectorObject } = await import('./follow-selection')
-		;(window as any).dockviewApi = {
+		;(window as DockviewTestWindow).dockviewApi = {
 			addPanel,
 			getPanel,
 		}
@@ -67,7 +68,7 @@ describe('follow-selection', () => {
 
 	it('falls back to the resolved selected object title when no title is passed', async () => {
 		const { ensureFollowSelectionPanel } = await import('./follow-selection')
-		;(window as any).dockviewApi = {
+		;(window as DockviewTestWindow).dockviewApi = {
 			addPanel,
 			getPanel,
 		}
@@ -86,13 +87,60 @@ describe('follow-selection', () => {
 		)
 	})
 
+	it('opens the follow-selection panel after the active pinned inspector', async () => {
+		const { registerPinnedInspectorPanel, unregisterPinnedInspectorPanel, showProps } =
+			await import('./follow-selection')
+		const group = {
+			panels: [] as Array<{ id: string }>,
+		}
+		const pinnedSourcePanel = {
+			id: 'panel-pinned-vehicle',
+			group,
+			focus,
+			api: {
+				setActive: focus,
+			},
+		}
+		group.panels = [{ id: 'panel-before' }, pinnedSourcePanel, { id: 'panel-after' }]
+		;(window as DockviewTestWindow).dockviewApi = {
+			activePanel: pinnedSourcePanel,
+			addPanel,
+			getPanel,
+		}
+		registerPinnedInspectorPanel('panel-pinned-vehicle', 'vehicle-1')
+
+		try {
+			showProps({
+				uid: 'operator-1',
+				title: 'Operator Ada',
+			})
+		} finally {
+			unregisterPinnedInspectorPanel('panel-pinned-vehicle', 'vehicle-1')
+		}
+
+		expect(globals.selectionState.selectedUid).toBe('operator-1')
+		expect(addPanel).toHaveBeenCalledWith({
+			id: expect.stringMatching(/^selection-info-/),
+			component: 'selection-info',
+			title: 'Operator Ada',
+			params: {},
+			tabComponent: 'selection-info-tab',
+			floating: false,
+			position: {
+				referencePanel: pinnedSourcePanel,
+				direction: 'within',
+				index: 2,
+			},
+		})
+	})
+
 	it('focuses an existing pinned inspector instead of opening a duplicate panel', async () => {
 		const { registerPinnedInspectorPanel, showProps } = await import('./follow-selection')
 		const existingPanel = {
 			id: 'panel-existing-tile',
 			focus,
 		}
-		;(window as any).dockviewApi = {
+		;(window as DockviewTestWindow).dockviewApi = {
 			addPanel,
 			getPanel,
 		}

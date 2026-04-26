@@ -2,6 +2,7 @@ import { scope, type } from 'arktype'
 import { alveoli, deposits, goods as goodsCatalog, terrain } from 'engine-rules'
 import type { TileContent } from 'ssh/board'
 import type { LooseGood } from 'ssh/board/looseGoods'
+import type { FreightAdSource, FreightPriorityTier } from 'ssh/freight/priority-channel'
 import type { AllocationBase } from 'ssh/storage/storage'
 import { type AxialCoord, type Positioned, positionScope } from 'ssh/utils'
 
@@ -101,6 +102,12 @@ export const baseGameScope = scope({
 		/** Set by `vehicleHopPrepare` when line service ends before travel/dock; NPC script skips tail. */
 		'vehicleHopRunEnded?': 'boolean',
 		/**
+		 * `vehicleHop` only: `vehicleHopPrepare` advanced the active line service to a different stop
+		 * than the one this plan was built for, so the script must return and let the planner pick a
+		 * fresh hop instead of executing a stale tail against the new stop.
+		 */
+		'vehicleHopReplanRequired?': 'boolean',
+		/**
 		 * `vehicleHop` only: set by `vehicleHopDockStep` after a bay anchor dock — the operator already
 		 * disembarked while keeping line service; NPC script must not run zone-browse transfer prelude.
 		 */
@@ -114,9 +121,11 @@ export const baseGameScope = scope({
 		target: 'object',
 		urgency: 'number',
 		fatigue: 'number',
-		looseGood: 'object',
+		/** Maintenance sub-kind hint used by `allocateVehicleServiceForJob`; scripts read from `vehicle.service`. */
+		maintenanceKind: "'loadFromBurden' | 'unloadToTile' | 'park'",
 		vehicleUid: 'string',
 		targetCoord: 'Position',
+		'looseGood?': 'object',
 		'path?': 'AxialCoord[]',
 		'offloadPickupPlan?': 'PickupPlan',
 	},
@@ -254,15 +263,27 @@ export interface ConstructJob {
 	path?: Positioned[] // Path to construction site
 }
 
-export interface VehicleOffloadJob {
+/**
+ * Planner-visible maintenance offload job. Discriminated by {@link VehicleOffloadJob.maintenanceKind}:
+ * - `'loadFromBurden'`: pick up `looseGood` from the burdening tile at `targetCoord`.
+ * - `'unloadToTile'`: drop carried stock onto a non-burdening `UnBuiltLand` at `targetCoord`.
+ * - `'park'`: drive an empty burdening vehicle onto a non-burdening tile at `targetCoord`.
+ *
+ * The job carries the minimum hint that `allocateVehicleServiceForJob` needs to construct the
+ * matching {@link VehicleMaintenanceService}; runtime scripts then read intent from `vehicle.service`.
+ */
+export type VehicleOffloadJob = {
 	job: 'vehicleOffload'
 	urgency: number
 	fatigue: number
 	vehicleUid: string
-	looseGood: LooseGood
 	targetCoord: AxialCoord
 	path: AxialCoord[]
-}
+} & (
+	| { maintenanceKind: 'loadFromBurden'; looseGood: LooseGood }
+	| { maintenanceKind: 'unloadToTile' }
+	| { maintenanceKind: 'park' }
+)
 
 export interface FoundationJob {
 	job: 'foundation'
@@ -335,6 +356,8 @@ export interface VehicleHopJob extends VehicleJob {
 	goodType?: GoodType
 	quantity?: number
 	targetCoord?: AxialCoord
+	adSource?: FreightAdSource
+	priorityTier?: FreightPriorityTier
 	/**
 	 * Walk to the vehicle hex before boarding. Planner scoring uses {@link path} (typically the same
 	 * length until onboard). Script runs this prelude before {@link VehicleFunctions.vehicleApproachStep}.
@@ -358,6 +381,8 @@ export interface ZoneBrowseJob extends VehicleJob {
 	goodType: GoodType
 	quantity?: number
 	targetCoord: AxialCoord
+	adSource: FreightAdSource
+	priorityTier: FreightPriorityTier
 }
 
 // Job is the union of all job types
@@ -408,6 +433,11 @@ export type WorkPlan =
 			 * script skips walk + dock so `vehicleHopDockStep` is not invoked without `vehicle.service`.
 			 */
 			vehicleHopRunEnded?: boolean
+			/**
+			 * `vehicleHop` only: `vehicleHopPrepare` changed the active line stop before the tail ran, so
+			 * the current script must return and let the planner pick a fresh hop for that new stop.
+			 */
+			vehicleHopReplanRequired?: boolean
 			/**
 			 * `vehicleHop` only: after a bay anchor dock, the operator already stepped off while the
 			 * vehicle keeps line service; skip `vehicleStepOffKeepingControl` / zone-browse prelude.
