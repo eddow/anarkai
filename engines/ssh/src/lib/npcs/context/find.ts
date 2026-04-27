@@ -296,7 +296,7 @@ class FindFunctions {
 		const vehicle = character.game.vehicles.vehicle(vehicleUid)
 		if (!vehicle) return false
 		const a = toAxialCoord(character.position)
-		const b = toAxialCoord(vehicle.position)
+		const b = toAxialCoord(vehicle.effectivePosition)
 		if (!a || !b) return false
 		return axial.key(a) === axial.key(b)
 	}

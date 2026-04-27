@@ -4,6 +4,7 @@ import {
 } from '@app/lib/construction-view'
 import { css } from '@app/lib/css'
 import { selectInspectorObject } from '@app/lib/follow-selection'
+import { getTranslator } from '@app/lib/i18n'
 import { effect, reactive } from 'mutts'
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import { queryConstructionSiteView } from 'ssh/construction'
@@ -20,7 +21,6 @@ import type { Game } from 'ssh/game'
 import { BuildAlveolus } from 'ssh/hive/build'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { isRoadFretAction } from 'ssh/hive/storage-action'
-import { i18nState } from 'ssh/i18n'
 import ConstructionProgressBar from './ConstructionProgressBar'
 import DockedVehicleList from './DockedVehicleList'
 import InspectorObjectLink from './InspectorObjectLink'
@@ -76,18 +76,6 @@ css`
 interface AlveolusPropertiesProps {
 	content: Alveolus
 	game?: Game
-}
-
-const toDisplayText = (value: unknown, fallback = ''): string => {
-	switch (typeof value) {
-		case 'string':
-			return value
-		case 'number':
-		case 'boolean':
-			return `${value}`
-		default:
-			return fallback
-	}
 }
 
 const AlveolusProperties = (props: AlveolusPropertiesProps) => {
@@ -153,10 +141,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 			return
 		}
 		state.showConstruction = true
-		const model = buildConstructionViewModel(
-			snap,
-			i18nState.translator as ConstructionTranslatorShape | undefined
-		)
+		const model = buildConstructionViewModel(snap, getTranslator() as ConstructionTranslatorShape)
 		state.constructionPhaseLabel = model.phaseLabel
 		state.constructionBlocking = model.blockingLabels
 		state.constructionApplied = model.applied
@@ -170,7 +155,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 		state.working = checked
 	}
 
-	const bayTranslator = (i18nState.translator as { bay?: Record<string, string> } | undefined)?.bay
+	const bayTranslator = () => getTranslator().bay
 
 	const handleAddFreightLine = (mode: FreightLineMode) => {
 		const game = state.resolvedGame
@@ -187,11 +172,11 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 
 	return (
 		<>
-			<PropertyGridRow label={String(i18nState.translator?.alveolus.commands ?? '')}>
+			<PropertyGridRow label={getTranslator().alveolus.commands}>
 				<div class="alveolus-commands">
 					<WorkingIndicator
 						checked={state.working}
-						tooltip={String(i18nState.translator?.alveolus.workingTooltip ?? '')}
+						tooltip={getTranslator().alveolus.workingTooltip}
 						onChange={handleWorkingChange}
 					/>
 				</div>
@@ -199,11 +184,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 
 			<PropertyGridRow
 				if={state.showConstruction && state.isBuildSite}
-				label={toDisplayText(
-					(i18nState.translator as { construction?: { section?: string } } | undefined)
-						?.construction?.section,
-					'Construction'
-				)}
+				label={String(getTranslator().construction.section)}
 			>
 				<div class="alveolus-commands">
 					<div style="display:grid; gap:0.5rem; width:100%;">
@@ -226,7 +207,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 
 			<PropertyGridRow
 				if={state.isFreightBay && state.resolvedGame}
-				label={String(bayTranslator?.linesAtThisBay ?? 'Lines at this bay')}
+				label={bayTranslator().linesAtThisBay}
 			>
 				<div class="alveolus-line-list">
 					<for each={state.lineObjects}>
@@ -244,7 +225,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 							data-testid="freight-bay-add-gather"
 							onClick={() => handleAddFreightLine('gather')}
 						>
-							{bayTranslator?.addGather ?? 'Add gather line'}
+							{bayTranslator().addGather}
 						</button>
 						<button
 							type="button"
@@ -252,7 +233,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 							data-testid="freight-bay-add-distribute"
 							onClick={() => handleAddFreightLine('distribute')}
 						>
-							{bayTranslator?.addDistribute ?? 'Add distribute line'}
+							{bayTranslator().addDistribute}
 						</button>
 					</div>
 				</div>
@@ -260,21 +241,18 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 
 			<PropertyGridRow
 				if={state.isFreightBay && state.dockedVehicles.length > 0}
-				label={i18nState.translator?.vehicle?.docked ?? 'Docked'}
+				label={getTranslator().vehicle.docked}
 			>
 				<DockedVehicleList entries={state.dockedVehicles} showLineMeta />
 			</PropertyGridRow>
 
 			<PropertyGridRow
 				if={!state.isFreightBay && state.lineObjects.length > 0}
-				label={String(
+				label={
 					state.lineObjects.length > 1
-						? ((i18nState.translator as { line?: { linesSection?: string; section?: string } })
-								?.line?.linesSection ??
-								i18nState.translator?.line?.section ??
-								'Freight lines')
-						: (i18nState.translator?.line?.section ?? 'Line')
-				)}
+						? getTranslator().line.linesSection
+						: getTranslator().line.section
+				}
 			>
 				<div class="alveolus-line-list">
 					<for each={state.lineObjects}>
@@ -292,14 +270,9 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 				if={state.resolvedGame}
 				content={props.content}
 				game={state.resolvedGame!}
-				label={String(
-					state.isBuildSite
-						? ((i18nState.translator as { construction?: { materials?: string } } | undefined)
-								?.construction?.materials ??
-								i18nState.translator?.goods.stored ??
-								'')
-						: (i18nState.translator?.goods.stored ?? '')
-				)}
+				label={
+					state.isBuildSite ? getTranslator().construction.materials : getTranslator().goods.stored
+				}
 			/>
 
 			<StorageConfiguration

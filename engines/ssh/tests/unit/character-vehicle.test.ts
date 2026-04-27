@@ -41,14 +41,14 @@ describe('Character vehicle seam', () => {
 		character.onboard()
 		expect(character.driving).toBe(true)
 		expect(axial.key(toAxialCoord(character.position)!)).toBe(
-			axial.key(toAxialCoord(vehicle.position)!)
+			axial.key(toAxialCoord(vehicle.effectivePosition)!)
 		)
 
 		character.offboard()
 		expect(character.driving).toBe(false)
 		expect(character.operates).toBeUndefined()
 		const foot = toAxialCoord(character.position)!
-		expect(axial.key(foot)).toBe(axial.key(toAxialCoord(vehicle.position)!))
+		expect(axial.key(foot)).toBe(axial.key(toAxialCoord(vehicle.effectivePosition)!))
 	})
 
 	it('onboards when vehicle axial position is fractional but rounds to the character hex', async () => {

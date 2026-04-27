@@ -2,7 +2,7 @@ import { css } from '@app/lib/css'
 import { addFreightDraftStop } from '@app/lib/freight-line-draft'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
 import type { Game } from 'ssh/game'
-import { i18nState } from 'ssh/i18n'
+import { getTranslator } from '@app/lib/i18n'
 import FreightStopCard from './FreightStopCard'
 
 css`
@@ -36,7 +36,7 @@ interface FreightStopListProps {
 }
 
 const FreightStopList = (props: FreightStopListProps) => {
-	const t = () => i18nState.translator?.line?.stopsEditor
+	const t = () => getTranslator().line.stopsEditor
 	const currentDraft = () => props.draft
 	const stopsIndexed = (): { stop: FreightStop; index: number }[] =>
 		(currentDraft()?.stops ?? []).map((stop, index) => ({ stop, index }))
@@ -73,7 +73,7 @@ const FreightStopList = (props: FreightStopListProps) => {
 				onClick={handleAdd}
 				data-testid="freight-stop-add"
 			>
-				{t()?.addStop ?? 'Add stop'}
+				{t().addStop}
 			</button>
 		</div>
 	)

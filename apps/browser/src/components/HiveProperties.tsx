@@ -4,14 +4,14 @@ import {
 } from '@app/lib/construction-view'
 import { css } from '@app/lib/css'
 import { bumpSelectionTitleVersion } from '@app/lib/globals'
+import { resolveHiveFromAnchorTile, type SyntheticHiveObject } from '@app/lib/hive-inspector'
+import { getTranslator } from '@app/lib/i18n'
 import { InspectorSection } from '@app/ui/anarkai'
 import { goods as visualGoods } from 'engine-pixi/assets/visual-content'
 import { effect, reactive } from 'mutts'
 import { queryConstructionSiteView } from 'ssh/construction'
 import { collectDockedVehiclesForHive, type DockedVehicleEntry } from 'ssh/freight/docked-vehicles'
-import { resolveHiveFromAnchorTile, type SyntheticHiveObject } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
-import { i18nState } from 'ssh/i18n'
 import type { GoodType } from 'ssh/types/base'
 import type { ExchangePriority } from 'ssh/utils/advertisement'
 import { summarizeHiveGoodsRelations } from './alveolus-summary'
@@ -151,7 +151,7 @@ const HiveProperties = (props: HivePropertiesProps) => {
 			}))
 		)
 		state.dockedVehicles = collectDockedVehiclesForHive(props.hiveObject.game, hive)
-		const constructionTranslator = i18nState.translator as ConstructionTranslatorShape | undefined
+		const constructionTranslator = getTranslator() as ConstructionTranslatorShape
 		state.buildSites = Array.from(hive.alveoli)
 			.filter((alveolus): alveolus is BuildAlveolus => alveolus instanceof BuildAlveolus)
 			.map((site) => {
@@ -186,16 +186,11 @@ const HiveProperties = (props: HivePropertiesProps) => {
 	}
 
 	function goodLabel(goodType: string): string {
-		const t = i18nState.translator?.goods?.[goodType as GoodType]
-		return typeof t === 'string' && t.length > 0 ? t : goodType
+		return String(getTranslator().goods[goodType as GoodType])
 	}
 
 	function alveolusLabel(alveolusType: string): string {
-		const t =
-			i18nState.translator?.alveoli?.[
-				alveolusType as keyof NonNullable<typeof i18nState.translator>['alveoli']
-			]
-		return typeof t === 'string' && t.length > 0 ? t : alveolusType
+		return String(getTranslator().alveoli[alveolusType])
 	}
 	const handleNameInput = (value: string) => {
 		const hive = currentHive()
@@ -216,9 +211,9 @@ const HiveProperties = (props: HivePropertiesProps) => {
 	}
 
 	return (
-		<InspectorSection title={i18nState.translator?.hive?.section ?? 'Hive'}>
+		<InspectorSection title={getTranslator().hive.section}>
 			<PropertyGrid>
-				<PropertyGridRow label={i18nState.translator?.hive?.name ?? 'Name'}>
+				<PropertyGridRow label={getTranslator().hive.name}>
 					<input
 						class="hive-properties__name"
 						type="text"
@@ -226,22 +221,17 @@ const HiveProperties = (props: HivePropertiesProps) => {
 						onInput={(event) => handleNameInput((event.currentTarget as HTMLInputElement).value)}
 					/>
 				</PropertyGridRow>
-				<PropertyGridRow label={i18nState.translator?.hive?.commands ?? 'Commands'}>
+				<PropertyGridRow label={getTranslator().hive.commands}>
 					<WorkingIndicator
 						checked={state.working}
-						tooltip={i18nState.translator?.hive?.workingTooltip ?? 'Toggle hive activity'}
+						tooltip={getTranslator().hive.workingTooltip}
 						onChange={handleWorkingChange}
 					/>
 				</PropertyGridRow>
 				<PropertyGridRow if={state.entries.length === 0} label="">
-					<span class="hive-properties__empty">
-						{i18nState.translator?.hive?.noAds ?? 'No hive advertisements on this anchor.'}
-					</span>
+					<span class="hive-properties__empty">{getTranslator().hive.noAds}</span>
 				</PropertyGridRow>
-				<PropertyGridRow
-					if={state.entries.length > 0}
-					label={i18nState.translator?.hive?.ads ?? 'Ads'}
-				>
+				<PropertyGridRow if={state.entries.length > 0} label={getTranslator().hive.ads}>
 					<div class="hive-properties__ads">
 						<for each={state.entries}>
 							{(entry) => {
@@ -267,10 +257,7 @@ const HiveProperties = (props: HivePropertiesProps) => {
 											height={22}
 										/>
 										<div class="hive-properties__meta">
-											<span
-												class="hive-properties__count"
-												title={i18nState.translator?.hive?.sourcesHint ?? 'Sources'}
-											>
+											<span class="hive-properties__count" title={getTranslator().hive.sourcesHint}>
 												{count}
 											</span>
 											<span
@@ -278,8 +265,8 @@ const HiveProperties = (props: HivePropertiesProps) => {
 												title={label}
 												aria-label={
 													entry.advertisement === 'demand'
-														? (i18nState.translator?.hive?.demand ?? 'Demand')
-														: (i18nState.translator?.hive?.provide ?? 'Provide')
+														? getTranslator().hive.demand
+														: getTranslator().hive.provide
 												}
 											>
 												{entry.advertisement === 'demand' ? '↓' : '↑'}
@@ -293,16 +280,13 @@ const HiveProperties = (props: HivePropertiesProps) => {
 				</PropertyGridRow>
 				<PropertyGridRow
 					if={state.dockedVehicles.length > 0}
-					label={i18nState.translator?.vehicle?.docked ?? 'Docked'}
+					label={getTranslator().vehicle.docked}
 				>
 					<DockedVehicleList entries={state.dockedVehicles} showLineMeta />
 				</PropertyGridRow>
 				<PropertyGridRow
 					if={state.buildSites.length > 0}
-					label={
-						(i18nState.translator as { construction?: { section?: string } } | undefined)
-							?.construction?.section ?? 'Construction'
-					}
+					label={getTranslator().construction.section}
 				>
 					<div class="hive-properties__ads">
 						<for each={state.buildSites}>

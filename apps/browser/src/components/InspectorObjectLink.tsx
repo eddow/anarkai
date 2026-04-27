@@ -1,8 +1,8 @@
 import { css } from '@app/lib/css'
 import { showProps } from '@app/lib/follow-selection'
+import type { SyntheticHiveObject } from '@app/lib/hive-inspector'
 import type { SyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import type { InspectorSelectableObject, InteractiveGameObject } from 'ssh/game/object'
-import type { SyntheticHiveObject } from 'ssh/hive'
 
 css`
 .inspector-object-link {

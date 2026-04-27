@@ -12,8 +12,8 @@ vi.mock('@app/lib/freight-line-draft', () => ({
 	})),
 }))
 
-vi.mock('ssh/i18n', () => ({
-	i18nState: {
+vi.mock('@app/lib/i18n', () => {
+	const i18nState = {
 		translator: {
 			line: {
 				stopsEditor: {
@@ -21,8 +21,12 @@ vi.mock('ssh/i18n', () => ({
 				},
 			},
 		},
-	},
-}))
+	}
+	return {
+		i18nState,
+		getTranslator: () => i18nState.translator,
+	}
+})
 
 vi.mock('./FreightStopCard', () => ({
 	default: (props: { index: number }) => <div data-testid={`stop-card-${props.index}`} />,

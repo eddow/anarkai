@@ -145,8 +145,8 @@ vi.mock('@app/ui/anarkai', () => ({
 	),
 }))
 
-vi.mock('ssh/i18n', () => ({
-	i18nState: {
+vi.mock('@app/lib/i18n', () => {
+	const i18nState = {
 		translator: {
 			line: {
 				goodsSelection: {
@@ -176,8 +176,12 @@ vi.mock('ssh/i18n', () => ({
 				food: 'Food',
 			},
 		},
-	},
-}))
+	}
+	return {
+		i18nState,
+		getTranslator: () => i18nState.translator,
+	}
+})
 
 let GoodSelectionRulesEditor: typeof import('./GoodSelectionRulesEditor').default
 

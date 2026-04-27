@@ -1,8 +1,7 @@
 import { css } from '@app/lib/css'
 import { type AnarkaiBadgeTone, Badge, InspectorSection, Panel } from '@app/ui/anarkai'
 import { effect } from 'mutts'
-import { createSyntheticFreightLineObject, findFreightLineForStop } from 'ssh/freight/freight-line'
-import { i18nState } from 'ssh/i18n'
+import { getTranslator } from '@app/lib/i18n'
 import { AEvolutionStep, ALerpStep } from 'ssh/npcs/steps'
 import type { Character, RankedWorkPlannerSnapshot } from 'ssh/population/character'
 import type { NextActivityKind, PlannerFindActionSnapshot } from 'ssh/population/findNextActivity'
@@ -235,11 +234,11 @@ function utilityBarPercent(value: number): number {
 }
 
 function plannerKindLabel(kind: NextActivityKind): string {
-	return i18nState.translator?.character?.plannerKinds?.[kind] ?? kind
+	return getTranslator().character.plannerKinds[kind] ?? kind
 }
 
 function workKindLabel(kind: JobType): string {
-	return i18nState.translator?.character?.plannerWorkKinds?.[kind] ?? kind
+	return getTranslator().character.plannerWorkKinds[kind] ?? kind
 }
 
 const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
@@ -302,18 +301,12 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 				jobLabel: workKindLabel(candidate.jobKind),
 				scoreText: formatPlannerUtility(candidate.score),
 				metaText: [
-					`${i18nState.translator?.character?.plannerWorkUrgency ?? 'urgency'} ${formatPlannerUtility(candidate.urgency)}`,
-					`${i18nState.translator?.character?.plannerWorkPath ?? 'path'} ${candidate.pathLength}`,
+					`${getTranslator().character.plannerWorkUrgency} ${formatPlannerUtility(candidate.urgency)}`,
+					`${getTranslator().character.plannerWorkPath} ${candidate.pathLength}`,
 				]
 					.filter(Boolean)
 					.join(' · '),
 			}))
-		},
-		get assignedLineObject() {
-			const alveolus = props.character?.assignedAlveolus
-			if (!alveolus) return undefined
-			const line = findFreightLineForStop(props.character.game.freightLines, alveolus)
-			return line ? createSyntheticFreightLineObject(props.character.game, line) : undefined
 		},
 		get operatedVehicle() {
 			return props.character?.operates
@@ -335,22 +328,22 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 						<StatProgressBar
 							value={props.character?.hunger ?? 0}
 							levels={props.character?.triggerLevels?.hunger}
-							label={i18nState.translator?.character.hunger ?? ''}
+							label={getTranslator().character.hunger}
 						/>
 						<StatProgressBar
 							value={props.character?.tiredness ?? 0}
 							levels={props.character?.triggerLevels?.tiredness}
-							label={i18nState.translator?.character.tiredness ?? ''}
+							label={getTranslator().character.tiredness}
 						/>
 						<StatProgressBar
 							value={props.character?.fatigue ?? 0}
 							levels={props.character?.triggerLevels?.fatigue}
-							label={i18nState.translator?.character.fatigue ?? ''}
+							label={getTranslator().character.fatigue}
 						/>
 					</div>
 				</InspectorSection>
 				<PropertyGrid>
-					<PropertyGridRow label={i18nState.translator?.goods ?? ''}>
+					<PropertyGridRow label={getTranslator().goods}>
 						<GoodsList
 							goods={Object.keys(computed.goods) as GoodType[]}
 							game={props.character?.game}
@@ -359,21 +352,21 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 					</PropertyGridRow>
 					<PropertyGridRow
 						if={computed.operatedVehicle}
-						label={i18nState.translator?.character?.operates ?? 'Operates'}
+						label={getTranslator().character.operates}
 					>
 						<div class="character-linked-object">
 							<LinkedEntityControl object={computed.operatedVehicle!} />
 							<InspectorObjectLink object={computed.operatedVehicle!} />
 						</div>
 					</PropertyGridRow>
-					<PropertyGridRow label={i18nState.translator?.character.currentActivity ?? ''}>
+					<PropertyGridRow label={getTranslator().character.currentActivity}>
 						<div class="character-activity">
 							<Badge
 								tone={activityBadgeColors[props.character?.stepExecutor?.type ?? 'idle'] ?? 'gray'}
 							>
 								{props.character?.stepExecutor?.description
-									? (i18nState.translator?.step[props.character.stepExecutor.description] ?? '')
-									: (i18nState.translator?.step.idle ?? '')}
+									? (getTranslator().step[props.character.stepExecutor.description])
+									: (getTranslator().step.idle)}
 							</Badge>
 							<div if={computed.stepEvolution > 0} class="character-activity__progress">
 								<div
@@ -390,38 +383,29 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 							</span>
 						</Panel>
 						<Panel else class="character-actions__empty">
-							{i18nState.translator?.character.noActivity ?? ''}
+							{getTranslator().character.noActivity}
 						</Panel>
-					</PropertyGridRow>
-					<PropertyGridRow
-						if={computed.assignedLineObject}
-						label={i18nState.translator?.line?.section ?? 'Line'}
-					>
-						<div class="character-linked-object">
-							<LinkedEntityControl object={computed.assignedLineObject!} />
-							<InspectorObjectLink object={computed.assignedLineObject!} />
-						</div>
 					</PropertyGridRow>
 				</PropertyGrid>
 				<InspectorSection class="character-properties__stats">
 					<PropertyGrid>
-						<PropertyGridRow label={i18nState.translator?.character.plannerSection ?? 'Planning'}>
+						<PropertyGridRow label={getTranslator().character.plannerSection}>
 							<span class="character-planner__mono">
-								{i18nState.translator?.character.plannerKeepWorking ?? 'keepWorking'}:{' '}
+								{getTranslator().character.plannerKeepWorking}:{' '}
 								{String(props.character?.keepWorking ?? false)}
 							</span>
 						</PropertyGridRow>
 						<PropertyGridRow
-							label={i18nState.translator?.character.plannerLastPick ?? 'lastPicked'}
+							label={getTranslator().character.plannerLastPick}
 						>
 							<span class="character-planner__mono">
 								{String(props.character?.lastPickedActivityKind ?? '—')}
 							</span>
 						</PropertyGridRow>
-						<PropertyGridRow label={i18nState.translator?.character.plannerOutcome ?? 'outcome'}>
+						<PropertyGridRow label={getTranslator().character.plannerOutcome}>
 							<span class="character-planner__mono">{computed.plannerOutcomeText || '—'}</span>
 						</PropertyGridRow>
-						<PropertyGridRow label={i18nState.translator?.character.plannerRanked ?? 'ranked'}>
+						<PropertyGridRow label={getTranslator().character.plannerRanked}>
 							<div if={computed.plannerChoices.length > 0} class="character-planner__choices">
 								<for each={computed.plannerChoices}>
 									{(choice) => (
@@ -446,7 +430,7 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 						</PropertyGridRow>
 						<PropertyGridRow
 							if={computed.workChoices.length > 0}
-							label={i18nState.translator?.character.plannerRankedWork ?? 'ranked work'}
+							label={getTranslator().character.plannerRankedWork}
 						>
 							<div class="character-work__list">
 								<for each={computed.workChoices}>

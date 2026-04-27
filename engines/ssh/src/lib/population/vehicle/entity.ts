@@ -8,7 +8,7 @@ import type { Storage } from 'ssh/storage'
 import type { GoodType } from 'ssh/types'
 import { axial } from 'ssh/utils'
 import { type Position, toAxialCoord } from 'ssh/utils/position'
-import { assert } from '../../dev/debug.ts'
+import { assert, traces } from '../../dev/debug.ts'
 import { traceProjection } from '../../dev/trace.ts'
 import type { Character } from '../character'
 import {
@@ -28,7 +28,7 @@ import {
 
 export class VehicleEntity extends withInteractive(GameObject) {
 	declare readonly storage: Storage
-	public position: Position
+	public position: Position | undefined
 	public servedLines: FreightLineDefinition[]
 	public service?: VehicleService
 	public get operator(): Character | undefined {
@@ -53,6 +53,63 @@ export class VehicleEntity extends withInteractive(GameObject) {
 	}
 
 	get tile(): Tile {
+		return this.effectiveTile
+	}
+
+	get effectivePosition(): Position {
+		if (this.position) return this.position
+		const tile = this.dockTile
+		assert(tile, `Vehicle ${this.uid}: docked vehicle has no anchor tile`)
+		return tile.position
+	}
+
+	get effectiveTile(): Tile {
+		if (this.position) {
+			const coord = axial.round(toAxialCoord(this.position)!)
+			return this.game.hex.getTile(coord)!
+		}
+		const tile = this.dockTile
+		assert(tile, `Vehicle ${this.uid}: unpositioned vehicle has no dock tile`)
+		return tile
+	}
+
+	get isDocked(): boolean {
+		const svc = this.service
+		return isVehicleLineService(svc) && svc.docked && !this.position
+	}
+
+	get dockTile(): Tile | undefined {
+		const svc = this.service
+		if (!isVehicleLineService(svc)) return undefined
+		if (!('anchor' in svc.stop)) return undefined
+		return this.game.hex.getTile({ q: svc.stop.anchor.coord[0], r: svc.stop.anchor.coord[1] })
+	}
+
+	private restoreWorldPositionFromDock(reason: string): void {
+		if (this.position) return
+		const tile = this.dockTile
+		assert(tile, `Vehicle ${this.uid}: cannot restore docked position without anchor tile`)
+		this.position = reactive({ ...tile.position })
+		traces.vehicle.log?.('vehicleJob.dock.placement', {
+			vehicleUid: this.uid,
+			outcome: 'restore-position',
+			reason,
+			anchorCoord: toAxialCoord(tile.position),
+		})
+	}
+
+	private traceDockPlacement(outcome: string): void {
+		const tile = this.dockTile
+		traces.vehicle.log?.('vehicleJob.dock.placement', {
+			vehicleUid: this.uid,
+			outcome,
+			anchorCoord: tile ? toAxialCoord(tile.position) : undefined,
+			hasWorldPosition: !!this.position,
+		})
+	}
+
+	get worldTile(): Tile | undefined {
+		if (!this.position) return undefined
 		const coord = axial.round(toAxialCoord(this.position)!)
 		return this.game.hex.getTile(coord)!
 	}
@@ -62,6 +119,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		return {
 			vehicleType: this.vehicleType,
 			position: this.position,
+			effectivePosition: this.effectivePosition,
 			servedLineIds: this.servedLines.map((line) => line.id),
 			operatorUid: this.operator?.uid,
 			service:
@@ -92,6 +150,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 			uid: this.uid,
 			vehicleType: this.vehicleType,
 			position: this.position,
+			effectivePosition: this.effectivePosition,
 			operatorUid: this.operator?.uid,
 			service:
 				svc && isVehicleLineService(svc)
@@ -177,7 +236,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 	 * the planner (`vehicle-work.ts:allocateVehicleServiceForJob`).
 	 */
 	beginOffloadService(operator?: Character): void {
-		const coord = axial.round(toAxialCoord(this.position)!)
+		const coord = axial.round(toAxialCoord(this.effectivePosition)!)
 		this.beginMaintenanceService(
 			{ kind: 'park', targetCoord: { q: coord.q, r: coord.r } },
 			operator
@@ -192,20 +251,26 @@ export class VehicleEntity extends withInteractive(GameObject) {
 	dock(): void {
 		const svc = this.service
 		if (!isVehicleLineService(svc)) return
+		assert('anchor' in svc.stop, `Vehicle ${this.uid}: dock requires an anchor stop`)
 		svc.docked = true
+		this.position = undefined
+		this.traceDockPlacement('clear-position')
 		syncFreightVehicleDockRegistration(this)
 	}
 
 	undock(): void {
 		const svc = this.service
 		if (!isVehicleLineService(svc)) return
+		this.restoreWorldPositionFromDock('undock')
 		svc.docked = false
+		this.traceDockPlacement('undock')
 		syncFreightVehicleDockRegistration(this)
 	}
 
 	advanceToStop(stop: FreightStop): void {
 		const svc = this.service
 		if (!isVehicleLineService(svc)) return
+		this.restoreWorldPositionFromDock('advance-stop')
 		svc.stop = stop
 		svc.docked = false
 		syncFreightVehicleDockRegistration(this)
@@ -213,6 +278,8 @@ export class VehicleEntity extends withInteractive(GameObject) {
 
 	endService(): void {
 		this.releaseOperator()
+		this.restoreWorldPositionFromDock('end-service')
+		if (isVehicleLineService(this.service)) this.service.docked = false
 		syncFreightVehicleDockRegistration(this)
 		this.service = undefined
 	}
@@ -239,7 +306,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 	}
 
 	serialize(): VehicleSerializedState {
-		const coord = axial.round(toAxialCoord(this.position)!)
+		const coord = axial.round(toAxialCoord(this.effectivePosition)!)
 		return {
 			uid: this.uid,
 			vehicleType: this.vehicleType,
@@ -289,6 +356,8 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		if (!line) return
 		const stop = line.stops.find((s) => s.id === linePayload.stopId)
 		if (!stop) return
-		vehicle.service = { line, stop, docked: linePayload.docked, operator } as VehicleLineService
+		vehicle.service = { line, stop, docked: false, operator } as VehicleLineService
+		if (linePayload.docked) vehicle.dock()
+		else syncFreightVehicleDockRegistration(vehicle)
 	}
 }

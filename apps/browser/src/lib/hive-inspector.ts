@@ -2,15 +2,13 @@ import { Alveolus } from 'ssh/board/content/alveolus'
 import { Tile } from 'ssh/board/tile'
 import type { Game } from 'ssh/game'
 import type { InspectorSelectableObject } from 'ssh/game/object'
-import type { Hive } from './hive'
+import type { Hive } from 'ssh/hive'
 
 export const HIVE_UID_PREFIX = 'hive:'
 
 export interface SyntheticHiveObject extends InspectorSelectableObject {
 	readonly kind: 'hive'
-	/** Tile uid used as stable anchor; hive is resolved from that tile's alveolus at read time. */
 	readonly anchorTileUid: string
-	/** Anchor tile for linked-entity visuals / hover parity with freight-line synthetics. */
 	readonly tile: Tile
 }
 
@@ -28,17 +26,17 @@ export function anchorTileUidFromHiveUid(uid: string): string | undefined {
 	return encoded ? decodeURIComponent(encoded) : undefined
 }
 
+export function hiveInspectorTitle(hive: Hive | undefined): string {
+	if (!hive) return 'Hive'
+	const name = hive.name?.trim()
+	return name ? name : 'Hive'
+}
+
 export function resolveHiveFromAnchorTile(game: Game, anchorTileUid: string): Hive | undefined {
 	const tile = game.objects.get(anchorTileUid)
 	if (!(tile instanceof Tile)) return undefined
 	const content = tile.content
 	return content instanceof Alveolus ? content.hive : undefined
-}
-
-export function hiveInspectorTitle(hive: Hive | undefined): string {
-	if (!hive) return 'Hive'
-	const name = hive.name?.trim()
-	return name ? name : 'Hive'
 }
 
 export function createSyntheticHiveObject(
@@ -59,4 +57,14 @@ export function createSyntheticHiveObject(
 		anchorTileUid: anchorTile.uid,
 		tile: anchorTile,
 	}
+}
+
+export function createSyntheticHiveObjectForUid(
+	game: Game,
+	uid: string
+): SyntheticHiveObject | undefined {
+	const anchorTileUid = anchorTileUidFromHiveUid(uid)
+	if (!anchorTileUid) return undefined
+	const tile = game.objects.get(anchorTileUid)
+	return tile instanceof Tile ? createSyntheticHiveObject(game, tile) : undefined
 }

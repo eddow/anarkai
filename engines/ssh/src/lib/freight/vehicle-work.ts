@@ -170,7 +170,7 @@ function vehicleCanReachMaintenanceTarget(
 	character: Character,
 	tile: Tile
 ): boolean {
-	const from = toAxialCoord(vehicle.position)
+	const from = toAxialCoord(vehicle.effectivePosition)
 	const to = toAxialCoord(tile.position)
 	if (!from || !to) return false
 	const start = axial.round(from)
@@ -226,6 +226,7 @@ function pickParkingTargetForVehicle(
 		for (const v of game.vehicles) {
 			if (v.uid === vehicle.uid) continue
 			if (v.vehicleType !== LINE_FREIGHT_VEHICLE) continue
+			if (!v.position) continue
 			const vp = toAxialCoord(v.position)
 			if (!vp) continue
 			const vc: AxialCoord = { q: Math.round(vp.q), r: Math.round(vp.r) }
@@ -293,7 +294,7 @@ function loadedStockCanEnterServedGatherLine(game: Game, vehicle: VehicleEntity)
 		(good) => vehicle.storage.available(good) > 0
 	)
 	if (goods.length === 0) return false
-	const vehicleCoord = toAxialCoord(vehicle.position)
+	const vehicleCoord = toAxialCoord(vehicle.effectivePosition)
 	if (!vehicleCoord) return false
 	for (const line of vehicle.servedLines) {
 		for (const segment of findGatherRouteSegments(line)) {
@@ -352,7 +353,7 @@ function isJointLineLoadCandidate(
 				vehicle,
 				line,
 				stop,
-				vehicle.position
+				vehicle.effectivePosition
 			)
 			if (selection?.action !== 'load') continue
 			const selectionCoord = toAxialCoord(selection.targetTile.position)
@@ -497,7 +498,7 @@ function findVehicleOffloadJobApproach(
 
 		const sameVehicleHex =
 			axial.key(axial.round(toAxialCoord(character.position)!)) ===
-			axial.key(axial.round(toAxialCoord(vehicle.position)!))
+			axial.key(axial.round(toAxialCoord(vehicle.effectivePosition)!))
 		const pathToVehicle = sameVehicleHex
 			? []
 			: game.hex.findPathForCharacter(
@@ -621,7 +622,7 @@ export function findVehicleApproachJob(
 		if (isVehicleMaintenanceService(service)) continue
 		if (isVehicleLineService(service)) {
 			// Discovery is read-only: dock completion/advancement is handled by `vehicleHopPrepare`.
-			if (service.docked && 'anchor' in service.stop) continue
+			if (vehicle.isDocked && 'anchor' in service.stop) continue
 		} else {
 			if (vehicle.servedLines.length === 0) continue
 			// Loaded begin-line is only allowed when cargo already matches a served gather segment.
@@ -630,7 +631,7 @@ export function findVehicleApproachJob(
 		}
 		const sameVehicleHex =
 			axial.key(axial.round(toAxialCoord(character.position)!)) ===
-			axial.key(axial.round(toAxialCoord(vehicle.position)!))
+			axial.key(axial.round(toAxialCoord(vehicle.effectivePosition)!))
 		// punctual must be true: false stops one hex short of the vehicle, breaking onboarding.
 		// Start from the occupied tile (same as `find.path`), not foot `character.position`, so
 		// replanning in `find.pathToVehicle` matches this job when the character is mid-step.
@@ -1018,7 +1019,7 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 			vehicle,
 			pick.line,
 			pick.stop,
-			vehicle.position
+			vehicle.effectivePosition
 		)
 		if (!selection) return undefined
 		path = selection.path
@@ -1031,14 +1032,14 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 	} else {
 		const targetPos = freightStopMovementTarget(game, character, pick.line, pick.stop)
 		if (targetPos) {
-			const startPos = axial.round(toAxialCoord(vehicle.position)!)
+			const startPos = axial.round(toAxialCoord(vehicle.effectivePosition)!)
 			path = game.hex.findPathForCharacter(startPos, targetPos, character, maxWalkTime, false) ?? []
 		}
 		// Match line-hop anchor: do not offer a 0-step drive to an anchor the vehicle is not on.
 		if ('anchor' in pick.stop) {
 			if (!targetPos) return undefined
 			const sameHex =
-				axial.key(axial.round(toAxialCoord(vehicle.position)!)) ===
+				axial.key(axial.round(toAxialCoord(vehicle.effectivePosition)!)) ===
 				axial.key(axial.round(toAxialCoord(targetPos)!))
 			if (path.length === 0 && !sameHex) return undefined
 		}
@@ -1085,6 +1086,36 @@ export function collectVehicleWorkPicks(game: Game, character: Character): Vehic
 	if (offload) {
 		const v = game.vehicles.vehicle(offload.vehicleUid)
 		if (v) out.push({ job: offload, targetTile: v.tile })
+	}
+	const operated = character.operates
+	if (
+		out.length === 0 &&
+		operated &&
+		operated.vehicleType === LINE_FREIGHT_VEHICLE &&
+		operated.isDocked
+	) {
+		traces.vehicle.log?.('vehicleJob.work.surface', {
+			characterUid: character.uid,
+			character: character.name,
+			driving: character.driving,
+			operatesUid: operated.uid,
+			why: 'no-picks-docked-wheelbarrow',
+			operatedVehicle: {
+				vehicleUid: operated.uid,
+				hasWorldPosition: !!operated.position,
+				effectiveCoord: toAxialCoord(operated.effectivePosition),
+				service: isVehicleLineService(operated.service)
+					? {
+							kind: 'line' as const,
+							lineId: operated.service.line.id,
+							stopId: operated.service.stop.id,
+							docked: operated.service.docked,
+						}
+					: isVehicleMaintenanceService(operated.service)
+						? { kind: 'maintenance' as const, maintenanceKind: operated.service.kind }
+						: undefined,
+			},
+		})
 	}
 	return out
 }

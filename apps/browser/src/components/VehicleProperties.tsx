@@ -1,4 +1,5 @@
 import { css } from '@app/lib/css'
+import { getTranslator } from '@app/lib/i18n'
 import { InspectorSection } from '@app/ui/anarkai'
 import { vehicles as vehicleVisuals } from 'engine-pixi/assets/visual-content'
 import { vehicleTextureKey } from 'engine-pixi/renderers/vehicle-visual'
@@ -6,7 +7,6 @@ import { effect } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
 import { createSyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import { collectVehicleWorkPicks, type VehicleWorkPick } from 'ssh/freight/vehicle-work'
-import { i18nState } from 'ssh/i18n'
 import type { Character } from 'ssh/population/character'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import {
@@ -156,7 +156,7 @@ function formatPlannerUtility(value: number): string {
 }
 
 function workKindLabel(kind: JobType): string {
-	return i18nState.translator?.character?.plannerWorkKinds?.[kind] ?? kind
+	return getTranslator().character.plannerWorkKinds[kind] ?? kind
 }
 
 function vehicleFreightPathLength(job: VehicleWorkPick['job']): number {
@@ -210,6 +210,7 @@ const VehicleProperties = (
 		get operator() {
 			return effectiveOperatorForVehicle(props.vehicle)
 		},
+		// TODO: When service is a line, the object should be a "halt" descriptor, with a link to the line and the anchor/zone?
 		get lineServiceObject() {
 			const svc = props.vehicle?.service
 			if (!isVehicleLineService(svc)) return undefined
@@ -218,7 +219,7 @@ const VehicleProperties = (
 		get dockedStatusLabel() {
 			const svc = props.vehicle?.service
 			if (!isVehicleLineService(svc) || !svc.docked) return ''
-			return i18nState.translator?.vehicle?.docked ?? 'Docked'
+			return getTranslator().vehicle.docked
 		},
 		get serviceSummaryText(): string {
 			const v = props.vehicle
@@ -226,22 +227,19 @@ const VehicleProperties = (
 			const svc = v.service
 			if (!svc) {
 				if (effectiveOperatorForVehicle(v)) {
-					return (
-						i18nState.translator?.vehicle?.controlledWithoutService ??
-						'Controlled (no active service)'
-					)
+					return getTranslator().vehicle.controlledWithoutService
 				}
-				return i18nState.translator?.vehicle?.idle ?? 'Idle'
+				return getTranslator().vehicle.idle
 			}
 			if (isVehicleLineService(svc)) {
 				const docked = svc.docked
-					? (i18nState.translator?.vehicle?.docked ?? 'Docked')
-					: (i18nState.translator?.vehicle?.underway ?? 'Underway')
-				const stopLabel = i18nState.translator?.line?.stop ?? 'Stop'
+					? getTranslator().vehicle.docked
+					: getTranslator().vehicle.underway
+				const stopLabel = getTranslator().line.stop
 				return `${svc.line.name} · ${stopLabel} ${svc.stop.id} · ${docked}`
 			}
 			if (isVehicleMaintenanceService(svc)) {
-				return i18nState.translator?.vehicle?.offloadService ?? 'Offload'
+				return getTranslator().vehicle.offloadService
 			}
 			return ''
 		},
@@ -269,8 +267,8 @@ const VehicleProperties = (
 						scoreText: formatPlannerUtility(score),
 						metaText: [
 							operatorLabel,
-							`${i18nState.translator?.character?.plannerWorkUrgency ?? 'urgency'} ${formatPlannerUtility(pick.job.urgency)}`,
-							`${i18nState.translator?.character?.plannerWorkPath ?? 'path'} ${pathLength}`,
+							`${getTranslator().character.plannerWorkUrgency} ${formatPlannerUtility(pick.job.urgency)}`,
+							`${getTranslator().character.plannerWorkPath} ${pathLength}`,
 						]
 							.filter(Boolean)
 							.join(' · '),
@@ -315,23 +313,20 @@ const VehicleProperties = (
 				</div>
 				<InspectorSection>
 					<PropertyGrid>
-						<PropertyGridRow
-							if={computed.operator}
-							label={i18nState.translator?.vehicle?.operator ?? 'Operator'}
-						>
+						<PropertyGridRow if={computed.operator} label={getTranslator().vehicle.operator}>
 							<div class="vehicle-properties__linked-object">
 								<LinkedEntityControl object={computed.operator!} />
 								<InspectorObjectLink object={computed.operator!} />
 							</div>
 						</PropertyGridRow>
-						<PropertyGridRow label={String(i18nState.translator?.goods ?? '')}>
+						<PropertyGridRow label={getTranslator().goods}>
 							<GoodsList
 								goods={Object.keys(computed.stock) as GoodType[]}
 								game={props.vehicle.game}
 								getBadgeProps={(g) => ({ qty: computed.stock[g] })}
 							/>
 						</PropertyGridRow>
-						<PropertyGridRow label={i18nState.translator?.vehicle?.service ?? 'Service'}>
+						<PropertyGridRow label={getTranslator().vehicle.service}>
 							<div if={computed.lineServiceObject} class="vehicle-properties__linked-object">
 								<span class="vehicle-properties__service-text">{computed.serviceSummaryText}</span>
 								<LinkedEntityControl object={computed.lineServiceObject!} />
@@ -345,9 +340,7 @@ const VehicleProperties = (
 				</InspectorSection>
 				<InspectorSection if={computed.workChoices.length > 0}>
 					<PropertyGrid>
-						<PropertyGridRow
-							label={i18nState.translator?.character?.plannerRankedWork ?? 'Ranked work'}
-						>
+						<PropertyGridRow label={getTranslator().character.plannerRankedWork}>
 							<div class="vehicle-work__list">
 								<for each={computed.workChoices}>
 									{(choice) => (

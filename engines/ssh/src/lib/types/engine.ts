@@ -4,7 +4,8 @@ export interface GameRenderer {
 	/**
 	 * Initialize the renderer into the target element.
 	 */
-	initialize(element: HTMLElement): Promise<void>
+	/** View host (e.g. browser element); kept opaque so the engine does not depend on DOM types. */
+	initialize(element: unknown): Promise<void>
 
 	/**
 	 * Clean up all resources.

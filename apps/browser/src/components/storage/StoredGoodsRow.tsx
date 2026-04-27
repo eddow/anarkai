@@ -10,7 +10,7 @@ import type { Game } from 'ssh/game'
 import { BuildAlveolus } from 'ssh/hive/build'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { TransformAlveolus } from 'ssh/hive/transform'
-import { i18nState } from 'ssh/i18n'
+import { getTranslator } from '@app/lib/i18n'
 import type { GoodType } from 'ssh/types/base'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
 import EntityBadge from '../EntityBadge'
@@ -318,11 +318,9 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 					<Button
 						if={supportsCleanup() && confirmState.expanded && entry.qty > 0 && hasMultipleTypes()}
 						onClick={() => startCleanGood(entry.good)}
-						el:title={String(
-							i18nState.translator?.alveolus.cleanUpGoodTooltip?.({
-								goodType: entry.good,
-							}) ?? ''
-						)}
+						el:title={getTranslator().alveolus.cleanUpGoodTooltip({
+							goodType: entry.good,
+						})}
 						el:class="good-remove"
 					>
 						×
@@ -360,12 +358,12 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 					</legend>
 
 					<div if={confirmState.mode} class="confirm-overlay">
-						<span>{String(i18nState.translator?.alveolus.cleanUpConfirmText ?? '')}</span>
+						<span>{getTranslator().alveolus.cleanUpConfirmText}</span>
 						<Button onClick={doConfirm} el:title="Confirm">
-							{String(i18nState.translator?.alveolus.clear ?? '')}
+							{getTranslator().alveolus.clear}
 						</Button>
 						<Button onClick={cancelConfirm} el:title="Cancel">
-							{String(i18nState.translator?.alveolus.keep ?? '')}
+							{getTranslator().alveolus.keep}
 						</Button>
 					</div>
 
@@ -373,7 +371,7 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 						<Button
 							if={supportsCleanup() && confirmState.expanded && storedEntries().length > 0}
 							onClick={startCleanAll}
-							el:title={String(i18nState.translator?.alveolus.cleanUpTooltip ?? '')}
+							el:title={getTranslator().alveolus.cleanUpTooltip}
 							el:class="cleanup-btn"
 						>
 							🧹

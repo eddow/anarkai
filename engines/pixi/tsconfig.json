@@ -20,6 +20,9 @@
 		"paths": {
 			"$lib/*": ["./src/lib/*", "../ssh/src/lib/*"],
 			"@app/*": ["./src/*"],
+			"@app/lib/interactive-state": [
+				"../../apps/browser/src/lib/interactive-state.ts"
+			],
 			"engine-terrain": ["../terrain/src/index.ts"],
 			"engine-terrain/hex": ["../terrain/src/hex/index.ts"],
 			"engine-terrain/*": ["../terrain/src/*"],

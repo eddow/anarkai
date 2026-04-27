@@ -3,6 +3,7 @@ import {
 	type ConstructionTranslatorShape,
 } from '@app/lib/construction-view'
 import { css } from '@app/lib/css'
+import { getTranslator } from '@app/lib/i18n'
 import { Badge, InspectorSection } from '@app/ui/anarkai'
 import {
 	alveoli as visualAlveoli,
@@ -16,7 +17,6 @@ import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
 import { queryConstructionSiteView } from 'ssh/construction'
 import { BuildAlveolus } from 'ssh/hive/build'
-import { i18nState } from 'ssh/i18n'
 import type { GoodType } from 'ssh/types/base'
 import { computeStyleFromTexture } from 'ssh/utils/images'
 import AlveolusProperties from './AlveolusProperties'
@@ -80,18 +80,6 @@ const resolveTileTerrainForContent = (tile: Tile | undefined, content: Tile['con
 	return terrain
 }
 
-const toDisplayText = (value: unknown, fallback = ''): string => {
-	switch (typeof value) {
-		case 'string':
-			return value
-		case 'number':
-		case 'boolean':
-			return `${value}`
-		default:
-			return fallback
-	}
-}
-
 const resolveAlveolusVisualType = (content: Alveolus): keyof typeof visualAlveoli | undefined => {
 	if (content instanceof BuildAlveolus) {
 		return content.target as keyof typeof visualAlveoli
@@ -131,7 +119,7 @@ const TileProperties = (props: TilePropertiesProps) => {
 	effect`tile-properties:content`(() => {
 		const tile = currentTile()
 		const content = tile?.content
-		const translator = i18nState.translator
+		const translator = getTranslator()
 		state.tileContent = content
 
 		if (content instanceof Alveolus) {
@@ -140,13 +128,7 @@ const TileProperties = (props: TilePropertiesProps) => {
 			state.contentInfo = {
 				type,
 				sprite: visual?.sprites?.[0],
-				name:
-					type && translator
-						? toDisplayText(
-								translator.alveoli?.[type as keyof typeof translator.alveoli],
-								content.title
-							)
-						: content.title,
+				name: type ? String(translator.alveoli[type]) : content.title,
 				terrain: resolveTileTerrainForContent(tile, content),
 			}
 			const hiveName = content.hive?.name?.trim()
@@ -156,25 +138,13 @@ const TileProperties = (props: TilePropertiesProps) => {
 			state.hiveHeaderTitle = ''
 			state.contentInfo = {
 				sprite: visual?.sprites?.[0],
-				name: translator
-					? toDisplayText(
-							(translator as { residential?: { dwelling?: { tierBasic?: string } } })?.residential
-								?.dwelling?.tierBasic,
-							content.title
-						)
-					: content.title,
+				name: String(translator.residential.dwelling.tierBasic),
 				terrain: resolveTileTerrainForContent(tile, content),
 			}
 		} else if (content instanceof BuildDwelling) {
 			state.hiveHeaderTitle = ''
 			state.contentInfo = {
-				name: translator
-					? toDisplayText(
-							(translator as { construction?: { section?: string } } | undefined)?.construction
-								?.section,
-							content.name
-						)
-					: content.name,
+				name: String(translator.construction.section),
 				terrain: resolveTileTerrainForContent(tile, content),
 			}
 		} else if (content instanceof UnBuiltLand) {
@@ -203,10 +173,7 @@ const TileProperties = (props: TilePropertiesProps) => {
 			state.dwellingConstruction.show = false
 			return
 		}
-		const model = buildConstructionViewModel(
-			snap,
-			i18nState.translator as ConstructionTranslatorShape | undefined
-		)
+		const model = buildConstructionViewModel(snap, getTranslator() as ConstructionTranslatorShape)
 		state.dwellingConstruction.show = true
 		state.dwellingConstruction.phaseLabel = model.phaseLabel
 		state.dwellingConstruction.blocking = model.blockingLabels
@@ -276,23 +243,20 @@ const TileProperties = (props: TilePropertiesProps) => {
 
 			<InspectorSection class="tile-properties__content">
 				<PropertyGrid>
-					<PropertyGridRow
-						if={currentTile()?.zone}
-						label={String(i18nState.translator?.tile.zone ?? '')}
-					>
+					<PropertyGridRow if={currentTile()?.zone} label={getTranslator().tile.zone}>
 						<Badge tone={currentTile()?.zone === 'residential' ? 'green' : 'yellow'}>
 							{currentTile()?.zone === 'residential'
-								? String(i18nState.translator?.tile.zoneResidential ?? 'residential')
-								: String(i18nState.translator?.tile.zoneHarvest ?? 'harvest')}
+								? getTranslator().tile.zoneResidential
+								: getTranslator().tile.zoneHarvest}
 						</Badge>
 					</PropertyGridRow>
 
-					<PropertyGridRow label={String(i18nState.translator?.tile.walkTime ?? '')}>
+					<PropertyGridRow label={getTranslator().tile.walkTime}>
 						<Badge
 							tone={state.tileContent?.walkTime === Number.POSITIVE_INFINITY ? 'red' : 'yellow'}
 						>
 							{state.tileContent?.walkTime === Number.POSITIVE_INFINITY
-								? String(i18nState.translator?.tile.unwalkable ?? '')
+								? getTranslator().tile.unwalkable
 								: state.tileContent?.walkTime}
 						</Badge>
 					</PropertyGridRow>
@@ -301,7 +265,7 @@ const TileProperties = (props: TilePropertiesProps) => {
 					!(state.tileContent instanceof Alveolus) &&
 					!(state.tileContent instanceof BasicDwelling) &&
 					!(state.tileContent instanceof BuildDwelling) ? (
-						<PropertyGridRow label={String(i18nState.translator?.goods.stored ?? '')}>
+						<PropertyGridRow label={getTranslator().goods.stored}>
 							<GoodsList
 								goods={state.storedGoods}
 								game={currentGame()!}
@@ -312,11 +276,7 @@ const TileProperties = (props: TilePropertiesProps) => {
 
 					<PropertyGridRow
 						if={state.dwellingConstruction.show}
-						label={toDisplayText(
-							(i18nState.translator as { construction?: { section?: string } } | undefined)
-								?.construction?.section,
-							'Construction'
-						)}
+						label={String(getTranslator().construction.section)}
 					>
 						<div style="display:grid; gap:0.5rem; width:100%;">
 							<div style="display:flex; flex-wrap:wrap; gap:0.25rem; align-items:center;">
@@ -343,18 +303,15 @@ const TileProperties = (props: TilePropertiesProps) => {
 						}
 						content={state.tileContent as BasicDwelling | BuildDwelling}
 						game={currentGame()!}
-						label={String(
+						label={
 							state.tileContent instanceof BuildDwelling
-								? ((i18nState.translator as { construction?: { materials?: string } } | undefined)
-										?.construction?.materials ??
-										i18nState.translator?.goods.stored ??
-										'')
-								: (i18nState.translator?.goods.stored ?? '')
-						)}
+								? getTranslator().construction.materials
+								: getTranslator().goods.stored
+						}
 					/>
 
 					{state.looseGoods.length > 0 ? (
-						<PropertyGridRow label={String(i18nState.translator?.goods.loose ?? '')}>
+						<PropertyGridRow label={getTranslator().goods.loose}>
 							<GoodsList
 								goods={state.looseGoods}
 								game={currentGame()!}

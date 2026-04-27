@@ -52,8 +52,8 @@ vi.mock('ssh/board/content/unbuilt-land', () => ({
 	UnBuiltLand: MockUnBuiltLand,
 }))
 
-vi.mock('ssh/i18n', () => ({
-	i18nState: {
+vi.mock('@app/lib/i18n', () => {
+	const i18nState = {
 		translator: {
 			tile: {
 				walkTime: 'Walk time',
@@ -64,8 +64,12 @@ vi.mock('ssh/i18n', () => ({
 				loose: 'Loose',
 			},
 		},
-	},
-}))
+	}
+	return {
+		i18nState,
+		getTranslator: () => i18nState.translator,
+	}
+})
 
 vi.mock('ssh/utils/images', () => ({
 	computeStyleFromTexture: vi.fn(() => ''),

@@ -40,8 +40,10 @@ export class SimulationLoop {
 			cb(this)
 		}
 
-		if (typeof requestAnimationFrame !== 'undefined') {
-			requestAnimationFrame(this.tick)
+		const raf = (globalThis as { requestAnimationFrame?: (callback: () => void) => void })
+			.requestAnimationFrame
+		if (raf) {
+			raf(this.tick)
 		} else {
 			setTimeout(this.tick, 16.6)
 		}

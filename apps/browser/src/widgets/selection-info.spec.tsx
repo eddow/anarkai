@@ -1,6 +1,6 @@
+import { hiveUidForAnchorTile } from '@app/lib/hive-inspector'
 import { document, latch } from '@sursaut/core'
 import type { DockviewWidgetProps } from '@sursaut/ui/dockview'
-import { hiveUidForAnchorTile } from 'ssh/hive'
 import { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SelectionInfoContext, SelectionInfoTool } from './selection-info-tab'
@@ -41,7 +41,6 @@ const world = {
 const game = {
 	getObject: vi.fn((uid: string) => {
 		if (uid === 'object-1') return gameObject
-		if (uid === hiveSyntheticUid) return hiveSyntheticObject
 		if (uid === vehicleUid) return vehicleObject
 		return undefined
 	}),
@@ -114,12 +113,23 @@ vi.mock('ssh/game/object', async (importOriginal) => {
 	}
 })
 
-vi.mock('ssh/interactive-state', () => ({
+vi.mock('@app/lib/interactive-state', () => ({
 	setHoveredObject: vi.fn((object: unknown) => {
 		globals.mrg.hoveredObject = object as typeof gameObject | undefined
 	}),
 	isHoveredObject: vi.fn((object: unknown) => globals.mrg.hoveredObject === object),
 }))
+
+vi.mock('@app/lib/hive-inspector', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('@app/lib/hive-inspector')>()
+	return {
+		...actual,
+		createSyntheticHiveObjectForUid: vi.fn((_: unknown, uid: string) =>
+			uid === hiveSyntheticUid ? hiveSyntheticObject : undefined
+		),
+		resolveHiveFromAnchorTile: vi.fn(() => ({ name: 'Test Hive' })),
+	}
+})
 
 vi.mock('ssh/utils/position', async (importOriginal) => {
 	const actual = await importOriginal<typeof import('ssh/utils/position')>()
@@ -227,7 +237,7 @@ describe('SelectionInfoWidget', () => {
 		stop = latch(container, <SelectionInfoWidget {...props} />, scope as never)
 
 		expect(container.querySelector('[data-testid="hive-properties"]')).not.toBeNull()
-		expect(game.getObject).toHaveBeenCalledWith(hiveSyntheticUid)
+		expect(game.getObject).not.toHaveBeenCalledWith(hiveSyntheticUid)
 	})
 
 	it('renders VehicleProperties for a vehicle entity', () => {

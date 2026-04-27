@@ -28,7 +28,14 @@ class CharacterContext extends InteractiveContext<Character> {
 import { objectMap } from 'ssh/utils'
 import { loadNpcScripts } from '../scripts'
 
-const ScriptFiles = import.meta.glob('../../../../assets/scripts/**/*.npcs', {
+type ScriptImportMeta = ImportMeta & {
+	glob(
+		pattern: string,
+		options: { query: string; eager: true }
+	): Record<string, { default: string }>
+}
+
+const ScriptFiles = (import.meta as ScriptImportMeta).glob('../../../../assets/scripts/**/*.npcs', {
 	query: '?raw',
 	eager: true,
 })

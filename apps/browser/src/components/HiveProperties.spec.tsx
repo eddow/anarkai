@@ -80,8 +80,8 @@ vi.mock('ssh/construction', () => ({
 	),
 }))
 
-vi.mock('ssh/i18n', () => ({
-	i18nState: {
+vi.mock('@app/lib/i18n', () => {
+	const i18nState = {
 		translator: {
 			hive: {
 				section: 'Hive',
@@ -111,8 +111,12 @@ vi.mock('ssh/i18n', () => ({
 				workProgress: 'Work: {applied}s / {total}s',
 			},
 		},
-	},
-}))
+	}
+	return {
+		i18nState,
+		getTranslator: () => i18nState.translator,
+	}
+})
 
 vi.mock('./EntityBadge', () => ({
 	default: (props: { text: string }) => (
@@ -164,7 +168,7 @@ describe('HiveProperties', () => {
 					uid: 'hive:tile%3A0%2C0',
 					kind: 'hive',
 					title: 'North Hive',
-					game: {} as never,
+					game: { vehicles: [] } as never,
 					logs: [],
 					anchorTileUid: 'tile:0,0',
 					tile: {} as never,

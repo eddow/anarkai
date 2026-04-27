@@ -1,6 +1,8 @@
-import type { FreightLineUtilityWeights } from 'engine-rules'
+import type { freightLineUtilityWeights } from 'engine-rules'
 import type { FreightStopGoodsSnapshot } from 'ssh/freight/freight-stop-utility'
 import type { GoodType } from 'ssh/types/base'
+
+type FreightLineUtilityWeights = typeof freightLineUtilityWeights
 
 export interface FreightTransferableBreakdown {
 	/** `min(source, sink)` per good. */

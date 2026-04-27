@@ -44,8 +44,8 @@ vi.mock('@app/ui/anarkai', () => ({
 	),
 }))
 
-vi.mock('ssh/i18n', () => ({
-	i18nState: {
+vi.mock('@app/lib/i18n', () => {
+	const i18nState = {
 		translator: {
 			line: {
 				section: 'Freight line',
@@ -83,8 +83,12 @@ vi.mock('ssh/i18n', () => ({
 				'construction/stone': 'Construction stone',
 			},
 		},
-	},
-}))
+	}
+	return {
+		i18nState,
+		getTranslator: () => i18nState.translator,
+	}
+})
 
 vi.mock('./InspectorObjectLink', () => ({
 	default: () => null,

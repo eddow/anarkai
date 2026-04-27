@@ -1,6 +1,6 @@
 import { css } from '@app/lib/css'
 import type { DockedVehicleEntry } from 'ssh/freight/docked-vehicles'
-import { i18nState } from 'ssh/i18n'
+import { getTranslator } from '@app/lib/i18n'
 import InspectorObjectLink from './InspectorObjectLink'
 import LinkedEntityControl from './LinkedEntityControl'
 
@@ -36,7 +36,7 @@ interface DockedVehicleListProps {
 }
 
 const DockedVehicleList = (props: DockedVehicleListProps) => {
-	const stopLabel = () => i18nState.translator?.line?.stop ?? 'Stop'
+	const stopLabel = () => getTranslator().line.stop
 
 	return (
 		<div class="docked-vehicle-list">

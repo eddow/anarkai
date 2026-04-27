@@ -1,7 +1,7 @@
+import { isHoveredObject, mrg, setHoveredObject } from '@app/lib/interactive-state'
 import type { ScopedCallback } from 'mutts'
 import { Container, type FederatedPointerEvent } from 'pixi.js'
 import type { GameObject } from 'ssh/game/object'
-import { isHoveredObject, mrg, setHoveredObject } from 'ssh/interactive-state'
 import { setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
 

@@ -45,5 +45,5 @@
 			"npc-script/*": ["../../../ownk/npcs/dist/*"]
 		}
 	},
-	"include": ["vite.config.ts", "vitest.config.ts", "vite-plugin-css-tag.ts"]
+	"include": ["vitest.config.ts"]
 }

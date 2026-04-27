@@ -43,7 +43,7 @@ describe('findVehicleApproachJob', () => {
 		const job = findVehicleApproachJob(game, character)
 		expect(job).toBeDefined()
 		expect(job!.vehicleUid).toBe(vehicle.uid)
-		const goal = axial.round(toAxialCoord(vehicle.position))
+		const goal = axial.round(toAxialCoord(vehicle.effectivePosition))
 		const last = job!.path[job!.path.length - 1]!
 		expect(axial.key(last)).toBe(axial.key(goal))
 	})

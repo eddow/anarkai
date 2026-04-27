@@ -39,8 +39,9 @@ vi.mock('engine-pixi/renderers/vehicle-visual', () => ({
 	vehicleTextureKey: () => 'vehicles.wheelbarrow',
 }))
 
-vi.mock('ssh/i18n', () => ({
+vi.mock('@app/lib/i18n', () => ({
 	i18nState,
+	getTranslator: () => i18nState.translator,
 }))
 
 vi.mock('ssh/freight/freight-line', async (importOriginal) => {

@@ -1,3 +1,5 @@
+import { Alveolus } from 'ssh/board/content/alveolus'
+import type { FreightMovementParty } from 'ssh/freight/vehicle-freight-dock'
 import type { Game } from 'ssh/game/game'
 import type { SerializedConveyMovement } from 'ssh/hive/convey-serialize'
 import { serializeFreightParty } from 'ssh/hive/convey-serialize'

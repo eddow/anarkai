@@ -3,7 +3,14 @@ import type { DockviewWidgetScope } from '@sursaut/ui/dockview'
 
 export type { Configuration } from 'ssh/globals'
 // Re-export all game-related globals from ssh engine
-export { configuration, debugInfo, game, games, interactionMode, mrg } from 'ssh/globals'
+export { configuration, debugInfo, game, games } from 'ssh/globals'
+export {
+	getHoveredUid,
+	interactionMode,
+	isHoveredObject,
+	mrg,
+	setHoveredObject,
+} from './interactive-state'
 
 export const unreactiveInfo = {
 	hasLastSelectedInfoPanel: false,

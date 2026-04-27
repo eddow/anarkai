@@ -24,4 +24,3 @@ export const alveolusClass = GcClasses(
 
 export * from './alveolus-configuration'
 export * from './hive'
-export * from './hive-inspector'

@@ -214,6 +214,22 @@ type MovementMineOptions = {
 	label: string
 }
 
+/**
+ * One active hive movement that still blocks {@link Hive#maybeAdvanceVehicleFromCompletedAnchorStop}
+ * style dock completion: path in flight, convey claim held, or transfer token indexed on the bay tile.
+ */
+export type VehicleDockPendingMovementDetail = {
+	/** Small stable id for logs (see {@link movementRefId}). */
+	readonly movementRef: number
+	readonly goodType: GoodType
+	readonly pathLength: number
+	readonly claimed: boolean
+	readonly trackedCoord: AxialCoord | undefined
+	readonly reason: 'path' | 'claimed' | 'tracked-at-bay'
+	readonly providerName: string
+	readonly demanderName: string
+}
+
 @unreactive
 export class Hive extends AdvertisementManager<FreightMovementParty> {
 	private constructor(public readonly board: HexBoard) {
@@ -362,17 +378,82 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		)
 	}
 
-	hasPendingVehicleDockMovement(dock: VehicleFreightDock): boolean {
+	/**
+	 * Lists dock-involved movements that should prevent advancing a docked vehicle off an anchor stop
+	 * (`maybeAdvanceVehicleFromCompletedAnchorStop` in `freight/vehicle-run.ts`).
+	 * Terminal convey deliberately avoids `place()` on the last hop so `path=[]` movements are not
+	 * indexed in `movingGoods`; a stale row at the bay tile would otherwise read as "pending" forever.
+	 * Such ghosts are discarded and omitted from the result.
+	 */
+	pendingVehicleDockMovements(dock: VehicleFreightDock): VehicleDockPendingMovementDetail[] {
 		const here = toAxialCoord(dock.bay.tile.position)
-		if (!here) return false
-		for (const mg of this.activeMovements) {
+		if (!here) return []
+		const out: VehicleDockPendingMovementDetail[] = []
+		for (const mg of Array.from(this.activeMovements)) {
 			if (!this.movementInvolvesVehicleDock(mg, dock)) continue
-			if (mg.path.length > 0) return true
-			if (mg.claimed) return true
 			const tracked = this.trackedMovementCoord(mg)
-			if (tracked && axial.key(tracked) === axial.key(here)) return true
+			const trackedAtBay = !!tracked && axial.key(tracked) === axial.key(here)
+
+			if (mg.path.length === 0 && !mg.claimed && trackedAtBay) {
+				traces.advertising.warn?.(
+					'[WATCHDOG] Discarding ghost terminal movement index at vehicle dock bay',
+					{
+						hive: this.name,
+						movementRef: movementRefId(mg.ref),
+						goodType: mg.goodType,
+						vehicleUid: dock.vehicle.uid,
+						provider: this.movementProviderName(mg),
+						demander: this.movementDemanderName(mg),
+					}
+				)
+				this.silentlyDiscardMovement(mg)
+				continue
+			}
+
+			if (mg.path.length > 0) {
+				out.push({
+					movementRef: movementRefId(mg.ref),
+					goodType: mg.goodType,
+					pathLength: mg.path.length,
+					claimed: mg.claimed,
+					trackedCoord: tracked,
+					reason: 'path',
+					providerName: this.movementProviderName(mg),
+					demanderName: this.movementDemanderName(mg),
+				})
+				continue
+			}
+			if (mg.claimed) {
+				out.push({
+					movementRef: movementRefId(mg.ref),
+					goodType: mg.goodType,
+					pathLength: mg.path.length,
+					claimed: true,
+					trackedCoord: tracked,
+					reason: 'claimed',
+					providerName: this.movementProviderName(mg),
+					demanderName: this.movementDemanderName(mg),
+				})
+				continue
+			}
+			if (trackedAtBay) {
+				out.push({
+					movementRef: movementRefId(mg.ref),
+					goodType: mg.goodType,
+					pathLength: mg.path.length,
+					claimed: false,
+					trackedCoord: tracked,
+					reason: 'tracked-at-bay',
+					providerName: this.movementProviderName(mg),
+					demanderName: this.movementDemanderName(mg),
+				})
+			}
 		}
-		return false
+		return out
+	}
+
+	hasPendingVehicleDockMovement(dock: VehicleFreightDock): boolean {
+		return this.pendingVehicleDockMovements(dock).length > 0
 	}
 
 	public attach(alveolus: Alveolus) {

@@ -36,11 +36,11 @@ vi.mock('ssh/board/content/alveolus', () => ({
 	Alveolus: MockAlveolus,
 }))
 
-vi.mock('ssh/hive', () => ({
+vi.mock('@app/lib/hive-inspector', () => ({
 	createSyntheticHiveObject,
 }))
 
-vi.mock('ssh/interactive-state', () => ({
+vi.mock('@app/lib/interactive-state', () => ({
 	setHoveredObject,
 	isHoveredObject,
 }))

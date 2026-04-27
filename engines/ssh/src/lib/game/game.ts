@@ -38,15 +38,7 @@ import {
 	type TerrainTerraformPatch,
 } from 'ssh/generation'
 import { configuration } from 'ssh/globals'
-import {
-	AlveolusConfigurationManager,
-	alveolusClass,
-	anchorTileUidFromHiveUid,
-	createSyntheticHiveObject,
-	Hive,
-	isHiveUid,
-	type SyntheticHiveObject,
-} from 'ssh/hive'
+import { AlveolusConfigurationManager, alveolusClass, Hive } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
 import {
 	collectSerializedConveyMovementsWithIndex,
@@ -57,7 +49,6 @@ import type { TrackedMovement } from 'ssh/hive/hive'
 import type { MovementRef } from 'ssh/hive/movement-ref'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { readSlottedStorageParams, usesSlottedStorageLayout } from 'ssh/hive/storage-action'
-import { mrg, setHoveredObject } from 'ssh/interactive-state'
 import { Population } from 'ssh/population/population'
 import { type VehicleSerializedState, Vehicles } from 'ssh/population/vehicle'
 import { ResidentialDemandTicker } from 'ssh/residential/demand'
@@ -96,7 +87,7 @@ export type GameEvents = {
 	objectDown(pointer: any, object: InteractiveGameObject, stopPropagation?: () => void): void
 	objectUp(pointer: any, object: InteractiveGameObject): void
 	objectClick(pointer: any, object: InteractiveGameObject): void
-	objectDrag(tiles: Tile[], event: MouseEvent): void
+	objectDrag(tiles: Tile[], event: unknown): void
 	dragPreview(tiles: Tile[], zoneType: string): void
 	dragPreviewClear(): void
 }
@@ -287,26 +278,13 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	getObject(uid: string) {
-		return (
-			this.objects.get(uid) ??
-			this.getSyntheticFreightLineObject(uid) ??
-			this.getSyntheticHiveObject(uid)
-		)
+		return this.objects.get(uid) ?? this.getSyntheticFreightLineObject(uid)
 	}
 
 	getSyntheticFreightLineObject(uid: string): SyntheticFreightLineObject | undefined {
 		if (!isFreightLineUid(uid)) return undefined
 		const line = findFreightLineByUid(this.freightLines, uid)
 		return line ? createSyntheticFreightLineObject(this, line) : undefined
-	}
-
-	getSyntheticHiveObject(uid: string): SyntheticHiveObject | undefined {
-		if (!isHiveUid(uid)) return undefined
-		const anchorTileUid = anchorTileUidFromHiveUid(uid)
-		if (!anchorTileUid) return undefined
-		const tile = this.objects.get(anchorTileUid)
-		if (!(tile instanceof Tile)) return undefined
-		return createSyntheticHiveObject(this, tile)
 	}
 
 	replaceFreightLine(line: FreightLineDefinition): void {
@@ -539,18 +517,10 @@ export class Game extends Eventful<GameEvents> {
 			this.residentialDemandTicker = new ResidentialDemandTicker(this)
 			// Register the main ticker callback and start the game ticker after everything is built
 			this.ticker.add(this.tickerCallback)
-
-			// Expose for testing
-			;(globalThis as any).mrg = mrg
-			;(globalThis as any).testHover = (uid?: string) => {
-				const obj = uid ? this.getObject(uid) : undefined
-				if (obj && 'canInteract' in obj) setHoveredObject(obj)
-				console.log(`[testHover] set to ${uid} (${obj?.constructor.name})`)
-			}
 		})
 	}
 
-	public simulateObjectClick(object: InteractiveGameObject, event: MouseEvent = {} as any) {
+	public simulateObjectClick(object: InteractiveGameObject, event: unknown = {}) {
 		this.emit('objectClick', event, object)
 	}
 

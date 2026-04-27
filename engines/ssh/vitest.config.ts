@@ -1,7 +1,10 @@
-import { mergeConfig } from "vitest/config";
-import viteConfig from "./vite.config";
+import { dirname, resolve as resolvePath } from "node:path";
+import { fileURLToPath } from "node:url";
+import { defineConfig } from "vitest/config";
 
-export default mergeConfig(viteConfig, {
+const projectRootDir = dirname(fileURLToPath(import.meta.url));
+
+export default defineConfig({
 	test: {
 		environment: "node",
 		globals: true,
@@ -23,5 +26,18 @@ export default mergeConfig(viteConfig, {
 	},
 	esbuild: {
 		target: "node14",
+	},
+	resolve: {
+		alias: [
+			{ find: /^engine-terrain\/hex$/, replacement: resolvePath(projectRootDir, "../terrain/src/hex/index.ts") },
+			{ find: /^engine-terrain$/, replacement: resolvePath(projectRootDir, "../terrain/src/index.ts") },
+			{
+				find: /^ssh\/(.*)$/,
+				replacement: `${resolvePath(projectRootDir, "src/lib")}/$1`,
+			},
+			{ find: /^ssh$/, replacement: resolvePath(projectRootDir, "src/lib") },
+			{ find: /^npc-script$/, replacement: resolvePath(projectRootDir, "../../../ownk/npcs/src") },
+			{ find: /^mutts$/, replacement: resolvePath(projectRootDir, "../../../ownk/mutts/src") },
+		],
 	},
 });

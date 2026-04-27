@@ -8,7 +8,7 @@ import { deposits as visualDeposits } from 'engine-pixi/assets/visual-content'
 import { effect, reactive } from 'mutts'
 import type { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { type ConstructionPhase, queryConstructionSiteView } from 'ssh/construction'
-import { i18nState } from 'ssh/i18n'
+import { getTranslator } from '@app/lib/i18n'
 import EntityBadge from './EntityBadge'
 import PropertyGridRow from './PropertyGridRow'
 
@@ -96,7 +96,7 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 		state.constructionPhase = snap.phase
 		const model = buildConstructionViewModel(
 			snap,
-			i18nState.translator as ConstructionTranslatorShape | undefined
+			getTranslator() as ConstructionTranslatorShape
 		)
 		state.constructionPhaseLabel = model.phaseLabel
 		state.constructionBlocking = model.blockingLabels
@@ -104,35 +104,24 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 
 	return (
 		<>
-			<PropertyGridRow if={state.showProject} label={toDisplayText(i18nState.translator?.project)}>
+			<PropertyGridRow if={state.showProject} label={String(getTranslator().project)}>
 				<div class="unbuilt-project">
 					<Badge tone="blue">
-						{toDisplayText(
+						{String(
 							state.project.startsWith('residential:')
-								? (
-										i18nState.translator as
-											| { residential?: { projectBasicDwelling?: string } }
-											| undefined
-									)?.residential?.projectBasicDwelling
-								: i18nState.translator?.alveoli?.[
-										state.projectName as keyof NonNullable<typeof i18nState.translator>['alveoli']
-									],
-							state.project
+								? getTranslator().residential.projectBasicDwelling
+								: getTranslator().alveoli[state.projectName]
 						)}
 					</Badge>
 					<Badge if={state.isClearing} tone="yellow">
-						{toDisplayText(i18nState.translator?.clearing)}
+						{getTranslator().clearing}
 					</Badge>
 				</div>
 			</PropertyGridRow>
 
 			<PropertyGridRow
 				if={state.showConstruction}
-				label={toDisplayText(
-					(i18nState.translator as { construction?: { section?: string } } | undefined)
-						?.construction?.section,
-					'Construction'
-				)}
+				label={String(getTranslator().construction.section)}
 			>
 				<div class="unbuilt-project">
 					<Badge tone="blue">{state.constructionPhaseLabel}</Badge>
@@ -146,17 +135,12 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 				</div>
 			</PropertyGridRow>
 
-			<PropertyGridRow if={state.showDeposit} label={toDisplayText(i18nState.translator?.deposit)}>
+			<PropertyGridRow if={state.showDeposit} label={String(getTranslator().deposit)}>
 				<EntityBadge
 					game={props.content?.tile?.board?.game}
 					height={16}
 					sprite={state.depositSprite}
-					text={toDisplayText(
-						i18nState.translator?.deposits?.[
-							state.depositName as keyof NonNullable<typeof i18nState.translator>['deposits']
-						],
-						state.depositName
-					)}
+					text={String(getTranslator().deposits[state.depositName])}
 					qty={state.depositAmount}
 				/>
 			</PropertyGridRow>

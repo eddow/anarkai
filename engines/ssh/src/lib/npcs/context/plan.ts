@@ -16,7 +16,7 @@ import { DurationStep } from '../steps'
 
 function characterSameHexAsVehicle(character: Character, vehicle: VehicleEntity): boolean {
 	const a = axial.round(toAxialCoord(character.position)!)
-	const b = axial.round(toAxialCoord(vehicle.position)!)
+	const b = axial.round(toAxialCoord(vehicle.effectivePosition)!)
 	return axial.key(a) === axial.key(b)
 }
 

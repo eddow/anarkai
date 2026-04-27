@@ -120,7 +120,7 @@ vi.mock('ssh/game/object', () => ({
 	resolveSelectableHoverObject: vi.fn((object: unknown) => object),
 }))
 
-vi.mock('ssh/interactive-state', () => ({
+vi.mock('@app/lib/interactive-state', () => ({
 	setHoveredObject: vi.fn((object: unknown) => {
 		globals.mrg.hoveredObject = object
 	}),

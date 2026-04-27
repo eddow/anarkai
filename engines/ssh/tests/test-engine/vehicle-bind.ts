@@ -27,7 +27,7 @@ export function bindOperatedWheelbarrowOffload(
 	vehicle: VehicleEntity,
 	spec: VehicleMaintenanceServiceSpec = {
 		kind: 'park',
-		targetCoord: toAxialCoord(vehicle.position) ?? { q: 0, r: 0 },
+		targetCoord: toAxialCoord(vehicle.effectivePosition) ?? { q: 0, r: 0 },
 	}
 ): void {
 	vehicle.beginMaintenanceService(spec, character)

@@ -302,8 +302,8 @@ describe('Hive Offload Scenario', () => {
 
 			expect(vehicle.service).toBeUndefined()
 			expect(worker.operates).toBeUndefined()
-			expect(toAxialCoord(vehicle.position)).not.toEqual(center)
-			const parkedTile = game.hex.getTile(vehicle.position)
+			expect(toAxialCoord(vehicle.effectivePosition)).not.toEqual(center)
+			const parkedTile = game.hex.getTile(vehicle.effectivePosition)
 			expect(parkedTile?.zone).not.toBe('residential')
 			expect(parkedTile?.content instanceof UnBuiltLand).toBe(true)
 			expect(parkedTile?.isClear).toBe(true)

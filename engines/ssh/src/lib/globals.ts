@@ -82,5 +82,3 @@ export const games = {
 		return ensureGame()
 	},
 }
-
-export * from './interactive-state'

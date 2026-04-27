@@ -1,7 +1,7 @@
 import { css } from '@app/lib/css'
 import { InspectorSection } from '@app/ui/anarkai'
 import { Tile } from 'ssh/board/tile'
-import { i18nState } from 'ssh/i18n'
+import { getTranslator } from '@app/lib/i18n'
 import {
 	collectTileWorkPicks,
 	type TileWorkPick,
@@ -80,7 +80,7 @@ function formatPlannerUtility(value: number): string {
 }
 
 function workKindLabel(kind: JobType): string {
-	return i18nState.translator?.character?.plannerWorkKinds?.[kind] ?? kind
+	return getTranslator().character.plannerWorkKinds[kind] ?? kind
 }
 
 function tileLabel(tile: Tile): string {
@@ -123,8 +123,8 @@ const TileWorkProperties = (props: TileWorkPropertiesProps) => {
 					metaText: [
 						choice.character.title ?? choice.character.name,
 						choice.vehicle?.title,
-						`${i18nState.translator?.character?.plannerWorkUrgency ?? 'urgency'} ${formatPlannerUtility(choice.urgency)}`,
-						`${i18nState.translator?.character?.plannerWorkPath ?? 'path'} ${choice.pathLength}`,
+						`${getTranslator().character.plannerWorkUrgency} ${formatPlannerUtility(choice.urgency)}`,
+						`${getTranslator().character.plannerWorkPath} ${choice.pathLength}`,
 					]
 						.filter((text): text is string => !!text)
 						.join(' · '),
@@ -137,7 +137,7 @@ const TileWorkProperties = (props: TileWorkPropertiesProps) => {
 		<InspectorSection if={computed.choices.length > 0}>
 			<PropertyGrid>
 				<PropertyGridRow
-					label={i18nState.translator?.character?.plannerRankedWork ?? 'Ranked work'}
+					label={getTranslator().character.plannerRankedWork}
 				>
 					<div class="tile-work__list">
 						<for each={computed.choices}>

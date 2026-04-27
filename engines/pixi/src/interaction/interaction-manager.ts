@@ -1,8 +1,8 @@
+import { interactionMode, mrg, setHoveredObject } from '@app/lib/interactive-state'
 import type { Application, Container, FederatedPointerEvent, FederatedWheelEvent } from 'pixi.js'
 import { Tile } from 'ssh/board/tile'
 import type { Game } from 'ssh/game/game'
 import type { InteractiveGameObject } from 'ssh/game/object'
-import { interactionMode, mrg, setHoveredObject } from 'ssh/interactive-state'
 
 /**
  * Bridges Pixi interactions to Logic interactions.
@@ -171,7 +171,7 @@ export class InteractionManager {
 			this.dragStartTile = object
 		} else if (object && 'canInteract' in object) {
 			// Non-tile interactive object - click immediately
-			this.game.simulateObjectClick(object, e.nativeEvent as MouseEvent)
+			this.game.simulateObjectClick(object, e.nativeEvent)
 		} else {
 			// No visual logic target: fall back to board hit-test so tiles remain
 			// interactable when ground is rendered by TerrainVisual.
@@ -237,10 +237,10 @@ export class InteractionManager {
 				const start = this.dragStartTile.position as { q: number; r: number }
 				const end = endTile.position as { q: number; r: number }
 				const tiles = this.getParallelogramTiles(start, end)
-				this.game.emit('objectDrag', tiles, e.nativeEvent as MouseEvent)
+				this.game.emit('objectDrag', tiles, e.nativeEvent)
 			} else if (endTile === this.dragStartTile) {
 				// Click on same tile
-				this.game.simulateObjectClick(this.dragStartTile, e.nativeEvent as MouseEvent)
+				this.game.simulateObjectClick(this.dragStartTile, e.nativeEvent)
 			}
 
 			this.dragStartTile = undefined

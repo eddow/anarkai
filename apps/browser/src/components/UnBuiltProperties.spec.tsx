@@ -17,9 +17,11 @@ const i18nState = {
 			},
 		},
 		alveoli: {
-			sawmill: { label: 'Sawmill' },
+			sawmill: 'Sawmill',
 		},
-		deposits: {},
+		deposits: {
+			stone: 'Stone',
+		},
 	},
 }
 
@@ -41,8 +43,9 @@ vi.mock('engine-pixi/assets/visual-content', () => ({
 	},
 }))
 
-vi.mock('ssh/i18n', () => ({
+vi.mock('@app/lib/i18n', () => ({
 	i18nState,
+	getTranslator: () => i18nState.translator,
 }))
 
 vi.mock('ssh/construction', () => ({
@@ -92,7 +95,7 @@ describe('UnBuiltProperties', () => {
 		sursautOptions.checkRebuild = 'warn'
 	})
 
-	it('falls back safely when translator values are non-primitive', () => {
+	it('renders project labels through T without a hardcoded fallback', () => {
 		const content = {
 			project: 'build:sawmill',
 			tile: {
@@ -111,7 +114,7 @@ describe('UnBuiltProperties', () => {
 		)
 
 		expect(container.textContent).toContain('Project')
-		expect(container.textContent).toContain('build:sawmill')
+		expect(container.textContent).toContain('Sawmill')
 	})
 
 	it('falls back safely when deposit metadata is non-primitive', () => {
@@ -174,7 +177,7 @@ describe('UnBuiltProperties', () => {
 		)
 
 		expect(container.textContent).toContain('Deposit')
-		expect(container.textContent).toContain('stone')
+		expect(container.textContent).toContain('Stone')
 		expect(container.textContent).toContain('7')
 	})
 

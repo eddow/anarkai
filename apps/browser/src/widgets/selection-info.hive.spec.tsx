@@ -66,6 +66,7 @@ const game = {
 	}),
 	objects: new Map(),
 	freightLines: [],
+	vehicles: [],
 	renderer: {
 		world,
 		app: {
@@ -141,8 +142,8 @@ vi.mock('ssh/hive/build', () => ({
 	BuildAlveolus: class BuildAlveolus {},
 }))
 
-vi.mock('ssh/i18n', () => ({
-	i18nState: {
+vi.mock('@app/lib/i18n', () => {
+	const i18nState = {
 		translator: {
 			hive: {
 				section: 'Hive',
@@ -159,8 +160,12 @@ vi.mock('ssh/i18n', () => ({
 				wood: 'Wood',
 			},
 		},
-	},
-}))
+	}
+	return {
+		i18nState,
+		getTranslator: () => i18nState.translator,
+	}
+})
 
 vi.mock('ssh/population/character', () => ({
 	Character: class Character {},
@@ -178,7 +183,7 @@ vi.mock('ssh/game/object', async (importOriginal) => {
 	}
 })
 
-vi.mock('ssh/interactive-state', () => ({
+vi.mock('@app/lib/interactive-state', () => ({
 	setHoveredObject: vi.fn((object: unknown) => {
 		globals.mrg.hoveredObject = object
 	}),

@@ -14,7 +14,7 @@ export interface DockedVehicleEntry {
 function dockedLineEntry(vehicle: VehicleEntity): DockedVehicleEntry | undefined {
 	const service = vehicle.service
 	if (!isVehicleLineService(service)) return undefined
-	if (!service.docked) return undefined
+	if (!vehicle.isDocked) return undefined
 	return { vehicle, line: service.line, stop: service.stop }
 }
 

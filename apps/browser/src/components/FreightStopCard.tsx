@@ -26,7 +26,7 @@ import { freightLineStationLabel } from 'ssh/freight/freight-line'
 import type { GoodSelectionPolicy } from 'ssh/freight/goods-selection-policy'
 import { UNRESTRICTED_GOODS_SELECTION_POLICY } from 'ssh/freight/goods-selection-policy'
 import type { Game } from 'ssh/game'
-import { i18nState } from 'ssh/i18n'
+import { getTranslator } from '@app/lib/i18n'
 import GoodSelectionRulesEditor from './GoodSelectionRulesEditor'
 import InspectorObjectLink from './InspectorObjectLink'
 import LinkedEntityControl from './LinkedEntityControl'
@@ -140,9 +140,9 @@ const stationLabel = (stop: FreightStop): string => {
 }
 
 const FreightStopCard = (props: FreightStopCardProps) => {
-	const t = () => i18nState.translator?.line?.stopsEditor
-	const goods = () => i18nState.translator?.goods
-	const goodsTags = () => i18nState.translator?.goodsTags
+	const t = () => getTranslator().line.stopsEditor
+	const goods = () => getTranslator().goods
+	const goodsTags = () => getTranslator().goodsTags
 	const goodOptions = () => freightInspectorGoodOptions(goods())
 	const tagOptions = () => freightInspectorTagOptions(goodsTags())
 	const loadPolicy = (): GoodSelectionPolicy =>
@@ -230,7 +230,7 @@ const FreightStopCard = (props: FreightStopCardProps) => {
 		<div class="freight-stop-card" data-testid={`freight-stop-card-${props.index}`}>
 			<div class="freight-stop-card__head">
 				<div class="freight-stop-card__title">
-					{t()?.stopLabel ? `${t()?.stopLabel} ${props.index + 1}` : `Stop ${props.index + 1}`}
+					{`${t().stopLabel} ${props.index + 1}`}
 				</div>
 				<div class="freight-stop-card__toolbar">
 					<button
@@ -238,36 +238,36 @@ const FreightStopCard = (props: FreightStopCardProps) => {
 						class="freight-stop-card__btn"
 						disabled={props.readOnly || props.index === 0}
 						onClick={handleMoveUp}
-						aria-label={t()?.moveUp ?? 'Move up'}
+						aria-label={t().moveUp}
 						data-testid={`freight-stop-up-${props.index}`}
 					>
-						{t()?.moveUp ?? 'Up'}
+						{t().moveUp}
 					</button>
 					<button
 						type="button"
 						class="freight-stop-card__btn"
 						disabled={props.readOnly || props.index >= props.total - 1}
 						onClick={handleMoveDown}
-						aria-label={t()?.moveDown ?? 'Move down'}
+						aria-label={t().moveDown}
 						data-testid={`freight-stop-down-${props.index}`}
 					>
-						{t()?.moveDown ?? 'Down'}
+						{t().moveDown}
 					</button>
 					<button
 						type="button"
 						class="freight-stop-card__btn"
 						disabled={props.readOnly || props.total <= 1}
 						onClick={handleRemove}
-						aria-label={t()?.removeStop ?? 'Remove stop'}
+						aria-label={t().removeStop}
 						data-testid={`freight-stop-remove-${props.index}`}
 					>
-						{t()?.removeStop ?? 'Remove'}
+						{t().removeStop}
 					</button>
 				</div>
 			</div>
 
 			<div class="freight-stop-card__field">
-				<span class="freight-stop-card__label">{t()?.locationKind ?? 'Location'}</span>
+				<span class="freight-stop-card__label">{t().locationKind}</span>
 				<div class="freight-stop-card__row">
 					<select
 						class="freight-stop-card__select"
@@ -276,14 +276,14 @@ const FreightStopCard = (props: FreightStopCardProps) => {
 						update:value={handleKindInput}
 						data-testid={`freight-stop-kind-${props.index}`}
 					>
-						<option value="anchor">{t()?.kindAnchor ?? 'Bay anchor'}</option>
-						<option value="zone">{t()?.kindZone ?? 'Radius zone'}</option>
+						<option value="anchor">{t().kindAnchor}</option>
+						<option value="zone">{t().kindZone}</option>
 					</select>
 				</div>
 			</div>
 
 			<div class="freight-stop-card__field" if={'anchor' in props.stop}>
-				<span class="freight-stop-card__label">{t()?.anchorLocation ?? 'Bay'}</span>
+				<span class="freight-stop-card__label">{t().anchorLocation}</span>
 				<div class="freight-stop-card__row">
 					<LinkedEntityControl if={tile()} object={tile()!} />
 					<InspectorObjectLink if={tile()} object={tile()!} label={stationLabel(props.stop)} />
@@ -297,16 +297,16 @@ const FreightStopCard = (props: FreightStopCardProps) => {
 						onClick={handleStartPickBay}
 						data-testid={`freight-stop-pick-bay-${props.index}`}
 					>
-						{t()?.pickBay ?? 'Pick bay'}
+						{t().pickBay}
 					</button>
 				</div>
 				<span if={isBayPickActive()} class="freight-stop-card__pick-hint">
-					{t()?.pickBayPending ?? 'Click a freight bay tile on the map…'}
+					{t().pickBayPending}
 				</span>
 			</div>
 
 			<div class="freight-stop-card__field" if={radiusZone()}>
-				<span class="freight-stop-card__label">{t()?.zoneLocation ?? 'Zone'}</span>
+				<span class="freight-stop-card__label">{t().zoneLocation}</span>
 				<div class="freight-stop-card__row">
 					<span class="freight-stop-card__mono">
 						({radiusZone()!.center[0]}, {radiusZone()!.center[1]}) · r≤
@@ -319,11 +319,11 @@ const FreightStopCard = (props: FreightStopCardProps) => {
 						onClick={handleStartPickCenter}
 						data-testid={`freight-stop-pick-center-${props.index}`}
 					>
-						{t()?.pickCenter ?? 'Pick center'}
+						{t().pickCenter}
 					</button>
 				</div>
 				<div class="freight-stop-card__row">
-					<span class="freight-stop-card__label">{t()?.zoneRadius ?? 'Radius'}</span>
+					<span class="freight-stop-card__label">{t().zoneRadius}</span>
 					<input
 						class="freight-stop-card__radius"
 						type="text"
@@ -335,12 +335,12 @@ const FreightStopCard = (props: FreightStopCardProps) => {
 					/>
 				</div>
 				<span if={isCenterPickActive()} class="freight-stop-card__pick-hint">
-					{t()?.pickCenterPending ?? 'Click a tile for the zone center…'}
+					{t().pickCenterPending}
 				</span>
 			</div>
 
 			<div class="freight-stop-card__field">
-				<span class="freight-stop-card__label">{t()?.unloadPolicy ?? 'Unload selection'}</span>
+				<span class="freight-stop-card__label">{t().unloadPolicy}</span>
 				<GoodSelectionRulesEditor
 					policy={unloadPolicy()}
 					disabled={props.readOnly}
@@ -354,7 +354,7 @@ const FreightStopCard = (props: FreightStopCardProps) => {
 			</div>
 
 			<div class="freight-stop-card__field">
-				<span class="freight-stop-card__label">{t()?.loadPolicy ?? 'Load selection'}</span>
+				<span class="freight-stop-card__label">{t().loadPolicy}</span>
 				<GoodSelectionRulesEditor
 					policy={loadPolicy()}
 					disabled={props.readOnly}

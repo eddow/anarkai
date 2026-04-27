@@ -45,6 +45,6 @@
 		"playwright.config.ts",
 		"../../engines/pixi/vite-plugins.ts",
 		"../../engines/pixi/vite-config.ts",
-		"../../engines/ssh/vite-plugin-css-tag.ts"
+		"./src/lib/css-tag-plugin.ts"
 	]
 }

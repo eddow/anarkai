@@ -23,6 +23,13 @@ export default defineConfig({
 				find: 'ssh',
 				replacement: path.resolve(__dirname, '../ssh/src/lib'),
 			},
+			{
+				find: '@app/lib/interactive-state',
+				replacement: path.resolve(
+					__dirname,
+					'../../apps/browser/src/lib/interactive-state.ts',
+				),
+			},
 		],
 	},
 	test: {

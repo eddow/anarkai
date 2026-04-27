@@ -41,6 +41,7 @@ export function assertDockedSemantics(vehicle: VehicleEntity): void {
 	if (!isVehicleLineService(svc) || !svc.docked) return
 	const stop = svc.stop
 	vehicleTraceAssert('anchor' in stop, 'docked must only be set at a bay anchor stop, not a zone')
+	vehicleTraceAssert(!vehicle.position, 'docked vehicles must not keep a world position')
 }
 
 export function traceVehicleStockWithoutService(vehicle: VehicleEntity): void {

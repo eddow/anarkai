@@ -1,7 +1,9 @@
 import { effect } from 'mutts'
 import { Container, Sprite, Texture } from 'pixi.js'
 import type { Alveolus } from 'ssh/board/content/alveolus'
+import { collectDockedVehiclesForBay } from 'ssh/freight/docked-vehicles'
 import { BuildAlveolus } from 'ssh/hive/build'
+import { StorageAlveolus } from 'ssh/hive/storage'
 import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
 import { alveoli } from '../../assets/visual-content'
@@ -29,6 +31,7 @@ export class AlveolusVisual extends VisualObject<any> {
 	private readonly scope: string
 	private sprite: Sprite | undefined
 	private goodsContainer: Container
+	private dockedVehiclesContainer: Container
 	private _disposed = false
 
 	constructor(alveolus: Alveolus, renderer: PixiGameRenderer) {
@@ -39,6 +42,10 @@ export class AlveolusVisual extends VisualObject<any> {
 		// Ensure the building visual does not block mouse events (Tile handles selection)
 		this.view.eventMode = 'none'
 		this.goodsContainer = setPixiName(new Container(), scopedPixiName(this.scope, 'goods'))
+		this.dockedVehiclesContainer = setPixiName(
+			new Container(),
+			scopedPixiName(this.scope, 'docked-vehicles')
+		)
 	}
 
 	public bind() {
@@ -63,7 +70,8 @@ export class AlveolusVisual extends VisualObject<any> {
 		this.register(
 			effect`${this.scope}.sprite`(() => {
 				if (this._disposed) return
-				const visualDef = alveoli[alveolusVisualKey(this.object)]
+				const visualKey = alveolusVisualKey(this.object)
+				const visualDef = visualKey ? alveoli[visualKey] : undefined
 				const textureName = visualDef?.sprites?.[0]
 				if (textureName) {
 					const tex = this.renderer.getTexture(textureName)
@@ -124,6 +132,32 @@ export class AlveolusVisual extends VisualObject<any> {
 			`${this.scope}.goods`
 		)
 		this.register(cleanupGoods)
+
+		if (this.dockedVehiclesContainer.parent !== this.view) {
+			this.view.addChild(this.dockedVehiclesContainer)
+		}
+		this.dockedVehiclesContainer.zIndex = worldPos.y + 1
+		this.register(
+			effect`${this.scope}.docked-vehicles`(() => {
+				this.dockedVehiclesContainer.removeChildren().forEach((child) => child.destroy())
+				if (!(this.object instanceof StorageAlveolus)) return
+				if (this.object.action?.type !== 'road-fret') return
+				const docked = collectDockedVehiclesForBay(this.renderer.game, this.object)
+				for (const [index, entry] of docked.entries()) {
+					const tex = this.renderer.getTexture(`vehicles.${entry.vehicle.vehicleType}`)
+					if (!hasUsableTexture(tex)) continue
+					const sprite = setPixiName(
+						new Sprite(tex),
+						scopedPixiName(this.scope, `docked-vehicle:${entry.vehicle.uid}`)
+					)
+					sprite.anchor.set(0.5)
+					sprite.width = 24
+					sprite.height = 24
+					sprite.position.set(-tileSize * 0.18 + index * 10, tileSize * 0.18)
+					this.dockedVehiclesContainer.addChild(sprite)
+				}
+			})
+		)
 	}
 
 	public dispose() {
@@ -138,6 +172,7 @@ export class AlveolusVisual extends VisualObject<any> {
 			this.sprite.destroy()
 		}
 		this.goodsContainer.destroy({ children: true }) // Cleanup goods container
+		this.dockedVehiclesContainer.destroy({ children: true })
 		super.dispose()
 	}
 }

@@ -1,9 +1,9 @@
 import { css } from '@app/lib/css'
 import { mrg } from '@app/lib/globals'
+import { isHoveredObject, setHoveredObject } from '@app/lib/interactive-state'
 import type { DockviewWidget, DockviewWidgetScope } from '@sursaut/ui/dockview'
 import { effect } from 'mutts'
 import type { InteractiveGameObject } from 'ssh/game/object'
-import { isHoveredObject, setHoveredObject } from 'ssh/interactive-state'
 
 export type SelectionInfoTool = {
 	ariaLabel: string

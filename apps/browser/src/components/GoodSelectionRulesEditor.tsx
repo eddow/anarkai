@@ -20,7 +20,7 @@ import type {
 } from 'ssh/freight/goods-selection-policy'
 import { normalizeGoodSelectionPolicy } from 'ssh/freight/goods-selection-policy'
 import type { Game } from 'ssh/game'
-import { i18nState } from 'ssh/i18n'
+import { getTranslator } from '@app/lib/i18n'
 import type { GoodType } from 'ssh/types/base'
 import EntityBadge from './EntityBadge'
 import GoodPickerButton from './GoodPickerButton'
@@ -296,7 +296,7 @@ const toDisplayText = (value: unknown, fallback = ''): string => {
 }
 
 const GoodSelectionRulesEditor = (props: GoodSelectionRulesEditorProps) => {
-	const ls = () => i18nState.translator?.line?.goodsSelection
+	const ls = () => getTranslator().line.goodsSelection
 	const sig = (p: GoodSelectionPolicy) =>
 		`${tagRuleSignature(p.tagRules)}||${p.goodRules.map((r) => `${r.goodType}:${r.effect}`).join('|')}||${p.defaultEffect}`
 
@@ -381,7 +381,7 @@ const GoodSelectionRulesEditor = (props: GoodSelectionRulesEditorProps) => {
 		toDisplayText(props.tagOptions.find((entry) => entry.id === tag)?.label, tag)
 
 	const matchOptionLabel = (match: GoodSelectionTagMatch) =>
-		match === 'present' ? (ls()?.matchPresent ?? 'Present') : (ls()?.matchAbsent ?? 'Absent')
+		match === 'present' ? ls().matchPresent : ls().matchAbsent
 
 	const updateTagRule = (
 		index: number,
@@ -455,7 +455,7 @@ const GoodSelectionRulesEditor = (props: GoodSelectionRulesEditorProps) => {
 
 	return (
 		<div class="good-selection-rules" data-good-selection-rules>
-			<div class="good-selection-rules__section-title">{ls()?.goodRules ?? 'Goods rules'}</div>
+			<div class="good-selection-rules__section-title">{ls().goodRules}</div>
 			<div class="good-selection-rules__toolbar">
 				<div class="good-selection-rules__toolbar-picker">
 					<GoodPickerButton
@@ -465,8 +465,8 @@ const GoodSelectionRulesEditor = (props: GoodSelectionRulesEditorProps) => {
 						disabled={
 							props.disabled || props.goodOptions.length === 0 || availableGoodsToAdd().length === 0
 						}
-						title={ls()?.addGoodRule ?? 'Add good rule'}
-						emptyMessage={ls()?.noGoodsToAdd ?? 'No goods left to add'}
+						title={ls().addGoodRule}
+						emptyMessage={ls().noGoodsToAdd}
 						onSelect={addGoodRuleFromPicker}
 					/>
 				</div>
@@ -500,16 +500,16 @@ const GoodSelectionRulesEditor = (props: GoodSelectionRulesEditorProps) => {
 								</span>
 								<span>
 									{rule.effect === 'allow'
-										? (ls()?.effectAllow ?? 'Allow')
-										: (ls()?.effectDeny ?? 'Deny')}
+										? ls().effectAllow
+										: ls().effectDeny}
 								</span>
 							</button>
 							<Button
 								icon={tablerFilledSquareRoundedMinus}
-								ariaLabel={ls()?.remove ?? 'Remove'}
+								ariaLabel={ls().remove}
 								disabled={props.disabled}
 								onClick={() => removeGoodRule(index)}
-								el:title={ls()?.remove ?? 'Remove'}
+								el:title={ls().remove}
 								el:class="good-selection-rules__remove-btn"
 								el:data-testid={`good-selection-remove-good-rule-${index}`}
 							/>
@@ -518,7 +518,7 @@ const GoodSelectionRulesEditor = (props: GoodSelectionRulesEditorProps) => {
 				</for>
 			</div>
 
-			<div class="good-selection-rules__section-title">{ls()?.tagRules ?? 'Tag rules'}</div>
+			<div class="good-selection-rules__section-title">{ls().tagRules}</div>
 			<div class="good-selection-rules__toolbar">
 				<div class="good-selection-rules__toolbar-picker">
 					<TagPickerButton
@@ -530,9 +530,9 @@ const GoodSelectionRulesEditor = (props: GoodSelectionRulesEditorProps) => {
 						disabled={
 							props.disabled || props.tagOptions.length === 0 || availableTagIdsToAdd().length === 0
 						}
-						title={ls()?.addTagRule ?? 'Add tag rule'}
-						ariaLabel={ls()?.addTagRule ?? 'Add tag rule'}
-						emptyMessage={ls()?.noTagsToAdd ?? 'No tags left to add'}
+						title={ls().addTagRule}
+						ariaLabel={ls().addTagRule}
+						emptyMessage={ls().noTagsToAdd}
 						onSelect={addTagRuleFromPicker}
 					/>
 				</div>
@@ -550,8 +550,8 @@ const GoodSelectionRulesEditor = (props: GoodSelectionRulesEditorProps) => {
 								class="good-selection-rules__tag-drag"
 								data-testid={`good-selection-tag-drag-${index}`}
 								disabled={props.disabled}
-								aria-label={ls()?.reorderTagRule ?? 'Reorder tag rule'}
-								title={ls()?.reorderTagRule ?? 'Reorder tag rule'}
+								aria-label={ls().reorderTagRule}
+								title={ls().reorderTagRule}
 								use={(target: Node | readonly Node[] | undefined) => {
 									const element = Array.isArray(target) ? target[0] : target
 									if (!(element instanceof HTMLElement)) return
@@ -592,16 +592,16 @@ const GoodSelectionRulesEditor = (props: GoodSelectionRulesEditorProps) => {
 								</span>
 								<span>
 									{rule.effect === 'allow'
-										? (ls()?.effectAllow ?? 'Allow')
-										: (ls()?.effectDeny ?? 'Deny')}
+										? ls().effectAllow
+										: ls().effectDeny}
 								</span>
 							</button>
 							<Button
 								icon={tablerFilledSquareRoundedMinus}
-								ariaLabel={ls()?.remove ?? 'Remove'}
+								ariaLabel={ls().remove}
 								disabled={props.disabled}
 								onClick={() => removeTagRule(index)}
-								el:title={ls()?.remove ?? 'Remove'}
+								el:title={ls().remove}
 								el:class="good-selection-rules__remove-btn"
 								el:data-testid={`good-selection-remove-tag-rule-${index}`}
 							/>
@@ -610,9 +610,9 @@ const GoodSelectionRulesEditor = (props: GoodSelectionRulesEditorProps) => {
 				</for>
 			</div>
 
-			<div class="good-selection-rules__section-title">{ls()?.fallback ?? 'Default'}</div>
+			<div class="good-selection-rules__section-title">{ls().fallback}</div>
 			<div class="good-selection-rules__fallback">
-				<span>{ls()?.fallbackHint ?? 'When no rule matches:'}</span>
+				<span>{ls().fallbackHint}</span>
 				<button
 					type="button"
 					class={[
@@ -635,8 +635,8 @@ const GoodSelectionRulesEditor = (props: GoodSelectionRulesEditorProps) => {
 					</span>
 					<span>
 						{state.defaultEffect === 'allow'
-							? (ls()?.effectAllow ?? 'Allow')
-							: (ls()?.effectDeny ?? 'Deny')}
+							? ls().effectAllow
+							: ls().effectDeny}
 					</span>
 				</button>
 			</div>

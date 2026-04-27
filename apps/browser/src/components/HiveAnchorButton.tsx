@@ -1,13 +1,13 @@
 import { css } from '@app/lib/css'
 import { showProps } from '@app/lib/follow-selection'
 import { mrg } from '@app/lib/globals'
+import { createSyntheticHiveObject } from '@app/lib/hive-inspector'
+import { isHoveredObject, setHoveredObject } from '@app/lib/interactive-state'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
 import { tablerOutlineHexagons } from 'pure-glyf/icons'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
 import type { InteractiveGameObject } from 'ssh/game/object'
-import { createSyntheticHiveObject } from 'ssh/hive'
-import { isHoveredObject, setHoveredObject } from 'ssh/interactive-state'
 
 css`
 .hive-anchor-button {

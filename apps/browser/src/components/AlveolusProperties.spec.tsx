@@ -67,8 +67,8 @@ vi.mock('ssh/construction', () => ({
 	queryConstructionSiteView,
 }))
 
-vi.mock('ssh/i18n', () => ({
-	i18nState: {
+vi.mock('@app/lib/i18n', () => {
+	const i18nState = {
 		translator: {
 			construction: {
 				section: 'Construction',
@@ -99,8 +99,12 @@ vi.mock('ssh/i18n', () => ({
 				removeLine: 'Remove line',
 			},
 		},
-	},
-}))
+	}
+	return {
+		i18nState,
+		getTranslator: () => i18nState.translator,
+	}
+})
 
 vi.mock('./InspectorObjectLink', () => ({
 	default: () => null,
@@ -169,7 +173,7 @@ describe('AlveolusProperties', () => {
 				container,
 				<table>
 					<tbody>
-						<AlveolusProperties content={undefined as never} game={{ freightLines: [] } as never} />
+						<AlveolusProperties content={undefined as never} game={{ freightLines: [], vehicles: [] } as never} />
 					</tbody>
 				</table>
 			)
@@ -206,6 +210,7 @@ describe('AlveolusProperties', () => {
 	it('opens the new freight line in the inspector after creating it from a bay', () => {
 		const game = {
 			freightLines: [] as { id: string; name: string; stops: unknown[] }[],
+			vehicles: [],
 			replaceFreightLine(line: { id: string; name: string; stops: unknown[] }) {
 				game.freightLines = [line]
 			},
@@ -226,12 +231,13 @@ describe('AlveolusProperties', () => {
 	})
 
 	it('updates the bay line list when freight lines change', () => {
-		findFreightLinesForStop.mockImplementation((lines: { id: string }[]) => lines as never)
 		const game = reactive({
 			freightLines: [] as { id: string; name: string; stops: unknown[] }[],
+			vehicles: [],
 			replaceFreightLine,
 			removeFreightLineById,
 		})
+		findFreightLinesForStop.mockImplementation(() => game.freightLines as never)
 		const bay = new MockStorageAlveolus()
 		stop = latch(
 			container,
@@ -258,7 +264,7 @@ describe('AlveolusProperties', () => {
 				<tbody>
 					<AlveolusProperties
 						content={bay as never}
-						game={{ freightLines: [], replaceFreightLine, removeFreightLineById } as never}
+						game={{ freightLines: [], vehicles: [], replaceFreightLine, removeFreightLineById } as never}
 					/>
 				</tbody>
 			</table>
@@ -282,7 +288,7 @@ describe('AlveolusProperties', () => {
 				<tbody>
 					<AlveolusProperties
 						content={new MockBuildAlveolus() as never}
-						game={{ freightLines: [] } as never}
+						game={{ freightLines: [], vehicles: [] } as never}
 					/>
 				</tbody>
 			</table>

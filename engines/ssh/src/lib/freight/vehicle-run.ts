@@ -18,7 +18,10 @@ import {
 } from 'ssh/freight/freight-line'
 import { scoreVehicleCandidate } from 'ssh/freight/vehicle-candidate-policy'
 import { dockedVehicleGoodsRelations } from 'ssh/freight/vehicle-freight-dock'
-import { syncFreightVehicleDockRegistration } from 'ssh/freight/vehicle-freight-dock-sync'
+import {
+	freightVehicleDockBay,
+	syncFreightVehicleDockRegistration,
+} from 'ssh/freight/vehicle-freight-dock-sync'
 import { pickVehicleZoneBrowseSelection } from 'ssh/freight/vehicle-zone-browse'
 import type { Game } from 'ssh/game/game'
 import type { Character } from 'ssh/population/character'
@@ -156,7 +159,7 @@ function findBeginServiceActionableWork(
 			if (!loadStop || !('zone' in loadStop) || loadStop.zone.kind !== 'radius') continue
 			if (!unloadStop) continue
 			const center: AxialCoord = { q: loadStop.zone.center[0], r: loadStop.zone.center[1] }
-			const vehicleCoord = toAxialCoord(vehicle.position)
+			const vehicleCoord = toAxialCoord(vehicle.effectivePosition)
 			if (!vehicleCoord || axial.distance(center, vehicleCoord) > loadStop.zone.radius) continue
 			for (const good of Object.keys(vehicle.storage.stock) as GoodType[]) {
 				if (vehicle.storage.available(good) <= 0) continue
@@ -165,7 +168,7 @@ function findBeginServiceActionableWork(
 				const target = freightStopTargetPosition(game, unloadStop)
 				if (!target) continue
 				const path = game.hex.findPathForCharacter(
-					vehicle.position,
+					vehicle.effectivePosition,
 					target,
 					character,
 					Number.POSITIVE_INFINITY,
@@ -188,7 +191,7 @@ function findBeginServiceActionableWork(
 				vehicle,
 				line,
 				zoneLoad,
-				vehicle.position
+				vehicle.effectivePosition
 			)
 			if (selection?.action !== 'load') continue
 			if (!best || selection.path.length < best.pathLen) {
@@ -241,7 +244,7 @@ export function pickInitialVehicleServiceCandidate(
 	for (const line of vehicle.servedLines) {
 		const actionable = findBeginServiceActionableWork(game, character, vehicle, line)
 		if (!actionable) continue
-		const distance = axialDistance(vehicle.position, actionable.target)
+		const distance = axialDistance(vehicle.effectivePosition, actionable.target)
 		const score = scoreVehicleCandidate({
 			kind: 'beginService',
 			urgency: jobBalance.vehicleBeginService,
@@ -376,17 +379,100 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 	_character: Character
 ): void {
 	const svc = vehicle.service
-	if (!isVehicleLineService(svc)) return
+	if (!isVehicleLineService(svc)) {
+		traces.vehicle.log?.('vehicleJob.dock.check', {
+			vehicleUid: vehicle.uid,
+			outcome: 'skip',
+			reason: 'not-line-service',
+		})
+		return
+	}
 	const stop = svc.stop
-	if (!('anchor' in stop)) return
-	const content = vehicle.tile.content
-	if (!(content instanceof Alveolus)) return
+	if (!('anchor' in stop)) {
+		traces.vehicle.log?.('vehicleJob.dock.check', {
+			vehicleUid: vehicle.uid,
+			lineId: svc.line.id,
+			stopId: stop.id,
+			outcome: 'skip',
+			reason: 'not-anchor-stop',
+		})
+		return
+	}
+	if (!vehicle.isDocked) {
+		traces.vehicle.log?.('vehicleJob.dock.check', {
+			vehicleUid: vehicle.uid,
+			lineId: svc.line.id,
+			stopId: stop.id,
+			outcome: 'skip',
+			reason: 'not-docked',
+			anchorCoord: stop.anchor.coord,
+		})
+		return
+	}
+	const content = freightVehicleDockBay(vehicle)
+	if (!(content instanceof Alveolus)) {
+		traces.vehicle.log?.('vehicleJob.dock.check', {
+			vehicleUid: vehicle.uid,
+			lineId: svc.line.id,
+			stopId: stop.id,
+			outcome: 'skip',
+			reason: 'not-alveolus-tile',
+			anchorCoord: 'anchor' in stop ? stop.anchor.coord : undefined,
+			vehicleEffectiveCoord: toAxialCoord(vehicle.effectivePosition),
+		})
+		return
+	}
 	const hive = content.hive
-	if (!hive) return
+	if (!hive) {
+		traces.vehicle.log?.('vehicleJob.dock.check', {
+			vehicleUid: vehicle.uid,
+			lineId: svc.line.id,
+			stopId: stop.id,
+			outcome: 'skip',
+			reason: 'no-hive',
+			anchorCoord: stop.anchor.coord,
+		})
+		return
+	}
 	const dock = hive.freightVehicleDockFor(vehicle.uid)
-	if (!dock) return
-	if (hive.hasPendingVehicleDockMovement(dock)) return
-	if (Object.keys(dockedVehicleGoodsRelations(vehicle, dock.bay)).length > 0) return
+	if (!dock) {
+		traces.vehicle.log?.('vehicleJob.dock.check', {
+			vehicleUid: vehicle.uid,
+			lineId: svc.line.id,
+			stopId: stop.id,
+			outcome: 'skip',
+			reason: 'no-dock-registration',
+			anchorCoord: stop.anchor.coord,
+		})
+		return
+	}
+	const pendingMovements = hive.pendingVehicleDockMovements(dock)
+	if (pendingMovements.length > 0) {
+		traces.vehicle.log?.('vehicleJob.dock.check', {
+			vehicleUid: vehicle.uid,
+			lineId: svc.line.id,
+			stopId: stop.id,
+			outcome: 'wait',
+			reason: 'pending-dock-movement',
+			anchorCoord: stop.anchor.coord,
+			pendingMovements,
+		})
+		return
+	}
+	const dockRelationsCount = Object.keys(dockedVehicleGoodsRelations(vehicle, dock.bay)).length
+	if (dockRelationsCount > 0) {
+		traces.vehicle.log?.('vehicleJob.dock.check', {
+			vehicleUid: vehicle.uid,
+			lineId: svc.line.id,
+			stopId: stop.id,
+			outcome: 'wait',
+			reason: 'dock-advertisements-open',
+			dockRelationsCount,
+			anchorCoord: stop.anchor.coord,
+			stock: vehicle.storage.stock,
+		})
+		return
+	}
 	const idx = svc.line.stops.findIndex((s) => s.id === stop.id)
 	const isLastStop = idx < 0 || idx >= svc.line.stops.length - 1
 	const hasStock = Object.values(vehicle.storage.stock).some((n) => (n ?? 0) > 0)
@@ -397,6 +483,8 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 		stopId: stop.id,
 		outcome: isLastStop ? (parkNext ? 'park-next' : 'end-service') : 'advance',
 		hasStock,
+		anchorCoord: stop.anchor.coord,
+		stock: vehicle.storage.stock,
 	})
 	advanceVehicleAfterDock(vehicle)
 	syncFreightVehicleDockRegistration(vehicle)
@@ -509,6 +597,7 @@ export function findVehicleEntityAtTile(
 	if (!key) return undefined
 	const rounded = { q: Math.round(key.q), r: Math.round(key.r) }
 	for (const v of game.vehicles) {
+		if (!v.position) continue
 		const p = toAxialCoord(v.position)
 		if (!p) continue
 		if (Math.round(p.q) === rounded.q && Math.round(p.r) === rounded.r) return v

@@ -4,7 +4,7 @@ import '@sursaut/kit/dom'
 import { profileInfo } from 'mutts'
 import { mount } from 'pure-glyf/icons'
 import { registerGlyfIconFactory } from 'pure-glyf/sursaut'
-import { initTranslator } from 'ssh/i18n'
+import { initTranslator } from '@app/lib/i18n'
 import App from './App'
 
 mount()

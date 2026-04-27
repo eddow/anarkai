@@ -75,7 +75,7 @@ export function withInteractive<T extends abstract new (...args: any[]) => GameO
 		abstract canInteract(action: string): boolean
 		abstract readonly title: string
 		abstract readonly debugInfo?: Record<string, any>
-		abstract readonly position: Position
+		abstract readonly position: Position | undefined
 		abstract readonly tile: Tile
 
 		destroy(): void {

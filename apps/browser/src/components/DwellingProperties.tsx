@@ -2,7 +2,7 @@ import { css } from '@app/lib/css'
 import { Badge } from '@app/ui/anarkai'
 import { effect, reactive } from 'mutts'
 import type { BasicDwelling } from 'ssh/board/content/basic-dwelling'
-import { i18nState } from 'ssh/i18n'
+import { getTranslator } from '@app/lib/i18n'
 import PropertyGridRow from './PropertyGridRow'
 
 css`
@@ -17,18 +17,6 @@ interface DwellingPropertiesProps {
 	content: BasicDwelling
 }
 
-const toDisplayText = (value: unknown, fallback = ''): string => {
-	switch (typeof value) {
-		case 'string':
-			return value
-		case 'number':
-		case 'boolean':
-			return `${value}`
-		default:
-			return fallback
-	}
-}
-
 const DwellingProperties = (props: DwellingPropertiesProps) => {
 	const state = reactive({
 		capacity: 0,
@@ -40,41 +28,24 @@ const DwellingProperties = (props: DwellingPropertiesProps) => {
 		state.occupied = Boolean(props.content?.reservedBy)
 	})
 
-	const residential = i18nState.translator as
-		| {
-				residential?: {
-					dwelling?: {
-						section?: string
-						tier?: string
-						tierBasic?: string
-						capacity?: string
-						occupied?: string
-						vacant?: string
-					}
-				}
-		  }
-		| undefined
 
 	return (
 		<>
-			<PropertyGridRow label={toDisplayText(residential?.dwelling?.section, 'Housing')}>
+			<PropertyGridRow label={String(getTranslator().residential.dwelling.section)}>
 				<div class="dwelling-properties">
 					<Badge tone="blue" data-testid="dwelling-tier">
-						{toDisplayText(residential?.dwelling?.tierBasic, 'basic_dwelling')}
+						{getTranslator().residential.dwelling.tierBasic}
 					</Badge>
 				</div>
 			</PropertyGridRow>
-			<PropertyGridRow label={toDisplayText(residential?.dwelling?.capacity, 'Capacity')}>
+			<PropertyGridRow label={String(getTranslator().residential.dwelling.capacity)}>
 				<Badge tone="yellow" data-testid="dwelling-capacity">
 					{state.capacity}
 				</Badge>
 			</PropertyGridRow>
-			<PropertyGridRow label={toDisplayText(residential?.dwelling?.occupied, 'Occupied')}>
+			<PropertyGridRow label={String(getTranslator().residential.dwelling.occupied)}>
 				<Badge tone={state.occupied ? 'red' : 'green'} data-testid="dwelling-occupied">
-					{toDisplayText(
-						state.occupied ? residential?.dwelling?.occupied : residential?.dwelling?.vacant,
-						state.occupied ? 'yes' : 'no'
-					)}
+					{state.occupied ? getTranslator().residential.dwelling.occupied : getTranslator().residential.dwelling.vacant}
 				</Badge>
 			</PropertyGridRow>
 		</>

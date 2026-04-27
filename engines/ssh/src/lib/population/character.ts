@@ -229,12 +229,13 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	}
 
 	get position(): Position {
-		return this._footPosition ?? this.operates?.position ?? this._tile.position
+		return this._footPosition ?? this.operates?.effectivePosition ?? this._tile.position
 	}
 
 	private positionTracePayload(event: string, nextPosition?: Position) {
 		const position = this.position
 		const vehiclePosition = this.operates?.position
+		const vehicleEffectivePosition = this.operates?.effectivePosition
 		const tilePosition = this._tile?.position
 		return {
 			event,
@@ -250,6 +251,8 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			footPositionId: debugObjectId(this._footPosition),
 			vehiclePosition: positionDebugCoord(vehiclePosition),
 			vehiclePositionId: debugObjectId(vehiclePosition),
+			vehicleEffectivePosition: positionDebugCoord(vehicleEffectivePosition),
+			vehicleEffectivePositionId: debugObjectId(vehicleEffectivePosition),
 			tileUid: this._tile?.uid,
 			tilePosition: positionDebugCoord(tilePosition),
 			tilePositionId: debugObjectId(tilePosition),
@@ -298,14 +301,14 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		const vehicle = this.operates
 		assert(vehicle, 'Character must have operates before boarding')
 		const characterHex = axial.round(toAxialCoord(this.position)!)
-		const vehicleHex = axial.round(toAxialCoord(vehicle.position)!)
+		const vehicleHex = axial.round(toAxialCoord(vehicle.effectivePosition)!)
 		assert(
 			axial.key(characterHex) === axial.key(vehicleHex),
 			`Character must be at vehicle position before boarding`
 		)
 		// While onboard, character position is fully delegated to the operated vehicle.
 		this._footPosition = undefined
-		this._tile = this.game.hex.getTile(axial.round(toAxialCoord(vehicle.position)))!
+		this._tile = this.game.hex.getTile(axial.round(toAxialCoord(vehicle.effectivePosition)))!
 	}
 
 	private regainFootPosition(position: Position): void {
@@ -341,7 +344,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			characterUid: this.uid,
 			vehicleUid: v.uid,
 		})
-		this.regainFootPosition(v.position)
+		this.regainFootPosition(v.effectivePosition)
 		this.operates = undefined
 		assertVehicleOperationConsistency(v, this)
 	}
@@ -354,7 +357,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	stepOffVehicleKeepingControl(): void {
 		const v = this.operates
 		assert(v, 'stepOffVehicleKeepingControl requires an operated vehicle')
-		this.regainFootPosition(v.position)
+		this.regainFootPosition(v.effectivePosition)
 		traces.vehicle.log?.('vehicleJob.offboard.keepControl', {
 			characterUid: this.uid,
 			vehicleUid: v.uid,
@@ -380,7 +383,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			characterUid: this.uid,
 			vehicleUid: v.uid,
 		})
-		this.regainFootPosition(this._footPosition ?? v.position)
+		this.regainFootPosition(this._footPosition ?? v.effectivePosition)
 		this.operates = undefined
 		assertVehicleOperationConsistency(v, this)
 	}

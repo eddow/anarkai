@@ -1,6 +1,8 @@
 import { css } from '@app/lib/css'
 import { showProps } from '@app/lib/follow-selection'
 import { mrg } from '@app/lib/globals'
+import type { SyntheticHiveObject } from '@app/lib/hive-inspector'
+import { isHoveredObject, setHoveredObject } from '@app/lib/interactive-state'
 import {
 	alveoli as visualAlveoli,
 	characters as visualCharacters,
@@ -13,8 +15,6 @@ import { Tile } from 'ssh/board/tile'
 import type { SyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import type { InspectorSelectableObject, InteractiveGameObject } from 'ssh/game/object'
 import { resolveSelectableHoverObject } from 'ssh/game/object'
-import type { SyntheticHiveObject } from 'ssh/hive'
-import { isHoveredObject, setHoveredObject } from 'ssh/interactive-state'
 import { Character } from 'ssh/population/character'
 import { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { computeStyleFromTexture } from 'ssh/utils/images'

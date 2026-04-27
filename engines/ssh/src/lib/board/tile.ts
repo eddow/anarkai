@@ -186,7 +186,9 @@ export class Tile extends withInteractive(GameObject) {
 		const coord = toAxialCoord(this.position)
 		const game = this.board.game
 		for (const vehicle of game.vehicles) {
-			const vp = toAxialCoord(vehicle.position)
+			const worldPosition = vehicle.position
+			if (!worldPosition) continue
+			const vp = toAxialCoord(worldPosition)
 			if (!vp) continue
 			if (Math.round(vp.q) !== coord.q || Math.round(vp.r) !== coord.r) continue
 			const svc = vehicle.service

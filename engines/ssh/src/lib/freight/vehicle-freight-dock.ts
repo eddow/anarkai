@@ -102,7 +102,7 @@ export function collectDockedVehicleAdvertisementCandidates(
 ): DockedVehicleAdvertisementCandidate[] {
 	const svc = vehicle.service
 	if (!isVehicleLineService(svc) || vehicle.vehicleType !== 'wheelbarrow') return []
-	if (!svc.docked) return []
+	if (!vehicle.isDocked) return []
 	if (bay.action?.type !== 'road-fret') return []
 
 	const { line, stop } = svc

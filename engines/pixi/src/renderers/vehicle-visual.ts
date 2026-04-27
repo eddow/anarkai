@@ -58,7 +58,10 @@ export class VehicleVisual extends VisualObject<VehicleEntity> {
 
 		this.register(
 			effect`vehicle.position:${this.object.uid}`(() => {
-				const world = toWorldCoord(this.object.position)
+				const position = this.object.position
+				this.view.visible = !!position
+				if (!position) return
+				const world = toWorldCoord(position)
 				if (world) {
 					this.view.position.set(world.x, world.y)
 					this.view.zIndex = world.y

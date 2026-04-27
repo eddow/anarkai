@@ -2,7 +2,7 @@
 	"compilerOptions": {
 		"composite": true,
 		"target": "ES2023",
-		"lib": ["ES2023", "DOM", "DOM.Iterable"],
+		"lib": ["ES2023"],
 		"module": "ESNext",
 		"moduleResolution": "bundler",
 		"allowSyntheticDefaultImports": true,
@@ -19,10 +19,6 @@
 		"noUnusedParameters": false,
 		"noFallthroughCasesInSwitch": true,
 		"sourceMap": true,
-		"jsx": "react",
-		"jsxFactory": "h",
-		"jsxFragmentFactory": "Fragment",
-		"types": ["vite/client"],
 		"paths": {
 			"ssh/*": ["./src/lib/*"],
 			"engine-rules": ["../rules/src/index.ts"],
@@ -32,21 +28,9 @@
 	},
 	"include": [
 		"src/**/*.ts",
-		"src/**/*.tsx",
 		"src/**/*.d.ts",
-		"tests/**/*.ts",
-		"sandbox/**/*.ts",
-		"sandbox/**/*.tsx",
 		"assets/**/*.ts",
-		"assets/**/*.tsx",
 		"../rules/src/**/*.ts",
-		"../terrain/src/**/*.ts",
-		"../pixi/assets/resources.ts",
-		"../../../ownk/mutts/src/**/*.ts",
-		"../../../ownk/npcs/src/**/*.ts",
-		"../../../ownk/omni18n/src/**/*.ts",
-		"../../../ownk/sursaut-ts/src/**/*.ts",
-		"../../../ownk/sursaut-ui/src/**/*.ts",
-		"../../../ownk/pure-glyf/src/**/*.ts"
+		"../terrain/src/**/*.ts"
 	]
 }

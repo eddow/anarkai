@@ -27,8 +27,9 @@ vi.mock('@app/ui/anarkai', () => ({
 	),
 }))
 
-vi.mock('ssh/i18n', () => ({
+vi.mock('@app/lib/i18n', () => ({
 	i18nState,
+	getTranslator: () => i18nState.translator,
 }))
 
 vi.mock('./PropertyGridRow', () => ({
@@ -79,12 +80,10 @@ describe('DwellingProperties', () => {
 		)
 
 		expect(container.textContent).toContain('Housing')
-		// `ssh/i18n` is mocked as a plain object in this suite, so omni18n-style reactivity wiring
-		// may not populate nested translator paths; the UI should still render stable fallbacks.
-		expect(container.textContent).toContain('basic_dwelling')
+		expect(container.textContent).toContain('Basic dwelling')
 		expect(container.textContent).toContain('Capacity')
 		expect(container.textContent).toContain('1')
 		expect(container.textContent).toContain('Occupied')
-		expect(container.textContent).toContain('no')
+		expect(container.textContent).toContain('Vacant')
 	})
 })

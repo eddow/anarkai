@@ -313,9 +313,35 @@ export const traces = new Proxy(traceCache, {
 	},
 }) as Record<string, TraceSink>
 
-if (typeof window !== 'undefined') {
-	// @ts-expect-error - for use in devtools
-	window.traces = traces
+type ConsoleTrapElement = {
+	id: string
+	style: { display: string }
+	setAttribute(name: string, value: string): void
+}
+
+type ConsoleTrapDocument = {
+	getElementById(id: string): unknown
+	createElement(tagName: string): ConsoleTrapElement
+	body: { appendChild(element: ConsoleTrapElement): void }
+}
+
+type BrowserDebugGlobal = typeof globalThis & {
+	traces?: typeof traces
+	window?: unknown
+	document?: ConsoleTrapDocument
+	addEventListener?: (type: string, listener: (event: ConsoleTrapEvent) => void) => void
+}
+
+type ConsoleTrapEvent = {
+	reason?: unknown
+	error?: unknown
+	message?: string
+}
+
+const browserGlobal = globalThis as BrowserDebugGlobal
+
+if (browserGlobal.window !== undefined) {
+	browserGlobal.traces = traces
 }
 
 //Object.assign(reactiveOptions, debugPreset)
@@ -341,8 +367,9 @@ reactiveOptions.onMemoizationDiscrepancy = (
 }
 
 export function initConsoleTrap() {
-	if (typeof window === 'undefined') return
-	if (document.getElementById('console-trap')) return
+	if (browserGlobal.window === undefined) return
+	const document = browserGlobal.document
+	if (!document || document.getElementById('console-trap')) return
 
 	const errors: { type: string; message: string }[] = []
 	const trap = document.createElement('div')
@@ -385,7 +412,7 @@ export function initConsoleTrap() {
 	}
 
 	// Capture unhandled promise rejections
-	window.addEventListener('unhandledrejection', (event) => {
+	browserGlobal.addEventListener?.('unhandledrejection', (event) => {
 		errors.push({
 			type: 'unhandledrejection',
 			message:
@@ -397,11 +424,13 @@ export function initConsoleTrap() {
 	})
 
 	// Capture uncaught exceptions
-	window.addEventListener('error', (event) => {
+	browserGlobal.addEventListener?.('error', (event) => {
 		errors.push({
 			type: 'uncaughterror',
 			message:
-				event.error instanceof Error ? (event.error.stack ?? event.error.message) : event.message,
+				event.error instanceof Error
+					? (event.error.stack ?? event.error.message)
+					: (event.message ?? ''),
 		})
 		update()
 	})

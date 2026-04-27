@@ -79,10 +79,15 @@ export default function GameWidget(
 			if (tryConsumeFreightMapPick(game, object)) return
 			handleProjectSelection(object)
 		},
-		objectDrag(tiles: Tile[], event: MouseEvent) {
+		objectDrag(tiles: Tile[], event: unknown) {
 			if (!interactionMode.selectedAction.startsWith('zone:')) return
 			handleZoningDrag(tiles)
-			if (!event.shiftKey) interactionMode.selectedAction = ''
+			const shift =
+				event !== null &&
+				typeof event === 'object' &&
+				'shiftKey' in event &&
+				Boolean((event as { shiftKey: boolean }).shiftKey)
+			if (!shift) interactionMode.selectedAction = ''
 		},
 	}
 

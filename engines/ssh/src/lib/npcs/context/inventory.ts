@@ -113,12 +113,13 @@ export class InventoryFunctions {
 		if (!vehicle) return false
 		if (!tile.isClear) return false
 		const tileCoord = toAxialCoord(tile.position)
-		const vehicleCoord = toAxialCoord(vehicle.position)
+		const vehicleCoord = toAxialCoord(vehicle.effectivePosition)
 		if (Math.round(vehicleCoord.q) !== tileCoord.q || Math.round(vehicleCoord.r) !== tileCoord.r) {
 			return false
 		}
 		for (const other of character.game.vehicles) {
 			if (other.uid === vehicle.uid) continue
+			if (!other.position) continue
 			const otherCoord = toAxialCoord(other.position)
 			if (Math.round(otherCoord.q) === tileCoord.q && Math.round(otherCoord.r) === tileCoord.r) {
 				return false

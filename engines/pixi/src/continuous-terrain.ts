@@ -1,3 +1,4 @@
+import { mrg } from '@app/lib/interactive-state'
 import { defer, effect, type ScopedCallback } from 'mutts'
 import {
 	Container,
@@ -11,7 +12,6 @@ import {
 } from 'pixi.js'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { RenderableTerrainTile } from 'ssh/game/game'
-import { mrg } from 'ssh/interactive-state'
 import { type AxialCoord, axial, cartesian, fromCartesian } from 'ssh/utils'
 import { tileSize } from 'ssh/utils/varied'
 import { setPixiName } from './debug-names'

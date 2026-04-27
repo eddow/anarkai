@@ -5,6 +5,7 @@ import {
 } from 'ssh/freight/vehicle-freight-dock'
 import type { GoodType } from 'ssh/types'
 import type { AxialCoord } from 'ssh/utils'
+import { toAxialCoord } from 'ssh/utils/position'
 
 /** Serialized freight endpoint for save/load (no runtime object refs). */
 export type SerializedFreightPartyRef =
@@ -27,9 +28,7 @@ export interface SerializedConveyMovement {
 }
 
 export function serializeFreightParty(party: FreightMovementParty): SerializedFreightPartyRef {
-	const tile = party.tile
-	const q = tile.position.q
-	const r = tile.position.r
+	const { q, r } = toAxialCoord(party.tile.position)
 	const coord = [q, r] as const
 	if (isVehicleFreightDock(party)) {
 		const dock = party as VehicleFreightDock

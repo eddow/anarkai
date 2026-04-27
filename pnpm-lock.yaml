@@ -124,6 +124,9 @@ importers:
       jsdom:
         specifier: ^27.4.0
         version: 27.4.0
+      magic-string:
+        specifier: ^0.30.21
+        version: 0.30.21
       pixi-stats:
         specifier: ^4.2.0
         version: 4.3.0
@@ -173,15 +176,6 @@ importers:
 
   engines/ssh:
     dependencies:
-      '@iconify-icons/material-symbols':
-        specifier: ^1.2.58
-        version: 1.2.58
-      '@iconify-icons/mdi':
-        specifier: ^1.2.48
-        version: 1.2.48
-      '@picocss/pico':
-        specifier: ^2.0.6
-        version: 2.1.1
       arktype:
         specifier: ^2.1.22
         version: 2.1.29
@@ -200,64 +194,19 @@ importers:
       npc-script:
         specifier: link:../../../ownk/npcs
         version: link:../../../ownk/npcs
-      omni18n:
-        specifier: link:../../../ownk/omni18n
-        version: link:../../../ownk/omni18n
       typescript:
         specifier: ~5.8.3
         version: 5.8.3
-      vite:
-        specifier: 7.3.1
-        version: 7.3.1(@types/node@25.0.10)(sass-embedded@1.97.1)(sass@1.97.1)(terser@5.44.1)(tsx@4.21.0)
       vitest:
         specifier: ^3.2.4
         version: 3.2.4(@types/node@25.0.10)(jsdom@27.4.0)(sass-embedded@1.97.1)(sass@1.97.1)(terser@5.44.1)(tsx@4.21.0)
     devDependencies:
-      '@babel/core':
-        specifier: ^7.28.4
-        version: 7.28.5
-      '@babel/plugin-proposal-decorators':
-        specifier: ^7.28.0
-        version: 7.28.0(@babel/core@7.28.5)
-      '@babel/plugin-transform-react-jsx':
-        specifier: ^7.27.1
-        version: 7.27.1(@babel/core@7.28.5)
-      '@babel/plugin-transform-typescript':
-        specifier: ^7.28.0
-        version: 7.28.5(@babel/core@7.28.5)
-      '@babel/preset-env':
-        specifier: ^7.28.3
-        version: 7.28.5(@babel/core@7.28.5)
-      '@babel/preset-react':
-        specifier: ^7.27.1
-        version: 7.28.5(@babel/core@7.28.5)
-      '@babel/preset-typescript':
-        specifier: ^7.27.1
-        version: 7.28.5(@babel/core@7.28.5)
       '@biomejs/biome':
         specifier: ^2.4.6
         version: 2.4.6
-      '@playwright/test':
-        specifier: ^1.57.0
-        version: 1.57.0
-      '@types/babel__core':
-        specifier: ^7.20.5
-        version: 7.20.5
       '@types/node':
         specifier: 25.0.10
         version: 25.0.10
-      magic-string:
-        specifier: ^0.30.21
-        version: 0.30.21
-      pixi-stats:
-        specifier: ^4.2.0
-        version: 4.3.0
-      sass-embedded:
-        specifier: ^1.93.3
-        version: 1.97.1
-      vite-plugin-babel:
-        specifier: ^1.3.2
-        version: 1.3.2(@babel/core@7.28.5)(vite@7.3.1(@types/node@25.0.10)(sass-embedded@1.97.1)(sass@1.97.1)(terser@5.44.1)(tsx@4.21.0))
 
   engines/terrain:
     dependencies:
@@ -1115,15 +1064,6 @@ packages:
       '@noble/hashes':
         optional: true
 
-  '@iconify-icons/material-symbols@1.2.58':
-    resolution: {integrity: sha512-v0ZfPXlmDcDPCejxhg5h2eHCEHClrpn+i44Ev766vkzPIEFRdgT+YK942KzyqBpH0RhKJfel4OZdL1DY1oa5Qg==}
-
-  '@iconify-icons/mdi@1.2.48':
-    resolution: {integrity: sha512-51bfNoRLhYDfxSu0Nyi/uRVq6q/tP4TyEc0vvuNwImrXpxrRJUAWJF2A36CfBkXm3hO9IBlph/CD/XNDJKgG6w==}
-
-  '@iconify/types@2.0.0':
-    resolution: {integrity: sha512-+wluvCrRhXrhyOmRDJ3q8mux9JkKy5SJ/v8ol2tu4FVjyYvtEzkc/3pK15ET6RKg4b4w4BmTk1+gsCUhf21Ykg==}
-
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
 
@@ -1233,9 +1173,6 @@ packages:
   '@parcel/watcher@2.5.1':
     resolution: {integrity: sha512-dfUnCxiN9H4ap84DvD2ubjw+3vUNpstxa0TneY/Paat8a3R4uQZDLSvWjmznAY/DoahqTHl9V46HF/Zs3F29pg==}
     engines: {node: '>= 10.0.0'}
-
-  '@picocss/pico@2.1.1':
-    resolution: {integrity: sha512-kIDugA7Ps4U+2BHxiNHmvgPIQDWPDU4IeU6TNRdvXQM1uZX+FibqDQT2xUOnnO2yq/LUHcwnGlu1hvf4KfXnMg==}
 
   '@pixi/colord@2.9.6':
     resolution: {integrity: sha512-nezytU2pw587fQstUu1AsJZDVEynjskwOL+kibwcdxsMBFqPsFFNA7xl0ii/gXuDi6M0xj3mfRJj8pBSc2jCfA==}
@@ -3604,16 +3541,6 @@ snapshots:
 
   '@exodus/bytes@1.15.0': {}
 
-  '@iconify-icons/material-symbols@1.2.58':
-    dependencies:
-      '@iconify/types': 2.0.0
-
-  '@iconify-icons/mdi@1.2.48':
-    dependencies:
-      '@iconify/types': 2.0.0
-
-  '@iconify/types@2.0.0': {}
-
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.5
@@ -3701,8 +3628,6 @@ snapshots:
       '@parcel/watcher-win32-ia32': 2.5.1
       '@parcel/watcher-win32-x64': 2.5.1
     optional: true
-
-  '@picocss/pico@2.1.1': {}
 
   '@pixi/colord@2.9.6': {}
 

@@ -41,7 +41,7 @@ export class PixiGameRenderer implements GameRenderer {
 		})
 	}
 
-	public async initialize(_element: HTMLElement) {
+	public async initialize(_element: unknown) {
 		if (this.isDestroyed) return
 
 		this.app = new Application()

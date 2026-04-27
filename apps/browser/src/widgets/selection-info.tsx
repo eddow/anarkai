@@ -6,6 +6,15 @@ import {
 } from '@app/lib/follow-selection'
 import { cancelFreightMapPick, freightMapPick } from '@app/lib/freight-map-pick'
 import { game, mrg, selectionState } from '@app/lib/globals'
+import {
+	createSyntheticHiveObjectForUid,
+	hiveInspectorTitle,
+	isHiveUid,
+	resolveHiveFromAnchorTile,
+	type SyntheticHiveObject,
+} from '@app/lib/hive-inspector'
+import { getTranslator } from '@app/lib/i18n'
+import { isHoveredObject, setHoveredObject } from '@app/lib/interactive-state'
 import { InspectorSection, Panel } from '@app/ui/anarkai'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
 import { effect } from 'mutts'
@@ -18,14 +27,6 @@ import {
 } from 'ssh/freight/freight-line'
 import type { InspectorSelectableObject, InteractiveGameObject } from 'ssh/game/object'
 import { resolveSelectableHoverObject } from 'ssh/game/object'
-import {
-	hiveInspectorTitle,
-	isHiveUid,
-	resolveHiveFromAnchorTile,
-	type SyntheticHiveObject,
-} from 'ssh/hive'
-import { i18nState } from 'ssh/i18n'
-import { isHoveredObject, setHoveredObject } from 'ssh/interactive-state'
 import { Character } from 'ssh/population/character'
 import { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { toWorldCoord } from 'ssh/utils/position'
@@ -132,7 +133,8 @@ const SelectionInfoWidget = (
 		},
 		get object() {
 			const uid = this.uid
-			return uid ? game.getObject(uid) : undefined
+			if (!uid) return undefined
+			return isHiveUid(uid) ? createSyntheticHiveObjectForUid(game, uid) : game.getObject(uid)
 		},
 		get logs() {
 			return this.object?.logs ?? []
@@ -297,9 +299,8 @@ const SelectionInfoWidget = (
 	}
 
 	const mapPick = () => freightMapPick.pending
-	const mapPickHint = () =>
-		i18nState.translator?.line?.mapPick?.pending ?? 'Click the map to finish the freight pick.'
-	const mapPickCancel = () => i18nState.translator?.line?.mapPick?.cancel ?? 'Cancel pick'
+	const mapPickHint = () => getTranslator().line.mapPick.pending
+	const mapPickCancel = () => getTranslator().line.mapPick.cancel
 
 	return (
 		<div
