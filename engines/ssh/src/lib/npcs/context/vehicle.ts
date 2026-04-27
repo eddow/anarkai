@@ -428,6 +428,10 @@ class VehicleFunctions {
 			character.tile
 		)
 		const result = character.scriptsContext.inventory.effectuate(action)
+		// `EffectuateResult.finished` runs only on successful completion, not on cancel.
+		result.finished(() => {
+			maybeAdvanceVehiclePastCompletedZoneStop(character.game, vehicle, character)
+		})
 		assertVehicleOperationConsistency(vehicle, character)
 		return result
 	}
@@ -486,6 +490,10 @@ class VehicleFunctions {
 			character.tile
 		)
 		const result = character.scriptsContext.inventory.effectuate(drop)
+		// `EffectuateResult.finished` runs only on successful completion, not on cancel.
+		result.finished(() => {
+			maybeAdvanceVehiclePastCompletedZoneStop(character.game, vehicle, character)
+		})
 		traceVehicleStockWithoutService(vehicle)
 		assertVehicleOperationConsistency(vehicle, character)
 		return result

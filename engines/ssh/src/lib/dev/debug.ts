@@ -53,18 +53,6 @@ const TRACE_VERB_RANK: Record<TraceVerb, number> = {
 	error: 3,
 }
 
-/** Known `traces.*` channels used across the engine. */
-const TRACE_CHANNEL_KEYS = [
-	'vehicle',
-	'npc',
-	'advertising',
-	'allocations',
-	'residential',
-	'script',
-	'characterNeeds',
-	'idleDiagnosis',
-] as const
-
 /** Default trace channel levels. Remove a key or call `setTraceLevel(name, undefined)` to disable it. When a new TraceSink is needed, adding its name here is enough */
 export const traceLevels: Partial<Record<string, TraceVerb>> = {
 	vehicle: 'log',
@@ -75,6 +63,9 @@ export const traceLevels: Partial<Record<string, TraceVerb>> = {
 	script: 'assert',
 	characterNeeds: 'assert',
 	idleDiagnosis: 'assert',
+	position: 'assert',
+	/** Missing keys, interpolation issues, and other `I18nClient.report` output. */
+	i18n: 'warn',
 }
 
 /**
@@ -82,7 +73,7 @@ export const traceLevels: Partial<Record<string, TraceVerb>> = {
  * Dev: configure `traceLevels`, `setTraceLevel(...)`, or assign a custom sink locally.
  */
 export function disconnectAllTraces(): void {
-	for (const key of TRACE_CHANNEL_KEYS) {
+	for (const key in traceLevels) {
 		delete traceCache[key]
 	}
 }

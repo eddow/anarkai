@@ -7,6 +7,7 @@ import { selectInspectorObject } from '@app/lib/follow-selection'
 import { effect, reactive } from 'mutts'
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import { queryConstructionSiteView } from 'ssh/construction'
+import { collectDockedVehiclesForBay, type DockedVehicleEntry } from 'ssh/freight/docked-vehicles'
 import {
 	createExplicitFreightLineDraftForFreightBay,
 	createSyntheticFreightLineObject,
@@ -21,6 +22,7 @@ import { StorageAlveolus } from 'ssh/hive/storage'
 import { isRoadFretAction } from 'ssh/hive/storage-action'
 import { i18nState } from 'ssh/i18n'
 import ConstructionProgressBar from './ConstructionProgressBar'
+import DockedVehicleList from './DockedVehicleList'
 import InspectorObjectLink from './InspectorObjectLink'
 import LinkedEntityControl from './LinkedEntityControl'
 import PropertyGridRow from './PropertyGridRow'
@@ -95,6 +97,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 		isFreightBay: false,
 		storageContent: undefined as StorageAlveolus | undefined,
 		lineObjects: [] as SyntheticFreightLineObject[],
+		dockedVehicles: [] as DockedVehicleEntry[],
 		resolvedGame: undefined as Game | undefined,
 		isBuildSite: false,
 		constructionPhaseLabel: '',
@@ -123,6 +126,10 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 				? findFreightLinesForStop(freightLines, content).map((line) =>
 						createSyntheticFreightLineObject(game, line)
 					)
+				: []
+		state.dockedVehicles =
+			game && content instanceof StorageAlveolus && state.isFreightBay
+				? collectDockedVehiclesForBay(game, content)
 				: []
 	})
 
@@ -249,6 +256,13 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 						</button>
 					</div>
 				</div>
+			</PropertyGridRow>
+
+			<PropertyGridRow
+				if={state.isFreightBay && state.dockedVehicles.length > 0}
+				label={i18nState.translator?.vehicle?.docked ?? 'Docked'}
+			>
+				<DockedVehicleList entries={state.dockedVehicles} showLineMeta />
 			</PropertyGridRow>
 
 			<PropertyGridRow

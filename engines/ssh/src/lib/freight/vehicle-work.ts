@@ -943,12 +943,12 @@ function findVehicleHopJobLineHop(game: Game, character: Character): VehicleHopJ
 	} else {
 		const targetPos = freightStopMovementTarget(game, character, line, stop)
 		if (!targetPos) return undefined
-		path =
-			game.hex.findPathForCharacter(character.position, targetPos, character, maxWalkTime, false) ??
-			[]
-		const sameTile =
-			axial.key(toAxialCoord(character.position)!) === axial.key(toAxialCoord(targetPos)!)
-		if (path.length === 0 && !sameTile) return undefined
+		const startPos = axial.round(toAxialCoord(character.position)!)
+		path = game.hex.findPathForCharacter(startPos, targetPos, character, maxWalkTime, false) ?? []
+		// Use rounded hex, not raw fractional keys: foot/vehicle position on a tile must match the
+		// anchor tile even when sub-hex coords differ from the tile center.
+		const sameHex = axial.key(startPos) === axial.key(axial.round(toAxialCoord(targetPos)!))
+		if (path.length === 0 && !sameHex) return undefined
 	}
 	return {
 		job: 'vehicleHop',
@@ -1020,21 +1020,27 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 			pick.stop,
 			vehicle.position
 		)
-		if (selection) {
-			path = selection.path
-			zoneBrowseAction = selection.action
-			goodType = selection.goodType
-			quantity = selection.quantity
-			targetCoord = toAxialCoord(selection.targetTile.position)!
-			adSource = selection.adSource
-			priorityTier = selection.priorityTier
-		}
+		if (!selection) return undefined
+		path = selection.path
+		zoneBrowseAction = selection.action
+		goodType = selection.goodType
+		quantity = selection.quantity
+		targetCoord = toAxialCoord(selection.targetTile.position)!
+		adSource = selection.adSource
+		priorityTier = selection.priorityTier
 	} else {
 		const targetPos = freightStopMovementTarget(game, character, pick.line, pick.stop)
 		if (targetPos) {
-			path =
-				game.hex.findPathForCharacter(vehicle.position, targetPos, character, maxWalkTime, false) ??
-				[]
+			const startPos = axial.round(toAxialCoord(vehicle.position)!)
+			path = game.hex.findPathForCharacter(startPos, targetPos, character, maxWalkTime, false) ?? []
+		}
+		// Match line-hop anchor: do not offer a 0-step drive to an anchor the vehicle is not on.
+		if ('anchor' in pick.stop) {
+			if (!targetPos) return undefined
+			const sameHex =
+				axial.key(axial.round(toAxialCoord(vehicle.position)!)) ===
+				axial.key(axial.round(toAxialCoord(targetPos)!))
+			if (path.length === 0 && !sameHex) return undefined
 		}
 	}
 	return {

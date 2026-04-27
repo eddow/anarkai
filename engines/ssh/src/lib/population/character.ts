@@ -1,10 +1,19 @@
 import { vehicles as vehicleRules } from 'engine-rules'
 import { inert, reactive, unwrap } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
+import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import type { Tile } from 'ssh/board/tile'
+import { debugObjectId, debugRawObjectId } from 'ssh/dev/debug-object-id'
 import { assertVehicleOperationConsistency } from 'ssh/freight/vehicle-invariants'
 import { releaseVehicleFreightWorkOnPlanInterrupt } from 'ssh/freight/vehicle-run'
+import { collectVehicleWorkPicks, isVehicleFreightJob } from 'ssh/freight/vehicle-work'
 import type { Game } from 'ssh/game'
+import { GameObject, withInteractive, withTicked } from 'ssh/game/object'
+import { gameIsaTypes } from 'ssh/npcs'
+import aCharacterContext from 'ssh/npcs/context'
+import { withScripted } from 'ssh/npcs/object'
+import type { ScriptExecution } from 'ssh/npcs/scripts'
+import type { ASingleStep } from 'ssh/npcs/steps'
 import {
 	activityUtilityConfig,
 	applyActivityHysteresis,
@@ -13,6 +22,7 @@ import {
 	type NextActivityKind,
 	type PlannerFindActionSnapshot,
 } from 'ssh/population/findNextActivity'
+import { releaseAllHomeReservations } from 'ssh/residential/housing-reservations'
 import type { Storage } from 'ssh/storage'
 import type { Job, WorkPlan } from 'ssh/types/base'
 import { type AxialCoord, axial, type Positioned } from 'ssh/utils'
@@ -28,6 +38,7 @@ import {
 } from '../../../assets/constants'
 import { assert, traceIdleDiagnosis, traces } from '../dev/debug.ts'
 import { traceProjection } from '../dev/trace.ts'
+import type { VehicleEntity } from './vehicle/entity'
 
 // Simple job scoring functions
 function calculateJobScore(_character: Character, job: Job): number {
@@ -94,16 +105,11 @@ function roundDiagnosticValue(value: number): number {
 	return Math.round(value * 1000) / 1000
 }
 
-import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
-import { collectVehicleWorkPicks, isVehicleFreightJob } from 'ssh/freight/vehicle-work'
-import { GameObject, withInteractive, withTicked } from 'ssh/game/object'
-import { gameIsaTypes } from 'ssh/npcs'
-import aCharacterContext from 'ssh/npcs/context'
-import { withScripted } from 'ssh/npcs/object'
-import type { ScriptExecution } from 'ssh/npcs/scripts'
-import type { ASingleStep } from 'ssh/npcs/steps'
-import { releaseAllHomeReservations } from 'ssh/residential/housing-reservations'
-import type { VehicleEntity } from './vehicle/entity'
+function positionDebugCoord(position: Positioned | undefined) {
+	if (!position) return undefined
+	const coord = toAxialCoord(position)
+	return coord ? { q: roundDiagnosticValue(coord.q), r: roundDiagnosticValue(coord.r) } : undefined
+}
 
 export interface RankedWorkCandidateSnapshot {
 	jobKind: Job['job']
@@ -226,13 +232,46 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		return this._footPosition ?? this.operates?.position ?? this._tile.position
 	}
 
+	private positionTracePayload(event: string, nextPosition?: Position) {
+		const position = this.position
+		const vehiclePosition = this.operates?.position
+		const tilePosition = this._tile?.position
+		return {
+			event,
+			uid: this.uid,
+			name: this.name,
+			driving: this.driving,
+			operatesUid: this.operates?.uid,
+			stepType: this.stepExecutor?.constructor.name,
+			position: positionDebugCoord(position),
+			positionId: debugObjectId(position),
+			rawPositionId: debugRawObjectId(position),
+			footPosition: positionDebugCoord(this._footPosition),
+			footPositionId: debugObjectId(this._footPosition),
+			vehiclePosition: positionDebugCoord(vehiclePosition),
+			vehiclePositionId: debugObjectId(vehiclePosition),
+			tileUid: this._tile?.uid,
+			tilePosition: positionDebugCoord(tilePosition),
+			tilePositionId: debugObjectId(tilePosition),
+			nextPosition: positionDebugCoord(nextPosition),
+			nextPositionId: debugObjectId(nextPosition),
+			nextRawPositionId: debugRawObjectId(nextPosition),
+		}
+	}
+
 	set position(value: Position) {
+		traces.position.log?.(
+			'character.position.set.before',
+			this.positionTracePayload('before', value)
+		)
 		if (this._footPosition) {
 			this._footPosition = reactive(value)
+			traces.position.log?.('character.position.set.after', this.positionTracePayload('after'))
 			return
 		}
 		assert(this.operates, 'position set requires an operated vehicle')
 		this.operates.position = reactive(value)
+		traces.position.log?.('character.position.set.after', this.positionTracePayload('after'))
 	}
 
 	constructor(

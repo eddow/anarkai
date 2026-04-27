@@ -586,7 +586,7 @@ describe('Vehicle begin-service arbitration', () => {
 		expect(bay.nextJob()).toBeUndefined()
 	})
 
-	it('vehicleHopPrepare ends an empty gather service instead of advancing to the bay', async () => {
+	it('vehicleHopPrepare advances an empty completed gather service to the bay', async () => {
 		const patches = {
 			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
 			freightLines: [
@@ -633,9 +633,11 @@ describe('Vehicle begin-service arbitration', () => {
 
 		vf.vehicleHopPrepare(plan)
 
-		expect(plan.vehicleHopRunEnded).toBe(true)
-		expect(plan.vehicleHopReplanRequired).toBe(false)
-		expect(vehicle.service).toBeUndefined()
+		expect(plan.vehicleHopRunEnded).toBeUndefined()
+		expect(plan.vehicleHopReplanRequired).toBe(true)
+		expect(isVehicleLineService(vehicle.service)).toBe(true)
+		if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
+		expect(vehicle.service.stop.id).toBe(line.stops[1]!.id)
 	})
 
 	it('anchor vehicleHopDockStep keeps the operator linked until the dock step finishes', async () => {

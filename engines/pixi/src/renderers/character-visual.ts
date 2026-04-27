@@ -1,5 +1,7 @@
 import { effect } from 'mutts'
 import { ColorMatrixFilter, Sprite, Texture } from 'pixi.js'
+import { traces } from 'ssh/dev/debug'
+import { debugObjectId, debugRawObjectId } from 'ssh/dev/debug-object-id'
 import type { Character } from 'ssh/population/character'
 import { toWorldCoord } from 'ssh/utils/position'
 import { scopedPixiName, setPixiName } from '../debug-names'
@@ -34,15 +36,42 @@ export class CharacterVisual extends VisualObject<Character> {
 
 		this.register(
 			effect`character.world:${this.object.uid}`(() => {
+				const before = { x: this.view.position.x, y: this.view.position.y }
+				const position = this.object.position
 				if (this.object.driving) {
 					this.view.visible = false
+					traces.position.log?.('character.visual.effect', {
+						event: 'driving-hidden',
+						uid: this.object.uid,
+						name: this.object.name,
+						driving: true,
+						operatesUid: this.object.operates?.uid,
+						positionId: debugObjectId(position),
+						rawPositionId: debugRawObjectId(position),
+						visualBefore: before,
+						visualAfter: { x: this.view.position.x, y: this.view.position.y },
+						visible: this.view.visible,
+					})
 					return
 				}
 				this.view.visible = true
-				const world = toWorldCoord(this.object.position)
+				const world = toWorldCoord(position)
 				if (!world) return
 				this.view.position.set(world.x, world.y)
 				this.view.zIndex = world.y
+				traces.position.log?.('character.visual.effect', {
+					event: 'position-sync',
+					uid: this.object.uid,
+					name: this.object.name,
+					driving: false,
+					operatesUid: this.object.operates?.uid,
+					positionId: debugObjectId(position),
+					rawPositionId: debugRawObjectId(position),
+					world: { x: world.x, y: world.y },
+					visualBefore: before,
+					visualAfter: { x: this.view.position.x, y: this.view.position.y },
+					visible: this.view.visible,
+				})
 			})
 		)
 

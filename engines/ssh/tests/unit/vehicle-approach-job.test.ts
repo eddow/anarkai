@@ -197,7 +197,7 @@ describe('findVehicleApproachJob', () => {
 		expect(findVehicleHopJob(game, character)).toBeUndefined()
 	})
 
-	it('ends an empty gather-zone service instead of advancing it to the bay', async () => {
+	it('advances an empty completed gather zone service to the unload stop (same as vehicleHopPrepare replan)', async () => {
 		const line = gatherFreightLine({
 			id: 'VA:empty-gather',
 			name: 'Empty gather',
@@ -235,8 +235,10 @@ describe('findVehicleApproachJob', () => {
 
 		maybeAdvanceVehiclePastCompletedZoneStop(game, vehicle, character)
 
-		expect(vehicle.service).toBeUndefined()
-		expect(character.operates).toBeUndefined()
+		expect(isVehicleLineService(vehicle.service)).toBe(true)
+		if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
+		expect(vehicle.service.stop.id).toBe(line.stops[1]!.id)
+		expect(character.operates?.uid).toBe(vehicle.uid)
 	})
 
 	it('aborts a stale approach when another worker operates the vehicle', async () => {

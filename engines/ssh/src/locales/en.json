@@ -58,7 +58,8 @@
 			"defragment": "Defragment",
 			"loadOntoVehicle": "Load onto vehicle",
 			"vehicleOffload": "Vehicle offload",
-			"vehicleHop": "Freight line hop"
+			"vehicleHop": "Freight line hop",
+			"zoneBrowse": "Zone browse"
 		},
 		"operates": "Operates"
 	},

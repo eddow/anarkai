@@ -14,6 +14,7 @@ import {
 	freightStopMovementTarget,
 	pickInitialVehicleServiceCandidate,
 	previewInitialVehicleService,
+	projectedLineStopForVehicleHop,
 } from 'ssh/freight/vehicle-run'
 import {
 	findVehicleBeginServiceJob,
@@ -21,6 +22,7 @@ import {
 	findVehicleOffloadJob,
 	findZoneBrowseJob,
 } from 'ssh/freight/vehicle-work'
+import { chopSaw } from 'ssh/game/exampleGames'
 import type { GamePatches } from 'ssh/game/game'
 import { Game } from 'ssh/game/game'
 import type { StorageAlveolus } from 'ssh/hive/storage'
@@ -690,9 +692,67 @@ describe('Vehicle zone hop semantics', () => {
 		const step = character.scriptsContext.vehicle.vehicleZoneBrowseTransferStep(plan)
 
 		expect(step).toBeTruthy()
+		step?.finish()
+		expect(isVehicleLineService(vehicle.service)).toBe(true)
+		if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
+		expect(vehicle.service.stop.id).toBe(line.stops[1]!.id)
+		expect(vehicle.storage.available('wood')).toBe(1)
+	})
+
+	it('canceled zoneBrowse transfer keeps the current zone stop', async () => {
+		const patches = {
+			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
+			looseGoods: [{ goodType: 'wood' as const, position: { q: 0, r: 0 } }],
+			freightLines: [
+				gatherFreightLine({
+					id: 'VH:native-dispatch-cancel',
+					name: 'Native dispatch cancel',
+					hiveName: 'H',
+					coord: [0, 0],
+					filters: ['wood'],
+					radius: 1,
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 94118, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines[0]!
+		const stop = line.stops[0]!
+		const vehicle = game.vehicles.createVehicle('vnative-cancel', 'wheelbarrow', { q: 0, r: 0 }, [
+			line,
+		])
+		const character = game.population.createCharacter('NativeCancel', { q: 0, r: 0 })
+		vehicle.beginLineService(line, stop, character)
+		character.operates = vehicle
+		const plan: WorkPlan = {
+			type: 'work',
+			job: 'zoneBrowse',
+			vehicleUid: vehicle.uid,
+			target: vehicle,
+			path: [],
+			lineId: line.id,
+			stopId: stop.id,
+			zoneBrowseAction: 'load',
+			goodType: 'wood',
+			quantity: 1,
+			targetCoord: { q: 0, r: 0 },
+			adSource: 'hive',
+			priorityTier: 'pureLine',
+			urgency: 1,
+			fatigue: 0,
+		}
+
+		const step = character.scriptsContext.vehicle.vehicleZoneBrowseTransferStep(plan)
+
+		expect(step).toBeTruthy()
 		step?.cancel()
 		expect(character.operates?.uid).toBe(vehicle.uid)
 		expect(vehicle.operator?.uid).toBe(character.uid)
+		expect(isVehicleLineService(vehicle.service)).toBe(true)
+		if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
+		expect(vehicle.service.stop.id).toBe(stop.id)
 	})
 
 	it('non-vehicle work plan releases stale vehicle usage before preparing work', async () => {
@@ -773,6 +833,127 @@ describe('Vehicle zone hop semantics', () => {
 		expect(character.operates).toBeUndefined()
 		expect(toAxialCoord(character.position)).toMatchObject({ q: 1, r: 0 })
 		expect(toAxialCoord(character.tile.position)).toMatchObject({ q: 1, r: 0 })
+	})
+
+	it('anchor line hop: sub-hex position still matches unload tile (empty path allowed)', async () => {
+		const patches = {
+			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
+			hives: [
+				{
+					name: 'SubHexH',
+					alveoli: [
+						{ coord: [0, 0] as const, alveolus: 'freight_bay', goods: {} },
+						{ coord: [1, 0] as const, alveolus: 'sawmill', goods: {} },
+					],
+				},
+			],
+			freightLines: [
+				gatherFreightLine({
+					id: 'SubHexH:implicit-gather:0,0',
+					name: 'Sub-hex test',
+					hiveName: 'SubHexH',
+					coord: [0, 0],
+					filters: ['wood'],
+					radius: 2,
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 9416, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines[0]!
+		const unload = line.stops[1]!
+		const vehicle = game.vehicles.createVehicle('v-subhex', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		vehicle.storage.addGood('wood', 1)
+		const character = game.population.createCharacter('SubHex', { q: 0, r: 0 })
+		vehicle.beginLineService(line, unload, character)
+		character.operates = vehicle
+		character.onboard()
+
+		const targetPos = freightStopMovementTarget(game, character, line, unload)
+		expect(targetPos).toBeDefined()
+		// On the same hex, foot/vehicle coords can differ from the tile center; raw axial keys differ.
+		const frac = { q: 0.14, r: 0.09 }
+		character.position = frac
+		vehicle.position = frac
+		expect(
+			axial.key(toAxialCoord(character.position)!) === axial.key(toAxialCoord(targetPos!))
+		).toBe(false)
+
+		const hop = findVehicleHopJob(game, character)
+		expect(hop?.job).toBe('vehicleHop')
+		expect(hop?.lineId).toBe(line.id)
+		expect(hop?.stopId).toBe(unload.id)
+		expect(hop?.dockEnter).toBe(true)
+	})
+
+	it('projects a reclaimed completed zone stop to the next line stop', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'grass' as const },
+				{ coord: [2, 0] as const, terrain: 'grass' as const },
+			],
+			hives: [
+				{
+					name: 'NoZoneTargetH',
+					alveoli: [{ coord: [0, 0] as const, alveolus: 'freight_bay', goods: {} }],
+				},
+			],
+			freightLines: [
+				gatherFreightLine({
+					id: 'NoZoneTargetH:implicit-gather:0,0',
+					name: 'No zone target',
+					hiveName: 'NoZoneTargetH',
+					coord: [0, 0],
+					filters: ['wood'],
+					radius: 2,
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 9417, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines[0]!
+		const vehicle = game.vehicles.createVehicle('v-no-zone-target', 'wheelbarrow', { q: 0, r: 0 }, [
+			line,
+		])
+		vehicle.beginLineService(line, line.stops[0]!)
+		const character = game.population.createCharacter('NoZoneTarget', { q: 2, r: 0 })
+
+		const projected = projectedLineStopForVehicleHop(game, character, vehicle)
+		expect(projected?.stop.id).toBe(line.stops[1]!.id)
+		const hop = findVehicleHopJob(game, character)
+		expect(hop?.job).toBe('vehicleHop')
+		expect(hop?.stopId).toBe(line.stops[1]!.id)
+		expect(hop?.dockEnter).toBe(true)
+	})
+
+	it('offers the ChopSaw unload hop after loading wood in the gather zone', async () => {
+		game = new Game({ terrainSeed: 9418, characterCount: 0 }, chopSaw)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines.find(
+			(candidate) => candidate.id === 'ChopSaw:implicit-gather:11,-7'
+		)
+		if (!line) throw new Error('expected ChopSaw implicit gather line')
+		const unload = line.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
+		if (!unload) throw new Error('expected ChopSaw unload stop')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
+		// Sub-hex coords from a live ChopSaw play session (wheelbarrow mid-hex after walk.enter).
+		vehicle.position = { q: 8.977690590103157, r: -6.566562716988846 }
+		vehicle.storage.addGood('wood', 1)
+		vehicle.beginLineService(line, unload)
+		const character = game.population.createCharacter('ChopSawReclaim', { q: 9, r: -7 })
+
+		const hop = findVehicleHopJob(game, character)
+		expect(hop?.job).toBe('vehicleHop')
+		expect(hop?.stopId).toBe(unload.id)
+		expect(hop?.dockEnter).toBe(true)
+		expect(hop?.path.length).toBeGreaterThan(0)
 	})
 
 	it('unfinished maintenance service without operator is offered to another worker', async () => {

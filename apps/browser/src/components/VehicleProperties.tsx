@@ -49,6 +49,21 @@ css`
 	min-width: 0;
 }
 
+.vehicle-properties__status {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.5rem;
+	height: 1.5rem;
+	border-radius: 9999px;
+	border: 1px solid color-mix(in srgb, var(--ak-accent, #8b5cf6) 35%, transparent);
+	background: color-mix(in srgb, var(--ak-accent, #8b5cf6) 12%, var(--ak-surface-panel));
+	color: var(--ak-text);
+	font-size: 0.8rem;
+	font-weight: 700;
+	line-height: 1;
+}
+
 /* Match CharacterProperties ranked-work rows (operator’s job list). */
 .vehicle-work__list {
 	display: flex;
@@ -184,7 +199,10 @@ function describeVehicleWorkTarget(pick: VehicleWorkPick): string {
 	}
 }
 
-const VehicleProperties = (props: VehiclePropertiesProps, scope: { setTitle?: (title: string) => void }) => {
+const VehicleProperties = (
+	props: VehiclePropertiesProps,
+	scope: { setTitle?: (title: string) => void }
+) => {
 	const computed = {
 		get stock() {
 			return props.vehicle?.storage?.stock ?? {}
@@ -196,6 +214,11 @@ const VehicleProperties = (props: VehiclePropertiesProps, scope: { setTitle?: (t
 			const svc = props.vehicle?.service
 			if (!isVehicleLineService(svc)) return undefined
 			return createSyntheticFreightLineObject(props.vehicle.game, svc.line)
+		},
+		get dockedStatusLabel() {
+			const svc = props.vehicle?.service
+			if (!isVehicleLineService(svc) || !svc.docked) return ''
+			return i18nState.translator?.vehicle?.docked ?? 'Docked'
 		},
 		get serviceSummaryText(): string {
 			const v = props.vehicle
@@ -211,9 +234,9 @@ const VehicleProperties = (props: VehiclePropertiesProps, scope: { setTitle?: (t
 				return i18nState.translator?.vehicle?.idle ?? 'Idle'
 			}
 			if (isVehicleLineService(svc)) {
-				const docked = svc.docked ?
-						(i18nState.translator?.vehicle?.docked ?? 'Docked')
-					:	(i18nState.translator?.vehicle?.underway ?? 'Underway')
+				const docked = svc.docked
+					? (i18nState.translator?.vehicle?.docked ?? 'Docked')
+					: (i18nState.translator?.vehicle?.underway ?? 'Underway')
 				const stopLabel = i18nState.translator?.line?.stop ?? 'Stop'
 				return `${svc.line.name} · ${stopLabel} ${svc.stop.id} · ${docked}`
 			}
@@ -281,6 +304,14 @@ const VehicleProperties = (props: VehiclePropertiesProps, scope: { setTitle?: (t
 						text={props.vehicle.title}
 						height={32}
 					/>
+					<span
+						if={computed.dockedStatusLabel}
+						class="vehicle-properties__status"
+						title={computed.dockedStatusLabel}
+						aria-label={computed.dockedStatusLabel}
+					>
+						●
+					</span>
 				</div>
 				<InspectorSection>
 					<PropertyGrid>
@@ -306,7 +337,9 @@ const VehicleProperties = (props: VehiclePropertiesProps, scope: { setTitle?: (t
 								<LinkedEntityControl object={computed.lineServiceObject!} />
 								<InspectorObjectLink object={computed.lineServiceObject!} />
 							</div>
-							<span else class="vehicle-properties__service-text">{computed.serviceSummaryText}</span>
+							<span else class="vehicle-properties__service-text">
+								{computed.serviceSummaryText}
+							</span>
 						</PropertyGridRow>
 					</PropertyGrid>
 				</InspectorSection>
@@ -318,12 +351,7 @@ const VehicleProperties = (props: VehiclePropertiesProps, scope: { setTitle?: (t
 							<div class="vehicle-work__list">
 								<for each={computed.workChoices}>
 									{(choice) => (
-										<div
-											class={[
-												'vehicle-work__item',
-											]}
-											data-testid="vehicle-ranked-work"
-										>
+										<div class={['vehicle-work__item']} data-testid="vehicle-ranked-work">
 											<LinkedEntityControl
 												if={resolveWorkTarget(choice)}
 												object={resolveWorkTarget(choice)!}

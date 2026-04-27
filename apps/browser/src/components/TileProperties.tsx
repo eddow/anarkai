@@ -28,6 +28,7 @@ import HiveAnchorButton from './HiveAnchorButton'
 import PropertyGrid from './PropertyGrid'
 import PropertyGridRow from './PropertyGridRow'
 import StoredGoodsRow from './storage/StoredGoodsRow'
+import TileWorkProperties from './TileWorkProperties'
 import UnBuiltProperties from './UnBuiltProperties'
 
 css`
@@ -262,7 +263,7 @@ const TileProperties = (props: TilePropertiesProps) => {
 			{(state.contentInfo?.type || state.contentInfo?.sprite) && (
 				<div class="tile-properties__header">
 					<EntityBadge
-						game={currentGame()}
+						game={currentGame()!}
 						sprite={state.contentInfo.sprite ?? ''}
 						text={state.contentInfo.name ?? ''}
 						height={32}
@@ -303,7 +304,7 @@ const TileProperties = (props: TilePropertiesProps) => {
 						<PropertyGridRow label={String(i18nState.translator?.goods.stored ?? '')}>
 							<GoodsList
 								goods={state.storedGoods}
-								game={currentGame()}
+								game={currentGame()!}
 								getBadgeProps={(g) => ({ qty: state.stock?.[g] ?? 0 })}
 							/>
 						</PropertyGridRow>
@@ -356,7 +357,7 @@ const TileProperties = (props: TilePropertiesProps) => {
 						<PropertyGridRow label={String(i18nState.translator?.goods.loose ?? '')}>
 							<GoodsList
 								goods={state.looseGoods}
-								game={currentGame()}
+								game={currentGame()!}
 								getBadgeProps={(g) => ({ qty: state.freeStock[g] })}
 							/>
 						</PropertyGridRow>
@@ -373,6 +374,7 @@ const TileProperties = (props: TilePropertiesProps) => {
 					) : null}
 				</PropertyGrid>
 			</InspectorSection>
+			<TileWorkProperties tile={currentTile()} />
 		</div>
 	)
 }

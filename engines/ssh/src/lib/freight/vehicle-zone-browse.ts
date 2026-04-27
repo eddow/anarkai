@@ -79,10 +79,16 @@ function pathToTile(
 	const targetCoord = toAxialCoord(targetTile.position)
 	const startCoord = toAxialCoord(startPos)
 	if (!targetCoord || !startCoord) return undefined
-	if (axial.key(targetCoord) === axial.key(startCoord)) return []
+	const roundedStart = axial.round(startCoord)
+	if (axial.key(targetCoord) === axial.key(roundedStart)) return []
 	return (
-		game.hex.findPathForCharacter(startPos, targetTile.position, character, maxWalkTime, true) ??
-		undefined
+		game.hex.findPathForCharacter(
+			roundedStart,
+			targetTile.position,
+			character,
+			maxWalkTime,
+			true
+		) ?? undefined
 	)
 }
 

@@ -195,6 +195,7 @@ export abstract class AEvolutionStep extends ASingleStep {
 	evolution = 0
 	evolve(_evolution: number, _dt: number): void {}
 	tick(dt: number): number | undefined {
+		if (dt === 0) return undefined
 		this.evolution += dt / this.duration
 		if (this.evolution >= 1) {
 			this.evolve(1, this.evolution - 1)

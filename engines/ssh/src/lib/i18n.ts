@@ -6,6 +6,7 @@ import {
 	type TextKey,
 	type Translator,
 } from 'omni18n/ts/s-a'
+import { traces } from 'ssh/dev/debug'
 
 export const locales = ['en', 'fr'] as const
 export type Locale = (typeof locales)[number]
@@ -26,7 +27,9 @@ class ClientSideClient extends I18nClient {
 		const id = String(key)
 		if (reportedTranslationErrorKeys.has(id)) return
 		reportedTranslationErrorKeys.add(id)
-		console.warn(`Translation error for key "${key}": ${error}`, spec)
+		const message = `Translation error for key "${key}": ${error}`
+		const detail = { key, error, spec }
+		traces.i18n.warn?.(message, detail)
 	}
 }
 

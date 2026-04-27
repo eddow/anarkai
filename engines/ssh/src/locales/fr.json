@@ -58,7 +58,8 @@
 			"defragment": "Défragmenter",
 			"loadOntoVehicle": "Charger sur le véhicule",
 			"vehicleOffload": "Déchargement véhicule",
-			"vehicleHop": "Saut de ligne fret"
+			"vehicleHop": "Saut de ligne fret",
+			"zoneBrowse": "Parcours de zone"
 		},
 		"operates": "Opère"
 	},

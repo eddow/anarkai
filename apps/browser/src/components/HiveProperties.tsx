@@ -8,6 +8,7 @@ import { InspectorSection } from '@app/ui/anarkai'
 import { goods as visualGoods } from 'engine-pixi/assets/visual-content'
 import { effect, reactive } from 'mutts'
 import { queryConstructionSiteView } from 'ssh/construction'
+import { collectDockedVehiclesForHive, type DockedVehicleEntry } from 'ssh/freight/docked-vehicles'
 import { resolveHiveFromAnchorTile, type SyntheticHiveObject } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
 import { i18nState } from 'ssh/i18n'
@@ -15,6 +16,7 @@ import type { GoodType } from 'ssh/types/base'
 import type { ExchangePriority } from 'ssh/utils/advertisement'
 import { summarizeHiveGoodsRelations } from './alveolus-summary'
 import ConstructionProgressBar from './ConstructionProgressBar'
+import DockedVehicleList from './DockedVehicleList'
 import EntityBadge from './EntityBadge'
 import PropertyGrid from './PropertyGrid'
 import PropertyGridRow from './PropertyGridRow'
@@ -123,6 +125,7 @@ const HiveProperties = (props: HivePropertiesProps) => {
 		working: true,
 		entries: [] as ReturnType<typeof summarizeHiveGoodsRelations>,
 		buildSites: [] as HiveBuildSiteEntry[],
+		dockedVehicles: [] as DockedVehicleEntry[],
 	})
 	const currentHive = () =>
 		resolveHiveFromAnchorTile(props.hiveObject.game, props.hiveObject.anchorTileUid)
@@ -134,6 +137,7 @@ const HiveProperties = (props: HivePropertiesProps) => {
 			state.working = false
 			state.entries = []
 			state.buildSites = []
+			state.dockedVehicles = []
 			return
 		}
 		state.hiveName = hive.name?.trim() ?? ''
@@ -146,6 +150,7 @@ const HiveProperties = (props: HivePropertiesProps) => {
 				goodsRelations: alveolus.goodsRelations,
 			}))
 		)
+		state.dockedVehicles = collectDockedVehiclesForHive(props.hiveObject.game, hive)
 		const constructionTranslator = i18nState.translator as ConstructionTranslatorShape | undefined
 		state.buildSites = Array.from(hive.alveoli)
 			.filter((alveolus): alveolus is BuildAlveolus => alveolus instanceof BuildAlveolus)
@@ -285,6 +290,12 @@ const HiveProperties = (props: HivePropertiesProps) => {
 							}}
 						</for>
 					</div>
+				</PropertyGridRow>
+				<PropertyGridRow
+					if={state.dockedVehicles.length > 0}
+					label={i18nState.translator?.vehicle?.docked ?? 'Docked'}
+				>
+					<DockedVehicleList entries={state.dockedVehicles} showLineMeta />
 				</PropertyGridRow>
 				<PropertyGridRow
 					if={state.buildSites.length > 0}

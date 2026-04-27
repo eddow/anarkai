@@ -29,10 +29,6 @@ import { type AxialCoord, axial } from 'ssh/utils/axial'
 import { axialDistance, type Position, toAxialCoord } from 'ssh/utils/position'
 import { assert, traces } from '../dev/debug.ts'
 
-function vehicleHasStock(vehicle: VehicleEntity): boolean {
-	return Object.values(vehicle.storage.stock).some((n) => (n ?? 0) > 0)
-}
-
 /**
  * `parkVehicle` is only meaningful when the current hex matters for the board independently of the
  * wheelbarrow itself. A clean `UnBuiltLand` rest tile is fine; alveoli, projects, residential, and
@@ -343,11 +339,7 @@ function shouldAdvancePastZoneStop(
 	stop: FreightStop & { zone: FreightZoneDefinitionRadius }
 ): boolean {
 	if (pickVehicleZoneBrowseSelection(game, character, vehicle, line, stop)) return false
-	const stopIndex = line.stops.findIndex((candidate) => candidate.id === stop.id)
-	const isGatherLoadStop = findGatherRouteSegments(line).some(
-		(segment) => segment.loadStopIndex === stopIndex
-	)
-	return !isGatherLoadStop || vehicleHasStock(vehicle)
+	return true
 }
 
 /**
@@ -364,23 +356,6 @@ export function maybeAdvanceVehiclePastCompletedZoneStop(
 	const { line, stop } = svc
 	if (!('zone' in stop) || stop.zone.kind !== 'radius') return
 	const zoneStop = stop as FreightStop & { zone: FreightZoneDefinitionRadius }
-	const stopIndex = line.stops.findIndex((candidate) => candidate.id === stop.id)
-	const isGatherLoadStop = findGatherRouteSegments(line).some(
-		(segment) => segment.loadStopIndex === stopIndex
-	)
-	if (
-		!pickVehicleZoneBrowseSelection(game, character, vehicle, line, zoneStop) &&
-		isGatherLoadStop &&
-		!vehicleHasStock(vehicle)
-	) {
-		vehicle.endService()
-		traces.vehicle.log?.('vehicleJob.zone.emptyGatherEndedService', {
-			vehicleUid: vehicle.uid,
-			lineId: line.id,
-			stopId: stop.id,
-		})
-		return
-	}
 	if (!shouldAdvancePastZoneStop(game, character, vehicle, line, zoneStop)) return
 	const idx = line.stops.findIndex((s) => s.id === stop.id)
 	if (idx < 0) return
