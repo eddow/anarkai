@@ -1,3 +1,4 @@
+import { root } from 'mutts'
 import { Application, Container, type ContainerChild, RenderLayer, type Texture } from 'pixi.js'
 import type { Game } from 'ssh/game/game'
 import type { GameRenderer } from 'ssh/types/engine'
@@ -33,8 +34,10 @@ export class PixiGameRenderer implements GameRenderer {
 	) {
 		this.game.renderer = this
 		this.container = into
-		this.initialize(into).catch((e) => {
-			console.error('[PixiGameRenderer] initialize failed:', e)
+		root`pixi-renderer:init`(() => {
+			this.initialize(into).catch((e) => {
+				console.error('[PixiGameRenderer] initialize failed:', e)
+			})
 		})
 	}
 

@@ -1,11 +1,11 @@
 import { reactive, unreactive } from 'mutts'
 import type { ExecutionContext } from 'npc-script'
-import { assert, traces } from 'ssh/debug'
 import {
 	releaseVehicleFreightWorkOnPlanInterrupt,
 	type VehicleFreightInterruptSubject,
 } from 'ssh/freight/vehicle-run'
 import type { Game, GameObject, TickedGameObject, withTicked } from 'ssh/game'
+import { assert, traces } from '../dev/debug.ts'
 import {
 	loopEntriesForNpcTrace,
 	npcSubjectSnapshot,

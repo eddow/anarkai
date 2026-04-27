@@ -19,8 +19,13 @@ type I18nState = {
 	localeFlags: LocaleFlagsEngine | undefined
 }
 
+const reportedTranslationErrorKeys = new Set<string>()
+
 class ClientSideClient extends I18nClient {
 	report(key: TextKey, error: string, spec: object) {
+		const id = String(key)
+		if (reportedTranslationErrorKeys.has(id)) return
+		reportedTranslationErrorKeys.add(id)
 		console.warn(`Translation error for key "${key}": ${error}`, spec)
 	}
 }

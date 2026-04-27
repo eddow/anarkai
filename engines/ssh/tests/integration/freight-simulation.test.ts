@@ -1,5 +1,5 @@
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
-import { defined, traces } from 'ssh/debug'
+import { defined, traces } from 'ssh/dev/debug'
 import {
 	findLoadOntoVehicleJob,
 	findProvideFromVehicleJob,

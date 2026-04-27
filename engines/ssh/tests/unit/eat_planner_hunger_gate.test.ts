@@ -1,6 +1,7 @@
 import { inert } from 'mutts'
-import { Game } from 'ssh/game'
+import { Game, type GamePatches } from 'ssh/game'
 import type { ScriptExecution } from 'ssh/npcs/scripts'
+import { PonderingStep } from 'ssh/npcs/steps'
 import type { Character } from 'ssh/population/character'
 import { computeActivityScores } from 'ssh/population/findNextActivity'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -26,7 +27,7 @@ const patches = {
 	zones: {
 		residential: [[0, 1]],
 	},
-} as const
+} satisfies GamePatches
 
 describe('Eat planning vs hunger (no goEat when sated)', () => {
 	beforeAll(() => {
@@ -39,14 +40,14 @@ describe('Eat planning vs hunger (no goEat when sated)', () => {
 		delete (Game.prototype as Partial<Game>).getTexture
 	})
 
-	async function loadMiniGame() {
+	async function loadMiniGame(gamePatches: GamePatches = patches) {
 		const game = new Game(
 			{
 				terrainSeed: 42_001,
 				characterCount: 0,
 				characterRadius: 4,
 			},
-			patches
+			gamePatches
 		)
 		await game.loaded
 		game.ticker.stop()
@@ -98,6 +99,60 @@ describe('Eat planning vs hunger (no goEat when sated)', () => {
 			expect(exec).not.toBe(false)
 			expect(exec).toHaveProperty('name')
 			expect(String((exec as ScriptExecution).name)).toMatch(/goEat/i)
+		} finally {
+			game.destroy()
+		}
+	})
+
+	it('find.food ignores sub-unit storage stock that cannot be eaten', async () => {
+		const game = await loadMiniGame({
+			hives: [
+				{
+					name: 'Mini',
+					alveoli: [
+						{
+							coord: [0, 0],
+							alveolus: 'storage',
+							goods: { berries: 0.5 },
+						},
+					],
+				},
+			],
+		})
+		try {
+			const c = game.population.createCharacter('HungryFractional', { q: 0, r: -1 })
+			c.hunger = 0.92
+			expect(c.scriptsContext.find.food()).toBe(false)
+		} finally {
+			game.destroy()
+		}
+	})
+
+	it('eatFromWorld ponders when planned food was already consumed', async () => {
+		const game = await loadMiniGame({
+			hives: [
+				{
+					name: 'Mini',
+					alveoli: [
+						{
+							coord: [0, 0],
+							alveolus: 'storage',
+							goods: { berries: 1 },
+						},
+					],
+				},
+			],
+		})
+		try {
+			const tile = game.hex.getTile({ q: 0, r: 0 })
+			if (!tile) throw new Error('expected storage tile')
+			const first = game.population.createCharacter('First', { q: 0, r: -1 })
+			const second = game.population.createCharacter('Second', { q: 1, r: -1 })
+
+			first.scriptsContext.selfCare.eatFromWorld('berries', tile)
+			const stale = second.scriptsContext.selfCare.eatFromWorld('berries', tile)
+
+			expect(stale).toBeInstanceOf(PonderingStep)
 		} finally {
 			game.destroy()
 		}

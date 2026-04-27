@@ -112,6 +112,8 @@ export const baseGameScope = scope({
 		 * disembarked while keeping line service; NPC script must not run zone-browse transfer prelude.
 		 */
 		'vehicleHopAnchorDockDisembarked?': 'boolean',
+		/** Set when a stale approach reaches a vehicle now operated by another worker. */
+		'vehicleApproachAborted?': 'boolean',
 		// Additional fields depend on job type (path, etc.)
 	},
 
@@ -128,6 +130,8 @@ export const baseGameScope = scope({
 		'looseGood?': 'object',
 		'path?': 'AxialCoord[]',
 		'offloadPickupPlan?': 'PickupPlan',
+		/** Set when a stale approach reaches a vehicle now operated by another worker. */
+		'vehicleApproachAborted?': 'boolean',
 	},
 
 	/** Runtime contract only; matches {@link LoadOntoVehicleWorkPlan} (script step, not a {@link Job}). */
@@ -278,6 +282,8 @@ export type VehicleOffloadJob = {
 	fatigue: number
 	vehicleUid: string
 	targetCoord: AxialCoord
+	/** Distance to claim the wheelbarrow; planner scoring uses this, not the internal vehicle route. */
+	approachPath?: AxialCoord[]
 	path: AxialCoord[]
 } & (
 	| { maintenanceKind: 'loadFromBurden'; looseGood: LooseGood }
@@ -301,6 +307,8 @@ export interface DefragmentJob {
 
 export interface VehicleJob {
 	vehicleUid: string
+	/** Distance to claim the vehicle before doing vehicle work. */
+	approachPath?: AxialCoord[]
 }
 
 /** @internal Script/transfer step payloads only; not emitted by the work planner. */
@@ -358,10 +366,7 @@ export interface VehicleHopJob extends VehicleJob {
 	targetCoord?: AxialCoord
 	adSource?: FreightAdSource
 	priorityTier?: FreightPriorityTier
-	/**
-	 * Walk to the vehicle hex before boarding. Planner scoring uses {@link path} (typically the same
-	 * length until onboard). Script runs this prelude before {@link VehicleFunctions.vehicleApproachStep}.
-	 */
+	/** Walk to the vehicle hex before boarding. */
 	approachPath?: AxialCoord[]
 	/**
 	 * When true, the wheelbarrow has no line `service` yet; the script runs the former
@@ -443,6 +448,8 @@ export type WorkPlan =
 			 * vehicle keeps line service; skip `vehicleStepOffKeepingControl` / zone-browse prelude.
 			 */
 			vehicleHopAnchorDockDisembarked?: boolean
+			/** Set when a stale approach reaches a vehicle now operated by another worker. */
+			vehicleApproachAborted?: boolean
 	  })
 	| (VehicleOffloadJob & {
 			readonly type: 'work'
@@ -450,6 +457,8 @@ export type WorkPlan =
 			offloadPickupPlan?: PickupPlan
 			invariant?: () => boolean
 			path?: AxialCoord[]
+			/** Set when a stale approach reaches a vehicle now operated by another worker. */
+			vehicleApproachAborted?: boolean
 	  })
 	| LoadOntoVehicleWorkPlan
 	| UnloadFromVehicleWorkPlan

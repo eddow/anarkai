@@ -67,8 +67,9 @@ if (typeof Image === 'undefined') {
 	headers: new Map(),
 })
 
+import { Deposit, UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { Game } from 'ssh/game'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 // Mock assets/resources
 vi.mock('ssh/assets/resources', () => ({
@@ -133,12 +134,19 @@ vi.mock('ssh/assets/game-content', () => {
 
 describe('Behavior Verification', () => {
 	// Scripts and context are now handled via static imports and default char.scriptsContext
+	const games = new Set<Game>()
+
+	afterEach(() => {
+		for (const game of games) game.destroy()
+		games.clear()
+	})
 
 	it('Harvest Behavior: Runs and Persists (Savegame)', async () => {
 		const game = new Game({
 			terrainSeed: 1234,
 			characterCount: 0,
 		})
+		games.add(game)
 		await game.loaded
 
 		const char = game.population.createCharacter('Worker', { q: 3, r: 2 })
@@ -177,22 +185,8 @@ describe('Behavior Verification', () => {
 
 		// Setup a tree deposit at char's location so it doesn't have to walk
 		const charTile = game.hex.getTile(char.position)
-		if (charTile?.content) {
-			// Mock the deposit
-			;(charTile.content as any).deposit = {
-				name: 'tree',
-				amount: 100,
-				type: 'tree', // matches alveolus.action.deposit? No, action.deposit is 'tree', type is 'tree'
-			}
-			// Ensure it looks like UnBuiltLand
-			if (!charTile.content.constructor)
-				(charTile.content as any).constructor = { name: 'UnBuiltLand' }
-			// Or just patch instance check if needed (WorkFunctions line 176 checks instanceof)
-			// But import is static.
-			// WorkFunctions imports UnBuiltLand.
-			// We might need to ensure charTile.content IS an instance of UnBuiltLand.
-			// Game generation creates UnBuiltLand.
-		}
+		if (!charTile) throw new Error('Character tile not found')
+		charTile.content = new UnBuiltLand(charTile, 'forest', new Deposit.class.tree(100))
 
 		// Use default scriptsContext which has all scripts loaded
 		const context = char.scriptsContext
@@ -262,12 +256,13 @@ describe('Behavior Verification', () => {
 			terrainSeed: 1234,
 			characterCount: 0,
 		})
+		games.add(game2)
 		await game2.loaded
 		await game2.loadGameData(saveState)
 
 		// Provide character retrieval logic
 		const char2 = game2.population.character(char.uid)
-		expect(char2).toBeDefined()
+		expect(char2.uid).toBe(char.uid)
 	})
 
 	it('Transform Behavior: Runs and Persists', async () => {
@@ -275,6 +270,7 @@ describe('Behavior Verification', () => {
 			terrainSeed: 555,
 			characterCount: 0,
 		})
+		games.add(game)
 		await game.loaded
 
 		const char = game.population.createCharacter('Worker', { q: 3, r: 2 })
@@ -353,9 +349,10 @@ describe('Behavior Verification', () => {
 			terrainSeed: 555,
 			characterCount: 0,
 		})
+		games.add(game2)
 		await game2.loaded
 		await game2.loadGameData(saveState)
 		const char2 = game2.population.character(char.uid)
-		expect(char2).toBeDefined()
+		expect(char2.uid).toBe(char.uid)
 	})
 })

@@ -1,7 +1,12 @@
 import { css } from '@app/lib/css'
 import { showProps } from '@app/lib/follow-selection'
 import { mrg } from '@app/lib/globals'
-import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content'
+import {
+	alveoli as visualAlveoli,
+	characters as visualCharacters,
+	vehicles as visualVehicles,
+} from 'engine-pixi/assets/visual-content'
+import { vehicleTextureKey } from 'engine-pixi/renderers/vehicle-visual'
 import { effect, reactive } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { Tile } from 'ssh/board/tile'
@@ -10,6 +15,8 @@ import type { InspectorSelectableObject, InteractiveGameObject } from 'ssh/game/
 import { resolveSelectableHoverObject } from 'ssh/game/object'
 import type { SyntheticHiveObject } from 'ssh/hive'
 import { isHoveredObject, setHoveredObject } from 'ssh/interactive-state'
+import { Character } from 'ssh/population/character'
+import { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { computeStyleFromTexture } from 'ssh/utils/images'
 import ResourceImage from './ResourceImage'
 
@@ -122,13 +129,24 @@ const LinkedEntityControl = (props: LinkedEntityControlProps) => {
 	})
 
 	effect`linked-entity:sprite`(() => {
-		const object = visualTile()
-		if (!(object instanceof Tile)) {
+		const object = currentObject()
+		if (object instanceof VehicleEntity) {
+			const vehicleType = object.vehicleType
+			state.sprite = visualVehicles[vehicleType]?.sprites?.[0] ?? vehicleTextureKey(vehicleType)
+			return
+		}
+		if (object instanceof Character) {
+			state.sprite = visualCharacters.default?.sprites?.[0]
+			return
+		}
+
+		const tile = visualTile()
+		if (!(tile instanceof Tile)) {
 			state.sprite = undefined
 			return
 		}
-		if (!(object.content instanceof Alveolus)) return
-		const type = object.content.name as keyof typeof visualAlveoli | undefined
+		if (!(tile.content instanceof Alveolus)) return
+		const type = tile.content.name as keyof typeof visualAlveoli | undefined
 		const nextSprite = type ? visualAlveoli[type]?.sprites?.[0] : undefined
 		if (nextSprite) state.sprite = nextSprite
 	})

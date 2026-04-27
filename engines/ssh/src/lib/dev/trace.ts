@@ -12,6 +12,14 @@ export type TraceRow = [TraceLevel, ...TraceValue[]] & {
 	readonly time?: number
 }
 
+/**
+ * Console-like trace recorder used by `traces.*` channels.
+ *
+ * Trace methods are optional on purpose: a disabled level is represented by an undefined method, so
+ * call sites can write `traces.vehicle.log?.('event', payload)` and avoid building `payload` when
+ * `log` is gated off. Implementations must still expose `read()` and `display()` so every configured
+ * sink can be inspected from tests or DevTools.
+ */
 export type TraceSink = Partial<
 	Pick<
 		Console,
@@ -19,14 +27,23 @@ export type TraceSink = Partial<
 	>
 > & {
 	readonly heads?: readonly unknown[]
-	read?: (count?: number) => string
-	clear?: () => void
+	read: (count?: number) => string
+	display: (count?: number) => void
+}
+
+export type TraceConsoleRow = {
+	readonly title: string
+	readonly body: string
 }
 
 export type TraceCaptureOptions = {
+	/** Maximum recursive depth for plain objects/arrays before `[MaxDepth]` is emitted. */
 	readonly maxDepth?: number
+	/** Maximum array items captured per array before a truncation marker is appended. */
 	readonly maxArrayLength?: number
+	/** Maximum own enumerable keys captured per plain object before `$truncated` is emitted. */
 	readonly maxObjectKeys?: number
+	/** Optional clock used for row retention and `@t=...` rendering. */
 	readonly time?: () => number | undefined
 }
 
@@ -78,9 +95,36 @@ export function captureTraceRow(
 	return row
 }
 
+/**
+ * Renders stored rows as compact YAML-like text for copy/paste diagnostics.
+ *
+ * The optional `count` selects the last `count` rows, matching `TraceSink.read(count)`.
+ */
 export function readTraceRows(rows: readonly TraceRow[], count?: number): string {
 	const selected = count === undefined ? rows : rows.slice(Math.max(0, rows.length - count))
 	return selected.map((row) => renderRow(row)).join('\n\n')
+}
+
+/** Renders a single row in the same title/body shape used inside forwarded console groups. */
+export function readTraceConsoleRow(row: TraceRow): string {
+	const { title, body } = readTraceConsoleParts(row)
+	return body ? `${title}\n${body}` : title
+}
+
+/** Splits a row into a collapsed console group title and an indented payload body. */
+export function readTraceConsoleParts(row: TraceRow): TraceConsoleRow {
+	const [titleLine, ...bodyLines] = renderRow(row).split('\n')
+	const [level] = row
+	const levelPrefix = `${level} `
+	const title = titleLine?.startsWith(levelPrefix)
+		? titleLine.slice(levelPrefix.length)
+		: titleLine === level
+			? ''
+			: (titleLine ?? '')
+	return {
+		title,
+		body: bodyLines.join('\n'),
+	}
 }
 
 function projectTraceValue(value: unknown, ctx: ProjectionContext, depth: number): TraceValue {

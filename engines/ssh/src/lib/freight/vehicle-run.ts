@@ -1,7 +1,7 @@
+import { jobBalance } from 'engine-rules'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { isStandaloneBuildSiteShell } from 'ssh/build-site'
-import { assert, traces } from 'ssh/debug'
 import type {
 	FreightLineDefinition,
 	FreightStop,
@@ -16,6 +16,7 @@ import {
 	gatherSegmentAllowsGoodType,
 	gatherSegmentAllowsGoodTypeForSegment,
 } from 'ssh/freight/freight-line'
+import { scoreVehicleCandidate } from 'ssh/freight/vehicle-candidate-policy'
 import { dockedVehicleGoodsRelations } from 'ssh/freight/vehicle-freight-dock'
 import { syncFreightVehicleDockRegistration } from 'ssh/freight/vehicle-freight-dock-sync'
 import { pickVehicleZoneBrowseSelection } from 'ssh/freight/vehicle-zone-browse'
@@ -26,6 +27,11 @@ import { isVehicleLineService, isVehicleMaintenanceService } from 'ssh/populatio
 import type { GoodType } from 'ssh/types/base'
 import { type AxialCoord, axial } from 'ssh/utils/axial'
 import { axialDistance, type Position, toAxialCoord } from 'ssh/utils/position'
+import { assert, traces } from '../dev/debug.ts'
+
+function vehicleHasStock(vehicle: VehicleEntity): boolean {
+	return Object.values(vehicle.storage.stock).some((n) => (n ?? 0) > 0)
+}
 
 /**
  * `parkVehicle` is only meaningful when the current hex matters for the board independently of the
@@ -112,6 +118,25 @@ function vehicleLineStockAffinity(line: FreightLineDefinition, vehicle: VehicleE
 
 type BeginServiceActionableWork = {
 	readonly target: Position
+	readonly stop: FreightStop
+}
+
+/**
+ * Whether the hive at the gather segment's **unload** anchor currently advertises demand for
+ * `good` (see {@link Hive.needs}). A line's gather filter can allow a good type even when no
+ * alveolus in that hive actually demands it; loaded begin-service must not route that cargo to the
+ * bay in that case.
+ */
+export function gatherUnloadAnchorHiveDemandsGood(
+	game: Game,
+	unloadStop: FreightStop,
+	good: GoodType
+): boolean {
+	if (!('anchor' in unloadStop)) return false
+	const tile = game.hex.getTile({ q: unloadStop.anchor.coord[0], r: unloadStop.anchor.coord[1] })
+	const content = tile?.content
+	if (!(content instanceof Alveolus) || !content.hive) return false
+	return content.hive.needs[good] !== undefined
 }
 
 /**
@@ -127,35 +152,62 @@ function findBeginServiceActionableWork(
 ): BeginServiceActionableWork | undefined {
 	const gatherSegs = findGatherRouteSegments(line)
 	if (gatherSegs.length > 0) {
-		let best: { target: Position; pathLen: number } | undefined
+		let bestLoaded: { target: Position; stop: FreightStop; pathLen: number } | undefined
 		for (const segment of gatherSegs) {
-			const zoneLoad = line.stops[segment.loadStopIndex]
-			if (!zoneLoad || !('zone' in zoneLoad) || zoneLoad.zone.kind !== 'radius') continue
-			const center: AxialCoord = { q: zoneLoad.zone.center[0], r: zoneLoad.zone.center[1] }
-			for (const tile of game.hex.tiles) {
-				const tileCoord = toAxialCoord(tile.position)
-				if (!tileCoord || axial.distance(center, tileCoord) > zoneLoad.zone.radius) continue
-				for (const loose of tile.availableGoods) {
-					const goodType = loose.goodType as GoodType
-					if (!loose.available || loose.isRemoved) continue
-					if (!gatherSegmentAllowsGoodTypeForSegment(line, segment, goodType)) continue
-					if (vehicle.storage.hasRoom(goodType) <= 0) continue
-					const path = game.hex.findPathForCharacter(
-						vehicle.position,
-						tile.position,
-						character,
-						Number.POSITIVE_INFINITY,
-						true
-					)
-					if (path && (!best || path.length < best.pathLen)) {
-						best = { target: tile.position, pathLen: path.length }
-					}
+			if (segment.loadStopIndex !== 0) continue
+			const loadStop = line.stops[segment.loadStopIndex]
+			const unloadStop = line.stops[segment.unloadStopIndex]
+			if (!loadStop || !('zone' in loadStop) || loadStop.zone.kind !== 'radius') continue
+			if (!unloadStop) continue
+			const center: AxialCoord = { q: loadStop.zone.center[0], r: loadStop.zone.center[1] }
+			const vehicleCoord = toAxialCoord(vehicle.position)
+			if (!vehicleCoord || axial.distance(center, vehicleCoord) > loadStop.zone.radius) continue
+			for (const good of Object.keys(vehicle.storage.stock) as GoodType[]) {
+				if (vehicle.storage.available(good) <= 0) continue
+				if (!gatherSegmentAllowsGoodTypeForSegment(line, segment, good)) continue
+				if (!gatherUnloadAnchorHiveDemandsGood(game, unloadStop, good)) continue
+				const target = freightStopTargetPosition(game, unloadStop)
+				if (!target) continue
+				const path = game.hex.findPathForCharacter(
+					vehicle.position,
+					target,
+					character,
+					Number.POSITIVE_INFINITY,
+					true
+				)
+				if (path && (!bestLoaded || path.length < bestLoaded.pathLen)) {
+					bestLoaded = { target, stop: unloadStop, pathLen: path.length }
 				}
 			}
 		}
-		return best ? { target: best.target } : undefined
+		if (bestLoaded) return { target: bestLoaded.target, stop: bestLoaded.stop }
+
+		let best: { target: Position; stop: FreightStop; pathLen: number } | undefined
+		for (const segment of gatherSegs) {
+			const zoneLoad = line.stops[segment.loadStopIndex]
+			if (!zoneLoad || !('zone' in zoneLoad) || zoneLoad.zone.kind !== 'radius') continue
+			const selection = pickVehicleZoneBrowseSelection(
+				game,
+				character,
+				vehicle,
+				line,
+				zoneLoad,
+				vehicle.position
+			)
+			if (selection?.action !== 'load') continue
+			if (!best || selection.path.length < best.pathLen) {
+				best = {
+					target: selection.targetTile.position,
+					stop: zoneLoad,
+					pathLen: selection.path.length,
+				}
+			}
+		}
+		return best ? { target: best.target, stop: best.stop } : undefined
 	}
 	for (const segment of findDistributeRouteSegments(line)) {
+		const loadStop = line.stops[segment.loadStopIndex]
+		if (!loadStop) continue
 		const bayTile = distributeSegmentBayTile(game, line, segment)
 		if (!bayTile) continue
 		const bayPos = toAxialCoord(bayTile.position)
@@ -169,7 +221,7 @@ function findBeginServiceActionableWork(
 			for (const g of Object.keys(c.remainingNeeds) as GoodType[]) {
 				if ((c.remainingNeeds[g] ?? 0) <= 0) continue
 				if (distributeSegmentAllowsGoodTypeForSegment(line, segment, g)) {
-					return { target: bayTile.position }
+					return { target: bayTile.position, stop: loadStop }
 				}
 			}
 		}
@@ -188,17 +240,20 @@ export function pickInitialVehicleServiceCandidate(
 	vehicle: VehicleEntity
 ): { line: FreightLineDefinition; stop: FreightStop } | undefined {
 	let best:
-		| { line: FreightLineDefinition; stop: FreightStop; dist: number; affinity: number }
+		| { line: FreightLineDefinition; stop: FreightStop; score: number; affinity: number }
 		| undefined
 	for (const line of vehicle.servedLines) {
 		const actionable = findBeginServiceActionableWork(game, character, vehicle, line)
 		if (!actionable) continue
-		const stop = line.stops[0]
-		if (!stop) continue
-		const dist = axialDistance(vehicle.position, actionable.target)
+		const distance = axialDistance(vehicle.position, actionable.target)
+		const score = scoreVehicleCandidate({
+			kind: 'beginService',
+			urgency: jobBalance.vehicleBeginService,
+			distance,
+		}).score
 		const affinity = vehicleLineStockAffinity(line, vehicle)
-		if (!best || dist < best.dist || (dist === best.dist && affinity > best.affinity)) {
-			best = { line, stop, dist, affinity }
+		if (!best || score > best.score || (score === best.score && affinity > best.affinity)) {
+			best = { line, stop: actionable.stop, score, affinity }
 		}
 	}
 	return best ? { line: best.line, stop: best.stop } : undefined
@@ -222,6 +277,7 @@ export function projectedLineStopForVehicleHop(
 		!shouldAdvancePastZoneStop(
 			game,
 			character,
+			vehicle,
 			line,
 			stop as FreightStop & { zone: FreightZoneDefinitionRadius }
 		)
@@ -282,12 +338,16 @@ export function ensureVehicleServiceStarted(
 function shouldAdvancePastZoneStop(
 	game: Game,
 	character: Character,
+	vehicle: VehicleEntity,
 	line: FreightLineDefinition,
 	stop: FreightStop & { zone: FreightZoneDefinitionRadius }
 ): boolean {
-	const vehicle = character.operates
-	if (!vehicle) return true
-	return !pickVehicleZoneBrowseSelection(game, character, vehicle, line, stop)
+	if (pickVehicleZoneBrowseSelection(game, character, vehicle, line, stop)) return false
+	const stopIndex = line.stops.findIndex((candidate) => candidate.id === stop.id)
+	const isGatherLoadStop = findGatherRouteSegments(line).some(
+		(segment) => segment.loadStopIndex === stopIndex
+	)
+	return !isGatherLoadStop || vehicleHasStock(vehicle)
 }
 
 /**
@@ -303,15 +363,25 @@ export function maybeAdvanceVehiclePastCompletedZoneStop(
 	if (!isVehicleLineService(svc)) return
 	const { line, stop } = svc
 	if (!('zone' in stop) || stop.zone.kind !== 'radius') return
-	if (
-		!shouldAdvancePastZoneStop(
-			game,
-			character,
-			line,
-			stop as FreightStop & { zone: FreightZoneDefinitionRadius }
-		)
+	const zoneStop = stop as FreightStop & { zone: FreightZoneDefinitionRadius }
+	const stopIndex = line.stops.findIndex((candidate) => candidate.id === stop.id)
+	const isGatherLoadStop = findGatherRouteSegments(line).some(
+		(segment) => segment.loadStopIndex === stopIndex
 	)
+	if (
+		!pickVehicleZoneBrowseSelection(game, character, vehicle, line, zoneStop) &&
+		isGatherLoadStop &&
+		!vehicleHasStock(vehicle)
+	) {
+		vehicle.endService()
+		traces.vehicle.log?.('vehicleJob.zone.emptyGatherEndedService', {
+			vehicleUid: vehicle.uid,
+			lineId: line.id,
+			stopId: stop.id,
+		})
 		return
+	}
+	if (!shouldAdvancePastZoneStop(game, character, vehicle, line, zoneStop)) return
 	const idx = line.stops.findIndex((s) => s.id === stop.id)
 	if (idx < 0) return
 	if (idx >= line.stops.length - 1) {

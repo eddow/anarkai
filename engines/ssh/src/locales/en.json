@@ -56,7 +56,9 @@
 			"offload": "Offload",
 			"foundation": "Foundation",
 			"defragment": "Defragment",
-			"loadOntoVehicle": "Load onto vehicle"
+			"loadOntoVehicle": "Load onto vehicle",
+			"vehicleOffload": "Vehicle offload",
+			"vehicleHop": "Freight line hop"
 		},
 		"operates": "Operates"
 	},
@@ -87,7 +89,12 @@
 		"foundation": "Laying foundation",
 		"queue": "Queue",
 		"pickup": "Pick up",
-		"construct": "Construct"
+		"construct": "Construct",
+		"vehicleBeginService": "Start line service",
+		"vehicleHop": {
+			"dock": "Dock at stop",
+			"zoneReach": "Reach zone stop"
+		}
 	},
 	"alveolus": {
 		"alveolus": "Alveolus",

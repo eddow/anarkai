@@ -1,3 +1,6 @@
+import { normalizeFreightLineDefinition } from 'ssh/freight/freight-line'
+import { migrateV1FiltersToGoodsSelection } from 'ssh/freight/goods-selection-policy'
+import { pickInitialVehicleServiceCandidate } from 'ssh/freight/vehicle-run'
 import {
 	allocateVehicleServiceForJob,
 	findVehicleHopJob,
@@ -155,6 +158,94 @@ describe('findVehicleOffloadJob', () => {
 		}
 	})
 
+	it('returns unloadToTile when the worker stands on the same loaded vehicle hex', async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+		const { game } = engine
+		try {
+			const center = { q: 2, r: 2 }
+			engine.loadScenario({
+				generationOptions: { terrainSeed: 1234, characterCount: 0 },
+				tiles: [
+					{ coord: [2, 2], terrain: 'grass' },
+					{ coord: [2, 3], terrain: 'grass' },
+					{ coord: [3, 2], terrain: 'grass' },
+				],
+				hives: [
+					{
+						name: 'SameHexUnloadHive',
+						alveoli: [{ coord: [2, 2], alveolus: 'storage', goods: {} }],
+					},
+				],
+			} as any)
+			const vehicle = game.vehicles.createVehicle('wb-same-hex-unload', 'wheelbarrow', center, [])
+			vehicle.storage.addGood('mushrooms', 1)
+			const char = engine.spawnCharacter('Worker', center)
+			void char.scriptsContext
+
+			const job = findVehicleOffloadJob(game, char)
+			expect(job?.job).toBe('vehicleOffload')
+			expect(job?.maintenanceKind).toBe('unloadToTile')
+			const match = char.resolveBestJobMatch()
+			expect(match ? match.job.job : false).toBe('vehicleOffload')
+			expect(match && match.job.job === 'vehicleOffload' && match.job.maintenanceKind).toBe(
+				'unloadToTile'
+			)
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('still offers unloadToTile when gather-line entry is structurally possible but begin-service is not actionable', async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+		const { game } = engine
+		try {
+			const center = { q: 2, r: 2 }
+			const lineDef = normalizeFreightLineDefinition({
+				id: 'orphan-gather',
+				name: 'Orphan gather',
+				stops: [
+					{
+						id: 'orphan-gather-zone',
+						loadSelection: migrateV1FiltersToGoodsSelection(['mushrooms']),
+						zone: { kind: 'radius', center: [2, 2], radius: 2 },
+					},
+					{
+						id: 'orphan-gather-unload',
+						anchor: {
+							kind: 'alveolus',
+							hiveName: 'MissingHive',
+							alveolusType: 'freight_bay',
+							coord: [100, 100],
+						},
+					},
+				],
+			})
+			engine.loadScenario({
+				generationOptions: { terrainSeed: 1234, characterCount: 0 },
+				tiles: [
+					{ coord: [2, 2], terrain: 'grass' },
+					{ coord: [2, 3], terrain: 'grass' },
+					{ coord: [3, 2], terrain: 'grass' },
+				],
+				freightLines: [lineDef],
+			} as any)
+			const line = game.freightLines.find((l) => l.id === 'orphan-gather')!
+			const vehicle = game.vehicles.createVehicle('wb-orphan-unload', 'wheelbarrow', center, [line])
+			vehicle.storage.addGood('mushrooms', 1)
+			const char = engine.spawnCharacter('Worker', center)
+			void char.scriptsContext
+
+			expect(pickInitialVehicleServiceCandidate(game, char, vehicle)).toBeUndefined()
+			const job = findVehicleOffloadJob(game, char)
+			expect(job?.job).toBe('vehicleOffload')
+			expect(job?.maintenanceKind).toBe('unloadToTile')
+		} finally {
+			await engine.destroy()
+		}
+	})
+
 	it('prefers a nearby unload target over a much farther burdening load target', async () => {
 		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
 		await engine.init()
@@ -190,6 +281,67 @@ describe('findVehicleOffloadJob', () => {
 			expect(job?.job).toBe('vehicleOffload')
 			expect(job?.maintenanceKind).toBe('unloadToTile')
 			expect(job?.targetCoord).toEqual({ q: 0, r: 1 })
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('skips an in-range maintenance load target that the vehicle cannot reach', async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+		const { game } = engine
+		try {
+			engine.loadScenario({
+				generationOptions: { terrainSeed: 1234, characterCount: 0 },
+				tiles: [
+					{ coord: [0, 0], terrain: 'grass' },
+					{ coord: [0, 1], terrain: 'grass' },
+					{ coord: [0, 2], terrain: 'grass' },
+					{ coord: [0, 3], terrain: 'grass' },
+					{ coord: [2, 0], terrain: 'grass' },
+				],
+				zones: {
+					residential: [
+						[1, 0],
+						[1, -1],
+						[0, -1],
+						[-1, 0],
+						[-1, 1],
+						[0, 1],
+					],
+				},
+				hives: [
+					{
+						name: 'DisconnectedHive',
+						alveoli: [{ coord: [2, 0], alveolus: 'storage', goods: {} }],
+					},
+				],
+				looseGoods: [{ goodType: 'stone', position: { q: 2, r: 0 } }],
+			} as any)
+			for (const coord of [
+				{ q: 3, r: 0 },
+				{ q: 3, r: -1 },
+				{ q: 2, r: -1 },
+				{ q: 1, r: 0 },
+				{ q: 1, r: 1 },
+				{ q: 2, r: 1 },
+			]) {
+				game.hex.setTileContent(coord, undefined)
+			}
+			const vehicle = game.vehicles.createVehicle(
+				'wb-disconnected',
+				'wheelbarrow',
+				{ q: 0, r: 0 },
+				[]
+			)
+			vehicle.storage.addGood('stone', 1)
+			const char = engine.spawnCharacter('Worker', { q: 0, r: 0 })
+			void char.scriptsContext
+
+			const job = findVehicleOffloadJob(game, char)
+			expect(job?.job).toBe('vehicleOffload')
+			expect(job?.maintenanceKind).toBe('unloadToTile')
+			expect(job?.targetCoord).not.toEqual({ q: 2, r: 0 })
 		} finally {
 			await engine.destroy()
 		}
@@ -253,6 +405,130 @@ describe('findVehicleOffloadJob', () => {
 			expect(findVehicleOffloadJob(game, char)).toBeUndefined()
 			const hop = findVehicleHopJob(game, char)
 			expect(hop?.job).toBe('vehicleHop')
+			expect(hop?.stopId).toBe(line.stops[0]!.id)
+			expect(hop?.zoneBrowseAction).toBe('load')
+			expect(hop?.targetCoord).toMatchObject({ q: 2, r: 0 })
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('keeps loadFromBurden when a compatible gather line would not load the good now', async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+		const { game } = engine
+		try {
+			engine.loadScenario({
+				generationOptions: { terrainSeed: 1234, characterCount: 0 },
+				tiles: [
+					{ coord: [0, 0], terrain: 'concrete' },
+					{ coord: [1, 0], terrain: 'concrete' },
+				],
+				hives: [
+					{
+						name: 'NoNeedHive',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
+							{ coord: [1, 0], alveolus: 'storage', goods: {} },
+						],
+					},
+				],
+				looseGoods: [{ goodType: 'wood', position: { q: 1, r: 0 } }],
+				freightLines: [
+					{
+						id: 'no-need-line',
+						name: 'No need line',
+						stops: [
+							{ id: 'load', zone: { kind: 'radius', center: [0, 0], radius: 2 } },
+							{
+								id: 'unload',
+								anchor: {
+									kind: 'alveolus',
+									hiveName: 'NoNeedHive',
+									alveolusType: 'freight_bay',
+									coord: [0, 0],
+								},
+							},
+						],
+						filters: ['wood'],
+					},
+				],
+			} as any)
+			const line = game.freightLines[0]!
+			game.vehicles.createVehicle('wb-no-need', 'wheelbarrow', { q: 0, r: 0 }, [line])
+			const char = engine.spawnCharacter('Worker', { q: 0, r: 1 })
+			void char.scriptsContext
+
+			const job = findVehicleOffloadJob(game, char)
+			expect(job?.job).toBe('vehicleOffload')
+			expect(job?.maintenanceKind).toBe('loadFromBurden')
+			expect(findVehicleHopJob(game, char)).toBeUndefined()
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('does not begin a served gather line from demand in another hive', async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+		const { game } = engine
+		try {
+			const lineDef = normalizeFreightLineDefinition({
+				id: 'served-only-line',
+				name: 'Served only line',
+				stops: [
+					{
+						id: 'load',
+						loadSelection: migrateV1FiltersToGoodsSelection(['wood']),
+						zone: { kind: 'radius', center: [0, 0], radius: 2 },
+					},
+					{
+						id: 'unload',
+						anchor: {
+							kind: 'alveolus',
+							hiveName: 'ServedHive',
+							alveolusType: 'freight_bay',
+							coord: [0, 0],
+						},
+					},
+				],
+			})
+			engine.loadScenario({
+				generationOptions: { terrainSeed: 1234, characterCount: 0 },
+				tiles: [
+					{ coord: [0, 0], terrain: 'concrete' },
+					{ coord: [1, 0], terrain: 'concrete' },
+					{ coord: [8, 0], terrain: 'concrete' },
+					{ coord: [9, 0], terrain: 'concrete' },
+				],
+				hives: [
+					{
+						name: 'ServedHive',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
+							{ coord: [1, 0], alveolus: 'storage', goods: {} },
+						],
+					},
+					{
+						name: 'DemandHive',
+						alveoli: [
+							{ coord: [8, 0], alveolus: 'freight_bay', goods: {} },
+							{ coord: [9, 0], alveolus: 'sawmill', goods: {} },
+						],
+					},
+				],
+				looseGoods: [{ goodType: 'wood', position: { q: 1, r: 0 } }],
+				freightLines: [lineDef],
+			})
+			const line = game.freightLines[0]!
+			game.vehicles.createVehicle('wb-served-only', 'wheelbarrow', { q: 0, r: 0 }, [line])
+			const char = engine.spawnCharacter('Worker', { q: 0, r: 1 })
+			void char.scriptsContext
+
+			const job = findVehicleOffloadJob(game, char)
+			expect(job?.job).toBe('vehicleOffload')
+			expect(job?.maintenanceKind).toBe('loadFromBurden')
+			expect(findVehicleHopJob(game, char)).toBeUndefined()
 		} finally {
 			await engine.destroy()
 		}
@@ -309,10 +585,9 @@ describe('findVehicleOffloadJob', () => {
 				path: [],
 				maintenanceKind: 'unloadToTile',
 			})
-			expect(isVehicleMaintenanceService(vehicle.service)).toBe(true)
-			expect(vehicle.service?.kind).toBe('unloadToTile')
 			if (!isVehicleMaintenanceService(vehicle.service))
 				throw new Error('expected maintenance service')
+			expect(vehicle.service.kind).toBe('unloadToTile')
 			expect(vehicle.service.targetCoord).toEqual({ q: 3, r: 2 })
 			expect(vehicle.service.operator?.uid).toBe(char.uid)
 

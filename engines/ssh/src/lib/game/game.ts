@@ -20,7 +20,6 @@ import {
 	createConstructionSiteState,
 	type DwellingTier,
 } from 'ssh/construction-state'
-import { assert } from 'ssh/debug'
 import type { FreightLineDefinition, SyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import {
 	collectFreightLineBootstrapCoords,
@@ -70,6 +69,7 @@ import { SimulationLoop } from 'ssh/utils/loop'
 import { LCG } from 'ssh/utils/numbers'
 import { toAxialCoord } from 'ssh/utils/position'
 import * as gameContent from '../../../assets/game-content'
+import { assert } from '../dev/debug.ts'
 import { GameplayFrontierController } from './gameplay-frontier'
 import type { HittableGameObject, InteractiveGameObject } from './object'
 import {

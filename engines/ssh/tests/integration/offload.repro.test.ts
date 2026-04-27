@@ -107,7 +107,7 @@ describe('Offload Silent Cancellation Reproduction', () => {
 			}
 
 			const finalGoods = game.hex.looseGoods.getGoodsAt(targetTile.position)
-			const carriedWood = char.carry.stock.wood ?? 0
+			const carriedWood = vehicle.storage.available('wood')
 			const looseWood = finalGoods.filter((g) => g.goodType === 'wood' && !g.isRemoved).length
 			expect(carriedWood + looseWood).toBe(1)
 		} finally {

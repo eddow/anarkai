@@ -124,6 +124,7 @@ describe('UnBuiltProperties', () => {
 			project: undefined,
 			deposit: {
 				amount: 3,
+				name: badKey,
 				constructor: {
 					key: badKey,
 					name: badKey,
@@ -147,12 +148,43 @@ describe('UnBuiltProperties', () => {
 		expect(container.innerHTML).toBeTruthy()
 	})
 
+	it('renders deposits using the generated deposit instance name', () => {
+		const content = {
+			project: undefined,
+			deposit: {
+				amount: 7,
+				name: 'stone',
+				constructor: {
+					name: 'GeneratedStoneDeposit',
+				},
+			},
+			tile: {
+				isClear: true,
+				board: { game: {} },
+			},
+		}
+
+		stop = latch(
+			container,
+			<table>
+				<tbody>
+					<UnBuiltProperties content={content as never} />
+				</tbody>
+			</table>
+		)
+
+		expect(container.textContent).toContain('Deposit')
+		expect(container.textContent).toContain('stone')
+		expect(container.textContent).toContain('7')
+	})
+
 	it('does not trip the rebuild fence when deposit amount changes', () => {
 		sursautOptions.checkRebuild = 'error'
 		const content = reactive({
 			project: undefined as string | undefined,
 			deposit: reactive({
 				amount: 3,
+				name: 'stone',
 				constructor: {
 					key: 'stone',
 					name: 'stone',

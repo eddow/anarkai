@@ -3,7 +3,6 @@ import { type HexBoard, isTileCoord } from 'ssh/board/board'
 import { AlveolusGate } from 'ssh/board/border/alveolus-gate'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
-import { assert, traces } from 'ssh/debug'
 import {
 	dockedVehicleGoodsRelations,
 	type FreightMovementParty,
@@ -29,6 +28,7 @@ import {
 } from 'ssh/utils/advertisement'
 import { AxialKeyMap } from 'ssh/utils/mem'
 import { toAxialCoord } from 'ssh/utils/position'
+import { assert, traces } from '../dev/debug.ts'
 import type { SerializedConveyMovement } from './convey-serialize'
 import { createMovementRef, type MovementRef, movementRefId } from './movement-ref'
 import type { StorageAlveolus } from './storage'
@@ -668,6 +668,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			this.exchangeWatchdogTimer = undefined
 		}
 		this.stalledExchangeSeenAt.clear()
+		if (this.destroyed) return
 		if (!intervalMs || intervalMs <= 0) return
 		this.exchangeWatchdogTimer = setInterval(() => {
 			if (this.destroyed || this.reconstructing) return
@@ -1661,12 +1662,21 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			const reasonDemanderRef = reason.demanderRef ?? reason.demander ?? reason.movement?.demander
 			const reasonProviderName = reason.providerName ?? reason.movement?.provider?.name
 			const reasonDemanderName = reason.demanderName ?? reason.movement?.demander?.name
-			const providerMatches =
-				reasonProviderRef === provider ||
-				(!!reasonProviderName && reasonProviderName === provider.name)
-			const demanderMatches =
-				reasonDemanderRef === demander ||
-				(!!reasonDemanderName && reasonDemanderName === demander.name)
+			const partyMatches = (
+				reasonRef: { name?: string; tile?: Tile } | undefined,
+				reasonName: string | undefined,
+				expected: Alveolus
+			) => {
+				if (reasonRef === expected || unwrap(reasonRef) === unwrap(expected)) return true
+				const reasonCoord = reasonRef?.tile ? toAxialCoord(reasonRef.tile.position) : undefined
+				const expectedCoord = toAxialCoord(expected.tile.position)
+				if (reasonCoord && expectedCoord && axial.key(reasonCoord) === axial.key(expectedCoord)) {
+					return true
+				}
+				return !!reasonName && reasonName === expected.name
+			}
+			const providerMatches = partyMatches(reasonProviderRef, reasonProviderName, provider)
+			const demanderMatches = partyMatches(reasonDemanderRef, reasonDemanderName, demander)
 			return providerMatches && demanderMatches
 		})
 		let canceled = 0
@@ -3055,8 +3065,10 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				// Check target can take the goods
 				if ('canTake' in targetStorage && typeof targetStorage.canTake === 'function') {
 					const targetCanTake = targetStorage.canTake(goodType, targetPriority)
+					const dockUnloadToOwnBay =
+						isVehicleFreightDock(providerStorage) && targetStorage === providerStorage.bay
 
-					if (!targetCanTake) {
+					if (!targetCanTake && !dockUnloadToOwnBay) {
 						traces.advertising.log?.(
 							`[SELECT] SKIP: ${goodType} - ${targetStorage.name} cannot accept goods`
 						)

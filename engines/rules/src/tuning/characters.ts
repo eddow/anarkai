@@ -48,7 +48,6 @@ export const characterTriggerLevels = {
 } as const
 
 export const activityDurations = {
-	handTransfer: 1, // Time to grab/drop items by hand
 	footWalkTime: 1, // Time to walk by foot
 	eating: 2, // Time to eat food
 	restMin: 3,

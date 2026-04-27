@@ -1,4 +1,3 @@
-import { assert, traces } from 'ssh/debug'
 import {
 	assertDockedSemantics,
 	assertDrivingVehicleSeam,
@@ -17,6 +16,7 @@ import type { Character } from 'ssh/population/character'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService, isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
 import { contract } from 'ssh/types'
+import { assert, traces } from '../../dev/debug.ts'
 import { subject } from '../scripts'
 import { DurationStep } from '../steps'
 import type { WorkPlan } from '.'
@@ -73,6 +73,15 @@ class VehicleFunctions {
 			return
 		const vehicle = character.game.vehicles.vehicle(jobPlan.vehicleUid)
 		assert(vehicle, 'vehicleApproach: vehicle missing')
+		if (vehicle.operator && vehicle.operator.uid !== character.uid) {
+			jobPlan.vehicleApproachAborted = true
+			traces.vehicle.warn?.('vehicleApproach: stale plan reached already-operated vehicle', {
+				characterUid: character.uid,
+				vehicleUid: vehicle.uid,
+				operatorUid: vehicle.operator.uid,
+			})
+			return
+		}
 		if (jobPlan.job === 'vehicleHop' && jobPlan.needsBeginService && !vehicle.service) {
 			assert(
 				ensureVehicleServiceStarted(vehicle, character, character.game, character, {
@@ -153,7 +162,6 @@ class VehicleFunctions {
 			'vehicleBeginService: could not start service'
 		)
 		assertVehicleOperationConsistency(vehicle, character)
-		maybeAdvanceVehiclePastCompletedZoneStop(character.game, vehicle, character)
 		assert(vehicle.service, 'vehicleBeginService: missing service')
 		traces.vehicle.log?.('vehicleJob.beginService', {
 			characterUid: character.uid,
@@ -525,6 +533,29 @@ class VehicleFunctions {
 			characterUid: character.uid,
 			vehicleUid: vehicle.uid,
 			maintenanceKind: svc.kind,
+		})
+		offboardOperatorAfterFreightWorkComplete(character)
+	}
+
+	/**
+	 * Abort one stale maintenance run without turning a transient path miss into a hard script error.
+	 * The next planner pass will rediscover fresh maintenance candidates from current board state.
+	 */
+	@contract('WorkPlan', 'string?')
+	abandonVehicleMaintenanceService(jobPlan: WorkPlan, reason: string = 'unreachable-target') {
+		const character = this[subject] as Character
+		if (jobPlan.type !== 'work' || jobPlan.job !== 'vehicleOffload') return
+		const vehicle = character.game.vehicles.vehicle(jobPlan.vehicleUid)
+		assert(vehicle, 'abandonVehicleMaintenanceService: vehicle missing')
+		if (character.operates?.uid !== vehicle.uid) return
+		const svc = vehicle.service
+		if (!isVehicleMaintenanceService(svc)) return
+		traces.vehicle.warn?.('vehicleJob.maintenance.abandon', {
+			characterUid: character.uid,
+			vehicleUid: vehicle.uid,
+			maintenanceKind: svc.kind,
+			targetCoord: svc.targetCoord,
+			reason,
 		})
 		offboardOperatorAfterFreightWorkComplete(character)
 	}

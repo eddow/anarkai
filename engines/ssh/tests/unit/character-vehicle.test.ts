@@ -1,4 +1,3 @@
-import { AssertionError, traces } from 'ssh/debug'
 import {
 	detachVehicleServiceIfStorageEmpty,
 	disembarkOperatorLeavingDockedVehicleInService,
@@ -13,6 +12,7 @@ import { isVehicleLineService, isVehicleMaintenanceService } from 'ssh/populatio
 import { axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { AssertionError, traces } from '../../src/lib/dev/debug.ts'
 import { gatherFreightLine } from '../freight-fixtures'
 
 describe('Character vehicle seam', () => {
@@ -135,11 +135,48 @@ describe('Character vehicle seam', () => {
 		expect(character.driving).toBe(false)
 	})
 
+	it('rebinds service.operator when the same operated vehicle is assigned again', async () => {
+		game = new Game(
+			{ terrainSeed: 9321, characterCount: 0 },
+			{ tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }] }
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		const vehicle = game.vehicles.createVehicle('v-rebind-same', 'wheelbarrow', { q: 0, r: 0 })
+		const character = game.population.createCharacter('Rebind', { q: 0, r: 0 })
+
+		vehicle.beginOffloadService()
+		character.operates = vehicle
+		expect(vehicle.operator?.uid).toBe(character.uid)
+
+		vehicle.releaseOperator(character)
+		character.setOperatedVehicleFromService(vehicle)
+		expect(character.operates?.uid).toBe(vehicle.uid)
+		expect(vehicle.operator?.uid).toBe(character.uid)
+
+		vehicle.releaseOperator(character)
+		character.setOperatedVehicleFromService(vehicle)
+		character.operates = vehicle
+
+		expect(character.operates?.uid).toBe(vehicle.uid)
+		expect(vehicle.operator?.uid).toBe(character.uid)
+	})
+
 	it('does not offer a line-claimed wheelbarrow to a second character', async () => {
 		const patches = {
 			tiles: [
 				{ coord: [0, 0] as const, terrain: 'grass' as const },
 				{ coord: [1, 0] as const, terrain: 'grass' as const },
+			],
+			hives: [
+				{
+					name: 'H',
+					alveoli: [
+						{ coord: [0, 0] as const, alveolus: 'freight_bay', goods: {} },
+						{ coord: [1, 0] as const, alveolus: 'sawmill', goods: {} },
+					],
+				},
 			],
 			freightLines: [
 				gatherFreightLine({
@@ -172,11 +209,20 @@ describe('Character vehicle seam', () => {
 		expect(findVehicleApproachJob(game, second)).toBeUndefined()
 	})
 
-	it('does not claim a vehicle for others until the approach step actually runs', async () => {
+	it('claims a vehicle as soon as an approach work plan begins', async () => {
 		const patches = {
 			tiles: [
 				{ coord: [0, 0] as const, terrain: 'grass' as const },
 				{ coord: [1, 0] as const, terrain: 'grass' as const },
+			],
+			hives: [
+				{
+					name: 'H',
+					alveoli: [
+						{ coord: [0, 0] as const, alveolus: 'freight_bay', goods: {} },
+						{ coord: [1, 0] as const, alveolus: 'sawmill', goods: {} },
+					],
+				},
 			],
 			freightLines: [
 				gatherFreightLine({
@@ -202,7 +248,7 @@ describe('Character vehicle seam', () => {
 		expect(action).toBeTruthy()
 		if (!action) throw new Error('Expected a vehicle approach action')
 		first.begin(action)
-		expect(findVehicleApproachJob(game, second)).toBeDefined()
+		expect(findVehicleApproachJob(game, second)).toBeUndefined()
 	})
 
 	it('rejects boarding without operates', async () => {

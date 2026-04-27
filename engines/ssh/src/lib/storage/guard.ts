@@ -1,5 +1,5 @@
 import { unwrap } from 'mutts'
-import { traces } from 'ssh/debug'
+import { traces } from '../dev/debug.ts'
 
 // GC-aware leak guard for allocation tokens
 // Uses FinalizationRegistry to detect when an allocation token is garbage-collected

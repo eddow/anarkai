@@ -1,7 +1,7 @@
 import { goods as goodsCatalog } from 'engine-rules'
 import { inert, isReactive, reactive } from 'mutts'
-import { traces } from 'ssh/debug'
 import type { GoodType } from 'ssh/types'
+import { traces } from '../dev/debug.ts'
 
 export type ExchangePriority = '0-store' | '1-buffer' | '2-use'
 export type Advertisement = 'demand' | 'provide'
@@ -18,6 +18,7 @@ const assertGoodType = (goodType: string): goodType is GoodType => {
 export interface StorageBase {
 	readonly name: string
 	canTake(goodType: GoodType, priority: ExchangePriority): boolean
+	canTakeFrom?(source: StorageBase, goodType: GoodType, priority: ExchangePriority): boolean
 	canGive(goodType: GoodType, priority: ExchangePriority): boolean
 }
 
@@ -184,7 +185,8 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 					}
 
 					return ad.advertisement === 'provide'
-						? s.canTake(goodType as GoodType, ad.priority)
+						? (s.canTakeFrom?.(advertiser, goodType as GoodType, ad.priority) ??
+								s.canTake(goodType as GoodType, ad.priority))
 						: s.canGive(goodType as GoodType, ad.priority)
 				})
 				if (availableGeneralStorages.length > 0) {

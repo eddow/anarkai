@@ -6,11 +6,12 @@ import {
 	palettePanelBridge,
 } from '@app/palette/browser-palette'
 import { PALETTE_INSPECTOR_DOCK_PANEL_ID } from '@app/palette/palette-inspector'
-import { initConsoleTrap } from 'ssh/debug'
+import { initConsoleTrap } from '../../../engines/ssh/src/lib/dev/debug.ts'
 
 initConsoleTrap()
 
 import {
+	configuration,
 	dockviewLayout,
 	game,
 	getDockviewLayout,
@@ -25,7 +26,7 @@ import {
 	type BuildGameDebugDumpOptions,
 	buildGameDebugDump,
 	stringifyDebugValue,
-} from 'ssh/debug-game-state'
+} from '../../../engines/ssh/src/lib/dev/debug-game-state.ts'
 import widgetsImport from './widgets'
 import SelectionInfoTab from './widgets/selection-info-tab'
 
@@ -39,6 +40,7 @@ const tabs = {
 if (typeof window !== 'undefined') {
 	type BrowserDebugWindow = Window &
 		typeof globalThis & {
+			configuration?: typeof configuration
 			game?: typeof game
 			selectionState?: typeof selectionState
 			dumpSshDebugState?: (
@@ -47,6 +49,7 @@ if (typeof window !== 'undefined') {
 			dumpSshDebugStateJson?: (options?: BuildGameDebugDumpOptions) => string
 		}
 	const debugWindow = window as BrowserDebugWindow
+	debugWindow.configuration = configuration
 	debugWindow.game = game
 	debugWindow.selectionState = selectionState
 	debugWindow.dumpSshDebugState = (options = {}) =>

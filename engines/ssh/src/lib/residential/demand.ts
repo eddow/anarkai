@@ -1,7 +1,6 @@
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
-import { traces } from 'ssh/debug'
 import type { Game } from 'ssh/game/game'
 import { GameObject } from 'ssh/game/object'
 import {
@@ -11,6 +10,7 @@ import {
 } from 'ssh/residential/constants'
 import { axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
+import { traces } from '../dev/debug.ts'
 
 function countPeopleNear(game: Game, center: { q: number; r: number }, radius: number): number {
 	let n = 0

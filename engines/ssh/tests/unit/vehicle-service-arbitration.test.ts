@@ -1,5 +1,4 @@
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
-import { traces } from 'ssh/debug'
 import {
 	assertDockedSemantics,
 	assertVehicleOperationConsistency,
@@ -14,7 +13,9 @@ import {
 	findProvideFromVehicleJob,
 	findUnloadFromVehicleJob,
 	findVehicleBeginServiceJob,
+	findVehicleHopJob,
 	findVehicleOffloadJob,
+	findZoneBrowseJob,
 } from 'ssh/freight/vehicle-work'
 import type { GamePatches } from 'ssh/game/game'
 import { Game } from 'ssh/game/game'
@@ -23,7 +24,10 @@ import { InventoryFunctions } from 'ssh/npcs/context/inventory'
 import { VehicleFunctions } from 'ssh/npcs/context/vehicle'
 import { subject } from 'ssh/npcs/scripts'
 import { DurationStep } from 'ssh/npcs/steps'
+import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
+import type { VehicleHopJob } from 'ssh/types/base'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { traces } from '../../src/lib/dev/debug.ts'
 import { distributeFreightLine, gatherFreightLine } from '../freight-fixtures'
 import {
 	bindOperatedWheelbarrowLine,
@@ -41,7 +45,17 @@ describe('Vehicle begin-service arbitration', () => {
 		const patches = {
 			tiles: [
 				{ coord: [0, 0] as const, terrain: 'grass' as const },
+				{ coord: [1, 0] as const, terrain: 'grass' as const },
 				{ coord: [8, 0] as const, terrain: 'grass' as const },
+			],
+			hives: [
+				{
+					name: 'H',
+					alveoli: [
+						{ coord: [0, 0] as const, alveolus: 'freight_bay', goods: {} },
+						{ coord: [1, 0] as const, alveolus: 'sawmill', goods: {} },
+					],
+				},
 			],
 			freightLines: [
 				gatherFreightLine({
@@ -110,13 +124,22 @@ describe('Vehicle begin-service arbitration', () => {
 		expect(findVehicleBeginServiceJob(game, character)).toBeUndefined()
 	})
 
-	it('findProvideFromVehicleJob offers vehicle stock to a standalone build site on the same tile', async () => {
+	it('compatible loaded cargo enters a served gather line before same-tile construction provide', async () => {
 		const patches = {
 			tiles: [
 				{ coord: [0, 0] as const, terrain: 'grass' as const },
 				{ coord: [1, 0] as const, terrain: 'grass' as const },
 				{ coord: [0, 1] as const, terrain: 'grass' as const },
 				{ coord: [-1, 1] as const, terrain: 'grass' as const },
+			],
+			hives: [
+				{
+					name: 'H',
+					alveoli: [
+						{ coord: [0, 0] as const, alveolus: 'freight_bay', goods: {} },
+						{ coord: [1, 0] as const, alveolus: 'sawmill', goods: {} },
+					],
+				},
 			],
 			freightLines: [
 				gatherFreightLine({
@@ -135,7 +158,7 @@ describe('Vehicle begin-service arbitration', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const siteTile = game.hex.getTile({ q: 0, r: 0 })!
+		const siteTile = game.hex.getTile({ q: 0, r: 1 })!
 		siteTile.content = new BuildDwelling(siteTile, 'basic_dwelling')
 
 		const line = game.freightLines[0]!
@@ -146,11 +169,10 @@ describe('Vehicle begin-service arbitration', () => {
 		bindOperatedWheelbarrowLine(game, character, vehicle)
 		character.onboard()
 
-		const job = findProvideFromVehicleJob(game, character)
-		expect(job?.job).toBe('zoneBrowse')
-		expect(job?.zoneBrowseAction).toBe('provide')
-		expect(job?.goodType).toBe('wood')
-		expect(job!.quantity).toBeGreaterThan(0)
+		expect(findProvideFromVehicleJob(game, character)).toBeUndefined()
+		expect(pickInitialVehicleServiceCandidate(game, character, vehicle)?.stop.id).toBe(
+			line.stops[1]!.id
+		)
 	})
 
 	it('traces.vehicle debug when provideFromVehicle applies without line service (offload-only)', async () => {
@@ -220,7 +242,19 @@ describe('Vehicle begin-service arbitration', () => {
 
 	it('pickInitialVehicleServiceCandidate tie-breaks equal distance by vehicle stock matching line goods', async () => {
 		const patches = {
-			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'grass' as const },
+				{ coord: [1, 0] as const, terrain: 'grass' as const },
+			],
+			hives: [
+				{
+					name: 'H',
+					alveoli: [
+						{ coord: [0, 0] as const, alveolus: 'freight_bay', goods: {} },
+						{ coord: [1, 0] as const, alveolus: 'sawmill', goods: {} },
+					],
+				},
+			],
 			freightLines: [
 				gatherFreightLine({
 					id: 'arb:berries',
@@ -552,7 +586,7 @@ describe('Vehicle begin-service arbitration', () => {
 		expect(bay.nextJob()).toBeUndefined()
 	})
 
-	it('vehicleHopPrepare requests replanning when prepare advances to a different stop', async () => {
+	it('vehicleHopPrepare ends an empty gather service instead of advancing to the bay', async () => {
 		const patches = {
 			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
 			freightLines: [
@@ -579,7 +613,12 @@ describe('Vehicle begin-service arbitration', () => {
 
 		const vf = new VehicleFunctions()
 		Object.assign(vf, { [subject]: actor })
-		const plan = {
+		const plan: VehicleHopJob & {
+			type: 'work'
+			target: typeof vehicle
+			vehicleHopRunEnded?: boolean
+			vehicleHopReplanRequired?: boolean
+		} = {
 			type: 'work' as const,
 			job: 'vehicleHop' as const,
 			target: vehicle,
@@ -594,9 +633,9 @@ describe('Vehicle begin-service arbitration', () => {
 
 		vf.vehicleHopPrepare(plan)
 
-		expect(plan.vehicleHopRunEnded).not.toBe(true)
-		expect(plan.vehicleHopReplanRequired).toBe(true)
-		expect(vehicle.service?.stop.id).toBe(line.stops[1]!.id)
+		expect(plan.vehicleHopRunEnded).toBe(true)
+		expect(plan.vehicleHopReplanRequired).toBe(false)
+		expect(vehicle.service).toBeUndefined()
 	})
 
 	it('anchor vehicleHopDockStep keeps the operator linked until the dock step finishes', async () => {
@@ -652,14 +691,14 @@ describe('Vehicle begin-service arbitration', () => {
 		expect(actor.operates?.uid).toBe(vehicle.uid)
 		expect(actor.driving).toBe(true)
 		expect(vehicle.operator?.uid).toBe(actor.uid)
-		expect(vehicle.service?.docked).toBe(true)
+		expect(isVehicleLineService(vehicle.service) && vehicle.service.docked).toBe(true)
 
 		step.finish()
 
 		expect(actor.operates).toBeUndefined()
 		expect(actor.driving).toBe(false)
 		expect(vehicle.operator).toBeUndefined()
-		expect(vehicle.service?.docked).toBe(true)
+		expect(isVehicleLineService(vehicle.service) && vehicle.service.docked).toBe(true)
 	})
 
 	it('projectedLineStopForVehicleHop advances past gather zone when vehicle storage cannot take more selectable goods', async () => {
@@ -691,5 +730,157 @@ describe('Vehicle begin-service arbitration', () => {
 
 		const proj = projectedLineStopForVehicleHop(game, character, vehicle)
 		expect(proj?.stop.id).toBe(line.stops[1]!.id)
+	})
+
+	it('prefers continuing a loaded line over same-tile ordinary transform work', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'concrete' as const },
+				{ coord: [1, 0] as const, terrain: 'concrete' as const },
+			],
+			hives: [
+				{
+					name: 'LineWorkHive',
+					alveoli: [
+						{ coord: [0, 0] as const, alveolus: 'freight_bay' as const, goods: {} },
+						{ coord: [1, 0] as const, alveolus: 'sawmill' as const, goods: { wood: 1 } },
+					],
+				},
+			],
+			freightLines: [
+				gatherFreightLine({
+					id: 'arb:line-work-priority',
+					name: 'Line work priority',
+					hiveName: 'LineWorkHive',
+					coord: [0, 0],
+					filters: ['wood'],
+					radius: 2,
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 9517, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines[0]!
+		const vehicle = game.vehicles.createVehicle('arb-line-work', 'wheelbarrow', { q: 1, r: 0 }, [
+			line,
+		])
+		vehicle.storage.addGood('wood', 1)
+		vehicle.beginLineService(line, line.stops[0]!)
+		const character = game.population.createCharacter('LineWork', { q: 1, r: 0 })
+
+		const match = character.resolveBestJobMatch()
+
+		if (!match || match.job.job !== 'vehicleHop') throw new Error('expected vehicleHop')
+		expect(match.job.job).toBe('vehicleHop')
+		expect(match.job.vehicleUid).toBe(vehicle.uid)
+	})
+
+	it('continues an unattended loaded gather-zone service to the bay', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'concrete' as const },
+				{ coord: [1, 0] as const, terrain: 'grass' as const },
+			],
+			hives: [
+				{
+					name: 'UnattendedLoadedHive',
+					alveoli: [
+						{ coord: [0, 0] as const, alveolus: 'freight_bay' as const, goods: {} },
+						{ coord: [1, 0] as const, alveolus: 'sawmill' as const, goods: {} },
+					],
+				},
+			],
+			freightLines: [
+				gatherFreightLine({
+					id: 'arb:unattended-loaded-zone',
+					name: 'Unattended loaded zone',
+					hiveName: 'UnattendedLoadedHive',
+					coord: [0, 0],
+					filters: ['wood'],
+					radius: 2,
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 9519, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines[0]!
+		const vehicle = game.vehicles.createVehicle(
+			'arb-unattended-loaded',
+			'wheelbarrow',
+			{ q: 1, r: 0 },
+			[line]
+		)
+		vehicle.beginLineService(line, line.stops[0]!)
+		vehicle.storage.addGood('wood', 1)
+		const character = game.population.createCharacter('UnattendedLoaded', { q: 1, r: 0 })
+
+		const hop = findVehicleHopJob(game, character)
+
+		expect(hop?.job).toBe('vehicleHop')
+		expect(hop?.vehicleUid).toBe(vehicle.uid)
+		expect(hop?.stopId).toBe(line.stops[1]!.id)
+		expect(hop?.approachPath).toHaveLength(0)
+		expect(hop?.needsBeginService).toBeUndefined()
+	})
+
+	it('scores zoneBrowse by approach distance, not target-tile travel', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'grass' as const },
+				{ coord: [0, 1] as const, terrain: 'grass' as const },
+				{ coord: [0, 2] as const, terrain: 'grass' as const },
+			],
+			hives: [
+				{
+					name: 'ZoneBrowseScoreHive',
+					alveoli: [
+						{ coord: [0, 0] as const, alveolus: 'freight_bay' as const, goods: {} },
+						{ coord: [0, 1] as const, alveolus: 'sawmill' as const, goods: {} },
+					],
+				},
+			],
+			looseGoods: [{ goodType: 'wood' as const, position: { q: 0, r: 2 } }],
+			freightLines: [
+				gatherFreightLine({
+					id: 'arb:zone-browse-score',
+					name: 'Zone browse score',
+					hiveName: 'ZoneBrowseScoreHive',
+					coord: [0, 0],
+					filters: ['wood'],
+					radius: 2,
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 9518, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines[0]!
+		const vehicle = game.vehicles.createVehicle(
+			'arb-zone-browse-score',
+			'wheelbarrow',
+			{ q: 0, r: 0 },
+			[line]
+		)
+		const character = game.population.createCharacter('ZoneBrowseScore', { q: 0, r: 0 })
+		vehicle.beginService(line, line.stops[0]!, character)
+		character.operates = vehicle
+		character.onboard()
+
+		const job = findZoneBrowseJob(game, character)
+		expect(job?.job).toBe('zoneBrowse')
+		if (!job) throw new Error('expected zoneBrowse')
+		expect(job.path.length).toBeGreaterThan(job.approachPath?.length ?? 0)
+
+		character.resolveBestJobMatch()
+		const row = character.workPlannerSnapshot?.ranked.find(
+			(entry) => entry.jobKind === 'zoneBrowse'
+		)
+
+		expect(row?.pathLength).toBe(job.approachPath?.length ?? 0)
 	})
 })

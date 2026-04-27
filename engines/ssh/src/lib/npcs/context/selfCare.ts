@@ -27,9 +27,7 @@ class SelfCareFunctions {
 			if (storage && storage.available(goodType) >= 1) {
 				source = { kind: 'storage', storage }
 			} else {
-				throw new Error(
-					`eatFromWorld: no available ${goodType} on tile (loose or storage). Coord=${JSON.stringify(coord)}`
-				)
+				return new PonderingStep(character)
 			}
 		}
 		return new EatStep(character, goodType, source)

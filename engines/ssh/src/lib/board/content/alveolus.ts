@@ -1,7 +1,6 @@
 import { configurations, harvestFatiguePremium, jobBalance } from 'engine-rules'
 import { inert, memoize, reactive, type ScopedCallback, unreactive, unwrap } from 'mutts'
 import { isTileCoord } from 'ssh/board/tile-coord'
-import { assert } from 'ssh/debug'
 import type { Hive, MovementSelection, TrackedMovement } from 'ssh/hive/hive'
 import { gameIsaTypes } from 'ssh/npcs/utils'
 import type { Character } from 'ssh/population/character'
@@ -10,6 +9,7 @@ import type { GoodType, Job } from 'ssh/types/base'
 import { type AxialCoord, axial, tileSize } from 'ssh/utils'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
 import { toAxialCoord, toWorldCoord } from 'ssh/utils/position'
+import { assert } from '../../dev/debug.ts'
 import { AlveolusGate } from '../border/alveolus-gate'
 import type { Tile } from '../tile'
 import { TileContent } from './content'
@@ -228,6 +228,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			const fromKey = axial.key(from)
 			const toKey = axial.key(to)
 			const hereKey = axial.key(here)
+			if (fromKey === hereKey && toKey === hereKey) return true
 			if (fromKey === hereKey) return borderKeys.has(toKey)
 			if (!borderKeys.has(fromKey)) return false
 			if (toKey === hereKey) return true

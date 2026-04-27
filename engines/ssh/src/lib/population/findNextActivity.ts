@@ -1,6 +1,5 @@
 import { activityUtilityConfig, goods as goodsCatalog } from 'engine-rules'
 import type { Tile } from 'ssh/board/tile'
-import { blackBoxLog, traceNeeds } from 'ssh/debug'
 import type { Game } from 'ssh/game'
 import type { GoodType, Job } from 'ssh/types/base'
 import type { AxialCoord } from 'ssh/utils'
@@ -15,6 +14,7 @@ import {
 	readCharacterEvolutionRate,
 	residentialRecoveryRates,
 } from '../../../assets/constants'
+import { blackBoxLog, traceNeeds } from '../dev/debug.ts'
 
 export { activityUtilityConfig }
 

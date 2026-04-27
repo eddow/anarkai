@@ -1,13 +1,13 @@
+import type { GamePatches } from 'ssh/game/game'
+import { Game } from 'ssh/game/game'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
 	DEFAULT_TRACE_LOG_LIFETIME,
 	namedTrace,
 	setTraceLevel,
 	traceLevels,
 	traces,
-} from 'ssh/debug'
-import type { GamePatches } from 'ssh/game/game'
-import { Game } from 'ssh/game/game'
-import { afterEach, describe, expect, it } from 'vitest'
+} from '../../src/lib/dev/debug.ts'
 import { gatherFreightLine } from '../freight-fixtures'
 
 class UnknownTraceThing {
@@ -149,10 +149,63 @@ describe('safe trace serialization', () => {
 		expect(sink.assert).toBeDefined()
 		expect(sink.error).toBeDefined()
 		expect(sink.read).toBeDefined()
+		expect(sink.display).toBeDefined()
 
 		sink.warn?.('warning')
 		sink.error?.('error')
 		expect(sink.heads).toEqual(['warning', 'error'])
+	})
+
+	it('displays stored trace rows on demand', () => {
+		const sink = namedTrace('display', { silent: true })
+		const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+		try {
+			sink.log?.('display.event', { value: 1 })
+
+			sink.display(1)
+
+			expect(log).toHaveBeenCalledWith(expect.stringContaining('display.event'))
+			expect(log.mock.calls[0]?.[0]).toContain('value: 1')
+		} finally {
+			log.mockRestore()
+		}
+	})
+
+	it('forwards configured trace rows to the matching console method', () => {
+		const previousLevel = traceLevels.forwardProbe
+		const groupCollapsed = vi.spyOn(console, 'groupCollapsed').mockImplementation(() => {})
+		const groupEnd = vi.spyOn(console, 'groupEnd').mockImplementation(() => {})
+		const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+		try {
+			setTraceLevel('forwardProbe', 'log')
+
+			traces.forwardProbe.log?.('probe.event', { nested: 'yes' })
+
+			expect(groupCollapsed).toHaveBeenCalledWith('<[forwardProbe]> probe.event')
+			expect(log).toHaveBeenCalledWith(expect.stringContaining('nested: yes'))
+			expect(groupEnd).toHaveBeenCalledTimes(1)
+		} finally {
+			setTraceLevel('forwardProbe', previousLevel)
+			log.mockRestore()
+			groupEnd.mockRestore()
+			groupCollapsed.mockRestore()
+		}
+	})
+
+	it('does not forward successful trace assertions', () => {
+		const sink = namedTrace('assert-ok', { level: 'assert' })
+		const groupCollapsed = vi.spyOn(console, 'groupCollapsed').mockImplementation(() => {})
+		const assert = vi.spyOn(console, 'assert').mockImplementation(() => {})
+		try {
+			sink.assert?.(true, 'ok')
+
+			expect(sink).toHaveLength(0)
+			expect(groupCollapsed).not.toHaveBeenCalled()
+			expect(assert).not.toHaveBeenCalled()
+		} finally {
+			assert.mockRestore()
+			groupCollapsed.mockRestore()
+		}
 	})
 
 	it('does not evaluate disabled trace call arguments', () => {

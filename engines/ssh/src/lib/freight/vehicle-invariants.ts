@@ -1,7 +1,7 @@
-import { assert, traces } from 'ssh/debug'
 import type { Character } from 'ssh/population/character'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
+import { assert, traces } from '../dev/debug.ts'
 
 export function vehicleTraceAssert(condition: unknown, message: string): asserts condition {
 	if (condition) return

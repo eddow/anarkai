@@ -1,7 +1,6 @@
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { LooseGood } from 'ssh/board/looseGoods'
 import type { Tile } from 'ssh/board/tile'
-import { type NamedTrace, namedTrace, traces } from 'ssh/debug'
 import { maybeAdvanceVehicleFromCompletedAnchorStop } from 'ssh/freight/vehicle-run'
 import { findVehicleOffloadJob } from 'ssh/freight/vehicle-work'
 import type { Game } from 'ssh/game/game'
@@ -9,6 +8,7 @@ import type { Character } from 'ssh/population/character'
 import { debugActiveAllocations, resetDebugActiveAllocations } from 'ssh/storage/guard'
 import { toAxialCoord } from 'ssh/utils/position'
 import { describe, expect, it } from 'vitest'
+import { type NamedTrace, namedTrace, traces } from '../../src/lib/dev/debug.ts'
 import { gatherFreightLine } from '../freight-fixtures'
 import { TestEngine } from '../test-engine'
 
@@ -134,6 +134,64 @@ describe('Hive Offload Scenario', () => {
 			expect(action).toBeTruthy()
 			if (!action) throw new Error('Expected offload action')
 			expect(action.name).toBe('work.goWork')
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('Scenario: loadFromBurden completes once the burdening good is loaded into the vehicle', {
+		timeout: 15000,
+	}, async () => {
+		const engine = new TestEngine({
+			terrainSeed: 1234,
+			characterCount: 0,
+		})
+		await engine.init()
+		const game = engine.game
+		try {
+			const center = { q: 2, r: 2 }
+			engine.loadScenario({
+				generationOptions: {
+					terrainSeed: 1234,
+					characterCount: 0,
+				},
+				tiles: [
+					{ coord: [2, 2], terrain: 'concrete' },
+					{ coord: [2, 3], terrain: 'concrete' },
+					{ coord: [3, 2], terrain: 'concrete' },
+					{ coord: [3, 3], terrain: 'concrete' },
+				],
+				looseGoods: [{ goodType: 'stone', position: center }],
+				hives: [
+					{
+						name: 'OffloadLoadOnlyHive',
+						alveoli: [{ coord: [2, 2], alveolus: 'storage', goods: {} }],
+					},
+				],
+			} as any)
+
+			const vehicle = createOffloadWheelbarrow(game, { q: 3, r: 3 }, 'wb-load-only')
+			const worker = engine.spawnCharacter('Worker', { q: 3, r: 2 })
+			worker.role = 'worker'
+			void worker.scriptsContext
+
+			const action = worker.findBestJob()
+			expect(action).toBeTruthy()
+			if (!action) throw new Error('Expected loadFromBurden action')
+			worker.begin(action)
+
+			let time = 0
+			while (time < 8) {
+				engine.tick(0.1, 0.1)
+				if (vehicle.storage.available('stone') > 0) break
+				time += 0.1
+			}
+
+			expect(vehicle.storage.available('stone')).toBe(1)
+			const looseStone = Array.from(game.hex.looseGoods.goods.values())
+				.flat()
+				.filter((good) => good.goodType === 'stone' && !good.isRemoved)
+			expect(looseStone).toHaveLength(0)
 		} finally {
 			await engine.destroy()
 		}
@@ -470,12 +528,9 @@ describe('Hive Offload Scenario', () => {
 			const diag = formatTwoLooseRoundDiagnostics(rounds)
 
 			const messages = vehicleTraceMessages(vehicleSink)
-			// `findBestJob` emits `vehicleJob.selected` for each freight selection. First leg boards the
-			// wheelbarrow (`vehicleJob.approach.onboard`). Each `loadFromBurden` now logs the shared load
-			// transfer step, then ends the maintenance run through the common offboard tail. After the last
-			// loose good, the empty burdening wheelbarrow is rerouted as `park`, ending in `park.end` +
-			// `offboard.endService` + `offboard`.
-			expect(messages, `${diag}\nvehicleTrace=${JSON.stringify(messages)}`).toEqual([
+			// The first two maintenance runs are the two `loadFromBurden` works: each ends after the
+			// load, and follow-up unload/park work is selected by later planner passes.
+			expect(messages.slice(0, 11), `${diag}\nvehicleTrace=${JSON.stringify(messages)}`).toEqual([
 				'vehicleJob.selected',
 				'vehicleJob.approach.onboard',
 				'vehicleJob.load',
@@ -487,11 +542,8 @@ describe('Hive Offload Scenario', () => {
 				'vehicleJob.maintenance.complete',
 				'vehicleJob.offboard.endService',
 				'vehicleJob.offboard',
-				'vehicleJob.selected',
-				'vehicleJob.maintenance.complete',
-				'vehicleJob.offboard.endService',
-				'vehicleJob.offboard',
 			])
+			expect(messages.filter((message) => message === 'vehicleJob.load')).toHaveLength(2)
 		} finally {
 			resetDebugActiveAllocations()
 			await engine.destroy()

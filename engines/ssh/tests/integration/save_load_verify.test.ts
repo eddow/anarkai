@@ -352,11 +352,12 @@ describe('Save/Load Determinism', () => {
 		games.add(game)
 		await game.loaded
 		const char = game.population.createCharacter('Hauler', { q: 0, r: 0 })
+		const mover = { position: char.position }
 
 		// MultiMove: A -> B -> C
 		const path = [
-			{ who: char, from: { q: 0, r: 0 }, to: { q: 5, r: 5 } },
-			{ who: char, from: { q: 5, r: 5 }, to: { q: 10, r: 0 } },
+			{ who: mover, from: { q: 0, r: 0 }, to: { q: 5, r: 5 } },
+			{ who: mover, from: { q: 5, r: 5 }, to: { q: 10, r: 0 } },
 		]
 		// This is pseudo-construction, MultiMoveStep expects distinct movements that might happen concurrently or sequentially?
 		// Actually MultiMoveStep lerps all movements in parallel (evoluion 0-1).
@@ -458,6 +459,6 @@ describe('Save/Load Determinism', () => {
 			sediment: 0.4,
 			waterTable: 0.12,
 		})
-		expect(tile.content?.logInfo?.terrain).toBe('rocky')
+		expect(tile.content?.debugInfo?.terrain).toBe('rocky')
 	})
 })

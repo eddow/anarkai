@@ -66,6 +66,46 @@ describe('Vehicle usage invariant', () => {
 		expect(service.targetCoord).toEqual({ q: 1, r: 0 })
 	})
 
+	it('vehicleOffload keeps the usage link while walking toward the vehicle', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'grass' as const },
+				{ coord: [1, 0] as const, terrain: 'grass' as const },
+			],
+			hives: [
+				{
+					name: 'UsageWalkHive',
+					alveoli: [{ coord: [1, 0] as const, alveolus: 'storage' as const, goods: {} }],
+				},
+			],
+			looseGoods: [{ goodType: 'wood' as const, position: { q: 1, r: 0 } }],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 9608, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const vehicle = game.vehicles.createVehicle('vu-walk-link', 'wheelbarrow', { q: 1, r: 0 }, [])
+		const character = game.population.createCharacter('UsageWalk', { q: 0, r: 0 })
+		const job = findVehicleOffloadJob(game, character)
+		expect(job?.job).toBe('vehicleOffload')
+		expect(job?.maintenanceKind).toBe('loadFromBurden')
+		expect(job?.path.length).toBeGreaterThan(0)
+		const action = character.findBestJob()
+		if (!action) throw new Error('expected vehicle offload action')
+
+		character.begin(action)
+
+		expect(character.driving).toBe(false)
+		expect(character.operates?.uid).toBe(vehicle.uid)
+		expect(vehicle.operator?.uid).toBe(character.uid)
+		expect(isVehicleMaintenanceService(vehicle.service)).toBe(true)
+		if (!isVehicleMaintenanceService(vehicle.service))
+			throw new Error('expected maintenance service')
+		expect(vehicle.service.kind).toBe('loadFromBurden')
+		expect(toAxialCoord(character.position)).toMatchObject({ q: 0, r: 0 })
+		expect(character.stepExecutor).toBeDefined()
+	})
+
 	it('non-vehicle work-plan begin releases vehicle usage but keeps unfinished service resumable', async () => {
 		const patches = {
 			tiles: [
@@ -86,16 +126,16 @@ describe('Vehicle usage invariant', () => {
 		})
 		character.onboard()
 		const target = game.hex.getTile({ q: 0, r: 0 })!.content!
-		const nonVehiclePlan = {
+		const nonVehiclePlan: WorkPlan = {
 			type: 'work',
 			job: 'harvest',
 			target,
 			path: [],
 			urgency: 1,
 			fatigue: 0,
-		} as const
+		}
 
-		character.scriptsContext.plan.begin(nonVehiclePlan as WorkPlan)
+		character.scriptsContext.plan.begin(nonVehiclePlan)
 
 		expect(character.operates).toBeUndefined()
 		expect(vehicle.operator).toBeUndefined()

@@ -65,6 +65,11 @@ vi.mock('ssh/freight/freight-line', async (importOriginal) => {
 	}
 })
 
+const collectVehicleWorkPicks = vi.fn()
+vi.mock('ssh/freight/vehicle-work', () => ({
+	collectVehicleWorkPicks: (...args: unknown[]) => collectVehicleWorkPicks(...args),
+}))
+
 vi.mock('./EntityBadge', () => ({
 	default: (props: { text?: string }) => <div data-testid="vehicle-entity-badge">{props.text}</div>,
 }))
@@ -123,6 +128,7 @@ describe('VehicleProperties', () => {
 	beforeEach(() => {
 		container = document.createElement('div')
 		document.body.appendChild(container)
+		collectVehicleWorkPicks.mockReset()
 	})
 
 	afterEach(() => {
@@ -223,50 +229,58 @@ describe('VehicleProperties', () => {
 		).toBe(false)
 	})
 
-	it('shows operator ranked work when the operator has a work planner snapshot', () => {
-		const operator = {
-			uid: 'char-jobs',
-			title: 'Bo',
-			game: {
-				hex: {
-					getTile: ({ q, r }: { q: number; r: number }) => ({
-						uid: `tile:${q},${r}`,
-						title: `Tile ${q}, ${r}`,
-					}),
-				},
-			},
-			workPlannerSnapshot: {
-				ranked: [
-					{
-						jobKind: 'convey',
-						targetLabel: 'wood @ 0, 1',
-						targetCoord: { q: 0, r: 1 },
-						urgency: 4,
-						pathLength: 1,
-						score: 2,
-						selected: true,
-					},
-					{
-						jobKind: 'vehicleHop',
-						targetLabel: 'bay @ 2, 0',
-						targetCoord: { q: 2, r: 0 },
-						urgency: 1,
-						pathLength: 3,
-						score: 0.5,
-						selected: false,
-					},
-				],
-			},
+	it('shows ranked vehicle work from available worker picks', () => {
+		const operator = { uid: 'char-jobs', title: 'Bo' }
+		const otherWorker = { uid: 'char-other', title: 'Ia' }
+		const targetTile = {
+			uid: 'tile:2,0',
+			title: 'Tile 2, 0',
+			position: { x: 2, y: 0 },
+		}
+		const game = {
+			population: [operator, otherWorker],
 		}
 		const vehicle = {
 			uid: 'veh-jobs',
 			title: 'wheelbarrow veh-jobs',
 			vehicleType: 'wheelbarrow',
-			game: operator.game,
+			game,
 			operator,
 			storage: { stock: {} },
 			service: undefined,
 		}
+		collectVehicleWorkPicks.mockImplementation((_game, character: { uid?: string }) =>
+			character.uid === operator.uid ?
+					[
+						{
+							job: {
+								job: 'vehicleOffload',
+								maintenanceKind: 'unloadToTile',
+								vehicleUid: 'veh-jobs',
+								targetCoord: { q: 2, r: 0 },
+								path: [],
+								urgency: 4,
+								fatigue: 1,
+							},
+							targetTile,
+						},
+					]
+				:	[
+						{
+							job: {
+								job: 'vehicleHop',
+								vehicleUid: 'other-vehicle',
+								lineId: 'L1',
+								stopId: 'S1',
+								path: [],
+								urgency: 9,
+								fatigue: 1,
+								dockEnter: false,
+							},
+							targetTile,
+						},
+					]
+		)
 
 		stop = latch(container, <VehicleProperties vehicle={vehicle as never} />, {
 			setTitle: vi.fn(),
@@ -275,11 +289,10 @@ describe('VehicleProperties', () => {
 		const rows = Array.from(
 			container.querySelectorAll('[data-testid="vehicle-ranked-work"]')
 		) as HTMLDivElement[]
-		expect(rows).toHaveLength(2)
-		expect(rows[0]?.textContent).toContain('Convey')
-		expect(rows[0]?.textContent).toContain('tile:0,1')
-		expect(rows[0]?.getAttribute('data-selected')).toBe('true')
-		expect(rows[1]?.textContent).toContain('Vehicle hop')
+		expect(rows).toHaveLength(1)
+		expect(rows[0]?.textContent).toContain('vehicleOffload')
+		expect(rows[0]?.textContent).toContain('unloadToTile')
+		expect(rows[0]?.textContent).toContain('Bo')
 	})
 
 	it('shows idle when there is no service', () => {

@@ -1,5 +1,5 @@
 import { ReactiveBase } from 'mutts'
-import { traceProjection } from 'ssh/trace'
+import { traceProjection } from 'ssh/dev/trace'
 import type { Goods, GoodType } from 'ssh/types/base'
 import type { RenderedGoodSlots } from './types'
 

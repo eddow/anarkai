@@ -53,6 +53,25 @@ class MockTile {
 	}
 }
 
+class MockVehicleEntity {
+	uid = 'vehicle:wheelbarrow-1'
+	title = 'Wheelbarrow 1'
+	vehicleType = 'wheelbarrow'
+	game = {
+		loaded: Promise.resolve(),
+		getTexture: vi.fn(() => undefined),
+	}
+}
+
+class MockCharacter {
+	uid = 'character:ada'
+	title = 'Ada'
+	game = {
+		loaded: Promise.resolve(),
+		getTexture: vi.fn(() => undefined),
+	}
+}
+
 vi.mock('@app/lib/css', () => ({
 	css: () => '',
 }))
@@ -65,6 +84,20 @@ vi.mock('engine-pixi/assets/visual-content', () => ({
 			sprites: ['tree-chopper-sprite'],
 		},
 	},
+	vehicles: {
+		wheelbarrow: {
+			sprites: ['wheelbarrow-sprite'],
+		},
+	},
+	characters: {
+		default: {
+			sprites: ['character-default-sprite'],
+		},
+	},
+}))
+
+vi.mock('engine-pixi/renderers/vehicle-visual', () => ({
+	vehicleTextureKey: vi.fn((vehicleType: string) => `vehicles.${vehicleType}`),
 }))
 
 vi.mock('ssh/board/content/alveolus', () => ({
@@ -73,6 +106,14 @@ vi.mock('ssh/board/content/alveolus', () => ({
 
 vi.mock('ssh/board/tile', () => ({
 	Tile: MockTile,
+}))
+
+vi.mock('ssh/population/vehicle/entity', () => ({
+	VehicleEntity: MockVehicleEntity,
+}))
+
+vi.mock('ssh/population/character', () => ({
+	Character: MockCharacter,
 }))
 
 vi.mock('ssh/game/object', () => ({
@@ -95,7 +136,11 @@ vi.mock('ssh/utils/position', () => ({
 }))
 
 vi.mock('./ResourceImage', () => ({
-	default: (props: { alt?: string }) => <span data-testid="resource-image">{props.alt}</span>,
+	default: (props: { alt?: string; sprite?: string }) => (
+		<span data-testid="resource-image">
+			{props.sprite}:{props.alt}
+		</span>
+	),
 }))
 
 let LinkedEntityControl: typeof import('./LinkedEntityControl').default
@@ -211,6 +256,26 @@ describe('LinkedEntityControl', () => {
 		tile.content = undefined
 
 		expect(container.querySelector('[data-testid="resource-image"]')).not.toBeNull()
+	})
+
+	it('renders a stable vehicle sprite for linked vehicles', () => {
+		const vehicle = new MockVehicleEntity()
+
+		stop = latch(container, <LinkedEntityControl object={vehicle as never} />)
+
+		expect(container.querySelector('[data-testid="resource-image"]')?.textContent).toContain(
+			'wheelbarrow-sprite:Wheelbarrow 1'
+		)
+	})
+
+	it('renders a stable character sprite for linked characters', () => {
+		const character = new MockCharacter()
+
+		stop = latch(container, <LinkedEntityControl object={character as never} />)
+
+		expect(container.querySelector('[data-testid="resource-image"]')?.textContent).toContain(
+			'character-default-sprite:Ada'
+		)
 	})
 
 	it('renders nothing when the target object is temporarily unavailable', () => {

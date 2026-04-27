@@ -4,7 +4,6 @@ import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { LooseGood } from 'ssh/board/looseGoods'
 import type { Tile } from 'ssh/board/tile'
 import { isStandaloneBuildSiteShell } from 'ssh/build-site'
-import { assert, traces } from 'ssh/debug'
 import {
 	findGatherRouteSegments,
 	freightStopAnchorMatchesAlveolus,
@@ -13,9 +12,11 @@ import {
 	gatherSelectableGoodTypes,
 } from 'ssh/freight/freight-line'
 import { aggregateHiveNeedTypes } from 'ssh/freight/freight-zone-gather-target'
+import { scoreVehicleCandidate } from 'ssh/freight/vehicle-candidate-policy'
 import {
 	ensureVehicleServiceStarted,
 	freightStopMovementTarget,
+	gatherUnloadAnchorHiveDemandsGood,
 	pickInitialVehicleServiceCandidate,
 	projectedLineStopForVehicleHop,
 	vehicleNeedsParkingOnCurrentTile,
@@ -48,6 +49,7 @@ import type {
 import { type AxialCoord, axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
 import { maxWalkTime } from '../../../assets/constants'
+import { assert, traces } from '../dev/debug.ts'
 
 const LINE_FREIGHT_VEHICLE = 'wheelbarrow' as const
 
@@ -100,8 +102,16 @@ export function allocateVehicleServiceForJob(
 		}
 		case 'vehicleHop': {
 			if (job.approachPath?.length) {
-				// The approach prelude only reserves the work plan. Line service is attached by
-				// `vehicleBeginServiceStep` after the worker has reached and boarded the vehicle.
+				// Approach still claims the selected service immediately so another worker cannot pick the
+				// same wheelbarrow while this one is walking toward it. Physical boarding remains in
+				// `vehicleApproachStep` after the worker reaches the vehicle.
+				assert(
+					ensureVehicleServiceStarted(vehicle, character, game, character, {
+						lineId: job.lineId,
+						stopId: job.stopId,
+					}),
+					'vehicleHop approach: could not reserve selected line service'
+				)
 				return
 			}
 			if (job.needsBeginService) {
@@ -154,6 +164,21 @@ function isTileDropEligible(tile: Tile): boolean {
 	return true
 }
 
+function vehicleCanReachMaintenanceTarget(
+	game: Game,
+	vehicle: VehicleEntity,
+	character: Character,
+	tile: Tile
+): boolean {
+	const from = toAxialCoord(vehicle.position)
+	const to = toAxialCoord(tile.position)
+	if (!from || !to) return false
+	const start = axial.round(from)
+	const goal = axial.round(to)
+	if (axial.key(start) === axial.key(goal)) return true
+	return !!game.hex.findPathForCharacter(start, goal, character, maxWalkTime, true)
+}
+
 /**
  * Picks a non-burdening tile within {@link offloadRange} of `vehicle` to drop loaded cargo onto.
  * Score prefers nearest, with a mild penalty proportional to existing loose-goods on the tile so we
@@ -161,7 +186,8 @@ function isTileDropEligible(tile: Tile): boolean {
  */
 function pickUnloadTargetForVehicle(
 	game: Game,
-	vehicle: VehicleEntity
+	vehicle: VehicleEntity,
+	canReach: (tile: Tile) => boolean = () => true
 ): { tile: Tile; urgency: number } | undefined {
 	if (!vehicleHasStock(vehicle)) return undefined
 	const origin = toAxialCoord(vehicle.tile.position)!
@@ -172,6 +198,7 @@ function pickUnloadTargetForVehicle(
 		if (dist > offloadRange) continue
 		if (axial.key(tc) === axial.key(origin)) continue
 		if (!isTileDropEligible(tile)) continue
+		if (!canReach(tile)) continue
 		const looseCount = game.hex.looseGoods.getGoodsAt(tc).length
 		// Distance dominates; mild crowding penalty avoids piling on the same hex.
 		const score = 1 / (dist + 1) / (1 + 0.25 * looseCount)
@@ -188,7 +215,8 @@ function pickUnloadTargetForVehicle(
  */
 function pickParkingTargetForVehicle(
 	game: Game,
-	vehicle: VehicleEntity
+	vehicle: VehicleEntity,
+	canReach: (tile: Tile) => boolean = () => true
 ): { tile: Tile; urgency: number } | undefined {
 	if (vehicleHasStock(vehicle)) return undefined
 	if (!vehicleNeedsParkingOnCurrentTile(vehicle)) return undefined
@@ -212,6 +240,7 @@ function pickParkingTargetForVehicle(
 		if (dist > offloadRange) continue
 		if (axial.key(tc) === axial.key(origin)) continue
 		if (!isTileDropEligible(tile)) continue
+		if (!canReach(tile)) continue
 		const cluster = parkedNeighborCount(tc)
 		if (!best || dist < best.dist || (dist === best.dist && cluster < best.cluster)) {
 			best = { tile, dist, cluster }
@@ -259,24 +288,77 @@ type UnloadCandidate = { kind: 'unload'; tile: Tile; urgency: number }
 type ParkCandidate = { kind: 'park'; tile: Tile; urgency: number }
 type MaintenanceCandidate = LoadCandidate | UnloadCandidate | ParkCandidate
 
-function isJointLineLoadCandidate(vehicle: VehicleEntity, candidate: LoadCandidate): boolean {
+function loadedStockCanEnterServedGatherLine(game: Game, vehicle: VehicleEntity): boolean {
+	const goods = (Object.keys(vehicle.storage.stock) as GoodType[]).filter(
+		(good) => vehicle.storage.available(good) > 0
+	)
+	if (goods.length === 0) return false
+	const vehicleCoord = toAxialCoord(vehicle.position)
+	if (!vehicleCoord) return false
+	for (const line of vehicle.servedLines) {
+		for (const segment of findGatherRouteSegments(line)) {
+			if (segment.loadStopIndex !== 0) continue
+			const loadStop = line.stops[segment.loadStopIndex]
+			const unloadStop = line.stops[segment.unloadStopIndex]
+			if (!loadStop || !('zone' in loadStop) || loadStop.zone.kind !== 'radius') continue
+			if (!unloadStop) continue
+			const center: AxialCoord = { q: loadStop.zone.center[0], r: loadStop.zone.center[1] }
+			if (axial.distance(center, vehicleCoord) > loadStop.zone.radius) continue
+			if (
+				goods.some(
+					(good) =>
+						gatherSegmentAllowsGoodTypeForSegment(line, segment, good) &&
+						gatherUnloadAnchorHiveDemandsGood(game, unloadStop, good)
+				)
+			) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+function maintenanceCandidateUrgency(candidate: MaintenanceCandidate): number {
+	return candidate.kind === 'load' ? candidate.pick.urgency : candidate.urgency
+}
+
+function maintenanceCandidateScore(candidate: MaintenanceCandidate, distance: number): number {
+	return scoreVehicleCandidate({
+		kind:
+			candidate.kind === 'load'
+				? 'maintenanceLoad'
+				: candidate.kind === 'unload'
+					? 'maintenanceUnload'
+					: 'park',
+		urgency: maintenanceCandidateUrgency(candidate),
+		distance,
+	}).score
+}
+
+function isJointLineLoadCandidate(
+	character: Character,
+	vehicle: VehicleEntity,
+	candidate: LoadCandidate
+): boolean {
 	const candidateCoord = toAxialCoord(candidate.tile.position)
 	if (!candidateCoord) return false
 	for (const line of vehicle.servedLines) {
 		for (const segment of findGatherRouteSegments(line)) {
 			const stop = line.stops[segment.loadStopIndex]
 			if (!stop || !('zone' in stop) || stop.zone.kind !== 'radius') continue
-			const center: AxialCoord = { q: stop.zone.center[0], r: stop.zone.center[1] }
-			if (axial.distance(center, candidateCoord) > stop.zone.radius) continue
-			if (
-				gatherSegmentAllowsGoodTypeForSegment(
-					line,
-					segment,
-					candidate.pick.looseGood.goodType as GoodType
-				)
-			) {
-				return true
-			}
+			const selection = pickVehicleZoneBrowseSelection(
+				vehicle.game,
+				character,
+				vehicle,
+				line,
+				stop,
+				vehicle.position
+			)
+			if (selection?.action !== 'load') continue
+			const selectionCoord = toAxialCoord(selection.targetTile.position)
+			if (!selectionCoord || axial.key(selectionCoord) !== axial.key(candidateCoord)) continue
+			if (selection.goodType !== candidate.pick.looseGood.goodType) continue
+			return true
 		}
 	}
 	return false
@@ -289,37 +371,47 @@ function isJointLineLoadCandidate(vehicle: VehicleEntity, candidate: LoadCandida
  */
 function pickMaintenanceForVehicle(
 	game: Game,
-	vehicle: VehicleEntity
+	vehicle: VehicleEntity,
+	character: Character
 ): MaintenanceCandidate | undefined {
+	// Structural "could begin gather line from loaded cargo" must not suppress maintenance unless
+	// begin-service is actually actionable for this worker (path, unload anchor, zone load, etc.).
+	if (
+		loadedStockCanEnterServedGatherLine(game, vehicle) &&
+		pickInitialVehicleServiceCandidate(game, character, vehicle)
+	) {
+		return undefined
+	}
+	const canReach = (tile: Tile) => vehicleCanReachMaintenanceTarget(game, vehicle, character, tile)
 	const origin = toAxialCoord(vehicle.tile.position)!
 	let bestLoad: LoadCandidate | undefined
-	let bestLoadScore = -Infinity
+	let bestLoadDistance = Number.POSITIVE_INFINITY
 	for (const tile of game.hex.tiles) {
 		const tc = toAxialCoord(tile.position)!
 		const dist = axial.distance(origin, tc)
 		if (dist > offloadRange) continue
+		if (!canReach(tile)) continue
 		const pick = pickOffloadForTile(tile, vehicle.storage)
 		if (!pick) continue
-		const score = pick.urgency / (dist + 1)
-		if (score > bestLoadScore) {
-			bestLoad = { kind: 'load', tile, pick }
-			bestLoadScore = score
+		const candidate: LoadCandidate = { kind: 'load', tile, pick }
+		if (dist < bestLoadDistance) {
+			bestLoad = candidate
+			bestLoadDistance = dist
 		}
 	}
-	const unload = pickUnloadTargetForVehicle(game, vehicle)
+	const unload = pickUnloadTargetForVehicle(game, vehicle, canReach)
 	let bestUnload: UnloadCandidate | undefined
-	let bestUnloadScore = -Infinity
+	let bestUnloadDistance = Number.POSITIVE_INFINITY
 	if (unload) {
 		const tc = toAxialCoord(unload.tile.position)!
-		const score = unload.urgency / (axial.distance(origin, tc) + 1)
 		bestUnload = { kind: 'unload', tile: unload.tile, urgency: unload.urgency }
-		bestUnloadScore = score
+		bestUnloadDistance = axial.distance(origin, tc)
 	}
 	if (bestLoad || bestUnload) {
-		if (bestLoad && bestLoadScore >= bestUnloadScore) return bestLoad
+		if (bestLoad && bestLoadDistance <= bestUnloadDistance) return bestLoad
 		if (bestUnload) return bestUnload
 	}
-	const park = pickParkingTargetForVehicle(game, vehicle)
+	const park = pickParkingTargetForVehicle(game, vehicle, canReach)
 	if (park) return { kind: 'park', tile: park.tile, urgency: park.urgency }
 	return undefined
 }
@@ -336,6 +428,7 @@ function maintenanceCandidateToJob(
 		fatigue: 1,
 		vehicleUid: vehicle.uid,
 		targetCoord,
+		approachPath: path,
 		path,
 	}
 	if (candidate.kind === 'load') {
@@ -362,6 +455,7 @@ function maintenanceServiceToJob(
 		fatigue: 1,
 		vehicleUid: vehicle.uid,
 		targetCoord: service.targetCoord,
+		approachPath: path,
 		path,
 	}
 	if (service.kind === 'loadFromBurden') {
@@ -401,38 +495,51 @@ function findVehicleOffloadJobApproach(
 		if (vehicle.vehicleType !== LINE_FREIGHT_VEHICLE) continue
 		if (!vehicleHasNoOtherOperator(game, vehicle, character)) continue
 
-		let pathToVehicle = game.hex.findPathForCharacter(
-			character.tile.position,
-			vehicle.tile.position,
-			character,
-			maxWalkTime,
-			true
-		)
-		if (!pathToVehicle) continue
-		// Same-hex boarding: pathfinding may still return a single-point path; treat as no walk so
-		// `work.goWork` + `vehicleOffload` do not schedule redundant `walk.until` steps before boarding.
-		if (
+		const sameVehicleHex =
 			axial.key(axial.round(toAxialCoord(character.position)!)) ===
 			axial.key(axial.round(toAxialCoord(vehicle.position)!))
-		) {
-			pathToVehicle = []
-		}
+		const pathToVehicle = sameVehicleHex
+			? []
+			: game.hex.findPathForCharacter(
+					character.tile.position,
+					vehicle.tile.position,
+					character,
+					maxWalkTime,
+					true
+				)
+		if (!pathToVehicle) continue
 
 		const service = vehicle.service
 		if (isVehicleMaintenanceService(service)) {
 			const job = maintenanceServiceToJob(service, vehicle, pathToVehicle)
 			if (!job) continue
-			const score = job.urgency / (pathToVehicle.length + 1)
+			const tile = game.hex.getTile(service.targetCoord)
+			if (!tile) continue
+			if (!vehicleCanReachMaintenanceTarget(game, vehicle, character, tile)) continue
+			const candidate: MaintenanceCandidate =
+				service.kind === 'loadFromBurden'
+					? {
+							kind: 'load',
+							tile,
+							pick: { looseGood: service.looseGood, urgency: job.urgency },
+						}
+					: service.kind === 'park'
+						? {
+								kind: 'park',
+								tile,
+								urgency: job.urgency,
+							}
+						: {
+								kind: 'unload',
+								tile,
+								urgency: job.urgency,
+							}
+			const score = maintenanceCandidateScore(candidate, pathToVehicle.length)
 			if (!best || score > best.score) {
-				const tile = game.hex.getTile(service.targetCoord)
-				if (!tile) continue
 				best = {
 					score,
 					vehicle,
-					candidate:
-						service.kind === 'loadFromBurden'
-							? { kind: 'load', tile, pick: { looseGood: service.looseGood, urgency: job.urgency } }
-							: { kind: service.kind === 'park' ? 'park' : 'unload', tile, urgency: job.urgency },
+					candidate,
 					pathToVehicle,
 				}
 			}
@@ -440,13 +547,12 @@ function findVehicleOffloadJobApproach(
 		}
 		if (service) continue
 
-		const candidate = pickMaintenanceForVehicle(game, vehicle)
+		const candidate = pickMaintenanceForVehicle(game, vehicle, character)
 		if (!candidate) continue
-		if (candidate.kind === 'load' && isJointLineLoadCandidate(vehicle, candidate)) {
+		if (candidate.kind === 'load' && isJointLineLoadCandidate(character, vehicle, candidate)) {
 			continue
 		}
-		const urgency = candidate.kind === 'load' ? candidate.pick.urgency : candidate.urgency
-		const score = urgency / (pathToVehicle.length + 1)
+		const score = maintenanceCandidateScore(candidate, pathToVehicle.length)
 		if (!best || score > best.score) {
 			best = { score, vehicle, candidate, pathToVehicle }
 		}
@@ -468,9 +574,9 @@ function findVehicleOffloadJobDriving(
 	// The planner re-picks naturally on the next turn after the script offboards.
 	if (isVehicleMaintenanceService(vehicle.service)) return undefined
 
-	const candidate = pickMaintenanceForVehicle(game, vehicle)
+	const candidate = pickMaintenanceForVehicle(game, vehicle, character)
 	if (!candidate) return undefined
-	if (candidate.kind === 'load' && isJointLineLoadCandidate(vehicle, candidate)) {
+	if (candidate.kind === 'load' && isJointLineLoadCandidate(character, vehicle, candidate)) {
 		return undefined
 	}
 	const tc = toAxialCoord(candidate.tile.position)!
@@ -484,7 +590,7 @@ function findVehicleOffloadJobDriving(
 		true
 	)
 	if (!pathToTile && !sameTile) return undefined
-	return maintenanceCandidateToJob(candidate, vehicle, pathToTile ?? [])
+	return maintenanceCandidateToJob(candidate, vehicle, [])
 }
 
 /** Idle wheelbarrows may propose maintenance offload for burdened tiles within {@link offloadRange}. */
@@ -518,26 +624,26 @@ export function findVehicleApproachJob(
 			if (service.docked && 'anchor' in service.stop) continue
 		} else {
 			if (vehicle.servedLines.length === 0) continue
-			// Empty-only begin-line: an idle loaded wheelbarrow must resolve maintenance work first.
-			if (vehicleHasStock(vehicle)) continue
+			// Loaded begin-line is only allowed when cargo already matches a served gather segment.
+			if (vehicleHasStock(vehicle) && !pickInitialVehicleServiceCandidate(game, character, vehicle))
+				continue
 		}
+		const sameVehicleHex =
+			axial.key(axial.round(toAxialCoord(character.position)!)) ===
+			axial.key(axial.round(toAxialCoord(vehicle.position)!))
 		// punctual must be true: false stops one hex short of the vehicle, breaking onboarding.
 		// Start from the occupied tile (same as `find.path`), not foot `character.position`, so
 		// replanning in `find.pathToVehicle` matches this job when the character is mid-step.
-		let path = game.hex.findPathForCharacter(
-			character.tile.position,
-			vehicle.tile.position,
-			character,
-			maxWalkTime,
-			true
-		)
+		const path = sameVehicleHex
+			? []
+			: game.hex.findPathForCharacter(
+					character.tile.position,
+					vehicle.tile.position,
+					character,
+					maxWalkTime,
+					true
+				)
 		if (!path) continue
-		if (
-			axial.key(axial.round(toAxialCoord(character.position)!)) ===
-			axial.key(axial.round(toAxialCoord(vehicle.position)!))
-		) {
-			path = []
-		}
 		const len = path.length
 		if (!best || len < best.len) best = { vehicleUid: vehicle.uid, path, len }
 	}
@@ -555,7 +661,6 @@ export function findVehicleBeginServiceLeg(
 	if (vehicle.vehicleType !== LINE_FREIGHT_VEHICLE) return undefined
 	if (isVehicleLineService(vehicle.service)) return undefined
 	if (isVehicleMaintenanceService(vehicle.service)) return undefined
-	if (vehicleHasStock(vehicle)) return undefined
 	if (vehicle.servedLines.length === 0) return undefined
 	const pick = pickInitialVehicleServiceCandidate(game, character, vehicle)
 	if (!pick) return undefined
@@ -577,6 +682,7 @@ export function findVehicleBeginServiceJob(
 		lineId: leg.lineId,
 		stopId: leg.stopId,
 		path: [],
+		approachPath: [],
 		dockEnter: false,
 		needsBeginService: true,
 	}
@@ -617,6 +723,7 @@ function zoneBrowseJobFromTileLooseLoad(
 		lineId: svc.line.id,
 		stopId: svc.stop.id,
 		path: [],
+		approachPath: [],
 		zoneBrowseAction: 'load',
 		goodType: pick.goodType as GoodType,
 		quantity: 1,
@@ -673,6 +780,7 @@ function zoneBrowseJobFromConstructionProvide(
 			lineId: svc.line.id,
 			stopId: svc.stop.id,
 			path: [],
+			approachPath: [],
 			zoneBrowseAction: 'provide',
 			goodType,
 			quantity,
@@ -701,6 +809,7 @@ export function findZoneBrowseJob(game: Game, character: Character): ZoneBrowseJ
 				lineId: svc.line.id,
 				stopId: svc.stop.id,
 				path: selection.path,
+				approachPath: [],
 				zoneBrowseAction: selection.action,
 				goodType: selection.goodType,
 				quantity: selection.quantity ?? 1,
@@ -822,6 +931,7 @@ function findVehicleHopJobLineHop(game: Game, character: Character): VehicleHopJ
 			lineId: line.id,
 			stopId: stop.id,
 			path,
+			approachPath: [],
 			dockEnter: 'anchor' in stop,
 			zoneBrowseAction,
 			goodType,
@@ -848,6 +958,7 @@ function findVehicleHopJobLineHop(game: Game, character: Character): VehicleHopJ
 		lineId: line.id,
 		stopId: stop.id,
 		path,
+		approachPath: [],
 		dockEnter: 'anchor' in stop,
 		zoneBrowseAction,
 		goodType,
@@ -876,6 +987,7 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 			lineId: beginLeg.lineId,
 			stopId: beginLeg.stopId,
 			path: [],
+			approachPath: [],
 			dockEnter: false,
 			needsBeginService: true,
 		}
@@ -888,7 +1000,7 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 	const service = vehicle.service
 	if (isVehicleMaintenanceService(service)) return undefined
 	const pick = isVehicleLineService(service)
-		? { line: service.line, stop: service.stop }
+		? projectedLineStopForVehicleHop(game, character, vehicle)
 		: pickInitialVehicleServiceCandidate(game, character, vehicle)
 	if (!pick) return undefined
 	const needsBeginService = !isVehicleLineService(service)

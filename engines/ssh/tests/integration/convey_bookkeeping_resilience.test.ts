@@ -1,4 +1,4 @@
-import { traces } from 'ssh/debug'
+import { traces } from 'ssh/dev/debug'
 import type { SaveState } from 'ssh/game'
 import { BuildAlveolus } from 'ssh/hive/build'
 import { axial } from 'ssh/utils'

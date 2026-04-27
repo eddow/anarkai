@@ -16,9 +16,11 @@ class FindFunctions {
 	declare [subject]: Character
 	@contract('Positioned', 'boolean?')
 	path(to: Positioned, punctual: boolean = true) {
+		const from = toAxialCoord(this[subject].position)
+		if (!from) return undefined
 		return this[subject].game.hex.findPathForCharacter(
-			toAxialCoord(this[subject].tile.position),
-			axial.round(toAxialCoord(to)),
+			axial.round(from),
+			axial.round(toAxialCoord(to)!),
 			this[subject],
 			maxWalkTime,
 			punctual
@@ -34,9 +36,10 @@ class FindFunctions {
 
 			let best: { type: GoodType; strength: number } | null = null
 
-			const goodsMap = tile.content!.storage?.stock || {}
+			const storage = tile.content?.storage
+			const goodsMap = storage?.stock || {}
 			for (const [good] of Object.entries(goodsMap) as [GoodType, number][]) {
-				if (!tile.content!.storage?.available(good as GoodType)) continue
+				if (!storage || storage.available(good as GoodType) < 1) continue
 				const def: Ssh.GoodsDefinition = goodsCatalog[good as GoodType]
 				if (!def) continue
 				const s = def.satiationStrength ?? 0

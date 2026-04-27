@@ -3,7 +3,9 @@ import { InspectorSection } from '@app/ui/anarkai'
 import { vehicles as vehicleVisuals } from 'engine-pixi/assets/visual-content'
 import { vehicleTextureKey } from 'engine-pixi/renderers/vehicle-visual'
 import { effect } from 'mutts'
+import type { Tile } from 'ssh/board/tile'
 import { createSyntheticFreightLineObject } from 'ssh/freight/freight-line'
+import { collectVehicleWorkPicks, type VehicleWorkPick } from 'ssh/freight/vehicle-work'
 import { i18nState } from 'ssh/i18n'
 import type { Character } from 'ssh/population/character'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
@@ -13,6 +15,7 @@ import {
 	type WorldVehicleType,
 } from 'ssh/population/vehicle/vehicle'
 import type { GoodType, JobType } from 'ssh/types/base'
+import { axial, toAxialCoord } from 'ssh/utils'
 import EntityBadge from './EntityBadge'
 import GoodsList from './GoodsList'
 import InspectorObjectLink from './InspectorObjectLink'
@@ -113,6 +116,19 @@ interface VehiclePropertiesProps {
 	vehicle: VehicleEntity
 }
 
+interface VehicleWorkChoice {
+	jobKind: JobType
+	targetLabel: string
+	targetTile: Tile
+	urgency: number
+	pathLength: number
+	score: number
+	operatorLabel: string
+	jobLabel: string
+	scoreText: string
+	metaText: string
+}
+
 function resolveVehicleSpriteKey(vehicleType: WorldVehicleType): string {
 	const fromVisual = vehicleVisuals[vehicleType]?.sprites?.[0]
 	return fromVisual ?? vehicleTextureKey(vehicleType)
@@ -128,13 +144,53 @@ function workKindLabel(kind: JobType): string {
 	return i18nState.translator?.character?.plannerWorkKinds?.[kind] ?? kind
 }
 
+function vehicleFreightPathLength(job: VehicleWorkPick['job']): number {
+	switch (job.job) {
+		case 'vehicleHop':
+			return job.path.length + (job.approachPath?.length ?? 0)
+		case 'zoneBrowse':
+		case 'vehicleOffload':
+			return job.path.length
+	}
+}
+
+function effectiveOperatorForVehicle(vehicle: VehicleEntity | undefined): Character | undefined {
+	if (!vehicle) return undefined
+	const fromService = vehicle.operator
+	if (fromService) return fromService
+	const population = vehicle.game.population as Iterable<Character> | undefined
+	if (!population?.[Symbol.iterator]) return undefined
+	for (const character of population) {
+		if (character.operates?.uid === vehicle.uid) return character
+	}
+	return undefined
+}
+
+function describeVehicleWorkTarget(pick: VehicleWorkPick): string {
+	const targetCoord = toAxialCoord(pick.targetTile.position)
+	const targetLabel = pick.targetTile.title ?? (targetCoord ? axial.key(targetCoord) : '')
+	switch (pick.job.job) {
+		case 'vehicleOffload': {
+			const detail =
+				pick.job.maintenanceKind === 'loadFromBurden'
+					? pick.job.looseGood.goodType
+					: pick.job.maintenanceKind
+			return `vehicleOffload ${detail} @ ${pick.job.targetCoord.q},${pick.job.targetCoord.r}`
+		}
+		case 'vehicleHop':
+			return `vehicleHop ${pick.job.lineId}/${pick.job.stopId} @ ${targetLabel}`
+		case 'zoneBrowse':
+			return `zoneBrowse ${pick.job.zoneBrowseAction}:${pick.job.goodType} @ ${pick.job.targetCoord.q},${pick.job.targetCoord.r}`
+	}
+}
+
 const VehicleProperties = (props: VehiclePropertiesProps, scope: { setTitle?: (title: string) => void }) => {
 	const computed = {
 		get stock() {
 			return props.vehicle?.storage?.stock ?? {}
 		},
 		get operator() {
-			return props.vehicle?.operator
+			return effectiveOperatorForVehicle(props.vehicle)
 		},
 		get lineServiceObject() {
 			const svc = props.vehicle?.service
@@ -146,6 +202,12 @@ const VehicleProperties = (props: VehiclePropertiesProps, scope: { setTitle?: (t
 			if (!v) return ''
 			const svc = v.service
 			if (!svc) {
+				if (effectiveOperatorForVehicle(v)) {
+					return (
+						i18nState.translator?.vehicle?.controlledWithoutService ??
+						'Controlled (no active service)'
+					)
+				}
 				return i18nState.translator?.vehicle?.idle ?? 'Idle'
 			}
 			if (isVehicleLineService(svc)) {
@@ -161,26 +223,49 @@ const VehicleProperties = (props: VehiclePropertiesProps, scope: { setTitle?: (t
 			return ''
 		},
 		get workChoices() {
-			const op = props.vehicle?.operator as Character | undefined
-			if (!op) return []
-			const snap = op.workPlannerSnapshot ?? op.lastWorkPlannerSnapshot
-			if (!snap) return []
-			return snap.ranked.slice(0, rankedWorkLimit).map((candidate) => ({
-				...candidate,
-				jobLabel: workKindLabel(candidate.jobKind),
-				scoreText: formatPlannerUtility(candidate.score),
-				metaText: [
-					`${i18nState.translator?.character?.plannerWorkUrgency ?? 'urgency'} ${formatPlannerUtility(candidate.urgency)}`,
-					`${i18nState.translator?.character?.plannerWorkPath ?? 'path'} ${candidate.pathLength}`,
-				]
-					.filter(Boolean)
-					.join(' · '),
-			}))
+			const vehicle = props.vehicle
+			if (!vehicle) return []
+			const choices: VehicleWorkChoice[] = []
+			const population = vehicle.game.population as Iterable<Character> | undefined
+			if (!population?.[Symbol.iterator]) return []
+			for (const character of population) {
+				for (const pick of collectVehicleWorkPicks(vehicle.game, character)) {
+					if (pick.job.vehicleUid !== vehicle.uid) continue
+					const pathLength = vehicleFreightPathLength(pick.job)
+					const score = pick.job.urgency / (pathLength + 1)
+					const operatorLabel = character.title ?? character.name
+					choices.push({
+						jobKind: pick.job.job,
+						targetLabel: describeVehicleWorkTarget(pick),
+						targetTile: pick.targetTile,
+						urgency: pick.job.urgency,
+						pathLength,
+						score,
+						operatorLabel,
+						jobLabel: workKindLabel(pick.job.job),
+						scoreText: formatPlannerUtility(score),
+						metaText: [
+							operatorLabel,
+							`${i18nState.translator?.character?.plannerWorkUrgency ?? 'urgency'} ${formatPlannerUtility(pick.job.urgency)}`,
+							`${i18nState.translator?.character?.plannerWorkPath ?? 'path'} ${pathLength}`,
+						]
+							.filter(Boolean)
+							.join(' · '),
+					})
+				}
+			}
+			return choices
+				.sort((a, b) => {
+					if (b.score !== a.score) return b.score - a.score
+					if (b.urgency !== a.urgency) return b.urgency - a.urgency
+					if (a.pathLength !== b.pathLength) return a.pathLength - b.pathLength
+					return a.targetLabel.localeCompare(b.targetLabel)
+				})
+				.slice(0, rankedWorkLimit)
 		},
 	}
 
-	const resolveWorkTarget = (choice: { targetCoord: { q: number; r: number } }) =>
-		props.vehicle?.operator?.game?.hex?.getTile(choice.targetCoord)
+	const resolveWorkTarget = (choice: VehicleWorkChoice) => choice.targetTile
 
 	effect`vehicle-properties:title`(() => {
 		scope.setTitle?.(props.vehicle?.title ?? 'Object')
@@ -236,10 +321,8 @@ const VehicleProperties = (props: VehiclePropertiesProps, scope: { setTitle?: (t
 										<div
 											class={[
 												'vehicle-work__item',
-												choice.selected && 'vehicle-work__item--selected',
 											]}
 											data-testid="vehicle-ranked-work"
-											data-selected={choice.selected ? 'true' : 'false'}
 										>
 											<LinkedEntityControl
 												if={resolveWorkTarget(choice)}
@@ -251,9 +334,7 @@ const VehicleProperties = (props: VehiclePropertiesProps, scope: { setTitle?: (t
 													<span class="vehicle-work__type">{choice.jobLabel}</span>
 													<span class="vehicle-work__score">{choice.scoreText}</span>
 												</div>
-												<div if={!resolveWorkTarget(choice)} class="vehicle-work__meta">
-													{choice.targetLabel}
-												</div>
+												<div class="vehicle-work__meta">{choice.targetLabel}</div>
 												<div class="vehicle-work__meta">{choice.metaText}</div>
 											</div>
 										</div>

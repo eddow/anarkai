@@ -1,7 +1,6 @@
 /** Plan begin/conclude for transfers; reservations use {@link Character.carry} (vehicle storage when driving). */
 import { type HexBoard, isTileCoord } from 'ssh/board'
 import type { Alveolus } from 'ssh/board/content/alveolus'
-import { assert } from 'ssh/debug'
 import { assertVehicleOperationConsistency } from 'ssh/freight/vehicle-invariants'
 import { releaseVehicleFreightWorkOnPlanInterrupt } from 'ssh/freight/vehicle-run'
 import { allocateVehicleServiceForJob } from 'ssh/freight/vehicle-work'
@@ -11,6 +10,7 @@ import type { Goods, GoodType } from 'ssh/types'
 import type { IdlePlan, Job, PickupPlan, Plan, TransferPlan, WorkPlan } from 'ssh/types/base'
 import { gameObjectsModule } from 'ssh/types/game-objects'
 import { axial, type Positioned, toAxialCoord } from 'ssh/utils'
+import { assert } from '../../dev/debug.ts'
 import { subject } from '../scripts'
 import { DurationStep } from '../steps'
 
@@ -21,8 +21,8 @@ function characterSameHexAsVehicle(character: Character, vehicle: VehicleEntity)
 }
 
 /**
- * Claim line/offload service and `operates` at work-plan start; onboard when the job begins
- * driving on the vehicle hex (not when a `vehicleHop` still has a walk prelude via `approachPath`).
+ * Claim line/offload service and `operates` at work-plan start. A `vehicleHop` approach still
+ * walks on foot, but it owns the vehicle usage while walking and only boards at the vehicle hex.
  */
 function beginVehicleFreightWorkPlan(plan: WorkPlan, character: Character): void {
 	if (plan.type !== 'work' || !('vehicleUid' in plan)) return
@@ -34,7 +34,6 @@ function beginVehicleFreightWorkPlan(plan: WorkPlan, character: Character): void
 
 	const job = plan.job
 	const hopNeedsWalkToVehicle = job === 'vehicleHop' && !!plan.approachPath?.length
-	if (hopNeedsWalkToVehicle) return
 
 	character.operates = vehicle
 	/** `vehicleOffload` carries the walk-to-vehicle prefix in `path`; length 0 means already at the vehicle hex. */

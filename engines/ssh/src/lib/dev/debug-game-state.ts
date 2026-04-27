@@ -14,6 +14,11 @@ import {
 import type { ScriptExecution } from 'ssh/npcs/scripts'
 import { Character } from 'ssh/population/character'
 import { VehicleEntity } from 'ssh/population/vehicle/entity'
+import {
+	isVehicleLineService,
+	isVehicleMaintenanceService,
+	type VehicleService,
+} from 'ssh/population/vehicle/vehicle'
 import { type Positioned, toAxialCoord } from 'ssh/utils/position'
 
 export interface BuildGameDebugDumpOptions {
@@ -211,6 +216,33 @@ function summarizeCharacterForDebug(character: Character, tailCount: number) {
 	}
 }
 
+function summarizeVehicleServiceForDebug(service: VehicleService) {
+	if (isVehicleLineService(service)) {
+		return {
+			kind: 'line' as const,
+			lineId: service.line.id,
+			stopId: service.stop.id,
+			docked: service.docked,
+			operatorUid: service.operator?.uid,
+		}
+	}
+	if (isVehicleMaintenanceService(service)) {
+		return {
+			kind: 'maintenance' as const,
+			maintenanceKind: service.kind,
+			target: coordSnapshot(service.targetCoord),
+			operatorUid: service.operator?.uid,
+			...(service.kind === 'loadFromBurden'
+				? { looseGood: safeDebugValueForDump(service.looseGood) }
+				: {}),
+		}
+	}
+	return {
+		kind: 'bare' as const,
+		operatorUid: service.operator?.uid,
+	}
+}
+
 function summarizeVehicleForDebug(vehicle: VehicleEntity, tailCount: number) {
 	return {
 		kind: 'vehicle' as const,
@@ -219,14 +251,7 @@ function summarizeVehicleForDebug(vehicle: VehicleEntity, tailCount: number) {
 		position: coordSnapshot(vehicle.position),
 		tile: coordSnapshot(vehicle.tile.position),
 		servedLineIds: vehicle.servedLines.map((line) => line.id),
-		service: vehicle.service
-			? {
-					lineId: vehicle.service.line.id,
-					stopId: vehicle.service.stop.id,
-					docked: vehicle.service.docked,
-					operatorUid: vehicle.service.operator?.uid,
-				}
-			: undefined,
+		service: vehicle.service ? summarizeVehicleServiceForDebug(vehicle.service) : undefined,
 		storage: safeDebugValueForDump(vehicle.storage.stock),
 		logs: logsTail(vehicle.logs, tailCount),
 	}

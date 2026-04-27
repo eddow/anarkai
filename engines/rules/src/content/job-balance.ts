@@ -27,6 +27,7 @@ export const jobBalance = {
 		park: 17,
 	},
 	convey: 3,
+	/** Ordinary productive work lives around 2; vehicle line work uses the same band. */
 	harvest: {
 		project: 2,
 		clearing: 1.5,
@@ -38,17 +39,17 @@ export const jobBalance = {
 		foundation: 3,
 		construct: 2,
 	},
-	/** Walk to a wheelbarrow and board (line freight). */
+	/** Walk to a wheelbarrow and board (line freight, ordinary work band). */
 	vehicleApproach: 2.0,
-	/** Attach line service after boarding (no movement). */
+	/** Attach line service after boarding (no movement, ordinary work band). */
 	vehicleBeginService: 2.07,
-	/** Pick up loose goods into the operated vehicle (gather zone). */
+	/** Pick up loose goods into the operated vehicle (gather zone, ordinary work band). */
 	loadOntoVehicle: 2.15,
-	/** Move goods from operated vehicle into bay storage (gather unload anchor). */
+	/** Move goods from operated vehicle into bay storage (gather unload anchor, ordinary work band). */
 	unloadFromVehicle: 2.16,
 	/** Provide goods from operated vehicle into a standalone construction site (active need sink). */
 	provideFromVehicle: 2.25,
-	/** Move along a freight line while operating a vehicle (hop to next meaningful tile/stop). */
+	/** Move along a freight line while operating a vehicle (ordinary work band). */
 	vehicleHop: 2.1,
 	defragment: 0.9,
 } as const

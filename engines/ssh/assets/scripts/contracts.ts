@@ -34,6 +34,7 @@ export const CharacterContract = {
 		vehicleOffload: ['WorkPlan'],
 		maintenanceKind: [],
 		completeVehicleMaintenanceService: ['WorkPlan'],
+		abandonVehicleMaintenanceService: ['WorkPlan'],
 		endParkingService: [],
 	},
 } as const satisfies Contract

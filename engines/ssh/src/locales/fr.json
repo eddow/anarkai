@@ -56,7 +56,9 @@
 			"offload": "Décharger",
 			"foundation": "Fondation",
 			"defragment": "Défragmenter",
-			"loadOntoVehicle": "Charger sur le véhicule"
+			"loadOntoVehicle": "Charger sur le véhicule",
+			"vehicleOffload": "Déchargement véhicule",
+			"vehicleHop": "Saut de ligne fret"
 		},
 		"operates": "Opère"
 	},
@@ -87,7 +89,12 @@
 		"foundation": "Coulage de fondation",
 		"queue": "Fait la queue",
 		"pickup": "Ramasse",
-		"construct": "Construit"
+		"construct": "Construit",
+		"vehicleBeginService": "Démarrage du service (ligne)",
+		"vehicleHop": {
+			"dock": "À l'escale (quai)",
+			"zoneReach": "Arrivée en zone"
+		}
 	},
 	"alveolus": {
 		"alveolus": "Alvéole",

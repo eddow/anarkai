@@ -1,5 +1,4 @@
 import type { Tile } from 'ssh/board/tile'
-import { traces } from 'ssh/debug'
 import { visitStandaloneConstructionSitesForDistributeSegmentAxial } from 'ssh/freight/construction-demand'
 import {
 	distributeSegmentAllowsGoodTypeForSegment,
@@ -10,6 +9,7 @@ import type { Game } from 'ssh/game/game'
 import type { GoodType } from 'ssh/types/base'
 import type { GoodsRelations } from 'ssh/utils/advertisement'
 import { toAxialCoord } from 'ssh/utils/position'
+import { traces } from '../dev/debug.ts'
 
 export interface FreightBayConstructionRequisitionTarget {
 	readonly name: string

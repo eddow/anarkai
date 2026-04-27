@@ -10,7 +10,11 @@ import {
 	pickGatherTargetInZoneStop,
 } from 'ssh/freight/freight-zone-gather-target'
 import { migrateV1FiltersToGoodsSelection } from 'ssh/freight/goods-selection-policy'
-import { freightStopMovementTarget, previewInitialVehicleService } from 'ssh/freight/vehicle-run'
+import {
+	freightStopMovementTarget,
+	pickInitialVehicleServiceCandidate,
+	previewInitialVehicleService,
+} from 'ssh/freight/vehicle-run'
 import {
 	findVehicleBeginServiceJob,
 	findVehicleHopJob,
@@ -183,6 +187,129 @@ describe('Vehicle zone hop semantics', () => {
 
 		expect(findVehicleBeginServiceJob(game, character)).toBeUndefined()
 		expect(findVehicleHopJob(game, character)).toBeUndefined()
+	})
+
+	it('begins a served gather line at the unload stop when idle cargo already matches it', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'grass' as const },
+				{ coord: [1, 0] as const, terrain: 'grass' as const },
+				{ coord: [2, 0] as const, terrain: 'grass' as const },
+			],
+			hives: [
+				{
+					name: 'H',
+					alveoli: [
+						{ coord: [0, 0] as const, alveolus: 'freight_bay', goods: {} },
+						{ coord: [1, 0] as const, alveolus: 'sawmill', goods: {} },
+					],
+				},
+			],
+			freightLines: [
+				gatherFreightLine({
+					id: 'VH:loaded-compatible',
+					name: 'Loaded compatible',
+					hiveName: 'H',
+					coord: [0, 0],
+					filters: ['wood'],
+					radius: 2,
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 94045, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines[0]!
+		const vehicle = game.vehicles.createVehicle(
+			'vloaded-compatible',
+			'wheelbarrow',
+			{ q: 1, r: 0 },
+			[line]
+		)
+		vehicle.storage.addGood('wood', 1)
+		const character = game.population.createCharacter('LoadedCompatible', { q: 2, r: 0 })
+
+		expect(findVehicleOffloadJob(game, character)).toBeUndefined()
+		const hop = findVehicleHopJob(game, character)
+		expect(hop?.job).toBe('vehicleHop')
+		expect(hop?.needsBeginService).toBe(true)
+		expect(hop?.stopId).toBe(line.stops[1]!.id)
+	})
+
+	it('does not begin gather service for loaded goods the serving hive does not demand', async () => {
+		const patches = {
+			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
+			hives: [
+				{ name: 'H', alveoli: [{ coord: [0, 0] as const, alveolus: 'freight_bay', goods: {} }] },
+			],
+			freightLines: [
+				gatherFreightLine({
+					id: 'VH:mush-no-demand',
+					name: 'Mushroom gather',
+					hiveName: 'H',
+					coord: [0, 0],
+					filters: ['mushrooms'],
+					radius: 2,
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 94047, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines[0]!
+		const vehicle = game.vehicles.createVehicle('vmush-nodemand', 'wheelbarrow', { q: 0, r: 0 }, [
+			line,
+		])
+		vehicle.storage.addGood('mushrooms', 1)
+		const character = game.population.createCharacter('MushNoDemand', { q: 0, r: 0 })
+		bindOperatedWheelbarrowOffload(character, vehicle)
+		character.onboard()
+
+		expect(pickInitialVehicleServiceCandidate(game, character, vehicle)).toBeUndefined()
+		expect(findVehicleHopJob(game, character)).toBeUndefined()
+	})
+
+	it('does not begin a served gather line from loaded cargo outside the first zone stop', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'grass' as const },
+				{ coord: [2, 0] as const, terrain: 'grass' as const },
+				{ coord: [4, 0] as const, terrain: 'grass' as const },
+				{ coord: [4, 1] as const, terrain: 'grass' as const },
+				{ coord: [5, 0] as const, terrain: 'grass' as const },
+			],
+			hives: [
+				{ name: 'H', alveoli: [{ coord: [0, 0] as const, alveolus: 'freight_bay', goods: {} }] },
+			],
+			freightLines: [
+				gatherFreightLine({
+					id: 'VH:loaded-outside-zone',
+					name: 'Loaded outside zone',
+					hiveName: 'H',
+					coord: [0, 0],
+					filters: ['wood'],
+					radius: 1,
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 94046, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines[0]!
+		const vehicle = game.vehicles.createVehicle(
+			'vloaded-outside-zone',
+			'wheelbarrow',
+			{ q: 4, r: 0 },
+			[line]
+		)
+		vehicle.storage.addGood('wood', 1)
+		const character = game.population.createCharacter('LoadedOutsideZone', { q: 4, r: 1 })
+
+		expect(findVehicleHopJob(game, character)).toBeUndefined()
+		expect(pickInitialVehicleServiceCandidate(game, character, vehicle)).toBeUndefined()
 	})
 
 	it('does not offer zoneBrowse on the current zone stop when downstream utility says no further load is needed', async () => {

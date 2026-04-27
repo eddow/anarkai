@@ -13,8 +13,9 @@ import { afterEach, beforeEach, vi } from "vitest";
 delete (global as any).__MUTTS_INSTANCE__;
 
 import { getActivationLog, reactiveOptions, reset, unreactive } from "mutts";
-import { disconnectAllTraces } from "ssh/debug";
+import { disconnectAllTraces } from "./src/lib/dev/debug.ts";
 import { options } from "ssh/globals";
+import { resetDebugActiveAllocations } from "ssh/storage/guard";
 
 type TestDiagnosticEntry = {
 	level: "warn" | "error";
@@ -182,6 +183,7 @@ beforeEach(() => {
 	allowedDiagnosticPatterns = [];
 	options.stalledMovementScanIntervalMs = 0;
 	disconnectAllTraces();
+	resetDebugActiveAllocations();
 	reset();
 });
 
@@ -199,6 +201,7 @@ afterEach(async () => {
 	activationLogDumped = false;
 	options.stalledMovementScanIntervalMs = defaultStalledMovementScanIntervalMs;
 	disconnectAllTraces();
+	resetDebugActiveAllocations();
 	reset();
 	if (unexpectedDiagnostics.length > 0) {
 		const lines = unexpectedDiagnostics

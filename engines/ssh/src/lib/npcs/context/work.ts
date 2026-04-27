@@ -13,7 +13,7 @@ import {
 	createConstructionSiteState,
 	setConstructionConsumedGoods,
 } from 'ssh/construction-state'
-import { assert, traces } from 'ssh/debug'
+import { assert, traces } from 'ssh/dev/debug'
 import { alveolusClass } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
 import type { TrackedMovement } from 'ssh/hive/hive'

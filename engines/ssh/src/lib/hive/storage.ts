@@ -2,7 +2,6 @@ import { goods as allGoodsList, configurations, jobBalance } from 'engine-rules'
 import { inert, reactive } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
-import { traces } from 'ssh/debug'
 import { augmentFreightBayGoodsRelationsForConstruction } from 'ssh/freight/construction-freight-requisition'
 import type { FreightStop, FreightZoneDefinitionRadius } from 'ssh/freight/freight-line'
 import {
@@ -21,7 +20,8 @@ import type { Character } from 'ssh/population/character'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { GoodType, Job } from 'ssh/types/base'
-import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
+import type { ExchangePriority, GoodsRelations, StorageBase } from 'ssh/utils/advertisement'
+import { traces } from '../dev/debug.ts'
 import {
 	isSlottedStorageConfiguration,
 	isSpecificStorageConfiguration,
@@ -217,6 +217,14 @@ export class StorageAlveolus extends Alveolus {
 	/**
 	 * Check if this storage can store a specific good
 	 */
+	canTakeFrom(source: StorageBase, goodType: GoodType, priority: ExchangePriority): boolean {
+		const dock = source as { readonly kind?: unknown; readonly bay?: unknown }
+		if (dock.kind === 'vehicle-freight-dock' && dock.bay === this) {
+			return this.working && (this.storage.hasRoom(goodType) ?? 0) > 0
+		}
+		return this.canTake(goodType, priority)
+	}
+
 	canTake(goodType: GoodType, _priority: ExchangePriority) {
 		// Only accept goods if working is enabled
 		if (!this.working) return false

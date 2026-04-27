@@ -3,12 +3,13 @@ import type { PlannerFindActionSnapshot } from 'ssh/population/findNextActivity'
 import { debugActiveAllocations, getAllocationStats } from 'ssh/storage/guard'
 import {
 	captureTraceRow,
+	readTraceConsoleParts,
 	readTraceRows,
 	type TraceCaptureOptions,
 	type TraceLevel,
 	type TraceRow,
 	type TraceSink,
-} from 'ssh/trace'
+} from './trace.ts'
 
 export function nf<T extends Function>(name: string, fn: T): T {
 	Object.defineProperty(fn, 'name', { value: name })
@@ -30,7 +31,18 @@ export function defined<T>(value: T | undefined, message = 'Value is defined'): 
 	return value
 }
 
+/**
+ * Minimum level recorded by a trace channel.
+ *
+ * `log` enables every console-like method, `warn` enables warn/assert/error, `assert` enables
+ * failed assertions and errors, and `error` enables errors only. Disabled methods are `undefined`,
+ * so optional-call trace sites do not evaluate their arguments.
+ */
 export type TraceVerb = 'log' | 'warn' | 'assert' | 'error'
+type TraceConsoleMethod = keyof Pick<
+	Console,
+	'assert' | 'debug' | 'error' | 'groupCollapsed' | 'groupEnd' | 'info' | 'log' | 'trace' | 'warn'
+>
 
 export const DEFAULT_TRACE_LOG_LIFETIME = 300
 
@@ -53,6 +65,7 @@ const TRACE_CHANNEL_KEYS = [
 	'idleDiagnosis',
 ] as const
 
+/** Default trace channel levels. Remove a key or call `setTraceLevel(name, undefined)` to disable it. When a new TraceSink is needed, adding its name here is enough */
 export const traceLevels: Partial<Record<string, TraceVerb>> = {
 	vehicle: 'log',
 	npc: 'assert',
@@ -65,8 +78,8 @@ export const traceLevels: Partial<Record<string, TraceVerb>> = {
 }
 
 /**
- * Clears all trace hooks. Used by Vitest setup so tests start with no `traces.*` output unless a
- * test assigns them. Dev: uncomment lines below or assign `traces.* = console` locally.
+ * Clears all trace hooks. Used by Vitest setup so tests start with fresh `traces.*` sinks.
+ * Dev: configure `traceLevels`, `setTraceLevel(...)`, or assign a custom sink locally.
  */
 export function disconnectAllTraces(): void {
 	for (const key of TRACE_CHANNEL_KEYS) {
@@ -83,6 +96,13 @@ export type NamedTraceOptions = TraceCaptureOptions & {
 	logLifetime?: number
 }
 
+/**
+ * Array-backed trace sink.
+ *
+ * Use `namedTrace('vehicle', { silent: true })` in tests to collect rows without console output.
+ * Without `silent`, each stored row is also forwarded as a collapsed console group headed by
+ * `<[name]> event`, with the captured payload inside.
+ */
 class NamedTraceList extends Array<TraceRow> implements TraceSink {
 	static get [Symbol.species]() {
 		return Array
@@ -114,6 +134,11 @@ class NamedTraceList extends Array<TraceRow> implements TraceSink {
 		return readTraceRows(this, count)
 	}
 
+	/** Convenience for DevTools: prints `read(count)` with `console.log`. */
+	display(count?: number): void {
+		console.log(this.read(count))
+	}
+
 	private get marker(): string {
 		return `<[${this.name}]>`
 	}
@@ -124,25 +149,34 @@ class NamedTraceList extends Array<TraceRow> implements TraceSink {
 	}
 
 	private applyLevel(level: TraceVerb): void {
-		this.log = this.isEnabled(level, 'log') ? (...args) => this.pushRow('log', args) : undefined
-		this.warn = this.isEnabled(level, 'warn') ? (...args) => this.pushRow('warn', args) : undefined
+		this.log = this.isEnabled(level, 'log')
+			? (...args) => this.pushRow('log', 'log', args)
+			: undefined
+		this.warn = this.isEnabled(level, 'warn')
+			? (...args) => this.pushRow('warn', 'warn', args)
+			: undefined
 		this.error = this.isEnabled(level, 'error')
-			? (...args) => this.pushRow('error', args)
+			? (...args) => this.pushRow('error', 'error', args)
 			: undefined
 		this.assert = this.isEnabled(level, 'assert')
 			? (condition, ...args) => {
-					if (!condition) this.pushRow('assert failure', args)
-					else if (!this.options.silent) console.assert(condition, this.marker, ...args)
+					if (!condition) this.pushRow('assert failure', 'assert', args)
 				}
 			: undefined
-		this.debug = this.isEnabled(level, 'log') ? (...args) => this.pushRow('debug', args) : undefined
-		this.info = this.isEnabled(level, 'log') ? (...args) => this.pushRow('info', args) : undefined
-		this.trace = this.isEnabled(level, 'log') ? (...args) => this.pushRow('trace', args) : undefined
+		this.debug = this.isEnabled(level, 'log')
+			? (...args) => this.pushRow('debug', 'debug', args)
+			: undefined
+		this.info = this.isEnabled(level, 'log')
+			? (...args) => this.pushRow('info', 'info', args)
+			: undefined
+		this.trace = this.isEnabled(level, 'log')
+			? (...args) => this.pushRow('trace', 'trace', args)
+			: undefined
 		this.groupCollapsed = this.isEnabled(level, 'log')
-			? (...args) => this.pushRow('log', ['groupCollapsed', ...args])
+			? (...args) => this.pushRow('log', 'groupCollapsed', ['groupCollapsed', ...args])
 			: undefined
 		this.groupEnd = this.isEnabled(level, 'log')
-			? (...args) => this.pushRow('log', ['groupEnd', ...args])
+			? (...args) => this.pushRow('log', 'groupEnd', ['groupEnd', ...args])
 			: undefined
 	}
 
@@ -150,11 +184,15 @@ class NamedTraceList extends Array<TraceRow> implements TraceSink {
 		return TRACE_VERB_RANK[current] <= TRACE_VERB_RANK[verb]
 	}
 
-	private pushRow(level: TraceLevel, args: readonly unknown[]): void {
+	private pushRow(
+		level: TraceLevel,
+		consoleMethod: TraceConsoleMethod,
+		args: readonly unknown[]
+	): void {
 		const row = captureTraceRow(level, args, this.options)
 		this.pruneExpiredRows(row.time)
 		this.push(row)
-		if (!this.options.silent) this.writeConsole(level, args)
+		if (!this.options.silent) this.writeConsole(consoleMethod, row)
 	}
 
 	private pruneExpiredRows(now: number | undefined): void {
@@ -170,33 +208,56 @@ class NamedTraceList extends Array<TraceRow> implements TraceSink {
 		if (removeCount > 0) this.splice(0, removeCount)
 	}
 
-	private writeConsole(level: TraceLevel, args: readonly unknown[]): void {
-		switch (level) {
-			case 'warn':
-				console.warn(this.marker, ...args)
-				break
-			case 'error':
-				console.error(this.marker, ...args)
-				break
-			case 'debug':
-				console.debug(this.marker, ...args)
-				break
-			case 'info':
-				console.info(this.marker, ...args)
-				break
-			case 'trace':
-				console.trace(this.marker, ...args)
-				break
-			case 'assert failure':
-				console.assert(false, this.marker, ...args)
-				break
-			default:
-				console.log(this.marker, ...args)
+	private writeConsole(consoleMethod: TraceConsoleMethod, row: TraceRow): void {
+		const { title, body } = readTraceConsoleParts(row)
+		const groupTitle = title ? `${this.marker} ${title}` : this.marker
+		switch (consoleMethod) {
+			case 'groupEnd':
+				console.groupEnd()
+				return
+			case 'groupCollapsed':
+				console.groupCollapsed(groupTitle)
+				if (body) console.log(body)
+				return
+		}
+		console.groupCollapsed(groupTitle)
+		try {
+			if (!body) return
+			switch (consoleMethod) {
+				case 'warn':
+					console.warn(body)
+					break
+				case 'error':
+					console.error(body)
+					break
+				case 'debug':
+					console.debug(body)
+					break
+				case 'info':
+					console.info(body)
+					break
+				case 'trace':
+					console.trace(body)
+					break
+				case 'assert':
+					console.assert(false, body)
+					break
+				default:
+					console.log(body)
+			}
+		} finally {
+			console.groupEnd()
 		}
 	}
 }
 
-/** Creates a trace sink that records calls on array indices (for tests / devtools). */
+/**
+ * Creates a named trace sink.
+ *
+ * Typical usage:
+ * `traces.vehicle = namedTrace('vehicle', { silent: true })` for isolated capture, or let the
+ * `traces` proxy create configured sinks from `traceLevels`.
+ */
 export function namedTrace(name: string, options?: NamedTraceOptions) {
 	return new NamedTraceList(name, options)
 }
@@ -210,7 +271,7 @@ function configuredTraceLevel(name: string): TraceVerb | undefined {
 function createConfiguredTrace(name: string): TraceSink | undefined {
 	const level = configuredTraceLevel(name)
 	if (!level) return undefined
-	return namedTrace(name, { silent: true, level })
+	return namedTrace(name, { level })
 }
 
 export function setTraceLevel(
@@ -229,11 +290,18 @@ export function setTraceLevel(
 		existing.setLevel(nextLevel)
 		return existing
 	}
-	const next = namedTrace(name, { silent: true, level: nextLevel })
+	const next = namedTrace(name, { level: nextLevel })
 	traceCache[name] = next
 	return next
 }
 
+/**
+ * Lazy trace registry keyed by channel name.
+ *
+ * Reading `traces.vehicle` creates a `namedTrace('vehicle', { level })` when `traceLevels.vehicle`
+ * is configured. Call sites should optional-call the method, e.g.
+ * `traces.vehicle.log?.('vehicleJob.selected', { vehicleUid })`.
+ */
 export const traces = new Proxy(traceCache, {
 	get(target, property, receiver) {
 		if (typeof property !== 'string') return Reflect.get(target, property, receiver)
@@ -363,7 +431,7 @@ export const blackBoxLog = {
 	idleDiagnosis: undefined as LogFn | undefined,
 }
 
-/** Structured hook for tests / devtools: assign `traces.characterNeeds = console` */
+/** Structured hook for tests / devtools: use `setTraceLevel('characterNeeds', 'log')`. */
 export function traceNeeds(topic: string, payload: unknown) {
 	traces.characterNeeds.log?.(topic, payload)
 }
@@ -374,7 +442,7 @@ export type IdleDiagnosisPayload = PlannerFindActionSnapshot & {
 	note?: string
 }
 
-/** Assign `traces.idleDiagnosis = console` and/or `blackBoxLog.idleDiagnosis = console.log` to inspect `findAction`. */
+/** Use `setTraceLevel('idleDiagnosis', 'log')` and/or `blackBoxLog.idleDiagnosis = console.log` to inspect `findAction`. */
 export function traceIdleDiagnosis(payload: IdleDiagnosisPayload) {
 	traces.idleDiagnosis.log?.('findAction', payload)
 	if (blackBoxLog.idleDiagnosis) {

@@ -1,6 +1,6 @@
 import { atomic, memoize, reactive } from 'mutts'
-import { assert, traces } from 'ssh/debug'
 import { type Goods, GoodType } from 'ssh/types/base'
+import { assert, traces } from '../dev/debug.ts'
 import {
 	AllocationError,
 	allocationEnded,

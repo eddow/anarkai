@@ -38,6 +38,31 @@ This means scripts should branch from `vehicle.service`, not by re-inferring beh
 - **Link loop:** character `X` **operates** -> job-offering vehicle **serves** -> offloading-service has **operator** -> character `X`.
 - **If the plan breaks:** the service has no operator and the character operates no vehicle. The service itself remains attached while the vehicle still has unfinished work, so another worker can continue it.
 
+#### Work plan allocation seam
+
+Vehicle usage is allocated by the **work plan**, not by an incidental script step. When `work.goWork`
+enters `plan jobPlan`, `PlanFunctions.begin` runs before the vehicle script body. For vehicle jobs
+(`vehicleOffload`, `vehicleHop`, `zoneBrowse`), that begin step calls
+`allocateVehicleServiceForJob(...)` and establishes the authoritative runtime link:
+
+1. resolve `jobPlan.vehicleUid` to a `VehicleEntity`;
+2. attach or resume the appropriate `VehicleEntity.service`;
+3. set `service.operator` to the character;
+4. set `character.operates` to the same vehicle;
+5. board immediately only when the job starts on the vehicle hex and does not still have an approach prelude.
+
+This makes the work plan the ownership boundary for vehicle usage: once a vehicle work plan begins,
+`character.operates`, `vehicle.service`, and `vehicle.service.operator` must agree. Conversely,
+ordinary work and self-care do not own a vehicle; if they are selected while `character.operates`
+still exists, the operator/control link is released first and any unfinished service remains attached
+without an operator.
+
+The job script then performs movement and transfer. It may complete the service explicitly (for
+example `completeVehicleMaintenanceService` after `loadFromBurden`, `unloadToTile`, or `park`), or it
+may leave the service attached and only release the operator (line `zoneBrowse`, docked line service,
+or interrupted unfinished maintenance). `plan.finally` is a safety net for the operator/control link;
+it must not be the hidden place where transfer policy is decided.
+
 #### Scoped vehicle usage invariant
 
 Every planner-visible vehicle job owns vehicle usage as part of its work plan. `plan.begin` links the operator to the vehicle/service; the job script explicitly ends the service only when that maintenance or line objective is complete; and `plan.finally` is the safety net that releases only the operator/control link. A character must not fall through into self-care, resting, wandering, or unrelated work while still operating a vehicle from a finished/interrupted vehicle job.
@@ -51,19 +76,39 @@ Common first steps:
 
 #### Priority between maintenance offers
 
-For a non-line-served idle vehicle, maintenance and fresh line service are selected with this
-shape:
+For a loaded vehicle, selection is:
 
-1. Compare `loadFromBurden` and `unloadToTile` by `urgency / (distance + 1)`.
-2. If neither load nor unload exists, offer `park` when the empty vehicle burdens an important tile.
-3. Only then consider fresh line service (`vehicleHop` begin-service).
-4. Existing line service continuation is separate and may continue with stock already in the vehicle.
+1. If it is already serving a line, continue that line.
+2. Otherwise, if its cargo is compatible with a served gather line and the vehicle is currently in
+   that line's first zone stop, begin that line at the gather segment's unload stop **only when the
+   hive at that line's unload bay currently advertises demand for that good** (`Hive.needs`, i.e.
+   `1-buffer` or `2-use`, not `0-store`). A gather line's load policy may allow a good type even when no
+   alveolus in that hive actually demands it; that cargo must fall through to maintenance (`unloadToTile` / `loadFromBurden`) instead of a line hop.
+3. Otherwise, if the vehicle still has room and a burdening good is reachable, `loadFromBurden`.
+4. Otherwise, `unloadToTile`.
+
+When both `loadFromBurden` and `unloadToTile` are available for a loaded idle vehicle, shortest
+vehicle-to-target distance wins.
+
+For an empty vehicle, `unloadToTile` is impossible. It can enter a line only when the line has an
+actual current `zoneBrowse` load candidate, load a burdening good, or park if empty and burdening
+an important tile. A good merely matching a gather line's filter is not enough to suppress
+`loadFromBurden`; the line must be ready to load that tile now.
 
 Rules:
 
-- `loadFromBurden` and `unloadToTile` are not strict nearest-first: urgency can make a farther burden beat a nearer unload target.
+- `loadFromBurden` vs `unloadToTile` is nearest-first when both are available on a loaded idle vehicle.
 - `park` is fallback-by-control-flow, not score-compared against load/unload.
 - `park` also follows a completed docked `(un)loading` process when the line service ends and leaves an empty vehicle burdening the current tile.
+- Entering a compatible gather line from loaded cargo (first zone) **preempts** maintenance only when
+  begin-service is actually actionable for that worker (reachable unload / valid hop), not from
+  structural compatibility alone.
+- UI/debug vehicle proposals are not bound to the current operator. An idle vehicle has no operator
+  after a completed maintenance run, but it can still expose valued candidate work by asking
+  available workers which vehicle jobs they can perform for that vehicle.
+- When a character operates a vehicle, the settled invariant is
+  `character.operates -> vehicle.service -> operator === character`. Reassigning the same operated
+  vehicle revalidates that back-link, and a service-less vehicle cannot be an operated vehicle.
 
 ### `loadFromBurden`
 
@@ -76,6 +121,11 @@ It is structurally the same as a `zoneBrowse` **load**:
 - perform a load transfer through the vehicle storage,
 - then end the temporary offload service instead of keeping a line service attached.
 
+That is the whole work. `loadFromBurden` does not also decide where to drop the loaded good. Once
+the burdening good is inside the wheelbarrow, normal work selection runs again at distance 0 from
+that same vehicle. A loaded mushroom with no compatible line should usually become `unloadToTile`;
+a loaded wood may enter a served gather line only when the vehicle is in that line's first zone stop.
+
 #### Precondition
 
 - The vehicle has room for at least one burdening good.
@@ -86,12 +136,13 @@ It is structurally the same as a `zoneBrowse` **load**:
 1. Run the shared begin plan.
 2. **[long]** Drive to the burdening loose good.
 3. **[long]** Load it (`loose good -> vehicle`).
-4. The maintenance script completes the load/drop objective and offboards.
+4. The maintenance script completes the load objective and offboards.
 5. The vehicle's service is freed only on that explicit maintenance completion.
 
 #### End plan
 
-- On normal completion, the vehicle is left with no bound service and the character operates no vehicle.
+- On normal completion, the loaded vehicle is left with no bound service and the character operates no vehicle.
+- The next job is deliberately chosen by the planner: empty incompatible cargo via `unloadToTile`, or continue compatible line service when the loaded good can serve a line.
 - If the plan is interrupted before completion, the service may remain attached without an operator.
 
 ### Line-hop
@@ -104,7 +155,8 @@ It is structurally the same as a `zoneBrowse` **load**:
 
 Important distinction:
 
-- "begin a line" is empty-only for an idle wheelbarrow,
+- "begin a line" is empty-only for an idle wheelbarrow unless the wheelbarrow already carries cargo
+  that matches a served gather segment,
 - but ordinary line continuation is still allowed on a non-empty wheelbarrow that is already serving that line.
 
 #### Begin plan
@@ -258,7 +310,7 @@ When multiple targets are valid—for example **wood on a project**, a **ChopSaw
 2. **Pure offload / burden / hive-target:** Then work that clears burden, explicit unload paths, or hive ads **without** requiring a line obligation on that good.
 3. **Pure line:** Then remaining line-only gathers or zone obligations.
 
-Between tiers, **distance**, **utility** (`freight-stop-utility` and cousins), and **which ad channel** matched (vehicle station vs hive vs project-local) should be tunable so one configuration can bias “always feed the saw first” and another “always clear the tile first”. The important implementation direction is one **policy surface** for ranking targets, fed by the same libraries that compute dock and line utility, not divergent one-off heuristics in each script.
+Between tiers, **distance**, **utility** (`freight-stop-utility` and cousins), and **which ad channel** matched (vehicle station vs hive vs project-local) should be tunable so one configuration can bias “always feed the saw first” and another “always clear the tile first”. The important implementation direction is one **policy surface** for ranking targets, fed by the same libraries that compute dock and line utility, not divergent one-off heuristics in each script. Current implementation routes zone browse, maintenance, begin-service, and dock provide/demand candidates through `scoreVehicleCandidate(...)`.
 
 ## (Un)Loading process
 

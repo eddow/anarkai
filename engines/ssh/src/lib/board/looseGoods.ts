@@ -1,6 +1,7 @@
 import { goods } from 'engine-rules'
 import { atomic, reactive, unreactive, untracked, unwrap } from 'mutts'
-import { assert } from 'ssh/debug'
+import { assert } from 'ssh/dev/debug'
+import { traceProjection } from 'ssh/dev/trace'
 import { GameObject, withTicked } from 'ssh/game/object'
 import {
 	allocationEnded,
@@ -8,7 +9,6 @@ import {
 	invalidateAllocation,
 	isAllocationValid,
 } from 'ssh/storage/guard'
-import { traceProjection } from 'ssh/trace'
 import type { GoodType } from 'ssh/types'
 import { epsilon } from 'ssh/utils'
 import { type AxialKey, axial } from 'ssh/utils/axial'

@@ -55,10 +55,11 @@ describe('work.npcs dispatch', () => {
 		}
 
 		const execution = character.scriptsContext.work.goWork(workPlan)
-		expect(vehicle.service).toBeUndefined()
 		const first = execution.run(character.scriptsContext)
 		expect(first.type === 'yield' || first.type === 'return').toBe(true)
-		expect(character.operates).toBeUndefined()
+		expect(vehicle.operator?.uid).toBe(character.uid)
+		expect(character.operates?.uid).toBe(vehicle.uid)
+		expect(character.driving).toBe(false)
 		vi.restoreAllMocks()
 	})
 

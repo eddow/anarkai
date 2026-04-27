@@ -1,6 +1,8 @@
+import { maybeAdvanceVehiclePastCompletedZoneStop } from 'ssh/freight/vehicle-run'
 import { findVehicleApproachJob, findVehicleHopJob } from 'ssh/freight/vehicle-work'
 import { Game } from 'ssh/game/game'
 import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
+import type { WorkPlan } from 'ssh/types/base'
 import { axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -122,7 +124,7 @@ describe('findVehicleApproachJob', () => {
 		expect(job?.stopId).toBe(far.stops[1]!.id)
 	})
 
-	it('planner snapshot counts vehicle approach distance in vehicleHop path length', async () => {
+	it('planner snapshot counts only approach distance for vehicleHop work selection', async () => {
 		const line = gatherFreightLine({
 			id: 'VA:snapshot',
 			name: 'Snapshot',
@@ -137,6 +139,12 @@ describe('findVehicleApproachJob', () => {
 				tiles: [
 					{ coord: [0, 0] as const, terrain: 'grass' as const },
 					{ coord: [1, 0] as const, terrain: 'grass' as const },
+				],
+				hives: [
+					{
+						name: 'H',
+						alveoli: [{ coord: [1, 0] as const, alveolus: 'sawmill' as const, goods: {} }],
+					},
 				],
 				freightLines: [line],
 				looseGoods: [{ goodType: 'wood' as const, position: { q: 0, r: 0 } }],
@@ -153,7 +161,7 @@ describe('findVehicleApproachJob', () => {
 
 		const hop = character.workPlannerSnapshot?.ranked.find((row) => row.jobKind === 'vehicleHop')
 		expect(hop).toBeDefined()
-		expect(hop?.pathLength).toBe((hopJob?.path.length ?? 0) + (hopJob?.approachPath?.length ?? 0))
+		expect(hop?.pathLength).toBe(hopJob?.approachPath?.length ?? 0)
 	})
 
 	it('does not re-approach a still-docked anchor service before dock completion', async () => {
@@ -187,5 +195,97 @@ describe('findVehicleApproachJob', () => {
 
 		expect(findVehicleApproachJob(game, character)).toBeUndefined()
 		expect(findVehicleHopJob(game, character)).toBeUndefined()
+	})
+
+	it('ends an empty gather-zone service instead of advancing it to the bay', async () => {
+		const line = gatherFreightLine({
+			id: 'VA:empty-gather',
+			name: 'Empty gather',
+			hiveName: 'H',
+			coord: [0, 0],
+			filters: ['wood'],
+			radius: 2,
+		})
+		game = new Game(
+			{ terrainSeed: 9405, characterCount: 0 },
+			{
+				tiles: [
+					{ coord: [0, 0] as const, terrain: 'grass' as const },
+					{ coord: [1, 0] as const, terrain: 'grass' as const },
+				],
+				hives: [
+					{
+						name: 'H',
+						alveoli: [{ coord: [0, 0] as const, alveolus: 'freight_bay' as const, goods: {} }],
+					},
+				],
+				freightLines: [line],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		const vehicle = game.vehicles.createVehicle('v-empty-gather', 'wheelbarrow', { q: 0, r: 0 }, [
+			line,
+		])
+		const character = game.population.createCharacter('Eve', { q: 0, r: 0 })
+		vehicle.beginLineService(line, line.stops[0]!, character)
+		character.operates = vehicle
+		character.onboard()
+
+		maybeAdvanceVehiclePastCompletedZoneStop(game, vehicle, character)
+
+		expect(vehicle.service).toBeUndefined()
+		expect(character.operates).toBeUndefined()
+	})
+
+	it('aborts a stale approach when another worker operates the vehicle', async () => {
+		const line = gatherFreightLine({
+			id: 'VA:stale-approach',
+			name: 'Stale approach',
+			hiveName: 'H',
+			coord: [0, 0],
+			filters: ['wood'],
+			radius: 2,
+		})
+		game = new Game(
+			{ terrainSeed: 9406, characterCount: 0 },
+			{
+				tiles: [
+					{ coord: [0, 0] as const, terrain: 'grass' as const },
+					{ coord: [1, 0] as const, terrain: 'grass' as const },
+				],
+				freightLines: [line],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		const vehicle = game.vehicles.createVehicle('v-stale-approach', 'wheelbarrow', { q: 0, r: 0 }, [
+			line,
+		])
+		const operator = game.population.createCharacter('Op', { q: 0, r: 0 })
+		const stale = game.population.createCharacter('Stale', { q: 1, r: 0 })
+		vehicle.beginLineService(line, line.stops[0]!, operator)
+		operator.operates = vehicle
+		const plan: WorkPlan = {
+			type: 'work',
+			job: 'vehicleHop',
+			target: vehicle,
+			urgency: 1,
+			fatigue: 1,
+			vehicleUid: vehicle.uid,
+			lineId: line.id,
+			stopId: line.stops[0]!.id,
+			path: [],
+			dockEnter: false,
+			approachPath: [{ q: 0, r: 0 }],
+		}
+
+		stale.scriptsContext.vehicle.vehicleApproachStep(plan)
+
+		expect(plan.vehicleApproachAborted).toBe(true)
+		expect(vehicle.operator?.uid).toBe(operator.uid)
+		expect(stale.operates).toBeUndefined()
 	})
 })

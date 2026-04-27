@@ -1,15 +1,15 @@
 import { reactive } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
-import { assert } from 'ssh/debug'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
 import { syncFreightVehicleDockRegistration } from 'ssh/freight/vehicle-freight-dock-sync'
 import type { Game } from 'ssh/game/game'
 import { GameObject, withInteractive } from 'ssh/game/object'
 import type { Storage } from 'ssh/storage'
-import { traceProjection } from 'ssh/trace'
 import type { GoodType } from 'ssh/types'
 import { axial } from 'ssh/utils'
 import { type Position, toAxialCoord } from 'ssh/utils/position'
+import { assert } from '../../dev/debug.ts'
+import { traceProjection } from '../../dev/trace.ts'
 import type { Character } from '../character'
 import {
 	createVehicleStorage,
