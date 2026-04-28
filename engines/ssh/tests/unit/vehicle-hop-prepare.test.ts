@@ -1,8 +1,10 @@
 import { normalizeFreightLineDefinition } from 'ssh/freight/freight-line'
+import { findVehicleOffloadJob } from 'ssh/freight/vehicle-work'
 import { migrateV1FiltersToGoodsSelection } from 'ssh/freight/goods-selection-policy'
 import type { GamePatches } from 'ssh/game/game'
 import { Game } from 'ssh/game/game'
 import { VehicleFunctions } from 'ssh/npcs/context/vehicle'
+import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
 import { subject } from 'ssh/npcs/scripts'
 import type { WorkPlan } from 'ssh/types/base'
 import { axial } from 'ssh/utils'
@@ -175,6 +177,127 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		step?.finish?.()
 		expect(character.operates).toBeUndefined()
 		expect(vehicle.service).toBeDefined()
+	})
+
+	it('vehicleHopDockStep checks final empty anchors after dock advertisements settle', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'concrete' as const },
+				{ coord: [1, 0] as const, terrain: 'grass' as const },
+			],
+			hives: [
+				{
+					name: 'DockAfterAds',
+					alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }],
+				},
+			],
+			freightLines: [
+				gatherFreightLine({
+					id: 'hop:dock-after-ads',
+					name: 'Dock after ads',
+					hiveName: 'DockAfterAds',
+					coord: [0, 0],
+					filters: ['wood'],
+					radius: 2,
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 9615, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines[0]!
+		const unloadStop = line.stops[1]!
+		const vehicle = game.vehicles.createVehicle('hop-empty-dock', 'wheelbarrow', { q: 0, r: 0 }, [
+			line,
+		])
+		const character = game.population.createCharacter('EmptyDock', { q: 0, r: 0 })
+		vehicle.beginLineService(line, unloadStop, character)
+		character.operates = vehicle
+		character.onboard()
+
+		const vf = new VehicleFunctions()
+		Object.assign(vf, { [subject]: character })
+
+		const step = vf.vehicleHopDockStep({
+			type: 'work',
+			job: 'vehicleHop',
+			target: character.tile,
+			urgency: 1,
+			fatigue: 1,
+			vehicleUid: vehicle.uid,
+			lineId: line.id,
+			stopId: unloadStop.id,
+			path: [],
+			dockEnter: true,
+		})
+
+		step?.finish?.()
+		expect(vehicle.service).toBeDefined()
+		await new Promise((resolve) => setTimeout(resolve, 5))
+
+		expect(vehicle.service).toBeUndefined()
+		expect(vehicle.position && axial.key(toAxialCoord(vehicle.position)!)).toBe(axial.key({ q: 0, r: 0 }))
+		const park = findVehicleOffloadJob(game, character)
+		expect(park?.maintenanceKind).toBe('park')
+	})
+
+	it('vehicleHopDockStep keeps stocked anchors docked while dock advertising creates movement', async () => {
+		const patches = {
+			tiles: [{ coord: [0, 0] as const, terrain: 'concrete' as const }],
+			hives: [
+				{
+					name: 'DockStockAfterAds',
+					alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }],
+				},
+			],
+			freightLines: [
+				gatherFreightLine({
+					id: 'hop:dock-stock-after-ads',
+					name: 'Dock stock after ads',
+					hiveName: 'DockStockAfterAds',
+					coord: [0, 0],
+					filters: ['wood'],
+					radius: 2,
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 9616, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines[0]!
+		const unloadStop = line.stops[1]!
+		const vehicle = game.vehicles.createVehicle('hop-stock-dock', 'wheelbarrow', { q: 0, r: 0 }, [
+			line,
+		])
+		vehicle.storage.addGood('wood', 1)
+		const character = game.population.createCharacter('StockDock', { q: 0, r: 0 })
+		vehicle.beginLineService(line, unloadStop, character)
+		character.operates = vehicle
+		character.onboard()
+
+		const vf = new VehicleFunctions()
+		Object.assign(vf, { [subject]: character })
+
+		const step = vf.vehicleHopDockStep({
+			type: 'work',
+			job: 'vehicleHop',
+			target: character.tile,
+			urgency: 1,
+			fatigue: 1,
+			vehicleUid: vehicle.uid,
+			lineId: line.id,
+			stopId: unloadStop.id,
+			path: [],
+			dockEnter: true,
+		})
+
+		step?.finish?.()
+		await new Promise((resolve) => setTimeout(resolve, 5))
+
+		expect(isVehicleLineService(vehicle.service)).toBe(true)
+		expect(isVehicleLineService(vehicle.service) && vehicle.service.docked).toBe(true)
 	})
 
 	it('vehicleHopDockStep clears vehicleHopAnchorDockDisembarked on zone stops', async () => {

@@ -80,16 +80,15 @@ export class TransformAlveolus extends Alveolus {
 		)
 	}
 	// nextJob() replaces both alveolusSpecificJob() and keepWorking
+	@inert
 	nextJob(_character?: Character): TransformJob | undefined {
-		return inert(() => {
-			if (!this.working || !this.canWork) return undefined
+		if (!this.working || !this.canWork) return undefined
 
-			return {
-				job: 'transform',
-				urgency: jobBalance.transform,
-				fatigue: this.getFatigueCost(),
-			}
-		})
+		return {
+			job: 'transform',
+			urgency: jobBalance.transform,
+			fatigue: this.getFatigueCost(),
+		}
 	}
 	get workingGoodsRelations(): GoodsRelations {
 		const action = this.action

@@ -172,23 +172,22 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 
 	nextJob?(character?: Character): Job | undefined
 
+	@inert
 	getJob(character?: Character): Job | undefined {
-		return inert(() => {
-			const assignedWorker = this.assignedWorker ? unwrap(this.assignedWorker) : undefined
-			const currentCharacter = character ? unwrap(character) : undefined
-			if (assignedWorker && assignedWorker !== currentCharacter) {
-				return undefined
-			}
-			const carry = this.conveyJob()
-			if (carry) return carry
+		const assignedWorker = this.assignedWorker ? unwrap(this.assignedWorker) : undefined
+		const currentCharacter = character ? unwrap(character) : undefined
+		if (assignedWorker && assignedWorker !== currentCharacter) {
+			return undefined
+		}
+		const carry = this.conveyJob()
+		if (carry) return carry
 
-			// Only provide alveolus-specific jobs if working is enabled
-			if (!this.working) {
-				return undefined
-			}
+		// Only provide alveolus-specific jobs if working is enabled
+		if (!this.working) {
+			return undefined
+		}
 
-			return this.nextJob?.(character)
-		})
+		return this.nextJob?.(character)
 	}
 
 	getFatigueCost(): number {

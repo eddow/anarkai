@@ -28,12 +28,9 @@ function countFreeDwellingSlotsNear(
 	radius: number
 ): number {
 	let slots = 0
-	for (const tile of game.hex.tiles) {
+	for (const tile of game.hex.tilesAround(center, radius)) {
 		const content = tile.content
 		if (!(content instanceof BasicDwelling)) continue
-		const ac = toAxialCoord(tile.position)
-		if (!ac) continue
-		if (axial.distance(ac, center) > radius) continue
 		slots += content.freeHomeSlots
 	}
 	return slots

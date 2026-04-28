@@ -115,6 +115,7 @@ describe.each([
 			const allocation = storage.allocate({ wood: 5 }, 'test')
 			expect(allocation).toBeDefined()
 			expect(storage.allocatedSlots).toBe(true)
+			expect(storage.virtualGoodsCount).toBe(5)
 		})
 
 		it('should fulfill allocation correctly', () => {
@@ -125,6 +126,7 @@ describe.each([
 			expect(storage.stock).toEqual({ wood: 5 })
 			expect(storage.available('wood')).toBe(5)
 			expect(storage.allocatedSlots).toBe(false)
+			expect(storage.virtualGoodsCount).toBe(0)
 		})
 
 		it('should cancel allocation correctly', () => {
@@ -135,6 +137,7 @@ describe.each([
 			expect(storage.stock).toEqual({})
 			expect(storage.available('wood')).toBe(0)
 			expect(storage.allocatedSlots).toBe(false)
+			expect(storage.virtualGoodsCount).toBe(0)
 		})
 
 		it('should handle partial allocation when insufficient room', () => {
@@ -186,24 +189,29 @@ describe.each([
 			storage.reserve({ wood: 3 }, 'test')
 			expect(storage.available('wood')).toBe(7)
 			expect(storage.stock).toEqual({ wood: 10, stone: 5 })
+			expect(storage.virtualGoodsCount).toBe(3)
 		})
 
 		it('should fulfill reservation correctly', () => {
 			const reservation = storage.reserve({ wood: 3 }, 'test')
 			expect(storage.available('wood')).toBe(7)
+			expect(storage.virtualGoodsCount).toBe(3)
 
 			reservation.fulfill()
 			expect(storage.stock).toEqual({ wood: 7, stone: 5 })
 			expect(storage.available('wood')).toBe(7)
+			expect(storage.virtualGoodsCount).toBe(0)
 		})
 
 		it('should cancel reservation correctly', () => {
 			const reservation = storage.reserve({ wood: 3 }, 'test')
 			expect(storage.available('wood')).toBe(7)
+			expect(storage.virtualGoodsCount).toBe(3)
 
 			reservation.cancel()
 			expect(storage.available('wood')).toBe(10)
 			expect(storage.stock).toEqual({ wood: 10, stone: 5 })
+			expect(storage.virtualGoodsCount).toBe(0)
 		})
 
 		it('should handle partial reservation when insufficient goods', () => {
@@ -255,22 +263,28 @@ describe.each([
 			const alloc2 = storage.allocate({ wood: 3 }, 'test2')
 
 			expect(storage.allocatedSlots).toBe(true)
+			expect(storage.virtualGoodsCount).toBe(8)
 
 			alloc1.fulfill()
+			expect(storage.virtualGoodsCount).toBe(3)
 			alloc2.fulfill()
 
 			expect(storage.stock).toEqual({ wood: 28, stone: 15 })
+			expect(storage.virtualGoodsCount).toBe(0)
 		})
 
 		it('should handle allocation and reservation simultaneously', () => {
 			const allocation = storage.allocate({ wood: 5 }, 'alloc')
 			const reservation = storage.reserve({ wood: 3 }, 'reserve')
+			expect(storage.virtualGoodsCount).toBe(8)
 
 			allocation.fulfill()
+			expect(storage.virtualGoodsCount).toBe(3)
 			reservation.fulfill()
 
 			// Should have 20 + 5 - 3 = 22 wood
 			expect(storage.stock).toEqual({ wood: 22, stone: 15 })
+			expect(storage.virtualGoodsCount).toBe(0)
 		})
 
 		it('should maintain consistency during complex operations', () => {
@@ -463,6 +477,10 @@ describe('NoStorage', () => {
 	it('should never add or remove goods', () => {
 		expect(storage.addGood('wood', 5)).toBe(0)
 		expect(storage.removeGood('wood', 5)).toBe(0)
+	})
+
+	it('should never have virtual goods', () => {
+		expect(storage.virtualGoodsCount).toBe(0)
 	})
 
 	it('should always throw on allocation', () => {

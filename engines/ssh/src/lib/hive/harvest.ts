@@ -54,97 +54,96 @@ export class HarvestAlveolus extends TransitAlveolus {
 
 	// nextJob() replaces both alveolusSpecificJob() and keepWorking
 	// Returns detailed job info including path when called from character
+	@inert
 	nextJob(character?: Character): HarvestJob | undefined {
-		return inert(() => {
-			if (!this.working) return undefined
-			const action = this.action
-			if (!action) {
-				return undefined
-			}
-			const startPos = toAxialCoord(character ? character.position : this.tile.position)
-			const hex = this.tile.game.hex
-			const searchDistance = character ? maxWalkTime : harvestNpcSearchDistance
-
-			const findDeposit = (priority: 'project' | 'clearing' | 'any') => {
-				const searchFn = (coord: Positioned) => {
-					const tile = hex.getTile(coord)
-					if (!tile) {
-						return false
-					}
-					const content = tile.content
-					if (!(content instanceof UnBuiltLand)) {
-						return false
-					}
-					if (content?.deposit?.name !== action.deposit) {
-						return false
-					}
-
-					if (priority === 'project') {
-						return !!content.project
-					}
-
-					if (priority === 'clearing') {
-						return (
-							tile.clearing ||
-							tile.neighborTiles.some((neighbor) => neighbor.content instanceof Alveolus)
-						)
-					}
-
-					return tile.zone === 'harvest'
-				}
-
-				return hex.findNearest(startPos, searchFn, searchDistance, false)
-			}
-
-			let path = findDeposit('project')
-			if (path) {
-				return {
-					job: 'harvest',
-					path,
-					urgency: jobBalance.harvest.project ?? jobBalance.harvest.clearing,
-					fatigue:
-						this.getFatigueCost() +
-						(character
-							? axialDistance(startPos, path[path.length - 1]!) * harvestTravelFatiguePerStep
-							: 0),
-				}
-			}
-
-			path = findDeposit('clearing')
-			if (path) {
-				return {
-					job: 'harvest',
-					path,
-					urgency: jobBalance.harvest.clearing,
-					fatigue:
-						this.getFatigueCost() +
-						(character
-							? axialDistance(startPos, path[path.length - 1]!) * harvestTravelFatiguePerStep
-							: 0),
-				}
-			}
-
-			if (!this.canStoreInHarvester) {
-				return undefined
-			}
-
-			path = findDeposit('any')
-			if (path) {
-				return {
-					job: 'harvest',
-					path,
-					urgency:
-						(this.alveoliNeedingGood ? jobBalance.harvest.needsBonus : 0) +
-						jobBalance.harvest.fallbackBase,
-					fatigue:
-						this.getFatigueCost() +
-						(character
-							? axialDistance(startPos, path[path.length - 1]!) * harvestTravelFatiguePerStep
-							: 0),
-				}
-			}
-
+		if (!this.working) return undefined
+		const action = this.action
+		if (!action) {
 			return undefined
-		})
+		}
+		const startPos = toAxialCoord(character ? character.position : this.tile.position)
+		const hex = this.tile.game.hex
+		const searchDistance = character ? maxWalkTime : harvestNpcSearchDistance
+
+		const findDeposit = (priority: 'project' | 'clearing' | 'any') => {
+			const searchFn = (coord: Positioned) => {
+				const tile = hex.getTile(coord)
+				if (!tile) {
+					return false
+				}
+				const content = tile.content
+				if (!(content instanceof UnBuiltLand)) {
+					return false
+				}
+				if (content?.deposit?.name !== action.deposit) {
+					return false
+				}
+
+				if (priority === 'project') {
+					return !!content.project
+				}
+
+				if (priority === 'clearing') {
+					return (
+						tile.clearing ||
+						tile.neighborTiles.some((neighbor) => neighbor.content instanceof Alveolus)
+					)
+				}
+
+				return tile.zone === 'harvest'
+			}
+
+			return hex.findNearest(startPos, searchFn, searchDistance, false)
+		}
+
+		let path = findDeposit('project')
+		if (path) {
+			return {
+				job: 'harvest',
+				path,
+				urgency: jobBalance.harvest.project ?? jobBalance.harvest.clearing,
+				fatigue:
+					this.getFatigueCost() +
+					(character
+						? axialDistance(startPos, path[path.length - 1]!) * harvestTravelFatiguePerStep
+						: 0),
+			}
+		}
+
+		path = findDeposit('clearing')
+		if (path) {
+			return {
+				job: 'harvest',
+				path,
+				urgency: jobBalance.harvest.clearing,
+				fatigue:
+					this.getFatigueCost() +
+					(character
+						? axialDistance(startPos, path[path.length - 1]!) * harvestTravelFatiguePerStep
+						: 0),
+			}
+		}
+
+		if (!this.canStoreInHarvester) {
+			return undefined
+		}
+
+		path = findDeposit('any')
+		if (path) {
+			return {
+				job: 'harvest',
+				path,
+				urgency:
+					(this.alveoliNeedingGood ? jobBalance.harvest.needsBonus : 0) +
+					jobBalance.harvest.fallbackBase,
+				fatigue:
+					this.getFatigueCost() +
+					(character
+						? axialDistance(startPos, path[path.length - 1]!) * harvestTravelFatiguePerStep
+						: 0),
+			}
+		}
+
+		return undefined
 	}
 }

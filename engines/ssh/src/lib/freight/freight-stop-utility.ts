@@ -22,8 +22,7 @@ import type { Game } from 'ssh/game/game'
 import type { Hive } from 'ssh/hive/hive'
 import type { GoodType } from 'ssh/types/base'
 import type { ExchangePriority } from 'ssh/utils/advertisement'
-import { type AxialCoord, axial } from 'ssh/utils/axial'
-import { toAxialCoord } from 'ssh/utils/position'
+import { type AxialCoord } from 'ssh/utils/axial'
 
 /** Per-good quantities for a stop (loose goods, stored goods, or need sink). */
 export interface FreightStopGoodsSnapshot {
@@ -240,13 +239,7 @@ export function listGoodsAllowedOnDistributeSegment(
 
 /** Tiles whose center is within `radius` hex steps of `center` (inclusive). */
 export function listTilesInAxialRadius(game: Game, center: AxialCoord, radius: number): Tile[] {
-	const out: Tile[] = []
-	for (const tile of game.hex.tiles) {
-		const tc = toAxialCoord(tile.position)
-		if (!tc) continue
-		if (axial.distance(center, tc) <= radius) out.push(tile)
-	}
-	return out
+	return [...game.hex.tilesAround(center, radius)]
 }
 
 /**

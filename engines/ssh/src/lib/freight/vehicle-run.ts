@@ -17,7 +17,6 @@ import {
 	gatherSegmentAllowsGoodTypeForSegment,
 } from 'ssh/freight/freight-line'
 import { scoreVehicleCandidate } from 'ssh/freight/vehicle-candidate-policy'
-import { dockedVehicleGoodsRelations } from 'ssh/freight/vehicle-freight-dock'
 import {
 	freightVehicleDockBay,
 	syncFreightVehicleDockRegistration,
@@ -211,7 +210,12 @@ function findBeginServiceActionableWork(
 		if (!bayTile) continue
 		const bayPos = toAxialCoord(bayTile.position)
 		if (!bayPos) continue
-		for (const tile of game.hex.tiles) {
+		const unloadStop = line.stops[segment.unloadStopIndex]
+		const tiles =
+			unloadStop && 'zone' in unloadStop && unloadStop.zone.kind === 'radius'
+				? game.hex.tilesAround(bayPos, unloadStop.zone.radius)
+				: game.hex.tiles
+		for (const tile of tiles) {
 			const c = tile.content
 			if (!isStandaloneBuildSiteShell(c) || c.destroyed || c.isReady) continue
 			const tilePos = toAxialCoord(tile.position)
@@ -369,14 +373,11 @@ export function maybeAdvanceVehiclePastCompletedZoneStop(
 	vehicle.advanceToStop(line.stops[idx + 1]!)
 }
 
-/**
- * When anchored at a bay with no pending dock↔hive convey, advance past the anchor (same as legacy
- * `advanceVehicleAfterDock` timing, but deferred until freight is drained).
- */
+/** Advance a docked anchor stop once vehicle-side storage reservations/allocations are drained. */
 export function maybeAdvanceVehicleFromCompletedAnchorStop(
 	_game: Game,
 	vehicle: VehicleEntity,
-	_character: Character
+	_character?: Character
 ): void {
 	const svc = vehicle.service
 	if (!isVehicleLineService(svc)) {
@@ -446,36 +447,28 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 		})
 		return
 	}
-	const pendingMovements = hive.pendingVehicleDockMovements(dock)
-	if (pendingMovements.length > 0) {
+	const stockCount = Object.values(vehicle.storage.stock).reduce(
+		(total, qty) => total + Math.max(0, qty ?? 0),
+		0
+	)
+	const virtualGoodsCount = vehicle.storage.virtualGoodsCount
+	if (virtualGoodsCount > 0) {
 		traces.vehicle.log?.('vehicleJob.dock.check', {
 			vehicleUid: vehicle.uid,
 			lineId: svc.line.id,
 			stopId: stop.id,
 			outcome: 'wait',
-			reason: 'pending-dock-movement',
+			reason: 'vehicle-storage-not-drained',
 			anchorCoord: stop.anchor.coord,
-			pendingMovements,
-		})
-		return
-	}
-	const dockRelationsCount = Object.keys(dockedVehicleGoodsRelations(vehicle, dock.bay)).length
-	if (dockRelationsCount > 0) {
-		traces.vehicle.log?.('vehicleJob.dock.check', {
-			vehicleUid: vehicle.uid,
-			lineId: svc.line.id,
-			stopId: stop.id,
-			outcome: 'wait',
-			reason: 'dock-advertisements-open',
-			dockRelationsCount,
-			anchorCoord: stop.anchor.coord,
+			stockCount,
+			virtualGoodsCount,
 			stock: vehicle.storage.stock,
 		})
 		return
 	}
 	const idx = svc.line.stops.findIndex((s) => s.id === stop.id)
 	const isLastStop = idx < 0 || idx >= svc.line.stops.length - 1
-	const hasStock = Object.values(vehicle.storage.stock).some((n) => (n ?? 0) > 0)
+	const hasStock = stockCount > 0
 	const parkNext = isLastStop && !hasStock && vehicleNeedsParkingOnCurrentTile(vehicle)
 	traces.vehicle.log?.('vehicleJob.dock.complete', {
 		vehicleUid: vehicle.uid,
@@ -484,6 +477,8 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 		outcome: isLastStop ? (parkNext ? 'park-next' : 'end-service') : 'advance',
 		hasStock,
 		anchorCoord: stop.anchor.coord,
+		stockCount,
+		virtualGoodsCount,
 		stock: vehicle.storage.stock,
 	})
 	advanceVehicleAfterDock(vehicle)

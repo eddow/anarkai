@@ -172,7 +172,7 @@ Steps:
    - **bay**
       1. **[long]** drives *until* bay
       2. **[long]** dock the vehicle
-      3. launch the loading/unloading process
+      3. release the operator and let the docked vehicle advertise its loading/unloading demand to the bay hive
    - **zone** (should be a procedure as it is reused in [#Zone-browse])
       1. pick a good to grab or need to fulfil
       2. **[long]** drive to that good/need
@@ -317,6 +317,11 @@ Between tiers, **distance**, **utility** (`freight-stop-utility` and cousins), a
 When docked at a bay, both process can happen at the same time. The vehicle will advertise provide/needs (with 2-Use priority)
 Note: all the calculations presented here will be used to calculate the utility of a line - so these computations will need to be done in the same libraries (it has been begun like in engines/ssh/src/lib/freight/freight-stop-utility.ts)
 
+Dock completion is owned by vehicle storage state, not by convey. `Storage.virtualGoodsCount`
+is the sum of in-flight storage bookkeeping (`reserved + allocated`), and a docked vehicle only
+waits while that value is non-zero. Convey workers remain responsible for moving goods and
+settling source reservations / target allocations; they do not schedule dock completion.
+
  First, the *service* object will estimate the amount of goods needed further in the line: it will cumulate all the following stops with "unload"
  > TODO: Some lines will be marked as "exclusive", meaning that a vehicle can only serve one line. This line will therefore be a cycle and "all the next stops" = all the next stops in the lines concatenated by all the first stops until the one being served. Non-exclusive lines *ust* end on an unload-all, load-nothing stop
 
@@ -337,7 +342,18 @@ Advertise providing the stored goods - with 2-Use if there is more than `further
 
 ### End
 
-**For now** once ads have given raise to good movements and all good-movements are over, the stop is considered as fulfilled.
+After dock advertisements have had a chance to create storage reservations/allocations, the dock
+halt is considered complete when the vehicle has no virtual goods left:
+`vehicle.storage.virtualGoodsCount === 0`. `VehicleEntity` installs the watcher for that condition
+as part of the vehicle lifecycle and schedules `maybeAdvanceVehicleFromCompletedAnchorStop` after
+dock registration/advertising settles.
+
+`maybeAdvanceVehicleFromCompletedAnchorStop` intentionally does **not** inspect terminal convey
+events, dock advertisement predicates, `Hive.pendingVehicleDockMovements`, or dock-involved hive
+movement tokens. If virtual goods are still present it logs `vehicleJob.dock.check` with
+`reason: 'vehicle-storage-not-drained'`; otherwise it advances to the next line stop or ends the
+line service. Actual stock still matters for the follow-up decision: a final empty dock can expose
+`park`, while a non-final loaded dock can continue to the next stop.
 
 > "For now" because, later, we will configure stops and fulfillment condition
 

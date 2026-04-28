@@ -50,6 +50,18 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		return tiles
 	}
 
+	*tilesAround(center: Positioned, radius: number): Generator<Tile> {
+		const centerCoord = toAxialCoord(center)
+		if (!centerCoord) return
+		const roundedCenter = axial.round(centerCoord)
+		const tileRadius = Math.max(0, Math.floor(radius))
+		for (const coord of axial.allTiles(roundedCenter, tileRadius)) {
+			const content = this.contents.get(coord)
+			const tile = content && 'tile' in content ? content.tile : this.tileCache.get(coord)
+			if (tile) yield tile
+		}
+	}
+
 	constructor(public game: Game) {
 		super(game)
 		this.looseGoods = new LooseGoods(game)

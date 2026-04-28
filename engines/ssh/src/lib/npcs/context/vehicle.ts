@@ -205,15 +205,17 @@ class VehicleFunctions {
 			markVehicleHopRunEndedBeforeDock(jobPlan, 'zone-complete-ended-run', character, vehicle)
 			return
 		}
-		maybeAdvanceVehicleFromCompletedAnchorStop(character.game, vehicle, character)
-		if (!isVehicleLineService(vehicle.service)) {
-			markVehicleHopRunEndedBeforeDock(
-				jobPlan,
-				'anchor-freight-drained-ended-run',
-				character,
-				vehicle
-			)
-			return
+		if (vehicle.isDocked) {
+			maybeAdvanceVehicleFromCompletedAnchorStop(character.game, vehicle, character)
+			if (!isVehicleLineService(vehicle.service)) {
+				markVehicleHopRunEndedBeforeDock(
+					jobPlan,
+					'anchor-freight-drained-ended-run',
+					character,
+					vehicle
+				)
+				return
+			}
 		}
 		if (vehicle.service.line.id !== jobPlan.lineId || vehicle.service.stop.id !== jobPlan.stopId) {
 			hopPlan.vehicleHopReplanRequired = true

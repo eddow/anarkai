@@ -224,7 +224,11 @@ export interface FreightGatherRouteSegment {
  * Radius zone stop followed by a bay anchor at the **same** coordinates (gather path).
  * Zone→anchor pairs with different centers are not gather (e.g. distribute unload radius → next bay).
  */
+const _gatherSegmentCache = new WeakMap<FreightLineDefinition, FreightGatherRouteSegment[]>()
+
 export function findGatherRouteSegments(line: FreightLineDefinition): FreightGatherRouteSegment[] {
+	const cached = _gatherSegmentCache.get(line)
+	if (cached) return cached
 	const out: FreightGatherRouteSegment[] = []
 	for (let i = 0; i < line.stops.length - 1; i++) {
 		const zoneStop = line.stops[i]
@@ -237,6 +241,7 @@ export function findGatherRouteSegments(line: FreightLineDefinition): FreightGat
 		if (z[0] !== c[0] || z[1] !== c[1]) continue
 		out.push({ loadStopIndex: i, unloadStopIndex: i + 1 })
 	}
+	_gatherSegmentCache.set(line, out)
 	return out
 }
 

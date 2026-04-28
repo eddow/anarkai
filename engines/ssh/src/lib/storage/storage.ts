@@ -69,6 +69,13 @@ export abstract class Storage<
 	 * Get currently allocated incoming quantity for a good type
 	 */
 	abstract allocated(goodType: GoodType): number
+	/**
+	 * Goods currently represented by storage bookkeeping rather than settled stock.
+	 *
+	 * Reservations are outgoing/present goods promised to work in progress; allocations are incoming
+	 * room promised to work in progress.
+	 */
+	abstract get virtualGoodsCount(): number
 
 	/** Render a visualization of stored goods */
 	abstract renderedGoods(): RenderedGoodSlots

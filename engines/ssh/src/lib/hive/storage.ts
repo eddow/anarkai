@@ -517,18 +517,17 @@ export class StorageAlveolus extends Alveolus {
 		)
 	}
 
+	@inert
 	nextJob(_character?: Character): Job | undefined {
-		return inert(() => {
-			const fragmentedGoodType = this.storage.fragmented
-			return fragmentedGoodType
-				? ({
-						job: 'defragment',
-						fatigue: 1,
-						urgency: jobBalance.defragment,
-						goodType: fragmentedGoodType,
-					} as Job)
-				: undefined
-		})
+		const fragmentedGoodType = this.storage.fragmented
+		return fragmentedGoodType
+			? ({
+					job: 'defragment',
+					fatigue: 1,
+					urgency: jobBalance.defragment,
+					goodType: fragmentedGoodType,
+				} as Job)
+			: undefined
 	}
 
 	private get slottedDefinition(): { slots: number; capacity: number } {

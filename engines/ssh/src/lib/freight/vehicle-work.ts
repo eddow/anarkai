@@ -57,6 +57,11 @@ function vehicleHasStock(vehicle: VehicleEntity): boolean {
 	return Object.values(vehicle.storage.stock).some((n) => (n ?? 0) > 0)
 }
 
+function compareAxialCoord(a: AxialCoord, b: AxialCoord): number {
+	if (a.r !== b.r) return a.r - b.r
+	return a.q - b.q
+}
+
 /** True for jobs that use {@link VehicleEntity} line/offload service and `vehicleUid`. */
 export function isVehicleFreightJob(job: Job): job is Job & VehicleJob {
 	return 'vehicleUid' in job
@@ -192,17 +197,22 @@ function pickUnloadTargetForVehicle(
 	if (!vehicleHasStock(vehicle)) return undefined
 	const origin = toAxialCoord(vehicle.tile.position)!
 	let best: { tile: Tile; score: number } | undefined
-	for (const tile of game.hex.tiles) {
+	for (const tile of game.hex.tilesAround(origin, offloadRange)) {
 		const tc = toAxialCoord(tile.position)!
 		const dist = axial.distance(origin, tc)
-		if (dist > offloadRange) continue
 		if (axial.key(tc) === axial.key(origin)) continue
 		if (!isTileDropEligible(tile)) continue
 		if (!canReach(tile)) continue
 		const looseCount = game.hex.looseGoods.getGoodsAt(tc).length
 		// Distance dominates; mild crowding penalty avoids piling on the same hex.
 		const score = 1 / (dist + 1) / (1 + 0.25 * looseCount)
-		if (!best || score > best.score) best = { tile, score }
+		if (
+			!best ||
+			score > best.score ||
+			(score === best.score && compareAxialCoord(tc, toAxialCoord(best.tile.position)!) > 0)
+		) {
+			best = { tile, score }
+		}
 	}
 	if (!best) return undefined
 	return { tile: best.tile, urgency: jobBalance.offload.unloadToTile }
@@ -235,15 +245,20 @@ function pickParkingTargetForVehicle(
 		return count
 	}
 	let best: { tile: Tile; dist: number; cluster: number } | undefined
-	for (const tile of game.hex.tiles) {
+	for (const tile of game.hex.tilesAround(origin, offloadRange)) {
 		const tc = toAxialCoord(tile.position)!
 		const dist = axial.distance(origin, tc)
-		if (dist > offloadRange) continue
 		if (axial.key(tc) === axial.key(origin)) continue
 		if (!isTileDropEligible(tile)) continue
 		if (!canReach(tile)) continue
 		const cluster = parkedNeighborCount(tc)
-		if (!best || dist < best.dist || (dist === best.dist && cluster < best.cluster)) {
+		if (
+			!best ||
+			dist < best.dist ||
+			(dist === best.dist &&
+				(cluster < best.cluster ||
+					(cluster === best.cluster && compareAxialCoord(tc, toAxialCoord(best.tile.position)!) > 0)))
+		) {
 			best = { tile, dist, cluster }
 		}
 	}
@@ -387,15 +402,19 @@ function pickMaintenanceForVehicle(
 	const origin = toAxialCoord(vehicle.tile.position)!
 	let bestLoad: LoadCandidate | undefined
 	let bestLoadDistance = Number.POSITIVE_INFINITY
-	for (const tile of game.hex.tiles) {
+	for (const tile of game.hex.tilesAround(origin, offloadRange)) {
 		const tc = toAxialCoord(tile.position)!
 		const dist = axial.distance(origin, tc)
-		if (dist > offloadRange) continue
 		if (!canReach(tile)) continue
 		const pick = pickOffloadForTile(tile, vehicle.storage)
 		if (!pick) continue
 		const candidate: LoadCandidate = { kind: 'load', tile, pick }
-		if (dist < bestLoadDistance) {
+		if (
+			dist < bestLoadDistance ||
+			(bestLoad &&
+				dist === bestLoadDistance &&
+				compareAxialCoord(tc, toAxialCoord(bestLoad.tile.position)!) > 0)
+		) {
 			bestLoad = candidate
 			bestLoadDistance = dist
 		}

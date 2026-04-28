@@ -1,6 +1,7 @@
-import { reactive } from 'mutts'
+import { defer, effect, reactive } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
+import { maybeAdvanceVehicleFromCompletedAnchorStop } from 'ssh/freight/vehicle-run'
 import { syncFreightVehicleDockRegistration } from 'ssh/freight/vehicle-freight-dock-sync'
 import type { Game } from 'ssh/game/game'
 import { GameObject, withInteractive } from 'ssh/game/object'
@@ -31,6 +32,9 @@ export class VehicleEntity extends withInteractive(GameObject) {
 	public position: Position | undefined
 	public servedLines: FreightLineDefinition[]
 	public service?: VehicleService
+	private readonly dockStorageCompletionLifecycle = reactive({ revision: 0 })
+	private dockStorageCompletionEffect?: () => void
+	private dockStorageCompletionScheduled = false
 	public get operator(): Character | undefined {
 		return this.service?.operator
 	}
@@ -46,6 +50,42 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		this.position = reactive(position)
 		this.storage = createVehicleStorage(vehicleType)
 		this.servedLines = reactive([...servedLines])
+		this.installDockStorageCompletionEffect()
+	}
+
+	private installDockStorageCompletionEffect(): void {
+		this.dockStorageCompletionEffect = effect`vehicle.dock.storage-completion`(() => {
+			this.dockStorageCompletionLifecycle.revision
+			const svc = this.service
+			if (!isVehicleLineService(svc) || !('anchor' in svc.stop) || !this.isDocked) return
+			if (svc.operator) return
+			const stockCount = Object.values(this.storage.stock).reduce(
+				(total, qty) => total + Math.max(0, qty ?? 0),
+				0
+			)
+			const virtualGoodsCount = this.storage.virtualGoodsCount
+			if (virtualGoodsCount > 0) return
+			if (this.dockStorageCompletionScheduled) return
+			this.dockStorageCompletionScheduled = true
+			defer(() => {
+				queueMicrotask(() => {
+					this.dockStorageCompletionScheduled = false
+					if (this.destroyed) return
+					traces.vehicle.log?.('vehicleJob.dock.storageDrained', {
+						vehicleUid: this.uid,
+						lineId: svc.line.id,
+						stopId: svc.stop.id,
+						stockCount,
+						virtualGoodsCount,
+					})
+					maybeAdvanceVehicleFromCompletedAnchorStop(this.game, this)
+				})
+			})
+		})
+	}
+
+	private pokeDockStorageCompletionLifecycle(): void {
+		this.dockStorageCompletionLifecycle.revision++
 	}
 
 	get title(): string {
@@ -210,12 +250,14 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		if (!this.service) return
 		this.service.operator = undefined
 		current?.setOperatedVehicleFromService(undefined)
+		this.pokeDockStorageCompletionLifecycle()
 	}
 
 	beginLineService(line: FreightLineDefinition, stop: FreightStop, operator?: Character): void {
 		const next: VehicleLineService = { line, stop, docked: false, operator }
 		this.service = next
 		syncFreightVehicleDockRegistration(this)
+		this.pokeDockStorageCompletionLifecycle()
 	}
 
 	/**
@@ -228,6 +270,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		const next = { ...spec, operator } as VehicleMaintenanceService
 		this.service = next
 		syncFreightVehicleDockRegistration(this)
+		this.pokeDockStorageCompletionLifecycle()
 	}
 
 	/**
@@ -256,6 +299,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		this.position = undefined
 		this.traceDockPlacement('clear-position')
 		syncFreightVehicleDockRegistration(this)
+		this.pokeDockStorageCompletionLifecycle()
 	}
 
 	undock(): void {
@@ -265,6 +309,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		svc.docked = false
 		this.traceDockPlacement('undock')
 		syncFreightVehicleDockRegistration(this)
+		this.pokeDockStorageCompletionLifecycle()
 	}
 
 	advanceToStop(stop: FreightStop): void {
@@ -274,6 +319,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		svc.stop = stop
 		svc.docked = false
 		syncFreightVehicleDockRegistration(this)
+		this.pokeDockStorageCompletionLifecycle()
 	}
 
 	endService(): void {
@@ -282,6 +328,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		if (isVehicleLineService(this.service)) this.service.docked = false
 		syncFreightVehicleDockRegistration(this)
 		this.service = undefined
+		this.pokeDockStorageCompletionLifecycle()
 	}
 
 	private serializeService(): VehicleServiceSerialized | undefined {
@@ -303,6 +350,12 @@ export class VehicleEntity extends withInteractive(GameObject) {
 			targetCoord: { q: svc.targetCoord.q, r: svc.targetCoord.r },
 			operatorUid: svc.operator?.uid,
 		}
+	}
+
+	override destroy(): void {
+		this.dockStorageCompletionEffect?.()
+		this.dockStorageCompletionEffect = undefined
+		super.destroy()
 	}
 
 	serialize(): VehicleSerializedState {

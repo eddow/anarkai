@@ -27,7 +27,12 @@ export function visitStandaloneConstructionSitesForDistributeSegmentAxial(
 	bayPos: AxialCoord,
 	visitor: (tile: Tile, site: BuildSite) => void
 ): void {
-	for (const tile of game.hex.tiles) {
+	const unloadStop = line.stops[segment.unloadStopIndex]
+	const tiles =
+		unloadStop && 'zone' in unloadStop && unloadStop.zone.kind === 'radius'
+			? game.hex.tilesAround(bayPos, unloadStop.zone.radius)
+			: game.hex.tiles
+	for (const tile of tiles) {
 		const c = tile.content
 		if (!isStandaloneBuildSiteShell(c)) continue
 		if (c.destroyed || c.isReady) continue

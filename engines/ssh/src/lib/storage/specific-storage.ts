@@ -212,6 +212,13 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 		return this._allocated[goodType] || 0
 	}
 
+	get virtualGoodsCount(): number {
+		let total = 0
+		for (const qty of Object.values(this._reserved)) total += qty ?? 0
+		for (const qty of Object.values(this._allocated)) total += qty ?? 0
+		return total
+	}
+
 	renderedGoods(): RenderedGoodSlots {
 		const slots: RenderedGoodSlot[] = []
 		for (const [goodType, maxAmount] of Object.entries(this.maxAmounts)) {

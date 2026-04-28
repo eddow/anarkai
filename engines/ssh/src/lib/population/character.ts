@@ -497,45 +497,44 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		}
 	}
 
+	@inert
 	private rankedWorkCandidates(): RankedWorkCandidate[] {
-		return inert(() => {
-			const candidates: RankedWorkCandidate[] = []
-			for (const pick of collectVehicleWorkPicks(this.game, this)) {
-				const path = pick.job.path
-				const pathLength = vehicleFreightApproachPathLength(pick.job)
-				candidates.push({
-					job: pick.job,
-					targetTile: pick.targetTile,
-					path,
-					pathLength,
-					score: relativeJobScore(calculateJobScore(this, pick.job), pathLength),
-				})
-			}
-			for (const tile of this.game.hex.tiles) {
-				const job = tile.getJob?.(this)
-				if (!job) continue
-
-				const path = this.sameTilePath(tile)
-				if (path === false) continue
-
-				const pathLength = path.length
-				candidates.push({
-					job,
-					targetTile: tile,
-					path,
-					pathLength,
-					score: relativeJobScore(calculateJobScore(this, job), pathLength),
-				})
-			}
-
-			return candidates.sort((a, b) => {
-				if (b.score !== a.score) return b.score - a.score
-				if (b.job.urgency !== a.job.urgency) return b.job.urgency - a.job.urgency
-				if (a.pathLength !== b.pathLength) return a.pathLength - b.pathLength
-				return axial
-					.key(toAxialCoord(a.targetTile.position)!)
-					.localeCompare(axial.key(toAxialCoord(b.targetTile.position)!))
+		const candidates: RankedWorkCandidate[] = []
+		for (const pick of collectVehicleWorkPicks(this.game, this)) {
+			const path = pick.job.path
+			const pathLength = vehicleFreightApproachPathLength(pick.job)
+			candidates.push({
+				job: pick.job,
+				targetTile: pick.targetTile,
+				path,
+				pathLength,
+				score: relativeJobScore(calculateJobScore(this, pick.job), pathLength),
 			})
+		}
+		for (const tile of this.game.hex.tilesAround(this.position, maxWalkTime)) {
+			const job = tile.getJob?.(this)
+			if (!job) continue
+
+			const path = this.sameTilePath(tile)
+			if (path === false) continue
+
+			const pathLength = path.length
+			candidates.push({
+				job,
+				targetTile: tile,
+				path,
+				pathLength,
+				score: relativeJobScore(calculateJobScore(this, job), pathLength),
+			})
+		}
+
+		return candidates.sort((a, b) => {
+			if (b.score !== a.score) return b.score - a.score
+			if (b.job.urgency !== a.job.urgency) return b.job.urgency - a.job.urgency
+			if (a.pathLength !== b.pathLength) return a.pathLength - b.pathLength
+			return axial
+				.key(toAxialCoord(a.targetTile.position)!)
+				.localeCompare(axial.key(toAxialCoord(b.targetTile.position)!))
 		})
 	}
 
@@ -636,102 +635,101 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	/**
 	 * Resolve best job without starting a script (for planning / utility).
 	 */
+	@inert
 	resolveBestJobMatch(): { job: Job; targetTile: Tile; path: AxialCoord[] } | false {
-		return inert(() => {
-			const vehiclePick = this.bestVehicleJobMatch()
+		const vehiclePick = this.bestVehicleJobMatch()
 
-			const jobCache = new Map<string, { job: Job; targetTile: Tile }>()
+		const jobCache = new Map<string, { job: Job; targetTile: Tile }>()
 
-			const scoreJob = (coord: Positioned): number | false => {
-				const tile = this.game.hex.getTile(coord)
-				if (!tile) return false
+		const scoreJob = (coord: Positioned): number | false => {
+			const tile = this.game.hex.getTile(coord)
+			if (!tile) return false
 
-				const axCoord = toAxialCoord(coord)!
-				const coordKey = axial.key(axCoord)
-				const directJob = tile.getJob?.(this)
-				if (!directJob) return false
+			const axCoord = toAxialCoord(coord)!
+			const coordKey = axial.key(axCoord)
+			const directJob = tile.getJob?.(this)
+			if (!directJob) return false
 
-				jobCache.set(coordKey, { job: directJob, targetTile: tile })
+			jobCache.set(coordKey, { job: directJob, targetTile: tile })
 
-				const score = calculateJobScore(this, directJob)
-				return score
-			}
+			const score = calculateJobScore(this, directJob)
+			return score
+		}
 
-			const path = this.game.hex.findBestForCharacter(
-				this.position,
-				this,
-				scoreJob,
-				maxWalkTime,
-				bestPossibleJobScore(this),
-				false
-			)
+		const path = this.game.hex.findBestForCharacter(
+			this.position,
+			this,
+			scoreJob,
+			maxWalkTime,
+			bestPossibleJobScore(this),
+			false
+		)
 
-			let selectedPath = path
-			let match: { job: Job; targetTile: Tile } | undefined
-			if (selectedPath && selectedPath.length > 0) {
-				const targetCoord = selectedPath[selectedPath.length - 1] as AxialCoord
-				const key = `${targetCoord.q},${targetCoord.r}`
-				match = jobCache.get(key)
-			}
-			if (!match) {
-				let bestFallback:
-					| { path: AxialCoord[]; job: Job; targetTile: Tile; score: number }
-					| undefined
-				for (const tile of this.game.hex.tiles) {
-					if (!(tile.content instanceof Alveolus)) continue
-					const job = tile.content.getJob(this)
-					if (!job) continue
-					const isSameTile =
-						axial.key(toAxialCoord(tile.position)!) === axial.key(toAxialCoord(this.position)!)
-					const fallbackPath = isSameTile
-						? []
-						: this.game.hex.findPathForCharacter(
-								this.position,
-								tile.position,
-								this,
-								maxWalkTime,
-								false
-							)
-					if (!fallbackPath) continue
-					const score = calculateJobScore(this, job) / (fallbackPath.length + 1)
-					if (!bestFallback || score > bestFallback.score) {
-						bestFallback = { path: fallbackPath, job, targetTile: tile, score }
-					}
-				}
-				if (!bestFallback) {
-					if (!vehiclePick) return false
-					return {
-						job: vehiclePick.job,
-						targetTile: vehiclePick.targetTile,
-						path: vehiclePick.path,
-					}
-				}
-				selectedPath = bestFallback.path
-				match = { job: bestFallback.job, targetTile: bestFallback.targetTile }
-			}
-			const { job, targetTile } = match
-			if (!selectedPath) {
+		let selectedPath = path
+		let match: { job: Job; targetTile: Tile } | undefined
+		if (selectedPath && selectedPath.length > 0) {
+			const targetCoord = selectedPath[selectedPath.length - 1] as AxialCoord
+			const key = `${targetCoord.q},${targetCoord.r}`
+			match = jobCache.get(key)
+		}
+		if (!match) {
+			let bestFallback:
+				| { path: AxialCoord[]; job: Job; targetTile: Tile; score: number }
+				| undefined
+			for (const tile of this.game.hex.tilesAround(this.position, maxWalkTime)) {
+				if (!(tile.content instanceof Alveolus)) continue
+				const job = tile.content.getJob(this)
+				if (!job) continue
 				const isSameTile =
-					axial.key(toAxialCoord(targetTile.position)!) === axial.key(toAxialCoord(this.position)!)
-				if (!isSameTile) {
-					if (!vehiclePick) return false
-					return {
-						job: vehiclePick.job,
-						targetTile: vehiclePick.targetTile,
-						path: vehiclePick.path,
-					}
+					axial.key(toAxialCoord(tile.position)!) === axial.key(toAxialCoord(this.position)!)
+				const fallbackPath = isSameTile
+					? []
+					: this.game.hex.findPathForCharacter(
+							this.position,
+							tile.position,
+							this,
+							maxWalkTime,
+							false
+						)
+				if (!fallbackPath) continue
+				const score = calculateJobScore(this, job) / (fallbackPath.length + 1)
+				if (!bestFallback || score > bestFallback.score) {
+					bestFallback = { path: fallbackPath, job, targetTile: tile, score }
 				}
-				selectedPath = []
 			}
+			if (!bestFallback) {
+				if (!vehiclePick) return false
+				return {
+					job: vehiclePick.job,
+					targetTile: vehiclePick.targetTile,
+					path: vehiclePick.path,
+				}
+			}
+			selectedPath = bestFallback.path
+			match = { job: bestFallback.job, targetTile: bestFallback.targetTile }
+		}
+		const { job, targetTile } = match
+		if (!selectedPath) {
+			const isSameTile =
+				axial.key(toAxialCoord(targetTile.position)!) === axial.key(toAxialCoord(this.position)!)
+			if (!isSameTile) {
+				if (!vehiclePick) return false
+				return {
+					job: vehiclePick.job,
+					targetTile: vehiclePick.targetTile,
+					path: vehiclePick.path,
+				}
+			}
+			selectedPath = []
+		}
 
-			const tileMatch = { job, targetTile, path: selectedPath }
-			if (!vehiclePick) return tileMatch
-			const vs = vehiclePick.score
-			const ts = relativeJobScore(calculateJobScore(this, tileMatch.job), tileMatch.path.length)
-			return vs > ts
-				? { job: vehiclePick.job, targetTile: vehiclePick.targetTile, path: vehiclePick.path }
-				: tileMatch
-		})
+		const tileMatch = { job, targetTile, path: selectedPath }
+		if (!vehiclePick) return tileMatch
+		const vs = vehiclePick.score
+		const ts = relativeJobScore(calculateJobScore(this, tileMatch.job), tileMatch.path.length)
+		return vs > ts
+			? { job: vehiclePick.job, targetTile: vehiclePick.targetTile, path: vehiclePick.path }
+			: tileMatch
 	}
 
 	/**
@@ -842,88 +840,87 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		super.update(deltaSeconds)
 	}
 
+	@inert
 	findAction() {
-		return inert(() => {
-			releaseAllHomeReservations(this.game, this)
+		releaseAllHomeReservations(this.game, this)
 
-			const bestWorkMatch = this.resolveBestJobMatch()
-			const workSnapshot = this.buildRankedWorkSnapshot(bestWorkMatch)
-			if (workSnapshot) this.lastWorkPlannerSnapshot = workSnapshot
-			const ranked = excludeWanderAfterWanderWhenEmployable(
-				applyActivityHysteresis(
-					computeActivityScores(this),
-					this.lastPickedActivityKind,
-					activityUtilityConfig.hysteresis
-				),
+		const bestWorkMatch = this.resolveBestJobMatch()
+		const workSnapshot = this.buildRankedWorkSnapshot(bestWorkMatch)
+		if (workSnapshot) this.lastWorkPlannerSnapshot = workSnapshot
+		const ranked = excludeWanderAfterWanderWhenEmployable(
+			applyActivityHysteresis(
+				computeActivityScores(this),
 				this.lastPickedActivityKind,
-				this
-			)
-			const rankedSnapshot = ranked.map((s) => ({
-				kind: s.kind,
-				utility: Math.round(s.utility * 1000) / 1000,
-			}))
+				activityUtilityConfig.hysteresis
+			),
+			this.lastPickedActivityKind,
+			this
+		)
+		const rankedSnapshot = ranked.map((s) => ({
+			kind: s.kind,
+			utility: Math.round(s.utility * 1000) / 1000,
+		}))
 
-			if (this.keepWorking) {
-				const assignedExec = this.tryScriptForActivityKind('assignedWork')
-				if (assignedExec) {
-					this.lastPickedActivityKind = 'assignedWork'
+		if (this.keepWorking) {
+			const assignedExec = this.tryScriptForActivityKind('assignedWork')
+			if (assignedExec) {
+				this.lastPickedActivityKind = 'assignedWork'
+				this.lastPlannerSnapshot = {
+					ranked: rankedSnapshot,
+					outcome: { kind: 'assignedWork', source: 'ranked' },
+				}
+				traceIdleDiagnosis({
+					name: this.name,
+					...this.lastPlannerSnapshot,
+				})
+				return assignedExec
+			}
+			if (bestWorkMatch) {
+				const bestWorkExec = this.findBestJob()
+				if (bestWorkExec) {
+					this.lastPickedActivityKind = 'bestWork'
 					this.lastPlannerSnapshot = {
 						ranked: rankedSnapshot,
-						outcome: { kind: 'assignedWork', source: 'ranked' },
+						outcome: { kind: 'bestWork', source: 'ranked' },
 					}
 					traceIdleDiagnosis({
 						name: this.name,
 						...this.lastPlannerSnapshot,
 					})
-					return assignedExec
-				}
-				if (bestWorkMatch) {
-					const bestWorkExec = this.findBestJob()
-					if (bestWorkExec) {
-						this.lastPickedActivityKind = 'bestWork'
-						this.lastPlannerSnapshot = {
-							ranked: rankedSnapshot,
-							outcome: { kind: 'bestWork', source: 'ranked' },
-						}
-						traceIdleDiagnosis({
-							name: this.name,
-							...this.lastPlannerSnapshot,
-						})
-						return bestWorkExec
-					}
+					return bestWorkExec
 				}
 			}
+		}
 
-			const offloadDrain = this.tryTransportOffloadDrain()
-			if (offloadDrain) return offloadDrain
+		const offloadDrain = this.tryTransportOffloadDrain()
+		if (offloadDrain) return offloadDrain
 
-			for (const pick of ranked) {
-				const exec = this.tryScriptForActivityKind(pick.kind)
-				if (exec) {
-					this.lastPickedActivityKind = pick.kind
-					this.lastPlannerSnapshot = {
-						ranked: rankedSnapshot,
-						outcome: { kind: pick.kind, source: 'ranked' },
-					}
-					traceIdleDiagnosis({
-						name: this.name,
-						...this.lastPlannerSnapshot,
-					})
-					return exec
+		for (const pick of ranked) {
+			const exec = this.tryScriptForActivityKind(pick.kind)
+			if (exec) {
+				this.lastPickedActivityKind = pick.kind
+				this.lastPlannerSnapshot = {
+					ranked: rankedSnapshot,
+					outcome: { kind: pick.kind, source: 'ranked' },
 				}
+				traceIdleDiagnosis({
+					name: this.name,
+					...this.lastPlannerSnapshot,
+				})
+				return exec
 			}
+		}
 
-			this.lastPlannerSnapshot = {
-				ranked: rankedSnapshot,
-				outcome: { kind: 'wander', source: 'fallback-wander' },
-			}
-			traceIdleDiagnosis({
-				name: this.name,
-				...this.lastPlannerSnapshot,
-				note: 'all ranked kinds failed tryScript (stale job, no path, guards, …)',
-			})
-			return this.scriptsContext.selfCare.wander()
+		this.lastPlannerSnapshot = {
+			ranked: rankedSnapshot,
+			outcome: { kind: 'wander', source: 'fallback-wander' },
+		}
+		traceIdleDiagnosis({
+			name: this.name,
+			...this.lastPlannerSnapshot,
+			note: 'all ranked kinds failed tryScript (stale job, no path, guards, …)',
 		})
+		return this.scriptsContext.selfCare.wander()
 	}
 
 	/**

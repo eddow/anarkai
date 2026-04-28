@@ -151,9 +151,16 @@ export const browserViteConfig: UserConfig = {
 		...commonEsbuild,
 	},
 	optimizeDeps: {
-		esbuildOptions: {
-			...commonEsbuild,
-			alias: optimizeAliases,
+		rolldownOptions: {
+			resolve: {
+				alias: optimizeAliases,
+			},
+			transform: {
+				target: commonEsbuild.target,
+				decorator: {
+					legacy: commonEsbuild.tsconfigRaw.compilerOptions.experimentalDecorators,
+				},
+			},
 		},
 		...commonOptimizeDeps,
 	},

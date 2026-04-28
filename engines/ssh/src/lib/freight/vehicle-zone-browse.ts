@@ -126,7 +126,7 @@ function pickZoneLoadSelection(
 	utility: ZoneBrowseUtilityContext
 ): VehicleZoneBrowseSelection | undefined {
 	const neededGoods = new Set(Object.keys(utility.remainingNeededGoods) as GoodType[])
-	const stopIndex = line.stops.findIndex((stop) => stop.id === zoneStop.id)
+	const stopIndex = utility.stopIndex
 	for (const segment of findGatherRouteSegments(line)) {
 		if (segment.loadStopIndex !== stopIndex) continue
 		const unloadStop = line.stops[segment.unloadStopIndex]
@@ -139,21 +139,25 @@ function pickZoneLoadSelection(
 		}
 	}
 	const selectableGoods = new Set(gatherSelectableGoodTypes(line, [...neededGoods]))
+	if (selectableGoods.size === 0) return undefined
 	const center: AxialCoord = { q: zoneStop.zone.center[0], r: zoneStop.zone.center[1] }
 	let best: (VehicleZoneBrowseSelection & { score: number }) | undefined
-	for (const tile of game.hex.tiles) {
-		const tileCoord = toAxialCoord(tile.position)
-		if (!tileCoord || axial.distance(center, tileCoord) > zoneStop.zone.radius) continue
-		const path = pathToTile(game, character, startPos, tile)
-		if (!path) continue
+	for (const tile of game.hex.tilesAround(center, zoneStop.zone.radius)) {
 		const adSource = inferZoneLoadAdSource(tile)
 		const priorityTier = zoneBrowseLoadPriorityTier(adSource)
+		const candidates: GoodType[] = []
 		for (const loose of tile.availableGoods) {
 			if (!loose.available || loose.isRemoved) continue
 			const goodType = loose.goodType as GoodType
 			if (!selectableGoods.has(goodType)) continue
 			if ((utility.remainingNeededGoods[goodType] ?? 0) <= 0 && !neededGoods.has(goodType)) continue
 			if (vehicle.storage.hasRoom(goodType) <= 0) continue
+			candidates.push(goodType)
+		}
+		if (candidates.length === 0) continue
+		const path = pathToTile(game, character, startPos, tile)
+		if (!path) continue
+		for (const goodType of candidates) {
 			const score = scoreVehicleCandidate({
 				kind: 'zoneLoad',
 				urgency: jobBalance.loadOntoVehicle,
@@ -193,9 +197,7 @@ function pickZoneProvideSelection(
 	const center: AxialCoord = { q: zoneStop.zone.center[0], r: zoneStop.zone.center[1] }
 	const priorityTier: FreightPriorityTier = 'pureOffload'
 	let best: (VehicleZoneBrowseSelection & { score: number }) | undefined
-	for (const tile of game.hex.tiles) {
-		const tileCoord = toAxialCoord(tile.position)
-		if (!tileCoord || axial.distance(center, tileCoord) > zoneStop.zone.radius) continue
+	for (const tile of game.hex.tilesAround(center, zoneStop.zone.radius)) {
 		const content = tile.content
 		if (!isStandaloneBuildSiteShell(content) || content.destroyed || content.isReady) continue
 		for (const goodType of Object.keys(content.remainingNeeds) as GoodType[]) {
@@ -243,6 +245,9 @@ function pickZoneProvideSelection(
 	return best
 }
 
+let _cacheTime = -1
+const _selectionCache = new Map<string, VehicleZoneBrowseSelection | undefined>()
+
 export function pickVehicleZoneBrowseSelection(
 	game: Game,
 	character: Character,
@@ -252,9 +257,20 @@ export function pickVehicleZoneBrowseSelection(
 	startPos: Positioned = character.position
 ): VehicleZoneBrowseSelection | undefined {
 	if (!('zone' in stop) || stop.zone.kind !== 'radius') return undefined
+	const cacheKey = `${vehicle.uid}:${line.id}:${stop.id}`
+	const now = game.clock.virtualTime
+	if (now !== _cacheTime) {
+		_selectionCache.clear()
+		_cacheTime = now
+	}
+	const cached = _selectionCache.get(cacheKey)
+	if (cached !== undefined || _selectionCache.has(cacheKey)) return cached
 	const zoneStop = stop as FreightStop & { zone: FreightZoneDefinitionRadius }
 	const utility = zoneBrowseUtilityContext(game, vehicle, line, stop)
-	if (!utility) return undefined
+	if (!utility) {
+		_selectionCache.set(cacheKey, undefined)
+		return undefined
+	}
 	const load = pickZoneLoadSelection(game, character, vehicle, line, zoneStop, startPos, utility)
 	const provide = pickZoneProvideSelection(
 		game,
@@ -265,7 +281,7 @@ export function pickVehicleZoneBrowseSelection(
 		startPos,
 		utility
 	)
-	if (!load) return provide
-	if (!provide) return load
-	return provide.score >= load.score ? provide : load
+	const result = !load ? provide : !provide ? load : provide.score >= load.score ? provide : load
+	_selectionCache.set(cacheKey, result)
+	return result
 }

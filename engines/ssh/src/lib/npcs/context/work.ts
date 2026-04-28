@@ -14,8 +14,6 @@ import {
 	setConstructionConsumedGoods,
 } from 'ssh/construction-state'
 import { assert, traces } from 'ssh/dev/debug'
-import { isVehicleFreightDock } from 'ssh/freight/vehicle-freight-dock'
-import { maybeAdvanceVehicleFromCompletedAnchorStop } from 'ssh/freight/vehicle-run'
 import { alveolusClass } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
 import type { TrackedMovement } from 'ssh/hive/hive'
@@ -23,7 +21,6 @@ import { movementRefId } from 'ssh/hive/movement-ref'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import type { TransformAlveolus } from 'ssh/hive/transform'
 import type { Character } from 'ssh/population/character'
-import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import type { AllocationBase } from 'ssh/storage'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import { contract, type Goods, type GoodType } from 'ssh/types'
@@ -81,41 +78,6 @@ interface MovementData {
 	hop: AxialCoord
 	from: AxialCoord
 	moving: LooseGood
-}
-
-function maybeAdvanceDockedVehiclesAfterTerminalConvey(
-	character: Character,
-	movements: readonly Pick<MovementData, 'movement'>[]
-): void {
-	const vehicles: VehicleEntity[] = []
-	const seenVehicleUids = new Set<string>()
-	for (const { movement } of movements) {
-		for (const party of [movement.provider, movement.demander]) {
-			if (!isVehicleFreightDock(party)) continue
-			const vehicle = party.vehicle
-			if (seenVehicleUids.has(vehicle.uid)) continue
-			seenVehicleUids.add(vehicle.uid)
-			vehicles.push(vehicle)
-		}
-	}
-	if (vehicles.length === 0) {
-		traces.vehicle.log?.('vehicleJob.dock.conveyTerminal', {
-			outcome: 'skip',
-			reason: 'no-dock-party',
-			movementCount: movements.length,
-		})
-		return
-	}
-	traces.vehicle.log?.('vehicleJob.dock.conveyTerminal', {
-		outcome: 'schedule-check',
-		vehicleUids: vehicles.map((vehicle) => vehicle.uid),
-		movementCount: movements.length,
-	})
-	setTimeout(() => {
-		for (const vehicle of vehicles) {
-			maybeAdvanceVehicleFromCompletedAnchorStop(character.game, vehicle, character)
-		}
-	}, 0)
 }
 
 function waitStep() {
@@ -471,7 +433,6 @@ class WorkFunctions {
 							releaseMovementClaim(movement)
 							movementHive.noteMovementLifecycle(movement, 'conveyStep.finished.terminal')
 							movement.finish()
-							maybeAdvanceDockedVehiclesAfterTerminalConvey(character, [{ movement }])
 						} else {
 							let hopAlloc = rawHopAlloc
 							if (!hopAlloc) {

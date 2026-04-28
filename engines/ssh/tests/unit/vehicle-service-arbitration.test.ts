@@ -475,13 +475,16 @@ describe('Vehicle begin-service arbitration', () => {
 		try {
 			maybeAdvanceVehicleFromCompletedAnchorStop(game, vehicle, actor)
 			expect(vehicle.service).toBeUndefined()
-			expect(log).toHaveBeenCalledWith('vehicleJob.dock.complete', {
-				vehicleUid: vehicle.uid,
-				lineId: line.id,
-				stopId: unloadStop.id,
-				outcome: 'park-next',
-				hasStock: false,
-			})
+			expect(log).toHaveBeenCalledWith(
+				'vehicleJob.dock.complete',
+				expect.objectContaining({
+					vehicleUid: vehicle.uid,
+					lineId: line.id,
+					stopId: unloadStop.id,
+					outcome: 'park-next',
+					hasStock: false,
+				})
+			)
 		} finally {
 			traces.vehicle = prev
 		}

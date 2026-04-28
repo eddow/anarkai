@@ -114,17 +114,16 @@ export class Tile extends withInteractive(GameObject) {
 	}
 
 	// Tile-level job offering
+	@inert
 	getJob(character?: Character): Job | undefined {
-		return inert(() => {
-			// Check if UnBuiltLand has a project-related job (clearing for construction)
-			if (this.content instanceof UnBuiltLand) {
-				const unbuiltJob = this.content.getJob()
-				if (unbuiltJob) return unbuiltJob
-			}
+		// Check if UnBuiltLand has a project-related job (clearing for construction)
+		if (this.content instanceof UnBuiltLand) {
+			const unbuiltJob = this.content.getJob()
+			if (unbuiltJob) return unbuiltJob
+		}
 
-			// Otherwise delegate to alveolus if present
-			if (this.content instanceof Alveolus) return this.content.getJob(character)
-		})
+		// Otherwise delegate to alveolus if present
+		if (this.content instanceof Alveolus) return this.content.getJob(character)
 	}
 
 	// Zone getter/setter

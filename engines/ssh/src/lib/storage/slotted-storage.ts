@@ -411,6 +411,15 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		return total
 	}
 
+	get virtualGoodsCount(): number {
+		let total = 0
+		for (const slot of this.slots) {
+			if (!slot) continue
+			total += slot.reserved + slot.allocated
+		}
+		return total
+	}
+
 	allocate(goods: Goods, reason: any): SlottedAllocation {
 		this.assertIntegrity('SlottedStorage.allocate.before')
 		const alloc: number[] = Array(this.slots.length).fill(0)
