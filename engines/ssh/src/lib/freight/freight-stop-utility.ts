@@ -22,7 +22,7 @@ import type { Game } from 'ssh/game/game'
 import type { Hive } from 'ssh/hive/hive'
 import type { GoodType } from 'ssh/types/base'
 import type { ExchangePriority } from 'ssh/utils/advertisement'
-import { type AxialCoord } from 'ssh/utils/axial'
+import type { AxialCoord } from 'ssh/utils/axial'
 
 /** Per-good quantities for a stop (loose goods, stored goods, or need sink). */
 export interface FreightStopGoodsSnapshot {

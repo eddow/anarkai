@@ -29,12 +29,13 @@ export class BuildAlveolus extends Alveolus {
 	public constructionWorkSecondsApplied = 0
 
 	constructor(tile: Tile, target: AlveolusType, constructionSite?: ConstructionSiteState) {
+		const definition = alveoliDefs[target]
 		super(
 			tile,
-			new SpecificStorage(
-				(alveoliDefs[target].construction?.goods || {}) as Record<GoodType, number>
-			)
+			new SpecificStorage((definition.construction?.goods || {}) as Record<GoodType, number>)
 		)
+
+		this.assignGameContent(definition, target)
 
 		// Store properties
 		this.target = target

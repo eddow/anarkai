@@ -1,6 +1,6 @@
 import { reset } from 'mutts'
 import { Container, RenderLayer, Sprite } from 'pixi.js'
-import { alveolusClass } from 'ssh/hive'
+import { createAlveolus } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
 import { afterEach, describe, expect, it } from 'vitest'
 import { TestEngine } from '../../../ssh/tests/test-engine/engine'
@@ -131,9 +131,8 @@ describe('TileVisual storage goods layering', () => {
 			tile.content = new BuildAlveolus(tile, 'storage')
 			expect(countSpritesInLayer(renderer.layers.alveoli)).toBe(1)
 
-			const StorageCtor = alveolusClass.storage
-			if (!StorageCtor) throw new Error('Expected storage alveolus constructor')
-			const finishedStorage = new StorageCtor(tile)
+			const finishedStorage = createAlveolus('storage', tile)
+			if (!finishedStorage) throw new Error('Expected storage alveolus')
 			tile.content = finishedStorage
 			finishedStorage.storage.addGood('wood', 1)
 

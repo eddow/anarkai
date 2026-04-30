@@ -1,4 +1,4 @@
-import { defer, effect, inert, reactive, type ScopedCallback, unreactive, unwrap } from 'mutts'
+import { effect, inert, reactive, type ScopedCallback, unreactive, unwrap } from 'mutts'
 import { type HexBoard, isTileCoord } from 'ssh/board/board'
 import { AlveolusGate } from 'ssh/board/border/alveolus-gate'
 import { Alveolus } from 'ssh/board/content/alveolus'
@@ -31,6 +31,12 @@ import { toAxialCoord } from 'ssh/utils/position'
 import { assert, traces } from '../dev/debug.ts'
 import type { SerializedConveyMovement } from './convey-serialize'
 import { createMovementRef, type MovementRef, movementRefId } from './movement-ref'
+import {
+	isTerminalState,
+	MovementState,
+	type MovementState as MovementStateType,
+	transitionMovement,
+} from './movement-state'
 import type { StorageAlveolus } from './storage'
 
 function isLogisticsStorageAlveolusAction(actionType: string | undefined): boolean {
@@ -113,6 +119,8 @@ export interface TrackedMovement {
 	demander: FreightMovementParty
 	/** Current coord where the movement token is tracked or expected to be tracked. */
 	from: AxialCoord
+	/** FSM state governing allowed lifecycle transitions. */
+	_state: MovementStateType
 	/** Used during hive topology refresh to temporarily suspend invariant checks/rebinding. */
 	refreshState?: 'steady' | 'suspended-refresh'
 	/** Set by conveyStep to prevent a second worker from picking up the same movement */
@@ -127,6 +135,8 @@ export interface TrackedMovement {
 	}
 	/** Advance the movement by one coord and return the new coord. */
 	hop(): AxialCoord
+	prepareHop(): AxialCoord
+	commitHop(): void
 	/** Re-index the movement at its current coord after a non-terminal hop. */
 	place(): void
 	/** Complete successful delivery and settle allocations. */
@@ -241,6 +251,26 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 	private pathCache = new Map<string, AxialCoord[]>()
 	private exchangeWatchdogTimer: ReturnType<typeof setInterval> | undefined
 	private stalledExchangeSeenAt = new Map<string, number>()
+	private postStepQueue: (() => void)[] = []
+	private draining = false
+
+	postStep(fn: () => void): void {
+		this.postStepQueue.push(fn)
+		if (!this.draining) queueMicrotask(() => this.drainPostStepQueue())
+	}
+
+	private drainPostStepQueue(): void {
+		if (this.draining) return
+		this.draining = true
+		try {
+			while (this.postStepQueue.length > 0) {
+				const batch = this.postStepQueue.splice(0)
+				for (const cb of batch) cb()
+			}
+		} finally {
+			this.draining = false
+		}
+	}
 
 	//#region Hives management on tile add/remove
 	static for(tile: Tile) {
@@ -318,7 +348,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		this.pendingAdvertisements.set(party, rel)
 		if (this.advertisementFlushScheduled) return
 		this.advertisementFlushScheduled = true
-		defer(() => {
+		this.postStep(() => {
 			if (this.destroyed || this.reconstructing) return
 			this.advertisementFlushScheduled = false
 			const pending = [...this.pendingAdvertisements.entries()]
@@ -429,6 +459,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		this.reconstructing = true
 		for (const movement of this.activeMovements) {
 			movement.refreshState = 'suspended-refresh'
+			movement._state = transitionMovement(movement._state, MovementState.suspended)
 		}
 	}
 
@@ -806,7 +837,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		].join(':')
 		if (this.pendingDetachedAllocationCleanupIds.has(cleanupId)) return
 		this.pendingDetachedAllocationCleanupIds.add(cleanupId)
-		defer(() => {
+		this.postStep(() => {
 			this.pendingDetachedAllocationCleanupIds.delete(cleanupId)
 			if (this.destroyed || this.reconstructing) return
 			const allocationsToCancel = new Set<AllocationBase>()
@@ -1116,8 +1147,6 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 	}
 
 	private trackedMovementCoord(movement: TrackedMovement): AxialCoord | undefined {
-		// Prefer `coords()` + `get()` over `entries()`: reactive `Map` iterators can desync from
-		// `get` in the same tick under mutts, while coordinate iteration stays consistent.
 		for (const coord of this.movingGoods.coords()) {
 			const goods = this.movingGoods.get(coord)
 			if (goods?.some((candidate) => this.movementIdentityMatches(candidate, movement))) {
@@ -1531,8 +1560,12 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 	): boolean {
 		if (this.destroyed || this.reconstructing) return true
 		const canonical = this.getCanonicalMovement(movement) ?? movement
+		if (isTerminalState(canonical._state)) return false
 		const failure = this.validateMovementInvariant(canonical, options)
 		if (!failure) return true
+		traces.convey.log?.(
+			`[QUEUE-DISCARD] ${canonical.goodType} failure=${failure} from=${axial.key(canonical.from)} pathLen=${canonical.path.length} state=${canonical._state}`
+		)
 		if (this.tryRecoverMovementInvariant(canonical, failure, options)) return true
 		const discardId =
 			canonical.ref ??
@@ -1540,7 +1573,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		if (this.pendingBrokenMovementDiscardIds.has(discardId)) return false
 		this.pendingBrokenMovementDiscardIds.add(discardId)
 		if (this.shouldDelayBrokenMovementDiscard(canonical, failure, options)) {
-			defer(() => {
+			this.postStep(() => {
 				this.pendingBrokenMovementDiscardIds.delete(discardId)
 				if (this.destroyed || this.reconstructing) return
 				const retry = this.getCanonicalMovement(movement) ?? movement
@@ -1567,7 +1600,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			from: canonical.from,
 			pathLength: canonical.path.length,
 		})
-		defer(() => {
+		this.postStep(() => {
 			this.pendingBrokenMovementDiscardIds.delete(discardId)
 			if (this.destroyed || this.reconstructing) return
 			const discard = this.getCanonicalMovement(movement) ?? movement
@@ -1770,6 +1803,33 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 	}
 
 	private installMovementRuntimeMethods(movement: TrackedMovement) {
+		movement.prepareHop = function (this: TrackedMovement) {
+			assert(
+				this.path.length > 0,
+				`movement.prepareHop: empty path for ref#${movementRefId(this.ref)}`
+			)
+			return this.path[0]
+		}
+
+		movement.commitHop = function (this: TrackedMovement) {
+			const hive = this.provider.hive
+			assert(hive, `movement.commitHop: provider hive missing for ref#${movementRefId(this.ref)}`)
+			assert(
+				this.demander.hive === hive,
+				`movement.commitHop: provider/demander hive mismatch for ref#${movementRefId(this.ref)}`
+			)
+			const nextCoord = this.path.shift()!
+			hive.removeMovementFromCoordTracking(this)
+			this.from = nextCoord
+			hive.noteMovementStorageCheckpoint(this, 'movement.hop.after.storage', nextCoord)
+			hive.noteMovementLifecycle(this, `movement.hop.after:${axial.key(nextCoord)}`)
+			hive.scheduleAdvertisement(this.provider)
+			hive.scheduleAdvertisement(this.demander)
+			traces.convey.log?.(
+				`[HOP] ${this.goodType} ${this.provider.name} -> ${this.demander.name} to ${nextCoord.q},${nextCoord.r} (path left: ${this.path.length})`
+			)
+		}
+
 		movement.hop = function (this: TrackedMovement) {
 			const hive = this.provider.hive
 			assert(hive, `movement.hop.before: provider hive missing for ref#${movementRefId(this.ref)}`)
@@ -1795,17 +1855,8 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				this.path.length > 0,
 				`movement.hop.before: empty path; ${hive.describeMovementMineContext(this)}`
 			)
-			const nextCoord = this.path.shift()!
-			traces.advertising.log?.(
-				`[MOVEMENT] HOP: ${this.goodType} ${this.provider.name} -> ${this.demander.name} to ${nextCoord.q},${nextCoord.r} (path left: ${this.path.length})`
-			)
-			hive.removeMovementFromCoordTracking(this)
-			this.from = nextCoord
-			hive.noteMovementStorageCheckpoint(this, 'movement.hop.after.storage', nextCoord)
-			hive.noteMovementLifecycle(this, `movement.hop.after:${axial.key(nextCoord)}`)
-			hive.scheduleAdvertisement(this.provider)
-			hive.scheduleAdvertisement(this.demander)
-			return nextCoord
+			this.commitHop()
+			return this.from
 		}
 
 		movement.place = function (this: TrackedMovement) {
@@ -1846,6 +1897,11 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				this.demander.hive === hive,
 				`movement.finish.before: provider/demander hive mismatch for ref#${movementRefId(this.ref)}`
 			)
+			const prior = this._state
+			this._state =
+				prior === MovementState.tracked
+					? MovementState.delivering
+					: transitionMovement(prior, MovementState.delivering)
 			assert(
 				!hive.movementLifecycleIncludes(this, 'movement.finish.before'),
 				`movement.finish.reentrant: finish entered twice; ${hive.describeMovementMineContext(this)}`
@@ -1932,9 +1988,17 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			hive.scheduleAdvertisement(this.provider)
 			hive.scheduleAdvertisement(this.demander)
 			hive.noteMovementLifecycle(this, 'movement.finish.after')
+			this._state = transitionMovement(this._state, MovementState.completed)
+			traces.convey.log?.(
+				`[FINISH] ${this.goodType} ${this.provider.name} -> ${this.demander.name}`
+			)
 		}
 
 		movement.abort = function (this: TrackedMovement) {
+			this._state = transitionMovement(this._state, MovementState.aborted)
+			traces.convey.log?.(
+				`[ABORT] ${this.goodType} ${this.provider.name} -> ${this.demander.name} from=${axial.key(this.from)}`
+			)
 			const hive = this.provider.hive
 			assert(
 				hive,
@@ -2108,6 +2172,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		existing.from = snapshot.currentCoord
 		existing.path = [...path]
 		existing.refreshState = 'steady'
+		existing._state = transitionMovement(existing._state, MovementState.tracked)
 		existing.claimed = snapshot.claimed
 		existing.claimedBy = snapshot.claimedByUid
 			? Array.from(this.board.game.population).find((w) => w.uid === snapshot.claimedByUid)
@@ -2184,6 +2249,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			provider,
 			demander,
 			from: snapshot.currentCoord,
+			_state: snapshot.claimed ? MovementState.claimed : MovementState.tracked,
 			refreshState: 'steady',
 			claimed: snapshot.claimed,
 			claimedBy: snapshot.claimedByUid
@@ -2193,6 +2259,12 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			allocations: {
 				source: sourceToken,
 				target: targetToken,
+			},
+			prepareHop() {
+				throw new Error('movement runtime not installed')
+			},
+			commitHop() {
+				throw new Error('movement runtime not installed')
 			},
 			hop() {
 				throw new Error('movement runtime not installed')
@@ -2250,9 +2322,10 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		})
 		for (const movement of this.activeMovements) {
 			movement.refreshState = 'steady'
+			movement._state = transitionMovement(movement._state, MovementState.tracked)
 			// After rebind/rehome, a movement can briefly sit in `activeMovements` without a
-			// `movingGoods` row (same-tick reactive ordering). Re-index before validating so
-			// watchdog recovery does not warn during normal topology refresh.
+			// `movingGoods` row. Re-index before validating so watchdog recovery does not warn
+			// during normal topology refresh.
 			if (!movement.claimed && !this.trackedMovementCoord(movement)) {
 				this.ensureMovementTrackedAt(movement, movement.from)
 			}
@@ -2497,7 +2570,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 	): boolean {
 		if (failure === 'not-tracked') {
 			if (!isTileCoord(coord)) return false
-			// Active movement lost only its `movingGoods` row (e.g. same-tick reactive ordering).
+			// Active movement lost only its `movingGoods` row.
 			// Re-index without reallocating; allocation repair is handled separately below.
 			if (this.activeMovements.has(mg)) {
 				if (axial.key(mg.from) !== axial.key(coord)) mg.from = coord
@@ -2579,7 +2652,12 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 	}
 
 	discardBrokenMovement(mg: TrackedMovement) {
+		if (isTerminalState(mg._state)) return
 		this.activeMovements.delete(mg)
+		mg._state = transitionMovement(mg._state, MovementState.aborted)
+		traces.convey.log?.(
+			`[DISCARD] ${mg.goodType} ref#${movementRefId(mg.ref)} state=${mg._state} from=${axial.key(mg.from)} pathLen=${mg.path.length}`
+		)
 		const trackedCoord = this.trackedMovementCoord(mg) ?? mg.from
 		traces.advertising.warn?.('[WATCHDOG] Broken movement', {
 			goodType: mg.goodType,
@@ -2745,7 +2823,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		return calculatedNeeds
 	}
 
-	movingGoods = reactive(new AxialKeyMap<TrackedMovement[]>())
+	movingGoods = new AxialKeyMap<TrackedMovement[]>()
 	storageAt(coord: Positioned): Storage | undefined {
 		if (isTileCoord(toAxialCoord(coord))) {
 			const content = this.board.getTileContent(coord) as Alveolus
@@ -2759,7 +2837,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		if (this.destroyed || this.reconstructing) return
 		if (this.wakeWanderingWorkersScheduled) return
 		this.wakeWanderingWorkersScheduled = true
-		defer(() => {
+		this.postStep(() => {
 			if (this.destroyed) return
 			this.wakeWanderingWorkersScheduled = false
 			for (const worker of this.board.game.population) {
@@ -2970,11 +3048,18 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			provider,
 			demander,
 			from: positions.provider,
+			_state: MovementState.tracked,
 			refreshState: 'steady',
 			claimed: false,
 			allocations: {
 				source: providerToken!,
 				target: targetToken!,
+			},
+			prepareHop() {
+				throw new Error('movement runtime not installed')
+			},
+			commitHop() {
+				throw new Error('movement runtime not installed')
 			},
 			hop() {
 				throw new Error('movement runtime not installed')
@@ -3008,8 +3093,15 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			requireTargetValid: true,
 		})
 		this.wakeWanderingWorkersNear(provider, demander)
-		traces.advertising.log?.(
-			`[CREATE] SUCCESS: ${goodType} ${provider.name} -> ${demander.name} movement active`
+		traces.convey.log?.(
+			`[CREATE] ${goodType} ${provider.name} -> ${demander.name} pathLen=${movingGood.path.length}`,
+			{
+				goodType,
+				provider: provider.name,
+				demander: demander.name,
+				from: axial.key(movingGood.from),
+				pathLength: movingGood.path.length,
+			}
 		)
 
 		return true
@@ -3049,7 +3141,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		)
 		// Defer movement creation to avoid reactive cycle:
 		// The advertise effect reads storage state, and createMovement modifies it.
-		defer(() => {
+		this.postStep(() => {
 			if (this.destroyed) return
 			try {
 				traces.advertising.log?.(
@@ -3173,6 +3265,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			provider,
 			demander,
 			from: row.from,
+			_state: row.claimed ? MovementState.claimed : MovementState.tracked,
 			refreshState: 'steady',
 			claimed: row.claimed,
 			claimedBy: row.claimedByUid
@@ -3182,6 +3275,12 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			allocations: {
 				source: sourceToken,
 				target: targetToken,
+			},
+			prepareHop() {
+				throw new Error('movement runtime not installed')
+			},
+			commitHop() {
+				throw new Error('movement runtime not installed')
 			},
 			hop() {
 				throw new Error('movement runtime not installed')

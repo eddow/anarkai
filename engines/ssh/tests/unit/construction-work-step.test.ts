@@ -2,8 +2,8 @@ import { alveoli } from 'engine-rules'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import { queryConstructionSiteView } from 'ssh/construction'
 import { Game } from 'ssh/game/game'
-import { alveolusClass } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
+import { StorageAlveolus } from 'ssh/hive/storage'
 import { WorkFunctions } from 'ssh/npcs/context/work'
 import { subject } from 'ssh/npcs/scripts'
 import { DurationStep } from 'ssh/npcs/steps'
@@ -68,9 +68,6 @@ describe('constructionStep resumable work', () => {
 		game.upsertTerrainOverride = vi.fn() as never
 
 		const tileB = game.hex.getTile({ q: 1, r: 0 })!
-		const StorageCtor = alveolusClass.storage
-		if (!StorageCtor) throw new Error('storage class missing')
-
 		const site = new BuildAlveolus(tileB, 'storage')
 		const required = alveoli.storage.construction?.goods ?? {}
 		for (const [good, qty] of Object.entries(required)) {
@@ -89,7 +86,7 @@ describe('constructionStep resumable work', () => {
 		const step = wf.constructionStep() as DurationStep
 		expect(step).toBeInstanceOf(DurationStep)
 		step.tick(step.duration)
-		expect(tileB.content).toBeInstanceOf(StorageCtor)
+		expect(tileB.content).toBeInstanceOf(StorageAlveolus)
 		expect(tileB.content).not.toBeInstanceOf(BuildAlveolus)
 	})
 

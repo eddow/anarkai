@@ -13,17 +13,17 @@ import { axialDistance, type Positioned, toAxialCoord } from 'ssh/utils/position
 import { maxWalkTime, outputBufferSize } from '../../../assets/constants'
 export class HarvestAlveolus extends TransitAlveolus {
 	declare action: Ssh.HarvestingAction
-	constructor(tile: Tile) {
-		const def: Ssh.AlveolusDefinition = new.target.prototype
-		if (def.action.type !== 'harvest') {
+	constructor(tile: Tile, definition: Ssh.AlveolusDefinition, resourceName: string) {
+		if (definition.action.type !== 'harvest') {
 			throw new Error('HarvestAlveolus can only be created from a harvest action')
 		}
 		super(
 			tile,
 			new SpecificStorage({
-				...multiplyGoodsQty(def.action.output, outputBufferSize),
+				...multiplyGoodsQty(definition.action.output, outputBufferSize),
 			})
 		)
+		this.assignGameContent(definition, resourceName)
 	}
 
 	@memoize

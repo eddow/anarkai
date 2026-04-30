@@ -1,0 +1,563 @@
+import {
+	buildConstructionViewModel,
+	type ConstructionTranslatorShape,
+} from '@app/lib/construction-view'
+import { css } from '@app/lib/css'
+import { T } from '@app/lib/i18n'
+import { Badge, InspectorSection } from '@app/ui/anarkai'
+import { lazy } from '@sursaut/core'
+import {
+	alveoli as visualAlveoli,
+	dwellings as visualDwellings,
+} from 'engine-pixi/assets/visual-content'
+import { effect, reactive } from 'mutts'
+import { Alveolus } from 'ssh/board/content/alveolus'
+import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
+import { BuildDwelling } from 'ssh/board/content/build-dwelling'
+import type { TileContent } from 'ssh/board/content/content'
+import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import type { Tile } from 'ssh/board/tile'
+import { queryConstructionSiteView } from 'ssh/construction'
+import { BuildAlveolus } from 'ssh/hive/build'
+import type { GoodType } from 'ssh/types/base'
+import { computeStyleFromTexture } from 'ssh/utils/images'
+import ConstructionProgressBar from '../ConstructionProgressBar'
+import EntityBadge from '../EntityBadge'
+import GoodsList from '../GoodsList'
+import HiveAnchorButton from '../HiveAnchorButton'
+import PropertyGrid from '../PropertyGrid'
+import PropertyGridRow from '../PropertyGridRow'
+import WorkingIndicator from '../parts/WorkingIndicator'
+import StoredGoodsRow from '../storage/StoredGoodsRow'
+import AlveolusProperties from './AlveolusProperties'
+import DwellingProperties from './DwellingProperties'
+import TileWorkProperties from './TileWorkProperties'
+import UnBuiltProperties from './UnBuiltProperties'
+
+css`
+  .tile-properties {
+    padding: 1rem;
+  }
+
+  .tile-properties.has-terrain {
+    position: relative;
+  }
+
+  .tile-properties__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+    margin-bottom: 1rem;
+  }
+
+  .tile-properties__identity {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+  }
+
+  .tile-properties__identity .working-indicator {
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .tile-properties__identity .working-indicator .gear-icon {
+    width: 1.2rem;
+    height: 1.2rem;
+    font-size: 1.2rem;
+  }
+
+  .tile-properties__header-hive {
+    flex: none;
+    margin-inline-start: auto;
+  }
+
+  .tile-properties__content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+`
+
+interface TilePropertiesProps {
+	tile: Tile
+}
+
+const resolveTileTerrain = (tile: Tile | undefined): string => {
+	if (!tile) return 'grass'
+	return tile.terrainState?.terrain ?? tile.baseTerrain ?? 'grass'
+}
+
+type TileGame = Tile['board']['game']
+
+type TileContentCase =
+	| {
+			kind: 'alveolus'
+			content: Alveolus
+			visualType?: keyof typeof visualAlveoli
+	  }
+	| {
+			kind: 'basicDwelling'
+			content: BasicDwelling
+	  }
+	| {
+			kind: 'buildDwelling'
+			content: BuildDwelling
+	  }
+	| {
+			kind: 'unbuilt'
+			content: UnBuiltLand
+	  }
+	| {
+			kind: 'other'
+			content: TileContent
+	  }
+
+const tileContentCase = (content: Tile['content']): TileContentCase | undefined => {
+	if (!content) return
+	if (content instanceof BuildAlveolus) {
+		return {
+			kind: 'alveolus',
+			content,
+			visualType: content.target as keyof typeof visualAlveoli,
+		}
+	}
+	if (content instanceof Alveolus) {
+		return {
+			kind: 'alveolus',
+			content,
+			visualType: content.name as keyof typeof visualAlveoli | undefined,
+		}
+	}
+	if (content instanceof BasicDwelling) {
+		return {
+			kind: 'basicDwelling',
+			content,
+		}
+	}
+	if (content instanceof BuildDwelling) {
+		return {
+			kind: 'buildDwelling',
+			content,
+		}
+	}
+	if (content instanceof UnBuiltLand) {
+		return {
+			kind: 'unbuilt',
+			content,
+		}
+	}
+	return {
+		kind: 'other',
+		content,
+	}
+}
+
+const resolveTileTerrainForContentCase = (
+	tile: Tile | undefined,
+	contentCase: TileContentCase
+): string => {
+	const terrain = resolveTileTerrain(tile)
+	if (contentCase.kind === 'alveolus' && terrain === 'grass') {
+		// Backward-compatible inspector fallback for older states where alveolus tiles
+		// were concrete visually but no explicit terrain patch was persisted.
+		return 'concrete'
+	}
+	return terrain
+}
+
+interface TileContentHeaderProps {
+	contentCase?: TileContentCase
+	game?: TileGame
+	tile: Tile
+}
+
+const TileContentHeader = (props: TileContentHeaderProps) => (
+	<>
+		<AlveolusTileHeader
+			if={props.contentCase?.kind === 'alveolus'}
+			contentCase={props.contentCase as Extract<TileContentCase, { kind: 'alveolus' }>}
+			game={props.game}
+			tile={props.tile}
+		/>
+		<BasicDwellingTileHeader
+			else
+			if={props.contentCase?.kind === 'basicDwelling'}
+			contentCase={props.contentCase as Extract<TileContentCase, { kind: 'basicDwelling' }>}
+			game={props.game}
+		/>
+	</>
+)
+
+interface AlveolusTileHeaderProps {
+	contentCase: Extract<TileContentCase, { kind: 'alveolus' }>
+	game?: TileGame
+	tile: Tile
+}
+
+const AlveolusTileHeader = (props: AlveolusTileHeaderProps) => {
+	const model = {
+		get visual() {
+			return props.contentCase.visualType ? visualAlveoli[props.contentCase.visualType] : undefined
+		},
+		get sprite() {
+			return this.visual?.sprites?.[0]
+		},
+		get title() {
+			return props.contentCase.visualType
+				? String(T.alveoli[props.contentCase.visualType])
+				: props.contentCase.content.title
+		},
+		get hiveTitle() {
+			return props.contentCase.content.hive?.name?.trim() || 'Hive'
+		},
+	}
+
+	return (
+		<div
+			if={props.game && (props.contentCase.visualType || model.sprite)}
+			class="tile-properties__header"
+		>
+			<div class="tile-properties__identity">
+				<EntityBadge
+					game={props.game!}
+					sprite={model.sprite ?? ''}
+					text={model.title ?? ''}
+					height={32}
+				/>
+				<WorkingIndicator
+					checked={props.contentCase.content.working}
+					burdened={props.tile.isBurdened}
+					tooltip={T.alveolus.workingTooltip}
+				/>
+			</div>
+			<div class="tile-properties__header-hive">
+				<HiveAnchorButton tile={props.tile} title={model.hiveTitle} />
+			</div>
+		</div>
+	)
+}
+
+interface BasicDwellingTileHeaderProps {
+	contentCase: Extract<TileContentCase, { kind: 'basicDwelling' }>
+	game?: TileGame
+}
+
+const BasicDwellingTileHeader = (props: BasicDwellingTileHeaderProps) => {
+	const model = {
+		get visual() {
+			return visualDwellings.basic_dwelling
+		},
+		get sprite() {
+			return this.visual?.sprites?.[0]
+		},
+	}
+
+	return (
+		<div if={props.game && model.sprite} class="tile-properties__header">
+			<div class="tile-properties__identity">
+				<EntityBadge
+					game={props.game!}
+					sprite={model.sprite ?? ''}
+					text={String(T.residential.dwelling.tierBasic)}
+					height={32}
+				/>
+			</div>
+		</div>
+	)
+}
+
+interface ZoneRowProps {
+	tile: Tile
+}
+
+const ZoneRow = (props: ZoneRowProps) => {
+	const model = {
+		get tone() {
+			return props.tile.zone === 'residential' ? 'green' : 'yellow'
+		},
+		get label() {
+			return props.tile.zone === 'residential' ? T.tile.zoneResidential : T.tile.zoneHarvest
+		},
+	}
+
+	return (
+		<PropertyGridRow if={props.tile.zone} label={T.tile.zone}>
+			<Badge tone={model.tone}>{model.label}</Badge>
+		</PropertyGridRow>
+	)
+}
+
+interface WalkTimeRowProps {
+	content?: TileContent
+}
+
+const WalkTimeRow = (props: WalkTimeRowProps) => {
+	const model = {
+		get isUnwalkable() {
+			return props.content?.walkTime === Number.POSITIVE_INFINITY
+		},
+		get tone() {
+			return this.isUnwalkable ? 'red' : 'yellow'
+		},
+		get label() {
+			if (this.isUnwalkable) return T.tile.unwalkable
+			return props.content?.walkTime
+		},
+	}
+
+	return (
+		<PropertyGridRow label={T.tile.walkTime}>
+			<Badge tone={model.tone}>{model.label}</Badge>
+		</PropertyGridRow>
+	)
+}
+
+interface GenericStoredGoodsRowProps {
+	game?: TileGame
+	show?: boolean
+	stock?: Record<string, number>
+	storedGoods: GoodType[]
+}
+
+const GenericStoredGoodsRow = (props: GenericStoredGoodsRowProps) => (
+	<PropertyGridRow if={props.show && props.game} label={T.goods.stored}>
+		<GoodsList
+			goods={props.storedGoods}
+			game={props.game!}
+			getBadgeProps={(g) => ({ qty: props.stock?.[g] ?? 0 })}
+		/>
+	</PropertyGridRow>
+)
+
+interface LooseGoodsRowProps {
+	freeStock: Record<string, number>
+	game?: TileGame
+	looseGoods: GoodType[]
+	show?: boolean
+}
+
+const LooseGoodsRow = (props: LooseGoodsRowProps) => (
+	<PropertyGridRow if={props.show && props.game} label={T.goods.loose}>
+		<GoodsList
+			goods={props.looseGoods}
+			game={props.game!}
+			getBadgeProps={(g) => ({ qty: props.freeStock[g] })}
+		/>
+	</PropertyGridRow>
+)
+
+interface TileContentDetailsProps {
+	contentCase?: TileContentCase
+	game?: TileGame
+	tile: Tile
+}
+
+const TileContentDetails = (props: TileContentDetailsProps) => (
+	<>
+		<BuildDwellingTileDetails
+			if={props.contentCase?.kind === 'buildDwelling'}
+			content={props.contentCase?.content as BuildDwelling}
+			game={props.game}
+			tile={props.tile}
+		/>
+		<BasicDwellingTileDetails
+			else
+			if={props.contentCase?.kind === 'basicDwelling'}
+			content={props.contentCase?.content as BasicDwelling}
+			game={props.game}
+		/>
+		<AlveolusProperties
+			else if={props.contentCase?.kind === 'alveolus'}
+			content={props.contentCase?.content as Alveolus}
+			game={props.game}
+		/>
+		<UnBuiltProperties
+			else
+			if={props.contentCase?.kind === 'unbuilt'}
+			content={props.contentCase?.content as UnBuiltLand}
+		/>
+	</>
+)
+
+interface BuildDwellingTileDetailsProps {
+	content: BuildDwelling
+	game?: TileGame
+	tile: Tile
+}
+
+const emptyConstruction = {
+	show: false,
+	phaseLabel: '',
+	blocking: [] as string[],
+	workLine: '',
+	applied: 0,
+	total: 0,
+}
+
+const BuildDwellingTileDetails = (props: BuildDwellingTileDetailsProps) => {
+	const model = {
+		get dwellingConstruction() {
+			if (!props.game) return emptyConstruction
+			const snap = queryConstructionSiteView(props.game, props.tile)
+			if (!snap) return emptyConstruction
+			const construction = buildConstructionViewModel(snap, T as ConstructionTranslatorShape)
+			return {
+				show: true,
+				phaseLabel: construction.phaseLabel,
+				blocking: construction.blockingLabels,
+				workLine: construction.workLine,
+				applied: construction.applied,
+				total: construction.total,
+			}
+		},
+	}
+
+	return (
+		<>
+			<PropertyGridRow if={model.dwellingConstruction.show} label={String(T.construction.section)}>
+				<div style="display:grid; gap:0.5rem; width:100%;">
+					<div style="display:flex; flex-wrap:wrap; gap:0.25rem; align-items:center;">
+						<span>{model.dwellingConstruction.phaseLabel}</span>
+						<for each={model.dwellingConstruction.blocking}>
+							{(text) => <span style="color: var(--ak-text-muted)"> · {text}</span>}
+						</for>
+					</div>
+					<ConstructionProgressBar
+						if={model.dwellingConstruction.total > 0}
+						applied={model.dwellingConstruction.applied}
+						total={model.dwellingConstruction.total}
+						label={model.dwellingConstruction.workLine}
+						testId="dwelling-construction-progress"
+					/>
+				</div>
+			</PropertyGridRow>
+			<StoredGoodsRow
+				if={props.game}
+				content={props.content}
+				game={props.game!}
+				label={T.construction.materials}
+			/>
+		</>
+	)
+}
+
+interface BasicDwellingTileDetailsProps {
+	content: BasicDwelling
+	game?: TileGame
+}
+
+const BasicDwellingTileDetails = (props: BasicDwellingTileDetailsProps) => (
+	<>
+		<StoredGoodsRow
+			if={props.game}
+			content={props.content}
+			game={props.game!}
+			label={T.goods.stored}
+		/>
+		<DwellingProperties content={props.content} />
+	</>
+)
+
+const TileProperties = (props: TilePropertiesProps) => {
+	const tile = lazy(() => props.tile)
+	const model = {
+		get contentCase() {
+			return tileContentCase(tile.content)
+		},
+		get content() {
+			return this.contentCase?.content
+		},
+		get game() {
+			return props.tile.board?.game
+		},
+		get contentTerrain() {
+			const contentCase = this.contentCase
+			if (!contentCase) return undefined
+			if (contentCase.kind === 'unbuilt') return contentCase.content.terrain
+			return resolveTileTerrainForContentCase(tile, contentCase)
+		},
+		get stock() {
+			return this.content?.storage?.stock
+		},
+		get storedGoods() {
+			return Object.keys(this.stock ?? {}) as GoodType[]
+		},
+		get freeStock() {
+			const counts: Record<string, number> = {}
+			for (const fg of tile.looseGoods ?? []) {
+				if (!fg.available) continue
+				counts[fg.goodType] = (counts[fg.goodType] ?? 0) + 1
+			}
+			return counts
+		},
+		get looseGoods() {
+			return Object.keys(this.freeStock) as GoodType[]
+		},
+		get showGenericStoredGoods() {
+			if (this.storedGoods.length <= 0) return false
+			return this.contentCase?.kind === 'other' || this.contentCase?.kind === 'unbuilt'
+		},
+		get rootClass() {
+			if (state.terrainBackgroundStyle) return 'tile-properties has-terrain'
+			return 'tile-properties'
+		},
+	}
+	const state = reactive({
+		terrainBackgroundStyle: '',
+	})
+
+	effect`tile-properties:terrain-bg`(() => {
+		if (model.contentTerrain) {
+			void (async () => {
+				const currentGame = model.game
+				if (!currentGame) {
+					state.terrainBackgroundStyle = ''
+					return
+				}
+				await currentGame.loaded
+				if (model.game !== currentGame) return
+				const texture = currentGame.getTexture(`terrain.${model.contentTerrain}`)
+				state.terrainBackgroundStyle = texture
+					? computeStyleFromTexture(texture, {
+							backgroundRepeat: 'repeat',
+						})
+					: ''
+			})()
+		} else {
+			state.terrainBackgroundStyle = ''
+		}
+	})
+
+	return (
+		<div if={model.content} class={model.rootClass} style={state.terrainBackgroundStyle}>
+			<TileContentHeader contentCase={model.contentCase} game={model.game} tile={tile} />
+
+			<InspectorSection class="tile-properties__content">
+				<PropertyGrid>
+					<ZoneRow tile={tile} />
+					<WalkTimeRow content={model.content} />
+					<GenericStoredGoodsRow
+						show={model.showGenericStoredGoods}
+						storedGoods={model.storedGoods}
+						stock={model.stock}
+						game={model.game}
+					/>
+					<TileContentDetails contentCase={model.contentCase} game={model.game} tile={tile} />
+					<LooseGoodsRow
+						show={model.looseGoods.length > 0}
+						looseGoods={model.looseGoods}
+						freeStock={model.freeStock}
+						game={model.game}
+					/>
+				</PropertyGrid>
+			</InspectorSection>
+			<TileWorkProperties tile={tile} />
+		</div>
+	)
+}
+
+export default TileProperties

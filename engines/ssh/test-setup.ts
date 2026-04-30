@@ -74,7 +74,7 @@ globalThis.allowExpectedDiagnostics = allowExpectedDiagnostics;
 
 // Ensure memoization discrepancies throw error in tests
 let inDiscrepancy = false;
-reactiveOptions.onMemoizationDiscrepancy = (
+	reactiveOptions.onMemoizationDiscrepancy = (
 	cached,
 	fresh,
 	fn: any,
@@ -87,28 +87,12 @@ reactiveOptions.onMemoizationDiscrepancy = (
 		// Fast pass: same target object
 		if (unreactive(cached) === unreactive(fresh)) return;
 
-		// Second pass: deep equality via safe JSON
-		const safeStringify = (val: any, indent?: number) => {
-			const seen = new WeakSet();
-			try {
-				return JSON.stringify(
-					val,
-					(key, value) => {
-						if (typeof value === "object" && value !== null) {
-							if (seen.has(value)) return "[Circular]";
-							seen.add(value);
-						}
-						return value;
-					},
-					indent,
-				);
-			} catch {
-				return `[Unserializable: ${val?.constructor?.name || typeof val}]`;
-			}
-		};
+		// Bounded inspect — JSON.stringify on large reactive graphs can stall tests for minutes.
+		const brief = (val: unknown) =>
+			inspect(val, { depth: 3, maxArrayLength: 24, breakLength: 120, compact: true });
 
-		const cachedJson = safeStringify(cached);
-		const freshJson = safeStringify(fresh);
+		const cachedJson = brief(cached);
+		const freshJson = brief(fresh);
 		if (cachedJson === freshJson) return;
 
 		const methodName = fn?.name || fn?.key || "unknown";
@@ -116,12 +100,16 @@ reactiveOptions.onMemoizationDiscrepancy = (
 		const message = `Memoization discrepancy in ${className ? `${className}.` : ""}${methodName}`;
 		console.error("\x1b[31m" + message + "\x1b[0m");
 
-		console.error("Cached:", safeStringify(cached, 2));
-		console.error("Fresh:", safeStringify(fresh, 2));
+		console.error("Cached:", cachedJson);
+		console.error("Fresh:", freshJson);
 		console.error("Cause:", cause);
 		const owner = args?.[0];
 		if (owner) {
-			console.error("Owner state:", safeStringify(owner, 2));
+			console.error(
+				"Owner:",
+				owner?.constructor?.name ?? typeof owner,
+				brief(owner),
+			);
 		}
 		throw new Error(message);
 	} finally {

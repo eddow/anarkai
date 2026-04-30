@@ -24,7 +24,6 @@
 		"noFallthroughCasesInSwitch": true,
 		"noUncheckedSideEffectImports": true,
 		/* Path mapping */
-		"baseUrl": ".",
 		"paths": {
 			"$lib/*": ["./src/lib/*"],
 			"$assets/*": ["./assets/*"],
@@ -33,13 +32,13 @@
 			"engine-rules": ["../rules/src/index.ts"],
 			"engine-terrain": ["../terrain/src/index.ts"],
 			"engine-terrain/hex": ["../terrain/src/hex/index.ts"],
-			"@sursaut/*": ["node_modules/sursaut-ts/src/*"],
-			"@sursaut/runtime": ["node_modules/sursaut-ts/src/lib/index.ts"],
+			"@sursaut/*": ["./node_modules/sursaut-ts/src/*"],
+			"@sursaut/runtime": ["./node_modules/sursaut-ts/src/lib/index.ts"],
 			"@sursaut/runtime/jsx-runtime": [
-				"node_modules/sursaut-ts/src/runtime/jsx-runtime.ts"
+				"./node_modules/sursaut-ts/src/runtime/jsx-runtime.ts"
 			],
 			"@sursaut/runtime/jsx-dev-runtime": [
-				"node_modules/sursaut-ts/src/runtime/jsx-dev-runtime.ts"
+				"./node_modules/sursaut-ts/src/runtime/jsx-dev-runtime.ts"
 			],
 			"npc-script": ["../../../ownk/npcs/dist/index.d.ts"],
 			"npc-script/*": ["../../../ownk/npcs/dist/*"]

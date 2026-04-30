@@ -38,7 +38,7 @@ import {
 	type TerrainTerraformPatch,
 } from 'ssh/generation'
 import { configuration } from 'ssh/globals'
-import { AlveolusConfigurationManager, alveolusClass, Hive } from 'ssh/hive'
+import { AlveolusConfigurationManager, createAlveolus, Hive } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
 import {
 	collectSerializedConveyMovementsWithIndex,
@@ -151,7 +151,13 @@ export interface TilePatch {
 
 export interface VehiclePatch extends VehicleSerializedState {}
 
+type CoordPatchMap<T extends string> = Partial<Record<T, ReadonlyArray<readonly [number, number]>>>
+type TerrainPatches = CoordPatchMap<TerrainType>
+type LooseGoodsPatches = CoordPatchMap<GoodType>
+
 export interface GamePatches {
+	seed?: number
+	terrains?: TerrainPatches
 	tiles?: ReadonlyArray<TilePatch>
 	hives?: ReadonlyArray<{
 		name?: string
@@ -160,10 +166,7 @@ export interface GamePatches {
 	}>
 	/** Explicit freight lines; implicit gather routes are merged from hive patches unless overridden by id. */
 	freightLines?: ReadonlyArray<FreightLineDefinition>
-	looseGoods?: ReadonlyArray<{
-		goodType: GoodType
-		position: { q: number; r: number }
-	}>
+	looseGoods?: LooseGoodsPatches
 	zones?: {
 		harvest?: ReadonlyArray<readonly [number, number]>
 		residential?: ReadonlyArray<readonly [number, number]>
@@ -187,6 +190,26 @@ export interface SaveState extends GamePatches {
 
 function canonicalPatchedAlveolusType(alveolus: AlveolusPatch['alveolus']): AlveolusType {
 	return alveolus === 'gather' ? 'freight_bay' : alveolus
+}
+
+function terrainPatchesAsTiles(terrains: TerrainPatches | undefined): TilePatch[] {
+	const tiles: TilePatch[] = []
+	for (const [terrain, coords] of Object.entries(terrains ?? {}) as Array<
+		[TerrainType, ReadonlyArray<readonly [number, number]>]
+	>) {
+		for (const coord of coords) {
+			tiles.push({ coord, terrain })
+		}
+	}
+	return tiles
+}
+
+function looseGoodsPatchEntries(
+	looseGoods: LooseGoodsPatches | undefined
+): Array<[GoodType, ReadonlyArray<readonly [number, number]>]> {
+	return Object.entries(looseGoods ?? {}) as Array<
+		[GoodType, ReadonlyArray<readonly [number, number]>]
+	>
 }
 
 export class Game extends Eventful<GameEvents> {
@@ -470,8 +493,10 @@ export class Game extends Eventful<GameEvents> {
 		}
 	}
 
+	public readonly generationOptions: GameGenerationOptions
+
 	constructor(
-		readonly generationOptions: GameGenerationOptions = {
+		generationOptions: GameGenerationOptions = {
 			terrainSeed: UNSAVED_DEFAULT_TERRAIN_SEED,
 			characterCount: defaultNewGameCharacterCount,
 			characterRadius: defaultNewGameCharacterRadius,
@@ -479,6 +504,10 @@ export class Game extends Eventful<GameEvents> {
 		private readonly patches: GamePatches = {}
 	) {
 		super()
+		this.generationOptions = {
+			...generationOptions,
+			terrainSeed: patches.seed ?? generationOptions.terrainSeed,
+		}
 		this.ticker = new SimulationLoop()
 		this.loaded = this.load()
 		// Create rendererReady promise that will be resolved when renderer is initialized
@@ -546,6 +575,9 @@ export class Game extends Eventful<GameEvents> {
 
 	private bootstrapAnchor(patches: GamePatches | SaveState): AxialCoord {
 		const coords: AxialCoord[] = []
+		for (const tile of terrainPatchesAsTiles(patches.terrains)) {
+			coords.push({ q: tile.coord[0], r: tile.coord[1] })
+		}
 		for (const tile of patches.tiles ?? []) coords.push({ q: tile.coord[0], r: tile.coord[1] })
 		for (const hive of patches.hives ?? []) {
 			for (const alveolus of hive.alveoli)
@@ -559,7 +591,9 @@ export class Game extends Eventful<GameEvents> {
 		for (const dwelling of patches.dwellings ?? []) {
 			coords.push({ q: dwelling.coord[0], r: dwelling.coord[1] })
 		}
-		for (const good of patches.looseGoods ?? []) coords.push(axial.round(good.position))
+		for (const [, goodCoords] of looseGoodsPatchEntries(patches.looseGoods)) {
+			for (const coord of goodCoords) coords.push({ q: coord[0], r: coord[1] })
+		}
 		for (const vehicle of patches.vehicles ?? []) {
 			coords.push({ q: vehicle.position.q, r: vehicle.position.r })
 		}
@@ -589,6 +623,7 @@ export class Game extends Eventful<GameEvents> {
 			addCoord({ q: coord[0], r: coord[1] })
 		}
 
+		for (const tile of terrainPatchesAsTiles(patches.terrains)) addPatchCoord(tile.coord)
 		for (const tile of patches.tiles ?? []) addPatchCoord(tile.coord)
 		for (const hive of patches.hives ?? []) {
 			for (const alveolus of hive.alveoli) addPatchCoord(alveolus.coord)
@@ -599,7 +634,9 @@ export class Game extends Eventful<GameEvents> {
 			for (const coord of coordsForProject) addPatchCoord(coord)
 		}
 		for (const dwelling of patches.dwellings ?? []) addPatchCoord(dwelling.coord)
-		for (const good of patches.looseGoods ?? []) addCoord(axial.round(good.position))
+		for (const [, goodCoords] of looseGoodsPatchEntries(patches.looseGoods)) {
+			for (const coord of goodCoords) addPatchCoord(coord)
+		}
 		for (const vehicle of patches.vehicles ?? []) {
 			addCoord({ q: vehicle.position.q, r: vehicle.position.r })
 		}
@@ -809,7 +846,9 @@ export class Game extends Eventful<GameEvents> {
 	}
 	generate(config: GameGenerationOptions, patches: GamePatches = {}, saveState?: SaveState) {
 		try {
-			const terraforming: TerrainTerraformPatch[] = (patches.tiles ?? [])
+			const terrainTiles = terrainPatchesAsTiles(patches.terrains)
+			const tilePatches = [...terrainTiles, ...(patches.tiles ?? [])]
+			const terraforming: TerrainTerraformPatch[] = tilePatches
 				.filter(
 					(p) =>
 						p.height !== undefined ||
@@ -831,10 +870,11 @@ export class Game extends Eventful<GameEvents> {
 
 			this.generateInitialWorld(config, patches)
 			// Apply patches if any
+			if (terrainTiles.length) this.applyTilePatches(terrainTiles)
 			if (patches.tiles?.length) this.applyTilePatches(patches.tiles)
 			if (patches.hives?.length)
 				this.applyHivesPatches(patches.hives, saveState?.hiveConfigurations)
-			if (patches.looseGoods?.length) this.applyLooseGoodsPatches(patches.looseGoods)
+			if (patches.looseGoods) this.applyLooseGoodsPatches(patches.looseGoods)
 			if (patches.zones) this.applyZonePatches(patches.zones)
 			if (patches.projects) this.applyProjectPatches(patches.projects)
 			if (patches.dwellings?.length) this.applyDwellingPatches(patches.dwellings)
@@ -850,7 +890,9 @@ export class Game extends Eventful<GameEvents> {
 		saveState?: SaveState
 	) {
 		try {
-			const terraforming: TerrainTerraformPatch[] = (patches.tiles ?? [])
+			const terrainTiles = terrainPatchesAsTiles(patches.terrains)
+			const tilePatches = [...terrainTiles, ...(patches.tiles ?? [])]
+			const terraforming: TerrainTerraformPatch[] = tilePatches
 				.filter(
 					(p) =>
 						p.height !== undefined ||
@@ -871,10 +913,11 @@ export class Game extends Eventful<GameEvents> {
 			this.vehicles.deserialize([])
 
 			await this.generateInitialWorldAsync(config, patches)
+			if (terrainTiles.length) this.applyTilePatches(terrainTiles)
 			if (patches.tiles?.length) this.applyTilePatches(patches.tiles)
 			if (patches.hives?.length)
 				this.applyHivesPatches(patches.hives, saveState?.hiveConfigurations)
-			if (patches.looseGoods?.length) this.applyLooseGoodsPatches(patches.looseGoods)
+			if (patches.looseGoods) this.applyLooseGoodsPatches(patches.looseGoods)
 			if (patches.zones) this.applyZonePatches(patches.zones)
 			if (patches.projects) this.applyProjectPatches(patches.projects)
 			if (patches.dwellings?.length) this.applyDwellingPatches(patches.dwellings)
@@ -913,10 +956,7 @@ export class Game extends Eventful<GameEvents> {
 				// Create deposit if present
 				let deposit: Deposit | undefined
 				if (tileInfo.deposit) {
-					const DepositClass = Deposit.class[tileInfo.deposit.type as keyof typeof Deposit.class]
-					if (DepositClass) {
-						deposit = new DepositClass(tileInfo.deposit.amount)
-					}
+					deposit = Deposit.create(tileInfo.deposit.type, tileInfo.deposit.amount)
 				}
 
 				const land = new UnBuiltLand(tile, tileInfo.terrain, deposit)
@@ -1029,13 +1069,11 @@ export class Game extends Eventful<GameEvents> {
 				}
 
 				if (p.deposit) {
-					const DepositClass = Deposit.class[p.deposit.type as keyof typeof Deposit.class]
-					if (DepositClass) {
+					const created = Deposit.create(p.deposit.type, p.deposit.amount)
+					if (created) {
 						// Re-fetch content in case it was replaced
 						const currentContent = tile.content as UnBuiltLand
-						currentContent.deposit = new DepositClass(p.deposit.amount)
-						// Ensure name is set
-						if (!currentContent.deposit.name) (currentContent.deposit as any).name = p.deposit.type
+						currentContent.deposit = created
 						this.notifyTerrainDepositsChanged(tile)
 					}
 				}
@@ -1056,9 +1094,11 @@ export class Game extends Eventful<GameEvents> {
 
 	private applyLooseGoodsPatches(patches: NonNullable<GamePatches['looseGoods']>) {
 		const patchedCoords = new Map<string, AxialCoord>()
-		for (const fg of patches) {
-			const coord = axial.round(fg.position)
-			patchedCoords.set(axial.key(coord), coord)
+		for (const [, coords] of looseGoodsPatchEntries(patches)) {
+			for (const position of coords) {
+				const coord = { q: position[0], r: position[1] }
+				patchedCoords.set(axial.key(coord), coord)
+			}
 		}
 		for (const coord of patchedCoords.values()) {
 			const existingGoods = [...this.hex.looseGoods.getGoodsAt(coord)]
@@ -1066,10 +1106,12 @@ export class Game extends Eventful<GameEvents> {
 				if (!good.isRemoved) good.remove()
 			}
 		}
-		for (const fg of patches) {
-			const tile = this.hex.getTile(axial.round(fg.position))
-			if (!tile) continue
-			this.hex.looseGoods.add(tile, fg.goodType, { position: fg.position })
+		for (const [goodType, coords] of looseGoodsPatchEntries(patches)) {
+			for (const position of coords) {
+				const tile = this.hex.getTile({ q: position[0], r: position[1] })
+				if (!tile) continue
+				this.hex.looseGoods.add(tile, goodType)
+			}
 		}
 	}
 
@@ -1121,9 +1163,8 @@ export class Game extends Eventful<GameEvents> {
 					tile.asGenerated = false
 					continue
 				}
-				const AlveolusCtor = alveolusClass[alveolusType as keyof typeof alveolusClass]
-				if (!AlveolusCtor) continue
-				const alv = new AlveolusCtor(tile)
+				const alv = createAlveolus(alveolusType, tile)
+				if (!alv) continue
 				this.hex.setTileContent(tile, alv)
 				if (!alv.hive) {
 					if (this.HiveClass) {
@@ -1249,7 +1290,7 @@ export class Game extends Eventful<GameEvents> {
 	public saveGameData(): SaveState {
 		const tiles: Array<TilePatch> = []
 		const hives = new Map<Hive, Array<AlveolusPatch>>()
-		const looseGoodsPatches: Array<{ goodType: GoodType; position: { q: number; r: number } }> = []
+		const looseGoodsPatches: Partial<Record<GoodType, Array<[number, number]>>> = {}
 		const streamedFrontier = [...this.materializedGameplayCoords.values()]
 			.filter((coord) => !this.bootstrapGameplayCoords.has(axial.key(coord)))
 			.filter((coord) => this.hex.getTile(coord)?.asGenerated)
@@ -1363,17 +1404,16 @@ export class Game extends Eventful<GameEvents> {
 			}
 		}
 
-		// Save all looseGoods with their exact positions
+		// Save loose goods in the same grouped tile-coordinate format as authored patches.
 		const looseGoodsMap = (this.hex.looseGoods as any).goods as Map<
 			string,
 			Array<{ goodType: GoodType; position: { q: number; r: number } }>
 		>
 		for (const [, goodsList] of looseGoodsMap.entries()) {
 			for (const fg of goodsList) {
-				looseGoodsPatches!.push({
-					goodType: fg.goodType,
-					position: fg.position,
-				})
+				const coord = axial.round(fg.position)
+				if (!looseGoodsPatches[fg.goodType]) looseGoodsPatches[fg.goodType] = []
+				looseGoodsPatches[fg.goodType]!.push([coord.q, coord.r])
 			}
 		}
 

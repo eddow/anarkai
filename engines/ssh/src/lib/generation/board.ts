@@ -23,7 +23,6 @@ import {
 	type TerrainSnapshot,
 	type TileRiverFlow,
 } from 'engine-terrain'
-import { Deposit } from 'ssh/board/content/unbuilt-land'
 import type {
 	HydrologyTileRole,
 	TerrainHydrologyDirection,
@@ -341,9 +340,10 @@ export class BoardGenerator {
 
 		for (const [depKey, chance] of Object.entries(table)) {
 			if (rnd() < (chance as number)) {
-				const Kind = Deposit.class[depKey as DepositType]
+				const depositDefinition = deposits[depKey as keyof typeof deposits]
+				if (!depositDefinition) continue
 				const amount = Math.floor(
-					((1 + rnd() * boardDepositFillRandomSpread) * Kind.prototype.maxAmount) /
+					((1 + rnd() * boardDepositFillRandomSpread) * depositDefinition.maxAmount) /
 						boardDepositFillDivisor
 				)
 				return { type: depKey as DepositType, amount }

@@ -1,5 +1,6 @@
 ## Engine vs browser
 - `engines/ssh` is **domain/simulation** (rules, persistence, hive domain APIs). **`apps/browser`** owns shell UI state: hover/selection via `@app/lib/interactive-state`, synthetic hive inspector objects in `@app/lib/hive-inspector`, Vite CSS-tag plugin, and i18n. **engine-pixi** maps `@app/lib/interactive-state` to the browser app path in its Vitest/tsconfig so the renderer stays free of app imports in code.
+- **Derived constructors (`StorageAlveolus`)**: avoid **branched** `super(...)` (`if (slotted) super(...)` / `else super(...)`). Build the concrete `Storage` on locals first, then **one** `super(tile, storage)`, then assign configs / `assignGameContent`. Branched `super` plus `@reactive` / class-field lowering can throw `ReferenceError: Must call super constructor in derived class before accessing 'this'` at runtime (seen during async generation / `createAlveolus`).
 
 ## Hives
 Set of (hex-)adjacent alveolii. All alveolus should be reachable from any other alveolus in the same hive, moving one tile at a time. No two hives should be adjacent.

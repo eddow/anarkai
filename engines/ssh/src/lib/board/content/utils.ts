@@ -1,86 +1,81 @@
-import { reactive } from 'mutts'
 import type { GoodType } from 'ssh/types'
 
-type Ctor<T extends object = any> = new (...args: any[]) => T
-
-export function GcClass<BaseCtor extends Ctor<any>>(
-	Base: (def: any) => BaseCtor | undefined,
-	name: string,
-	def: any
-): BaseCtor | undefined {
-	const BaseClass = Base(def)
-	if (!BaseClass) return undefined
-	class Sub extends BaseClass {
-		constructor(...args: any[]) {
-			super(...args)
-
-			// Remove own undefined fields that shadow definition properties
-			// This prevents Babel-emitted class fields from masking prototype values
-			// in extenso: `declare` is not recognized by babel as a keyword
-			for (const key of Object.keys(def)) {
-				if (Object.hasOwn(this, key) && (this as Record<string, unknown>)[key] === undefined) {
-					Reflect.deleteProperty(this, key)
-				}
-			}
-
-			// TODO: This is a hack that shoud not be necessary
-			// Force reactivity for all game-content generated classes
-			// biome-ignore lint/correctness/noConstructorReturn: Required for reactivity
-			return reactive(this)
-		}
-		static resourceName = name
-	}
-	Object.defineProperties(Sub, { name: { value: `${Base.name}<${name}>` } })
-	Object.assign(Sub.prototype, def)
-	// Expose a helpful debug label for instances
-	try {
-		Object.defineProperties(Sub.prototype, {
-			[Symbol.toStringTag]: {
-				value: `${Base.name}<${name}>`,
-				configurable: true,
-			},
-			[Symbol.for('nodejs.util.inspect.custom')]: {
-				// eslint-disable-next-line @typescript-eslint/no-unused-vars
-				value(this: unknown, _depth?: number, _options?: unknown, _inspect?: unknown) {
-					return `${Base.name}<${name}>`
-				},
-				configurable: true,
-			},
-		})
-	} catch {
-		// Best-effort; ignore environments where symbols are not configurable
-	}
-	return Sub as unknown as BaseCtor
-}
-
-export function GcClasses<
-	BaseCtor extends Ctor<any>,
-	Entries extends Record<string, any> = Record<string, any>,
->(Base: (def: any) => BaseCtor | undefined, entries: Entries) {
-	return Object.fromEntries(
-		Object.entries(entries).map(([name, def]) => [name, GcClass(Base, name, def)])
-	) as { [K in keyof Entries]: BaseCtor & Entries[K] }
-}
+type Constructor<T extends object = object> = abstract new (...args: never[]) => T
 
 /**
- * Mixin that adds game-content definition support to a class
- * @param Base - Optional base class to extend (defaults to Object)
- * @returns A class that extends Base and includes definition/name properties
+ * Mixin that adds game-content definition support to a class.
+ * Call {@link assignGameContent} from the subclass constructor after `super(...)`.
  */
-export function GcClassed<
-	T extends object,
-	Base extends abstract new (
-		...args: any[]
-	) => any = typeof Object,
->(Base: Base = Object as any) {
-	return class extends (Base as any) {
-		get name() {
-			// @ts-expect-error
-			return this.constructor.resourceName
+export function GcClassed<T extends object, Base extends Constructor = Constructor>(
+	baseCtor?: Base
+) {
+	const ResolvedBase = (baseCtor ?? (Object as unknown as Base)) as Constructor
+
+	return class GcClassedMixin extends ResolvedBase {
+		readonly definition!: T
+		readonly resourceName!: string
+
+		get name(): string {
+			return this.resourceName
 		}
-	} as any as abstract new (
+
+		/** Must run once per instance, after `super`, to attach catalog metadata. */
+		protected assignGameContent(def: T, resourceName: string): void {
+			Object.defineProperty(this, 'definition', {
+				value: def,
+				enumerable: true,
+				writable: false,
+				configurable: true,
+			})
+			Object.defineProperty(this, 'resourceName', {
+				value: resourceName,
+				enumerable: true,
+				writable: false,
+				configurable: true,
+			})
+			// Mirror catalog fields on the instance (same idea as former prototype assign).
+			// Copy only known keys — never blindly `Object.assign` arbitrary enumerables onto runtime objects
+			// (would clobber `hive`, `tile`, etc. if present or introduced later).
+			const candidate = def as object
+			if (
+				typeof candidate === 'object' &&
+				candidate !== null &&
+				'preparationTime' in candidate &&
+				'action' in candidate &&
+				'workTime' in candidate
+			) {
+				const alveolusDef = candidate as Ssh.AlveolusDefinition
+				Object.assign(this as object, {
+					preparationTime: alveolusDef.preparationTime,
+					action: alveolusDef.action,
+					workTime: alveolusDef.workTime,
+					...(alveolusDef.construction !== undefined
+						? { construction: alveolusDef.construction }
+						: {}),
+				})
+				return
+			}
+
+			if (
+				typeof candidate === 'object' &&
+				candidate !== null &&
+				'maxAmount' in candidate &&
+				!('action' in candidate)
+			) {
+				Object.assign(this as object, candidate as Ssh.DepositDefinition)
+				return
+			}
+
+			Object.assign(this as object, candidate)
+		}
+	} as unknown as abstract new (
 		...args: any[]
-	) => InstanceType<Base> & T & { readonly name: string }
+	) => InstanceType<Base> &
+		T & {
+			readonly definition: T
+			readonly resourceName: string
+			readonly name: string
+		}
 }
 
 export function multiplyGoodsQty(record: Partial<Record<GoodType, number>>, multiplier: number) {

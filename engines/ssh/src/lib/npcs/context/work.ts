@@ -1,7 +1,6 @@
 import { waitForIncomingGoodsPollSeconds } from 'engine-rules'
 import { atomic } from 'mutts'
 import { isTileCoord } from 'ssh/board/board'
-import type { Alveolus } from 'ssh/board/content/alveolus'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
@@ -14,10 +13,11 @@ import {
 	setConstructionConsumedGoods,
 } from 'ssh/construction-state'
 import { assert, traces } from 'ssh/dev/debug'
-import { alveolusClass } from 'ssh/hive'
+import { createAlveolus } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
 import type { TrackedMovement } from 'ssh/hive/hive'
 import { movementRefId } from 'ssh/hive/movement-ref'
+import { MovementState, transitionMovement } from 'ssh/hive/movement-state'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import type { TransformAlveolus } from 'ssh/hive/transform'
 import type { Character } from 'ssh/population/character'
@@ -45,12 +45,11 @@ function applyConcreteTerrain(tile: Tile): void {
 	})
 }
 
-function finalizeBuildAlveolusToTarget(
-	site: BuildAlveolus,
-	TargetClass: new (tile: Tile) => Alveolus
-) {
+function finalizeBuildAlveolusToTarget(site: BuildAlveolus) {
 	applyConcreteTerrain(site.tile)
-	site.tile.content = new TargetClass(site.tile)
+	const alveolus = createAlveolus(site.target, site.tile)
+	assert(alveolus, 'Target alveolus must exist')
+	site.tile.content = alveolus
 }
 
 function finalizeBuildDwellingToBasicDwelling(site: BuildDwelling) {
@@ -120,10 +119,10 @@ class WorkFunctions {
 		const alveolus = this[subject].assignedAlveolus
 		assert(alveolus, 'assignedAlveolus must be set')
 		assert(
-			'nextJob' in alveolus && typeof alveolus.nextJob === 'function',
-			'alveolus must have nextJob method'
+			'getJob' in alveolus && typeof alveolus.getJob === 'function',
+			'alveolus must have getJob method'
 		)
-		return alveolus.nextJob(this[subject])
+		return alveolus.getJob(this[subject])
 	}
 	@contract()
 	waitForIncomingGoods() {
@@ -158,6 +157,7 @@ class WorkFunctions {
 			movement.claimed = true
 			movement.claimedBy = character
 			movement.claimedAtMs = Date.now()
+			movement._state = transitionMovement(movement._state, MovementState.claimed)
 			movement.provider.hive.noteMovementLifecycle(movement, `movement.claimed.by:${character.uid}`)
 		}
 		const releaseMovementClaim = (movement: TrackedMovement) => {
@@ -177,6 +177,7 @@ class WorkFunctions {
 				movement,
 				`movement.unclaimed.by:${character.uid}`
 			)
+			movement._state = transitionMovement(movement._state, MovementState.tracked)
 			movement.claimed = false
 			delete movement.claimedBy
 			delete movement.claimedAtMs
@@ -395,12 +396,12 @@ class WorkFunctions {
 		const conveyStepRef: { step?: MultiMoveStep } = {}
 		const step = new MultiMoveStep(totalTime, visualMovements, 'work', description, () => {
 			if (!rebindConveyMovementRows(movementData)) {
-				conveyStepRef.step?.cancel()
+				conveyStepRef.step?.cancel('stale-rebind')
 			}
 		})
 		conveyStepRef.step = step
 		return step
-			.canceled(() => {
+			.onCancelled(() => {
 				rebindConveyMovementRows(movementData)
 				for (const { movement, hopAlloc, moving } of movementData) {
 					if (!moving.isRemoved) moving.remove()
@@ -415,7 +416,7 @@ class WorkFunctions {
 					movement.abort()
 				}
 			})
-			.finished(() => {
+			.onFulfilled(() => {
 				try {
 					if (!rebindConveyMovementRows(movementData)) {
 						throw new ConveyStaleBookkeepingError('Movement became invalid after hop handoff')
@@ -558,7 +559,7 @@ class WorkFunctions {
 					throw error
 				}
 			})
-			.final(() => {
+			.onFinal(() => {
 				// Clean up any remaining loose goods. Note: looseGoods should *not* disappear. For now, this shouldn't happen - but if it happened, looseGoods should be stored as looseGoods
 				for (const { moving } of movementData) {
 					if (!moving.isRemoved) debugger
@@ -591,7 +592,7 @@ class WorkFunctions {
 			this[subject].assignedAlveolus!.workTime,
 			'work',
 			`harvest.${this[subject].assignedAlveolus!.name}`
-		).finished(() => {
+		).onFulfilled(() => {
 			const character = this[subject]
 			const { game, tile } = character
 			for (const [goodType, qty] of Object.entries(alveolus.action.output) as [
@@ -639,10 +640,10 @@ class WorkFunctions {
 		allocations.push(outputAllocation)
 
 		return new DurationStep(alveolus.workTime, 'work', `transform.${alveolus.name}`)
-			.finished(() => {
+			.onFulfilled(() => {
 				for (const allocation of allocations) allocation.fulfill()
 			})
-			.canceled(() => {
+			.onCancelled(() => {
 				for (const allocation of allocations) allocation.cancel()
 			})
 	}
@@ -662,11 +663,11 @@ class WorkFunctions {
 			{ type: 'defragment.arrange' }
 		)
 		return new DurationStep(character.freightTransferTime, 'work', `defragment.${alveolus.name}`)
-			.finished(() => {
+			.onFulfilled(() => {
 				take.fulfill()
 				arrange.fulfill()
 			})
-			.canceled(() => {
+			.onCancelled(() => {
 				take.cancel()
 				arrange.cancel()
 			})
@@ -689,7 +690,7 @@ class WorkFunctions {
 
 		content.constructionSite = constructionSite
 		constructionSite.phase = 'foundation'
-		return new DurationStep(3, 'work', 'foundation').finished(() => {
+		return new DurationStep(3, 'work', 'foundation').onFulfilled(() => {
 			if (target.kind === 'alveolus') {
 				content.tile.content = new BuildAlveolus(
 					content.tile,
@@ -725,10 +726,7 @@ class WorkFunctions {
 			const finalize = () => {
 				setConstructionConsumedGoods(site.constructionSite, site.constructionSite.requiredGoods)
 				if (site instanceof BuildAlveolus) {
-					const targetType = site.target as keyof typeof alveolusClass
-					const TargetClass = alveolusClass[targetType]
-					assert(TargetClass, 'Target alveolus class must exist')
-					finalizeBuildAlveolusToTarget(site, TargetClass)
+					finalizeBuildAlveolusToTarget(site)
 				} else if (site instanceof BuildDwelling) {
 					finalizeBuildDwellingToBasicDwelling(site)
 				} else {
@@ -748,12 +746,12 @@ class WorkFunctions {
 				site.constructionSite.workSecondsApplied = baselineApplied + evolution * remaining
 			})
 			return step
-				.finished(() => {
+				.onFulfilled(() => {
 					site.constructionWorkSecondsApplied = totalSeconds
 					site.constructionSite.workSecondsApplied = totalSeconds
 					finalize()
 				})
-				.canceled(() => {
+				.onCancelled(() => {
 					const progressFraction = Math.min(1, Math.max(0, step.evolution))
 					site.constructionWorkSecondsApplied += progressFraction * remaining
 					site.constructionSite.workSecondsApplied = site.constructionWorkSecondsApplied

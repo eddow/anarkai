@@ -2,14 +2,14 @@ import { css } from '@app/lib/css'
 import { type FreightDraftIssueCode, freightDraftIssueCodes } from '@app/lib/freight-line-draft'
 import { clearFreightMapPickForLine } from '@app/lib/freight-map-pick'
 import { bumpSelectionTitleVersion } from '@app/lib/globals'
+import { T } from '@app/lib/i18n'
 import { InspectorSection } from '@app/ui/anarkai'
 import { effect } from 'mutts'
 import type { FreightLineDefinition, SyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import { normalizeFreightLineDefinition } from 'ssh/freight/freight-line'
-import { getTranslator } from '@app/lib/i18n'
-import FreightStopList from './FreightStopList'
-import PropertyGrid from './PropertyGrid'
-import PropertyGridRow from './PropertyGridRow'
+import FreightStopList from '../FreightStopList'
+import PropertyGrid from '../PropertyGrid'
+import PropertyGridRow from '../PropertyGridRow'
 
 css`
 .freight-line-properties__name {
@@ -52,7 +52,7 @@ interface FreightLinePropertiesProps {
 }
 
 const issueMessage = (code: FreightDraftIssueCode): string => {
-	const t = getTranslator().line.stopsEditor.issues
+	const t = T.line.stopsEditor.issues
 	switch (code) {
 		case 'no_stops':
 			return t.noStops
@@ -118,14 +118,12 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 	const lineName = () => currentLine()?.name ?? ''
 
 	return (
-		<InspectorSection title={getTranslator().line.section}>
+		<InspectorSection title={T.line.section}>
 			<PropertyGrid>
 				<PropertyGridRow if={!isAvailable()}>
-					<span class="freight-line-properties__uid">
-						{getTranslator().line.unavailable}
-					</span>
+					<span class="freight-line-properties__uid">{T.line.unavailable}</span>
 				</PropertyGridRow>
-				<PropertyGridRow label={getTranslator().line.name}>
+				<PropertyGridRow label={T.line.name}>
 					<input
 						class="freight-line-properties__name"
 						type="text"
@@ -137,7 +135,7 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 				</PropertyGridRow>
 				<PropertyGridRow
 					if={isAvailable() && issues().length > 0}
-					label={getTranslator().line.stopsEditor.validation}
+					label={T.line.stopsEditor.validation}
 				>
 					<ul class="freight-line-properties__issues">
 						<for each={issues()}>
@@ -145,17 +143,14 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 						</for>
 					</ul>
 				</PropertyGridRow>
-				<PropertyGridRow
-					if={isAvailable()}
-					label={getTranslator().line.deleteLine.section}
-				>
+				<PropertyGridRow if={isAvailable()} label={T.line.deleteLine.section}>
 					<button
 						type="button"
 						class="freight-line-properties__delete"
 						data-testid="freight-line-delete"
 						onClick={handleDeleteLine}
 					>
-						{getTranslator().line.deleteLine.action}
+						{T.line.deleteLine.action}
 					</button>
 				</PropertyGridRow>
 			</PropertyGrid>

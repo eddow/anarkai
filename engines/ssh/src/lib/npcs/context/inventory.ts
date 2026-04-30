@@ -164,7 +164,7 @@ export class InventoryFunctions {
 		const vehicleTransfer = transport.reserve({ [goodType]: amount }, `drop.${goodType}`)
 		const tileCenter = toWorldCoord(character.tile.position)
 		return new DurationStep(amount * character.freightTransferTime, 'convey', `drop.${goodType}`)
-			.finished(() => {
+			.onFulfilled(() => {
 				try {
 					// Use the tile as the bucket key but jitter the exact world position inside it so
 					// repeated unloads do not perfectly overlap on the tile center.
@@ -184,7 +184,7 @@ export class InventoryFunctions {
 					throw e
 				}
 			})
-			.canceled(() => {
+			.onCancelled(() => {
 				vehicleTransfer.cancel()
 			})
 	}
@@ -370,7 +370,7 @@ export class InventoryFunctions {
 		assert(vehicleAllocation, 'vehicleAllocation must be set before effectuating transfer')
 
 		return new DurationStep(totalAmount * character.freightTransferTime, 'convey', description)
-			.finished(() => {
+			.onFulfilled(() => {
 				try {
 					if (!vehicleAllocation) {
 						console.error('vehicleAllocation is missing in effectuate callback!', action)
@@ -385,7 +385,7 @@ export class InventoryFunctions {
 					throw e
 				}
 			})
-			.canceled(() => {
+			.onCancelled(() => {
 				vehicleAllocation!.cancel()
 				allocation?.cancel()
 			})

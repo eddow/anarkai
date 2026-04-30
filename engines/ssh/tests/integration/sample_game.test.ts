@@ -1,16 +1,16 @@
-import { chopSaw } from 'ssh/game/exampleGames'
+import { saw } from 'ssh/game/exampleGames'
 import { Game } from 'ssh/game/game'
 import { describe, expect, it } from 'vitest'
 
 describe('Source Allocation Stability', () => {
-	it('ChopSaw scenario runs without errors', async () => {
+	it('saw scenario runs without errors', async () => {
 		const game = new Game(
 			{
 				terrainSeed: 1,
-				characterCount: 2,
+				characterCount: 1,
 				characterRadius: 3,
 			},
-			chopSaw
+			saw
 		)
 		// Stop ticker to prevent concurrent simulation during test
 		game.ticker.stop()

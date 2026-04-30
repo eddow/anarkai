@@ -1,5 +1,6 @@
 import { traces } from 'ssh/dev/debug'
 import type { SaveState } from 'ssh/game'
+import { Hive } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
 import { axial } from 'ssh/utils'
 import { describe, expect, it } from 'vitest'
@@ -90,11 +91,14 @@ describe('Convey bookkeeping resilience', () => {
 			const buildTile = engine.game.hex.getTile({ q: 1, r: 0 })
 			expect(buildTile).toBeDefined()
 			if (!buildTile) throw new Error('Expected build tile to exist')
-			buildTile.content = new BuildAlveolus(buildTile, 'storage')
+			const buildStorageAlv = new BuildAlveolus(buildTile, 'storage')
+			engine.game.hex.setTileContent(buildTile, buildStorageAlv)
+			if (!buildStorageAlv.hive) Hive.for(buildTile).attach(buildStorageAlv)
+			buildStorageAlv.hive.refreshTransformAdvertisements()
 			await flushDeferred()
 
 			const sawmill = engine.game.hex.getTile({ q: 0, r: 0 })?.content as any
-			const buildStorage = buildTile.content as any
+			const buildStorage = buildStorageAlv as any
 			expect(sawmill).toBeDefined()
 			expect(buildStorage).toBeDefined()
 			if (!sawmill || !buildStorage) throw new Error('Expected sawmill/build storage to exist')

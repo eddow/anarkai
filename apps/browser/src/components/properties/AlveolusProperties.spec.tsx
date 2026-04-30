@@ -102,6 +102,7 @@ vi.mock('@app/lib/i18n', () => {
 	}
 	return {
 		i18nState,
+		T: i18nState.translator,
 		getTranslator: () => i18nState.translator,
 	}
 })
@@ -173,7 +174,10 @@ describe('AlveolusProperties', () => {
 				container,
 				<table>
 					<tbody>
-						<AlveolusProperties content={undefined as never} game={{ freightLines: [], vehicles: [] } as never} />
+						<AlveolusProperties
+							content={undefined as never}
+							game={{ freightLines: [], vehicles: [] } as never}
+						/>
 					</tbody>
 				</table>
 			)
@@ -264,7 +268,9 @@ describe('AlveolusProperties', () => {
 				<tbody>
 					<AlveolusProperties
 						content={bay as never}
-						game={{ freightLines: [], vehicles: [], replaceFreightLine, removeFreightLineById } as never}
+						game={
+							{ freightLines: [], vehicles: [], replaceFreightLine, removeFreightLineById } as never
+						}
 					/>
 				</tbody>
 			</table>

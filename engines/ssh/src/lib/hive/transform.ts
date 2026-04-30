@@ -14,18 +14,18 @@ const emptyGoods: Partial<Record<GoodType, number>> = {}
 @reactive
 export class TransformAlveolus extends Alveolus {
 	declare action: Ssh.TransformationAction
-	constructor(tile: Tile) {
-		const def: Ssh.AlveolusDefinition = new.target.prototype
-		if (def.action.type !== 'transform') {
+	constructor(tile: Tile, definition: Ssh.AlveolusDefinition, resourceName: string) {
+		if (definition.action.type !== 'transform') {
 			throw new Error('TransformAlveolus can only be created from a transform action')
 		}
 		super(
 			tile,
 			new SpecificStorage({
-				...multiplyGoodsQty(def.action.inputs, inputBufferSize),
-				...multiplyGoodsQty(def.action.output, outputBufferSize),
+				...multiplyGoodsQty(definition.action.inputs, inputBufferSize),
+				...multiplyGoodsQty(definition.action.output, outputBufferSize),
 			})
 		)
+		this.assignGameContent(definition, resourceName)
 	}
 
 	/**

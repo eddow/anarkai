@@ -41,6 +41,7 @@ vi.mock('engine-pixi/renderers/vehicle-visual', () => ({
 
 vi.mock('@app/lib/i18n', () => ({
 	i18nState,
+	T: i18nState.translator,
 	getTranslator: () => i18nState.translator,
 }))
 
@@ -148,7 +149,12 @@ describe('VehicleProperties', () => {
 			game: {},
 			operator,
 			storage: { stock: {} },
-			service: { operator, line: { id: 'L1', name: 'Line A', stops: [] }, stop: { id: 's1' }, docked: false },
+			service: {
+				operator,
+				line: { id: 'L1', name: 'Line A', stops: [] },
+				stop: { id: 's1' },
+				docked: false,
+			},
 		}
 
 		stop = latch(container, <VehicleProperties vehicle={vehicle as never} />, {
@@ -185,8 +191,30 @@ describe('VehicleProperties', () => {
 			game: {},
 			storage: { stock: {} },
 			service: {
-				line: { id: 'L1', name: 'North route', stops: [{ id: 'stop-1', anchor: { kind: 'alveolus', hiveName: 'H', alveolusType: 'freight_bay', coord: [0, 0] as const } }] },
-				stop: { id: 'stop-1', anchor: { kind: 'alveolus', hiveName: 'H', alveolusType: 'freight_bay', coord: [0, 0] as const } },
+				line: {
+					id: 'L1',
+					name: 'North route',
+					stops: [
+						{
+							id: 'stop-1',
+							anchor: {
+								kind: 'alveolus',
+								hiveName: 'H',
+								alveolusType: 'freight_bay',
+								coord: [0, 0] as const,
+							},
+						},
+					],
+				},
+				stop: {
+					id: 'stop-1',
+					anchor: {
+						kind: 'alveolus',
+						hiveName: 'H',
+						alveolusType: 'freight_bay',
+						coord: [0, 0] as const,
+					},
+				},
 				docked: true,
 			},
 		}
@@ -199,9 +227,9 @@ describe('VehicleProperties', () => {
 		expect(container.textContent).toContain('Stop stop-1')
 		expect(container.textContent).toContain('Docked')
 
-		const lineLinks = [...container.querySelectorAll('[data-testid="inspector-object-link"]')].filter(
-			(el) => el.getAttribute('data-target-uid') === 'freight-line:L1'
-		)
+		const lineLinks = [
+			...container.querySelectorAll('[data-testid="inspector-object-link"]'),
+		].filter((el) => el.getAttribute('data-target-uid') === 'freight-line:L1')
 		expect(lineLinks.length).toBeGreaterThan(0)
 	})
 
@@ -251,8 +279,8 @@ describe('VehicleProperties', () => {
 			service: undefined,
 		}
 		collectVehicleWorkPicks.mockImplementation((_game, character: { uid?: string }) =>
-			character.uid === operator.uid ?
-					[
+			character.uid === operator.uid
+				? [
 						{
 							job: {
 								job: 'vehicleOffload',
@@ -266,7 +294,7 @@ describe('VehicleProperties', () => {
 							targetTile,
 						},
 					]
-				:	[
+				: [
 						{
 							job: {
 								job: 'vehicleHop',

@@ -66,6 +66,7 @@ vi.mock('@app/ui/anarkai', () => ({
 
 vi.mock('@app/lib/i18n', () => ({
 	i18nState,
+	T: i18nState.translator,
 	getTranslator: () => i18nState.translator,
 }))
 

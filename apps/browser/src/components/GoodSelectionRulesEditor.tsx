@@ -1,5 +1,6 @@
 import { css } from '@app/lib/css'
 import { reorderWithInsertionGap } from '@app/lib/good-selection-tag-reorder'
+import { T } from '@app/lib/i18n'
 import { Button } from '@app/ui/anarkai'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
 import { listen } from '@sursaut/core'
@@ -20,7 +21,6 @@ import type {
 } from 'ssh/freight/goods-selection-policy'
 import { normalizeGoodSelectionPolicy } from 'ssh/freight/goods-selection-policy'
 import type { Game } from 'ssh/game'
-import { getTranslator } from '@app/lib/i18n'
 import type { GoodType } from 'ssh/types/base'
 import EntityBadge from './EntityBadge'
 import GoodPickerButton from './GoodPickerButton'
@@ -296,7 +296,7 @@ const toDisplayText = (value: unknown, fallback = ''): string => {
 }
 
 const GoodSelectionRulesEditor = (props: GoodSelectionRulesEditorProps) => {
-	const ls = () => getTranslator().line.goodsSelection
+	const ls = () => T.line.goodsSelection
 	const sig = (p: GoodSelectionPolicy) =>
 		`${tagRuleSignature(p.tagRules)}||${p.goodRules.map((r) => `${r.goodType}:${r.effect}`).join('|')}||${p.defaultEffect}`
 
@@ -498,11 +498,7 @@ const GoodSelectionRulesEditor = (props: GoodSelectionRulesEditorProps) => {
 								<span class="good-selection-rules__effect-icon" aria-hidden="true">
 									{rule.effect === 'allow' ? '✓' : '✕'}
 								</span>
-								<span>
-									{rule.effect === 'allow'
-										? ls().effectAllow
-										: ls().effectDeny}
-								</span>
+								<span>{rule.effect === 'allow' ? ls().effectAllow : ls().effectDeny}</span>
 							</button>
 							<Button
 								icon={tablerFilledSquareRoundedMinus}
@@ -590,11 +586,7 @@ const GoodSelectionRulesEditor = (props: GoodSelectionRulesEditorProps) => {
 								<span class="good-selection-rules__effect-icon" aria-hidden="true">
 									{rule.effect === 'allow' ? '✓' : '✕'}
 								</span>
-								<span>
-									{rule.effect === 'allow'
-										? ls().effectAllow
-										: ls().effectDeny}
-								</span>
+								<span>{rule.effect === 'allow' ? ls().effectAllow : ls().effectDeny}</span>
 							</button>
 							<Button
 								icon={tablerFilledSquareRoundedMinus}
@@ -633,11 +625,7 @@ const GoodSelectionRulesEditor = (props: GoodSelectionRulesEditorProps) => {
 					<span class="good-selection-rules__effect-icon" aria-hidden="true">
 						{state.defaultEffect === 'allow' ? '✓' : '✕'}
 					</span>
-					<span>
-						{state.defaultEffect === 'allow'
-							? ls().effectAllow
-							: ls().effectDeny}
-					</span>
+					<span>{state.defaultEffect === 'allow' ? ls().effectAllow : ls().effectDeny}</span>
 				</button>
 			</div>
 		</div>

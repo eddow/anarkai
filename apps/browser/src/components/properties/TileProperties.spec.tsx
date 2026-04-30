@@ -63,10 +63,26 @@ vi.mock('@app/lib/i18n', () => {
 				stored: 'Stored',
 				loose: 'Loose',
 			},
+			alveoli: {
+				storage: 'Storage',
+			},
+			alveolus: {
+				workingTooltip: 'Working',
+			},
+			residential: {
+				dwelling: {
+					tierBasic: 'Basic dwelling',
+				},
+			},
+			construction: {
+				section: 'Construction',
+				materials: 'Materials',
+			},
 		},
 	}
 	return {
 		i18nState,
+		T: i18nState.translator,
 		getTranslator: () => i18nState.translator,
 	}
 })
@@ -83,7 +99,7 @@ vi.mock('./AlveolusProperties', () => ({
 	default: () => null,
 }))
 
-vi.mock('./ConstructionProgressBar', () => ({
+vi.mock('../ConstructionProgressBar', () => ({
 	default: () => null,
 }))
 
@@ -91,7 +107,7 @@ vi.mock('./DwellingProperties', () => ({
 	default: () => null,
 }))
 
-vi.mock('./EntityBadge', () => ({
+vi.mock('../EntityBadge', () => ({
 	default: (props: { sprite?: string; text?: string }) => (
 		<div data-testid="entity-badge">
 			{props.sprite}:{props.text}
@@ -99,21 +115,21 @@ vi.mock('./EntityBadge', () => ({
 	),
 }))
 
-vi.mock('./GoodsList', () => ({
+vi.mock('../GoodsList', () => ({
 	default: (props: { goods: string[] }) => (
 		<div data-testid="goods-list">{props.goods.join(',')}</div>
 	),
 }))
 
-vi.mock('./HiveAnchorButton', () => ({
+vi.mock('../HiveAnchorButton', () => ({
 	default: () => null,
 }))
 
-vi.mock('./PropertyGrid', () => ({
+vi.mock('../PropertyGrid', () => ({
 	default: (props: { children?: JSX.Children }) => <div>{props.children}</div>,
 }))
 
-vi.mock('./PropertyGridRow', () => ({
+vi.mock('../PropertyGridRow', () => ({
 	default: (props: { label?: string; children?: JSX.Children; if?: boolean }) =>
 		props.if === false ? null : (
 			<div data-testid={`row-${props.label ?? 'none'}`}>
@@ -123,7 +139,28 @@ vi.mock('./PropertyGridRow', () => ({
 		),
 }))
 
-vi.mock('./storage/StoredGoodsRow', () => ({
+vi.mock('../parts/WorkingIndicator', () => ({
+	default: (props: {
+		checked: boolean
+		burdened?: boolean
+		onChange?: (checked: boolean) => void
+		if?: boolean
+	}) =>
+		props.if === false ? null : (
+			<button
+				data-testid="working-indicator"
+				data-checked={String(props.checked)}
+				data-burdened={String(!!props.burdened)}
+				onClick={() => props.onChange?.(!props.checked)}
+			/>
+		),
+}))
+
+vi.mock('./TileWorkProperties', () => ({
+	default: () => null,
+}))
+
+vi.mock('../storage/StoredGoodsRow', () => ({
 	default: (props: { if?: boolean; label?: string }) =>
 		props.if === false ? null : <div data-testid={`stored-goods-${props.label ?? 'unknown'}`} />,
 }))
@@ -210,6 +247,7 @@ describe('TileProperties', () => {
 	it('does not throw when an alveolus construction shell resolves visuals via its target', () => {
 		const tile = reactive({
 			content: new MockBuildAlveolus(),
+			isBurdened: true,
 			looseGoods: [],
 			board: {
 				game: {
@@ -225,5 +263,9 @@ describe('TileProperties', () => {
 		expect(container.querySelector('[data-testid="entity-badge"]')?.textContent).toContain(
 			'buildings.store'
 		)
+		expect(container.querySelector('[data-testid="working-indicator"]')).not.toBeNull()
+		expect(
+			container.querySelector('[data-testid="working-indicator"]')?.getAttribute('data-burdened')
+		).toBe('true')
 	})
 })

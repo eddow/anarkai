@@ -1,3 +1,4 @@
+import { lazy } from '@sursaut/core'
 import { reactive } from 'mutts'
 import {
 	type CondensedDictionary,
@@ -107,6 +108,8 @@ export const i18nState: I18nState = reactive({
 export function getTranslator() {
 	return i18nState.translator
 }
+
+export const T = lazy(() => i18nState.translator)
 
 async function loadLocale(locale: Locale, requestId: number) {
 	queryLocale = locale

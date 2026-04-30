@@ -5,7 +5,7 @@ import {
 import { css } from '@app/lib/css'
 import { bumpSelectionTitleVersion } from '@app/lib/globals'
 import { resolveHiveFromAnchorTile, type SyntheticHiveObject } from '@app/lib/hive-inspector'
-import { getTranslator } from '@app/lib/i18n'
+import { T } from '@app/lib/i18n'
 import { InspectorSection } from '@app/ui/anarkai'
 import { goods as visualGoods } from 'engine-pixi/assets/visual-content'
 import { effect, reactive } from 'mutts'
@@ -151,7 +151,7 @@ const HiveProperties = (props: HivePropertiesProps) => {
 			}))
 		)
 		state.dockedVehicles = collectDockedVehiclesForHive(props.hiveObject.game, hive)
-		const constructionTranslator = getTranslator() as ConstructionTranslatorShape
+		const constructionTranslator = T as ConstructionTranslatorShape
 		state.buildSites = Array.from(hive.alveoli)
 			.filter((alveolus): alveolus is BuildAlveolus => alveolus instanceof BuildAlveolus)
 			.map((site) => {
@@ -186,11 +186,11 @@ const HiveProperties = (props: HivePropertiesProps) => {
 	}
 
 	function goodLabel(goodType: string): string {
-		return String(getTranslator().goods[goodType as GoodType])
+		return String(T.goods[goodType as GoodType])
 	}
 
 	function alveolusLabel(alveolusType: string): string {
-		return String(getTranslator().alveoli[alveolusType])
+		return String(T.alveoli[alveolusType])
 	}
 	const handleNameInput = (value: string) => {
 		const hive = currentHive()
@@ -211,9 +211,9 @@ const HiveProperties = (props: HivePropertiesProps) => {
 	}
 
 	return (
-		<InspectorSection title={getTranslator().hive.section}>
+		<InspectorSection title={T.hive.section}>
 			<PropertyGrid>
-				<PropertyGridRow label={getTranslator().hive.name}>
+				<PropertyGridRow label={T.hive.name}>
 					<input
 						class="hive-properties__name"
 						type="text"
@@ -221,17 +221,17 @@ const HiveProperties = (props: HivePropertiesProps) => {
 						onInput={(event) => handleNameInput((event.currentTarget as HTMLInputElement).value)}
 					/>
 				</PropertyGridRow>
-				<PropertyGridRow label={getTranslator().hive.commands}>
+				<PropertyGridRow label={T.hive.commands}>
 					<WorkingIndicator
 						checked={state.working}
-						tooltip={getTranslator().hive.workingTooltip}
+						tooltip={T.hive.workingTooltip}
 						onChange={handleWorkingChange}
 					/>
 				</PropertyGridRow>
 				<PropertyGridRow if={state.entries.length === 0} label="">
-					<span class="hive-properties__empty">{getTranslator().hive.noAds}</span>
+					<span class="hive-properties__empty">{T.hive.noAds}</span>
 				</PropertyGridRow>
-				<PropertyGridRow if={state.entries.length > 0} label={getTranslator().hive.ads}>
+				<PropertyGridRow if={state.entries.length > 0} label={T.hive.ads}>
 					<div class="hive-properties__ads">
 						<for each={state.entries}>
 							{(entry) => {
@@ -257,7 +257,7 @@ const HiveProperties = (props: HivePropertiesProps) => {
 											height={22}
 										/>
 										<div class="hive-properties__meta">
-											<span class="hive-properties__count" title={getTranslator().hive.sourcesHint}>
+											<span class="hive-properties__count" title={T.hive.sourcesHint}>
 												{count}
 											</span>
 											<span
@@ -265,8 +265,8 @@ const HiveProperties = (props: HivePropertiesProps) => {
 												title={label}
 												aria-label={
 													entry.advertisement === 'demand'
-														? getTranslator().hive.demand
-														: getTranslator().hive.provide
+														? T.hive.demand
+														: T.hive.provide
 												}
 											>
 												{entry.advertisement === 'demand' ? '↓' : '↑'}
@@ -280,13 +280,13 @@ const HiveProperties = (props: HivePropertiesProps) => {
 				</PropertyGridRow>
 				<PropertyGridRow
 					if={state.dockedVehicles.length > 0}
-					label={getTranslator().vehicle.docked}
+					label={T.vehicle.docked}
 				>
 					<DockedVehicleList entries={state.dockedVehicles} showLineMeta />
 				</PropertyGridRow>
 				<PropertyGridRow
 					if={state.buildSites.length > 0}
-					label={getTranslator().construction.section}
+					label={T.construction.section}
 				>
 					<div class="hive-properties__ads">
 						<for each={state.buildSites}>

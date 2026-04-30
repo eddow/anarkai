@@ -10,7 +10,7 @@ export function getCommonAliases(projectRootDir) {
 		"@ssh": resolvePath(projectRootDir, "../../engines/ssh/src"),
 		"engine-pixi": resolvePath(projectRootDir, "../../engines/pixi/src"),
 		ssh: resolvePath(projectRootDir, "../../engines/ssh/src"),
-		mutts: resolvePath(projectRootDir, "../../../ownk/mutts/src"),
+		mutts: resolvePath(projectRootDir, "../../../ownk/mutts"),
 		"npc-script": resolvePath(projectRootDir, "../../../ownk/npcs/src"),
 		omni18n: resolvePath(projectRootDir, "../../../ownk/omni18n/src/client.ts"),
 		$lib: resolvePath(projectRootDir, "../../engines/ssh/src/lib"),

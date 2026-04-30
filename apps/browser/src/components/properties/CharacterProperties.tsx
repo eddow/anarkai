@@ -1,17 +1,17 @@
 import { css } from '@app/lib/css'
+import { T } from '@app/lib/i18n'
 import { type AnarkaiBadgeTone, Badge, InspectorSection, Panel } from '@app/ui/anarkai'
 import { effect } from 'mutts'
-import { getTranslator } from '@app/lib/i18n'
 import { AEvolutionStep, ALerpStep } from 'ssh/npcs/steps'
 import type { Character, RankedWorkPlannerSnapshot } from 'ssh/population/character'
 import type { NextActivityKind, PlannerFindActionSnapshot } from 'ssh/population/findNextActivity'
 import type { GoodType, JobType } from 'ssh/types/base'
-import GoodsList from './GoodsList'
-import InspectorObjectLink from './InspectorObjectLink'
-import LinkedEntityControl from './LinkedEntityControl'
-import PropertyGrid from './PropertyGrid'
-import PropertyGridRow from './PropertyGridRow'
-import StatProgressBar from './StatProgressBar'
+import GoodsList from '../GoodsList'
+import InspectorObjectLink from '../InspectorObjectLink'
+import LinkedEntityControl from '../LinkedEntityControl'
+import PropertyGrid from '../PropertyGrid'
+import PropertyGridRow from '../PropertyGridRow'
+import StatProgressBar from '../StatProgressBar'
 
 css`/*
 .character-properties {
@@ -234,11 +234,11 @@ function utilityBarPercent(value: number): number {
 }
 
 function plannerKindLabel(kind: NextActivityKind): string {
-	return getTranslator().character.plannerKinds[kind] ?? kind
+	return T.character.plannerKinds[kind] ?? kind
 }
 
 function workKindLabel(kind: JobType): string {
-	return getTranslator().character.plannerWorkKinds[kind] ?? kind
+	return T.character.plannerWorkKinds[kind] ?? kind
 }
 
 const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
@@ -301,8 +301,8 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 				jobLabel: workKindLabel(candidate.jobKind),
 				scoreText: formatPlannerUtility(candidate.score),
 				metaText: [
-					`${getTranslator().character.plannerWorkUrgency} ${formatPlannerUtility(candidate.urgency)}`,
-					`${getTranslator().character.plannerWorkPath} ${candidate.pathLength}`,
+					`${T.character.plannerWorkUrgency} ${formatPlannerUtility(candidate.urgency)}`,
+					`${T.character.plannerWorkPath} ${candidate.pathLength}`,
 				]
 					.filter(Boolean)
 					.join(' · '),
@@ -328,45 +328,42 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 						<StatProgressBar
 							value={props.character?.hunger ?? 0}
 							levels={props.character?.triggerLevels?.hunger}
-							label={getTranslator().character.hunger}
+							label={T.character.hunger}
 						/>
 						<StatProgressBar
 							value={props.character?.tiredness ?? 0}
 							levels={props.character?.triggerLevels?.tiredness}
-							label={getTranslator().character.tiredness}
+							label={T.character.tiredness}
 						/>
 						<StatProgressBar
 							value={props.character?.fatigue ?? 0}
 							levels={props.character?.triggerLevels?.fatigue}
-							label={getTranslator().character.fatigue}
+							label={T.character.fatigue}
 						/>
 					</div>
 				</InspectorSection>
 				<PropertyGrid>
-					<PropertyGridRow label={getTranslator().goods}>
+					<PropertyGridRow label={T.goods}>
 						<GoodsList
 							goods={Object.keys(computed.goods) as GoodType[]}
 							game={props.character?.game}
 							getBadgeProps={(g) => ({ qty: computed.goods[g] })}
 						/>
 					</PropertyGridRow>
-					<PropertyGridRow
-						if={computed.operatedVehicle}
-						label={getTranslator().character.operates}
-					>
+					<PropertyGridRow if={computed.operatedVehicle} label={T.character.operates}>
 						<div class="character-linked-object">
 							<LinkedEntityControl object={computed.operatedVehicle!} />
 							<InspectorObjectLink object={computed.operatedVehicle!} />
 						</div>
 					</PropertyGridRow>
-					<PropertyGridRow label={getTranslator().character.currentActivity}>
+					<PropertyGridRow label={T.character.currentActivity}>
 						<div class="character-activity">
 							<Badge
 								tone={activityBadgeColors[props.character?.stepExecutor?.type ?? 'idle'] ?? 'gray'}
 							>
 								{props.character?.stepExecutor?.description
-									? (getTranslator().step[props.character.stepExecutor.description])
-									: (getTranslator().step.idle)}
+									? T.step[props.character.stepExecutor.description]
+									: T.step.idle}
 							</Badge>
 							<div if={computed.stepEvolution > 0} class="character-activity__progress">
 								<div
@@ -383,29 +380,27 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 							</span>
 						</Panel>
 						<Panel else class="character-actions__empty">
-							{getTranslator().character.noActivity}
+							{T.character.noActivity}
 						</Panel>
 					</PropertyGridRow>
 				</PropertyGrid>
 				<InspectorSection class="character-properties__stats">
 					<PropertyGrid>
-						<PropertyGridRow label={getTranslator().character.plannerSection}>
+						<PropertyGridRow label={T.character.plannerSection}>
 							<span class="character-planner__mono">
-								{getTranslator().character.plannerKeepWorking}:{' '}
+								{T.character.plannerKeepWorking}:{' '}
 								{String(props.character?.keepWorking ?? false)}
 							</span>
 						</PropertyGridRow>
-						<PropertyGridRow
-							label={getTranslator().character.plannerLastPick}
-						>
+						<PropertyGridRow label={T.character.plannerLastPick}>
 							<span class="character-planner__mono">
 								{String(props.character?.lastPickedActivityKind ?? '—')}
 							</span>
 						</PropertyGridRow>
-						<PropertyGridRow label={getTranslator().character.plannerOutcome}>
+						<PropertyGridRow label={T.character.plannerOutcome}>
 							<span class="character-planner__mono">{computed.plannerOutcomeText || '—'}</span>
 						</PropertyGridRow>
-						<PropertyGridRow label={getTranslator().character.plannerRanked}>
+						<PropertyGridRow label={T.character.plannerRanked}>
 							<div if={computed.plannerChoices.length > 0} class="character-planner__choices">
 								<for each={computed.plannerChoices}>
 									{(choice) => (
@@ -430,7 +425,7 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 						</PropertyGridRow>
 						<PropertyGridRow
 							if={computed.workChoices.length > 0}
-							label={getTranslator().character.plannerRankedWork}
+							label={T.character.plannerRankedWork}
 						>
 							<div class="character-work__list">
 								<for each={computed.workChoices}>

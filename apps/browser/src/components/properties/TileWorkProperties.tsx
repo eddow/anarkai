@@ -1,7 +1,7 @@
 import { css } from '@app/lib/css'
+import { T } from '@app/lib/i18n'
 import { InspectorSection } from '@app/ui/anarkai'
 import { Tile } from 'ssh/board/tile'
-import { getTranslator } from '@app/lib/i18n'
 import {
 	collectTileWorkPicks,
 	type TileWorkPick,
@@ -9,9 +9,9 @@ import {
 } from 'ssh/tile-work'
 import type { JobType } from 'ssh/types/base'
 import { axial, toAxialCoord } from 'ssh/utils'
-import LinkedEntityControl from './LinkedEntityControl'
-import PropertyGrid from './PropertyGrid'
-import PropertyGridRow from './PropertyGridRow'
+import LinkedEntityControl from '../LinkedEntityControl'
+import PropertyGrid from '../PropertyGrid'
+import PropertyGridRow from '../PropertyGridRow'
 
 css`
 .tile-work__list {
@@ -80,7 +80,7 @@ function formatPlannerUtility(value: number): string {
 }
 
 function workKindLabel(kind: JobType): string {
-	return getTranslator().character.plannerWorkKinds[kind] ?? kind
+	return T.character.plannerWorkKinds[kind] ?? kind
 }
 
 function tileLabel(tile: Tile): string {
@@ -123,8 +123,8 @@ const TileWorkProperties = (props: TileWorkPropertiesProps) => {
 					metaText: [
 						choice.character.title ?? choice.character.name,
 						choice.vehicle?.title,
-						`${getTranslator().character.plannerWorkUrgency} ${formatPlannerUtility(choice.urgency)}`,
-						`${getTranslator().character.plannerWorkPath} ${choice.pathLength}`,
+						`${T.character.plannerWorkUrgency} ${formatPlannerUtility(choice.urgency)}`,
+						`${T.character.plannerWorkPath} ${choice.pathLength}`,
 					]
 						.filter((text): text is string => !!text)
 						.join(' · '),
@@ -136,9 +136,7 @@ const TileWorkProperties = (props: TileWorkPropertiesProps) => {
 	return (
 		<InspectorSection if={computed.choices.length > 0}>
 			<PropertyGrid>
-				<PropertyGridRow
-					label={getTranslator().character.plannerRankedWork}
-				>
+				<PropertyGridRow label={T.character.plannerRankedWork}>
 					<div class="tile-work__list">
 						<for each={computed.choices}>
 							{(choice) => (

@@ -2,7 +2,7 @@ import { inert } from 'mutts'
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import type { SaveState } from 'ssh/game'
 import { options } from 'ssh/globals'
-import { alveolusClass } from 'ssh/hive'
+import { createAlveolus } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
 import type { Hive, MovingGood } from 'ssh/hive/hive'
 import { movementRefId } from 'ssh/hive/movement-ref'
@@ -532,7 +532,9 @@ describe('Stalled Exchange Watchdog', () => {
 			if (!buildStorage) throw new Error('Expected build storage target')
 
 			inert(() => {
-				targetTile.content = new alveolusClass.storage(targetTile)
+				const storage = createAlveolus('storage', targetTile)
+				if (!storage) throw new Error('storage alveolus missing')
+				targetTile.content = storage
 			})
 			await flushWatchdogWork()
 
@@ -587,7 +589,9 @@ describe('Stalled Exchange Watchdog', () => {
 			if (!buildStorage) throw new Error('Expected build storage target')
 
 			inert(() => {
-				targetTile.content = new alveolusClass.storage(targetTile)
+				const storage = createAlveolus('storage', targetTile)
+				if (!storage) throw new Error('storage alveolus missing')
+				targetTile.content = storage
 			})
 			await flushWatchdogWork()
 

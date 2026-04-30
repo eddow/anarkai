@@ -257,7 +257,8 @@ function pickParkingTargetForVehicle(
 			dist < best.dist ||
 			(dist === best.dist &&
 				(cluster < best.cluster ||
-					(cluster === best.cluster && compareAxialCoord(tc, toAxialCoord(best.tile.position)!) > 0)))
+					(cluster === best.cluster &&
+						compareAxialCoord(tc, toAxialCoord(best.tile.position)!) > 0)))
 		) {
 			best = { tile, dist, cluster }
 		}

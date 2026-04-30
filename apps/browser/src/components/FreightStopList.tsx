@@ -1,8 +1,8 @@
 import { css } from '@app/lib/css'
 import { addFreightDraftStop } from '@app/lib/freight-line-draft'
+import { T } from '@app/lib/i18n'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
 import type { Game } from 'ssh/game'
-import { getTranslator } from '@app/lib/i18n'
 import FreightStopCard from './FreightStopCard'
 
 css`
@@ -36,7 +36,7 @@ interface FreightStopListProps {
 }
 
 const FreightStopList = (props: FreightStopListProps) => {
-	const t = () => getTranslator().line.stopsEditor
+	const t = () => T.line.stopsEditor
 	const currentDraft = () => props.draft
 	const stopsIndexed = (): { stop: FreightStop; index: number }[] =>
 		(currentDraft()?.stops ?? []).map((stop, index) => ({ stop, index }))

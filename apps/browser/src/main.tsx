@@ -1,10 +1,10 @@
 import './app.css'
 import { latch } from '@sursaut/core/dom'
 import '@sursaut/kit/dom'
+import { initTranslator } from '@app/lib/i18n'
 import { profileInfo } from 'mutts'
 import { mount } from 'pure-glyf/icons'
 import { registerGlyfIconFactory } from 'pure-glyf/sursaut'
-import { initTranslator } from '@app/lib/i18n'
 import App from './App'
 
 mount()

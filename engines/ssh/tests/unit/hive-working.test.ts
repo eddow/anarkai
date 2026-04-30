@@ -1,5 +1,5 @@
 import type { SaveState } from 'ssh/game'
-import { alveolusClass, Hive } from 'ssh/hive'
+import { createAlveolus, Hive } from 'ssh/hive'
 import type { StorageAlveolus } from 'ssh/hive/storage'
 import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
@@ -94,9 +94,9 @@ describe('Hive working and metadata preservation', () => {
 			})
 
 			const bridgeTile = engine.game.hex.getTile({ q: 1, r: 0 })!
-			const BridgeAlveolus = alveolusClass.freight_bay
-			expect(BridgeAlveolus).toBeDefined()
-			const bridge = new BridgeAlveolus!(bridgeTile)
+			const bridge = createAlveolus('freight_bay', bridgeTile)
+			expect(bridge).toBeDefined()
+			if (!bridge) throw new Error('freight_bay alveolus missing')
 			engine.game.hex.setTileContent(bridgeTile, bridge)
 			if (!bridge.hive) {
 				const hive = Hive.for(bridgeTile)

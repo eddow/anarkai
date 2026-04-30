@@ -1,6 +1,7 @@
 import { goods as goodsCatalog } from 'engine-rules'
-import { atomic, effect, unreactive } from 'mutts'
+import { effect } from 'mutts'
 import type { LooseGood } from 'ssh/board/looseGoods'
+import { Commitment, type SerializedCommitment } from 'ssh/commitment'
 import type { Game } from 'ssh/game/game'
 import type { Character } from 'ssh/population/character'
 import type { Storage } from 'ssh/storage'
@@ -12,46 +13,16 @@ import { assert } from '../dev/debug.ts'
 import type { ScriptedObject } from './object'
 import { lerp } from './utils'
 
-export interface SerializedStep {
+export interface SerializedStep extends SerializedCommitment {
 	type: string
 	[key: string]: any
 }
 
 //#region Abstracts
 
-@unreactive
-export class Finalized {
-	#finished: (() => void)[] = []
-	#canceled: (() => void)[] = []
-	#final: (() => void)[] = []
-	public status: 'pending' | 'finished' | 'canceled' = 'pending'
-	final(final: () => void) {
-		this.#final.push(final)
-		return this
-	}
-	canceled(canceled: () => void) {
-		this.#canceled.push(canceled)
-		return this
-	}
-	finished(finished: () => void) {
-		this.#finished.push(finished)
-		return this
-	}
-	@atomic
-	cancel() {
-		for (const callback of [...this.#canceled, ...this.#final]) callback()
-		this.status = 'canceled'
-	}
-	@atomic
-	finish() {
-		if (this.status !== 'pending') return
-		for (const callback of [...this.#finished, ...this.#final]) callback()
-		this.status = 'finished'
-	}
-}
-export abstract class ASingleStep extends Finalized {
+export abstract class ASingleStep extends Commitment {
 	/**
-	 * When true, finishing successfully makes `tick(dt)` return the full `dt` (no partial consumption).
+	 * When true, fulfilling successfully makes `tick(dt)` return the full `dt` (no partial consumption).
 	 * Another instance of the same kind may legitimately follow in the same frame (e.g. a new queue wait).
 	 */
 	static readonly fullRemainingOnComplete: boolean = false
@@ -71,7 +42,6 @@ export abstract class ASingleStep extends Finalized {
 	 */
 	abstract tick(dt: number): number | undefined
 	abstract readonly type: Ssh.ActivityType
-	abstract serialize(): SerializedStep
 
 	static deserialize(
 		game: Game,
@@ -143,7 +113,7 @@ export abstract class ASingleStep extends Finalized {
 	}
 }
 
-/** Used by scripted object update: skip “useless same-kind step” when completion always passes full dt through. */
+/** Used by scripted object update: skip "useless same-kind step" when completion always passes full dt through. */
 export function stepPassesFullRemainingOnComplete(ctor: Function): boolean {
 	return (ctor as { fullRemainingOnComplete?: boolean }).fullRemainingOnComplete === true
 }
@@ -161,11 +131,11 @@ export class QueueStep<Entity extends ScriptedObject> extends ASingleStep {
 		queue: Entity[],
 		public target: Positioned
 	) {
-		super()
+		super('queue')
 		queue.push(waiter)
 		const waiting = effect`queue.wait`(() => {
 			if (queue[0] === waiter) {
-				this.finish()
+				this.fulfill()
 				this.passed = true
 				waiting()
 			}
@@ -173,13 +143,14 @@ export class QueueStep<Entity extends ScriptedObject> extends ASingleStep {
 	}
 	pass() {
 		this.passed = true
-		this.finish()
+		this.fulfill()
 	}
 	tick(dt: number): number | undefined {
 		return this.passed ? dt : undefined
 	}
 	serialize(): SerializedStep {
 		return {
+			...super.serialize(),
 			type: 'QueueStep',
 			target: this.target,
 			passed: this.passed,
@@ -188,9 +159,12 @@ export class QueueStep<Entity extends ScriptedObject> extends ASingleStep {
 }
 
 export abstract class AEvolutionStep extends ASingleStep {
-	constructor(public readonly duration: number) {
+	constructor(
+		public readonly duration: number,
+		label: string
+	) {
 		if (duration <= 0) debugger
-		super()
+		super(label)
 	}
 	evolution = 0
 	evolve(_evolution: number, _dt: number): void {}
@@ -199,7 +173,7 @@ export abstract class AEvolutionStep extends ASingleStep {
 		this.evolution += dt / this.duration
 		if (this.evolution >= 1) {
 			this.evolve(1, this.evolution - 1)
-			this.finish()
+			this.fulfill()
 			return (this.evolution - 1) * this.duration
 		} else this.evolve(this.evolution, dt / this.duration)
 	}
@@ -208,10 +182,11 @@ export abstract class AEvolutionStep extends ASingleStep {
 export abstract class ALerpStep<T extends number | Positioned> extends AEvolutionStep {
 	constructor(
 		duration: number,
+		label: string,
 		public readonly from: T,
 		public readonly to: T
 	) {
-		super(duration)
+		super(duration, label)
 	}
 	abstract lerp(value: T): void
 	evolve(evolution: number): void {
@@ -232,13 +207,14 @@ export class MoveToStep extends ALerpStep<Positioned> {
 		readonly type: Ssh.ActivityType = 'walk',
 		readonly givenDescription?: string
 	) {
-		super(duration, who.position, to)
+		super(duration, givenDescription ?? 'move-to', who.position, to)
 	}
 	lerp(position: Positioned): void {
 		this.who.position = 'position' in position ? position.position : position
 	}
 	serialize(): SerializedStep {
 		return {
+			...super.serialize(),
 			type: 'MoveToStep',
 			duration: this.duration,
 			evolution: this.evolution,
@@ -265,7 +241,7 @@ export class MultiMoveStep extends AEvolutionStep {
 		readonly givenDescription?: string,
 		private readonly beforeEvolve?: () => void
 	) {
-		super(duration)
+		super(duration, givenDescription ?? 'multi-move')
 		// Capture the starting positions at construction time
 		for (const movement of this.movements) {
 			movement.from ??= { ...movement.who.position }
@@ -273,7 +249,7 @@ export class MultiMoveStep extends AEvolutionStep {
 	}
 	evolve(evolution: number): void {
 		this.beforeEvolve?.()
-		if (this.status !== 'pending') return
+		if (this.ended !== undefined) return
 		// Lerp each movement independently
 		for (const movement of this.movements) {
 			movement.who.position = lerp(movement.from!, movement.to, evolution) as Position
@@ -281,6 +257,7 @@ export class MultiMoveStep extends AEvolutionStep {
 	}
 	serialize(): SerializedStep {
 		return {
+			...super.serialize(),
 			type: 'MultiMoveStep',
 			duration: this.duration,
 			evolution: this.evolution,
@@ -304,10 +281,11 @@ export class DurationStep extends AEvolutionStep {
 		readonly type: Ssh.ActivityType,
 		readonly givenDescription: string
 	) {
-		super(duration)
+		super(duration, givenDescription)
 	}
 	serialize(): SerializedStep {
 		return {
+			...super.serialize(),
 			type: 'DurationStep',
 			duration: this.duration,
 			evolution: this.evolution,
@@ -328,7 +306,7 @@ export class WaitForPredicateStep extends ASingleStep {
 		readonly descriptionText: string,
 		private readonly predicate: () => boolean
 	) {
-		super()
+		super(descriptionText)
 	}
 	get description(): string | false {
 		return this.descriptionText
@@ -336,12 +314,13 @@ export class WaitForPredicateStep extends ASingleStep {
 	tick(dt: number): number | undefined {
 		if (!this.passed && this.predicate()) {
 			this.passed = true
-			this.finish()
+			this.fulfill()
 		}
 		return this.passed ? dt : undefined
 	}
 	serialize(): SerializedStep {
 		return {
+			...super.serialize(),
 			type: 'WaitForPredicateStep',
 			descriptionText: this.descriptionText,
 		}
@@ -367,7 +346,7 @@ export class EatStep extends AEvolutionStep {
 		readonly food: GoodType,
 		source: EatWorldSource
 	) {
-		super(activityDurations.eating)
+		super(activityDurations.eating, 'eat')
 		assert('satiationStrength' in goodsCatalog[food], `Food ${food} has no satiation strength`)
 		this.satiationStrength = goodsCatalog[food].satiationStrength as number
 		if (source.kind === 'loose') {
@@ -383,6 +362,7 @@ export class EatStep extends AEvolutionStep {
 	}
 	serialize(): SerializedStep {
 		return {
+			...super.serialize(),
 			type: 'EatStep',
 			food: this.food,
 			evolution: this.evolution,
@@ -401,11 +381,13 @@ export class PonderingStep extends AEvolutionStep {
 	) {
 		super(
 			duration ??
-				lerp(activityDurations.restMin, activityDurations.restMax, character.game.random())
+				lerp(activityDurations.restMin, activityDurations.restMax, character.game.random()),
+			'pondering'
 		)
 	}
 	serialize(): SerializedStep {
 		return {
+			...super.serialize(),
 			type: 'PonderingStep',
 			duration: this.duration,
 			evolution: this.evolution,

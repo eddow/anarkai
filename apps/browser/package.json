@@ -27,8 +27,8 @@
 		"@sursaut/ui": "link:../../../ownk/sursaut/packages/ui",
 		"arktype": "^2.1.22",
 		"dockview-core": "^5.0.0",
-		"engine-rules": "workspace:*",
 		"engine-pixi": "link:../../engines/pixi",
+		"engine-rules": "workspace:*",
 		"eventemitter3": "^5.0.1",
 		"madge": "^8.0.0",
 		"mutts": "link:../../../ownk/mutts",
@@ -39,7 +39,7 @@
 		"ssh": "workspace:*",
 		"typescript": "~5.9.3",
 		"vite": "^8.0.10",
-		"vitest": "^3.2.4"
+		"vitest": "^4.1.4"
 	},
 	"devDependencies": {
 		"@babel/core": "^7.28.4",

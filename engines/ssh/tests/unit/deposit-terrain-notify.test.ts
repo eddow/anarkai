@@ -1,6 +1,6 @@
 import { Deposit, UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { Game } from 'ssh/game/game'
-import { alveolusClass } from 'ssh/hive'
+import { createAlveolus } from 'ssh/hive'
 import { WorkFunctions } from 'ssh/npcs/context/work'
 import { subject } from 'ssh/npcs/scripts'
 import type { GameRenderer } from 'ssh/types/engine'
@@ -116,14 +116,13 @@ describe('notifyTerrainDepositsChanged / sector resource refresh hooks', () => {
 		it('calls notifyTerrainDepositsChanged after reducing deposit', () => {
 			const notifySpy = vi.spyOn(game, 'notifyTerrainDepositsChanged')
 			const tileForest = game.hex.getTile({ q: 0, r: 0 })!
-			const TreeDeposit = Deposit.class.tree
-			if (!TreeDeposit) throw new Error('Deposit.class.tree missing')
-			game.hex.setTileContent(tileForest, new UnBuiltLand(tileForest, 'forest', new TreeDeposit(2)))
+			const treeDeposit = Deposit.create('tree', 2)
+			if (!treeDeposit) throw new Error('tree deposit missing')
+			game.hex.setTileContent(tileForest, new UnBuiltLand(tileForest, 'forest', treeDeposit))
 
 			const tileWork = game.hex.getTile({ q: 1, r: 0 })!
-			const ChopCtor = alveolusClass.tree_chopper
-			if (!ChopCtor) throw new Error('alveolusClass.tree_chopper missing')
-			const chopper = new ChopCtor(tileWork)
+			const chopper = createAlveolus('tree_chopper', tileWork)
+			if (!chopper) throw new Error('tree_chopper alveolus missing')
 			game.hex.setTileContent(tileWork, chopper)
 
 			const char = game.population.createCharacter('Worker', { q: 0, r: 0 })

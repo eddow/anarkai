@@ -14,14 +14,22 @@ import { fastPoissonRandom } from 'ssh/utils/poisson'
 import { toAxialCoord } from 'ssh/utils/position'
 import type { Tile } from '../tile'
 import { TileContent } from './content'
-import { GcClassed, GcClasses } from './utils'
+import { GcClassed } from './utils'
 
 export class Deposit extends GcClassed<Ssh.DepositDefinition>() {
-	static class = GcClasses(() => Deposit, deposits)
-	//declare readonly name: string
-
-	constructor(public amount: number) {
+	constructor(
+		public amount: number,
+		definition: Ssh.DepositDefinition,
+		resourceName: string
+	) {
 		super()
+		this.assignGameContent(definition, resourceName)
+	}
+
+	static create(type: string, amount: number): Deposit | undefined {
+		const def = deposits[type as keyof typeof deposits]
+		if (!def) return undefined
+		return new Deposit(amount, def, type)
 	}
 }
 

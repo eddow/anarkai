@@ -278,7 +278,7 @@ class VehicleFunctions {
 				character.freightTransferTime * 0.25,
 				'work',
 				'vehicleHop.dock'
-			).finished(() => {
+			).onFulfilled(() => {
 				disembarkOperatorLeavingDockedVehicleInService(character, vehicle)
 				assertVehicleOperationConsistency(vehicle, character)
 			})
@@ -431,7 +431,7 @@ class VehicleFunctions {
 		)
 		const result = character.scriptsContext.inventory.effectuate(action)
 		// `EffectuateResult.finished` runs only on successful completion, not on cancel.
-		result.finished(() => {
+		result.onFulfilled(() => {
 			maybeAdvanceVehiclePastCompletedZoneStop(character.game, vehicle, character)
 		})
 		assertVehicleOperationConsistency(vehicle, character)
@@ -493,7 +493,7 @@ class VehicleFunctions {
 		)
 		const result = character.scriptsContext.inventory.effectuate(drop)
 		// `EffectuateResult.finished` runs only on successful completion, not on cancel.
-		result.finished(() => {
+		result.onFulfilled(() => {
 			maybeAdvanceVehiclePastCompletedZoneStop(character.game, vehicle, character)
 		})
 		traceVehicleStockWithoutService(vehicle)

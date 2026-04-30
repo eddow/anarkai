@@ -36,7 +36,7 @@ export function classifyTile(
 	if (
 		channelInfluence > channelInfluenceLake &&
 		maxFlux > riverFluxThreshold * riverFluxLakeMultiplier &&
-		tile.height < config.forestLevel
+		tile.height <= config.forestLevel
 	) {
 		return 'lake'
 	}

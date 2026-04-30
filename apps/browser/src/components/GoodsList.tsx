@@ -1,8 +1,8 @@
 import { css } from '@app/lib/css'
+import { T } from '@app/lib/i18n'
 import { goods as visualGoods } from 'engine-pixi/assets/visual-content'
 import { reactive } from 'mutts'
 import type { Game } from 'ssh/game'
-import { getTranslator } from '@app/lib/i18n'
 import type { GoodType } from 'ssh/types/base'
 import EntityBadge from './EntityBadge'
 
@@ -234,7 +234,7 @@ const GoodsList = (props: GoodsListProps) => {
 								<EntityBadge
 									game={props.game}
 									sprite={visualGoods[good]?.sprites?.[0] ?? 'default'}
-									text={getTranslator().goods[good] ?? good}
+									text={T.goods[good] ?? good}
 									height={props.itemSize ?? 20}
 								/>
 							</div>
@@ -262,7 +262,7 @@ const GoodsList = (props: GoodsListProps) => {
 							<EntityBadge
 								game={props.game}
 								sprite={visualGoods[good]?.sprites?.[0] ?? 'default'}
-								text={getTranslator().goods[good] ?? good}
+								text={T.goods[good] ?? good}
 								height={props.itemSize ?? 20}
 								{...badgeProps}
 							/>

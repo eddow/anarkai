@@ -347,7 +347,7 @@ describe('findVehicleOffloadJob', () => {
 		}
 	})
 
-	it('does not surface maintenance offload when the same project wood should start a served gather line', async () => {
+	it('surfaces maintenance offload when project wood burdens a served gather-line tile', async () => {
 		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
 		await engine.init()
 		const { game } = engine
@@ -402,12 +402,12 @@ describe('findVehicleOffloadJob', () => {
 			const char = engine.spawnCharacter('Worker', { q: 0, r: 1 })
 			void char.scriptsContext
 
-			expect(findVehicleOffloadJob(game, char)).toBeUndefined()
+			const offload = findVehicleOffloadJob(game, char)
+			expect(offload?.job).toBe('vehicleOffload')
+			expect(offload?.maintenanceKind).toBe('loadFromBurden')
+			expect(offload?.targetCoord).toMatchObject({ q: 2, r: 0 })
 			const hop = findVehicleHopJob(game, char)
-			expect(hop?.job).toBe('vehicleHop')
-			expect(hop?.stopId).toBe(line.stops[0]!.id)
-			expect(hop?.zoneBrowseAction).toBe('load')
-			expect(hop?.targetCoord).toMatchObject({ q: 2, r: 0 })
+			expect(hop).toBeUndefined()
 		} finally {
 			await engine.destroy()
 		}

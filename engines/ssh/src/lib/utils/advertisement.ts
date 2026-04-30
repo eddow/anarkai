@@ -1,5 +1,5 @@
 import { goods as goodsCatalog } from 'engine-rules'
-import { inert, isReactive, reactive } from 'mutts'
+import { inert, reactive } from 'mutts'
 import type { GoodType } from 'ssh/types'
 import { traces } from '../dev/debug.ts'
 
@@ -59,7 +59,6 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 
 	@inert
 	advertise(advertiser: TAdvertiser, ads: GoodsRelations | undefined) {
-		if (ads !== undefined && isReactive(ads)) debugger
 		if (!advertiser) {
 			traces.advertising.log?.(`[ADVERTISE] SKIP: undefined advertiser`)
 			return

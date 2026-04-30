@@ -128,6 +128,7 @@ export async function generateFieldsGpu(
 ): Promise<Map<AxialKey, TileField>> {
 	const request = packFieldRequest(coords, seed, config)
 	if (request.coords.length === 0) return new Map()
+	if (!canUseWebGpuFields()) return generateFieldsCpu(unpackCoords(request.coords), seed, config)
 
 	try {
 		const runtime = await getGpuFieldRuntime()
@@ -154,6 +155,7 @@ export async function generateFieldsGpu(
 }
 
 export async function warmGpuFieldRuntime(): Promise<boolean> {
+	if (!canUseWebGpuFields()) return false
 	try {
 		await getGpuFieldRuntime()
 		return true

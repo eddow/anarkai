@@ -20,7 +20,7 @@ const sshAssetsDir = resolvePath(projectRootDir, "../../engines/ssh/assets");
 const sshSourceDir = resolvePath(projectRootDir, "../../engines/ssh/src/lib");
 const pixiAssetsDir = resolvePath(projectRootDir, "../../engines/pixi/assets");
 const pixiSourceDir = resolvePath(projectRootDir, "../../engines/pixi/src");
-const muttsSourceDir = resolvePath(projectRootDir, "../../../ownk/mutts/src");
+const muttsRootDir = resolvePath(projectRootDir, "../../../ownk/mutts");
 const picoCssDir = resolvePath(projectRootDir, "node_modules/@picocss/pico");
 const dockviewCoreDir = resolvePath(projectRootDir, "node_modules/dockview-core");
 const sursautUiPaletteEntry = resolvePath(
@@ -51,7 +51,7 @@ const sharedAliasPaths = {
 	ssh: sshSourceDir,
 	"engine-pixi/assets": pixiAssetsDir,
 	"engine-pixi": pixiSourceDir,
-	mutts: muttsSourceDir,
+	mutts: muttsRootDir,
 	"@picocss/pico": picoCssDir,
 	"dockview-core": dockviewCoreDir,
 	// Use sursaut UI source in dev so palette/API changes are not blocked on `pnpm -C …/ui build`.
@@ -140,6 +140,13 @@ export const browserViteConfig: UserConfig = {
 		alias: aliases,
 		preserveSymlinks: false,
 	},
+	build: {
+		rolldownOptions: {
+			output: {
+				keepNames: true,
+			},
+		},
+	},
 	server: {
 		port: 5360,
 		fs: {
@@ -147,8 +154,11 @@ export const browserViteConfig: UserConfig = {
 		},
 		watch: serverWatchConfig,
 	},
-	esbuild: {
-		...commonEsbuild,
+	oxc: {
+		target: commonEsbuild.target,
+		decorator: {
+			legacy: commonEsbuild.tsconfigRaw.compilerOptions.experimentalDecorators,
+		},
 	},
 	optimizeDeps: {
 		rolldownOptions: {

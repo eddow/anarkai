@@ -18,26 +18,29 @@ export default defineConfig({
 		teardownTimeout: 60000,
 		silent: true,
 		pool: "threads",
-		poolOptions: {
-			threads: {
-				singleThread: true,
-			},
-		},
+		fileParallelism: false,
 	},
-	esbuild: {
+	oxc: {
 		target: "node14",
+		decorator: {
+			legacy: true,
+		},
 	},
 	resolve: {
 		alias: [
 			{ find: /^engine-terrain\/hex$/, replacement: resolvePath(projectRootDir, "../terrain/src/hex/index.ts") },
 			{ find: /^engine-terrain$/, replacement: resolvePath(projectRootDir, "../terrain/src/index.ts") },
 			{
+				find: /^ssh\/debug-game-state$/,
+				replacement: resolvePath(projectRootDir, "src/lib/dev/debug-game-state.ts"),
+			},
+			{
 				find: /^ssh\/(.*)$/,
 				replacement: `${resolvePath(projectRootDir, "src/lib")}/$1`,
 			},
 			{ find: /^ssh$/, replacement: resolvePath(projectRootDir, "src/lib") },
 			{ find: /^npc-script$/, replacement: resolvePath(projectRootDir, "../../../ownk/npcs/src") },
-			{ find: /^mutts$/, replacement: resolvePath(projectRootDir, "../../../ownk/mutts/src") },
+			{ find: /^mutts$/, replacement: resolvePath(projectRootDir, "../../../ownk/mutts") },
 		],
 	},
 });

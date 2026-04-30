@@ -17,6 +17,7 @@ import {
 	setFreightDraftStopZoneRadius,
 } from '@app/lib/freight-line-draft'
 import { freightMapPick } from '@app/lib/freight-map-pick'
+import { T } from '@app/lib/i18n'
 import type {
 	FreightLineDefinition,
 	FreightStop,
@@ -26,7 +27,6 @@ import { freightLineStationLabel } from 'ssh/freight/freight-line'
 import type { GoodSelectionPolicy } from 'ssh/freight/goods-selection-policy'
 import { UNRESTRICTED_GOODS_SELECTION_POLICY } from 'ssh/freight/goods-selection-policy'
 import type { Game } from 'ssh/game'
-import { getTranslator } from '@app/lib/i18n'
 import GoodSelectionRulesEditor from './GoodSelectionRulesEditor'
 import InspectorObjectLink from './InspectorObjectLink'
 import LinkedEntityControl from './LinkedEntityControl'
@@ -140,9 +140,9 @@ const stationLabel = (stop: FreightStop): string => {
 }
 
 const FreightStopCard = (props: FreightStopCardProps) => {
-	const t = () => getTranslator().line.stopsEditor
-	const goods = () => getTranslator().goods
-	const goodsTags = () => getTranslator().goodsTags
+	const t = () => T.line.stopsEditor
+	const goods = () => T.goods
+	const goodsTags = () => T.goodsTags
 	const goodOptions = () => freightInspectorGoodOptions(goods())
 	const tagOptions = () => freightInspectorTagOptions(goodsTags())
 	const loadPolicy = (): GoodSelectionPolicy =>
@@ -229,9 +229,7 @@ const FreightStopCard = (props: FreightStopCardProps) => {
 	return (
 		<div class="freight-stop-card" data-testid={`freight-stop-card-${props.index}`}>
 			<div class="freight-stop-card__head">
-				<div class="freight-stop-card__title">
-					{`${t().stopLabel} ${props.index + 1}`}
-				</div>
+				<div class="freight-stop-card__title">{`${t().stopLabel} ${props.index + 1}`}</div>
 				<div class="freight-stop-card__toolbar">
 					<button
 						type="button"

@@ -5,6 +5,12 @@ import { fileURLToPath } from 'node:url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
+	oxc: {
+		target: 'node14',
+		decorator: {
+			legacy: true,
+		},
+	},
 	resolve: {
 		alias: [
 			{
@@ -22,6 +28,14 @@ export default defineConfig({
 			{
 				find: 'ssh',
 				replacement: path.resolve(__dirname, '../ssh/src/lib'),
+			},
+			{
+				find: 'mutts',
+				replacement: path.resolve(__dirname, '../../../ownk/mutts'),
+			},
+			{
+				find: 'npc-script',
+				replacement: path.resolve(__dirname, '../../../ownk/npcs/src'),
 			},
 			{
 				find: '@app/lib/interactive-state',

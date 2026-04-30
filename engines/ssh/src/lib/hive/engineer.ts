@@ -25,12 +25,12 @@ function isUndestroyedReadyBuildAlveolus(content: unknown): boolean {
 @reactive
 export class EngineerAlveolus extends Alveolus {
 	declare action: Ssh.EngineerAction
-	constructor(tile: Tile) {
-		const def: Ssh.AlveolusDefinition = new.target.prototype
-		if (def.action.type !== 'engineer') {
+	constructor(tile: Tile, definition: Ssh.AlveolusDefinition, resourceName: string) {
+		if (definition.action.type !== 'engineer') {
 			throw new Error('EngineerAlveolus can only be created from an engineer action')
 		}
 		super(tile, new SlottedStorage(0, 0))
+		this.assignGameContent(definition, resourceName)
 	}
 
 	@inert

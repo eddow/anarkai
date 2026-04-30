@@ -22,7 +22,6 @@
 		"jsxFactory": "h",
 		"jsxFragmentFactory": "Fragment",
 		"types": ["vite/client"],
-		"baseUrl": ".",
 		"paths": {
 			"@ssh/assets/*": ["../../engines/ssh/assets/*"],
 			"@ssh/app/*": ["../../engines/ssh/src/*"],
@@ -30,7 +29,7 @@
 			"$lib/*": ["./src/lib/*"],
 			"$assets/*": ["./assets/*"],
 			"@app/*": ["./src/*"],
-			"@sursaut": ["src/@sursaut.d.ts"],
+			"@sursaut": ["./src/@sursaut.d.ts"],
 			"engine-rules": ["../../engines/rules/src/index.ts"],
 			"engine-pixi/assets/*": ["../../engines/pixi/assets/*"],
 			"engine-pixi/*": ["../../engines/pixi/src/*"],

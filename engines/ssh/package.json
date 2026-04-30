@@ -15,7 +15,7 @@
 		"check": "tsc -p tsconfig.app.json && tsc -p tsconfig.node.json",
 		"biome": "biome check . --fix",
 		"biome:unsafe": "biome check --fix --unsafe",
-		"test": "vitest run --silent --reporter=dot",
+		"test": "node ./scripts/run-vitest.mjs",
 		"test:core": "vitest run tests/unit/work_logic.test.ts tests/unit/pathfinding.test.ts tests/unit/storage.test.ts",
 		"test:watch": "vitest",
 		"test:verbose": "vitest run"
@@ -28,7 +28,7 @@
 		"mutts": "link:../../../ownk/mutts",
 		"npc-script": "link:../../../ownk/npcs",
 		"typescript": "~5.8.3",
-		"vitest": "^3.2.4"
+		"vitest": "^4.1.4"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.6",

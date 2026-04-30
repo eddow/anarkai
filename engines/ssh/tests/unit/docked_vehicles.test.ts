@@ -3,7 +3,7 @@ import {
 	collectDockedVehiclesForHive,
 } from 'ssh/freight/docked-vehicles'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
-import { alveolusClass } from 'ssh/hive'
+import { createAlveolus } from 'ssh/hive'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { afterEach, describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine/engine'
@@ -39,14 +39,14 @@ describe('docked vehicle collectors', () => {
 	it('collects only vehicles docked at the selected freight bay', async () => {
 		const testEngine = await setupEngine()
 		const game = testEngine.game
-		const FreightBay = alveolusClass.freight_bay
 		const tileA = game.hex.getTile({ q: 0, r: 0 })
 		const tileB = game.hex.getTile({ q: 6, r: 0 })
-		if (!FreightBay || !tileA || !tileB) throw new Error('test setup missing freight bays')
+		if (!tileA || !tileB) throw new Error('test setup missing freight bays')
 
-		const bayA = new FreightBay(tileA)
+		const bayA = createAlveolus('freight_bay', tileA)
+		const bayB = createAlveolus('freight_bay', tileB)
+		if (!bayA || !bayB) throw new Error('freight bay alveolus missing')
 		tileA.content = bayA
-		const bayB = new FreightBay(tileB)
 		tileB.content = bayB
 		if (!(bayA instanceof StorageAlveolus)) throw new Error('freight bay must be storage')
 
@@ -78,14 +78,14 @@ describe('docked vehicle collectors', () => {
 	it('collects docked vehicles physically attached to the selected hive', async () => {
 		const testEngine = await setupEngine()
 		const game = testEngine.game
-		const FreightBay = alveolusClass.freight_bay
 		const tileA = game.hex.getTile({ q: 0, r: 0 })
 		const tileB = game.hex.getTile({ q: 6, r: 0 })
-		if (!FreightBay || !tileA || !tileB) throw new Error('test setup missing freight bays')
+		if (!tileA || !tileB) throw new Error('test setup missing freight bays')
 
-		const bayA = new FreightBay(tileA)
+		const bayA = createAlveolus('freight_bay', tileA)
+		const bayB = createAlveolus('freight_bay', tileB)
+		if (!bayA || !bayB) throw new Error('freight bay alveolus missing')
 		tileA.content = bayA
-		const bayB = new FreightBay(tileB)
 		tileB.content = bayB
 
 		const stopA = stopAt('bay-a', 0, 0)

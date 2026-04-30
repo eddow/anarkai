@@ -3,14 +3,14 @@ import {
 	type ConstructionTranslatorShape,
 } from '@app/lib/construction-view'
 import { css } from '@app/lib/css'
+import { T } from '@app/lib/i18n'
 import { Badge } from '@app/ui/anarkai'
 import { deposits as visualDeposits } from 'engine-pixi/assets/visual-content'
 import { effect, reactive } from 'mutts'
 import type { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { type ConstructionPhase, queryConstructionSiteView } from 'ssh/construction'
-import { getTranslator } from '@app/lib/i18n'
-import EntityBadge from './EntityBadge'
-import PropertyGridRow from './PropertyGridRow'
+import EntityBadge from '../EntityBadge'
+import PropertyGridRow from '../PropertyGridRow'
 
 css`
   .unbuilt-project {
@@ -94,34 +94,31 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 		}
 		state.showConstruction = true
 		state.constructionPhase = snap.phase
-		const model = buildConstructionViewModel(
-			snap,
-			getTranslator() as ConstructionTranslatorShape
-		)
+		const model = buildConstructionViewModel(snap, T as ConstructionTranslatorShape)
 		state.constructionPhaseLabel = model.phaseLabel
 		state.constructionBlocking = model.blockingLabels
 	})
 
 	return (
 		<>
-			<PropertyGridRow if={state.showProject} label={String(getTranslator().project)}>
+			<PropertyGridRow if={state.showProject} label={String(T.project)}>
 				<div class="unbuilt-project">
 					<Badge tone="blue">
 						{String(
 							state.project.startsWith('residential:')
-								? getTranslator().residential.projectBasicDwelling
-								: getTranslator().alveoli[state.projectName]
+								? T.residential.projectBasicDwelling
+								: T.alveoli[state.projectName]
 						)}
 					</Badge>
 					<Badge if={state.isClearing} tone="yellow">
-						{getTranslator().clearing}
+						{T.clearing}
 					</Badge>
 				</div>
 			</PropertyGridRow>
 
 			<PropertyGridRow
 				if={state.showConstruction}
-				label={String(getTranslator().construction.section)}
+				label={String(T.construction.section)}
 			>
 				<div class="unbuilt-project">
 					<Badge tone="blue">{state.constructionPhaseLabel}</Badge>
@@ -135,12 +132,12 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 				</div>
 			</PropertyGridRow>
 
-			<PropertyGridRow if={state.showDeposit} label={String(getTranslator().deposit)}>
+			<PropertyGridRow if={state.showDeposit} label={String(T.deposit)}>
 				<EntityBadge
 					game={props.content?.tile?.board?.game}
 					height={16}
 					sprite={state.depositSprite}
-					text={String(getTranslator().deposits[state.depositName])}
+					text={String(T.deposits[state.depositName])}
 					qty={state.depositAmount}
 				/>
 			</PropertyGridRow>

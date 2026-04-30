@@ -132,8 +132,9 @@ vi.mock('../components/parts/WorkingIndicator', () => ({
 	),
 }))
 
-vi.mock('ssh/hive', () => ({
+vi.mock('@app/lib/hive-inspector', () => ({
 	isHiveUid: (uid: string) => uid.startsWith('hive:'),
+	createSyntheticHiveObjectForUid: vi.fn((_game: unknown, uid: string) => game.getObject(uid)),
 	resolveHiveFromAnchorTile: vi.fn(() => hive),
 	hiveInspectorTitle: (currentHive: { name?: string } | undefined) => currentHive?.name ?? 'Hive',
 }))
@@ -163,6 +164,7 @@ vi.mock('@app/lib/i18n', () => {
 	}
 	return {
 		i18nState,
+		T: i18nState.translator,
 		getTranslator: () => i18nState.translator,
 	}
 })

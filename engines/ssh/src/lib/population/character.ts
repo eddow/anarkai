@@ -323,7 +323,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		const queueStep = this.game.hex.moveCharacter(this, tile.position, previousTile.position)
 		if (queueStep) {
 			if (!this.stepExecutor) {
-				this.stepExecutor = queueStep.finished(() => {
+				this.stepExecutor = queueStep.onFulfilled(() => {
 					this._tile = tile
 				})
 			}
@@ -406,7 +406,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		const fromPos = this.driving && this.operates ? this.position : this._tile.position
 		const queue = this.game.hex.moveCharacter(this, tile.position, fromPos)
 		if (queue)
-			return queue.finished(() => {
+			return queue.onFulfilled(() => {
 				this._tile = tile
 			})
 		this._tile = tile

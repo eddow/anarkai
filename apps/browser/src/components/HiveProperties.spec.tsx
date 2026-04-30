@@ -59,7 +59,7 @@ vi.mock('@app/ui/anarkai', () => ({
 	),
 }))
 
-vi.mock('ssh/hive', () => ({
+vi.mock('@app/lib/hive-inspector', () => ({
 	resolveHiveFromAnchorTile,
 }))
 
@@ -114,6 +114,7 @@ vi.mock('@app/lib/i18n', () => {
 	}
 	return {
 		i18nState,
+		T: i18nState.translator,
 		getTranslator: () => i18nState.translator,
 	}
 })

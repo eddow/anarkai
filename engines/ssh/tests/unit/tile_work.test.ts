@@ -1,4 +1,4 @@
-import { alveolusClass } from 'ssh/hive'
+import { createAlveolus } from 'ssh/hive'
 import { collectTileWorkPicks } from 'ssh/tile-work'
 import { axial, toAxialCoord } from 'ssh/utils'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -24,10 +24,10 @@ describe('tile work picks', () => {
 		const game = testEngine.game
 		const worker = game.population.createCharacter('Worker', { q: 0, r: 0 })
 		const tile = game.hex.getTile({ q: 0, r: 1 })
-		const Sawmill = alveolusClass.sawmill
-		if (!tile || !Sawmill) throw new Error('test setup missing sawmill tile')
+		if (!tile) throw new Error('test setup missing sawmill tile')
 
-		const sawmill = new Sawmill(tile)
+		const sawmill = createAlveolus('sawmill', tile)
+		if (!sawmill) throw new Error('sawmill alveolus missing')
 		tile.content = sawmill
 		sawmill.storage.addGood('wood', 1)
 
@@ -40,6 +40,46 @@ describe('tile work picks', () => {
 		expect(transform?.targetTile).toBe(tile)
 	})
 
+	it('does not include direct alveolus jobs while the tile carries loose goods', async () => {
+		const testEngine = await setupEngine()
+		const game = testEngine.game
+		game.population.createCharacter('Worker', { q: 0, r: 0 })
+		const tile = game.hex.getTile({ q: 0, r: 1 })
+		if (!tile) throw new Error('test setup missing sawmill tile')
+
+		const sawmill = createAlveolus('sawmill', tile)
+		if (!sawmill) throw new Error('sawmill alveolus missing')
+		tile.content = sawmill
+		sawmill.storage.addGood('wood', 1)
+		game.hex.looseGoods.add(tile, 'stone', { position: tile.position })
+
+		expect(tile.isBurdened).toBe(true)
+		expect(tile.getJob()).toBeUndefined()
+		expect(collectTileWorkPicks(game, tile).some((choice) => choice.source === 'tile')).toBe(
+			false
+		)
+	})
+
+	it('does not include direct alveolus jobs while the tile is burdened by a vehicle', async () => {
+		const testEngine = await setupEngine()
+		const game = testEngine.game
+		game.population.createCharacter('Worker', { q: 0, r: 0 })
+		const tile = game.hex.getTile({ q: 0, r: 1 })
+		if (!tile) throw new Error('test setup missing sawmill tile')
+
+		const sawmill = createAlveolus('sawmill', tile)
+		if (!sawmill) throw new Error('sawmill alveolus missing')
+		tile.content = sawmill
+		sawmill.storage.addGood('wood', 1)
+		game.vehicles.createVehicle('barrow-on-sawmill', 'wheelbarrow', tile.position)
+
+		expect(tile.isBurdened).toBe(true)
+		expect(tile.getJob()).toBeUndefined()
+		expect(collectTileWorkPicks(game, tile).some((choice) => choice.source === 'tile')).toBe(
+			false
+		)
+	})
+
 	it('includes direct alveolus jobs when the worker path start is sub-hex (rounded like pathfinding)', async () => {
 		const testEngine = await setupEngine()
 		const game = testEngine.game
@@ -48,10 +88,10 @@ describe('tile work picks', () => {
 		const rounded = axial.round(toAxialCoord(worker.position)!)
 		expect(rounded).toEqual({ q: 0, r: 0 })
 		const tile = game.hex.getTile({ q: 0, r: 1 })
-		const Sawmill = alveolusClass.sawmill
-		if (!tile || !Sawmill) throw new Error('test setup missing sawmill tile')
+		if (!tile) throw new Error('test setup missing sawmill tile')
 
-		const sawmill = new Sawmill(tile)
+		const sawmill = createAlveolus('sawmill', tile)
+		if (!sawmill) throw new Error('sawmill alveolus missing')
 		tile.content = sawmill
 		sawmill.storage.addGood('wood', 1)
 

@@ -1,5 +1,5 @@
 import { vehicles } from 'engine-rules'
-import { GcClassed, GcClasses } from 'ssh/board/content/utils'
+import { GcClassed } from 'ssh/board/content/utils'
 import type { LooseGood } from 'ssh/board/looseGoods'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
 import { SlottedStorage, SpecificStorage, type Storage } from 'ssh/storage'
@@ -135,11 +135,31 @@ export function createVehicleStorage(vehicleType: VehicleType): Storage {
 		: new SpecificStorage(storageSpec)
 }
 
+function vehicleContentDefinition(
+	full: Ssh.VehicleDefinition
+): Omit<Ssh.VehicleDefinition, 'storage'> {
+	const { storage: _storage, ...rest } = full
+	return rest
+}
+
 export class Vehicle extends GcClassed<Omit<Ssh.VehicleDefinition, 'storage'>>() {
-	static class = GcClasses(() => Vehicle, vehicles)
 	declare readonly storage: Storage
-	constructor(public character?: Character) {
+
+	constructor(
+		public character: Character | undefined,
+		definition: Omit<Ssh.VehicleDefinition, 'storage'>,
+		resourceName: VehicleType
+	) {
 		super()
-		this.storage = createVehicleStorage(this.name as VehicleType)
+		this.assignGameContent(definition, resourceName)
+		this.storage = createVehicleStorage(resourceName)
+	}
+
+	static create(type: VehicleType, character?: Character): Vehicle {
+		return new Vehicle(
+			character,
+			vehicleContentDefinition(vehicles[type] as Ssh.VehicleDefinition),
+			type
+		)
 	}
 }

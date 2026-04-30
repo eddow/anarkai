@@ -33,7 +33,7 @@ function debugStepSnapshot(step: ASingleStep | undefined) {
 	})()
 	return {
 		type: step.constructor.name,
-		status: step.status,
+		status: step.ended === undefined ? 'pending' : step.ended === true ? 'fulfilled' : 'cancelled',
 		description: step.description,
 		fullRemainingOnComplete: stepPassesFullRemainingOnComplete(step.constructor),
 		serialized,
@@ -223,7 +223,7 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 				}
 				const drain = subject.maybeTransportOffloadDrain?.()
 				if (drain) {
-					this.stepExecutor.cancel()
+					this.stepExecutor.cancel('offload-drain')
 					this.stepExecutor = undefined
 					if (drain instanceof ASingleStep) {
 						this.stepExecutor = drain
@@ -250,7 +250,7 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 					uselessStepExecutor = previousStepExecutor.constructor
 				remaining = newRemaining
 				if (remaining !== undefined) {
-					assert(previousStepExecutor.status !== 'pending', 'Step executor is not pending')
+					assert(previousStepExecutor.ended !== undefined, 'Step executor is not pending')
 					//console.log(`[update] ${this.name}: finished step ${previousStepExecutor.constructor.name}, remaining dt ${remaining}`);
 					this._lastCompletedStepType = previousStepExecutor.constructor.name
 					this.stepExecutor = undefined
@@ -275,7 +275,7 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 							actionDescription: this.actionDescription,
 						})
 						// Cancel the stuck step to trigger cleanup callbacks and prevent allocation leaks
-						repeatedStepExecutor.cancel()
+						repeatedStepExecutor.cancel('useless-step')
 						this.stepExecutor = undefined
 						throw new Error(`Useless step executor: ${newType.name}`)
 					}
@@ -289,7 +289,7 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 			this.nextStep()
 		}
 		abandonAnd(exec: ScriptExecution | ASingleStep) {
-			if (this.stepExecutor) this.stepExecutor.cancel()
+			if (this.stepExecutor) this.stepExecutor.cancel('abandon')
 			for (const script of this.runningScripts) script.cancel(this.scriptsContext)
 			this.runningScripts.splice(0, this.runningScripts.length)
 			this.stepExecutor = undefined
@@ -319,7 +319,7 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 		}
 
 		destroy() {
-			this.stepExecutor?.cancel()
+			this.stepExecutor?.cancel('destroy')
 			// Cancel all running scripts to free allocations
 			for (const script of this.runningScripts) {
 				// We don't care about the state returned by cancel here, we just want to free resources

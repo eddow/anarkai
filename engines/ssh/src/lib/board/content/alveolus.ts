@@ -86,7 +86,11 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 
 	/** Whether this alveolus is working (derived from configuration) */
 	get working(): boolean {
-		return this.configuration.working && this.hive.working
+		if (!this.configuration.working) return false
+		const hive = this.hive
+		// Before `Hive.attach`, there is no back-link yet; don't treat that as “hive stopped”.
+		if (!hive) return true
+		return hive.working
 	}
 
 	/** Set working status by updating individual configuration */
@@ -177,6 +181,9 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		const assignedWorker = this.assignedWorker ? unwrap(this.assignedWorker) : undefined
 		const currentCharacter = character ? unwrap(character) : undefined
 		if (assignedWorker && assignedWorker !== currentCharacter) {
+			return undefined
+		}
+		if (this.tile.isBurdened) {
 			return undefined
 		}
 		const carry = this.conveyJob()

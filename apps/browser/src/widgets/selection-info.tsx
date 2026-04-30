@@ -13,7 +13,7 @@ import {
 	resolveHiveFromAnchorTile,
 	type SyntheticHiveObject,
 } from '@app/lib/hive-inspector'
-import { getTranslator } from '@app/lib/i18n'
+import { T } from '@app/lib/i18n'
 import { isHoveredObject, setHoveredObject } from '@app/lib/interactive-state'
 import { InspectorSection, Panel } from '@app/ui/anarkai'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
@@ -30,11 +30,11 @@ import { resolveSelectableHoverObject } from 'ssh/game/object'
 import { Character } from 'ssh/population/character'
 import { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { toWorldCoord } from 'ssh/utils/position'
-import CharacterProperties from '../components/CharacterProperties'
-import FreightLineProperties from '../components/FreightLineProperties'
+import CharacterProperties from '../components/properties/CharacterProperties'
+import FreightLineProperties from '../components/properties/FreightLineProperties'
 import HiveProperties from '../components/HiveProperties'
-import TileProperties from '../components/TileProperties'
-import VehicleProperties from '../components/VehicleProperties'
+import TileProperties from '../components/properties/TileProperties'
+import VehicleProperties from '../components/properties/VehicleProperties'
 import type { SelectionInfoContext, SelectionInfoTool } from './selection-info-tab'
 
 css`
@@ -299,8 +299,8 @@ const SelectionInfoWidget = (
 	}
 
 	const mapPick = () => freightMapPick.pending
-	const mapPickHint = () => getTranslator().line.mapPick.pending
-	const mapPickCancel = () => getTranslator().line.mapPick.cancel
+	const mapPickHint = () => T.line.mapPick.pending
+	const mapPickCancel = () => T.line.mapPick.cancel
 
 	return (
 		<div
@@ -319,25 +319,18 @@ const SelectionInfoWidget = (
 						{mapPickCancel()}
 					</button>
 				</div>
-				<div class="selection-info-panel__content">
-					{current.object instanceof Character ? (
-						<CharacterProperties character={current.object as Character} />
-					) : current.object instanceof Tile ? (
-						<TileProperties tile={current.object as Tile} />
-					) : current.object && isFreightLineUid(current.object.uid) ? (
-						<FreightLineProperties lineObject={current.object as SyntheticFreightLineObject} />
-					) : current.object && isHiveUid(current.object.uid) ? (
-						<HiveProperties hiveObject={current.object as SyntheticHiveObject} />
-					) : current.object instanceof VehicleEntity ? (
-						<VehicleProperties vehicle={current.object as VehicleEntity} />
-					) : (
-						<InspectorSection
-							class="selection-info-panel__summary"
-							title={current.object!.title ?? 'Object'}
-						>
-							<p>ID: {current.object!.uid}</p>
-						</InspectorSection>
-					)}
+				<div if={current.object} class="selection-info-panel__content">
+					<CharacterProperties if={current.object instanceof Character} character={current.object as Character} />
+					<TileProperties else if={current.object instanceof Tile} tile={current.object as Tile} />
+					<FreightLineProperties else if={isFreightLineUid(current.object!.uid)} lineObject={current.object as SyntheticFreightLineObject} />
+					<HiveProperties else if={isHiveUid(current.object!.uid)} hiveObject={current.object as SyntheticHiveObject} />
+					<VehicleProperties else if={current.object instanceof VehicleEntity} vehicle={current.object as VehicleEntity} />
+					<InspectorSection else
+						class="selection-info-panel__summary"
+						title={current.object!.title ?? 'Object'}
+					>
+						<p>ID: {current.object!.uid}</p>
+					</InspectorSection>
 				</div>
 				<InspectorSection
 					if={current.logs.length}

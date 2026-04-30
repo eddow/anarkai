@@ -1,11 +1,11 @@
 import { normalizeFreightLineDefinition } from 'ssh/freight/freight-line'
-import { findVehicleOffloadJob } from 'ssh/freight/vehicle-work'
 import { migrateV1FiltersToGoodsSelection } from 'ssh/freight/goods-selection-policy'
+import { findVehicleOffloadJob } from 'ssh/freight/vehicle-work'
 import type { GamePatches } from 'ssh/game/game'
 import { Game } from 'ssh/game/game'
 import { VehicleFunctions } from 'ssh/npcs/context/vehicle'
-import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
 import { subject } from 'ssh/npcs/scripts'
+import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
 import type { WorkPlan } from 'ssh/types/base'
 import { axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
@@ -237,7 +237,9 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		await new Promise((resolve) => setTimeout(resolve, 5))
 
 		expect(vehicle.service).toBeUndefined()
-		expect(vehicle.position && axial.key(toAxialCoord(vehicle.position)!)).toBe(axial.key({ q: 0, r: 0 }))
+		expect(vehicle.position && axial.key(toAxialCoord(vehicle.position)!)).toBe(
+			axial.key({ q: 0, r: 0 })
+		)
 		const park = findVehicleOffloadJob(game, character)
 		expect(park?.maintenanceKind).toBe('park')
 	})

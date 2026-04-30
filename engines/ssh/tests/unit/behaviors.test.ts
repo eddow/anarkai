@@ -186,7 +186,9 @@ describe('Behavior Verification', () => {
 		// Setup a tree deposit at char's location so it doesn't have to walk
 		const charTile = game.hex.getTile(char.position)
 		if (!charTile) throw new Error('Character tile not found')
-		charTile.content = new UnBuiltLand(charTile, 'forest', new Deposit.class.tree(100))
+		const treeDeposit = Deposit.create('tree', 100)
+		if (!treeDeposit) throw new Error('tree deposit missing')
+		charTile.content = new UnBuiltLand(charTile, 'forest', treeDeposit)
 
 		// Use default scriptsContext which has all scripts loaded
 		const context = char.scriptsContext

@@ -1,9 +1,9 @@
 import { css } from '@app/lib/css'
+import { T } from '@app/lib/i18n'
 import { Badge } from '@app/ui/anarkai'
 import { effect, reactive } from 'mutts'
 import type { BasicDwelling } from 'ssh/board/content/basic-dwelling'
-import { getTranslator } from '@app/lib/i18n'
-import PropertyGridRow from './PropertyGridRow'
+import PropertyGridRow from '../PropertyGridRow'
 
 css`
   .dwelling-properties {
@@ -28,24 +28,25 @@ const DwellingProperties = (props: DwellingPropertiesProps) => {
 		state.occupied = Boolean(props.content?.reservedBy)
 	})
 
-
 	return (
 		<>
-			<PropertyGridRow label={String(getTranslator().residential.dwelling.section)}>
+			<PropertyGridRow label={String(T.residential.dwelling.section)}>
 				<div class="dwelling-properties">
 					<Badge tone="blue" data-testid="dwelling-tier">
-						{getTranslator().residential.dwelling.tierBasic}
+						{T.residential.dwelling.tierBasic}
 					</Badge>
 				</div>
 			</PropertyGridRow>
-			<PropertyGridRow label={String(getTranslator().residential.dwelling.capacity)}>
+			<PropertyGridRow label={String(T.residential.dwelling.capacity)}>
 				<Badge tone="yellow" data-testid="dwelling-capacity">
 					{state.capacity}
 				</Badge>
 			</PropertyGridRow>
-			<PropertyGridRow label={String(getTranslator().residential.dwelling.occupied)}>
+			<PropertyGridRow label={String(T.residential.dwelling.occupied)}>
 				<Badge tone={state.occupied ? 'red' : 'green'} data-testid="dwelling-occupied">
-					{state.occupied ? getTranslator().residential.dwelling.occupied : getTranslator().residential.dwelling.vacant}
+					{state.occupied
+						? T.residential.dwelling.occupied
+						: T.residential.dwelling.vacant}
 				</Badge>
 			</PropertyGridRow>
 		</>

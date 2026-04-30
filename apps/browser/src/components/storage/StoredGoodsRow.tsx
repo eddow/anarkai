@@ -1,4 +1,5 @@
 import { css } from '@app/lib/css'
+import { T } from '@app/lib/i18n'
 import { Button } from '@app/ui/anarkai'
 import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
 import { memoize, reactive } from 'mutts'
@@ -10,7 +11,6 @@ import type { Game } from 'ssh/game'
 import { BuildAlveolus } from 'ssh/hive/build'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { TransformAlveolus } from 'ssh/hive/transform'
-import { getTranslator } from '@app/lib/i18n'
 import type { GoodType } from 'ssh/types/base'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
 import EntityBadge from '../EntityBadge'
@@ -318,7 +318,7 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 					<Button
 						if={supportsCleanup() && confirmState.expanded && entry.qty > 0 && hasMultipleTypes()}
 						onClick={() => startCleanGood(entry.good)}
-						el:title={getTranslator().alveolus.cleanUpGoodTooltip({
+						el:title={T.alveolus.cleanUpGoodTooltip({
 							goodType: entry.good,
 						})}
 						el:class="good-remove"
@@ -358,12 +358,12 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 					</legend>
 
 					<div if={confirmState.mode} class="confirm-overlay">
-						<span>{getTranslator().alveolus.cleanUpConfirmText}</span>
+						<span>{T.alveolus.cleanUpConfirmText}</span>
 						<Button onClick={doConfirm} el:title="Confirm">
-							{getTranslator().alveolus.clear}
+							{T.alveolus.clear}
 						</Button>
 						<Button onClick={cancelConfirm} el:title="Cancel">
-							{getTranslator().alveolus.keep}
+							{T.alveolus.keep}
 						</Button>
 					</div>
 
@@ -371,7 +371,7 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 						<Button
 							if={supportsCleanup() && confirmState.expanded && storedEntries().length > 0}
 							onClick={startCleanAll}
-							el:title={getTranslator().alveolus.cleanUpTooltip}
+							el:title={T.alveolus.cleanUpTooltip}
 							el:class="cleanup-btn"
 						>
 							🧹

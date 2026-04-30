@@ -26,6 +26,11 @@ css`
     background: rgba(239, 68, 68, 0.05);
 }
 
+.working-indicator.burdened {
+    border-color: #f59e0b88;
+    background: rgba(245, 158, 11, 0.08);
+}
+
 .working-indicator .gear-icon {
     font-size: 1.5rem;
     color: var(--ak-accent);
@@ -40,12 +45,16 @@ css`
     filter: grayscale(1);
 }
 
+.working-indicator.burdened .gear-icon {
+    color: #f59e0b;
+}
+
 @keyframes rotate-gear {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
 }
 
-.working-indicator:not(.not-working) .gear-icon {
+.working-indicator:not(.not-working):not(.burdened) .gear-icon {
     animation: rotate-gear 4s linear infinite;
 }
 
@@ -71,6 +80,11 @@ css`
     color: #ef4444;
 }
 
+.status-burdened {
+    color: #f59e0b;
+    font-weight: 800;
+}
+
 .working-indicator.not-working::after {
     content: '';
     position: absolute;
@@ -87,25 +101,28 @@ css`
 
 interface WorkingIndicatorProps {
 	checked: boolean
+	burdened?: boolean
 	tooltip?: string
-	onChange?: (checked: boolean) => void
 }
 
 const WorkingIndicator = (props: WorkingIndicatorProps) => {
 	const toggle = () => {
-		props.onChange?.(!props.checked)
+		props.checked = !props.checked
 	}
 
 	return (
 		<button
-			class={`working-indicator ${!props.checked ? 'not-working' : ''}`}
+			class={`working-indicator ${!props.checked ? 'not-working' : ''} ${props.burdened ? 'burdened' : ''}`}
 			onClick={toggle}
 			title={props.tooltip}
 			aria-checked={props.checked ? 'true' : 'false'}
 			role="switch"
 		>
 			<span class="gear-icon">⚙</span>
-			<span if={props.checked} class="status-icon status-ok">
+			<span if={props.burdened} class="status-icon status-burdened">
+				!
+			</span>
+			<span else if={props.checked} class="status-icon status-ok">
 				✓
 			</span>
 			<span else class="status-icon status-off">

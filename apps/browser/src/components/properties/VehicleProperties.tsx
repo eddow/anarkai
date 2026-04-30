@@ -1,5 +1,5 @@
 import { css } from '@app/lib/css'
-import { getTranslator } from '@app/lib/i18n'
+import { T } from '@app/lib/i18n'
 import { InspectorSection } from '@app/ui/anarkai'
 import { vehicles as vehicleVisuals } from 'engine-pixi/assets/visual-content'
 import { vehicleTextureKey } from 'engine-pixi/renderers/vehicle-visual'
@@ -16,12 +16,12 @@ import {
 } from 'ssh/population/vehicle/vehicle'
 import type { GoodType, JobType } from 'ssh/types/base'
 import { axial, toAxialCoord } from 'ssh/utils'
-import EntityBadge from './EntityBadge'
-import GoodsList from './GoodsList'
-import InspectorObjectLink from './InspectorObjectLink'
-import LinkedEntityControl from './LinkedEntityControl'
-import PropertyGrid from './PropertyGrid'
-import PropertyGridRow from './PropertyGridRow'
+import EntityBadge from '../EntityBadge'
+import GoodsList from '../GoodsList'
+import InspectorObjectLink from '../InspectorObjectLink'
+import LinkedEntityControl from '../LinkedEntityControl'
+import PropertyGrid from '../PropertyGrid'
+import PropertyGridRow from '../PropertyGridRow'
 
 css`
 .vehicle-properties {
@@ -156,7 +156,7 @@ function formatPlannerUtility(value: number): string {
 }
 
 function workKindLabel(kind: JobType): string {
-	return getTranslator().character.plannerWorkKinds[kind] ?? kind
+	return T.character.plannerWorkKinds[kind] ?? kind
 }
 
 function vehicleFreightPathLength(job: VehicleWorkPick['job']): number {
@@ -219,7 +219,7 @@ const VehicleProperties = (
 		get dockedStatusLabel() {
 			const svc = props.vehicle?.service
 			if (!isVehicleLineService(svc) || !svc.docked) return ''
-			return getTranslator().vehicle.docked
+			return T.vehicle.docked
 		},
 		get serviceSummaryText(): string {
 			const v = props.vehicle
@@ -227,19 +227,19 @@ const VehicleProperties = (
 			const svc = v.service
 			if (!svc) {
 				if (effectiveOperatorForVehicle(v)) {
-					return getTranslator().vehicle.controlledWithoutService
+					return T.vehicle.controlledWithoutService
 				}
-				return getTranslator().vehicle.idle
+				return T.vehicle.idle
 			}
 			if (isVehicleLineService(svc)) {
 				const docked = svc.docked
-					? getTranslator().vehicle.docked
-					: getTranslator().vehicle.underway
-				const stopLabel = getTranslator().line.stop
+					? T.vehicle.docked
+					: T.vehicle.underway
+				const stopLabel = T.line.stop
 				return `${svc.line.name} · ${stopLabel} ${svc.stop.id} · ${docked}`
 			}
 			if (isVehicleMaintenanceService(svc)) {
-				return getTranslator().vehicle.offloadService
+				return T.vehicle.offloadService
 			}
 			return ''
 		},
@@ -267,8 +267,8 @@ const VehicleProperties = (
 						scoreText: formatPlannerUtility(score),
 						metaText: [
 							operatorLabel,
-							`${getTranslator().character.plannerWorkUrgency} ${formatPlannerUtility(pick.job.urgency)}`,
-							`${getTranslator().character.plannerWorkPath} ${pathLength}`,
+							`${T.character.plannerWorkUrgency} ${formatPlannerUtility(pick.job.urgency)}`,
+							`${T.character.plannerWorkPath} ${pathLength}`,
 						]
 							.filter(Boolean)
 							.join(' · '),
@@ -313,20 +313,20 @@ const VehicleProperties = (
 				</div>
 				<InspectorSection>
 					<PropertyGrid>
-						<PropertyGridRow if={computed.operator} label={getTranslator().vehicle.operator}>
+						<PropertyGridRow if={computed.operator} label={T.vehicle.operator}>
 							<div class="vehicle-properties__linked-object">
 								<LinkedEntityControl object={computed.operator!} />
 								<InspectorObjectLink object={computed.operator!} />
 							</div>
 						</PropertyGridRow>
-						<PropertyGridRow label={getTranslator().goods}>
+						<PropertyGridRow label={T.goods}>
 							<GoodsList
 								goods={Object.keys(computed.stock) as GoodType[]}
 								game={props.vehicle.game}
 								getBadgeProps={(g) => ({ qty: computed.stock[g] })}
 							/>
 						</PropertyGridRow>
-						<PropertyGridRow label={getTranslator().vehicle.service}>
+						<PropertyGridRow label={T.vehicle.service}>
 							<div if={computed.lineServiceObject} class="vehicle-properties__linked-object">
 								<span class="vehicle-properties__service-text">{computed.serviceSummaryText}</span>
 								<LinkedEntityControl object={computed.lineServiceObject!} />
@@ -340,7 +340,7 @@ const VehicleProperties = (
 				</InspectorSection>
 				<InspectorSection if={computed.workChoices.length > 0}>
 					<PropertyGrid>
-						<PropertyGridRow label={getTranslator().character.plannerRankedWork}>
+						<PropertyGridRow label={T.character.plannerRankedWork}>
 							<div class="vehicle-work__list">
 								<for each={computed.workChoices}>
 									{(choice) => (

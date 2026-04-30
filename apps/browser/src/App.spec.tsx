@@ -47,9 +47,90 @@ const { addPanel, getPanel, removePanel, dockviewApi, gameInstance, globals } = 
 
 vi.mock('./app.css', () => ({}))
 
-vi.mock('ssh/debug', () => ({
+vi.mock('../../../engines/ssh/src/lib/dev/debug.ts', () => ({
 	initConsoleTrap: vi.fn(),
 }))
+
+vi.mock('../../../engines/ssh/src/lib/dev/debug-game-state.ts', () => ({
+	buildGameDebugDump: vi.fn(() => ({})),
+	stringifyDebugValue: vi.fn(() => '{}'),
+}))
+
+vi.mock('@app/palette/browser-palette', async () => {
+	const paletteDefaultJson = await import('@app/palette/palette.default.json')
+	const { reactive } = await import('mutts')
+	const paletteState = reactive({ editing: false })
+	const palettePanelBridge = {
+		openConfiguration: () => {},
+		openGame: () => {},
+		openTest: () => {},
+	}
+	const tools = {
+		openConfiguration: {
+			run: () => palettePanelBridge.openConfiguration(),
+		},
+		openGame: {
+			run: () => palettePanelBridge.openGame(),
+		},
+		openTest: {
+			run: () => palettePanelBridge.openTest(),
+		},
+		timeControl: {
+			get value() {
+				return globals.configuration.timeControl
+			},
+			set value(next: (typeof globals.configuration)['timeControl']) {
+				globals.configuration.timeControl = next
+			},
+		},
+		theme: {
+			get value() {
+				return globals.uiConfiguration.darkMode ? 'dark' : 'light'
+			},
+			set value(next: 'light' | 'dark') {
+				globals.uiConfiguration.darkMode = next === 'dark'
+			},
+		},
+		selectedAction: {
+			get value() {
+				return globals.interactionMode.selectedAction
+			},
+			set value(next: string) {
+				globals.interactionMode.selectedAction = next
+			},
+		},
+	}
+	const palette = {
+		keys: {
+			bindings: paletteDefaultJson.default.keyBindings,
+		},
+		get editing() {
+			return paletteState.editing
+		},
+		set editing(next: boolean) {
+			paletteState.editing = next
+		},
+		tool(id: keyof typeof tools) {
+			return tools[id]
+		},
+	}
+	return {
+		browserPaletteIdeConfig: {
+			top: paletteDefaultJson.default.top,
+		},
+		disposeBrowserPalette: vi.fn(),
+		getBrowserPalette: () => ({
+			palette,
+			PaletteIde: (props: { children?: unknown }) => (
+				<>
+					<span>02:05</span>
+					{props.children}
+				</>
+			),
+		}),
+		palettePanelBridge,
+	}
+})
 
 vi.mock('@app/lib/globals', () => globals)
 
@@ -157,6 +238,11 @@ vi.mock('@sursaut', () => ({
 			{props.children}
 		</button>
 	),
+}))
+
+vi.mock('@sursaut/kit', async (importOriginal) => ({
+	...(await importOriginal<typeof import('@sursaut/kit')>()),
+	DisplayProvider: (props: { children?: any }) => <>{props.children}</>,
 }))
 
 vi.mock('@sursaut/ui/dockview', () => ({
@@ -296,11 +382,13 @@ describe('Palette IDE shell', () => {
 		expect(globals.interactionMode.selectedAction).toBe('build:house')
 	})
 
-	it('adds a floating palette inspector panel when palette edit mode is enabled', () => {
+	it('adds a floating palette inspector panel when palette edit mode is enabled', async () => {
 		stop = latch(container, <App />)
 		addPanel.mockClear()
 		const { palette } = getBrowserPalette()
 		palettes.editing = palette
+		;(palette as typeof palette & { editing: boolean }).editing = true
+		await Promise.resolve()
 		expect(addPanel).toHaveBeenCalledWith(
 			expect.objectContaining({
 				id: PALETTE_INSPECTOR_DOCK_PANEL_ID,
@@ -311,14 +399,18 @@ describe('Palette IDE shell', () => {
 		)
 	})
 
-	it('removes the palette inspector panel when palette edit mode ends', () => {
+	it('removes the palette inspector panel when palette edit mode ends', async () => {
 		stop = latch(container, <App />)
 		const { palette } = getBrowserPalette()
 		const fakePanel = { id: PALETTE_INSPECTOR_DOCK_PANEL_ID }
 		palettes.editing = palette
+		;(palette as typeof palette & { editing: boolean }).editing = true
+		await Promise.resolve()
 		getPanel.mockReturnValue(fakePanel)
 		removePanel.mockClear()
+		;(palette as typeof palette & { editing: boolean }).editing = false
 		delete palettes.editing
+		await Promise.resolve()
 		expect(removePanel).toHaveBeenCalledWith(fakePanel)
 	})
 
