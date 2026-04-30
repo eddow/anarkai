@@ -226,6 +226,16 @@ export interface TransferPlan<T extends AllocationBase = AllocationBase> {
 	readonly target?: Positioned
 	readonly sourceTile?: Positioned
 	invariant?: () => boolean
+	/** PlanCommitment managing allocation lifecycle (Phase 4). */
+	commitment?: {
+		allocation?: T
+		vehicleAllocation?: T
+		fulfill(): void
+		cancel(reason: string): void
+		onFulfilled(cb: () => void): void
+		onCancelled(cb: () => void): void
+		onFinal(cb: () => void): void
+	}
 }
 
 export interface PickupPlan<T extends AllocationBase = AllocationBase> {
@@ -236,6 +246,16 @@ export interface PickupPlan<T extends AllocationBase = AllocationBase> {
 	readonly target: Positioned
 	releaseStopper?: () => void // Runtime-only field
 	invariant?: () => boolean
+	/** PlanCommitment managing allocation lifecycle (Phase 4). */
+	commitment?: {
+		allocation?: T
+		vehicleAllocation?: T
+		fulfill(): void
+		cancel(reason: string): void
+		onFulfilled(cb: () => void): void
+		onCancelled(cb: () => void): void
+		onFinal(cb: () => void): void
+	}
 }
 
 // Job types - returned by alveolus.nextJob()

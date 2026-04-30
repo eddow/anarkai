@@ -12,6 +12,7 @@ import { gameObjectsModule } from 'ssh/types/game-objects'
 import { axial, type Positioned, toAxialCoord } from 'ssh/utils'
 import { assert } from '../../dev/debug.ts'
 import { subject } from '../scripts'
+import { PlanCommitment } from './plan-commitment'
 import { DurationStep } from '../steps'
 
 function characterSameHexAsVehicle(character: Character, vehicle: VehicleEntity): boolean {
@@ -165,26 +166,30 @@ const transferPlanHandler: PlanHandler<TransferPlan> = {
 			} catch {}
 			throw error
 		}
+
+		// Create PlanCommitment to manage allocation lifecycle
+		const commitment = new PlanCommitment(`transfer.${plan.description}`)
+		// Mirror allocations on the commitment so auto-cancel cascades
+		commitment.allocation = allocation as any
+		commitment.vehicleAllocation = vehicleAllocation as any
+
+		commitment.onFulfilled(() => {
+			allocation?.fulfill()
+			vehicleAllocation?.fulfill()
+			delete plan.resolvedGoods
+		})
+
+		commitment.onFinal(() => {
+			delete plan.vehicleAllocation
+			delete plan.allocation
+			delete plan.resolvedGoods
+		})
+
+		// Link commitment back to the plan for external lifecycle calls
+		;(plan as any).commitment = commitment
 	},
 
-	conclude(plan: TransferPlan, _character: Character) {
-		// Fulfill the allocations
-		plan.allocation?.fulfill()
-		plan.vehicleAllocation?.fulfill()
-	},
-
-	cancel(plan: TransferPlan, _character: Character) {
-		// Cancel the allocations
-		plan.allocation?.cancel()
-		plan.vehicleAllocation?.cancel()
-	},
-
-	finally(plan: TransferPlan, _character: Character) {
-		// Clear allocations back to undefined
-		delete plan.vehicleAllocation
-		delete plan.allocation
-		delete plan.resolvedGoods
-	},
+	// conclude/cancel/finally removed — PlanCommitment handles allocation lifecycle
 }
 
 // Pickup plan handler
@@ -237,25 +242,26 @@ const pickupPlanHandler: PlanHandler<PickupPlan> = {
 			} catch {}
 			throw error
 		}
+
+		// Create PlanCommitment to manage allocation lifecycle
+		const commitment = new PlanCommitment(`pickup.${plan.goodType}`)
+		commitment.allocation = allocation as any
+		commitment.vehicleAllocation = vehicleAllocation as any
+
+		commitment.onFulfilled(() => {
+			allocation?.fulfill()
+			vehicleAllocation?.fulfill()
+		})
+
+		commitment.onFinal(() => {
+			delete plan.vehicleAllocation
+			delete plan.allocation
+		})
+
+		;(plan as any).commitment = commitment
 	},
 
-	conclude(plan: PickupPlan, _character: Character) {
-		// Fulfill the allocations
-		plan.allocation?.fulfill()
-		plan.vehicleAllocation?.fulfill()
-	},
-
-	cancel(plan: PickupPlan, _character: Character) {
-		// Cancel the allocations
-		plan.allocation?.cancel()
-		plan.vehicleAllocation?.cancel()
-	},
-
-	finally(plan: PickupPlan, _character: Character) {
-		// Clear allocations back to undefined
-		delete plan.vehicleAllocation
-		delete plan.allocation
-	},
+	// conclude/cancel/finally removed — PlanCommitment handles allocation lifecycle
 }
 
 // Work plan handler
@@ -316,7 +322,10 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 
 	cancel(plan: WorkPlan, character: Character) {
 		if ('offloadPickupPlan' in plan && plan.offloadPickupPlan) {
-			pickupPlanHandler.cancel?.(plan.offloadPickupPlan, character)
+			// Cancel via commitment (pickup handler no longer has its own cancel)
+			if (plan.offloadPickupPlan.commitment) {
+				plan.offloadPickupPlan.commitment.cancel('work-plan-cancelled')
+			}
 		}
 		if ('vehicleUid' in plan) {
 			releaseVehicleFreightWorkOnPlanInterrupt(character)
@@ -326,7 +335,7 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 
 	finally(plan: WorkPlan, character: Character) {
 		if ('offloadPickupPlan' in plan && plan.offloadPickupPlan) {
-			pickupPlanHandler.finally?.(plan.offloadPickupPlan, character)
+			// Commitment.onFinal handles cleanup; just remove the plan reference
 			delete plan.offloadPickupPlan
 		}
 		finalizeVehicleFreightWorkPlanOccupancy(plan, character)
@@ -374,7 +383,12 @@ class PlanFunctions {
 				if ('releaseStopper' in plan) plan.releaseStopper?.()
 			} catch {}
 			try {
-				planHandlers[plan.type].cancel?.(plan, this[subject])
+				// Use commitment-based cascade; handler.cancel is optional fallback for work plans
+				if ('commitment' in plan && plan.commitment) {
+					plan.commitment.cancel('begin-error')
+				} else {
+					planHandlers[plan.type].cancel?.(plan, this[subject])
+				}
 			} catch {}
 			try {
 				planHandlers[plan.type].finally?.(plan, this[subject])
@@ -391,9 +405,6 @@ class PlanFunctions {
 			try {
 				if (!plan.invariant()) {
 					console.error(`Plan ${plan.type} invariant failed`)
-					// Treat invariant failure as grounds for throwing, or just logging?
-					// User said "invariant: a test to assert at the end".
-					// Usually assertions throw.
 					throw new Error(`Plan ${plan.type} invariant failed`)
 				}
 			} catch (e) {
@@ -403,6 +414,11 @@ class PlanFunctions {
 		}
 
 		if ('releaseStopper' in plan) plan.releaseStopper?.()
+
+		// Delegate to commitment first (transfer/pickup plans), then handler for work plans
+		if ('commitment' in plan && plan.commitment) {
+			plan.commitment.fulfill()
+		}
 		planHandlers[plan.type].conclude?.(plan, this[subject])
 	}
 
@@ -410,11 +426,19 @@ class PlanFunctions {
 		if (!plan) return
 		this[subject].logAbout(plan, `${plan.type}: cancelled`)
 		if ('releaseStopper' in plan) plan.releaseStopper?.()
-		planHandlers[plan.type].cancel?.(plan, this[subject])
+
+		// Use commitment-based cascade first; handler.cancel is fallback for work plans
+		if ('commitment' in plan && plan.commitment) {
+			plan.commitment.cancel('plan-cancelled')
+		} else {
+			planHandlers[plan.type].cancel?.(plan, this[subject])
+		}
 	}
 
 	finally(plan: Plan) {
 		if (!plan) return
+		// Commitment.onFinal already runs during fulfill/cancel — only call handler.finally
+		// for work plans that still need vehicle occupancy cleanup
 		planHandlers[plan.type].finally?.(plan, this[subject])
 	}
 }
