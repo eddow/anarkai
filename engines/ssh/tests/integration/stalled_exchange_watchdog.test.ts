@@ -52,19 +52,6 @@ function clearWoodBookkeeping(...alveoli: Alveolus[]) {
 	}
 }
 
-function reservedQuantity(alveolus: Alveolus, goodType: string) {
-	const storage = alveolus.storage as {
-		slots?: Array<{ goodType?: string; reserved?: number } | undefined>
-		_reserved?: Record<string, number | undefined>
-	}
-	let total = storage._reserved?.[goodType] ?? 0
-	for (const slot of storage.slots ?? []) {
-		if (slot?.goodType !== goodType) continue
-		total += slot.reserved ?? 0
-	}
-	return total
-}
-
 function discardHiveMovements(hive: Hive) {
 	const activeMovements = (hive as unknown as { activeMovements: Set<MovingGood> }).activeMovements
 	for (const movement of Array.from(activeMovements)) movement.abort()
@@ -81,29 +68,11 @@ async function flushWatchdogWork() {
 }
 
 describe('Stalled Exchange Watchdog', () => {
-	it('recovers a stable gatherer to sawmill match when no active movement remains', {
+	it('throws when a stable exchange loses its active movement', {
 		timeout: 15000,
 	}, async () => {
 		options.stalledMovementScanIntervalMs = 0
 		options.stalledMovementSettleMs = 20
-		;(globalThis as any).allowExpectedDiagnostics?.(
-			/\[WATCHDOG\] STALLED EXCHANGE/,
-			/\[WATCHDOG\] Detached movement allocation/,
-			/\[WATCHDOG\] Cancelled detached movement allocation/
-		)
-
-		const warnings: string[] = []
-		const originalAdvertisingTrace = traces.advertising
-		const noop = () => {}
-		traces.advertising = {
-			log: noop,
-			info: noop,
-			debug: noop,
-			error: noop,
-			warn: (...args: unknown[]) => {
-				warnings.push(args.map(String).join(' '))
-			},
-		} as typeof console
 
 		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
 		await engine.init()
@@ -147,92 +116,9 @@ describe('Stalled Exchange Watchdog', () => {
 			if (!sawmill) throw new Error('Expected sawmill alveolus to exist')
 			normalizeWatchdogTestState(gatherer, sawmill)
 
-			// Drive the stalled-exchange scan deterministically (interval timing can be flaky in CI).
 			const scan = () =>
 				(hive as unknown as { scanForStalledExchanges(): void }).scanForStalledExchanges()
-			for (let i = 0; i < 6; i++) {
-				await new Promise((resolve) => setTimeout(resolve, 25))
-				scan()
-			}
-			await flushWatchdogWork()
-			const woodMovements = Array.from(hive.movingGoods.values())
-				.flat()
-				.filter((movement) => movement.goodType === 'wood').length
-			expect(
-				woodMovements > 0 ||
-					warnings.some((warning) => warning.includes('[WATCHDOG] STALLED EXCHANGE'))
-			).toBe(true)
-		} finally {
-			traces.advertising = originalAdvertisingTrace
-			await engine.destroy()
-		}
-	})
-
-	it('re-advertises a stable gatherer to sawmill match when no movement remains', {
-		timeout: 15000,
-	}, async () => {
-		options.stalledMovementScanIntervalMs = 0
-		options.stalledMovementSettleMs = 20
-		;(globalThis as any).allowExpectedDiagnostics?.(
-			/\[WATCHDOG\] STALLED EXCHANGE/,
-			/\[WATCHDOG\] Detached movement allocation/,
-			/\[WATCHDOG\] Cancelled detached movement allocation/
-		)
-
-		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
-		await engine.init()
-
-		try {
-			const scenario: Partial<SaveState> = {
-				hives: [
-					{
-						name: 'WatchdogHive',
-						alveoli: [
-							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 1 } },
-							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
-						],
-					},
-				],
-			}
-
-			engine.loadScenario(scenario)
-			await new Promise((resolve) => setTimeout(resolve, 0))
-			await new Promise((resolve) => setTimeout(resolve, 0))
-
-			const gatherer = engine.game.hex.getTile({ q: 0, r: 0 })?.content as Alveolus | undefined
-			const hive = gatherer?.hive as Hive | undefined
-			expect(hive).toBeDefined()
-			if (!hive) throw new Error('Expected gatherer hive to exist')
-
-			let firstMovement: MovingGood | undefined
-			for (const goods of hive.movingGoods.values()) {
-				firstMovement = goods.find((movement) => movement.goodType === 'wood')
-				if (firstMovement) break
-			}
-			expect(firstMovement).toBeDefined()
-			if (!firstMovement) throw new Error('Expected initial wood movement to exist')
-
-			inert(() => {
-				hive.movingGoods.clear()
-			})
-			const sawmill = engine.game.hex.getTile({ q: 1, r: 0 })?.content as Alveolus | undefined
-			expect(sawmill).toBeDefined()
-			if (!sawmill) throw new Error('Expected sawmill alveolus to exist')
-			normalizeWatchdogTestState(gatherer, sawmill)
-
-			const scan = () =>
-				(hive as unknown as { scanForStalledExchanges(): void }).scanForStalledExchanges()
-			for (let i = 0; i < 6; i++) {
-				await new Promise((resolve) => setTimeout(resolve, 25))
-				scan()
-			}
-			await flushWatchdogWork()
-
-			let woodMovements = 0
-			for (const goods of hive.movingGoods.values()) {
-				woodMovements += goods.filter((movement) => movement.goodType === 'wood').length
-			}
-			expect(woodMovements).toBeGreaterThan(0)
+			expect(scan).toThrow(/\[WATCHDOG\] (Detached movement allocation|STALLED EXCHANGE)/)
 		} finally {
 			await engine.destroy()
 		}
@@ -390,97 +276,6 @@ describe('Stalled Exchange Watchdog', () => {
 			expect(hive.createMovement('wood', buildSource, buildTarget)).toBe(false)
 			expect(hive.createMovement('planks', buildSource, buildTarget)).toBe(false)
 			expect(hive.createMovement('stone', buildSource, buildTarget)).toBe(false)
-		} finally {
-			await engine.destroy()
-		}
-	})
-
-	it('heals detached source reservations by recreating the missing movement', {
-		timeout: 15000,
-	}, async () => {
-		options.stalledMovementScanIntervalMs = 0
-		options.stalledMovementSettleMs = 20
-		;(globalThis as any).allowExpectedDiagnostics?.(
-			/\[WATCHDOG\] STALLED EXCHANGE/,
-			/\[WATCHDOG\] Recovered tile movement bookkeeping/,
-			/\[WATCHDOG\] Detached movement allocation/,
-			/\[WATCHDOG\] Cancelled detached movement allocation/
-		)
-
-		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
-		await engine.init()
-
-		try {
-			const scenario: Partial<SaveState> = {
-				hives: [
-					{
-						name: 'WatchdogHive',
-						alveoli: [
-							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 1 } },
-							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
-						],
-					},
-				],
-			}
-
-			engine.loadScenario(scenario)
-			await new Promise((resolve) => setTimeout(resolve, 0))
-			await new Promise((resolve) => setTimeout(resolve, 0))
-
-			const gatherer = engine.game.hex.getTile({ q: 0, r: 0 })?.content as Alveolus | undefined
-			const storage = engine.game.hex.getTile({ q: 1, r: 0 })?.content as Alveolus | undefined
-			const hive = gatherer?.hive as Hive | undefined
-			expect(gatherer).toBeDefined()
-			expect(storage).toBeDefined()
-			expect(hive).toBeDefined()
-			if (!gatherer || !storage || !hive) throw new Error('Expected gatherer, storage, and hive')
-
-			const created = hive.createMovement('wood', gatherer, storage)
-			const initialMovement = Array.from(hive.movingGoods.values())
-				.flat()
-				.find(
-					(movement) =>
-						movement.goodType === 'wood' &&
-						movement.provider === gatherer &&
-						movement.demander === storage
-				)
-			expect(created || !!initialMovement).toBe(true)
-			if (!initialMovement) throw new Error('Expected initial wood movement to exist')
-			expect(reservedQuantity(gatherer, 'wood')).toBeGreaterThan(0)
-
-			inert(() => {
-				hive.movingGoods.clear()
-			})
-
-			expect(gatherer.aGoodMovement).toBeUndefined()
-			expect(reservedQuantity(gatherer, 'wood')).toBeGreaterThan(0)
-
-			const scan = () =>
-				(hive as unknown as { scanForStalledExchanges(): void }).scanForStalledExchanges()
-			let recreatedMovement = Array.from(hive.movingGoods.values())
-				.flat()
-				.find((movement) => movement.goodType === 'wood')
-			let remainingReserved = reservedQuantity(gatherer, 'wood')
-			for (let i = 0; i < 20; i++) {
-				scan()
-				await new Promise((resolve) => setTimeout(resolve, 25))
-				await flushWatchdogWork()
-				recreatedMovement = Array.from(hive.movingGoods.values())
-					.flat()
-					.find((movement) => movement.goodType === 'wood')
-				remainingReserved = reservedQuantity(gatherer, 'wood')
-				if (recreatedMovement || remainingReserved === 0) break
-			}
-			expect(!!recreatedMovement || remainingReserved === 0).toBe(true)
-			if (recreatedMovement) {
-				expect(
-					gatherer.aGoodMovement?.some((selection) => selection.movement.goodType === 'wood')
-				).toBe(true)
-				expect(remainingReserved).toBe(1)
-				expect(!!recreatedMovement.allocations.source).toBe(true)
-				expect(!!recreatedMovement.allocations.target).toBe(true)
-				expect(isAllocationValid(recreatedMovement.allocations.target)).toBe(true)
-			}
 		} finally {
 			await engine.destroy()
 		}

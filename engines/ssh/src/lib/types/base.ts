@@ -3,7 +3,6 @@ import { alveoli, deposits, goods as goodsCatalog, terrain } from 'engine-rules'
 import type { TileContent } from 'ssh/board'
 import type { LooseGood } from 'ssh/board/looseGoods'
 import type { FreightAdSource, FreightPriorityTier } from 'ssh/freight/priority-channel'
-import type { AllocationBase } from 'ssh/storage/storage'
 import { type AxialCoord, type Positioned, positionScope } from 'ssh/utils'
 
 /**
@@ -216,20 +215,20 @@ export type Needs = typeof Needs.infer
 
 // TypeScript interfaces for runtime use (augmented with runtime-only fields)
 // These extend the validated plan types with allocation management
-export interface TransferPlan<T extends AllocationBase = AllocationBase> {
+export interface TransferPlan {
 	readonly type: 'transfer'
 	readonly description: 'grab' | 'drop'
-	vehicleAllocation?: T // Runtime-only field
-	allocation?: T // Runtime-only field
+	/** @deprecated Phase 3 legacy — use `commitment` instead. */
+	vehicleAllocation?: { fulfill(): void; cancel(): void }
+	/** @deprecated Phase 3 legacy — use `commitment` instead. */
+	allocation?: { fulfill(): void; cancel(): void }
 	resolvedGoods?: Goods // Runtime-only field
 	readonly goods: Goods
 	readonly target?: Positioned
 	readonly sourceTile?: Positioned
 	invariant?: () => boolean
-	/** PlanCommitment managing allocation lifecycle (Phase 4). */
+	/** Commitment managing allocation lifecycle (Phase 4). */
 	commitment?: {
-		allocation?: T
-		vehicleAllocation?: T
 		fulfill(): void
 		cancel(reason: string): void
 		onFulfilled(cb: () => void): void
@@ -238,18 +237,18 @@ export interface TransferPlan<T extends AllocationBase = AllocationBase> {
 	}
 }
 
-export interface PickupPlan<T extends AllocationBase = AllocationBase> {
+export interface PickupPlan {
 	readonly type: 'pickup'
-	vehicleAllocation?: T // Runtime-only field
-	allocation?: T // Runtime-only field
+	/** @deprecated Phase 3 legacy — use `commitment` instead. */
+	vehicleAllocation?: { fulfill(): void; cancel(): void }
+	/** @deprecated Phase 3 legacy — use `commitment` instead. */
+	allocation?: { fulfill(): void; cancel(): void }
 	readonly goodType: GoodType
 	readonly target: Positioned
 	releaseStopper?: () => void // Runtime-only field
 	invariant?: () => boolean
-	/** PlanCommitment managing allocation lifecycle (Phase 4). */
+	/** Commitment managing allocation lifecycle (Phase 4). */
 	commitment?: {
-		allocation?: T
-		vehicleAllocation?: T
 		fulfill(): void
 		cancel(reason: string): void
 		onFulfilled(cb: () => void): void

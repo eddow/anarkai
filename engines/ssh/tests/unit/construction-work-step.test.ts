@@ -58,7 +58,7 @@ describe('constructionStep resumable work', () => {
 		expect(liveView?.phase).toBe('building')
 		expect(liveView?.constructionWorkSecondsApplied).toBeGreaterThan(0)
 		expect(liveView?.constructionWorkSecondsApplied).toBeLessThan(duration)
-		step.cancel()
+		step.cancel('test.cancel')
 		expect(site.constructionWorkSecondsApplied).toBeGreaterThan(0)
 		expect(site.constructionWorkSecondsApplied).toBeLessThan(duration)
 		expect(site.constructionSite.phase).toBe('waiting_construction')

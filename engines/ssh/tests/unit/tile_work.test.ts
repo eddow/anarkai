@@ -55,9 +55,7 @@ describe('tile work picks', () => {
 
 		expect(tile.isBurdened).toBe(true)
 		expect(tile.getJob()).toBeUndefined()
-		expect(collectTileWorkPicks(game, tile).some((choice) => choice.source === 'tile')).toBe(
-			false
-		)
+		expect(collectTileWorkPicks(game, tile).some((choice) => choice.source === 'tile')).toBe(false)
 	})
 
 	it('does not include direct alveolus jobs while the tile is burdened by a vehicle', async () => {
@@ -75,9 +73,7 @@ describe('tile work picks', () => {
 
 		expect(tile.isBurdened).toBe(true)
 		expect(tile.getJob()).toBeUndefined()
-		expect(collectTileWorkPicks(game, tile).some((choice) => choice.source === 'tile')).toBe(
-			false
-		)
+		expect(collectTileWorkPicks(game, tile).some((choice) => choice.source === 'tile')).toBe(false)
 	})
 
 	it('includes direct alveolus jobs when the worker path start is sub-hex (rounded like pathfinding)', async () => {

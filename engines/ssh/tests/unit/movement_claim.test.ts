@@ -1,3 +1,4 @@
+import { Commitment } from 'ssh/commitment'
 import type { Hive } from 'ssh/hive/hive'
 import type { StorageAlveolus } from 'ssh/hive/storage'
 import { toAxialCoord } from 'ssh/utils/position'
@@ -123,12 +124,14 @@ describe('MovingGood.claimed prevents double pickup', () => {
 			const provCoord = toAxialCoord(provider.tile.position)!
 			const realMg = hive.movingGoods.get(provCoord)![0]
 
-			// Get the selection from aGoodMovement
-			const selection = provider.aGoodMovement![0]
-			expect(realMg.claimed).toBe(false)
-			expect(selection.movement).toBe(realMg)
-			expect(selection.movement.ref).toBe(realMg.ref)
-			expect(selection.fromSnapshot).toEqual(realMg.from)
+		// Get the selection from aGoodMovement
+		const selection = provider.aGoodMovement![0]
+		expect(realMg.claimed).toBe(false)
+		// The movement inside the selection is the canonical movement object.
+		// Due to reactive proxies on Alveolus, use toEqual for deep equality
+		// (the ref identity is verified on the next line).
+		expect(selection.movement.ref).toStrictEqual(realMg.ref)
+		expect(selection.fromSnapshot).toEqual(realMg.from)
 
 			// Claim via the canonical movement
 			selection.movement.claimed = true
@@ -285,30 +288,61 @@ describe('MovingGood.claimed prevents double pickup', () => {
 			expect(borderGate).toBeDefined()
 			if (!borderGate) throw new Error('Expected border gate between provider and demander')
 
-			const ghostAllocation = borderGate.storage.allocate({ wood: 1 }, { type: 'test.ghost' })
+			// A stray border allocation (not backed by a movement) should not trigger incomingGoods
+			const ghostCommitment = new Commitment('test.ghost')
+			borderGate.storage.allocate({ wood: 1 }, ghostCommitment)
 			expect(borderGate.storage.allocatedSlots).toBe(true)
 			expect(demander.incomingGoods).toBe(false)
 
+			// Create a movement - still not incoming because the movement is at the provider
 			expect(hive.createMovement('wood', provider, demander)).toBe(true)
 			expect(demander.incomingGoods).toBe(false)
 
 			const provCoord = toAxialCoord(provider.tile.position)!
 			const movement = hive.movingGoods.get(provCoord)?.[0]
 			expect(movement).toBeDefined()
-			movement!.claimed = true
-			movement?.allocations.source.fulfill()
-			movement?.hop()
-			movement?.place()
-			const hopAlloc = borderGate.storage.allocate({ wood: 1 }, { type: 'test.hop' })
-			hopAlloc.fulfill()
-			movement!.allocations.source = borderGate.storage.reserve(
-				{ wood: 1 },
-				{ type: 'test.hop.reserve' }
-			)
-			movement!.claimed = false
+			if (!movement) throw new Error('Expected movement')
+
+			// Simulate the movement being in-flight (claimed, hopped to border, placed on border gate).
+			// createMovement uses a single commitment for both source and target.
+			// To hop without invalidating the target, we replace the source with a separate commitment.
+			const sourceCommitment = new Commitment('test.hop.source')
+			provider.storage.reserve({ wood: 1 }, sourceCommitment)
+			// Set the reason on the source commitment so assertMovementAllocationOwnership passes
+			;(sourceCommitment as any).reason = {
+				type: 'hive-transfer',
+				movementRef: movement.ref,
+				movement,
+			}
+			movement.allocations.source = sourceCommitment
+
+			movement.claimed = true
+			sourceCommitment.fulfill()
+			movement.hop()
+			movement.place()
+
+			// Now the movement is on the border gate. Allocate on the border gate
+			// and set the source to the border gate reservation.
+			const hopCommitment = new Commitment('test.hop')
+			borderGate.storage.allocate({ wood: 1 }, hopCommitment)
+			hopCommitment.fulfill()
+			const hopReserveCommitment = new Commitment('test.hop.reserve')
+			borderGate.storage.reserve({ wood: 1 }, hopReserveCommitment)
+			// Set the reason on the border gate reservation
+			;(hopReserveCommitment as any).reason = {
+				type: 'hive-transfer',
+				movementRef: movement.ref,
+				movement,
+			}
+			movement.allocations.source = hopReserveCommitment
+			movement.claimed = false
+
+			// The movement is now in-flight with source on the border gate,
+			// so incomingGoods should be true
 			expect(demander.incomingGoods).toBe(true)
-			movement?.abort()
-			ghostAllocation.cancel()
+
+			movement.abort()
+			ghostCommitment.cancel('test.cancel')
 		} finally {
 			await engine.destroy()
 		}

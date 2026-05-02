@@ -183,10 +183,25 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 					return false
 				}
 
-				return ad.advertisement === 'provide'
-					? (s.canTakeFrom?.(advertiser, goodType as GoodType, ad.priority) ??
-							s.canTake(goodType as GoodType, ad.priority))
-					: s.canGive(goodType as GoodType, ad.priority)
+				if (ad.advertisement === 'provide') {
+					const sourceIsOwnDock =
+						(advertiser as { kind?: unknown; bay?: unknown }).kind === 'vehicle-freight-dock' &&
+						(advertiser as { bay?: unknown }).bay === s
+					if (
+						candidateIsGeneralStorage &&
+						!sourceIsOwnDock &&
+						'goodsRelations' in s &&
+						(s.goodsRelations as GoodsRelations | undefined)?.[goodType as GoodType]?.advertisement !==
+							'demand'
+					) {
+						return false
+					}
+					return (
+						s.canTakeFrom?.(advertiser, goodType as GoodType, ad.priority) ??
+						s.canTake(goodType as GoodType, ad.priority)
+					)
+				}
+				return s.canGive(goodType as GoodType, ad.priority)
 			})
 			if (availableGeneralStorages.length > 0) {
 				traces.advertising.log?.(

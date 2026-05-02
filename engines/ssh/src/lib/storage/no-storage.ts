@@ -1,5 +1,5 @@
+import type { Commitment, FailureReason } from 'ssh/commitment'
 import type { Goods, GoodType } from 'ssh/types/base'
-import { AllocationError } from './guard'
 import { Storage } from './storage'
 import type { RenderedGoodSlots } from './types'
 
@@ -44,12 +44,12 @@ export class NoStorage extends Storage {
 		return 0
 	}
 
-	allocate(_goods: Goods, reason: any): never {
-		throw new AllocationError(`Cannot allocate goods - no storage available`, reason)
+	allocate(_goods: Goods, _commitment: Commitment): FailureReason {
+		return 'Cannot allocate goods - no storage available'
 	}
 
-	reserve(_goods: Goods, reason: any): never {
-		throw new AllocationError(`Cannot reserve goods - no storage available`, reason)
+	reserve(_goods: Goods, _commitment: Commitment): FailureReason {
+		return 'Cannot reserve goods - no storage available'
 	}
 
 	renderedGoods(): RenderedGoodSlots {

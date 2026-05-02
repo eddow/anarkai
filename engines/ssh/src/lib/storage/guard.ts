@@ -1,4 +1,3 @@
-import { unwrap } from 'mutts'
 import { traces } from '../dev/debug.ts'
 
 // GC-aware leak guard for allocation tokens
@@ -6,11 +5,6 @@ import { traces } from '../dev/debug.ts'
 // without being fulfilled/cancelled, and logs the provided reason.
 
 type Held = { reason: any; allocation: object; createdAt: number; id: string; stack?: string }
-type InvalidationInfo = {
-	label: string
-	at: number
-	stack?: string
-}
 
 // Global allocation counter for unique IDs
 let allocationCounter = 0
@@ -41,99 +35,8 @@ const tokens = new WeakMap<object, object>()
 const activeAllocations = new Map<object, Held>()
 const activeLiveAllocations = new Map<object, object>()
 
-// Track invalidated allocations (fulfilled or cancelled)
-const invalidatedAllocations = new WeakSet<object>()
-const invalidationInfos = new WeakMap<object, InvalidationInfo>()
-
-function allocationVariants<Allocation extends object>(allocation: Allocation): object[] {
-	const direct = allocation as object
-	const unwrapped = unwrap(allocation) as object
-	return direct === unwrapped ? [direct] : [direct, unwrapped]
-}
-
-export function guardAllocation<Allocation extends object>(allocation: Allocation, reason: any) {
-	if (!registry) return
-	const variants = allocationVariants(allocation)
-	const token = {}
-	for (const target of variants) tokens.set(target, token)
-
-	// Enhanced allocation info for debugging
-	const allocationInfo = {
-		id: `alloc-${allocationCounter++}`,
-		reason,
-		allocation: { ...allocation },
-		createdAt: Date.now(),
-		stack: new Error().stack,
-	}
-
-	activeAllocations.set(token, allocationInfo)
-	activeLiveAllocations.set(token, variants[0])
-	traces.allocations.groupCollapsed?.('Allocation created:', allocationInfo)
-	traces.allocations.trace?.()
-	traces.allocations.groupEnd?.()
-	registry.register(variants[0], allocationInfo, token)
-}
-
-export function allocationEnded<Allocation extends object>(allocation: Allocation) {
-	if (!registry) return
-	const variants = allocationVariants(allocation)
-	const token = variants.map((target) => tokens.get(target)).find((candidate) => !!candidate)
-	if (!token) return
-
-	const held = activeAllocations.get(token)
-	if (held) {
-		const duration = Date.now() - (held.createdAt || Date.now())
-		traces.allocations.log?.('Allocation ended:', {
-			id: held.id,
-			reason: held.reason,
-			duration: `${duration}ms`,
-		})
-	}
-
-	registry.unregister(token)
-	for (const target of variants) tokens.delete(target)
-	activeAllocations.delete(token)
-	activeLiveAllocations.delete(token)
-}
-
-export function invalidateAllocation<Allocation extends object>(
-	allocation: Allocation,
-	label: string = 'invalidateAllocation'
-) {
-	const info: InvalidationInfo = {
-		label,
-		at: Date.now(),
-		stack: new Error().stack,
-	}
-	for (const target of allocationVariants(allocation)) {
-		invalidatedAllocations.add(target)
-		invalidationInfos.set(target, info)
-	}
-}
-
-export function isAllocationValid<Allocation extends object>(allocation: Allocation): boolean {
-	return allocationVariants(allocation).every((target) => !invalidatedAllocations.has(target))
-}
-
-export function allocationInvalidationInfo<Allocation extends object>(
-	allocation: Allocation
-): InvalidationInfo | undefined {
-	for (const target of allocationVariants(allocation)) {
-		const info = invalidationInfos.get(target)
-		if (info) return info
-	}
-	return undefined
-}
-
 export function debugActiveAllocations(): Held[] {
 	return [...activeAllocations.values()]
-}
-
-export function debugActiveAllocationById(id: string): Held | undefined {
-	for (const held of activeAllocations.values()) {
-		if (held.id === id) return held
-	}
-	return undefined
 }
 
 export function findLiveAllocations(
@@ -147,6 +50,45 @@ export function findLiveAllocations(
 		matches.push({ held, allocation })
 	}
 	return matches
+}
+
+export function isAllocationValid(allocation: { ended?: unknown } | undefined): boolean {
+	return allocation !== undefined && (allocation.ended === undefined || allocation.ended === false)
+}
+
+export function trackAllocation(allocation: object, reason: unknown): void {
+	const existingToken = tokens.get(allocation)
+	if (existingToken) {
+		activeAllocations.set(existingToken, {
+			reason,
+			allocation,
+			createdAt: Date.now(),
+			id: String(++allocationCounter),
+			stack: new Error().stack,
+		})
+		activeLiveAllocations.set(existingToken, allocation)
+		return
+	}
+	const token = {}
+	tokens.set(allocation, token)
+	activeAllocations.set(token, {
+		reason,
+		allocation,
+		createdAt: Date.now(),
+		id: String(++allocationCounter),
+		stack: new Error().stack,
+	})
+	activeLiveAllocations.set(token, allocation)
+	registry?.register(allocation, activeAllocations.get(token)!, token)
+}
+
+export function untrackAllocation(allocation: object): void {
+	const token = tokens.get(allocation)
+	if (!token) return
+	registry?.unregister(token)
+	activeAllocations.delete(token)
+	activeLiveAllocations.delete(token)
+	tokens.delete(allocation)
 }
 
 export function getAllocationStats(): { total: number; byType: Record<string, number> } {

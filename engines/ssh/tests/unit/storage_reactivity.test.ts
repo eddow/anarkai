@@ -1,3 +1,4 @@
+import { Commitment } from 'ssh/commitment'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import { describe, expect, it } from 'vitest'
 
@@ -6,13 +7,14 @@ describe('SlottedStorage Reactivity', () => {
 		const storage = new SlottedStorage(2, 10)
 
 		// 1. Allocate a slot (creates non-reactive slot in current implementation)
-		const alloc = storage.allocate({ wood: 1 }, 'test')
+		const allocCommitment = new Commitment('test')
+		storage.allocate({ wood: 1 }, allocCommitment)
 
 		const slot = storage.slots.find((s) => s && s.goodType === 'wood')
 		expect(slot).toBeDefined()
 
 		// 2. Fulfill it (quantity = 1).
-		alloc.fulfill()
+		allocCommitment.fulfill()
 
 		// 3. Trigger array reactivity to refresh availables cache
 		// We add another good to a different slot, modifying the array.
@@ -23,7 +25,7 @@ describe('SlottedStorage Reactivity', () => {
 
 		// 5. Reserve the wood.
 		// If slot is non-reactive/stale, availables might remain 1.
-		storage.reserve({ wood: 1 }, 'test-reserve')
+		storage.reserve({ wood: 1 }, new Commitment('test-reserve'))
 
 		// Check fresh calc (available) - this always works
 		expect(storage.available('wood')).toBe(0)

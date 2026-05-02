@@ -249,7 +249,7 @@ export class MultiMoveStep extends AEvolutionStep {
 	}
 	evolve(evolution: number): void {
 		this.beforeEvolve?.()
-		if (this.ended !== undefined) return
+		if (this.ended === true || typeof this.ended === 'string') return
 		// Lerp each movement independently
 		for (const movement of this.movements) {
 			movement.who.position = lerp(movement.from!, movement.to, evolution) as Position
@@ -350,9 +350,21 @@ export class EatStep extends AEvolutionStep {
 		assert('satiationStrength' in goodsCatalog[food], `Food ${food} has no satiation strength`)
 		this.satiationStrength = goodsCatalog[food].satiationStrength as number
 		if (source.kind === 'loose') {
-			source.looseGood.allocate('eat').fulfill()
+			const commitment = new Commitment(`eat.loose.${food}`)
+			const result = source.looseGood.allocate(commitment)
+			if (result !== undefined) {
+				console.error(`[EatStep] Failed to allocate loose good: ${result}`)
+				return
+			}
+			commitment.fulfill()
 		} else {
-			source.storage.reserve({ [food]: 1 }, 'eat').fulfill()
+			const commitment = new Commitment(`eat.storage.${food}`)
+			const result = source.storage.reserve({ [food]: 1 }, commitment)
+			if (result !== undefined) {
+				console.error(`[EatStep] Failed to reserve storage: ${result}`)
+				return
+			}
+			commitment.fulfill()
 		}
 	}
 	evolve(evolution: number): void {

@@ -7,6 +7,7 @@
  */
 
 import { effect, getActivationLog, reactiveOptions, reset } from 'mutts'
+import { Commitment } from 'ssh/commitment'
 import type { SaveState } from 'ssh/game'
 import type { SlottedStorage } from 'ssh/storage/slotted-storage'
 import { toAxialCoord } from 'ssh/utils/position'
@@ -137,17 +138,19 @@ describe('Planner loop diagnostic', () => {
 		}
 
 		// Manually call reserve() — this is what createMovement does
-		const token = gather.storage!.reserve({ wood: 1 }, 'diagnostic-test')
+		const commitment = new Commitment('diagnostic-test')
+		const result = gather.storage!.reserve({ wood: 1 }, commitment)
+		expect(result).toBeUndefined()
 
 		// Drain
 		await new Promise((r) => setTimeout(r, 10))
 
 		console.log('gather advertise fires after manual reserve():', gatherFiresAfterReserve)
-		token.cancel()
 
 		// Ideal: reserve bookkeeping alone would not re-schedule gather advertisements.
 		// Reactive storage currently may still flush a small number of hive adverts; keep a tight bound.
 		expect(gatherFiresAfterReserve).toBeLessThanOrEqual(2)
+		commitment.cancel('test cleanup')
 	})
 
 	/**
@@ -165,11 +168,13 @@ describe('Planner loop diagnostic', () => {
 			return origAdvertise(alveolus, ads)
 		}
 
-		const token = woodpile.storage!.allocate({ wood: 1 }, 'diagnostic-test')
+		const commitment = new Commitment('diagnostic-test')
+		const result = woodpile.storage!.allocate({ wood: 1 }, commitment)
+		expect(result).toBeUndefined()
 		await new Promise((r) => setTimeout(r, 10))
 
 		console.log('woodpile advertise fires after manual allocate():', woodpileFiresAfterAllocate)
-		token.cancel()
+		commitment.cancel('test cleanup')
 
 		expect(woodpileFiresAfterAllocate).toBeGreaterThan(0)
 	})
@@ -247,7 +252,9 @@ describe('Planner loop diagnostic', () => {
 		// gather uses SlottedStorage
 		const storage = gather.storage as SlottedStorage
 		gather.storage!.addGood('wood', 5)
-		const token = storage.allocate({ wood: 1 }, 'test')
+		const commitment = new Commitment('test')
+		const result = storage.allocate({ wood: 1 }, commitment)
+		expect(result).toBeUndefined()
 		await new Promise((r) => setTimeout(r, 10))
 
 		const slot = storage.slots.find((s) => s !== undefined)!
@@ -268,7 +275,7 @@ describe('Planner loop diagnostic', () => {
 		// Restore the slot invariant before cancelling the allocation token.
 		slot.allocated -= 1
 		cleanup()
-		token.cancel()
+		commitment.cancel('test cleanup')
 	})
 
 	/**

@@ -21,7 +21,7 @@ describe('Queue cancellation regression', () => {
 			const queued = walker.stepOn(blockedTile)
 			expect(queued).toBeInstanceOf(QueueStep)
 
-			queued?.cancel()
+			queued?.cancel('test.cancel')
 
 			expect(() => walker.stepOn(alternateTile)).not.toThrow()
 			expect(walker.tile).toBe(alternateTile)

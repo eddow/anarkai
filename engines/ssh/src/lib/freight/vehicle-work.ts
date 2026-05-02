@@ -357,6 +357,7 @@ function isJointLineLoadCandidate(
 	vehicle: VehicleEntity,
 	candidate: LoadCandidate
 ): boolean {
+	if (candidate.tile.content instanceof UnBuiltLand && candidate.tile.content.project) return false
 	const candidateCoord = toAxialCoord(candidate.tile.position)
 	if (!candidateCoord) return false
 	for (const line of vehicle.servedLines) {
@@ -939,6 +940,14 @@ function findVehicleHopJobLineHop(game: Game, character: Character): VehicleHopJ
 	if ('zone' in stop && stop.zone.kind === 'radius') {
 		const selection = pickVehicleZoneBrowseSelection(game, character, vehicle, line, stop)
 		if (!selection) return undefined
+		if (
+			selection.action === 'load' &&
+			selection.targetTile.content instanceof UnBuiltLand &&
+			selection.targetTile.content.project &&
+			pickOffloadForTile(selection.targetTile, vehicle.storage)
+		) {
+			return undefined
+		}
 		path = selection.path
 		zoneBrowseAction = selection.action
 		goodType = selection.goodType
@@ -1042,6 +1051,14 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 			vehicle.effectivePosition
 		)
 		if (!selection) return undefined
+		if (
+			selection.action === 'load' &&
+			selection.targetTile.content instanceof UnBuiltLand &&
+			selection.targetTile.content.project &&
+			pickOffloadForTile(selection.targetTile, vehicle.storage)
+		) {
+			return undefined
+		}
 		path = selection.path
 		zoneBrowseAction = selection.action
 		goodType = selection.goodType

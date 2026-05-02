@@ -1,3 +1,4 @@
+import { Commitment } from 'ssh/commitment'
 import { BuildAlveolus } from 'ssh/hive/build'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -48,7 +49,8 @@ describe('BuildAlveolus advertisement', () => {
 
 	it('keeps advertising only goods whose room is still unallocated', () => {
 		const site = makeSite()
-		const inboundWood = site.storage.allocate({ wood: 1 }, 'test.inbound.wood')
+		const inboundWoodCommitment = new Commitment('test.inbound.wood')
+		site.storage.allocate({ wood: 1 }, inboundWoodCommitment)
 
 		expect(site.remainingNeeds).toEqual({ wood: 1, stone: 1 })
 		expect(site.advertisedNeeds).toEqual({ stone: 1 })
@@ -59,7 +61,7 @@ describe('BuildAlveolus advertisement', () => {
 		expect(site.canTake('stone', '2-use')).toBe(true)
 		expect(site.isReady).toBe(false)
 
-		inboundWood.cancel()
+		inboundWoodCommitment.cancel('test.cancel')
 
 		expect(site.advertisedNeeds).toEqual({ wood: 1, stone: 1 })
 		expect(site.workingGoodsRelations).toEqual({
@@ -81,7 +83,8 @@ describe('BuildAlveolus advertisement', () => {
 		expect(site.isReady).toBe(false)
 		expect(site.canTake('wood', '2-use')).toBe(true)
 
-		const inbound = site.storage.allocate({ wood: 1, stone: 1 }, 'test.inbound')
+		const inboundCommitment = new Commitment('test.inbound')
+		site.storage.allocate({ wood: 1, stone: 1 }, inboundCommitment)
 
 		expect(site.remainingNeeds).toEqual({ wood: 1, stone: 1 })
 		expect(site.advertisedNeeds).toEqual({})
@@ -89,7 +92,7 @@ describe('BuildAlveolus advertisement', () => {
 		expect(site.isReady).toBe(false)
 		expect(site.canTake('wood', '2-use')).toBe(false)
 
-		inbound.fulfill()
+		inboundCommitment.fulfill()
 
 		expect(site.remainingNeeds).toEqual({})
 		expect(site.advertisedNeeds).toEqual({})

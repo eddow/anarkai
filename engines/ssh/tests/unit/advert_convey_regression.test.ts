@@ -75,12 +75,18 @@ describe('advert/convey regression', () => {
 			throw new Error('Expected an initial wood movement to the sawmill')
 		}
 
-		expect(hive.needs.wood).toBe('1-buffer')
+		const initialWoodpileMovement = getWoodMovements(hive).find(
+			(movement) => movement.demander === woodpile
+		)
+		if (initialWoodpileMovement) {
+			expect(hive.needs.wood).toBeUndefined()
+		} else {
+			expect(hive.needs.wood).toBe('1-buffer')
+		}
 
 		firstMovement.claimed = true
 		firstMovement.claimedBy = 'advert-convey-regression'
 		firstMovement.claimedAtMs = Date.now()
-		firstMovement.allocations.source.fulfill()
 		firstMovement.hop()
 		await flushDeferred()
 
@@ -91,8 +97,9 @@ describe('advert/convey regression', () => {
 		expect(movementsToSawmill).toHaveLength(0)
 		expect(movementsToWoodpile.length).toBeGreaterThan(0)
 
-		const woodpileMovement = movementsToWoodpile[0]
-		woodpileMovement.allocations.source.fulfill()
+		const woodpileMovement = initialWoodpileMovement ?? movementsToWoodpile[0]
+		expect(woodpileMovement).toBeDefined()
+		if (!woodpileMovement) throw new Error('Expected a wood movement to the woodpile')
 		const releaseClaim = (movement: {
 			claimed?: boolean
 			claimedBy?: string

@@ -1,18 +1,9 @@
-import { AllocationError } from 'ssh/storage/guard'
+import { Commitment } from 'ssh/commitment'
 import { NoStorage } from 'ssh/storage/no-storage'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { GoodType } from 'ssh/types/base'
 import { beforeEach, describe, expect, it } from 'vitest'
-
-// Test data - keeping for potential future use
-// const TEST_GOODS = {
-// 	wood: 10,
-// 	stone: 5,
-// 	berries: 3,
-// } as const
-
-// const TEST_GOOD_TYPES: GoodType[] = ['wood', 'stone', 'berries']
 
 describe.each([
 	[
@@ -86,11 +77,13 @@ describe.each([
 			expect(storage.available('wood')).toBe(10)
 
 			// Reserve some goods
-			const reservation = storage.reserve({ wood: 3 }, 'test')
+			const commitment = new Commitment('test')
+			const result = storage.reserve({ wood: 3 }, commitment)
+			expect(result).toBeUndefined()
 			expect(storage.available('wood')).toBe(7)
 			expect(storage.stock).toEqual({ wood: 10 }) // Stock includes reserved
 
-			reservation.fulfill()
+			commitment.fulfill()
 			expect(storage.available('wood')).toBe(7)
 			expect(storage.stock).toEqual({ wood: 7 })
 		})
@@ -100,11 +93,13 @@ describe.each([
 			storage.addGood('stone', 5)
 			expect(storage.availables).toEqual({ wood: 10, stone: 5 })
 
-			const reservation = storage.reserve({ wood: 3, stone: 2 }, 'test')
+			const commitment = new Commitment('test')
+			const result = storage.reserve({ wood: 3, stone: 2 }, commitment)
+			expect(result).toBeUndefined()
 			expect(storage.availables).toEqual({ wood: 7, stone: 3 })
 			expect(storage.stock).toEqual({ wood: 10, stone: 5 }) // Stock includes reserved
 
-			reservation.fulfill()
+			commitment.fulfill()
 			expect(storage.availables).toEqual({ wood: 7, stone: 3 })
 			expect(storage.stock).toEqual({ wood: 7, stone: 3 })
 		})
@@ -112,17 +107,20 @@ describe.each([
 
 	describe('Allocation System', () => {
 		it('should allocate room for goods', () => {
-			const allocation = storage.allocate({ wood: 5 }, 'test')
-			expect(allocation).toBeDefined()
+			const commitment = new Commitment('test')
+			const result = storage.allocate({ wood: 5 }, commitment)
+			expect(result).toBeUndefined()
 			expect(storage.allocatedSlots).toBe(true)
 			expect(storage.virtualGoodsCount).toBe(5)
 		})
 
 		it('should fulfill allocation correctly', () => {
-			const allocation = storage.allocate({ wood: 5 }, 'test')
+			const commitment = new Commitment('test')
+			const result = storage.allocate({ wood: 5 }, commitment)
+			expect(result).toBeUndefined()
 			expect(storage.available('wood')).toBe(0)
 
-			allocation.fulfill()
+			commitment.fulfill()
 			expect(storage.stock).toEqual({ wood: 5 })
 			expect(storage.available('wood')).toBe(5)
 			expect(storage.allocatedSlots).toBe(false)
@@ -130,10 +128,12 @@ describe.each([
 		})
 
 		it('should cancel allocation correctly', () => {
-			const allocation = storage.allocate({ wood: 5 }, 'test')
+			const commitment = new Commitment('test')
+			const result = storage.allocate({ wood: 5 }, commitment)
+			expect(result).toBeUndefined()
 			expect(storage.allocatedSlots).toBe(true)
 
-			allocation.cancel()
+			commitment.cancel('test.cancel')
 			expect(storage.stock).toEqual({})
 			expect(storage.available('wood')).toBe(0)
 			expect(storage.allocatedSlots).toBe(false)
@@ -145,34 +145,37 @@ describe.each([
 			storage.addGood('wood', storage.hasRoom('wood') - 2)
 
 			// Try to allocate more than available room
-			const allocation = storage.allocate({ wood: 5 }, 'test')
-			expect(allocation).toBeDefined()
+			const commitment = new Commitment('test')
+			const result = storage.allocate({ wood: 5 }, commitment)
+			expect(result).toBeUndefined()
 
-			allocation.fulfill()
+			commitment.fulfill()
 			// Should only store what was actually allocated
 			expect(storage.available('wood')).toBeGreaterThan(0)
 		})
 
-		it('should throw error when no room for allocation', () => {
+		it('should return error string when no room for allocation', () => {
 			// Fill storage completely
 			const maxRoom = storage.hasRoom('wood')
 			storage.addGood('wood', maxRoom)
 
-			expect(() => {
-				storage.allocate({ wood: 1 }, 'test')
-			}).toThrow(AllocationError)
+			const commitment = new Commitment('test')
+			const result = storage.allocate({ wood: 1 }, commitment)
+			expect(typeof result).toBe('string')
 		})
 
 		it('should not let addGood consume allocated room', () => {
 			const initialRoom = storage.hasRoom('wood')
-			const allocation = storage.allocate({ wood: 2 }, 'incoming')
+			const commitment = new Commitment('incoming')
+			const result = storage.allocate({ wood: 2 }, commitment)
+			expect(result).toBeUndefined()
 
 			expect(storage.hasRoom('wood')).toBe(initialRoom - 2)
 
 			const added = storage.addGood('wood', initialRoom)
 			expect(added).toBe(initialRoom - 2)
 
-			allocation.fulfill()
+			commitment.fulfill()
 
 			expect(storage.stock.wood).toBe(initialRoom)
 			expect(storage.hasRoom('wood')).toBe(0)
@@ -186,39 +189,46 @@ describe.each([
 		})
 
 		it('should reserve goods correctly', () => {
-			storage.reserve({ wood: 3 }, 'test')
+			const commitment = new Commitment('test')
+			const result = storage.reserve({ wood: 3 }, commitment)
+			expect(result).toBeUndefined()
 			expect(storage.available('wood')).toBe(7)
 			expect(storage.stock).toEqual({ wood: 10, stone: 5 })
 			expect(storage.virtualGoodsCount).toBe(3)
 		})
 
 		it('should fulfill reservation correctly', () => {
-			const reservation = storage.reserve({ wood: 3 }, 'test')
+			const commitment = new Commitment('test')
+			const result = storage.reserve({ wood: 3 }, commitment)
+			expect(result).toBeUndefined()
 			expect(storage.available('wood')).toBe(7)
 			expect(storage.virtualGoodsCount).toBe(3)
 
-			reservation.fulfill()
+			commitment.fulfill()
 			expect(storage.stock).toEqual({ wood: 7, stone: 5 })
 			expect(storage.available('wood')).toBe(7)
 			expect(storage.virtualGoodsCount).toBe(0)
 		})
 
 		it('should cancel reservation correctly', () => {
-			const reservation = storage.reserve({ wood: 3 }, 'test')
+			const commitment = new Commitment('test')
+			const result = storage.reserve({ wood: 3 }, commitment)
+			expect(result).toBeUndefined()
 			expect(storage.available('wood')).toBe(7)
 			expect(storage.virtualGoodsCount).toBe(3)
 
-			reservation.cancel()
+			commitment.cancel('test.cancel')
 			expect(storage.available('wood')).toBe(10)
 			expect(storage.stock).toEqual({ wood: 10, stone: 5 })
 			expect(storage.virtualGoodsCount).toBe(0)
 		})
 
 		it('should handle partial reservation when insufficient goods', () => {
-			const reservation = storage.reserve({ wood: 15 }, 'test') // More than available
-			expect(reservation).toBeDefined()
+			const commitment = new Commitment('test')
+			const result = storage.reserve({ wood: 15 }, commitment) // More than available
+			expect(result).toBeUndefined()
 
-			reservation.fulfill()
+			commitment.fulfill()
 
 			// Different behavior for different storage types
 			if (storage instanceof SlottedStorage) {
@@ -228,24 +238,27 @@ describe.each([
 			}
 		})
 
-		it('should throw error when no goods to reserve', () => {
+		it('should return error string when no goods to reserve', () => {
 			storage.removeGood('wood', 10)
 
-			expect(() => {
-				storage.reserve({ wood: 1 }, 'test')
-			}).toThrow(AllocationError)
+			const commitment = new Commitment('test')
+			const result = storage.reserve({ wood: 1 }, commitment)
+			expect(typeof result).toBe('string')
 		})
 
 		it('should not allow double-reservation of same goods', () => {
-			const reservation1 = storage.reserve({ wood: 5 }, 'test1')
+			const commitment1 = new Commitment('test1')
+			const result1 = storage.reserve({ wood: 5 }, commitment1)
+			expect(result1).toBeUndefined()
 			expect(storage.available('wood')).toBe(5)
 
 			// Should only be able to reserve remaining available
-			const reservation2 = storage.reserve({ wood: 8 }, 'test2') // More than available
-			expect(reservation2).toBeDefined()
+			const commitment2 = new Commitment('test2')
+			const result2 = storage.reserve({ wood: 8 }, commitment2) // More than available
+			expect(result2).toBeUndefined()
 
-			reservation1.fulfill()
-			reservation2.fulfill()
+			commitment1.fulfill()
+			commitment2.fulfill()
 
 			// Should have removed all wood
 			expect(storage.available('wood')).toBe(0)
@@ -259,28 +272,36 @@ describe.each([
 		})
 
 		it('should handle multiple allocations simultaneously', () => {
-			const alloc1 = storage.allocate({ wood: 5 }, 'test1')
-			const alloc2 = storage.allocate({ wood: 3 }, 'test2')
+			const commitment1 = new Commitment('test1')
+			const result1 = storage.allocate({ wood: 5 }, commitment1)
+			expect(result1).toBeUndefined()
+			const commitment2 = new Commitment('test2')
+			const result2 = storage.allocate({ wood: 3 }, commitment2)
+			expect(result2).toBeUndefined()
 
 			expect(storage.allocatedSlots).toBe(true)
 			expect(storage.virtualGoodsCount).toBe(8)
 
-			alloc1.fulfill()
+			commitment1.fulfill()
 			expect(storage.virtualGoodsCount).toBe(3)
-			alloc2.fulfill()
+			commitment2.fulfill()
 
 			expect(storage.stock).toEqual({ wood: 28, stone: 15 })
 			expect(storage.virtualGoodsCount).toBe(0)
 		})
 
 		it('should handle allocation and reservation simultaneously', () => {
-			const allocation = storage.allocate({ wood: 5 }, 'alloc')
-			const reservation = storage.reserve({ wood: 3 }, 'reserve')
+			const allocCommitment = new Commitment('alloc')
+			const result1 = storage.allocate({ wood: 5 }, allocCommitment)
+			expect(result1).toBeUndefined()
+			const reserveCommitment = new Commitment('reserve')
+			const result2 = storage.reserve({ wood: 3 }, reserveCommitment)
+			expect(result2).toBeUndefined()
 			expect(storage.virtualGoodsCount).toBe(8)
 
-			allocation.fulfill()
+			allocCommitment.fulfill()
 			expect(storage.virtualGoodsCount).toBe(3)
-			reservation.fulfill()
+			reserveCommitment.fulfill()
 
 			// Should have 20 + 5 - 3 = 22 wood
 			expect(storage.stock).toEqual({ wood: 22, stone: 15 })
@@ -293,32 +314,32 @@ describe.each([
 			storage.addGood('stone', 15)
 
 			// Try to allocate some room (may fail for SlottedStorage if insufficient slots)
-			try {
-				const alloc1 = storage.allocate({ wood: 5 }, 'alloc1')
-				alloc1.fulfill()
-			} catch {
-				// Expected for SlottedStorage with limited slots
+			const allocCommitment1 = new Commitment('alloc1')
+			const allocResult1 = storage.allocate({ wood: 5 }, allocCommitment1)
+			if (allocResult1 === undefined) {
+				allocCommitment1.fulfill()
 			}
 
 			// Reserve some goods
-			const res1 = storage.reserve({ stone: 3 }, 'reserve1')
+			const resCommitment1 = new Commitment('reserve1')
+			storage.reserve({ stone: 3 }, resCommitment1)
 			// Add more goods
 			storage.addGood('berries', 10)
 
 			// Try to allocate more room
-			try {
-				const alloc2 = storage.allocate({ berries: 5 }, 'alloc2')
-				alloc2.fulfill()
-			} catch {
-				// Expected for SlottedStorage with limited slots
+			const allocCommitment2 = new Commitment('alloc2')
+			const allocResult2 = storage.allocate({ berries: 5 }, allocCommitment2)
+			if (allocResult2 === undefined) {
+				allocCommitment2.fulfill()
 			}
 
 			// Reserve more goods
-			const res2 = storage.reserve({ wood: 2 }, 'reserve2')
+			const resCommitment2 = new Commitment('reserve2')
+			storage.reserve({ wood: 2 }, resCommitment2)
 
 			// Fulfill all operations
-			res1.fulfill()
-			res2.fulfill()
+			resCommitment1.fulfill()
+			resCommitment2.fulfill()
 
 			// Verify final state - both storage types should be consistent
 			expect(storage.stock).toBeDefined()
@@ -351,26 +372,21 @@ describe.each([
 		})
 
 		it('should handle invalid allocations gracefully', () => {
-			expect(() => {
-				storage.allocate({}, 'test') // Empty goods
-			}).toThrow(AllocationError)
+			const result = storage.allocate({}, new Commitment('test')) // Empty goods
+			expect(result).toBe('Empty goods object provided for allocation')
 		})
 
 		it('should handle invalid reservations gracefully', () => {
-			expect(() => {
-				storage.reserve({}, 'test') // Empty goods
-			}).toThrow(AllocationError)
+			const result = storage.reserve({}, new Commitment('test')) // Empty goods
+			expect(result).toBe('Empty goods object provided for reservation')
 		})
 
 		it('should maintain invariants after failed operations', () => {
 			const initialStock = { ...storage.stock }
 
-			// Try operations that should fail
-			try {
-				storage.allocate({ wood: 1000 }, 'test')
-			} catch {
-				// Expected to fail
-			}
+			// Try operations that should fail (empty goods)
+			const result = storage.allocate({}, new Commitment('test'))
+			expect(typeof result).toBe('string')
 
 			// State should be unchanged
 			expect(storage.stock).toEqual(initialStock)
@@ -415,11 +431,13 @@ describe.each([
 
 			expect(storage.fragmented).toBe('wood')
 
-			const take = storage.allocate({ wood: 1 }, { type: 'defragment.take' })
-			const arrange = storage.reserve({ wood: 1 }, { type: 'defragment.arrange' })
+			const takeCommitment = new Commitment('defragment.take')
+			const arrangeCommitment = new Commitment('defragment.arrange')
+			storage.allocate({ wood: 1 }, takeCommitment)
+			storage.reserve({ wood: 1 }, arrangeCommitment)
 
-			take.fulfill()
-			arrange.fulfill()
+			takeCommitment.fulfill()
+			arrangeCommitment.fulfill()
 
 			expect(storage.stock.wood).toBe(3)
 			expect(storage.fragmented).toBeUndefined()
@@ -483,16 +501,14 @@ describe('NoStorage', () => {
 		expect(storage.virtualGoodsCount).toBe(0)
 	})
 
-	it('should always throw on allocation', () => {
-		expect(() => {
-			storage.allocate({ wood: 1 }, 'test')
-		}).toThrow(AllocationError)
+	it('should always fail on allocation', () => {
+		const result = storage.allocate({ wood: 1 }, new Commitment('test'))
+		expect(typeof result).toBe('string')
 	})
 
-	it('should always throw on reservation', () => {
-		expect(() => {
-			storage.reserve({ wood: 1 }, 'test')
-		}).toThrow(AllocationError)
+	it('should always fail on reservation', () => {
+		const result = storage.reserve({ wood: 1 }, new Commitment('test'))
+		expect(typeof result).toBe('string')
 	})
 
 	it('should never be able to store all goods', () => {

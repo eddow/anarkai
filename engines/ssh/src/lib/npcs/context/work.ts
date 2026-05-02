@@ -1,12 +1,12 @@
 import { waitForIncomingGoodsPollSeconds } from 'engine-rules'
 import { atomic } from 'mutts'
-import { isTileCoord } from 'ssh/board/board'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { LooseGood } from 'ssh/board/looseGoods'
 import type { Tile } from 'ssh/board/tile'
 import { isBuildSite } from 'ssh/build-site'
+import { Commitment } from 'ssh/commitment'
 import {
 	constructionTargetFromProject,
 	createConstructionSiteState,
@@ -21,10 +21,9 @@ import { MovementState, transitionMovement } from 'ssh/hive/movement-state'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import type { TransformAlveolus } from 'ssh/hive/transform'
 import type { Character } from 'ssh/population/character'
-import type { AllocationBase } from 'ssh/storage'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import { contract, type Goods, type GoodType } from 'ssh/types'
-import type { AxialCoord } from 'ssh/utils'
+import { axial, type AxialCoord } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
 import { epsilon } from 'ssh/utils/varied'
 import { subject } from '../scripts'
@@ -32,7 +31,7 @@ import { DurationStep, MultiMoveStep } from '../steps'
 import type { WorkPlan } from '.'
 import { getConveyDuration, getConveyVisualMovements, rebindConveyMovementRows } from './convey'
 import { cleanupFailedConveyMovement, type FailedConveyMovementData } from './convey-cleanup'
-import { ConveyStaleBookkeepingError, isConveyRollbackableError } from './convey-errors'
+import { ConveyStaleBookkeepingError } from './convey-errors'
 
 function applyConcreteTerrain(tile: Tile): void {
 	tile.baseTerrain = 'concrete'
@@ -68,12 +67,15 @@ function finalizeBuildDwellingToBasicDwelling(site: BuildDwelling) {
  * - `movement` is the authoritative transfer token tracked by the hive.
  * - `from` is the origin snapshot captured before `movement.hop()` mutates `movement.from`.
  * - `hop` is the coordinate reached by this step.
- * - `hopAlloc` is the temporary destination allocation for intermediate hops only.
  * - `moving` is the transient loose-good used for the visual in-transit representation.
+ *
+ * Hop storage allocation is deferred to the step's `onFulfilled` callback.
+ * This avoids holding capacity at the next hop during transit and eliminates
+ * the need for a separate hop Commitment object — the step itself (which extends
+ * Commitment) serves as the allocation commitment.
  */
 interface MovementData {
 	movement: TrackedMovement
-	hopAlloc?: AllocationBase
 	hop: AxialCoord
 	from: AxialCoord
 	moving: LooseGood
@@ -159,6 +161,18 @@ class WorkFunctions {
 			movement.claimedAtMs = Date.now()
 			movement._state = transitionMovement(movement._state, MovementState.claimed)
 			movement.provider.hive.noteMovementLifecycle(movement, `movement.claimed.by:${character.uid}`)
+			traces.convey.log?.(
+				`[conveyStep] claimed ${movement.goodType} ref#${movementRefId(movement.ref)} by=${character.uid}`,
+				{
+					character: character.uid,
+					alveolus: character.assignedAlveolus?.name,
+					goodType: movement.goodType,
+					movementRef: movementRefId(movement.ref),
+					from: axial.key(movement.from),
+					next: movement.path[0] ? axial.key(movement.path[0]) : undefined,
+					pathLength: movement.path.length,
+				}
+			)
 		}
 		const releaseMovementClaim = (movement: TrackedMovement) => {
 			assert(
@@ -181,6 +195,17 @@ class WorkFunctions {
 			movement.claimed = false
 			delete movement.claimedBy
 			delete movement.claimedAtMs
+			traces.convey.log?.(
+				`[conveyStep] released ${movement.goodType} ref#${movementRefId(movement.ref)} by=${character.uid}`,
+				{
+					character: character.uid,
+					alveolus: character.assignedAlveolus?.name,
+					goodType: movement.goodType,
+					movementRef: movementRefId(movement.ref),
+					from: axial.key(movement.from),
+					pathLength: movement.path.length,
+				}
+			)
 		}
 		const alveolus = character.assignedAlveolus!
 		assert(
@@ -190,20 +215,32 @@ class WorkFunctions {
 		// Get movement(s) - either a single movement or a cycle
 		const movements = alveolus.aGoodMovement
 		if (!movements || movements.length === 0) {
+			traces.convey.log?.(`[conveyStep] no movement for ${alveolus.name}`, {
+				character: character.uid,
+				alveolus: alveolus.name,
+				incomingGoods: alveolus.incomingGoods,
+			})
 			return alveolus.incomingGoods ? waitStep() : undefined
 		}
 
 		const hive = alveolus.hive
-		const isCycleResolution = movements.length >= 2
-
 		const movementData: MovementData[] = []
-		let cycleLeaderHandled = false
+		traces.convey.log?.(`[conveyStep] start ${movements.length} movement(s) at ${alveolus.name}`, {
+			character: character.uid,
+			alveolus: alveolus.name,
+			movements: movements.map(({ movement, fromSnapshot }) => ({
+				goodType: movement.goodType,
+				movementRef: movementRefId(movement.ref),
+				from: axial.key(fromSnapshot),
+				next: movement.path[0] ? axial.key(movement.path[0]) : undefined,
+				pathLength: movement.path.length,
+			})),
+		})
 
 		for (const selection of movements) {
 			const movement = selection.movement
 			const from = selection.fromSnapshot
 			let sourceFulfilled = false
-			let hopAlloc: AllocationBase | undefined
 			let moving: LooseGood | undefined
 			if (
 				!hive.ensureMovementInvariant(movement, {
@@ -247,41 +284,30 @@ class WorkFunctions {
 					allowUntracked: true,
 				})
 				assert(movement.path.length > 0, 'conveyStep: empty movement path')
-				const nextCoord = movement.path[0]!
-				const terminalHop = movement.path.length === 1 && isTileCoord(nextCoord)
-				const skipPreflight = isCycleResolution && !cycleLeaderHandled && !terminalHop
-
-				if (!terminalHop && !skipPreflight) {
-					const nextStorage = movementHive.storageAt(nextCoord)
-					assert(nextStorage, 'nextStorage must be defined')
-					movementHive.noteMovementStorageCheckpoint(
-						movement,
-						'conveyStep.before-hop-alloc',
-						nextCoord
-					)
-					hopAlloc = nextStorage.allocate(
-						{ [movement.goodType]: 1 },
-						{
-							type: 'convey.hop',
-							goodType: movement.goodType,
-							movementRef: movement.ref,
-							providerRef: movement.provider,
-							demanderRef: movement.demander,
-							providerName: movement.provider.name,
-							demanderName: movement.demander.name,
-							movement,
-						}
-					)
-				}
-				if (skipPreflight) cycleLeaderHandled = true
 
 				movementHive.noteMovementStorageCheckpoint(
 					movement,
 					'conveyStep.before-source-fulfill.storage',
 					from
 				)
-				movementHive.fulfillMovementSource(movement, 'conveyStep.pickup')
-				sourceFulfilled = true
+				const sourceReason = (
+					movement.allocations.source as
+						| (typeof movement.allocations.source & { reason?: { type?: string } })
+						| undefined
+				)?.reason
+				if (sourceReason?.type !== 'hive-transfer') {
+					movementHive.fulfillMovementSource(movement, 'conveyStep.pickup')
+					sourceFulfilled = true
+					traces.convey.log?.(
+						`[conveyStep] source fulfilled ${movement.goodType} ref#${movementRefId(movement.ref)} from=${axial.key(from)}`,
+						{
+							character: character.uid,
+							goodType: movement.goodType,
+							movementRef: movementRefId(movement.ref),
+							from: axial.key(from),
+						}
+					)
+				}
 				movementHive.noteMovementStorageCheckpoint(
 					movement,
 					'conveyStep.after-source-fulfill.storage',
@@ -300,6 +326,17 @@ class WorkFunctions {
 				})
 
 				const hop = movement.hop()!
+				traces.convey.log?.(
+					`[conveyStep] hop prepared ${movement.goodType} ref#${movementRefId(movement.ref)} ${axial.key(from)} -> ${axial.key(hop)} remaining=${movement.path.length}`,
+					{
+						character: character.uid,
+						goodType: movement.goodType,
+						movementRef: movementRefId(movement.ref),
+						from: axial.key(from),
+						hop: axial.key(hop),
+						remainingPathLength: movement.path.length,
+					}
+				)
 
 				// Only re-index the movement when another conveyor still needs to pick it up.
 				// Final-hop movements should stay out of hive.movingGoods; otherwise terminal
@@ -321,6 +358,16 @@ class WorkFunctions {
 						allowClaimedSourceGap: true,
 						allowClaimedTerminalPath: true,
 					})
+					traces.convey.log?.(
+						`[conveyStep] placed intermediate ${movement.goodType} ref#${movementRefId(movement.ref)} at=${axial.key(hop)}`,
+						{
+							character: character.uid,
+							goodType: movement.goodType,
+							movementRef: movementRefId(movement.ref),
+							at: axial.key(hop),
+							remainingPathLength: movement.path.length,
+						}
+					)
 					if (
 						!currentHive(movement).ensureMovementInvariant(movement, {
 							expectedFrom: hop,
@@ -336,10 +383,19 @@ class WorkFunctions {
 					position: from,
 					available: false,
 				})
+				traces.convey.log?.(
+					`[conveyStep] visual good ${movement.goodType} ref#${movementRefId(movement.ref)} from=${axial.key(from)} to=${axial.key(hop)}`,
+					{
+						character: character.uid,
+						goodType: movement.goodType,
+						movementRef: movementRefId(movement.ref),
+						from: axial.key(from),
+						hop: axial.key(hop),
+					}
+				)
 
 				movementData.push({
 					movement,
-					hopAlloc,
 					hop,
 					from,
 					moving,
@@ -347,27 +403,19 @@ class WorkFunctions {
 			} catch (error) {
 				cleanupFailedConveyMovement(character, {
 					movement,
-					hopAlloc,
 					from,
 					moving,
 					sourceFulfilled,
 				} satisfies FailedConveyMovementData)
 				for (const prev of movementData) cleanupFailedConveyMovement(character, prev)
-				if (isConveyRollbackableError(error)) {
-					const errorMessage = error instanceof Error ? error.message : String(error)
-					console.warn('[conveyStep] Recovered from stale movement bookkeeping', {
-						goodType: movement.goodType,
-						provider: movement.provider.name,
-						demander: movement.demander.name,
-						error: errorMessage,
-					})
-					currentHive(movement).wakeWanderingWorkersNear(movement.provider, movement.demander)
-					return waitStep()
+					throw error
 				}
-				throw error
 			}
-		}
 		if (movementData.length === 0) {
+			traces.convey.log?.(`[conveyStep] no valid movement data for ${alveolus.name}`, {
+				character: character.uid,
+				alveolus: alveolus.name,
+			})
 			return waitStep()
 		}
 
@@ -375,19 +423,29 @@ class WorkFunctions {
 			for (const row of movementData) {
 				cleanupFailedConveyMovement(character, {
 					movement: row.movement,
-					hopAlloc: row.hopAlloc,
 					from: row.from,
 					moving: row.moving,
 					sourceFulfilled: true,
 				} satisfies FailedConveyMovementData)
 			}
-			for (const { movement } of movementData) {
-				currentHive(movement).wakeWanderingWorkersNear(movement.provider, movement.demander)
+				for (const { movement } of movementData) {
+					currentHive(movement).wakeWanderingWorkersNear(movement.provider, movement.demander)
+				}
+				throw new ConveyStaleBookkeepingError('Movement became invalid before convey animation')
 			}
-			return waitStep()
-		}
 
 		const totalTime = getConveyDuration(character.freightTransferTime, movementData)
+		traces.convey.log?.(`[conveyStep] animate ${movementData.length} movement(s)`, {
+			character: character.uid,
+			totalTime,
+			movements: movementData.map(({ movement, from, hop }) => ({
+				goodType: movement.goodType,
+				movementRef: movementRefId(movement.ref),
+				from: axial.key(from),
+				hop: axial.key(hop),
+				remainingPathLength: movement.path.length,
+			})),
+		})
 
 		// Create unified MultiMoveStep that animates all movements
 		const description =
@@ -400,28 +458,64 @@ class WorkFunctions {
 			}
 		})
 		conveyStepRef.step = step
+		for (const { movement, hop } of movementData) {
+			if (!movement.path.length) continue
+			const movementHive = currentHive(movement)
+			const nextStorage = movementHive.storageAt(hop)
+			assert(nextStorage, 'nextStorage must be defined for intermediate hop')
+			const hopResult = nextStorage.allocate({ [movement.goodType]: 1 }, step)
+			if (hopResult !== undefined) {
+				traces.convey.warn?.(
+					`[conveyStep] hop allocation refused ${movement.goodType} ref#${movementRefId(movement.ref)} at=${axial.key(hop)} reason=${hopResult}`,
+					{
+						character: character.uid,
+						goodType: movement.goodType,
+						movementRef: movementRefId(movement.ref),
+						hop: axial.key(hop),
+						reason: hopResult,
+					}
+				)
+				for (const row of movementData) cleanupFailedConveyMovement(character, row)
+				movementHive.wakeWanderingWorkersNear(movement.provider, movement.demander)
+				return waitStep()
+			}
+			movementHive.noteMovementLifecycle(movement, 'conveyStep.after-step-hop-alloc')
+			movementHive.noteMovementStorageCheckpoint(
+				movement,
+				'conveyStep.after-step-hop-alloc.storage',
+				hop
+			)
+		}
 		return step
 			.onCancelled(() => {
 				rebindConveyMovementRows(movementData)
-				for (const { movement, hopAlloc, moving } of movementData) {
+				for (const { movement, moving } of movementData) {
 					if (!moving.isRemoved) moving.remove()
 					if (!currentHive(movement).isMovementAlive(movement)) continue
 					const movementHive = currentHive(movement)
 					movementHive.noteMovementLifecycle(movement, 'conveyStep.canceled')
 					releaseMovementClaim(movement)
-					hopAlloc?.cancel()
 					movementHive.cancelMovementSource(movement, 'conveyStep.canceled')
-					movement.allocations.target.cancel()
+					movement.allocations.target.cancel('conveyStep.canceled')
 					character.game.hex.looseGoods.add(character.tile, movement.goodType)
 					movement.abort()
 				}
 			})
 			.onFulfilled(() => {
 				try {
+					traces.convey.log?.(`[conveyStep] fulfilled animation`, {
+						character: character.uid,
+						movements: movementData.map(({ movement, hop }) => ({
+							goodType: movement.goodType,
+							movementRef: movementRefId(movement.ref),
+							hop: axial.key(hop),
+							remainingPathLength: movement.path.length,
+						})),
+					})
 					if (!rebindConveyMovementRows(movementData)) {
 						throw new ConveyStaleBookkeepingError('Movement became invalid after hop handoff')
 					}
-					for (const { movement, moving, hopAlloc: rawHopAlloc, hop } of movementData) {
+					for (const { movement, moving, hop } of movementData) {
 						const movementHive = currentHive(movement)
 						const nextStorage = movementHive.storageAt(hop)
 
@@ -434,71 +528,75 @@ class WorkFunctions {
 							releaseMovementClaim(movement)
 							movementHive.noteMovementLifecycle(movement, 'conveyStep.finished.terminal')
 							movement.finish()
+							traces.convey.log?.(
+								`[conveyStep] terminal finished ${movement.goodType} ref#${movementRefId(movement.ref)} at=${axial.key(hop)}`,
+								{
+									character: character.uid,
+									goodType: movement.goodType,
+									movementRef: movementRefId(movement.ref),
+									at: axial.key(hop),
+								}
+							)
 						} else {
-							let hopAlloc = rawHopAlloc
-							if (!hopAlloc) {
-								assert(nextStorage, 'nextStorage must be defined for deferred cycle-leader alloc')
-								hopAlloc = nextStorage.allocate(
-									{ [movement.goodType]: 1 },
-									{
-										type: 'convey.hop',
-										goodType: movement.goodType,
-										movementRef: movement.ref,
-										providerRef: movement.provider,
-										demanderRef: movement.demander,
-										providerName: movement.provider.name,
-										demanderName: movement.demander.name,
-										movement,
-									}
-								)
-								movementHive.noteMovementLifecycle(
-									movement,
-									'conveyStep.finished.deferred-cycle-leader-alloc'
-								)
-							}
-
-							hopAlloc.fulfill()
-							movementHive.noteMovementLifecycle(
-								movement,
-								'conveyStep.finished.after-hop-alloc-fulfill'
-							)
-							movementHive.noteMovementStorageCheckpoint(
-								movement,
-								'conveyStep.finished.after-hop-alloc-fulfill.storage',
-								hop
-							)
-
+							assert(nextStorage, 'nextStorage must be defined for intermediate hop')
 							movementHive.noteMovementStorageCheckpoint(
 								movement,
 								'conveyStep.finished.before-hop-rebind',
 								hop
 							)
-							const newSourceAlloc = nextStorage!.reserve(
-								{ [movement.goodType]: 1 },
-								{
-									type: 'convey.path',
-									goodType: movement.goodType,
-									movementRef: movement.ref,
-									providerRef: movement.provider,
-									demanderRef: movement.demander,
-									providerName: movement.provider.name,
-									demanderName: movement.demander.name,
-									movement,
+							const newSourceCommitment = new Commitment(`convey.path.${movement.goodType}`)
+							;(
+								newSourceCommitment as Commitment & {
+									reason?: {
+										type: string
+										goodType: GoodType
+										movementRef: TrackedMovement['ref']
+										providerRef: TrackedMovement['provider']
+										demanderRef: TrackedMovement['demander']
+										providerName: string
+										demanderName: string
+										movement: TrackedMovement
+									}
 								}
+							).reason = {
+								type: 'convey.path',
+								goodType: movement.goodType,
+								movementRef: movement.ref,
+								providerRef: movement.provider,
+								demanderRef: movement.demander,
+								providerName: movement.provider.name,
+								demanderName: movement.demander.name,
+								movement,
+							}
+							const reserveResult = nextStorage.reserve(
+								{ [movement.goodType]: 1 },
+								newSourceCommitment
 							)
 
-							if (!newSourceAlloc) {
+							if (reserveResult !== undefined) {
 								console.error(
 									'[conveyStep.finished] Failed to reserve storage for next hop:',
-									movement.goodType
+									reserveResult
 								)
-								throw new ConveyStaleBookkeepingError('Failed to reserve storage for next hop')
+								throw new ConveyStaleBookkeepingError(
+									`Reserve for next hop failed: ${reserveResult}`
+								)
 							}
 
 							movementHive.assignMovementSource(
 								movement,
-								newSourceAlloc,
+								newSourceCommitment,
 								'conveyStep.finished.rebind'
+							)
+							traces.convey.log?.(
+								`[conveyStep] rebound source ${movement.goodType} ref#${movementRefId(movement.ref)} at=${axial.key(hop)} remaining=${movement.path.length}`,
+								{
+									character: character.uid,
+									goodType: movement.goodType,
+									movementRef: movementRefId(movement.ref),
+									at: axial.key(hop),
+									remainingPathLength: movement.path.length,
+								}
 							)
 							currentHive(movement).assertMovementMine(movement, {
 								label: 'conveyStep.after-hop-rebind.before-unclaim',
@@ -540,24 +638,9 @@ class WorkFunctions {
 						)
 					}
 					for (const movement of movementData) cleanupFailedConveyMovement(character, movement)
-					if (isConveyRollbackableError(error)) {
-						const errorMessage = error instanceof Error ? error.message : String(error)
-						console.warn('[conveyStep] Recovered from stale movement bookkeeping in finish', {
-							error: errorMessage,
-							movements: movementData.map(({ movement }) => ({
-								goodType: movement.goodType,
-								provider: movement.provider.name,
-								demander: movement.demander.name,
-							})),
-						})
-						for (const { movement } of movementData) {
-							currentHive(movement).wakeWanderingWorkersNear(movement.provider, movement.demander)
-						}
-						return
+						console.error('[conveyStep] Error in finished callback:', error)
+						throw error
 					}
-					console.error('[conveyStep] Error in finished callback:', error)
-					throw error
-				}
 			})
 			.onFinal(() => {
 				// Clean up any remaining loose goods. Note: looseGoods should *not* disappear. For now, this shouldn't happen - but if it happened, looseGoods should be stored as looseGoods
@@ -616,35 +699,29 @@ class WorkFunctions {
 		assert(alveolus, 'assignedAlveolus must be set')
 		assert(alveolus.action.type === 'transform', 'assignedAlveolus.action must be a transform')
 		const action = alveolus.action
-		const allocations: AllocationBase[] = []
-		const inputAllocation = alveolus.storage.reserve(action.inputs as Goods, {
-			type: 'transform.input',
-			alveolus,
-			inputs: action.inputs,
-		})
-		allocations.push(inputAllocation)
+		const inputCommitment = new Commitment(`transform.input.${alveolus.name}`)
+		const inputResult = alveolus.storage.reserve(action.inputs as Goods, inputCommitment)
+		if (inputResult !== undefined) {
+			console.error('[transformStep] Failed to reserve inputs:', inputResult)
+			return waitStep()
+		}
 
-		// 		const outputAllocation = alveolus.storage.allocate(action.output as Goods, {
-		// 			type: 'transform.output',
-		// 			alveolus,
-		// 			output: action.output,
-		// 		})
-		// 		allocations.push(outputAllocation)
-		// ^ Wait. I should replace matching the context.
-
-		const outputAllocation = alveolus.storage.allocate(action.output as Goods, {
-			type: 'transform.output',
-			alveolus,
-			output: action.output,
-		})
-		allocations.push(outputAllocation)
+		const outputCommitment = new Commitment(`transform.output.${alveolus.name}`)
+		const outputResult = alveolus.storage.allocate(action.output as Goods, outputCommitment)
+		if (outputResult !== undefined) {
+			console.error('[transformStep] Failed to allocate outputs:', outputResult)
+			inputCommitment.cancel('transform.output.failed')
+			return waitStep()
+		}
 
 		return new DurationStep(alveolus.workTime, 'work', `transform.${alveolus.name}`)
 			.onFulfilled(() => {
-				for (const allocation of allocations) allocation.fulfill()
+				inputCommitment.fulfill()
+				outputCommitment.fulfill()
 			})
 			.onCancelled(() => {
-				for (const allocation of allocations) allocation.cancel()
+				inputCommitment.cancel('transform.cancelled')
+				outputCommitment.cancel('transform.cancelled')
 			})
 	}
 	@contract()
@@ -657,19 +734,27 @@ class WorkFunctions {
 		)
 		const fragmentedGoodType = alveolus.storage.fragmented
 		assert(fragmentedGoodType, 'alveolus must be fragmented')
-		const take = alveolus.storage.allocate({ [fragmentedGoodType]: 1 }, { type: 'defragment.take' })
-		const arrange = alveolus.storage.reserve(
-			{ [fragmentedGoodType]: 1 },
-			{ type: 'defragment.arrange' }
-		)
+		const takeCommitment = new Commitment(`defragment.take.${alveolus.name}`)
+		const takeResult = alveolus.storage.allocate({ [fragmentedGoodType]: 1 }, takeCommitment)
+		if (takeResult !== undefined) {
+			console.error('[defragmentStep] Failed to allocate take:', takeResult)
+			return
+		}
+		const arrangeCommitment = new Commitment(`defragment.arrange.${alveolus.name}`)
+		const arrangeResult = alveolus.storage.reserve({ [fragmentedGoodType]: 1 }, arrangeCommitment)
+		if (arrangeResult !== undefined) {
+			console.error('[defragmentStep] Failed to reserve arrange:', arrangeResult)
+			takeCommitment.cancel('defragment.arrange.failed')
+			return
+		}
 		return new DurationStep(character.freightTransferTime, 'work', `defragment.${alveolus.name}`)
 			.onFulfilled(() => {
-				take.fulfill()
-				arrange.fulfill()
+				takeCommitment.fulfill()
+				arrangeCommitment.fulfill()
 			})
 			.onCancelled(() => {
-				take.cancel()
-				arrange.cancel()
+				takeCommitment.cancel('defragment.cancelled')
+				arrangeCommitment.cancel('defragment.cancelled')
 			})
 	}
 	@contract()

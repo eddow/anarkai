@@ -747,7 +747,7 @@ describe('Vehicle zone hop semantics', () => {
 		const step = character.scriptsContext.vehicle.vehicleZoneBrowseTransferStep(plan)
 
 		expect(step).toBeTruthy()
-		step?.cancel()
+		step?.cancel('test.cancel')
 		expect(character.operates?.uid).toBe(vehicle.uid)
 		expect(vehicle.operator?.uid).toBe(character.uid)
 		expect(isVehicleLineService(vehicle.service)).toBe(true)

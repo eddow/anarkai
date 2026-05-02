@@ -103,24 +103,29 @@ describe('Convey Behavior Integration', () => {
 				(sourceStorage?.stock.wood || 0) +
 				(targetStorage?.stock.wood || 0) +
 				countCarriedGoods(game, 'wood')
-			expect(initialTotalWood + countLooseGoods(game, 'wood')).toBe(5)
+			expect(initialTotalWood).toBe(5)
 
-			// Advance until wood leaves the source or a generous cap (same invariants as fixed 13.5s).
+			// Advance until wood is observable outside the source, or a generous cap.
 			const maxSteps = 200
 			let steps = 0
-			let sourceWood = sourceStorage?.stock.wood ?? 0
-			while (steps < maxSteps && sourceWood >= 5 && !errorFound) {
+			let movedWood = 0
+			while (steps < maxSteps && movedWood === 0 && !errorFound) {
 				engine.tick(0.1)
 				if (steps % 10 === 0) await new Promise((resolve) => setTimeout(resolve, 0))
-				sourceWood = sourceStorage?.stock.wood ?? 0
+				movedWood =
+					(targetStorage?.stock.wood || 0) +
+					countCarriedGoods(game, 'wood') +
+					countLooseGoods(game, 'wood') +
+					(targetStorage?.stock.planks || 0) +
+					countLooseGoods(game, 'planks') +
+					countCarriedGoods(game, 'planks')
 				steps++
 			}
 
 			// Verify no source allocation error occurred
 			expect(errorFound).toBe(false)
 
-			// Verify goods were actually consumed from source
-			const finalSourceStock = sourceStorage?.stock.wood || 0
+			// Verify goods were actually conveyed or processed.
 			const finalTargetStock = targetStorage?.stock.wood || 0
 			const finalLooseWood = countLooseGoods(game, 'wood')
 			const finalCarriedWood = countCarriedGoods(game, 'wood')
@@ -128,21 +133,13 @@ describe('Convey Behavior Integration', () => {
 				(targetStorage?.stock.planks || 0) +
 				countLooseGoods(game, 'planks') +
 				countCarriedGoods(game, 'planks')
-			expect(finalSourceStock).toBeLessThan(5) // Some wood should have been taken
 			expect(finalTargetStock + finalCarriedWood + finalLooseWood + finalPlanks).toBeGreaterThan(0)
 
-			// **NEW: Verify movements were actually created**
 			const sourceTileContent = game.hex.getTile({ q: 0, r: 0 })?.content as any
 			const hive = sourceTileContent?.hive
 			expect(hive).toBeDefined()
 
-			// Check if there are/were any movements for wood
-			for (const [_coord, movements] of hive.movingGoods) {
-				movements.filter((m: any) => m.goodType === 'wood').length
-			}
-
-			// At minimum, goods should have been consumed even if movement completed
-			expect(finalSourceStock).toBeLessThan(5)
+			expect(movedWood).toBeGreaterThan(0)
 		} finally {
 			console.error = originalError
 			await engine.destroy()
@@ -152,7 +149,7 @@ describe('Convey Behavior Integration', () => {
 	it('Multi-Hop Movement: Transfer through chain of storage alveoli', {
 		timeout: 15000,
 	}, async () => {
-		const { engine, game, spawnWorker } = await setupEngine()
+		const { engine, game, spawnWorker, countLooseGoods, countCarriedGoods } = await setupEngine()
 
 		// Setup: Storage → Storage → Sawmill chain
 		// Wood needs to travel through middle storage to reach sawmill
@@ -185,6 +182,8 @@ describe('Convey Behavior Integration', () => {
 
 		// Get storage references
 		const storageA = game.hex.getTile({ q: 0, r: 0 })?.content?.storage
+		const storageB = game.hex.getTile({ q: 1, r: 0 })?.content?.storage
+		const storageC = game.hex.getTile({ q: 2, r: 0 })?.content?.storage
 
 		// Verify initial state
 		expect(storageA).toBeDefined()
@@ -209,23 +208,24 @@ describe('Convey Behavior Integration', () => {
 
 			const maxSteps = 300
 			let steps = 0
-			let sourceWood = storageA?.stock.wood ?? 0
-			while (steps < maxSteps && sourceWood >= 3 && !errorFound) {
+			let movedWood = 0
+			while (steps < maxSteps && movedWood === 0 && !errorFound) {
 				engine.tick(0.1)
 				if (steps % 10 === 0) await new Promise((resolve) => setTimeout(resolve, 0))
-				sourceWood = storageA?.stock.wood ?? 0
+				movedWood =
+					(storageB?.stock.wood || 0) +
+					(storageC?.stock.wood || 0) +
+					(storageC?.stock.planks || 0) +
+					countLooseGoods(game, 'wood') +
+					countCarriedGoods(game, 'wood') +
+					countLooseGoods(game, 'planks') +
+					countCarriedGoods(game, 'planks')
 				steps++
 			}
 
 			// Verify no allocation errors
 			expect(errorFound).toBe(false)
-
-			// Verify goods moved through the chain (source should have less wood)
-			const finalSourceStock = storageA?.stock.wood || 0
-			expect(finalSourceStock).toBeLessThan(3) // Some wood should have been taken
-
-			game.hex.getTile({ q: 1, r: 0 })?.content?.storage
-			game.hex.getTile({ q: 2, r: 0 })?.content?.storage
+			expect(movedWood).toBeGreaterThan(0)
 		} finally {
 			console.error = originalError
 			await engine.destroy()

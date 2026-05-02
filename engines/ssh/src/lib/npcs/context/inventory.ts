@@ -10,6 +10,7 @@ import type { TileBorder } from 'ssh/board/border/border'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { LooseGood } from 'ssh/board/looseGoods'
 import type { Tile } from 'ssh/board/tile'
+import { Commitment } from 'ssh/commitment'
 import type { Character } from 'ssh/population/character'
 import { contract, type Goods, type GoodType } from 'ssh/types'
 import type { IdlePlan, PickupPlan, TransferPlan } from 'ssh/types/base'
@@ -29,22 +30,26 @@ function planSpecificLoosePickup(
 		throw new Error(`No room in active transport storage for ${looseGood.goodType}`)
 	}
 
-	const vehicleAllocation = transport.allocate({ [looseGood.goodType]: 1 }, 'plan.pickup')
-	const allocation = looseGood.allocate('plan.pickup')
+	const commitment = new Commitment('plan.pickup')
+
+	const allocResult = transport.allocate({ [looseGood.goodType]: 1 }, commitment)
+	if (allocResult !== undefined) throw new Error(allocResult)
+
+	const looseResult = looseGood.allocate(commitment)
+	if (looseResult !== undefined) throw new Error(looseResult)
 
 	return {
 		type: 'pickup' as const,
 		goodType: looseGood.goodType,
 		target: source,
-		vehicleAllocation,
-		allocation,
+		commitment,
 	}
 }
 
 type StorageTarget = {
 	content: {
 		storage?: {
-			allocate(goods: Goods, reason: string): TransferPlan['allocation']
+			allocate(goods: Goods, commitment: Commitment): string | undefined
 		}
 	}
 }
@@ -71,21 +76,29 @@ function ensureDropPlanAllocations(action: TransferPlan, character: Character) {
 	assert(content, 'destination.content must be set')
 	assert('storage' in content, 'planDropStored only works with TileContent that has storage')
 
-	let vehicleAllocation: TransferPlan['vehicleAllocation']
-	let allocation: TransferPlan['allocation']
+	const commitment = new Commitment('plan.drop')
+	const legacyHandle = {
+		fulfill: () => commitment.fulfill(),
+		cancel: () => commitment.cancel('plan.drop-legacy-cancel'),
+	}
+
 	try {
-		vehicleAllocation = transport.reserve(action.goods, `planDropStored`)
-		allocation = content.storage!.allocate(action.goods, `planDropStored`)
-		action.vehicleAllocation = vehicleAllocation
-		action.allocation = allocation
+		const reserveResult = transport.reserve(action.goods, commitment)
+		if (reserveResult !== undefined) throw new Error(reserveResult)
+		const allocResult = content.storage!.allocate(action.goods, commitment)
+		if (allocResult !== undefined) throw new Error(allocResult)
+		action.vehicleAllocation = legacyHandle
+		action.allocation = legacyHandle
 		action.resolvedGoods = action.goods
+		action.commitment = commitment
+		commitment.onFinal(() => {
+			delete action.vehicleAllocation
+			delete action.allocation
+			delete action.resolvedGoods
+			delete action.commitment
+		})
 	} catch (error) {
-		try {
-			allocation?.cancel()
-		} catch {}
-		try {
-			vehicleAllocation?.cancel()
-		} catch {}
+		commitment.cancel('ensureDrop-error')
 		throw error
 	}
 }
@@ -161,7 +174,11 @@ export class InventoryFunctions {
 		const available = transport.available(goodType) ?? 0
 		let amount = Math.min(available, maxAmount)
 		if (amount <= 0) throw new Error(`No ${goodType} to drop (available: ${available})`)
-		const vehicleTransfer = transport.reserve({ [goodType]: amount }, `drop.${goodType}`)
+
+		const commitment = new Commitment(`drop.${goodType}`)
+		const reserveResult = transport.reserve({ [goodType]: amount }, commitment)
+		if (reserveResult !== undefined) throw new Error(reserveResult)
+
 		const tileCenter = toWorldCoord(character.tile.position)
 		return new DurationStep(amount * character.freightTransferTime, 'convey', `drop.${goodType}`)
 			.onFulfilled(() => {
@@ -177,15 +194,14 @@ export class InventoryFunctions {
 							},
 						})
 					}
-					if (!vehicleTransfer) console.error('vehicleTransfer missing in dropAsLooseGood callback')
-					vehicleTransfer.fulfill()
+					commitment.fulfill()
 				} catch (e) {
 					console.error('Error in dropAsLooseGood finished:', e)
 					throw e
 				}
 			})
 			.onCancelled(() => {
-				vehicleTransfer.cancel()
+				commitment.cancel('drop-cancelled')
 			})
 	}
 	@contract('Goods', 'Tile | TileBorder')
@@ -274,17 +290,21 @@ export class InventoryFunctions {
 			throw new Error(`No goods to grab from ${source} (requested: ${JSON.stringify(goods)})`)
 		}
 
-		// Create allocations immediately
-		const vehicleAllocation = transport.allocate(actualGoods, 'plan.grab')
-		const allocation = content.storage!.reserve(actualGoods, 'plan.get')
+		// Create allocations immediately using commitment
+		const commitment = new Commitment('plan.grab')
+
+		const allocResult = transport.allocate(actualGoods, commitment)
+		if (allocResult !== undefined) throw new Error(allocResult)
+
+		const reserveResult = content.storage!.reserve(actualGoods, commitment)
+		if (reserveResult !== undefined) throw new Error(reserveResult)
 
 		return {
 			type: 'transfer' as const,
 			description: 'grab' as const,
 			goods: actualGoods,
 			sourceTile: source,
-			vehicleAllocation,
-			allocation,
+			commitment,
 		}
 	}
 
@@ -366,28 +386,25 @@ export class InventoryFunctions {
 		} else {
 			throw new Error('Unknown plan type')
 		}
-		const { vehicleAllocation, allocation } = action
-		assert(vehicleAllocation, 'vehicleAllocation must be set before effectuating transfer')
+		const commitment = action.commitment
+		assert(commitment, 'commitment must be set before effectuating transfer')
 
 		return new DurationStep(totalAmount * character.freightTransferTime, 'convey', description)
 			.onFulfilled(() => {
 				try {
-					if (!vehicleAllocation) {
-						console.error('vehicleAllocation is missing in effectuate callback!', action)
-						throw new Error('vehicleAllocation is missing in effectuate callback') // Prevent crash
+					if (!commitment) {
+						console.error('commitment is missing in effectuate callback!', action)
+						throw new Error('commitment is missing in effectuate callback') // Prevent crash
 					}
-					vehicleAllocation.fulfill()
-					allocation?.fulfill()
+					commitment.fulfill()
 				} catch (e) {
 					console.error('Error in effectuate finished:', e)
 					console.log('Action:', action)
-					console.log('VehicleAlloc:', vehicleAllocation)
 					throw e
 				}
 			})
 			.onCancelled(() => {
-				vehicleAllocation!.cancel()
-				allocation?.cancel()
+				commitment!.cancel('effectuate-cancelled')
 			})
 	}
 

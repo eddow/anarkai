@@ -1,7 +1,9 @@
 import { configurations, harvestFatiguePremium, jobBalance } from 'engine-rules'
 import { inert, memoize, reactive, type ScopedCallback, unreactive, unwrap } from 'mutts'
 import { isTileCoord } from 'ssh/board/tile-coord'
+import { traces } from 'ssh/dev/debug'
 import type { Hive, MovementSelection, TrackedMovement } from 'ssh/hive/hive'
+import { movementRefId } from 'ssh/hive/movement-ref'
 import { gameIsaTypes } from 'ssh/npcs/utils'
 import type { Character } from 'ssh/population/character'
 import type { Storage } from 'ssh/storage/storage'
@@ -180,21 +182,67 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	getJob(character?: Character): Job | undefined {
 		const assignedWorker = this.assignedWorker ? unwrap(this.assignedWorker) : undefined
 		const currentCharacter = character ? unwrap(character) : undefined
+		const here = toAxialCoord(this.tile.position)!
+		const hasConveyNearby =
+			!!this.hive.movingGoods.get(here)?.length ||
+			this.tile.surroundings.some(({ border }) => {
+				const coord = toAxialCoord(border.position)
+				return !!coord && !!this.hive.movingGoods.get(coord)?.length
+			})
 		if (assignedWorker && assignedWorker !== currentCharacter) {
+			if (hasConveyNearby) {
+				traces.convey.log?.(`[getJob] skip assigned-worker ${this.name}`, {
+					alveolus: this.name,
+					assignedWorker: assignedWorker.uid,
+					character: currentCharacter?.uid,
+				})
+			}
 			return undefined
 		}
-		if (this.tile.isBurdened) {
+		if (this.tile.isBurdened && !hasConveyNearby) {
 			return undefined
 		}
 		const carry = this.conveyJob()
-		if (carry) return carry
-
-		// Only provide alveolus-specific jobs if working is enabled
-		if (!this.working) {
+		if (carry) {
+			traces.convey.log?.(`[getJob] convey ${this.name}`, {
+				alveolus: this.name,
+				character: currentCharacter?.uid,
+				description: carry.description,
+				urgency: carry.urgency,
+			})
+			return carry
+		}
+		if (this.tile.isBurdened) {
+			if (hasConveyNearby) {
+				traces.convey.log?.(`[getJob] skip burdened ${this.name}`, {
+					alveolus: this.name,
+					character: currentCharacter?.uid,
+				})
+			}
 			return undefined
 		}
 
-		return this.nextJob?.(character)
+		// Only provide alveolus-specific jobs if working is enabled
+		if (!this.working) {
+			if (hasConveyNearby) {
+				traces.convey.log?.(`[getJob] skip not-working ${this.name}`, {
+					alveolus: this.name,
+					character: currentCharacter?.uid,
+				})
+			}
+			return undefined
+		}
+
+		const job = this.nextJob?.(character)
+		if (hasConveyNearby) {
+			traces.convey.log?.(`[getJob] ${job ? 'work' : 'none'} ${this.name}`, {
+				alveolus: this.name,
+				character: currentCharacter?.uid,
+				description: job?.description,
+				urgency: job?.urgency,
+			})
+		}
+		return job
 	}
 
 	getFatigueCost(): number {
@@ -240,10 +288,22 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			if (toKey === hereKey) return true
 			return borderKeys.has(toKey)
 		}
-		function selectMovement(
+		const selectMovement = (
 			movement: TrackedMovement,
 			fromSnapshot: AxialCoord
-		): MovementSelection {
+		): MovementSelection => {
+			traces.convey.log?.(
+				`[aGoodMovement] selected ${movement.goodType} ref#${movementRefId(movement.ref)} from=${axial.key(fromSnapshot)} next=${movement.path[0] ? axial.key(movement.path[0]) : 'none'}`,
+				{
+					alveolus: this.name,
+					at: axial.key(here),
+					goodType: movement.goodType,
+					movementRef: movementRefId(movement.ref),
+					from: axial.key(fromSnapshot),
+					next: movement.path[0] ? axial.key(movement.path[0]) : undefined,
+					pathLength: movement.path.length,
+				}
+			)
 			return {
 				fromSnapshot,
 				movement,
@@ -272,6 +332,18 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 						if (canAdvance(mg)) {
 							return [selection]
 						} else {
+							traces.convey.log?.(
+								`[aGoodMovement] blocked ${mg.goodType} ref#${movementRefId(mg.ref)} from=${axial.key(from)} next=${mg.path[0] ? axial.key(mg.path[0]) : 'none'}`,
+								{
+									alveolus: this.name,
+									at: axial.key(here),
+									goodType: mg.goodType,
+									movementRef: movementRefId(mg.ref),
+									from: axial.key(from),
+									next: mg.path[0] ? axial.key(mg.path[0]) : undefined,
+									pathLength: mg.path.length,
+								}
+							)
 							blocked.push(selection)
 						}
 					}
@@ -298,6 +370,18 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 				if (canAdvance(mg)) {
 					return [selection]
 				} else {
+					traces.convey.log?.(
+						`[aGoodMovement] blocked ${mg.goodType} ref#${movementRefId(mg.ref)} from=${axial.key(here)} next=${mg.path[0] ? axial.key(mg.path[0]) : 'none'}`,
+						{
+							alveolus: this.name,
+							at: axial.key(here),
+							goodType: mg.goodType,
+							movementRef: movementRefId(mg.ref),
+							from: axial.key(here),
+							next: mg.path[0] ? axial.key(mg.path[0]) : undefined,
+							pathLength: mg.path.length,
+						}
+					)
 					blocked.push(selection)
 				}
 			}

@@ -12,8 +12,8 @@ import { gameObjectsModule } from 'ssh/types/game-objects'
 import { axial, type Positioned, toAxialCoord } from 'ssh/utils'
 import { assert } from '../../dev/debug.ts'
 import { subject } from '../scripts'
-import { PlanCommitment } from './plan-commitment'
 import { DurationStep } from '../steps'
+import { PlanCommitment } from './plan-commitment'
 
 function characterSameHexAsVehicle(character: Character, vehicle: VehicleEntity): boolean {
 	const a = axial.round(toAxialCoord(character.position)!)
@@ -121,12 +121,26 @@ const transferPlanHandler: PlanHandler<TransferPlan> = {
 		const transport = character.carry
 
 		// Create allocations based on plan type
-		let vehicleAllocation: any
-		let allocation: any
+		let commitment: PlanCommitment | undefined
 		try {
 			if (plan.vehicleAllocation && plan.allocation) {
-				vehicleAllocation = plan.vehicleAllocation
-				allocation = plan.allocation
+				// Legacy path — allocations already created (e.g. from inventory.ts)
+				commitment = new PlanCommitment(`transfer.${plan.description}`)
+				// Mirror allocations on the commitment so auto-cancel cascades
+				;(commitment as any).allocation = plan.allocation
+				;(commitment as any).vehicleAllocation = plan.vehicleAllocation
+
+				commitment.onFulfilled(() => {
+					;(plan.allocation as any)?.fulfill()
+					;(plan.vehicleAllocation as any)?.fulfill()
+					delete plan.resolvedGoods
+				})
+
+				commitment.onFinal(() => {
+					delete plan.vehicleAllocation
+					delete plan.allocation
+					delete plan.resolvedGoods
+				})
 			} else {
 				if (description === 'drop') {
 					// Drop plans reserve destination storage only when the worker is
@@ -146,47 +160,30 @@ const transferPlanHandler: PlanHandler<TransferPlan> = {
 					if (Object.keys(goods).length === 0) throw new Error('No goods to grab at execution time')
 					plan.resolvedGoods = goods
 
-					vehicleAllocation = transport.allocate(goods, `planGrab`)
-					allocation = content.storage?.reserve(goods, `planGrabStored`)
+					commitment = new PlanCommitment(`transfer.grab.${plan.description}`)
+
+					// Storage calls register their lifecycle callbacks on the commitment
+					const allocResult = transport.allocate(goods, commitment)
+					if (allocResult !== undefined) throw new Error(allocResult)
+					const reserveResult = content.storage?.reserve(goods, commitment)
+					if (reserveResult !== undefined) throw new Error(reserveResult)
+
+					commitment.onFinal(() => {
+						delete plan.resolvedGoods
+					})
 				} else if (description === 'idle') {
 					// Idle plan: do nothing (safe fallback)
 				}
-				// Set allocations on the plan
-				Object.assign(plan, {
-					vehicleAllocation,
-					allocation,
-				})
 			}
 		} catch (error) {
-			try {
-				allocation?.cancel()
-			} catch {}
-			try {
-				vehicleAllocation?.cancel()
-			} catch {}
+			commitment?.cancel('begin-error')
 			throw error
 		}
 
-		// Create PlanCommitment to manage allocation lifecycle
-		const commitment = new PlanCommitment(`transfer.${plan.description}`)
-		// Mirror allocations on the commitment so auto-cancel cascades
-		commitment.allocation = allocation as any
-		commitment.vehicleAllocation = vehicleAllocation as any
-
-		commitment.onFulfilled(() => {
-			allocation?.fulfill()
-			vehicleAllocation?.fulfill()
-			delete plan.resolvedGoods
-		})
-
-		commitment.onFinal(() => {
-			delete plan.vehicleAllocation
-			delete plan.allocation
-			delete plan.resolvedGoods
-		})
-
 		// Link commitment back to the plan for external lifecycle calls
-		;(plan as any).commitment = commitment
+		if (commitment) {
+			;(plan as any).commitment = commitment
+		}
 	},
 
 	// conclude/cancel/finally removed — PlanCommitment handles allocation lifecycle
@@ -198,12 +195,23 @@ const pickupPlanHandler: PlanHandler<PickupPlan> = {
 		const { goodType, target } = plan
 		const transport = character.carry
 
-		let vehicleAllocation: any
-		let allocation: any
+		let commitment: PlanCommitment | undefined
 		try {
 			if (plan.vehicleAllocation && plan.allocation) {
-				vehicleAllocation = plan.vehicleAllocation
-				allocation = plan.allocation
+				// Legacy path — allocations already created (e.g. from inventory.ts)
+				commitment = new PlanCommitment(`pickup.${plan.goodType}`)
+				;(commitment as any).allocation = plan.allocation
+				;(commitment as any).vehicleAllocation = plan.vehicleAllocation
+
+				commitment.onFulfilled(() => {
+					;(plan.allocation as any)?.fulfill()
+					;(plan.vehicleAllocation as any)?.fulfill()
+				})
+
+				commitment.onFinal(() => {
+					delete plan.vehicleAllocation
+					delete plan.allocation
+				})
 			} else {
 				assert(transport, 'loose pickup requires active transport (driving)')
 				// Find and allocate the loose good
@@ -219,46 +227,29 @@ const pickupPlanHandler: PlanHandler<PickupPlan> = {
 				}
 
 				const looseGoodToGrab = matchingLooseGoods[0]
+
+				commitment = new PlanCommitment(`pickup.${plan.goodType}`)
+
 				// Allocate loose good FIRST (no reactive side-effects) so active-transport `allocate`
 				// cannot fire effects that remove the good before it is secured.
-				allocation = looseGoodToGrab.allocate(`planGrabLoose.${goodType}`)
-				vehicleAllocation = transport.allocate({ [goodType]: 1 }, `planGrabLoose.${goodType}`)
+				const looseResult = looseGoodToGrab.allocate(commitment)
+				if (looseResult !== undefined) throw new Error(looseResult)
+
+				const vehicleResult = transport.allocate({ [goodType]: 1 }, commitment)
+				if (vehicleResult !== undefined) throw new Error(vehicleResult)
+
 				// NOTE: A prior `effect` on `looseGoodToGrab.isRemoved` called `cancelPlan` on removal.
 				// Successful pickup removes the loose good after the vehicle allocation is fulfilled, which
 				// aborted offload before `inventory.offloadDropBuffer()` could run.
-
-				// Set allocations on the plan
-				Object.assign(plan, {
-					vehicleAllocation,
-					allocation,
-				})
 			}
 		} catch (error) {
-			try {
-				allocation?.cancel()
-			} catch {}
-			try {
-				vehicleAllocation?.cancel()
-			} catch {}
+			commitment?.cancel('begin-error')
 			throw error
 		}
 
-		// Create PlanCommitment to manage allocation lifecycle
-		const commitment = new PlanCommitment(`pickup.${plan.goodType}`)
-		commitment.allocation = allocation as any
-		commitment.vehicleAllocation = vehicleAllocation as any
-
-		commitment.onFulfilled(() => {
-			allocation?.fulfill()
-			vehicleAllocation?.fulfill()
-		})
-
-		commitment.onFinal(() => {
-			delete plan.vehicleAllocation
-			delete plan.allocation
-		})
-
-		;(plan as any).commitment = commitment
+		if (commitment) {
+			;(plan as any).commitment = commitment
+		}
 	},
 
 	// conclude/cancel/finally removed — PlanCommitment handles allocation lifecycle
@@ -335,7 +326,7 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 
 	finally(plan: WorkPlan, character: Character) {
 		if ('offloadPickupPlan' in plan && plan.offloadPickupPlan) {
-			// Commitment.onFinal handles cleanup; just remove the plan reference
+			// Commitment.onFinal already runs during fulfill/cancel; just remove the plan reference
 			delete plan.offloadPickupPlan
 		}
 		finalizeVehicleFreightWorkPlanOccupancy(plan, character)

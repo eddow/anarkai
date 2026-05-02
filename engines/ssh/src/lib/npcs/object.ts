@@ -33,7 +33,14 @@ function debugStepSnapshot(step: ASingleStep | undefined) {
 	})()
 	return {
 		type: step.constructor.name,
-		status: step.ended === undefined ? 'pending' : step.ended === true ? 'fulfilled' : 'cancelled',
+		status:
+			step.ended === undefined
+				? 'not-begun'
+				: step.ended === false
+					? 'begun'
+					: step.ended === true
+						? 'fulfilled'
+						: 'cancelled',
 		description: step.description,
 		fullRemainingOnComplete: stepPassesFullRemainingOnComplete(step.constructor),
 		serialized,
@@ -77,10 +84,13 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 		abstract scriptsContext: ExecutionContext
 		abstract findAction(): ScriptExecution | ASingleStep | undefined
 
-		get actionDescription(): string[] {
-			// `runningScripts` is intentionally `@unreactive`; keep this as a fresh diagnostic snapshot.
-			return this.runningScripts.map((s) => s.name).reverse()
-		}
+	get actionDescription(): string[] {
+		// `runningScripts` is intentionally `@unreactive`; keep this as a fresh diagnostic snapshot.
+		return this.runningScripts
+			.map((script) => script?.name)
+			.filter((name): name is string => !!name)
+			.reverse()
+	}
 		makeRun() {
 			try {
 				if (!this.runningScript.state) {
@@ -250,7 +260,10 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 					uselessStepExecutor = previousStepExecutor.constructor
 				remaining = newRemaining
 				if (remaining !== undefined) {
-					assert(previousStepExecutor.ended !== undefined, 'Step executor is not pending')
+					assert(
+						previousStepExecutor.ended === true || typeof previousStepExecutor.ended === 'string',
+						'Step executor is not pending'
+					)
 					//console.log(`[update] ${this.name}: finished step ${previousStepExecutor.constructor.name}, remaining dt ${remaining}`);
 					this._lastCompletedStepType = previousStepExecutor.constructor.name
 					this.stepExecutor = undefined

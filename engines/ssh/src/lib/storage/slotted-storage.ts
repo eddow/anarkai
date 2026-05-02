@@ -1,100 +1,9 @@
 import { atomic, memoize, reactive } from 'mutts'
+import type { Commitment, FailureReason } from 'ssh/commitment'
 import { type Goods, GoodType } from 'ssh/types/base'
 import { assert, traces } from '../dev/debug.ts'
-import {
-	AllocationError,
-	allocationEnded,
-	guardAllocation,
-	invalidateAllocation,
-	isAllocationValid,
-} from './guard'
-import { type AllocationBase, Storage } from './storage'
+import { Storage } from './storage'
 import type { RenderedGoodSlot, RenderedGoodSlots } from './types'
-
-@reactive
-class SlottedAllocation implements AllocationBase {
-	public readonly reason: unknown
-	constructor(
-		private storage: SlottedStorage,
-		public readonly allocation: number[],
-		reason: unknown
-	) {
-		this.reason = reason
-		guardAllocation(this, reason)
-	}
-
-	@atomic
-	cancel(): void {
-		if (!isAllocationValid(this)) return
-		this.storage.assertIntegrity('SlottedAllocation.cancel.before')
-		allocationEnded(this)
-		invalidateAllocation(this, 'SlottedAllocation.cancel')
-		for (let i = 0; i < this.allocation.length; i++) {
-			const amount = this.allocation[i]
-			if (amount === 0) continue
-			const slot = this.storage.slots[i]
-			assert(!!slot, 'cancel: slot missing for allocated/reserved entry')
-			if (amount > 0) {
-				// Ensure the allocation exists
-				assert(slot.allocated >= amount, 'cancel: allocated less than cancel amount')
-				slot.allocated -= amount
-				if (slot.quantity + slot.allocated === 0) this.storage.slots.splice(i, 1, undefined)
-			} else {
-				const need = -amount
-				assert(slot.reserved >= need, 'cancel: reserved less than cancel amount')
-				slot.reserved -= need
-				// quantity unchanged on cancel of negative allocation
-				if (slot.quantity + slot.allocated === 0) this.storage.slots[i] = undefined
-			}
-		}
-		this.storage.compactIdleSameGoodTypeSlots()
-		this.storage.assertIntegrity('SlottedAllocation.cancel.after')
-	}
-
-	@atomic
-	fulfill(): void {
-		if (!isAllocationValid(this)) return
-		this.storage.assertIntegrity('SlottedAllocation.fulfill.before')
-		allocationEnded(this)
-		invalidateAllocation(this, 'SlottedAllocation.fulfill')
-		for (let i = 0; i < this.allocation.length; i++) {
-			const amount = this.allocation[i]
-			if (amount === 0) continue
-			const slot = this.storage.slots[i]
-			assert(!!slot, 'fulfill: slot missing for allocated/reserved entry')
-			if (amount > 0) {
-				// Positive amount means allocate->present
-				assert(slot.allocated >= amount, 'fulfill: allocated less than fulfill amount')
-				const roomHere = this.storage.maxQuantityPerSlot - slot.quantity
-				assert(roomHere >= amount, 'fulfill: not enough room in slot')
-				slot.quantity += amount
-				slot.allocated -= amount
-				if (slot.quantity + slot.allocated === 0) {
-					assert(
-						slot.reserved === 0 && slot.allocated === 0 && slot.quantity === 0,
-						'slot should be empty'
-					)
-					this.storage.slots.splice(i, 1, undefined)
-				}
-			} else {
-				const want = -amount
-				assert(slot.reserved >= want, 'fulfill: reserved less than fulfill amount')
-				assert(slot.quantity >= want, 'fulfill: quantity less than fulfill amount')
-				slot.quantity -= want
-				slot.reserved -= want
-				if (slot.quantity + slot.allocated === 0) {
-					assert(
-						slot.reserved === 0 && slot.allocated === 0 && slot.quantity === 0,
-						'slot should be empty'
-					)
-					this.storage.slots.splice(i, 1, undefined)
-				}
-			}
-		}
-		this.storage.compactIdleSameGoodTypeSlots()
-		this.storage.assertIntegrity('SlottedAllocation.fulfill.after')
-	}
-}
 
 export interface Slot {
 	goodType: GoodType
@@ -120,7 +29,7 @@ function makeSlot(goodType: GoodType, quantity: number): Slot {
 }
 
 @reactive
-export class SlottedStorage extends Storage<SlottedAllocation> {
+export class SlottedStorage extends Storage {
 	public readonly slots: (Slot | undefined)[] = reactive([])
 
 	constructor(
@@ -420,7 +329,11 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		return total
 	}
 
-	allocate(goods: Goods, reason: any): SlottedAllocation {
+	/**
+	 * Allocate room for goods and register lifecycle callbacks on the commitment.
+	 * @returns `undefined` on success, a string reason on failure.
+	 */
+	allocate(goods: Goods, commitment: Commitment): FailureReason {
 		this.assertIntegrity('SlottedStorage.allocate.before')
 		const alloc: number[] = Array(this.slots.length).fill(0)
 		let hasAnyAllocation = false
@@ -476,19 +389,68 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		}
 
 		if (!hasAnyAllocation && Object.keys(goods).length > 0) {
-			throw new AllocationError(`Insufficient room to allocate any goods`, reason)
+			return 'Insufficient room to allocate any goods'
 		}
 
 		if (Object.keys(goods).length === 0) {
-			throw new AllocationError(`Empty goods object provided for allocation`, reason)
+			return 'Empty goods object provided for allocation'
 		}
 
+		// Register lifecycle callbacks on the commitment
+		commitment.onFulfilled(() => {
+			this.assertIntegrity('SlottedStorage.allocate.fulfill.before')
+			for (let i = 0; i < alloc.length; i++) {
+				const amount = alloc[i]
+				if (amount === 0) continue
+				const slot = this.slots[i]
+				assert(!!slot, 'fulfill: slot missing for allocated entry')
+				assert(slot.allocated >= amount, 'fulfill: allocated less than fulfill amount')
+				const roomHere = this.maxQuantityPerSlot - slot.quantity
+				assert(roomHere >= amount, 'fulfill: not enough room in slot')
+				slot.quantity += amount
+				slot.allocated -= amount
+				if (slot.quantity + slot.allocated === 0) {
+					assert(
+						slot.reserved === 0 && slot.allocated === 0 && slot.quantity === 0,
+						'slot should be empty'
+					)
+					this.slots.splice(i, 1, undefined)
+				}
+			}
+			this.compactIdleSameGoodTypeSlots()
+			this.assertIntegrity('SlottedStorage.allocate.fulfill.after')
+		})
+
+		commitment.onCancelled(() => {
+			this.assertIntegrity('SlottedStorage.allocate.cancel.before')
+			for (let i = 0; i < alloc.length; i++) {
+				const amount = alloc[i]
+				if (amount === 0) continue
+				const slot = this.slots[i]
+				assert(!!slot, 'cancel: slot missing for allocated entry')
+				assert(slot.allocated >= amount, 'cancel: allocated less than cancel amount')
+				slot.allocated -= amount
+				if (slot.quantity + slot.allocated === 0) this.slots.splice(i, 1, undefined)
+			}
+			this.compactIdleSameGoodTypeSlots()
+			this.assertIntegrity('SlottedStorage.allocate.cancel.after')
+		})
+
 		this.assertIntegrity('SlottedStorage.allocate.after')
-		return new SlottedAllocation(this, alloc, reason)
+		return undefined
 	}
 
-	reserve(goods: Goods, reason: any): SlottedAllocation {
+	/**
+	 * Reserve existing goods for removal and register lifecycle callbacks on the commitment.
+	 * @returns `undefined` on success, a string reason on failure.
+	 */
+	reserve(goods: Goods, commitment: Commitment): FailureReason {
 		this.assertIntegrity('SlottedStorage.reserve.before')
+
+		if (Object.keys(goods).length === 0) {
+			return 'Empty goods object provided for reservation'
+		}
+
 		const alloc: number[] = Array(this.slots.length).fill(0)
 		let hasAnyReservation = false
 
@@ -531,11 +493,53 @@ export class SlottedStorage extends Storage<SlottedAllocation> {
 		}
 
 		if (!hasAnyReservation) {
-			throw new AllocationError(`Insufficient goods to reserve any goods`, reason)
+			return 'Insufficient goods to reserve any goods'
 		}
 
+		// Register lifecycle callbacks on the commitment
+		commitment.onFulfilled(() => {
+			this.assertIntegrity('SlottedStorage.reserve.fulfill.before')
+			for (let i = 0; i < alloc.length; i++) {
+				const amount = alloc[i]
+				if (amount === 0) continue
+				const slot = this.slots[i]
+				assert(!!slot, 'fulfill: slot missing for reserved entry')
+				const want = -amount
+				assert(slot.reserved >= want, 'fulfill: reserved less than fulfill amount')
+				assert(slot.quantity >= want, 'fulfill: quantity less than fulfill amount')
+				slot.quantity -= want
+				slot.reserved -= want
+				if (slot.quantity + slot.allocated === 0) {
+					assert(
+						slot.reserved === 0 && slot.allocated === 0 && slot.quantity === 0,
+						'slot should be empty'
+					)
+					this.slots.splice(i, 1, undefined)
+				}
+			}
+			this.compactIdleSameGoodTypeSlots()
+			this.assertIntegrity('SlottedStorage.reserve.fulfill.after')
+		})
+
+		commitment.onCancelled(() => {
+			this.assertIntegrity('SlottedStorage.reserve.cancel.before')
+			for (let i = 0; i < alloc.length; i++) {
+				const amount = alloc[i]
+				if (amount === 0) continue
+				const slot = this.slots[i]
+				assert(!!slot, 'cancel: slot missing for reserved entry')
+				const need = -amount
+				assert(slot.reserved >= need, 'cancel: reserved less than cancel amount')
+				slot.reserved -= need
+				// quantity unchanged on cancel of negative allocation
+				if (slot.quantity + slot.allocated === 0) this.slots[i] = undefined
+			}
+			this.compactIdleSameGoodTypeSlots()
+			this.assertIntegrity('SlottedStorage.reserve.cancel.after')
+		})
+
 		this.assertIntegrity('SlottedStorage.reserve.after')
-		return new SlottedAllocation(this, alloc, reason)
+		return undefined
 	}
 
 	canStoreAll(goods: Goods): boolean {

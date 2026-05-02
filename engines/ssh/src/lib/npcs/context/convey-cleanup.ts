@@ -1,12 +1,10 @@
 import type { LooseGood } from 'ssh/board/looseGoods'
 import type { TrackedMovement } from 'ssh/hive/hive'
 import type { Character } from 'ssh/population/character'
-import type { AllocationBase } from 'ssh/storage'
 import type { AxialCoord } from 'ssh/utils'
 
 export interface FailedConveyMovementData {
 	movement: TrackedMovement
-	hopAlloc?: AllocationBase
 	from: AxialCoord
 	moving?: LooseGood
 	sourceFulfilled?: boolean
@@ -14,7 +12,7 @@ export interface FailedConveyMovementData {
 
 export function cleanupFailedConveyMovement(
 	character: Character,
-	{ movement, hopAlloc, from, moving, sourceFulfilled }: FailedConveyMovementData
+	{ movement, from, moving, sourceFulfilled }: FailedConveyMovementData
 ) {
 	const hive = movement.provider.hive
 	hive.noteMovementLifecycle(movement, 'cleanupFailedConveyMovement.enter')
@@ -40,9 +38,8 @@ export function cleanupFailedConveyMovement(
 	movement.claimed = false
 	delete movement.claimedBy
 	delete movement.claimedAtMs
-	hopAlloc?.cancel()
 	hive.cancelMovementSource(movement, 'cleanupFailedConveyMovement')
-	movement.allocations.target.cancel()
+	movement.allocations.target.cancel('cleanupFailedConveyMovement')
 	hive.noteMovementStorageCheckpoint(
 		movement,
 		'cleanupFailedConveyMovement.after-cancel',

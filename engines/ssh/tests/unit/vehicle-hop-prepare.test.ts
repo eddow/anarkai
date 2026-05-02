@@ -172,9 +172,9 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		expect(jobPlan.vehicleHopAnchorDockDisembarked).toBe(true)
 		expect(character.operates?.uid).toBe(vehicle.uid)
 		expect(vehicle.service).toBeDefined()
-		// Disembark is deferred to the DurationStep's finished callback so the operator
+		// Disembark is deferred to the DurationStep's fulfilled callback so the operator
 		// stays attached for the dock animation; flush it to assert the post-dock state.
-		step?.finish?.()
+		step?.tick(999)
 		expect(character.operates).toBeUndefined()
 		expect(vehicle.service).toBeDefined()
 	})
@@ -232,7 +232,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			dockEnter: true,
 		})
 
-		step?.finish?.()
+		step?.tick(999)
 		expect(vehicle.service).toBeDefined()
 		await new Promise((resolve) => setTimeout(resolve, 5))
 
@@ -295,7 +295,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			dockEnter: true,
 		})
 
-		step?.finish?.()
+		step?.tick(999)
 		await new Promise((resolve) => setTimeout(resolve, 5))
 
 		expect(isVehicleLineService(vehicle.service)).toBe(true)

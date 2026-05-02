@@ -168,7 +168,7 @@ function stepExecutorSnapshot(
 	step:
 		| {
 				constructor: { name: string }
-				ended?: true | string
+				ended?: true | false | string
 				status?: unknown
 				description?: unknown
 				serialize(): unknown
@@ -178,7 +178,15 @@ function stepExecutorSnapshot(
 	if (!step) return undefined
 	return {
 		type: step.constructor.name,
-		status: safeDebugValueForDump(step.ended === undefined ? 'pending' : step.ended === true ? 'fulfilled' : 'cancelled'),
+		status: safeDebugValueForDump(
+			step.ended === undefined
+				? 'not-begun'
+				: step.ended === false
+					? 'begun'
+					: step.ended === true
+						? 'fulfilled'
+						: 'cancelled'
+		),
 		description: safeDebugValueForDump(step.description),
 		serialized: safeDebugValueForDump(step.serialize()),
 	}

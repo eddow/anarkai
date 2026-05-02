@@ -1,84 +1,14 @@
 import { atomic, memoize, reactive } from 'mutts'
+import type { Commitment, FailureReason } from 'ssh/commitment'
 import type { Goods } from 'ssh/types/base'
 import { GoodType } from 'ssh/types/base'
 import { assert, traces } from '../dev/debug.ts'
 import type { RenderedGoodSlots } from '.'
-import {
-	AllocationError,
-	allocationEnded,
-	guardAllocation,
-	invalidateAllocation,
-	isAllocationValid,
-} from './guard'
-import { type AllocationBase, Storage } from './storage'
+import { Storage } from './storage'
 import type { RenderedGoodSlot } from './types'
 
 @reactive
-class SpecificAllocation implements AllocationBase {
-	public readonly reason: unknown
-	constructor(
-		private storage: SpecificStorage,
-		public readonly goods: Goods,
-		reason: unknown
-	) {
-		this.reason = reason
-		guardAllocation(this, reason)
-	}
-
-	@atomic
-	cancel(): void {
-		if (!isAllocationValid(this)) return
-		this.storage.assertIntegrity('SpecificAllocation.cancel.before')
-		allocationEnded(this)
-		invalidateAllocation(this, 'SpecificAllocation.cancel')
-
-		for (const [goodType, qty] of Object.entries(this.goods) as [GoodType, number][]) {
-			assert(qty, 'qty must be set')
-
-			if (qty > 0) {
-				const curAlloc = this.storage._allocated[goodType] || 0
-				assert(curAlloc >= qty, 'cancel: allocated less than cancel qty')
-				this.storage._allocated[goodType] = curAlloc - qty
-			} else if (qty < 0) {
-				const curRes = this.storage._reserved[goodType] || 0
-				assert(curRes >= -qty, 'cancel: reserved less than cancel qty')
-				this.storage._reserved[goodType] = curRes + qty
-			}
-		}
-		this.storage.assertIntegrity('SpecificAllocation.cancel.after')
-	}
-
-	@atomic
-	fulfill(): void {
-		if (!isAllocationValid(this)) return
-		this.storage.assertIntegrity('SpecificAllocation.fulfill.before')
-		allocationEnded(this)
-		invalidateAllocation(this, 'SpecificAllocation.fulfill')
-
-		for (const [goodType, qty] of Object.entries(this.goods) as [GoodType, number][]) {
-			assert(qty, 'qty must be set')
-
-			if (qty > 0) {
-				const curAlloc = this.storage._allocated[goodType] || 0
-				assert(curAlloc >= qty, 'fulfill: allocated less than fulfill qty')
-				this.storage._allocated[goodType] = curAlloc - qty
-				this.storage._goods[goodType] = (this.storage._goods[goodType] || 0) + qty
-			} else if (qty < 0) {
-				const want = -qty
-				const curRes = this.storage._reserved[goodType] || 0
-				const have = this.storage._goods[goodType] || 0
-				assert(curRes >= want, 'fulfill: reserved less than fulfill qty')
-				assert(have >= want, 'fulfill: goods less than fulfill qty')
-				this.storage._reserved[goodType] = curRes - want
-				this.storage._goods[goodType] = have - want
-			}
-		}
-		this.storage.assertIntegrity('SpecificAllocation.fulfill.after')
-	}
-}
-
-@reactive
-export class SpecificStorage extends Storage<SpecificAllocation> {
+export class SpecificStorage extends Storage {
 	public readonly _goods: { [k in GoodType]?: number }
 	public readonly _allocated: { [k in GoodType]?: number }
 	public readonly _reserved: { [k in GoodType]?: number }
@@ -231,7 +161,12 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 		}
 		return { slots, assumedMaxSlots: Object.keys(this.maxAmounts).length }
 	}
-	allocate(goods: Goods, reason: any): SpecificAllocation {
+
+	/**
+	 * Allocate room for goods and register lifecycle callbacks on the commitment.
+	 * @returns `undefined` on success, a string reason on failure.
+	 */
+	allocate(goods: Goods, commitment: Commitment): FailureReason {
 		this.assertIntegrity('SpecificStorage.allocate.before')
 		const actualGoods: Goods = {}
 		let hasAnyAllocation = false
@@ -249,19 +184,52 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 		}
 
 		if (!hasAnyAllocation && Object.keys(goods).length > 0) {
-			throw new AllocationError(`Insufficient room to allocate any goods`, reason)
+			return 'Insufficient room to allocate any goods'
 		}
 
 		if (Object.keys(goods).length === 0) {
-			throw new AllocationError(`Empty goods object provided for allocation`, reason)
+			return 'Empty goods object provided for allocation'
 		}
 
+		// Register lifecycle callbacks on the commitment
+		commitment.onFulfilled(() => {
+			this.assertIntegrity('SpecificStorage.allocate.fulfill.before')
+			for (const [goodType, qty] of Object.entries(actualGoods) as [GoodType, number][]) {
+				assert(qty, 'qty must be set')
+				const curAlloc = this._allocated[goodType] || 0
+				assert(curAlloc >= qty, 'fulfill: allocated less than fulfill qty')
+				this._allocated[goodType] = curAlloc - qty
+				this._goods[goodType] = (this._goods[goodType] || 0) + qty
+			}
+			this.assertIntegrity('SpecificStorage.allocate.fulfill.after')
+		})
+
+		commitment.onCancelled(() => {
+			this.assertIntegrity('SpecificStorage.allocate.cancel.before')
+			for (const [goodType, qty] of Object.entries(actualGoods) as [GoodType, number][]) {
+				assert(qty, 'qty must be set')
+				const curAlloc = this._allocated[goodType] || 0
+				assert(curAlloc >= qty, 'cancel: allocated less than cancel qty')
+				this._allocated[goodType] = curAlloc - qty
+			}
+			this.assertIntegrity('SpecificStorage.allocate.cancel.after')
+		})
+
 		this.assertIntegrity('SpecificStorage.allocate.after')
-		return new SpecificAllocation(this, actualGoods, reason)
+		return undefined
 	}
 
-	reserve(goods: Goods, reason: any): SpecificAllocation {
+	/**
+	 * Reserve existing goods for removal and register lifecycle callbacks on the commitment.
+	 * @returns `undefined` on success, a string reason on failure.
+	 */
+	reserve(goods: Goods, commitment: Commitment): FailureReason {
 		this.assertIntegrity('SpecificStorage.reserve.before')
+
+		if (Object.keys(goods).length === 0) {
+			return 'Empty goods object provided for reservation'
+		}
+
 		const actualGoods: Goods = {}
 		let hasAnyReservation = false
 
@@ -278,11 +246,38 @@ export class SpecificStorage extends Storage<SpecificAllocation> {
 		}
 
 		if (!hasAnyReservation) {
-			throw new AllocationError(`Insufficient goods to reserve any goods`, reason)
+			return 'Insufficient goods to reserve any goods'
 		}
 
+		// Register lifecycle callbacks on the commitment
+		commitment.onFulfilled(() => {
+			this.assertIntegrity('SpecificStorage.reserve.fulfill.before')
+			for (const [goodType, qty] of Object.entries(actualGoods) as [GoodType, number][]) {
+				assert(qty, 'qty must be set')
+				const want = -qty
+				const curRes = this._reserved[goodType] || 0
+				const have = this._goods[goodType] || 0
+				assert(curRes >= want, 'fulfill: reserved less than fulfill qty')
+				assert(have >= want, 'fulfill: goods less than fulfill qty')
+				this._reserved[goodType] = curRes - want
+				this._goods[goodType] = have - want
+			}
+			this.assertIntegrity('SpecificStorage.reserve.fulfill.after')
+		})
+
+		commitment.onCancelled(() => {
+			this.assertIntegrity('SpecificStorage.reserve.cancel.before')
+			for (const [goodType, qty] of Object.entries(actualGoods) as [GoodType, number][]) {
+				assert(qty, 'qty must be set')
+				const curRes = this._reserved[goodType] || 0
+				assert(curRes >= -qty, 'cancel: reserved less than cancel qty')
+				this._reserved[goodType] = curRes + qty
+			}
+			this.assertIntegrity('SpecificStorage.reserve.cancel.after')
+		})
+
 		this.assertIntegrity('SpecificStorage.reserve.after')
-		return new SpecificAllocation(this, actualGoods, reason)
+		return undefined
 	}
 
 	get debugInfo(): Record<string, any> {

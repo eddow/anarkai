@@ -75,7 +75,11 @@ describe('steps smoke', () => {
 		expect(step.description).toBe('Chopping Wood')
 		expect(step.tick(1)).toBeUndefined()
 
-		const restored = ASingleStep.deserialize({} as never, {} as never, step.serialize()) as DurationStep
+		const restored = ASingleStep.deserialize(
+			{} as never,
+			{} as never,
+			step.serialize()
+		) as DurationStep
 
 		expect(restored).toBeInstanceOf(DurationStep)
 		expect(restored.type).toBe('work')

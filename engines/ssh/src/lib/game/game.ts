@@ -204,12 +204,46 @@ function terrainPatchesAsTiles(terrains: TerrainPatches | undefined): TilePatch[
 	return tiles
 }
 
+/**
+ * Normalize loose goods patches to the canonical record format.
+ * Accepts both the record format `{ wood: [[1, 0]] }` and the legacy array format
+ * `[{ goodType: 'wood', position: { q: 0, r: 0 } }]`.
+ */
+function normalizeLooseGoodsPatches(
+	looseGoods: unknown
+): LooseGoodsPatches {
+	if (!looseGoods) return {}
+	if (Array.isArray(looseGoods)) {
+		// Legacy array format: [{ goodType: 'wood', position: { q: 0, r: 0 } }]
+		const result: Record<string, Array<readonly [number, number]>> = {}
+		for (const entry of looseGoods) {
+			if (entry && typeof entry === 'object' && 'goodType' in entry && 'position' in entry) {
+				const goodType = (entry as any).goodType as string
+				const pos = (entry as any).position as { q: number; r: number }
+				if (goodType && pos && typeof pos.q === 'number' && typeof pos.r === 'number') {
+					const coord: readonly [number, number] = [pos.q, pos.r]
+					if (!result[goodType]) {
+						result[goodType] = [coord]
+					} else {
+						result[goodType].push(coord)
+					}
+				}
+			}
+		}
+		return result as LooseGoodsPatches
+	}
+	return looseGoods as LooseGoodsPatches
+}
+
 function looseGoodsPatchEntries(
 	looseGoods: LooseGoodsPatches | undefined
 ): Array<[GoodType, ReadonlyArray<readonly [number, number]>]> {
-	return Object.entries(looseGoods ?? {}) as Array<
-		[GoodType, ReadonlyArray<readonly [number, number]>]
-	>
+	return Object.entries(normalizeLooseGoodsPatches(looseGoods)).filter(
+		(entry): entry is [GoodType, ReadonlyArray<readonly [number, number]>] => {
+			const [, coords] = entry
+			return coords !== undefined && coords !== null
+		}
+	)
 }
 
 export class Game extends Eventful<GameEvents> {

@@ -54,6 +54,11 @@ class TestAlveolus extends Alveolus {
 	}
 }
 
+/** Helper to flush deferred reactive work. */
+async function flushMicrotasks() {
+	await new Promise((resolve) => setTimeout(resolve, 0))
+}
+
 describe('Alveolus Reactivity', () => {
 	it('should trigger advertise when working status changes', async () => {
 		// 1. Setup minimal Game/Board/Tile structure
@@ -94,6 +99,7 @@ describe('Alveolus Reactivity', () => {
 
 		// 3. Attach alveolus - this should trigger the first advertise
 		hive.attach(alveolus)
+		await flushMicrotasks()
 
 		expect(advertiseSpy).toHaveBeenCalledTimes(1)
 		const initialArgs = advertiseSpy.mock.calls[0]
@@ -106,6 +112,7 @@ describe('Alveolus Reactivity', () => {
 		console.log('Toggling working to false...')
 		const callsBeforeToggle = advertiseSpy.mock.calls.length
 		alveolus.working = false
+		await flushMicrotasks()
 
 		// Effect should run - verify we got at least one more call
 		expect(advertiseSpy.mock.calls.length).toBeGreaterThan(callsBeforeToggle)
@@ -120,6 +127,7 @@ describe('Alveolus Reactivity', () => {
 		console.log('Toggling working to true...')
 		const callsBeforeSecondToggle = advertiseSpy.mock.calls.length
 		alveolus.working = true
+		await flushMicrotasks()
 
 		expect(advertiseSpy.mock.calls.length).toBeGreaterThan(callsBeforeSecondToggle)
 		const thirdArgs = advertiseSpy.mock.calls[advertiseSpy.mock.calls.length - 1]

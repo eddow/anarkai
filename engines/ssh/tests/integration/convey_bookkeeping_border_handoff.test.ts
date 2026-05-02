@@ -96,7 +96,7 @@ describe('Convey bookkeeping border source rebind', () => {
 				},
 			} as typeof console
 
-			publishedSource.cancel()
+			publishedSource.cancel('test.cancel')
 			void storage.aGoodMovement
 
 			movement.allocations.source = borderStorage.reserve(

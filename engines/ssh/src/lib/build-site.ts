@@ -2,7 +2,7 @@ import { effect } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
 import { type ConstructionSiteState, setConstructionDeliveredGoods } from 'ssh/construction-state'
-import type { AllocationBase, Storage } from 'ssh/storage/storage'
+import type { Storage } from 'ssh/storage/storage'
 import type { GoodType } from 'ssh/types/base'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
 
@@ -14,7 +14,7 @@ import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
 
 export interface ConstructionMaterialShell {
 	readonly constructionSite: ConstructionSiteState
-	readonly storage: Storage<AllocationBase>
+	readonly storage: Storage
 	readonly destroyed: boolean
 	readonly uid?: string
 }
@@ -56,7 +56,7 @@ export function isStandaloneBuildSiteShell(content: unknown): content is BuildSi
 
 export function materialRemainingNeeds(
 	requiredGoods: Partial<Record<GoodType, number>>,
-	storage?: Storage<AllocationBase>
+	storage?: Storage
 ): Record<string, number> {
 	const needs: Record<string, number> = {}
 	if (!storage?.stock) {
@@ -77,7 +77,7 @@ export function materialRemainingNeeds(
 
 export function materialAdvertisedNeeds(
 	requiredGoods: Partial<Record<GoodType, number>>,
-	storage: Storage<AllocationBase>
+	storage: Storage
 ): Record<string, number> {
 	const needs: Record<string, number> = {}
 	for (const [good, qty] of Object.entries(requiredGoods)) {

@@ -44,7 +44,7 @@ export function withInteractive<T extends abstract new (...args: any[]) => GameO
 			// Interactive objects should not become externally visible while subclass construction
 			// is still running. We still defer publication until after the current construction/
 			// reactive batch, but we do it through the game's batch-aware lifecycle queue rather
-			// than `queueMicrotask`, which is not coordinated with Mutts batching.
+			// than a raw platform microtask, which is not coordinated with Mutts batching.
 			game.enqueueInteractiveRegistration(this, uid)
 		}
 

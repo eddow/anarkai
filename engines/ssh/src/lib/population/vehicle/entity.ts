@@ -1,4 +1,4 @@
-import { defer, effect, reactive } from 'mutts'
+import { effect, reactive } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
 import { syncFreightVehicleDockRegistration } from 'ssh/freight/vehicle-freight-dock-sync'
@@ -59,28 +59,31 @@ export class VehicleEntity extends withInteractive(GameObject) {
 			const svc = this.service
 			if (!isVehicleLineService(svc) || !('anchor' in svc.stop) || !this.isDocked) return
 			if (svc.operator) return
-			const stockCount = Object.values(this.storage.stock).reduce(
-				(total, qty) => total + Math.max(0, qty ?? 0),
-				0
-			)
 			const virtualGoodsCount = this.storage.virtualGoodsCount
 			if (virtualGoodsCount > 0) return
 			if (this.dockStorageCompletionScheduled) return
 			this.dockStorageCompletionScheduled = true
-			defer(() => {
-				queueMicrotask(() => {
-					this.dockStorageCompletionScheduled = false
-					if (this.destroyed) return
-					traces.vehicle.log?.('vehicleJob.dock.storageDrained', {
-						vehicleUid: this.uid,
-						lineId: svc.line.id,
-						stopId: svc.stop.id,
-						stockCount,
-						virtualGoodsCount,
-					})
-					maybeAdvanceVehicleFromCompletedAnchorStop(this.game, this)
+			setTimeout(() => {
+				this.dockStorageCompletionScheduled = false
+				if (this.destroyed) return
+				const current = this.service
+				if (!isVehicleLineService(current) || !('anchor' in current.stop) || !this.isDocked) return
+				if (current.operator) return
+				if (this.storage.virtualGoodsCount > 0) return
+				const currentStockCount = Object.values(this.storage.stock).reduce(
+					(total, qty) => total + Math.max(0, qty ?? 0),
+					0
+				)
+				if (currentStockCount > 0) return
+				traces.vehicle.log?.('vehicleJob.dock.storageDrained', {
+					vehicleUid: this.uid,
+					lineId: current.line.id,
+					stopId: current.stop.id,
+					stockCount: currentStockCount,
+					virtualGoodsCount: this.storage.virtualGoodsCount,
 				})
-			})
+				maybeAdvanceVehicleFromCompletedAnchorStop(this.game, this)
+			}, 0)
 		})
 	}
 

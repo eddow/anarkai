@@ -1,3 +1,4 @@
+import { Commitment } from 'ssh/commitment'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import type { SlottedStorage } from 'ssh/storage/slotted-storage'
 import type { SpecificStorage } from 'ssh/storage/specific-storage'
@@ -179,15 +180,16 @@ describe('StorageAlveolus Configuration', () => {
 
 		const storage = alveolus.storage as SlottedStorage
 		const initialRoom = storage.hasRoom('wood')
-		const inbound = storage.allocate({ wood: initialRoom }, 'test.allocated-slot-room')
+		const inboundCommitment = new Commitment('test.allocated-slot-room')
+		storage.allocate({ wood: initialRoom }, inboundCommitment)
 
 		expect(storage.hasRoom('wood')).toBe(0)
 		expect(alveolus.canTake('wood', '2-use')).toBe(false)
-		expect(() => storage.allocate({ wood: 1 }, 'test.over-allocate-slot-room')).toThrow(
+		expect(storage.allocate({ wood: 1 }, new Commitment('test.over-allocate-slot-room'))).toBe(
 			'Insufficient room to allocate any goods'
 		)
 
-		inbound.cancel()
+		inboundCommitment.cancel('test.cancel')
 
 		expect(storage.hasRoom('wood')).toBe(initialRoom)
 		expect(alveolus.canTake('wood', '2-use')).toBe(true)
@@ -198,15 +200,16 @@ describe('StorageAlveolus Configuration', () => {
 		alveolus.working = true
 
 		const storage = alveolus.storage as SpecificStorage
-		const inbound = storage.allocate({ wood: 2 }, 'test.allocated-specific-room')
+		const inboundCommitment = new Commitment('test.allocated-specific-room')
+		storage.allocate({ wood: 2 }, inboundCommitment)
 
 		expect(storage.hasRoom('wood')).toBe(0)
 		expect(alveolus.canTake('wood', '2-use')).toBe(false)
-		expect(() => storage.allocate({ wood: 1 }, 'test.over-allocate-specific-room')).toThrow(
+		expect(storage.allocate({ wood: 1 }, new Commitment('test.over-allocate-specific-room'))).toBe(
 			'Insufficient room to allocate any goods'
 		)
 
-		inbound.cancel()
+		inboundCommitment.cancel('test.cancel')
 
 		expect(storage.hasRoom('wood')).toBe(2)
 		expect(alveolus.canTake('wood', '2-use')).toBe(true)

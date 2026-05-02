@@ -1,3 +1,4 @@
+import { Commitment } from 'ssh/commitment'
 import { debugActiveAllocations, resetDebugActiveAllocations } from 'ssh/storage/guard'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
@@ -20,11 +21,13 @@ describe('allocation guard', () => {
 		const storage = new SpecificStorage({ wood: 4 })
 		storage.addGood('wood', 2)
 
-		const source = storage.reserve({ wood: 1 }, { type: 'test.reserve' })
-		const target = storage.allocate({ wood: 1 }, { type: 'test.allocate' })
+		const sourceCommitment = new Commitment('test.reserve')
+		const targetCommitment = new Commitment('test.allocate')
+		storage.reserve({ wood: 1 }, sourceCommitment)
+		storage.allocate({ wood: 1 }, targetCommitment)
 
-		source.fulfill()
-		target.fulfill()
+		sourceCommitment.fulfill()
+		targetCommitment.fulfill()
 
 		expect(storage.stock.wood).toBe(2)
 		expect(activeIds()).toEqual([])
@@ -35,11 +38,13 @@ describe('allocation guard', () => {
 		const storage = new SlottedStorage(2, 2)
 		storage.addGood('wood', 1)
 
-		const source = storage.reserve({ wood: 1 }, { type: 'test.reserve' })
-		const target = storage.allocate({ wood: 1 }, { type: 'test.allocate' })
+		const sourceCommitment = new Commitment('test.reserve')
+		const targetCommitment = new Commitment('test.allocate')
+		storage.reserve({ wood: 1 }, sourceCommitment)
+		storage.allocate({ wood: 1 }, targetCommitment)
 
-		source.fulfill()
-		target.fulfill()
+		sourceCommitment.fulfill()
+		targetCommitment.fulfill()
 
 		expect(storage.stock.wood).toBe(1)
 		expect(activeIds()).toEqual([])

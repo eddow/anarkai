@@ -13,7 +13,11 @@ import { afterEach, beforeEach, vi } from "vitest";
 delete (global as any).__MUTTS_INSTANCE__;
 
 import { getActivationLog, reactiveOptions, reset, unreactive } from "mutts";
-import { disconnectAllTraces } from "./src/lib/dev/debug.ts";
+import {
+	disconnectAllTraces,
+	setTraceLevel,
+	type TraceVerb,
+} from "./src/lib/dev/debug.ts";
 import { options } from "ssh/globals";
 import { resetDebugActiveAllocations } from "ssh/storage/guard";
 
@@ -38,6 +42,25 @@ const defaultDisallowedDiagnostics = [
 let capturedDiagnostics: TestDiagnosticEntry[] = [];
 let allowedDiagnosticPatterns: RegExp[] = [];
 const defaultStalledMovementScanIntervalMs = options.stalledMovementScanIntervalMs;
+const requestedTraceChannels = (process.env.SSH_TRACE_CHANNELS ?? "")
+	.split(",")
+	.map((channel) => channel.trim())
+	.filter(Boolean);
+const requestedTraceLevel = process.env.SSH_TRACE_LEVEL ?? "log";
+const traceVerbs: readonly TraceVerb[] = ["log", "warn", "assert", "error"];
+
+const applyRequestedTraceLevels = () => {
+	if (!traceVerbs.includes(requestedTraceLevel as TraceVerb)) {
+		throw new Error(
+			`Invalid SSH_TRACE_LEVEL "${requestedTraceLevel}". Expected one of: ${traceVerbs.join(", ")}`,
+		);
+	}
+	for (const channel of requestedTraceChannels) {
+		setTraceLevel(channel, requestedTraceLevel as TraceVerb);
+	}
+};
+
+applyRequestedTraceLevels();
 
 const formatDiagnosticArg = (arg: unknown): string => {
 	if (typeof arg === "string") return arg;
@@ -171,6 +194,7 @@ beforeEach(() => {
 	allowedDiagnosticPatterns = [];
 	options.stalledMovementScanIntervalMs = 0;
 	disconnectAllTraces();
+	applyRequestedTraceLevels();
 	resetDebugActiveAllocations();
 	reset();
 });

@@ -18,6 +18,7 @@ if (typeof navigator === 'undefined') {
 	;(global as any).navigator = { userAgent: 'node' }
 }
 
+import { Commitment } from 'ssh/commitment'
 import { Game } from 'ssh/game/game'
 import { InventoryFunctions } from 'ssh/npcs/context/inventory'
 import { subject } from 'ssh/npcs/scripts'
@@ -129,10 +130,10 @@ describe('Evolutive & Determinism Tests', () => {
 					],
 				},
 			],
-			looseGoods: [
-				{ goodType: 'wood', position: { q: 2, r: 2 } },
-				{ goodType: 'stone', position: { q: 1, r: 1 } },
-			],
+			looseGoods: {
+				wood: [[2, 2]],
+				stone: [[1, 1]],
+			},
 		} as any
 
 		const game1 = new Game(config)
@@ -268,16 +269,20 @@ describe('Evolutive & Determinism Tests', () => {
 			Object.defineProperty(fakeTile, 'uid', { value: sourceTile.uid })
 
 			const grabGoods = { wood: 1 }
-			const vehicleAllocation = worker.carry.allocate(grabGoods, 'planGrabStored')
-			const sourceReservation = sourceStorage.reserve(grabGoods, 'planGrabStored')
+			const grabCommitment = new Commitment('planGrabStored')
+			const vehicleAllocationResult = worker.carry.allocate(grabGoods, grabCommitment)
+			expect(vehicleAllocationResult).toBeUndefined()
+			const sourceCommitment = new Commitment('planGrabStored')
+			const sourceReservationResult = sourceStorage.reserve(grabGoods, sourceCommitment)
+			expect(sourceReservationResult).toBeUndefined()
 
 			// Assert Reservations (Allocations created immediately in planGrab)
 			expect((sourceStorage as any).available('wood')).toBe(0)
 			expect(worker.carry.available('wood')).toBe(0) // Not yet fulfilled
 
 			// Simulate Conclude
-			sourceReservation.fulfill()
-			vehicleAllocation.fulfill()
+			sourceCommitment.fulfill()
+			grabCommitment.fulfill()
 
 			// Assert Possession
 			expect(worker.carry.available('wood')).toBe(1)
@@ -297,12 +302,16 @@ describe('Evolutive & Determinism Tests', () => {
 			const currentTargetStorage = game.hex.getTile({ q: 0, r: 1 })!.content!.storage!
 
 			const dropGoods = { wood: 1 }
-			const targetAllocation = currentTargetStorage.allocate!(dropGoods, 'planDropStored')
-			const vehicleReservation = worker.carry.reserve(dropGoods, 'planDropStored')
+			const dropAllocCommitment = new Commitment('planDropStored')
+			const dropReserveCommitment = new Commitment('planDropStored')
+			const targetAllocationResult = currentTargetStorage.allocate!(dropGoods, dropAllocCommitment)
+			expect(targetAllocationResult).toBeUndefined()
+			const vehicleReservationResult = worker.carry.reserve(dropGoods, dropReserveCommitment)
+			expect(vehicleReservationResult).toBeUndefined()
 
 			// Fulfill
-			targetAllocation.fulfill()
-			vehicleReservation.fulfill()
+			dropAllocCommitment.fulfill()
+			dropReserveCommitment.fulfill()
 
 			// Final Assertion
 			expect(worker.carry.available('wood')).toBe(0)

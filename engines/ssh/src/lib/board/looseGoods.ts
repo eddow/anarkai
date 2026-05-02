@@ -1,44 +1,14 @@
 import { goods } from 'engine-rules'
-import { atomic, reactive, unreactive, untracked, unwrap } from 'mutts'
+import { reactive, untracked, unwrap } from 'mutts'
+import { Commitment, type FailureReason } from 'ssh/commitment'
 import { assert } from 'ssh/dev/debug'
 import { traceProjection } from 'ssh/dev/trace'
 import { GameObject, withTicked } from 'ssh/game/object'
-import {
-	allocationEnded,
-	guardAllocation,
-	invalidateAllocation,
-	isAllocationValid,
-} from 'ssh/storage/guard'
 import type { GoodType } from 'ssh/types'
 import { epsilon } from 'ssh/utils'
 import { type AxialKey, axial } from 'ssh/utils/axial'
 import { AxialKeyMap } from 'ssh/utils/mem'
 import { axialDistance, type Position, type Positioned, toAxialCoord } from 'ssh/utils/position'
-
-@unreactive
-class LooseGoodAllocation {
-	constructor(
-		public readonly looseGood: LooseGood,
-		reason: any
-	) {
-		guardAllocation(this, reason)
-	}
-
-	@atomic
-	cancel(): void {
-		if (!isAllocationValid(this)) return
-		allocationEnded(this)
-		invalidateAllocation(this)
-		this.looseGood.available = true
-	}
-	@atomic
-	fulfill(): void {
-		if (!isAllocationValid(this)) return
-		allocationEnded(this)
-		invalidateAllocation(this)
-		this.looseGood.remove()
-	}
-}
 
 export interface LooseGood {
 	goodType: GoodType
@@ -46,7 +16,7 @@ export interface LooseGood {
 	available: boolean
 	get isRemoved(): boolean
 	remove(): void
-	allocate(reason: any): LooseGoodAllocation
+	allocate(commitment: Commitment): FailureReason
 }
 
 type InternalLooseGood = LooseGood & {
@@ -97,15 +67,24 @@ export class LooseGoods extends withTicked(GameObject) {
 			remove() {
 				self.remove(good)
 			},
-			allocate: (reason: any): LooseGoodAllocation => {
+			allocate: (commitment: Commitment): FailureReason => {
 				if (!good.available) {
-					throw new Error(`LooseGood already allocated: ${reason}`)
+					return 'LooseGood already allocated'
 				}
 				if (good.isRemoved) {
-					throw new Error(`LooseGood already removed: ${reason}`)
+					return 'LooseGood already removed'
 				}
 				good.available = false
-				return new LooseGoodAllocation(good, reason)
+
+				// Register lifecycle callbacks on the commitment
+				commitment.onFulfilled(() => {
+					self.remove(good)
+				})
+				commitment.onCancelled(() => {
+					good.available = true
+				})
+
+				return undefined
 			},
 			...options,
 		})
@@ -131,23 +110,18 @@ export class LooseGoods extends withTicked(GameObject) {
 		return this.goods.get(axial.round(toAxialCoord(coord))) || []
 	}
 
-	findAndAllocate(
-		coord: Positioned,
-		goodType?: GoodType,
-		reason?: any
-	): LooseGoodAllocation | null {
+	findAndAllocate(coord: Positioned, goodType?: GoodType, commitment?: Commitment): FailureReason {
 		const goodsList = this.goods.get(axial.round(toAxialCoord(coord)))
-		if (!goodsList) return null
+		if (!goodsList) return 'No loose goods at this position'
 
 		// Find first available matching good
 		for (const good of goodsList) {
 			if (good.available && (!goodType || good.goodType === goodType)) {
-				try {
-					return good.allocate(reason || 'findAndAllocate')
-				} catch (_e) {}
+				const result = good.allocate(commitment ?? new Commitment('findAndAllocate'))
+				if (result === undefined) return undefined
 			}
 		}
-		return null
+		return 'No available loose goods matching criteria'
 	}
 
 	findNearestGoods(

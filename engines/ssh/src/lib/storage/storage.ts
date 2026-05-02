@@ -1,15 +1,10 @@
 import { ReactiveBase } from 'mutts'
+import type { Commitment, FailureReason } from 'ssh/commitment'
 import { traceProjection } from 'ssh/dev/trace'
 import type { Goods, GoodType } from 'ssh/types/base'
 import type { RenderedGoodSlots } from './types'
 
-export interface AllocationBase {
-	cancel(): void
-	fulfill(): void
-}
-export abstract class Storage<
-	Allocation extends AllocationBase = AllocationBase,
-> extends ReactiveBase {
+export abstract class Storage extends ReactiveBase {
 	/**
 	 * Check how much of a good can be stored
 	 * @param goodType - The type of good to check
@@ -41,15 +36,15 @@ export abstract class Storage<
 	abstract removeGood(goodType: GoodType, qty: number): number
 
 	/**
-	 * Allocate room for goods and return an opaque allocation token
-	 * @throws Error if allocation fails (insufficient room)
+	 * Allocate room for goods and register lifecycle callbacks on the commitment.
+	 * @returns `undefined` on success, a string reason on failure.
 	 */
-	abstract allocate(goods: Goods, reason: any): Allocation
+	abstract allocate(goods: Goods, commitment: Commitment): FailureReason
 	/**
-	 * Reserve existing goods for removal and return an opaque allocation token
-	 * @throws Error if reservation fails (insufficient goods)
+	 * Reserve existing goods for removal and register lifecycle callbacks on the commitment.
+	 * @returns `undefined` on success, a string reason on failure.
 	 */
-	abstract reserve(goods: Goods, reason: any): Allocation
+	abstract reserve(goods: Goods, commitment: Commitment): FailureReason
 
 	/**
 	 * Get all goods currently stored (stock totals, includes reserved)

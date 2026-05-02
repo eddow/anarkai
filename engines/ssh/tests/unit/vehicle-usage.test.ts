@@ -78,7 +78,7 @@ describe('Vehicle usage invariant', () => {
 					alveoli: [{ coord: [1, 0] as const, alveolus: 'storage' as const, goods: {} }],
 				},
 			],
-			looseGoods: [{ goodType: 'wood' as const, position: { q: 1, r: 0 } }],
+			looseGoods: { wood: [[1, 0]] },
 		} satisfies GamePatches
 		game = new Game({ terrainSeed: 9608, characterCount: 0 }, patches)
 		await game.loaded
@@ -163,7 +163,7 @@ describe('Vehicle usage invariant', () => {
 					radius: 1,
 				}),
 			],
-			looseGoods: [{ goodType: 'wood' as const, position: { q: 0, r: 0 } }],
+			looseGoods: { wood: [[0, 0]] },
 		} satisfies GamePatches
 		game = new Game({ terrainSeed: 9603, characterCount: 0 }, patches)
 		await game.loaded
@@ -227,7 +227,7 @@ describe('Vehicle usage invariant', () => {
 					radius: 1,
 				}),
 			],
-			looseGoods: [{ goodType: 'wood' as const, position: { q: 1, r: 0 } }],
+			looseGoods: { wood: [[1, 0]] },
 		} satisfies GamePatches
 		game = new Game({ terrainSeed: 9605, characterCount: 0 }, patches)
 		await game.loaded

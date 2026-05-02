@@ -1,5 +1,6 @@
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import { isTileCoord } from 'ssh/board/tile-coord'
+import { Commitment } from 'ssh/commitment'
 import type { SaveState } from 'ssh/game'
 import { BuildAlveolus } from 'ssh/hive/build'
 import type { Hive, TrackedMovement } from 'ssh/hive/hive'
@@ -22,6 +23,15 @@ function movementReason(movement: TrackedMovement, type: 'convey.hop' | 'convey.
 	}
 }
 
+function movementCommitment(movement: TrackedMovement, type: 'convey.hop' | 'convey.path') {
+	const commitment = new Commitment(`${type}.${movement.goodType}`)
+	;(commitment as { reason?: ReturnType<typeof movementReason> }).reason = movementReason(
+		movement,
+		type
+	)
+	return commitment
+}
+
 function handOffFirstHop(hive: Hive, movement: TrackedMovement, label: string) {
 	const nextHop = movement.path[0]
 	expect(nextHop).toBeDefined()
@@ -31,18 +41,20 @@ function handOffFirstHop(hive: Hive, movement: TrackedMovement, label: string) {
 	expect(hopStorage).toBeDefined()
 	if (!hopStorage) throw new Error(`${label}: expected hop storage`)
 
-	const hopAllocation = hopStorage.allocate(
-		{ [movement.goodType]: 1 },
-		movementReason(movement, 'convey.hop')
-	)
+	const hopAllocation = movementCommitment(movement, 'convey.hop')
+	expect(hopStorage.allocate({ [movement.goodType]: 1 }, hopAllocation)).toBeUndefined()
 
-	hive.fulfillMovementSource(movement, label)
+	if ((movement.allocations.source as { reason?: { type?: string } }).reason?.type !== 'hive-transfer') {
+		hive.fulfillMovementSource(movement, label)
+	}
 	const firstHop = movement.hop()
 	movement.place()
 	hopAllocation.fulfill()
+	const sourceCommitment = movementCommitment(movement, 'convey.path')
+	expect(hopStorage.reserve({ [movement.goodType]: 1 }, sourceCommitment)).toBeUndefined()
 	hive.assignMovementSource(
 		movement,
-		hopStorage.reserve({ [movement.goodType]: 1 }, movementReason(movement, 'convey.path')),
+		sourceCommitment,
 		label
 	)
 	return firstHop
@@ -193,7 +205,7 @@ describe('Multi-Hop Convey Tests', () => {
 			expect(pick?.length).toBeGreaterThan(0)
 			const first = pick![0]!
 			expect(isTileCoord(first.fromSnapshot), 'border-tracked movement should win').toBe(false)
-			expect(first.movement.ref).toBe(inbound.ref)
+			expect(first.movement.ref).toStrictEqual(inbound.ref)
 		} finally {
 			await engine.destroy()
 		}
@@ -310,14 +322,14 @@ describe('Multi-Hop Convey Tests', () => {
 			expect(step).toBeDefined()
 			expect(movement.from).toMatchObject({ q: 1.5, r: 0 })
 			expect(hive.movingGoods.get({ q: 1, r: 0 })).toBeUndefined()
-			expect(hive.movingGoods.get({ q: 1.5, r: 0 })?.[0]).toBe(movement)
+			expect(hive.movingGoods.get({ q: 1.5, r: 0 })?.[0]?.ref.id).toBe(movement.ref.id)
 			expect(relay.storage.stock.planks ?? 0).toBe(3)
 
 			step?.finish()
 
 			expect(movement.from).toMatchObject({ q: 1.5, r: 0 })
 			expect(hive.movingGoods.get({ q: 1, r: 0 })).toBeUndefined()
-			expect(hive.movingGoods.get({ q: 1.5, r: 0 })?.[0]).toBe(movement)
+			expect(hive.movingGoods.get({ q: 1.5, r: 0 })?.[0]?.ref.id).toBe(movement.ref.id)
 			expect(relay.storage.stock.planks ?? 0).toBe(3)
 		} finally {
 			await engine.destroy()

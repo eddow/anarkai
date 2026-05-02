@@ -13,7 +13,7 @@ async function flushDeferred(turns: number = 3) {
 }
 
 describe('Convey bookkeeping resilience', () => {
-	it('recovers when a provider reservation counter is stale before conveyStep fulfills it', {
+	it('throws when a movement target allocation is invalid before hop', {
 		timeout: 20000,
 	}, async () => {
 		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
@@ -51,19 +51,10 @@ describe('Convey bookkeeping resilience', () => {
 			if (!movement)
 				throw new Error('Expected plank movement to exist')
 
-				// Corrupt the provider-side reservation bookkeeping while leaving the token alive.
-			;(sawmill.storage as { _reserved?: Record<string, number> })._reserved!.planks = 0
-
-			const worker = engine.spawnCharacter('PlankWorker', { q: 0, r: 0 })
-			worker.role = 'worker'
-			void worker.scriptsContext
-			const action = worker.findAction()
-			if (action) worker.begin(action)
-
-			expect(() => engine.tick(0.25)).not.toThrow()
+			movement.claimed = true
+			movement.allocations.target.cancel('test.invalid-target')
+			expect(() => movement.hop()).toThrow(/invalid-target-allocation/)
 			await flushDeferred()
-
-			expect(worker.destroyed).toBe(false)
 		} finally {
 			await engine.destroy()
 		}
@@ -94,7 +85,6 @@ describe('Convey bookkeeping resilience', () => {
 			const buildStorageAlv = new BuildAlveolus(buildTile, 'storage')
 			engine.game.hex.setTileContent(buildTile, buildStorageAlv)
 			if (!buildStorageAlv.hive) Hive.for(buildTile).attach(buildStorageAlv)
-			buildStorageAlv.hive.refreshTransformAdvertisements()
 			await flushDeferred()
 
 			const sawmill = engine.game.hex.getTile({ q: 0, r: 0 })?.content as any
@@ -102,6 +92,7 @@ describe('Convey bookkeeping resilience', () => {
 			expect(sawmill).toBeDefined()
 			expect(buildStorage).toBeDefined()
 			if (!sawmill || !buildStorage) throw new Error('Expected sawmill/build storage to exist')
+			expect(sawmill.hive.createMovement('planks', sawmill, buildStorage)).toBe(true)
 
 			const worker = engine.spawnCharacter('PlankWorker', { q: 0, r: 0 })
 			worker.role = 'worker'

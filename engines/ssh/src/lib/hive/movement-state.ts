@@ -12,7 +12,12 @@ export type MovementState = (typeof MovementState)[keyof typeof MovementState]
 
 export const MovementTransitions: Record<MovementState, MovementState[]> = {
 	[MovementState.idle]: [MovementState.tracked, MovementState.aborted],
-	[MovementState.tracked]: [MovementState.claimed, MovementState.suspended, MovementState.aborted],
+	[MovementState.tracked]: [
+		MovementState.tracked,
+		MovementState.claimed,
+		MovementState.suspended,
+		MovementState.aborted,
+	],
 	[MovementState.claimed]: [
 		MovementState.tracked,
 		MovementState.delivering,
@@ -22,7 +27,7 @@ export const MovementTransitions: Record<MovementState, MovementState[]> = {
 	[MovementState.delivering]: [MovementState.completed, MovementState.aborted],
 	[MovementState.completed]: [],
 	[MovementState.aborted]: [],
-	[MovementState.suspended]: [MovementState.tracked, MovementState.aborted],
+	[MovementState.suspended]: [MovementState.suspended, MovementState.tracked, MovementState.aborted],
 }
 
 export class MovementStateError extends Error {

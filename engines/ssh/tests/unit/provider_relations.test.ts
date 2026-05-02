@@ -1,3 +1,4 @@
+import { Commitment } from 'ssh/commitment'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { TransitAlveolus } from 'ssh/hive/transit'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
@@ -32,12 +33,14 @@ describe('Provider relations', () => {
 			wood: { advertisement: 'provide', priority: '0-store' },
 		})
 
-		const reservation = storage.storage.reserve({ wood: 1 }, 'test.provider-reserved')
+		const commitment = new Commitment('test.provider-reserved')
+		const result = storage.storage.reserve({ wood: 1 }, commitment)
+		expect(result).toBeUndefined()
 		try {
 			expect(storage.storage.available('wood')).toBe(0)
 			expect(storage.goodsRelations.wood).toBeUndefined()
 		} finally {
-			reservation.cancel()
+			commitment.cancel('test cleanup')
 		}
 	})
 
@@ -51,12 +54,14 @@ describe('Provider relations', () => {
 			stone: { advertisement: 'provide', priority: '2-use' },
 		})
 
-		const reservation = stonecutter.storage.reserve({ stone: 1 }, 'test.provider-reserved')
+		const commitment = new Commitment('test.provider-reserved')
+		const result = stonecutter.storage.reserve({ stone: 1 }, commitment)
+		expect(result).toBeUndefined()
 		try {
 			expect(stonecutter.storage.available('stone')).toBe(0)
 			expect(stonecutter.goodsRelations.stone).toBeUndefined()
 		} finally {
-			reservation.cancel()
+			commitment.cancel('test cleanup')
 		}
 	})
 })
