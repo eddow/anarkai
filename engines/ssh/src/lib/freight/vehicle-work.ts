@@ -157,6 +157,15 @@ function vehicleHasNoOtherOperator(
 	return true
 }
 
+function characterCanUseLinkedVehicleHere(character: Character, vehicle: VehicleEntity): boolean {
+	if (character.driving) return true
+	if (character.operates?.uid !== vehicle.uid) return false
+	const characterCoord = toAxialCoord(character.position)
+	const vehicleCoord = toAxialCoord(vehicle.effectivePosition)
+	if (!characterCoord || !vehicleCoord) return false
+	return axial.key(axial.round(characterCoord)) === axial.key(axial.round(vehicleCoord))
+}
+
 /**
  * Tile is a legal drop target for `unloadToTile` / `park`: undeveloped, not under construction,
  * not residential, not currently burdened. The vehicle's own tile is excluded by callers.
@@ -815,8 +824,9 @@ function zoneBrowseJobFromConstructionProvide(
 }
 
 export function findZoneBrowseJob(game: Game, character: Character): ZoneBrowseJob | undefined {
-	if (!character.driving || !character.operates) return undefined
 	const vehicle = character.operates
+	if (!vehicle) return undefined
+	if (!characterCanUseLinkedVehicleHere(character, vehicle)) return undefined
 	if (vehicle.vehicleType !== LINE_FREIGHT_VEHICLE) return undefined
 	const svc = vehicle.service
 	if (!isVehicleLineService(svc)) return undefined
@@ -923,8 +933,9 @@ export function findProvideFromVehicleJob(
 }
 
 function findVehicleHopJobLineHop(game: Game, character: Character): VehicleHopJob | undefined {
-	if (!character.driving || !character.operates) return undefined
 	const vehicle = character.operates
+	if (!vehicle) return undefined
+	if (!characterCanUseLinkedVehicleHere(character, vehicle)) return undefined
 	if (vehicle.vehicleType !== LINE_FREIGHT_VEHICLE) return undefined
 	const service = vehicle.service
 	if (!isVehicleLineService(service)) return undefined
@@ -1106,6 +1117,48 @@ export interface VehicleWorkPick {
 	readonly targetTile: Tile
 }
 
+function describeVehicleService(vehicle: VehicleEntity): Record<string, unknown> | undefined {
+	return isVehicleLineService(vehicle.service)
+		? {
+				kind: 'line' as const,
+				lineId: vehicle.service.line.id,
+				stopId: vehicle.service.stop.id,
+				docked: vehicle.service.docked,
+			}
+		: isVehicleMaintenanceService(vehicle.service)
+			? { kind: 'maintenance' as const, maintenanceKind: vehicle.service.kind }
+			: undefined
+}
+
+function traceNoVehicleWorkPicks(game: Game, character: Character): void {
+	if (!traces.vehicle.log) return
+	const relevant = [...game.vehicles]
+		.filter((vehicle) => vehicle.vehicleType === LINE_FREIGHT_VEHICLE && !!vehicle.service)
+		.map((vehicle) => ({
+			vehicleUid: vehicle.uid,
+			hasWorldPosition: !!vehicle.position,
+			effectiveCoord: toAxialCoord(vehicle.effectivePosition),
+			tileCoord: toAxialCoord(vehicle.tile.position),
+			isDocked: vehicle.isDocked,
+			operatorUid: vehicle.operator?.uid,
+			operatedByCharacter: character.operates?.uid === vehicle.uid,
+			vehicleHasNoOtherOperator: vehicleHasNoOtherOperator(game, vehicle, character),
+			stock: vehicle.storage.stock,
+			virtualGoodsCount: vehicle.storage.virtualGoodsCount,
+			service: describeVehicleService(vehicle),
+		}))
+	if (relevant.length === 0) return
+	traces.vehicle.log('vehicleJob.work.surface', {
+		characterUid: character.uid,
+		character: character.name,
+		driving: character.driving,
+		operatesUid: character.operates?.uid,
+		why: 'no-picks-active-wheelbarrow-service',
+		characterCoord: toAxialCoord(character.position),
+		vehicles: relevant,
+	})
+}
+
 /** Planner-visible vehicle work: line-hop (incl. approach / begin-service preludes), zone-browse, loose-good offload. */
 export function collectVehicleWorkPicks(game: Game, character: Character): VehicleWorkPick[] {
 	const out: VehicleWorkPick[] = []
@@ -1124,36 +1177,7 @@ export function collectVehicleWorkPicks(game: Game, character: Character): Vehic
 		const v = game.vehicles.vehicle(offload.vehicleUid)
 		if (v) out.push({ job: offload, targetTile: v.tile })
 	}
-	const operated = character.operates
-	if (
-		out.length === 0 &&
-		operated &&
-		operated.vehicleType === LINE_FREIGHT_VEHICLE &&
-		operated.isDocked
-	) {
-		traces.vehicle.log?.('vehicleJob.work.surface', {
-			characterUid: character.uid,
-			character: character.name,
-			driving: character.driving,
-			operatesUid: operated.uid,
-			why: 'no-picks-docked-wheelbarrow',
-			operatedVehicle: {
-				vehicleUid: operated.uid,
-				hasWorldPosition: !!operated.position,
-				effectiveCoord: toAxialCoord(operated.effectivePosition),
-				service: isVehicleLineService(operated.service)
-					? {
-							kind: 'line' as const,
-							lineId: operated.service.line.id,
-							stopId: operated.service.stop.id,
-							docked: operated.service.docked,
-						}
-					: isVehicleMaintenanceService(operated.service)
-						? { kind: 'maintenance' as const, maintenanceKind: operated.service.kind }
-						: undefined,
-			},
-		})
-	}
+	if (out.length === 0) traceNoVehicleWorkPicks(game, character)
 	return out
 }
 

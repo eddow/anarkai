@@ -354,6 +354,9 @@ class VehicleFunctions {
 				goodType: jobPlan.offloadPickupPlan.goodType,
 			})
 			const result = character.scriptsContext.inventory.effectuate(jobPlan.offloadPickupPlan)
+			result.onFulfilled(() => {
+				VehicleFunctions.prototype.completeVehicleMaintenanceService.call(this, jobPlan)
+			})
 			assertVehicleOperationConsistency(vehicle, character)
 			return result
 		}
@@ -379,7 +382,11 @@ class VehicleFunctions {
 				jobPlan.maintenanceKind === 'loadFromBurden' || jobPlan.maintenanceKind === 'unloadToTile',
 				'vehicleUnloadTransferStep: expected unload-capable maintenance'
 			)
-			return character.scriptsContext.inventory.offloadDropBuffer()
+			const result = character.scriptsContext.inventory.offloadDropBuffer()
+			result.onFulfilled(() => {
+				VehicleFunctions.prototype.completeVehicleMaintenanceService.call(this, jobPlan)
+			})
+			return result
 		}
 		if (jobPlan.job === 'provideFromVehicle') {
 			return VehicleFunctions.prototype.provideFromVehicleStep.call(this, jobPlan)

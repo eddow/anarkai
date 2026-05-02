@@ -245,9 +245,6 @@ function pickZoneProvideSelection(
 	return best
 }
 
-let _cacheTime = -1
-const _selectionCache = new Map<string, VehicleZoneBrowseSelection | undefined>()
-
 export function pickVehicleZoneBrowseSelection(
 	game: Game,
 	character: Character,
@@ -257,20 +254,9 @@ export function pickVehicleZoneBrowseSelection(
 	startPos: Positioned = character.position
 ): VehicleZoneBrowseSelection | undefined {
 	if (!('zone' in stop) || stop.zone.kind !== 'radius') return undefined
-	const cacheKey = `${vehicle.uid}:${line.id}:${stop.id}`
-	const now = game.clock.virtualTime
-	if (now !== _cacheTime) {
-		_selectionCache.clear()
-		_cacheTime = now
-	}
-	const cached = _selectionCache.get(cacheKey)
-	if (cached !== undefined || _selectionCache.has(cacheKey)) return cached
 	const zoneStop = stop as FreightStop & { zone: FreightZoneDefinitionRadius }
 	const utility = zoneBrowseUtilityContext(game, vehicle, line, stop)
-	if (!utility) {
-		_selectionCache.set(cacheKey, undefined)
-		return undefined
-	}
+	if (!utility) return undefined
 	const load = pickZoneLoadSelection(game, character, vehicle, line, zoneStop, startPos, utility)
 	const provide = pickZoneProvideSelection(
 		game,
@@ -281,7 +267,5 @@ export function pickVehicleZoneBrowseSelection(
 		startPos,
 		utility
 	)
-	const result = !load ? provide : !provide ? load : provide.score >= load.score ? provide : load
-	_selectionCache.set(cacheKey, result)
-	return result
+	return !load ? provide : !provide ? load : provide.score >= load.score ? provide : load
 }

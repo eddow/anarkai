@@ -47,14 +47,12 @@ function vehicleTransferAtCurrentTile(jobPlan)
 				walk.until fp
 			loop
 			vehicle.vehicleUnloadTransferStep jobPlan
-			vehicle.completeVehicleMaintenanceService jobPlan
 			return
 		end if
 		if kind == "loadFromBurden" then
 			grab = jobPlan.offloadPickupPlan
 			if not grab then return
 			vehicle.vehicleLoadTransferStep jobPlan
-			vehicle.completeVehicleMaintenanceService jobPlan
 			return
 		end if
 	end if

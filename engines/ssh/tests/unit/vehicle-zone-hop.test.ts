@@ -12,6 +12,7 @@ import {
 import { migrateV1FiltersToGoodsSelection } from 'ssh/freight/goods-selection-policy'
 import {
 	freightStopMovementTarget,
+	maybeAdvanceVehiclePastCompletedZoneStop,
 	pickInitialVehicleServiceCandidate,
 	previewInitialVehicleService,
 	projectedLineStopForVehicleHop,
@@ -600,7 +601,7 @@ describe('Vehicle zone hop semantics', () => {
 		expect(vehicle.service).toBeUndefined()
 	})
 
-	it('maintenance unload transfer keeps operator link until explicit completion', async () => {
+	it('maintenance unload transfer completes service after fulfillment', async () => {
 		const patches = {
 			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
 		} satisfies GamePatches
@@ -632,12 +633,6 @@ describe('Vehicle zone hop semantics', () => {
 		const step = character.scriptsContext.vehicle.vehicleUnloadTransferStep(plan)
 		if (!step || !('tick' in step)) throw new Error('Expected unload transfer step')
 		step.tick(999)
-
-		expect(character.operates?.uid).toBe(vehicle.uid)
-		expect(vehicle.operator?.uid).toBe(character.uid)
-		expect(isVehicleMaintenanceService(vehicle.service)).toBe(true)
-
-		character.scriptsContext.vehicle.completeVehicleMaintenanceService(plan)
 
 		expect(character.operates).toBeUndefined()
 		expect(vehicle.operator).toBeUndefined()
@@ -954,6 +949,74 @@ describe('Vehicle zone hop semantics', () => {
 		expect(hop?.stopId).toBe(unload.id)
 		expect(hop?.dockEnter).toBe(true)
 		expect(hop?.path.length).toBeGreaterThan(0)
+	})
+
+	it('advances ChopSaw from zone load to unload in the same tick as the pickup', async () => {
+		game = new Game({ terrainSeed: 9419, characterCount: 0 }, chopSaw)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines.find(
+			(candidate) => candidate.id === 'ChopSaw:implicit-gather:11,-7'
+		)
+		if (!line) throw new Error('expected ChopSaw implicit gather line')
+		const load = line.stops.find((stop) => stop.id === 'ChopSaw:ig-load')
+		const unload = line.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
+		if (!load || !unload) throw new Error('expected ChopSaw load/unload stops')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
+		const character = game.population.createCharacter('ChopSawLoader', { q: 9, r: -7 })
+		character.position = { q: 9, r: -7 }
+		vehicle.position = { q: 9, r: -7 }
+		vehicle.beginLineService(line, load, character)
+		character.operates = vehicle
+		character.onboard()
+		const loose = game.hex.looseGoods.add({ q: 9, r: -7 }, 'wood')
+
+		const loadJob = findZoneBrowseJob(game, character)
+		expect(loadJob?.job).toBe('zoneBrowse')
+		expect(loadJob?.zoneBrowseAction).toBe('load')
+
+		loose.remove()
+		vehicle.storage.addGood('wood', 1)
+		maybeAdvanceVehiclePastCompletedZoneStop(game, vehicle, character)
+
+		expect(isVehicleLineService(vehicle.service) && vehicle.service.stop.id).toBe(unload.id)
+		const hop = findVehicleHopJob(game, character)
+		expect(hop?.job).toBe('vehicleHop')
+		expect(hop?.stopId).toBe(unload.id)
+		expect(hop?.dockEnter).toBe(true)
+	})
+
+	it('offers a hop when the zone operator is stepped off but still linked to a loaded wheelbarrow', async () => {
+		game = new Game({ terrainSeed: 9420, characterCount: 0 }, chopSaw)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines.find(
+			(candidate) => candidate.id === 'ChopSaw:implicit-gather:11,-7'
+		)
+		if (!line) throw new Error('expected ChopSaw implicit gather line')
+		const load = line.stops.find((stop) => stop.id === 'ChopSaw:ig-load')
+		const unload = line.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
+		if (!load || !unload) throw new Error('expected ChopSaw load/unload stops')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
+		const character = game.population.createCharacter('ChopSawSteppedOff', { q: 9, r: -7 })
+		vehicle.position = { q: 9, r: -7 }
+		vehicle.storage.addGood('wood', 1)
+		vehicle.beginLineService(line, load, character)
+		character.operates = vehicle
+		character.onboard()
+		character.stepOffVehicleKeepingControl()
+
+		expect(character.driving).toBe(false)
+		expect(character.operates?.uid).toBe(vehicle.uid)
+
+		const hop = findVehicleHopJob(game, character)
+		expect(hop?.job).toBe('vehicleHop')
+		expect(hop?.stopId).toBe(unload.id)
+		expect(hop?.dockEnter).toBe(true)
 	})
 
 	it('unfinished maintenance service without operator is offered to another worker', async () => {

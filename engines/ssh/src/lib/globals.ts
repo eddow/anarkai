@@ -1,7 +1,7 @@
 import type { gameTimeSpeedFactors } from 'engine-rules'
 import { reactive, root } from 'mutts'
 import { Game } from './game'
-import { saw as patches } from './game/exampleGames'
+import { chopSaw as patches } from './game/exampleGames'
 
 type TupleIndexStrings<T extends readonly unknown[]> = Exclude<keyof T, keyof (readonly unknown[])>
 type TupleIndexNumbers<T extends readonly unknown[]> =
@@ -35,7 +35,7 @@ function ensureGame(): Game {
 				new Game(
 					{
 						terrainSeed: patches.seed,
-						characterCount: 1,
+						characterCount: 3,
 						characterRadius: 5,
 					},
 					patches

@@ -738,6 +738,7 @@ class WorkFunctions {
 		const takeResult = alveolus.storage.allocate({ [fragmentedGoodType]: 1 }, takeCommitment)
 		if (takeResult !== undefined) {
 			console.error('[defragmentStep] Failed to allocate take:', takeResult)
+			takeCommitment.cancel('defragment.take.failed')
 			return
 		}
 		const arrangeCommitment = new Commitment(`defragment.arrange.${alveolus.name}`)
@@ -745,6 +746,7 @@ class WorkFunctions {
 		if (arrangeResult !== undefined) {
 			console.error('[defragmentStep] Failed to reserve arrange:', arrangeResult)
 			takeCommitment.cancel('defragment.arrange.failed')
+			arrangeCommitment.cancel('defragment.arrange.failed')
 			return
 		}
 		return new DurationStep(character.freightTransferTime, 'work', `defragment.${alveolus.name}`)
