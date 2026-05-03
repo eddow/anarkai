@@ -15,9 +15,19 @@ import type { Character } from 'ssh/population/character'
 import { contract, type Goods, type GoodType } from 'ssh/types'
 import type { IdlePlan, PickupPlan, TransferPlan } from 'ssh/types/base'
 import { axial, type Positioned, tileSize, toAxialCoord, toWorldCoord } from 'ssh/utils'
-import { assert } from '../../dev/debug.ts'
+import { assert, traces } from '../../dev/debug.ts'
 import { subject } from '../scripts'
 import { type ASingleStep, DurationStep } from '../steps'
+
+function pickupTracePayload(character: Character, goodType: GoodType, source: Positioned) {
+	return {
+		characterUid: character.uid,
+		characterName: character.name,
+		goodType,
+		source: toAxialCoord(source),
+		vehicleUid: character.operates?.uid,
+	}
+}
 
 function planSpecificLoosePickup(
 	character: Character,
@@ -30,13 +40,21 @@ function planSpecificLoosePickup(
 		throw new Error(`No room in active transport storage for ${looseGood.goodType}`)
 	}
 
-	const commitment = new Commitment('plan.pickup')
+	const tracePayload = pickupTracePayload(character, looseGood.goodType, source)
+	const commitment = new Commitment('plan.pickup').addTraceInfo({
+		kind: 'pickup-plan',
+		...tracePayload,
+	})
+	commitment.trace('pickup.plan.created', tracePayload)
+	traces.commitments?.log?.('pickup.plan.allocate.start', { commitment, ...tracePayload })
 
 	const allocResult = transport.allocate({ [looseGood.goodType]: 1 }, commitment)
 	if (allocResult !== undefined) throw new Error(allocResult)
+	commitment.trace('pickup.plan.transportAllocated')
 
 	const looseResult = looseGood.allocate(commitment)
 	if (looseResult !== undefined) throw new Error(looseResult)
+	commitment.trace('pickup.plan.looseAllocated')
 
 	return {
 		type: 'pickup' as const,
@@ -388,6 +406,15 @@ export class InventoryFunctions {
 		}
 		const commitment = action.commitment
 		assert(commitment, 'commitment must be set before effectuating transfer')
+		if ('trace' in commitment && typeof commitment.trace === 'function') {
+			commitment.trace('effectuate.step.created', {
+				type: action.type,
+				description,
+				totalAmount,
+				characterUid: character.uid,
+				characterName: character.name,
+			})
+		}
 
 		return new DurationStep(totalAmount * character.freightTransferTime, 'convey', description)
 			.onFulfilled(() => {
@@ -395,6 +422,9 @@ export class InventoryFunctions {
 					if (!commitment) {
 						console.error('commitment is missing in effectuate callback!', action)
 						throw new Error('commitment is missing in effectuate callback') // Prevent crash
+					}
+					if ('trace' in commitment && typeof commitment.trace === 'function') {
+						commitment.trace('effectuate.step.fulfilled')
 					}
 					commitment.fulfill()
 				} catch (e) {
@@ -404,6 +434,9 @@ export class InventoryFunctions {
 				}
 			})
 			.onCancelled(() => {
+				if ('trace' in commitment && typeof commitment.trace === 'function') {
+					commitment.trace('effectuate.step.cancelled')
+				}
 				commitment!.cancel('effectuate-cancelled')
 			})
 	}

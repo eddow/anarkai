@@ -3,7 +3,7 @@ import { T } from '@app/lib/i18n'
 import { InspectorSection } from '@app/ui/anarkai'
 import { vehicles as vehicleVisuals } from 'engine-pixi/assets/visual-content'
 import { vehicleTextureKey } from 'engine-pixi/renderers/vehicle-visual'
-import { effect } from 'mutts'
+import { effect, reactive } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
 import { createSyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import type { VehicleProposedJob } from 'ssh/jobs/offers'
@@ -183,10 +183,34 @@ function describeVehicleWorkTarget(job: VehicleProposedJob): string {
 	}
 }
 
+function vehicleWorkChoices(vehicle: VehicleEntity | undefined): VehicleWorkChoice[] {
+	if (!vehicle) return []
+	const jobs = (vehicle.proposedJobs ?? []) as readonly VehicleProposedJob[]
+	return jobs
+		.map(
+			(job): VehicleWorkChoice => ({
+				jobKind: job.job,
+				targetLabel: describeVehicleWorkTarget(job),
+				targetTile: job.targetTile,
+				urgency: job.urgency,
+				jobLabel: workKindLabel(job.job),
+				metaText: `${T.character.plannerWorkUrgency} ${formatPlannerUtility(job.urgency)}`,
+			})
+		)
+		.sort((a, b) => {
+			if (b.urgency !== a.urgency) return b.urgency - a.urgency
+			return a.targetLabel.localeCompare(b.targetLabel)
+		})
+		.slice(0, rankedWorkLimit)
+}
+
 const VehicleProperties = (
 	props: VehiclePropertiesProps,
 	scope: { setTitle?: (title: string) => void }
 ) => {
+	const state = reactive({
+		workChoices: [] as VehicleWorkChoice[],
+	})
 	const computed = {
 		get stock() {
 			return props.vehicle?.storage?.stock ?? {}
@@ -225,33 +249,16 @@ const VehicleProperties = (
 			}
 			return ''
 		},
-		get workChoices() {
-			const vehicle = props.vehicle
-			if (!vehicle) return []
-			const jobs = (vehicle.proposedJobs ?? []) as readonly VehicleProposedJob[]
-			return jobs
-				.map(
-					(job): VehicleWorkChoice => ({
-						jobKind: job.job,
-						targetLabel: describeVehicleWorkTarget(job),
-						targetTile: job.targetTile,
-						urgency: job.urgency,
-						jobLabel: workKindLabel(job.job),
-						metaText: `${T.character.plannerWorkUrgency} ${formatPlannerUtility(job.urgency)}`,
-					})
-				)
-				.sort((a, b) => {
-					if (b.urgency !== a.urgency) return b.urgency - a.urgency
-					return a.targetLabel.localeCompare(b.targetLabel)
-				})
-				.slice(0, rankedWorkLimit)
-		},
 	}
 
 	const resolveWorkTarget = (choice: VehicleWorkChoice) => choice.targetTile
 
 	effect`vehicle-properties:title`(() => {
 		scope.setTitle?.(props.vehicle?.title ?? 'Object')
+	})
+
+	effect`vehicle-properties:work-choices`(() => {
+		state.workChoices = vehicleWorkChoices(props.vehicle)
 	})
 
 	return (
@@ -300,11 +307,11 @@ const VehicleProperties = (
 						</PropertyGridRow>
 					</PropertyGrid>
 				</InspectorSection>
-				<InspectorSection if={computed.workChoices.length > 0}>
+				<InspectorSection if={state.workChoices.length > 0}>
 					<PropertyGrid>
 						<PropertyGridRow label={T.character.plannerRankedWork}>
 							<div class="vehicle-work__list">
-								<for each={computed.workChoices}>
+								<for each={state.workChoices}>
 									{(choice) => (
 										<div class={['vehicle-work__item']} data-testid="vehicle-ranked-work">
 											<LinkedEntityControl

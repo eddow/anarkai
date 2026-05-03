@@ -59,6 +59,7 @@ export const traceLevels: Partial<Record<string, TraceVerb>> = {
 	npc: 'assert',
 	advertising: 'assert',
 	allocations: 'assert',
+	commitments: 'assert',
 	convey: 'log',
 	residential: 'assert',
 	script: 'assert',

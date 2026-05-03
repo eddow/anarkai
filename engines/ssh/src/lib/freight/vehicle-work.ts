@@ -24,6 +24,7 @@ import {
 import {
 	inferZoneLoadAdSource,
 	pickVehicleZoneBrowseSelection,
+	type VehicleZoneBrowseSelection,
 	zoneBrowseLoadPriorityTier,
 	zoneBrowseUrgency,
 	zoneBrowseUtilityContext,
@@ -390,12 +391,19 @@ function maintenanceCandidateScore(candidate: MaintenanceCandidate, distance: nu
 	}).score
 }
 
+function lineHopUrgencyForZoneSelection(
+	selection?: Pick<VehicleZoneBrowseSelection, 'action' | 'priorityTier'>
+): number {
+	return selection
+		? Math.max(jobBalance.vehicleHop, zoneBrowseUrgency(selection.action, selection.priorityTier))
+		: jobBalance.vehicleHop
+}
+
 function isJointLineLoadCandidate(
 	character: Character,
 	vehicle: VehicleEntity,
 	candidate: LoadCandidate
 ): boolean {
-	if (candidate.tile.content instanceof UnBuiltLand && candidate.tile.content.project) return false
 	const candidateCoord = toAxialCoord(candidate.tile.position)
 	if (!candidateCoord) return false
 	for (const line of vehicle.servedLines) {
@@ -980,14 +988,6 @@ function findVehicleHopJobLineHop(game: Game, character: Character): VehicleHopJ
 	if ('zone' in stop && stop.zone.kind === 'radius') {
 		const selection = pickVehicleZoneBrowseSelection(game, character, vehicle, line, stop)
 		if (!selection) return undefined
-		if (
-			selection.action === 'load' &&
-			selection.targetTile.content instanceof UnBuiltLand &&
-			selection.targetTile.content.project &&
-			pickOffloadForTile(selection.targetTile, vehicle.storage)
-		) {
-			return undefined
-		}
 		path = selection.path
 		zoneBrowseAction = selection.action
 		goodType = selection.goodType
@@ -995,7 +995,7 @@ function findVehicleHopJobLineHop(game: Game, character: Character): VehicleHopJ
 		targetCoord = toAxialCoord(selection.targetTile.position)!
 		return {
 			job: 'vehicleHop',
-			urgency: jobBalance.vehicleHop,
+			urgency: lineHopUrgencyForZoneSelection(selection),
 			fatigue: 1,
 			vehicleUid: vehicle.uid,
 			lineId: line.id,
@@ -1081,6 +1081,7 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 	let targetCoord: VehicleHopJob['targetCoord']
 	let adSource: VehicleHopJob['adSource']
 	let priorityTier: VehicleHopJob['priorityTier']
+	let zoneSelection: Pick<VehicleZoneBrowseSelection, 'action' | 'priorityTier'> | undefined
 	if ('zone' in pick.stop && pick.stop.zone.kind === 'radius') {
 		const selection = pickVehicleZoneBrowseSelection(
 			game,
@@ -1091,14 +1092,6 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 			vehicle.effectivePosition
 		)
 		if (!selection) return undefined
-		if (
-			selection.action === 'load' &&
-			selection.targetTile.content instanceof UnBuiltLand &&
-			selection.targetTile.content.project &&
-			pickOffloadForTile(selection.targetTile, vehicle.storage)
-		) {
-			return undefined
-		}
 		path = selection.path
 		zoneBrowseAction = selection.action
 		goodType = selection.goodType
@@ -1106,6 +1099,7 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 		targetCoord = toAxialCoord(selection.targetTile.position)!
 		adSource = selection.adSource
 		priorityTier = selection.priorityTier
+		zoneSelection = selection
 	} else {
 		const targetPos = freightStopMovementTarget(game, character, pick.line, pick.stop)
 		if (targetPos) {
@@ -1123,7 +1117,11 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 	}
 	return {
 		job: 'vehicleHop',
-		urgency: Math.max(jobBalance.vehicleHop, jobBalance.vehicleApproach),
+		urgency: Math.max(
+			jobBalance.vehicleHop,
+			jobBalance.vehicleApproach,
+			lineHopUrgencyForZoneSelection(zoneSelection)
+		),
 		fatigue: 1,
 		vehicleUid: approach.vehicleUid,
 		lineId: pick.line.id,
@@ -1159,6 +1157,8 @@ function describeVehicleService(vehicle: VehicleEntity): Record<string, unknown>
 			: undefined
 }
 
+const noVehicleWorkTraceKeys = new WeakMap<Character, string>()
+
 function traceNoVehicleWorkPicks(game: Game, character: Character): void {
 	if (!traces.vehicle.log) return
 	const relevant = [...game.vehicles]
@@ -1177,6 +1177,26 @@ function traceNoVehicleWorkPicks(game: Game, character: Character): void {
 			service: describeVehicleService(vehicle),
 		}))
 	if (relevant.length === 0) return
+	const traceKey = JSON.stringify({
+		characterUid: character.uid,
+		driving: character.driving,
+		operatesUid: character.operates?.uid,
+		characterTile: axial.key(toAxialCoord(character.tile.position)!),
+		vehicles: relevant.map((vehicle) => ({
+			vehicleUid: vehicle.vehicleUid,
+			hasWorldPosition: vehicle.hasWorldPosition,
+			tileCoord: vehicle.tileCoord ? axial.key(vehicle.tileCoord) : undefined,
+			isDocked: vehicle.isDocked,
+			operatorUid: vehicle.operatorUid,
+			operatedByCharacter: vehicle.operatedByCharacter,
+			vehicleHasNoOtherOperator: vehicle.vehicleHasNoOtherOperator,
+			stock: vehicle.stock,
+			virtualGoodsCount: vehicle.virtualGoodsCount,
+			service: vehicle.service,
+		})),
+	})
+	if (noVehicleWorkTraceKeys.get(character) === traceKey) return
+	noVehicleWorkTraceKeys.set(character, traceKey)
 	traces.vehicle.log('vehicleJob.work.surface', {
 		characterUid: character.uid,
 		character: character.name,
@@ -1207,6 +1227,7 @@ export function collectVehicleWorkPicks(game: Game, character: Character): Vehic
 		if (v) out.push({ job: offload, targetTile: v.tile })
 	}
 	if (out.length === 0) traceNoVehicleWorkPicks(game, character)
+	else noVehicleWorkTraceKeys.delete(character)
 	return out
 }
 

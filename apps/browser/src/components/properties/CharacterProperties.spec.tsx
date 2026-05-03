@@ -316,6 +316,54 @@ describe('CharacterProperties', () => {
 		expect(actionPath?.textContent).toBe('work.goWork / walk.until / inventory.drop / walk.until')
 	})
 
+	it('uses the last work snapshot without forcing a live planner query', () => {
+		const liveWorkSnapshotGetter = vi.fn(() => {
+			throw new Error('live work planner should not be read by the properties panel')
+		})
+		const character = {
+			title: 'Nia',
+			name: 'Nia',
+			hunger: 0,
+			tiredness: 0,
+			fatigue: 0,
+			stepExecutor: {
+				type: 'idle',
+				description: undefined,
+			},
+			carry: { stock: {} },
+			actionDescription: [],
+			lastPlannerSnapshot: undefined,
+			lastWorkPlannerSnapshot: {
+				ranked: [
+					{
+						jobKind: 'convey',
+						targetLabel: 'sawmill @ 1, 0',
+						targetCoord: { q: 1, r: 0 },
+						urgency: 3,
+						pathLength: 1,
+						score: 1.5,
+						selected: true,
+					},
+				],
+			},
+			game: {
+				hex: {
+					getTile: () => undefined,
+				},
+			},
+			get workPlannerSnapshot() {
+				return liveWorkSnapshotGetter()
+			},
+		}
+
+		stop = latch(container, <CharacterProperties character={character as never} />, {
+			setTitle: vi.fn(),
+		} as never)
+
+		expect(container.querySelectorAll('[data-testid="character-ranked-work"]')).toHaveLength(1)
+		expect(liveWorkSnapshotGetter).not.toHaveBeenCalled()
+	})
+
 	it('renders operates row linking to the operated vehicle', () => {
 		const operates = { uid: 'vehicle-1', title: 'wheelbarrow vehicle-1', tile: { uid: 'tile:1,1' } }
 		const character = {

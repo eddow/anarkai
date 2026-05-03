@@ -2,7 +2,7 @@ import { Alveolus } from 'ssh/board/content/alveolus'
 import { Game } from 'ssh/game/game'
 import { axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { gatherFreightLine } from '../freight-fixtures'
 import { TestEngine } from '../test-engine/engine'
 
@@ -135,6 +135,56 @@ describe('proposed jobs', () => {
 				}
 			}
 		} finally {
+			game.destroy()
+		}
+	})
+
+	it('does not route a character planner pass through vehicle provider proposed jobs', async () => {
+		const line = gatherFreightLine({
+			id: 'PJ:planner-direct',
+			name: 'Planner direct vehicle',
+			hiveName: 'H',
+			coord: [1, 0],
+			filters: ['wood'],
+			radius: 2,
+		})
+		const game = new Game(
+			{ terrainSeed: 42_104, characterCount: 0 },
+			{
+				tiles: [
+					{ coord: [0, 0] as const, terrain: 'grass' as const },
+					{ coord: [1, 0] as const, terrain: 'grass' as const },
+				],
+				hives: [
+					{
+						name: 'H',
+						alveoli: [{ coord: [1, 0] as const, alveolus: 'sawmill' as const, goods: {} }],
+					},
+				],
+				freightLines: [line],
+				looseGoods: [{ goodType: 'wood' as const, position: { q: 0, r: 0 } }],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		try {
+			const vehicle = game.vehicles.createVehicle(
+				'planner-direct-vehicle',
+				'wheelbarrow',
+				{
+					q: 1,
+					r: 0,
+				},
+				[line]
+			)
+			const worker = game.population.createCharacter('Worker', { q: 1, r: 0 })
+			const proposedJobsSpy = vi.spyOn(vehicle, 'proposedJobs', 'get')
+
+			expect(worker.resolveBestJobMatch()).toBeTruthy()
+			expect(proposedJobsSpy).not.toHaveBeenCalled()
+		} finally {
+			vi.restoreAllMocks()
 			game.destroy()
 		}
 	})

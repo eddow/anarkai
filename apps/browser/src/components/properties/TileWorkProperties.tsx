@@ -1,6 +1,7 @@
 import { css } from '@app/lib/css'
 import { T } from '@app/lib/i18n'
 import { InspectorSection } from '@app/ui/anarkai'
+import { effect, reactive } from 'mutts'
 import { Tile } from 'ssh/board/tile'
 import {
 	collectTileWorkPicks,
@@ -109,36 +110,40 @@ function describeWorkDetail(choice: TileWorkPick): string {
 	}
 }
 
+function tileWorkChoices(tile: Tile | undefined) {
+	const game = tile?.game
+	if (!game || !(tile instanceof Tile)) return []
+	return collectTileWorkPicks(game, tile, tileRankedWorkPicksLimitDefault).map((choice) => ({
+		...choice,
+		jobLabel: workKindLabel(choice.job.job),
+		scoreText: formatPlannerUtility(choice.score),
+		detailText: describeWorkDetail(choice),
+		metaText: [
+			choice.character.title ?? choice.character.name,
+			choice.vehicle?.title,
+			`${T.character.plannerWorkUrgency} ${formatPlannerUtility(choice.urgency)}`,
+			`${T.character.plannerWorkPath} ${choice.pathLength}`,
+		]
+			.filter((text): text is string => !!text)
+			.join(' · '),
+	}))
+}
+
 const TileWorkProperties = (props: TileWorkPropertiesProps) => {
-	const computed = {
-		get choices() {
-			const game = props.tile?.game
-			if (!game || !(props.tile instanceof Tile)) return []
-			return collectTileWorkPicks(game, props.tile, tileRankedWorkPicksLimitDefault).map(
-				(choice) => ({
-					...choice,
-					jobLabel: workKindLabel(choice.job.job),
-					scoreText: formatPlannerUtility(choice.score),
-					detailText: describeWorkDetail(choice),
-					metaText: [
-						choice.character.title ?? choice.character.name,
-						choice.vehicle?.title,
-						`${T.character.plannerWorkUrgency} ${formatPlannerUtility(choice.urgency)}`,
-						`${T.character.plannerWorkPath} ${choice.pathLength}`,
-					]
-						.filter((text): text is string => !!text)
-						.join(' · '),
-				})
-			)
-		},
-	}
+	const state = reactive({
+		choices: [] as ReturnType<typeof tileWorkChoices>,
+	})
+
+	effect`tile-work-properties:choices`(() => {
+		state.choices = tileWorkChoices(props.tile)
+	})
 
 	return (
-		<InspectorSection if={computed.choices.length > 0}>
+		<InspectorSection if={state.choices.length > 0}>
 			<PropertyGrid>
 				<PropertyGridRow label={T.character.plannerRankedWork}>
 					<div class="tile-work__list">
-						<for each={computed.choices}>
+						<for each={state.choices}>
 							{(choice) => (
 								<div class="tile-work__item" data-testid="tile-ranked-work">
 									<LinkedEntityControl

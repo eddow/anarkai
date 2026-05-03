@@ -11,6 +11,7 @@ import type { Game } from 'ssh/game'
 import { GameObject, withInteractive, withTicked } from 'ssh/game/object'
 import {
 	asAlveolusProposedJob,
+	asVehicleProposedJob,
 	executableJob,
 	type ProposedJob,
 	proposedJobScore,
@@ -575,8 +576,9 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		for (const tile of this.game.hex.tilesAround(this.position, maxWalkTime)) {
 			out.push(...tile.proposedJobs)
 		}
-		for (const vehicle of this.game.vehicles) {
-			out.push(...vehicle.proposedJobs)
+		for (const pick of collectVehicleWorkPicks(this.game, this)) {
+			const vehicle = this.game.vehicles.vehicle(pick.job.vehicleUid)
+			if (vehicle) out.push(asVehicleProposedJob(pick.job, vehicle, pick.targetTile))
 		}
 		return out
 	}

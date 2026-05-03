@@ -267,19 +267,21 @@ describe('VehicleProperties', () => {
 			operator,
 			storage: { stock: {} },
 			service: undefined,
-			proposedJobs: [
-				{
-					job: 'vehicleOffload',
-					maintenanceKind: 'unloadToTile',
-					vehicleUid: 'veh-jobs',
-					targetCoord: { q: 2, r: 0 },
-					path: [],
-					urgency: 4,
-					fatigue: 1,
-					source: { kind: 'vehicle', vehicle: undefined },
-					targetTile,
-				},
-			],
+			get proposedJobs() {
+				return [
+					{
+						job: 'vehicleOffload',
+						maintenanceKind: 'unloadToTile',
+						vehicleUid: 'veh-jobs',
+						targetCoord: { q: 2, r: 0 },
+						path: [],
+						urgency: 4,
+						fatigue: 1,
+						source: { kind: 'vehicle', vehicle: undefined },
+						targetTile,
+					},
+				]
+			},
 		}
 
 		stop = latch(container, <VehicleProperties vehicle={vehicle as never} />, {
@@ -293,6 +295,45 @@ describe('VehicleProperties', () => {
 		expect(rows[0]?.textContent).toContain('vehicleOffload')
 		expect(rows[0]?.textContent).toContain('unloadToTile')
 		expect(rows[0]?.textContent).not.toContain('Bo')
+	})
+
+	it('reads proposed vehicle jobs once for the ranked-work render', () => {
+		const targetTile = {
+			uid: 'tile:2,0',
+			title: 'Tile 2, 0',
+			position: { x: 2, y: 0 },
+		}
+		const proposedJobsGetter = vi.fn(() => [
+				{
+					job: 'vehicleOffload',
+					maintenanceKind: 'unloadToTile',
+					vehicleUid: 'veh-jobs',
+					targetCoord: { q: 2, r: 0 },
+					path: [],
+					urgency: 4,
+					fatigue: 1,
+					source: { kind: 'vehicle', vehicle: undefined },
+					targetTile,
+				},
+			])
+		const vehicle = {
+			uid: 'veh-jobs',
+			title: 'wheelbarrow veh-jobs',
+			vehicleType: 'wheelbarrow',
+			game: {},
+			storage: { stock: {} },
+			service: undefined,
+			get proposedJobs() {
+				return proposedJobsGetter()
+			},
+		}
+
+		stop = latch(container, <VehicleProperties vehicle={vehicle as never} />, {
+			setTitle: vi.fn(),
+		} as never)
+
+		expect(container.querySelectorAll('[data-testid="vehicle-ranked-work"]')).toHaveLength(1)
+		expect(proposedJobsGetter).toHaveBeenCalledTimes(1)
 	})
 
 	it('shows idle when there is no service', () => {

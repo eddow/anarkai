@@ -194,12 +194,35 @@ const pickupPlanHandler: PlanHandler<PickupPlan> = {
 	begin(plan: PickupPlan, character: Character) {
 		const { goodType, target } = plan
 		const transport = character.carry
+		const existingCommitment = plan.commitment
+		if (
+			existingCommitment &&
+			'trace' in existingCommitment &&
+			typeof existingCommitment.trace === 'function'
+		) {
+			existingCommitment.trace('pickup.planHandler.begin.enter', {
+				goodType,
+				target: toAxialCoord(target),
+				characterUid: character.uid,
+				characterName: character.name,
+				hasLegacyAllocation: Boolean(plan.vehicleAllocation && plan.allocation),
+			})
+		}
 
 		let commitment: PlanCommitment | undefined
 		try {
 			if (plan.vehicleAllocation && plan.allocation) {
 				// Legacy path — allocations already created (e.g. from inventory.ts)
-				commitment = new PlanCommitment(`pickup.${plan.goodType}`)
+				commitment = new PlanCommitment(`pickup.${plan.goodType}`).addTraceInfo({
+					kind: 'pickup-plan-handler',
+					goodType,
+					target: toAxialCoord(target),
+					characterUid: character.uid,
+					characterName: character.name,
+					vehicleUid: character.operates?.uid,
+					legacy: true,
+				})
+				commitment.trace('pickup.planHandler.legacyCommitment.created')
 				;(commitment as any).allocation = plan.allocation
 				;(commitment as any).vehicleAllocation = plan.vehicleAllocation
 
@@ -222,21 +245,52 @@ const pickupPlanHandler: PlanHandler<PickupPlan> = {
 				)
 
 				if (matchingLooseGoods.length === 0) {
+					if (
+						existingCommitment &&
+						'trace' in existingCommitment &&
+						typeof existingCommitment.trace === 'function'
+					) {
+						existingCommitment.trace('pickup.planHandler.noMatchingLooseGoods', {
+							goodType,
+							target: coord,
+						})
+					}
 					console.warn(`No LooseGoods to grab for ${goodType}`)
 					return
 				}
 
 				const looseGoodToGrab = matchingLooseGoods[0]
 
-				commitment = new PlanCommitment(`pickup.${plan.goodType}`)
+				if (
+					existingCommitment &&
+					'trace' in existingCommitment &&
+					typeof existingCommitment.trace === 'function'
+				) {
+					existingCommitment.trace('pickup.planHandler.replacingExistingCommitment', {
+						replacementLabel: `pickup.${plan.goodType}`,
+					})
+				}
+
+				commitment = new PlanCommitment(`pickup.${plan.goodType}`).addTraceInfo({
+					kind: 'pickup-plan-handler',
+					goodType,
+					target: coord,
+					characterUid: character.uid,
+					characterName: character.name,
+					vehicleUid: character.operates?.uid,
+					replacedCommitment: existingCommitment ? 'yes' : 'no',
+				})
+				commitment.trace('pickup.planHandler.commitment.created')
 
 				// Allocate loose good FIRST (no reactive side-effects) so active-transport `allocate`
 				// cannot fire effects that remove the good before it is secured.
 				const looseResult = looseGoodToGrab.allocate(commitment)
 				if (looseResult !== undefined) throw new Error(looseResult)
+				commitment.trace('pickup.planHandler.looseAllocated')
 
 				const vehicleResult = transport.allocate({ [goodType]: 1 }, commitment)
 				if (vehicleResult !== undefined) throw new Error(vehicleResult)
+				commitment.trace('pickup.planHandler.transportAllocated')
 
 				// NOTE: A prior `effect` on `looseGoodToGrab.isRemoved` called `cancelPlan` on removal.
 				// Successful pickup removes the loose good after the vehicle allocation is fulfilled, which
@@ -248,6 +302,7 @@ const pickupPlanHandler: PlanHandler<PickupPlan> = {
 		}
 
 		if (commitment) {
+			commitment.trace('pickup.planHandler.assignedToPlan')
 			;(plan as any).commitment = commitment
 		}
 	},

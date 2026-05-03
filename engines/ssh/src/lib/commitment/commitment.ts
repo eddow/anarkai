@@ -1,5 +1,15 @@
 import { unreactive } from 'mutts'
 import { traces } from '../dev/debug.ts'
+import { traceProjection } from '../dev/trace.ts'
+
+type CommitmentTracePayload = Record<string, unknown>
+
+interface CommitmentTraceBreadcrumb {
+	readonly event: string
+	readonly payload?: CommitmentTracePayload
+}
+
+let nextCommitmentTraceId = 1
 
 /**
  * A commitment is something that has been promised and must eventually be resolved.
@@ -36,6 +46,8 @@ import { traces } from '../dev/debug.ts'
  */
 @unreactive
 export class Commitment {
+	readonly traceId = nextCommitmentTraceId++
+
 	#ended: CommitmentEnding
 	get ended(): CommitmentEnding {
 		return this.#ended
@@ -44,6 +56,8 @@ export class Commitment {
 	#onFulfilled: (() => void)[] = []
 	#onCancelled: (() => void)[] = []
 	#onFinal: (() => void)[] = []
+	#traceInfo: CommitmentTracePayload = {}
+	#traceBreadcrumbs: CommitmentTraceBreadcrumb[] = []
 
 	constructor(readonly label: string) {
 		commitmentRegistry.register(
@@ -51,9 +65,41 @@ export class Commitment {
 			{
 				label,
 				stack: new Error().stack ?? '',
+				traceId: this.traceId,
+				traceInfo: this.#traceInfo,
+				traceBreadcrumbs: this.#traceBreadcrumbs,
 			},
 			this
 		)
+		this.trace('created')
+	}
+
+	get [traceProjection]() {
+		return {
+			$type: 'Commitment',
+			id: this.traceId,
+			label: this.label,
+			ended: this.#ended,
+			...this.#traceInfo,
+			breadcrumbs: this.#traceBreadcrumbs,
+		}
+	}
+
+	/**
+	 * Attach bounded diagnostic context to this commitment. The values are only projected if the
+	 * `commitments` trace channel or the GC leak guard needs to display the commitment.
+	 */
+	addTraceInfo(info: CommitmentTracePayload): this {
+		Object.assign(this.#traceInfo, info)
+		return this
+	}
+
+	/** Record a lifecycle breadcrumb and optionally emit it on `traces.commitments` when enabled. */
+	trace(event: string, payload?: CommitmentTracePayload): this {
+		this.#traceBreadcrumbs.push(payload === undefined ? { event } : { event, payload })
+		if (this.#traceBreadcrumbs.length > 12) this.#traceBreadcrumbs.shift()
+		traces.commitments?.log?.(`commitment.${event}`, { commitment: this, ...payload })
+		return this
 	}
 
 	/** Register a callback for when this commitment is started (begin() called). Returns `this` for chaining. */
@@ -93,6 +139,7 @@ export class Commitment {
 	begin(): void {
 		if (this.#ended !== undefined) return
 		this.#ended = false
+		this.trace('begin')
 		for (const callback of this.#onStarted) {
 			try {
 				callback()
@@ -116,6 +163,7 @@ export class Commitment {
 			this.begin()
 		}
 		this.#ended = true
+		this.trace('fulfill')
 		this.#resolve(this.#onFulfilled)
 	}
 
@@ -134,6 +182,7 @@ export class Commitment {
 			this.begin()
 		}
 		this.#ended = reason
+		this.trace('cancel', { reason })
 		this.#resolve(this.#onCancelled)
 	}
 
@@ -193,6 +242,9 @@ export function assertSuccess(reason: FailureReason, label: string): void {
 interface GCLeakInfo {
 	label: string
 	stack: string
+	traceId: number
+	traceInfo: CommitmentTracePayload
+	traceBreadcrumbs: CommitmentTraceBreadcrumb[]
 }
 
 /**
@@ -205,7 +257,12 @@ const commitmentRegistry =
 		? new FinalizationRegistry<GCLeakInfo>((info) => {
 				console.error(
 					`Leaked Commitment (GC'd without resolve): "${info.label}"`,
-					info.stack ? `\n  stack:\n${info.stack}` : ''
+					info.stack ? `\n  stack:\n${info.stack}` : '',
+					{
+						traceId: info.traceId,
+						traceInfo: info.traceInfo,
+						traceBreadcrumbs: info.traceBreadcrumbs,
+					}
 				)
 				traces.commitments?.error?.("Leaked Commitment (GC'd without resolve):", info)
 			})

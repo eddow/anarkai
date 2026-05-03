@@ -1,3 +1,4 @@
+import { jobBalance } from 'engine-rules'
 import { normalizeFreightLineDefinition } from 'ssh/freight/freight-line'
 import { migrateV1FiltersToGoodsSelection } from 'ssh/freight/goods-selection-policy'
 import { pickInitialVehicleServiceCandidate } from 'ssh/freight/vehicle-run'
@@ -347,7 +348,7 @@ describe('findVehicleOffloadJob', () => {
 		}
 	})
 
-	it('surfaces maintenance offload when project wood burdens a served gather-line tile', async () => {
+	it('uses joint line service instead of maintenance offload when project wood also serves the line', async () => {
 		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
 		await engine.init()
 		const { game } = engine
@@ -403,11 +404,14 @@ describe('findVehicleOffloadJob', () => {
 			void char.scriptsContext
 
 			const offload = findVehicleOffloadJob(game, char)
-			expect(offload?.job).toBe('vehicleOffload')
-			expect(offload?.maintenanceKind).toBe('loadFromBurden')
-			expect(offload?.targetCoord).toMatchObject({ q: 2, r: 0 })
+			expect(offload).toBeUndefined()
 			const hop = findVehicleHopJob(game, char)
-			expect(hop).toBeUndefined()
+			expect(hop?.job).toBe('vehicleHop')
+			expect(hop?.needsBeginService).toBe(true)
+			expect(hop?.zoneBrowseAction).toBe('load')
+			expect(hop?.targetCoord).toMatchObject({ q: 2, r: 0 })
+			expect(hop?.priorityTier).toBe('lineAndOffloadJoint')
+			expect(hop?.urgency).toBeGreaterThan(jobBalance.vehicleHop)
 		} finally {
 			await engine.destroy()
 		}

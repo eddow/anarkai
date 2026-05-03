@@ -271,7 +271,7 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 			return props.character?.lastPlannerSnapshot
 		},
 		get workPlannerSnapshot(): RankedWorkPlannerSnapshot | undefined {
-			return props.character?.workPlannerSnapshot ?? props.character?.lastWorkPlannerSnapshot
+			return props.character?.lastWorkPlannerSnapshot
 		},
 		get plannerChoices() {
 			const snap = computed.plannerSnapshot
