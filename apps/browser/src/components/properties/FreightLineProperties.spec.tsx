@@ -91,30 +91,30 @@ vi.mock('@app/lib/i18n', () => {
 	}
 })
 
-vi.mock('./InspectorObjectLink', () => ({
+vi.mock('../InspectorObjectLink', () => ({
 	default: () => null,
 }))
 
-vi.mock('./LinkedEntityControl', () => ({
+vi.mock('../LinkedEntityControl', () => ({
 	default: () => null,
 }))
 
-vi.mock('./EntityBadge', () => ({
+vi.mock('../EntityBadge', () => ({
 	default: (props: { text?: string }) => <span data-testid="entity-badge">{props.text ?? ''}</span>,
 }))
 
-vi.mock('./PropertyGrid', () => ({
+vi.mock('../PropertyGrid', () => ({
 	default: (props: { children?: JSX.Element }) => <div>{props.children}</div>,
 }))
 
-vi.mock('./PropertyGridRow', () => ({
+vi.mock('../PropertyGridRow', () => ({
 	default: (props: { label?: string; children?: JSX.Element; if?: boolean }) =>
 		props.if === false ? null : (
 			<div data-testid={`row-${props.label ?? 'unlabeled'}`}>{props.children}</div>
 		),
 }))
 
-vi.mock('./FreightStopList', () => ({
+vi.mock('../FreightStopList', () => ({
 	default: (props: { draft: { name: string }; onChange: (next: { name: string }) => void }) => (
 		<button
 			type="button"

@@ -25,8 +25,4 @@ import { Commitment } from '../../commitment/commitment'
  * `conclude` / `cancel` / `finally` in the handler;
  * they do **not** use this class.
  */
-export class PlanCommitment extends Commitment {
-	constructor(label: string) {
-		super(label)
-	}
-}
+export class PlanCommitment extends Commitment {}

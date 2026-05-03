@@ -967,7 +967,7 @@ export function createAnarkaiPalettePreset(): Pick<
 export const anarkaiPaletteEditors = createAnarkaiPaletteEditors()
 export const anarkaiPalettePreset = createAnarkaiPalettePreset()
 
-export const anarkaiPaletteEditorSpecs = {
+export const anarkaiPaletteEditorSpecs: Record<AnarkaiPaletteEditorVariant, unknown> = {
 	button: anarkaiPaletteEditors.run?.button,
 	cycle: anarkaiPaletteEditors.enum?.cycle,
 	commandBox: anarkaiPaletteEditors.item?.commandBox,
@@ -975,4 +975,4 @@ export const anarkaiPaletteEditorSpecs = {
 	segmented: anarkaiPaletteEditors.enum?.segmented,
 	stars: anarkaiPaletteEditors.number?.stars,
 	toggle: anarkaiPaletteEditors.boolean?.toggle,
-} satisfies Record<AnarkaiPaletteEditorVariant, unknown>
+}

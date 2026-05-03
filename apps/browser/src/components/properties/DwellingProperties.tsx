@@ -44,9 +44,7 @@ const DwellingProperties = (props: DwellingPropertiesProps) => {
 			</PropertyGridRow>
 			<PropertyGridRow label={String(T.residential.dwelling.occupied)}>
 				<Badge tone={state.occupied ? 'red' : 'green'} data-testid="dwelling-occupied">
-					{state.occupied
-						? T.residential.dwelling.occupied
-						: T.residential.dwelling.vacant}
+					{state.occupied ? T.residential.dwelling.occupied : T.residential.dwelling.vacant}
 				</Badge>
 			</PropertyGridRow>
 		</>

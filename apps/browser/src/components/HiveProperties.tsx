@@ -264,9 +264,7 @@ const HiveProperties = (props: HivePropertiesProps) => {
 												class={[arrowClass, weightClass]}
 												title={label}
 												aria-label={
-													entry.advertisement === 'demand'
-														? T.hive.demand
-														: T.hive.provide
+													entry.advertisement === 'demand' ? T.hive.demand : T.hive.provide
 												}
 											>
 												{entry.advertisement === 'demand' ? '↓' : '↑'}
@@ -278,16 +276,10 @@ const HiveProperties = (props: HivePropertiesProps) => {
 						</for>
 					</div>
 				</PropertyGridRow>
-				<PropertyGridRow
-					if={state.dockedVehicles.length > 0}
-					label={T.vehicle.docked}
-				>
+				<PropertyGridRow if={state.dockedVehicles.length > 0} label={T.vehicle.docked}>
 					<DockedVehicleList entries={state.dockedVehicles} showLineMeta />
 				</PropertyGridRow>
-				<PropertyGridRow
-					if={state.buildSites.length > 0}
-					label={T.construction.section}
-				>
+				<PropertyGridRow if={state.buildSites.length > 0} label={T.construction.section}>
 					<div class="hive-properties__ads">
 						<for each={state.buildSites}>
 							{(site) => (

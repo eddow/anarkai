@@ -229,11 +229,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 
 			<PropertyGridRow
 				if={!state.isFreightBay && state.lineObjects.length > 0}
-				label={
-					state.lineObjects.length > 1
-						? T.line.linesSection
-						: T.line.section
-				}
+				label={state.lineObjects.length > 1 ? T.line.linesSection : T.line.section}
 			>
 				<div class="alveolus-line-list">
 					<for each={state.lineObjects}>
@@ -251,9 +247,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 				if={state.resolvedGame}
 				content={props.content}
 				game={state.resolvedGame!}
-				label={
-					state.isBuildSite ? T.construction.materials : T.goods.stored
-				}
+				label={state.isBuildSite ? T.construction.materials : T.goods.stored}
 			/>
 
 			<StorageConfiguration

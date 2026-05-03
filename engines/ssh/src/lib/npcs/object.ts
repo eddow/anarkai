@@ -84,13 +84,13 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 		abstract scriptsContext: ExecutionContext
 		abstract findAction(): ScriptExecution | ASingleStep | undefined
 
-	get actionDescription(): string[] {
-		// `runningScripts` is intentionally `@unreactive`; keep this as a fresh diagnostic snapshot.
-		return this.runningScripts
-			.map((script) => script?.name)
-			.filter((name): name is string => !!name)
-			.reverse()
-	}
+		get actionDescription(): string[] {
+			// `runningScripts` is intentionally `@unreactive`; keep this as a fresh diagnostic snapshot.
+			return this.runningScripts
+				.map((script) => script?.name)
+				.filter((name): name is string => !!name)
+				.reverse()
+		}
 		makeRun() {
 			try {
 				if (!this.runningScript.state) {

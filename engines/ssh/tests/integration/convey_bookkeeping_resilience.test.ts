@@ -48,8 +48,7 @@ describe('Convey bookkeeping resilience', () => {
 				.flat()
 				.find((candidate: any) => candidate.goodType === 'planks')
 			expect(movement).toBeDefined()
-			if (!movement)
-				throw new Error('Expected plank movement to exist')
+			if (!movement) throw new Error('Expected plank movement to exist')
 
 			movement.claimed = true
 			movement.allocations.target.cancel('test.invalid-target')

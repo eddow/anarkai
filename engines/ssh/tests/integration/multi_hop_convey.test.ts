@@ -44,7 +44,9 @@ function handOffFirstHop(hive: Hive, movement: TrackedMovement, label: string) {
 	const hopAllocation = movementCommitment(movement, 'convey.hop')
 	expect(hopStorage.allocate({ [movement.goodType]: 1 }, hopAllocation)).toBeUndefined()
 
-	if ((movement.allocations.source as { reason?: { type?: string } }).reason?.type !== 'hive-transfer') {
+	if (
+		(movement.allocations.source as { reason?: { type?: string } }).reason?.type !== 'hive-transfer'
+	) {
 		hive.fulfillMovementSource(movement, label)
 	}
 	const firstHop = movement.hop()
@@ -52,11 +54,7 @@ function handOffFirstHop(hive: Hive, movement: TrackedMovement, label: string) {
 	hopAllocation.fulfill()
 	const sourceCommitment = movementCommitment(movement, 'convey.path')
 	expect(hopStorage.reserve({ [movement.goodType]: 1 }, sourceCommitment)).toBeUndefined()
-	hive.assignMovementSource(
-		movement,
-		sourceCommitment,
-		label
-	)
+	hive.assignMovementSource(movement, sourceCommitment, label)
 	return firstHop
 }
 

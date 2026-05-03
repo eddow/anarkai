@@ -4,6 +4,7 @@ import { isTileCoord } from 'ssh/board/tile-coord'
 import { traces } from 'ssh/dev/debug'
 import type { Hive, MovementSelection, TrackedMovement } from 'ssh/hive/hive'
 import { movementRefId } from 'ssh/hive/movement-ref'
+import { type AlveolusProposedJob, asAlveolusProposedJob } from 'ssh/jobs/offers'
 import { gameIsaTypes } from 'ssh/npcs/utils'
 import type { Character } from 'ssh/population/character'
 import type { Storage } from 'ssh/storage/storage'
@@ -176,21 +177,46 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		return availableGoods.length > 0 && !this.hive.movingGoods.get(coord)?.length
 	}
 
-	nextJob?(character?: Character): Job | undefined
-
-	@inert
-	getJob(character?: Character): Job | undefined {
-		const assignedWorker = this.assignedWorker ? unwrap(this.assignedWorker) : undefined
-		const currentCharacter = character ? unwrap(character) : undefined
+	protected get hasConveyNearby(): boolean {
 		const here = toAxialCoord(this.tile.position)!
-		const hasConveyNearby =
+		return (
 			!!this.hive.movingGoods.get(here)?.length ||
 			this.tile.surroundings.some(({ border }) => {
 				const coord = toAxialCoord(border.position)
 				return !!coord && !!this.hive.movingGoods.get(coord)?.length
 			})
-		if (assignedWorker && assignedWorker !== currentCharacter) {
-			if (hasConveyNearby) {
+		)
+	}
+
+	protected get canProposeAlveolusSpecificJobs(): boolean {
+		if (this.tile.isBurdened && !this.hasConveyNearby) return false
+		if (this.tile.isBurdened) return false
+		return this.working
+	}
+
+	get proposedJobs(): readonly AlveolusProposedJob[] {
+		if (this.tile.isBurdened && !this.hasConveyNearby) return []
+		const carry = this.conveyJob()
+		if (carry) return [asAlveolusProposedJob(carry, this)]
+		const job = this.nextAlveolusJob()
+		return job ? [asAlveolusProposedJob(job, this)] : []
+	}
+
+	/** @deprecated Use {@link proposedJobs}; kept while legacy tests and scripts migrate. */
+	nextJob(character?: Character): Job | undefined {
+		return this.nextAlveolusJob(character)
+	}
+
+	protected nextAlveolusJob(_character?: Character): Job | undefined {
+		return undefined
+	}
+
+	@inert
+	getJob(character?: Character): Job | undefined {
+		const assignedWorker = this.assignedWorker ? unwrap(this.assignedWorker) : undefined
+		const currentCharacter = character ? unwrap(character) : undefined
+		if (assignedWorker && assignedWorker.uid !== currentCharacter?.uid) {
+			if (this.hasConveyNearby) {
 				traces.convey.log?.(`[getJob] skip assigned-worker ${this.name}`, {
 					alveolus: this.name,
 					assignedWorker: assignedWorker.uid,
@@ -199,7 +225,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			}
 			return undefined
 		}
-		if (this.tile.isBurdened && !hasConveyNearby) {
+		if (this.tile.isBurdened && !this.hasConveyNearby) {
 			return undefined
 		}
 		const carry = this.conveyJob()
@@ -207,13 +233,12 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			traces.convey.log?.(`[getJob] convey ${this.name}`, {
 				alveolus: this.name,
 				character: currentCharacter?.uid,
-				description: carry.description,
 				urgency: carry.urgency,
 			})
 			return carry
 		}
 		if (this.tile.isBurdened) {
-			if (hasConveyNearby) {
+			if (this.hasConveyNearby) {
 				traces.convey.log?.(`[getJob] skip burdened ${this.name}`, {
 					alveolus: this.name,
 					character: currentCharacter?.uid,
@@ -221,10 +246,8 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			}
 			return undefined
 		}
-
-		// Only provide alveolus-specific jobs if working is enabled
 		if (!this.working) {
-			if (hasConveyNearby) {
+			if (this.hasConveyNearby) {
 				traces.convey.log?.(`[getJob] skip not-working ${this.name}`, {
 					alveolus: this.name,
 					character: currentCharacter?.uid,
@@ -232,13 +255,11 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			}
 			return undefined
 		}
-
-		const job = this.nextJob?.(character)
-		if (hasConveyNearby) {
+		const job = this.proposedJobs.find((proposed) => proposed.job !== 'convey')
+		if (this.hasConveyNearby) {
 			traces.convey.log?.(`[getJob] ${job ? 'work' : 'none'} ${this.name}`, {
 				alveolus: this.name,
 				character: currentCharacter?.uid,
-				description: job?.description,
 				urgency: job?.urgency,
 			})
 		}

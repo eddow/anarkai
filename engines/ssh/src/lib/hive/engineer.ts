@@ -34,8 +34,10 @@ export class EngineerAlveolus extends Alveolus {
 	}
 
 	@inert
-	nextJob(character?: Character): ConstructJob | FoundationJob | undefined {
-		if (!this.working) return undefined
+	protected override nextAlveolusJob(
+		character?: Character
+	): ConstructJob | FoundationJob | undefined {
+		if (!this.canProposeAlveolusSpecificJobs) return undefined
 		const hex = this.tile.game.hex
 		const startPos = character ? toAxialCoord(character.position) : toAxialCoord(this.tile.position)
 

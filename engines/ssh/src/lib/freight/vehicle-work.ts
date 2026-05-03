@@ -29,6 +29,11 @@ import {
 	zoneBrowseUtilityContext,
 } from 'ssh/freight/vehicle-zone-browse'
 import type { Game } from 'ssh/game/game'
+import {
+	asVehicleProposedJob,
+	proposedVehicleJobIdentityKey,
+	type VehicleProposedJob,
+} from 'ssh/jobs/offers'
 import type { Character } from 'ssh/population/character'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import {
@@ -1203,6 +1208,27 @@ export function collectVehicleWorkPicks(game: Game, character: Character): Vehic
 	}
 	if (out.length === 0) traceNoVehicleWorkPicks(game, character)
 	return out
+}
+
+/**
+ * Provider-facing vehicle work. This deliberately returns one proposed job per vehicle opportunity,
+ * not one row per character. During the migration, executable vehicle payloads are still discovered
+ * through the legacy character-tailored helpers and then deduped by vehicle/job identity.
+ */
+export function collectVehicleProposedJobs(
+	game: Game,
+	vehicle: VehicleEntity
+): VehicleProposedJob[] {
+	const byKey = new Map<string, VehicleProposedJob>()
+	for (const character of game.population) {
+		for (const pick of collectVehicleWorkPicks(game, character)) {
+			if (pick.job.vehicleUid !== vehicle.uid) continue
+			const key = proposedVehicleJobIdentityKey(pick.job)
+			if (byKey.has(key)) continue
+			byKey.set(key, asVehicleProposedJob(pick.job, vehicle, pick.targetTile))
+		}
+	}
+	return [...byKey.values()]
 }
 
 export { findVehicleEntityAtTile } from './vehicle-run'

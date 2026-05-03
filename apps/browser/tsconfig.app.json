@@ -10,7 +10,7 @@
 		"resolveJsonModule": true,
 		"isolatedModules": true,
 		"noEmit": true,
-		"skipLibCheck": false,
+		"skipLibCheck": true,
 		"useDefineForClassFields": true,
 		"experimentalDecorators": true,
 		"emitDecoratorMetadata": true,
@@ -49,8 +49,19 @@
 		"../../engines/pixi/src/**/*.ts",
 		"../../engines/pixi/src/**/*.d.ts",
 		"../../engines/pixi/assets/**/*.ts",
+		"../../engines/rules/src/**/*.ts",
 		"../../engines/ssh/src/**/*.ts",
+		"../../engines/terrain/src/**/*.ts",
 		"../../engines/ssh/assets/**/*.ts",
 		"src/components/storage/StorageConfiguration.tsx"
+	],
+	"exclude": [
+		"**/*.spec.ts",
+		"**/*.spec.tsx",
+		"**/*.test.ts",
+		"**/*.test.tsx",
+		"../../engines/pixi/src/**/*.spec.ts",
+		"../../engines/pixi/src/**/*.test.ts",
+		"../../engines/ssh/tests/**/*"
 	]
 }

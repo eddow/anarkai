@@ -23,7 +23,7 @@ import type { TransformAlveolus } from 'ssh/hive/transform'
 import type { Character } from 'ssh/population/character'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import { contract, type Goods, type GoodType } from 'ssh/types'
-import { axial, type AxialCoord } from 'ssh/utils'
+import { type AxialCoord, axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
 import { epsilon } from 'ssh/utils/varied'
 import { subject } from '../scripts'
@@ -408,9 +408,9 @@ class WorkFunctions {
 					sourceFulfilled,
 				} satisfies FailedConveyMovementData)
 				for (const prev of movementData) cleanupFailedConveyMovement(character, prev)
-					throw error
-				}
+				throw error
 			}
+		}
 		if (movementData.length === 0) {
 			traces.convey.log?.(`[conveyStep] no valid movement data for ${alveolus.name}`, {
 				character: character.uid,
@@ -428,11 +428,11 @@ class WorkFunctions {
 					sourceFulfilled: true,
 				} satisfies FailedConveyMovementData)
 			}
-				for (const { movement } of movementData) {
-					currentHive(movement).wakeWanderingWorkersNear(movement.provider, movement.demander)
-				}
-				throw new ConveyStaleBookkeepingError('Movement became invalid before convey animation')
+			for (const { movement } of movementData) {
+				currentHive(movement).wakeWanderingWorkersNear(movement.provider, movement.demander)
 			}
+			throw new ConveyStaleBookkeepingError('Movement became invalid before convey animation')
+		}
 
 		const totalTime = getConveyDuration(character.freightTransferTime, movementData)
 		traces.convey.log?.(`[conveyStep] animate ${movementData.length} movement(s)`, {
@@ -588,10 +588,7 @@ class WorkFunctions {
 							// intentionally skipped during pickup and must be resolved here.
 							// For convey.path sources (subsequent hops), the source was already
 							// fulfilled during pickup; fulfill() is idempotent.
-							movementHive.fulfillMovementSource(
-								movement,
-								'conveyStep.finished.rebind.old-source'
-							)
+							movementHive.fulfillMovementSource(movement, 'conveyStep.finished.rebind.old-source')
 							movementHive.assignMovementSource(
 								movement,
 								newSourceCommitment,
@@ -647,9 +644,9 @@ class WorkFunctions {
 						)
 					}
 					for (const movement of movementData) cleanupFailedConveyMovement(character, movement)
-						console.error('[conveyStep] Error in finished callback:', error)
-						throw error
-					}
+					console.error('[conveyStep] Error in finished callback:', error)
+					throw error
+				}
 			})
 			.onFinal(() => {
 				// Clean up any remaining loose goods. Note: looseGoods should *not* disappear. For now, this shouldn't happen - but if it happened, looseGoods should be stored as looseGoods

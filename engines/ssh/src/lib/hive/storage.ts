@@ -16,7 +16,6 @@ import {
 	goodsWith,
 	pickGatherTargetInZoneStop,
 } from 'ssh/freight/freight-zone-gather-target'
-import type { Character } from 'ssh/population/character'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { Storage } from 'ssh/storage/storage'
@@ -527,9 +526,9 @@ export class StorageAlveolus extends Alveolus {
 	}
 
 	@inert
-	nextJob(_character?: Character): Job | undefined {
+	protected override nextAlveolusJob(): Job | undefined {
 		const fragmentedGoodType = this.storage.fragmented
-		return fragmentedGoodType
+		return fragmentedGoodType && this.canProposeAlveolusSpecificJobs
 			? ({
 					job: 'defragment',
 					fatigue: 1,

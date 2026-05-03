@@ -27,7 +27,11 @@ export const MovementTransitions: Record<MovementState, MovementState[]> = {
 	[MovementState.delivering]: [MovementState.completed, MovementState.aborted],
 	[MovementState.completed]: [],
 	[MovementState.aborted]: [],
-	[MovementState.suspended]: [MovementState.suspended, MovementState.tracked, MovementState.aborted],
+	[MovementState.suspended]: [
+		MovementState.suspended,
+		MovementState.tracked,
+		MovementState.aborted,
+	],
 }
 
 export class MovementStateError extends Error {

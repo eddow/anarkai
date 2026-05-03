@@ -388,8 +388,7 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 					<PropertyGrid>
 						<PropertyGridRow label={T.character.plannerSection}>
 							<span class="character-planner__mono">
-								{T.character.plannerKeepWorking}:{' '}
-								{String(props.character?.keepWorking ?? false)}
+								{T.character.plannerKeepWorking}: {String(props.character?.keepWorking ?? false)}
 							</span>
 						</PropertyGridRow>
 						<PropertyGridRow label={T.character.plannerLastPick}>

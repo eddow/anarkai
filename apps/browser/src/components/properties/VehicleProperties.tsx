@@ -6,7 +6,7 @@ import { vehicleTextureKey } from 'engine-pixi/renderers/vehicle-visual'
 import { effect } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
 import { createSyntheticFreightLineObject } from 'ssh/freight/freight-line'
-import { collectVehicleWorkPicks, type VehicleWorkPick } from 'ssh/freight/vehicle-work'
+import type { VehicleProposedJob } from 'ssh/jobs/offers'
 import type { Character } from 'ssh/population/character'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import {
@@ -136,11 +136,7 @@ interface VehicleWorkChoice {
 	targetLabel: string
 	targetTile: Tile
 	urgency: number
-	pathLength: number
-	score: number
-	operatorLabel: string
 	jobLabel: string
-	scoreText: string
 	metaText: string
 }
 
@@ -159,16 +155,6 @@ function workKindLabel(kind: JobType): string {
 	return T.character.plannerWorkKinds[kind] ?? kind
 }
 
-function vehicleFreightPathLength(job: VehicleWorkPick['job']): number {
-	switch (job.job) {
-		case 'vehicleHop':
-			return job.path.length + (job.approachPath?.length ?? 0)
-		case 'zoneBrowse':
-		case 'vehicleOffload':
-			return job.path.length
-	}
-}
-
 function effectiveOperatorForVehicle(vehicle: VehicleEntity | undefined): Character | undefined {
 	if (!vehicle) return undefined
 	const fromService = vehicle.operator
@@ -181,21 +167,19 @@ function effectiveOperatorForVehicle(vehicle: VehicleEntity | undefined): Charac
 	return undefined
 }
 
-function describeVehicleWorkTarget(pick: VehicleWorkPick): string {
-	const targetCoord = toAxialCoord(pick.targetTile.position)
-	const targetLabel = pick.targetTile.title ?? (targetCoord ? axial.key(targetCoord) : '')
-	switch (pick.job.job) {
+function describeVehicleWorkTarget(job: VehicleProposedJob): string {
+	const targetCoord = toAxialCoord(job.targetTile.position)
+	const targetLabel = job.targetTile.title ?? (targetCoord ? axial.key(targetCoord) : '')
+	switch (job.job) {
 		case 'vehicleOffload': {
 			const detail =
-				pick.job.maintenanceKind === 'loadFromBurden'
-					? pick.job.looseGood.goodType
-					: pick.job.maintenanceKind
-			return `vehicleOffload ${detail} @ ${pick.job.targetCoord.q},${pick.job.targetCoord.r}`
+				job.maintenanceKind === 'loadFromBurden' ? job.looseGood.goodType : job.maintenanceKind
+			return `vehicleOffload ${detail} @ ${job.targetCoord.q},${job.targetCoord.r}`
 		}
 		case 'vehicleHop':
-			return `vehicleHop ${pick.job.lineId}/${pick.job.stopId} @ ${targetLabel}`
+			return `vehicleHop ${job.lineId}/${job.stopId} @ ${targetLabel}`
 		case 'zoneBrowse':
-			return `zoneBrowse ${pick.job.zoneBrowseAction}:${pick.job.goodType} @ ${pick.job.targetCoord.q},${pick.job.targetCoord.r}`
+			return `zoneBrowse ${job.zoneBrowseAction}:${job.goodType} @ ${job.targetCoord.q},${job.targetCoord.r}`
 	}
 }
 
@@ -232,9 +216,7 @@ const VehicleProperties = (
 				return T.vehicle.idle
 			}
 			if (isVehicleLineService(svc)) {
-				const docked = svc.docked
-					? T.vehicle.docked
-					: T.vehicle.underway
+				const docked = svc.docked ? T.vehicle.docked : T.vehicle.underway
 				const stopLabel = T.line.stop
 				return `${svc.line.name} · ${stopLabel} ${svc.stop.id} · ${docked}`
 			}
@@ -246,40 +228,20 @@ const VehicleProperties = (
 		get workChoices() {
 			const vehicle = props.vehicle
 			if (!vehicle) return []
-			const choices: VehicleWorkChoice[] = []
-			const population = vehicle.game.population as Iterable<Character> | undefined
-			if (!population?.[Symbol.iterator]) return []
-			for (const character of population) {
-				for (const pick of collectVehicleWorkPicks(vehicle.game, character)) {
-					if (pick.job.vehicleUid !== vehicle.uid) continue
-					const pathLength = vehicleFreightPathLength(pick.job)
-					const score = pick.job.urgency / (pathLength + 1)
-					const operatorLabel = character.title ?? character.name
-					choices.push({
-						jobKind: pick.job.job,
-						targetLabel: describeVehicleWorkTarget(pick),
-						targetTile: pick.targetTile,
-						urgency: pick.job.urgency,
-						pathLength,
-						score,
-						operatorLabel,
-						jobLabel: workKindLabel(pick.job.job),
-						scoreText: formatPlannerUtility(score),
-						metaText: [
-							operatorLabel,
-							`${T.character.plannerWorkUrgency} ${formatPlannerUtility(pick.job.urgency)}`,
-							`${T.character.plannerWorkPath} ${pathLength}`,
-						]
-							.filter(Boolean)
-							.join(' · '),
+			const jobs = (vehicle.proposedJobs ?? []) as readonly VehicleProposedJob[]
+			return jobs
+				.map(
+					(job): VehicleWorkChoice => ({
+						jobKind: job.job,
+						targetLabel: describeVehicleWorkTarget(job),
+						targetTile: job.targetTile,
+						urgency: job.urgency,
+						jobLabel: workKindLabel(job.job),
+						metaText: `${T.character.plannerWorkUrgency} ${formatPlannerUtility(job.urgency)}`,
 					})
-				}
-			}
-			return choices
+				)
 				.sort((a, b) => {
-					if (b.score !== a.score) return b.score - a.score
 					if (b.urgency !== a.urgency) return b.urgency - a.urgency
-					if (a.pathLength !== b.pathLength) return a.pathLength - b.pathLength
 					return a.targetLabel.localeCompare(b.targetLabel)
 				})
 				.slice(0, rankedWorkLimit)
@@ -353,7 +315,9 @@ const VehicleProperties = (
 											<div class="vehicle-work__content">
 												<div class="vehicle-work__header">
 													<span class="vehicle-work__type">{choice.jobLabel}</span>
-													<span class="vehicle-work__score">{choice.scoreText}</span>
+													<span class="vehicle-work__score">
+														{formatPlannerUtility(choice.urgency)}
+													</span>
 												</div>
 												<div class="vehicle-work__meta">{choice.targetLabel}</div>
 												<div class="vehicle-work__meta">{choice.metaText}</div>

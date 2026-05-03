@@ -10,7 +10,11 @@ class MockBuildAlveolus extends MockAlveolus {
 	title = 'Build storage'
 }
 class MockBuildDwelling {}
-class MockUnBuiltLand {}
+class MockUnBuiltLand {
+	target = 'storage'
+	name = ''
+	title = ''
+}
 
 vi.mock('@app/lib/css', () => ({
 	css: () => '',

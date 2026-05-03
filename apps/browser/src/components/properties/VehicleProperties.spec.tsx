@@ -67,20 +67,15 @@ vi.mock('ssh/freight/freight-line', async (importOriginal) => {
 	}
 })
 
-const collectVehicleWorkPicks = vi.fn()
-vi.mock('ssh/freight/vehicle-work', () => ({
-	collectVehicleWorkPicks: (...args: unknown[]) => collectVehicleWorkPicks(...args),
-}))
-
-vi.mock('./EntityBadge', () => ({
+vi.mock('../EntityBadge', () => ({
 	default: (props: { text?: string }) => <div data-testid="vehicle-entity-badge">{props.text}</div>,
 }))
 
-vi.mock('./GoodsList', () => ({
+vi.mock('../GoodsList', () => ({
 	default: () => <div data-testid="goods-list" />,
 }))
 
-vi.mock('./InspectorObjectLink', () => ({
+vi.mock('../InspectorObjectLink', () => ({
 	default: (props: { object?: { uid?: string }; label?: string }) => (
 		<button type="button" data-testid="inspector-object-link" data-target-uid={props.object?.uid}>
 			{props.label ?? props.object?.uid ?? 'link'}
@@ -88,7 +83,7 @@ vi.mock('./InspectorObjectLink', () => ({
 	),
 }))
 
-vi.mock('./LinkedEntityControl', () => ({
+vi.mock('../LinkedEntityControl', () => ({
 	default: (props: { object?: { uid?: string } }) => (
 		<div data-testid="linked-entity-control" data-target-uid={props.object?.uid ?? ''}>
 			{props.object?.uid ?? 'linked'}
@@ -96,7 +91,7 @@ vi.mock('./LinkedEntityControl', () => ({
 	),
 }))
 
-vi.mock('./PropertyGrid', () => ({
+vi.mock('../PropertyGrid', () => ({
 	default: (props: { children?: JSX.Children; class?: string }) => (
 		<table class={props.class}>
 			<tbody>{props.children}</tbody>
@@ -104,7 +99,7 @@ vi.mock('./PropertyGrid', () => ({
 	),
 }))
 
-vi.mock('./PropertyGridRow', () => ({
+vi.mock('../PropertyGridRow', () => ({
 	default: (props: { label?: string; children?: JSX.Children; class?: string }) => (
 		<tr class={props.class}>
 			{props.label ? <th>{props.label}</th> : null}
@@ -130,7 +125,6 @@ describe('VehicleProperties', () => {
 	beforeEach(() => {
 		container = document.createElement('div')
 		document.body.appendChild(container)
-		collectVehicleWorkPicks.mockReset()
 	})
 
 	afterEach(() => {
@@ -258,58 +252,35 @@ describe('VehicleProperties', () => {
 		).toBe(false)
 	})
 
-	it('shows ranked vehicle work from available worker picks', () => {
+	it('shows ranked vehicle work from proposed vehicle jobs', () => {
 		const operator = { uid: 'char-jobs', title: 'Bo' }
-		const otherWorker = { uid: 'char-other', title: 'Ia' }
 		const targetTile = {
 			uid: 'tile:2,0',
 			title: 'Tile 2, 0',
 			position: { x: 2, y: 0 },
 		}
-		const game = {
-			population: [operator, otherWorker],
-		}
 		const vehicle = {
 			uid: 'veh-jobs',
 			title: 'wheelbarrow veh-jobs',
 			vehicleType: 'wheelbarrow',
-			game,
+			game: {},
 			operator,
 			storage: { stock: {} },
 			service: undefined,
+			proposedJobs: [
+				{
+					job: 'vehicleOffload',
+					maintenanceKind: 'unloadToTile',
+					vehicleUid: 'veh-jobs',
+					targetCoord: { q: 2, r: 0 },
+					path: [],
+					urgency: 4,
+					fatigue: 1,
+					source: { kind: 'vehicle', vehicle: undefined },
+					targetTile,
+				},
+			],
 		}
-		collectVehicleWorkPicks.mockImplementation((_game, character: { uid?: string }) =>
-			character.uid === operator.uid
-				? [
-						{
-							job: {
-								job: 'vehicleOffload',
-								maintenanceKind: 'unloadToTile',
-								vehicleUid: 'veh-jobs',
-								targetCoord: { q: 2, r: 0 },
-								path: [],
-								urgency: 4,
-								fatigue: 1,
-							},
-							targetTile,
-						},
-					]
-				: [
-						{
-							job: {
-								job: 'vehicleHop',
-								vehicleUid: 'other-vehicle',
-								lineId: 'L1',
-								stopId: 'S1',
-								path: [],
-								urgency: 9,
-								fatigue: 1,
-								dockEnter: false,
-							},
-							targetTile,
-						},
-					]
-		)
 
 		stop = latch(container, <VehicleProperties vehicle={vehicle as never} />, {
 			setTitle: vi.fn(),
@@ -321,7 +292,7 @@ describe('VehicleProperties', () => {
 		expect(rows).toHaveLength(1)
 		expect(rows[0]?.textContent).toContain('vehicleOffload')
 		expect(rows[0]?.textContent).toContain('unloadToTile')
-		expect(rows[0]?.textContent).toContain('Bo')
+		expect(rows[0]?.textContent).not.toContain('Bo')
 	})
 
 	it('shows idle when there is no service', () => {

@@ -3,8 +3,10 @@ import type { Tile } from 'ssh/board/tile'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
 import { syncFreightVehicleDockRegistration } from 'ssh/freight/vehicle-freight-dock-sync'
 import { maybeAdvanceVehicleFromCompletedAnchorStop } from 'ssh/freight/vehicle-run'
+import { collectVehicleProposedJobs } from 'ssh/freight/vehicle-work'
 import type { Game } from 'ssh/game/game'
 import { GameObject, withInteractive } from 'ssh/game/object'
+import type { VehicleProposedJob } from 'ssh/jobs/offers'
 import type { Storage } from 'ssh/storage'
 import type { GoodType } from 'ssh/types'
 import { axial } from 'ssh/utils'
@@ -185,6 +187,10 @@ export class VehicleEntity extends withInteractive(GameObject) {
 						: undefined,
 			storage: this.storage.stock,
 		}
+	}
+
+	get proposedJobs(): readonly VehicleProposedJob[] {
+		return collectVehicleProposedJobs(this.game, this)
 	}
 
 	get [traceProjection]() {

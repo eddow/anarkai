@@ -2,6 +2,7 @@ import { inert, reactive } from 'mutts'
 import { GameObject, withInteractive } from 'ssh/game/object'
 import type { TerrainHydrologySample } from 'ssh/game/terrain-provider'
 import { Hive } from 'ssh/hive/hive'
+import type { ProposedJob } from 'ssh/jobs/offers'
 import { gameIsaTypes } from 'ssh/npcs/utils'
 import type { Character } from 'ssh/population/character'
 import { isVehicleLineService, isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
@@ -119,6 +120,12 @@ export class Tile extends withInteractive(GameObject) {
 	}
 
 	// Tile-level job offering
+	get proposedJobs(): readonly ProposedJob[] {
+		if (this.content instanceof UnBuiltLand) return []
+		if (this.content instanceof Alveolus) return this.content.proposedJobs
+		return []
+	}
+
 	@inert
 	getJob(character?: Character): Job | undefined {
 		// Check if UnBuiltLand has a project-related job (clearing for construction)

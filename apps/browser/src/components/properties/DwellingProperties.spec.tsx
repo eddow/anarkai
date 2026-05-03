@@ -33,7 +33,7 @@ vi.mock('@app/lib/i18n', () => ({
 	getTranslator: () => i18nState.translator,
 }))
 
-vi.mock('./PropertyGridRow', () => ({
+vi.mock('../PropertyGridRow', () => ({
 	default: (props: { label?: string; children?: JSX.Children }) => (
 		<tr>
 			<th>{props.label}</th>

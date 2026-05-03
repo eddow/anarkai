@@ -1,6 +1,6 @@
 import { vehicles as vehicleRules } from 'engine-rules'
 import { inert, reactive, unwrap } from 'mutts'
-import { Alveolus } from 'ssh/board/content/alveolus'
+import type { Alveolus } from 'ssh/board/content/alveolus'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import type { Tile } from 'ssh/board/tile'
 import { debugObjectId, debugRawObjectId } from 'ssh/dev/debug-object-id'
@@ -9,6 +9,15 @@ import { releaseVehicleFreightWorkOnPlanInterrupt } from 'ssh/freight/vehicle-ru
 import { collectVehicleWorkPicks, isVehicleFreightJob } from 'ssh/freight/vehicle-work'
 import type { Game } from 'ssh/game'
 import { GameObject, withInteractive, withTicked } from 'ssh/game/object'
+import {
+	asAlveolusProposedJob,
+	executableJob,
+	type ProposedJob,
+	proposedJobScore,
+	proposedVehicleJobIdentityKey,
+	type TailoredJobCandidate,
+	type VehicleProposedJob,
+} from 'ssh/jobs/offers'
 import { gameIsaTypes } from 'ssh/npcs'
 import aCharacterContext from 'ssh/npcs/context'
 import { withScripted } from 'ssh/npcs/object'
@@ -39,18 +48,6 @@ import {
 import { assert, traceIdleDiagnosis, traces } from '../dev/debug.ts'
 import { traceProjection } from '../dev/trace.ts'
 import type { VehicleEntity } from './vehicle/entity'
-
-// Simple job scoring functions
-function calculateJobScore(_character: Character, job: Job): number {
-	return job.urgency
-}
-function bestPossibleJobScore(_character: Character): number {
-	return Number.POSITIVE_INFINITY
-}
-
-function relativeJobScore(score: number, pathLength: number): number {
-	return score / (pathLength + 1)
-}
 
 function vehicleFreightApproachPathLength(job: Job): number {
 	return isVehicleFreightJob(job) ? (job.approachPath?.length ?? 0) : 0
@@ -126,7 +123,7 @@ export interface RankedWorkPlannerSnapshot {
 }
 
 interface RankedWorkCandidate {
-	job: Job
+	job: ProposedJob
 	targetTile: Tile
 	path: AxialCoord[]
 	pathLength: number
@@ -430,6 +427,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	}
 
 	private workExecution(job: Job, targetTile: Tile, path: AxialCoord[]): ScriptExecution {
+		job = executableJob(job)
 		const safePath = path.filter((step): step is AxialCoord => !!step)
 		// TODO: organise a bit so we don't have hard-coded type list, or at minimum make an array.includes - but at best, find a logical way to test (existence of job.vehicleUid?) instead
 		if (isVehicleFreightJob(job)) {
@@ -497,34 +495,104 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		}
 	}
 
+	private isVehicleProposedJob(proposedJob: ProposedJob): proposedJob is VehicleProposedJob {
+		return proposedJob.source.kind === 'vehicle'
+	}
+
+	tailorProposedJob(proposedJob: ProposedJob): TailoredJobCandidate {
+		if (proposedJob.source.kind === 'alveolus') {
+			const assignedWorker = proposedJob.source.alveolus.assignedWorker
+				? unwrap(proposedJob.source.alveolus.assignedWorker)
+				: undefined
+			if (assignedWorker && assignedWorker.uid !== this.uid) {
+				return {
+					available: false,
+					proposedJob,
+					character: this,
+					blockedReason: 'assigned-worker',
+				}
+			}
+		}
+
+		if (this.isVehicleProposedJob(proposedJob)) {
+			return this.tailorVehicleProposedJob(proposedJob)
+		}
+
+		const path = this.sameTilePath(proposedJob.targetTile)
+		if (path === false) {
+			return {
+				available: false,
+				proposedJob,
+				character: this,
+				blockedReason: 'no-path',
+			}
+		}
+		const pathLength = path.length
+		return {
+			available: true,
+			proposedJob,
+			character: this,
+			path,
+			pathLength,
+			score: proposedJobScore(proposedJob, pathLength),
+		}
+	}
+
+	private tailorVehicleProposedJob(proposedJob: VehicleProposedJob): TailoredJobCandidate {
+		const proposedKey = proposedVehicleJobIdentityKey(proposedJob)
+		for (const pick of collectVehicleWorkPicks(this.game, this)) {
+			if (pick.job.vehicleUid !== proposedJob.vehicleUid) continue
+			if (proposedVehicleJobIdentityKey(pick.job) !== proposedKey) continue
+			const pathLength = vehicleFreightApproachPathLength(pick.job)
+			return {
+				available: true,
+				proposedJob: {
+					...pick.job,
+					source: proposedJob.source,
+					targetTile: pick.targetTile,
+				} as VehicleProposedJob,
+				character: this,
+				path: pick.job.path,
+				pathLength,
+				score: proposedJobScore(pick.job, pathLength),
+			}
+		}
+		return {
+			available: false,
+			proposedJob,
+			character: this,
+			blockedReason: 'vehicle-unavailable',
+		}
+	}
+
+	private proposedWorkJobs(): ProposedJob[] {
+		const out: ProposedJob[] = []
+		if (this.assignedAlveolus) {
+			const assignedJob = this.assignedAlveolus.getJob(this)
+			if (assignedJob) out.push(asAlveolusProposedJob(assignedJob, this.assignedAlveolus))
+			else out.push(...this.assignedAlveolus.proposedJobs)
+		}
+		for (const tile of this.game.hex.tilesAround(this.position, maxWalkTime)) {
+			out.push(...tile.proposedJobs)
+		}
+		for (const vehicle of this.game.vehicles) {
+			out.push(...vehicle.proposedJobs)
+		}
+		return out
+	}
+
 	@inert
 	private rankedWorkCandidates(): RankedWorkCandidate[] {
 		const candidates: RankedWorkCandidate[] = []
-		for (const pick of collectVehicleWorkPicks(this.game, this)) {
-			const path = pick.job.path
-			const pathLength = vehicleFreightApproachPathLength(pick.job)
+		for (const proposedJob of this.proposedWorkJobs()) {
+			const tailored = this.tailorProposedJob(proposedJob)
+			if (!tailored.available) continue
 			candidates.push({
-				job: pick.job,
-				targetTile: pick.targetTile,
-				path,
-				pathLength,
-				score: relativeJobScore(calculateJobScore(this, pick.job), pathLength),
-			})
-		}
-		for (const tile of this.game.hex.tilesAround(this.position, maxWalkTime)) {
-			const job = tile.getJob?.(this)
-			if (!job) continue
-
-			const path = this.sameTilePath(tile)
-			if (path === false) continue
-
-			const pathLength = path.length
-			candidates.push({
-				job,
-				targetTile: tile,
-				path,
-				pathLength,
-				score: relativeJobScore(calculateJobScore(this, job), pathLength),
+				job: tailored.proposedJob,
+				targetTile: tailored.proposedJob.targetTile,
+				path: [...tailored.path],
+				pathLength: tailored.pathLength,
+				score: tailored.score,
 			})
 		}
 
@@ -615,121 +683,14 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		}
 	}
 
-	private bestVehicleJobMatch():
-		| { job: Job; targetTile: Tile; path: AxialCoord[]; score: number }
-		| false {
-		let best: { job: Job; targetTile: Tile; path: AxialCoord[]; score: number } | undefined
-		for (const pick of collectVehicleWorkPicks(this.game, this)) {
-			const path = pick.job.path
-			const score = relativeJobScore(
-				calculateJobScore(this, pick.job),
-				vehicleFreightApproachPathLength(pick.job)
-			)
-			if (!best || score > best.score) {
-				best = { job: pick.job, targetTile: pick.targetTile, path, score }
-			}
-		}
-		return best ?? false
-	}
-
 	/**
 	 * Resolve best job without starting a script (for planning / utility).
 	 */
 	@inert
 	resolveBestJobMatch(): { job: Job; targetTile: Tile; path: AxialCoord[] } | false {
-		const vehiclePick = this.bestVehicleJobMatch()
-
-		const jobCache = new Map<string, { job: Job; targetTile: Tile }>()
-
-		const scoreJob = (coord: Positioned): number | false => {
-			const tile = this.game.hex.getTile(coord)
-			if (!tile) return false
-
-			const axCoord = toAxialCoord(coord)!
-			const coordKey = axial.key(axCoord)
-			const directJob = tile.getJob?.(this)
-			if (!directJob) return false
-
-			jobCache.set(coordKey, { job: directJob, targetTile: tile })
-
-			const score = calculateJobScore(this, directJob)
-			return score
-		}
-
-		const path = this.game.hex.findBestForCharacter(
-			this.position,
-			this,
-			scoreJob,
-			maxWalkTime,
-			bestPossibleJobScore(this),
-			false
-		)
-
-		let selectedPath = path
-		let match: { job: Job; targetTile: Tile } | undefined
-		if (selectedPath && selectedPath.length > 0) {
-			const targetCoord = selectedPath[selectedPath.length - 1] as AxialCoord
-			const key = `${targetCoord.q},${targetCoord.r}`
-			match = jobCache.get(key)
-		}
-		if (!match) {
-			let bestFallback:
-				| { path: AxialCoord[]; job: Job; targetTile: Tile; score: number }
-				| undefined
-			for (const tile of this.game.hex.tilesAround(this.position, maxWalkTime)) {
-				if (!(tile.content instanceof Alveolus)) continue
-				const job = tile.content.getJob(this)
-				if (!job) continue
-				const isSameTile =
-					axial.key(toAxialCoord(tile.position)!) === axial.key(toAxialCoord(this.position)!)
-				const fallbackPath = isSameTile
-					? []
-					: this.game.hex.findPathForCharacter(
-							this.position,
-							tile.position,
-							this,
-							maxWalkTime,
-							false
-						)
-				if (!fallbackPath) continue
-				const score = calculateJobScore(this, job) / (fallbackPath.length + 1)
-				if (!bestFallback || score > bestFallback.score) {
-					bestFallback = { path: fallbackPath, job, targetTile: tile, score }
-				}
-			}
-			if (!bestFallback) {
-				if (!vehiclePick) return false
-				return {
-					job: vehiclePick.job,
-					targetTile: vehiclePick.targetTile,
-					path: vehiclePick.path,
-				}
-			}
-			selectedPath = bestFallback.path
-			match = { job: bestFallback.job, targetTile: bestFallback.targetTile }
-		}
-		const { job, targetTile } = match
-		if (!selectedPath) {
-			const isSameTile =
-				axial.key(toAxialCoord(targetTile.position)!) === axial.key(toAxialCoord(this.position)!)
-			if (!isSameTile) {
-				if (!vehiclePick) return false
-				return {
-					job: vehiclePick.job,
-					targetTile: vehiclePick.targetTile,
-					path: vehiclePick.path,
-				}
-			}
-			selectedPath = []
-		}
-
-		const tileMatch = { job, targetTile, path: selectedPath }
-		if (!vehiclePick) return tileMatch
-		const vs = vehiclePick.score
-		const ts = relativeJobScore(calculateJobScore(this, tileMatch.job), tileMatch.path.length)
-		return vs > ts
-			? { job: vehiclePick.job, targetTile: vehiclePick.targetTile, path: vehiclePick.path }
-			: tileMatch
+		const best = this.rankedWorkCandidates()[0]
+		if (!best) return false
+		return { job: best.job, targetTile: best.targetTile, path: best.path }
 	}
 
 	/**

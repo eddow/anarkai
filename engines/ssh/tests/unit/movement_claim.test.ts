@@ -124,14 +124,14 @@ describe('MovingGood.claimed prevents double pickup', () => {
 			const provCoord = toAxialCoord(provider.tile.position)!
 			const realMg = hive.movingGoods.get(provCoord)![0]
 
-		// Get the selection from aGoodMovement
-		const selection = provider.aGoodMovement![0]
-		expect(realMg.claimed).toBe(false)
-		// The movement inside the selection is the canonical movement object.
-		// Due to reactive proxies on Alveolus, use toEqual for deep equality
-		// (the ref identity is verified on the next line).
-		expect(selection.movement.ref).toStrictEqual(realMg.ref)
-		expect(selection.fromSnapshot).toEqual(realMg.from)
+			// Get the selection from aGoodMovement
+			const selection = provider.aGoodMovement![0]
+			expect(realMg.claimed).toBe(false)
+			// The movement inside the selection is the canonical movement object.
+			// Due to reactive proxies on Alveolus, use toEqual for deep equality
+			// (the ref identity is verified on the next line).
+			expect(selection.movement.ref).toStrictEqual(realMg.ref)
+			expect(selection.fromSnapshot).toEqual(realMg.from)
 
 			// Claim via the canonical movement
 			selection.movement.claimed = true

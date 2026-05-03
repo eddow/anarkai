@@ -52,11 +52,9 @@ export class HarvestAlveolus extends TransitAlveolus {
 		)
 	}
 
-	// nextJob() replaces both alveolusSpecificJob() and keepWorking
-	// Returns detailed job info including path when called from character
 	@inert
-	nextJob(character?: Character): HarvestJob | undefined {
-		if (!this.working) return undefined
+	protected override nextAlveolusJob(character?: Character): HarvestJob | undefined {
+		if (!this.canProposeAlveolusSpecificJobs) return undefined
 		const action = this.action
 		if (!action) {
 			return undefined

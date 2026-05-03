@@ -122,7 +122,7 @@ export function ensureFollowSelectionPanel(
 	preferredApi?: DockviewApiLike,
 	initialTitle?: string,
 	sourcePanel?: InspectorPanel
-) {
+): InspectorPanel | undefined {
 	const dockviewApi = preferredApi ?? getGlobalDockviewApi()
 	if (!dockviewApi) return undefined
 
@@ -145,7 +145,10 @@ export function ensureFollowSelectionPanel(
 	return panel
 }
 
-export function showProps(object: SelectableObject, preferredApi?: DockviewApiLike) {
+export function showProps(
+	object: SelectableObject,
+	preferredApi?: DockviewApiLike
+): InspectorPanel | undefined {
 	const dockviewApi = preferredApi ?? getGlobalDockviewApi()
 	if (dockviewApi) {
 		validateStoredSelectionState(dockviewApi)
@@ -166,6 +169,9 @@ export function showProps(object: SelectableObject, preferredApi?: DockviewApiLi
 	)
 }
 
-export function selectInspectorObject(object: SelectableObject, preferredApi?: DockviewApiLike) {
+export function selectInspectorObject(
+	object: SelectableObject,
+	preferredApi?: DockviewApiLike
+): InspectorPanel | undefined {
 	return showProps(object, preferredApi)
 }

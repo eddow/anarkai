@@ -53,7 +53,7 @@ vi.mock('ssh/construction', () => ({
 	queryConstructionSiteView,
 }))
 
-vi.mock('./EntityBadge', () => ({
+vi.mock('../EntityBadge', () => ({
 	default: (props: { text: string; qty?: number }) => (
 		<span>
 			{props.text}
@@ -62,7 +62,7 @@ vi.mock('./EntityBadge', () => ({
 	),
 }))
 
-vi.mock('./PropertyGridRow', () => ({
+vi.mock('../PropertyGridRow', () => ({
 	default: (props: { label?: string; children?: JSX.Children }) => (
 		<tr>
 			<th>{props.label}</th>

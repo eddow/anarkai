@@ -9,7 +9,7 @@ export type HiveAdvertisementSummaryEntry = {
 
 export type SummaryAdvertiser = {
 	name?: string
-	action?: { type?: string }
+	action?: unknown
 	target?: string
 	goodsRelations?: GoodsRelations
 }
@@ -17,7 +17,14 @@ export type SummaryAdvertiser = {
 const priorityValue = (priority: ExchangePriority) => Number(priority[0])
 
 const summaryTypeLabel = (alveolus: SummaryAdvertiser): string | undefined => {
-	if (alveolus.action?.type) return alveolus.action.type
+	const actionType =
+		alveolus.action &&
+		typeof alveolus.action === 'object' &&
+		'type' in alveolus.action &&
+		typeof alveolus.action.type === 'string'
+			? alveolus.action.type
+			: undefined
+	if (actionType) return actionType
 	if (alveolus.name?.startsWith('build.') && alveolus.target) return alveolus.name
 	return alveolus.name
 }

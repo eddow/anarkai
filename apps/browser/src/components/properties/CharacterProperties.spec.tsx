@@ -75,11 +75,11 @@ vi.mock('ssh/npcs/steps', () => ({
 	ALerpStep: class ALerpStep {},
 }))
 
-vi.mock('./GoodsList', () => ({
+vi.mock('../GoodsList', () => ({
 	default: () => <div data-testid="goods-list" />,
 }))
 
-vi.mock('./LinkedEntityControl', () => ({
+vi.mock('../LinkedEntityControl', () => ({
 	default: (props: { object?: { uid?: string; title?: string } }) => (
 		<div data-testid="linked-entity-control" data-target-uid={props.object?.uid ?? ''}>
 			{props.object?.uid ?? 'linked'}
@@ -87,13 +87,13 @@ vi.mock('./LinkedEntityControl', () => ({
 	),
 }))
 
-vi.mock('./InspectorObjectLink', () => ({
+vi.mock('../InspectorObjectLink', () => ({
 	default: (props: { object?: { uid?: string } }) => (
 		<span data-testid="inspector-object-link" data-target-uid={props.object?.uid ?? ''} />
 	),
 }))
 
-vi.mock('./PropertyGrid', () => ({
+vi.mock('../PropertyGrid', () => ({
 	default: (props: { children?: JSX.Children; class?: string }) => (
 		<table class={props.class}>
 			<tbody>{props.children}</tbody>
@@ -101,7 +101,7 @@ vi.mock('./PropertyGrid', () => ({
 	),
 }))
 
-vi.mock('./PropertyGridRow', () => ({
+vi.mock('../PropertyGridRow', () => ({
 	default: (props: { label?: string; children?: JSX.Children; class?: string }) => (
 		<tr class={props.class}>
 			{props.label ? <th>{props.label}</th> : null}
@@ -110,7 +110,7 @@ vi.mock('./PropertyGridRow', () => ({
 	),
 }))
 
-vi.mock('./StatProgressBar', () => ({
+vi.mock('../StatProgressBar', () => ({
 	default: (props: { label: string }) => <div data-testid="stat-progress">{props.label}</div>,
 }))
 

@@ -116,10 +116,7 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 				</div>
 			</PropertyGridRow>
 
-			<PropertyGridRow
-				if={state.showConstruction}
-				label={String(T.construction.section)}
-			>
+			<PropertyGridRow if={state.showConstruction} label={String(T.construction.section)}>
 				<div class="unbuilt-project">
 					<Badge tone="blue">{state.constructionPhaseLabel}</Badge>
 					<for each={state.constructionBlocking}>

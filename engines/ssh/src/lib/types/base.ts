@@ -257,7 +257,7 @@ export interface PickupPlan {
 	}
 }
 
-// Job types - returned by alveolus.nextJob()
+// Job types - proposed by work providers and tailored by characters.
 // Each job type has common fields: job, urgency, fatigue
 // TODO: do something with urgency/fatigue?
 export interface HarvestJob {

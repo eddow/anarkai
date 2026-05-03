@@ -3,7 +3,6 @@ import { inert, memoize, reactive, untracked } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { multiplyGoodsQty } from 'ssh/board/content/utils'
 import type { Tile } from 'ssh/board/tile'
-import type { Character } from 'ssh/population/character'
 import { SpecificStorage } from 'ssh/storage'
 import type { GoodType, TransformJob } from 'ssh/types/base'
 import { type ExchangePriority, type GoodsRelations, maxPriority } from 'ssh/utils/advertisement'
@@ -79,10 +78,9 @@ export class TransformAlveolus extends Alveolus {
 			this.storage.canStoreAll(output)
 		)
 	}
-	// nextJob() replaces both alveolusSpecificJob() and keepWorking
 	@inert
-	nextJob(_character?: Character): TransformJob | undefined {
-		if (!this.working || !this.canWork) return undefined
+	protected override nextAlveolusJob(): TransformJob | undefined {
+		if (!this.canProposeAlveolusSpecificJobs || !this.canWork) return undefined
 
 		return {
 			job: 'transform',

@@ -103,11 +103,14 @@ interface WorkingIndicatorProps {
 	checked: boolean
 	burdened?: boolean
 	tooltip?: string
+	onChange?: (checked: boolean) => void
 }
 
 const WorkingIndicator = (props: WorkingIndicatorProps) => {
 	const toggle = () => {
-		props.checked = !props.checked
+		const checked = !props.checked
+		props.checked = checked
+		props.onChange?.(checked)
 	}
 
 	return (

@@ -107,15 +107,15 @@ vi.mock('@app/lib/i18n', () => {
 	}
 })
 
-vi.mock('./InspectorObjectLink', () => ({
+vi.mock('../InspectorObjectLink', () => ({
 	default: () => null,
 }))
 
-vi.mock('./LinkedEntityControl', () => ({
+vi.mock('../LinkedEntityControl', () => ({
 	default: () => null,
 }))
 
-vi.mock('./PropertyGridRow', () => ({
+vi.mock('../PropertyGridRow', () => ({
 	default: (props: { if?: boolean; label?: string; children?: JSX.Element }) =>
 		props.if === false ? null : (
 			<tr data-testid={`row-${props.label ?? 'unlabeled'}`}>
@@ -125,15 +125,15 @@ vi.mock('./PropertyGridRow', () => ({
 		),
 }))
 
-vi.mock('./parts/WorkingIndicator', () => ({
+vi.mock('../parts/WorkingIndicator', () => ({
 	default: () => <button data-testid="working-indicator" />,
 }))
 
-vi.mock('./storage/StorageConfiguration', () => ({
+vi.mock('../storage/StorageConfiguration', () => ({
 	default: () => <div data-testid="storage-configuration" />,
 }))
 
-vi.mock('./storage/StoredGoodsRow', () => ({
+vi.mock('../storage/StoredGoodsRow', () => ({
 	default: (props: { if?: boolean; label?: string }) =>
 		props.if === false ? null : <tr data-testid={`stored-goods-row-${props.label ?? 'unknown'}`} />,
 }))

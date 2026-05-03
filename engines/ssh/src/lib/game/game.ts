@@ -209,9 +209,7 @@ function terrainPatchesAsTiles(terrains: TerrainPatches | undefined): TilePatch[
  * Accepts both the record format `{ wood: [[1, 0]] }` and the legacy array format
  * `[{ goodType: 'wood', position: { q: 0, r: 0 } }]`.
  */
-function normalizeLooseGoodsPatches(
-	looseGoods: unknown
-): LooseGoodsPatches {
+function normalizeLooseGoodsPatches(looseGoods: unknown): LooseGoodsPatches {
 	if (!looseGoods) return {}
 	if (Array.isArray(looseGoods)) {
 		// Legacy array format: [{ goodType: 'wood', position: { q: 0, r: 0 } }]
