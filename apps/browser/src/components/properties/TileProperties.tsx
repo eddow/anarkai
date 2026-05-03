@@ -193,32 +193,38 @@ const TileContentHeader = (props: TileContentHeaderProps) => (
 )
 
 interface AlveolusTileHeaderProps {
-	contentCase: Extract<TileContentCase, { kind: 'alveolus' }>
+	contentCase?: Extract<TileContentCase, { kind: 'alveolus' }>
 	game?: TileGame
 	tile: Tile
 }
 
 const AlveolusTileHeader = (props: AlveolusTileHeaderProps) => {
 	const model = {
+		get contentCase() {
+			return props.contentCase
+		},
 		get visual() {
-			return props.contentCase.visualType ? visualAlveoli[props.contentCase.visualType] : undefined
+			const contentCase = this.contentCase
+			return contentCase?.visualType ? visualAlveoli[contentCase.visualType] : undefined
 		},
 		get sprite() {
 			return this.visual?.sprites?.[0]
 		},
 		get title() {
-			return props.contentCase.visualType
-				? String(T.alveoli[props.contentCase.visualType])
-				: props.contentCase.content.title
+			const contentCase = this.contentCase
+			if (!contentCase) return ''
+			return contentCase.visualType
+				? String(T.alveoli[contentCase.visualType])
+				: contentCase.content.title
 		},
 		get hiveTitle() {
-			return props.contentCase.content.hive?.name?.trim() || 'Hive'
+			return this.contentCase?.content.hive?.name?.trim() || 'Hive'
 		},
 	}
 
 	return (
 		<div
-			if={props.game && (props.contentCase.visualType || model.sprite)}
+			if={props.game && model.contentCase && (model.contentCase.visualType || model.sprite)}
 			class="tile-properties__header"
 		>
 			<div class="tile-properties__identity">
@@ -229,7 +235,7 @@ const AlveolusTileHeader = (props: AlveolusTileHeaderProps) => {
 					height={32}
 				/>
 				<WorkingIndicator
-					checked={props.contentCase.content.working}
+					checked={!!model.contentCase?.content.working}
 					burdened={props.tile.isBurdened}
 					tooltip={T.alveolus.workingTooltip}
 				/>
@@ -371,7 +377,8 @@ const TileContentDetails = (props: TileContentDetailsProps) => (
 			game={props.game}
 		/>
 		<AlveolusProperties
-			else if={props.contentCase?.kind === 'alveolus'}
+			else
+			if={props.contentCase?.kind === 'alveolus'}
 			content={props.contentCase?.content as Alveolus}
 			game={props.game}
 		/>

@@ -1,4 +1,5 @@
 import { effect } from 'mutts'
+import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { HarvestAlveolus } from 'ssh/hive/harvest'
 import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine/engine'
@@ -77,6 +78,35 @@ describe('Reactive boundaries', () => {
 				wood: { advertisement: 'demand', priority: '2-use' },
 			})
 			expect(runs).toBe(baselineRuns)
+		} finally {
+			stop()
+			await engine.destroy()
+		}
+	})
+
+	it('tile content getter invalidates when board axial content changes', {
+		timeout: 15000,
+	}, async () => {
+		const engine = new TestEngine({
+			terrainSeed: 1234,
+			characterCount: 0,
+		})
+		await engine.init()
+		const tile = engine.game.hex.getTile({ q: 0, r: 0 })
+		if (!tile) throw new Error('Expected tile')
+		let runs = 0
+		let seenContent = tile.content
+		const stop = effect`test:tile-content-boundary`(() => {
+			runs++
+			seenContent = tile.content
+		})
+		try {
+			const baselineRuns = runs
+			const nextContent = new UnBuiltLand(tile, 'grass')
+			engine.game.hex.setTileContent(tile, nextContent)
+
+			expect(runs).toBeGreaterThan(baselineRuns)
+			expect(seenContent).toBe(nextContent)
 		} finally {
 			stop()
 			await engine.destroy()

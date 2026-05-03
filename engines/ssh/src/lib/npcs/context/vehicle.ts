@@ -12,6 +12,7 @@ import {
 	maybeAdvanceVehiclePastCompletedZoneStop,
 	offboardOperatorAfterFreightWorkComplete,
 } from 'ssh/freight/vehicle-run'
+import { beginLoadedVehicleUnloadMaintenance } from 'ssh/freight/vehicle-work'
 import type { Character } from 'ssh/population/character'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService, isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
@@ -551,6 +552,13 @@ class VehicleFunctions {
 			vehicleUid: vehicle.uid,
 			maintenanceKind: svc.kind,
 		})
+		if (svc.kind === 'loadFromBurden') {
+			const chained = beginLoadedVehicleUnloadMaintenance(character.game, vehicle, character)
+			if (chained) {
+				character.disengageVehicleKeepingService()
+				return
+			}
+		}
 		offboardOperatorAfterFreightWorkComplete(character)
 	}
 

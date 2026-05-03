@@ -1,6 +1,9 @@
 import { hiveUidForAnchorTile } from '@app/lib/hive-inspector'
 import { document, latch } from '@sursaut/core'
 import type { DockviewWidgetProps } from '@sursaut/ui/dockview'
+import { reactive } from 'mutts'
+import { Tile } from 'ssh/board/tile'
+import { Character } from 'ssh/population/character'
 import { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SelectionInfoContext, SelectionInfoTool } from './selection-info-tab'
@@ -17,6 +20,26 @@ const gameObject = {
 	logs: ['log line 1', 'log line 2'],
 	position: { x: 2, y: 4 },
 }
+const tileUid = 'tile-1'
+const TileForTest = Tile as unknown as new () => Record<string, unknown>
+const tileObject = Object.assign(new TileForTest(), {
+	uid: tileUid,
+	title: 'tile tile-1',
+	logs: [] as string[],
+}) as InstanceType<typeof Tile>
+const characterUid = 'character-1'
+const CharacterForTest = Character as unknown as new () => Record<string, unknown>
+const characterObject = Object.assign(new CharacterForTest(), {
+	uid: characterUid,
+	title: 'character character-1',
+	logs: [] as string[],
+}) as InstanceType<typeof Character>
+const secondCharacterUid = 'character-2'
+const secondCharacterObject = Object.assign(new CharacterForTest(), {
+	uid: secondCharacterUid,
+	title: 'character character-2',
+	logs: [] as string[],
+}) as InstanceType<typeof Character>
 
 const hiveSyntheticUid = hiveUidForAnchorTile('tile:0,0')
 const hiveSyntheticObject = {
@@ -34,6 +57,12 @@ const vehicleObject = Object.assign(new VehicleForTest(), {
 	title: 'wheelbarrow vehicle-1',
 	logs: [] as string[],
 }) as InstanceType<typeof VehicleEntity>
+const secondVehicleUid = 'vehicle-2'
+const secondVehicleObject = Object.assign(new VehicleForTest(), {
+	uid: secondVehicleUid,
+	title: 'wheelbarrow vehicle-2',
+	logs: [] as string[],
+}) as InstanceType<typeof VehicleEntity>
 const world = {
 	position: { x: 0, y: 0 },
 	scale: { x: 2 },
@@ -41,7 +70,11 @@ const world = {
 const game = {
 	getObject: vi.fn((uid: string) => {
 		if (uid === 'object-1') return gameObject
+		if (uid === tileUid) return tileObject
+		if (uid === characterUid) return characterObject
+		if (uid === secondCharacterUid) return secondCharacterObject
 		if (uid === vehicleUid) return vehicleObject
+		if (uid === secondVehicleUid) return secondVehicleObject
 		return undefined
 	}),
 	renderer: {
@@ -66,6 +99,7 @@ const globals = {
 		hasLastSelectedInfoPanel: true,
 	},
 }
+globals.selectionState = reactive(globals.selectionState)
 
 vi.mock('@app/lib/css', () => ({
 	css: () => '',
@@ -73,15 +107,19 @@ vi.mock('@app/lib/css', () => ({
 
 vi.mock('@app/lib/globals', () => globals)
 
-vi.mock('../components/CharacterProperties', () => ({
-	default: () => <div data-testid="character-properties">character</div>,
+vi.mock('../components/properties/CharacterProperties', () => ({
+	default: (props: { character: Character }) => (
+		<div data-testid="character-properties">character {props.character.uid}</div>
+	),
 }))
 
-vi.mock('../components/TileProperties', () => ({
-	default: () => <div data-testid="tile-properties">tile</div>,
+vi.mock('../components/properties/TileProperties', () => ({
+	default: (props: { tile: Tile }) => (
+		<div data-testid="tile-properties">tile {props.tile.uid}</div>
+	),
 }))
 
-vi.mock('../components/FreightLineProperties', () => ({
+vi.mock('../components/properties/FreightLineProperties', () => ({
 	default: () => <div data-testid="freight-line-properties">freight</div>,
 }))
 
@@ -89,8 +127,10 @@ vi.mock('../components/HiveProperties', () => ({
 	default: () => <div data-testid="hive-properties">hive</div>,
 }))
 
-vi.mock('../components/VehicleProperties', () => ({
-	default: () => <div data-testid="vehicle-properties">vehicle</div>,
+vi.mock('../components/properties/VehicleProperties', () => ({
+	default: (props: { vehicle: VehicleEntity }) => (
+		<div data-testid="vehicle-properties">vehicle {props.vehicle.uid}</div>
+	),
 }))
 
 vi.mock('ssh/population/character', () => ({
@@ -249,6 +289,74 @@ describe('SelectionInfoWidget', () => {
 
 		expect(container.querySelector('[data-testid="vehicle-properties"]')).not.toBeNull()
 		expect(game.getObject).toHaveBeenCalledWith(vehicleUid)
+	})
+
+	it('replaces the property widget when switching object kinds', async () => {
+		globals.selectionState.selectedUid = tileUid
+		const props = createProps()
+		const scope = createScope()
+
+		stop = latch(container, <SelectionInfoWidget {...props} />, scope as never)
+
+		expect(container.querySelector('[data-testid="tile-properties"]')?.textContent).toContain(
+			tileUid
+		)
+		expect(container.querySelector('[data-testid="character-properties"]')).toBeNull()
+
+		globals.selectionState.selectedUid = characterUid
+		await Promise.resolve()
+
+		expect(container.querySelector('[data-testid="character-properties"]')?.textContent).toContain(
+			characterUid
+		)
+		expect(container.querySelector('[data-testid="tile-properties"]')).toBeNull()
+		expect(
+			container.querySelector('.selection-info-panel')?.getAttribute('data-test-object-uid')
+		).toBe(characterUid)
+	})
+
+	it('updates the character property widget when switching between characters', async () => {
+		globals.selectionState.selectedUid = characterUid
+		const props = createProps()
+		const scope = createScope()
+
+		stop = latch(container, <SelectionInfoWidget {...props} />, scope as never)
+
+		expect(container.querySelector('[data-testid="character-properties"]')?.textContent).toContain(
+			characterUid
+		)
+
+		globals.selectionState.selectedUid = secondCharacterUid
+		await Promise.resolve()
+
+		expect(container.querySelector('[data-testid="character-properties"]')?.textContent).toContain(
+			secondCharacterUid
+		)
+		expect(
+			container.querySelector('.selection-info-panel')?.getAttribute('data-test-object-uid')
+		).toBe(secondCharacterUid)
+	})
+
+	it('updates the vehicle property widget when switching between vehicles', async () => {
+		globals.selectionState.selectedUid = vehicleUid
+		const props = createProps()
+		const scope = createScope()
+
+		stop = latch(container, <SelectionInfoWidget {...props} />, scope as never)
+
+		expect(container.querySelector('[data-testid="vehicle-properties"]')?.textContent).toContain(
+			vehicleUid
+		)
+
+		globals.selectionState.selectedUid = secondVehicleUid
+		await Promise.resolve()
+
+		expect(container.querySelector('[data-testid="vehicle-properties"]')?.textContent).toContain(
+			secondVehicleUid
+		)
+		expect(
+			container.querySelector('.selection-info-panel')?.getAttribute('data-test-object-uid')
+		).toBe(secondVehicleUid)
 	})
 
 	it('closes the panel when the inspected object disappears', () => {

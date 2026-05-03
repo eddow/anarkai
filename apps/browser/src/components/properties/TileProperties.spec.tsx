@@ -268,4 +268,27 @@ describe('TileProperties', () => {
 			container.querySelector('[data-testid="working-indicator"]')?.getAttribute('data-burdened')
 		).toBe('true')
 	})
+
+	it('does not throw when an alveolus tile changes to unbuilt content after mount', () => {
+		const tile = reactive({
+			content: new MockBuildAlveolus(),
+			isBurdened: false,
+			looseGoods: [],
+			board: {
+				game: {
+					loaded: Promise.resolve(),
+					getTexture: vi.fn(() => undefined),
+				},
+			},
+		})
+
+		stop = latch(container, <TileProperties tile={tile as never} />)
+		expect(container.querySelector('[data-testid="entity-badge"]')).not.toBeNull()
+
+		expect(() => {
+			tile.content = new MockUnBuiltLand()
+		}).not.toThrow()
+
+		expect(container.querySelector('[data-testid="entity-badge"]')).toBeNull()
+	})
 })

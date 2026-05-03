@@ -74,4 +74,51 @@ test.describe('Property Widget Selection Switching Repro', () => {
 		await selectAndVerify(charA.uid, '6. Direct Switch back to A')
 		console.log('--- Direct Switch Back End ---')
 	})
+
+	test('should not keep vehicle properties after switching through an empty tile to a character', async ({
+		page,
+	}) => {
+		await page.goto('/')
+
+		await page.waitForFunction(async () => {
+			const game = (window as any).game
+			if (!game) return false
+			await game.loaded
+			return !!game.hex && [...game.population].length > 0 && [...game.vehicles].length > 0
+		})
+
+		const objects = await page.evaluate(() => {
+			const game = (window as any).game
+			const character = [...game.population][0]
+			const vehicle = [...game.vehicles][0]
+			const tile = game.hex.getTile({ q: -11, r: 0 }) || game.hex.getTile({ q: 0, r: 0 })
+			return {
+				characterUid: character.uid,
+				vehicleUid: vehicle.uid,
+				tileUid: tile.uid,
+			}
+		})
+
+		const select = async (uid: string) => {
+			await page.evaluate((nextUid) => {
+				const game = (window as any).game
+				game.clickObject({ button: 0 }, game.getObject(nextUid))
+			}, uid)
+			await expect(page.locator('.selection-info-panel')).toHaveAttribute(
+				'data-test-object-uid',
+				uid
+			)
+		}
+
+		await select(objects.vehicleUid)
+		await expect(page.locator('.vehicle-properties')).toBeVisible()
+
+		await select(objects.tileUid)
+		await expect(page.locator('[data-selection-properties-kind="tile"]')).toHaveCount(1)
+
+		await select(objects.characterUid)
+		await expect(page.locator('[data-selection-properties-kind="character"]')).toBeVisible()
+		await expect(page.locator('.character-properties')).toBeVisible()
+		await expect(page.locator('.vehicle-properties')).toHaveCount(0)
+	})
 })

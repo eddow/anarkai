@@ -25,4 +25,8 @@ describe('convey helpers', () => {
 			])
 		).toBe(6)
 	})
+
+	it('charges one transfer unit for same-tile handoffs', () => {
+		expect(getConveyDuration(1.5, [{ from: { q: 11, r: -7 }, hop: { q: 11, r: -7 } }])).toBe(1.5)
+	})
 })

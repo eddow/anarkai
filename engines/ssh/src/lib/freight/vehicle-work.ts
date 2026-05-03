@@ -227,6 +227,30 @@ function pickUnloadTargetForVehicle(
 	return { tile: best.tile, urgency: jobBalance.offload.unloadToTile }
 }
 
+export function beginLoadedVehicleUnloadMaintenance(
+	game: Game,
+	vehicle: VehicleEntity,
+	character: Character
+): boolean {
+	const unload = pickUnloadTargetForVehicle(game, vehicle, (tile) =>
+		vehicleCanReachMaintenanceTarget(game, vehicle, character, tile)
+	)
+	if (!unload) return false
+	const targetCoord = toAxialCoord(unload.tile.position)
+	if (!targetCoord) return false
+	vehicle.beginMaintenanceService(
+		{ kind: 'unloadToTile', targetCoord: { q: targetCoord.q, r: targetCoord.r } },
+		character
+	)
+	traces.vehicle.log?.('vehicleJob.maintenance.chainUnload', {
+		characterUid: character.uid,
+		vehicleUid: vehicle.uid,
+		targetCoord,
+		stock: vehicle.storage.stock,
+	})
+	return true
+}
+
 /**
  * Picks the nearest non-burdening parking tile for an empty wheelbarrow that itself burdens its
  * current hex. Ties broken by lowest count of already-parked vehicles among 6-neighbors so parking

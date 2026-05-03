@@ -38,7 +38,7 @@ Most of the time, onChange, onInput etc are useless and should be avoided. Two-w
 
 **IMPORTANT:** Do NOT use JavaScript ternary operators or `&&` for conditional rendering, and do NOT use `.map()` for list rendering. Sursaut provides dedicated mechanisms:
 
-### Conditionals: Use `if`, `else`, `else-if` Attributes
+### Conditionals: Use `if`, `else`, `else if` Attributes
 ```tsx
 // ✗ WRONG: Ternary operator
 {condition ? <ComponentA /> : <ComponentB />}
@@ -47,9 +47,9 @@ Most of the time, onChange, onInput etc are useless and should be avoided. Two-w
 <ComponentA if={condition} />
 <ComponentB else />
 
-// For else-if chains:
+// For else if chains:
 <ComponentA if={conditionA} />
-<ComponentB else-if={conditionB} />
+<ComponentB else if={conditionB} />
 <ComponentC else />
 ```
 

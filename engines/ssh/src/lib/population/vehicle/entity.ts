@@ -27,6 +27,7 @@ import {
 	type WorldVehicleType,
 } from './vehicle'
 
+@reactive
 export class VehicleEntity extends withInteractive(GameObject) {
 	declare readonly storage: Storage
 	public position: Position | undefined

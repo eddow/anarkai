@@ -286,4 +286,34 @@ describe('Advertisement matching', () => {
 
 		expect(manager.movements).toEqual([])
 	})
+
+	it('skips general storage fallback candidates without callable capabilities', () => {
+		const demandManager = new TestManager()
+		demandManager.generalStorages.push({
+			name: 'partial-provider',
+			canTake: (_goodType: 'wood', _priority: ExchangePriority) => true,
+		} as TestAdvertiser)
+
+		expect(() => {
+			demandManager.advertise(mkDemander('builder'), {
+				wood: { advertisement: 'demand', priority: '2-use' },
+			})
+		}).not.toThrow()
+		expect(demandManager.movements).toEqual([])
+		expect(demandManager.advertisements.wood?.advertisement).toBe('demand')
+
+		const provideManager = new TestManager()
+		provideManager.generalStorages.push({
+			name: 'partial-target',
+			canGive: (_goodType: 'wood', _priority: ExchangePriority) => true,
+		} as TestAdvertiser)
+
+		expect(() => {
+			provideManager.advertise(mkProvider('producer'), {
+				wood: { advertisement: 'provide', priority: '2-use' },
+			})
+		}).not.toThrow()
+		expect(provideManager.movements).toEqual([])
+		expect(provideManager.advertisements.wood?.advertisement).toBe('provide')
+	})
 })

@@ -13,7 +13,8 @@ export function getConveyDuration(
 	movements: readonly Pick<ConveyMovementSnapshot, 'from' | 'hop'>[]
 ) {
 	return movements.reduce((total, movement) => {
-		return total + transferTime * axial.distance(movement.from, movement.hop) * movements.length
+		const hopDistance = Math.max(1, axial.distance(movement.from, movement.hop))
+		return total + transferTime * hopDistance * movements.length
 	}, 0)
 }
 

@@ -583,6 +583,15 @@ class WorkFunctions {
 								)
 							}
 
+							// Fulfill the old source before rebinding to the new one.
+							// For hive-transfer sources (first hop from provider), the source was
+							// intentionally skipped during pickup and must be resolved here.
+							// For convey.path sources (subsequent hops), the source was already
+							// fulfilled during pickup; fulfill() is idempotent.
+							movementHive.fulfillMovementSource(
+								movement,
+								'conveyStep.finished.rebind.old-source'
+							)
 							movementHive.assignMovementSource(
 								movement,
 								newSourceCommitment,

@@ -109,6 +109,7 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		}
 		// If a tile content is set programmatically post-generation, mark tile dirty
 		const tile = content?.tile ?? (coord ? this.getTile(coord) : undefined)
+		if (tile && oldContent !== content) tile.notifyContentChanged()
 		if (tile) tile.asGenerated = false
 		if (tile) this.game.enqueueInteractiveChange(tile)
 		if (changedGroundSemantics) {

@@ -528,20 +528,20 @@ describe('Hive Offload Scenario', () => {
 			const diag = formatTwoLooseRoundDiagnostics(rounds)
 
 			const messages = vehicleTraceMessages(vehicleSink)
-			// The first two maintenance runs are the two `loadFromBurden` works: each ends after the
-			// load, and follow-up unload/park work is selected by later planner passes.
+			// A completed `loadFromBurden` immediately preserves service as `unloadToTile`, so a
+			// loaded wheelbarrow never waits jobless between pickup and drop.
 			expect(messages.slice(0, 11), `${diag}\nvehicleTrace=${JSON.stringify(messages)}`).toEqual([
 				'vehicleJob.selected',
 				'vehicleJob.approach.onboard',
 				'vehicleJob.load',
 				'vehicleJob.maintenance.complete',
-				'vehicleJob.offboard.endService',
-				'vehicleJob.offboard',
+				'vehicleJob.maintenance.chainUnload',
+				'vehicleJob.offboard.keepService',
 				'vehicleJob.selected',
-				'vehicleJob.load',
 				'vehicleJob.maintenance.complete',
 				'vehicleJob.offboard.endService',
 				'vehicleJob.offboard',
+				'vehicleJob.selected',
 			])
 			expect(messages.filter((message) => message === 'vehicleJob.load')).toHaveLength(2)
 		} finally {

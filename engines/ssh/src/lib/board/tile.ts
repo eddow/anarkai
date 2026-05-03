@@ -32,6 +32,7 @@ const CHANNEL_WALK_TIME_MULTIPLIER = 2
 
 @reactive // TODO: this might need to be unreactive
 export class Tile extends withInteractive(GameObject) {
+	private contentRevision = 0
 	// True when the tile is exactly as produced by generation
 	public asGenerated: boolean = false
 	// Raw terrain height from engine-terrain, optionally patched by terraforming.
@@ -41,6 +42,7 @@ export class Tile extends withInteractive(GameObject) {
 	public terrainState?: TileTerrainState
 
 	get content(): TileContent | undefined {
+		void this.contentRevision
 		return this.board.getTileContent(toAxialCoord(this.position))
 	}
 	set content(content: TileContent) {
@@ -61,6 +63,9 @@ export class Tile extends withInteractive(GameObject) {
 			this.board.markHiveTopologyDirty(hive)
 			for (const neighborHive of neighboringHives) this.board.markHiveTopologyDirty(neighborHive)
 		}
+	}
+	notifyContentChanged(): void {
+		this.contentRevision++
 	}
 	constructor(
 		public readonly board: HexBoard,

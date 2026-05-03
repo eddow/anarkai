@@ -970,7 +970,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			const movementRef = reason.movementRef ?? reason.movement?.ref
 			const trackedMovement = movementRef ? this.activeMovementByRef(movementRef) : undefined
 			if (structuralTeardown) {
-				if (trackedMovement) this.activeMovements.delete(trackedMovement)
+				if (trackedMovement) this.silentlyDiscardMovement(trackedMovement)
 				traces.advertising.log?.(
 					'[WATCHDOG] Dropping detached allocation during structural teardown',
 					{
@@ -2007,12 +2007,47 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				}
 			}
 
-			traces.allocations.log?.(`[MOVEMENT] SOURCE SHOULD AUTO-FULFILL: ${this.goodType}`, {
+			traces.allocations.log?.(`[MOVEMENT] SOURCE AUTO-FULFILL: ${this.goodType}`, {
 				movementRef: movementRefId(this.ref),
 				goodType: this.goodType,
 				provider: this.provider.name,
 				demander: this.demander.name,
 			})
+			try {
+				hive.noteMovementLifecycle(this, 'movement.finish.source-fulfill.before')
+				this.allocations.source?.fulfill()
+				hive.noteMovementLifecycle(this, 'movement.finish.source-fulfill.after')
+			} catch (sourceError) {
+				traces.allocations.error?.(`[MOVEMENT] SOURCE FULFILL FAILED: ${this.goodType}`, {
+					movementRef: movementRefId(this.ref),
+					goodType: this.goodType,
+					provider: this.provider.name,
+					demander: this.demander.name,
+					error: sourceError instanceof Error ? sourceError.message : String(sourceError),
+				})
+				try {
+					hive.noteMovementLifecycle(
+						this,
+						'movement.finish.source-cancel.after-failed-fulfill.before'
+					)
+					this.allocations.source?.cancel('finish.source-cancel')
+					hive.noteMovementLifecycle(
+						this,
+						'movement.finish.source-cancel.after-failed-fulfill.after'
+					)
+				} catch (cancelError) {
+					traces.allocations.error?.(
+						`[MOVEMENT] SOURCE CANCEL AFTER FAILED FULFILL FAILED: ${this.goodType}`,
+						{
+							movementRef: movementRefId(this.ref),
+							goodType: this.goodType,
+							provider: this.provider.name,
+							demander: this.demander.name,
+							error: cancelError instanceof Error ? cancelError.message : String(cancelError),
+						}
+					)
+				}
+			}
 
 			hive.scheduleAdvertisement(this.provider)
 			hive.scheduleAdvertisement(this.demander)
@@ -2388,6 +2423,10 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				axial.key(toAxialCoord(mg.provider.tile.position)) === axial.key(providerCoord) &&
 				axial.key(toAxialCoord(mg.demander.tile.position)) === axial.key(demanderCoord)
 			) {
+				// If source allocation is already fulfilled, the goods have left the
+				// provider — the provider is free to start another movement of the
+				// same type while this one is still in transit.
+				if (mg.allocations.source?.ended === true) continue
 				return true
 			}
 		}
@@ -2397,7 +2436,8 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 					(mg) =>
 						mg.goodType === goodType &&
 						axial.key(toAxialCoord(mg.provider.tile.position)) === axial.key(providerCoord) &&
-						axial.key(toAxialCoord(mg.demander.tile.position)) === axial.key(demanderCoord)
+						axial.key(toAxialCoord(mg.demander.tile.position)) === axial.key(demanderCoord) &&
+						mg.allocations.source?.ended !== true
 				)
 			) {
 				return true

@@ -16,8 +16,9 @@ import {
 import { T } from '@app/lib/i18n'
 import { isHoveredObject, setHoveredObject } from '@app/lib/interactive-state'
 import { InspectorSection, Panel } from '@app/ui/anarkai'
+import { latch } from '@sursaut/core'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
-import { effect } from 'mutts'
+import { effect, reactive } from 'mutts'
 import { Tile } from 'ssh/board/tile'
 import {
 	freightLineIdFromUid,
@@ -30,9 +31,9 @@ import { resolveSelectableHoverObject } from 'ssh/game/object'
 import { Character } from 'ssh/population/character'
 import { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { toWorldCoord } from 'ssh/utils/position'
+import HiveProperties from '../components/HiveProperties'
 import CharacterProperties from '../components/properties/CharacterProperties'
 import FreightLineProperties from '../components/properties/FreightLineProperties'
-import HiveProperties from '../components/HiveProperties'
 import TileProperties from '../components/properties/TileProperties'
 import VehicleProperties from '../components/properties/VehicleProperties'
 import type { SelectionInfoContext, SelectionInfoTool } from './selection-info-tab'
@@ -118,6 +119,81 @@ css`
 }
 `
 
+const isCharacterObject = (object: unknown): object is Character =>
+	object instanceof Character ||
+	(!!object &&
+		typeof object === 'object' &&
+		'triggerLevels' in object &&
+		'hunger' in object &&
+		'tiredness' in object &&
+		'fatigue' in object)
+
+const isTileObject = (object: unknown): object is Tile =>
+	object instanceof Tile ||
+	(!!object &&
+		typeof object === 'object' &&
+		'uid' in object &&
+		typeof object.uid === 'string' &&
+		object.uid.startsWith('tile:') &&
+		'board' in object)
+
+const isVehicleObject = (object: unknown): object is VehicleEntity =>
+	object instanceof VehicleEntity ||
+	(!!object &&
+		typeof object === 'object' &&
+		'vehicleType' in object &&
+		'storage' in object &&
+		'servedLines' in object)
+
+const CharacterSelectionProperties = (props: { object?: unknown }) => (
+	<div data-selection-properties-kind="character">
+		<CharacterProperties character={props.object as Character} />
+	</div>
+)
+
+const TileSelectionProperties = (props: { object?: unknown }) => (
+	<div data-selection-properties-kind="tile">
+		<TileProperties tile={props.object as Tile} />
+	</div>
+)
+
+const FreightLineSelectionProperties = (props: { object?: unknown }) => (
+	<div data-selection-properties-kind="freight-line">
+		<FreightLineProperties lineObject={props.object as SyntheticFreightLineObject} />
+	</div>
+)
+
+const HiveSelectionProperties = (props: { object?: unknown }) => (
+	<div data-selection-properties-kind="hive">
+		<HiveProperties hiveObject={props.object as SyntheticHiveObject} />
+	</div>
+)
+
+const VehicleSelectionProperties = (props: { object?: unknown }) => (
+	<div data-selection-properties-kind="vehicle">
+		<VehicleProperties vehicle={props.object as VehicleEntity} />
+	</div>
+)
+
+const ObjectSummaryProperties = (props: { object?: { uid?: string; title?: string } }) => (
+	<div data-selection-properties-kind="summary">
+		<InspectorSection class="selection-info-panel__summary" title={props.object?.title ?? 'Object'}>
+			<p>ID: {props.object?.uid}</p>
+		</InspectorSection>
+	</div>
+)
+
+const renderPropertiesForObject = (object: { uid?: string }) => {
+	if (isCharacterObject(object)) return <CharacterSelectionProperties object={object} />
+	if (isTileObject(object)) return <TileSelectionProperties object={object} />
+	if (object.uid && isFreightLineUid(object.uid)) {
+		return <FreightLineSelectionProperties object={object} />
+	}
+	if (object.uid && isHiveUid(object.uid)) return <HiveSelectionProperties object={object} />
+	if (isVehicleObject(object)) return <VehicleSelectionProperties object={object} />
+	return <ObjectSummaryProperties object={object} />
+}
+
 const SelectionInfoWidget = (
 	props: DockviewWidgetProps<{ uid?: string }, SelectionInfoContext>,
 	scope: DockviewWidgetScope
@@ -127,7 +203,7 @@ const SelectionInfoWidget = (
 	scope.setTitle = (title: string) => {
 		props.title = title
 	}
-	const current = {
+	const current = reactive({
 		get uid() {
 			return props.params.uid ?? selectionState.selectedUid
 		},
@@ -139,7 +215,10 @@ const SelectionInfoWidget = (
 		get logs() {
 			return this.object?.logs ?? []
 		},
-	}
+	})
+	const local = reactive({
+		propertiesHost: undefined as HTMLDivElement | undefined,
+	})
 	const resolvePanelTitle = () => {
 		const object = current.object
 		if (!object) return 'Object'
@@ -169,7 +248,6 @@ const SelectionInfoWidget = (
 
 		return object.title ?? 'Object'
 	}
-
 	const pin = () => {
 		const uid = selectionState.selectedUid
 		if (!uid) return
@@ -301,6 +379,13 @@ const SelectionInfoWidget = (
 	const mapPick = () => freightMapPick.pending
 	const mapPickHint = () => T.line.mapPick.pending
 	const mapPickCancel = () => T.line.mapPick.cancel
+	effect`selection-info:properties-widget`(() => {
+		const host = local.propertiesHost
+		const object = current.object
+		void current.uid
+		if (!host || !object) return
+		return latch(host, renderPropertiesForObject(object), scope as never)
+	})
 
 	return (
 		<div
@@ -319,19 +404,13 @@ const SelectionInfoWidget = (
 						{mapPickCancel()}
 					</button>
 				</div>
-				<div if={current.object} class="selection-info-panel__content">
-					<CharacterProperties if={current.object instanceof Character} character={current.object as Character} />
-					<TileProperties else if={current.object instanceof Tile} tile={current.object as Tile} />
-					<FreightLineProperties else if={isFreightLineUid(current.object!.uid)} lineObject={current.object as SyntheticFreightLineObject} />
-					<HiveProperties else if={isHiveUid(current.object!.uid)} hiveObject={current.object as SyntheticHiveObject} />
-					<VehicleProperties else if={current.object instanceof VehicleEntity} vehicle={current.object as VehicleEntity} />
-					<InspectorSection else
-						class="selection-info-panel__summary"
-						title={current.object!.title ?? 'Object'}
-					>
-						<p>ID: {current.object!.uid}</p>
-					</InspectorSection>
-				</div>
+				<div
+					if={current.object}
+					class="selection-info-panel__content"
+					this={(element: HTMLDivElement | undefined) => {
+						local.propertiesHost = element
+					}}
+				/>
 				<InspectorSection
 					if={current.logs.length}
 					title="Logs"
