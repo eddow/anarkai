@@ -197,6 +197,26 @@ describe('Advertisement matching', () => {
 		expect(manager.movements).toEqual([{ goodType: 'wood', giver: 'sawmill', taker: 'storage' }])
 	})
 
+	it('lets offered goods fall back to 0-store accept on general storage', async () => {
+		const manager = new TestManager()
+		const provider = mkProvider('sawmill')
+		const storage = {
+			...mkStorage('storage'),
+			goodsRelations: {},
+			canTake: (_goodType: 'wood', priority: ExchangePriority) => priority === '0-store',
+		} as TestAdvertiser & { goodsRelations: GoodsRelations }
+
+		manager.generalStorages.push(storage)
+
+		manager.advertise(provider, {
+			wood: { advertisement: 'provide', priority: '2-use' },
+		})
+
+		await new Promise((resolve) => setTimeout(resolve, 10))
+
+		expect(manager.movements).toEqual([{ goodType: 'wood', giver: 'sawmill', taker: 'storage' }])
+	})
+
 	it('prevents 0-store to 0-store storage-to-storage movements', () => {
 		const manager = new TestManager()
 		const storage1 = mkStorage('storage1')

@@ -14,10 +14,13 @@ delete (global as any).__MUTTS_INSTANCE__;
 
 import { getActivationLog, reactiveOptions, reset, unreactive } from "mutts";
 import {
+	disconnectAllProfiles,
 	disconnectAllTraces,
+	setProfileLevel,
 	setTraceLevel,
 	type TraceVerb,
 } from "./src/lib/dev/debug.ts";
+import type { ProfileLevel } from "./src/lib/dev/profile.ts";
 import { options } from "ssh/globals";
 import { resetDebugActiveAllocations } from "ssh/storage/guard";
 
@@ -48,6 +51,12 @@ const requestedTraceChannels = (process.env.SSH_TRACE_CHANNELS ?? "")
 	.filter(Boolean);
 const requestedTraceLevel = process.env.SSH_TRACE_LEVEL ?? "log";
 const traceVerbs: readonly TraceVerb[] = ["log", "warn", "assert", "error"];
+const requestedProfileChannels = (process.env.SSH_PROFILE_CHANNELS ?? "")
+	.split(",")
+	.map((channel) => channel.trim())
+	.filter(Boolean);
+const requestedProfileLevel = process.env.SSH_PROFILE_LEVEL ?? "summary";
+const profileLevels: readonly ProfileLevel[] = ["summary", "detail", "stack"];
 
 const applyRequestedTraceLevels = () => {
 	if (!traceVerbs.includes(requestedTraceLevel as TraceVerb)) {
@@ -61,6 +70,19 @@ const applyRequestedTraceLevels = () => {
 };
 
 applyRequestedTraceLevels();
+
+const applyRequestedProfileLevels = () => {
+	if (!profileLevels.includes(requestedProfileLevel as ProfileLevel)) {
+		throw new Error(
+			`Invalid SSH_PROFILE_LEVEL "${requestedProfileLevel}". Expected one of: ${profileLevels.join(", ")}`,
+		);
+	}
+	for (const channel of requestedProfileChannels) {
+		setProfileLevel(channel, requestedProfileLevel as ProfileLevel);
+	}
+};
+
+applyRequestedProfileLevels();
 
 const formatDiagnosticArg = (arg: unknown): string => {
 	if (typeof arg === "string") return arg;
@@ -194,7 +216,9 @@ beforeEach(() => {
 	allowedDiagnosticPatterns = [];
 	options.stalledMovementScanIntervalMs = 0;
 	disconnectAllTraces();
+	disconnectAllProfiles();
 	applyRequestedTraceLevels();
+	applyRequestedProfileLevels();
 	resetDebugActiveAllocations();
 	reset();
 });
@@ -213,6 +237,7 @@ afterEach(async () => {
 	activationLogDumped = false;
 	options.stalledMovementScanIntervalMs = defaultStalledMovementScanIntervalMs;
 	disconnectAllTraces();
+	disconnectAllProfiles();
 	resetDebugActiveAllocations();
 	reset();
 	if (unexpectedDiagnostics.length > 0) {

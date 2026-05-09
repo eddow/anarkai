@@ -73,8 +73,6 @@ Restrictive policies on segment **pickup** are read from the segment **load** st
 - Optional: expose distribute default (bay→bay unload = unlimited delivery radius) in copy/tooltips.
 - Future **non-radius** zones: extend `FreightZoneDefinition` and segment finders when implemented.
 
-See also `sandbox/freight-handoff.md` for a concise task list.
-
 ## Related files
 
 | Area | Path |

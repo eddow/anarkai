@@ -6,13 +6,22 @@ import type { AxialCoord } from 'ssh/utils'
 export interface FailedConveyMovementData {
 	movement: TrackedMovement
 	from: AxialCoord
+	hop?: AxialCoord
 	moving?: LooseGood
 	sourceFulfilled?: boolean
+	hopAllocationFulfilled?: boolean
 }
 
 export function cleanupFailedConveyMovement(
 	character: Character,
-	{ movement, from, moving, sourceFulfilled }: FailedConveyMovementData
+	{
+		movement,
+		from,
+		hop,
+		moving,
+		sourceFulfilled,
+		hopAllocationFulfilled,
+	}: FailedConveyMovementData
 ) {
 	const hive = movement.provider.hive
 	hive.noteMovementLifecycle(movement, 'cleanupFailedConveyMovement.enter')
@@ -24,17 +33,21 @@ export function cleanupFailedConveyMovement(
 			`cleanupFailedConveyMovement.after-finish-started: cleanup entered after terminal finish started; ${hive.describeMovementMineContext(movement)}`
 		)
 	}
-	movement.provider.hive.assertMovementMine(movement, {
-		label: 'cleanupFailedConveyMovement.before',
-		expectedFrom: movement.from,
-		expectClaimed: movement.claimed,
-		requireTracked: false,
-		requireSourceValid: false,
-		requireTargetValid: false,
-		allowClaimedSourceGap: true,
-		allowClaimedTerminalPath: true,
-		allowUntracked: true,
-	})
+	try {
+		movement.provider.hive.assertMovementMine(movement, {
+			label: 'cleanupFailedConveyMovement.before',
+			expectedFrom: movement.from,
+			expectClaimed: movement.claimed,
+			requireTracked: false,
+			requireSourceValid: false,
+			requireTargetValid: false,
+			allowClaimedSourceGap: true,
+			allowClaimedTerminalPath: true,
+			allowUntracked: true,
+		})
+	} catch (error) {
+		hive.noteMovementCaughtError(movement, 'cleanupFailedConveyMovement.assert', error)
+	}
 	movement.claimed = false
 	delete movement.claimedBy
 	delete movement.claimedAtMs
@@ -47,8 +60,12 @@ export function cleanupFailedConveyMovement(
 	)
 	if (moving) {
 		if (!moving.isRemoved) moving.remove()
-	} else if (sourceFulfilled) {
+	}
+	if (sourceFulfilled) {
 		character.game.hex.looseGoods.add(from, movement.goodType)
+	}
+	if (hopAllocationFulfilled && hop) {
+		hive.storageAt(hop)?.removeGood(movement.goodType, 1)
 	}
 	movement.abort()
 }

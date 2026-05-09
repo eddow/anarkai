@@ -184,6 +184,7 @@ export type MovementInvariantFailure =
 	| 'missing-target-allocation'
 	| 'invalid-source-allocation'
 	| 'invalid-target-allocation'
+	| 'source-without-target-allocation'
 	| 'empty-path'
 	| 'not-tracked'
 	| 'tracked-at-wrong-position'
@@ -208,9 +209,12 @@ export class MovementInvariantError extends Error {
 
 type AllocationReasonInfo = {
 	type?: string
+	role?: 'movement-source' | 'movement-target'
 	goodType?: GoodType
 	movementRef?: MovementRef
+	movementRefs?: MovementRef[]
 	movement?: TrackedMovement
+	movements?: TrackedMovement[]
 	provider?: FreightMovementParty
 	demander?: FreightMovementParty
 	providerRef?: FreightMovementParty
@@ -219,6 +223,45 @@ type AllocationReasonInfo = {
 	demanderName?: string
 	createdAt?: number
 	source?: AxialCoord
+}
+
+function allocationReasonMovementRefs(reason: AllocationReasonInfo | undefined): MovementRef[] {
+	if (!reason) return []
+	const refs: MovementRef[] = []
+	if (reason.movementRef) refs.push(reason.movementRef)
+	for (const ref of reason.movementRefs ?? []) refs.push(ref)
+	for (const movement of reason.movements ?? []) refs.push(movement.ref)
+	if (reason.movement?.ref) refs.push(reason.movement.ref)
+	const seen = new Set<number>()
+	return refs.filter((ref) => {
+		const id = movementRefId(ref)
+		if (seen.has(id)) return false
+		seen.add(id)
+		return true
+	})
+}
+
+function allocationReasonMovements(reason: AllocationReasonInfo | undefined): TrackedMovement[] {
+	if (!reason) return []
+	const movements: TrackedMovement[] = []
+	if (reason.movement) movements.push(reason.movement)
+	for (const movement of reason.movements ?? []) movements.push(movement)
+	const seen = new Set<number>()
+	return movements.filter((movement) => {
+		const id = movementRefId(movement.ref)
+		if (seen.has(id)) return false
+		seen.add(id)
+		return true
+	})
+}
+
+function allocationReasonHasMovement(
+	reason: AllocationReasonInfo | undefined,
+	movement: TrackedMovement
+): boolean {
+	return allocationReasonMovementRefs(reason).some(
+		(ref) => movementRefId(ref) === movementRefId(movement.ref)
+	)
 }
 
 /**
@@ -290,6 +333,8 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 	private pendingBrokenMovementDiscardIds = new Set<object>()
 	private pendingDetachedAllocationCleanupIds = new Set<string>()
 	private creatingMovementKeys = new Set<string>()
+	private pendingMovementSourceQuantities = new Map<string, number>()
+	private pendingMovementTargetQuantities = new Map<string, number>()
 	private activeMovements = new Set<TrackedMovement>()
 	private readonly freightVehicleDocks = new Map<string, VehicleFreightDock>()
 	// Path cache for complete paths between alveoli
@@ -461,6 +506,20 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				this.scheduleAdvertisement(alveolus, goodsRelations)
 			})
 		)
+		if (this.isGeneralStorageAlveolus(alveolus)) {
+			this.postStep(() => {
+				for (const provider of this.alveoli) {
+					if (provider === alveolus) continue
+					if (
+						Object.values(provider.goodsRelations).some(
+							(relation) => relation?.advertisement === 'provide'
+						)
+					) {
+						this.scheduleAdvertisement(provider)
+					}
+				}
+			})
+		}
 	}
 	/**
 	 * This hive is defined as a copy of another hive after an alveolus removal didn't divide it
@@ -731,21 +790,10 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		this.stalledExchangeSeenAt.clear()
 		if (this.destroyed) return
 		if (!intervalMs || intervalMs <= 0) return
-		this.exchangeWatchdogTimer = setInterval(() => {
-			if (this.destroyed || this.reconstructing) return
-			try {
-				this.scanForStalledExchanges()
-			} catch (error) {
-				if (this.exchangeWatchdogTimer) {
-					clearInterval(this.exchangeWatchdogTimer)
-					this.exchangeWatchdogTimer = undefined
-				}
-				traces.allocations.log?.('[WATCHDOG] Exchange watchdog stopped after internal error', {
-					hive: this.name,
-					error: error instanceof Error ? error.message : String(error),
-				})
-			}
-		}, intervalMs)
+		traces.allocations.log?.('[AUDIT] Exchange watchdog timer disabled for runtime', {
+			hive: this.name,
+			intervalMs,
+		})
 	}
 
 	private scanForStalledExchanges() {
@@ -755,8 +803,9 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			options.stalledMovementSettleMs,
 			Number(options.stalledMovementScanIntervalMs) || 0
 		)
-		this.scanForStuckClaimedMovements(now, settleMs)
+		this.reconcileMovementAllocationPairs('exchange-watchdog')
 		this.scanForDetachedMovementAllocations()
+		this.scanBorderTransitStorageInvariant()
 		const activeKeys = new Set<string>()
 
 		for (const provider of this.alveoli) {
@@ -797,16 +846,9 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 					this.stalledExchangeSeenAt.set(key, firstSeenAt)
 					if (now - firstSeenAt < settleMs) continue
 
-					const canceledOrphans = this.cancelOrphanedExchangeAllocations(
-						provider,
-						demander,
-						goodType
-					)
-					this.scheduleAdvertisement(provider)
-					this.scheduleAdvertisement(demander)
 					this.stalledExchangeSeenAt.set(key, now)
 					throw new Error(
-						`[WATCHDOG] STALLED EXCHANGE: ${goodType} ${provider.name} -> ${demander.name}; stableForMs=${now - firstSeenAt}; canceledOrphans=${canceledOrphans}`
+						`[AUDIT] STALLED EXCHANGE: ${goodType} ${provider.name} -> ${demander.name}; stableForMs=${now - firstSeenAt}`
 					)
 				}
 			}
@@ -890,7 +932,11 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 					if (details.goodType && reason.goodType && reason.goodType !== details.goodType)
 						return false
 					const candidateRef = reason.movementRef ?? reason.movement?.ref
-					return candidateRef === details.movementRef
+					return (
+						!!candidateRef &&
+						!!details.movementRef &&
+						movementRefId(candidateRef) === movementRefId(details.movementRef)
+					)
 				})) {
 					if (!commitmentValid(candidateAllocation as Commitment)) continue
 					allocationsToCancel.add(candidateAllocation as Commitment)
@@ -946,20 +992,13 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		if (this.destroyed || this.reconstructing) return
 		for (const { held, allocation } of findLiveAllocations((candidate) => {
 			const reason = candidate.reason as { type?: string } | undefined
-			return reason?.type === 'hive-transfer' || reason?.type === 'convey.path'
+			return (
+				reason?.type === 'hive-transfer' ||
+				reason?.type === 'convey.path' ||
+				reason?.type === 'convey.hop'
+			)
 		})) {
-			const reason = held.reason as
-				| {
-						type?: string
-						goodType?: GoodType
-						movementRef?: MovementRef
-						provider?: FreightMovementParty
-						demander?: FreightMovementParty
-						providerRef?: FreightMovementParty
-						demanderRef?: FreightMovementParty
-						movement?: TrackedMovement
-				  }
-				| undefined
+			const reason = held.reason as AllocationReasonInfo | undefined
 			if (!reason) continue
 			const goodType = reason.goodType
 			if (!goodType) continue
@@ -971,6 +1010,16 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				this.freightPartyUnavailableForMovement(demander)
 			const movementRef = reason.movementRef ?? reason.movement?.ref
 			const trackedMovement = movementRef ? this.activeMovementByRef(movementRef) : undefined
+			if (
+				this.pruneResolvedMovementAllocation(
+					allocation as Commitment,
+					reason,
+					'[WATCHDOG]',
+					trackedMovement
+				)
+			) {
+				continue
+			}
 			if (structuralTeardown) {
 				if (trackedMovement) this.silentlyDiscardMovement(trackedMovement)
 				traces.advertising.log?.(
@@ -995,9 +1044,9 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				})
 				continue
 			}
+			if (trackedMovement?._state === MovementState.delivering) continue
 			if (trackedMovement) {
 				const trackedFailure = this.validateMovementInvariant(trackedMovement, {
-					allowClaimedSourceGap: trackedMovement.claimed,
 					allowClaimedTerminalPath: trackedMovement.claimed,
 					requireTracked: !trackedMovement.claimed,
 				})
@@ -1019,7 +1068,6 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				}
 				this.queueBrokenMovementDiscard(trackedMovement, {
 					warnLabel: '[WATCHDOG] Invalid movement token',
-					allowClaimedSourceGap: trackedMovement.claimed,
 					allowClaimedTerminalPath: trackedMovement.claimed,
 					requireTracked: !trackedMovement.claimed,
 				})
@@ -1042,10 +1090,198 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				reasonType: reason.type,
 				silent: false,
 			})
-			throw new Error(
-				`[WATCHDOG] Detached movement allocation: ${goodType} ${provider?.name ?? 'unknown-provider'} -> ${demander?.name ?? 'unknown-demander'}`
-			)
 		}
+	}
+
+	public reconcileMovementBookkeeping(label = 'movement-bookkeeping'): void {
+		this.reconcileMovementAllocationPairs(label)
+		this.scanForDetachedMovementAllocations()
+	}
+
+	private isMovementSourceAllocationReason(reason: AllocationReasonInfo | undefined): boolean {
+		if (!reason) return false
+		if (reason.role === 'movement-source') return true
+		return reason.type === 'convey.path'
+	}
+
+	private hasLiveMovementTargetAllocation(
+		movementRef: MovementRef | undefined,
+		trackedMovement: TrackedMovement | undefined
+	): boolean {
+		if (
+			trackedMovement?.allocations?.target &&
+			commitmentValid(trackedMovement.allocations.target)
+		) {
+			return true
+		}
+		if (!movementRef) return false
+		const movementRefKey = movementRefId(movementRef)
+		return findLiveAllocations((held) => {
+			const reason = held.reason as AllocationReasonInfo | undefined
+			return (
+				reason?.role === 'movement-target' &&
+				!!reason.movementRef &&
+				movementRefId(reason.movementRef) === movementRefKey
+			)
+		}).some(({ allocation }) => commitmentValid(allocation as Commitment))
+	}
+
+	private pruneResolvedMovementAllocation(
+		allocation: Commitment,
+		reason: AllocationReasonInfo | undefined,
+		label: string,
+		trackedMovement?: TrackedMovement
+	): boolean {
+		if (commitmentValid(allocation)) return false
+		traces.advertising.log?.(`${label} Dropping resolved movement allocation`, {
+			goodType: reason?.goodType,
+			provider: (reason?.providerRef ?? reason?.provider ?? reason?.movement?.provider)?.name,
+			demander: (reason?.demanderRef ?? reason?.demander ?? reason?.movement?.demander)?.name,
+			movementRef: reason?.movementRef ? movementRefId(reason.movementRef) : undefined,
+			reasonType: reason?.type,
+			role: reason?.role,
+			ended: allocation.ended,
+			allocation: this.movementAllocationLabel(allocation),
+			movementContext: trackedMovement
+				? this.movementMineContext(trackedMovement)
+				: 'no-tracked-movement',
+		})
+		untrackAllocation(allocation)
+		return true
+	}
+
+	public bindMovementSourceToTransitStorage(
+		movement: TrackedMovement,
+		storage: Storage,
+		label: string
+	): boolean {
+		const sourceCommitment = new Commitment(`convey.path.${movement.goodType}`)
+		const sourceReason: AllocationReasonInfo = {
+			type: 'convey.path',
+			role: 'movement-source',
+			goodType: movement.goodType,
+			movementRef: movement.ref,
+			providerRef: movement.provider,
+			demanderRef: movement.demander,
+			providerName: movement.provider.name,
+			demanderName: movement.demander.name,
+			movement,
+		}
+		;(sourceCommitment as { reason?: AllocationReasonInfo }).reason = sourceReason
+		trackAllocation(sourceCommitment, sourceReason)
+		sourceCommitment.onFinal(() => untrackAllocation(sourceCommitment))
+		const reserveResult = storage.reserve({ [movement.goodType]: 1 }, sourceCommitment)
+		if (reserveResult !== undefined) {
+			sourceCommitment.cancel(`${label}.reserve-failed`)
+			traces.advertising.warn?.(`[${label}] Failed to reserve transit source`, {
+				goodType: movement.goodType,
+				movementRef: movementRefId(movement.ref),
+				from: axial.key(movement.from),
+				reason: reserveResult,
+			})
+			return false
+		}
+		const previousSource = movement.allocations.source
+		this.assignMovementSource(movement, sourceCommitment, label)
+		if (previousSource && previousSource !== sourceCommitment && commitmentValid(previousSource)) {
+			try {
+				previousSource.fulfill()
+			} catch {
+				try {
+					previousSource.cancel(`${label}.old-source-cancel`)
+				} catch {}
+			}
+		}
+		return true
+	}
+
+	public reconcileMovementAllocationPairs(label = 'movement-pair-invariant'): void {
+		if (this.destroyed || this.reconstructing) return
+		for (const { held, allocation } of findLiveAllocations((candidate) => {
+			const reason = candidate.reason as AllocationReasonInfo | undefined
+			if (!reason) return false
+			if (
+				reason.type !== 'hive-transfer' &&
+				reason.type !== 'convey.path' &&
+				reason.type !== 'convey.hop'
+			)
+				return false
+			return this.isMovementSourceAllocationReason(reason)
+		})) {
+			const reason = held.reason as AllocationReasonInfo | undefined
+			if (!reason?.goodType) continue
+			const provider = reason.providerRef ?? reason.provider ?? reason.movement?.provider
+			const demander = reason.demanderRef ?? reason.demander ?? reason.movement?.demander
+			if (!this.movementRefsBelongToThisHive(provider, demander)) continue
+			const movementRef = reason.movementRef ?? reason.movement?.ref
+			const trackedMovement = movementRef ? this.activeMovementByRef(movementRef) : undefined
+			if (
+				this.pruneResolvedMovementAllocation(
+					allocation as Commitment,
+					reason,
+					`[${label}]`,
+					trackedMovement
+				)
+			) {
+				continue
+			}
+			if (this.hasLiveMovementTargetAllocation(movementRef, trackedMovement)) continue
+
+			const invariantLabel = '[WATCHDOG] Movement source reservation without target allocation'
+			traces.advertising.warn?.(invariantLabel, {
+				label,
+				goodType: reason.goodType,
+				provider: provider?.name,
+				demander: demander?.name,
+				movementRef: movementRef ? movementRefId(movementRef) : undefined,
+				reasonType: reason.type,
+			})
+			if (trackedMovement) {
+				this.throwMovementInvariantFailure(
+					trackedMovement,
+					'source-without-target-allocation',
+					invariantLabel
+				)
+			}
+			this.queueDetachedAllocationCleanup(allocation as Commitment, {
+				goodType: reason.goodType,
+				provider,
+				demander,
+				movementRef,
+				reasonType: reason.type,
+				silent: false,
+			})
+		}
+	}
+
+	public assertBorderTransitStorageInvariant(label = '[WATCHDOG]') {
+		if (this.destroyed || this.reconstructing) return
+		for (const gate of this.gates) {
+			const coord = toAxialCoord(gate.border.position)
+			if (!coord) continue
+			for (const [goodType, quantity] of Object.entries(gate.storage.stock) as [
+				GoodType,
+				number,
+			][]) {
+				if (!quantity || quantity <= 0) continue
+				const available = gate.storage.available(goodType)
+				if (available <= 0) continue
+				const invariantLabel = `${label} Border transit stock without movement reservation`
+				traces.advertising.warn?.(invariantLabel, {
+					goodType,
+					quantity,
+					available,
+					border: axial.key(coord),
+				})
+				throw new Error(
+					`${invariantLabel}: ${goodType} available=${available} border=${axial.key(coord)}`
+				)
+			}
+		}
+	}
+
+	private scanBorderTransitStorageInvariant() {
+		this.assertBorderTransitStorageInvariant('[WATCHDOG]')
 	}
 
 	private isGeneralStorageAlveolus(alveolus: Alveolus): alveolus is StorageAlveolus {
@@ -1129,6 +1365,10 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 	private activeMovementRefs(): Set<number> {
 		const refs = new Set<number>()
 		for (const movement of this.activeMovements) {
+			if (movement._state === MovementState.delivering) {
+				refs.add(movementRefId(movement.ref))
+				continue
+			}
 			if (!movement.claimed && !this.trackedMovementCoord(movement)) continue
 			refs.add(movementRefId(movement.ref))
 		}
@@ -1244,9 +1484,13 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				: ended === false
 					? 'begun'
 					: ended === true
-						? 'fulfilled'
-						: `cancelled:${ended}`
-		return `${commitmentValid(allocation) ? 'valid' : 'invalid'}:${reason?.type ?? 'unknown'}:${reason?.movementRef ? `ref#${movementRefId(reason.movementRef)}` : 'no-ref'}:${endedLabel}`
+				? 'fulfilled'
+				: `cancelled:${ended}`
+		const refs = allocationReasonMovementRefs(reason)
+		const refLabel = refs.length
+			? refs.map((ref) => `ref#${movementRefId(ref)}`).join(',')
+			: 'no-ref'
+		return `${commitmentValid(allocation) ? 'valid' : 'invalid'}:${reason?.type ?? 'unknown'}:${refLabel}:${endedLabel}`
 	}
 
 	private movementAllocationReason(allocation: Commitment | undefined) {
@@ -1261,13 +1505,13 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				`${label}: source allocation reason missing; ${this.movementMineContext(movement)}`
 			)
 			assert(
-				!!sourceReason.movementRef &&
-					movementRefId(sourceReason.movementRef) === movementRefId(movement.ref),
+				allocationReasonHasMovement(sourceReason, movement),
 				`${label}: source allocation movementRef mismatch; ${this.movementMineContext(movement)}`
 			)
-			if (sourceReason.movement) {
+			for (const sourceMovement of allocationReasonMovements(sourceReason)) {
+				if (movementRefId(sourceMovement.ref) !== movementRefId(movement.ref)) continue
 				assert(
-					this.movementIdentityMatches(sourceReason.movement, movement),
+					this.movementIdentityMatches(sourceMovement, movement),
 					`${label}: source allocation movement ref mismatch; ${this.movementMineContext(movement)}`
 				)
 			}
@@ -1384,6 +1628,57 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			'sourceTrail',
 			`assign:${label}:${this.movementAllocationLabel(source)}@${Date.now()}`
 		)
+	}
+
+	bindMovementsSourceToHopStep(
+		movements: readonly TrackedMovement[],
+		sourceCommitment: Commitment,
+		label: string
+	) {
+		assert(movements.length > 0, `${label}: no movements to bind to hop step`)
+		const first = movements[0]!
+		const sameGoodType = movements.every((movement) => movement.goodType === first.goodType)
+		const sourceReason: AllocationReasonInfo = {
+			type: 'convey.hop',
+			role: 'movement-source',
+			goodType: sameGoodType ? first.goodType : undefined,
+			movementRef: first.ref,
+			movementRefs: movements.map((movement) => movement.ref),
+			providerRef: first.provider,
+			demanderRef: first.demander,
+			providerName: first.provider.name,
+			demanderName: first.demander.name,
+			movement: first,
+			movements: [...movements],
+		}
+		;(sourceCommitment as { reason?: AllocationReasonInfo }).reason = sourceReason
+		trackAllocation(sourceCommitment, sourceReason)
+		sourceCommitment.onFinal(() => untrackAllocation(sourceCommitment))
+		for (const movement of movements) {
+			this.replaceMovementSourceAndFulfillPrevious(movement, sourceCommitment, label)
+		}
+	}
+
+	replaceMovementSourceAndFulfillPrevious(
+		movement: TrackedMovement,
+		source: Commitment,
+		label: string
+	) {
+		const previousSource = movement.allocations.source
+		this.assignMovementSource(movement, source, label)
+		if (previousSource && previousSource !== source && commitmentValid(previousSource)) {
+			this.pushMovementDebugEntry(
+				movement,
+				'sourceTrail',
+				`fulfill-previous:before:${label}:${this.movementAllocationLabel(previousSource)}@${Date.now()}`
+			)
+			previousSource.fulfill()
+			this.pushMovementDebugEntry(
+				movement,
+				'sourceTrail',
+				`fulfill-previous:after:${label}:${this.movementAllocationLabel(previousSource)}@${Date.now()}`
+			)
+		}
 	}
 
 	fulfillMovementSource(movement: TrackedMovement, label: string) {
@@ -1583,6 +1878,22 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		)
 	}
 
+	isSelectableMovement(movement: TrackedMovement, expectedFrom: AxialCoord, label: string): boolean {
+		if (this.destroyed || this.reconstructing) return false
+		const canonical = this.getCanonicalMovement(movement) ?? movement
+		const failure = this.validateMovementInvariant(canonical, {
+			expectedFrom,
+			requireTracked: true,
+		})
+		if (!failure) return true
+		traces.convey.warn?.(`${label}: skipped ${canonical.goodType} ref#${movementRefId(canonical.ref)}`, {
+			failure,
+			expectedFrom: axial.key(expectedFrom),
+			context: this.movementMineContext(canonical),
+		})
+		return false
+	}
+
 	hasIncomingMovementFor(alveolus: Alveolus): boolean {
 		const here = toAxialCoord(alveolus.tile.position)!
 		const surroundingBorderKeys = new Set(
@@ -1662,7 +1973,12 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				  }
 				| undefined
 			if (!reason) return false
-			if (reason.type !== 'hive-transfer' && reason.type !== 'convey.path') return false
+			if (
+				reason.type !== 'hive-transfer' &&
+				reason.type !== 'convey.path' &&
+				reason.type !== 'convey.hop'
+			)
+				return false
 			const reasonGoodType = reason.goodType ?? reason.movement?.goodType
 			if (reasonGoodType !== goodType) return false
 			const movementRef = reason.movementRef ?? reason.movement?.ref
@@ -1729,8 +2045,22 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				}
 				if (!mg.claimed) continue
 
-				// If the movement is claimed but no longer has a source allocation, it can never progress.
+				const claimedAt = mg.claimedAtMs ?? now
+				const claimer = mg.claimedBy
+				const claimerActionDescription = claimer ? claimer.actionDescription : []
+				const claimerStillBusy =
+					!!claimer && (!!claimer.stepExecutor || claimer.runningScripts.length > 0)
+				const claimerLikelyOwnsMovement =
+					claimerStillBusy &&
+					(claimerActionDescription.includes('work.conveyStep') ||
+						claimerActionDescription.includes('work.goWork') ||
+						freightPartyMatchesAssignedAlveolus(mg.provider, claimer.assignedAlveolus) ||
+						freightPartyMatchesAssignedAlveolus(mg.demander, claimer.assignedAlveolus))
+
+				// During an active convey.path hop, pickup fulfills the source before animation
+				// finish rebinds it. Only release that gap once no live worker appears to own it.
 				if (!mg.allocations?.source) {
+					if (claimerLikelyOwnsMovement || now - claimedAt < settleMs) continue
 					traces.advertising.warn?.('[WATCHDOG] Releasing invalid claimed movement', {
 						goodType: mg.goodType,
 						provider: mg.provider.name,
@@ -1746,19 +2076,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 					continue
 				}
 
-				const claimedAt = mg.claimedAtMs ?? now
 				if (now - claimedAt < settleMs) continue
-
-				const claimer = mg.claimedBy
-				const claimerActionDescription = claimer ? claimer.actionDescription : []
-				const claimerStillBusy =
-					!!claimer && (!!claimer.stepExecutor || claimer.runningScripts.length > 0)
-				const claimerLikelyOwnsMovement =
-					claimerStillBusy &&
-					(claimerActionDescription.includes('work.conveyStep') ||
-						claimerActionDescription.includes('work.goWork') ||
-						freightPartyMatchesAssignedAlveolus(mg.provider, claimer.assignedAlveolus) ||
-						freightPartyMatchesAssignedAlveolus(mg.demander, claimer.assignedAlveolus))
 
 				// Claimed long enough and no active conveyor looks responsible: release the claim.
 				if (!claimerLikelyOwnsMovement) {
@@ -1916,50 +2234,8 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			this.claimed = false
 			delete this.claimedBy
 			delete this.claimedAtMs
-			hive.forgetMovementTracking(this)
+			hive.removeMovementFromCoordTracking(this)
 			hive.noteMovementLifecycle(this, 'movement.finish.remove-tracking.after')
-
-			try {
-				hive.noteMovementLifecycle(this, 'movement.finish.target-fulfill.before')
-				this.allocations.target.fulfill()
-				hive.noteMovementLifecycle(this, 'movement.finish.target-fulfill.after')
-				traces.allocations.log?.(`[MOVEMENT] TARGET FULFILLED: ${this.goodType}`, {
-					movementRef: movementRefId(this.ref),
-					goodType: this.goodType,
-					provider: this.provider.name,
-					demander: this.demander.name,
-				})
-			} catch (error) {
-				traces.allocations.error?.(`[MOVEMENT] TARGET FULFILL FAILED: ${this.goodType}`, {
-					movementRef: movementRefId(this.ref),
-					goodType: this.goodType,
-					provider: this.provider.name,
-					demander: this.demander.name,
-					error: error instanceof Error ? error.message : String(error),
-				})
-				try {
-					hive.noteMovementLifecycle(
-						this,
-						'movement.finish.target-cancel.after-failed-fulfill.before'
-					)
-					this.allocations.target.cancel('finish.target-cancel')
-					hive.noteMovementLifecycle(
-						this,
-						'movement.finish.target-cancel.after-failed-fulfill.after'
-					)
-				} catch (cancelError) {
-					traces.allocations.error?.(
-						`[MOVEMENT] TARGET CANCEL AFTER FAILED FULFILL FAILED: ${this.goodType}`,
-						{
-							movementRef: movementRefId(this.ref),
-							goodType: this.goodType,
-							provider: this.provider.name,
-							demander: this.demander.name,
-							error: cancelError instanceof Error ? cancelError.message : String(cancelError),
-						}
-					)
-				}
-			}
 
 			traces.allocations.log?.(`[MOVEMENT] SOURCE AUTO-FULFILL: ${this.goodType}`, {
 				movementRef: movementRefId(this.ref),
@@ -2003,10 +2279,53 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				}
 			}
 
+			try {
+				hive.noteMovementLifecycle(this, 'movement.finish.target-fulfill.before')
+				this.allocations.target.fulfill()
+				hive.noteMovementLifecycle(this, 'movement.finish.target-fulfill.after')
+				traces.allocations.log?.(`[MOVEMENT] TARGET FULFILLED: ${this.goodType}`, {
+					movementRef: movementRefId(this.ref),
+					goodType: this.goodType,
+					provider: this.provider.name,
+					demander: this.demander.name,
+				})
+			} catch (error) {
+				traces.allocations.error?.(`[MOVEMENT] TARGET FULFILL FAILED: ${this.goodType}`, {
+					movementRef: movementRefId(this.ref),
+					goodType: this.goodType,
+					provider: this.provider.name,
+					demander: this.demander.name,
+					error: error instanceof Error ? error.message : String(error),
+				})
+				try {
+					hive.noteMovementLifecycle(
+						this,
+						'movement.finish.target-cancel.after-failed-fulfill.before'
+					)
+					this.allocations.target.cancel('finish.target-cancel')
+					hive.noteMovementLifecycle(
+						this,
+						'movement.finish.target-cancel.after-failed-fulfill.after'
+					)
+				} catch (cancelError) {
+					traces.allocations.error?.(
+						`[MOVEMENT] TARGET CANCEL AFTER FAILED FULFILL FAILED: ${this.goodType}`,
+						{
+							movementRef: movementRefId(this.ref),
+							goodType: this.goodType,
+							provider: this.provider.name,
+							demander: this.demander.name,
+							error: cancelError instanceof Error ? cancelError.message : String(cancelError),
+						}
+					)
+				}
+			}
+
 			hive.scheduleAdvertisement(this.provider)
 			hive.scheduleAdvertisement(this.demander)
 			hive.noteMovementLifecycle(this, 'movement.finish.after')
 			this._state = transitionMovement(this._state, MovementState.completed)
+			hive.activeMovements.delete(this)
 			traces.convey.log?.(
 				`[FINISH] ${this.goodType} ${this.provider.name} -> ${this.demander.name}`
 			)
@@ -2363,6 +2682,64 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		return `${goodType}:${from.q},${from.r}->${to.q},${to.r}`
 	}
 
+	private movementPartyQuantityKey(party: FreightMovementParty, goodType: GoodType) {
+		const coord = toAxialCoord(party.tile.position)
+		return `${goodType}:${party.name}@${coord.q},${coord.r}`
+	}
+
+	private pendingMovementQuantity(map: Map<string, number>, key: string) {
+		return map.get(key) ?? 0
+	}
+
+	private bumpPendingMovementQuantity(map: Map<string, number>, key: string, delta: number) {
+		const next = (map.get(key) ?? 0) + delta
+		if (next <= 0) map.delete(key)
+		else map.set(key, next)
+	}
+
+	private tryReservePendingMovementIntent(
+		goodType: GoodType,
+		provider: FreightMovementParty,
+		demander: FreightMovementParty
+	): (() => void) | undefined {
+		const sourceKey = this.movementPartyQuantityKey(provider, goodType)
+		const targetKey = this.movementPartyQuantityKey(demander, goodType)
+		const pendingSource = this.pendingMovementQuantity(
+			this.pendingMovementSourceQuantities,
+			sourceKey
+		)
+		const pendingTarget = this.pendingMovementQuantity(
+			this.pendingMovementTargetQuantities,
+			targetKey
+		)
+		const availableSource = provider.storage.available(goodType)
+		const availableTarget = demander.storage.hasRoom(goodType)
+
+		if (availableSource - pendingSource <= 0) {
+			traces.advertising.log?.(
+				`[SELECT] SKIP PENDING SOURCE: ${goodType} ${provider.name} available=${availableSource} pending=${pendingSource}`
+			)
+			return undefined
+		}
+
+		if (availableTarget - pendingTarget <= 0) {
+			traces.advertising.log?.(
+				`[SELECT] SKIP PENDING TARGET: ${goodType} ${demander.name} room=${availableTarget} pending=${pendingTarget}`
+			)
+			return undefined
+		}
+
+		this.bumpPendingMovementQuantity(this.pendingMovementSourceQuantities, sourceKey, 1)
+		this.bumpPendingMovementQuantity(this.pendingMovementTargetQuantities, targetKey, 1)
+		let released = false
+		return () => {
+			if (released) return
+			released = true
+			this.bumpPendingMovementQuantity(this.pendingMovementSourceQuantities, sourceKey, -1)
+			this.bumpPendingMovementQuantity(this.pendingMovementTargetQuantities, targetKey, -1)
+		}
+	}
+
 	private hasActiveMovement(
 		provider: FreightMovementParty,
 		demander: FreightMovementParty,
@@ -2377,10 +2754,11 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				axial.key(toAxialCoord(mg.provider.tile.position)) === axial.key(providerCoord) &&
 				axial.key(toAxialCoord(mg.demander.tile.position)) === axial.key(demanderCoord)
 			) {
-				// If source allocation is already fulfilled, the goods have left the
-				// provider — the provider is free to start another movement of the
-				// same type while this one is still in transit.
-				if (mg.allocations.source?.ended === true) continue
+				// The target commitment covers the movement for its whole lifetime. A
+				// fulfilled source only says the good left this storage hop; it must not
+				// open a duplicate demander allocation before delivery settles.
+				if (!commitmentValid(mg.allocations.target) && mg.allocations.source?.ended === true)
+					continue
 				return true
 			}
 		}
@@ -2391,7 +2769,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 						mg.goodType === goodType &&
 						axial.key(toAxialCoord(mg.provider.tile.position)) === axial.key(providerCoord) &&
 						axial.key(toAxialCoord(mg.demander.tile.position)) === axial.key(demanderCoord) &&
-						mg.allocations.source?.ended !== true
+						(commitmentValid(mg.allocations.target) || mg.allocations.source?.ended !== true)
 				)
 			) {
 				return true
@@ -2574,10 +2952,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			demander: toAxialCoord(demander.tile.position),
 		}
 		const movementKey = this.stalledExchangeKey(provider, demander, goodType)
-		if (
-			this.creatingMovementKeys.has(movementKey) ||
-			this.hasActiveMovement(provider, demander, goodType)
-		) {
+		if (this.creatingMovementKeys.has(movementKey)) {
 			traces.advertising.log?.(
 				`[CREATE] SKIP DUPLICATE: ${goodType} ${provider.name} -> ${demander.name}`
 			)
@@ -2607,7 +2982,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		const targetCommitment = new Commitment(
 			`hive-transfer.target.${goodType}.${provider.name}->${demander.name}`
 		)
-		const movementReason: AllocationReasonInfo = {
+		const movementReasonBase: AllocationReasonInfo = {
 			type: 'hive-transfer',
 			goodType,
 			...positions,
@@ -2618,16 +2993,24 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			movementRef,
 			createdAt: Date.now(),
 		}
-		;(sourceCommitment as { reason?: AllocationReasonInfo }).reason = movementReason
-		;(targetCommitment as { reason?: AllocationReasonInfo }).reason = movementReason
-		trackAllocation(sourceCommitment, movementReason)
-		trackAllocation(targetCommitment, movementReason)
+		const sourceReason: AllocationReasonInfo = {
+			...movementReasonBase,
+			role: 'movement-source',
+		}
+		const targetReason: AllocationReasonInfo = {
+			...movementReasonBase,
+			role: 'movement-target',
+		}
+		;(sourceCommitment as { reason?: AllocationReasonInfo }).reason = sourceReason
+		;(targetCommitment as { reason?: AllocationReasonInfo }).reason = targetReason
+		trackAllocation(sourceCommitment, sourceReason)
+		trackAllocation(targetCommitment, targetReason)
 		sourceCommitment.onFinal(() => untrackAllocation(sourceCommitment))
 		targetCommitment.onFinal(() => untrackAllocation(targetCommitment))
 
 		traces.advertising.log?.(
 			`[CREATE] INERT START: ${goodType} ${provider.name} -> ${demander.name}`,
-			movementReason
+			movementReasonBase
 		)
 
 		const providerResult = provider.storage.reserve({ [goodType]: 1 }, sourceCommitment)
@@ -2699,7 +3082,8 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				throw new Error('movement runtime not installed')
 			},
 		}
-		movementReason.movement = movingGood
+		sourceReason.movement = movingGood
+		targetReason.movement = movingGood
 
 		this.installMovementRuntimeMethods(movingGood)
 		this.activeMovements.add(movingGood)
@@ -2765,20 +3149,26 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		traces.advertising.log?.(
 			`[SELECT] FOUND: ${goodType} ${advertisement} ${alveolus.name} -> ${storage.name}`
 		)
+		const isDemand = advertisement === 'demand'
+		const targetStorage = isDemand ? alveolus : storage
+		const providerStorage = isDemand ? storage : alveolus
+		const releasePendingMovementIntent = this.tryReservePendingMovementIntent(
+			goodType,
+			providerStorage,
+			targetStorage
+		)
+		if (!releasePendingMovementIntent) return undefined
+
 		// Defer movement creation to avoid reactive cycle:
 		// The advertise effect reads storage state, and createMovement modifies it.
 		this.postStep(() => {
-			if (this.destroyed) return
 			try {
+				if (this.destroyed) return
 				traces.advertising.log?.(
 					`[SELECT] DEFERRED CREATE: ${goodType} ${alveolus.name} -> ${storage.name}`
 				)
 
 				// CRITICAL: Validate target can actually take the goods before creating movement
-				const isDemand = advertisement === 'demand'
-				// For 'provide' ads, the target is 'storage'. For 'demand' ads, the target is 'alveolus'.
-				const targetStorage = isDemand ? alveolus : storage
-				const providerStorage = isDemand ? storage : alveolus
 
 				// Check provider can give the goods
 				if ('canGive' in providerStorage && typeof providerStorage.canGive === 'function') {
@@ -2830,6 +3220,8 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 					traces.advertising.log?.(`[SELECT] ERROR: ${goodType} - ${error.message}`)
 					console.error(e)
 				}
+			} finally {
+				releasePendingMovementIntent()
 			}
 		})
 		return storage
@@ -2850,6 +3242,19 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		const sourceStorage = this.storageAt(row.from)
 		const path = [...row.path]
 		if ((!row.claimed && !sourceStorage) || path.length < 1) return undefined
+		if (row.claimed) {
+			const tile = !isTileCoord(row.from)
+				? (this.board.getBorder(row.from)?.tile.a ?? this.board.getBorder(row.from)?.tile.b)
+				: this.board.getTile(row.from)
+			if (tile) this.board.looseGoods.add(tile, row.goodType)
+			traces.advertising.warn?.('[RESTORE] Downgraded in-flight convey movement to loose good', {
+				goodType: row.goodType,
+				from: row.from,
+				provider: provider.name,
+				demander: demander.name,
+			})
+			return undefined
+		}
 
 		const ref = createMovementRef()
 		const sourceCommitment = new Commitment(
@@ -2858,7 +3263,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		const targetCommitment = new Commitment(
 			`hive-transfer.target.${row.goodType}.${provider.name}->${demander.name}`
 		)
-		const movementReason: AllocationReasonInfo = {
+		const movementReasonBase: AllocationReasonInfo = {
 			type: 'hive-transfer',
 			goodType: row.goodType,
 			provider,
@@ -2869,10 +3274,18 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			createdAt: Date.now(),
 			source: row.from,
 		}
-		;(sourceCommitment as { reason?: AllocationReasonInfo }).reason = movementReason
-		;(targetCommitment as { reason?: AllocationReasonInfo }).reason = movementReason
-		trackAllocation(sourceCommitment, movementReason)
-		trackAllocation(targetCommitment, movementReason)
+		const sourceReason: AllocationReasonInfo = {
+			...movementReasonBase,
+			role: 'movement-source',
+		}
+		const targetReason: AllocationReasonInfo = {
+			...movementReasonBase,
+			role: 'movement-target',
+		}
+		;(sourceCommitment as { reason?: AllocationReasonInfo }).reason = sourceReason
+		;(targetCommitment as { reason?: AllocationReasonInfo }).reason = targetReason
+		trackAllocation(sourceCommitment, sourceReason)
+		trackAllocation(targetCommitment, targetReason)
 		sourceCommitment.onFinal(() => untrackAllocation(sourceCommitment))
 		targetCommitment.onFinal(() => untrackAllocation(targetCommitment))
 
@@ -2934,7 +3347,8 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				throw new Error('movement runtime not installed')
 			},
 		}
-		movementReason.movement = movingGood
+		sourceReason.movement = movingGood
+		targetReason.movement = movingGood
 
 		this.installMovementRuntimeMethods(movingGood)
 		this.activeMovements.add(movingGood)

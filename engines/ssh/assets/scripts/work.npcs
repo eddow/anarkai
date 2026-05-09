@@ -34,14 +34,14 @@ function harvest(jobPlan)
 	assignAlveolusAndPrepare jobPlan
 	alveolus = jobPlan.target
 	do
-		nextJob = work.myNextJob()
+		nextJob = work.myNextJob jobPlan
 	while I.keepWorking and nextJob
-		if nextJob.path and (not tile.content.deposit or tile.content.deposit.name != alveolus.action.deposit) then
+		if nextJob.path and not work.isOnDeposit(alveolus.action.deposit) then
 			walk.until nextJob.path
 		end if
 
-		do while not tile.content.deposit or tile.content.deposit.name != alveolus.action.deposit
-			log "Checking deposit name: " + (tile.content.deposit.name if tile.content.deposit else "null") + " vs " + alveolus.action.deposit
+		do while not work.isOnDeposit(alveolus.action.deposit)
+			log "Checking deposit for " + alveolus.action.deposit
 			where = find.deposit(alveolus.action.deposit)
 			if not where then return false
 			walk.until where
@@ -55,11 +55,10 @@ function transform(jobPlan)
 	reachTargetTileLoop jobPlan
 	assignAlveolusAndPrepare jobPlan
 	alveolus = jobPlan.target
-	do
-		nextJob = work.myNextJob()
-	while I.keepWorking and nextJob
+	nextJob = work.myNextJob jobPlan
+	if nextJob then
 		work.transformStep
-	loop
+	end if
 end function
 
 function convey(jobPlan)
@@ -69,6 +68,7 @@ function convey(jobPlan)
 	idlePolls = 0
 	do while I.keepWorking and (alveolus.aGoodMovement or alveolus.incomingGoods)
 		if alveolus.aGoodMovement then
+			if not I.assignedAlveolus then I.assignedAlveolus = alveolus
 			idlePolls = 0
 			work.conveyStep
 		else
@@ -85,7 +85,7 @@ function construct(jobPlan)
 	reachTargetTileLoop jobPlan
 	assignAlveolusAndPrepare jobPlan
 	engineer = jobPlan.target
-	nextJob = work.myNextJob()
+	nextJob = work.myNextJob jobPlan
 	if nextJob then
 		if not nextJob.path then return false
 		walk.until nextJob.path
@@ -98,7 +98,7 @@ function foundation(jobPlan)
 	reachTargetTileLoop jobPlan
 	assignAlveolusAndPrepare jobPlan
 	engineer = jobPlan.target
-	nextJob = work.myNextJob()
+	nextJob = work.myNextJob jobPlan
 	if nextJob then
 		if not nextJob.path then return false
 		walk.until nextJob.path

@@ -1,4 +1,5 @@
 import type { Alveolus } from 'ssh/board/content/alveolus'
+import { Commitment } from 'ssh/commitment/commitment'
 import type { SaveState } from 'ssh/game'
 import type { Hive, MovingGood } from 'ssh/hive/hive'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -88,6 +89,12 @@ describe('advert/convey regression', () => {
 		firstMovement.claimedBy = 'advert-convey-regression'
 		firstMovement.claimedAtMs = Date.now()
 		firstMovement.hop()
+		const firstHopSource = new Commitment('advert-convey-regression.first-hop')
+		hive.bindMovementsSourceToHopStep(
+			[firstMovement],
+			firstHopSource,
+			'advert-convey-regression.first-hop'
+		)
 		await flushDeferred()
 
 		const nextMovements = getWoodMovements(hive)
@@ -115,7 +122,8 @@ describe('advert/convey regression', () => {
 		woodpileMovement.finish()
 		await flushDeferred()
 
-		expect(getWoodMovements(hive)).toHaveLength(0)
+		const remainingMovements = getWoodMovements(hive)
+		expect(remainingMovements.filter((movement) => movement.demander === sawmill)).toHaveLength(0)
 		expect(sawmill.storage.stock.wood).toBe(2)
 		expect(woodpile.storage.stock.wood).toBe(1)
 	})

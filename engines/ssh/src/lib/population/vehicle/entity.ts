@@ -1,17 +1,21 @@
 import { effect, reactive } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
-import { syncFreightVehicleDockRegistration } from 'ssh/freight/vehicle-freight-dock-sync'
+import { collectDockedVehicleAdvertisementCandidates } from 'ssh/freight/vehicle-freight-dock'
+import {
+	freightVehicleDockBay,
+	syncFreightVehicleDockRegistration,
+} from 'ssh/freight/vehicle-freight-dock-sync'
 import { maybeAdvanceVehicleFromCompletedAnchorStop } from 'ssh/freight/vehicle-run'
-import { collectVehicleProposedJobs } from 'ssh/freight/vehicle-work'
+import { collectVehicleAdvertisedJobs, collectVehicleProposedJobs } from 'ssh/freight/vehicle-work'
 import type { Game } from 'ssh/game/game'
 import { GameObject, withInteractive } from 'ssh/game/object'
-import type { VehicleProposedJob } from 'ssh/jobs/offers'
+import type { ProposedJob, VehicleProposedJob } from 'ssh/jobs/offers'
 import type { Storage } from 'ssh/storage'
 import type { GoodType } from 'ssh/types'
 import { axial } from 'ssh/utils'
 import { type Position, toAxialCoord } from 'ssh/utils/position'
-import { assert, traces } from '../../dev/debug.ts'
+import { assert, profile, traces } from '../../dev/debug.ts'
 import { traceProjection } from '../../dev/trace.ts'
 import type { Character } from '../character'
 import {
@@ -53,7 +57,33 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		this.position = reactive(position)
 		this.storage = createVehicleStorage(vehicleType)
 		this.servedLines = reactive([...servedLines])
+		this.installStorageChangeHooks()
 		this.installDockStorageCompletionEffect()
+	}
+
+	private installStorageChangeHooks(): void {
+		const addGood = this.storage.addGood.bind(this.storage)
+		this.storage.addGood = ((goodType, qty) => {
+			const stored = addGood(goodType, qty)
+			if (stored > 0) this.onStorageChanged()
+			return stored
+		}) as typeof this.storage.addGood
+
+		const removeGood = this.storage.removeGood.bind(this.storage)
+		this.storage.removeGood = ((goodType, qty) => {
+			const removed = removeGood(goodType, qty)
+			if (removed > 0) this.onStorageChanged()
+			return removed
+		}) as typeof this.storage.removeGood
+	}
+
+	private onStorageChanged(): void {
+		const svc = this.service
+		if (isVehicleLineService(svc) && 'anchor' in svc.stop && this.isDocked) {
+			syncFreightVehicleDockRegistration(this)
+		}
+		this.pokeDockStorageCompletionLifecycle()
+		this.scheduleDockStorageCompletionCheck()
 	}
 
 	private installDockStorageCompletionEffect(): void {
@@ -64,30 +94,41 @@ export class VehicleEntity extends withInteractive(GameObject) {
 			if (svc.operator) return
 			const virtualGoodsCount = this.storage.virtualGoodsCount
 			if (virtualGoodsCount > 0) return
-			if (this.dockStorageCompletionScheduled) return
-			this.dockStorageCompletionScheduled = true
-			setTimeout(() => {
-				this.dockStorageCompletionScheduled = false
-				if (this.destroyed) return
-				const current = this.service
-				if (!isVehicleLineService(current) || !('anchor' in current.stop) || !this.isDocked) return
-				if (current.operator) return
-				if (this.storage.virtualGoodsCount > 0) return
-				const currentStockCount = Object.values(this.storage.stock).reduce(
-					(total, qty) => total + Math.max(0, qty ?? 0),
-					0
-				)
-				if (currentStockCount > 0) return
-				traces.vehicle.log?.('vehicleJob.dock.storageDrained', {
-					vehicleUid: this.uid,
-					lineId: current.line.id,
-					stopId: current.stop.id,
-					stockCount: currentStockCount,
-					virtualGoodsCount: this.storage.virtualGoodsCount,
-				})
-				maybeAdvanceVehicleFromCompletedAnchorStop(this.game, this)
-			}, 0)
+			this.scheduleDockStorageCompletionCheck()
 		})
+	}
+
+	private scheduleDockStorageCompletionCheck(): void {
+		const svc = this.service
+		if (!isVehicleLineService(svc) || !('anchor' in svc.stop) || !this.isDocked) return
+		if (svc.operator) return
+		if (this.storage.virtualGoodsCount > 0) return
+		if (this.dockStorageCompletionScheduled) return
+		this.dockStorageCompletionScheduled = true
+		setTimeout(() => {
+			this.dockStorageCompletionScheduled = false
+			if (this.destroyed) return
+			const current = this.service
+			if (!isVehicleLineService(current) || !('anchor' in current.stop) || !this.isDocked) return
+			if (current.operator) return
+			if (this.storage.virtualGoodsCount > 0) return
+			const currentStockCount = Object.values(this.storage.stock).reduce(
+				(total, qty) => total + Math.max(0, qty ?? 0),
+				0
+			)
+			if (currentStockCount > 0) {
+				const bay = freightVehicleDockBay(this)
+				if (bay && collectDockedVehicleAdvertisementCandidates(this, bay).length > 0) return
+			}
+			traces.vehicle.log?.('vehicleJob.dock.storageDrained', {
+				vehicleUid: this.uid,
+				lineId: current.line.id,
+				stopId: current.stop.id,
+				stockCount: currentStockCount,
+				virtualGoodsCount: this.storage.virtualGoodsCount,
+			})
+			maybeAdvanceVehicleFromCompletedAnchorStop(this.game, this)
+		}, 0)
 	}
 
 	private pokeDockStorageCompletionLifecycle(): void {
@@ -190,7 +231,27 @@ export class VehicleEntity extends withInteractive(GameObject) {
 	}
 
 	get proposedJobs(): readonly VehicleProposedJob[] {
-		return collectVehicleProposedJobs(this.game, this)
+		const end = profile.proposedJobs.begin?.('vehicle.proposedJobs', () => ({
+			vehicleUid: this.uid,
+			vehicleType: this.vehicleType,
+		}))
+		try {
+			return collectVehicleProposedJobs(this.game, this)
+		} finally {
+			end?.()
+		}
+	}
+
+	get advertisedJobs(): readonly ProposedJob[] {
+		const end = profile.proposedJobs.begin?.('vehicle.advertisedJobs', () => ({
+			vehicleUid: this.uid,
+			vehicleType: this.vehicleType,
+		}))
+		try {
+			return collectVehicleAdvertisedJobs(this.game, this)
+		} finally {
+			end?.()
+		}
 	}
 
 	get [traceProjection]() {
@@ -310,6 +371,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		this.traceDockPlacement('clear-position')
 		syncFreightVehicleDockRegistration(this)
 		this.pokeDockStorageCompletionLifecycle()
+		this.scheduleDockStorageCompletionCheck()
 	}
 
 	undock(): void {
@@ -333,6 +395,10 @@ export class VehicleEntity extends withInteractive(GameObject) {
 	}
 
 	endService(): void {
+		if (isVehicleMaintenanceService(this.service) && this.service.kind === 'loadFromBurden') {
+			this.service.offloadPickupPlan?.commitment?.cancel('vehicle-service-ended')
+			delete this.service.offloadPickupPlan
+		}
 		this.releaseOperator()
 		this.restoreWorldPositionFromDock('end-service')
 		if (isVehicleLineService(this.service)) this.service.docked = false

@@ -24,8 +24,21 @@
 - one-stop gather lines with line-owned radius and filters
 - `freight_bay` stop content backed by `road-fret` storage semantics
 - synthetic inspector objects for line selection and editing
+- docked vehicle work is surfaced through cheap provider-side advertised jobs for inspectors, while
+  character-scoped planner search stays in job claiming/ranking paths
 
 Details and constraints are documented in [`./freight-lines.md`](./freight-lines.md).
+
+### Verification
+
+`engines/ssh` unit-only verification is fast enough for routine perf/checkpoint use:
+
+```bash
+pnpm --filter ssh exec vitest run tests/unit
+```
+
+On 2026-05-06 this ran **80 files / 454 tests** in **44.75s** (`real 45.174s`) on the local
+workspace.
 
 ### Browser Client
 

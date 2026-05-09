@@ -19,6 +19,31 @@ describe('rebindConveyMovementRows', () => {
 		expect(noteMovementLifecycle).toHaveBeenCalledWith(canonical, 'convey.rebind-to-canonical')
 	})
 
+	it('carries an active convey claim onto the canonical movement', () => {
+		const ref = {}
+		const claimedBy = { uid: 'worker-1' }
+		const canonical = { ref, claimed: false } as TrackedMovement
+		const zombie = {
+			ref,
+			claimed: true,
+			claimedBy,
+			claimedAtMs: 123,
+			_state: 'claimed',
+		} as unknown as TrackedMovement
+		const getCanonicalMovement = vi.fn(() => canonical)
+		const noteMovementLifecycle = vi.fn()
+		const hive = { getCanonicalMovement, noteMovementLifecycle }
+		zombie.provider = { hive } as TrackedMovement['provider']
+
+		const row = { movement: zombie }
+		expect(rebindConveyMovementRows([row])).toBe(true)
+		expect(row.movement).toBe(canonical)
+		expect(canonical.claimed).toBe(true)
+		expect(canonical.claimedBy).toBe(claimedBy)
+		expect(canonical.claimedAtMs).toBe(123)
+		expect(canonical._state).toBe('claimed')
+	})
+
 	it('returns false when the movement ref is no longer active', () => {
 		const zombie = { ref: {} } as TrackedMovement
 		const getCanonicalMovement = vi.fn(() => undefined)

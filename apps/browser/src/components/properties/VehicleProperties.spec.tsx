@@ -1,4 +1,5 @@
 import { document, latch } from '@sursaut/core'
+import { disconnectAllProfiles, profile, setProfileLevel } from 'ssh/dev/debug'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const i18nState = {
@@ -130,6 +131,8 @@ describe('VehicleProperties', () => {
 	afterEach(() => {
 		stop?.()
 		stop = undefined
+		setProfileLevel('proposedJobs', undefined)
+		disconnectAllProfiles()
 		container.remove()
 		document.body.innerHTML = ''
 	})
@@ -304,18 +307,18 @@ describe('VehicleProperties', () => {
 			position: { x: 2, y: 0 },
 		}
 		const proposedJobsGetter = vi.fn(() => [
-				{
-					job: 'vehicleOffload',
-					maintenanceKind: 'unloadToTile',
-					vehicleUid: 'veh-jobs',
-					targetCoord: { q: 2, r: 0 },
-					path: [],
-					urgency: 4,
-					fatigue: 1,
-					source: { kind: 'vehicle', vehicle: undefined },
-					targetTile,
-				},
-			])
+			{
+				job: 'vehicleOffload',
+				maintenanceKind: 'unloadToTile',
+				vehicleUid: 'veh-jobs',
+				targetCoord: { q: 2, r: 0 },
+				path: [],
+				urgency: 4,
+				fatigue: 1,
+				source: { kind: 'vehicle', vehicle: undefined },
+				targetTile,
+			},
+		])
 		const vehicle = {
 			uid: 'veh-jobs',
 			title: 'wheelbarrow veh-jobs',
@@ -334,6 +337,97 @@ describe('VehicleProperties', () => {
 
 		expect(container.querySelectorAll('[data-testid="vehicle-ranked-work"]')).toHaveLength(1)
 		expect(proposedJobsGetter).toHaveBeenCalledTimes(1)
+	})
+
+	it('uses advertised vehicle jobs without touching proposed planner jobs', () => {
+		const targetTile = {
+			uid: 'tile:2,0',
+			title: 'Tile 2, 0',
+			position: { x: 2, y: 0 },
+		}
+		const advertisedJobsGetter = vi.fn(() => [
+			{
+				job: 'vehicleOffload',
+				maintenanceKind: 'park',
+				vehicleUid: 'veh-advertised',
+				targetCoord: { q: 2, r: 0 },
+				path: [],
+				urgency: 3,
+				fatigue: 1,
+				source: { kind: 'vehicle', vehicle: undefined },
+				targetTile,
+			},
+		])
+		const proposedJobsGetter = vi.fn(() => [])
+		const vehicle = {
+			uid: 'veh-advertised',
+			title: 'wheelbarrow veh-advertised',
+			vehicleType: 'wheelbarrow',
+			game: {},
+			storage: { stock: {} },
+			service: undefined,
+			get advertisedJobs() {
+				return advertisedJobsGetter()
+			},
+			get proposedJobs() {
+				return proposedJobsGetter()
+			},
+		}
+
+		stop = latch(container, <VehicleProperties vehicle={vehicle as never} />, {
+			setTitle: vi.fn(),
+		} as never)
+
+		expect(container.querySelectorAll('[data-testid="vehicle-ranked-work"]')).toHaveLength(1)
+		expect(advertisedJobsGetter).toHaveBeenCalledTimes(1)
+		expect(proposedJobsGetter).not.toHaveBeenCalled()
+	})
+
+	it('profiles vehicle properties as the parent of proposed vehicle jobs', () => {
+		setProfileLevel('proposedJobs', 'summary')
+		const targetTile = {
+			uid: 'tile:2,0',
+			title: 'Tile 2, 0',
+			position: { x: 2, y: 0 },
+		}
+		const vehicle = {
+			uid: 'veh-profile',
+			title: 'wheelbarrow veh-profile',
+			vehicleType: 'wheelbarrow',
+			game: {},
+			storage: { stock: {} },
+			service: undefined,
+			get proposedJobs() {
+				const end = profile.proposedJobs.begin?.('vehicle.proposedJobs', {
+					vehicleUid: 'veh-profile',
+				})
+				try {
+					return [
+						{
+							job: 'vehicleOffload',
+							maintenanceKind: 'unloadToTile',
+							vehicleUid: 'veh-profile',
+							targetCoord: { q: 2, r: 0 },
+							path: [],
+							urgency: 4,
+							fatigue: 1,
+							source: { kind: 'vehicle', vehicle: undefined },
+							targetTile,
+						},
+					]
+				} finally {
+					end?.()
+				}
+			},
+		}
+
+		stop = latch(container, <VehicleProperties vehicle={vehicle as never} />, {
+			setTitle: vi.fn(),
+		} as never)
+
+		const text = profile.proposedJobs.read()
+		expect(text).toContain('vehicle-properties.workChoices')
+		expect(text).toContain('vehicle-properties.workChoices > vehicle.proposedJobs')
 	})
 
 	it('shows idle when there is no service', () => {

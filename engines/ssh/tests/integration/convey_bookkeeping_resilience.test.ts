@@ -59,6 +59,120 @@ describe('Convey bookkeeping resilience', () => {
 		}
 	})
 
+	it('creates 0-store fallback movement from full sawmill output to plain storage', {
+		timeout: 20000,
+	}, async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+
+		try {
+			const scenario: Partial<SaveState> = {
+				hives: [
+					{
+						name: 'PlankGeneralStorageHive',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'sawmill', goods: { planks: 1 } },
+							{ coord: [1, 0], alveolus: 'storage', goods: {} },
+						],
+					},
+				],
+			}
+
+			engine.loadScenario(scenario)
+			await flushDeferred()
+
+			const sawmill = engine.game.hex.getTile({ q: 0, r: 0 })?.content as any
+			const storage = engine.game.hex.getTile({ q: 1, r: 0 })?.content as any
+			expect(sawmill).toBeDefined()
+			expect(storage).toBeDefined()
+			if (!sawmill || !storage) throw new Error('Expected sawmill/storage to exist')
+
+			expect(storage.workingGoodsRelations.planks).toBeUndefined()
+			expect(storage.canTake('planks', '0-store')).toBe(true)
+
+			const movement = Array.from(sawmill.hive.movingGoods.values())
+				.flat()
+				.find(
+					(candidate: any) =>
+						candidate.goodType === 'planks' &&
+						candidate.provider === sawmill &&
+						candidate.demander === storage
+				)
+
+			expect(movement).toBeDefined()
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('transforms wood into planks and drains them to plain general storage', {
+		timeout: 20000,
+	}, async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+
+		try {
+			const scenario: Partial<SaveState> = {
+				hives: [
+					{
+						name: 'SawmillPlainStorageFlowHive',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'sawmill', goods: { wood: 1 } },
+							{ coord: [1, 0], alveolus: 'storage', goods: {} },
+						],
+					},
+				],
+			}
+
+			engine.loadScenario(scenario)
+			await flushDeferred()
+
+			const sawmill = engine.game.hex.getTile({ q: 0, r: 0 })?.content as any
+			const storage = engine.game.hex.getTile({ q: 1, r: 0 })?.content as any
+			expect(sawmill).toBeDefined()
+			expect(storage).toBeDefined()
+			if (!sawmill || !storage) throw new Error('Expected sawmill/storage to exist')
+
+			const worker = engine.spawnCharacter('SawmillWorker', { q: 0, r: 0 })
+			worker.role = 'worker'
+			worker.hunger = 0
+			worker.fatigue = 0
+			worker.tiredness = 0
+			void worker.scriptsContext
+			const firstAction = worker.findAction()
+			if (firstAction) worker.begin(firstAction)
+
+			const timeline: string[] = []
+			let reachedGoal = false
+			for (let i = 0; i < 80; i++) {
+				engine.tick(0.25)
+				if (i % 4 === 0) await flushDeferred(1)
+				if (!worker.runningScript) {
+					const action = worker.findAction()
+					if (action) worker.begin(action)
+				}
+
+				const movingPlanks = Array.from(sawmill.hive.movingGoods.values())
+					.flat()
+					.filter((movement: any) => movement.goodType === 'planks').length
+				const sawmillSlots = sawmill.storage.renderedGoods()?.slots ?? []
+				const plankSlot = sawmillSlots.find((slot: any) => slot.goodType === 'planks')
+				timeline.push(
+					`tick=${i} sawmillWood=${sawmill.storage.stock.wood || 0} sawmillPlanks=${sawmill.storage.stock.planks || 0} sawmillPlanksPresent=${plankSlot?.present ?? 0} sawmillPlanksReserved=${plankSlot?.reserved ?? 0} storagePlanks=${storage.storage.stock.planks || 0} movingPlanks=${movingPlanks} action=${worker.actionDescription.join('/') || 'none'}`
+				)
+				if ((storage.storage.stock.planks || 0) >= 1) {
+					reachedGoal = true
+					break
+				}
+			}
+
+			expect(reachedGoal, timeline.join('\n')).toBe(true)
+			expect(storage.storage.stock.planks || 0, timeline.join('\n')).toBeGreaterThan(0)
+		} finally {
+			await engine.destroy()
+		}
+	})
+
 	it('conveys planks from a sawmill into build storage without movement warnings', {
 		timeout: 20000,
 	}, async () => {
@@ -91,7 +205,17 @@ describe('Convey bookkeeping resilience', () => {
 			expect(sawmill).toBeDefined()
 			expect(buildStorage).toBeDefined()
 			if (!sawmill || !buildStorage) throw new Error('Expected sawmill/build storage to exist')
-			expect(sawmill.hive.createMovement('planks', sawmill, buildStorage)).toBe(true)
+			const movementAlreadyCreated = Array.from(sawmill.hive.movingGoods.values())
+				.flat()
+				.some(
+					(movement: any) =>
+						movement.goodType === 'planks' &&
+						movement.provider === sawmill &&
+						movement.demander === buildStorage
+				)
+			expect(
+				movementAlreadyCreated || sawmill.hive.createMovement('planks', sawmill, buildStorage)
+			).toBe(true)
 
 			const worker = engine.spawnCharacter('PlankWorker', { q: 0, r: 0 })
 			worker.role = 'worker'

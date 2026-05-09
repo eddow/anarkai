@@ -6,6 +6,7 @@ import { releaseVehicleFreightWorkOnPlanInterrupt } from 'ssh/freight/vehicle-ru
 import { allocateVehicleServiceForJob } from 'ssh/freight/vehicle-work'
 import type { Character } from 'ssh/population/character'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
+import { isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
 import type { Goods, GoodType } from 'ssh/types'
 import type { IdlePlan, Job, PickupPlan, Plan, TransferPlan, WorkPlan } from 'ssh/types/base'
 import { gameObjectsModule } from 'ssh/types/game-objects'
@@ -79,6 +80,15 @@ function finalizeVehicleFreightWorkPlanOccupancy(plan: WorkPlan, character: Char
 		return
 	}
 	if (isPlanOperator) vehicle.releaseOperator(character)
+}
+
+function clearVehicleOffloadPickupPlanMirror(plan: WorkPlan, character: Character): void {
+	if (!('vehicleUid' in plan) || !('offloadPickupPlan' in plan) || !plan.offloadPickupPlan) return
+	const vehicle = character.game.vehicles.vehicle(plan.vehicleUid)
+	const svc = vehicle?.service
+	if (isVehicleMaintenanceService(svc) && svc.kind === 'loadFromBurden') {
+		if (svc.offloadPickupPlan === plan.offloadPickupPlan) delete svc.offloadPickupPlan
+	}
 }
 
 function getContentFromPosition(hex: HexBoard, position: Positioned) {
@@ -333,6 +343,11 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 					pickupTile
 				)
 				assert(pickupPlan.type === 'pickup', 'vehicleOffload engagement must bind to a pickup plan')
+				const vehicle = character.game.vehicles.vehicle(plan.vehicleUid)
+				const svc = vehicle?.service
+				if (isVehicleMaintenanceService(svc) && svc.kind === 'loadFromBurden') {
+					svc.offloadPickupPlan = pickupPlan
+				}
 				plan.offloadPickupPlan = pickupPlan
 			}
 		}
@@ -372,6 +387,7 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 			if (plan.offloadPickupPlan.commitment) {
 				plan.offloadPickupPlan.commitment.cancel('work-plan-cancelled')
 			}
+			clearVehicleOffloadPickupPlanMirror(plan, character)
 		}
 		if ('vehicleUid' in plan) {
 			releaseVehicleFreightWorkOnPlanInterrupt(character)
@@ -382,6 +398,7 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 	finally(plan: WorkPlan, character: Character) {
 		if ('offloadPickupPlan' in plan && plan.offloadPickupPlan) {
 			// Commitment.onFinal already runs during fulfill/cancel; just remove the plan reference
+			clearVehicleOffloadPickupPlanMirror(plan, character)
 			delete plan.offloadPickupPlan
 		}
 		finalizeVehicleFreightWorkPlanOccupancy(plan, character)

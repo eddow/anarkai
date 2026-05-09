@@ -280,6 +280,72 @@ describe('CharacterProperties', () => {
 		expect(container.textContent).not.toContain('Tile 4, 4')
 	})
 
+	it('uses the live work planner snapshot when it differs from the cached snapshot', () => {
+		const character = {
+			title: 'Live',
+			name: 'Live',
+			triggerLevels: {
+				hunger: { satisfied: 20, high: 60, critical: 100 },
+				tiredness: { satisfied: 20, high: 60, critical: 100 },
+				fatigue: { satisfied: 20, high: 60, critical: 100 },
+			},
+			hunger: 0,
+			tiredness: 0,
+			fatigue: 0,
+			keepWorking: true,
+			stepExecutor: undefined,
+			carry: { stock: {} },
+			actionDescription: [],
+			lastPlannerSnapshot: undefined,
+			lastWorkPlannerSnapshot: {
+				ranked: [
+					{
+						jobKind: 'harvest',
+						targetLabel: 'tree @ 9, 9',
+						targetCoord: { q: 9, r: 9 },
+						urgency: 1,
+						pathLength: 1,
+						score: 0.5,
+						selected: false,
+					},
+				],
+			},
+			workPlannerSnapshot: {
+				ranked: [
+					{
+						jobKind: 'convey',
+						targetLabel: 'vehicle dock @ 1, 0',
+						targetCoord: { q: 1, r: 0 },
+						urgency: 3,
+						pathLength: 0,
+						score: 3,
+						selected: true,
+					},
+				],
+			},
+			game: {
+				hex: {
+					getTile: ({ q, r }: { q: number; r: number }) => ({
+						uid: `tile:${q},${r}`,
+						title: `Tile ${q}, ${r}`,
+					}),
+				},
+			},
+		}
+
+		stop = latch(container, <CharacterProperties character={character as never} />, {
+			setTitle: vi.fn(),
+		} as never)
+
+		const workRows = Array.from(
+			container.querySelectorAll('[data-testid="character-ranked-work"]')
+		) as HTMLDivElement[]
+		expect(workRows).toHaveLength(1)
+		expect(workRows[0]?.textContent).toContain('Convey')
+		expect(workRows[0]?.getAttribute('data-selected')).toBe('true')
+		expect(container.textContent).not.toContain('Harvest')
+	})
+
 	it('renders the full action path on one line (scrollable when wide)', () => {
 		const character = {
 			title: 'Milo',
@@ -316,10 +382,20 @@ describe('CharacterProperties', () => {
 		expect(actionPath?.textContent).toBe('work.goWork / walk.until / inventory.drop / walk.until')
 	})
 
-	it('uses the last work snapshot without forcing a live planner query', () => {
-		const liveWorkSnapshotGetter = vi.fn(() => {
-			throw new Error('live work planner should not be read by the properties panel')
-		})
+	it('uses the live work planner snapshot before the cached snapshot', () => {
+		const liveWorkSnapshotGetter = vi.fn(() => ({
+			ranked: [
+				{
+					jobKind: 'convey',
+					targetLabel: 'vehicle dock @ 1, 0',
+					targetCoord: { q: 1, r: 0 },
+					urgency: 3,
+					pathLength: 0,
+					score: 3,
+					selected: true,
+				},
+			],
+		}))
 		const character = {
 			title: 'Nia',
 			name: 'Nia',
@@ -336,13 +412,13 @@ describe('CharacterProperties', () => {
 			lastWorkPlannerSnapshot: {
 				ranked: [
 					{
-						jobKind: 'convey',
-						targetLabel: 'sawmill @ 1, 0',
-						targetCoord: { q: 1, r: 0 },
-						urgency: 3,
+						jobKind: 'harvest',
+						targetLabel: 'tree @ 9, 9',
+						targetCoord: { q: 9, r: 9 },
+						urgency: 1,
 						pathLength: 1,
-						score: 1.5,
-						selected: true,
+						score: 0.5,
+						selected: false,
 					},
 				],
 			},
@@ -360,8 +436,11 @@ describe('CharacterProperties', () => {
 			setTitle: vi.fn(),
 		} as never)
 
-		expect(container.querySelectorAll('[data-testid="character-ranked-work"]')).toHaveLength(1)
-		expect(liveWorkSnapshotGetter).not.toHaveBeenCalled()
+		const workRows = container.querySelectorAll('[data-testid="character-ranked-work"]')
+		expect(workRows).toHaveLength(1)
+		expect(workRows[0]?.textContent).toContain('Convey')
+		expect(workRows[0]?.textContent).not.toContain('Harvest')
+		expect(liveWorkSnapshotGetter).toHaveBeenCalled()
 	})
 
 	it('renders operates row linking to the operated vehicle', () => {

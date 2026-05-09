@@ -3,6 +3,7 @@ import { inert, reactive, unwrap } from 'mutts'
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import type { Tile } from 'ssh/board/tile'
+import { profile } from 'ssh/dev/debug'
 import { debugObjectId, debugRawObjectId } from 'ssh/dev/debug-object-id'
 import { assertVehicleOperationConsistency } from 'ssh/freight/vehicle-invariants'
 import { releaseVehicleFreightWorkOnPlanInterrupt } from 'ssh/freight/vehicle-run'
@@ -505,7 +506,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			const assignedWorker = proposedJob.source.alveolus.assignedWorker
 				? unwrap(proposedJob.source.alveolus.assignedWorker)
 				: undefined
-			if (assignedWorker && assignedWorker.uid !== this.uid) {
+			if (proposedJob.job !== 'convey' && assignedWorker && assignedWorker.uid !== this.uid) {
 				return {
 					available: false,
 					proposedJob,
@@ -567,20 +568,29 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	}
 
 	private proposedWorkJobs(): ProposedJob[] {
-		const out: ProposedJob[] = []
-		if (this.assignedAlveolus) {
-			const assignedJob = this.assignedAlveolus.getJob(this)
-			if (assignedJob) out.push(asAlveolusProposedJob(assignedJob, this.assignedAlveolus))
-			else out.push(...this.assignedAlveolus.proposedJobs)
+		const end = profile.proposedJobs.begin?.('character-planner.work', () => ({
+			characterUid: this.uid,
+			driving: this.driving,
+			operatesUid: this.operates?.uid,
+		}))
+		try {
+			const out: ProposedJob[] = []
+			if (this.assignedAlveolus) {
+				const assignedJob = this.assignedAlveolus.getJob(this)
+				if (assignedJob) out.push(asAlveolusProposedJob(assignedJob, this.assignedAlveolus))
+				else out.push(...this.assignedAlveolus.proposedJobs)
+			}
+			for (const tile of this.game.hex.tilesAround(this.position, maxWalkTime)) {
+				out.push(...tile.proposedJobs)
+			}
+			for (const pick of collectVehicleWorkPicks(this.game, this)) {
+				const vehicle = this.game.vehicles.vehicle(pick.job.vehicleUid)
+				if (vehicle) out.push(asVehicleProposedJob(pick.job, vehicle, pick.targetTile))
+			}
+			return out
+		} finally {
+			end?.()
 		}
-		for (const tile of this.game.hex.tilesAround(this.position, maxWalkTime)) {
-			out.push(...tile.proposedJobs)
-		}
-		for (const pick of collectVehicleWorkPicks(this.game, this)) {
-			const vehicle = this.game.vehicles.vehicle(pick.job.vehicleUid)
-			if (vehicle) out.push(asVehicleProposedJob(pick.job, vehicle, pick.targetTile))
-		}
-		return out
 	}
 
 	@inert

@@ -9,7 +9,15 @@ export interface JobProvider {
 	readonly proposedJobs: readonly ProposedJob[]
 }
 
-export type VehiclePlannerJob = VehicleHopJob | ZoneBrowseJob | VehicleOffloadJob
+export type VehicleDockConveyJob = Extract<Job, { job: 'convey' }> & {
+	readonly vehicleUid: string
+}
+
+export type VehiclePlannerJob =
+	| VehicleDockConveyJob
+	| VehicleHopJob
+	| ZoneBrowseJob
+	| VehicleOffloadJob
 
 export type AlveolusProposedJob = Job & {
 	readonly source: { readonly kind: 'alveolus'; readonly alveolus: Alveolus }
@@ -82,6 +90,8 @@ export function proposedJobScore(job: Job, pathLength: number): number {
 
 export function proposedVehicleJobIdentityKey(job: VehiclePlannerJob): string {
 	switch (job.job) {
+		case 'convey':
+			return job.job
 		case 'vehicleOffload': {
 			const good = job.maintenanceKind === 'loadFromBurden' ? `:${job.looseGood.goodType}` : ''
 			return [job.job, job.vehicleUid, job.maintenanceKind, axial.key(job.targetCoord), good].join(

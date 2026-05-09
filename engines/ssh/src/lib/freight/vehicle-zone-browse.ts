@@ -3,6 +3,7 @@ import { Alveolus } from 'ssh/board/content/alveolus'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
 import { isStandaloneBuildSiteShell } from 'ssh/build-site'
+import { profile } from 'ssh/dev/debug'
 import { CONSTRUCTION_DEMAND_AD_SOURCE } from 'ssh/freight/construction-demand'
 import {
 	distributeSegmentAllowsGoodTypeForSegment,
@@ -253,19 +254,29 @@ export function pickVehicleZoneBrowseSelection(
 	stop: FreightStop,
 	startPos: Positioned = character.position
 ): VehicleZoneBrowseSelection | undefined {
-	if (!('zone' in stop) || stop.zone.kind !== 'radius') return undefined
-	const zoneStop = stop as FreightStop & { zone: FreightZoneDefinitionRadius }
-	const utility = zoneBrowseUtilityContext(game, vehicle, line, stop)
-	if (!utility) return undefined
-	const load = pickZoneLoadSelection(game, character, vehicle, line, zoneStop, startPos, utility)
-	const provide = pickZoneProvideSelection(
-		game,
-		character,
-		vehicle,
-		line,
-		zoneStop,
-		startPos,
-		utility
-	)
-	return !load ? provide : !provide ? load : provide.score >= load.score ? provide : load
+	const end = profile.proposedJobs.begin?.('pickVehicleZoneBrowseSelection', () => ({
+		characterUid: character.uid,
+		vehicleUid: vehicle.uid,
+		lineId: line.id,
+		stopId: stop.id,
+	}))
+	try {
+		if (!('zone' in stop) || stop.zone.kind !== 'radius') return undefined
+		const zoneStop = stop as FreightStop & { zone: FreightZoneDefinitionRadius }
+		const utility = zoneBrowseUtilityContext(game, vehicle, line, stop)
+		if (!utility) return undefined
+		const load = pickZoneLoadSelection(game, character, vehicle, line, zoneStop, startPos, utility)
+		const provide = pickZoneProvideSelection(
+			game,
+			character,
+			vehicle,
+			line,
+			zoneStop,
+			startPos,
+			utility
+		)
+		return !load ? provide : !provide ? load : provide.score >= load.score ? provide : load
+	} finally {
+		end?.()
+	}
 }

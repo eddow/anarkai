@@ -341,32 +341,27 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			}
 			for (const mg of arr) {
 				if (mg.claimed) continue
-				if (
-					hive.queueBrokenMovementDiscard(mg, {
-						expectedFrom: from,
-						warnLabel: '[aGoodMovement] Invalid border movement',
-					}) &&
-					mg.path.length
-				) {
-					if (canHandleFromHere(from, mg.path[0]!)) {
-						const selection = selectMovement(mg, mg.from ?? from)
-						if (canAdvance(mg)) {
-							return [selection]
-						} else {
-							traces.convey.log?.(
-								`[aGoodMovement] blocked ${mg.goodType} ref#${movementRefId(mg.ref)} from=${axial.key(from)} next=${mg.path[0] ? axial.key(mg.path[0]) : 'none'}`,
-								{
-									alveolus: this.name,
-									at: axial.key(here),
-									goodType: mg.goodType,
-									movementRef: movementRefId(mg.ref),
-									from: axial.key(from),
-									next: mg.path[0] ? axial.key(mg.path[0]) : undefined,
-									pathLength: mg.path.length,
-								}
-							)
-							blocked.push(selection)
-						}
+				if (!hive.isSelectableMovement(mg, from, '[aGoodMovement] Invalid border movement')) {
+					continue
+				}
+				if (mg.path.length && canHandleFromHere(from, mg.path[0]!)) {
+					const selection = selectMovement(mg, mg.from ?? from)
+					if (canAdvance(mg)) {
+						return [selection]
+					} else {
+						traces.convey.log?.(
+							`[aGoodMovement] blocked ${mg.goodType} ref#${movementRefId(mg.ref)} from=${axial.key(from)} next=${mg.path[0] ? axial.key(mg.path[0]) : 'none'}`,
+							{
+								alveolus: this.name,
+								at: axial.key(here),
+								goodType: mg.goodType,
+								movementRef: movementRefId(mg.ref),
+								from: axial.key(from),
+								next: mg.path[0] ? axial.key(mg.path[0]) : undefined,
+								pathLength: mg.path.length,
+							}
+						)
+						blocked.push(selection)
 					}
 				}
 			}
@@ -377,12 +372,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		if (atHere) {
 			for (const mg of atHere) {
 				if (mg.claimed) continue
-				if (
-					!hive.queueBrokenMovementDiscard(mg, {
-						expectedFrom: here,
-						warnLabel: '[aGoodMovement] Invalid tile movement',
-					})
-				) {
+				if (!hive.isSelectableMovement(mg, here, '[aGoodMovement] Invalid tile movement')) {
 					continue
 				}
 				if (mg.path.length === 0) continue

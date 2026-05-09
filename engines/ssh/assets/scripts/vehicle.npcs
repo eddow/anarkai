@@ -114,6 +114,7 @@ function vehicleOffload(jobPlan)
 		return
 	end if
 	vehicle.ensureVehicleOffloadPickupPlan jobPlan
+	if jobPlan.vehicleApproachAborted then return
 	targetPath = find.path(jobPlan.targetCoord, true)
 	if not targetPath then error "No path to vehicleOffload pickup tile"
 	if targetPath.length > 0 then walk.until targetPath

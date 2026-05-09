@@ -36,6 +36,9 @@ function isAllBucketsEmpty<T>(buckets: T[][]): boolean {
 	return buckets.every((b) => b.length === 0)
 }
 
+const priorityFromIndex = (index: number): ExchangePriority =>
+	(['0-store', '1-buffer', '2-use'] as const)[index as 0 | 1 | 2] ?? '0-store'
+
 let movementIds = 0
 
 export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
@@ -123,7 +126,7 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 							bucket,
 							goodType,
 							ad.priority,
-							`${oppositePriority}` as ExchangePriority,
+							priorityFromIndex(oppositePriority),
 							(movedAdvertiser) => {
 								const idx = bucket.indexOf(movedAdvertiser)
 								if (idx !== -1) {
@@ -187,19 +190,13 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 					const sourceIsOwnDock =
 						(advertiser as { kind?: unknown; bay?: unknown }).kind === 'vehicle-freight-dock' &&
 						(advertiser as { bay?: unknown }).bay === s
-					if (
-						candidateIsGeneralStorage &&
-						!sourceIsOwnDock &&
-						'goodsRelations' in s &&
-						(s.goodsRelations as GoodsRelations | undefined)?.[goodType as GoodType]
-							?.advertisement !== 'demand'
-					) {
-						return false
-					}
 					if (typeof s.canTake !== 'function') return false
 					return (
-						s.canTakeFrom?.(advertiser, goodType as GoodType, ad.priority) ??
-						s.canTake(goodType as GoodType, ad.priority)
+						s.canTakeFrom?.(
+							advertiser,
+							goodType as GoodType,
+							sourceIsOwnDock ? ad.priority : '0-store'
+						) ?? s.canTake(goodType as GoodType, sourceIsOwnDock ? ad.priority : '0-store')
 					)
 				}
 				return typeof s.canGive === 'function' && s.canGive(goodType as GoodType, ad.priority)
@@ -215,7 +212,7 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 						availableGeneralStorages,
 						goodType,
 						ad.priority,
-						ad.priority
+						ad.advertisement === 'provide' ? '0-store' : ad.priority
 					)
 				} catch (e) {
 					traces.advertising.log?.(
@@ -266,6 +263,42 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 			traces.advertising.log?.(
 				`[ADVERTISE] NEW BUCKET: ${goodType} ${ad.advertisement} priority ${ad.priority}`
 			)
+		}
+
+		const advertiserIsGeneralStorage = this.generalStorages.includes(
+			advertiser as unknown as TAdvertiser
+		)
+		if (advertiserIsGeneralStorage) {
+			for (const [goodType, existing] of Object.entries(this.advertisements)) {
+				if (!assertGoodType(goodType)) continue
+				if (existing.advertisement !== 'provide') continue
+				for (const providerPriority of [2, 1] as const) {
+					const bucket = existing.advertisers[providerPriority]
+					if (!bucket?.length) continue
+					const providers = bucket.filter(
+						(provider) => !this.generalStorages.includes(provider as unknown as TAdvertiser)
+					)
+					for (const provider of providers) {
+						if (
+							!(
+								advertiser.canTakeFrom?.(provider, goodType, '0-store') ??
+								advertiser.canTake(goodType, '0-store')
+							)
+						) {
+							continue
+						}
+						const movementTarget = this.selectMovement(
+							'provide',
+							provider,
+							[advertiser],
+							goodType,
+							priorityFromIndex(providerPriority),
+							'0-store'
+						)
+						if (movementTarget) break
+					}
+				}
+			}
 		}
 
 		traces.advertising.log?.(`[ADVERTISE] END: ${advertiser}`)

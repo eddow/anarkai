@@ -43,6 +43,12 @@ export function rebindConveyMovementRows<T extends { movement: TrackedMovement }
 		const live = hive.getCanonicalMovement(row.movement)
 		if (!live) return false
 		if (live !== row.movement) {
+			if (row.movement.claimed && !live.claimed) {
+				live.claimed = true
+				live.claimedBy = row.movement.claimedBy
+				live.claimedAtMs = row.movement.claimedAtMs
+				live._state = row.movement._state
+			}
 			hive.noteMovementLifecycle(live, 'convey.rebind-to-canonical')
 			row.movement = live
 		}

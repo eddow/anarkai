@@ -227,6 +227,7 @@ export class MoveToStep extends ALerpStep<Positioned> {
 }
 
 export class MultiMoveStep extends AEvolutionStep {
+	private firstTickDeferred = false
 	get description(): string | false {
 		return this.givenDescription ?? super.description
 	}
@@ -239,13 +240,21 @@ export class MultiMoveStep extends AEvolutionStep {
 		}>,
 		readonly type: Ssh.ActivityType = 'work',
 		readonly givenDescription?: string,
-		private readonly beforeEvolve?: () => void
+		private readonly beforeEvolve?: () => void,
+		private readonly deferFirstTick = false
 	) {
 		super(duration, givenDescription ?? 'multi-move')
 		// Capture the starting positions at construction time
 		for (const movement of this.movements) {
 			movement.from ??= { ...movement.who.position }
 		}
+	}
+	override tick(dt: number): number | undefined {
+		if (this.deferFirstTick && !this.firstTickDeferred && this.evolution === 0) {
+			this.firstTickDeferred = true
+			return undefined
+		}
+		return super.tick(dt)
 	}
 	evolve(evolution: number): void {
 		this.beforeEvolve?.()

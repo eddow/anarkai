@@ -5,8 +5,9 @@ import { vehicles as vehicleVisuals } from 'engine-pixi/assets/visual-content'
 import { vehicleTextureKey } from 'engine-pixi/renderers/vehicle-visual'
 import { effect, reactive } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
+import { profile } from 'ssh/dev/debug'
 import { createSyntheticFreightLineObject } from 'ssh/freight/freight-line'
-import type { VehicleProposedJob } from 'ssh/jobs/offers'
+import type { ProposedJob } from 'ssh/jobs/offers'
 import type { Character } from 'ssh/population/character'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import {
@@ -167,10 +168,12 @@ function effectiveOperatorForVehicle(vehicle: VehicleEntity | undefined): Charac
 	return undefined
 }
 
-function describeVehicleWorkTarget(job: VehicleProposedJob): string {
+function describeVehicleWorkTarget(job: ProposedJob): string {
 	const targetCoord = toAxialCoord(job.targetTile.position)
 	const targetLabel = job.targetTile.title ?? (targetCoord ? axial.key(targetCoord) : '')
 	switch (job.job) {
+		case 'convey':
+			return `convey @ ${targetLabel}`
 		case 'vehicleOffload': {
 			const detail =
 				job.maintenanceKind === 'loadFromBurden' ? job.looseGood.goodType : job.maintenanceKind
@@ -180,28 +183,42 @@ function describeVehicleWorkTarget(job: VehicleProposedJob): string {
 			return `vehicleHop ${job.lineId}/${job.stopId} @ ${targetLabel}`
 		case 'zoneBrowse':
 			return `zoneBrowse ${job.zoneBrowseAction}:${job.goodType} @ ${job.targetCoord.q},${job.targetCoord.r}`
+		default:
+			return `${job.job} @ ${targetLabel}`
 	}
 }
 
 function vehicleWorkChoices(vehicle: VehicleEntity | undefined): VehicleWorkChoice[] {
-	if (!vehicle) return []
-	const jobs = (vehicle.proposedJobs ?? []) as readonly VehicleProposedJob[]
-	return jobs
-		.map(
-			(job): VehicleWorkChoice => ({
-				jobKind: job.job,
-				targetLabel: describeVehicleWorkTarget(job),
-				targetTile: job.targetTile,
-				urgency: job.urgency,
-				jobLabel: workKindLabel(job.job),
-				metaText: `${T.character.plannerWorkUrgency} ${formatPlannerUtility(job.urgency)}`,
+	const end = profile.proposedJobs.begin?.('vehicle-properties.workChoices', () => ({
+		vehicleUid: vehicle?.uid,
+	}))
+	try {
+		if (!vehicle) return []
+		const advertisedJobs = (
+			vehicle as VehicleEntity & {
+				readonly advertisedJobs?: readonly ProposedJob[]
+			}
+		).advertisedJobs
+		const jobs = (advertisedJobs ?? vehicle.proposedJobs ?? []) as readonly ProposedJob[]
+		return jobs
+			.map(
+				(job): VehicleWorkChoice => ({
+					jobKind: job.job,
+					targetLabel: describeVehicleWorkTarget(job),
+					targetTile: job.targetTile,
+					urgency: job.urgency,
+					jobLabel: workKindLabel(job.job),
+					metaText: `${T.character.plannerWorkUrgency} ${formatPlannerUtility(job.urgency)}`,
+				})
+			)
+			.sort((a, b) => {
+				if (b.urgency !== a.urgency) return b.urgency - a.urgency
+				return a.targetLabel.localeCompare(b.targetLabel)
 			})
-		)
-		.sort((a, b) => {
-			if (b.urgency !== a.urgency) return b.urgency - a.urgency
-			return a.targetLabel.localeCompare(b.targetLabel)
-		})
-		.slice(0, rankedWorkLimit)
+			.slice(0, rankedWorkLimit)
+	} finally {
+		end?.()
+	}
 }
 
 const VehicleProperties = (

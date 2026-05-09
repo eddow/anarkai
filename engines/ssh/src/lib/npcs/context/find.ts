@@ -72,7 +72,6 @@ class FindFunctions {
 	}
 	@contract('string')
 	deposit(deposit: string) {
-		console.error(`[FindFunctions] deposit called searching for: ${deposit}`)
 		const { hex } = this[subject].game
 		const start = toAxialCoord(this[subject].tile.position)
 

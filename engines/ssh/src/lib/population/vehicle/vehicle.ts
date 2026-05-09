@@ -3,7 +3,7 @@ import { GcClassed } from 'ssh/board/content/utils'
 import type { LooseGood } from 'ssh/board/looseGoods'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
 import { SlottedStorage, SpecificStorage, type Storage } from 'ssh/storage'
-import type { GoodType } from 'ssh/types'
+import type { GoodType, PickupPlan } from 'ssh/types'
 import type { AxialCoord } from 'ssh/utils'
 import type { Character } from '../character'
 
@@ -36,6 +36,7 @@ export type VehicleMaintenanceService =
 			kind: 'loadFromBurden'
 			operator?: Character
 			looseGood: LooseGood
+			offloadPickupPlan?: PickupPlan
 			targetCoord: AxialCoord
 	  }
 	| {

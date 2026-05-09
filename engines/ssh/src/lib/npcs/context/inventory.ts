@@ -48,13 +48,18 @@ function planSpecificLoosePickup(
 	commitment.trace('pickup.plan.created', tracePayload)
 	traces.commitments?.log?.('pickup.plan.allocate.start', { commitment, ...tracePayload })
 
-	const allocResult = transport.allocate({ [looseGood.goodType]: 1 }, commitment)
-	if (allocResult !== undefined) throw new Error(allocResult)
-	commitment.trace('pickup.plan.transportAllocated')
+	try {
+		const allocResult = transport.allocate({ [looseGood.goodType]: 1 }, commitment)
+		if (allocResult !== undefined) throw new Error(allocResult)
+		commitment.trace('pickup.plan.transportAllocated')
 
-	const looseResult = looseGood.allocate(commitment)
-	if (looseResult !== undefined) throw new Error(looseResult)
-	commitment.trace('pickup.plan.looseAllocated')
+		const looseResult = looseGood.allocate(commitment)
+		if (looseResult !== undefined) throw new Error(looseResult)
+		commitment.trace('pickup.plan.looseAllocated')
+	} catch (error) {
+		commitment.cancel('pickup-plan-allocation-failed')
+		throw error
+	}
 
 	return {
 		type: 'pickup' as const,

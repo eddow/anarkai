@@ -1,3 +1,4 @@
+import { Commitment } from 'ssh/commitment'
 import { registerContract } from 'ssh/types'
 import { toAxialCoord } from 'ssh/utils/position'
 import { describe, expect, it } from 'vitest'
@@ -5,6 +6,118 @@ import { TestEngine } from '../test-engine'
 import { bindOperatedWheelbarrowOffload } from '../test-engine/vehicle-bind'
 
 describe('Offload Silent Cancellation Reproduction', () => {
+	it('reuses the service pickup binding across vehicleOffload plan objects', async () => {
+		const engine = new TestEngine({ terrainSeed: 1235, characterCount: 0 })
+		await engine.init()
+		const { game } = engine
+
+		try {
+			const char = engine.spawnCharacter('Worker', { q: 3, r: 2 })
+			await game.requestGameplayFrontier({ q: 3, r: 2 }, 0, { maxBatchSize: 1 })
+			const targetTile = game.hex.getTile({ q: 3, r: 2 })
+			if (!targetTile) throw new Error('Target tile not found')
+			const looseGood = game.hex.looseGoods.add(targetTile, 'wood', {
+				position: targetTile.position,
+			})
+			const vehicle = game.vehicles.createVehicle(
+				'wb-offload-reuse-repro',
+				'wheelbarrow',
+				char.position
+			)
+			bindOperatedWheelbarrowOffload(char, vehicle, {
+				kind: 'loadFromBurden',
+				looseGood,
+				targetCoord: toAxialCoord(targetTile.position)!,
+			})
+			char.onboard()
+
+			const context = char.scriptsContext as any
+			const basePlan = {
+				type: 'work',
+				job: 'vehicleOffload' as const,
+				target: vehicle,
+				vehicleUid: vehicle.uid,
+				targetCoord: toAxialCoord(targetTile.position)!,
+				maintenanceKind: 'loadFromBurden' as const,
+				urgency: 1,
+				fatigue: 0,
+				looseGood,
+				invariant: () => true,
+			}
+			const firstPlan = { ...basePlan }
+			const secondPlan = { ...basePlan }
+
+			context.vehicle.ensureVehicleOffloadPickupPlan(firstPlan)
+			expect(firstPlan.offloadPickupPlan).toBeDefined()
+			expect(vehicle.service?.kind).toBe('loadFromBurden')
+			if (vehicle.service?.kind !== 'loadFromBurden') throw new Error('Expected loadFromBurden')
+			expect(vehicle.service.offloadPickupPlan?.commitment).toBe(
+				firstPlan.offloadPickupPlan?.commitment
+			)
+			expect(looseGood.available).toBe(false)
+
+			expect(() => context.vehicle.ensureVehicleOffloadPickupPlan(secondPlan)).not.toThrow()
+			expect(secondPlan.offloadPickupPlan?.commitment).toBe(firstPlan.offloadPickupPlan?.commitment)
+			expect(vehicle.storage.allocated('wood')).toBe(1)
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('abandons stale pickup binding when selected loose good is already allocated', async () => {
+		const engine = new TestEngine({ terrainSeed: 1235, characterCount: 0 })
+		await engine.init()
+		const { game } = engine
+
+		try {
+			const char = engine.spawnCharacter('Worker', { q: 3, r: 2 })
+			await game.requestGameplayFrontier({ q: 3, r: 2 }, 0, { maxBatchSize: 1 })
+			const targetTile = game.hex.getTile({ q: 3, r: 2 })
+			if (!targetTile) throw new Error('Target tile not found')
+			const looseGood = game.hex.looseGoods.add(targetTile, 'wood', {
+				position: targetTile.position,
+			})
+			const competing = new Commitment('test.competing-pickup')
+			expect(looseGood.allocate(competing)).toBeUndefined()
+
+			const vehicle = game.vehicles.createVehicle(
+				'wb-offload-allocated-repro',
+				'wheelbarrow',
+				char.position
+			)
+			bindOperatedWheelbarrowOffload(char, vehicle, {
+				kind: 'loadFromBurden',
+				looseGood,
+				targetCoord: toAxialCoord(targetTile.position)!,
+			})
+			char.onboard()
+
+			const context = char.scriptsContext as any
+			const plan = {
+				type: 'work',
+				job: 'vehicleOffload' as const,
+				target: vehicle,
+				vehicleUid: vehicle.uid,
+				targetCoord: toAxialCoord(targetTile.position)!,
+				maintenanceKind: 'loadFromBurden' as const,
+				urgency: 1,
+				fatigue: 0,
+				looseGood,
+				invariant: () => true,
+			}
+
+			const allocatedBefore = vehicle.storage.allocated('wood')
+			expect(() => context.vehicle.ensureVehicleOffloadPickupPlan(plan)).not.toThrow()
+			expect(vehicle.storage.allocated('wood')).toBe(allocatedBefore)
+			expect(plan.offloadPickupPlan).toBeUndefined()
+			expect(plan.vehicleApproachAborted).toBe(true)
+			expect(vehicle.service).toBeUndefined()
+			competing.cancel('test-cleanup')
+		} finally {
+			await engine.destroy()
+		}
+	})
+
 	it('Reproduction: Offload work cancels silently', async () => {
 		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
 		await engine.init()

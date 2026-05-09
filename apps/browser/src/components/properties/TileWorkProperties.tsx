@@ -3,6 +3,7 @@ import { T } from '@app/lib/i18n'
 import { InspectorSection } from '@app/ui/anarkai'
 import { effect, reactive } from 'mutts'
 import { Tile } from 'ssh/board/tile'
+import { profile } from 'ssh/dev/debug'
 import {
 	collectTileWorkPicks,
 	type TileWorkPick,
@@ -111,22 +112,29 @@ function describeWorkDetail(choice: TileWorkPick): string {
 }
 
 function tileWorkChoices(tile: Tile | undefined) {
-	const game = tile?.game
-	if (!game || !(tile instanceof Tile)) return []
-	return collectTileWorkPicks(game, tile, tileRankedWorkPicksLimitDefault).map((choice) => ({
-		...choice,
-		jobLabel: workKindLabel(choice.job.job),
-		scoreText: formatPlannerUtility(choice.score),
-		detailText: describeWorkDetail(choice),
-		metaText: [
-			choice.character.title ?? choice.character.name,
-			choice.vehicle?.title,
-			`${T.character.plannerWorkUrgency} ${formatPlannerUtility(choice.urgency)}`,
-			`${T.character.plannerWorkPath} ${choice.pathLength}`,
-		]
-			.filter((text): text is string => !!text)
-			.join(' · '),
+	const end = profile.proposedJobs.begin?.('tile-properties.workChoices', () => ({
+		tileUid: tile?.uid,
 	}))
+	try {
+		const game = tile?.game
+		if (!game || !(tile instanceof Tile)) return []
+		return collectTileWorkPicks(game, tile, tileRankedWorkPicksLimitDefault).map((choice) => ({
+			...choice,
+			jobLabel: workKindLabel(choice.job.job),
+			scoreText: formatPlannerUtility(choice.score),
+			detailText: describeWorkDetail(choice),
+			metaText: [
+				choice.character.title ?? choice.character.name,
+				choice.vehicle?.title,
+				`${T.character.plannerWorkUrgency} ${formatPlannerUtility(choice.urgency)}`,
+				`${T.character.plannerWorkPath} ${choice.pathLength}`,
+			]
+				.filter((text): text is string => !!text)
+				.join(' · '),
+		}))
+	} finally {
+		end?.()
+	}
 }
 
 const TileWorkProperties = (props: TileWorkPropertiesProps) => {

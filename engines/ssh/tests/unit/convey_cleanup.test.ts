@@ -50,7 +50,7 @@ describe('Convey cleanup', () => {
 		expect(abort).toHaveBeenCalledTimes(1)
 	})
 
-	it('removes the transient moving good instead of dropping another loose good', () => {
+	it('removes the transient moving good and drops a loose good when source was fulfilled', () => {
 		const addLooseGood = vi.fn()
 		const remove = vi.fn()
 		const sourceCancel = vi.fn()
@@ -97,7 +97,7 @@ describe('Convey cleanup', () => {
 		expect(hive.cancelMovementSource).toHaveBeenCalledTimes(1)
 		expect(targetCancel).toHaveBeenCalledTimes(1)
 		expect(remove).toHaveBeenCalledTimes(1)
-		expect(addLooseGood).not.toHaveBeenCalled()
+		expect(addLooseGood).toHaveBeenCalledWith({ q: 0, r: 0 }, 'wood')
 		expect(abort).toHaveBeenCalledTimes(1)
 	})
 })

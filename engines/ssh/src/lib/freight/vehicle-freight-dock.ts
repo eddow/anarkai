@@ -11,7 +11,7 @@ import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
 import type { GoodType } from 'ssh/types/base'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
-import { assert } from '../dev/debug.ts'
+import { assert, traces } from '../dev/debug.ts'
 
 /** Hive convey party for a docked line vehicle sharing a road-fret bay tile. */
 export class VehicleFreightDock {
@@ -89,6 +89,13 @@ export interface DockedVehicleAdvertisementCandidate {
 	readonly score: number
 }
 
+function dockedVehicleSurplusHasDestination(bay: StorageAlveolus, goodType: GoodType): boolean {
+	if ((bay.storage.hasRoom(goodType) ?? 0) > 0) return true
+	return bay.hive.generalStorages.some(
+		(storage) => storage !== bay && storage.canTake(goodType, '0-store')
+	)
+}
+
 /**
  * Scored dock transfer candidates for a docked wheelbarrow at a road-fret bay.
  *
@@ -101,14 +108,45 @@ export function collectDockedVehicleAdvertisementCandidates(
 	bay: StorageAlveolus
 ): DockedVehicleAdvertisementCandidate[] {
 	const svc = vehicle.service
-	if (!isVehicleLineService(svc) || vehicle.vehicleType !== 'wheelbarrow') return []
-	if (!vehicle.isDocked) return []
-	if (bay.action?.type !== 'road-fret') return []
+	if (!isVehicleLineService(svc) || vehicle.vehicleType !== 'wheelbarrow') {
+		traces.vehicle.log?.('[dock.candidates] skipped: not line wheelbarrow', {
+			vehicleUid: vehicle.uid,
+			vehicleType: vehicle.vehicleType,
+			serviceKind: svc ? 'maintenance' : undefined,
+		})
+		return []
+	}
+	if (!vehicle.isDocked) {
+		traces.vehicle.log?.('[dock.candidates] skipped: not docked', { vehicleUid: vehicle.uid })
+		return []
+	}
+	if (bay.action?.type !== 'road-fret') {
+		traces.vehicle.log?.('[dock.candidates] skipped: bay is not road-fret', {
+			vehicleUid: vehicle.uid,
+			bay: bay.name,
+			actionType: bay.action?.type,
+		})
+		return []
+	}
 
 	const { line, stop } = svc
 	const stopIdx = line.stops.findIndex((s) => s.id === stop.id)
-	if (stopIdx < 0) return []
-	if (!('anchor' in stop)) return []
+	if (stopIdx < 0) {
+		traces.vehicle.warn?.('[dock.candidates] skipped: stop not in line', {
+			vehicleUid: vehicle.uid,
+			lineId: line.id,
+			stopId: stop.id,
+		})
+		return []
+	}
+	if (!('anchor' in stop)) {
+		traces.vehicle.log?.('[dock.candidates] skipped: current stop is not an anchor', {
+			vehicleUid: vehicle.uid,
+			lineId: line.id,
+			stopId: stop.id,
+		})
+		return []
+	}
 
 	const candidates: DockedVehicleAdvertisementCandidate[] = []
 	const further = computeLineFurtherGoods({
@@ -124,7 +162,19 @@ export function collectDockedVehicleAdvertisementCandidates(
 	for (const goodType of Object.keys(projected.surplusLoadedGoods.perGood) as GoodType[]) {
 		const quantity = vehicle.storage.available(goodType)
 		if (quantity <= 0) continue
-		if ((bay.storage.hasRoom(goodType) ?? 0) <= 0) continue
+		if (!dockedVehicleSurplusHasDestination(bay, goodType)) {
+			traces.vehicle.warn?.('[dock.candidates] surplus has no destination', {
+				vehicleUid: vehicle.uid,
+				bay: bay.name,
+				lineId: line.id,
+				stopId: stop.id,
+				goodType,
+				vehicleStock: vehicle.storage.stock[goodType] ?? 0,
+				vehicleAvailable: quantity,
+				bayRoom: bay.storage.hasRoom(goodType) ?? 0,
+			})
+			continue
+		}
 		candidates.push({
 			goodType,
 			advertisement: 'provide',
@@ -164,6 +214,16 @@ export function collectDockedVehicleAdvertisementCandidates(
 		}
 	}
 
+	traces.vehicle.log?.('[dock.candidates] collected', {
+		vehicleUid: vehicle.uid,
+		bay: bay.name,
+		lineId: line.id,
+		stopId: stop.id,
+		stock: { ...vehicle.storage.stock },
+		projectedSurplus: projected.surplusLoadedGoods.perGood,
+		projectedRemainingNeed: projected.remainingNeededGoods.perGood,
+		candidates,
+	})
 	return candidates
 }
 

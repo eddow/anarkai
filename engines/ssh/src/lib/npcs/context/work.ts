@@ -1,5 +1,6 @@
 import { waitForIncomingGoodsPollSeconds } from 'engine-rules'
 import { atomic } from 'mutts'
+import { isTileCoord } from 'ssh/board/board'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
@@ -79,6 +80,7 @@ interface MovementData {
 	hop: AxialCoord
 	from: AxialCoord
 	moving: LooseGood
+	sourceFulfilled?: boolean
 }
 
 function waitStep() {
@@ -116,9 +118,13 @@ class WorkFunctions {
 		)
 	}
 
-	@contract()
-	myNextJob() {
-		const alveolus = this[subject].assignedAlveolus
+	@contract('WorkPlan?')
+	myNextJob(workPlan?: WorkPlan) {
+		const target = workPlan?.target
+		const alveolus =
+			target && 'getJob' in target && typeof target.getJob === 'function'
+				? target
+				: this[subject].assignedAlveolus
 		assert(alveolus, 'assignedAlveolus must be set')
 		assert(
 			'getJob' in alveolus && typeof alveolus.getJob === 'function',
@@ -126,6 +132,13 @@ class WorkFunctions {
 		)
 		return alveolus.getJob(this[subject])
 	}
+
+	@contract('string?')
+	isOnDeposit(depositName?: string) {
+		const content = this[subject].tile.content
+		return content instanceof UnBuiltLand && content.deposit?.name === depositName
+	}
+
 	@contract()
 	waitForIncomingGoods() {
 		return waitStep()
@@ -180,7 +193,7 @@ class WorkFunctions {
 				`releaseMovementClaim: movement not claimed ref#${movementRefId(movement.ref)}`
 			)
 			assert(
-				movement.claimedBy === character,
+				movement.claimedBy?.uid === character.uid,
 				`releaseMovementClaim: movement claimed by ${movement.claimedBy?.uid ?? 'nobody'} not ${character.uid}`
 			)
 			assert(
@@ -207,10 +220,22 @@ class WorkFunctions {
 				}
 			)
 		}
-		const alveolus = character.assignedAlveolus!
+		const alveolus = character.assignedAlveolus
+		if (!alveolus) {
+			traces.convey.warn?.('[conveyStep] skipped: assignedAlveolus missing', {
+				character: character.uid,
+				tile: toAxialCoord(character.tile.position),
+				actionDescription: character.actionDescription,
+			})
+			return undefined
+		}
+		const onAssignedTile = alveolus === character.tile.content
+		const adjacentToAssignedTile = alveolus.tile.neighborTiles.some(
+			(tile) => tile === character.tile
+		)
 		assert(
-			alveolus === character.tile.content,
-			'Character must be assigned to the alveolus on the same tile'
+			onAssignedTile || adjacentToAssignedTile,
+			'Character must be on or adjacent to the assigned convey alveolus'
 		)
 		// Get movement(s) - either a single movement or a cycle
 		const movements = alveolus.aGoodMovement
@@ -265,6 +290,29 @@ class WorkFunctions {
 			}
 			try {
 				const movementHive = currentHive(movement)
+				const sourceReason = (
+					movement.allocations.source as
+						| (typeof movement.allocations.source & { reason?: { type?: string } })
+						| undefined
+				)?.reason
+				if (!isTileCoord(from)) {
+					const sourceStorage = movementHive.storageAt(from)
+					assert(sourceStorage, 'conveyStep: border source storage must exist')
+					if (
+						sourceReason?.type !== 'convey.path' ||
+						sourceStorage.available(movement.goodType) > 0
+					) {
+						if (
+							!movementHive.bindMovementSourceToTransitStorage(
+								movement,
+								sourceStorage,
+								'conveyStep.before-claim.border-source'
+							)
+						) {
+							throw new ConveyStaleBookkeepingError('Border source rebind failed before claim')
+						}
+					}
+				}
 				movementHive.noteMovementLifecycle(movement, 'conveyStep.start')
 				movementHive.noteMovementStorageCheckpoint(
 					movement,
@@ -290,24 +338,6 @@ class WorkFunctions {
 					'conveyStep.before-source-fulfill.storage',
 					from
 				)
-				const sourceReason = (
-					movement.allocations.source as
-						| (typeof movement.allocations.source & { reason?: { type?: string } })
-						| undefined
-				)?.reason
-				if (sourceReason?.type !== 'hive-transfer') {
-					movementHive.fulfillMovementSource(movement, 'conveyStep.pickup')
-					sourceFulfilled = true
-					traces.convey.log?.(
-						`[conveyStep] source fulfilled ${movement.goodType} ref#${movementRefId(movement.ref)} from=${axial.key(from)}`,
-						{
-							character: character.uid,
-							goodType: movement.goodType,
-							movementRef: movementRefId(movement.ref),
-							from: axial.key(from),
-						}
-					)
-				}
 				movementHive.noteMovementStorageCheckpoint(
 					movement,
 					'conveyStep.after-source-fulfill.storage',
@@ -318,9 +348,8 @@ class WorkFunctions {
 					expectedFrom: from,
 					expectClaimed: true,
 					requireTracked: false,
-					requireSourceValid: false,
+					requireSourceValid: true,
 					requireTargetValid: true,
-					allowClaimedSourceGap: true,
 					allowClaimedTerminalPath: true,
 					allowUntracked: true,
 				})
@@ -353,9 +382,8 @@ class WorkFunctions {
 						expectedFrom: hop,
 						expectClaimed: true,
 						requireTracked: true,
-						requireSourceValid: false,
+						requireSourceValid: true,
 						requireTargetValid: true,
-						allowClaimedSourceGap: true,
 						allowClaimedTerminalPath: true,
 					})
 					traces.convey.log?.(
@@ -372,7 +400,6 @@ class WorkFunctions {
 						!currentHive(movement).ensureMovementInvariant(movement, {
 							expectedFrom: hop,
 							warnLabel: '[conveyStep] Invalid movement after place',
-							allowClaimedSourceGap: true,
 						})
 					) {
 						throw new ConveyStaleBookkeepingError('Movement became invalid after place')
@@ -399,6 +426,7 @@ class WorkFunctions {
 					hop,
 					from,
 					moving,
+					sourceFulfilled,
 				})
 			} catch (error) {
 				cleanupFailedConveyMovement(character, {
@@ -438,11 +466,17 @@ class WorkFunctions {
 		traces.convey.log?.(`[conveyStep] animate ${movementData.length} movement(s)`, {
 			character: character.uid,
 			totalTime,
+			deferFirstTick: true,
 			movements: movementData.map(({ movement, from, hop }) => ({
 				goodType: movement.goodType,
 				movementRef: movementRefId(movement.ref),
 				from: axial.key(from),
 				hop: axial.key(hop),
+				hopDistance: axial.distance(from, hop),
+				hopDuration:
+					character.freightTransferTime *
+					Math.max(1, axial.distance(from, hop)) *
+					movementData.length,
 				remainingPathLength: movement.path.length,
 			})),
 		})
@@ -456,7 +490,7 @@ class WorkFunctions {
 			if (!rebindConveyMovementRows(movementData)) {
 				conveyStepRef.step?.cancel('stale-rebind')
 			}
-		})
+		}, true)
 		conveyStepRef.step = step
 		for (const { movement, hop } of movementData) {
 			if (!movement.path.length) continue
@@ -486,12 +520,42 @@ class WorkFunctions {
 				hop
 			)
 		}
+		const stepHive = currentHive(movementData[0]!.movement)
+		try {
+			stepHive.bindMovementsSourceToHopStep(
+				movementData.map(({ movement }) => movement),
+				step,
+				'conveyStep.pickup-hop-step'
+			)
+			for (const row of movementData) {
+				row.sourceFulfilled = true
+				currentHive(row.movement).noteMovementLifecycle(
+					row.movement,
+					'conveyStep.after-hop-source-bind'
+				)
+				currentHive(row.movement).assertMovementMine(row.movement, {
+					label: 'conveyStep.after-hop-source-bind',
+					expectedFrom: row.hop,
+					expectClaimed: true,
+					requireTracked: !!row.movement.path.length,
+					requireSourceValid: true,
+					requireTargetValid: true,
+					allowClaimedTerminalPath: true,
+					allowUntracked: !row.movement.path.length,
+				})
+			}
+		} catch (error) {
+			for (const row of movementData) cleanupFailedConveyMovement(character, row)
+			throw error
+		}
 		return step
 			.onCancelled(() => {
 				rebindConveyMovementRows(movementData)
 				for (const { movement, moving } of movementData) {
-					if (!moving.isRemoved) moving.remove()
-					if (!currentHive(movement).isMovementAlive(movement)) continue
+					if (moving && !moving.isRemoved) moving.remove()
+					if (!currentHive(movement).isMovementAlive(movement)) {
+						continue
+					}
 					const movementHive = currentHive(movement)
 					movementHive.noteMovementLifecycle(movement, 'conveyStep.canceled')
 					releaseMovementClaim(movement)
@@ -502,7 +566,11 @@ class WorkFunctions {
 				}
 			})
 			.onFulfilled(() => {
+				const hopAllocationFulfilled = new Set<TrackedMovement['ref']>()
 				try {
+					for (const { movement } of movementData) {
+						if (movement.path.length) hopAllocationFulfilled.add(movement.ref)
+					}
 					traces.convey.log?.(`[conveyStep] fulfilled animation`, {
 						character: character.uid,
 						movements: movementData.map(({ movement, hop }) => ({
@@ -515,7 +583,8 @@ class WorkFunctions {
 					if (!rebindConveyMovementRows(movementData)) {
 						throw new ConveyStaleBookkeepingError('Movement became invalid after hop handoff')
 					}
-					for (const { movement, moving, hop } of movementData) {
+					for (const row of movementData) {
+						const { movement, moving, hop } = row
 						const movementHive = currentHive(movement)
 						const nextStorage = movementHive.storageAt(hop)
 
@@ -525,6 +594,11 @@ class WorkFunctions {
 								console.error('Target allocation missing for', movement)
 								throw new ConveyStaleBookkeepingError('Target allocation missing')
 							}
+							// Fulfill source allocation BEFORE releasing claim to prevent border transit
+							// invariant failures during reactive updates. The claim release triggers
+							// aGoodMovement → assertBorderTransitStorageInvariant, which would find stock
+							// at the border from the unfulfilled hive-transfer source allocation.
+							movementHive.fulfillMovementSource(movement, 'conveyStep.finished.pre-release')
 							releaseMovementClaim(movement)
 							movementHive.noteMovementLifecycle(movement, 'conveyStep.finished.terminal')
 							movement.finish()
@@ -544,56 +618,17 @@ class WorkFunctions {
 								'conveyStep.finished.before-hop-rebind',
 								hop
 							)
-							const newSourceCommitment = new Commitment(`convey.path.${movement.goodType}`)
-							;(
-								newSourceCommitment as Commitment & {
-									reason?: {
-										type: string
-										goodType: GoodType
-										movementRef: TrackedMovement['ref']
-										providerRef: TrackedMovement['provider']
-										demanderRef: TrackedMovement['demander']
-										providerName: string
-										demanderName: string
-										movement: TrackedMovement
-									}
-								}
-							).reason = {
-								type: 'convey.path',
-								goodType: movement.goodType,
-								movementRef: movement.ref,
-								providerRef: movement.provider,
-								demanderRef: movement.demander,
-								providerName: movement.provider.name,
-								demanderName: movement.demander.name,
-								movement,
-							}
-							const reserveResult = nextStorage.reserve(
-								{ [movement.goodType]: 1 },
-								newSourceCommitment
-							)
-
-							if (reserveResult !== undefined) {
-								console.error(
-									'[conveyStep.finished] Failed to reserve storage for next hop:',
-									reserveResult
+							if (
+								!movementHive.bindMovementSourceToTransitStorage(
+									movement,
+									nextStorage,
+									'conveyStep.finished.rebind'
 								)
-								throw new ConveyStaleBookkeepingError(
-									`Reserve for next hop failed: ${reserveResult}`
-								)
+							) {
+								throw new ConveyStaleBookkeepingError('Reserve for next hop failed')
 							}
-
-							// Fulfill the old source before rebinding to the new one.
-							// For hive-transfer sources (first hop from provider), the source was
-							// intentionally skipped during pickup and must be resolved here.
-							// For convey.path sources (subsequent hops), the source was already
-							// fulfilled during pickup; fulfill() is idempotent.
-							movementHive.fulfillMovementSource(movement, 'conveyStep.finished.rebind.old-source')
-							movementHive.assignMovementSource(
-								movement,
-								newSourceCommitment,
-								'conveyStep.finished.rebind'
-							)
+							row.sourceFulfilled = true
+							movementHive.assertBorderTransitStorageInvariant('[conveyStep.finished.rebind]')
 							traces.convey.log?.(
 								`[conveyStep] rebound source ${movement.goodType} ref#${movementRefId(movement.ref)} at=${axial.key(hop)} remaining=${movement.path.length}`,
 								{
@@ -634,6 +669,9 @@ class WorkFunctions {
 							currentHive(movement).wakeWanderingWorkersNear(movement.provider, movement.demander)
 						}
 					}
+					for (const { movement } of movementData) {
+						currentHive(movement).assertBorderTransitStorageInvariant('[conveyStep.finished]')
+					}
 				} catch (error) {
 					rebindConveyMovementRows(movementData)
 					for (const { movement } of movementData) {
@@ -643,7 +681,12 @@ class WorkFunctions {
 							error
 						)
 					}
-					for (const movement of movementData) cleanupFailedConveyMovement(character, movement)
+					for (const movement of movementData) {
+						cleanupFailedConveyMovement(character, {
+							...movement,
+							hopAllocationFulfilled: hopAllocationFulfilled.has(movement.movement.ref),
+						})
+					}
 					console.error('[conveyStep] Error in finished callback:', error)
 					throw error
 				}

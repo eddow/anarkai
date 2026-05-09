@@ -3,8 +3,9 @@ import { isTileCoord } from 'ssh/board/tile-coord'
 import { Commitment } from 'ssh/commitment'
 import type { SaveState } from 'ssh/game'
 import { BuildAlveolus } from 'ssh/hive/build'
-import type { Hive, TrackedMovement } from 'ssh/hive/hive'
+import { commitmentValid, type Hive, type TrackedMovement } from 'ssh/hive/hive'
 import type { StorageAlveolus } from 'ssh/hive/storage'
+import { trackAllocation } from 'ssh/storage/guard'
 import { axial } from 'ssh/utils/axial'
 import { toAxialCoord } from 'ssh/utils/position'
 import { describe, expect, it } from 'vitest'
@@ -59,6 +60,270 @@ function handOffFirstHop(hive: Hive, movement: TrackedMovement, label: string) {
 }
 
 describe('Multi-Hop Convey Tests', () => {
+	it('throws when a movement source reservation has no target allocation', {
+		timeout: 15000,
+	}, async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+		try {
+			const scenario: Partial<SaveState> = {
+				hives: [
+					{
+						name: 'MovementPairInvariant',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'storage', goods: { wood: 1 } },
+							{ coord: [1, 0], alveolus: 'storage', goods: {} },
+						],
+					},
+				],
+			}
+
+			engine.loadScenario(scenario)
+
+			const provider = engine.game.hex.getTile({ q: 0, r: 0 })?.content as Alveolus | undefined
+			const demander = engine.game.hex.getTile({ q: 1, r: 0 })?.content as Alveolus | undefined
+			const hive = (provider?.hive ?? demander?.hive) as Hive | undefined
+			expect(provider).toBeDefined()
+			expect(demander).toBeDefined()
+			expect(hive).toBeDefined()
+			if (!provider || !demander || !hive) throw new Error('Expected invariant hive')
+
+			expect(hive.createMovement('wood', provider, demander)).toBe(true)
+			const movement = hive.movingGoods
+				.get(toAxialCoord(provider.tile.position))
+				?.find((candidate) => candidate.goodType === 'wood')
+			expect(movement).toBeDefined()
+			if (!movement) throw new Error('Expected wood movement')
+			expect(provider.storage.available('wood')).toBe(0)
+
+			movement.allocations.target.cancel('test.missing-target')
+			;(globalThis as any).allowExpectedDiagnostics?.(
+				/\[WATCHDOG\] Movement source reservation without target allocation/
+			)
+			expect(() => hive.reconcileMovementAllocationPairs('test.missing-target')).toThrow(
+				/source-without-target-allocation/
+			)
+			expect(provider.storage.available('wood')).toBe(0)
+			expect((hive as any).activeMovements.has(movement)).toBe(true)
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('skips an unpaired movement reservation when offering convey work', {
+		timeout: 15000,
+	}, async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+		try {
+			const scenario: Partial<SaveState> = {
+				hives: [
+					{
+						name: 'MovementPairOfferInvariant',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'storage', goods: { wood: 1 } },
+							{ coord: [1, 0], alveolus: 'storage', goods: {} },
+						],
+					},
+				],
+			}
+
+			engine.loadScenario(scenario)
+
+			const provider = engine.game.hex.getTile({ q: 0, r: 0 })?.content as Alveolus | undefined
+			const demander = engine.game.hex.getTile({ q: 1, r: 0 })?.content as Alveolus | undefined
+			expect(provider).toBeDefined()
+			expect(demander).toBeDefined()
+			if (!provider || !demander) throw new Error('Expected invariant hive')
+
+			expect(provider.hive.createMovement('wood', provider, demander)).toBe(true)
+			const movement = provider.hive.movingGoods
+				.get(toAxialCoord(provider.tile.position))
+				?.find((candidate) => candidate.goodType === 'wood')
+			expect(movement).toBeDefined()
+			if (!movement) throw new Error('Expected wood movement')
+			expect(provider.storage.available('wood')).toBe(0)
+
+			movement.allocations.target.cancel('test.offer-missing-target')
+			expect(() => provider.aGoodMovement).not.toThrow()
+			expect(provider.aGoodMovement).toBeUndefined()
+			;(globalThis as any).allowExpectedDiagnostics?.(
+				/\[WATCHDOG\] Movement source reservation without target allocation/
+			)
+			expect(() =>
+				provider.hive.reconcileMovementAllocationPairs('test.offer-missing-target')
+			).toThrow(/source-without-target-allocation/)
+			expect(provider.storage.available('wood')).toBe(0)
+			expect((provider.hive as any).activeMovements.has(movement)).toBe(true)
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('prunes resolved source allocation residue instead of throwing source-without-target', {
+		timeout: 15000,
+	}, async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+		try {
+			const scenario: Partial<SaveState> = {
+				hives: [
+					{
+						name: 'ResolvedResidueInvariant',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'storage', goods: { wood: 1 } },
+							{ coord: [1, 0], alveolus: 'storage', goods: {} },
+						],
+					},
+				],
+			}
+
+			engine.loadScenario(scenario)
+
+			const provider = engine.game.hex.getTile({ q: 0, r: 0 })?.content as Alveolus | undefined
+			const demander = engine.game.hex.getTile({ q: 1, r: 0 })?.content as Alveolus | undefined
+			const hive = (provider?.hive ?? demander?.hive) as Hive | undefined
+			expect(provider).toBeDefined()
+			expect(demander).toBeDefined()
+			expect(hive).toBeDefined()
+			if (!provider || !demander || !hive) throw new Error('Expected residue hive')
+
+			expect(hive.createMovement('wood', provider, demander)).toBe(true)
+			const movement = hive.movingGoods
+				.get(toAxialCoord(provider.tile.position))
+				?.find((candidate) => candidate.goodType === 'wood')
+			expect(movement).toBeDefined()
+			if (!movement) throw new Error('Expected wood movement')
+
+			const source = movement.allocations.source
+			const sourceReason = (source as { reason?: unknown } | undefined)?.reason
+			expect(source).toBeDefined()
+			expect(sourceReason).toBeDefined()
+			if (!source || !sourceReason) throw new Error('Expected source allocation reason')
+
+			movement.allocations.target.cancel('silent-discard.target')
+			source.cancel('silent-discard.source')
+			trackAllocation(source, sourceReason)
+
+			expect(() =>
+				(hive as unknown as { scanForDetachedMovementAllocations(): void })
+					.scanForDetachedMovementAllocations()
+			).not.toThrow()
+			expect(() => hive.reconcileMovementAllocationPairs('test.resolved-residue')).not.toThrow()
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('throws on unreserved goods in border transit storage', {
+		timeout: 15000,
+	}, async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+		try {
+			const scenario: Partial<SaveState> = {
+				hives: [
+					{
+						name: 'BorderTransitInvariant',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'storage', goods: {} },
+							{ coord: [1, 0], alveolus: 'storage', goods: {} },
+						],
+					},
+				],
+			}
+
+			engine.loadScenario(scenario)
+
+			const provider = engine.game.hex.getTile({ q: 0, r: 0 })?.content as Alveolus | undefined
+			const demander = engine.game.hex.getTile({ q: 1, r: 0 })?.content as Alveolus | undefined
+			const hive = (provider?.hive ?? demander?.hive) as Hive | undefined
+			expect(provider).toBeDefined()
+			expect(demander).toBeDefined()
+			expect(hive).toBeDefined()
+			if (!provider || !demander || !hive) throw new Error('Expected invariant hive')
+
+			const borderStorage = hive.storageAt({ q: 0.5, r: 0 })
+			expect(borderStorage).toBeDefined()
+			if (!borderStorage) throw new Error('Expected border storage')
+			expect(borderStorage.addGood('wood', 1)).toBe(1)
+			expect(borderStorage.available('wood')).toBe(1)
+
+			;(globalThis as any).allowExpectedDiagnostics?.(
+				/\[WATCHDOG\] Border transit stock without movement reservation/
+			)
+			expect(() => (hive as any).scanBorderTransitStorageInvariant()).toThrow(
+				/Border transit stock without movement reservation/
+			)
+			expect(() => provider.aGoodMovement).not.toThrow()
+			expect(borderStorage.stock.wood ?? 0).toBe(1)
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('does not repair a fulfilled-hop window during movement selection', {
+		timeout: 15000,
+	}, async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+		try {
+			const scenario: Partial<SaveState> = {
+				hives: [
+					{
+						name: 'BorderTransitRepair',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'storage', goods: { wood: 1 } },
+							{ coord: [1, 0], alveolus: 'storage', goods: {} },
+						],
+					},
+				],
+			}
+
+			engine.loadScenario(scenario)
+
+			const provider = engine.game.hex.getTile({ q: 0, r: 0 })?.content as Alveolus | undefined
+			const demander = engine.game.hex.getTile({ q: 1, r: 0 })?.content as Alveolus | undefined
+			const hive = (provider?.hive ?? demander?.hive) as Hive | undefined
+			expect(provider).toBeDefined()
+			expect(demander).toBeDefined()
+			expect(hive).toBeDefined()
+			if (!provider || !demander || !hive) throw new Error('Expected repair hive')
+
+			expect(hive.createMovement('wood', provider, demander)).toBe(true)
+			const movement = hive.movingGoods
+				.get(toAxialCoord(provider.tile.position))
+				?.find((candidate) => candidate.goodType === 'wood')
+			expect(movement).toBeDefined()
+			if (!movement) throw new Error('Expected wood movement')
+
+			const hop = movement.path[0]
+			expect(hop).toBeDefined()
+			if (!hop) throw new Error('Expected first hop')
+			const hopStorage = hive.storageAt(hop)
+			expect(hopStorage).toBeDefined()
+			if (!hopStorage) throw new Error('Expected hop storage')
+
+			movement.claimed = true
+			movement.claimedBy = 'border-transit-repair-test' as never
+			movement.claimedAtMs = Date.now()
+			const step = new Commitment('test.border-transit-repair.step')
+			expect(hopStorage.allocate({ wood: 1 }, step)).toBeUndefined()
+			movement.hop()
+			movement.place()
+			hive.bindMovementsSourceToHopStep([movement], step, 'test.border-transit-repair')
+			step.fulfill()
+
+			expect(hopStorage.available('wood')).toBe(1)
+			expect(() => provider.aGoodMovement).not.toThrow()
+			expect(hopStorage.available('wood')).toBe(1)
+			expect(commitmentValid(movement.allocations.source)).toBe(false)
+			expect((movement.allocations.source as any).reason?.type).toBe('convey.hop')
+		} finally {
+			await engine.destroy()
+		}
+	})
+
 	it('creates a movement that can be handed through an intermediate storage', {
 		timeout: 15000,
 	}, async () => {
@@ -255,6 +520,68 @@ describe('Multi-Hop Convey Tests', () => {
 		}
 	})
 
+	it('does not restore a lost claim projection before release', {
+		timeout: 15000,
+	}, async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+		try {
+			const scenario: Partial<SaveState> = {
+				hives: [
+					{
+						name: 'TerminalClaimRepair',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'storage', goods: { wood: 1 } },
+							{ coord: [1, 0], alveolus: 'storage', goods: {} },
+						],
+					},
+				],
+			}
+
+			engine.loadScenario(scenario)
+			const provider = engine.game.hex.getTile({ q: 0, r: 0 })?.content as Alveolus | undefined
+			const demander = engine.game.hex.getTile({ q: 1, r: 0 })?.content as Alveolus | undefined
+			const hive = provider?.hive as Hive | undefined
+			expect(provider).toBeDefined()
+			expect(demander).toBeDefined()
+			expect(hive).toBeDefined()
+			if (!provider || !demander || !hive) throw new Error('Expected terminal convey scenario')
+
+			expect(hive.createMovement('wood', provider, demander)).toBe(true)
+			const movement = hive.movingGoods
+				.get(toAxialCoord(provider.tile.position))
+				?.find((candidate) => candidate.goodType === 'wood')
+			expect(movement).toBeDefined()
+			if (!movement) throw new Error('Expected wood movement')
+
+			const worker = engine.spawnCharacter('terminal-worker', { q: 0, r: 0 })
+			worker.assignedAlveolus = provider
+			const step = worker.scriptsContext.work.conveyStep()
+			expect(step).toBeDefined()
+			expect(movement.claimed).toBe(true)
+			expect(movement.claimedBy?.uid).toBe(worker.uid)
+			expect(movement.allocations.source).toBe(step)
+			expect(commitmentValid(movement.allocations.source)).toBe(true)
+			expect(
+				(movement.allocations.source as unknown as { reason?: { type?: string } }).reason?.type
+			).toBe('convey.hop')
+			expect(provider.storage.stock.wood ?? 0).toBe(0)
+
+			movement.claimed = false
+			delete movement.claimedBy
+			delete movement.claimedAtMs
+			;(globalThis as any).allowExpectedDiagnostics?.(
+				/conveyStep.after-hop-rebind.before-unclaim/
+			)
+			expect(() => step?.finish()).not.toThrow()
+			expect(provider.storage.stock.wood ?? 0).toBe(0)
+			expect(demander.storage.stock.wood ?? 0).toBe(0)
+			expect(movement.claimed).toBe(false)
+		} finally {
+			await engine.destroy()
+		}
+	})
+
 	it('bridges border-to-border through a full relay storage without parking on the tile', {
 		timeout: 15000,
 	}, async () => {
@@ -323,12 +650,90 @@ describe('Multi-Hop Convey Tests', () => {
 			expect(hive.movingGoods.get({ q: 1.5, r: 0 })?.[0]?.ref.id).toBe(movement.ref.id)
 			expect(relay.storage.stock.planks ?? 0).toBe(3)
 
+			;(hive as unknown as { scanForStalledExchanges(): void }).scanForStalledExchanges()
+			expect(movement.claimed).toBe(true)
+			expect(movement.claimedBy?.uid).toBe(relayWorker.uid)
+
 			step?.finish()
 
 			expect(movement.from).toMatchObject({ q: 1.5, r: 0 })
 			expect(hive.movingGoods.get({ q: 1, r: 0 })).toBeUndefined()
 			expect(hive.movingGoods.get({ q: 1.5, r: 0 })?.[0]?.ref.id).toBe(movement.ref.id)
 			expect(relay.storage.stock.planks ?? 0).toBe(3)
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('rolls back fulfilled hop stock when the next source reservation cannot stay paired', {
+		timeout: 15000,
+	}, async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+		try {
+			const scenario: Partial<SaveState> = {
+				hives: [
+					{
+						name: 'FailedRelayHandoff',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'storage', goods: { planks: 1 } },
+							{ coord: [1, 0], alveolus: 'storage', goods: {} },
+							{ coord: [2, 0], alveolus: 'storage', goods: {} },
+						],
+					},
+				],
+			}
+
+			engine.loadScenario(scenario)
+
+			const provider = engine.game.hex.getTile({ q: 0, r: 0 })?.content as Alveolus | undefined
+			const relay = engine.game.hex.getTile({ q: 1, r: 0 })?.content as Alveolus | undefined
+			const demander = engine.game.hex.getTile({ q: 2, r: 0 })?.content as Alveolus | undefined
+			const hive = (provider?.hive ?? relay?.hive ?? demander?.hive) as Hive | undefined
+
+			expect(provider).toBeDefined()
+			expect(relay).toBeDefined()
+			expect(demander).toBeDefined()
+			expect(hive).toBeDefined()
+			if (!provider || !relay || !demander || !hive) {
+				throw new Error('Expected relay handoff scenario to be created')
+			}
+
+			expect(hive.createMovement('planks', provider, demander)).toBe(true)
+			const movement = hive.movingGoods
+				.get(toAxialCoord(provider.tile.position))
+				?.find((candidate) => candidate.goodType === 'planks')
+			expect(movement).toBeDefined()
+			if (!movement) throw new Error('Expected plank movement from provider')
+
+			movement.claimed = true
+			movement.claimedBy = 'test-provider'
+			movement.claimedAtMs = Date.now()
+			handOffFirstHop(hive, movement, 'test.failed-handoff.first')
+			movement.claimed = false
+			delete movement.claimedBy
+			delete movement.claimedAtMs
+
+			const relayWorker = engine.spawnCharacter('relay-worker', { q: 1, r: 0 })
+			relayWorker.assignedAlveolus = relay
+			const step = relayWorker.scriptsContext.work.conveyStep()
+			expect(step).toBeDefined()
+			expect(movement.from).toMatchObject({ q: 1.5, r: 0 })
+
+			movement.allocations.target.cancel('test.failed-handoff.invalid-target')
+			;(globalThis as any).allowExpectedDiagnostics?.(
+				/\[conveyStep\] Error in finished callback/,
+				/invalid-target-allocation/
+			)
+			step?.finish()
+
+			const hopStorage = hive.storageAt({ q: 1.5, r: 0 })
+			expect(hopStorage?.stock.planks ?? 0).toBe(0)
+			expect(hopStorage?.available('planks') ?? 0).toBe(0)
+			expect(hopStorage?.allocated('planks') ?? 0).toBe(0)
+			expect(engine.game.hex.looseGoods.getGoodsAt({ q: 0.5, r: 0 })).toEqual(
+				expect.arrayContaining([expect.objectContaining({ goodType: 'planks', available: true })])
+			)
 		} finally {
 			await engine.destroy()
 		}

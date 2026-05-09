@@ -5,6 +5,8 @@ import type { LooseGood } from 'ssh/board/looseGoods'
 import type { Tile } from 'ssh/board/tile'
 import { isStandaloneBuildSiteShell } from 'ssh/build-site'
 import {
+	type FreightLineDefinition,
+	type FreightStop,
 	findGatherRouteSegments,
 	freightStopAnchorMatchesAlveolus,
 	gatherSegmentAllowsGoodType,
@@ -13,6 +15,8 @@ import {
 } from 'ssh/freight/freight-line'
 import { aggregateHiveNeedTypes } from 'ssh/freight/freight-zone-gather-target'
 import { scoreVehicleCandidate } from 'ssh/freight/vehicle-candidate-policy'
+import { collectDockedVehicleAdvertisementCandidates } from 'ssh/freight/vehicle-freight-dock'
+import { freightVehicleDockBay } from 'ssh/freight/vehicle-freight-dock-sync'
 import {
 	ensureVehicleServiceStarted,
 	freightStopMovementTarget,
@@ -32,6 +36,7 @@ import {
 import type { Game } from 'ssh/game/game'
 import {
 	asVehicleProposedJob,
+	type ProposedJob,
 	proposedVehicleJobIdentityKey,
 	type VehicleProposedJob,
 } from 'ssh/jobs/offers'
@@ -55,7 +60,7 @@ import type {
 import { type AxialCoord, axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
 import { maxWalkTime } from '../../../assets/constants'
-import { assert, traces } from '../dev/debug.ts'
+import { assert, profile, traces } from '../dev/debug.ts'
 
 const LINE_FREIGHT_VEHICLE = 'wheelbarrow' as const
 
@@ -170,6 +175,137 @@ function characterCanUseLinkedVehicleHere(character: Character, vehicle: Vehicle
 	const vehicleCoord = toAxialCoord(vehicle.effectivePosition)
 	if (!characterCoord || !vehicleCoord) return false
 	return axial.key(axial.round(characterCoord)) === axial.key(axial.round(vehicleCoord))
+}
+
+function dockedVehicleHasPendingDockWork(vehicle: VehicleEntity): boolean {
+	if (vehicle.storage.virtualGoodsCount > 0) return true
+	const bay = freightVehicleDockBay(vehicle)
+	return !!bay && collectDockedVehicleAdvertisementCandidates(vehicle, bay).length > 0
+}
+
+function vehicleStockCount(vehicle: VehicleEntity): number {
+	return Object.values(vehicle.storage.stock).reduce(
+		(total, qty) => total + Math.max(0, qty ?? 0),
+		0
+	)
+}
+
+function vehicleTraceSnapshot(vehicle: VehicleEntity) {
+	const service = vehicle.service
+	const lineService = isVehicleLineService(service) ? service : undefined
+	const maintenanceService = isVehicleMaintenanceService(service) ? service : undefined
+	return {
+		vehicleUid: vehicle.uid,
+		vehicleType: vehicle.vehicleType,
+		isDocked: vehicle.isDocked,
+		stock: { ...vehicle.storage.stock },
+		virtualGoodsCount: vehicle.storage.virtualGoodsCount,
+		serviceKind: lineService ? 'line' : maintenanceService?.kind,
+		lineId: lineService?.line.id,
+		stopId: lineService?.stop.id,
+		stopKind: lineService
+			? 'anchor' in lineService.stop
+				? 'anchor'
+				: 'zone' in lineService.stop
+					? 'zone'
+					: 'unknown'
+			: undefined,
+	}
+}
+
+function nextLineStopAfterCurrent(
+	vehicle: VehicleEntity
+): { line: FreightLineDefinition; stop: FreightStop } | undefined {
+	const service = vehicle.service
+	if (!isVehicleLineService(service)) return undefined
+	const idx = service.line.stops.findIndex((stop) => stop.id === service.stop.id)
+	if (idx < 0 || idx >= service.line.stops.length - 1) return undefined
+	return { line: service.line, stop: service.line.stops[idx + 1]! }
+}
+
+function dockedVehicleProviderJob(
+	game: Game,
+	vehicle: VehicleEntity
+): VehicleProposedJob | undefined {
+	const service = vehicle.service
+	if (!isVehicleLineService(service) || !vehicle.isDocked || !('anchor' in service.stop)) {
+		traces.vehicle.log?.(
+			'[vehicle.advertisedJobs] no docked provider job: not docked anchor line',
+			{
+				...vehicleTraceSnapshot(vehicle),
+			}
+		)
+		return undefined
+	}
+
+	const dockBay = freightVehicleDockBay(vehicle)
+	const dockCandidates = dockBay
+		? collectDockedVehicleAdvertisementCandidates(vehicle, dockBay)
+		: []
+	if (dockBay && (vehicle.storage.virtualGoodsCount > 0 || dockCandidates.length > 0)) {
+		traces.vehicle.log?.('[vehicle.advertisedJobs] provider fallback convey', {
+			...vehicleTraceSnapshot(vehicle),
+			bay: dockBay.name,
+			dockCandidates,
+		})
+		return asVehicleProposedJob(
+			{ job: 'convey', fatigue: 1, urgency: jobBalance.convey, vehicleUid: vehicle.uid },
+			vehicle,
+			dockBay.tile
+		)
+	}
+
+	const next = nextLineStopAfterCurrent(vehicle)
+	if (next) {
+		traces.vehicle.log?.('[vehicle.advertisedJobs] provider next-stop hop', {
+			...vehicleTraceSnapshot(vehicle),
+			nextLineId: next.line.id,
+			nextStopId: next.stop.id,
+		})
+		const targetCoord: AxialCoord | undefined =
+			'anchor' in next.stop
+				? { q: next.stop.anchor.coord[0], r: next.stop.anchor.coord[1] }
+				: 'zone' in next.stop && next.stop.zone.kind === 'radius'
+					? { q: next.stop.zone.center[0], r: next.stop.zone.center[1] }
+					: undefined
+		const targetTile = targetCoord ? (game.hex.getTile(targetCoord) ?? vehicle.tile) : vehicle.tile
+		return asVehicleProposedJob(
+			{
+				job: 'vehicleHop',
+				urgency: jobBalance.vehicleHop,
+				fatigue: 1,
+				vehicleUid: vehicle.uid,
+				lineId: next.line.id,
+				stopId: next.stop.id,
+				path: [],
+				approachPath: [],
+				dockEnter: 'anchor' in next.stop,
+				...(targetCoord ? { targetCoord } : {}),
+			},
+			vehicle,
+			targetTile
+		)
+	}
+
+	const coord = axial.round(toAxialCoord(vehicle.effectivePosition)!)
+	traces.vehicle.log?.('[vehicle.advertisedJobs] provider park fallback', {
+		...vehicleTraceSnapshot(vehicle),
+		targetCoord: { q: coord.q, r: coord.r },
+	})
+	return asVehicleProposedJob(
+		{
+			job: 'vehicleOffload',
+			urgency: jobBalance.offload.park,
+			fatigue: 1,
+			vehicleUid: vehicle.uid,
+			maintenanceKind: 'park',
+			targetCoord: { q: coord.q, r: coord.r },
+			approachPath: [],
+			path: [],
+		},
+		vehicle,
+		dockBay?.tile ?? vehicle.tile
+	)
 }
 
 /**
@@ -316,9 +452,13 @@ function pickOffloadForTile(
 	const roomFor = (g: LooseGood) => (storage.hasRoom(g.goodType as GoodType) ?? 0) > 0
 
 	if (tile.content instanceof Alveolus) {
+		const content = tile.content
 		const coord = toAxialCoord(tile.position)!
-		if (tile.content.hive.movingGoods.get(coord)?.length) return undefined
-		const looseGood = available.find(roomFor)
+		if (content.hive.movingGoods.get(coord)?.length) return undefined
+		const looseGood = available.find(
+			(g) =>
+				roomFor(g) && content.goodsRelations[g.goodType as GoodType]?.advertisement !== 'demand'
+		)
 		if (!looseGood) return undefined
 		return { looseGood, urgency: jobBalance.offload.alveolusBlocked }
 	}
@@ -666,8 +806,17 @@ export function findVehicleOffloadJob(
 	game: Game,
 	character: Character
 ): VehicleOffloadJob | undefined {
-	if (character.driving) return findVehicleOffloadJobDriving(game, character)
-	return findVehicleOffloadJobApproach(game, character)
+	const end = profile.proposedJobs.begin?.('findVehicleOffloadJob', () => ({
+		characterUid: character.uid,
+		driving: character.driving,
+		operatesUid: character.operates?.uid,
+	}))
+	try {
+		if (character.driving) return findVehicleOffloadJobDriving(game, character)
+		return findVehicleOffloadJobApproach(game, character)
+	} finally {
+		end?.()
+	}
 }
 
 export function lineFreightVehicleType(): typeof LINE_FREIGHT_VEHICLE {
@@ -689,7 +838,12 @@ export function findVehicleApproachJob(
 		if (isVehicleMaintenanceService(service)) continue
 		if (isVehicleLineService(service)) {
 			// Discovery is read-only: dock completion/advancement is handled by `vehicleHopPrepare`.
-			if (vehicle.isDocked && 'anchor' in service.stop) continue
+			if (
+				vehicle.isDocked &&
+				'anchor' in service.stop &&
+				(vehicleStockCount(vehicle) <= 0 || dockedVehicleHasPendingDockWork(vehicle))
+			)
+				continue
 		} else {
 			if (vehicle.servedLines.length === 0) continue
 			// Loaded begin-line is only allowed when cargo already matches a served gather segment.
@@ -861,36 +1015,44 @@ function zoneBrowseJobFromConstructionProvide(
 }
 
 export function findZoneBrowseJob(game: Game, character: Character): ZoneBrowseJob | undefined {
-	const vehicle = character.operates
-	if (!vehicle) return undefined
-	if (!characterCanUseLinkedVehicleHere(character, vehicle)) return undefined
-	if (vehicle.vehicleType !== LINE_FREIGHT_VEHICLE) return undefined
-	const svc = vehicle.service
-	if (!isVehicleLineService(svc)) return undefined
-	if ('zone' in svc.stop && svc.stop.zone.kind === 'radius') {
-		const selection = pickVehicleZoneBrowseSelection(game, character, vehicle, svc.line, svc.stop)
-		if (selection) {
-			return {
-				job: 'zoneBrowse',
-				urgency: zoneBrowseUrgency(selection.action, selection.priorityTier),
-				fatigue: 1,
-				vehicleUid: vehicle.uid,
-				lineId: svc.line.id,
-				stopId: svc.stop.id,
-				path: selection.path,
-				approachPath: [],
-				zoneBrowseAction: selection.action,
-				goodType: selection.goodType,
-				quantity: selection.quantity ?? 1,
-				targetCoord: toAxialCoord(selection.targetTile.position)!,
-				adSource: selection.adSource,
-				priorityTier: selection.priorityTier,
+	const end = profile.proposedJobs.begin?.('findZoneBrowseJob', () => ({
+		characterUid: character.uid,
+		operatesUid: character.operates?.uid,
+	}))
+	try {
+		const vehicle = character.operates
+		if (!vehicle) return undefined
+		if (!characterCanUseLinkedVehicleHere(character, vehicle)) return undefined
+		if (vehicle.vehicleType !== LINE_FREIGHT_VEHICLE) return undefined
+		const svc = vehicle.service
+		if (!isVehicleLineService(svc)) return undefined
+		if ('zone' in svc.stop && svc.stop.zone.kind === 'radius') {
+			const selection = pickVehicleZoneBrowseSelection(game, character, vehicle, svc.line, svc.stop)
+			if (selection) {
+				return {
+					job: 'zoneBrowse',
+					urgency: zoneBrowseUrgency(selection.action, selection.priorityTier),
+					fatigue: 1,
+					vehicleUid: vehicle.uid,
+					lineId: svc.line.id,
+					stopId: svc.stop.id,
+					path: selection.path,
+					approachPath: [],
+					zoneBrowseAction: selection.action,
+					goodType: selection.goodType,
+					quantity: selection.quantity ?? 1,
+					targetCoord: toAxialCoord(selection.targetTile.position)!,
+					adSource: selection.adSource,
+					priorityTier: selection.priorityTier,
+				}
 			}
+			const construction = zoneBrowseJobFromConstructionProvide(game, character)
+			if (construction) return construction
 		}
-		const construction = zoneBrowseJobFromConstructionProvide(game, character)
-		if (construction) return construction
+		return zoneBrowseJobFromTileLooseLoad(game, character)
+	} finally {
+		end?.()
 	}
-	return zoneBrowseJobFromTileLooseLoad(game, character)
 }
 
 /** @internal Tests / diagnostics; same tile loose load surfaced as {@link findZoneBrowseJob}. */
@@ -1042,100 +1204,118 @@ function findVehicleHopJobLineHop(game: Game, character: Character): VehicleHopJ
  * walking to the wheelbarrow and attaching {@link VehicleEntity.service} are script preludes, not separate jobs.
  */
 export function findVehicleHopJob(game: Game, character: Character): VehicleHopJob | undefined {
-	const lineHop = findVehicleHopJobLineHop(game, character)
-	if (lineHop) return lineHop
+	const end = profile.proposedJobs.begin?.('findVehicleHopJob', () => ({
+		characterUid: character.uid,
+		driving: character.driving,
+		operatesUid: character.operates?.uid,
+	}))
+	try {
+		const lineHop = findVehicleHopJobLineHop(game, character)
+		if (lineHop) return lineHop
 
-	const beginLeg = findVehicleBeginServiceLeg(game, character)
-	if (beginLeg) {
-		const vehicle = character.operates
-		if (!vehicle || vehicle.uid !== beginLeg.vehicleUid) return undefined
+		const beginLeg = findVehicleBeginServiceLeg(game, character)
+		if (beginLeg) {
+			const vehicle = character.operates
+			if (!vehicle || vehicle.uid !== beginLeg.vehicleUid) return undefined
+			return {
+				job: 'vehicleHop',
+				urgency: jobBalance.vehicleBeginService,
+				fatigue: 1,
+				vehicleUid: beginLeg.vehicleUid,
+				lineId: beginLeg.lineId,
+				stopId: beginLeg.stopId,
+				path: [],
+				approachPath: [],
+				dockEnter: false,
+				needsBeginService: true,
+			}
+		}
+
+		const approach = findVehicleApproachJob(game, character)
+		if (!approach) return undefined
+		const vehicle = game.vehicles.vehicle(approach.vehicleUid)
+		if (!vehicle) return undefined
+		const service = vehicle.service
+		if (isVehicleMaintenanceService(service)) return undefined
+		let pick = isVehicleLineService(service)
+			? projectedLineStopForVehicleHop(game, character, vehicle)
+			: pickInitialVehicleServiceCandidate(game, character, vehicle)
+		if (!pick) return undefined
+		const dockedNextStop =
+			isVehicleLineService(service) &&
+			vehicle.isDocked &&
+			'anchor' in service.stop &&
+			!dockedVehicleHasPendingDockWork(vehicle)
+				? nextLineStopAfterCurrent(vehicle)
+				: undefined
+		if (dockedNextStop) pick = dockedNextStop
+		const needsBeginService = !isVehicleLineService(service)
+		let path: AxialCoord[] = []
+		let zoneBrowseAction: VehicleHopJob['zoneBrowseAction']
+		let goodType: VehicleHopJob['goodType']
+		let quantity: VehicleHopJob['quantity']
+		let targetCoord: VehicleHopJob['targetCoord']
+		let adSource: VehicleHopJob['adSource']
+		let priorityTier: VehicleHopJob['priorityTier']
+		let zoneSelection: Pick<VehicleZoneBrowseSelection, 'action' | 'priorityTier'> | undefined
+		if ('zone' in pick.stop && pick.stop.zone.kind === 'radius') {
+			const selection = pickVehicleZoneBrowseSelection(
+				game,
+				character,
+				vehicle,
+				pick.line,
+				pick.stop,
+				vehicle.effectivePosition
+			)
+			if (!selection) return undefined
+			path = selection.path
+			zoneBrowseAction = selection.action
+			goodType = selection.goodType
+			quantity = selection.quantity
+			targetCoord = toAxialCoord(selection.targetTile.position)!
+			adSource = selection.adSource
+			priorityTier = selection.priorityTier
+			zoneSelection = selection
+		} else {
+			const targetPos = freightStopMovementTarget(game, character, pick.line, pick.stop)
+			if (targetPos) {
+				const startPos = axial.round(toAxialCoord(vehicle.effectivePosition)!)
+				path =
+					game.hex.findPathForCharacter(startPos, targetPos, character, maxWalkTime, false) ?? []
+			}
+			// Match line-hop anchor: do not offer a 0-step drive to an anchor the vehicle is not on.
+			if ('anchor' in pick.stop) {
+				if (!targetPos) return undefined
+				const sameHex =
+					axial.key(axial.round(toAxialCoord(vehicle.effectivePosition)!)) ===
+					axial.key(axial.round(toAxialCoord(targetPos)!))
+				if (path.length === 0 && !sameHex) return undefined
+			}
+		}
 		return {
 			job: 'vehicleHop',
-			urgency: jobBalance.vehicleBeginService,
+			urgency: Math.max(
+				jobBalance.vehicleHop,
+				jobBalance.vehicleApproach,
+				lineHopUrgencyForZoneSelection(zoneSelection)
+			),
 			fatigue: 1,
-			vehicleUid: beginLeg.vehicleUid,
-			lineId: beginLeg.lineId,
-			stopId: beginLeg.stopId,
-			path: [],
-			approachPath: [],
-			dockEnter: false,
-			needsBeginService: true,
+			vehicleUid: approach.vehicleUid,
+			lineId: pick.line.id,
+			stopId: pick.stop.id,
+			path,
+			dockEnter: 'anchor' in pick.stop,
+			approachPath: approach.path,
+			...(zoneBrowseAction ? { zoneBrowseAction } : {}),
+			...(goodType ? { goodType } : {}),
+			...(quantity !== undefined ? { quantity } : {}),
+			...(targetCoord ? { targetCoord } : {}),
+			...(adSource ? { adSource } : {}),
+			...(priorityTier ? { priorityTier } : {}),
+			...(needsBeginService ? { needsBeginService } : {}),
 		}
-	}
-
-	const approach = findVehicleApproachJob(game, character)
-	if (!approach) return undefined
-	const vehicle = game.vehicles.vehicle(approach.vehicleUid)
-	if (!vehicle) return undefined
-	const service = vehicle.service
-	if (isVehicleMaintenanceService(service)) return undefined
-	const pick = isVehicleLineService(service)
-		? projectedLineStopForVehicleHop(game, character, vehicle)
-		: pickInitialVehicleServiceCandidate(game, character, vehicle)
-	if (!pick) return undefined
-	const needsBeginService = !isVehicleLineService(service)
-	let path: AxialCoord[] = []
-	let zoneBrowseAction: VehicleHopJob['zoneBrowseAction']
-	let goodType: VehicleHopJob['goodType']
-	let quantity: VehicleHopJob['quantity']
-	let targetCoord: VehicleHopJob['targetCoord']
-	let adSource: VehicleHopJob['adSource']
-	let priorityTier: VehicleHopJob['priorityTier']
-	let zoneSelection: Pick<VehicleZoneBrowseSelection, 'action' | 'priorityTier'> | undefined
-	if ('zone' in pick.stop && pick.stop.zone.kind === 'radius') {
-		const selection = pickVehicleZoneBrowseSelection(
-			game,
-			character,
-			vehicle,
-			pick.line,
-			pick.stop,
-			vehicle.effectivePosition
-		)
-		if (!selection) return undefined
-		path = selection.path
-		zoneBrowseAction = selection.action
-		goodType = selection.goodType
-		quantity = selection.quantity
-		targetCoord = toAxialCoord(selection.targetTile.position)!
-		adSource = selection.adSource
-		priorityTier = selection.priorityTier
-		zoneSelection = selection
-	} else {
-		const targetPos = freightStopMovementTarget(game, character, pick.line, pick.stop)
-		if (targetPos) {
-			const startPos = axial.round(toAxialCoord(vehicle.effectivePosition)!)
-			path = game.hex.findPathForCharacter(startPos, targetPos, character, maxWalkTime, false) ?? []
-		}
-		// Match line-hop anchor: do not offer a 0-step drive to an anchor the vehicle is not on.
-		if ('anchor' in pick.stop) {
-			if (!targetPos) return undefined
-			const sameHex =
-				axial.key(axial.round(toAxialCoord(vehicle.effectivePosition)!)) ===
-				axial.key(axial.round(toAxialCoord(targetPos)!))
-			if (path.length === 0 && !sameHex) return undefined
-		}
-	}
-	return {
-		job: 'vehicleHop',
-		urgency: Math.max(
-			jobBalance.vehicleHop,
-			jobBalance.vehicleApproach,
-			lineHopUrgencyForZoneSelection(zoneSelection)
-		),
-		fatigue: 1,
-		vehicleUid: approach.vehicleUid,
-		lineId: pick.line.id,
-		stopId: pick.stop.id,
-		path,
-		dockEnter: 'anchor' in pick.stop,
-		approachPath: approach.path,
-		...(zoneBrowseAction ? { zoneBrowseAction } : {}),
-		...(goodType ? { goodType } : {}),
-		...(quantity !== undefined ? { quantity } : {}),
-		...(targetCoord ? { targetCoord } : {}),
-		...(adSource ? { adSource } : {}),
-		...(priorityTier ? { priorityTier } : {}),
-		...(needsBeginService ? { needsBeginService } : {}),
+	} finally {
+		end?.()
 	}
 }
 
@@ -1210,25 +1390,34 @@ function traceNoVehicleWorkPicks(game: Game, character: Character): void {
 
 /** Planner-visible vehicle work: line-hop (incl. approach / begin-service preludes), zone-browse, loose-good offload. */
 export function collectVehicleWorkPicks(game: Game, character: Character): VehicleWorkPick[] {
-	const out: VehicleWorkPick[] = []
-	const zoneBrowse = findZoneBrowseJob(game, character)
-	if (zoneBrowse) {
-		const v = game.vehicles.vehicle(zoneBrowse.vehicleUid)
-		if (v) out.push({ job: zoneBrowse, targetTile: v.tile })
+	const end = profile.proposedJobs.begin?.('collectVehicleWorkPicks', () => ({
+		characterUid: character.uid,
+		driving: character.driving,
+		operatesUid: character.operates?.uid,
+	}))
+	try {
+		const out: VehicleWorkPick[] = []
+		const zoneBrowse = findZoneBrowseJob(game, character)
+		if (zoneBrowse) {
+			const v = game.vehicles.vehicle(zoneBrowse.vehicleUid)
+			if (v) out.push({ job: zoneBrowse, targetTile: v.tile })
+		}
+		const hop = findVehicleHopJob(game, character)
+		if (hop) {
+			const v = game.vehicles.vehicle(hop.vehicleUid)
+			if (v) out.push({ job: hop, targetTile: v.tile })
+		}
+		const offload = findVehicleOffloadJob(game, character)
+		if (offload) {
+			const v = game.vehicles.vehicle(offload.vehicleUid)
+			if (v) out.push({ job: offload, targetTile: v.tile })
+		}
+		if (out.length === 0) traceNoVehicleWorkPicks(game, character)
+		else noVehicleWorkTraceKeys.delete(character)
+		return out
+	} finally {
+		end?.()
 	}
-	const hop = findVehicleHopJob(game, character)
-	if (hop) {
-		const v = game.vehicles.vehicle(hop.vehicleUid)
-		if (v) out.push({ job: hop, targetTile: v.tile })
-	}
-	const offload = findVehicleOffloadJob(game, character)
-	if (offload) {
-		const v = game.vehicles.vehicle(offload.vehicleUid)
-		if (v) out.push({ job: offload, targetTile: v.tile })
-	}
-	if (out.length === 0) traceNoVehicleWorkPicks(game, character)
-	else noVehicleWorkTraceKeys.delete(character)
-	return out
 }
 
 /**
@@ -1240,16 +1429,97 @@ export function collectVehicleProposedJobs(
 	game: Game,
 	vehicle: VehicleEntity
 ): VehicleProposedJob[] {
-	const byKey = new Map<string, VehicleProposedJob>()
-	for (const character of game.population) {
-		for (const pick of collectVehicleWorkPicks(game, character)) {
-			if (pick.job.vehicleUid !== vehicle.uid) continue
-			const key = proposedVehicleJobIdentityKey(pick.job)
-			if (byKey.has(key)) continue
-			byKey.set(key, asVehicleProposedJob(pick.job, vehicle, pick.targetTile))
+	const end = profile.proposedJobs.begin?.('collectVehicleProposedJobs', () => ({
+		vehicleUid: vehicle.uid,
+	}))
+	try {
+		const byKey = new Map<string, VehicleProposedJob>()
+		for (const advertisedJob of collectVehicleAdvertisedJobs(game, vehicle)) {
+			if (advertisedJob.source.kind !== 'vehicle') continue
+			const vehicleJob = advertisedJob as VehicleProposedJob
+			byKey.set(proposedVehicleJobIdentityKey(vehicleJob), vehicleJob)
 		}
+		for (const character of game.population) {
+			for (const pick of collectVehicleWorkPicks(game, character)) {
+				if (pick.job.vehicleUid !== vehicle.uid) continue
+				const key = proposedVehicleJobIdentityKey(pick.job)
+				if (byKey.has(key)) continue
+				byKey.set(key, asVehicleProposedJob(pick.job, vehicle, pick.targetTile))
+			}
+		}
+		const jobs = [...byKey.values()]
+		if (jobs.length === 0 && vehicle.isDocked && vehicleStockCount(vehicle) > 0) {
+			const dockBay = freightVehicleDockBay(vehicle)
+			traces.vehicle.warn?.('[vehicle.proposedJobs] loaded docked vehicle has no proposed job', {
+				...vehicleTraceSnapshot(vehicle),
+				bay: dockBay?.name,
+				dockCandidates: dockBay
+					? collectDockedVehicleAdvertisementCandidates(vehicle, dockBay)
+					: undefined,
+				bayProposedJobs: dockBay?.proposedJobs.map((job) => ({
+					job: job.job,
+					urgency: job.urgency,
+					source: job.source,
+				})),
+				population: Array.from(game.population, (character: Character) => ({
+					uid: character.uid,
+					role: character.role,
+					assignedAlveolus: character.assignedAlveolus?.name,
+					operatesUid: character.operates?.uid,
+					driving: character.driving,
+					actionDescription: character.actionDescription,
+				})),
+			})
+		}
+		return jobs
+	} finally {
+		end?.()
 	}
-	return [...byKey.values()]
+}
+
+/**
+ * Provider-facing vehicle facts that are cheap enough for render/property paths.
+ *
+ * This does not answer "which worker can execute it"; character-scoped planners still do that
+ * through collectVehicleWorkPicks when work is claimed or ranked for a character.
+ */
+export function collectVehicleAdvertisedJobs(game: Game, vehicle: VehicleEntity): ProposedJob[] {
+	const dockBay = freightVehicleDockBay(vehicle)
+	const dockConvey = dockBay?.proposedJobs.find((job) => job.job === 'convey')
+	if (dockConvey) {
+		traces.vehicle.log?.('[vehicle.advertisedJobs] using bay convey', {
+			...vehicleTraceSnapshot(vehicle),
+			bay: dockBay?.name,
+			jobSource: dockConvey.source,
+		})
+		return [dockConvey]
+	}
+	const dockCandidates = dockBay
+		? collectDockedVehicleAdvertisementCandidates(vehicle, dockBay)
+		: []
+	if (dockBay && (vehicle.storage.virtualGoodsCount > 0 || dockCandidates.length > 0)) {
+		traces.vehicle.warn?.('[vehicle.advertisedJobs] dock work exists but bay has no convey job', {
+			...vehicleTraceSnapshot(vehicle),
+			bay: dockBay.name,
+			dockCandidates,
+			bayProposedJobs: dockBay.proposedJobs.map((job) => ({
+				job: job.job,
+				urgency: job.urgency,
+				source: job.source,
+			})),
+		})
+		return []
+	}
+
+	const dockedJob = dockedVehicleProviderJob(game, vehicle)
+	if (!dockedJob && vehicle.isDocked && vehicleStockCount(vehicle) > 0) {
+		traces.vehicle.warn?.('[vehicle.advertisedJobs] loaded docked vehicle has no advertised job', {
+			...vehicleTraceSnapshot(vehicle),
+			bay: dockBay?.name,
+			dockCandidates,
+		})
+	}
+	return dockedJob ? [dockedJob] : []
 }
 
 export { findVehicleEntityAtTile } from './vehicle-run'

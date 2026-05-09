@@ -141,6 +141,249 @@ describe('vehicle-freight-dock', () => {
 		}
 	})
 
+	it('keeps dock convey offered for a loaded gather vehicle after forty in-game minutes', async () => {
+		const engine = new TestEngine({ terrainSeed: 12018, characterCount: 0 })
+		await engine.init()
+		try {
+			const line = gatherFreightLine({
+				id: 'dock:gather-forty-minutes',
+				name: 'Dock gather forty minutes',
+				hiveName: 'DockForty',
+				coord: [0, 0],
+				filters: ['wood'],
+				radius: 2,
+			})
+			engine.loadScenario({
+				hives: [
+					{
+						name: 'DockForty',
+						alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }],
+					},
+				],
+				freightLines: [line],
+			} satisfies Partial<SaveState>)
+
+			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus | undefined
+			expect(bay).toBeDefined()
+			const vehicle = engine.game.vehicles.createVehicle(
+				'dock-forty-v',
+				'wheelbarrow',
+				{ q: 0, r: 0 },
+				[line]
+			)
+			vehicle.storage.addGood('wood', 1)
+			vehicle.beginLineService(line, line.stops[1]!)
+			vehicle.dock()
+
+			const immediateAdvertisedConvey = vehicle.advertisedJobs.find((job) => job.job === 'convey')
+			expect(immediateAdvertisedConvey).toBeDefined()
+
+			engine.tick(40 * 60, 10)
+			await new Promise((resolve) => setTimeout(resolve, 10))
+
+			const worker = engine.game.population.createCharacter('DockFortyConvey', { q: 1, r: 0 })
+			expect(vehicle.storage.stock.wood).toBe(1)
+			const bayJob = bay?.proposedJobs.find((job) => job.job === 'convey')
+			const advertisedConvey = vehicle.advertisedJobs.find((job) => job.job === 'convey')
+			expect(bay?.getJob(worker)?.job).toBe('convey')
+			expect(bayJob).toBeDefined()
+			expect(advertisedConvey?.source.kind).toBe('alveolus')
+			if (advertisedConvey?.source.kind === 'alveolus')
+				expect(advertisedConvey.source.alveolus).toBe(bay)
+			const workerConvey = worker.workPlannerSnapshot?.ranked.find(
+				(candidate) => candidate.jobKind === 'convey'
+			)
+			expect(workerConvey?.targetCoord).toEqual({ q: 0, r: 0 })
+			expect(workerConvey?.pathLength).toBeGreaterThan(0)
+			const action = worker.findAction()
+			expect(action).toBeTruthy()
+			if (action) worker.begin(action)
+			for (let i = 0; i < 200 && !(bay?.storage.stock.wood ?? 0); i++) {
+				engine.tick(0.1, 0.1)
+			}
+			expect(vehicle.storage.stock.wood ?? 0).toBe(0)
+			expect(bay?.storage.stock.wood ?? 0).toBeGreaterThan(0)
+			expect(vehicle.proposedJobs.map((job) => job.job)).not.toContain('convey')
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('offers dock unload when the bay is full but general storage can take surplus cargo', async () => {
+		const engine = new TestEngine({ terrainSeed: 12020, characterCount: 0 })
+		await engine.init()
+		try {
+			const line = gatherFreightLine({
+				id: 'dock:full-bay-surplus',
+				name: 'Dock full bay surplus',
+				hiveName: 'DockFullBay',
+				coord: [0, 0],
+				filters: ['wood'],
+				radius: 2,
+			})
+			engine.loadScenario({
+				hives: [
+					{
+						name: 'DockFullBay',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
+							{ coord: [1, 0], alveolus: 'storage', goods: {} },
+						],
+					},
+				],
+				freightLines: [line],
+			} satisfies Partial<SaveState>)
+
+			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus | undefined
+			const storage = engine.game.hex.getTile({ q: 1, r: 0 })?.content as
+				| StorageAlveolus
+				| undefined
+			expect(bay).toBeDefined()
+			expect(storage).toBeDefined()
+			if (!bay || !storage) throw new Error('Expected freight bay and storage')
+
+			for (let i = 0; i < 32 && bay.storage.hasRoom('wood') > 0; i++) {
+				bay.storage.addGood('wood', 1)
+			}
+			expect(bay.storage.hasRoom('wood')).toBe(0)
+			expect(storage.canTake('wood', '0-store')).toBe(true)
+
+			const vehicle = engine.game.vehicles.createVehicle(
+				'dock-full-bay-v',
+				'wheelbarrow',
+				{ q: 0, r: 0 },
+				[line]
+			)
+			vehicle.storage.addGood('wood', 1)
+			vehicle.beginLineService(line, line.stops[1]!)
+			if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
+			vehicle.service.docked = true
+			vehicle.position = undefined
+
+			const candidates = collectDockedVehicleAdvertisementCandidates(vehicle, bay)
+			expect(candidates).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ goodType: 'wood', advertisement: 'provide' }),
+				])
+			)
+			expect(vehicle.advertisedJobs.find((job) => job.job === 'convey')).toBeUndefined()
+
+			vehicle.dock()
+			await new Promise((resolve) => setTimeout(resolve, 10))
+			const worker = engine.game.population.createCharacter('DockFullBayWorker', { q: 0, r: 0 })
+			const advertisedConvey = vehicle.advertisedJobs.find((job) => job.job === 'convey')
+			expect(advertisedConvey?.source.kind).toBe('alveolus')
+			expect(bay.getJob(worker)?.job).toBe('convey')
+			const workerConvey = worker.workPlannerSnapshot?.ranked.find(
+				(candidate) => candidate.jobKind === 'convey'
+			)
+			expect(workerConvey?.targetCoord).toEqual({ q: 0, r: 0 })
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('lets reachable workers rank dock convey even when the bay has another assigned worker', async () => {
+		const engine = new TestEngine({ terrainSeed: 12018, characterCount: 0 })
+		await engine.init()
+		try {
+			const line = gatherFreightLine({
+				id: 'dock:gather-assigned-convey',
+				name: 'Dock gather assigned convey',
+				hiveName: 'DockAssignedConvey',
+				coord: [0, 0],
+				filters: ['wood'],
+				radius: 2,
+			})
+			engine.loadScenario({
+				hives: [
+					{
+						name: 'DockAssignedConvey',
+						alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }],
+					},
+				],
+				freightLines: [line],
+			} satisfies Partial<SaveState>)
+
+			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus | undefined
+			expect(bay).toBeDefined()
+			if (!bay) throw new Error('Expected freight bay')
+			const vehicle = engine.game.vehicles.createVehicle(
+				'dock-assigned-convey-v',
+				'wheelbarrow',
+				{ q: 0, r: 0 },
+				[line]
+			)
+			vehicle.storage.addGood('wood', 1)
+			vehicle.beginLineService(line, line.stops[1]!)
+			vehicle.dock()
+
+			const assignedWorker = engine.game.population.createCharacter('AssignedDockWorker', {
+				q: 2,
+				r: 0,
+			})
+			bay.assignedWorker = assignedWorker
+			assignedWorker.assignedAlveolus = bay
+			const worker = engine.game.population.createCharacter('UnassignedDockConveyWorker', {
+				q: 1,
+				r: 0,
+			})
+
+			expect(vehicle.advertisedJobs.find((job) => job.job === 'convey')).toBeDefined()
+			const workerConvey = worker.workPlannerSnapshot?.ranked.find(
+				(candidate) => candidate.jobKind === 'convey'
+			)
+			expect(workerConvey?.targetCoord).toEqual({ q: 0, r: 0 })
+			const action = worker.findAction()
+			expect(action).toBeTruthy()
+			expect(() => {
+				if (action) worker.begin(action)
+			}).not.toThrow()
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('always exposes a proposal for a docked vehicle even when empty and drained', async () => {
+		const engine = new TestEngine({ terrainSeed: 12019, characterCount: 0 })
+		await engine.init()
+		try {
+			const line = gatherFreightLine({
+				id: 'dock:empty-proposal',
+				name: 'Dock empty proposal',
+				hiveName: 'DockEmptyProposal',
+				coord: [0, 0],
+				filters: ['wood'],
+				radius: 2,
+			})
+			engine.loadScenario({
+				hives: [
+					{
+						name: 'DockEmptyProposal',
+						alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }],
+					},
+				],
+				freightLines: [line],
+			} satisfies Partial<SaveState>)
+
+			const vehicle = engine.game.vehicles.createVehicle(
+				'dock-empty-proposal-v',
+				'wheelbarrow',
+				{ q: 0, r: 0 },
+				[line]
+			)
+			vehicle.beginLineService(line, line.stops[1]!)
+			vehicle.dock()
+
+			const jobs = vehicle.proposedJobs
+			expect(jobs.length).toBeGreaterThan(0)
+			expect(jobs.map((job) => job.job)).toContain('vehicleOffload')
+			expect(jobs.find((job) => job.job === 'vehicleOffload')?.maintenanceKind).toBe('park')
+		} finally {
+			await engine.destroy()
+		}
+	})
+
 	it('ends an empty final dock halt and exposes a park job once dock work is drained', async () => {
 		const engine = new TestEngine({ terrainSeed: 12009, characterCount: 0 })
 		await engine.init()

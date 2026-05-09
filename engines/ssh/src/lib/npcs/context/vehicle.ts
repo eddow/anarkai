@@ -125,16 +125,46 @@ class VehicleFunctions {
 			'vehicleOffload pickup: vehicle.service must be a loadFromBurden maintenance run'
 		)
 		if (jobPlan.offloadPickupPlan) return
+		if (svc.offloadPickupPlan) {
+			jobPlan.offloadPickupPlan = svc.offloadPickupPlan
+			return
+		}
+		if (!svc.looseGood.available || svc.looseGood.isRemoved) {
+			jobPlan.vehicleApproachAborted = true
+			traces.vehicle.warn?.('vehicleOffload pickup: stale loose good before binding pickup plan', {
+				characterUid: character.uid,
+				vehicleUid: vehicle.uid,
+				goodType: svc.looseGood.goodType,
+				available: svc.looseGood.available,
+				removed: svc.looseGood.isRemoved,
+			})
+			vehicle.endService()
+			return
+		}
 		const pickupTile = character.game.hex.getTile(svc.targetCoord)
 		assert(
 			pickupTile && 'availableGoods' in pickupTile,
 			'vehicleOffload pickup target must be a tile with loose goods'
 		)
-		const pickupPlan = character.scriptsContext.inventory.planGrabSpecificLoose(
-			svc.looseGood,
-			pickupTile
-		)
+		let pickupPlan
+		try {
+			pickupPlan = character.scriptsContext.inventory.planGrabSpecificLoose(
+				svc.looseGood,
+				pickupTile
+			)
+		} catch (error) {
+			jobPlan.vehicleApproachAborted = true
+			traces.vehicle.warn?.('vehicleOffload pickup: stale loose good while binding pickup plan', {
+				characterUid: character.uid,
+				vehicleUid: vehicle.uid,
+				goodType: svc.looseGood.goodType,
+				error: error instanceof Error ? error.message : String(error),
+			})
+			vehicle.endService()
+			return
+		}
 		assert(pickupPlan.type === 'pickup', 'vehicleOffload engagement must bind to a pickup plan')
+		svc.offloadPickupPlan = pickupPlan
 		jobPlan.offloadPickupPlan = pickupPlan
 	}
 

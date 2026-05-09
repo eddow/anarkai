@@ -2,7 +2,8 @@ import type { Alveolus } from 'ssh/board/content/alveolus'
 import { VehicleFreightDock } from 'ssh/freight/vehicle-freight-dock'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
-import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
+import { isVehicleLineService, isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
+import { traces } from '../dev/debug.ts'
 
 export function freightVehicleDockBay(vehicle: VehicleEntity): StorageAlveolus | undefined {
 	const svc = vehicle.service
@@ -14,8 +15,17 @@ export function freightVehicleDockBay(vehicle: VehicleEntity): StorageAlveolus |
 		r: svc.stop.anchor.coord[1],
 	})
 	const content = tile?.content
-	if (!(content instanceof StorageAlveolus) || content.action?.type !== 'road-fret')
+	if (!(content instanceof StorageAlveolus) || content.action?.type !== 'road-fret') {
+		traces.vehicle.warn?.('[dock.sync] docked vehicle has no road-fret bay', {
+			vehicleUid: vehicle.uid,
+			lineId: svc.line.id,
+			stopId: svc.stop.id,
+			anchor: svc.stop.anchor.coord,
+			contentType: content?.constructor?.name,
+			actionType: content instanceof StorageAlveolus ? content.action?.type : undefined,
+		})
 		return undefined
+	}
 	return content
 }
 
@@ -27,6 +37,23 @@ export function syncFreightVehicleDockRegistration(vehicle: VehicleEntity): void
 		hive?.unregisterFreightVehicleDock(vehicle.uid)
 	}
 	const bay = freightVehicleDockBay(vehicle)
-	if (!bay) return
+	if (!bay) {
+		traces.vehicle.log?.('[dock.sync] no dock registration', {
+			vehicleUid: vehicle.uid,
+			isDocked: vehicle.isDocked,
+			serviceKind: isVehicleLineService(vehicle.service)
+				? 'line'
+				: isVehicleMaintenanceService(vehicle.service)
+					? vehicle.service.kind
+					: undefined,
+		})
+		return
+	}
+	traces.vehicle.log?.('[dock.sync] registered vehicle dock', {
+		vehicleUid: vehicle.uid,
+		bay: bay.name,
+		stock: { ...vehicle.storage.stock },
+		virtualGoodsCount: vehicle.storage.virtualGoodsCount,
+	})
 	bay.hive.registerFreightVehicleDock(new VehicleFreightDock(vehicle, bay))
 }

@@ -49,30 +49,26 @@ tracked → claimed → delivering → completed ↘ aborted
 When a worker's NPC script calls `conveyStep`:
 1. The worker scans `aGoodMovement` on their assigned alveolus — this collects any unclaimed movement sitting on the tile or its surrounding borders.
 2. The worker **claims** the movement (sets `claimed = true`, `claimedBy = self`). This prevents any other worker from touching it.
-3. The worker **fulfills the source reservation** — the good is removed from whatever storage it was sitting on.
-4. The worker calls `hop()` — the path shifts, and `from` becomes the next coordinate.
-5. If the movement has more hops remaining, `place()` re-indexes it at the new position so another worker at the next tile can pick it up.
-6. A loose good visual is created and animated along the hop.
+3. The worker begins a hop step (`ASingleStep`, currently `MultiMoveStep`). This step is also a `Commitment`.
+4. The movement's current source commitment is finalized against the source storage — the good is removed from whatever storage it was sitting on.
+5. The movement's source-commitment slot is rebound to the hop step while the good is in flight.
+6. The worker calls `hop()` — the path shifts, and `from` becomes the next coordinate.
+7. If the movement has more hops remaining, `place()` re-indexes it at the new position so another worker at the next tile can pick it up after the landing handoff.
+8. A loose good visual is created and animated along the hop.
 
-**No preflight hop allocation.** Unlike the old system, the worker does *not* pre-allocate room at the next hop before starting the animation. Instead, hop allocation is deferred to the step's `onFulfilled` callback (see below). This means:
-- No capacity is held during transit — the good is in the character's hands (as a `LooseGood`).
-- If there's no room at the next hop when the character arrives, the allocation fails in `onFulfilled`, which throws `ConveyStaleBookkeepingError`. This is an invariant failure, not a recovery path.
-- No separate `hopCommitment` object is needed — the step itself (`MultiMoveStep`, which extends `Commitment`) serves as the allocation commitment.
+**Source commitment continuity.** A movement should always have a live, unfinished source commitment. At rest this commitment is registered as a `reserve` on storage. During a hop, the source commitment is the hop step itself. The visual `LooseGood` is only a renderer for that in-flight commitment; it is not the authoritative carrier of the good.
+
+**No separate hop allocation object.** The hop step itself (`MultiMoveStep`, which extends `Commitment`) serves as the in-flight source commitment. If the hop reserves or allocates storage capacity, that storage bookkeeping is registered on the step commitment. The movement should keep referring to that same live source commitment while the hop is active.
 ### Handoff at intermediate borders
 When a good lands on a border gate and still has hops left:
 1. The first worker finishes their animation and runs the step's `onFulfilled` callback.
-2. The step (a `MultiMoveStep`, which extends `Commitment`) allocates room at the next hop via `nextStorage.allocate({ [goodType]: 1 }, step)`. The step itself is the commitment — when the step fulfills, the allocation is committed; if the step were cancelled, the allocation would roll back.
+2. The hop step finalizes its storage bookkeeping at the destination. If it had an incoming allocation there, fulfilling the step commits that allocation into real stock.
 3. A new **source reservation** is created on the border gate storage via `reserve` — the good is now "sitting" at this border.
-4. The claim is released.
-5. The movement is now visible to workers at the neighboring alveolus, who can pick it up for the next hop.
+4. The movement's source-commitment slot is rebound from the fulfilled hop step to this new border reservation commitment.
+5. The claim is released.
+6. The movement is now visible to workers at the neighboring alveolus, who can pick it up for the next hop.
 
-**Why defer allocation?** The old system used preflight allocation — it created a separate `hopCommitment` and called `nextStorage.allocate()` *before* the character started walking. This had several problems:
-- Capacity at the next hop was held during the entire transit duration.
-- If the allocation failed (no room), the character never started walking — but the error handling was complex.
-- A separate `Commitment` object was needed per movement, tracked in `MovementData.hopAlloc`.
-- The cycle leader had a special `skipPreflight` path that deferred allocation to `onFulfilled`, creating two code paths.
-
-The deferred approach eliminates all of these: no capacity held during transit, no separate hop allocation object, and all movements (including cycle leader) allocate identically in `onFulfilled`.
+The important invariant is not that the good is always represented by a storage reservation. It is that `TrackedMovement` always has a source commitment which has not yet been fulfilled or cancelled. That commitment may be registered on storage (`reserve`) or may be the active hop step (`ASingleStep`) while the good is in flight.
 ### Delivery: `finish`
 When the last hop lands on the demander tile:
 1. The target allocation is **fulfilled** — the room reservation becomes real stock.
@@ -136,12 +132,14 @@ The watchdog still handles structural teardown:
 2. **One active movement per (provider, demander, goodType)** — `hasActiveMovement` prevents duplicate movements for the same triplet.
 3. **Claimed movements are invisible to other workers** — `aGoodMovement` skips `claimed === true` entries.
 4. **Border gates are the only relay points** — goods never sit on arbitrary positions, only on tile centers or gate borders.
-5. **Source allocation tracks where the good currently is** — as the good hops, the source allocation is re-assigned to the new border/tile storage.
+5. **Source commitment tracks the good** — `movement.allocations.source` is the current live commitment for the good. At rest it is a storage reservation; in flight it is the hop step commitment; after landing it is rebound to a new storage reservation at the landing storage.
 6. **Movements survive hive reconstruction** — movement identity is preserved through topology changes as long as a valid path still exists. See [hive-refresh-and-good-movements.md](./hive-refresh-and-good-movements.md).
 
 ## Allocation Parity
 
-At every point in a movement's life, the good must be **backed by at least one storage token**. A good is never logically orphaned, even when being animated between tiles.
+At every point in a movement's life, the good must be **backed by a live source commitment**. A good is never logically orphaned, even when being animated between tiles.
+
+A commitment can be registered against storage bookkeeping (`reserve` or `allocate`), but the storage bookkeeping is not the durable object. The durable reference is the `Commitment` stored on the movement.
 
 ### Booking at rest
 
@@ -153,35 +151,44 @@ When a movement sits at a tile or border (created, or after a hop completed and 
 
 The source storage holds a `reserve` token (outgoing promise). The target storage holds an `allocate` token (incoming room). The good exists in source storage's stock, reserved.
 
+In movement terms:
+
+```
+movement.allocations.source = source reservation commitment
+movement.allocations.target = final target allocation commitment
+```
+
 ### Booking during a hop (in flight)
 
-When a worker picks up the good and initiates a hop, the good transitions from "backed by source reservation" to "backed by the step executor":
+When a worker picks up the good and initiates a hop, the good transitions from "backed by source reservation" to "backed by the hop step commitment":
 
 ```
   Before pickup:
-    [source storage: reserve] ←── good
+    movement.allocations.source
+      └── registered as source storage reserve
 
   Worker claims + source fulfill:
-    good is now in flight (loose good visual)
+    source storage reserve is fulfilled
 
-  During animation (step executor):
-    good is step-executor-bound, no separate hop allocation
+  During animation:
+    movement.allocations.source = hop step commitment
 ```
 
-The good in a step executor is **not** a loose good. It is a good whose storage backing will be established when the step fulfills. Logically the good is in transit — the step's `onFulfilled` callback will allocate room at the next hop using the step itself as the commitment.
+The good in a step executor is **not** a loose good. It is a good whose source commitment is the active hop step. The visual loose good is a display artifact. Logically, the good is in transit and still belongs to the same movement.
 
-**Key difference from the old system:** There is no separate hop allocation during transit. The old system created a `hopAlloc` (a separate `Commitment`) during preflight, which held capacity at the next hop for the entire transit duration. The new system defers allocation to `onFulfilled`, so no capacity is held during transit.
+When the hop finishes, the hop step finalizes the destination storage mutation, then the movement replaces that fulfilled step commitment with a new source reservation commitment on the storage where the good landed.
 
-### Reservation-side cardinality
+### Source-commitment cardinality
 
-A good in flight may pair with **one** allocation token:
+A movement should have exactly one current source commitment:
 
-1. **Target allocation** — the `allocate` on the final destination storage (created at movement birth). This persists for the entire movement lifetime.
+1. **At rest** — the source commitment is registered as `reserve` on the storage currently holding the good.
+2. **In flight** — the source commitment is the active hop step (`ASingleStep` / `MultiMoveStep`).
+3. **After landing** — the fulfilled hop step is replaced by a new source reservation commitment on the landing storage.
 
-The hop allocation is no longer a separate token. Instead, the step's `onFulfilled` callback allocates room at the next hop using the step itself as the commitment. This means:
-- The step's lifecycle governs the allocation: when the step fulfills, the allocation is committed; if the step is cancelled, the allocation rolls back.
-- No capacity is held during transit.
-- All movements (including cycle leader) use the same allocation path.
+The movement also keeps the **target allocation** for the final destination. That `allocate` on the demander storage is created at movement birth and persists for the movement lifetime.
+
+The source commitment and target allocation are different roles. The source commitment follows the good's current carrier/location. The target allocation reserves final destination capacity.
 
 ### Job visibility rule
 
@@ -199,12 +206,12 @@ A good becomes a loose good **only** when a hop is cancelled mid-flight (step ex
 - The step's `onCancelled` callback releases the claim and cancels the movement.
 - The good is dropped at its last committed position as a loose good for the player or another system to collect.
 
-During normal operation, goods are never loose. They are either storage-reserved (at rest) or step-executor-bound (in flight, awaiting allocation on fulfillment).
+During normal operation, goods are never loose. They are either storage-reserved (at rest) or step-commitment-bound (in flight).
 
 ### Parity invariants (summary)
 
-1. **Every good in the convey system is backed by at least one storage token at all times** — either a `reserve` (at rest) or an `allocate` (in flight, or at the final destination).
-2. **Goods in flight are step-executor-bound, not loose** — they logically occupy the step's lifecycle, and the hop allocation is deferred to `onFulfilled`.
+1. **Every good in the convey system is backed by one live source commitment at all times** — either a storage `reserve` commitment (at rest) or the hop step commitment (in flight).
+2. **Goods in flight are step-commitment-bound, not loose** — they logically occupy the step's lifecycle.
 3. **A convey job only surfaces when its immediate next hop has room** — blocked movements stay in the blocked list.
-4. **Twin allocation is maintained end-to-end** — the target `allocate` persists from creation to delivery; intermediate hop allocations are created on step fulfillment.
+4. **Twin allocation is maintained end-to-end** — the target `allocate` persists from creation to delivery; the source commitment is finalized and rebound as the good moves.
 5. **Loose goods are exclusively a failure mode** — they signal that a hop was interrupted and allocations were cancelled.

@@ -1,6 +1,7 @@
 import { devPreset, reactiveOptions } from 'mutts'
 import type { PlannerFindActionSnapshot } from 'ssh/population/findNextActivity'
 import { debugActiveAllocations, getAllocationStats } from 'ssh/storage/guard'
+import { namedProfile, type ProfileLevel, type ProfileSink } from './profile.ts'
 import {
 	captureTraceRow,
 	readTraceConsoleParts,
@@ -10,6 +11,26 @@ import {
 	type TraceRow,
 	type TraceSink,
 } from './trace.ts'
+
+/** Default trace channel levels. Remove a key or call `setTraceLevel(name, undefined)` to disable it. When a new TraceSink is needed, adding its name here is enough */
+export const traceLevels: Record<string, TraceVerb> = {
+	vehicle: 'assert',
+	npc: 'assert',
+	advertising: 'assert',
+	allocations: 'assert',
+	commitments: 'assert',
+	convey: 'log',
+	residential: 'assert',
+	script: 'assert',
+	characterNeeds: 'assert',
+	idleDiagnosis: 'assert',
+	position: 'assert',
+	/** Missing keys, interpolation issues, and other `I18nClient.report` output. */
+	i18n: 'warn',
+}
+
+/** Default profile channel levels. Keep empty for normal play; use `setProfileLevel` or env-gated test setup to enable hot-path profiling. */
+export const profileLevels: Record<string, ProfileLevel> = {}
 
 export function nf<T extends Function>(name: string, fn: T): T {
 	Object.defineProperty(fn, 'name', { value: name })
@@ -53,23 +74,6 @@ const TRACE_VERB_RANK: Record<TraceVerb, number> = {
 	error: 3,
 }
 
-/** Default trace channel levels. Remove a key or call `setTraceLevel(name, undefined)` to disable it. When a new TraceSink is needed, adding its name here is enough */
-export const traceLevels: Partial<Record<string, TraceVerb>> = {
-	vehicle: 'log',
-	npc: 'assert',
-	advertising: 'assert',
-	allocations: 'assert',
-	commitments: 'assert',
-	convey: 'log',
-	residential: 'assert',
-	script: 'assert',
-	characterNeeds: 'assert',
-	idleDiagnosis: 'assert',
-	position: 'assert',
-	/** Missing keys, interpolation issues, and other `I18nClient.report` output. */
-	i18n: 'warn',
-}
-
 /**
  * Clears all trace hooks. Used by Vitest setup so tests start with fresh `traces.*` sinks.
  * Dev: configure `traceLevels`, `setTraceLevel(...)`, or assign a custom sink locally.
@@ -77,6 +81,14 @@ export const traceLevels: Partial<Record<string, TraceVerb>> = {
 export function disconnectAllTraces(): void {
 	for (const key in traceLevels) {
 		delete traceCache[key]
+	}
+}
+
+const profileCache: Record<string, ProfileSink | undefined> = {}
+
+export function disconnectAllProfiles(): void {
+	for (const key in profileCache) {
+		delete profileCache[key]
 	}
 }
 
@@ -315,6 +327,63 @@ export const traces = new Proxy(traceCache, {
 	},
 }) as Record<string, TraceSink>
 
+function createConfiguredProfile(name: string): ProfileSink {
+	return namedProfile(name, { level: profileLevels[name] })
+}
+
+export function setProfileLevel(
+	name: string,
+	...levelArg: [] | [ProfileLevel | undefined]
+): ProfileSink {
+	const nextLevel = levelArg.length === 0 ? 'summary' : levelArg[0]
+	if (nextLevel === undefined) {
+		delete profileLevels[name]
+		const existing = profileCache[name]
+		if (existing) {
+			existing.setLevel(undefined)
+			return existing
+		}
+		const next = namedProfile(name)
+		profileCache[name] = next
+		return next
+	}
+	profileLevels[name] = nextLevel
+	const existing = profileCache[name]
+	if (existing) {
+		existing.setLevel(nextLevel)
+		return existing
+	}
+	const next = namedProfile(name, { level: nextLevel })
+	profileCache[name] = next
+	return next
+}
+
+/**
+ * Lazy profiling registry keyed by channel name.
+ *
+ * Unlike `traces`, reading a disabled profile channel still returns a sink object so call sites can
+ * write `profile.proposedJobs.begin?.(...)` without guarding `profile.proposedJobs` itself.
+ */
+export const profile = new Proxy(profileCache, {
+	get(target, property, receiver) {
+		if (typeof property !== 'string') return Reflect.get(target, property, receiver)
+		if (property in target) return target[property]
+		const sink = createConfiguredProfile(property)
+		target[property] = sink
+		return sink
+	},
+	set(target, property, value, receiver) {
+		if (typeof property !== 'string') return Reflect.set(target, property, value, receiver)
+		if (value === undefined) delete target[property]
+		else target[property] = value as ProfileSink
+		return true
+	},
+	deleteProperty(target, property) {
+		if (typeof property === 'string') delete target[property]
+		return true
+	},
+}) as Record<string, ProfileSink>
+
 type ConsoleTrapElement = {
 	id: string
 	style: { display: string }
@@ -329,6 +398,7 @@ type ConsoleTrapDocument = {
 
 type BrowserDebugGlobal = typeof globalThis & {
 	traces?: typeof traces
+	profile?: typeof profile
 	window?: unknown
 	document?: ConsoleTrapDocument
 	addEventListener?: (type: string, listener: (event: ConsoleTrapEvent) => void) => void
@@ -344,6 +414,7 @@ const browserGlobal = globalThis as BrowserDebugGlobal
 
 if (browserGlobal.window !== undefined) {
 	browserGlobal.traces = traces
+	browserGlobal.profile = profile
 }
 
 //Object.assign(reactiveOptions, debugPreset)

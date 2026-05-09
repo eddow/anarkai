@@ -106,6 +106,8 @@ describe('Stalled Exchange Watchdog', () => {
 			}
 			expect(firstMovement).toBeDefined()
 			if (!firstMovement) throw new Error('Expected initial wood movement to exist')
+			const sourceAllocation = firstMovement.allocations.source
+			const targetAllocation = firstMovement.allocations.target
 
 			inert(() => {
 				hive.movingGoods.clear()
@@ -118,7 +120,10 @@ describe('Stalled Exchange Watchdog', () => {
 
 			const scan = () =>
 				(hive as unknown as { scanForStalledExchanges(): void }).scanForStalledExchanges()
-			expect(scan).toThrow(/\[WATCHDOG\] (Detached movement allocation|STALLED EXCHANGE)/)
+			expect(scan).not.toThrow()
+			await flushWatchdogWork()
+			expect(isAllocationValid(sourceAllocation)).toBe(false)
+			expect(isAllocationValid(targetAllocation)).toBe(false)
 		} finally {
 			await engine.destroy()
 		}

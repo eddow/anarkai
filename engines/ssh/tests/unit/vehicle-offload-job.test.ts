@@ -44,6 +44,37 @@ describe('findVehicleOffloadJob', () => {
 		}
 	})
 
+	it('does not offload loose goods that the alveolus can consume at 2-use', async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+		const { game } = engine
+		try {
+			engine.loadScenario({
+				generationOptions: { terrainSeed: 1234, characterCount: 0 },
+				tiles: [
+					{ coord: [0, 0], terrain: 'concrete' },
+					{ coord: [1, 0], terrain: 'concrete' },
+				],
+				looseGoods: [{ goodType: 'wood', position: { q: 1, r: 0 } }],
+				hives: [
+					{
+						name: 'SawmillNeedHive',
+						alveoli: [{ coord: [1, 0], alveolus: 'sawmill', goods: {} }],
+					},
+				],
+			} as any)
+			game.vehicles.createVehicle('wb-sawmill-need', 'wheelbarrow', { q: 0, r: 0 }, [])
+			const char = engine.spawnCharacter('Worker', { q: 0, r: 0 })
+			void char.scriptsContext
+
+			const sawmill = game.hex.getTile({ q: 1, r: 0 })?.content
+			expect(sawmill && 'canTake' in sawmill && sawmill.canTake('wood', '2-use')).toBe(true)
+			expect(findVehicleOffloadJob(game, char)).toBeUndefined()
+		} finally {
+			await engine.destroy()
+		}
+	})
+
 	it('returns undefined when no wheelbarrow exists within offload workflow', async () => {
 		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
 		await engine.init()

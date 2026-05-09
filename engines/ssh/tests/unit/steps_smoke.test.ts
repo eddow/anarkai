@@ -69,6 +69,26 @@ describe('steps smoke', () => {
 		expect(actorB.position.r).toBeCloseTo(6)
 	})
 
+	it('MultiMoveStep can defer its first tick so a new visual step survives the spawning frame', () => {
+		const actor = { position: { q: 0, r: 0 } }
+		const step = new MultiMoveStep(
+			1.5,
+			[{ who: actor, to: { q: 1, r: 0 } }],
+			'work',
+			'deferred-convey',
+			undefined,
+			true
+		)
+
+		expect(step.tick(10)).toBeUndefined()
+		expect(step.evolution).toBe(0)
+		expect(actor.position.q).toBe(0)
+
+		expect(step.tick(0.75)).toBeUndefined()
+		expect(step.evolution).toBeCloseTo(0.5)
+		expect(actor.position.q).toBeCloseTo(0.5)
+	})
+
 	it('DurationStep carries its type and description through deserialization and finishes cleanly', () => {
 		const step = new DurationStep(4, 'work', 'Chopping Wood')
 
