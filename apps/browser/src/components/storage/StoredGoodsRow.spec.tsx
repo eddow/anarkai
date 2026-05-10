@@ -5,6 +5,19 @@ import {
 	resetPresentationRevisionsForTests,
 } from '@app/lib/presentation-events'
 
+const classMocks = vi.hoisted(() => {
+	class MockBuildAlveolus {
+		tile = { uid: 'tile:build-site' }
+		constructionSite = { target: { kind: 'alveolus', alveolusType: 'tree_chopper' } }
+		requiredGoods = { stone: 1 }
+		storage = { stock: {} }
+		goodsRelations = {}
+		constructionWorkSecondsApplied = 0
+	}
+
+	return { MockBuildAlveolus }
+})
+
 vi.mock('@app/lib/css', () => ({
 	css: () => '',
 }))
@@ -27,6 +40,7 @@ vi.mock('@app/ui/anarkai', () => ({
 
 vi.mock('engine-pixi/assets/visual-content', () => ({
 	goods: {
+		stone: { sprites: ['goods.stone'] },
 		wood: { sprites: ['goods.wood'] },
 	},
 }))
@@ -40,6 +54,10 @@ vi.mock('../EntityBadge', () => ({
 vi.mock('../PropertyGridRow', () => ({
 	default: (props: { if?: boolean; children?: JSX.Children }) =>
 		props.if === false ? null : <div data-testid="property-row">{props.children}</div>,
+}))
+
+vi.mock('ssh/hive/build', () => ({
+	BuildAlveolus: classMocks.MockBuildAlveolus,
 }))
 
 let StoredGoodsRow: typeof import('./StoredGoodsRow').default
@@ -95,5 +113,30 @@ describe('StoredGoodsRow presentation refresh', () => {
 		await flush()
 
 		expect(container.querySelector('[data-testid="badge-wood"]')?.textContent).toBe('×2')
+	})
+
+	it('shows empty construction goods even when inbound allocation hides the demand relation', async () => {
+		const { BuildAlveolus } = await import('ssh/hive/build')
+		const site = new BuildAlveolus()
+
+		stop = latch(
+			container,
+			<StoredGoodsRow content={site as never} game={{} as never} label="Materials" />
+		)
+
+		expect(container.querySelector('[data-testid="badge-stone"]')?.textContent).toBe('0/1')
+	})
+
+	it('tolerates transient construction shells before required goods are populated', async () => {
+		const { BuildAlveolus } = await import('ssh/hive/build')
+		const site = new BuildAlveolus()
+		site.requiredGoods = undefined as never
+
+		stop = latch(
+			container,
+			<StoredGoodsRow content={site as never} game={{} as never} label="Materials" />
+		)
+
+		expect(container.querySelector('[data-testid="property-row"]')).toBeNull()
 	})
 })

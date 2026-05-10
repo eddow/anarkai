@@ -64,7 +64,7 @@ describe('Deadlock Reproduction', () => {
 					{
 						name: 'MainHive',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
+							{ coord: [0, 0], alveolus: 'storage', goods: {} },
 							{ coord: [1, 0], alveolus: 'woodpile', goods: {} },
 						],
 					},
@@ -84,8 +84,8 @@ describe('Deadlock Reproduction', () => {
 			const woodpileAlveolus = game.hex.getTile({ q: 1, r: 0 })!.content as StorageAlveolus
 			const woodpile = woodpileAlveolus.storage
 
-			// Match logistics expectations: implicit gather tiles are freight bays; woodpile must
-			// advertise buffer demand so hive bookkeeping creates movements (see convey_stall).
+			// Match logistics expectations: the source provides stored wood; woodpile must advertise
+			// buffer demand so hive bookkeeping creates movements (see convey_stall).
 			gatherer.working = true
 			woodpileAlveolus.working = true
 			woodpileAlveolus.setBuffers({ wood: 1 })

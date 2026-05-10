@@ -22,7 +22,7 @@ let alveolusVisualInstanceCounter = 0
 
 function alveolusVisualKey(alveolus: Alveolus): keyof typeof alveoli | undefined {
 	if (alveolus instanceof BuildAlveolus) {
-		return alveolus.target as keyof typeof alveoli
+		return 'construction_site'
 	}
 	return alveolus.name as keyof typeof alveoli | undefined
 }

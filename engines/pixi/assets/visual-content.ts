@@ -36,6 +36,10 @@ export const deposits: Record<string, VisualDefinition> = {
 }
 
 export const alveoli: Record<string, VisualDefinition> = {
+	construction_site: {
+		sprites: ['buildings.trowel'],
+		icon: 'buildings.trowel',
+	},
 	tree_chopper: {
 		sprites: ['buildings.chopper'],
 		icon: 'buildings.chopper',

@@ -1,7 +1,10 @@
 import { freightLineHiveNeedPriorityWeight } from 'engine-rules'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
-import { type BuildSite, isStandaloneBuildSiteShell } from 'ssh/build-site'
+import {
+	type ConstructionSiteShell,
+	isStandaloneConstructionSiteShell,
+} from 'ssh/build-site'
 import {
 	distributeSegmentAllowsGoodTypeForSegment,
 	type FreightDistributeRouteSegment,
@@ -264,7 +267,7 @@ export function measureZoneLooseGoodsSource(
 }
 
 /**
- * Zone **sink**: standalone construction {@link BuildSite.remainingNeeds} on tiles in the radius.
+ * Zone **sink**: standalone construction {@link ConstructionSiteShell.remainingNeeds} on tiles in the radius.
  * (Tile-level “loose need” for material delivery.)
  */
 export function measureZoneStandaloneConstructionNeedSink(
@@ -276,8 +279,8 @@ export function measureZoneStandaloneConstructionNeedSink(
 	const perGood: Partial<Record<GoodType, number>> = {}
 	for (const tile of listTilesInAxialRadius(game, center, radius)) {
 		const c = tile.content
-		if (!isStandaloneBuildSiteShell(c) || c.destroyed || c.isReady) continue
-		const site = c as BuildSite
+		if (!isStandaloneConstructionSiteShell(c) || c.destroyed || c.isReady) continue
+		const site = c as ConstructionSiteShell
 		for (const g of allowedGoods) {
 			const need = site.remainingNeeds[g as string]
 			if (need === undefined || need <= 0) continue

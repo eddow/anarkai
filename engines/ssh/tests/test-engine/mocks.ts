@@ -74,6 +74,15 @@ function rulesTestOverrides() {
 				},
 				construction: { goods: { wood: 1 }, time: 1 },
 			},
+			stonecutter: {
+				preparationTime: 1,
+				workTime: 2,
+				action: {
+					type: 'transform',
+					rates: { stone: -0.2 },
+				},
+				construction: { goods: { wood: 1 }, time: 1 },
+			},
 			freight_bay: {
 				preparationTime: 1,
 				workTime: 0,

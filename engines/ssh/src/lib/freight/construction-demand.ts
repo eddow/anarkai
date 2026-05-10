@@ -1,5 +1,8 @@
 import type { Tile } from 'ssh/board/tile'
-import { type BuildSite, isStandaloneBuildSiteShell } from 'ssh/build-site'
+import {
+	type ConstructionSiteShell,
+	isStandaloneConstructionSiteShell,
+} from 'ssh/build-site'
 import {
 	distributeSegmentWithinRadius,
 	type FreightDistributeRouteSegment,
@@ -10,8 +13,8 @@ import type { Game } from 'ssh/game/game'
 import { type AxialCoord, axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
 
-/** @deprecated Prefer {@link isStandaloneBuildSiteShell} from `ssh/build-site`. */
-export const isStandaloneFreightConstructionSite = isStandaloneBuildSiteShell
+/** @deprecated Prefer {@link isStandaloneConstructionSiteShell} from `ssh/build-site`. */
+export const isStandaloneFreightConstructionSite = isStandaloneConstructionSiteShell
 
 /** Channel used when a freight candidate is driven by a temporary / project-local construction sink. */
 export const CONSTRUCTION_DEMAND_AD_SOURCE: FreightAdSource = 'project'
@@ -25,7 +28,7 @@ export function visitStandaloneConstructionSitesForDistributeSegmentAxial(
 	line: FreightLineDefinition,
 	segment: FreightDistributeRouteSegment,
 	bayPos: AxialCoord,
-	visitor: (tile: Tile, site: BuildSite) => void
+	visitor: (tile: Tile, site: ConstructionSiteShell) => void
 ): void {
 	const unloadStop = line.stops[segment.unloadStopIndex]
 	const tiles =
@@ -34,7 +37,7 @@ export function visitStandaloneConstructionSitesForDistributeSegmentAxial(
 			: game.hex.tiles
 	for (const tile of tiles) {
 		const c = tile.content
-		if (!isStandaloneBuildSiteShell(c)) continue
+		if (!isStandaloneConstructionSiteShell(c)) continue
 		if (c.destroyed || c.isReady) continue
 		const tilePos = toAxialCoord(tile.position)
 		if (!tilePos) continue

@@ -278,9 +278,9 @@ describe('advert/convey regression', () => {
 		expect(sawmill.storage.removeGood('wood', 1)).toBe(1)
 		await flushDeferred()
 
-		expect(
-			getWoodMovements(hive).filter((movement) => movement.demander === sawmill)
-		).toHaveLength(1)
+		expect(getWoodMovements(hive).filter((movement) => movement.demander === sawmill)).toHaveLength(
+			1
+		)
 	})
 
 	it('reschedules advertisements when an alveolus starts working', {
@@ -324,9 +324,9 @@ describe('advert/convey regression', () => {
 		sawmill.working = true
 		await flushDeferred()
 
-		expect(
-			getWoodMovements(hive).filter((movement) => movement.demander === sawmill)
-		).toHaveLength(1)
+		expect(getWoodMovements(hive).filter((movement) => movement.demander === sawmill)).toHaveLength(
+			1
+		)
 	})
 
 	it('reschedules advertisements when storage buffers change', {
@@ -365,18 +365,18 @@ describe('advert/convey regression', () => {
 		const hive = provider?.hive as Hive | undefined
 		if (!provider || !woodpile || !hive) throw new Error('Expected provider/woodpile hive')
 
-		expect(getWoodMovements(hive).filter((movement) => movement.demander === woodpile)).toHaveLength(
-			0
-		)
+		expect(
+			getWoodMovements(hive).filter((movement) => movement.demander === woodpile)
+		).toHaveLength(0)
 		expect(hive.needs.wood).toBeUndefined()
 
 		woodpile.setBuffers({ wood: 1 })
 		await flushDeferred()
 
 		expect(hive.needs.wood).toBe('1-buffer')
-		expect(getWoodMovements(hive).filter((movement) => movement.demander === woodpile)).toHaveLength(
-			0
-		)
+		expect(
+			getWoodMovements(hive).filter((movement) => movement.demander === woodpile)
+		).toHaveLength(0)
 
 		provider.storage.addGood('wood', 1)
 		await flushDeferred()

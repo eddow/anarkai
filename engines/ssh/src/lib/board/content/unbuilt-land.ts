@@ -5,6 +5,7 @@ import {
 	constructionTargetFromProject,
 	createConstructionSiteState,
 } from 'ssh/construction-state'
+import { traces } from 'ssh/dev/debug'
 import { withTicked } from 'ssh/game/object'
 import { gameIsaTypes } from 'ssh/npcs/utils'
 import { residentialBasicDwellingProject } from 'ssh/residential/constants'
@@ -47,10 +48,39 @@ export class UnBuiltLand extends withTicked(TileContent) {
 		const target = constructionTargetFromProject(project)
 		this.constructionSite =
 			constructionSite ?? (target ? createConstructionSiteState(target) : undefined)
+		const coord = toAxialCoord(this.tile.position)
+		traces.work.log?.('work.project.set', {
+			project,
+			tileQ: coord?.q,
+			tileR: coord?.r,
+			zone: this.tile.zone,
+			targetKind: target?.kind,
+			target: target?.kind === 'alveolus' ? target.alveolusType : target?.tier,
+			phase: this.constructionSite?.phase,
+			burdened: this.tile.isBurdened,
+			looseGoods: this.tile.looseGoods.length,
+			availableLooseGoods: this.tile.availableGoods.length,
+			deposit: this.deposit?.name,
+		})
 		if (this.constructionSite) {
 			effect`unbuilt-land:construction-phase`(() => {
 				if (!this.project || !this.constructionSite) return
-				this.constructionSite.phase = this.tile.isBurdened ? 'planned' : 'foundation'
+				const phase = this.tile.isBurdened ? 'planned' : 'foundation'
+				if (this.constructionSite.phase === phase) return
+				this.constructionSite.phase = phase
+				traces.work.log?.('work.project.phase', {
+					project: this.project,
+					phase,
+					tileQ: coord?.q,
+					tileR: coord?.r,
+					zone: this.tile.zone,
+					burdened: this.tile.isBurdened,
+					looseGoods: this.tile.looseGoods.length,
+					availableLooseGoods: this.tile.availableGoods.length,
+					deposit: this.deposit?.name,
+				})
+				this.game.invalidateWorkPlanning('unbuilt-land.construction-phase')
+				this.game.enqueueInteractiveChange(this.tile)
 			})
 		}
 		// Residential construction keeps the residential zone marker; alveolus projects clear it.

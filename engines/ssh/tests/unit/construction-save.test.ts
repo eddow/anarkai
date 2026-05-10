@@ -1,5 +1,5 @@
-import { Game } from 'ssh/game/game'
 import { chopSaw } from 'ssh/game/exampleGames'
+import { Game } from 'ssh/game/game'
 import { BuildAlveolus } from 'ssh/hive/build'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -89,9 +89,7 @@ describe('BuildAlveolus save/load', () => {
 
 		const state = game.saveGameData()
 		const hiveEntry = state.hives?.find((h) => h.name === 'ChopSaw')
-		const storagePatch = hiveEntry?.alveoli.find(
-			(a) => a.coord[0] === 11 && a.coord[1] === -8
-		)
+		const storagePatch = hiveEntry?.alveoli.find((a) => a.coord[0] === 11 && a.coord[1] === -8)
 		expect(storagePatch?.configuration).toMatchObject({
 			ref: { scope: 'individual' },
 			individual: {

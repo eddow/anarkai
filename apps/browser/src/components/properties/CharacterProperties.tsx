@@ -1,5 +1,6 @@
 import { css } from '@app/lib/css'
 import { T } from '@app/lib/i18n'
+import { workPlanningPresentationRevision } from '@app/lib/presentation-events'
 import { type AnarkaiBadgeTone, Badge, InspectorSection, Panel } from '@app/ui/anarkai'
 import { effect } from 'mutts'
 import { AEvolutionStep, ALerpStep } from 'ssh/npcs/steps'
@@ -271,6 +272,7 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 			return props.character?.lastPlannerSnapshot
 		},
 		get workPlannerSnapshot(): RankedWorkPlannerSnapshot | undefined {
+			workPlanningPresentationRevision()
 			return props.character?.workPlannerSnapshot ?? props.character?.lastWorkPlannerSnapshot
 		},
 		get plannerChoices() {

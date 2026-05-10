@@ -1,7 +1,7 @@
 /**
  * Diagnostic test: proves and characterises the reactive planner loop.
  *
- * gather.goodsRelations <- workingGoodsRelations <- storage.availables
+ * provider.goodsRelations <- workingGoodsRelations <- storage.availables
  * SlottedStorage tracks `slot.reserved` / `slot.allocated` reactively so availables and
  * allocatedSlots update without manual version counters.
  */
@@ -44,7 +44,7 @@ describe('Planner loop diagnostic', () => {
 				{
 					name: 'TestHive',
 					alveoli: [
-						{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
+						{ coord: [0, 0], alveolus: 'storage', goods: {} },
 						{ coord: [1, 0], alveolus: 'woodpile', goods: {} },
 					],
 				},
@@ -58,7 +58,7 @@ describe('Planner loop diagnostic', () => {
 		return { engine, game, gather, woodpile, hive: gather.hive! }
 	}
 
-	/** Single gather alveolus — no adjacent consumer, so hive logistics does not reserve stock. */
+	/** Single provider storage — no adjacent consumer, so hive logistics does not reserve stock. */
 	async function setupGatherOnly() {
 		const engine = new TestEngine({
 			terrainSeed: 1234,
@@ -69,7 +69,7 @@ describe('Planner loop diagnostic', () => {
 			hives: [
 				{
 					name: 'GatherOnly',
-					alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }],
+					alveoli: [{ coord: [0, 0], alveolus: 'storage', goods: {} }],
 				},
 			],
 			looseGoods: [],
@@ -154,9 +154,10 @@ describe('Planner loop diagnostic', () => {
 	})
 
 	/**
-	 * Test 3: woodpile allocation should re-fire advertise because planned incoming stock changed.
+	 * Test 3: woodpile allocation should not re-fire advertise when planned incoming stock does not
+	 * change advertised relations.
 	 */
-	it('allocate() on woodpile storage should re-fire woodpile advertise effect', async () => {
+	it('allocate() on woodpile storage should not re-fire without an advertisement change', async () => {
 		const { gather, woodpile } = await setupHive()
 
 		await new Promise((r) => setTimeout(r, 10))
@@ -176,7 +177,7 @@ describe('Planner loop diagnostic', () => {
 		console.log('woodpile advertise fires after manual allocate():', woodpileFiresAfterAllocate)
 		commitment.cancel('test cleanup')
 
-		expect(woodpileFiresAfterAllocate).toBeGreaterThan(0)
+		expect(woodpileFiresAfterAllocate).toBe(0)
 	})
 
 	/**
@@ -293,7 +294,7 @@ describe('Planner loop diagnostic', () => {
 					{
 						name: 'TestHive',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
+							{ coord: [0, 0], alveolus: 'storage', goods: {} },
 							{ coord: [1, 0], alveolus: 'woodpile', goods: {} },
 						],
 					},

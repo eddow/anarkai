@@ -3,7 +3,7 @@ import {
 	isImplicitGatherFreightLineId,
 } from 'ssh/freight/freight-line'
 import type { SaveState } from 'ssh/game'
-import { StorageAlveolus } from 'ssh/hive/storage'
+import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
 
@@ -36,13 +36,13 @@ describe('Game freight line lifecycle', () => {
 			}
 			engine.loadScenario(scenario)
 			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content
-			expect(bay).toBeInstanceOf(StorageAlveolus)
-			const storage = bay as StorageAlveolus
+			expect(bay).toBeInstanceOf(FreightBayAlveolus)
+			const freightBay = bay as FreightBayAlveolus
 			const draft = createExplicitFreightLineDraftForFreightBay(
 				{
-					hive: storage.hive,
+					hive: freightBay.hive,
 					name: 'freight_bay',
-					tile: storage.tile,
+					tile: freightBay.tile,
 				},
 				'distribute'
 			)

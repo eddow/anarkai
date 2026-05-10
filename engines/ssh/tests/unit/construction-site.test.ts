@@ -1,8 +1,9 @@
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { queryConstructionSiteView } from 'ssh/construction'
+import { createConstructionShell } from 'ssh/construction-shell'
+import { createConstructionSiteState } from 'ssh/construction-state'
 import { chopSaw } from 'ssh/game/exampleGames'
 import { Game } from 'ssh/game/game'
-import { BuildAlveolus } from 'ssh/hive/build'
 import { afterEach, describe, expect, it } from 'vitest'
 
 describe('queryConstructionSiteView', () => {
@@ -80,7 +81,7 @@ describe('queryConstructionSiteView', () => {
 		if (land instanceof UnBuiltLand) expect(land.constructionSite?.phase).toBe(phaseBeforeQuery)
 	})
 
-	it('returns waiting_materials for an incomplete BuildAlveolus', async () => {
+	it('returns waiting_materials for an incomplete construction shell', async () => {
 		game = new Game(
 			{ terrainSeed: 31, characterCount: 0 },
 			{
@@ -99,7 +100,10 @@ describe('queryConstructionSiteView', () => {
 		await game.loaded
 		game.ticker.stop()
 		const tile = game.hex.getTile({ q: 1, r: 0 })!
-		const site = new BuildAlveolus(tile, 'storage')
+		const site = createConstructionShell(
+			tile,
+			createConstructionSiteState({ kind: 'alveolus', alveolusType: 'storage' })
+		)
 		tile.content = site
 		const view = queryConstructionSiteView(game, tile)
 		expect(view?.phase).toBe('waiting_materials')
@@ -129,7 +133,10 @@ describe('queryConstructionSiteView', () => {
 		await game.loaded
 		game.ticker.stop()
 		const tile = game.hex.getTile({ q: 1, r: 0 })!
-		const site = new BuildAlveolus(tile, 'engineer')
+		const site = createConstructionShell(
+			tile,
+			createConstructionSiteState({ kind: 'alveolus', alveolusType: 'engineer' })
+		)
 		site.storage.addGood('wood', 1)
 		site.storage.addGood('stone', 1)
 		tile.content = site

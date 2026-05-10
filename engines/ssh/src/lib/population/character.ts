@@ -166,7 +166,8 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		this.workPlannerSnapshotCache = { revision, snapshot }
 		return snapshot ?? this.lastWorkPlannerSnapshot
 	}
-	// TODO: assigned should become `assignedAlveolus | operates`.
+	// Alveolus assignment and vehicle operation are distinct runtime links: an operator may hold a
+	// vehicle service without being assigned to a building, and normal work keeps using this slot.
 	private _assignedAlveolus: Alveolus | undefined
 	public get assignedAlveolus(): Alveolus | undefined {
 		return this._assignedAlveolus
@@ -278,15 +279,18 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			'character.position.set.before',
 			this.positionTracePayload('before', value)
 		)
+		const previousCoord = axial.round(toAxialCoord(this.position)!)
+		const nextCoord = axial.round(toAxialCoord(value)!)
+		const changedTile = axial.key(previousCoord) !== axial.key(nextCoord)
 		if (this._footPosition) {
 			this._footPosition = reactive(value)
-			this.game.invalidateWorkPlanning('character.position')
+			if (changedTile) this.game.invalidateWorkPlanning('character.position')
 			traces.position.log?.('character.position.set.after', this.positionTracePayload('after'))
 			return
 		}
 		assert(this.operates, 'position set requires an operated vehicle')
 		this.operates.position = reactive(value)
-		this.game.invalidateWorkPlanning('character.position')
+		if (changedTile) this.game.invalidateWorkPlanning('character.position')
 		traces.position.log?.('character.position.set.after', this.positionTracePayload('after'))
 	}
 
@@ -448,9 +452,10 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	}
 
 	private workExecution(job: Job, targetTile: Tile, path: AxialCoord[]): ScriptExecution {
+		const source =
+			'source' in job && job.source && typeof job.source === 'object' ? job.source : undefined
 		job = executableJob(job)
 		const safePath = path.filter((step): step is AxialCoord => !!step)
-		// TODO: organise a bit so we don't have hard-coded type list, or at minimum make an array.includes - but at best, find a logical way to test (existence of job.vehicleUid?) instead
 		if (isVehicleFreightJob(job)) {
 			const vehicle = this.game.vehicles.vehicle(job.vehicleUid)
 			if (!vehicle) return this.scriptsContext.selfCare.wander()
@@ -465,7 +470,10 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			}
 			return this.scriptsContext.work.goWork(workPlan)
 		}
-		const jobProvider = targetTile.content!
+		const jobProvider =
+			source && 'kind' in source && source.kind === 'alveolus' && 'alveolus' in source
+				? source.alveolus
+				: targetTile.content!
 		const target = jobProvider
 		const workPlan: WorkPlan = {
 			...job,
@@ -539,7 +547,11 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			return this.tailorVehicleProposedJob(proposedJob)
 		}
 
-		const path = this.sameTilePath(proposedJob.targetTile)
+		const executionTile =
+			proposedJob.source.kind === 'alveolus'
+				? proposedJob.source.alveolus.tile
+				: proposedJob.targetTile
+		const path = this.sameTilePath(executionTile)
 		if (path === false) {
 			return {
 				available: false,
@@ -693,12 +705,6 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		return true
 	}
 
-	private buildRankedWorkSnapshot(
-		match: { job: Job; targetTile: Tile } | false
-	): RankedWorkPlannerSnapshot | undefined {
-		return this.buildRankedWorkSnapshotFrom(this.rankedWorkCandidates(), match)
-	}
-
 	private buildRankedWorkSnapshotFrom(
 		ranked: readonly RankedWorkCandidate[],
 		match: { job: Job; targetTile: Tile } | false
@@ -755,6 +761,21 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 				...vehicleFreightJobTracePayload(match.job),
 				pathLen: match.path.length,
 				characterAxial: pos ? axial.key(pos) : undefined,
+			})
+		} else {
+			const pos = toAxialCoord(this.position)
+			const target = toAxialCoord(match.targetTile.position)
+			traces.work.log?.('work.selected', {
+				character: this.name,
+				characterUid: this.uid,
+				job: match.job.job,
+				targetAlveolus: match.targetTile.content?.name,
+				targetQ: target?.q,
+				targetR: target?.r,
+				pathLen: match.path.length,
+				characterQ: pos?.q,
+				characterR: pos?.r,
+				workPlanningRevision: this.game.workPlanningRevision,
 			})
 		}
 		this.log('character.beginJob', match.job.job)

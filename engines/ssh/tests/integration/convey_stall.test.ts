@@ -42,7 +42,7 @@ describe('Convey Stall Reproduction', () => {
 						alveoli: [
 							{
 								coord: [0, 0],
-								alveolus: 'freight_bay',
+								alveolus: 'storage',
 								goods: { wood: 1 },
 							},
 							{
@@ -119,7 +119,7 @@ describe('Convey Stall Reproduction', () => {
 						alveoli: [
 							{
 								coord: [0, 0],
-								alveolus: 'freight_bay',
+								alveolus: 'storage',
 								goods: { wood: 1 },
 							},
 							{

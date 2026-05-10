@@ -61,6 +61,16 @@ describe('transform process buffers', () => {
 		})
 	})
 
+	it('does not accept inputs when produced output has no storage room', async () => {
+		await withSawmill({ wood: 1, planks: 3 }, ({ sawmill }) => {
+			expect(sawmill.processBuffer('planks')).toBe(0)
+			expect(sawmill.canWork).toBe(false)
+			expect(sawmill.nextLoadGood).toBeUndefined()
+			expect(sawmill.canTake('wood', '2-use')).toBe(false)
+			expect(sawmill.workingGoodsRelations.wood).toBeUndefined()
+		})
+	})
+
 	it('demands input before loading and provides output only after unloading', async () => {
 		await withSawmill({}, ({ sawmill }) => {
 			expect(sawmill.workingGoodsRelations.wood?.advertisement).toBe('demand')

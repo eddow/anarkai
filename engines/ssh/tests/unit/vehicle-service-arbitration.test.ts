@@ -500,18 +500,26 @@ describe('Vehicle begin-service arbitration', () => {
 			hives: [
 				{
 					name: 'UnloadHive',
-					alveoli: [{ coord: [0, 0], alveolus: 'freight_bay' }],
+					alveoli: [{ coord: [0, 0], alveolus: 'storage' }],
 				},
 			],
 			freightLines: [
-				gatherFreightLine({
+				{
 					id: 'arb:unload',
 					name: 'Unload gather',
-					hiveName: 'UnloadHive',
-					coord: [0, 0],
-					filters: ['wood'],
-					radius: 2,
-				}),
+					stops: [
+						{ id: 'arb:unload-load', zone: { kind: 'radius', center: [0, 0], radius: 2 } },
+						{
+							id: 'arb:unload-anchor',
+							anchor: {
+								kind: 'alveolus',
+								hiveName: 'UnloadHive',
+								alveolusType: 'storage',
+								coord: [0, 0],
+							},
+						},
+					],
+				},
 			],
 		} satisfies GamePatches
 		game = new Game({ terrainSeed: 9507, characterCount: 0 }, patches)
@@ -565,7 +573,22 @@ describe('Vehicle begin-service arbitration', () => {
 			hives: [
 				{
 					name: 'NoGatherJobHive',
-					alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }],
+					alveoli: [
+						{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
+						{
+							coord: [1, 0],
+							alveolus: 'storage',
+							goods: {},
+							configuration: {
+								ref: { scope: 'individual' },
+								individual: {
+									working: true,
+									generalSlots: 0,
+									goods: { wood: { minSlots: 1, maxSlots: 1 } },
+								},
+							},
+						},
+					],
 				},
 			],
 			looseGoods: [{ goodType: 'wood' as const, position: { q: 0, r: 2 } }],

@@ -1,5 +1,6 @@
 import { css } from '@app/lib/css'
 import { T } from '@app/lib/i18n'
+import { workPlanningPresentationRevision } from '@app/lib/presentation-events'
 import { InspectorSection } from '@app/ui/anarkai'
 import { effect, reactive } from 'mutts'
 import { Tile } from 'ssh/board/tile'
@@ -112,6 +113,7 @@ function describeWorkDetail(choice: TileWorkPick): string {
 }
 
 function tileWorkChoices(tile: Tile | undefined) {
+	workPlanningPresentationRevision()
 	const end = profile.proposedJobs.begin?.('tile-properties.workChoices', () => ({
 		tileUid: tile?.uid,
 	}))

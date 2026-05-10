@@ -30,7 +30,7 @@ describe('Real Convey Issue Test', () => {
 						alveoli: [
 							{
 								coord: [0, 0],
-								alveolus: 'freight_bay',
+								alveolus: 'storage',
 								goods: { wood: 5 }, // Gatherer starts with wood
 							},
 							{

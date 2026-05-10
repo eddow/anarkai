@@ -250,7 +250,22 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			hives: [
 				{
 					name: 'DockStockAfterAds',
-					alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }],
+					alveoli: [
+						{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
+						{
+							coord: [1, 0],
+							alveolus: 'storage',
+							goods: {},
+							configuration: {
+								ref: { scope: 'individual' },
+								individual: {
+									working: true,
+									generalSlots: 0,
+									goods: { wood: { minSlots: 1, maxSlots: 1 } },
+								},
+							},
+						},
+					],
 				},
 			],
 			freightLines: [

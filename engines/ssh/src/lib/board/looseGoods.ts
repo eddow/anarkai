@@ -27,6 +27,11 @@ type InternalLooseGood = LooseGood & {
 export class LooseGoods extends withTicked(GameObject) {
 	public readonly uid = 'loose-goods-manager'
 	public readonly goods = reactive(new AxialKeyMap<LooseGood[]>([], () => []))
+	private notifyLooseGoodsChanged(coordKey: AxialKey): void {
+		const tile = this.game.hex.getTile(axial.coord(coordKey))
+		if (tile) this.game.enqueueInteractiveChange(tile)
+	}
+
 	private removeKnownGood(good: InternalLooseGood): void {
 		const coord = good.coordKey
 		const oldList = this.goods.get(coord) || []
@@ -90,6 +95,7 @@ export class LooseGoods extends withTicked(GameObject) {
 		})
 		this.goods.set(coordKey, [...(this.goods.get(coordKey) || []), good])
 		this.game.invalidateWorkPlanning('loose-good.add')
+		this.notifyLooseGoodsChanged(coordKey)
 
 		// Create sprite after game is loaded
 
@@ -104,6 +110,7 @@ export class LooseGoods extends withTicked(GameObject) {
 		const internalGood = good as InternalLooseGood
 		this.removeKnownGood(internalGood)
 		this.game.invalidateWorkPlanning('loose-good.remove')
+		this.notifyLooseGoodsChanged(internalGood.coordKey)
 
 		// Clean up sprite if it exists (might not exist if removed before game loaded)
 	}

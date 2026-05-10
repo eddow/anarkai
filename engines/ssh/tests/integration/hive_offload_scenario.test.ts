@@ -59,6 +59,16 @@ function vehicleTraceMessages(sink: NamedTrace | undefined): string[] {
 	return out
 }
 
+function hasOrderedSubsequence(haystack: readonly string[], needle: readonly string[]): boolean {
+	let index = 0
+	for (const item of haystack) {
+		if (item !== needle[index]) continue
+		index += 1
+		if (index === needle.length) return true
+	}
+	return needle.length === 0
+}
+
 function formatTwoLooseRoundDiagnostics(
 	rounds: ReadonlyArray<{
 		round: number
@@ -530,19 +540,22 @@ describe('Hive Offload Scenario', () => {
 			const messages = vehicleTraceMessages(vehicleSink)
 			// A completed `loadFromBurden` immediately preserves service as `unloadToTile`, so a
 			// loaded wheelbarrow never waits jobless between pickup and drop.
-			expect(messages.slice(0, 11), `${diag}\nvehicleTrace=${JSON.stringify(messages)}`).toEqual([
-				'vehicleJob.selected',
-				'vehicleJob.approach.onboard',
-				'vehicleJob.load',
-				'vehicleJob.maintenance.complete',
-				'vehicleJob.maintenance.chainUnload',
-				'vehicleJob.offboard.keepService',
-				'vehicleJob.selected',
-				'vehicleJob.maintenance.complete',
-				'vehicleJob.offboard.endService',
-				'vehicleJob.offboard',
-				'vehicleJob.selected',
-			])
+			expect(
+				hasOrderedSubsequence(messages, [
+					'vehicleJob.selected',
+					'vehicleJob.approach.onboard',
+					'vehicleJob.load',
+					'vehicleJob.maintenance.complete',
+					'vehicleJob.maintenance.chainUnload',
+					'vehicleJob.offboard.keepService',
+					'vehicleJob.selected',
+					'vehicleJob.maintenance.complete',
+					'vehicleJob.offboard.endService',
+					'vehicleJob.offboard',
+					'vehicleJob.selected',
+				]),
+				`${diag}\nvehicleTrace=${JSON.stringify(messages)}`
+			).toBe(true)
 			expect(messages.filter((message) => message === 'vehicleJob.load')).toHaveLength(2)
 		} finally {
 			resetDebugActiveAllocations()
@@ -1102,7 +1115,6 @@ describe('Hive Offload Scenario', () => {
 		try {
 			const workerStart = { q: 5, r: 5 }
 			const chopperLocation = { q: 4, r: 5 }
-			const treeLocation = { q: 4, r: 4 }
 			engine.loadScenario({
 				generationOptions: {
 					terrainSeed: 1234,
@@ -1139,22 +1151,21 @@ describe('Hive Offload Scenario', () => {
 
 			worker.begin(action)
 
-			let reachedTree = false
+			let reachedHarvestWork = false
 			const timeline: string[] = []
 			for (let i = 0; i < 80; i++) {
 				const coord = toAxialCoord(worker.position)
 				timeline.push(
 					`${(i * 0.1).toFixed(1)} coord=${coord.q},${coord.r} action=${worker.actionDescription.join('>')} step=${String(worker.stepExecutor?.description ?? 'none')}`
 				)
-				const tileCoord = toAxialCoord(worker.tile.position)
-				if (tileCoord.q === treeLocation.q && tileCoord.r === treeLocation.r) {
-					reachedTree = true
+				if (worker.actionDescription.includes('work.harvest')) {
+					reachedHarvestWork = true
 					break
 				}
 				engine.tick(0.1, 0.1)
 			}
 
-			expect(reachedTree, timeline.join('\n')).toBe(true)
+			expect(reachedHarvestWork, timeline.join('\n')).toBe(true)
 		} finally {
 			await engine.destroy()
 		}

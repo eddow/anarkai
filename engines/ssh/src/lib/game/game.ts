@@ -11,10 +11,11 @@ import { atomic, defer, Eventful, reactive, unreactive } from 'mutts'
 import { Alveolus } from 'ssh/board'
 import { HexBoard } from 'ssh/board/board'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
-import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import { Deposit, UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { Tile, type TileTerrainState } from 'ssh/board/tile'
 import type { Zone } from 'ssh/board/zone'
+import { isConstructionSiteShell } from 'ssh/build-site'
+import { createConstructionShell } from 'ssh/construction-shell'
 import {
 	type ConstructionPhase,
 	createConstructionSiteState,
@@ -40,7 +41,6 @@ import {
 } from 'ssh/generation'
 import { configuration } from 'ssh/globals'
 import { AlveolusConfigurationManager, createAlveolus, Hive } from 'ssh/hive'
-import { BuildAlveolus } from 'ssh/hive/build'
 import {
 	collectSerializedConveyMovementsWithIndex,
 	restoreSerializedConveyMovements,
@@ -98,6 +98,7 @@ export type GameEvents = {
 export type GamePresentationEvent =
 	| { type: 'storage.changed'; ownerUid: string }
 	| { type: 'vehicle.dock.changed'; ownerUid: string; vehicleUid: string }
+	| { type: 'work-planning.changed'; revision: number }
 
 /**
  * Gameplay-facing notification that a convey hop has committed.
@@ -474,6 +475,12 @@ export class Game extends Eventful<GameEvents> {
 
 	public invalidateWorkPlanning(_reason: string): void {
 		this._workPlanningRevision++
+		const event: GamePresentationEvent = {
+			type: 'work-planning.changed',
+			revision: this._workPlanningRevision,
+		}
+		this.pendingPresentationEvents.set(event.type, event)
+		this.schedulePresentationEventsFlush()
 	}
 
 	/**
@@ -1275,7 +1282,8 @@ export class Game extends Eventful<GameEvents> {
 					})
 					constructionSite.phase = a.constructionPhase ?? 'waiting_materials'
 					constructionSite.workSecondsApplied = a.constructionWorkSecondsApplied ?? 0
-					const build = new BuildAlveolus(tile, alveolusType, constructionSite)
+					const build = createConstructionShell(tile, constructionSite)
+					assert(build instanceof Alveolus, 'Hive construction shell must be alveolus content')
 					build.constructionWorkSecondsApplied = a.constructionWorkSecondsApplied ?? 0
 					this.hex.setTileContent(tile, build)
 					if (a.goods)
@@ -1409,7 +1417,7 @@ export class Game extends Eventful<GameEvents> {
 				})
 				constructionSite.phase = entry.constructionPhase ?? 'waiting_materials'
 				constructionSite.workSecondsApplied = entry.constructionWorkSecondsApplied ?? 0
-				const build = new BuildDwelling(tile, entry.tier, constructionSite)
+				const build = createConstructionShell(tile, constructionSite)
 				build.constructionWorkSecondsApplied = entry.constructionWorkSecondsApplied ?? 0
 				this.hex.setTileContent(tile, build)
 				if (entry.goods) {
@@ -1502,15 +1510,17 @@ export class Game extends Eventful<GameEvents> {
 				// Assume alveolus-like content decorated by GcClassed with resourceName accessible via .name
 				const alveolusName = content.name
 				if (!hives.has(content.hive)) hives.set(content.hive, [])
+				const constructionShell = isConstructionSiteShell(content) ? content : undefined
 				const patch: AlveolusPatch =
-					content instanceof BuildAlveolus
+					constructionShell?.constructionSite.target.kind === 'alveolus'
 						? {
 								coord: [q, r],
-								alveolus: content.target,
+								alveolus: constructionShell.constructionSite.target.alveolusType,
 								underConstruction: true,
-								constructionWorkSecondsApplied: content.constructionWorkSecondsApplied,
-								constructionPhase: content.constructionSite.phase,
-								goods: content.storage?.stock || {},
+								constructionWorkSecondsApplied:
+									constructionShell.constructionWorkSecondsApplied,
+								constructionPhase: constructionShell.constructionSite.phase,
+								goods: constructionShell.storage?.stock || {},
 							}
 						: {
 								coord: [q, r],
@@ -1529,10 +1539,13 @@ export class Game extends Eventful<GameEvents> {
 				hives.get(content.hive)!.push(patch)
 			}
 
-			if (content instanceof BuildDwelling) {
+			if (
+				isConstructionSiteShell(content) &&
+				content.constructionSite.target.kind === 'dwelling'
+			) {
 				dwellings.push({
 					coord: [q, r],
-					tier: content.targetTier,
+					tier: content.constructionSite.target.tier,
 					underConstruction: true,
 					constructionWorkSecondsApplied: content.constructionWorkSecondsApplied,
 					constructionPhase: content.constructionSite.phase,

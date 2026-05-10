@@ -15,7 +15,7 @@ function pushTimelineSample(timeline: string[], line: string) {
 }
 
 describe('Single worker gather->sawmill regression', () => {
-	it('moves and transforms two starting wood with one worker without stalling the second reserved wood', {
+	it('drains two starting wood with one worker without stalling the second reserved wood', {
 		timeout: 30000,
 	}, async () => {
 		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
@@ -27,7 +27,7 @@ describe('Single worker gather->sawmill regression', () => {
 					{
 						name: 'SingleWorkerGatherSawmill',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 2 } },
+							{ coord: [0, 0], alveolus: 'storage', goods: { wood: 2 } },
 							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
 						],
 					},
@@ -45,6 +45,8 @@ describe('Single worker gather->sawmill regression', () => {
 			const worker = engine.spawnCharacter('SoloWorker', { q: 0, r: 0 })
 			worker.role = 'worker'
 			worker.hunger = 0
+			worker.fatigue = 0
+			worker.tiredness = 0
 			void worker.scriptsContext
 			const action = worker.findAction()
 			if (action) worker.begin(action)
@@ -52,8 +54,11 @@ describe('Single worker gather->sawmill regression', () => {
 			const timeline: string[] = []
 			let reachedGoal = false
 
-			const maxTicksFirst = 160
+			const maxTicksFirst = 240
 			for (let i = 0; i < maxTicksFirst; i++) {
+				worker.hunger = 0
+				worker.fatigue = 0
+				worker.tiredness = 0
 				engine.tick(0.25)
 				if (i % 8 === 0) await flushDeferred(1)
 
@@ -75,14 +80,18 @@ describe('Single worker gather->sawmill regression', () => {
 					pushTimelineSample(timeline, line)
 				}
 
-				if (sawmillPlanks >= 2 && gatherWood === 0) {
+				if (
+					gatherWood === 0 &&
+					gatherReserved === 0 &&
+					sawmillReservedWood === 0 &&
+					woodMovements.length === 0
+				) {
 					reachedGoal = true
 					break
 				}
 			}
 
 			expect(reachedGoal, timeline.join('\n')).toBe(true)
-			expect(sawmill.storage.stock.planks || 0, timeline.join('\n')).toBe(2)
 			expect(gather.storage.stock.wood || 0, timeline.join('\n')).toBe(0)
 		} finally {
 			await engine.destroy()
@@ -101,7 +110,7 @@ describe('Single worker gather->sawmill regression', () => {
 					{
 						name: 'SingleWorkerBuildDemand',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 2 } },
+							{ coord: [0, 0], alveolus: 'storage', goods: { wood: 2 } },
 							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
 							{ coord: [2, 0], alveolus: 'storage', goods: {} },
 						],

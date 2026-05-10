@@ -848,7 +848,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		})
 	}
 
-	private scanForStalledExchanges() {
+	scanForStalledExchanges() {
 		if (this.destroyed || this.reconstructing) return
 		const now = Date.now()
 		const settleMs = Math.max(
@@ -1535,8 +1535,8 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				: ended === false
 					? 'begun'
 					: ended === true
-				? 'fulfilled'
-				: `cancelled:${ended}`
+						? 'fulfilled'
+						: `cancelled:${ended}`
 		const refs = allocationReasonMovementRefs(reason)
 		const refLabel = refs.length
 			? refs.map((ref) => `ref#${movementRefId(ref)}`).join(',')
@@ -1929,7 +1929,11 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		)
 	}
 
-	isSelectableMovement(movement: TrackedMovement, expectedFrom: AxialCoord, label: string): boolean {
+	isSelectableMovement(
+		movement: TrackedMovement,
+		expectedFrom: AxialCoord,
+		label: string
+	): boolean {
 		if (this.destroyed || this.reconstructing) return false
 		const canonical = this.getCanonicalMovement(movement) ?? movement
 		const failure = this.validateMovementInvariant(canonical, {
@@ -1937,11 +1941,14 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			requireTracked: true,
 		})
 		if (!failure) return true
-		traces.convey.warn?.(`${label}: skipped ${canonical.goodType} ref#${movementRefId(canonical.ref)}`, {
-			failure,
-			expectedFrom: axial.key(expectedFrom),
-			context: this.movementMineContext(canonical),
-		})
+		traces.convey.warn?.(
+			`${label}: skipped ${canonical.goodType} ref#${movementRefId(canonical.ref)}`,
+			{
+				failure,
+				expectedFrom: axial.key(expectedFrom),
+				context: this.movementMineContext(canonical),
+			}
+		)
 		return false
 	}
 
@@ -1972,7 +1979,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		return false
 	}
 
-	private cancelOrphanedExchangeAllocations(
+	cancelOrphanedExchangeAllocations(
 		provider: Alveolus,
 		demander: Alveolus,
 		goodType: GoodType
@@ -2081,7 +2088,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		return canceled
 	}
 
-	private scanForStuckClaimedMovements(now: number, settleMs: number) {
+	scanForStuckClaimedMovements(now: number, settleMs: number) {
 		for (const [, goods] of this.movingGoods.entries()) {
 			for (const mg of goods) {
 				if (
@@ -2892,7 +2899,8 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 	}
 	//#region Needy / events
 
-	// TODO: @memoize
+	// Fresh by design: this aggregates mutable advertisement buckets whose invalidation is already
+	// managed by the hive planning revisions.
 	get needs() {
 		const calculatedNeeds: Partial<Record<GoodType, ExchangePriority>> = {}
 
@@ -3219,7 +3227,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		)
 		if (!releasePendingMovementIntent) return undefined
 
-			// Defer movement creation so the current advertisement flush remains a stable matching pass.
+		// Defer movement creation so the current advertisement flush remains a stable matching pass.
 		this.postStep(() => {
 			try {
 				if (this.destroyed) return

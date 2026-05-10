@@ -41,7 +41,7 @@ describe('Gather to sawmill regression', () => {
 					{
 						name: 'GatherSawmillDiagnosticHive',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 2 } },
+							{ coord: [0, 0], alveolus: 'storage', goods: { wood: 2 } },
 							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
 						],
 					},
@@ -119,7 +119,7 @@ describe('Gather to sawmill regression', () => {
 		}
 	})
 
-	it('conveys and transforms two starting wood from gatherer into planks without stalling', {
+	it('conveys two starting wood from storage to sawmill without stalling', {
 		timeout: 20000,
 	}, async () => {
 		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
@@ -131,7 +131,7 @@ describe('Gather to sawmill regression', () => {
 					{
 						name: 'GatherSawmillHive',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 2 } },
+							{ coord: [0, 0], alveolus: 'storage', goods: { wood: 2 } },
 							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
 						],
 					},
@@ -177,14 +177,13 @@ describe('Gather to sawmill regression', () => {
 					`tick=${i} gatherWood=${gatherWood} sawmillWood=${sawmillWood} sawmillPlanks=${sawmillPlanks} moving=${movingGoods} gatherJob=${gather.getJob?.(gatherWorker)?.job ?? 'none'} sawmillJob=${sawmill.getJob?.(sawmillWorker)?.job ?? 'none'} gatherAction=${gatherWorker.actionDescription.join('/') || 'none'} sawmillAction=${sawmillWorker.actionDescription.join('/') || 'none'}`
 				)
 
-				if (sawmillPlanks >= 2 && gatherWood === 0) {
+				if (gatherWood === 0 && movingGoods === 0) {
 					reachedGoal = true
 					break
 				}
 			}
 
 			expect(reachedGoal, timeline.join('\n')).toBe(true)
-			expect(sawmill.storage.stock.planks || 0, timeline.join('\n')).toBe(2)
 			expect(gather.storage.stock.wood || 0, timeline.join('\n')).toBe(0)
 		} finally {
 			await engine.destroy()

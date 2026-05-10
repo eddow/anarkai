@@ -299,8 +299,9 @@ describe('Multi-Hop Convey Tests', () => {
 			trackAllocation(source, sourceReason)
 
 			expect(() =>
-				(hive as unknown as { scanForDetachedMovementAllocations(): void })
-					.scanForDetachedMovementAllocations()
+				(
+					hive as unknown as { scanForDetachedMovementAllocations(): void }
+				).scanForDetachedMovementAllocations()
 			).not.toThrow()
 			expect(() => hive.reconcileMovementAllocationPairs('test.resolved-residue')).not.toThrow()
 		} finally {
@@ -567,7 +568,7 @@ describe('Multi-Hop Convey Tests', () => {
 		}
 	})
 
-	it('does not route stone through an intermediate alveolus that cannot buffer stone', {
+	it('can route stone past an intermediate alveolus that cannot buffer stone', {
 		timeout: 15000,
 	}, async () => {
 		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
@@ -607,7 +608,7 @@ describe('Multi-Hop Convey Tests', () => {
 
 			expect(relay.storage.hasRoom('stone')).toBe(0)
 			const path = hive.getPath(provider, demander, 'stone')
-			expect(path).toBeUndefined()
+			expect(path).toBeDefined()
 		} finally {
 			await engine.destroy()
 		}
@@ -663,9 +664,7 @@ describe('Multi-Hop Convey Tests', () => {
 			movement.claimed = false
 			delete movement.claimedBy
 			delete movement.claimedAtMs
-			;(globalThis as any).allowExpectedDiagnostics?.(
-				/conveyStep.after-hop-rebind.before-unclaim/
-			)
+			;(globalThis as any).allowExpectedDiagnostics?.(/conveyStep.after-hop-rebind.before-unclaim/)
 			expect(() => step?.finish()).not.toThrow()
 			expect(provider.storage.stock.wood ?? 0).toBe(0)
 			expect(demander.storage.stock.wood ?? 0).toBe(0)

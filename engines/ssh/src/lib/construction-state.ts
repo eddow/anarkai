@@ -69,16 +69,57 @@ export function createConstructionRecipe(target: ConstructionTarget): Constructi
 
 export function createConstructionSiteState(target: ConstructionTarget): ConstructionSiteState {
 	const recipe = createConstructionRecipe(target)
-	return reactive({
-		target,
-		recipe,
-		phase: 'planned' as ConstructionPhase,
-		requiredGoods: { ...recipe.goods },
-		deliveredGoods: {},
-		consumedGoods: {},
-		workSecondsApplied: 0,
-		blockingReasons: [],
-	})
+	return normalizeConstructionSiteState(
+		reactive({
+			target,
+			recipe,
+			phase: 'planned' as ConstructionPhase,
+			requiredGoods: { ...recipe.goods },
+			deliveredGoods: {},
+			consumedGoods: {},
+			workSecondsApplied: 0,
+			blockingReasons: [],
+		})
+	)
+}
+
+function goodsEqual(
+	a: Partial<Record<GoodType, number>> | undefined,
+	b: Partial<Record<GoodType, number>>
+): boolean {
+	const aKeys = Object.keys(a ?? {})
+	const bKeys = Object.keys(b)
+	if (aKeys.length !== bKeys.length) return false
+	return bKeys.every((good) => (a?.[good as GoodType] ?? 0) === (b[good as GoodType] ?? 0))
+}
+
+/**
+ * Construction cost is target-derived, not an optional runtime cache.
+ *
+ * Some older/transient shells can carry a partial `constructionSite`; normalize before exposing
+ * materials so UI, advertisements, and convey planning all see the same recipe demand.
+ */
+export function normalizeConstructionSiteState(state: ConstructionSiteState): ConstructionSiteState {
+	const recipe = createConstructionRecipe(state.target)
+	if (
+		!state.recipe ||
+		state.recipe.workSeconds !== recipe.workSeconds ||
+		!goodsEqual(state.recipe.goods, recipe.goods)
+	) {
+		state.recipe = {
+			goods: { ...recipe.goods },
+			workSeconds: recipe.workSeconds,
+		}
+	}
+	if (!goodsEqual(state.requiredGoods, recipe.goods)) {
+		state.requiredGoods = { ...recipe.goods }
+	}
+	if (!state.deliveredGoods) state.deliveredGoods = {}
+	if (!state.consumedGoods) state.consumedGoods = {}
+	if (state.workSecondsApplied === undefined) state.workSecondsApplied = 0
+	if (!state.blockingReasons) state.blockingReasons = []
+	if (!state.phase) state.phase = 'planned'
+	return state
 }
 
 export function setConstructionDeliveredGoods(

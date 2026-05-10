@@ -21,6 +21,7 @@ pnpm --filter ssh test
 ## Key Docs
 
 - [`./docs/architecture.md`](./docs/architecture.md)
+- [`./docs/construction.md`](./docs/construction.md)
 - [`./docs/core-systems.md`](./docs/core-systems.md)
 - [`./docs/hive-refresh-and-good-movements.md`](./docs/hive-refresh-and-good-movements.md)
 - [`./docs/npc-behaviors.md`](./docs/npc-behaviors.md)

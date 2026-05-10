@@ -253,7 +253,8 @@ export class Tile extends withInteractive(GameObject) {
 			.filter((tile): tile is Tile => tile !== undefined)
 	}
 
-	// TODO: @memoize
+	// Fresh by design: pathfinding and neighbor scans must not subscribe callers to a cached
+	// reactive derivation over every traversed tile.
 	get walkNeighbors(): NeighborInfo[] {
 		const coord = toAxialCoord(this.position)
 		const neighbors = axial.neighbors(coord)

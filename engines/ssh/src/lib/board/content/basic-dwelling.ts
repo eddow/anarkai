@@ -34,6 +34,10 @@ export class BasicDwelling extends TileContent {
 		return 'basic_dwelling'
 	}
 
+	get titleKey(): string {
+		return 'residential.dwelling.tierBasic'
+	}
+
 	/** Inspector parity with alveolus `goodsRelations` (home storage is not advertised). */
 	get goodsRelations(): GoodsRelations {
 		return {}

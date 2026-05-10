@@ -4,6 +4,12 @@ import type { Goods } from 'ssh/types/base'
 import { GoodType } from 'ssh/types/base'
 import { assert, traces } from '../dev/debug.ts'
 import type { RenderedGoodSlots } from '.'
+import {
+	type SpecificStorageSnapshot,
+	specificStorageAvailable,
+	specificStorageAvailableGoods,
+	specificStorageRoom,
+} from './pure'
 import { Storage } from './storage'
 import type { RenderedGoodSlot } from './types'
 
@@ -68,10 +74,7 @@ export class SpecificStorage extends Storage {
 		)
 	}
 	hasRoom(goodType: GoodType): number {
-		const maxAmount = this.maxAmounts[goodType] || 0
-		const currentAmount = this._goods[goodType] || 0
-		const allocated = this._allocated[goodType] || 0
-		return maxAmount - currentAmount - allocated
+		return specificStorageRoom(this.snapshot(), goodType)
 	}
 
 	@memoize
@@ -132,20 +135,12 @@ export class SpecificStorage extends Storage {
 		return { ...this._goods }
 	}
 
-	// TODO: @memoize
 	get availables(): { [k in GoodType]?: number } {
-		const result: { [k in GoodType]?: number } = {}
-		for (const [goodType, quantity] of Object.entries(this._goods)) {
-			const available = quantity - (this._reserved[goodType as GoodType] || 0)
-			if (available > 0) {
-				result[goodType as GoodType] = available
-			}
-		}
-		return result
+		return specificStorageAvailableGoods(this.snapshot())
 	}
 
 	available(goodType: GoodType): number {
-		return (this._goods[goodType] || 0) - (this._reserved[goodType] || 0)
+		return specificStorageAvailable(this.snapshot(), goodType)
 	}
 
 	allocated(goodType: GoodType): number {
@@ -309,6 +304,15 @@ export class SpecificStorage extends Storage {
 			type: 'SpecificStorage',
 			maxAmounts: this.maxAmounts,
 			currentGoods: this.stock,
+		}
+	}
+
+	private snapshot(): SpecificStorageSnapshot {
+		return {
+			stock: this._goods,
+			reserved: this._reserved,
+			allocated: this._allocated,
+			maxAmounts: this.maxAmounts,
 		}
 	}
 }

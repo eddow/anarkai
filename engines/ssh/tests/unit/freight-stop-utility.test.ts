@@ -132,7 +132,7 @@ describe('freight-stop-utility', () => {
 		try {
 			const scenario: Partial<SaveState> = {
 				hives: [
-					{ name: 'S', alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 3 } }] },
+					{ name: 'S', alveoli: [{ coord: [0, 0], alveolus: 'storage', goods: { wood: 3 } }] },
 				],
 			}
 			engine.loadScenario(scenario)
@@ -209,7 +209,7 @@ describe('freight-stop-utility', () => {
 			engine.loadScenario({
 				hives: [
 					{ name: 'A', alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }] },
-					{ name: 'B', alveoli: [{ coord: [2, 0], alveolus: 'freight_bay', goods: { wood: 2 } }] },
+					{ name: 'B', alveoli: [{ coord: [2, 0], alveolus: 'storage', goods: { wood: 2 } }] },
 				],
 				freightLines: [line],
 			} satisfies Partial<SaveState>)

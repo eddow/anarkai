@@ -2,7 +2,7 @@ import { jobBalance } from 'engine-rules'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
-import { isStandaloneBuildSiteShell } from 'ssh/build-site'
+import { isStandaloneConstructionSiteShell } from 'ssh/build-site'
 import { profile } from 'ssh/dev/debug'
 import { CONSTRUCTION_DEMAND_AD_SOURCE } from 'ssh/freight/construction-demand'
 import {
@@ -200,7 +200,7 @@ function pickZoneProvideSelection(
 	let best: (VehicleZoneBrowseSelection & { score: number }) | undefined
 	for (const tile of game.hex.tilesAround(center, zoneStop.zone.radius)) {
 		const content = tile.content
-		if (!isStandaloneBuildSiteShell(content) || content.destroyed || content.isReady) continue
+		if (!isStandaloneConstructionSiteShell(content) || content.destroyed || content.isReady) continue
 		for (const goodType of Object.keys(content.remainingNeeds) as GoodType[]) {
 			const need = content.remainingNeeds[goodType] ?? 0
 			if (need <= 0) continue

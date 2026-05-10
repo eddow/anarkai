@@ -27,8 +27,7 @@ describe('Source Allocation Stability', () => {
 		const sawmill = game.hex.getTile({ q: 18, r: -8 })?.content
 		const stockOf = (content: unknown, goodType: string) =>
 			((content as any)?.storage?.stock?.[goodType] ?? 0) as number
-		const plankCount = () =>
-			stockOf(plankStorage, 'planks') + stockOf(sawmill, 'planks')
+		const plankCount = () => stockOf(plankStorage, 'planks') + stockOf(sawmill, 'planks')
 		const timeline: string[] = []
 
 		// Add extra loose goods to increase chance of concurrent interactions

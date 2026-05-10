@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev:browser": "pnpm --filter ssh-browser dev",
+    "dev:art": "pnpm --filter engine-art dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r check",
     "typecheck:ssh": "pnpm --filter ssh check",

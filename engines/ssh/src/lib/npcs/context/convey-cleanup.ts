@@ -22,14 +22,7 @@ export interface FailedConveyMovementData {
  */
 export function cleanupFailedConveyMovement(
 	character: Character,
-	{
-		movement,
-		from,
-		hop,
-		moving,
-		sourceFulfilled,
-		hopAllocationFulfilled,
-	}: FailedConveyMovementData
+	{ movement, from, hop, moving, sourceFulfilled, hopAllocationFulfilled }: FailedConveyMovementData
 ) {
 	const hive = movement.provider.hive
 	hive.noteMovementLifecycle(movement, 'cleanupFailedConveyMovement.enter')

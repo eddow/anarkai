@@ -1,18 +1,17 @@
 import { traces } from 'ssh/dev/debug'
-import type { FreightLineDefinition } from 'ssh/freight/freight-line'
-import { normalizeFreightLineDefinition } from 'ssh/freight/freight-line'
-import { gatherFreightLine } from '../freight-fixtures'
 import type { SaveState } from 'ssh/game'
-import type { StorageAlveolus } from 'ssh/hive/storage'
+import type { FreightBayAlveolus } from 'ssh/hive/freight-bay'
+import { StorageAlveolus } from 'ssh/hive/storage'
 import { describe, expect, it } from 'vitest'
+import { gatherFreightLine } from '../freight-fixtures'
 import { TestEngine } from '../test-engine'
 
 describe('terminal border convey', () => {
-	it('stores wood at freight bay after terminal convey from vehicle', async () => {
+	it('stores wood at nearby storage after terminal convey from vehicle dock', async () => {
 		const engine = new TestEngine({ terrainSeed: 13000, characterCount: 1 })
 		await engine.init()
 		try {
-			// Setup: freight bay at (0,0) with 1 storage buffering wood
+			// Setup: freight bay dock at (0,0), adjacent storage buffering wood.
 			const line = gatherFreightLine({
 				id: 'terminal-border-convey',
 				name: 'Vehicle to Bay',
@@ -26,22 +25,19 @@ describe('terminal border convey', () => {
 					{
 						name: 'ChopSaw',
 						alveoli: [
-							{
-								coord: [0, 0],
-								alveolus: 'freight_bay',
-								goods: { wood: 0 },
-							},
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
+							{ coord: [1, 0], alveolus: 'storage', goods: {} },
 						],
 					},
 				],
 				freightLines: [line],
 			} satisfies Partial<SaveState>)
 
-			// Add vehicle with wood at adjacent tile
+			// Add vehicle with wood at the freight bay.
 			const vehicle = engine.game.vehicles.createVehicle(
 				'wheelbarrow-v',
 				'wheelbarrow',
-				{ q: 1, r: 0 },
+				{ q: 0, r: 0 },
 				[line]
 			)
 			vehicle.storage.addGood('wood', 1)
@@ -56,11 +52,16 @@ describe('terminal border convey', () => {
 
 			// Verify bay exists and has no wood yet
 			const bayTile = engine.game.hex.getTile({ q: 0, r: 0 })
+			const storageTile = engine.game.hex.getTile({ q: 1, r: 0 })
 			expect(bayTile).toBeDefined()
-			const bay = bayTile?.content as StorageAlveolus | undefined
+			expect(storageTile).toBeDefined()
+			const bay = bayTile?.content as FreightBayAlveolus | undefined
+			const storage = storageTile?.content as StorageAlveolus | undefined
 			expect(bay).toBeDefined()
+			expect(storage).toBeInstanceOf(StorageAlveolus)
+			storage?.setBuffers({ wood: 10 })
 			expect(vehicle.storage.stock.wood).toBe(1)
-			expect(bay?.storage.stock.wood ?? 0).toBe(0) // Bay has no wood yet
+			expect(storage?.storage.stock.wood ?? 0).toBe(0)
 			expect(bay?.proposedJobs).toHaveLength(1)
 
 			// Get the convey job
@@ -76,13 +77,14 @@ describe('terminal border convey', () => {
 			// Wait for worker to pick up and convey
 			await engine.tick(50)
 
-			// After convey completes, verify wood is in bay storage
+			// After convey completes, verify wood is in real hive storage.
 			expect(vehicle.storage.stock.wood ?? 0).toBe(0) // Vehicle wood moved
-			expect(bay?.storage.stock.wood).toBe(1) // Bay received the wood
+			expect(storage?.storage.stock.wood).toBe(1)
 			expect(bay?.proposedJobs).toHaveLength(0) // No more convey jobs
 
 			// Verify no loose goods were generated
 			expect(bayTile?.looseGoods.length).toBe(0)
+			expect(storageTile?.looseGoods.length).toBe(0)
 
 			// Verify no errors in traces
 			const errorLogs = traces.convey.error?.()

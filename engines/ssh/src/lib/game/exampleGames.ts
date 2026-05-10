@@ -1,4 +1,15 @@
 import type { GamePatches } from './game'
+
+const constructionGoodsSelection = {
+	goodRules: [
+		{ goodType: 'wood', effect: 'allow' },
+		{ goodType: 'planks', effect: 'allow' },
+		{ goodType: 'stone', effect: 'allow' },
+	],
+	tagRules: [],
+	defaultEffect: 'deny',
+} as const
+
 export const chopSaw = {
 	seed: 549,
 	terrains: {
@@ -84,6 +95,92 @@ export const chopSaw = {
 			vehicleType: 'wheelbarrow',
 			position: { q: 10, r: -6 },
 			servedLineIds: ['ChopSaw:implicit-gather:11,-7'],
+		},
+	],
+} satisfies GamePatches
+
+export const dorm = {
+	seed: 867,
+	terrains: {
+		concrete: [
+			[0, -1],
+			[0, 0],
+			[1, 0],
+			[0, 1],
+			[1, 1],
+			[2, 0],
+			[3, 0],
+			[4, 0],
+		],
+	},
+	hives: [
+		{
+			name: 'Dorm',
+			alveoli: [
+				{ alveolus: 'storage', coord: [0, 0], goods: { wood: 8, planks: 4, stone: 4 } },
+				{ alveolus: 'engineer', coord: [1, 0] },
+				{ alveolus: 'freight_bay', coord: [0, 1] },
+				{ alveolus: 'tree_chopper', coord: [0, -1], underConstruction: true },
+			],
+		},
+	],
+	freightLines: [
+		{
+			id: 'Dorm:implicit-gather:0,1',
+			name: 'Dorm (0, 1) gather',
+			stops: [
+				{
+					id: 'Dorm:gather-zone',
+					loadSelection: constructionGoodsSelection,
+					zone: { kind: 'radius', center: [0, 1], radius: 6 },
+				},
+				{
+					id: 'Dorm:gather-unload',
+					anchor: {
+						kind: 'alveolus',
+						hiveName: 'Dorm',
+						alveolusType: 'freight_bay',
+						coord: [0, 1],
+					},
+				},
+			],
+		},
+		{
+			id: 'Dorm:distribute:0,1',
+			name: 'Dorm (0, 1) distribute',
+			stops: [
+				{
+					id: 'Dorm:distribute-load',
+					loadSelection: constructionGoodsSelection,
+					anchor: {
+						kind: 'alveolus',
+						hiveName: 'Dorm',
+						alveolusType: 'freight_bay',
+						coord: [0, 1],
+					},
+				},
+				{
+					id: 'Dorm:distribute-zone',
+					zone: { kind: 'radius', center: [0, 1], radius: 6 },
+				},
+			],
+		},
+	],
+	zones: {
+		residential: [
+			[3, 0],
+			[4, 0],
+		],
+	},
+	looseGoods: {
+		wood: [[3, 0]],
+	},
+	vehicles: [
+		{
+			uid: 'Dorm:wheelbarrow',
+			vehicleType: 'wheelbarrow',
+			position: { q: 0, r: 1 },
+			servedLineIds: ['Dorm:implicit-gather:0,1', 'Dorm:distribute:0,1'],
 		},
 	],
 } satisfies GamePatches

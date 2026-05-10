@@ -25,7 +25,7 @@ describe('Atomicity & Environment Investigation', () => {
 			{
 				name: 'GatherHive',
 				alveoli: [
-					{ coord: [0, 0], alveolus: 'freight_bay', goods: { berries: 4 } },
+					{ coord: [0, 0], alveolus: 'storage', goods: { berries: 4 } },
 					{ coord: [1, 0], alveolus: 'storage', goods: {} },
 				],
 			},
@@ -43,7 +43,7 @@ describe('Atomicity & Environment Investigation', () => {
 	}
 
 	/**
-	 * Berry convey from freight_bay to adjacent storage; stops as soon as storage receives berries
+	 * Berry convey from provider storage to adjacent storage; stops as soon as storage receives berries
 	 * (same assertion as before: storageStock > 0), with a hard cap instead of 400 fixed microtask drains.
 	 */
 	it('conveys berries into adjacent storage without max effect chain overflow', async () => {

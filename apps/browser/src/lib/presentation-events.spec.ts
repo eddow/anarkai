@@ -2,6 +2,7 @@ import {
 	consumePresentationEvents,
 	presentationRevisionFor,
 	resetPresentationRevisionsForTests,
+	workPlanningPresentationRevision,
 } from './presentation-events'
 import { beforeEach, describe, expect, it } from 'vitest'
 
@@ -22,5 +23,21 @@ describe('browser presentation event revisions', () => {
 		expect(presentationRevisionFor('tile:1,1')).toBe(2)
 		expect(presentationRevisionFor('vehicle:1')).toBe(1)
 		expect(presentationRevisionFor('tile:2,2')).toBe(0)
+	})
+
+	it('increments owner revisions from dock presentation events', () => {
+		consumePresentationEvents([
+			{ type: 'vehicle.dock.changed', ownerUid: 'tile:dock', vehicleUid: 'vehicle:1' },
+		])
+
+		expect(presentationRevisionFor('tile:dock')).toBe(1)
+	})
+
+	it('tracks work-planning presentation revisions', () => {
+		expect(workPlanningPresentationRevision()).toBe(0)
+
+		consumePresentationEvents([{ type: 'work-planning.changed', revision: 7 }])
+
+		expect(workPlanningPresentationRevision()).toBe(7)
 	})
 })

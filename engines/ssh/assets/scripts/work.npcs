@@ -12,10 +12,9 @@ function reachTargetTileLoop(jobPlan)
 	walk.enter
 end function
 
-function assignAlveolusAndPrepare(jobPlan)
+function assignAlveolus(jobPlan)
 	target = jobPlan.target
 	I.assignedAlveolus = target
-	work.prepare jobPlan
 end function
 
 function goWork(jobPlan)
@@ -31,7 +30,8 @@ end function
 
 function harvest(jobPlan)
 	reachTargetTileLoop jobPlan
-	assignAlveolusAndPrepare jobPlan
+	assignAlveolus jobPlan
+	work.prepare jobPlan
 	alveolus = jobPlan.target
 	do
 		nextJob = work.myNextJob jobPlan
@@ -53,7 +53,8 @@ end function
 
 function transform(jobPlan)
 	reachTargetTileLoop jobPlan
-	assignAlveolusAndPrepare jobPlan
+	assignAlveolus jobPlan
+	work.prepare jobPlan
 	alveolus = jobPlan.target
 	nextJob = work.myNextJob jobPlan
 	if nextJob then
@@ -63,7 +64,8 @@ end function
 
 function convey(jobPlan)
 	reachTargetTileLoop jobPlan
-	assignAlveolusAndPrepare jobPlan
+	assignAlveolus jobPlan
+	work.prepare jobPlan
 	alveolus = jobPlan.target
 	idlePolls = 0
 	do while I.keepWorking and (alveolus.aGoodMovement or alveolus.incomingGoods)
@@ -83,12 +85,12 @@ end function
 
 function construct(jobPlan)
 	reachTargetTileLoop jobPlan
-	assignAlveolusAndPrepare jobPlan
+	assignAlveolus jobPlan
+	work.prepare jobPlan
 	engineer = jobPlan.target
 	nextJob = work.myNextJob jobPlan
 	if nextJob then
-		if not nextJob.path then return false
-		walk.until nextJob.path
+		work.walkToCurrentJobTarget jobPlan
 		walk.enter
 		work.constructionStep
 	end if
@@ -96,12 +98,12 @@ end function
 
 function foundation(jobPlan)
 	reachTargetTileLoop jobPlan
-	assignAlveolusAndPrepare jobPlan
+	assignAlveolus jobPlan
+	work.prepare jobPlan
 	engineer = jobPlan.target
 	nextJob = work.myNextJob jobPlan
 	if nextJob then
-		if not nextJob.path then return false
-		walk.until nextJob.path
+		work.walkToCurrentJobTarget jobPlan
 		walk.enter
 		work.foundationStep
 	end if
@@ -109,7 +111,8 @@ end function
 
 function defragment(jobPlan)
 	reachTargetTileLoop jobPlan
-	assignAlveolusAndPrepare jobPlan
+	assignAlveolus jobPlan
+	work.prepare jobPlan
 	alveolus = jobPlan.target
 	do while I.keepWorking and alveolus.storage.fragmented
 		work.defragmentStep

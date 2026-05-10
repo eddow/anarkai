@@ -13,10 +13,7 @@ const transformStorageCapacity = (rates: Record<string, number>): Ssh.SpecificSt
 	Object.fromEntries(
 		Object.entries(rates)
 			.filter(([, rate]) => rate !== 0)
-			.map(([goodType, rate]) => [
-				goodType,
-				rate < 0 ? inputBufferSize : outputBufferSize,
-			])
+			.map(([goodType, rate]) => [goodType, rate < 0 ? inputBufferSize : outputBufferSize])
 	)
 
 @reactive
@@ -81,8 +78,12 @@ export class TransformAlveolus extends Alveolus {
 		return this.storage.canStoreAll({ [goodType]: 1 })
 	}
 
+	get hasOutputRoom(): boolean {
+		return this.producedGoods.every((goodType) => this.canUnload(goodType))
+	}
+
 	get nextLoadGood(): GoodType | undefined {
-		if (!this.producedGoods.every((goodType) => this.canUnload(goodType))) return undefined
+		if (!this.hasOutputRoom) return undefined
 		return this.consumedGoods.find(
 			(goodType) => this.processBuffer(goodType) <= epsilon && this.canLoad(goodType)
 		)
@@ -106,11 +107,14 @@ export class TransformAlveolus extends Alveolus {
 		// Can only take goods that are defined as inputs
 		const isInput = (rates[goodType] ?? 0) < 0
 
+		// Do not accept more inputs if the next produced unit would have nowhere to unload.
+		const hasOutputRoom = this.hasOutputRoom
+
 		// Check if storage has capacity for this input
 		// Use canStoreAll to check if we can store at least 1 of this good type
 		const hasCapacity = this.storage.canStoreAll({ [goodType]: 1 })
 
-		return isInput && hasCapacity
+		return isInput && hasOutputRoom && hasCapacity
 	}
 
 	/**
@@ -132,7 +136,7 @@ export class TransformAlveolus extends Alveolus {
 	}
 
 	get canWork(): boolean {
-		const hasOutputRoom = this.producedGoods.every((goodType) => this.canUnload(goodType))
+		const hasOutputRoom = this.hasOutputRoom
 		const canUnloadBoundary = this.producedGoods.some(
 			(goodType) => this.processBuffer(goodType) >= 1 - epsilon && this.canUnload(goodType)
 		)
@@ -180,7 +184,7 @@ export class TransformAlveolus extends Alveolus {
 				.filter(([goodType]) => {
 					const plannedStock =
 						(stock[goodType as GoodType] ?? 0) + this.storage.allocated(goodType as GoodType)
-					return plannedStock < inputBufferSize
+					return this.hasOutputRoom && plannedStock < inputBufferSize
 				})
 				.map(([goodType]) => [
 					goodType as GoodType,

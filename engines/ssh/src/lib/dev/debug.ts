@@ -14,13 +14,14 @@ import {
 
 /** Default trace channel levels. Remove a key or call `setTraceLevel(name, undefined)` to disable it. When a new TraceSink is needed, adding its name here is enough */
 export const traceLevels: Record<string, TraceVerb> = {
-	vehicle: 'log',
+	vehicle: 'assert',
 	npc: 'assert',
 	advertising: 'assert',
 	allocations: 'assert',
 	commitments: 'assert',
 	convey: 'assert',
 	residential: 'assert',
+	work: 'log',
 	script: 'assert',
 	characterNeeds: 'assert',
 	idleDiagnosis: 'assert',

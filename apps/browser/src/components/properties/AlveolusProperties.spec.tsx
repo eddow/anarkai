@@ -61,8 +61,11 @@ const { MockFreightBayAlveolus, MockStorageAlveolus, MockTransformAlveolus } = v
 
 class MockBuildAlveolus {
 	tile = { uid: 'tile:build' }
+	constructionSite = { target: { kind: 'alveolus', alveolusType: 'tree_chopper' } }
 	game = { freightLines: [] }
 	working = true
+	storage = { stock: {} }
+	constructionWorkSecondsApplied = 0
 }
 
 vi.mock('@app/lib/css', () => ({

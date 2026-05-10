@@ -50,9 +50,7 @@ describe('Freight line bootstrap', () => {
 			looseGoods: [],
 		}
 		engine.loadScenario(scenario)
-		expect(engine.game.hex.getTile({ q: 0, r: 0 })?.content).toBeInstanceOf(
-			FreightBayAlveolus
-		)
+		expect(engine.game.hex.getTile({ q: 0, r: 0 })?.content).toBeInstanceOf(FreightBayAlveolus)
 		expect(engine.game.hex.getTile({ q: 1, r: 0 })?.content).toBeDefined()
 		await engine.destroy()
 	})

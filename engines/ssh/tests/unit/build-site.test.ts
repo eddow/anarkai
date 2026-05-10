@@ -1,10 +1,10 @@
-import { type BuildSite, installBuildSitePrototype } from 'ssh/build-site'
+import { type ConstructionSiteShell, installBuildSitePrototype } from 'ssh/build-site'
 import { createConstructionSiteState } from 'ssh/construction-state'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { GoodType } from 'ssh/types/base'
 import { describe, expect, it } from 'vitest'
 
-class MockStandaloneBuildSite implements BuildSite {
+class MockStandaloneBuildSite implements ConstructionSiteShell {
 	public readonly tile = {} as never
 	public readonly constructionSite = createConstructionSiteState({
 		kind: 'dwelling',
@@ -16,14 +16,14 @@ class MockStandaloneBuildSite implements BuildSite {
 	public constructionWorkSecondsApplied = 0
 	public working = true
 	public destroyed = false
-	public declare canTake: BuildSite['canTake']
-	public declare canGive: BuildSite['canGive']
-	public declare readonly requiredGoods: BuildSite['requiredGoods']
-	public declare readonly remainingNeeds: BuildSite['remainingNeeds']
-	public declare readonly advertisedNeeds: BuildSite['advertisedNeeds']
-	public declare readonly isReady: BuildSite['isReady']
-	public declare readonly workingGoodsRelations: BuildSite['workingGoodsRelations']
-	public declare readonly goodsRelations: BuildSite['workingGoodsRelations']
+	public declare canTake: ConstructionSiteShell['canTake']
+	public declare canGive: ConstructionSiteShell['canGive']
+	public declare readonly requiredGoods: ConstructionSiteShell['requiredGoods']
+	public declare readonly remainingNeeds: ConstructionSiteShell['remainingNeeds']
+	public declare readonly advertisedNeeds: ConstructionSiteShell['advertisedNeeds']
+	public declare readonly isReady: ConstructionSiteShell['isReady']
+	public declare readonly workingGoodsRelations: ConstructionSiteShell['workingGoodsRelations']
+	public declare readonly goodsRelations: ConstructionSiteShell['workingGoodsRelations']
 }
 
 installBuildSitePrototype(MockStandaloneBuildSite.prototype, { aliasGoodsRelations: true })

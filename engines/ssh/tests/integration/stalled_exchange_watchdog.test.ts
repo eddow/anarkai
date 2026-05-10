@@ -83,7 +83,7 @@ describe('Stalled Exchange Watchdog', () => {
 					{
 						name: 'WatchdogHive',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 1 } },
+							{ coord: [0, 0], alveolus: 'storage', goods: { wood: 1 } },
 							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
 						],
 					},
@@ -144,7 +144,7 @@ describe('Stalled Exchange Watchdog', () => {
 					{
 						name: 'WatchdogHive',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 2 } },
+							{ coord: [0, 0], alveolus: 'storage', goods: { wood: 2 } },
 							{ coord: [1, 0], alveolus: 'storage', goods: {} },
 							{ coord: [0, 1], alveolus: 'storage', goods: {} },
 						],
@@ -310,7 +310,7 @@ describe('Stalled Exchange Watchdog', () => {
 				hives: [
 					{
 						name: 'WatchdogHive',
-						alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 1 } }],
+						alveoli: [{ coord: [0, 0], alveolus: 'storage', goods: { wood: 1 } }],
 					},
 				],
 			}
@@ -367,7 +367,7 @@ describe('Stalled Exchange Watchdog', () => {
 				hives: [
 					{
 						name: 'WatchdogHive',
-						alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 1 } }],
+						alveoli: [{ coord: [0, 0], alveolus: 'storage', goods: { wood: 1 } }],
 					},
 				],
 			}
@@ -415,7 +415,7 @@ describe('Stalled Exchange Watchdog', () => {
 					{
 						name: 'WatchdogHive',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 1 } },
+							{ coord: [0, 0], alveolus: 'storage', goods: { wood: 1 } },
 							{ coord: [1, 0], alveolus: 'storage', goods: {} },
 							{ coord: [2, 0], alveolus: 'storage', goods: {} },
 						],
@@ -476,14 +476,14 @@ describe('Stalled Exchange Watchdog', () => {
 					{
 						name: 'LeftHive',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 1 } },
+							{ coord: [0, 0], alveolus: 'storage', goods: { wood: 1 } },
 							{ coord: [0, 1], alveolus: 'storage', goods: {} },
 						],
 					},
 					{
 						name: 'RightHive',
 						alveoli: [
-							{ coord: [2, 0], alveolus: 'freight_bay', goods: { wood: 1 } },
+							{ coord: [2, 0], alveolus: 'storage', goods: { wood: 1 } },
 							{ coord: [2, 1], alveolus: 'storage', goods: {} },
 						],
 					},

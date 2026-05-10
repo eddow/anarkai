@@ -5,6 +5,7 @@ import {
 	type ConstructionSiteState,
 	createConstructionSiteState,
 	type DwellingTier,
+	normalizeConstructionSiteState,
 } from 'ssh/construction-state'
 import { buildAlveolusMarker } from 'ssh/hive/build-marker'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
@@ -42,8 +43,9 @@ export class BuildDwelling extends TileContent {
 		const coord = toAxialCoord(tile.position)!
 		super(tile.board.game, `build-dwelling:${coord.q},${coord.r}`)
 		this.targetTier = tier
-		this.constructionSite =
+		this.constructionSite = normalizeConstructionSiteState(
 			constructionSite ?? createConstructionSiteState({ kind: 'dwelling', tier })
+		)
 		this.storage = new SpecificStorage(
 			this.constructionSite.recipe.goods as Record<GoodType, number>
 		)
@@ -58,6 +60,10 @@ export class BuildDwelling extends TileContent {
 
 	override get name(): string {
 		return `build.dwelling.${this.targetTier}`
+	}
+
+	override get titleKey(): string {
+		return 'residential.projectBasicDwelling'
 	}
 
 	get debugInfo() {

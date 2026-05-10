@@ -3,7 +3,7 @@ import { Alveolus } from 'ssh/board/content/alveolus'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { LooseGood } from 'ssh/board/looseGoods'
 import type { Tile } from 'ssh/board/tile'
-import { isStandaloneBuildSiteShell } from 'ssh/build-site'
+import { isStandaloneConstructionSiteShell } from 'ssh/build-site'
 import {
 	type FreightLineDefinition,
 	type FreightStop,
@@ -58,9 +58,10 @@ import type {
 	VehicleOffloadJob,
 	ZoneBrowseJob,
 } from 'ssh/types/base'
+import { isVehicleBoundJob } from 'ssh/types/base'
 import { type AxialCoord, axial } from 'ssh/utils'
-import { KeyedRevisionedCache } from 'ssh/utils/revisioned-cache'
 import { toAxialCoord } from 'ssh/utils/position'
+import { KeyedRevisionedCache } from 'ssh/utils/revisioned-cache'
 import { maxWalkTime } from '../../../assets/constants'
 import { assert, profile, traces } from '../dev/debug.ts'
 
@@ -77,7 +78,7 @@ function compareAxialCoord(a: AxialCoord, b: AxialCoord): number {
 
 /** True for jobs that use {@link VehicleEntity} line/offload service and `vehicleUid`. */
 export function isVehicleFreightJob(job: Job): job is Job & VehicleJob {
-	return 'vehicleUid' in job
+	return isVehicleBoundJob(job)
 }
 
 /**
@@ -551,7 +552,9 @@ function isJointLineLoadCandidate(
 ): boolean {
 	const candidateCoord = toAxialCoord(candidate.tile.position)
 	if (!candidateCoord) return false
-	const traceAttempts: Array<Record<string, unknown>> | undefined = traces.vehicle.log ? [] : undefined
+	const traceAttempts: Array<Record<string, unknown>> | undefined = traces.vehicle.log
+		? []
+		: undefined
 	for (const line of vehicle.servedLines) {
 		for (const segment of findGatherRouteSegments(line)) {
 			const stop = line.stops[segment.loadStopIndex]
@@ -1111,7 +1114,7 @@ function zoneBrowseJobFromConstructionProvide(
 	if (!utility) return undefined
 
 	const site = character.tile.content
-	if (!isStandaloneBuildSiteShell(site) || site.destroyed || site.isReady) return undefined
+	if (!isStandaloneConstructionSiteShell(site) || site.destroyed || site.isReady) return undefined
 	const remainingRaw = site.remainingNeeds
 	const remaining =
 		remainingRaw && typeof remainingRaw === 'object'
@@ -1254,7 +1257,7 @@ export function findProvideFromVehicleJob(
 	if (vehicle.vehicleType !== LINE_FREIGHT_VEHICLE) return undefined
 	const siteEarly = character.tile.content
 	if (
-		isStandaloneBuildSiteShell(siteEarly) &&
+		isStandaloneConstructionSiteShell(siteEarly) &&
 		!siteEarly.destroyed &&
 		!siteEarly.isReady &&
 		vehicle.service &&

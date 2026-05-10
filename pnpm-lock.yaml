@@ -137,6 +137,31 @@ importers:
         specifier: ^1.3.2
         version: 1.3.2(@babel/core@7.28.5)(vite@8.0.10(@types/node@25.0.10)(esbuild@0.27.2)(sass-embedded@1.97.1)(sass@1.97.1)(terser@5.44.1)(tsx@4.21.0))
 
+  engines/art:
+    dependencies:
+      '@sursaut/core':
+        specifier: link:../../../ownk/sursaut/packages/core
+        version: link:../../../ownk/sursaut/packages/core
+      '@sursaut/kit':
+        specifier: link:../../../ownk/sursaut/packages/kit
+        version: link:../../../ownk/sursaut/packages/kit
+      mutts:
+        specifier: link:../../../ownk/mutts
+        version: link:../../../ownk/mutts
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 8.0.10
+        version: 8.0.10(@types/node@25.0.10)(esbuild@0.27.2)(sass-embedded@1.97.1)(sass@1.97.1)(terser@5.44.1)(tsx@4.21.0)
+    devDependencies:
+      '@biomejs/biome':
+        specifier: ^2.4.6
+        version: 2.4.6
+      '@types/node':
+        specifier: 25.0.10
+        version: 25.0.10
+
   engines/pixi:
     dependencies:
       engine-terrain:

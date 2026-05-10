@@ -70,6 +70,7 @@ describe('Alveolus Reactivity', () => {
 			configurationManager: {
 				getNamedConfiguration: () => undefined,
 			},
+			invalidateWorkPlanning: () => {},
 		} as unknown as Game
 
 		const board = {

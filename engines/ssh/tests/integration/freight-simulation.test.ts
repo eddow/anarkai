@@ -6,6 +6,7 @@ import {
 	lineFreightVehicleType,
 } from 'ssh/freight/vehicle-work'
 import type { SaveState } from 'ssh/game'
+import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { VehicleFunctions } from 'ssh/npcs/context/vehicle'
 import { subject } from 'ssh/npcs/scripts'
@@ -199,9 +200,9 @@ describe('Freight simulation (gather + distribute)', () => {
 			const storageTile = engine.game.hex.getTile({ q: 0, r: 0 })
 			const bayTile = engine.game.hex.getTile({ q: 1, r: 0 })
 			const storageAlveolus = storageTile?.content as StorageAlveolus
-			const bayAlveolus = bayTile?.content as StorageAlveolus
+			const bayAlveolus = bayTile?.content as FreightBayAlveolus
 			expect(storageAlveolus).toBeInstanceOf(StorageAlveolus)
-			expect(bayAlveolus).toBeInstanceOf(StorageAlveolus)
+			expect(bayAlveolus).toBeInstanceOf(FreightBayAlveolus)
 			storageAlveolus.setBuffers({ wood: 10 })
 
 			const worker = engine.spawnCharacter('Gatherer', { q: 2, r: 0 })
@@ -222,14 +223,14 @@ describe('Freight simulation (gather + distribute)', () => {
 			expect(findLoadOntoVehicleJob(engine.game, worker)).toBeDefined()
 
 			const looseBefore = availableLooseWoodCount(engine.game, { q: 2, r: 0 })
-			const hiveWoodBefore = hiveWoodStock(storageAlveolus) + hiveWoodStock(bayAlveolus)
+			const hiveWoodBefore = hiveWoodStock(storageAlveolus)
 
 			await simulateFreightUntil(
 				engine,
 				worker,
 				() => {
 					// Do not use loose-good count alone: long runs can decay loose goods without freight.
-					const hiveNow = hiveWoodStock(storageAlveolus) + hiveWoodStock(bayAlveolus)
+					const hiveNow = hiveWoodStock(storageAlveolus)
 					const vehicleWoodNow = vehicle.storage.available('wood') ?? 0
 					return hiveNow > hiveWoodBefore || vehicleWoodNow > 0
 				},
@@ -240,7 +241,7 @@ describe('Freight simulation (gather + distribute)', () => {
 			expect(rawVehicle.length).toBeGreaterThan(0)
 
 			const looseAfter = availableLooseWoodCount(engine.game, { q: 2, r: 0 })
-			const hiveWoodAfter = hiveWoodStock(storageAlveolus) + hiveWoodStock(bayAlveolus)
+			const hiveWoodAfter = hiveWoodStock(storageAlveolus)
 			const vehicleWood = vehicle.storage.available('wood') ?? 0
 			expect(hiveWoodAfter > hiveWoodBefore || vehicleWood > 0).toBe(true)
 			expect(looseAfter <= looseBefore).toBe(true)

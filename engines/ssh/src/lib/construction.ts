@@ -1,12 +1,17 @@
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
-import { type BuildSite, isBuildSite, materialsComplete } from 'ssh/build-site'
+import {
+	type ConstructionSiteShell,
+	isConstructionSiteShell,
+	materialsComplete,
+} from 'ssh/build-site'
 import type {
 	ConstructionBlockingReason,
 	ConstructionPhase,
 	ConstructionSiteState,
 	DwellingTier,
 } from 'ssh/construction-state'
+import { normalizeConstructionSiteState } from 'ssh/construction-state'
 import type { Game } from 'ssh/game/game'
 import { EngineerAlveolus } from 'ssh/hive/engineer'
 import type { AlveolusType, GoodType } from 'ssh/types/base'
@@ -66,6 +71,7 @@ function snapshotConstructionState(
 	state: ConstructionSiteState,
 	overrides?: Partial<ConstructionSiteView>
 ): ConstructionSiteView {
+	state = normalizeConstructionSiteState(state)
 	const targetAlveolus = state.target.kind === 'alveolus' ? state.target.alveolusType : undefined
 	const dwellingTier = state.target.kind === 'dwelling' ? state.target.tier : undefined
 	return {
@@ -118,7 +124,7 @@ function buildUnbuiltConstructionView(
 function buildActiveConstructionShellView(
 	game: Game,
 	tile: Tile,
-	site: BuildSite
+	site: ConstructionSiteShell
 ): ConstructionSiteView {
 	const state = site.constructionSite
 	const blocking: ConstructionBlockingReason[] = []
@@ -178,7 +184,7 @@ export function queryConstructionSiteView(
 	if (content instanceof UnBuiltLand && content.constructionSite) {
 		return buildUnbuiltConstructionView(game, tile, content.constructionSite)
 	}
-	if (isBuildSite(content)) {
+	if (isConstructionSiteShell(content)) {
 		return buildActiveConstructionShellView(game, tile, content)
 	}
 	return undefined

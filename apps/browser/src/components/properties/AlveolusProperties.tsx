@@ -8,6 +8,7 @@ import { T } from '@app/lib/i18n'
 import { presentationRevisionFor } from '@app/lib/presentation-events'
 import { effect, reactive } from 'mutts'
 import type { Alveolus } from 'ssh/board/content/alveolus'
+import { isConstructionSiteShell } from 'ssh/build-site'
 import { queryConstructionSiteView } from 'ssh/construction'
 import { collectDockedVehiclesForBay, type DockedVehicleEntry } from 'ssh/freight/docked-vehicles'
 import {
@@ -19,7 +20,6 @@ import {
 	type SyntheticFreightLineObject,
 } from 'ssh/freight/freight-line'
 import type { Game } from 'ssh/game'
-import { BuildAlveolus } from 'ssh/hive/build'
 import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { TransformAlveolus } from 'ssh/hive/transform'
@@ -125,7 +125,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 	effect`alveolus-properties:construction`(() => {
 		const game = state.resolvedGame
 		const content = props.content
-		if (!game || !(content instanceof BuildAlveolus)) {
+		if (!game || !isConstructionSiteShell(content)) {
 			state.showConstruction = false
 			state.isBuildSite = false
 			state.constructionPhaseLabel = ''

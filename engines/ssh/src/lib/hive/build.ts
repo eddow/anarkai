@@ -3,7 +3,11 @@ import { reactive } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
 import { installBuildSitePrototype, registerConstructionMaterialPhaseEffect } from 'ssh/build-site'
-import { type ConstructionSiteState, createConstructionSiteState } from 'ssh/construction-state'
+import {
+	type ConstructionSiteState,
+	createConstructionSiteState,
+	normalizeConstructionSiteState,
+} from 'ssh/construction-state'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { AlveolusType, GoodType } from 'ssh/types/base'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
@@ -39,8 +43,9 @@ export class BuildAlveolus extends Alveolus {
 
 		// Store properties
 		this.target = target
-		this.constructionSite =
+		this.constructionSite = normalizeConstructionSiteState(
 			constructionSite ?? createConstructionSiteState({ kind: 'alveolus', alveolusType: target })
+		)
 		if (['planned', 'foundation'].includes(this.constructionSite.phase)) {
 			this.constructionSite.phase = 'waiting_materials'
 		}
@@ -56,7 +61,7 @@ export class BuildAlveolus extends Alveolus {
 	}
 }
 
-installBuildSitePrototype(BuildAlveolus.prototype)
+installBuildSitePrototype(BuildAlveolus.prototype, { aliasGoodsRelations: true })
 
 Object.defineProperty(BuildAlveolus.prototype, buildAlveolusMarker, {
 	value: true,

@@ -4,8 +4,12 @@ import type { Tile } from '../tile'
 
 export abstract class TileContent extends GameObject {
 	abstract readonly tile: Tile
-	// TODO: translate-> name = translation set on load
+	/** Stable engine/content identifier. UI layers may translate {@link titleKey} when present. */
 	abstract readonly name?: string
+	/** Optional i18n lookup key for user-facing labels; `name` remains the stable engine id. */
+	get titleKey(): string | undefined {
+		return undefined
+	}
 	abstract readonly debugInfo: Record<string, any>
 	abstract readonly walkTime: number
 	abstract readonly background: string

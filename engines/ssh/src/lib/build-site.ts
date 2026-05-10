@@ -1,7 +1,11 @@
 import { effect } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
-import { type ConstructionSiteState, setConstructionDeliveredGoods } from 'ssh/construction-state'
+import {
+	type ConstructionSiteState,
+	normalizeConstructionSiteState,
+	setConstructionDeliveredGoods,
+} from 'ssh/construction-state'
 import type { Storage } from 'ssh/storage/storage'
 import type { GoodType } from 'ssh/types/base'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
@@ -23,9 +27,9 @@ export interface ConstructionMaterialShell {
  * Shared structural contract for any in-progress construction shell on a tile.
  *
  * Runtime classes differ (`BuildAlveolus` inherits hive behavior, `BuildDwelling` stays standalone),
- * but the material-facing semantics should stay identical.
+ * but construction-facing semantics should stay identical.
  */
-export interface BuildSite extends ConstructionMaterialShell {
+export interface ConstructionSiteShell extends ConstructionMaterialShell {
 	readonly tile: Tile
 	readonly working: boolean
 	constructionWorkSecondsApplied: number
@@ -38,7 +42,10 @@ export interface BuildSite extends ConstructionMaterialShell {
 	readonly workingGoodsRelations: GoodsRelations
 }
 
-export function isBuildSite(value: unknown): value is BuildSite {
+/** Compatibility alias while callers migrate to `ConstructionSiteShell`. */
+export type BuildSite = ConstructionSiteShell
+
+export function isConstructionSiteShell(value: unknown): value is ConstructionSiteShell {
 	return (
 		typeof value === 'object' &&
 		value !== null &&
@@ -49,10 +56,18 @@ export function isBuildSite(value: unknown): value is BuildSite {
 	)
 }
 
-/** Standalone construction shells (`BuildDwelling`, …); excludes hive-attached `BuildAlveolus`. */
-export function isStandaloneBuildSiteShell(content: unknown): content is BuildSite {
-	return isBuildSite(content) && !(content instanceof Alveolus)
+/** Compatibility alias while callers migrate to `isConstructionSiteShell`. */
+export const isBuildSite = isConstructionSiteShell
+
+/** Standalone construction shells (`BuildDwelling`, ...); excludes hive-attached `BuildAlveolus`. */
+export function isStandaloneConstructionSiteShell(
+	content: unknown
+): content is ConstructionSiteShell {
+	return isConstructionSiteShell(content) && !(content instanceof Alveolus)
 }
+
+/** Compatibility alias while callers migrate to `isStandaloneConstructionSiteShell`. */
+export const isStandaloneBuildSiteShell = isStandaloneConstructionSiteShell
 
 export function materialRemainingNeeds(
 	requiredGoods: Partial<Record<GoodType, number>>,
@@ -106,13 +121,17 @@ export function materialDemandRelations(
 
 export function materialsComplete(shell: ConstructionMaterialShell): boolean {
 	return (
-		Object.keys(materialRemainingNeeds(shell.constructionSite.requiredGoods, shell.storage))
-			.length === 0 && !shell.destroyed
+		Object.keys(
+			materialRemainingNeeds(
+				normalizeConstructionSiteState(shell.constructionSite).requiredGoods,
+				shell.storage
+			)
+		).length === 0 && !shell.destroyed
 	)
 }
 
 export function buildSiteCanTake(
-	this: BuildSite,
+	this: ConstructionSiteShell,
 	goodType: GoodType,
 	_priority: ExchangePriority
 ): boolean {
@@ -121,7 +140,7 @@ export function buildSiteCanTake(
 }
 
 export function buildSiteCanGive(
-	this: BuildSite,
+	this: ConstructionSiteShell,
 	_goodType: GoodType,
 	_priority: ExchangePriority
 ): boolean {
@@ -133,8 +152,8 @@ interface InstallBuildSitePrototypeOptions {
 }
 
 /**
- * Installs the shared `BuildSite` accessors on classes whose inheritance trees differ but whose
- * construction semantics are the same.
+ * Installs the shared `ConstructionSiteShell` accessors on classes whose inheritance trees differ
+ * but whose construction semantics are the same.
  */
 export function installBuildSitePrototype(
 	prototype: object,
@@ -152,33 +171,40 @@ export function installBuildSitePrototype(
 			configurable: true,
 		},
 		requiredGoods: {
-			get(this: BuildSite) {
-				return this.constructionSite.requiredGoods as Record<GoodType, number>
+			get(this: ConstructionSiteShell) {
+				return normalizeConstructionSiteState(this.constructionSite)
+					.requiredGoods as Record<GoodType, number>
 			},
 			configurable: true,
 		},
 		remainingNeeds: {
-			get(this: BuildSite) {
-				return materialRemainingNeeds(this.constructionSite.requiredGoods, this.storage)
+			get(this: ConstructionSiteShell) {
+				return materialRemainingNeeds(
+					normalizeConstructionSiteState(this.constructionSite).requiredGoods,
+					this.storage
+				)
 			},
 			configurable: true,
 		},
 		advertisedNeeds: {
-			get(this: BuildSite) {
-				return materialAdvertisedNeeds(this.constructionSite.requiredGoods, this.storage)
+			get(this: ConstructionSiteShell) {
+				return materialAdvertisedNeeds(
+					normalizeConstructionSiteState(this.constructionSite).requiredGoods,
+					this.storage
+				)
 			},
 			configurable: true,
 		},
 		isReady: {
-			get(this: BuildSite) {
+			get(this: ConstructionSiteShell) {
 				return materialsComplete(this)
 			},
 			configurable: true,
 		},
 		workingGoodsRelations: {
-			get(this: BuildSite) {
+			get(this: ConstructionSiteShell) {
 				return materialDemandRelations(
-					this.constructionSite.requiredGoods,
+					normalizeConstructionSiteState(this.constructionSite).requiredGoods,
 					this.advertisedNeeds,
 					this.destroyed
 				)
@@ -188,7 +214,7 @@ export function installBuildSitePrototype(
 		...(options.aliasGoodsRelations
 			? {
 					goodsRelations: {
-						get(this: BuildSite) {
+						get(this: ConstructionSiteShell) {
 							return this.workingGoodsRelations
 						},
 						configurable: true,
@@ -207,22 +233,23 @@ export function registerConstructionMaterialPhaseEffect(
 	shell: ConstructionMaterialShell
 ): void {
 	effect`build-site:${debugLabel}`(() => {
+		const constructionSite = normalizeConstructionSiteState(shell.constructionSite)
 		const deliveredGoods = (shell.storage?.stock ?? {}) as Partial<Record<GoodType, number>>
-		setConstructionDeliveredGoods(shell.constructionSite, deliveredGoods)
+		setConstructionDeliveredGoods(constructionSite, deliveredGoods)
 		if (shell.destroyed) {
-			if (shell.constructionSite.workSecondsApplied < shell.constructionSite.recipe.workSeconds) {
-				shell.constructionSite.phase = 'failed'
+			if (constructionSite.workSecondsApplied < constructionSite.recipe.workSeconds) {
+				constructionSite.phase = 'failed'
 			}
 			return
 		}
 		if (!materialsComplete(shell)) {
-			if (shell.constructionSite.phase !== 'building') {
-				shell.constructionSite.phase = 'waiting_materials'
+			if (constructionSite.phase !== 'building') {
+				constructionSite.phase = 'waiting_materials'
 			}
 			return
 		}
-		if (shell.constructionSite.phase !== 'building') {
-			shell.constructionSite.phase = 'waiting_construction'
+		if (constructionSite.phase !== 'building') {
+			constructionSite.phase = 'waiting_construction'
 		}
 	})
 }

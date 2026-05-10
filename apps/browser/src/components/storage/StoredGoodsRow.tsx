@@ -8,8 +8,8 @@ import { inputBufferSize } from 'ssh/assets/constants'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
+import { isConstructionSiteShell } from 'ssh/build-site'
 import type { Game } from 'ssh/game'
-import { BuildAlveolus } from 'ssh/hive/build'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { TransformAlveolus } from 'ssh/hive/transform'
 import type { GoodType } from 'ssh/types/base'
@@ -175,8 +175,8 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 	}
 
 	const getExpectedQty = (good: GoodType, relation?: GoodsRelation) => {
-		if (props.content instanceof BuildDwelling || props.content instanceof BuildAlveolus) {
-			return props.content.requiredGoods[good]
+		if (isConstructionSiteShell(props.content)) {
+			return props.content.requiredGoods?.[good]
 		}
 
 		if (relation?.advertisement !== 'demand') return undefined
@@ -196,12 +196,16 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 	const entries = (): StoredGoodEntry[] => {
 		const currentStock = stock()
 		const currentRelations = relations()
+		const constructionGoods = isConstructionSiteShell(props.content)
+			? (Object.keys(props.content.requiredGoods ?? {}) as GoodType[])
+			: []
 		return Array.from(
 			new Set<GoodType>([
 				...Object.entries(currentStock)
 					.filter(([, qty]) => qty > 0)
 					.map(([good]) => good as GoodType),
 				...(Object.keys(currentRelations) as GoodType[]),
+				...constructionGoods,
 			])
 		)
 			.map((good) => {
@@ -213,7 +217,7 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 					expectedQty: getExpectedQty(good, relation),
 				}
 			})
-			.filter((entry) => entry.qty > 0 || !!entry.relation)
+			.filter((entry) => entry.qty > 0 || !!entry.relation || entry.expectedQty !== undefined)
 			.sort((a, b) => a.good.localeCompare(b.good))
 	}
 
@@ -288,10 +292,7 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 	}
 
 	const getQtyLabel = (entry: StoredGoodEntry) => {
-		if (
-			(props.content instanceof BuildAlveolus || props.content instanceof BuildDwelling) &&
-			entry.expectedQty !== undefined
-		) {
+		if (isConstructionSiteShell(props.content) && entry.expectedQty !== undefined) {
 			return `${entry.qty}/${entry.expectedQty}`
 		}
 		if (entry.expectedQty !== undefined && entry.relation?.advertisement === 'demand') {

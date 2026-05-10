@@ -93,6 +93,7 @@ export const baseGameScope = scope({
 		'stopId?': 'string',
 		'targetCoord?': 'AxialCoord',
 		'path?': 'AxialCoord[]',
+		'currentJobPath?': 'AxialCoord[]',
 		'dockEnter?': 'boolean',
 		/** Walk to vehicle hex before boarding (line-hop prelude; not a separate planner job). */
 		'approachPath?': 'AxialCoord[]',
@@ -421,6 +422,11 @@ export type Job =
 	| VehicleHopJob
 	| ZoneBrowseJob
 
+/** True for planner jobs that are bound to a world vehicle through `vehicleUid`. */
+export function isVehicleBoundJob(job: Job): job is Job & VehicleJob {
+	return 'vehicleUid' in job
+}
+
 /**
  * Script-internal `type: 'work'` payloads for vehicle transfer primitives.
  * These are **not** {@link Job} values and are not chosen by the planner; NPC scripts and tests
@@ -452,6 +458,8 @@ export type WorkPlan =
 			invariant?: () => boolean
 			/** Planner walk path to the target; set by {@link Character.workExecution}. */
 			path?: AxialCoord[]
+			/** Current inner job path resolved by the assigned work provider after preparation. */
+			currentJobPath?: AxialCoord[]
 			/**
 			 * `vehicleHop` only: set when `vehicleHopPrepare` ends line service before travel; the NPC
 			 * script skips walk + dock so `vehicleHopDockStep` is not invoked without `vehicle.service`.

@@ -2,6 +2,12 @@ import { atomic, memoize, reactive } from 'mutts'
 import type { Commitment, FailureReason } from 'ssh/commitment'
 import { type Goods, GoodType } from 'ssh/types/base'
 import { assert, traces } from '../dev/debug.ts'
+import {
+	type SlottedStorageSnapshot,
+	slottedStorageAvailable,
+	slottedStorageAvailableGoods,
+	slottedStorageRoom,
+} from './pure'
 import { Storage } from './storage'
 import type { RenderedGoodSlot, RenderedGoodSlots } from './types'
 
@@ -190,18 +196,7 @@ export class SlottedStorage extends Storage {
 	}
 
 	hasRoom(goodType?: GoodType): number {
-		let totalCapacity = 0
-		for (const slot of this.slots) {
-			if (!slot) {
-				totalCapacity += this.maxQuantityPerSlot
-				continue
-			}
-			if (slot.goodType === goodType) {
-				const freeInSlot = this.maxQuantityPerSlot - slot.quantity - slot.allocated
-				totalCapacity += Math.max(0, freeInSlot)
-			}
-		}
-		return totalCapacity
+		return slottedStorageRoom(this.snapshot(), goodType)
 	}
 
 	get isEmpty(): boolean {
@@ -297,29 +292,12 @@ export class SlottedStorage extends Storage {
 		return result
 	}
 
-	// TODO: @memoize
 	get availables(): { [k in GoodType]?: number } {
-		const result: { [k in GoodType]?: number } = {}
-
-		for (const slot of this.slots) {
-			if (!slot) continue
-			if (slot.quantity > 0) {
-				const available = Math.max(0, slot.quantity - slot.reserved)
-				if (available > 0) {
-					result[slot.goodType] = (result[slot.goodType] || 0) + available
-				}
-			}
-		}
-
-		return result
+		return slottedStorageAvailableGoods(this.snapshot())
 	}
 
 	available(goodType: GoodType): number {
-		let total = 0
-		for (const slot of this.slots) {
-			if (slot?.goodType === goodType) total += Math.max(0, slot.quantity - slot.reserved)
-		}
-		return total
+		return slottedStorageAvailable(this.snapshot(), goodType)
 	}
 
 	allocated(goodType: GoodType): number {
@@ -639,6 +617,13 @@ export class SlottedStorage extends Storage {
 				allocated: slot?.allocated || 0,
 				reserved: slot?.reserved || 0,
 			})),
+		}
+	}
+
+	private snapshot(): SlottedStorageSnapshot {
+		return {
+			slots: this.slots,
+			maxQuantityPerSlot: this.maxQuantityPerSlot,
 		}
 	}
 }

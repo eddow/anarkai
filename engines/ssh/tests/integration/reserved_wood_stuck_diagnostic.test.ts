@@ -27,7 +27,7 @@ describe('Reserved wood stuck diagnostic', () => {
 					{
 						name: 'ReservedWoodDiagnosticHive',
 						alveoli: [
-							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 2 } },
+							{ coord: [0, 0], alveolus: 'storage', goods: { wood: 2 } },
 							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
 						],
 					},

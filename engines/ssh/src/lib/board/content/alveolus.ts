@@ -9,10 +9,10 @@ import { gameIsaTypes } from 'ssh/npcs/utils'
 import type { Character } from 'ssh/population/character'
 import type { Storage } from 'ssh/storage/storage'
 import type { GoodType, Job } from 'ssh/types/base'
-import { KeyedRevisionedCache, RevisionedCache } from 'ssh/utils/revisioned-cache'
 import { type AxialCoord, axial, tileSize } from 'ssh/utils'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
 import { toAxialCoord, toWorldCoord } from 'ssh/utils/position'
+import { KeyedRevisionedCache, RevisionedCache } from 'ssh/utils/revisioned-cache'
 import { assert } from '../../dev/debug.ts'
 import { AlveolusGate } from '../border/alveolus-gate'
 import type { Tile } from '../tile'
@@ -49,6 +49,10 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	private readonly jobByCharacterCache = new KeyedRevisionedCache<string, Job | undefined>()
 	private readonly proposedJobsCache = new RevisionedCache<readonly AlveolusProposedJob[]>()
 	// Configurable properties removed - walkway and conveyor are no longer used
+
+	get titleKey(): string | undefined {
+		return this.resourceName ? `alveoli.${this.resourceName}` : undefined
+	}
 
 	/**
 	 * Reference to which configuration scope to use.
@@ -126,7 +130,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		super(tile.board.game, `alveolus:${tileCoord.q},${tileCoord.r}`)
 		this.storage = storage
 		this.tile = tile
-		this.storage.setPresentationChangeNotifier((kind) => {
+		this.storage.setPresentationChangeNotifier((_kind) => {
 			this.game.enqueueStoragePresentationChange?.(this.tile)
 		})
 		this.storage.setGameplayChangeNotifier(() =>
@@ -242,8 +246,12 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	getJob(character?: Character): Job | undefined {
 		const assignedWorker = this.assignedWorker ? unwrap(this.assignedWorker) : undefined
 		const currentCharacter = character ? unwrap(character) : undefined
+		const characterPosition = currentCharacter?.position
+		const characterCoord = characterPosition ? toAxialCoord(characterPosition) : undefined
 		const key = [
+			this.game.workPlanningRevision,
 			currentCharacter?.uid ?? '',
+			characterCoord ? `${characterCoord.q},${characterCoord.r}` : '',
 			assignedWorker?.uid ?? '',
 			this.tile.isBurdened ? 'burdened' : 'free',
 			this.working ? 'working' : 'stopped',
@@ -297,7 +305,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			}
 			return undefined
 		}
-		const job = this.proposedJobs.find((proposed) => proposed.job !== 'convey')
+		const job = this.nextAlveolusJob(currentCharacter)
 		if (this.hasConveyNearby) {
 			traces.convey.log?.(`[getJob] ${job ? 'work' : 'none'} ${this.name}`, {
 				alveolus: this.name,
@@ -325,9 +333,13 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	 * - Returns undefined if no movements available
 	 */
 	get aGoodMovement(): MovementSelection[] | undefined {
-		return this.goodMovementCache.get(this.hive.conveyPlanningRevision, () =>
+		const selections = this.goodMovementCache.get(this.hive.conveyPlanningRevision, () =>
 			this.computeGoodMovement()
 		)
+		if (!selections) return undefined
+		if (selections.every(({ movement }) => !movement.claimed)) return selections
+		const unclaimed = selections.filter(({ movement }) => !movement.claimed)
+		return unclaimed.length > 0 ? unclaimed : undefined
 	}
 
 	private computeGoodMovement(): MovementSelection[] | undefined {
@@ -570,7 +582,8 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		this.hive.removeAlveolus(this)
 	}
 
-	// TODO: @memoize() - First, check if it's worth, second, make sure all changes bring recomputation
+	// Fresh by design: hive topology is rebuilt through mutable tile/content links, so this stays
+	// an immediate graph query instead of a memoized derivation.
 	get neighborAlveoli(): Alveolus[] {
 		return this.tile.neighborTiles
 			.map((neighbor) => neighbor?.content)

@@ -1,7 +1,7 @@
 import { jobBalance } from 'engine-rules'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
-import { isStandaloneBuildSiteShell } from 'ssh/build-site'
+import { isStandaloneConstructionSiteShell, materialRemainingNeeds } from 'ssh/build-site'
 import type {
 	FreightLineDefinition,
 	FreightStop,
@@ -217,12 +217,16 @@ function findBeginServiceActionableWork(
 				: game.hex.tiles
 		for (const tile of tiles) {
 			const c = tile.content
-			if (!isStandaloneBuildSiteShell(c) || c.destroyed || c.isReady) continue
+			if (!isStandaloneConstructionSiteShell(c) || c.destroyed || c.isReady) continue
 			const tilePos = toAxialCoord(tile.position)
 			if (!tilePos) continue
 			if (!distributeSegmentWithinRadius(line, segment, axial.distance(bayPos, tilePos))) continue
-			for (const g of Object.keys(c.remainingNeeds) as GoodType[]) {
-				if ((c.remainingNeeds[g] ?? 0) <= 0) continue
+			const remaining =
+				c.remainingNeeds && typeof c.remainingNeeds === 'object'
+					? c.remainingNeeds
+					: materialRemainingNeeds(c.requiredGoods ?? {}, c.storage)
+			for (const g of Object.keys(remaining) as GoodType[]) {
+				if ((remaining[g] ?? 0) <= 0) continue
 				if (distributeSegmentAllowsGoodTypeForSegment(line, segment, g)) {
 					return { target: bayTile.position, stop: loadStop }
 				}

@@ -1,21 +1,21 @@
 import { waitForIncomingGoodsPollSeconds } from 'engine-rules'
 import { atomic } from 'mutts'
 import { isTileCoord } from 'ssh/board/board'
-import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
-import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { LooseGood } from 'ssh/board/looseGoods'
-import type { Tile } from 'ssh/board/tile'
-import { isBuildSite } from 'ssh/build-site'
+import { isConstructionSiteShell } from 'ssh/build-site'
 import { Commitment } from 'ssh/commitment'
+import {
+	applyConstructionConcreteTerrain,
+	constructionShellStepDescription,
+	createConstructionShell,
+	finalizeConstructionShell,
+} from 'ssh/construction-shell'
 import {
 	constructionTargetFromProject,
 	createConstructionSiteState,
-	setConstructionConsumedGoods,
 } from 'ssh/construction-state'
 import { assert, traces } from 'ssh/dev/debug'
-import { createAlveolus } from 'ssh/hive'
-import { BuildAlveolus } from 'ssh/hive/build'
 import { commitmentValid, type TrackedMovement } from 'ssh/hive/hive'
 import { movementRefId } from 'ssh/hive/movement-ref'
 import { MovementState, transitionMovement } from 'ssh/hive/movement-state'
@@ -29,39 +29,11 @@ import { type AxialCoord, axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
 import { epsilon } from 'ssh/utils/varied'
 import { subject } from '../scripts'
-import { AEvolutionStep, DurationStep, MultiMoveStep } from '../steps'
+import { AEvolutionStep, DurationStep, MoveToStep, MultiMoveStep } from '../steps'
 import type { WorkPlan } from '.'
 import { getConveyDuration, getConveyVisualMovements, rebindConveyMovementRows } from './convey'
 import { cleanupFailedConveyMovement, type FailedConveyMovementData } from './convey-cleanup'
 import { ConveyStaleBookkeepingError } from './convey-errors'
-
-function applyConcreteTerrain(tile: Tile): void {
-	tile.baseTerrain = 'concrete'
-	tile.terrainState = {
-		...(tile.terrainState ?? {}),
-		terrain: 'concrete',
-	}
-	tile.game.upsertTerrainOverride(tile.position as { q: number; r: number }, {
-		terrain: 'concrete',
-	})
-}
-
-function finalizeBuildAlveolusToTarget(site: BuildAlveolus) {
-	applyConcreteTerrain(site.tile)
-	const alveolus = createAlveolus(site.target, site.tile)
-	assert(alveolus, 'Target alveolus must exist')
-	site.tile.content = alveolus
-}
-
-function finalizeBuildDwellingToBasicDwelling(site: BuildDwelling) {
-	applyConcreteTerrain(site.tile)
-	site.tile.content = new BasicDwelling(site.tile)
-	traces.residential.log?.('[residential] dwelling complete', {
-		q: toAxialCoord(site.tile.position)?.q,
-		r: toAxialCoord(site.tile.position)?.r,
-		tier: site.targetTier,
-	})
-}
 
 /**
  * Runtime snapshot for a single convey sub-movement.
@@ -221,13 +193,33 @@ class WorkFunctions {
 	declare [subject]: Character
 	@contract('WorkPlan')
 	prepare(workPlan: WorkPlan) {
-		if (['convey', 'vehicleOffload', 'transform'].includes(workPlan.job)) return
+		const character = this[subject]
+		const targetCoord = toAxialCoord(workPlan.target?.tile?.position)
+		traces.work.log?.('work.prepare.begin', {
+			character: character.name,
+			characterUid: character.uid,
+			job: workPlan.job,
+			target: workPlan.target?.name,
+			targetQ: targetCoord?.q,
+			targetR: targetCoord?.r,
+			assignedAlveolus: character.assignedAlveolus?.name,
+			preparationTime: character.assignedAlveolus?.preparationTime,
+		})
+		if (['convey', 'vehicleOffload', 'transform'].includes(workPlan.job)) {
+			traces.work.log?.('work.prepare.skip', {
+				character: character.name,
+				characterUid: character.uid,
+				job: workPlan.job,
+				reason: 'instant-job',
+			})
+			return
+		}
 		assert(
-			this[subject].assignedAlveolus?.preparationTime,
+			character.assignedAlveolus?.preparationTime,
 			'assignedAlveolus must be set and have a preparationTime'
 		)
 		return new DurationStep(
-			this[subject].assignedAlveolus!.preparationTime,
+			character.assignedAlveolus!.preparationTime,
 			'work',
 			`prepare.${workPlan.job}`
 		)
@@ -248,7 +240,58 @@ class WorkFunctions {
 			'getJob' in alveolus && typeof alveolus.getJob === 'function',
 			'alveolus must have getJob method'
 		)
-		return alveolus.getJob(this[subject])
+		const job = alveolus.getJob(this[subject])
+		const targetCoord = toAxialCoord(alveolus.tile?.position)
+		const path = job && 'path' in job ? job.path : undefined
+		if (workPlan && Array.isArray(path)) {
+			;(workPlan as WorkPlan & { currentJobPath?: typeof path }).currentJobPath = path
+		}
+		traces.work.log?.('work.myNextJob', {
+			character: this[subject].name,
+			characterUid: this[subject].uid,
+			requestedJob: workPlan?.job,
+			alveolus: alveolus.name,
+			alveolusQ: targetCoord?.q,
+			alveolusR: targetCoord?.r,
+			job: job?.job,
+			hasPath: Array.isArray(path),
+			pathLen: Array.isArray(path) ? path.length : undefined,
+			pathEndQ: Array.isArray(path) ? path.at(-1)?.q : undefined,
+			pathEndR: Array.isArray(path) ? path.at(-1)?.r : undefined,
+			workPlanningRevision: this[subject].game.workPlanningRevision,
+		})
+		return job
+	}
+
+	@contract('WorkPlan')
+	walkToCurrentJobTarget(workPlan: WorkPlan) {
+		const character = this[subject]
+		let path = (workPlan as WorkPlan & { currentJobPath?: AxialCoord[] }).currentJobPath
+		if (!Array.isArray(path)) {
+			const job = character.assignedAlveolus?.getJob(character)
+			path =
+				job?.job === workPlan.job && 'path' in job && Array.isArray(job.path)
+					? job.path.map((step) => toAxialCoord(step)).filter((step): step is AxialCoord => !!step)
+					: undefined
+		}
+		const terminal = Array.isArray(path) ? path.at(-1) : undefined
+		if (!terminal) return
+		const targetTile = character.game.hex.getTile(terminal)
+		if (!targetTile) return
+		const from = toAxialCoord(character.position)
+		const to = toAxialCoord(targetTile.position)
+		if (!from || !to) return
+		if (axial.key(axial.round(from)) === axial.key(axial.round(to))) return
+		const duration =
+			character.tile.effectiveWalkTime *
+			character.mobilityMultiplier *
+			Math.max(1, axial.distance(axial.round(from), axial.round(to)))
+		return new MoveToStep(duration, character, targetTile.position, 'walk', `walk.${workPlan.job}`).onFulfilled(
+			() => {
+				;(character as unknown as { _tile: typeof targetTile })._tile = targetTile
+				character.game.invalidateWorkPlanning('character.position')
+			}
+		)
 	}
 
 	@contract('string?')
@@ -385,7 +428,7 @@ class WorkFunctions {
 		for (const selection of movements) {
 			const movement = selection.movement
 			const from = selection.fromSnapshot
-			let sourceFulfilled = false
+			const sourceFulfilled = false
 			let moving: LooseGood | undefined
 			if (
 				!hive.ensureMovementInvariant(movement, {
@@ -606,11 +649,19 @@ class WorkFunctions {
 			movementData.length === 1 ? `convey.${movementData[0].movement.goodType}` : `convey.cycle`
 		const visualMovements = getConveyVisualMovements(movementData)
 		const conveyStepRef: { step?: MultiMoveStep } = {}
-		const step = new MultiMoveStep(totalTime, visualMovements, 'work', description, () => {
-			if (!rebindConveyMovementRows(movementData)) {
-				conveyStepRef.step?.cancel('stale-rebind')
-			}
-		}, true, true)
+		const step = new MultiMoveStep(
+			totalTime,
+			visualMovements,
+			'work',
+			description,
+			() => {
+				if (!rebindConveyMovementRows(movementData)) {
+					conveyStepRef.step?.cancel('stale-rebind')
+				}
+			},
+			true,
+			true
+		)
 		conveyStepRef.step = step
 		for (const { movement, hop } of movementData) {
 			if (!movement.path.length) continue
@@ -1002,11 +1053,32 @@ class WorkFunctions {
 	@contract()
 	foundationStep() {
 		// Character must be on an UnBuiltLand tile with a project
-		const content = this[subject].tile.content
+		const character = this[subject]
+		const tileCoord = toAxialCoord(character.tile.position)
+		const content = character.tile.content
 		if (!(content instanceof UnBuiltLand) || !content.project) {
+			traces.work.warn?.('work.foundationStep.skip', {
+				character: character.name,
+				characterUid: character.uid,
+				reason: 'not-project-land',
+				tileQ: tileCoord?.q,
+				tileR: tileCoord?.r,
+				contentType: content?.constructor?.name,
+			})
 			return
 		}
-		if (content.tile.isBurdened) return
+		if (content.tile.isBurdened) {
+			traces.work.warn?.('work.foundationStep.skip', {
+				character: character.name,
+				characterUid: character.uid,
+				reason: 'tile-burdened',
+				tileQ: tileCoord?.q,
+				tileR: tileCoord?.r,
+				looseGoods: content.tile.looseGoods.length,
+				availableLooseGoods: content.tile.availableGoods.length,
+			})
+			return
+		}
 		const project = content.project
 		// Redundant assert for TS narrowing, or just cast
 		// assert(content instanceof UnBuiltLand, 'Tile must be UnBuiltLand')
@@ -1018,16 +1090,19 @@ class WorkFunctions {
 
 		content.constructionSite = constructionSite
 		constructionSite.phase = 'foundation'
+		traces.work.log?.('work.foundationStep.start', {
+			character: character.name,
+			characterUid: character.uid,
+			project,
+			tileQ: tileCoord?.q,
+			tileR: tileCoord?.r,
+			targetKind: target.kind,
+			target: target.kind === 'alveolus' ? target.alveolusType : target.tier,
+		})
 		return new DurationStep(3, 'work', 'foundation').onFulfilled(() => {
-			applyConcreteTerrain(content.tile)
-			if (target.kind === 'alveolus') {
-				content.tile.content = new BuildAlveolus(
-					content.tile,
-					target.alveolusType,
-					constructionSite
-				)
-			} else {
-				content.tile.content = new BuildDwelling(content.tile, target.tier, constructionSite)
+			applyConstructionConcreteTerrain(content.tile)
+			content.tile.content = createConstructionShell(content.tile, constructionSite)
+			if (target.kind === 'dwelling') {
 				const ac = toAxialCoord(content.tile.position)
 				traces.residential.log?.('[residential] foundation -> BuildDwelling', {
 					tier: target.tier,
@@ -1042,25 +1117,13 @@ class WorkFunctions {
 	constructionStep() {
 		// Character must already be on the construction site tile
 		const content = this[subject].tile.content
-		if (isBuildSite(content)) {
+		if (isConstructionSiteShell(content)) {
 			const site = content
 			assert(site.isReady, 'Construction site must be ready')
 			const totalSeconds = site.constructionSite.recipe.workSeconds
 			const remaining = Math.max(0, totalSeconds - site.constructionWorkSecondsApplied)
-			const stepDescription =
-				site instanceof BuildAlveolus
-					? `construct.${String(site.target)}`
-					: `construct.dwelling.${site.targetTier}`
-			const finalize = () => {
-				setConstructionConsumedGoods(site.constructionSite, site.constructionSite.requiredGoods)
-				if (site instanceof BuildAlveolus) {
-					finalizeBuildAlveolusToTarget(site)
-				} else if (site instanceof BuildDwelling) {
-					finalizeBuildDwellingToBasicDwelling(site)
-				} else {
-					assert(false, 'BuildSite must resolve to BuildAlveolus or BuildDwelling')
-				}
-			}
+			const stepDescription = constructionShellStepDescription(site)
+			const finalize = () => finalizeConstructionShell(site)
 			if (remaining <= 0) {
 				site.constructionSite.phase = 'building'
 				site.constructionSite.workSecondsApplied = totalSeconds
@@ -1086,7 +1149,7 @@ class WorkFunctions {
 					site.constructionSite.phase = 'waiting_construction'
 				})
 		}
-		assert(false, 'Tile must be a BuildAlveolus or BuildDwelling')
+		assert(false, 'Tile must be a construction site shell')
 	}
 }
 

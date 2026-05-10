@@ -1,6 +1,6 @@
 import { css } from '@app/lib/css'
 import { T } from '@app/lib/i18n'
-import { presentationRevisionFor } from '@app/lib/presentation-events'
+import { presentationRevisionFor, workPlanningPresentationRevision } from '@app/lib/presentation-events'
 import { InspectorSection } from '@app/ui/anarkai'
 import { vehicles as vehicleVisuals } from 'engine-pixi/assets/visual-content'
 import { vehicleTextureKey } from 'engine-pixi/renderers/vehicle-visual'
@@ -190,6 +190,7 @@ function describeVehicleWorkTarget(job: ProposedJob): string {
 }
 
 function vehicleWorkChoices(vehicle: VehicleEntity | undefined): VehicleWorkChoice[] {
+	workPlanningPresentationRevision()
 	const end = profile.proposedJobs.begin?.('vehicle-properties.workChoices', () => ({
 		vehicleUid: vehicle?.uid,
 	}))

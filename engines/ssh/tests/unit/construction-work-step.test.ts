@@ -1,7 +1,13 @@
 import { alveoli } from 'engine-rules'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import { isConstructionSiteShell } from 'ssh/build-site'
 import { queryConstructionSiteView } from 'ssh/construction'
+import {
+	createConstructionShell,
+	finalizeConstructionShell,
+} from 'ssh/construction-shell'
+import { createConstructionSiteState } from 'ssh/construction-state'
 import { Game } from 'ssh/game/game'
 import { BuildAlveolus } from 'ssh/hive/build'
 import { StorageAlveolus } from 'ssh/hive/storage'
@@ -36,6 +42,53 @@ describe('constructionStep resumable work', () => {
 		)
 		await game.loaded
 		game.ticker.stop()
+	})
+
+	it('creates construction shells from construction-site targets', () => {
+		const tileB = game.hex.getTile({ q: 1, r: 0 })!
+
+		const alveolusShell = createConstructionShell(
+			tileB,
+			createConstructionSiteState({ kind: 'alveolus', alveolusType: 'storage' })
+		)
+		expect(isConstructionSiteShell(alveolusShell)).toBe(true)
+		expect(alveolusShell).toBeInstanceOf(BuildAlveolus)
+		expect(alveolusShell.constructionSite.target).toEqual({
+			kind: 'alveolus',
+			alveolusType: 'storage',
+		})
+
+		const dwellingShell = createConstructionShell(
+			tileB,
+			createConstructionSiteState({ kind: 'dwelling', tier: 'basic_dwelling' })
+		)
+		expect(isConstructionSiteShell(dwellingShell)).toBe(true)
+		expect(dwellingShell).toBeInstanceOf(BuildDwelling)
+		expect(dwellingShell.constructionSite.target).toEqual({
+			kind: 'dwelling',
+			tier: 'basic_dwelling',
+		})
+	})
+
+	it('finalizes construction shells from their construction-site targets', () => {
+		game.upsertTerrainOverride = vi.fn() as never
+		const tileB = game.hex.getTile({ q: 1, r: 0 })!
+
+		const alveolusShell = createConstructionShell(
+			tileB,
+			createConstructionSiteState({ kind: 'alveolus', alveolusType: 'storage' })
+		)
+		tileB.content = alveolusShell
+		finalizeConstructionShell(alveolusShell)
+		expect(tileB.content).toBeInstanceOf(StorageAlveolus)
+
+		const dwellingShell = createConstructionShell(
+			tileB,
+			createConstructionSiteState({ kind: 'dwelling', tier: 'basic_dwelling' })
+		)
+		tileB.content = dwellingShell
+		finalizeConstructionShell(dwellingShell)
+		expect(tileB.content?.name).toBe('basic_dwelling')
 	})
 
 	it('credits partial seconds when the duration step is canceled mid-way', () => {
