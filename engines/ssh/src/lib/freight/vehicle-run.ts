@@ -447,6 +447,19 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 		})
 		return
 	}
+	if (hive.hasActiveFreightVehicleDockMovement(vehicle.uid)) {
+		traces.vehicle.log?.('vehicleJob.dock.check', {
+			vehicleUid: vehicle.uid,
+			lineId: svc.line.id,
+			stopId: stop.id,
+			outcome: 'wait',
+			reason: 'active-dock-convey',
+			anchorCoord: stop.anchor.coord,
+			stock: vehicle.storage.stock,
+			virtualGoodsCount: vehicle.storage.virtualGoodsCount,
+		})
+		return
+	}
 	const stockCount = Object.values(vehicle.storage.stock).reduce(
 		(total, qty) => total + Math.max(0, qty ?? 0),
 		0

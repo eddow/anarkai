@@ -22,7 +22,7 @@
 
 - first-class line data (`gather` / `distribute`) in save patches
 - one-stop gather lines with line-owned radius and filters
-- `freight_bay` stop content backed by `road-fret` storage semantics
+- `freight_bay` stop content backed by a non-storage dock plus `VehicleFreightDock`
 - synthetic inspector objects for line selection and editing
 - docked vehicle work is surfaced through cheap provider-side advertised jobs for inspectors, while
   character-scoped planner search stays in job claiming/ranking paths

@@ -74,8 +74,7 @@ function isLogisticsStorageAlveolusAction(actionType: string | undefined): boole
 	return (
 		actionType === 'slotted-storage' ||
 		actionType === 'specific-storage' ||
-		actionType === 'storage' ||
-		actionType === 'road-fret'
+		actionType === 'storage'
 	)
 }
 
@@ -529,6 +528,17 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 
 	freightVehicleDockFor(vehicleUid: string): VehicleFreightDock | undefined {
 		return this.freightVehicleDocks.get(vehicleUid)
+	}
+
+	hasActiveFreightVehicleDockMovement(vehicleUid: string): boolean {
+		for (const movement of this.activeMovements) {
+			const providerDock = isVehicleFreightDock(movement.provider) ? movement.provider : undefined
+			const demanderDock = isVehicleFreightDock(movement.demander) ? movement.demander : undefined
+			if (providerDock?.vehicle.uid === vehicleUid || demanderDock?.vehicle.uid === vehicleUid) {
+				return true
+			}
+		}
+		return false
 	}
 
 	public attach(alveolus: Alveolus) {
@@ -3173,7 +3183,6 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			...((this.byActionType['slotted-storage'] || []) as StorageAlveolus[]),
 			...((this.byActionType['specific-storage'] || []) as StorageAlveolus[]),
 			...((this.byActionType['storage'] || []) as StorageAlveolus[]),
-			...((this.byActionType['road-fret'] || []) as StorageAlveolus[]),
 		]
 	}
 	selectMovement(
@@ -3235,10 +3244,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				// Check target can take the goods
 				if ('canTake' in targetStorage && typeof targetStorage.canTake === 'function') {
 					const targetCanTake = targetStorage.canTake(goodType, targetPriority)
-					const dockUnloadToOwnBay =
-						isVehicleFreightDock(providerStorage) && targetStorage === providerStorage.bay
-
-					if (!targetCanTake && !dockUnloadToOwnBay) {
+					if (!targetCanTake) {
 						traces.advertising.log?.(
 							`[SELECT] SKIP: ${goodType} - ${targetStorage.name} cannot accept goods`
 						)

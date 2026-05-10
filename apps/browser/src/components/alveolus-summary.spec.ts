@@ -46,8 +46,7 @@ describe('summarizeHiveGoodsRelations', () => {
 				},
 			},
 			{
-				name: 'freight_bay',
-				action: { type: 'road-fret', kind: 'slotted', capacity: 2, slots: 4 },
+				name: 'vehicle-dock:wheelbarrow-1',
 				goodsRelations: {
 					wood: { advertisement: 'provide', priority: '2-use' },
 				},
@@ -59,7 +58,7 @@ describe('summarizeHiveGoodsRelations', () => {
 				goodType: 'wood',
 				advertisement: 'provide',
 				priority: '2-use',
-				types: ['storage', 'road-fret'],
+				types: ['storage', 'vehicle-dock:wheelbarrow-1'],
 			},
 		])
 	})

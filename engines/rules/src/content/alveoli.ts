@@ -46,7 +46,7 @@ export const alveoli = {
 	},
 	freight_bay: {
 		preparationTime: 1,
-		action: { type: 'road-fret', kind: 'slotted', capacity: 2, slots: 4 },
+		action: { type: 'road-fret' },
 		workTime: 0,
 		construction: {
 			goods: { wood: 2, planks: 1 },

@@ -30,6 +30,7 @@ import {
 	isImplicitGatherFreightLineId,
 	normalizeFreightLineDefinition,
 } from 'ssh/freight/freight-line'
+import { maybeAdvanceVehicleFromCompletedAnchorStop } from 'ssh/freight/vehicle-run'
 import {
 	GameGenerator,
 	type GeneratedCharacterData,
@@ -81,6 +82,7 @@ const UNSAVED_DEFAULT_TERRAIN_SEED = 1234
 export type GameEvents = {
 	gameStart(): void
 	presentationEvents(events: readonly GamePresentationEvent[]): void
+	conveyEvents(events: readonly GameConveyEvent[]): void
 	objectsAdded(objects: InteractiveGameObject[]): void
 	objectsChanged(objects: InteractiveGameObject[]): void
 	objectsRemoved(objects: InteractiveGameObject[]): void
@@ -93,7 +95,31 @@ export type GameEvents = {
 	dragPreview(tiles: Tile[], zoneType: string): void
 	dragPreviewClear(): void
 }
-export type GamePresentationEvent = { type: 'storage.changed'; ownerUid: string }
+export type GamePresentationEvent =
+	| { type: 'storage.changed'; ownerUid: string }
+	| { type: 'vehicle.dock.changed'; ownerUid: string; vehicleUid: string }
+
+/**
+ * Gameplay-facing notification that a convey hop has committed.
+ *
+ * This is intentionally a dirty event, not duplicated state. Consumers that need
+ * current storage, vehicle, or tile details should use `ownerUid` to find the live
+ * object and pull a fresh snapshot after the batch flush.
+ */
+export type GameConveyEvent = {
+	type: 'conveyed'
+	/** UID of the tile-like object affected by this endpoint. Borders are omitted in v1. */
+	ownerUid: string
+	/** Which end of the completed hop this event describes. */
+	endpoint: 'source' | 'target'
+	goodType: GoodType
+	movementRef: number
+	characterUid?: string
+	/** Hop origin captured before the movement mutates its `from` coordinate. */
+	from: AxialCoord
+	/** Hop destination reached by the completed step. */
+	to: AxialCoord
+}
 unreactive(Eventful)
 export type GameGenerationOptions = {
 	terrainSeed: number
@@ -115,7 +141,7 @@ export interface AlveolusPatch {
 	coord: readonly [number, number]
 	goods?: Partial<Record<GoodType, number>>
 	processBuffers?: Partial<Record<GoodType, number>>
-	alveolus: AlveolusType | 'gather'
+	alveolus: AlveolusType
 	/** When true, tile hosts a build shell for `alveolus` target, not the finished building. */
 	underConstruction?: boolean
 	/** Persisted construction work seconds on the build shell. */
@@ -190,10 +216,6 @@ export interface SaveState extends GamePatches {
 	namedConfigurations?: Record<AlveolusType, Record<string, Ssh.AlveolusConfiguration>>
 	/** Per-hive configurations by alveolus type */
 	hiveConfigurations?: Record<string, Record<string, Ssh.AlveolusConfiguration>>
-}
-
-function canonicalPatchedAlveolusType(alveolus: AlveolusPatch['alveolus']): AlveolusType {
-	return alveolus === 'gather' ? 'freight_bay' : alveolus
 }
 
 function terrainPatchesAsTiles(terrains: TerrainPatches | undefined): TilePatch[] {
@@ -302,9 +324,11 @@ export class Game extends Eventful<GameEvents> {
 	private readonly pendingInteractiveChanges = new Map<string, InteractiveGameObject>()
 	private readonly pendingInteractiveUnregistrations = new Map<string, InteractiveGameObject>()
 	private readonly pendingPresentationEvents = new Map<string, GamePresentationEvent>()
+	private readonly pendingConveyEvents: GameConveyEvent[] = []
 	private interactiveRegistrationBatchDepth = 0
 	private interactiveLifecycleFlushScheduled = false
 	private presentationEventsFlushScheduled = false
+	private conveyEventsFlushScheduled = false
 	private _workPlanningRevision = 0
 	private terrainTerraforming: TerrainTerraformPatch[] = []
 	private readonly bootstrapGameplayCoords = new Set<string>()
@@ -419,6 +443,31 @@ export class Game extends Eventful<GameEvents> {
 		this.schedulePresentationEventsFlush()
 	}
 
+	public enqueueVehicleDockPresentationChange(
+		owner: { uid: string },
+		vehicle: { uid: string }
+	): void {
+		const event: GamePresentationEvent = {
+			type: 'vehicle.dock.changed',
+			ownerUid: owner.uid,
+			vehicleUid: vehicle.uid,
+		}
+		this.pendingPresentationEvents.set(`${event.type}:${event.ownerUid}:${event.vehicleUid}`, event)
+		this.schedulePresentationEventsFlush()
+	}
+
+	/**
+	 * Queue a convey completion event for the current mutation turn.
+	 *
+	 * Unlike storage presentation events, convey endpoint events are not deduped:
+	 * a batch may legitimately contain source and target events for the same
+	 * movement, or multiple movements landing on the same owner.
+	 */
+	public enqueueConveyEvent(event: Omit<GameConveyEvent, 'type'>): void {
+		this.pendingConveyEvents.push({ type: 'conveyed', ...event })
+		this.scheduleConveyEventsFlush()
+	}
+
 	get workPlanningRevision(): number {
 		return this._workPlanningRevision
 	}
@@ -522,6 +571,24 @@ export class Game extends Eventful<GameEvents> {
 		this.presentationEventsFlushScheduled = true
 		queueMicrotask(() => {
 			this.flushPresentationEvents()
+		})
+	}
+
+	private flushConveyEvents() {
+		this.conveyEventsFlushScheduled = false
+		if (this.pendingConveyEvents.length === 0) return
+		const events = this.pendingConveyEvents.splice(0)
+		this.emit('conveyEvents', events)
+		for (const vehicle of this.vehicles) {
+			maybeAdvanceVehicleFromCompletedAnchorStop(this, vehicle)
+		}
+	}
+
+	private scheduleConveyEventsFlush() {
+		if (this.conveyEventsFlushScheduled) return
+		this.conveyEventsFlushScheduled = true
+		queueMicrotask(() => {
+			this.flushConveyEvents()
 		})
 	}
 
@@ -1200,7 +1267,7 @@ export class Game extends Eventful<GameEvents> {
 					terrain: 'concrete',
 				}
 				this.upsertTerrainOverride(coord, { terrain: 'concrete' })
-				const alveolusType = canonicalPatchedAlveolusType(a.alveolus)
+				const alveolusType = a.alveolus
 				if (a.underConstruction) {
 					const constructionSite = createConstructionSiteState({
 						kind: 'alveolus',
@@ -1233,9 +1300,9 @@ export class Game extends Eventful<GameEvents> {
 					continue
 				}
 				const alv = createAlveolus(alveolusType, tile)
-				if (!alv) continue
+				if (!alv) throw new Error(`Unknown alveolus type in hive patch: ${a.alveolus}`)
 				this.hex.setTileContent(tile, alv)
-				if (a.goods)
+				if (a.goods && alv.name !== 'freight_bay')
 					for (const [good, qty] of Object.entries(a.goods))
 						alv.storage?.addGood(good as GoodType, qty)
 				if (alv instanceof TransformAlveolus) {
@@ -1450,9 +1517,7 @@ export class Game extends Eventful<GameEvents> {
 								alveolus: alveolusName as AlveolusType,
 								goods: content.storage?.stock || {},
 								processBuffers:
-									content instanceof TransformAlveolus
-										? { ...content.processBuffers }
-										: undefined,
+									content instanceof TransformAlveolus ? { ...content.processBuffers } : undefined,
 							}
 				// Include configuration if not default hive scope
 				if (content.configurationRef.scope !== 'hive' || content.individualConfiguration) {
@@ -1593,9 +1658,11 @@ export class Game extends Eventful<GameEvents> {
 		this.pendingInteractiveChanges.clear()
 		this.pendingInteractiveUnregistrations.clear()
 		this.pendingPresentationEvents.clear()
+		this.pendingConveyEvents.splice(0)
 		this.objects.clear()
 		this.interactiveLifecycleFlushScheduled = false
 		this.presentationEventsFlushScheduled = false
+		this.conveyEventsFlushScheduled = false
 		this._workPlanningRevision = 0
 	}
 }

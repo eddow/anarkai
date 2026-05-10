@@ -1,7 +1,7 @@
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
 import type { Game } from 'ssh/game'
 import type { Hive } from 'ssh/hive'
-import { StorageAlveolus } from 'ssh/hive/storage'
+import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
 
@@ -20,13 +20,12 @@ function dockedLineEntry(vehicle: VehicleEntity): DockedVehicleEntry | undefined
 
 export function collectDockedVehiclesForBay(
 	game: Game,
-	bay: StorageAlveolus
+	bay: FreightBayAlveolus
 ): DockedVehicleEntry[] {
 	const entries: DockedVehicleEntry[] = []
 	for (const vehicle of game.vehicles) {
 		const content = vehicle.tile.content
-		if (!(content instanceof StorageAlveolus)) continue
-		if (content.action?.type !== 'road-fret') continue
+		if (!(content instanceof FreightBayAlveolus)) continue
 		if (content.tile.uid !== bay.tile.uid) continue
 		const entry = dockedLineEntry(vehicle)
 		if (entry) entries.push(entry)
@@ -38,8 +37,7 @@ export function collectDockedVehiclesForHive(game: Game, hive: Hive): DockedVehi
 	const entries: DockedVehicleEntry[] = []
 	for (const vehicle of game.vehicles) {
 		const content = vehicle.tile.content
-		if (!(content instanceof StorageAlveolus)) continue
-		if (content.action?.type !== 'road-fret') continue
+		if (!(content instanceof FreightBayAlveolus)) continue
 		// Prefer reference identity; hive display names are not guaranteed unique across hives.
 		if (content.hive !== hive) continue
 		const entry = dockedLineEntry(vehicle)

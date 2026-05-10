@@ -988,6 +988,30 @@ describe('Vehicle zone hop semantics', () => {
 		expect(hop?.dockEnter).toBe(true)
 	})
 
+	it('uses the ChopSaw gather line instead of maintenance offload for needed wood on a project tile', async () => {
+		game = new Game({ terrainSeed: 9421, characterCount: 0 }, chopSaw)
+		await game.loaded
+		game.ticker.stop()
+
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
+		const character = game.population.createCharacter('ChopSawLineLoader', { q: 9, r: -7 })
+		vehicle.position = { q: 9, r: -7 }
+		const loose = game.hex.looseGoods.add({ q: 9, r: -7 }, 'wood')
+
+		const hop = findVehicleHopJob(game, character)
+		expect(hop?.job).toBe('vehicleHop')
+		expect(hop?.stopId).toBe('ChopSaw:ig-load')
+		expect(hop?.zoneBrowseAction).toBe('load')
+		expect(hop?.targetCoord).toMatchObject({ q: 9, r: -7 })
+		expect(hop?.goodType).toBe('wood')
+		expect(hop?.needsBeginService).toBe(true)
+
+		const offload = findVehicleOffloadJob(game, character)
+		expect(offload).toBeUndefined()
+		expect(loose.isRemoved).toBe(false)
+	})
+
 	it('offers a hop when the zone operator is stepped off but still linked to a loaded wheelbarrow', async () => {
 		game = new Game({ terrainSeed: 9420, characterCount: 0 }, chopSaw)
 		await game.loaded

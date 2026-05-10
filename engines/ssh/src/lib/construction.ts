@@ -88,7 +88,7 @@ function buildUnbuiltConstructionView(
 	state: ConstructionSiteState
 ): ConstructionSiteView {
 	const blocking: ConstructionBlockingReason[] = []
-	if (!tile.isClear) {
+	if (tile.isBurdened) {
 		return snapshotConstructionState(state, {
 			phase: 'planned',
 			blockingReasons: ['tile_not_clear'],

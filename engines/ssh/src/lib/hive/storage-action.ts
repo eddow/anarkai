@@ -1,21 +1,21 @@
 /**
- * Normalizes legacy `slotted-storage` / `specific-storage` and unified `storage` / `road-fret` actions.
+ * Normalizes legacy `slotted-storage` / `specific-storage` and unified `storage` actions.
  */
 
 export function isAlveolusStorageAction(action: Ssh.Action): action is Ssh.AlveolusStorageAction {
 	const t = action.type
-	return t === 'slotted-storage' || t === 'specific-storage' || t === 'storage' || t === 'road-fret'
+	return t === 'slotted-storage' || t === 'specific-storage' || t === 'storage'
 }
 
 export function usesSlottedStorageLayout(action: Ssh.AlveolusStorageAction): boolean {
 	if (action.type === 'slotted-storage') return true
-	if (action.type === 'storage' || action.type === 'road-fret') return action.kind === 'slotted'
+	if (action.type === 'storage') return action.kind === 'slotted'
 	return false
 }
 
 export function usesSpecificStorageLayout(action: Ssh.AlveolusStorageAction): boolean {
 	if (action.type === 'specific-storage') return true
-	if (action.type === 'storage' || action.type === 'road-fret') return action.kind === 'specific'
+	if (action.type === 'storage') return action.kind === 'specific'
 	return false
 }
 
@@ -31,7 +31,7 @@ export function readSlottedStorageParams(action: Ssh.AlveolusStorageAction): {
 	if (action.type === 'slotted-storage') {
 		return { slots: action.slots, capacity: action.capacity, buffers: action.buffers }
 	}
-	if ((action.type === 'storage' || action.type === 'road-fret') && action.kind === 'slotted') {
+	if (action.type === 'storage' && action.kind === 'slotted') {
 		return { slots: action.slots, capacity: action.capacity, buffers: action.buffers }
 	}
 	throw new Error(`Expected slotted storage layout, got action type ${(action as Ssh.Action).type}`)
@@ -44,7 +44,7 @@ export function readSpecificStorageParams(action: Ssh.AlveolusStorageAction): {
 	if (action.type === 'specific-storage') {
 		return { goods: action.goods, buffers: action.buffers }
 	}
-	if ((action.type === 'storage' || action.type === 'road-fret') && action.kind === 'specific') {
+	if (action.type === 'storage' && action.kind === 'specific') {
 		return { goods: action.goods, buffers: action.buffers }
 	}
 	throw new Error(

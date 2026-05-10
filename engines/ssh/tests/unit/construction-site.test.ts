@@ -33,7 +33,36 @@ describe('queryConstructionSiteView', () => {
 		const view = queryConstructionSiteView(game, tile)
 		expect(view?.phase).toBe('planned')
 		expect(view?.blockingReasons).toContain('tile_not_clear')
-		expect(land.constructionSite?.phase).toBe('planned')
+	})
+
+	it('returns planned with tile_not_clear when a project tile is vehicle-burdened', async () => {
+		game = new Game(
+			{ terrainSeed: 22, characterCount: 0 },
+			{
+				tiles: [
+					{ coord: [0, 0], terrain: 'concrete' },
+					{ coord: [1, 0], terrain: 'forest' },
+				],
+				hives: [
+					{
+						name: 'EngHive',
+						alveoli: [{ coord: [0, 0], alveolus: 'engineer' }],
+					},
+				],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+		const tile = game.hex.getTile({ q: 1, r: 0 })!
+		const land = tile.content
+		expect(land).toBeInstanceOf(UnBuiltLand)
+		if (!(land instanceof UnBuiltLand)) return
+		land.setProject('build:sawmill')
+		game.vehicles.createVehicle('barrow-on-project', 'wheelbarrow', tile.position)
+
+		const view = queryConstructionSiteView(game, tile)
+		expect(view?.phase).toBe('planned')
+		expect(view?.blockingReasons).toContain('tile_not_clear')
 	})
 
 	it('returns foundation without blocking when an engineer can reach a clear project tile', async () => {

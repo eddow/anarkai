@@ -20,8 +20,8 @@ import {
 } from 'ssh/freight/freight-line'
 import type { Game } from 'ssh/game'
 import { BuildAlveolus } from 'ssh/hive/build'
+import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import { StorageAlveolus } from 'ssh/hive/storage'
-import { isRoadFretAction } from 'ssh/hive/storage-action'
 import { TransformAlveolus } from 'ssh/hive/transform'
 import type { GoodType } from 'ssh/types/base'
 import ConstructionProgressBar from '../ConstructionProgressBar'
@@ -109,10 +109,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 		state.isTransform = content instanceof TransformAlveolus
 		state.storageContent = content instanceof StorageAlveolus ? content : undefined
 		state.transformContent = content instanceof TransformAlveolus ? content : undefined
-		state.isFreightBay =
-			content instanceof StorageAlveolus &&
-			isRoadFretAction(content.action) &&
-			content.name === 'freight_bay'
+		state.isFreightBay = content instanceof FreightBayAlveolus
 		state.lineObjects =
 			game && content
 				? findFreightLinesForStop(freightLines, content).map((line) =>
@@ -120,7 +117,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 					)
 				: []
 		state.dockedVehicles =
-			game && content instanceof StorageAlveolus && state.isFreightBay
+			game && content instanceof FreightBayAlveolus
 				? collectDockedVehiclesForBay(game, content)
 				: []
 	})
@@ -172,7 +169,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 	const handleAddFreightLine = (mode: FreightLineMode) => {
 		const game = state.resolvedGame
 		const content = props.content
-		if (!game || !(content instanceof StorageAlveolus) || !state.isFreightBay) return
+		if (!game || !(content instanceof FreightBayAlveolus)) return
 		const draft = createExplicitFreightLineDraftForFreightBay(content, mode)
 		if (!draft) return
 		game.replaceFreightLine(draft)

@@ -46,7 +46,7 @@ Restrictive policies on segment **pickup** are read from the segment **load** st
 
 ## Bootstrap and implicit lines
 
-- Implicit gather routes are generated per `gather` / `freight_bay` hive patch (`implicitGatherFreightLinesFromHivePatches`); ids contain `:implicit-gather:`.
+- Implicit gather routes are generated per `freight_bay` hive patch (`implicitGatherFreightLinesFromHivePatches`); ids contain `:implicit-gather:`.
 - Explicit patches with the same `id` override implicit lines.
 - `collectFreightLineBootstrapCoords` collects anchor tiles and zone centers for materialization.
 
@@ -79,8 +79,8 @@ Restrictive policies on segment **pickup** are read from the segment **load** st
 |------|------|
 | Domain + normalize | `engines/ssh/src/lib/freight/freight-line.ts` |
 | Standalone construction site scan (segment radius) | `engines/ssh/src/lib/freight/construction-demand.ts` |
-| Construction bay demand augmentation | `engines/ssh/src/lib/freight/construction-freight-requisition.ts` |
-| Bay gather / road-fret | `engines/ssh/src/lib/hive/storage.ts` |
+| Bay gather helper | `engines/ssh/src/lib/hive/freight-bay.ts` |
+| Docked vehicle transfers | `engines/ssh/src/lib/freight/vehicle-freight-dock.ts` |
 | Line inspector UI | `apps/browser/src/components/FreightLineProperties.tsx` |
 | Bay line list | `apps/browser/src/components/AlveolusProperties.tsx` |
 

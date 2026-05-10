@@ -1,5 +1,6 @@
 import { alveoli } from 'engine-rules'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
+import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { queryConstructionSiteView } from 'ssh/construction'
 import { Game } from 'ssh/game/game'
 import { BuildAlveolus } from 'ssh/hive/build'
@@ -62,6 +63,54 @@ describe('constructionStep resumable work', () => {
 		expect(site.constructionWorkSecondsApplied).toBeGreaterThan(0)
 		expect(site.constructionWorkSecondsApplied).toBeLessThan(duration)
 		expect(site.constructionSite.phase).toBe('waiting_construction')
+	})
+
+	it('lays concrete when the foundation step completes for an alveolus project', () => {
+		game.upsertTerrainOverride = vi.fn() as never
+
+		const tileB = game.hex.getTile({ q: 1, r: 0 })!
+		const land = tileB.content
+		expect(land).toBeInstanceOf(UnBuiltLand)
+		if (!(land instanceof UnBuiltLand)) return
+		land.terrain = 'forest'
+		tileB.baseTerrain = 'forest'
+		tileB.terrainState = { ...(tileB.terrainState ?? {}), terrain: 'forest' }
+		land.setProject('build:storage')
+		expect(tileB.baseTerrain).toBe('forest')
+
+		const char = game.population.createCharacter('Builder', { q: 1, r: 0 })
+		const wf = new WorkFunctions()
+		Object.assign(wf, { [subject]: char })
+
+		const step = wf.foundationStep() as DurationStep
+		expect(step).toBeInstanceOf(DurationStep)
+		step.tick(step.duration)
+		expect(tileB.baseTerrain).toBe('concrete')
+		expect(tileB.terrainState?.terrain).toBe('concrete')
+		expect(game.upsertTerrainOverride).toHaveBeenCalledWith(
+			expect.objectContaining({ q: 1, r: 0 }),
+			{ terrain: 'concrete' }
+		)
+		expect(tileB.content).toBeInstanceOf(BuildAlveolus)
+	})
+
+	it('does not start a foundation step while the project tile is burdened', () => {
+		game.upsertTerrainOverride = vi.fn() as never
+
+		const tileB = game.hex.getTile({ q: 1, r: 0 })!
+		const land = tileB.content
+		expect(land).toBeInstanceOf(UnBuiltLand)
+		if (!(land instanceof UnBuiltLand)) return
+		land.setProject('build:storage')
+		game.hex.looseGoods.add(tileB, 'stone', { position: tileB.position })
+
+		const char = game.population.createCharacter('Builder', { q: 1, r: 0 })
+		const wf = new WorkFunctions()
+		Object.assign(wf, { [subject]: char })
+
+		expect(wf.foundationStep()).toBeUndefined()
+		expect(tileB.content).toBe(land)
+		expect(game.upsertTerrainOverride).not.toHaveBeenCalled()
 	})
 
 	it('finalizes the target alveolus when the remaining work finishes', () => {

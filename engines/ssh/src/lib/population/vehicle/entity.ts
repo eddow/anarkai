@@ -14,8 +14,8 @@ import type { ProposedJob, VehicleProposedJob } from 'ssh/jobs/offers'
 import type { Storage } from 'ssh/storage'
 import type { GoodType } from 'ssh/types'
 import { axial } from 'ssh/utils'
-import { RevisionedCache } from 'ssh/utils/revisioned-cache'
 import { type Position, toAxialCoord } from 'ssh/utils/position'
+import { RevisionedCache } from 'ssh/utils/revisioned-cache'
 import { assert, profile, traces } from '../../dev/debug.ts'
 import { traceProjection } from '../../dev/trace.ts'
 import type { Character } from '../character'
@@ -203,6 +203,11 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		})
 	}
 
+	private enqueueDockPresentationChange(): void {
+		const tile = this.dockTile
+		if (tile) this.game.enqueueVehicleDockPresentationChange(tile, this)
+	}
+
 	get worldTile(): Tile | undefined {
 		if (!this.position) return undefined
 		const coord = axial.round(toAxialCoord(this.position)!)
@@ -387,6 +392,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		this.game.invalidateWorkPlanning('vehicle.dock')
 		this.traceDockPlacement('clear-position')
 		syncFreightVehicleDockRegistration(this)
+		this.enqueueDockPresentationChange()
 		this.pokeDockStorageCompletionLifecycle()
 		this.scheduleDockStorageCompletionCheck()
 	}
@@ -394,6 +400,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 	undock(): void {
 		const svc = this.service
 		if (!isVehicleLineService(svc)) return
+		this.enqueueDockPresentationChange()
 		this.restoreWorldPositionFromDock('undock')
 		svc.docked = false
 		this.game.invalidateWorkPlanning('vehicle.undock')
@@ -405,6 +412,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 	advanceToStop(stop: FreightStop): void {
 		const svc = this.service
 		if (!isVehicleLineService(svc)) return
+		if (svc.docked) this.enqueueDockPresentationChange()
 		this.restoreWorldPositionFromDock('advance-stop')
 		svc.stop = stop
 		svc.docked = false
@@ -420,7 +428,10 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		}
 		this.releaseOperator()
 		this.restoreWorldPositionFromDock('end-service')
-		if (isVehicleLineService(this.service)) this.service.docked = false
+		if (isVehicleLineService(this.service)) {
+			if (this.service.docked) this.enqueueDockPresentationChange()
+			this.service.docked = false
+		}
 		syncFreightVehicleDockRegistration(this)
 		this.service = undefined
 		this.game.invalidateWorkPlanning('vehicle.service')

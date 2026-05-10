@@ -24,13 +24,20 @@ const queryConstructionSiteView = vi.fn()
 const replaceFreightLine = vi.fn()
 const removeFreightLineById = vi.fn()
 
-const { MockStorageAlveolus, MockTransformAlveolus } = vi.hoisted(() => ({
-	MockStorageAlveolus: class MockStorageAlveolus {
+const { MockFreightBayAlveolus, MockStorageAlveolus, MockTransformAlveolus } = vi.hoisted(() => ({
+	MockFreightBayAlveolus: class MockFreightBayAlveolus {
 		hive = { name: 'H' }
 		name = 'freight_bay'
 		tile = { position: { q: 0, r: 0 } }
 		working = true
-		action = { type: 'road-fret', kind: 'slotted', slots: 4, capacity: 2 }
+		action = { type: 'road-fret' }
+	},
+	MockStorageAlveolus: class MockStorageAlveolus {
+		hive = { name: 'H' }
+		name = 'storage'
+		tile = { position: { q: 0, r: 0 } }
+		working = true
+		action = { type: 'storage', kind: 'slotted', slots: 4, capacity: 2 }
 	},
 	MockTransformAlveolus: class MockTransformAlveolus {
 		hive = { name: 'H' }
@@ -73,12 +80,12 @@ vi.mock('ssh/freight/freight-line', () => ({
 	normalizeFreightLineDefinition: (line: { id: string; name: string; stops: unknown[] }) => line,
 }))
 
-vi.mock('ssh/hive/storage-action', () => ({
-	isRoadFretAction: () => true,
-}))
-
 vi.mock('ssh/hive/storage', () => ({
 	StorageAlveolus: MockStorageAlveolus,
+}))
+
+vi.mock('ssh/hive/freight-bay', () => ({
+	FreightBayAlveolus: MockFreightBayAlveolus,
 }))
 
 vi.mock('ssh/hive/transform', () => ({
@@ -247,7 +254,7 @@ describe('AlveolusProperties', () => {
 				game.freightLines = [line]
 			},
 		}
-		const bay = new MockStorageAlveolus()
+		const bay = new MockFreightBayAlveolus()
 		stop = latch(
 			container,
 			<table>
@@ -270,7 +277,7 @@ describe('AlveolusProperties', () => {
 			removeFreightLineById,
 		})
 		findFreightLinesForStop.mockImplementation(() => game.freightLines as never)
-		const bay = new MockStorageAlveolus()
+		const bay = new MockFreightBayAlveolus()
 		stop = latch(
 			container,
 			<table>
@@ -289,7 +296,7 @@ describe('AlveolusProperties', () => {
 
 	it('renders freight bay line controls with bay-specific heading', () => {
 		findFreightLinesForStop.mockReturnValue([{ id: 'HiveX:implicit-gather:0,0' } as never])
-		const bay = new MockStorageAlveolus()
+		const bay = new MockFreightBayAlveolus()
 		stop = latch(
 			container,
 			<table>

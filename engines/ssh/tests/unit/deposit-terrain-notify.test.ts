@@ -80,7 +80,7 @@ describe('notifyTerrainDepositsChanged / sector resource refresh hooks', () => {
 			game.ticker.stop()
 		})
 
-		it('patches project tiles to concrete and invalidates terrain', () => {
+		it('records project tiles without laying concrete yet', () => {
 			const invalidateTerrain = vi.fn()
 			game.renderer = headlessRenderer(invalidateTerrain)
 			const tile = game.hex.getTile({ q: 0, r: 0 })!
@@ -91,10 +91,10 @@ describe('notifyTerrainDepositsChanged / sector resource refresh hooks', () => {
 			content.setProject('build:sawmill')
 
 			expect(content.project).toBe('build:sawmill')
-			expect(content.terrain).toBe('concrete')
-			expect(tile.baseTerrain).toBe('concrete')
-			expect(tile.terrainState?.terrain).toBe('concrete')
-			expect(invalidateTerrain).toHaveBeenCalledWith(expect.objectContaining({ q: 0, r: 0 }))
+			expect(content.terrain).toBe('forest')
+			expect(tile.baseTerrain).toBe('forest')
+			expect(tile.terrainState?.terrain).toBe('forest')
+			expect(invalidateTerrain).not.toHaveBeenCalled()
 		})
 	})
 

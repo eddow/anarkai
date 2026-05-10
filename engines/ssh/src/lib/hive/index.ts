@@ -3,6 +3,7 @@ import type { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
 import type { AlveolusType } from 'ssh/types/base'
 import { EngineerAlveolus } from './engineer'
+import { FreightBayAlveolus } from './freight-bay'
 import { HarvestAlveolus } from './harvest'
 import { StorageAlveolus } from './storage'
 import { TransformAlveolus } from './transform'
@@ -21,8 +22,9 @@ function ctorForDefinition(def: Ssh.AlveolusDefinition): AlveolusCtor | undefine
 			return TransformAlveolus
 		case 'engineer':
 			return EngineerAlveolus
-		case 'storage':
 		case 'road-fret':
+			return FreightBayAlveolus
+		case 'storage':
 		case 'slotted-storage':
 		case 'specific-storage':
 			return StorageAlveolus
@@ -40,4 +42,5 @@ export function createAlveolus(resourceName: AlveolusType, tile: Tile): Alveolus
 }
 
 export * from './alveolus-configuration'
+export * from './freight-bay'
 export * from './hive'

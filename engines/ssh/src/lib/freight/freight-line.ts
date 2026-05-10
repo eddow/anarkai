@@ -34,7 +34,7 @@ export type {
 /** @deprecated Prefer explicit route presets; kept for editor / hive UI call sites. */
 export type FreightLineMode = 'gather' | 'distribute'
 
-export type FreightLineStopAlveolusType = AlveolusType | 'gather'
+export type FreightLineStopAlveolusType = AlveolusType
 
 export interface FreightStopAnchorAlveolus {
 	readonly kind: 'alveolus'
@@ -90,7 +90,7 @@ export function freightLineStationLabel(
 export function canonicalFreightLineStopAlveolusType(
 	alveolusType: FreightLineStopAlveolusType
 ): AlveolusType {
-	return alveolusType === 'gather' ? 'freight_bay' : alveolusType
+	return alveolusType
 }
 
 export interface SyntheticFreightLineObject extends InspectorSelectableObject {
@@ -571,7 +571,7 @@ export function implicitGatherFreightLinesFromHivePatches(
 		const hiveName = freightLineStopHiveName(hive.name)
 		const displayHiveName = freightLineDisplayHiveName(hive.name)
 		for (const a of hive.alveoli) {
-			if (a.alveolus !== 'gather' && a.alveolus !== 'freight_bay') continue
+			if (a.alveolus !== 'freight_bay') continue
 			const id = `${displayHiveName}:implicit-gather:${a.coord[0]},${a.coord[1]}`
 			const coord = [Math.floor(a.coord[0]), Math.floor(a.coord[1])] as const
 			const anchor: FreightStopAnchorAlveolus = {

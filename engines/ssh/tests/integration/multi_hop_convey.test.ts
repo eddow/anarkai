@@ -1,7 +1,7 @@
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import { isTileCoord } from 'ssh/board/tile-coord'
 import { Commitment } from 'ssh/commitment'
-import type { SaveState } from 'ssh/game'
+import type { GameConveyEvent, SaveState } from 'ssh/game'
 import { BuildAlveolus } from 'ssh/hive/build'
 import { commitmentValid, type Hive, type TrackedMovement } from 'ssh/hive/hive'
 import type { StorageAlveolus } from 'ssh/hive/storage'
@@ -10,6 +10,8 @@ import { axial } from 'ssh/utils/axial'
 import { toAxialCoord } from 'ssh/utils/position'
 import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
+
+const flushDeferredEvents = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 function movementReason(movement: TrackedMovement, type: 'convey.hop' | 'convey.path') {
 	return {
@@ -155,6 +157,97 @@ describe('Multi-Hop Convey Tests', () => {
 			).toThrow(/source-without-target-allocation/)
 			expect(provider.storage.available('wood')).toBe(0)
 			expect((provider.hive as any).activeMovements.has(movement)).toBe(true)
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('emits conveyed events for non-border hop endpoints after fulfillment', {
+		timeout: 15000,
+	}, async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+		try {
+			const scenario: Partial<SaveState> = {
+				hives: [
+					{
+						name: 'ConveyedEndpointEvents',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'storage', goods: { wood: 1 } },
+							{ coord: [1, 0], alveolus: 'storage', goods: {} },
+						],
+					},
+				],
+			}
+
+			engine.loadScenario(scenario)
+
+			const provider = engine.game.hex.getTile({ q: 0, r: 0 })?.content as Alveolus | undefined
+			const demander = engine.game.hex.getTile({ q: 1, r: 0 })?.content as Alveolus | undefined
+			const hive = provider?.hive as Hive | undefined
+			expect(provider).toBeDefined()
+			expect(demander).toBeDefined()
+			expect(hive).toBeDefined()
+			if (!provider || !demander || !hive) throw new Error('Expected conveyed event hive')
+
+			const batches: readonly GameConveyEvent[][] = []
+			engine.game.on({
+				conveyEvents(events) {
+					batches.push(events)
+				},
+			})
+
+			expect(hive.createMovement('wood', provider, demander)).toBe(true)
+			const movement = hive.movingGoods
+				.get(toAxialCoord(provider.tile.position))
+				?.find((candidate) => candidate.goodType === 'wood')
+			expect(movement).toBeDefined()
+			if (!movement) throw new Error('Expected wood movement')
+
+			const expectedFrom = { ...movement.from }
+			const expectedHop = movement.path[0]
+			expect(expectedHop).toBeDefined()
+			if (!expectedHop) throw new Error('Expected first convey hop')
+
+			const worker = engine.spawnCharacter('conveyed-event-worker', { q: 0, r: 0 })
+			worker.assignedAlveolus = provider
+			const step = worker.scriptsContext.work.conveyStep()
+			expect(step).toBeDefined()
+			step?.tick(0.01)
+			step?.tick(999)
+
+			await flushDeferredEvents()
+
+			const events = batches.flat()
+			const expectedEvents: GameConveyEvent[] = []
+			if (isTileCoord(expectedFrom)) {
+				expectedEvents.push({
+					type: 'conveyed',
+					ownerUid: provider.tile.uid,
+					endpoint: 'source',
+					goodType: 'wood',
+					movementRef: movement.ref.id,
+					characterUid: worker.uid,
+					from: expectedFrom,
+					to: expectedHop,
+				})
+			}
+			if (isTileCoord(expectedHop)) {
+				const targetTile = engine.game.hex.getTile(expectedHop)
+				expect(targetTile).toBeDefined()
+				if (!targetTile) throw new Error('Expected tile target hop')
+				expectedEvents.push({
+					type: 'conveyed',
+					ownerUid: targetTile.uid,
+					endpoint: 'target',
+					goodType: 'wood',
+					movementRef: movement.ref.id,
+					characterUid: worker.uid,
+					from: expectedFrom,
+					to: expectedHop,
+				})
+			}
+			expect(events).toEqual(expectedEvents)
 		} finally {
 			await engine.destroy()
 		}

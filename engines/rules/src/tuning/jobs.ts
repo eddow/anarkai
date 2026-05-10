@@ -4,10 +4,6 @@ export const defaultGatherFreightRadius = 9
 /** Gather runs are most worthwhile when they can pick up this many goods (vehicle-driven later). */
 export const gatherTargetBatchSize = 2
 
-/** Internal slotted storage for gather/freight bay alveolus: slots × capacity per slot. */
-export const gatherFreightBayStorageSlots = 1
-export const gatherFreightBayStorageCapacityPerSlot = 12
-
 /** Harvest deposit search radius when no character context (NPC). */
 export const harvestNpcSearchDistance = 6
 

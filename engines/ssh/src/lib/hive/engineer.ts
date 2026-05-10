@@ -82,7 +82,7 @@ export class EngineerAlveolus extends Alveolus {
 			(coord) => {
 				const tile = hex.getTile(coord)
 				return Boolean(
-					tile?.content instanceof UnBuiltLand && !!tile.content.project && tile.isClear
+					tile?.content instanceof UnBuiltLand && !!tile.content.project && !tile.isBurdened
 				)
 			},
 			this.action.radius,

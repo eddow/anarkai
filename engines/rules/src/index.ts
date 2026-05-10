@@ -22,8 +22,6 @@ export {
 } from './tuning/characters'
 export {
 	defaultGatherFreightRadius,
-	gatherFreightBayStorageCapacityPerSlot,
-	gatherFreightBayStorageSlots,
 	gatherTargetBatchSize,
 	harvestFatiguePremium,
 	harvestNpcSearchDistance,

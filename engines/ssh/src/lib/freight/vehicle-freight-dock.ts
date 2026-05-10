@@ -6,14 +6,14 @@ import {
 	projectLoadedGoodsAgainstFurtherNeeds,
 } from 'ssh/freight/freight-stop-utility'
 import { scoreVehicleCandidate } from 'ssh/freight/vehicle-candidate-policy'
-import type { StorageAlveolus } from 'ssh/hive/storage'
+import type { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
 import type { GoodType } from 'ssh/types/base'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
 import { assert, traces } from '../dev/debug.ts'
 
-/** Hive convey party for a docked line vehicle sharing a road-fret bay tile. */
+/** Hive convey party for a docked line vehicle sharing a freight bay tile. */
 export class VehicleFreightDock {
 	static readonly kind = 'vehicle-freight-dock' as const
 
@@ -21,7 +21,7 @@ export class VehicleFreightDock {
 
 	constructor(
 		public readonly vehicle: VehicleEntity,
-		public readonly bay: StorageAlveolus
+		public readonly bay: FreightBayAlveolus
 	) {}
 
 	get name(): string {
@@ -89,23 +89,21 @@ export interface DockedVehicleAdvertisementCandidate {
 	readonly score: number
 }
 
-function dockedVehicleSurplusHasDestination(bay: StorageAlveolus, goodType: GoodType): boolean {
-	if ((bay.storage.hasRoom(goodType) ?? 0) > 0) return true
-	return bay.hive.generalStorages.some(
-		(storage) => storage !== bay && storage.canTake(goodType, '0-store')
-	)
+function dockedVehicleSurplusHasDestination(bay: FreightBayAlveolus, goodType: GoodType): boolean {
+	if (bay.hive.needs[goodType] !== undefined) return true
+	return bay.hive.generalStorages.some((storage) => storage.canTake(goodType, '0-store'))
 }
 
 /**
- * Scored dock transfer candidates for a docked wheelbarrow at a road-fret bay.
+ * Scored dock transfer candidates for a docked wheelbarrow at a freight bay.
  *
  * Current cargo is first projected against downstream line need:
- * - surplus loaded goods can be unloaded into the bay
- * - remaining downstream need can be loaded from the bay when this anchor is a distribute pickup
+ * - surplus loaded goods can be unloaded into real hive destinations
+ * - remaining downstream need can be loaded from real hive providers when this anchor is a distribute pickup
  */
 export function collectDockedVehicleAdvertisementCandidates(
 	vehicle: VehicleEntity,
-	bay: StorageAlveolus
+	bay: FreightBayAlveolus
 ): DockedVehicleAdvertisementCandidate[] {
 	const svc = vehicle.service
 	if (!isVehicleLineService(svc) || vehicle.vehicleType !== 'wheelbarrow') {
@@ -120,11 +118,11 @@ export function collectDockedVehicleAdvertisementCandidates(
 		traces.vehicle.log?.('[dock.candidates] skipped: not docked', { vehicleUid: vehicle.uid })
 		return []
 	}
-	if (bay.action?.type !== 'road-fret') {
-		traces.vehicle.log?.('[dock.candidates] skipped: bay is not road-fret', {
+	if (bay.action.type !== 'road-fret') {
+		traces.vehicle.log?.('[dock.candidates] skipped: bay is not freight bay', {
 			vehicleUid: vehicle.uid,
 			bay: bay.name,
-			actionType: bay.action?.type,
+			actionType: bay.action.type,
 		})
 		return []
 	}
@@ -171,7 +169,6 @@ export function collectDockedVehicleAdvertisementCandidates(
 				goodType,
 				vehicleStock: vehicle.storage.stock[goodType] ?? 0,
 				vehicleAvailable: quantity,
-				bayRoom: bay.storage.hasRoom(goodType) ?? 0,
 			})
 			continue
 		}
@@ -193,7 +190,6 @@ export function collectDockedVehicleAdvertisementCandidates(
 	if (distLoad) {
 		for (const goodType of Object.keys(projected.remainingNeededGoods.perGood) as GoodType[]) {
 			const quantity = Math.min(
-				bay.storage.available(goodType) ?? 0,
 				vehicle.storage.hasRoom(goodType) ?? 0,
 				projected.remainingNeededGoods.perGood[goodType] ?? 0
 			)
@@ -227,10 +223,10 @@ export function collectDockedVehicleAdvertisementCandidates(
 	return candidates
 }
 
-/** `2-use` advertisements for a docked wheelbarrow at a road-fret bay. */
+/** `2-use` advertisements for a docked wheelbarrow at a freight bay. */
 export function dockedVehicleGoodsRelations(
 	vehicle: VehicleEntity,
-	bay: StorageAlveolus
+	bay: FreightBayAlveolus
 ): GoodsRelations {
 	const relations: GoodsRelations = {}
 	for (const candidate of collectDockedVehicleAdvertisementCandidates(vehicle, bay)) {

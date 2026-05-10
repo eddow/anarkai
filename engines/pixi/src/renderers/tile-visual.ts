@@ -136,6 +136,17 @@ export class TileVisual extends VisualObject<Tile> {
 		}
 	}
 
+	public refreshDockedVehicles() {
+		const visual = this.currentContentVisual
+		if (
+			visual &&
+			'refreshDockedVehicles' in visual &&
+			typeof visual.refreshDockedVehicles === 'function'
+		) {
+			visual.refreshDockedVehicles()
+		}
+	}
+
 	private renderInteraction(brightnessFilter = new ColorMatrixFilter()) {
 		const content = this.object.content
 		let brightness = 1

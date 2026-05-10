@@ -13,7 +13,7 @@ const hive = {
 	alveoli: [
 		{
 			name: 'freight_bay',
-			action: { type: 'road-fret', kind: 'slotted', capacity: 2, slots: 4 },
+			action: { type: 'road-fret' },
 			goodsRelations: {
 				wood: { advertisement: 'provide', priority: '1-buffer' },
 			},

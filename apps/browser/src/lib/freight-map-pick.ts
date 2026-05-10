@@ -3,8 +3,7 @@ import { Tile } from 'ssh/board/tile'
 import { type FreightStopAnchorAlveolus, freightLineStopHiveName } from 'ssh/freight/freight-line'
 import type { Game } from 'ssh/game'
 import type { InteractiveGameObject } from 'ssh/game/object'
-import { StorageAlveolus } from 'ssh/hive/storage'
-import { isRoadFretAction } from 'ssh/hive/storage-action'
+import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import { toAxialCoord } from 'ssh/utils/position'
 
 export type FreightMapPickApplyResult =
@@ -43,9 +42,7 @@ export function tryConsumeFreightMapPick(_game: Game, object: InteractiveGameObj
 	}
 
 	const content = object.content
-	if (!(content instanceof StorageAlveolus)) return false
-	if (content.name !== 'freight_bay') return false
-	if (!isRoadFretAction(content.action)) return false
+	if (!(content instanceof FreightBayAlveolus)) return false
 
 	const coord = toAxialCoord(object.position)
 	if (!coord) return false

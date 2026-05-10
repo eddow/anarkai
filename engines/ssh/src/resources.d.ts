@@ -53,23 +53,15 @@ declare namespace Ssh {
 		buffers?: Record<string, number>
 	}
 
-	/** Roadside freight stop: same storage layouts as `storage`, transport-facing role. */
-	interface RoadFretSlottedAction extends SlottedStorage {
+	/** Roadside freight stop: dock/portal only; cargo lives in docked vehicles or real storage. */
+	interface RoadFretAction {
 		type: 'road-fret'
-		kind: 'slotted'
-	}
-	interface RoadFretSpecificAction {
-		type: 'road-fret'
-		kind: 'specific'
-		goods: SpecificStorage
-		buffers?: Record<string, number>
 	}
 
 	type LegacyStorageAction = SlottedStorageAction | SpecificStorageAction
 	type UnifiedStorageAction = UnifiedSlottedStorageAction | UnifiedSpecificStorageAction
-	type RoadFretAction = RoadFretSlottedAction | RoadFretSpecificAction
 	/** Any alveolus action that backs a {@link StorageAlveolus} instance. */
-	type AlveolusStorageAction = LegacyStorageAction | UnifiedStorageAction | RoadFretAction
+	type AlveolusStorageAction = LegacyStorageAction | UnifiedStorageAction
 	type StorageAction = LegacyStorageAction | UnifiedStorageAction
 
 	type Action =

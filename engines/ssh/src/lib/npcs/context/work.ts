@@ -122,6 +122,46 @@ function commitmentTrace(commitment: Commitment | undefined) {
 	}
 }
 
+/**
+ * Publish tile-endpoint notifications for a hop that has already committed.
+ *
+ * Convey can travel through border storage, but the first consumer for this event
+ * is vehicle/tile presentation. Border endpoints are skipped here so v1 consumers
+ * only receive owners they can resolve through the normal tile visual/entity maps.
+ * The function is called after the source/target storage bookkeeping has succeeded;
+ * failed or cancelled hops must stay silent.
+ */
+function enqueueConveyedHopEvents(
+	character: Character,
+	movement: TrackedMovement,
+	from: AxialCoord,
+	hop: AxialCoord
+) {
+	const sourceTile = isTileCoord(from) ? character.game.hex.getTile(from) : undefined
+	const targetTile = isTileCoord(hop) ? character.game.hex.getTile(hop) : undefined
+	const base = {
+		goodType: movement.goodType,
+		movementRef: movementRefId(movement.ref),
+		characterUid: character.uid,
+		from,
+		to: hop,
+	}
+	if (sourceTile) {
+		character.game.enqueueConveyEvent({
+			...base,
+			ownerUid: sourceTile.uid,
+			endpoint: 'source',
+		})
+	}
+	if (targetTile) {
+		character.game.enqueueConveyEvent({
+			...base,
+			ownerUid: targetTile.uid,
+			endpoint: 'target',
+		})
+	}
+}
+
 class ConstructionDurationStep extends DurationStep {
 	constructor(
 		duration: number,
@@ -732,6 +772,7 @@ class WorkFunctions {
 									at: axial.key(hop),
 								}
 							)
+							enqueueConveyedHopEvents(character, movement, row.from, hop)
 						} else {
 							assert(nextStorage, 'nextStorage must be defined for intermediate hop')
 							movementHive.noteMovementStorageCheckpoint(
@@ -788,6 +829,7 @@ class WorkFunctions {
 								requireTargetValid: true,
 							})
 							currentHive(movement).wakeWanderingWorkersNear(movement.provider, movement.demander)
+							enqueueConveyedHopEvents(character, movement, row.from, hop)
 						}
 					}
 					for (const { movement } of movementData) {
@@ -964,6 +1006,7 @@ class WorkFunctions {
 		if (!(content instanceof UnBuiltLand) || !content.project) {
 			return
 		}
+		if (content.tile.isBurdened) return
 		const project = content.project
 		// Redundant assert for TS narrowing, or just cast
 		// assert(content instanceof UnBuiltLand, 'Tile must be UnBuiltLand')
@@ -976,6 +1019,7 @@ class WorkFunctions {
 		content.constructionSite = constructionSite
 		constructionSite.phase = 'foundation'
 		return new DurationStep(3, 'work', 'foundation').onFulfilled(() => {
+			applyConcreteTerrain(content.tile)
 			if (target.kind === 'alveolus') {
 				content.tile.content = new BuildAlveolus(
 					content.tile,
@@ -983,7 +1027,6 @@ class WorkFunctions {
 					constructionSite
 				)
 			} else {
-				applyConcreteTerrain(content.tile)
 				content.tile.content = new BuildDwelling(content.tile, target.tier, constructionSite)
 				const ac = toAxialCoord(content.tile.position)
 				traces.residential.log?.('[residential] foundation -> BuildDwelling', {

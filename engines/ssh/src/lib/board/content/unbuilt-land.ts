@@ -50,18 +50,9 @@ export class UnBuiltLand extends withTicked(TileContent) {
 		if (this.constructionSite) {
 			effect`unbuilt-land:construction-phase`(() => {
 				if (!this.project || !this.constructionSite) return
-				this.constructionSite.phase = this.tile.isClear ? 'foundation' : 'planned'
+				this.constructionSite.phase = this.tile.isBurdened ? 'planned' : 'foundation'
 			})
 		}
-		this.terrain = 'concrete'
-		this.tile.baseTerrain = 'concrete'
-		this.tile.terrainState = {
-			...(this.tile.terrainState ?? {}),
-			terrain: 'concrete',
-		}
-		this.game.upsertTerrainOverride(this.tile.position as { q: number; r: number }, {
-			terrain: 'concrete',
-		})
 		// Residential construction keeps the residential zone marker; alveolus projects clear it.
 		if (project !== residentialBasicDwellingProject) {
 			this.tile.zone = undefined

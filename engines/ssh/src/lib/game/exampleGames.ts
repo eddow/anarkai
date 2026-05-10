@@ -17,7 +17,20 @@ export const chopSaw = {
 			alveoli: [
 				{ alveolus: 'tree_chopper', coord: [10, -8] },
 				{ alveolus: 'stonecutter', coord: [13, -7] },
-				{ alveolus: 'storage', coord: [11, -8] },
+				{
+					alveolus: 'storage',
+					coord: [11, -8],
+					configuration: {
+						ref: { scope: 'individual' },
+						individual: {
+							working: true,
+							generalSlots: 5,
+							goods: {
+								wood: { minSlots: 1, maxSlots: 0 },
+							},
+						},
+					},
+				},
 				{ alveolus: 'freight_bay', coord: [11, -7] },
 				{ alveolus: 'engineer', coord: [12, -8] },
 				{ alveolus: 'sawmill', coord: [12, -7] },

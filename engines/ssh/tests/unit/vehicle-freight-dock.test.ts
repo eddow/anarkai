@@ -12,6 +12,7 @@ import { maybeAdvanceVehicleFromCompletedAnchorStop } from 'ssh/freight/vehicle-
 import { findVehicleHopJob, findVehicleOffloadJob } from 'ssh/freight/vehicle-work'
 import type { SaveState } from 'ssh/game'
 import type { TrackedMovement } from 'ssh/hive/hive'
+import type { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import type { StorageAlveolus } from 'ssh/hive/storage'
 import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
 import { describe, expect, it } from 'vitest'
@@ -45,7 +46,13 @@ describe('vehicle-freight-dock', () => {
 			})
 			engine.loadScenario({
 				hives: [
-					{ name: 'A', alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 1 } }] },
+					{
+						name: 'A',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 1 } },
+							{ coord: [1, 0], alveolus: 'storage', goods: { wood: 1 } },
+						],
+					},
 					{ name: 'B', alveoli: [{ coord: [2, 0], alveolus: 'freight_bay', goods: { wood: 1 } }] },
 				],
 				freightLines: [line],
@@ -59,9 +66,8 @@ describe('vehicle-freight-dock', () => {
 				tile.content = new BuildDwelling(tile, 'basic_dwelling')
 			}
 
-			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus | undefined
+			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
 			expect(bay).toBeDefined()
-			expect((bay?.storage.hasRoom('berries') ?? 0) > 0).toBe(true)
 
 			const vehicle = engine.game.vehicles.createVehicle('dock-v', 'wheelbarrow', { q: 0, r: 0 }, [
 				line,
@@ -82,7 +88,7 @@ describe('vehicle-freight-dock', () => {
 			expect(candidates).toEqual(
 				expect.arrayContaining([
 					expect.objectContaining({ goodType: 'berries', advertisement: 'provide', quantity: 1 }),
-					expect.objectContaining({ goodType: 'wood', advertisement: 'demand', quantity: 1 }),
+					expect.objectContaining({ goodType: 'wood', advertisement: 'demand', quantity: 3 }),
 				])
 			)
 			for (const candidate of candidates) {
@@ -109,13 +115,16 @@ describe('vehicle-freight-dock', () => {
 				hives: [
 					{
 						name: 'DockGather',
-						alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }],
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
+							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
+						],
 					},
 				],
 				freightLines: [line],
 			} satisfies Partial<SaveState>)
 
-			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus | undefined
+			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
 			expect(bay).toBeDefined()
 			expect(bay?.canTake('wood', '2-use')).toBe(false)
 
@@ -157,13 +166,16 @@ describe('vehicle-freight-dock', () => {
 				hives: [
 					{
 						name: 'DockForty',
-						alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }],
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
+							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
+						],
 					},
 				],
 				freightLines: [line],
 			} satisfies Partial<SaveState>)
 
-			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus | undefined
+			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
 			expect(bay).toBeDefined()
 			const vehicle = engine.game.vehicles.createVehicle(
 				'dock-forty-v',
@@ -198,18 +210,18 @@ describe('vehicle-freight-dock', () => {
 			const action = worker.findAction()
 			expect(action).toBeTruthy()
 			if (action) worker.begin(action)
-			for (let i = 0; i < 200 && !(bay?.storage.stock.wood ?? 0); i++) {
+			for (let i = 0; i < 200 && (vehicle.storage.stock.wood ?? 0) > 0; i++) {
 				engine.tick(0.1, 0.1)
 			}
 			expect(vehicle.storage.stock.wood ?? 0).toBe(0)
-			expect(bay?.storage.stock.wood ?? 0).toBeGreaterThan(0)
+			expect(bay?.storage.stock.wood ?? 0).toBe(0)
 			expect(vehicle.proposedJobs.map((job) => job.job)).not.toContain('convey')
 		} finally {
 			await engine.destroy()
 		}
 	})
 
-	it('offers dock unload when the bay is full but general storage can take surplus cargo', async () => {
+	it('offers dock unload when general storage can take surplus cargo', async () => {
 		const engine = new TestEngine({ terrainSeed: 12020, characterCount: 0 })
 		await engine.init()
 		try {
@@ -234,7 +246,7 @@ describe('vehicle-freight-dock', () => {
 				freightLines: [line],
 			} satisfies Partial<SaveState>)
 
-			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus | undefined
+			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
 			const storage = engine.game.hex.getTile({ q: 1, r: 0 })?.content as
 				| StorageAlveolus
 				| undefined
@@ -242,9 +254,6 @@ describe('vehicle-freight-dock', () => {
 			expect(storage).toBeDefined()
 			if (!bay || !storage) throw new Error('Expected freight bay and storage')
 
-			for (let i = 0; i < 32 && bay.storage.hasRoom('wood') > 0; i++) {
-				bay.storage.addGood('wood', 1)
-			}
 			expect(bay.storage.hasRoom('wood')).toBe(0)
 			expect(storage.canTake('wood', '0-store')).toBe(true)
 
@@ -299,13 +308,16 @@ describe('vehicle-freight-dock', () => {
 				hives: [
 					{
 						name: 'DockAssignedConvey',
-						alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }],
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
+							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
+						],
 					},
 				],
 				freightLines: [line],
 			} satisfies Partial<SaveState>)
 
-			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus | undefined
+			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
 			expect(bay).toBeDefined()
 			if (!bay) throw new Error('Expected freight bay')
 			const vehicle = engine.game.vehicles.createVehicle(
@@ -379,6 +391,19 @@ describe('vehicle-freight-dock', () => {
 			expect(jobs.length).toBeGreaterThan(0)
 			expect(jobs.map((job) => job.job)).toContain('vehicleOffload')
 			expect(jobs.find((job) => job.job === 'vehicleOffload')?.maintenanceKind).toBe('park')
+			const worker = engine.game.population.createCharacter('DockEmptyProposalWorker', {
+				q: 1,
+				r: 0,
+			})
+			const ranked = worker.workPlannerSnapshot?.ranked.find(
+				(candidate) =>
+					candidate.jobKind === 'vehicleOffload' &&
+					candidate.targetCoord.q === 0 &&
+					candidate.targetCoord.r === 0
+			)
+			expect(ranked).toBeDefined()
+			const action = worker.findAction()
+			expect(action).toBeTruthy()
 		} finally {
 			await engine.destroy()
 		}
@@ -410,7 +435,7 @@ describe('vehicle-freight-dock', () => {
 				freightLines: [line],
 			} satisfies Partial<SaveState>)
 
-			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus | undefined
+			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
 			expect(bay).toBeDefined()
 			const vehicle = engine.game.vehicles.createVehicle(
 				'dock-finished-v',
@@ -450,7 +475,7 @@ describe('vehicle-freight-dock', () => {
 		}
 	})
 
-	it('waits on vehicle virtual goods, not active dock movements, before completing a drained halt', async () => {
+	it('waits on active dock movements before completing a drained halt', async () => {
 		const engine = new TestEngine({ terrainSeed: 12011, characterCount: 0 })
 		await engine.init()
 		try {
@@ -470,13 +495,16 @@ describe('vehicle-freight-dock', () => {
 				hives: [
 					{
 						name: 'DockBrokenPending',
-						alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }],
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
+							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
+						],
 					},
 				],
 				freightLines: [line],
 			} satisfies Partial<SaveState>)
 
-			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus | undefined
+			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
 			expect(bay).toBeDefined()
 			const vehicle = engine.game.vehicles.createVehicle(
 				'dock-broken-pending-v',
@@ -508,11 +536,8 @@ describe('vehicle-freight-dock', () => {
 			expect(vehicle.storage.virtualGoodsCount).toBe(0)
 			maybeAdvanceVehicleFromCompletedAnchorStop(engine.game, vehicle, worker)
 
-			expect(vehicle.service).toBeUndefined()
-			expect(bay?.hive.freightVehicleDockFor(vehicle.uid)).toBeUndefined()
-			const park = findVehicleOffloadJob(engine.game, worker)
-			expect(park?.job).toBe('vehicleOffload')
-			expect(park?.maintenanceKind).toBe('park')
+			expect(isVehicleLineService(vehicle.service)).toBe(true)
+			expect(bay?.hive.freightVehicleDockFor(vehicle.uid)).toBeDefined()
 		} finally {
 			await engine.destroy()
 		}
@@ -548,7 +573,7 @@ describe('vehicle-freight-dock', () => {
 				freightLines: [line],
 			} satisfies Partial<SaveState>)
 
-			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus | undefined
+			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
 			expect(bay).toBeDefined()
 			const vehicle = engine.game.vehicles.createVehicle(
 				'dock-continue-v',
@@ -596,13 +621,16 @@ describe('vehicle-freight-dock', () => {
 				hives: [
 					{
 						name: 'DockDistributeLoad',
-						alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 1 } }],
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 1 } },
+							{ coord: [1, 0], alveolus: 'storage', goods: { wood: 1 } },
+						],
 					},
 				],
 				freightLines: [line],
 			} satisfies Partial<SaveState>)
 
-			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus | undefined
+			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
 			expect(bay).toBeDefined()
 			const vehicle = engine.game.vehicles.createVehicle(
 				'dock-distribute-load-v',

@@ -37,6 +37,7 @@ import type { Game } from 'ssh/game/game'
 import {
 	asVehicleProposedJob,
 	type ProposedJob,
+	proposedJobScore,
 	proposedVehicleJobIdentityKey,
 	type VehicleProposedJob,
 } from 'ssh/jobs/offers'
@@ -92,7 +93,10 @@ export function allocateVehicleServiceForJob(
 	switch (job.job) {
 		case 'vehicleOffload': {
 			if (isVehicleLineService(vehicle.service)) {
-				throw new Error('vehicleOffload: line service already active')
+				if (job.maintenanceKind !== 'park' || !vehicle.service.docked) {
+					throw new Error('vehicleOffload: line service already active')
+				}
+				vehicle.endService()
 			}
 			// Discard any prior maintenance service: each offload run gets a fresh per-kind service.
 			if (isVehicleMaintenanceService(vehicle.service)) {
@@ -547,10 +551,18 @@ function isJointLineLoadCandidate(
 ): boolean {
 	const candidateCoord = toAxialCoord(candidate.tile.position)
 	if (!candidateCoord) return false
+	const traceAttempts: Array<Record<string, unknown>> | undefined = traces.vehicle.log ? [] : undefined
 	for (const line of vehicle.servedLines) {
 		for (const segment of findGatherRouteSegments(line)) {
 			const stop = line.stops[segment.loadStopIndex]
-			if (!stop || !('zone' in stop) || stop.zone.kind !== 'radius') continue
+			if (!stop || !('zone' in stop) || stop.zone.kind !== 'radius') {
+				traceAttempts?.push({
+					lineId: line.id,
+					segment,
+					reason: 'load_stop_not_radius_zone',
+				})
+				continue
+			}
 			const selection = pickVehicleZoneBrowseSelection(
 				vehicle.game,
 				character,
@@ -559,13 +571,61 @@ function isJointLineLoadCandidate(
 				stop,
 				vehicle.effectivePosition
 			)
-			if (selection?.action !== 'load') continue
+			if (selection?.action !== 'load') {
+				traceAttempts?.push({
+					lineId: line.id,
+					stopId: stop.id,
+					reason: selection ? 'selection_not_load' : 'no_zone_selection',
+					selectionAction: selection?.action,
+					selectionGoodType: selection?.goodType,
+				})
+				continue
+			}
 			const selectionCoord = toAxialCoord(selection.targetTile.position)
-			if (!selectionCoord || axial.key(selectionCoord) !== axial.key(candidateCoord)) continue
-			if (selection.goodType !== candidate.pick.looseGood.goodType) continue
+			if (!selectionCoord || axial.key(selectionCoord) !== axial.key(candidateCoord)) {
+				traceAttempts?.push({
+					lineId: line.id,
+					stopId: stop.id,
+					reason: 'selection_target_mismatch',
+					selectionCoord,
+					candidateCoord,
+					selectionGoodType: selection.goodType,
+				})
+				continue
+			}
+			if (selection.goodType !== candidate.pick.looseGood.goodType) {
+				traceAttempts?.push({
+					lineId: line.id,
+					stopId: stop.id,
+					reason: 'selection_good_mismatch',
+					selectionGoodType: selection.goodType,
+					candidateGoodType: candidate.pick.looseGood.goodType,
+					candidateCoord,
+				})
+				continue
+			}
+			traces.vehicle.log?.('vehicleJob.maintenance.skipJointLineLoad', {
+				characterUid: character.uid,
+				vehicleUid: vehicle.uid,
+				lineId: line.id,
+				stopId: stop.id,
+				goodType: selection.goodType,
+				targetCoord: candidateCoord,
+				selectionScore: selection.score,
+				adSource: selection.adSource,
+				priorityTier: selection.priorityTier,
+			})
 			return true
 		}
 	}
+	traces.vehicle.log?.('vehicleJob.maintenance.notJointLineLoad', {
+		characterUid: character.uid,
+		vehicleUid: vehicle.uid,
+		targetCoord: candidateCoord,
+		goodType: candidate.pick.looseGood.goodType,
+		urgency: candidate.pick.urgency,
+		attempts: traceAttempts,
+	})
 	return false
 }
 
@@ -585,6 +645,11 @@ function pickMaintenanceForVehicle(
 		loadedStockCanEnterServedGatherLine(game, vehicle) &&
 		pickInitialVehicleServiceCandidate(game, character, vehicle)
 	) {
+		traces.vehicle.log?.('vehicleJob.maintenance.skipLoadedCanEnterLine', {
+			characterUid: character.uid,
+			vehicleUid: vehicle.uid,
+			stock: vehicle.storage.stock,
+		})
 		return undefined
 	}
 	const canReach = (tile: Tile) => vehicleCanReachMaintenanceTarget(game, vehicle, character, tile)
@@ -617,11 +682,43 @@ function pickMaintenanceForVehicle(
 		bestUnloadDistance = axial.distance(origin, tc)
 	}
 	if (bestLoad || bestUnload) {
-		if (bestLoad && bestLoadDistance <= bestUnloadDistance) return bestLoad
-		if (bestUnload) return bestUnload
+		if (bestLoad && bestLoadDistance <= bestUnloadDistance) {
+			traces.vehicle.log?.('vehicleJob.maintenance.pick', {
+				characterUid: character.uid,
+				vehicleUid: vehicle.uid,
+				kind: 'loadFromBurden',
+				targetCoord: toAxialCoord(bestLoad.tile.position),
+				goodType: bestLoad.pick.looseGood.goodType,
+				urgency: bestLoad.pick.urgency,
+				distance: bestLoadDistance,
+				competingUnloadDistance: bestUnloadDistance,
+			})
+			return bestLoad
+		}
+		if (bestUnload) {
+			traces.vehicle.log?.('vehicleJob.maintenance.pick', {
+				characterUid: character.uid,
+				vehicleUid: vehicle.uid,
+				kind: 'unloadToTile',
+				targetCoord: toAxialCoord(bestUnload.tile.position),
+				urgency: bestUnload.urgency,
+				distance: bestUnloadDistance,
+				competingLoadDistance: bestLoadDistance,
+			})
+			return bestUnload
+		}
 	}
 	const park = pickParkingTargetForVehicle(game, vehicle, canReach)
-	if (park) return { kind: 'park', tile: park.tile, urgency: park.urgency }
+	if (park) {
+		traces.vehicle.log?.('vehicleJob.maintenance.pick', {
+			characterUid: character.uid,
+			vehicleUid: vehicle.uid,
+			kind: 'park',
+			targetCoord: toAxialCoord(park.tile.position),
+			urgency: park.urgency,
+		})
+		return { kind: 'park', tile: park.tile, urgency: park.urgency }
+	}
 	return undefined
 }
 
@@ -818,6 +915,45 @@ export function findVehicleOffloadJob(
 	} finally {
 		end?.()
 	}
+}
+
+function findAdvertisedVehicleOffloadJob(
+	game: Game,
+	character: Character
+): VehicleWorkPick | undefined {
+	if (character.driving) return undefined
+	if (character.operates) return undefined
+	let best: { score: number; pick: VehicleWorkPick } | undefined
+	for (const vehicle of game.vehicles) {
+		if (vehicle.vehicleType !== LINE_FREIGHT_VEHICLE) continue
+		if (!vehicleHasNoOtherOperator(game, vehicle, character)) continue
+		const sameVehicleHex =
+			axial.key(axial.round(toAxialCoord(character.position)!)) ===
+			axial.key(axial.round(toAxialCoord(vehicle.effectivePosition)!))
+		const pathToVehicle = sameVehicleHex
+			? []
+			: game.hex.findPathForCharacter(
+					character.tile.position,
+					vehicle.tile.position,
+					character,
+					maxWalkTime,
+					true
+				)
+		if (!pathToVehicle) continue
+		for (const proposed of collectVehicleAdvertisedJobs(game, vehicle)) {
+			if (proposed.source.kind !== 'vehicle') continue
+			if (proposed.job !== 'vehicleOffload') continue
+			const job: VehicleOffloadJob = {
+				...proposed,
+				approachPath: pathToVehicle,
+				path: pathToVehicle,
+			}
+			const score = proposedJobScore(job, pathToVehicle.length)
+			const pick = { job, targetTile: vehicle.tile }
+			if (!best || score > best.score) best = { score, pick }
+		}
+	}
+	return best?.pick
 }
 
 export function lineFreightVehicleType(): typeof LINE_FREIGHT_VEHICLE {
@@ -1431,6 +1567,18 @@ function collectVehicleWorkPicksUncached(game: Game, character: Character): Vehi
 		if (offload) {
 			const v = game.vehicles.vehicle(offload.vehicleUid)
 			if (v) out.push({ job: offload, targetTile: v.tile })
+		}
+		const advertisedOffload = findAdvertisedVehicleOffloadJob(game, character)
+		if (
+			advertisedOffload &&
+			!out.some(
+				(pick) =>
+					pick.job.job === 'vehicleOffload' &&
+					proposedVehicleJobIdentityKey(pick.job) ===
+						proposedVehicleJobIdentityKey(advertisedOffload.job)
+			)
+		) {
+			out.push(advertisedOffload)
 		}
 		if (out.length === 0) traceNoVehicleWorkPicks(game, character)
 		else noVehicleWorkTraceKeys.delete(character)

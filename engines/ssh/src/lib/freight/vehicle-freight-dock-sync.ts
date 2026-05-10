@@ -1,11 +1,11 @@
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import { VehicleFreightDock } from 'ssh/freight/vehicle-freight-dock'
-import { StorageAlveolus } from 'ssh/hive/storage'
+import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService, isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
 import { traces } from '../dev/debug.ts'
 
-export function freightVehicleDockBay(vehicle: VehicleEntity): StorageAlveolus | undefined {
+export function freightVehicleDockBay(vehicle: VehicleEntity): FreightBayAlveolus | undefined {
 	const svc = vehicle.service
 	if (!isVehicleLineService(svc) || !vehicle.isDocked) return undefined
 	if (!('anchor' in svc.stop)) return undefined
@@ -15,21 +15,21 @@ export function freightVehicleDockBay(vehicle: VehicleEntity): StorageAlveolus |
 		r: svc.stop.anchor.coord[1],
 	})
 	const content = tile?.content
-	if (!(content instanceof StorageAlveolus) || content.action?.type !== 'road-fret') {
-		traces.vehicle.warn?.('[dock.sync] docked vehicle has no road-fret bay', {
+	if (!(content instanceof FreightBayAlveolus)) {
+		traces.vehicle.warn?.('[dock.sync] docked vehicle has no freight bay', {
 			vehicleUid: vehicle.uid,
 			lineId: svc.line.id,
 			stopId: svc.stop.id,
 			anchor: svc.stop.anchor.coord,
 			contentType: content?.constructor?.name,
-			actionType: content instanceof StorageAlveolus ? content.action?.type : undefined,
+			actionType: content instanceof FreightBayAlveolus ? content.action?.type : undefined,
 		})
 		return undefined
 	}
 	return content
 }
 
-/** Registers or clears the hive advertisement endpoint for a docked wheelbarrow at a road-fret bay. */
+/** Registers or clears the hive advertisement endpoint for a docked wheelbarrow at a freight bay. */
 export function syncFreightVehicleDockRegistration(vehicle: VehicleEntity): void {
 	for (const tile of vehicle.game.hex.tiles) {
 		const content = tile.content

@@ -14,12 +14,12 @@ import {
 
 /** Default trace channel levels. Remove a key or call `setTraceLevel(name, undefined)` to disable it. When a new TraceSink is needed, adding its name here is enough */
 export const traceLevels: Record<string, TraceVerb> = {
-	vehicle: 'assert',
+	vehicle: 'log',
 	npc: 'assert',
 	advertising: 'assert',
 	allocations: 'assert',
 	commitments: 'assert',
-	convey: 'log',
+	convey: 'assert',
 	residential: 'assert',
 	script: 'assert',
 	characterNeeds: 'assert',
@@ -142,6 +142,10 @@ class NamedTraceList extends Array<TraceRow> implements TraceSink {
 	/** Convenience for DevTools: prints `read(count)` with `console.log`. */
 	display(count?: number): void {
 		console.log(this.read(count))
+	}
+
+	reset(): void {
+		this.splice(0, this.length)
 	}
 
 	private get marker(): string {

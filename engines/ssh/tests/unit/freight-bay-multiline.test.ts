@@ -14,7 +14,7 @@ import {
 	normalizeFreightLineDefinition,
 } from 'ssh/freight/freight-line'
 import type { SaveState } from 'ssh/game'
-import { StorageAlveolus } from 'ssh/hive/storage'
+import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import { describe, expect, it } from 'vitest'
 import { distributeFreightLine, gatherFreightLine } from '../freight-fixtures'
 import { TestEngine } from '../test-engine'
@@ -78,7 +78,7 @@ describe('Freight bay multi-line', () => {
 		expect(findGatherFreightLine(lines, stop)?.id).toBe('H:gather-a')
 	})
 
-	it('advertises provide for stock allowed by any gather line and any distribute line', async () => {
+	it('does not store or advertise bay stock from save goods', async () => {
 		const engine = new TestEngine({ terrainSeed: 1, characterCount: 0 })
 		await engine.init()
 		try {
@@ -124,16 +124,16 @@ describe('Freight bay multi-line', () => {
 			}
 			engine.loadScenario(scenario)
 			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content
-			expect(bay).toBeInstanceOf(StorageAlveolus)
-			const rel = (bay as StorageAlveolus).workingGoodsRelations
-			expect(rel.wood?.advertisement).toBe('provide')
-			expect(rel.berries).toBeUndefined()
+			expect(bay).toBeInstanceOf(FreightBayAlveolus)
+			const freightBay = bay as FreightBayAlveolus
+			expect(freightBay.storage.stock).toEqual({})
+			expect(freightBay.workingGoodsRelations).toEqual({})
 		} finally {
 			await engine.destroy()
 		}
 	})
 
-	it('does not issue on-foot gather jobs from a road-fret bay (wheelbarrow-only collection)', async () => {
+	it('does not issue on-foot gather jobs from a freight bay (wheelbarrow-only collection)', async () => {
 		const engine = new TestEngine({ terrainSeed: 1, characterCount: 0 })
 		await engine.init()
 		try {
@@ -141,7 +141,10 @@ describe('Freight bay multi-line', () => {
 				hives: [
 					{
 						name: 'PickHive',
-						alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }],
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
+							{ coord: [1, 0], alveolus: 'sawmill', goods: {} },
+						],
 					},
 				],
 				looseGoods: [{ goodType: 'wood', position: { q: 0, r: 2 } }],
@@ -166,8 +169,8 @@ describe('Freight bay multi-line', () => {
 			}
 			engine.loadScenario(scenario)
 			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content
-			expect(bay).toBeInstanceOf(StorageAlveolus)
-			const storage = bay as StorageAlveolus
+			expect(bay).toBeInstanceOf(FreightBayAlveolus)
+			const storage = bay as FreightBayAlveolus
 			expect(storage.hasLooseGoodsToGather).toBe(true)
 			expect(storage.nextJob()).toBeUndefined()
 		} finally {
@@ -310,7 +313,7 @@ describe('Freight bay multi-line', () => {
 		expect(gatherSegmentAllowsGoodType(line, 'planks')).toBe(false)
 	})
 
-	it('road-fret canTake allows goods accepted by a distribute line when gather lines exist', async () => {
+	it('freight bay never accepts storage intake even when distribute lines exist', async () => {
 		const engine = new TestEngine({ terrainSeed: 1, characterCount: 0 })
 		await engine.init()
 		try {
@@ -341,9 +344,9 @@ describe('Freight bay multi-line', () => {
 			}
 			engine.loadScenario(scenario)
 			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content
-			expect(bay).toBeInstanceOf(StorageAlveolus)
-			const storage = bay as StorageAlveolus
-			expect(storage.canTake('wood', '1-buffer')).toBe(true)
+			expect(bay).toBeInstanceOf(FreightBayAlveolus)
+			const storage = bay as FreightBayAlveolus
+			expect(storage.canTake('wood', '1-buffer')).toBe(false)
 			expect(storage.canTake('berries', '1-buffer')).toBe(false)
 		} finally {
 			await engine.destroy()

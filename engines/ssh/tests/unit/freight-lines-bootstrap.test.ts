@@ -9,13 +9,13 @@ import {
 	normalizeFreightLineDefinition,
 } from 'ssh/freight/freight-line'
 import type { SaveState } from 'ssh/game'
-import { StorageAlveolus } from 'ssh/hive/storage'
+import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import { describe, expect, it } from 'vitest'
 import { distributeFreightLine, gatherFreightLine } from '../freight-fixtures'
 import { TestEngine } from '../test-engine'
 
 describe('Freight line bootstrap', () => {
-	it('places gather alveolus with hive and implicit gather lines', async () => {
+	it('places freight bay with hive and implicit gather lines', async () => {
 		const engine = new TestEngine({ terrainSeed: 1, characterCount: 0 })
 		await engine.init()
 		const scenario: Partial<SaveState> = {
@@ -23,9 +23,10 @@ describe('Freight line bootstrap', () => {
 		}
 		engine.loadScenario(scenario)
 		const content = engine.game.hex.getTile({ q: 0, r: 0 })?.content
-		expect(content).toBeInstanceOf(StorageAlveolus)
-		const gather = content as StorageAlveolus
+		expect(content).toBeInstanceOf(FreightBayAlveolus)
+		const gather = content as FreightBayAlveolus
 		expect(gather.hive).toBeDefined()
+		expect(gather.storage.hasRoom('wood')).toBe(0)
 		expect(engine.game.freightLines.length).toBeGreaterThan(0)
 		expect(gather.action).not.toHaveProperty('radius')
 		const implicit = engine.game.freightLines[0]
@@ -49,9 +50,25 @@ describe('Freight line bootstrap', () => {
 			looseGoods: [],
 		}
 		engine.loadScenario(scenario)
-		expect(engine.game.hex.getTile({ q: 0, r: 0 })?.content).toBeInstanceOf(StorageAlveolus)
+		expect(engine.game.hex.getTile({ q: 0, r: 0 })?.content).toBeInstanceOf(
+			FreightBayAlveolus
+		)
 		expect(engine.game.hex.getTile({ q: 1, r: 0 })?.content).toBeDefined()
 		await engine.destroy()
+	})
+
+	it('does not map the legacy gather alveolus key to freight_bay', async () => {
+		const engine = new TestEngine({ terrainSeed: 1, characterCount: 0 })
+		await engine.init()
+		try {
+			engine.loadScenario({
+				hives: [{ name: 'H', alveoli: [{ coord: [0, 0], alveolus: 'gather' } as never] }],
+			})
+			expect(engine.game.hex.getTile({ q: 0, r: 0 })?.content?.name).not.toBe('freight_bay')
+			expect(engine.game.freightLines).toEqual([])
+		} finally {
+			await engine.destroy()
+		}
 	})
 
 	it('resolves a synthetic inspector object for a freight line uid', async () => {
@@ -100,7 +117,7 @@ describe('Freight line bootstrap', () => {
 				],
 			}
 			engine.loadScenario(scenario)
-			const gather = engine.game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus
+			const gather = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus
 			expect(gather.hasLooseGoodsToGather).toBe(false)
 			const line = engine.game.freightLines.find(
 				(l) => l.id === 'GatherRadiusHive:implicit-gather:0,0'
@@ -116,7 +133,7 @@ describe('Freight line bootstrap', () => {
 	it('resolves gather and distribute lines independently on the same stop', () => {
 		const stop = {
 			hive: { name: 'H' },
-			name: 'gather',
+			name: 'freight_bay',
 			tile: { position: { q: 0, r: 0 } },
 		}
 		const lines = [
@@ -149,7 +166,7 @@ describe('Freight line bootstrap', () => {
 				hives: [{ alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }] }],
 			})
 
-			const gather = engine.game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus
+			const gather = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus
 			const implicit = findGatherFreightLine(engine.game.freightLines, gather)
 			expect(implicit).toBeDefined()
 			const unload = implicit?.stops[1]

@@ -59,12 +59,25 @@ type StoredGoodsRefreshVisual = {
 	refreshStoredGoods(): void
 }
 
+type DockedVehiclesRefreshVisual = {
+	refreshDockedVehicles(): void
+}
+
 function canRefreshStoredGoods(value: unknown): value is StoredGoodsRefreshVisual {
 	return (
 		!!value &&
 		typeof value === 'object' &&
 		'refreshStoredGoods' in value &&
 		typeof (value as { refreshStoredGoods?: unknown }).refreshStoredGoods === 'function'
+	)
+}
+
+function canRefreshDockedVehicles(value: unknown): value is DockedVehiclesRefreshVisual {
+	return (
+		!!value &&
+		typeof value === 'object' &&
+		'refreshDockedVehicles' in value &&
+		typeof (value as { refreshDockedVehicles?: unknown }).refreshDockedVehicles === 'function'
 	)
 }
 
@@ -377,14 +390,24 @@ export class VisualFactory {
 	}
 
 	private syncPresentationEvents(events: readonly GamePresentationEvent[]) {
-		const refreshed = new Set<string>()
+		const refreshedStorage = new Set<string>()
+		const refreshedDocks = new Set<string>()
 		for (const event of events) {
-			if (event.type !== 'storage.changed') continue
-			if (refreshed.has(event.ownerUid)) continue
-			refreshed.add(event.ownerUid)
-			const visual = this.renderer.visuals.get(event.ownerUid)
-			if (!canRefreshStoredGoods(visual)) continue
-			visual.refreshStoredGoods()
+			if (event.type === 'storage.changed') {
+				if (refreshedStorage.has(event.ownerUid)) continue
+				refreshedStorage.add(event.ownerUid)
+				const visual = this.renderer.visuals.get(event.ownerUid)
+				if (!canRefreshStoredGoods(visual)) continue
+				visual.refreshStoredGoods()
+				continue
+			}
+			if (event.type === 'vehicle.dock.changed') {
+				if (refreshedDocks.has(event.ownerUid)) continue
+				refreshedDocks.add(event.ownerUid)
+				const visual = this.renderer.visuals.get(event.ownerUid)
+				if (!canRefreshDockedVehicles(visual)) continue
+				visual.refreshDockedVehicles()
+			}
 		}
 	}
 

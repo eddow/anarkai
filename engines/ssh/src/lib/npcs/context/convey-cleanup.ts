@@ -12,6 +12,14 @@ export interface FailedConveyMovementData {
 	hopAllocationFulfilled?: boolean
 }
 
+/**
+ * Roll back a convey step that failed after it started mutating movement/storage state.
+ *
+ * This is deliberately not part of the normal lifecycle. The happy path must keep
+ * `movement.allocations.source` valid through pickup, hop, and landing; this helper
+ * exists for stale bookkeeping races and partial-hop failures where we need to
+ * cancel commitments and drop a loose good instead of losing the resource.
+ */
 export function cleanupFailedConveyMovement(
 	character: Character,
 	{

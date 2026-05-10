@@ -1,5 +1,7 @@
 import { Game } from 'ssh/game/game'
+import { chopSaw } from 'ssh/game/exampleGames'
 import { BuildAlveolus } from 'ssh/hive/build'
+import { StorageAlveolus } from 'ssh/hive/storage'
 import { afterEach, describe, expect, it } from 'vitest'
 
 describe('BuildAlveolus save/load', () => {
@@ -62,5 +64,64 @@ describe('BuildAlveolus save/load', () => {
 		expect(after.target).toBe('storage')
 		expect(after.constructionWorkSecondsApplied).toBe(2.25)
 		expect(after.constructionSite.phase).toBe('building')
+	})
+
+	it('loads and saves individual slotted storage configuration from patches', async () => {
+		const gen = { terrainSeed: 549, characterCount: 0 }
+		game = new Game(gen, chopSaw)
+		await game.loaded
+		game.ticker.stop()
+
+		const storage = game.hex.getTile({ q: 11, r: -8 })?.content
+		expect(storage).toBeInstanceOf(StorageAlveolus)
+		if (!(storage instanceof StorageAlveolus)) return
+		expect(storage.configurationRef).toEqual({ scope: 'individual' })
+		expect(storage.slottedStorageConfiguration).toMatchObject({
+			generalSlots: 5,
+			goods: {
+				wood: { minSlots: 1, maxSlots: 0 },
+			},
+		})
+		expect(storage.workingGoodsRelations.wood).toMatchObject({
+			advertisement: 'demand',
+			priority: '1-buffer',
+		})
+
+		const state = game.saveGameData()
+		const hiveEntry = state.hives?.find((h) => h.name === 'ChopSaw')
+		const storagePatch = hiveEntry?.alveoli.find(
+			(a) => a.coord[0] === 11 && a.coord[1] === -8
+		)
+		expect(storagePatch?.configuration).toMatchObject({
+			ref: { scope: 'individual' },
+			individual: {
+				working: true,
+				generalSlots: 5,
+				goods: {
+					wood: { minSlots: 1, maxSlots: 0 },
+				},
+			},
+		})
+
+		game.destroy()
+
+		const game2 = new Game(gen)
+		await game2.loadGameData(state)
+		game2.ticker.stop()
+		game = game2
+
+		const restored = game.hex.getTile({ q: 11, r: -8 })?.content
+		expect(restored).toBeInstanceOf(StorageAlveolus)
+		if (!(restored instanceof StorageAlveolus)) return
+		expect(restored.slottedStorageConfiguration).toMatchObject({
+			generalSlots: 5,
+			goods: {
+				wood: { minSlots: 1, maxSlots: 0 },
+			},
+		})
+		expect(restored.workingGoodsRelations.wood).toMatchObject({
+			advertisement: 'demand',
+			priority: '1-buffer',
+		})
 	})
 })

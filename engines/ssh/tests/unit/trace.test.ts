@@ -171,6 +171,27 @@ describe('safe trace serialization', () => {
 		}
 	})
 
+	it('resets stored trace rows without replacing the sink or changing enabled methods', () => {
+		const sink = namedTrace('reset', { silent: true })
+		const logMethod = sink.log
+		const warnMethod = sink.warn
+
+		sink.log?.('before.log')
+		sink.warn?.('before.warn')
+		expect(sink.heads).toEqual(['before.log', 'before.warn'])
+
+		sink.reset()
+
+		expect(sink).toHaveLength(0)
+		expect(sink.heads).toEqual([])
+		expect(sink.read()).toBe('')
+		expect(sink.log).toBe(logMethod)
+		expect(sink.warn).toBe(warnMethod)
+
+		sink.log?.('after.log')
+		expect(sink.heads).toEqual(['after.log'])
+	})
+
 	it('forwards configured trace rows to the matching console method', () => {
 		const previousLevel = traceLevels.forwardProbe
 		const groupCollapsed = vi.spyOn(console, 'groupCollapsed').mockImplementation(() => {})

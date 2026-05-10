@@ -4,7 +4,7 @@ import {
 } from 'ssh/freight/docked-vehicles'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
 import { createAlveolus } from 'ssh/hive'
-import { StorageAlveolus } from 'ssh/hive/storage'
+import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import { afterEach, describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine/engine'
 
@@ -48,7 +48,7 @@ describe('docked vehicle collectors', () => {
 		if (!bayA || !bayB) throw new Error('freight bay alveolus missing')
 		tileA.content = bayA
 		tileB.content = bayB
-		if (!(bayA instanceof StorageAlveolus)) throw new Error('freight bay must be storage')
+		if (!(bayA instanceof FreightBayAlveolus)) throw new Error('freight bay must be freight bay')
 
 		const stop = stopAt('bay-a', 0, 0)
 		const otherStop = stopAt('bay-b', 6, 0)

@@ -3,18 +3,20 @@ import { Container, RenderLayer, Sprite } from 'pixi.js'
 import { createAlveolus } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
 import { afterEach, describe, expect, it } from 'vitest'
+import { gatherFreightLine } from '../../../ssh/tests/freight-fixtures'
 import { TestEngine } from '../../../ssh/tests/test-engine/engine'
 import type { PixiGameRenderer } from '../renderer'
 import { BorderVisual } from './border-visual'
 import { TileVisual } from './tile-visual'
 
-function createRendererStub(): PixiGameRenderer {
+function createRendererStub(game?: TestEngine['game']): PixiGameRenderer {
 	const fakeTexture = {
 		frame: { width: 16, height: 16 },
 		width: 16,
 		height: 16,
 	} as never
 	return {
+		game,
 		layers: {
 			ground: new RenderLayer(),
 			alveoli: new RenderLayer(),
@@ -53,6 +55,15 @@ function countSpritesInLayer(layer: RenderLayer): number {
 		(total, child) => total + countSprites(child as Container),
 		0
 	)
+}
+
+function collectLabelsIncluding(node: Container, needle: string): string[] {
+	const labels: string[] = []
+	for (const child of node.children) {
+		if (child.label?.includes(needle)) labels.push(child.label)
+		if ('children' in child) labels.push(...collectLabelsIncluding(child as Container, needle))
+	}
+	return labels
 }
 
 function storageLayerSpriteCount(renderer: PixiGameRenderer): number {
@@ -207,6 +218,58 @@ describe('TileVisual storage goods layering', () => {
 			leftVisual.dispose()
 			rightVisual.dispose()
 			gateVisual.dispose()
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('clears the bay docked-vehicle sprite after a wheelbarrow undocks', async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+
+		try {
+			const line = gatherFreightLine({
+				id: 'dock-visual',
+				name: 'Dock visual',
+				hiveName: 'dock-visual-hive',
+				coord: [0, 0],
+				filters: [],
+				radius: 1,
+			})
+			engine.loadScenario({
+				hives: [
+					{
+						name: 'dock-visual-hive',
+						alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }],
+					},
+				],
+				freightLines: [line],
+				population: [],
+			})
+
+			const tile = engine.game.hex.getTile({ q: 0, r: 0 })
+			if (!tile) throw new Error('Expected freight bay tile to exist')
+			const stop = line.stops.find((candidate) => 'anchor' in candidate)
+			if (!stop) throw new Error('Expected anchor stop')
+			const vehicle = engine.game.vehicles.createVehicle('dock-visual-wb', 'wheelbarrow', {
+				q: 0,
+				r: 0,
+			})
+			vehicle.beginLineService(line, stop)
+			vehicle.dock()
+
+			const renderer = createRendererStub(engine.game)
+			const visual = new TileVisual(tile, renderer)
+			visual.bind()
+
+			expect(collectLabelsIncluding(visual.view, 'docked-vehicle:dock-visual-wb')).toHaveLength(1)
+
+			vehicle.undock()
+			visual.refreshDockedVehicles()
+
+			expect(collectLabelsIncluding(visual.view, 'docked-vehicle:dock-visual-wb')).toHaveLength(0)
+
+			visual.dispose()
 		} finally {
 			await engine.destroy()
 		}

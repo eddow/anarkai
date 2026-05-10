@@ -3,7 +3,7 @@ import { Container, Sprite, Texture } from 'pixi.js'
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import { collectDockedVehiclesForBay } from 'ssh/freight/docked-vehicles'
 import { BuildAlveolus } from 'ssh/hive/build'
-import { StorageAlveolus } from 'ssh/hive/storage'
+import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
 import { alveoli } from '../../assets/visual-content'
@@ -140,23 +140,7 @@ export class AlveolusVisual extends VisualObject<any> {
 		this.dockedVehiclesContainer.zIndex = worldPos.y + 1
 		this.register(
 			effect`${this.scope}.docked-vehicles`(() => {
-				this.dockedVehiclesContainer.removeChildren().forEach((child) => child.destroy())
-				if (!(this.object instanceof StorageAlveolus)) return
-				if (this.object.action?.type !== 'road-fret') return
-				const docked = collectDockedVehiclesForBay(this.renderer.game, this.object)
-				for (const [index, entry] of docked.entries()) {
-					const tex = this.renderer.getTexture(`vehicles.${entry.vehicle.vehicleType}`)
-					if (!hasUsableTexture(tex)) continue
-					const sprite = setPixiName(
-						new Sprite(tex),
-						scopedPixiName(this.scope, `docked-vehicle:${entry.vehicle.uid}`)
-					)
-					sprite.anchor.set(0.5)
-					sprite.width = 24
-					sprite.height = 24
-					sprite.position.set(-tileSize * 0.18 + index * 10, tileSize * 0.18)
-					this.dockedVehiclesContainer.addChild(sprite)
-				}
+				this.refreshDockedVehicles()
 			})
 		)
 	}
@@ -164,6 +148,26 @@ export class AlveolusVisual extends VisualObject<any> {
 	public refreshStoredGoods() {
 		if (this._disposed) return
 		this.goodsRenderer?.render()
+	}
+
+	public refreshDockedVehicles() {
+		if (this._disposed) return
+		this.dockedVehiclesContainer.removeChildren().forEach((child) => child.destroy())
+		if (!(this.object instanceof FreightBayAlveolus)) return
+		const docked = collectDockedVehiclesForBay(this.renderer.game, this.object)
+		for (const [index, entry] of docked.entries()) {
+			const tex = this.renderer.getTexture(`vehicles.${entry.vehicle.vehicleType}`)
+			if (!hasUsableTexture(tex)) continue
+			const sprite = setPixiName(
+				new Sprite(tex),
+				scopedPixiName(this.scope, `docked-vehicle:${entry.vehicle.uid}`)
+			)
+			sprite.anchor.set(0.5)
+			sprite.width = 24
+			sprite.height = 24
+			sprite.position.set(-tileSize * 0.18 + index * 10, tileSize * 0.18)
+			this.dockedVehiclesContainer.addChild(sprite)
+		}
 	}
 
 	public dispose() {

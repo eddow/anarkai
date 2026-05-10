@@ -77,7 +77,7 @@ function rulesTestOverrides() {
 			freight_bay: {
 				preparationTime: 1,
 				workTime: 0,
-				action: { type: 'road-fret', kind: 'slotted', capacity: 2, slots: 4 },
+				action: { type: 'road-fret' },
 				construction: { goods: { wood: 1 }, time: 1 },
 			},
 			engineer: {

@@ -29,6 +29,7 @@ export type TraceSink = Partial<
 	readonly heads?: readonly unknown[]
 	read: (count?: number) => string
 	display: (count?: number) => void
+	reset: () => void
 }
 
 export type TraceConsoleRow = {

@@ -2,20 +2,6 @@ import { goods as allGoodsList, configurations, jobBalance } from 'engine-rules'
 import { inert, reactive } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
-import { augmentFreightBayGoodsRelationsForConstruction } from 'ssh/freight/construction-freight-requisition'
-import type { FreightStop, FreightZoneDefinitionRadius } from 'ssh/freight/freight-line'
-import {
-	distributeLinesAllowGoodType,
-	type FreightLineDefinition,
-	findDistributeFreightLines,
-	findGatherFreightLines,
-	gatherSegmentAllowsGoodType,
-} from 'ssh/freight/freight-line'
-import {
-	gatherZoneLoadStopForBay,
-	goodsWith,
-	pickGatherTargetInZoneStop,
-} from 'ssh/freight/freight-zone-gather-target'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { Storage } from 'ssh/storage/storage'
@@ -227,32 +213,13 @@ export class StorageAlveolus extends Alveolus {
 	/**
 	 * Check if this storage can store a specific good
 	 */
-	canTakeFrom(source: StorageBase, goodType: GoodType, priority: ExchangePriority): boolean {
-		const dock = source as { readonly kind?: unknown; readonly bay?: unknown }
-		if (dock.kind === 'vehicle-freight-dock' && dock.bay === this) {
-			return this.working && (this.storage.hasRoom(goodType) ?? 0) > 0
-		}
+	canTakeFrom(_source: StorageBase, goodType: GoodType, priority: ExchangePriority): boolean {
 		return this.canTake(goodType, priority)
 	}
 
 	canTake(goodType: GoodType, _priority: ExchangePriority) {
 		// Only accept goods if working is enabled
 		if (!this.working) return false
-		if (this.action?.type === 'road-fret') {
-			const freightLines = this.tile?.game?.freightLines
-			if (freightLines?.length) {
-				const gatherLines = findGatherFreightLines(freightLines, this)
-				if (gatherLines.length > 0) {
-					const distributeLines = findDistributeFreightLines(freightLines, this)
-					if (
-						distributeLines.length === 0 ||
-						!distributeLinesAllowGoodType(distributeLines, goodType)
-					) {
-						return false
-					}
-				}
-			}
-		}
 
 		let result = false
 		let debugInfo: Record<string, unknown> = { working: this.working }
@@ -352,22 +319,6 @@ export class StorageAlveolus extends Alveolus {
 	}
 
 	get workingGoodsRelations(): GoodsRelations {
-		const gatherLines = this.roadFretGatherFreightLines()
-		if (gatherLines.length > 0) {
-			return Object.fromEntries(
-				Object.entries(this.storage.availables)
-					.filter(
-						([goodType, quantity]) =>
-							quantity > 0 &&
-							gatherLines.some((line) => gatherSegmentAllowsGoodType(line, goodType as GoodType))
-					)
-					.map(([goodType]) => [
-						goodType as GoodType,
-						{ advertisement: 'provide', priority: '2-use' as const },
-					])
-			)
-		}
-
 		const relations: GoodsRelations = {}
 
 		// General storages already participate in matching through Hive.generalStorages.canTake/canGive.
@@ -431,48 +382,7 @@ export class StorageAlveolus extends Alveolus {
 			}
 		}
 
-		const freightLines = this.tile?.game?.freightLines
-		const distributeLines =
-			freightLines && freightLines.length > 0 ? findDistributeFreightLines(freightLines, this) : []
-		if (this.tile?.game) {
-			augmentFreightBayGoodsRelationsForConstruction(this.tile.game, this, relations)
-		}
-		if (distributeLines.length > 0) {
-			for (const goodType of Object.keys(relations) as GoodType[]) {
-				if (!distributeLinesAllowGoodType(distributeLines, goodType)) delete relations[goodType]
-			}
-		}
-
 		return relations
-	}
-
-	private roadFretGatherFreightLines(): FreightLineDefinition[] {
-		if (this.action?.type !== 'road-fret') return []
-		const freightLines = this.tile?.game?.freightLines
-		if (!freightLines?.length) return []
-		return findGatherFreightLines(freightLines, this)
-	}
-
-	get hasLooseGoodsToGather(): boolean {
-		if (this.action?.type !== 'road-fret') return false
-		const hiveNeeds = Object.keys(this.hive.needs) as GoodType[]
-		for (const line of this.roadFretGatherFreightLines()) {
-			const zoneStop = gatherZoneLoadStopForBay(line, this)
-			if (!zoneStop) continue
-			const pick = pickGatherTargetInZoneStop(
-				this.tile.game,
-				line,
-				zoneStop as FreightStop & { zone: FreightZoneDefinitionRadius },
-				this.tile.position,
-				hiveNeeds,
-				{
-					bayAlveolus: this,
-					canAcceptGood: (good) => this.storage.canStoreAll(goodsWith({}, good)),
-				}
-			)
-			if (pick) return true
-		}
-		return false
 	}
 
 	setSlottedGeneralSlots(generalSlots: number): void {

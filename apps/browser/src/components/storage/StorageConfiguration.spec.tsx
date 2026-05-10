@@ -172,50 +172,6 @@ describe('StorageConfiguration', () => {
 		expect(container.querySelector('[data-testid="slotted-storage-config"]')).not.toBeNull()
 	})
 
-	it('does not show slotted storage editor for road-fret (freight bay)', () => {
-		const content = {
-			storage: new SlottedStorage(4, 2),
-			action: { type: 'road-fret', kind: 'slotted', capacity: 2, slots: 4 },
-			storageMode: 'all-but',
-			storageExceptions: [],
-			storageBuffers: {},
-			storageConfiguration: { buffers: {} },
-		}
-
-		stop = latch(
-			container,
-			<table>
-				<tbody>
-					<StorageConfiguration content={content as never} game={{} as never} />
-				</tbody>
-			</table>
-		)
-
-		expect(container.querySelector('[data-testid="slotted-storage-config"]')).toBeNull()
-	})
-
-	it('does not show specific storage editor for road-fret', () => {
-		const content = {
-			storage: new SpecificStorage({ wood: 50 }),
-			action: { type: 'road-fret', kind: 'specific', goods: { wood: 50 } },
-			storageMode: 'all-but',
-			storageExceptions: [],
-			storageBuffers: {},
-			storageConfiguration: { buffers: { wood: 10 } },
-		}
-
-		stop = latch(
-			container,
-			<table>
-				<tbody>
-					<StorageConfiguration content={content as never} game={{} as never} />
-				</tbody>
-			</table>
-		)
-
-		expect(container.querySelector('[data-testid="specific-storage-config"]')).toBeNull()
-	})
-
 	it('toggles acceptance mode and mutates exception lists for generic storage', () => {
 		const content = {
 			storage: {},

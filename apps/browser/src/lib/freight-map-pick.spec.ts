@@ -1,5 +1,5 @@
 import { Tile } from 'ssh/board/tile'
-import { StorageAlveolus } from 'ssh/hive/storage'
+import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import { describe, expect, it, vi } from 'vitest'
 import { cancelFreightMapPick, freightMapPick, tryConsumeFreightMapPick } from './freight-map-pick'
 
@@ -9,12 +9,12 @@ const makeTile = (position: { q: number; r: number }, content?: unknown): Tile =
 	return Object.setPrototypeOf(raw, Tile.prototype) as Tile
 }
 
-const makeFreightBay = (): StorageAlveolus => {
-	const raw = Object.create(StorageAlveolus.prototype) as StorageAlveolus
+const makeFreightBay = (): FreightBayAlveolus => {
+	const raw = Object.create(FreightBayAlveolus.prototype) as FreightBayAlveolus
 	Object.defineProperty(raw, 'hive', { value: { name: 'H' }, enumerable: true, configurable: true })
 	Object.defineProperty(raw, 'name', { value: 'freight_bay', enumerable: true, configurable: true })
 	Object.defineProperty(raw, 'action', {
-		value: { type: 'road-fret', kind: 'slotted', slots: 4, capacity: 2 },
+		value: { type: 'road-fret' },
 		enumerable: true,
 		configurable: true,
 	})
@@ -37,7 +37,7 @@ describe('freight-map-pick', () => {
 		expect(freightMapPick.pending).toBeUndefined()
 	})
 
-	it('applies a freight bay pick from storage alveolus content', () => {
+	it('applies a freight bay pick from freight bay content', () => {
 		const apply = vi.fn()
 		freightMapPick.pending = {
 			lineId: 'line-1',

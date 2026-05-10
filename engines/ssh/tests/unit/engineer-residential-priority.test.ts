@@ -84,4 +84,25 @@ describe('EngineerAlveolus.nextJob residential construction priority', () => {
 		const terminal = job?.path?.[job.path.length - 1]
 		expect(terminal).toMatchObject({ q: 1, r: 0 })
 	})
+
+	it('does not propose foundation on a vehicle-burdened project tile', () => {
+		const tileNear = game.hex.getTile({ q: 1, r: 0 })!
+		tileNear.zone = 'residential'
+		const nearLand = tileNear.content
+		expect(nearLand).toBeInstanceOf(UnBuiltLand)
+		if (!(nearLand instanceof UnBuiltLand)) return
+		nearLand.setProject(residentialBasicDwellingProject)
+		game.vehicles.createVehicle('barrow-on-foundation', 'wheelbarrow', tileNear.position)
+		expect(tileNear.isBurdened).toBe(true)
+
+		const engineerTile = game.hex.getTile({ q: 0, r: 0 })!
+		const engineer = engineerTile.content
+		expect(engineer).toBeInstanceOf(EngineerAlveolus)
+		if (!(engineer instanceof EngineerAlveolus)) return
+
+		const character = game.population.createCharacter('Eng', { q: 0, r: 0 })
+		const job = engineer.nextJob(character)
+
+		expect(job).toBeUndefined()
+	})
 })
