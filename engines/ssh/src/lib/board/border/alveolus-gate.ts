@@ -30,6 +30,9 @@ export class AlveolusGate extends TileBorderContent {
 		this.storage.setPresentationChangeNotifier(() =>
 			this.game.enqueueStoragePresentationChange(this.border)
 		)
+		this.storage.setPlanningChangeNotifier((kind) =>
+			this.hive?.invalidateConveyPlanning?.(`gate.storage.${kind}`)
+		)
 	}
 
 	attach(): void {

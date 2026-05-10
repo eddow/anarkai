@@ -1,6 +1,6 @@
 import { inert } from 'mutts'
 import type { SaveState } from 'ssh/game'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { TestEngine } from '../test-engine/engine'
 
 describe('Ranked work diagnostics', () => {
@@ -134,6 +134,32 @@ describe('Ranked work diagnostics', () => {
 			}
 
 			expect(worker.workPlannerSnapshot).toEqual(worker.lastWorkPlannerSnapshot)
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('reuses the live work planner snapshot until work planning changes', async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+
+		try {
+			const worker = engine.spawnCharacter('Worker', { q: 0, r: 0 })
+			;(worker as { role?: string }).role = 'worker'
+			void worker.scriptsContext
+
+			const rankedSpy = vi.spyOn(worker as any, 'rankedWorkCandidates')
+			const first = worker.workPlannerSnapshot
+			const callsAfterFirst = rankedSpy.mock.calls.length
+			const second = worker.workPlannerSnapshot
+
+			expect(second).toBe(first)
+			expect(rankedSpy.mock.calls.length).toBe(callsAfterFirst)
+
+			engine.game.invalidateWorkPlanning('test')
+			void worker.workPlannerSnapshot
+
+			expect(rankedSpy.mock.calls.length).toBeGreaterThan(callsAfterFirst)
 		} finally {
 			await engine.destroy()
 		}

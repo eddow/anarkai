@@ -20,16 +20,16 @@ import { commitmentValid, type TrackedMovement } from 'ssh/hive/hive'
 import { movementRefId } from 'ssh/hive/movement-ref'
 import { MovementState, transitionMovement } from 'ssh/hive/movement-state'
 import { StorageAlveolus } from 'ssh/hive/storage'
-import type { TransformAlveolus } from 'ssh/hive/transform'
+import { TransformAlveolus } from 'ssh/hive/transform'
 import type { Character } from 'ssh/population/character'
 import type { Storage } from 'ssh/storage'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
-import { contract, type Goods, type GoodType } from 'ssh/types'
+import { contract, type GoodType } from 'ssh/types'
 import { type AxialCoord, axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
 import { epsilon } from 'ssh/utils/varied'
 import { subject } from '../scripts'
-import { DurationStep, MultiMoveStep } from '../steps'
+import { AEvolutionStep, DurationStep, MultiMoveStep } from '../steps'
 import type { WorkPlan } from '.'
 import { getConveyDuration, getConveyVisualMovements, rebindConveyMovementRows } from './convey'
 import { cleanupFailedConveyMovement, type FailedConveyMovementData } from './convey-cleanup'
@@ -137,11 +137,51 @@ class ConstructionDurationStep extends DurationStep {
 	}
 }
 
+const transformBoundaryDurationSeconds = 0.5
+
+class TransformProcessStep extends AEvolutionStep {
+	override get description(): string | false {
+		return `transform.${this.alveolus.name}`
+	}
+
+	get type() {
+		return 'work' as const
+	}
+
+	constructor(
+		private readonly alveolus: TransformAlveolus,
+		duration: number,
+		private readonly startBuffers: Partial<Record<GoodType, number>>
+	) {
+		super(duration, `transform.${alveolus.name}`)
+	}
+
+	override evolve(evolution: number): void {
+		for (const [goodType, rate] of this.alveolus.rateEntries) {
+			const start = this.startBuffers[goodType] ?? 0
+			this.alveolus.setProcessBuffer(goodType, start + rate * this.duration * evolution)
+		}
+	}
+}
+
+function transformProcessDuration(alveolus: TransformAlveolus): number | undefined {
+	let duration = Number.POSITIVE_INFINITY
+	for (const [goodType, rate] of alveolus.rateEntries) {
+		const buffer = alveolus.processBuffer(goodType)
+		if (rate < 0 && buffer > epsilon) {
+			duration = Math.min(duration, buffer / -rate)
+		} else if (rate > 0 && buffer < 1 - epsilon) {
+			duration = Math.min(duration, (1 - buffer) / rate)
+		}
+	}
+	return Number.isFinite(duration) && duration > epsilon ? duration : undefined
+}
+
 class WorkFunctions {
 	declare [subject]: Character
 	@contract('WorkPlan')
 	prepare(workPlan: WorkPlan) {
-		if (['convey', 'vehicleOffload'].includes(workPlan.job)) return
+		if (['convey', 'vehicleOffload', 'transform'].includes(workPlan.job)) return
 		assert(
 			this[subject].assignedAlveolus?.preparationTime,
 			'assignedAlveolus must be set and have a preparationTime'
@@ -161,6 +201,9 @@ class WorkFunctions {
 				? target
 				: this[subject].assignedAlveolus
 		assert(alveolus, 'assignedAlveolus must be set')
+		if (workPlan?.job === 'transform' && alveolus instanceof TransformAlveolus) {
+			return alveolus.nextJob(this[subject])
+		}
 		assert(
 			'getJob' in alveolus && typeof alveolus.getJob === 'function',
 			'alveolus must have getJob method'
@@ -209,6 +252,7 @@ class WorkFunctions {
 			movement.claimedAtMs = Date.now()
 			movement._state = transitionMovement(movement._state, MovementState.claimed)
 			movement.provider.hive.noteMovementLifecycle(movement, `movement.claimed.by:${character.uid}`)
+			movement.provider.hive.invalidateConveyPlanning('movement.claim')
 			traces.convey.log?.(
 				`[conveyStep] claimed ${movement.goodType} ref#${movementRefId(movement.ref)} by=${character.uid}`,
 				{
@@ -243,6 +287,7 @@ class WorkFunctions {
 			movement.claimed = false
 			delete movement.claimedBy
 			delete movement.claimedAtMs
+			movement.provider.hive.invalidateConveyPlanning('movement.unclaim')
 			traces.convey.log?.(
 				`[conveyStep] released ${movement.goodType} ref#${movementRefId(movement.ref)} by=${character.uid}`,
 				{
@@ -823,31 +868,59 @@ class WorkFunctions {
 		const alveolus = this[subject].assignedAlveolus as TransformAlveolus
 		assert(alveolus, 'assignedAlveolus must be set')
 		assert(alveolus.action.type === 'transform', 'assignedAlveolus.action must be a transform')
-		const action = alveolus.action
-		const inputCommitment = new Commitment(`transform.input.${alveolus.name}`)
-		const inputResult = alveolus.storage.reserve(action.inputs as Goods, inputCommitment)
-		if (inputResult !== undefined) {
-			console.error('[transformStep] Failed to reserve inputs:', inputResult)
-			return waitStep()
+		if (!alveolus.canWork) return
+
+		const unloadGood = alveolus.nextUnloadGood
+		if (unloadGood) {
+			const commitment = new Commitment(`transform.unload.${alveolus.name}.${unloadGood}`)
+			const result = alveolus.storage.allocate({ [unloadGood]: 1 }, commitment)
+			if (result !== undefined) {
+				console.error('[transformStep] Failed to allocate unload output:', result)
+				commitment.cancel('transform.unload.failed')
+				return waitStep()
+			}
+			return new DurationStep(
+				transformBoundaryDurationSeconds,
+				'work',
+				`transform.unload.${alveolus.name}.${unloadGood}`
+			)
+				.onFulfilled(() => {
+					commitment.fulfill()
+					alveolus.setProcessBuffer(unloadGood, 0)
+				})
+				.onCancelled(() => {
+					commitment.cancel('transform.unload.cancelled')
+				})
 		}
 
-		const outputCommitment = new Commitment(`transform.output.${alveolus.name}`)
-		const outputResult = alveolus.storage.allocate(action.output as Goods, outputCommitment)
-		if (outputResult !== undefined) {
-			console.error('[transformStep] Failed to allocate outputs:', outputResult)
-			inputCommitment.cancel('transform.output.failed')
-			return waitStep()
+		const loadGood = alveolus.nextLoadGood
+		if (loadGood) {
+			const commitment = new Commitment(`transform.load.${alveolus.name}.${loadGood}`)
+			const result = alveolus.storage.reserve({ [loadGood]: 1 }, commitment)
+			if (result !== undefined) {
+				console.error('[transformStep] Failed to reserve load input:', result)
+				commitment.cancel('transform.load.failed')
+				return waitStep()
+			}
+			return new DurationStep(
+				transformBoundaryDurationSeconds,
+				'work',
+				`transform.load.${alveolus.name}.${loadGood}`
+			)
+				.onFulfilled(() => {
+					commitment.fulfill()
+					alveolus.setProcessBuffer(loadGood, 1)
+				})
+				.onCancelled(() => {
+					commitment.cancel('transform.load.cancelled')
+				})
 		}
 
-		return new DurationStep(alveolus.workTime, 'work', `transform.${alveolus.name}`)
-			.onFulfilled(() => {
-				inputCommitment.fulfill()
-				outputCommitment.fulfill()
-			})
-			.onCancelled(() => {
-				inputCommitment.cancel('transform.cancelled')
-				outputCommitment.cancel('transform.cancelled')
-			})
+		const duration = transformProcessDuration(alveolus)
+		if (duration === undefined) {
+			return waitStep()
+		}
+		return new TransformProcessStep(alveolus, duration, { ...alveolus.processBuffers })
 	}
 	@contract()
 	defragmentStep() {

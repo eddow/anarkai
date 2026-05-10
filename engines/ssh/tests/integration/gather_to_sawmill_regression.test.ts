@@ -164,7 +164,7 @@ describe('Gather to sawmill regression', () => {
 			let reachedGoal = false
 			const timeline: string[] = []
 
-			for (let i = 0; i < 80; i++) {
+			for (let i = 0; i < 140; i++) {
 				engine.tick(0.25)
 				if (i % 4 === 0) await flushDeferred(1)
 

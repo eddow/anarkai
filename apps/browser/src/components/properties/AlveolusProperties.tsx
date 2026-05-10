@@ -5,6 +5,7 @@ import {
 import { css } from '@app/lib/css'
 import { selectInspectorObject } from '@app/lib/follow-selection'
 import { T } from '@app/lib/i18n'
+import { presentationRevisionFor } from '@app/lib/presentation-events'
 import { effect, reactive } from 'mutts'
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import { queryConstructionSiteView } from 'ssh/construction'
@@ -21,6 +22,8 @@ import type { Game } from 'ssh/game'
 import { BuildAlveolus } from 'ssh/hive/build'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { isRoadFretAction } from 'ssh/hive/storage-action'
+import { TransformAlveolus } from 'ssh/hive/transform'
+import type { GoodType } from 'ssh/types/base'
 import ConstructionProgressBar from '../ConstructionProgressBar'
 import DockedVehicleList from '../DockedVehicleList'
 import InspectorObjectLink from '../InspectorObjectLink'
@@ -81,7 +84,9 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 	const state = reactive({
 		isStorage: false,
 		isFreightBay: false,
+		isTransform: false,
 		storageContent: undefined as StorageAlveolus | undefined,
+		transformContent: undefined as TransformAlveolus | undefined,
 		lineObjects: [] as SyntheticFreightLineObject[],
 		dockedVehicles: [] as DockedVehicleEntry[],
 		resolvedGame: undefined as Game | undefined,
@@ -101,7 +106,9 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 		void freightLines.length
 		state.resolvedGame = game
 		state.isStorage = content instanceof StorageAlveolus
+		state.isTransform = content instanceof TransformAlveolus
 		state.storageContent = content instanceof StorageAlveolus ? content : undefined
+		state.transformContent = content instanceof TransformAlveolus ? content : undefined
 		state.isFreightBay =
 			content instanceof StorageAlveolus &&
 			isRoadFretAction(content.action) &&
@@ -147,6 +154,20 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 	})
 
 	const bayTranslator = () => T.bay
+
+	const processBufferEntries = () => {
+		const transform = state.transformContent
+		if (!transform) return []
+		presentationRevisionFor(transform.tile?.uid)
+		return transform.rateEntries.map(([goodType, rate]) => ({
+			goodType,
+			rate,
+			value: transform.processBuffer(goodType),
+		}))
+	}
+
+	const processBufferLabel = (goodType: GoodType, value: number) =>
+		`${goodType} ${Math.round(value * 100)}%`
 
 	const handleAddFreightLine = (mode: FreightLineMode) => {
 		const game = state.resolvedGame
@@ -238,6 +259,24 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 								<LinkedEntityControl object={lineObject} />
 								<InspectorObjectLink object={lineObject} />
 							</div>
+						)}
+					</for>
+				</div>
+			</PropertyGridRow>
+
+			<PropertyGridRow
+				if={state.isTransform && processBufferEntries().length > 0}
+				label={String(T.alveolus.process)}
+			>
+				<div style="display:grid; gap:0.5rem; width:100%;">
+					<for each={processBufferEntries()}>
+						{(entry) => (
+							<ConstructionProgressBar
+								applied={entry.value}
+								total={1}
+								label={processBufferLabel(entry.goodType, entry.value)}
+								testId={`alveolus-process-buffer-${entry.goodType}`}
+							/>
 						)}
 					</for>
 				</div>

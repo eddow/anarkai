@@ -14,6 +14,7 @@ import type { ProposedJob, VehicleProposedJob } from 'ssh/jobs/offers'
 import type { Storage } from 'ssh/storage'
 import type { GoodType } from 'ssh/types'
 import { axial } from 'ssh/utils'
+import { RevisionedCache } from 'ssh/utils/revisioned-cache'
 import { type Position, toAxialCoord } from 'ssh/utils/position'
 import { assert, profile, traces } from '../../dev/debug.ts'
 import { traceProjection } from '../../dev/trace.ts'
@@ -39,6 +40,8 @@ export class VehicleEntity extends withInteractive(GameObject) {
 	public position: Position | undefined
 	public servedLines: FreightLineDefinition[]
 	public service?: VehicleService
+	private readonly proposedJobsCache = new RevisionedCache<readonly VehicleProposedJob[]>()
+	private readonly advertisedJobsCache = new RevisionedCache<readonly ProposedJob[]>()
 	private readonly dockStorageCompletionLifecycle = reactive({ revision: 0 })
 	private dockStorageCompletionEffect?: () => void
 	private dockStorageCompletionScheduled = false
@@ -81,6 +84,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 	}
 
 	private onStorageChanged(): void {
+		this.game.invalidateWorkPlanning('vehicle.storage')
 		const svc = this.service
 		if (isVehicleLineService(svc) && 'anchor' in svc.stop && this.isDocked) {
 			syncFreightVehicleDockRegistration(this)
@@ -180,6 +184,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		const tile = this.dockTile
 		assert(tile, `Vehicle ${this.uid}: cannot restore docked position without anchor tile`)
 		this.position = reactive({ ...tile.position })
+		this.game.invalidateWorkPlanning('vehicle.position')
 		traces.vehicle.log?.('vehicleJob.dock.placement', {
 			vehicleUid: this.uid,
 			outcome: 'restore-position',
@@ -239,7 +244,9 @@ export class VehicleEntity extends withInteractive(GameObject) {
 			vehicleType: this.vehicleType,
 		}))
 		try {
-			return collectVehicleProposedJobs(this.game, this)
+			return this.proposedJobsCache.get(this.game.workPlanningRevision, () =>
+				collectVehicleProposedJobs(this.game, this)
+			)
 		} finally {
 			end?.()
 		}
@@ -251,7 +258,9 @@ export class VehicleEntity extends withInteractive(GameObject) {
 			vehicleType: this.vehicleType,
 		}))
 		try {
-			return collectVehicleAdvertisedJobs(this.game, this)
+			return this.advertisedJobsCache.get(this.game.workPlanningRevision, () =>
+				collectVehicleAdvertisedJobs(this.game, this)
+			)
 		} finally {
 			end?.()
 		}
@@ -309,6 +318,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		}
 		if (previous) previous.setOperatedVehicleFromService(undefined)
 		this.service.operator = operator
+		this.game.invalidateWorkPlanning('vehicle.operator')
 		if (operator) {
 			const currentVehicle = operator.operates
 			if (currentVehicle && currentVehicle.uid !== this.uid) {
@@ -323,6 +333,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		const current = this.service?.operator
 		if (!this.service) return
 		this.service.operator = undefined
+		this.game.invalidateWorkPlanning('vehicle.operator')
 		current?.setOperatedVehicleFromService(undefined)
 		this.pokeDockStorageCompletionLifecycle()
 	}
@@ -330,6 +341,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 	beginLineService(line: FreightLineDefinition, stop: FreightStop, operator?: Character): void {
 		const next: VehicleLineService = { line, stop, docked: false, operator }
 		this.service = next
+		this.game.invalidateWorkPlanning('vehicle.service')
 		syncFreightVehicleDockRegistration(this)
 		this.pokeDockStorageCompletionLifecycle()
 	}
@@ -343,6 +355,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		// Distribute over the discriminated union via the spec helper so each kind keeps its fields.
 		const next = { ...spec, operator } as VehicleMaintenanceService
 		this.service = next
+		this.game.invalidateWorkPlanning('vehicle.service')
 		syncFreightVehicleDockRegistration(this)
 		this.pokeDockStorageCompletionLifecycle()
 	}
@@ -371,6 +384,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		assert('anchor' in svc.stop, `Vehicle ${this.uid}: dock requires an anchor stop`)
 		svc.docked = true
 		this.position = undefined
+		this.game.invalidateWorkPlanning('vehicle.dock')
 		this.traceDockPlacement('clear-position')
 		syncFreightVehicleDockRegistration(this)
 		this.pokeDockStorageCompletionLifecycle()
@@ -382,6 +396,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		if (!isVehicleLineService(svc)) return
 		this.restoreWorldPositionFromDock('undock')
 		svc.docked = false
+		this.game.invalidateWorkPlanning('vehicle.undock')
 		this.traceDockPlacement('undock')
 		syncFreightVehicleDockRegistration(this)
 		this.pokeDockStorageCompletionLifecycle()
@@ -393,6 +408,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		this.restoreWorldPositionFromDock('advance-stop')
 		svc.stop = stop
 		svc.docked = false
+		this.game.invalidateWorkPlanning('vehicle.stop')
 		syncFreightVehicleDockRegistration(this)
 		this.pokeDockStorageCompletionLifecycle()
 	}
@@ -407,6 +423,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		if (isVehicleLineService(this.service)) this.service.docked = false
 		syncFreightVehicleDockRegistration(this)
 		this.service = undefined
+		this.game.invalidateWorkPlanning('vehicle.service')
 		this.pokeDockStorageCompletionLifecycle()
 	}
 

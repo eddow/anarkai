@@ -187,7 +187,7 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 		}
 
 		if (props.content instanceof TransformAlveolus) {
-			const expectedQty = (props.content.action?.inputs?.[good] ?? 0) * inputBufferSize
+			const expectedQty = (props.content.action?.rates?.[good] ?? 0) < 0 ? inputBufferSize : 0
 			return expectedQty > 0 ? expectedQty : undefined
 		}
 		return undefined

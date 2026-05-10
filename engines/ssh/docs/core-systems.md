@@ -129,22 +129,20 @@ guard.cancel() // Release reservation
 
 **Example Transaction:**
 ```typescript
-// Transform: 2 logs -> 1 plank
 const inputGuard = storage.reserve({ logs: 2 })
-const outputGuard = storage.allocate({ planks: 1 })
+const outputGuard = storage.allocate({ planks: 3 })
 
-// Do work...
-await wait(workTime)
-
-// Commit both atomically
+// Later, after the external action succeeds...
 inputGuard.commit()  // Remove logs
-outputGuard.commit() // Add plank
+outputGuard.commit() // Add planks
 ```
 
 This ensures:
 - No double-booking of resources
 - No storage overflow
 - Atomic multi-step transactions
+
+Transforms no longer use this as their main production model. They have an internal process buffer and perform whole-unit storage mutations at load/unload boundaries. See [`./transform.md`](./transform.md).
 
 ---
 
@@ -177,23 +175,25 @@ class TreeChopperAlveolus extends HarvestAlveolus {
 
 #### Transform Alveolus
 
-Converts goods via recipes:
+Processes goods continuously through per-good rates:
 
 ```typescript
 class SawmillAlveolus extends TransformAlveolus {
-  recipe = {
-    inputs: { logs: 2 },
-    outputs: { planks: 1 }
+  rates = {
+    wood: -0.2,
+    planks: 0.2
   }
-  workTime = 3.0
 }
 ```
 
 **Behavior:**
-- Workers check for available inputs
-- Reserve inputs, allocate output space
-- Perform transformation
-- Commit transaction
+- Holds a per-good process buffer in the range `[0, 1]`
+- Loads whole consumed goods from ordinary storage into the process buffer
+- Advances fractional input/output buffers continuously by rate
+- Unloads whole produced goods into ordinary storage when their buffer reaches `1`
+- Pauses at boundaries when inputs are unavailable or output storage is full
+
+See [`./transform.md`](./transform.md) for the detailed runtime model.
 
 #### Gatherer Alveolus
 

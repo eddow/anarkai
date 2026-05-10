@@ -70,8 +70,7 @@ function rulesTestOverrides() {
 				workTime: 2,
 				action: {
 					type: 'transform',
-					inputs: { wood: 1 },
-					output: { planks: 1 },
+					rates: { wood: -0.2, planks: 0.2 },
 				},
 				construction: { goods: { wood: 1 }, time: 1 },
 			},

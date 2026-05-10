@@ -151,9 +151,20 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	 */
 	lastPlannerSnapshot?: PlannerFindActionSnapshot
 	lastWorkPlannerSnapshot?: RankedWorkPlannerSnapshot
+	private workPlannerSnapshotCache:
+		| { revision: number; snapshot: RankedWorkPlannerSnapshot | undefined }
+		| undefined
 
 	get workPlannerSnapshot(): RankedWorkPlannerSnapshot | undefined {
-		return this.buildRankedWorkSnapshot(this.resolveBestJobMatch()) ?? this.lastWorkPlannerSnapshot
+		const revision = this.game.workPlanningRevision
+		if (this.workPlannerSnapshotCache?.revision === revision) {
+			return this.workPlannerSnapshotCache.snapshot ?? this.lastWorkPlannerSnapshot
+		}
+		const ranked = this.rankedWorkCandidates()
+		const match = this.resolveBestJobMatchFrom(ranked)
+		const snapshot = this.buildRankedWorkSnapshotFrom(ranked, match)
+		this.workPlannerSnapshotCache = { revision, snapshot }
+		return snapshot ?? this.lastWorkPlannerSnapshot
 	}
 	// TODO: assigned should become `assignedAlveolus | operates`.
 	private _assignedAlveolus: Alveolus | undefined
@@ -169,6 +180,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 
 		assert(!value !== !current, 'assigned alveolus mismatch')
 		this._assignedAlveolus = value
+		this.game.invalidateWorkPlanning('character.assignment')
 	}
 	private _operatedVehicle?: VehicleEntity
 	public get operates(): VehicleEntity | undefined {
@@ -268,11 +280,13 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		)
 		if (this._footPosition) {
 			this._footPosition = reactive(value)
+			this.game.invalidateWorkPlanning('character.position')
 			traces.position.log?.('character.position.set.after', this.positionTracePayload('after'))
 			return
 		}
 		assert(this.operates, 'position set requires an operated vehicle')
 		this.operates.position = reactive(value)
+		this.game.invalidateWorkPlanning('character.position')
 		traces.position.log?.('character.position.set.after', this.positionTracePayload('after'))
 	}
 
@@ -317,6 +331,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		this._footPosition = reactive({ ...position })
 		if (axial.key(toAxialCoord(previousTile.position)!) === axial.key(coord)) {
 			this._tile = tile
+			this.game.invalidateWorkPlanning('character.position')
 			return
 		}
 		const queueStep = this.game.hex.moveCharacter(this, tile.position, previousTile.position)
@@ -324,11 +339,13 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			if (!this.stepExecutor) {
 				this.stepExecutor = queueStep.onFulfilled(() => {
 					this._tile = tile
+					this.game.invalidateWorkPlanning('character.position')
 				})
 			}
 			return
 		}
 		this._tile = tile
+		this.game.invalidateWorkPlanning('character.position')
 	}
 
 	offboard(): void {
@@ -407,8 +424,10 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		if (queue)
 			return queue.onFulfilled(() => {
 				this._tile = tile
+				this.game.invalidateWorkPlanning('character.position')
 			})
 		this._tile = tile
+		this.game.invalidateWorkPlanning('character.position')
 	}
 
 	get title(): string {
@@ -677,7 +696,13 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	private buildRankedWorkSnapshot(
 		match: { job: Job; targetTile: Tile } | false
 	): RankedWorkPlannerSnapshot | undefined {
-		const ranked = this.rankedWorkCandidates()
+		return this.buildRankedWorkSnapshotFrom(this.rankedWorkCandidates(), match)
+	}
+
+	private buildRankedWorkSnapshotFrom(
+		ranked: readonly RankedWorkCandidate[],
+		match: { job: Job; targetTile: Tile } | false
+	): RankedWorkPlannerSnapshot | undefined {
 		if (ranked.length === 0) return undefined
 		return {
 			ranked: ranked.map((candidate) => {
@@ -700,7 +725,13 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	 */
 	@inert
 	resolveBestJobMatch(): { job: Job; targetTile: Tile; path: AxialCoord[] } | false {
-		const best = this.rankedWorkCandidates()[0]
+		return this.resolveBestJobMatchFrom(this.rankedWorkCandidates())
+	}
+
+	private resolveBestJobMatchFrom(
+		ranked: readonly RankedWorkCandidate[]
+	): { job: Job; targetTile: Tile; path: AxialCoord[] } | false {
+		const best = ranked[0]
 		if (!best) return false
 		return { job: best.job, targetTile: best.targetTile, path: best.path }
 	}
@@ -711,6 +742,10 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	 */
 	findBestJob(): ScriptExecution | false {
 		const match = this.resolveBestJobMatch()
+		return this.startBestJobFrom(match)
+	}
+
+	private startBestJobFrom(match: { job: Job; targetTile: Tile; path: AxialCoord[] } | false) {
 		if (!match) return false
 		if (isVehicleFreightJob(match.job)) {
 			const pos = toAxialCoord(this.position)
@@ -817,8 +852,13 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	findAction() {
 		releaseAllHomeReservations(this.game, this)
 
-		const bestWorkMatch = this.resolveBestJobMatch()
-		const workSnapshot = this.buildRankedWorkSnapshot(bestWorkMatch)
+		const rankedWorkCandidates = this.rankedWorkCandidates()
+		const bestWorkMatch = this.resolveBestJobMatchFrom(rankedWorkCandidates)
+		const workSnapshot = this.buildRankedWorkSnapshotFrom(rankedWorkCandidates, bestWorkMatch)
+		this.workPlannerSnapshotCache = {
+			revision: this.game.workPlanningRevision,
+			snapshot: workSnapshot,
+		}
 		if (workSnapshot) this.lastWorkPlannerSnapshot = workSnapshot
 		const ranked = excludeWanderAfterWanderWhenEmployable(
 			applyActivityHysteresis(
@@ -849,7 +889,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 				return assignedExec
 			}
 			if (bestWorkMatch) {
-				const bestWorkExec = this.findBestJob()
+				const bestWorkExec = this.startBestJobFrom(bestWorkMatch)
 				if (bestWorkExec) {
 					this.lastPickedActivityKind = 'bestWork'
 					this.lastPlannerSnapshot = {

@@ -89,6 +89,7 @@ export class LooseGoods extends withTicked(GameObject) {
 			...options,
 		})
 		this.goods.set(coordKey, [...(this.goods.get(coordKey) || []), good])
+		this.game.invalidateWorkPlanning('loose-good.add')
 
 		// Create sprite after game is loaded
 
@@ -102,6 +103,7 @@ export class LooseGoods extends withTicked(GameObject) {
 
 		const internalGood = good as InternalLooseGood
 		this.removeKnownGood(internalGood)
+		this.game.invalidateWorkPlanning('loose-good.remove')
 
 		// Clean up sprite if it exists (might not exist if removed before game loaded)
 	}

@@ -8,10 +8,13 @@ export type StoragePresentationChangeKind = 'stock' | 'allocation' | 'reservatio
 export type StoragePresentationChangeNotifier = (kind: StoragePresentationChangeKind) => void
 export type StorageGameplayChangeKind = 'stock'
 export type StorageGameplayChangeNotifier = (kind: StorageGameplayChangeKind) => void
+export type StoragePlanningChangeKind = StoragePresentationChangeKind
+export type StoragePlanningChangeNotifier = (kind: StoragePlanningChangeKind) => void
 
 export abstract class Storage extends ReactiveBase {
 	private presentationChangeNotifier: StoragePresentationChangeNotifier | undefined
 	private gameplayChangeNotifier: StorageGameplayChangeNotifier | undefined
+	private planningChangeNotifier: StoragePlanningChangeNotifier | undefined
 
 	setPresentationChangeNotifier(notifier: StoragePresentationChangeNotifier | undefined): void {
 		this.presentationChangeNotifier = notifier
@@ -21,12 +24,20 @@ export abstract class Storage extends ReactiveBase {
 		this.gameplayChangeNotifier = notifier
 	}
 
+	setPlanningChangeNotifier(notifier: StoragePlanningChangeNotifier | undefined): void {
+		this.planningChangeNotifier = notifier
+	}
+
 	protected notifyPresentationChanged(kind: StoragePresentationChangeKind): void {
 		this.presentationChangeNotifier?.(kind)
 	}
 
 	protected notifyGameplayChanged(kind: StorageGameplayChangeKind): void {
 		this.gameplayChangeNotifier?.(kind)
+	}
+
+	protected notifyPlanningChanged(kind: StoragePlanningChangeKind): void {
+		this.planningChangeNotifier?.(kind)
 	}
 
 	/**

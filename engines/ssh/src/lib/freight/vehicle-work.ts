@@ -58,6 +58,7 @@ import type {
 	ZoneBrowseJob,
 } from 'ssh/types/base'
 import { type AxialCoord, axial } from 'ssh/utils'
+import { KeyedRevisionedCache } from 'ssh/utils/revisioned-cache'
 import { toAxialCoord } from 'ssh/utils/position'
 import { maxWalkTime } from '../../../assets/constants'
 import { assert, profile, traces } from '../dev/debug.ts'
@@ -1389,7 +1390,26 @@ function traceNoVehicleWorkPicks(game: Game, character: Character): void {
 }
 
 /** Planner-visible vehicle work: line-hop (incl. approach / begin-service preludes), zone-browse, loose-good offload. */
+const vehicleWorkPicksCache = new KeyedRevisionedCache<string, VehicleWorkPick[]>()
+const vehicleWorkGameCacheIds = new WeakMap<Game, number>()
+let nextVehicleWorkGameCacheId = 1
+
+function vehicleWorkGameCacheId(game: Game): number {
+	const existing = vehicleWorkGameCacheIds.get(game)
+	if (existing !== undefined) return existing
+	const next = nextVehicleWorkGameCacheId++
+	vehicleWorkGameCacheIds.set(game, next)
+	return next
+}
+
 export function collectVehicleWorkPicks(game: Game, character: Character): VehicleWorkPick[] {
+	const key = `${vehicleWorkGameCacheId(game)}:${character.uid}`
+	return vehicleWorkPicksCache.get(key, game.workPlanningRevision, () =>
+		collectVehicleWorkPicksUncached(game, character)
+	)
+}
+
+function collectVehicleWorkPicksUncached(game: Game, character: Character): VehicleWorkPick[] {
 	const end = profile.proposedJobs.begin?.('collectVehicleWorkPicks', () => ({
 		characterUid: character.uid,
 		driving: character.driving,

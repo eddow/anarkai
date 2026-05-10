@@ -62,17 +62,22 @@ The primary loop for extracting raw resources from `UnBuiltLand` (terrain deposi
 **Context:** `work.ts` -> `transformStep`
 
 ### Behavioral Description
-The behavior for converting goods (e.g., Log -> Plank) within a specific Alveolus.
+The behavior for continuously processing goods (for example, wood -> planks) within a specific Alveolus.
 
 1.  **Engagement**: The character positions themselves at the Transformation Alveolus.
 2.  **Production Loop**:
     *   Cycles while `nextJob` is available (supplied by Hive logic).
     *   Executes `transformStep`.
-3.  **Atomic Transaction**:
-    *   **Reserve Input**: Locks the required input goods in the Alveolus storage.
-    *   **Allocate Output**: Reserves space for the resulting output goods.
-    *   **Work**: Waits for `workTime`.
-    *   **Commit**: Consumes inputs and spawns outputs into the storage simultaneously.
+3.  **Continuous Process**:
+    *   Advances the Alveolus' per-good **process buffers** by the configured unit-per-second rates.
+    *   Loads whole consumed units from ordinary storage when an input process buffer reaches `0`.
+    *   Unloads whole produced units into ordinary storage when an output process buffer reaches `1`.
+    *   Pauses only when an input cannot be loaded or an output cannot be unloaded.
+4.  **Boundary Handling**:
+    *   Transform work has no generic preparation wait; `preparationTime` is removed or treated as `0`.
+    *   Loading and unloading become explicit worker-visible `ASingleStep` actions at process-buffer boundaries.
+
+See [`./transform.md`](./transform.md) for the transform model and terminology.
 
 ---
 

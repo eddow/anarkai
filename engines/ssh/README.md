@@ -24,6 +24,7 @@ pnpm --filter ssh test
 - [`./docs/core-systems.md`](./docs/core-systems.md)
 - [`./docs/hive-refresh-and-good-movements.md`](./docs/hive-refresh-and-good-movements.md)
 - [`./docs/npc-behaviors.md`](./docs/npc-behaviors.md)
+- [`./docs/transform.md`](./docs/transform.md)
 - [`./docs/test-engine.md`](./docs/test-engine.md)
 
 ## Current Focus

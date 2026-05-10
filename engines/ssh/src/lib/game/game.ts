@@ -49,6 +49,7 @@ import type { TrackedMovement } from 'ssh/hive/hive'
 import type { MovementRef } from 'ssh/hive/movement-ref'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { readSlottedStorageParams, usesSlottedStorageLayout } from 'ssh/hive/storage-action'
+import { TransformAlveolus } from 'ssh/hive/transform'
 import { Population } from 'ssh/population/population'
 import { type VehicleSerializedState, Vehicles } from 'ssh/population/vehicle'
 import { ResidentialDemandTicker } from 'ssh/residential/demand'
@@ -113,6 +114,7 @@ function hasTerrainProperty(value: unknown): value is { terrain: TerrainType } {
 export interface AlveolusPatch {
 	coord: readonly [number, number]
 	goods?: Partial<Record<GoodType, number>>
+	processBuffers?: Partial<Record<GoodType, number>>
 	alveolus: AlveolusType | 'gather'
 	/** When true, tile hosts a build shell for `alveolus` target, not the finished building. */
 	underConstruction?: boolean
@@ -303,6 +305,7 @@ export class Game extends Eventful<GameEvents> {
 	private interactiveRegistrationBatchDepth = 0
 	private interactiveLifecycleFlushScheduled = false
 	private presentationEventsFlushScheduled = false
+	private _workPlanningRevision = 0
 	private terrainTerraforming: TerrainTerraformPatch[] = []
 	private readonly bootstrapGameplayCoords = new Set<string>()
 	private readonly materializedGameplayCoords = new Map<string, AxialCoord>()
@@ -414,6 +417,14 @@ export class Game extends Eventful<GameEvents> {
 		const event: GamePresentationEvent = { type: 'storage.changed', ownerUid: owner.uid }
 		this.pendingPresentationEvents.set(`${event.type}:${event.ownerUid}`, event)
 		this.schedulePresentationEventsFlush()
+	}
+
+	get workPlanningRevision(): number {
+		return this._workPlanningRevision
+	}
+
+	public invalidateWorkPlanning(_reason: string): void {
+		this._workPlanningRevision++
 	}
 
 	/**
@@ -1227,6 +1238,9 @@ export class Game extends Eventful<GameEvents> {
 				if (a.goods)
 					for (const [good, qty] of Object.entries(a.goods))
 						alv.storage?.addGood(good as GoodType, qty)
+				if (alv instanceof TransformAlveolus) {
+					alv.restoreProcessBuffers(a.processBuffers)
+				}
 				// Restore configuration if present before hive attachment advertises the alveolus.
 				if (a.configuration) {
 					alv.configurationRef = a.configuration.ref
@@ -1435,6 +1449,10 @@ export class Game extends Eventful<GameEvents> {
 								coord: [q, r],
 								alveolus: alveolusName as AlveolusType,
 								goods: content.storage?.stock || {},
+								processBuffers:
+									content instanceof TransformAlveolus
+										? { ...content.processBuffers }
+										: undefined,
 							}
 				// Include configuration if not default hive scope
 				if (content.configurationRef.scope !== 'hive' || content.individualConfiguration) {
@@ -1578,5 +1596,6 @@ export class Game extends Eventful<GameEvents> {
 		this.objects.clear()
 		this.interactiveLifecycleFlushScheduled = false
 		this.presentationEventsFlushScheduled = false
+		this._workPlanningRevision = 0
 	}
 }

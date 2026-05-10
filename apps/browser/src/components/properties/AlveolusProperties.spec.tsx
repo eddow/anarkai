@@ -1,6 +1,10 @@
 import { document, latch } from '@sursaut/core'
 import { reactive } from 'mutts'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+	consumePresentationEvents,
+	resetPresentationRevisionsForTests,
+} from '@app/lib/presentation-events'
 
 const { selectInspectorObject } = vi.hoisted(() => ({
 	selectInspectorObject: vi.fn(),
@@ -20,13 +24,31 @@ const queryConstructionSiteView = vi.fn()
 const replaceFreightLine = vi.fn()
 const removeFreightLineById = vi.fn()
 
-const { MockStorageAlveolus } = vi.hoisted(() => ({
+const { MockStorageAlveolus, MockTransformAlveolus } = vi.hoisted(() => ({
 	MockStorageAlveolus: class MockStorageAlveolus {
 		hive = { name: 'H' }
 		name = 'freight_bay'
 		tile = { position: { q: 0, r: 0 } }
 		working = true
 		action = { type: 'road-fret', kind: 'slotted', slots: 4, capacity: 2 }
+	},
+	MockTransformAlveolus: class MockTransformAlveolus {
+		hive = { name: 'H' }
+		name = 'sawmill'
+		tile = { uid: 'tile:transform', position: { q: 0, r: 0 } }
+		game = { freightLines: [] }
+		working = true
+		action = { type: 'transform', rates: { wood: -0.2, planks: 0.2 } }
+		processBuffers = { wood: 0.4, planks: 0.6 }
+		get rateEntries() {
+			return [
+				['planks', 0.2],
+				['wood', -0.2],
+			]
+		}
+		processBuffer(goodType: 'wood' | 'planks') {
+			return this.processBuffers[goodType]
+		}
 	},
 }))
 
@@ -59,6 +81,10 @@ vi.mock('ssh/hive/storage', () => ({
 	StorageAlveolus: MockStorageAlveolus,
 }))
 
+vi.mock('ssh/hive/transform', () => ({
+	TransformAlveolus: MockTransformAlveolus,
+}))
+
 vi.mock('ssh/hive/build', () => ({
 	BuildAlveolus: MockBuildAlveolus,
 }))
@@ -83,6 +109,7 @@ vi.mock('@app/lib/i18n', () => {
 			},
 			alveolus: {
 				commands: 'Commands',
+				process: 'Process',
 				workingTooltip: 'Working',
 			},
 			goods: {
@@ -149,6 +176,7 @@ describe('AlveolusProperties', () => {
 	})
 
 	beforeEach(() => {
+		resetPresentationRevisionsForTests()
 		container = document.createElement('div')
 		document.body.appendChild(container)
 		findFreightLinesForStop.mockClear()
@@ -305,5 +333,53 @@ describe('AlveolusProperties', () => {
 		expect(container.textContent).toContain('Construction site is paused')
 		expect(container.querySelector('[data-testid="alveolus-construction-progress"]')).not.toBeNull()
 		expect(container.querySelector('[data-testid="stored-goods-row-Materials"]')).not.toBeNull()
+	})
+
+	it('renders transform process buffers separately from stored goods', () => {
+		stop = latch(
+			container,
+			<table>
+				<tbody>
+					<AlveolusProperties
+						content={new MockTransformAlveolus() as never}
+						game={{ freightLines: [], vehicles: [] } as never}
+					/>
+				</tbody>
+			</table>
+		)
+
+		expect(container.querySelector('[data-testid="row-Process"]')).not.toBeNull()
+		expect(container.querySelector('[data-testid="alveolus-process-buffer-wood"]')).not.toBeNull()
+		expect(container.querySelector('[data-testid="alveolus-process-buffer-planks"]')).not.toBeNull()
+		expect(container.querySelector('[data-testid="stored-goods-row-Stored"]')).not.toBeNull()
+	})
+
+	it('refreshes transform process buffers from presentation events', async () => {
+		const transform = new MockTransformAlveolus()
+		stop = latch(
+			container,
+			<table>
+				<tbody>
+					<AlveolusProperties
+						content={transform as never}
+						game={{ freightLines: [], vehicles: [] } as never}
+					/>
+				</tbody>
+			</table>
+		)
+
+		const woodLabel = () =>
+			container.querySelector('[data-testid="alveolus-process-buffer-wood"]')?.textContent
+
+		expect(woodLabel()).toContain('40%')
+
+		transform.processBuffers.wood = 0.8
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		expect(woodLabel()).toContain('40%')
+
+		consumePresentationEvents([{ type: 'storage.changed', ownerUid: 'tile:transform' }])
+		await new Promise((resolve) => setTimeout(resolve, 0))
+
+		expect(woodLabel()).toContain('80%')
 	})
 })

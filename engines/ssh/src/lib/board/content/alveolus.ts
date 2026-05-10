@@ -1,5 +1,5 @@
 import { configurations, harvestFatiguePremium, jobBalance } from 'engine-rules'
-import { inert, memoize, reactive, unreactive, unwrap } from 'mutts'
+import { inert, reactive, unreactive, unwrap } from 'mutts'
 import { isTileCoord } from 'ssh/board/tile-coord'
 import { traces } from 'ssh/dev/debug'
 import type { Hive, MovementSelection, TrackedMovement } from 'ssh/hive/hive'
@@ -9,6 +9,7 @@ import { gameIsaTypes } from 'ssh/npcs/utils'
 import type { Character } from 'ssh/population/character'
 import type { Storage } from 'ssh/storage/storage'
 import type { GoodType, Job } from 'ssh/types/base'
+import { KeyedRevisionedCache, RevisionedCache } from 'ssh/utils/revisioned-cache'
 import { type AxialCoord, axial, tileSize } from 'ssh/utils'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
 import { toAxialCoord, toWorldCoord } from 'ssh/utils/position'
@@ -37,10 +38,16 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		if (value === current) return
 		assert(!value !== !this._assignedWorker, 'assigned worker mismatch')
 		this._assignedWorker = value
+		this.hive?.invalidateConveyPlanning?.('alveolus.assigned-worker')
 	}
 	public tile: Tile
 	public declare hive: Hive
 	public storage: Storage
+	private readonly conveyNearbyCache = new RevisionedCache<boolean>()
+	private readonly incomingGoodsCache = new RevisionedCache<boolean>()
+	private readonly goodMovementCache = new RevisionedCache<MovementSelection[] | undefined>()
+	private readonly jobByCharacterCache = new KeyedRevisionedCache<string, Job | undefined>()
+	private readonly proposedJobsCache = new RevisionedCache<readonly AlveolusProposedJob[]>()
 	// Configurable properties removed - walkway and conveyor are no longer used
 
 	/**
@@ -111,6 +118,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		}
 		this.individualConfiguration.working = value
 		this.hive?.invalidateAdvertisement?.(this, 'alveolus.config')
+		this.hive?.invalidateConveyPlanning?.('alveolus.config')
 	}
 
 	constructor(tile: Tile, storage: Storage) {
@@ -123,6 +131,9 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		})
 		this.storage.setGameplayChangeNotifier(() =>
 			this.hive?.invalidateAdvertisement?.(this, 'storage.stock')
+		)
+		this.storage.setPlanningChangeNotifier((kind) =>
+			this.hive?.invalidateConveyPlanning?.(`storage.${kind}`)
 		)
 
 		// Building gates will now happen during hive attachment
@@ -173,8 +184,6 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		return false
 	}
 
-	// REHABILITATED MEMOIZE
-	@memoize
 	get isBurdened(): boolean {
 		// Only consider available (unreserved) goods for burden check
 		// This prevents offering offload jobs for goods that are already being picked up
@@ -184,6 +193,12 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	}
 
 	protected get hasConveyNearby(): boolean {
+		return this.conveyNearbyCache.get(this.hive.conveyPlanningRevision, () =>
+			this.computeHasConveyNearby()
+		)
+	}
+
+	private computeHasConveyNearby(): boolean {
 		const here = toAxialCoord(this.tile.position)!
 		return (
 			!!this.hive.movingGoods.get(here)?.length ||
@@ -201,6 +216,12 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	}
 
 	get proposedJobs(): readonly AlveolusProposedJob[] {
+		return this.proposedJobsCache.get(this.game.workPlanningRevision, () =>
+			this.computeProposedJobs()
+		)
+	}
+
+	private computeProposedJobs(): readonly AlveolusProposedJob[] {
 		if (this.tile.isBurdened && !this.hasConveyNearby) return []
 		const carry = this.conveyJob()
 		if (carry) return [asAlveolusProposedJob(carry, this)]
@@ -221,6 +242,21 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	getJob(character?: Character): Job | undefined {
 		const assignedWorker = this.assignedWorker ? unwrap(this.assignedWorker) : undefined
 		const currentCharacter = character ? unwrap(character) : undefined
+		const key = [
+			currentCharacter?.uid ?? '',
+			assignedWorker?.uid ?? '',
+			this.tile.isBurdened ? 'burdened' : 'free',
+			this.working ? 'working' : 'stopped',
+		].join('|')
+		return this.jobByCharacterCache.get(key, this.hive.conveyPlanningRevision, () =>
+			this.computeJobForCharacter(currentCharacter, assignedWorker)
+		)
+	}
+
+	private computeJobForCharacter(
+		currentCharacter: Character | undefined,
+		assignedWorker: Character | undefined
+	): Job | undefined {
 		if (assignedWorker && assignedWorker.uid !== currentCharacter?.uid) {
 			if (this.hasConveyNearby) {
 				traces.convey.log?.(`[getJob] skip assigned-worker ${this.name}`, {
@@ -289,6 +325,12 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	 * - Returns undefined if no movements available
 	 */
 	get aGoodMovement(): MovementSelection[] | undefined {
+		return this.goodMovementCache.get(this.hive.conveyPlanningRevision, () =>
+			this.computeGoodMovement()
+		)
+	}
+
+	private computeGoodMovement(): MovementSelection[] | undefined {
 		const hive = this.hive
 		const here = toAxialCoord(this.tile.position)!
 		const blocked: MovementSelection[] = []
@@ -498,7 +540,9 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	}
 
 	get incomingGoods(): boolean {
-		return this.hive.hasIncomingMovementFor(this)
+		return this.incomingGoodsCache.get(this.hive.conveyPlanningRevision, () =>
+			this.hive.hasIncomingMovementFor(this)
+		)
 	}
 
 	private conveyJob(): Job | undefined {

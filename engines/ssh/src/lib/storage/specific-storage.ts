@@ -96,6 +96,7 @@ export class SpecificStorage extends Storage {
 		if (toStore > 0) {
 			this.notifyPresentationChanged('stock')
 			this.notifyGameplayChanged('stock')
+			this.notifyPlanningChanged('stock')
 		}
 		return toStore
 	}
@@ -122,6 +123,7 @@ export class SpecificStorage extends Storage {
 		if (toRemove > 0) {
 			this.notifyPresentationChanged('stock')
 			this.notifyGameplayChanged('stock')
+			this.notifyPlanningChanged('stock')
 		}
 		return toRemove
 	}
@@ -212,6 +214,7 @@ export class SpecificStorage extends Storage {
 			this.assertIntegrity('SpecificStorage.allocate.fulfill.after')
 			this.notifyPresentationChanged('stock')
 			this.notifyGameplayChanged('stock')
+			this.notifyPlanningChanged('stock')
 		})
 
 		commitment.onCancelled(() => {
@@ -224,10 +227,12 @@ export class SpecificStorage extends Storage {
 			}
 			this.assertIntegrity('SpecificStorage.allocate.cancel.after')
 			this.notifyPresentationChanged('allocation')
+			this.notifyPlanningChanged('allocation')
 		})
 
 		this.assertIntegrity('SpecificStorage.allocate.after')
 		this.notifyPresentationChanged('allocation')
+		this.notifyPlanningChanged('allocation')
 		return undefined
 	}
 
@@ -277,6 +282,7 @@ export class SpecificStorage extends Storage {
 			this.assertIntegrity('SpecificStorage.reserve.fulfill.after')
 			this.notifyPresentationChanged('stock')
 			this.notifyGameplayChanged('stock')
+			this.notifyPlanningChanged('stock')
 		})
 
 		commitment.onCancelled(() => {
@@ -289,10 +295,12 @@ export class SpecificStorage extends Storage {
 			}
 			this.assertIntegrity('SpecificStorage.reserve.cancel.after')
 			this.notifyPresentationChanged('reservation')
+			this.notifyPlanningChanged('reservation')
 		})
 
 		this.assertIntegrity('SpecificStorage.reserve.after')
 		this.notifyPresentationChanged('reservation')
+		this.notifyPlanningChanged('reservation')
 		return undefined
 	}
 

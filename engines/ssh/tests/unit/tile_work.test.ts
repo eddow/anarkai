@@ -1,7 +1,7 @@
 import { createAlveolus } from 'ssh/hive'
 import { collectTileWorkPicks } from 'ssh/tile-work'
 import { axial, toAxialCoord } from 'ssh/utils'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TestEngine } from '../test-engine/engine'
 
 describe('tile work picks', () => {
@@ -97,6 +97,33 @@ describe('tile work picks', () => {
 		expect(transform).toBeDefined()
 		expect(transform?.source).toBe('tile')
 		expect(transform?.character.uid).toBe(worker.uid)
+	})
+
+	it('reuses cached tile work choices and pathfinding until work planning changes', async () => {
+		const testEngine = await setupEngine()
+		const game = testEngine.game
+		game.population.createCharacter('Worker', { q: 0, r: 0 })
+		const tile = game.hex.getTile({ q: 0, r: 1 })
+		if (!tile) throw new Error('test setup missing sawmill tile')
+
+		const sawmill = createAlveolus('sawmill', tile)
+		if (!sawmill) throw new Error('sawmill alveolus missing')
+		tile.content = sawmill
+		sawmill.storage.addGood('wood', 1)
+
+		const findPathSpy = vi.spyOn(game.hex, 'findPathForCharacter')
+		const first = collectTileWorkPicks(game, tile)
+		const callsAfterFirst = findPathSpy.mock.calls.length
+		const second = collectTileWorkPicks(game, tile)
+
+		expect(first).toBe(second)
+		expect(findPathSpy.mock.calls.length).toBe(callsAfterFirst)
+
+		game.invalidateWorkPlanning('test')
+		const third = collectTileWorkPicks(game, tile)
+
+		expect(third).not.toBe(first)
+		expect(findPathSpy.mock.calls.length).toBeGreaterThan(callsAfterFirst)
 	})
 
 	it('includes vehicle offload jobs whose target coordinate is the selected tile', async () => {

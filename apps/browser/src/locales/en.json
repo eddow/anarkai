@@ -110,6 +110,8 @@
 		"conveyorTooltip": "Allow unrelated goods to pass through this alveolus",
 		"commands": "Commands",
 		"working": "Working",
+		"process": "Process",
+		"processBuffer": "Process buffer",
 		"workingTooltip": "Toggle working state",
 		"cleanUp": "Clean up",
 		"cleanUpTooltip": "Empty all stored goods",

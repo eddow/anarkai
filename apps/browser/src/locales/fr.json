@@ -110,6 +110,8 @@
 		"conveyorTooltip": "Permettre aux marchandises non liées de passer à travers cette alvéole",
 		"commands": "Commandes",
 		"working": "En fonctionnement",
+		"process": "Processus",
+		"processBuffer": "Tampon de processus",
 		"workingTooltip": "Basculer l'état de fonctionnement",
 		"cleanUp": "Nettoyer",
 		"cleanUpTooltip": "Vider tous les stocks",

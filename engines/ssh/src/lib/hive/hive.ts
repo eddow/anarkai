@@ -61,6 +61,7 @@ import type { StorageAlveolus } from './storage'
 
 type AdvertisementInvalidationReason =
 	| 'storage.stock'
+	| 'transform.processBuffer'
 	| 'movement.lifecycle'
 	| 'alveolus.config'
 	| 'dock.lifecycle'
@@ -346,6 +347,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 	private pendingMovementSourceQuantities = new Map<string, number>()
 	private pendingMovementTargetQuantities = new Map<string, number>()
 	private activeMovements = new Set<TrackedMovement>()
+	private _conveyPlanningRevision = 0
 	private readonly freightVehicleDocks = new Map<string, VehicleFreightDock>()
 	// Path cache for complete paths between alveoli
 	private pathCache = new Map<string, AxialCoord[]>()
@@ -434,6 +436,15 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 	private readonly runtimeEffects: ScopedCallback[] = []
 	private readonly gates = new Set<AlveolusGate>()
 
+	get conveyPlanningRevision(): number {
+		return this._conveyPlanningRevision
+	}
+
+	public invalidateConveyPlanning(_reason: string): void {
+		this._conveyPlanningRevision++
+		this.board.game.invalidateWorkPlanning('convey')
+	}
+
 	public invalidateAdvertisement(
 		party: FreightMovementParty | undefined,
 		reason: AdvertisementInvalidationReason
@@ -501,6 +512,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 	/** Registers a docked wheelbarrow endpoint for bay↔vehicle convey matching. */
 	registerFreightVehicleDock(dock: VehicleFreightDock): void {
 		this.freightVehicleDocks.set(dock.vehicle.uid, dock)
+		this.invalidateConveyPlanning('dock.lifecycle')
 		this.invalidateAdvertisements([dock, dock.bay], 'dock.lifecycle')
 	}
 
@@ -511,6 +523,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		this.freightVehicleDocks.delete(vehicleUid)
 		this.pendingAdvertisementReasons.delete(dock)
 		this.advertise(dock, {})
+		this.invalidateConveyPlanning('dock.lifecycle')
 		this.invalidateAdvertisement(dock.bay, 'dock.lifecycle')
 	}
 
@@ -531,6 +544,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		for (const gate of alveolus.gates) this.gates.add(gate)
 		alveolus.hive = this
 		this.invalidatePathCache()
+		this.invalidateConveyPlanning('hive.attach')
 		this.invalidateAdvertisement(alveolus, 'hive.attach')
 		if (this.isGeneralStorageAlveolus(alveolus)) {
 			this.postStep(() => {
@@ -593,6 +607,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 	public markTopologyRefreshPending() {
 		if (this.destroyed) return
 		this.reconstructing = true
+		this.invalidateConveyPlanning('topology.refresh')
 		for (const movement of this.activeMovements) {
 			movement.refreshState = 'suspended-refresh'
 			movement._state = transitionMovement(movement._state, MovementState.suspended)
@@ -603,6 +618,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		this.markTopologyRefreshPending()
 		this.alveoli.delete(alveolus)
 		this.invalidatePathCache()
+		this.invalidateConveyPlanning('hive.detach')
 	}
 
 	public flushTopologyRefreshBatch(hives: Set<Hive>) {
@@ -2148,6 +2164,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			this.from = nextCoord
 			hive.noteMovementStorageCheckpoint(this, 'movement.hop.after.storage', nextCoord)
 			hive.noteMovementLifecycle(this, `movement.hop.after:${axial.key(nextCoord)}`)
+			hive.invalidateConveyPlanning('movement.hop')
 			hive.invalidateAdvertisements([this.provider, this.demander], 'movement.lifecycle')
 			traces.convey.log?.(
 				`[HOP] ${this.goodType} ${this.provider.name} -> ${this.demander.name} to ${nextCoord.q},${nextCoord.r} (path left: ${this.path.length})`
@@ -2347,6 +2364,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			hive.noteMovementLifecycle(this, 'movement.finish.after')
 			this._state = transitionMovement(this._state, MovementState.completed)
 			hive.activeMovements.delete(this)
+			hive.invalidateConveyPlanning('movement.finish')
 			traces.convey.log?.(
 				`[FINISH] ${this.goodType} ${this.provider.name} -> ${this.demander.name}`
 			)
@@ -2372,6 +2390,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			delete this.claimedAtMs
 			hive.forgetMovementTracking(this)
 			hive.noteMovementLifecycle(this, 'movement.abort.remove-tracking.after')
+			hive.invalidateConveyPlanning('movement.abort')
 			hive.invalidateAdvertisements([this.provider, this.demander], 'movement.lifecycle')
 			hive.noteMovementLifecycle(this, 'movement.abort.after')
 		}
@@ -2525,6 +2544,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			return
 		}
 		this.movingGoods.set(coord, [...current, mg])
+		this.invalidateConveyPlanning('movement.track')
 	}
 
 	private replaceMovementTracking(mg: TrackedMovement, coord: AxialCoord) {
@@ -2532,24 +2552,29 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		this.activeMovements.add(mg)
 		const current = this.movingGoods.get(coord) ?? []
 		this.movingGoods.set(coord, [...current, mg])
+		this.invalidateConveyPlanning('movement.track')
 	}
 
 	private removeMovementFromCoordTracking(mg: TrackedMovement) {
+		let removed = false
 		for (const [coord, goods] of [...this.movingGoods.entries()]) {
 			const kept = goods.filter(
 				(candidate): candidate is TrackedMovement =>
 					!!candidate && !this.movementIdentityMatches(candidate, mg)
 			)
 			if (kept.length !== goods.length) {
+				removed = true
 				if (kept.length === 0) this.movingGoods.delete(coord)
 				else this.movingGoods.set(coord, kept)
 			}
 		}
+		if (removed) this.invalidateConveyPlanning('movement.untrack')
 	}
 
 	private forgetMovementTracking(mg: TrackedMovement) {
-		this.activeMovements.delete(mg)
+		const wasActive = this.activeMovements.delete(mg)
 		this.removeMovementFromCoordTracking(mg)
+		if (wasActive) this.invalidateConveyPlanning('movement.forget')
 	}
 
 	private preferredBorderOffloadTile(mg: TrackedMovement, coord: AxialCoord): Tile {
@@ -2592,19 +2617,23 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		const tile = this.preferredBorderOffloadTile(mg, coord)
 		this.board.looseGoods.add(tile, mg.goodType)
 
+		let removedTracking = false
 		for (const [movementCoord, goods] of this.movingGoods.entries()) {
 			const kept = goods.filter(
 				(candidate): candidate is TrackedMovement =>
 					!!candidate && !this.movementIdentityMatches(candidate, mg)
 			)
 			if (kept.length !== goods.length) {
+				removedTracking = true
 				if (kept.length === 0) this.movingGoods.delete(movementCoord)
 				else this.movingGoods.set(movementCoord, kept)
 			}
 		}
+		if (removedTracking) this.invalidateConveyPlanning('movement.offload')
 		mg.claimed = false
 		delete mg.claimedBy
 		delete mg.claimedAtMs
+		this.invalidateConveyPlanning('movement.offload')
 		this.invalidateAdvertisements([mg.provider, mg.demander], 'movement.lifecycle')
 		this.wakeWanderingWorkersNear(mg.provider, mg.demander)
 		traces.advertising.warn?.('[WATCHDOG] Offloaded broken border movement', {
@@ -2667,16 +2696,19 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			return
 		}
 
+		let removedTracking = false
 		for (const [coord, goods] of this.movingGoods.entries()) {
 			const kept = goods.filter(
 				(candidate): candidate is TrackedMovement =>
 					!!candidate && !this.movementIdentityMatches(candidate, mg)
 			)
 			if (kept.length !== goods.length) {
+				removedTracking = true
 				if (kept.length === 0) this.movingGoods.delete(coord)
 				else this.movingGoods.set(coord, kept)
 			}
 		}
+		if (removedTracking) this.invalidateConveyPlanning('movement.discard')
 		mg.claimed = false
 		delete mg.claimedBy
 		delete mg.claimedAtMs
@@ -2686,6 +2718,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		try {
 			mg.allocations?.target?.cancel('discard.target')
 		} catch {}
+		this.invalidateConveyPlanning('movement.discard')
 		this.invalidateAdvertisements([mg.provider, mg.demander], 'movement.lifecycle')
 		this.wakeWanderingWorkersNear(mg.provider, mg.demander)
 	}

@@ -21,6 +21,7 @@ export class Vehicles extends withContainer(GameObject) {
 			const vehicle = new VehicleEntity(this.game, uid, vehicleType, position, servedLines)
 			this.items.set(uid, vehicle)
 			this.add(vehicle)
+			this.game.invalidateWorkPlanning('vehicle.create')
 			return vehicle
 		})
 	}
@@ -34,6 +35,7 @@ export class Vehicles extends withContainer(GameObject) {
 		if (!vehicle) return false
 		this.items.delete(uid)
 		this.delete(vehicle)
+		this.game.invalidateWorkPlanning('vehicle.remove')
 		return true
 	}
 

@@ -23,8 +23,7 @@ declare namespace Ssh {
 
 	interface TransformationAction {
 		type: 'transform'
-		inputs: Record<string, number>
-		output: Record<string, number>
+		rates: Record<string, number>
 	}
 	interface EngineerAction {
 		type: 'engineer'

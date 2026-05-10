@@ -31,6 +31,7 @@ export class Population extends withContainer(withHittable(GameObject)) {
 			const character = new Character(this.game, characterUid, name, coord)
 			this.characters.set(characterUid, character)
 			this.add(character)
+			this.game.invalidateWorkPlanning('population.create')
 			return character
 		})
 	}
@@ -46,6 +47,7 @@ export class Population extends withContainer(withHittable(GameObject)) {
 		if (character) {
 			this.characters.delete(uid)
 			this.delete(character)
+			this.game.invalidateWorkPlanning('population.remove')
 			return true
 		}
 		return false

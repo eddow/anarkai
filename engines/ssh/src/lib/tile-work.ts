@@ -5,6 +5,7 @@ import type { Character } from 'ssh/population/character'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import type { Job } from 'ssh/types/base'
 import { type AxialCoord, axial, toAxialCoord } from 'ssh/utils'
+import { KeyedRevisionedCache } from 'ssh/utils/revisioned-cache'
 import { maxWalkTime } from '../../assets/constants'
 
 /** Default cap for `collectTileWorkPicks`; keep in sync with tile inspector. */
@@ -53,6 +54,31 @@ function pathToTile(character: Character, tile: Tile): AxialCoord[] | undefined 
 	)
 }
 
+const pathToTileCache = new KeyedRevisionedCache<string, AxialCoord[] | undefined>()
+const tileWorkPicksCache = new KeyedRevisionedCache<string, TileWorkPick[]>()
+const gameCacheIds = new WeakMap<Game, number>()
+let nextGameCacheId = 1
+
+function gameCacheId(game: Game): number {
+	const existing = gameCacheIds.get(game)
+	if (existing !== undefined) return existing
+	const next = nextGameCacheId++
+	gameCacheIds.set(game, next)
+	return next
+}
+
+function populationKey(game: Game): string {
+	return Array.from(game.population, (character) => character.uid).join(',')
+}
+
+function cachedPathToTile(character: Character, tile: Tile): AxialCoord[] | undefined {
+	const start = axial.round(toAxialCoord(character.position)!)
+	const key = `${gameCacheId(character.game)}:${character.uid}:${tile.uid}:${axial.key(start)}`
+	return pathToTileCache.get(key, character.game.workPlanningRevision, () =>
+		pathToTile(character, tile)
+	)
+}
+
 function vehiclePlannerPathLength(job: VehicleWorkPick['job']): number {
 	return job.approachPath?.length ?? 0
 }
@@ -77,12 +103,23 @@ export function collectTileWorkPicks(
 	if (!(tile instanceof Tile)) return []
 	const selectedCoord = toAxialCoord(tile.position)
 	if (!selectedCoord) return []
+	const key = `${gameCacheId(game)}:${tile.uid}:${limit}:${populationKey(game)}`
+	return tileWorkPicksCache.get(key, game.workPlanningRevision, () =>
+		collectTileWorkPicksUncached(game, tile, limit, selectedCoord)
+	)
+}
 
+function collectTileWorkPicksUncached(
+	game: Game,
+	tile: Tile,
+	limit: number,
+	selectedCoord: AxialCoord
+): TileWorkPick[] {
 	const choices: TileWorkPick[] = []
 	for (const character of game.population) {
 		const directJob = tile.getJob(character)
 		if (directJob) {
-			const directPath = pathToTile(character, tile)
+			const directPath = cachedPathToTile(character, tile)
 			if (directPath) {
 				const pathLength = directPath.length
 				choices.push({
