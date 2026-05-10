@@ -2,12 +2,18 @@ import { document, latch } from '@sursaut/core'
 import { reactive } from 'mutts'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const queryConstructionSiteView = vi.fn(() => undefined)
+
 class MockAlveolus {}
 class MockBasicDwelling {}
 class MockBuildAlveolus extends MockAlveolus {
 	target = 'storage'
 	name = 'build.storage'
 	title = 'Build storage'
+	constructionSite = { target: { kind: 'alveolus', alveolusType: 'storage' } }
+	requiredGoods = { wood: 2 }
+	storage = { stock: {} }
+	constructionWorkSecondsApplied = 0
 }
 class MockBuildDwelling {}
 class MockUnBuiltLand {
@@ -96,7 +102,7 @@ vi.mock('ssh/utils/images', () => ({
 }))
 
 vi.mock('ssh/construction', () => ({
-	queryConstructionSiteView: vi.fn(() => undefined),
+	queryConstructionSiteView,
 }))
 
 vi.mock('./AlveolusProperties', () => ({
@@ -165,8 +171,20 @@ vi.mock('./TileWorkProperties', () => ({
 }))
 
 vi.mock('../storage/StoredGoodsRow', () => ({
-	default: (props: { if?: boolean; label?: string }) =>
-		props.if === false ? null : <div data-testid={`stored-goods-${props.label ?? 'unknown'}`} />,
+	default: (props: {
+		if?: boolean
+		label?: string
+		content?: { requiredGoods?: Record<string, number>; storage?: { stock?: Record<string, number> } }
+	}) =>
+		props.if === false ? null : (
+			<div data-testid={`stored-goods-${props.label ?? 'unknown'}`}>
+				{Object.entries(props.content?.requiredGoods ?? {}).map(([good, qty]) => (
+					<span data-testid={`tile-construction-material-${good}`} key={good}>
+						{good} {(props.content?.storage?.stock?.[good] ?? 0)}/{qty}
+					</span>
+				))}
+			</div>
+		),
 }))
 
 vi.mock('./UnBuiltProperties', () => ({
@@ -184,6 +202,8 @@ describe('TileProperties', () => {
 	})
 
 	beforeEach(() => {
+		queryConstructionSiteView.mockReset()
+		queryConstructionSiteView.mockReturnValue(undefined)
 		container = document.createElement('div')
 		document.body.appendChild(container)
 	})
@@ -271,6 +291,34 @@ describe('TileProperties', () => {
 		expect(
 			container.querySelector('[data-testid="working-indicator"]')?.getAttribute('data-burdened')
 		).toBe('true')
+	})
+
+	it('renders construction shell needed goods in the tile properties materials row', () => {
+		queryConstructionSiteView.mockReturnValue({
+			phase: 'waiting_materials',
+			blockingReasons: ['missing_goods'],
+			constructionWorkSecondsApplied: 0,
+			constructionTotalSeconds: 4,
+		})
+		const tile = reactive({
+			content: new MockBuildAlveolus(),
+			isBurdened: false,
+			looseGoods: [],
+			board: {
+				game: {
+					loaded: Promise.resolve(),
+					getTexture: vi.fn(() => undefined),
+				},
+			},
+		})
+
+		stop = latch(container, <TileProperties tile={tile as never} />)
+
+		expect(container.textContent).toContain('Construction')
+		expect(container.querySelector('[data-testid="stored-goods-Materials"]')).not.toBeNull()
+		expect(
+			container.querySelector('[data-testid="tile-construction-material-wood"]')?.textContent
+		).toBe('wood 0/2')
 	})
 
 	it('does not throw when an alveolus tile changes to unbuilt content after mount', () => {

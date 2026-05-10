@@ -17,6 +17,7 @@ import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import type { TileContent } from 'ssh/board/content/content'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
+import { isConstructionSiteShell } from 'ssh/build-site'
 import { queryConstructionSiteView } from 'ssh/construction'
 import { BuildAlveolus } from 'ssh/hive/build'
 import type { GoodType } from 'ssh/types/base'
@@ -108,6 +109,11 @@ type TileContentCase =
 			content: BuildDwelling
 	  }
 	| {
+			kind: 'constructionShell'
+			content: TileContent
+			visualType?: keyof typeof visualAlveoli
+	  }
+	| {
 			kind: 'unbuilt'
 			content: UnBuiltLand
 	  }
@@ -120,9 +126,19 @@ const tileContentCase = (content: Tile['content']): TileContentCase | undefined 
 	if (!content) return
 	if (content instanceof BuildAlveolus) {
 		return {
-			kind: 'alveolus',
+			kind: 'constructionShell',
 			content,
 			visualType: content.target as keyof typeof visualAlveoli,
+		}
+	}
+	if (isConstructionSiteShell(content)) {
+		return {
+			kind: 'constructionShell',
+			content,
+			visualType:
+				content.constructionSite.target.kind === 'alveolus'
+					? (content.constructionSite.target.alveolusType as keyof typeof visualAlveoli)
+					: undefined,
 		}
 	}
 	if (content instanceof Alveolus) {
@@ -161,7 +177,10 @@ const resolveTileTerrainForContentCase = (
 	contentCase: TileContentCase
 ): string => {
 	const terrain = resolveTileTerrain(tile)
-	if (contentCase.kind === 'alveolus' && terrain === 'grass') {
+	if (
+		(contentCase.kind === 'alveolus' || contentCase.kind === 'constructionShell') &&
+		terrain === 'grass'
+	) {
 		// Backward-compatible inspector fallback for older states where alveolus tiles
 		// were concrete visually but no explicit terrain patch was persisted.
 		return 'concrete'
@@ -178,8 +197,16 @@ interface TileContentHeaderProps {
 const TileContentHeader = (props: TileContentHeaderProps) => (
 	<>
 		<AlveolusTileHeader
-			if={props.contentCase?.kind === 'alveolus'}
-			contentCase={props.contentCase as Extract<TileContentCase, { kind: 'alveolus' }>}
+			if={
+				props.contentCase?.kind === 'alveolus' ||
+				props.contentCase?.kind === 'constructionShell'
+			}
+			contentCase={
+				props.contentCase as Extract<
+					TileContentCase,
+					{ kind: 'alveolus' | 'constructionShell' }
+				>
+			}
 			game={props.game}
 			tile={props.tile}
 		/>
@@ -193,7 +220,7 @@ const TileContentHeader = (props: TileContentHeaderProps) => (
 )
 
 interface AlveolusTileHeaderProps {
-	contentCase?: Extract<TileContentCase, { kind: 'alveolus' }>
+	contentCase?: Extract<TileContentCase, { kind: 'alveolus' | 'constructionShell' }>
 	game?: TileGame
 	tile: Tile
 }
@@ -365,8 +392,11 @@ interface TileContentDetailsProps {
 const TileContentDetails = (props: TileContentDetailsProps) => (
 	<>
 		<BuildDwellingTileDetails
-			if={props.contentCase?.kind === 'buildDwelling'}
-			content={props.contentCase?.content as BuildDwelling}
+			if={
+				props.contentCase?.kind === 'buildDwelling' ||
+				props.contentCase?.kind === 'constructionShell'
+			}
+			content={props.contentCase?.content as TileContent}
 			game={props.game}
 			tile={props.tile}
 		/>
@@ -391,7 +421,7 @@ const TileContentDetails = (props: TileContentDetailsProps) => (
 )
 
 interface BuildDwellingTileDetailsProps {
-	content: BuildDwelling
+	content: TileContent
 	game?: TileGame
 	tile: Tile
 }
@@ -444,7 +474,7 @@ const BuildDwellingTileDetails = (props: BuildDwellingTileDetailsProps) => {
 			</PropertyGridRow>
 			<StoredGoodsRow
 				if={props.game}
-				content={props.content}
+				content={props.content as never}
 				game={props.game!}
 				label={T.construction.materials}
 			/>

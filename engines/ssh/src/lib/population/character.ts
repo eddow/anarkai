@@ -454,6 +454,10 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	private workExecution(job: Job, targetTile: Tile, path: AxialCoord[]): ScriptExecution {
 		const source =
 			'source' in job && job.source && typeof job.source === 'object' ? job.source : undefined
+		let currentJobPath =
+			'path' in job && Array.isArray(job.path)
+				? job.path.map((step) => toAxialCoord(step)).filter((step): step is AxialCoord => !!step)
+				: undefined
 		job = executableJob(job)
 		const safePath = path.filter((step): step is AxialCoord => !!step)
 		if (isVehicleFreightJob(job)) {
@@ -470,17 +474,31 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			}
 			return this.scriptsContext.work.goWork(workPlan)
 		}
-		const jobProvider =
+		const sourceAlveolus =
 			source && 'kind' in source && source.kind === 'alveolus' && 'alveolus' in source
-				? source.alveolus
+				? (source.alveolus as Alveolus)
+				: undefined
+		const jobProvider =
+			sourceAlveolus
+				? sourceAlveolus
 				: targetTile.content!
 		const target = jobProvider
+		if (
+			!currentJobPath &&
+			sourceAlveolus &&
+			(job.job === 'foundation' || job.job === 'construct') &&
+			targetTile !== sourceAlveolus.tile
+		) {
+			const targetCoord = toAxialCoord(targetTile.position)
+			if (targetCoord) currentJobPath = [targetCoord]
+		}
 		const workPlan: WorkPlan = {
 			...job,
 			type: 'work',
 			target,
 			path: safePath,
 		}
+		if (currentJobPath) workPlan.currentJobPath = currentJobPath
 		return this.scriptsContext.work.goWork(workPlan)
 	}
 

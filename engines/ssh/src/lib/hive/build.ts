@@ -2,7 +2,10 @@ import { alveoli as alveoliDefs } from 'engine-rules'
 import { reactive } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
-import { installBuildSitePrototype, registerConstructionMaterialPhaseEffect } from 'ssh/build-site'
+import {
+	installBuildSitePrototype,
+	registerConstructionMaterialPhaseEffect,
+} from 'ssh/build-site'
 import {
 	type ConstructionSiteState,
 	createConstructionSiteState,
@@ -17,14 +20,6 @@ import { buildAlveolusMarker } from './build-marker'
 export class BuildAlveolus extends Alveolus {
 	public readonly target: AlveolusType
 	public readonly constructionSite: ConstructionSiteState
-	public declare readonly storage: SpecificStorage
-	public declare canTake: (goodType: GoodType, priority: ExchangePriority) => boolean
-	public declare canGive: (goodType: GoodType, priority: ExchangePriority) => boolean
-	public declare readonly requiredGoods: Record<GoodType, number>
-	public declare readonly remainingNeeds: Record<string, number>
-	public declare readonly advertisedNeeds: Record<string, number>
-	public declare readonly isReady: boolean
-	public declare readonly workingGoodsRelations: GoodsRelations
 
 	/**
 	 * Seconds of work already applied toward {@link alveoli}[target].construction.time.
@@ -59,6 +54,16 @@ export class BuildAlveolus extends Alveolus {
 			enumerable: true,
 		})
 	}
+}
+
+export interface BuildAlveolus {
+	canTake: (goodType: GoodType, priority: ExchangePriority) => boolean
+	canGive: (goodType: GoodType, priority: ExchangePriority) => boolean
+	readonly requiredGoods: Record<GoodType, number>
+	readonly remainingNeeds: Record<string, number>
+	readonly advertisedNeeds: Record<string, number>
+	readonly isReady: boolean
+	readonly workingGoodsRelations: GoodsRelations
 }
 
 installBuildSitePrototype(BuildAlveolus.prototype, { aliasGoodsRelations: true })

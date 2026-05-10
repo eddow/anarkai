@@ -91,6 +91,29 @@ describe('constructionStep resumable work', () => {
 		expect(tileB.content?.name).toBe('basic_dwelling')
 	})
 
+	it('leaves a finalized alveolus shell inert for stale worker assignment lookups', () => {
+		game.upsertTerrainOverride = vi.fn() as never
+		const tileB = game.hex.getTile({ q: 1, r: 0 })!
+		const shell = createConstructionShell(
+			tileB,
+			createConstructionSiteState({ kind: 'alveolus', alveolusType: 'tree_chopper' })
+		)
+		tileB.content = shell
+		const worker = game.population.createCharacter('Builder', { q: 1, r: 0 })
+		if (!(shell instanceof BuildAlveolus)) throw new Error('expected BuildAlveolus shell')
+		shell.assignedWorker = worker
+		worker.assignedAlveolus = shell
+
+		finalizeConstructionShell(shell)
+
+		expect(worker.assignedAlveolus).toBeUndefined()
+		expect(shell.destroyed).toBe(true)
+		expect(() => shell.getJob(worker)).not.toThrow()
+		expect(shell.getJob(worker)).toBeUndefined()
+		expect(shell.aGoodMovement).toBeUndefined()
+		expect(shell.incomingGoods).toBe(false)
+	})
+
 	it('credits partial seconds when the duration step is canceled mid-way', () => {
 		const tileB = game.hex.getTile({ q: 1, r: 0 })!
 		const site = new BuildAlveolus(tileB, 'engineer')

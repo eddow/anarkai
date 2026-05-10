@@ -1,6 +1,10 @@
 import { reactive } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
-import { installBuildSitePrototype, registerConstructionMaterialPhaseEffect } from 'ssh/build-site'
+import {
+	type ConstructionSiteShell,
+	installBuildSitePrototype,
+	registerConstructionMaterialPhaseEffect,
+} from 'ssh/build-site'
 import {
 	type ConstructionSiteState,
 	createConstructionSiteState,
@@ -10,7 +14,6 @@ import {
 import { buildAlveolusMarker } from 'ssh/hive/build-marker'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { GoodType } from 'ssh/types/base'
-import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
 import { toAxialCoord } from 'ssh/utils/position'
 import { TileContent } from './content'
 
@@ -26,14 +29,6 @@ export class BuildDwelling extends TileContent {
 	public constructionWorkSecondsApplied = 0
 	public working = true
 	public destroyed = false
-	public declare canTake: (goodType: GoodType, priority: ExchangePriority) => boolean
-	public declare canGive: (goodType: GoodType, priority: ExchangePriority) => boolean
-	public declare readonly requiredGoods: Record<GoodType, number>
-	public declare readonly remainingNeeds: Record<string, number>
-	public declare readonly advertisedNeeds: Record<string, number>
-	public declare readonly isReady: boolean
-	public declare readonly workingGoodsRelations: GoodsRelations
-	public declare readonly goodsRelations: GoodsRelations
 
 	constructor(
 		public readonly tile: Tile,
@@ -94,6 +89,8 @@ export class BuildDwelling extends TileContent {
 		return false
 	}
 }
+
+export interface BuildDwelling extends ConstructionSiteShell {}
 
 installBuildSitePrototype(BuildDwelling.prototype, { aliasGoodsRelations: true })
 

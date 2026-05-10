@@ -62,9 +62,11 @@ const { MockFreightBayAlveolus, MockStorageAlveolus, MockTransformAlveolus } = v
 class MockBuildAlveolus {
 	tile = { uid: 'tile:build' }
 	constructionSite = { target: { kind: 'alveolus', alveolusType: 'tree_chopper' } }
+	requiredGoods = { wood: 2 }
 	game = { freightLines: [] }
 	working = true
 	storage = { stock: {} }
+	goodsRelations = {}
 	constructionWorkSecondsApplied = 0
 }
 
@@ -171,8 +173,22 @@ vi.mock('../storage/StorageConfiguration', () => ({
 }))
 
 vi.mock('../storage/StoredGoodsRow', () => ({
-	default: (props: { if?: boolean; label?: string }) =>
-		props.if === false ? null : <tr data-testid={`stored-goods-row-${props.label ?? 'unknown'}`} />,
+	default: (props: {
+		if?: boolean
+		label?: string
+		content?: { requiredGoods?: Record<string, number>; storage?: { stock?: Record<string, number> } }
+	}) =>
+		props.if === false ? null : (
+			<tr data-testid={`stored-goods-row-${props.label ?? 'unknown'}`}>
+				<td>
+					{Object.entries(props.content?.requiredGoods ?? {}).map(([good, qty]) => (
+						<span data-testid={`construction-material-${good}`} key={good}>
+							{good} {(props.content?.storage?.stock?.[good] ?? 0)}/{qty}
+						</span>
+					))}
+				</td>
+			</tr>
+		),
 }))
 
 let AlveolusProperties: typeof import('./AlveolusProperties').default
@@ -343,6 +359,9 @@ describe('AlveolusProperties', () => {
 		expect(container.textContent).toContain('Construction site is paused')
 		expect(container.querySelector('[data-testid="alveolus-construction-progress"]')).not.toBeNull()
 		expect(container.querySelector('[data-testid="stored-goods-row-Materials"]')).not.toBeNull()
+		expect(container.querySelector('[data-testid="construction-material-wood"]')?.textContent).toBe(
+			'wood 0/2'
+		)
 	})
 
 	it('renders transform process buffers separately from stored goods', () => {

@@ -189,26 +189,30 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	}
 
 	get isBurdened(): boolean {
+		const hive = this.hive
+		if (!hive) return false
 		// Only consider available (unreserved) goods for burden check
 		// This prevents offering offload jobs for goods that are already being picked up
 		const availableGoods = this.tile.availableGoods
 		const coord = toAxialCoord(this.tile.position)!
-		return availableGoods.length > 0 && !this.hive.movingGoods.get(coord)?.length
+		return availableGoods.length > 0 && !hive.movingGoods.get(coord)?.length
 	}
 
 	protected get hasConveyNearby(): boolean {
-		return this.conveyNearbyCache.get(this.hive.conveyPlanningRevision, () =>
-			this.computeHasConveyNearby()
-		)
+		const hive = this.hive
+		if (!hive) return false
+		return this.conveyNearbyCache.get(hive.conveyPlanningRevision, () => this.computeHasConveyNearby())
 	}
 
 	private computeHasConveyNearby(): boolean {
+		const hive = this.hive
+		if (!hive) return false
 		const here = toAxialCoord(this.tile.position)!
 		return (
-			!!this.hive.movingGoods.get(here)?.length ||
+			!!hive.movingGoods.get(here)?.length ||
 			this.tile.surroundings.some(({ border }) => {
 				const coord = toAxialCoord(border.position)
-				return !!coord && !!this.hive.movingGoods.get(coord)?.length
+				return !!coord && !!hive.movingGoods.get(coord)?.length
 			})
 		)
 	}
@@ -244,6 +248,8 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 
 	@inert
 	getJob(character?: Character): Job | undefined {
+		const hive = this.hive
+		if (!hive) return undefined
 		const assignedWorker = this.assignedWorker ? unwrap(this.assignedWorker) : undefined
 		const currentCharacter = character ? unwrap(character) : undefined
 		const characterPosition = currentCharacter?.position
@@ -256,7 +262,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			this.tile.isBurdened ? 'burdened' : 'free',
 			this.working ? 'working' : 'stopped',
 		].join('|')
-		return this.jobByCharacterCache.get(key, this.hive.conveyPlanningRevision, () =>
+		return this.jobByCharacterCache.get(key, hive.conveyPlanningRevision, () =>
 			this.computeJobForCharacter(currentCharacter, assignedWorker)
 		)
 	}
@@ -333,7 +339,9 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	 * - Returns undefined if no movements available
 	 */
 	get aGoodMovement(): MovementSelection[] | undefined {
-		const selections = this.goodMovementCache.get(this.hive.conveyPlanningRevision, () =>
+		const hive = this.hive
+		if (!hive) return undefined
+		const selections = this.goodMovementCache.get(hive.conveyPlanningRevision, () =>
 			this.computeGoodMovement()
 		)
 		if (!selections) return undefined
@@ -344,6 +352,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 
 	private computeGoodMovement(): MovementSelection[] | undefined {
 		const hive = this.hive
+		if (!hive) return undefined
 		const here = toAxialCoord(this.tile.position)!
 		const blocked: MovementSelection[] = []
 
@@ -552,8 +561,10 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	}
 
 	get incomingGoods(): boolean {
-		return this.incomingGoodsCache.get(this.hive.conveyPlanningRevision, () =>
-			this.hive.hasIncomingMovementFor(this)
+		const hive = this.hive
+		if (!hive) return false
+		return this.incomingGoodsCache.get(hive.conveyPlanningRevision, () =>
+			hive.hasIncomingMovementFor(this)
 		)
 	}
 
@@ -569,6 +580,11 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 
 	// Called even when replacing a Building construction site
 	destroy() {
+		const assignedWorker = this.assignedWorker ? unwrap(this.assignedWorker) : undefined
+		if (assignedWorker && unwrap(assignedWorker.assignedAlveolus) === unwrap(this)) {
+			assignedWorker.assignedAlveolus = undefined
+		}
+		this.assignedWorker = undefined
 		this.destroyed = true
 		super.destroy()
 	}
