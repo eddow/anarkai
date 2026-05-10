@@ -241,7 +241,8 @@ export class MultiMoveStep extends AEvolutionStep {
 		readonly type: Ssh.ActivityType = 'work',
 		readonly givenDescription?: string,
 		private readonly beforeEvolve?: () => void,
-		private readonly deferFirstTick = false
+		private readonly deferFirstTick = false,
+		private readonly fulfillBeforeFinalEvolve = false
 	) {
 		super(duration, givenDescription ?? 'multi-move')
 		// Capture the starting positions at construction time
@@ -252,6 +253,17 @@ export class MultiMoveStep extends AEvolutionStep {
 	override tick(dt: number): number | undefined {
 		if (this.deferFirstTick && !this.firstTickDeferred && this.evolution === 0) {
 			this.firstTickDeferred = true
+			return undefined
+		}
+		if (this.fulfillBeforeFinalEvolve && dt !== 0) {
+			this.evolution += dt / this.duration
+			if (this.evolution >= 1) {
+				this.beforeEvolve?.()
+				if (this.ended === true || typeof this.ended === 'string') return undefined
+				this.fulfill()
+				return (this.evolution - 1) * this.duration
+			}
+			this.evolve(this.evolution)
 			return undefined
 		}
 		return super.tick(dt)

@@ -5,6 +5,7 @@
 - [`./current-status.md`](./current-status.md): what is implemented, what drifted, and what to tackle next
 - [`./project-inventory.md`](./project-inventory.md): current repo layout
 - [`./architecture-overview.md`](./architecture-overview.md): high-level system boundaries
+- [`./engine-render-events-analysis.md`](./engine-render-events-analysis.md): why explicit SSH-to-Pixi presentation events should replace hidden reactive coupling
 - [`./freight-lines.md`](./freight-lines.md): freight routes (`FreightStop` bay vs zone, normalization, UI status)
 
 ## Workspace Commands

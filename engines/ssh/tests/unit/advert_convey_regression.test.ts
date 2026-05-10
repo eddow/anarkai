@@ -98,7 +98,9 @@ describe('advert/convey regression', () => {
 		await flushDeferred()
 
 		const nextMovements = getWoodMovements(hive)
-		const movementsToSawmill = nextMovements.filter((movement) => movement.demander === sawmill)
+		const movementsToSawmill = nextMovements.filter(
+			(movement) => movement.demander === sawmill && movement !== firstMovement
+		)
 		const movementsToWoodpile = nextMovements.filter((movement) => movement.demander === woodpile)
 
 		expect(movementsToSawmill).toHaveLength(0)
@@ -126,5 +128,156 @@ describe('advert/convey regression', () => {
 		expect(remainingMovements.filter((movement) => movement.demander === sawmill)).toHaveLength(0)
 		expect(sawmill.storage.stock.wood).toBe(2)
 		expect(woodpile.storage.stock.wood).toBe(1)
+	})
+
+	it('reschedules sawmill demand after input stock is consumed', {
+		timeout: 30000,
+	}, async () => {
+		engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+
+		const scenario: Partial<SaveState> = {
+			hives: [
+				{
+					name: 'ConsumptionDemandHive',
+					alveoli: [
+						{ coord: [0, 0], alveolus: 'tree_chopper', goods: {} },
+						{ coord: [1, 0], alveolus: 'sawmill', goods: { wood: 2 } },
+					],
+				},
+			],
+		}
+
+		engine.loadScenario(scenario)
+		await flushDeferred()
+
+		const provider = engine.game.hex.getTile({ q: 0, r: 0 })?.content as Alveolus | undefined
+		const sawmill = engine.game.hex.getTile({ q: 1, r: 0 })?.content as Alveolus | undefined
+		const hive = provider?.hive as Hive | undefined
+		expect(provider).toBeDefined()
+		expect(sawmill).toBeDefined()
+		expect(hive).toBeDefined()
+		if (!provider || !sawmill || !hive) throw new Error('Expected provider/sawmill hive')
+
+		expect(getWoodMovements(hive).filter((movement) => movement.demander === sawmill)).toHaveLength(
+			0
+		)
+
+		provider.storage.addGood('wood', 1)
+		await flushDeferred()
+
+		expect(getWoodMovements(hive).filter((movement) => movement.demander === sawmill)).toHaveLength(
+			0
+		)
+
+		expect(sawmill.storage.removeGood('wood', 1)).toBe(1)
+		await flushDeferred()
+
+		expect(
+			getWoodMovements(hive).filter((movement) => movement.demander === sawmill)
+		).toHaveLength(1)
+	})
+
+	it('reschedules advertisements when an alveolus starts working', {
+		timeout: 30000,
+	}, async () => {
+		engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+
+		const scenario: Partial<SaveState> = {
+			hives: [
+				{
+					name: 'WorkingInvalidationHive',
+					alveoli: [
+						{ coord: [0, 0], alveolus: 'tree_chopper', goods: { wood: 1 } },
+						{
+							coord: [1, 0],
+							alveolus: 'sawmill',
+							goods: {},
+							configuration: {
+								ref: { scope: 'individual' },
+								individual: { working: false },
+							},
+						},
+					],
+				},
+			],
+		}
+
+		engine.loadScenario(scenario)
+		await flushDeferred()
+
+		const provider = engine.game.hex.getTile({ q: 0, r: 0 })?.content as Alveolus | undefined
+		const sawmill = engine.game.hex.getTile({ q: 1, r: 0 })?.content as Alveolus | undefined
+		const hive = provider?.hive as Hive | undefined
+		if (!provider || !sawmill || !hive) throw new Error('Expected provider/sawmill hive')
+
+		expect(getWoodMovements(hive).filter((movement) => movement.demander === sawmill)).toHaveLength(
+			0
+		)
+
+		sawmill.working = true
+		await flushDeferred()
+
+		expect(
+			getWoodMovements(hive).filter((movement) => movement.demander === sawmill)
+		).toHaveLength(1)
+	})
+
+	it('reschedules advertisements when storage buffers change', {
+		timeout: 30000,
+	}, async () => {
+		engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+
+		const scenario: Partial<SaveState> = {
+			hives: [
+				{
+					name: 'BufferInvalidationHive',
+					alveoli: [
+						{ coord: [0, 0], alveolus: 'tree_chopper', goods: {} },
+						{
+							coord: [1, 0],
+							alveolus: 'woodpile',
+							goods: {},
+							configuration: {
+								ref: { scope: 'individual' },
+								individual: { working: true, buffers: { wood: 0 } },
+							},
+						},
+					],
+				},
+			],
+		}
+
+		engine.loadScenario(scenario)
+		await flushDeferred()
+
+		const provider = engine.game.hex.getTile({ q: 0, r: 0 })?.content as Alveolus | undefined
+		const woodpile = engine.game.hex.getTile({ q: 1, r: 0 })?.content as
+			| (Alveolus & { setBuffers(buffers: Record<string, number>): void })
+			| undefined
+		const hive = provider?.hive as Hive | undefined
+		if (!provider || !woodpile || !hive) throw new Error('Expected provider/woodpile hive')
+
+		expect(getWoodMovements(hive).filter((movement) => movement.demander === woodpile)).toHaveLength(
+			0
+		)
+		expect(hive.needs.wood).toBeUndefined()
+
+		woodpile.setBuffers({ wood: 1 })
+		await flushDeferred()
+
+		expect(hive.needs.wood).toBe('1-buffer')
+		expect(getWoodMovements(hive).filter((movement) => movement.demander === woodpile)).toHaveLength(
+			0
+		)
+
+		provider.storage.addGood('wood', 1)
+		await flushDeferred()
+
+		expect(
+			getWoodMovements(hive).filter((movement) => movement.demander === woodpile)
+		).toHaveLength(1)
 	})
 })

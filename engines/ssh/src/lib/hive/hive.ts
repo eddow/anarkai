@@ -59,6 +59,16 @@ import {
 } from './movement-state'
 import type { StorageAlveolus } from './storage'
 
+type AdvertisementInvalidationReason =
+	| 'storage.stock'
+	| 'movement.lifecycle'
+	| 'alveolus.config'
+	| 'dock.lifecycle'
+	| 'hive.attach'
+	| 'general-storage.attach'
+	| 'hive.working'
+	| 'audit.cleanup'
+
 function isLogisticsStorageAlveolusAction(actionType: string | undefined): boolean {
 	return (
 		actionType === 'slotted-storage' ||
@@ -316,7 +326,7 @@ type MovementMineOptions = {
 export class Hive extends AdvertisementManager<FreightMovementParty> {
 	private constructor(public readonly board: HexBoard) {
 		super()
-		this.advertising.push(
+		this.runtimeEffects.push(
 			effect`hive.exchange-watchdog`(() => {
 				this.configureExchangeWatchdog(options.stalledMovementScanIntervalMs)
 			})
@@ -326,9 +336,9 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 	private reconstructing = false
 	private wakeWanderingWorkersScheduled = false
 	private advertisementFlushScheduled = false
-	private pendingAdvertisements = new Map<
+	private pendingAdvertisementReasons = new Map<
 		FreightMovementParty,
-		import('ssh/utils/advertisement').GoodsRelations
+		Set<AdvertisementInvalidationReason>
 	>()
 	private pendingBrokenMovementDiscardIds = new Set<object>()
 	private pendingDetachedAllocationCleanupIds = new Set<string>()
@@ -402,7 +412,9 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		return this.metadata.working
 	}
 	set working(value: boolean) {
+		if (this.metadata.working === value) return
 		this.metadata.working = value
+		this.invalidateAdvertisements(this.alveoli, 'hive.working')
 	}
 	public readonly alveoli = reactive(new Set<Alveolus>())
 	/** Hive-level configurations by alveolus type */
@@ -419,52 +431,77 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		}
 		return rv
 	}
-	private readonly advertising: ScopedCallback[] = []
+	private readonly runtimeEffects: ScopedCallback[] = []
 	private readonly gates = new Set<AlveolusGate>()
 
-	private scheduleAdvertisement(party: FreightMovementParty, goodsRelations?: GoodsRelations) {
+	public invalidateAdvertisement(
+		party: FreightMovementParty | undefined,
+		reason: AdvertisementInvalidationReason
+	): void {
 		if (this.destroyed || this.reconstructing || !party || !party.tile) {
 			traces.advertising.log?.(`[SCHEDULE] SKIP: invalid party`, {
 				party: party?.name,
 				hasTile: !!party?.tile,
+				reason,
 			})
 			return
 		}
-		const rel =
-			goodsRelations ??
-			(isVehicleFreightDock(party)
-				? dockedVehicleGoodsRelations(party.vehicle, party.bay)
-				: (party as Alveolus).goodsRelations)
-		this.pendingAdvertisements.set(party, rel)
+		const reasons = this.pendingAdvertisementReasons.get(party) ?? new Set()
+		reasons.add(reason)
+		this.pendingAdvertisementReasons.set(party, reasons)
 		if (this.advertisementFlushScheduled) return
 		this.advertisementFlushScheduled = true
 		this.postStep(() => {
 			if (this.destroyed || this.reconstructing) return
 			this.advertisementFlushScheduled = false
-			const pending = [...this.pendingAdvertisements.entries()].sort(([, a], [, b]) => {
-				const demandOnly = (relations: GoodsRelations) => {
-					const ads = Object.values(relations)
-					return ads.length > 0 && ads.every((ad) => ad?.advertisement === 'demand')
-				}
-				return Number(demandOnly(b)) - Number(demandOnly(a))
-			})
-			this.pendingAdvertisements.clear()
-			for (const [advertiser, relations] of pending) {
+			const pending = [...this.pendingAdvertisementReasons.entries()]
+				.map(([advertiser, reasons]) => ({
+					advertiser,
+					reasons,
+					relations: this.advertisementRelationsFor(advertiser),
+				}))
+				.sort((a, b) => {
+					const demandOnly = (relations: GoodsRelations) => {
+						const ads = Object.values(relations)
+						return ads.length > 0 && ads.every((ad) => ad?.advertisement === 'demand')
+					}
+					return Number(demandOnly(b.relations)) - Number(demandOnly(a.relations))
+				})
+			this.pendingAdvertisementReasons.clear()
+			for (const { advertiser, relations, reasons } of pending) {
 				if (!advertiser || !advertiser.tile) {
 					traces.advertising.log?.(`[SCHEDULE] SKIP PENDING: invalid advertiser`, {
 						advertiser: advertiser?.name,
+						reasons: [...reasons],
 					})
 					continue
 				}
+				traces.advertising.log?.(`[SCHEDULE] FLUSH: ${advertiser.name}`, {
+					reasons: [...reasons],
+					relations,
+				})
 				this.advertise(advertiser, unwrap(relations) ?? {})
 			}
 		})
 	}
 
+	public invalidateAdvertisements(
+		parties: Iterable<FreightMovementParty | undefined>,
+		reason: AdvertisementInvalidationReason
+	): void {
+		for (const party of parties) this.invalidateAdvertisement(party, reason)
+	}
+
+	private advertisementRelationsFor(party: FreightMovementParty): GoodsRelations {
+		return isVehicleFreightDock(party)
+			? dockedVehicleGoodsRelations(party.vehicle, party.bay)
+			: (party as Alveolus).goodsRelations
+	}
+
 	/** Registers a docked wheelbarrow endpoint for bay↔vehicle convey matching. */
 	registerFreightVehicleDock(dock: VehicleFreightDock): void {
 		this.freightVehicleDocks.set(dock.vehicle.uid, dock)
-		this.scheduleAdvertisement(dock)
+		this.invalidateAdvertisements([dock, dock.bay], 'dock.lifecycle')
 	}
 
 	@inert
@@ -472,7 +509,9 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		const dock = this.freightVehicleDocks.get(vehicleUid)
 		if (!dock) return
 		this.freightVehicleDocks.delete(vehicleUid)
+		this.pendingAdvertisementReasons.delete(dock)
 		this.advertise(dock, {})
+		this.invalidateAdvertisement(dock.bay, 'dock.lifecycle')
 	}
 
 	freightVehicleDockFor(vehicleUid: string): VehicleFreightDock | undefined {
@@ -492,20 +531,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		for (const gate of alveolus.gates) this.gates.add(gate)
 		alveolus.hive = this
 		this.invalidatePathCache()
-		this.advertising.push(
-			effect`alveolus.advertise`(() => {
-				const goodsRelations = alveolus.goodsRelations
-				if (traces.advertising) {
-					traces.advertising.log?.(
-						`advertise effect source: ${alveolus.name} action=${alveolus.action?.type ?? 'unknown'} relations=${JSON.stringify(goodsRelations)}`
-					)
-				}
-				traces.advertising.log?.(
-					`advertise effect: ${alveolus.name} ${JSON.stringify(goodsRelations)}`
-				)
-				this.scheduleAdvertisement(alveolus, goodsRelations)
-			})
-		)
+		this.invalidateAdvertisement(alveolus, 'hive.attach')
 		if (this.isGeneralStorageAlveolus(alveolus)) {
 			this.postStep(() => {
 				for (const provider of this.alveoli) {
@@ -515,7 +541,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 							(relation) => relation?.advertisement === 'provide'
 						)
 					) {
-						this.scheduleAdvertisement(provider)
+						this.invalidateAdvertisement(provider, 'general-storage.attach')
 					}
 				}
 			})
@@ -980,8 +1006,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				})
 				return
 			}
-			details.provider && this.scheduleAdvertisement(details.provider)
-			details.demander && this.scheduleAdvertisement(details.demander)
+			this.invalidateAdvertisements([details.provider, details.demander], 'audit.cleanup')
 			if (details.provider && details.demander) {
 				this.wakeWanderingWorkersNear(details.provider, details.demander)
 			}
@@ -2070,8 +2095,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 					mg.claimed = false
 					delete mg.claimedBy
 					delete mg.claimedAtMs
-					this.scheduleAdvertisement(mg.provider)
-					this.scheduleAdvertisement(mg.demander)
+					this.invalidateAdvertisements([mg.provider, mg.demander], 'audit.cleanup')
 					this.wakeWanderingWorkersNear(mg.provider, mg.demander)
 					continue
 				}
@@ -2092,8 +2116,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 					mg.claimed = false
 					delete mg.claimedBy
 					delete mg.claimedAtMs
-					this.scheduleAdvertisement(mg.provider)
-					this.scheduleAdvertisement(mg.demander)
+					this.invalidateAdvertisements([mg.provider, mg.demander], 'audit.cleanup')
 					this.wakeWanderingWorkersNear(mg.provider, mg.demander)
 				}
 			}
@@ -2125,8 +2148,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			this.from = nextCoord
 			hive.noteMovementStorageCheckpoint(this, 'movement.hop.after.storage', nextCoord)
 			hive.noteMovementLifecycle(this, `movement.hop.after:${axial.key(nextCoord)}`)
-			hive.scheduleAdvertisement(this.provider)
-			hive.scheduleAdvertisement(this.demander)
+			hive.invalidateAdvertisements([this.provider, this.demander], 'movement.lifecycle')
 			traces.convey.log?.(
 				`[HOP] ${this.goodType} ${this.provider.name} -> ${this.demander.name} to ${nextCoord.q},${nextCoord.r} (path left: ${this.path.length})`
 			)
@@ -2321,8 +2343,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				}
 			}
 
-			hive.scheduleAdvertisement(this.provider)
-			hive.scheduleAdvertisement(this.demander)
+			hive.invalidateAdvertisements([this.provider, this.demander], 'movement.lifecycle')
 			hive.noteMovementLifecycle(this, 'movement.finish.after')
 			this._state = transitionMovement(this._state, MovementState.completed)
 			hive.activeMovements.delete(this)
@@ -2351,8 +2372,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			delete this.claimedAtMs
 			hive.forgetMovementTracking(this)
 			hive.noteMovementLifecycle(this, 'movement.abort.remove-tracking.after')
-			hive.scheduleAdvertisement(this.provider)
-			hive.scheduleAdvertisement(this.demander)
+			hive.invalidateAdvertisements([this.provider, this.demander], 'movement.lifecycle')
 			hive.noteMovementLifecycle(this, 'movement.abort.after')
 		}
 	}
@@ -2585,8 +2605,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		mg.claimed = false
 		delete mg.claimedBy
 		delete mg.claimedAtMs
-		this.scheduleAdvertisement(mg.provider)
-		this.scheduleAdvertisement(mg.demander)
+		this.invalidateAdvertisements([mg.provider, mg.demander], 'movement.lifecycle')
 		this.wakeWanderingWorkersNear(mg.provider, mg.demander)
 		traces.advertising.warn?.('[WATCHDOG] Offloaded broken border movement', {
 			goodType: mg.goodType,
@@ -2667,8 +2686,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		try {
 			mg.allocations?.target?.cancel('discard.target')
 		} catch {}
-		this.scheduleAdvertisement(mg.provider)
-		this.scheduleAdvertisement(mg.demander)
+		this.invalidateAdvertisements([mg.provider, mg.demander], 'movement.lifecycle')
 		this.wakeWanderingWorkersNear(mg.provider, mg.demander)
 	}
 
@@ -3159,8 +3177,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		)
 		if (!releasePendingMovementIntent) return undefined
 
-		// Defer movement creation to avoid reactive cycle:
-		// The advertise effect reads storage state, and createMovement modifies it.
+			// Defer movement creation so the current advertisement flush remains a stable matching pass.
 		this.postStep(() => {
 			try {
 				if (this.destroyed) return
@@ -3399,11 +3416,10 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		}
 		this.movingGoods.clear()
 		this.activeMovements.clear()
-		// Clean up all advertising effects
-		for (const cleanup of this.advertising) {
+		for (const cleanup of this.runtimeEffects) {
 			cleanup()
 		}
-		this.advertising.length = 0
+		this.runtimeEffects.length = 0
 	}
 	//#endregion
 }

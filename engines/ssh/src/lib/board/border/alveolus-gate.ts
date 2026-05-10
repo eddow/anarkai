@@ -27,6 +27,9 @@ export class AlveolusGate extends TileBorderContent {
 		const axialPos = toAxialCoord(border.position)
 		super(border.game, `gate:${axialPos.q},${axialPos.r}`)
 		this.storage = new SlottedStorage(2, 1) // 2 slots, max quantity 1 per slot
+		this.storage.setPresentationChangeNotifier(() =>
+			this.game.enqueueStoragePresentationChange(this.border)
+		)
 	}
 
 	attach(): void {

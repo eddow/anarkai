@@ -1,8 +1,9 @@
 import { css } from '@app/lib/css'
 import { T } from '@app/lib/i18n'
+import { presentationRevisionFor } from '@app/lib/presentation-events'
 import { Button } from '@app/ui/anarkai'
 import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
-import { memoize, reactive } from 'mutts'
+import { reactive } from 'mutts'
 import { inputBufferSize } from 'ssh/assets/constants'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { BasicDwelling } from 'ssh/board/content/basic-dwelling'
@@ -163,8 +164,15 @@ interface StoredGoodsRowProps {
 }
 
 export default function StoredGoodsRow(props: StoredGoodsRowProps) {
-	const stock = memoize(() => props.content.storage?.stock || {})
-	const relations = memoize(() => props.content.goodsRelations ?? {})
+	const ownerUid = () => props.content.tile?.uid
+	const stock = () => {
+		presentationRevisionFor(ownerUid())
+		return props.content.storage?.stock || {}
+	}
+	const relations = () => {
+		presentationRevisionFor(ownerUid())
+		return props.content.goodsRelations ?? {}
+	}
 
 	const getExpectedQty = (good: GoodType, relation?: GoodsRelation) => {
 		if (props.content instanceof BuildDwelling || props.content instanceof BuildAlveolus) {
@@ -185,32 +193,34 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 		return undefined
 	}
 
-	const entries = memoize((): StoredGoodEntry[] =>
-		Array.from(
+	const entries = (): StoredGoodEntry[] => {
+		const currentStock = stock()
+		const currentRelations = relations()
+		return Array.from(
 			new Set<GoodType>([
-				...Object.entries(stock())
+				...Object.entries(currentStock)
 					.filter(([, qty]) => qty > 0)
 					.map(([good]) => good as GoodType),
-				...(Object.keys(relations()) as GoodType[]),
+				...(Object.keys(currentRelations) as GoodType[]),
 			])
 		)
 			.map((good) => {
-				const relation = relations()[good] as GoodsRelation | undefined
+				const relation = currentRelations[good] as GoodsRelation | undefined
 				return {
 					good,
-					qty: stock()[good] ?? 0,
+					qty: currentStock[good] ?? 0,
 					relation,
 					expectedQty: getExpectedQty(good, relation),
 				}
 			})
 			.filter((entry) => entry.qty > 0 || !!entry.relation)
 			.sort((a, b) => a.good.localeCompare(b.good))
-	)
+	}
 
-	const hasGoods = memoize(() => entries().length > 0)
-	const storedEntries = memoize(() => entries().filter((entry: StoredGoodEntry) => entry.qty > 0))
-	const hasMultipleTypes = memoize(() => storedEntries().length > 1)
-	const supportsCleanup = memoize(() => props.content instanceof Alveolus)
+	const hasGoods = () => entries().length > 0
+	const storedEntries = () => entries().filter((entry: StoredGoodEntry) => entry.qty > 0)
+	const hasMultipleTypes = () => storedEntries().length > 1
+	const supportsCleanup = () => props.content instanceof Alveolus
 
 	const confirmState = reactive({
 		mode: undefined as 'all' | 'good' | undefined,

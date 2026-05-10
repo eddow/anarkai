@@ -1,4 +1,8 @@
 import { document, latch } from '@sursaut/core'
+import {
+	consumePresentationEvents,
+	resetPresentationRevisionsForTests,
+} from '@app/lib/presentation-events'
 import { disconnectAllProfiles, profile, setProfileLevel } from 'ssh/dev/debug'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -73,7 +77,18 @@ vi.mock('../EntityBadge', () => ({
 }))
 
 vi.mock('../GoodsList', () => ({
-	default: () => <div data-testid="goods-list" />,
+	default: (props: {
+		goods?: string[]
+		getBadgeProps?: (good: string) => { qty?: number | string | undefined }
+	}) => (
+		<div data-testid="goods-list">
+			{(props.goods ?? []).map((good) => (
+				<span data-testid={`vehicle-good-${good}`}>
+					{String(props.getBadgeProps?.(good)?.qty ?? '')}
+				</span>
+			))}
+		</div>
+	),
 }))
 
 vi.mock('../InspectorObjectLink', () => ({
@@ -124,6 +139,7 @@ describe('VehicleProperties', () => {
 	})
 
 	beforeEach(() => {
+		resetPresentationRevisionsForTests()
 		container = document.createElement('div')
 		document.body.appendChild(container)
 	})
@@ -178,6 +194,37 @@ describe('VehicleProperties', () => {
 		} as never)
 
 		expect(container.querySelector('[data-testid="goods-list"]')).not.toBeNull()
+	})
+
+	it('refreshes storage stock when the vehicle receives a storage presentation event', async () => {
+		let stock = { berries: 3 }
+		const vehicle = {
+			uid: 'veh-refresh',
+			title: 'wheelbarrow refresh',
+			vehicleType: 'wheelbarrow',
+			game: {},
+			storage: {
+				get stock() {
+					return stock
+				},
+			},
+			service: undefined,
+		}
+
+		stop = latch(container, <VehicleProperties vehicle={vehicle as never} />, {
+			setTitle: vi.fn(),
+		} as never)
+
+		expect(container.querySelector('[data-testid="vehicle-good-berries"]')?.textContent).toBe('3')
+
+		stock = { berries: 4 }
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		expect(container.querySelector('[data-testid="vehicle-good-berries"]')?.textContent).toBe('3')
+
+		consumePresentationEvents([{ type: 'storage.changed', ownerUid: 'veh-refresh' }])
+		await new Promise((resolve) => setTimeout(resolve, 0))
+
+		expect(container.querySelector('[data-testid="vehicle-good-berries"]')?.textContent).toBe('4')
 	})
 
 	it('shows line service summary and freight line links', () => {

@@ -4,6 +4,7 @@ import { TileBorder } from 'ssh/board/border/border'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { Tile } from 'ssh/board/tile'
+import type { GamePresentationEvent } from 'ssh/game/game'
 import type { GameObject, InteractiveGameObject } from 'ssh/game/object'
 import { Character } from 'ssh/population/character'
 import { VehicleEntity } from 'ssh/population/vehicle/entity'
@@ -52,6 +53,19 @@ export interface VisualFactoryDiagnostics {
 		looseGoodsVisuals: number
 		alveolusVisuals: number
 	}
+}
+
+type StoredGoodsRefreshVisual = {
+	refreshStoredGoods(): void
+}
+
+function canRefreshStoredGoods(value: unknown): value is StoredGoodsRefreshVisual {
+	return (
+		!!value &&
+		typeof value === 'object' &&
+		'refreshStoredGoods' in value &&
+		typeof (value as { refreshStoredGoods?: unknown }).refreshStoredGoods === 'function'
+	)
 }
 
 export class VisualFactory {
@@ -106,16 +120,21 @@ export class VisualFactory {
 				this.renderer.visuals.delete(object.uid)
 			}
 		}
+		const onPresentationEvents = (events: readonly GamePresentationEvent[]) => {
+			this.syncPresentationEvents(events)
+		}
 		this.renderer.game.on({
 			objectsAdded: onObjectsAdded,
 			objectsChanged: onObjectsChanged,
 			objectsRemoved: onObjectsRemoved,
+			presentationEvents: onPresentationEvents,
 		})
 		this.cleanups.push(() => {
 			this.renderer.game.off({
 				objectsAdded: onObjectsAdded,
 				objectsChanged: onObjectsChanged,
 				objectsRemoved: onObjectsRemoved,
+				presentationEvents: onPresentationEvents,
 			})
 		})
 		this.cleanups.push(
@@ -354,6 +373,18 @@ export class VisualFactory {
 			this.createBatch(changedForCreation, 'objectsChanged')
 		} else {
 			this.diagnostics.current = this.getCurrentVisualCounts()
+		}
+	}
+
+	private syncPresentationEvents(events: readonly GamePresentationEvent[]) {
+		const refreshed = new Set<string>()
+		for (const event of events) {
+			if (event.type !== 'storage.changed') continue
+			if (refreshed.has(event.ownerUid)) continue
+			refreshed.add(event.ownerUid)
+			const visual = this.renderer.visuals.get(event.ownerUid)
+			if (!canRefreshStoredGoods(visual)) continue
+			visual.refreshStoredGoods()
 		}
 	}
 

@@ -143,6 +143,7 @@ export class StorageAlveolus extends Alveolus {
 				...config.buffers,
 				...buffers,
 			}
+			this.hive?.invalidateAdvertisement?.(this, 'alveolus.config')
 			return
 		}
 
@@ -154,6 +155,7 @@ export class StorageAlveolus extends Alveolus {
 				maxSlots: nextMaxSlots,
 			})
 		}
+		this.hive?.invalidateAdvertisement?.(this, 'alveolus.config')
 	}
 
 	/**

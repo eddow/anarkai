@@ -47,6 +47,9 @@ export class BuildDwelling extends TileContent {
 		this.storage = new SpecificStorage(
 			this.constructionSite.recipe.goods as Record<GoodType, number>
 		)
+		this.storage.setPresentationChangeNotifier(() =>
+			this.game.enqueueStoragePresentationChange(this.tile)
+		)
 		if (['planned', 'foundation'].includes(this.constructionSite.phase)) {
 			this.constructionSite.phase = 'waiting_materials'
 		}

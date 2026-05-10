@@ -9,7 +9,7 @@ import { tileSize } from 'ssh/utils/varied'
 import { alveoli } from '../../assets/visual-content'
 import { scopedPixiName, setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
-import { renderGoods } from './goods-renderer'
+import { createGoodsRenderer, type GoodsRenderer } from './goods-renderer'
 import { VisualObject } from './visual-object'
 
 const hasUsableTexture = (texture: Texture | undefined) => {
@@ -32,6 +32,7 @@ export class AlveolusVisual extends VisualObject<any> {
 	private sprite: Sprite | undefined
 	private goodsContainer: Container
 	private dockedVehiclesContainer: Container
+	private goodsRenderer: GoodsRenderer | undefined
 	private _disposed = false
 
 	constructor(alveolus: Alveolus, renderer: PixiGameRenderer) {
@@ -118,7 +119,7 @@ export class AlveolusVisual extends VisualObject<any> {
 			this.renderer.attachToLayer(storedGoodsLayer, this.goodsContainer)
 		}
 
-		const cleanupGoods = renderGoods(
+		this.goodsRenderer = createGoodsRenderer(
 			this.renderer,
 			this.goodsContainer,
 			tileSize,
@@ -131,7 +132,7 @@ export class AlveolusVisual extends VisualObject<any> {
 			{ x: 0, y: 0 }, // Relative since goodsContainer is at worldPos
 			`${this.scope}.goods`
 		)
-		this.register(cleanupGoods)
+		this.goodsRenderer.render()
 
 		if (this.dockedVehiclesContainer.parent !== this.view) {
 			this.view.addChild(this.dockedVehiclesContainer)
@@ -160,6 +161,11 @@ export class AlveolusVisual extends VisualObject<any> {
 		)
 	}
 
+	public refreshStoredGoods() {
+		if (this._disposed) return
+		this.goodsRenderer?.render()
+	}
+
 	public dispose() {
 		this._disposed = true
 		if (this.renderer.layers?.alveoli) {
@@ -171,6 +177,8 @@ export class AlveolusVisual extends VisualObject<any> {
 		if (this.sprite) {
 			this.sprite.destroy()
 		}
+		this.goodsRenderer?.dispose()
+		this.goodsRenderer = undefined
 		this.goodsContainer.destroy({ children: true }) // Cleanup goods container
 		this.dockedVehiclesContainer.destroy({ children: true })
 		super.dispose()

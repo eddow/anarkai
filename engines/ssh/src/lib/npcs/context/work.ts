@@ -16,12 +16,13 @@ import {
 import { assert, traces } from 'ssh/dev/debug'
 import { createAlveolus } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
-import type { TrackedMovement } from 'ssh/hive/hive'
+import { commitmentValid, type TrackedMovement } from 'ssh/hive/hive'
 import { movementRefId } from 'ssh/hive/movement-ref'
 import { MovementState, transitionMovement } from 'ssh/hive/movement-state'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import type { TransformAlveolus } from 'ssh/hive/transform'
 import type { Character } from 'ssh/population/character'
+import type { Storage } from 'ssh/storage'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import { contract, type Goods, type GoodType } from 'ssh/types'
 import { type AxialCoord, axial } from 'ssh/utils'
@@ -85,6 +86,40 @@ interface MovementData {
 
 function waitStep() {
 	return new DurationStep(waitForIncomingGoodsPollSeconds, 'idle', 'waitForIncomingGoods')
+}
+
+function storageTrace(storage: Storage | undefined, goodType: GoodType) {
+	if (!storage) return undefined
+	return {
+		stock: storage.stock[goodType] ?? 0,
+		available: storage.available(goodType),
+		allocated: storage.allocated(goodType),
+		virtualGoodsCount: storage.virtualGoodsCount,
+		slots: storage
+			.renderedGoods()
+			.slots.filter(
+				(slot) =>
+					slot.goodType === goodType ||
+					(slot.present === 0 && slot.reserved === 0 && slot.allocated === 0)
+			)
+			.map((slot) => ({
+				goodType: slot.goodType,
+				present: slot.present,
+				reserved: slot.reserved,
+				allocated: slot.allocated,
+				allowed: slot.allowed,
+			})),
+	}
+}
+
+function commitmentTrace(commitment: Commitment | undefined) {
+	return {
+		label: commitment?.label,
+		traceId: commitment?.traceId,
+		ended: commitment?.ended,
+		valid: commitmentValid(commitment),
+		reason: (commitment as (Commitment & { reason?: unknown }) | undefined)?.reason,
+	}
 }
 
 class ConstructionDurationStep extends DurationStep {
@@ -229,10 +264,10 @@ class WorkFunctions {
 			})
 			return undefined
 		}
-		const onAssignedTile = alveolus === character.tile.content
-		const adjacentToAssignedTile = alveolus.tile.neighborTiles.some(
-			(tile) => tile === character.tile
-		)
+		const characterCoord = toAxialCoord(character.tile.position)
+		const assignedCoord = toAxialCoord(alveolus.tile.position)
+		const onAssignedTile = axial.key(characterCoord) === axial.key(assignedCoord)
+		const adjacentToAssignedTile = axial.distance(characterCoord, assignedCoord) <= 1
 		assert(
 			onAssignedTile || adjacentToAssignedTile,
 			'Character must be on or adjacent to the assigned convey alveolus'
@@ -490,7 +525,7 @@ class WorkFunctions {
 			if (!rebindConveyMovementRows(movementData)) {
 				conveyStepRef.step?.cancel('stale-rebind')
 			}
-		}, true)
+		}, true, true)
 		conveyStepRef.step = step
 		for (const { movement, hop } of movementData) {
 			if (!movement.path.length) continue
@@ -594,14 +629,55 @@ class WorkFunctions {
 								console.error('Target allocation missing for', movement)
 								throw new ConveyStaleBookkeepingError('Target allocation missing')
 							}
+							const demanderStorage = movement.demander.storage
+							traces.convey.log?.('[conveyStep.terminal.before-source-fulfill]', {
+								character: character.uid,
+								goodType: movement.goodType,
+								movementRef: movementRefId(movement.ref),
+								at: axial.key(hop),
+								source: commitmentTrace(movement.allocations.source),
+								target: commitmentTrace(movement.allocations.target),
+								demander: movement.demander.name,
+								demanderStorage: storageTrace(demanderStorage, movement.goodType),
+							})
 							// Fulfill source allocation BEFORE releasing claim to prevent border transit
 							// invariant failures during reactive updates. The claim release triggers
 							// aGoodMovement → assertBorderTransitStorageInvariant, which would find stock
 							// at the border from the unfulfilled hive-transfer source allocation.
 							movementHive.fulfillMovementSource(movement, 'conveyStep.finished.pre-release')
+							traces.convey.log?.('[conveyStep.terminal.after-source-fulfill]', {
+								character: character.uid,
+								goodType: movement.goodType,
+								movementRef: movementRefId(movement.ref),
+								at: axial.key(hop),
+								source: commitmentTrace(movement.allocations.source),
+								target: commitmentTrace(movement.allocations.target),
+								demander: movement.demander.name,
+								demanderStorage: storageTrace(demanderStorage, movement.goodType),
+							})
 							releaseMovementClaim(movement)
 							movementHive.noteMovementLifecycle(movement, 'conveyStep.finished.terminal')
+							traces.convey.log?.('[conveyStep.terminal.before-finish]', {
+								character: character.uid,
+								goodType: movement.goodType,
+								movementRef: movementRefId(movement.ref),
+								at: axial.key(hop),
+								source: commitmentTrace(movement.allocations.source),
+								target: commitmentTrace(movement.allocations.target),
+								demander: movement.demander.name,
+								demanderStorage: storageTrace(demanderStorage, movement.goodType),
+							})
 							movement.finish()
+							traces.convey.log?.('[conveyStep.terminal.after-finish]', {
+								character: character.uid,
+								goodType: movement.goodType,
+								movementRef: movementRefId(movement.ref),
+								at: axial.key(hop),
+								source: commitmentTrace(movement.allocations.source),
+								target: commitmentTrace(movement.allocations.target),
+								demander: movement.demander.name,
+								demanderStorage: storageTrace(demanderStorage, movement.goodType),
+							})
 							traces.convey.log?.(
 								`[conveyStep] terminal finished ${movement.goodType} ref#${movementRefId(movement.ref)} at=${axial.key(hop)}`,
 								{

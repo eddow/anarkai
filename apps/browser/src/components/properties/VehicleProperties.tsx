@@ -1,5 +1,6 @@
 import { css } from '@app/lib/css'
 import { T } from '@app/lib/i18n'
+import { presentationRevisionFor } from '@app/lib/presentation-events'
 import { InspectorSection } from '@app/ui/anarkai'
 import { vehicles as vehicleVisuals } from 'engine-pixi/assets/visual-content'
 import { vehicleTextureKey } from 'engine-pixi/renderers/vehicle-visual'
@@ -230,6 +231,7 @@ const VehicleProperties = (
 	})
 	const computed = {
 		get stock() {
+			presentationRevisionFor(props.vehicle?.uid)
 			return props.vehicle?.storage?.stock ?? {}
 		},
 		get operator() {

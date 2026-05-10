@@ -89,6 +89,23 @@ describe('steps smoke', () => {
 		expect(actor.position.q).toBeCloseTo(0.5)
 	})
 
+	it('MultiMoveStep can fulfill before the final visual lerp for convey accounting handoff', () => {
+		const actor = { position: { q: 0, r: 0 } }
+		const step = new MultiMoveStep(
+			1.5,
+			[{ who: actor, to: { q: 1, r: 0 } }],
+			'work',
+			'finalize-before-arrival',
+			undefined,
+			false,
+			true
+		)
+
+		expect(step.tick(2)).toBeCloseTo(0.5)
+		expect(step.ended).toBe(true)
+		expect(actor.position.q).toBe(0)
+	})
+
 	it('DurationStep carries its type and description through deserialization and finishes cleanly', () => {
 		const step = new DurationStep(4, 'work', 'Chopping Wood')
 

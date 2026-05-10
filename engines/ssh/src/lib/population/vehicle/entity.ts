@@ -56,6 +56,9 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		super(game, uid)
 		this.position = reactive(position)
 		this.storage = createVehicleStorage(vehicleType)
+		this.storage.setPresentationChangeNotifier(() =>
+			this.game.enqueueStoragePresentationChange(this)
+		)
 		this.servedLines = reactive([...servedLines])
 		this.installStorageChangeHooks()
 		this.installDockStorageCompletionEffect()

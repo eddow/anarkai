@@ -4,7 +4,31 @@ import { traceProjection } from 'ssh/dev/trace'
 import type { Goods, GoodType } from 'ssh/types/base'
 import type { RenderedGoodSlots } from './types'
 
+export type StoragePresentationChangeKind = 'stock' | 'allocation' | 'reservation'
+export type StoragePresentationChangeNotifier = (kind: StoragePresentationChangeKind) => void
+export type StorageGameplayChangeKind = 'stock'
+export type StorageGameplayChangeNotifier = (kind: StorageGameplayChangeKind) => void
+
 export abstract class Storage extends ReactiveBase {
+	private presentationChangeNotifier: StoragePresentationChangeNotifier | undefined
+	private gameplayChangeNotifier: StorageGameplayChangeNotifier | undefined
+
+	setPresentationChangeNotifier(notifier: StoragePresentationChangeNotifier | undefined): void {
+		this.presentationChangeNotifier = notifier
+	}
+
+	setGameplayChangeNotifier(notifier: StorageGameplayChangeNotifier | undefined): void {
+		this.gameplayChangeNotifier = notifier
+	}
+
+	protected notifyPresentationChanged(kind: StoragePresentationChangeKind): void {
+		this.presentationChangeNotifier?.(kind)
+	}
+
+	protected notifyGameplayChanged(kind: StorageGameplayChangeKind): void {
+		this.gameplayChangeNotifier?.(kind)
+	}
+
 	/**
 	 * Check how much of a good can be stored
 	 * @param goodType - The type of good to check

@@ -23,6 +23,9 @@ export class BasicDwelling extends TileContent {
 			GoodType,
 			number
 		>)
+		this.storage.setPresentationChangeNotifier(() =>
+			this.game.enqueueStoragePresentationChange(this.tile)
+		)
 	}
 
 	public readonly storage: SpecificStorage

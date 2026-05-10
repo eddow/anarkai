@@ -240,6 +240,10 @@ export class SlottedStorage extends Storage {
 
 		const stored = qty - remaining
 		this.assertIntegrity('SlottedStorage.addGood.after')
+		if (stored > 0) {
+			this.notifyPresentationChanged('stock')
+			this.notifyGameplayChanged('stock')
+		}
 		return stored
 	}
 
@@ -274,6 +278,10 @@ export class SlottedStorage extends Storage {
 
 		const removed = qty - remaining
 		this.assertIntegrity('SlottedStorage.removeGood.after')
+		if (removed > 0) {
+			this.notifyPresentationChanged('stock')
+			this.notifyGameplayChanged('stock')
+		}
 		return removed
 	}
 
@@ -419,6 +427,8 @@ export class SlottedStorage extends Storage {
 			}
 			this.compactIdleSameGoodTypeSlots()
 			this.assertIntegrity('SlottedStorage.allocate.fulfill.after')
+			this.notifyPresentationChanged('stock')
+			this.notifyGameplayChanged('stock')
 		})
 
 		commitment.onCancelled(() => {
@@ -434,9 +444,11 @@ export class SlottedStorage extends Storage {
 			}
 			this.compactIdleSameGoodTypeSlots()
 			this.assertIntegrity('SlottedStorage.allocate.cancel.after')
+			this.notifyPresentationChanged('allocation')
 		})
 
 		this.assertIntegrity('SlottedStorage.allocate.after')
+		this.notifyPresentationChanged('allocation')
 		return undefined
 	}
 
@@ -519,6 +531,8 @@ export class SlottedStorage extends Storage {
 			}
 			this.compactIdleSameGoodTypeSlots()
 			this.assertIntegrity('SlottedStorage.reserve.fulfill.after')
+			this.notifyPresentationChanged('stock')
+			this.notifyGameplayChanged('stock')
 		})
 
 		commitment.onCancelled(() => {
@@ -536,9 +550,11 @@ export class SlottedStorage extends Storage {
 			}
 			this.compactIdleSameGoodTypeSlots()
 			this.assertIntegrity('SlottedStorage.reserve.cancel.after')
+			this.notifyPresentationChanged('reservation')
 		})
 
 		this.assertIntegrity('SlottedStorage.reserve.after')
+		this.notifyPresentationChanged('reservation')
 		return undefined
 	}
 

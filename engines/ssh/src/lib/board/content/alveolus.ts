@@ -1,5 +1,5 @@
 import { configurations, harvestFatiguePremium, jobBalance } from 'engine-rules'
-import { inert, memoize, reactive, type ScopedCallback, unreactive, unwrap } from 'mutts'
+import { inert, memoize, reactive, unreactive, unwrap } from 'mutts'
 import { isTileCoord } from 'ssh/board/tile-coord'
 import { traces } from 'ssh/dev/debug'
 import type { Hive, MovementSelection, TrackedMovement } from 'ssh/hive/hive'
@@ -42,7 +42,6 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	public declare hive: Hive
 	public storage: Storage
 	// Configurable properties removed - walkway and conveyor are no longer used
-	public advertisingEffect?: ScopedCallback
 
 	/**
 	 * Reference to which configuration scope to use.
@@ -111,6 +110,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			})
 		}
 		this.individualConfiguration.working = value
+		this.hive?.invalidateAdvertisement?.(this, 'alveolus.config')
 	}
 
 	constructor(tile: Tile, storage: Storage) {
@@ -118,6 +118,12 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		super(tile.board.game, `alveolus:${tileCoord.q},${tileCoord.r}`)
 		this.storage = storage
 		this.tile = tile
+		this.storage.setPresentationChangeNotifier((kind) => {
+			this.game.enqueueStoragePresentationChange?.(this.tile)
+		})
+		this.storage.setGameplayChangeNotifier(() =>
+			this.hive?.invalidateAdvertisement?.(this, 'storage.stock')
+		)
 
 		// Building gates will now happen during hive attachment
 	}
@@ -507,8 +513,6 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 
 	// Called even when replacing a Building construction site
 	destroy() {
-		this.advertisingEffect?.()
-		this.advertisingEffect = undefined
 		this.destroyed = true
 		super.destroy()
 	}

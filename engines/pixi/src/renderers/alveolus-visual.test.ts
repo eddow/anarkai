@@ -135,6 +135,7 @@ describe('TileVisual storage goods layering', () => {
 			if (!finishedStorage) throw new Error('Expected storage alveolus')
 			tile.content = finishedStorage
 			finishedStorage.storage.addGood('wood', 1)
+			visual.refreshStoredGoods()
 
 			expect(renderer.layers.storedGoods.renderLayerChildren).toHaveLength(1)
 			expect(storageLayerSpriteCount(renderer)).toBe(1)

@@ -7,7 +7,7 @@ import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
 import { scopedPixiName, setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
-import { renderGoods } from './goods-renderer'
+import { createGoodsRenderer, type GoodsRenderer } from './goods-renderer'
 import { VisualObject } from './visual-object'
 
 export function vehicleTextureKey(vehicleType: WorldVehicleType): string {
@@ -22,6 +22,7 @@ export class VehicleVisual extends VisualObject<VehicleEntity> {
 	private operatorSprite: Sprite
 	private sprite: Sprite
 	private isHovered = false
+	private goodsRenderer: GoodsRenderer | undefined
 
 	constructor(vehicle: VehicleEntity, renderer: PixiGameRenderer) {
 		super(vehicle, renderer)
@@ -82,7 +83,7 @@ export class VehicleVisual extends VisualObject<VehicleEntity> {
 			})
 		)
 
-		const cleanupGoods = renderGoods(
+		this.goodsRenderer = createGoodsRenderer(
 			this.renderer,
 			this.view,
 			tileSize,
@@ -93,7 +94,7 @@ export class VehicleVisual extends VisualObject<VehicleEntity> {
 			{ x: 0, y: 0 },
 			`vehicle.${this.object.uid}.goods`
 		)
-		this.register(cleanupGoods)
+		this.goodsRenderer.render()
 
 		const brightnessFilter = new ColorMatrixFilter()
 		this.register(
@@ -103,10 +104,16 @@ export class VehicleVisual extends VisualObject<VehicleEntity> {
 		)
 	}
 
+	public refreshStoredGoods() {
+		this.goodsRenderer?.render()
+	}
+
 	public dispose() {
 		if (this.renderer.layers?.vehicles) {
 			this.renderer.detachFromLayer(this.renderer.layers.vehicles, this.view)
 		}
+		this.goodsRenderer?.dispose()
+		this.goodsRenderer = undefined
 		super.dispose()
 	}
 

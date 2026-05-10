@@ -1,5 +1,6 @@
 import { Commitment } from 'ssh/commitment'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
+import { SpecificStorage } from 'ssh/storage/specific-storage'
 import { describe, expect, it } from 'vitest'
 
 describe('SlottedStorage Reactivity', () => {
@@ -32,5 +33,80 @@ describe('SlottedStorage Reactivity', () => {
 
 		// Check availables getter - this must match available()
 		expect(storage.availables.wood || 0).toBe(0)
+	})
+})
+
+describe.each([
+	['SlottedStorage', () => new SlottedStorage(1, 2)],
+	['SpecificStorage', () => new SpecificStorage({ wood: 2 })],
+])('Storage presentation notifications: %s', (_name, createStorage) => {
+	it('notifies on successful direct storage mutations only', () => {
+		const storage = createStorage()
+		let notifications = 0
+		storage.setPresentationChangeNotifier(() => {
+			notifications++
+		})
+
+		expect(storage.addGood('wood', 1)).toBe(1)
+		expect(notifications).toBe(1)
+
+		expect(storage.addGood('wood', 99)).toBe(1)
+		expect(notifications).toBe(2)
+
+		expect(storage.addGood('wood', 1)).toBe(0)
+		expect(notifications).toBe(2)
+
+		expect(storage.removeGood('wood', 1)).toBe(1)
+		expect(notifications).toBe(3)
+
+		expect(storage.removeGood('wood', 99)).toBe(1)
+		expect(notifications).toBe(4)
+
+		expect(storage.removeGood('wood', 1)).toBe(0)
+		expect(notifications).toBe(4)
+	})
+
+	it('notifies on allocation and reservation lifecycle changes', () => {
+		const storage = createStorage()
+		let notifications = 0
+		storage.setPresentationChangeNotifier(() => {
+			notifications++
+		})
+
+		const allocation = new Commitment('presentation.allocate')
+		expect(storage.allocate({ wood: 1 }, allocation)).toBeUndefined()
+		expect(notifications).toBe(1)
+
+		allocation.fulfill()
+		expect(notifications).toBe(2)
+
+		const reservation = new Commitment('presentation.reserve')
+		expect(storage.reserve({ wood: 1 }, reservation)).toBeUndefined()
+		expect(notifications).toBe(3)
+
+		reservation.cancel('test')
+		expect(notifications).toBe(4)
+	})
+
+	it('does not notify for failed allocation or reservation', () => {
+		const storage = createStorage()
+		let notifications = 0
+		storage.setPresentationChangeNotifier(() => {
+			notifications++
+		})
+
+		expect(storage.addGood('wood', 2)).toBe(2)
+		notifications = 0
+		expect(storage.allocate({ wood: 99 }, new Commitment('presentation.failed.allocate'))).toBe(
+			'Insufficient room to allocate any goods'
+		)
+		const emptyStorage = createStorage()
+		emptyStorage.setPresentationChangeNotifier(() => {
+			notifications++
+		})
+		expect(emptyStorage.reserve({ wood: 1 }, new Commitment('presentation.failed.reserve'))).toBe(
+			'Insufficient goods to reserve any goods'
+		)
+		expect(notifications).toBe(0)
 	})
 })

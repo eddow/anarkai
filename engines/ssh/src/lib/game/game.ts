@@ -79,6 +79,7 @@ const UNSAVED_DEFAULT_TERRAIN_SEED = 1234
 
 export type GameEvents = {
 	gameStart(): void
+	presentationEvents(events: readonly GamePresentationEvent[]): void
 	objectsAdded(objects: InteractiveGameObject[]): void
 	objectsChanged(objects: InteractiveGameObject[]): void
 	objectsRemoved(objects: InteractiveGameObject[]): void
@@ -91,6 +92,7 @@ export type GameEvents = {
 	dragPreview(tiles: Tile[], zoneType: string): void
 	dragPreviewClear(): void
 }
+export type GamePresentationEvent = { type: 'storage.changed'; ownerUid: string }
 unreactive(Eventful)
 export type GameGenerationOptions = {
 	terrainSeed: number
@@ -297,8 +299,10 @@ export class Game extends Eventful<GameEvents> {
 	private readonly pendingInteractiveRegistrations = new Map<string, InteractiveGameObject>()
 	private readonly pendingInteractiveChanges = new Map<string, InteractiveGameObject>()
 	private readonly pendingInteractiveUnregistrations = new Map<string, InteractiveGameObject>()
+	private readonly pendingPresentationEvents = new Map<string, GamePresentationEvent>()
 	private interactiveRegistrationBatchDepth = 0
 	private interactiveLifecycleFlushScheduled = false
+	private presentationEventsFlushScheduled = false
 	private terrainTerraforming: TerrainTerraformPatch[] = []
 	private readonly bootstrapGameplayCoords = new Set<string>()
 	private readonly materializedGameplayCoords = new Map<string, AxialCoord>()
@@ -406,6 +410,12 @@ export class Game extends Eventful<GameEvents> {
 		this.scheduleInteractiveLifecycleFlush()
 	}
 
+	public enqueueStoragePresentationChange(owner: { uid: string }): void {
+		const event: GamePresentationEvent = { type: 'storage.changed', ownerUid: owner.uid }
+		this.pendingPresentationEvents.set(`${event.type}:${event.ownerUid}`, event)
+		this.schedulePresentationEventsFlush()
+	}
+
 	/**
 	 * After mutating `UnBuiltLand.deposit` or its `amount`, notify tile observers and refresh
 	 * sector-baked resource visuals when a renderer implements `invalidateTerrain`.
@@ -485,6 +495,22 @@ export class Game extends Eventful<GameEvents> {
 		this.interactiveLifecycleFlushScheduled = true
 		defer(() => {
 			this.flushInteractiveLifecycleQueues()
+		})
+	}
+
+	private flushPresentationEvents() {
+		this.presentationEventsFlushScheduled = false
+		if (this.pendingPresentationEvents.size === 0) return
+		const events = [...this.pendingPresentationEvents.values()]
+		this.pendingPresentationEvents.clear()
+		this.emit('presentationEvents', events)
+	}
+
+	private schedulePresentationEventsFlush() {
+		if (this.presentationEventsFlushScheduled) return
+		this.presentationEventsFlushScheduled = true
+		queueMicrotask(() => {
+			this.flushPresentationEvents()
 		})
 	}
 
@@ -1174,15 +1200,6 @@ export class Game extends Eventful<GameEvents> {
 					const build = new BuildAlveolus(tile, alveolusType, constructionSite)
 					build.constructionWorkSecondsApplied = a.constructionWorkSecondsApplied ?? 0
 					this.hex.setTileContent(tile, build)
-					if (!build.hive) {
-						if (this.HiveClass) {
-							const h = this.HiveClass.for(tile)
-							h.attach(build)
-						}
-					}
-					hiveInstance = build.hive
-					hiveInstance.name = hive.name
-					hiveInstance.working = hive.working ?? true
 					if (a.goods)
 						for (const [good, qty] of Object.entries(a.goods))
 							build.storage?.addGood(good as GoodType, qty)
@@ -1192,25 +1209,25 @@ export class Game extends Eventful<GameEvents> {
 							build.individualConfiguration = reactive({ ...a.configuration.individual })
 						}
 					}
+					if (!build.hive && this.HiveClass) {
+						const h = this.HiveClass.for(tile)
+						h.name = hive.name
+						h.working = hive.working ?? true
+						h.attach(build)
+					}
+					hiveInstance = build.hive
+					hiveInstance.name = hive.name
+					hiveInstance.working = hive.working ?? true
 					tile.asGenerated = false
 					continue
 				}
 				const alv = createAlveolus(alveolusType, tile)
 				if (!alv) continue
 				this.hex.setTileContent(tile, alv)
-				if (!alv.hive) {
-					if (this.HiveClass) {
-						const h = this.HiveClass.for(tile)
-						h.attach(alv)
-					}
-				}
-				hiveInstance = alv.hive
-				alv.hive.name = hive.name
-				alv.hive.working = hive.working ?? true
 				if (a.goods)
 					for (const [good, qty] of Object.entries(a.goods))
 						alv.storage?.addGood(good as GoodType, qty)
-				// Restore configuration if present
+				// Restore configuration if present before hive attachment advertises the alveolus.
 				if (a.configuration) {
 					alv.configurationRef = a.configuration.ref
 					if (a.configuration.individual) {
@@ -1245,6 +1262,15 @@ export class Game extends Eventful<GameEvents> {
 						}
 					}
 				}
+				if (!alv.hive && this.HiveClass) {
+					const h = this.HiveClass.for(tile)
+					h.name = hive.name
+					h.working = hive.working ?? true
+					h.attach(alv)
+				}
+				hiveInstance = alv.hive
+				alv.hive.name = hive.name
+				alv.hive.working = hive.working ?? true
 				tile.asGenerated = false
 			}
 			assert(hiveInstance, 'Alveolus building on load')
@@ -1253,6 +1279,7 @@ export class Game extends Eventful<GameEvents> {
 				for (const [alvType, config] of Object.entries(hiveConfigurations[hive.name])) {
 					hiveInstance.configurations.set(alvType, config)
 				}
+				hiveInstance.invalidateAdvertisements?.(hiveInstance.alveoli, 'alveolus.config')
 			}
 		}
 	}
@@ -1547,7 +1574,9 @@ export class Game extends Eventful<GameEvents> {
 		this.pendingInteractiveRegistrations.clear()
 		this.pendingInteractiveChanges.clear()
 		this.pendingInteractiveUnregistrations.clear()
+		this.pendingPresentationEvents.clear()
 		this.objects.clear()
 		this.interactiveLifecycleFlushScheduled = false
+		this.presentationEventsFlushScheduled = false
 	}
 }

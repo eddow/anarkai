@@ -126,4 +126,40 @@ describe('VisualFactory batched lifecycle sync', () => {
 			await engine.destroy()
 		}
 	})
+
+	it('refreshes stored goods visuals from presentation event batches', async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+
+		try {
+			engine.loadScenario({
+				tiles: [{ coord: [0, 0], terrain: 'grass' }],
+				population: [],
+			})
+
+			const renderer = createRendererStub(engine.game)
+			const factory = new VisualFactory(renderer)
+			factory.bind()
+
+			let refreshes = 0
+			renderer.visuals.set('tile:0,0', {
+				refreshStoredGoods() {
+					refreshes++
+				},
+				dispose() {},
+			})
+
+			engine.game.emit('presentationEvents', [
+				{ type: 'storage.changed', ownerUid: 'tile:0,0' },
+				{ type: 'storage.changed', ownerUid: 'tile:0,0' },
+				{ type: 'storage.changed', ownerUid: 'missing' },
+			])
+
+			expect(refreshes).toBe(1)
+
+			factory.destroy()
+		} finally {
+			await engine.destroy()
+		}
+	})
 })

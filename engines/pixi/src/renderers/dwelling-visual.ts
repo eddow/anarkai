@@ -7,7 +7,7 @@ import { tileSize } from 'ssh/utils/varied'
 import { dwellings } from '../../assets/visual-content'
 import { scopedPixiName, setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
-import { renderGoods } from './goods-renderer'
+import { createGoodsRenderer, type GoodsRenderer } from './goods-renderer'
 import { VisualObject } from './visual-object'
 
 const hasUsableTexture = (texture: Texture | undefined) => {
@@ -31,6 +31,7 @@ export class DwellingVisual extends VisualObject<BasicDwelling | BuildDwelling> 
 	private readonly scope: string
 	private sprite: Sprite | undefined
 	private goodsContainer: Container
+	private goodsRenderer: GoodsRenderer | undefined
 	private _disposed = false
 
 	constructor(dwelling: BasicDwelling | BuildDwelling, renderer: PixiGameRenderer) {
@@ -101,7 +102,7 @@ export class DwellingVisual extends VisualObject<BasicDwelling | BuildDwelling> 
 			this.renderer.attachToLayer(storedGoodsLayer, this.goodsContainer)
 		}
 
-		const cleanupGoods = renderGoods(
+		this.goodsRenderer = createGoodsRenderer(
 			this.renderer,
 			this.goodsContainer,
 			tileSize,
@@ -114,7 +115,12 @@ export class DwellingVisual extends VisualObject<BasicDwelling | BuildDwelling> 
 			{ x: 0, y: 0 },
 			`${this.scope}.goods`
 		)
-		this.register(cleanupGoods)
+		this.goodsRenderer.render()
+	}
+
+	public refreshStoredGoods() {
+		if (this._disposed) return
+		this.goodsRenderer?.render()
 	}
 
 	public dispose() {
@@ -128,6 +134,8 @@ export class DwellingVisual extends VisualObject<BasicDwelling | BuildDwelling> 
 		if (this.sprite) {
 			this.sprite.destroy()
 		}
+		this.goodsRenderer?.dispose()
+		this.goodsRenderer = undefined
 		this.goodsContainer.destroy({ children: true })
 		super.dispose()
 	}

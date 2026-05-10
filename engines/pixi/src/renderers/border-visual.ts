@@ -6,7 +6,7 @@ import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
 import { scopedPixiName, setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
-import { renderGoods } from './goods-renderer'
+import { createGoodsRenderer, type GoodsRenderer } from './goods-renderer'
 import { VisualObject } from './visual-object'
 
 type GateLike = {
@@ -25,6 +25,7 @@ function isGateLike(value: unknown): value is GateLike {
 export class BorderVisual extends VisualObject<TileBorder> {
 	private readonly goodsContainer: Container
 	private readonly scope: string
+	private gateGoodsRenderers: GoodsRenderer[] = []
 
 	constructor(border: TileBorder, renderer: PixiGameRenderer) {
 		super(border, renderer)
@@ -47,10 +48,10 @@ export class BorderVisual extends VisualObject<TileBorder> {
 			effect`${this.scope}.render`(() => {
 				const content = this.object.content
 				if (!isGateLike(content)) {
-					this.goodsContainer.removeChildren().forEach((c) => c.destroy())
+					this.clearGateGoods()
 					return
 				}
-				return this.renderGate(content)
+				this.renderGate(content)
 			})
 		)
 	}
@@ -72,42 +73,53 @@ export class BorderVisual extends VisualObject<TileBorder> {
 			dy: centerLine.dx,
 		}
 
-		return effect`${this.scope}.gate.${gate.uid ?? 'anonymous'}`(() => {
-			const storage = gate.storage
-			if (!storage) {
-				this.goodsContainer.removeChildren().forEach((c) => c.destroy())
-				return
-			}
+		this.clearGateGoods()
+		const storage = gate.storage
+		if (!storage) return
 
-			this.goodsContainer.removeChildren().forEach((c) => c.destroy())
-			const { slots } = storage.renderedGoods()
-			const positions = getBorderGoodsPositions(
-				{ x: 0, y: 0 },
-				borderDirection,
-				tileSize * 0.8,
-				slots.length
+		const { slots } = storage.renderedGoods()
+		const positions = getBorderGoodsPositions(
+			{ x: 0, y: 0 },
+			borderDirection,
+			tileSize * 0.8,
+			slots.length
+		)
+		this.gateGoodsRenderers = slots.flatMap((slot, i) => {
+			const position = positions[i]
+			if (!position) return []
+			const renderer = createGoodsRenderer(
+				this.renderer,
+				this.goodsContainer,
+				tileSize,
+				() => ({ slots: [slot], assumedMaxSlots: 1 }),
+				position,
+				`${this.scope}.goods.${i}`
 			)
-			const cleanups = slots.map((slot, i) => {
-				const position = positions[i]
-				if (!position) return undefined
-				return renderGoods(
-					this.renderer,
-					this.goodsContainer,
-					tileSize,
-					() => ({ slots: [slot], assumedMaxSlots: 1 }),
-					position,
-					`${this.scope}.goods.${i}`
-				)
-			})
-
-			return () => cleanups.forEach((cleanup) => cleanup?.())
+			renderer.render()
+			return [renderer]
 		})
+	}
+
+	public refreshStoredGoods() {
+		const content = this.object.content
+		if (!isGateLike(content)) {
+			this.clearGateGoods()
+			return
+		}
+		this.renderGate(content)
+	}
+
+	private clearGateGoods() {
+		this.gateGoodsRenderers.forEach((renderer) => renderer.dispose())
+		this.gateGoodsRenderers = []
+		this.goodsContainer.removeChildren().forEach((c) => c.destroy())
 	}
 
 	public dispose() {
 		if (this.renderer.layers?.storedGoods) {
 			this.renderer.detachFromLayer(this.renderer.layers.storedGoods, this.view)
 		}
+		this.clearGateGoods()
 		this.goodsContainer.destroy({ children: true })
 		super.dispose()
 	}

@@ -2,11 +2,12 @@ import { css } from '@app/lib/css'
 import { showProps } from '@app/lib/follow-selection'
 import { tryConsumeFreightMapPick } from '@app/lib/freight-map-pick'
 import { game, interactionMode, validateStoredSelectionState } from '@app/lib/globals'
+import { consumePresentationEvents } from '@app/lib/presentation-events'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
 import { PixiGameRenderer } from 'engine-pixi/renderer'
 import { effect } from 'mutts'
 import { Tile } from 'ssh/board/tile'
-import type { InteractiveGameObject } from 'ssh/game'
+import type { GamePresentationEvent, InteractiveGameObject } from 'ssh/game'
 import type { AlveolusType } from 'ssh/types/base'
 
 css`
@@ -88,6 +89,9 @@ export default function GameWidget(
 				'shiftKey' in event &&
 				Boolean((event as { shiftKey: boolean }).shiftKey)
 			if (!shift) interactionMode.selectedAction = ''
+		},
+		presentationEvents(events: readonly GamePresentationEvent[]) {
+			consumePresentationEvents(events)
 		},
 	}
 

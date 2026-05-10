@@ -93,6 +93,10 @@ export class SpecificStorage extends Storage {
 		}
 
 		this.assertIntegrity('SpecificStorage.addGood.after')
+		if (toStore > 0) {
+			this.notifyPresentationChanged('stock')
+			this.notifyGameplayChanged('stock')
+		}
 		return toStore
 	}
 	@atomic
@@ -115,6 +119,10 @@ export class SpecificStorage extends Storage {
 		}
 
 		this.assertIntegrity('SpecificStorage.removeGood.after')
+		if (toRemove > 0) {
+			this.notifyPresentationChanged('stock')
+			this.notifyGameplayChanged('stock')
+		}
 		return toRemove
 	}
 
@@ -202,6 +210,8 @@ export class SpecificStorage extends Storage {
 				this._goods[goodType] = (this._goods[goodType] || 0) + qty
 			}
 			this.assertIntegrity('SpecificStorage.allocate.fulfill.after')
+			this.notifyPresentationChanged('stock')
+			this.notifyGameplayChanged('stock')
 		})
 
 		commitment.onCancelled(() => {
@@ -213,9 +223,11 @@ export class SpecificStorage extends Storage {
 				this._allocated[goodType] = curAlloc - qty
 			}
 			this.assertIntegrity('SpecificStorage.allocate.cancel.after')
+			this.notifyPresentationChanged('allocation')
 		})
 
 		this.assertIntegrity('SpecificStorage.allocate.after')
+		this.notifyPresentationChanged('allocation')
 		return undefined
 	}
 
@@ -263,6 +275,8 @@ export class SpecificStorage extends Storage {
 				this._goods[goodType] = have - want
 			}
 			this.assertIntegrity('SpecificStorage.reserve.fulfill.after')
+			this.notifyPresentationChanged('stock')
+			this.notifyGameplayChanged('stock')
 		})
 
 		commitment.onCancelled(() => {
@@ -274,9 +288,11 @@ export class SpecificStorage extends Storage {
 				this._reserved[goodType] = curRes + qty
 			}
 			this.assertIntegrity('SpecificStorage.reserve.cancel.after')
+			this.notifyPresentationChanged('reservation')
 		})
 
 		this.assertIntegrity('SpecificStorage.reserve.after')
+		this.notifyPresentationChanged('reservation')
 		return undefined
 	}
 

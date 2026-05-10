@@ -125,6 +125,17 @@ export class TileVisual extends VisualObject<Tile> {
 		this.renderInteraction()
 	}
 
+	public refreshStoredGoods() {
+		const visual = this.currentContentVisual
+		if (
+			visual &&
+			'refreshStoredGoods' in visual &&
+			typeof visual.refreshStoredGoods === 'function'
+		) {
+			visual.refreshStoredGoods()
+		}
+	}
+
 	private renderInteraction(brightnessFilter = new ColorMatrixFilter()) {
 		const content = this.object.content
 		let brightness = 1
