@@ -44,6 +44,7 @@ export class UnBuiltLand extends withTicked(TileContent) {
 	 * Set a project and clear any existing zone
 	 */
 	setProject(project: string, constructionSite?: ConstructionSiteState): void {
+		this.tile.asGenerated = false
 		this.project = project
 		const target = constructionTargetFromProject(project)
 		this.constructionSite =

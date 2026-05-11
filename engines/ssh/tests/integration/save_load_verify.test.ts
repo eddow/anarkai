@@ -67,7 +67,7 @@ if (typeof Image === 'undefined') {
 	headers: new Map(),
 })
 
-import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import { Deposit, UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { Game } from 'ssh/game/game'
 import { DurationStep, MoveToStep, MultiMoveStep } from 'ssh/npcs/steps'
 import { toAxialCoord } from 'ssh/utils/position'
@@ -133,6 +133,16 @@ describe('Save/Load Determinism', () => {
 		}
 		games.clear()
 	})
+
+	function frontierHas(
+		saveState: ReturnType<Game['saveGameData']>,
+		coord: { q: number; r: number }
+	): boolean {
+		return (
+			saveState.streamedFrontier?.some((entry) => entry[0] === coord.q && entry[1] === coord.r) ??
+			false
+		)
+	}
 
 	// Use static imports
 	// Patch getTexture to avoid rendering errors in headless mode
@@ -326,9 +336,10 @@ describe('Save/Load Determinism', () => {
 		residentialTile!.zone = 'residential'
 		expect(projectTile!.content instanceof UnBuiltLand).toBe(true)
 		;(projectTile!.content as UnBuiltLand).setProject('build:test')
-		projectTile!.asGenerated = false
 
 		const saveState = game.saveGameData()
+		expect(frontierHas(saveState, residentialCoord)).toBe(false)
+		expect(frontierHas(saveState, projectCoord)).toBe(false)
 		const game2 = new Game({
 			terrainSeed: 654,
 			characterCount: 0,
@@ -341,6 +352,63 @@ describe('Save/Load Determinism', () => {
 		const loadedProjectTile = game2.hex.getTile(projectCoord)
 		expect(loadedProjectTile?.content instanceof UnBuiltLand).toBe(true)
 		expect((loadedProjectTile?.content as UnBuiltLand).project).toBe('build:test')
+	})
+
+	it('preserves loose goods and deposit mutations on streamed gameplay tiles as ordinary patches', async () => {
+		const game = new Game({
+			terrainSeed: 655,
+			characterCount: 0,
+		})
+		games.add(game)
+		await game.loaded
+
+		const looseCoord = { q: 18, r: 0 }
+		const depositCoord = { q: 19, r: 0 }
+		await game.requestGameplayFrontier(looseCoord, 1, { maxBatchSize: 7 })
+
+		const looseTile = game.hex.getTile(looseCoord)
+		const depositTile = game.hex.getTile(depositCoord)
+		expect(looseTile?.asGenerated).toBe(true)
+		expect(depositTile?.asGenerated).toBe(true)
+
+		game.hex.looseGoods.add(looseTile!, 'wood')
+		expect(looseTile?.asGenerated).toBe(false)
+
+		const deposit = Deposit.create('tree', 2)
+		if (!deposit) throw new Error('tree deposit missing')
+		const depositContent = depositTile!.content
+		expect(depositContent).toBeInstanceOf(UnBuiltLand)
+		if (!(depositContent instanceof UnBuiltLand)) return
+		depositContent.deposit = deposit
+		game.notifyTerrainDepositsChanged(depositTile!)
+		expect(depositTile?.asGenerated).toBe(false)
+
+		const saveState = game.saveGameData()
+		expect(frontierHas(saveState, looseCoord)).toBe(false)
+		expect(frontierHas(saveState, depositCoord)).toBe(false)
+		expect(saveState.looseGoods?.wood).toContainEqual([looseCoord.q, looseCoord.r])
+		expect(
+			saveState.tiles?.some(
+				(entry) => entry.coord[0] === depositCoord.q && entry.coord[1] === depositCoord.r
+			)
+		).toBe(true)
+
+		const game2 = new Game({
+			terrainSeed: 655,
+			characterCount: 0,
+		})
+		games.add(game2)
+		await game2.loaded
+		await game2.loadGameData(saveState)
+
+		expect(game2.hex.looseGoods.getGoodsAt(looseCoord).map((good) => good.goodType)).toContain(
+			'wood'
+		)
+		const loadedDepositContent = game2.hex.getTileContent(depositCoord)
+		expect(loadedDepositContent).toBeInstanceOf(UnBuiltLand)
+		if (loadedDepositContent instanceof UnBuiltLand) {
+			expect(loadedDepositContent.deposit?.amount).toBe(2)
+		}
 	})
 
 	it('Scenario 4: Logistics/MultiMoveStep', async () => {

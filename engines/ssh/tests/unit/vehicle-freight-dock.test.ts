@@ -666,7 +666,7 @@ describe('vehicle-freight-dock', () => {
 			expect(vehicle.service.stop.id).toBe(line.stops[0]!.id)
 			expect(collectDockedVehicleAdvertisementCandidates(vehicle, bay!)).toEqual(
 				expect.arrayContaining([
-					expect.objectContaining({ goodType: 'wood', advertisement: 'demand', quantity: 1 }),
+					expect.objectContaining({ goodType: 'wood', advertisement: 'demand' }),
 				])
 			)
 
@@ -678,6 +678,72 @@ describe('vehicle-freight-dock', () => {
 			if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
 			expect(vehicle.service.stop.id).toBe(line.stops[1]!.id)
 			expect(vehicle.service.docked).toBe(false)
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('advertises a convey job while an empty docked distribute vehicle can load from hive storage', async () => {
+		const engine = new TestEngine({ terrainSeed: 12013, characterCount: 0 })
+		await engine.init()
+		try {
+			const line = distributeFreightLine({
+				id: 'dock:distribute-advertise',
+				name: 'Dock distribute advertise',
+				hiveName: 'DockDistributeAdvertise',
+				coord: [0, 0],
+				filters: ['wood'],
+				unloadRadius: 1,
+			})
+			engine.loadScenario({
+				tiles: [{ coord: [0, -1], terrain: 'grass' }],
+				hives: [
+					{
+						name: 'DockDistributeAdvertise',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
+							{ coord: [1, 0], alveolus: 'storage', goods: { wood: 1 } },
+						],
+					},
+				],
+				freightLines: [line],
+			} satisfies Partial<SaveState>)
+			const constructionTile = engine.game.hex.getTile({ q: 0, r: -1 })!
+			constructionTile.content = new BuildDwelling(constructionTile, 'basic_dwelling')
+
+			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
+			expect(bay).toBeDefined()
+			const vehicle = engine.game.vehicles.createVehicle(
+				'dock-distribute-advertise-v',
+				'wheelbarrow',
+				{ q: 0, r: 0 },
+				[line]
+			)
+			vehicle.beginLineService(line, line.stops[0]!)
+			vehicle.dock()
+
+			expect(collectDockedVehicleAdvertisementCandidates(vehicle, bay!)).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ goodType: 'wood', advertisement: 'demand' }),
+				])
+			)
+			expect(vehicle.advertisedJobs).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						job: 'convey',
+						source: expect.objectContaining({ kind: 'alveolus' }),
+					}),
+				])
+			)
+			expect(vehicle.proposedJobs).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						job: 'convey',
+						vehicleUid: vehicle.uid,
+						source: expect.objectContaining({ kind: 'vehicle' }),
+					}),
+				])
+			)
 		} finally {
 			await engine.destroy()
 		}

@@ -1662,8 +1662,22 @@ export function collectVehicleProposedJobs(
 	try {
 		const byKey = new Map<string, VehicleProposedJob>()
 		for (const advertisedJob of collectVehicleAdvertisedJobs(game, vehicle)) {
-			if (advertisedJob.source.kind !== 'vehicle') continue
-			const vehicleJob = advertisedJob as VehicleProposedJob
+			const vehicleJob =
+				advertisedJob.source.kind === 'vehicle'
+					? (advertisedJob as VehicleProposedJob)
+					: advertisedJob.job === 'convey'
+						? asVehicleProposedJob(
+								{
+									job: 'convey',
+									fatigue: advertisedJob.fatigue,
+									urgency: advertisedJob.urgency,
+									vehicleUid: vehicle.uid,
+								},
+								vehicle,
+								advertisedJob.targetTile
+							)
+						: undefined
+			if (!vehicleJob) continue
 			byKey.set(proposedVehicleJobIdentityKey(vehicleJob), vehicleJob)
 		}
 		for (const character of game.population) {

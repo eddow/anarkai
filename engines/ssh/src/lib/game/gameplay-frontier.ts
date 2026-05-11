@@ -9,10 +9,12 @@ export interface GameplayFrontierRequest {
 
 interface GameplayFrontierControllerOptions {
 	hasMaterializedTile(coord: AxialCoord): boolean
-	materialize(coords: AxialCoord[]): Promise<void>
+	materialize(coords: AxialCoord[]): Promise<boolean>
+	materializedCount(): number
 }
 
 export class GameplayFrontierController {
+	private readonly requested = new Map<string, AxialCoord>()
 	private readonly pending = new Map<string, AxialCoord>()
 	private readonly inFlight = new Set<string>()
 	private drainPromise: Promise<boolean> | undefined
@@ -20,8 +22,22 @@ export class GameplayFrontierController {
 
 	constructor(private readonly options: GameplayFrontierControllerOptions) {}
 
+	snapshot() {
+		return {
+			requested: this.requested.size,
+			pending: this.pending.size,
+			inFlight: this.inFlight.size,
+			materialized: this.options.materializedCount(),
+		}
+	}
+
 	request(request: GameplayFrontierRequest): Promise<boolean> {
-		const candidates = [...axial.allTiles(request.center, request.radius)]
+		const requestedCoords = [...axial.allTiles(request.center, request.radius)]
+		for (const coord of requestedCoords) {
+			this.requested.set(axial.key(coord), coord)
+		}
+
+		const candidates = requestedCoords
 			.filter((coord) => !this.options.hasMaterializedTile(coord))
 			.filter((coord) => {
 				const key = axial.key(coord)
@@ -60,8 +76,7 @@ export class GameplayFrontierController {
 				for (const [key] of batchEntries) this.pending.delete(key)
 				for (const { key } of batch) this.inFlight.add(key)
 				try {
-					await this.options.materialize(batch.map(({ coord }) => coord))
-					generated = true
+					generated = (await this.options.materialize(batch.map(({ coord }) => coord))) || generated
 				} finally {
 					for (const { key } of batch) this.inFlight.delete(key)
 				}

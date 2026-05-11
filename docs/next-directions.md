@@ -18,8 +18,7 @@ Already landed or mostly landed:
 
 Still architecturally important:
 
-- Gameplay streaming should move fully under `ssh` ownership instead of being shaped by renderer needs.
-- Save/load rules for mutated streamed gameplay tiles need to be clear.
+- Off-screen gameplay unloading is deferred until a larger-world feature needs it.
 - Freight line editing still has deeper route-authoring work after the v1 management bridge.
 
 ## Details to add
@@ -31,27 +30,9 @@ Still architecturally important:
 
 ## Recommended Next Tranche
 
-### Gameplay streaming ownership
-
-This is the strongest foundational next step because it affects almost every larger game feature.
-
-Goal:
-
-- Make `ssh` the owner of gameplay frontier policy: requested, active, retained, unloaded, and persisted regions.
-
-Why it matters:
-
-- Roads, shops, settlements, richer terrain, and remote production all need a stable answer to "does this
-  gameplay tile exist, and what happens when it leaves view?"
-- Pixi should express visibility and presentation, not lifecycle policy.
-- NPC cities and world trade become much easier once off-screen gameplay has explicit rules.
-
-Likely work:
-
-- Finish the contract around `engines/ssh/src/lib/game/gameplay-frontier.ts`.
-- Coalesce generation requests behind a stable `Game` API.
-- Define retention rules for mutated tiles, loose goods, projects, roads, freight stops, and settlements.
-- Add focused save/load tests for streamed-but-mutated gameplay state.
+Gameplay streaming ownership is now baseline. The strongest next tranche is therefore a gameplay-facing
+choice: roads/path infrastructure if the goal is a larger map, shops/markets if the goal is demand, or a
+small content chain if the goal is more immediate play texture.
 
 ## Candidate Directions
 
@@ -189,13 +170,12 @@ Risks:
 
 ## Suggested Ordering
 
-1. Gameplay streaming ownership.
-2. Roads and path infrastructure.
-3. One small content tranche that proves roads matter.
-4. Shops/markets or NPC villages, depending on whether the next desired feeling is "internal economy" or
+1. Roads and path infrastructure.
+2. One small content tranche that proves roads matter.
+3. Shops/markets or NPC villages, depending on whether the next desired feeling is "internal economy" or
    "inhabited world".
-5. Terrain generation rework when settlements, roads, and resource placement need stronger geography.
-6. Freight-line authoring depth as needed whenever route complexity starts slowing playtesting.
+4. Terrain generation rework when settlements, roads, and resource placement need stronger geography.
+5. Freight-line authoring depth as needed whenever route complexity starts slowing playtesting.
 
 ## Decision Prompts
 

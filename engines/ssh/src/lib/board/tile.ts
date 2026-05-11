@@ -149,6 +149,7 @@ export class Tile extends withInteractive(GameObject) {
 		} else {
 			this.board.zoneManager.setZone(toAxialCoord(this.position), zone)
 		}
+		this.asGenerated = false
 		this.board.game.enqueueInteractiveChange(this)
 	}
 

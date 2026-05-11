@@ -15,6 +15,18 @@
 - harvesting, gathering, transit, transform, and build flows
 - storage reservations and allocations
 - save/load coverage and many regression tests around stalled conveyance and job selection
+- SSH-owned gameplay frontier materialization and persistence rules for streamed gameplay tiles
+
+### Gameplay Streaming
+
+Gameplay streaming is owned by `ssh`:
+
+- `Game.requestGameplayFrontier(center, radius, { maxBatchSize })` is the renderer-facing gameplay
+  materialization API
+- untouched streamed gameplay tiles are retained in `streamedFrontier`
+- mutated streamed tiles are saved through ordinary patches instead of staying in `streamedFrontier`
+- terrain-only render samples remain owned by `TerrainProvider`
+- off-screen gameplay unloading is intentionally deferred
 
 ### Freight Lines (v1 bridge)
 
@@ -58,22 +70,15 @@ The main drift in the repository is documentation, not implementation. Several t
 
 Sandbox notes also contained resolved debugging sessions that are now better represented by code and tests.
 
-## Next Direction
+## Baseline Status
 
 For the broader menu of possible next tranches, see [`./next-directions.md`](./next-directions.md).
 
-The strongest immediate next tranche is **gameplay streaming completion**.
-
-Terrain already streams well, but gameplay still sits in a transitional state where the renderer helps drive world materialization. The next step should make `ssh` the clear owner of gameplay frontier policy:
-
-1. Formalize requested, active, and retained gameplay frontier regions.
-2. Coalesce and deduplicate generation requests behind a stable `Game` API.
-3. Define persistence rules for off-screen gameplay state versus deterministic terrain.
-4. Keep Pixi responsible for visibility and visuals, but not gameplay lifecycle policy.
+The architectural baseline is now landed: terrain is deterministic, gameplay materialization and
+retention policy live in `ssh`, and Pixi only asks for visibility-driven frontier expansion.
 
 ## Suggested Near-Term Work
 
-1. Define save/load retention rules for streamed but mutated tiles.
-2. Review hive split/removal semantics, especially movement cleanup when an alveolus disappears.
-3. Continue line gameplay work after v1 bridge (`distribute` worker loop, transfer mode, good-group filters).
-4. Use [`./next-directions.md`](./next-directions.md) to choose whether the next gameplay-facing tranche should be roads, shops/markets, content chains, NPC settlements, terrain generation, or deeper freight authoring.
+1. Use [`./next-directions.md`](./next-directions.md) to choose whether the next gameplay-facing tranche should be roads, shops/markets, content chains, NPC settlements, terrain generation, or deeper freight authoring.
+2. Continue freight authoring depth when route complexity starts slowing playtesting.
+3. Design off-screen gameplay unloading later, after at least one larger-world feature needs it.

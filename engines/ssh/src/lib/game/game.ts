@@ -383,8 +383,9 @@ export class Game extends Eventful<GameEvents> {
 	private readonly gameplayFrontier = new GameplayFrontierController({
 		hasMaterializedTile: (coord) => this.hasMaterializedGameplayTile(coord),
 		materialize: async (coords) => {
-			await this.materializeGameplayTilesAsync(coords)
+			return this.materializeGameplayTilesAsync(coords)
 		},
+		materializedCount: () => this.materializedGameplayCoords.size,
 	})
 	private residentialDemandTicker?: ResidentialDemandTicker
 	private conveyRestoredAtLoad: TrackedMovement[] = []
@@ -533,6 +534,7 @@ export class Game extends Eventful<GameEvents> {
 	 * sector-baked resource visuals when a renderer implements `invalidateTerrain`.
 	 */
 	public notifyTerrainDepositsChanged(tile: Tile): void {
+		tile.asGenerated = false
 		this.enqueueInteractiveChange(tile)
 		const coord = toAxialCoord(tile.position)
 		if (!coord) return
@@ -982,13 +984,13 @@ export class Game extends Eventful<GameEvents> {
 		this.terrainProvider.clearViewportDemand(viewportId)
 	}
 
-	private materializeGameplayTiles(coords: Iterable<AxialCoord>) {
+	private materializeGameplayTiles(coords: Iterable<AxialCoord>): boolean {
 		const missingCoords: AxialCoord[] = []
 		for (const coord of coords) {
 			if (this.hasMaterializedGameplayTile(coord)) continue
 			missingCoords.push(coord)
 		}
-		if (missingCoords.length === 0) return
+		if (missingCoords.length === 0) return false
 
 		const boardData = this.generator.generateRegion(
 			this.generationOptions,
@@ -996,15 +998,16 @@ export class Game extends Eventful<GameEvents> {
 			this.terrainTerraforming
 		)
 		this.loadGeneratedBoard(boardData, { populateInitialGoods: false })
+		return boardData.length > 0
 	}
 
-	private async materializeGameplayTilesAsync(coords: Iterable<AxialCoord>) {
+	private async materializeGameplayTilesAsync(coords: Iterable<AxialCoord>): Promise<boolean> {
 		const missingCoords: AxialCoord[] = []
 		for (const coord of coords) {
 			if (this.hasMaterializedGameplayTile(coord)) continue
 			missingCoords.push(coord)
 		}
-		if (missingCoords.length === 0) return
+		if (missingCoords.length === 0) return false
 
 		const boardData = await this.generator.generateRegionAsync(
 			this.generationOptions,
@@ -1012,6 +1015,7 @@ export class Game extends Eventful<GameEvents> {
 			this.terrainTerraforming
 		)
 		this.loadGeneratedBoard(boardData, { populateInitialGoods: false })
+		return boardData.length > 0
 	}
 
 	public requestGameplayFrontier(
@@ -1024,6 +1028,17 @@ export class Game extends Eventful<GameEvents> {
 			radius,
 			maxBatchSize: options.maxBatchSize,
 		})
+	}
+
+	/**
+	 * Debug/test visibility into SSH-owned gameplay frontier state.
+	 *
+	 * Renderers may request visibility-driven frontier expansion through
+	 * `requestGameplayFrontier`, but generation, retention, and persistence policy
+	 * stay inside Game/ssh.
+	 */
+	public gameplayFrontierSnapshot() {
+		return this.gameplayFrontier.snapshot()
 	}
 
 	public ensureGeneratedTiles(coords: Iterable<AxialCoord>) {
@@ -1168,6 +1183,7 @@ export class Game extends Eventful<GameEvents> {
 
 						this.hex.looseGoods.add(tile, goodType as any, {
 							position: randomPos,
+							preserveGeneratedTile: true,
 						})
 					}
 				}
@@ -1484,6 +1500,9 @@ export class Game extends Eventful<GameEvents> {
 		const tiles: Array<TilePatch> = []
 		const hives = new Map<Hive, Array<AlveolusPatch>>()
 		const looseGoodsPatches: Partial<Record<GoodType, Array<[number, number]>>> = {}
+		// Untouched streamed gameplay tiles are just deterministic generated terrain/content,
+		// so they are retained as frontier coordinates. Once gameplay mutates a tile,
+		// `asGenerated` is cleared and the tile is persisted through ordinary patches below.
 		const streamedFrontier = [...this.materializedGameplayCoords.values()]
 			.filter((coord) => !this.bootstrapGameplayCoords.has(axial.key(coord)))
 			.filter((coord) => this.hex.getTile(coord)?.asGenerated)
@@ -1522,9 +1541,7 @@ export class Game extends Eventful<GameEvents> {
 					waterTable: terrainState?.waterTable,
 					deposit: content.deposit
 						? {
-								type:
-									(content.deposit.constructor as any).key ??
-									(content.deposit.constructor as any).name,
+								type: content.deposit.name,
 								amount: content.deposit.amount,
 							}
 						: undefined,

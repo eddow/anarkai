@@ -167,12 +167,47 @@ describe('streamed region generation', () => {
 		const second = game.requestGameplayFrontier({ q: 10, r: 0 }, 2, { maxBatchSize: 19 })
 		await Promise.resolve()
 		expect(generateRegionAsync).toHaveBeenCalledTimes(1)
+		expect(game.gameplayFrontierSnapshot()).toMatchObject({
+			requested: 19,
+			pending: 0,
+			inFlight: 19,
+			materialized: 0,
+		})
 
 		release?.()
 		await Promise.all([first, second])
 
 		expect(generateRegionAsync).toHaveBeenCalledTimes(1)
 		expect(game.hex.getTileContent({ q: 10, r: 0 })).toBeDefined()
+		expect(game.gameplayFrontierSnapshot()).toMatchObject({
+			requested: 19,
+			pending: 0,
+			inFlight: 0,
+			materialized: 19,
+		})
+	})
+
+	it('reports no generation when a frontier request materializes no tiles', async () => {
+		const game = new Game({
+			terrainSeed: 76,
+			characterCount: 0,
+		})
+		games.add(game)
+		await game.loaded
+
+		const generateRegionAsync = vi.spyOn(game.generator, 'generateRegionAsync').mockResolvedValue([])
+
+		const generated = await game.requestGameplayFrontier({ q: 3, r: 0 }, 0, { maxBatchSize: 1 })
+
+		expect(generated).toBe(false)
+		expect(generateRegionAsync).toHaveBeenCalledTimes(1)
+		expect(game.gameplayFrontierSnapshot()).toMatchObject({
+			requested: 1,
+			pending: 0,
+			inFlight: 0,
+			materialized: 0,
+		})
+		expect(game.hex.getTileContent({ q: 3, r: 0 })).toBeUndefined()
 	})
 
 	it('publishes streamed tile objects as one batched objectsAdded event', async () => {

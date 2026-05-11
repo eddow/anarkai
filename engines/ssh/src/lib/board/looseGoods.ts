@@ -19,6 +19,11 @@ export interface LooseGood {
 	allocate(commitment: Commitment): FailureReason
 }
 
+type LooseGoodAddOptions = Partial<LooseGood> & {
+	/** Internal generation path may seed decorative goods without dirtying a generated tile. */
+	preserveGeneratedTile?: boolean
+}
+
 type InternalLooseGood = LooseGood & {
 	coordKey: AxialKey
 	removed: boolean
@@ -42,7 +47,7 @@ export class LooseGoods extends withTicked(GameObject) {
 		else this.goods.delete(coord)
 		good.removed = true
 	}
-	add(pos: Positioned, goodType: GoodType, options: Partial<LooseGood> = {}) {
+	add(pos: Positioned, goodType: GoodType, options: LooseGoodAddOptions = {}) {
 		assert(
 			!('position' in options) ||
 				axialDistance(options.position!, toAxialCoord(pos)) < 0.5 + epsilon,
@@ -50,6 +55,7 @@ export class LooseGoods extends withTicked(GameObject) {
 		)
 		const coord = axial.round(toAxialCoord(pos))
 		const coordKey = axial.key(coord)
+		const { preserveGeneratedTile = false, ...looseGoodOptions } = options
 		const self = this
 		const good: InternalLooseGood = reactive({
 			goodType,
@@ -91,9 +97,13 @@ export class LooseGoods extends withTicked(GameObject) {
 
 				return undefined
 			},
-			...options,
+			...looseGoodOptions,
 		})
 		this.goods.set(coordKey, [...(this.goods.get(coordKey) || []), good])
+		if (!preserveGeneratedTile) {
+			const tile = this.game.hex.getTile(coord)
+			if (tile) tile.asGenerated = false
+		}
 		this.game.invalidateWorkPlanning('loose-good.add')
 		this.notifyLooseGoodsChanged(coordKey)
 
@@ -109,6 +119,8 @@ export class LooseGoods extends withTicked(GameObject) {
 
 		const internalGood = good as InternalLooseGood
 		this.removeKnownGood(internalGood)
+		const tile = this.game.hex.getTile(axial.coord(internalGood.coordKey))
+		if (tile) tile.asGenerated = false
 		this.game.invalidateWorkPlanning('loose-good.remove')
 		this.notifyLooseGoodsChanged(internalGood.coordKey)
 

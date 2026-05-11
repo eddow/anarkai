@@ -616,7 +616,7 @@ function expandCoords(coords: Iterable<AxialCoord>, padding: number): AxialCoord
 }
 
 function nowMs(): number {
-	return globalThis.performance?.now() ?? Date.now()
+	return (globalThis as any).performance?.now() ?? Date.now()
 }
 
 function clipHydratedSnapshot(
