@@ -1,10 +1,10 @@
+import { beforeEach, describe, expect, it } from 'vitest'
 import {
 	consumePresentationEvents,
 	presentationRevisionFor,
 	resetPresentationRevisionsForTests,
 	workPlanningPresentationRevision,
 } from './presentation-events'
-import { beforeEach, describe, expect, it } from 'vitest'
 
 describe('browser presentation event revisions', () => {
 	beforeEach(() => {

@@ -21,7 +21,14 @@ export function renderGoods(
 	worldPosition: { x: number; y: number },
 	label: string
 ) {
-	const goodsRenderer = createGoodsRenderer(renderer, container, size, getSlots, worldPosition, label)
+	const goodsRenderer = createGoodsRenderer(
+		renderer,
+		container,
+		size,
+		getSlots,
+		worldPosition,
+		label
+	)
 	goodsRenderer.render()
 	return () => goodsRenderer.dispose()
 }

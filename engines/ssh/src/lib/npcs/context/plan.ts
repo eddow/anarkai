@@ -402,10 +402,10 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 			delete plan.offloadPickupPlan
 		}
 		finalizeVehicleFreightWorkPlanOccupancy(plan, character)
-		if (
-			gameObjectsModule.Alveolus.allows(plan.target) &&
-			!(plan as WorkPlan & { preserveAssignment?: boolean }).preserveAssignment
-		) {
+		const shouldPreserveAssignment =
+			(plan as WorkPlan & { preserveAssignment?: boolean }).preserveAssignment &&
+			plan.job !== 'convey'
+		if (gameObjectsModule.Alveolus.allows(plan.target) && !shouldPreserveAssignment) {
 			if (plan.target.assignedWorker === character) {
 				plan.target.assignedWorker = undefined
 			}

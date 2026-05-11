@@ -1,9 +1,9 @@
 export class RevisionedCache<T> {
-	private revision: number | undefined
+	private revision: unknown
 	private value: T | undefined
 	private hasValue = false
 
-	get(revision: number, compute: () => T): T {
+	get(revision: unknown, compute: () => T): T {
 		if (this.hasValue && this.revision === revision) return this.value as T
 		const value = compute()
 		this.revision = revision

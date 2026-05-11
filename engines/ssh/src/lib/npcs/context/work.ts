@@ -11,10 +11,7 @@ import {
 	createConstructionShell,
 	finalizeConstructionShell,
 } from 'ssh/construction-shell'
-import {
-	constructionTargetFromProject,
-	createConstructionSiteState,
-} from 'ssh/construction-state'
+import { constructionTargetFromProject, createConstructionSiteState } from 'ssh/construction-state'
 import { assert, traces } from 'ssh/dev/debug'
 import { commitmentValid, type TrackedMovement } from 'ssh/hive/hive'
 import { movementRefId } from 'ssh/hive/movement-ref'
@@ -43,10 +40,9 @@ import { ConveyStaleBookkeepingError } from './convey-errors'
  * - `hop` is the coordinate reached by this step.
  * - `moving` is the transient loose-good used for the visual in-transit representation.
  *
- * Hop storage allocation is deferred to the step's `onFulfilled` callback.
- * This avoids holding capacity at the next hop during transit and eliminates
- * the need for a separate hop Commitment object — the step itself (which extends
- * Commitment) serves as the allocation commitment.
+ * Destination capacity is held by the animation step, but the movement keeps its
+ * original source reservation until the animation fulfills. That keeps freight
+ * from leaving storage before the carrier actually completes the carry.
  */
 interface MovementData {
 	movement: TrackedMovement
@@ -286,12 +282,16 @@ class WorkFunctions {
 			character.tile.effectiveWalkTime *
 			character.mobilityMultiplier *
 			Math.max(1, axial.distance(axial.round(from), axial.round(to)))
-		return new MoveToStep(duration, character, targetTile.position, 'walk', `walk.${workPlan.job}`).onFulfilled(
-			() => {
-				;(character as unknown as { _tile: typeof targetTile })._tile = targetTile
-				character.game.invalidateWorkPlanning('character.position')
-			}
-		)
+		return new MoveToStep(
+			duration,
+			character,
+			targetTile.position,
+			'walk',
+			`walk.${workPlan.job}`
+		).onFulfilled(() => {
+			;(character as unknown as { _tile: typeof targetTile })._tile = targetTile
+			character.game.invalidateWorkPlanning('character.position')
+		})
 	}
 
 	@contract('string?')
@@ -304,6 +304,18 @@ class WorkFunctions {
 	waitForIncomingGoods() {
 		return waitStep()
 	}
+
+	@contract('object')
+	inConveyRange(jobPlan: WorkPlan) {
+		const character = this[subject]
+		const target = jobPlan.target
+		if (!target || !('tile' in target)) return false
+		const characterCoord = toAxialCoord(character.tile.position)
+		const targetCoord = toAxialCoord(target.tile.position)
+		if (!characterCoord || !targetCoord) return false
+		return axial.distance(characterCoord, targetCoord) <= 1
+	}
+
 	@contract()
 	@atomic
 	conveyStep() {
@@ -517,7 +529,7 @@ class WorkFunctions {
 					allowUntracked: true,
 				})
 
-				const hop = movement.hop()!
+				const hop = movement.prepareHop()
 				traces.convey.log?.(
 					`[conveyStep] hop prepared ${movement.goodType} ref#${movementRefId(movement.ref)} ${axial.key(from)} -> ${axial.key(hop)} remaining=${movement.path.length}`,
 					{
@@ -529,45 +541,6 @@ class WorkFunctions {
 						remainingPathLength: movement.path.length,
 					}
 				)
-
-				// Only re-index the movement when another conveyor still needs to pick it up.
-				// Final-hop movements should stay out of hive.movingGoods; otherwise terminal
-				// path=[] ghost entries can linger at the destination and poison job selection.
-				if (movement.path.length) {
-					movement.place()
-					currentHive(movement).noteMovementStorageCheckpoint(
-						movement,
-						'conveyStep.after-place.storage',
-						hop
-					)
-					currentHive(movement).assertMovementMine(movement, {
-						label: 'conveyStep.after-place',
-						expectedFrom: hop,
-						expectClaimed: true,
-						requireTracked: true,
-						requireSourceValid: true,
-						requireTargetValid: true,
-						allowClaimedTerminalPath: true,
-					})
-					traces.convey.log?.(
-						`[conveyStep] placed intermediate ${movement.goodType} ref#${movementRefId(movement.ref)} at=${axial.key(hop)}`,
-						{
-							character: character.uid,
-							goodType: movement.goodType,
-							movementRef: movementRefId(movement.ref),
-							at: axial.key(hop),
-							remainingPathLength: movement.path.length,
-						}
-					)
-					if (
-						!currentHive(movement).ensureMovementInvariant(movement, {
-							expectedFrom: hop,
-							warnLabel: '[conveyStep] Invalid movement after place',
-						})
-					) {
-						throw new ConveyStaleBookkeepingError('Movement became invalid after place')
-					}
-				}
 
 				moving = character.game.hex.looseGoods.add(from, movement.goodType, {
 					position: from,
@@ -661,10 +634,26 @@ class WorkFunctions {
 			},
 			true,
 			true
-		)
+		).addTraceInfo({
+			characterUid: character.uid,
+			characterName: character.name,
+			alveolus: alveolus.name,
+			movements: movementData.map(({ movement, from, hop }) => ({
+				goodType: movement.goodType,
+				movementRef: movementRefId(movement.ref),
+				from: axial.key(from),
+				hop: axial.key(hop),
+				pathLength: movement.path.length,
+				provider: movement.provider.name,
+				demander: movement.demander.name,
+			})),
+		}) as MultiMoveStep
 		conveyStepRef.step = step
 		for (const { movement, hop } of movementData) {
 			if (!movement.path.length) continue
+			// The final tile hop is already covered by the movement target allocation. Allocating
+			// the tile storage again here can reject valid dock deliveries before the vehicle receives them.
+			if (movement.path.length === 1 && isTileCoord(hop)) continue
 			const movementHive = currentHive(movement)
 			const nextStorage = movementHive.storageAt(hop)
 			assert(nextStorage, 'nextStorage must be defined for intermediate hop')
@@ -680,6 +669,7 @@ class WorkFunctions {
 						reason: hopResult,
 					}
 				)
+				step.cancel('conveyStep.hop-allocation-failed')
 				for (const row of movementData) cleanupFailedConveyMovement(character, row)
 				movementHive.wakeWanderingWorkersNear(movement.provider, movement.demander)
 				return waitStep()
@@ -690,34 +680,6 @@ class WorkFunctions {
 				'conveyStep.after-step-hop-alloc.storage',
 				hop
 			)
-		}
-		const stepHive = currentHive(movementData[0]!.movement)
-		try {
-			stepHive.bindMovementsSourceToHopStep(
-				movementData.map(({ movement }) => movement),
-				step,
-				'conveyStep.pickup-hop-step'
-			)
-			for (const row of movementData) {
-				row.sourceFulfilled = true
-				currentHive(row.movement).noteMovementLifecycle(
-					row.movement,
-					'conveyStep.after-hop-source-bind'
-				)
-				currentHive(row.movement).assertMovementMine(row.movement, {
-					label: 'conveyStep.after-hop-source-bind',
-					expectedFrom: row.hop,
-					expectClaimed: true,
-					requireTracked: !!row.movement.path.length,
-					requireSourceValid: true,
-					requireTargetValid: true,
-					allowClaimedTerminalPath: true,
-					allowUntracked: !row.movement.path.length,
-				})
-			}
-		} catch (error) {
-			for (const row of movementData) cleanupFailedConveyMovement(character, row)
-			throw error
 		}
 		return step
 			.onCancelled(() => {
@@ -730,17 +692,18 @@ class WorkFunctions {
 					const movementHive = currentHive(movement)
 					movementHive.noteMovementLifecycle(movement, 'conveyStep.canceled')
 					releaseMovementClaim(movement)
-					movementHive.cancelMovementSource(movement, 'conveyStep.canceled')
-					movement.allocations.target.cancel('conveyStep.canceled')
-					character.game.hex.looseGoods.add(character.tile, movement.goodType)
-					movement.abort()
 				}
 			})
 			.onFulfilled(() => {
 				const hopAllocationFulfilled = new Set<TrackedMovement['ref']>()
 				try {
 					for (const { movement } of movementData) {
-						if (movement.path.length) hopAllocationFulfilled.add(movement.ref)
+						if (
+							movement.path.length &&
+							!(movement.path.length === 1 && isTileCoord(movement.path[0]!))
+						) {
+							hopAllocationFulfilled.add(movement.ref)
+						}
 					}
 					traces.convey.log?.(`[conveyStep] fulfilled animation`, {
 						character: character.uid,
@@ -760,27 +723,25 @@ class WorkFunctions {
 						const nextStorage = movementHive.storageAt(hop)
 
 						if (!moving.isRemoved) moving.remove()
+						movementHive.fulfillMovementSource(movement, 'conveyStep.finished.source')
+						if (!isTileCoord(row.from)) {
+							const sourceStorage = movementHive.storageAt(row.from)
+							if (sourceStorage?.available(movement.goodType)) {
+								sourceStorage.removeGood(movement.goodType, 1)
+							}
+						}
+						row.sourceFulfilled = true
+						const landed = movement.hop()!
+						assert(
+							axial.key(landed) === axial.key(hop),
+							`conveyStep.fulfilled: hop drifted ${axial.key(landed)} !== ${axial.key(hop)}`
+						)
 						if (!movement.path.length) {
 							if (!movement.allocations?.target) {
 								console.error('Target allocation missing for', movement)
 								throw new ConveyStaleBookkeepingError('Target allocation missing')
 							}
 							const demanderStorage = movement.demander.storage
-							traces.convey.log?.('[conveyStep.terminal.before-source-fulfill]', {
-								character: character.uid,
-								goodType: movement.goodType,
-								movementRef: movementRefId(movement.ref),
-								at: axial.key(hop),
-								source: commitmentTrace(movement.allocations.source),
-								target: commitmentTrace(movement.allocations.target),
-								demander: movement.demander.name,
-								demanderStorage: storageTrace(demanderStorage, movement.goodType),
-							})
-							// Fulfill source allocation BEFORE releasing claim to prevent border transit
-							// invariant failures during reactive updates. The claim release triggers
-							// aGoodMovement → assertBorderTransitStorageInvariant, which would find stock
-							// at the border from the unfulfilled hive-transfer source allocation.
-							movementHive.fulfillMovementSource(movement, 'conveyStep.finished.pre-release')
 							traces.convey.log?.('[conveyStep.terminal.after-source-fulfill]', {
 								character: character.uid,
 								goodType: movement.goodType,
@@ -841,7 +802,42 @@ class WorkFunctions {
 								throw new ConveyStaleBookkeepingError('Reserve for next hop failed')
 							}
 							row.sourceFulfilled = true
-							movementHive.assertBorderTransitStorageInvariant('[conveyStep.finished.rebind]')
+							// Only re-index the movement when another conveyor still needs to pick it up.
+							// Final-hop movements should stay out of hive.movingGoods; otherwise terminal
+							// path=[] ghost entries can linger at the destination and poison job selection.
+							movement.place()
+							movementHive.noteMovementStorageCheckpoint(
+								movement,
+								'conveyStep.after-place.storage',
+								hop
+							)
+							movementHive.assertMovementMine(movement, {
+								label: 'conveyStep.after-place',
+								expectedFrom: hop,
+								expectClaimed: true,
+								requireTracked: true,
+								requireSourceValid: true,
+								requireTargetValid: true,
+								allowClaimedTerminalPath: true,
+							})
+							traces.convey.log?.(
+								`[conveyStep] placed intermediate ${movement.goodType} ref#${movementRefId(movement.ref)} at=${axial.key(hop)}`,
+								{
+									character: character.uid,
+									goodType: movement.goodType,
+									movementRef: movementRefId(movement.ref),
+									at: axial.key(hop),
+									remainingPathLength: movement.path.length,
+								}
+							)
+							if (
+								!movementHive.ensureMovementInvariant(movement, {
+									expectedFrom: hop,
+									warnLabel: '[conveyStep] Invalid movement after place',
+								})
+							) {
+								throw new ConveyStaleBookkeepingError('Movement became invalid after place')
+							}
 							traces.convey.log?.(
 								`[conveyStep] rebound source ${movement.goodType} ref#${movementRefId(movement.ref)} at=${axial.key(hop)} remaining=${movement.path.length}`,
 								{

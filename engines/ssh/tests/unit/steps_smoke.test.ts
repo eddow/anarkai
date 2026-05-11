@@ -106,6 +106,24 @@ describe('steps smoke', () => {
 		expect(actor.position.q).toBe(0)
 	})
 
+	it('MultiMoveStep returns remaining time when its final beforeEvolve hook cancels it', () => {
+		const actor = { position: { q: 0, r: 0 } }
+		let step!: MultiMoveStep
+		step = new MultiMoveStep(
+			1.5,
+			[{ who: actor, to: { q: 1, r: 0 } }],
+			'work',
+			'cancel-before-arrival',
+			() => step.cancel('test.stale-rebind'),
+			false,
+			true
+		)
+
+		expect(step.tick(2)).toBeCloseTo(0.5)
+		expect(step.ended).toBe('test.stale-rebind')
+		expect(actor.position.q).toBe(0)
+	})
+
 	it('DurationStep carries its type and description through deserialization and finishes cleanly', () => {
 		const step = new DurationStep(4, 'work', 'Chopping Wood')
 

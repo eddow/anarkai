@@ -118,6 +118,10 @@ export function stepPassesFullRemainingOnComplete(ctor: Function): boolean {
 	return (ctor as { fullRemainingOnComplete?: boolean }).fullRemainingOnComplete === true
 }
 
+function stepEnded(step: ASingleStep): boolean {
+	return step.ended === true || typeof step.ended === 'string'
+}
+
 export class QueueStep<Entity extends ScriptedObject> extends ASingleStep {
 	static override readonly fullRemainingOnComplete = true
 
@@ -251,6 +255,7 @@ export class MultiMoveStep extends AEvolutionStep {
 		}
 	}
 	override tick(dt: number): number | undefined {
+		if (stepEnded(this)) return 0
 		if (this.deferFirstTick && !this.firstTickDeferred && this.evolution === 0) {
 			this.firstTickDeferred = true
 			return undefined
@@ -259,14 +264,19 @@ export class MultiMoveStep extends AEvolutionStep {
 			this.evolution += dt / this.duration
 			if (this.evolution >= 1) {
 				this.beforeEvolve?.()
-				if (this.ended === true || typeof this.ended === 'string') return undefined
+				if (stepEnded(this)) {
+					return (this.evolution - 1) * this.duration
+				}
 				this.fulfill()
 				return (this.evolution - 1) * this.duration
 			}
 			this.evolve(this.evolution)
+			if (stepEnded(this)) return 0
 			return undefined
 		}
-		return super.tick(dt)
+		const remaining = super.tick(dt)
+		if (remaining === undefined && stepEnded(this)) return 0
+		return remaining
 	}
 	evolve(evolution: number): void {
 		this.beforeEvolve?.()

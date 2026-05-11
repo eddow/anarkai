@@ -1305,8 +1305,52 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		}
 	}
 
+	private repairBorderTransitStorageReservations(label: string) {
+		for (const gate of this.gates) {
+			const coord = toAxialCoord(gate.border.position)
+			if (!coord) continue
+			for (const goodType of Object.keys(gate.storage.stock) as GoodType[]) {
+				while (gate.storage.available(goodType) > 0) {
+					const trackedCandidates = this.movingGoods.get(coord) ?? []
+					const untrackedCandidates = Array.from(this.activeMovements).filter(
+						(candidate) =>
+							axial.key(candidate.from) === axial.key(coord) &&
+							!this.trackedMovementCoord(candidate)
+					)
+					const movement = [...trackedCandidates, ...untrackedCandidates].find(
+						(candidate) =>
+							candidate.goodType === goodType &&
+							candidate.path.length > 0 &&
+							!candidate.claimed &&
+							this.isMovementAlive(candidate)
+					)
+					if (!movement) {
+						gate.storage.removeGood(goodType, 1)
+						this.board.looseGoods.add(gate.border.tile.a ?? gate.border.tile.b, goodType)
+						traces.advertising.warn?.(`[${label}] Offloaded orphan border transit stock`, {
+							goodType,
+							border: axial.key(coord),
+						})
+						continue
+					}
+					if (
+						!this.bindMovementSourceToTransitStorage(
+							movement,
+							gate.storage,
+							`${label}.repair-border-reservation`
+						)
+					) {
+						break
+					}
+					if (!this.trackedMovementCoord(movement)) movement.place()
+				}
+			}
+		}
+	}
+
 	public assertBorderTransitStorageInvariant(label = '[WATCHDOG]') {
 		if (this.destroyed || this.reconstructing) return
+		this.repairBorderTransitStorageReservations(label)
 		for (const gate of this.gates) {
 			const coord = toAxialCoord(gate.border.position)
 			if (!coord) continue
@@ -1318,14 +1362,40 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				const available = gate.storage.available(goodType)
 				if (available <= 0) continue
 				const invariantLabel = `${label} Border transit stock without movement reservation`
+				const trackedMovements = (this.movingGoods.get(coord) ?? []).map((movement) => ({
+					goodType: movement.goodType,
+					from: axial.key(movement.from),
+					pathLength: movement.path.length,
+					claimed: movement.claimed,
+					sourceValid:
+						!!movement.allocations?.source && commitmentValid(movement.allocations.source),
+					targetValid:
+						!!movement.allocations?.target && commitmentValid(movement.allocations.target),
+				}))
+				const activeAtBorder = Array.from(this.activeMovements)
+					.filter((movement) => axial.key(movement.from) === axial.key(coord))
+					.map((movement) => ({
+						goodType: movement.goodType,
+						trackedAt: this.trackedMovementCoord(movement)
+							? axial.key(this.trackedMovementCoord(movement)!)
+							: undefined,
+						pathLength: movement.path.length,
+						claimed: movement.claimed,
+						sourceValid:
+							!!movement.allocations?.source && commitmentValid(movement.allocations.source),
+						targetValid:
+							!!movement.allocations?.target && commitmentValid(movement.allocations.target),
+					}))
 				traces.advertising.warn?.(invariantLabel, {
 					goodType,
 					quantity,
 					available,
 					border: axial.key(coord),
+					trackedMovements,
+					activeAtBorder,
 				})
 				throw new Error(
-					`${invariantLabel}: ${goodType} available=${available} border=${axial.key(coord)}`
+					`${invariantLabel}: ${goodType} available=${available} border=${axial.key(coord)} tracked=${JSON.stringify(trackedMovements)} activeAtBorder=${JSON.stringify(activeAtBorder)}`
 				)
 			}
 		}
@@ -2992,6 +3062,12 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				providerDestroyed: !provider.tile || provider.destroyed,
 				demanderDestroyed: !demander.tile || demander.destroyed,
 			})
+			return false
+		}
+		if (this.hasActiveMovement(provider, demander, goodType)) {
+			traces.advertising.log?.(
+				`[CREATE] SKIP ACTIVE: ${goodType} ${provider.name} -> ${demander.name}`
+			)
 			return false
 		}
 

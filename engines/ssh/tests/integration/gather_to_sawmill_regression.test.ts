@@ -99,7 +99,8 @@ describe('Gather to sawmill regression', () => {
 
 			snapshot('after-first-hop-to-gate')
 
-			expect(gather.getJob()?.job, debugTimeline.join('\n')).toBe('convey')
+			expect(gather.getJob()?.job, debugTimeline.join('\n')).toBeUndefined()
+			expect(getMovements().length, debugTimeline.join('\n')).toBeGreaterThan(0)
 
 			claimMovementForTest(firstMovement)
 			firstMovement.allocations.source.fulfill()

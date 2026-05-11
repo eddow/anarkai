@@ -1,10 +1,10 @@
-import { document, latch } from '@sursaut/core'
-import { reactive } from 'mutts'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
 	consumePresentationEvents,
 	resetPresentationRevisionsForTests,
 } from '@app/lib/presentation-events'
+import { document, latch } from '@sursaut/core'
+import { reactive } from 'mutts'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { selectInspectorObject } = vi.hoisted(() => ({
 	selectInspectorObject: vi.fn(),
@@ -176,14 +176,17 @@ vi.mock('../storage/StoredGoodsRow', () => ({
 	default: (props: {
 		if?: boolean
 		label?: string
-		content?: { requiredGoods?: Record<string, number>; storage?: { stock?: Record<string, number> } }
+		content?: {
+			requiredGoods?: Record<string, number>
+			storage?: { stock?: Record<string, number> }
+		}
 	}) =>
 		props.if === false ? null : (
 			<tr data-testid={`stored-goods-row-${props.label ?? 'unknown'}`}>
 				<td>
 					{Object.entries(props.content?.requiredGoods ?? {}).map(([good, qty]) => (
 						<span data-testid={`construction-material-${good}`} key={good}>
-							{good} {(props.content?.storage?.stock?.[good] ?? 0)}/{qty}
+							{good} {props.content?.storage?.stock?.[good] ?? 0}/{qty}
 						</span>
 					))}
 				</td>

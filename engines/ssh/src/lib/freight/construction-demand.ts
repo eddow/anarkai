@@ -1,8 +1,5 @@
 import type { Tile } from 'ssh/board/tile'
-import {
-	type ConstructionSiteShell,
-	isStandaloneConstructionSiteShell,
-} from 'ssh/build-site'
+import { type ConstructionSiteShell, isStandaloneConstructionSiteShell } from 'ssh/build-site'
 import {
 	distributeSegmentWithinRadius,
 	type FreightDistributeRouteSegment,

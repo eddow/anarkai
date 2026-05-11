@@ -63,11 +63,16 @@ function transform(jobPlan)
 end function
 
 function convey(jobPlan)
-	reachTargetTileLoop jobPlan
+	if not work.inConveyRange(jobPlan) then
+		path = jobPlan.path
+		if path and path.length > 0 then walk.until path
+	end if
 	assignAlveolus jobPlan
 	work.prepare jobPlan
 	alveolus = jobPlan.target
 	idlePolls = 0
+	if not I.assignedAlveolus then I.assignedAlveolus = alveolus
+	work.conveyStep
 	do while I.keepWorking and (alveolus.aGoodMovement or alveolus.incomingGoods)
 		if alveolus.aGoodMovement then
 			if not I.assignedAlveolus then I.assignedAlveolus = alveolus

@@ -90,7 +90,17 @@ export class BuildDwelling extends TileContent {
 	}
 }
 
-export interface BuildDwelling extends ConstructionSiteShell {}
+export interface BuildDwelling
+	extends Pick<
+		ConstructionSiteShell,
+		| 'advertisedNeeds'
+		| 'canGive'
+		| 'canTake'
+		| 'isReady'
+		| 'remainingNeeds'
+		| 'requiredGoods'
+		| 'workingGoodsRelations'
+	> {}
 
 installBuildSitePrototype(BuildDwelling.prototype, { aliasGoodsRelations: true })
 

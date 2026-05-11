@@ -174,13 +174,16 @@ vi.mock('../storage/StoredGoodsRow', () => ({
 	default: (props: {
 		if?: boolean
 		label?: string
-		content?: { requiredGoods?: Record<string, number>; storage?: { stock?: Record<string, number> } }
+		content?: {
+			requiredGoods?: Record<string, number>
+			storage?: { stock?: Record<string, number> }
+		}
 	}) =>
 		props.if === false ? null : (
 			<div data-testid={`stored-goods-${props.label ?? 'unknown'}`}>
 				{Object.entries(props.content?.requiredGoods ?? {}).map(([good, qty]) => (
 					<span data-testid={`tile-construction-material-${good}`} key={good}>
-						{good} {(props.content?.storage?.stock?.[good] ?? 0)}/{qty}
+						{good} {props.content?.storage?.stock?.[good] ?? 0}/{qty}
 					</span>
 				))}
 			</div>

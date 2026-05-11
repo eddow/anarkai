@@ -1,8 +1,8 @@
-import { document, latch } from '@sursaut/core'
 import {
 	consumePresentationEvents,
 	resetPresentationRevisionsForTests,
 } from '@app/lib/presentation-events'
+import { document, latch } from '@sursaut/core'
 import { disconnectAllProfiles, profile, setProfileLevel } from 'ssh/dev/debug'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 

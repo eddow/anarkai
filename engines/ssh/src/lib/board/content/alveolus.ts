@@ -201,7 +201,9 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	protected get hasConveyNearby(): boolean {
 		const hive = this.hive
 		if (!hive) return false
-		return this.conveyNearbyCache.get(hive.conveyPlanningRevision, () => this.computeHasConveyNearby())
+		return this.conveyNearbyCache.get(hive.conveyPlanningRevision, () =>
+			this.computeHasConveyNearby()
+		)
 	}
 
 	private computeHasConveyNearby(): boolean {
@@ -224,15 +226,15 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	}
 
 	get proposedJobs(): readonly AlveolusProposedJob[] {
-		return this.proposedJobsCache.get(this.game.workPlanningRevision, () =>
-			this.computeProposedJobs()
-		)
+		const hive = this.hive
+		const revision = `${this.game.workPlanningRevision}|${hive?.conveyPlanningRevision ?? 0}`
+		return this.proposedJobsCache.get(revision, () => this.computeProposedJobs())
 	}
 
 	private computeProposedJobs(): readonly AlveolusProposedJob[] {
-		if (this.tile.isBurdened && !this.hasConveyNearby) return []
 		const carry = this.conveyJob()
 		if (carry) return [asAlveolusProposedJob(carry, this)]
+		if (this.tile.isBurdened && !this.hasConveyNearby) return []
 		const job = this.nextAlveolusJob()
 		return job ? [asAlveolusProposedJob(job, this)] : []
 	}
@@ -281,9 +283,6 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			}
 			return undefined
 		}
-		if (this.tile.isBurdened && !this.hasConveyNearby) {
-			return undefined
-		}
 		const carry = this.conveyJob()
 		if (carry) {
 			traces.convey.log?.(`[getJob] convey ${this.name}`, {
@@ -292,6 +291,9 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 				urgency: carry.urgency,
 			})
 			return carry
+		}
+		if (this.tile.isBurdened && !this.hasConveyNearby) {
+			return undefined
 		}
 		if (this.tile.isBurdened) {
 			if (this.hasConveyNearby) {
@@ -365,6 +367,11 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			if (mg.path.length === 1 && isTileCoord(nextStep)) return true
 			return storage.hasRoom(mg.goodType) > 0
 		}
+		const involvesVehicleDock = (mg: TrackedMovement) =>
+			(mg.provider as { kind?: string }).kind === 'vehicle-freight-dock' ||
+			(mg.demander as { kind?: string }).kind === 'vehicle-freight-dock'
+		const prioritizedMovements = (movements: readonly TrackedMovement[]) =>
+			[...movements].sort((a, b) => Number(involvesVehicleDock(b)) - Number(involvesVehicleDock(a)))
 		const borderKeys = new Set(
 			this.tile.surroundings.map(({ border }) => axial.key(toAxialCoord(border.position)!))
 		)
@@ -408,13 +415,13 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			if (!arr) {
 				continue
 			}
-			for (const mg of arr) {
+			for (const mg of prioritizedMovements(arr)) {
 				if (mg.claimed) continue
 				if (!hive.isSelectableMovement(mg, from, '[aGoodMovement] Invalid border movement')) {
 					continue
 				}
 				if (mg.path.length && canHandleFromHere(from, mg.path[0]!)) {
-					const selection = selectMovement(mg, mg.from ?? from)
+					const selection = selectMovement(mg, from)
 					if (canAdvance(mg)) {
 						return [selection]
 					} else {
@@ -439,14 +446,14 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		// Collect movements at the tile itself
 		const atHere = hive.movingGoods.get(here)
 		if (atHere) {
-			for (const mg of atHere) {
+			for (const mg of prioritizedMovements(atHere)) {
 				if (mg.claimed) continue
 				if (!hive.isSelectableMovement(mg, here, '[aGoodMovement] Invalid tile movement')) {
 					continue
 				}
 				if (mg.path.length === 0) continue
 				if (!canHandleFromHere(here, mg.path[0]!)) continue
-				const selection = selectMovement(mg, mg.from ?? here)
+				const selection = selectMovement(mg, here)
 				if (canAdvance(mg)) {
 					return [selection]
 				} else {

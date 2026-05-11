@@ -125,8 +125,8 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 							advertiser,
 							bucket,
 							goodType,
-							ad.priority,
-							priorityFromIndex(oppositePriority),
+							ad.advertisement === 'demand' ? priorityFromIndex(oppositePriority) : ad.priority,
+							ad.advertisement === 'demand' ? ad.priority : priorityFromIndex(oppositePriority),
 							(movedAdvertiser) => {
 								const idx = bucket.indexOf(movedAdvertiser)
 								if (idx !== -1) {

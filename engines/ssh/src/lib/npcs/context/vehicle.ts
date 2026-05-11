@@ -350,14 +350,26 @@ class VehicleFunctions {
 		if (jobPlan.job !== 'vehicleHop' && jobPlan.job !== 'zoneBrowse') return
 		const vehicle = character.game.vehicles.vehicle(jobPlan.vehicleUid)
 		assert(vehicle, 'vehicleDisengageKeepingService: vehicle missing')
-		assert(
-			character.operates?.uid === vehicle.uid,
-			'vehicleDisengageKeepingService: wrong operated vehicle'
-		)
-		vehicleTraceAssert(
-			isVehicleLineService(vehicle.service),
-			'vehicleDisengageKeepingService requires line service'
-		)
+		if (character.operates?.uid !== vehicle.uid) {
+			traces.vehicle.log?.('vehicleDisengageKeepingService: already released', {
+				characterUid: character.uid,
+				vehicleUid: vehicle.uid,
+				operatesUid: character.operates?.uid,
+				serviceKind: isVehicleLineService(vehicle.service)
+					? 'line'
+					: isVehicleMaintenanceService(vehicle.service)
+						? vehicle.service.kind
+						: undefined,
+			})
+			return
+		}
+		if (!isVehicleLineService(vehicle.service)) {
+			traces.vehicle.log?.('vehicleDisengageKeepingService: service already ended', {
+				characterUid: character.uid,
+				vehicleUid: vehicle.uid,
+			})
+			return
+		}
 		assertVehicleOperationConsistency(vehicle, character)
 		character.disengageVehicleKeepingService()
 		assertVehicleOperationConsistency(vehicle, character)

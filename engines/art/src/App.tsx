@@ -7,57 +7,58 @@ import {
 	loadArtSettings,
 	randomPromptProposal,
 	saveArtSettings,
-} from "@art/art-engine";
-import { reactive } from "mutts";
+} from '@art/art-engine'
+import { reactive } from 'mutts'
 
-const providers = createArtProviders();
-const proposals = listPromptProposals();
+const providers = createArtProviders()
+const proposals = listPromptProposals()
 const sizes = [
-	{ label: "Default", width: 256, height: 2256 },
-	{ label: "Square", width: 1024, height: 1024 },
-	{ label: "Wide", width: 1344, height: 768 },
-	{ label: "Tall", width: 768, height: 1344 },
-];
+	{ label: 'Default', width: 256, height: 2256 },
+	{ label: 'Square', width: 1024, height: 1024 },
+	{ label: 'Wide', width: 1344, height: 768 },
+	{ label: 'Tall', width: 768, height: 1344 },
+]
 
-const initialProposal = randomPromptProposal();
-const initialSettings = loadArtSettings();
+const initialProposal = randomPromptProposal()
+const initialSettings = loadArtSettings()
 
 export default function App() {
 	const state = reactive({
 		prompt: initialProposal.prompt,
-		providerId: providers[0]?.id ?? "pollinations",
-		sizeLabel: sizes[0]?.label ?? "Square",
-		model: "flux",
-		seed: "",
+		providerId: providers[0]?.id ?? 'pollinations',
+		sizeLabel: sizes[0]?.label ?? 'Square',
+		model: 'flux',
+		seed: '',
 		pollinationsApiKey: initialSettings.pollinationsApiKey,
 		generation: undefined as ArtGeneration | undefined,
-		previewUrl: "",
-		previewAlt: "",
+		previewUrl: '',
+		previewAlt: '',
 		busy: false,
-		error: "",
-	});
+		error: '',
+	})
 
 	const selectedSize = () =>
-		sizes.find((size) => size.label === state.sizeLabel) ?? sizes[0] ?? { width: 1024, height: 1024 };
+		sizes.find((size) => size.label === state.sizeLabel) ??
+		sizes[0] ?? { width: 1024, height: 1024 }
 
 	const proposePrompt = () => {
-		state.prompt = randomPromptProposal().prompt;
-		state.error = "";
-	};
+		state.prompt = randomPromptProposal().prompt
+		state.error = ''
+	}
 
 	const setPollinationsApiKey = (apiKey: string) => {
-		state.pollinationsApiKey = apiKey.trim();
-		saveArtSettings({ pollinationsApiKey: state.pollinationsApiKey });
-	};
+		state.pollinationsApiKey = apiKey.trim()
+		saveArtSettings({ pollinationsApiKey: state.pollinationsApiKey })
+	}
 
 	const generate = () => {
-		const prompt = state.prompt.trim();
+		const prompt = state.prompt.trim()
 		if (!prompt) {
-			state.error = "Write or choose a prompt first.";
-			return;
+			state.error = 'Write or choose a prompt first.'
+			return
 		}
 
-		const size = selectedSize();
+		const size = selectedSize()
 		const generation = createArtGeneration(
 			{
 				prompt,
@@ -67,24 +68,24 @@ export default function App() {
 				seed: state.seed ? Number(state.seed) : undefined,
 			},
 			providers,
-			{ apiKey: state.providerId === "pollinations" ? state.pollinationsApiKey : undefined },
-		);
-		state.generation = generation;
-		state.previewUrl = generation.imageUrl;
-		state.previewAlt = generation.request.prompt;
-		state.busy = true;
-		state.error = "";
-	};
+			{ apiKey: state.providerId === 'pollinations' ? state.pollinationsApiKey : undefined }
+		)
+		state.generation = generation
+		state.previewUrl = generation.imageUrl
+		state.previewAlt = generation.request.prompt
+		state.busy = true
+		state.error = ''
+	}
 
 	const download = async () => {
-		if (!state.generation) return;
+		if (!state.generation) return
 		try {
-			state.error = "";
-			await downloadGeneration(state.generation);
+			state.error = ''
+			await downloadGeneration(state.generation)
 		} catch (error) {
-			state.error = error instanceof Error ? error.message : "The image could not be downloaded.";
+			state.error = error instanceof Error ? error.message : 'The image could not be downloaded.'
 		}
-	};
+	}
 
 	return (
 		<main class="art-shell">
@@ -100,7 +101,7 @@ export default function App() {
 						<textarea
 							value={state.prompt}
 							update:value={(value: string) => {
-								state.prompt = value;
+								state.prompt = value
 							}}
 							rows={8}
 						/>
@@ -113,7 +114,7 @@ export default function App() {
 									type="button"
 									class="art-chip"
 									onClick={() => {
-										state.prompt = proposal.prompt;
+										state.prompt = proposal.prompt
 									}}
 								>
 									{proposal.title}
@@ -128,7 +129,7 @@ export default function App() {
 							<select
 								value={state.providerId}
 								update:value={(value: string) => {
-									state.providerId = value;
+									state.providerId = value
 								}}
 							>
 								<for each={providers}>
@@ -142,7 +143,7 @@ export default function App() {
 							<select
 								value={state.sizeLabel}
 								update:value={(value: string) => {
-									state.sizeLabel = value;
+									state.sizeLabel = value
 								}}
 							>
 								<for each={sizes}>
@@ -160,7 +161,7 @@ export default function App() {
 							<input
 								value={state.model}
 								update:value={(value: string) => {
-									state.model = value;
+									state.model = value
 								}}
 							/>
 						</label>
@@ -172,7 +173,7 @@ export default function App() {
 								placeholder="random"
 								value={state.seed}
 								update:value={(value: string) => {
-									state.seed = value.replace(/\D/g, "");
+									state.seed = value.replace(/\D/g, '')
 								}}
 							/>
 						</label>
@@ -220,11 +221,11 @@ export default function App() {
 						src={state.previewUrl}
 						alt={state.previewAlt}
 						onLoad={() => {
-							state.busy = false;
+							state.busy = false
 						}}
 						onError={() => {
-							state.busy = false;
-							state.error = "The provider did not return an image.";
+							state.busy = false
+							state.error = 'The provider did not return an image.'
 						}}
 					/>
 					<div if={state.busy} class="art-loading">
@@ -233,5 +234,5 @@ export default function App() {
 				</div>
 			</section>
 		</main>
-	);
+	)
 }

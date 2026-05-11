@@ -48,8 +48,7 @@ export default function ConstructionProgressBar(props: ConstructionProgressBarPr
 	})
 
 	effect`construction-progress:fill`(() => {
-		const ratio =
-			props.total > 0 ? Math.max(0, Math.min(1, props.applied / props.total)) : 0
+		const ratio = props.total > 0 ? Math.max(0, Math.min(1, props.applied / props.total)) : 0
 		state.fillStyle = `width:${ratio * 100}%`
 	})
 

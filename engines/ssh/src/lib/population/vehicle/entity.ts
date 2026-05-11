@@ -119,14 +119,13 @@ export class VehicleEntity extends withInteractive(GameObject) {
 			if (!isVehicleLineService(current) || !('anchor' in current.stop) || !this.isDocked) return
 			if (current.operator) return
 			if (this.storage.virtualGoodsCount > 0) return
+			const bay = freightVehicleDockBay(this)
+			const candidates = bay ? collectDockedVehicleAdvertisementCandidates(this, bay) : []
+			if (candidates.length > 0) return
 			const currentStockCount = Object.values(this.storage.stock).reduce(
 				(total, qty) => total + Math.max(0, qty ?? 0),
 				0
 			)
-			if (currentStockCount > 0) {
-				const bay = freightVehicleDockBay(this)
-				if (bay && collectDockedVehicleAdvertisementCandidates(this, bay).length > 0) return
-			}
 			traces.vehicle.log?.('vehicleJob.dock.storageDrained', {
 				vehicleUid: this.uid,
 				lineId: current.line.id,

@@ -29,14 +29,32 @@ export function freightVehicleDockBay(vehicle: VehicleEntity): FreightBayAlveolu
 	return content
 }
 
+export function ensureFreightVehicleDockRegistration(
+	vehicle: VehicleEntity
+): FreightBayAlveolus | undefined {
+	const bay = freightVehicleDockBay(vehicle)
+	if (!bay) return undefined
+	const existing = bay.hive.freightVehicleDockFor(vehicle.uid)
+	if (existing?.bay === bay) return bay
+	traces.vehicle.warn?.('[dock.sync] repairing missing dock registration', {
+		vehicleUid: vehicle.uid,
+		bay: bay.name,
+		hadRegistration: !!existing,
+		registeredBay: existing?.bay.name,
+	})
+	bay.hive.registerFreightVehicleDock(new VehicleFreightDock(vehicle, bay))
+	return bay
+}
+
 /** Registers or clears the hive advertisement endpoint for a docked wheelbarrow at a freight bay. */
 export function syncFreightVehicleDockRegistration(vehicle: VehicleEntity): void {
+	const bay = freightVehicleDockBay(vehicle)
 	for (const tile of vehicle.game.hex.tiles) {
 		const content = tile.content
 		const hive = content && 'hive' in content ? (content as Alveolus).hive : undefined
+		if (bay && hive === bay.hive) continue
 		hive?.unregisterFreightVehicleDock(vehicle.uid)
 	}
-	const bay = freightVehicleDockBay(vehicle)
 	if (!bay) {
 		traces.vehicle.log?.('[dock.sync] no dock registration', {
 			vehicleUid: vehicle.uid,
@@ -46,6 +64,18 @@ export function syncFreightVehicleDockRegistration(vehicle: VehicleEntity): void
 				: isVehicleMaintenanceService(vehicle.service)
 					? vehicle.service.kind
 					: undefined,
+		})
+		return
+	}
+	const existing = bay.hive.freightVehicleDockFor(vehicle.uid)
+	if (existing?.bay === bay) {
+		bay.hive.invalidateConveyPlanning('dock.lifecycle')
+		bay.hive.invalidateAdvertisements([existing, bay], 'dock.lifecycle')
+		traces.vehicle.log?.('[dock.sync] refreshed vehicle dock', {
+			vehicleUid: vehicle.uid,
+			bay: bay.name,
+			stock: { ...vehicle.storage.stock },
+			virtualGoodsCount: vehicle.storage.virtualGoodsCount,
 		})
 		return
 	}

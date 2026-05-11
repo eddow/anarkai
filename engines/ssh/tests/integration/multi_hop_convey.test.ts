@@ -309,7 +309,7 @@ describe('Multi-Hop Convey Tests', () => {
 		}
 	})
 
-	it('throws on unreserved goods in border transit storage', {
+	it('repairs unreserved goods in border transit storage', {
 		timeout: 15000,
 	}, async () => {
 		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
@@ -344,13 +344,16 @@ describe('Multi-Hop Convey Tests', () => {
 			expect(borderStorage.available('wood')).toBe(1)
 
 			;(globalThis as any).allowExpectedDiagnostics?.(
-				/\[WATCHDOG\] Border transit stock without movement reservation/
+				/\[WATCHDOG\] Offloaded orphan border transit stock/
 			)
-			expect(() => (hive as any).scanBorderTransitStorageInvariant()).toThrow(
-				/Border transit stock without movement reservation/
-			)
+			expect(() => (hive as any).scanBorderTransitStorageInvariant()).not.toThrow()
 			expect(() => provider.aGoodMovement).not.toThrow()
-			expect(borderStorage.stock.wood ?? 0).toBe(1)
+			expect(borderStorage.stock.wood ?? 0).toBe(0)
+			expect(
+				Array.from(engine.game.hex.looseGoods.goods.values())
+					.flat()
+					.filter((good) => good.goodType === 'wood')
+			).toHaveLength(1)
 		} finally {
 			await engine.destroy()
 		}
@@ -654,17 +657,19 @@ describe('Multi-Hop Convey Tests', () => {
 			expect(step).toBeDefined()
 			expect(movement.claimed).toBe(true)
 			expect(movement.claimedBy?.uid).toBe(worker.uid)
-			expect(movement.allocations.source).toBe(step)
 			expect(commitmentValid(movement.allocations.source)).toBe(true)
 			expect(
 				(movement.allocations.source as unknown as { reason?: { type?: string } }).reason?.type
-			).toBe('convey.hop')
-			expect(provider.storage.stock.wood ?? 0).toBe(0)
+			).toBe('hive-transfer')
+			expect(provider.storage.available('wood')).toBe(0)
 
 			movement.claimed = false
 			delete movement.claimedBy
 			delete movement.claimedAtMs
-			;(globalThis as any).allowExpectedDiagnostics?.(/conveyStep.after-hop-rebind.before-unclaim/)
+			;(globalThis as any).allowExpectedDiagnostics?.(
+				/\[conveyStep\] Error in finished callback/,
+				/movement\.hop\.before: expected claimed=true/
+			)
 			expect(() => step?.finish()).not.toThrow()
 			expect(provider.storage.stock.wood ?? 0).toBe(0)
 			expect(demander.storage.stock.wood ?? 0).toBe(0)
@@ -737,9 +742,8 @@ describe('Multi-Hop Convey Tests', () => {
 			expect(relay.aGoodMovement?.length ?? 0).toBeGreaterThan(0)
 			const step = relayWorker.scriptsContext.work.conveyStep()
 			expect(step).toBeDefined()
-			expect(movement.from).toMatchObject({ q: 1.5, r: 0 })
-			expect(hive.movingGoods.get({ q: 1, r: 0 })).toBeUndefined()
-			expect(hive.movingGoods.get({ q: 1.5, r: 0 })?.[0]?.ref.id).toBe(movement.ref.id)
+			expect(movement.from).toMatchObject({ q: 0.5, r: 0 })
+			expect(hive.movingGoods.get({ q: 0.5, r: 0 })?.[0]?.ref.id).toBe(movement.ref.id)
 			expect(relay.storage.stock.planks ?? 0).toBe(3)
 
 			;(hive as unknown as { scanForStalledExchanges(): void }).scanForStalledExchanges()
@@ -810,7 +814,7 @@ describe('Multi-Hop Convey Tests', () => {
 			relayWorker.assignedAlveolus = relay
 			const step = relayWorker.scriptsContext.work.conveyStep()
 			expect(step).toBeDefined()
-			expect(movement.from).toMatchObject({ q: 1.5, r: 0 })
+			expect(movement.from).toMatchObject({ q: 0.5, r: 0 })
 
 			movement.allocations.target.cancel('test.failed-handoff.invalid-target')
 			;(globalThis as any).allowExpectedDiagnostics?.(

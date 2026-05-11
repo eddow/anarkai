@@ -29,9 +29,7 @@ test('dorm woodchopper construction site shows its needed material count', async
 
 	expect(clickedSite.requiredGoods).toEqual({ stone: 2 })
 
-	const panel = page.locator(
-		`.selection-info-panel[data-test-object-uid="${clickedSite.tileUid}"]`
-	)
+	const panel = page.locator(`.selection-info-panel[data-test-object-uid="${clickedSite.tileUid}"]`)
 	await expect(panel).toBeVisible({ timeout: 5000 })
 
 	const materials = panel.locator('fieldset.stored-goods-fieldset').filter({

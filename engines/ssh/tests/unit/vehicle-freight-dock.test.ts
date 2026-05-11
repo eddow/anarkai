@@ -1,5 +1,4 @@
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
-import { Commitment } from 'ssh/commitment'
 import { namedTrace, traces } from 'ssh/dev/debug'
 import type { FreightLineDefinition } from 'ssh/freight/freight-line'
 import { normalizeFreightLineDefinition } from 'ssh/freight/freight-line'
@@ -275,7 +274,9 @@ describe('vehicle-freight-dock', () => {
 					expect.objectContaining({ goodType: 'wood', advertisement: 'provide' }),
 				])
 			)
-			expect(vehicle.advertisedJobs.find((job) => job.job === 'convey')).toBeUndefined()
+			expect(vehicle.advertisedJobs.find((job) => job.job === 'convey')?.source.kind).toBe(
+				'alveolus'
+			)
 
 			vehicle.dock()
 			await new Promise((resolve) => setTimeout(resolve, 10))
@@ -604,7 +605,7 @@ describe('vehicle-freight-dock', () => {
 		}
 	})
 
-	it('advances a distribute dock load when vehicle incoming allocation settles', async () => {
+	it('keeps a distribute dock load parked while downstream dock demand remains', async () => {
 		const engine = new TestEngine({ terrainSeed: 12012, characterCount: 0 })
 		await engine.init()
 		try {
@@ -623,12 +624,14 @@ describe('vehicle-freight-dock', () => {
 						name: 'DockDistributeLoad',
 						alveoli: [
 							{ coord: [0, 0], alveolus: 'freight_bay', goods: { wood: 1 } },
-							{ coord: [1, 0], alveolus: 'storage', goods: { wood: 1 } },
+							{ coord: [1, 0], alveolus: 'storage', goods: {} },
 						],
 					},
 				],
 				freightLines: [line],
 			} satisfies Partial<SaveState>)
+			const constructionTile = engine.game.hex.getTile({ q: 0, r: -1 })!
+			constructionTile.content = new BuildDwelling(constructionTile, 'basic_dwelling')
 
 			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
 			expect(bay).toBeDefined()
@@ -639,12 +642,10 @@ describe('vehicle-freight-dock', () => {
 				[line]
 			)
 			vehicle.beginLineService(line, line.stops[0]!)
-			const incomingCommitment = new Commitment('dock-distribute-incoming')
-			vehicle.storage.allocate({ wood: 1 }, incomingCommitment)
 			vehicle.dock()
 			const dock = bay?.hive.freightVehicleDockFor(vehicle.uid)
 			expect(dock).toBeDefined()
-			expect(vehicle.storage.virtualGoodsCount).toBe(1)
+			expect(vehicle.storage.virtualGoodsCount).toBe(0)
 
 			const worker = engine.game.population.createCharacter('DockDistributeLoadWorker', {
 				q: 0,
@@ -655,9 +656,22 @@ describe('vehicle-freight-dock', () => {
 			if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
 			expect(vehicle.service.stop.id).toBe(line.stops[0]!.id)
 
-			incomingCommitment.fulfill()
+			vehicle.storage.addGood('wood', 1)
 			expect(vehicle.storage.stock.wood ?? 0).toBe(1)
 			expect(vehicle.storage.virtualGoodsCount).toBe(0)
+			maybeAdvanceVehicleFromCompletedAnchorStop(engine.game, vehicle, worker)
+
+			expect(isVehicleLineService(vehicle.service)).toBe(true)
+			if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
+			expect(vehicle.service.stop.id).toBe(line.stops[0]!.id)
+			expect(collectDockedVehicleAdvertisementCandidates(vehicle, bay!)).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ goodType: 'wood', advertisement: 'demand', quantity: 1 }),
+				])
+			)
+
+			vehicle.storage.addGood('wood', 1)
+			expect(collectDockedVehicleAdvertisementCandidates(vehicle, bay!)).toEqual([])
 			maybeAdvanceVehicleFromCompletedAnchorStop(engine.game, vehicle, worker)
 
 			expect(isVehicleLineService(vehicle.service)).toBe(true)

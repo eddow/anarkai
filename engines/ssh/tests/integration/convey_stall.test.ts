@@ -93,7 +93,7 @@ describe('Convey Stall Reproduction', () => {
 				} else {
 					expect(mg.claimed).toBe(true)
 					expect(commitmentValid(mg.allocations.source)).toBe(true)
-					expect((mg.allocations.source as any).reason?.type).toBe('convey.hop')
+					expect((mg.allocations.source as any).reason?.type).toBe('hive-transfer')
 				}
 			} else {
 				expect(provider.storage.stock.wood ?? 0).toBe(0)

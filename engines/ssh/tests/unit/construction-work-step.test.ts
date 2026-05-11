@@ -3,10 +3,7 @@ import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { isConstructionSiteShell } from 'ssh/build-site'
 import { queryConstructionSiteView } from 'ssh/construction'
-import {
-	createConstructionShell,
-	finalizeConstructionShell,
-} from 'ssh/construction-shell'
+import { createConstructionShell, finalizeConstructionShell } from 'ssh/construction-shell'
 import { createConstructionSiteState } from 'ssh/construction-state'
 import { Game } from 'ssh/game/game'
 import { BuildAlveolus } from 'ssh/hive/build'

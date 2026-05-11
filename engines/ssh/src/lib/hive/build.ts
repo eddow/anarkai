@@ -3,6 +3,7 @@ import { reactive } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
 import {
+	type ConstructionSiteShell,
 	installBuildSitePrototype,
 	registerConstructionMaterialPhaseEffect,
 } from 'ssh/build-site'
@@ -13,7 +14,6 @@ import {
 } from 'ssh/construction-state'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { AlveolusType, GoodType } from 'ssh/types/base'
-import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
 import { buildAlveolusMarker } from './build-marker'
 
 @reactive
@@ -56,15 +56,17 @@ export class BuildAlveolus extends Alveolus {
 	}
 }
 
-export interface BuildAlveolus {
-	canTake: (goodType: GoodType, priority: ExchangePriority) => boolean
-	canGive: (goodType: GoodType, priority: ExchangePriority) => boolean
-	readonly requiredGoods: Record<GoodType, number>
-	readonly remainingNeeds: Record<string, number>
-	readonly advertisedNeeds: Record<string, number>
-	readonly isReady: boolean
-	readonly workingGoodsRelations: GoodsRelations
-}
+export interface BuildAlveolus
+	extends Pick<
+		ConstructionSiteShell,
+		| 'advertisedNeeds'
+		| 'canGive'
+		| 'canTake'
+		| 'isReady'
+		| 'remainingNeeds'
+		| 'requiredGoods'
+		| 'workingGoodsRelations'
+	> {}
 
 installBuildSitePrototype(BuildAlveolus.prototype, { aliasGoodsRelations: true })
 

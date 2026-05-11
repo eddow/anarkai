@@ -102,7 +102,6 @@ describe('Convey Behavior Integration', () => {
 			const initialTotalWood =
 				(sourceStorage?.stock.wood || 0) +
 				(targetStorage?.stock.wood || 0) +
-				countLooseGoods(game, 'wood') +
 				countCarriedGoods(game, 'wood')
 			expect(initialTotalWood).toBe(5)
 

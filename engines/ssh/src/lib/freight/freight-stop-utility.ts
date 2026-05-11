@@ -1,10 +1,7 @@
 import { freightLineHiveNeedPriorityWeight } from 'engine-rules'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
-import {
-	type ConstructionSiteShell,
-	isStandaloneConstructionSiteShell,
-} from 'ssh/build-site'
+import { type ConstructionSiteShell, isStandaloneConstructionSiteShell } from 'ssh/build-site'
 import {
 	distributeSegmentAllowsGoodTypeForSegment,
 	type FreightDistributeRouteSegment,

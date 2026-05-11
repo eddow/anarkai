@@ -242,3 +242,14 @@ export function dockedVehicleGoodsRelations(
 	}
 	return relations
 }
+
+export function refreshDockedVehicleAdvertisement(
+	vehicle: VehicleEntity,
+	bay: FreightBayAlveolus
+): DockedVehicleAdvertisementCandidate[] {
+	const candidates = collectDockedVehicleAdvertisementCandidates(vehicle, bay)
+	const dock = bay.hive.freightVehicleDockFor(vehicle.uid)
+	if (!dock) return candidates
+	bay.hive.advertise(dock, candidates.length > 0 ? dockedVehicleGoodsRelations(vehicle, bay) : {})
+	return candidates
+}

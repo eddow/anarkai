@@ -172,8 +172,10 @@ export function installBuildSitePrototype(
 		},
 		requiredGoods: {
 			get(this: ConstructionSiteShell) {
-				return normalizeConstructionSiteState(this.constructionSite)
-					.requiredGoods as Record<GoodType, number>
+				return normalizeConstructionSiteState(this.constructionSite).requiredGoods as Record<
+					GoodType,
+					number
+				>
 			},
 			configurable: true,
 		},

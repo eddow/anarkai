@@ -1,9 +1,9 @@
-import { document, latch } from '@sursaut/core'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
 	consumePresentationEvents,
 	resetPresentationRevisionsForTests,
 } from '@app/lib/presentation-events'
+import { document, latch } from '@sursaut/core'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const classMocks = vi.hoisted(() => {
 	class MockBuildAlveolus {

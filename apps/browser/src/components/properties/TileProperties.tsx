@@ -197,15 +197,9 @@ interface TileContentHeaderProps {
 const TileContentHeader = (props: TileContentHeaderProps) => (
 	<>
 		<AlveolusTileHeader
-			if={
-				props.contentCase?.kind === 'alveolus' ||
-				props.contentCase?.kind === 'constructionShell'
-			}
+			if={props.contentCase?.kind === 'alveolus' || props.contentCase?.kind === 'constructionShell'}
 			contentCase={
-				props.contentCase as Extract<
-					TileContentCase,
-					{ kind: 'alveolus' | 'constructionShell' }
-				>
+				props.contentCase as Extract<TileContentCase, { kind: 'alveolus' | 'constructionShell' }>
 			}
 			game={props.game}
 			tile={props.tile}

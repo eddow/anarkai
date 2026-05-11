@@ -200,7 +200,8 @@ function pickZoneProvideSelection(
 	let best: (VehicleZoneBrowseSelection & { score: number }) | undefined
 	for (const tile of game.hex.tilesAround(center, zoneStop.zone.radius)) {
 		const content = tile.content
-		if (!isStandaloneConstructionSiteShell(content) || content.destroyed || content.isReady) continue
+		if (!isStandaloneConstructionSiteShell(content) || content.destroyed || content.isReady)
+			continue
 		for (const goodType of Object.keys(content.remainingNeeds) as GoodType[]) {
 			const need = content.remainingNeeds[goodType] ?? 0
 			if (need <= 0) continue

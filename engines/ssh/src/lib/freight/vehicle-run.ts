@@ -17,6 +17,7 @@ import {
 	gatherSegmentAllowsGoodTypeForSegment,
 } from 'ssh/freight/freight-line'
 import { scoreVehicleCandidate } from 'ssh/freight/vehicle-candidate-policy'
+import { collectDockedVehicleAdvertisementCandidates } from 'ssh/freight/vehicle-freight-dock'
 import {
 	freightVehicleDockBay,
 	syncFreightVehicleDockRegistration,
@@ -469,6 +470,21 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 		0
 	)
 	const virtualGoodsCount = vehicle.storage.virtualGoodsCount
+	const candidates = collectDockedVehicleAdvertisementCandidates(vehicle, content)
+	if (candidates.length > 0) {
+		traces.vehicle.log?.('vehicleJob.dock.check', {
+			vehicleUid: vehicle.uid,
+			lineId: svc.line.id,
+			stopId: stop.id,
+			outcome: 'wait',
+			reason: 'dock-advertisement-candidates',
+			anchorCoord: stop.anchor.coord,
+			stock: vehicle.storage.stock,
+			virtualGoodsCount,
+			candidates,
+		})
+		return
+	}
 	if (virtualGoodsCount > 0) {
 		traces.vehicle.log?.('vehicleJob.dock.check', {
 			vehicleUid: vehicle.uid,

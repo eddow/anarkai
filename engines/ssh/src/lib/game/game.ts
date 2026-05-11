@@ -1517,8 +1517,7 @@ export class Game extends Eventful<GameEvents> {
 								coord: [q, r],
 								alveolus: constructionShell.constructionSite.target.alveolusType,
 								underConstruction: true,
-								constructionWorkSecondsApplied:
-									constructionShell.constructionWorkSecondsApplied,
+								constructionWorkSecondsApplied: constructionShell.constructionWorkSecondsApplied,
 								constructionPhase: constructionShell.constructionSite.phase,
 								goods: constructionShell.storage?.stock || {},
 							}
@@ -1539,10 +1538,7 @@ export class Game extends Eventful<GameEvents> {
 				hives.get(content.hive)!.push(patch)
 			}
 
-			if (
-				isConstructionSiteShell(content) &&
-				content.constructionSite.target.kind === 'dwelling'
-			) {
+			if (isConstructionSiteShell(content) && content.constructionSite.target.kind === 'dwelling') {
 				dwellings.push({
 					coord: [q, r],
 					tier: content.constructionSite.target.tier,

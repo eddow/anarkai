@@ -99,7 +99,9 @@ function goodsEqual(
  * Some older/transient shells can carry a partial `constructionSite`; normalize before exposing
  * materials so UI, advertisements, and convey planning all see the same recipe demand.
  */
-export function normalizeConstructionSiteState(state: ConstructionSiteState): ConstructionSiteState {
+export function normalizeConstructionSiteState(
+	state: ConstructionSiteState
+): ConstructionSiteState {
 	const recipe = createConstructionRecipe(state.target)
 	if (
 		!state.recipe ||

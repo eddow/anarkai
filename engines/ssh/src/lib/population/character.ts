@@ -478,10 +478,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			source && 'kind' in source && source.kind === 'alveolus' && 'alveolus' in source
 				? (source.alveolus as Alveolus)
 				: undefined
-		const jobProvider =
-			sourceAlveolus
-				? sourceAlveolus
-				: targetTile.content!
+		const jobProvider = sourceAlveolus ? sourceAlveolus : targetTile.content!
 		const target = jobProvider
 		if (
 			!currentJobPath &&

@@ -7,6 +7,7 @@ import { isStandaloneConstructionSiteShell } from 'ssh/build-site'
 import {
 	type FreightLineDefinition,
 	type FreightStop,
+	findDistributeRouteSegments,
 	findGatherRouteSegments,
 	freightStopAnchorMatchesAlveolus,
 	gatherSegmentAllowsGoodType,
@@ -15,8 +16,14 @@ import {
 } from 'ssh/freight/freight-line'
 import { aggregateHiveNeedTypes } from 'ssh/freight/freight-zone-gather-target'
 import { scoreVehicleCandidate } from 'ssh/freight/vehicle-candidate-policy'
-import { collectDockedVehicleAdvertisementCandidates } from 'ssh/freight/vehicle-freight-dock'
-import { freightVehicleDockBay } from 'ssh/freight/vehicle-freight-dock-sync'
+import {
+	collectDockedVehicleAdvertisementCandidates,
+	refreshDockedVehicleAdvertisement,
+} from 'ssh/freight/vehicle-freight-dock'
+import {
+	ensureFreightVehicleDockRegistration,
+	freightVehicleDockBay,
+} from 'ssh/freight/vehicle-freight-dock-sync'
 import {
 	ensureVehicleServiceStarted,
 	freightStopMovementTarget,
@@ -35,6 +42,7 @@ import {
 } from 'ssh/freight/vehicle-zone-browse'
 import type { Game } from 'ssh/game/game'
 import {
+	asAlveolusProposedJob,
 	asVehicleProposedJob,
 	type ProposedJob,
 	proposedJobScore,
@@ -229,10 +237,7 @@ function nextLineStopAfterCurrent(
 	return { line: service.line, stop: service.line.stops[idx + 1]! }
 }
 
-function dockedVehicleProviderJob(
-	game: Game,
-	vehicle: VehicleEntity
-): VehicleProposedJob | undefined {
+function dockedVehicleProviderJob(game: Game, vehicle: VehicleEntity): ProposedJob | undefined {
 	const service = vehicle.service
 	if (!isVehicleLineService(service) || !vehicle.isDocked || !('anchor' in service.stop)) {
 		traces.vehicle.log?.(
@@ -244,21 +249,42 @@ function dockedVehicleProviderJob(
 		return undefined
 	}
 
-	const dockBay = freightVehicleDockBay(vehicle)
+	const dockBay = ensureFreightVehicleDockRegistration(vehicle)
 	const dockCandidates = dockBay
 		? collectDockedVehicleAdvertisementCandidates(vehicle, dockBay)
 		: []
 	if (dockBay && (vehicle.storage.virtualGoodsCount > 0 || dockCandidates.length > 0)) {
+		const dock = dockBay.hive.freightVehicleDockFor(vehicle.uid)
+		const dockMovement =
+			dock &&
+			dockBay.hive
+				.collectActiveMovements()
+				.find(
+					(movement) =>
+						(movement.provider === dock || movement.demander === dock) &&
+						movement.path.length > 0 &&
+						!movement.claimed &&
+						movement.provider instanceof Alveolus
+				)
+		if (dockMovement && dockMovement.provider instanceof Alveolus) {
+			traces.vehicle.log?.('[vehicle.advertisedJobs] provider fallback convey', {
+				...vehicleTraceSnapshot(vehicle),
+				bay: dockBay.name,
+				provider: dockMovement.provider.name,
+				goodType: dockMovement.goodType,
+				dockCandidates,
+			})
+			return asAlveolusProposedJob(
+				{ job: 'convey', fatigue: 1, urgency: jobBalance.convey },
+				dockMovement.provider
+			)
+		}
 		traces.vehicle.log?.('[vehicle.advertisedJobs] provider fallback convey', {
 			...vehicleTraceSnapshot(vehicle),
 			bay: dockBay.name,
 			dockCandidates,
 		})
-		return asVehicleProposedJob(
-			{ job: 'convey', fatigue: 1, urgency: jobBalance.convey, vehicleUid: vehicle.uid },
-			vehicle,
-			dockBay.tile
-		)
+		return undefined
 	}
 
 	const next = nextLineStopAfterCurrent(vehicle)
@@ -656,6 +682,26 @@ function pickMaintenanceForVehicle(
 		return undefined
 	}
 	const canReach = (tile: Tile) => vehicleCanReachMaintenanceTarget(game, vehicle, character, tile)
+	const currentContent = vehicle.tile.content
+	const currentLineCandidate =
+		currentContent instanceof Alveolus && currentContent.action.type === 'road-fret'
+			? pickInitialVehicleServiceCandidate(game, character, vehicle)
+			: undefined
+	const currentDistributeLoadCandidate =
+		!!currentLineCandidate &&
+		findDistributeRouteSegments(currentLineCandidate.line).some(
+			(segment) =>
+				currentLineCandidate.line.stops[segment.loadStopIndex]?.id === currentLineCandidate.stop.id
+		)
+	if (currentDistributeLoadCandidate) {
+		traces.vehicle.log?.('vehicleJob.maintenance.skipForCurrentDistributeDock', {
+			characterUid: character.uid,
+			vehicleUid: vehicle.uid,
+			lineId: currentLineCandidate.line.id,
+			stopId: currentLineCandidate.stop.id,
+		})
+		return undefined
+	}
 	const origin = toAxialCoord(vehicle.tile.position)!
 	let bestLoad: LoadCandidate | undefined
 	let bestLoadDistance = Number.POSITIVE_INFINITY
@@ -710,6 +756,16 @@ function pickMaintenanceForVehicle(
 			})
 			return bestUnload
 		}
+	}
+	const lineCandidate = pickInitialVehicleServiceCandidate(game, character, vehicle)
+	if (lineCandidate) {
+		traces.vehicle.log?.('vehicleJob.maintenance.skipParkForLineService', {
+			characterUid: character.uid,
+			vehicleUid: vehicle.uid,
+			lineId: lineCandidate.line.id,
+			stopId: lineCandidate.stop.id,
+		})
+		return undefined
 	}
 	const park = pickParkingTargetForVehicle(game, vehicle, canReach)
 	if (park) {
@@ -1655,8 +1711,11 @@ export function collectVehicleProposedJobs(
  * through collectVehicleWorkPicks when work is claimed or ranked for a character.
  */
 export function collectVehicleAdvertisedJobs(game: Game, vehicle: VehicleEntity): ProposedJob[] {
-	const dockBay = freightVehicleDockBay(vehicle)
-	const dockConvey = dockBay?.proposedJobs.find((job) => job.job === 'convey')
+	const dockBay = ensureFreightVehicleDockRegistration(vehicle)
+	let dockConvey = dockBay?.proposedJobs.find((job) => job.job === 'convey')
+	const dockCandidates =
+		dockBay && !dockConvey ? refreshDockedVehicleAdvertisement(vehicle, dockBay) : []
+	dockConvey = dockConvey ?? dockBay?.proposedJobs.find((job) => job.job === 'convey')
 	if (dockConvey) {
 		traces.vehicle.log?.('[vehicle.advertisedJobs] using bay convey', {
 			...vehicleTraceSnapshot(vehicle),
@@ -1665,9 +1724,8 @@ export function collectVehicleAdvertisedJobs(game: Game, vehicle: VehicleEntity)
 		})
 		return [dockConvey]
 	}
-	const dockCandidates = dockBay
-		? collectDockedVehicleAdvertisementCandidates(vehicle, dockBay)
-		: []
+	const dockedJob = dockedVehicleProviderJob(game, vehicle)
+	if (dockedJob) return [dockedJob]
 	if (dockBay && (vehicle.storage.virtualGoodsCount > 0 || dockCandidates.length > 0)) {
 		traces.vehicle.warn?.('[vehicle.advertisedJobs] dock work exists but bay has no convey job', {
 			...vehicleTraceSnapshot(vehicle),
@@ -1682,7 +1740,6 @@ export function collectVehicleAdvertisedJobs(game: Game, vehicle: VehicleEntity)
 		return []
 	}
 
-	const dockedJob = dockedVehicleProviderJob(game, vehicle)
 	if (!dockedJob && vehicle.isDocked && vehicleStockCount(vehicle) > 0) {
 		traces.vehicle.warn?.('[vehicle.advertisedJobs] loaded docked vehicle has no advertised job', {
 			...vehicleTraceSnapshot(vehicle),
