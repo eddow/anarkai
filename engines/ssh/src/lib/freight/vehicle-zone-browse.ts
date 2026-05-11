@@ -9,9 +9,10 @@ import {
 	distributeSegmentAllowsGoodTypeForSegment,
 	type FreightLineDefinition,
 	type FreightStop,
-	type FreightZoneDefinitionRadius,
+	type FreightZoneDefinition,
 	findDistributeRouteSegments,
 	findGatherRouteSegments,
+	freightZoneTiles,
 	gatherSegmentAllowsGoodTypeForSegment,
 	gatherSelectableGoodTypes,
 } from 'ssh/freight/freight-line'
@@ -122,7 +123,7 @@ function pickZoneLoadSelection(
 	character: Character,
 	vehicle: VehicleEntity,
 	line: FreightLineDefinition,
-	zoneStop: FreightStop & { zone: FreightZoneDefinitionRadius },
+	zoneStop: FreightStop & { zone: FreightZoneDefinition },
 	startPos: Positioned,
 	utility: ZoneBrowseUtilityContext
 ): VehicleZoneBrowseSelection | undefined {
@@ -141,9 +142,8 @@ function pickZoneLoadSelection(
 	}
 	const selectableGoods = new Set(gatherSelectableGoodTypes(line, [...neededGoods]))
 	if (selectableGoods.size === 0) return undefined
-	const center: AxialCoord = { q: zoneStop.zone.center[0], r: zoneStop.zone.center[1] }
 	let best: (VehicleZoneBrowseSelection & { score: number }) | undefined
-	for (const tile of game.hex.tilesAround(center, zoneStop.zone.radius)) {
+	for (const tile of freightZoneTiles(game, zoneStop.zone)) {
 		const adSource = inferZoneLoadAdSource(tile)
 		const priorityTier = zoneBrowseLoadPriorityTier(adSource)
 		const candidates: GoodType[] = []
@@ -187,7 +187,7 @@ function pickZoneProvideSelection(
 	character: Character,
 	vehicle: VehicleEntity,
 	line: FreightLineDefinition,
-	zoneStop: FreightStop & { zone: FreightZoneDefinitionRadius },
+	zoneStop: FreightStop & { zone: FreightZoneDefinition },
 	startPos: Positioned,
 	utility: ZoneBrowseUtilityContext
 ): VehicleZoneBrowseSelection | undefined {
@@ -195,10 +195,9 @@ function pickZoneProvideSelection(
 		(segment) => segment.unloadStopIndex === utility.stopIndex
 	)
 	if (segments.length === 0) return undefined
-	const center: AxialCoord = { q: zoneStop.zone.center[0], r: zoneStop.zone.center[1] }
 	const priorityTier: FreightPriorityTier = 'pureOffload'
 	let best: (VehicleZoneBrowseSelection & { score: number }) | undefined
-	for (const tile of game.hex.tilesAround(center, zoneStop.zone.radius)) {
+	for (const tile of freightZoneTiles(game, zoneStop.zone)) {
 		const content = tile.content
 		if (!isStandaloneConstructionSiteShell(content) || content.destroyed || content.isReady)
 			continue
@@ -262,8 +261,8 @@ export function pickVehicleZoneBrowseSelection(
 		stopId: stop.id,
 	}))
 	try {
-		if (!('zone' in stop) || stop.zone.kind !== 'radius') return undefined
-		const zoneStop = stop as FreightStop & { zone: FreightZoneDefinitionRadius }
+		if (!('zone' in stop)) return undefined
+		const zoneStop = stop as FreightStop & { zone: FreightZoneDefinition }
 		const utility = zoneBrowseUtilityContext(game, vehicle, line, stop)
 		if (!utility) return undefined
 		const load = pickZoneLoadSelection(game, character, vehicle, line, zoneStop, startPos, utility)

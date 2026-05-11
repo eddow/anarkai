@@ -5,6 +5,7 @@ import {
 } from '@app/lib/app-shell-controls'
 import type { Configuration } from '@app/lib/globals'
 import { configuration, game, interactionMode, uiConfiguration } from '@app/lib/globals'
+import { showZonesObject } from '@app/lib/zone-selection'
 import browserPaletteDefaultJson from '@app/palette/palette.default.json'
 import {
 	type AnarkaiPaletteEditorConfigByVariant,
@@ -38,6 +39,7 @@ import {
 	tablerFilledAdjustments,
 	tablerFilledArrowBigRight,
 	tablerFilledFlask,
+	tablerOutlinePolygon,
 } from 'pure-glyf/icons'
 import type { Game } from 'ssh/game'
 
@@ -45,6 +47,7 @@ export const palettePanelBridge = reactive({
 	openConfiguration: () => {},
 	openGame: () => {},
 	openTest: () => {},
+	openZones: () => {},
 })
 
 const browserPaletteBuildableAlveoli = getAppShellBuildableAlveoli()
@@ -105,6 +108,18 @@ const tools = {
 		},
 		run() {
 			palettePanelBridge.openTest()
+		},
+	},
+	openZones: {
+		label: 'Open zones',
+		icon: typeof tablerOutlinePolygon === 'string' ? tablerOutlinePolygon : undefined,
+		keywords: ['zones', 'zone', 'paint', 'region'],
+		get can() {
+			return true
+		},
+		run() {
+			palettePanelBridge.openZones()
+			showZonesObject()
 		},
 	},
 	timeControl: {

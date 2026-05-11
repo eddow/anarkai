@@ -155,13 +155,14 @@ export class Tile extends withInteractive(GameObject) {
 
 	get clearing(): boolean {
 		return (
-			![undefined, 'harvest'].includes(this.zone) ||
+			this.zone === 'residential' ||
 			(!!this.content &&
 				(('project' in this.content && !!this.content.project) || this.content instanceof Alveolus))
 		)
 	}
 
 	canInteract(action: string): boolean {
+		if (action.startsWith('zone:')) return true
 		return this.content?.canInteract?.(action) ?? false
 	}
 

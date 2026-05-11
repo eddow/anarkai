@@ -2,8 +2,6 @@ import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
 import {
 	type FreightLineDefinition,
-	type FreightStop,
-	type FreightZoneDefinitionRadius,
 	findGatherFreightLines,
 } from 'ssh/freight/freight-line'
 import {
@@ -53,7 +51,7 @@ export class FreightBayAlveolus extends Alveolus {
 			const pick = pickGatherTargetInZoneStop(
 				this.tile.game,
 				line,
-				zoneStop as FreightStop & { zone: FreightZoneDefinitionRadius },
+				zoneStop,
 				this.tile.position,
 				hiveNeeds,
 				{

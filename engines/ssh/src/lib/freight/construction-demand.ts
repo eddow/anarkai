@@ -1,9 +1,11 @@
 import type { Tile } from 'ssh/board/tile'
 import { type ConstructionSiteShell, isStandaloneConstructionSiteShell } from 'ssh/build-site'
 import {
+	distributeSegmentAllowsTile,
 	distributeSegmentWithinRadius,
 	type FreightDistributeRouteSegment,
 	type FreightLineDefinition,
+	freightZoneTiles,
 } from 'ssh/freight/freight-line'
 import type { FreightAdSource } from 'ssh/freight/priority-channel'
 import type { Game } from 'ssh/game/game'
@@ -29,8 +31,10 @@ export function visitStandaloneConstructionSitesForDistributeSegmentAxial(
 ): void {
 	const unloadStop = line.stops[segment.unloadStopIndex]
 	const tiles =
-		unloadStop && 'zone' in unloadStop && unloadStop.zone.kind === 'radius'
-			? game.hex.tilesAround(bayPos, unloadStop.zone.radius)
+		unloadStop && 'zone' in unloadStop
+			? unloadStop.zone.kind === 'radius'
+				? game.hex.tilesAround(bayPos, unloadStop.zone.radius)
+				: freightZoneTiles(game, unloadStop.zone)
 			: game.hex.tiles
 	for (const tile of tiles) {
 		const c = tile.content
@@ -39,6 +43,7 @@ export function visitStandaloneConstructionSitesForDistributeSegmentAxial(
 		const tilePos = toAxialCoord(tile.position)
 		if (!tilePos) continue
 		if (!distributeSegmentWithinRadius(line, segment, axial.distance(bayPos, tilePos))) continue
+		if (!distributeSegmentAllowsTile(game, line, segment, tile)) continue
 		visitor(tile, c)
 	}
 }

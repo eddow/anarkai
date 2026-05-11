@@ -15,6 +15,12 @@ const ZONE_COLORS: Record<string, { fill: number; stroke: number }> = {
 	'': { fill: 0x44aaff, stroke: 0x2288dd }, // Blue (default/fallback)
 }
 
+function parseHexColor(color: string | undefined): number | undefined {
+	if (!color) return undefined
+	const parsed = Number.parseInt(color.replace(/^#/, ''), 16)
+	return Number.isFinite(parsed) ? parsed : undefined
+}
+
 /**
  * Renders a visual overlay when dragging to select tiles for zoning.
  * This is a screen-space overlay that shows which tiles will be selected.
@@ -65,7 +71,10 @@ export class DragPreviewOverlay {
 		this.graphics.clear()
 
 		// Get zone-specific colors
-		const colors = ZONE_COLORS[zoneType] || ZONE_COLORS['']
+		const custom = parseHexColor(this.renderer.game.hex.zoneManager.getZoneDefinition(zoneType)?.color)
+		const colors = custom
+			? { fill: custom, stroke: custom }
+			: ZONE_COLORS[zoneType] || ZONE_COLORS['']
 
 		for (const tile of tiles) {
 			const worldPos = toWorldCoord(tile.position)

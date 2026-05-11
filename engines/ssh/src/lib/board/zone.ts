@@ -2,19 +2,137 @@ import { reactive } from 'mutts'
 import type { AxialCoord } from 'ssh/utils'
 import { AxialKeyMap } from 'ssh/utils/mem'
 
-export type Zone = 'residential' | 'harvest'
+export type BuiltInZone = 'residential' | 'harvest'
+export type Zone = BuiltInZone | string
+
+export interface NamedZoneDefinition {
+	readonly id: Zone
+	readonly name: string
+	readonly color?: string
+	readonly builtIn?: boolean
+}
+
+export const ZONES_OBJECT_UID = 'zones'
+export const ZONE_UID_PREFIX = 'zone:'
+
+const BUILT_IN_ZONES: NamedZoneDefinition[] = [
+	{ id: 'residential', name: 'Residential', color: '#44dd44', builtIn: true },
+	{ id: 'harvest', name: 'Harvest', color: '#aa7744', builtIn: true },
+]
+
+export function normalizeZoneId(id: string): Zone {
+	return id.trim().replace(/\s+/g, '-').toLowerCase()
+}
+
+export function zoneObjectUid(zoneId: string): string {
+	return `${ZONE_UID_PREFIX}${encodeURIComponent(normalizeZoneId(zoneId))}`
+}
+
+export function isZoneObjectUid(uid: string): boolean {
+	return uid.startsWith(ZONE_UID_PREFIX)
+}
+
+export function zoneIdFromObjectUid(uid: string): Zone | undefined {
+	if (!isZoneObjectUid(uid)) return undefined
+	const encoded = uid.slice(ZONE_UID_PREFIX.length)
+	return encoded ? normalizeZoneId(decodeURIComponent(encoded)) : undefined
+}
+
+function centralCoordFrom(coords: AxialCoord[]): AxialCoord | undefined {
+	if (coords.length === 0) return undefined
+	const center = coords.reduce(
+		(acc, coord) => {
+			acc.q += coord.q
+			acc.r += coord.r
+			return acc
+		},
+		{ q: 0, r: 0 }
+	)
+	center.q /= coords.length
+	center.r /= coords.length
+	return [...coords].sort((a, b) => {
+		const adq = a.q - center.q
+		const adr = a.r - center.r
+		const bdq = b.q - center.q
+		const bdr = b.r - center.r
+		const distance = adq * adq + adr * adr - (bdq * bdq + bdr * bdr)
+		if (distance !== 0) return distance
+		if (a.q !== b.q) return a.q - b.q
+		return a.r - b.r
+	})[0]
+}
 
 export class ZoneManager {
 	private readonly zones = reactive(new AxialKeyMap<Zone>())
+	private readonly definitions = reactive(new Map<Zone, NamedZoneDefinition>())
 	private readonly reservationOwners = reactive(new AxialKeyMap<object>())
 	private readonly ownerToCoord = new Map<object, AxialCoord>()
 	readonly residentialCoords: AxialCoord[] = []
 
+	constructor() {
+		this.resetDefinitions()
+	}
+
+	private resetDefinitions(): void {
+		this.definitions.clear()
+		for (const zone of BUILT_IN_ZONES) this.definitions.set(zone.id, zone)
+	}
+
+	defineZone(definition: Omit<NamedZoneDefinition, 'id'> & { id: string }): NamedZoneDefinition {
+		const id = normalizeZoneId(definition.id)
+		const existing = this.definitions.get(id)
+		const trimmedName = definition.name.trim()
+		const next: NamedZoneDefinition = {
+			id,
+			name: trimmedName || (existing?.builtIn || definition.builtIn ? existing?.name || id : ''),
+			color: definition.color?.trim() || existing?.color,
+			builtIn: existing?.builtIn || definition.builtIn,
+		}
+		this.definitions.set(id, next)
+		return next
+	}
+
+	getZoneDefinition(id: string | undefined): NamedZoneDefinition | undefined {
+		return id ? this.definitions.get(normalizeZoneId(id)) : undefined
+	}
+
+	listZoneDefinitions(): NamedZoneDefinition[] {
+		return [...this.definitions.values()]
+	}
+
+	listCustomZoneDefinitions(): NamedZoneDefinition[] {
+		return this.listZoneDefinitions().filter((zone) => !zone.builtIn)
+	}
+
+	removeNamedZone(id: string): boolean {
+		const zoneId = normalizeZoneId(id)
+		const definition = this.definitions.get(zoneId)
+		if (!definition || definition.builtIn) return false
+		for (const coord of [...this.zones.coords()]) {
+			if (this.zones.get(coord) === zoneId) this.zones.delete(coord)
+		}
+		return this.definitions.delete(zoneId)
+	}
+
 	setZone(coord: AxialCoord, zone: Zone): void {
-		this.zones.set(coord, zone)
-		if (zone === 'residential') {
+		const zoneId = normalizeZoneId(zone)
+		if (!this.definitions.has(zoneId)) {
+			this.defineZone({ id: zoneId, name: zoneId })
+		}
+		this.zones.set(coord, zoneId)
+		if (zoneId === 'residential') {
 			const dup = this.residentialCoords.some((c) => c.q === coord.q && c.r === coord.r)
 			if (!dup) this.residentialCoords.push({ ...coord })
+		} else {
+			const idx = this.residentialCoords.findIndex((c) => c.q === coord.q && c.r === coord.r)
+			if (idx >= 0) this.residentialCoords.splice(idx, 1)
+			this.reservationOwners.delete(coord)
+			for (const [owner, reserved] of this.ownerToCoord.entries()) {
+				if (reserved.q === coord.q && reserved.r === coord.r) {
+					this.ownerToCoord.delete(owner)
+					break
+				}
+			}
 		}
 	}
 
@@ -24,6 +142,7 @@ export class ZoneManager {
 
 	clear(): void {
 		this.zones.clear()
+		this.resetDefinitions()
 		this.reservationOwners.clear()
 		this.ownerToCoord.clear()
 		this.residentialCoords.length = 0
@@ -47,6 +166,19 @@ export class ZoneManager {
 
 	hasZone(coord: AxialCoord): boolean {
 		return this.zones.has(coord)
+	}
+
+	coordsForZone(zone: Zone): AxialCoord[] {
+		const zoneId = normalizeZoneId(zone)
+		const out: AxialCoord[] = []
+		for (const coord of this.zones.coords()) {
+			if (this.zones.get(coord) === zoneId) out.push({ q: coord.q, r: coord.r })
+		}
+		return out
+	}
+
+	centralCoordForZone(zone: Zone): AxialCoord | undefined {
+		return centralCoordFrom(this.coordsForZone(zone))
 	}
 
 	/** Residential tiles nobody has reserved yet (stable list order). */

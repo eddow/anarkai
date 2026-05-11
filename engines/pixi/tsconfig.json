@@ -23,6 +23,9 @@
 			"@app/lib/interactive-state": [
 				"../../apps/browser/src/lib/interactive-state.ts"
 			],
+			"@app/lib/freight-line-overlay": [
+				"../../apps/browser/src/lib/freight-line-overlay.ts"
+			],
 			"engine-terrain": ["../terrain/src/index.ts"],
 			"engine-terrain/hex": ["../terrain/src/hex/index.ts"],
 			"engine-terrain/*": ["../terrain/src/*"],

@@ -135,6 +135,10 @@ vi.mock('../HiveAnchorButton', () => ({
 	default: () => null,
 }))
 
+vi.mock('../ZoneAnchorButton', () => ({
+	default: () => null,
+}))
+
 vi.mock('../PropertyGrid', () => ({
 	default: (props: { children?: JSX.Children }) => <div>{props.children}</div>,
 }))

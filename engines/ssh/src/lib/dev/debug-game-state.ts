@@ -287,11 +287,17 @@ export function summarizeFreightStopForDebug(stop: FreightStop) {
 	return {
 		...base,
 		kind: 'zone' as const,
-		zone: {
-			kind: stop.zone.kind,
-			center: { q: stop.zone.center[0], r: stop.zone.center[1] },
-			radius: stop.zone.radius,
-		},
+		zone:
+			stop.zone.kind === 'named'
+				? {
+						kind: stop.zone.kind,
+						zoneId: stop.zone.zoneId,
+					}
+				: {
+						kind: stop.zone.kind,
+						center: { q: stop.zone.center[0], r: stop.zone.center[1] },
+						radius: stop.zone.radius,
+					},
 	}
 }
 

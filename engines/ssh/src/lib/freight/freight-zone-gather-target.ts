@@ -2,11 +2,12 @@ import type { Alveolus } from 'ssh/board/content/alveolus'
 import type {
 	FreightLineDefinition,
 	FreightStop,
-	FreightZoneDefinitionRadius,
+	FreightZoneDefinition,
 } from 'ssh/freight/freight-line'
 import {
 	DEFAULT_GATHER_FREIGHT_RADIUS,
 	findGatherRouteSegments,
+	freightZoneTiles,
 	freightStopAnchorMatchesAlveolus,
 	gatherLoadRadiusForLineAtStop,
 	gatherSegmentAllowsGoodType,
@@ -27,15 +28,14 @@ export function goodsWith(goods: Goods, other: GoodType, qty: number = 1): Goods
 export function gatherZoneLoadStopForBay(
 	line: FreightLineDefinition,
 	bay: { hive: { name?: string }; name: string; tile: { position: Positioned } }
-): (FreightStop & { zone: { kind: 'radius' } }) | undefined {
+): (FreightStop & { zone: FreightZoneDefinition }) | undefined {
 	for (const segment of findGatherRouteSegments(line)) {
 		const load = line.stops[segment.loadStopIndex]
 		const unload = line.stops[segment.unloadStopIndex]
 		if (!load || !('zone' in load)) continue
 		if (!unload || !('anchor' in unload)) continue
 		if (!freightStopAnchorMatchesAlveolus(unload.anchor, bay)) continue
-		if (load.zone.kind !== 'radius') continue
-		return load as FreightStop & { zone: FreightZoneDefinitionRadius }
+		return load as FreightStop & { zone: FreightZoneDefinition }
 	}
 	return undefined
 }
@@ -60,9 +60,10 @@ export function aggregateHiveNeedTypes(game: Game): GoodType[] {
  */
 export function zoneGatherSearchBudget(
 	line: FreightLineDefinition,
-	zoneStop: FreightStop & { zone: FreightZoneDefinitionRadius },
+	zoneStop: FreightStop & { zone: FreightZoneDefinition },
 	bayAlveolus?: { hive: { name?: string }; name: string; tile: { position: Positioned } }
 ): number {
+	if (zoneStop.zone.kind === 'named') return Number.POSITIVE_INFINITY
 	if (bayAlveolus) {
 		return gatherLoadRadiusForLineAtStop(line, bayAlveolus) ?? DEFAULT_GATHER_FREIGHT_RADIUS
 	}
@@ -81,7 +82,7 @@ export interface ZoneGatherCarrier {
 export function pickGatherTargetInZoneStop(
 	game: Game,
 	line: FreightLineDefinition,
-	zoneStop: FreightStop & { zone: FreightZoneDefinitionRadius },
+	zoneStop: FreightStop & { zone: FreightZoneDefinition },
 	startPos: Positioned,
 	hiveNeedTypes: readonly GoodType[],
 	options?: {
@@ -109,25 +110,54 @@ export function pickGatherTargetInZoneStop(
 	if (selectableGoods.length === 0) return undefined
 
 	const goodCounts = Object.fromEntries(selectableGoods.map((good) => [good, 0])) as Goods
-	hex.findNearest(
-		toAxialCoord(startPos)!,
-		(pos: Positioned) => {
-			const goodsAtTile = hex.looseGoods.getGoodsAt(pos)
+	const scanTiles =
+		zoneStop.zone.kind === 'named'
+			? freightZoneTiles(game, zoneStop.zone)
+			: undefined
+	if (scanTiles) {
+		for (const tile of scanTiles) {
+			const goodsAtTile = hex.looseGoods.getGoodsAt(tile.position)
 			for (const good of goodsAtTile) {
 				const gt = good.goodType as GoodType
 				if (good.available && gt in goodCounts) goodCounts[gt]!++
 			}
-			return false
-		},
-		radius,
-		false
-	)
+		}
+	} else {
+		hex.findNearest(
+			toAxialCoord(startPos)!,
+			(pos: Positioned) => {
+				const goodsAtTile = hex.looseGoods.getGoodsAt(pos)
+				for (const good of goodsAtTile) {
+					const gt = good.goodType as GoodType
+					if (good.available && gt in goodCounts) goodCounts[gt]!++
+				}
+				return false
+			},
+			radius,
+			false
+		)
+	}
 	const targetGood = Object.entries(goodCounts).reduce(
 		(max, [good, count]) => (count > max.count ? { good: good as GoodType, count } : max),
 		{ good: null as GoodType | null, count: 0 }
 	)
 	if (!targetGood.good) return undefined
-	const result = hex.looseGoods.findNearestGoods(startPos, startPos, [targetGood.good], radius)
+	let result: { path: Positioned[] } | undefined
+	if (zoneStop.zone.kind === 'named') {
+		for (const tile of scanTiles ?? []) {
+			if (
+				!tile.availableGoods.some(
+					(good) => good.available && !good.isRemoved && good.goodType === targetGood.good
+				)
+			)
+				continue
+			const path = hex.findPath(startPos, tile.position, Number.POSITIVE_INFINITY, true)
+			if (!path) continue
+			if (!result || path.length < result.path.length) result = { path }
+		}
+	} else {
+		result = hex.looseGoods.findNearestGoods(startPos, startPos, [targetGood.good], radius)
+	}
 	if (!result?.path) return undefined
 	return { goodType: targetGood.good, path: result.path, count: targetGood.count }
 }
@@ -139,7 +169,7 @@ export function pickGatherTargetInZoneStop(
 export function zoneGatherExhausted(
 	game: Game,
 	line: FreightLineDefinition,
-	zoneStop: FreightStop & { zone: FreightZoneDefinitionRadius },
+	zoneStop: FreightStop & { zone: FreightZoneDefinition },
 	startPos: Positioned,
 	hiveNeedTypes: readonly GoodType[],
 	options?: {

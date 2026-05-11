@@ -5,14 +5,18 @@ import { isStandaloneConstructionSiteShell, materialRemainingNeeds } from 'ssh/b
 import type {
 	FreightLineDefinition,
 	FreightStop,
-	FreightZoneDefinitionRadius,
+	FreightZoneDefinition,
 } from 'ssh/freight/freight-line'
 import {
+	distributeSegmentAllowsTile,
 	distributeSegmentAllowsGoodTypeForSegment,
 	distributeSegmentBayTile,
 	distributeSegmentWithinRadius,
 	findDistributeRouteSegments,
 	findGatherRouteSegments,
+	freightZoneContainsPosition,
+	freightZoneFallbackPosition,
+	freightZoneTiles,
 	gatherSegmentAllowsGoodType,
 	gatherSegmentAllowsGoodTypeForSegment,
 } from 'ssh/freight/freight-line'
@@ -28,7 +32,7 @@ import type { Character } from 'ssh/population/character'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService, isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
 import type { GoodType } from 'ssh/types/base'
-import { type AxialCoord, axial } from 'ssh/utils/axial'
+import { axial } from 'ssh/utils/axial'
 import { axialDistance, type Position, toAxialCoord } from 'ssh/utils/position'
 import { assert, traces } from '../dev/debug.ts'
 
@@ -57,13 +61,13 @@ export function freightStopMovementTarget(
 		const t = game.hex.getTile({ q: stop.anchor.coord[0], r: stop.anchor.coord[1] })
 		return t?.position
 	}
-	if ('zone' in stop && stop.zone.kind === 'radius') {
+	if ('zone' in stop) {
 		const vehicle = character.operates
 		if (vehicle) {
 			const pick = pickVehicleZoneBrowseSelection(game, character, vehicle, line, stop)
 			if (pick) return pick.targetTile.position
 		}
-		return { q: stop.zone.center[0], r: stop.zone.center[1] }
+		return freightZoneFallbackPosition(game, stop.zone)
 	}
 	return undefined
 }
@@ -77,6 +81,7 @@ export function freightStopTargetPosition(game: Game, stop: FreightStop): Positi
 	if ('zone' in stop && stop.zone.kind === 'radius') {
 		return { q: stop.zone.center[0], r: stop.zone.center[1] }
 	}
+	if ('zone' in stop && stop.zone.kind === 'named') return freightZoneFallbackPosition(game, stop.zone)
 	return undefined
 }
 
@@ -156,11 +161,9 @@ function findBeginServiceActionableWork(
 			if (segment.loadStopIndex !== 0) continue
 			const loadStop = line.stops[segment.loadStopIndex]
 			const unloadStop = line.stops[segment.unloadStopIndex]
-			if (!loadStop || !('zone' in loadStop) || loadStop.zone.kind !== 'radius') continue
+			if (!loadStop || !('zone' in loadStop)) continue
 			if (!unloadStop) continue
-			const center: AxialCoord = { q: loadStop.zone.center[0], r: loadStop.zone.center[1] }
-			const vehicleCoord = toAxialCoord(vehicle.effectivePosition)
-			if (!vehicleCoord || axial.distance(center, vehicleCoord) > loadStop.zone.radius) continue
+			if (!freightZoneContainsPosition(game, loadStop.zone, vehicle.effectivePosition)) continue
 			for (const good of Object.keys(vehicle.storage.stock) as GoodType[]) {
 				if (vehicle.storage.available(good) <= 0) continue
 				if (!gatherSegmentAllowsGoodTypeForSegment(line, segment, good)) continue
@@ -184,7 +187,7 @@ function findBeginServiceActionableWork(
 		let best: { target: Position; stop: FreightStop; pathLen: number } | undefined
 		for (const segment of gatherSegs) {
 			const zoneLoad = line.stops[segment.loadStopIndex]
-			if (!zoneLoad || !('zone' in zoneLoad) || zoneLoad.zone.kind !== 'radius') continue
+			if (!zoneLoad || !('zone' in zoneLoad)) continue
 			const selection = pickVehicleZoneBrowseSelection(
 				game,
 				character,
@@ -213,8 +216,10 @@ function findBeginServiceActionableWork(
 		if (!bayPos) continue
 		const unloadStop = line.stops[segment.unloadStopIndex]
 		const tiles =
-			unloadStop && 'zone' in unloadStop && unloadStop.zone.kind === 'radius'
-				? game.hex.tilesAround(bayPos, unloadStop.zone.radius)
+			unloadStop && 'zone' in unloadStop
+				? unloadStop.zone.kind === 'radius'
+					? game.hex.tilesAround(bayPos, unloadStop.zone.radius)
+					: freightZoneTiles(game, unloadStop.zone)
 				: game.hex.tiles
 		for (const tile of tiles) {
 			const c = tile.content
@@ -222,6 +227,7 @@ function findBeginServiceActionableWork(
 			const tilePos = toAxialCoord(tile.position)
 			if (!tilePos) continue
 			if (!distributeSegmentWithinRadius(line, segment, axial.distance(bayPos, tilePos))) continue
+			if (!distributeSegmentAllowsTile(game, line, segment, tile)) continue
 			const remaining =
 				c.remainingNeeds && typeof c.remainingNeeds === 'object'
 					? c.remainingNeeds
@@ -280,14 +286,14 @@ export function projectedLineStopForVehicleHop(
 	if (!isVehicleLineService(svc)) return undefined
 	const line = svc.line
 	const stop = svc.stop
-	if (!('zone' in stop) || stop.zone.kind !== 'radius') return { line, stop }
+	if (!('zone' in stop)) return { line, stop }
 	if (
 		!shouldAdvancePastZoneStop(
 			game,
 			character,
 			vehicle,
 			line,
-			stop as FreightStop & { zone: FreightZoneDefinitionRadius }
+			stop as FreightStop & { zone: FreightZoneDefinition }
 		)
 	)
 		return { line, stop }
@@ -348,7 +354,7 @@ function shouldAdvancePastZoneStop(
 	character: Character,
 	vehicle: VehicleEntity,
 	line: FreightLineDefinition,
-	stop: FreightStop & { zone: FreightZoneDefinitionRadius }
+	stop: FreightStop & { zone: FreightZoneDefinition }
 ): boolean {
 	if (pickVehicleZoneBrowseSelection(game, character, vehicle, line, stop)) return false
 	return true
@@ -366,8 +372,8 @@ export function maybeAdvanceVehiclePastCompletedZoneStop(
 	const svc = vehicle.service
 	if (!isVehicleLineService(svc)) return
 	const { line, stop } = svc
-	if (!('zone' in stop) || stop.zone.kind !== 'radius') return
-	const zoneStop = stop as FreightStop & { zone: FreightZoneDefinitionRadius }
+	if (!('zone' in stop)) return
+	const zoneStop = stop as FreightStop & { zone: FreightZoneDefinition }
 	if (!shouldAdvancePastZoneStop(game, character, vehicle, line, zoneStop)) return
 	const idx = line.stops.findIndex((s) => s.id === stop.id)
 	if (idx < 0) return

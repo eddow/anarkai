@@ -3,6 +3,7 @@ import {
 	type ConstructionTranslatorShape,
 } from '@app/lib/construction-view'
 import { css } from '@app/lib/css'
+import { zoneOverlayState } from '@app/lib/freight-line-overlay'
 import { bumpSelectionTitleVersion } from '@app/lib/globals'
 import { resolveHiveFromAnchorTile, type SyntheticHiveObject } from '@app/lib/hive-inspector'
 import { T } from '@app/lib/i18n'
@@ -209,9 +210,22 @@ const HiveProperties = (props: HivePropertiesProps) => {
 		hive.working = checked
 		state.working = checked
 	}
+	const applyHover = () => {
+		zoneOverlayState.hoveredHiveAnchorTileUid = props.hiveObject.anchorTileUid
+	}
+	const clearHover = () => {
+		if (zoneOverlayState.hoveredHiveAnchorTileUid === props.hiveObject.anchorTileUid) {
+			zoneOverlayState.hoveredHiveAnchorTileUid = undefined
+		}
+	}
 
 	return (
-		<InspectorSection title={T.hive.section}>
+		<InspectorSection
+			title={T.hive.section}
+			el:onmouseenter={applyHover}
+			el:onmousemove={applyHover}
+			el:onmouseleave={clearHover}
+		>
 			<PropertyGrid>
 				<PropertyGridRow label={T.hive.name}>
 					<input

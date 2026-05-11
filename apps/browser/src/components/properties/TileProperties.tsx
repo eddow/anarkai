@@ -28,6 +28,7 @@ import GoodsList from '../GoodsList'
 import HiveAnchorButton from '../HiveAnchorButton'
 import PropertyGrid from '../PropertyGrid'
 import PropertyGridRow from '../PropertyGridRow'
+import ZoneAnchorButton from '../ZoneAnchorButton'
 import WorkingIndicator from '../parts/WorkingIndicator'
 import StoredGoodsRow from '../storage/StoredGoodsRow'
 import AlveolusProperties from './AlveolusProperties'
@@ -51,6 +52,11 @@ css`
     gap: 0.75rem;
     width: 100%;
     margin-bottom: 1rem;
+    padding: 0.55rem;
+    box-sizing: border-box;
+    border: 1px solid color-mix(in srgb, var(--ak-text-muted) 16%, transparent);
+    border-radius: 0.5rem;
+    background: color-mix(in srgb, var(--ak-surface-panel) 88%, transparent);
   }
 
   .tile-properties__identity {
@@ -71,9 +77,15 @@ css`
     font-size: 1.2rem;
   }
 
-  .tile-properties__header-hive {
+  .tile-properties__header-actions {
+    display: flex;
+    gap: 0.35rem;
     flex: none;
     margin-inline-start: auto;
+    padding: 0.25rem;
+    border: 1px solid color-mix(in srgb, var(--ak-text-muted) 14%, transparent);
+    border-radius: 0.55rem;
+    background: color-mix(in srgb, var(--ak-surface-1) 88%, transparent);
   }
 
   .tile-properties__content {
@@ -209,9 +221,34 @@ const TileContentHeader = (props: TileContentHeaderProps) => (
 			if={props.contentCase?.kind === 'basicDwelling'}
 			contentCase={props.contentCase as Extract<TileContentCase, { kind: 'basicDwelling' }>}
 			game={props.game}
+			tile={props.tile}
+		/>
+		<TileZoneHeaderFallback
+			else
+			if={!!customZoneTitle(props.tile, props.game)}
+			game={props.game}
+			tile={props.tile}
 		/>
 	</>
 )
+
+function customZoneTitle(tile: Tile, game?: TileGame): string | undefined {
+	const zone = tile.zone
+	const definition = zone ? game?.hex.zoneManager.getZoneDefinition(zone) : undefined
+	return definition && !definition.builtIn ? definition.name || String(definition.id) : undefined
+}
+
+const TileZoneHeaderFallback = (props: { game?: TileGame; tile: Tile }) => {
+	const title = () => customZoneTitle(props.tile, props.game)
+	return (
+		<div class="tile-properties__header">
+			<div class="tile-properties__identity" />
+			<div class="tile-properties__header-actions">
+				<ZoneAnchorButton if={title()} tile={props.tile} title={title()} />
+			</div>
+		</div>
+	)
+}
 
 interface AlveolusTileHeaderProps {
 	contentCase?: Extract<TileContentCase, { kind: 'alveolus' | 'constructionShell' }>
@@ -241,6 +278,9 @@ const AlveolusTileHeader = (props: AlveolusTileHeaderProps) => {
 		get hiveTitle() {
 			return this.contentCase?.content.hive?.name?.trim() || 'Hive'
 		},
+		get zoneTitle() {
+			return customZoneTitle(props.tile, props.game)
+		},
 	}
 
 	return (
@@ -261,7 +301,8 @@ const AlveolusTileHeader = (props: AlveolusTileHeaderProps) => {
 					tooltip={T.alveolus.workingTooltip}
 				/>
 			</div>
-			<div class="tile-properties__header-hive">
+			<div class="tile-properties__header-actions">
+				<ZoneAnchorButton if={model.zoneTitle} tile={props.tile} title={model.zoneTitle} />
 				<HiveAnchorButton tile={props.tile} title={model.hiveTitle} />
 			</div>
 		</div>
@@ -271,6 +312,7 @@ const AlveolusTileHeader = (props: AlveolusTileHeaderProps) => {
 interface BasicDwellingTileHeaderProps {
 	contentCase: Extract<TileContentCase, { kind: 'basicDwelling' }>
 	game?: TileGame
+	tile: Tile
 }
 
 const BasicDwellingTileHeader = (props: BasicDwellingTileHeaderProps) => {
@@ -280,6 +322,9 @@ const BasicDwellingTileHeader = (props: BasicDwellingTileHeaderProps) => {
 		},
 		get sprite() {
 			return this.visual?.sprites?.[0]
+		},
+		get zoneTitle() {
+			return customZoneTitle(props.tile, props.game)
 		},
 	}
 
@@ -292,6 +337,9 @@ const BasicDwellingTileHeader = (props: BasicDwellingTileHeaderProps) => {
 					text={String(T.residential.dwelling.tierBasic)}
 					height={32}
 				/>
+			</div>
+			<div if={model.zoneTitle} class="tile-properties__header-actions">
+				<ZoneAnchorButton tile={props.tile} title={model.zoneTitle} />
 			</div>
 		</div>
 	)
@@ -307,7 +355,11 @@ const ZoneRow = (props: ZoneRowProps) => {
 			return props.tile.zone === 'residential' ? 'green' : 'yellow'
 		},
 		get label() {
-			return props.tile.zone === 'residential' ? T.tile.zoneResidential : T.tile.zoneHarvest
+			const zone = props.tile.zone
+			if (!zone) return ''
+			const definition = props.tile.board.game.hex.zoneManager.getZoneDefinition(zone)
+			if (definition) return definition.name?.trim() || String(definition.id)
+			return zone === 'residential' ? T.tile.zoneResidential : zone === 'harvest' ? T.tile.zoneHarvest : zone
 		},
 	}
 

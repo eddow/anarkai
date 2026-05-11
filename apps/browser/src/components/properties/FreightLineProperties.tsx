@@ -1,5 +1,6 @@
 import { css } from '@app/lib/css'
 import { type FreightDraftIssueCode, freightDraftIssueCodes } from '@app/lib/freight-line-draft'
+import { showFreightLineOverlay } from '@app/lib/freight-line-overlay'
 import { clearFreightMapPickForLine } from '@app/lib/freight-map-pick'
 import { bumpSelectionTitleVersion } from '@app/lib/globals'
 import { T } from '@app/lib/i18n'
@@ -79,8 +80,10 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 
 	effect`freight-line-properties:pick-cleanup`(() => {
 		const lineId = props.lineObject?.lineId
+		showFreightLineOverlay(lineId)
 		return () => {
 			if (lineId) clearFreightMapPickForLine(lineId)
+			showFreightLineOverlay(undefined)
 		}
 	})
 

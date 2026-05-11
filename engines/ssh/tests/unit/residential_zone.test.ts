@@ -74,4 +74,46 @@ describe('ZoneManager residential polish', () => {
 		expect(zm.isReserved({ q: 1, r: 0 })).toBe(true)
 		expect(zm.getReservation(a)).toMatchObject({ q: 1, r: 0 })
 	})
+
+	it('defines custom zones and tracks their tile membership', () => {
+		const zm = new ZoneManager()
+		const zone = zm.defineZone({ id: 'North Grove', name: 'North Grove', color: '#4f8cff' })
+		expect(zone.id).toBe('north-grove')
+		zm.setZone({ q: 2, r: -1 }, zone.id)
+		zm.setZone({ q: 3, r: -1 }, zone.id)
+
+		expect(zm.getZone({ q: 2, r: -1 })).toBe('north-grove')
+		expect(zm.coordsForZone('north-grove')).toEqual([
+			{ q: 2, r: -1 },
+			{ q: 3, r: -1 },
+		])
+		expect(zm.listCustomZoneDefinitions()).toMatchObject([
+			{ id: 'north-grove', name: 'North Grove', color: '#4f8cff' },
+		])
+	})
+
+	it('chooses a deterministic central coord for custom zones', () => {
+		const zm = new ZoneManager()
+		zm.defineZone({ id: 'market-yard', name: 'Market Yard' })
+		zm.setZone({ q: 0, r: 0 }, 'market-yard')
+		zm.setZone({ q: 2, r: 0 }, 'market-yard')
+		zm.setZone({ q: 1, r: 0 }, 'market-yard')
+
+		expect(zm.centralCoordForZone('market-yard')).toEqual({ q: 1, r: 0 })
+	})
+
+	it('custom zones do not keep residential reservations when replacing a residential tile', () => {
+		const zm = new ZoneManager()
+		const coord = { q: 0, r: 0 }
+		const owner = {}
+		zm.setZone(coord, 'residential')
+		expect(zm.tryReserveResidentialAt(owner, coord)).toBe(true)
+
+		zm.defineZone({ id: 'line-zone', name: 'Line zone' })
+		zm.setZone(coord, 'line-zone')
+
+		expect(zm.getReservation(owner)).toBeUndefined()
+		expect(zm.isReserved(coord)).toBe(false)
+		expect(zm.residentialCoords).toHaveLength(0)
+	})
 })

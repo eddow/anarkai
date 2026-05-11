@@ -57,6 +57,15 @@ export function cloneFreightStop(stop: FreightStop): FreightStop {
 		}
 	}
 	const z = stop.zone
+	if (z.kind === 'named') {
+		return {
+			...base,
+			zone: {
+				kind: 'named',
+				zoneId: z.zoneId,
+			},
+		}
+	}
 	return {
 		...base,
 		zone: {
@@ -154,6 +163,44 @@ export function setFreightDraftStopKindZone(
 				kind: 'radius' as const,
 				center: [center[0], center[1]] as const,
 				radius,
+			},
+		}
+	})
+	return { ...line, stops }
+}
+
+export function setFreightDraftStopKindNamedZone(
+	line: FreightLineDefinition,
+	index: number,
+	zoneId: string
+): FreightLineDefinition {
+	const stops = line.stops.map((s, i) => {
+		if (i !== index) return s
+		const base = { id: s.id, loadSelection: s.loadSelection, unloadSelection: s.unloadSelection }
+		return {
+			...base,
+			zone: {
+				kind: 'named' as const,
+				zoneId,
+			},
+		}
+	})
+	return { ...line, stops }
+}
+
+export function setFreightDraftStopNamedZoneId(
+	line: FreightLineDefinition,
+	index: number,
+	zoneId: string
+): FreightLineDefinition {
+	const stops = line.stops.map((s, i) => {
+		if (i !== index) return s
+		if (!('zone' in s) || s.zone.kind !== 'named') return s
+		return {
+			...s,
+			zone: {
+				kind: 'named' as const,
+				zoneId,
 			},
 		}
 	})

@@ -15,6 +15,7 @@ import {
 } from '@app/lib/hive-inspector'
 import { T } from '@app/lib/i18n'
 import { isHoveredObject, setHoveredObject } from '@app/lib/interactive-state'
+import { isZoneObjectUid, isZonesUid } from '@app/lib/zone-selection'
 import { InspectorSection, Panel } from '@app/ui/anarkai'
 import { latch } from '@sursaut/core'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
@@ -36,6 +37,8 @@ import CharacterProperties from '../components/properties/CharacterProperties'
 import FreightLineProperties from '../components/properties/FreightLineProperties'
 import TileProperties from '../components/properties/TileProperties'
 import VehicleProperties from '../components/properties/VehicleProperties'
+import ZoneProperties from '../components/properties/ZoneProperties'
+import ZonesProperties from '../components/properties/ZonesProperties'
 import type { SelectionInfoContext, SelectionInfoTool } from './selection-info-tab'
 
 css`
@@ -175,6 +178,18 @@ const VehicleSelectionProperties = (props: { object?: unknown }) => (
 	</div>
 )
 
+const ZonesSelectionProperties = (props: { object?: unknown }) => (
+	<div data-selection-properties-kind="zones">
+		<ZonesProperties zonesObject={props.object as any} />
+	</div>
+)
+
+const ZoneSelectionProperties = (props: { object?: unknown; onClose?: () => void }) => (
+	<div data-selection-properties-kind="zone">
+		<ZoneProperties zoneObject={props.object as any} onClose={props.onClose} />
+	</div>
+)
+
 const ObjectSummaryProperties = (props: { object?: { uid?: string; title?: string } }) => (
 	<div data-selection-properties-kind="summary">
 		<InspectorSection class="selection-info-panel__summary" title={props.object?.title ?? 'Object'}>
@@ -183,13 +198,17 @@ const ObjectSummaryProperties = (props: { object?: { uid?: string; title?: strin
 	</div>
 )
 
-const renderPropertiesForObject = (object: { uid?: string }) => {
+const renderPropertiesForObject = (object: { uid?: string }, options: { onClose?: () => void } = {}) => {
 	if (isCharacterObject(object)) return <CharacterSelectionProperties object={object} />
 	if (isTileObject(object)) return <TileSelectionProperties object={object} />
 	if (object.uid && isFreightLineUid(object.uid)) {
 		return <FreightLineSelectionProperties object={object} />
 	}
 	if (object.uid && isHiveUid(object.uid)) return <HiveSelectionProperties object={object} />
+	if (object.uid && isZonesUid(object.uid)) return <ZonesSelectionProperties object={object} />
+	if (object.uid && isZoneObjectUid(object.uid)) {
+		return <ZoneSelectionProperties object={object} onClose={options.onClose} />
+	}
 	if (isVehicleObject(object)) return <VehicleSelectionProperties object={object} />
 	return <ObjectSummaryProperties object={object} />
 }
@@ -384,7 +403,13 @@ const SelectionInfoWidget = (
 		const object = current.object
 		void current.uid
 		if (!host || !object) return
-		return latch(host, renderPropertiesForObject(object), scope as never)
+		return latch(
+			host,
+			renderPropertiesForObject(object, {
+				onClose: () => api.close?.(),
+			}),
+			scope as never
+		)
 	})
 
 	return (

@@ -17,6 +17,7 @@ import type { InspectorSelectableObject, InteractiveGameObject } from 'ssh/game/
 import { resolveSelectableHoverObject } from 'ssh/game/object'
 import { Character } from 'ssh/population/character'
 import { VehicleEntity } from 'ssh/population/vehicle/entity'
+import type { WorldVehicleType } from 'ssh/population/vehicle/vehicle'
 import { computeStyleFromTexture } from 'ssh/utils/images'
 import ResourceImage from './ResourceImage'
 
@@ -105,6 +106,14 @@ const LinkedEntityControl = (props: LinkedEntityControlProps) => {
 		objectGame: undefined as LinkedEntityTarget['game'] | undefined,
 	})
 	const currentObject = (): LinkedEntityTarget | undefined => props.object
+	const vehicleTypeForObject = (object: unknown): WorldVehicleType | undefined =>
+		object instanceof VehicleEntity ||
+		(!!object &&
+			typeof object === 'object' &&
+			'vehicleType' in object &&
+			typeof (object as { vehicleType?: unknown }).vehicleType === 'string')
+			? ((object as { vehicleType: WorldVehicleType }).vehicleType)
+			: undefined
 	const visualTile = () => {
 		const object = currentObject()
 		if (!object) return undefined
@@ -130,8 +139,8 @@ const LinkedEntityControl = (props: LinkedEntityControlProps) => {
 
 	effect`linked-entity:sprite`(() => {
 		const object = currentObject()
-		if (object instanceof VehicleEntity) {
-			const vehicleType = object.vehicleType
+		const vehicleType = vehicleTypeForObject(object)
+		if (vehicleType) {
 			state.sprite = visualVehicles[vehicleType]?.sprites?.[0] ?? vehicleTextureKey(vehicleType)
 			return
 		}

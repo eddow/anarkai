@@ -156,14 +156,19 @@ export class TileVisual extends VisualObject<Tile> {
 
 		if (isActive) {
 			const action = interactionMode.selectedAction
-			const canInteract =
-				content && (content as any).canInteract && (content as any).canInteract(action)
+			const canInteract = this.object.canInteract(action)
 
 			if (action && canInteract) {
 				if (action.startsWith('zone:')) {
 					const zoneType = action.replace('zone:', '')
-					tint =
-						zoneType === 'residential' ? 0x88ff88 : zoneType === 'harvest' ? 0xddbb99 : 0xbbbbbb
+					const custom = this.object.board.zoneManager.getZoneDefinition(zoneType)?.color
+					tint = custom
+						? Number.parseInt(custom.replace(/^#/, ''), 16)
+						: zoneType === 'residential'
+							? 0x88ff88
+							: zoneType === 'harvest'
+								? 0xddbb99
+								: 0xbbbbbb
 					brightness = 1.16
 				} else {
 					tint = 0x7fb8ff
@@ -187,6 +192,10 @@ export class TileVisual extends VisualObject<Tile> {
 		if (!borderColor) {
 			if (this.object.zone === 'residential') borderColor = 0x44dd44
 			else if (this.object.zone === 'harvest') borderColor = 0xaa7744
+			else if (this.object.zone) {
+				const color = this.object.board.zoneManager.getZoneDefinition(this.object.zone)?.color
+				if (color) borderColor = Number.parseInt(color.replace(/^#/, ''), 16)
+			}
 		}
 
 		const tintChanged = this.cachedTint !== tint

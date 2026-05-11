@@ -14,6 +14,7 @@ import { setPixiName } from './debug-names'
 import { registerPixiApp, unregisterPixiApp } from './hmr.js'
 import { InteractionManager } from './interaction/interaction-manager.js'
 import { DragPreviewOverlay } from './renderers/drag-preview-overlay'
+import { FreightLineOverlay } from './renderers/freight-line-overlay'
 import type { VisualFactoryDiagnostics } from './visual-factory'
 import { VisualFactory } from './visual-factory'
 
@@ -23,6 +24,7 @@ export class PixiGameRenderer implements GameRenderer {
 	private interactionManager?: InteractionManager
 	private visualFactory?: VisualFactory
 	private dragPreviewOverlay?: DragPreviewOverlay
+	private freightLineOverlay?: FreightLineOverlay
 	private terrainVisual?: TerrainVisual
 	private container: HTMLElement
 	private canvas: HTMLCanvasElement | null = null
@@ -99,6 +101,9 @@ export class PixiGameRenderer implements GameRenderer {
 		// Setup Drag Preview Overlay
 		this.dragPreviewOverlay = new DragPreviewOverlay(this)
 		this.dragPreviewOverlay.bind()
+
+		this.freightLineOverlay = new FreightLineOverlay(this)
+		this.freightLineOverlay.bind()
 
 		// Register for HMR
 		registerPixiApp(this.app)
@@ -257,6 +262,7 @@ export class PixiGameRenderer implements GameRenderer {
 
 		this.interactionManager?.teardown()
 		this.dragPreviewOverlay?.dispose()
+		this.freightLineOverlay?.dispose()
 		this.visualFactory?.destroy()
 		this.terrainVisual?.dispose()
 

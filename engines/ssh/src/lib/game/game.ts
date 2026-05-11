@@ -13,7 +13,8 @@ import { HexBoard } from 'ssh/board/board'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { Deposit, UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { Tile, type TileTerrainState } from 'ssh/board/tile'
-import type { Zone } from 'ssh/board/zone'
+import type { NamedZoneDefinition, Zone } from 'ssh/board/zone'
+import { createZoneObjectForUid } from 'ssh/board/zone-object'
 import { isConstructionSiteShell } from 'ssh/build-site'
 import { createConstructionShell } from 'ssh/construction-shell'
 import {
@@ -186,6 +187,10 @@ type CoordPatchMap<T extends string> = Partial<Record<T, ReadonlyArray<readonly 
 type TerrainPatches = CoordPatchMap<TerrainType>
 type LooseGoodsPatches = CoordPatchMap<GoodType>
 
+export interface NamedZonePatch extends Omit<NamedZoneDefinition, 'builtIn'> {
+	readonly coords: ReadonlyArray<readonly [number, number]>
+}
+
 export interface GamePatches {
 	seed?: number
 	terrains?: TerrainPatches
@@ -201,6 +206,7 @@ export interface GamePatches {
 	zones?: {
 		harvest?: ReadonlyArray<readonly [number, number]>
 		residential?: ReadonlyArray<readonly [number, number]>
+		named?: ReadonlyArray<NamedZonePatch>
 	}
 	projects?: Record<string, ReadonlyArray<readonly [number, number]>>
 	dwellings?: ReadonlyArray<DwellingPatch>
@@ -411,7 +417,7 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	getObject(uid: string) {
-		return this.objects.get(uid) ?? this.getSyntheticFreightLineObject(uid)
+		return this.objects.get(uid) ?? this.getSyntheticFreightLineObject(uid) ?? createZoneObjectForUid(this, uid)
 	}
 
 	getSyntheticFreightLineObject(uid: string): SyntheticFreightLineObject | undefined {
@@ -775,6 +781,9 @@ export class Game extends Eventful<GameEvents> {
 		}
 		for (const coord of patches.zones?.harvest ?? []) coords.push({ q: coord[0], r: coord[1] })
 		for (const coord of patches.zones?.residential ?? []) coords.push({ q: coord[0], r: coord[1] })
+		for (const zone of patches.zones?.named ?? []) {
+			for (const coord of zone.coords) coords.push({ q: coord[0], r: coord[1] })
+		}
 		for (const coordsForProject of Object.values(patches.projects ?? {})) {
 			for (const coord of coordsForProject) coords.push({ q: coord[0], r: coord[1] })
 		}
@@ -820,6 +829,9 @@ export class Game extends Eventful<GameEvents> {
 		}
 		for (const coord of patches.zones?.harvest ?? []) addPatchCoord(coord)
 		for (const coord of patches.zones?.residential ?? []) addPatchCoord(coord)
+		for (const zone of patches.zones?.named ?? []) {
+			for (const coord of zone.coords) addPatchCoord(coord)
+		}
 		for (const coordsForProject of Object.values(patches.projects ?? {})) {
 			for (const coord of coordsForProject) addPatchCoord(coord)
 		}
@@ -1435,12 +1447,25 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	private applyZonePatches(zones: NonNullable<GamePatches['zones']>) {
-		for (const [zone, coords] of Object.entries(zones)) {
-			for (const coord of coords) {
+		for (const zone of zones.named ?? []) {
+			this.hex.zoneManager.defineZone(zone)
+		}
+		const applyCoords = (zone: Zone, coords: ReadonlyArray<readonly [number, number]> | undefined) => {
+			for (const coord of coords ?? []) {
 				const coordObj = { q: coord[0], r: coord[1] }
 				const tile = this.hex.getTile(coordObj)
 				if (!tile) continue
-				tile.zone = zone as Zone
+				tile.zone = zone
+			}
+		}
+		applyCoords('harvest', zones.harvest)
+		applyCoords('residential', zones.residential)
+		for (const zone of zones.named ?? []) {
+			for (const coord of zone.coords) {
+				const coordObj = { q: coord[0], r: coord[1] }
+				const tile = this.hex.getTile(coordObj)
+				if (!tile) continue
+				tile.zone = zone.id
 			}
 		}
 	}
@@ -1507,10 +1532,16 @@ export class Game extends Eventful<GameEvents> {
 			.filter((coord) => !this.bootstrapGameplayCoords.has(axial.key(coord)))
 			.filter((coord) => this.hex.getTile(coord)?.asGenerated)
 			.map((coord) => [coord.q, coord.r] as [number, number])
-		const zones: { harvest: Array<[number, number]>; residential: Array<[number, number]> } = {
+		const zones: {
+			harvest: Array<[number, number]>
+			residential: Array<[number, number]>
+			named: NamedZonePatch[]
+		} = {
 			harvest: [],
 			residential: [],
+			named: [],
 		}
+		const namedZoneCoords = new Map<string, Array<[number, number]>>()
 		const projects: Record<string, Array<[number, number]>> = {}
 		const dwellings: DwellingPatch[] = []
 
@@ -1524,6 +1555,10 @@ export class Game extends Eventful<GameEvents> {
 				zones.harvest!.push([q, r])
 			} else if (zone === 'residential') {
 				zones.residential!.push([q, r])
+			} else if (zone) {
+				const coords = namedZoneCoords.get(zone) ?? []
+				coords.push([q, r])
+				namedZoneCoords.set(zone, coords)
 			}
 			if (tile.asGenerated) continue
 			const terrainState = tile.terrainState
@@ -1636,6 +1671,15 @@ export class Game extends Eventful<GameEvents> {
 			if (hive.name && hive.configurations.size > 0) {
 				hiveConfigurations[hive.name] = Object.fromEntries(hive.configurations)
 			}
+		}
+
+		for (const definition of this.hex.zoneManager.listCustomZoneDefinitions()) {
+			zones.named.push({
+				id: definition.id,
+				name: definition.name,
+				color: definition.color,
+				coords: namedZoneCoords.get(definition.id) ?? [],
+			})
 		}
 
 		const { rows: conveyMovements, indexByRef } = collectSerializedConveyMovementsWithIndex(this)

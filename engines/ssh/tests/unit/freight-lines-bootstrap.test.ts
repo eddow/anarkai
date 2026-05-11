@@ -2,12 +2,15 @@ import {
 	applyGatherRadiusFromEditor,
 	DEFAULT_GATHER_FREIGHT_RADIUS,
 	findDistributeFreightLine,
+	findDistributeRouteSegments,
 	findGatherFreightLine,
+	findGatherRouteSegments,
 	freightLineEditorGatherRadius,
 	freightLineStationLabel,
 	freightLineUid,
 	normalizeFreightLineDefinition,
 } from 'ssh/freight/freight-line'
+import { measureFreightStopProvidedGoods } from 'ssh/freight/freight-stop-utility'
 import type { SaveState } from 'ssh/game'
 import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import { describe, expect, it } from 'vitest'
@@ -282,6 +285,55 @@ describe('Freight line bootstrap', () => {
 				center: [0, 0],
 				radius: 6,
 			})
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('uses named tile zones as gather and distribute stop authority', async () => {
+		const engine = new TestEngine({ terrainSeed: 1, characterCount: 0 })
+		await engine.init()
+		try {
+			engine.loadScenario({
+				hives: [{ name: 'H', alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }] }],
+				looseGoods: {
+					wood: [
+						[1, 0],
+						[4, 0],
+					],
+				},
+				zones: {
+					named: [{ id: 'north-grove', name: 'North Grove', color: '#4f8cff', coords: [[1, 0]] }],
+				},
+				freightLines: [
+					{
+						id: 'H:named-gather',
+						name: 'Named gather',
+						stops: [
+							{ id: 'named-load', zone: { kind: 'named', zoneId: 'north-grove' } },
+							{
+								id: 'bay-unload',
+								anchor: {
+									kind: 'alveolus',
+									hiveName: 'H',
+									alveolusType: 'freight_bay',
+									coord: [0, 0],
+								},
+							},
+						],
+					},
+				],
+			})
+
+			const line = engine.game.freightLines.find((entry) => entry.id === 'H:named-gather')!
+			expect(findGatherRouteSegments(line)).toEqual([{ loadStopIndex: 0, unloadStopIndex: 1 }])
+			expect(findDistributeRouteSegments(line)).toEqual([])
+			expect(measureFreightStopProvidedGoods(engine.game, line, 0).perGood).toEqual({ wood: 1 })
+
+			const saved = engine.game.saveGameData()
+			expect(saved.zones.named).toMatchObject([
+				{ id: 'north-grove', name: 'North Grove', color: '#4f8cff', coords: [[1, 0]] },
+			])
 		} finally {
 			await engine.destroy()
 		}

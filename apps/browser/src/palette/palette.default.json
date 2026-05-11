@@ -33,6 +33,16 @@
               "hint": "Open test panel",
               "tone": "neutral"
             }
+          },
+          {
+            "tool": "openZones",
+            "editor": "button",
+            "config": {
+              "label": "Zones",
+              "icon": "pure-glyf-icon glyf-tabler-outline-polygon",
+              "hint": "Open zones",
+              "tone": "neutral"
+            }
           }
         ]
       },
@@ -138,6 +148,7 @@
   "keyBindings": {
     "`": "openConfiguration",
     "G": "openGame",
-    "H": "openTest"
+    "H": "openTest",
+    "Z": "openZones"
   }
 }

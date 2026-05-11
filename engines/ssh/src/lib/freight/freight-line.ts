@@ -4,7 +4,7 @@ import type { Game } from 'ssh/game'
 import type { InspectorSelectableObject } from 'ssh/game/object'
 import type { AlveolusType, GoodType } from 'ssh/types'
 import type { AxialCoord, Positioned } from 'ssh/utils'
-import { toAxialCoord } from 'ssh/utils/position'
+import { type Position, toAxialCoord } from 'ssh/utils/position'
 import type { GoodSelectionPolicy } from './goods-selection-policy'
 import {
 	evaluateGoodSelectionPolicy,
@@ -54,7 +54,12 @@ export interface FreightZoneDefinitionRadius {
 	readonly radius: number
 }
 
-export type FreightZoneDefinition = FreightZoneDefinitionRadius
+export interface FreightZoneDefinitionNamed {
+	readonly kind: 'named'
+	readonly zoneId: string
+}
+
+export type FreightZoneDefinition = FreightZoneDefinitionRadius | FreightZoneDefinitionNamed
 
 /** One route step: optional load/unload goods policies at a bay anchor or radius zone. */
 export type FreightStop = {
@@ -191,6 +196,16 @@ function normalizeRadiusZone(zone: FreightZoneDefinitionRadius): FreightZoneDefi
 	}
 }
 
+function normalizeFreightZone(zone: FreightZoneDefinition): FreightZoneDefinition {
+	if (zone.kind === 'named') {
+		return {
+			kind: 'named',
+			zoneId: zone.zoneId.trim().replace(/\s+/g, '-').toLowerCase(),
+		}
+	}
+	return normalizeRadiusZone(zone)
+}
+
 function normalizeOptionalSelectionPolicy(
 	policy: GoodSelectionPolicy | undefined
 ): GoodSelectionPolicy | undefined {
@@ -210,7 +225,7 @@ function normalizeFreightStop(stop: FreightStop, index: number): FreightStop {
 		id,
 		loadSelection,
 		unloadSelection,
-		zone: normalizeRadiusZone(stop.zone),
+		zone: normalizeFreightZone(stop.zone),
 	}
 }
 
@@ -221,8 +236,9 @@ export interface FreightGatherRouteSegment {
 }
 
 /**
- * Radius zone stop followed by a bay anchor at the **same** coordinates (gather path).
- * Zone→anchor pairs with different centers are not gather (e.g. distribute unload radius → next bay).
+ * Radius zone stop followed by a bay anchor at the **same** coordinates, or a named tile zone
+ * followed by a bay anchor (gather path). Radius zone→anchor pairs with different centers are not
+ * gather (e.g. distribute unload radius → next bay).
  */
 const _gatherSegmentCache = new WeakMap<FreightLineDefinition, FreightGatherRouteSegment[]>()
 
@@ -234,8 +250,12 @@ export function findGatherRouteSegments(line: FreightLineDefinition): FreightGat
 		const zoneStop = line.stops[i]
 		const anchorStop = line.stops[i + 1]
 		if (!zoneStop || !anchorStop) continue
-		if (!('zone' in zoneStop) || zoneStop.zone.kind !== 'radius') continue
+		if (!('zone' in zoneStop)) continue
 		if (!('anchor' in anchorStop) || anchorStop.anchor.kind !== 'alveolus') continue
+		if (zoneStop.zone.kind === 'named') {
+			out.push({ loadStopIndex: i, unloadStopIndex: i + 1 })
+			continue
+		}
 		const z = zoneStop.zone.center
 		const c = anchorStop.anchor.coord
 		if (z[0] !== c[0] || z[1] !== c[1]) continue
@@ -528,6 +548,50 @@ export function distributeSegmentWithinRadius(
 	if (!unload) return true
 	if (!('zone' in unload) || unload.zone.kind !== 'radius') return true
 	return pathLength <= unload.zone.radius
+}
+
+function axialDistance(a: AxialCoord, b: AxialCoord): number {
+	return (Math.abs(a.q - b.q) + Math.abs(a.q + a.r - b.q - b.r) + Math.abs(a.r - b.r)) / 2
+}
+
+export function freightZoneTiles(game: Game, zone: FreightZoneDefinition): Tile[] {
+	if (zone.kind === 'named') {
+		return game.hex.tiles.filter((tile) => tile.zone === zone.zoneId)
+	}
+	return [...game.hex.tilesAround({ q: zone.center[0], r: zone.center[1] }, zone.radius)]
+}
+
+export function freightZoneContainsPosition(
+	game: Game,
+	zone: FreightZoneDefinition,
+	position: Positioned
+): boolean {
+	const coord = toAxialCoord(position)
+	if (!coord) return false
+	if (zone.kind === 'named') {
+		return game.hex.getTile(coord)?.zone === zone.zoneId
+	}
+	return axialDistance(coord, { q: zone.center[0], r: zone.center[1] }) <= zone.radius
+}
+
+export function freightZoneFallbackPosition(
+	game: Game,
+	zone: FreightZoneDefinition
+): Position | undefined {
+	if (zone.kind === 'radius') return { q: zone.center[0], r: zone.center[1] }
+	const coord = game.hex.zoneManager.centralCoordForZone(zone.zoneId)
+	return coord ? { q: coord.q, r: coord.r } : undefined
+}
+
+export function distributeSegmentAllowsTile(
+	game: Game,
+	line: FreightLineDefinition,
+	segment: FreightDistributeRouteSegment,
+	tile: Tile
+): boolean {
+	const unload = line.stops[segment.unloadStopIndex]
+	if (!unload || !('zone' in unload)) return true
+	return freightZoneContainsPosition(game, unload.zone, tile.position)
 }
 
 /** Resolves the bay tile for a specific distribute segment. */

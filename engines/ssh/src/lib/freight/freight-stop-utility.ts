@@ -10,6 +10,7 @@ import {
 	type FreightStop,
 	findDistributeRouteSegments,
 	findGatherRouteSegments,
+	freightZoneTiles,
 	gatherSegmentAllowsGoodTypeForSegment,
 } from 'ssh/freight/freight-line'
 import {
@@ -378,13 +379,25 @@ export function measureFreightStopProvidedGoods(
 	const allowedGoods = allowedGoodsProvidedAtStop(line, stopIndex)
 	if (allowedGoods.length === 0) return snapshotFromGoodsCounts({})
 	const allowedGoodsSet = new Set(allowedGoods)
-	if ('zone' in stop && stop.zone.kind === 'radius') {
-		return measureZoneLooseGoodsSource(
-			game,
-			{ q: stop.zone.center[0], r: stop.zone.center[1] },
-			stop.zone.radius,
-			allowedGoodsSet
-		)
+	if ('zone' in stop) {
+		if (stop.zone.kind === 'radius') {
+			return measureZoneLooseGoodsSource(
+				game,
+				{ q: stop.zone.center[0], r: stop.zone.center[1] },
+				stop.zone.radius,
+				allowedGoodsSet
+			)
+		}
+		const perGood: Partial<Record<GoodType, number>> = {}
+		for (const tile of freightZoneTiles(game, stop.zone)) {
+			for (const loose of tile.availableGoods) {
+				if (!loose.available || loose.isRemoved) continue
+				const gt = loose.goodType as GoodType
+				if (!allowedGoodsSet.has(gt)) continue
+				perGood[gt] = (perGood[gt] ?? 0) + 1
+			}
+		}
+		return snapshotFromGoodsCounts(perGood, 'vehicle-station')
 	}
 	const hive = anchorHiveForStop(game, stop)
 	if (!hive) return snapshotFromGoodsCounts({})
@@ -402,13 +415,27 @@ export function measureFreightStopNeededGoods(
 	const allowedGoods = allowedGoodsNeededAtStop(line, stopIndex, stop)
 	if (allowedGoods.length === 0) return snapshotFromGoodsCounts({})
 	const allowedGoodsSet = new Set(allowedGoods)
-	if ('zone' in stop && stop.zone.kind === 'radius') {
-		return measureZoneStandaloneConstructionNeedSink(
-			game,
-			{ q: stop.zone.center[0], r: stop.zone.center[1] },
-			stop.zone.radius,
-			allowedGoodsSet
-		)
+	if ('zone' in stop) {
+		if (stop.zone.kind === 'radius') {
+			return measureZoneStandaloneConstructionNeedSink(
+				game,
+				{ q: stop.zone.center[0], r: stop.zone.center[1] },
+				stop.zone.radius,
+				allowedGoodsSet
+			)
+		}
+		const perGood: Partial<Record<GoodType, number>> = {}
+		for (const tile of freightZoneTiles(game, stop.zone)) {
+			const c = tile.content
+			if (!isStandaloneConstructionSiteShell(c) || c.destroyed || c.isReady) continue
+			const site = c as ConstructionSiteShell
+			for (const g of allowedGoodsSet) {
+				const need = site.remainingNeeds[g as string]
+				if (need === undefined || need <= 0) continue
+				perGood[g] = (perGood[g] ?? 0) + need
+			}
+		}
+		return snapshotFromGoodsCounts(perGood, 'project')
 	}
 	const hive = anchorHiveForStop(game, stop)
 	if (!hive) return snapshotFromGoodsCounts({})

@@ -13,20 +13,19 @@ Already landed or mostly landed:
 - Hive construction, attachment, merging, storage flow, harvesting, transforms, transit, and build loops.
 - Vehicle-backed freight management, including freight bays, line definitions, gather/distribute segments,
   line inspectors, and docked vehicle work.
+- Selectable custom named-zone objects with a Zones palette entry, zone inspectors, tile/alveolus links, and board masks. Built-in residential/harvest remain ordinary tile markers.
 - Deterministic streamed terrain generation and Pixi continuous-terrain rendering.
 - Browser client panels for inspecting and editing the active simulation.
 
 Still architecturally important:
 
 - Off-screen gameplay unloading is deferred until a larger-world feature needs it.
-- Freight line editing still has deeper route-authoring work after the v1 management bridge.
+- Freight line diagnostics can still deepen once playtesting exposes confusing failures.
 
 ## Details to add
 
 - alveoli configurations (ex storage buffer/allowance) should be able to be memorized, given a name and re-used with a combo-box containing all applicable configurations, "specific" = for this alveoli only or the ability to create a new configuration (no add button, just entering a text in the combo and checking for conflict)
-- named zones should be possible, editable like residential/harvest/... and applicable as zones for lines
-- lines should be displayable on the board (we could imagine it displays on line property widow mouse-move, like selection highlight for selectable objects) and the mouse-hovered line-stop should be double-highlighted
-- line editor should be refactored to have a table where each stop takes 1~2 lines of a table max, show a summary of the resources management and allow configuration popups, re-ordering with d&d, intensify usage of tool-tipped icons to reduce area usage, ...
+- named zones, selectable zone inspectors, line board previews, hovered-stop highlights, and a compact stop table are now landed for freight authoring v2
 
 ## Recommended Next Tranche
 
@@ -146,27 +145,25 @@ Risks:
 - Terrain tuning can absorb a lot of time without directly improving moment-to-moment play.
 - Changing terrain semantics may require migration or test fixture updates.
 
-### 6. Freight-line authoring depth
+### 6. Freight-line diagnostics depth
 
-Vehicle management exists, but the route editor can still grow into a real tool.
+Vehicle management and route authoring exist, but diagnostics can still make routes easier to debug.
 
 Potential scope:
 
-- Full stop-list editing: add, remove, reorder, bay versus zone.
-- Per-segment radius and goods filters.
-- Multi-segment line inspection.
 - Better line diagnostics: blocked pickup, missing unload, no eligible goods, no vehicle.
-- Route previews on the map.
+- Route health summaries for multi-segment lines.
+- Optional road-aware route benefit summaries when roads land.
 
 Good follow-up to:
 
-- The current freight v1 bridge.
+- The current freight v2 editor.
 - Roads, if road-aware routing becomes visible in the line editor.
 
 Risks:
 
 - Mostly improves an existing subsystem rather than opening a new gameplay loop.
-- UI polish can outrun engine semantics if route rules keep changing.
+- Diagnostics can become noisy if the route rules are still changing.
 
 ## Suggested Ordering
 
@@ -196,4 +193,4 @@ Small slices worth considering:
 - **Content v1:** add one new raw resource, one transformer, one produced good, and one construction recipe that uses it.
 - **Village v1:** generate one persisted external village with one import need and one export good.
 - **Terrain v1:** add biome-weighted deposit distribution and a seed debug panel.
-- **Freight editor v2:** edit full stop lists and per-segment filters for existing lines.
+- **Freight diagnostics v1:** show blocked pickup, missing unload, no eligible goods, and no vehicle signals on existing lines.

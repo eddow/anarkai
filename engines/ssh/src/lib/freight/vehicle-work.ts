@@ -9,6 +9,7 @@ import {
 	type FreightStop,
 	findDistributeRouteSegments,
 	findGatherRouteSegments,
+	freightZoneContainsPosition,
 	freightStopAnchorMatchesAlveolus,
 	gatherSegmentAllowsGoodType,
 	gatherSegmentAllowsGoodTypeForSegment,
@@ -27,6 +28,7 @@ import {
 import {
 	ensureVehicleServiceStarted,
 	freightStopMovementTarget,
+	freightStopTargetPosition,
 	gatherUnloadAnchorHiveDemandsGood,
 	pickInitialVehicleServiceCandidate,
 	projectedLineStopForVehicleHop,
@@ -297,8 +299,11 @@ function dockedVehicleProviderJob(game: Game, vehicle: VehicleEntity): ProposedJ
 		const targetCoord: AxialCoord | undefined =
 			'anchor' in next.stop
 				? { q: next.stop.anchor.coord[0], r: next.stop.anchor.coord[1] }
-				: 'zone' in next.stop && next.stop.zone.kind === 'radius'
-					? { q: next.stop.zone.center[0], r: next.stop.zone.center[1] }
+				: 'zone' in next.stop
+					? (() => {
+							const target = freightStopTargetPosition(game, next.stop)
+							return target ? toAxialCoord(target) : undefined
+						})()
 					: undefined
 		const targetTile = targetCoord ? (game.hex.getTile(targetCoord) ?? vehicle.tile) : vehicle.tile
 		return asVehicleProposedJob(
@@ -528,10 +533,9 @@ function loadedStockCanEnterServedGatherLine(game: Game, vehicle: VehicleEntity)
 			if (segment.loadStopIndex !== 0) continue
 			const loadStop = line.stops[segment.loadStopIndex]
 			const unloadStop = line.stops[segment.unloadStopIndex]
-			if (!loadStop || !('zone' in loadStop) || loadStop.zone.kind !== 'radius') continue
+			if (!loadStop || !('zone' in loadStop)) continue
 			if (!unloadStop) continue
-			const center: AxialCoord = { q: loadStop.zone.center[0], r: loadStop.zone.center[1] }
-			if (axial.distance(center, vehicleCoord) > loadStop.zone.radius) continue
+			if (!freightZoneContainsPosition(game, loadStop.zone, vehicleCoord)) continue
 			if (
 				goods.some(
 					(good) =>
@@ -584,7 +588,7 @@ function isJointLineLoadCandidate(
 	for (const line of vehicle.servedLines) {
 		for (const segment of findGatherRouteSegments(line)) {
 			const stop = line.stops[segment.loadStopIndex]
-			if (!stop || !('zone' in stop) || stop.zone.kind !== 'radius') {
+			if (!stop || !('zone' in stop)) {
 				traceAttempts?.push({
 					lineId: line.id,
 					segment,
@@ -1164,7 +1168,7 @@ function zoneBrowseJobFromConstructionProvide(
 	if (vehicle.vehicleType !== LINE_FREIGHT_VEHICLE) return undefined
 	const svc = vehicle.service
 	if (!isVehicleLineService(svc)) return undefined
-	if (!('zone' in svc.stop) || svc.stop.zone.kind !== 'radius') return undefined
+	if (!('zone' in svc.stop)) return undefined
 
 	const utility = zoneBrowseUtilityContext(game, vehicle, svc.line, svc.stop)
 	if (!utility) return undefined
@@ -1222,7 +1226,7 @@ export function findZoneBrowseJob(game: Game, character: Character): ZoneBrowseJ
 		if (vehicle.vehicleType !== LINE_FREIGHT_VEHICLE) return undefined
 		const svc = vehicle.service
 		if (!isVehicleLineService(svc)) return undefined
-		if ('zone' in svc.stop && svc.stop.zone.kind === 'radius') {
+		if ('zone' in svc.stop) {
 			const selection = pickVehicleZoneBrowseSelection(game, character, vehicle, svc.line, svc.stop)
 			if (selection) {
 				return {
@@ -1337,13 +1341,13 @@ function findVehicleHopJobLineHop(game: Game, character: Character): VehicleHopJ
 	const projected = projectedLineStopForVehicleHop(game, character, vehicle)
 	if (!projected) return undefined
 	const { line, stop } = projected
-	if (stop.id === service.stop.id && 'zone' in stop && stop.zone.kind === 'radius') return undefined
+	if (stop.id === service.stop.id && 'zone' in stop) return undefined
 	let path: AxialCoord[] = []
 	let zoneBrowseAction: VehicleHopJob['zoneBrowseAction']
 	let goodType: VehicleHopJob['goodType']
 	let quantity: VehicleHopJob['quantity']
 	let targetCoord: VehicleHopJob['targetCoord']
-	if ('zone' in stop && stop.zone.kind === 'radius') {
+	if ('zone' in stop) {
 		const selection = pickVehicleZoneBrowseSelection(game, character, vehicle, line, stop)
 		if (!selection) return undefined
 		path = selection.path
@@ -1454,7 +1458,7 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 		let adSource: VehicleHopJob['adSource']
 		let priorityTier: VehicleHopJob['priorityTier']
 		let zoneSelection: Pick<VehicleZoneBrowseSelection, 'action' | 'priorityTier'> | undefined
-		if ('zone' in pick.stop && pick.stop.zone.kind === 'radius') {
+		if ('zone' in pick.stop) {
 			const selection = pickVehicleZoneBrowseSelection(
 				game,
 				character,

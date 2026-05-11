@@ -28,14 +28,18 @@ Gameplay streaming is owned by `ssh`:
 - terrain-only render samples remain owned by `TerrainProvider`
 - off-screen gameplay unloading is intentionally deferred
 
-### Freight Lines (v1 bridge)
+### Freight Lines and Named Zones
 
-`ssh` now includes a first transport bridge based on freight lines and freight stops:
+`ssh` now includes a transport bridge based on freight lines and freight stops:
 
-- first-class line data (`gather` / `distribute`) in save patches
-- one-stop gather lines with line-owned radius and filters
+- first-class line data in save patches with ordered stops
+- radius zones and saved named tile zones as freight stop authority
+- named custom zones alongside built-in residential/harvest markers, with legacy save compatibility
+- selectable custom-zone objects (`zones`, `zone:<zoneId>`) with a dedicated Zones palette entry and zone inspectors; residential/harvest remain built-in tile markers rather than named-zone objects
 - `freight_bay` stop content backed by a non-storage dock plus `VehicleFreightDock`
 - synthetic inspector objects for line selection and editing
+- compact browser stop-table editing with add/remove, drag reorder, bay/radius/named-zone stops, and per-stop policies
+- board previews for selected lines and hovered stops
 - docked vehicle work is surfaced through cheap provider-side advertised jobs for inspectors, while
   character-scoped planner search stays in job claiming/ranking paths
 
@@ -55,6 +59,7 @@ workspace.
 ### Browser Client
 
 `apps/browser` is the active client. It uses Sursaut UI with Dockview-based panels and Pixi-backed world rendering.
+Zones are managed as selectable inspector objects rather than inside freight-line properties; tile/alveolus inspectors link back to the owning zone when a tile is painted.
 
 ### Rendering
 
@@ -79,6 +84,6 @@ retention policy live in `ssh`, and Pixi only asks for visibility-driven frontie
 
 ## Suggested Near-Term Work
 
-1. Use [`./next-directions.md`](./next-directions.md) to choose whether the next gameplay-facing tranche should be roads, shops/markets, content chains, NPC settlements, terrain generation, or deeper freight authoring.
-2. Continue freight authoring depth when route complexity starts slowing playtesting.
+1. Use [`./next-directions.md`](./next-directions.md) to choose whether the next gameplay-facing tranche should be roads, shops/markets, content chains, NPC settlements, or terrain generation.
+2. Continue freight diagnostics only if route failures become hard to understand during playtesting.
 3. Design off-screen gameplay unloading later, after at least one larger-world feature needs it.

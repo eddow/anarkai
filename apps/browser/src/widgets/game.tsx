@@ -48,7 +48,12 @@ export default function GameWidget(
 		const action = interactionMode.selectedAction
 		const zoneType = action.replace('zone:', '')
 		if (zoneType === 'none') tile.zone = undefined
-		else tile.zone = zoneType as any
+		else {
+			if (!game.hex.zoneManager.getZoneDefinition(zoneType)) {
+				game.hex.zoneManager.defineZone({ id: zoneType, name: zoneType })
+			}
+			tile.zone = zoneType as any
+		}
 		return true
 	}
 
@@ -56,9 +61,14 @@ export default function GameWidget(
 		const action = interactionMode.selectedAction
 		const zoneType = action.replace('zone:', '')
 		for (const tile of tiles) {
-			if (tile.content?.canInteract?.(action)) {
+			if (tile.canInteract(action)) {
 				if (zoneType === 'none') tile.zone = undefined
-				else tile.zone = zoneType as any
+				else {
+					if (!game.hex.zoneManager.getZoneDefinition(zoneType)) {
+						game.hex.zoneManager.defineZone({ id: zoneType, name: zoneType })
+					}
+					tile.zone = zoneType as any
+				}
 			}
 		}
 	}

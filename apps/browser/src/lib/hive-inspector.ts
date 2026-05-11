@@ -3,6 +3,8 @@ import { Tile } from 'ssh/board/tile'
 import type { Game } from 'ssh/game'
 import type { InspectorSelectableObject } from 'ssh/game/object'
 import type { Hive } from 'ssh/hive'
+import { axial } from 'ssh/utils'
+import { toAxialCoord } from 'ssh/utils/position'
 
 export const HIVE_UID_PREFIX = 'hive:'
 
@@ -39,6 +41,17 @@ export function resolveHiveFromAnchorTile(game: Game, anchorTileUid: string): Hi
 	return content instanceof Alveolus ? content.hive : undefined
 }
 
+function canonicalTileForHive(hive: Hive): Tile | undefined {
+	if (!hive.alveoli) return undefined
+	return Array.from(hive.alveoli, (alveolus) => alveolus.tile)
+		.filter((tile): tile is Tile => tile instanceof Tile)
+		.sort((a, b) =>
+			axial.key(toAxialCoord(a.position) ?? { q: 0, r: 0 }).localeCompare(
+				axial.key(toAxialCoord(b.position) ?? { q: 0, r: 0 })
+			)
+		)[0]
+}
+
 export function createSyntheticHiveObject(
 	game: Game,
 	anchorTile: Tile
@@ -46,16 +59,17 @@ export function createSyntheticHiveObject(
 	const content = anchorTile.content
 	if (!(content instanceof Alveolus)) return undefined
 	const hive = content.hive
+	const canonicalTile = canonicalTileForHive(hive) ?? anchorTile
 	return {
 		kind: 'hive',
-		uid: hiveUidForAnchorTile(anchorTile.uid),
+		uid: hiveUidForAnchorTile(canonicalTile.uid),
 		title: hiveInspectorTitle(hive),
 		game,
 		logs: [],
-		position: anchorTile.position,
-		hoverObject: anchorTile,
-		anchorTileUid: anchorTile.uid,
-		tile: anchorTile,
+		position: canonicalTile.position,
+		hoverObject: canonicalTile,
+		anchorTileUid: canonicalTile.uid,
+		tile: canonicalTile,
 	}
 }
 
