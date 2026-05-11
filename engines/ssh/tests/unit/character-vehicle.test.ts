@@ -303,6 +303,7 @@ describe('Character vehicle seam', () => {
 
 		character.runningScripts = [new ScriptExecution(selfCareScript, 'selfCare.wander')]
 		expect(character.actionDescription).toEqual(['selfCare.wander'])
+		expect(character.actionDescriptionKeys).toEqual([{ key: 'selfCare.wander' }])
 
 		character.runningScripts = [
 			new ScriptExecution(walkScript, 'walk.until'),
@@ -314,9 +315,15 @@ describe('Character vehicle seam', () => {
 			'vehicle.vehicleOffload',
 			'walk.until',
 		])
+		expect(character.actionDescriptionKeys).toEqual([
+			{ key: 'work.goWork' },
+			{ key: 'vehicle.vehicleOffload' },
+			{ key: 'walk.until' },
+		])
 
 		character.runningScripts = [new ScriptExecution(selfCareScript, 'selfCare.wander')]
 		expect(character.actionDescription).toEqual(['selfCare.wander'])
+		expect(character.actionDescriptionKeys).toEqual([{ key: 'selfCare.wander' }])
 	})
 
 	it('empty transport with offload service detaches service and clears operated vehicle without plan.finally offboarding', async () => {

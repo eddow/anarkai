@@ -17,7 +17,9 @@ import {
 	type ProposedJob,
 	proposedJobScore,
 	proposedVehicleJobIdentityKey,
+	proposedVehicleJobMatchParts,
 	type TailoredJobCandidate,
+	type VehiclePlannerJob,
 	type VehicleProposedJob,
 } from 'ssh/jobs/offers'
 import { gameIsaTypes } from 'ssh/npcs'
@@ -672,46 +674,10 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		const candidateCoord = axial.key(toAxialCoord(candidate.targetTile.position)!)
 		const matchCoord = axial.key(toAxialCoord(match.targetTile.position)!)
 		if (candidateCoord !== matchCoord || candidate.job.job !== match.job.job) return false
-		if (candidate.job.job === 'vehicleOffload' && match.job.job === 'vehicleOffload') {
-			if (
-				candidate.job.vehicleUid !== match.job.vehicleUid ||
-				axial.key(candidate.job.targetCoord) !== axial.key(match.job.targetCoord) ||
-				candidate.job.maintenanceKind !== match.job.maintenanceKind
-			) {
-				return false
-			}
-			if (
-				candidate.job.maintenanceKind === 'loadFromBurden' &&
-				match.job.maintenanceKind === 'loadFromBurden'
-			) {
-				return candidate.job.looseGood.goodType === match.job.looseGood.goodType
-			}
-			return true
-		}
-		if (candidate.job.job === 'zoneBrowse' && match.job.job === 'zoneBrowse') {
+		if (isVehicleFreightJob(candidate.job) && isVehicleFreightJob(match.job)) {
 			return (
-				candidate.job.vehicleUid === match.job.vehicleUid &&
-				candidate.job.zoneBrowseAction === match.job.zoneBrowseAction &&
-				candidate.job.goodType === match.job.goodType &&
-				axial.key(candidate.job.targetCoord) === axial.key(match.job.targetCoord)
-			)
-		}
-		if (candidate.job.job === 'vehicleHop' && match.job.job === 'vehicleHop') {
-			const sameTarget =
-				(!candidate.job.targetCoord && !match.job.targetCoord) ||
-				(!!candidate.job.targetCoord &&
-					!!match.job.targetCoord &&
-					axial.key(candidate.job.targetCoord) === axial.key(match.job.targetCoord))
-			return (
-				candidate.job.vehicleUid === match.job.vehicleUid &&
-				candidate.job.lineId === match.job.lineId &&
-				candidate.job.stopId === match.job.stopId &&
-				candidate.job.dockEnter === match.job.dockEnter &&
-				candidate.job.needsBeginService === match.job.needsBeginService &&
-				(candidate.job.approachPath?.length ?? 0) === (match.job.approachPath?.length ?? 0) &&
-				candidate.job.zoneBrowseAction === match.job.zoneBrowseAction &&
-				candidate.job.goodType === match.job.goodType &&
-				sameTarget
+				proposedVehicleJobMatchParts(candidate.job as VehiclePlannerJob).join(':') ===
+				proposedVehicleJobMatchParts(match.job as VehiclePlannerJob).join(':')
 			)
 		}
 		if (candidate.job.job === 'defragment' && match.job.job === 'defragment') {

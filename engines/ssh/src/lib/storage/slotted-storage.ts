@@ -4,8 +4,10 @@ import { type Goods, GoodType } from 'ssh/types/base'
 import { assert, traces } from '../dev/debug.ts'
 import {
 	type SlottedStorageSnapshot,
+	slottedStorageAllocationPlan,
 	slottedStorageAvailable,
 	slottedStorageAvailableGoods,
+	slottedStorageReservationPlan,
 	slottedStorageRoom,
 } from './pure'
 import { Storage } from './storage'
@@ -323,86 +325,43 @@ export class SlottedStorage extends Storage {
 	 */
 	allocate(goods: Goods, commitment: Commitment): FailureReason {
 		this.assertIntegrity('SlottedStorage.allocate.before')
-		const alloc: number[] = Array(this.slots.length).fill(0)
-		let hasAnyAllocation = false
-
-		for (const [goodType, qty] of Object.entries(goods) as [GoodType, number][]) {
+		for (const [, qty] of Object.entries(goods) as [GoodType, number][]) {
 			assert(qty && qty > 0, 'qty must be set')
-
-			let remaining = Math.min(qty, this.hasRoom(goodType))
-			if (remaining <= 0) continue
-
-			// Create list of slots with their final quantities for sorting
-			const slotCandidates: {
-				index: number
-				slot: Slot
-				finalQuantity: number
-			}[] = []
-			for (let i = 0; i < this.slots.length; i++) {
-				const slot = this.slots[i]
-				if (!slot || slot.goodType !== goodType) continue
-				const free = this.maxQuantityPerSlot - slot.quantity - slot.allocated
-				if (free <= 0) continue
-				const finalQuantity = slot.quantity - slot.reserved + slot.allocated
-				if (finalQuantity > 0) slotCandidates.push({ index: i, slot, finalQuantity })
-			}
-
-			// Sort by final quantity (lowest first) for allocation
-			slotCandidates.sort((a, b) => a.finalQuantity - b.finalQuantity)
-
-			// Allocate in existing slots (sorted by lowest final quantity)
-			for (const { index, slot } of slotCandidates) {
-				if (remaining <= 0) break
-				const free = this.maxQuantityPerSlot - slot.quantity - slot.allocated
-				if (free <= 0) continue
-				const take = Math.min(remaining, free)
-				slot.allocated += take
-				alloc[index] += take
-				remaining -= take
-			}
-
-			// Allocate in empty slots
-			for (let i = 0; i < this.slots.length && remaining > 0; i++) {
-				if (this.slots[i] !== undefined) continue
-				const take = Math.min(remaining, this.maxQuantityPerSlot)
-				const newSlot = makeSlot(goodType, 0)
-				newSlot.allocated = take
-				// Use splice to ensure reactivity triggers correctly (assignment on sparse array might be flaky)
-				this.slots.splice(i, 1, newSlot)
-				alloc[i] += take
-				remaining -= take
-			}
-
-			if (qty - remaining > 0) hasAnyAllocation = true
 		}
+		const plan = slottedStorageAllocationPlan(this.snapshot(), goods)
+		if (!plan.ok) return plan.reason
 
-		if (!hasAnyAllocation && Object.keys(goods).length > 0) {
-			return 'Insufficient room to allocate any goods'
-		}
-
-		if (Object.keys(goods).length === 0) {
-			return 'Empty goods object provided for allocation'
+		for (const entry of plan.entries) {
+			assert(entry.operation === 'allocate', 'allocation plan contained non-allocation entry')
+			const slot = this.slots[entry.slotIndex]
+			if (slot) {
+				assert(slot.goodType === entry.goodType, 'allocation plan good type mismatch')
+				slot.allocated += entry.quantity
+			} else {
+				const newSlot = makeSlot(entry.goodType, 0)
+				newSlot.allocated = entry.quantity
+				this.slots.splice(entry.slotIndex, 1, newSlot)
+			}
 		}
 
 		// Register lifecycle callbacks on the commitment
 		commitment.onFulfilled(() => {
 			this.assertIntegrity('SlottedStorage.allocate.fulfill.before')
-			for (let i = 0; i < alloc.length; i++) {
-				const amount = alloc[i]
-				if (amount === 0) continue
-				const slot = this.slots[i]
+			for (const entry of plan.entries) {
+				const slot = this.slots[entry.slotIndex]
 				assert(!!slot, 'fulfill: slot missing for allocated entry')
-				assert(slot.allocated >= amount, 'fulfill: allocated less than fulfill amount')
+				assert(slot.goodType === entry.goodType, 'fulfill: allocated slot good type mismatch')
+				assert(slot.allocated >= entry.quantity, 'fulfill: allocated less than fulfill amount')
 				const roomHere = this.maxQuantityPerSlot - slot.quantity
-				assert(roomHere >= amount, 'fulfill: not enough room in slot')
-				slot.quantity += amount
-				slot.allocated -= amount
+				assert(roomHere >= entry.quantity, 'fulfill: not enough room in slot')
+				slot.quantity += entry.quantity
+				slot.allocated -= entry.quantity
 				if (slot.quantity + slot.allocated === 0) {
 					assert(
 						slot.reserved === 0 && slot.allocated === 0 && slot.quantity === 0,
 						'slot should be empty'
 					)
-					this.slots.splice(i, 1, undefined)
+					this.slots.splice(entry.slotIndex, 1, undefined)
 				}
 			}
 			this.compactIdleSameGoodTypeSlots()
@@ -414,14 +373,13 @@ export class SlottedStorage extends Storage {
 
 		commitment.onCancelled(() => {
 			this.assertIntegrity('SlottedStorage.allocate.cancel.before')
-			for (let i = 0; i < alloc.length; i++) {
-				const amount = alloc[i]
-				if (amount === 0) continue
-				const slot = this.slots[i]
+			for (const entry of plan.entries) {
+				const slot = this.slots[entry.slotIndex]
 				assert(!!slot, 'cancel: slot missing for allocated entry')
-				assert(slot.allocated >= amount, 'cancel: allocated less than cancel amount')
-				slot.allocated -= amount
-				if (slot.quantity + slot.allocated === 0) this.slots.splice(i, 1, undefined)
+				assert(slot.goodType === entry.goodType, 'cancel: allocated slot good type mismatch')
+				assert(slot.allocated >= entry.quantity, 'cancel: allocated less than cancel amount')
+				slot.allocated -= entry.quantity
+				if (slot.quantity + slot.allocated === 0) this.slots.splice(entry.slotIndex, 1, undefined)
 			}
 			this.compactIdleSameGoodTypeSlots()
 			this.assertIntegrity('SlottedStorage.allocate.cancel.after')
@@ -441,65 +399,28 @@ export class SlottedStorage extends Storage {
 	 */
 	reserve(goods: Goods, commitment: Commitment): FailureReason {
 		this.assertIntegrity('SlottedStorage.reserve.before')
-
-		if (Object.keys(goods).length === 0) {
-			return 'Empty goods object provided for reservation'
+		for (const [, qty] of Object.entries(goods) as [GoodType, number][]) {
+			assert(qty && qty > 0, 'qty must be set')
 		}
+		const plan = slottedStorageReservationPlan(this.snapshot(), goods)
+		if (!plan.ok) return plan.reason
 
-		const alloc: number[] = Array(this.slots.length).fill(0)
-		let hasAnyReservation = false
-
-		for (const [goodType, qty] of Object.entries(goods) as [GoodType, number][]) {
-			assert(qty, 'qty must be set')
-
-			let remaining = Math.min(qty, this.available(goodType))
-			if (remaining <= 0) continue
-
-			// Create list of slots with their final quantities for sorting
-			const slotCandidates: {
-				index: number
-				slot: Slot
-				finalQuantity: number
-			}[] = []
-			for (let i = 0; i < this.slots.length; i++) {
-				const slot = this.slots[i]
-				if (!slot || slot.goodType !== goodType) continue
-				const freeReservable = Math.max(0, slot.quantity - slot.reserved)
-				if (freeReservable <= 0) continue
-				const finalQuantity = slot.quantity - slot.reserved + slot.allocated
-				if (finalQuantity > 0) slotCandidates.push({ index: i, slot, finalQuantity })
-			}
-
-			// Sort by final quantity (highest first) for reservation
-			slotCandidates.sort((a, b) => b.finalQuantity - a.finalQuantity)
-
-			// Reserve goods that are present but not yet reserved (sorted by highest final quantity)
-			for (const { index, slot } of slotCandidates) {
-				if (remaining <= 0) break
-				const freeReservable = Math.max(0, slot.quantity - slot.reserved)
-				if (freeReservable <= 0) continue
-				const take = Math.min(remaining, freeReservable)
-				slot.reserved += take
-				alloc[index] -= take // negative marks reservation
-				remaining -= take
-			}
-
-			if (qty - remaining > 0) hasAnyReservation = true
-		}
-
-		if (!hasAnyReservation) {
-			return 'Insufficient goods to reserve any goods'
+		for (const entry of plan.entries) {
+			assert(entry.operation === 'reserve', 'reservation plan contained non-reservation entry')
+			const slot = this.slots[entry.slotIndex]
+			assert(!!slot, 'reservation plan slot missing')
+			assert(slot.goodType === entry.goodType, 'reservation plan good type mismatch')
+			slot.reserved += entry.quantity
 		}
 
 		// Register lifecycle callbacks on the commitment
 		commitment.onFulfilled(() => {
 			this.assertIntegrity('SlottedStorage.reserve.fulfill.before')
-			for (let i = 0; i < alloc.length; i++) {
-				const amount = alloc[i]
-				if (amount === 0) continue
-				const slot = this.slots[i]
+			for (const entry of plan.entries) {
+				const slot = this.slots[entry.slotIndex]
 				assert(!!slot, 'fulfill: slot missing for reserved entry')
-				const want = -amount
+				assert(slot.goodType === entry.goodType, 'fulfill: reserved slot good type mismatch')
+				const want = entry.quantity
 				assert(slot.reserved >= want, 'fulfill: reserved less than fulfill amount')
 				assert(slot.quantity >= want, 'fulfill: quantity less than fulfill amount')
 				slot.quantity -= want
@@ -509,7 +430,7 @@ export class SlottedStorage extends Storage {
 						slot.reserved === 0 && slot.allocated === 0 && slot.quantity === 0,
 						'slot should be empty'
 					)
-					this.slots.splice(i, 1, undefined)
+					this.slots.splice(entry.slotIndex, 1, undefined)
 				}
 			}
 			this.compactIdleSameGoodTypeSlots()
@@ -521,16 +442,15 @@ export class SlottedStorage extends Storage {
 
 		commitment.onCancelled(() => {
 			this.assertIntegrity('SlottedStorage.reserve.cancel.before')
-			for (let i = 0; i < alloc.length; i++) {
-				const amount = alloc[i]
-				if (amount === 0) continue
-				const slot = this.slots[i]
+			for (const entry of plan.entries) {
+				const slot = this.slots[entry.slotIndex]
 				assert(!!slot, 'cancel: slot missing for reserved entry')
-				const need = -amount
+				assert(slot.goodType === entry.goodType, 'cancel: reserved slot good type mismatch')
+				const need = entry.quantity
 				assert(slot.reserved >= need, 'cancel: reserved less than cancel amount')
 				slot.reserved -= need
 				// quantity unchanged on cancel of negative allocation
-				if (slot.quantity + slot.allocated === 0) this.slots[i] = undefined
+				if (slot.quantity + slot.allocated === 0) this.slots[entry.slotIndex] = undefined
 			}
 			this.compactIdleSameGoodTypeSlots()
 			this.assertIntegrity('SlottedStorage.reserve.cancel.after')

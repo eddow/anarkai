@@ -26,7 +26,7 @@ import { type AxialCoord, axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
 import { epsilon } from 'ssh/utils/varied'
 import { subject } from '../scripts'
-import { AEvolutionStep, DurationStep, MoveToStep, MultiMoveStep } from '../steps'
+import { AEvolutionStep, DurationStep, MoveToStep, MultiMoveStep, type TextKey } from '../steps'
 import type { WorkPlan } from '.'
 import { getConveyDuration, getConveyVisualMovements, rebindConveyMovementRows } from './convey'
 import { cleanupFailedConveyMovement, type FailedConveyMovementData } from './convey-cleanup'
@@ -53,7 +53,9 @@ interface MovementData {
 }
 
 function waitStep() {
-	return new DurationStep(waitForIncomingGoodsPollSeconds, 'idle', 'waitForIncomingGoods')
+	return new DurationStep(waitForIncomingGoodsPollSeconds, 'idle', 'waitForIncomingGoods', {
+		key: 'waitForIncomingGoods',
+	})
 }
 
 function storageTrace(storage: Storage | undefined, goodType: GoodType) {
@@ -152,6 +154,10 @@ class TransformProcessStep extends AEvolutionStep {
 		return `transform.${this.alveolus.name}`
 	}
 
+	override get descriptionKey(): TextKey {
+		return { key: 'transform.process', params: { alveolus: this.alveolus.name } }
+	}
+
 	get type() {
 		return 'work' as const
 	}
@@ -217,7 +223,8 @@ class WorkFunctions {
 		return new DurationStep(
 			character.assignedAlveolus!.preparationTime,
 			'work',
-			`prepare.${workPlan.job}`
+			`prepare.${workPlan.job}`,
+			{ key: 'work.prepare', params: { job: workPlan.job } }
 		)
 	}
 
@@ -620,6 +627,13 @@ class WorkFunctions {
 		// Create unified MultiMoveStep that animates all movements
 		const description =
 			movementData.length === 1 ? `convey.${movementData[0].movement.goodType}` : `convey.cycle`
+		const descriptionKey =
+			movementData.length === 1
+				? {
+						key: 'work.convey',
+						params: { goodType: movementData[0].movement.goodType },
+					}
+				: { key: 'work.convey.cycle' }
 		const visualMovements = getConveyVisualMovements(movementData)
 		const conveyStepRef: { step?: MultiMoveStep } = {}
 		const step = new MultiMoveStep(
@@ -633,7 +647,8 @@ class WorkFunctions {
 				}
 			},
 			true,
-			true
+			true,
+			descriptionKey
 		).addTraceInfo({
 			characterUid: character.uid,
 			characterName: character.name,
@@ -933,7 +948,8 @@ class WorkFunctions {
 		return new DurationStep(
 			this[subject].assignedAlveolus!.workTime,
 			'work',
-			`harvest.${this[subject].assignedAlveolus!.name}`
+			`harvest.${this[subject].assignedAlveolus!.name}`,
+			{ key: 'work.harvest', params: { alveolus: this[subject].assignedAlveolus!.name } }
 		).onFulfilled(() => {
 			const character = this[subject]
 			const { game, tile } = character
@@ -971,7 +987,8 @@ class WorkFunctions {
 			return new DurationStep(
 				transformBoundaryDurationSeconds,
 				'work',
-				`transform.unload.${alveolus.name}.${unloadGood}`
+				`transform.unload.${alveolus.name}.${unloadGood}`,
+				{ key: 'transform.unload', params: { alveolus: alveolus.name, goodType: unloadGood } }
 			)
 				.onFulfilled(() => {
 					commitment.fulfill()
@@ -994,7 +1011,8 @@ class WorkFunctions {
 			return new DurationStep(
 				transformBoundaryDurationSeconds,
 				'work',
-				`transform.load.${alveolus.name}.${loadGood}`
+				`transform.load.${alveolus.name}.${loadGood}`,
+				{ key: 'transform.load', params: { alveolus: alveolus.name, goodType: loadGood } }
 			)
 				.onFulfilled(() => {
 					commitment.fulfill()

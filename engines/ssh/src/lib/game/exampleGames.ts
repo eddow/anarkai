@@ -68,6 +68,26 @@ export const chopSaw = {
 				},
 			],
 		},
+		{
+			id: 'ChopSaw:distribute:11,-7',
+			name: 'ChopSaw (11, -7) distribute',
+			stops: [
+				{
+					id: 'ChopSaw:distribute-load',
+					loadSelection: constructionGoodsSelection,
+					anchor: {
+						kind: 'alveolus',
+						hiveName: 'ChopSaw',
+						alveolusType: 'freight_bay',
+						coord: [11, -7],
+					},
+				},
+				{
+					id: 'ChopSaw:distribute-zone',
+					zone: { kind: 'radius', center: [11, -7], radius: 9 },
+				},
+			],
+		},
 	],
 	zones: {
 		harvest: [
@@ -94,7 +114,7 @@ export const chopSaw = {
 			uid: 'ChopSaw:wheelbarrow',
 			vehicleType: 'wheelbarrow',
 			position: { q: 10, r: -6 },
-			servedLineIds: ['ChopSaw:implicit-gather:11,-7'],
+			servedLineIds: ['ChopSaw:implicit-gather:11,-7', 'ChopSaw:distribute:11,-7'],
 		},
 	],
 } satisfies GamePatches

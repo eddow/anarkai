@@ -102,6 +102,10 @@ describe('transform process buffers', () => {
 		await withSawmill({ wood: 1 }, ({ work, sawmill }) => {
 			const step = work.transformStep()
 			expect(step?.description).toBe('transform.load.sawmill.wood')
+			expect(step?.descriptionKey).toEqual({
+				key: 'transform.load',
+				params: { alveolus: 'sawmill', goodType: 'wood' },
+			})
 			expect(sawmill.storage.available('wood')).toBe(0)
 			step?.tick(0.5)
 			expect(sawmill.storage.stock.wood ?? 0).toBe(0)
@@ -115,6 +119,10 @@ describe('transform process buffers', () => {
 			sawmill.setProcessBuffer('planks', 0)
 			const step = work.transformStep()
 			expect(step?.description).toBe('transform.sawmill')
+			expect(step?.descriptionKey).toEqual({
+				key: 'transform.process',
+				params: { alveolus: 'sawmill' },
+			})
 			step?.tick(2.5)
 			expect(sawmill.processBuffer('wood')).toBeCloseTo(0.5)
 			expect(sawmill.processBuffer('planks')).toBeCloseTo(0.5)
@@ -129,6 +137,10 @@ describe('transform process buffers', () => {
 			sawmill.setProcessBuffer('planks', 1)
 			const step = work.transformStep()
 			expect(step?.description).toBe('transform.unload.sawmill.planks')
+			expect(step?.descriptionKey).toEqual({
+				key: 'transform.unload',
+				params: { alveolus: 'sawmill', goodType: 'planks' },
+			})
 			expect(sawmill.storage.allocated('planks')).toBe(1)
 			step?.tick(0.5)
 			expect(sawmill.storage.stock.planks).toBe(1)

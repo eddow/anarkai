@@ -616,7 +616,6 @@ function expandCoords(coords: Iterable<AxialCoord>, padding: number): AxialCoord
 }
 
 function nowMs(): number {
-	/* @ts-expect-error globalThis */
 	return globalThis.performance?.now() ?? Date.now()
 }
 

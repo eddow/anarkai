@@ -22,6 +22,13 @@ Still architecturally important:
 - Save/load rules for mutated streamed gameplay tiles need to be clear.
 - Freight line editing still has deeper route-authoring work after the v1 management bridge.
 
+## Details to add
+
+- alveoli configurations (ex storage buffer/allowance) should be able to be memorized, given a name and re-used with a combo-box containing all applicable configurations, "specific" = for this alveoli only or the ability to create a new configuration (no add button, just entering a text in the combo and checking for conflict)
+- named zones should be possible, editable like residential/harvest/... and applicable as zones for lines
+- lines should be displayable on the board (we could imagine it displays on line property widow mouse-move, like selection highlight for selectable objects) and the mouse-hovered line-stop should be double-highlighted
+- line editor should be refactored to have a table where each stop takes 1~2 lines of a table max, show a summary of the resources management and allow configuration popups, re-ordering with d&d, intensify usage of tool-tipped icons to reduce area usage, ...
+
 ## Recommended Next Tranche
 
 ### Gameplay streaming ownership

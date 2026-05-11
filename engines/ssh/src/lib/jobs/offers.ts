@@ -88,15 +88,13 @@ export function proposedJobScore(job: Job, pathLength: number): number {
 	return job.urgency / (pathLength + 1)
 }
 
-export function proposedVehicleJobIdentityKey(job: VehiclePlannerJob): string {
+export function proposedVehicleJobIdentityParts(job: VehiclePlannerJob): readonly string[] {
 	switch (job.job) {
 		case 'convey':
-			return job.job
+			return [job.job]
 		case 'vehicleOffload': {
-			const good = job.maintenanceKind === 'loadFromBurden' ? `:${job.looseGood.goodType}` : ''
-			return [job.job, job.vehicleUid, job.maintenanceKind, axial.key(job.targetCoord), good].join(
-				':'
-			)
+			const good = job.maintenanceKind === 'loadFromBurden' ? job.looseGood.goodType : ''
+			return [job.job, job.vehicleUid, job.maintenanceKind, axial.key(job.targetCoord), good]
 		}
 		case 'zoneBrowse':
 			return [
@@ -107,7 +105,7 @@ export function proposedVehicleJobIdentityKey(job: VehiclePlannerJob): string {
 				job.zoneBrowseAction,
 				job.goodType,
 				axial.key(job.targetCoord),
-			].join(':')
+			]
 		case 'vehicleHop':
 			return [
 				job.job,
@@ -119,8 +117,22 @@ export function proposedVehicleJobIdentityKey(job: VehiclePlannerJob): string {
 				job.zoneBrowseAction ?? '',
 				job.goodType ?? '',
 				job.targetCoord ? axial.key(job.targetCoord) : '',
-			].join(':')
+			]
 	}
+}
+
+export function proposedVehicleJobIdentityKey(job: VehiclePlannerJob): string {
+	if (job.job === 'vehicleOffload' && job.maintenanceKind === 'loadFromBurden') {
+		const [name, vehicleUid, maintenanceKind, targetCoord, goodType] =
+			proposedVehicleJobIdentityParts(job)
+		return [name, vehicleUid, maintenanceKind, targetCoord, `:${goodType}`].join(':')
+	}
+	return proposedVehicleJobIdentityParts(job).join(':')
+}
+
+export function proposedVehicleJobMatchParts(job: VehiclePlannerJob): readonly string[] {
+	if (job.job !== 'vehicleHop') return proposedVehicleJobIdentityParts(job)
+	return [...proposedVehicleJobIdentityParts(job), String(job.approachPath?.length ?? 0)]
 }
 
 export function executableJob(job: Job): Job {

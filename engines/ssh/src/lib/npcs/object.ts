@@ -14,7 +14,12 @@ import {
 	summarizeScriptRunValueKind,
 } from './npc-diagnostics'
 import { getGameScript, ScriptExecution, scriptExecutionErrorDiagnostic } from './scripts'
-import { ASingleStep, PonderingStep, stepPassesFullRemainingOnComplete } from './steps'
+import {
+	ASingleStep,
+	PonderingStep,
+	stepPassesFullRemainingOnComplete,
+	type TextKey,
+} from './steps'
 
 function currentStepExecutor(target: { stepExecutor?: ASingleStep }): ASingleStep | undefined {
 	return target.stepExecutor
@@ -89,6 +94,13 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 			return this.runningScripts
 				.map((script) => script?.name)
 				.filter((name): name is string => !!name)
+				.reverse()
+		}
+		get actionDescriptionKeys(): TextKey[] {
+			// `runningScripts` is intentionally `@unreactive`; keep this as a fresh UI snapshot.
+			return this.runningScripts
+				.map((script) => script?.descriptionKey)
+				.filter((key): key is TextKey => !!key)
 				.reverse()
 		}
 		makeRun() {

@@ -16,6 +16,7 @@ import { type Contract, checkContract, isContract, registerContract } from 'ssh/
 import { axial, epsilon, objectMap } from 'ssh/utils'
 import { Positioned, positionRoughly, toAxialCoord } from 'ssh/utils/position'
 import { CharacterContract } from '../../../assets/scripts/contracts'
+import type { TextKey } from './steps'
 import { gameIsaTypes, gameOperators, lerp } from './utils'
 
 type XOrDictX<X> = X | { [k: string]: XOrDictX<X> }
@@ -203,6 +204,9 @@ export class ScriptExecution {
 		public readonly name: string,
 		public state?: ExecutionState
 	) {}
+	get descriptionKey(): TextKey {
+		return { key: this.name }
+	}
 	run(context: ExecutionContext) {
 		if (!this.state) throw new Error('ScriptExecution was finished')
 		const executor = this.script.executor(context, this.state)

@@ -18,6 +18,13 @@ export interface SerializedStep extends SerializedCommitment {
 	[key: string]: any
 }
 
+export type TextKeyParams = Readonly<Record<string, string | number | boolean | undefined>>
+
+export interface TextKey {
+	readonly key: string
+	readonly params?: TextKeyParams
+}
+
 //#region Abstracts
 
 export abstract class ASingleStep extends Commitment {
@@ -33,6 +40,11 @@ export abstract class ASingleStep extends Commitment {
 			assert(lastTerm === 'Step', `${this.constructor.name} does not end with "Step"`)
 			return terms
 		}).kebab
+	}
+
+	get descriptionKey(): TextKey | undefined {
+		const description = this.description
+		return description ? { key: description } : undefined
 	}
 
 	/**
@@ -204,12 +216,16 @@ export class MoveToStep extends ALerpStep<Positioned> {
 	get description(): string | false {
 		return this.givenDescription ?? super.description
 	}
+	override get descriptionKey(): TextKey | undefined {
+		return this.givenDescriptionKey ?? super.descriptionKey
+	}
 	constructor(
 		duration: number,
 		readonly who: { position: Position },
 		to: Positioned,
 		readonly type: Ssh.ActivityType = 'walk',
-		readonly givenDescription?: string
+		readonly givenDescription?: string,
+		readonly givenDescriptionKey?: TextKey
 	) {
 		super(duration, givenDescription ?? 'move-to', who.position, to)
 	}
@@ -235,6 +251,9 @@ export class MultiMoveStep extends AEvolutionStep {
 	get description(): string | false {
 		return this.givenDescription ?? super.description
 	}
+	override get descriptionKey(): TextKey | undefined {
+		return this.givenDescriptionKey ?? super.descriptionKey
+	}
 	constructor(
 		duration: number,
 		readonly movements: Array<{
@@ -246,7 +265,8 @@ export class MultiMoveStep extends AEvolutionStep {
 		readonly givenDescription?: string,
 		private readonly beforeEvolve?: () => void,
 		private readonly deferFirstTick = false,
-		private readonly fulfillBeforeFinalEvolve = false
+		private readonly fulfillBeforeFinalEvolve = false,
+		readonly givenDescriptionKey?: TextKey
 	) {
 		super(duration, givenDescription ?? 'multi-move')
 		// Capture the starting positions at construction time
@@ -307,10 +327,14 @@ export class DurationStep extends AEvolutionStep {
 	get description(): string | false {
 		return this.givenDescription
 	}
+	override get descriptionKey(): TextKey | undefined {
+		return this.givenDescriptionKey ?? super.descriptionKey
+	}
 	constructor(
 		duration: number,
 		readonly type: Ssh.ActivityType,
-		readonly givenDescription: string
+		readonly givenDescription: string,
+		readonly givenDescriptionKey?: TextKey
 	) {
 		super(duration, givenDescription)
 	}
@@ -335,12 +359,16 @@ export class WaitForPredicateStep extends ASingleStep {
 	private passed = false
 	constructor(
 		readonly descriptionText: string,
-		private readonly predicate: () => boolean
+		private readonly predicate: () => boolean,
+		readonly descriptionTextKey?: TextKey
 	) {
 		super(descriptionText)
 	}
 	get description(): string | false {
 		return this.descriptionText
+	}
+	override get descriptionKey(): TextKey | undefined {
+		return this.descriptionTextKey ?? super.descriptionKey
 	}
 	tick(dt: number): number | undefined {
 		if (!this.passed && this.predicate()) {

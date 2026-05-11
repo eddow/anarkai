@@ -19,7 +19,7 @@ export const traceLevels: Record<string, TraceVerb> = {
 	advertising: 'assert',
 	allocations: 'assert',
 	commitments: 'assert',
-	convey: 'log',
+	convey: 'assert',
 	residential: 'assert',
 	work: 'assert',
 	script: 'assert',
