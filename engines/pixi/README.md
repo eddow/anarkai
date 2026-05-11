@@ -23,4 +23,3 @@ It is responsible for:
 ## Docs
 
 - `docs/render-layers.md`: world RenderLayer architecture, attachment rules, and migration notes
-- `docs/river-sprites.md`: river topology sprite set and naming conventions

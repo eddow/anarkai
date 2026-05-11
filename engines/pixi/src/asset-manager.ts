@@ -6,7 +6,6 @@ import {
 	deposits,
 	dwellings,
 	goods,
-	rivers,
 	terrain,
 	vehicles,
 } from '../assets/visual-content'
@@ -57,7 +56,6 @@ export class PixiAssetManager {
 		extractKeys(vehicles)
 		extractKeys(characters)
 		extractKeys(commands)
-		extractKeys(rivers)
 		extractKeys(dwellings)
 
 		// Terrain is special: keys imply assets 'terrain.NAME' only if definition doesn't override it

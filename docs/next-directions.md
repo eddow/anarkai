@@ -41,8 +41,8 @@ Roads are a natural bridge between hive logistics and larger world management.
 
 Potential scope:
 
-- Road tile/project type.
-- Pathfinding cost modifiers for roaded tiles.
+- Border-road project type.
+- Pathfinding cost modifiers for roaded border transitions.
 - Builder workflow for road construction.
 - Road-aware vehicle routing and line summaries.
 - Optional maintenance/degradation later.
