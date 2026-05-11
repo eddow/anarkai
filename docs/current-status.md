@@ -60,7 +60,9 @@ Sandbox notes also contained resolved debugging sessions that are now better rep
 
 ## Next Direction
 
-The strongest next tranche is **gameplay streaming completion**.
+For the broader menu of possible next tranches, see [`./next-directions.md`](./next-directions.md).
+
+The strongest immediate next tranche is **gameplay streaming completion**.
 
 Terrain already streams well, but gameplay still sits in a transitional state where the renderer helps drive world materialization. The next step should make `ssh` the clear owner of gameplay frontier policy:
 
@@ -71,7 +73,7 @@ Terrain already streams well, but gameplay still sits in a transitional state wh
 
 ## Suggested Near-Term Work
 
-1. Finish the gameplay frontier contract around [`engines/ssh/src/lib/game/gameplay-frontier.ts`](/home/fmdm/dev/anarkai/engines/ssh/src/lib/game/gameplay-frontier.ts).
-2. Define save/load retention rules for streamed but mutated tiles.
-3. Review hive split/removal semantics, especially movement cleanup when an alveolus disappears.
-4. Continue line gameplay work after v1 bridge (`distribute` worker loop, transfer mode, good-group filters).
+1. Define save/load retention rules for streamed but mutated tiles.
+2. Review hive split/removal semantics, especially movement cleanup when an alveolus disappears.
+3. Continue line gameplay work after v1 bridge (`distribute` worker loop, transfer mode, good-group filters).
+4. Use [`./next-directions.md`](./next-directions.md) to choose whether the next gameplay-facing tranche should be roads, shops/markets, content chains, NPC settlements, terrain generation, or deeper freight authoring.

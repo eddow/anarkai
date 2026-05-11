@@ -92,6 +92,9 @@
 		"pickup": "Ramasse",
 		"construct": "Construit",
 		"vehicleBeginService": "Démarrage du service (ligne)",
+		"walk": {
+			"foundation": "Va au chantier de fondation"
+		},
 		"vehicleHop": {
 			"dock": "À l'escale (quai)",
 			"zoneReach": "Arrivée en zone"

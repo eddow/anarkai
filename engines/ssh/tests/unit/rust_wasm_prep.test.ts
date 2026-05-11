@@ -5,8 +5,10 @@ import {
 	slottedStorageAvailable,
 	slottedStorageAvailableGoods,
 	slottedStorageRoom,
+	specificStorageAllocationPlan,
 	specificStorageAvailable,
 	specificStorageAvailableGoods,
+	specificStorageReservationPlan,
 	specificStorageRoom,
 } from 'ssh/storage/pure'
 import { isVehicleBoundJob, type Job } from 'ssh/types/base'
@@ -25,6 +27,32 @@ describe('Rust/WASM preparation seams', () => {
 			expect(specificStorageAvailableGoods(snapshot)).toEqual({ wood: 7, stone: 2 })
 			expect(specificStorageAvailable(snapshot, 'wood')).toBe(7)
 			expect(specificStorageRoom(snapshot, 'wood')).toBe(6)
+		})
+
+		it('plans specific-storage allocation and reservation from plain data', () => {
+			const snapshot = {
+				stock: { wood: 10, stone: 2 },
+				reserved: { wood: 3 },
+				allocated: { wood: 4 },
+				maxAmounts: { wood: 20, stone: 5 },
+			} as const
+
+			expect(specificStorageAllocationPlan(snapshot, { wood: 8, stone: 10 })).toEqual({
+				ok: true,
+				goods: { wood: 6, stone: 3 },
+			})
+			expect(specificStorageReservationPlan(snapshot, { wood: 10, stone: 1 })).toEqual({
+				ok: true,
+				goods: { wood: 7, stone: 1 },
+			})
+			expect(specificStorageAllocationPlan(snapshot, {})).toEqual({
+				ok: false,
+				reason: 'Empty goods object provided for allocation',
+			})
+			expect(specificStorageReservationPlan(snapshot, { berries: 1 })).toEqual({
+				ok: false,
+				reason: 'Insufficient goods to reserve any goods',
+			})
 		})
 
 		it('computes slotted-storage available goods and room from plain data', () => {

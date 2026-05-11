@@ -9,6 +9,10 @@ export interface SpecificStorageSnapshot {
 	readonly maxAmounts: StorageGoodsSnapshot
 }
 
+export type StoragePlanResult =
+	| { readonly ok: true; readonly goods: Goods }
+	| { readonly ok: false; readonly reason: string }
+
 export interface SlottedStorageSlotSnapshot {
 	readonly goodType: GoodType
 	readonly quantity: number
@@ -49,6 +53,48 @@ export function specificStorageRoom(snapshot: SpecificStorageSnapshot, goodType:
 		positiveQuantity(snapshot.stock[goodType]) -
 		positiveQuantity(snapshot.allocated?.[goodType])
 	)
+}
+
+export function specificStorageAllocationPlan(
+	snapshot: SpecificStorageSnapshot,
+	goods: StorageGoodsSnapshot
+): StoragePlanResult {
+	if (Object.keys(goods).length === 0) {
+		return { ok: false, reason: 'Empty goods object provided for allocation' }
+	}
+
+	const actualGoods: Goods = {}
+	for (const [goodType, qty] of Object.entries(goods) as [GoodType, number][]) {
+		if (!qty || qty <= 0) continue
+		const take = Math.min(qty, specificStorageRoom(snapshot, goodType))
+		if (take > 0) actualGoods[goodType] = take
+	}
+
+	if (Object.keys(actualGoods).length === 0) {
+		return { ok: false, reason: 'Insufficient room to allocate any goods' }
+	}
+	return { ok: true, goods: actualGoods }
+}
+
+export function specificStorageReservationPlan(
+	snapshot: SpecificStorageSnapshot,
+	goods: StorageGoodsSnapshot
+): StoragePlanResult {
+	if (Object.keys(goods).length === 0) {
+		return { ok: false, reason: 'Empty goods object provided for reservation' }
+	}
+
+	const actualGoods: Goods = {}
+	for (const [goodType, qty] of Object.entries(goods) as [GoodType, number][]) {
+		if (!qty || qty <= 0) continue
+		const take = Math.min(qty, specificStorageAvailable(snapshot, goodType))
+		if (take > 0) actualGoods[goodType] = take
+	}
+
+	if (Object.keys(actualGoods).length === 0) {
+		return { ok: false, reason: 'Insufficient goods to reserve any goods' }
+	}
+	return { ok: true, goods: actualGoods }
 }
 
 export function slottedStorageAvailableGoods(snapshot: SlottedStorageSnapshot): Goods {

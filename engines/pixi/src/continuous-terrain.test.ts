@@ -299,6 +299,43 @@ describe('continuous terrain helpers', () => {
 		expect(diagnostics.refresh.queuedVisibleSectorCount).toBe(0)
 	})
 
+	it('hard-invalidates only sectors affected by one tile without requesting terrain', async () => {
+		const requestGameplayFrontier = vi.fn(async () => false)
+		const renderer = createTerrainRendererStub({
+			hasRenderableTerrainAt: () => true,
+			getRenderableTerrainAt: () => ({ terrain: 'grass', height: 0 }),
+			requestGameplayFrontier,
+			screen: { width: 1920, height: 875 },
+			worldScale: 1,
+		})
+		const visual = new TerrainVisual(renderer)
+		;(visual as any).refresh()
+
+		const sectors = (visual as any).sectors as Map<string, any>
+		const affected = new Set(sectorsAffectedByTile({ q: 0, r: 0 }))
+		const unaffectedKey = [...sectors.keys()].find((key) => !affected.has(key))
+		expect(unaffectedKey).toBeDefined()
+		const unaffectedBefore = sectors.get(unaffectedKey!)
+		const affectedBefore = new Map([...affected].map((key) => [key, sectors.get(key)]))
+		const destroyTexture = vi.fn()
+		for (const sector of affectedBefore.values()) {
+			if (sector) sector.groundTexture = { destroy: destroyTexture } as unknown as Texture
+		}
+
+		visual.invalidateAt({ q: 0, r: 0 }, true)
+		await Promise.resolve()
+		await Promise.resolve()
+		await Promise.resolve()
+
+		expect(requestGameplayFrontier).not.toHaveBeenCalled()
+		expect(sectors.get(unaffectedKey!)).toBe(unaffectedBefore)
+		expect(destroyTexture).toHaveBeenCalled()
+		for (const [key, before] of affectedBefore) {
+			if (!before) continue
+			expect(sectors.get(key)).not.toBe(before)
+		}
+	})
+
 	it('reports river bake geometry when hydrology-bearing samples are present', () => {
 		const renderer = createTerrainRendererStub({
 			hasRenderableTerrainAt: () => true,

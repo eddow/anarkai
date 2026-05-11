@@ -167,6 +167,42 @@ describe('constructionStep resumable work', () => {
 		expect(tileB.content).toBeInstanceOf(BuildAlveolus)
 	})
 
+	it('foundation concrete invalidates only the changed terrain sample and one hard terrain refresh', () => {
+		const terrainProvider = (game as any).terrainProvider as {
+			invalidateCoord(coord: { q: number; r: number }): void
+			invalidateAll(): void
+		}
+		const invalidateCoord = vi.spyOn(terrainProvider, 'invalidateCoord')
+		const invalidateAll = vi.spyOn(terrainProvider, 'invalidateAll')
+		const invalidateTerrainHard = vi.fn()
+		game.renderer = {
+			invalidateTerrainHard,
+			invalidateTerrain: vi.fn(),
+		} as any
+
+		const tileB = game.hex.getTile({ q: 1, r: 0 })!
+		const land = tileB.content
+		expect(land).toBeInstanceOf(UnBuiltLand)
+		if (!(land instanceof UnBuiltLand)) return
+		land.terrain = 'forest'
+		tileB.baseTerrain = 'forest'
+		tileB.terrainState = { ...(tileB.terrainState ?? {}), terrain: 'forest' }
+		land.setProject('build:storage')
+
+		const char = game.population.createCharacter('Builder', { q: 1, r: 0 })
+		const wf = new WorkFunctions()
+		Object.assign(wf, { [subject]: char })
+
+		const step = wf.foundationStep() as DurationStep
+		expect(step).toBeInstanceOf(DurationStep)
+		step.tick(step.duration)
+
+		expect(invalidateCoord).toHaveBeenCalledWith(expect.objectContaining({ q: 1, r: 0 }))
+		expect(invalidateAll).not.toHaveBeenCalled()
+		expect(invalidateTerrainHard).toHaveBeenCalledTimes(1)
+		expect(invalidateTerrainHard).toHaveBeenCalledWith(expect.objectContaining({ q: 1, r: 0 }))
+	})
+
 	it('does not start a foundation step while the project tile is burdened', () => {
 		game.upsertTerrainOverride = vi.fn() as never
 

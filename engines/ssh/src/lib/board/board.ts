@@ -113,21 +113,7 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		if (tile) tile.asGenerated = false
 		if (tile) this.game.enqueueInteractiveChange(tile)
 		if (changedGroundSemantics) {
-			;(
-				this.game.renderer as
-					| {
-							invalidateTerrainHard?: (coord?: { q: number; r: number }) => void
-							invalidateTerrain?: (coord?: { q: number; r: number }) => void
-					  }
-					| undefined
-			)?.invalidateTerrainHard?.(coord) ??
-				(
-					this.game.renderer as
-						| {
-								invalidateTerrain?: (coord?: { q: number; r: number }) => void
-						  }
-						| undefined
-				)?.invalidateTerrain?.(coord)
+			this.game.notifyGroundSemanticsChanged(coord)
 		}
 	}
 

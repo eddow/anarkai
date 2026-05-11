@@ -6,8 +6,10 @@ import { assert, traces } from '../dev/debug.ts'
 import type { RenderedGoodSlots } from '.'
 import {
 	type SpecificStorageSnapshot,
+	specificStorageAllocationPlan,
 	specificStorageAvailable,
 	specificStorageAvailableGoods,
+	specificStorageReservationPlan,
 	specificStorageRoom,
 } from './pure'
 import { Storage } from './storage'
@@ -173,33 +175,20 @@ export class SpecificStorage extends Storage {
 	 */
 	allocate(goods: Goods, commitment: Commitment): FailureReason {
 		this.assertIntegrity('SpecificStorage.allocate.before')
-		const actualGoods: Goods = {}
-		let hasAnyAllocation = false
-
-		for (const [goodType, qty] of Object.entries(goods) as [GoodType, number][]) {
+		for (const [, qty] of Object.entries(goods) as [GoodType, number][]) {
 			assert(qty && qty > 0, 'qty must be set')
-
-			const room = this.hasRoom(goodType)
-			const take = Math.min(qty, room)
-			if (take > 0) {
-				this._allocated[goodType] = (this._allocated[goodType] || 0) + take
-				actualGoods[goodType] = take
-				hasAnyAllocation = true
-			}
 		}
+		const plan = specificStorageAllocationPlan(this.snapshot(), goods)
+		if (!plan.ok) return plan.reason
 
-		if (!hasAnyAllocation && Object.keys(goods).length > 0) {
-			return 'Insufficient room to allocate any goods'
-		}
-
-		if (Object.keys(goods).length === 0) {
-			return 'Empty goods object provided for allocation'
+		for (const [goodType, qty] of Object.entries(plan.goods) as [GoodType, number][]) {
+			this._allocated[goodType] = (this._allocated[goodType] || 0) + qty
 		}
 
 		// Register lifecycle callbacks on the commitment
 		commitment.onFulfilled(() => {
 			this.assertIntegrity('SpecificStorage.allocate.fulfill.before')
-			for (const [goodType, qty] of Object.entries(actualGoods) as [GoodType, number][]) {
+			for (const [goodType, qty] of Object.entries(plan.goods) as [GoodType, number][]) {
 				assert(qty, 'qty must be set')
 				const curAlloc = this._allocated[goodType] || 0
 				assert(curAlloc >= qty, 'fulfill: allocated less than fulfill qty')
@@ -214,7 +203,7 @@ export class SpecificStorage extends Storage {
 
 		commitment.onCancelled(() => {
 			this.assertIntegrity('SpecificStorage.allocate.cancel.before')
-			for (const [goodType, qty] of Object.entries(actualGoods) as [GoodType, number][]) {
+			for (const [goodType, qty] of Object.entries(plan.goods) as [GoodType, number][]) {
 				assert(qty, 'qty must be set')
 				const curAlloc = this._allocated[goodType] || 0
 				assert(curAlloc >= qty, 'cancel: allocated less than cancel qty')
@@ -238,35 +227,22 @@ export class SpecificStorage extends Storage {
 	reserve(goods: Goods, commitment: Commitment): FailureReason {
 		this.assertIntegrity('SpecificStorage.reserve.before')
 
-		if (Object.keys(goods).length === 0) {
-			return 'Empty goods object provided for reservation'
-		}
-
-		const actualGoods: Goods = {}
-		let hasAnyReservation = false
-
-		for (const [goodType, qty] of Object.entries(goods) as [GoodType, number][]) {
+		for (const [, qty] of Object.entries(goods) as [GoodType, number][]) {
 			assert(qty && qty > 0, 'qty must be set')
-
-			const available = (this._goods[goodType] || 0) - (this._reserved[goodType] || 0)
-			const take = Math.min(qty, available)
-			if (take > 0) {
-				this._reserved[goodType] = (this._reserved[goodType] || 0) + take
-				actualGoods[goodType] = -take // Negative for reservations
-				hasAnyReservation = true
-			}
 		}
+		const plan = specificStorageReservationPlan(this.snapshot(), goods)
+		if (!plan.ok) return plan.reason
 
-		if (!hasAnyReservation) {
-			return 'Insufficient goods to reserve any goods'
+		for (const [goodType, qty] of Object.entries(plan.goods) as [GoodType, number][]) {
+			this._reserved[goodType] = (this._reserved[goodType] || 0) + qty
 		}
 
 		// Register lifecycle callbacks on the commitment
 		commitment.onFulfilled(() => {
 			this.assertIntegrity('SpecificStorage.reserve.fulfill.before')
-			for (const [goodType, qty] of Object.entries(actualGoods) as [GoodType, number][]) {
+			for (const [goodType, qty] of Object.entries(plan.goods) as [GoodType, number][]) {
 				assert(qty, 'qty must be set')
-				const want = -qty
+				const want = qty
 				const curRes = this._reserved[goodType] || 0
 				const have = this._goods[goodType] || 0
 				assert(curRes >= want, 'fulfill: reserved less than fulfill qty')
@@ -282,11 +258,11 @@ export class SpecificStorage extends Storage {
 
 		commitment.onCancelled(() => {
 			this.assertIntegrity('SpecificStorage.reserve.cancel.before')
-			for (const [goodType, qty] of Object.entries(actualGoods) as [GoodType, number][]) {
+			for (const [goodType, qty] of Object.entries(plan.goods) as [GoodType, number][]) {
 				assert(qty, 'qty must be set')
 				const curRes = this._reserved[goodType] || 0
-				assert(curRes >= -qty, 'cancel: reserved less than cancel qty')
-				this._reserved[goodType] = curRes + qty
+				assert(curRes >= qty, 'cancel: reserved less than cancel qty')
+				this._reserved[goodType] = curRes - qty
 			}
 			this.assertIntegrity('SpecificStorage.reserve.cancel.after')
 			this.notifyPresentationChanged('reservation')

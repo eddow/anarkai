@@ -271,6 +271,18 @@ function looseGoodsPatchEntries(
 	)
 }
 
+function terrainOverrideNeedsBroadSampleInvalidation(
+	override: Omit<TerrainTerraformPatch, 'coord'>
+): boolean {
+	return (
+		'height' in override ||
+		'temperature' in override ||
+		'humidity' in override ||
+		'sediment' in override ||
+		'waterTable' in override
+	)
+}
+
 export class Game extends Eventful<GameEvents> {
 	public get name() {
 		return 'GameX'
@@ -281,6 +293,34 @@ export class Game extends Eventful<GameEvents> {
 	public get terrainOverrides(): ReadonlyArray<TerrainTerraformPatch> {
 		return this.terrainTerraforming
 	}
+	private readonly pendingCoordTerrainInvalidations = new Set<string>()
+	private terrainInvalidationFlushScheduled = false
+
+	private scheduleTerrainInvalidationCoalescingFlush(): void {
+		if (this.terrainInvalidationFlushScheduled) return
+		this.terrainInvalidationFlushScheduled = true
+		queueMicrotask(() => {
+			this.terrainInvalidationFlushScheduled = false
+			this.pendingCoordTerrainInvalidations.clear()
+		})
+	}
+
+	private invalidateTerrainPresentation(coord?: AxialCoord, hard = false): void {
+		if (coord) {
+			const key = axial.key(coord)
+			if (this.pendingCoordTerrainInvalidations.has(key)) return
+			this.pendingCoordTerrainInvalidations.add(key)
+			this.scheduleTerrainInvalidationCoalescingFlush()
+		}
+		const renderer = this.renderer
+		if (hard) renderer?.invalidateTerrainHard?.(coord) ?? renderer?.invalidateTerrain?.(coord)
+		else renderer?.invalidateTerrain?.(coord)
+	}
+
+	public notifyGroundSemanticsChanged(coord?: AxialCoord): void {
+		this.invalidateTerrainPresentation(coord, true)
+	}
+
 	public upsertTerrainOverride(
 		coord: AxialCoord,
 		override: Omit<TerrainTerraformPatch, 'coord'>
@@ -297,9 +337,14 @@ export class Game extends Eventful<GameEvents> {
 		if (index >= 0) next[index] = merged
 		else next.push(merged)
 		this.terrainTerraforming = next
-		// Overrides can affect hydrology neighborhood, so invalidate prefill cache conservatively.
-		this.terrainProvider.invalidateAll()
-		this.renderer?.invalidateTerrainHard?.(coord) ?? this.renderer?.invalidateTerrain?.(coord)
+		if (terrainOverrideNeedsBroadSampleInvalidation(override)) {
+			// Field overrides can affect hydrology neighborhoods, so invalidate cached samples broadly.
+			this.terrainProvider.invalidateAll()
+		} else {
+			// Terrain/biome-only overrides are visual; keep cached terrain samples outside this tile.
+			this.terrainProvider.invalidateCoord(coord)
+		}
+		this.invalidateTerrainPresentation(coord, true)
 	}
 	readonly random: ReturnType<typeof LCG> = LCG('gameSeed', 0)
 	public lcg(seed: string | number) {
@@ -619,7 +664,7 @@ export class Game extends Eventful<GameEvents> {
 		this.tickedObjects.delete(object)
 	}
 
-	public tickerCallback = (timer: SimulationLoop) => {
+	public tickerCallback = atomic((timer: SimulationLoop) => {
 		const controlIndex = Math.max(
 			0,
 			Math.min(gameTimeSpeedFactors.length - 1, configuration.timeControl)
@@ -634,7 +679,7 @@ export class Game extends Eventful<GameEvents> {
 			if ('destroyed' in object && object.destroyed) continue
 			object.update(deltaSeconds)
 		}
-	}
+	})
 
 	public readonly generationOptions: GameGenerationOptions
 

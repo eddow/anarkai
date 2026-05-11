@@ -92,6 +92,9 @@
 		"pickup": "Pick up",
 		"construct": "Construct",
 		"vehicleBeginService": "Start line service",
+		"walk": {
+			"foundation": "Walk to foundation site"
+		},
 		"vehicleHop": {
 			"dock": "Dock at stop",
 			"zoneReach": "Reach zone stop"

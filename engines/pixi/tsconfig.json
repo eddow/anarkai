@@ -37,5 +37,8 @@
 		"src/**/*.d.ts",
 		"assets/visual-content.ts",
 		"../ssh/src/**/*.d.ts"
+	],
+	"exclude": [
+		"src/**/*.test.ts"
 	]
 }

@@ -31,3 +31,4 @@ pnpm --filter ssh test
 ## Current Focus
 
 The main remaining architectural job is making gameplay streaming a first-class concern, not extending basic hive mechanics.
+The broader menu for what to manage next lives in [`../../docs/next-directions.md`](../../docs/next-directions.md).

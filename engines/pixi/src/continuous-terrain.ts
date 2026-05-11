@@ -8,7 +8,7 @@ import {
 	Point,
 	Rectangle,
 	Sprite,
-	type Texture,
+	Texture,
 } from 'pixi.js'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { RenderableTerrainTile } from 'ssh/game/game'
@@ -164,6 +164,7 @@ interface SectorVisualState {
 	groundLayer: Container
 	resourceLayer: Container
 	groundSprite?: Sprite
+	groundTexture?: Texture
 	coverage: ReturnType<typeof createSectorCoverage>
 	dirty: boolean
 	resourcesBuilt: boolean
@@ -345,16 +346,17 @@ export class TerrainVisual {
 	}
 
 	public invalidateAt(coord: AxialCoord, clearCache = false) {
-		for (const sectorKey of sectorsAffectedByTile(coord, SECTOR_STEP)) {
+		const affectedSectorKeys = sectorsAffectedByTile(coord, SECTOR_STEP)
+		for (const sectorKey of affectedSectorKeys) {
+			if (clearCache) {
+				this.destroySectorByKey(sectorKey)
+				continue
+			}
 			this.dirtySectorKeys.add(sectorKey)
 			const state = this.sectors.get(sectorKey)
 			if (state) state.dirty = true
 		}
-		if (clearCache) {
-			this.clearSectors()
-			this.dirtySectorKeys.clear()
-		}
-		this.scheduleInvalidate(clearCache)
+		this.scheduleInvalidate(false)
 	}
 
 	private markAllSectorsDirty(clearCache = false) {
@@ -484,10 +486,30 @@ export class TerrainVisual {
 		this.bakeDebugBySector.clear()
 	}
 
+	private destroySectorByKey(sectorKey: string) {
+		const sector = this.sectors.get(sectorKey)
+		if (sector) {
+			this.destroySectorVisualState(sector)
+			this.sectors.delete(sectorKey)
+		}
+		this.sectorCoords.delete(sectorKey)
+		this.dirtySectorKeys.delete(sectorKey)
+		this.bakeDebugBySector.delete(sectorKey)
+		this.visibleSectorQueue = this.visibleSectorQueue.filter((queued) => queued.key !== sectorKey)
+	}
+
+	private destroySectorGroundTexture(sectorState: SectorVisualState) {
+		const texture = sectorState.groundTexture
+		sectorState.groundTexture = undefined
+		if (!texture || texture === Texture.WHITE) return
+		texture.destroy(true)
+	}
+
 	private destroySectorVisualState(sectorState: SectorVisualState) {
 		if (this.renderer.layers?.resources) {
 			this.renderer.detachFromLayer(this.renderer.layers.resources, sectorState.resourceLayer)
 		}
+		this.destroySectorGroundTexture(sectorState)
 		sectorState.container.destroy({ children: true })
 	}
 
@@ -611,6 +633,7 @@ export class TerrainVisual {
 			return 1
 		}
 
+		this.destroySectorGroundTexture(sectorState)
 		for (const child of sectorState.groundLayer.removeChildren()) child.destroy({ children: true })
 		sectorState.groundSprite = undefined
 
@@ -642,6 +665,7 @@ export class TerrainVisual {
 		sprite.position.set(sectorState.coverage.displayBounds.x, sectorState.coverage.displayBounds.y)
 		sectorState.groundLayer.addChild(sprite)
 		sectorState.groundSprite = sprite
+		sectorState.groundTexture = generatedTexture
 		return 1
 	}
 
