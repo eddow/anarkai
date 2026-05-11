@@ -1,14 +1,10 @@
 # Anarkai Browser Adapter Transformation Plan
 
-## Execution Dossier
+## Status
 
-The implementation-facing companion documents live in:
-
-- `docs/browser-adapter/README.md`
-- `docs/browser-adapter/architecture-spec.md`
-- `docs/browser-adapter/work-packages.md`
-- `docs/browser-adapter/acceptance-and-rollout.md`
-- `docs/browser-adapter/agent-briefs.md`
+This is the consolidated implementation plan for the browser-local Anarkai UI adapter. If the work grows
+large enough to split, keep this document as the overview and move detailed work packages under
+`docs/browser-adapter/`.
 
 ## Goal
 

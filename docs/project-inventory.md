@@ -36,5 +36,5 @@ These are part of the effective runtime architecture, but they are not workspace
 
 - There is no `browser-vue` app in this repo.
 - There is no `packages/` workspace directory in this repo.
-- Old sandbox notes were useful during debugging, but they should not be treated as the source of truth for current architecture.
+- Durable debugging/design notes live under `docs/` or engine-local `docs/`; ignored `sandbox/` directories are scratch only.
 - Freight-line transport documentation is in `docs/freight-lines.md`.

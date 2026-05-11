@@ -1,8 +1,9 @@
-TODO: Rewrite the document as the analysis of the aimed/working system when implemented, not a situational reflection
-
 # Engine to Renderer Events Analysis
 
-This document is an analysis, not an implementation plan. It records why Anarkai is leaning back toward explicit engine-to-renderer events, especially for convey/storage visuals, and why this is a better boundary than relying on Mutts observations of `engines/ssh` internals.
+This document records the intended boundary for engine-to-renderer events, especially for convey/storage
+visuals. The core rule is that `engines/ssh` owns simulation truth and emits explicit presentation
+invalidations; Pixi and browser UI consume those invalidations and pull fresh snapshots instead of relying
+on incidental Mutts observation of engine internals.
 
 ## Context
 
@@ -17,6 +18,24 @@ The recent convey bugs exposed this boundary problem clearly:
 - the Pixi visual still showed stale allocated/grey goods until another unrelated action forced a refresh.
 
 That means the simulation truth was correct, but the renderer did not reliably learn that the visual snapshot had changed.
+
+## Sawmill Arrival Diagnostic
+
+The reference failure was the `saw` example, where wood was conveyed from storage to a sawmill through a
+border handoff. Traces showed the terminal movement finishing correctly: after `movement.finish()`, the
+sawmill storage had `stock=1`, `available=1`, and one remaining inbound allocation for the next wood.
+
+The board still rendered both wood icons as allocated/grey. That narrowed the bug away from gameplay
+bookkeeping and toward presentation invalidation:
+
+- engine state after finish: one present wood, one allocated wood;
+- visual state after finish: two allocated-looking wood icons;
+- likely cause: Pixi either did not repaint after target allocation fulfillment, or it repainted from a
+  stale stored-goods snapshot.
+
+The durable lesson is that storage completion must emit an explicit presentation dirty event for the
+affected owner. Renderer visuals and inspectors should treat that event as a wake-up and then read a fresh
+snapshot.
 
 ## Current Coupling
 

@@ -2,8 +2,7 @@
  * Scripted transfer steps (`grab` / `drop` plans, loose pickup) for the operated vehicle storage.
  * Most freight paths are still driving, but zone browse temporarily steps off while keeping control
  * of the same vehicle, so these helpers resolve {@link Character.transportStorage} rather than only
- * `carry`. See
- * `sandbox/roadmap-no-character-inventory.md`.
+ * `carry`.
  */
 import { goods as goodsCatalog } from 'engine-rules'
 import type { TileBorder } from 'ssh/board/border/border'

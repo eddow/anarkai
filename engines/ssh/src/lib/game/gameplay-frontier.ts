@@ -22,6 +22,12 @@ export class GameplayFrontierController {
 
 	constructor(private readonly options: GameplayFrontierControllerOptions) {}
 
+	/**
+	 * Read-only diagnostics for tests and debug panels.
+	 *
+	 * The controller intentionally exposes counts, not mutable queues, so renderers can observe frontier
+	 * health without gaining ownership of gameplay lifecycle policy.
+	 */
 	snapshot() {
 		return {
 			requested: this.requested.size,
@@ -31,6 +37,12 @@ export class GameplayFrontierController {
 		}
 	}
 
+	/**
+	 * Queue a gameplay materialization request.
+	 *
+	 * Overlapping requests are coalesced against pending and in-flight coordinates. The returned promise
+	 * resolves to `true` only when at least one requested batch actually materialized gameplay tiles.
+	 */
 	request(request: GameplayFrontierRequest): Promise<boolean> {
 		const requestedCoords = [...axial.allTiles(request.center, request.radius)]
 		for (const coord of requestedCoords) {

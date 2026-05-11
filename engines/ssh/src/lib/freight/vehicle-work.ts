@@ -1651,6 +1651,10 @@ function collectVehicleWorkPicksUncached(game: Game, character: Character): Vehi
  * Provider-facing vehicle work. This deliberately returns one proposed job per vehicle opportunity,
  * not one row per character. During the migration, executable vehicle payloads are still discovered
  * through the legacy character-tailored helpers and then deduped by vehicle/job identity.
+ *
+ * Docked bay convey is advertised by the bay/alveolus provider so nearby workers can execute it, but the
+ * vehicle inspector still needs a vehicle-sourced proposition. Convert that convey advertisement into a
+ * `VehicleProposedJob` here without changing the executable planner contract.
  */
 export function collectVehicleProposedJobs(
 	game: Game,

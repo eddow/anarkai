@@ -1029,8 +1029,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	/**
 	 * **Active transport storage** while {@link driving}: the operated {@link VehicleEntity}'s
 	 * `storage`. `undefined` when walking — there is no walking goods buffer. Prefer
-	 * {@link requireActiveTransportStorage} at freight/transfer call sites that must have stock;
-	 * see `sandbox/roadmap-no-character-inventory.md`.
+	 * {@link requireActiveTransportStorage} at freight/transfer call sites that must have stock.
 	 */
 	get carry(): Storage | undefined {
 		return this.driving ? this.operates?.storage : undefined
