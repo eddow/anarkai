@@ -1,0 +1,16 @@
+{
+  "name": "anarkai-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./pkg/anarkai_core.js",
+    "./package.json": "./package.json"
+  },
+  "main": "./pkg/anarkai_core.js",
+  "types": "./pkg/anarkai_core.d.ts",
+  "scripts": {
+    "build": "wasm-pack build --target web --out-dir pkg",
+    "build:release": "wasm-pack build --target web --out-dir pkg --release"
+  }
+}

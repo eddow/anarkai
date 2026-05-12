@@ -57,6 +57,13 @@ function vehicleFreightApproachPathLength(job: Job): number {
 	return isVehicleFreightJob(job) ? (job.approachPath?.length ?? 0) : 0
 }
 
+function withoutUndefinedProperties<T extends object>(value: T): T {
+	for (const key of Object.keys(value) as Array<keyof T>) {
+		if (value[key] === undefined) delete value[key]
+	}
+	return value
+}
+
 function vehicleFreightJobTracePayload(job: Job): Record<string, unknown> {
 	switch (job.job) {
 		case 'vehicleHop':
@@ -468,12 +475,12 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			if (this._operatedVehicle && this._operatedVehicle.uid !== vehicle.uid) {
 				return this.scriptsContext.selfCare.wander()
 			}
-			const workPlan: WorkPlan = {
+			const workPlan: WorkPlan = withoutUndefinedProperties({
 				...job,
 				type: 'work',
 				target: vehicle,
 				path: safePath,
-			}
+			})
 			return this.scriptsContext.work.goWork(workPlan)
 		}
 		const sourceAlveolus =
@@ -491,13 +498,13 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			const targetCoord = toAxialCoord(targetTile.position)
 			if (targetCoord) currentJobPath = [targetCoord]
 		}
-		const workPlan: WorkPlan = {
+		const workPlan: WorkPlan = withoutUndefinedProperties({
 			...job,
 			type: 'work',
 			target,
 			path: safePath,
-		}
-		if (currentJobPath) workPlan.currentJobPath = currentJobPath
+			currentJobPath,
+		})
 		return this.scriptsContext.work.goWork(workPlan)
 	}
 

@@ -162,6 +162,8 @@ importers:
         specifier: 25.0.10
         version: 25.0.10
 
+  engines/core: {}
+
   engines/pixi:
     dependencies:
       engine-terrain:
@@ -201,6 +203,9 @@ importers:
 
   engines/ssh:
     dependencies:
+      anarkai-core:
+        specifier: workspace:*
+        version: link:../core
       arktype:
         specifier: ^2.1.22
         version: 2.1.29

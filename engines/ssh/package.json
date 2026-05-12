@@ -24,6 +24,7 @@
 	},
 	"dependencies": {
 		"arktype": "^2.1.22",
+		"anarkai-core": "workspace:*",
 		"engine-rules": "workspace:*",
 		"engine-terrain": "workspace:*",
 		"eventemitter3": "^5.0.1",

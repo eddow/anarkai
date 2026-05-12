@@ -38,6 +38,7 @@ Still architecturally important:
   - The add stop should allow the selection (indeed, for now it adds something but the change is not visible without refreshing the widget)
   - the widget is always a bit too wide and has a horizontal scroll for 1~2px
   - the "open zone" button sems quite useless as the stop is shown as a link (it is for the bay and should be for the zone)
+- roads & velocity calculation. Some vehicles can just not drive beside roads. There should be a multiplier somewhere as well as a `min(road-max-velocity, vehicle/character-ax-velocity)`. How to calculate exactly the velocity for it to be realistic somehow but still simple ?
 
 ## Recommended Next Tranche
 
@@ -73,7 +74,34 @@ Risks:
 
 ### 2. Shops, markets, and consumption
 
-TODO
+Describe "commercial" zoning as internal distribution, not money commerce: people take durable carry
+goods, consumables, dwelling supplements, and amusement/culture services from the commons. Actual
+commerce happens at the boundary with NPC groups: production sites, villages, towns, cities, and other
+settlements.
+
+Potential scope:
+
+- Distribution zones for shops, markets, cafes, canteens, amusement, and household/personal pickup.
+- Dwelling stock targets versus public shelf targets, with freight lines able to satisfy either.
+- NPC production sites and inhabited settlements that produce some goods, demand others, and expose trade
+  interfaces.
+- Local price fields based on nearest production/demand influence.
+- Import/export policies, protected reserves, and purchase orders for goods the group does not produce.
+
+Good follow-up to:
+
+- Freight v1, because trade interfaces and distribution points can reuse exchange-route concepts.
+- Roads, because distance and route quality should matter for outside commerce.
+- More game content, because imported goods can bootstrap chains before local production exists.
+
+Risks:
+
+- "Shop" language can imply internal money commerce unless UI copy keeps the commons/distribution model
+  explicit.
+- Automatic export can accidentally starve internal needs unless protected reserves are first-class.
+- Price fields need to be legible enough to guide route/source choices without becoming finance UI.
+
+See [`./commerce.md`](./commerce.md).
 
 ### 3. More game content
 
@@ -128,18 +156,22 @@ Potential scope:
 - Better macro biomes and regional identity.
 - Rivers, lakes, coasts, wetlands, and mountain ranges with gameplay implications.
 - Deposit distribution tied to biome and elevation.
-- Terrain affordances for roads, settlements, and resource chains.
+- Terrain affordances for roads, settlements, production hives, trade points, and resource chains.
+- Generated road corridors that can carry NPC goods, people, and vehicle traffic between NPC groups.
 - Seed debugging tools and comparison snapshots.
 
 Good follow-up to:
 
 - Gameplay streaming, because terrain and gameplay persistence need a clean boundary.
 - NPC settlements, because villages need plausible placement.
+- Commerce/NPC groups, because background traffic needs roads before NPC entities can feel connected.
 
 Risks:
 
 - Terrain tuning can absorb a lot of time without directly improving moment-to-moment play.
 - Changing terrain semantics may require migration or test fixture updates.
+
+See [`./terrain-generation-roadmap.md`](./terrain-generation-roadmap.md).
 
 ### 6. Freight-line diagnostics depth
 
