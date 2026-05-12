@@ -23,7 +23,7 @@ import { Alveolus } from './content/alveolus'
 import type { TileContent } from './content/content'
 import { UnBuiltLand } from './content/unbuilt-land'
 import { LooseGoods } from './looseGoods'
-import type { RoadSegment, RoadType } from './roads'
+import { ROAD_WALK_TIME_MULTIPLIER, type RoadSegment, type RoadType } from './roads'
 import { Tile } from './tile'
 import { isTileCoord } from './tile-coord'
 import { ZoneManager } from './zone'
@@ -174,12 +174,20 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		return this.roadTypes.get(coord)
 	}
 
+	/** Set or clear the road type on a border coordinate. Roads intentionally coexist with border content. */
 	setRoadType(ref: Positioned, type?: RoadType) {
 		const coord = toAxialCoord(ref)
 		if (!coord || isTileCoord(coord)) return
+		const oldType = this.roadTypes.get(coord)
+		if (oldType === type) return
 		if (!type) this.roadTypes.delete(coord)
 		else this.roadTypes.set(coord, type)
-		this.game.notifyRoadsChanged()
+		const border = this.getBorder(coord)
+		this.game.notifyRoadsChanged(
+			[border?.tile.a.position, border?.tile.b.position]
+				.map((position) => (position ? toAxialCoord(position) : undefined))
+				.filter((position): position is AxialCoord => !!position)
+		)
 	}
 
 	roadSegments(): RoadSegment[] {
@@ -187,6 +195,22 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 			coord: axial.coord(key),
 			type,
 		}))
+	}
+
+	/** Apply border-road movement bonuses only when moving between adjacent tile centers. */
+	walkTimeBetween(from: Positioned, to: Positioned, baseWalkTime: number): number {
+		if (!Number.isFinite(baseWalkTime)) return baseWalkTime
+		const fromCoord = toAxialCoord(from)
+		const toCoord = toAxialCoord(to)
+		if (!fromCoord || !toCoord) return baseWalkTime
+		const fromTile = axial.round(fromCoord)
+		const toTile = axial.round(toCoord)
+		if (axial.distance(fromTile, toTile) !== 1) {
+			return baseWalkTime
+		}
+		const borderCoord = axial.linear([0.5, fromTile], [0.5, toTile])
+		const multiplier = this.getRoadType(borderCoord) ? ROAD_WALK_TIME_MULTIPLIER : 1
+		return baseWalkTime * multiplier
 	}
 
 	reset(): void {
@@ -340,13 +364,22 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 	getNeighbors(coord: Positioned): NeighborInfo[] {
 		const tile = this.getTile(coord)
 		if (!tile) return []
-		return tile.walkNeighbors
+		return this.getWalkNeighborsFromTile(tile)
 	}
 
 	getNeighborsForCharacter(coord: Positioned, _character: Character): NeighborInfo[] {
 		const tile = this.getTile(coord)
 		if (!tile) return []
-		return tile.walkNeighbors
+		return this.getWalkNeighborsFromTile(tile)
+	}
+
+	private getWalkNeighborsFromTile(fromTile: Tile): NeighborInfo[] {
+		const fromCoord = toAxialCoord(fromTile.position)
+		if (!fromCoord) return []
+		return fromTile.walkNeighbors.map((neighbor) => ({
+			coord: neighbor.coord,
+			walkTime: this.walkTimeBetween(fromCoord, neighbor.coord, neighbor.walkTime),
+		}))
 	}
 
 	findPathForCharacter(

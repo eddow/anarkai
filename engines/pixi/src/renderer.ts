@@ -15,7 +15,6 @@ import { registerPixiApp, unregisterPixiApp } from './hmr.js'
 import { InteractionManager } from './interaction/interaction-manager.js'
 import { DragPreviewOverlay } from './renderers/drag-preview-overlay'
 import { FreightLineOverlay } from './renderers/freight-line-overlay'
-import { RoadOverlay } from './renderers/road-overlay'
 import type { VisualFactoryDiagnostics } from './visual-factory'
 import { VisualFactory } from './visual-factory'
 
@@ -26,7 +25,6 @@ export class PixiGameRenderer implements GameRenderer {
 	private visualFactory?: VisualFactory
 	private dragPreviewOverlay?: DragPreviewOverlay
 	private freightLineOverlay?: FreightLineOverlay
-	private roadOverlay?: RoadOverlay
 	private terrainVisual?: TerrainVisual
 	private container: HTMLElement
 	private canvas: HTMLCanvasElement | null = null
@@ -101,9 +99,6 @@ export class PixiGameRenderer implements GameRenderer {
 		globalThis.__ANARKAI_VISUAL_DIAGNOSTICS__ = () => this.getVisualDiagnostics()
 
 		// Setup Drag Preview Overlay
-		this.roadOverlay = new RoadOverlay(this)
-		this.roadOverlay.bind()
-
 		this.dragPreviewOverlay = new DragPreviewOverlay(this)
 		this.dragPreviewOverlay.bind()
 
@@ -273,7 +268,6 @@ export class PixiGameRenderer implements GameRenderer {
 		this.interactionManager?.teardown()
 		this.dragPreviewOverlay?.dispose()
 		this.freightLineOverlay?.dispose()
-		this.roadOverlay?.dispose()
 		this.visualFactory?.destroy()
 		this.terrainVisual?.dispose()
 

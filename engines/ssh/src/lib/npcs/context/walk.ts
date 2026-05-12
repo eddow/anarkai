@@ -14,14 +14,19 @@ class WalkFunctions {
 		const toAxial = toAxialCoord(to)
 		const fromAxial = toAxialCoord(this[subject])
 		// ArkType validation now handles argument validation
-		if (!positionRoughlyEquals(fromAxial, toAxial))
+		if (!positionRoughlyEquals(fromAxial, toAxial)) {
+			const baseWalkTime =
+				this[subject].game.hex.walkTimeBetween(
+					fromAxial,
+					toAxial,
+					this[subject].tile.effectiveWalkTime
+				) * this[subject].mobilityMultiplier
 			return new MoveToStep(
-				this[subject].tile.effectiveWalkTime *
-					this[subject].mobilityMultiplier *
-					axial.distance(fromAxial, toAxial),
+				baseWalkTime * axial.distance(fromAxial, toAxial),
 				this[subject],
 				to
 			)
+		}
 	}
 	/**
 	 * Enters in the tile even if it's not walkable

@@ -48,16 +48,40 @@ Gameplay streaming is owned by `ssh`:
 
 Details and constraints are documented in [`./freight-lines.md`](./freight-lines.md).
 
+### Roads
+
+Roads v1/v1.5 is landed as border-owned `path` infrastructure:
+
+- the `road:path` palette tool previews a straight tile trace and commits instantly on release
+- road state is stored per border on `HexBoard` and saved as grouped coordinates, for example
+  `roads: { path: [[q, r]] }`
+- walking/pathfinding receives a cost reduction only when crossing a roaded border
+- Pixi bakes textured road overlays into terrain sectors using the `brick_moss` road material
+- road authoring rejects traces through hive/alveolus tiles except `freight_bay`, residential/dwelling tiles,
+  and construction projects
+- Chopsaw includes a sample road from `-3,1` to `1,1`
+
+Deferred road work: builder/project workflows, multiple road kinds, lanes/markings, route-benefit UI, and
+physical multi-hex corridors.
+
+Details and future lane/corridor vocabulary are documented in [`./roads.md`](./roads.md).
+
 ### Verification
 
-`engines/ssh` unit-only verification is fast enough for routine perf/checkpoint use:
+As of 2026-05-12, the current green road-adjacent verification set is:
 
 ```bash
-pnpm --filter ssh exec vitest run tests/unit
+pnpm -r check
+pnpm --filter ssh test -- tests/unit/roads.test.ts tests/unit/chopsaw-example.test.ts
+pnpm --filter engine-pixi test
+pnpm --filter ssh-browser test
+git diff --check
 ```
 
-On 2026-05-06 this ran **80 files / 454 tests** in **44.75s** (`real 45.174s`) on the local
-workspace.
+The full `ssh` unit suite is not currently green. `pnpm --filter ssh test -- tests/unit` reports **9 failing
+tests / 546 passing tests** across hydrology fixtures, construction fixture setup, freight summary wording,
+one proposed-job path expectation, and one vehicle service invariant. Those failures are outside the roads
+slice but should be treated as a standing cleanup item before using full-suite green as a release signal.
 
 ### Browser Client
 
@@ -87,6 +111,10 @@ retention policy live in `ssh`, and Pixi only asks for visibility-driven frontie
 
 ## Suggested Near-Term Work
 
-1. Use [`./next-directions.md`](./next-directions.md) to choose whether the next gameplay-facing tranche should be roads, shops/markets, content chains, NPC settlements, or terrain generation.
-2. Continue freight diagnostics only if route failures become hard to understand during playtesting.
-3. Design off-screen gameplay unloading later, after at least one larger-world feature needs it.
+1. Playtest the landed road tool and decide whether the next gameplay-facing tranche should deepen roads
+   with builder projects/route UI, or shift to shops/markets, content chains, NPC settlements, or terrain
+   generation.
+2. Restore the full `ssh` unit suite to green, or mark/remove stale expectations if they are intentionally
+   obsolete.
+3. Continue freight diagnostics only if route failures become hard to understand during playtesting.
+4. Design off-screen gameplay unloading later, after at least one larger-world feature needs it.

@@ -93,8 +93,16 @@ export const chopSaw = {
 	},
 	projects: {
 		'build:storage': [
-			[-2, 0],
 			[-1, 0],
+		],
+	},
+	roads: {
+		path: [
+			[-2.5, 1],
+			[-1.5, 1],
+			[-0.5, 1],
+			[-0.5, 0.5],
+			[0.5, 1],
 		],
 	},
 	vehicles: [

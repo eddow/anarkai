@@ -336,6 +336,27 @@ describe('continuous terrain helpers', () => {
 		}
 	})
 
+	it('invalidates road tile textures and affected sectors after road changes', async () => {
+		const renderer = createTerrainRendererStub({
+			hasRenderableTerrainAt: () => true,
+			getRenderableTerrainAt: () => ({ terrain: 'grass', height: 0 }),
+			requestGameplayFrontier: vi.fn(async () => false),
+			screen: { width: 1920, height: 875 },
+			worldScale: 1,
+		})
+		const visual = new TerrainVisual(renderer)
+		;(visual as any).refresh()
+
+		const roadTextures = (visual as any).roadTileTextures as { invalidate: (coords: any[]) => void }
+		const invalidate = vi.spyOn(roadTextures, 'invalidate')
+		const invalidateAt = vi.spyOn(visual, 'invalidateAt')
+
+		;(visual as any).invalidateRoadTiles([{ q: 0, r: 0 }])
+
+		expect(invalidate).toHaveBeenCalledWith([expect.objectContaining({ q: 0, r: 0 })])
+		expect(invalidateAt).toHaveBeenCalledWith(expect.objectContaining({ q: 0, r: 0 }))
+	})
+
 	it('reports river bake geometry when hydrology-bearing samples are present', () => {
 		const renderer = createTerrainRendererStub({
 			hasRenderableTerrainAt: () => true,
@@ -470,6 +491,7 @@ function createTerrainRendererStub(gameOverrides: {
 		worldScene: new Container(),
 		layers: {
 			ground: new RenderLayer(),
+			roads: new RenderLayer(),
 			alveoli: new RenderLayer(),
 			resources: new RenderLayer(),
 			storedGoods: new RenderLayer(),
@@ -484,7 +506,9 @@ function createTerrainRendererStub(gameOverrides: {
 			layer.detach(child)
 		},
 		getTexture(spec: string) {
-			expect(spec.startsWith('terrain.') || spec.startsWith('objects.')).toBe(true)
+			expect(spec.startsWith('terrain.') || spec.startsWith('objects.') || spec.startsWith('roads.')).toBe(
+				true
+			)
 			return Texture.WHITE
 		},
 	} as unknown as PixiGameRenderer

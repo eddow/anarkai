@@ -16,6 +16,7 @@ import { type AxialCoord, axial, cartesian, fromCartesian } from 'ssh/utils'
 import { tileSize } from 'ssh/utils/varied'
 import { setPixiName } from './debug-names'
 import type { PixiGameRenderer } from './renderer'
+import { RoadTileTextureCache } from './road-tile-texture'
 import {
 	buildStaticResourceSpriteSpecs,
 	buildStaticResourceSpriteSpecsFromTerrainSample,
@@ -201,6 +202,7 @@ export class TerrainVisual {
 	private readonly pendingSectors = new Set<string>()
 	private readonly dirtySectorKeys = new Set<string>()
 	private readonly terrainBaker: SectorTerrainBaker
+	private readonly roadTileTextures: RoadTileTextureCache
 	private readonly bakeDebugBySector = new Map<string, SectorTerrainBakeDebug>()
 	private visibleTileKeys = new Set<string>()
 	private visibleSectorKeys = new Set<string>()
@@ -256,9 +258,11 @@ export class TerrainVisual {
 		},
 	}
 	private hoverCleanup?: ScopedCallback
+	private roadsCleanup?: () => void
 
 	constructor(private readonly renderer: PixiGameRenderer) {
 		this.terrainBaker = new SectorTerrainBaker(renderer)
+		this.roadTileTextures = new RoadTileTextureCache(renderer)
 		this.container.eventMode = 'none'
 		this.sectorsContainer.eventMode = 'none'
 		this.hoverOverlay.eventMode = 'none'
@@ -275,6 +279,9 @@ export class TerrainVisual {
 				isHoveredTileObject(mrg.hoveredObject) ? mrg.hoveredObject : undefined
 			)
 		})
+		const onRoadsChanged = (coords: AxialCoord[]) => this.invalidateRoadTiles(coords)
+		this.renderer.game.on({ roadsChanged: onRoadsChanged })
+		this.roadsCleanup = () => this.renderer.game.off({ roadsChanged: onRoadsChanged })
 		this.refresh()
 	}
 
@@ -288,6 +295,9 @@ export class TerrainVisual {
 		).clearTerrainViewportDemand?.(this.viewportId)
 		this.hoverCleanup?.()
 		this.hoverCleanup = undefined
+		this.roadsCleanup?.()
+		this.roadsCleanup = undefined
+		this.roadTileTextures.clear()
 		if (this.renderer.layers?.ground) {
 			this.renderer.detachFromLayer(this.renderer.layers.ground, this.container)
 		}
@@ -357,6 +367,16 @@ export class TerrainVisual {
 			if (state) state.dirty = true
 		}
 		this.scheduleInvalidate(false)
+	}
+
+	private invalidateRoadTiles(coords: readonly AxialCoord[]): void {
+		if (coords.length === 0) {
+			this.roadTileTextures.clear()
+			this.invalidate()
+			return
+		}
+		this.roadTileTextures.invalidate(coords)
+		for (const coord of coords) this.invalidateAt(coord)
 	}
 
 	private markAllSectorsDirty(clearCache = false) {
@@ -651,6 +671,7 @@ export class TerrainVisual {
 			interiorTileCoords: sectorState.coverage.interiorTileCoords,
 			bakeTileCoords: sectorState.coverage.bakeTileCoords,
 			terrainTiles,
+			roadTileTextures: this.roadTileTextures,
 		}
 		const baked = this.terrainBaker.bake(bakeInput)
 		this.bakeDebugBySector.set(sectorKey, baked.debug)

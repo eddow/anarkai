@@ -200,7 +200,8 @@ export const findNearest = wrapInert(function findNearest<_T>(
 	while (!openSet.isEmpty) {
 		// Get node with lowest fCost
 		const currentCoord = openSet.pop()![0]
-		const currentNode = openSetMap.get(currentCoord)!
+		const currentNode = openSetMap.get(currentCoord)
+		if (!currentNode) continue
 
 		// Move to closed set
 		closedSet.set(currentCoord, currentNode)

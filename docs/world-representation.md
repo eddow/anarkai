@@ -87,9 +87,14 @@ meaning of one hex. To make terrain features broader or tighter, tune these terr
 ## Roads And Lanes
 
 Roads are border-owned center-to-center segments. A road on a border connects the centers of the two adjacent
-tiles.
+tiles. Roads v1 stores those borders as `path` roads and reduces walking cost only when the actor crosses that
+specific roaded border.
 
 Roads v1 has only one pedestrian/wheelbarrow lane. Multi-lane roads and lane markings are deferred.
+
+Road planning uses the straightest tile trace between the start and end tile. That trace is also the build
+validation surface: empty terrain, ordinary unbuilt land, and `freight_bay` tiles are valid; other
+hive/alveolus tiles, residential/dwelling tiles, and construction projects are invalid.
 
 For road drawing, keep road width at or below one hex side unless a future feature explicitly needs wide
 infrastructure corridors. With `side = 3m`, a max-width road is about `3m`, or roughly `10ft`, wide.

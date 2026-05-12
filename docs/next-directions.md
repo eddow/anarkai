@@ -49,14 +49,16 @@ small content chain if the goal is more immediate play texture.
 
 ### 1. Roads and path infrastructure
 
-Roads are a natural bridge between hive logistics and larger world management.
+Roads v1/v1.5 is already landed as instantly authored, border-owned `path` roads with textured rendering and
+walking cost modifiers. Roads remain a natural bridge between hive logistics and larger world management.
 
-Potential scope:
+Potential next scope:
 
-- Border-road project type.
-- Pathfinding cost modifiers for roaded border transitions.
-- Builder workflow for road construction.
+- Builder/project workflow for road construction instead of instant placement.
+- Route-benefit UI for characters and vehicles.
+- More road kinds/materials and road-rank rules.
 - Road-aware vehicle routing and line summaries.
+- Lane/band metadata and markings.
 - Optional maintenance/degradation later.
 
 Good follow-up to:
@@ -66,8 +68,8 @@ Good follow-up to:
 
 Risks:
 
-- If roads are added before streaming policy is settled, road persistence at the frontier will be awkward.
-- If they only change visuals and not pathfinding, they may feel cosmetic.
+- Builder workflows may need clearer rules for blocking projects on buildings, zones, and deposits.
+- Route-benefit UI can become noisy if it exposes every cost detail too early.
 
 ### 2. Shops, markets, and consumption
 
@@ -148,7 +150,7 @@ Potential scope:
 - Better line diagnostics: blocked pickup, missing unload, no eligible goods, no vehicle.
 - Route health summaries for multi-segment lines.
 - Exchange-route summaries that explain which halt rotations are actionable on cyclic lines.
-- Optional road-aware route benefit summaries when roads land.
+- Optional road-aware route benefit summaries now that border roads can affect travel cost.
 
 Good follow-up to:
 
@@ -183,7 +185,8 @@ Use these when choosing the next implementation plan:
 
 Small slices worth considering:
 
-- **Roads v1:** build road projects, make pathfinding prefer them, and show route benefit in vehicle travel.
+- **Roads v2:** turn instant roads into build projects, add route-benefit summaries, and add at least one
+  upgraded road kind/material.
 - **Market v1:** one shop consumes one good type and creates a visible demand/satisfaction signal.
 - **Content v1:** add one new raw resource, one transformer, one produced good, and one construction recipe that uses it.
 - **Village v1:** generate one persisted external village with one import need and one export good.

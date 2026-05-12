@@ -7,7 +7,7 @@ import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockv
 import { PixiGameRenderer } from 'engine-pixi/renderer'
 import { effect } from 'mutts'
 import type { RoadType } from 'ssh/board/roads'
-import { roadBordersForTrace } from 'ssh/board/roads'
+import { canBuildRoadOnTrace, roadBordersForTrace } from 'ssh/board/roads'
 import { Tile } from 'ssh/board/tile'
 import type { GamePresentationEvent, InteractiveGameObject } from 'ssh/game'
 import type { AlveolusType } from 'ssh/types/base'
@@ -76,9 +76,11 @@ export default function GameWidget(
 	}
 
 	const handleRoadDrag = (tiles: Tile[], roadType: RoadType) => {
+		if (!canBuildRoadOnTrace(tiles)) return false
 		for (const border of roadBordersForTrace(tiles)) {
 			game.hex.setRoadType(border.position, roadType)
 		}
+		return true
 	}
 
 	const gameEvents = {
@@ -110,7 +112,8 @@ export default function GameWidget(
 		},
 		roadDrag(tiles: Tile[], roadType: RoadType, event: unknown) {
 			if (!interactionMode.selectedAction.startsWith('road:')) return
-			handleRoadDrag(tiles, roadType)
+			const applied = handleRoadDrag(tiles, roadType)
+			if (!applied) return
 			const shift =
 				event !== null &&
 				typeof event === 'object' &&

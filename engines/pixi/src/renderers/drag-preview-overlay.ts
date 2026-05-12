@@ -1,5 +1,5 @@
 import { Container, Graphics, Point } from 'pixi.js'
-import type { RoadType } from 'ssh/board/roads'
+import { canBuildRoadThroughTile, type RoadType } from 'ssh/board/roads'
 import type { Tile } from 'ssh/board/tile'
 import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
@@ -15,7 +15,8 @@ const ZONE_COLORS: Record<string, { fill: number; stroke: number }> = {
 	none: { fill: 0x888888, stroke: 0x666666 }, // Gray for unzone
 	'': { fill: 0x44aaff, stroke: 0x2288dd }, // Blue (default/fallback)
 }
-const ROAD_COLORS = { fill: 0x8a5a2b, stroke: 0x6b3f1d }
+const ROAD_COLORS = { fill: 0x44aaff, stroke: 0x1f7fe5 }
+const INVALID_ROAD_COLORS = { fill: 0xd95858, stroke: 0x9b1d24 }
 
 function parseHexColor(color: string | undefined): number | undefined {
 	if (!color) return undefined
@@ -52,8 +53,8 @@ export class DragPreviewOverlay {
 			this.showPreview(tiles, zoneType)
 		}
 
-		const onRoadPreview = (tiles: Tile[], roadType: RoadType) => {
-			this.showRoadPreview(tiles, roadType)
+		const onRoadPreview = (tiles: Tile[], roadType: RoadType, valid: boolean) => {
+			this.showRoadPreview(tiles, roadType, valid)
 		}
 
 		const onDragPreviewClear = () => {
@@ -85,28 +86,16 @@ export class DragPreviewOverlay {
 			: ZONE_COLORS[zoneType] || ZONE_COLORS['']
 
 		for (const tile of tiles) {
-			const worldPos = toWorldCoord(tile.position)
-			if (!worldPos) continue
-
-			// Draw a hex outline for each tile in the selection
-			const points = Array.from({ length: 6 }, (_, i) => {
-				const angle = (Math.PI / 3) * (i + 0.5)
-				return new Point(
-					worldPos.x + Math.cos(angle) * (tileSize - 2),
-					worldPos.y + Math.sin(angle) * (tileSize - 2)
-				)
-			})
-
-			// Fill with semi-transparent zone color
-			this.graphics.poly(points).fill({ color: colors.fill, alpha: 0.3 })
-			// Stroke with solid border
-			this.graphics.poly(points).stroke({ width: 2, color: colors.stroke, alpha: 0.8 })
+			this.drawTileHighlight(tile, colors.fill, colors.stroke, 0.3, 0.8)
 		}
 	}
 
-	private showRoadPreview(tiles: Tile[], _roadType: RoadType) {
+	private showRoadPreview(tiles: Tile[], _roadType: RoadType, valid: boolean) {
 		this.graphics.clear()
-		this.drawTileHighlights(tiles, ROAD_COLORS.fill, ROAD_COLORS.stroke)
+		for (const tile of tiles) {
+			const colors = canBuildRoadThroughTile(tile) ? ROAD_COLORS : INVALID_ROAD_COLORS
+			this.drawTileHighlight(tile, colors.fill, colors.stroke, 0.36, 0.9)
+		}
 		const points = tiles.map((tile) => toWorldCoord(tile.position)).filter(Boolean) as Array<{
 			x: number
 			y: number
@@ -117,27 +106,31 @@ export class DragPreviewOverlay {
 		this.graphics.lineTo(end.x, end.y)
 		this.graphics.stroke({
 			width: tileSize * 0.22,
-			color: ROAD_COLORS.stroke,
+			color: valid ? ROAD_COLORS.stroke : INVALID_ROAD_COLORS.stroke,
 			alpha: 0.95,
 			cap: 'round',
 			join: 'round',
 		})
 	}
 
-	private drawTileHighlights(tiles: Tile[], fill: number, stroke: number) {
-		for (const tile of tiles) {
-			const worldPos = toWorldCoord(tile.position)
-			if (!worldPos) continue
-			const points = Array.from({ length: 6 }, (_, i) => {
-				const angle = (Math.PI / 3) * (i + 0.5)
-				return new Point(
-					worldPos.x + Math.cos(angle) * (tileSize - 2),
-					worldPos.y + Math.sin(angle) * (tileSize - 2)
-				)
-			})
-			this.graphics.poly(points).fill({ color: fill, alpha: 0.26 })
-			this.graphics.poly(points).stroke({ width: 2, color: stroke, alpha: 0.78 })
-		}
+	private drawTileHighlight(
+		tile: Tile,
+		fill: number,
+		stroke: number,
+		fillAlpha = 0.26,
+		strokeAlpha = 0.78
+	) {
+		const worldPos = toWorldCoord(tile.position)
+		if (!worldPos) return
+		const points = Array.from({ length: 6 }, (_, i) => {
+			const angle = (Math.PI / 3) * (i + 0.5)
+			return new Point(
+				worldPos.x + Math.cos(angle) * (tileSize - 2),
+				worldPos.y + Math.sin(angle) * (tileSize - 2)
+			)
+		})
+		this.graphics.poly(points).fill({ color: fill, alpha: fillAlpha })
+		this.graphics.poly(points).stroke({ width: 2, color: stroke, alpha: strokeAlpha })
 	}
 
 	private clearPreview() {

@@ -24,6 +24,7 @@ const HEX_SIDES = hexSides as unknown as readonly [
 import { tileSize } from 'ssh/utils/varied'
 import { setPixiName } from './debug-names'
 import type { PixiGameRenderer } from './renderer'
+import type { RoadTileTextureCache } from './road-tile-texture'
 import {
 	buildRiverTileNode,
 	computeRiverBakeMonotoneHalfOuterMap,
@@ -67,6 +68,7 @@ export interface SectorTerrainBakeInput {
 	interiorTileCoords: AxialCoord[]
 	bakeTileCoords: AxialCoord[]
 	terrainTiles: Map<string, RenderableTerrainTile>
+	roadTileTextures?: RoadTileTextureCache
 }
 
 export interface SectorTerrainBakeDebug {
@@ -81,6 +83,7 @@ export interface SectorTerrainBakeDebug {
 	riverTileCount: number
 	riverBranchCount: number
 	riverJunctionCount: number
+	roadTileCount: number
 	displayBounds: {
 		x: number
 		y: number
@@ -192,6 +195,16 @@ export class SectorTerrainBaker {
 		}
 		const riverOverlay = buildRiverOverlay(input)
 		if (riverOverlay) bakeContainer.addChild(riverOverlay)
+		let roadTileCount = 0
+		if (input.roadTileTextures) {
+			for (const coord of input.bakeTileCoords) {
+				const sprite = input.roadTileTextures.createSprite(coord, input.displayBounds)
+				if (!sprite) continue
+				bakeContainer.addChild(sprite)
+				roadTileCount++
+			}
+		}
+		debug.roadTileCount = roadTileCount
 		debug.meshesCreated = bakeContainer.children.length
 
 		const generatedTexture = appRenderer.textureGenerator.generateTexture({
@@ -226,6 +239,7 @@ export class SectorTerrainBaker {
 			riverTileCount: rivers.riverTileCount,
 			riverBranchCount: rivers.riverBranchCount,
 			riverJunctionCount: rivers.riverJunctionCount,
+			roadTileCount: 0,
 			displayBounds: {
 				x: input.displayBounds.x,
 				y: input.displayBounds.y,

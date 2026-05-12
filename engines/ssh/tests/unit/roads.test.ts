@@ -1,5 +1,11 @@
 import { TileBorderContent } from 'ssh/board/border/border'
-import { roadBordersForTrace, straightRoadCoords, straightRoadTileTrace } from 'ssh/board/roads'
+import {
+	canBuildRoadOnTrace,
+	ROAD_WALK_TIME_MULTIPLIER,
+	roadBordersForTrace,
+	straightRoadCoords,
+	straightRoadTileTrace,
+} from 'ssh/board/roads'
 import { Game } from 'ssh/game/game'
 import type { Storage } from 'ssh/storage/storage'
 import { axial } from 'ssh/utils'
@@ -71,7 +77,7 @@ describe('road storage', () => {
 			expect(game.hex.getRoadType(border.position)).toBe('path')
 
 			const save = game.saveGameData()
-			expect(save.roads).toEqual([{ coord: [0.5, 0], type: 'path' }])
+			expect(save.roads).toEqual({ path: [[0.5, 0]] })
 
 			const restored = new Game(save.generationOptions, save, save)
 			await restored.loaded
@@ -81,6 +87,166 @@ describe('road storage', () => {
 			} finally {
 				restored.destroy()
 			}
+		} finally {
+			game.destroy()
+		}
+	})
+
+	it('loads legacy array-shaped road patches', async () => {
+		const game = new Game(
+			{ terrainSeed: 1234, characterCount: 0 },
+			{
+				tiles: [
+					{ coord: [0, 0], terrain: 'grass' },
+					{ coord: [1, 0], terrain: 'grass' },
+				],
+				roads: [{ coord: [0.5, 0], type: 'path' }],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		try {
+			expect(game.hex.getRoadType({ q: 0.5, r: 0 })).toBe('path')
+		} finally {
+			game.destroy()
+		}
+	})
+
+	it('reduces walk cost only when crossing a roaded border', async () => {
+		const game = new Game(
+			{ terrainSeed: 1234, characterCount: 0 },
+			{
+				tiles: [
+					{ coord: [0, 0], terrain: 'grass' },
+					{ coord: [1, 0], terrain: 'grass' },
+					{ coord: [0, 1], terrain: 'grass' },
+				],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		try {
+			const start = game.hex.getTile({ q: 0, r: 0 })!
+			const roaded = game.hex.getTile({ q: 1, r: 0 })!
+			const offroad = game.hex.getTile({ q: 0, r: 1 })!
+			game.hex.setRoadType(start.borderWith(roaded)!.position, 'path')
+
+			const roadNeighbor = game.hex
+				.getNeighbors(start.position)
+				.find((neighbor) => axial.key(neighbor.coord) === axial.key(roaded.position))
+			const offroadNeighbor = game.hex
+				.getNeighbors(start.position)
+				.find((neighbor) => axial.key(neighbor.coord) === axial.key(offroad.position))
+
+			expect(roadNeighbor?.walkTime).toBe(roaded.effectiveWalkTime * ROAD_WALK_TIME_MULTIPLIER)
+			expect(offroadNeighbor?.walkTime).toBe(offroad.effectiveWalkTime)
+		} finally {
+			game.destroy()
+		}
+	})
+})
+
+describe('road build validation', () => {
+	it('allows empty generated terrain tiles', async () => {
+		const game = new Game({ terrainSeed: 1234, characterCount: 0 })
+		await game.loaded
+		game.ticker.stop()
+
+		try {
+			const start = game.hex.getTile({ q: 0, r: 0 })!
+			const end = game.hex.getTile({ q: 1, r: 0 })!
+			expect(start.content).toBeUndefined()
+			expect(end.content).toBeUndefined()
+			expect(canBuildRoadOnTrace(straightRoadTileTrace(start, end))).toBe(true)
+		} finally {
+			game.destroy()
+		}
+	})
+
+	it('allows clear land and freight bays but rejects non-bay hive alveoli', async () => {
+		const game = new Game(
+			{ terrainSeed: 1234, characterCount: 0 },
+			{
+				tiles: [
+					{ coord: [-1, 0], terrain: 'grass' },
+					{ coord: [0, 0], terrain: 'grass' },
+					{ coord: [1, 0], terrain: 'grass' },
+				],
+				hives: [
+					{
+						name: 'Hive',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'freight_bay' },
+							{ coord: [1, 0], alveolus: 'sawmill' },
+						],
+					},
+				],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		try {
+			const land = game.hex.getTile({ q: -1, r: 0 })!
+			const bay = game.hex.getTile({ q: 0, r: 0 })!
+			const sawmill = game.hex.getTile({ q: 1, r: 0 })!
+			expect(canBuildRoadOnTrace(straightRoadTileTrace(land, bay))).toBe(true)
+			expect(canBuildRoadOnTrace(straightRoadTileTrace(bay, sawmill))).toBe(false)
+		} finally {
+			game.destroy()
+		}
+	})
+
+	it('rejects residential tiles and planned construction projects', async () => {
+		const game = new Game(
+			{ terrainSeed: 1234, characterCount: 0 },
+			{
+				tiles: [
+					{ coord: [0, 0], terrain: 'grass' },
+					{ coord: [1, 0], terrain: 'grass' },
+					{ coord: [2, 0], terrain: 'grass' },
+				],
+				zones: { residential: [[0, 0]] },
+				projects: { 'build:sawmill': [[2, 0]] },
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		try {
+			const residential = game.hex.getTile({ q: 0, r: 0 })!
+			const land = game.hex.getTile({ q: 1, r: 0 })!
+			const project = game.hex.getTile({ q: 2, r: 0 })!
+			expect(canBuildRoadOnTrace(straightRoadTileTrace(residential, land))).toBe(false)
+			expect(canBuildRoadOnTrace(straightRoadTileTrace(land, project))).toBe(false)
+		} finally {
+			game.destroy()
+		}
+	})
+
+	it('rejects traces that pass through forbidden middle tiles', async () => {
+		const game = new Game(
+			{ terrainSeed: 1234, characterCount: 0 },
+			{
+				tiles: [
+					{ coord: [-1, 0], terrain: 'grass' },
+					{ coord: [0, 0], terrain: 'grass' },
+					{ coord: [1, 0], terrain: 'grass' },
+				],
+				zones: { residential: [[0, 0]] },
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		try {
+			const start = game.hex.getTile({ q: -1, r: 0 })!
+			const end = game.hex.getTile({ q: 1, r: 0 })!
+			const trace = straightRoadTileTrace(start, end)
+			expect(trace.map((tile) => axial.key(tile.position))).toEqual(['-1,0', '0,0', '1,0'])
+			expect(canBuildRoadOnTrace(trace)).toBe(false)
 		} finally {
 			game.destroy()
 		}

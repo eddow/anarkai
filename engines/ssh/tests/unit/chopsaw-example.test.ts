@@ -40,5 +40,10 @@ describe('chopSaw example game', () => {
 
 		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
 		expect(vehicle?.servedLines.map((line) => line.id)).toEqual(['ChopSaw:implicit-gather:0,0'])
+
+		expect(game.hex.getRoadType({ q: -2.5, r: 1 })).toBe('path')
+		expect(game.hex.getRoadType({ q: -1.5, r: 1 })).toBe('path')
+		expect(game.hex.getRoadType({ q: -0.5, r: 1 })).toBe('path')
+		expect(game.hex.getRoadType({ q: 0.5, r: 1 })).toBe('path')
 	})
 })

@@ -1,7 +1,7 @@
 import { interactionMode, mrg, setHoveredObject } from '@app/lib/interactive-state'
 import type { Application, Container, FederatedPointerEvent, FederatedWheelEvent } from 'pixi.js'
 import type { RoadType } from 'ssh/board/roads'
-import { straightRoadTileTrace } from 'ssh/board/roads'
+import { canBuildRoadOnTrace, straightRoadTileTrace } from 'ssh/board/roads'
 import { Tile } from 'ssh/board/tile'
 import type { Game } from 'ssh/game/game'
 import type { InteractiveGameObject } from 'ssh/game/object'
@@ -218,7 +218,7 @@ export class InteractionManager {
 			if (currentTile && roadType) {
 				this.dragCurrentTile = currentTile
 				const tiles = straightRoadTileTrace(this.dragStartTile, currentTile)
-				this.game.emit('roadPreview', tiles, roadType)
+				this.game.emit('roadPreview', tiles, roadType, canBuildRoadOnTrace(tiles))
 			} else if (currentTile && currentTile !== this.dragStartTile) {
 				this.dragCurrentTile = currentTile
 				const start = this.dragStartTile.position as { q: number; r: number }
@@ -254,7 +254,9 @@ export class InteractionManager {
 				const roadType = this.getCurrentRoadType()
 				if (roadType) {
 					const tiles = straightRoadTileTrace(this.dragStartTile, endTile)
-					this.game.emit('roadDrag', tiles, roadType, e.nativeEvent)
+					if (canBuildRoadOnTrace(tiles)) {
+						this.game.emit('roadDrag', tiles, roadType, e.nativeEvent)
+					}
 				} else {
 					// Drag completed - calculate parallelogram and emit
 					const start = this.dragStartTile.position as { q: number; r: number }
@@ -264,8 +266,12 @@ export class InteractionManager {
 				}
 			} else if (endTile === this.dragStartTile) {
 				const roadType = this.getCurrentRoadType()
-				if (roadType) this.game.emit('roadDrag', [this.dragStartTile], roadType, e.nativeEvent)
-				else {
+				if (roadType) {
+					const tiles = [this.dragStartTile]
+					if (canBuildRoadOnTrace(tiles)) {
+						this.game.emit('roadDrag', tiles, roadType, e.nativeEvent)
+					}
+				} else {
 					// Click on same tile
 					this.game.simulateObjectClick(this.dragStartTile, e.nativeEvent)
 				}

@@ -66,6 +66,7 @@ export class PixiAssetManager {
 				assetKeys.add(`terrain.${key}`)
 			}
 		}
+		assetKeys.add('roads.brick_moss')
 
 		// Build asset bundles from extracted keys
 		const assetsToLoad: Record<string, string> = {}
@@ -87,7 +88,7 @@ export class PixiAssetManager {
 				const [category, name] = parts
 
 				let ext = 'png'
-				if (category === 'terrain') ext = 'jpg'
+				if (category === 'terrain' || category === 'roads') ext = 'jpg'
 
 				let fileName = name
 				if (category === 'vehicles') {
