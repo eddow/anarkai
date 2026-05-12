@@ -7,7 +7,7 @@ import {
 import { InspectorSection } from '@app/ui/anarkai'
 import { vehicles as vehicleVisuals } from 'engine-pixi/assets/visual-content'
 import { vehicleTextureKey } from 'engine-pixi/renderers/vehicle-visual'
-import { effect, reactive } from 'mutts'
+import { effect, reactive, untracked } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
 import { profile } from 'ssh/dev/debug'
 import { createSyntheticFreightLineObject } from 'ssh/freight/freight-line'
@@ -160,6 +160,10 @@ function workKindLabel(kind: JobType): string {
 	return T.character.plannerWorkKinds[kind] ?? kind
 }
 
+function proposedJobsLabel(): string {
+	return (T.tile as { proposedJobs?: string } | undefined)?.proposedJobs ?? 'Proposed jobs'
+}
+
 function effectiveOperatorForVehicle(vehicle: VehicleEntity | undefined): Character | undefined {
 	if (!vehicle) return undefined
 	const fromService = vehicle.operator
@@ -194,36 +198,38 @@ function describeVehicleWorkTarget(job: ProposedJob): string {
 
 function vehicleWorkChoices(vehicle: VehicleEntity | undefined): VehicleWorkChoice[] {
 	workPlanningPresentationRevision()
-	const end = profile.proposedJobs.begin?.('vehicle-properties.workChoices', () => ({
-		vehicleUid: vehicle?.uid,
-	}))
-	try {
-		if (!vehicle) return []
-		const advertisedJobs = (
-			vehicle as VehicleEntity & {
-				readonly advertisedJobs?: readonly ProposedJob[]
-			}
-		).advertisedJobs
-		const jobs = (advertisedJobs ?? vehicle.proposedJobs ?? []) as readonly ProposedJob[]
-		return jobs
-			.map(
-				(job): VehicleWorkChoice => ({
-					jobKind: job.job,
-					targetLabel: describeVehicleWorkTarget(job),
-					targetTile: job.targetTile,
-					urgency: job.urgency,
-					jobLabel: workKindLabel(job.job),
-					metaText: `${T.character.plannerWorkUrgency} ${formatPlannerUtility(job.urgency)}`,
+	return untracked`vehicle-properties.workChoices.collect`(() => {
+		const end = profile.proposedJobs.begin?.('vehicle-properties.workChoices', () => ({
+			vehicleUid: vehicle?.uid,
+		}))
+		try {
+			if (!vehicle) return []
+			const advertisedJobs = (
+				vehicle as VehicleEntity & {
+					readonly advertisedJobs?: readonly ProposedJob[]
+				}
+			).advertisedJobs
+			const jobs = (advertisedJobs ?? vehicle.proposedJobs ?? []) as readonly ProposedJob[]
+			return jobs
+				.map(
+					(job): VehicleWorkChoice => ({
+						jobKind: job.job,
+						targetLabel: describeVehicleWorkTarget(job),
+						targetTile: job.targetTile,
+						urgency: job.urgency,
+						jobLabel: workKindLabel(job.job),
+						metaText: `${T.character.plannerWorkUrgency} ${formatPlannerUtility(job.urgency)}`,
+					})
+				)
+				.sort((a, b) => {
+					if (b.urgency !== a.urgency) return b.urgency - a.urgency
+					return a.targetLabel.localeCompare(b.targetLabel)
 				})
-			)
-			.sort((a, b) => {
-				if (b.urgency !== a.urgency) return b.urgency - a.urgency
-				return a.targetLabel.localeCompare(b.targetLabel)
-			})
-			.slice(0, rankedWorkLimit)
-	} finally {
-		end?.()
-	}
+				.slice(0, rankedWorkLimit)
+		} finally {
+			end?.()
+		}
+	})
 }
 
 const VehicleProperties = (
@@ -332,11 +338,11 @@ const VehicleProperties = (
 				</InspectorSection>
 				<InspectorSection if={state.workChoices.length > 0}>
 					<PropertyGrid>
-						<PropertyGridRow label={T.character.plannerRankedWork}>
+						<PropertyGridRow label={proposedJobsLabel()}>
 							<div class="vehicle-work__list">
 								<for each={state.workChoices}>
 									{(choice) => (
-										<div class={['vehicle-work__item']} data-testid="vehicle-ranked-work">
+										<div class={['vehicle-work__item']} data-testid="vehicle-proposed-job">
 											<LinkedEntityControl
 												if={resolveWorkTarget(choice)}
 												object={resolveWorkTarget(choice)!}

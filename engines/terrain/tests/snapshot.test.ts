@@ -311,24 +311,13 @@ describe('incremental snapshots', () => {
 		}
 	})
 
-	it('keeps border-touching edges even when the requested tile is the second endpoint', () => {
-		const candidate = [
-			{ seed: 42, size: 12 },
-			{ seed: 100, size: 12 },
-			{ seed: 999, size: 12 },
-		]
-			.map(({ seed, size }) => {
-				const full = generate(seed, size)
-				return [...full.edges.keys()].find((key) => {
-					const requestedKey = key.split('-')[1]!
-					const [q, r] = requestedKey.split(',').map(Number)
-					const clipped = generateHydratedRegion(seed, [{ q, r }], { hydrologyPadding: 4 })
-					return clipped.edges.has(key)
-				})
-			})
-			.find((value) => value !== undefined)
-
-		expect(candidate).toBeDefined()
+	it('emits no clipped hydrology edges while generated rivers are inactive', () => {
+		const clipped = generateHydratedRegion(42, [{ q: 0, r: 0 }], { hydrologyPadding: 4 })
+		expect(clipped.edges.size).toBe(0)
+		expect(clipped.hydrology.banks.size).toBe(0)
+		expect(clipped.hydrology.channels.size).toBe(0)
+		expect(clipped.hydrology.channelInfluence.size).toBe(0)
+		expect(clipped.hydrology.riverFlow).toBeUndefined()
 	})
 
 	it('generateHydratedRegionAsync() stays parity-safe with sync hydrated regions', async () => {

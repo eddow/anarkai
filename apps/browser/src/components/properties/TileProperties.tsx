@@ -296,7 +296,7 @@ const AlveolusTileHeader = (props: AlveolusTileHeaderProps) => {
 					height={32}
 				/>
 				<WorkingIndicator
-					checked={!!model.contentCase?.content.working}
+					checked={model.contentCase!.content.working}
 					burdened={props.tile.isBurdened}
 					tooltip={T.alveolus.workingTooltip}
 				/>

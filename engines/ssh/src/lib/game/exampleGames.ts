@@ -14,23 +14,23 @@ export const chopSaw = {
 	seed: 549,
 	terrains: {
 		concrete: [
-			[10, -8],
-			[13, -7],
-			[11, -8],
-			[11, -7],
-			[12, -8],
-			[12, -7],
+			[-1, -1],
+			[2, 0],
+			[0, -1],
+			[0, 0],
+			[1, -1],
+			[1, 0],
 		],
 	},
 	hives: [
 		{
 			name: 'ChopSaw',
 			alveoli: [
-				{ alveolus: 'tree_chopper', coord: [10, -8] },
-				{ alveolus: 'stonecutter', coord: [13, -7] },
+				{ alveolus: 'tree_chopper', coord: [-1, -1] },
+				{ alveolus: 'stonecutter', coord: [2, 0] },
 				{
 					alveolus: 'storage',
-					coord: [11, -8],
+					coord: [0, -1],
 					configuration: {
 						ref: { scope: 'individual' },
 						individual: {
@@ -42,20 +42,20 @@ export const chopSaw = {
 						},
 					},
 				},
-				{ alveolus: 'freight_bay', coord: [11, -7] },
-				{ alveolus: 'engineer', coord: [12, -8] },
-				{ alveolus: 'sawmill', coord: [12, -7] },
+				{ alveolus: 'freight_bay', coord: [0, 0] },
+				{ alveolus: 'engineer', coord: [1, -1] },
+				{ alveolus: 'sawmill', coord: [1, 0] },
 			],
 		},
 	],
 	freightLines: [
 		{
-			id: 'ChopSaw:implicit-gather:11,-7',
-			name: 'ChopSaw (11, -7) gather',
+			id: 'ChopSaw:implicit-gather:0,0',
+			name: 'ChopSaw (0, 0) gather',
 			stops: [
 				{
 					id: 'ChopSaw:ig-load',
-					zone: { kind: 'radius', center: [11, -7], radius: 9 },
+					zone: { kind: 'radius', center: [0, 0], radius: 9 },
 				},
 				{
 					id: 'ChopSaw:ig-unload',
@@ -63,14 +63,14 @@ export const chopSaw = {
 						kind: 'alveolus',
 						hiveName: 'ChopSaw',
 						alveolusType: 'freight_bay',
-						coord: [11, -7],
+						coord: [0, 0],
 					},
 				},
 			],
 		},
 		{
-			id: 'ChopSaw:distribute:11,-7',
-			name: 'ChopSaw (11, -7) distribute',
+			id: 'ChopSaw:distribute:0,0',
+			name: 'ChopSaw (0, 0) distribute',
 			stops: [
 				{
 					id: 'ChopSaw:distribute-load',
@@ -79,33 +79,36 @@ export const chopSaw = {
 						kind: 'alveolus',
 						hiveName: 'ChopSaw',
 						alveolusType: 'freight_bay',
-						coord: [11, -7],
+						coord: [0, 0],
 					},
 				},
 				{
 					id: 'ChopSaw:distribute-zone',
-					zone: { kind: 'radius', center: [11, -7], radius: 9 },
+					zone: { kind: 'radius', center: [0, 0], radius: 9 },
 				},
 			],
 		},
 	],
 	zones: {
 		harvest: [
-			[8, -8],
-			[8, -7],
-			[8, -6],
-			[16, -7],
-			[16, -8],
+			[-2, 1],
+			[-3, 3],
+			[-2, 3],
+			[-1, 2],
+			[-2, 2],
+			[4, -1],
+			[2, 1],
+			[1, 2],
 		],
 		residential: [
-			[7, -6],
-			[7, -7],
+			[-4, 1],
+			[-3, 0],
 		],
 	},
 	projects: {
 		'build:storage': [
-			[9, -7],
-			[10, -7],
+			[-2, 0],
+			[-1, 0],
 		],
 	},
 	vehicles: [
@@ -113,8 +116,8 @@ export const chopSaw = {
 			// TODO: replace uids by indexes in serializations
 			uid: 'ChopSaw:wheelbarrow',
 			vehicleType: 'wheelbarrow',
-			position: { q: 10, r: -6 },
-			servedLineIds: ['ChopSaw:implicit-gather:11,-7', 'ChopSaw:distribute:11,-7'],
+			position: { q: -1, r: 1 },
+			servedLineIds: ['ChopSaw:implicit-gather:0,0', 'ChopSaw:distribute:0,0'],
 		},
 	],
 } satisfies GamePatches

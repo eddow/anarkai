@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getBorderGoodsPositions } from './border-visual'
+import { getBorderGoodsPositions, visibleBorderGateSlots } from './border-visual'
 
 describe('getBorderGoodsPositions', () => {
 	it('keeps stored goods on the border segment', () => {
@@ -19,6 +19,26 @@ describe('getBorderGoodsPositions', () => {
 		expect(getBorderGoodsPositions(center, { dx: 0, dy: 0 }, 24, 2)).toEqual([
 			{ x: 100, y: 200 },
 			{ x: 100, y: 200 },
+		])
+	})
+
+	it('keeps purely reserved gate slots visible while they wait on the border', () => {
+		expect(
+			visibleBorderGateSlots([
+				{ goodType: 'wood', present: 0, reserved: 1, allocated: 0, allowed: 1 },
+			])
+		).toEqual([{ goodType: 'wood', present: 0, reserved: 1, allocated: 0, allowed: 1 }])
+	})
+
+	it('hides claimed reserved gate slots while their hop is active', () => {
+		expect(
+			visibleBorderGateSlots([
+				{ goodType: 'wood', present: 0, reserved: 1, allocated: 0, allowed: 1 },
+				{ goodType: 'stone', present: 0, reserved: 0, allocated: 1, allowed: 1 },
+			], { wood: 1 })
+		).toEqual([
+			{ present: 0, reserved: 0, allocated: 0, allowed: 1 },
+			{ goodType: 'stone', present: 0, reserved: 0, allocated: 1, allowed: 1 },
 		])
 	})
 })

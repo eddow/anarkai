@@ -163,6 +163,22 @@ describe('Convey hop mechanism', () => {
 		}
 	})
 
+	it('requires the conveyor planning range to be the assigned tile', () => {
+		const work = new WorkFunctions()
+		const character = {
+			tile: { position: { q: 0, r: -1 } },
+		}
+		const target = {
+			tile: { position: { q: 0, r: 0 } },
+		}
+		Object.assign(work, { [subject]: character })
+
+		expect(work.inConveyRange({ target } as any)).toBe(false)
+
+		character.tile.position = { q: 0, r: 0 }
+		expect(work.inConveyRange({ target } as any)).toBe(true)
+	})
+
 	it('cancels the created convey step when hop storage allocation is refused', async () => {
 		const engine = new TestEngine({
 			terrainSeed: 1234,

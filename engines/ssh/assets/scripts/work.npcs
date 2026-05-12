@@ -65,7 +65,7 @@ end function
 function convey(jobPlan)
 	if not work.inConveyRange(jobPlan) then
 		path = jobPlan.path
-		if path and path.length > 0 then walk.until path
+		if path and path.length > 0 then walk.into path
 	end if
 	assignAlveolus jobPlan
 	work.prepare jobPlan

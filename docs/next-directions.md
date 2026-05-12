@@ -25,7 +25,10 @@ Still architecturally important:
 ## Details to add
 
 - alveoli configurations (ex storage buffer/allowance) should be able to be memorized, given a name and re-used with a combo-box containing all applicable configurations, "specific" = for this alveoli only or the ability to create a new configuration (no add button, just entering a text in the combo and checking for conflict)
-- named zones, selectable zone inspectors, line board previews, hovered-stop highlights, and a compact stop table are now landed for freight authoring v2
+- zone widgets have a property "tiles: #", it should now be a stat line with tool-tipped icons, with amount of tiles, area (, ... ?)
+- We'll need to add config for: locale, measure units (1 tile-border = 3m = 10feet), decimal/duo-decimal
+- we should have bay-less roads (from zone to zone)
+- "lines" management widget with filters: "have bay" (yes/all/no) and "visible" (only-intersecting-the-game-view:bool)
 
 ## Recommended Next Tranche
 
@@ -59,25 +62,7 @@ Risks:
 
 ### 2. Shops, markets, and consumption
 
-Shops turn production chains into visible demand instead of pure stockpiling.
-
-Potential scope:
-
-- Shop alveoli or market buildings with accepted goods and local demand.
-- NPC purchase/consume jobs.
-- Prices or simple priority weights.
-- Food/material consumption by citizens, villages, or visiting NPCs.
-- UI for demand, stock, and satisfaction.
-
-Good follow-up to:
-
-- Existing storage, transform, and freight systems.
-- NPC settlement work, if shops become the interface between player production and external populations.
-
-Risks:
-
-- Needs a clear model for who consumes goods.
-- Can become economy design before the world has enough actors to make demand feel alive.
+TODO
 
 ### 3. More game content
 

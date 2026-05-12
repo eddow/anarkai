@@ -2,14 +2,10 @@ import { css } from '@app/lib/css'
 import { T } from '@app/lib/i18n'
 import { workPlanningPresentationRevision } from '@app/lib/presentation-events'
 import { InspectorSection } from '@app/ui/anarkai'
-import { effect, reactive } from 'mutts'
+import { effect, reactive, untracked } from 'mutts'
 import { Tile } from 'ssh/board/tile'
 import { profile } from 'ssh/dev/debug'
-import {
-	collectTileWorkPicks,
-	type TileWorkPick,
-	tileRankedWorkPicksLimitDefault,
-} from 'ssh/tile-work'
+import type { ProposedJob } from 'ssh/jobs/offers'
 import type { JobType } from 'ssh/types/base'
 import { axial, toAxialCoord } from 'ssh/utils'
 import LinkedEntityControl from '../LinkedEntityControl'
@@ -86,13 +82,16 @@ function workKindLabel(kind: JobType): string {
 	return T.character.plannerWorkKinds[kind] ?? kind
 }
 
+function proposedJobsLabel(): string {
+	return (T.tile as { proposedJobs?: string } | undefined)?.proposedJobs ?? 'Proposed jobs'
+}
+
 function tileLabel(tile: Tile): string {
 	const coord = toAxialCoord(tile.position)
 	return tile.title ?? (coord ? axial.key(coord) : '')
 }
 
-function describeWorkDetail(choice: TileWorkPick): string {
-	const job = choice.job
+function describeJobDetail(job: ProposedJob): string {
 	switch (job.job) {
 		case 'vehicleOffload': {
 			const detail =
@@ -106,37 +105,32 @@ function describeWorkDetail(choice: TileWorkPick): string {
 		case 'zoneBrowse':
 			return `${job.zoneBrowseAction}:${job.goodType} @ ${job.targetCoord.q},${job.targetCoord.r}`
 		case 'defragment':
-			return `${job.goodType} @ ${tileLabel(choice.targetTile)}`
+			return `${job.goodType} @ ${tileLabel(job.targetTile)}`
 		default:
-			return tileLabel(choice.targetTile)
+			return tileLabel(job.targetTile)
 	}
 }
 
 function tileWorkChoices(tile: Tile | undefined) {
 	workPlanningPresentationRevision()
-	const end = profile.proposedJobs.begin?.('tile-properties.workChoices', () => ({
-		tileUid: tile?.uid,
-	}))
-	try {
-		const game = tile?.game
-		if (!game || !(tile instanceof Tile)) return []
-		return collectTileWorkPicks(game, tile, tileRankedWorkPicksLimitDefault).map((choice) => ({
-			...choice,
-			jobLabel: workKindLabel(choice.job.job),
-			scoreText: formatPlannerUtility(choice.score),
-			detailText: describeWorkDetail(choice),
-			metaText: [
-				choice.character.title ?? choice.character.name,
-				choice.vehicle?.title,
-				`${T.character.plannerWorkUrgency} ${formatPlannerUtility(choice.urgency)}`,
-				`${T.character.plannerWorkPath} ${choice.pathLength}`,
-			]
-				.filter((text): text is string => !!text)
-				.join(' · '),
+	return untracked`tile-properties.proposedJobs.collect`(() => {
+		const end = profile.proposedJobs.begin?.('tile-properties.proposedJobs', () => ({
+			tileUid: tile?.uid,
 		}))
-	} finally {
-		end?.()
-	}
+		try {
+			if (!(tile instanceof Tile)) return []
+			return tile.proposedJobs.map((job) => ({
+				job,
+				targetTile: job.targetTile,
+				jobLabel: workKindLabel(job.job),
+				urgencyText: formatPlannerUtility(job.urgency),
+				detailText: describeJobDetail(job),
+				metaText: `${T.character.plannerWorkUrgency} ${formatPlannerUtility(job.urgency)}`,
+			}))
+		} finally {
+			end?.()
+		}
+	})
 }
 
 const TileWorkProperties = (props: TileWorkPropertiesProps) => {
@@ -151,19 +145,19 @@ const TileWorkProperties = (props: TileWorkPropertiesProps) => {
 	return (
 		<InspectorSection if={state.choices.length > 0}>
 			<PropertyGrid>
-				<PropertyGridRow label={T.character.plannerRankedWork}>
+				<PropertyGridRow label={proposedJobsLabel()}>
 					<div class="tile-work__list">
 						<for each={state.choices}>
 							{(choice) => (
-								<div class="tile-work__item" data-testid="tile-ranked-work">
+								<div class="tile-work__item" data-testid="tile-proposed-job">
 									<LinkedEntityControl
-										object={choice.vehicle ?? choice.character}
+										object={choice.targetTile}
 										class="tile-work__target-control"
 									/>
 									<div class="tile-work__content">
 										<div class="tile-work__header">
 											<span class="tile-work__type">{choice.jobLabel}</span>
-											<span class="tile-work__score">{choice.scoreText}</span>
+											<span class="tile-work__score">{choice.urgencyText}</span>
 										</div>
 										<div class="tile-work__meta">{choice.detailText}</div>
 										<div class="tile-work__meta">{choice.metaText}</div>

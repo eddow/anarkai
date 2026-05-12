@@ -1,3 +1,4 @@
+import { jobBalance } from 'engine-rules'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import { namedTrace, traces } from 'ssh/dev/debug'
 import type { FreightLineDefinition } from 'ssh/freight/freight-line'
@@ -7,7 +8,10 @@ import {
 	collectDockedVehicleAdvertisementCandidates,
 	dockedVehicleGoodsRelations,
 } from 'ssh/freight/vehicle-freight-dock'
-import { maybeAdvanceVehicleFromCompletedAnchorStop } from 'ssh/freight/vehicle-run'
+import {
+	maybeAdvanceVehicleFromCompletedAnchorStop,
+	pickInitialVehicleServiceCandidate,
+} from 'ssh/freight/vehicle-run'
 import { findVehicleHopJob, findVehicleOffloadJob } from 'ssh/freight/vehicle-work'
 import type { SaveState } from 'ssh/game'
 import type { FreightBayAlveolus } from 'ssh/hive/freight-bay'
@@ -238,7 +242,19 @@ describe('vehicle-freight-dock', () => {
 						name: 'DockFullBay',
 						alveoli: [
 							{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
-							{ coord: [1, 0], alveolus: 'storage', goods: {} },
+							{
+								coord: [1, 0],
+								alveolus: 'storage',
+								goods: {},
+								configuration: {
+									ref: { scope: 'individual' },
+									individual: {
+										working: true,
+										generalSlots: 0,
+										goods: { wood: { minSlots: 1, maxSlots: 1 } },
+									},
+								},
+							},
 						],
 					},
 				],
@@ -743,6 +759,67 @@ describe('vehicle-freight-dock', () => {
 						source: expect.objectContaining({ kind: 'vehicle' }),
 					}),
 				])
+			)
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('begins a distribute line from buffered hive stock when downstream construction needs it', async () => {
+		const engine = new TestEngine({ terrainSeed: 12014, characterCount: 0 })
+		await engine.init()
+		try {
+			const line = distributeFreightLine({
+				id: 'dock:distribute-empty',
+				name: 'Dock distribute empty',
+				hiveName: 'DockDistributeEmpty',
+				coord: [0, 0],
+				filters: ['wood'],
+				unloadRadius: 1,
+			})
+			engine.loadScenario({
+				tiles: [{ coord: [0, -1], terrain: 'grass' }],
+				hives: [
+					{
+						name: 'DockDistributeEmpty',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
+							{ coord: [1, 0], alveolus: 'storage', goods: {} },
+						],
+					},
+				],
+				freightLines: [line],
+			} satisfies Partial<SaveState>)
+			const constructionTile = engine.game.hex.getTile({ q: 0, r: -1 })!
+			constructionTile.content = new BuildDwelling(constructionTile, 'basic_dwelling')
+
+			const worker = engine.game.population.createCharacter('NoStockWorker', { q: 0, r: 0 })
+			const vehicle = engine.game.vehicles.createVehicle(
+				'dock-distribute-empty-v',
+				'wheelbarrow',
+				{ q: 0, r: 0 },
+				[line]
+			)
+
+			const storage = engine.game.hex.getTile({ q: 1, r: 0 })?.content as
+				| StorageAlveolus
+				| undefined
+			storage?.setBuffers({ wood: 1 })
+			storage?.storage.addGood('wood', 1)
+			expect(storage?.storage.available('wood')).toBe(1)
+			expect(storage?.goodsRelations.wood?.advertisement).not.toBe('provide')
+			const bufferedPick = pickInitialVehicleServiceCandidate(engine.game, worker, vehicle)
+			expect(bufferedPick).toMatchObject({ line, stop: line.stops[0] })
+			const neededWood = (constructionTile.content as BuildDwelling).remainingNeeds.wood ?? 0
+			expect(bufferedPick?.urgency).toBe(
+				jobBalance.vehicleBeginService * (Math.min(neededWood, 2) / 1)
+			)
+
+			storage?.storage.addGood('wood', 3)
+			const pick = pickInitialVehicleServiceCandidate(engine.game, worker, vehicle)
+			expect(pick).toMatchObject({ line, stop: line.stops[0] })
+			expect(pick?.urgency).toBe(
+				jobBalance.vehicleBeginService * (Math.min(neededWood, 2) / 4)
 			)
 		} finally {
 			await engine.destroy()

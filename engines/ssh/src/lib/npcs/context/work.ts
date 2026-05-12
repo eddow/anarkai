@@ -132,6 +132,12 @@ function enqueueConveyedHopEvents(
 	}
 }
 
+function enqueueBorderStoragePresentationChange(character: Character, coord: AxialCoord): void {
+	if (isTileCoord(coord)) return
+	const border = character.game.hex.getBorder(coord)
+	if (border) character.game.enqueueStoragePresentationChange(border)
+}
+
 class ConstructionDurationStep extends DurationStep {
 	constructor(
 		duration: number,
@@ -320,7 +326,7 @@ class WorkFunctions {
 		const characterCoord = toAxialCoord(character.tile.position)
 		const targetCoord = toAxialCoord(target.tile.position)
 		if (!characterCoord || !targetCoord) return false
-		return axial.distance(characterCoord, targetCoord) <= 1
+		return axial.key(characterCoord) === axial.key(targetCoord)
 	}
 
 	@contract()
@@ -414,11 +420,7 @@ class WorkFunctions {
 		const characterCoord = toAxialCoord(character.tile.position)
 		const assignedCoord = toAxialCoord(alveolus.tile.position)
 		const onAssignedTile = axial.key(characterCoord) === axial.key(assignedCoord)
-		const adjacentToAssignedTile = axial.distance(characterCoord, assignedCoord) <= 1
-		assert(
-			onAssignedTile || adjacentToAssignedTile,
-			'Character must be on or adjacent to the assigned convey alveolus'
-		)
+		assert(onAssignedTile, 'Character must be on the assigned convey alveolus tile')
 		// Get movement(s) - either a single movement or a cycle
 		const movements = alveolus.aGoodMovement
 		if (!movements || movements.length === 0) {
@@ -502,6 +504,7 @@ class WorkFunctions {
 					from
 				)
 				claimMovement(movement)
+				enqueueBorderStoragePresentationChange(character, from)
 				movementHive.assertMovementMine(movement, {
 					label: 'conveyStep.after-claim.before-source-fulfill',
 					expectedFrom: from,

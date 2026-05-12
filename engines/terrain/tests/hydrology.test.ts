@@ -175,11 +175,13 @@ describe('runHydrology()', () => {
 })
 
 describe('generate() hydrology', () => {
-	it('large boards often have river edges', () => {
+	it('leaves river edges empty while generated rivers are inactive', () => {
 		const snap = generate(42, 12)
-		let maxFlux = 0
-		for (const e of snap.edges.values()) maxFlux = Math.max(maxFlux, e.flux)
-		expect(maxFlux).toBeGreaterThan(5)
+		expect(snap.edges.size).toBe(0)
+		expect(snap.hydrology.banks.size).toBe(0)
+		expect(snap.hydrology.channels.size).toBe(0)
+		expect(snap.hydrology.channelInfluence.size).toBe(0)
+		expect(snap.hydrology.riverFlow).toBeUndefined()
 	})
 
 	it('deterministic edges for same seed and boardSize', () => {

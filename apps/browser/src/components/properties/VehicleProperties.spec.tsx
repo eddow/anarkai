@@ -302,7 +302,7 @@ describe('VehicleProperties', () => {
 		).toBe(false)
 	})
 
-	it('shows ranked vehicle work from proposed vehicle jobs', () => {
+	it('shows proposed vehicle jobs without character contract details', () => {
 		const operator = { uid: 'char-jobs', title: 'Bo' }
 		const targetTile = {
 			uid: 'tile:2,0',
@@ -339,7 +339,7 @@ describe('VehicleProperties', () => {
 		} as never)
 
 		const rows = Array.from(
-			container.querySelectorAll('[data-testid="vehicle-ranked-work"]')
+			container.querySelectorAll('[data-testid="vehicle-proposed-job"]')
 		) as HTMLDivElement[]
 		expect(rows).toHaveLength(1)
 		expect(rows[0]?.textContent).toContain('vehicleOffload')
@@ -347,7 +347,7 @@ describe('VehicleProperties', () => {
 		expect(rows[0]?.textContent).not.toContain('Bo')
 	})
 
-	it('reads proposed vehicle jobs once for the ranked-work render', () => {
+	it('reads proposed vehicle jobs once for the proposed-job render', () => {
 		const targetTile = {
 			uid: 'tile:2,0',
 			title: 'Tile 2, 0',
@@ -382,7 +382,7 @@ describe('VehicleProperties', () => {
 			setTitle: vi.fn(),
 		} as never)
 
-		expect(container.querySelectorAll('[data-testid="vehicle-ranked-work"]')).toHaveLength(1)
+		expect(container.querySelectorAll('[data-testid="vehicle-proposed-job"]')).toHaveLength(1)
 		expect(proposedJobsGetter).toHaveBeenCalledTimes(1)
 	})
 
@@ -425,7 +425,7 @@ describe('VehicleProperties', () => {
 			setTitle: vi.fn(),
 		} as never)
 
-		expect(container.querySelectorAll('[data-testid="vehicle-ranked-work"]')).toHaveLength(1)
+		expect(container.querySelectorAll('[data-testid="vehicle-proposed-job"]')).toHaveLength(1)
 		expect(advertisedJobsGetter).toHaveBeenCalledTimes(1)
 		expect(proposedJobsGetter).not.toHaveBeenCalled()
 	})

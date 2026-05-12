@@ -164,6 +164,46 @@ describe('VisualFactory batched lifecycle sync', () => {
 		}
 	})
 
+	it('recovers missing border storage visuals from border presentation events', async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+
+		try {
+			engine.loadScenario({
+				hives: [
+					{
+						name: 'TestHive',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'storage', goods: { wood: 1 } },
+							{ coord: [1, 0], alveolus: 'storage', goods: {} },
+						],
+					},
+				],
+				population: [],
+			} as any)
+
+			const renderer = createRendererStub(engine.game)
+			const factory = new VisualFactory(renderer)
+			factory.bind()
+
+			const border = engine.game.hex.getBorder({ q: 0.5, r: 0 })
+			if (!border) throw new Error('Expected border to exist')
+			renderer.visuals.get(border.uid)?.dispose()
+			renderer.visuals.delete(border.uid)
+			expect(renderer.visuals.has(border.uid)).toBe(false)
+
+			engine.game.emit('presentationEvents', [
+				{ type: 'storage.changed', ownerUid: border.uid },
+			])
+
+			expect(renderer.visuals.has(border.uid)).toBe(true)
+
+			factory.destroy()
+		} finally {
+			await engine.destroy()
+		}
+	})
+
 	it('refreshes docked vehicle overlays from presentation event batches', async () => {
 		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
 		await engine.init()

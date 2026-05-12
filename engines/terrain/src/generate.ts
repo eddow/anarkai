@@ -11,7 +11,7 @@ import {
 } from './fields'
 import { axial } from './hex/axial'
 import type { AxialCoord, AxialKey } from './hex/types'
-import { runHydrologyDetailed } from './hydrology'
+import type { HydrologyResult } from './hydrology'
 import {
 	type BiomeHint,
 	DEFAULT_TERRAIN_CONFIG,
@@ -105,6 +105,15 @@ export function createSnapshot(seed: number): TerrainSnapshot {
 			channels: new Set(),
 			channelInfluence: new Map(),
 		},
+	}
+}
+
+function emptyHydrologyResult(): HydrologyResult {
+	return {
+		edges: new Map(),
+		banks: new Map(),
+		channels: new Set(),
+		channelInfluence: new Map(),
 	}
 }
 
@@ -267,7 +276,9 @@ export function generateHydratedRegionWithMetrics(
 	if (tileOverrides) {
 		applyTileOverrides(workingSnapshot, tileOverrides, options)
 	}
-	const hydrology = runHydrologyDetailed(tiles, seed, config)
+	// Rivers are deactivated for now.
+	// const hydrology = runHydrologyDetailed(tiles, seed, config)
+	const hydrology = emptyHydrologyResult()
 	const afterHydrologyAt = nowMs()
 	const snapshot = clipHydratedSnapshot(
 		seed,
@@ -348,7 +359,9 @@ export async function generateHydratedRegionAsyncWithMetrics(
 	if (tileOverrides) {
 		applyTileOverrides(workingSnapshot, tileOverrides, options)
 	}
-	const hydrology = runHydrologyDetailed(tiles, seed, config)
+	// Rivers are deactivated for now.
+	// const hydrology = runHydrologyDetailed(tiles, seed, config)
+	const hydrology = emptyHydrologyResult()
 	const afterHydrologyAt = nowMs()
 	const snapshot = clipHydratedSnapshot(
 		seed,
@@ -471,7 +484,7 @@ export function generateTile(
 
 /**
  * Generate a complete terrain snapshot for a hexagonal region.
- * Pipeline: hex enumeration → CPU fields → hydrology → classification.
+ * Pipeline: hex enumeration -> CPU fields -> classification.
  */
 export function generate(
 	seed: number,
@@ -497,7 +510,9 @@ export function generate(
 	if (tileOverrides) {
 		applyTileOverrides(snapshot, tileOverrides, options)
 	}
-	const hydrology = runHydrologyDetailed(tiles, seed, config)
+	// Rivers are deactivated for now.
+	// const hydrology = runHydrologyDetailed(tiles, seed, config)
+	const hydrology = emptyHydrologyResult()
 	const edges = hydrology.edges
 
 	const biomes = new Map<AxialKey, BiomeHint>()
@@ -563,7 +578,9 @@ export async function generateAsync(
 	if (tileOverrides) {
 		applyTileOverrides(snapshot, tileOverrides, options)
 	}
-	const hydrology = runHydrologyDetailed(tiles, seed, config)
+	// Rivers are deactivated for now.
+	// const hydrology = runHydrologyDetailed(tiles, seed, config)
+	const hydrology = emptyHydrologyResult()
 	const edges = hydrology.edges
 
 	const biomes = new Map<AxialKey, BiomeHint>()

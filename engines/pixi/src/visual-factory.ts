@@ -228,6 +228,32 @@ export class VisualFactory {
 		return { visual, reused: false }
 	}
 
+	private borderFromUid(uid: string): TileBorder | undefined {
+		const match = /^border:([^,]+),([^,]+)$/.exec(uid)
+		if (!match) return undefined
+		const q = Number(match[1])
+		const r = Number(match[2])
+		if (!Number.isFinite(q) || !Number.isFinite(r)) return undefined
+		return this.renderer.game.hex.getBorder({ q, r })
+	}
+
+	private ensureBorderVisual(border: TileBorder): VisualObject<TileBorder> | undefined {
+		const result = this.create(border, BorderVisual)
+		const visual = result.visual
+		if (!visual) return undefined
+		if (visual.view.parent !== this.renderer.worldScene) {
+			this.renderer.worldScene.addChild(visual.view)
+		}
+		this.diagnostics.current = this.getCurrentVisualCounts()
+		return visual
+	}
+
+	private ensureTileBorderVisuals(tile: Tile): void {
+		for (const { border } of tile.surroundings) {
+			this.ensureBorderVisual(border)
+		}
+	}
+
 	private createBatch(
 		objects: Iterable<InteractiveGameObject>,
 		reason: VisualBatchDiagnostics['reason']
@@ -374,6 +400,7 @@ export class VisualFactory {
 				const existing = this.renderer.visuals.get(object.uid)
 				if (this.shouldCreateTileVisual(object)) {
 					if (!existing) changedForCreation.push(object)
+					else this.ensureTileBorderVisuals(object)
 				} else if (existing) {
 					existing.dispose()
 					this.renderer.visuals.delete(object.uid)
@@ -396,7 +423,11 @@ export class VisualFactory {
 			if (event.type === 'storage.changed') {
 				if (refreshedStorage.has(event.ownerUid)) continue
 				refreshedStorage.add(event.ownerUid)
-				const visual = this.renderer.visuals.get(event.ownerUid)
+				let visual = this.renderer.visuals.get(event.ownerUid)
+				if (!visual) {
+					const border = this.borderFromUid(event.ownerUid)
+					if (border) visual = this.ensureBorderVisual(border)
+				}
 				if (!canRefreshStoredGoods(visual)) continue
 				visual.refreshStoredGoods()
 				continue

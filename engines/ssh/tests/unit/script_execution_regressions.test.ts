@@ -1,5 +1,10 @@
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 describe('Script execution regressions', () => {
 	it('goHome falls back to a real ScriptExecution step when no home exists', async () => {
@@ -33,5 +38,16 @@ describe('Script execution regressions', () => {
 		} finally {
 			await engine.destroy()
 		}
+	})
+
+	it('convey approach enters the target tile center before work starts', () => {
+		const script = readFileSync(
+			resolve(__dirname, '../../assets/scripts/work.npcs'),
+			'utf8'
+		)
+		const conveyBody = script.match(/function convey\(jobPlan\)([\s\S]*?)end function/)?.[1]
+
+		expect(conveyBody).toContain('walk.into path')
+		expect(conveyBody).not.toContain('walk.until path')
 	})
 })

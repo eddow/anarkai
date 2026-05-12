@@ -3,7 +3,7 @@
  * Must stay assignable to `TerrainConfig` in engine-terrain (validated at re-export site).
  */
 export const defaultTerrainConfig = {
-	scale: 0.05,
+	scale: 0.005,
 	terrainTypeScale: 1.2,
 	octaves: 5,
 	persistence: 0.6,

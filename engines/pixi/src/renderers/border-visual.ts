@@ -2,7 +2,8 @@ import { effect } from 'mutts'
 import { Container } from 'pixi.js'
 import type { TileBorder } from 'ssh/board/border/border'
 import type { RenderedGoodSlot } from 'ssh/storage/types'
-import { toWorldCoord } from 'ssh/utils/position'
+import type { GoodType } from 'ssh/types'
+import { toAxialCoord, toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
 import { scopedPixiName, setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
@@ -16,10 +17,28 @@ type GateLike = {
 			slots: RenderedGoodSlot[]
 		}
 	}
+	hive?: {
+		movingGoods?: {
+			get(coord: { q: number; r: number }): Array<{ goodType: GoodType; claimed?: boolean }> | undefined
+		}
+	}
 }
 
 function isGateLike(value: unknown): value is GateLike {
 	return !!value && typeof value === 'object' && 'storage' in value
+}
+
+export function visibleBorderGateSlots(
+	slots: RenderedGoodSlot[],
+	hiddenReservedGoods: Partial<Record<GoodType, number>> = {}
+): RenderedGoodSlot[] {
+	return slots.map((slot) => {
+		if (slot.present || slot.allocated || !slot.reserved || !slot.goodType) return slot
+		const hidden = hiddenReservedGoods[slot.goodType] ?? 0
+		if (hidden <= 0) return slot
+		hiddenReservedGoods[slot.goodType] = hidden - 1
+		return { present: 0, reserved: 0, allocated: 0, allowed: slot.allowed }
+	})
 }
 
 export class BorderVisual extends VisualObject<TileBorder> {
@@ -78,13 +97,14 @@ export class BorderVisual extends VisualObject<TileBorder> {
 		if (!storage) return
 
 		const { slots } = storage.renderedGoods()
+		const visibleSlots = visibleBorderGateSlots(slots, this.claimedGoodsAtBorder(gate))
 		const positions = getBorderGoodsPositions(
 			{ x: 0, y: 0 },
 			borderDirection,
 			tileSize * 0.8,
-			slots.length
+			visibleSlots.length
 		)
-		this.gateGoodsRenderers = slots.flatMap((slot, i) => {
+		this.gateGoodsRenderers = visibleSlots.flatMap((slot, i) => {
 			const position = positions[i]
 			if (!position) return []
 			const renderer = createGoodsRenderer(
@@ -98,6 +118,17 @@ export class BorderVisual extends VisualObject<TileBorder> {
 			renderer.render()
 			return [renderer]
 		})
+	}
+
+	private claimedGoodsAtBorder(gate: GateLike): Partial<Record<GoodType, number>> {
+		const coord = toAxialCoord(this.object.position)
+		const movements = coord ? gate.hive?.movingGoods?.get(coord) : undefined
+		const claimed: Partial<Record<GoodType, number>> = {}
+		for (const movement of movements ?? []) {
+			if (!movement.claimed) continue
+			claimed[movement.goodType] = (claimed[movement.goodType] ?? 0) + 1
+		}
+		return claimed
 	}
 
 	public refreshStoredGoods() {

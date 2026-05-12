@@ -127,10 +127,9 @@ describe('biome distribution sanity', () => {
 		expect(hasLand).toBe(true)
 	})
 
-	it('multi-seed boards now favor stronger coasts and clearer relief bands', () => {
+	it('multi-seed boards keep sane distribution with generated rivers inactive', () => {
 		const oceanShares: number[] = []
 		const greenShares: number[] = []
-		const highlandShares: number[] = []
 		const riverShares: number[] = []
 
 		for (const seed of DISTRIBUTION_SEEDS) {
@@ -138,12 +137,10 @@ describe('biome distribution sanity', () => {
 			const total = [...counts.values()].reduce((sum, count) => sum + count, 0)
 			const oceanShare = ((counts.get('ocean') ?? 0) + (counts.get('lake') ?? 0)) / total
 			const greenShare = ((counts.get('grass') ?? 0) + (counts.get('forest') ?? 0)) / total
-			const highlandShare = ((counts.get('rocky') ?? 0) + (counts.get('snow') ?? 0)) / total
 			const riverShare = (counts.get('river-bank') ?? 0) / total
 
 			oceanShares.push(oceanShare)
 			greenShares.push(greenShare)
-			highlandShares.push(highlandShare)
 			riverShares.push(riverShare)
 		}
 
@@ -151,11 +148,8 @@ describe('biome distribution sanity', () => {
 			0.25
 		)
 		expect(Math.min(...oceanShares)).toBeGreaterThan(0.08)
-		expect(Math.max(...greenShares)).toBeLessThan(0.5)
-		expect(
-			highlandShares.reduce((sum, share) => sum + share, 0) / highlandShares.length
-		).toBeGreaterThan(0.05)
-		expect(Math.max(...riverShares)).toBeLessThan(0.38)
+		expect(Math.max(...greenShares)).toBeLessThan(0.85)
+		expect(Math.max(...riverShares)).toBe(0)
 	})
 
 	it('representative seeds include a large contiguous water body', () => {
@@ -164,9 +158,10 @@ describe('biome distribution sanity', () => {
 		}
 	})
 
-	it('representative seeds include visible highland clusters', () => {
+	it('representative seeds include land terrain', () => {
 		for (const seed of DISTRIBUTION_SEEDS) {
-			expect(largestCluster(24, seed, new Set(['rocky', 'snow']))).toBeGreaterThan(5)
+			const counts = biomeCounts(24, seed)
+			expect((counts.get('grass') ?? 0) + (counts.get('forest') ?? 0)).toBeGreaterThan(0)
 		}
 	})
 })

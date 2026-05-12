@@ -21,7 +21,8 @@
 		"unwalkable": "Impraticable",
 		"zone": "Zone",
 		"zoneResidential": "Résidentiel",
-		"zoneHarvest": "Récolte"
+		"zoneHarvest": "Récolte",
+		"proposedJobs": "Offres de travail"
 	},
 	"character": {
 		"hunger": "Faim",

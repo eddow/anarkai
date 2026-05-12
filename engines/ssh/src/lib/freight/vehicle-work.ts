@@ -1077,7 +1077,7 @@ export function findVehicleApproachJob(
 export function findVehicleBeginServiceLeg(
 	game: Game,
 	character: Character
-): { vehicleUid: string; lineId: string; stopId: string } | undefined {
+): { vehicleUid: string; lineId: string; stopId: string; urgency: number } | undefined {
 	if (!character.driving || !character.operates) return undefined
 	const vehicle = character.operates
 	if (vehicle.vehicleType !== LINE_FREIGHT_VEHICLE) return undefined
@@ -1086,7 +1086,12 @@ export function findVehicleBeginServiceLeg(
 	if (vehicle.servedLines.length === 0) return undefined
 	const pick = pickInitialVehicleServiceCandidate(game, character, vehicle)
 	if (!pick) return undefined
-	return { vehicleUid: vehicle.uid, lineId: pick.line.id, stopId: pick.stop.id }
+	return {
+		vehicleUid: vehicle.uid,
+		lineId: pick.line.id,
+		stopId: pick.stop.id,
+		urgency: pick.urgency,
+	}
 }
 
 /** Same as {@link findVehicleBeginServiceLeg}, as a `vehicleHop` plan with {@link VehicleHopJob.needsBeginService}. */
@@ -1098,7 +1103,7 @@ export function findVehicleBeginServiceJob(
 	if (!leg) return undefined
 	return {
 		job: 'vehicleHop',
-		urgency: jobBalance.vehicleBeginService,
+		urgency: leg.urgency,
 		fatigue: 1,
 		vehicleUid: leg.vehicleUid,
 		lineId: leg.lineId,
@@ -1419,7 +1424,7 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 			if (!vehicle || vehicle.uid !== beginLeg.vehicleUid) return undefined
 			return {
 				job: 'vehicleHop',
-				urgency: jobBalance.vehicleBeginService,
+				urgency: beginLeg.urgency,
 				fatigue: 1,
 				vehicleUid: beginLeg.vehicleUid,
 				lineId: beginLeg.lineId,
@@ -1492,11 +1497,14 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 				if (path.length === 0 && !sameHex) return undefined
 			}
 		}
+		const beginServiceUrgency =
+			'urgency' in pick && typeof pick.urgency === 'number' ? pick.urgency : 0
 		return {
 			job: 'vehicleHop',
 			urgency: Math.max(
 				jobBalance.vehicleHop,
 				jobBalance.vehicleApproach,
+				beginServiceUrgency,
 				lineHopUrgencyForZoneSelection(zoneSelection)
 			),
 			fatigue: 1,
@@ -1522,6 +1530,23 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 export interface VehicleWorkPick {
 	readonly job: VehicleHopJob | ZoneBrowseJob | VehicleOffloadJob
 	readonly targetTile: Tile
+}
+
+function hasVehicleZoneTransferPayload(
+	job: VehicleHopJob | ZoneBrowseJob
+): boolean {
+	if (job.zoneBrowseAction !== 'load' && job.zoneBrowseAction !== 'provide') return false
+	if (!job.goodType) return false
+	if (!job.targetCoord || !toAxialCoord(job.targetCoord)) return false
+	return true
+}
+
+export function isCompleteVehicleWorkPick(pick: VehicleWorkPick): boolean {
+	const { job } = pick
+	if (job.job === 'zoneBrowse') return hasVehicleZoneTransferPayload(job)
+	if (job.job !== 'vehicleHop') return true
+	if (job.zoneBrowseAction === undefined) return true
+	return hasVehicleZoneTransferPayload(job)
 }
 
 function describeVehicleService(vehicle: VehicleEntity): Record<string, unknown> | undefined {
@@ -1642,6 +1667,22 @@ function collectVehicleWorkPicksUncached(game: Game, character: Character): Vehi
 			)
 		) {
 			out.push(advertisedOffload)
+		}
+		for (let i = out.length - 1; i >= 0; i--) {
+			const pick = out[i]!
+			if (isCompleteVehicleWorkPick(pick)) continue
+			traces.vehicle.warn?.('vehicleJob.work.dropIncomplete', {
+				characterUid: character.uid,
+				job: pick.job.job,
+				vehicleUid: pick.job.vehicleUid,
+				lineId: 'lineId' in pick.job ? pick.job.lineId : undefined,
+				stopId: 'stopId' in pick.job ? pick.job.stopId : undefined,
+				zoneBrowseAction:
+					'zoneBrowseAction' in pick.job ? pick.job.zoneBrowseAction : undefined,
+				goodType: 'goodType' in pick.job ? pick.job.goodType : undefined,
+				targetCoord: 'targetCoord' in pick.job ? pick.job.targetCoord : undefined,
+			})
+			out.splice(i, 1)
 		}
 		if (out.length === 0) traceNoVehicleWorkPicks(game, character)
 		else noVehicleWorkTraceKeys.delete(character)

@@ -123,6 +123,7 @@ function vehicleLineStockAffinity(line: FreightLineDefinition, vehicle: VehicleE
 type BeginServiceActionableWork = {
 	readonly target: Position
 	readonly stop: FreightStop
+	readonly urgency: number
 }
 
 /**
@@ -143,10 +144,42 @@ export function gatherUnloadAnchorHiveDemandsGood(
 	return content.hive.needs[good] !== undefined
 }
 
+function vehicleCapacityForGood(vehicle: VehicleEntity, goodType: GoodType): number {
+	const room = vehicle.storage.hasRoom(goodType) ?? 0
+	const loaded = vehicle.storage.available(goodType) ?? 0
+	return Math.max(0, room + loaded)
+}
+
+function hiveAvailableForGoodAtBay(bayTile: { content?: unknown }, goodType: GoodType): number {
+	const content = bayTile.content
+	if (!(content instanceof Alveolus) || !content.hive) return 0
+	let available = 0
+	for (const storage of content.hive.generalStorages) {
+		const relation = storage.goodsRelations[goodType]
+		const priority = relation?.advertisement === 'provide' ? relation.priority : '2-use'
+		if (!storage.canGive(goodType, priority)) continue
+		available += Math.max(0, storage.storage.available(goodType) ?? 0)
+	}
+	return available
+}
+
+function distributeBeginServiceUrgency(args: {
+	readonly neededGood: number
+	readonly vehicleCapacity: number
+	readonly availableGoods: number
+}): number {
+	if (args.neededGood <= 0 || args.vehicleCapacity <= 0 || args.availableGoods <= 0) return 0
+	return (
+		jobBalance.vehicleBeginService *
+		(Math.min(args.neededGood, args.vehicleCapacity) / args.availableGoods)
+	)
+}
+
 /**
  * Finds the first meaningful target for {@link vehicleBeginService}. Gather routes need at least one
  * reachable loose good of an allowed type within zone radius (with carrier room); distribute routes
- * qualify only when a standalone construction shell in range still advertises segment-allowed needs.
+ * qualify only when a standalone construction shell in range still advertises segment-allowed needs
+ * and the source hive has matching available goods to load.
  */
 function findBeginServiceActionableWork(
 	game: Game,
@@ -182,7 +215,12 @@ function findBeginServiceActionableWork(
 				}
 			}
 		}
-		if (bestLoaded) return { target: bestLoaded.target, stop: bestLoaded.stop }
+		if (bestLoaded)
+			return {
+				target: bestLoaded.target,
+				stop: bestLoaded.stop,
+				urgency: jobBalance.vehicleBeginService,
+			}
 
 		let best: { target: Position; stop: FreightStop; pathLen: number } | undefined
 		for (const segment of gatherSegs) {
@@ -205,7 +243,9 @@ function findBeginServiceActionableWork(
 				}
 			}
 		}
-		return best ? { target: best.target, stop: best.stop } : undefined
+		return best
+			? { target: best.target, stop: best.stop, urgency: jobBalance.vehicleBeginService }
+			: undefined
 	}
 	for (const segment of findDistributeRouteSegments(line)) {
 		const loadStop = line.stops[segment.loadStopIndex]
@@ -214,6 +254,7 @@ function findBeginServiceActionableWork(
 		if (!bayTile) continue
 		const bayPos = toAxialCoord(bayTile.position)
 		if (!bayPos) continue
+		let bestUrgency = 0
 		const unloadStop = line.stops[segment.unloadStopIndex]
 		const tiles =
 			unloadStop && 'zone' in unloadStop
@@ -233,11 +274,26 @@ function findBeginServiceActionableWork(
 					? c.remainingNeeds
 					: materialRemainingNeeds(c.requiredGoods ?? {}, c.storage)
 			for (const g of Object.keys(remaining) as GoodType[]) {
-				if ((remaining[g] ?? 0) <= 0) continue
+				const neededGood = remaining[g] ?? 0
+				if (neededGood <= 0) continue
 				if (distributeSegmentAllowsGoodTypeForSegment(line, segment, g)) {
-					return { target: bayTile.position, stop: loadStop }
+					const availableGoods = hiveAvailableForGoodAtBay(bayTile, g)
+					if (availableGoods <= 0) continue
+					const vehicleCapacity = vehicleCapacityForGood(vehicle, g)
+					if (vehicleCapacity <= 0) continue
+					bestUrgency = Math.max(
+						bestUrgency,
+						distributeBeginServiceUrgency({
+							neededGood,
+							vehicleCapacity,
+							availableGoods,
+						})
+					)
 				}
 			}
+		}
+		if (bestUrgency > 0) {
+			return { target: bayTile.position, stop: loadStop, urgency: bestUrgency }
 		}
 	}
 	return undefined
@@ -252,9 +308,15 @@ export function pickInitialVehicleServiceCandidate(
 	game: Game,
 	character: Character,
 	vehicle: VehicleEntity
-): { line: FreightLineDefinition; stop: FreightStop } | undefined {
+): { line: FreightLineDefinition; stop: FreightStop; urgency: number } | undefined {
 	let best:
-		| { line: FreightLineDefinition; stop: FreightStop; score: number; affinity: number }
+		| {
+				line: FreightLineDefinition
+				stop: FreightStop
+				score: number
+				affinity: number
+				urgency: number
+		  }
 		| undefined
 	for (const line of vehicle.servedLines) {
 		const actionable = findBeginServiceActionableWork(game, character, vehicle, line)
@@ -262,15 +324,15 @@ export function pickInitialVehicleServiceCandidate(
 		const distance = axialDistance(vehicle.effectivePosition, actionable.target)
 		const score = scoreVehicleCandidate({
 			kind: 'beginService',
-			urgency: jobBalance.vehicleBeginService,
+			urgency: actionable.urgency,
 			distance,
 		}).score
 		const affinity = vehicleLineStockAffinity(line, vehicle)
 		if (!best || score > best.score || (score === best.score && affinity > best.affinity)) {
-			best = { line, stop: actionable.stop, score, affinity }
+			best = { line, stop: actionable.stop, score, affinity, urgency: actionable.urgency }
 		}
 	}
-	return best ? { line: best.line, stop: best.stop } : undefined
+	return best ? { line: best.line, stop: best.stop, urgency: best.urgency } : undefined
 }
 
 /**
