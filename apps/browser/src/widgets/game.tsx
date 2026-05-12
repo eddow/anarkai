@@ -6,6 +6,8 @@ import { consumePresentationEvents } from '@app/lib/presentation-events'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
 import { PixiGameRenderer } from 'engine-pixi/renderer'
 import { effect } from 'mutts'
+import type { RoadType } from 'ssh/board/roads'
+import { roadBordersForTrace } from 'ssh/board/roads'
 import { Tile } from 'ssh/board/tile'
 import type { GamePresentationEvent, InteractiveGameObject } from 'ssh/game'
 import type { AlveolusType } from 'ssh/types/base'
@@ -73,6 +75,12 @@ export default function GameWidget(
 		}
 	}
 
+	const handleRoadDrag = (tiles: Tile[], roadType: RoadType) => {
+		for (const border of roadBordersForTrace(tiles)) {
+			game.hex.setRoadType(border.position, roadType)
+		}
+	}
+
 	const gameEvents = {
 		objectClick(event: MouseEvent, object: InteractiveGameObject) {
 			if (event.button !== 0) return
@@ -93,6 +101,16 @@ export default function GameWidget(
 		objectDrag(tiles: Tile[], event: unknown) {
 			if (!interactionMode.selectedAction.startsWith('zone:')) return
 			handleZoningDrag(tiles)
+			const shift =
+				event !== null &&
+				typeof event === 'object' &&
+				'shiftKey' in event &&
+				Boolean((event as { shiftKey: boolean }).shiftKey)
+			if (!shift) interactionMode.selectedAction = ''
+		},
+		roadDrag(tiles: Tile[], roadType: RoadType, event: unknown) {
+			if (!interactionMode.selectedAction.startsWith('road:')) return
+			handleRoadDrag(tiles, roadType)
 			const shift =
 				event !== null &&
 				typeof event === 'object' &&

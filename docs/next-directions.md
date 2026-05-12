@@ -33,6 +33,11 @@ Still architecturally important:
 - "lines" management widget with filters: "have bay" (yes/all/no) and "visible" (only-intersecting-the-game-view:bool)
 - find a way to show the content of the docked vehicles. Perhaps add a check-box/button to show/hide vehicle content (docked and non-docked)
 - transform alveoli should have a configuration: ratio product/produce to keep. Basically, the ration of `planks/(wood+planks)` to keep, and would not offer a transformation job if there is too much planks and not enough wood. Last but not least: we have here a really simple case (1 input, 1 output), this configuration should allow the choice of which input to consider and which output to consider (of course, having a default, specified in the rules)
+- line edition widget (reflections still ongoing):
+  - the line stop (bay/zone/...) should only be editable like on add: the set should have a sub-menu (bay/circle/named zone)
+  - The add stop should allow the selection (indeed, for now it adds something but the change is not visible without refreshing the widget)
+  - the widget is always a bit too wide and has a horizontal scroll for 1~2px
+  - the "open zone" button sems quite useless as the stop is shown as a link (it is for the bay and should be for the zone)
 
 ## Recommended Next Tranche
 

@@ -15,6 +15,7 @@ import { Deposit, UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { Tile, type TileTerrainState } from 'ssh/board/tile'
 import type { NamedZoneDefinition, Zone } from 'ssh/board/zone'
 import { createZoneObjectForUid } from 'ssh/board/zone-object'
+import type { RoadPatch, RoadType } from 'ssh/board/roads'
 import { isConstructionSiteShell } from 'ssh/build-site'
 import { createConstructionShell } from 'ssh/construction-shell'
 import {
@@ -93,8 +94,11 @@ export type GameEvents = {
 	objectUp(pointer: any, object: InteractiveGameObject): void
 	objectClick(pointer: any, object: InteractiveGameObject): void
 	objectDrag(tiles: Tile[], event: unknown): void
+	roadDrag(tiles: Tile[], roadType: RoadType, event: unknown): void
 	dragPreview(tiles: Tile[], zoneType: string): void
+	roadPreview(tiles: Tile[], roadType: RoadType): void
 	dragPreviewClear(): void
+	roadsChanged(): void
 }
 export type GamePresentationEvent =
 	| { type: 'storage.changed'; ownerUid: string }
@@ -211,6 +215,7 @@ export interface GamePatches {
 	projects?: Record<string, ReadonlyArray<readonly [number, number]>>
 	dwellings?: ReadonlyArray<DwellingPatch>
 	vehicles?: ReadonlyArray<VehiclePatch>
+	roads?: ReadonlyArray<RoadPatch>
 }
 
 export interface SaveState extends GamePatches {
@@ -325,6 +330,10 @@ export class Game extends Eventful<GameEvents> {
 
 	public notifyGroundSemanticsChanged(coord?: AxialCoord): void {
 		this.invalidateTerrainPresentation(coord, true)
+	}
+
+	public notifyRoadsChanged(): void {
+		this.emit('roadsChanged')
 	}
 
 	public upsertTerrainOverride(
@@ -1095,6 +1104,7 @@ export class Game extends Eventful<GameEvents> {
 			if (patches.dwellings?.length) this.applyDwellingPatches(patches.dwellings)
 			this.bootstrapFreightLines(patches)
 			if (patches.vehicles?.length) this.applyVehiclePatches(patches.vehicles)
+			if (patches.roads?.length) this.applyRoadPatches(patches.roads)
 		} catch (error) {
 			console.error('Generation failed:', error)
 		}
@@ -1138,6 +1148,7 @@ export class Game extends Eventful<GameEvents> {
 			if (patches.dwellings?.length) this.applyDwellingPatches(patches.dwellings)
 			this.bootstrapFreightLines(patches)
 			if (patches.vehicles?.length) this.applyVehiclePatches(patches.vehicles)
+			if (patches.roads?.length) this.applyRoadPatches(patches.roads)
 		} catch (error) {
 			console.error('Async generation failed:', error)
 		}
@@ -1521,6 +1532,12 @@ export class Game extends Eventful<GameEvents> {
 		this.vehicles.deserialize(vehicles.map((entry) => ({ ...entry })))
 	}
 
+	private applyRoadPatches(roads: NonNullable<GamePatches['roads']>) {
+		for (const road of roads) {
+			this.hex.setRoadType({ q: road.coord[0], r: road.coord[1] }, road.type)
+		}
+	}
+
 	public saveGameData(): SaveState {
 		const tiles: Array<TilePatch> = []
 		const hives = new Map<Hive, Array<AlveolusPatch>>()
@@ -1544,6 +1561,10 @@ export class Game extends Eventful<GameEvents> {
 		const namedZoneCoords = new Map<string, Array<[number, number]>>()
 		const projects: Record<string, Array<[number, number]>> = {}
 		const dwellings: DwellingPatch[] = []
+		const roads: RoadPatch[] = this.hex.roadSegments().map((road) => ({
+			coord: [road.coord.q, road.coord.r],
+			type: road.type,
+		}))
 
 		// Enumerate using hex board contents map by sampling existing tiles
 		for (const tile of this.hex.tiles) {
@@ -1699,6 +1720,7 @@ export class Game extends Eventful<GameEvents> {
 				projects,
 				dwellings,
 				vehicles: this.vehicles.serialize(),
+				roads,
 				conveyMovements,
 				population: this.population.serialize(),
 				generationOptions: this.generationOptions,

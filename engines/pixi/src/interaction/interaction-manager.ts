@@ -1,5 +1,7 @@
 import { interactionMode, mrg, setHoveredObject } from '@app/lib/interactive-state'
 import type { Application, Container, FederatedPointerEvent, FederatedWheelEvent } from 'pixi.js'
+import type { RoadType } from 'ssh/board/roads'
+import { straightRoadTileTrace } from 'ssh/board/roads'
 import { Tile } from 'ssh/board/tile'
 import type { Game } from 'ssh/game/game'
 import type { InteractiveGameObject } from 'ssh/game/object'
@@ -10,6 +12,7 @@ import type { InteractiveGameObject } from 'ssh/game/object'
 export class InteractionManager {
 	private isPanning: boolean = false
 	private dragStartTile: Tile | undefined
+	private dragCurrentTile: Tile | undefined
 	private lastPosition: { x: number; y: number } = { x: 0, y: 0 }
 
 	constructor(
@@ -57,6 +60,7 @@ export class InteractionManager {
 		if (this.dragStartTile) {
 			this.game.emit('dragPreviewClear')
 			this.dragStartTile = undefined
+			this.dragCurrentTile = undefined
 		}
 	}
 
@@ -69,6 +73,13 @@ export class InteractionManager {
 			return action.replace('zone:', '')
 		}
 		return ''
+	}
+
+	private getCurrentRoadType(): RoadType | undefined {
+		const action = interactionMode.selectedAction
+		if (!action.startsWith('road:')) return undefined
+		const type = action.replace('road:', '')
+		return type === 'path' ? 'path' : undefined
 	}
 	/**
 	 * Calculate the parallelogram tiles where start and end are ALWAYS the acute (60°) corners.
@@ -203,13 +214,20 @@ export class InteractionManager {
 			setHoveredObject(this.dragStartTile)
 			// Tile drag in progress - emit preview
 			const currentTile = this.getTileAtPosition(e.global)
-			if (currentTile && currentTile !== this.dragStartTile) {
+			const roadType = this.getCurrentRoadType()
+			if (currentTile && roadType) {
+				this.dragCurrentTile = currentTile
+				const tiles = straightRoadTileTrace(this.dragStartTile, currentTile)
+				this.game.emit('roadPreview', tiles, roadType)
+			} else if (currentTile && currentTile !== this.dragStartTile) {
+				this.dragCurrentTile = currentTile
 				const start = this.dragStartTile.position as { q: number; r: number }
 				const end = currentTile.position as { q: number; r: number }
 				const tiles = this.getParallelogramTiles(start, end)
 				const zoneType = this.getCurrentZoneType()
 				this.game.emit('dragPreview', tiles, zoneType)
 			} else if (!currentTile || currentTile === this.dragStartTile) {
+				this.dragCurrentTile = currentTile
 				// Clear preview if back to start tile or off-board
 				this.game.emit('dragPreviewClear')
 			}
@@ -227,23 +245,34 @@ export class InteractionManager {
 		this.isPanning = false
 
 		if (this.dragStartTile) {
-			const endTile = this.getTileAtPosition(e.global)
+			const endTile = this.getTileAtPosition(e.global) ?? this.dragCurrentTile
 
 			// Clear any preview
 			this.game.emit('dragPreviewClear')
 
 			if (endTile && endTile !== this.dragStartTile) {
-				// Drag completed - calculate parallelogram and emit
-				const start = this.dragStartTile.position as { q: number; r: number }
-				const end = endTile.position as { q: number; r: number }
-				const tiles = this.getParallelogramTiles(start, end)
-				this.game.emit('objectDrag', tiles, e.nativeEvent)
+				const roadType = this.getCurrentRoadType()
+				if (roadType) {
+					const tiles = straightRoadTileTrace(this.dragStartTile, endTile)
+					this.game.emit('roadDrag', tiles, roadType, e.nativeEvent)
+				} else {
+					// Drag completed - calculate parallelogram and emit
+					const start = this.dragStartTile.position as { q: number; r: number }
+					const end = endTile.position as { q: number; r: number }
+					const tiles = this.getParallelogramTiles(start, end)
+					this.game.emit('objectDrag', tiles, e.nativeEvent)
+				}
 			} else if (endTile === this.dragStartTile) {
-				// Click on same tile
-				this.game.simulateObjectClick(this.dragStartTile, e.nativeEvent)
+				const roadType = this.getCurrentRoadType()
+				if (roadType) this.game.emit('roadDrag', [this.dragStartTile], roadType, e.nativeEvent)
+				else {
+					// Click on same tile
+					this.game.simulateObjectClick(this.dragStartTile, e.nativeEvent)
+				}
 			}
 
 			this.dragStartTile = undefined
+			this.dragCurrentTile = undefined
 		}
 
 		if (!this.dragStartTile) {

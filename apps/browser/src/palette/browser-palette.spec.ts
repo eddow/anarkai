@@ -81,6 +81,16 @@ describe('browser palette registry & palettePanelBridge', () => {
 		expect(selectedAction.values.some((entry) => entry.value === 'build:freight_bay')).toBe(true)
 	})
 
+	it('exposes the path road tool as a selected action', () => {
+		const palette = getBrowserPalette().palette
+		const selectedAction = palette.tool('selectedAction') as {
+			values: Array<{ value: string; icon?: string }>
+		}
+
+		const path = selectedAction.values.find((entry) => entry.value === 'road:path')
+		expect(path?.icon).toBeTruthy()
+	})
+
 	it('uses the freight bay visual for the freight bay build entry', () => {
 		const palette = getBrowserPalette().palette
 		const selectedAction = palette.tool('selectedAction') as {

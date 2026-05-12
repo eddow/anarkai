@@ -126,6 +126,24 @@
         ]
       },
       {
+        "space": 0.08,
+        "toolbar": [
+          {
+            "tool": "selectedAction",
+            "editor": "segmented",
+            "config": {
+              "label": "Road",
+              "hint": "Road — draw paths",
+              "choiceDisplay": "icon",
+              "acceptedKeywords": [
+                "road",
+                "path"
+              ]
+            }
+          }
+        ]
+      },
+      {
         "space": 0.12652766745278476,
         "toolbar": [
           {

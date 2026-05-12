@@ -163,6 +163,7 @@ export class Tile extends withInteractive(GameObject) {
 
 	canInteract(action: string): boolean {
 		if (action.startsWith('zone:')) return true
+		if (action.startsWith('road:')) return true
 		return this.content?.canInteract?.(action) ?? false
 	}
 

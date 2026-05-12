@@ -23,6 +23,7 @@ import { Alveolus } from './content/alveolus'
 import type { TileContent } from './content/content'
 import { UnBuiltLand } from './content/unbuilt-land'
 import { LooseGoods } from './looseGoods'
+import type { RoadSegment, RoadType } from './roads'
 import { Tile } from './tile'
 import { isTileCoord } from './tile-coord'
 import { ZoneManager } from './zone'
@@ -34,6 +35,7 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 	private readonly contents = new AxialKeyMap<TileContent | TileBorderContent>()
 	private readonly tileCache = new AxialKeyMap<Tile>()
 	private readonly borderCache = new AxialKeyMap<TileBorder>()
+	private readonly roadTypes = new AxialKeyMap<RoadType>()
 	private readonly occupied = new AxialKeyMap<Character[]>([], () => [])
 	private readonly pendingHiveRefresh = new Set<Hive>()
 	private topologyRefreshScheduled = false
@@ -166,6 +168,27 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		else this.contents.set({ q: coord.q, r: coord.r }, content)
 	}
 
+	getRoadType(ref: Positioned): RoadType | undefined {
+		const coord = toAxialCoord(ref)
+		if (!coord || isTileCoord(coord)) return undefined
+		return this.roadTypes.get(coord)
+	}
+
+	setRoadType(ref: Positioned, type?: RoadType) {
+		const coord = toAxialCoord(ref)
+		if (!coord || isTileCoord(coord)) return
+		if (!type) this.roadTypes.delete(coord)
+		else this.roadTypes.set(coord, type)
+		this.game.notifyRoadsChanged()
+	}
+
+	roadSegments(): RoadSegment[] {
+		return Array.from(this.roadTypes.entries()).map(([key, type]) => ({
+			coord: axial.coord(key),
+			type,
+		}))
+	}
+
 	reset(): void {
 		this.game.withObjectRegistrationBatch(() => {
 			for (const content of this.contents.values()) content.destroy()
@@ -174,6 +197,7 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 			for (const border of this.borderCache.values()) border.destroy()
 			this.tileCache.clear()
 			this.borderCache.clear()
+			this.roadTypes.clear()
 			this.occupied.clear()
 			this.looseGoods.goods.clear()
 			this.zoneManager.clear()

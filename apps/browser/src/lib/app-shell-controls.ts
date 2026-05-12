@@ -2,6 +2,7 @@ import {
 	tablerFilledPointer,
 	tablerFilledSquareRoundedMinus,
 	tablerFilledZoomMoney,
+	tablerOutlineRoad,
 	tablerOutlineTrees,
 } from 'pure-glyf/icons'
 import * as gameContent from 'ssh/assets/game-content'
@@ -72,5 +73,13 @@ export function buildPaletteSelectedActionValues(
 					? ['zone', 'harvest', 'trees']
 					: ['zone', 'unzone', 'clear'],
 	}))
-	return [...select, ...build, ...zones]
+	const roads: PaletteSelectedActionValue[] = [
+		{
+			value: 'road:path',
+			label: 'Path',
+			icon: typeof tablerOutlineRoad === 'string' ? tablerOutlineRoad : undefined,
+			keywords: ['road', 'path'],
+		},
+	]
+	return [...select, ...build, ...zones, ...roads]
 }

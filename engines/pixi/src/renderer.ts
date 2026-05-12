@@ -15,6 +15,7 @@ import { registerPixiApp, unregisterPixiApp } from './hmr.js'
 import { InteractionManager } from './interaction/interaction-manager.js'
 import { DragPreviewOverlay } from './renderers/drag-preview-overlay'
 import { FreightLineOverlay } from './renderers/freight-line-overlay'
+import { RoadOverlay } from './renderers/road-overlay'
 import type { VisualFactoryDiagnostics } from './visual-factory'
 import { VisualFactory } from './visual-factory'
 
@@ -25,6 +26,7 @@ export class PixiGameRenderer implements GameRenderer {
 	private visualFactory?: VisualFactory
 	private dragPreviewOverlay?: DragPreviewOverlay
 	private freightLineOverlay?: FreightLineOverlay
+	private roadOverlay?: RoadOverlay
 	private terrainVisual?: TerrainVisual
 	private container: HTMLElement
 	private canvas: HTMLCanvasElement | null = null
@@ -99,6 +101,9 @@ export class PixiGameRenderer implements GameRenderer {
 		globalThis.__ANARKAI_VISUAL_DIAGNOSTICS__ = () => this.getVisualDiagnostics()
 
 		// Setup Drag Preview Overlay
+		this.roadOverlay = new RoadOverlay(this)
+		this.roadOverlay.bind()
+
 		this.dragPreviewOverlay = new DragPreviewOverlay(this)
 		this.dragPreviewOverlay.bind()
 
@@ -116,6 +121,7 @@ export class PixiGameRenderer implements GameRenderer {
 
 	public layers!: {
 		ground: RenderLayer
+		roads: RenderLayer
 		alveoli: RenderLayer
 		resources: RenderLayer
 		storedGoods: RenderLayer // e.g. on borders
@@ -153,6 +159,7 @@ export class PixiGameRenderer implements GameRenderer {
 
 		this.layers = {
 			ground: setPixiName(new RenderLayer(), 'layer.ground'), // terrain
+			roads: setPixiName(new RenderLayer(), 'layer.roads'),
 			alveoli: setPixiName(new RenderLayer(), 'layer.alveoli'), // structures
 			resources: setPixiName(new RenderLayer(), 'layer.resources'), // resources
 			storedGoods: setPixiName(new RenderLayer(), 'layer.storedGoods'),
@@ -166,6 +173,7 @@ export class PixiGameRenderer implements GameRenderer {
 		}
 
 		this.layers.ground.sortableChildren = true
+		this.layers.roads.sortableChildren = true
 		this.layers.alveoli.sortableChildren = true
 		this.layers.resources.sortableChildren = true
 		this.layers.storedGoods.sortableChildren = true
@@ -177,6 +185,7 @@ export class PixiGameRenderer implements GameRenderer {
 		this.world.addChild(
 			this.worldScene,
 			this.layers.ground, // terrain
+			this.layers.roads,
 			this.layers.alveoli, // structures
 			this.layers.resources,
 			this.layers.storedGoods,
@@ -195,6 +204,7 @@ export class PixiGameRenderer implements GameRenderer {
 		// - characters
 
 		this.layers.ground.zIndex = 0 // terrain
+		this.layers.roads.zIndex = 5 // roads over terrain, under structures/resources
 		this.layers.alveoli.zIndex = 10 // buildings
 		this.layers.resources.zIndex = 20 // resources
 		this.layers.storedGoods.zIndex = 30 // stored goods
@@ -263,6 +273,7 @@ export class PixiGameRenderer implements GameRenderer {
 		this.interactionManager?.teardown()
 		this.dragPreviewOverlay?.dispose()
 		this.freightLineOverlay?.dispose()
+		this.roadOverlay?.dispose()
 		this.visualFactory?.destroy()
 		this.terrainVisual?.dispose()
 
