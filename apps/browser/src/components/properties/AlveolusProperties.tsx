@@ -12,9 +12,8 @@ import { isConstructionSiteShell } from 'ssh/build-site'
 import { queryConstructionSiteView } from 'ssh/construction'
 import { collectDockedVehiclesForBay, type DockedVehicleEntry } from 'ssh/freight/docked-vehicles'
 import {
-	createExplicitFreightLineDraftForFreightBay,
+	createExchangeFreightLineDraftForFreightBay,
 	createSyntheticFreightLineObject,
-	type FreightLineMode,
 	findFreightLinesForStop,
 	normalizeFreightLineDefinition,
 	type SyntheticFreightLineObject,
@@ -166,11 +165,11 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 	const processBufferLabel = (goodType: GoodType, value: number) =>
 		`${goodType} ${Math.round(value * 100)}%`
 
-	const handleAddFreightLine = (mode: FreightLineMode) => {
+	const handleAddFreightLine = () => {
 		const game = state.resolvedGame
 		const content = props.content
 		if (!game || !(content instanceof FreightBayAlveolus)) return
-		const draft = createExplicitFreightLineDraftForFreightBay(content, mode)
+		const draft = createExchangeFreightLineDraftForFreightBay(content)
 		if (!draft) return
 		game.replaceFreightLine(draft)
 		const merged =
@@ -221,18 +220,11 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 						<button
 							type="button"
 							class="alveolus-freight-bay__btn alveolus-freight-bay__btn--primary"
-							data-testid="freight-bay-add-gather"
-							onClick={() => handleAddFreightLine('gather')}
+							data-testid="freight-bay-add-line"
+							title={bayTranslator().addLineHint}
+							onClick={handleAddFreightLine}
 						>
-							{bayTranslator().addGather}
-						</button>
-						<button
-							type="button"
-							class="alveolus-freight-bay__btn alveolus-freight-bay__btn--primary"
-							data-testid="freight-bay-add-distribute"
-							onClick={() => handleAddFreightLine('distribute')}
-						>
-							{bayTranslator().addDistribute}
+							{bayTranslator().addLine}
 						</button>
 					</div>
 				</div>

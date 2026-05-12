@@ -50,6 +50,10 @@ vi.mock('@app/lib/i18n', () => {
 			line: {
 				section: 'Freight line',
 				name: 'Name',
+				cyclic: {
+					label: 'Cyclic',
+					hint: 'Allow this route to begin at any halt and wrap from last halt to first.',
+				},
 				mode: 'Mode',
 				radius: 'Radius',
 				stations: 'Stations',
@@ -195,7 +199,7 @@ describe('FreightLineProperties', () => {
 				lineObject={{
 					uid: 'freight-line:line-1',
 					kind: 'freight-line',
-					title: 'Line 1 (Gather)',
+					title: 'Line 1 (Exchange)',
 					game: game as never,
 					line: game.freightLines[0],
 					lineId: 'line-1',
@@ -221,7 +225,7 @@ describe('FreightLineProperties', () => {
 				lineObject={{
 					uid: 'freight-line:line-1',
 					kind: 'freight-line',
-					title: 'Line 1 (Gather)',
+					title: 'Line 1 (Exchange)',
 					game: game as never,
 					line: game.freightLines[0],
 					lineId: 'line-1',
@@ -241,6 +245,32 @@ describe('FreightLineProperties', () => {
 		expect(arg.name).toBe('Immediate rename')
 	})
 
+	it('persists cyclic toggle changes immediately', () => {
+		stop = latch(
+			container,
+			<FreightLineProperties
+				lineObject={{
+					uid: 'freight-line:line-1',
+					kind: 'freight-line',
+					title: 'Line 1 (Exchange)',
+					game: game as never,
+					line: game.freightLines[0],
+					lineId: 'line-1',
+					logs: [],
+				}}
+			/>
+		)
+
+		const cyclic = container.querySelector(
+			'[data-testid="freight-line-cyclic"]'
+		) as HTMLButtonElement | null
+		cyclic?.click()
+
+		expect(game.replaceFreightLine).toHaveBeenCalled()
+		const arg = game.replaceFreightLine.mock.calls.at(-1)?.[0] as { cyclic?: boolean }
+		expect(arg.cyclic).toBe(true)
+	})
+
 	it('allows editing and deleting an implicit gather line', () => {
 		stop = latch(
 			container,
@@ -248,7 +278,7 @@ describe('FreightLineProperties', () => {
 				lineObject={{
 					uid: 'freight-line:Hive%3Aimplicit-gather%3A0%2C0',
 					kind: 'freight-line',
-					title: 'Line 1 (Gather)',
+					title: 'Line 1 (Exchange)',
 					game: game as never,
 					line: game.freightLines[0],
 					lineId: 'Hive:implicit-gather:0,0',

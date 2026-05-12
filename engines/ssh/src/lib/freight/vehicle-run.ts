@@ -14,19 +14,26 @@ import {
 	distributeSegmentWithinRadius,
 	findDistributeRouteSegments,
 	findGatherRouteSegments,
+	freightLineStopOrder,
+	nextFreightLineStop,
 	freightZoneContainsPosition,
 	freightZoneFallbackPosition,
 	freightZoneTiles,
 	gatherSegmentAllowsGoodType,
 	gatherSegmentAllowsGoodTypeForSegment,
 } from 'ssh/freight/freight-line'
+import {
+	computeLineFurtherGoods,
+	measureFreightStopNeededGoods,
+	measureFreightStopProvidedGoods,
+} from 'ssh/freight/freight-stop-utility'
 import { scoreVehicleCandidate } from 'ssh/freight/vehicle-candidate-policy'
 import { collectDockedVehicleAdvertisementCandidates } from 'ssh/freight/vehicle-freight-dock'
 import {
 	freightVehicleDockBay,
 	syncFreightVehicleDockRegistration,
 } from 'ssh/freight/vehicle-freight-dock-sync'
-import { pickVehicleZoneBrowseSelection } from 'ssh/freight/vehicle-zone-browse'
+import { pickVehicleZoneBrowseSelection, zoneBrowseUrgency } from 'ssh/freight/vehicle-zone-browse'
 import type { Game } from 'ssh/game/game'
 import type { Character } from 'ssh/population/character'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
@@ -175,6 +182,65 @@ function distributeBeginServiceUrgency(args: {
 	)
 }
 
+function goodsIntersectAvailableStock(
+	vehicle: VehicleEntity,
+	goods: Partial<Record<GoodType, number>>
+): boolean {
+	for (const [goodType, quantity] of Object.entries(goods) as [GoodType, number][]) {
+		if (quantity > 0 && vehicle.storage.available(goodType) > 0) return true
+	}
+	return false
+}
+
+function stopHasPotentialVehicleTransfer(
+	game: Game,
+	character: Character | undefined,
+	vehicle: VehicleEntity,
+	line: FreightLineDefinition,
+	stop: FreightStop
+): boolean {
+	const stopIndex = line.stops.findIndex((candidate) => candidate.id === stop.id)
+	if (stopIndex < 0) return false
+	if ('zone' in stop && character) {
+		return !!pickVehicleZoneBrowseSelection(game, character, vehicle, line, stop)
+	}
+
+	const neededHere = measureFreightStopNeededGoods(game, line, stopIndex).perGood
+	if (goodsIntersectAvailableStock(vehicle, neededHere)) return true
+
+	const providedHere = measureFreightStopProvidedGoods(game, line, stopIndex).perGood
+	const further = computeLineFurtherGoods({ game, line, currentStopIndex: stopIndex })
+	for (const [goodType, quantity] of Object.entries(providedHere) as [GoodType, number][]) {
+		if (quantity <= 0) continue
+		if ((vehicle.storage.hasRoom(goodType) ?? 0) <= 0) continue
+		if ((neededHere[goodType] ?? 0) > 0) return true
+		if ((further.furtherNeededGoods.perGood[goodType] ?? 0) > 0) return true
+	}
+	return false
+}
+
+export function nextActionableVehicleLineStop(
+	game: Game,
+	vehicle: VehicleEntity,
+	line: FreightLineDefinition,
+	currentStop: FreightStop,
+	character?: Character
+): { line: FreightLineDefinition; stop: FreightStop } | undefined {
+	if (!line.cyclic) {
+		const stop = nextFreightLineStop(line, currentStop)
+		return stop ? { line, stop } : undefined
+	}
+	const startIndex = line.stops.findIndex((stop) => stop.id === currentStop.id)
+	for (const stopIndex of freightLineStopOrder(line, startIndex).slice(1)) {
+		const stop = line.stops[stopIndex]
+		if (!stop) continue
+		if (stopHasPotentialVehicleTransfer(game, character, vehicle, line, stop)) {
+			return { line, stop }
+		}
+	}
+	return undefined
+}
+
 /**
  * Finds the first meaningful target for {@link vehicleBeginService}. Gather routes need at least one
  * reachable loose good of an allowed type within zone radius (with carrier room); distribute routes
@@ -187,11 +253,22 @@ function findBeginServiceActionableWork(
 	vehicle: VehicleEntity,
 	line: FreightLineDefinition
 ): BeginServiceActionableWork | undefined {
+	let best: (BeginServiceActionableWork & { score: number; distance: number }) | undefined
+	const consider = (candidate: BeginServiceActionableWork) => {
+		const distance = axialDistance(vehicle.effectivePosition, candidate.target)
+		const score = scoreVehicleCandidate({
+			kind: 'beginService',
+			urgency: candidate.urgency,
+			distance,
+		}).score
+		if (!best || score > best.score || (score === best.score && distance < best.distance)) {
+			best = { ...candidate, score, distance }
+		}
+	}
 	const gatherSegs = findGatherRouteSegments(line)
 	if (gatherSegs.length > 0) {
-		let bestLoaded: { target: Position; stop: FreightStop; pathLen: number } | undefined
 		for (const segment of gatherSegs) {
-			if (segment.loadStopIndex !== 0) continue
+			if (!line.cyclic && segment.loadStopIndex !== 0) continue
 			const loadStop = line.stops[segment.loadStopIndex]
 			const unloadStop = line.stops[segment.unloadStopIndex]
 			if (!loadStop || !('zone' in loadStop)) continue
@@ -209,20 +286,17 @@ function findBeginServiceActionableWork(
 					character,
 					Number.POSITIVE_INFINITY,
 					true
-				)
-				if (path && (!bestLoaded || path.length < bestLoaded.pathLen)) {
-					bestLoaded = { target, stop: unloadStop, pathLen: path.length }
+					)
+				if (path) {
+					consider({
+						target,
+						stop: unloadStop,
+						urgency: jobBalance.vehicleBeginService,
+					})
 				}
 			}
 		}
-		if (bestLoaded)
-			return {
-				target: bestLoaded.target,
-				stop: bestLoaded.stop,
-				urgency: jobBalance.vehicleBeginService,
-			}
 
-		let best: { target: Position; stop: FreightStop; pathLen: number } | undefined
 		for (const segment of gatherSegs) {
 			const zoneLoad = line.stops[segment.loadStopIndex]
 			if (!zoneLoad || !('zone' in zoneLoad)) continue
@@ -235,17 +309,12 @@ function findBeginServiceActionableWork(
 				vehicle.effectivePosition
 			)
 			if (selection?.action !== 'load') continue
-			if (!best || selection.path.length < best.pathLen) {
-				best = {
-					target: selection.targetTile.position,
-					stop: zoneLoad,
-					pathLen: selection.path.length,
-				}
-			}
+			consider({
+				target: selection.targetTile.position,
+				stop: zoneLoad,
+				urgency: zoneBrowseUrgency(selection.action, selection.priorityTier),
+			})
 		}
-		return best
-			? { target: best.target, stop: best.stop, urgency: jobBalance.vehicleBeginService }
-			: undefined
 	}
 	for (const segment of findDistributeRouteSegments(line)) {
 		const loadStop = line.stops[segment.loadStopIndex]
@@ -293,10 +362,30 @@ function findBeginServiceActionableWork(
 			}
 		}
 		if (bestUrgency > 0) {
-			return { target: bayTile.position, stop: loadStop, urgency: bestUrgency }
+			consider({ target: bayTile.position, stop: loadStop, urgency: bestUrgency })
 		}
 	}
-	return undefined
+	for (const [idx, stop] of line.stops.entries()) {
+		if (!('zone' in stop)) continue
+		if (!line.cyclic && vehicleStorageStockCount(vehicle) <= 0 && idx !== 0) continue
+		const selection = pickVehicleZoneBrowseSelection(
+			game,
+			character,
+			vehicle,
+			line,
+			stop,
+			vehicle.effectivePosition
+		)
+		if (!selection) continue
+		if (vehicleStorageStockCount(vehicle) > 0 && selection.action !== 'provide') continue
+		if (vehicleStorageStockCount(vehicle) <= 0 && selection.action !== 'load') continue
+		consider({
+			target: selection.targetTile.position,
+			stop,
+			urgency: zoneBrowseUrgency(selection.action, selection.priorityTier),
+		})
+	}
+	return best ? { target: best.target, stop: best.stop, urgency: best.urgency } : undefined
 }
 
 /**
@@ -348,7 +437,11 @@ export function projectedLineStopForVehicleHop(
 	if (!isVehicleLineService(svc)) return undefined
 	const line = svc.line
 	const stop = svc.stop
-	if (!('zone' in stop)) return { line, stop }
+	if (!('zone' in stop)) {
+		if (!line.cyclic) return { line, stop }
+		if (stopHasPotentialVehicleTransfer(game, character, vehicle, line, stop)) return { line, stop }
+		return nextActionableVehicleLineStop(game, vehicle, line, stop, character)
+	}
 	if (
 		!shouldAdvancePastZoneStop(
 			game,
@@ -359,10 +452,7 @@ export function projectedLineStopForVehicleHop(
 		)
 	)
 		return { line, stop }
-	const idx = line.stops.findIndex((s) => s.id === stop.id)
-	if (idx < 0) return { line, stop }
-	if (idx >= line.stops.length - 1) return { line, stop }
-	return { line, stop: line.stops[idx + 1]! }
+	return nextActionableVehicleLineStop(game, vehicle, line, stop, character)
 }
 
 export type VehicleServiceStartCandidate = {
@@ -422,6 +512,157 @@ function shouldAdvancePastZoneStop(
 	return true
 }
 
+function vehicleStorageStockCount(vehicle: VehicleEntity): number {
+	return Object.values(vehicle.storage.stock).reduce((total, qty) => total + Math.max(0, qty ?? 0), 0)
+}
+
+function isDistributeUnloadStop(line: FreightLineDefinition, stopIndex: number): boolean {
+	return findDistributeRouteSegments(line).some((segment) => segment.unloadStopIndex === stopIndex)
+}
+
+function advanceVehicleToNextLineStopOrEnd(
+	vehicle: VehicleEntity,
+	line: FreightLineDefinition,
+	stop: FreightStop,
+	reason: string
+): boolean {
+	const next = nextFreightLineStop(line, stop)
+	if (!next) {
+		traces.vehicle.log?.('vehicleJob.line.emptyStop', {
+			vehicleUid: vehicle.uid,
+			lineId: line.id,
+			stopId: stop.id,
+			reason: 'line-finished-empty',
+			fromReason: reason,
+		})
+		vehicle.endService()
+		return true
+	}
+	vehicle.advanceToStop(next)
+	return false
+}
+
+/**
+ * Progress through line stops that are already known to have no actionable transfer.
+ *
+ * Docked anchor stops still honor the normal dock completion guards: active dock convey, dock
+ * advertisement candidates, and virtual vehicle storage keep the stop alive. Zone stops use the
+ * same browser selection predicate when an operator is available; without an operator we only skip
+ * the empty distribute unload case that cannot produce work without cargo.
+ */
+export function advanceVehicleLineServicePastEmptyStops(
+	game: Game,
+	vehicle: VehicleEntity,
+	character?: Character
+): void {
+	let lastSkippedStopId: string | undefined
+	for (
+		let guard = 0;
+		guard <
+		Math.max(
+			1,
+			vehicle.service && isVehicleLineService(vehicle.service)
+				? vehicle.service.line.stops.length + 1
+				: 1
+		);
+		guard++
+	) {
+		const svc = vehicle.service
+		if (!isVehicleLineService(svc)) return
+		const { line, stop } = svc
+		const idx = line.stops.findIndex((s) => s.id === stop.id)
+		if (idx < 0) {
+			vehicle.endService()
+			return
+		}
+
+		if ('anchor' in stop) {
+			if (!vehicle.isDocked) return
+			const content = freightVehicleDockBay(vehicle)
+			if (!(content instanceof Alveolus)) return
+			const hive = content.hive
+			if (!hive) return
+			if (!hive.freightVehicleDockFor(vehicle.uid)) return
+			if (hive.hasActiveFreightVehicleDockMovement(vehicle.uid)) return
+			if (vehicle.storage.virtualGoodsCount > 0) return
+			if (collectDockedVehicleAdvertisementCandidates(vehicle, content).length > 0) return
+			if (vehicleStorageStockCount(vehicle) > 0) return
+
+			traces.vehicle.log?.('vehicleJob.line.emptyStop', {
+				vehicleUid: vehicle.uid,
+				lineId: line.id,
+				stopId: stop.id,
+				reason: 'empty-dock-load-stop',
+				anchorCoord: stop.anchor.coord,
+			})
+			const ended = advanceVehicleToNextLineStopOrEnd(
+				vehicle,
+				line,
+				stop,
+				'empty-dock-load-stop'
+			)
+			syncFreightVehicleDockRegistration(vehicle)
+			if (ended) return
+			const advancedService = vehicle.service
+			if (
+				line.cyclic &&
+				isVehicleLineService(advancedService) &&
+				lastSkippedStopId === advancedService.stop.id
+			) {
+				vehicle.endService()
+				return
+			}
+			lastSkippedStopId = stop.id
+			continue
+		}
+
+		if ('zone' in stop) {
+			const zoneStop = stop as FreightStop & { zone: FreightZoneDefinition }
+			const isDistributeUnload = isDistributeUnloadStop(line, idx)
+			let shouldSkip = false
+			if (character) {
+				shouldSkip = shouldAdvancePastZoneStop(game, character, vehicle, line, zoneStop)
+			} else if (
+				isDistributeUnload &&
+				vehicleStorageStockCount(vehicle) <= 0 &&
+				!zoneStop.loadSelection
+			) {
+				shouldSkip = true
+			}
+			if (!shouldSkip) return
+
+			traces.vehicle.log?.('vehicleJob.line.emptyStop', {
+				vehicleUid: vehicle.uid,
+				lineId: line.id,
+				stopId: stop.id,
+				reason: 'empty-zone-unload-stop',
+				zone: zoneStop.zone,
+			})
+			const ended = advanceVehicleToNextLineStopOrEnd(
+				vehicle,
+				line,
+				stop,
+				'empty-zone-unload-stop'
+			)
+			if (ended) return
+			const advancedService = vehicle.service
+			if (
+				line.cyclic &&
+				isVehicleLineService(advancedService) &&
+				lastSkippedStopId === advancedService.stop.id
+			) {
+				vehicle.endService()
+				return
+			}
+			lastSkippedStopId = stop.id
+			continue
+		}
+
+		return
+	}
+	if (isVehicleLineService(vehicle.service) && vehicle.service.line.cyclic) vehicle.endService()
+}
+
 /**
  * When the current service stop is a gather zone and there is nothing left to load (or no capacity),
  * advance the vehicle to the next route stop before planning the next hop.
@@ -433,24 +674,16 @@ export function maybeAdvanceVehiclePastCompletedZoneStop(
 ): void {
 	const svc = vehicle.service
 	if (!isVehicleLineService(svc)) return
-	const { line, stop } = svc
+	const { stop } = svc
 	if (!('zone' in stop)) return
-	const zoneStop = stop as FreightStop & { zone: FreightZoneDefinition }
-	if (!shouldAdvancePastZoneStop(game, character, vehicle, line, zoneStop)) return
-	const idx = line.stops.findIndex((s) => s.id === stop.id)
-	if (idx < 0) return
-	if (idx >= line.stops.length - 1) {
-		vehicle.endService()
-		return
-	}
-	vehicle.advanceToStop(line.stops[idx + 1]!)
+	advanceVehicleLineServicePastEmptyStops(game, vehicle, character)
 }
 
 /** Advance a docked anchor stop once vehicle-side storage reservations/allocations are drained. */
 export function maybeAdvanceVehicleFromCompletedAnchorStop(
-	_game: Game,
+	game: Game,
 	vehicle: VehicleEntity,
-	_character?: Character
+	character?: Character
 ): void {
 	const svc = vehicle.service
 	if (!isVehicleLineService(svc)) {
@@ -533,10 +766,7 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 		})
 		return
 	}
-	const stockCount = Object.values(vehicle.storage.stock).reduce(
-		(total, qty) => total + Math.max(0, qty ?? 0),
-		0
-	)
+	const stockCount = vehicleStorageStockCount(vehicle)
 	const virtualGoodsCount = vehicle.storage.virtualGoodsCount
 	const candidates = collectDockedVehicleAdvertisementCandidates(vehicle, content)
 	if (candidates.length > 0) {
@@ -568,7 +798,7 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 		return
 	}
 	const idx = svc.line.stops.findIndex((s) => s.id === stop.id)
-	const isLastStop = idx < 0 || idx >= svc.line.stops.length - 1
+	const isLastStop = idx < 0 || !nextFreightLineStop(svc.line, stop)
 	const hasStock = stockCount > 0
 	const parkNext = isLastStop && !hasStock && vehicleNeedsParkingOnCurrentTile(vehicle)
 	traces.vehicle.log?.('vehicleJob.dock.complete', {
@@ -583,6 +813,7 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 		stock: vehicle.storage.stock,
 	})
 	advanceVehicleAfterDock(vehicle)
+	advanceVehicleLineServicePastEmptyStops(game, vehicle, character)
 	syncFreightVehicleDockRegistration(vehicle)
 }
 
@@ -591,16 +822,11 @@ export function advanceVehicleAfterDock(vehicle: VehicleEntity): void {
 	const svc = vehicle.service
 	if (!isVehicleLineService(svc)) return
 	const { line, stop } = svc
-	const idx = line.stops.findIndex((s) => s.id === stop.id)
-	if (idx < 0) {
+	const next = nextFreightLineStop(line, stop)
+	if (!next) {
 		vehicle.endService()
 		return
 	}
-	if (idx >= line.stops.length - 1) {
-		vehicle.endService()
-		return
-	}
-	const next = line.stops[idx + 1]!
 	vehicle.advanceToStop(next)
 }
 

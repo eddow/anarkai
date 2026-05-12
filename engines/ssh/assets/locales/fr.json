@@ -29,6 +29,10 @@
 		"section": "Ligne de fret",
 		"linesSection": "Lignes de fret",
 		"name": "Nom",
+		"cyclic": {
+			"label": "Cyclique",
+			"hint": "Autorise cette route à commencer à n’importe quelle étape et à revenir de la dernière à la première."
+		},
 		"mode": "Mode",
 		"radius": "Rayon",
 		"filters": "Filtres",
@@ -97,8 +101,8 @@
 	},
 	"bay": {
 		"linesAtThisBay": "Lignes à cette baie",
-		"addGather": "Ajouter une ligne de collecte",
-		"addDistribute": "Ajouter une ligne de distribution"
+		"addLine": "Ajouter une ligne",
+		"addLineHint": "Crée une route d’échange cyclique pour cette baie de fret."
 	},
 	"goodsTags": {
 		"food": "Nourriture",

@@ -12,6 +12,7 @@ import {
 import { migrateV1FiltersToGoodsSelection } from 'ssh/freight/goods-selection-policy'
 import {
 	freightStopMovementTarget,
+	maybeAdvanceVehicleFromCompletedAnchorStop,
 	maybeAdvanceVehiclePastCompletedZoneStop,
 	pickInitialVehicleServiceCandidate,
 	previewInitialVehicleService,
@@ -32,7 +33,7 @@ import type { WorkPlan } from 'ssh/types/base'
 import { axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
 import { afterEach, describe, expect, it } from 'vitest'
-import { gatherFreightLine } from '../freight-fixtures'
+import { distributeFreightLine, gatherFreightLine } from '../freight-fixtures'
 import { bindOperatedWheelbarrowOffload } from '../test-engine/vehicle-bind'
 
 const woodOnly = migrateV1FiltersToGoodsSelection(['wood'])
@@ -463,6 +464,271 @@ describe('Vehicle zone hop semantics', () => {
 
 		vehicle.storage.addGood('wood', 1)
 		expect(findZoneBrowseJob(game, character)).toBeUndefined()
+	})
+
+	it('zoneBrowse allows local zone exchange when the halt can load and unload', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'grass' as const },
+				{ coord: [1, 0] as const, terrain: 'grass' as const },
+			],
+			looseGoods: [{ goodType: 'wood' as const, position: { q: 0, r: 0 } }],
+			freightLines: [
+				normalizeFreightLineDefinition({
+					id: 'VH:local-exchange',
+					name: 'Local exchange',
+					stops: [
+						{
+							id: 'zone',
+							loadSelection: woodOnly,
+							unloadSelection: woodOnly,
+							zone: { kind: 'radius', center: [0, 0] as const, radius: 1 },
+						},
+					],
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 94061, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+		game.hex.getTile({ q: 1, r: 0 })!.content = new BuildDwelling(
+			game.hex.getTile({ q: 1, r: 0 })!,
+			'basic_dwelling'
+		)
+
+		const line = game.freightLines[0]!
+		const stop = line.stops[0]!
+		const vehicle = game.vehicles.createVehicle('v-local-exchange', 'wheelbarrow', { q: 0, r: 0 }, [
+			line,
+		])
+		const character = game.population.createCharacter('LocalExchange', { q: 0, r: 0 })
+		vehicle.beginLineService(line, stop, character)
+		character.operates = vehicle
+		character.onboard()
+
+		const loadJob = findZoneBrowseJob(game, character)
+		expect(loadJob?.job).toBe('zoneBrowse')
+		expect(loadJob?.zoneBrowseAction).toBe('load')
+		expect(loadJob?.goodType).toBe('wood')
+
+		game.hex.looseGoods.getGoodsAt({ q: 0, r: 0 })[0]?.remove()
+		vehicle.storage.addGood('wood', 1)
+		const provideJob = findZoneBrowseJob(game, character)
+		expect(provideJob?.job).toBe('zoneBrowse')
+		expect(provideJob?.zoneBrowseAction).toBe('provide')
+		expect(provideJob?.goodType).toBe('wood')
+		expect(provideJob?.targetCoord).toMatchObject({ q: 1, r: 0 })
+	})
+
+	it('zoneBrowse prioritizes current-zone demand over later hive demand for the same loaded good', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'concrete' as const },
+				{ coord: [1, 0] as const, terrain: 'grass' as const },
+				{ coord: [2, 0] as const, terrain: 'grass' as const },
+				{ coord: [3, 0] as const, terrain: 'concrete' as const },
+				{ coord: [4, 0] as const, terrain: 'concrete' as const },
+			],
+			hives: [
+				{
+					name: 'LaterDemand',
+					alveoli: [
+						{ coord: [3, 0] as const, alveolus: 'freight_bay', goods: {} },
+						{ coord: [4, 0] as const, alveolus: 'sawmill', goods: {} },
+					],
+				},
+			],
+			looseGoods: [{ goodType: 'wood' as const, position: { q: 2, r: 0 } }],
+			freightLines: [
+				normalizeFreightLineDefinition({
+					id: 'VH:local-before-hive',
+					name: 'Local before hive',
+					stops: [
+						{
+							id: 'zone',
+							loadSelection: woodOnly,
+							unloadSelection: woodOnly,
+							zone: { kind: 'radius', center: [1, 0] as const, radius: 1 },
+						},
+						{
+							id: 'bay',
+							unloadSelection: woodOnly,
+							anchor: freightBayAnchor('LaterDemand', [3, 0]),
+						},
+					],
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 94064, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+		game.hex.getTile({ q: 1, r: 0 })!.content = new BuildDwelling(
+			game.hex.getTile({ q: 1, r: 0 })!,
+			'basic_dwelling'
+		)
+		const bayHive = (game.hex.getTile({ q: 3, r: 0 })?.content as { hive?: { needs?: unknown } })
+			.hive
+		expect((bayHive?.needs as { wood?: unknown } | undefined)?.wood).toBeDefined()
+
+		const line = game.freightLines.find((candidate) => candidate.id === 'VH:local-before-hive')!
+		const vehicle = game.vehicles.createVehicle('v-local-before-hive', 'wheelbarrow', { q: 1, r: 0 }, [
+			line,
+		])
+		const character = game.population.createCharacter('LocalBeforeHive', { q: 1, r: 0 })
+		vehicle.beginLineService(line, line.stops[0]!, character)
+		character.operates = vehicle
+		character.onboard()
+
+		const loadJob = findZoneBrowseJob(game, character)
+		expect(loadJob?.job).toBe('zoneBrowse')
+		expect(loadJob?.zoneBrowseAction).toBe('load')
+		expect(loadJob?.targetCoord).toMatchObject({ q: 2, r: 0 })
+		expect(loadJob?.adSource).toBe('project')
+		expect(loadJob?.priorityTier).toBe('lineAndOffloadJoint')
+	})
+
+	it('zoneBrowse does not load local loose goods when the zone has no matching sink', async () => {
+		const patches = {
+			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
+			looseGoods: [{ goodType: 'wood' as const, position: { q: 0, r: 0 } }],
+			freightLines: [
+				normalizeFreightLineDefinition({
+					id: 'VH:local-no-sink',
+					name: 'Local no sink',
+					stops: [
+						{
+							id: 'zone',
+							loadSelection: woodOnly,
+							unloadSelection: woodOnly,
+							zone: { kind: 'radius', center: [0, 0] as const, radius: 1 },
+						},
+					],
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 94062, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines[0]!
+		const vehicle = game.vehicles.createVehicle('v-local-no-sink', 'wheelbarrow', { q: 0, r: 0 }, [
+			line,
+		])
+		const character = game.population.createCharacter('LocalNoSink', { q: 0, r: 0 })
+		vehicle.beginLineService(line, line.stops[0]!, character)
+		character.operates = vehicle
+		character.onboard()
+
+		expect(findZoneBrowseJob(game, character)).toBeUndefined()
+	})
+
+	it('cyclic bay-zone routes may begin at the zone for local zone exchange', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'concrete' as const },
+				{ coord: [2, 0] as const, terrain: 'grass' as const },
+				{ coord: [3, 0] as const, terrain: 'grass' as const },
+			],
+			hives: [
+				{
+					name: 'CyclicLocal',
+					alveoli: [{ coord: [0, 0] as const, alveolus: 'freight_bay', goods: {} }],
+				},
+			],
+			looseGoods: [{ goodType: 'wood' as const, position: { q: 2, r: 0 } }],
+			freightLines: [
+				normalizeFreightLineDefinition({
+					id: 'VH:cyclic-local',
+					name: 'Cyclic local',
+					cyclic: true,
+					stops: [
+						{
+							id: 'bay',
+							anchor: freightBayAnchor('CyclicLocal', [0, 0]),
+						},
+						{
+							id: 'zone',
+							loadSelection: woodOnly,
+							unloadSelection: woodOnly,
+							zone: { kind: 'radius', center: [2, 0] as const, radius: 1 },
+						},
+					],
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 94063, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+		game.hex.getTile({ q: 3, r: 0 })!.content = new BuildDwelling(
+			game.hex.getTile({ q: 3, r: 0 })!,
+			'basic_dwelling'
+		)
+
+		const line = game.freightLines.find((candidate) => candidate.id === 'VH:cyclic-local')!
+		const vehicle = game.vehicles.createVehicle('v-cyclic-local', 'wheelbarrow', { q: 2, r: 0 }, [
+			line,
+		])
+		const character = game.population.createCharacter('CyclicLocal', { q: 2, r: 0 })
+
+		const pick = pickInitialVehicleServiceCandidate(game, character, vehicle)
+		expect(pick?.line.id).toBe(line.id)
+		expect(pick?.stop.id).toBe('zone')
+	})
+
+	it('does not skip a cyclic zone halt that can still load after an empty bay halt', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'concrete' as const },
+				{ coord: [1, 0] as const, terrain: 'grass' as const },
+			],
+			hives: [
+				{
+					name: 'CyclicEmptyBay',
+					alveoli: [{ coord: [0, 0] as const, alveolus: 'freight_bay', goods: {} }],
+				},
+			],
+			looseGoods: [{ goodType: 'wood' as const, position: { q: 1, r: 0 } }],
+			freightLines: [
+				normalizeFreightLineDefinition({
+					id: 'VH:empty-bay-keeps-zone',
+					name: 'Empty bay keeps zone',
+					cyclic: true,
+					stops: [
+						{
+							id: 'bay',
+							loadSelection: woodOnly,
+							unloadSelection: woodOnly,
+							anchor: freightBayAnchor('CyclicEmptyBay', [0, 0]),
+						},
+						{
+							id: 'zone',
+							loadSelection: woodOnly,
+							unloadSelection: woodOnly,
+							zone: { kind: 'radius', center: [0, 0] as const, radius: 1 },
+						},
+					],
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 94065, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+		game.hex.getTile({ q: 1, r: 0 })!.content = new BuildDwelling(
+			game.hex.getTile({ q: 1, r: 0 })!,
+			'basic_dwelling'
+		)
+
+		const line = game.freightLines.find((candidate) => candidate.id === 'VH:empty-bay-keeps-zone')!
+		const vehicle = game.vehicles.createVehicle('v-empty-bay-keeps-zone', 'wheelbarrow', { q: 0, r: 0 }, [
+			line,
+		])
+		const character = game.population.createCharacter('EmptyBayKeepsZone', { q: 0, r: 0 })
+		vehicle.beginLineService(line, line.stops[0]!, character)
+		vehicle.dock()
+
+		maybeAdvanceVehicleFromCompletedAnchorStop(game, vehicle)
+
+		expect(isVehicleLineService(vehicle.service) && vehicle.service.stop.id).toBe('zone')
 	})
 
 	it('work-plan finalizer releases a line operator while preserving unfinished service', async () => {
@@ -931,7 +1197,7 @@ describe('Vehicle zone hop semantics', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines.find(
-			(candidate) => candidate.id === 'ChopSaw:implicit-gather:11,-7'
+			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
 		const unload = line.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
@@ -939,10 +1205,10 @@ describe('Vehicle zone hop semantics', () => {
 		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
 		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
 		// Sub-hex coords from a live ChopSaw play session (wheelbarrow mid-hex after walk.enter).
-		vehicle.position = { q: 8.977690590103157, r: -6.566562716988846 }
+		vehicle.position = { q: -0.9, r: -0.9 }
 		vehicle.storage.addGood('wood', 1)
 		vehicle.beginLineService(line, unload)
-		const character = game.population.createCharacter('ChopSawReclaim', { q: 9, r: -7 })
+		const character = game.population.createCharacter('ChopSawReclaim', { q: -1, r: -1 })
 
 		const hop = findVehicleHopJob(game, character)
 		expect(hop?.job).toBe('vehicleHop')
@@ -957,7 +1223,7 @@ describe('Vehicle zone hop semantics', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines.find(
-			(candidate) => candidate.id === 'ChopSaw:implicit-gather:11,-7'
+			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
 		const load = line.stops.find((stop) => stop.id === 'ChopSaw:ig-load')
@@ -965,13 +1231,13 @@ describe('Vehicle zone hop semantics', () => {
 		if (!load || !unload) throw new Error('expected ChopSaw load/unload stops')
 		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
 		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
-		const character = game.population.createCharacter('ChopSawLoader', { q: 9, r: -7 })
-		character.position = { q: 9, r: -7 }
-		vehicle.position = { q: 9, r: -7 }
+		const character = game.population.createCharacter('ChopSawLoader', { q: -1, r: -1 })
+		character.position = { q: -1, r: -1 }
+		vehicle.position = { q: -1, r: -1 }
 		vehicle.beginLineService(line, load, character)
 		character.operates = vehicle
 		character.onboard()
-		const loose = game.hex.looseGoods.add({ q: 9, r: -7 }, 'wood')
+		const loose = game.hex.looseGoods.add({ q: -1, r: -1 }, 'wood')
 
 		const loadJob = findZoneBrowseJob(game, character)
 		expect(loadJob?.job).toBe('zoneBrowse')
@@ -986,6 +1252,54 @@ describe('Vehicle zone hop semantics', () => {
 		expect(hop?.job).toBe('vehicleHop')
 		expect(hop?.stopId).toBe(unload.id)
 		expect(hop?.dockEnter).toBe(true)
+	})
+
+	it('ends a distribute line at an empty zone unload stop with no cargo to provide', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'concrete' as const },
+				{ coord: [0, -1] as const, terrain: 'grass' as const },
+			],
+			hives: [
+				{
+					name: 'ZoneEmptyUnloadH',
+					alveoli: [{ coord: [0, 0] as const, alveolus: 'freight_bay', goods: {} }],
+				},
+			],
+			freightLines: [
+				distributeFreightLine({
+					id: 'ZoneEmptyUnloadH:distribute',
+					name: 'Zone empty unload',
+					hiveName: 'ZoneEmptyUnloadH',
+					coord: [0, 0],
+					filters: ['wood'],
+					unloadRadius: 1,
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 9422, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const constructionTile = game.hex.getTile({ q: 0, r: -1 })!
+		constructionTile.content = new BuildDwelling(constructionTile, 'basic_dwelling')
+		const line = game.freightLines.find(
+			(candidate) => candidate.id === 'ZoneEmptyUnloadH:distribute'
+		)!
+		const unload = line.stops[1]!
+		const vehicle = game.vehicles.createVehicle('v-empty-unload', 'wheelbarrow', { q: 0, r: -1 }, [
+			line,
+		])
+		const character = game.population.createCharacter('EmptyUnload', { q: 0, r: -1 })
+		vehicle.beginLineService(line, unload, character)
+		character.operates = vehicle
+
+		expect(isVehicleLineService(vehicle.service) && vehicle.service.stop.id).toBe(unload.id)
+		expect('zone' in unload).toBe(true)
+		maybeAdvanceVehiclePastCompletedZoneStop(game, vehicle, character)
+
+		expect(isVehicleLineService(vehicle.service)).toBe(false)
+		expect(vehicle.service).toBeUndefined()
 	})
 
 	it('uses the ChopSaw gather line instead of maintenance offload for needed wood on a project tile', async () => {
@@ -1018,7 +1332,7 @@ describe('Vehicle zone hop semantics', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines.find(
-			(candidate) => candidate.id === 'ChopSaw:implicit-gather:11,-7'
+			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
 		const load = line.stops.find((stop) => stop.id === 'ChopSaw:ig-load')
@@ -1026,8 +1340,8 @@ describe('Vehicle zone hop semantics', () => {
 		if (!load || !unload) throw new Error('expected ChopSaw load/unload stops')
 		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
 		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
-		const character = game.population.createCharacter('ChopSawSteppedOff', { q: 9, r: -7 })
-		vehicle.position = { q: 9, r: -7 }
+		const character = game.population.createCharacter('ChopSawSteppedOff', { q: -1, r: -1 })
+		vehicle.position = { q: -1, r: -1 }
 		vehicle.storage.addGood('wood', 1)
 		vehicle.beginLineService(line, load, character)
 		character.operates = vehicle
@@ -1041,6 +1355,60 @@ describe('Vehicle zone hop semantics', () => {
 		expect(hop?.job).toBe('vehicleHop')
 		expect(hop?.stopId).toBe(unload.id)
 		expect(hop?.dockEnter).toBe(true)
+	})
+
+	it('parks an empty cyclic line vehicle when one full route pass has no actionable stop', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'concrete' as const },
+				{ coord: [1, 0] as const, terrain: 'grass' as const },
+			],
+			hives: [
+				{
+					name: 'EndRouteH',
+					alveoli: [{ coord: [0, 0] as const, alveolus: 'freight_bay', goods: {} }],
+				},
+			],
+			freightLines: [
+				normalizeFreightLineDefinition({
+					id: 'EndRouteH:exchange',
+					name: 'Exchange',
+					cyclic: true,
+					stops: [
+						{
+							id: 'EndRouteH:bay',
+							loadSelection: woodOnly,
+							unloadSelection: woodOnly,
+							anchor: freightBayAnchor('EndRouteH', [0, 0]),
+						},
+						{
+							id: 'EndRouteH:zone',
+							loadSelection: woodOnly,
+							unloadSelection: woodOnly,
+							zone: { kind: 'radius' as const, center: [0, 0] as const, radius: 2 },
+						},
+					],
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 9423, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines.find((candidate) => candidate.id === 'EndRouteH:exchange')!
+		const zone = line.stops[1]!
+		const vehicle = game.vehicles.createVehicle('v-end-route', 'wheelbarrow', { q: 0, r: 0 }, [
+			line,
+		])
+		vehicle.beginLineService(line, zone)
+		const character = game.population.createCharacter('EndRouteWorker', { q: 0, r: 0 })
+
+		expect(projectedLineStopForVehicleHop(game, character, vehicle)).toBeUndefined()
+		expect(findVehicleHopJob(game, character)).toBeUndefined()
+		const park = findVehicleOffloadJob(game, character)
+		expect(park?.job).toBe('vehicleOffload')
+		expect(park?.maintenanceKind).toBe('park')
+		expect(park?.targetCoord).not.toEqual({ q: 0, r: 0 })
 	})
 
 	it('unfinished maintenance service without operator is offered to another worker', async () => {

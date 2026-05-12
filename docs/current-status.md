@@ -33,6 +33,9 @@ Gameplay streaming is owned by `ssh`:
 `ssh` now includes a transport bridge based on freight lines and freight stops:
 
 - first-class line data in save patches with ordered stops
+- freight lines are moving toward an **exchange route** model: each halt can be configured for load,
+  unload, or both, with gather/distribute kept as legacy directional helpers
+- planned cyclic lines evaluate rotated halt orders so a vehicle can begin at any halt
 - radius zones and saved named tile zones as freight stop authority
 - named custom zones alongside built-in residential/harvest markers, with legacy save compatibility
 - selectable custom-zone objects (`zones`, `zone:<zoneId>`) with a dedicated Zones palette entry and zone inspectors; residential/harvest remain built-in tile markers rather than named-zone objects

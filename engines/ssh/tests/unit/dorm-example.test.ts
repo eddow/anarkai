@@ -5,7 +5,6 @@ import { collectDockedVehicleAdvertisementCandidates } from 'ssh/freight/vehicle
 import {
 	collectVehicleAdvertisedJobs,
 	collectVehicleWorkPicks,
-	findVehicleOffloadJob,
 } from 'ssh/freight/vehicle-work'
 import { dorm } from 'ssh/game/exampleGames'
 import { Game } from 'ssh/game/game'
@@ -89,10 +88,11 @@ describe('dorm example game', () => {
 		expect(
 			(chopperSite.hive as unknown as { activeMovements: Set<unknown> }).activeMovements.size
 		).toBeGreaterThan(0)
-		expect(game.freightLines.map((line) => line.id)).toEqual(
-			expect.arrayContaining(['Dorm:implicit-gather:0,1', 'Dorm:distribute:0,1'])
+		expect(game.freightLines.map((line) => line.id)).toContain('Dorm:implicit-gather:0,1')
+		expect(game.freightLines.map((line) => line.id)).not.toContain('Dorm:distribute:0,1')
+		expect(game.freightLines.find((line) => line.id === 'Dorm:implicit-gather:0,1')?.cyclic).toBe(
+			true
 		)
-		expect(game.freightLines.filter((line) => line.id.includes('gather'))).toHaveLength(1)
 
 		const burdened = game.hex.getTile({ q: 3, r: 0 })!
 		const clear = game.hex.getTile({ q: 4, r: 0 })!
@@ -118,13 +118,12 @@ describe('dorm example game', () => {
 		expect(burdened.content).toBeInstanceOf(BasicDwelling)
 	})
 
-	it('docks the bay-burdening vehicle to serve distribute for residential construction', async () => {
+	it('begins the exchange route at the burdening zone when loose goods are already useful there', async () => {
 		game = new Game({ terrainSeed: 867, characterCount: 0 }, dorm)
 		await game.loaded
 		game.ticker.stop()
 
 		const bayTile = game.hex.getTile({ q: 0, r: 1 })!
-		const storage = game.hex.getTile({ q: 0, r: 0 })?.content
 		const buildTile = game.hex.getTile({ q: 4, r: 0 })!
 		const vehicle = game.vehicles.vehicle('Dorm:wheelbarrow')
 		expect(vehicle).toBeDefined()
@@ -147,86 +146,22 @@ describe('dorm example game', () => {
 		expect(buildTile.content.remainingNeeds.wood).toBeGreaterThan(0)
 
 		const driver = game.population.createCharacter('Dorm driver', bayTile.position)
-		expect(findVehicleOffloadJob(game, driver)).toBeUndefined()
 
 		const picks = collectVehicleWorkPicks(game, driver)
-		const distribute = picks.find(
+		const exchange = picks.find(
 			(pick) =>
 				pick.job.job === 'vehicleHop' &&
-				pick.job.lineId === 'Dorm:distribute:0,1' &&
+				pick.job.lineId === 'Dorm:implicit-gather:0,1' &&
 				pick.job.needsBeginService
-		)
-		expect(distribute).toBeDefined()
-		if (!distribute || distribute.job.job !== 'vehicleHop') return
-		expect(distribute.job.dockEnter).toBe(true)
-
-		const line = game.freightLines.find((candidate) => candidate.id === distribute.job.lineId)
-		const stop = line?.stops.find((candidate) => candidate.id === distribute.job.stopId)
-		expect(line).toBeDefined()
-		expect(stop).toBeDefined()
-		if (!line || !stop) return
-
-		vehicle.beginLineService(line, stop, driver)
-		vehicle.dock()
-		expect(vehicle.isDocked).toBe(true)
-		expect(bayTile.isBurdened).toBe(false)
-		expect(
-			collectDockedVehicleAdvertisementCandidates(vehicle, bayTile.content as FreightBayAlveolus)
-		).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ goodType: 'wood', advertisement: 'demand' }),
-			])
-		)
-		const dock = (bayTile.content as FreightBayAlveolus).hive.freightVehicleDockFor(vehicle.uid)
-		expect(dock).toBeDefined()
-		const activeMovements = (
-			(bayTile.content as FreightBayAlveolus).hive as unknown as {
-				activeMovements: Set<TrackedMovement>
-			}
-		).activeMovements
-		const dockDebug = {
-			candidates: collectDockedVehicleAdvertisementCandidates(
-				vehicle,
-				bayTile.content as FreightBayAlveolus
-			).map((candidate) => ({
-				goodType: candidate.goodType,
-				advertisement: candidate.advertisement,
-				quantity: candidate.quantity,
-			})),
-			ads: Object.fromEntries(
-				Object.entries((bayTile.content as FreightBayAlveolus).hive.advertisements).map(
-					([goodType, bucket]) => [
-						goodType,
-						{
-							advertisement: bucket?.advertisement,
-							advertisers: bucket?.advertisers.map((items) => items.map((item) => item.name)),
-						},
-					]
-				)
-			),
-			general: (bayTile.content as FreightBayAlveolus).hive.generalStorages.map((storage) => ({
-				name: storage.name,
-				stock: storage.storage.stock,
-				availableWood: storage.storage.available('wood'),
-				canGive2: storage.canGive('wood', '2-use'),
-			})),
-			movements: Array.from(activeMovements).map((movement) => ({
-				goodType: movement.goodType,
-				provider: movement.provider.name,
-				demander: movement.demander.name,
-			})),
-		}
-		const dockMovements = Array.from(activeMovements).filter(
-			(movement) => movement.demander === dock
-		)
-		const dockMovement = dockMovements.find((movement) => movement.goodType === 'wood')
-		expect(dockMovement, JSON.stringify(dockDebug)).toBeDefined()
-		expect(dockMovements).toHaveLength(2)
-		expect(storage).toBeInstanceOf(StorageAlveolus)
-		if (!(storage instanceof StorageAlveolus) || !dockMovement) return
-		const bay = bayTile.content as FreightBayAlveolus
-		expect(bay.proposedJobs.some((job) => job.job === 'convey')).toBe(false)
-	})
+			)
+			expect(exchange).toBeDefined()
+			if (!exchange || exchange.job.job !== 'vehicleHop') return
+			expect(exchange.job.dockEnter).toBe(false)
+			expect(exchange.job.stopId).toBe('Dorm:gather-zone')
+			expect(exchange.job.zoneBrowseAction).toBe('load')
+			expect(exchange.job.goodType).toBe('wood')
+			expect(exchange.job.targetCoord).toMatchObject({ q: 3, r: 0 })
+		})
 
 	it('refreshes dock demand when downstream construction appears after docking', async () => {
 		game = new Game({ terrainSeed: 867, characterCount: 0 }, dorm)
@@ -241,8 +176,8 @@ describe('dorm example game', () => {
 		expect(bay).toBeInstanceOf(FreightBayAlveolus)
 		if (!vehicle) return
 
-		const line = game.freightLines.find((candidate) => candidate.id === 'Dorm:distribute:0,1')
-		const stop = line?.stops.find((candidate) => candidate.id === 'Dorm:distribute-load')
+		const line = game.freightLines.find((candidate) => candidate.id === 'Dorm:implicit-gather:0,1')
+		const stop = line?.stops.find((candidate) => candidate.id === 'Dorm:gather-unload')
 		expect(line).toBeDefined()
 		expect(stop).toBeDefined()
 		if (!line || !stop) return

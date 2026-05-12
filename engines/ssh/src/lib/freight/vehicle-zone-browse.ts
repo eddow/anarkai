@@ -18,8 +18,14 @@ import {
 } from 'ssh/freight/freight-line'
 import {
 	computeLineFurtherGoods,
+	measureFreightStopNeededGoods,
 	projectLoadedGoodsAgainstFurtherNeeds,
 } from 'ssh/freight/freight-stop-utility'
+import {
+	FREIGHT_LINE_ALL_GOOD_TYPES,
+	listGoodTypesMatchingSelectionPolicy,
+	type GoodSelectionPolicy,
+} from 'ssh/freight/goods-selection-policy'
 import type { FreightAdSource, FreightPriorityTier } from 'ssh/freight/priority-channel'
 import {
 	scoreVehicleCandidate,
@@ -48,6 +54,7 @@ interface ZoneBrowseUtilityContext {
 	readonly stopIndex: number
 	readonly remainingNeededGoods: Partial<Record<GoodType, number>>
 	readonly surplusLoadedGoods: Partial<Record<GoodType, number>>
+	readonly localNeededGoods: Partial<Record<GoodType, number>>
 }
 
 export function zoneBrowseTierWeight(priorityTier: FreightPriorityTier): number {
@@ -111,11 +118,33 @@ export function zoneBrowseUtilityContext(
 		vehicle.storage.stock,
 		further.furtherNeededGoods.perGood
 	)
+	const localNeededGoods = measureFreightStopNeededGoods(game, line, stopIndex).perGood
 	return {
 		stopIndex,
 		remainingNeededGoods: projected.remainingNeededGoods.perGood,
 		surplusLoadedGoods: projected.surplusLoadedGoods.perGood,
+		localNeededGoods,
 	}
+}
+
+function allowedByPolicy(policy: GoodSelectionPolicy | undefined, goodType: GoodType): boolean {
+	if (!policy) return true
+	return listGoodTypesMatchingSelectionPolicy(policy, FREIGHT_LINE_ALL_GOOD_TYPES).includes(goodType)
+}
+
+function explicitZoneLoadGoods(
+	zoneStop: FreightStop & { zone: FreightZoneDefinition },
+	utility: ZoneBrowseUtilityContext
+): Set<GoodType> {
+	const goods = new Set<GoodType>()
+	if (!zoneStop.loadSelection) return goods
+	for (const goodType of [
+		...Object.keys(utility.remainingNeededGoods),
+		...Object.keys(utility.localNeededGoods),
+	] as GoodType[]) {
+		if (allowedByPolicy(zoneStop.loadSelection, goodType)) goods.add(goodType)
+	}
+	return goods
 }
 
 function pickZoneLoadSelection(
@@ -128,6 +157,7 @@ function pickZoneLoadSelection(
 	utility: ZoneBrowseUtilityContext
 ): VehicleZoneBrowseSelection | undefined {
 	const neededGoods = new Set(Object.keys(utility.remainingNeededGoods) as GoodType[])
+	for (const goodType of explicitZoneLoadGoods(zoneStop, utility)) neededGoods.add(goodType)
 	const stopIndex = utility.stopIndex
 	for (const segment of findGatherRouteSegments(line)) {
 		if (segment.loadStopIndex !== stopIndex) continue
@@ -140,12 +170,13 @@ function pickZoneLoadSelection(
 			if (gatherSegmentAllowsGoodTypeForSegment(line, segment, goodType)) neededGoods.add(goodType)
 		}
 	}
-	const selectableGoods = new Set(gatherSelectableGoodTypes(line, [...neededGoods]))
+	const selectableGoods = zoneStop.loadSelection
+		? new Set(listGoodTypesMatchingSelectionPolicy(zoneStop.loadSelection, [...neededGoods]))
+		: new Set(gatherSelectableGoodTypes(line, [...neededGoods]))
 	if (selectableGoods.size === 0) return undefined
 	let best: (VehicleZoneBrowseSelection & { score: number }) | undefined
 	for (const tile of freightZoneTiles(game, zoneStop.zone)) {
-		const adSource = inferZoneLoadAdSource(tile)
-		const priorityTier = zoneBrowseLoadPriorityTier(adSource)
+		const tileAdSource = inferZoneLoadAdSource(tile)
 		const candidates: GoodType[] = []
 		for (const loose of tile.availableGoods) {
 			if (!loose.available || loose.isRemoved) continue
@@ -159,6 +190,11 @@ function pickZoneLoadSelection(
 		const path = pathToTile(game, character, startPos, tile)
 		if (!path) continue
 		for (const goodType of candidates) {
+			const localNeed = (utility.localNeededGoods[goodType] ?? 0) > 0
+			const adSource = localNeed ? CONSTRUCTION_DEMAND_AD_SOURCE : tileAdSource
+			const priorityTier: FreightPriorityTier = localNeed
+				? 'lineAndOffloadJoint'
+				: zoneBrowseLoadPriorityTier(adSource)
 			const score = scoreVehicleCandidate({
 				kind: 'zoneLoad',
 				urgency: jobBalance.loadOntoVehicle,
@@ -194,7 +230,8 @@ function pickZoneProvideSelection(
 	const segments = findDistributeRouteSegments(line).filter(
 		(segment) => segment.unloadStopIndex === utility.stopIndex
 	)
-	if (segments.length === 0) return undefined
+	const hasExplicitUnload = !!zoneStop.unloadSelection
+	if (segments.length === 0 && !hasExplicitUnload) return undefined
 	const priorityTier: FreightPriorityTier = 'pureOffload'
 	let best: (VehicleZoneBrowseSelection & { score: number }) | undefined
 	for (const tile of freightZoneTiles(game, zoneStop.zone)) {
@@ -204,15 +241,20 @@ function pickZoneProvideSelection(
 		for (const goodType of Object.keys(content.remainingNeeds) as GoodType[]) {
 			const need = content.remainingNeeds[goodType] ?? 0
 			if (need <= 0) continue
-			if (
+			if (hasExplicitUnload) {
+				if (!allowedByPolicy(zoneStop.unloadSelection, goodType)) continue
+			} else if (
 				!segments.some((segment) =>
 					distributeSegmentAllowsGoodTypeForSegment(line, segment, goodType)
 				)
-			)
+			) {
 				continue
+			}
 			const available = Math.min(
 				vehicle.storage.available(goodType),
-				utility.surplusLoadedGoods[goodType] ?? 0
+				hasExplicitUnload
+					? (vehicle.storage.available(goodType) ?? 0)
+					: (utility.surplusLoadedGoods[goodType] ?? 0)
 			)
 			if (available <= 0) continue
 			const room = content.storage.hasRoom(goodType) ?? 0

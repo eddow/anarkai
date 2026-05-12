@@ -94,6 +94,12 @@ function dockedVehicleSurplusHasDestination(bay: FreightBayAlveolus, goodType: G
 	return bay.hive.generalStorages.some((storage) => storage.canTake(goodType, '0-store'))
 }
 
+function dockedVehicleLoadHasSource(bay: FreightBayAlveolus, goodType: GoodType): boolean {
+	if (bay.tile.availableGoods.some((good) => good.goodType === goodType)) return true
+	if ((bay.storage.stock[goodType] ?? 0) > 0) return true
+	return bay.hive.generalStorages.some((storage) => (storage.storage.stock[goodType] ?? 0) > 0)
+}
+
 /**
  * Scored dock transfer candidates for a docked wheelbarrow at a freight bay.
  *
@@ -195,6 +201,7 @@ export function collectDockedVehicleAdvertisementCandidates(
 			)
 			if (quantity <= 0) continue
 			if ((vehicle.storage.hasRoom(goodType) ?? 0) <= 0) continue
+			if (!dockedVehicleLoadHasSource(bay, goodType)) continue
 			candidates.push({
 				goodType,
 				advertisement: 'demand',

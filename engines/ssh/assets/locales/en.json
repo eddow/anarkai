@@ -29,6 +29,10 @@
 		"section": "Freight line",
 		"linesSection": "Freight lines",
 		"name": "Name",
+		"cyclic": {
+			"label": "Cyclic",
+			"hint": "Allow this route to begin at any halt and wrap from last halt to first."
+		},
 		"mode": "Mode",
 		"radius": "Radius",
 		"filters": "Filters",
@@ -97,8 +101,8 @@
 	},
 	"bay": {
 		"linesAtThisBay": "Lines at this bay",
-		"addGather": "Add gather line",
-		"addDistribute": "Add distribute line"
+		"addLine": "Add line",
+		"addLineHint": "Create a cyclic exchange route for this freight bay."
 	},
 	"goodsTags": {
 		"food": "Food",

@@ -70,6 +70,12 @@ describe('freight-line-draft', () => {
 		expect(moved.stops[1]?.id).toBe(removed.stops[0]?.id)
 	})
 
+	it('preserves the cyclic flag when cloning a draft', () => {
+		const draft = cloneFreightLineDraft({ ...sample, cyclic: true })
+		expect(draft.cyclic).toBe(true)
+		expect(cloneFreightLineDraft(sample)).not.toHaveProperty('cyclic')
+	})
+
 	it('applies bay anchors onto a stop', () => {
 		const draft = cloneFreightLineDraft(sample)
 		const next = applyFreightDraftBayAnchor(draft, 0, {

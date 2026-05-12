@@ -11,8 +11,8 @@ are deliberately broad; each one can become its own implementation plan once cho
 Already landed or mostly landed:
 
 - Hive construction, attachment, merging, storage flow, harvesting, transforms, transit, and build loops.
-- Vehicle-backed freight management, including freight bays, line definitions, gather/distribute segments,
-  line inspectors, and docked vehicle work.
+- Vehicle-backed freight management, including freight bays, exchange-route line definitions, legacy
+  gather/distribute segment helpers, line inspectors, and docked vehicle work.
 - Selectable custom named-zone objects with a Zones palette entry, zone inspectors, tile/alveolus links, and board masks. Built-in residential/harvest remain ordinary tile markers.
 - Deterministic streamed terrain generation and Pixi continuous-terrain rendering.
 - Browser client panels for inspecting and editing the active simulation.
@@ -28,7 +28,11 @@ Still architecturally important:
 - zone widgets have a property "tiles: #", it should now be a stat line with tool-tipped icons, with amount of tiles, area (, ... ?)
 - We'll need to add config for: locale, measure units (1 tile-border = 3m = 10feet), decimal/duo-decimal
 - we should have bay-less roads (from zone to zone)
+- freight lines should complete the exchange-route refactor: cyclic route order, zone-local exchange,
+  and candidate checks that no longer depend on gather/distribute as line kinds
 - "lines" management widget with filters: "have bay" (yes/all/no) and "visible" (only-intersecting-the-game-view:bool)
+- find a way to show the content of the docked vehicles. Perhaps add a check-box/button to show/hide vehicle content (docked and non-docked)
+- transform alveoli should have a configuration: ratio product/produce to keep. Basically, the ration of `planks/(wood+planks)` to keep, and would not offer a transformation job if there is too much planks and not enough wood. Last but not least: we have here a really simple case (1 input, 1 output), this configuration should allow the choice of which input to consider and which output to consider (of course, having a default, specified in the rules)
 
 ## Recommended Next Tranche
 
@@ -138,6 +142,7 @@ Potential scope:
 
 - Better line diagnostics: blocked pickup, missing unload, no eligible goods, no vehicle.
 - Route health summaries for multi-segment lines.
+- Exchange-route summaries that explain which halt rotations are actionable on cyclic lines.
 - Optional road-aware route benefit summaries when roads land.
 
 Good follow-up to:

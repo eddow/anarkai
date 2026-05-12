@@ -2,7 +2,9 @@
 
 ## Scope
 
-Line freight routes **wheelbarrow** `VehicleEntity` instances along **freight lines**. A **freight line** is an ordered route: a list of **stops**, each stop being one step at a **bay tile** or in a **zone** (not both).
+Line freight routes **wheelbarrow** `VehicleEntity` instances along **freight lines**. The target model is an **exchange route**: an ordered list of **halts**, each halt being one step at a **bay tile** or in a **zone** (not both), and each halt may be configured to load, unload, or both.
+
+Historical code and some helpers still use the word **stop** and the derived labels **gather** / **distribute**. Treat those as compatibility names for directional exchanges, not as separate line kinds.
 
 ## Data model
 
@@ -10,13 +12,14 @@ Line freight routes **wheelbarrow** `VehicleEntity` instances along **freight li
 
 - `id`, `name`
 - `stops`: `ReadonlyArray<FreightStop>`
+- planned: `cyclic?: boolean`
 
 ### Stop shape (`FreightStop`)
 
-Each stop has:
+Each stop/halt has:
 
 - `id`: string
-- optional `loadSelection` / `unloadSelection`: layered `GoodSelectionPolicy` (good rules, tag rules, default allow/deny). Omitted or unrestricted policies are stripped on normalize.
+- optional `loadSelection` / `unloadSelection`: layered `GoodSelectionPolicy` (good rules, tag rules, default allow/deny). Omitted or unrestricted policies are stripped on normalize. A halt may have both; this means the halt can source goods and satisfy needs when runtime candidates exist.
 
 …and **exactly one** of:
 
@@ -24,9 +27,20 @@ Each stop has:
 - `zone`: `FreightZoneDefinition` — either `kind: 'radius'` with `center` + `radius`, or
   `kind: 'named'` with a saved tile-zone `zoneId`
 
-There is **no** stored `op`. Gather vs distribute is inferred **only from geometry** (see segments below).
+There is **no** stored `op`. Runtime behavior should be decided by exchange candidates: what the current halt can load, what it can unload/provide, what later halts can use, and what the vehicle already carries.
 
-### Route segments (derived, not stored)
+### Exchange routes and cyclic order
+
+An exchange route should be evaluated as ordered halt-to-halt opportunities, with zone halts also able to perform local zone-to-zone exchange when configured for both load and unload.
+
+- Non-cyclic line `A-B-C`: evaluate from the chosen start through the route tail, e.g. `A-B-C` if starting at `A`, `B-C` if starting at `B`.
+- Cyclic line `A-B-C`: the vehicle may begin anywhere, so evaluate all rotations: `A-B-C`, `B-C-A`, and `C-A-B`.
+- A cyclic two-halt `Bay-Zone` line is effectively checked as if the zone can appear on both sides of the bay rotation. This allows `Zone-Zone` work before `Zone-Bay` work when the zone halt is configured for both load and unload.
+- A one-halt zone route is valid only if the zone halt has actionable local exchange work; it should not load goods merely because goods exist.
+
+The practical rule: a halt is complete when there is no actionable load/provide candidate for the current vehicle and route context. Empty halts are skipped; if a cyclic scan finds no actionable halt, the service should end or idle instead of spinning.
+
+### Legacy route segments (current implementation)
 
 The engine derives **segments** from consecutive stops:
 
@@ -39,11 +53,13 @@ The engine derives **segments** from consecutive stops:
 
 `findDistributeRouteSegments` skips the bay anchor that **ends** a gather pair so gather and distribute chains can sit on the same line without false positives.
 
-See `findGatherRouteSegments` / `findDistributeRouteSegments` in `engines/ssh/src/lib/freight/freight-line.ts`.
+See `findGatherRouteSegments` / `findDistributeRouteSegments` in `engines/ssh/src/lib/freight/freight-line.ts`. These helpers should be refactored toward exchange-segment discovery instead of remaining the primary freight-line model.
 
 ### Goods selection
 
-Restrictive policies on segment **pickup** are read from the segment **load** stop’s `loadSelection` (gather: zone stop; distribute: bay anchor stop). `unloadSelection` is available when a stop needs an explicit unload-side filter.
+Restrictive policies on halt **pickup** are read from `loadSelection`; restrictive policies on halt **provide/unload** are read from `unloadSelection`. For legacy segment helpers, pickup is still read from the segment load stop’s `loadSelection` (gather: zone stop; distribute: bay anchor stop).
+
+For a zone halt with both policies, the same zone may legally produce and consume goods in one line service. Example: loose wood in the zone can be loaded and then provided to a construction site in that same zone, if both actions pass policy and utility checks.
 
 ### Persistence and normalization
 
@@ -64,6 +80,9 @@ are not selectable named-zone objects.
 - **Segment-scoped checks:** use `gatherSegmentAllowsGoodTypeForSegment` / `distributeSegmentAllowsGoodTypeForSegment` with the **active** `FreightGatherRouteSegment` / `FreightDistributeRouteSegment` in loops (e.g. bay requisition, line-vehicle work).
 - **Broad checks:** `gatherSegmentAllowsGoodType` / `distributeSegmentAllowsGoodType` OR across segments — for aggregate behavior (e.g. `distributeLinesAllowGoodType`, hive storage ads).
 - **UI / summary:** `freightLineAllowsGoodType` ORs gather and distribute sides — **not** for tight runtime authority on a single segment.
+- **Exchange-scoped checks:** new runtime code should prefer halt load/unload policies plus exchange candidates over gather/distribute labels.
+- **Cyclic checks:** for a cyclic line, candidate search must consider every rotation of the stop list so a vehicle can begin at any halt.
+- **Zone local exchange:** a zone halt configured for both load and unload must be treated as capable of `zone -> zone` transfer when a source and sink exist in that zone.
 - **Radius:** `distributeSegmentWithinRadius(line, segment, pathLength)` uses the **unload** stop’s zone when present; missing zone means no path-length cap for that segment.
 - **Named zones:** use `freightZoneTiles` / `freightZoneContainsPosition` for runtime authority. Named
   zone stops search/provide only on tiles currently painted with that zone id.
@@ -86,6 +105,9 @@ are not selectable named-zone objects.
 **Remaining / handoff**
 
 - Better line diagnostics: blocked pickup, missing unload, no eligible goods, no vehicle.
+- Refactor runtime line management from gather/distribute segments to exchange candidates.
+- Add and expose a `cyclic` line option. UI copy should explain that cyclic lines can be begun from any halt and are checked in rotated order.
+- Support zone-local exchange (`zone -> zone`) for zone halts configured with both load and unload policies.
 - Optional: expose distribute default (bay→bay unload = unlimited delivery radius) in copy/tooltips.
 
 ## Related files

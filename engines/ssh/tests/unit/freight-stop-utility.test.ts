@@ -2,6 +2,8 @@ import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import {
 	type FreightLineDefinition,
 	findGatherRouteSegments,
+	freightLineStopOrder,
+	nextFreightLineStop,
 	normalizeFreightLineDefinition,
 } from 'ssh/freight/freight-line'
 import {
@@ -35,6 +37,45 @@ function freightBayAnchor(hiveName: string, coord: readonly [number, number]) {
 }
 
 describe('freight-stop-utility', () => {
+	it('freightLineStopOrder returns suffixes for non-cyclic lines and wrapped orders for cyclic lines', () => {
+		const stops = [
+			{ id: 'a', zone: { kind: 'radius' as const, center: [0, 0] as const, radius: 1 } },
+			{ id: 'b', zone: { kind: 'radius' as const, center: [1, 0] as const, radius: 1 } },
+			{ id: 'c', zone: { kind: 'radius' as const, center: [2, 0] as const, radius: 1 } },
+		]
+		const line: FreightLineDefinition = { id: 'u:abc', name: 'ABC', stops }
+		const cyclicLine: FreightLineDefinition = { ...line, cyclic: true }
+
+		expect(freightLineStopOrder(line, 1)).toEqual([1, 2])
+		expect(freightLineStopOrder(cyclicLine, 0)).toEqual([0, 1, 2])
+		expect(freightLineStopOrder(cyclicLine, 1)).toEqual([1, 2, 0])
+		expect(freightLineStopOrder(cyclicLine, 2)).toEqual([2, 0, 1])
+	})
+
+	it('nextFreightLineStop wraps only for cyclic lines', () => {
+		const stops = [
+			{ id: 'a', zone: { kind: 'radius' as const, center: [0, 0] as const, radius: 1 } },
+			{ id: 'b', zone: { kind: 'radius' as const, center: [1, 0] as const, radius: 1 } },
+			{ id: 'c', zone: { kind: 'radius' as const, center: [2, 0] as const, radius: 1 } },
+		]
+		const line: FreightLineDefinition = { id: 'u:abc', name: 'ABC', stops }
+		const cyclicLine: FreightLineDefinition = { ...line, cyclic: true }
+
+		expect(nextFreightLineStop(line, stops[1]!)).toBe(stops[2])
+		expect(nextFreightLineStop(line, stops[2]!)).toBeUndefined()
+		expect(nextFreightLineStop(cyclicLine, stops[2]!)).toBe(stops[0])
+	})
+
+	it('normalizeFreightLineDefinition preserves true cyclic and omits false/default', () => {
+		const stop = { id: 'a', zone: { kind: 'radius' as const, center: [0, 0] as const, radius: 1 } }
+		expect(
+			normalizeFreightLineDefinition({ id: 'u:false', name: 'False', cyclic: false, stops: [stop] })
+		).not.toHaveProperty('cyclic')
+		expect(
+			normalizeFreightLineDefinition({ id: 'u:true', name: 'True', cyclic: true, stops: [stop] })
+		).toHaveProperty('cyclic', true)
+	})
+
 	it('listGoodsAllowedOnGatherSegment respects loadSelection', () => {
 		const line = normalizeFreightLineDefinition(
 			gatherFreightLine({

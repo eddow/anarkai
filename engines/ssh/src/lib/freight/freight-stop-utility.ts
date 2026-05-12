@@ -10,6 +10,7 @@ import {
 	type FreightStop,
 	findDistributeRouteSegments,
 	findGatherRouteSegments,
+	freightLineStopOrder,
 	freightZoneTiles,
 	gatherSegmentAllowsGoodTypeForSegment,
 } from 'ssh/freight/freight-line'
@@ -189,6 +190,10 @@ function distributeUnloadSegmentForStop(
 }
 
 function allowedGoodsProvidedAtStop(line: FreightLineDefinition, stopIndex: number): GoodType[] {
+	const stop = line.stops[stopIndex]
+	if (stop?.loadSelection) {
+		return listGoodTypesMatchingSelectionPolicy(stop.loadSelection, FREIGHT_LINE_ALL_GOOD_TYPES)
+	}
 	const gatherSegment = gatherLoadSegmentForStop(line, stopIndex)
 	if (gatherSegment) return listGoodsAllowedOnGatherSegment(line, gatherSegment)
 	const distributeSegment = distributeLoadSegmentForStop(line, stopIndex)
@@ -201,6 +206,9 @@ function allowedGoodsNeededAtStop(
 	stopIndex: number,
 	stop: FreightStop
 ): GoodType[] {
+	if (stop.unloadSelection) {
+		return listGoodTypesMatchingSelectionPolicy(stop.unloadSelection, FREIGHT_LINE_ALL_GOOD_TYPES)
+	}
 	const gatherSegment = gatherUnloadSegmentForStop(line, stopIndex)
 	if (gatherSegment) {
 		return filterAllowedGoods(
@@ -452,11 +460,15 @@ export function computeLineFurtherGoods(args: {
 	readonly game: Game
 	readonly line: FreightLineDefinition
 	readonly currentStopIndex: number
+	readonly orderedStopIndices?: readonly number[]
 }): FreightLineFurtherGoodsSnapshot {
 	let furtherNeededGoods: Partial<Record<GoodType, number>> = {}
 	let furtherProvidedGoods: Partial<Record<GoodType, number>> = {}
 	let furtherTransferredGoods: Partial<Record<GoodType, number>> = {}
-	for (let stopIndex = args.currentStopIndex + 1; stopIndex < args.line.stops.length; stopIndex++) {
+	const order =
+		args.orderedStopIndices ??
+		freightLineStopOrder(args.line, args.currentStopIndex).slice(1)
+	for (const stopIndex of order) {
 		const neededHere = measureFreightStopNeededGoods(args.game, args.line, stopIndex).perGood
 		for (const [goodType, quantity] of Object.entries(neededHere) as [GoodType, number][]) {
 			const matchedProvided = Math.min(quantity, furtherProvidedGoods[goodType] ?? 0)

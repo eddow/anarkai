@@ -8,6 +8,7 @@ import { type Position, toAxialCoord } from 'ssh/utils/position'
 import type { GoodSelectionPolicy } from './goods-selection-policy'
 import {
 	evaluateGoodSelectionPolicy,
+	FREIGHT_LINE_ALL_GOOD_TYPES,
 	isUnrestrictedGoodsSelectionPolicy,
 	listGoodTypesMatchingSelectionPolicy,
 	normalizeGoodSelectionPolicy,
@@ -72,6 +73,7 @@ export interface FreightLineDefinition {
 	readonly id: string
 	readonly name: string
 	readonly stops: ReadonlyArray<FreightStop>
+	readonly cyclic?: boolean
 }
 
 export const DEFAULT_GATHER_FREIGHT_RADIUS = defaultGatherFreightRadius
@@ -300,11 +302,36 @@ export function findDistributeRouteSegments(
 
 /** Normalizes ids, anchors, zones, and goods policies. Call when persisting or replacing a line. */
 export function normalizeFreightLineDefinition(line: FreightLineDefinition): FreightLineDefinition {
-	return {
+	const normalized: FreightLineDefinition = {
 		id: line.id,
 		name: line.name,
 		stops: line.stops.map((stop, index) => normalizeFreightStop(stop, index)),
 	}
+	return line.cyclic === true ? { ...normalized, cyclic: true } : normalized
+}
+
+/** Stop indices to inspect when a service starts/continues from `startIndex`. */
+export function freightLineStopOrder(line: FreightLineDefinition, startIndex: number): number[] {
+	if (startIndex < 0 || startIndex >= line.stops.length) return []
+	if (!line.cyclic) {
+		return line.stops.slice(startIndex).map((_, offset) => startIndex + offset)
+	}
+	const order: number[] = []
+	for (let offset = 0; offset < line.stops.length; offset++) {
+		order.push((startIndex + offset) % line.stops.length)
+	}
+	return order
+}
+
+/** Next stop after `currentStop`, wrapping only for cyclic lines. */
+export function nextFreightLineStop(
+	line: FreightLineDefinition,
+	currentStop: FreightStop
+): FreightStop | undefined {
+	const idx = line.stops.findIndex((stop) => stop.id === currentStop.id)
+	if (idx < 0) return undefined
+	if (idx < line.stops.length - 1) return line.stops[idx + 1]
+	return line.cyclic ? line.stops[0] : undefined
 }
 
 export function findFreightLineForStop(
@@ -741,6 +768,52 @@ export function createExplicitFreightLineDraftForFreightBay(
 	return normalizeFreightLineDefinition(draft)
 }
 
+export function createExchangeFreightLineDraftForFreightBay(
+	alveolus: FreightBayStopAlveolus
+): FreightLineDefinition | undefined {
+	if (alveolus.name !== 'freight_bay') return undefined
+	const coord = toAxialCoord(alveolus.tile.position)
+	if (!coord) return undefined
+	const hiveName = freightLineStopHiveName(alveolus.hive.name)
+	const displayName = freightLineDisplayHiveName(alveolus.hive.name)
+	const unique = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`
+	const axialCoord = [coord.q, coord.r] as const
+	const anchor: FreightStopAnchorAlveolus = {
+		kind: 'alveolus',
+		hiveName,
+		alveolusType: 'freight_bay',
+		coord: axialCoord,
+	}
+	const selection: GoodSelectionPolicy = {
+		goodRules: FREIGHT_LINE_ALL_GOOD_TYPES.map((goodType) => ({ goodType, effect: 'allow' })),
+		tagRules: [],
+		defaultEffect: 'deny',
+	}
+	return normalizeFreightLineDefinition({
+		id: `${displayName}:explicit:${coord.q},${coord.r}:exchange:${unique}`,
+		name: `${displayName} (${coord.q}, ${coord.r}) exchange`,
+		cyclic: true,
+		stops: [
+			{
+				id: 'exchange-bay',
+				loadSelection: selection,
+				unloadSelection: selection,
+				anchor,
+			},
+			{
+				id: 'exchange-zone',
+				loadSelection: selection,
+				unloadSelection: selection,
+				zone: {
+					kind: 'radius',
+					center: axialCoord,
+					radius: DEFAULT_GATHER_FREIGHT_RADIUS,
+				},
+			},
+		],
+	})
+}
+
 /**
  * Display-only: returns the bay tile for the first route segment on the line,
  * for inspector anchoring and hoverObject.  Runtime delivery should use
@@ -774,12 +847,7 @@ export function getFreightLinePrimaryTile(
 }
 
 export function freightLineSummary(line: FreightLineDefinition): string {
-	const hasGather = findGatherRouteSegments(line).length > 0
-	const hasDistribute = findDistributeRouteSegments(line).length > 0
-	if (hasGather && hasDistribute) return 'Gather + distribute'
-	if (hasGather) return 'Gather'
-	if (hasDistribute) return 'Distribute'
-	return 'Freight'
+	return line.cyclic ? 'Exchange' : 'Freight'
 }
 
 export function createSyntheticFreightLineObject(

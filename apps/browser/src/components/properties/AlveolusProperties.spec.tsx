@@ -15,7 +15,7 @@ const createSyntheticFreightLineObject = vi.fn((_game: unknown, line: { id: stri
 	uid: `syn:${line.id}`,
 	lineId: line.id,
 }))
-const createExplicitFreightLineDraftForFreightBay = vi.fn(() => ({
+const createExchangeFreightLineDraftForFreightBay = vi.fn(() => ({
 	id: 'new-explicit-line',
 	name: 'New line',
 	stops: [],
@@ -79,7 +79,7 @@ vi.mock('@app/lib/follow-selection', () => ({
 }))
 
 vi.mock('ssh/freight/freight-line', () => ({
-	createExplicitFreightLineDraftForFreightBay,
+	createExchangeFreightLineDraftForFreightBay,
 	createSyntheticFreightLineObject,
 	findFreightLinesForStop,
 	normalizeFreightLineDefinition: (line: { id: string; name: string; stops: unknown[] }) => line,
@@ -133,8 +133,8 @@ vi.mock('@app/lib/i18n', () => {
 			},
 			bay: {
 				linesAtThisBay: 'Lines at this bay',
-				addGather: 'Add gather line',
-				addDistribute: 'Add distribute line',
+				addLine: 'Add line',
+				addLineHint: 'Create route',
 				removeLine: 'Remove line',
 			},
 		},
@@ -210,7 +210,7 @@ describe('AlveolusProperties', () => {
 		document.body.appendChild(container)
 		findFreightLinesForStop.mockClear()
 		createSyntheticFreightLineObject.mockClear()
-		createExplicitFreightLineDraftForFreightBay.mockClear()
+		createExchangeFreightLineDraftForFreightBay.mockClear()
 		selectInspectorObject.mockClear()
 		replaceFreightLine.mockClear()
 		removeFreightLineById.mockClear()
@@ -286,9 +286,10 @@ describe('AlveolusProperties', () => {
 			</table>
 		)
 		container
-			.querySelector('[data-testid="freight-bay-add-gather"]')
+			.querySelector('[data-testid="freight-bay-add-line"]')
 			?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
 		expect(selectInspectorObject).toHaveBeenCalledTimes(1)
+		expect(createExchangeFreightLineDraftForFreightBay).toHaveBeenCalledTimes(1)
 	})
 
 	it('updates the bay line list when freight lines change', () => {
@@ -333,8 +334,9 @@ describe('AlveolusProperties', () => {
 			</table>
 		)
 		expect(container.querySelector('[data-testid="row-Lines at this bay"]')).not.toBeNull()
-		expect(container.querySelector('[data-testid="freight-bay-add-gather"]')).not.toBeNull()
-		expect(container.querySelector('[data-testid="freight-bay-add-distribute"]')).not.toBeNull()
+		expect(container.querySelector('[data-testid="freight-bay-add-line"]')).not.toBeNull()
+		expect(container.querySelector('[data-testid="freight-bay-add-gather"]')).toBeNull()
+		expect(container.querySelector('[data-testid="freight-bay-add-distribute"]')).toBeNull()
 	})
 
 	it('renders construction status through the shared formatter for build sites', () => {

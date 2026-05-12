@@ -51,30 +51,13 @@ export const chopSaw = {
 	freightLines: [
 		{
 			id: 'ChopSaw:implicit-gather:0,0',
-			name: 'ChopSaw (0, 0) gather',
+			name: 'ChopSaw (0, 0) exchange',
+			cyclic: true,
 			stops: [
-				{
-					id: 'ChopSaw:ig-load',
-					zone: { kind: 'radius', center: [0, 0], radius: 9 },
-				},
 				{
 					id: 'ChopSaw:ig-unload',
-					anchor: {
-						kind: 'alveolus',
-						hiveName: 'ChopSaw',
-						alveolusType: 'freight_bay',
-						coord: [0, 0],
-					},
-				},
-			],
-		},
-		{
-			id: 'ChopSaw:distribute:0,0',
-			name: 'ChopSaw (0, 0) distribute',
-			stops: [
-				{
-					id: 'ChopSaw:distribute-load',
 					loadSelection: constructionGoodsSelection,
+					unloadSelection: constructionGoodsSelection,
 					anchor: {
 						kind: 'alveolus',
 						hiveName: 'ChopSaw',
@@ -83,7 +66,9 @@ export const chopSaw = {
 					},
 				},
 				{
-					id: 'ChopSaw:distribute-zone',
+					id: 'ChopSaw:ig-load',
+					loadSelection: constructionGoodsSelection,
+					unloadSelection: constructionGoodsSelection,
 					zone: { kind: 'radius', center: [0, 0], radius: 9 },
 				},
 			],
@@ -97,6 +82,7 @@ export const chopSaw = {
 			[-1, 2],
 			[-2, 2],
 			[4, -1],
+			[3, 0],
 			[2, 1],
 			[1, 2],
 		],
@@ -117,7 +103,7 @@ export const chopSaw = {
 			uid: 'ChopSaw:wheelbarrow',
 			vehicleType: 'wheelbarrow',
 			position: { q: -1, r: 1 },
-			servedLineIds: ['ChopSaw:implicit-gather:0,0', 'ChopSaw:distribute:0,0'],
+			servedLineIds: ['ChopSaw:implicit-gather:0,0'],
 		},
 	],
 } satisfies GamePatches
@@ -150,40 +136,24 @@ export const dorm = {
 	freightLines: [
 		{
 			id: 'Dorm:implicit-gather:0,1',
-			name: 'Dorm (0, 1) gather',
+			name: 'Dorm (0, 1) exchange',
+			cyclic: true,
 			stops: [
+				{
+					id: 'Dorm:gather-unload',
+					loadSelection: constructionGoodsSelection,
+					unloadSelection: constructionGoodsSelection,
+					anchor: {
+						kind: 'alveolus',
+						hiveName: 'Dorm',
+						alveolusType: 'freight_bay',
+						coord: [0, 1],
+					},
+				},
 				{
 					id: 'Dorm:gather-zone',
 					loadSelection: constructionGoodsSelection,
-					zone: { kind: 'radius', center: [0, 1], radius: 6 },
-				},
-				{
-					id: 'Dorm:gather-unload',
-					anchor: {
-						kind: 'alveolus',
-						hiveName: 'Dorm',
-						alveolusType: 'freight_bay',
-						coord: [0, 1],
-					},
-				},
-			],
-		},
-		{
-			id: 'Dorm:distribute:0,1',
-			name: 'Dorm (0, 1) distribute',
-			stops: [
-				{
-					id: 'Dorm:distribute-load',
-					loadSelection: constructionGoodsSelection,
-					anchor: {
-						kind: 'alveolus',
-						hiveName: 'Dorm',
-						alveolusType: 'freight_bay',
-						coord: [0, 1],
-					},
-				},
-				{
-					id: 'Dorm:distribute-zone',
+					unloadSelection: constructionGoodsSelection,
 					zone: { kind: 'radius', center: [0, 1], radius: 6 },
 				},
 			],
@@ -203,7 +173,7 @@ export const dorm = {
 			uid: 'Dorm:wheelbarrow',
 			vehicleType: 'wheelbarrow',
 			position: { q: 0, r: 1 },
-			servedLineIds: ['Dorm:implicit-gather:0,1', 'Dorm:distribute:0,1'],
+			servedLineIds: ['Dorm:implicit-gather:0,1'],
 		},
 	],
 } satisfies GamePatches

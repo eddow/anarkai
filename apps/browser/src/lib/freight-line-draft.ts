@@ -80,6 +80,7 @@ export function cloneFreightLineDraft(line: FreightLineDefinition): FreightLineD
 	return {
 		id: line.id,
 		name: line.name,
+		...(line.cyclic === true ? { cyclic: true } : {}),
 		stops: line.stops.map((s) => cloneFreightStop(s)),
 	}
 }

@@ -30,6 +30,7 @@ import {
 	freightStopMovementTarget,
 	freightStopTargetPosition,
 	gatherUnloadAnchorHiveDemandsGood,
+	nextActionableVehicleLineStop,
 	pickInitialVehicleServiceCandidate,
 	projectedLineStopForVehicleHop,
 	vehicleNeedsParkingOnCurrentTile,
@@ -104,7 +105,7 @@ export function allocateVehicleServiceForJob(
 	switch (job.job) {
 		case 'vehicleOffload': {
 			if (isVehicleLineService(vehicle.service)) {
-				if (job.maintenanceKind !== 'park' || !vehicle.service.docked) {
+				if (job.maintenanceKind !== 'park') {
 					throw new Error('vehicleOffload: line service already active')
 				}
 				vehicle.endService()
@@ -230,13 +231,12 @@ function vehicleTraceSnapshot(vehicle: VehicleEntity) {
 }
 
 function nextLineStopAfterCurrent(
+	game: Game,
 	vehicle: VehicleEntity
 ): { line: FreightLineDefinition; stop: FreightStop } | undefined {
 	const service = vehicle.service
 	if (!isVehicleLineService(service)) return undefined
-	const idx = service.line.stops.findIndex((stop) => stop.id === service.stop.id)
-	if (idx < 0 || idx >= service.line.stops.length - 1) return undefined
-	return { line: service.line, stop: service.line.stops[idx + 1]! }
+	return nextActionableVehicleLineStop(game, vehicle, service.line, service.stop)
 }
 
 function dockedVehicleProviderJob(game: Game, vehicle: VehicleEntity): ProposedJob | undefined {
@@ -289,7 +289,7 @@ function dockedVehicleProviderJob(game: Game, vehicle: VehicleEntity): ProposedJ
 		return undefined
 	}
 
-	const next = nextLineStopAfterCurrent(vehicle)
+	const next = nextLineStopAfterCurrent(game, vehicle)
 	if (next) {
 		traces.vehicle.log?.('[vehicle.advertisedJobs] provider next-stop hop', {
 			...vehicleTraceSnapshot(vehicle),
@@ -914,6 +914,28 @@ function findVehicleOffloadJobApproach(
 			}
 			continue
 		}
+		if (isVehicleLineService(service)) {
+			if (projectedLineStopForVehicleHop(game, character, vehicle)) continue
+			const candidate = pickParkingTargetForVehicle(game, vehicle, (tile) =>
+				vehicleCanReachMaintenanceTarget(game, vehicle, character, tile)
+			)
+			if (!candidate) continue
+			const maintenanceCandidate: ParkCandidate = {
+				kind: 'park',
+				tile: candidate.tile,
+				urgency: candidate.urgency,
+			}
+			const score = maintenanceCandidateScore(maintenanceCandidate, pathToVehicle.length)
+			if (!best || score > best.score) {
+				best = {
+					score,
+					vehicle,
+					candidate: maintenanceCandidate,
+					pathToVehicle,
+				}
+			}
+			continue
+		}
 		if (service) continue
 
 		const candidate = pickMaintenanceForVehicle(game, vehicle, character)
@@ -1451,7 +1473,7 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 			vehicle.isDocked &&
 			'anchor' in service.stop &&
 			!dockedVehicleHasPendingDockWork(vehicle)
-				? nextLineStopAfterCurrent(vehicle)
+				? nextLineStopAfterCurrent(game, vehicle)
 				: undefined
 		if (dockedNextStop) pick = dockedNextStop
 		const needsBeginService = !isVehicleLineService(service)

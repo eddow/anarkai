@@ -4,8 +4,10 @@ import { showFreightLineOverlay } from '@app/lib/freight-line-overlay'
 import { clearFreightMapPickForLine } from '@app/lib/freight-map-pick'
 import { bumpSelectionTitleVersion } from '@app/lib/globals'
 import { T } from '@app/lib/i18n'
+import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
 import { InspectorSection } from '@app/ui/anarkai'
 import { effect } from 'mutts'
+import { tablerOutlineRepeat, tablerOutlineTrash } from 'pure-glyf/icons'
 import type { FreightLineDefinition, SyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import { normalizeFreightLineDefinition } from 'ssh/freight/freight-line'
 import FreightStopList from '../FreightStopList'
@@ -30,6 +32,36 @@ css`
 	word-break: break-word;
 }
 
+.freight-line-properties__actions {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.45rem;
+	width: 100%;
+}
+
+.freight-line-properties__icon-btn {
+	display: inline-grid;
+	place-items: center;
+	inline-size: 2rem;
+	block-size: 2rem;
+	border-radius: 0.4rem;
+	border: 1px solid color-mix(in srgb, var(--ak-text-muted) 22%, transparent);
+	background: color-mix(in srgb, var(--ak-surface-panel) 92%, transparent);
+	color: var(--ak-text);
+	cursor: pointer;
+}
+
+.freight-line-properties__icon-btn[aria-pressed="true"] {
+	border-color: color-mix(in srgb, var(--ak-accent, #8b5cf6) 42%, transparent);
+	background: color-mix(in srgb, var(--ak-accent, #8b5cf6) 14%, var(--ak-surface-panel));
+}
+
+.freight-line-properties__icon-btn.danger {
+	border-color: color-mix(in srgb, var(--ak-danger, #c44) 35%, transparent);
+	color: var(--ak-danger, #c44);
+}
+
 .freight-line-properties__issues {
 	margin: 0;
 	padding-inline-start: 1.1rem;
@@ -37,15 +69,6 @@ css`
 	color: var(--ak-danger, #c44);
 }
 
-.freight-line-properties__delete {
-	padding: 0.35rem 0.55rem;
-	border-radius: 0.4rem;
-	border: 1px solid color-mix(in srgb, var(--ak-danger, #c44) 35%, transparent);
-	background: color-mix(in srgb, var(--ak-surface-panel) 92%, transparent);
-	color: var(--ak-danger, #c44);
-	cursor: pointer;
-	font-size: 0.8rem;
-}
 `
 
 interface FreightLinePropertiesProps {
@@ -65,6 +88,8 @@ const issueMessage = (code: FreightDraftIssueCode): string => {
 			return code
 	}
 }
+
+const icon = (source: string) => renderAnarkaiIcon(source, { size: 16 })
 
 const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 	const currentGame = () => props.lineObject?.game
@@ -110,6 +135,12 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 		replaceLine({ ...line, name: value })
 	}
 
+	const handleCyclicInput = (checked: boolean) => {
+		const line = currentLine()
+		if (readOnly() || !line) return
+		replaceLine({ ...line, cyclic: checked ? true : undefined })
+	}
+
 	const handleDeleteLine = () => {
 		const lineId = props.lineObject?.lineId
 		const g = currentGame()
@@ -125,6 +156,32 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 			<PropertyGrid>
 				<PropertyGridRow if={!isAvailable()}>
 					<span class="freight-line-properties__uid">{T.line.unavailable}</span>
+				</PropertyGridRow>
+				<PropertyGridRow if={isAvailable()}>
+					<div class="freight-line-properties__actions">
+						<button
+							type="button"
+							class="freight-line-properties__icon-btn"
+							title={T.line.cyclic.hint}
+							aria-label={T.line.cyclic.label}
+							aria-pressed={currentLine()?.cyclic === true ? 'true' : 'false'}
+							disabled={!isAvailable()}
+							onClick={() => handleCyclicInput(currentLine()?.cyclic !== true)}
+							data-testid="freight-line-cyclic"
+						>
+							{icon(tablerOutlineRepeat)}
+						</button>
+						<button
+							type="button"
+							class="freight-line-properties__icon-btn danger"
+							title={T.line.deleteLine.action}
+							aria-label={T.line.deleteLine.action}
+							data-testid="freight-line-delete"
+							onClick={handleDeleteLine}
+						>
+							{icon(tablerOutlineTrash)}
+						</button>
+					</div>
 				</PropertyGridRow>
 				<PropertyGridRow label={T.line.name}>
 					<input
@@ -145,16 +202,6 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 							{(code: FreightDraftIssueCode) => <li>{issueMessage(code)}</li>}
 						</for>
 					</ul>
-				</PropertyGridRow>
-				<PropertyGridRow if={isAvailable()} label={T.line.deleteLine.section}>
-					<button
-						type="button"
-						class="freight-line-properties__delete"
-						data-testid="freight-line-delete"
-						onClick={handleDeleteLine}
-					>
-						{T.line.deleteLine.action}
-					</button>
 				</PropertyGridRow>
 			</PropertyGrid>
 			<FreightStopList

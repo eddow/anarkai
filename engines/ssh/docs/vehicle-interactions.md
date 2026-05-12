@@ -79,11 +79,13 @@ Common first steps:
 For a loaded vehicle, selection is:
 
 1. If it is already serving a line, continue that line.
-2. Otherwise, if its cargo is compatible with a served gather line and the vehicle is currently in
-   that line's first zone stop, begin that line at the gather segment's unload stop **only when the
-   hive at that line's unload bay currently advertises demand for that good** (`Hive.needs`, i.e.
-   `1-buffer` or `2-use`, not `0-store`). A gather line's load policy may allow a good type even when no
-   alveolus in that hive actually demands it; that cargo must fall through to maintenance (`unloadToTile` / `loadFromBurden`) instead of a line hop.
+2. Otherwise, if its cargo can satisfy an actionable unload/provide halt on a served exchange route,
+   begin that line at the matching halt. Current implementation mostly recognizes this through legacy
+   gather unload segments: cargo compatible with a served gather line can enter at that segment's
+   unload stop **only when the hive at that unload bay currently advertises demand for that good**
+   (`Hive.needs`, i.e. `1-buffer` or `2-use`, not `0-store`). A line's load policy may allow a good type
+   even when no later halt actually needs it; that cargo must fall through to maintenance
+   (`unloadToTile` / `loadFromBurden`) instead of a line hop.
 3. Otherwise, if the vehicle still has room and a burdening good is reachable, `loadFromBurden`.
 4. Otherwise, `unloadToTile`.
 
@@ -95,12 +97,16 @@ actual current `zoneBrowse` load candidate, load a burdening good, or park if em
 an important tile. A good merely matching a gather line's filter is not enough to suppress
 `loadFromBurden`; the line must be ready to load that tile now.
 
+Longer term, "gather" and "distribute" are compatibility names for directional exchanges. The
+selection question should be: does this vehicle have an actionable exchange candidate on one of its
+served routes, given current cargo, halt load/unload policies, and reachable sources/sinks?
+
 Rules:
 
 - `loadFromBurden` vs `unloadToTile` is nearest-first when both are available on a loaded idle vehicle.
 - `park` is fallback-by-control-flow, not score-compared against load/unload.
 - `park` also follows a completed docked `(un)loading` process when the line service ends and leaves an empty vehicle burdening the current tile.
-- Entering a compatible gather line from loaded cargo (first zone) **preempts** maintenance only when
+- Entering a compatible line from loaded cargo **preempts** maintenance only when
   begin-service is actually actionable for that worker (reachable unload / valid hop), not from
   structural compatibility alone.
 - UI/debug vehicle proposals are not bound to the current operator. An idle vehicle has no operator
@@ -124,7 +130,8 @@ It is structurally the same as a `zoneBrowse` **load**:
 That is the whole work. `loadFromBurden` does not also decide where to drop the loaded good. Once
 the burdening good is inside the wheelbarrow, normal work selection runs again at distance 0 from
 that same vehicle. A loaded mushroom with no compatible line should usually become `unloadToTile`;
-a loaded wood may enter a served gather line only when the vehicle is in that line's first zone stop.
+a loaded wood may enter line service only when a served route has an actionable provide/unload halt
+for that cargo. Current code still exposes the common case through legacy gather-segment checks.
 
 #### Precondition
 
@@ -151,12 +158,12 @@ a loaded wood may enter a served gather line only when the vehicle is in that li
 
 - Either:
   * Vehicle is serving a line and its stop is fulfilled
-  * Vehicle has no service, is empty, and spotted a line who would be nice serving
+  * Vehicle has no service and spotted an actionable served exchange route
 
 Important distinction:
 
 - "begin a line" is empty-only for an idle wheelbarrow unless the wheelbarrow already carries cargo
-  that matches a served gather segment,
+  that matches an actionable provide/unload halt,
 - but ordinary line continuation is still allowed on a non-empty wheelbarrow that is already serving that line.
 
 #### Begin plan
@@ -178,6 +185,17 @@ Steps:
       2. **[long]** drive to that good/need
       3. offboard: character regain its position
       4. **[long]** grab/drop the good/need
+
+Exchange-route target behavior:
+
+- A halt can be configured for load, unload, or both.
+- A cyclic line can begin anywhere. For `A-B-C`, candidate search must consider `A-B-C`, `B-C-A`,
+  and `C-A-B`.
+- A cyclic `Bay-Zone` line must also behave as if the zone can be checked on both sides of the bay
+  rotation, so a configured zone can perform `Zone-Zone` work before `Zone-Bay` continuation.
+- A zone halt with both load and unload policies can perform local exchange inside the same zone
+  (for example, load loose wood and provide it to an in-zone construction site), but only when both
+  a source and a sink are actionable. Loose goods alone are not enough.
 
 #### End plan
 
@@ -250,7 +268,9 @@ Note:
 
 #### Precondition
 
-- The vehicle services a line and is at a zone-stop who can be deepened: it has more loose-goods to grab if it has to load or more lose-need to fulfill if it has to unload
+- The vehicle services a line and is at a zone halt with an actionable exchange candidate: load from
+  a reachable source, provide/unload to a reachable sink, or both when the halt is configured for
+  both directions.
 
 #### Begin plan
 
@@ -265,6 +285,11 @@ Steps:
 4. **[long]** drive to that good/need
 5. offboard: character regain its position
 6. **[long]** grab/drop the good/need
+
+For a zone halt configured with both `loadSelection` and `unloadSelection`, `zoneBrowse` may
+legitimately select a source and later a sink inside the same zone. This is the local `Zone-Zone`
+case: it should use the same scoring and policy checks as other exchange candidates, not a special
+maintenance path.
 
 #### End plan
 
@@ -304,11 +329,11 @@ Several mechanisms already point at the same decision surface:
 - **(Un)loading** (below): `further-needed-goods` / `further-provided-goods` and utility points.
 - **Maintenance offload** family: burden relief vs park vs line-hop (see “Priority between offload offers” above).
 
-When multiple targets are valid—for example **wood on a project**, a **ChopSaw** (or similar hive) that **needs wood** inside the **zone of a gather line**, and the line’s own stop contract—a strawman **tier** ordering that matches the intended gameplay story is:
+When multiple targets are valid—for example **wood on a project**, a **ChopSaw** (or similar hive) that **needs wood** inside the **zone of an exchange route**, and the line’s own halt contract—a strawman **tier** ordering that matches the intended gameplay story is:
 
-1. **Line + offload (joint):** Prefer pickups that **simultaneously** satisfy an obligation to the **line** (e.g. gather segment / stop) **and** a compatible **offload, hive-adjacent, or project** need (wood counts for the line *and* feeds production or clearing that the line is meant to support).
+1. **Line + offload (joint):** Prefer pickups that **simultaneously** satisfy an obligation to the **line** (e.g. exchange halt / legacy gather segment) **and** a compatible **offload, hive-adjacent, or project** need (wood counts for the line *and* feeds production or clearing that the line is meant to support).
 2. **Pure offload / burden / hive-target:** Then work that clears burden, explicit unload paths, or hive ads **without** requiring a line obligation on that good.
-3. **Pure line:** Then remaining line-only gathers or zone obligations.
+3. **Pure line:** Then remaining line-only exchange obligations.
 
 Between tiers, **distance**, **utility** (`freight-stop-utility` and cousins), and **which ad channel** matched (vehicle station vs hive vs project-local) should be tunable so one configuration can bias “always feed the saw first” and another “always clear the tile first”. The important implementation direction is one **policy surface** for ranking targets, fed by the same libraries that compute dock and line utility, not divergent one-off heuristics in each script. Current implementation routes zone browse, maintenance, begin-service, and dock provide/demand candidates through `scoreVehicleCandidate(...)`.
 
@@ -322,10 +347,10 @@ is the sum of in-flight storage bookkeeping (`reserved + allocated`), and a dock
 waits while that value is non-zero. Convey workers remain responsible for moving goods and
 settling source reservations / target allocations; they do not schedule dock completion.
 
- First, the *service* object will estimate the amount of goods needed further in the line: it will cumulate all the following stops with "unload"
- > TODO: Some lines will be marked as "exclusive", meaning that a vehicle can only serve one line. This line will therefore be a cycle and "all the next stops" = all the next stops in the lines concatenated by all the first stops until the one being served. Non-exclusive lines *ust* end on an unload-all, load-nothing stop
+ First, the *service* object will estimate the amount of goods needed further in the line: it will cumulate all the following halts with "unload"/provide authority.
+ > TODO: Lines should support an explicit `cyclic` flag. On a cyclic line, "all the next stops" means the chosen halt order plus the wrapped prefix: `A-B-C`, `B-C-A`, or `C-A-B` depending on where service begins. Non-cyclic lines should either reach a meaningful unload/provide tail or end once no actionable exchange remains.
 
-In all the following stops, count the amount of needed goods, intersect it with the goods that can be unloaded there. This will be the `further-needed-goods` collection (`{good: amount}`)
+In all the following halts, count the amount of needed goods, intersect it with the goods that can be unloaded there. This will be the `further-needed-goods` collection (`{good: amount}`)
 
 We should calculate the same for `further-provided-goods`
 
