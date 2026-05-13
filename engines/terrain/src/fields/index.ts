@@ -25,12 +25,25 @@ import {
 	isGpuFieldRuntimeReady,
 } from './gpu'
 
+import {
+	generateFieldsWasm,
+	generateTileFieldWasm,
+	isWasmFieldGenerationAvailable,
+} from './wasm'
+
 export const AUTO_GPU_MIN_TILES = 64
+
+// Export WASM functions for external use
+export {
+	generateFieldsWasm,
+	generateTileFieldWasm,
+	isWasmFieldGenerationAvailable,
+} from './wasm'
 
 export function resolveFieldGenerationBackend(
 	backend: FieldGenerationBackend | undefined
 ): Exclude<FieldGenerationBackend, 'auto'> {
-	if (!backend || backend === 'auto') return 'cpu'
+	if (!backend || backend === 'auto') return 'wasm'
 	return backend
 }
 
@@ -43,12 +56,11 @@ export function resolveSyncFieldGenerationBackend(
 
 export function resolveAsyncFieldGenerationBackend(
 	backend: FieldGenerationBackend | undefined,
-	tileCount = 0
+	_tileCount = 0
 ): Exclude<FieldGenerationBackend, 'auto'> {
 	if (!backend || backend === 'auto') {
-		return canUseWebGpuFields() && isGpuFieldRuntimeReady() && tileCount >= AUTO_GPU_MIN_TILES
-			? 'gpu'
-			: 'cpu'
+		if (isWasmFieldGenerationAvailable()) return 'wasm'
+		return 'cpu'
 	}
 	return backend
 }
@@ -72,9 +84,12 @@ export async function generateTileFieldAsync(
 	config: TerrainConfig,
 	backend: FieldGenerationBackend | undefined
 ): Promise<TileField> {
-	switch (resolveAsyncFieldGenerationBackend(backend, 1)) {
+	const resolved = resolveAsyncFieldGenerationBackend(backend, 1)
+	switch (resolved) {
 		case 'gpu':
 			return generateTileFieldGpu(seed, coord, config)
+		case 'wasm':
+			return generateTileFieldWasm(seed, coord, config)
 		case 'cpu':
 			return generateTileFieldCpu(seed, coord, config)
 	}
@@ -101,9 +116,12 @@ export async function generateFieldsAsync(
 	backend: FieldGenerationBackend | undefined
 ): Promise<Map<AxialKey, TileField>> {
 	const packedCoords = Array.isArray(coords) ? coords : [...coords]
-	switch (resolveAsyncFieldGenerationBackend(backend, packedCoords.length)) {
+	const resolved = resolveAsyncFieldGenerationBackend(backend, packedCoords.length)
+	switch (resolved) {
 		case 'gpu':
 			return generateFieldsGpu(packedCoords, seed, config)
+		case 'wasm':
+			return generateFieldsWasm(packedCoords, seed, config)
 		case 'cpu':
 			return generateFieldsCpu(packedCoords, seed, config)
 	}

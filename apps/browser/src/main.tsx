@@ -10,10 +10,10 @@ import App from './App'
 mount()
 registerGlyfIconFactory()
 
-latch('#app', <App />)
-
 ;(globalThis as typeof globalThis & { ['mutts:profile']?: typeof profileInfo })['mutts:profile'] =
 	profileInfo
+
+latch('#app', <App />)
 
 async function bootstrap() {
 	await initTranslator()

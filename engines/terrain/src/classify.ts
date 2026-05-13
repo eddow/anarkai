@@ -1,23 +1,22 @@
-import { defaultBiomeClassificationThresholds } from 'engine-rules'
 import type { BiomeHint, EdgeField, TerrainConfig, TileField } from './types'
-
-const {
-	riverFluxThreshold,
-	riverBankInfluenceThreshold,
-	channelInfluenceLake,
-	riverFluxLakeMultiplier,
-	wetlandRiverInfluence,
-} = defaultBiomeClassificationThresholds
+import { ensureWasmLoaded, getWasmModule, isWasmLoaded } from './wasm-loader'
+import { profileCall } from './noise'
 
 export interface HydrologyClassification {
 	bankInfluence?: number
 	channelInfluence?: number
 }
 
+export async function initWasmClassification(): Promise<void> {
+	await ensureWasmLoaded()
+}
+
+export function isWasmClassificationAvailable(): boolean {
+	return isWasmLoaded()
+}
+
 /**
- * Classify a tile into a biome hint based on its fields and neighboring edge flows.
- * All thresholds come from config — no hardcoded magic numbers.
- * Edge-aware classification becomes active once hydrology populates the edges (Phase 2).
+ * Classify a tile into a biome hint using Rust/WASM.
  */
 export function classifyTile(
 	tile: TileField,
@@ -29,31 +28,38 @@ export function classifyTile(
 	const riverInfluence = hydrology.bankInfluence ?? 0
 	const channelInfluence = hydrology.channelInfluence ?? 0
 
-	if (tile.height < config.seaLevel) {
-		return maxFlux > riverFluxThreshold ? 'lake' : 'ocean'
+	const wasm = getWasmModule()
+	const wasmResult = profileCall('wasm_classify_tile', () =>
+		wasm.wasm_classify_tile(
+			tile.height,
+			tile.temperature,
+			tile.humidity,
+			tile.terrainType,
+			tile.rockyNoise,
+			tile.sediment,
+			tile.waterTable,
+			maxFlux,
+			riverInfluence || null,
+			channelInfluence || null,
+			config.seaLevel,
+			config.snowLevel,
+			config.rockyLevel,
+			config.forestLevel,
+			config.wetlandHumidity
+		)
+	)
+
+	const biomeMap: Record<number, BiomeHint> = {
+		0: 'ocean',
+		1: 'lake',
+		2: 'river-bank',
+		3: 'wetland',
+		4: 'sand',
+		5: 'grass',
+		6: 'forest',
+		7: 'rocky',
+		8: 'snow',
 	}
 
-	if (
-		channelInfluence > channelInfluenceLake &&
-		maxFlux > riverFluxThreshold * riverFluxLakeMultiplier &&
-		tile.height <= config.forestLevel
-	) {
-		return 'lake'
-	}
-
-	if (maxFlux > riverFluxThreshold || riverInfluence > riverBankInfluenceThreshold) {
-		return 'river-bank'
-	}
-
-	if (riverInfluence > wetlandRiverInfluence && tile.height < config.forestLevel) return 'wetland'
-
-	if (tile.height > config.rockyLevel) return tile.height > config.snowLevel ? 'snow' : 'rocky'
-
-	if (tile.height <= config.forestLevel) return 'sand'
-
-	if (tile.humidity > config.wetlandHumidity && tile.height < config.forestLevel) return 'wetland'
-
-	if (tile.terrainType > 0) return 'forest'
-
-	return 'grass'
+	return biomeMap[wasmResult] || 'grass'
 }

@@ -9,10 +9,13 @@ export {
 	generateFields,
 	generateFieldsAsync,
 	generateFieldsGpu,
+	generateFieldsWasm,
 	generateTileField,
 	generateTileFieldAsync,
 	generateTileFieldGpu,
+	generateTileFieldWasm,
 	isGpuFieldRuntimeReady,
+	isWasmFieldGenerationAvailable,
 	type PackedFieldRequest,
 	type PackedFieldResult,
 	packFieldRequest,
@@ -49,5 +52,12 @@ export {
 } from './generate'
 export * from './hex/index'
 export { type HydrologyResult, isSpring, runHydrology, runHydrologyDetailed } from './hydrology'
-export { fbm, PerlinNoise } from './noise'
+export { fbm, PerlinNoise, dumpNoiseProfile, resetNoiseProfile } from './noise'
 export * from './types'
+export {
+	ensureWasmLoaded,
+	getWasmModule,
+	isWasmLoaded,
+	loadWasmModule,
+	wasmLoadReady,
+} from './wasm-loader'

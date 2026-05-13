@@ -10,6 +10,7 @@ import {
 	resolveSyncFieldGenerationBackend,
 } from './fields'
 import { axial } from './hex/axial'
+import { dumpNoiseProfile, resetNoiseProfile } from './noise'
 import type { AxialCoord, AxialKey } from './hex/types'
 import type { HydrologyResult } from './hydrology'
 import {
@@ -260,7 +261,9 @@ export function generateHydratedRegionWithMetrics(
 	const gpuRuntimeReadyAtStart = isGpuFieldRuntimeReady()
 
 	const startedAt = nowMs()
+	resetNoiseProfile()
 	const tiles = generateFields(paddedCoords, seed, config, options?.fieldBackend)
+	dumpNoiseProfile()
 	const afterFieldsAt = nowMs()
 	const workingSnapshot: TerrainSnapshot = {
 		seed,
@@ -343,7 +346,9 @@ export async function generateHydratedRegionAsyncWithMetrics(
 	)
 
 	const startedAt = nowMs()
+	resetNoiseProfile()
 	const tiles = await generateFieldsAsync(paddedCoords, seed, config, options?.fieldBackend)
+	dumpNoiseProfile()
 	const afterFieldsAt = nowMs()
 	const workingSnapshot: TerrainSnapshot = {
 		seed,
@@ -374,6 +379,16 @@ export async function generateHydratedRegionAsyncWithMetrics(
 		config
 	)
 	const completedAt = nowMs()
+
+	const metrics = {
+		fieldGenerationMs: afterFieldsAt - startedAt,
+		hydrologyMs: afterHydrologyAt - afterFieldsAt,
+		clippingMs: completedAt - afterHydrologyAt,
+		totalMs: completedAt - startedAt,
+	}
+	console.log(
+		`[wasm:profile] Pipeline timing: fields=${metrics.fieldGenerationMs.toFixed(1)}ms hydrology=${metrics.hydrologyMs.toFixed(1)}ms clipping=${metrics.clippingMs.toFixed(1)}ms TOTAL=${metrics.totalMs.toFixed(1)}ms`
+	)
 
 	return {
 		snapshot,

@@ -12,6 +12,11 @@ import type {
 } from '../types'
 import { isSpring } from './springs'
 
+// Legacy fallback — will be removed after WASM path is proven stable
+// The Rust core has compute_drainage and detect_lakes functions that will be
+// exported as WASM. Once those are available, this spring-based hydrology
+// will be replaced with the Rust drainage computation.
+
 const t = defaultHydrologyTraceConstants
 const MIN_TERMINAL_PATH_LENGTH = t.minTerminalPathLength
 

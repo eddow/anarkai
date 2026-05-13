@@ -12,6 +12,7 @@
 	},
 	"dependencies": {
 		"@webgpu/types": "^0.1.69",
+		"anarkai-core": "workspace:*",
 		"engine-rules": "workspace:*",
 		"typescript": "~5.8.3",
 		"webgpgpu.ts": "link:/home/fmdm/dev/ownk/webgpgpu"

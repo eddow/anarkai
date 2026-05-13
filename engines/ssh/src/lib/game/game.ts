@@ -736,6 +736,11 @@ export class Game extends Eventful<GameEvents> {
 
 		this.loaded = this.loaded.then(async () => {
 			this.HiveClass = Hive
+			// Await WASM module so terrain generation uses Rust/WASM
+			try {
+				const { wasmLoadReady } = await import('engine-terrain')
+				await wasmLoadReady
+			} catch {}
 			// Initialize base RNG with terrainSeed so everything is reproducible
 			;(this as any).rng = LCG('gameSeed', this.generationOptions.terrainSeed)
 			// Expose RNG to global for script helpers

@@ -26,8 +26,8 @@ export const chopSaw = {
 		{
 			name: 'ChopSaw',
 			alveoli: [
-				{ alveolus: 'tree_chopper', coord: [-1, -1] },
-				{ alveolus: 'stonecutter', coord: [2, 0] },
+				{ alveolus: 'stonecutter', coord: [-1, -1] },
+				{ alveolus: 'tree_chopper', coord: [2, 0] },
 				{
 					alveolus: 'storage',
 					coord: [0, -1],
@@ -76,15 +76,11 @@ export const chopSaw = {
 	],
 	zones: {
 		harvest: [
-			[-2, 1],
-			[-3, 3],
-			[-2, 3],
-			[-1, 2],
-			[-2, 2],
-			[4, -1],
-			[3, 0],
-			[2, 1],
-			[1, 2],
+			[3, 1],
+			[3, 2],
+			[2, 3],
+			[-6, 2],
+			[-5, 2],
 		],
 		residential: [
 			[-4, 1],

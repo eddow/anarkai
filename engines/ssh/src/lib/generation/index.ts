@@ -3,7 +3,6 @@
  * Coordinates all generation activities for the game
  */
 
-import { streamHydrologyPadding } from 'engine-rules'
 import {
 	type BiomeHint,
 	generateHydratedRegion as generateTerrainRegion,
@@ -38,6 +37,12 @@ const terrainToBiome: Partial<Record<TerrainType, BiomeHint>> = {
 	rocky: 'rocky',
 	snow: 'snow',
 }
+
+// Terrain hydrology is currently disabled in engine-terrain's streamed hydrated generation.
+// Keep streaming field generation unpadded until river tracing is re-enabled; otherwise small
+// frontier requests generate a halo of tiles that gets clipped away immediately.
+const STREAM_TERRAIN_PADDING = 0
+
 function toTileOverrides(terraforming: TerrainTerraformPatch[]): TileOverride[] {
 	const overrides: TileOverride[] = []
 	for (const patch of terraforming) {
@@ -64,7 +69,7 @@ export class GameGenerator {
 		terraforming: TerrainTerraformPatch[] = []
 	): GeneratedTileData[] {
 		const snapshot = generateTerrainRegion(config.terrainSeed, coords, {
-			hydrologyPadding: streamHydrologyPadding,
+			hydrologyPadding: STREAM_TERRAIN_PADDING,
 			tileOverrides: toTileOverrides(terraforming),
 		})
 
@@ -79,7 +84,7 @@ export class GameGenerator {
 	): Promise<GeneratedTileData[]> {
 		const snapshot = await generateTerrainRegionAsync(config.terrainSeed, coords, {
 			fieldBackend: 'auto',
-			hydrologyPadding: streamHydrologyPadding,
+			hydrologyPadding: STREAM_TERRAIN_PADDING,
 			tileOverrides: toTileOverrides(terraforming),
 		})
 

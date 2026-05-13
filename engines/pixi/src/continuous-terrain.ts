@@ -46,11 +46,14 @@ const RETAINED_SECTOR_MARGIN = 2
 // The furthest bake-domain corners sit at SECTOR_STEP + 1 hex distance
 // from the sector center for the current axial-rectangle topology.
 const GAMEPLAY_STREAM_RADIUS = SECTOR_STEP + 1
-const GAMEPLAY_STREAM_BATCH_SIZE = 96
+// Batch size for terrain generation streaming.
+// Larger batches amortize WASM boundary overhead vs one-at-a-time generation.
+// Sectors are 17×17=289 tiles; 512 fits 2 sectors comfortably with padding.
+const GAMEPLAY_STREAM_BATCH_SIZE = 512
 const TERRAIN_DIAGNOSTIC_HISTORY_LIMIT = 12
 const SLOW_SECTOR_LOG_THRESHOLD_MS = 16
-const MAX_PENDING_SECTORS = 3
-const MAX_SECTOR_STARTS_PER_REFRESH = 2
+const MAX_PENDING_SECTORS = 1
+const MAX_SECTOR_STARTS_PER_REFRESH = 1
 const PREFETCH_SECTOR_MARGIN = 1
 const VIEWPORT_WORLD_OVERSCAN = tileSize * 3
 const HEX_HALF_WIDTH = (Math.sqrt(3) / 2) * tileSize

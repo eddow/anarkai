@@ -63,6 +63,118 @@ export async function wasmAdd(a: number, b: number): Promise<number> {
 	return add(a, b)
 }
 
+/**
+ * Call the WASM `fbm_sample` function (fractal Brownian motion).
+ * @param seed - The random seed (converted to BigInt for WASM)
+ * @param x - X coordinate
+ * @param y - Y coordinate
+ * @param octaves - Number of octaves
+ * @param persistence - Persistence factor
+ * @param lacunarity - Lacunarity factor
+ */
+export async function wasmFbmSample(
+	seed: number,
+	x: number,
+	y: number,
+	octaves: number,
+	persistence: number,
+	lacunarity: number
+): Promise<number> {
+	await initCore()
+	const { wasm_fbm_sample } = await import('anarkai-core')
+	return wasm_fbm_sample(BigInt(seed), x, y, octaves, persistence, lacunarity)
+}
+
+/**
+ * Call the WASM `perlin_sample` function.
+ * @param seed - The random seed (converted to BigInt for WASM)
+ * @param x - X coordinate
+ * @param y - Y coordinate
+ */
+export async function wasmPerlinSample(seed: number, x: number, y: number): Promise<number> {
+	await initCore()
+	const { wasm_perlin_sample } = await import('anarkai-core')
+	return wasm_perlin_sample(BigInt(seed), x, y)
+}
+
+/**
+ * Call the WASM `generate_tile_field` function.
+ * @param q - Axial q coordinate
+ * @param r - Axial r coordinate
+ * @param seed - The random seed (converted to BigInt for WASM)
+ * @param config - Terrain configuration
+ */
+export async function wasmGenerateTileField(
+	q: number,
+	r: number,
+	seed: number,
+	config: {
+		scale: number
+		octaves: number
+		persistence: number
+		lacunarity: number
+		sea_level: number
+		temperature_scale: number
+		humidity_scale: number
+		terrain_type_scale: number
+		rocky_level: number
+		forest_level: number
+		sand_temperature: number
+		sand_humidity: number
+		wetland_humidity: number
+		forest_humidity: number
+		snow_level: number
+		hydrology_sources_per_tile: number
+		hydrology_land_ceiling: number
+		hydrology_max_trace_steps: number
+		hydrology_flux_step_weight: number
+	}
+): Promise<{
+	height: number
+	temperature: number
+	humidity: number
+	terrain_type: number
+	rocky_noise: number
+	sediment: number
+	water_table: number
+}> {
+	await initCore()
+	const { wasm_generate_tile_field, WasmTerrainConfig } = await import('anarkai-core')
+	
+	const wasmConfig = new WasmTerrainConfig()
+	wasmConfig.scale = config.scale
+	wasmConfig.octaves = config.octaves
+	wasmConfig.persistence = config.persistence
+	wasmConfig.lacunarity = config.lacunarity
+	wasmConfig.sea_level = config.sea_level
+	wasmConfig.temperature_scale = config.temperature_scale
+	wasmConfig.humidity_scale = config.humidity_scale
+	wasmConfig.terrain_type_scale = config.terrain_type_scale
+	wasmConfig.rocky_level = config.rocky_level
+	wasmConfig.forest_level = config.forest_level
+	wasmConfig.sand_temperature = config.sand_temperature
+	wasmConfig.sand_humidity = config.sand_humidity
+	wasmConfig.wetland_humidity = config.wetland_humidity
+	wasmConfig.forest_humidity = config.forest_humidity
+	wasmConfig.snow_level = config.snow_level
+	wasmConfig.hydrology_sources_per_tile = config.hydrology_sources_per_tile
+	wasmConfig.hydrology_land_ceiling = config.hydrology_land_ceiling
+	wasmConfig.hydrology_max_trace_steps = config.hydrology_max_trace_steps
+	wasmConfig.hydrology_flux_step_weight = config.hydrology_flux_step_weight
+	
+	const result = wasm_generate_tile_field(q, r, BigInt(seed), wasmConfig)
+	
+	return {
+		height: result.height,
+		temperature: result.temperature,
+		humidity: result.humidity,
+		terrain_type: result.terrain_type,
+		rocky_noise: result.rocky_noise,
+		sediment: result.sediment,
+		water_table: result.water_table,
+	}
+}
+
 /** Check whether WASM is available in this runtime. */
 export function isWasmAvailable(): boolean {
 	try {

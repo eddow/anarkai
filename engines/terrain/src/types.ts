@@ -94,7 +94,7 @@ export interface HydratedRegionMetrics {
 	timings: TerrainGenerationPhaseTimings
 }
 
-export type FieldGenerationBackend = 'auto' | 'cpu' | 'gpu'
+export type FieldGenerationBackend = 'auto' | 'cpu' | 'gpu' | 'wasm'
 
 // ─── Classification ──────────────────────────────────────────────
 
