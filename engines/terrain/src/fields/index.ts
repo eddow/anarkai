@@ -29,6 +29,7 @@ import {
 	generateFieldsWasm,
 	generateSectorFieldsWasm,
 	generateTileFieldWasm,
+	getCachedWasmTerrainConfig,
 	isWasmFieldGenerationAvailable,
 } from './wasm'
 
@@ -39,6 +40,7 @@ export {
 	generateFieldsWasm,
 	generateSectorFieldsWasm,
 	generateTileFieldWasm,
+	getCachedWasmTerrainConfig,
 	isWasmFieldGenerationAvailable,
 	type WasmSectorCoord,
 	type WasmSectorFieldBatch,

@@ -1,5 +1,5 @@
 import { deposits as depositDefinitions } from 'engine-rules'
-import type { HydrologyPathTerminalKind } from 'engine-terrain'
+import type { HydrologyPathTerminalKind, TerrainMacroHydrologySnapshot } from 'engine-terrain'
 import type { GameGenerationConfig, GameGenerator, TerrainTerraformPatch } from 'ssh/generation'
 import type { TerrainType } from 'ssh/types'
 import type { AxialDirection } from 'ssh/utils'
@@ -65,6 +65,10 @@ export interface TerrainProviderDiagnostics {
 	evictions: number
 	lastEnsureMs: number
 	maxEnsureMs: number
+	macroCacheSize: number
+	macroInFlightSize: number
+	macroHits: number
+	macroMisses: number
 }
 
 interface CacheEntry {
@@ -81,13 +85,22 @@ interface TerrainProviderOptions {
 	idleEvictMs?: number
 }
 
+export interface EnsureTerrainSectorsOptions {
+	includeHydrology?: boolean
+}
+
 const DEFAULT_MAX_CACHE_ENTRIES = 60000
 const DEFAULT_IDLE_EVICT_MS = 90_000
+const MACRO_REGION_SNAP = 8
+const MACRO_CACHE_SIZE = 4
 
 export class TerrainProvider {
 	private readonly cache = new Map<string, CacheEntry>()
 	private readonly inFlightByCoord = new Map<string, Promise<TerrainSample | undefined>>()
 	private readonly inFlightBySector = new Map<string, Promise<void>>()
+	private readonly macroCache = new Map<string, { snapshot: TerrainMacroHydrologySnapshot; lastAccessMs: number }>()
+	private readonly inFlightByMacro = new Map<string, Promise<TerrainMacroHydrologySnapshot>>()
+	private activeMacroKey: string | undefined
 	private readonly completedSectors = new Set<string>()
 	private readonly viewportDemands = new Map<string, Set<string>>()
 	private readonly maxCacheEntries: number
@@ -104,6 +117,10 @@ export class TerrainProvider {
 		evictions: 0,
 		lastEnsureMs: 0,
 		maxEnsureMs: 0,
+		macroCacheSize: 0,
+		macroInFlightSize: 0,
+		macroHits: 0,
+		macroMisses: 0,
 	}
 
 	constructor(private readonly options: TerrainProviderOptions) {
@@ -182,7 +199,10 @@ export class TerrainProvider {
 		this.syncSizes()
 	}
 
-	public async ensureTerrainSectors(sectorKeys: Iterable<string>): Promise<void> {
+	public async ensureTerrainSectors(
+		sectorKeys: Iterable<string>,
+		options: EnsureTerrainSectorsOptions = {}
+	): Promise<void> {
 		const startedAt = nowMs()
 		this.diagnostics.ensures++
 		const unique = new Set<string>()
@@ -202,7 +222,7 @@ export class TerrainProvider {
 		}
 
 		if (missing.length > 0) {
-			const generation = this.generateSectorsAndCache(missing)
+			const generation = this.generateSectorsAndCache(missing, options)
 			for (const key of missing) {
 				const perSector = generation.finally(() => {
 					this.inFlightBySector.delete(key)
@@ -219,6 +239,56 @@ export class TerrainProvider {
 		this.diagnostics.lastEnsureMs = tookMs
 		this.diagnostics.maxEnsureMs = Math.max(this.diagnostics.maxEnsureMs, tookMs)
 		this.syncSizes()
+	}
+
+	public async ensureMacroHydrology(centerSectorKey: string): Promise<void> {
+		const [rawQ, rawR] = centerSectorKey.split(',').map(Number)
+		const center = { q: rawQ ?? 0, r: rawR ?? 0 }
+		const config = this.options.getGenerationConfig()
+		const snapped = {
+			q: Math.floor(center.q / MACRO_REGION_SNAP) * MACRO_REGION_SNAP,
+			r: Math.floor(center.r / MACRO_REGION_SNAP) * MACRO_REGION_SNAP,
+		}
+		const key = `${config.terrainSeed}:${snapped.q},${snapped.r}`
+		const cached = this.macroCache.get(key)
+		if (cached) {
+			cached.lastAccessMs = nowMs()
+			this.activeMacroKey = key
+			this.diagnostics.macroHits++
+			this.syncSizes()
+			return
+		}
+		this.diagnostics.macroMisses++
+		let inFlight = this.inFlightByMacro.get(key)
+		if (!inFlight) {
+			inFlight = (async () => {
+				try {
+					const snapshot = await this.options.generator.generateMacroHydrologyAsync(config, snapped)
+					this.macroCache.set(key, { snapshot, lastAccessMs: nowMs() })
+					this.activeMacroKey = key
+					this.evictMacroIfNeeded()
+					return snapshot
+				} finally {
+					this.inFlightByMacro.delete(key)
+					this.syncSizes()
+				}
+			})()
+			this.inFlightByMacro.set(key, inFlight)
+			this.syncSizes()
+		}
+		const snapshot = await inFlight
+		this.macroCache.set(key, { snapshot, lastAccessMs: nowMs() })
+		this.activeMacroKey = key
+		this.evictMacroIfNeeded()
+		this.syncSizes()
+	}
+
+	public getTerrainMacroHydrology(): TerrainMacroHydrologySnapshot | undefined {
+		if (!this.activeMacroKey) return undefined
+		const cached = this.macroCache.get(this.activeMacroKey)
+		if (!cached) return undefined
+		cached.lastAccessMs = nowMs()
+		return cached.snapshot
 	}
 
 	public updateViewportDemand(viewportId: string, coords: Iterable<AxialCoord>) {
@@ -272,7 +342,10 @@ export class TerrainProvider {
 		this.diagnostics.generatedTiles += tiles.length
 	}
 
-	private async generateSectorsAndCache(sectorKeys: string[]) {
+	private async generateSectorsAndCache(
+		sectorKeys: string[],
+		options: EnsureTerrainSectorsOptions = {}
+	) {
 		const sectors = sectorKeys.map((key) => {
 			const [q, r] = key.split(',').map(Number)
 			return { q: q ?? 0, r: r ?? 0 }
@@ -280,7 +353,8 @@ export class TerrainProvider {
 		const tiles = await this.options.generator.generateSectorsAsync(
 			this.options.getGenerationConfig(),
 			sectors,
-			this.options.getTerraformingPatches()
+			this.options.getTerraformingPatches(),
+			{ includeHydrology: options.includeHydrology ?? true }
 		)
 		for (const tile of tiles) {
 			const deposit = tile.deposit
@@ -339,6 +413,16 @@ export class TerrainProvider {
 		}
 	}
 
+	private evictMacroIfNeeded() {
+		if (this.macroCache.size <= MACRO_CACHE_SIZE) return
+		const entries = [...this.macroCache.entries()].sort((a, b) => a[1].lastAccessMs - b[1].lastAccessMs)
+		for (const [key] of entries) {
+			if (this.macroCache.size <= MACRO_CACHE_SIZE) break
+			if (key === this.activeMacroKey) continue
+			this.macroCache.delete(key)
+		}
+	}
+
 	private collectDemandedKeys(): Set<string> {
 		const keys = new Set<string>()
 		for (const demanded of this.viewportDemands.values()) {
@@ -350,6 +434,8 @@ export class TerrainProvider {
 	private syncSizes() {
 		this.diagnostics.cacheSize = this.cache.size
 		this.diagnostics.inFlightSize = this.inFlightByCoord.size + this.inFlightBySector.size
+		this.diagnostics.macroCacheSize = this.macroCache.size
+		this.diagnostics.macroInFlightSize = this.inFlightByMacro.size
 		this.diagnostics.viewportCount = this.viewportDemands.size
 		this.diagnostics.demandedCoords = this.collectDemandedKeys().size
 	}

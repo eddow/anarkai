@@ -13,6 +13,7 @@ import { axial } from './hex/axial'
 import { dumpNoiseProfile, resetNoiseProfile } from './noise'
 import type { AxialCoord, AxialKey } from './hex/types'
 import type { HydrologyResult } from './hydrology'
+import { logTerrainProfile } from './profile'
 import {
 	type BiomeHint,
 	DEFAULT_TERRAIN_CONFIG,
@@ -60,7 +61,11 @@ export interface TerrainSectorCoord {
 export interface GenerateSectorRegionOptions extends GenerateOptions {
 	sectorStep?: number
 	padding?: number
+	hydrologyPadding?: number
+	includeHydrology?: boolean
 }
+
+export const DEFAULT_SECTOR_HYDROLOGY_PADDING = 24
 
 export interface TileOverride {
 	coord: AxialCoord
@@ -390,7 +395,7 @@ export async function generateHydratedRegionAsyncWithMetrics(
 	const hydrologyDetails = hydrologyProfile
 		? ` hydroTiles=${hydrologyProfile.tileCount} springs=${hydrologyProfile.springCount} paths=${hydrologyProfile.tracedPathCount}/${hydrologyProfile.rejectedPathCount} pathTiles=${hydrologyProfile.totalPathTileCount} maxPath=${hydrologyProfile.maxPathTileCount} pops=${hydrologyProfile.totalFrontierPopCount} relax=${hydrologyProfile.totalRelaxationCount} maxFrontier=${hydrologyProfile.maxFrontierSize} fallback=${hydrologyProfile.fallbackPathCount} hydroBreakdown=setup:${hydrologyProfile.timings.setupMs.toFixed(1)}ms scan:${hydrologyProfile.timings.springScanMs.toFixed(1)}ms trace:${hydrologyProfile.timings.traceMs.toFixed(1)}ms apply:${hydrologyProfile.timings.applyMs.toFixed(1)}ms finalize:${hydrologyProfile.timings.finalizeMs.toFixed(1)}ms`
 		: ''
-	console.log(
+	logTerrainProfile(
 		`[wasm:profile] Pipeline timing: requested=${requestedKeys.size} padded=${paddedCoords.length} emitted=${snapshot.tiles.size} backend=${resolvedBackend} fields=${metrics.fieldGenerationMs.toFixed(1)}ms hydrology=${metrics.hydrologyMs.toFixed(1)}ms clipping=${metrics.clippingMs.toFixed(1)}ms TOTAL=${metrics.totalMs.toFixed(1)}ms${hydrologyDetails}`
 	)
 
@@ -426,12 +431,23 @@ export async function generateSectorRegionAsyncWithMetrics(
 	const tileOverrides = options?.tileOverrides ? [...options.tileOverrides] : undefined
 	const sectorStep = options?.sectorStep ?? 17
 	const padding = options?.padding ?? 1
+	const includeHydrology = options?.includeHydrology ?? true
+	const hydrologyPadding = includeHydrology
+		? (options?.hydrologyPadding ?? DEFAULT_SECTOR_HYDROLOGY_PADDING)
+		: 0
 	const requestedBackend = options?.fieldBackend ?? 'auto'
 	const gpuRuntimeReadyAtStart = isGpuFieldRuntimeReady()
 
 	const startedAt = nowMs()
 	resetNoiseProfile()
-	const fieldBatch = generateSectorFieldsWasm(requestedSectors, sectorStep, padding, seed, config)
+	const fieldBatch = generateSectorFieldsWasm(
+		requestedSectors,
+		sectorStep,
+		padding,
+		hydrologyPadding,
+		seed,
+		config
+	)
 	dumpNoiseProfile()
 	const afterFieldsAt = nowMs()
 	const tiles = fieldBatch.tiles
@@ -439,12 +455,13 @@ export async function generateSectorRegionAsyncWithMetrics(
 	const snapshot: TerrainSnapshot = {
 		seed,
 		tiles,
-		edges: new Map(),
+		edges: fieldBatch.edges,
 		biomes,
 		hydrology: {
-			banks: new Map(),
-			channels: new Set(),
-			channelInfluence: new Map(),
+			banks: fieldBatch.banks,
+			channels: fieldBatch.channels,
+			channelInfluence: fieldBatch.channelInfluence,
+			riverFlow: fieldBatch.riverFlow,
 		},
 	}
 	if (tileOverrides) {
@@ -459,8 +476,8 @@ export async function generateSectorRegionAsyncWithMetrics(
 		clippingMs: completedAt - afterHydrologyAt,
 		totalMs: completedAt - startedAt,
 	}
-	console.log(
-		`[wasm:profile] Sector pipeline timing: sectors=${requestedSectors.length} emitted=${snapshot.tiles.size} backend=wasm fields=${metrics.fieldGenerationMs.toFixed(1)}ms hydrology=${metrics.hydrologyMs.toFixed(1)}ms clipping=${metrics.clippingMs.toFixed(1)}ms TOTAL=${metrics.totalMs.toFixed(1)}ms`
+	logTerrainProfile(
+		`[wasm:profile] Sector pipeline timing: sectors=${requestedSectors.length} emitted=${snapshot.tiles.size} hydroTiles=${fieldBatch.hydrologyTileCount} rivers=${snapshot.edges.size}/${snapshot.hydrology.channels.size} maxAccum=${fieldBatch.maxAccumulation.toFixed(1)} backend=wasm fields=${metrics.fieldGenerationMs.toFixed(1)}ms hydrology=${metrics.hydrologyMs.toFixed(1)}ms clipping=${metrics.clippingMs.toFixed(1)}ms TOTAL=${metrics.totalMs.toFixed(1)}ms`
 	)
 
 	return {
@@ -469,13 +486,15 @@ export async function generateSectorRegionAsyncWithMetrics(
 			requestedSectorCount: requestedSectors.length,
 			sectorStep,
 			sectorPadding: padding,
+			hydrologyPadding: fieldBatch.hydrologyPadding,
 			requestedTileCount: snapshot.tiles.size,
-			paddedTileCount: fieldBatch.tileCount,
+			paddedTileCount: fieldBatch.hydrologyTileCount,
 			emittedTileCount: snapshot.tiles.size,
 			emittedEdgeCount: snapshot.edges.size,
 			paddingAmplification:
-				snapshot.tiles.size === 0 ? 0 : fieldBatch.tileCount / snapshot.tiles.size,
-			edgePerRequestedTile: 0,
+				snapshot.tiles.size === 0 ? 0 : fieldBatch.hydrologyTileCount / snapshot.tiles.size,
+			edgePerRequestedTile:
+				snapshot.tiles.size === 0 ? 0 : snapshot.edges.size / snapshot.tiles.size,
 			fieldBackendRequested: requestedBackend,
 			fieldBackendResolved: 'wasm',
 			gpuRuntimeReadyAtStart,

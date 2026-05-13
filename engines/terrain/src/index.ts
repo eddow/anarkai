@@ -30,6 +30,16 @@ export {
 } from './fields'
 export { generateFieldsCpu, generateTileFieldCpu } from './fields/cpu'
 export {
+	DEFAULT_MACRO_HYDROLOGY_SECTOR_RADIUS,
+	DEFAULT_MACRO_HYDROLOGY_SECTOR_STEP,
+	DEFAULT_MACRO_HYDROLOGY_STEP,
+	generateMacroHydrologyWasm,
+	type GenerateMacroHydrologyOptions,
+	type TerrainMacroHydrologySnapshot,
+	type TerrainMacroRiverSegment,
+	type TerrainMacroTile,
+} from './macro-hydrology'
+export {
 	applyTileOverrides,
 	createSnapshot,
 	edgeKey,
@@ -47,6 +57,7 @@ export {
 	generateSectorRegionAsync,
 	generateSectorRegionAsyncWithMetrics,
 	generateTile,
+	DEFAULT_SECTOR_HYDROLOGY_PADDING,
 	type GenerateSectorRegionOptions,
 	type MergeSnapshotResult,
 	mergeSnapshotRegion,

@@ -4,6 +4,7 @@
  */
 
 import { getWasmModule, ensureWasmLoaded } from './wasm-loader'
+import { logTerrainProfile, isTerrainProfileEnabled } from './profile'
 
 // ============================================================================
 // Profiling — logs to console after terrain generation completes
@@ -40,6 +41,10 @@ export function profileCall(name: string, fn: () => number): number {
 
 /** Print accumulated profile stats to console. Call after generation. */
 export function dumpNoiseProfile(): void {
+	if (!isTerrainProfileEnabled()) {
+		profile.clear()
+		return
+	}
 	if (profile.size === 0) return
 	const lines = ['[wasm:profile] Noise call statistics']
 	for (const [name, entry] of [...profile.entries()].sort((a, b) => b[1].totalMs - a[1].totalMs)) {
@@ -48,7 +53,7 @@ export function dumpNoiseProfile(): void {
 			`  ${name}: ${entry.count} calls, ${entry.totalMs.toFixed(1)}ms total, ${avgUs}µs avg, ${(entry.minMs * 1000).toFixed(1)}-${(entry.maxMs * 1000).toFixed(1)}µs range`
 		)
 	}
-	console.log(lines.join('\n'))
+	logTerrainProfile(lines.join('\n'))
 }
 
 /** Reset profile counters for next generation. */

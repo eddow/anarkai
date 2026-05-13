@@ -5,9 +5,11 @@
 
 import {
 	type BiomeHint,
+	generateMacroHydrologyWasm,
 	generateHydratedRegion as generateTerrainRegion,
 	generateHydratedRegionAsync as generateTerrainRegionAsync,
 	generateSectorRegionAsync as generateTerrainSectorRegionAsync,
+	type TerrainMacroHydrologySnapshot,
 	type TerrainSectorCoord,
 	type TileOverride,
 } from 'engine-terrain'
@@ -90,17 +92,31 @@ export class GameGenerator {
 	async generateSectorsAsync(
 		config: GameGenerationConfig,
 		sectors: Iterable<TerrainSectorCoord>,
-		terraforming: TerrainTerraformPatch[] = []
+		terraforming: TerrainTerraformPatch[] = [],
+		options: { includeHydrology?: boolean } = {}
 	): Promise<GeneratedTileData[]> {
 		const snapshot = await generateTerrainSectorRegionAsync(config.terrainSeed, sectors, {
 			fieldBackend: 'wasm',
 			sectorStep: 17,
 			padding: 1,
+			hydrologyPadding: 24,
+			includeHydrology: options.includeHydrology ?? true,
 			tileOverrides: toTileOverrides(terraforming),
 		})
 
 		const boardGenerator = new BoardGenerator()
 		return boardGenerator.generateBoard(snapshot)
+	}
+
+	async generateMacroHydrologyAsync(
+		config: GameGenerationConfig,
+		centerSector: TerrainSectorCoord
+	): Promise<TerrainMacroHydrologySnapshot> {
+		return generateMacroHydrologyWasm(config.terrainSeed, centerSector, {
+			sectorRadius: 12,
+			sectorStep: 17,
+			macroStep: 8,
+		})
 	}
 }
 

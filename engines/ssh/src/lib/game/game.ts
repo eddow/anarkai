@@ -41,6 +41,7 @@ import {
 	PopulationGenerator,
 	type TerrainTerraformPatch,
 } from 'ssh/generation'
+import type { TerrainMacroHydrologySnapshot } from 'engine-terrain'
 import { configuration } from 'ssh/globals'
 import { AlveolusConfigurationManager, createAlveolus, Hive } from 'ssh/hive'
 import {
@@ -998,8 +999,19 @@ export class Game extends Eventful<GameEvents> {
 		await this.terrainProvider.ensureTerrainSamples(coords)
 	}
 
-	public async ensureTerrainSectors(sectorKeys: Iterable<string>): Promise<void> {
-		await this.terrainProvider.ensureTerrainSectors(sectorKeys)
+	public async ensureTerrainSectors(
+		sectorKeys: Iterable<string>,
+		options?: { includeHydrology?: boolean }
+	): Promise<void> {
+		await this.terrainProvider.ensureTerrainSectors(sectorKeys, options)
+	}
+
+	public async ensureMacroHydrology(centerSectorKey: string): Promise<void> {
+		await this.terrainProvider.ensureMacroHydrology(centerSectorKey)
+	}
+
+	public getTerrainMacroHydrology(): TerrainMacroHydrologySnapshot | undefined {
+		return this.terrainProvider.getTerrainMacroHydrology()
 	}
 
 	public getTerrainProviderDiagnostics(): TerrainProviderDiagnostics {

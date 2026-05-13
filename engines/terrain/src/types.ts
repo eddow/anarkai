@@ -85,6 +85,7 @@ export interface HydratedRegionMetrics {
 	requestedSectorCount?: number
 	sectorStep?: number
 	sectorPadding?: number
+	hydrologyPadding?: number
 	requestedTileCount: number
 	paddedTileCount: number
 	emittedTileCount: number

@@ -3,7 +3,8 @@ mod noise;
 mod terrain;
 
 use js_sys::{Float32Array, Int32Array, Object, Reflect, Uint8Array};
-use std::collections::BTreeSet;
+use std::cmp::Ordering;
+use std::collections::{BTreeSet, BinaryHeap, HashMap, HashSet};
 use wasm_bindgen::prelude::*;
 
 // Re-export common types for internal use
@@ -140,7 +141,6 @@ impl From<WasmBounds> for Bounds {
 
 // WASM exports for noise functions
 
-use std::collections::HashMap;
 use std::sync::Mutex;
 
 /// Shift coordinates away from origin so Perlin has full variation across all hex positions.
@@ -465,32 +465,549 @@ fn expand_sector_coords(sectors: &[i32], sector_step: i32, padding: i32) -> Vec<
         .collect()
 }
 
+fn coord_key_i64(coord: &HexCoord) -> i64 {
+    ((coord.q as i64) << 32) ^ ((coord.r as i64) & 0xffff_ffff)
+}
+
+fn opposite_direction(direction: usize) -> u8 {
+    ((direction + 3) % 6) as u8
+}
+
+#[derive(Clone, Copy, Debug)]
+struct QueueCell {
+    elevation: f32,
+    index: usize,
+}
+
+impl PartialEq for QueueCell {
+    fn eq(&self, other: &Self) -> bool {
+        self.elevation == other.elevation && self.index == other.index
+    }
+}
+
+impl Eq for QueueCell {}
+
+impl PartialOrd for QueueCell {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for QueueCell {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other
+            .elevation
+            .total_cmp(&self.elevation)
+            .then_with(|| other.index.cmp(&self.index))
+    }
+}
+
+struct WasmHydrologyPacked {
+    edge_ints: Vec<i32>,
+    edge_floats: Vec<f32>,
+    channel_ints: Vec<i32>,
+    channel_floats: Vec<f32>,
+    bank_ints: Vec<i32>,
+    bank_floats: Vec<f32>,
+    max_accumulation: f32,
+    river_edge_count: usize,
+    channel_count: usize,
+}
+
+fn macro_hydrology_coords(
+    center_sector_q: i32,
+    center_sector_r: i32,
+    sector_radius: i32,
+    sector_step: i32,
+    macro_step: i32,
+) -> Vec<HexCoord> {
+    let sector_step = sector_step.max(1);
+    let macro_step = macro_step.max(1);
+    let radius_tiles = sector_radius.max(0) * sector_step;
+    let macro_radius = ((radius_tiles + macro_step - 1) / macro_step).max(1);
+    let center_tile_q = center_sector_q * sector_step + sector_step / 2;
+    let center_tile_r = center_sector_r * sector_step + sector_step / 2;
+    let center_macro = HexCoord::new(
+        center_tile_q.div_euclid(macro_step),
+        center_tile_r.div_euclid(macro_step),
+    );
+    let mut coords = center_macro.within_radius(macro_radius);
+    coords.sort_by_key(|coord| (coord.q, coord.r));
+    coords
+}
+
+fn compute_priority_flood_hydrology(
+    coords: &[HexCoord],
+    fields: &[TileField],
+    emit_keys: &HashSet<i64>,
+    config: &TerrainConfig,
+) -> WasmHydrologyPacked {
+    let len = coords.len();
+    let mut index_by_key = HashMap::<i64, usize>::with_capacity(len);
+    for (index, coord) in coords.iter().enumerate() {
+        index_by_key.insert(coord_key_i64(coord), index);
+    }
+
+    let land: Vec<bool> = fields
+        .iter()
+        .map(|field| field.height >= config.sea_level)
+        .collect();
+    let mut filled: Vec<f32> = fields.iter().map(|field| field.height).collect();
+    let mut downstream: Vec<Option<u8>> = vec![None; len];
+    let mut downstream_index: Vec<Option<usize>> = vec![None; len];
+    let mut visited = vec![false; len];
+    let mut heap = BinaryHeap::<QueueCell>::new();
+    let mut discovery_order = Vec::<usize>::with_capacity(len);
+
+    for (index, coord) in coords.iter().enumerate() {
+        let touches_boundary = coord
+            .neighbors()
+            .iter()
+            .any(|neighbor| !index_by_key.contains_key(&coord_key_i64(neighbor)));
+        if touches_boundary || !land[index] {
+            visited[index] = true;
+            discovery_order.push(index);
+            heap.push(QueueCell {
+                elevation: filled[index],
+                index,
+            });
+        }
+    }
+
+    while let Some(cell) = heap.pop() {
+        let current = cell.index;
+        for (direction, neighbor) in coords[current].neighbors().iter().enumerate() {
+            let Some(&neighbor_index) = index_by_key.get(&coord_key_i64(neighbor)) else {
+                continue;
+            };
+            if visited[neighbor_index] {
+                continue;
+            }
+            visited[neighbor_index] = true;
+            discovery_order.push(neighbor_index);
+            if filled[neighbor_index] < filled[current] {
+                filled[neighbor_index] = filled[current];
+            }
+            if land[neighbor_index] {
+                downstream[neighbor_index] = Some(opposite_direction(direction));
+                downstream_index[neighbor_index] = Some(current);
+            }
+            heap.push(QueueCell {
+                elevation: filled[neighbor_index],
+                index: neighbor_index,
+            });
+        }
+    }
+
+    let mut accumulation = vec![0.0_f32; len];
+    for (index, field) in fields.iter().enumerate() {
+        if !land[index] {
+            continue;
+        }
+        let rainfall = (field.humidity + 0.65).clamp(0.05, 1.6);
+        accumulation[index] = rainfall;
+    }
+
+    for &index in discovery_order.iter().rev() {
+        if !land[index] {
+            continue;
+        }
+        if let Some(parent) = downstream_index[index] {
+            accumulation[parent] += accumulation[index];
+        }
+    }
+
+    let max_accumulation = accumulation.iter().copied().fold(0.0, f32::max);
+    let stream_threshold = (config.hydrology_sources_per_tile.max(0.01) * 360.0).clamp(32.0, 120.0);
+    let mut upstream_channel_mask = vec![0_u8; len];
+    let mut upstream_channel_count = vec![0_u8; len];
+    let mut stream_order = vec![0_u32; len];
+    let mut rank_from_source = vec![0_u32; len];
+    let mut rank_to_sea = vec![0_u32; len];
+
+    for &index in &discovery_order {
+        if let Some(parent) = downstream_index[index] {
+            rank_to_sea[index] = rank_to_sea[parent] + 1;
+        }
+    }
+
+    for &index in discovery_order.iter().rev() {
+        if !land[index] || accumulation[index] < stream_threshold {
+            continue;
+        }
+        let mut max_order = 0_u32;
+        let mut max_order_count = 0_u32;
+        let mut max_rank = 0_u32;
+        for (direction, neighbor) in coords[index].neighbors().iter().enumerate() {
+            let Some(&upstream_index) = index_by_key.get(&coord_key_i64(neighbor)) else {
+                continue;
+            };
+            if downstream_index[upstream_index] != Some(index) {
+                continue;
+            }
+            if accumulation[upstream_index] < stream_threshold {
+                continue;
+            }
+            upstream_channel_mask[index] |= 1 << direction;
+            upstream_channel_count[index] += 1;
+            let order = stream_order[upstream_index];
+            if order > max_order {
+                max_order = order;
+                max_order_count = 1;
+            } else if order == max_order && order > 0 {
+                max_order_count += 1;
+            }
+            max_rank = max_rank.max(rank_from_source[upstream_index] + 1);
+        }
+        stream_order[index] = if max_order == 0 {
+            1
+        } else if max_order_count >= 2 {
+            max_order + 1
+        } else {
+            max_order
+        };
+        rank_from_source[index] = max_rank;
+    }
+
+    let mut edge_ints = Vec::<i32>::new();
+    let mut edge_floats = Vec::<f32>::new();
+    let mut channel_ints = Vec::<i32>::new();
+    let mut channel_floats = Vec::<f32>::new();
+    let mut bank_by_key = HashMap::<i64, (HexCoord, f32)>::new();
+    let mut river_edge_count = 0_usize;
+    let mut channel_count = 0_usize;
+
+    for (index, coord) in coords.iter().enumerate() {
+        if !land[index] || accumulation[index] < stream_threshold {
+            continue;
+        }
+        let key = coord_key_i64(coord);
+        let emit_tile = emit_keys.contains(&key);
+        let downstream_dir = downstream[index];
+        let downstream_i = downstream_index[index];
+        let downstream_key = downstream_i.map(|i| coord_key_i64(&coords[i]));
+        let emit_edge = emit_tile || downstream_key.is_some_and(|k| emit_keys.contains(&k));
+        let normalized = (accumulation[index] / stream_threshold).max(1.0);
+        let width = (normalized.sqrt() * 2.2).clamp(1.5, 9.0);
+        let depth = (width * 0.35).clamp(0.5, 4.0);
+
+        if emit_tile {
+            channel_ints.extend_from_slice(&[
+                coord.q,
+                coord.r,
+                upstream_channel_mask[index] as i32,
+                downstream_dir.map(|d| 1 << d).unwrap_or(0) as i32,
+                stream_order[index] as i32,
+                rank_from_source[index] as i32,
+                rank_to_sea[index] as i32,
+            ]);
+            channel_floats.extend_from_slice(&[accumulation[index], normalized]);
+            channel_count += 1;
+        }
+
+        if let (Some(dir), Some(parent)) = (downstream_dir, downstream_i) {
+            if emit_edge {
+                let slope = (fields[index].height - fields[parent].height).max(0.0);
+                edge_ints.extend_from_slice(&[
+                    coord.q,
+                    coord.r,
+                    dir as i32,
+                    stream_order[index] as i32,
+                ]);
+                edge_floats.extend_from_slice(&[accumulation[index], width, depth, slope]);
+                river_edge_count += 1;
+            }
+        }
+
+        if emit_tile {
+            for neighbor in coord.neighbors() {
+                let neighbor_key = coord_key_i64(&neighbor);
+                if !emit_keys.contains(&neighbor_key) {
+                    continue;
+                }
+                let influence = (normalized * 0.35).clamp(0.1, 1.5);
+                bank_by_key
+                    .entry(neighbor_key)
+                    .and_modify(|(_, existing)| *existing = existing.max(influence))
+                    .or_insert((neighbor, influence));
+            }
+        }
+    }
+
+    let mut banks: Vec<(HexCoord, f32)> = bank_by_key.into_values().collect();
+    banks.sort_by_key(|(coord, _)| (coord.q, coord.r));
+    let mut bank_ints = Vec::<i32>::with_capacity(banks.len() * 2);
+    let mut bank_floats = Vec::<f32>::with_capacity(banks.len());
+    for (coord, influence) in banks {
+        bank_ints.push(coord.q);
+        bank_ints.push(coord.r);
+        bank_floats.push(influence);
+    }
+
+    WasmHydrologyPacked {
+        edge_ints,
+        edge_floats,
+        channel_ints,
+        channel_floats,
+        bank_ints,
+        bank_floats,
+        max_accumulation,
+        river_edge_count,
+        channel_count,
+    }
+}
+
+/// Generate a coarse hydrology overview around a sector center.
+///
+/// Output is a JS object with:
+/// - tileInts: Int32Array [q, r, biome_hint_index, ...]
+/// - tileFloats: Float32Array [height, ...]
+/// - segmentInts: Int32Array [from_q, from_r, to_q, to_r, stream_order, ...]
+/// - segmentFloats: Float32Array [flux, width, ...]
+/// - centerSectorQ, centerSectorR, sectorRadius, sectorStep, macroStep
+/// - macroTileCount, riverSegmentCount, maxAccumulation
+#[wasm_bindgen]
+pub fn wasm_generate_macro_hydrology_packed(
+    center_sector_q: i32,
+    center_sector_r: i32,
+    sector_radius: i32,
+    sector_step: i32,
+    macro_step: i32,
+    seed: u64,
+    config: &WasmTerrainConfig,
+) -> Result<Object, JsValue> {
+    let tcfg: TerrainConfig = config.clone().into();
+    let noise = PerlinNoise::new(seed);
+    let sector_step = sector_step.max(1);
+    let macro_step = macro_step.max(1);
+    let sector_radius = sector_radius.max(1);
+    let coords = macro_hydrology_coords(
+        center_sector_q,
+        center_sector_r,
+        sector_radius,
+        sector_step,
+        macro_step,
+    );
+    let emit_keys: HashSet<i64> = coords.iter().map(coord_key_i64).collect();
+    let fields: Vec<TileField> = coords
+        .iter()
+        .map(|coord| {
+            let tile_coord = HexCoord::new(coord.q * macro_step, coord.r * macro_step);
+            generate_tile_field_with_noise(&noise, &tile_coord, &tcfg)
+        })
+        .collect();
+    let hydrology = compute_priority_flood_hydrology(&coords, &fields, &emit_keys, &tcfg);
+
+    let empty_hydrology = HydrologyClassification {
+        bank_influence: None,
+        channel_influence: None,
+    };
+    let mut tile_ints = Vec::<i32>::with_capacity(coords.len() * 3);
+    let mut tile_floats = Vec::<f32>::with_capacity(coords.len());
+    for (coord, field) in coords.iter().zip(fields.iter()) {
+        let tile_coord = HexCoord::new(coord.q * macro_step, coord.r * macro_step);
+        let biome = classify_tile(field, 0.0, &tcfg, &empty_hydrology);
+        tile_ints.extend_from_slice(&[tile_coord.q, tile_coord.r, biome as i32]);
+        tile_floats.push(field.height);
+    }
+
+    let mut segment_ints = Vec::<i32>::with_capacity(hydrology.river_edge_count * 5);
+    let mut segment_floats = Vec::<f32>::with_capacity(hydrology.river_edge_count * 2);
+    for (edge_index, edge) in hydrology.edge_ints.chunks_exact(4).enumerate() {
+        let from = HexCoord::new(edge[0], edge[1]);
+        let Some(to) = from.neighbor(edge[2] as u8) else {
+            continue;
+        };
+        segment_ints.extend_from_slice(&[
+            from.q * macro_step,
+            from.r * macro_step,
+            to.q * macro_step,
+            to.r * macro_step,
+            edge[3],
+        ]);
+        segment_floats.extend_from_slice(&[
+            hydrology.edge_floats[edge_index * 4],
+            hydrology.edge_floats[edge_index * 4 + 1],
+        ]);
+    }
+
+    let result = Object::new();
+    Reflect::set(
+        &result,
+        &JsValue::from_str("tileInts"),
+        &Int32Array::from(tile_ints.as_slice()),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("tileFloats"),
+        &Float32Array::from(tile_floats.as_slice()),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("segmentInts"),
+        &Int32Array::from(segment_ints.as_slice()),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("segmentFloats"),
+        &Float32Array::from(segment_floats.as_slice()),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("centerSectorQ"),
+        &JsValue::from_f64(center_sector_q as f64),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("centerSectorR"),
+        &JsValue::from_f64(center_sector_r as f64),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("sectorRadius"),
+        &JsValue::from_f64(sector_radius as f64),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("sectorStep"),
+        &JsValue::from_f64(sector_step as f64),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("macroStep"),
+        &JsValue::from_f64(macro_step as f64),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("macroTileCount"),
+        &JsValue::from_f64(coords.len() as f64),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("riverSegmentCount"),
+        &JsValue::from_f64((segment_ints.len() / 5) as f64),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("maxAccumulation"),
+        &JsValue::from_f64(hydrology.max_accumulation as f64),
+    )?;
+    Ok(result)
+}
+
 /// Batch generate fields for sector interiors plus optional axial padding.
 /// Input sectors are packed as [sector_q, sector_r, sector_q, sector_r, ...].
 /// Output is a JS object with:
 /// - coords: Int32Array [q, r, q, r, ...]
 /// - fields: Float32Array [height, temperature, humidity, terrain_type, rocky_noise, sediment, water_table, ...]
-/// - biomes: Uint8Array [biome_hint_index, ...] with no hydrology influence
+/// - biomes: Uint8Array [biome_hint_index, ...]
+/// - riverEdgeInts: Int32Array [q, r, downstream_direction, stream_order, ...]
+/// - riverEdgeFloats: Float32Array [flux, width, depth, slope, ...]
+/// - channelInts: Int32Array [q, r, upstream_mask, downstream_mask, stream_order, rank_from_source, rank_to_sea, ...]
+/// - channelFloats: Float32Array [accumulation, channel_influence, ...]
+/// - bankCoords: Int32Array [q, r, ...]
+/// - bankInfluence: Float32Array [influence, ...]
 /// - requestedSectorCount, tileCount, sectorStep, padding
 #[wasm_bindgen]
 pub fn wasm_generate_sector_fields_packed(
     sectors: &[i32],
     sector_step: i32,
     padding: i32,
+    hydrology_padding: i32,
     seed: u64,
     config: &WasmTerrainConfig,
 ) -> Result<Object, JsValue> {
     let tcfg: TerrainConfig = config.clone().into();
     let noise = PerlinNoise::new(seed);
     let coords = expand_sector_coords(sectors, sector_step, padding);
+    let include_hydrology = hydrology_padding > 0;
+    let hydro_coords = if include_hydrology {
+        expand_sector_coords(sectors, sector_step, hydrology_padding.max(padding))
+    } else {
+        coords.clone()
+    };
+    let emit_keys: HashSet<i64> = coords.iter().map(coord_key_i64).collect();
+    let hydro_index_by_key: HashMap<i64, usize> = hydro_coords
+        .iter()
+        .enumerate()
+        .map(|(index, coord)| (coord_key_i64(coord), index))
+        .collect();
+    let hydro_fields: Vec<TileField> = hydro_coords
+        .iter()
+        .map(|coord| generate_tile_field_with_noise(&noise, coord, &tcfg))
+        .collect();
+    let hydrology = if include_hydrology {
+        compute_priority_flood_hydrology(&hydro_coords, &hydro_fields, &emit_keys, &tcfg)
+    } else {
+        WasmHydrologyPacked {
+            edge_ints: Vec::new(),
+            edge_floats: Vec::new(),
+            channel_ints: Vec::new(),
+            channel_floats: Vec::new(),
+            bank_ints: Vec::new(),
+            bank_floats: Vec::new(),
+            max_accumulation: 0.0,
+            river_edge_count: 0,
+            channel_count: 0,
+        }
+    };
+    let mut max_flux_by_key = HashMap::<i64, f32>::new();
+    let mut channel_influence_by_key = HashMap::<i64, f32>::new();
+    let mut bank_influence_by_key = HashMap::<i64, f32>::new();
+
+    for (edge_index, chunk) in hydrology.edge_ints.chunks(4).enumerate() {
+        if chunk.len() < 4 {
+            break;
+        }
+        let coord = HexCoord::new(chunk[0], chunk[1]);
+        let flux = hydrology.edge_floats[edge_index * 4];
+        max_flux_by_key
+            .entry(coord_key_i64(&coord))
+            .and_modify(|existing| *existing = existing.max(flux))
+            .or_insert(flux);
+        if let Some(neighbor) = coord.neighbor(chunk[2] as u8) {
+            max_flux_by_key
+                .entry(coord_key_i64(&neighbor))
+                .and_modify(|existing| *existing = existing.max(flux))
+                .or_insert(flux);
+        }
+    }
+    for (channel_index, chunk) in hydrology.channel_ints.chunks(7).enumerate() {
+        if chunk.len() < 7 {
+            break;
+        }
+        let coord = HexCoord::new(chunk[0], chunk[1]);
+        channel_influence_by_key.insert(
+            coord_key_i64(&coord),
+            hydrology.channel_floats[channel_index * 2 + 1],
+        );
+    }
+    for (bank_index, chunk) in hydrology.bank_ints.chunks(2).enumerate() {
+        if chunk.len() < 2 {
+            break;
+        }
+        let coord = HexCoord::new(chunk[0], chunk[1]);
+        bank_influence_by_key.insert(coord_key_i64(&coord), hydrology.bank_floats[bank_index]);
+    }
 
     let mut packed_coords = Vec::<i32>::with_capacity(coords.len() * 2);
     let mut packed_fields = Vec::<f32>::with_capacity(coords.len() * 7);
     let mut packed_biomes = Vec::<u8>::with_capacity(coords.len());
-    let no_hydrology = HydrologyClassification::default();
     for coord in &coords {
-        let field = generate_tile_field_with_noise(&noise, coord, &tcfg);
-        let biome = classify_tile(&field, 0.0, &tcfg, &no_hydrology);
+        let key = coord_key_i64(coord);
+        let field = &hydro_fields[*hydro_index_by_key
+            .get(&key)
+            .expect("render coordinate must be present in hydrology domain")];
+        let hydrology_classification = HydrologyClassification {
+            bank_influence: bank_influence_by_key.get(&key).copied(),
+            channel_influence: channel_influence_by_key.get(&key).copied(),
+        };
+        let biome = classify_tile(
+            field,
+            max_flux_by_key.get(&key).copied().unwrap_or(0.0),
+            &tcfg,
+            &hydrology_classification,
+        );
         packed_coords.push(coord.q);
         packed_coords.push(coord.r);
         packed_fields.push(field.height);
@@ -521,6 +1038,36 @@ pub fn wasm_generate_sector_fields_packed(
     )?;
     Reflect::set(
         &result,
+        &JsValue::from_str("riverEdgeInts"),
+        &Int32Array::from(hydrology.edge_ints.as_slice()),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("riverEdgeFloats"),
+        &Float32Array::from(hydrology.edge_floats.as_slice()),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("channelInts"),
+        &Int32Array::from(hydrology.channel_ints.as_slice()),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("channelFloats"),
+        &Float32Array::from(hydrology.channel_floats.as_slice()),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("bankCoords"),
+        &Int32Array::from(hydrology.bank_ints.as_slice()),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("bankInfluence"),
+        &Float32Array::from(hydrology.bank_floats.as_slice()),
+    )?;
+    Reflect::set(
+        &result,
         &JsValue::from_str("requestedSectorCount"),
         &JsValue::from_f64((sectors.len() / 2) as f64),
     )?;
@@ -538,6 +1085,35 @@ pub fn wasm_generate_sector_fields_packed(
         &result,
         &JsValue::from_str("padding"),
         &JsValue::from_f64(padding.max(0) as f64),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("hydrologyPadding"),
+        &JsValue::from_f64(if include_hydrology {
+            hydrology_padding.max(padding)
+        } else {
+            0
+        } as f64),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("hydrologyTileCount"),
+        &JsValue::from_f64(hydro_coords.len() as f64),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("riverEdgeCount"),
+        &JsValue::from_f64(hydrology.river_edge_count as f64),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("channelCount"),
+        &JsValue::from_f64(hydrology.channel_count as f64),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("maxAccumulation"),
+        &JsValue::from_f64(hydrology.max_accumulation as f64),
     )?;
     Ok(result)
 }
@@ -641,6 +1217,36 @@ pub fn wasm_classify_tile(
 mod sector_batch_tests {
     use super::*;
 
+    fn test_field(height: f32) -> TileField {
+        TileField {
+            height,
+            temperature: 0.4,
+            humidity: 1.0,
+            terrain_type: 0.0,
+            rocky_noise: 0.0,
+            sediment: 0.0,
+            water_table: 0.0,
+        }
+    }
+
+    fn axial_rect(
+        q_range: std::ops::RangeInclusive<i32>,
+        r_range: std::ops::RangeInclusive<i32>,
+    ) -> Vec<HexCoord> {
+        let mut coords = Vec::new();
+        for q in q_range {
+            for r in r_range.clone() {
+                coords.push(HexCoord { q, r });
+            }
+        }
+        coords.sort_by_key(|coord| (coord.q, coord.r));
+        coords
+    }
+
+    fn emit_all(coords: &[HexCoord]) -> HashSet<i64> {
+        coords.iter().map(coord_key_i64).collect()
+    }
+
     #[test]
     fn sector_expansion_handles_negative_and_mixed_coordinates() {
         let coords = expand_sector_coords(&[0, 0, -1, 1, 1, -1], 17, 1);
@@ -660,8 +1266,8 @@ mod sector_batch_tests {
 
     #[test]
     fn sector_expansion_dedupes_overlapping_padding() {
-        let separate_count = expand_sector_coords(&[0, 0], 17, 1).len()
-            + expand_sector_coords(&[1, 0], 17, 1).len();
+        let separate_count =
+            expand_sector_coords(&[0, 0], 17, 1).len() + expand_sector_coords(&[1, 0], 17, 1).len();
         let combined_count = expand_sector_coords(&[0, 0, 1, 0], 17, 1).len();
         assert!(combined_count < separate_count);
     }
@@ -681,6 +1287,155 @@ mod sector_batch_tests {
             assert_eq!(direct.humidity, batched.humidity);
             assert_eq!(direct.terrain_type, batched.terrain_type);
         }
+    }
+
+    #[test]
+    fn priority_flood_routes_depressed_basin_to_valid_outlet() {
+        let config = TerrainConfig {
+            sea_level: -1.0,
+            ..TerrainConfig::default()
+        };
+        let coords = axial_rect(0..=50, 0..=20);
+        let fields: Vec<TileField> = coords
+            .iter()
+            .map(|coord| {
+                if coord.q == 35 && coord.r == 10 {
+                    test_field(-0.5)
+                } else {
+                    let valley_pull = (coord.r - 10).abs() as f32 * 0.5;
+                    test_field(coord.q as f32 + valley_pull)
+                }
+            })
+            .collect();
+
+        let hydrology =
+            compute_priority_flood_hydrology(&coords, &fields, &emit_all(&coords), &config);
+
+        assert!(hydrology.max_accumulation > 32.0);
+        assert!(hydrology.river_edge_count > 0);
+        for edge in hydrology.edge_ints.chunks_exact(4) {
+            assert!((0..6).contains(&edge[2]));
+        }
+    }
+
+    #[test]
+    fn accumulation_increases_downstream_on_slope() {
+        let config = TerrainConfig {
+            sea_level: -1.0,
+            ..TerrainConfig::default()
+        };
+        let coords = axial_rect(0..=40, 0..=10);
+        let fields: Vec<TileField> = coords
+            .iter()
+            .map(|coord| {
+                let valley_pull = (coord.r - 5).abs() as f32 * 0.2;
+                test_field(coord.q as f32 + valley_pull)
+            })
+            .collect();
+
+        let hydrology =
+            compute_priority_flood_hydrology(&coords, &fields, &emit_all(&coords), &config);
+        let mut accumulation_by_key = HashMap::<i64, f32>::new();
+        for (channel, values) in hydrology
+            .channel_ints
+            .chunks_exact(7)
+            .zip(hydrology.channel_floats.chunks_exact(2))
+        {
+            accumulation_by_key.insert(
+                coord_key_i64(&HexCoord {
+                    q: channel[0],
+                    r: channel[1],
+                }),
+                values[0],
+            );
+        }
+
+        let mut compared = 0;
+        for (edge, values) in hydrology
+            .edge_ints
+            .chunks_exact(4)
+            .zip(hydrology.edge_floats.chunks_exact(4))
+        {
+            let from = HexCoord {
+                q: edge[0],
+                r: edge[1],
+            };
+            let to = from.neighbors()[edge[2] as usize];
+            let Some(parent_accumulation) = accumulation_by_key.get(&coord_key_i64(&to)) else {
+                continue;
+            };
+            assert!(*parent_accumulation >= values[0]);
+            compared += 1;
+        }
+        assert!(compared > 0);
+    }
+
+    #[test]
+    fn strahler_order_increments_at_confluences() {
+        let config = TerrainConfig {
+            sea_level: -1.0,
+            ..TerrainConfig::default()
+        };
+        let coords = axial_rect(0..=90, 0..=80);
+        let fields: Vec<TileField> = coords
+            .iter()
+            .map(|coord| {
+                let branch_spread = coord.q.min(40) as f32 * 0.5;
+                let upper_center = 40.0 - branch_spread;
+                let lower_center = 40.0 + branch_spread;
+                let upper_pull = (coord.r as f32 - upper_center).abs();
+                let lower_pull = (coord.r as f32 - lower_center).abs();
+                let valley_pull = upper_pull.min(lower_pull) * 3.0;
+                test_field(coord.q as f32 * 0.1 + valley_pull)
+            })
+            .collect();
+
+        let hydrology =
+            compute_priority_flood_hydrology(&coords, &fields, &emit_all(&coords), &config);
+        let max_order = hydrology
+            .channel_ints
+            .chunks_exact(7)
+            .map(|channel| channel[4])
+            .max()
+            .unwrap_or(0);
+
+        assert!(max_order >= 2);
+    }
+
+    #[test]
+    fn priority_flood_handles_mixed_sign_sector_domains() {
+        let config = TerrainConfig::default();
+        let seed = 42;
+        let coords = expand_sector_coords(&[-1, 1, 0, 0, 1, -1], 17, 8);
+        let emit_coords = expand_sector_coords(&[-1, 1, 0, 0, 1, -1], 17, 1);
+        let emit_keys = emit_all(&emit_coords);
+        let noise = PerlinNoise::new(seed);
+        let fields: Vec<TileField> = coords
+            .iter()
+            .map(|coord| generate_tile_field_with_noise(&noise, coord, &config))
+            .collect();
+
+        let hydrology = compute_priority_flood_hydrology(&coords, &fields, &emit_keys, &config);
+
+        assert!(hydrology.max_accumulation.is_finite());
+        assert_eq!(hydrology.edge_ints.len(), hydrology.river_edge_count * 4);
+        assert_eq!(hydrology.channel_ints.len(), hydrology.channel_count * 7);
+    }
+
+    #[test]
+    fn macro_hydrology_grid_handles_mixed_sign_sector_centers() {
+        let coords = macro_hydrology_coords(-3, 4, 12, 17, 4);
+        assert!(!coords.is_empty());
+        let mut last: Option<(i32, i32)> = None;
+        for coord in &coords {
+            let current = (coord.q, coord.r);
+            if let Some(previous) = last {
+                assert!(previous < current);
+            }
+            last = Some(current);
+        }
+        let positive = macro_hydrology_coords(3, -4, 12, 17, 4);
+        assert_eq!(coords.len(), positive.len());
     }
 }
 

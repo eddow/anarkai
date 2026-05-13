@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
 	createSnapshot,
+	DEFAULT_SECTOR_HYDROLOGY_PADDING,
 	generate,
 	generateAsync,
 	generateHydratedRegion,
@@ -8,6 +9,7 @@ import {
 	generateRegion,
 	generateRegionAsync,
 	generateSectorRegionAsync,
+	generateSectorRegionAsyncWithMetrics,
 	mergeSnapshotRegion,
 	populateSnapshot,
 	populateSnapshotAsync,
@@ -79,5 +81,44 @@ describe('generate()', () => {
 		expect(snap.tiles.has('-1,33')).toBe(true)
 		expect(snap.edges.size).toBe(0)
 		expect(snap.hydrology.channels.size).toBe(0)
+	})
+
+	it('unpacks WASM sector hydrology into edges and channel flow', async () => {
+		const snap = await generateSectorRegionAsync(1, [{ q: 0, r: 0 }], {
+			sectorStep: 17,
+			padding: 1,
+			hydrologyPadding: 16,
+		})
+
+		expect(snap.edges.size).toBeGreaterThan(0)
+		expect(snap.hydrology.channels.size).toBeGreaterThan(0)
+		expect(snap.hydrology.channelInfluence.size).toBe(snap.hydrology.channels.size)
+		expect(snap.hydrology.riverFlow?.size ?? 0).toBe(snap.hydrology.channels.size)
+		for (const key of snap.hydrology.channels) {
+			expect(snap.tiles.has(key)).toBe(true)
+		}
+	})
+
+	it('uses the live sector hydrology padding by default', async () => {
+		const { metrics } = await generateSectorRegionAsyncWithMetrics(1, [{ q: 0, r: 0 }], {
+			sectorStep: 17,
+			padding: 1,
+		})
+
+		expect(metrics.hydrologyPadding).toBe(DEFAULT_SECTOR_HYDROLOGY_PADDING)
+		expect(metrics.paddedTileCount).toBeGreaterThan(metrics.emittedTileCount)
+	})
+
+	it('can generate sector fields without detail hydrology', async () => {
+		const { snapshot, metrics } = await generateSectorRegionAsyncWithMetrics(1, [{ q: 0, r: 0 }], {
+			sectorStep: 17,
+			padding: 1,
+			includeHydrology: false,
+		})
+
+		expect(snapshot.tiles.size).toBeGreaterThan(0)
+		expect(snapshot.edges.size).toBe(0)
+		expect(snapshot.hydrology.channels.size).toBe(0)
+		expect(metrics.hydrologyPadding).toBe(0)
 	})
 })

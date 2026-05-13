@@ -1,10 +1,15 @@
-import { generate } from 'engine-terrain'
+import { ensureWasmLoaded, generateSectorRegionAsync } from 'engine-terrain'
 import { BoardGenerator } from 'ssh/generation/board'
 import { describe, expect, it } from 'vitest'
 
 describe('BoardGenerator riverFlow projection', () => {
-	it('projects terrain riverFlow onto hydrology samples for channel tiles', () => {
-		const snapshot = generate(42, 10)
+	it('projects terrain riverFlow onto hydrology samples for channel tiles', async () => {
+		await ensureWasmLoaded()
+		const snapshot = await generateSectorRegionAsync(1, [{ q: 0, r: 0 }], {
+			sectorStep: 17,
+			padding: 1,
+			hydrologyPadding: 16,
+		})
 		expect(snapshot.hydrology.riverFlow?.size ?? 0).toBeGreaterThan(0)
 
 		const board = new BoardGenerator().generateBoard(snapshot)

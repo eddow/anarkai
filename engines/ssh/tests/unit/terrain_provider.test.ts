@@ -214,4 +214,37 @@ describe('terrain provider', () => {
 			},
 		})
 	})
+
+	it('caches macro hydrology by snapped macro center', async () => {
+		const generateMacroHydrologyAsync = vi.fn(async (_config, centerSector) => ({
+			seed: 9,
+			centerSector,
+			sectorRadius: 12,
+			sectorStep: 17,
+			macroStep: 4,
+			macroTileCount: 100,
+			riverSegmentCount: 1,
+			maxAccumulation: 12,
+			tiles: [{ q: 0, r: 0, height: 0.1, biome: 'grass' as const }],
+			segments: [{ fromQ: 0, fromR: 0, toQ: 4, toR: 0, flux: 12, width: 2, order: 1 }],
+			timings: { wasmMs: 1, unpackMs: 0, totalMs: 1 },
+		}))
+		const provider = new TerrainProvider({
+			generator: { generateMacroHydrologyAsync } as any,
+			getGenerationConfig: () => ({ terrainSeed: 9, characterCount: 0 }),
+			getTerraformingPatches: () => [],
+			getGameplayTerrainSample: () => undefined,
+		})
+
+		await provider.ensureMacroHydrology('3,4')
+		await provider.ensureMacroHydrology('7,7')
+		expect(generateMacroHydrologyAsync).toHaveBeenCalledTimes(1)
+		expect(generateMacroHydrologyAsync.mock.calls[0]![1]).toEqual({ q: 0, r: 0 })
+		expect(provider.getTerrainMacroHydrology()?.segments).toHaveLength(1)
+
+		await provider.ensureMacroHydrology('8,0')
+		expect(generateMacroHydrologyAsync).toHaveBeenCalledTimes(2)
+		expect(generateMacroHydrologyAsync.mock.calls[1]![1]).toEqual({ q: 8, r: 0 })
+		expect(provider.getDiagnostics().macroCacheSize).toBe(2)
+	})
 })

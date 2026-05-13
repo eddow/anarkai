@@ -6,8 +6,10 @@
 
 import { axial } from '../hex/axial'
 import type { AxialCoord, AxialKey } from '../hex/types'
-import type { BiomeHint, TerrainConfig, TileField } from '../types'
+import { edgeKey } from '../edge-key'
+import type { BiomeHint, EdgeField, EdgeKey, TerrainConfig, TileField, TileRiverFlow } from '../types'
 import { getWasmModule } from '../wasm-loader'
+import { logTerrainProfile } from '../profile'
 
 // Cache WasmTerrainConfig by hash of config to avoid 20+ property assignments per batch
 const _wasmConfigCache = new Map<string, any>()
@@ -20,7 +22,7 @@ function _hashConfig(c: TerrainConfig): string {
 	return `${c.scale}|${c.octaves}|${c.persistence}|${c.lacunarity}|${c.seaLevel}|${c.temperatureScale}|${c.humidityScale}|${c.terrainTypeScale}|${c.rockyLevel}|${c.forestLevel}|${c.sandTemperature}|${c.sandHumidity}|${c.wetlandHumidity}|${c.forestHumidity}|${c.snowLevel}|${c.hydrologySourcesPerTile}|${c.hydrologyLandCeiling}|${c.hydrologyMaxTraceSteps}|${c.hydrologyFluxStepWeight}`
 }
 
-function _getCachedWasmConfig(config: TerrainConfig): any {
+export function getCachedWasmTerrainConfig(config: TerrainConfig): any {
 	const hash = _hashConfig(config)
 	let cached = _wasmConfigCache.get(hash)
 	if (cached) return cached
@@ -75,7 +77,7 @@ export function generateTileFieldWasm(
 	config: TerrainConfig
 ): TileField {
 	const core = _core()
-	const wasmConfig = _getCachedWasmConfig(config)
+	const wasmConfig = getCachedWasmTerrainConfig(config)
 
 	const result = core.wasm_generate_tile_field(coord.q, coord.r, BigInt(seed), wasmConfig)
 
@@ -101,7 +103,7 @@ export function generateFieldsWasm(
 ): Map<AxialKey, TileField> {
 	const startedAt = nowMs()
 	const core = _core()
-	const wasmConfig = _getCachedWasmConfig(config)
+	const wasmConfig = getCachedWasmTerrainConfig(config)
 
 	// Flatten all coords into [q, r, q, r, ...] — single WASM crossing
 	const flatCoords: number[] = []
@@ -127,7 +129,7 @@ export function generateFieldsWasm(
 			valueIndex += 7
 		}
 		const completedAt = nowMs()
-		console.log(
+		logTerrainProfile(
 			`[wasm:profile] Field batch: tiles=${tiles.size} mode=packed pack=${(afterPackAt - startedAt).toFixed(1)}ms wasm=${(afterWasmAt - afterPackAt).toFixed(1)}ms unpack=${(completedAt - afterWasmAt).toFixed(1)}ms total=${(completedAt - startedAt).toFixed(1)}ms values=${values.length}`
 		)
 		return tiles
@@ -165,7 +167,7 @@ export function generateFieldsWasm(
 		})
 	}
 	const completedAt = nowMs()
-	console.log(
+	logTerrainProfile(
 		`[wasm:profile] Field batch: tiles=${tiles.size} mode=object pack=${(afterPackAt - startedAt).toFixed(1)}ms wasm=${(afterWasmAt - beforeWasmAt).toFixed(1)}ms unpack=${(completedAt - afterWasmAt).toFixed(1)}ms total=${(completedAt - startedAt).toFixed(1)}ms`
 	)
 	return tiles
@@ -180,10 +182,20 @@ export interface WasmSectorFieldBatch {
 	coords: AxialCoord[]
 	tiles: Map<AxialKey, TileField>
 	biomes: Map<AxialKey, BiomeHint>
+	edges: Map<EdgeKey, EdgeField>
+	banks: Map<AxialKey, number>
+	channels: Set<AxialKey>
+	channelInfluence: Map<AxialKey, number>
+	riverFlow?: Map<AxialKey, TileRiverFlow>
 	requestedSectorCount: number
 	tileCount: number
+	hydrologyTileCount: number
+	riverEdgeCount: number
+	channelCount: number
+	maxAccumulation: number
 	sectorStep: number
 	padding: number
+	hydrologyPadding: number
 	timings: {
 		packMs: number
 		wasmMs: number
@@ -211,12 +223,13 @@ export function generateSectorFieldsWasm(
 	sectors: Iterable<WasmSectorCoord>,
 	sectorStep: number,
 	padding: number,
+	hydrologyPadding: number,
 	seed: number,
 	config: TerrainConfig
 ): WasmSectorFieldBatch {
 	const startedAt = nowMs()
 	const core = _core()
-	const wasmConfig = _getCachedWasmConfig(config)
+	const wasmConfig = getCachedWasmTerrainConfig(config)
 
 	if (typeof core.wasm_generate_sector_fields_packed !== 'function') {
 		throw new Error('WASM module does not expose wasm_generate_sector_fields_packed')
@@ -230,6 +243,7 @@ export function generateSectorFieldsWasm(
 		packedSectors,
 		sectorStep,
 		padding,
+		hydrologyPadding,
 		BigInt(seed),
 		wasmConfig
 	)
@@ -238,6 +252,12 @@ export function generateSectorFieldsWasm(
 	const coordsArray = result.coords as Int32Array
 	const fieldsArray = result.fields as Float32Array
 	const biomesArray = result.biomes as Uint8Array | undefined
+	const edgeInts = result.riverEdgeInts as Int32Array | undefined
+	const edgeFloats = result.riverEdgeFloats as Float32Array | undefined
+	const channelInts = result.channelInts as Int32Array | undefined
+	const channelFloats = result.channelFloats as Float32Array | undefined
+	const bankCoords = result.bankCoords as Int32Array | undefined
+	const bankInfluenceValues = result.bankInfluence as Float32Array | undefined
 	const coords: AxialCoord[] = []
 	const tiles = new Map<AxialKey, TileField>()
 	const biomes = new Map<AxialKey, BiomeHint>()
@@ -261,19 +281,73 @@ export function generateSectorFieldsWasm(
 		if (biomesArray) biomes.set(key, BIOME_HINT_BY_WASM_INDEX[biomesArray[tileIndex]!] ?? 'grass')
 		fieldIndex += 7
 	}
+	const edges = new Map<EdgeKey, EdgeField>()
+	if (edgeInts && edgeFloats) {
+		for (let edgeIndex = 0, intIndex = 0, floatIndex = 0; intIndex < edgeInts.length; edgeIndex++, intIndex += 4, floatIndex += 4) {
+			const from = { q: edgeInts[intIndex]!, r: edgeInts[intIndex + 1]! }
+			const direction = edgeInts[intIndex + 2]!
+			const to = axial.neighbors(from)[direction]
+			if (!to) continue
+			edges.set(edgeKey(axial.key(from), axial.key(to)), {
+				flux: edgeFloats[floatIndex]!,
+				width: edgeFloats[floatIndex + 1]!,
+				depth: edgeFloats[floatIndex + 2]!,
+				slope: edgeFloats[floatIndex + 3]!,
+			})
+		}
+	}
+
+	const banks = new Map<AxialKey, number>()
+	if (bankCoords && bankInfluenceValues) {
+		for (let bankIndex = 0, coordIndex = 0; coordIndex < bankCoords.length; bankIndex++, coordIndex += 2) {
+			banks.set(
+				axial.key({ q: bankCoords[coordIndex]!, r: bankCoords[coordIndex + 1]! }),
+				bankInfluenceValues[bankIndex]!
+			)
+		}
+	}
+
+	const channels = new Set<AxialKey>()
+	const channelInfluence = new Map<AxialKey, number>()
+	const riverFlow = new Map<AxialKey, TileRiverFlow>()
+	if (channelInts && channelFloats) {
+		for (let channelIndex = 0, intIndex = 0, floatIndex = 0; intIndex < channelInts.length; channelIndex++, intIndex += 7, floatIndex += 2) {
+			const key = axial.key({ q: channelInts[intIndex]!, r: channelInts[intIndex + 1]! })
+			const upstreamMask = channelInts[intIndex + 2]!
+			const downstreamMask = channelInts[intIndex + 3]!
+			channels.add(key)
+			channelInfluence.set(key, channelFloats[floatIndex + 1]!)
+			riverFlow.set(key, {
+				upstreamDirections: maskToDirections(upstreamMask),
+				downstreamDirections: maskToDirections(downstreamMask),
+				rankFromSource: channelInts[intIndex + 5]!,
+				rankToSea: channelInts[intIndex + 6]!,
+			})
+		}
+	}
 	const completedAt = nowMs()
-	console.log(
-		`[wasm:profile] Sector field batch: sectors=${flatSectors.length / 2} tiles=${tiles.size} padding=${padding} pack=${(afterPackAt - startedAt).toFixed(1)}ms wasm=${(afterWasmAt - afterPackAt).toFixed(1)}ms unpack=${(completedAt - afterWasmAt).toFixed(1)}ms total=${(completedAt - startedAt).toFixed(1)}ms values=${fieldsArray.length}`
+	logTerrainProfile(
+		`[wasm:profile] Sector field batch: sectors=${flatSectors.length / 2} tiles=${tiles.size} hydroTiles=${Number(result.hydrologyTileCount ?? 0)} rivers=${edges.size}/${channels.size} padding=${padding}/${Number(result.hydrologyPadding ?? hydrologyPadding)} pack=${(afterPackAt - startedAt).toFixed(1)}ms wasm=${(afterWasmAt - afterPackAt).toFixed(1)}ms unpack=${(completedAt - afterWasmAt).toFixed(1)}ms total=${(completedAt - startedAt).toFixed(1)}ms values=${fieldsArray.length}`
 	)
 
 	return {
 		coords,
 		tiles,
 		biomes,
+		edges,
+		banks,
+		channels,
+		channelInfluence,
+		riverFlow: riverFlow.size > 0 ? riverFlow : undefined,
 		requestedSectorCount: Number(result.requestedSectorCount ?? flatSectors.length / 2),
 		tileCount: Number(result.tileCount ?? tiles.size),
+		hydrologyTileCount: Number(result.hydrologyTileCount ?? 0),
+		riverEdgeCount: Number(result.riverEdgeCount ?? edges.size),
+		channelCount: Number(result.channelCount ?? channels.size),
+		maxAccumulation: Number(result.maxAccumulation ?? 0),
 		sectorStep: Number(result.sectorStep ?? sectorStep),
 		padding: Number(result.padding ?? padding),
+		hydrologyPadding: Number(result.hydrologyPadding ?? hydrologyPadding),
 		timings: {
 			packMs: afterPackAt - startedAt,
 			wasmMs: afterWasmAt - afterPackAt,
@@ -281,6 +355,14 @@ export function generateSectorFieldsWasm(
 			totalMs: completedAt - startedAt,
 		},
 	}
+}
+
+function maskToDirections(mask: number): number[] {
+	const dirs: number[] = []
+	for (let direction = 0; direction < 6; direction++) {
+		if ((mask & (1 << direction)) !== 0) dirs.push(direction)
+	}
+	return dirs
 }
 
 /**

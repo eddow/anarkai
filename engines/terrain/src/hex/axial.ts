@@ -83,11 +83,11 @@ function bitShiftUnpair(z: number): AxialCoord {
 const neighborIndexes: (AxialDirection | undefined)[] = [
 	undefined, // q-1 r-1
 	3, // q-1 r 0
-	2, // q-1 r+1
-	4, // q 0 r-1
+	4, // q-1 r+1
+	2, // q 0 r-1
 	undefined, // q 0 r 0
-	1, // q 0 r+1
-	5, // q+1 r-1
+	5, // q 0 r+1
+	1, // q+1 r-1
 	0, // q+1 r 0
 	undefined, // q+1 r+1
 ]
