@@ -27,6 +27,7 @@ import {
 
 import {
 	generateFieldsWasm,
+	generateSectorFieldsWasm,
 	generateTileFieldWasm,
 	isWasmFieldGenerationAvailable,
 } from './wasm'
@@ -36,8 +37,11 @@ export const AUTO_GPU_MIN_TILES = 64
 // Export WASM functions for external use
 export {
 	generateFieldsWasm,
+	generateSectorFieldsWasm,
 	generateTileFieldWasm,
 	isWasmFieldGenerationAvailable,
+	type WasmSectorCoord,
+	type WasmSectorFieldBatch,
 } from './wasm'
 
 export function resolveFieldGenerationBackend(

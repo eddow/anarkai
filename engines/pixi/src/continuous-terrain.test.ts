@@ -442,6 +442,7 @@ function createTerrainRendererStub(gameOverrides: {
 	hasRenderableTerrainAt(coord: { q: number; r: number }): boolean
 	getRenderableTerrainAt(coord: { q: number; r: number }): RenderableTerrainTile | undefined
 	ensureTerrainSamples?(coords: Iterable<{ q: number; r: number }>): Promise<void>
+	ensureTerrainSectors?(sectorKeys: Iterable<string>): Promise<void>
 	hex?: {
 		getTile?(coord: { q: number; r: number }): unknown
 	}

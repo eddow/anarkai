@@ -10,6 +10,7 @@ export {
 	generateFieldsAsync,
 	generateFieldsGpu,
 	generateFieldsWasm,
+	generateSectorFieldsWasm,
 	generateTileField,
 	generateTileFieldAsync,
 	generateTileFieldGpu,
@@ -24,6 +25,8 @@ export {
 	resolveSyncFieldGenerationBackend,
 	unpackFieldResult,
 	warmGpuFieldRuntime,
+	type WasmSectorCoord,
+	type WasmSectorFieldBatch,
 } from './fields'
 export { generateFieldsCpu, generateTileFieldCpu } from './fields/cpu'
 export {
@@ -41,13 +44,17 @@ export {
 	generateHydratedRegionWithMetrics,
 	generateRegion,
 	generateRegionAsync,
+	generateSectorRegionAsync,
+	generateSectorRegionAsyncWithMetrics,
 	generateTile,
+	type GenerateSectorRegionOptions,
 	type MergeSnapshotResult,
 	mergeSnapshotRegion,
 	type PopulateSnapshotResult,
 	populateSnapshot,
 	populateSnapshotAsync,
 	pruneSnapshot,
+	type TerrainSectorCoord,
 	type TileOverride,
 } from './generate'
 export * from './hex/index'

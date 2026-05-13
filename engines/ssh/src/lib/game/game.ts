@@ -998,6 +998,10 @@ export class Game extends Eventful<GameEvents> {
 		await this.terrainProvider.ensureTerrainSamples(coords)
 	}
 
+	public async ensureTerrainSectors(sectorKeys: Iterable<string>): Promise<void> {
+		await this.terrainProvider.ensureTerrainSectors(sectorKeys)
+	}
+
 	public getTerrainProviderDiagnostics(): TerrainProviderDiagnostics {
 		return this.terrainProvider.getDiagnostics()
 	}

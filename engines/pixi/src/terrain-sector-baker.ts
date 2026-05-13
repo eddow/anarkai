@@ -26,12 +26,9 @@ import { setPixiName } from './debug-names'
 import type { PixiGameRenderer } from './renderer'
 import type { RoadTileTextureCache } from './road-tile-texture'
 import {
-	buildRiverTileNode,
-	computeRiverBakeMonotoneHalfOuterMap,
 	halfDrageaSampledFillPolygonWorld,
 	type RiverHalfDragea,
 	type RiverTileNode,
-	tileKeyForCoord,
 } from './river-quarter-model'
 import { terrainTextureSpec } from './terrain-visual-helpers'
 
@@ -706,6 +703,39 @@ function drawRiverQuarterModelForTile(
 	}
 }
 
+function drawSimpleRiverLineForTile(
+	graphics: Graphics,
+	coord: AxialCoord,
+	directions: readonly number[],
+	displayBounds: Rectangle
+): boolean {
+	const center = cartesian(coord, tileSize)
+	const localCenter = {
+		x: center.x - displayBounds.x,
+		y: center.y - displayBounds.y,
+	}
+	let drew = false
+
+	for (const direction of directions) {
+		const side = HEX_SIDES[direction]
+		if (!side) continue
+		const edgeMidpoint = cartesian(
+			{
+				q: coord.q + side.q * 0.5,
+				r: coord.r + side.r * 0.5,
+			},
+			tileSize
+		)
+		graphics
+			.moveTo(localCenter.x, localCenter.y)
+			.lineTo(edgeMidpoint.x - displayBounds.x, edgeMidpoint.y - displayBounds.y)
+			.stroke({ width: 4, color: 0x2f8fd8, alpha: 0.9, cap: 'round', join: 'round' })
+		drew = true
+	}
+
+	return drew
+}
+
 function buildRiverOverlay(input: SectorTerrainBakeInput): Container | undefined {
 	const debug = inspectRiverOverlay(input)
 	const lakeComponents = collectInlandLakeTileComponents(input.bakeTileCoords, input.terrainTiles)
@@ -713,11 +743,6 @@ function buildRiverOverlay(input: SectorTerrainBakeInput): Container | undefined
 	if (debug.riverBranchCount === 0 && !drewLake) return undefined
 
 	const bakeKeySet = new Set(input.bakeTileCoords.map((c) => axial.key(c)))
-	const widthMap = computeRiverBakeMonotoneHalfOuterMap(
-		input.bakeTileCoords,
-		tileSize,
-		input.terrainTiles
-	)
 
 	const root = setPixiName(
 		new Container({ label: `terrain.continuous:${input.sectorKey}:rivers` }),
@@ -745,10 +770,7 @@ function buildRiverOverlay(input: SectorTerrainBakeInput): Container | undefined
 		return root
 	}
 
-	const graphics = setPixiName(
-		new Graphics(),
-		`terrain.continuous:${input.sectorKey}:rivers:quarters`
-	)
+	const graphics = setPixiName(new Graphics(), `terrain.continuous:${input.sectorKey}:rivers:lines`)
 	graphics.eventMode = 'none'
 	let drew = false
 
@@ -762,34 +784,7 @@ function buildRiverOverlay(input: SectorTerrainBakeInput): Container | undefined
 			.filter((d) => Number.isInteger(d) && d >= 0 && d <= 5)
 		if (directions.length === 0) continue
 
-		const suppressed = shouldSuppressWaterRiverTerminal(
-			coord,
-			sample,
-			directions,
-			input.terrainTiles
-		)
-
-		const node = buildRiverTileNode({
-			tileKey: tileKeyForCoord(coord),
-			coord,
-			tileSize,
-			terrain: sample?.terrain,
-			hydrologyEdges: edges,
-			riverFlow: sample?.hydrology?.riverFlow,
-			tileHalfOuterFromBake: widthMap.get(axial.key(coord)),
-			neighborTerrain: (direction) => {
-				const side = HEX_SIDES[direction]
-				if (!side) return undefined
-				return input.terrainTiles.get(axial.key({ q: coord.q + side.q, r: coord.r + side.r }))
-					?.terrain
-			},
-			suppressed,
-		})
-
-		if (node.suppressed || node.branches.length === 0) continue
-
-		drawRiverQuarterModelForTile(graphics, node, input.displayBounds)
-		drew = true
+		if (drawSimpleRiverLineForTile(graphics, coord, directions, input.displayBounds)) drew = true
 	}
 
 	if (drew) {

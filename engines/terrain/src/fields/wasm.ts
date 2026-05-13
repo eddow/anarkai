@@ -12,6 +12,10 @@ import { getWasmModule } from '../wasm-loader'
 // Cache WasmTerrainConfig by hash of config to avoid 20+ property assignments per batch
 const _wasmConfigCache = new Map<string, any>()
 
+function nowMs(): number {
+	return (globalThis as any).performance?.now() ?? Date.now()
+}
+
 function _hashConfig(c: TerrainConfig): string {
 	return `${c.scale}|${c.octaves}|${c.persistence}|${c.lacunarity}|${c.seaLevel}|${c.temperatureScale}|${c.humidityScale}|${c.terrainTypeScale}|${c.rockyLevel}|${c.forestLevel}|${c.sandTemperature}|${c.sandHumidity}|${c.wetlandHumidity}|${c.forestHumidity}|${c.snowLevel}|${c.hydrologySourcesPerTile}|${c.hydrologyLandCeiling}|${c.hydrologyMaxTraceSteps}|${c.hydrologyFluxStepWeight}`
 }
@@ -95,6 +99,7 @@ export function generateFieldsWasm(
 	seed: number,
 	config: TerrainConfig
 ): Map<AxialKey, TileField> {
+	const startedAt = nowMs()
 	const core = _core()
 	const wasmConfig = _getCachedWasmConfig(config)
 
@@ -102,39 +107,158 @@ export function generateFieldsWasm(
 	const flatCoords: number[] = []
 	for (const c of coords) flatCoords.push(c.q, c.r)
 	const int32 = new Int32Array(flatCoords)
+	const afterPackAt = nowMs()
 
+	const tiles = new Map<AxialKey, TileField>()
+	if (typeof core.wasm_generate_tile_fields_packed === 'function') {
+		const values = core.wasm_generate_tile_fields_packed(int32, BigInt(seed), wasmConfig)
+		const afterWasmAt = nowMs()
+		for (let coordIndex = 0, valueIndex = 0; coordIndex < flatCoords.length; coordIndex += 2) {
+			const key = axial.key({ q: flatCoords[coordIndex]!, r: flatCoords[coordIndex + 1]! })
+			tiles.set(key, {
+				height: values[valueIndex]!,
+				temperature: values[valueIndex + 1]!,
+				humidity: values[valueIndex + 2]!,
+				terrainType: values[valueIndex + 3]!,
+				rockyNoise: values[valueIndex + 4]!,
+				sediment: values[valueIndex + 5]!,
+				waterTable: values[valueIndex + 6]!,
+			})
+			valueIndex += 7
+		}
+		const completedAt = nowMs()
+		console.log(
+			`[wasm:profile] Field batch: tiles=${tiles.size} mode=packed pack=${(afterPackAt - startedAt).toFixed(1)}ms wasm=${(afterWasmAt - afterPackAt).toFixed(1)}ms unpack=${(completedAt - afterWasmAt).toFixed(1)}ms total=${(completedAt - startedAt).toFixed(1)}ms values=${values.length}`
+		)
+		return tiles
+	}
+
+	const beforeWasmAt = nowMs()
 	const results =
 		typeof core.wasm_generate_tile_fields === 'function'
 			? core.wasm_generate_tile_fields(int32, BigInt(seed), wasmConfig)
-			: flatCoords
-					.reduce<any[]>((acc, _, index) => {
-						if (index % 2 !== 0) return acc
-						acc.push(
-							core.wasm_generate_tile_field(
-								flatCoords[index],
-								flatCoords[index + 1],
-								BigInt(seed),
-								wasmConfig
-							)
+			: flatCoords.reduce<any[]>((acc, _, index) => {
+					if (index % 2 !== 0) return acc
+					acc.push(
+						core.wasm_generate_tile_field(
+							flatCoords[index],
+							flatCoords[index + 1],
+							BigInt(seed),
+							wasmConfig
 						)
-						return acc
-					}, [])
+					)
+					return acc
+				}, [])
+	const afterWasmAt = nowMs()
 
-	const tiles = new Map<AxialKey, TileField>()
-	for (let i = 0; i < results.length; i++) {
-		const key = axial.key({ q: flatCoords[i * 2], r: flatCoords[i * 2 + 1] })
-		const r = results[i]
+	for (let index = 0; index < results.length; index++) {
+		const key = axial.key({ q: flatCoords[index * 2]!, r: flatCoords[index * 2 + 1]! })
+		const result = results[index]
 		tiles.set(key, {
-			height: r.height,
-			temperature: r.temperature,
-			humidity: r.humidity,
-			terrainType: r.terrain_type,
-			rockyNoise: r.rocky_noise,
-			sediment: r.sediment,
-			waterTable: r.water_table,
+			height: result.height,
+			temperature: result.temperature,
+			humidity: result.humidity,
+			terrainType: result.terrain_type,
+			rockyNoise: result.rocky_noise,
+			sediment: result.sediment,
+			waterTable: result.water_table,
 		})
 	}
+	const completedAt = nowMs()
+	console.log(
+		`[wasm:profile] Field batch: tiles=${tiles.size} mode=object pack=${(afterPackAt - startedAt).toFixed(1)}ms wasm=${(afterWasmAt - beforeWasmAt).toFixed(1)}ms unpack=${(completedAt - afterWasmAt).toFixed(1)}ms total=${(completedAt - startedAt).toFixed(1)}ms`
+	)
 	return tiles
+}
+
+export interface WasmSectorCoord {
+	q: number
+	r: number
+}
+
+export interface WasmSectorFieldBatch {
+	coords: AxialCoord[]
+	tiles: Map<AxialKey, TileField>
+	requestedSectorCount: number
+	tileCount: number
+	sectorStep: number
+	padding: number
+	timings: {
+		packMs: number
+		wasmMs: number
+		unpackMs: number
+		totalMs: number
+	}
+}
+
+/**
+ * Batch: generate fields for sector interiors plus axial padding in a single WASM call.
+ */
+export function generateSectorFieldsWasm(
+	sectors: Iterable<WasmSectorCoord>,
+	sectorStep: number,
+	padding: number,
+	seed: number,
+	config: TerrainConfig
+): WasmSectorFieldBatch {
+	const startedAt = nowMs()
+	const core = _core()
+	const wasmConfig = _getCachedWasmConfig(config)
+
+	if (typeof core.wasm_generate_sector_fields_packed !== 'function') {
+		throw new Error('WASM module does not expose wasm_generate_sector_fields_packed')
+	}
+
+	const flatSectors: number[] = []
+	for (const sector of sectors) flatSectors.push(sector.q, sector.r)
+	const packedSectors = new Int32Array(flatSectors)
+	const afterPackAt = nowMs()
+	const result = core.wasm_generate_sector_fields_packed(
+		packedSectors,
+		sectorStep,
+		padding,
+		BigInt(seed),
+		wasmConfig
+	)
+	const afterWasmAt = nowMs()
+
+	const coordsArray = result.coords as Int32Array
+	const fieldsArray = result.fields as Float32Array
+	const coords: AxialCoord[] = []
+	const tiles = new Map<AxialKey, TileField>()
+	for (let coordIndex = 0, fieldIndex = 0; coordIndex < coordsArray.length; coordIndex += 2) {
+		const coord = { q: coordsArray[coordIndex]!, r: coordsArray[coordIndex + 1]! }
+		coords.push(coord)
+		tiles.set(axial.key(coord), {
+			height: fieldsArray[fieldIndex]!,
+			temperature: fieldsArray[fieldIndex + 1]!,
+			humidity: fieldsArray[fieldIndex + 2]!,
+			terrainType: fieldsArray[fieldIndex + 3]!,
+			rockyNoise: fieldsArray[fieldIndex + 4]!,
+			sediment: fieldsArray[fieldIndex + 5]!,
+			waterTable: fieldsArray[fieldIndex + 6]!,
+		})
+		fieldIndex += 7
+	}
+	const completedAt = nowMs()
+	console.log(
+		`[wasm:profile] Sector field batch: sectors=${flatSectors.length / 2} tiles=${tiles.size} padding=${padding} pack=${(afterPackAt - startedAt).toFixed(1)}ms wasm=${(afterWasmAt - afterPackAt).toFixed(1)}ms unpack=${(completedAt - afterWasmAt).toFixed(1)}ms total=${(completedAt - startedAt).toFixed(1)}ms values=${fieldsArray.length}`
+	)
+
+	return {
+		coords,
+		tiles,
+		requestedSectorCount: Number(result.requestedSectorCount ?? flatSectors.length / 2),
+		tileCount: Number(result.tileCount ?? tiles.size),
+		sectorStep: Number(result.sectorStep ?? sectorStep),
+		padding: Number(result.padding ?? padding),
+		timings: {
+			packMs: afterPackAt - startedAt,
+			wasmMs: afterWasmAt - afterPackAt,
+			unpackMs: completedAt - afterWasmAt,
+			totalMs: completedAt - startedAt,
+		},
+	}
 }
 
 /**

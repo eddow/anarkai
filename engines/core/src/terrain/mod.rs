@@ -338,7 +338,15 @@ pub struct TileField {
 /// Generate a single tile field at the given coordinate
 pub fn generate_tile_field(coord: &HexCoord, seed: u64, config: &TerrainConfig) -> TileField {
     let noise = PerlinNoise::new(seed);
+    generate_tile_field_with_noise(&noise, coord, config)
+}
 
+/// Generate a single tile field using a caller-owned noise generator.
+pub fn generate_tile_field_with_noise(
+    noise: &PerlinNoise,
+    coord: &HexCoord,
+    config: &TerrainConfig,
+) -> TileField {
     // Convert axial hex coords to world space matching the renderer's pointy-top layout.
     // The renderer uses: x = sqrt(3)*q + sqrt(3)/2*r, y = 3/2*r.
     // For noise sampling we factor out the constant scale so it can be absorbed
@@ -359,7 +367,7 @@ pub fn generate_tile_field(coord: &HexCoord, seed: u64, config: &TerrainConfig) 
 
     // Generate height using FBM (blend of 3 rotated samples)
     let h0 = fbm_sample(
-        &noise,
+        noise,
         wx * config.scale,
         wy * config.scale,
         config.octaves,
@@ -367,7 +375,7 @@ pub fn generate_tile_field(coord: &HexCoord, seed: u64, config: &TerrainConfig) 
         config.lacunarity,
     );
     let h1 = fbm_sample(
-        &noise,
+        noise,
         x1 * config.scale,
         y1 * config.scale,
         config.octaves,
@@ -375,7 +383,7 @@ pub fn generate_tile_field(coord: &HexCoord, seed: u64, config: &TerrainConfig) 
         config.lacunarity,
     );
     let h2 = fbm_sample(
-        &noise,
+        noise,
         x2 * config.scale,
         y2 * config.scale,
         config.octaves,
@@ -386,7 +394,7 @@ pub fn generate_tile_field(coord: &HexCoord, seed: u64, config: &TerrainConfig) 
 
     // Generate temperature (blended coordinates, no fake offset)
     let temperature = fbm_sample(
-        &noise,
+        noise,
         (wx * 0.9 + y1 * 0.1) * config.temperature_scale,
         (wy * 0.9 + x2 * 0.1) * config.temperature_scale,
         config.octaves,
@@ -396,7 +404,7 @@ pub fn generate_tile_field(coord: &HexCoord, seed: u64, config: &TerrainConfig) 
 
     // Generate humidity (blended coordinates, no fake offset)
     let humidity = fbm_sample(
-        &noise,
+        noise,
         (wx * 0.85 + x1 * 0.15) * config.humidity_scale,
         (wy * 0.85 + y2 * 0.15) * config.humidity_scale,
         config.octaves,
@@ -406,7 +414,7 @@ pub fn generate_tile_field(coord: &HexCoord, seed: u64, config: &TerrainConfig) 
 
     // Generate terrain type (for grass vs forest)
     let terrain_type = fbm_sample(
-        &noise,
+        noise,
         wx * config.terrain_type_scale,
         wy * config.terrain_type_scale,
         config.octaves,
@@ -416,7 +424,7 @@ pub fn generate_tile_field(coord: &HexCoord, seed: u64, config: &TerrainConfig) 
 
     // Generate rocky noise (blended coordinates)
     let rocky_noise = fbm_sample(
-        &noise,
+        noise,
         (wx * 0.8 + x1 * 0.2) * config.scale,
         (wy * 0.8 + y2 * 0.2) * config.scale,
         config.octaves,

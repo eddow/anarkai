@@ -7,6 +7,8 @@ import {
 	type BiomeHint,
 	generateHydratedRegion as generateTerrainRegion,
 	generateHydratedRegionAsync as generateTerrainRegionAsync,
+	generateSectorRegionAsync as generateTerrainSectorRegionAsync,
+	type TerrainSectorCoord,
 	type TileOverride,
 } from 'engine-terrain'
 import type { TerrainType } from 'ssh/types'
@@ -38,11 +40,6 @@ const terrainToBiome: Partial<Record<TerrainType, BiomeHint>> = {
 	snow: 'snow',
 }
 
-// Terrain hydrology is currently disabled in engine-terrain's streamed hydrated generation.
-// Keep streaming field generation unpadded until river tracing is re-enabled; otherwise small
-// frontier requests generate a halo of tiles that gets clipped away immediately.
-const STREAM_TERRAIN_PADDING = 0
-
 function toTileOverrides(terraforming: TerrainTerraformPatch[]): TileOverride[] {
 	const overrides: TileOverride[] = []
 	for (const patch of terraforming) {
@@ -69,7 +66,6 @@ export class GameGenerator {
 		terraforming: TerrainTerraformPatch[] = []
 	): GeneratedTileData[] {
 		const snapshot = generateTerrainRegion(config.terrainSeed, coords, {
-			hydrologyPadding: STREAM_TERRAIN_PADDING,
 			tileOverrides: toTileOverrides(terraforming),
 		})
 
@@ -84,7 +80,22 @@ export class GameGenerator {
 	): Promise<GeneratedTileData[]> {
 		const snapshot = await generateTerrainRegionAsync(config.terrainSeed, coords, {
 			fieldBackend: 'auto',
-			hydrologyPadding: STREAM_TERRAIN_PADDING,
+			tileOverrides: toTileOverrides(terraforming),
+		})
+
+		const boardGenerator = new BoardGenerator()
+		return boardGenerator.generateBoard(snapshot)
+	}
+
+	async generateSectorsAsync(
+		config: GameGenerationConfig,
+		sectors: Iterable<TerrainSectorCoord>,
+		terraforming: TerrainTerraformPatch[] = []
+	): Promise<GeneratedTileData[]> {
+		const snapshot = await generateTerrainSectorRegionAsync(config.terrainSeed, sectors, {
+			fieldBackend: 'wasm',
+			sectorStep: 17,
+			padding: 1,
 			tileOverrides: toTileOverrides(terraforming),
 		})
 

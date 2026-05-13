@@ -96,6 +96,42 @@ describe('terrain provider', () => {
 		expect(generateRegionAsync).toHaveBeenCalledTimes(1)
 	})
 
+	it('requests sector generation with one sector list and caches returned tiles', async () => {
+		const generateSectorsAsync = vi.fn(
+			async (_config, sectors: Iterable<{ q: number; r: number }>) => {
+				return [...sectors].map((sector) => ({
+					coord: { q: sector.q * 17, r: sector.r * 17 },
+					terrain: 'grass' as const,
+					height: sector.q + sector.r,
+					goods: {},
+					walkTime: 3,
+				}))
+			}
+		)
+		const provider = new TerrainProvider({
+			generator: { generateSectorsAsync } as any,
+			getGenerationConfig: () => ({ terrainSeed: 9, characterCount: 0 }),
+			getTerraformingPatches: () => [],
+			getGameplayTerrainSample: () => undefined,
+		})
+
+		await provider.ensureTerrainSectors(['0,0', '1,-1'])
+
+		expect(generateSectorsAsync).toHaveBeenCalledTimes(1)
+		expect([...generateSectorsAsync.mock.calls[0]![1] as Iterable<{ q: number; r: number }>]).toEqual([
+			{ q: 0, r: 0 },
+			{ q: 1, r: -1 },
+		])
+		expect(provider.getTerrainSample({ q: 0, r: 0 })).toEqual({ terrain: 'grass', height: 0 })
+		expect(provider.getTerrainSample({ q: 17, r: -17 })).toEqual({
+			terrain: 'grass',
+			height: 0,
+		})
+
+		await provider.ensureTerrainSectors(['0,0', '1,-1'])
+		expect(generateSectorsAsync).toHaveBeenCalledTimes(1)
+	})
+
 	it('tracks viewport demand and evicts non-demanded cache entries', async () => {
 		const generateRegionAsync = vi.fn(
 			async (_config, coords: Iterable<{ q: number; r: number }>) => {

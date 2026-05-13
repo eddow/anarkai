@@ -12,11 +12,6 @@ import type {
 } from '../types'
 import { isSpring } from './springs'
 
-// Legacy fallback — will be removed after WASM path is proven stable
-// The Rust core has compute_drainage and detect_lakes functions that will be
-// exported as WASM. Once those are available, this spring-based hydrology
-// will be replaced with the Rust drainage computation.
-
 const t = defaultHydrologyTraceConstants
 const MIN_TERMINAL_PATH_LENGTH = t.minTerminalPathLength
 
@@ -27,6 +22,28 @@ export interface HydrologyResult {
 	channelInfluence: Map<AxialKey, number>
 	/** Per-tile river path directions; omitted when no river paths were traced. */
 	riverFlow?: Map<AxialKey, TileRiverFlow>
+	profile?: HydrologyProfile
+}
+
+export interface HydrologyProfile {
+	tileCount: number
+	springCount: number
+	tracedPathCount: number
+	rejectedPathCount: number
+	totalPathTileCount: number
+	maxPathTileCount: number
+	totalFrontierPopCount: number
+	totalRelaxationCount: number
+	maxFrontierSize: number
+	fallbackPathCount: number
+	timings: {
+		setupMs: number
+		springScanMs: number
+		traceMs: number
+		applyMs: number
+		finalizeMs: number
+		totalMs: number
+	}
 }
 
 interface TileRiverFlowBuilder {
@@ -122,6 +139,13 @@ interface FrontierNode {
 	steps: number
 }
 
+interface TraceResult {
+	path: AxialKey[]
+	frontierPopCount: number
+	relaxationCount: number
+	maxFrontierSize: number
+}
+
 function addEdgeFlux(
 	edges: Map<EdgeKey, EdgeField>,
 	key: EdgeKey,
@@ -150,6 +174,7 @@ export function runHydrologyDetailed(
 	seed: number,
 	config: TerrainConfig
 ): HydrologyResult {
+	const startedAt = nowMs()
 	const result: HydrologyResult = {
 		edges: new Map<EdgeKey, EdgeField>(),
 		banks: new Map<AxialKey, number>(),
@@ -158,19 +183,73 @@ export function runHydrologyDetailed(
 	}
 	const flowBuilders = new Map<AxialKey, TileRiverFlowBuilder>()
 	const tileKeys = new Set(tiles.keys())
+	const afterSetupAt = nowMs()
+	const hasOutlet = [...tiles.values()].some((tile) => tile.height < config.seaLevel)
+
+	let springCount = 0
+	let tracedPathCount = 0
+	let rejectedPathCount = 0
+	let totalPathTileCount = 0
+	let maxPathTileCount = 0
+	let totalFrontierPopCount = 0
+	let totalRelaxationCount = 0
+	let maxFrontierSize = 0
+	let traceMs = 0
+	let applyMs = 0
 
 	for (const [tileKey, tile] of tiles) {
 		const coord = axial.coord(tileKey)
 		if (!isSpring(coord, tile.height, seed, config)) continue
-		const path = traceFromSpring(tileKey, coord, tiles, tileKeys, config)
-		if (!path) continue
+		springCount++
+		if (!hasOutlet) {
+			rejectedPathCount++
+			continue
+		}
+		const traceStartedAt = nowMs()
+		const trace = traceFromSpring(tileKey, coord, tiles, tileKeys, config)
+		traceMs += nowMs() - traceStartedAt
+		if (!trace) {
+			rejectedPathCount++
+			continue
+		}
+		tracedPathCount++
+		totalPathTileCount += trace.path.length
+		maxPathTileCount = Math.max(maxPathTileCount, trace.path.length)
+		totalFrontierPopCount += trace.frontierPopCount
+		totalRelaxationCount += trace.relaxationCount
+		maxFrontierSize = Math.max(maxFrontierSize, trace.maxFrontierSize)
+		const applyStartedAt = nowMs()
+		const path = trace.path
 		const terminalKind = pathTerminalKindFromPath(path, tiles, config)
 		applyRiverPath(path, tiles, result, config, flowBuilders, terminalKind)
+		applyMs += nowMs() - applyStartedAt
 	}
 
+	const afterSpringScanAt = nowMs()
 	const riverFlow = finalizeRiverFlow(flowBuilders)
 	if (riverFlow) {
 		result.riverFlow = riverFlow
+	}
+	const completedAt = nowMs()
+	result.profile = {
+		tileCount: tiles.size,
+		springCount,
+		tracedPathCount,
+		rejectedPathCount,
+		totalPathTileCount,
+		maxPathTileCount,
+		totalFrontierPopCount,
+		totalRelaxationCount,
+		maxFrontierSize,
+		fallbackPathCount: 0,
+		timings: {
+			setupMs: afterSetupAt - startedAt,
+			springScanMs: Math.max(0, afterSpringScanAt - afterSetupAt - traceMs - applyMs),
+			traceMs,
+			applyMs,
+			finalizeMs: completedAt - afterSpringScanAt,
+			totalMs: completedAt - startedAt,
+		},
 	}
 	return result
 }
@@ -189,20 +268,25 @@ function traceFromSpring(
 	tiles: Map<AxialKey, TileField>,
 	tileKeys: Set<AxialKey>,
 	config: TerrainConfig
-): AxialKey[] | undefined {
+): TraceResult | undefined {
 	const frontier: FrontierNode[] = [{ key: startKey, cost: 0, steps: 0 }]
 	const costs = new Map<AxialKey, number>([[startKey, 0]])
 	const stepsTo = new Map<AxialKey, number>([[startKey, 0]])
 	const previous = new Map<AxialKey, AxialKey>()
+	let frontierPopCount = 0
+	let relaxationCount = 0
+	let maxFrontierSize = frontier.length
 
 	let bestGoal: FrontierNode | undefined
 
 	while (frontier.length > 0) {
+		maxFrontierSize = Math.max(maxFrontierSize, frontier.length)
 		let bestIndex = 0
 		for (let i = 1; i < frontier.length; i++) {
 			if (frontier[i]!.cost < frontier[bestIndex]!.cost) bestIndex = i
 		}
 		const current = frontier.splice(bestIndex, 1)[0]!
+		frontierPopCount++
 		const tile = tiles.get(current.key)
 		if (!tile) continue
 		if (current.cost > (costs.get(current.key) ?? Number.POSITIVE_INFINITY)) continue
@@ -246,27 +330,12 @@ function traceFromSpring(
 			stepsTo.set(nextKey, nextSteps)
 			previous.set(nextKey, current.key)
 			frontier.push({ key: nextKey, cost: nextCost, steps: nextSteps })
+			relaxationCount++
 		}
 	}
 
 	if (!bestGoal) {
-		let fallbackKey: AxialKey | undefined
-		let fallbackCost = Number.POSITIVE_INFINITY
-		for (const [k, c] of costs) {
-			const t = tiles.get(k)
-			if (!t || t.height < config.seaLevel) continue
-			if (k === startKey) continue
-			if (c < fallbackCost) {
-				fallbackCost = c
-				fallbackKey = k
-			}
-		}
-		if (fallbackKey === undefined || !Number.isFinite(fallbackCost)) return undefined
-		bestGoal = {
-			key: fallbackKey,
-			cost: fallbackCost,
-			steps: stepsTo.get(fallbackKey) ?? 0,
-		}
+		return undefined
 	}
 
 	const path: AxialKey[] = []
@@ -277,7 +346,13 @@ function traceFromSpring(
 	}
 	path.reverse()
 	trimSeaEntry(path, tiles, config)
-	return path.length > MIN_TERMINAL_PATH_LENGTH ? path : undefined
+	return path.length > MIN_TERMINAL_PATH_LENGTH
+		? { path, frontierPopCount, relaxationCount, maxFrontierSize }
+		: undefined
+}
+
+function nowMs(): number {
+	return (globalThis as any).performance?.now() ?? Date.now()
 }
 
 function pathTerminalKindFromPath(

@@ -2,14 +2,16 @@ mod common;
 mod noise;
 mod terrain;
 
+use js_sys::{Float32Array, Int32Array, Object, Reflect};
+use std::collections::BTreeSet;
 use wasm_bindgen::prelude::*;
 
 // Re-export common types for internal use
 pub use common::{Bounds, HexCoord, Rng};
 pub use noise::{domain_warp, fbm_sample, PerlinNoise};
 pub use terrain::{
-    generate_region, generate_tile_field, BiomeHint, HydrologyClassification, TerrainConfig,
-    TileField,
+    generate_region, generate_tile_field, generate_tile_field_with_noise, BiomeHint,
+    HydrologyClassification, TerrainConfig, TileField,
 };
 
 /// Simple add function to verify WASM integration works end-to-end.
@@ -397,59 +399,137 @@ pub fn wasm_generate_tile_fields(
         if chunk.len() < 2 {
             break;
         }
-        let x = 1000.0 + chunk[0] as f32 * tcfg.scale;
-        let y = 1000.0 + chunk[1] as f32 * tcfg.scale;
-        let h = fbm_sample(
-            &noise,
-            x,
-            y,
-            tcfg.octaves,
-            tcfg.persistence,
-            tcfg.lacunarity,
-        );
-        out.push(WasmTileField {
-            height: h,
-            temperature: fbm_sample(
-                &noise,
-                x + 1000.0,
-                y + 1000.0,
-                tcfg.octaves,
-                tcfg.persistence,
-                tcfg.lacunarity,
-            ) * tcfg.temperature_scale,
-            humidity: fbm_sample(
-                &noise,
-                x + 2000.0,
-                y + 2000.0,
-                tcfg.octaves,
-                tcfg.persistence,
-                tcfg.lacunarity,
-            ) * tcfg.humidity_scale,
-            terrain_type: fbm_sample(
-                &noise,
-                x * tcfg.terrain_type_scale / tcfg.scale,
-                y * tcfg.terrain_type_scale / tcfg.scale,
-                tcfg.octaves,
-                tcfg.persistence,
-                tcfg.lacunarity,
-            ),
-            rocky_noise: fbm_sample(
-                &noise,
-                x + 3000.0,
-                y + 3000.0,
-                tcfg.octaves,
-                tcfg.persistence,
-                tcfg.lacunarity,
-            ),
-            sediment: 0.0,
-            water_table: if h < tcfg.sea_level {
-                tcfg.sea_level - h
-            } else {
-                0.0
-            },
-        });
+        let coord = HexCoord::new(chunk[0], chunk[1]);
+        out.push(generate_tile_field_with_noise(&noise, &coord, &tcfg).into());
     }
     out
+}
+
+/// Batch generate fields as a packed Float32Array-compatible vector:
+/// [height, temperature, humidity, terrain_type, rocky_noise, sediment, water_table, ...]
+#[wasm_bindgen]
+pub fn wasm_generate_tile_fields_packed(
+    coords: &[i32],
+    seed: u64,
+    config: &WasmTerrainConfig,
+) -> Vec<f32> {
+    let tcfg: TerrainConfig = config.clone().into();
+    let noise = PerlinNoise::new(seed);
+    let cap = (coords.len() / 2) * 7;
+    let mut out = Vec::with_capacity(cap);
+    for chunk in coords.chunks(2) {
+        if chunk.len() < 2 {
+            break;
+        }
+        let coord = HexCoord::new(chunk[0], chunk[1]);
+        let field = generate_tile_field_with_noise(&noise, &coord, &tcfg);
+        out.push(field.height);
+        out.push(field.temperature);
+        out.push(field.humidity);
+        out.push(field.terrain_type);
+        out.push(field.rocky_noise);
+        out.push(field.sediment);
+        out.push(field.water_table);
+    }
+    out
+}
+
+fn expand_sector_coords(sectors: &[i32], sector_step: i32, padding: i32) -> Vec<HexCoord> {
+    let step = sector_step.max(1);
+    let radius = padding.max(0);
+    let mut coords = BTreeSet::<(i32, i32)>::new();
+
+    for chunk in sectors.chunks(2) {
+        if chunk.len() < 2 {
+            break;
+        }
+        let start_q = chunk[0] * step;
+        let start_r = chunk[1] * step;
+
+        for q in start_q..start_q + step {
+            for r in start_r..start_r + step {
+                for dq in -radius..=radius {
+                    let min_dr = (-radius).max(-dq - radius);
+                    let max_dr = radius.min(-dq + radius);
+                    for dr in min_dr..=max_dr {
+                        coords.insert((q + dq, r + dr));
+                    }
+                }
+            }
+        }
+    }
+
+    coords
+        .into_iter()
+        .map(|(q, r)| HexCoord::new(q, r))
+        .collect()
+}
+
+/// Batch generate fields for sector interiors plus optional axial padding.
+/// Input sectors are packed as [sector_q, sector_r, sector_q, sector_r, ...].
+/// Output is a JS object with:
+/// - coords: Int32Array [q, r, q, r, ...]
+/// - fields: Float32Array [height, temperature, humidity, terrain_type, rocky_noise, sediment, water_table, ...]
+/// - requestedSectorCount, tileCount, sectorStep, padding
+#[wasm_bindgen]
+pub fn wasm_generate_sector_fields_packed(
+    sectors: &[i32],
+    sector_step: i32,
+    padding: i32,
+    seed: u64,
+    config: &WasmTerrainConfig,
+) -> Result<Object, JsValue> {
+    let tcfg: TerrainConfig = config.clone().into();
+    let noise = PerlinNoise::new(seed);
+    let coords = expand_sector_coords(sectors, sector_step, padding);
+
+    let mut packed_coords = Vec::<i32>::with_capacity(coords.len() * 2);
+    let mut packed_fields = Vec::<f32>::with_capacity(coords.len() * 7);
+    for coord in &coords {
+        let field = generate_tile_field_with_noise(&noise, coord, &tcfg);
+        packed_coords.push(coord.q);
+        packed_coords.push(coord.r);
+        packed_fields.push(field.height);
+        packed_fields.push(field.temperature);
+        packed_fields.push(field.humidity);
+        packed_fields.push(field.terrain_type);
+        packed_fields.push(field.rocky_noise);
+        packed_fields.push(field.sediment);
+        packed_fields.push(field.water_table);
+    }
+
+    let result = Object::new();
+    Reflect::set(
+        &result,
+        &JsValue::from_str("coords"),
+        &Int32Array::from(packed_coords.as_slice()),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("fields"),
+        &Float32Array::from(packed_fields.as_slice()),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("requestedSectorCount"),
+        &JsValue::from_f64((sectors.len() / 2) as f64),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("tileCount"),
+        &JsValue::from_f64(coords.len() as f64),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("sectorStep"),
+        &JsValue::from_f64(sector_step.max(1) as f64),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("padding"),
+        &JsValue::from_f64(padding.max(0) as f64),
+    )?;
+    Ok(result)
 }
 
 // WASM exports for biome classification
@@ -545,6 +625,53 @@ pub fn wasm_classify_tile(
     };
 
     classify_tile(&tile, max_flux, &config, &hydrology).into()
+}
+
+#[cfg(test)]
+mod sector_batch_tests {
+    use super::*;
+
+    #[test]
+    fn sector_expansion_handles_negative_and_mixed_coordinates() {
+        let coords = expand_sector_coords(&[0, 0, -1, 1, 1, -1], 17, 1);
+        assert!(coords.iter().any(|coord| coord.q == 0 && coord.r == 0));
+        assert!(coords.iter().any(|coord| coord.q == -17 && coord.r == 17));
+        assert!(coords.iter().any(|coord| coord.q == 17 && coord.r == -17));
+
+        let mut last: Option<(i32, i32)> = None;
+        for coord in coords {
+            let current = (coord.q, coord.r);
+            if let Some(previous) = last {
+                assert!(previous < current);
+            }
+            last = Some(current);
+        }
+    }
+
+    #[test]
+    fn sector_expansion_dedupes_overlapping_padding() {
+        let separate_count = expand_sector_coords(&[0, 0], 17, 1).len()
+            + expand_sector_coords(&[1, 0], 17, 1).len();
+        let combined_count = expand_sector_coords(&[0, 0, 1, 0], 17, 1).len();
+        assert!(combined_count < separate_count);
+    }
+
+    #[test]
+    fn sector_fields_match_direct_field_generation() {
+        let config = TerrainConfig::default();
+        let seed = 42;
+        let coords = expand_sector_coords(&[-1, 1], 17, 0);
+        let noise = PerlinNoise::new(seed);
+
+        for coord in coords.iter().take(16) {
+            let direct = generate_tile_field(coord, seed, &config);
+            let batched = generate_tile_field_with_noise(&noise, coord, &config);
+            assert_eq!(direct.height, batched.height);
+            assert_eq!(direct.temperature, batched.temperature);
+            assert_eq!(direct.humidity, batched.humidity);
+            assert_eq!(direct.terrain_type, batched.terrain_type);
+        }
+    }
 }
 
 // WASM exports for affordances

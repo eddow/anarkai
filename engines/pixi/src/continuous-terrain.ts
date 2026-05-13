@@ -52,8 +52,8 @@ const GAMEPLAY_STREAM_RADIUS = SECTOR_STEP + 1
 const GAMEPLAY_STREAM_BATCH_SIZE = 512
 const TERRAIN_DIAGNOSTIC_HISTORY_LIMIT = 12
 const SLOW_SECTOR_LOG_THRESHOLD_MS = 16
-const MAX_PENDING_SECTORS = 1
-const MAX_SECTOR_STARTS_PER_REFRESH = 1
+const MAX_PENDING_SECTORS = 8
+const MAX_SECTOR_STARTS_PER_REFRESH = 8
 const PREFETCH_SECTOR_MARGIN = 1
 const VIEWPORT_WORLD_OVERSCAN = tileSize * 3
 const HEX_HALF_WIDTH = (Math.sqrt(3) / 2) * tileSize
@@ -975,91 +975,138 @@ export class TerrainVisual {
 	private pumpVisibleSectorQueue() {
 		if (this.pendingSectors.size >= MAX_PENDING_SECTORS) return
 
-		let started = 0
+		const batch: QueuedSector[] = []
 		while (
 			this.pendingSectors.size < MAX_PENDING_SECTORS &&
-			started < MAX_SECTOR_STARTS_PER_REFRESH &&
+			batch.length < MAX_SECTOR_STARTS_PER_REFRESH &&
 			this.visibleSectorQueue.length > 0
 		) {
 			const next = this.visibleSectorQueue.shift()
 			if (!next) break
 			if (this.pendingSectors.has(next.key)) continue
-			void this.requestSectorFrontier(next)
-			started++
+			this.pendingSectors.add(next.key)
+			batch.push(next)
 		}
+		if (batch.length > 0) void this.requestSectorFrontierBatch(batch)
 	}
 
 	private async requestSectorFrontier(next: QueuedSector) {
-		const sectorStartedAt = nowMs()
+		if (!this.pendingSectors.has(next.key)) this.pendingSectors.add(next.key)
+		await this.requestSectorFrontierBatch([next])
+	}
+
+	private async requestSectorFrontierBatch(batch: QueuedSector[]) {
+		const batchStartedAt = nowMs()
 		const pendingSectorCountAtStart = this.pendingSectors.size
-		this.pendingSectors.add(next.key)
-		let generated = false
-		let requestMode: 'ensure' | 'frontier' = 'frontier'
-		let missingBakeTiles = 0
+		const requestInfo = new Map<
+			string,
+			{
+				generated: boolean
+				requestMode: 'ensure' | 'frontier'
+				missingBakeTiles: number
+			}
+		>()
+		for (const next of batch) {
+			requestInfo.set(next.key, {
+				generated: false,
+				requestMode: 'frontier',
+				missingBakeTiles: 0,
+			})
+		}
 		try {
-			const bakeCoords = coordsForSectorBakeDomain(next.key, SECTOR_STEP)
-			const missingBakeCoords = bakeCoords.filter(
-				(coord) => !this.renderer.game.hasRenderableTerrainAt(coord)
-			)
-			missingBakeTiles = missingBakeCoords.length
-			const interiorCoords = this.coordsForSectorKey(next.key)
-			if (missingBakeCoords.length > 0) {
+			const sectorsNeedingTerrain: string[] = []
+			for (const next of batch) {
+				const bakeCoords = coordsForSectorBakeDomain(next.key, SECTOR_STEP)
+				const missingBakeCoords = bakeCoords.filter(
+					(coord) => !this.renderer.game.hasRenderableTerrainAt(coord)
+				)
+				const info = requestInfo.get(next.key)!
+				info.missingBakeTiles = missingBakeCoords.length
+				if (missingBakeCoords.length > 0) sectorsNeedingTerrain.push(next.key)
+			}
+
+			if (sectorsNeedingTerrain.length > 0) {
+				const ensureTerrainSectors = (
+					this.renderer.game as {
+						ensureTerrainSectors?: (sectorKeys: Iterable<string>) => Promise<void>
+					}
+				).ensureTerrainSectors
 				const ensureTerrainSamples = (
 					this.renderer.game as {
 						ensureTerrainSamples?: (coords: Iterable<AxialCoord>) => Promise<void>
 					}
 				).ensureTerrainSamples
-				if (ensureTerrainSamples) {
-					requestMode = 'ensure'
-					const ensureCoords = this.visibleSectorKeys.has(next.key)
-						? this.collectMissingBakeCoordsForKeys(this.visibleSectorKeys)
-						: missingBakeCoords
-					await this.renderer.game.ensureTerrainSamples(ensureCoords)
-					generated = bakeCoords.every((coord) => this.renderer.game.hasRenderableTerrainAt(coord))
+				if (ensureTerrainSectors) {
+					for (const key of sectorsNeedingTerrain) requestInfo.get(key)!.requestMode = 'ensure'
+					await ensureTerrainSectors.call(this.renderer.game, sectorsNeedingTerrain)
+				} else if (ensureTerrainSamples) {
+					for (const key of sectorsNeedingTerrain) requestInfo.get(key)!.requestMode = 'ensure'
+					await ensureTerrainSamples.call(
+						this.renderer.game,
+						this.collectMissingBakeCoordsForKeys(new Set(sectorsNeedingTerrain))
+					)
 				} else {
-					generated = await this.renderer.game.requestGameplayFrontier(
+					for (const next of batch) {
+						requestInfo.get(next.key)!.generated = await this.renderer.game.requestGameplayFrontier(
+							this.sectorCenter(next.sectorQ, next.sectorR),
+							GAMEPLAY_STREAM_RADIUS,
+							{ maxBatchSize: GAMEPLAY_STREAM_BATCH_SIZE }
+						)
+					}
+				}
+			}
+
+			for (const next of batch) {
+				const bakeCoords = coordsForSectorBakeDomain(next.key, SECTOR_STEP)
+				const interiorCoords = this.coordsForSectorKey(next.key)
+				const info = requestInfo.get(next.key)!
+				if (info.requestMode === 'ensure') {
+					info.generated = bakeCoords.every((coord) =>
+						this.renderer.game.hasRenderableTerrainAt(coord)
+					)
+				} else if (info.missingBakeTiles === 0) {
+					info.generated = await this.renderer.game.requestGameplayFrontier(
 						this.sectorCenter(next.sectorQ, next.sectorR),
 						GAMEPLAY_STREAM_RADIUS,
 						{ maxBatchSize: GAMEPLAY_STREAM_BATCH_SIZE }
 					)
 				}
-			} else {
-				generated = await this.renderer.game.requestGameplayFrontier(
-					this.sectorCenter(next.sectorQ, next.sectorR),
-					GAMEPLAY_STREAM_RADIUS,
-					{ maxBatchSize: GAMEPLAY_STREAM_BATCH_SIZE }
+				this.recordSectorDiagnostics(
+					next.key,
+					countVisibleCoords(interiorCoords, this.visibleTileKeys),
+					countMaterializedCoords(interiorCoords, this.visibleTileKeys, this.renderer),
+					countMissingCoords(
+						bakeCoords,
+						new Set(bakeCoords.map((coord) => axial.key(coord))),
+						this.renderer
+					),
+					pendingSectorCountAtStart,
+					0,
+					0,
+					pendingSectorCountAtStart,
+					0,
+					0,
+					nowMs() - batchStartedAt
 				)
 			}
-			this.recordSectorDiagnostics(
-				next.key,
-				countVisibleCoords(interiorCoords, this.visibleTileKeys),
-				countMaterializedCoords(interiorCoords, this.visibleTileKeys, this.renderer),
-				countMissingCoords(
-					bakeCoords,
-					new Set(bakeCoords.map((coord) => axial.key(coord))),
-					this.renderer
-				),
-				pendingSectorCountAtStart,
-				0,
-				0,
-				pendingSectorCountAtStart,
-				0,
-				0,
-				nowMs() - sectorStartedAt
-			)
 		} catch (error) {
 			console.error('[TerrainVisual] Failed to materialize gameplay tiles', error)
 		} finally {
-			this.queueDebug.recentRequests.unshift({
-				sectorKey: next.key,
-				mode: requestMode,
-				missingBakeTiles,
-				generated,
-				ms: nowMs() - sectorStartedAt,
-			})
+			let shouldInvalidate = false
+			for (const next of batch) {
+				const info = requestInfo.get(next.key)!
+				this.queueDebug.recentRequests.unshift({
+					sectorKey: next.key,
+					mode: info.requestMode,
+					missingBakeTiles: info.missingBakeTiles,
+					generated: info.generated,
+					ms: nowMs() - batchStartedAt,
+				})
+				this.pendingSectors.delete(next.key)
+				shouldInvalidate ||= info.generated
+			}
 			this.queueDebug.recentRequests = this.queueDebug.recentRequests.slice(0, 30)
-			this.pendingSectors.delete(next.key)
-			if (generated && this.isBound) this.scheduleInvalidate()
+			if (shouldInvalidate && this.isBound) this.scheduleInvalidate()
 		}
 	}
 

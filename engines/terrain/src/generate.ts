@@ -1,9 +1,9 @@
-import { streamHydrologyPadding } from 'engine-rules'
 import { classifyTile } from './classify'
 import { edgeKey } from './edge-key'
 import {
 	generateFields,
 	generateFieldsAsync,
+	generateSectorFieldsWasm,
 	generateTileField,
 	isGpuFieldRuntimeReady,
 	resolveAsyncFieldGenerationBackend,
@@ -50,6 +50,16 @@ export interface MergeSnapshotResult {
 export interface GenerateHydratedRegionWithMetricsResult {
 	snapshot: TerrainSnapshot
 	metrics: HydratedRegionMetrics
+}
+
+export interface TerrainSectorCoord {
+	q: number
+	r: number
+}
+
+export interface GenerateSectorRegionOptions extends GenerateOptions {
+	sectorStep?: number
+	padding?: number
 }
 
 export interface TileOverride {
@@ -252,10 +262,7 @@ export function generateHydratedRegionWithMetrics(
 	const config = resolveConfig(options)
 	const tileOverrides = options?.tileOverrides ? [...options.tileOverrides] : undefined
 	const requestedKeys = new Set(requestedCoords.map((coord) => axial.key(coord)))
-	const paddedCoords = expandCoords(
-		requestedCoords,
-		options?.hydrologyPadding ?? streamHydrologyPadding
-	)
+	const paddedCoords = requestedCoords
 	const requestedBackend = options?.fieldBackend ?? 'auto'
 	const resolvedBackend = resolveSyncFieldGenerationBackend(options?.fieldBackend)
 	const gpuRuntimeReadyAtStart = isGpuFieldRuntimeReady()
@@ -279,8 +286,6 @@ export function generateHydratedRegionWithMetrics(
 	if (tileOverrides) {
 		applyTileOverrides(workingSnapshot, tileOverrides, options)
 	}
-	// Rivers are deactivated for now.
-	// const hydrology = runHydrologyDetailed(tiles, seed, config)
 	const hydrology = emptyHydrologyResult()
 	const afterHydrologyAt = nowMs()
 	const snapshot = clipHydratedSnapshot(
@@ -334,10 +339,7 @@ export async function generateHydratedRegionAsyncWithMetrics(
 	const config = resolveConfig(options)
 	const tileOverrides = options?.tileOverrides ? [...options.tileOverrides] : undefined
 	const requestedKeys = new Set(requestedCoords.map((coord) => axial.key(coord)))
-	const paddedCoords = expandCoords(
-		requestedCoords,
-		options?.hydrologyPadding ?? streamHydrologyPadding
-	)
+	const paddedCoords = requestedCoords
 	const requestedBackend = options?.fieldBackend ?? 'auto'
 	const gpuRuntimeReadyAtStart = isGpuFieldRuntimeReady()
 	const resolvedBackend = resolveAsyncFieldGenerationBackend(
@@ -364,8 +366,6 @@ export async function generateHydratedRegionAsyncWithMetrics(
 	if (tileOverrides) {
 		applyTileOverrides(workingSnapshot, tileOverrides, options)
 	}
-	// Rivers are deactivated for now.
-	// const hydrology = runHydrologyDetailed(tiles, seed, config)
 	const hydrology = emptyHydrologyResult()
 	const afterHydrologyAt = nowMs()
 	const snapshot = clipHydratedSnapshot(
@@ -386,8 +386,12 @@ export async function generateHydratedRegionAsyncWithMetrics(
 		clippingMs: completedAt - afterHydrologyAt,
 		totalMs: completedAt - startedAt,
 	}
+	const hydrologyProfile = hydrology.profile
+	const hydrologyDetails = hydrologyProfile
+		? ` hydroTiles=${hydrologyProfile.tileCount} springs=${hydrologyProfile.springCount} paths=${hydrologyProfile.tracedPathCount}/${hydrologyProfile.rejectedPathCount} pathTiles=${hydrologyProfile.totalPathTileCount} maxPath=${hydrologyProfile.maxPathTileCount} pops=${hydrologyProfile.totalFrontierPopCount} relax=${hydrologyProfile.totalRelaxationCount} maxFrontier=${hydrologyProfile.maxFrontierSize} fallback=${hydrologyProfile.fallbackPathCount} hydroBreakdown=setup:${hydrologyProfile.timings.setupMs.toFixed(1)}ms scan:${hydrologyProfile.timings.springScanMs.toFixed(1)}ms trace:${hydrologyProfile.timings.traceMs.toFixed(1)}ms apply:${hydrologyProfile.timings.applyMs.toFixed(1)}ms finalize:${hydrologyProfile.timings.finalizeMs.toFixed(1)}ms`
+		: ''
 	console.log(
-		`[wasm:profile] Pipeline timing: fields=${metrics.fieldGenerationMs.toFixed(1)}ms hydrology=${metrics.hydrologyMs.toFixed(1)}ms clipping=${metrics.clippingMs.toFixed(1)}ms TOTAL=${metrics.totalMs.toFixed(1)}ms`
+		`[wasm:profile] Pipeline timing: requested=${requestedKeys.size} padded=${paddedCoords.length} emitted=${snapshot.tiles.size} backend=${resolvedBackend} fields=${metrics.fieldGenerationMs.toFixed(1)}ms hydrology=${metrics.hydrologyMs.toFixed(1)}ms clipping=${metrics.clippingMs.toFixed(1)}ms TOTAL=${metrics.totalMs.toFixed(1)}ms${hydrologyDetails}`
 	)
 
 	return {
@@ -410,6 +414,92 @@ export async function generateHydratedRegionAsyncWithMetrics(
 			},
 		},
 	}
+}
+
+export async function generateSectorRegionAsyncWithMetrics(
+	seed: number,
+	sectors: Iterable<TerrainSectorCoord>,
+	options?: GenerateSectorRegionOptions
+): Promise<GenerateHydratedRegionWithMetricsResult> {
+	const requestedSectors = [...sectors]
+	const config = resolveConfig(options)
+	const tileOverrides = options?.tileOverrides ? [...options.tileOverrides] : undefined
+	const sectorStep = options?.sectorStep ?? 17
+	const padding = options?.padding ?? 1
+	const requestedBackend = options?.fieldBackend ?? 'auto'
+	const gpuRuntimeReadyAtStart = isGpuFieldRuntimeReady()
+
+	const startedAt = nowMs()
+	resetNoiseProfile()
+	const fieldBatch = generateSectorFieldsWasm(requestedSectors, sectorStep, padding, seed, config)
+	dumpNoiseProfile()
+	const afterFieldsAt = nowMs()
+	const tiles = fieldBatch.tiles
+	const requestedKeys = new Set<AxialKey>(fieldBatch.coords.map((coord) => axial.key(coord)))
+	const workingSnapshot: TerrainSnapshot = {
+		seed,
+		tiles,
+		edges: new Map(),
+		biomes: new Map(),
+		hydrology: {
+			banks: new Map(),
+			channels: new Set(),
+			channelInfluence: new Map(),
+		},
+	}
+	if (tileOverrides) {
+		applyTileOverrides(workingSnapshot, tileOverrides, options)
+	}
+	const hydrology = emptyHydrologyResult()
+	const afterHydrologyAt = nowMs()
+	const snapshot = clipHydratedSnapshot(
+		seed,
+		requestedKeys,
+		tiles,
+		hydrology.edges,
+		hydrology.banks,
+		hydrology.channelInfluence,
+		hydrology.riverFlow,
+		config
+	)
+	const completedAt = nowMs()
+
+	const metrics = {
+		fieldGenerationMs: afterFieldsAt - startedAt,
+		hydrologyMs: afterHydrologyAt - afterFieldsAt,
+		clippingMs: completedAt - afterHydrologyAt,
+		totalMs: completedAt - startedAt,
+	}
+	console.log(
+		`[wasm:profile] Sector pipeline timing: sectors=${requestedSectors.length} emitted=${snapshot.tiles.size} backend=wasm fields=${metrics.fieldGenerationMs.toFixed(1)}ms hydrology=${metrics.hydrologyMs.toFixed(1)}ms clipping=${metrics.clippingMs.toFixed(1)}ms TOTAL=${metrics.totalMs.toFixed(1)}ms`
+	)
+
+	return {
+		snapshot,
+		metrics: {
+			requestedSectorCount: requestedSectors.length,
+			sectorStep,
+			sectorPadding: padding,
+			requestedTileCount: requestedKeys.size,
+			paddedTileCount: fieldBatch.tileCount,
+			emittedTileCount: snapshot.tiles.size,
+			emittedEdgeCount: snapshot.edges.size,
+			paddingAmplification: requestedKeys.size === 0 ? 0 : fieldBatch.tileCount / requestedKeys.size,
+			edgePerRequestedTile: 0,
+			fieldBackendRequested: requestedBackend,
+			fieldBackendResolved: 'wasm',
+			gpuRuntimeReadyAtStart,
+			timings: metrics,
+		},
+	}
+}
+
+export async function generateSectorRegionAsync(
+	seed: number,
+	sectors: Iterable<TerrainSectorCoord>,
+	options?: GenerateSectorRegionOptions
+): Promise<TerrainSnapshot> {
+	return (await generateSectorRegionAsyncWithMetrics(seed, sectors, options)).snapshot
 }
 
 export function mergeSnapshotRegion(

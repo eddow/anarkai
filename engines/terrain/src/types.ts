@@ -82,6 +82,9 @@ export interface TerrainGenerationPhaseTimings {
 }
 
 export interface HydratedRegionMetrics {
+	requestedSectorCount?: number
+	sectorStep?: number
+	sectorPadding?: number
 	requestedTileCount: number
 	paddedTileCount: number
 	emittedTileCount: number

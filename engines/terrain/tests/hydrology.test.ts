@@ -147,7 +147,7 @@ describe('runHydrology()', () => {
 		}
 	})
 
-	it('runHydrologyDetailed marks landlocked path end as inland pathTerminalKind', () => {
+	it('runHydrologyDetailed rejects landlocked springs instead of drawing fallback scratches', () => {
 		const cfg = {
 			...DEFAULT_TERRAIN_CONFIG,
 			hydrologySourcesPerTile: 1,
@@ -164,13 +164,10 @@ describe('runHydrology()', () => {
 		tiles.set('-2,0', baseTile({ height: 0.21 }))
 
 		const hydrology = runHydrologyDetailed(tiles, 99, cfg)
-		expect(hydrology.riverFlow).toBeDefined()
-		const inlandEnd = [...hydrology.riverFlow!.values()].find(
-			(f) => f.pathTerminalKind === 'inland'
-		)
-		expect(inlandEnd).toBeDefined()
-		expect(inlandEnd!.downstreamDirections.length).toBe(0)
-		expect(inlandEnd!.upstreamDirections.length).toBeGreaterThan(0)
+		expect(hydrology.riverFlow).toBeUndefined()
+		expect(hydrology.edges.size).toBe(0)
+		expect(hydrology.profile?.springCount).toBeGreaterThan(0)
+		expect(hydrology.profile?.tracedPathCount).toBe(0)
 	})
 })
 

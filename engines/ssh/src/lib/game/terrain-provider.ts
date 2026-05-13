@@ -87,6 +87,8 @@ const DEFAULT_IDLE_EVICT_MS = 90_000
 export class TerrainProvider {
 	private readonly cache = new Map<string, CacheEntry>()
 	private readonly inFlightByCoord = new Map<string, Promise<TerrainSample | undefined>>()
+	private readonly inFlightBySector = new Map<string, Promise<void>>()
+	private readonly completedSectors = new Set<string>()
 	private readonly viewportDemands = new Map<string, Set<string>>()
 	private readonly maxCacheEntries: number
 	private readonly idleEvictMs: number
@@ -180,6 +182,45 @@ export class TerrainProvider {
 		this.syncSizes()
 	}
 
+	public async ensureTerrainSectors(sectorKeys: Iterable<string>): Promise<void> {
+		const startedAt = nowMs()
+		this.diagnostics.ensures++
+		const unique = new Set<string>()
+		for (const key of sectorKeys) unique.add(key)
+		if (unique.size === 0) return
+
+		const waiting: Promise<void>[] = []
+		const missing: string[] = []
+		for (const key of unique) {
+			if (this.completedSectors.has(key)) continue
+			const inFlight = this.inFlightBySector.get(key)
+			if (inFlight) {
+				waiting.push(inFlight)
+				continue
+			}
+			missing.push(key)
+		}
+
+		if (missing.length > 0) {
+			const generation = this.generateSectorsAndCache(missing)
+			for (const key of missing) {
+				const perSector = generation.finally(() => {
+					this.inFlightBySector.delete(key)
+				})
+				this.inFlightBySector.set(key, perSector)
+				waiting.push(perSector)
+			}
+		}
+
+		if (waiting.length > 0) await Promise.all(waiting)
+
+		this.evictIfNeeded()
+		const tookMs = nowMs() - startedAt
+		this.diagnostics.lastEnsureMs = tookMs
+		this.diagnostics.maxEnsureMs = Math.max(this.diagnostics.maxEnsureMs, tookMs)
+		this.syncSizes()
+	}
+
 	public updateViewportDemand(viewportId: string, coords: Iterable<AxialCoord>) {
 		const demanded = new Set<string>()
 		for (const coord of coords) demanded.add(axial.key(coord))
@@ -194,11 +235,13 @@ export class TerrainProvider {
 
 	public invalidateCoord(coord: AxialCoord) {
 		this.cache.delete(axial.key(coord))
+		this.completedSectors.clear()
 		this.syncSizes()
 	}
 
 	public invalidateAll() {
 		this.cache.clear()
+		this.completedSectors.clear()
 		this.syncSizes()
 	}
 
@@ -229,6 +272,38 @@ export class TerrainProvider {
 		this.diagnostics.generatedTiles += tiles.length
 	}
 
+	private async generateSectorsAndCache(sectorKeys: string[]) {
+		const sectors = sectorKeys.map((key) => {
+			const [q, r] = key.split(',').map(Number)
+			return { q: q ?? 0, r: r ?? 0 }
+		})
+		const tiles = await this.options.generator.generateSectorsAsync(
+			this.options.getGenerationConfig(),
+			sectors,
+			this.options.getTerraformingPatches()
+		)
+		for (const tile of tiles) {
+			const deposit = tile.deposit
+			const sample: TerrainSample = {
+				terrain: tile.terrain,
+				height: tile.height,
+				deposit: deposit
+					? {
+							type: deposit.type,
+							amount: deposit.amount,
+							name: deposit.type,
+							maxAmount:
+								depositDefinitions[deposit.type as keyof typeof depositDefinitions]?.maxAmount,
+						}
+					: undefined,
+			}
+			if (tile.hydrology) sample.hydrology = tile.hydrology
+			this.upsert(tile.coord, sample)
+		}
+		for (const key of sectorKeys) this.completedSectors.add(key)
+		this.diagnostics.generatedTiles += tiles.length
+	}
+
 	private upsert(coord: AxialCoord, sample: TerrainSample) {
 		this.cache.set(axial.key(coord), {
 			sample,
@@ -248,6 +323,7 @@ export class TerrainProvider {
 		for (const candidate of candidates) {
 			if (this.cache.size <= this.maxCacheEntries) break
 			if (!this.cache.delete(candidate.key)) continue
+			this.completedSectors.clear()
 			this.diagnostics.evictions++
 		}
 		if (this.cache.size <= this.maxCacheEntries) return
@@ -258,6 +334,7 @@ export class TerrainProvider {
 		for (const [key] of sorted) {
 			if (this.cache.size <= this.maxCacheEntries) break
 			if (!this.cache.delete(key)) continue
+			this.completedSectors.clear()
 			this.diagnostics.evictions++
 		}
 	}
@@ -272,7 +349,7 @@ export class TerrainProvider {
 
 	private syncSizes() {
 		this.diagnostics.cacheSize = this.cache.size
-		this.diagnostics.inFlightSize = this.inFlightByCoord.size
+		this.diagnostics.inFlightSize = this.inFlightByCoord.size + this.inFlightBySector.size
 		this.diagnostics.viewportCount = this.viewportDemands.size
 		this.diagnostics.demandedCoords = this.collectDemandedKeys().size
 	}
