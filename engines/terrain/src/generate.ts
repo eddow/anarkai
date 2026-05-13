@@ -435,12 +435,12 @@ export async function generateSectorRegionAsyncWithMetrics(
 	dumpNoiseProfile()
 	const afterFieldsAt = nowMs()
 	const tiles = fieldBatch.tiles
-	const requestedKeys = new Set<AxialKey>(fieldBatch.coords.map((coord) => axial.key(coord)))
-	const workingSnapshot: TerrainSnapshot = {
+	const biomes = fieldBatch.biomes
+	const snapshot: TerrainSnapshot = {
 		seed,
 		tiles,
 		edges: new Map(),
-		biomes: new Map(),
+		biomes,
 		hydrology: {
 			banks: new Map(),
 			channels: new Set(),
@@ -448,20 +448,9 @@ export async function generateSectorRegionAsyncWithMetrics(
 		},
 	}
 	if (tileOverrides) {
-		applyTileOverrides(workingSnapshot, tileOverrides, options)
+		applyTileOverrides(snapshot, tileOverrides, options)
 	}
-	const hydrology = emptyHydrologyResult()
 	const afterHydrologyAt = nowMs()
-	const snapshot = clipHydratedSnapshot(
-		seed,
-		requestedKeys,
-		tiles,
-		hydrology.edges,
-		hydrology.banks,
-		hydrology.channelInfluence,
-		hydrology.riverFlow,
-		config
-	)
 	const completedAt = nowMs()
 
 	const metrics = {
@@ -480,11 +469,12 @@ export async function generateSectorRegionAsyncWithMetrics(
 			requestedSectorCount: requestedSectors.length,
 			sectorStep,
 			sectorPadding: padding,
-			requestedTileCount: requestedKeys.size,
+			requestedTileCount: snapshot.tiles.size,
 			paddedTileCount: fieldBatch.tileCount,
 			emittedTileCount: snapshot.tiles.size,
 			emittedEdgeCount: snapshot.edges.size,
-			paddingAmplification: requestedKeys.size === 0 ? 0 : fieldBatch.tileCount / requestedKeys.size,
+			paddingAmplification:
+				snapshot.tiles.size === 0 ? 0 : fieldBatch.tileCount / snapshot.tiles.size,
 			edgePerRequestedTile: 0,
 			fieldBackendRequested: requestedBackend,
 			fieldBackendResolved: 'wasm',

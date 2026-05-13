@@ -26,6 +26,7 @@ import {
 	type SectorTerrainBakeDebug,
 	type SectorTerrainBakeInput,
 	SectorTerrainBaker,
+	type TerrainLodMode,
 } from './terrain-sector-baker'
 import {
 	coordsForSectorBakeDomain,
@@ -59,9 +60,25 @@ const VIEWPORT_WORLD_OVERSCAN = tileSize * 3
 const HEX_HALF_WIDTH = (Math.sqrt(3) / 2) * tileSize
 const HEX_HALF_HEIGHT = tileSize
 const USE_PARTICLE_RESOURCE_BATCH = false
+const DETAIL_LOD_MIN_TILE_PIXELS = 32
+const TEXTURE_LOD_MIN_TILE_PIXELS = 12
+const MATERIAL_LOD_MIN_TILE_PIXELS = 4
+
+export function terrainLodTilePixels(worldScale: number): number {
+	return tileSize * 2 * Math.max(0, worldScale)
+}
+
+export function resolveTerrainLod(worldScale: number): TerrainLodMode {
+	const tilePixels = terrainLodTilePixels(worldScale)
+	if (tilePixels >= DETAIL_LOD_MIN_TILE_PIXELS) return 'detail'
+	if (tilePixels >= TEXTURE_LOD_MIN_TILE_PIXELS) return 'texture'
+	if (tilePixels >= MATERIAL_LOD_MIN_TILE_PIXELS) return 'material'
+	return 'macro'
+}
 
 export interface TerrainSectorDiagnostics {
 	sectorKey: string
+	lodMode: TerrainLodMode
 	visibleTileCount: number
 	renderedTileCount: number
 	missingTileCount: number
@@ -79,6 +96,8 @@ export interface TerrainSectorDiagnostics {
 export interface TerrainRefreshDiagnostics {
 	center: AxialCoord
 	radius: number
+	lodMode: TerrainLodMode
+	tilePixels: number
 	visibleTileCount: number
 	materializedVisibleTileCount: number
 	visibleSectorCount: number
@@ -100,6 +119,8 @@ export interface TerrainStreamingDiagnostics {
 		groundSectorBatchCount: number
 		resourceBatchCount: number
 		staticResourceSpriteCount: number
+		skippedResourceSectorCount: number
+		materialSectorBakeCount: number
 		maxSectorTotalMs: number
 	}
 }
@@ -172,6 +193,7 @@ interface SectorVisualState {
 	coverage: ReturnType<typeof createSectorCoverage>
 	dirty: boolean
 	resourcesBuilt: boolean
+	lodMode?: TerrainLodMode
 }
 
 interface ResourceSpriteBuild {
@@ -239,6 +261,8 @@ export class TerrainVisual {
 		refresh: {
 			center: { q: 0, r: 0 },
 			radius: 0,
+			lodMode: 'detail',
+			tilePixels: terrainLodTilePixels(1),
 			visibleTileCount: 0,
 			materializedVisibleTileCount: 0,
 			visibleSectorCount: 0,
@@ -257,6 +281,8 @@ export class TerrainVisual {
 			groundSectorBatchCount: 0,
 			resourceBatchCount: 0,
 			staticResourceSpriteCount: 0,
+			skippedResourceSectorCount: 0,
+			materialSectorBakeCount: 0,
 			maxSectorTotalMs: 0,
 		},
 	}
@@ -417,10 +443,12 @@ export class TerrainVisual {
 		const screenCenter = new Point(app.screen.width / 2, app.screen.height / 2)
 		const localCenter = world.toLocal(screenCenter)
 		const center = axial.round(fromCartesian(localCenter, tileSize))
+		const lodMode = resolveTerrainLod(world.scale.x)
+		const tilePixels = terrainLodTilePixels(world.scale.x)
 		const worldHalfWidth = app.screen.width / (2 * Math.max(world.scale.x, 0.001))
 		const worldHalfHeight = app.screen.height / (2 * Math.max(world.scale.y, 0.001))
 		const radius = Math.ceil(Math.max(worldHalfWidth, worldHalfHeight) / tileSize) + 6
-		const signature = `${center.q},${center.r}:${radius}:${app.screen.width}x${app.screen.height}`
+		const signature = `${center.q},${center.r}:${radius}:${app.screen.width}x${app.screen.height}:${lodMode}`
 		if (signature === this.lastSignature) return
 		this.lastSignature = signature
 
@@ -431,6 +459,8 @@ export class TerrainVisual {
 		const viewportBounds = this.currentViewportWorldBounds()
 		this.visibleTileKeys = collectVisibleTileKeys(center, radius + 2, viewportBounds)
 		this.visibleSectorKeys = collectVisibleSectorKeys(this.visibleTileKeys)
+		this.diagnostics.refresh.lodMode = lodMode
+		this.diagnostics.refresh.tilePixels = tilePixels
 
 		const sectorMinQ = Math.floor(minQ / SECTOR_STEP)
 		const sectorMaxQ = Math.floor(maxQ / SECTOR_STEP)
@@ -473,6 +503,8 @@ export class TerrainVisual {
 		this.diagnostics.refresh = {
 			center,
 			radius,
+			lodMode,
+			tilePixels,
 			visibleTileCount: this.visibleTileKeys.size,
 			materializedVisibleTileCount,
 			visibleSectorCount: this.visibleSectorKeys.size,
@@ -568,6 +600,7 @@ export class TerrainVisual {
 			coverage: createSectorCoverage(sectorKey, SECTOR_STEP),
 			dirty: true,
 			resourcesBuilt: false,
+			lodMode: undefined,
 		}
 	}
 
@@ -586,6 +619,8 @@ export class TerrainVisual {
 		sectorState: SectorVisualState
 	): { renderedTileCount: number; missingTileCount: number } {
 		const sectorStartedAt = nowMs()
+		const lodMode = this.diagnostics.refresh.lodMode
+		const lodChanged = sectorState.lodMode !== lodMode
 		const visibleCoords = sectorState.coverage.interiorTileCoords.filter((coord) =>
 			this.visibleTileKeys.has(axial.key(coord))
 		)
@@ -593,7 +628,8 @@ export class TerrainVisual {
 		for (const coord of sectorState.coverage.bakeTileCoords) {
 			if (!this.renderer.game.hasRenderableTerrainAt(coord)) missingTileCount++
 		}
-		const isDirty = sectorState.dirty || this.dirtySectorKeys.has(sectorKey)
+		const shouldBuildResources = lodMode === 'detail'
+		const isDirty = sectorState.dirty || this.dirtySectorKeys.has(sectorKey) || lodChanged
 		const renderedTileCount = countMaterializedCoords(
 			visibleCoords,
 			this.visibleTileKeys,
@@ -610,7 +646,7 @@ export class TerrainVisual {
 			!isDirty &&
 			missingTileCount === 0 &&
 			sectorState.groundSprite &&
-			sectorState.resourcesBuilt
+			(!shouldBuildResources || sectorState.resourcesBuilt)
 		) {
 			sectorState.container.visible = renderedTileCount > 0
 			return {
@@ -623,19 +659,20 @@ export class TerrainVisual {
 		const groundBatchCount = this.rebuildSectorGround(sectorKey, sectorState)
 		const groundBatchBuildMs = nowMs() - groundStartedAt
 		const resourceStartedAt = nowMs()
-		const { resourceBatchCount, staticResourceSpriteCount } = this.rebuildSectorResources(
-			sectorKey,
-			sectorState
-		)
+		const { resourceBatchCount, staticResourceSpriteCount } = shouldBuildResources
+			? this.rebuildSectorResources(sectorKey, sectorState)
+			: this.clearSectorResources(sectorState)
 		const resourceBatchBuildMs = nowMs() - resourceStartedAt
 
 		sectorState.container.visible = renderedTileCount > 0
 		sectorState.dirty = false
+		sectorState.lodMode = lodMode
 		this.dirtySectorKeys.delete(sectorKey)
 
 		const totalSectorMs = nowMs() - sectorStartedAt
 		this.recordSectorDiagnostics(
 			sectorKey,
+			lodMode,
 			visibleCoords.length,
 			renderedTileCount,
 			missingTileCount,
@@ -652,7 +689,13 @@ export class TerrainVisual {
 	}
 
 	private rebuildSectorGround(sectorKey: string, sectorState: SectorVisualState): number {
-		if (!sectorState.dirty && !this.dirtySectorKeys.has(sectorKey) && sectorState.groundSprite) {
+		const lodMode = this.diagnostics.refresh.lodMode
+		if (
+			!sectorState.dirty &&
+			!this.dirtySectorKeys.has(sectorKey) &&
+			sectorState.lodMode === lodMode &&
+			sectorState.groundSprite
+		) {
 			return 1
 		}
 
@@ -674,7 +717,9 @@ export class TerrainVisual {
 			interiorTileCoords: sectorState.coverage.interiorTileCoords,
 			bakeTileCoords: sectorState.coverage.bakeTileCoords,
 			terrainTiles,
-			roadTileTextures: this.roadTileTextures,
+			lodMode,
+			includeRivers: lodMode === 'detail',
+			roadTileTextures: lodMode === 'detail' ? this.roadTileTextures : undefined,
 		}
 		const baked = this.terrainBaker.bake(bakeInput)
 		this.bakeDebugBySector.set(sectorKey, baked.debug)
@@ -851,6 +896,16 @@ export class TerrainVisual {
 		sectorState.resourcesBuilt = true
 
 		return { resourceBatchCount, staticResourceSpriteCount }
+	}
+
+	private clearSectorResources(
+		sectorState: SectorVisualState
+	): { resourceBatchCount: number; staticResourceSpriteCount: number } {
+		for (const child of sectorState.resourceLayer.removeChildren()) {
+			child.destroy({ children: true })
+		}
+		sectorState.resourcesBuilt = false
+		return { resourceBatchCount: 0, staticResourceSpriteCount: 0 }
 	}
 
 	private coordsForSectorKey(sectorKey: string): AxialCoord[] {
@@ -1073,6 +1128,7 @@ export class TerrainVisual {
 				}
 				this.recordSectorDiagnostics(
 					next.key,
+					this.diagnostics.refresh.lodMode,
 					countVisibleCoords(interiorCoords, this.visibleTileKeys),
 					countMaterializedCoords(interiorCoords, this.visibleTileKeys, this.renderer),
 					countMissingCoords(
@@ -1080,7 +1136,7 @@ export class TerrainVisual {
 						new Set(bakeCoords.map((coord) => axial.key(coord))),
 						this.renderer
 					),
-					pendingSectorCountAtStart,
+					0,
 					0,
 					0,
 					pendingSectorCountAtStart,
@@ -1130,6 +1186,7 @@ export class TerrainVisual {
 
 	private recordSectorDiagnostics(
 		sectorKey: string,
+		lodMode: TerrainLodMode,
 		visibleTileCount: number,
 		renderedTileCount: number,
 		missingTileCount: number,
@@ -1143,6 +1200,7 @@ export class TerrainVisual {
 	) {
 		const sectorDiagnostics: TerrainSectorDiagnostics = {
 			sectorKey,
+			lodMode,
 			visibleTileCount,
 			renderedTileCount,
 			missingTileCount,
@@ -1167,6 +1225,10 @@ export class TerrainVisual {
 		this.diagnostics.totals.groundSectorBatchCount += groundBatchCount > 0 ? 1 : 0
 		this.diagnostics.totals.resourceBatchCount += resourceBatchCount
 		this.diagnostics.totals.staticResourceSpriteCount += staticResourceSpriteCount
+		if (lodMode !== 'detail') this.diagnostics.totals.skippedResourceSectorCount++
+		if (lodMode === 'material' || lodMode === 'macro') {
+			this.diagnostics.totals.materialSectorBakeCount += groundBatchCount > 0 ? 1 : 0
+		}
 		this.diagnostics.totals.maxSectorTotalMs = Math.max(
 			this.diagnostics.totals.maxSectorTotalMs,
 			totalSectorMs

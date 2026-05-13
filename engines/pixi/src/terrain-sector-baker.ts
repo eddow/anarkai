@@ -32,6 +32,8 @@ import {
 } from './river-quarter-model'
 import { terrainTextureSpec } from './terrain-visual-helpers'
 
+export type TerrainLodMode = 'detail' | 'texture' | 'material' | 'macro'
+
 const TRIANGLE_DIRECTIONS: readonly [AxialCoord, AxialCoord][] = [
 	[
 		{ q: 1, r: 0 },
@@ -65,6 +67,8 @@ export interface SectorTerrainBakeInput {
 	interiorTileCoords: AxialCoord[]
 	bakeTileCoords: AxialCoord[]
 	terrainTiles: Map<string, RenderableTerrainTile>
+	lodMode?: TerrainLodMode
+	includeRivers?: boolean
 	roadTileTextures?: RoadTileTextureCache
 }
 
@@ -81,6 +85,8 @@ export interface SectorTerrainBakeDebug {
 	riverBranchCount: number
 	riverJunctionCount: number
 	roadTileCount: number
+	lodMode: TerrainLodMode
+	bakeMode: 'textured' | 'material'
 	displayBounds: {
 		x: number
 		y: number
@@ -186,11 +192,16 @@ export class SectorTerrainBaker {
 		)
 		bakeContainer.eventMode = 'none'
 
-		for (const triangle of collectRenderableTriangles(input).triangles) {
-			const mesh = this.createTriangleMesh(triangle, input.displayBounds)
-			if (mesh) bakeContainer.addChild(mesh)
+		if (isMaterialLod(input.lodMode)) {
+			const material = buildMaterialTerrainOverlay(input)
+			if (material) bakeContainer.addChild(material)
+		} else {
+			for (const triangle of collectRenderableTriangles(input).triangles) {
+				const mesh = this.createTriangleMesh(triangle, input.displayBounds)
+				if (mesh) bakeContainer.addChild(mesh)
+			}
 		}
-		const riverOverlay = buildRiverOverlay(input)
+		const riverOverlay = input.includeRivers === false ? undefined : buildRiverOverlay(input)
 		if (riverOverlay) bakeContainer.addChild(riverOverlay)
 		let roadTileCount = 0
 		if (input.roadTileTextures) {
@@ -215,8 +226,11 @@ export class SectorTerrainBaker {
 	}
 
 	public inspect(input: SectorTerrainBakeInput): SectorTerrainBakeDebug {
-		const collected = collectRenderableTriangles(input)
-		const rivers = inspectRiverOverlay(input)
+		const materialLod = isMaterialLod(input.lodMode)
+		const collected = materialLod
+			? { totalTriangleCandidates: 0, triangles: [] }
+			: collectRenderableTriangles(input)
+		const rivers = input.includeRivers === false ? emptyRiverOverlayDebug() : inspectRiverOverlay(input)
 		let trianglesMissingTextures = 0
 		for (const triangle of collected.triangles) {
 			if (resolveTriangleTextures(this.renderer, triangle).some((texture) => !texture)) {
@@ -237,6 +251,8 @@ export class SectorTerrainBaker {
 			riverBranchCount: rivers.riverBranchCount,
 			riverJunctionCount: rivers.riverJunctionCount,
 			roadTileCount: 0,
+			lodMode: input.lodMode ?? 'detail',
+			bakeMode: materialLod ? 'material' : 'textured',
 			displayBounds: {
 				x: input.displayBounds.x,
 				y: input.displayBounds.y,
@@ -298,6 +314,10 @@ export class SectorTerrainBaker {
 		mesh.roundPixels = false
 		return mesh
 	}
+}
+
+function isMaterialLod(lodMode: TerrainLodMode | undefined): boolean {
+	return lodMode === 'material' || lodMode === 'macro'
 }
 
 interface RenderTriangle {
@@ -386,10 +406,73 @@ function resolveBakeTexture(renderer: PixiGameRenderer, textureKey: string): Tex
 	return texture
 }
 
+function hexPolygonLocal(coord: AxialCoord, displayBounds: Rectangle): Array<{ x: number; y: number }> {
+	const center = cartesian(coord, tileSize)
+	return Array.from({ length: 6 }, (_, index) => {
+		const angle = (Math.PI / 3) * (index + 0.5)
+		return {
+			x: center.x + Math.cos(angle) * tileSize - displayBounds.x,
+			y: center.y + Math.sin(angle) * tileSize - displayBounds.y,
+		}
+	})
+}
+
+function materialColorForTile(tile: RenderableTerrainTile): number {
+	switch (tile.terrain) {
+		case 'water':
+			return 0x3d84aa
+		case 'sand':
+			return 0xc8b36d
+		case 'forest':
+			return 0x2f6f3d
+		case 'rocky':
+			return 0x7d7f78
+		case 'snow':
+			return 0xe0e8ed
+		case 'concrete':
+			return 0x8d918d
+		case 'grass':
+		default: {
+			const height = Math.max(-1, Math.min(1, tile.height ?? 0))
+			if (height > 0.22) return 0x5f7f42
+			if (height < -0.08) return 0x5c8c55
+			return 0x477f3f
+		}
+	}
+}
+
+function buildMaterialTerrainOverlay(input: SectorTerrainBakeInput): Graphics | undefined {
+	const graphics = setPixiName(
+		new Graphics(),
+		`terrain.continuous:${input.sectorKey}:material-ground`
+	)
+	graphics.eventMode = 'none'
+	let drew = false
+	for (const coord of input.interiorTileCoords) {
+		const tile = input.terrainTiles.get(axial.key(coord))
+		if (!tile) continue
+		graphics
+			.poly(hexPolygonLocal(coord, input.displayBounds))
+			.fill({ color: materialColorForTile(tile), alpha: 1 })
+		drew = true
+	}
+	if (drew) return graphics
+	graphics.destroy()
+	return undefined
+}
+
 interface RiverOverlayDebug {
 	riverTileCount: number
 	riverBranchCount: number
 	riverJunctionCount: number
+}
+
+function emptyRiverOverlayDebug(): RiverOverlayDebug {
+	return {
+		riverTileCount: 0,
+		riverBranchCount: 0,
+		riverJunctionCount: 0,
+	}
 }
 
 function inspectRiverOverlay(input: SectorTerrainBakeInput): RiverOverlayDebug {

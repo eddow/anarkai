@@ -6,7 +6,7 @@
 
 import { axial } from '../hex/axial'
 import type { AxialCoord, AxialKey } from '../hex/types'
-import type { TerrainConfig, TileField } from '../types'
+import type { BiomeHint, TerrainConfig, TileField } from '../types'
 import { getWasmModule } from '../wasm-loader'
 
 // Cache WasmTerrainConfig by hash of config to avoid 20+ property assignments per batch
@@ -179,6 +179,7 @@ export interface WasmSectorCoord {
 export interface WasmSectorFieldBatch {
 	coords: AxialCoord[]
 	tiles: Map<AxialKey, TileField>
+	biomes: Map<AxialKey, BiomeHint>
 	requestedSectorCount: number
 	tileCount: number
 	sectorStep: number
@@ -189,6 +190,18 @@ export interface WasmSectorFieldBatch {
 		unpackMs: number
 		totalMs: number
 	}
+}
+
+const BIOME_HINT_BY_WASM_INDEX: Record<number, BiomeHint> = {
+	0: 'ocean',
+	1: 'lake',
+	2: 'river-bank',
+	3: 'wetland',
+	4: 'sand',
+	5: 'grass',
+	6: 'forest',
+	7: 'rocky',
+	8: 'snow',
 }
 
 /**
@@ -224,12 +237,19 @@ export function generateSectorFieldsWasm(
 
 	const coordsArray = result.coords as Int32Array
 	const fieldsArray = result.fields as Float32Array
+	const biomesArray = result.biomes as Uint8Array | undefined
 	const coords: AxialCoord[] = []
 	const tiles = new Map<AxialKey, TileField>()
-	for (let coordIndex = 0, fieldIndex = 0; coordIndex < coordsArray.length; coordIndex += 2) {
+	const biomes = new Map<AxialKey, BiomeHint>()
+	for (
+		let tileIndex = 0, coordIndex = 0, fieldIndex = 0;
+		coordIndex < coordsArray.length;
+		tileIndex++, coordIndex += 2
+	) {
 		const coord = { q: coordsArray[coordIndex]!, r: coordsArray[coordIndex + 1]! }
+		const key = axial.key(coord)
 		coords.push(coord)
-		tiles.set(axial.key(coord), {
+		tiles.set(key, {
 			height: fieldsArray[fieldIndex]!,
 			temperature: fieldsArray[fieldIndex + 1]!,
 			humidity: fieldsArray[fieldIndex + 2]!,
@@ -238,6 +258,7 @@ export function generateSectorFieldsWasm(
 			sediment: fieldsArray[fieldIndex + 5]!,
 			waterTable: fieldsArray[fieldIndex + 6]!,
 		})
+		if (biomesArray) biomes.set(key, BIOME_HINT_BY_WASM_INDEX[biomesArray[tileIndex]!] ?? 'grass')
 		fieldIndex += 7
 	}
 	const completedAt = nowMs()
@@ -248,6 +269,7 @@ export function generateSectorFieldsWasm(
 	return {
 		coords,
 		tiles,
+		biomes,
 		requestedSectorCount: Number(result.requestedSectorCount ?? flatSectors.length / 2),
 		tileCount: Number(result.tileCount ?? tiles.size),
 		sectorStep: Number(result.sectorStep ?? sectorStep),

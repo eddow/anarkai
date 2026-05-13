@@ -4,7 +4,7 @@ import type { RenderableTerrainTile } from 'ssh/game/game'
 import { axial } from 'ssh/utils'
 import { describe, expect, it, vi } from 'vitest'
 import type { BiomeHint, TileField } from '../../terrain/src'
-import { TerrainVisual } from './continuous-terrain'
+import { resolveTerrainLod, TerrainVisual, terrainLodTilePixels } from './continuous-terrain'
 import type { PixiGameRenderer } from './renderer'
 import { collectRenderableTriangles } from './terrain-sector-baker'
 import {
@@ -46,6 +46,14 @@ describe('continuous terrain helpers', () => {
 		}
 
 		expect(terrainTintForTile('snow', tile)).toBe(0xffffff)
+	})
+
+	it('maps screen tile size to terrain LOD bands', () => {
+		expect(terrainLodTilePixels(1)).toBe(60)
+		expect(resolveTerrainLod(1)).toBe('detail')
+		expect(resolveTerrainLod(0.4)).toBe('texture')
+		expect(resolveTerrainLod(0.1)).toBe('material')
+		expect(resolveTerrainLod(0.05)).toBe('macro')
 	})
 
 	it('prefers explicit concrete terrain over biome-derived textures', () => {
@@ -299,6 +307,75 @@ describe('continuous terrain helpers', () => {
 		expect(diagnostics.refresh.queuedVisibleSectorCount).toBe(0)
 	})
 
+	it('skips resources but keeps textured terrain at middle zoom', () => {
+		const renderer = createTerrainRendererStub({
+			hasRenderableTerrainAt: () => true,
+			getRenderableTerrainAt: (coord) =>
+				coord.q === 0 && coord.r === 0
+					? {
+							terrain: 'grass',
+							height: 0,
+							deposit: { type: 'rock', name: 'rock', amount: 2 },
+						}
+					: { terrain: 'grass', height: 0 },
+			requestGameplayFrontier: vi.fn(async () => false),
+			worldScale: 0.4,
+		})
+
+		const visual = new TerrainVisual(renderer)
+		;(visual as any).refresh()
+
+		const diagnostics = visual.getDiagnostics()
+		expect(diagnostics.refresh.lodMode).toBe('texture')
+		expect(diagnostics.totals.groundTextureGroupRenderables).toBeGreaterThan(0)
+		expect(diagnostics.totals.staticResourceSpriteCount).toBe(0)
+		expect(diagnostics.totals.skippedResourceSectorCount).toBeGreaterThan(0)
+		expect(visual.getBakeDebug().sectors.some((sector) => sector.bakeMode === 'textured')).toBe(
+			true
+		)
+	})
+
+	it('uses material-color sector bakes at far zoom', () => {
+		const renderer = createTerrainRendererStub({
+			hasRenderableTerrainAt: () => true,
+			getRenderableTerrainAt: (coord) => ({
+				terrain: coord.q % 2 === 0 ? 'forest' : 'sand',
+				height: 0.1,
+			}),
+			requestGameplayFrontier: vi.fn(async () => false),
+			worldScale: 0.1,
+		})
+
+		const visual = new TerrainVisual(renderer)
+		;(visual as any).refresh()
+
+		const diagnostics = visual.getDiagnostics()
+		const bakeDebug = visual.getBakeDebug()
+		expect(diagnostics.refresh.lodMode).toBe('material')
+		expect(diagnostics.totals.materialSectorBakeCount).toBeGreaterThan(0)
+		expect(bakeDebug.sectors.some((sector) => sector.bakeMode === 'material')).toBe(true)
+		expect(bakeDebug.sectors.every((sector) => sector.trianglesAfterBoundsCull === 0)).toBe(true)
+	})
+
+	it('rebuilds loaded sectors after crossing LOD bands', () => {
+		const renderer = createTerrainRendererStub({
+			hasRenderableTerrainAt: () => true,
+			getRenderableTerrainAt: () => ({ terrain: 'grass', height: 0 }),
+			requestGameplayFrontier: vi.fn(async () => false),
+			worldScale: 1,
+		}) as any
+		const visual = new TerrainVisual(renderer)
+		;(visual as any).refresh()
+		const sector = ((visual as any).sectors as Map<string, any>).get('0,0')
+		expect(sector?.lodMode).toBe('detail')
+
+		renderer.world.scale.x = 0.4
+		renderer.world.scale.y = 0.4
+		;(visual as any).refresh()
+
+		expect(sector?.lodMode).toBe('texture')
+	})
+
 	it('hard-invalidates only sectors affected by one tile without requesting terrain', async () => {
 		const requestGameplayFrontier = vi.fn(async () => false)
 		const renderer = createTerrainRendererStub({
@@ -435,6 +512,31 @@ describe('continuous terrain helpers', () => {
 		expect(diagnostics.totals.resourceBatchCount).toBeGreaterThan(0)
 		expect(diagnostics.totals.staticResourceSpriteCount).toBeGreaterThan(0)
 		expect(renderer.layers.resources.renderLayerChildren.length).toBeGreaterThan(0)
+	})
+
+	it('passes visible missing sectors as one sector-list request when available', async () => {
+		const materialized = new Set<string>()
+		const ensureTerrainSectors = vi.fn(async (sectorKeys: Iterable<string>) => {
+			for (const sectorKey of sectorKeys) {
+				for (const coord of coordsForSectorBakeDomain(sectorKey)) materialized.add(axial.key(coord))
+			}
+		})
+		const renderer = createTerrainRendererStub({
+			hasRenderableTerrainAt: (coord) => materialized.has(axial.key(coord)),
+			getRenderableTerrainAt: (coord) =>
+				materialized.has(axial.key(coord)) ? { terrain: 'grass', height: 0 } : undefined,
+			ensureTerrainSectors,
+			requestGameplayFrontier: vi.fn(async () => false),
+		})
+
+		const visual = new TerrainVisual(renderer) as any
+		await visual.requestSectorFrontierBatch([
+			{ key: '0,0', sectorQ: 0, sectorR: 0, distanceToCenter: 0 },
+			{ key: '1,0', sectorQ: 1, sectorR: 0, distanceToCenter: 1 },
+		])
+
+		expect(ensureTerrainSectors).toHaveBeenCalledTimes(1)
+		expect([...ensureTerrainSectors.mock.calls[0]![0] as Iterable<string>]).toEqual(['0,0', '1,0'])
 	})
 })
 

@@ -2,7 +2,7 @@ mod common;
 mod noise;
 mod terrain;
 
-use js_sys::{Float32Array, Int32Array, Object, Reflect};
+use js_sys::{Float32Array, Int32Array, Object, Reflect, Uint8Array};
 use std::collections::BTreeSet;
 use wasm_bindgen::prelude::*;
 
@@ -10,7 +10,7 @@ use wasm_bindgen::prelude::*;
 pub use common::{Bounds, HexCoord, Rng};
 pub use noise::{domain_warp, fbm_sample, PerlinNoise};
 pub use terrain::{
-    generate_region, generate_tile_field, generate_tile_field_with_noise, BiomeHint,
+    classify_tile, generate_region, generate_tile_field, generate_tile_field_with_noise, BiomeHint,
     HydrologyClassification, TerrainConfig, TileField,
 };
 
@@ -470,6 +470,7 @@ fn expand_sector_coords(sectors: &[i32], sector_step: i32, padding: i32) -> Vec<
 /// Output is a JS object with:
 /// - coords: Int32Array [q, r, q, r, ...]
 /// - fields: Float32Array [height, temperature, humidity, terrain_type, rocky_noise, sediment, water_table, ...]
+/// - biomes: Uint8Array [biome_hint_index, ...] with no hydrology influence
 /// - requestedSectorCount, tileCount, sectorStep, padding
 #[wasm_bindgen]
 pub fn wasm_generate_sector_fields_packed(
@@ -485,8 +486,11 @@ pub fn wasm_generate_sector_fields_packed(
 
     let mut packed_coords = Vec::<i32>::with_capacity(coords.len() * 2);
     let mut packed_fields = Vec::<f32>::with_capacity(coords.len() * 7);
+    let mut packed_biomes = Vec::<u8>::with_capacity(coords.len());
+    let no_hydrology = HydrologyClassification::default();
     for coord in &coords {
         let field = generate_tile_field_with_noise(&noise, coord, &tcfg);
+        let biome = classify_tile(&field, 0.0, &tcfg, &no_hydrology);
         packed_coords.push(coord.q);
         packed_coords.push(coord.r);
         packed_fields.push(field.height);
@@ -496,6 +500,7 @@ pub fn wasm_generate_sector_fields_packed(
         packed_fields.push(field.rocky_noise);
         packed_fields.push(field.sediment);
         packed_fields.push(field.water_table);
+        packed_biomes.push(biome as u8);
     }
 
     let result = Object::new();
@@ -508,6 +513,11 @@ pub fn wasm_generate_sector_fields_packed(
         &result,
         &JsValue::from_str("fields"),
         &Float32Array::from(packed_fields.as_slice()),
+    )?;
+    Reflect::set(
+        &result,
+        &JsValue::from_str("biomes"),
+        &Uint8Array::from(packed_biomes.as_slice()),
     )?;
     Reflect::set(
         &result,
