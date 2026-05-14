@@ -1,5 +1,10 @@
 import { Game } from 'ssh/game/game'
-import { type GeneratedTileData, generateSettlementZonePlan } from 'ssh/generation'
+import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import {
+	type GeneratedTileData,
+	generateSettlementRegionSetPlan,
+	generateSettlementZonePlan,
+} from 'ssh/generation'
 import { type AxialCoord, axial } from 'ssh/utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -60,6 +65,26 @@ describe('settlement zoning generation', () => {
 		expect(first.zones.harvest.length).toBeGreaterThan(0)
 		expect(first.zones.named.map((zone) => zone.id)).toContain('industrial')
 		expect(first.roads.path?.length).toBeGreaterThan(0)
+	})
+
+	it('describes settlement regions inside a generic region set', () => {
+		const tiles = region({ q: 0, r: 0 }, 6)
+		const plan = generateSettlementRegionSetPlan(tiles, {
+			seed: 42,
+			maxSettlements: 2,
+			minSpacing: 4,
+			regionSetKey: '0,0',
+		})
+
+		expect(plan.regionSet).toMatchObject({
+			type: 'region-set',
+			key: '0,0',
+		})
+		expect(plan.regionSet.children.length).toBe(plan.settlements.length)
+		expect(plan.regionSet.children.every((child) => child.type === 'region')).toBe(true)
+		expect(plan.settlements.every((settlement) => settlement.id.startsWith('settlement-0_0-'))).toBe(
+			true
+		)
 	})
 
 	it('does not zone water tiles', () => {
@@ -189,6 +214,7 @@ describe('settlement zoning generation', () => {
 		game.ticker.stop()
 
 		vi.spyOn(game.generator, 'generateRegionAsync').mockResolvedValue(region(center, 6))
+		vi.spyOn(game.generator, 'generateSectorsAsync').mockResolvedValue(region(center, 6))
 
 		await game.requestGameplayFrontier(center, 6, { maxBatchSize: 200 })
 
@@ -231,7 +257,48 @@ describe('settlement zoning generation', () => {
 		expect(game.hex.zoneManager.coordsForGeneratedZone('npc-residential-commercial')).toHaveLength(0)
 	})
 
-	it('applies settlement zones and roads when terrain is generated for rendering', async () => {
+	it('keeps generated roads and non-harvest generated zones clear of deposits and initial loose goods', async () => {
+		const center = { q: 85, r: 85 }
+		const game = new Game({
+			terrainSeed: 42,
+			characterCount: 0,
+			settlementGeneration: { maxSettlements: 1, minSpacing: 3 },
+		})
+		games.add(game)
+		await game.loaded
+		game.ticker.stop()
+
+		vi.spyOn(game.generator, 'generateSectorsAsync').mockResolvedValue(
+			region(center, 6).map((entry) => ({
+				...entry,
+				deposit: entry.terrain === 'grass' ? { type: 'rock', amount: 3 } : entry.deposit,
+				goods: { wood: 1 },
+			}))
+		)
+
+		await game.ensureGameplaySectors(['5,5'], { populateInitialGoods: true })
+
+		for (const segment of game.hex.roadSegments()) {
+			const border = game.hex.getBorder(segment.coord)
+			if (!border) continue
+			for (const tile of [border.tile.a, border.tile.b]) {
+				if (!(tile.content instanceof UnBuiltLand)) continue
+				expect(tile.content.deposit).toBeUndefined()
+				expect(tile.looseGoods).toHaveLength(0)
+			}
+		}
+
+		for (const definition of game.hex.zoneManager.listCustomZoneDefinitions()) {
+			for (const coord of game.hex.zoneManager.coordsForGeneratedZone(definition.id)) {
+				const tile = game.hex.getTile(coord)
+				if (!(tile?.content instanceof UnBuiltLand)) continue
+				expect(tile.content.deposit).toBeUndefined()
+				expect(tile.looseGoods).toHaveLength(0)
+			}
+		}
+	})
+
+	it('does not derive settlement zones from render-only terrain generation', async () => {
 		const center = { q: 40, r: 0 }
 		const game = new Game({
 			terrainSeed: 42,
@@ -250,13 +317,8 @@ describe('settlement zoning generation', () => {
 		const generatedCount =
 			game.hex.zoneManager.coordsForGeneratedZone('residential').length +
 			game.hex.zoneManager.coordsForGeneratedZone('harvest').length
-		expect(generatedCount).toBeGreaterThan(0)
-		const generatedCoord =
-			game.hex.zoneManager.coordsForGeneratedZone('residential')[0] ??
-			game.hex.zoneManager.coordsForGeneratedZone('harvest')[0]
-		expect(generatedCoord).toBeDefined()
-		expect(game.getTerrainSample(generatedCoord!)?.zone?.generated).toBe(true)
-		expect(game.hex.roadSegments().length).toBeGreaterThan(0)
+		expect(generatedCount).toBe(0)
+		expect(game.hex.roadSegments()).toHaveLength(0)
 		expect(game.hex.zoneManager.coordsForGeneratedZone('npc-factory')).toHaveLength(0)
 		expect(game.hex.zoneManager.coordsForGeneratedZone('npc-residential-commercial')).toHaveLength(0)
 	})

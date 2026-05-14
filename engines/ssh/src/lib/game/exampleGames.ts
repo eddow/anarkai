@@ -11,7 +11,7 @@ const constructionGoodsSelection = {
 } as const
 
 export const chopSaw = {
-	seed: 5449,
+	seed: 549,
 	terrains: {
 		concrete: [
 			[-1, -1],

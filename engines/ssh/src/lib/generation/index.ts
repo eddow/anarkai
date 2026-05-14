@@ -158,6 +158,11 @@ export { BoardGenerator, type GeneratedTileData } from './board'
 export { type GeneratedCharacterData, PopulationGenerator } from './population'
 export {
 	type GeneratedSettlement,
+	type SettlementRegion,
+	type SettlementRegionNode,
+	type SettlementRegionSet,
+	type SettlementRegionSetPlan,
+	generateSettlementRegionSetPlan,
 	generateSettlementZonePlan,
 	type SettlementGenerationOptions,
 	type SettlementKind,

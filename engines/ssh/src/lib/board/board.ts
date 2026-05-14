@@ -203,6 +203,13 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		}))
 	}
 
+	private roadEffectAvailable(fromTile: AxialCoord, toTile: AxialCoord): boolean {
+		const from = this.getTile(fromTile)
+		const to = this.getTile(toTile)
+		if (from?.isBurdened || to?.isBurdened) return false
+		return true
+	}
+
 	/** Apply border-road movement bonuses only when moving between adjacent tile centers. */
 	walkTimeBetween(from: Positioned, to: Positioned, baseWalkTime: number): number {
 		if (!Number.isFinite(baseWalkTime)) return baseWalkTime
@@ -215,7 +222,10 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 			return baseWalkTime
 		}
 		const borderCoord = axial.linear([0.5, fromTile], [0.5, toTile])
-		const multiplier = this.getRoadType(borderCoord) ? ROAD_WALK_TIME_MULTIPLIER : 1
+		const multiplier =
+			this.getRoadType(borderCoord) && this.roadEffectAvailable(fromTile, toTile)
+				? ROAD_WALK_TIME_MULTIPLIER
+				: 1
 		return baseWalkTime * multiplier
 	}
 

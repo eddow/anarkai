@@ -24,6 +24,7 @@ export interface SettlementGenerationOptions {
 	seed: number
 	maxSettlements?: number
 	minSpacing?: number
+	regionSetKey?: string
 }
 
 export interface SettlementZonePlan {
@@ -34,6 +35,28 @@ export interface SettlementZonePlan {
 		named: NamedZonePatch[]
 	}
 	roads: RoadPatches
+}
+
+export interface SettlementRegion {
+	type: 'region'
+	id: string
+	key: string
+	center: AxialCoord
+	radius: number
+	settlementId: string
+}
+
+export interface SettlementRegionSet {
+	type: 'region-set'
+	id: string
+	key: string
+	children: SettlementRegionNode[]
+}
+
+export type SettlementRegionNode = SettlementRegion | SettlementRegionSet
+
+export interface SettlementRegionSetPlan extends SettlementZonePlan {
+	regionSet: SettlementRegionSet
 }
 
 type ZoneBucket = 'residential' | 'harvest' | 'civic' | 'market' | 'industrial'
@@ -144,6 +167,13 @@ function settlementName(kind: SettlementKind, coord: AxialCoord): string {
 	return `${prefix} ${coord.q},${coord.r}`
 }
 
+function settlementId(index: number, options: SettlementGenerationOptions): string {
+	const prefix = options.regionSetKey
+		? `settlement-${options.regionSetKey.replace(/[^a-zA-Z0-9_-]/g, '_')}`
+		: 'settlement'
+	return `${prefix}-${index + 1}`
+}
+
 function roadBorderCoordsForTrace(trace: readonly AxialCoord[]): Array<[number, number]> {
 	const borders: Array<[number, number]> = []
 	for (let i = 1; i < trace.length; i++) {
@@ -225,7 +255,7 @@ export function generateSettlementZonePlan(
 		}
 		const kind = settlementKind(settlements.length, candidate.score)
 		settlements.push({
-			id: `settlement-${settlements.length + 1}`,
+			id: settlementId(settlements.length, options),
 			name: settlementName(kind, candidate.coord),
 			kind,
 			center: { ...candidate.coord },
@@ -310,6 +340,30 @@ export function generateSettlementZonePlan(
 			path: [...roadSet]
 				.map((key) => key.split(',').map(Number) as [number, number])
 				.sort((a, b) => a[0] - b[0] || a[1] - b[1]),
+		},
+	}
+}
+
+export function generateSettlementRegionSetPlan(
+	tileData: readonly GeneratedTileData[],
+	options: SettlementGenerationOptions & { regionSetKey: string }
+): SettlementRegionSetPlan {
+	const plan = generateSettlementZonePlan(tileData, options)
+	const children: SettlementRegion[] = plan.settlements.map((settlement) => ({
+		type: 'region',
+		id: `region-${settlement.id}`,
+		key: `${options.regionSetKey}:${settlement.center.q},${settlement.center.r}`,
+		center: { ...settlement.center },
+		radius: settlement.radius,
+		settlementId: settlement.id,
+	}))
+	return {
+		...plan,
+		regionSet: {
+			type: 'region-set',
+			id: `region-set-${options.regionSetKey.replace(/[^a-zA-Z0-9_-]/g, '_')}`,
+			key: options.regionSetKey,
+			children,
 		},
 	}
 }

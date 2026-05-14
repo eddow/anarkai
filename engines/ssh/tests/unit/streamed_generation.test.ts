@@ -251,6 +251,7 @@ describe('streamed region generation', () => {
 		const game = new Game({
 			terrainSeed: 78,
 			characterCount: 0,
+			settlementGeneration: false,
 		})
 		games.add(game)
 		await game.loaded

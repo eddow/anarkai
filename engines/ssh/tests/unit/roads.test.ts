@@ -151,6 +151,35 @@ describe('road storage', () => {
 			game.destroy()
 		}
 	})
+
+	it('cancels the road walk bonus while either road tile is burdened', async () => {
+		const game = new Game(
+			{ terrainSeed: 1234, characterCount: 0 },
+			{
+				tiles: [
+					{ coord: [0, 0], terrain: 'grass' },
+					{ coord: [1, 0], terrain: 'grass' },
+				],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		try {
+			const start = game.hex.getTile({ q: 0, r: 0 })!
+			const roaded = game.hex.getTile({ q: 1, r: 0 })!
+			game.hex.setRoadType(start.borderWith(roaded)!.position, 'path')
+			game.hex.looseGoods.add(roaded, 'wood')
+
+			const roadNeighbor = game.hex
+				.getNeighbors(start.position)
+				.find((neighbor) => axial.key(neighbor.coord) === axial.key(roaded.position))
+
+			expect(roadNeighbor?.walkTime).toBe(roaded.effectiveWalkTime)
+		} finally {
+			game.destroy()
+		}
+	})
 })
 
 describe('road build validation', () => {
