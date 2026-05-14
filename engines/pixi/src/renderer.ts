@@ -28,6 +28,7 @@ export class PixiGameRenderer implements GameRenderer {
 	private terrainVisual?: TerrainVisual
 	private container: HTMLElement
 	private canvas: HTMLCanvasElement | null = null
+	private resizeObserver?: ResizeObserver
 	private isDestroyed = false
 
 	constructor(
@@ -70,6 +71,15 @@ export class PixiGameRenderer implements GameRenderer {
 		// Initial Resize
 		if (this.container.clientWidth && this.container.clientHeight) {
 			this.resize(this.container.clientWidth, this.container.clientHeight)
+		}
+		if (typeof ResizeObserver !== 'undefined') {
+			this.resizeObserver = new ResizeObserver((entries) => {
+				const entry = entries[0]
+				const width = Math.floor(entry?.contentRect.width ?? this.container.clientWidth)
+				const height = Math.floor(entry?.contentRect.height ?? this.container.clientHeight)
+				if (width > 0 && height > 0) this.resize(width, height)
+			})
+			this.resizeObserver.observe(this.container)
 		}
 
 		// Load Assets
@@ -227,7 +237,9 @@ export class PixiGameRenderer implements GameRenderer {
 
 	public resize(width: number, height: number) {
 		if (!this.app?.renderer) return
+		if (this.app.screen.width === width && this.app.screen.height === height) return
 		this.app.renderer.resize(width, height)
+		if (this.app.stage) this.app.stage.hitArea = this.app.screen
 		this.terrainVisual?.invalidate()
 	}
 
@@ -264,6 +276,8 @@ export class PixiGameRenderer implements GameRenderer {
 
 	public destroy() {
 		this.isDestroyed = true
+		this.resizeObserver?.disconnect()
+		this.resizeObserver = undefined
 
 		this.interactionManager?.teardown()
 		this.dragPreviewOverlay?.dispose()

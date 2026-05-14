@@ -118,6 +118,15 @@ function neighborTerrainAtDirection(
 	return terrainTypeAtSnapshotKey(snapshot, nk)
 }
 
+function shouldProjectHydrologyEdge(
+	snapshot: TerrainSnapshot,
+	selfTerrain: TerrainType | undefined,
+	neighborKey: string
+): boolean {
+	if (selfTerrain !== 'water') return true
+	return terrainTypeAtSnapshotKey(snapshot, neighborKey) !== 'water'
+}
+
 function toTerrainHydrologyDirection(direction: number): TerrainHydrologyDirection {
 	if (!Number.isInteger(direction) || direction < 0 || direction > 5) {
 		throw new Error(`Invalid hydrology direction: ${direction}`)
@@ -214,11 +223,14 @@ function resolveHydrologyForTile(
 	const channelInfluence = snapshot.hydrology.channelInfluence.get(key)
 	const isChannel = snapshot.hydrology.channels.has(key)
 	const edges: TerrainHydrologySample['edges'] = {}
+	const selfTerrain = terrainTypeAtSnapshotKey(snapshot, key)
 
 	for (const neighbor of axial.neighbors(coord)) {
 		const direction = axial.neighborIndex(axial.linear(neighbor, [-1, coord]))
 		if (direction === undefined || direction === null) continue
-		const edge = snapshot.edges.get(edgeKey(key, axial.key(neighbor)))
+		const neighborKey = axial.key(neighbor)
+		if (!shouldProjectHydrologyEdge(snapshot, selfTerrain, neighborKey)) continue
+		const edge = snapshot.edges.get(edgeKey(key, neighborKey))
 		if (!edge) continue
 		edges[direction] = toHydrologyEdge(edge)
 	}

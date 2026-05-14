@@ -4,7 +4,13 @@ import type { RenderableTerrainTile } from 'ssh/game/game'
 import { axial } from 'ssh/utils'
 import { describe, expect, it, vi } from 'vitest'
 import type { BiomeHint, TerrainMacroHydrologySnapshot, TileField } from '../../terrain/src'
-import { resolveTerrainLod, TerrainVisual, terrainLodTilePixels } from './continuous-terrain'
+import {
+	macroRequestForTerrainLod,
+	macroStepForTerrainLod,
+	resolveTerrainLod,
+	TerrainVisual,
+	terrainLodTilePixels,
+} from './continuous-terrain'
 import type { PixiGameRenderer } from './renderer'
 import { collectRenderableTriangles } from './terrain-sector-baker'
 import {
@@ -51,10 +57,31 @@ describe('continuous terrain helpers', () => {
 	it('maps screen tile size to terrain LOD bands', () => {
 		expect(terrainLodTilePixels(1)).toBe(60)
 		expect(resolveTerrainLod(1)).toBe('detail')
-		expect(resolveTerrainLod(0.5)).toBe('texture')
-		expect(resolveTerrainLod(0.4)).toBe('material')
-		expect(resolveTerrainLod(0.1)).toBe('material')
+		expect(resolveTerrainLod(0.7)).toBe('texture')
+		expect(resolveTerrainLod(0.45)).toBe('overview-fine')
+		expect(resolveTerrainLod(0.3)).toBe('overview-medium')
+		expect(resolveTerrainLod(0.2)).toBe('overview-coarse')
+		expect(resolveTerrainLod(0.1)).toBe('overview-distant')
 		expect(resolveTerrainLod(0.05)).toBe('macro')
+	})
+
+	it('maps overview LOD bands to progressively coarser macro steps', () => {
+		expect(macroStepForTerrainLod('overview-fine')).toBe(1)
+		expect(macroStepForTerrainLod('overview-medium')).toBe(2)
+		expect(macroStepForTerrainLod('overview-coarse')).toBe(4)
+		expect(macroStepForTerrainLod('overview-distant')).toBe(8)
+		expect(macroStepForTerrainLod('macro')).toBe(8)
+	})
+
+	it('sizes macro overview requests from the viewport radius', () => {
+		expect(macroRequestForTerrainLod('overview-fine', 70)).toEqual({
+			macroStep: 2,
+			sectorRadius: 14,
+		})
+		expect(macroRequestForTerrainLod('macro', 1066)).toEqual({
+			macroStep: 11,
+			sectorRadius: 72,
+		})
 	})
 
 	it('prefers explicit concrete terrain over biome-derived textures', () => {
@@ -111,20 +138,24 @@ describe('continuous terrain helpers', () => {
 		).toBe(true)
 	})
 
-	it('materializes visible missing sectors from exact bake-domain tiles', async () => {
+	it('materializes visible missing sectors through gameplay sector generation', async () => {
 		const materialized = new Set<string>()
 		let ensuredTileCount = 0
-		const ensureTerrainSamples = vi.fn(async (coords: Iterable<{ q: number; r: number }>) => {
-			const entries = [...coords]
-			ensuredTileCount = entries.length
-			for (const coord of entries) materialized.add(axial.key(coord))
+		const ensureGameplaySectors = vi.fn(async (sectorKeys: Iterable<string>) => {
+			for (const sectorKey of sectorKeys) {
+				const entries = coordsForSectorInterior(sectorKey)
+				ensuredTileCount += entries.length
+				for (const coord of entries) materialized.add(axial.key(coord))
+			}
+			return true
 		})
 		const requestGameplayFrontier = vi.fn(async () => false)
 		const renderer = createTerrainRendererStub({
+			hasGameplayContentAt: (coord) => materialized.has(axial.key(coord)),
 			hasRenderableTerrainAt: (coord) => materialized.has(axial.key(coord)),
 			getRenderableTerrainAt: (coord) =>
 				materialized.has(axial.key(coord)) ? { terrain: 'grass', height: 0 } : undefined,
-			ensureTerrainSamples,
+			ensureGameplaySectors,
 			requestGameplayFrontier,
 		})
 
@@ -137,16 +168,22 @@ describe('continuous terrain helpers', () => {
 			distanceToCenter: 0,
 		})
 
-		expect(ensureTerrainSamples).toHaveBeenCalled()
+		expect(ensureGameplaySectors).toHaveBeenCalledWith(['0,0'], {
+			includeHydrology: true,
+			populateInitialGoods: false,
+		})
 		expect(ensuredTileCount).toBeGreaterThan(0)
 		expect(requestGameplayFrontier).not.toHaveBeenCalled()
 	})
 
-	it('does not keep invalidating when a frontier request materializes nothing', async () => {
+	it('does not generate missing sectors before the viewport settles', async () => {
+		const ensureGameplaySectors = vi.fn(async () => false)
 		const requestGameplayFrontier = vi.fn(async () => false)
 		const renderer = createTerrainRendererStub({
+			hasGameplayContentAt: () => false,
 			hasRenderableTerrainAt: () => false,
 			getRenderableTerrainAt: () => undefined,
+			ensureGameplaySectors,
 			requestGameplayFrontier,
 		})
 
@@ -156,44 +193,24 @@ describe('continuous terrain helpers', () => {
 		await Promise.resolve()
 		await Promise.resolve()
 
-		expect(requestGameplayFrontier).toHaveBeenCalled()
+		expect(ensureGameplaySectors).not.toHaveBeenCalled()
+		expect(requestGameplayFrontier).not.toHaveBeenCalled()
 	})
 
-	it('queues a prefetch ring around visible sectors', () => {
+	it('queues only visible sectors for settled gameplay generation', () => {
 		const renderer = createTerrainRendererStub({
-			hasRenderableTerrainAt: () => false,
-			getRenderableTerrainAt: () => undefined,
-			requestGameplayFrontier: vi.fn(async () => false),
-		})
-
-		const visual = new TerrainVisual(renderer)
-		;(visual as any).visibleSectorKeys = new Set(['0,0'])
-
-		const queuedSectorKeys = (visual as any).collectQueuedSectorKeys()
-
-		expect(queuedSectorKeys.has('0,0')).toBe(true)
-		expect(queuedSectorKeys.has('-1,0')).toBe(true)
-		expect(queuedSectorKeys.has('1,0')).toBe(true)
-		expect(queuedSectorKeys.has('0,-1')).toBe(true)
-		expect(queuedSectorKeys.has('0,1')).toBe(true)
-	})
-
-	it('prioritizes visible sectors ahead of prefetch sectors in the queue', () => {
-		const renderer = createTerrainRendererStub({
+			hasGameplayContentAt: () => false,
 			hasRenderableTerrainAt: () => false,
 			getRenderableTerrainAt: () => undefined,
 			requestGameplayFrontier: vi.fn(async () => false),
 		})
 		const visual = new TerrainVisual(renderer) as any
 		visual.visibleSectorKeys = new Set(['0,0', '1,0'])
-		visual.collectQueuedSectorKeys = () => new Set(['0,0', '1,0', '-1,0', '2,0'])
 
 		const queue = visual.buildVisibleSectorQueue({ q: 0, r: 0 }) as Array<{ key: string }>
 		const keys = queue.map((entry) => entry.key)
 
-		const firstPrefetchIndex = keys.findIndex((key) => key === '-1,0' || key === '2,0')
-		expect(firstPrefetchIndex).toBeGreaterThan(0)
-		expect(keys.slice(0, firstPrefetchIndex)).toEqual(['0,0', '1,0'])
+		expect(keys).toEqual(['0,0', '1,0'])
 	})
 
 	it('selects multiple visible sectors for a zoomed-out viewport', () => {
@@ -202,7 +219,7 @@ describe('continuous terrain helpers', () => {
 			getRenderableTerrainAt: () => undefined,
 			requestGameplayFrontier: vi.fn(async () => false),
 			screen: { width: 2200, height: 1400 },
-			worldScale: 0.5,
+			worldScale: 0.7,
 		})
 
 		const visual = new TerrainVisual(renderer)
@@ -320,7 +337,7 @@ describe('continuous terrain helpers', () => {
 						}
 					: { terrain: 'grass', height: 0 },
 			requestGameplayFrontier: vi.fn(async () => false),
-			worldScale: 0.5,
+			worldScale: 0.7,
 		})
 
 		const visual = new TerrainVisual(renderer)
@@ -356,8 +373,11 @@ describe('continuous terrain helpers', () => {
 
 		const diagnostics = visual.getDiagnostics()
 		const bakeDebug = visual.getBakeDebug()
-		expect(diagnostics.refresh.lodMode).toBe('material')
-		expect(ensureMacroHydrology).toHaveBeenCalled()
+		expect(diagnostics.refresh.lodMode).toBe('overview-distant')
+		expect(ensureMacroHydrology).toHaveBeenCalledWith('0,0', {
+			macroStep: 8,
+			sectorRadius: 12,
+		})
 		expect(ensureTerrainSectors).not.toHaveBeenCalled()
 		expect(diagnostics.refresh.visibleTileCount).toBe(0)
 		expect(diagnostics.totals.materialSectorBakeCount).toBe(0)
@@ -376,8 +396,8 @@ describe('continuous terrain helpers', () => {
 		const sector = ((visual as any).sectors as Map<string, any>).get('0,0')
 		expect(sector?.lodMode).toBe('detail')
 
-		renderer.world.scale.x = 0.5
-		renderer.world.scale.y = 0.5
+		renderer.world.scale.x = 0.7
+		renderer.world.scale.y = 0.7
 		;(visual as any).refresh()
 
 		expect(sector?.lodMode).toBe('texture')
@@ -521,18 +541,20 @@ describe('continuous terrain helpers', () => {
 		expect(renderer.layers.resources.renderLayerChildren.length).toBeGreaterThan(0)
 	})
 
-	it('passes visible missing sectors as one sector-list request when available', async () => {
+	it('passes visible missing sectors as one gameplay sector-list request when available', async () => {
 		const materialized = new Set<string>()
-		const ensureTerrainSectors = vi.fn(async (sectorKeys: Iterable<string>) => {
+		const ensureGameplaySectors = vi.fn(async (sectorKeys: Iterable<string>) => {
 			for (const sectorKey of sectorKeys) {
-				for (const coord of coordsForSectorBakeDomain(sectorKey)) materialized.add(axial.key(coord))
+				for (const coord of coordsForSectorInterior(sectorKey)) materialized.add(axial.key(coord))
 			}
+			return true
 		})
 		const renderer = createTerrainRendererStub({
+			hasGameplayContentAt: (coord) => materialized.has(axial.key(coord)),
 			hasRenderableTerrainAt: (coord) => materialized.has(axial.key(coord)),
 			getRenderableTerrainAt: (coord) =>
 				materialized.has(axial.key(coord)) ? { terrain: 'grass', height: 0 } : undefined,
-			ensureTerrainSectors,
+			ensureGameplaySectors,
 			requestGameplayFrontier: vi.fn(async () => false),
 		})
 
@@ -542,33 +564,41 @@ describe('continuous terrain helpers', () => {
 			{ key: '1,0', sectorQ: 1, sectorR: 0, distanceToCenter: 1 },
 		])
 
-		expect(ensureTerrainSectors).toHaveBeenCalledTimes(1)
-		expect([...ensureTerrainSectors.mock.calls[0]![0] as Iterable<string>]).toEqual(['0,0', '1,0'])
+		expect(ensureGameplaySectors).toHaveBeenCalledTimes(1)
+		expect([...ensureGameplaySectors.mock.calls[0]![0] as Iterable<string>]).toEqual([
+			'0,0',
+			'1,0',
+		])
 	})
 
 	it('omits sector hydrology outside detail LOD', async () => {
 		const materialized = new Set<string>()
-		const ensureTerrainSectors = vi.fn(async (sectorKeys: Iterable<string>) => {
+		const ensureGameplaySectors = vi.fn(async (sectorKeys: Iterable<string>) => {
 			for (const sectorKey of sectorKeys) {
-				for (const coord of coordsForSectorBakeDomain(sectorKey)) materialized.add(axial.key(coord))
+				for (const coord of coordsForSectorInterior(sectorKey)) materialized.add(axial.key(coord))
 			}
+			return true
 		})
 		const renderer = createTerrainRendererStub({
+			hasGameplayContentAt: (coord) => materialized.has(axial.key(coord)),
 			hasRenderableTerrainAt: (coord) => materialized.has(axial.key(coord)),
 			getRenderableTerrainAt: (coord) =>
 				materialized.has(axial.key(coord)) ? { terrain: 'grass', height: 0 } : undefined,
-			ensureTerrainSectors,
+			ensureGameplaySectors,
 			requestGameplayFrontier: vi.fn(async () => false),
 			worldScale: 0.1,
 		})
 
 		const visual = new TerrainVisual(renderer) as any
-		visual.currentLodMode = 'material'
+		visual.currentLodMode = 'overview-medium'
 		await visual.requestSectorFrontierBatch([
 			{ key: '0,0', sectorQ: 0, sectorR: 0, distanceToCenter: 0 },
 		])
 
-		expect(ensureTerrainSectors.mock.calls[0]![1]).toEqual({ includeHydrology: false })
+		expect(ensureGameplaySectors.mock.calls[0]![1]).toEqual({
+			includeHydrology: false,
+			populateInitialGoods: false,
+		})
 	})
 
 	it('requests macro hydrology for the current sector during refresh', async () => {
@@ -584,7 +614,10 @@ describe('continuous terrain helpers', () => {
 		const visual = new TerrainVisual(renderer) as any
 		visual.refresh()
 
-		expect(ensureMacroHydrology).toHaveBeenCalledWith('0,0')
+		expect(ensureMacroHydrology).toHaveBeenCalledWith('0,0', {
+			macroStep: 8,
+			sectorRadius: 12,
+		})
 	})
 
 	it('renders macro terrain overview when a macro snapshot is available', () => {
@@ -631,25 +664,62 @@ describe('continuous terrain helpers', () => {
 		const visual = new TerrainVisual(renderer) as any
 		visual.refresh()
 
-		expect(ensureMacroHydrology).toHaveBeenCalled()
+		expect(ensureMacroHydrology).toHaveBeenCalledWith('0,0', {
+			macroStep: 8,
+			sectorRadius: 33,
+		})
 		expect(ensureTerrainSectors).not.toHaveBeenCalled()
 		expect(visual.getDiagnostics().refresh.lodMode).toBe('macro')
 		expect(visual.getDiagnostics().refresh.queuedVisibleSectorCount).toBe(0)
 	})
+
+	it('uses road segments for the macro road overlay', () => {
+		const roadSegments = vi.fn(() => [{ coord: { q: 0.5, r: 0 }, type: 'path' as const }])
+		const getBorder = vi.fn(() => ({
+			tile: {
+				a: { position: { q: 0, r: 0 } },
+				b: { position: { q: 1, r: 0 } },
+			},
+		}))
+		const renderer = createTerrainRendererStub({
+			hasRenderableTerrainAt: () => false,
+			getRenderableTerrainAt: () => undefined,
+			ensureMacroHydrology: vi.fn(async () => {}),
+			hex: { roadSegments, getBorder },
+			requestGameplayFrontier: vi.fn(async () => false),
+			worldScale: 0.01,
+		})
+
+		const visual = new TerrainVisual(renderer) as any
+		visual.refresh()
+
+		expect(roadSegments).toHaveBeenCalled()
+		expect(getBorder).toHaveBeenCalledWith(expect.objectContaining({ q: 0.5, r: 0 }))
+	})
 })
 
 function createTerrainRendererStub(gameOverrides: {
+	hasGameplayContentAt?(coord: { q: number; r: number }): boolean
 	hasRenderableTerrainAt(coord: { q: number; r: number }): boolean
 	getRenderableTerrainAt(coord: { q: number; r: number }): RenderableTerrainTile | undefined
+	ensureGameplaySectors?(
+		sectorKeys: Iterable<string>,
+		options?: { includeHydrology?: boolean; populateInitialGoods?: boolean }
+	): Promise<boolean>
 	ensureTerrainSamples?(coords: Iterable<{ q: number; r: number }>): Promise<void>
 	ensureTerrainSectors?(
 		sectorKeys: Iterable<string>,
 		options?: { includeHydrology?: boolean }
 	): Promise<void>
-	ensureMacroHydrology?(centerSectorKey: string): Promise<void>
+	ensureMacroHydrology?(
+		centerSectorKey: string,
+		options?: { macroStep?: number; sectorRadius?: number }
+	): Promise<void>
 	getTerrainMacroHydrology?(): import('engine-terrain').TerrainMacroHydrologySnapshot | undefined
 	hex?: {
 		getTile?(coord: { q: number; r: number }): unknown
+		roadSegments?(): Array<{ coord: { q: number; r: number }; type: 'path' }>
+		getBorder?(coord: { q: number; r: number }): unknown
 	}
 	requestGameplayFrontier(
 		center: { q: number; r: number },

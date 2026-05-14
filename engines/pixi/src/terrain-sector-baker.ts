@@ -9,8 +9,19 @@ import {
 	Texture,
 	UniformGroup,
 } from 'pixi.js'
+import type { RoadSegment } from 'ssh/board/roads'
 import type { RenderableTerrainTile } from 'ssh/game/game'
 import { type AxialCoord, axial, cartesian, hexSides } from 'ssh/utils'
+import { tileSize } from 'ssh/utils/varied'
+import { setPixiName } from './debug-names'
+import type { PixiGameRenderer } from './renderer'
+import {
+	halfDrageaSampledFillPolygonWorld,
+	type RiverHalfDragea,
+	type RiverTileNode,
+} from './river-quarter-model'
+import type { RoadTileTextureCache } from './road-tile-texture'
+import { terrainTextureSpec } from './terrain-visual-helpers'
 
 const HEX_SIDES = hexSides as unknown as readonly [
 	AxialCoord,
@@ -21,18 +32,15 @@ const HEX_SIDES = hexSides as unknown as readonly [
 	AxialCoord,
 ]
 
-import { tileSize } from 'ssh/utils/varied'
-import { setPixiName } from './debug-names'
-import type { PixiGameRenderer } from './renderer'
-import type { RoadTileTextureCache } from './road-tile-texture'
-import {
-	halfDrageaSampledFillPolygonWorld,
-	type RiverHalfDragea,
-	type RiverTileNode,
-} from './river-quarter-model'
-import { terrainTextureSpec } from './terrain-visual-helpers'
-
-export type TerrainLodMode = 'detail' | 'texture' | 'material' | 'macro'
+export type TerrainLodMode =
+	| 'detail'
+	| 'texture'
+	| 'overview-fine'
+	| 'overview-medium'
+	| 'overview-coarse'
+	| 'overview-distant'
+	| 'macro'
+	| 'material'
 
 const TRIANGLE_DIRECTIONS: readonly [AxialCoord, AxialCoord][] = [
 	[
@@ -70,6 +78,7 @@ export interface SectorTerrainBakeInput {
 	lodMode?: TerrainLodMode
 	includeRivers?: boolean
 	roadTileTextures?: RoadTileTextureCache
+	roadLineSegments?: readonly RoadSegment[]
 }
 
 export interface SectorTerrainBakeDebug {
@@ -84,6 +93,7 @@ export interface SectorTerrainBakeDebug {
 	riverTileCount: number
 	riverBranchCount: number
 	riverJunctionCount: number
+	generatedZoneTileCount: number
 	roadTileCount: number
 	lodMode: TerrainLodMode
 	bakeMode: 'textured' | 'material'
@@ -203,6 +213,8 @@ export class SectorTerrainBaker {
 		}
 		const riverOverlay = input.includeRivers === false ? undefined : buildRiverOverlay(input)
 		if (riverOverlay) bakeContainer.addChild(riverOverlay)
+		const generatedZoneOverlay = buildGeneratedZoneOverlay(input)
+		if (generatedZoneOverlay) bakeContainer.addChild(generatedZoneOverlay)
 		let roadTileCount = 0
 		if (input.roadTileTextures) {
 			for (const coord of input.bakeTileCoords) {
@@ -210,6 +222,12 @@ export class SectorTerrainBaker {
 				if (!sprite) continue
 				bakeContainer.addChild(sprite)
 				roadTileCount++
+			}
+		} else if (input.roadLineSegments?.length) {
+			const roadOverlay = buildRoadLineOverlay(input)
+			if (roadOverlay) {
+				bakeContainer.addChild(roadOverlay.graphics)
+				roadTileCount = roadOverlay.count
 			}
 		}
 		debug.roadTileCount = roadTileCount
@@ -230,7 +248,8 @@ export class SectorTerrainBaker {
 		const collected = materialLod
 			? { totalTriangleCandidates: 0, triangles: [] }
 			: collectRenderableTriangles(input)
-		const rivers = input.includeRivers === false ? emptyRiverOverlayDebug() : inspectRiverOverlay(input)
+		const rivers =
+			input.includeRivers === false ? emptyRiverOverlayDebug() : inspectRiverOverlay(input)
 		let trianglesMissingTextures = 0
 		for (const triangle of collected.triangles) {
 			if (resolveTriangleTextures(this.renderer, triangle).some((texture) => !texture)) {
@@ -250,7 +269,8 @@ export class SectorTerrainBaker {
 			riverTileCount: rivers.riverTileCount,
 			riverBranchCount: rivers.riverBranchCount,
 			riverJunctionCount: rivers.riverJunctionCount,
-			roadTileCount: 0,
+			generatedZoneTileCount: countGeneratedZoneTiles(input),
+			roadTileCount: countRoadLineSegments(input),
 			lodMode: input.lodMode ?? 'detail',
 			bakeMode: materialLod ? 'material' : 'textured',
 			displayBounds: {
@@ -317,7 +337,14 @@ export class SectorTerrainBaker {
 }
 
 function isMaterialLod(lodMode: TerrainLodMode | undefined): boolean {
-	return lodMode === 'material' || lodMode === 'macro'
+	return (
+		lodMode === 'material' ||
+		lodMode === 'overview-fine' ||
+		lodMode === 'overview-medium' ||
+		lodMode === 'overview-coarse' ||
+		lodMode === 'overview-distant' ||
+		lodMode === 'macro'
+	)
 }
 
 interface RenderTriangle {
@@ -406,7 +433,10 @@ function resolveBakeTexture(renderer: PixiGameRenderer, textureKey: string): Tex
 	return texture
 }
 
-function hexPolygonLocal(coord: AxialCoord, displayBounds: Rectangle): Array<{ x: number; y: number }> {
+function hexPolygonLocal(
+	coord: AxialCoord,
+	displayBounds: Rectangle
+): Array<{ x: number; y: number }> {
 	const center = cartesian(coord, tileSize)
 	return Array.from({ length: 6 }, (_, index) => {
 		const angle = (Math.PI / 3) * (index + 0.5)
@@ -457,6 +487,114 @@ function buildMaterialTerrainOverlay(input: SectorTerrainBakeInput): Graphics | 
 		drew = true
 	}
 	if (drew) return graphics
+	graphics.destroy()
+	return undefined
+}
+
+function fallbackZoneColor(zoneId: string): number {
+	let hash = 2166136261
+	for (let i = 0; i < zoneId.length; i++) {
+		hash ^= zoneId.charCodeAt(i)
+		hash = Math.imul(hash, 16777619)
+	}
+	return 0x555555 ^ (hash & 0x2f2f2f)
+}
+
+function parseZoneColor(color: string | undefined, zoneId: string): number {
+	if (!color) return fallbackZoneColor(zoneId)
+	const trimmed = color.trim()
+	const hex = trimmed.startsWith('#') ? trimmed.slice(1) : trimmed
+	if (!/^[0-9a-fA-F]{6}$/.test(hex)) return fallbackZoneColor(zoneId)
+	return Number.parseInt(hex, 16)
+}
+
+function countGeneratedZoneTiles(input: SectorTerrainBakeInput): number {
+	let count = 0
+	for (const coord of input.interiorTileCoords) {
+		const tile = input.terrainTiles.get(axial.key(coord))
+		if (tile?.zone?.generated) count++
+	}
+	return count
+}
+
+function buildGeneratedZoneOverlay(input: SectorTerrainBakeInput): Graphics | undefined {
+	const graphics = setPixiName(new Graphics(), `terrain.continuous:${input.sectorKey}:generated-zones`)
+	graphics.eventMode = 'none'
+	let drew = false
+	for (const coord of input.interiorTileCoords) {
+		const tile = input.terrainTiles.get(axial.key(coord))
+		if (!tile?.zone?.generated) continue
+		graphics
+			.poly(hexPolygonLocal(coord, input.displayBounds))
+			.fill({ color: parseZoneColor(tile.zone.color, tile.zone.id), alpha: 0.26 })
+		drew = true
+	}
+	if (drew) return graphics
+	graphics.destroy()
+	return undefined
+}
+
+interface RoadLineEndpointPair {
+	from: AxialCoord
+	to: AxialCoord
+}
+
+function roadLineEndpoints(segment: RoadSegment): RoadLineEndpointPair {
+	const q = segment.coord.q
+	const r = segment.coord.r
+	return {
+		from: { q: Math.ceil(q), r: Math.floor(r) },
+		to: { q: Math.floor(q), r: Math.ceil(r) },
+	}
+}
+
+function roadLineIntersectsDisplay(segment: RoadSegment, displayBounds: Rectangle): boolean {
+	const endpoints = roadLineEndpoints(segment)
+	const from = cartesian(endpoints.from, tileSize)
+	const to = cartesian(endpoints.to, tileSize)
+	const minX = Math.min(from.x, to.x)
+	const minY = Math.min(from.y, to.y)
+	const maxX = Math.max(from.x, to.x)
+	const maxY = Math.max(from.y, to.y)
+	const padding = tileSize * 0.25
+	return displayBounds.intersects(
+		new Rectangle(
+			minX - padding,
+			minY - padding,
+			Math.max(1, maxX - minX + padding * 2),
+			Math.max(1, maxY - minY + padding * 2)
+		)
+	)
+}
+
+function countRoadLineSegments(input: SectorTerrainBakeInput): number {
+	if (input.roadTileTextures || !input.roadLineSegments) return 0
+	let count = 0
+	for (const segment of input.roadLineSegments) {
+		if (roadLineIntersectsDisplay(segment, input.displayBounds)) count++
+	}
+	return count
+}
+
+function buildRoadLineOverlay(
+	input: SectorTerrainBakeInput
+): { graphics: Graphics; count: number } | undefined {
+	if (!input.roadLineSegments?.length) return undefined
+	const graphics = setPixiName(new Graphics(), `terrain.continuous:${input.sectorKey}:roads:lines`)
+	graphics.eventMode = 'none'
+	let count = 0
+	for (const segment of input.roadLineSegments) {
+		if (!roadLineIntersectsDisplay(segment, input.displayBounds)) continue
+		const endpoints = roadLineEndpoints(segment)
+		const from = cartesian(endpoints.from, tileSize)
+		const to = cartesian(endpoints.to, tileSize)
+		graphics
+			.moveTo(from.x - input.displayBounds.x, from.y - input.displayBounds.y)
+			.lineTo(to.x - input.displayBounds.x, to.y - input.displayBounds.y)
+			.stroke({ width: 5, color: 0x9b7048, alpha: 0.82, cap: 'round', join: 'round' })
+		count++
+	}
+	if (count > 0) return { graphics, count }
 	graphics.destroy()
 	return undefined
 }

@@ -15,6 +15,7 @@ import {
 } from 'engine-terrain'
 import type { TerrainType } from 'ssh/types'
 import type { AxialCoord } from 'ssh/utils'
+import { profile } from '../dev/debug'
 import { BoardGenerator, type GeneratedTileData } from './board'
 
 export interface GameGenerationConfig {
@@ -40,6 +41,10 @@ const terrainToBiome: Partial<Record<TerrainType, BiomeHint>> = {
 	forest: 'forest',
 	rocky: 'rocky',
 	snow: 'snow',
+}
+
+function beginGenerationProfile(label: string, payload?: unknown): (payload?: unknown) => void {
+	return profile.terrainGeneration.begin?.(label, payload) ?? (() => {})
 }
 
 function toTileOverrides(terraforming: TerrainTerraformPatch[]): TileOverride[] {
@@ -95,7 +100,12 @@ export class GameGenerator {
 		terraforming: TerrainTerraformPatch[] = [],
 		options: { includeHydrology?: boolean } = {}
 	): Promise<GeneratedTileData[]> {
-		const snapshot = await generateTerrainSectorRegionAsync(config.terrainSeed, sectors, {
+		const sectorList = [...sectors]
+		const endProfile = beginGenerationProfile('generateSectorsAsync', {
+			sectors: sectorList.length,
+			includeHydrology: options.includeHydrology ?? true,
+		})
+		const snapshot = await generateTerrainSectorRegionAsync(config.terrainSeed, sectorList, {
 			fieldBackend: 'wasm',
 			sectorStep: 17,
 			padding: 1,
@@ -105,20 +115,51 @@ export class GameGenerator {
 		})
 
 		const boardGenerator = new BoardGenerator()
-		return boardGenerator.generateBoard(snapshot)
+		const generated = boardGenerator.generateBoard(snapshot)
+		endProfile({
+			sectors: sectorList.length,
+			tiles: generated.length,
+			snapshotTiles: snapshot.tiles.size,
+			edges: snapshot.edges.size,
+			channels: snapshot.hydrology.channels.size,
+		})
+		return generated
 	}
 
 	async generateMacroHydrologyAsync(
 		config: GameGenerationConfig,
-		centerSector: TerrainSectorCoord
+		centerSector: TerrainSectorCoord,
+		options: { macroStep?: number; sectorRadius?: number } = {}
 	): Promise<TerrainMacroHydrologySnapshot> {
-		return generateMacroHydrologyWasm(config.terrainSeed, centerSector, {
-			sectorRadius: 12,
-			sectorStep: 17,
-			macroStep: 8,
+		const macroStep = options.macroStep ?? 8
+		const sectorRadius = options.sectorRadius ?? 12
+		const endProfile = beginGenerationProfile('generateMacroHydrologyAsync', {
+			centerSector,
+			sectorRadius,
+			macroStep,
 		})
+		const snapshot = generateMacroHydrologyWasm(config.terrainSeed, centerSector, {
+			sectorRadius,
+			sectorStep: 17,
+			macroStep,
+		})
+		endProfile({
+			macroTiles: snapshot.macroTileCount,
+			riverSegments: snapshot.riverSegmentCount,
+			wasmMs: snapshot.timings.wasmMs,
+			unpackMs: snapshot.timings.unpackMs,
+			totalMs: snapshot.timings.totalMs,
+		})
+		return snapshot
 	}
 }
 
 export { BoardGenerator, type GeneratedTileData } from './board'
 export { type GeneratedCharacterData, PopulationGenerator } from './population'
+export {
+	type GeneratedSettlement,
+	generateSettlementZonePlan,
+	type SettlementGenerationOptions,
+	type SettlementKind,
+	type SettlementZonePlan,
+} from './settlements'

@@ -28,9 +28,9 @@ import GoodsList from '../GoodsList'
 import HiveAnchorButton from '../HiveAnchorButton'
 import PropertyGrid from '../PropertyGrid'
 import PropertyGridRow from '../PropertyGridRow'
-import ZoneAnchorButton from '../ZoneAnchorButton'
 import WorkingIndicator from '../parts/WorkingIndicator'
 import StoredGoodsRow from '../storage/StoredGoodsRow'
+import ZoneAnchorButton from '../ZoneAnchorButton'
 import AlveolusProperties from './AlveolusProperties'
 import DwellingProperties from './DwellingProperties'
 import TileWorkProperties from './TileWorkProperties'
@@ -359,7 +359,11 @@ const ZoneRow = (props: ZoneRowProps) => {
 			if (!zone) return ''
 			const definition = props.tile.board.game.hex.zoneManager.getZoneDefinition(zone)
 			if (definition) return definition.name?.trim() || String(definition.id)
-			return zone === 'residential' ? T.tile.zoneResidential : zone === 'harvest' ? T.tile.zoneHarvest : zone
+			return zone === 'residential'
+				? T.tile.zoneResidential
+				: zone === 'harvest'
+					? T.tile.zoneHarvest
+					: zone
 		},
 	}
 
@@ -621,7 +625,7 @@ const TileProperties = (props: TilePropertiesProps) => {
 
 			<InspectorSection class="tile-properties__content">
 				<PropertyGrid>
-					<ZoneRow tile={tile} />
+					<ZoneRow if={model.contentCase?.kind !== 'unbuilt'} tile={tile} />
 					<WalkTimeRow content={model.content} />
 					<GenericStoredGoodsRow
 						show={model.showGenericStoredGoods}

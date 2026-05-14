@@ -190,10 +190,11 @@ export class TileVisual extends VisualObject<Tile> {
 		}
 
 		if (!borderColor) {
-			if (this.object.zone === 'residential') borderColor = 0x44dd44
-			else if (this.object.zone === 'harvest') borderColor = 0xaa7744
-			else if (this.object.zone) {
-				const color = this.object.board.zoneManager.getZoneDefinition(this.object.zone)?.color
+			const zone = this.object.effectiveZone
+			if (zone === 'residential') borderColor = 0x44dd44
+			else if (zone === 'harvest') borderColor = 0xaa7744
+			else if (zone) {
+				const color = this.object.board.zoneManager.getZoneDefinition(zone)?.color
 				if (color) borderColor = Number.parseInt(color.replace(/^#/, ''), 16)
 			}
 		}

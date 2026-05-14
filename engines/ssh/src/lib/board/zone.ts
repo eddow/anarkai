@@ -10,6 +10,8 @@ export interface NamedZoneDefinition {
 	readonly name: string
 	readonly color?: string
 	readonly builtIn?: boolean
+	readonly generated?: boolean
+	readonly readonly?: boolean
 }
 
 export const ZONES_OBJECT_UID = 'zones'
@@ -64,6 +66,7 @@ function centralCoordFrom(coords: AxialCoord[]): AxialCoord | undefined {
 
 export class ZoneManager {
 	private readonly zones = reactive(new AxialKeyMap<Zone>())
+	private readonly generatedZones = reactive(new AxialKeyMap<Zone>())
 	private readonly definitions = reactive(new Map<Zone, NamedZoneDefinition>())
 	private readonly reservationOwners = reactive(new AxialKeyMap<object>())
 	private readonly ownerToCoord = new Map<object, AxialCoord>()
@@ -87,6 +90,8 @@ export class ZoneManager {
 			name: trimmedName || (existing?.builtIn || definition.builtIn ? existing?.name || id : ''),
 			color: definition.color?.trim() || existing?.color,
 			builtIn: existing?.builtIn || definition.builtIn,
+			generated: existing?.generated || definition.generated,
+			readonly: existing?.readonly || definition.readonly,
 		}
 		this.definitions.set(id, next)
 		return next
@@ -140,8 +145,26 @@ export class ZoneManager {
 		return this.zones.get(coord)
 	}
 
+	setGeneratedZone(coord: AxialCoord, zone: Zone): void {
+		if (this.generatedZones.has(coord)) return
+		const zoneId = normalizeZoneId(zone)
+		if (!this.definitions.has(zoneId)) {
+			this.defineZone({ id: zoneId, name: zoneId, generated: true, readonly: true })
+		}
+		this.generatedZones.set(coord, zoneId)
+	}
+
+	getGeneratedZone(coord: AxialCoord): Zone | undefined {
+		return this.generatedZones.get(coord)
+	}
+
+	getEffectiveZone(coord: AxialCoord): Zone | undefined {
+		return this.getZone(coord) ?? this.getGeneratedZone(coord)
+	}
+
 	clear(): void {
 		this.zones.clear()
+		this.generatedZones.clear()
 		this.resetDefinitions()
 		this.reservationOwners.clear()
 		this.ownerToCoord.clear()
@@ -168,11 +191,24 @@ export class ZoneManager {
 		return this.zones.has(coord)
 	}
 
+	hasEffectiveZone(coord: AxialCoord): boolean {
+		return this.zones.has(coord) || this.generatedZones.has(coord)
+	}
+
 	coordsForZone(zone: Zone): AxialCoord[] {
 		const zoneId = normalizeZoneId(zone)
 		const out: AxialCoord[] = []
 		for (const coord of this.zones.coords()) {
 			if (this.zones.get(coord) === zoneId) out.push({ q: coord.q, r: coord.r })
+		}
+		return out
+	}
+
+	coordsForGeneratedZone(zone: Zone): AxialCoord[] {
+		const zoneId = normalizeZoneId(zone)
+		const out: AxialCoord[] = []
+		for (const coord of this.generatedZones.coords()) {
+			if (this.generatedZones.get(coord) === zoneId) out.push({ q: coord.q, r: coord.r })
 		}
 		return out
 	}

@@ -5,8 +5,10 @@ import {
 import { css } from '@app/lib/css'
 import { T } from '@app/lib/i18n'
 import { Badge } from '@app/ui/anarkai'
+import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
 import { deposits as visualDeposits } from 'engine-pixi/assets/visual-content'
 import { effect, reactive } from 'mutts'
+import { tablerFilledZoomMoney, tablerOutlinePolygon, tablerOutlineTrees } from 'pure-glyf/icons'
 import type { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { type ConstructionPhase, queryConstructionSiteView } from 'ssh/construction'
 import EntityBadge from '../EntityBadge'
@@ -17,6 +19,32 @@ css`
     display: flex;
     align-items: center;
     gap: 0.5rem;
+  }
+
+  .unbuilt-zone-title {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    gap: 0.45rem;
+    padding: 0.35rem 0.55rem;
+    border: 1px solid var(--unbuilt-zone-color, #4f8cff);
+    border-radius: 0.45rem;
+    background: color-mix(in srgb, var(--unbuilt-zone-color, #4f8cff) 10%, var(--ak-surface-panel));
+    color: var(--ak-text);
+    font-weight: 650;
+    line-height: 1.2;
+  }
+
+  .unbuilt-zone-title :global(.ak-icon) {
+    flex: none;
+    color: var(--unbuilt-zone-color, #4f8cff);
+  }
+
+  .unbuilt-zone-title__text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 `
 
@@ -36,8 +64,19 @@ const toDisplayText = (value: unknown, fallback = ''): string => {
 	}
 }
 
+const iconForZone = (zoneId: string): string => {
+	if (zoneId === 'residential') return tablerFilledZoomMoney
+	if (zoneId === 'harvest') return tablerOutlineTrees
+	return tablerOutlinePolygon
+}
+
 const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 	const state = reactive({
+		zoneId: '',
+		zoneName: '',
+		zoneColor: '#4f8cff',
+		zoneIcon: tablerOutlinePolygon,
+		showZone: false,
 		depositAmount: undefined as number | undefined,
 		depositName: '',
 		depositSprite: '',
@@ -50,6 +89,17 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 		constructionPhaseLabel: '',
 		constructionBlocking: [] as string[],
 		showConstruction: false,
+	})
+
+	effect`unbuilt-properties:zone`(() => {
+		const tile = props.content?.tile
+		const zoneId = tile?.effectiveZone
+		const definition = tile?.board?.game?.hex?.zoneManager?.getZoneDefinition(zoneId)
+		state.zoneId = zoneId ? String(zoneId) : ''
+		state.zoneName = definition?.name?.trim() || state.zoneId
+		state.zoneColor = definition?.color?.trim() || '#4f8cff'
+		state.zoneIcon = iconForZone(state.zoneId)
+		state.showZone = state.zoneId.length > 0
 	})
 
 	effect`unbuilt-properties:deposit`(() => {
@@ -101,6 +151,18 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 
 	return (
 		<>
+			<PropertyGridRow if={state.showZone}>
+				<div
+					class="unbuilt-zone-title"
+					style={{ '--unbuilt-zone-color': state.zoneColor }}
+					title={state.zoneName}
+					data-testid="unbuilt-zone-title"
+				>
+					{renderAnarkaiIcon(state.zoneIcon, { size: 16, label: state.zoneName })}
+					<span class="unbuilt-zone-title__text">{state.zoneName}</span>
+				</div>
+			</PropertyGridRow>
+
 			<PropertyGridRow if={state.showProject} label={String(T.project)}>
 				<div class="unbuilt-project">
 					<Badge tone="blue">

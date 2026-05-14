@@ -45,6 +45,38 @@ describe('terrain provider', () => {
 		expect(generateRegionAsync).toHaveBeenCalledTimes(1)
 	})
 
+	it('publishes generated terrain batches to the owner', async () => {
+		const onGeneratedTiles = vi.fn()
+		const generateRegionAsync = vi.fn(async (_config, coords: Iterable<{ q: number; r: number }>) =>
+			[...coords].map((coord) => ({
+				coord,
+				terrain: 'grass' as const,
+				height: 0,
+				goods: {},
+				walkTime: 3,
+			}))
+		)
+		const provider = new TerrainProvider({
+			generator: { generateRegionAsync } as any,
+			getGenerationConfig: () => ({ terrainSeed: 7, characterCount: 0 }),
+			getTerraformingPatches: () => [],
+			getGameplayTerrainSample: () => undefined,
+			onGeneratedTiles,
+		})
+
+		await provider.ensureTerrainSamples([{ q: 2, r: -1 }])
+
+		expect(onGeneratedTiles).toHaveBeenCalledWith([
+			expect.objectContaining({
+				coord: expect.objectContaining({ q: 2, r: -1 }),
+				terrain: 'grass',
+				height: 0,
+				goods: {},
+				walkTime: 3,
+			}),
+		])
+	})
+
 	it('prefers gameplay terrain sample over render-prefill generation', async () => {
 		const gameplaySample: TerrainSample = { terrain: 'concrete', height: 0.4 }
 		const generateRegionAsync = vi.fn(async () => [])
@@ -118,7 +150,9 @@ describe('terrain provider', () => {
 		await provider.ensureTerrainSectors(['0,0', '1,-1'])
 
 		expect(generateSectorsAsync).toHaveBeenCalledTimes(1)
-		expect([...generateSectorsAsync.mock.calls[0]![1] as Iterable<{ q: number; r: number }>]).toEqual([
+		expect([
+			...(generateSectorsAsync.mock.calls[0]![1] as Iterable<{ q: number; r: number }>),
+		]).toEqual([
 			{ q: 0, r: 0 },
 			{ q: 1, r: -1 },
 		])
@@ -216,12 +250,12 @@ describe('terrain provider', () => {
 	})
 
 	it('caches macro hydrology by snapped macro center', async () => {
-		const generateMacroHydrologyAsync = vi.fn(async (_config, centerSector) => ({
+		const generateMacroHydrologyAsync = vi.fn(async (_config, centerSector, options) => ({
 			seed: 9,
 			centerSector,
 			sectorRadius: 12,
 			sectorStep: 17,
-			macroStep: 4,
+			macroStep: options?.macroStep ?? 8,
 			macroTileCount: 100,
 			riverSegmentCount: 1,
 			maxAccumulation: 12,
@@ -240,11 +274,22 @@ describe('terrain provider', () => {
 		await provider.ensureMacroHydrology('7,7')
 		expect(generateMacroHydrologyAsync).toHaveBeenCalledTimes(1)
 		expect(generateMacroHydrologyAsync.mock.calls[0]![1]).toEqual({ q: 0, r: 0 })
+		expect(generateMacroHydrologyAsync.mock.calls[0]![2]).toEqual({
+			macroStep: 8,
+			sectorRadius: 12,
+		})
 		expect(provider.getTerrainMacroHydrology()?.segments).toHaveLength(1)
 
 		await provider.ensureMacroHydrology('8,0')
 		expect(generateMacroHydrologyAsync).toHaveBeenCalledTimes(2)
 		expect(generateMacroHydrologyAsync.mock.calls[1]![1]).toEqual({ q: 8, r: 0 })
-		expect(provider.getDiagnostics().macroCacheSize).toBe(2)
+		await provider.ensureMacroHydrology('8,0', { macroStep: 4 })
+		expect(generateMacroHydrologyAsync).toHaveBeenCalledTimes(3)
+		expect(generateMacroHydrologyAsync.mock.calls[2]![1]).toEqual({ q: 8, r: 0 })
+		expect(generateMacroHydrologyAsync.mock.calls[2]![2]).toEqual({
+			macroStep: 4,
+			sectorRadius: 12,
+		})
+		expect(provider.getDiagnostics().macroCacheSize).toBe(3)
 	})
 })

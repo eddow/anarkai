@@ -3,9 +3,11 @@ import { Alveolus } from 'ssh/board/content/alveolus'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { isConstructionSiteShell } from 'ssh/build-site'
+import type { TerrainHydrologyDirection } from 'ssh/game/terrain-provider'
 import type { AxialCoord } from 'ssh/utils'
 import { axial } from 'ssh/utils/axial'
 import { toAxialCoord } from 'ssh/utils/position'
+import type { TileBorder } from './border/border'
 
 export type RoadType = 'path'
 export const ROAD_WALK_TIME_MULTIPLIER = 0.5
@@ -66,8 +68,46 @@ export function roadBordersForTrace(trace: readonly Tile[]) {
 	return borders
 }
 
+function effectiveRoadTerrain(tile: Tile): string | undefined {
+	const content = tile.content
+	if (content instanceof UnBuiltLand) return content.terrain
+	return tile.terrainState?.terrain ?? tile.baseTerrain
+}
+
+export function isRoadCompatibleTerrain(tile: Tile): boolean {
+	return effectiveRoadTerrain(tile) !== 'water'
+}
+
+function hydrologyHasEdge(tile: Tile, direction: number): boolean {
+	const edges = tile.hydrology?.edges
+	if (!edges) return false
+	return edges[direction as TerrainHydrologyDirection] !== undefined
+}
+
+function riverDirectionBetween(from: Tile, to: Tile): number | undefined {
+	const fromCoord = toAxialCoord(from.position)
+	const toCoord = toAxialCoord(to.position)
+	if (!fromCoord || !toCoord) return undefined
+	const direction = axial.neighborIndex(axial.linear(toCoord, [-1, fromCoord]))
+	return typeof direction === 'number' ? direction : undefined
+}
+
+export function borderHasRiver(border: TileBorder): boolean {
+	const aDirection = riverDirectionBetween(border.tile.a, border.tile.b)
+	if (aDirection !== undefined && hydrologyHasEdge(border.tile.a, aDirection)) return true
+	const bDirection = riverDirectionBetween(border.tile.b, border.tile.a)
+	if (bDirection !== undefined && hydrologyHasEdge(border.tile.b, bDirection)) return true
+	return false
+}
+
+export function canBuildRoadAcrossBorder(border: TileBorder): boolean {
+	if (!isRoadCompatibleTerrain(border.tile.a) || !isRoadCompatibleTerrain(border.tile.b)) return false
+	return !borderHasRiver(border)
+}
+
 /** Whether a road trace may pass through this tile while being authored. */
 export function canBuildRoadThroughTile(tile: Tile): boolean {
+	if (!isRoadCompatibleTerrain(tile)) return false
 	if (tile.zone === 'residential') return false
 	const content = tile.content
 	if (!content) return true
@@ -95,5 +135,8 @@ export function canBuildRoadOnTrace(trace: readonly Tile[]): boolean {
 	}
 	const borders = roadBordersForTrace(trace)
 	if (trace.length > 1 && borders.length !== trace.length - 1) return false
+	for (const border of borders) {
+		if (!canBuildRoadAcrossBorder(border)) return false
+	}
 	return true
 }

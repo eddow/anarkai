@@ -1,3 +1,4 @@
+import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { Game } from 'ssh/game/game'
 import { BoardGenerator, type GameGenerationConfig, GameGenerator } from 'ssh/generation'
 import { axial } from 'ssh/utils'
@@ -108,6 +109,40 @@ describe('streamed region generation', () => {
 		expect(sample?.hydrology?.isChannel || (sample?.hydrology?.bankInfluence ?? 0) > 0).toBe(true)
 	})
 
+	it('generates settled gameplay content by sector without spawning loose goods', async () => {
+		const game = new Game({
+			terrainSeed: 42,
+			characterCount: 0,
+		})
+		games.add(game)
+		await game.loaded
+
+		const coord = { q: 85, r: 85 }
+		const generateRegionAsync = vi.spyOn(game.generator, 'generateRegionAsync')
+		const generateSectorsAsync = vi.spyOn(game.generator, 'generateSectorsAsync').mockResolvedValue([
+			{
+				coord,
+				terrain: 'grass',
+				height: 0.25,
+				deposit: { type: 'rock', amount: 12 },
+				goods: { wood: 2 },
+				walkTime: 1,
+			},
+		])
+
+		const generated = await game.ensureGameplaySectors(['5,5'])
+
+		expect(generated).toBe(true)
+		expect(generateSectorsAsync).toHaveBeenCalledTimes(1)
+		expect(generateRegionAsync).not.toHaveBeenCalled()
+		expect(game.hasGameplayContentAt(coord)).toBe(true)
+		expect(game.getRenderableTerrainAt(coord)?.terrain).toBe('grass')
+		expect(game.hex.getTile(coord)?.content).toBeInstanceOf(UnBuiltLand)
+		expect(game.hex.zoneManager.coordsForGeneratedZone('npc-factory')).toHaveLength(0)
+		expect(game.hex.zoneManager.coordsForGeneratedZone('npc-residential-commercial')).toHaveLength(0)
+		expect(game.hex.looseGoods.getGoodsAt(coord)).toHaveLength(0)
+	})
+
 	it('applies the river walk-time multiplier only on channel tiles', async () => {
 		const game = new Game({
 			terrainSeed: 42,
@@ -195,7 +230,9 @@ describe('streamed region generation', () => {
 		games.add(game)
 		await game.loaded
 
-		const generateRegionAsync = vi.spyOn(game.generator, 'generateRegionAsync').mockResolvedValue([])
+		const generateRegionAsync = vi
+			.spyOn(game.generator, 'generateRegionAsync')
+			.mockResolvedValue([])
 
 		const generated = await game.requestGameplayFrontier({ q: 3, r: 0 }, 0, { maxBatchSize: 1 })
 
@@ -386,6 +423,45 @@ describe('streamed region generation', () => {
 		expect(generateRegionAsync).toHaveBeenCalledTimes(1)
 		expect(addLooseGood).not.toHaveBeenCalled()
 		expect(game.hasRenderableTerrainAt({ q: 8, r: -3 })).toBe(true)
+	})
+
+	it('keeps materialized tile terrain aligned with cached render terrain samples', async () => {
+		const game = new Game({
+			terrainSeed: 96,
+			characterCount: 0,
+		})
+		games.add(game)
+		await game.loaded
+
+		const coord = { q: 24, r: -6 }
+		vi.spyOn(game.generator, 'generateRegionAsync').mockResolvedValue([
+			{
+				coord,
+				terrain: 'grass',
+				height: 0.2,
+				goods: {},
+				walkTime: 1,
+			},
+		])
+		await game.ensureTerrainSamples([coord])
+
+		vi.spyOn(game.generator, 'generateRegion').mockReturnValue([
+			{
+				coord,
+				terrain: 'water',
+				height: -0.1,
+				goods: {},
+				walkTime: Number.POSITIVE_INFINITY,
+			},
+		])
+
+		game.ensureGeneratedTiles([coord])
+
+		const tile = game.hex.getTile(coord)
+		expect(tile?.baseTerrain).toBe('grass')
+		expect(tile?.content).toBeInstanceOf(UnBuiltLand)
+		expect((tile?.content as UnBuiltLand | undefined)?.terrain).toBe('grass')
+		expect(game.getRenderableTerrainAt(coord)?.terrain).toBe('grass')
 	})
 
 	it('publishes reset removals as one batched objectsRemoved event', async () => {

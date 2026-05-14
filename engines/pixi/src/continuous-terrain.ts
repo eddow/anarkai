@@ -11,9 +11,10 @@ import {
 	Texture,
 } from 'pixi.js'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import { profile } from 'ssh/dev/debug'
 import type { RenderableTerrainTile } from 'ssh/game/game'
 import type { TerrainMacroHydrologySnapshot } from 'engine-terrain'
-import { type AxialCoord, axial, cartesian, fromCartesian } from 'ssh/utils'
+import { type AxialCoord, axial, cartesian, fromCartesian, toAxialCoord } from 'ssh/utils'
 import { tileSize } from 'ssh/utils/varied'
 import { setPixiName } from './debug-names'
 import type { PixiGameRenderer } from './renderer'
@@ -56,14 +57,25 @@ const TERRAIN_DIAGNOSTIC_HISTORY_LIMIT = 12
 const SLOW_SECTOR_LOG_THRESHOLD_MS = 16
 const MAX_PENDING_SECTORS = 8
 const MAX_SECTOR_STARTS_PER_REFRESH = 8
-const PREFETCH_SECTOR_MARGIN = 1
+const VIEWPORT_SETTLE_MS = 250
 const VIEWPORT_WORLD_OVERSCAN = tileSize * 3
 const HEX_HALF_WIDTH = (Math.sqrt(3) / 2) * tileSize
 const HEX_HALF_HEIGHT = tileSize
 const USE_PARTICLE_RESOURCE_BATCH = false
-const DETAIL_LOD_MIN_TILE_PIXELS = 32
-const TEXTURE_LOD_MIN_TILE_PIXELS = 28
-const MATERIAL_LOD_MIN_TILE_PIXELS = 4
+const TERRAIN_PROFILE_CHANNEL = 'terrainVisual'
+const DETAIL_LOD_MIN_TILE_PIXELS = 48
+const TEXTURE_LOD_MIN_TILE_PIXELS = 36
+const OVERVIEW_FINE_LOD_MIN_TILE_PIXELS = 24
+const OVERVIEW_MEDIUM_LOD_MIN_TILE_PIXELS = 16
+const OVERVIEW_COARSE_LOD_MIN_TILE_PIXELS = 8
+const OVERVIEW_DISTANT_LOD_MIN_TILE_PIXELS = 4
+const MACRO_OVERVIEW_RADIUS_MARGIN_SECTORS = 1
+// Macro regions are cached around snapped sector centers in TerrainProvider.
+// A camera can drift almost one snap cell away from that generation center
+// before the cache key changes, so include that drift in requested coverage.
+const MACRO_OVERVIEW_SNAP_DRIFT_SECTORS = 8
+const MACRO_OVERVIEW_MAX_GRID_RADIUS = 120
+const MACRO_OVERVIEW_MIN_SECTOR_RADIUS = 4
 
 export function terrainLodTilePixels(worldScale: number): number {
 	return tileSize * 2 * Math.max(0, worldScale)
@@ -73,12 +85,63 @@ export function resolveTerrainLod(worldScale: number): TerrainLodMode {
 	const tilePixels = terrainLodTilePixels(worldScale)
 	if (tilePixels >= DETAIL_LOD_MIN_TILE_PIXELS) return 'detail'
 	if (tilePixels >= TEXTURE_LOD_MIN_TILE_PIXELS) return 'texture'
-	if (tilePixels >= MATERIAL_LOD_MIN_TILE_PIXELS) return 'material'
+	if (tilePixels >= OVERVIEW_FINE_LOD_MIN_TILE_PIXELS) return 'overview-fine'
+	if (tilePixels >= OVERVIEW_MEDIUM_LOD_MIN_TILE_PIXELS) return 'overview-medium'
+	if (tilePixels >= OVERVIEW_COARSE_LOD_MIN_TILE_PIXELS) return 'overview-coarse'
+	if (tilePixels >= OVERVIEW_DISTANT_LOD_MIN_TILE_PIXELS) return 'overview-distant'
 	return 'macro'
 }
 
 function usesMacroOverview(lodMode: TerrainLodMode): boolean {
-	return lodMode === 'material' || lodMode === 'macro'
+	return (
+		lodMode === 'overview-fine' ||
+		lodMode === 'overview-medium' ||
+		lodMode === 'overview-coarse' ||
+		lodMode === 'overview-distant' ||
+		lodMode === 'macro' ||
+		lodMode === 'material'
+	)
+}
+
+function includesDetailedHydrology(lodMode: TerrainLodMode): boolean {
+	return lodMode === 'detail' || lodMode === 'texture'
+}
+
+export function macroStepForTerrainLod(lodMode: TerrainLodMode): number {
+	if (lodMode === 'overview-fine') return 1
+	if (lodMode === 'overview-medium') return 2
+	if (lodMode === 'overview-coarse') return 4
+	if (lodMode === 'overview-distant') return 8
+	if (lodMode === 'macro') return 8
+	return 8
+}
+
+export interface TerrainMacroRequest {
+	macroStep: number
+	sectorRadius: number
+}
+
+export function macroRequestForTerrainLod(
+	lodMode: TerrainLodMode,
+	viewportTileRadius: number
+): TerrainMacroRequest {
+	const sectorRadius = Math.max(
+		MACRO_OVERVIEW_MIN_SECTOR_RADIUS,
+		Math.ceil(viewportTileRadius / SECTOR_STEP) +
+			MACRO_OVERVIEW_RADIUS_MARGIN_SECTORS +
+			MACRO_OVERVIEW_SNAP_DRIFT_SECTORS
+	)
+	const baseStep = macroStepForTerrainLod(lodMode)
+	const coverageTiles = sectorRadius * SECTOR_STEP
+	const boundedStep = Math.ceil(coverageTiles / MACRO_OVERVIEW_MAX_GRID_RADIUS)
+	return {
+		sectorRadius,
+		macroStep: Math.max(baseStep, boundedStep),
+	}
+}
+
+function beginTerrainProfile(label: string, payload?: unknown): (payload?: unknown) => void {
+	return profile[TERRAIN_PROFILE_CHANNEL].begin?.(label, payload) ?? (() => {})
 }
 
 export interface TerrainSectorDiagnostics {
@@ -170,7 +233,7 @@ export interface TerrainQueueDebugSnapshot {
 	}
 	recentRequests: Array<{
 		sectorKey: string
-		mode: 'ensure' | 'frontier'
+		mode: 'gameplay-sector' | 'frontier'
 		missingBakeTiles: number
 		generated: boolean
 		ms: number
@@ -238,6 +301,7 @@ export class TerrainVisual {
 	private readonly container = setPixiName(new Container(), 'terrain.continuous')
 	private readonly macroTerrainOverlay = setPixiName(new Graphics(), 'terrain.continuous:macro-terrain')
 	private readonly macroRiverOverlay = setPixiName(new Graphics(), 'terrain.continuous:macro-rivers')
+	private readonly macroRoadOverlay = setPixiName(new Graphics(), 'terrain.continuous:macro-roads')
 	private readonly sectorsContainer = setPixiName(new Container(), 'terrain.continuous:sectors')
 	private readonly hoverOverlay = setPixiName(new Graphics(), 'terrain.continuous:hover')
 	private isBound = false
@@ -253,6 +317,8 @@ export class TerrainVisual {
 	private visibleSectorKeys = new Set<string>()
 	private visibleSectorQueue: QueuedSector[] = []
 	private currentLodMode: TerrainLodMode = 'detail'
+	private viewportSettleSignature = ''
+	private viewportChangedAtMs = 0
 	private lastMacroOverlaySignature = ''
 	private refreshScheduled = false
 	private refreshScheduledClearCache = false
@@ -317,11 +383,13 @@ export class TerrainVisual {
 		this.container.eventMode = 'none'
 		this.macroTerrainOverlay.eventMode = 'none'
 		this.macroRiverOverlay.eventMode = 'none'
+		this.macroRoadOverlay.eventMode = 'none'
 		this.sectorsContainer.eventMode = 'none'
 		this.hoverOverlay.eventMode = 'none'
 		this.container.addChild(
 			this.macroTerrainOverlay,
 			this.macroRiverOverlay,
+			this.macroRoadOverlay,
 			this.sectorsContainer,
 			this.hoverOverlay
 		)
@@ -469,6 +537,7 @@ export class TerrainVisual {
 		const world = this.renderer.world
 		if (!app || !world) return
 
+		const endRefreshProfile = beginTerrainProfile('refresh')
 		const screenCenter = new Point(app.screen.width / 2, app.screen.height / 2)
 		const localCenter = world.toLocal(screenCenter)
 		const center = axial.round(fromCartesian(localCenter, tileSize))
@@ -479,14 +548,40 @@ export class TerrainVisual {
 		const worldHalfWidth = app.screen.width / (2 * Math.max(world.scale.x, 0.001))
 		const worldHalfHeight = app.screen.height / (2 * Math.max(world.scale.y, 0.001))
 		const radius = Math.ceil(Math.max(worldHalfWidth, worldHalfHeight) / tileSize) + 6
-		const signature = `${center.q},${center.r}:${radius}:${app.screen.width}x${app.screen.height}:${lodMode}`
-		if (signature === this.lastSignature) return
+		const worldPosition = world.position ?? { x: 0, y: 0 }
+		const signature = `${center.q},${center.r}:${radius}:${app.screen.width}x${app.screen.height}:${lodMode}:${world.scale.x.toFixed(4)},${world.scale.y.toFixed(4)}:${worldPosition.x.toFixed(2)},${worldPosition.y.toFixed(2)}`
+		if (signature !== this.viewportSettleSignature) {
+			this.viewportSettleSignature = signature
+			this.viewportChangedAtMs = refreshStartedAt
+		}
+		const viewportSettled = refreshStartedAt - this.viewportChangedAtMs >= VIEWPORT_SETTLE_MS
+		if (signature === this.lastSignature) {
+			if (!macroOverview && viewportSettled) this.pumpVisibleSectorQueue()
+			endRefreshProfile({
+				skipped: true,
+				lodMode,
+				scale: world.scale.x,
+				tilePixels,
+				radius,
+				screen: `${app.screen.width}x${app.screen.height}`,
+			})
+			return
+		}
 		this.lastSignature = signature
+		const refreshProfilePayload = {
+			lodMode,
+			scale: world.scale.x,
+			tilePixels,
+			radius,
+			screen: `${app.screen.width}x${app.screen.height}`,
+			macroOverview,
+		}
 
 		const minQ = center.q - radius
 		const maxQ = center.q + radius
 		const minR = center.r - radius
 		const maxR = center.r + radius
+		const endVisibilityProfile = beginTerrainProfile('refresh.visibility', refreshProfilePayload)
 		if (macroOverview) {
 			this.visibleTileKeys = new Set()
 			this.visibleSectorKeys = new Set()
@@ -495,16 +590,29 @@ export class TerrainVisual {
 			this.visibleTileKeys = collectVisibleTileKeys(center, radius + 2, viewportBounds)
 			this.visibleSectorKeys = collectVisibleSectorKeys(this.visibleTileKeys)
 		}
+		endVisibilityProfile({
+			visibleTiles: this.visibleTileKeys.size,
+			visibleSectors: this.visibleSectorKeys.size,
+		})
 		this.diagnostics.refresh.lodMode = lodMode
 		this.diagnostics.refresh.tilePixels = tilePixels
 		if (macroOverview) {
-			this.ensureAndRenderMacroHydrology(center)
+			const request = macroRequestForTerrainLod(lodMode, radius)
+			const endMacroRequestProfile = beginTerrainProfile('refresh.macroRequest', {
+				...refreshProfilePayload,
+				...request,
+			})
+			this.ensureAndRenderMacroHydrology(center, request)
+			this.renderMacroRoadOverlay()
+			endMacroRequestProfile(request)
 		} else {
 			this.macroTerrainOverlay.visible = false
 			this.macroRiverOverlay.visible = false
+			this.macroRoadOverlay.visible = false
 		}
 		const streamDetailSectors = !macroOverview
 
+		const endRetentionProfile = beginTerrainProfile('refresh.retention', refreshProfilePayload)
 		const sectorMinQ = Math.floor(minQ / SECTOR_STEP)
 		const sectorMaxQ = Math.floor(maxQ / SECTOR_STEP)
 		const sectorMinR = Math.floor(minR / SECTOR_STEP)
@@ -517,7 +625,17 @@ export class TerrainVisual {
 					sectorMaxR + RETAINED_SECTOR_MARGIN
 				)
 			: new Set(this.sectors.keys())
+		endRetentionProfile({
+			retainedSectors: retainedSectorKeys.size,
+			loadedSectors: this.sectors.size,
+			streamDetailSectors,
+		})
 
+		const endSectorLifecycleProfile = beginTerrainProfile('refresh.sectorLifecycle', {
+			retainedSectors: retainedSectorKeys.size,
+			loadedSectors: this.sectors.size,
+			streamDetailSectors,
+		})
 		for (const [sectorKey, sector] of this.sectors) {
 			if (retainedSectorKeys.has(sectorKey)) continue
 			this.destroySectorVisualState(sector)
@@ -532,22 +650,46 @@ export class TerrainVisual {
 			this.sectorCoords.set(sectorKey, this.coordsForSectorKey(sectorKey))
 			this.sectorsContainer.addChild(state.container)
 		}
+		endSectorLifecycleProfile({
+			loadedSectors: this.sectors.size,
+			sectorCoordCache: this.sectorCoords.size,
+		})
 
+		const endSyncProfile = beginTerrainProfile('refresh.syncVisuals', {
+			visibleTiles: this.visibleTileKeys.size,
+			visibleSectors: this.visibleSectorKeys.size,
+			streamDetailSectors,
+		})
 		const materializedVisibleTileCount = countMaterializedVisibleTiles(
 			this.visibleTileKeys,
 			this.renderer
 		)
 		if (streamDetailSectors) this.syncLoadedSectorVisuals()
 		else this.hideLoadedSectorVisuals()
+		endSyncProfile({
+			materializedVisibleTileCount,
+			loadedSectors: this.sectors.size,
+		})
+
+		const endQueueProfile = beginTerrainProfile('refresh.queue', {
+			visibleSectors: this.visibleSectorKeys.size,
+			streamDetailSectors,
+		})
 		this.visibleSectorQueue = streamDetailSectors ? this.buildVisibleSectorQueue(center) : []
-		if (streamDetailSectors) {
+		if (streamDetailSectors && viewportSettled) {
 			this.pumpVisibleSectorQueue()
 		} else {
-			this.queueDebug.selection.prefetchSectorKeys = []
-			this.queueDebug.selection.queuedVisibleKeys = []
-			this.queueDebug.selection.queuedPrefetchKeys = []
-			this.queueDebug.queue = { total: 0, visibleCount: 0, prefetchCount: 0, topKeys: [] }
+			if (!streamDetailSectors) {
+				this.queueDebug.selection.prefetchSectorKeys = []
+				this.queueDebug.selection.queuedVisibleKeys = []
+				this.queueDebug.selection.queuedPrefetchKeys = []
+				this.queueDebug.queue = { total: 0, visibleCount: 0, prefetchCount: 0, topKeys: [] }
+			}
 		}
+		endQueueProfile({
+			queuedVisibleSectorCount: this.visibleSectorQueue.length,
+			pendingSectorCount: this.pendingSectors.size,
+		})
 
 		const loadedVisibleSectorCount = countMatchingKeys(this.visibleSectorKeys, this.sectors)
 		const missingVisibleSectorCount =
@@ -582,16 +724,31 @@ export class TerrainVisual {
 				getTerrainProviderDiagnostics?: () => TerrainQueueDebugSnapshot['provider']
 			}
 		).getTerrainProviderDiagnostics?.()
+		const endDemandProfile = beginTerrainProfile('refresh.viewportDemand', {
+			lodMode,
+			macroOverview,
+			visibleSectors: this.visibleSectorKeys.size,
+			prefetchSectors: this.queueDebug.selection.prefetchSectorKeys.length,
+		})
 		this.updateViewportDemand()
+		endDemandProfile(this.queueDebug.provider)
+		endRefreshProfile(this.diagnostics.refresh)
 	}
 
-	private ensureAndRenderMacroHydrology(center: AxialCoord): void {
+	private ensureAndRenderMacroHydrology(center: AxialCoord, request: TerrainMacroRequest): void {
+		const endEnsureProfile = beginTerrainProfile('macro.ensureAndRender', {
+			center: axial.key(center),
+			...request,
+		})
 		this.macroTerrainOverlay.visible = true
 		this.macroRiverOverlay.visible = true
 		const centerSectorKey = sectorKeyForCoord(center, SECTOR_STEP)
 		const ensureMacroHydrology = (
 			this.renderer.game as {
-				ensureMacroHydrology?: (centerSectorKey: string) => Promise<void>
+				ensureMacroHydrology?: (
+					centerSectorKey: string,
+					options?: { macroStep?: number; sectorRadius?: number }
+				) => Promise<void>
 			}
 		).ensureMacroHydrology
 		const getTerrainMacroHydrology = (
@@ -601,16 +758,36 @@ export class TerrainVisual {
 		).getTerrainMacroHydrology
 		const current = getTerrainMacroHydrology?.call(this.renderer.game)
 		if (current) this.renderMacroRiverOverlay(current)
-		if (!ensureMacroHydrology) return
-		void ensureMacroHydrology.call(this.renderer.game, centerSectorKey).then(() => {
+		if (!ensureMacroHydrology) {
+			endEnsureProfile({ hasCurrent: !!current, requested: false })
+			return
+		}
+		void ensureMacroHydrology.call(this.renderer.game, centerSectorKey, request).then(() => {
 			const next = getTerrainMacroHydrology?.call(this.renderer.game)
 			if (next) this.renderMacroRiverOverlay(next)
+			endEnsureProfile({
+				hasCurrent: !!current,
+				hasNext: !!next,
+				macroTiles: next?.macroTileCount,
+				riverSegments: next?.riverSegmentCount,
+				macroStep: next?.macroStep,
+				sectorRadius: next?.sectorRadius,
+			})
 		})
 	}
 
 	private renderMacroRiverOverlay(snapshot: TerrainMacroHydrologySnapshot): void {
-		const signature = `${snapshot.seed}:${snapshot.centerSector.q},${snapshot.centerSector.r}:${snapshot.sectorRadius}:${snapshot.macroStep}:${snapshot.tiles.length}:${snapshot.segments.length}`
-		if (signature === this.lastMacroOverlaySignature) return
+		const endMacroRenderProfile = beginTerrainProfile('macro.render', {
+			macroStep: snapshot.macroStep,
+			sectorRadius: snapshot.sectorRadius,
+			tiles: snapshot.tiles.length,
+			segments: snapshot.segments.length,
+		})
+		const signature = `${snapshot.seed}:${snapshot.centerSector.q},${snapshot.centerSector.r}:${snapshot.sectorRadius}:${snapshot.macroStep}:${snapshot.tiles.length}:${snapshot.segments.length}:${this.renderer.world.scale.x.toFixed(3)}`
+		if (signature === this.lastMacroOverlaySignature) {
+			endMacroRenderProfile({ skipped: true })
+			return
+		}
 		this.lastMacroOverlaySignature = signature
 		this.renderMacroTerrainOverlay(snapshot)
 		const graphics = this.macroRiverOverlay
@@ -618,15 +795,27 @@ export class TerrainVisual {
 		for (const segment of snapshot.segments) {
 			const from = cartesian({ q: segment.fromQ, r: segment.fromR }, tileSize)
 			const to = cartesian({ q: segment.toQ, r: segment.toR }, tileSize)
-			const width = Math.max(1.5, Math.min(7, segment.width * 0.75 + segment.order * 0.35))
+			const width = Math.max(
+				this.screenStrokeWorld(2.25, 1.5, tileSize * 0.65),
+				Math.min(7, segment.width * 0.75 + segment.order * 0.35)
+			)
 			graphics
 				.moveTo(from.x, from.y)
 				.lineTo(to.x, to.y)
 				.stroke({ width, color: 0x2586d7, alpha: 0.62, cap: 'round', join: 'round' })
 		}
+		endMacroRenderProfile({
+			terrainTiles: snapshot.tiles.length,
+			riverSegments: snapshot.segments.length,
+		})
 	}
 
 	private renderMacroTerrainOverlay(snapshot: TerrainMacroHydrologySnapshot): void {
+		const endTerrainProfile = beginTerrainProfile('macro.renderTerrain', {
+			macroStep: snapshot.macroStep,
+			sectorRadius: snapshot.sectorRadius,
+			tiles: snapshot.tiles.length,
+		})
 		const graphics = this.macroTerrainOverlay
 		graphics.clear()
 		const radius = tileSize * snapshot.macroStep
@@ -638,6 +827,34 @@ export class TerrainVisual {
 				points.push(center.x + Math.cos(angle) * radius, center.y + Math.sin(angle) * radius)
 			}
 			graphics.poly(points).fill({ color: macroTerrainColor(tile.biome, tile.height), alpha: 0.92 })
+		}
+		endTerrainProfile({ tiles: snapshot.tiles.length })
+	}
+
+	private screenStrokeWorld(screenPixels: number, minWorld: number, maxWorld: number): number {
+		const scale = Math.max(0.001, this.renderer.world.scale.x)
+		return Math.max(minWorld, Math.min(maxWorld, screenPixels / scale))
+	}
+
+	private renderMacroRoadOverlay(): void {
+		this.macroRoadOverlay.visible = true
+		const graphics = this.macroRoadOverlay
+		graphics.clear()
+		const hex = this.renderer.game.hex
+		if (!hex) return
+		const width = this.screenStrokeWorld(2, 2, tileSize * 0.45)
+		for (const segment of hex.roadSegments()) {
+			const border = hex.getBorder(segment.coord)
+			if (!border) continue
+			const fromCoord = toAxialCoord(border.tile.a.position)
+			const toCoord = toAxialCoord(border.tile.b.position)
+			if (!fromCoord || !toCoord) continue
+			const from = cartesian(fromCoord, tileSize)
+			const to = cartesian(toCoord, tileSize)
+			graphics
+				.moveTo(from.x, from.y)
+				.lineTo(to.x, to.y)
+				.stroke({ width, color: 0xa9784d, alpha: 0.78, cap: 'round', join: 'round' })
 		}
 	}
 
@@ -831,8 +1048,9 @@ export class TerrainVisual {
 			bakeTileCoords: sectorState.coverage.bakeTileCoords,
 			terrainTiles,
 			lodMode,
-			includeRivers: lodMode === 'detail',
+			includeRivers: includesDetailedHydrology(lodMode),
 			roadTileTextures: lodMode === 'detail' ? this.roadTileTextures : undefined,
+			roadLineSegments: lodMode === 'texture' ? this.renderer.game.hex?.roadSegments() : undefined,
 		}
 		const baked = this.terrainBaker.bake(bakeInput)
 		this.bakeDebugBySector.set(sectorKey, baked.debug)
@@ -1041,17 +1259,14 @@ export class TerrainVisual {
 
 	private buildVisibleSectorQueue(center: AxialCoord): QueuedSector[] {
 		const visibleQueue = this.buildSectorQueueForKeys(this.visibleSectorKeys, center)
-		const prefetchKeys = this.collectQueuedSectorKeys()
-		for (const key of this.visibleSectorKeys) prefetchKeys.delete(key)
-		const prefetchQueue = this.buildSectorQueueForKeys(prefetchKeys, center)
-		const queue = [...visibleQueue, ...prefetchQueue]
-		this.queueDebug.selection.prefetchSectorKeys = [...prefetchKeys].sort()
+		const queue = [...visibleQueue]
+		this.queueDebug.selection.prefetchSectorKeys = []
 		this.queueDebug.selection.queuedVisibleKeys = visibleQueue.map((entry) => entry.key)
-		this.queueDebug.selection.queuedPrefetchKeys = prefetchQueue.map((entry) => entry.key)
+		this.queueDebug.selection.queuedPrefetchKeys = []
 		this.queueDebug.queue = {
 			total: queue.length,
 			visibleCount: visibleQueue.length,
-			prefetchCount: prefetchQueue.length,
+			prefetchCount: 0,
 			topKeys: queue.slice(0, 20).map((entry) => entry.key),
 		}
 		return queue
@@ -1086,11 +1301,11 @@ export class TerrainVisual {
 		const queue: QueuedSector[] = []
 		for (const key of keys) {
 			if (this.pendingSectors.has(key)) continue
-			const bakeCoords = coordsForSectorBakeDomain(key, SECTOR_STEP)
-			const hasMissingVisibleTile = bakeCoords.some(
-				(coord) => !this.renderer.game.hasRenderableTerrainAt(coord)
+			const interiorCoords = this.coordsForSectorKey(key)
+			const hasMissingGameplayTile = interiorCoords.some(
+				(coord) => !this.hasGameplayContentAt(coord)
 			)
-			if (!hasMissingVisibleTile) continue
+			if (!hasMissingGameplayTile) continue
 			const [sectorQ, sectorR] = key.split(',').map(Number)
 			queue.push({
 				key,
@@ -1103,27 +1318,15 @@ export class TerrainVisual {
 		return queue
 	}
 
-	private collectQueuedSectorKeys(): Set<string> {
-		if (this.visibleSectorKeys.size === 0) return new Set()
-
-		let minSectorQ = Number.POSITIVE_INFINITY
-		let maxSectorQ = Number.NEGATIVE_INFINITY
-		let minSectorR = Number.POSITIVE_INFINITY
-		let maxSectorR = Number.NEGATIVE_INFINITY
-		for (const key of this.visibleSectorKeys) {
-			const [sectorQ, sectorR] = key.split(',').map(Number)
-			minSectorQ = Math.min(minSectorQ, sectorQ)
-			maxSectorQ = Math.max(maxSectorQ, sectorQ)
-			minSectorR = Math.min(minSectorR, sectorR)
-			maxSectorR = Math.max(maxSectorR, sectorR)
-		}
-
-		return this.collectSectorKeys(
-			minSectorQ - PREFETCH_SECTOR_MARGIN,
-			maxSectorQ + PREFETCH_SECTOR_MARGIN,
-			minSectorR - PREFETCH_SECTOR_MARGIN,
-			maxSectorR + PREFETCH_SECTOR_MARGIN
-		)
+	private hasGameplayContentAt(coord: AxialCoord): boolean {
+		const hasGameplayContent = (
+			this.renderer.game as {
+				hasGameplayContentAt?: (coord: AxialCoord) => boolean
+			}
+		).hasGameplayContentAt
+		return hasGameplayContent
+			? hasGameplayContent.call(this.renderer.game, coord)
+			: this.renderer.game.hasRenderableTerrainAt(coord)
 	}
 
 	private currentViewportWorldBounds(): WorldBounds {
@@ -1163,7 +1366,8 @@ export class TerrainVisual {
 			this.pendingSectors.add(next.key)
 			batch.push(next)
 		}
-		if (batch.length > 0) void this.requestSectorFrontierBatch(batch)
+		if (batch.length === 1) void this.requestSectorFrontier(batch[0]!)
+		else if (batch.length > 0) void this.requestSectorFrontierBatch(batch)
 	}
 
 	private async requestSectorFrontier(next: QueuedSector) {
@@ -1178,7 +1382,7 @@ export class TerrainVisual {
 			string,
 			{
 				generated: boolean
-				requestMode: 'ensure' | 'frontier'
+				requestMode: 'gameplay-sector' | 'frontier'
 				missingBakeTiles: number
 			}
 		>()
@@ -1192,40 +1396,32 @@ export class TerrainVisual {
 		try {
 			const sectorsNeedingTerrain: string[] = []
 			for (const next of batch) {
-				const bakeCoords = coordsForSectorBakeDomain(next.key, SECTOR_STEP)
-				const missingBakeCoords = bakeCoords.filter(
-					(coord) => !this.renderer.game.hasRenderableTerrainAt(coord)
+				const interiorCoords = this.coordsForSectorKey(next.key)
+				const missingGameplayCoords = interiorCoords.filter(
+					(coord) => !this.hasGameplayContentAt(coord)
 				)
 				const info = requestInfo.get(next.key)!
-				info.missingBakeTiles = missingBakeCoords.length
-				if (missingBakeCoords.length > 0) sectorsNeedingTerrain.push(next.key)
+				info.missingBakeTiles = missingGameplayCoords.length
+				if (missingGameplayCoords.length > 0) sectorsNeedingTerrain.push(next.key)
 			}
 
 			if (sectorsNeedingTerrain.length > 0) {
-				const ensureTerrainSectors = (
+				const ensureGameplaySectors = (
 					this.renderer.game as {
-						ensureTerrainSectors?: (
+						ensureGameplaySectors?: (
 							sectorKeys: Iterable<string>,
-							options?: { includeHydrology?: boolean }
-						) => Promise<void>
+							options?: { includeHydrology?: boolean; populateInitialGoods?: boolean }
+						) => Promise<boolean>
 					}
-				).ensureTerrainSectors
-				const ensureTerrainSamples = (
-					this.renderer.game as {
-						ensureTerrainSamples?: (coords: Iterable<AxialCoord>) => Promise<void>
-					}
-				).ensureTerrainSamples
-				if (ensureTerrainSectors) {
-					for (const key of sectorsNeedingTerrain) requestInfo.get(key)!.requestMode = 'ensure'
-					await ensureTerrainSectors.call(this.renderer.game, sectorsNeedingTerrain, {
-						includeHydrology: this.currentLodMode === 'detail',
+				).ensureGameplaySectors
+				if (ensureGameplaySectors) {
+					for (const key of sectorsNeedingTerrain)
+						requestInfo.get(key)!.requestMode = 'gameplay-sector'
+					const generated = await ensureGameplaySectors.call(this.renderer.game, sectorsNeedingTerrain, {
+						includeHydrology: includesDetailedHydrology(this.currentLodMode),
+						populateInitialGoods: false,
 					})
-				} else if (ensureTerrainSamples) {
-					for (const key of sectorsNeedingTerrain) requestInfo.get(key)!.requestMode = 'ensure'
-					await ensureTerrainSamples.call(
-						this.renderer.game,
-						this.collectMissingBakeCoordsForKeys(new Set(sectorsNeedingTerrain))
-					)
+					for (const key of sectorsNeedingTerrain) requestInfo.get(key)!.generated = generated
 				} else {
 					for (const next of batch) {
 						requestInfo.get(next.key)!.generated = await this.renderer.game.requestGameplayFrontier(
@@ -1241,10 +1437,8 @@ export class TerrainVisual {
 				const bakeCoords = coordsForSectorBakeDomain(next.key, SECTOR_STEP)
 				const interiorCoords = this.coordsForSectorKey(next.key)
 				const info = requestInfo.get(next.key)!
-				if (info.requestMode === 'ensure') {
-					info.generated = bakeCoords.every((coord) =>
-						this.renderer.game.hasRenderableTerrainAt(coord)
-					)
+				if (info.requestMode === 'gameplay-sector') {
+					info.generated = interiorCoords.every((coord) => this.hasGameplayContentAt(coord))
 				} else if (info.missingBakeTiles === 0) {
 					info.generated = await this.renderer.game.requestGameplayFrontier(
 						this.sectorCenter(next.sectorQ, next.sectorR),
@@ -1299,17 +1493,6 @@ export class TerrainVisual {
 		}
 	}
 
-	private collectMissingBakeCoordsForKeys(keys: Iterable<string>): AxialCoord[] {
-		const coords = new Map<string, AxialCoord>()
-		for (const sectorKey of keys) {
-			for (const coord of coordsForSectorBakeDomain(sectorKey, SECTOR_STEP)) {
-				if (this.renderer.game.hasRenderableTerrainAt(coord)) continue
-				coords.set(axial.key(coord), coord)
-			}
-		}
-		return [...coords.values()]
-	}
-
 	private recordSectorDiagnostics(
 		sectorKey: string,
 		lodMode: TerrainLodMode,
@@ -1352,7 +1535,7 @@ export class TerrainVisual {
 		this.diagnostics.totals.resourceBatchCount += resourceBatchCount
 		this.diagnostics.totals.staticResourceSpriteCount += staticResourceSpriteCount
 		if (lodMode !== 'detail') this.diagnostics.totals.skippedResourceSectorCount++
-		if (lodMode === 'material' || lodMode === 'macro') {
+		if (usesMacroOverview(lodMode)) {
 			this.diagnostics.totals.materialSectorBakeCount += groundBatchCount > 0 ? 1 : 0
 		}
 		this.diagnostics.totals.maxSectorTotalMs = Math.max(

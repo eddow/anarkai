@@ -8,6 +8,8 @@ type DockviewTestWindow = Window & { dockviewApi?: unknown }
 const globals = {
 	game: {
 		getObject: vi.fn(),
+		ensureGameplaySectors: vi.fn(),
+		ensureGeneratedTiles: vi.fn(),
 	},
 	selectionState: {
 		panelId: undefined as string | undefined,
@@ -26,6 +28,8 @@ vi.mock('./globals', () => globals)
 describe('follow-selection', () => {
 	beforeEach(() => {
 		globals.game.getObject.mockClear()
+		globals.game.ensureGameplaySectors.mockClear()
+		globals.game.ensureGeneratedTiles.mockClear()
 		globals.selectionState.panelId = undefined
 		globals.selectionState.selectedUid = undefined
 		globals.selectionState.titleVersion = 0
@@ -64,6 +68,20 @@ describe('follow-selection', () => {
 				height: 600,
 			},
 		})
+	})
+
+	it('materializes tile content before showing tile properties', async () => {
+		const { selectInspectorObject } = await import('./follow-selection')
+
+		selectInspectorObject({
+			uid: 'tile:12,-3',
+			title: 'Tile 12, -3',
+			position: { q: 12, r: -3 },
+		} as never)
+
+		expect(globals.game.ensureGameplaySectors).toHaveBeenCalledWith(['0,-1'])
+		expect(globals.game.ensureGeneratedTiles).not.toHaveBeenCalled()
+		expect(globals.selectionState.selectedUid).toBe('tile:12,-3')
 	})
 
 	it('falls back to the resolved selected object title when no title is passed', async () => {

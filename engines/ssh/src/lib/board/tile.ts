@@ -143,6 +143,14 @@ export class Tile extends withInteractive(GameObject) {
 		return this.board.zoneManager.getZone(toAxialCoord(this.position))
 	}
 
+	get generatedZone(): Zone | undefined {
+		return this.board.zoneManager.getGeneratedZone(toAxialCoord(this.position))
+	}
+
+	get effectiveZone(): Zone | undefined {
+		return this.board.zoneManager.getEffectiveZone(toAxialCoord(this.position))
+	}
+
 	set zone(zone: Zone | undefined) {
 		if (zone === undefined) {
 			this.board.zoneManager.removeZone(toAxialCoord(this.position))

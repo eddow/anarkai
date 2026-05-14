@@ -287,7 +287,7 @@ export class InteractionManager {
 		}
 	}
 
-	static readonly MIN_SCALE = 0.15
+	static readonly MIN_SCALE = 0.03
 	static readonly MAX_SCALE = 4.0
 
 	private onWheel = (e: FederatedWheelEvent) => {

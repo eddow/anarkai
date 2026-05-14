@@ -23,7 +23,12 @@ import { Alveolus } from './content/alveolus'
 import type { TileContent } from './content/content'
 import { UnBuiltLand } from './content/unbuilt-land'
 import { LooseGoods } from './looseGoods'
-import { ROAD_WALK_TIME_MULTIPLIER, type RoadSegment, type RoadType } from './roads'
+import {
+	canBuildRoadAcrossBorder,
+	ROAD_WALK_TIME_MULTIPLIER,
+	type RoadSegment,
+	type RoadType,
+} from './roads'
 import { Tile } from './tile'
 import { isTileCoord } from './tile-coord'
 import { ZoneManager } from './zone'
@@ -180,9 +185,10 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		if (!coord || isTileCoord(coord)) return
 		const oldType = this.roadTypes.get(coord)
 		if (oldType === type) return
+		const border = this.getBorder(coord)
+		if (type && border && !canBuildRoadAcrossBorder(border)) return
 		if (!type) this.roadTypes.delete(coord)
 		else this.roadTypes.set(coord, type)
-		const border = this.getBorder(coord)
 		this.game.notifyRoadsChanged(
 			[border?.tile.a.position, border?.tile.b.position]
 				.map((position) => (position ? toAxialCoord(position) : undefined))

@@ -1,9 +1,15 @@
 import { deposits as depositDefinitions } from 'engine-rules'
 import type { HydrologyPathTerminalKind, TerrainMacroHydrologySnapshot } from 'engine-terrain'
-import type { GameGenerationConfig, GameGenerator, TerrainTerraformPatch } from 'ssh/generation'
+import type {
+	GameGenerationConfig,
+	GameGenerator,
+	GeneratedTileData,
+	TerrainTerraformPatch,
+} from 'ssh/generation'
 import type { TerrainType } from 'ssh/types'
 import type { AxialDirection } from 'ssh/utils'
 import { type AxialCoord, axial } from 'ssh/utils'
+import { profile } from '../dev/debug.ts'
 
 export type TerrainHydrologyDirection = Exclude<AxialDirection, null>
 
@@ -45,6 +51,12 @@ export interface TerrainSample {
 	terrain: TerrainType
 	height?: number
 	hydrology?: TerrainHydrologySample
+	zone?: {
+		id: string
+		name: string
+		color?: string
+		generated: boolean
+	}
 	deposit?: {
 		type: string
 		amount: number
@@ -81,6 +93,7 @@ interface TerrainProviderOptions {
 	getGenerationConfig(): GameGenerationConfig
 	getTerraformingPatches(): TerrainTerraformPatch[]
 	getGameplayTerrainSample(coord: AxialCoord): TerrainSample | undefined
+	onGeneratedTiles?(tiles: readonly GeneratedTileData[]): void
 	maxCacheEntries?: number
 	idleEvictMs?: number
 }
@@ -89,16 +102,32 @@ export interface EnsureTerrainSectorsOptions {
 	includeHydrology?: boolean
 }
 
+export interface EnsureMacroHydrologyOptions {
+	macroStep?: number
+	sectorRadius?: number
+}
+
 const DEFAULT_MAX_CACHE_ENTRIES = 60000
 const DEFAULT_IDLE_EVICT_MS = 90_000
 const MACRO_REGION_SNAP = 8
 const MACRO_CACHE_SIZE = 4
+const TERRAIN_PROVIDER_PROFILE_CHANNEL = 'terrainProvider'
+
+function beginTerrainProviderProfile(
+	label: string,
+	payload?: unknown
+): (payload?: unknown) => void {
+	return profile[TERRAIN_PROVIDER_PROFILE_CHANNEL].begin?.(label, payload) ?? (() => {})
+}
 
 export class TerrainProvider {
 	private readonly cache = new Map<string, CacheEntry>()
 	private readonly inFlightByCoord = new Map<string, Promise<TerrainSample | undefined>>()
 	private readonly inFlightBySector = new Map<string, Promise<void>>()
-	private readonly macroCache = new Map<string, { snapshot: TerrainMacroHydrologySnapshot; lastAccessMs: number }>()
+	private readonly macroCache = new Map<
+		string,
+		{ snapshot: TerrainMacroHydrologySnapshot; lastAccessMs: number }
+	>()
 	private readonly inFlightByMacro = new Map<string, Promise<TerrainMacroHydrologySnapshot>>()
 	private activeMacroKey: string | undefined
 	private readonly completedSectors = new Set<string>()
@@ -147,6 +176,12 @@ export class TerrainProvider {
 		cached.lastAccessMs = nowMs()
 		this.diagnostics.hits++
 		return cached.sample
+	}
+
+	public cacheGeneratedTiles(tiles: readonly GeneratedTileData[]): void {
+		for (const tile of tiles) this.cacheGeneratedTile(tile)
+		this.diagnostics.generatedTiles += tiles.length
+		this.syncSizes()
 	}
 
 	public async ensureTerrainSamples(coords: Iterable<AxialCoord>): Promise<void> {
@@ -208,6 +243,10 @@ export class TerrainProvider {
 		const unique = new Set<string>()
 		for (const key of sectorKeys) unique.add(key)
 		if (unique.size === 0) return
+		const endProfile = beginTerrainProviderProfile('ensureTerrainSectors', {
+			sectors: unique.size,
+			includeHydrology: options.includeHydrology ?? true,
+		})
 
 		const waiting: Promise<void>[] = []
 		const missing: string[] = []
@@ -239,23 +278,42 @@ export class TerrainProvider {
 		this.diagnostics.lastEnsureMs = tookMs
 		this.diagnostics.maxEnsureMs = Math.max(this.diagnostics.maxEnsureMs, tookMs)
 		this.syncSizes()
+		endProfile({
+			ms: tookMs,
+			requestedSectors: unique.size,
+			missingSectors: missing.length,
+			waiting: waiting.length,
+			cacheSize: this.cache.size,
+			inFlight: this.inFlightBySector.size,
+		})
 	}
 
-	public async ensureMacroHydrology(centerSectorKey: string): Promise<void> {
+	public async ensureMacroHydrology(
+		centerSectorKey: string,
+		options: EnsureMacroHydrologyOptions = {}
+	): Promise<void> {
 		const [rawQ, rawR] = centerSectorKey.split(',').map(Number)
 		const center = { q: rawQ ?? 0, r: rawR ?? 0 }
 		const config = this.options.getGenerationConfig()
+		const macroStep = options.macroStep ?? 8
+		const sectorRadius = options.sectorRadius ?? 12
+		const endProfile = beginTerrainProviderProfile('ensureMacroHydrology', {
+			centerSectorKey,
+			macroStep,
+			sectorRadius,
+		})
 		const snapped = {
 			q: Math.floor(center.q / MACRO_REGION_SNAP) * MACRO_REGION_SNAP,
 			r: Math.floor(center.r / MACRO_REGION_SNAP) * MACRO_REGION_SNAP,
 		}
-		const key = `${config.terrainSeed}:${snapped.q},${snapped.r}`
+		const key = `${config.terrainSeed}:${snapped.q},${snapped.r}:r${sectorRadius}:m${macroStep}`
 		const cached = this.macroCache.get(key)
 		if (cached) {
 			cached.lastAccessMs = nowMs()
 			this.activeMacroKey = key
 			this.diagnostics.macroHits++
 			this.syncSizes()
+			endProfile({ cache: 'hit', key, macroCacheSize: this.macroCache.size })
 			return
 		}
 		this.diagnostics.macroMisses++
@@ -263,7 +321,14 @@ export class TerrainProvider {
 		if (!inFlight) {
 			inFlight = (async () => {
 				try {
-					const snapshot = await this.options.generator.generateMacroHydrologyAsync(config, snapped)
+					const snapshot = await this.options.generator.generateMacroHydrologyAsync(
+						config,
+						snapped,
+						{
+							macroStep,
+							sectorRadius,
+						}
+					)
 					this.macroCache.set(key, { snapshot, lastAccessMs: nowMs() })
 					this.activeMacroKey = key
 					this.evictMacroIfNeeded()
@@ -281,6 +346,16 @@ export class TerrainProvider {
 		this.activeMacroKey = key
 		this.evictMacroIfNeeded()
 		this.syncSizes()
+		endProfile({
+			cache: inFlight === this.inFlightByMacro.get(key) ? 'wait' : 'miss',
+			key,
+			macroCacheSize: this.macroCache.size,
+			macroTiles: snapshot.macroTileCount,
+			riverSegments: snapshot.riverSegmentCount,
+			wasmMs: snapshot.timings.wasmMs,
+			unpackMs: snapshot.timings.unpackMs,
+			totalMs: snapshot.timings.totalMs,
+		})
 	}
 
 	public getTerrainMacroHydrology(): TerrainMacroHydrologySnapshot | undefined {
@@ -321,24 +396,8 @@ export class TerrainProvider {
 			coords,
 			this.options.getTerraformingPatches()
 		)
-		for (const tile of tiles) {
-			const deposit = tile.deposit
-			const sample: TerrainSample = {
-				terrain: tile.terrain,
-				height: tile.height,
-				deposit: deposit
-					? {
-							type: deposit.type,
-							amount: deposit.amount,
-							name: deposit.type,
-							maxAmount:
-								depositDefinitions[deposit.type as keyof typeof depositDefinitions]?.maxAmount,
-						}
-					: undefined,
-			}
-			if (tile.hydrology) sample.hydrology = tile.hydrology
-			this.upsert(tile.coord, sample)
-		}
+		for (const tile of tiles) this.cacheGeneratedTile(tile)
+		this.options.onGeneratedTiles?.(tiles)
 		this.diagnostics.generatedTiles += tiles.length
 	}
 
@@ -356,26 +415,29 @@ export class TerrainProvider {
 			this.options.getTerraformingPatches(),
 			{ includeHydrology: options.includeHydrology ?? true }
 		)
-		for (const tile of tiles) {
-			const deposit = tile.deposit
-			const sample: TerrainSample = {
-				terrain: tile.terrain,
-				height: tile.height,
-				deposit: deposit
-					? {
-							type: deposit.type,
-							amount: deposit.amount,
-							name: deposit.type,
-							maxAmount:
-								depositDefinitions[deposit.type as keyof typeof depositDefinitions]?.maxAmount,
-						}
-					: undefined,
-			}
-			if (tile.hydrology) sample.hydrology = tile.hydrology
-			this.upsert(tile.coord, sample)
-		}
+		for (const tile of tiles) this.cacheGeneratedTile(tile)
+		this.options.onGeneratedTiles?.(tiles)
 		for (const key of sectorKeys) this.completedSectors.add(key)
 		this.diagnostics.generatedTiles += tiles.length
+	}
+
+	private cacheGeneratedTile(tile: GeneratedTileData): void {
+		const deposit = tile.deposit
+		const sample: TerrainSample = {
+			terrain: tile.terrain,
+			height: tile.height,
+			deposit: deposit
+				? {
+						type: deposit.type,
+						amount: deposit.amount,
+						name: deposit.type,
+						maxAmount:
+							depositDefinitions[deposit.type as keyof typeof depositDefinitions]?.maxAmount,
+					}
+				: undefined,
+		}
+		if (tile.hydrology) sample.hydrology = tile.hydrology
+		this.upsert(tile.coord, sample)
 	}
 
 	private upsert(coord: AxialCoord, sample: TerrainSample) {
@@ -415,7 +477,9 @@ export class TerrainProvider {
 
 	private evictMacroIfNeeded() {
 		if (this.macroCache.size <= MACRO_CACHE_SIZE) return
-		const entries = [...this.macroCache.entries()].sort((a, b) => a[1].lastAccessMs - b[1].lastAccessMs)
+		const entries = [...this.macroCache.entries()].sort(
+			(a, b) => a[1].lastAccessMs - b[1].lastAccessMs
+		)
 		for (const [key] of entries) {
 			if (this.macroCache.size <= MACRO_CACHE_SIZE) break
 			if (key === this.activeMacroKey) continue

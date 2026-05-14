@@ -1,6 +1,9 @@
 import type { DockviewWidgetScope } from '@sursaut/ui/dockview'
 import type { InspectorSelectableObject } from 'ssh/game/object'
+import { toAxialCoord } from 'ssh/utils/position'
 import { game, selectionState, unreactiveInfo, validateStoredSelectionState } from './globals'
+
+const GAMEPLAY_SECTOR_STEP = 17
 
 type DockviewApiLike = DockviewWidgetScope['dockviewApi']
 type DockviewApi = NonNullable<DockviewApiLike>
@@ -9,6 +12,19 @@ type DockviewWindow = Window & { dockviewApi?: DockviewApiLike }
 
 type SelectableObject = Pick<InspectorSelectableObject, 'uid' | 'title'>
 const pinnedInspectorPanelIdsByUid = new Map<string, string>()
+
+function ensureGeneratedTileContent(object: SelectableObject): void {
+	if (!object.uid.startsWith('tile:')) return
+	const position = (object as Partial<InspectorSelectableObject>).position
+	const coord = position ? toAxialCoord(position) : undefined
+	if (!coord) return
+	const sectorKey = `${Math.floor(coord.q / GAMEPLAY_SECTOR_STEP)},${Math.floor(coord.r / GAMEPLAY_SECTOR_STEP)}`
+	if (game.ensureGameplaySectors) {
+		void game.ensureGameplaySectors([sectorKey])
+		return
+	}
+	game.ensureGeneratedTiles?.([{ q: coord.q, r: coord.r }])
+}
 
 function getGlobalDockviewApi(): DockviewApiLike | undefined {
 	if (typeof window === 'undefined') return undefined
@@ -149,6 +165,7 @@ export function showProps(
 	object: SelectableObject,
 	preferredApi?: DockviewApiLike
 ): InspectorPanel | undefined {
+	ensureGeneratedTileContent(object)
 	const dockviewApi = preferredApi ?? getGlobalDockviewApi()
 	if (dockviewApi) {
 		validateStoredSelectionState(dockviewApi)

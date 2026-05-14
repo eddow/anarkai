@@ -37,6 +37,12 @@ vi.mock('@app/ui/anarkai', () => ({
 	),
 }))
 
+vi.mock('@app/ui/anarkai/icons/render-icon', () => ({
+	renderAnarkaiIcon: (_icon: unknown, options: { label?: string }) => (
+		<span data-testid="zone-icon">{options.label}</span>
+	),
+}))
+
 vi.mock('engine-pixi/assets/visual-content', () => ({
 	deposits: {
 		stone: { sprites: ['stone-sprite'] },
@@ -180,6 +186,44 @@ describe('UnBuiltProperties', () => {
 		expect(container.textContent).toContain('Deposit')
 		expect(container.textContent).toContain('Stone')
 		expect(container.textContent).toContain('7')
+	})
+
+	it('renders the tile zone as a colored unbuilt-land title', () => {
+		const content = {
+			project: undefined,
+			tile: {
+				effectiveZone: 'orchard',
+				isClear: true,
+				board: {
+					game: {
+						hex: {
+							zoneManager: {
+								getZoneDefinition: vi.fn(() => ({
+									id: 'orchard',
+									name: 'Orchard',
+									color: '#12ab34',
+								})),
+							},
+						},
+					},
+				},
+			},
+		}
+
+		stop = latch(
+			container,
+			<table>
+				<tbody>
+					<UnBuiltProperties content={content as never} />
+				</tbody>
+			</table>
+		)
+
+		const title = container.querySelector('[data-testid="unbuilt-zone-title"]') as HTMLElement
+		expect(title).not.toBeNull()
+		expect(title.textContent).toContain('Orchard')
+		expect(title.getAttribute('style')).toContain('--unbuilt-zone-color: #12ab34')
+		expect(container.querySelector('[data-testid="zone-icon"]')?.textContent).toBe('Orchard')
 	})
 
 	it('does not trip the rebuild fence when deposit amount changes', () => {

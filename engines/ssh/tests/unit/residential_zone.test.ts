@@ -116,4 +116,20 @@ describe('ZoneManager residential polish', () => {
 		expect(zm.isReserved(coord)).toBe(false)
 		expect(zm.residentialCoords).toHaveLength(0)
 	})
+
+	it('keeps generated zones under editable zones', () => {
+		const zm = new ZoneManager()
+		const coord = { q: 5, r: -2 }
+		zm.setGeneratedZone(coord, 'industrial')
+
+		expect(zm.getZone(coord)).toBeUndefined()
+		expect(zm.getGeneratedZone(coord)).toBe('industrial')
+		expect(zm.getEffectiveZone(coord)).toBe('industrial')
+		expect(zm.coordsForGeneratedZone('industrial')).toEqual([{ q: 5, r: -2 }])
+
+		zm.setZone(coord, 'harvest')
+		expect(zm.getZone(coord)).toBe('harvest')
+		expect(zm.getGeneratedZone(coord)).toBe('industrial')
+		expect(zm.getEffectiveZone(coord)).toBe('harvest')
+	})
 })

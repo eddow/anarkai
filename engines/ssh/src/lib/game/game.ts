@@ -7,15 +7,16 @@ import {
 	gameRootSpeed,
 	gameTimeSpeedFactors,
 } from 'engine-rules'
+import type { TerrainMacroHydrologySnapshot } from 'engine-terrain'
 import { atomic, defer, Eventful, reactive, unreactive } from 'mutts'
 import { Alveolus } from 'ssh/board'
 import { HexBoard } from 'ssh/board/board'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { Deposit, UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import type { RoadPatches, RoadPatchInput, RoadType } from 'ssh/board/roads'
 import { Tile, type TileTerrainState } from 'ssh/board/tile'
 import type { NamedZoneDefinition, Zone } from 'ssh/board/zone'
 import { createZoneObjectForUid } from 'ssh/board/zone-object'
-import type { RoadPatchInput, RoadPatches, RoadType } from 'ssh/board/roads'
 import { isConstructionSiteShell } from 'ssh/build-site'
 import { createConstructionShell } from 'ssh/construction-shell'
 import {
@@ -38,10 +39,11 @@ import {
 	GameGenerator,
 	type GeneratedCharacterData,
 	type GeneratedTileData,
+	generateSettlementZonePlan,
 	PopulationGenerator,
+	type SettlementGenerationOptions,
 	type TerrainTerraformPatch,
 } from 'ssh/generation'
-import type { TerrainMacroHydrologySnapshot } from 'engine-terrain'
 import { configuration } from 'ssh/globals'
 import { AlveolusConfigurationManager, createAlveolus, Hive } from 'ssh/hive'
 import {
@@ -81,6 +83,7 @@ try {
 }
 /** Save/new-game must replace with a persisted random seed; not authored rules data. */
 const UNSAVED_DEFAULT_TERRAIN_SEED = 1234
+const GAMEPLAY_SECTOR_STEP = 17
 
 export type GameEvents = {
 	gameStart(): void
@@ -132,6 +135,7 @@ export type GameGenerationOptions = {
 	terrainSeed: number
 	characterCount: number
 	characterRadius?: number
+	settlementGeneration?: boolean | Omit<SettlementGenerationOptions, 'seed'>
 }
 
 export type RenderableTerrainTile = TerrainSample
@@ -395,6 +399,7 @@ export class Game extends Eventful<GameEvents> {
 	private terrainTerraforming: TerrainTerraformPatch[] = []
 	private readonly bootstrapGameplayCoords = new Set<string>()
 	private readonly materializedGameplayCoords = new Map<string, AxialCoord>()
+	private readonly inFlightGameplaySectors = new Map<string, Promise<boolean>>()
 	private readonly terrainProvider: TerrainProvider
 	private readonly gameplayFrontier = new GameplayFrontierController({
 		hasMaterializedTile: (coord) => this.hasMaterializedGameplayTile(coord),
@@ -427,7 +432,11 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	getObject(uid: string) {
-		return this.objects.get(uid) ?? this.getSyntheticFreightLineObject(uid) ?? createZoneObjectForUid(this, uid)
+		return (
+			this.objects.get(uid) ??
+			this.getSyntheticFreightLineObject(uid) ??
+			createZoneObjectForUid(this, uid)
+		)
 	}
 
 	getSyntheticFreightLineObject(uid: string): SyntheticFreightLineObject | undefined {
@@ -733,6 +742,7 @@ export class Game extends Eventful<GameEvents> {
 			getGenerationConfig: () => this.generationOptions,
 			getTerraformingPatches: () => this.terrainTerraforming,
 			getGameplayTerrainSample: (coord) => this.getGameplayTerrainSample(coord),
+			onGeneratedTiles: (tiles) => this.applyGeneratedTerrainMetadata(tiles),
 		})
 
 		this.loaded = this.loaded.then(async () => {
@@ -897,6 +907,7 @@ export class Game extends Eventful<GameEvents> {
 		if (coords.length > 0) {
 			const boardData = this.generator.generateRegion(config, coords, this.terrainTerraforming)
 			this.loadGeneratedBoard(boardData)
+			this.applyGeneratedSettlementPatches(config, boardData)
 			if (config.characterCount > 0) {
 				const populationData = new PopulationGenerator().generateCharacters(
 					{
@@ -924,6 +935,7 @@ export class Game extends Eventful<GameEvents> {
 				this.terrainTerraforming
 			)
 			this.loadGeneratedBoard(boardData)
+			this.applyGeneratedSettlementPatches(config, boardData)
 			if (config.characterCount > 0) {
 				const populationData = new PopulationGenerator().generateCharacters(
 					{
@@ -938,8 +950,32 @@ export class Game extends Eventful<GameEvents> {
 		}
 	}
 
+	private applyGeneratedSettlementPatches(
+		config: GameGenerationOptions,
+		boardData: readonly GeneratedTileData[]
+	): void {
+		if (config.settlementGeneration === false) return
+		const options =
+			typeof config.settlementGeneration === 'object' ? config.settlementGeneration : {}
+		const plan = generateSettlementZonePlan(boardData, {
+			...options,
+			seed: config.terrainSeed,
+		})
+		if (plan.settlements.length === 0) return
+		this.applyGeneratedZonePatches(plan.zones)
+		this.applyRoadPatches(plan.roads)
+	}
+
+	private applyGeneratedTerrainMetadata(tileData: readonly GeneratedTileData[]): void {
+		this.applyGeneratedSettlementPatches(this.generationOptions, tileData)
+	}
+
 	private hasMaterializedGameplayTile(coord: AxialCoord) {
 		return this.hex.getTileContent(coord) !== undefined
+	}
+
+	public hasGameplayContentAt(coord: AxialCoord): boolean {
+		return this.hasMaterializedGameplayTile(coord)
 	}
 
 	public hasRenderableTerrainAt(coord: AxialCoord): boolean {
@@ -948,8 +984,9 @@ export class Game extends Eventful<GameEvents> {
 
 	public getRenderableTerrainAt(coord: AxialCoord): RenderableTerrainTile | undefined {
 		const gameplay = this.getGameplayTerrainSample(coord)
-		if (gameplay) return gameplay
-		return this.terrainProvider.getTerrainSample(coord)
+		if (gameplay) return this.withRenderableZone(coord, gameplay)
+		const sample = this.terrainProvider.getTerrainSample(coord)
+		return sample ? this.withRenderableZone(coord, sample) : undefined
 	}
 
 	private getGameplayTerrainSample(coord: AxialCoord): TerrainSample | undefined {
@@ -991,8 +1028,26 @@ export class Game extends Eventful<GameEvents> {
 		return sample
 	}
 
+	private withRenderableZone(coord: AxialCoord, sample: TerrainSample): TerrainSample {
+		const explicitZone = this.hex.zoneManager.getZone(coord)
+		const generatedZone = this.hex.zoneManager.getGeneratedZone(coord)
+		const zone = explicitZone ?? generatedZone
+		if (!zone) return sample
+		const definition = this.hex.zoneManager.getZoneDefinition(zone)
+		return {
+			...sample,
+			zone: {
+				id: String(zone),
+				name: definition?.name ?? String(zone),
+				color: definition?.color,
+				generated: explicitZone === undefined && generatedZone !== undefined,
+			},
+		}
+	}
+
 	public getTerrainSample(coord: AxialCoord): TerrainSample | undefined {
-		return this.terrainProvider.getTerrainSample(coord)
+		const sample = this.terrainProvider.getTerrainSample(coord)
+		return sample ? this.withRenderableZone(coord, sample) : undefined
 	}
 
 	public async ensureTerrainSamples(coords: Iterable<AxialCoord>): Promise<void> {
@@ -1006,8 +1061,50 @@ export class Game extends Eventful<GameEvents> {
 		await this.terrainProvider.ensureTerrainSectors(sectorKeys, options)
 	}
 
-	public async ensureMacroHydrology(centerSectorKey: string): Promise<void> {
-		await this.terrainProvider.ensureMacroHydrology(centerSectorKey)
+	public async ensureGameplaySectors(
+		sectorKeys: Iterable<string>,
+		options: { includeHydrology?: boolean; populateInitialGoods?: boolean } = {}
+	): Promise<boolean> {
+		const unique = [...new Set(sectorKeys)]
+		if (unique.length === 0) return false
+
+		const missingSectorKeys = unique.filter((key) =>
+			this.coordsForGameplaySectorInterior(key).some((coord) => !this.hasMaterializedGameplayTile(coord))
+		)
+		if (missingSectorKeys.length === 0) return false
+
+		const waiting: Promise<boolean>[] = []
+		const sectorsToGenerate: string[] = []
+		for (const key of missingSectorKeys) {
+			const inFlight = this.inFlightGameplaySectors.get(key)
+			if (inFlight) {
+				waiting.push(inFlight)
+				continue
+			}
+			sectorsToGenerate.push(key)
+		}
+
+		if (sectorsToGenerate.length > 0) {
+			const generation = this.generateGameplaySectors(sectorsToGenerate, options)
+			for (const key of sectorsToGenerate) {
+				const perSector = generation.finally(() => {
+					this.inFlightGameplaySectors.delete(key)
+				})
+				this.inFlightGameplaySectors.set(key, perSector)
+				waiting.push(perSector)
+			}
+		}
+
+		if (waiting.length === 0) return false
+		const results = await Promise.all(waiting)
+		return results.some(Boolean)
+	}
+
+	public async ensureMacroHydrology(
+		centerSectorKey: string,
+		options?: { macroStep?: number; sectorRadius?: number }
+	): Promise<void> {
+		await this.terrainProvider.ensureMacroHydrology(centerSectorKey, options)
 	}
 
 	public getTerrainMacroHydrology(): TerrainMacroHydrologySnapshot | undefined {
@@ -1039,7 +1136,11 @@ export class Game extends Eventful<GameEvents> {
 			missingCoords,
 			this.terrainTerraforming
 		)
-		this.loadGeneratedBoard(boardData, { populateInitialGoods: false })
+		const mergedBoardData = this.mergeRenderableTerrainSamples(boardData)
+		this.loadGeneratedBoard(mergedBoardData, {
+			populateInitialGoods: false,
+		})
+		this.applyGeneratedSettlementPatches(this.generationOptions, mergedBoardData)
 		return boardData.length > 0
 	}
 
@@ -1056,8 +1157,82 @@ export class Game extends Eventful<GameEvents> {
 			missingCoords,
 			this.terrainTerraforming
 		)
-		this.loadGeneratedBoard(boardData, { populateInitialGoods: false })
+		const mergedBoardData = this.mergeRenderableTerrainSamples(boardData)
+		this.loadGeneratedBoard(mergedBoardData, {
+			populateInitialGoods: false,
+		})
+		this.applyGeneratedSettlementPatches(this.generationOptions, mergedBoardData)
 		return boardData.length > 0
+	}
+
+	private mergeRenderableTerrainSamples(boardData: GeneratedTileData[]): GeneratedTileData[] {
+		return boardData.map((tileInfo) => {
+			const sample = this.terrainProvider.getTerrainSample(tileInfo.coord)
+			if (!sample) return tileInfo
+			return {
+				...tileInfo,
+				terrain: sample.terrain,
+				height: sample.height ?? tileInfo.height,
+				hydrology: sample.hydrology ?? tileInfo.hydrology,
+				deposit: sample.deposit
+					? {
+							type: sample.deposit.type as DepositType,
+							amount: sample.deposit.amount,
+						}
+					: tileInfo.deposit,
+			}
+		})
+	}
+
+	private async generateGameplaySectors(
+		sectorKeys: readonly string[],
+		options: { includeHydrology?: boolean; populateInitialGoods?: boolean }
+	): Promise<boolean> {
+		const sectors = sectorKeys.map((key) => this.parseGameplaySectorKey(key))
+		const boardData = await this.generator.generateSectorsAsync(
+			this.generationOptions,
+			sectors,
+			this.terrainTerraforming,
+			{ includeHydrology: options.includeHydrology ?? true }
+		)
+		this.terrainProvider.cacheGeneratedTiles(boardData)
+		this.applyGeneratedTerrainMetadata(boardData)
+
+		const interiorKeys = new Set<string>()
+		for (const sectorKey of sectorKeys) {
+			for (const coord of this.coordsForGameplaySectorInterior(sectorKey)) {
+				if (this.hasMaterializedGameplayTile(coord)) continue
+				interiorKeys.add(axial.key(coord))
+			}
+		}
+		if (interiorKeys.size === 0) return false
+
+		const interiorBoardData = boardData.filter((tileInfo) =>
+			interiorKeys.has(axial.key(tileInfo.coord))
+		)
+		if (interiorBoardData.length === 0) return false
+		this.loadGeneratedBoard(interiorBoardData, {
+			populateInitialGoods: options.populateInitialGoods ?? false,
+		})
+		return true
+	}
+
+	private parseGameplaySectorKey(sectorKey: string): AxialCoord {
+		const [q, r] = sectorKey.split(',').map(Number)
+		return { q: q ?? 0, r: r ?? 0 }
+	}
+
+	private coordsForGameplaySectorInterior(sectorKey: string): AxialCoord[] {
+		const sector = this.parseGameplaySectorKey(sectorKey)
+		const startQ = sector.q * GAMEPLAY_SECTOR_STEP
+		const startR = sector.r * GAMEPLAY_SECTOR_STEP
+		const coords: AxialCoord[] = []
+		for (let q = startQ; q < startQ + GAMEPLAY_SECTOR_STEP; q++) {
+			for (let r = startR; r < startR + GAMEPLAY_SECTOR_STEP; r++) {
+				coords.push({ q, r })
+			}
+		}
+		return coords
 	}
 
 	public requestGameplayFrontier(
@@ -1482,7 +1657,10 @@ export class Game extends Eventful<GameEvents> {
 		for (const zone of zones.named ?? []) {
 			this.hex.zoneManager.defineZone(zone)
 		}
-		const applyCoords = (zone: Zone, coords: ReadonlyArray<readonly [number, number]> | undefined) => {
+		const applyCoords = (
+			zone: Zone,
+			coords: ReadonlyArray<readonly [number, number]> | undefined
+		) => {
 			for (const coord of coords ?? []) {
 				const coordObj = { q: coord[0], r: coord[1] }
 				const tile = this.hex.getTile(coordObj)
@@ -1498,6 +1676,27 @@ export class Game extends Eventful<GameEvents> {
 				const tile = this.hex.getTile(coordObj)
 				if (!tile) continue
 				tile.zone = zone.id
+			}
+		}
+	}
+
+	private applyGeneratedZonePatches(zones: NonNullable<GamePatches['zones']>) {
+		for (const zone of zones.named ?? []) {
+			this.hex.zoneManager.defineZone({ ...zone, generated: true, readonly: true })
+		}
+		const applyCoords = (
+			zone: Zone,
+			coords: ReadonlyArray<readonly [number, number]> | undefined
+		) => {
+			for (const coord of coords ?? []) {
+				this.hex.zoneManager.setGeneratedZone({ q: coord[0], r: coord[1] }, zone)
+			}
+		}
+		applyCoords('harvest', zones.harvest)
+		applyCoords('residential', zones.residential)
+		for (const zone of zones.named ?? []) {
+			for (const coord of zone.coords) {
+				this.hex.zoneManager.setGeneratedZone({ q: coord[0], r: coord[1] }, zone.id)
 			}
 		}
 	}

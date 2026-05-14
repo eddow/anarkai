@@ -1,5 +1,7 @@
 import { TileBorderContent } from 'ssh/board/border/border'
 import {
+	borderHasRiver,
+	canBuildRoadAcrossBorder,
 	canBuildRoadOnTrace,
 	ROAD_WALK_TIME_MULTIPLIER,
 	roadBordersForTrace,
@@ -56,7 +58,10 @@ describe('road storage', () => {
 				{ coord: [1, 0] as const, terrain: 'grass' as const },
 			],
 		}
-		const game = new Game({ terrainSeed: 1234, characterCount: 0 }, patches)
+		const game = new Game(
+			{ terrainSeed: 1234, characterCount: 0, settlementGeneration: false },
+			patches
+		)
 		await game.loaded
 		game.ticker.stop()
 
@@ -247,6 +252,92 @@ describe('road build validation', () => {
 			const trace = straightRoadTileTrace(start, end)
 			expect(trace.map((tile) => axial.key(tile.position))).toEqual(['-1,0', '0,0', '1,0'])
 			expect(canBuildRoadOnTrace(trace)).toBe(false)
+		} finally {
+			game.destroy()
+		}
+	})
+
+	it('rejects water terrain tiles', async () => {
+		const game = new Game(
+			{ terrainSeed: 1234, characterCount: 0 },
+			{
+				tiles: [
+					{ coord: [0, 0], terrain: 'grass' },
+					{ coord: [1, 0], terrain: 'water' },
+				],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		try {
+			const land = game.hex.getTile({ q: 0, r: 0 })!
+			const water = game.hex.getTile({ q: 1, r: 0 })!
+			expect(canBuildRoadOnTrace(straightRoadTileTrace(land, water))).toBe(false)
+			const border = land.borderWith(water)!
+			game.hex.setRoadType(border.position, 'path')
+			expect(game.hex.getRoadType(border.position)).toBeUndefined()
+		} finally {
+			game.destroy()
+		}
+	})
+
+	it('allows river tiles when the road does not share the river border', async () => {
+		const game = new Game(
+			{ terrainSeed: 1234, characterCount: 0 },
+			{
+				tiles: [
+					{ coord: [-1, 0], terrain: 'grass' },
+					{ coord: [0, 0], terrain: 'grass' },
+				],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		try {
+			const riverTile = game.hex.getTile({ q: 0, r: 0 })!
+			riverTile.terrainHydrology = {
+				isChannel: true,
+				edges: {
+					0: { flux: 1, width: 1, depth: 1 },
+				},
+			}
+			const land = game.hex.getTile({ q: -1, r: 0 })!
+			expect(canBuildRoadOnTrace(straightRoadTileTrace(land, riverTile))).toBe(true)
+		} finally {
+			game.destroy()
+		}
+	})
+
+	it('rejects roads on the same border as a river edge', async () => {
+		const game = new Game(
+			{ terrainSeed: 1234, characterCount: 0 },
+			{
+				tiles: [
+					{ coord: [0, 0], terrain: 'grass' },
+					{ coord: [1, 0], terrain: 'grass' },
+				],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		try {
+			const start = game.hex.getTile({ q: 0, r: 0 })!
+			const end = game.hex.getTile({ q: 1, r: 0 })!
+			start.terrainHydrology = {
+				isChannel: true,
+				edges: {
+					0: { flux: 1, width: 1, depth: 1 },
+				},
+			}
+			const border = start.borderWith(end)!
+			expect(borderHasRiver(border)).toBe(true)
+			expect(canBuildRoadAcrossBorder(border)).toBe(false)
+			expect(canBuildRoadOnTrace(straightRoadTileTrace(start, end))).toBe(false)
+			game.hex.setRoadType(border.position, 'path')
+			expect(game.hex.getRoadType(border.position)).toBeUndefined()
 		} finally {
 			game.destroy()
 		}
