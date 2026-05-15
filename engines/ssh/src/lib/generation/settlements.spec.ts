@@ -110,7 +110,7 @@ describe('Settlement Placement Integration Tests', () => {
 			const result1 = await generator.placeSettlements(seed, tiles, config)
 			const result2 = await generator.placeSettlements(seed, tiles, config)
 
-			expect(settlementArraysEqual(result1, result2)).toBe(true)
+			expect(settlementArraysEqual(result1.settlements, result2.settlements)).toBe(true)
 		})
 
 		it('should produce different results for different seeds', async () => {
@@ -132,7 +132,7 @@ describe('Settlement Placement Integration Tests', () => {
 			const result2 = await generator.placeSettlements(54321, tiles, config)
 
 			// Results should differ (either in position, kind, or score)
-			const resultsDiffer = !settlementArraysEqual(result1, result2)
+			const resultsDiffer = !settlementArraysEqual(result1.settlements, result2.settlements)
 			expect(resultsDiffer).toBe(true)
 		})
 	})
@@ -153,7 +153,7 @@ describe('Settlement Placement Integration Tests', () => {
 			])
 
 			const config = { settlementCount: 3, minSpacing: 2 }
-			const settlements = await generator.placeSettlements(seed, tiles, config)
+			const { settlements } = await generator.placeSettlements(seed, tiles, config)
 
 			// Find the tiles that are not water or snow
 			const validTiles = tiles.filter((t) => t.terrain !== 'water' && t.terrain !== 'snow')
@@ -187,7 +187,7 @@ describe('Settlement Placement Integration Tests', () => {
 			])
 
 			const config = { settlementCount: 3, minSpacing: 3 }
-			const settlements = await generator.placeSettlements(seed, tiles, config)
+			const { settlements } = await generator.placeSettlements(seed, tiles, config)
 
 			expect(settlementsRespectSpacing(settlements, config.minSpacing)).toBe(true)
 		})
@@ -207,7 +207,7 @@ describe('Settlement Placement Integration Tests', () => {
 			])
 
 			const config = { settlementCount: 5, minSpacing: 2 }
-			const settlements = await generator.placeSettlements(seed, tiles, config)
+			const { settlements } = await generator.placeSettlements(seed, tiles, config)
 
 			const ids = settlements.map((s) => s.id)
 			const uniqueIds = new Set(ids)
@@ -234,7 +234,7 @@ describe('Settlement Placement Integration Tests', () => {
 			])
 
 			const config = { settlementCount: 3, minSpacing: 2 }
-			const settlements = await generator.placeSettlements(seed, tiles, config)
+			const { settlements } = await generator.placeSettlements(seed, tiles, config)
 
 			// At least one settlement should be on grass (plains)
 			const hasGrassSettlement = settlements.some((s) => {
@@ -259,7 +259,7 @@ describe('Settlement Placement Integration Tests', () => {
 			])
 
 			const config = { settlementCount: 2, minSpacing: 2 }
-			const settlements = await generator.placeSettlements(seed, tiles, config)
+			const { settlements } = await generator.placeSettlements(seed, tiles, config)
 
 			// Check if settlements are placed near water (higher preference)
 			const waterAdjacentCoords = [
@@ -301,7 +301,7 @@ describe('Settlement Placement Integration Tests', () => {
 			])
 
 			const config = { settlementCount: 2, minSpacing: 2 }
-			const settlements = await generator.placeSettlements(seed, tiles, config)
+			const { settlements } = await generator.placeSettlements(seed, tiles, config)
 
 			// Check if any settlement is near the river
 			const riverAdjacentCoords = [
@@ -329,7 +329,7 @@ describe('Settlement Placement Integration Tests', () => {
 			])
 
 			const config = { settlementCount: 2, minSpacing: 2 }
-			const settlements = await generator.placeSettlements(seed, tiles, config)
+			const { settlements } = await generator.placeSettlements(seed, tiles, config)
 
 			// Check if any settlement is on the tile with deposit
 			const hasDepositSettlement = settlements.some((s) => s.center.q === 0 && s.center.r === 0)
@@ -350,7 +350,7 @@ describe('Settlement Placement Integration Tests', () => {
 			])
 
 			const config = { settlementCount: 3, minSpacing: 2 }
-			const settlements = await generator.placeSettlements(seed, tiles, config)
+			const { settlements } = await generator.placeSettlements(seed, tiles, config)
 
 			// All settlements should have a valid kind
 			for (const settlement of settlements) {
@@ -374,7 +374,7 @@ describe('Settlement Placement Integration Tests', () => {
 			])
 
 			const config = { settlementCount: 5, minSpacing: 2 }
-			const settlements = await generator.placeSettlements(seed, tiles, config)
+			const { settlements } = await generator.placeSettlements(seed, tiles, config)
 
 			for (const settlement of settlements) {
 				if (settlement.kind === 'city') {
@@ -396,7 +396,7 @@ describe('Settlement Placement Integration Tests', () => {
 			])
 
 			const config = { settlementCount: 2, minSpacing: 2 }
-			const settlements = await generator.placeSettlements(seed, tiles, config)
+			const { settlements } = await generator.placeSettlements(seed, tiles, config)
 
 			for (const settlement of settlements) {
 				expect(settlement.name).toBeTruthy()
@@ -415,7 +415,7 @@ describe('Settlement Placement Integration Tests', () => {
 			const tiles: GeneratedTileData[] = []
 			const config = { settlementCount: 3, minSpacing: 2 }
 
-			const settlements = await generator.placeSettlements(seed, tiles, config)
+			const { settlements } = await generator.placeSettlements(seed, tiles, config)
 
 			expect(settlements).toEqual([])
 		})
@@ -429,7 +429,7 @@ describe('Settlement Placement Integration Tests', () => {
 			])
 
 			const config = { settlementCount: 0, minSpacing: 2 }
-			const settlements = await generator.placeSettlements(seed, tiles, config)
+			const { settlements } = await generator.placeSettlements(seed, tiles, config)
 
 			expect(settlements).toEqual([])
 		})
@@ -446,7 +446,7 @@ describe('Settlement Placement Integration Tests', () => {
 			])
 
 			const config = { settlementCount: 3, minSpacing: 2 }
-			const settlements = await generator.placeSettlements(seed, tiles, config)
+			const { settlements } = await generator.placeSettlements(seed, tiles, config)
 
 			expect(settlements).toEqual([])
 		})
@@ -463,7 +463,7 @@ describe('Settlement Placement Integration Tests', () => {
 			])
 
 			const config = { settlementCount: 3, minSpacing: 2 }
-			const settlements = await generator.placeSettlements(seed, tiles, config)
+			const { settlements } = await generator.placeSettlements(seed, tiles, config)
 
 			expect(settlements).toEqual([])
 		})
@@ -480,7 +480,7 @@ describe('Settlement Placement Integration Tests', () => {
 			])
 
 			const config = { settlementCount: 10, minSpacing: 2 }
-			const settlements = await generator.placeSettlements(seed, tiles, config)
+			const { settlements } = await generator.placeSettlements(seed, tiles, config)
 
 			// Should return at most the number of tiles that can fit with spacing
 			expect(settlements.length).toBeLessThanOrEqual(tiles.length)
@@ -495,7 +495,7 @@ describe('Settlement Placement Integration Tests', () => {
 			])
 
 			const config = { settlementCount: 3, minSpacing: 10 }
-			const settlements = await generator.placeSettlements(seed, tiles, config)
+			const { settlements } = await generator.placeSettlements(seed, tiles, config)
 
 			// Should return at most 1 settlement
 			expect(settlements.length).toBeLessThanOrEqual(1)
@@ -513,7 +513,7 @@ describe('Settlement Placement Integration Tests', () => {
 			])
 
 			const config = { settlementCount: 3, minSpacing: 2 }
-			const settlements = await generator.placeSettlements(seed, tiles, config)
+			const { settlements } = await generator.placeSettlements(seed, tiles, config)
 
 			// All settlements should be on valid tiles
 			const validTiles = tiles.filter((t) => t.terrain !== 'water' && t.terrain !== 'snow')
@@ -539,7 +539,7 @@ describe('Settlement Placement Integration Tests', () => {
 			])
 
 			const config = { settlementCount: 2, minSpacing: 2 }
-			const settlements = await generator.placeSettlements(seed, tiles, config)
+			const { settlements } = await generator.placeSettlements(seed, tiles, config)
 
 			// Check that settlements are placed on tiles with water access
 			const waterAdjacentTiles = tiles.filter((t) => {
@@ -574,7 +574,7 @@ describe('Settlement Placement Integration Tests', () => {
 			])
 
 			const config = { settlementCount: 2, minSpacing: 2 }
-			const settlements = await generator.placeSettlements(seed, tiles, config)
+			const { settlements } = await generator.placeSettlements(seed, tiles, config)
 
 			// Sand tile should be preferred due to water access
 			const hasSandSettlement = settlements.some((s) => s.center.q === 0 && s.center.r === 0)
@@ -593,7 +593,7 @@ describe('Settlement Placement Integration Tests', () => {
 			])
 
 			const config = { settlementCount: 2, minSpacing: 2 }
-			const settlements = await generator.placeSettlements(seed, tiles, config)
+			const { settlements } = await generator.placeSettlements(seed, tiles, config)
 
 			// Check if any settlement is near the river
 			const riverAdjacentCoords = [
@@ -619,7 +619,7 @@ describe('Settlement Placement Integration Tests', () => {
 			])
 
 			const config = { settlementCount: 2, minSpacing: 2 }
-			const settlements = await generator.placeSettlements(seed, tiles, config)
+			const { settlements } = await generator.placeSettlements(seed, tiles, config)
 
 			// Check if any settlement is near the channel
 			const channelAdjacentCoords = [
@@ -645,7 +645,7 @@ describe('Settlement Placement Integration Tests', () => {
 			])
 
 			const config = { settlementCount: 2, minSpacing: 2 }
-			const settlements = await generator.placeSettlements(seed, tiles, config)
+			const { settlements } = await generator.placeSettlements(seed, tiles, config)
 
 			// Check if any settlement is near the bank
 			const bankAdjacentCoords = [
@@ -673,7 +673,7 @@ describe('Settlement Placement Integration Tests', () => {
 			])
 
 			const config = { settlementCount: 2, minSpacing: 2 }
-			const settlements = await generator.placeSettlements(seed, tiles, config)
+			const { settlements } = await generator.placeSettlements(seed, tiles, config)
 
 			// First settlement should have a higher score than subsequent ones
 			if (settlements.length >= 2) {
@@ -693,7 +693,7 @@ describe('Settlement Placement Integration Tests', () => {
 			])
 
 			const config = { settlementCount: 3, minSpacing: 2 }
-			const settlements = await generator.placeSettlements(seed, tiles, config)
+			const { settlements } = await generator.placeSettlements(seed, tiles, config)
 
 			for (const settlement of settlements) {
 				// Scores should be non-negative and reasonable

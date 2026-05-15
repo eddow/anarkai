@@ -11,7 +11,7 @@ import {
 	Texture,
 } from 'pixi.js'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
-import { profile } from 'ssh/dev/debug'
+import { profile, traces } from 'ssh/dev/debug'
 import type { RenderableTerrainTile } from 'ssh/game/game'
 import type { TerrainMacroHydrologySnapshot } from 'engine-terrain'
 import { type AxialCoord, axial, cartesian, fromCartesian, toAxialCoord } from 'ssh/utils'
@@ -144,8 +144,8 @@ export function macroRequestForTerrainLod(
 
 function snappedMacroSectorKey(centerSectorKey: string): string {
 	const [rawQ, rawR] = centerSectorKey.split(',').map(Number)
-	const q = Math.floor((rawQ ?? 0) / MACRO_OVERVIEW_SNAP_DRIFT_SECTORS) * MACRO_OVERVIEW_SNAP_DRIFT_SECTORS
-	const r = Math.floor((rawR ?? 0) / MACRO_OVERVIEW_SNAP_DRIFT_SECTORS) * MACRO_OVERVIEW_SNAP_DRIFT_SECTORS
+	const q = Math.trunc((rawQ ?? 0) / MACRO_OVERVIEW_SNAP_DRIFT_SECTORS) * MACRO_OVERVIEW_SNAP_DRIFT_SECTORS
+	const r = Math.trunc((rawR ?? 0) / MACRO_OVERVIEW_SNAP_DRIFT_SECTORS) * MACRO_OVERVIEW_SNAP_DRIFT_SECTORS
 	return `${q},${r}`
 }
 
@@ -625,6 +625,19 @@ export class TerrainVisual {
 		this.visibleSectorKeys = macroOverview
 			? new Set()
 			: collectVisibleSectorKeys(this.visibleTileKeys)
+		
+		// Debug logging for negative coordinate regions
+		if (minQ < 0 || minR < 0) {
+			traces.terrain.log?.('negative-coordinate-region', {
+				center,
+				radius,
+				tileBounds: { minQ, maxQ, minR, maxR },
+				visibleTileCount: this.visibleTileKeys.size,
+				visibleSectorCount: this.visibleSectorKeys.size,
+				visibleSectors: [...this.visibleSectorKeys].sort(),
+				loadedSectors: [...this.sectors.keys()].sort(),
+			})
+		}
 		endVisibilityProfile({
 			visibleTiles: this.visibleTileKeys.size,
 			visibleSectors: this.visibleSectorKeys.size,
@@ -648,10 +661,10 @@ export class TerrainVisual {
 		const streamDetailSectors = !macroOverview
 
 		const endRetentionProfile = beginTerrainProfile('refresh.retention', refreshProfilePayload)
-		const sectorMinQ = Math.floor(minQ / SECTOR_STEP)
-		const sectorMaxQ = Math.floor(maxQ / SECTOR_STEP)
-		const sectorMinR = Math.floor(minR / SECTOR_STEP)
-		const sectorMaxR = Math.floor(maxR / SECTOR_STEP)
+		const sectorMinQ = Math.trunc(minQ / SECTOR_STEP)
+		const sectorMaxQ = Math.trunc(maxQ / SECTOR_STEP)
+		const sectorMinR = Math.trunc(minR / SECTOR_STEP)
+		const sectorMaxR = Math.trunc(maxR / SECTOR_STEP)
 		const retainedSectorKeys = streamDetailSectors
 			? this.collectSectorKeys(
 					sectorMinQ - RETAINED_SECTOR_MARGIN,
@@ -660,6 +673,19 @@ export class TerrainVisual {
 					sectorMaxR + RETAINED_SECTOR_MARGIN
 				)
 			: new Set(this.sectors.keys())
+		
+		// Debug logging for retained vs visible sectors
+		if (minQ < 0 || minR < 0) {
+			const visibleSectorsNotRetained = [...this.visibleSectorKeys].filter(k => !retainedSectorKeys.has(k))
+			const retainedSectorsNotVisible = [...retainedSectorKeys].filter(k => !this.visibleSectorKeys.has(k))
+			traces.terrain.log?.('sector-retention', {
+				sectorBounds: { sectorMinQ, sectorMaxQ, sectorMinR, sectorMaxR },
+				visibleSectorsNotRetained,
+				retainedSectorsNotVisible,
+				retainedSectorKeys: [...retainedSectorKeys].sort(),
+			})
+		}
+		
 		endRetentionProfile({
 			retainedSectors: retainedSectorKeys.size,
 			loadedSectors: this.sectors.size,

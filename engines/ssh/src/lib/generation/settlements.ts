@@ -1,4 +1,4 @@
-import { type RoadPatches, straightRoadCoords } from 'ssh/board/roads'
+import { type RoadPatches } from 'ssh/board/roads'
 import type { NamedZonePatch } from 'ssh/game/game'
 import type { AxialCoord } from 'ssh/utils'
 import { axial } from 'ssh/utils'
@@ -82,38 +82,6 @@ function isRiverConflictTile(tile: GeneratedTileData): boolean {
 	)
 }
 
-function roadBorderCoordsForTrace(trace: readonly AxialCoord[]): Array<[number, number]> {
-	const borders: Array<[number, number]> = []
-	for (let i = 1; i < trace.length; i++) {
-		const a = trace[i - 1]!
-		const b = trace[i]!
-		borders.push([(a.q + b.q) / 2, (a.r + b.r) / 2])
-	}
-	return borders
-}
-
-function riverDirectionBetween(from: AxialCoord, to: AxialCoord): number | undefined {
-	const direction = axial.neighborIndex(axial.linear(to, [-1, from]))
-	return typeof direction === 'number' ? direction : undefined
-}
-
-function hydrologyHasEdge(tile: GeneratedTileData | undefined, direction: number | undefined): boolean {
-	if (!tile || direction === undefined) return false
-	return tile.hydrology?.edges?.[direction as keyof typeof tile.hydrology.edges] !== undefined
-}
-
-function borderHasRiver(
-	from: AxialCoord,
-	to: AxialCoord,
-	tiles: Map<string, GeneratedTileData>
-): boolean {
-	const fromTile = tiles.get(tileKey(from))
-	const toTile = tiles.get(tileKey(to))
-	return (
-		hydrologyHasEdge(fromTile, riverDirectionBetween(from, to)) ||
-		hydrologyHasEdge(toTile, riverDirectionBetween(to, from))
-	)
-}
 
 function chooseZoneForTile(
 	tile: GeneratedTileData,
@@ -135,10 +103,14 @@ function chooseZoneForTile(
 	return 'residential'
 }
 
-export function generateZonePlanForSettlements(
+export async function generateZonePlanForSettlements(
 	tileData: readonly GeneratedTileData[],
-	settlements: GeneratedSettlement[]
-): SettlementZonePlan {
+	settlements: GeneratedSettlement[],
+	seed: number,
+	coords: Int32Array,
+	terrainKinds: Uint8Array,
+	hasRiver: Uint8Array
+): Promise<SettlementZonePlan> {
 	const tiles = new Map(tileData.map((tile) => [tileKey(tile.coord), tile]))
 
 	const assigned = new Map<string, ZoneBucket>()
@@ -163,33 +135,35 @@ export function generateZonePlanForSettlements(
 		}
 	}
 
+	// Build settlement coords for WASM
+	const settlementCoords = new Int32Array(settlements.length * 2)
+	for (let i = 0; i < settlements.length; i++) {
+		settlementCoords[i * 2] = settlements[i]!.center.q
+		settlementCoords[i * 2 + 1] = settlements[i]!.center.r
+	}
+
+	// Call WASM for road generation
+	const { wasm_generate_settlement_roads } = await import('anarkai-core')
+	const packed = wasm_generate_settlement_roads(
+		seed, coords, terrainKinds, hasRiver, settlementCoords
+	)
+
+	// Parse: doubled borders → midpoint format
 	const roadSet = new Set<string>()
+	for (let i = 0; i < packed.length; i += 2) {
+		const dq = packed[i]!, dr = packed[i + 1]!
+		roadSet.add(`${dq / 2},${dr / 2}`)
+	}
+
+	// Remove zones from road tiles (tiles adjacent to road borders)
+	// For each road border, the two adjacent tiles are at floor/ceil coordinates
 	const roadTileKeys = new Set<string>()
-	const addRoadTrace = (from: AxialCoord, to: AxialCoord) => {
-		const trace = straightRoadCoords(from, to).filter((coord) => tiles.has(tileKey(coord)))
-		for (const coord of trace) roadTileKeys.add(tileKey(coord))
-		for (let i = 1; i < trace.length; i++) {
-			const a = trace[i - 1]!
-			const b = trace[i]!
-			if (borderHasRiver(a, b, tiles)) continue
-			const [q, r] = roadBorderCoordsForTrace([a, b])[0]!
-			roadSet.add(`${q},${r}`)
-		}
-	}
-	for (const settlement of settlements) {
-		for (const coord of axial.neighbors(settlement.center)) {
-			if (tiles.has(tileKey(coord))) addRoadTrace(settlement.center, coord)
-		}
-	}
-	for (let i = 1; i < settlements.length; i++) {
-		const settlement = settlements[i]!
-		const previous = settlements
-			.slice(0, i)
-			.sort(
-				(a, b) =>
-					axial.distance(a.center, settlement.center) - axial.distance(b.center, settlement.center)
-			)[0]
-		if (previous) addRoadTrace(previous.center, settlement.center)
+	for (const borderKey of roadSet) {
+		const [bq, br] = borderKey.split(',').map(Number)
+		const floorKey = `${Math.floor(bq)},${Math.floor(br)}`
+		const ceilKey = `${Math.ceil(bq)},${Math.ceil(br)}`
+		roadTileKeys.add(floorKey)
+		roadTileKeys.add(ceilKey)
 	}
 	for (const key of roadTileKeys) assigned.delete(key)
 
@@ -221,12 +195,18 @@ export function generateZonePlanForSettlements(
 	}
 }
 
-export function generateSettlementRegionSetPlan(
+export async function generateSettlementRegionSetPlan(
 	tileData: readonly GeneratedTileData[],
 	settlements: GeneratedSettlement[],
-	regionSetKey: string
-): SettlementRegionSetPlan {
-	const plan = generateZonePlanForSettlements(tileData, settlements)
+	regionSetKey: string,
+	seed: number,
+	coords: Int32Array,
+	terrainKinds: Uint8Array,
+	hasRiver: Uint8Array
+): Promise<SettlementRegionSetPlan> {
+	const plan = await generateZonePlanForSettlements(
+		tileData, settlements, seed, coords, terrainKinds, hasRiver
+	)
 	const children: SettlementRegion[] = plan.settlements.map((settlement) => ({
 		type: 'region',
 		id: `region-${settlement.id}`,

@@ -5,6 +5,7 @@
 
 pub mod board;
 pub mod population;
+pub mod roads;
 pub mod settlements;
 
 use crate::common::HexCoord;
@@ -65,3 +66,4 @@ pub use board::{
     generate_board, generate_deposit, generate_goods, DepositKind, GoodKind, TileGenerationResult,
 };
 pub use population::generate_character_positions;
+pub use roads::generate_settlement_roads;

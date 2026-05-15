@@ -26,6 +26,7 @@ export const traceLevels: Record<string, TraceVerb> = {
 	characterNeeds: 'assert',
 	idleDiagnosis: 'assert',
 	position: 'assert',
+	terrain: 'assert',
 	/** Missing keys, interpolation issues, and other `I18nClient.report` output. */
 	i18n: 'warn',
 }

@@ -1254,14 +1254,85 @@ pub fn wasm_place_settlements(
     result
 }
 
+/// Generate settlement road borders using weighted pathfinding.
+///
+/// # Arguments
+/// * `seed`               - Deterministic seed
+/// * `coords`             - Packed as [q, r, q, r, ...]
+/// * `terrain_kinds`      - u8 per tile (0=water, 1=plains, 2=forest, ...)
+/// * `has_river`          - u8 per tile (0 or 1)
+/// * `settlement_coords`  - Packed as [q, r, ...] in score-descending order
+///
+/// # Returns
+/// Packed i32 array of doubled border coordinates: [bq, br, bq, br, ...]
+/// TypeScript divides each by 2 to get midpoint storage format.
+///
+/// # Note on rivers
+/// River borders carry a 10.0 cost in Dijkstra. This means the pathfinder
+/// will explore up to ~10 non-river tiles before choosing a river crossing.
+/// No separate detour post-processing is needed.
+#[wasm_bindgen]
+pub fn wasm_generate_settlement_roads(
+    seed: u32,
+    coords: &[i32],
+    terrain_kinds: &[u8],
+    has_river: &[u8],
+    settlement_coords: &[i32],
+) -> Vec<i32> {
+    // Handle edge cases
+    if coords.is_empty() || settlement_coords.is_empty() {
+        return Vec::new();
+    }
+
+    // Validate input lengths
+    if coords.len() % 2 != 0 || settlement_coords.len() % 2 != 0 {
+        return Vec::new();
+    }
+
+    let tile_count = coords.len() / 2;
+    if terrain_kinds.len() != tile_count || has_river.len() != tile_count {
+        return Vec::new();
+    }
+
+    // Unpack coords into Vec<HexCoord>
+    let hex_coords: Vec<HexCoord> = coords
+        .chunks(2)
+        .map(|chunk| HexCoord::new(chunk[0], chunk[1]))
+        .collect();
+
+    // Unpack settlement coords into Vec<HexCoord>
+    let hex_settlements: Vec<HexCoord> = settlement_coords
+        .chunks(2)
+        .map(|chunk| HexCoord::new(chunk[0], chunk[1]))
+        .collect();
+
+    // Call the pure Rust generation function
+    let borders = generation::generate_settlement_roads(
+        seed,
+        &hex_coords,
+        terrain_kinds,
+        has_river,
+        &hex_settlements,
+    );
+
+    // Repack Vec<(i32, i32)> into flat Vec<i32>
+    let mut result = Vec::with_capacity(borders.len() * 2);
+    for (q, r) in borders {
+        result.push(q);
+        result.push(r);
+    }
+
+    result
+}
+
 /// Generate deposits and goods for tiles on the game board.
 ///
 /// Input coordinates are packed as [q, r, q, r, ...].
-/// Terrain kinds are packed as terrain type indices (0=water, 1=plains, 2=forest, 3=hills, 4=mountains, 5=snow, 6=concrete).
+/// Terrain kinds are packed as terrain type indices (0=water, 1=grass, 2=forest, 3=sand, 4=rocky, 5=snow, 6=concrete).
 /// Output is a packed Uint8Array with the following structure for each tile:
 /// - coord.q (4 bytes, i32, little-endian)
 /// - coord.r (4 bytes, i32, little-endian)
-/// - deposit_kind (1 byte): 0=none, 1=stone, 2=iron, 3=gold
+/// - deposit_kind (1 byte): 0=none, 1=stone, 2=iron, 3=gold, 4=wood, 5=berry_bush
 /// - goods_count (1 byte): number of goods on this tile
 /// - goods (1 byte each): 0=wood, 1=stone, 2=iron, 3=gold, 4=berries, 5=mushrooms, 6=fish
 #[wasm_bindgen]
@@ -1298,11 +1369,13 @@ pub fn wasm_generate_board(seed: u32, coords: &[i32], terrain_kinds: &[u8]) -> V
         // Pack coord.r as 4-byte little-endian i32
         result.extend_from_slice(&tile_result.coord.r.to_le_bytes());
 
-        // Encode deposit_kind: 0=none, 1=stone, 2=iron, 3=gold
+        // Encode deposit_kind: 0=none, 1=stone, 2=iron, 3=gold, 4=wood, 5=berry_bush
         let deposit_kind_code = match tile_result.deposit_kind {
             Some(generation::board::DepositKind::Stone) => 1u8,
             Some(generation::board::DepositKind::Iron) => 2u8,
             Some(generation::board::DepositKind::Gold) => 3u8,
+            Some(generation::board::DepositKind::Wood) => 4u8,
+            Some(generation::board::DepositKind::BerryBush) => 5u8,
             None => 0u8,
         };
         result.push(deposit_kind_code);

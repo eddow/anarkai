@@ -1042,7 +1042,7 @@ export class Game extends Eventful<GameEvents> {
 				: {}
 		
 		// Use WASM-based settlement placement
-		const settlements = await this.generator.placeSettlements(
+		const { settlements, coords, terrainKinds, hasRiver } = await this.generator.placeSettlements(
 			this.generationOptions.terrainSeed,
 			boardData as GeneratedTileData[],
 			{
@@ -1051,7 +1051,15 @@ export class Game extends Eventful<GameEvents> {
 			}
 		)
 		
-		const plan = generateSettlementRegionSetPlan(boardData, settlements, regionSetKey)
+		const plan = await generateSettlementRegionSetPlan(
+			boardData,
+			settlements,
+			regionSetKey,
+			this.generationOptions.terrainSeed,
+			coords,
+			terrainKinds,
+			hasRiver
+		)
 		this.applyGeneratedZonePatches(plan.zones)
 		this.applyRoadPatches(plan.roads)
 		this.clearGeneratedInfrastructureBurden(boardData.map((tile) => tile.coord))

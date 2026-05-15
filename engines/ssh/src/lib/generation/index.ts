@@ -92,7 +92,7 @@ function toTileOverrides(terraforming: TerrainTerraformPatch[]): TileOverride[] 
  * Map game TerrainType to WASM terrain kind index.
  *
  * WASM terrain kinds:
- *   0 = water, 1 = plains, 2 = forest, 3 = hills, 4 = mountains, 5 = snow, 6 = concrete
+ *   0 = water, 1 = grass, 2 = forest, 3 = sand, 4 = rocky, 5 = snow, 6 = concrete
  * Engine-rules terrain types:
  *   water, forest, rocky, grass, concrete, sand, snow
  */
@@ -100,9 +100,9 @@ function toWasmTerrainKind(terrain: TerrainType): number {
 	switch (terrain) {
 		case 'water': return 0
 		case 'forest': return 2
-		case 'rocky': return 3 // hills — closest WASM match for rocky terrain
-		case 'grass': return 1 // plains
-		case 'sand': return 1 // plains — sand has no dedicated WASM kind
+		case 'rocky': return 4
+		case 'grass': return 1
+		case 'sand': return 3
 		case 'snow': return 5
 		case 'concrete': return 6
 		default: return 1 // fallback to plains
@@ -112,17 +112,20 @@ function toWasmTerrainKind(terrain: TerrainType): number {
 /**
  * Map WASM deposit kind code (u8) to game DepositType or null.
  *
- * WASM deposit codes: 0=none, 1=stone, 2=iron, 3=gold
+ * WASM deposit codes: 0=none, 1=stone, 2=iron, 3=gold, 4=wood, 5=berry_bush
  * Game deposit types:  'berry_bush', 'rock', 'tree'
  *
  * All WASM mineral deposits (stone/iron/gold) map to 'rock' since the
  * game catalog does not distinguish iron or gold as deposit types.
+ * Wood deposits map to 'tree'.
  */
 const WASM_DEPOSIT_TO_GAME: Record<number, DepositType | null> = {
 	0: null, // none
 	1: 'rock', // stone
 	2: 'rock', // iron
 	3: 'rock', // gold
+	4: 'tree', // wood
+	5: 'berry_bush',
 }
 
 /**
@@ -153,7 +156,7 @@ const WASM_GOOD_TO_GAME: Record<number, GoodType | null> = {
  * Packed WASM board result format per tile:
  *   bytes 0-3:   coord.q (i32, little-endian)
  *   bytes 4-7:   coord.r (i32, little-endian)
- *   byte  8:     deposit_kind (0=none, 1=stone, 2=iron, 3=gold)
+ *   byte  8:     deposit_kind (0=none, 1=stone, 2=iron, 3=gold, 4=wood, 5=berry_bush)
  *   byte  9:     goods_count
  *   bytes 10+:  goods (1 byte each, see WASM_GOOD_TO_GAME)
  */
@@ -534,8 +537,8 @@ export class GameGenerator {
 		seed: number,
 		tiles: GeneratedTileData[],
 		config: { settlementCount: number; minSpacing: number }
-	): Promise<GeneratedSettlement[]> {
-		if (tiles.length === 0 || config.settlementCount === 0) return []
+	): Promise<{ settlements: GeneratedSettlement[]; coords: Int32Array; terrainKinds: Uint8Array; hasRiver: Uint8Array }> {
+		if (tiles.length === 0 || config.settlementCount === 0) return { settlements: [], coords: new Int32Array(0), terrainKinds: new Uint8Array(0), hasRiver: new Uint8Array(0) }
 
 		const tileCount = tiles.length
 
@@ -631,7 +634,7 @@ export class GameGenerator {
 			})
 		}
 
-		return settlements
+		return { settlements, coords, terrainKinds, hasRiver }
 	}
 	/**
 	 * Generate character positions on the board using the WASM population engine.

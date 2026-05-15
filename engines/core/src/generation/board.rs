@@ -5,12 +5,12 @@
 use crate::common::HexCoord;
 use crate::generation::{coord_hash, random01};
 
-/// Terrain kind constants
+/// Terrain kind constants, matching the game TerrainType packing.
 pub const TERRAIN_WATER: u8 = 0;
-pub const TERRAIN_PLAINS: u8 = 1;
+pub const TERRAIN_GRASS: u8 = 1;
 pub const TERRAIN_FOREST: u8 = 2;
-pub const TERRAIN_HILLS: u8 = 3;
-pub const TERRAIN_MOUNTAINS: u8 = 4;
+pub const TERRAIN_SAND: u8 = 3;
+pub const TERRAIN_ROCKY: u8 = 4;
 pub const TERRAIN_SNOW: u8 = 5;
 pub const TERRAIN_CONCRETE: u8 = 6;
 
@@ -20,6 +20,8 @@ pub enum DepositKind {
     Stone,
     Iron,
     Gold,
+    Wood,
+    BerryBush,
 }
 
 /// Good kind enumeration
@@ -57,10 +59,10 @@ pub struct TileGenerationResult {
 /// * `None` if no deposit is generated for this terrain type
 ///
 /// # Deposit probabilities by terrain
-/// - Mountains: Stone (30%), Iron (15%), Gold (5%)
-/// - Hills: Stone (40%), Iron (10%)
-/// - Forest: Wood (25%)
-/// - Plains: None
+/// - Forest: Wood (70%)
+/// - Rocky: Stone (60%)
+/// - Grass: Berry bush (10%)
+/// - Sand: Stone (30%)
 /// - Water: None
 /// - Snow: None
 /// - Concrete: None
@@ -70,37 +72,35 @@ pub fn generate_deposit(seed: u32, coord: &HexCoord, terrain_kind: u8) -> Option
     let rnd = random01(hash);
 
     match terrain_kind {
-        TERRAIN_MOUNTAINS => {
-            // Mountains: Stone (30%), Iron (15%), Gold (5%)
+        TERRAIN_FOREST => {
+            if rnd < 0.70 {
+                Some(DepositKind::Wood)
+            } else {
+                None
+            }
+        }
+        TERRAIN_ROCKY => {
+            if rnd < 0.60 {
+                Some(DepositKind::Stone)
+            } else {
+                None
+            }
+        }
+        TERRAIN_GRASS => {
+            if rnd < 0.10 {
+                Some(DepositKind::BerryBush)
+            } else {
+                None
+            }
+        }
+        TERRAIN_SAND => {
             if rnd < 0.30 {
                 Some(DepositKind::Stone)
-            } else if rnd < 0.45 {
-                Some(DepositKind::Iron)
-            } else if rnd < 0.50 {
-                Some(DepositKind::Gold)
             } else {
                 None
             }
         }
-        TERRAIN_HILLS => {
-            // Hills: Stone (40%), Iron (10%)
-            if rnd < 0.40 {
-                Some(DepositKind::Stone)
-            } else if rnd < 0.50 {
-                Some(DepositKind::Iron)
-            } else {
-                None
-            }
-        }
-        TERRAIN_FOREST => {
-            // Forest: Wood (25%)
-            if rnd < 0.25 {
-                Some(DepositKind::Stone) // Forest deposits are represented as Stone in this simplified model
-            } else {
-                None
-            }
-        }
-        TERRAIN_PLAINS | TERRAIN_WATER | TERRAIN_SNOW | TERRAIN_CONCRETE => {
+        TERRAIN_WATER | TERRAIN_SNOW | TERRAIN_CONCRETE => {
             // These terrain types don't have deposits
             None
         }
@@ -123,11 +123,10 @@ pub fn generate_deposit(seed: u32, coord: &HexCoord, terrain_kind: u8) -> Option
 /// A vector of GoodKind representing the goods available on this tile
 ///
 /// # Goods generation rules
-/// - Forest: Wood, Berries, Mushrooms (with Wood from deposit)
-/// - Plains: Berries, Mushrooms
-/// - Hills: Stone
-/// - Mountains: Stone, Iron, Gold (matching deposit types)
-/// - Water: Fish
+/// - Forest: Mushrooms (plus wood from tree deposits)
+/// - Sand: Berries
+/// - Grass: Berries from bush deposits
+/// - Rocky: Stone from rock deposits
 /// - Snow: None
 /// - Concrete: None
 ///
@@ -148,6 +147,8 @@ pub fn generate_goods(
             DepositKind::Stone => goods.push(GoodKind::Stone),
             DepositKind::Iron => goods.push(GoodKind::Iron),
             DepositKind::Gold => goods.push(GoodKind::Gold),
+            DepositKind::Wood => goods.push(GoodKind::Wood),
+            DepositKind::BerryBush => goods.push(GoodKind::Berries),
         }
     }
 
@@ -159,52 +160,16 @@ pub fn generate_goods(
 
     match terrain_kind {
         TERRAIN_FOREST => {
-            // Forest: Berries (40%), Mushrooms (30%)
-            if rnd1 < 0.40 {
-                goods.push(GoodKind::Berries);
-            }
             if rnd2 < 0.30 {
                 goods.push(GoodKind::Mushrooms);
             }
         }
-        TERRAIN_PLAINS => {
-            // Plains: Berries (50%), Mushrooms (40%)
-            if rnd1 < 0.50 {
+        TERRAIN_SAND => {
+            if rnd1 < 0.05 {
                 goods.push(GoodKind::Berries);
             }
-            if rnd2 < 0.40 {
-                goods.push(GoodKind::Mushrooms);
-            }
         }
-        TERRAIN_HILLS => {
-            // Hills: Stone (ambient, 30% if not from deposit)
-            if !goods.contains(&GoodKind::Stone) && rnd1 < 0.30 {
-                goods.push(GoodKind::Stone);
-            }
-        }
-        TERRAIN_MOUNTAINS => {
-            // Mountains: Stone (ambient 20%), Iron (ambient 10%), Gold (ambient 5%)
-            if !goods.contains(&GoodKind::Stone) && rnd1 < 0.20 {
-                goods.push(GoodKind::Stone);
-            }
-            if !goods.contains(&GoodKind::Iron) && rnd2 < 0.10 {
-                goods.push(GoodKind::Iron);
-            }
-            let hash3 = coord_hash(seed, coord, "goods3");
-            let rnd3 = random01(hash3);
-            if !goods.contains(&GoodKind::Gold) && rnd3 < 0.05 {
-                goods.push(GoodKind::Gold);
-            }
-        }
-        TERRAIN_WATER => {
-            // Water: Fish (70%)
-            if rnd1 < 0.70 {
-                goods.push(GoodKind::Fish);
-            }
-        }
-        TERRAIN_SNOW | TERRAIN_CONCRETE => {
-            // No ambient goods for snow or concrete
-        }
+        TERRAIN_GRASS | TERRAIN_ROCKY | TERRAIN_WATER | TERRAIN_SNOW | TERRAIN_CONCRETE => {}
         _ => {}
     }
 
@@ -258,7 +223,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_deposit_generation_mountains() {
+    fn test_deposit_generation_rocky() {
         let seed = 12345;
         let mut found_deposit = false;
 
@@ -266,7 +231,7 @@ mod tests {
         for q in -5..=5 {
             for r in -5..=5 {
                 let coord = HexCoord::new(q, r);
-                if generate_deposit(seed, &coord, TERRAIN_MOUNTAINS).is_some() {
+                if generate_deposit(seed, &coord, TERRAIN_ROCKY) == Some(DepositKind::Stone) {
                     found_deposit = true;
                     break;
                 }
@@ -276,12 +241,11 @@ mod tests {
             }
         }
 
-        // Mountains should generate deposits (50% total chance)
-        assert!(found_deposit, "Mountains should generate deposits");
+        assert!(found_deposit, "Rocky terrain should generate rock deposits");
     }
 
     #[test]
-    fn test_deposit_generation_hills() {
+    fn test_deposit_generation_grass() {
         let seed = 12345;
         let mut found_deposit = false;
 
@@ -289,7 +253,7 @@ mod tests {
         for q in -5..=5 {
             for r in -5..=5 {
                 let coord = HexCoord::new(q, r);
-                if generate_deposit(seed, &coord, TERRAIN_HILLS).is_some() {
+                if generate_deposit(seed, &coord, TERRAIN_GRASS) == Some(DepositKind::BerryBush) {
                     found_deposit = true;
                     break;
                 }
@@ -299,8 +263,7 @@ mod tests {
             }
         }
 
-        // Hills should generate deposits (50% total chance)
-        assert!(found_deposit, "Hills should generate deposits");
+        assert!(found_deposit, "Grass should generate berry bush deposits");
     }
 
     #[test]
@@ -312,7 +275,7 @@ mod tests {
         for q in -5..=5 {
             for r in -5..=5 {
                 let coord = HexCoord::new(q, r);
-                if generate_deposit(seed, &coord, TERRAIN_FOREST).is_some() {
+                if generate_deposit(seed, &coord, TERRAIN_FOREST) == Some(DepositKind::Wood) {
                     found_deposit = true;
                     break;
                 }
@@ -322,17 +285,41 @@ mod tests {
             }
         }
 
-        // Forest should generate deposits (25% chance)
-        assert!(found_deposit, "Forest should generate deposits");
+        assert!(found_deposit, "Forest should generate tree deposits");
     }
 
     #[test]
-    fn test_deposit_generation_plains() {
-        let coord = HexCoord::new(0, 0);
-        let deposit = generate_deposit(12345, &coord, TERRAIN_PLAINS);
+    fn test_deposit_generation_sand() {
+        let seed = 12345;
+        let mut found_deposit = false;
 
-        // Plains should never generate deposits
-        assert!(deposit.is_none());
+        for q in -5..=5 {
+            for r in -5..=5 {
+                let coord = HexCoord::new(q, r);
+                if generate_deposit(seed, &coord, TERRAIN_SAND) == Some(DepositKind::Stone) {
+                    found_deposit = true;
+                    break;
+                }
+            }
+            if found_deposit {
+                break;
+            }
+        }
+
+        assert!(found_deposit, "Sand should generate rock deposits");
+    }
+
+    #[test]
+    fn test_deposit_generation_forest_never_generates_rocks() {
+        for q in -10..=10 {
+            for r in -10..=10 {
+                let coord = HexCoord::new(q, r);
+                assert_ne!(
+                    generate_deposit(12345, &coord, TERRAIN_FOREST),
+                    Some(DepositKind::Stone)
+                );
+            }
+        }
     }
 
     #[test]
@@ -359,8 +346,8 @@ mod tests {
         let seed = 99999;
 
         // Same seed and coord should produce same result
-        let result1 = generate_deposit(seed, &coord, TERRAIN_MOUNTAINS);
-        let result2 = generate_deposit(seed, &coord, TERRAIN_MOUNTAINS);
+        let result1 = generate_deposit(seed, &coord, TERRAIN_ROCKY);
+        let result2 = generate_deposit(seed, &coord, TERRAIN_ROCKY);
 
         assert_eq!(result1, result2);
     }
@@ -372,8 +359,8 @@ mod tests {
         let coord2 = HexCoord::new(1, 0);
 
         // Different coords should potentially produce different results
-        let result1 = generate_deposit(seed, &coord1, TERRAIN_MOUNTAINS);
-        let result2 = generate_deposit(seed, &coord2, TERRAIN_MOUNTAINS);
+        let result1 = generate_deposit(seed, &coord1, TERRAIN_ROCKY);
+        let result2 = generate_deposit(seed, &coord2, TERRAIN_ROCKY);
 
         // Results may or may not be equal, but the function should not panic
         let _ = result1;
@@ -405,25 +392,6 @@ mod tests {
     }
 
     #[test]
-    fn test_goods_generation_plains() {
-        let coord = HexCoord::new(0, 0);
-        let goods = generate_goods(12345, &coord, TERRAIN_PLAINS, None);
-
-        // Plains should generate berries and/or mushrooms
-        assert!(!goods.is_empty());
-    }
-
-    #[test]
-    fn test_goods_generation_water() {
-        let coord = HexCoord::new(0, 0);
-        let goods = generate_goods(12345, &coord, TERRAIN_WATER, None);
-
-        // Water should generate fish
-        assert!(!goods.is_empty());
-        assert!(goods.contains(&GoodKind::Fish));
-    }
-
-    #[test]
     fn test_goods_generation_snow() {
         let coord = HexCoord::new(0, 0);
         let goods = generate_goods(12345, &coord, TERRAIN_SNOW, None);
@@ -435,19 +403,9 @@ mod tests {
     #[test]
     fn test_goods_with_deposit() {
         let coord = HexCoord::new(0, 0);
-        let goods = generate_goods(12345, &coord, TERRAIN_MOUNTAINS, Some(DepositKind::Gold));
+        let goods = generate_goods(12345, &coord, TERRAIN_GRASS, Some(DepositKind::BerryBush));
 
-        // With a gold deposit, gold should be in goods
-        assert!(goods.contains(&GoodKind::Gold));
-    }
-
-    #[test]
-    fn test_goods_with_iron_deposit() {
-        let coord = HexCoord::new(0, 0);
-        let goods = generate_goods(12345, &coord, TERRAIN_HILLS, Some(DepositKind::Iron));
-
-        // With an iron deposit, iron should be in goods
-        assert!(goods.contains(&GoodKind::Iron));
+        assert!(goods.contains(&GoodKind::Berries));
     }
 
     #[test]
@@ -502,9 +460,9 @@ mod tests {
         ];
         let terrain_kinds = vec![
             TERRAIN_FOREST,
-            TERRAIN_PLAINS,
+            TERRAIN_GRASS,
             TERRAIN_WATER,
-            TERRAIN_MOUNTAINS,
+            TERRAIN_ROCKY,
         ];
 
         let results = generate_board(12345, &coords, &terrain_kinds);
@@ -536,7 +494,7 @@ mod tests {
             HexCoord::new(1, 0),
             HexCoord::new(0, 1),
         ];
-        let terrain_kinds = vec![TERRAIN_FOREST, TERRAIN_PLAINS, TERRAIN_WATER];
+        let terrain_kinds = vec![TERRAIN_FOREST, TERRAIN_GRASS, TERRAIN_WATER];
         let seed = 54321;
 
         let results1 = generate_board(seed, &coords, &terrain_kinds);
@@ -551,39 +509,36 @@ mod tests {
     }
 
     #[test]
-    fn test_deposit_kinds_variety() {
+    fn test_deposit_kinds_match_game_terrain_table() {
         let seed = 11111;
-        let mut found_stone = false;
-        let mut found_iron = false;
-        let mut found_gold = false;
+        let mut found_tree = false;
+        let mut found_bush = false;
+        let mut found_rock = false;
 
-        // Test many coordinates to see all deposit types
         for q in -10..=10 {
             for r in -10..=10 {
                 let coord = HexCoord::new(q, r);
-                if let Some(deposit) = generate_deposit(seed, &coord, TERRAIN_MOUNTAINS) {
-                    match deposit {
-                        DepositKind::Stone => found_stone = true,
-                        DepositKind::Iron => found_iron = true,
-                        DepositKind::Gold => found_gold = true,
-                    }
+                if generate_deposit(seed, &coord, TERRAIN_FOREST) == Some(DepositKind::Wood) {
+                    found_tree = true;
+                }
+                if generate_deposit(seed, &coord, TERRAIN_GRASS) == Some(DepositKind::BerryBush) {
+                    found_bush = true;
+                }
+                if generate_deposit(seed, &coord, TERRAIN_ROCKY) == Some(DepositKind::Stone) {
+                    found_rock = true;
                 }
             }
         }
 
-        // With enough samples, we should find all deposit types
-        assert!(found_stone, "Should find stone deposits in mountains");
-        assert!(found_iron, "Should find iron deposits in mountains");
-        assert!(found_gold, "Should find gold deposits in mountains");
+        assert!(found_tree, "Should find tree deposits in forests");
+        assert!(found_bush, "Should find berry bush deposits in grass");
+        assert!(found_rock, "Should find rock deposits in rocky terrain");
     }
 
     #[test]
     fn test_goods_kinds_variety() {
         let seed = 22222;
-        let _found_wood = false;
-        let mut found_berries = false;
         let mut found_mushrooms = false;
-        let mut found_fish = false;
 
         // Test many coordinates to see all good types
         for q in -5..=5 {
@@ -592,24 +547,13 @@ mod tests {
 
                 // Forest goods
                 let forest_goods = generate_goods(seed, &coord, TERRAIN_FOREST, None);
-                if forest_goods.contains(&GoodKind::Berries) {
-                    found_berries = true;
-                }
                 if forest_goods.contains(&GoodKind::Mushrooms) {
                     found_mushrooms = true;
-                }
-
-                // Water goods
-                let water_goods = generate_goods(seed, &coord, TERRAIN_WATER, None);
-                if water_goods.contains(&GoodKind::Fish) {
-                    found_fish = true;
                 }
             }
         }
 
-        assert!(found_berries, "Should find berries in forest");
         assert!(found_mushrooms, "Should find mushrooms in forest");
-        assert!(found_fish, "Should find fish in water");
     }
 
     #[test]
@@ -631,18 +575,13 @@ mod tests {
         let seed = 33333;
 
         // Generate goods without deposit
-        let goods_no_deposit = generate_goods(seed, &coord, TERRAIN_MOUNTAINS, None);
+        let goods_no_deposit = generate_goods(seed, &coord, TERRAIN_ROCKY, None);
 
-        // Generate goods with gold deposit
+        // Generate goods with a rock deposit
         let goods_with_deposit =
-            generate_goods(seed, &coord, TERRAIN_MOUNTAINS, Some(DepositKind::Gold));
+            generate_goods(seed, &coord, TERRAIN_ROCKY, Some(DepositKind::Stone));
 
-        // Goods with deposit should contain gold
-        assert!(goods_with_deposit.contains(&GoodKind::Gold));
-
-        // Goods without deposit might not contain gold
-        let gold_in_no_deposit = goods_no_deposit.contains(&GoodKind::Gold);
-        // With our random seed, it's unlikely to get gold ambiently
-        assert!(!gold_in_no_deposit || goods_with_deposit.len() > goods_no_deposit.len());
+        assert!(goods_with_deposit.contains(&GoodKind::Stone));
+        assert!(!goods_no_deposit.contains(&GoodKind::Stone));
     }
 }

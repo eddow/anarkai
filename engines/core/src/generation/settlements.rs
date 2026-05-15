@@ -5,12 +5,12 @@
 use crate::common::HexCoord;
 use crate::generation::{coord_hash, random01};
 
-/// Terrain kind constants
+/// Terrain kind constants, matching the game TerrainType packing.
 pub const TERRAIN_WATER: u8 = 0;
-pub const TERRAIN_PLAINS: u8 = 1;
+pub const TERRAIN_GRASS: u8 = 1;
 pub const TERRAIN_FOREST: u8 = 2;
-pub const TERRAIN_HILLS: u8 = 3;
-pub const TERRAIN_MOUNTAINS: u8 = 4;
+pub const TERRAIN_SAND: u8 = 3;
+pub const TERRAIN_ROCKY: u8 = 4;
 pub const TERRAIN_SNOW: u8 = 5;
 pub const TERRAIN_CONCRETE: u8 = 6;
 
@@ -66,7 +66,7 @@ struct SettlementCandidate {
 /// # Scoring factors
 /// - Water access: +20 points
 /// - River presence: +15 points
-/// - Terrain: Plains (+10), Forest (+5), Hills (-5), Mountains (-10)
+/// - Terrain: Grass (+10), Forest (+5), Sand (+1), Rocky (-5)
 /// - Distance penalty: -1 point per tile closer than min_spacing to existing settlement
 /// - Random jitter: Small random value for tie-breaking
 pub fn score_settlement_tile(
@@ -87,10 +87,10 @@ pub fn score_settlement_tile(
 
     // Terrain scoring
     match terrain_kind {
-        TERRAIN_PLAINS => score += 10.0,
+        TERRAIN_GRASS => score += 10.0,
         TERRAIN_FOREST => score += 5.0,
-        TERRAIN_HILLS => score -= 5.0,
-        TERRAIN_MOUNTAINS => score -= 10.0,
+        TERRAIN_SAND => score += 1.0,
+        TERRAIN_ROCKY => score -= 5.0,
         TERRAIN_CONCRETE => score += 0.0, // Neutral
         _ => {}                           // Unknown terrain, neutral
     }
@@ -247,31 +247,26 @@ mod tests {
     fn test_terrain_scoring() {
         let coord = HexCoord::new(0, 0);
 
-        // Plains should get +10
-        let plains_score = score_settlement_tile(42, &coord, TERRAIN_PLAINS, false, false, &[], 7);
-        assert!((plains_score - 10.0).abs() < 1.0); // Allow for random jitter
+        // Grass should get +10
+        let grass_score = score_settlement_tile(42, &coord, TERRAIN_GRASS, false, false, &[], 7);
+        assert!((grass_score - 10.0).abs() < 1.0); // Allow for random jitter
 
         // Forest should get +5
         let forest_score = score_settlement_tile(42, &coord, TERRAIN_FOREST, false, false, &[], 7);
         assert!((forest_score - 5.0).abs() < 1.0);
 
-        // Hills should get -5
-        let hills_score = score_settlement_tile(42, &coord, TERRAIN_HILLS, false, false, &[], 7);
-        assert!((hills_score + 5.0).abs() < 1.0);
-
-        // Mountains should get -10
-        let mountains_score =
-            score_settlement_tile(42, &coord, TERRAIN_MOUNTAINS, false, false, &[], 7);
-        assert!((mountains_score + 10.0).abs() < 1.0);
+        // Rocky should get -5
+        let rocky_score = score_settlement_tile(42, &coord, TERRAIN_ROCKY, false, false, &[], 7);
+        assert!((rocky_score + 5.0).abs() < 1.0);
     }
 
     #[test]
     fn test_water_access_bonus() {
         let coord = HexCoord::new(0, 0);
 
-        let without_water = score_settlement_tile(42, &coord, TERRAIN_PLAINS, false, false, &[], 7);
+        let without_water = score_settlement_tile(42, &coord, TERRAIN_GRASS, false, false, &[], 7);
 
-        let with_water = score_settlement_tile(42, &coord, TERRAIN_PLAINS, true, false, &[], 7);
+        let with_water = score_settlement_tile(42, &coord, TERRAIN_GRASS, true, false, &[], 7);
 
         // With water should be ~20 points higher
         assert!((with_water - without_water - 20.0).abs() < 1.0);
@@ -281,9 +276,9 @@ mod tests {
     fn test_river_bonus() {
         let coord = HexCoord::new(0, 0);
 
-        let without_river = score_settlement_tile(42, &coord, TERRAIN_PLAINS, false, false, &[], 7);
+        let without_river = score_settlement_tile(42, &coord, TERRAIN_GRASS, false, false, &[], 7);
 
-        let with_river = score_settlement_tile(42, &coord, TERRAIN_PLAINS, false, true, &[], 7);
+        let with_river = score_settlement_tile(42, &coord, TERRAIN_GRASS, false, true, &[], 7);
 
         // With river should be ~15 points higher
         assert!((with_river - without_river - 15.0).abs() < 1.0);
@@ -293,12 +288,12 @@ mod tests {
     fn test_combined_bonuses() {
         let coord = HexCoord::new(0, 0);
 
-        let base_score = score_settlement_tile(42, &coord, TERRAIN_PLAINS, false, false, &[], 7);
+        let base_score = score_settlement_tile(42, &coord, TERRAIN_GRASS, false, false, &[], 7);
 
         let full_bonus_score =
-            score_settlement_tile(42, &coord, TERRAIN_PLAINS, true, true, &[], 7);
+            score_settlement_tile(42, &coord, TERRAIN_GRASS, true, true, &[], 7);
 
-        // Plains (10) + Water (20) + River (15) = 45 total bonus
+        // Grass (10) + Water (20) + River (15) = 45 total bonus
         assert!((full_bonus_score - base_score - 35.0).abs() < 1.0);
     }
 
@@ -309,12 +304,12 @@ mod tests {
         let min_spacing = 7;
 
         let without_existing =
-            score_settlement_tile(42, &coord, TERRAIN_PLAINS, false, false, &[], min_spacing);
+            score_settlement_tile(42, &coord, TERRAIN_GRASS, false, false, &[], min_spacing);
 
         let with_existing = score_settlement_tile(
             42,
             &coord,
-            TERRAIN_PLAINS,
+            TERRAIN_GRASS,
             false,
             false,
             &[existing],
@@ -372,7 +367,7 @@ mod tests {
     #[test]
     fn test_place_settlements_zero_count() {
         let coords = vec![HexCoord::new(0, 0)];
-        let terrain_kinds = vec![TERRAIN_PLAINS];
+        let terrain_kinds = vec![TERRAIN_GRASS];
         let has_water_access = vec![false];
         let has_river = vec![false];
 
@@ -418,7 +413,7 @@ mod tests {
             HexCoord::new(10, 0),
             HexCoord::new(20, 0),
         ];
-        let terrain_kinds = vec![TERRAIN_PLAINS, TERRAIN_FOREST, TERRAIN_PLAINS];
+        let terrain_kinds = vec![TERRAIN_GRASS, TERRAIN_FOREST, TERRAIN_GRASS];
         let has_water_access = vec![true, false, false];
         let has_river = vec![false, true, false];
 
@@ -448,7 +443,7 @@ mod tests {
             HexCoord::new(3, 0),  // Too close to (0,0) with min_spacing=7
             HexCoord::new(15, 0), // Far enough
         ];
-        let terrain_kinds = vec![TERRAIN_PLAINS, TERRAIN_PLAINS, TERRAIN_PLAINS];
+        let terrain_kinds = vec![TERRAIN_GRASS, TERRAIN_GRASS, TERRAIN_GRASS];
         let has_water_access = vec![true, true, false];
         let has_river = vec![false, false, false];
 
@@ -471,7 +466,7 @@ mod tests {
     #[test]
     fn test_place_settlements_mismatched_arrays() {
         let coords = vec![HexCoord::new(0, 0)];
-        let terrain_kinds = vec![TERRAIN_PLAINS, TERRAIN_FOREST]; // Wrong length
+        let terrain_kinds = vec![TERRAIN_GRASS, TERRAIN_FOREST]; // Wrong length
         let has_water_access = vec![false];
         let has_river = vec![false];
 
@@ -491,9 +486,9 @@ mod tests {
     fn test_deterministic_scoring() {
         let coord = HexCoord::new(0, 0);
 
-        let score1 = score_settlement_tile(42, &coord, TERRAIN_PLAINS, false, false, &[], 7);
+        let score1 = score_settlement_tile(42, &coord, TERRAIN_GRASS, false, false, &[], 7);
 
-        let score2 = score_settlement_tile(42, &coord, TERRAIN_PLAINS, false, false, &[], 7);
+        let score2 = score_settlement_tile(42, &coord, TERRAIN_GRASS, false, false, &[], 7);
 
         // Same seed and coord should produce same score
         assert_eq!(score1, score2);
@@ -503,9 +498,9 @@ mod tests {
     fn test_different_seeds_produce_different_scores() {
         let coord = HexCoord::new(0, 0);
 
-        let score1 = score_settlement_tile(42, &coord, TERRAIN_PLAINS, false, false, &[], 7);
+        let score1 = score_settlement_tile(42, &coord, TERRAIN_GRASS, false, false, &[], 7);
 
-        let score2 = score_settlement_tile(123, &coord, TERRAIN_PLAINS, false, false, &[], 7);
+        let score2 = score_settlement_tile(123, &coord, TERRAIN_GRASS, false, false, &[], 7);
 
         // Different seeds should produce different scores (due to random jitter)
         assert_ne!(score1, score2);
@@ -523,7 +518,7 @@ mod tests {
         let score = score_settlement_tile(
             42,
             &coord,
-            TERRAIN_PLAINS,
+            TERRAIN_GRASS,
             false,
             false,
             &existing,
@@ -531,7 +526,7 @@ mod tests {
         );
 
         // Penalty should be (7-3) + (7-3) = 8 points total
-        let expected_score = 10.0 - 8.0; // Plains base - penalties
+        let expected_score = 10.0 - 8.0; // Grass base - penalties
         assert!((score - expected_score).abs() < 1.0);
     }
 

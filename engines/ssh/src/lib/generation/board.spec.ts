@@ -184,6 +184,46 @@ describe('Board Generation Integration Tests', () => {
 	})
 
 	describe('Deposit Generation Test', () => {
+		it('uses game terrain deposit rules through the WASM board generator', async () => {
+			const seed = 13579
+			const coords: AxialCoord[] = []
+			for (let q = -5; q <= 5; q++) {
+				for (let r = -5; r <= 5; r++) {
+					coords.push({ q, r })
+				}
+			}
+
+			const forcedForest = coords.map((coord) => ({
+				coord: [coord.q, coord.r] as [number, number],
+				terrain: 'forest' as TerrainType,
+			}))
+			const forest = await generator.generateRegionAsync(
+				{ terrainSeed: seed, characterCount: 0 },
+				coords,
+				forcedForest
+			)
+			const forestDeposits = forest
+				.filter((tile) => tile.terrain === 'forest')
+				.flatMap((tile) => tile.deposit?.type ?? [])
+			expect(forestDeposits).toContain('tree')
+			expect(forestDeposits).not.toContain('rock')
+
+			const forcedGrass = coords.map((coord) => ({
+				coord: [coord.q, coord.r] as [number, number],
+				terrain: 'grass' as TerrainType,
+			}))
+			const grass = await generator.generateRegionAsync(
+				{ terrainSeed: seed, characterCount: 0 },
+				coords,
+				forcedGrass
+			)
+			expect(
+				grass
+					.filter((tile) => tile.terrain === 'grass')
+					.flatMap((tile) => tile.deposit?.type ?? [])
+			).toContain('berry_bush')
+		})
+
 		it('should not generate deposits on water terrain', async () => {
 			// Test with multiple seeds to find water terrain
 			let foundWater = false

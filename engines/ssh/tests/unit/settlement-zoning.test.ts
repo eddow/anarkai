@@ -6,8 +6,53 @@ import {
 	generateZonePlanForSettlements,
 	GameGenerator,
 } from 'ssh/generation'
-import { type AxialCoord, axial } from 'ssh/utils'
+import { type AxialCoord, axial, hexSides } from 'ssh/utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+// Helper to build typed arrays for WASM road generation
+function buildTypedArrays(tiles: GeneratedTileData[], seed: number) {
+	const tileCount = tiles.length
+	const coords = new Int32Array(tileCount * 2)
+	const terrainKinds = new Uint8Array(tileCount)
+	const hasRiver = new Uint8Array(tileCount)
+
+	const tileMap = new Map<string, GeneratedTileData>()
+	for (const tile of tiles) {
+		tileMap.set(`${tile.coord.q},${tile.coord.r}`, tile)
+	}
+
+	for (let i = 0; i < tileCount; i++) {
+		const tile = tiles[i]!
+		coords[i * 2] = tile.coord.q
+		coords[i * 2 + 1] = tile.coord.r
+		terrainKinds[i] = tile.terrain === 'water' ? 0 : tile.terrain === 'forest' ? 2 : tile.terrain === 'rocky' ? 3 : 1
+
+		// River: tile has hydrology with channel or edges
+		hasRiver[i] =
+			tile.hydrology?.isChannel ||
+			(tile.hydrology?.bankInfluence ?? 0) > 0 ||
+			Object.keys(tile.hydrology?.edges ?? {}).length > 0
+				? 1
+				: 0
+	}
+
+	// Propagate river to neighbours
+	for (let i = 0; i < tileCount; i++) {
+		if (hasRiver[i] !== 1) continue
+		const tile = tiles[i]!
+		for (const side of hexSides) {
+			const nKey = `${tile.coord.q + side.q},${tile.coord.r + side.r}`
+			const nIndex = tileMap.get(nKey)
+			if (nIndex === undefined) continue
+			const ni = tiles.findIndex(
+				(t) => t.coord.q === tile.coord.q + side.q && t.coord.r === tile.coord.r + side.r,
+			)
+			if (ni >= 0) hasRiver[ni] = 1
+		}
+	}
+
+	return { coords, terrainKinds, hasRiver }
+}
 
 function tile(coord: AxialCoord, overrides: Partial<GeneratedTileData> = {}): GeneratedTileData {
 	return {
@@ -58,8 +103,9 @@ describe('settlement zoning generation', () => {
 			settlementCount: 2,
 			minSpacing: 4,
 		})
-		const first = generateZonePlanForSettlements(tiles, firstSettlements)
-		const second = generateZonePlanForSettlements(tiles, secondSettlements)
+		const { coords, terrainKinds, hasRiver } = buildTypedArrays(tiles, 42)
+		const first = await generateZonePlanForSettlements(tiles, firstSettlements.settlements, 42, coords, terrainKinds, hasRiver)
+		const second = await generateZonePlanForSettlements(tiles, secondSettlements.settlements, 42, coords, terrainKinds, hasRiver)
 
 		expect(first).toEqual(second)
 		expect(first.settlements.length).toBeGreaterThan(0)
@@ -76,7 +122,8 @@ describe('settlement zoning generation', () => {
 			settlementCount: 2,
 			minSpacing: 4,
 		})
-		const plan = generateSettlementRegionSetPlan(tiles, settlements, '0,0')
+		const { coords, terrainKinds, hasRiver } = buildTypedArrays(tiles, 42)
+		const plan = await generateSettlementRegionSetPlan(tiles, settlements.settlements, '0,0', 42, coords, terrainKinds, hasRiver)
 
 		expect(plan.regionSet).toMatchObject({
 			type: 'region-set',
@@ -96,7 +143,8 @@ describe('settlement zoning generation', () => {
 		)
 		const generator = new GameGenerator()
 		const settlements = await generator.placeSettlements(9, tiles, { settlementCount: 1, minSpacing: 7 })
-		const plan = generateZonePlanForSettlements(tiles, settlements)
+		const { coords, terrainKinds, hasRiver } = buildTypedArrays(tiles, 9)
+		const plan = await generateZonePlanForSettlements(tiles, settlements.settlements, 9, coords, terrainKinds, hasRiver)
 
 		const zonedCoords = [
 			...plan.zones.harvest,
@@ -113,7 +161,8 @@ describe('settlement zoning generation', () => {
 			settlementCount: 2,
 			minSpacing: 4,
 		})
-		const plan = generateZonePlanForSettlements(tiles, settlements)
+		const { coords, terrainKinds, hasRiver } = buildTypedArrays(tiles, 42)
+		const plan = await generateZonePlanForSettlements(tiles, settlements.settlements, 42, coords, terrainKinds, hasRiver)
 		const zoned = new Set(
 			[
 				...plan.zones.harvest,
@@ -142,7 +191,8 @@ describe('settlement zoning generation', () => {
 		)
 		const generator = new GameGenerator()
 		const settlements = await generator.placeSettlements(42, tiles, { settlementCount: 2, minSpacing: 4 })
-		const plan = generateZonePlanForSettlements(tiles, settlements)
+		const { coords, terrainKinds, hasRiver } = buildTypedArrays(tiles, 42)
+		const plan = await generateZonePlanForSettlements(tiles, settlements.settlements, 42, coords, terrainKinds, hasRiver)
 
 		const zonedCoords = [
 			...plan.zones.harvest,
@@ -169,7 +219,8 @@ describe('settlement zoning generation', () => {
 		) as GeneratedTileData[]
 		const generator = new GameGenerator()
 		const settlements = await generator.placeSettlements(42, tiles, { settlementCount: 1, minSpacing: 3 })
-		const plan = generateZonePlanForSettlements(tiles, settlements)
+		const { coords, terrainKinds, hasRiver } = buildTypedArrays(tiles, 42)
+		const plan = await generateZonePlanForSettlements(tiles, settlements.settlements, 42, coords, terrainKinds, hasRiver)
 
 		const roadBorders = new Set(plan.roads.path ?? [])
 		expect(roadBorders.has([0, 0.5])).toBe(false)
@@ -184,7 +235,8 @@ describe('settlement zoning generation', () => {
 		const tiles = region({ q: 0, r: 0 }, 3)
 		const generator = new GameGenerator()
 		const settlements = await generator.placeSettlements(42, tiles, { settlementCount: 1, minSpacing: 2 })
-		const plan = generateZonePlanForSettlements(tiles, settlements)
+		const { coords, terrainKinds, hasRiver } = buildTypedArrays(tiles, 42)
+		const plan = await generateZonePlanForSettlements(tiles, settlements.settlements, 42, coords, terrainKinds, hasRiver)
 
 		const depositTile = tiles.find((entry) => entry.deposit)
 		expect(depositTile).toBeDefined()
@@ -199,7 +251,8 @@ describe('settlement zoning generation', () => {
 		const tiles = region({ q: 0, r: 0 }, 3)
 		const generator = new GameGenerator()
 		const settlements = await generator.placeSettlements(42, tiles, { settlementCount: 1, minSpacing: 2 })
-		const plan = generateZonePlanForSettlements(tiles, settlements)
+		const { coords, terrainKinds, hasRiver } = buildTypedArrays(tiles, 42)
+		const plan = await generateZonePlanForSettlements(tiles, settlements.settlements, 42, coords, terrainKinds, hasRiver)
 
 		// WASM may produce village settlements (market at center) instead of town/city (civic at center).
 		const civicCoords = plan.zones.named.find((zone) => zone.id === 'civic')?.coords ?? []
@@ -219,7 +272,8 @@ describe('settlement zoning generation', () => {
 		const tiles = region({ q: 0, r: 0 }, 4)
 		const generator = new GameGenerator()
 		const settlements = await generator.placeSettlements(42, tiles, { settlementCount: 2, minSpacing: 2 })
-		const plan = generateZonePlanForSettlements(tiles, settlements)
+		const { coords, terrainKinds, hasRiver } = buildTypedArrays(tiles, 42)
+		const plan = await generateZonePlanForSettlements(tiles, settlements.settlements, 42, coords, terrainKinds, hasRiver)
 
 		// WASM may produce only village settlements; villages get market at center.
 		// Ensure at least one market zone exists per settlement.
@@ -231,7 +285,8 @@ describe('settlement zoning generation', () => {
 		const tiles = region({ q: 0, r: 0 }, 4)
 		const generator = new GameGenerator()
 		const settlements = await generator.placeSettlements(42, tiles, { settlementCount: 1, minSpacing: 2 })
-		const plan = generateZonePlanForSettlements(tiles, settlements)
+		const { coords, terrainKinds, hasRiver } = buildTypedArrays(tiles, 42)
+		const plan = await generateZonePlanForSettlements(tiles, settlements.settlements, 42, coords, terrainKinds, hasRiver)
 
 		expect(plan.zones.harvest.length).toBeGreaterThan(0)
 		const settlement = plan.settlements[0]
@@ -251,7 +306,8 @@ describe('settlement zoning generation', () => {
 		const tiles = region({ q: 0, r: 0 }, 4)
 		const generator = new GameGenerator()
 		const settlements = await generator.placeSettlements(42, tiles, { settlementCount: 1, minSpacing: 2 })
-		const plan = generateZonePlanForSettlements(tiles, settlements)
+		const { coords, terrainKinds, hasRiver } = buildTypedArrays(tiles, 42)
+		const plan = await generateZonePlanForSettlements(tiles, settlements.settlements, 42, coords, terrainKinds, hasRiver)
 
 		expect(plan.zones.residential.length).toBeGreaterThan(0)
 		const settlement = plan.settlements[0]
@@ -269,7 +325,8 @@ describe('settlement zoning generation', () => {
 		const tiles = region({ q: 0, r: 0 }, 6)
 		const generator = new GameGenerator()
 		const settlements = await generator.placeSettlements(42, tiles, { settlementCount: 3, minSpacing: 2 })
-		const plan = generateZonePlanForSettlements(tiles, settlements)
+		const { coords, terrainKinds, hasRiver } = buildTypedArrays(tiles, 42)
+		const plan = await generateZonePlanForSettlements(tiles, settlements.settlements, 42, coords, terrainKinds, hasRiver)
 
 		if (plan.settlements.length >= 2) {
 			expect(plan.roads.path?.length).toBeGreaterThan(0)
@@ -280,7 +337,8 @@ describe('settlement zoning generation', () => {
 		const tiles = region({ q: 0, r: 0 }, 4)
 		const generator = new GameGenerator()
 		const settlements = await generator.placeSettlements(42, tiles, { settlementCount: 1, minSpacing: 2 })
-		const plan = generateZonePlanForSettlements(tiles, settlements)
+		const { coords, terrainKinds, hasRiver } = buildTypedArrays(tiles, 42)
+		const plan = await generateZonePlanForSettlements(tiles, settlements.settlements, 42, coords, terrainKinds, hasRiver)
 
 		expect(plan.roads.path?.length).toBeGreaterThan(0)
 		const settlement = plan.settlements[0]
@@ -310,7 +368,8 @@ describe('settlement zoning generation', () => {
 		) as GeneratedTileData[]
 		const generator = new GameGenerator()
 		const settlements = await generator.placeSettlements(42, tiles, { settlementCount: 1, minSpacing: 2 })
-		const plan = generateZonePlanForSettlements(tiles, settlements)
+		const { coords, terrainKinds, hasRiver } = buildTypedArrays(tiles, 42)
+		const plan = await generateZonePlanForSettlements(tiles, settlements.settlements, 42, coords, terrainKinds, hasRiver)
 
 		const roadBorders = new Set(plan.roads.path ?? [])
 		expect(roadBorders.has([0, 0.5])).toBe(false)
@@ -320,7 +379,8 @@ describe('settlement zoning generation', () => {
 		const tiles = region({ q: 0, r: 0 }, 4)
 		const generator = new GameGenerator()
 		const settlements = await generator.placeSettlements(42, tiles, { settlementCount: 1, minSpacing: 2 })
-		const plan = generateZonePlanForSettlements(tiles, settlements)
+		const { coords, terrainKinds, hasRiver } = buildTypedArrays(tiles, 42)
+		const plan = await generateZonePlanForSettlements(tiles, settlements.settlements, 42, coords, terrainKinds, hasRiver)
 
 		const settlement = plan.settlements[0]
 		expect(settlement).toBeDefined()
@@ -334,7 +394,8 @@ describe('settlement zoning generation', () => {
 		const tiles = region({ q: 0, r: 0 }, 4)
 		const generator = new GameGenerator()
 		const settlements = await generator.placeSettlements(42, tiles, { settlementCount: 1, minSpacing: 2 })
-		const plan = generateZonePlanForSettlements(tiles, settlements)
+		const { coords, terrainKinds, hasRiver } = buildTypedArrays(tiles, 42)
+		const plan = await generateZonePlanForSettlements(tiles, settlements.settlements, 42, coords, terrainKinds, hasRiver)
 
 		const zonedCoords = new Set([
 			...plan.zones.harvest,
@@ -351,7 +412,8 @@ describe('settlement zoning generation', () => {
 		const tiles = region({ q: 0, r: 0 }, 6)
 		const generator = new GameGenerator()
 		const settlements = await generator.placeSettlements(42, tiles, { settlementCount: 3, minSpacing: 2 })
-		const plan = generateZonePlanForSettlements(tiles, settlements)
+		const { coords, terrainKinds, hasRiver } = buildTypedArrays(tiles, 42)
+		const plan = await generateZonePlanForSettlements(tiles, settlements.settlements, 42, coords, terrainKinds, hasRiver)
 
 		// WASM placement may produce fewer than requested settlements due to spacing.
 		if (plan.settlements.length >= 2) {
@@ -376,7 +438,8 @@ describe('settlement zoning generation', () => {
 		)
 		const generator = new GameGenerator()
 		const settlements = await generator.placeSettlements(42, tiles, { settlementCount: 1, minSpacing: 2 })
-		const plan = generateZonePlanForSettlements(tiles, settlements)
+		const { coords, terrainKinds, hasRiver } = buildTypedArrays(tiles, 42)
+		const plan = await generateZonePlanForSettlements(tiles, settlements.settlements, 42, coords, terrainKinds, hasRiver)
 
 		const roadTileKeys = new Set(plan.roads.path ?? [])
 		for (const waterTile of waterTiles) {
