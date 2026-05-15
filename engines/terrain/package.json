@@ -15,7 +15,7 @@
 		"anarkai-core": "workspace:*",
 		"engine-rules": "workspace:*",
 		"typescript": "~5.8.3",
-		"webgpgpu.ts": "link:/home/fmdm/dev/ownk/webgpgpu"
+		"webgpgpu.ts": "^0.1.2"
 	},
 	"devDependencies": {
 		"vitest": "^4.1.4"

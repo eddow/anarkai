@@ -14,9 +14,9 @@
 		"check": "tsc -p tsconfig.app.json && tsc -p tsconfig.node.json"
 	},
 	"dependencies": {
-		"@sursaut/core": "link:../../../ownk/sursaut/packages/core",
-		"@sursaut/kit": "link:../../../ownk/sursaut/packages/kit",
-		"mutts": "link:../../../ownk/mutts",
+		"@sursaut/core": "^0.1.0",
+		"@sursaut/kit": "^0.1.0",
+		"mutts": "^1.0.14",
 		"typescript": "~5.9.3",
 		"vite": "^8.0.10"
 	},

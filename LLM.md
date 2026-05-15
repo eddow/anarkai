@@ -8,6 +8,7 @@ Anarkai is a modular monorepo driven by a custom game engine (`engines/ssh`) and
 - **UI Framework**: `sursaut-ts` (React-like JSX but with fine-grained reactivity, NO VDOM diffing in the React sense).
 - **Game Engine**: `ssh` encapsulates domain logic, using `npcs` for behaviors.
 - **Sursaut rebuild fence**: avoid hoisting reactive reads from JSX into top-level locals inside a component body. For state such as `state.goodRules` / `state.tagRules`, that can make the component root depend on reactive values and trigger rebuild-fence warnings instead of normal child updates.
+- **NPC ownership rule**: `.npcs` scripts do not explicitly release low-level reservations, allocations, vehicle control, or similar engine resources. If a behavior needs cleanup, model the owned resource as a `Plan` and put allocation/release in `plan.begin` plus commitment/finalization hooks; scripts should only run `plan ... end plan` around the behavior.
 
 ## Project Structure
 - `apps/`: Consumers (e.g., `browser`).

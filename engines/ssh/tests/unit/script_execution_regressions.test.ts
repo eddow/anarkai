@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import type { HomePlan } from 'ssh/types/base'
 import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
 
@@ -40,11 +41,55 @@ describe('Script execution regressions', () => {
 		}
 	})
 
+	it('walk.moveTo skips zero-duration movement steps', async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+
+		try {
+			const worker = engine.spawnCharacter('Sprinter', { q: 0, r: 0 })
+			worker.tile.content = {
+				tile: worker.tile,
+				name: 'zero-walk-test',
+				debugInfo: {},
+				walkTime: 0,
+				background: '',
+				storage: undefined,
+				destroy() {},
+			} as any
+
+			expect(worker.scriptsContext.walk.moveTo({ q: 1, r: 0 })).toBeUndefined()
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('home plans own and release residential reservations', async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+
+		try {
+			const worker = engine.spawnCharacter('Sleeper', { q: 0, r: 0 })
+			const target = { q: 0, r: 0 }
+			engine.game.hex.zoneManager.setZone(target, 'residential')
+			const homePlan: HomePlan = {
+				type: 'home',
+				kind: 'residential',
+				target,
+				path: [],
+			}
+
+			worker.scriptsContext.plan.begin(homePlan)
+			expect(engine.game.hex.zoneManager.getReservation(worker)).toEqual(target)
+
+			worker.scriptsContext.plan.conclude(homePlan)
+			expect(engine.game.hex.zoneManager.getReservation(worker)).toBeUndefined()
+		} finally {
+			await engine.destroy()
+		}
+	})
+
 	it('convey approach enters the target tile center before work starts', () => {
-		const script = readFileSync(
-			resolve(__dirname, '../../assets/scripts/work.npcs'),
-			'utf8'
-		)
+		const script = readFileSync(resolve(__dirname, '../../assets/scripts/work.npcs'), 'utf8')
 		const conveyBody = script.match(/function convey\(jobPlan\)([\s\S]*?)end function/)?.[1]
 
 		expect(conveyBody).toContain('walk.into path')

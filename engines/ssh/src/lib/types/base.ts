@@ -1,6 +1,7 @@
 import { scope, type } from 'arktype'
 import { alveoli, deposits, goods as goodsCatalog, terrain } from 'engine-rules'
 import type { TileContent } from 'ssh/board'
+import type { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import type { LooseGood } from 'ssh/board/looseGoods'
 import type { FreightAdSource, FreightPriorityTier } from 'ssh/freight/priority-channel'
 import { type AxialCoord, type Positioned, positionScope } from 'ssh/utils'
@@ -175,11 +176,18 @@ export const baseGameScope = scope({
 		duration: 'number',
 	},
 
+	HomePlan: {
+		type: "'home'",
+		kind: "'dwelling' | 'residential'",
+		target: 'object',
+		path: 'AxialCoord[]',
+	},
+
 	WorkPlan: () =>
 		baseGameScope.type(
 			'GenericWorkPlan | VehicleOffloadWorkPlan | LoadOntoVehicleWorkPlanArk | UnloadFromVehicleWorkPlanArk | ProvideFromVehicleWorkPlanArk'
 		),
-	Plan: () => baseGameScope.type('TransferPlan | PickupPlan | WorkPlan | IdlePlan'),
+	Plan: () => baseGameScope.type('TransferPlan | PickupPlan | WorkPlan | IdlePlan | HomePlan'),
 })
 
 // Export base types module for use in other files
@@ -497,4 +505,32 @@ export interface IdlePlan {
 	invariant?: () => boolean
 }
 
-export type Plan = TransferPlan | PickupPlan | WorkPlan | IdlePlan
+export type HomePlan = HomeDwellingPlan | HomeResidentialPlan
+
+export interface HomeDwellingPlan {
+	readonly type: 'home'
+	readonly kind: 'dwelling'
+	readonly target: BasicDwelling
+	readonly path: AxialCoord[]
+	invariant?: () => boolean
+	/** Commitment managing the home reservation lifecycle. */
+	commitment?: {
+		fulfill(): void
+		cancel(reason: string): void
+		onFulfilled(cb: () => void): void
+		onCancelled(cb: () => void): void
+		onFinal(cb: () => void): void
+	}
+}
+
+export interface HomeResidentialPlan {
+	readonly type: 'home'
+	readonly kind: 'residential'
+	readonly target: AxialCoord
+	readonly path: AxialCoord[]
+	invariant?: () => boolean
+	/** Commitment managing the home reservation lifecycle. */
+	commitment?: HomeDwellingPlan['commitment']
+}
+
+export type Plan = TransferPlan | PickupPlan | WorkPlan | IdlePlan | HomePlan

@@ -6,6 +6,7 @@ import {
 	allocateVehicleServiceForJob,
 	findVehicleHopJob,
 	findVehicleOffloadJob,
+	isVehicleOffloadDestinationEligible,
 } from 'ssh/freight/vehicle-work'
 import { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
@@ -185,6 +186,38 @@ describe('findVehicleOffloadJob', () => {
 			expect(job?.job).toBe('vehicleOffload')
 			expect(job?.maintenanceKind).toBe('unloadToTile')
 			expect(job?.targetCoord).not.toEqual(center)
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('does not unload vehicle stock onto a road tile', async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+		const { game } = engine
+		try {
+			const center = { q: 2, r: 2 }
+			const roadTarget = { q: 3, r: 2 }
+			engine.loadScenario({
+				generationOptions: { terrainSeed: 1234, characterCount: 0 },
+				tiles: [
+					{ coord: [2, 2], terrain: 'grass' },
+					{ coord: [2, 3], terrain: 'grass' },
+					{ coord: [3, 2], terrain: 'grass' },
+				],
+			} as any)
+			const centerTile = game.hex.getTile(center)!
+			const roadTile = game.hex.getTile(roadTarget)!
+			game.hex.setRoadType(centerTile.borderWith(roadTile)!.position, 'path')
+			const vehicle = game.vehicles.createVehicle('wb-unload-road', 'wheelbarrow', center, [])
+			vehicle.storage.addGood('stone', 1)
+			const char = engine.spawnCharacter('Worker', center)
+			void char.scriptsContext
+
+			const job = findVehicleOffloadJob(game, char)
+			expect(job?.job).toBe('vehicleOffload')
+			expect(job?.maintenanceKind).toBe('unloadToTile')
+			expect(job?.targetCoord).not.toEqual(roadTarget)
 		} finally {
 			await engine.destroy()
 		}
@@ -592,6 +625,38 @@ describe('findVehicleOffloadJob', () => {
 			expect(job?.job).toBe('vehicleOffload')
 			expect(job?.maintenanceKind).toBe('park')
 			expect(job?.targetCoord).not.toEqual(center)
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('rejects road endpoints as vehicle offload destinations', async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+		const { game } = engine
+		try {
+			const center = { q: 2, r: 2 }
+			const roadTarget = { q: 3, r: 2 }
+			engine.loadScenario({
+				generationOptions: { terrainSeed: 1234, characterCount: 0 },
+				tiles: [
+					{ coord: [2, 3], terrain: 'grass' },
+					{ coord: [3, 2], terrain: 'grass' },
+				],
+				hives: [
+					{
+						name: 'RoadParkHive',
+						alveoli: [{ coord: [2, 2], alveolus: 'storage', goods: {} }],
+					},
+				],
+			} as any)
+			const centerTile = game.hex.getTile(center)!
+			const roadTile = game.hex.getTile(roadTarget)!
+			const clearTile = game.hex.getTile({ q: 2, r: 3 })!
+			game.hex.setRoadType(centerTile.borderWith(roadTile)!.position, 'path')
+
+			expect(isVehicleOffloadDestinationEligible(roadTile)).toBe(false)
+			expect(isVehicleOffloadDestinationEligible(clearTile)).toBe(true)
 		} finally {
 			await engine.destroy()
 		}

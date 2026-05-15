@@ -13,13 +13,14 @@ function goEat()
 end function
 
 function goHome()
-	home = find.homeTile()
-	if not home then return selfCare.pondering()
-	if home.path.length > 0 then
-		walk.into home.path
-	end if
-	selfCare.pondering
-	selfCare.releaseHome
+	homePlan = find.homeTile()
+	if not homePlan then return selfCare.pondering()
+	plan homePlan
+		if homePlan.path.length > 0 then
+			walk.into homePlan.path
+		end if
+		selfCare.pondering
+	end plan
 end function
 
 function wander()

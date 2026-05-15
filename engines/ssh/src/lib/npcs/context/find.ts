@@ -6,7 +6,7 @@ import { buildAlveolusMarker } from 'ssh/hive/build-marker'
 import type { Character } from 'ssh/population/character'
 import { findDwellingReservedBy } from 'ssh/residential/housing-reservations'
 import { contract } from 'ssh/types'
-import type { GoodType } from 'ssh/types/base'
+import type { GoodType, HomePlan } from 'ssh/types/base'
 import { type AxialCoord, axial, tileSize, toWorldCoord } from 'ssh/utils'
 import { type Positioned, toAxialCoord } from 'ssh/utils/position'
 import { maxWalkTime } from '../../../../assets/constants'
@@ -194,15 +194,25 @@ class FindFunctions {
 			const dest = toAxialCoord(existingDwelling.tile.position)
 			if (!dest) return false as const
 			const path = hex.findPathForCharacter(start, dest, character, maxWalkTime, true)
-			if (path) return { coord: dest, path }
-			existingDwelling.releaseHome(character)
+			if (path)
+				return {
+					type: 'home',
+					kind: 'dwelling',
+					target: existingDwelling,
+					path,
+				} satisfies HomePlan
 		}
 
 		const existing = zm.getReservation(character)
 		if (existing) {
 			const path = hex.findPathForCharacter(start, existing, character, maxWalkTime, true)
-			if (path) return { coord: existing, path }
-			zm.releaseReservation(character)
+			if (path)
+				return {
+					type: 'home',
+					kind: 'residential',
+					target: existing,
+					path,
+				} satisfies HomePlan
 		}
 
 		let bestDwelling: { dwelling: BasicDwelling; coord: AxialCoord; path: AxialCoord[] } | undefined
@@ -227,14 +237,21 @@ class FindFunctions {
 		}
 
 		if (bestDwelling && (!best || bestDwelling.path.length <= best.path.length)) {
-			zm.releaseReservation(character)
-			if (!bestDwelling.dwelling.tryReserveHome(character)) return false as const
-			return { coord: bestDwelling.coord, path: bestDwelling.path }
+			return {
+				type: 'home',
+				kind: 'dwelling',
+				target: bestDwelling.dwelling,
+				path: bestDwelling.path,
+			} satisfies HomePlan
 		}
 
 		if (!best) return false as const
-		if (!zm.tryReserveResidentialAt(character, best.coord)) return false as const
-		return { coord: best.coord, path: best.path }
+		return {
+			type: 'home',
+			kind: 'residential',
+			target: best.coord,
+			path: best.path,
+		} satisfies HomePlan
 	}
 
 	@contract()

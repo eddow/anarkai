@@ -1,6 +1,7 @@
 /** Plan begin/conclude for transfers; reservations use {@link Character.carry} (vehicle storage when driving). */
 import { type HexBoard, isTileCoord } from 'ssh/board'
 import type { Alveolus } from 'ssh/board/content/alveolus'
+import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { assertVehicleOperationConsistency } from 'ssh/freight/vehicle-invariants'
 import { releaseVehicleFreightWorkOnPlanInterrupt } from 'ssh/freight/vehicle-run'
 import { allocateVehicleServiceForJob } from 'ssh/freight/vehicle-work'
@@ -8,7 +9,15 @@ import type { Character } from 'ssh/population/character'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
 import type { Goods, GoodType } from 'ssh/types'
-import type { IdlePlan, Job, PickupPlan, Plan, TransferPlan, WorkPlan } from 'ssh/types/base'
+import type {
+	HomePlan,
+	IdlePlan,
+	Job,
+	PickupPlan,
+	Plan,
+	TransferPlan,
+	WorkPlan,
+} from 'ssh/types/base'
 import { gameObjectsModule } from 'ssh/types/game-objects'
 import { axial, type Positioned, toAxialCoord } from 'ssh/utils'
 import { assert } from '../../dev/debug.ts'
@@ -424,12 +433,40 @@ const idlePlanHandler: PlanHandler<IdlePlan> = {
 	},
 }
 
+const homePlanHandler: PlanHandler<HomePlan> = {
+	begin(plan: HomePlan, character: Character) {
+		let release: () => void
+		if (plan.kind === 'dwelling') {
+			assert(plan.target instanceof BasicDwelling, 'home dwelling plan requires a BasicDwelling')
+			if (!plan.target.tryReserveHome(character)) {
+				throw new Error('Home dwelling is no longer available')
+			}
+			release = () => plan.target.releaseHome(character)
+		} else {
+			const reserved = character.game.hex.zoneManager.tryReserveResidentialAt(
+				character,
+				plan.target
+			)
+			if (!reserved) throw new Error('Residential home tile is no longer available')
+			release = () => character.game.hex.zoneManager.releaseReservation(character)
+		}
+
+		const commitment = new PlanCommitment('home.rest').addTraceInfo({
+			kind: 'home-plan',
+			homeKind: plan.kind,
+		})
+		commitment.onFinal(release)
+		plan.commitment = commitment
+	},
+}
+
 // Handler registry
 const planHandlers: Record<Plan['type'], PlanHandler<any>> = {
 	transfer: transferPlanHandler,
 	pickup: pickupPlanHandler,
 	work: workPlanHandler,
 	idle: idlePlanHandler,
+	home: homePlanHandler,
 }
 
 class PlanFunctions {

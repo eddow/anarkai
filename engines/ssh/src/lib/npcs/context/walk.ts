@@ -2,7 +2,7 @@ import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
 import type { Character } from 'ssh/population/character'
 import { contract } from 'ssh/types'
-import { axial } from 'ssh/utils'
+import { axial, epsilon } from 'ssh/utils'
 import { type Positioned, positionRoughlyEquals, toAxialCoord } from 'ssh/utils/position'
 import { subject } from '../scripts'
 import { DurationStep, MoveToStep } from '../steps'
@@ -21,11 +21,10 @@ class WalkFunctions {
 					toAxial,
 					this[subject].tile.effectiveWalkTime
 				) * this[subject].mobilityMultiplier
-			return new MoveToStep(
-				baseWalkTime * axial.distance(fromAxial, toAxial),
-				this[subject],
-				to
-			)
+			const duration = baseWalkTime * axial.distance(fromAxial, toAxial)
+			if (Number.isFinite(duration) && duration > epsilon) {
+				return new MoveToStep(duration, this[subject], to)
+			}
 		}
 	}
 	/**
@@ -41,8 +40,12 @@ class WalkFunctions {
 			tile.content instanceof UnBuiltLand && tile.content.deposit
 				? tile.content.depositEntryPosition
 				: toAxial
-		if (!positionRoughlyEquals(fromAxial, target))
-			return new MoveToStep(axial.distance(fromAxial, target), this[subject], target)
+		if (!positionRoughlyEquals(fromAxial, target)) {
+			const duration = axial.distance(fromAxial, target)
+			if (Number.isFinite(duration) && duration > epsilon) {
+				return new MoveToStep(duration, this[subject], target)
+			}
+		}
 	}
 	@contract('Tile')
 	stepOn(tile: Tile) {

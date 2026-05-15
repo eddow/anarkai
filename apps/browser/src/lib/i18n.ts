@@ -6,7 +6,7 @@ import {
 	type LocaleFlagsEngine,
 	type TextKey,
 	type Translator,
-} from 'omni18n/ts/s-a'
+} from 'omni18n/s-a'
 import gameEn from 'ssh/assets/locales/en.json'
 import gameFr from 'ssh/assets/locales/fr.json'
 import baseEn from '../locales/en.json'

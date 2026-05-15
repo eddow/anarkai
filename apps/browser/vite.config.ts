@@ -4,41 +4,16 @@ import { sursautCorePlugin } from "@sursaut/core/plugin";
 import { commonEsbuild, commonOptimizeDeps } from "engine-pixi/vite-config";
 import { servePixiAssets } from "engine-pixi/vite-plugins";
 import { type Alias, defineConfig, type Plugin, type PluginOption, type UserConfig } from "vite";
-import { pureGlyfPlugin } from "../../../ownk/sursaut/packages/pure-glyf/dist/plugin.js";
+import { pureGlyfPlugin } from "pure-glyf/plugin";
 import { cssTagPlugin } from "./src/lib/css-tag-plugin";
 
 const projectRootDir = dirname(fileURLToPath(import.meta.url));
-const pureGlyfEntry = resolvePath(
-	projectRootDir,
-	"../../../ownk/sursaut/packages/pure-glyf/src/index.ts",
-);
-const pureGlyfSursautEntry = resolvePath(
-	projectRootDir,
-	"../../../ownk/sursaut/packages/pure-glyf/src/sursaut.tsx",
-);
 const sshAssetsDir = resolvePath(projectRootDir, "../../engines/ssh/assets");
 const sshSourceDir = resolvePath(projectRootDir, "../../engines/ssh/src/lib");
 const pixiAssetsDir = resolvePath(projectRootDir, "../../engines/pixi/assets");
 const pixiSourceDir = resolvePath(projectRootDir, "../../engines/pixi/src");
-const muttsRootDir = resolvePath(projectRootDir, "../../../ownk/mutts");
 const picoCssDir = resolvePath(projectRootDir, "node_modules/@picocss/pico");
 const dockviewCoreDir = resolvePath(projectRootDir, "node_modules/dockview-core");
-const sursautUiPaletteEntry = resolvePath(
-	projectRootDir,
-	"../../../ownk/sursaut/packages/ui/src/palette/index.ts",
-);
-const sursautUiDockviewEntry = resolvePath(
-	projectRootDir,
-	"../../../ownk/sursaut/packages/ui/src/dockview.ts",
-);
-const sursautUiModelsEntry = resolvePath(
-	projectRootDir,
-	"../../../ownk/sursaut/packages/ui/src/models/index.ts",
-);
-const sursautUiEntry = resolvePath(
-	projectRootDir,
-	"../../../ownk/sursaut/packages/ui/src/index.ts",
-);
 const pureGlyfIcons = {
 	mdi: resolvePath(projectRootDir, "node_modules/@mdi/svg/svg"),
 	tabler: resolvePath(projectRootDir, "node_modules/@tabler/icons/icons"),
@@ -51,26 +26,15 @@ const sharedAliasPaths = {
 	ssh: sshSourceDir,
 	"engine-pixi/assets": pixiAssetsDir,
 	"engine-pixi": pixiSourceDir,
-	mutts: muttsRootDir,
 	"@picocss/pico": picoCssDir,
 	"dockview-core": dockviewCoreDir,
-	// Use sursaut UI source in dev so palette/API changes are not blocked on `pnpm -C …/ui build`.
-	"@sursaut/ui/palette": sursautUiPaletteEntry,
-	"@sursaut/ui/dockview": sursautUiDockviewEntry,
-	"@sursaut/ui/models": sursautUiModelsEntry,
 } satisfies Record<string, string>;
-const aliases: Alias[] = [
-	{ find: /^pure-glyf$/, replacement: pureGlyfEntry },
-	{ find: /^pure-glyf\/sursaut$/, replacement: pureGlyfSursautEntry },
-	...Object.entries(sharedAliasPaths).map(([find, replacement]) => ({ find, replacement })),
-	// String "@sursaut/ui" is a prefix in Vite and would swallow "@sursaut/ui/models", etc.
-	{ find: /^@sursaut\/ui$/, replacement: sursautUiEntry },
-];
+const aliases: Alias[] = Object.entries(sharedAliasPaths).map(([find, replacement]) => ({
+	find,
+	replacement,
+}));
 const optimizeAliases = {
 	...sharedAliasPaths,
-	"pure-glyf": pureGlyfEntry,
-	"pure-glyf/sursaut": pureGlyfSursautEntry,
-	// Avoid prefix alias "@sursaut/ui" → index.ts breaking "@sursaut/ui/models" (esbuild).
 } satisfies Record<string, string>;
 const serverWatchIgnored = ["**/node_modules/**", "**/.git/**", "**/dist/**", "**/coverage/**"];
 const usePollingWatch = process.env.VITE_USE_POLLING === "true";
@@ -83,8 +47,6 @@ const serverWatchConfig = usePollingWatch
 	: {
 			ignored: serverWatchIgnored,
 		};
-// `pure-glyf` is linked from a sibling workspace and carries its own Vite types.
-// Adapt it once here so the rest of this config can stay strongly typed.
 const pureGlyfPluginOption = pureGlyfPlugin({
 	icons: pureGlyfIcons,
 	dts: "src/pure-glyf-icons.d.ts",

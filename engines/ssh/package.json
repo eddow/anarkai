@@ -28,8 +28,8 @@
 		"engine-rules": "workspace:*",
 		"engine-terrain": "workspace:*",
 		"eventemitter3": "^5.0.1",
-		"mutts": "link:../../../ownk/mutts",
-		"npc-script": "link:../../../ownk/npcs",
+		"mutts": "^1.0.14",
+		"npc-script": "^1.0.0",
 		"typescript": "~5.8.3",
 		"vitest": "^4.1.4"
 	},

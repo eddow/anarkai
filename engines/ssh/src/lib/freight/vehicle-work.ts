@@ -9,8 +9,8 @@ import {
 	type FreightStop,
 	findDistributeRouteSegments,
 	findGatherRouteSegments,
-	freightZoneContainsPosition,
 	freightStopAnchorMatchesAlveolus,
+	freightZoneContainsPosition,
 	gatherSegmentAllowsGoodType,
 	gatherSegmentAllowsGoodTypeForSegment,
 	gatherSelectableGoodTypes,
@@ -346,15 +346,25 @@ function dockedVehicleProviderJob(game: Game, vehicle: VehicleEntity): ProposedJ
 }
 
 /**
- * Tile is a legal drop target for `unloadToTile` / `park`: undeveloped, not under construction,
- * not residential, not currently burdened. The vehicle's own tile is excluded by callers.
+ * Tile is a legal target for `unloadToTile` / `park`: undeveloped, not under construction,
+ * not residential, not currently burdened, and not an endpoint of any road segment. The vehicle's
+ * own tile is excluded by callers.
  */
-function isTileDropEligible(tile: Tile): boolean {
+export function isVehicleOffloadDestinationEligible(tile: Tile): boolean {
 	if (!(tile.content instanceof UnBuiltLand)) return false
 	if (tile.content.project) return false
 	if (tile.zone === 'residential') return false
 	if (tile.isBurdened) return false
+	if (tileTouchesRoad(tile)) return false
 	return true
+}
+
+function tileTouchesRoad(tile: Tile): boolean {
+	for (const neighbor of tile.neighborTiles) {
+		const border = tile.borderWith(neighbor)
+		if (border && tile.board.getRoadType(border.position)) return true
+	}
+	return false
 }
 
 function vehicleCanReachMaintenanceTarget(
@@ -389,7 +399,7 @@ function pickUnloadTargetForVehicle(
 		const tc = toAxialCoord(tile.position)!
 		const dist = axial.distance(origin, tc)
 		if (axial.key(tc) === axial.key(origin)) continue
-		if (!isTileDropEligible(tile)) continue
+		if (!isVehicleOffloadDestinationEligible(tile)) continue
 		if (!canReach(tile)) continue
 		const looseCount = game.hex.looseGoods.getGoodsAt(tc).length
 		// Distance dominates; mild crowding penalty avoids piling on the same hex.
@@ -461,7 +471,7 @@ function pickParkingTargetForVehicle(
 		const tc = toAxialCoord(tile.position)!
 		const dist = axial.distance(origin, tc)
 		if (axial.key(tc) === axial.key(origin)) continue
-		if (!isTileDropEligible(tile)) continue
+		if (!isVehicleOffloadDestinationEligible(tile)) continue
 		if (!canReach(tile)) continue
 		const cluster = parkedNeighborCount(tc)
 		if (
@@ -1554,9 +1564,7 @@ export interface VehicleWorkPick {
 	readonly targetTile: Tile
 }
 
-function hasVehicleZoneTransferPayload(
-	job: VehicleHopJob | ZoneBrowseJob
-): boolean {
+function hasVehicleZoneTransferPayload(job: VehicleHopJob | ZoneBrowseJob): boolean {
 	if (job.zoneBrowseAction !== 'load' && job.zoneBrowseAction !== 'provide') return false
 	if (!job.goodType) return false
 	if (!job.targetCoord || !toAxialCoord(job.targetCoord)) return false
@@ -1699,8 +1707,7 @@ function collectVehicleWorkPicksUncached(game: Game, character: Character): Vehi
 				vehicleUid: pick.job.vehicleUid,
 				lineId: 'lineId' in pick.job ? pick.job.lineId : undefined,
 				stopId: 'stopId' in pick.job ? pick.job.stopId : undefined,
-				zoneBrowseAction:
-					'zoneBrowseAction' in pick.job ? pick.job.zoneBrowseAction : undefined,
+				zoneBrowseAction: 'zoneBrowseAction' in pick.job ? pick.job.zoneBrowseAction : undefined,
 				goodType: 'goodType' in pick.job ? pick.job.goodType : undefined,
 				targetCoord: 'targetCoord' in pick.job ? pick.job.targetCoord : undefined,
 			})

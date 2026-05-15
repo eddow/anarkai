@@ -295,6 +295,7 @@ class WorkFunctions {
 			character.tile.effectiveWalkTime *
 			character.mobilityMultiplier *
 			Math.max(1, axial.distance(axial.round(from), axial.round(to)))
+		if (!Number.isFinite(duration) || duration <= epsilon) return
 		return new MoveToStep(
 			duration,
 			character,

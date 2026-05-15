@@ -1,0 +1,6 @@
+[build]
+command = "pnpm --filter ssh-browser build"
+publish = "apps/browser/dist"
+
+[build.environment]
+NODE_VERSION = "22"

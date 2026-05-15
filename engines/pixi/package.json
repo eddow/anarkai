@@ -23,7 +23,7 @@
 	},
 	"dependencies": {
 		"engine-terrain": "workspace:*",
-		"mutts": "link:../../../ownk/mutts",
+		"mutts": "^1.0.14",
 		"pixi.js": "^8.14.3",
 		"ssh": "workspace:*",
 		"typescript": "~5.8.3",
