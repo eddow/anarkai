@@ -37,8 +37,9 @@ Still architecturally important:
   - the line stop (bay/zone/...) should only be editable like on add: the set should have a sub-menu (bay/circle/named zone)
   - The add stop should allow the selection (indeed, for now it adds something but the change is not visible without refreshing the widget)
   - the widget is always a bit too wide and has a horizontal scroll for 1~2px
-  - the "open zone" button sems quite useless as the stop is shown as a link (it is for the bay and should be for the zone)
+  - the "open zone" button seems quite useless as the stop is shown as a link (it is for the bay and should be for the zone)
 - roads & velocity calculation. Some vehicles can just not drive beside roads. There should be a multiplier somewhere as well as a `min(road-max-velocity, vehicle/character-ax-velocity)`. How to calculate exactly the velocity for it to be realistic somehow but still simple ?
+- When providing to an external building (residence/construction/commerce), the vehicle should indeed stop on the border and unloading the vehicle in the building should indeed be a convey-hop-like action (character in the center of the tile, visible moving good)
 
 ## Recommended Next Tranche
 

@@ -13,6 +13,7 @@ import { logTerrainProfile } from '../profile'
 
 // Cache WasmTerrainConfig by hash of config to avoid 20+ property assignments per batch
 const _wasmConfigCache = new Map<string, any>()
+let _slowSectorBatchWarningEmitted = false
 
 function nowMs(): number {
 	return (globalThis as any).performance?.now() ?? Date.now()
@@ -248,6 +249,7 @@ export function generateSectorFieldsWasm(
 		wasmConfig
 	)
 	const afterWasmAt = nowMs()
+	const wasmMs = afterWasmAt - afterPackAt
 
 	const coordsArray = result.coords as Int32Array
 	const fieldsArray = result.fields as Float32Array
@@ -329,6 +331,13 @@ export function generateSectorFieldsWasm(
 	logTerrainProfile(
 		`[wasm:profile] Sector field batch: sectors=${flatSectors.length / 2} tiles=${tiles.size} hydroTiles=${Number(result.hydrologyTileCount ?? 0)} rivers=${edges.size}/${channels.size} padding=${padding}/${Number(result.hydrologyPadding ?? hydrologyPadding)} pack=${(afterPackAt - startedAt).toFixed(1)}ms wasm=${(afterWasmAt - afterPackAt).toFixed(1)}ms unpack=${(completedAt - afterWasmAt).toFixed(1)}ms total=${(completedAt - startedAt).toFixed(1)}ms values=${fieldsArray.length}`
 	)
+	if (!_slowSectorBatchWarningEmitted && wasmMs > 1000 && tiles.size > 0) {
+		_slowSectorBatchWarningEmitted = true
+		const tilesPerMs = tiles.size / wasmMs
+		logTerrainProfile(
+			`[wasm:diagnostic] Extremely slow sector batch detected (${wasmMs.toFixed(1)}ms for ${tiles.size} tiles, ${tilesPerMs.toFixed(3)} tiles/ms). This strongly suggests a debug/dev WASM build. Rebuild anarkai-core with release optimizations.`
+		)
+	}
 
 	return {
 		coords,

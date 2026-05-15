@@ -1,4 +1,5 @@
 mod common;
+mod generation;
 mod noise;
 mod terrain;
 
@@ -9,6 +10,7 @@ use wasm_bindgen::prelude::*;
 
 // Re-export common types for internal use
 pub use common::{Bounds, HexCoord, Rng};
+pub use generation::*;
 pub use noise::{domain_warp, fbm_sample, PerlinNoise};
 pub use terrain::{
     classify_tile, generate_region, generate_tile_field, generate_tile_field_with_noise, BiomeHint,
@@ -1116,6 +1118,215 @@ pub fn wasm_generate_sector_fields_packed(
         &JsValue::from_f64(hydrology.max_accumulation as f64),
     )?;
     Ok(result)
+}
+
+/// Generate character positions on the game board.
+///
+/// Input coordinates are packed as [q, r, q, r, ...].
+/// Terrain kinds are packed as terrain type indices (0=water, 1=grass, 2=forest, 3=sand, 4=rocky, 5=snow, 6=concrete).
+/// Radius range is [min_radius_from_origin, max_radius].
+/// Origin is [origin_q, origin_r].
+/// Output is a flat Int32Array [q, r, q, r, ...] of character positions.
+#[wasm_bindgen]
+pub fn wasm_generate_character_positions(
+    seed: u32,
+    character_count: u32,
+    coords: &[i32],
+    terrain_kinds: &[u8],
+    radius_range: &[i32],
+    origin: &[i32],
+) -> Vec<i32> {
+    // Handle edge cases
+    if coords.is_empty() || character_count == 0 {
+        return Vec::new();
+    }
+
+    // Validate input lengths
+    if coords.len() % 2 != 0 {
+        return Vec::new();
+    }
+
+    if radius_range.len() < 2 || origin.len() < 2 {
+        return Vec::new();
+    }
+
+    // Unpack coords into Vec<HexCoord>
+    let hex_coords: Vec<HexCoord> = coords
+        .chunks(2)
+        .map(|chunk| HexCoord::new(chunk[0], chunk[1]))
+        .collect();
+
+    // Extract radius range
+    let min_radius = radius_range[0];
+    let max_radius = radius_range[1];
+
+    // Extract origin
+    let origin_coord = HexCoord::new(origin[0], origin[1]);
+
+    // Call the pure Rust generation function
+    let positions = generation::generate_character_positions(
+        seed,
+        character_count,
+        &hex_coords,
+        terrain_kinds,
+        min_radius,
+        max_radius,
+        origin_coord,
+    );
+
+    // Repack Vec<HexCoord> into flat Vec<i32>
+    let mut result = Vec::with_capacity(positions.len() * 2);
+    for pos in positions {
+        result.push(pos.q);
+        result.push(pos.r);
+    }
+
+    result
+}
+
+// WASM exports for settlement placement
+#[wasm_bindgen]
+pub fn wasm_place_settlements(
+    seed: u32,
+    settlement_count: u32,
+    coords: &[i32],
+    terrain_kinds: &[u8],
+    has_water_access: &[u8],
+    has_river: &[u8],
+    min_spacing: i32,
+) -> Vec<i32> {
+    // Handle edge cases
+    if coords.is_empty() || settlement_count == 0 {
+        return Vec::new();
+    }
+
+    // Validate input lengths
+    if coords.len() % 2 != 0 {
+        return Vec::new();
+    }
+
+    let tile_count = coords.len() / 2;
+    if terrain_kinds.len() != tile_count
+        || has_water_access.len() != tile_count
+        || has_river.len() != tile_count
+    {
+        return Vec::new();
+    }
+
+    // Unpack coords into Vec<HexCoord>
+    let hex_coords: Vec<HexCoord> = coords
+        .chunks(2)
+        .map(|chunk| HexCoord::new(chunk[0], chunk[1]))
+        .collect();
+
+    // Convert has_water_access and has_river from &[u8] to Vec<bool>
+    let water_access_bool: Vec<bool> = has_water_access.iter().map(|&v| v != 0).collect();
+    let river_bool: Vec<bool> = has_river.iter().map(|&v| v != 0).collect();
+
+    // Call the pure Rust generation function
+    let settlements = generation::settlements::place_settlements(
+        seed,
+        settlement_count,
+        &hex_coords,
+        terrain_kinds,
+        &water_access_bool,
+        &river_bool,
+        min_spacing,
+    );
+
+    // Pack results into flat Vec<i32>
+    // Format: [q, r, kind, score*100, q, r, kind, score*100, ...]
+    let mut result = Vec::with_capacity(settlements.len() * 4);
+    for settlement in settlements {
+        result.push(settlement.coord.q);
+        result.push(settlement.coord.r);
+        // Encode settlement kind: Village=0, Town=1, City=2
+        let kind_code = match settlement.kind {
+            generation::settlements::SettlementKind::Village => 0,
+            generation::settlements::SettlementKind::Town => 1,
+            generation::settlements::SettlementKind::City => 2,
+        };
+        result.push(kind_code as i32);
+        // Multiply score by 100 to preserve decimal precision
+        result.push((settlement.score * 100.0) as i32);
+    }
+
+    result
+}
+
+/// Generate deposits and goods for tiles on the game board.
+///
+/// Input coordinates are packed as [q, r, q, r, ...].
+/// Terrain kinds are packed as terrain type indices (0=water, 1=plains, 2=forest, 3=hills, 4=mountains, 5=snow, 6=concrete).
+/// Output is a packed Uint8Array with the following structure for each tile:
+/// - coord.q (4 bytes, i32, little-endian)
+/// - coord.r (4 bytes, i32, little-endian)
+/// - deposit_kind (1 byte): 0=none, 1=stone, 2=iron, 3=gold
+/// - goods_count (1 byte): number of goods on this tile
+/// - goods (1 byte each): 0=wood, 1=stone, 2=iron, 3=gold, 4=berries, 5=mushrooms, 6=fish
+#[wasm_bindgen]
+pub fn wasm_generate_board(seed: u32, coords: &[i32], terrain_kinds: &[u8]) -> Vec<u8> {
+    // Handle edge cases
+    if coords.is_empty() {
+        return Vec::new();
+    }
+
+    // Validate input lengths
+    if coords.len() % 2 != 0 {
+        return Vec::new();
+    }
+
+    let tile_count = coords.len() / 2;
+    if terrain_kinds.len() != tile_count {
+        return Vec::new();
+    }
+
+    // Unpack coords into Vec<HexCoord>
+    let hex_coords: Vec<HexCoord> = coords
+        .chunks(2)
+        .map(|chunk| HexCoord::new(chunk[0], chunk[1]))
+        .collect();
+
+    // Call the pure Rust generation function
+    let results = generation::board::generate_board(seed, &hex_coords, terrain_kinds);
+
+    // Pack results into flat Vec<u8>
+    let mut result = Vec::new();
+    for tile_result in results {
+        // Pack coord.q as 4-byte little-endian i32
+        result.extend_from_slice(&tile_result.coord.q.to_le_bytes());
+        // Pack coord.r as 4-byte little-endian i32
+        result.extend_from_slice(&tile_result.coord.r.to_le_bytes());
+
+        // Encode deposit_kind: 0=none, 1=stone, 2=iron, 3=gold
+        let deposit_kind_code = match tile_result.deposit_kind {
+            Some(generation::board::DepositKind::Stone) => 1u8,
+            Some(generation::board::DepositKind::Iron) => 2u8,
+            Some(generation::board::DepositKind::Gold) => 3u8,
+            None => 0u8,
+        };
+        result.push(deposit_kind_code);
+
+        // Encode goods count
+        let goods_count = tile_result.goods.len() as u8;
+        result.push(goods_count);
+
+        // Encode each good kind: 0=wood, 1=stone, 2=iron, 3=gold, 4=berries, 5=mushrooms, 6=fish
+        for good in tile_result.goods {
+            let good_kind_code = match good {
+                generation::board::GoodKind::Wood => 0u8,
+                generation::board::GoodKind::Stone => 1u8,
+                generation::board::GoodKind::Iron => 2u8,
+                generation::board::GoodKind::Gold => 3u8,
+                generation::board::GoodKind::Berries => 4u8,
+                generation::board::GoodKind::Mushrooms => 5u8,
+                generation::board::GoodKind::Fish => 6u8,
+            };
+            result.push(good_kind_code);
+        }
+    }
+
+    result
 }
 
 // WASM exports for biome classification

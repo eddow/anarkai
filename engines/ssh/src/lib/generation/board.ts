@@ -62,7 +62,7 @@ const biomeToTerrain: Record<BiomeHint, TerrainType> = {
 	snow: 'snow',
 }
 
-function resolveTerrainForTile(
+export function resolveTerrainForTile(
 	biome: BiomeHint,
 	tileField: TerrainSnapshot['tiles'] extends Map<any, infer T> ? T : never
 ): TerrainType {
@@ -214,7 +214,7 @@ function projectRiverFlowSample(
 		: base
 }
 
-function resolveHydrologyForTile(
+export function resolveHydrologyForTile(
 	snapshot: TerrainSnapshot,
 	key: string,
 	coord: AxialCoord

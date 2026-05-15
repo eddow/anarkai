@@ -57,7 +57,11 @@ function rulesTestOverrides() {
 				}),
 			}
 		),
-		deposits: { tree: { generation: {}, maxAmount: 100 } },
+		deposits: {
+			tree: { maxAmount: 12, regenerate: 0.01, generation: { mushrooms: 0.000097 } },
+			rock: { maxAmount: 18 },
+			berry_bush: { maxAmount: 18, regenerate: 0.01, generation: { berries: 0.000214 } },
+		},
 		alveoli: {
 			tree_chopper: {
 				preparationTime: 1,

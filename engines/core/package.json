@@ -10,7 +10,7 @@
   "main": "./pkg/anarkai_core.js",
   "types": "./pkg/anarkai_core.d.ts",
   "scripts": {
-    "build": "wasm-pack build --target web --out-dir pkg",
+    "build": "wasm-pack build --target web --out-dir pkg --release",
     "build:release": "wasm-pack build --target web --out-dir pkg --release"
   }
 }

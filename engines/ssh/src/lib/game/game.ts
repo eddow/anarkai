@@ -40,8 +40,6 @@ import {
 	type GeneratedCharacterData,
 	type GeneratedTileData,
 	generateSettlementRegionSetPlan,
-	PopulationGenerator,
-	type SettlementGenerationOptions,
 	type TerrainTerraformPatch,
 } from 'ssh/generation'
 import { configuration } from 'ssh/globals'
@@ -136,7 +134,7 @@ export type GameGenerationOptions = {
 	terrainSeed: number
 	characterCount: number
 	characterRadius?: number
-	settlementGeneration?: boolean | Omit<SettlementGenerationOptions, 'seed'>
+	settlementGeneration?: boolean | { settlementCount?: number; minSpacing?: number }
 }
 
 export type RenderableTerrainTile = TerrainSample
@@ -900,7 +898,36 @@ export class Game extends Eventful<GameEvents> {
 		return this.collectBootstrapCoords(config, patches).coords
 	}
 
-	private generateInitialWorld(config: GameGenerationOptions, patches: GamePatches) {
+	private materializeRestoreBaselineTiles(config: GameGenerationOptions, patches: SaveState): void {
+		this.bootstrapGameplayCoords.clear()
+		for (const coord of this.collectCoreBootstrapCoords(config, patches)) {
+			this.bootstrapGameplayCoords.add(axial.key(coord))
+		}
+		const { coords } = this.collectBootstrapCoords(config, patches)
+		this.withObjectRegistrationBatch(() => {
+			for (const coord of coords) {
+				this.materializedGameplayCoords.set(axial.key(coord), { q: coord.q, r: coord.r })
+				if (this.hex.getTileContent(coord)) continue
+				const tile =
+					this.hex.getTile(coord) ??
+					this.withObjectRegistrationBatch(() => new Tile(this.hex, { q: coord.q, r: coord.r }))
+				const sample = this.terrainProvider.getTerrainSample(coord)
+				tile.baseTerrain = sample?.terrain ?? 'grass'
+				tile.terrainHeight = sample?.height
+				tile.terrainHydrology = sample?.hydrology
+				const terrain = sample?.terrain ?? 'grass'
+				const land = new UnBuiltLand(tile, terrain, undefined)
+				this.hex.setTileContent(tile, land)
+				tile.asGenerated = true
+			}
+		})
+		console.info('[save-load][restore-baseline] materialized', {
+			coords: coords.length,
+			materializedGameplayTiles: this.materializedGameplayCoords.size,
+		})
+	}
+
+	private async generateInitialWorld(config: GameGenerationOptions, patches: GamePatches) {
 		this.bootstrapGameplayCoords.clear()
 		for (const coord of this.collectCoreBootstrapCoords(config, patches)) {
 			this.bootstrapGameplayCoords.add(axial.key(coord))
@@ -911,13 +938,14 @@ export class Game extends Eventful<GameEvents> {
 			this.loadGeneratedBoard(boardData)
 			this.applyGeneratedTerrainMetadata(boardData)
 			if (config.characterCount > 0) {
-				const populationData = new PopulationGenerator().generateCharacters(
+				const populationData = await this.generator.generateCharacters(
+					config.terrainSeed,
+					boardData,
 					{
 						characterCount: config.characterCount,
 						radius: config.characterRadius,
 						origin: anchor,
-					},
-					boardData
+					}
 				)
 				this.loadGeneratedPopulation(populationData)
 			}
@@ -939,13 +967,14 @@ export class Game extends Eventful<GameEvents> {
 			this.loadGeneratedBoard(boardData)
 			await this.ensureSettlementRegionSetsForTiles(boardData)
 			if (config.characterCount > 0) {
-				const populationData = new PopulationGenerator().generateCharacters(
+				const populationData = await this.generator.generateCharacters(
+					config.terrainSeed,
+					boardData,
 					{
 						characterCount: config.characterCount,
 						radius: config.characterRadius,
 						origin: anchor,
-					},
-					boardData
+					}
 				)
 				this.loadGeneratedPopulation(populationData)
 			}
@@ -1002,20 +1031,27 @@ export class Game extends Eventful<GameEvents> {
 		return [...keys].sort()
 	}
 
-	private applySettlementRegionSetPlan(
+	private async applySettlementRegionSetPlan(
 		regionSetKey: string,
 		boardData: readonly GeneratedTileData[]
-	): void {
+	): Promise<void> {
 		if (this.generationOptions.settlementGeneration === false) return
 		const options =
 			typeof this.generationOptions.settlementGeneration === 'object'
 				? this.generationOptions.settlementGeneration
 				: {}
-		const plan = generateSettlementRegionSetPlan(boardData, {
-			...options,
-			seed: this.generationOptions.terrainSeed,
-			regionSetKey,
-		})
+		
+		// Use WASM-based settlement placement
+		const settlements = await this.generator.placeSettlements(
+			this.generationOptions.terrainSeed,
+			boardData as GeneratedTileData[],
+			{
+				settlementCount: options.settlementCount ?? 5,
+				minSpacing: options.minSpacing ?? 7,
+			}
+		)
+		
+		const plan = generateSettlementRegionSetPlan(boardData, settlements, regionSetKey)
 		this.applyGeneratedZonePatches(plan.zones)
 		this.applyRoadPatches(plan.roads)
 		this.clearGeneratedInfrastructureBurden(boardData.map((tile) => tile.coord))
@@ -1461,7 +1497,7 @@ export class Game extends Eventful<GameEvents> {
 	async ensureGeneratedTilesAsync(coords: Iterable<AxialCoord>) {
 		await this.materializeGameplayTilesAsync(coords)
 	}
-	generate(config: GameGenerationOptions, patches: GamePatches = {}, saveState?: SaveState) {
+	async generate(config: GameGenerationOptions, patches: GamePatches = {}, saveState?: SaveState) {
 		try {
 			const terrainTiles = terrainPatchesAsTiles(patches.terrains)
 			const tilePatches = [...terrainTiles, ...(patches.tiles ?? [])]
@@ -1487,7 +1523,7 @@ export class Game extends Eventful<GameEvents> {
 			this.inFlightSettlementRegionSets.clear()
 			this.vehicles.deserialize([])
 
-			this.generateInitialWorld(config, patches)
+			await this.generateInitialWorld(config, patches)
 			// Apply patches if any
 			if (terrainTiles.length) this.applyTilePatches(terrainTiles)
 			if (patches.tiles?.length) this.applyTilePatches(patches.tiles)
@@ -1507,9 +1543,29 @@ export class Game extends Eventful<GameEvents> {
 	async generateAsync(
 		config: GameGenerationOptions,
 		patches: GamePatches = {},
-		saveState?: SaveState
+		saveState?: SaveState,
+		options: { restoreMode?: boolean } = {}
 	) {
 		try {
+			console.info('[save-load][generateAsync] begin', {
+				seed: config.terrainSeed,
+				characterCount: config.characterCount,
+				patches: {
+					tiles: (patches.tiles ?? []).length,
+					hives: (patches.hives ?? []).length,
+					looseGoodsKinds: Object.keys(normalizeLooseGoodsPatches(patches.looseGoods)).length,
+					vehicles: (patches.vehicles ?? []).length,
+					freightLines: (patches.freightLines ?? []).length,
+					streamedFrontier:
+						'streamedFrontier' in (patches as SaveState)
+							? (((patches as SaveState).streamedFrontier ?? []).length as number)
+							: 0,
+					population: 'population' in (patches as SaveState)
+						? (((patches as SaveState).population ?? []).length as number)
+						: 0,
+				},
+				hasSaveState: !!saveState,
+			})
 			const terrainTiles = terrainPatchesAsTiles(patches.terrains)
 			const tilePatches = [...terrainTiles, ...(patches.tiles ?? [])]
 			const terraforming: TerrainTerraformPatch[] = tilePatches
@@ -1534,7 +1590,16 @@ export class Game extends Eventful<GameEvents> {
 			this.inFlightSettlementRegionSets.clear()
 			this.vehicles.deserialize([])
 
-			await this.generateInitialWorldAsync(config, patches)
+			if (options.restoreMode && saveState) {
+				console.info('[save-load][generateAsync] restoreMode enabled: skipping generateInitialWorldAsync')
+				this.materializeRestoreBaselineTiles(config, saveState)
+			} else {
+				await this.generateInitialWorldAsync(config, patches)
+			}
+			console.info('[save-load][generateAsync] after world baseline', {
+				materializedGameplayTiles: this.materializedGameplayCoords.size,
+				bootstrapGameplayTiles: this.bootstrapGameplayCoords.size,
+			})
 			if (terrainTiles.length) this.applyTilePatches(terrainTiles)
 			if (patches.tiles?.length) this.applyTilePatches(patches.tiles)
 			if (patches.hives?.length)
@@ -2168,6 +2233,19 @@ export class Game extends Eventful<GameEvents> {
 
 	public async loadGameData(state: SaveState) {
 		this.conveyRestoredAtLoad = []
+		console.info('[save-load][loadGameData] begin', {
+			seed: state.generationOptions?.terrainSeed,
+			characterCount: state.generationOptions?.characterCount,
+			state: {
+				tiles: (state.tiles ?? []).length,
+				hives: (state.hives ?? []).length,
+				looseGoodsKinds: Object.keys(normalizeLooseGoodsPatches(state.looseGoods)).length,
+				vehicles: (state.vehicles ?? []).length,
+				freightLines: (state.freightLines ?? []).length,
+				streamedFrontier: (state.streamedFrontier ?? []).length,
+				population: (state.population ?? []).length,
+			},
+		})
 		// 1. Restore named configurations first (before alveoli are created)
 		if (state.namedConfigurations) {
 			this.configurationManager.deserialize(state.namedConfigurations)
@@ -2187,7 +2265,13 @@ export class Game extends Eventful<GameEvents> {
 		this.population.deserialize([])
 
 		// 3. Generate and apply patches (passes hive configs for restoration)
-		await this.generateAsync(state.generationOptions, state, state)
+		await this.generateAsync(state.generationOptions, state, state, { restoreMode: true })
+		console.info('[save-load][loadGameData] after generateAsync', {
+			materializedGameplayTiles: this.materializedGameplayCoords.size,
+			objects: this.objects.size,
+			hives: (state.hives ?? []).length,
+			freightLines: this.freightLines.length,
+		})
 
 		this.residentialDemandTicker = new ResidentialDemandTicker(this)
 
@@ -2197,6 +2281,10 @@ export class Game extends Eventful<GameEvents> {
 		if (state.population) {
 			this.population.deserialize(state.population)
 		}
+		console.info('[save-load][loadGameData] completed', {
+			population: state.population?.length ?? 0,
+			conveyRestored: this.conveyRestoredAtLoad.length,
+		})
 	}
 
 	/**

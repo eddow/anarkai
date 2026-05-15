@@ -6,11 +6,6 @@ import type { GeneratedTileData } from './board'
 
 export type SettlementKind = 'village' | 'town' | 'city'
 
-export interface SettlementCandidate {
-	coord: AxialCoord
-	score: number
-}
-
 export interface GeneratedSettlement {
 	id: string
 	name: string
@@ -18,13 +13,6 @@ export interface GeneratedSettlement {
 	center: AxialCoord
 	score: number
 	radius: number
-}
-
-export interface SettlementGenerationOptions {
-	seed: number
-	maxSettlements?: number
-	minSpacing?: number
-	regionSetKey?: string
 }
 
 export interface SettlementZonePlan {
@@ -73,17 +61,8 @@ const ZONE_DEFINITIONS: Record<
 const LAND_TERRAINS = new Set(['grass', 'forest', 'sand', 'rocky', 'concrete'])
 const INDUSTRIAL_TERRAINS = new Set(['rocky', 'forest'])
 
-function hashString(str: string): number {
-	let hash = 2166136261
-	for (let i = 0; i < str.length; i++) {
-		hash ^= str.charCodeAt(i)
-		hash = Math.imul(hash, 16777619)
-	}
-	return hash >>> 0
-}
-
-function random01(seed: number, coord: AxialCoord, salt: string): number {
-	return hashString(`${seed}:${coord.q},${coord.r}:${salt}`) / 4294967295
+function isLand(tile: GeneratedTileData): boolean {
+	return LAND_TERRAINS.has(tile.terrain)
 }
 
 function coordTuple(coord: AxialCoord): [number, number] {
@@ -94,10 +73,6 @@ function tileKey(coord: AxialCoord): string {
 	return axial.key(coord)
 }
 
-function isLand(tile: GeneratedTileData | undefined): tile is GeneratedTileData {
-	return !!tile && LAND_TERRAINS.has(tile.terrain)
-}
-
 function isRiverConflictTile(tile: GeneratedTileData): boolean {
 	const hydrology = tile.hydrology
 	return (
@@ -105,73 +80,6 @@ function isRiverConflictTile(tile: GeneratedTileData): boolean {
 		(hydrology?.bankInfluence ?? 0) > 0 ||
 		Object.keys(hydrology?.edges ?? {}).length > 0
 	)
-}
-
-function hasWaterAccess(tile: GeneratedTileData, tiles: Map<string, GeneratedTileData>): boolean {
-	if (tile.terrain === 'sand') return true
-	for (const neighbor of axial.neighbors(tile.coord)) {
-		const neighborTile = tiles.get(tileKey(neighbor))
-		if (!neighborTile) continue
-		if (neighborTile.terrain === 'water' || isRiverConflictTile(neighborTile)) return true
-	}
-	return false
-}
-
-function scoreSettlementTile(
-	tile: GeneratedTileData,
-	tiles: Map<string, GeneratedTileData>,
-	seed: number
-): number {
-	if (!isLand(tile)) return Number.NEGATIVE_INFINITY
-	if (tile.terrain === 'snow') return Number.NEGATIVE_INFINITY
-	if (isRiverConflictTile(tile)) return Number.NEGATIVE_INFINITY
-
-	let score = 0
-	if (tile.terrain === 'grass') score += 3
-	if (tile.terrain === 'forest') score += 2
-	if (tile.terrain === 'sand') score += 1
-	if (tile.terrain === 'rocky') score -= 1
-
-	score += Math.max(0, 1 - Math.abs(tile.height) * 2)
-	if (hasWaterAccess(tile, tiles)) score += 2.5
-	if (tile.deposit) score += 1.5
-
-	let landNeighbors = 0
-	let waterNeighbors = 0
-	for (const neighbor of axial.neighbors(tile.coord)) {
-		const neighborTile = tiles.get(tileKey(neighbor))
-		const terrain = neighborTile?.terrain
-		if (isLand(neighborTile)) landNeighbors++
-		else if (terrain === 'water') waterNeighbors++
-	}
-	score += landNeighbors * 0.35
-	score += Math.min(1.5, waterNeighbors * 0.5)
-	score += random01(seed, tile.coord, 'settlement-candidate') * 0.75
-	return score
-}
-
-function settlementKind(index: number, score: number): SettlementKind {
-	if (index === 0 && score >= 7) return 'city'
-	if (score >= 6) return 'town'
-	return 'village'
-}
-
-function settlementRadius(kind: SettlementKind): number {
-	if (kind === 'city') return 4
-	if (kind === 'town') return 3
-	return 2
-}
-
-function settlementName(kind: SettlementKind, coord: AxialCoord): string {
-	const prefix = kind === 'city' ? 'City' : kind === 'town' ? 'Town' : 'Village'
-	return `${prefix} ${coord.q},${coord.r}`
-}
-
-function settlementId(index: number, options: SettlementGenerationOptions): string {
-	const prefix = options.regionSetKey
-		? `settlement-${options.regionSetKey.replace(/[^a-zA-Z0-9_-]/g, '_')}`
-		: 'settlement'
-	return `${prefix}-${index + 1}`
 }
 
 function roadBorderCoordsForTrace(trace: readonly AxialCoord[]): Array<[number, number]> {
@@ -227,42 +135,11 @@ function chooseZoneForTile(
 	return 'residential'
 }
 
-export function generateSettlementZonePlan(
+export function generateZonePlanForSettlements(
 	tileData: readonly GeneratedTileData[],
-	options: SettlementGenerationOptions
+	settlements: GeneratedSettlement[]
 ): SettlementZonePlan {
 	const tiles = new Map(tileData.map((tile) => [tileKey(tile.coord), tile]))
-	const candidates = tileData
-		.map((tile) => ({ coord: tile.coord, score: scoreSettlementTile(tile, tiles, options.seed) }))
-		.filter((candidate) => Number.isFinite(candidate.score))
-		.sort((a, b) => b.score - a.score || a.coord.q - b.coord.q || a.coord.r - b.coord.r)
-
-	const targetCount = Math.max(
-		0,
-		Math.min(options.maxSettlements ?? 5, Math.floor(tileData.length / 45))
-	)
-	const minSpacing = options.minSpacing ?? 7
-	const settlements: GeneratedSettlement[] = []
-	for (const candidate of candidates) {
-		if (settlements.length >= targetCount) break
-		if (candidate.score < 3.5) break
-		if (
-			settlements.some(
-				(settlement) => axial.distance(settlement.center, candidate.coord) < minSpacing
-			)
-		) {
-			continue
-		}
-		const kind = settlementKind(settlements.length, candidate.score)
-		settlements.push({
-			id: settlementId(settlements.length, options),
-			name: settlementName(kind, candidate.coord),
-			kind,
-			center: { ...candidate.coord },
-			score: candidate.score,
-			radius: settlementRadius(kind),
-		})
-	}
 
 	const assigned = new Map<string, ZoneBucket>()
 	const priority: Record<ZoneBucket, number> = {
@@ -346,13 +223,14 @@ export function generateSettlementZonePlan(
 
 export function generateSettlementRegionSetPlan(
 	tileData: readonly GeneratedTileData[],
-	options: SettlementGenerationOptions & { regionSetKey: string }
+	settlements: GeneratedSettlement[],
+	regionSetKey: string
 ): SettlementRegionSetPlan {
-	const plan = generateSettlementZonePlan(tileData, options)
+	const plan = generateZonePlanForSettlements(tileData, settlements)
 	const children: SettlementRegion[] = plan.settlements.map((settlement) => ({
 		type: 'region',
 		id: `region-${settlement.id}`,
-		key: `${options.regionSetKey}:${settlement.center.q},${settlement.center.r}`,
+		key: `${regionSetKey}:${settlement.center.q},${settlement.center.r}`,
 		center: { ...settlement.center },
 		radius: settlement.radius,
 		settlementId: settlement.id,
@@ -361,8 +239,8 @@ export function generateSettlementRegionSetPlan(
 		...plan,
 		regionSet: {
 			type: 'region-set',
-			id: `region-set-${options.regionSetKey.replace(/[^a-zA-Z0-9_-]/g, '_')}`,
-			key: options.regionSetKey,
+			id: `region-set-${regionSetKey.replace(/[^a-zA-Z0-9_-]/g, '_')}`,
+			key: regionSetKey,
 			children,
 		},
 	}

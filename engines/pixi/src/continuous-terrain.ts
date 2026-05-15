@@ -55,10 +55,11 @@ const GAMEPLAY_STREAM_RADIUS = SECTOR_STEP + 1
 const GAMEPLAY_STREAM_BATCH_SIZE = 512
 const TERRAIN_DIAGNOSTIC_HISTORY_LIMIT = 12
 const SLOW_SECTOR_LOG_THRESHOLD_MS = 16
-const MAX_PENDING_SECTORS = 8
-const MAX_SECTOR_STARTS_PER_REFRESH = 8
-const VIEWPORT_SETTLE_MS = 250
+const MAX_PENDING_SECTORS = 12 // Increased for better panning performance
+const MAX_SECTOR_STARTS_PER_REFRESH = 12 // Increased for faster sector loading
+const VIEWPORT_SETTLE_MS = 150 // Reduced for faster response during panning
 const VIEWPORT_WORLD_OVERSCAN = tileSize * 3
+const REFRESH_THROTTLE_MS = 8 // Throttle heavy refresh operations during panning
 const HEX_HALF_WIDTH = (Math.sqrt(3) / 2) * tileSize
 const HEX_HALF_HEIGHT = tileSize
 const USE_PARTICLE_RESOURCE_BATCH = false
@@ -76,6 +77,7 @@ const MACRO_OVERVIEW_RADIUS_MARGIN_SECTORS = 1
 const MACRO_OVERVIEW_SNAP_DRIFT_SECTORS = 8
 const MACRO_OVERVIEW_MAX_GRID_RADIUS = 120
 const MACRO_OVERVIEW_MIN_SECTOR_RADIUS = 4
+let loggedNonDetailResourceMode = false
 
 export function terrainLodTilePixels(worldScale: number): number {
 	return tileSize * 2 * Math.max(0, worldScale)
@@ -138,6 +140,25 @@ export function macroRequestForTerrainLod(
 		sectorRadius,
 		macroStep: Math.max(baseStep, boundedStep),
 	}
+}
+
+function snappedMacroSectorKey(centerSectorKey: string): string {
+	const [rawQ, rawR] = centerSectorKey.split(',').map(Number)
+	const q = Math.floor((rawQ ?? 0) / MACRO_OVERVIEW_SNAP_DRIFT_SECTORS) * MACRO_OVERVIEW_SNAP_DRIFT_SECTORS
+	const r = Math.floor((rawR ?? 0) / MACRO_OVERVIEW_SNAP_DRIFT_SECTORS) * MACRO_OVERVIEW_SNAP_DRIFT_SECTORS
+	return `${q},${r}`
+}
+
+function macroSnapshotMatchesRequest(
+	snapshot: TerrainMacroHydrologySnapshot,
+	centerSectorKey: string,
+	request: TerrainMacroRequest
+): boolean {
+	return (
+		`${snapshot.centerSector.q},${snapshot.centerSector.r}` === snappedMacroSectorKey(centerSectorKey) &&
+		snapshot.sectorRadius === request.sectorRadius &&
+		snapshot.macroStep === request.macroStep
+	)
 }
 
 function beginTerrainProfile(label: string, payload?: unknown): (payload?: unknown) => void {
@@ -322,6 +343,7 @@ export class TerrainVisual {
 	private lastMacroOverlaySignature = ''
 	private refreshScheduled = false
 	private refreshScheduledClearCache = false
+	private lastRefreshTime = 0
 	private readonly viewportId = `terrain-viewport-${++TerrainVisual.viewportSequence}`
 	private queueDebug: TerrainQueueDebugSnapshot = {
 		frame: {
@@ -533,14 +555,29 @@ export class TerrainVisual {
 
 	private refresh = () => {
 		const refreshStartedAt = nowMs()
+		
 		const app = this.renderer.app
 		const world = this.renderer.world
 		if (!app || !world) return
-
-		const endRefreshProfile = beginTerrainProfile('refresh')
+		
+		// Compute viewport settled status first for throttling
 		const screenCenter = new Point(app.screen.width / 2, app.screen.height / 2)
 		const localCenter = world.toLocal(screenCenter)
 		const center = axial.round(fromCartesian(localCenter, tileSize))
+		const worldPosition = world.position ?? { x: 0, y: 0 }
+		const viewportSettled = refreshStartedAt - this.viewportChangedAtMs >= VIEWPORT_SETTLE_MS
+		
+		// Throttle refresh operations during rapid panning
+		const timeSinceLastRefresh = refreshStartedAt - this.lastRefreshTime
+		if (timeSinceLastRefresh < REFRESH_THROTTLE_MS && !viewportSettled) {
+			// Skip heavy operations during rapid movement, just pump queue
+			this.pumpVisibleSectorQueue()
+			this.lastRefreshTime = refreshStartedAt
+			return
+		}
+		this.lastRefreshTime = refreshStartedAt
+
+		const endRefreshProfile = beginTerrainProfile('refresh')
 		const lodMode = resolveTerrainLod(world.scale.x)
 		this.currentLodMode = lodMode
 		const macroOverview = usesMacroOverview(lodMode)
@@ -548,15 +585,16 @@ export class TerrainVisual {
 		const worldHalfWidth = app.screen.width / (2 * Math.max(world.scale.x, 0.001))
 		const worldHalfHeight = app.screen.height / (2 * Math.max(world.scale.y, 0.001))
 		const radius = Math.ceil(Math.max(worldHalfWidth, worldHalfHeight) / tileSize) + 6
-		const worldPosition = world.position ?? { x: 0, y: 0 }
-		const signature = `${center.q},${center.r}:${radius}:${app.screen.width}x${app.screen.height}:${lodMode}:${world.scale.x.toFixed(4)},${world.scale.y.toFixed(4)}:${worldPosition.x.toFixed(2)},${worldPosition.y.toFixed(2)}`
+		
+		// Optimize signature calculation - use fewer decimal places for faster comparison
+		const signature = `${center.q},${center.r}:${radius}:${app.screen.width}x${app.screen.height}:${lodMode}:${world.scale.x.toFixed(2)},${world.scale.y.toFixed(2)}:${Math.round(worldPosition.x)},${Math.round(worldPosition.y)}`
 		if (signature !== this.viewportSettleSignature) {
 			this.viewportSettleSignature = signature
 			this.viewportChangedAtMs = refreshStartedAt
 		}
-		const viewportSettled = refreshStartedAt - this.viewportChangedAtMs >= VIEWPORT_SETTLE_MS
+		const currentViewportSettled = refreshStartedAt - this.viewportChangedAtMs >= VIEWPORT_SETTLE_MS
 		if (signature === this.lastSignature) {
-			if (!macroOverview && viewportSettled) this.pumpVisibleSectorQueue()
+			if (!macroOverview && currentViewportSettled) this.pumpVisibleSectorQueue()
 			endRefreshProfile({
 				skipped: true,
 				lodMode,
@@ -582,14 +620,11 @@ export class TerrainVisual {
 		const minR = center.r - radius
 		const maxR = center.r + radius
 		const endVisibilityProfile = beginTerrainProfile('refresh.visibility', refreshProfilePayload)
-		if (macroOverview) {
-			this.visibleTileKeys = new Set()
-			this.visibleSectorKeys = new Set()
-		} else {
-			const viewportBounds = this.currentViewportWorldBounds()
-			this.visibleTileKeys = collectVisibleTileKeys(center, radius + 2, viewportBounds)
-			this.visibleSectorKeys = collectVisibleSectorKeys(this.visibleTileKeys)
-		}
+		const viewportBounds = this.currentViewportWorldBounds()
+		this.visibleTileKeys = collectVisibleTileKeys(center, radius + 2, viewportBounds)
+		this.visibleSectorKeys = macroOverview
+			? new Set()
+			: collectVisibleSectorKeys(this.visibleTileKeys)
 		endVisibilityProfile({
 			visibleTiles: this.visibleTileKeys.size,
 			visibleSectors: this.visibleSectorKeys.size,
@@ -676,7 +711,7 @@ export class TerrainVisual {
 			streamDetailSectors,
 		})
 		this.visibleSectorQueue = streamDetailSectors ? this.buildVisibleSectorQueue(center) : []
-		if (streamDetailSectors && viewportSettled) {
+		if (streamDetailSectors && currentViewportSettled) {
 			this.pumpVisibleSectorQueue()
 		} else {
 			if (!streamDetailSectors) {
@@ -757,14 +792,18 @@ export class TerrainVisual {
 			}
 		).getTerrainMacroHydrology
 		const current = getTerrainMacroHydrology?.call(this.renderer.game)
-		if (current) this.renderMacroRiverOverlay(current)
+		if (current && macroSnapshotMatchesRequest(current, centerSectorKey, request)) {
+			this.renderMacroRiverOverlay(current)
+		}
 		if (!ensureMacroHydrology) {
 			endEnsureProfile({ hasCurrent: !!current, requested: false })
 			return
 		}
 		void ensureMacroHydrology.call(this.renderer.game, centerSectorKey, request).then(() => {
 			const next = getTerrainMacroHydrology?.call(this.renderer.game)
-			if (next) this.renderMacroRiverOverlay(next)
+			if (next && macroSnapshotMatchesRequest(next, centerSectorKey, request)) {
+				this.renderMacroRiverOverlay(next)
+			}
 			endEnsureProfile({
 				hasCurrent: !!current,
 				hasNext: !!next,
@@ -951,20 +990,50 @@ export class TerrainVisual {
 		const sectorStartedAt = nowMs()
 		const lodMode = this.diagnostics.refresh.lodMode
 		const lodChanged = sectorState.lodMode !== lodMode
+		
+		// Early exit if sector is not visible
+		if (!this.visibleSectorKeys.has(sectorKey)) {
+			sectorState.container.visible = false
+			return { renderedTileCount: 0, missingTileCount: 0 }
+		}
+		
+		// Cache visible coords to avoid repeated filtering
 		const visibleCoords = sectorState.coverage.interiorTileCoords.filter((coord) =>
 			this.visibleTileKeys.has(axial.key(coord))
 		)
+		
+		// Count missing tiles more efficiently with early exit
 		let missingTileCount = 0
 		for (const coord of sectorState.coverage.bakeTileCoords) {
-			if (!this.renderer.game.hasRenderableTerrainAt(coord)) missingTileCount++
+			if (!this.renderer.game.hasRenderableTerrainAt(coord)) {
+				missingTileCount++
+				// Early exit if we already know we need to regenerate
+				if (missingTileCount > 0 && !sectorState.groundSprite) break
+			}
 		}
+		
 		const shouldBuildResources = lodMode === 'detail'
+		if (!shouldBuildResources && !loggedNonDetailResourceMode) {
+			loggedNonDetailResourceMode = true
+			console.info(
+				`[terrain:diagnostic] Resource sprites disabled for LOD=${lodMode}. Macro/overview loose goods visibility depends on viewport-demand materialization.`
+			)
+		}
 		const isDirty = sectorState.dirty || this.dirtySectorKeys.has(sectorKey) || lodChanged
-		const renderedTileCount = countMaterializedCoords(
-			visibleCoords,
-			this.visibleTileKeys,
-			this.renderer
-		)
+		
+		// Only count materialized coords if we need to rebuild or update visibility
+		let renderedTileCount = 0
+		if (isDirty || missingTileCount > 0 || !sectorState.groundSprite) {
+			renderedTileCount = countMaterializedCoords(
+				visibleCoords,
+				this.visibleTileKeys,
+				this.renderer
+			)
+		} else {
+			// Use cached value if nothing changed
+			renderedTileCount = visibleCoords.length
+		}
+		
 		if (missingTileCount > 0) {
 			sectorState.container.visible = !!sectorState.groundSprite && renderedTileCount > 0
 			return {
@@ -1242,7 +1311,7 @@ export class TerrainVisual {
 	private coordsForSectorKey(sectorKey: string): AxialCoord[] {
 		const cached = this.sectorCoords.get(sectorKey)
 		if (cached) return cached
-		const coords = coordsForSectorInterior(sectorKey, SECTOR_STEP)
+		const coords = getCachedSectorInteriorCoords(sectorKey, SECTOR_STEP)
 		this.sectorCoords.set(sectorKey, coords)
 		return coords
 	}
@@ -1274,11 +1343,15 @@ export class TerrainVisual {
 
 	private updateViewportDemand() {
 		if (usesMacroOverview(this.currentLodMode)) {
+			const demandedCoords = new Map<string, AxialCoord>()
+			for (const tileKey of this.visibleTileKeys) {
+				demandedCoords.set(tileKey, axial.coord(tileKey))
+			}
 			;(
 				this.renderer.game as {
-					clearTerrainViewportDemand?: (viewportId: string) => void
+					updateTerrainViewportDemand?: (viewportId: string, coords: Iterable<AxialCoord>) => void
 				}
-			).clearTerrainViewportDemand?.(this.viewportId)
+			).updateTerrainViewportDemand?.(this.viewportId, demandedCoords.values())
 			return
 		}
 		const demandedSectorKeys = new Set<string>()
@@ -1395,14 +1468,20 @@ export class TerrainVisual {
 		}
 		try {
 			const sectorsNeedingTerrain: string[] = []
+			const sectorsNeedingBake: string[] = []
 			for (const next of batch) {
 				const interiorCoords = this.coordsForSectorKey(next.key)
+				const bakeCoords = coordsForSectorBakeDomain(next.key, SECTOR_STEP)
 				const missingGameplayCoords = interiorCoords.filter(
 					(coord) => !this.hasGameplayContentAt(coord)
 				)
+				const missingBakeCoords = bakeCoords.filter(
+					(coord) => !this.renderer.game.hasRenderableTerrainAt(coord)
+				)
 				const info = requestInfo.get(next.key)!
-				info.missingBakeTiles = missingGameplayCoords.length
+				info.missingBakeTiles = missingBakeCoords.length
 				if (missingGameplayCoords.length > 0) sectorsNeedingTerrain.push(next.key)
+				if (missingBakeCoords.length > 0) sectorsNeedingBake.push(next.key)
 			}
 
 			if (sectorsNeedingTerrain.length > 0) {
@@ -1432,13 +1511,44 @@ export class TerrainVisual {
 					}
 				}
 			}
+			if (sectorsNeedingBake.length > 0) {
+				const ensureTerrainSectors = (
+					this.renderer.game as {
+						ensureTerrainSectors?: (
+							sectorKeys: Iterable<string>,
+							options?: { includeHydrology?: boolean }
+						) => Promise<void>
+					}
+				).ensureTerrainSectors
+				const ensureTerrainSamples = (
+					this.renderer.game as {
+						ensureTerrainSamples?: (coords: Iterable<AxialCoord>) => Promise<void>
+					}
+				).ensureTerrainSamples
+				if (ensureTerrainSectors) {
+					await ensureTerrainSectors.call(this.renderer.game, sectorsNeedingBake, {
+						includeHydrology: includesDetailedHydrology(this.currentLodMode),
+					})
+				} else if (ensureTerrainSamples) {
+					const missing = new Map<string, AxialCoord>()
+					for (const key of sectorsNeedingBake) {
+						for (const coord of coordsForSectorBakeDomain(key, SECTOR_STEP)) {
+							if (this.renderer.game.hasRenderableTerrainAt(coord)) continue
+							missing.set(axial.key(coord), coord)
+						}
+					}
+					await ensureTerrainSamples.call(this.renderer.game, missing.values())
+				}
+			}
 
 			for (const next of batch) {
 				const bakeCoords = coordsForSectorBakeDomain(next.key, SECTOR_STEP)
 				const interiorCoords = this.coordsForSectorKey(next.key)
 				const info = requestInfo.get(next.key)!
 				if (info.requestMode === 'gameplay-sector') {
-					info.generated = interiorCoords.every((coord) => this.hasGameplayContentAt(coord))
+					info.generated =
+						interiorCoords.every((coord) => this.hasGameplayContentAt(coord)) &&
+						bakeCoords.every((coord) => this.renderer.game.hasRenderableTerrainAt(coord))
 				} else if (info.missingBakeTiles === 0) {
 					info.generated = await this.renderer.game.requestGameplayFrontier(
 						this.sectorCenter(next.sectorQ, next.sectorR),
@@ -1618,6 +1728,28 @@ function countMatchingKeys(keys: Set<string>, loaded: Map<string, unknown> | Set
 		if (loaded.has(key)) count++
 	}
 	return count
+}
+
+// Cache for sector interior coords to avoid repeated computation
+const sectorInteriorCoordsCache = new Map<string, AxialCoord[]>()
+const MAX_CACHE_SIZE = 100
+
+function getCachedSectorInteriorCoords(sectorKey: string, sectorStep: number): AxialCoord[] {
+	const cached = sectorInteriorCoordsCache.get(sectorKey)
+	if (cached) return cached
+	
+	const coords = coordsForSectorInterior(sectorKey, sectorStep)
+	
+	// Simple LRU cache eviction
+	if (sectorInteriorCoordsCache.size >= MAX_CACHE_SIZE) {
+		const firstKey = sectorInteriorCoordsCache.keys().next().value
+		if (firstKey !== undefined) {
+			sectorInteriorCoordsCache.delete(firstKey)
+		}
+	}
+	
+	sectorInteriorCoordsCache.set(sectorKey, coords)
+	return coords
 }
 
 function collectVisibleTileKeys(

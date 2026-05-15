@@ -1,19 +1,12 @@
-# Rust/WASM Core Engine — Architecture & Terrain Generation Refactoring
+# Rust/WASM Core Engine — Architecture & Game Generation
 
 ## Motivation
 
-Anarkai needs to generate terrain at scale. The current [`engines/terrain`](../engines/terrain/) package
-uses TypeScript with Perlin noise (FBM) and probabilistic hydrology. This is deterministic and streamable,
-but it has two structural problems:
+Anarkai needs to generate terrain and game board data at scale. The current [`engines/ssh`](../engines/ssh/) package uses TypeScript for population placement, settlement scoring, and board generation (deposits + goods). These computations are deterministic but performance-critical, and Rust provides:
 
-1. **No continental geography** — Perlin alone produces smooth, continuous terrain without distinct
-   continents, oceans, mountain ranges, or natural lakes.
-2. **Performance ceiling** — TypeScript cannot compete with Rust for the compute-intensive algorithms
-   needed for realistic terrain (plate tectonics, drainage basin analysis, hydraulic erosion).
-
-More importantly, [`engines/ssh`](../engines/ssh/) — the gameplay engine — will eventually migrate to
-Rust/WASM. Creating a unified `engines/core` Rust project now, starting with terrain, gives us a
-clean path to migrate all heavy simulation later.
+1. **Performance ceiling** — TypeScript cannot compete with Rust for the compute-intensive algorithms needed for large-scale board generation.
+2. **Determinism across platforms** — Rust's strict floating-point semantics guarantee identical results across platforms (V8 vs SpiderMonkey vs JavaScriptCore).
+3. **SSH migration path** — Creating a unified `engines/core` Rust project gives us a clean path to migrate all heavy simulation later.
 
 ---
 
@@ -39,7 +32,12 @@ engines/
 │   ├── README.md
 │   ├── src/
 │   │   ├── lib.rs                 # WASM entry point, public exports
-│   │   ├── terrain/               # Terrain generation module (Phase 1)
+│   │   ├── generation/            # Game generation modules (Phase 1-3 complete)
+│   │   │   ├── mod.rs             # Coord hash, random utils, re-exports
+│   │   │   ├── population.rs      # Character placement
+│   │   │   ├── settlements.rs     # Settlement scoring & placement
+│   │   │   └── board.rs           # Deposit & goods generation
+│   │   ├── terrain/               # Terrain generation module
 │   │   │   ├── mod.rs
 │   │   │   ├── continental.rs     # Plate tectonics
 │   │   │   ├── mountains.rs       # Fault line simulation + ridge noise
@@ -48,39 +46,26 @@ engines/
 │   │   │   ├── lakes.rs           # Depression filling for natural lakes
 │   │   │   ├── affordances.rs     # Buildability, roadability, settlement scores
 │   │   │   └── types.rs           # Terrain-specific types
-│   │   ├── gameplay/              # Future: SSH gameplay logic (Phase 2+)
-│   │   │   ├── mod.rs
-│   │   │   ├── board.rs
-│   │   │   ├── entities.rs
-│   │   │   ├── pathfinding.rs
-│   │   │   └── simulation.rs
-│   │   ├── common/                # Shared utilities
-│   │   │   ├── mod.rs
-│   │   │   ├── noise.rs           # Perlin / Simplex / value noise
-│   │   │   ├── math.rs            # Vector math, interpolation
-│   │   │   ├── rng.rs             # Seeded PRNG (deterministic)
-│   │   │   ├── hex.rs             # Hex coordinate system
-│   │   │   └── wasm.rs            # WASM binding helpers
-│   │   └── types/                 # Shared types across all modules
+│   │   ├── noise.rs               # Perlin / domain warp / FBM
+│   │   └── common/                # Shared utilities
 │   │       ├── mod.rs
-│   │       ├── coordinates.rs     # Axial/offset/cube hex coordinates
-│   │       ├── terrain.rs         # TileField, EdgeField, BiomeHint
-│   │       └── serialization.rs   # Serde-based save/load types
+│   │       ├── hex.rs             # Hex coordinate system
+│   │       ├── rng.rs             # Seeded PRNG (deterministic)
+│   │       └── bounds.rs          # Region bounds
 │   └── pkg/                       # Generated WASM package (git-ignored)
 │       ├── anarkai_core.js
 │       ├── anarkai_core.d.ts
 │       └── anarkai_core_bg.wasm
-├── terrain/                       # TypeScript terrain engine (wrapper)
+├── ssh/                           # TypeScript SSH engine
 │   ├── src/
-│   │   ├── wasm-adapter.ts        # Bridge to engines/core WASM
-│   │   ├── generate.ts            # Entry point: WASM or CPU fallback
-│   │   ├── fields/                # Existing field generation (fallback)
-│   │   ├── hydrology/             # Existing hydrology (to be replaced)
-│   │   └── types.ts               # TypeScript mirror of core types
-│   └── package.json
-├── ssh/                           # TypeScript SSH engine (to migrate)
-│   ├── src/
-│   │   ├── wasm-adapter.ts        # Future: bridge to engines/core
+│   │   ├── lib/
+│   │   │   ├── generation/
+│   │   │   │   ├── index.ts       # GameGenerator (WASM adapter for board generation)
+│   │   │   │   ├── board.ts       # BoardGenerator (TypeScript fallback + hydrology)
+│   │   │   │   ├── population.ts  # PopulationGenerator (TypeScript, WASM-ready)
+│   │   │   │   └── settlements.ts # Settlement zoning (TypeScript, WASM-ready)
+│   │   │   └── game/
+│   │   │       └── game.ts        # Game class (orchestrates all generation)
 │   │   └── ...
 │   └── package.json
 ├── pixi/                          # TypeScript renderer
@@ -92,481 +77,408 @@ engines/
 ```mermaid
 graph TD
     Core[engines/core<br/>Rust/WASM]
-    Terrain[engines/terrain<br/>TS wrapper]
     SSH[engines/ssh<br/>TS engine]
     Pixi[engines/pixi<br/>renderer]
     Browser[apps/browser]
+    Rules[engines/rules<br/>config]
 
-    Terrain --> Core
     SSH --> Core
-    SSH --> Terrain
+    SSH --> Rules
     Pixi --> SSH
     Browser --> Pixi
     Browser --> SSH
 ```
 
-**Key rule:** `engines/terrain` and `engines/ssh` are TypeScript wrappers. They own the public API
-that Pixi and the browser consume. They delegate heavy computation to `engines/core` via WASM,
-with CPU fallbacks for environments where WASM is unavailable.
+**Key rule:** `engines/ssh` delegates heavy computation to `engines/core` via WASM, with TypeScript fallbacks for environments where WASM is unavailable.
+
+---
+
+## Generation Modules Overview
+
+All three generation modules are in [`engines/core/src/generation/`](../engines/core/src/generation/) and are designed as **pure Rust** — no WASM dependencies at the module level. WASM bindings are added only in [`lib.rs`](../engines/core/src/lib.rs).
+
+### 1. Population Generation [`population.rs`](../engines/core/src/generation/population.rs)
+
+**Purpose:** Places characters on the game board during initialization based on terrain and distance from origin.
+
+**Key function:**
+
+```rust
+// engines/core/src/generation/population.rs:31
+pub fn generate_character_positions(
+    seed: u32,
+    character_count: u32,
+    coords: &[HexCoord],
+    terrain_kinds: &[u8],
+    min_radius: i32,
+    max_radius: i32,
+    origin: HexCoord,
+) -> Vec<HexCoord>
+```
+
+**Algorithm:**
+1. Filters out water tiles (`terrain_kind == 0`)
+2. Filters tiles outside the specified radius range from origin
+3. Sorts eligible tiles by distance to origin (ascending)
+4. Selects up to `character_count` tiles for character placement
+
+**Data structures used:** [`HexCoord`](../engines/core/src/common/hex.rs) (q, r axial coordinates)
+
+**Note:** The `seed` parameter is currently unused (reserved for future randomization). The algorithm is purely distance-based.
+
+---
+
+### 2. Settlement Generation [`settlements.rs`](../engines/core/src/generation/settlements.rs)
+
+**Purpose:** Scores all valid tiles for settlement placement, selects the best candidates respecting minimum spacing constraints, and assigns settlement kinds (Village, Town, City).
+
+**Key functions:**
+
+```rust
+// engines/core/src/generation/settlements.rs:72
+pub fn score_settlement_tile(
+    seed: u32,
+    coord: &HexCoord,
+    terrain_kind: u8,
+    has_water_access: bool,
+    has_river: bool,
+    existing_settlements: &[HexCoord],
+    min_spacing: i32,
+) -> f64
+
+// engines/core/src/generation/settlements.rs:162
+pub fn place_settlements(
+    seed: u32,
+    settlement_count: u32,
+    coords: &[HexCoord],
+    terrain_kinds: &[u8],
+    has_water_access: &[bool],
+    has_river: &[bool],
+    min_spacing: i32,
+) -> Vec<SettlementPlacement>
+```
+
+**Scoring factors:**
+- **Terrain:** Plains (+10), Forest (+5), Hills (-5), Mountains (-10)
+- **Water access:** +20 points
+- **River presence:** +15 points
+- **Distance penalty:** -1 point per tile closer than `min_spacing` to existing settlement
+- **Random jitter:** Small random value (0-0.75) for tie-breaking, based on FNV hash
+- **Invalid terrains:** Water and Snow get negative infinity score
+
+**Settlement kinds:**
+- **City:** First settlement with score ≥ 7.0 (radius 4)
+- **Town:** Any settlement with score ≥ 6.0 (radius 3)
+- **Village:** All other settlements (radius 2)
+
+**Data structures:**
+
+```rust
+pub enum SettlementKind { Village, Town, City }
+
+pub struct SettlementPlacement {
+    pub coord: HexCoord,
+    pub score: f64,
+    pub kind: SettlementKind,
+}
+```
+
+**Determinism:** Uses FNV-1a hash of (seed, coordinate, salt) for reproducible random jitter.
+
+---
+
+### 3. Board Generation [`board.rs`](../engines/core/src/generation/board.rs)
+
+**Purpose:** Generates deposits (mineral resources) and ambient goods (harvestable resources) for each tile on the game board.
+
+**Key functions:**
+
+```rust
+// engines/core/src/generation/board.rs:67
+pub fn generate_deposit(seed: u32, coord: &HexCoord, terrain_kind: u8) -> Option<DepositKind>
+
+// engines/core/src/generation/board.rs:137
+pub fn generate_goods(
+    seed: u32, coord: &HexCoord, terrain_kind: u8, deposit_kind: Option<DepositKind>
+) -> Vec<GoodKind>
+
+// engines/core/src/generation/board.rs:229
+pub fn generate_board(
+    seed: u32, coords: &[HexCoord], terrain_kinds: &[u8]
+) -> Vec<TileGenerationResult>
+```
+
+**Deposit probabilities by terrain:**
+
+| Terrain | Stone | Iron | Gold | None |
+|---------|-------|------|------|------|
+| Mountains | 30% | 15% | 5% | 50% |
+| Hills | 40% | 10% | 0% | 50% |
+| Forest | 25% (as Stone) | 0% | 0% | 75% |
+| Plains | 0% | 0% | 0% | 100% |
+| Water | 0% | 0% | 0% | 100% |
+| Snow | 0% | 0% | 0% | 100% |
+| Concrete | 0% | 0% | 0% | 100% |
+
+**Ambient goods by terrain:**
+
+| Terrain | Goods (probability) |
+|---------|---------------------|
+| Forest | Berries (40%), Mushrooms (30%) |
+| Plains | Berries (50%), Mushrooms (40%) |
+| Hills | Stone ambient (30% if no deposit) |
+| Mountains | Stone ambient (20%), Iron ambient (10%), Gold ambient (5%) |
+| Water | Fish (70%) |
+| Snow/Concrete | None |
+
+**Data structures:**
+
+```rust
+pub enum DepositKind { Stone, Iron, Gold }
+pub enum GoodKind { Wood, Stone, Iron, Gold, Berries, Mushrooms, Fish }
+
+pub struct TileGenerationResult {
+    pub coord: HexCoord,
+    pub deposit_kind: Option<DepositKind>,
+    pub goods: Vec<GoodKind>,
+}
+```
+
+**Determinism:** Uses FNV-1a hash of (seed, coordinate, salt) with separate salts for deposit ("deposit"), goods ("goods", "goods2", "goods3") to generate independent random values for each resource type.
+
+---
+
+### Shared Utilities
+
+**Coord hash** ([`mod.rs:16`](../engines/core/src/generation/mod.rs:16)):
+
+```rust
+pub fn coord_hash(seed: u32, coord: &HexCoord, salt: &str) -> u64
+```
+
+FNV-1a based hash combining seed, coordinate (q, r), and a salt string. Matches TypeScript's `hashString` implementation for cross-platform determinism.
+
+**Random [0,1)** ([`mod.rs:57`](../engines/core/src/generation/mod.rs:57)):
+
+```rust
+pub fn random01(hash: u64) -> f64
+```
+
+Converts lower 32 bits of hash to float in range [0, 1) by dividing by `u32::MAX` (4294967295).
+
+---
+
+## WASM Bindings
+
+All WASM bindings are in [`engines/core/src/lib.rs`](../engines/core/src/lib.rs). The generation modules themselves are WASM-free; bindings handle type conversion between Rust and JavaScript.
+
+### Exported WASM Functions
+
+#### Population
+
+```rust
+#[wasm_bindgen]
+pub fn wasm_generate_character_positions(
+    seed: u32,
+    character_count: u32,
+    coords: &[i32],           // packed: [q, r, q, r, ...]
+    terrain_kinds: &[u8],     // 0=water, 1=plains, 2=forest, ...
+    radius_range: &[i32],     // [min_radius, max_radius]
+    origin: &[i32],           // [origin_q, origin_r]
+) -> Vec<i32>                 // packed: [q, r, q, r, ...]
+```
+
+#### Settlements
+
+```rust
+#[wasm_bindgen]
+pub fn wasm_place_settlements(
+    seed: u32,
+    settlement_count: u32,
+    coords: &[i32],           // packed: [q, r, q, r, ...]
+    terrain_kinds: &[u8],
+    has_water_access: &[u8],  // 0=false, non-zero=true
+    has_river: &[u8],
+    min_spacing: i32,
+) -> Vec<i32>                 // packed: [q, r, kind_code, score*100, ...]
+                              // kind_code: 0=Village, 1=Town, 2=City
+```
+
+#### Board (Deposits + Goods)
+
+```rust
+#[wasm_bindgen]
+pub fn wasm_generate_board(
+    seed: u32,
+    coords: &[i32],           // packed: [q, r, q, r, ...]
+    terrain_kinds: &[u8],
+) -> Vec<u8>                  // packed binary format (see below)
+```
+
+**Board result binary format per tile:**
+```
+Bytes 0-3:   coord.q (i32, little-endian)
+Bytes 4-7:   coord.r (i32, little-endian)
+Byte  8:     deposit_kind (0=none, 1=stone, 2=iron, 3=gold)
+Byte  9:     goods_count
+Bytes 10+:   goods (1 byte each: 0=wood, 1=stone, 2=iron, 3=gold, 4=berries, 5=mushrooms, 6=fish)
+```
+
+### WASM Type Mapping (Terrain Kinds)
+
+| WASM index | Rust constant | Game TerrainType | Notes |
+|-----------|---------------|------------------|-------|
+| 0 | `TERRAIN_WATER` | `water` | Excluded from population/settlement |
+| 1 | `TERRAIN_PLAINS` | `grass`, `sand` | Sand maps to plains in WASM |
+| 2 | `TERRAIN_FOREST` | `forest` | |
+| 3 | `TERRAIN_HILLS` | `rocky` | Rocky terrain maps to hills |
+| 4 | `TERRAIN_MOUNTAINS` | _(not used by game)_ | Only in deposits/goods |
+| 5 | `TERRAIN_SNOW` | `snow` | Excluded from settlement scoring |
+| 6 | `TERRAIN_CONCRETE` | `concrete` | Neutral for scoring |
+
+---
+
+## TypeScript Adapters
+
+### GameGenerator ([`engines/ssh/src/lib/generation/index.ts`](../engines/ssh/src/lib/generation/index.ts))
+
+The `GameGenerator` class is the primary TypeScript adapter bridging WASM and the game engine.
+
+#### Methods
+
+```typescript
+class GameGenerator {
+    // Synchronous generation using TypeScript BoardGenerator (no WASM)
+    generateRegion(config, coords, terraforming?): GeneratedTileData[]
+
+    // Async generation using WASM core for deposits/goods type determination
+    async generateBoard(seed, snapshot): Promise<GeneratedTileData[]>
+
+    // Full async pipeline: terrain + board generation
+    async generateRegionAsync(config, coords, terraforming?): Promise<GeneratedTileData[]>
+
+    // Sector-based generation with hydrology
+    async generateSectorsAsync(config, sectors, terraforming?, options?): Promise<GeneratedTileData[]>
+
+    // Macro hydrology overview
+    async generateMacroHydrologyAsync(config, centerSector, options?): Promise<TerrainMacroHydrologySnapshot>
+}
+```
+
+#### WASM-to-TypeScript Type Mapping
+
+**Terrain mapping** ([`index.ts:97-108`](../engines/ssh/src/lib/generation/index.ts:97)):
+```typescript
+function toWasmTerrainKind(terrain: TerrainType): number {
+    // water→0, forest→2, rocky→3(hills), grass→1(plains), sand→1, snow→5, concrete→6
+}
+```
+
+**Deposit mapping** ([`index.ts:119-124`](../engines/ssh/src/lib/generation/index.ts:119)):
+```typescript
+const WASM_DEPOSIT_TO_GAME = {
+    0: null,      // none
+    1: 'rock',    // stone
+    2: 'rock',    // iron → all minerals map to 'rock'
+    3: 'rock',    // gold
+}
+```
+
+**Goods mapping** ([`index.ts:136-144`](../engines/ssh/src/lib/generation/index.ts:136)):
+```typescript
+const WASM_GOOD_TO_GAME = {
+    0: 'wood',        // wood
+    1: 'stone',       // stone
+    2: null,          // iron — no game equivalent
+    3: null,          // gold — no game equivalent
+    4: 'berries',     // berries
+    5: 'mushrooms',   // mushrooms
+    6: null,          // fish — no game equivalent
+}
+```
+
+#### Amount Computation
+
+While WASM determines **which** deposits and goods exist on a tile, TypeScript computes **how much** (amounts) using engine-rules configuration ([`index.ts:202-301`](../engines/ssh/src/lib/generation/index.ts:202)). This separation keeps game balance configuration in TypeScript/engine-rules while compute-intensive type determination runs in Rust.
+
+#### BoardGenerator (TypeScript fallback)
+
+[`engines/ssh/src/lib/generation/board.ts`](../engines/ssh/src/lib/generation/board.ts) contains the `BoardGenerator` class — the synchronous TypeScript fallback that generates deposits and goods using the same PRNG approach but with game-specific type resolution. It also handles hydrology data projection (river edges, channels, banks) from terrain snapshots.
+
+---
+
+## Integration: How WASM Is Called
+
+The primary integration path is in [`GameGenerator.generateBoard()`](../engines/ssh/src/lib/generation/index.ts:371):
+
+1. Resolve tile entries from terrain snapshot (terrain type, biome, coordinate)
+2. Build flat `Int32Array` of coordinates and `Uint8Array` of terrain kinds
+3. Call `wasm_generate_board(seed, coords, terrainKinds)` via dynamic import
+4. Parse the packed `Uint8Array` result into deposit/goods types
+5. Compute amounts in TypeScript using engine-rules configuration
+6. Build final `GeneratedTileData[]` with coordinate, terrain, height, hydrology, deposit, goods
+
+Flow:
+```
+TerrainSnapshot → resolveTileEntries() → [coords[], terrainKinds[]]
+    → wasm_generate_board() → packed Uint8Array
+    → parseWasmBoardResult() → Map<key, {deposit, goods[]}>
+    → computeGoodsAmounts() / computeDepositAmount() → GeneratedTileData[]
+```
+
+---
+
+## Migration Summary
+
+### What Was Migrated (Phase 1-3)
+
+All three generation phases are now implemented in Rust with WASM bindings:
+
+| Phase | Module | Rust file | WASM export | TypeScript status |
+|-------|--------|-----------|-------------|-------------------|
+| Phase 1 | Population | [`population.rs`](../engines/core/src/generation/population.rs) | `wasm_generate_character_positions` | TS fallback kept, WASM available |
+| Phase 2 | Settlements | [`settlements.rs`](../engines/core/src/generation/settlements.rs) | `wasm_place_settlements` | TS fallback kept, WASM available |
+| Phase 3 | Board | [`board.rs`](../engines/core/src/generation/board.rs) | `wasm_generate_board` | **Primary path** uses WASM; TS BoardGenerator is fallback |
+
+### What Was Deleted
+
+All old TypeScript generation logic that has been superseded by Rust:
+
+- **Phase 1:** Old TypeScript population generation code deleted (specific file removed)
+- **Phase 2:** Old TypeScript settlement scoring/placement code deleted (specific file removed)
+- **Phase 3:** Old TypeScript deposit/goods generation in `BoardGenerator` remains as fallback, but primary path now delegates to WASM
+
+### Current Integration Status
+
+- **Board generation (deposits + goods):** Fully integrated — [`GameGenerator.generateBoard()`](../engines/ssh/src/lib/generation/index.ts:371) calls `wasm_generate_board()` via WASM
+- **Population generation:** WASM function available but not yet called from TypeScript; TypeScript fallback still used
+- **Settlement placement:** WASM function available but not yet called from TypeScript; TypeScript fallback still used
+
+### Remaining TypeScript Fallbacks
+
+The TypeScript `BoardGenerator` class in [`board.ts`](../engines/ssh/src/lib/generation/board.ts) remains for:
+1. Synchronous generation path (`generateRegion()`)
+2. Environments where WASM is unavailable
+3. Hydrology data projection (river edges, channels, banks) which is not yet in Rust
 
 ---
 
 ## Terrain Generation: Algorithm Overview
 
-### Current System (to be replaced)
+### Current System (in `engines/core/src/terrain/`)
 
-The current system in [`engines/terrain/src/fields/cpu.ts`](../engines/terrain/src/fields/cpu.ts) and
-[`engines/terrain/src/hydrology/trace.ts`](../engines/terrain/src/hydrology/trace.ts) uses:
+The terrain generation system in Rust provides:
 
 - **Perlin noise FBM** for height, temperature, humidity, and terrain type
-- **Probabilistic spring placement** with bounded path search for rivers
-- **Threshold-based biome classification** (sea level, snow level, rocky level, etc.)
-
-Limitations:
-
-- No continental structure — everything is continuous noise
-- No natural lakes — depressions are invisible
-- Rivers are probabilistic path traces, not drainage basins
-- Mountains are isolated peaks, not ranges
-- No concept of watersheds or regions
-
-### Proposed System
-
-The new system uses a **multi-layer deterministic pipeline**, each layer based on a proven algorithm:
-
-```
-Seed → [1. Continental Layer] → [2. Mountain Layer] → [3. Erosion Layer] → [4. Drainage Layer] → [5. Affordances]
-```
-
-Each layer is independent and can be tuned or replaced without rewriting the others.
-
----
-
-## Layer 1: Continental Generation
-
-### Algorithm: Voronoi-based Plate Tectonics
-
-**Reference:** Fisher et al., "Procedural Generation of Natural Terrain" (2014)
-
-### Concept
-
-1. Generate `n` Voronoi cells representing tectonic plates.
-2. Assign each plate a type: **oceanic** (low elevation baseline) or **continental** (high baseline).
-3. Assign each plate a velocity vector.
-4. At plate boundaries:
-   - **Convergent** (plates moving toward each other) → mountain range uplift
-   - **Divergent** (plates moving apart) → rift valley or ocean ridge
-   - **Transform** (plates sliding past each other) → fault line, no major elevation change
-5. Blend plate boundaries with Perlin noise for natural-looking transitions.
-
-### Output
-
-- **Continental mask:** `bool` per tile (ocean vs land)
-- **Base elevation:** `f32` per tile, before mountains and erosion
-
-### Rust Sketch
-
-```rust
-// engines/core/src/terrain/continental.rs
-
-pub struct Plate {
-    pub id: u32,
-    pub plate_type: PlateType,
-    pub center: Vec2,
-    pub velocity: Vec2,
-}
-
-pub enum PlateType {
-    Oceanic { base_elevation: f32 },
-    Continental { base_elevation: f32 },
-}
-
-pub struct ContinentalLayer {
-    pub mask: Vec<bool>,        // true = land
-    pub base_elevation: Vec<f32>,
-}
-
-/// Generate plates and compute continental mask + base elevation.
-/// `plate_count` controls world diversity: 5-8 for a continent-focused map,
-/// 12-20 for an archipelago or multi-continent world.
-pub fn generate_continents(
-    seed: u64,
-    bounds: Bounds,
-    plate_count: usize,
-    ocean_ratio: f32,  // 0.0 = all land, 1.0 = all ocean; typical 0.55-0.65
-) -> ContinentalLayer;
-```
-
-### Why This Algorithm
-
-- **Proven in games and research:** Used by everything from Dwarf Fortress worldgen to academic papers.
-- **Creates distinct continents:** Unlike Perlin, which produces one continuous landmass with varying height.
-- **Natural mountain placement:** Mountains form at plate boundaries, which is geologically correct.
-- **Deterministic:** Same seed + same plate count = same world.
-- **Tunable:** Plate count, ocean ratio, and velocity magnitude all act as clear knobs.
-
----
-
-## Layer 2: Mountain Range Generation
-
-### Algorithm: Fault Line Simulation + Ridge Noise
-
-**Reference:** Smelik et al., "Real-Time Procedural Terrain Generation" (2014)
-
-### Concept
-
-1. Use **plate boundaries** from Layer 1 as mountain seed locations.
-2. Along each convergent boundary, simulate **fault line deformation**:
-   - The boundary is a line; uplift decays with distance from the line.
-   - Uplift height is proportional to convergence speed.
-3. Add **ridge noise** (1D Perlin along the boundary, 2D Perlin across) to create
-   jagged peaks, passes, and secondary ridges.
-4. Blend mountain elevation into the base elevation using a smooth max.
-
-### Output
-
-- **Mountain elevation:** `f32` per tile, added to base elevation
-
-### Rust Sketch
-
-```rust
-// engines/core/src/terrain/mountains.rs
-
-pub struct MountainConfig {
-    pub max_uplift: f32,
-    pub fault_decay_distance: f32,   // how far from boundary uplift affects
-    pub ridge_frequency: f32,         // how jagged the peaks are
-    pub ridge_amplitude: f32,
-}
-
-/// Generate mountain elevation from plate boundaries.
-pub fn generate_mountains(
-    seed: u64,
-    bounds: Bounds,
-    plates: &[Plate],
-    base_elevation: &[f32],
-    config: &MountainConfig,
-) -> Vec<f32>;
-```
-
-### Why This Algorithm
-
-- Mountains form **ranges**, not isolated peaks — ridges follow fault lines for hundreds of tiles.
-- Blend with Perlin gives natural irregularity without losing the range structure.
-- Passes form naturally where ridge noise dips, creating obvious travel corridors.
-
----
-
-## Layer 3: Hydraulic Erosion
-
-### Algorithm: Particle-Based Hydraulic Erosion
-
-**Reference:** Št'ava et al., "Real-Time Erosion Using Shallow Water" (2008)
-Adapted from the classic Musgrave et al. erosion model.
-
-### Concept
-
-1. Spawn `n` water droplets at random high-elevation positions.
-2. For each droplet, simulate descent:
-   - Move downhill following gradient.
-   - Pick up sediment proportional to velocity and local slope.
-   - Deposit sediment when velocity drops or capacity is exceeded.
-   - Evaporate slowly.
-3. After all droplets, the terrain has:
-   - **Valleys** where water flowed repeatedly.
-   - **Deposits** in flat areas where sediment settled.
-   - Natural-looking river channels.
-
-### Output
-
-- **Eroded elevation:** `f32` per tile (replaces input elevation)
-- **Sediment map:** `f32` per tile (for deposit/fertility hints)
-
-### Rust Sketch
-
-```rust
-// engines/core/src/terrain/erosion.rs
-
-pub struct ErosionConfig {
-    pub droplet_count: usize,
-    pub droplet_lifetime: u32,      // steps before evaporation
-    pub inertia: f32,                // momentum carry-over
-    pub capacity_factor: f32,        // how much sediment a droplet can carry
-    pub deposit_factor: f32,         // how quickly sediment is dropped
-    pub erosion_factor: f32,         // how quickly terrain is picked up
-    pub evaporation_rate: f32,
-    pub min_slope: f32,              // stop if slope is too flat
-}
-
-/// Run particle-based erosion on the elevation field.
-pub fn simulate_erosion(
-    seed: u64,
-    elevation: &mut [f32],
-    bounds: Bounds,
-    config: &ErosionConfig,
-) -> Vec<f32>;  // sediment map
-```
-
-### Why This Algorithm
-
-- Creates **realistic valleys** that follow flow paths — these become natural road and river corridors.
-- Sediment deposits create **fertile lowlands** for settlements and farms.
-- Deterministic with fixed seed and droplet count.
-- GPU-friendly if we later want to accelerate with WebGPU compute shaders.
-
----
-
-## Layer 4: Drainage Basins & Rivers
-
-### Algorithm: D8 Flow Direction + Flow Accumulation + Strahler Ordering
-
-**References:**
-- Jenson & Domingue, "Extracting Topographic Structure from Digital Elevation Data" (1988)
-- Strahler, "Quantitative Analysis of Watershed Geomorphology" (1957)
-- Freeman, "A Fast Algorithm for the Calculation of Flow Accumulation" (1991)
-
-### Concept
-
-This **replaces** the current spring-based probabilistic river system entirely.
-
-1. **D8 Flow Direction:** For each land tile, find the neighbor with the steepest descent. The tile
-   "flows" to that neighbor. Flat tiles and depressions are resolved with priority-first search.
-2. **Flow Accumulation:** Count how many tiles flow into each tile (the upstream contributing area).
-3. **Stream Definition:** Tiles with flow accumulation above a threshold become stream tiles.
-   Higher thresholds → fewer, larger rivers. Lower thresholds → more tributaries.
-4. **Strahler Stream Order:** Assign a hierarchical order to each stream segment:
-   - 1st order: headwater streams (no tributaries)
-   - 2nd order: where two 1st-order streams meet
-   - 3rd order: where two 2nd-order streams meet, etc.
-5. **Lake Detection:** Find depressions (tiles with no outflow). Fill them. The filled volume
-   becomes a lake. Outlet is the lowest point on the lake rim.
-
-### Output
-
-- **Flow direction:** `u8` per tile (0-7, or 255 for ocean/sink)
-- **Flow accumulation:** `f32` per tile (upstream area)
-- **River graph:** `Vec<RiverSegment>` with stream order, flux, and channel tiles
-- **Lakes:** `Vec<Lake>` with outlet, volume, and surface tiles
-- **Drainage basins:** `Vec<DrainageBasin>` with outlet and contributing tiles
-
-### Rust Sketch
-
-```rust
-// engines/core/src/terrain/drainage.rs
-
-pub struct DrainageConfig {
-    pub stream_threshold: f32,       // min flow accumulation for a stream
-    pub major_river_threshold: f32,  // threshold for "major" classification
-}
-
-pub struct RiverSegment {
-    pub stream_order: u8,
-    pub flux: f32,
-    pub channel_tiles: Vec<AxialCoord>,
-    pub children: Vec<usize>,  // indices of tributary segments
-}
-
-pub struct DrainageBasin {
-    pub outlet: AxialCoord,    // where water leaves this basin (coast or basin edge)
-    pub area: f32,             // number of tiles
-    pub main_river: usize,     // index into RiverSegment list
-}
-
-/// Compute flow direction (D8), flow accumulation, and extract river network.
-pub fn compute_drainage(
-    elevation: &[f32],
-    land_mask: &[bool],
-    bounds: Bounds,
-    config: &DrainageConfig,
-) -> DrainageResult {
-    let flow_dir = compute_flow_direction_d8(elevation, land_mask, bounds);
-    let accumulation = compute_flow_accumulation(&flow_dir, bounds);
-    let rivers = extract_river_network(&flow_dir, &accumulation, config);
-    let (lakes, filled_elevation) = detect_and_fill_lakes(elevation, land_mask, bounds);
-    let basins = partition_drainage_basins(&flow_dir, &accumulation, land_mask, bounds);
-    DrainageResult { flow_dir, accumulation, rivers, lakes, basins, filled_elevation }
-}
-```
-
-### Lake Detection Detail
-
-```rust
-// engines/core/src/terrain/lakes.rs
-
-pub struct Lake {
-    pub surface_tiles: Vec<AxialCoord>,
-    pub outlet: AxialCoord,
-    pub water_level: f32,
-    pub volume: f32,
-    pub depth_map: Vec<f32>,    // per-tile depth
-}
-
-/// Find all depressions, fill them, and return lake definitions.
-/// Uses Planchon-Darboux depression filling algorithm.
-pub fn detect_and_fill_lakes(
-    elevation: &[f32],
-    land_mask: &[bool],
-    bounds: Bounds,
-) -> (Vec<Lake>, Vec<f32>);  // lakes + filled elevation
-```
-
-### Why These Algorithms
-
-- **D8 flow direction:** The standard in hydrology for 30 years. Simple, deterministic, well-understood.
-- **Flow accumulation:** Directly answers "how much water flows through this tile?" — essential for
-  river width, bridge placement, and settlement water access scoring.
-- **Strahler ordering:** Gives a clear hierarchy: 1st-order = small stream, 4th+ = major river.
-  NPC placement can use this to prefer settlements on mid-order rivers.
-- **Depression filling:** Creates natural lakes wherever the terrain has basins. No need to
-  manually place lakes or rely on probabilistic spring accidents.
-- **Drainage basins:** Natural regions for NPC settlement — each basin is a self-contained
-  watershed with one outlet to the sea or another basin.
-
----
-
-## Layer 5: Terrain Affordances
-
-This layer mirrors the `TerrainAffordance` concept from
-[`docs/terrain-generation-roadmap.md`](./terrain-generation-roadmap.md), computed in Rust for
-performance and shipped to TypeScript for NPC generation.
-
-### Affordance Fields
-
-```rust
-// engines/core/src/terrain/affordances.rs
-
-pub struct TerrainAffordance {
-    pub buildability: f32,           // 0 = unbuildable, 1 = ideal
-    pub roadability: f32,            // how cheap to build/maintain roads
-    pub settlement_suitability: f32, // composite score for NPC inhabitation
-    pub production_suitability: f32, // composite score for production hives
-    pub water_access: f32,           // proximity to river/lake/coast
-    pub slope_penalty: f32,          // higher = worse for roads/buildings
-    pub resource_potential: ResourcePotential,
-}
-
-pub struct ResourcePotential {
-    pub timber: f32,
-    pub stone: f32,
-    pub fertile: f32,   // farmland suitability
-    pub ore: f32,       // mining suitability
-    pub fish: f32,      // fishing suitability (near water)
-}
-```
-
-### Computation
-
-Each affordance is a weighted combination of:
-- Elevation, slope, and local roughness
-- Biome type (forest, grass, rocky, sand, snow, wetland)
-- Distance to water (river, lake, coast)
-- Flow accumulation (for water access)
-- Latitude-equivalent temperature zone
-
-All weights are configurable in the Rust `TerrainConfig` and exposed to TypeScript for tuning.
-
----
-
-## WASM Interface
-
-### Public API (`engines/core/src/lib.rs`)
-
-```rust
-use wasm_bindgen::prelude::*;
-
-#[wasm_bindgen]
-pub struct CoreEngine {
-    seed: u64,
-    config: TerrainConfig,
-}
-
-#[wasm_bindgen]
-impl CoreEngine {
-    #[wasm_bindgen(constructor)]
-    pub fn new(seed: u64) -> Self;
-
-    /// Generate continental layer (mask + base elevation) for a region.
-    pub fn generate_continents(&self, bounds: JsBounds) -> JsContinentalLayer;
-
-    /// Compute mountains from plate boundaries.
-    pub fn generate_mountains(
-        &self,
-        bounds: JsBounds,
-        plates: JsPlates,
-        base_elevation: Vec<f32>,
-    ) -> Vec<f32>;
-
-    /// Run hydraulic erosion on the elevation field.
-    pub fn simulate_erosion(
-        &self,
-        elevation: &mut [f32],
-        bounds: JsBounds,
-    ) -> Vec<f32>; // sediment map
-
-    /// Full drainage analysis: flow direction, accumulation, rivers, lakes, basins.
-    pub fn compute_drainage(
-        &self,
-        elevation: Vec<f32>,
-        land_mask: Vec<bool>,
-        bounds: JsBounds,
-    ) -> JsDrainageResult;
-
-    /// Compute terrain affordance fields from all previous layers.
-    pub fn compute_affordances(
-        &self,
-        elevation: Vec<f32>,
-        flow_accumulation: Vec<f32>,
-        land_mask: Vec<bool>,
-        lakes: JsLakes,
-        bounds: JsBounds,
-    ) -> JsAffordanceMap;
-
-    /// Full terrain generation pipeline for a region: runs all layers.
-    /// Returns the complete set of terrain fields ready for SSH consumption.
-    pub fn generate_region(
-        &self,
-        bounds: JsBounds,
-    ) -> JsRegionResult;
-}
-```
-
-### TypeScript Wrapper
-
-```typescript
-// engines/terrain/src/wasm-adapter.ts
-import init, { CoreEngine, TerrainConfig } from 'anarkai-core';
-
-let corePromise: Promise<CoreEngine> | null = null;
-
-async function getCore(seed: number): Promise<CoreEngine> {
-  if (!corePromise) {
-    await init();
-    corePromise = Promise.resolve(new CoreEngine(seed));
-  }
-  return corePromise;
-}
-
-export async function generateRegionWASM(
-  seed: number,
-  bounds: Bounds,
-  config: TerrainConfig,
-): Promise<Map<AxialKey, TileField>> {
-  const core = await getCore(seed);
-  const result = core.generate_region(bounds);
-  return convertToTileFields(result);
-}
-
-export function isWasmAvailable(): boolean {
-  return typeof WebAssembly !== 'undefined';
-}
-```
-
----
-
-## Performance Estimates
-
-These are estimates for a 1000×1000 tile region (1M tiles). Actual numbers will vary with
-platform and optimization level.
+- **Priority-flood hydrology** for river networks with Strahler stream ordering
+- **Biome classification** (Ocean, Lake, RiverBank, Wetland, Sand, Grass, Forest, Rocky, Snow)
+- **Affordance computation** (buildability, roadability, settlement suitability, production suitability)
+- **Plate tectonics** (continental generation, mountain ranges)
+- **Hydraulic erosion** (particle-based)
+
+### Performance Estimates
+
+These are estimates for a 1000×1000 tile region (1M tiles). Actual numbers will vary with platform and optimization level.
 
 | Operation | TypeScript (est.) | Rust/WASM (est.) | Speedup |
 |-----------|-------------------|-------------------|---------|
@@ -577,166 +489,8 @@ platform and optimization level.
 | Flow accumulation | ~3000 ms | ~120 ms | ~25× |
 | Lake detection + filling | ~2000 ms | ~100 ms | ~20× |
 | Affordance computation | ~1000 ms | ~50 ms | ~20× |
+| Board generation (deposits+goods) | ~500 ms | ~30 ms | ~17× |
 | **Full pipeline** | **~25 s** | **~1 s** | **~25×** |
-
-Key factors:
-- Rust's zero-cost abstractions and stack allocation avoid GC pressure.
-- WASM SIMD (when available) accelerates vector math in erosion and flow algorithms.
-- Deterministic PRNG in Rust (`rand_chacha`) is faster than JS `Math.random`-based approaches.
-
----
-
-## Integration with Existing Code
-
-### What Changes in `engines/terrain`
-
-1. **`src/wasm-adapter.ts`** — New file, bridges to `engines/core`.
-2. **`src/generate.ts`** — Modified to try WASM first, fall back to CPU.
-3. **`src/fields/cpu.ts`** — Kept as TypeScript fallback.
-4. **`src/hydrology/trace.ts`** — Kept as TypeScript fallback, eventually deprecated.
-5. **`src/types.ts`** — Extended with new affordance types.
-
-### What Stays the Same
-
-- **`TileField`** and **`TerrainSnapshot`** types — generated fields are backward-compatible.
-- **Streaming** — `generateRegion` works on bounded regions; same snapshot merge/prune logic.
-- **Biome classification** — thresholds still apply to generated fields.
-- **Pixi rendering** — consumes the same `TileField` data, no changes needed.
-
-### What Becomes Legacy (eventually deprecated)
-
-- Spring-based hydrology (`hydrology/trace.ts`, `hydrology/springs.ts`)
-- CPU field generation as the primary path (`fields/cpu.ts`)
-- `PerlinNoise` class in TypeScript (still used as fallback)
-
----
-
-## Migration Plan
-
-### Phase 1: Foundation (Weeks 1-2)
-
-1. Create `engines/core` Rust project with `wasm-pack`.
-2. Set up CI/CD for Rust → WASM compilation.
-3. Implement `common/` module: noise, RNG, hex coordinates, WASM helpers.
-4. Publish first WASM package to `engines/core/pkg/`.
-5. Create `engines/terrain/src/wasm-adapter.ts` with `isWasmAvailable()` check.
-6. Verify: tests pass with WASM fallback (no behavior change yet).
-
-### Phase 2: Continental + Mountains (Weeks 3-5)
-
-1. Implement `terrain/continental.rs` — plate generation + continental mask.
-2. Implement `terrain/mountains.rs` — fault line simulation.
-3. Expose via WASM, create TypeScript integration path.
-4. Keep existing Perlin generation as fallback.
-5. Add debug render views for continental mask and mountain ranges.
-6. Tune parameters (plate count, ocean ratio) on test seeds.
-
-### Phase 3: Drainage & Rivers (Weeks 6-9)
-
-1. Implement `terrain/drainage.rs` — D8 flow direction + accumulation.
-2. Implement `terrain/lakes.rs` — depression filling.
-3. Replace spring-based hydrology in `engines/terrain` with drainage-based rivers.
-4. Keep spring-based hydrology as disabled legacy code.
-5. Add river graph export: segments, stream orders, basin partitions.
-6. Update biome classification to use drainage results (river-bank, lake, wetland).
-
-### Phase 4: Erosion & Affordances (Weeks 10-12)
-
-1. Implement `terrain/erosion.rs` — particle-based hydraulic erosion.
-2. Implement `terrain/affordances.rs` — buildability, roadability, settlement scores.
-3. Integrate with NPC placement pipeline (Phase 1 of terrain-generation-roadmap).
-4. Add debug views for affordance fields.
-5. Performance profiling and tuning.
-
-### Phase 5: Polish & Documentation (Weeks 13-14)
-
-1. Full test suite for all Rust modules.
-2. TypeScript wrapper tests with WASM and CPU fallback paths.
-3. Documentation: algorithm references, tuning guide, WASM build instructions.
-4. Update `docs/architecture-overview.md` with `engines/core`.
-5. Seed comparison tool: same seed, WASM vs CPU, visual diff.
-
----
-
-## Design Decisions
-
-### Why Rust/WASM and Not Just Optimized TypeScript?
-
-1. **Compute intensity:** Hydraulic erosion on 1M tiles with 100k droplets is ~100M vector operations.
-   TypeScript with TypedArrays can reach maybe 2-3M ops/s; Rust/WASM can reach 50M+ ops/s.
-2. **SSH migration path:** The gameplay engine (`engines/ssh`) will move to Rust. Starting with
-   terrain builds the project structure, build pipeline, and TypeScript integration patterns.
-3. **Determinism:** Rust's strict floating-point semantics (when configured correctly) guarantee
-   identical results across platforms. JavaScript's `Math` varies slightly between V8, SpiderMonkey,
-   and JavaScriptCore.
-4. **Memory efficiency:** Rust's `Vec<f32>` has zero overhead vs the raw bytes. TypedArrays are close
-   but still incur JS object overhead for each array.
-
-### Why Not WebGPU for Terrain?
-
-WebGPU compute shaders could accelerate erosion and flow accumulation even further. However:
-
-- WebGPU support is still not universal (Safari only recently added it).
-- The algorithms need CPU-side logic for graph extraction (rivers, basins, lakes).
-- Rust/WASM already provides 20-25× speedup over TypeScript — sufficient for the target scale.
-- WebGPU can be added later as an optional acceleration path inside the Rust code (via `wgpu`).
-
-### Why D8 and Not Multiple Flow Direction (MFD)?
-
-D8 routes all flow to one neighbor. MFD splits flow across multiple downhill neighbors.
-
-D8 is chosen because:
-- **Deterministic:** One flow direction, easily tested.
-- **Sufficient for hex grids:** Hex grids have 6 neighbors; D8 on a square grid has 8.
-  Hex actually reduces the single-direction artifact compared to squares.
-- **Simpler river extraction:** Single-direction flow creates clear channel lines.
-  MFD creates diffuse flow that's harder to convert to a river graph.
-- **Standard in games:** Most game terrain systems use single-flow-direction for rivers.
-
----
-
-## Configuration & Tuning
-
-All algorithm parameters live in `TerrainConfig`, which is defined in Rust and mirrored in TypeScript
-for the rules layer.
-
-```rust
-// engines/core/src/terrain/types.rs
-
-pub struct TerrainConfig {
-    // Continental
-    pub plate_count: usize,          // 5-20
-    pub ocean_ratio: f32,            // 0.0-1.0, typical 0.6
-    pub continental_elevation_base: f32,
-    pub oceanic_elevation_base: f32,
-
-    // Mountains
-    pub max_uplift: f32,
-    pub fault_decay_distance: f32,
-    pub ridge_frequency: f32,
-    pub ridge_amplitude: f32,
-
-    // Erosion
-    pub droplet_count: usize,        // 50k-200k
-    pub erosion_strength: f32,
-
-    // Drainage
-    pub stream_threshold: f32,
-    pub major_river_threshold: f32,
-    pub min_lake_area: usize,        // minimum tiles for a lake
-
-    // Affordances
-    pub max_slope_for_building: f32,
-    pub max_slope_for_road: f32,
-    pub water_access_decay: f32,     // distance falloff for water scoring
-}
-```
-
-Default presets will be provided for:
-- **Continental** (one large continent + ocean)
-- **Archipelago** (many islands)
-- **Pangaea** (single supercontinent)
-- **Inland** (no ocean, large lakes instead)
 
 ---
 
@@ -744,49 +498,93 @@ Default presets will be provided for:
 
 ### Rust Unit Tests
 
-```rust
-// engines/core/src/terrain/drainage.rs
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn d8_flow_direction_on_simple_slope() { /* ... */ }
-    #[test]
-    fn flow_accumulation_counts_correctly() { /* ... */ }
-    #[test]
-    fn depression_filling_creates_lake() { /* ... */ }
-    #[test]
-    fn deterministic_with_same_seed() { /* ... */ }
-}
+All three generation modules have comprehensive unit tests in the same file under `#[cfg(test)]`:
+
+- **Population** ([`population.rs:80-459`](../engines/core/src/generation/population.rs:80)): 10 tests covering empty inputs, water exclusion, radius filtering, determinism
+- **Settlements** ([`settlements.rs:242-549`](../engines/core/src/generation/settlements.rs:242)): 14 tests covering terrain scoring, bonuses, penalties, spacing, determinism
+- **Board** ([`board.rs:256-649`](../engines/core/src/generation/board.rs:256)): 18 tests covering deposit probabilities, goods generation, determinism, edge cases
+
+Run with:
+```bash
+cd engines/core && cargo test
 ```
 
 ### TypeScript Integration Tests
 
-```typescript
-// engines/terrain/tests/wasm-region.test.ts
-describe('WASM terrain generation', () => {
-  it('generates a region matching CPU fallback', async () => {
-    const wasmTiles = await generateRegionWASM(42, bounds, config);
-    const cpuTiles = generateRegionCPU(42, bounds, config);
-    // Tiles should be approximately equal (floating point)
-    for (const [key, tile] of wasmTiles) {
-      expect(tile.height).toBeCloseTo(cpuTiles.get(key)!.height, 4);
-    }
-  });
-});
+Tests for the TypeScript adapters are in:
+- [`engines/ssh/src/lib/generation/board.spec.ts`](../engines/ssh/src/lib/generation/board.spec.ts)
+- [`engines/ssh/src/lib/generation/population.spec.ts`](../engines/ssh/src/lib/generation/population.spec.ts)
+- [`engines/ssh/src/lib/generation/settlements.spec.ts`](../engines/ssh/src/lib/generation/settlements.spec.ts)
+
+---
+
+## Configuration & Tuning
+
+### Terrain Configuration
+
+All algorithm parameters live in `TerrainConfig`, defined in Rust and mirrored in TypeScript:
+
+```rust
+// engines/core/src/terrain/types.rs
+pub struct TerrainConfig {
+    pub scale: f32,
+    pub terrain_type_scale: f32,
+    pub octaves: u32,
+    pub persistence: f32,
+    pub lacunarity: f32,
+    pub sea_level: f32,
+    pub snow_level: f32,
+    pub rocky_level: f32,
+    pub forest_level: f32,
+    pub sand_temperature: f32,
+    pub sand_humidity: f32,
+    pub wetland_humidity: f32,
+    pub forest_humidity: f32,
+    // ... hydrology config
+}
 ```
 
-### Visual Diff Tests
+### Game Generation Configuration
 
-Use the existing Pixi terrain renderer to produce snapshots of generated regions and compare
-them between seeds, configurations, and WASM vs CPU.
+Deposit probabilities and goods generation rules are hardcoded in [`board.rs`](../engines/core/src/generation/board.rs) to match the game design. The TypeScript layer in [`index.ts`](../engines/ssh/src/lib/generation/index.ts) handles amount computation using [`engine-rules`](../engines/rules/) configuration.
+
+---
+
+## Design Decisions
+
+### Why Rust/WASM and Not Just Optimized TypeScript?
+
+1. **Compute intensity:** Board generation on large maps benefits from Rust's zero-cost abstractions
+2. **SSH migration path:** The gameplay engine (`engines/ssh`) will move to Rust. Starting with generation builds the project structure, build pipeline, and TypeScript integration patterns
+3. **Determinism:** Rust's strict floating-point semantics guarantee identical results across platforms
+4. **Memory efficiency:** Rust's `Vec<f32>` has zero overhead vs raw bytes
+
+### Why Pure Rust Modules + WASM Bindings in lib.rs?
+
+The generation modules (`population.rs`, `settlements.rs`, `board.rs`) contain **no WASM dependencies**. WASM bindings are only added in `lib.rs`. This design:
+- Allows the modules to be compiled and tested server-side (native target) without WASM
+- Makes future server-side extraction straightforward
+- Keeps core logic clean and framework-agnostic
+- Enables `cargo check --target x86_64-unknown-linux-gnu` to verify pure Rust compilation
+
+### Why FNV-1a for Deterministic Hashing?
+
+FNV-1a is used instead of a cryptographic hash because:
+- It's fast (single multiply-XOR per byte)
+- It's simple to reimplement identically in TypeScript and Rust
+- It provides sufficient distribution for game randomization
+- It matches the TypeScript `hashString` implementation
 
 ---
 
 ## Related Documents
 
-- [`terrain-generation-roadmap.md`](./terrain-generation-roadmap.md) — NPC placement, affordances, road generation
 - [`architecture-overview.md`](./architecture-overview.md) — System boundaries and data flow
 - [`world-representation.md`](./world-representation.md) — Physical scale and hex tile model
+- [`terrain-generation-roadmap.md`](./terrain-generation-roadmap.md) — NPC placement, affordances, road generation
 - [`next-directions.md`](./next-directions.md) — Priority of terrain rework vs other features
-- [`engines/terrain/docs/algorithm.md`](../engines/terrain/docs/algorithm.md) — Existing terrain algorithm notes
-- [`engines/terrain/docs/implementation.md`](../engines/terrain/docs/implementation.md) — Current implementation details
+- [`current-status.md`](./current-status.md) — Current development status
+- [`plans/rust-generation-porting-spec.md`](../plans/rust-generation-porting-spec.md) — Original porting specification
+- [`engines/core/src/generation/mod.rs`](../engines/core/src/generation/mod.rs) — Module declarations and shared utilities
+- [`engines/core/src/lib.rs`](../engines/core/src/lib.rs) — WASM bindings and public exports
+- [`engines/ssh/src/lib/generation/index.ts`](../engines/ssh/src/lib/generation/index.ts) — TypeScript GameGenerator adapter
