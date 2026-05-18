@@ -9,7 +9,12 @@ import { InspectorSection } from '@app/ui/anarkai'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
 import { deposits as visualDeposits } from 'engine-pixi/assets/visual-content'
 import { effect } from 'mutts'
-import { tablerOutlinePaint, tablerOutlineTrash } from 'pure-glyf/icons'
+import {
+	tablerOutlineDimensions,
+	tablerOutlineHexagons,
+	tablerOutlinePaint,
+	tablerOutlineTrash,
+} from 'pure-glyf/icons'
 import type { ZoneObject } from 'ssh/board/zone-object'
 import type { GoodType } from 'ssh/types/base'
 import EntityBadge from '../EntityBadge'
@@ -65,6 +70,31 @@ css`
 	flex-wrap: wrap;
 	gap: 0.4rem;
 }
+
+.zone-properties__stats {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.45rem;
+	align-items: center;
+}
+
+.zone-properties__stat {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	min-height: 1.75rem;
+	padding: 0.2rem 0.45rem;
+	border: 1px solid color-mix(in srgb, var(--ak-text-muted) 18%, transparent);
+	border-radius: 0.4rem;
+	background: color-mix(in srgb, var(--ak-surface-panel) 90%, transparent);
+	color: var(--ak-text);
+	font-variant-numeric: tabular-nums;
+}
+
+.zone-properties__stat-icon {
+	display: inline-flex;
+	color: var(--ak-text-muted);
+}
 `
 
 interface ZonePropertiesProps {
@@ -73,6 +103,13 @@ interface ZonePropertiesProps {
 }
 
 const icon = (source: string) => renderAnarkaiIcon(source, { size: 16 })
+const hexSideMeters = 3
+const hexAreaSquareMeters = (3 * Math.sqrt(3) * hexSideMeters * hexSideMeters) / 2
+const formatArea = (tileCount: number) => {
+	const area = tileCount * hexAreaSquareMeters
+	if (area < 1000) return `${Math.round(area)} m2`
+	return `${(area / 10000).toFixed(area < 100000 ? 2 : 1)} ha`
+}
 
 const ZoneProperties = (props: ZonePropertiesProps) => {
 	const zoneId = () => props.zoneObject.zoneId
@@ -184,7 +221,32 @@ const ZoneProperties = (props: ZonePropertiesProps) => {
 						data-testid="zone-color"
 					/>
 				</PropertyGridRow>
-				<PropertyGridRow label="Tiles">{coords().length}</PropertyGridRow>
+				<PropertyGridRow label="Stats">
+					<div class="zone-properties__stats">
+						<span
+							class="zone-properties__stat"
+							title="Tiles"
+							aria-label={`${coords().length} tiles`}
+							data-testid="zone-stat-tiles"
+						>
+							<span class="zone-properties__stat-icon" aria-hidden="true">
+								{icon(tablerOutlineHexagons)}
+							</span>
+							<span>{coords().length}</span>
+						</span>
+						<span
+							class="zone-properties__stat"
+							title="Area"
+							aria-label={`${formatArea(coords().length)} area`}
+							data-testid="zone-stat-area"
+						>
+							<span class="zone-properties__stat-icon" aria-hidden="true">
+								{icon(tablerOutlineDimensions)}
+							</span>
+							<span>{formatArea(coords().length)}</span>
+						</span>
+					</div>
+				</PropertyGridRow>
 				<PropertyGridRow if={goods().length > 0} label="Goods">
 					<GoodsList
 						goods={goods()}

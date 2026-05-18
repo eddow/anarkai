@@ -24,6 +24,7 @@ declare namespace Ssh {
 	interface TransformationAction {
 		type: 'transform'
 		rates: Record<string, number>
+		productRatio?: TransformProductRatioConfiguration
 	}
 	interface EngineerAction {
 		type: 'engineer'
@@ -94,6 +95,16 @@ declare namespace Ssh {
 		working: boolean
 	}
 
+	interface TransformProductRatioConfiguration {
+		inputGood?: string
+		outputGood?: string
+		maxProductRatio: number
+	}
+
+	interface TransformAlveolusConfiguration extends BaseAlveolusConfiguration {
+		productRatio?: TransformProductRatioConfiguration
+	}
+
 	/**
 	 * Configuration specific to specific-storage alveoli.
 	 * Extends base with buffer settings.
@@ -122,7 +133,10 @@ declare namespace Ssh {
 		| SlottedStorageAlveolusConfiguration
 
 	/** Union of all configuration types */
-	type AlveolusConfiguration = BaseAlveolusConfiguration | StorageAlveolusConfiguration
+	type AlveolusConfiguration =
+		| BaseAlveolusConfiguration
+		| TransformAlveolusConfiguration
+		| StorageAlveolusConfiguration
 
 	interface AlveolusDefinition<ActionType extends Action = Action> {
 		preparationTime: number

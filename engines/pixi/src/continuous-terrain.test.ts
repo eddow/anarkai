@@ -1,7 +1,7 @@
 import { Container, RenderLayer, Texture } from 'pixi.js'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { RenderableTerrainTile } from 'ssh/game/game'
-import { axial } from 'ssh/utils'
+import { axial, cartesian, tileSize } from 'ssh/utils'
 import { describe, expect, it, vi } from 'vitest'
 import type { BiomeHint, TerrainMacroHydrologySnapshot, TileField } from '../../terrain/src'
 import {
@@ -392,7 +392,8 @@ describe('continuous terrain helpers', () => {
 			sectorRadius: 12,
 		})
 		expect(ensureTerrainSectors).not.toHaveBeenCalled()
-		expect(diagnostics.refresh.visibleTileCount).toBe(0)
+		expect(diagnostics.refresh.visibleTileCount).toBeGreaterThan(0)
+		expect(diagnostics.refresh.visibleSectorCount).toBe(0)
 		expect(diagnostics.totals.materialSectorBakeCount).toBe(0)
 		expect(bakeDebug.sectors.some((sector) => sector.bakeMode === 'material')).toBe(false)
 	})
@@ -704,6 +705,41 @@ describe('continuous terrain helpers', () => {
 		visual.refresh()
 
 		expect(visual.lastMacroOverlaySignature).toBe('')
+	})
+
+	it('accepts a fresh macro snapshot snapped from a negative sector', () => {
+		const snapshot: TerrainMacroHydrologySnapshot = {
+			seed: 7,
+			centerSector: { q: -8, r: -8 },
+			sectorRadius: 15,
+			sectorStep: 17,
+			macroStep: 8,
+			macroTileCount: 1,
+			riverSegmentCount: 0,
+			maxAccumulation: 0,
+			tiles: [{ q: -8, r: -8, height: 0.1, biome: 'grass' }],
+			segments: [],
+			timings: { wasmMs: 1, unpackMs: 0, totalMs: 1 },
+		}
+		const ensureMacroHydrology = vi.fn(async () => {})
+		const renderer = createTerrainRendererStub({
+			hasRenderableTerrainAt: () => true,
+			getRenderableTerrainAt: () => ({ terrain: 'grass', height: 0 }),
+			getTerrainMacroHydrology: () => snapshot,
+			ensureMacroHydrology,
+			requestGameplayFrontier: vi.fn(async () => false),
+			worldScale: 0.05,
+		}) as any
+		renderer.world.toLocal = () => cartesian({ q: -1, r: -1 }, tileSize)
+
+		const visual = new TerrainVisual(renderer) as any
+		visual.refresh()
+
+		expect(ensureMacroHydrology).toHaveBeenCalledWith('-1,-1', {
+			macroStep: 8,
+			sectorRadius: 15,
+		})
+		expect(visual.lastMacroOverlaySignature).toContain('7:-8,-8')
 	})
 
 	it('does not stream detail sectors while in macro LOD', async () => {

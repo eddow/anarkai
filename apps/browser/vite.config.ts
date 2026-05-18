@@ -14,6 +14,7 @@ const pixiAssetsDir = resolvePath(projectRootDir, "../../engines/pixi/assets");
 const pixiSourceDir = resolvePath(projectRootDir, "../../engines/pixi/src");
 const picoCssDir = resolvePath(projectRootDir, "node_modules/@picocss/pico");
 const dockviewCoreDir = resolvePath(projectRootDir, "node_modules/dockview-core");
+const muttsBrowserEntry = resolvePath(projectRootDir, "node_modules/mutts/dist/browser.esm.js");
 const pureGlyfIcons = {
 	mdi: resolvePath(projectRootDir, "node_modules/@mdi/svg/svg"),
 	tabler: resolvePath(projectRootDir, "node_modules/@tabler/icons/icons"),
@@ -33,8 +34,10 @@ const aliases: Alias[] = Object.entries(sharedAliasPaths).map(([find, replacemen
 	find,
 	replacement,
 }));
+aliases.push({ find: /^mutts$/, replacement: muttsBrowserEntry });
 const optimizeAliases = {
 	...sharedAliasPaths,
+	mutts: muttsBrowserEntry,
 } satisfies Record<string, string>;
 const serverWatchIgnored = ["**/node_modules/**", "**/.git/**", "**/dist/**", "**/coverage/**"];
 const usePollingWatch = process.env.VITE_USE_POLLING === "true";

@@ -45,8 +45,18 @@ const { MockFreightBayAlveolus, MockStorageAlveolus, MockTransformAlveolus } = v
 		tile = { uid: 'tile:transform', position: { q: 0, r: 0 } }
 		game = { freightLines: [] }
 		working = true
-		action = { type: 'transform', rates: { wood: -0.2, planks: 0.2 } }
+		action = {
+			type: 'transform',
+			rates: { wood: -0.2, planks: 0.2 },
+			productRatio: { inputGood: 'wood', outputGood: 'planks', maxProductRatio: 0.5 },
+		}
+		transformConfiguration = reactive({
+			working: true,
+			productRatio: { inputGood: 'wood', outputGood: 'planks', maxProductRatio: 0.5 },
+		})
 		processBuffers = { wood: 0.4, planks: 0.6 }
+		consumedGoods = ['wood']
+		producedGoods = ['planks']
 		get rateEntries() {
 			return [
 				['planks', 0.2],
@@ -55,6 +65,13 @@ const { MockFreightBayAlveolus, MockStorageAlveolus, MockTransformAlveolus } = v
 		}
 		processBuffer(goodType: 'wood' | 'planks') {
 			return this.processBuffers[goodType]
+		}
+		setProductRatioConfiguration(config: {
+			inputGood?: string
+			outputGood?: string
+			maxProductRatio: number
+		}) {
+			this.transformConfiguration.productRatio = config
 		}
 	},
 }))
@@ -122,6 +139,9 @@ vi.mock('@app/lib/i18n', () => {
 			alveolus: {
 				commands: 'Commands',
 				process: 'Process',
+				productRatio: 'Product ratio',
+				productRatioInput: 'Input good',
+				productRatioOutput: 'Output good',
 				workingTooltip: 'Working',
 			},
 			goods: {
@@ -386,6 +406,48 @@ describe('AlveolusProperties', () => {
 		expect(container.querySelector('[data-testid="alveolus-process-buffer-wood"]')).not.toBeNull()
 		expect(container.querySelector('[data-testid="alveolus-process-buffer-planks"]')).not.toBeNull()
 		expect(container.querySelector('[data-testid="stored-goods-row-Stored"]')).not.toBeNull()
+	})
+
+	it('renders transform ratio configuration and updates it from the slider', () => {
+		const transform = new MockTransformAlveolus()
+		stop = latch(
+			container,
+			<table>
+				<tbody>
+					<AlveolusProperties
+						content={transform as never}
+						game={{ freightLines: [], vehicles: [] } as never}
+					/>
+				</tbody>
+			</table>
+		)
+
+		expect(container.querySelector('[data-testid="row-Product ratio"]')).not.toBeNull()
+		expect(
+			container.querySelector<HTMLSelectElement>('[data-testid="transform-ratio-input-good"]')
+				?.value
+		).toBe('wood')
+		expect(
+			container.querySelector<HTMLSelectElement>('[data-testid="transform-ratio-output-good"]')
+				?.value
+		).toBe('planks')
+		expect(
+			container.querySelector<HTMLInputElement>('[data-testid="transform-ratio-slider"]')?.value
+		).toBe('50')
+		expect(container.querySelector('[data-testid="transform-ratio-value"]')?.textContent).toBe(
+			'50%'
+		)
+
+		const slider = container.querySelector<HTMLInputElement>(
+			'[data-testid="transform-ratio-slider"]'
+		)!
+		slider.value = '65'
+		slider.dispatchEvent(new Event('input', { bubbles: true }))
+
+		expect(transform.transformConfiguration.productRatio.maxProductRatio).toBe(0.65)
+		expect(container.querySelector('[data-testid="transform-ratio-value"]')?.textContent).toBe(
+			'65%'
+		)
 	})
 
 	it('refreshes transform process buffers from presentation events', async () => {

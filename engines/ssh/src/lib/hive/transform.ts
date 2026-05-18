@@ -1,4 +1,4 @@
-import { jobBalance } from 'engine-rules'
+import { configurations, jobBalance } from 'engine-rules'
 import { inert, reactive, untracked } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
@@ -7,8 +7,14 @@ import type { GoodType, TransformJob } from 'ssh/types/base'
 import { type ExchangePriority, type GoodsRelations, maxPriority } from 'ssh/utils/advertisement'
 import { epsilon } from 'ssh/utils/varied'
 import { inputBufferSize, outputBufferSize } from '../../../assets/constants'
+import { isTransformConfiguration } from './alveolus-configuration'
 
 const emptyGoods: Partial<Record<GoodType, number>> = {}
+type ProductRatioRuntimeConfiguration = {
+	inputGood: GoodType
+	outputGood: GoodType
+	maxProductRatio: number
+}
 const transformStorageCapacity = (rates: Record<string, number>): Ssh.SpecificStorage =>
 	Object.fromEntries(
 		Object.entries(rates)
@@ -19,6 +25,7 @@ const transformStorageCapacity = (rates: Record<string, number>): Ssh.SpecificSt
 @reactive
 export class TransformAlveolus extends Alveolus {
 	declare action: Ssh.TransformationAction
+	declare individualConfiguration: Ssh.TransformAlveolusConfiguration | undefined
 	public processBuffers: Partial<Record<GoodType, number>>
 
 	constructor(tile: Tile, definition: Ssh.AlveolusDefinition, resourceName: string) {
@@ -44,6 +51,69 @@ export class TransformAlveolus extends Alveolus {
 
 	get producedGoods(): GoodType[] {
 		return this.rateEntries.filter(([, rate]) => rate > 0).map(([goodType]) => goodType)
+	}
+
+	get transformConfiguration(): Ssh.TransformAlveolusConfiguration {
+		const baseConfig = this.configuration
+		const defaults = configurations.transform as Ssh.TransformAlveolusConfiguration
+		return {
+			...defaults,
+			working: baseConfig.working,
+			productRatio: isTransformConfiguration(baseConfig)
+				? baseConfig.productRatio
+				: this.action.productRatio ?? defaults.productRatio,
+		}
+	}
+
+	private get productRatioConfiguration(): ProductRatioRuntimeConfiguration | undefined {
+		const config = this.transformConfiguration.productRatio
+		if (!config || !Number.isFinite(config.maxProductRatio)) return undefined
+		const inputGood = (config.inputGood as GoodType | undefined) ?? this.consumedGoods[0]
+		const outputGood = (config.outputGood as GoodType | undefined) ?? this.producedGoods[0]
+		if (!inputGood || !outputGood) return undefined
+		if (!this.consumedGoods.includes(inputGood) || !this.producedGoods.includes(outputGood)) {
+			return undefined
+		}
+		return {
+			inputGood,
+			outputGood,
+			maxProductRatio: Math.max(0, Math.min(1, config.maxProductRatio)),
+		}
+	}
+
+	get isBelowProductRatioLimit(): boolean {
+		const config = this.productRatioConfiguration
+		if (!config) return true
+		const inputAmount =
+			(this.storage.stock[config.inputGood] ?? 0) + this.processBuffer(config.inputGood)
+		const outputAmount =
+			(this.storage.stock[config.outputGood] ?? 0) + this.processBuffer(config.outputGood)
+		const total = inputAmount + outputAmount
+		if (total <= epsilon) return true
+		return outputAmount / total < config.maxProductRatio - epsilon
+	}
+
+	setProductRatioConfiguration(config: Ssh.TransformProductRatioConfiguration): void {
+		if (this.configurationRef.scope !== 'individual') {
+			this.configurationRef = { scope: 'individual' }
+		}
+		if (
+			!this.individualConfiguration ||
+			!isTransformConfiguration(this.individualConfiguration)
+		) {
+			this.individualConfiguration = reactive({
+				...(configurations.transform as Ssh.TransformAlveolusConfiguration),
+				working: this.configuration.working,
+				productRatio: this.transformConfiguration.productRatio,
+			})
+		}
+		this.individualConfiguration.productRatio = {
+			...config,
+			maxProductRatio: Math.max(0, Math.min(1, config.maxProductRatio)),
+		}
+		this.hive?.invalidateAdvertisement?.(this, 'alveolus.config')
+		this.hive?.invalidateConveyPlanning?.('alveolus.config')
+		this.game.invalidateWorkPlanning('alveolus.config')
 	}
 
 	processBuffer(goodType: GoodType): number {
@@ -84,6 +154,7 @@ export class TransformAlveolus extends Alveolus {
 
 	get nextLoadGood(): GoodType | undefined {
 		if (!this.hasOutputRoom) return undefined
+		if (!this.isBelowProductRatioLimit) return undefined
 		return this.consumedGoods.find(
 			(goodType) => this.processBuffer(goodType) <= epsilon && this.canLoad(goodType)
 		)
@@ -109,12 +180,13 @@ export class TransformAlveolus extends Alveolus {
 
 		// Do not accept more inputs if the next produced unit would have nowhere to unload.
 		const hasOutputRoom = this.hasOutputRoom
+		const isBelowProductRatioLimit = this.isBelowProductRatioLimit
 
 		// Check if storage has capacity for this input
 		// Use canStoreAll to check if we can store at least 1 of this good type
 		const hasCapacity = this.storage.canStoreAll({ [goodType]: 1 })
 
-		return isInput && hasOutputRoom && hasCapacity
+		return isInput && hasOutputRoom && isBelowProductRatioLimit && hasCapacity
 	}
 
 	/**
@@ -142,11 +214,13 @@ export class TransformAlveolus extends Alveolus {
 		)
 		const canLoadBoundary =
 			hasOutputRoom &&
+			this.isBelowProductRatioLimit &&
 			this.consumedGoods.some(
 				(goodType) => this.processBuffer(goodType) <= epsilon && this.canLoad(goodType)
 			)
 		const canProcess =
 			hasOutputRoom &&
+			this.isBelowProductRatioLimit &&
 			this.consumedGoods.every((goodType) => this.processBuffer(goodType) > epsilon) &&
 			this.producedGoods.every((goodType) => this.processBuffer(goodType) < 1 - epsilon)
 		return canUnloadBoundary || canLoadBoundary || canProcess
@@ -184,7 +258,9 @@ export class TransformAlveolus extends Alveolus {
 				.filter(([goodType]) => {
 					const plannedStock =
 						(stock[goodType as GoodType] ?? 0) + this.storage.allocated(goodType as GoodType)
-					return this.hasOutputRoom && plannedStock < inputBufferSize
+					return (
+						this.hasOutputRoom && this.isBelowProductRatioLimit && plannedStock < inputBufferSize
+					)
 				})
 				.map(([goodType]) => [
 					goodType as GoodType,

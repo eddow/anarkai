@@ -67,16 +67,21 @@ function vehicleHop(jobPlan)
 		walk.until jobPlan.approachPath
 		walk.enter
 		vehicle.vehicleApproachStep jobPlan
-		if jobPlan.vehicleApproachAborted then return
+		if jobPlan.vehicleApproachAborted then
+			walk.pause
+			return
+		end if
 	end if
 	if jobPlan.needsBeginService then
 		vehicle.vehicleBeginServiceStep jobPlan
 	end if
 	vehicle.vehicleHopPrepare jobPlan
 	if jobPlan.vehicleHopRunEnded then
+		walk.pause
 		return
 	end if
 	if jobPlan.vehicleHopReplanRequired then
+		walk.pause
 		return
 	end if
 	driveJobPath jobPlan

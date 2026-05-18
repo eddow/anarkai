@@ -19,7 +19,11 @@ export const alveoli = {
 	},
 	sawmill: {
 		preparationTime: 1,
-		action: { type: 'transform', rates: { wood: -0.2, planks: 0.2 } },
+		action: {
+			type: 'transform',
+			rates: { wood: -0.2, planks: 0.2 },
+			productRatio: { inputGood: 'wood', outputGood: 'planks', maxProductRatio: 0.5 },
+		},
 		workTime: 2,
 		construction: {
 			goods: { wood: 3, stone: 2 }, // No planks cost for the sawmill

@@ -132,4 +132,13 @@ describe('ZoneManager residential polish', () => {
 		expect(zm.getGeneratedZone(coord)).toBe('industrial')
 		expect(zm.getEffectiveZone(coord)).toBe('harvest')
 	})
+
+	it('keeps generated system zones out of custom zone listings', () => {
+		const zm = new ZoneManager()
+		zm.setGeneratedZone({ q: 5, r: -2 }, 'industrial')
+		zm.defineZone({ id: 'market-yard', name: 'Market Yard' })
+
+		expect(zm.listZoneDefinitions().map((zone) => zone.id)).toContain('industrial')
+		expect(zm.listCustomZoneDefinitions().map((zone) => zone.id)).toEqual(['market-yard'])
+	})
 })

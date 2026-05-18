@@ -25,6 +25,7 @@
 		"@sursaut/core": "^0.1.0",
 		"@sursaut/kit": "^0.1.0",
 		"@sursaut/ui": "workspace:*",
+		"@xmldom/xmldom": "0.8.11",
 		"arktype": "^2.1.22",
 		"dockview-core": "^5.0.0",
 		"engine-pixi": "workspace:*",
@@ -34,6 +35,7 @@
 		"mutts": "^1.0.14",
 		"npc-script": "^1.0.0",
 		"omni18n": "^1.1.17",
+		"parse-svg-path": "0.1.2",
 		"pixi.js": "^8.13.0",
 		"pure-glyf": "^1.0.2",
 		"ssh": "workspace:*",
@@ -58,7 +60,7 @@
 		"magic-string": "^0.30.21",
 		"pixi-stats": "^4.2.0",
 		"sass-embedded": "^1.93.3",
-		"vite-plugin-dts": "^4.5.4",
-		"vite-plugin-babel": "^1.3.2"
+		"vite-plugin-babel": "^1.3.2",
+		"vite-plugin-dts": "^4.5.4"
 	}
 }

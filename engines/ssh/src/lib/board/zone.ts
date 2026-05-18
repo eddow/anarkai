@@ -106,7 +106,9 @@ export class ZoneManager {
 	}
 
 	listCustomZoneDefinitions(): NamedZoneDefinition[] {
-		return this.listZoneDefinitions().filter((zone) => !zone.builtIn)
+		return this.listZoneDefinitions().filter(
+			(zone) => !zone.builtIn && !zone.generated && !zone.readonly
+		)
 	}
 
 	removeNamedZone(id: string): boolean {

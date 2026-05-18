@@ -23,8 +23,11 @@ async function withSawmill(
 				},
 			],
 		})
+		await Promise.resolve()
 		const sawmill = engine.game.hex.getTile({ q: 0, r: 0 })?.content
-		if (!(sawmill instanceof TransformAlveolus)) throw new Error('expected sawmill')
+		if (!(sawmill instanceof TransformAlveolus)) {
+			throw new Error(`expected sawmill, got ${sawmill?.constructor?.name ?? 'nothing'}`)
+		}
 		const worker = engine.spawnCharacter('Worker', { q: 0, r: 0 })
 		worker.assignedAlveolus = sawmill
 		const work = new WorkFunctions()
@@ -68,6 +71,32 @@ describe('transform process buffers', () => {
 			expect(sawmill.nextLoadGood).toBeUndefined()
 			expect(sawmill.canTake('wood', '2-use')).toBe(false)
 			expect(sawmill.workingGoodsRelations.wood).toBeUndefined()
+		})
+	})
+
+	it('uses the rule default product ratio to pause input demand and transform work', async () => {
+		await withSawmill({ wood: 1, planks: 1 }, ({ sawmill }) => {
+			expect(sawmill.isBelowProductRatioLimit).toBe(false)
+			expect(sawmill.canWork).toBe(false)
+			expect(sawmill.nextLoadGood).toBeUndefined()
+			expect(sawmill.canTake('wood', '2-use')).toBe(false)
+			expect(sawmill.workingGoodsRelations.wood).toBeUndefined()
+		})
+	})
+
+	it('allows transform product ratio input/output and limit to be overridden by configuration', async () => {
+		await withSawmill({ wood: 1, planks: 1 }, ({ sawmill }) => {
+			sawmill.configurationRef = { scope: 'individual' }
+			sawmill.individualConfiguration = {
+				working: true,
+				productRatio: { inputGood: 'wood', outputGood: 'planks', maxProductRatio: 0.75 },
+			}
+
+			expect(sawmill.isBelowProductRatioLimit).toBe(true)
+			expect(sawmill.canWork).toBe(true)
+			expect(sawmill.nextLoadGood).toBe('wood')
+			expect(sawmill.canTake('wood', '2-use')).toBe(true)
+			expect(sawmill.workingGoodsRelations.wood?.advertisement).toBe('demand')
 		})
 	})
 
@@ -179,14 +208,20 @@ describe('transform process buffers', () => {
 					},
 				],
 			})
+			await Promise.resolve()
 			const sawmill = engine.game.hex.getTile({ q: 0, r: 0 })?.content
-			if (!(sawmill instanceof TransformAlveolus)) throw new Error('expected sawmill')
+			if (!(sawmill instanceof TransformAlveolus)) {
+				throw new Error(`expected sawmill, got ${sawmill?.constructor?.name ?? 'nothing'}`)
+			}
 			sawmill.setProcessBuffer('wood', 0.4)
 			sawmill.setProcessBuffer('planks', 0.6)
 
 			restored.loadScenario(engine.game.saveGameData())
+			await Promise.resolve()
 			const loaded = restored.game.hex.getTile({ q: 0, r: 0 })?.content
-			if (!(loaded instanceof TransformAlveolus)) throw new Error('expected restored sawmill')
+			if (!(loaded instanceof TransformAlveolus)) {
+				throw new Error(`expected restored sawmill, got ${loaded?.constructor?.name ?? 'nothing'}`)
+			}
 			expect(loaded.processBuffer('wood')).toBeCloseTo(0.4)
 			expect(loaded.processBuffer('planks')).toBeCloseTo(0.6)
 		} finally {

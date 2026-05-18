@@ -18,18 +18,26 @@ export function getCommonAliases(projectRootDir) {
 /** @type {{ exclude: string[], include: string[] }} */
 export const commonOptimizeDeps = {
 	exclude: [
+		"@sursaut/core",
+		"@sursaut/core/dom",
+		"@sursaut/kit",
+		"@sursaut/kit/dom",
+		"@sursaut/ui",
 		"ssh",
 		"engine-pixi",
 		"mutts",
 		"npc-script",
 		"omni18n",
+		"pixi.js",
+		"pure-glyf/sursaut",
 		"sursaut-ts",
 		"sursaut-ui",
 	],
 	include: [
-		"pixi.js",
 		"arktype",
+		"@xmldom/xmldom",
 		"eventemitter3",
+		"parse-svg-path",
 	],
 };
 

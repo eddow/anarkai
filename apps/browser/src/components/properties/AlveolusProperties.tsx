@@ -72,6 +72,36 @@ css`
 	border-color: color-mix(in srgb, var(--ak-accent, #8b5cf6) 35%, transparent);
 	background: color-mix(in srgb, var(--ak-accent, #8b5cf6) 10%, var(--ak-surface-panel));
 }
+.alveolus-transform-ratio {
+	display: grid;
+	gap: 0.45rem;
+	width: 100%;
+}
+.alveolus-transform-ratio__goods {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	gap: 0.45rem;
+}
+.alveolus-transform-ratio__select {
+	min-width: 0;
+	width: 100%;
+	padding: 0.25rem 0.35rem;
+	border: 1px solid color-mix(in srgb, var(--ak-text-muted) 22%, transparent);
+	border-radius: 0.35rem;
+	background: var(--ak-surface-panel);
+	color: var(--ak-text);
+}
+.alveolus-transform-ratio__slider {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 3rem;
+	gap: 0.5rem;
+	align-items: center;
+}
+.alveolus-transform-ratio__value {
+	color: var(--ak-text-muted);
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
 `
 
 interface AlveolusPropertiesProps {
@@ -164,6 +194,28 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 
 	const processBufferLabel = (goodType: GoodType, value: number) =>
 		`${goodType} ${Math.round(value * 100)}%`
+
+	const transformRatioConfig = () => state.transformContent?.transformConfiguration.productRatio
+	const transformInputGoods = () => state.transformContent?.consumedGoods ?? []
+	const transformOutputGoods = () => state.transformContent?.producedGoods ?? []
+	const transformRatioInputGood = () =>
+		(transformRatioConfig()?.inputGood as GoodType | undefined) ?? transformInputGoods()[0]
+	const transformRatioOutputGood = () =>
+		(transformRatioConfig()?.outputGood as GoodType | undefined) ?? transformOutputGoods()[0]
+	const transformRatioValue = () => transformRatioConfig()?.maxProductRatio ?? 0
+	const transformRatioPercent = () => Math.round(transformRatioValue() * 100)
+	const setTransformRatio = (patch: Partial<Ssh.TransformProductRatioConfiguration>) => {
+		const transform = state.transformContent
+		if (!transform) return
+		const inputGood = (patch.inputGood as GoodType | undefined) ?? transformRatioInputGood()
+		const outputGood = (patch.outputGood as GoodType | undefined) ?? transformRatioOutputGood()
+		if (!inputGood || !outputGood) return
+		transform.setProductRatioConfiguration({
+			inputGood,
+			outputGood,
+			maxProductRatio: patch.maxProductRatio ?? transformRatioValue(),
+		})
+	}
 
 	const handleAddFreightLine = () => {
 		const game = state.resolvedGame
@@ -268,6 +320,66 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 							/>
 						)}
 					</for>
+				</div>
+			</PropertyGridRow>
+
+			<PropertyGridRow
+				if={state.isTransform && !!transformRatioConfig()}
+				label={String(T.alveolus.productRatio)}
+			>
+				<div class="alveolus-transform-ratio">
+					<div class="alveolus-transform-ratio__goods">
+						<select
+							class="alveolus-transform-ratio__select"
+							data-testid="transform-ratio-input-good"
+							title={String(T.alveolus.productRatioInput)}
+							value={transformRatioInputGood()}
+							onChange={(event) =>
+								setTransformRatio({
+									inputGood: (event.currentTarget as HTMLSelectElement).value,
+								})
+							}
+						>
+							<for each={transformInputGoods()}>
+								{(goodType) => <option value={goodType}>{goodType}</option>}
+							</for>
+						</select>
+						<select
+							class="alveolus-transform-ratio__select"
+							data-testid="transform-ratio-output-good"
+							title={String(T.alveolus.productRatioOutput)}
+							value={transformRatioOutputGood()}
+							onChange={(event) =>
+								setTransformRatio({
+									outputGood: (event.currentTarget as HTMLSelectElement).value,
+								})
+							}
+						>
+							<for each={transformOutputGoods()}>
+								{(goodType) => <option value={goodType}>{goodType}</option>}
+							</for>
+						</select>
+					</div>
+					<div class="alveolus-transform-ratio__slider">
+						<input
+							type="range"
+							min="0"
+							max="100"
+							step="1"
+							value={String(transformRatioPercent())}
+							data-testid="transform-ratio-slider"
+							title={String(T.alveolus.productRatio)}
+							onInput={(event) =>
+								setTransformRatio({
+									maxProductRatio:
+										Number((event.currentTarget as HTMLInputElement).value) / 100,
+								})
+							}
+						/>
+						<span class="alveolus-transform-ratio__value" data-testid="transform-ratio-value">
+							{transformRatioPercent()}%
+						</span>
+					</div>
 				</div>
 			</PropertyGridRow>
 

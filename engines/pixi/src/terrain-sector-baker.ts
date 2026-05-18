@@ -510,7 +510,7 @@ function parseZoneColor(color: string | undefined, zoneId: string): number {
 
 function countGeneratedZoneTiles(input: SectorTerrainBakeInput): number {
 	let count = 0
-	for (const coord of input.interiorTileCoords) {
+	for (const coord of input.bakeTileCoords) {
 		const tile = input.terrainTiles.get(axial.key(coord))
 		if (tile?.zone?.generated) count++
 	}
@@ -518,10 +518,13 @@ function countGeneratedZoneTiles(input: SectorTerrainBakeInput): number {
 }
 
 function buildGeneratedZoneOverlay(input: SectorTerrainBakeInput): Graphics | undefined {
-	const graphics = setPixiName(new Graphics(), `terrain.continuous:${input.sectorKey}:generated-zones`)
+	const graphics = setPixiName(
+		new Graphics(),
+		`terrain.continuous:${input.sectorKey}:generated-zones`
+	)
 	graphics.eventMode = 'none'
 	let drew = false
-	for (const coord of input.interiorTileCoords) {
+	for (const coord of input.bakeTileCoords) {
 		const tile = input.terrainTiles.get(axial.key(coord))
 		if (!tile?.zone?.generated) continue
 		graphics

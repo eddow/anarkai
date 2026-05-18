@@ -1,4 +1,4 @@
-import { type RoadPatches } from 'ssh/board/roads'
+import type { RoadPatches } from 'ssh/board/roads'
 import type { NamedZonePatch } from 'ssh/game/game'
 import type { AxialCoord } from 'ssh/utils'
 import { axial } from 'ssh/utils'
@@ -60,6 +60,8 @@ const ZONE_DEFINITIONS: Record<
 
 const LAND_TERRAINS = new Set(['grass', 'forest', 'sand', 'rocky', 'concrete'])
 const INDUSTRIAL_TERRAINS = new Set(['rocky', 'forest'])
+const INDUSTRIAL_RING_INNER_OFFSET = 1
+const INDUSTRIAL_RING_OUTER_OFFSET = 3
 
 function isLand(tile: GeneratedTileData): boolean {
 	return LAND_TERRAINS.has(tile.terrain)
@@ -82,25 +84,32 @@ function isRiverConflictTile(tile: GeneratedTileData): boolean {
 	)
 }
 
+function isZoneableLandTile(tile: GeneratedTileData): boolean {
+	return isLand(tile) && !isRiverConflictTile(tile)
+}
 
-function chooseZoneForTile(
+function chooseSettlementCoreZoneForTile(
 	tile: GeneratedTileData,
 	settlement: GeneratedSettlement,
 	distance: number
 ): ZoneBucket | undefined {
-	if (!isLand(tile)) return undefined
-	if (isRiverConflictTile(tile)) return undefined
+	if (!isZoneableLandTile(tile)) return undefined
 	if (distance === 0) return settlement.kind === 'village' ? 'market' : 'civic'
 	if (distance === 1 && settlement.kind !== 'village') return 'market'
-	if (
-		tile.deposit ||
-		(distance >= settlement.radius - 1 && INDUSTRIAL_TERRAINS.has(tile.terrain))
-	) {
-		return 'industrial'
-	}
 	if (distance >= settlement.radius)
 		return tile.terrain === 'grass' || tile.terrain === 'forest' ? 'harvest' : undefined
 	return 'residential'
+}
+
+function chooseIndustrialZoneForTile(
+	tile: GeneratedTileData,
+	settlement: GeneratedSettlement,
+	distance: number
+): ZoneBucket | undefined {
+	if (!isZoneableLandTile(tile)) return undefined
+	if (distance < settlement.radius + INDUSTRIAL_RING_INNER_OFFSET) return undefined
+	if (distance > settlement.radius + INDUSTRIAL_RING_OUTER_OFFSET) return undefined
+	return tile.deposit || INDUSTRIAL_TERRAINS.has(tile.terrain) ? 'industrial' : undefined
 }
 
 export async function generateZonePlanForSettlements(
@@ -127,11 +136,25 @@ export async function generateZonePlanForSettlements(
 			const tile = tiles.get(tileKey(coord))
 			if (!tile) continue
 			const distance = axial.distance(settlement.center, coord)
-			const zone = chooseZoneForTile(tile, settlement, distance)
+			const zone = chooseSettlementCoreZoneForTile(tile, settlement, distance)
 			if (!zone) continue
 			const key = tileKey(coord)
 			const current = assigned.get(key)
 			if (!current || priority[zone] > priority[current]) assigned.set(key, zone)
+		}
+	}
+
+	for (const settlement of settlements) {
+		const outerRadius = settlement.radius + INDUSTRIAL_RING_OUTER_OFFSET
+		for (const coord of axial.allTiles(settlement.center, outerRadius)) {
+			const tile = tiles.get(tileKey(coord))
+			if (!tile) continue
+			const distance = axial.distance(settlement.center, coord)
+			const zone = chooseIndustrialZoneForTile(tile, settlement, distance)
+			if (!zone) continue
+			const key = tileKey(coord)
+			if (assigned.has(key)) continue
+			assigned.set(key, zone)
 		}
 	}
 
@@ -145,13 +168,18 @@ export async function generateZonePlanForSettlements(
 	// Call WASM for road generation
 	const { wasm_generate_settlement_roads } = await import('anarkai-core')
 	const packed = wasm_generate_settlement_roads(
-		seed, coords, terrainKinds, hasRiver, settlementCoords
+		seed,
+		coords,
+		terrainKinds,
+		hasRiver,
+		settlementCoords
 	)
 
 	// Parse: doubled borders → midpoint format
 	const roadSet = new Set<string>()
 	for (let i = 0; i < packed.length; i += 2) {
-		const dq = packed[i]!, dr = packed[i + 1]!
+		const dq = packed[i]!
+		const dr = packed[i + 1]!
 		roadSet.add(`${dq / 2},${dr / 2}`)
 	}
 
@@ -166,6 +194,12 @@ export async function generateZonePlanForSettlements(
 		roadTileKeys.add(ceilKey)
 	}
 	for (const key of roadTileKeys) assigned.delete(key)
+
+	for (const settlement of settlements) {
+		const centerTile = tiles.get(tileKey(settlement.center))
+		if (!centerTile || !isZoneableLandTile(centerTile)) continue
+		assigned.set(tileKey(settlement.center), settlement.kind === 'village' ? 'market' : 'civic')
+	}
 
 	const zoneCoords: Record<ZoneBucket, Array<[number, number]>> = {
 		residential: [],
@@ -205,7 +239,12 @@ export async function generateSettlementRegionSetPlan(
 	hasRiver: Uint8Array
 ): Promise<SettlementRegionSetPlan> {
 	const plan = await generateZonePlanForSettlements(
-		tileData, settlements, seed, coords, terrainKinds, hasRiver
+		tileData,
+		settlements,
+		seed,
+		coords,
+		terrainKinds,
+		hasRiver
 	)
 	const children: SettlementRegion[] = plan.settlements.map((settlement) => ({
 		type: 'region',

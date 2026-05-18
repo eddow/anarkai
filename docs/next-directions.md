@@ -14,6 +14,8 @@ Already landed or mostly landed:
 - Vehicle-backed freight management, including freight bays, exchange-route line definitions, legacy
   gather/distribute segment helpers, line inspectors, and docked vehicle work.
 - Selectable custom named-zone objects with a Zones palette entry, zone inspectors, tile/alveolus links, and board masks. Built-in residential/harvest remain ordinary tile markers.
+- Zone inspectors show compact icon stats for tile count and physical area using the documented `3m` hex side scale.
+- Transform alveoli can keep a configured product ratio, with rule defaults and per-alveolus inspector controls for the input good, output good, and slider threshold.
 - Deterministic streamed terrain generation and Pixi continuous-terrain rendering.
 - Browser client panels for inspecting and editing the active simulation.
 
@@ -25,14 +27,12 @@ Still architecturally important:
 ## Details to add
 
 - alveoli configurations (ex storage buffer/allowance) should be able to be memorized, given a name and re-used with a combo-box containing all applicable configurations, "specific" = for this alveoli only or the ability to create a new configuration (no add button, just entering a text in the combo and checking for conflict)
-- zone widgets have a property "tiles: #", it should now be a stat line with tool-tipped icons, with amount of tiles, area (, ... ?)
 - We'll need to add config for: locale, measure units (1 tile-border = 3m = 10feet), decimal/duo-decimal
 - we should have bay-less roads (from zone to zone)
 - freight lines should complete the exchange-route refactor: cyclic route order, zone-local exchange,
   and candidate checks that no longer depend on gather/distribute as line kinds
 - "lines" management widget with filters: "have bay" (yes/all/no) and "visible" (only-intersecting-the-game-view:bool)
 - find a way to show the content of the docked vehicles. Perhaps add a check-box/button to show/hide vehicle content (docked and non-docked)
-- transform alveoli should have a configuration: ratio product/produce to keep. Basically, the ration of `planks/(wood+planks)` to keep, and would not offer a transformation job if there is too much planks and not enough wood. Last but not least: we have here a really simple case (1 input, 1 output), this configuration should allow the choice of which input to consider and which output to consider (of course, having a default, specified in the rules)
 - line edition widget (reflections still ongoing):
   - the line stop (bay/zone/...) should only be editable like on add: the set should have a sub-menu (bay/circle/named zone)
   - The add stop should allow the selection (indeed, for now it adds something but the change is not visible without refreshing the widget)

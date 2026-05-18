@@ -16,6 +16,12 @@ export function isSlottedStorageConfiguration(
 	return 'generalSlots' in config && 'goods' in config
 }
 
+export function isTransformConfiguration(
+	config: Ssh.AlveolusConfiguration
+): config is Ssh.TransformAlveolusConfiguration {
+	return 'productRatio' in config
+}
+
 /**
  * Global manager for named configurations.
  * Named configurations are shared across all hives.

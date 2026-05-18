@@ -144,8 +144,8 @@ export function macroRequestForTerrainLod(
 
 function snappedMacroSectorKey(centerSectorKey: string): string {
 	const [rawQ, rawR] = centerSectorKey.split(',').map(Number)
-	const q = Math.trunc((rawQ ?? 0) / MACRO_OVERVIEW_SNAP_DRIFT_SECTORS) * MACRO_OVERVIEW_SNAP_DRIFT_SECTORS
-	const r = Math.trunc((rawR ?? 0) / MACRO_OVERVIEW_SNAP_DRIFT_SECTORS) * MACRO_OVERVIEW_SNAP_DRIFT_SECTORS
+	const q = Math.floor((rawQ ?? 0) / MACRO_OVERVIEW_SNAP_DRIFT_SECTORS) * MACRO_OVERVIEW_SNAP_DRIFT_SECTORS
+	const r = Math.floor((rawR ?? 0) / MACRO_OVERVIEW_SNAP_DRIFT_SECTORS) * MACRO_OVERVIEW_SNAP_DRIFT_SECTORS
 	return `${q},${r}`
 }
 

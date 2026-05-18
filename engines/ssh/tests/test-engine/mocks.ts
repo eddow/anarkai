@@ -75,6 +75,7 @@ function rulesTestOverrides() {
 				action: {
 					type: 'transform',
 					rates: { wood: -0.2, planks: 0.2 },
+					productRatio: { inputGood: 'wood', outputGood: 'planks', maxProductRatio: 0.5 },
 				},
 				construction: { goods: { wood: 1 }, time: 1 },
 			},
@@ -162,6 +163,10 @@ function rulesTestOverrides() {
 			'specific-storage': {
 				working: true,
 				buffers: {},
+			},
+			transform: {
+				working: true,
+				productRatio: undefined,
 			},
 			default: {
 				working: true,

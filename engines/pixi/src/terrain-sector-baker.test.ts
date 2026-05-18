@@ -41,6 +41,40 @@ describe('SectorTerrainBaker', () => {
 		expect(debug.generatedZoneTileCount).toBe(1)
 	})
 
+	it('includes generated zone overlays from the bake domain to cover sector overlap', () => {
+		const baker = new SectorTerrainBaker({} as any)
+		const terrainTiles = new Map<string, RenderableTerrainTile>([
+			[
+				'-1,0',
+				{
+					terrain: 'grass',
+					height: 0,
+					zone: {
+						id: 'market',
+						name: 'Market',
+						color: '#d6a34c',
+						generated: true,
+					},
+				},
+			],
+			['0,0', { terrain: 'grass', height: 0 }],
+		])
+
+		const debug = baker.inspect({
+			sectorKey: '0,0',
+			displayBounds: new Rectangle(-26, -30, 80, 60),
+			interiorTileCoords: [{ q: 0, r: 0 }],
+			bakeTileCoords: [
+				{ q: -1, r: 0 },
+				{ q: 0, r: 0 },
+			],
+			terrainTiles,
+			lodMode: 'overview-coarse',
+		})
+
+		expect(debug.generatedZoneTileCount).toBe(1)
+	})
+
 	it('keeps river diagnostics at texture LOD when hydrology is included', () => {
 		const baker = new SectorTerrainBaker({} as any)
 		const terrainTiles = new Map<string, RenderableTerrainTile>([

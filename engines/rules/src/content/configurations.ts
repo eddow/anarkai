@@ -9,6 +9,10 @@ export const configurations = {
 		working: true,
 		buffers: {},
 	},
+	transform: {
+		working: true,
+		productRatio: undefined,
+	},
 	default: {
 		working: true,
 	},

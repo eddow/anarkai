@@ -86,7 +86,9 @@ slice but should be treated as a standing cleanup item before using full-suite g
 ### Browser Client
 
 `apps/browser` is the active client. It uses Sursaut UI with Dockview-based panels and Pixi-backed world rendering.
-Zones are managed as selectable inspector objects rather than inside freight-line properties; tile/alveolus inspectors link back to the owning zone when a tile is painted.
+Zones are managed as selectable inspector objects rather than inside freight-line properties; tile/alveolus
+inspectors link back to the owning zone when a tile is painted, and zone inspectors show tile-count and
+area stats using the documented `3m` hex side scale.
 
 ### Rendering
 
