@@ -103,10 +103,15 @@ interface WorkingIndicatorProps {
 	checked: boolean
 	burdened?: boolean
 	tooltip?: string
+	warning?: string
 	onChange?: (checked: boolean) => void
 }
 
 const WorkingIndicator = (props: WorkingIndicatorProps) => {
+	const tooltip = () => [props.tooltip, props.burdened ? props.warning : undefined]
+		.filter(Boolean)
+		.join('\n')
+
 	const toggle = () => {
 		const checked = !props.checked
 		props.checked = checked
@@ -117,7 +122,7 @@ const WorkingIndicator = (props: WorkingIndicatorProps) => {
 		<button
 			class={`working-indicator ${!props.checked ? 'not-working' : ''} ${props.burdened ? 'burdened' : ''}`}
 			onClick={toggle}
-			title={props.tooltip}
+			title={tooltip()}
 			aria-checked={props.checked ? 'true' : 'false'}
 			role="switch"
 		>

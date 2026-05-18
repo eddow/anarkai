@@ -18,13 +18,46 @@ const marketObject = {
 	title: 'Market of One',
 }
 const game = {
+	playerAccount: reactive({ balanceVp: 200 }),
 	getDistrict: vi.fn(() => ({
+		id: 'default',
 		name: 'Default district',
 		kind: 'mixed',
 		memberCount: 2,
 		members: [{ q: 0, r: 0 }],
+		procurementPolicy: {
+			autoBuyNeededGoods: true,
+			usePurchaseReserveVp: 20,
+			bufferPurchaseReserveVp: 80,
+			maxInFlightPerGood: 1,
+			goods: { concrete: { bufferTargetUnits: 3 } },
+		},
 	})),
 	getObject: vi.fn(() => marketObject),
+	getSettlementTradeProfile: vi.fn((id: string) =>
+		id === 'market-1'
+			? {
+					id: 'market-1',
+					name: 'Market of One',
+				}
+			: undefined
+	),
+	updateDistrictProcurementPolicy: vi.fn(),
+	setDistrictProcurementGoodPolicy: vi.fn(),
+	listDistrictEligibleSellGoods: vi.fn(() => ['wood']),
+	listDistrictPurchaseRequests: vi.fn(() => [
+		{
+			id: 'purchase:default:buffer:concrete:0,0',
+			districtId: 'default',
+			good: 'concrete',
+			quantity: 3,
+			purpose: 'buffer',
+			providerSettlementId: 'market-1',
+			unitPriceVp: 10,
+			totalPriceVp: 30,
+			status: 'planned',
+		},
+	]),
 	listSettlementTradeProfiles: vi.fn(() => [
 		{
 			id: 'market-1',
@@ -127,6 +160,8 @@ describe('DistrictWidget', () => {
 		interactionMode.selectedAction = ''
 		showProps.mockClear()
 		game.getObject.mockClear()
+		game.updateDistrictProcurementPolicy.mockClear()
+		game.setDistrictProcurementGoodPolicy.mockClear()
 	})
 
 	afterEach(() => {
@@ -165,6 +200,11 @@ describe('DistrictWidget', () => {
 		stop = latch(container, <DistrictWidget {...(props as never)} />)
 
 		expect(container.textContent).toContain('Commerce')
+		expect(container.textContent).toContain('Buy needed goods')
+		expect(container.textContent).toContain('Use reserve')
+		expect(container.textContent).toContain('3 concrete for buffer')
+		expect(container.textContent).toContain('Market of One · 30 vp · Planned')
+		expect(container.textContent).toContain('Eligible to sell: wood')
 		expect(container.textContent).toContain('Market of One')
 		expect(container.textContent).toContain('Town · sells 1 · buys 1')
 		expect(container.textContent).toContain('Concrete from Market of One · 10 vp')
@@ -178,5 +218,26 @@ describe('DistrictWidget', () => {
 
 		expect(game.getObject).toHaveBeenCalledWith('settlement:market-1')
 		expect(showProps).toHaveBeenCalledWith(marketObject)
+	})
+
+	it('updates district procurement controls', () => {
+		const props = { title: '' }
+		stop = latch(container, <DistrictWidget {...(props as never)} />)
+
+		const useReserve = container.querySelector('#district-use-reserve') as HTMLInputElement
+		useReserve.value = '42'
+		useReserve.dispatchEvent(new InputEvent('input', { bubbles: true }))
+		expect(game.updateDistrictProcurementPolicy).toHaveBeenCalledWith('default', {
+			usePurchaseReserveVp: 42,
+		})
+
+		const bufferInput = container.querySelector(
+			'input[title="Buffer target for concrete"]'
+		) as HTMLInputElement
+		bufferInput.value = '4'
+		bufferInput.dispatchEvent(new InputEvent('input', { bubbles: true }))
+		expect(game.setDistrictProcurementGoodPolicy).toHaveBeenCalledWith('default', 'concrete', {
+			bufferTargetUnits: 4,
+		})
 	})
 })

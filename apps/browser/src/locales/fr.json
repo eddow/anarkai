@@ -120,6 +120,13 @@
 		"productRatioInput": "Marchandise d'entrée",
 		"productRatioOutput": "Marchandise de sortie",
 		"workingTooltip": "Basculer l'état de fonctionnement",
+		"workingWarnings": {
+			"tileBurdened": "Bloqué par des marchandises, un dépôt ou un véhicule sur cette tuile",
+			"noInputGood": "Aucune marchandise d'entrée n'est disponible",
+			"noOutputRoom": "Aucune place n'est disponible pour les marchandises de sortie",
+			"productRatioLimit": "La limite du ratio produit est atteinte",
+			"noAvailableWork": "Aucun travail n'est disponible pour le moment"
+		},
 		"cleanUp": "Nettoyer",
 		"cleanUpTooltip": "Vider tous les stocks",
 		"cleanUpGoodTooltip": "Vider {goodType}",

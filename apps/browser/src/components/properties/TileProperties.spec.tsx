@@ -21,6 +21,17 @@ class MockUnBuiltLand {
 	name = ''
 	title = ''
 }
+class MockTransformAlveolus extends MockAlveolus {
+	name = 'storage'
+	title = 'Storage'
+	working = true
+	canWork = false
+	hasOutputRoom = true
+	isBelowProductRatioLimit = true
+	consumedGoods = ['wood']
+	nextLoadGood = undefined
+	hive = { name: 'Hive' }
+}
 
 vi.mock('@app/lib/css', () => ({
 	css: () => '',
@@ -58,6 +69,10 @@ vi.mock('ssh/hive/build', () => ({
 	BuildAlveolus: MockBuildAlveolus,
 }))
 
+vi.mock('ssh/hive/transform', () => ({
+	TransformAlveolus: MockTransformAlveolus,
+}))
+
 vi.mock('ssh/board/content/unbuilt-land', () => ({
 	UnBuiltLand: MockUnBuiltLand,
 }))
@@ -78,6 +93,13 @@ vi.mock('@app/lib/i18n', () => {
 			},
 			alveolus: {
 				workingTooltip: 'Working',
+				workingWarnings: {
+					tileBurdened: 'Tile is blocked',
+					noInputGood: 'No input good is available',
+					noOutputRoom: 'No output room',
+					productRatioLimit: 'Ratio limit reached',
+					noAvailableWork: 'No available work',
+				},
 			},
 			residential: {
 				dwelling: {
@@ -157,6 +179,8 @@ vi.mock('../parts/WorkingIndicator', () => ({
 	default: (props: {
 		checked: boolean
 		burdened?: boolean
+		tooltip?: string
+		warning?: string
 		onChange?: (checked: boolean) => void
 		if?: boolean
 	}) =>
@@ -165,6 +189,10 @@ vi.mock('../parts/WorkingIndicator', () => ({
 				data-testid="working-indicator"
 				data-checked={String(props.checked)}
 				data-burdened={String(!!props.burdened)}
+				title={[props.tooltip, props.burdened ? props.warning : undefined]
+					.filter(Boolean)
+					.join('\n')}
+				data-warning={props.warning ?? ''}
 				onClick={() => props.onChange?.(!props.checked)}
 			/>
 		),
@@ -298,6 +326,29 @@ describe('TileProperties', () => {
 		expect(
 			container.querySelector('[data-testid="working-indicator"]')?.getAttribute('data-burdened')
 		).toBe('true')
+		expect(container.querySelector('[data-testid="working-indicator"]')?.getAttribute('title')).toBe(
+			'Working\nTile is blocked'
+		)
+	})
+
+	it('adds transform warning details to the working indicator tooltip', () => {
+		const tile = reactive({
+			content: new MockTransformAlveolus(),
+			isBurdened: false,
+			looseGoods: [],
+			board: {
+				game: {
+					loaded: Promise.resolve(),
+					getTexture: vi.fn(() => undefined),
+				},
+			},
+		})
+
+		stop = latch(container, <TileProperties tile={tile as never} />)
+
+		const indicator = container.querySelector('[data-testid="working-indicator"]')
+		expect(indicator?.getAttribute('data-burdened')).toBe('true')
+		expect(indicator?.getAttribute('title')).toBe('Working\nNo input good is available')
 	})
 
 	it('renders construction shell needed goods in the tile properties materials row', () => {

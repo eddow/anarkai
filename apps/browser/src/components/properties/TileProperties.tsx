@@ -20,6 +20,7 @@ import type { Tile } from 'ssh/board/tile'
 import { isConstructionSiteShell } from 'ssh/build-site'
 import { queryConstructionSiteView } from 'ssh/construction'
 import { BuildAlveolus } from 'ssh/hive/build'
+import { TransformAlveolus } from 'ssh/hive/transform'
 import type { GoodType } from 'ssh/types/base'
 import { computeStyleFromTexture } from 'ssh/utils/images'
 import ConstructionProgressBar from '../ConstructionProgressBar'
@@ -200,6 +201,22 @@ const resolveTileTerrainForContentCase = (
 	return terrain
 }
 
+const transformWorkingWarning = (content: TransformAlveolus): string | undefined => {
+	if (!content.working || content.canWork) return
+	if (!content.hasOutputRoom) return String(T.alveolus.workingWarnings.noOutputRoom)
+	if (!content.isBelowProductRatioLimit) return String(T.alveolus.workingWarnings.productRatioLimit)
+	if (content.consumedGoods.length > 0 && !content.nextLoadGood) {
+		return String(T.alveolus.workingWarnings.noInputGood)
+	}
+	return String(T.alveolus.workingWarnings.noAvailableWork)
+}
+
+const workingWarning = (tile: Tile, contentCase?: TileContentCase): string | undefined => {
+	if (tile.isBurdened) return String(T.alveolus.workingWarnings.tileBurdened)
+	const content = contentCase?.content
+	if (content instanceof TransformAlveolus) return transformWorkingWarning(content)
+}
+
 interface TileContentHeaderProps {
 	contentCase?: TileContentCase
 	game?: TileGame
@@ -281,6 +298,9 @@ const AlveolusTileHeader = (props: AlveolusTileHeaderProps) => {
 		get zoneTitle() {
 			return customZoneTitle(props.tile, props.game)
 		},
+		get workingWarning() {
+			return workingWarning(props.tile, this.contentCase)
+		},
 	}
 
 	return (
@@ -297,8 +317,9 @@ const AlveolusTileHeader = (props: AlveolusTileHeaderProps) => {
 				/>
 				<WorkingIndicator
 					checked={model.contentCase!.content.working}
-					burdened={props.tile.isBurdened}
+					burdened={!!model.workingWarning}
 					tooltip={T.alveolus.workingTooltip}
+					warning={model.workingWarning}
 				/>
 			</div>
 			<div class="tile-properties__header-actions">

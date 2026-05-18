@@ -120,6 +120,13 @@
 		"productRatioInput": "Input good",
 		"productRatioOutput": "Output good",
 		"workingTooltip": "Toggle working state",
+		"workingWarnings": {
+			"tileBurdened": "Blocked by goods, a deposit, or a vehicle on this tile",
+			"noInputGood": "No input good is available",
+			"noOutputRoom": "No room is available for output goods",
+			"productRatioLimit": "The product ratio limit is reached",
+			"noAvailableWork": "No work is currently available"
+		},
 		"cleanUp": "Clean up",
 		"cleanUpTooltip": "Empty all stored goods",
 		"cleanUpGoodTooltip": "Empty {goodType}",

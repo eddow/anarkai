@@ -1,3 +1,9 @@
+import { reactive } from 'mutts'
+import {
+	createDistrictProcurementPolicy,
+	type DistrictProcurementPolicy,
+	districtProcurementPolicyToPatch,
+} from 'ssh/district/procurement'
 import type { Game } from 'ssh/game/game'
 import type { InspectorSelectableObject } from 'ssh/game/object'
 import type { AxialCoord } from 'ssh/utils'
@@ -14,18 +20,24 @@ export interface DistrictPatch {
 	readonly name: string
 	readonly kind: DistrictKind
 	readonly members?: ReadonlyArray<readonly [number, number]>
+	readonly procurementPolicy?: DistrictProcurementPolicy
 }
 
 export class District {
 	private readonly memberKeys = new Set<string>()
+	public procurementPolicy: DistrictProcurementPolicy
 
 	constructor(
 		readonly game: Game,
 		readonly id: string,
 		public name: string,
 		public kind: DistrictKind = 'mixed',
-		members: Iterable<AxialCoord> = []
+		members: Iterable<AxialCoord> = [],
+		procurementPolicy: DistrictProcurementPolicy = createDistrictProcurementPolicy(
+			game.procurementDefaults
+		)
 	) {
+		this.procurementPolicy = reactive(procurementPolicy)
 		for (const coord of members) this.addMember(coord)
 	}
 
@@ -60,6 +72,7 @@ export class District {
 			name: this.name,
 			kind: this.kind,
 			members: this.members.map((coord) => [coord.q, coord.r] as [number, number]),
+			procurementPolicy: districtProcurementPolicyToPatch(this.procurementPolicy),
 		}
 	}
 }

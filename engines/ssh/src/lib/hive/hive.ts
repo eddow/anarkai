@@ -34,6 +34,7 @@ import {
 	isVehicleFreightDock,
 	type VehicleFreightDock,
 } from 'ssh/freight/vehicle-freight-dock'
+import { defaultNameTheme, generateName } from 'ssh/generation/names'
 import { options } from 'ssh/globals'
 import type { Character } from 'ssh/population/character'
 import { findLiveAllocations, trackAllocation, untrackAllocation } from 'ssh/storage/guard'
@@ -112,6 +113,11 @@ export function generateRebuiltHiveName({
 function hiveSourceSortKey(hive: Hive): string {
 	const [firstTile] = collectSortedHiveTiles(hive)
 	return `${axial.key(firstTile ?? { q: 0, r: 0 })}:${hive.name ?? ''}`
+}
+
+function tileNameKey(tile: Tile): string {
+	const coord = toAxialCoord(tile.position) ?? { q: 0, r: 0 }
+	return axial.key(coord)
 }
 
 function pickMetadataSourceHive(hives: Iterable<Hive>): Hive | undefined {
@@ -383,7 +389,11 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				hives.add(h)
 			}
 		}
-		if (hives.size === 0) return new Hive(tile.board)
+		if (hives.size === 0) {
+			const hive = new Hive(tile.board)
+			hive.ensureGeneratedName(`hive:${tileNameKey(tile)}`)
+			return hive
+		}
 		if (hives.size === 1) return setPop(hives)!
 
 		const hivesArray = Array.from(hives).sort((a, b) =>
@@ -408,6 +418,15 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 	}
 	set name(value: string | undefined) {
 		this.metadata.name = value?.trim() ? value : undefined
+	}
+	private ensureGeneratedName(key: string): void {
+		if (this.metadata.name) return
+		this.metadata.name = generateName({
+			seed: this.board.game.generationOptions.terrainSeed,
+			theme: this.board.game.generationOptions.nameTheme ?? defaultNameTheme,
+			kind: 'hive',
+			key,
+		})
 	}
 	get working() {
 		return this.metadata.working
@@ -542,6 +561,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 	}
 
 	public attach(alveolus: Alveolus) {
+		this.ensureGeneratedName(`hive:${tileNameKey(alveolus.tile)}`)
 		this.alveoli.add(alveolus)
 		// Ensure gates exist between neighboring alveoli in the hive
 		for (const surrounding of alveolus.tile.surroundings) {

@@ -120,6 +120,45 @@
 		"stone": "Stone",
 		"wood": "Wood"
 	},
+	"action": {
+		"selfCare": {
+			"goEat": "Eat",
+			"goHome": "Go home",
+			"wander": "Wander",
+			"eatFromWorld": "Eat"
+		},
+		"walk": {
+			"into": "Walk",
+			"until": "Walk",
+			"untilTileBorder": "Walk to border",
+			"stepUntilGood": "Step toward goods"
+		},
+		"work": {
+			"goWork": "Work",
+			"harvest": "Harvest",
+			"convey": "Convey",
+			"vehicleOffload": "Offload vehicle",
+			"transform": "Transform",
+			"construct": "Build",
+			"foundation": "Lay foundation",
+			"defragment": "Reorganize stock",
+			"vehicleHop": "Drive route",
+			"zoneBrowse": "Service zone",
+			"ensureVehicleOffloadPickupPlan": "Plan offload pickup"
+		},
+		"vehicle": {
+			"vehicleHop": "Drive route",
+			"zoneBrowse": "Service zone",
+			"vehicleOffload": "Offload vehicle",
+			"maintenanceKind": "Check maintenance",
+			"completeVehicleMaintenanceService": "Complete maintenance",
+			"abandonVehicleMaintenanceService": "Abandon maintenance",
+			"endParkingService": "End parking"
+		},
+		"inventory": {
+			"drop": "Drop goods"
+		}
+	},
 	"step": {
 		"waitForIncomingGoods": "Wait for incoming goods"
 	},

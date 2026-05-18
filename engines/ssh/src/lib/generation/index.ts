@@ -27,6 +27,11 @@ import type { DepositType, GoodType, TerrainType } from 'ssh/types'
 import type { AxialCoord } from 'ssh/utils'
 import { hexSides } from 'ssh/utils'
 import type { GeneratedSettlement, SettlementKind } from './settlements'
+import {
+	defaultNameTheme,
+	generateName,
+	type NameThemeId,
+} from './names'
 import { profile } from '../dev/debug'
 import {
 	BoardGenerator,
@@ -40,6 +45,7 @@ export interface GameGenerationConfig {
 	terrainSeed: number
 	characterCount: number
 	characterRadius?: number
+	nameTheme?: NameThemeId
 }
 
 export interface TerrainTerraformPatch {
@@ -536,7 +542,7 @@ export class GameGenerator {
 	async placeSettlements(
 		seed: number,
 		tiles: GeneratedTileData[],
-		config: { settlementCount: number; minSpacing: number }
+		config: { settlementCount: number; minSpacing: number; nameTheme?: NameThemeId }
 	): Promise<{ settlements: GeneratedSettlement[]; coords: Int32Array; terrainKinds: Uint8Array; hasRiver: Uint8Array }> {
 		if (tiles.length === 0 || config.settlementCount === 0) return { settlements: [], coords: new Int32Array(0), terrainKinds: new Uint8Array(0), hasRiver: new Uint8Array(0) }
 
@@ -626,7 +632,13 @@ export class GameGenerator {
 			const id = `settlement-${q},${r}`
 			settlements.push({
 				id,
-				name: `${kind.charAt(0).toUpperCase() + kind.slice(1)} of (${q},${r})`,
+				name: generateName({
+					seed,
+					theme: config.nameTheme ?? defaultNameTheme,
+					kind: 'settlement',
+					key: id,
+					level: kind,
+				}),
 				kind,
 				center: { q, r },
 				score,
@@ -651,7 +663,7 @@ export class GameGenerator {
 	async generateCharacters(
 		seed: number,
 		boardData: GeneratedTileData[],
-		config: { characterCount: number; radius?: number; origin: AxialCoord }
+		config: { characterCount: number; radius?: number; origin: AxialCoord; nameTheme?: NameThemeId }
 	): Promise<GeneratedCharacterData[]> {
 		if (boardData.length === 0 || config.characterCount <= 0) return []
 
@@ -687,8 +699,14 @@ export class GameGenerator {
 		for (let i = 0; i + 1 < packed.length; i += 2) {
 			const q = packed[i]!
 			const r = packed[i + 1]!
+			const index = i / 2
 			characters.push({
-				name: `Character ${i / 2 + 1}`,
+				name: generateName({
+					seed,
+					theme: config.nameTheme ?? defaultNameTheme,
+					kind: 'character',
+					key: `character-${index}:${q},${r}`,
+				}),
 				coord: { q, r },
 			})
 		}
@@ -704,6 +722,13 @@ export interface GeneratedCharacterData {
 }
 
 export { BoardGenerator, type GeneratedTileData } from './board'
+export {
+	defaultNameTheme,
+	generateName,
+	listNameThemes,
+	type NameKind,
+	type NameThemeId,
+} from './names'
 export {
 	type GeneratedSettlement,
 	type SettlementRegion,

@@ -3,6 +3,7 @@ import type { NamedZonePatch } from 'ssh/game/game'
 import type { AxialCoord } from 'ssh/utils'
 import { axial } from 'ssh/utils'
 import type { GeneratedTileData } from './board'
+import { defaultNameTheme, generateName, type NameThemeId } from './names'
 
 export type SettlementKind = 'village' | 'town' | 'city'
 
@@ -29,6 +30,7 @@ export interface SettlementRegion {
 	type: 'region'
 	id: string
 	key: string
+	name: string
 	center: AxialCoord
 	radius: number
 	settlementId: string
@@ -38,6 +40,7 @@ export interface SettlementRegionSet {
 	type: 'region-set'
 	id: string
 	key: string
+	name: string
 	children: SettlementRegionNode[]
 }
 
@@ -236,7 +239,8 @@ export async function generateSettlementRegionSetPlan(
 	seed: number,
 	coords: Int32Array,
 	terrainKinds: Uint8Array,
-	hasRiver: Uint8Array
+	hasRiver: Uint8Array,
+	nameTheme: NameThemeId = defaultNameTheme
 ): Promise<SettlementRegionSetPlan> {
 	const plan = await generateZonePlanForSettlements(
 		tileData,
@@ -250,6 +254,13 @@ export async function generateSettlementRegionSetPlan(
 		type: 'region',
 		id: `region-${settlement.id}`,
 		key: `${regionSetKey}:${settlement.center.q},${settlement.center.r}`,
+		name: generateName({
+			seed,
+			theme: nameTheme,
+			kind: 'region',
+			key: `${regionSetKey}:${settlement.id}`,
+			level: settlement.kind,
+		}),
 		center: { ...settlement.center },
 		radius: settlement.radius,
 		settlementId: settlement.id,
@@ -260,6 +271,12 @@ export async function generateSettlementRegionSetPlan(
 			type: 'region-set',
 			id: `region-set-${regionSetKey.replace(/[^a-zA-Z0-9_-]/g, '_')}`,
 			key: regionSetKey,
+			name: generateName({
+				seed,
+				theme: nameTheme,
+				kind: 'regionSet',
+				key: regionSetKey,
+			}),
 			children,
 		},
 	}

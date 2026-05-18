@@ -11,6 +11,25 @@ async function flushHiveRefresh(engine: TestEngine) {
 }
 
 describe('Hive working and metadata preservation', () => {
+	it('generates a name for unnamed new hives and persists it as ordinary metadata', async () => {
+		const engine = new TestEngine({ terrainSeed: 10, characterCount: 0 })
+		await engine.init()
+		try {
+			engine.loadScenario({
+				hives: [{ alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }] }],
+			})
+
+			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus | undefined
+			expect(bay?.hive.name).toEqual(expect.any(String))
+			expect(bay?.hive.name).not.toMatch(/hive:|0,0/)
+
+			const state = engine.game.saveGameData()
+			expect(state.hives?.[0]?.name).toBe(bay?.hive.name)
+		} finally {
+			await engine.destroy()
+		}
+	})
+
 	it('makes alveolus running depend on the parent hive working flag', async () => {
 		const engine = new TestEngine({ terrainSeed: 11, characterCount: 0 })
 		await engine.init()

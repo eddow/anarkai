@@ -3,7 +3,7 @@ import { T } from '@app/lib/i18n'
 import { workPlanningPresentationRevision } from '@app/lib/presentation-events'
 import { type AnarkaiBadgeTone, Badge, InspectorSection, Panel } from '@app/ui/anarkai'
 import { effect } from 'mutts'
-import { AEvolutionStep, ALerpStep } from 'ssh/npcs/steps'
+import { AEvolutionStep, ALerpStep, type TextKey } from 'ssh/npcs/steps'
 import type { Character, RankedWorkPlannerSnapshot } from 'ssh/population/character'
 import type { NextActivityKind, PlannerFindActionSnapshot } from 'ssh/population/findNextActivity'
 import type { GoodType, JobType } from 'ssh/types/base'
@@ -242,6 +242,39 @@ function workKindLabel(kind: JobType): string {
 	return T.character.plannerWorkKinds[kind] ?? kind
 }
 
+function isTranslationNode(node: unknown): node is Record<string, unknown> {
+	return (typeof node === 'object' || typeof node === 'function') && node !== null
+}
+
+function translationAt(path: string): unknown {
+	return path.split('.').reduce<unknown>((node, part) => {
+		if (!isTranslationNode(node)) return undefined
+		return (node as Record<string, unknown>)[part]
+	}, T)
+}
+
+function actionLabel(key: TextKey, fallback: string): string {
+	const translated = translationAt(`action.${key.key}`)
+	if (translated === undefined || translated === null) return fallback
+	const label = String(translated)
+	return label && label !== key.key && label !== `action.${key.key}` ? label : fallback
+}
+
+interface CharacterActionLabelProps {
+	item: {
+		key: TextKey
+		fallback: string
+		last: boolean
+	}
+}
+
+const CharacterActionLabel = (props: CharacterActionLabelProps) => (
+	<>
+		{actionLabel(props.item.key, props.item.fallback)}
+		<span if={!props.item.last}> / </span>
+	</>
+)
+
 const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 	const computed = {
 		get hasTriggerLevels() {
@@ -260,8 +293,18 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 				? props.character.actionDescription
 				: []
 		},
-		get actionPathText() {
-			return computed.actions.join(' / ')
+		get actionKeys() {
+			if (Array.isArray(props.character?.actionDescriptionKeys)) {
+				return props.character.actionDescriptionKeys
+			}
+			return computed.actions.map((key) => ({ key }))
+		},
+		get actionItems() {
+			return computed.actionKeys.map((key, index, keys) => ({
+				key,
+				fallback: computed.actions[index] ?? key.key,
+				last: index === keys.length - 1,
+			}))
 		},
 		get stepEvolution() {
 			return computed.step && !(computed.step instanceof ALerpStep)
@@ -376,9 +419,11 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 						</div>
 					</PropertyGridRow>
 					<PropertyGridRow>
-						<Panel class="character-actions" if={computed.actions.length > 0}>
+						<Panel class="character-actions" if={computed.actionItems.length > 0}>
 							<span class="character-actions__path" data-testid="character-action-path">
-								{computed.actionPathText}
+								<for each={computed.actionItems}>
+									{(item) => <CharacterActionLabel item={item} />}
+								</for>
 							</span>
 						</Panel>
 						<Panel else class="character-actions__empty">

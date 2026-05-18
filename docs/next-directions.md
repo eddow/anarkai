@@ -124,6 +124,13 @@ Important first-level boundaries:
 
 - The shared player/team account is the common pot. Player characters use player-owned goods freely; NPC
   purchases add value points to this account.
+- Useful procurement lands in stages:
+  - **V0.9:** districts own buy policy, budget reserves, buffer targets, automatic source choice, and a
+    planned/blocked purchase queue. No money or goods move yet.
+  - **V1:** the player can choose one source settlement for the whole district.
+  - **V2:** if wanted, a district can override the source settlement per good.
+  - Later execution sends a worker/vehicle to the seller, pays at pickup, loads via the border/convey-hop
+    shop interaction, and returns goods to the site or storage.
 - Selling from player inventory should eventually happen through commercial zones or resale points near or
   inside settlements, but the resale-point gameplay can come after purchase procurement works.
 - Buying should not force micromanagement per building. District/project views should surface missing

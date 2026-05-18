@@ -120,6 +120,45 @@
 		"stone": "Pierre",
 		"wood": "Bois"
 	},
+	"action": {
+		"selfCare": {
+			"goEat": "Manger",
+			"goHome": "Rentrer",
+			"wander": "Errer",
+			"eatFromWorld": "Manger"
+		},
+		"walk": {
+			"into": "Marcher",
+			"until": "Marcher",
+			"untilTileBorder": "Aller à la bordure",
+			"stepUntilGood": "Avancer vers les biens"
+		},
+		"work": {
+			"goWork": "Travailler",
+			"harvest": "Récolter",
+			"convey": "Convoyer",
+			"vehicleOffload": "Décharger le véhicule",
+			"transform": "Transformer",
+			"construct": "Construire",
+			"foundation": "Poser les fondations",
+			"defragment": "Réorganiser le stock",
+			"vehicleHop": "Conduire la route",
+			"zoneBrowse": "Desservir la zone",
+			"ensureVehicleOffloadPickupPlan": "Planifier le déchargement"
+		},
+		"vehicle": {
+			"vehicleHop": "Conduire la route",
+			"zoneBrowse": "Desservir la zone",
+			"vehicleOffload": "Décharger le véhicule",
+			"maintenanceKind": "Vérifier la maintenance",
+			"completeVehicleMaintenanceService": "Terminer la maintenance",
+			"abandonVehicleMaintenanceService": "Abandonner la maintenance",
+			"endParkingService": "Terminer le stationnement"
+		},
+		"inventory": {
+			"drop": "Déposer les biens"
+		}
+	},
 	"step": {
 		"waitForIncomingGoods": "Attendre des marchandises entrantes"
 	},

@@ -1,6 +1,13 @@
 import { document, latch } from '@sursaut/core'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const translatorLeaf = (label: string) =>
+	Object.assign(() => label, {
+		toString: () => label,
+		valueOf: () => label,
+		[Symbol.toPrimitive]: () => label,
+	})
+
 const i18nState = {
 	translator: {
 		goods: 'Goods',
@@ -42,6 +49,18 @@ const i18nState = {
 		step: {
 			idle: 'Idle',
 			harvest: 'Harvest',
+		},
+		action: {
+			work: {
+				goWork: 'Work',
+			},
+			walk: {
+				until: 'Walk',
+			},
+			selfCare: {
+				goHome: 'Go home',
+				wander: translatorLeaf('Wander'),
+			},
 		},
 	},
 }
@@ -366,6 +385,12 @@ describe('CharacterProperties', () => {
 			lastPickedActivityKind: undefined,
 			carry: { stock: {} },
 			actionDescription: ['work.goWork', 'walk.until', 'inventory.drop', 'walk.until'],
+			actionDescriptionKeys: [
+				{ key: 'work.goWork' },
+				{ key: 'walk.until' },
+				{ key: 'inventory.drop' },
+				{ key: 'walk.until' },
+			],
 			lastPlannerSnapshot: undefined,
 			lastWorkPlannerSnapshot: undefined,
 			game: {},
@@ -379,7 +404,64 @@ describe('CharacterProperties', () => {
 			'[data-testid="character-action-path"]'
 		) as HTMLSpanElement | null
 		expect(actionPath).not.toBeNull()
-		expect(actionPath?.textContent).toBe('work.goWork / walk.until / inventory.drop / walk.until')
+		expect(actionPath?.textContent).toBe('Work / Walk / inventory.drop / Walk')
+	})
+
+	it('renders localized action keys even when raw action names are unavailable', () => {
+		const character = {
+			title: 'Mira',
+			name: 'Mira',
+			hunger: 0,
+			tiredness: 0,
+			fatigue: 0,
+			stepExecutor: {
+				type: 'idle',
+				description: undefined,
+			},
+			carry: { stock: {} },
+			actionDescription: [],
+			actionDescriptionKeys: [{ key: 'selfCare.goHome' }, { key: 'walk.until' }],
+			lastPlannerSnapshot: undefined,
+			lastWorkPlannerSnapshot: undefined,
+			game: {},
+		}
+
+		stop = latch(container, <CharacterProperties character={character as never} />, {
+			setTitle: vi.fn(),
+		} as never)
+
+		const actionPath = container.querySelector(
+			'[data-testid="character-action-path"]'
+		) as HTMLSpanElement | null
+		expect(actionPath?.textContent).toBe('Go home / Walk')
+	})
+
+	it('translates raw action descriptions when actionDescriptionKeys are absent', () => {
+		const character = {
+			title: 'Raw',
+			name: 'Raw',
+			hunger: 0,
+			tiredness: 0,
+			fatigue: 0,
+			stepExecutor: {
+				type: 'idle',
+				description: undefined,
+			},
+			carry: { stock: {} },
+			actionDescription: ['selfCare.wander'],
+			lastPlannerSnapshot: undefined,
+			lastWorkPlannerSnapshot: undefined,
+			game: {},
+		}
+
+		stop = latch(container, <CharacterProperties character={character as never} />, {
+			setTitle: vi.fn(),
+		} as never)
+
+		const actionPath = container.querySelector(
+			'[data-testid="character-action-path"]'
+		) as HTMLSpanElement | null
+		expect(actionPath?.textContent).toBe('Wander')
 	})
 
 	it('uses the live work planner snapshot before the cached snapshot', () => {

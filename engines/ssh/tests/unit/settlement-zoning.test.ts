@@ -148,6 +148,8 @@ describe('settlement zoning generation', () => {
 
 		expect(first).toEqual(second)
 		expect(first.settlements.length).toBeGreaterThan(0)
+		expect(first.settlements.every((settlement) => !settlement.name.includes('('))).toBe(true)
+		expect(first.settlements.every((settlement) => !settlement.name.includes(','))).toBe(true)
 		expect(first.zones.residential.length).toBeGreaterThan(0)
 		expect(first.zones.harvest.length).toBeGreaterThan(0)
 		expect(first.zones.named.map((zone) => zone.id)).toContain('industrial')
@@ -176,8 +178,13 @@ describe('settlement zoning generation', () => {
 			type: 'region-set',
 			key: '0,0',
 		})
+		expect(plan.regionSet.name).toEqual(expect.any(String))
+		expect(plan.regionSet.name).not.toContain('0,0')
 		expect(plan.regionSet.children.length).toBe(plan.settlements.length)
 		expect(plan.regionSet.children.every((child) => child.type === 'region')).toBe(true)
+		expect(plan.regionSet.children.every((child) => !!child.name && !child.name.includes(','))).toBe(
+			true
+		)
 		expect(plan.settlements.every((settlement) => settlement.id.startsWith('settlement-'))).toBe(
 			true
 		)

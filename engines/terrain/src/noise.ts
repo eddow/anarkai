@@ -3,8 +3,8 @@
  * Uses Rust/WASM implementation — no CPU fallback.
  */
 
-import { getWasmModule, ensureWasmLoaded } from './wasm-loader'
-import { logTerrainProfile, isTerrainProfileEnabled } from './profile'
+import { isTerrainProfileEnabled, logTerrainProfile } from './profile'
+import { ensureWasmLoaded, getWasmModule } from './wasm-loader'
 
 // ============================================================================
 // Profiling — logs to console after terrain generation completes
@@ -20,7 +20,11 @@ interface ProfileEntry {
 const profile = new Map<string, ProfileEntry>()
 
 function nowMs(): number {
-	try { return (globalThis as any).performance?.now() ?? Date.now() } catch { return Date.now() }
+	try {
+		return (globalThis as any).performance?.now() ?? Date.now()
+	} catch {
+		return Date.now()
+	}
 }
 
 export function profileCall(name: string, fn: () => number): number {
@@ -161,7 +165,7 @@ export function createPermutationTable(seed: number): Uint32Array {
 	return Uint32Array.from([...perm, ...perm])
 }
 
-class CpuPerlinNoise {
+export class CpuPerlinNoise {
 	private readonly p: number[]
 
 	constructor(seed: number = 0) {

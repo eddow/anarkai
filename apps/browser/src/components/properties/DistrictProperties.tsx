@@ -3,15 +3,8 @@ import { css } from '@app/lib/css'
 import { showProps } from '@app/lib/follow-selection'
 import { game, interactionMode } from '@app/lib/globals'
 import { Button, InspectorSection } from '@app/ui/anarkai'
-import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content'
-import { goods as visualGoods } from 'engine-pixi/assets/visual-content'
+import { alveoli as visualAlveoli, goods as visualGoods } from 'engine-pixi/assets/visual-content'
 import { reactive } from 'mutts'
-import {
-	settlementTradeObjectUid,
-	type NpcSettlementTradeProfile,
-	type NpcTradeDirection,
-	type SettlementTradeObject,
-} from 'ssh/commerce/settlement-trade'
 import {
 	tablerOutlineRoad,
 	tablerOutlineSquareMinus,
@@ -19,7 +12,14 @@ import {
 } from 'pure-glyf/icons'
 import * as gameContent from 'ssh/assets/game-content'
 import { isConstructionSiteShell } from 'ssh/build-site'
+import {
+	type NpcSettlementTradeProfile,
+	type NpcTradeDirection,
+	type SettlementTradeObject,
+	settlementTradeObjectUid,
+} from 'ssh/commerce/settlement-trade'
 import type { DistrictObject } from 'ssh/district/district'
+import type { DistrictPurchaseRequest } from 'ssh/district/procurement'
 import type { GoodType } from 'ssh/types/base'
 import EntityBadge from '../EntityBadge'
 import PropertyGrid from '../PropertyGrid'
@@ -116,11 +116,30 @@ css`
 	gap: 0.4rem;
 }
 
+.district-properties__procurement-controls {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 0.4rem 0.55rem;
+}
+
+.district-properties__number-input {
+	inline-size: 5.25rem;
+	min-inline-size: 0;
+}
+
 .district-properties__procurement-row {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) auto;
 	align-items: center;
 	gap: 0.55rem;
+}
+
+.district-properties__request-meta {
+	display: block;
+	margin-top: 0.15rem;
+	color: var(--ak-text-muted);
+	font-size: 0.78rem;
 }
 `
 
@@ -128,26 +147,20 @@ const buildableAlveoli = Object.entries(gameContent.alveoli).filter(
 	([, alveolus]) => 'construction' in alveolus
 ) as Array<[string, (typeof gameContent.alveoli)[keyof typeof gameContent.alveoli]]>
 
-const buildActions = buildPaletteSelectedActionValues(buildableAlveoli).filter((entry) =>
-	entry.value.startsWith('build:')
-).map((entry) => {
-	const alveolusType = entry.value.slice('build:'.length)
-	const sprite = visualAlveoli[alveolusType]?.sprites?.[0]
-	return {
-		...entry,
-		icon: sprite
-			? () => (
-					<ResourceImage
-						game={game}
-						sprite={sprite}
-						width={20}
-						height={20}
-						alt={entry.label}
-					/>
-				)
-			: entry.icon,
-	}
-})
+const buildActions = buildPaletteSelectedActionValues(buildableAlveoli)
+	.filter((entry) => entry.value.startsWith('build:'))
+	.map((entry) => {
+		const alveolusType = entry.value.slice('build:'.length)
+		const sprite = visualAlveoli[alveolusType]?.sprites?.[0]
+		return {
+			...entry,
+			icon: sprite
+				? () => (
+						<ResourceImage game={game} sprite={sprite} width={20} height={20} alt={entry.label} />
+					)
+				: entry.icon,
+		}
+	})
 
 const roadActions = [
 	{
@@ -275,6 +288,58 @@ function openSettlementMarket(profile: NpcSettlementTradeProfile): void {
 	if (object) showProps(object)
 }
 
+function numberInputValue(event: Event): number {
+	return Math.max(0, Math.floor(Number((event.currentTarget as HTMLInputElement).value) || 0))
+}
+
+function formatRequestStatus(request: DistrictPurchaseRequest): string {
+	if (request.status === 'planned') return 'Planned'
+	switch (request.blockReason) {
+		case 'auto_buy_disabled':
+			return 'Blocked: auto-buy off'
+		case 'no_seller':
+			return 'Blocked: no seller'
+		case 'too_expensive':
+			return 'Blocked: price cap'
+		case 'reserve_limit':
+			return 'Blocked: reserve'
+		case 'in_flight_limit':
+			return 'Blocked: in-flight limit'
+		default:
+			return 'Blocked'
+	}
+}
+
+function requestSourceName(request: DistrictPurchaseRequest): string {
+	if (!request.providerSettlementId) return 'No source'
+	return (
+		game.getSettlementTradeProfile?.(request.providerSettlementId)?.name ??
+		request.providerSettlementId
+	)
+}
+
+function eligibleBuyGoods(
+	requests: readonly DistrictPurchaseRequest[],
+	district = game.getDistrict()
+): GoodType[] {
+	const goods = new Set<GoodType>()
+	for (const request of requests) goods.add(request.good)
+	for (const good of Object.keys(district?.procurementPolicy.goods ?? {}) as GoodType[])
+		goods.add(good)
+	return [...goods].sort((left, right) => left.localeCompare(right))
+}
+
+function updateProcurementPolicy(
+	districtId: string,
+	patch: Parameters<NonNullable<typeof game.updateDistrictProcurementPolicy>>[1]
+): void {
+	game.updateDistrictProcurementPolicy?.(districtId, patch)
+}
+
+function updateGoodPolicy(districtId: string, good: GoodType, bufferTargetUnits: number): void {
+	game.setDistrictProcurementGoodPolicy?.(districtId, good, { bufferTargetUnits })
+}
+
 function DistrictMarkets(): JSX.Element {
 	const markets = () => game.listSettlementTradeProfiles?.() ?? []
 	const concreteSources = () =>
@@ -285,8 +350,13 @@ function DistrictMarkets(): JSX.Element {
 					(offer) => offer.direction === 'sell' && offer.good === 'concrete'
 				),
 			}))
-			.filter((entry): entry is { profile: NpcSettlementTradeProfile; offer: NonNullable<typeof entry.offer> } =>
-				Boolean(entry.offer)
+			.filter(
+				(
+					entry
+				): entry is {
+					profile: NpcSettlementTradeProfile
+					offer: NonNullable<typeof entry.offer>
+				} => Boolean(entry.offer)
 			)
 	return (
 		<div class="district-properties__markets">
@@ -294,7 +364,10 @@ function DistrictMarkets(): JSX.Element {
 				<span if={concreteSources().length === 0}>No concrete sellers discovered</span>
 				<for each={concreteSources()}>
 					{(source) => (
-						<div class="district-properties__procurement-row" data-testid="district-concrete-source">
+						<div
+							class="district-properties__procurement-row"
+							data-testid="district-concrete-source"
+						>
 							<span>
 								Concrete from {source.profile.name} · {source.offer.priceVp} vp
 							</span>
@@ -334,7 +407,112 @@ function DistrictMarkets(): JSX.Element {
 	)
 }
 
-export default function DistrictProperties(props: { districtObject?: DistrictObject }): JSX.Element {
+function DistrictProcurement(props: { districtObject?: DistrictObject }): JSX.Element {
+	const district = () => props.districtObject?.district ?? game.getDistrict()
+	const districtId = () => district()?.id ?? 'default'
+	const policy = () => district()?.procurementPolicy
+	const requests = () => game.listDistrictPurchaseRequests?.(districtId()) ?? []
+	const buyGoods = () => eligibleBuyGoods(requests(), district())
+	const sellGoods = () => game.listDistrictEligibleSellGoods?.(districtId()) ?? []
+	return (
+		<div class="district-properties__procurement">
+			<div class="district-properties__procurement-controls">
+				<label>
+					<input
+						type="checkbox"
+						checked={policy()?.autoBuyNeededGoods ?? true}
+						onChange={(event) =>
+							updateProcurementPolicy(districtId(), {
+								autoBuyNeededGoods: (event.currentTarget as HTMLInputElement).checked,
+							})
+						}
+					/>{' '}
+					Buy needed goods
+				</label>
+				<span>{game.playerAccount?.balanceVp ?? 0} vp</span>
+				<label htmlFor="district-use-reserve">Use reserve</label>
+				<input
+					id="district-use-reserve"
+					class="district-properties__number-input"
+					type="number"
+					min="0"
+					value={String(policy()?.usePurchaseReserveVp ?? 0)}
+					onInput={(event) =>
+						updateProcurementPolicy(districtId(), {
+							usePurchaseReserveVp: numberInputValue(event),
+						})
+					}
+				/>
+				<label htmlFor="district-buffer-reserve">Buffer reserve</label>
+				<input
+					id="district-buffer-reserve"
+					class="district-properties__number-input"
+					type="number"
+					min="0"
+					value={String(policy()?.bufferPurchaseReserveVp ?? 0)}
+					onInput={(event) =>
+						updateProcurementPolicy(districtId(), {
+							bufferPurchaseReserveVp: numberInputValue(event),
+						})
+					}
+				/>
+				<label htmlFor="district-in-flight">Max in-flight/good</label>
+				<input
+					id="district-in-flight"
+					class="district-properties__number-input"
+					type="number"
+					min="0"
+					value={String(policy()?.maxInFlightPerGood ?? 0)}
+					onInput={(event) =>
+						updateProcurementPolicy(districtId(), {
+							maxInFlightPerGood: numberInputValue(event),
+						})
+					}
+				/>
+			</div>
+			<span if={buyGoods().length === 0}>No district buy demand</span>
+			<for each={buyGoods()}>
+				{(good: GoodType) => (
+					<div class="district-properties__procurement-row" data-testid="district-buy-good">
+						<span>Buffer {good}</span>
+						<input
+							class="district-properties__number-input"
+							type="number"
+							min="0"
+							value={String(policy()?.goods[good]?.bufferTargetUnits ?? 0)}
+							title={`Buffer target for ${good}`}
+							onInput={(event) => updateGoodPolicy(districtId(), good, numberInputValue(event))}
+						/>
+					</div>
+				)}
+			</for>
+			<span if={requests().length === 0}>No planned purchases</span>
+			<for each={requests()}>
+				{(request: DistrictPurchaseRequest) => (
+					<div class="district-properties__procurement-row" data-testid="district-purchase-request">
+						<span>
+							{request.quantity} {request.good} for {request.purpose}
+							<span class="district-properties__request-meta">
+								{requestSourceName(request)} ·{' '}
+								{request.totalPriceVp === undefined ? 'no price' : `${request.totalPriceVp} vp`} ·{' '}
+								{formatRequestStatus(request)}
+							</span>
+						</span>
+						<span>{request.unitPriceVp === undefined ? '-' : `${request.unitPriceVp} vp`}</span>
+					</div>
+				)}
+			</for>
+			<div>
+				<span>Eligible to sell: </span>
+				<span>{sellGoods().length === 0 ? 'None' : sellGoods().join(', ')}</span>
+			</div>
+		</div>
+	)
+}
+
+export default function DistrictProperties(props: {
+	districtObject?: DistrictObject
+}): JSX.Element {
 	const district = () => props.districtObject?.district ?? game.getDistrict()
 	const summary = () => summarizeDistrictMaterials(district())
 	const missingGoods = () => Object.keys(summary().missing) as GoodType[]
@@ -356,6 +534,7 @@ export default function DistrictProperties(props: { districtObject?: DistrictObj
 			</InspectorSection>
 
 			<InspectorSection title="Commerce">
+				<DistrictProcurement districtObject={props.districtObject} />
 				<DistrictMarkets />
 			</InspectorSection>
 

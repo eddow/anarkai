@@ -46,6 +46,16 @@ import {
 	districtIdFromUid,
 	isDistrictUid,
 } from 'ssh/district/district'
+import {
+	createDistrictProcurementPolicy,
+	type DistrictGoodProcurementPolicy,
+	type DistrictProcurementPolicy,
+	type DistrictPurchaseRequest,
+	listDistrictEligibleSellGoods,
+	listDistrictPurchaseRequests,
+	setDistrictProcurementGoodPolicy,
+	updateDistrictProcurementPolicy,
+} from 'ssh/district/procurement'
 import type { FreightLineDefinition, SyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import {
 	collectFreightLineBootstrapCoords,
@@ -62,6 +72,7 @@ import {
 	type GeneratedCharacterData,
 	type GeneratedTileData,
 	generateSettlementRegionSetPlan,
+	type NameThemeId,
 	type TerrainTerraformPatch,
 } from 'ssh/generation'
 import { configuration } from 'ssh/globals'
@@ -156,6 +167,7 @@ export type GameGenerationOptions = {
 	terrainSeed: number
 	characterCount: number
 	characterRadius?: number
+	nameTheme?: NameThemeId
 	settlementGeneration?: boolean | { settlementCount?: number; minSpacing?: number }
 }
 
@@ -411,6 +423,7 @@ export class Game extends Eventful<GameEvents> {
 	public readonly population: Population
 	public readonly vehicles: Vehicles
 	public readonly configurationManager = new AlveolusConfigurationManager()
+	public readonly procurementDefaults = commerce.procurement
 	public readonly playerAccount = reactive<PlayerAccountPatch>({
 		balanceVp: commerce.startingAccountBalanceVp,
 	})
@@ -531,6 +544,37 @@ export class Game extends Eventful<GameEvents> {
 
 	public recordDistrictMember(coord: AxialCoord, districtId = DEFAULT_DISTRICT_ID): void {
 		this.getDistrict(districtId)?.addMember(coord)
+	}
+
+	public updateDistrictProcurementPolicy(
+		districtId: string,
+		patch: Partial<DistrictProcurementPolicy>
+	): void {
+		const district = this.getDistrict(districtId)
+		if (!district) return
+		updateDistrictProcurementPolicy(district, patch)
+	}
+
+	public setDistrictProcurementGoodPolicy(
+		districtId: string,
+		good: GoodType,
+		patch: DistrictGoodProcurementPolicy
+	): void {
+		const district = this.getDistrict(districtId)
+		if (!district) return
+		setDistrictProcurementGoodPolicy(district, good, patch)
+	}
+
+	public listDistrictPurchaseRequests(
+		districtId: string = DEFAULT_DISTRICT_ID
+	): DistrictPurchaseRequest[] {
+		const district = this.getDistrict(districtId)
+		return district ? listDistrictPurchaseRequests(this, district) : []
+	}
+
+	public listDistrictEligibleSellGoods(districtId: string = DEFAULT_DISTRICT_ID): GoodType[] {
+		const district = this.getDistrict(districtId)
+		return district ? listDistrictEligibleSellGoods(this, district) : []
 	}
 
 	public applyDistrictBuildAction(
@@ -1085,7 +1129,10 @@ export class Game extends Eventful<GameEvents> {
 		})
 	}
 
-	private async generateInitialWorld(config: GameGenerationOptions, patches: GamePatches) {
+	private generateInitialWorld(
+		config: GameGenerationOptions,
+		patches: GamePatches
+	): Promise<void> | undefined {
 		this.bootstrapGameplayCoords.clear()
 		for (const coord of this.collectCoreBootstrapCoords(config, patches)) {
 			this.bootstrapGameplayCoords.add(axial.key(coord))
@@ -1096,18 +1143,19 @@ export class Game extends Eventful<GameEvents> {
 			this.loadGeneratedBoard(boardData)
 			this.applyGeneratedTerrainMetadata(boardData)
 			if (config.characterCount > 0) {
-				const populationData = await this.generator.generateCharacters(
+				return this.generator.generateCharacters(
 					config.terrainSeed,
 					boardData,
 					{
 						characterCount: config.characterCount,
 						radius: config.characterRadius,
 						origin: anchor,
+						nameTheme: config.nameTheme,
 					}
-				)
-				this.loadGeneratedPopulation(populationData)
+				).then((populationData) => this.loadGeneratedPopulation(populationData))
 			}
 		}
+		return undefined
 	}
 
 	private async generateInitialWorldAsync(config: GameGenerationOptions, patches: GamePatches) {
@@ -1132,6 +1180,7 @@ export class Game extends Eventful<GameEvents> {
 						characterCount: config.characterCount,
 						radius: config.characterRadius,
 						origin: anchor,
+						nameTheme: config.nameTheme,
 					}
 				)
 				this.loadGeneratedPopulation(populationData)
@@ -1204,6 +1253,7 @@ export class Game extends Eventful<GameEvents> {
 			{
 				settlementCount: options.settlementCount ?? 5,
 				minSpacing: options.minSpacing ?? 7,
+				nameTheme: this.generationOptions.nameTheme,
 			}
 		)
 
@@ -1214,7 +1264,8 @@ export class Game extends Eventful<GameEvents> {
 			this.generationOptions.terrainSeed,
 			coords,
 			terrainKinds,
-			hasRiver
+			hasRiver,
+			this.generationOptions.nameTheme
 		)
 		for (const settlement of plan.settlements) {
 			const profile = createNpcSettlementTradeProfile({
@@ -1711,7 +1762,7 @@ export class Game extends Eventful<GameEvents> {
 			this.ensureDefaultDistrict()
 			this.vehicles.deserialize([])
 
-			await this.generateInitialWorld(config, patches)
+			const populationLoad = this.generateInitialWorld(config, patches)
 			// Apply patches if any
 			if (terrainTiles.length) this.applyTilePatches(terrainTiles)
 			if (patches.tiles?.length) this.applyTilePatches(patches.tiles)
@@ -1726,6 +1777,7 @@ export class Game extends Eventful<GameEvents> {
 			this.bootstrapFreightLines(patches)
 			if (patches.vehicles?.length) this.applyVehiclePatches(patches.vehicles)
 			if (patches.roads) this.applyRoadPatches(patches.roads)
+			await populationLoad
 		} catch (error) {
 			console.error('Generation failed:', error)
 		}
@@ -2045,12 +2097,12 @@ export class Game extends Eventful<GameEvents> {
 					}
 					if (!build.hive && this.HiveClass) {
 						const h = this.HiveClass.for(tile)
-						h.name = hive.name
+						if (hive.name !== undefined) h.name = hive.name
 						h.working = hive.working ?? true
 						h.attach(build)
 					}
 					hiveInstance = build.hive
-					hiveInstance.name = hive.name
+					if (hive.name !== undefined) hiveInstance.name = hive.name
 					hiveInstance.working = hive.working ?? true
 					tile.asGenerated = false
 					continue
@@ -2101,12 +2153,12 @@ export class Game extends Eventful<GameEvents> {
 				}
 				if (!alv.hive && this.HiveClass) {
 					const h = this.HiveClass.for(tile)
-					h.name = hive.name
+					if (hive.name !== undefined) h.name = hive.name
 					h.working = hive.working ?? true
 					h.attach(alv)
 				}
 				hiveInstance = alv.hive
-				alv.hive.name = hive.name
+				if (hive.name !== undefined) alv.hive.name = hive.name
 				alv.hive.working = hive.working ?? true
 				tile.asGenerated = false
 			}
@@ -2198,7 +2250,8 @@ export class Game extends Eventful<GameEvents> {
 					patch.id,
 					patch.name || (patch.id === DEFAULT_DISTRICT_ID ? 'Default district' : patch.id),
 					patch.kind,
-					(patch.members ?? []).map((coord) => ({ q: coord[0], r: coord[1] }))
+					(patch.members ?? []).map((coord) => ({ q: coord[0], r: coord[1] })),
+					createDistrictProcurementPolicy(this.procurementDefaults, patch.procurementPolicy)
 				)
 			)
 		}
@@ -2541,10 +2594,15 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	/**
-		* Get the bounding box of all player-owned content in the game.
-		* Returns null if there is no player content (new game).
-		*/
-	public getPlayerContentBounds(): { minQ: number; maxQ: number; minR: number; maxR: number } | null {
+	 * Get the bounding box of all player-owned content in the game.
+	 * Returns null if there is no player content (new game).
+	 */
+	public getPlayerContentBounds(): {
+		minQ: number
+		maxQ: number
+		minR: number
+		maxR: number
+	} | null {
 		const coords: AxialCoord[] = []
 
 		// Add tiles that have been modified by the player (not generated)
@@ -2609,7 +2667,10 @@ export class Game extends Eventful<GameEvents> {
 			if (content instanceof BasicDwelling) {
 				const coord = toAxialCoord(tile.position)
 				if (coord) coords.push(coord)
-			} else if (isConstructionSiteShell(content) && content.constructionSite.target.kind === 'dwelling') {
+			} else if (
+				isConstructionSiteShell(content) &&
+				content.constructionSite.target.kind === 'dwelling'
+			) {
 				const coord = toAxialCoord(tile.position)
 				if (coord) coords.push(coord)
 			}
@@ -2656,8 +2717,8 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	/**
-		* Load generated population data into the game
-		*/
+	 * Load generated population data into the game
+	 */
 	private loadGeneratedPopulation(characterData: GeneratedCharacterData[]): void {
 		for (const charInfo of characterData) {
 			this.population.createCharacter(charInfo.name, charInfo.coord)
