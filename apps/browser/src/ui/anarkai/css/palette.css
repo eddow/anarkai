@@ -168,6 +168,10 @@
 	white-space: nowrap;
 }
 
+.app-palette-account {
+	color: var(--ak-accent);
+}
+
 .ak-palette-command-box__shell {
 	display: grid;
 	grid-template-columns: auto 1fr;

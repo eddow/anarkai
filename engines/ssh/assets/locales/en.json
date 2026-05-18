@@ -109,10 +109,12 @@
 		"bulk": "Bulk",
 		"piece": "Piece goods",
 		"construction/lumber": "Construction — lumber",
-		"construction/stone": "Construction — stone"
+		"construction/stone": "Construction — stone",
+		"construction/concrete": "Construction — concrete"
 	},
 	"goods": {
 		"berries": "Berries",
+		"concrete": "Concrete",
 		"mushrooms": "Mushrooms",
 		"planks": "Planks",
 		"stone": "Stone",

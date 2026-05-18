@@ -1,4 +1,4 @@
-import { alveoli } from 'engine-rules'
+import { alveoli, construction } from 'engine-rules'
 import { reactive } from 'mutts'
 import { residentialBasicDwellingProject } from 'ssh/residential/constants'
 import type { AlveolusType, GoodType } from 'ssh/types/base'
@@ -32,6 +32,10 @@ export interface ConstructionRecipe {
 export interface ConstructionSiteState {
 	target: ConstructionTarget
 	recipe: ConstructionRecipe
+	foundationRequiredGoods: Partial<Record<GoodType, number>>
+	foundationDeliveredGoods: Partial<Record<GoodType, number>>
+	foundationConsumedGoods: Partial<Record<GoodType, number>>
+	foundationWorkSeconds: number
 	phase: ConstructionPhase
 	requiredGoods: Partial<Record<GoodType, number>>
 	deliveredGoods: Partial<Record<GoodType, number>>
@@ -40,8 +44,15 @@ export interface ConstructionSiteState {
 	blockingReasons: ConstructionBlockingReason[]
 }
 
+function ruleConstructionRecipe(rule: { goods: object; time: number }): ConstructionRecipe {
+	return {
+		goods: { ...(rule.goods as Partial<Record<GoodType, number>>) },
+		workSeconds: rule.time,
+	}
+}
+
 const dwellingRecipeByTier: Readonly<Record<DwellingTier, ConstructionRecipe>> = {
-	basic_dwelling: { goods: { wood: 2, planks: 1 }, workSeconds: 5 },
+	basic_dwelling: ruleConstructionRecipe(construction.dwellings.basic_dwelling),
 }
 
 export function constructionTargetFromProject(project: string): ConstructionTarget | undefined {
@@ -69,10 +80,15 @@ export function createConstructionRecipe(target: ConstructionTarget): Constructi
 
 export function createConstructionSiteState(target: ConstructionTarget): ConstructionSiteState {
 	const recipe = createConstructionRecipe(target)
+	const foundationRecipe = ruleConstructionRecipe(construction.foundation)
 	return normalizeConstructionSiteState(
 		reactive({
 			target,
 			recipe,
+			foundationRequiredGoods: { ...foundationRecipe.goods },
+			foundationDeliveredGoods: {},
+			foundationConsumedGoods: {},
+			foundationWorkSeconds: foundationRecipe.workSeconds,
 			phase: 'planned' as ConstructionPhase,
 			requiredGoods: { ...recipe.goods },
 			deliveredGoods: {},
@@ -103,6 +119,7 @@ export function normalizeConstructionSiteState(
 	state: ConstructionSiteState
 ): ConstructionSiteState {
 	const recipe = createConstructionRecipe(state.target)
+	const foundationRecipe = ruleConstructionRecipe(construction.foundation)
 	if (
 		!state.recipe ||
 		state.recipe.workSeconds !== recipe.workSeconds ||
@@ -116,12 +133,43 @@ export function normalizeConstructionSiteState(
 	if (!goodsEqual(state.requiredGoods, recipe.goods)) {
 		state.requiredGoods = { ...recipe.goods }
 	}
+	if (!goodsEqual(state.foundationRequiredGoods, foundationRecipe.goods)) {
+		state.foundationRequiredGoods = { ...foundationRecipe.goods }
+	}
+	if (!state.foundationDeliveredGoods) state.foundationDeliveredGoods = {}
+	if (!state.foundationConsumedGoods) state.foundationConsumedGoods = {}
+	if (state.foundationWorkSeconds === undefined) {
+		state.foundationWorkSeconds = foundationRecipe.workSeconds
+	}
 	if (!state.deliveredGoods) state.deliveredGoods = {}
 	if (!state.consumedGoods) state.consumedGoods = {}
 	if (state.workSecondsApplied === undefined) state.workSecondsApplied = 0
 	if (!state.blockingReasons) state.blockingReasons = []
 	if (!state.phase) state.phase = 'planned'
 	return state
+}
+
+export function setConstructionFoundationDeliveredGoods(
+	state: ConstructionSiteState,
+	goods: Partial<Record<GoodType, number>>
+) {
+	state.foundationDeliveredGoods = { ...goods }
+}
+
+export function setConstructionFoundationConsumedGoods(
+	state: ConstructionSiteState,
+	goods: Partial<Record<GoodType, number>>
+) {
+	state.foundationConsumedGoods = { ...goods }
+}
+
+export function foundationGoodsComplete(state: ConstructionSiteState): boolean {
+	const normalized = normalizeConstructionSiteState(state)
+	for (const [good, qty] of Object.entries(normalized.foundationRequiredGoods)) {
+		const delivered = normalized.foundationDeliveredGoods[good as GoodType] ?? 0
+		if (delivered < (qty ?? 0)) return false
+	}
+	return true
 }
 
 export function setConstructionDeliveredGoods(

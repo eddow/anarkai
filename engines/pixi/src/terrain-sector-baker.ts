@@ -15,11 +15,6 @@ import { type AxialCoord, axial, cartesian, hexSides } from 'ssh/utils'
 import { tileSize } from 'ssh/utils/varied'
 import { setPixiName } from './debug-names'
 import type { PixiGameRenderer } from './renderer'
-import {
-	halfDrageaSampledFillPolygonWorld,
-	type RiverHalfDragea,
-	type RiverTileNode,
-} from './river-quarter-model'
 import type { RoadTileTextureCache } from './road-tile-texture'
 import { terrainTextureSpec } from './terrain-visual-helpers'
 
@@ -856,74 +851,6 @@ function drawInlandLakeRegions(
 		const inflated = inflateHullOutward(hull, c, INLAND_HULL_INFLATE_FACTOR)
 		const local = inflated.map((p) => ({ x: p.x - bx, y: p.y - by }))
 		graphics.poly(local).fill({ color: 0x4ea6d8, alpha: 0.44 })
-	}
-}
-
-function shouldSuppressWaterRiverTerminal(
-	coord: AxialCoord,
-	sample: RenderableTerrainTile | undefined,
-	directions: readonly number[],
-	terrainTiles: Map<string, RenderableTerrainTile>
-): boolean {
-	if (sample?.terrain !== 'water' || directions.length !== 1) return false
-	const upstreamDirection = directions[0]
-	if (upstreamDirection === undefined) return false
-	const upstreamCoord = {
-		q: coord.q + HEX_SIDES[upstreamDirection]!.q,
-		r: coord.r + HEX_SIDES[upstreamDirection]!.r,
-	}
-	const upstreamSample = terrainTiles.get(axial.key(upstreamCoord))
-	const upstreamDirections = upstreamSample?.hydrology?.edges
-		? Object.keys(upstreamSample.hydrology.edges)
-				.map(Number)
-				.filter((d) => Number.isInteger(d) && d >= 0 && d <= 5)
-		: []
-	if (upstreamSample?.terrain === 'water' || upstreamDirections.length !== 2) return false
-	return upstreamDirections.some((direction) => {
-		const neighbor = terrainTiles.get(
-			axial.key({
-				q: upstreamCoord.q + HEX_SIDES[direction]!.q,
-				r: upstreamCoord.r + HEX_SIDES[direction]!.r,
-			})
-		)
-		return neighbor?.terrain === 'water'
-	})
-}
-
-function drawRiverQuarterModelForTile(
-	graphics: Graphics,
-	node: RiverTileNode,
-	displayBounds: Rectangle
-): void {
-	const bx = displayBounds.x
-	const by = displayBounds.y
-	const local = (p: { x: number; y: number }) => ({ x: p.x - bx, y: p.y - by })
-
-	const fillAlphaForHalf = (half: RiverHalfDragea): number => {
-		const mouthLip =
-			half.leftQuarter.terminalRole === 'mouthLip' || half.rightQuarter.terminalRole === 'mouthLip'
-		if (mouthLip && half.terminalCap === 'open') return 0.28
-		if (half.terminalCap === 'fanned') return 0.44
-		return 0.52
-	}
-
-	for (const branch of node.branches) {
-		for (const half of branch.halfDrageas) {
-			const wedge = halfDrageaSampledFillPolygonWorld(half).map(local)
-			graphics.poly(wedge).fill({ color: 0x4ea6d8, alpha: fillAlphaForHalf(half) })
-		}
-		for (const half of branch.halfDrageas) {
-			for (const quarter of [half.leftQuarter, half.rightQuarter]) {
-				const [p0, p1, p2] = quarter.bankCurve
-				const a = local(p0)
-				const b = local(p1)
-				const c = local(p2)
-				graphics
-					.moveTo(a.x, a.y)
-					.quadraticCurveTo(b.x, b.y, c.x, c.y)
-					.stroke({ width: 2.5, color: 0x6b5a3e, alpha: 0.85, cap: 'round', join: 'round' })
-			}
-		}
 	}
 }
 

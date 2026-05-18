@@ -46,4 +46,29 @@ describe('chopSaw example game', () => {
 		expect(game.hex.getRoadType({ q: -0.5, r: 1 })).toBe('path')
 		expect(game.hex.getRoadType({ q: 0.5, r: 1 })).toBe('path')
 	})
+
+	it('loads the starter hive and zones into the default district', async () => {
+		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
+		await game.loaded
+		game.ticker.stop()
+
+		const members = game.getDistrict()?.members.map((coord) => `${coord.q},${coord.r}`) ?? []
+		expect(members).toEqual(
+			expect.arrayContaining([
+				'-1,-1',
+				'2,0',
+				'0,-1',
+				'0,0',
+				'1,-1',
+				'1,0',
+				'4,1',
+				'3,2',
+				'3,3',
+				'-4,2',
+				'-5,2',
+				'-4,1',
+				'-4,0',
+			])
+		)
+	})
 })

@@ -62,8 +62,8 @@ vi.mock('@app/palette/browser-palette', async () => {
 	const paletteState = reactive({ editing: false })
 	const palettePanelBridge = {
 		openConfiguration: () => {},
+		openDistrict: () => {},
 		openGame: () => {},
-		openTest: () => {},
 	}
 	const tools = {
 		openConfiguration: {
@@ -72,8 +72,8 @@ vi.mock('@app/palette/browser-palette', async () => {
 		openGame: {
 			run: () => palettePanelBridge.openGame(),
 		},
-		openTest: {
-			run: () => palettePanelBridge.openTest(),
+		openDistrict: {
+			run: () => palettePanelBridge.openDistrict(),
 		},
 		timeControl: {
 			get value() {
@@ -157,7 +157,6 @@ vi.mock('engine-pixi/assets/visual-content', () => ({
 vi.mock('pure-glyf/icons', () => ({
 	tablerFilledAdjustments: 'pure-glyf-icon glyf-tabler-filled-adjustments',
 	tablerFilledArrowBigRight: 'pure-glyf-icon glyf-tabler-filled-arrow-big-right',
-	tablerFilledFlask: 'pure-glyf-icon glyf-tabler-filled-flask',
 	tablerFilledPlayerPause: 'pure-glyf-icon glyf-tabler-filled-player-pause',
 	tablerFilledPlayerPlay: 'pure-glyf-icon glyf-tabler-filled-player-play',
 	tablerFilledPlayerSkipForward: 'pure-glyf-icon glyf-tabler-filled-player-skip-forward',
@@ -165,6 +164,7 @@ vi.mock('pure-glyf/icons', () => ({
 	tablerFilledPointer: 'pure-glyf-icon glyf-tabler-filled-pointer',
 	tablerFilledSquareRoundedMinus: 'pure-glyf-icon glyf-tabler-filled-square-rounded-minus',
 	tablerFilledZoomMoney: 'pure-glyf-icon glyf-tabler-filled-zoom-money',
+	tablerOutlineBuildingCommunity: 'pure-glyf-icon glyf-tabler-outline-building-community',
 	tablerOutlineTrees: 'pure-glyf-icon glyf-tabler-outline-trees',
 }))
 
@@ -179,9 +179,9 @@ vi.mock('./widgets/selection-info-tab', () => ({
 vi.mock('./widgets', () => ({
 	default: {
 		game: () => <div>game</div>,
+		district: () => <div>district</div>,
 		configuration: () => <div>configuration</div>,
 		paletteInspector: () => <div data-testid="palette-inspector-widget">palette-inspector</div>,
-		test: () => <div>test</div>,
 	},
 }))
 
@@ -335,7 +335,6 @@ describe('Palette IDE shell', () => {
 		const { palette } = getBrowserPalette()
 		const openConfiguration = palette.tool('openConfiguration') as PaletteToolRun
 		const openGame = palette.tool('openGame') as PaletteToolRun
-		const openTest = palette.tool('openTest') as PaletteToolRun
 		const timeControl = palette.tool('timeControl') as PaletteToolValue<
 			(typeof globals.configuration)['timeControl']
 		>
@@ -358,15 +357,6 @@ describe('Palette IDE shell', () => {
 			component: 'game',
 			params: undefined,
 			floating: undefined,
-		})
-
-		addPanel.mockClear()
-		openTest.run()
-		expect(addPanel).toHaveBeenCalledWith({
-			id: 'test',
-			component: 'test',
-			params: undefined,
-			floating: { width: 400, height: 600 },
 		})
 
 		timeControl.value = 1

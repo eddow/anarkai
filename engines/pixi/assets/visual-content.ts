@@ -76,6 +76,10 @@ export const goods: Record<string, VisualDefinition> = {
 		sprites: ['goods.berries'],
 		icon: 'goods.berries',
 	},
+	concrete: {
+		sprites: ['goods.cement'],
+		icon: 'goods.cement',
+	},
 	mushrooms: {
 		sprites: ['goods.mushrooms'],
 		icon: 'goods.mushrooms',

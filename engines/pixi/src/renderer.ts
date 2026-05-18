@@ -3,6 +3,7 @@ import { Application, Container, type ContainerChild, RenderLayer, type Texture 
 import type { Game } from 'ssh/game/game'
 import type { GameRenderer } from 'ssh/types/engine'
 import type { AxialCoord } from 'ssh/utils'
+import { cartesian, tileSize } from 'ssh/utils'
 import { assetManager } from './asset-manager'
 import {
 	type TerrainBakeDebugSnapshot,
@@ -310,6 +311,66 @@ export class PixiGameRenderer implements GameRenderer {
 		delete globalThis.__ANARKAI_TERRAIN_QUEUE_DEBUG__
 		// @ts-expect-error debug
 		delete globalThis.__ANARKAI_VISUAL_DIAGNOSTICS__
+	}
+
+	/**
+		* Fit the camera view to show all player-owned content.
+		* If there is no player content (new game), keeps the default center at (0,0).
+		*/
+	public fitViewToContent() {
+		if (!this.world || !this.app) return
+
+		const bounds = this.game.getPlayerContentBounds()
+		if (!bounds) return // new game: keep defaults
+
+		// Convert hex bounds to pixel bounds
+		// Sample the 4 corners of the hex bounding box
+		const corners = [
+			{ q: bounds.minQ, r: bounds.minR },
+			{ q: bounds.minQ, r: bounds.maxR },
+			{ q: bounds.maxQ, r: bounds.minR },
+			{ q: bounds.maxQ, r: bounds.maxR },
+			// Also add the center
+			{ q: (bounds.minQ + bounds.maxQ) / 2, r: (bounds.minR + bounds.maxR) / 2 },
+		]
+
+		let minX = Infinity
+		let maxX = -Infinity
+		let minY = Infinity
+		let maxY = -Infinity
+
+		for (const corner of corners) {
+			const pixel = cartesian(corner, tileSize)
+			minX = Math.min(minX, pixel.x)
+			maxX = Math.max(maxX, pixel.x)
+			minY = Math.min(minY, pixel.y)
+			maxY = Math.max(maxY, pixel.y)
+		}
+
+		const pixelWidth = maxX - minX
+		const pixelHeight = maxY - minY
+
+		// 10% padding
+		const pad = 1.1
+
+		// Calculate zoom to fit with padding
+		const zoomX = (this.app.screen.width * pad) / pixelWidth
+		const zoomY = (this.app.screen.height * pad) / pixelHeight
+		const zoom = Math.min(zoomX, zoomY)
+
+		// Clamp zoom to InteractionManager limits
+		const clampedZoom = Math.max(0.03, Math.min(4.0, zoom))
+
+		// Calculate center in pixel space
+		const centerX = (minX + maxX) / 2
+		const centerY = (minY + maxY) / 2
+
+		// Apply zoom and position to center the content
+		this.world.scale.set(clampedZoom)
+		this.world.position.set(
+			this.app.screen.width / 2 - centerX * clampedZoom,
+			this.app.screen.height / 2 - centerY * clampedZoom
+		)
 	}
 
 	public async reload() {

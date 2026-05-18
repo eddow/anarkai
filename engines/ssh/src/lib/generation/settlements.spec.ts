@@ -14,7 +14,7 @@ import { describe, expect, it, beforeAll } from 'vitest'
 import { ensureWasmLoaded } from 'engine-terrain'
 import { GameGenerator } from './index'
 import type { GeneratedTileData } from './board'
-import type { GeneratedSettlement, SettlementKind } from './settlements'
+import type { GeneratedSettlement } from './settlements'
 import type { AxialCoord } from 'ssh/utils'
 import type { TerrainType } from 'ssh/types'
 import type { TerrainHydrologySample } from 'ssh/game/terrain-provider'
@@ -67,11 +67,6 @@ describe('Settlement Placement Integration Tests', () => {
 			if (!settlementsEqual(a[i]!, b[i]!)) return false
 		}
 		return true
-	}
-
-	// Helper function to check if a coordinate is in a list
-	function coordInList(coord: AxialCoord, list: AxialCoord[]): boolean {
-		return list.some((c) => c.q === coord.q && c.r === coord.r)
 	}
 
 	// Helper function to check if two settlements respect min spacing

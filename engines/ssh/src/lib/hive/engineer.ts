@@ -4,6 +4,10 @@ import { Alveolus } from 'ssh/board/content/alveolus'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
 import { isConstructionSiteShell } from 'ssh/build-site'
+import {
+	foundationGoodsComplete,
+	setConstructionFoundationDeliveredGoods,
+} from 'ssh/construction-state'
 import { type AlveolusProposedJob, asAlveolusProposedJob } from 'ssh/jobs/offers'
 import type { Character } from 'ssh/population/character'
 import { residentialBasicDwellingProject } from 'ssh/residential/constants'
@@ -67,7 +71,19 @@ export class EngineerAlveolus extends Alveolus {
 				})
 				continue
 			}
-			if (content instanceof UnBuiltLand && content.project && !tile.isBurdened) {
+			if (content instanceof UnBuiltLand && content.constructionSite) {
+				setConstructionFoundationDeliveredGoods(
+					content.constructionSite,
+					content.foundationStorage?.stock ?? {}
+				)
+			}
+			if (
+				content instanceof UnBuiltLand &&
+				content.project &&
+				content.constructionSite &&
+				foundationGoodsComplete(content.constructionSite) &&
+				!tile.isBurdened
+			) {
 				targets.push({
 					tile,
 					job: {

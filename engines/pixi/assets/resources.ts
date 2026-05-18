@@ -39,6 +39,7 @@ export const resources: ResourceTree = {
 		planks: 'goods/planks.png',
 		wood: 'goods/wood.png',
 		stone: 'goods/stone.png',
+		cement: 'goods/cement.png',
 	},
 	commands: {
 		select: 'commands/click.png',

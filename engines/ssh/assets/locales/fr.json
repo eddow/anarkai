@@ -109,10 +109,12 @@
 		"bulk": "Vrac",
 		"piece": "Pièces",
 		"construction/lumber": "Construction — bois",
-		"construction/stone": "Construction — pierre"
+		"construction/stone": "Construction — pierre",
+		"construction/concrete": "Construction — béton"
 	},
 	"goods": {
 		"berries": "Baies",
+		"concrete": "Béton",
 		"mushrooms": "Champignons",
 		"planks": "Planches",
 		"stone": "Pierre",

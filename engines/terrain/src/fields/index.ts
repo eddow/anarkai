@@ -19,17 +19,13 @@ export {
 } from './gpu'
 
 import {
-	canUseWebGpuFields,
 	generateFieldsGpu,
 	generateTileFieldGpu,
-	isGpuFieldRuntimeReady,
 } from './gpu'
 
 import {
 	generateFieldsWasm,
-	generateSectorFieldsWasm,
 	generateTileFieldWasm,
-	getCachedWasmTerrainConfig,
 	isWasmFieldGenerationAvailable,
 } from './wasm'
 

@@ -152,7 +152,7 @@ describe('Board Generation Integration Tests', () => {
 
 			// Verify goods amounts are valid (if any goods exist)
 			for (const tile of result) {
-				for (const [goodType, amount] of Object.entries(tile.goods)) {
+				for (const [, amount] of Object.entries(tile.goods)) {
 					expect(amount).toBeGreaterThan(0)
 				}
 			}
@@ -360,7 +360,7 @@ describe('Board Generation Integration Tests', () => {
 
 			// Verify goods amounts are valid (if any goods exist)
 			for (const tile of result) {
-				for (const [goodType, amount] of Object.entries(tile.goods)) {
+				for (const [, amount] of Object.entries(tile.goods)) {
 					expect(amount).toBeGreaterThan(0)
 				}
 			}
@@ -453,7 +453,7 @@ describe('Board Generation Integration Tests', () => {
 
 			// Verify goods amounts are valid (if any goods exist)
 			for (const tile of result) {
-				for (const [goodType, amount] of Object.entries(tile.goods)) {
+				for (const [, amount] of Object.entries(tile.goods)) {
 					expect(amount).toBeGreaterThan(0)
 				}
 			}

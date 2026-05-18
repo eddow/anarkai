@@ -736,16 +736,6 @@ export async function generateAsync(
 	}
 }
 
-function expandCoords(coords: Iterable<AxialCoord>, padding: number): AxialCoord[] {
-	const expanded = new Map<AxialKey, AxialCoord>()
-	for (const coord of coords) {
-		for (const padded of axial.allTiles(coord, padding)) {
-			expanded.set(axial.key(padded), padded)
-		}
-	}
-	return [...expanded.values()]
-}
-
 function nowMs(): number {
 	return (globalThis as any).performance?.now() ?? Date.now()
 }

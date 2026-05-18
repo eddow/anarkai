@@ -1,5 +1,7 @@
 export { alveoli } from './content/alveoli'
+export { commerce } from './content/commerce'
 export { configurations } from './content/configurations'
+export { construction } from './content/construction'
 export { deposits } from './content/deposits'
 export {
 	freightLineHiveNeedPriorityWeight,
@@ -7,6 +9,7 @@ export {
 } from './content/freight-line-utility'
 export { goods } from './content/goods'
 export { jobBalance } from './content/job-balance'
+export { settlementTrade } from './content/settlement-trade'
 export { terrain } from './content/terrain'
 export { offloadRange, vehicles } from './content/vehicles'
 

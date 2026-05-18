@@ -7,7 +7,6 @@ import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockv
 import { PixiGameRenderer } from 'engine-pixi/renderer'
 import { effect } from 'mutts'
 import type { RoadType } from 'ssh/board/roads'
-import { canBuildRoadOnTrace, roadBordersForTrace } from 'ssh/board/roads'
 import { Tile } from 'ssh/board/tile'
 import type { GamePresentationEvent, InteractiveGameObject } from 'ssh/game'
 import type { AlveolusType } from 'ssh/types/base'
@@ -40,7 +39,7 @@ export default function GameWidget(
 		const tile = object
 		const action = interactionMode.selectedAction
 		const alveolusType = action.replace('build:', '') as AlveolusType
-		const success = tile.build(alveolusType)
+		const success = game.applyDistrictBuildAction(tile, alveolusType)
 		return Boolean(success)
 	}
 
@@ -49,38 +48,19 @@ export default function GameWidget(
 		const tile = object
 		const action = interactionMode.selectedAction
 		const zoneType = action.replace('zone:', '')
-		if (zoneType === 'none') tile.zone = undefined
-		else {
-			if (!game.hex.zoneManager.getZoneDefinition(zoneType)) {
-				game.hex.zoneManager.defineZone({ id: zoneType, name: zoneType })
-			}
-			tile.zone = zoneType as any
-		}
-		return true
+		return game.applyDistrictZoneAction(tile, zoneType)
 	}
 
 	const handleZoningDrag = (tiles: Tile[]) => {
 		const action = interactionMode.selectedAction
 		const zoneType = action.replace('zone:', '')
 		for (const tile of tiles) {
-			if (tile.canInteract(action)) {
-				if (zoneType === 'none') tile.zone = undefined
-				else {
-					if (!game.hex.zoneManager.getZoneDefinition(zoneType)) {
-						game.hex.zoneManager.defineZone({ id: zoneType, name: zoneType })
-					}
-					tile.zone = zoneType as any
-				}
-			}
+			if (tile.canInteract(action)) game.applyDistrictZoneAction(tile, zoneType)
 		}
 	}
 
 	const handleRoadDrag = (tiles: Tile[], roadType: RoadType) => {
-		if (!canBuildRoadOnTrace(tiles)) return false
-		for (const border of roadBordersForTrace(tiles)) {
-			game.hex.setRoadType(border.position, roadType)
-		}
-		return true
+		return game.applyDistrictRoadTrace(tiles, roadType)
 	}
 
 	const gameEvents = {
@@ -171,6 +151,9 @@ export default function GameWidget(
 						gameView = new PixiGameRenderer(game, container)
 						console.log('GameWidget: PixiGameRenderer created', gameView)
 
+						// Fit camera to player content (if any)
+						gameView.fitViewToContent()
+
 						if (dock) validateStoredSelectionState(dock)
 
 						setupResizer()
@@ -187,6 +170,8 @@ export default function GameWidget(
 					console.log('[GameWidget] Attempting emergency Pixi initialization...')
 					try {
 						gameView = new PixiGameRenderer(game, container)
+						// Fit camera to player content (if any)
+						gameView.fitViewToContent()
 						setupResizer()
 					} catch (e) {
 						console.error('Emergency initialization failed', e)

@@ -12,10 +12,6 @@ declare const process: any
 
 let wasmModule: any = null
 let wasmLoadPromise: Promise<any> | null = null
-let wasmLoadAttempted = false
-
-/** Trace guard: only warn about fallback once per session to avoid spam */
-let fallbackWarningEmitted = false
 
 function trace(channel: string, level: 'log' | 'warn', message: string, ...args: unknown[]): void {
 	try {
@@ -41,8 +37,6 @@ export async function loadWasmModule(): Promise<any> {
 	if (wasmLoadPromise) {
 		return wasmLoadPromise
 	}
-
-	wasmLoadAttempted = true
 
 	// Start loading
 	wasmLoadPromise = (async () => {
@@ -80,7 +74,6 @@ export async function loadWasmModule(): Promise<any> {
 			trace('loader', 'log', 'WASM module loaded successfully', {
 				exportCount: Object.keys(wasmModule).filter(k => typeof wasmModule[k] === 'function').length,
 			})
-			fallbackWarningEmitted = false
 			return wasmModule
 		} catch (e) {
 			trace('loader', 'warn', 'Failed to load WASM module; terrain will use CPU fallback', e)
@@ -125,7 +118,7 @@ export async function ensureWasmLoaded(): Promise<void> {
  * Reset the fallback warning (called after WASM loads successfully).
  */
 export function resetFallbackWarning(): void {
-	fallbackWarningEmitted = false
+	// Kept for callers that still reset the old one-shot fallback warning state.
 }
 
 // Eagerly start WASM loading on module import.

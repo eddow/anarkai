@@ -38,7 +38,7 @@ import { effect, reactive, unwrap } from 'mutts'
 import {
 	tablerFilledAdjustments,
 	tablerFilledArrowBigRight,
-	tablerFilledFlask,
+	tablerOutlineBuildingCommunity,
 	tablerOutlinePolygon,
 } from 'pure-glyf/icons'
 import type { Game } from 'ssh/game'
@@ -46,7 +46,7 @@ import type { Game } from 'ssh/game'
 export const palettePanelBridge = reactive({
 	openConfiguration: () => {},
 	openGame: () => {},
-	openTest: () => {},
+	openDistrict: () => {},
 	openZones: () => {},
 })
 
@@ -71,6 +71,7 @@ const themeSettingsProxy: { theme: AnarkaiThemeMode } = {
 }
 
 type BrowserPaletteEditorConfigByVariant = AnarkaiPaletteEditorConfigByVariant & {
+	account: { label?: string; hint?: string }
 	clock: { label?: string; hint?: string }
 }
 
@@ -99,15 +100,18 @@ const tools = {
 			palettePanelBridge.openGame()
 		},
 	},
-	openTest: {
-		label: 'Open multiselect test',
-		icon: typeof tablerFilledFlask === 'string' ? tablerFilledFlask : undefined,
-		keywords: ['test', 'multiselect', 'flask'],
+	openDistrict: {
+		label: 'Open district',
+		icon:
+			typeof tablerOutlineBuildingCommunity === 'string'
+				? tablerOutlineBuildingCommunity
+				: undefined,
+		keywords: ['district', 'planning', 'build', 'zone', 'road'],
 		get can() {
 			return true
 		},
 		run() {
-			palettePanelBridge.openTest()
+			palettePanelBridge.openDistrict()
 		},
 	},
 	openZones: {
@@ -221,6 +225,20 @@ function ClockPaletteEditor(
 	)
 }
 
+function AccountPaletteEditor(
+	_context: PaletteEditorContext<undefined, BrowserPaletteToolbarItem, BrowserPaletteSchema>
+) {
+	const state = reactive({ balance: '-- vp' })
+	effect`palette:account`(() => {
+		state.balance = `${Math.floor(game.playerAccount?.balanceVp ?? 0)} vp`
+	})
+	return (
+		<div class="app-palette-clock app-palette-account" title={clockPaletteTitle(_context.item)}>
+			<span>{state.balance}</span>
+		</div>
+	)
+}
+
 const anarkaiEditors = createAnarkaiPaletteEditors()
 const browserPaletteEditors = {
 	...(anarkaiEditors as PaletteEditorRegistry<BrowserPaletteSchema>),
@@ -230,6 +248,10 @@ const browserPaletteEditors = {
 		>),
 		clock: {
 			editor: ClockPaletteEditor,
+			flags: { footprint: 'horizontal' as const },
+		},
+		account: {
+			editor: AccountPaletteEditor,
 			flags: { footprint: 'horizontal' as const },
 		},
 	},
@@ -266,6 +288,7 @@ function parseBrowserPaletteEditorVariant(value: unknown): BrowserPaletteEditorV
 		value === 'segmented' ||
 		value === 'stars' ||
 		value === 'toggle' ||
+		value === 'account' ||
 		value === 'clock'
 	)
 		return value
@@ -282,6 +305,7 @@ function parseBrowserPaletteItemConfig(value: unknown): BrowserPaletteToolbarIte
 	if (!isRecord(value)) browserPaletteDefaultError('item config must be an object')
 	const next: Partial<
 		BrowserPaletteEditorConfigByVariant['clock'] &
+			BrowserPaletteEditorConfigByVariant['account'] &
 			AnarkaiPaletteItemConfigBase &
 			AnarkaiPaletteEnumConfig &
 			AnarkaiPaletteStarsConfig

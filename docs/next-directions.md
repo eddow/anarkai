@@ -104,6 +104,33 @@ Risks:
 
 See [`./commerce.md`](./commerce.md).
 
+#### Commerce levels
+
+Commerce should land in three levels, with the first one serving construction and daily play rather than
+trying to become Simutrans all at once.
+
+1. **Useful procurement for our team.** When a needed good is missing, such as concrete for a foundation,
+   the player can choose a seller. The purchase spends value points from the shared team account, sends a
+   vehicle/worker to the seller, parks at the seller tile border, performs a convey-hop-like shop transfer
+   that spawns the bought material, then brings it back to the construction/site/storage that needs it.
+   Player-owned storage may buffer imported goods so later needs can consume local stock before buying.
+2. **Industry commerce and arbitrage.** Once procurement is reliable, the player can buy near producers
+   where goods are cheap and sell near demanders where goods are expensive, such as buying wood near a
+   forester and selling it to an NPC sawmill complex.
+3. **People transport.** Transporting people between settlements, work, homes, and services is a later
+   system and should not block goods commerce.
+
+Important first-level boundaries:
+
+- The shared player/team account is the common pot. Player characters use player-owned goods freely; NPC
+  purchases add value points to this account.
+- Selling from player inventory should eventually happen through commercial zones or resale points near or
+  inside settlements, but the resale-point gameplay can come after purchase procurement works.
+- Buying should not force micromanagement per building. District/project views should surface missing
+  useful goods, possible sellers, and purchase actions.
+- External building loading/unloading should use the border-parking plus convey-hop interaction already
+  planned for shops, construction, and other non-freight-bay endpoints.
+
 ### 3. More game content
 
 More harvesters, producers, transformers, storage types, and goods can make the existing systems feel like a

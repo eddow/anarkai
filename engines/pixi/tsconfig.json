@@ -39,6 +39,7 @@
 		"src/**/*.ts",
 		"src/**/*.d.ts",
 		"assets/visual-content.ts",
+		"../terrain/src/**/*.d.ts",
 		"../ssh/src/**/*.d.ts"
 	],
 	"exclude": [

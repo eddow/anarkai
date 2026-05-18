@@ -25,12 +25,12 @@
             }
           },
           {
-            "tool": "openTest",
+            "tool": "openDistrict",
             "editor": "button",
             "config": {
-              "label": "Test",
-              "icon": "pure-glyf-icon glyf-tabler-filled-flask",
-              "hint": "Open test panel",
+              "label": "District",
+              "icon": "pure-glyf-icon glyf-tabler-outline-building-community",
+              "hint": "Open district planning",
               "tone": "neutral"
             }
           },
@@ -49,6 +49,13 @@
       {
         "space": 0.16087526114708497,
         "toolbar": [
+          {
+            "editor": "account",
+            "config": {
+              "label": "Account",
+              "hint": "Team account balance"
+            }
+          },
           {
             "editor": "clock",
             "config": {
@@ -92,58 +99,6 @@
         ]
       },
       {
-        "space": 0.24835415770255725,
-        "toolbar": [
-          {
-            "tool": "selectedAction",
-            "editor": "segmented",
-            "config": {
-              "label": "Action",
-              "hint": "Control — choose mode in inspector",
-              "acceptedKeywords": [
-                "build"
-              ],
-              "choiceDisplay": "icon"
-            }
-          }
-        ]
-      },
-      {
-        "space": 0.24702783578675575,
-        "toolbar": [
-          {
-            "tool": "selectedAction",
-            "editor": "segmented",
-            "config": {
-              "label": "Action",
-              "hint": "Control — choose mode in inspector",
-              "choiceDisplay": "icon",
-              "acceptedKeywords": [
-                "zone"
-              ]
-            }
-          }
-        ]
-      },
-      {
-        "space": 0.08,
-        "toolbar": [
-          {
-            "tool": "selectedAction",
-            "editor": "segmented",
-            "config": {
-              "label": "Road",
-              "hint": "Road — draw paths",
-              "choiceDisplay": "icon",
-              "acceptedKeywords": [
-                "road",
-                "path"
-              ]
-            }
-          }
-        ]
-      },
-      {
         "space": 0.12652766745278476,
         "toolbar": [
           {
@@ -166,7 +121,6 @@
   "keyBindings": {
     "`": "openConfiguration",
     "G": "openGame",
-    "H": "openTest",
     "Z": "openZones"
   }
 }

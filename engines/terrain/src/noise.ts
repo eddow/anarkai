@@ -192,29 +192,6 @@ class CpuPerlinNoise {
 	}
 }
 
-function cpuFbm(
-	noise: CpuPerlinNoise,
-	x: number,
-	y: number,
-	octaves: number,
-	persistence: number,
-	lacunarity: number
-): number {
-	let value = 0
-	let amplitude = 1
-	let frequency = 1
-	let maxValue = 0
-
-	for (let i = 0; i < octaves; i++) {
-		value += noise.noise(x * frequency, y * frequency) * amplitude
-		maxValue += amplitude
-		amplitude *= persistence
-		frequency *= lacunarity
-	}
-
-	return value / maxValue
-}
-
 function seededRandom(seed: number): () => number {
 	let state = seed
 	return () => {

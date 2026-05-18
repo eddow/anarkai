@@ -4,12 +4,15 @@ import {
 	type ConstructionSiteState,
 	constructionTargetFromProject,
 	createConstructionSiteState,
+	setConstructionFoundationDeliveredGoods,
 } from 'ssh/construction-state'
 import { traces } from 'ssh/dev/debug'
 import { withTicked } from 'ssh/game/object'
 import { gameIsaTypes } from 'ssh/npcs/utils'
 import { residentialBasicDwellingProject } from 'ssh/residential/constants'
+import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { TerrainType } from 'ssh/types'
+import type { GoodType } from 'ssh/types/base'
 import { LCG, subSeed } from 'ssh/utils/numbers'
 import { fastPoissonRandom } from 'ssh/utils/poisson'
 import { toAxialCoord } from 'ssh/utils/position'
@@ -39,6 +42,7 @@ export class UnBuiltLand extends withTicked(TileContent) {
 	/** Project identifier (e.g., "build:sawmill") indicating pending construction */
 	public project?: string
 	public constructionSite?: ConstructionSiteState
+	public foundationStorage?: SpecificStorage
 
 	/**
 	 * Set a project and clear any existing zone
@@ -49,6 +53,17 @@ export class UnBuiltLand extends withTicked(TileContent) {
 		const target = constructionTargetFromProject(project)
 		this.constructionSite =
 			constructionSite ?? (target ? createConstructionSiteState(target) : undefined)
+		this.foundationStorage = this.constructionSite
+			? new SpecificStorage(
+					this.constructionSite.foundationRequiredGoods as Record<GoodType, number>
+				)
+			: undefined
+		this.foundationStorage?.setPresentationChangeNotifier(() =>
+			this.game.enqueueStoragePresentationChange(this.tile)
+		)
+		this.foundationStorage?.setPlanningChangeNotifier(() =>
+			this.game.invalidateWorkPlanning('unbuilt-land.foundation-storage')
+		)
 		const coord = toAxialCoord(this.tile.position)
 		traces.work.log?.('work.project.set', {
 			project,
@@ -66,6 +81,10 @@ export class UnBuiltLand extends withTicked(TileContent) {
 		if (this.constructionSite) {
 			effect`unbuilt-land:construction-phase`(() => {
 				if (!this.project || !this.constructionSite) return
+				setConstructionFoundationDeliveredGoods(
+					this.constructionSite,
+					this.foundationStorage?.stock ?? {}
+				)
 				const phase = this.tile.isBurdened ? 'planned' : 'foundation'
 				if (this.constructionSite.phase === phase) return
 				this.constructionSite.phase = phase
@@ -95,7 +114,7 @@ export class UnBuiltLand extends withTicked(TileContent) {
 		return ''
 	}
 	get storage() {
-		return undefined
+		return this.foundationStorage
 	}
 
 	constructor(

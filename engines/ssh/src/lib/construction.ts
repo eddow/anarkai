@@ -11,7 +11,7 @@ import type {
 	ConstructionSiteState,
 	DwellingTier,
 } from 'ssh/construction-state'
-import { normalizeConstructionSiteState } from 'ssh/construction-state'
+import { foundationGoodsComplete, normalizeConstructionSiteState } from 'ssh/construction-state'
 import type { Game } from 'ssh/game/game'
 import { EngineerAlveolus } from 'ssh/hive/engineer'
 import type { AlveolusType, GoodType } from 'ssh/types/base'
@@ -97,7 +97,21 @@ function buildUnbuiltConstructionView(
 	if (tile.isBurdened) {
 		return snapshotConstructionState(state, {
 			phase: 'planned',
+			requiredGoods: state.foundationRequiredGoods,
+			deliveredGoods: state.foundationDeliveredGoods,
+			consumedGoods: state.foundationConsumedGoods,
+			constructionTotalSeconds: state.foundationWorkSeconds,
 			blockingReasons: ['tile_not_clear'],
+		})
+	}
+	if (!foundationGoodsComplete(state)) {
+		return snapshotConstructionState(state, {
+			phase: 'waiting_materials',
+			requiredGoods: state.foundationRequiredGoods,
+			deliveredGoods: state.foundationDeliveredGoods,
+			consumedGoods: state.foundationConsumedGoods,
+			constructionTotalSeconds: state.foundationWorkSeconds,
+			blockingReasons: ['missing_goods'],
 		})
 	}
 	const engineer = anyWorkingEngineerCanReach(game, tile)
@@ -116,6 +130,10 @@ function buildUnbuiltConstructionView(
 	}
 	return snapshotConstructionState(state, {
 		phase: 'foundation',
+		requiredGoods: state.foundationRequiredGoods,
+		deliveredGoods: state.foundationDeliveredGoods,
+		consumedGoods: state.foundationConsumedGoods,
+		constructionTotalSeconds: state.foundationWorkSeconds,
 		blockingReasons: blocking,
 	})
 }

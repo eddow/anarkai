@@ -6,11 +6,12 @@ import { css } from '@app/lib/css'
 import { T } from '@app/lib/i18n'
 import { Badge } from '@app/ui/anarkai'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
-import { deposits as visualDeposits } from 'engine-pixi/assets/visual-content'
+import { deposits as visualDeposits, goods as visualGoods } from 'engine-pixi/assets/visual-content'
 import { effect, reactive } from 'mutts'
 import { tablerFilledZoomMoney, tablerOutlinePolygon, tablerOutlineTrees } from 'pure-glyf/icons'
 import type { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { type ConstructionPhase, queryConstructionSiteView } from 'ssh/construction'
+import type { GoodType } from 'ssh/types/base'
 import EntityBadge from '../EntityBadge'
 import PropertyGridRow from '../PropertyGridRow'
 
@@ -88,6 +89,7 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 		constructionPhase: '' as ConstructionPhase | '',
 		constructionPhaseLabel: '',
 		constructionBlocking: [] as string[],
+		constructionMaterials: [] as Array<{ good: GoodType; required: number; delivered: number }>,
 		showConstruction: false,
 	})
 
@@ -135,6 +137,7 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 			state.constructionPhase = ''
 			state.constructionPhaseLabel = ''
 			state.constructionBlocking = []
+			state.constructionMaterials = []
 			return
 		}
 		const snap = queryConstructionSiteView(game, tile)
@@ -147,6 +150,11 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 		const model = buildConstructionViewModel(snap, T as ConstructionTranslatorShape)
 		state.constructionPhaseLabel = model.phaseLabel
 		state.constructionBlocking = model.blockingLabels
+		state.constructionMaterials = Object.entries(snap.requiredGoods ?? {}).map(([good, qty]) => ({
+			good: good as GoodType,
+			required: qty ?? 0,
+			delivered: snap.deliveredGoods?.[good as GoodType] ?? 0,
+		}))
 	})
 
 	return (
@@ -186,6 +194,25 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 							<Badge if={text.length > 0} tone="yellow">
 								{text}
 							</Badge>
+						)}
+					</for>
+				</div>
+			</PropertyGridRow>
+
+			<PropertyGridRow
+				if={state.constructionMaterials.length > 0}
+				label={String(T.construction.materials)}
+			>
+				<div class="unbuilt-project">
+					<for each={state.constructionMaterials}>
+						{(material: { good: GoodType; required: number; delivered: number }) => (
+							<EntityBadge
+								game={props.content?.tile?.board?.game}
+								height={16}
+								sprite={visualGoods[material.good]?.sprites?.[0] ?? ''}
+								text={String(T.goods?.[material.good] ?? material.good)}
+								qty={Math.max(0, material.required - material.delivered)}
+							/>
 						)}
 					</for>
 				</div>

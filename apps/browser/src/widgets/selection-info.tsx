@@ -22,6 +22,11 @@ import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockv
 import { effect, reactive } from 'mutts'
 import { Tile } from 'ssh/board/tile'
 import {
+	isSettlementTradeObjectUid,
+	type SettlementTradeObject,
+} from 'ssh/commerce/settlement-trade'
+import { isDistrictUid, type DistrictObject } from 'ssh/district/district'
+import {
 	freightLineIdFromUid,
 	freightLineSummary,
 	isFreightLineUid,
@@ -34,7 +39,9 @@ import { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { toWorldCoord } from 'ssh/utils/position'
 import HiveProperties from '../components/HiveProperties'
 import CharacterProperties from '../components/properties/CharacterProperties'
+import DistrictProperties from '../components/properties/DistrictProperties'
 import FreightLineProperties from '../components/properties/FreightLineProperties'
+import SettlementProperties from '../components/properties/SettlementProperties'
 import TileProperties from '../components/properties/TileProperties'
 import VehicleProperties from '../components/properties/VehicleProperties'
 import ZoneProperties from '../components/properties/ZoneProperties'
@@ -190,6 +197,18 @@ const ZoneSelectionProperties = (props: { object?: unknown; onClose?: () => void
 	</div>
 )
 
+const SettlementSelectionProperties = (props: { object?: unknown }) => (
+	<div data-selection-properties-kind="settlement">
+		<SettlementProperties settlementObject={props.object as SettlementTradeObject} />
+	</div>
+)
+
+const DistrictSelectionProperties = (props: { object?: unknown }) => (
+	<div data-selection-properties-kind="district">
+		<DistrictProperties districtObject={props.object as DistrictObject} />
+	</div>
+)
+
 const ObjectSummaryProperties = (props: { object?: { uid?: string; title?: string } }) => (
 	<div data-selection-properties-kind="summary">
 		<InspectorSection class="selection-info-panel__summary" title={props.object?.title ?? 'Object'}>
@@ -198,7 +217,10 @@ const ObjectSummaryProperties = (props: { object?: { uid?: string; title?: strin
 	</div>
 )
 
-const renderPropertiesForObject = (object: { uid?: string }, options: { onClose?: () => void } = {}) => {
+const renderPropertiesForObject = (
+	object: { uid?: string },
+	options: { onClose?: () => void } = {}
+) => {
 	if (isCharacterObject(object)) return <CharacterSelectionProperties object={object} />
 	if (isTileObject(object)) return <TileSelectionProperties object={object} />
 	if (object.uid && isFreightLineUid(object.uid)) {
@@ -209,6 +231,10 @@ const renderPropertiesForObject = (object: { uid?: string }, options: { onClose?
 	if (object.uid && isZoneObjectUid(object.uid)) {
 		return <ZoneSelectionProperties object={object} onClose={options.onClose} />
 	}
+	if (object.uid && isSettlementTradeObjectUid(object.uid)) {
+		return <SettlementSelectionProperties object={object} />
+	}
+	if (object.uid && isDistrictUid(object.uid)) return <DistrictSelectionProperties object={object} />
 	if (isVehicleObject(object)) return <VehicleSelectionProperties object={object} />
 	return <ObjectSummaryProperties object={object} />
 }

@@ -11,7 +11,13 @@ import {
 	createConstructionShell,
 	finalizeConstructionShell,
 } from 'ssh/construction-shell'
-import { constructionTargetFromProject, createConstructionSiteState } from 'ssh/construction-state'
+import {
+	constructionTargetFromProject,
+	createConstructionSiteState,
+	foundationGoodsComplete,
+	setConstructionFoundationConsumedGoods,
+	setConstructionFoundationDeliveredGoods,
+} from 'ssh/construction-state'
 import { assert, traces } from 'ssh/dev/debug'
 import { commitmentValid, type TrackedMovement } from 'ssh/hive/hive'
 import { movementRefId } from 'ssh/hive/movement-ref'
@@ -1107,6 +1113,22 @@ class WorkFunctions {
 		const constructionSite = content.constructionSite ?? createConstructionSiteState(target)
 
 		content.constructionSite = constructionSite
+		setConstructionFoundationDeliveredGoods(
+			constructionSite,
+			content.foundationStorage?.stock ?? {}
+		)
+		if (!foundationGoodsComplete(constructionSite)) {
+			traces.work.warn?.('work.foundationStep.skip', {
+				character: character.name,
+				characterUid: character.uid,
+				reason: 'missing-foundation-goods',
+				tileQ: tileCoord?.q,
+				tileR: tileCoord?.r,
+				requiredGoods: constructionSite.foundationRequiredGoods,
+				deliveredGoods: constructionSite.foundationDeliveredGoods,
+			})
+			return
+		}
 		constructionSite.phase = 'foundation'
 		traces.work.log?.('work.foundationStep.start', {
 			character: character.name,
@@ -1117,7 +1139,18 @@ class WorkFunctions {
 			targetKind: target.kind,
 			target: target.kind === 'alveolus' ? target.alveolusType : target.tier,
 		})
-		return new DurationStep(3, 'work', 'foundation').onFulfilled(() => {
+		return new DurationStep(
+			constructionSite.foundationWorkSeconds,
+			'work',
+			'foundation'
+		).onFulfilled(() => {
+			for (const [good, qty] of Object.entries(constructionSite.foundationRequiredGoods)) {
+				content.foundationStorage?.removeGood(good as GoodType, qty ?? 0)
+			}
+			setConstructionFoundationConsumedGoods(
+				constructionSite,
+				constructionSite.foundationRequiredGoods
+			)
 			applyConstructionConcreteTerrain(content.tile)
 			content.tile.content = createConstructionShell(content.tile, constructionSite)
 			if (target.kind === 'dwelling') {

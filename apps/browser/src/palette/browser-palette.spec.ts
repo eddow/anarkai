@@ -1,6 +1,7 @@
 import { gameTimeSpeedFactors } from 'engine-rules'
 import { reactive } from 'mutts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import defaultPalette from './palette.default.json'
 
 vi.mock('@app/lib/globals', () => ({
 	configuration: reactive({
@@ -9,6 +10,7 @@ vi.mock('@app/lib/globals', () => ({
 	game: {
 		rendererReady: Promise.resolve(),
 		getTexture: vi.fn(),
+		playerAccount: reactive({ balanceVp: 200 }),
 	},
 	interactionMode: reactive({ selectedAction: '' }),
 	uiConfiguration: reactive({ darkMode: false }),
@@ -36,30 +38,30 @@ describe('browser palette registry & palettePanelBridge', () => {
 	afterEach(() => {
 		disposeBrowserPalette()
 		palettePanelBridge.openConfiguration = () => {}
+		palettePanelBridge.openDistrict = () => {}
 		palettePanelBridge.openGame = () => {}
-		palettePanelBridge.openTest = () => {}
 	})
 
 	it('run tools resolve to palettePanelBridge panel openers', () => {
 		const palette = getBrowserPalette().palette
 		const openCfg = palette.tool('openConfiguration') as { run(): void }
+		const openDistrict = palette.tool('openDistrict') as { run(): void }
 		const openGame = palette.tool('openGame') as { run(): void }
-		const openTest = palette.tool('openTest') as { run(): void }
 
 		const spyConfiguration = vi.fn()
+		const spyDistrict = vi.fn()
 		const spyGame = vi.fn()
-		const spyTest = vi.fn()
 		palettePanelBridge.openConfiguration = spyConfiguration
+		palettePanelBridge.openDistrict = spyDistrict
 		palettePanelBridge.openGame = spyGame
-		palettePanelBridge.openTest = spyTest
 
 		openCfg.run()
+		openDistrict.run()
 		openGame.run()
-		openTest.run()
 
 		expect(spyConfiguration).toHaveBeenCalledTimes(1)
+		expect(spyDistrict).toHaveBeenCalledTimes(1)
 		expect(spyGame).toHaveBeenCalledTimes(1)
-		expect(spyTest).toHaveBeenCalledTimes(1)
 	})
 
 	it('provides an icon for build selectedAction entries', () => {
@@ -101,6 +103,20 @@ describe('browser palette registry & palettePanelBridge', () => {
 		expect(freightBay?.icon).toBeTruthy()
 	})
 
+	it('keeps build, zone, and road tools out of the top toolbar', () => {
+		const acceptedKeywords = defaultPalette.top
+			.flat(2)
+			.flatMap((entry) => entry.toolbar)
+			.filter((entry) => entry.tool === 'selectedAction')
+			.flatMap((entry) => entry.config.acceptedKeywords ?? [])
+
+		expect(acceptedKeywords).toContain('select')
+		expect(acceptedKeywords).not.toContain('build')
+		expect(acceptedKeywords).not.toContain('zone')
+		expect(acceptedKeywords).not.toContain('road')
+		expect(acceptedKeywords).not.toContain('path')
+	})
+
 	it('derives the speed tool max from gameTimeSpeedFactors length', () => {
 		const palette = getBrowserPalette().palette
 		const timeControl = palette.tool('timeControl') as {
@@ -114,5 +130,14 @@ describe('browser palette registry & palettePanelBridge', () => {
 		expect(timeControl.max).toBe(gameTimeSpeedFactors.length - 1)
 		expect(timeControl.step).toBe(1)
 		expect(timeControl.value).toBe(0)
+	})
+
+	it('keeps the account balance visible in the top toolbar preset', () => {
+		const accountItem = defaultPalette.top
+			.flat(2)
+			.flatMap((entry) => entry.toolbar)
+			.find((entry) => entry.editor === 'account')
+
+		expect(accountItem?.config?.label).toBe('Account')
 	})
 })

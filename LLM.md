@@ -32,6 +32,13 @@ Anarkai is a modular monorepo driven by a custom game engine (`engines/ssh`) and
  - **Translations**: `engines/ssh/assets/locales/*.json` (en, fr, etc.)
  - **Visual Assets**: `engines/pixi/assets/buildings/`, `engines/pixi/assets/goods/`, etc.
 
+## Districts / commerce tuning
+
+- **Rules ownership**: gameplay tuning constants belong in `engines/rules`, including settlement trade offer counts, trade good lists, price multipliers, scoring weights, construction recipes, and foundation requirements. `engines/ssh` should import those rules and implement behavior only.
+- **Districts** are player planning tools above hives. NPC settlements are not districts; they remain separate generated trade actors.
+- **Default district v1**: every game has `district:default` / “Default district”. Player build, zone, and road actions should route through district-aware `Game` APIs and record district member tiles, while legacy palette actions may remain compatibility shortcuts.
+- **Concrete v1**: `concrete` is a foundation-only construction material. It is consumed before a build shell is created; later shell materials stay target-specific unless rules explicitly include concrete there.
+
 ## Construction workflow (engines/ssh)
 
 - **First-class runtime state**: `UnBuiltLand.constructionSite` and `BuildAlveolus.constructionSite` now share the same `ConstructionSiteState` object (`ssh/construction-state`) instead of the UI inferring phases from loose `project` / build-shell facts.

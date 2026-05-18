@@ -87,6 +87,28 @@ export const chopSaw = {
 			[-4, 0],
 		],
 	},
+	districts: [
+		{
+			id: 'default',
+			name: 'Default district',
+			kind: 'mixed',
+			members: [
+				[-1, -1],
+				[2, 0],
+				[0, -1],
+				[0, 0],
+				[1, -1],
+				[1, 0],
+				[4, 1],
+				[3, 2],
+				[3, 3],
+				[-4, 2],
+				[-5, 2],
+				[-4, 1],
+				[-4, 0],
+			],
+		},
+	],
 	projects: {
 		'build:storage': [
 			[-1, 0],

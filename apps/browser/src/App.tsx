@@ -18,6 +18,7 @@ import {
 	selectionState,
 	uiConfiguration,
 } from '@app/lib/globals'
+import { showDistrictObject } from '@app/lib/district-selection'
 import { DisplayProvider } from '@sursaut/kit'
 import { Dockview } from '@sursaut/ui/dockview'
 import type { DockviewApi } from 'dockview-core'
@@ -132,7 +133,7 @@ const App = () => {
 
 	const openConfigurationPanel = () => ensurePanel('configuration', 'system.configuration')
 
-	const openTestPanel = () => ensurePanel('test', 'test')
+	const openDistrictPanel = () => showDistrictObject('default', state.api)
 
 	const handleDockviewReady = (api: unknown) => {
 		state.api = api
@@ -153,7 +154,7 @@ const App = () => {
 	effect`app:palette-bridge`(() => {
 		palettePanelBridge.openConfiguration = openConfigurationPanel
 		palettePanelBridge.openGame = openGamePanel
-		palettePanelBridge.openTest = openTestPanel
+		palettePanelBridge.openDistrict = openDistrictPanel
 	})
 
 	effect`app:palette-dispose`(() => {

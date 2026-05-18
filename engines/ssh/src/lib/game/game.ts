@@ -1,5 +1,6 @@
 import {
 	bootstrapCharacterRadiusFallback,
+	commerce,
 	defaultNewGameCharacterCount,
 	defaultNewGameCharacterRadius,
 	gameMaxTickDeltaSeconds,
@@ -13,17 +14,38 @@ import { Alveolus } from 'ssh/board'
 import { HexBoard } from 'ssh/board/board'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { Deposit, UnBuiltLand } from 'ssh/board/content/unbuilt-land'
-import type { RoadPatches, RoadPatchInput, RoadType } from 'ssh/board/roads'
+import {
+	canBuildRoadOnTrace,
+	type RoadPatches,
+	type RoadPatchInput,
+	type RoadType,
+	roadBordersForTrace,
+} from 'ssh/board/roads'
 import { Tile, type TileTerrainState } from 'ssh/board/tile'
 import type { NamedZoneDefinition, Zone } from 'ssh/board/zone'
 import { createZoneObjectForUid } from 'ssh/board/zone-object'
 import { isConstructionSiteShell } from 'ssh/build-site'
+import {
+	createNpcSettlementTradeProfile,
+	createSettlementTradeObjectForUid,
+	type NpcSettlementTradeProfile,
+} from 'ssh/commerce/settlement-trade'
 import { createConstructionShell } from 'ssh/construction-shell'
 import {
 	type ConstructionPhase,
+	constructionTargetFromProject,
 	createConstructionSiteState,
 	type DwellingTier,
 } from 'ssh/construction-state'
+import {
+	DEFAULT_DISTRICT_ID,
+	District,
+	DistrictObject,
+	type DistrictPatch,
+	defaultDistrict,
+	districtIdFromUid,
+	isDistrictUid,
+} from 'ssh/district/district'
 import type { FreightLineDefinition, SyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import {
 	collectFreightLineBootstrapCoords,
@@ -174,6 +196,18 @@ export interface DwellingPatch {
 	goods?: Partial<Record<GoodType, number>>
 }
 
+export interface ProjectSitePatch {
+	coord: readonly [number, number]
+	project: string
+	constructionPhase?: ConstructionPhase
+	foundationGoods?: Partial<Record<GoodType, number>>
+	foundationConsumedGoods?: Partial<Record<GoodType, number>>
+}
+
+export interface PlayerAccountPatch {
+	balanceVp: number
+}
+
 export interface TilePatch {
 	coord: readonly [number, number]
 	deposit?: {
@@ -217,7 +251,10 @@ export interface GamePatches {
 		named?: ReadonlyArray<NamedZonePatch>
 	}
 	projects?: Record<string, ReadonlyArray<readonly [number, number]>>
+	projectSites?: ReadonlyArray<ProjectSitePatch>
 	dwellings?: ReadonlyArray<DwellingPatch>
+	districts?: ReadonlyArray<DistrictPatch>
+	playerAccount?: PlayerAccountPatch
 	vehicles?: ReadonlyArray<VehiclePatch>
 	roads?: RoadPatchInput
 }
@@ -374,6 +411,10 @@ export class Game extends Eventful<GameEvents> {
 	public readonly population: Population
 	public readonly vehicles: Vehicles
 	public readonly configurationManager = new AlveolusConfigurationManager()
+	public readonly playerAccount = reactive<PlayerAccountPatch>({
+		balanceVp: commerce.startingAccountBalanceVp,
+	})
+	private readonly districts = reactive(new Map<string, District>())
 	/** Registered freight lines (gather/distribute); merged at bootstrap from hive patches and explicit saves. */
 	public freightLines: FreightLineDefinition[] = []
 	// Dynamically loaded usage of Hive class
@@ -401,6 +442,7 @@ export class Game extends Eventful<GameEvents> {
 	private readonly inFlightGameplaySectors = new Map<string, Promise<boolean>>()
 	private readonly appliedSettlementRegionSets = new Set<string>()
 	private readonly inFlightSettlementRegionSets = new Map<string, Promise<void>>()
+	private readonly settlementTradeProfiles = new Map<string, NpcSettlementTradeProfile>()
 	private readonly terrainProvider: TerrainProvider
 	private readonly gameplayFrontier = new GameplayFrontierController({
 		hasMaterializedTile: (coord) => this.hasMaterializedGameplayTile(coord),
@@ -421,6 +463,25 @@ export class Game extends Eventful<GameEvents> {
 		return this.conveySaveIndexByRef?.get(ref)
 	}
 
+	public setPlayerAccountBalance(balanceVp: number): void {
+		this.playerAccount.balanceVp = Math.max(0, Math.floor(balanceVp))
+	}
+
+	public canAffordVp(amountVp: number): boolean {
+		return this.playerAccount.balanceVp >= Math.max(0, Math.ceil(amountVp))
+	}
+
+	public spendVp(amountVp: number): boolean {
+		const amount = Math.max(0, Math.ceil(amountVp))
+		if (!this.canAffordVp(amount)) return false
+		this.playerAccount.balanceVp -= amount
+		return true
+	}
+
+	public creditVp(amountVp: number): void {
+		this.playerAccount.balanceVp += Math.max(0, Math.floor(amountVp))
+	}
+
 	public readonly clock = reactive({
 		virtualTime: 0,
 	})
@@ -436,7 +497,94 @@ export class Game extends Eventful<GameEvents> {
 		return (
 			this.objects.get(uid) ??
 			this.getSyntheticFreightLineObject(uid) ??
+			this.getDistrictObject(uid) ??
+			createSettlementTradeObjectForUid(this, uid) ??
 			createZoneObjectForUid(this, uid)
+		)
+	}
+
+	private ensureDefaultDistrict(): District {
+		let district = this.districts.get(DEFAULT_DISTRICT_ID)
+		if (!district) {
+			district = defaultDistrict(this)
+			this.districts.set(district.id, district)
+		}
+		return district
+	}
+
+	private getDistrictObject(uid: string): DistrictObject | undefined {
+		if (!isDistrictUid(uid)) return undefined
+		const id = districtIdFromUid(uid)
+		const district = id ? this.getDistrict(id) : undefined
+		return district ? new DistrictObject(this, district) : undefined
+	}
+
+	public getDistrict(id: string = DEFAULT_DISTRICT_ID): District | undefined {
+		if (id === DEFAULT_DISTRICT_ID) return this.ensureDefaultDistrict()
+		return this.districts.get(id)
+	}
+
+	public listDistricts(): District[] {
+		this.ensureDefaultDistrict()
+		return [...this.districts.values()].sort((left, right) => left.id.localeCompare(right.id))
+	}
+
+	public recordDistrictMember(coord: AxialCoord, districtId = DEFAULT_DISTRICT_ID): void {
+		this.getDistrict(districtId)?.addMember(coord)
+	}
+
+	public applyDistrictBuildAction(
+		tile: Tile,
+		alveolusType: AlveolusType,
+		districtId = DEFAULT_DISTRICT_ID
+	): boolean {
+		const applied = tile.build(alveolusType)
+		const coord = toAxialCoord(tile.position)
+		if (applied && coord) this.recordDistrictMember(coord, districtId)
+		return applied
+	}
+
+	public applyDistrictZoneAction(
+		tile: Tile,
+		zoneType: string,
+		districtId = DEFAULT_DISTRICT_ID
+	): boolean {
+		if (!tile.canInteract(`zone:${zoneType}`)) return false
+		if (zoneType === 'none') tile.zone = undefined
+		else {
+			if (!this.hex.zoneManager.getZoneDefinition(zoneType)) {
+				this.hex.zoneManager.defineZone({ id: zoneType, name: zoneType })
+			}
+			tile.zone = zoneType as Zone
+		}
+		const coord = toAxialCoord(tile.position)
+		if (coord) this.recordDistrictMember(coord, districtId)
+		return true
+	}
+
+	public applyDistrictRoadTrace(
+		tiles: readonly Tile[],
+		roadType: RoadType,
+		districtId = DEFAULT_DISTRICT_ID
+	): boolean {
+		if (!canBuildRoadOnTrace(tiles)) return false
+		for (const border of roadBordersForTrace(tiles)) {
+			this.hex.setRoadType(border.position, roadType)
+		}
+		for (const tile of tiles) {
+			const coord = toAxialCoord(tile.position)
+			if (coord) this.recordDistrictMember(coord, districtId)
+		}
+		return true
+	}
+
+	public getSettlementTradeProfile(id: string): NpcSettlementTradeProfile | undefined {
+		return this.settlementTradeProfiles.get(id)
+	}
+
+	public listSettlementTradeProfiles(): NpcSettlementTradeProfile[] {
+		return [...this.settlementTradeProfiles.values()].sort((left, right) =>
+			left.id.localeCompare(right.id)
 		)
 	}
 
@@ -812,6 +960,12 @@ export class Game extends Eventful<GameEvents> {
 		for (const coordsForProject of Object.values(patches.projects ?? {})) {
 			for (const coord of coordsForProject) coords.push({ q: coord[0], r: coord[1] })
 		}
+		for (const site of patches.projectSites ?? []) {
+			coords.push({ q: site.coord[0], r: site.coord[1] })
+		}
+		for (const district of patches.districts ?? []) {
+			for (const coord of district.members ?? []) coords.push({ q: coord[0], r: coord[1] })
+		}
 		for (const dwelling of patches.dwellings ?? []) {
 			coords.push({ q: dwelling.coord[0], r: dwelling.coord[1] })
 		}
@@ -859,6 +1013,10 @@ export class Game extends Eventful<GameEvents> {
 		}
 		for (const coordsForProject of Object.values(patches.projects ?? {})) {
 			for (const coord of coordsForProject) addPatchCoord(coord)
+		}
+		for (const site of patches.projectSites ?? []) addPatchCoord(site.coord)
+		for (const district of patches.districts ?? []) {
+			for (const coord of district.members ?? []) addPatchCoord(coord)
 		}
 		for (const dwelling of patches.dwellings ?? []) addPatchCoord(dwelling.coord)
 		for (const [, goodCoords] of looseGoodsPatchEntries(patches.looseGoods)) {
@@ -985,11 +1143,9 @@ export class Game extends Eventful<GameEvents> {
 		const sectorQ = Math.floor(coord.q / GAMEPLAY_SECTOR_STEP)
 		const sectorR = Math.floor(coord.r / GAMEPLAY_SECTOR_STEP)
 		const originQ =
-			Math.floor(sectorQ / SETTLEMENT_REGION_SET_SECTOR_SPAN) *
-			SETTLEMENT_REGION_SET_SECTOR_SPAN
+			Math.floor(sectorQ / SETTLEMENT_REGION_SET_SECTOR_SPAN) * SETTLEMENT_REGION_SET_SECTOR_SPAN
 		const originR =
-			Math.floor(sectorR / SETTLEMENT_REGION_SET_SECTOR_SPAN) *
-			SETTLEMENT_REGION_SET_SECTOR_SPAN
+			Math.floor(sectorR / SETTLEMENT_REGION_SET_SECTOR_SPAN) * SETTLEMENT_REGION_SET_SECTOR_SPAN
 		return `${originQ},${originR}`
 	}
 
@@ -1040,7 +1196,7 @@ export class Game extends Eventful<GameEvents> {
 			typeof this.generationOptions.settlementGeneration === 'object'
 				? this.generationOptions.settlementGeneration
 				: {}
-		
+
 		// Use WASM-based settlement placement
 		const { settlements, coords, terrainKinds, hasRiver } = await this.generator.placeSettlements(
 			this.generationOptions.terrainSeed,
@@ -1050,7 +1206,7 @@ export class Game extends Eventful<GameEvents> {
 				minSpacing: options.minSpacing ?? 7,
 			}
 		)
-		
+
 		const plan = await generateSettlementRegionSetPlan(
 			boardData,
 			settlements,
@@ -1060,6 +1216,16 @@ export class Game extends Eventful<GameEvents> {
 			terrainKinds,
 			hasRiver
 		)
+		for (const settlement of plan.settlements) {
+			const profile = createNpcSettlementTradeProfile({
+				seed: this.generationOptions.terrainSeed,
+				regionSetKey,
+				settlement,
+				tileData: boardData,
+				zones: plan.zones,
+			})
+			this.settlementTradeProfiles.set(profile.id, profile)
+		}
 		this.applyGeneratedZonePatches(plan.zones)
 		this.applyRoadPatches(plan.roads)
 		this.clearGeneratedInfrastructureBurden(boardData.map((tile) => tile.coord))
@@ -1072,7 +1238,11 @@ export class Game extends Eventful<GameEvents> {
 			(key) => !this.appliedSettlementRegionSets.has(key)
 		)
 		for (const key of keys) {
-			this.generateSettlementRegionSet(key)
+			if (this.inFlightSettlementRegionSets.has(key)) continue
+			const generation = this.generateSettlementRegionSet(key).finally(() => {
+				this.inFlightSettlementRegionSets.delete(key)
+			})
+			this.inFlightSettlementRegionSets.set(key, generation)
 		}
 	}
 
@@ -1109,14 +1279,14 @@ export class Game extends Eventful<GameEvents> {
 		await Promise.all(waiting)
 	}
 
-	private generateSettlementRegionSet(regionSetKey: string): void {
+	private async generateSettlementRegionSet(regionSetKey: string): Promise<void> {
 		const boardData = this.generator.generateRegion(
 			this.generationOptions,
 			this.coordsForSettlementRegionSetInterior(regionSetKey),
 			this.terrainTerraforming
 		)
 		this.terrainProvider.cacheGeneratedTiles(boardData)
-		this.applySettlementRegionSetPlan(regionSetKey, boardData)
+		await this.applySettlementRegionSetPlan(regionSetKey, boardData)
 	}
 
 	private async generateSettlementRegionSets(regionSetKeys: readonly string[]): Promise<void> {
@@ -1149,7 +1319,7 @@ export class Game extends Eventful<GameEvents> {
 		}
 		for (const key of regionSetKeys) {
 			if (this.appliedSettlementRegionSets.has(key)) continue
-			this.applySettlementRegionSetPlan(key, grouped.get(key) ?? [])
+			await this.applySettlementRegionSetPlan(key, grouped.get(key) ?? [])
 		}
 	}
 
@@ -1252,7 +1422,9 @@ export class Game extends Eventful<GameEvents> {
 		if (unique.length === 0) return false
 
 		const missingSectorKeys = unique.filter((key) =>
-			this.coordsForGameplaySectorInterior(key).some((coord) => !this.hasMaterializedGameplayTile(coord))
+			this.coordsForGameplaySectorInterior(key).some(
+				(coord) => !this.hasMaterializedGameplayTile(coord)
+			)
 		)
 		if (missingSectorKeys.length === 0) return false
 
@@ -1381,7 +1553,9 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	private shouldSuppressGeneratedBurden(tileInfo: GeneratedTileData): boolean {
-		return this.tileTouchesRoad(tileInfo.coord) || this.isGeneratedInfrastructureZone(tileInfo.coord)
+		return (
+			this.tileTouchesRoad(tileInfo.coord) || this.isGeneratedInfrastructureZone(tileInfo.coord)
+		)
 	}
 
 	private clearGeneratedInfrastructureBurden(coords: Iterable<AxialCoord>): void {
@@ -1436,7 +1610,7 @@ export class Game extends Eventful<GameEvents> {
 			const regionSetTiles = boardData.filter(
 				(tileInfo) => this.settlementRegionSetKeyForCoord(tileInfo.coord) === regionSetKey
 			)
-			this.applySettlementRegionSetPlan(regionSetKey, regionSetTiles)
+			await this.applySettlementRegionSetPlan(regionSetKey, regionSetTiles)
 		}
 
 		const interiorKeys = new Set<string>()
@@ -1529,6 +1703,12 @@ export class Game extends Eventful<GameEvents> {
 			this.materializedGameplayCoords.clear()
 			this.appliedSettlementRegionSets.clear()
 			this.inFlightSettlementRegionSets.clear()
+			this.settlementTradeProfiles.clear()
+			this.districts.clear()
+			this.setPlayerAccountBalance(
+				patches.playerAccount?.balanceVp ?? commerce.startingAccountBalanceVp
+			)
+			this.ensureDefaultDistrict()
 			this.vehicles.deserialize([])
 
 			await this.generateInitialWorld(config, patches)
@@ -1540,6 +1720,8 @@ export class Game extends Eventful<GameEvents> {
 			if (patches.looseGoods) this.applyLooseGoodsPatches(patches.looseGoods)
 			if (patches.zones) this.applyZonePatches(patches.zones)
 			if (patches.projects) this.applyProjectPatches(patches.projects)
+			if (patches.projectSites?.length) this.applyProjectSitePatches(patches.projectSites)
+			if (patches.districts) this.applyDistrictPatches(patches.districts)
 			if (patches.dwellings?.length) this.applyDwellingPatches(patches.dwellings)
 			this.bootstrapFreightLines(patches)
 			if (patches.vehicles?.length) this.applyVehiclePatches(patches.vehicles)
@@ -1568,9 +1750,10 @@ export class Game extends Eventful<GameEvents> {
 						'streamedFrontier' in (patches as SaveState)
 							? (((patches as SaveState).streamedFrontier ?? []).length as number)
 							: 0,
-					population: 'population' in (patches as SaveState)
-						? (((patches as SaveState).population ?? []).length as number)
-						: 0,
+					population:
+						'population' in (patches as SaveState)
+							? (((patches as SaveState).population ?? []).length as number)
+							: 0,
 				},
 				hasSaveState: !!saveState,
 			})
@@ -1596,10 +1779,18 @@ export class Game extends Eventful<GameEvents> {
 			this.materializedGameplayCoords.clear()
 			this.appliedSettlementRegionSets.clear()
 			this.inFlightSettlementRegionSets.clear()
+			this.settlementTradeProfiles.clear()
+			this.districts.clear()
+			this.setPlayerAccountBalance(
+				patches.playerAccount?.balanceVp ?? commerce.startingAccountBalanceVp
+			)
+			this.ensureDefaultDistrict()
 			this.vehicles.deserialize([])
 
 			if (options.restoreMode && saveState) {
-				console.info('[save-load][generateAsync] restoreMode enabled: skipping generateInitialWorldAsync')
+				console.info(
+					'[save-load][generateAsync] restoreMode enabled: skipping generateInitialWorldAsync'
+				)
 				this.materializeRestoreBaselineTiles(config, saveState)
 			} else {
 				await this.generateInitialWorldAsync(config, patches)
@@ -1615,6 +1806,8 @@ export class Game extends Eventful<GameEvents> {
 			if (patches.looseGoods) this.applyLooseGoodsPatches(patches.looseGoods)
 			if (patches.zones) this.applyZonePatches(patches.zones)
 			if (patches.projects) this.applyProjectPatches(patches.projects)
+			if (patches.projectSites?.length) this.applyProjectSitePatches(patches.projectSites)
+			if (patches.districts) this.applyDistrictPatches(patches.districts)
 			if (patches.dwellings?.length) this.applyDwellingPatches(patches.dwellings)
 			this.bootstrapFreightLines(patches)
 			if (patches.vehicles?.length) this.applyVehiclePatches(patches.vehicles)
@@ -1991,6 +2184,47 @@ export class Game extends Eventful<GameEvents> {
 		}
 	}
 
+	private applyDistrictPatches(districts: NonNullable<GamePatches['districts']>) {
+		if (districts.length === 0) {
+			this.ensureDefaultDistrict()
+			return
+		}
+		this.districts.clear()
+		for (const patch of districts) {
+			this.districts.set(
+				patch.id,
+				new District(
+					this,
+					patch.id,
+					patch.name || (patch.id === DEFAULT_DISTRICT_ID ? 'Default district' : patch.id),
+					patch.kind,
+					(patch.members ?? []).map((coord) => ({ q: coord[0], r: coord[1] }))
+				)
+			)
+		}
+		this.ensureDefaultDistrict()
+	}
+
+	private applyProjectSitePatches(sites: NonNullable<GamePatches['projectSites']>) {
+		for (const entry of sites) {
+			const coordObj = { q: entry.coord[0], r: entry.coord[1] }
+			const tile = this.hex.getTile(coordObj)
+			if (!tile) continue
+			const content = tile.content
+			if (!(content instanceof UnBuiltLand)) continue
+			const constructionTarget = constructionTargetFromProject(entry.project)
+			if (!constructionTarget) continue
+			const constructionSite = createConstructionSiteState(constructionTarget)
+			constructionSite.phase = entry.constructionPhase ?? constructionSite.phase
+			constructionSite.foundationConsumedGoods = { ...(entry.foundationConsumedGoods ?? {}) }
+			content.setProject(entry.project, constructionSite)
+			for (const [good, qty] of Object.entries(entry.foundationGoods ?? {})) {
+				content.foundationStorage?.addGood(good as GoodType, qty as number)
+			}
+			tile.asGenerated = false
+		}
+	}
+
 	private applyDwellingPatches(dwellings: NonNullable<GamePatches['dwellings']>) {
 		for (const entry of dwellings) {
 			const coordObj = { q: entry.coord[0], r: entry.coord[1] }
@@ -2065,6 +2299,7 @@ export class Game extends Eventful<GameEvents> {
 		}
 		const namedZoneCoords = new Map<string, Array<[number, number]>>()
 		const projects: Record<string, Array<[number, number]>> = {}
+		const projectSites: ProjectSitePatch[] = []
 		const dwellings: DwellingPatch[] = []
 		const roads: RoadPatches = {}
 		for (const road of this.hex.roadSegments()) {
@@ -2116,6 +2351,13 @@ export class Game extends Eventful<GameEvents> {
 						projects[content.project] = []
 					}
 					projects[content.project].push([q, r])
+					projectSites.push({
+						coord: [q, r],
+						project: content.project,
+						constructionPhase: content.constructionSite?.phase,
+						foundationGoods: content.foundationStorage?.stock ?? {},
+						foundationConsumedGoods: content.constructionSite?.foundationConsumedGoods ?? {},
+					})
 				}
 			}
 
@@ -2225,7 +2467,10 @@ export class Game extends Eventful<GameEvents> {
 				streamedFrontier,
 				zones,
 				projects,
+				projectSites,
 				dwellings,
+				districts: this.listDistricts().map((district) => district.toPatch()),
+				playerAccount: { balanceVp: this.playerAccount.balanceVp },
 				vehicles: this.vehicles.serialize(),
 				roads,
 				conveyMovements,
@@ -2296,8 +2541,123 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	/**
-	 * Load generated population data into the game
-	 */
+		* Get the bounding box of all player-owned content in the game.
+		* Returns null if there is no player content (new game).
+		*/
+	public getPlayerContentBounds(): { minQ: number; maxQ: number; minR: number; maxR: number } | null {
+		const coords: AxialCoord[] = []
+
+		// Add tiles that have been modified by the player (not generated)
+		for (const tile of this.hex.tiles) {
+			if (!tile.asGenerated) {
+				const coord = toAxialCoord(tile.position)
+				if (coord) coords.push(coord)
+			}
+		}
+
+		// Add character positions (Population has Symbol.iterator)
+		for (const character of this.population) {
+			const coord = toAxialCoord(character.position)
+			if (coord) coords.push(coord)
+		}
+
+		// Add vehicle positions (Vehicles has Symbol.iterator)
+		for (const vehicle of this.vehicles) {
+			if (vehicle.position) {
+				const coord = toAxialCoord(vehicle.position)
+				if (coord) coords.push(coord)
+			}
+		}
+
+		// Add freight line stop coordinates
+		for (const line of this.freightLines) {
+			for (const stop of line.stops) {
+				if ('anchor' in stop) {
+					// FreightBayAnchor has coord: readonly [number, number]
+					coords.push({ q: stop.anchor.coord[0], r: stop.anchor.coord[1] })
+				} else if ('zone' in stop) {
+					const zoneDef = stop.zone
+					if (zoneDef.kind === 'radius') {
+						// Add the center and radius extent
+						coords.push({ q: zoneDef.center[0], r: zoneDef.center[1] })
+						const center = { q: zoneDef.center[0], r: zoneDef.center[1] }
+						for (const offset of axial.allTiles(center, zoneDef.radius)) {
+							coords.push(offset)
+						}
+					} else if (zoneDef.kind === 'named') {
+						// Get coords for named zone
+						const zoneCoords = this.hex.zoneManager.coordsForZone(zoneDef.zoneId)
+						for (const coord of zoneCoords) {
+							coords.push(coord)
+						}
+					}
+				}
+			}
+		}
+
+		// Add named zone coordinates
+		for (const zoneDef of this.hex.zoneManager.listCustomZoneDefinitions()) {
+			const zoneCoords = this.hex.zoneManager.coordsForZone(zoneDef.id)
+			for (const coord of zoneCoords) {
+				coords.push(coord)
+			}
+		}
+
+		// Add dwelling coordinates
+		for (const tile of this.hex.tiles) {
+			const content = tile.content
+			if (content instanceof BasicDwelling) {
+				const coord = toAxialCoord(tile.position)
+				if (coord) coords.push(coord)
+			} else if (isConstructionSiteShell(content) && content.constructionSite.target.kind === 'dwelling') {
+				const coord = toAxialCoord(tile.position)
+				if (coord) coords.push(coord)
+			}
+		}
+
+		// Add loose goods coordinates
+		const looseGoodsMap = (this.hex.looseGoods as any).goods as Map<
+			string,
+			Array<{ goodType: GoodType; position: { q: number; r: number } }>
+		>
+		for (const [, goodsList] of looseGoodsMap.entries()) {
+			for (const fg of goodsList) {
+				coords.push(axial.round(fg.position))
+			}
+		}
+
+		// Add road endpoint coordinates
+		for (const road of this.hex.roadSegments()) {
+			coords.push(road.coord)
+		}
+
+		// Add district member coordinates
+		for (const district of this.listDistricts()) {
+			for (const coord of district.members ?? []) {
+				coords.push(coord)
+			}
+		}
+
+		if (coords.length === 0) return null
+
+		let minQ = Infinity
+		let maxQ = -Infinity
+		let minR = Infinity
+		let maxR = -Infinity
+
+		for (const coord of coords) {
+			minQ = Math.min(minQ, coord.q)
+			maxQ = Math.max(maxQ, coord.q)
+			minR = Math.min(minR, coord.r)
+			maxR = Math.max(maxR, coord.r)
+		}
+
+		return { minQ, maxQ, minR, maxR }
+	}
+
+	/**
+		* Load generated population data into the game
+		*/
 	private loadGeneratedPopulation(characterData: GeneratedCharacterData[]): void {
 		for (const charInfo of characterData) {
 			this.population.createCharacter(charInfo.name, charInfo.coord)
