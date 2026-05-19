@@ -8,6 +8,7 @@
 - [`./browser-adapter.md`](./browser-adapter.md): browser-local Anarkai UI adapter plan
 - [`./engine-render-events-analysis.md`](./engine-render-events-analysis.md): why explicit SSH-to-Pixi presentation events should replace hidden reactive coupling
 - [`./freight-lines.md`](./freight-lines.md): freight routes (`FreightStop` bay vs zone, normalization, UI status)
+- [`./resource-work-zones.md`](./resource-work-zones.md): named zones as assigned work areas for forestry, farming, and managed resources
 - [`./commerce.md`](./commerce.md): internal distribution zones and external trade with NPC groups
 - [`./terrain-generation-roadmap.md`](./terrain-generation-roadmap.md): terrain affordances, roads, NPC placement, and NPC traffic generation
 - [`./rust-core.md`](./rust-core.md): Rust/WASM core engine architecture and terrain generation algorithm refactoring

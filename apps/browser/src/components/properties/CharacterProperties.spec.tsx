@@ -39,6 +39,7 @@ const i18nState = {
 				transform: 'Transform',
 				convey: 'Convey',
 				construct: 'Construct',
+				forester: 'Plant trees',
 				offload: 'Offload',
 				foundation: 'Foundation',
 				defragment: 'Defragment',
@@ -190,8 +191,8 @@ describe('CharacterProperties', () => {
 			lastWorkPlannerSnapshot: {
 				ranked: [
 					{
-						jobKind: 'offload',
-						targetLabel: 'wood @ 0, 1',
+						jobKind: 'forester',
+						targetLabel: 'Tile 0, 1',
 						targetCoord: { q: 0, r: 1 },
 						urgency: 4,
 						pathLength: 1,
@@ -290,9 +291,10 @@ describe('CharacterProperties', () => {
 			container.querySelectorAll('[data-testid="character-ranked-work"]')
 		) as HTMLDivElement[]
 		expect(workRows).toHaveLength(6)
-		expect(workRows[0]?.textContent).toContain('Offload')
+		expect(workRows[0]?.textContent).toContain('Plant trees')
+		expect(workRows[0]?.textContent).not.toContain('forester')
 		expect(workRows[0]?.textContent).toContain('tile:0,1')
-		expect(workRows[0]?.textContent).not.toContain('wood @ 0, 1')
+		expect(workRows[0]?.textContent).not.toContain('Tile 0, 1')
 		expect(workRows[0]?.textContent).toContain('2.00')
 		expect(workRows[0]?.getAttribute('data-selected')).toBe('true')
 		expect(workRows.some((row) => row.textContent?.includes('Convey'))).toBe(true)

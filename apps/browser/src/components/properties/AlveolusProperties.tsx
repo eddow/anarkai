@@ -24,12 +24,15 @@ import { StorageAlveolus } from 'ssh/hive/storage'
 import { TransformAlveolus } from 'ssh/hive/transform'
 import type { GoodType } from 'ssh/types/base'
 import ConstructionProgressBar from '../ConstructionProgressBar'
+import ComboDropdownPicker from '../ComboDropdownPicker'
 import DockedVehicleList from '../DockedVehicleList'
 import InspectorObjectLink from '../InspectorObjectLink'
 import LinkedEntityControl from '../LinkedEntityControl'
 import PropertyGridRow from '../PropertyGridRow'
 import StorageConfiguration from '../storage/StorageConfiguration'
 import StoredGoodsRow from '../storage/StoredGoodsRow'
+import { ForesterAlveolus } from 'ssh/hive/forester'
+import { zoneObjectUid } from 'ssh/board/zone'
 
 css`
 .alveolus-commands {
@@ -102,6 +105,31 @@ css`
 	text-align: right;
 	font-variant-numeric: tabular-nums;
 }
+.alveolus-zone-assignment {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+	align-items: center;
+}
+.alveolus-zone-assignment__chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	padding: 0.25rem 0.45rem;
+	border-radius: 0.35rem;
+	border: 1px solid color-mix(in srgb, var(--ak-text-muted) 20%, transparent);
+	background: color-mix(in srgb, var(--ak-surface-panel) 92%, transparent);
+	color: var(--ak-text);
+}
+.alveolus-zone-assignment__remove {
+	border: 0;
+	background: transparent;
+	color: var(--ak-text-muted);
+	cursor: pointer;
+	padding: 0;
+	font-size: 0.9rem;
+	line-height: 1;
+}
 `
 
 interface AlveolusPropertiesProps {
@@ -114,6 +142,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 		isStorage: false,
 		isFreightBay: false,
 		isTransform: false,
+		isForester: false,
 		storageContent: undefined as StorageAlveolus | undefined,
 		transformContent: undefined as TransformAlveolus | undefined,
 		lineObjects: [] as SyntheticFreightLineObject[],
@@ -136,6 +165,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 		state.resolvedGame = game
 		state.isStorage = content instanceof StorageAlveolus
 		state.isTransform = content instanceof TransformAlveolus
+		state.isForester = content instanceof ForesterAlveolus
 		state.storageContent = content instanceof StorageAlveolus ? content : undefined
 		state.transformContent = content instanceof TransformAlveolus ? content : undefined
 		state.isFreightBay = content instanceof FreightBayAlveolus
@@ -230,6 +260,22 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 		selectInspectorObject(createSyntheticFreightLineObject(game, merged))
 	}
 
+	const assignedZoneIds = () => props.content?.assignedZoneIds ?? []
+	const customZones = () => state.resolvedGame?.hex.zoneManager.listCustomZoneDefinitions() ?? []
+	const zoneDefinition = (zoneId: string) =>
+		state.resolvedGame?.hex.zoneManager.getZoneDefinition(zoneId)
+	const zoneObject = (zoneId: string) => state.resolvedGame?.getObject(zoneObjectUid(zoneId))
+	const zonePickerItems = () =>
+		customZones()
+			.filter((zone) => !assignedZoneIds().includes(zone.id))
+			.map((zone) => ({ id: zone.id, label: zone.name?.trim() || zone.id }))
+	const assignZone = (zoneId: string) => {
+		props.content?.addAssignedZoneId?.(zoneId)
+	}
+	const removeZone = (zoneId: string) => {
+		props.content?.removeAssignedZoneId?.(zoneId)
+	}
+
 	return (
 		<>
 			<PropertyGridRow
@@ -286,7 +332,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 				if={state.isFreightBay && state.dockedVehicles.length > 0}
 				label={T.vehicle.docked}
 			>
-				<DockedVehicleList entries={state.dockedVehicles} showLineMeta />
+				<DockedVehicleList entries={state.dockedVehicles} showLineMeta game={state.resolvedGame} />
 			</PropertyGridRow>
 
 			<PropertyGridRow
@@ -380,6 +426,41 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 							{transformRatioPercent()}%
 						</span>
 					</div>
+				</div>
+			</PropertyGridRow>
+
+			<PropertyGridRow if={state.isForester && state.resolvedGame} label="Assigned zones">
+				<div class="alveolus-zone-assignment">
+					<for each={assignedZoneIds()}>
+						{(zoneId) => (
+							<span class="alveolus-zone-assignment__chip" data-testid="forester-zone-chip">
+								<InspectorObjectLink
+									object={zoneObject(zoneId)}
+									label={zoneDefinition(zoneId)?.name?.trim() || zoneId}
+								/>
+								<button
+									type="button"
+									class="alveolus-zone-assignment__remove"
+									title="Remove zone"
+									aria-label={`Remove ${zoneDefinition(zoneId)?.name?.trim() || zoneId}`}
+									data-testid={`forester-zone-remove-${zoneId}`}
+									onClick={() => removeZone(zoneId)}
+								>
+									x
+								</button>
+							</span>
+						)}
+					</for>
+					<ComboDropdownPicker
+						mode="value"
+						valueLabel="Add zone"
+						title="Add assigned zone"
+						ariaLabel="Add assigned zone"
+						emptyMessage="No zones available"
+						testId="forester-zone-picker"
+						items={zonePickerItems()}
+						onSelect={assignZone}
+					/>
 				</div>
 			</PropertyGridRow>
 

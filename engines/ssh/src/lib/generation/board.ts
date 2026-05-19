@@ -358,7 +358,10 @@ export class BoardGenerator {
 					((1 + rnd() * boardDepositFillRandomSpread) * depositDefinition.maxAmount) /
 						boardDepositFillDivisor
 				)
-				return { type: depKey as DepositType, amount }
+				return {
+					type: depKey as DepositType,
+					amount: depKey === 'tree' ? Math.max(1, Math.min(2, amount)) : amount,
+				}
 			}
 		}
 		return undefined

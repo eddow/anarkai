@@ -303,8 +303,6 @@ function formatRequestStatus(request: DistrictPurchaseRequest): string {
 			return 'Blocked: price cap'
 		case 'reserve_limit':
 			return 'Blocked: reserve'
-		case 'in_flight_limit':
-			return 'Blocked: in-flight limit'
 		default:
 			return 'Blocked'
 	}
@@ -318,26 +316,11 @@ function requestSourceName(request: DistrictPurchaseRequest): string {
 	)
 }
 
-function eligibleBuyGoods(
-	requests: readonly DistrictPurchaseRequest[],
-	district = game.getDistrict()
-): GoodType[] {
-	const goods = new Set<GoodType>()
-	for (const request of requests) goods.add(request.good)
-	for (const good of Object.keys(district?.procurementPolicy.goods ?? {}) as GoodType[])
-		goods.add(good)
-	return [...goods].sort((left, right) => left.localeCompare(right))
-}
-
 function updateProcurementPolicy(
 	districtId: string,
 	patch: Parameters<NonNullable<typeof game.updateDistrictProcurementPolicy>>[1]
 ): void {
 	game.updateDistrictProcurementPolicy?.(districtId, patch)
-}
-
-function updateGoodPolicy(districtId: string, good: GoodType, bufferTargetUnits: number): void {
-	game.setDistrictProcurementGoodPolicy?.(districtId, good, { bufferTargetUnits })
 }
 
 function DistrictMarkets(): JSX.Element {
@@ -412,7 +395,6 @@ function DistrictProcurement(props: { districtObject?: DistrictObject }): JSX.El
 	const districtId = () => district()?.id ?? 'default'
 	const policy = () => district()?.procurementPolicy
 	const requests = () => game.listDistrictPurchaseRequests?.(districtId()) ?? []
-	const buyGoods = () => eligibleBuyGoods(requests(), district())
 	const sellGoods = () => game.listDistrictEligibleSellGoods?.(districtId()) ?? []
 	return (
 		<div class="district-properties__procurement">
@@ -456,36 +438,7 @@ function DistrictProcurement(props: { districtObject?: DistrictObject }): JSX.El
 						})
 					}
 				/>
-				<label htmlFor="district-in-flight">Max in-flight/good</label>
-				<input
-					id="district-in-flight"
-					class="district-properties__number-input"
-					type="number"
-					min="0"
-					value={String(policy()?.maxInFlightPerGood ?? 0)}
-					onInput={(event) =>
-						updateProcurementPolicy(districtId(), {
-							maxInFlightPerGood: numberInputValue(event),
-						})
-					}
-				/>
 			</div>
-			<span if={buyGoods().length === 0}>No district buy demand</span>
-			<for each={buyGoods()}>
-				{(good: GoodType) => (
-					<div class="district-properties__procurement-row" data-testid="district-buy-good">
-						<span>Buffer {good}</span>
-						<input
-							class="district-properties__number-input"
-							type="number"
-							min="0"
-							value={String(policy()?.goods[good]?.bufferTargetUnits ?? 0)}
-							title={`Buffer target for ${good}`}
-							onInput={(event) => updateGoodPolicy(districtId(), good, numberInputValue(event))}
-						/>
-					</div>
-				)}
-			</for>
 			<span if={requests().length === 0}>No planned purchases</span>
 			<for each={requests()}>
 				{(request: DistrictPurchaseRequest) => (

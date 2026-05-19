@@ -37,6 +37,7 @@ export const baseGameScope = scope({
 		'convey',
 		'vehicleOffload',
 		'construct',
+		'forester',
 		'foundation',
 		'defragment',
 		'vehicleHop',
@@ -78,7 +79,7 @@ export const baseGameScope = scope({
 
 	GenericWorkPlan: {
 		type: "'work'",
-		job: "'harvest' | 'transform' | 'convey' | 'construct' | 'foundation' | 'defragment' | 'vehicleHop' | 'zoneBrowse'",
+		job: "'harvest' | 'transform' | 'convey' | 'construct' | 'forester' | 'foundation' | 'defragment' | 'vehicleHop' | 'zoneBrowse'",
 		target: 'object', // TileContent validated at runtime
 		urgency: 'number',
 		fatigue: 'number',
@@ -295,6 +296,13 @@ export interface ConstructJob {
 	path?: Positioned[] // Path to construction site
 }
 
+export interface ForesterJob {
+	job: 'forester'
+	urgency: number
+	fatigue: number
+	path?: Positioned[]
+}
+
 /**
  * Planner-visible maintenance offload job. Discriminated by {@link VehicleOffloadJob.maintenanceKind}:
  * - `'loadFromBurden'`: pick up `looseGood` from the burdening tile at `targetCoord`.
@@ -424,6 +432,7 @@ export type Job =
 	| TransformJob
 	| ConveyJob
 	| ConstructJob
+	| ForesterJob
 	| VehicleOffloadJob
 	| FoundationJob
 	| DefragmentJob

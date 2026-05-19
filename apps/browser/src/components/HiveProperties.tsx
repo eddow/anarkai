@@ -291,7 +291,7 @@ const HiveProperties = (props: HivePropertiesProps) => {
 					</div>
 				</PropertyGridRow>
 				<PropertyGridRow if={state.dockedVehicles.length > 0} label={T.vehicle.docked}>
-					<DockedVehicleList entries={state.dockedVehicles} showLineMeta />
+					<DockedVehicleList entries={state.dockedVehicles} showLineMeta game={props.hiveObject.game} />
 				</PropertyGridRow>
 				<PropertyGridRow if={state.buildSites.length > 0} label={T.construction.section}>
 					<div class="hive-properties__ads">

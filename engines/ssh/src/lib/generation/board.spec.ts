@@ -147,6 +147,9 @@ describe('Board Generation Integration Tests', () => {
 				if (tile.deposit) {
 					expect(tile.deposit.amount).toBeGreaterThan(0)
 					expect(tile.deposit.amount).toBeLessThanOrEqual(18) // maxAmount for deposits
+					if (tile.deposit.type === 'tree') {
+						expect(tile.deposit.amount).toBeLessThanOrEqual(2)
+					}
 				}
 			}
 

@@ -40,6 +40,10 @@ export const alveoli: Record<string, VisualDefinition> = {
 		sprites: ['buildings.trowel'],
 		icon: 'buildings.trowel',
 	},
+	forester: {
+		sprites: ['buildings.forester'],
+		icon: 'buildings.forester',
+	},
 	tree_chopper: {
 		sprites: ['buildings.chopper'],
 		icon: 'buildings.chopper',

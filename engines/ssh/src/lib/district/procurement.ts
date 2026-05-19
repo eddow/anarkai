@@ -16,10 +16,8 @@ export type DistrictPurchaseBlockReason =
 	| 'no_seller'
 	| 'too_expensive'
 	| 'reserve_limit'
-	| 'in_flight_limit'
 
 export interface DistrictGoodProcurementPolicy {
-	readonly bufferTargetUnits?: number
 	readonly maxUnitPriceVp?: number
 }
 
@@ -27,7 +25,6 @@ export interface DistrictProcurementPolicy {
 	autoBuyNeededGoods: boolean
 	usePurchaseReserveVp: number
 	bufferPurchaseReserveVp: number
-	maxInFlightPerGood: number
 	goods: Partial<Record<GoodType, DistrictGoodProcurementPolicy>>
 }
 
@@ -63,15 +60,10 @@ export function createDistrictProcurementPolicy(
 		readonly autoBuyNeededGoods: boolean
 		readonly usePurchaseReserveVp: number
 		readonly bufferPurchaseReserveVp: number
-		readonly maxInFlightPerGood: number
-		readonly defaultBufferTargets?: Partial<Record<string, number>>
 	},
 	patch?: Partial<DistrictProcurementPolicy>
 ): DistrictProcurementPolicy {
 	const goods: Partial<Record<GoodType, DistrictGoodProcurementPolicy>> = {}
-	for (const [good, target] of Object.entries(defaults.defaultBufferTargets ?? {})) {
-		goods[good as GoodType] = { bufferTargetUnits: Math.max(0, Math.floor(target ?? 0)) }
-	}
 	for (const [good, policy] of Object.entries(patch?.goods ?? {}) as [
 		GoodType,
 		DistrictGoodProcurementPolicy,
@@ -79,10 +71,6 @@ export function createDistrictProcurementPolicy(
 		goods[good] = {
 			...goods[good],
 			...policy,
-			bufferTargetUnits:
-				policy.bufferTargetUnits === undefined
-					? goods[good]?.bufferTargetUnits
-					: Math.max(0, Math.floor(policy.bufferTargetUnits)),
 			maxUnitPriceVp:
 				policy.maxUnitPriceVp === undefined
 					? goods[good]?.maxUnitPriceVp
@@ -99,10 +87,6 @@ export function createDistrictProcurementPolicy(
 			0,
 			Math.floor(patch?.bufferPurchaseReserveVp ?? defaults.bufferPurchaseReserveVp)
 		),
-		maxInFlightPerGood: Math.max(
-			0,
-			Math.floor(patch?.maxInFlightPerGood ?? defaults.maxInFlightPerGood)
-		),
 		goods,
 	}
 }
@@ -114,7 +98,6 @@ export function districtProcurementPolicyToPatch(
 		autoBuyNeededGoods: policy.autoBuyNeededGoods,
 		usePurchaseReserveVp: policy.usePurchaseReserveVp,
 		bufferPurchaseReserveVp: policy.bufferPurchaseReserveVp,
-		maxInFlightPerGood: policy.maxInFlightPerGood,
 		goods: Object.fromEntries(
 			Object.entries(policy.goods).map(([good, config]) => [good, { ...config }])
 		) as Partial<Record<GoodType, DistrictGoodProcurementPolicy>>,
@@ -137,33 +120,12 @@ export function updateDistrictProcurementPolicy(
 	district.procurementPolicy.goods = next.goods
 }
 
-export function setDistrictProcurementGoodPolicy(
-	district: District,
-	good: GoodType,
-	patch: DistrictGoodProcurementPolicy
-): void {
-	updateDistrictProcurementPolicy(district, {
-		goods: {
-			[good]: {
-				...district.procurementPolicy.goods[good],
-				...patch,
-			},
-		},
-	})
-}
-
 export function listDistrictPurchaseRequests(
 	game: Game,
 	district: District
 ): DistrictPurchaseRequest[] {
 	const demands = [...collectUseDemands(game, district), ...collectBufferDemands(game, district)]
-	const plannedByGood = new Map<GoodType, number>()
-	return demands.map((demand) => {
-		const count = plannedByGood.get(demand.good) ?? 0
-		const request = createPurchaseRequest(game, district, demand, count)
-		if (request.status === 'planned') plannedByGood.set(demand.good, count + 1)
-		return request
-	})
+	return demands.map((demand) => createPurchaseRequest(game, district, demand))
 }
 
 export function listDistrictEligibleSellGoods(game: Game, district: District): GoodType[] {
@@ -215,17 +177,48 @@ function missingConstructionDemands(game: Game, district: District): PurchaseDem
 
 function collectBufferDemands(game: Game, district: District): PurchaseDemand[] {
 	const stocked = districtStock(game, district)
+	const targets = districtStorageBufferTargets(game, district)
 	const demands: PurchaseDemand[] = []
-	for (const [good, policy] of Object.entries(district.procurementPolicy.goods) as [
-		GoodType,
-		DistrictGoodProcurementPolicy,
-	][]) {
-		const target = Math.max(0, Math.floor(policy.bufferTargetUnits ?? 0))
-		const quantity = Math.max(0, target - (stocked[good] ?? 0))
+	for (const [good, target] of Object.entries(targets) as [GoodType, number][]) {
+		const quantity = Math.max(0, Math.ceil(target - (stocked[good] ?? 0)))
 		if (quantity <= 0) continue
-		demands.push({ good, quantity, purpose: 'buffer', targetCoord: district.members[0] })
+		demands.push({
+			good,
+			quantity,
+			purpose: 'buffer',
+			targetCoord: firstStorageBufferTargetCoord(game, district, good),
+		})
 	}
 	return demands.sort((left, right) => compareDemands(left, right))
+}
+
+function districtStorageBufferTargets(
+	game: Game,
+	district: District
+): Partial<Record<GoodType, number>> {
+	const targets: Partial<Record<GoodType, number>> = {}
+	for (const coord of district.members) {
+		const tile = game.hex.getTile(coord)
+		const buffers =
+			tile?.content && 'storageBuffers' in tile.content ? tile.content.storageBuffers : undefined
+		for (const [good, qty] of Object.entries(buffers ?? {}) as [GoodType, number][]) {
+			targets[good] = (targets[good] ?? 0) + Math.max(0, Math.floor(qty ?? 0))
+		}
+	}
+	return targets
+}
+
+function firstStorageBufferTargetCoord(
+	game: Game,
+	district: District,
+	good: GoodType
+): AxialCoord | undefined {
+	return district.members.find((coord) => {
+		const tile = game.hex.getTile(coord)
+		const buffers =
+			tile?.content && 'storageBuffers' in tile.content ? tile.content.storageBuffers : undefined
+		return (buffers?.[good] ?? 0) > 0
+	})
 }
 
 function districtStock(game: Game, district: District): Partial<Record<GoodType, number>> {
@@ -247,8 +240,7 @@ function districtStock(game: Game, district: District): Partial<Record<GoodType,
 function createPurchaseRequest(
 	game: Game,
 	district: District,
-	demand: PurchaseDemand,
-	plannedCountForGood: number
+	demand: PurchaseDemand
 ): DistrictPurchaseRequest {
 	const base = {
 		id: purchaseRequestId(district.id, demand),
@@ -260,9 +252,6 @@ function createPurchaseRequest(
 	}
 	if (demand.purpose === 'use' && !district.procurementPolicy.autoBuyNeededGoods) {
 		return { ...base, status: 'blocked', blockReason: 'auto_buy_disabled' }
-	}
-	if (plannedCountForGood >= district.procurementPolicy.maxInFlightPerGood) {
-		return { ...base, status: 'blocked', blockReason: 'in_flight_limit' }
 	}
 	const seller = chooseSeller(game, demand.good, demand.targetCoord ?? district.members[0])
 	if (!seller) return { ...base, status: 'blocked', blockReason: 'no_seller' }

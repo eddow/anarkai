@@ -22,6 +22,7 @@ export const CharacterContract = {
 		vehicleOffload: ['WorkPlan'],
 		transform: ['WorkPlan'],
 		construct: ['WorkPlan'],
+		forester: ['WorkPlan'],
 		foundation: ['WorkPlan'],
 		defragment: ['WorkPlan'],
 		vehicleHop: ['WorkPlan'],

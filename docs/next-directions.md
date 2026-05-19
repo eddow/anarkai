@@ -14,6 +14,8 @@ Already landed or mostly landed:
 - Vehicle-backed freight management, including freight bays, exchange-route line definitions, legacy
   gather/distribute segment helpers, line inspectors, and docked vehicle work.
 - Selectable custom named-zone objects with a Zones palette entry, zone inspectors, tile/alveolus links, and board masks. Built-in residential/harvest remain ordinary tile markers.
+- Named zones can be marked harvestable; harvesters treat those zones like the built-in harvest zone, while planting/caring actors use explicit assigned named zones.
+- The first assigned-zone caring actor is landed: foresters plant sparse visible tree deposits in assigned forest zones, age those planted trees, and tree choppers can harvest mature planted trees.
 - Zone inspectors show compact icon stats for tile count and physical area using the documented `3m` hex side scale.
 - Transform alveoli can keep a configured product ratio, with rule defaults and per-alveolus inspector controls for the input good, output good, and slider threshold.
 - Deterministic streamed terrain generation and Pixi continuous-terrain rendering.
@@ -40,6 +42,7 @@ Still architecturally important:
   - the "open zone" button seems quite useless as the stop is shown as a link (it is for the bay and should be for the zone)
 - roads & velocity calculation. Some vehicles can just not drive beside roads. There should be a multiplier somewhere as well as a `min(road-max-velocity, vehicle/character-ax-velocity)`. How to calculate exactly the velocity for it to be realistic somehow but still simple ?
 - When providing to an external building (residence/construction/commerce), the vehicle should indeed stop on the border and unloading the vehicle in the building should indeed be a convey-hop-like action (character in the center of the tile, visible moving good)
+- planters/foresters/... should not plant indefinitely when too much loose good is present; planted trees already cap at two visible tree slots per tile, but planting/caring actors still need a general "tile room" rule for loose goods and future crops.
 
 ## Recommended Next Tranche
 
@@ -125,8 +128,9 @@ Important first-level boundaries:
 - The shared player/team account is the common pot. Player characters use player-owned goods freely; NPC
   purchases add value points to this account.
 - Useful procurement lands in stages:
-  - **V0.9:** districts own buy policy, budget reserves, buffer targets, automatic source choice, and a
-    planned/blocked purchase queue. No money or goods move yet.
+  - **V0.9:** districts own buy policy, budget reserves, automatic source choice, and a planned/blocked
+    purchase queue. Buffer demand comes from storage alveolus buffer configuration, not district config. No
+    money or goods move yet.
   - **V1:** the player can choose one source settlement for the whole district.
   - **V2:** if wanted, a district can override the source settlement per good.
   - Later execution sends a worker/vehicle to the seller, pays at pickup, loads via the border/convey-hop
@@ -147,6 +151,7 @@ Potential scope:
 
 - New deposits: clay, ore, grain, berries, fish, herbs.
 - New harvesters: quarry, mine, farm, fisher, gatherer variants.
+- New zone-assigned caring actors: wheat planter, fertilizer, harvester support actors, and forester follow-ups such as tree species/terrain preferences.
 - New transformers: kiln, bakery, smelter, workshop, loom.
 - New goods: stone blocks, bricks, flour, bread, tools, textiles.
 - Tiered construction requirements.
@@ -159,6 +164,7 @@ Risks:
 
 - Pure content can expose balancing and UX gaps quickly.
 - Too many chains before roads/markets/settlements may just create larger internal logistics puzzles.
+- Planting/caring actors need clear scope rules: named zones provide spatial assignment, while harvestability remains a separate zone flag for harvesters.
 
 ### 4. NPC cities and villages
 

@@ -571,10 +571,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			return this.tailorVehicleProposedJob(proposedJob)
 		}
 
-		const executionTile =
-			proposedJob.source.kind === 'alveolus'
-				? proposedJob.source.alveolus.tile
-				: proposedJob.targetTile
+		const executionTile = proposedJob.targetTile
 		const path = this.sameTilePath(executionTile)
 		if (path === false) {
 			return {

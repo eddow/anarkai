@@ -1,4 +1,5 @@
 import { css } from '@app/lib/css'
+import { T } from '@app/lib/i18n'
 import { Button, Stars } from '@app/ui/anarkai'
 import type { StarsValue } from '@sursaut/ui/models'
 import { goods as goodsCatalog } from 'engine-pixi/assets/visual-content'
@@ -41,6 +42,22 @@ css`
 	font-size: 0.75rem;
 	color: var(--ak-text-muted);
 }
+
+.config-preset-row {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.config-preset-select {
+	flex: 1;
+	padding: 0.25rem 0.35rem;
+	border-radius: 0.35rem;
+	border: 1px solid color-mix(in srgb, var(--ak-text-muted) 18%, transparent);
+	background: color-mix(in srgb, var(--ak-surface-panel) 92%, transparent);
+	color: var(--ak-text);
+	font-size: 0.78rem;
+}
 `
 
 interface StorageConfigurationProps {
@@ -48,9 +65,43 @@ interface StorageConfigurationProps {
 	game: Game
 }
 
+interface NamedStorageConfig {
+	name: string
+	storageMode: 'all-but' | 'only'
+	storageExceptions: GoodType[]
+	storageBuffers: Record<GoodType, number>
+	specificBuffers?: Record<GoodType, number>
+}
+
+const SPECIFIC_PRESET = '__specific__'
+
+const configRegistry = reactive({
+	configs: [] as NamedStorageConfig[],
+})
+
+function getConfig(name: string): NamedStorageConfig | undefined {
+	return configRegistry.configs.find((c) => c.name === name)
+}
+
+function saveConfig(name: string, config: NamedStorageConfig): void {
+	const existing = getConfig(name)
+	if (existing) {
+		Object.assign(existing, config)
+	} else {
+		configRegistry.configs.push({ ...config, name })
+	}
+}
+
+function isConfigNameAvailable(name: string): boolean {
+	if (name === SPECIFIC_PRESET) return false
+	return !configRegistry.configs.some((c) => c.name === name)
+}
+
 export default function StorageConfiguration(props: StorageConfigurationProps) {
 	const draft = reactive({
 		bufferStars: {} as Partial<Record<GoodType, number>>,
+		selectedPreset: SPECIFIC_PRESET,
+		presetNameInput: '',
 	})
 
 	// Robust getters using memoize
@@ -59,6 +110,101 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 	const buffers = memoize(() => props.content.storageBuffers || {})
 
 	const allGoodTypes = Object.keys(goodsCatalog) as GoodType[]
+	const isSlotted = memoize(() => props.content.storage instanceof SlottedStorage)
+	const isSpecific = memoize(() => props.content.storage instanceof SpecificStorage)
+
+	// --- Config Preset Logic ---
+	const applicableConfigs = memoize((): NamedStorageConfig[] => {
+		if (isSlotted()) {
+			return configRegistry.configs.filter((c) => !c.specificBuffers)
+		}
+		return configRegistry.configs
+	})
+
+	const currentConfigName = () => {
+		// Check if current settings match any saved config
+		const current: NamedStorageConfig = {
+			name: '',
+			storageMode: mode(),
+			storageExceptions: [...exceptions()],
+			storageBuffers: {} as Record<GoodType, number>,
+		}
+		for (const [good, qty] of Object.entries(buffers())) {
+			if (qty !== undefined && qty !== null) {
+				current.storageBuffers[good as GoodType] = qty
+			}
+		}
+		if (isSpecific()) {
+			current.specificBuffers = (props.content.specificStorageConfiguration?.buffers ?? {}) as Record<GoodType, number>
+		}
+		for (const config of configRegistry.configs) {
+			if (config.storageMode !== current.storageMode) continue
+			if (JSON.stringify(config.storageExceptions.sort()) !== JSON.stringify(current.storageExceptions.sort())) continue
+			if (JSON.stringify(config.storageBuffers) !== JSON.stringify(current.storageBuffers)) continue
+			if (isSpecific() && JSON.stringify(config.specificBuffers) !== JSON.stringify(current.specificBuffers)) continue
+			if (!isSpecific() && config.specificBuffers) continue
+			return config.name
+		}
+		return SPECIFIC_PRESET
+	}
+
+	const handlePresetChange = (value: string) => {
+		if (value === SPECIFIC_PRESET) {
+			draft.selectedPreset = SPECIFIC_PRESET
+			return
+		}
+		const config = getConfig(value)
+		if (!config) {
+			// New config name entered
+			draft.presetNameInput = value
+			draft.selectedPreset = SPECIFIC_PRESET
+			return
+		}
+		// Load config
+		props.content.storageMode = config.storageMode
+		props.content.storageExceptions = [...config.storageExceptions]
+		props.content.storageBuffers = { ...config.storageBuffers }
+		if (isSpecific() && config.specificBuffers) {
+			const existingConfig = props.content.specificStorageConfiguration
+			if (existingConfig) {
+				// Mutate the buffers property
+				for (const [good, qty] of Object.entries(config.specificBuffers)) {
+					existingConfig.buffers[good as GoodType] = qty
+				}
+			}
+		}
+		draft.selectedPreset = value
+	}
+
+	const handleSaveConfig = () => {
+		const name = draft.presetNameInput.trim()
+		if (!name || !isConfigNameAvailable(name)) return
+		const config: NamedStorageConfig = {
+			name,
+			storageMode: mode(),
+			storageExceptions: [...exceptions()],
+			storageBuffers: {} as Record<GoodType, number>,
+		}
+		for (const [good, qty] of Object.entries(buffers())) {
+			if (qty !== undefined && qty !== null) {
+				config.storageBuffers[good as GoodType] = qty
+			}
+		}
+		if (isSpecific()) {
+			config.specificBuffers = (props.content.specificStorageConfiguration?.buffers ?? {}) as Record<GoodType, number>
+		}
+		saveConfig(name, config)
+		draft.selectedPreset = name
+		draft.presetNameInput = ''
+	}
+
+	// Sync selected preset when settings change externally
+	effect`storage-configuration:preset-sync`(() => {
+		const matched = currentConfigName()
+		if (matched !== draft.selectedPreset) {
+			draft.selectedPreset = matched
+		}
+	})
 
 	// --- Mode Logic ---
 	const toggleMode = () => {
@@ -90,7 +236,6 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 	}
 
 	// --- Buffer Logic ---
-	const isSlotted = memoize(() => props.content.storage instanceof SlottedStorage)
 	const allowStorageEditors = memoize(() => {
 		const action = props.content.action
 		return action === undefined ? true : !isRoadFretAction(action)
@@ -186,6 +331,32 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 
 	return (
 		<div class="storage-config">
+			{/* Config Preset Row */}
+			<PropertyGridRow if={allowStorageEditors()} label={T.storage.configPreset}>
+				<div class="config-preset-row">
+					<select
+						class="config-preset-select"
+						value={draft.selectedPreset}
+						update:value={handlePresetChange}
+						data-testid="storage-config-preset-select"
+					>
+						<option value={SPECIFIC_PRESET}>{T.storage.configSpecific}</option>
+						<for each={applicableConfigs()}>
+							{(config) => <option value={config.name}>{config.name}</option>}
+						</for>
+					</select>
+					<button
+						if={draft.presetNameInput && isConfigNameAvailable(draft.presetNameInput)}
+						type="button"
+						onClick={handleSaveConfig}
+						title={T.storage.configCreateLabel.replace('{name}', draft.presetNameInput)}
+						data-testid="storage-config-save-preset"
+					>
+						+
+					</button>
+				</div>
+			</PropertyGridRow>
+
 			<SlottedStorageConfiguration
 				if={isSlotted() && allowStorageEditors()}
 				content={props.content}

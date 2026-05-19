@@ -21,6 +21,11 @@ declare namespace Ssh {
 		output: Record<string, number>
 	}
 
+	interface PlantingAction {
+		type: 'plant'
+		deposit: string
+	}
+
 	interface TransformationAction {
 		type: 'transform'
 		rates: Record<string, number>
@@ -67,6 +72,7 @@ declare namespace Ssh {
 
 	type Action =
 		| HarvestingAction
+		| PlantingAction
 		| TransformationAction
 		| EngineerAction
 		| StorageAction

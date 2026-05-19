@@ -13,7 +13,7 @@ import { atomic, defer, Eventful, reactive, unreactive } from 'mutts'
 import { Alveolus } from 'ssh/board'
 import { HexBoard } from 'ssh/board/board'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
-import { Deposit, UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import { Deposit, normalizePlantedTrees, UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import {
 	canBuildRoadOnTrace,
 	type RoadPatches,
@@ -48,12 +48,10 @@ import {
 } from 'ssh/district/district'
 import {
 	createDistrictProcurementPolicy,
-	type DistrictGoodProcurementPolicy,
 	type DistrictProcurementPolicy,
 	type DistrictPurchaseRequest,
 	listDistrictEligibleSellGoods,
 	listDistrictPurchaseRequests,
-	setDistrictProcurementGoodPolicy,
 	updateDistrictProcurementPolicy,
 } from 'ssh/district/procurement'
 import type { FreightLineDefinition, SyntheticFreightLineObject } from 'ssh/freight/freight-line'
@@ -196,6 +194,7 @@ export interface AlveolusPatch {
 		ref: Ssh.ConfigurationReference
 		individual?: Ssh.AlveolusConfiguration
 	}
+	assignedZoneIds?: readonly string[]
 }
 
 export interface DwellingPatch {
@@ -226,6 +225,9 @@ export interface TilePatch {
 		type: DepositType
 		name?: string
 		amount: number
+	}
+	plantedTrees?: {
+		ages: readonly number[]
 	}
 	terrain?: TerrainType
 	height?: number
@@ -553,16 +555,6 @@ export class Game extends Eventful<GameEvents> {
 		const district = this.getDistrict(districtId)
 		if (!district) return
 		updateDistrictProcurementPolicy(district, patch)
-	}
-
-	public setDistrictProcurementGoodPolicy(
-		districtId: string,
-		good: GoodType,
-		patch: DistrictGoodProcurementPolicy
-	): void {
-		const district = this.getDistrict(districtId)
-		if (!district) return
-		setDistrictProcurementGoodPolicy(district, good, patch)
 	}
 
 	public listDistrictPurchaseRequests(
@@ -1143,16 +1135,14 @@ export class Game extends Eventful<GameEvents> {
 			this.loadGeneratedBoard(boardData)
 			this.applyGeneratedTerrainMetadata(boardData)
 			if (config.characterCount > 0) {
-				return this.generator.generateCharacters(
-					config.terrainSeed,
-					boardData,
-					{
+				return this.generator
+					.generateCharacters(config.terrainSeed, boardData, {
 						characterCount: config.characterCount,
 						radius: config.characterRadius,
 						origin: anchor,
 						nameTheme: config.nameTheme,
-					}
-				).then((populationData) => this.loadGeneratedPopulation(populationData))
+					})
+					.then((populationData) => this.loadGeneratedPopulation(populationData))
 			}
 		}
 		return undefined
@@ -2007,7 +1997,8 @@ export class Game extends Eventful<GameEvents> {
 					if ((content as any).terrain !== p.terrain) {
 						// Recreate UnBuiltLand with new terrain
 						const deposit = content.deposit
-						this.hex.setTileContent(tile, new UnBuiltLand(tile, p.terrain, deposit))
+						const plantedTrees = content.plantedTrees
+						this.hex.setTileContent(tile, new UnBuiltLand(tile, p.terrain, deposit, plantedTrees))
 					}
 				}
 
@@ -2020,9 +2011,18 @@ export class Game extends Eventful<GameEvents> {
 						this.notifyTerrainDepositsChanged(tile)
 					}
 				}
+				if (p.plantedTrees) {
+					const currentContent = tile.content as UnBuiltLand
+					currentContent.plantedTrees = normalizePlantedTrees(
+						{ ages: [...p.plantedTrees.ages] },
+						currentContent.deposit
+					)
+					this.notifyTerrainDepositsChanged(tile)
+				}
 				if (
 					p.terrain !== undefined ||
 					p.deposit !== undefined ||
+					p.plantedTrees !== undefined ||
 					p.height !== undefined ||
 					p.temperature !== undefined ||
 					p.humidity !== undefined ||
@@ -2095,6 +2095,7 @@ export class Game extends Eventful<GameEvents> {
 							build.individualConfiguration = reactive({ ...a.configuration.individual })
 						}
 					}
+					if (a.assignedZoneIds) build.setAssignedZoneIds(a.assignedZoneIds)
 					if (!build.hive && this.HiveClass) {
 						const h = this.HiveClass.for(tile)
 						if (hive.name !== undefined) h.name = hive.name
@@ -2151,6 +2152,7 @@ export class Game extends Eventful<GameEvents> {
 						}
 					}
 				}
+				if (a.assignedZoneIds) alv.setAssignedZoneIds(a.assignedZoneIds)
 				if (!alv.hive && this.HiveClass) {
 					const h = this.HiveClass.for(tile)
 					if (hive.name !== undefined) h.name = hive.name
@@ -2396,6 +2398,7 @@ export class Game extends Eventful<GameEvents> {
 								amount: content.deposit.amount,
 							}
 						: undefined,
+					plantedTrees: content.plantedTrees ? { ages: [...content.plantedTrees.ages] } : undefined,
 				})
 
 				// Save project information
@@ -2455,6 +2458,9 @@ export class Game extends Eventful<GameEvents> {
 						individual: content.individualConfiguration,
 					}
 				}
+				if (content.assignedZoneIds.length > 0) {
+					patch.assignedZoneIds = [...content.assignedZoneIds]
+				}
 				hives.get(content.hive)!.push(patch)
 			}
 
@@ -2501,6 +2507,7 @@ export class Game extends Eventful<GameEvents> {
 				id: definition.id,
 				name: definition.name,
 				color: definition.color,
+				harvestable: definition.harvestable,
 				coords: namedZoneCoords.get(definition.id) ?? [],
 			})
 		}

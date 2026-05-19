@@ -2,6 +2,12 @@ import { waitForIncomingGoodsPollSeconds } from 'engine-rules'
 import { atomic } from 'mutts'
 import { isTileCoord } from 'ssh/board/board'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import {
+	harvestMaturePlantedTree,
+	hasMaturePlantedTree,
+	normalizePlantedTrees,
+	plantedTreeWoodYield,
+} from 'ssh/board/content/unbuilt-land'
 import type { LooseGood } from 'ssh/board/looseGoods'
 import { isConstructionSiteShell } from 'ssh/build-site'
 import { Commitment } from 'ssh/commitment'
@@ -24,6 +30,7 @@ import { movementRefId } from 'ssh/hive/movement-ref'
 import { MovementState, transitionMovement } from 'ssh/hive/movement-state'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { TransformAlveolus } from 'ssh/hive/transform'
+import { ForesterAlveolus } from 'ssh/hive/forester'
 import type { Character } from 'ssh/population/character'
 import type { Storage } from 'ssh/storage'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
@@ -951,10 +958,22 @@ class WorkFunctions {
 			action.deposit === unbuiltLand.deposit?.name,
 			'assignedAlveolus.action.deposit must be the same as tile.content.deposit.name'
 		)
-		const deposit = unbuiltLand.deposit!
-		deposit.amount -= 1
-		if (deposit.amount <= 0) unbuiltLand.deposit = undefined
-		this[subject].game.notifyTerrainDepositsChanged(this[subject].tile)
+		const isMaturePlantedTree =
+			action.deposit === 'tree' &&
+			unbuiltLand.deposit?.name === 'tree' &&
+			hasMaturePlantedTree(unbuiltLand)
+		const outputMultiplier = isMaturePlantedTree ? plantedTreeWoodYield : 1
+		if (!isMaturePlantedTree || !harvestMaturePlantedTree(unbuiltLand)) {
+			const deposit = unbuiltLand.deposit!
+			deposit.amount -= 1
+			if (deposit.amount <= 0) {
+				unbuiltLand.deposit = undefined
+				unbuiltLand.plantedTrees = undefined
+			} else if (unbuiltLand.plantedTrees) {
+				unbuiltLand.plantedTrees = normalizePlantedTrees(unbuiltLand.plantedTrees, deposit)
+			}
+			this[subject].game.notifyTerrainDepositsChanged(this[subject].tile)
+		}
 		return new DurationStep(
 			this[subject].assignedAlveolus!.workTime,
 			'work',
@@ -967,7 +986,7 @@ class WorkFunctions {
 				GoodType,
 				number,
 			][]) {
-				let remaining = qty
+				let remaining = qty * outputMultiplier
 				while (remaining > epsilon) {
 					const chunk = remaining >= 1 ? 1 : remaining
 					// Omit `position` in options so loose good uses `tile.position` (character.position
@@ -976,6 +995,18 @@ class WorkFunctions {
 					remaining -= chunk
 				}
 			}
+		})
+	}
+
+	@contract()
+	plantTreeStep() {
+		const forester = this[subject].assignedAlveolus
+		assert(forester instanceof ForesterAlveolus, 'assignedAlveolus must be a forester')
+		return new DurationStep(forester.workTime, 'work', 'forester.plant-in-zone', {
+			key: 'work.forester',
+			params: { alveolus: forester.name },
+		}).onFulfilled(() => {
+			forester.plantAtCurrentTile(this[subject])
 		})
 	}
 	@contract()

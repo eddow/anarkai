@@ -20,6 +20,15 @@ import type { Tile } from '../tile'
 import { TileContent } from './content'
 import { GcClassed } from './utils'
 
+export interface PlantedTreesState {
+	ages: number[]
+}
+
+export const plantedTreeMaxPerTile = 2
+export const plantedTreeImmatureAgeSeconds = 30
+export const plantedTreeMatureAgeSeconds = 60
+export const plantedTreeWoodYield = 6
+
 export class Deposit extends GcClassed<Ssh.DepositDefinition>() {
 	constructor(
 		public amount: number,
@@ -43,6 +52,7 @@ export class UnBuiltLand extends withTicked(TileContent) {
 	public project?: string
 	public constructionSite?: ConstructionSiteState
 	public foundationStorage?: SpecificStorage
+	public plantedTrees?: PlantedTreesState
 
 	/**
 	 * Set a project and clear any existing zone
@@ -120,13 +130,30 @@ export class UnBuiltLand extends withTicked(TileContent) {
 	constructor(
 		public readonly tile: Tile,
 		public terrain: TerrainType,
-		public deposit?: Deposit
+		public deposit?: Deposit,
+		plantedTrees?: PlantedTreesState
 	) {
 		const tileCoord = toAxialCoord(tile.position)!
 		super(tile.board.game, `unbuilt-${tileCoord.q}-${tileCoord.r}`)
+		if (plantedTrees) this.plantedTrees = normalizePlantedTrees(plantedTrees, deposit)
 	}
 
 	update(deltaSeconds: number) {
+		if (this.plantedTrees?.ages.length) {
+			const hadMature = hasMaturePlantedTree(this)
+			const previousStages = this.plantedTrees.ages.map(plantedTreeStage)
+			this.plantedTrees.ages = normalizePlantedTreeAges(
+				this.plantedTrees.ages.map((age) => age + deltaSeconds),
+				this.deposit
+			)
+			const nextStages = this.plantedTrees.ages.map(plantedTreeStage)
+			if (!hadMature && hasMaturePlantedTree(this)) {
+				this.tile.board.game.invalidateWorkPlanning('planted-tree.mature')
+			}
+			if (nextStages.some((stage, index) => stage !== previousStages[index])) {
+				this.tile.board.game.notifyTerrainDepositsChanged(this.tile)
+			}
+		}
 		// Generate goods if this tile has a deposit with generation configuration
 		if (!this.deposit) return
 
@@ -186,6 +213,7 @@ export class UnBuiltLand extends withTicked(TileContent) {
 			type: 'UnBuiltLand',
 			terrain: this.terrain,
 			deposit: this.deposit?.amount,
+			plantedTrees: this.plantedTrees,
 		}
 	}
 	get walkTime() {
@@ -232,4 +260,81 @@ export class UnBuiltLand extends withTicked(TileContent) {
 
 gameIsaTypes.unbuilt = (value: any) => {
 	return value instanceof UnBuiltLand
+}
+
+export function normalizePlantedTreeAges(
+	ages: readonly number[] | undefined,
+	deposit?: Deposit
+): number[] {
+	const count = Math.max(
+		0,
+		Math.min(plantedTreeMaxPerTile, Math.floor(deposit?.name === 'tree' ? deposit.amount : 0))
+	)
+	const normalized = [...(ages ?? [])]
+		.map((age) => Math.max(0, Number.isFinite(age) ? Number(age) : 0))
+		.slice(0, count)
+	while (normalized.length < count) normalized.push(0)
+	return normalized
+}
+
+export function normalizePlantedTrees(
+	state: PlantedTreesState | undefined,
+	deposit?: Deposit
+): PlantedTreesState | undefined {
+	if (!state || deposit?.name !== 'tree') return undefined
+	const ages = normalizePlantedTreeAges(state.ages, deposit)
+	return ages.length ? { ages } : undefined
+}
+
+export function plantedTreeStage(age: number): 'small' | 'medium' | 'mature' {
+	if (age >= plantedTreeMatureAgeSeconds) return 'mature'
+	if (age >= plantedTreeImmatureAgeSeconds) return 'medium'
+	return 'small'
+}
+
+export function hasMaturePlantedTree(land: UnBuiltLand): boolean {
+	return !!land.plantedTrees?.ages.some((age) => plantedTreeStage(age) === 'mature')
+}
+
+export function canPlantTreeOnLand(land: UnBuiltLand): boolean {
+	if (land.project) return false
+	if (land.terrain !== 'forest') return false
+	if (land.deposit && land.deposit.name !== 'tree') return false
+	return (land.deposit?.amount ?? 0) < plantedTreeMaxPerTile
+}
+
+export function plantTreeOnLand(land: UnBuiltLand): boolean {
+	if (!canPlantTreeOnLand(land)) return false
+	if (!land.deposit) {
+		const deposit = Deposit.create('tree', 0)
+		if (!deposit) return false
+		land.deposit = deposit
+	}
+	land.deposit.amount = Math.max(
+		0,
+		Math.min(plantedTreeMaxPerTile, Math.floor(land.deposit.amount) + 1)
+	)
+	land.plantedTrees = {
+		ages: normalizePlantedTreeAges([...(land.plantedTrees?.ages ?? []), 0], land.deposit),
+	}
+	land.tile.board.game.notifyTerrainDepositsChanged(land.tile)
+	land.tile.board.game.invalidateWorkPlanning('planted-tree.plant')
+	return true
+}
+
+export function harvestMaturePlantedTree(land: UnBuiltLand): boolean {
+	if (!land.deposit || land.deposit.name !== 'tree' || !land.plantedTrees?.ages.length) return false
+	const index = land.plantedTrees.ages.findIndex((age) => plantedTreeStage(age) === 'mature')
+	if (index < 0) return false
+	land.plantedTrees.ages.splice(index, 1)
+	land.deposit.amount = Math.max(0, Math.floor(land.deposit.amount) - 1)
+	if (land.deposit.amount <= 0) {
+		land.deposit = undefined
+		land.plantedTrees = undefined
+	} else {
+		land.plantedTrees = normalizePlantedTrees(land.plantedTrees, land.deposit)
+	}
+	land.tile.board.game.notifyTerrainDepositsChanged(land.tile)
+	land.tile.board.game.invalidateWorkPlanning('planted-tree.harvest')
+	return true
 }

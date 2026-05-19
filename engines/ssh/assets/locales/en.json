@@ -5,6 +5,7 @@
 		"tree": "Tree"
 	},
 	"alveoli": {
+		"forester": "Forester",
 		"tree_chopper": "Tree Chopper",
 		"stonecutter": "Stone Cutter",
 		"sawmill": "Sawmill",
@@ -90,6 +91,7 @@
 			"addStop": "Add stop",
 			"validation": "Validation",
 			"actions": "Changes",
+			"policies": "Policies",
 			"save": "Save",
 			"cancel": "Cancel",
 			"issues": {
@@ -138,6 +140,7 @@
 			"harvest": "Harvest",
 			"convey": "Convey",
 			"vehicleOffload": "Offload vehicle",
+			"forester": "Plant trees",
 			"transform": "Transform",
 			"construct": "Build",
 			"foundation": "Lay foundation",

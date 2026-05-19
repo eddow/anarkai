@@ -5,6 +5,7 @@
 		"tree": "Arbre"
 	},
 	"alveoli": {
+		"forester": "Sylviculteur",
 		"tree_chopper": "Bûcheron",
 		"stonecutter": "Tailleur de Pierre",
 		"sawmill": "Scierie",
@@ -90,6 +91,7 @@
 			"addStop": "Ajouter une étape",
 			"validation": "Validation",
 			"actions": "Modifications",
+			"policies": "Politiques",
 			"save": "Enregistrer",
 			"cancel": "Annuler",
 			"issues": {
@@ -138,6 +140,7 @@
 			"harvest": "Récolter",
 			"convey": "Convoyer",
 			"vehicleOffload": "Décharger le véhicule",
+			"forester": "Planter des arbres",
 			"transform": "Transformer",
 			"construct": "Construire",
 			"foundation": "Poser les fondations",

@@ -24,7 +24,22 @@ const queryConstructionSiteView = vi.fn()
 const replaceFreightLine = vi.fn()
 const removeFreightLineById = vi.fn()
 
-const { MockFreightBayAlveolus, MockStorageAlveolus, MockTransformAlveolus } = vi.hoisted(() => ({
+const { MockForesterAlveolus, MockFreightBayAlveolus, MockStorageAlveolus, MockTransformAlveolus } =
+vi.hoisted(() => ({
+	MockForesterAlveolus: class MockForesterAlveolus {
+		hive = { name: 'H' }
+		name = 'forester'
+		tile = { position: { q: 0, r: 0 } }
+		working = true
+		action = { type: 'plant', deposit: 'tree' }
+		assignedZoneIds: string[] = []
+		addAssignedZoneId(zoneId: string) {
+			if (!this.assignedZoneIds.includes(zoneId)) this.assignedZoneIds.push(zoneId)
+		}
+		removeAssignedZoneId(zoneId: string) {
+			this.assignedZoneIds = this.assignedZoneIds.filter((id) => id !== zoneId)
+		}
+	},
 	MockFreightBayAlveolus: class MockFreightBayAlveolus {
 		hive = { name: 'H' }
 		name = 'freight_bay'
@@ -110,6 +125,10 @@ vi.mock('ssh/hive/freight-bay', () => ({
 	FreightBayAlveolus: MockFreightBayAlveolus,
 }))
 
+vi.mock('ssh/hive/forester', () => ({
+	ForesterAlveolus: MockForesterAlveolus,
+}))
+
 vi.mock('ssh/hive/transform', () => ({
 	TransformAlveolus: MockTransformAlveolus,
 }))
@@ -167,7 +186,11 @@ vi.mock('@app/lib/i18n', () => {
 })
 
 vi.mock('../InspectorObjectLink', () => ({
-	default: () => null,
+	default: (props: { label?: string; object?: { title?: string } }) => (
+		<button type="button" class="inspector-object-link">
+			{props.label ?? props.object?.title}
+		</button>
+	),
 }))
 
 vi.mock('../LinkedEntityControl', () => ({
@@ -448,6 +471,78 @@ describe('AlveolusProperties', () => {
 		expect(container.querySelector('[data-testid="transform-ratio-value"]')?.textContent).toBe(
 			'65%'
 		)
+	})
+
+	it('renders assigned-zone controls for foresters and updates assignments', () => {
+		const forester = reactive(new MockForesterAlveolus())
+		const game = {
+			freightLines: [],
+			vehicles: [],
+			getObject: (uid: string) => ({
+				uid,
+				title: uid.includes('north-grove') ? 'North Grove' : 'Zone',
+			}),
+			hex: {
+				zoneManager: {
+					listCustomZoneDefinitions: () => [
+						{ id: 'north-grove', name: 'North Grove' },
+						{ id: 'south-grove', name: 'South Grove' },
+					],
+					getZoneDefinition: (zoneId: string) =>
+						({
+							'north-grove': { id: 'north-grove', name: 'North Grove' },
+							'south-grove': { id: 'south-grove', name: 'South Grove' },
+						})[zoneId],
+				},
+			},
+		}
+
+		stop = latch(
+			container,
+			<table>
+				<tbody>
+					<AlveolusProperties content={forester as never} game={game as never} />
+				</tbody>
+			</table>
+		)
+
+		expect(container.querySelector('[data-testid="row-Assigned zones"]')).not.toBeNull()
+		container
+			.querySelector('[data-testid="forester-zone-picker"] button')
+			?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+		const north = [...container.querySelectorAll('.combo-picker__item')].find((item) =>
+			item.textContent?.includes('North Grove')
+		)
+		north?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+
+		expect(forester.assignedZoneIds).toEqual(['north-grove'])
+		expect(container.querySelector('[data-testid="forester-zone-chip"]')?.textContent).toContain(
+			'North Grove'
+		)
+		expect(
+			container.querySelector('[data-testid="forester-zone-chip"] .inspector-object-link')
+		).not.toBeNull()
+
+		container
+			.querySelector('[data-testid="forester-zone-remove-north-grove"]')
+			?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+		expect(forester.assignedZoneIds).toEqual([])
+	})
+
+	it('does not render assigned-zone controls for non-forester alveoli', () => {
+		stop = latch(
+			container,
+			<table>
+				<tbody>
+					<AlveolusProperties
+						content={new MockTransformAlveolus() as never}
+						game={{ freightLines: [], vehicles: [] } as never}
+					/>
+				</tbody>
+			</table>
+		)
+
+		expect(container.querySelector('[data-testid="row-Assigned zones"]')).toBeNull()
 	})
 
 	it('refreshes transform process buffers from presentation events', async () => {

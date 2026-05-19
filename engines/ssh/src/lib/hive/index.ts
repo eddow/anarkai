@@ -3,6 +3,7 @@ import type { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
 import type { AlveolusType } from 'ssh/types/base'
 import { EngineerAlveolus } from './engineer'
+import { ForesterAlveolus } from './forester'
 import { FreightBayAlveolus } from './freight-bay'
 import { HarvestAlveolus } from './harvest'
 import { StorageAlveolus } from './storage'
@@ -16,6 +17,8 @@ type AlveolusCtor = new (
 
 function ctorForDefinition(def: Ssh.AlveolusDefinition): AlveolusCtor | undefined {
 	switch (def.action.type) {
+		case 'plant':
+			return ForesterAlveolus
 		case 'harvest':
 			return HarvestAlveolus
 		case 'transform':
@@ -42,5 +45,6 @@ export function createAlveolus(resourceName: AlveolusType, tile: Tile): Alveolus
 }
 
 export * from './alveolus-configuration'
+export * from './forester'
 export * from './freight-bay'
 export * from './hive'

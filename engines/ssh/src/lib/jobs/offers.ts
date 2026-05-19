@@ -3,7 +3,7 @@ import type { Tile } from 'ssh/board/tile'
 import type { Character } from 'ssh/population/character'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import type { Job, VehicleHopJob, VehicleOffloadJob, ZoneBrowseJob } from 'ssh/types/base'
-import { type AxialCoord, axial } from 'ssh/utils'
+import { type AxialCoord, axial, toAxialCoord } from 'ssh/utils'
 
 export interface JobProvider {
 	readonly proposedJobs: readonly ProposedJob[]
@@ -55,13 +55,23 @@ export type TailoredJobCandidate =
 export function asAlveolusProposedJob(
 	job: Job,
 	alveolus: Alveolus,
-	targetTile: Tile = alveolus.tile
+	targetTile: Tile = targetTileForAlveolusJob(job, alveolus)
 ): AlveolusProposedJob {
 	return {
 		...job,
 		source: { kind: 'alveolus', alveolus },
 		targetTile,
 	} as AlveolusProposedJob
+}
+
+function targetTileForAlveolusJob(job: Job, alveolus: Alveolus): Tile {
+	if ('path' in job && Array.isArray(job.path)) {
+		const terminal = job.path.at(-1)
+		const coord = terminal ? toAxialCoord(terminal) : undefined
+		const tile = coord ? alveolus.game.hex.getTile(coord) : undefined
+		if (tile) return tile
+	}
+	return alveolus.tile
 }
 
 export function asTileProposedJob(job: Job, tile: Tile, targetTile: Tile = tile): TileProposedJob {

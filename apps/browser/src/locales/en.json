@@ -54,6 +54,7 @@
 			"gather": "Gather",
 			"convey": "Convey",
 			"construct": "Construct",
+			"forester": "Plant trees",
 			"offload": "Offload",
 			"foundation": "Foundation",
 			"defragment": "Defragment",
@@ -70,7 +71,9 @@
 		"idle": "Idle",
 		"offloadService": "Offload",
 		"docked": "Docked",
-		"underway": "Underway"
+		"underway": "Underway",
+		"showContent": "Show cargo",
+		"hideContent": "Hide cargo"
 	},
 	"step": {
 		"idle": "Idle",
@@ -80,6 +83,7 @@
 		"eat": "Chew",
 		"pondering": "Pondering about life",
 		"prepare": "Prepare to work",
+		"forester": "Plant tree in assigned zone",
 		"harvest": {
 			"tree_chopper": "Chop tree",
 			"stonecutter": "Cut stone"
@@ -133,6 +137,13 @@
 		"cleanUpConfirmText": "Stocks will be emptied and left on the ground. Are you sure? This is irreversible.",
 		"clear": "Clear",
 		"keep": "Keep"
+	},
+	"storage": {
+		"configPreset": "Configuration preset",
+		"configPresetHint": "Save or reuse buffer/allowance setups",
+		"configCreateLabel": "Create '{name}'",
+		"configSpecific": "Specific (this alveolus only)",
+		"configNameConflict": "A configuration with this name already exists"
 	},
 	"deposit": "Resources",
 	"goods": {

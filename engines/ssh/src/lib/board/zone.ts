@@ -9,6 +9,7 @@ export interface NamedZoneDefinition {
 	readonly id: Zone
 	readonly name: string
 	readonly color?: string
+	readonly harvestable?: boolean
 	readonly builtIn?: boolean
 	readonly generated?: boolean
 	readonly readonly?: boolean
@@ -89,6 +90,7 @@ export class ZoneManager {
 			id,
 			name: trimmedName || (existing?.builtIn || definition.builtIn ? existing?.name || id : ''),
 			color: definition.color?.trim() || existing?.color,
+			harvestable: definition.harvestable ?? existing?.harvestable,
 			builtIn: existing?.builtIn || definition.builtIn,
 			generated: existing?.generated || definition.generated,
 			readonly: existing?.readonly || definition.readonly,
@@ -145,6 +147,12 @@ export class ZoneManager {
 
 	getZone(coord: AxialCoord): Zone | undefined {
 		return this.zones.get(coord)
+	}
+
+	isHarvestableZone(zone: Zone | undefined): boolean {
+		if (!zone) return false
+		const zoneId = normalizeZoneId(zone)
+		return zoneId === 'harvest' || this.definitions.get(zoneId)?.harvestable === true
 	}
 
 	setGeneratedZone(coord: AxialCoord, zone: Zone): void {

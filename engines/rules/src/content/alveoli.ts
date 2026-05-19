@@ -1,4 +1,13 @@
 export const alveoli = {
+	forester: {
+		preparationTime: 1,
+		action: { type: 'plant', deposit: 'tree' },
+		workTime: 2,
+		construction: {
+			goods: { wood: 1, stone: 1 },
+			time: 4,
+		},
+	},
 	tree_chopper: {
 		preparationTime: 2,
 		action: { type: 'harvest', deposit: 'tree', output: { wood: 1 } },

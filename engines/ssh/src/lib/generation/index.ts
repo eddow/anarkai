@@ -241,10 +241,16 @@ function computeDepositAmount(depositType: DepositType, coordKey: string): numbe
 	// Use per-tile seed so different tiles with the same deposit type get
 	// different amounts — matches the per-coordinate behaviour of BoardGenerator.
 	const rnd = simpleRng(`deposit-amount-${depositType}-${coordKey}`)
-	return Math.floor(
+	const amount = Math.floor(
 		((1 + rnd() * boardDepositFillRandomSpread) * (depositDef.maxAmount ?? 18)) /
 			boardDepositFillDivisor,
 	)
+	return capGeneratedDepositAmount(depositType, amount)
+}
+
+function capGeneratedDepositAmount(depositType: DepositType, amount: number): number {
+	if (depositType === 'tree') return Math.max(1, Math.min(2, amount))
+	return amount
 }
 
 /**

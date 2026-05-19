@@ -35,6 +35,7 @@ export const jobBalance = {
 		needsBonus: 0.5,
 	},
 	transform: 2,
+	forester: 1.2,
 	engineer: {
 		foundation: 3,
 		construct: 2,

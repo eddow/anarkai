@@ -20,6 +20,12 @@ export const chopSaw = {
 			[0, 0],
 			[1, -1],
 			[1, 0],
+			[2, -1],
+		],
+		forest: [
+			[3, 0],
+			[4, 0],
+			[5, 0],
 		],
 	},
 	hives: [
@@ -28,6 +34,7 @@ export const chopSaw = {
 			alveoli: [
 				{ alveolus: 'stonecutter', coord: [-1, -1] },
 				{ alveolus: 'tree_chopper', coord: [2, 0] },
+				{ alveolus: 'forester', coord: [2, -1], assignedZoneIds: ['north-grove'] },
 				{
 					alveolus: 'storage',
 					coord: [0, -1],
@@ -37,6 +44,7 @@ export const chopSaw = {
 							working: true,
 							generalSlots: 5,
 							goods: {
+								concrete: { minSlots: 1, maxSlots: 0 },
 								wood: { minSlots: 1, maxSlots: 0 },
 							},
 						},
@@ -86,6 +94,19 @@ export const chopSaw = {
 			[-4, 1],
 			[-4, 0],
 		],
+		named: [
+			{
+				id: 'north-grove',
+				name: 'North Grove',
+				color: '#3f9f6b',
+				harvestable: true,
+				coords: [
+					[3, 0],
+					[4, 0],
+					[5, 0],
+				],
+			},
+		],
 	},
 	districts: [
 		{
@@ -99,6 +120,10 @@ export const chopSaw = {
 				[0, 0],
 				[1, -1],
 				[1, 0],
+				[2, -1],
+				[3, 0],
+				[4, 0],
+				[5, 0],
 				[4, 1],
 				[3, 2],
 				[3, 3],
@@ -110,9 +135,7 @@ export const chopSaw = {
 		},
 	],
 	projects: {
-		'build:storage': [
-			[-1, 0],
-		],
+		'build:storage': [[-1, 0]],
 	},
 	roads: {
 		path: [

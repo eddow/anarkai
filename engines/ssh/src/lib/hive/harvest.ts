@@ -1,7 +1,7 @@
 import { harvestNpcSearchDistance, harvestTravelFatiguePerStep, jobBalance } from 'engine-rules'
 import { inert, memoize } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
-import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import { hasMaturePlantedTree, UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { multiplyGoodsQty } from 'ssh/board/content/utils'
 import type { Tile } from 'ssh/board/tile'
 import { findGatherFreightLine } from 'ssh/freight/freight-line'
@@ -88,7 +88,8 @@ export class HarvestAlveolus extends TransitAlveolus {
 					)
 				}
 
-				return tile.zone === 'harvest'
+				if (content.plantedTrees) return hasMaturePlantedTree(content)
+				return hex.zoneManager.isHarvestableZone(tile.zone)
 			}
 
 			return hex.findNearest(startPos, searchFn, searchDistance, false)

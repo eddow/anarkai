@@ -119,8 +119,8 @@ class FindFunctions {
 				const tile = hex.getTile(coord)
 				if (!(tile?.content instanceof UnBuiltLand)) return false
 				if (tile.content.deposit?.name !== deposit) return false
-				// Check if this tile is in a harvest zone
-				return tile.zone === 'harvest'
+				// Check if this tile is in a harvestable zone
+				return hex.zoneManager.isHarvestableZone(tile.zone)
 			},
 			maxWalkTime,
 			false

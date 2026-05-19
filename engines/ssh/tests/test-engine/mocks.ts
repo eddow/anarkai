@@ -63,6 +63,12 @@ function rulesTestOverrides() {
 			berry_bush: { maxAmount: 18, regenerate: 0.01, generation: { berries: 0.000214 } },
 		},
 		alveoli: {
+			forester: {
+				preparationTime: 1,
+				workTime: 1,
+				action: { type: 'plant', deposit: 'tree' },
+				construction: { goods: { wood: 1 }, time: 1 },
+			},
 			tree_chopper: {
 				preparationTime: 1,
 				workTime: 2,
@@ -142,6 +148,7 @@ function rulesTestOverrides() {
 				needsBonus: 0.5,
 			},
 			transform: 1,
+			forester: 1.2,
 			engineer: {
 				foundation: 3,
 				construct: 2,

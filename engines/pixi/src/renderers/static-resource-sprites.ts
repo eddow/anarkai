@@ -1,5 +1,7 @@
 import type { Texture } from 'pixi.js'
 import type { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import { plantedTreeStage } from 'ssh/board/content/unbuilt-land'
+import { plantedTreeMaxPerTile } from 'ssh/board/content/unbuilt-land'
 import type { TerrainSample } from 'ssh/game/terrain-provider'
 import type { AxialCoord } from 'ssh/utils'
 import { LCG, subSeed } from 'ssh/utils/numbers'
@@ -33,6 +35,7 @@ export function buildStaticResourceSpriteSpecs(
 			name: depositName,
 			amount: deposit.amount,
 			maxAmount: (deposit as any).maxAmount,
+			plantedTreeAges: content.plantedTrees?.ages,
 		},
 		resolveTexture
 	)
@@ -57,11 +60,14 @@ export function buildStaticResourceSpriteSpecsFromTerrainSample(
 
 function buildStaticResourceSpriteSpecsForCoord(
 	tileCoord: AxialCoord,
-	deposit: { name?: string; amount: number; maxAmount?: number },
+	deposit: { name?: string; amount: number; maxAmount?: number; plantedTreeAges?: readonly number[] },
 	resolveTexture: (spec: string) => Texture | undefined
 ): StaticResourceSpriteSpec[] {
 	const visibleCount = Math.max(1, Math.floor(deposit.amount))
-	const stableSlotCount = Math.max(1, Math.floor(deposit.maxAmount ?? visibleCount))
+	const stableSlotCount =
+		deposit.name === 'tree'
+			? plantedTreeMaxPerTile
+			: Math.max(1, Math.floor(deposit.maxAmount ?? visibleCount))
 	const areaScale = Math.max(2 / Math.sqrt(stableSlotCount), 0.5)
 	const tileWorld = toWorldCoord(tileCoord)
 	const def = deposit.name ? visualDeposits[deposit.name] : undefined
@@ -71,8 +77,9 @@ function buildStaticResourceSpriteSpecsForCoord(
 	for (let i = 0; i < visibleCount; i++) {
 		const seed = subSeed('deposit-unit', tileCoord.q, tileCoord.r, i)
 		const rnd = LCG('gameSeed', seed)
-		const spriteIndex = Math.floor(rnd() * def.sprites.length)
-		const textureKey = def.sprites[spriteIndex]
+		const spriteBand = plantedTreeSpriteBand(deposit.name, deposit.plantedTreeAges?.[i], def.sprites)
+		const spriteIndex = Math.floor(rnd() * spriteBand.length)
+		const textureKey = spriteBand[spriteIndex]
 		const texture = resolveTexture(textureKey)
 		if (!texture) continue
 
@@ -95,6 +102,19 @@ function buildStaticResourceSpriteSpecsForCoord(
 		})
 	}
 	return specs
+}
+
+function plantedTreeSpriteBand(
+	depositName: string | undefined,
+	age: number | undefined,
+	sprites: readonly string[]
+): readonly string[] {
+	if (depositName !== 'tree' || age === undefined) return sprites
+	const third = Math.max(1, Math.ceil(sprites.length / 3))
+	const stage = plantedTreeStage(age)
+	if (stage === 'small') return sprites.slice(0, third)
+	if (stage === 'medium') return sprites.slice(third, Math.min(sprites.length, third * 2))
+	return sprites.slice(Math.min(sprites.length - 1, third * 2))
 }
 
 export function resolveUsableTexture(

@@ -4,19 +4,18 @@ import {
 	freightInspectorTagOptions,
 } from '@app/lib/freight-inspector-options'
 import {
-	applyFreightDraftBayAnchor,
-	applyFreightDraftZoneCenter,
 	defaultZoneCenterFromAnchorSwitch,
 	defaultZoneRadiusForNewZone,
 	moveFreightDraftStop,
 	removeFreightDraftStop,
 	setFreightDraftStopKindAnchor,
+	setFreightDraftStopKindNamedZone,
 	setFreightDraftStopKindZone,
 	setFreightDraftStopLoadSelection,
+	setFreightDraftStopNamedZoneId,
 	setFreightDraftStopUnloadSelection,
 	setFreightDraftStopZoneRadius,
 } from '@app/lib/freight-line-draft'
-import { freightMapPick } from '@app/lib/freight-map-pick'
 import { T } from '@app/lib/i18n'
 import type {
 	FreightLineDefinition,
@@ -92,10 +91,6 @@ css`
 	color: var(--ak-text-muted);
 	word-break: break-word;
 }
-.freight-stop-card__pick-hint {
-	font-size: 0.72rem;
-	color: var(--ak-accent, #8b5cf6);
-}
 .freight-stop-card__btn {
 	padding: 0.28rem 0.5rem;
 	border-radius: 0.4rem;
@@ -150,13 +145,6 @@ const FreightStopCard = (props: FreightStopCardProps) => {
 	const unloadPolicy = (): GoodSelectionPolicy =>
 		props.stop.unloadSelection ?? UNRESTRICTED_GOODS_SELECTION_POLICY
 	const tile = () => stationTileForStop(props.game, props.stop)
-	const pickPending = () => freightMapPick.pending
-	const isBayPickActive = () =>
-		pickPending()?.lineId === props.lineId && pickPending()?.pickKind === 'bay' && !props.readOnly
-	const isCenterPickActive = () =>
-		pickPending()?.lineId === props.lineId &&
-		pickPending()?.pickKind === 'center' &&
-		!props.readOnly
 
 	const apply = props.apply
 
@@ -181,35 +169,17 @@ const FreightStopCard = (props: FreightStopCardProps) => {
 			apply((line) => setFreightDraftStopKindAnchor(line, props.index))
 			return
 		}
+		if (value === 'named') {
+			const namedZones = props.game.hex.zoneManager.listCustomZoneDefinitions()
+			const zoneId = namedZones[0]?.id
+			if (zoneId) apply((line) => setFreightDraftStopKindNamedZone(line, props.index, zoneId))
+			return
+		}
 		apply((line) => {
 			const center = defaultZoneCenterFromAnchorSwitch(line, props.index)
 			const radius = defaultZoneRadiusForNewZone(line, props.index)
 			return setFreightDraftStopKindZone(line, props.index, center, radius)
 		})
-	}
-
-	const handleStartPickBay = () => {
-		if (props.readOnly) return
-		freightMapPick.pending = {
-			lineId: props.lineId,
-			pickKind: 'bay',
-			apply: (result) => {
-				if (result.kind !== 'bay') return
-				apply((line) => applyFreightDraftBayAnchor(line, props.index, result.anchor))
-			},
-		}
-	}
-
-	const handleStartPickCenter = () => {
-		if (props.readOnly) return
-		freightMapPick.pending = {
-			lineId: props.lineId,
-			pickKind: 'center',
-			apply: (result) => {
-				if (result.kind !== 'center') return
-				apply((line) => applyFreightDraftZoneCenter(line, props.index, result.coord))
-			},
-		}
 	}
 
 	const handleZoneRadiusInput = (raw: string) => {
@@ -219,12 +189,24 @@ const FreightStopCard = (props: FreightStopCardProps) => {
 		apply((line) => setFreightDraftStopZoneRadius(line, props.index, radius))
 	}
 
-	const locationKind = () => ('anchor' in props.stop ? 'anchor' : 'zone')
+	const locationKind = () => {
+		if ('anchor' in props.stop) return 'anchor'
+		if ('zone' in props.stop && props.stop.zone.kind === 'named') return 'named'
+		return 'radius'
+	}
 	const radiusZone = (): FreightZoneDefinitionRadius | undefined => {
 		const s = props.stop
 		if (!('zone' in s)) return undefined
 		return s.zone.kind === 'radius' ? s.zone : undefined
 	}
+
+	const namedZoneId = () => {
+		const s = props.stop
+		if (!('zone' in s) || s.zone.kind !== 'named') return undefined
+		return s.zone.zoneId
+	}
+
+	const namedZones = () => props.game.hex.zoneManager.listCustomZoneDefinitions()
 
 	return (
 		<div class="freight-stop-card" data-testid={`freight-stop-card-${props.index}`}>
@@ -275,7 +257,8 @@ const FreightStopCard = (props: FreightStopCardProps) => {
 						data-testid={`freight-stop-kind-${props.index}`}
 					>
 						<option value="anchor">{t().kindAnchor}</option>
-						<option value="zone">{t().kindZone}</option>
+						<option value="radius">{t().kindZone}</option>
+						<option value="named">Named zone</option>
 					</select>
 				</div>
 			</div>
@@ -288,19 +271,7 @@ const FreightStopCard = (props: FreightStopCardProps) => {
 					<span if={!tile()} class="freight-stop-card__mono">
 						{stationLabel(props.stop)}
 					</span>
-					<button
-						type="button"
-						class="freight-stop-card__btn"
-						disabled={props.readOnly}
-						onClick={handleStartPickBay}
-						data-testid={`freight-stop-pick-bay-${props.index}`}
-					>
-						{t().pickBay}
-					</button>
 				</div>
-				<span if={isBayPickActive()} class="freight-stop-card__pick-hint">
-					{t().pickBayPending}
-				</span>
 			</div>
 
 			<div class="freight-stop-card__field" if={radiusZone()}>
@@ -310,15 +281,6 @@ const FreightStopCard = (props: FreightStopCardProps) => {
 						({radiusZone()!.center[0]}, {radiusZone()!.center[1]}) · r≤
 						{radiusZone()!.radius}
 					</span>
-					<button
-						type="button"
-						class="freight-stop-card__btn"
-						disabled={props.readOnly}
-						onClick={handleStartPickCenter}
-						data-testid={`freight-stop-pick-center-${props.index}`}
-					>
-						{t().pickCenter}
-					</button>
 				</div>
 				<div class="freight-stop-card__row">
 					<span class="freight-stop-card__label">{t().zoneRadius}</span>
@@ -332,9 +294,25 @@ const FreightStopCard = (props: FreightStopCardProps) => {
 						data-testid={`freight-stop-zone-radius-${props.index}`}
 					/>
 				</div>
-				<span if={isCenterPickActive()} class="freight-stop-card__pick-hint">
-					{t().pickCenterPending}
-				</span>
+			</div>
+
+			<div class="freight-stop-card__field" if={namedZoneId()}>
+				<span class="freight-stop-card__label">{t().zoneLocation}</span>
+				<div class="freight-stop-card__row">
+					<select
+						class="freight-stop-card__select"
+						disabled={props.readOnly}
+						value={namedZoneId() ?? ''}
+						update:value={(zoneId: string) =>
+							apply((line) => setFreightDraftStopNamedZoneId(line, props.index, zoneId))
+						}
+						data-testid={`freight-stop-named-zone-${props.index}`}
+					>
+						<for each={namedZones()}>
+							{(zone) => <option value={zone.id}>{zone.name?.trim() || zone.id}</option>}
+						</for>
+					</select>
+				</div>
 			</div>
 
 			<div class="freight-stop-card__field">

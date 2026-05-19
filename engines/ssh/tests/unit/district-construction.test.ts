@@ -29,6 +29,51 @@ describe('district and concrete construction', () => {
 		return { game, tile }
 	}
 
+	async function gameWithStorageBuffer() {
+		const game = new Game(
+			{
+				terrainSeed: 12,
+				characterCount: 0,
+				settlementGeneration: false,
+			},
+			{
+				terrains: { concrete: [[0, 0]] },
+				hives: [
+					{
+						name: 'BufferHive',
+						alveoli: [
+							{
+								alveolus: 'storage',
+								coord: [0, 0],
+								configuration: {
+									ref: { scope: 'individual' },
+									individual: {
+										working: true,
+										generalSlots: 5,
+										goods: {
+											concrete: { minSlots: 1, maxSlots: 0 },
+										},
+									},
+								},
+							},
+						],
+					},
+				],
+				districts: [
+					{
+						id: DEFAULT_DISTRICT_ID,
+						name: 'Default district',
+						kind: 'mixed',
+						members: [[0, 0]],
+					},
+				],
+			}
+		)
+		games.add(game)
+		await game.loaded
+		return game
+	}
+
 	function addSeller(
 		game: Game,
 		id: string,
@@ -57,8 +102,7 @@ describe('district and concrete construction', () => {
 			autoBuyNeededGoods: true,
 			usePurchaseReserveVp: 20,
 			bufferPurchaseReserveVp: 80,
-			maxInFlightPerGood: 1,
-			goods: { concrete: { bufferTargetUnits: 3 } },
+			goods: {},
 		})
 	})
 
@@ -84,17 +128,14 @@ describe('district and concrete construction', () => {
 		game.updateDistrictProcurementPolicy(DEFAULT_DISTRICT_ID, {
 			usePurchaseReserveVp: 55,
 			bufferPurchaseReserveVp: 130,
-		})
-		game.setDistrictProcurementGoodPolicy(DEFAULT_DISTRICT_ID, 'concrete', {
-			bufferTargetUnits: 6,
-			maxUnitPriceVp: 12,
+			goods: { concrete: { maxUnitPriceVp: 12 } },
 		})
 
 		const state = game.saveGameData()
 		expect(state.districts?.[0]?.procurementPolicy).toMatchObject({
 			usePurchaseReserveVp: 55,
 			bufferPurchaseReserveVp: 130,
-			goods: { concrete: { bufferTargetUnits: 6, maxUnitPriceVp: 12 } },
+			goods: { concrete: { maxUnitPriceVp: 12 } },
 		})
 
 		const game2 = new Game({ terrainSeed: 12, characterCount: 0, settlementGeneration: false })
@@ -104,7 +145,7 @@ describe('district and concrete construction', () => {
 		expect(game2.getDistrict()?.procurementPolicy).toMatchObject({
 			usePurchaseReserveVp: 55,
 			bufferPurchaseReserveVp: 130,
-			goods: { concrete: { bufferTargetUnits: 6, maxUnitPriceVp: 12 } },
+			goods: { concrete: { maxUnitPriceVp: 12 } },
 		})
 	})
 
@@ -157,10 +198,9 @@ describe('district and concrete construction', () => {
 		expect(game.playerAccount.balanceVp).toBe(beforeBalance)
 	})
 
-	it('plans concrete buffer purchases and respects reserve and in-flight limits', async () => {
-		const { game } = await gameAtOrigin()
+	it('plans concrete buffer purchases from storage buffers and respects reserve limits', async () => {
+		const game = await gameWithStorageBuffer()
 		addSeller(game, 'cheap-town', 10)
-		game.recordDistrictMember({ q: 0, r: 0 })
 
 		expect(game.listDistrictPurchaseRequests()).toContainEqual(
 			expect.objectContaining({
@@ -182,25 +222,13 @@ describe('district and concrete construction', () => {
 				blockReason: 'reserve_limit',
 			})
 		)
-
-		game.setPlayerAccountBalance(200)
-		game.updateDistrictProcurementPolicy(DEFAULT_DISTRICT_ID, { maxInFlightPerGood: 0 })
-		expect(game.listDistrictPurchaseRequests()).toContainEqual(
-			expect.objectContaining({
-				good: 'concrete',
-				purpose: 'buffer',
-				status: 'blocked',
-				blockReason: 'in_flight_limit',
-			})
-		)
 	})
 
 	it('chooses the cheapest concrete seller with nearest and id tie-breaks', async () => {
-		const { game } = await gameAtOrigin()
+		const game = await gameWithStorageBuffer()
 		addSeller(game, 'far-expensive', 14, { q: 1, r: 0 })
 		addSeller(game, 'far-cheap', 8, { q: 8, r: 0 })
 		addSeller(game, 'near-cheap', 8, { q: 2, r: 0 })
-		game.recordDistrictMember({ q: 0, r: 0 })
 
 		expect(game.listDistrictPurchaseRequests()).toContainEqual(
 			expect.objectContaining({

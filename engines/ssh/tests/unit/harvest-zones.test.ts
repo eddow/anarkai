@@ -139,6 +139,61 @@ describe('Harvest Zones Restriction', () => {
 		expect(toAxialCoord(pathInClearing[pathInClearing.length - 1])).toMatchObject({ q: 1, r: 0 })
 	})
 
+	it('treats harvestable named zones like harvest zones for harvesters', async () => {
+		const engine = new TestEngine({
+			terrainSeed: 123,
+			characterCount: 0,
+		})
+		await engine.init()
+		const { game } = engine
+
+		engine.loadScenario({
+			tiles: [
+				{
+					coord: [3, 0] as [number, number],
+					deposit: { type: 'tree', name: 'tree', amount: 2 },
+					terrain: 'forest',
+				},
+			],
+			hives: [
+				{
+					name: 'LumberJack',
+					alveoli: [{ coord: [0, 0] as [number, number], alveolus: 'tree_chopper' }],
+				},
+			],
+			zones: {
+				named: [
+					{
+						id: 'north-grove',
+						name: 'North Grove',
+						coords: [[3, 0] as [number, number]],
+					},
+				],
+			},
+		} as any)
+
+		const char = game.population.createCharacter('Worker', { q: 0, r: 0 })
+		const alveolus = game.hex.getTile({ q: 0, r: 0 })?.content as HarvestAlveolus | undefined
+		expect(char.scriptsContext.find.deposit('tree')).toBe(false)
+		expect(alveolus?.nextJob(char)).toBeUndefined()
+
+		game.hex.zoneManager.defineZone({
+			id: 'north-grove',
+			name: 'North Grove',
+			harvestable: true,
+		})
+
+		const path = char.scriptsContext.find.deposit('tree')
+		expect(path).not.toBe(false)
+		expect(toAxialCoord(path[path.length - 1])).toMatchObject({ q: 3, r: 0 })
+
+		const nextJob = alveolus?.nextJob(char)
+		expect(nextJob?.job).toBe('harvest')
+		expect(nextJob?.path?.at(-1)).toMatchObject({ q: 3, r: 0 })
+
+		await engine.destroy()
+	})
+
 	it('harvest alveolus nextJob returns undefined instead of throwing when action is missing at runtime', async () => {
 		const engine = new TestEngine({
 			terrainSeed: 123,

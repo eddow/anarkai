@@ -54,6 +54,7 @@
 			"gather": "Ramasser",
 			"convey": "Convoyer",
 			"construct": "Construire",
+			"forester": "Planter des arbres",
 			"offload": "Décharger",
 			"foundation": "Fondation",
 			"defragment": "Défragmenter",
@@ -70,7 +71,9 @@
 		"idle": "Inactif",
 		"offloadService": "Déchargement",
 		"docked": "À quai",
-		"underway": "En route"
+		"underway": "En route",
+		"showContent": "Afficher le chargement",
+		"hideContent": "Masquer le chargement"
 	},
 	"step": {
 		"idle": "Inactif",
@@ -80,6 +83,7 @@
 		"eat": "Mâche",
 		"pondering": "Pense à la vie",
 		"prepare": "Se prépare à travailler",
+		"forester": "Plante un arbre en zone assignée",
 		"harvest": {
 			"tree_chopper": "Coupe un arbre",
 			"stonecutter": "Taille une pierre"
@@ -133,6 +137,13 @@
 		"cleanUpConfirmText": "Êtes-vous sûr ? C'est irréversible.",
 		"clear": "Vider",
 		"keep": "Garder"
+	},
+	"storage": {
+		"configPreset": "Préréglage de configuration",
+		"configPresetHint": "Sauvegarder ou réutiliser les paramètres de tampon/autorisation",
+		"configCreateLabel": "Créer '{name}'",
+		"configSpecific": "Spécifique (cette alvéole uniquement)",
+		"configNameConflict": "Une configuration avec ce nom existe déjà"
 	},
 	"deposit": "Ressources",
 	"goods": {

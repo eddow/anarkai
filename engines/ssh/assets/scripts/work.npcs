@@ -101,6 +101,19 @@ function construct(jobPlan)
 	end if
 end function
 
+function forester(jobPlan)
+	reachTargetTileLoop jobPlan
+	assignAlveolus jobPlan
+	work.prepare jobPlan
+	forester = jobPlan.target
+	nextJob = work.myNextJob jobPlan
+	if nextJob then
+		work.walkToCurrentJobTarget jobPlan
+		walk.enter
+		work.plantTreeStep
+	end if
+end function
+
 function foundation(jobPlan)
 	reachTargetTileLoop jobPlan
 	assignAlveolus jobPlan
@@ -124,4 +137,4 @@ function defragment(jobPlan)
 	loop
 end function
 
-return { goWork, harvest, transform, convey, construct, foundation, defragment }
+return { goWork, harvest, transform, convey, construct, forester, foundation, defragment }

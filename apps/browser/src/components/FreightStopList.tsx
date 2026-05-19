@@ -5,34 +5,25 @@ import {
 } from '@app/lib/freight-inspector-options'
 import {
 	addFreightDraftStop,
-	applyFreightDraftBayAnchor,
-	applyFreightDraftZoneCenter,
-	defaultZoneCenterFromAnchorSwitch,
-	defaultZoneRadiusForNewZone,
 	moveFreightDraftStop,
 	removeFreightDraftStop,
-	setFreightDraftStopKindAnchor,
-	setFreightDraftStopKindNamedZone,
-	setFreightDraftStopKindZone,
 	setFreightDraftStopLoadSelection,
 	setFreightDraftStopNamedZoneId,
 	setFreightDraftStopUnloadSelection,
 	setFreightDraftStopZoneRadius,
 } from '@app/lib/freight-line-draft'
 import { hoverFreightLineStop } from '@app/lib/freight-line-overlay'
-import { freightMapPick } from '@app/lib/freight-map-pick'
 import { T } from '@app/lib/i18n'
-import { showZoneObject } from '@app/lib/zone-selection'
+import { getZoneObject } from '@app/lib/zone-selection'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
-import { reactive } from 'mutts'
+import { memoize, reactive } from 'mutts'
 import {
-	tablerOutlineMapPin,
+	tablerOutlineCheck,
 	tablerOutlinePencil,
 	tablerOutlinePlus,
-	tablerOutlineRoute,
 	tablerOutlineSettings,
-	tablerOutlineTarget,
 	tablerOutlineTrash,
+	tablerOutlineX,
 } from 'pure-glyf/icons'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
 import { freightLineStationLabel } from 'ssh/freight/freight-line'
@@ -75,7 +66,7 @@ css`
 	opacity: 0.55;
 }
 .freight-stop-list__index {
-	width: 2.2rem;
+	width: 2rem;
 	color: var(--ak-text-muted);
 	font-variant-numeric: tabular-nums;
 }
@@ -83,8 +74,8 @@ css`
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	width: 1.85rem;
-	height: 1.85rem;
+	width: 1.7rem;
+	height: 1.7rem;
 	border-radius: 0.35rem;
 	border: 1px solid color-mix(in srgb, var(--ak-text-muted) 22%, transparent);
 	background: color-mix(in srgb, var(--ak-surface-panel) 92%, transparent);
@@ -99,14 +90,15 @@ css`
 	cursor: not-allowed;
 	opacity: 0.55;
 }
-.freight-stop-list__kind {
-	width: 7.5rem;
+.freight-stop-list__policies {
+	width: auto;
+	min-width: 8rem;
 }
 .freight-stop-list__location {
 	min-width: 0;
 }
 .freight-stop-list__actions {
-	width: 8.25rem;
+	width: auto;
 	text-align: right;
 }
 .freight-stop-list__select,
@@ -140,6 +132,7 @@ css`
 	display: inline-flex;
 	gap: 0.25rem;
 	align-items: center;
+	white-space: nowrap;
 }
 .freight-stop-list__icon-btn,
 .freight-stop-list__add {
@@ -153,8 +146,8 @@ css`
 	cursor: pointer;
 }
 .freight-stop-list__icon-btn {
-	width: 1.85rem;
-	height: 1.85rem;
+	width: 1.7rem;
+	height: 1.7rem;
 }
 .freight-stop-list__icon-btn[disabled],
 .freight-stop-list__add[disabled] {
@@ -175,6 +168,45 @@ css`
 	grid-template-columns: minmax(0, 1fr);
 	gap: 0.75rem;
 }
+.freight-stop-list__policy-summary {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	font-size: 0.72rem;
+}
+.freight-stop-list__policy-summary__item {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	padding: 0.15rem 0.4rem;
+	border-radius: 0.3rem;
+	background: color-mix(in srgb, var(--ak-surface-panel) 70%, transparent);
+}
+.freight-stop-list__policy-summary__label {
+	color: var(--ak-text-muted);
+	font-weight: 600;
+}
+.freight-stop-list__policy-summary__icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.1rem;
+	height: 1.1rem;
+	border-radius: 0.25rem;
+	font-size: 0.7rem;
+}
+.freight-stop-list__policy-summary__icon--allow {
+	background: color-mix(in srgb, #22c55e 20%, transparent);
+	color: #22c55e;
+}
+.freight-stop-list__policy-summary__icon--deny {
+	background: color-mix(in srgb, #ef4444 20%, transparent);
+	color: #ef4444;
+}
+.freight-stop-list__policy-summary__text {
+	color: var(--ak-text);
+	font-size: 0.68rem;
+}
 `
 
 interface FreightStopListProps {
@@ -193,6 +225,11 @@ const stationTileForStop = (game: Game, stop: FreightStop) => {
 	return game.hex.getTile({ q: anchor.coord[0], r: anchor.coord[1] })
 }
 
+const zoneObjectForStop = (stop: FreightStop) => {
+	if (!('zone' in stop) || stop.zone.kind !== 'named') return undefined
+	return getZoneObject(stop.zone.zoneId)
+}
+
 const stopLabel = (game: Game, stop: FreightStop): string => {
 	if ('anchor' in stop) return freightLineStationLabel(stop.anchor)
 	if (stop.zone.kind === 'named') {
@@ -201,12 +238,70 @@ const stopLabel = (game: Game, stop: FreightStop): string => {
 	return `(${stop.zone.center[0]}, ${stop.zone.center[1]}) r<=${stop.zone.radius}`
 }
 
-const policySummary = (policy: GoodSelectionPolicy | undefined): string => {
-	if (!policy) return 'all'
-	const rules = policy.goodRules.length + policy.tagRules.length
-	return rules === 0 && policy.defaultEffect === 'allow'
-		? 'all'
-		: `${rules} rules, default ${policy.defaultEffect}`
+const PolicySummary = (props: { policy: GoodSelectionPolicy | undefined; label: string }) => {
+	const policy = () => props.policy
+	const rules = () => {
+		const p = policy()
+		if (!p) return { goodRules: [], tagRules: [], defaultEffect: 'allow' as const }
+		return {
+			goodRules: p.goodRules,
+			tagRules: p.tagRules,
+			defaultEffect: p.defaultEffect,
+		}
+	}
+	const isUnrestricted = () => {
+		const r = rules()
+		return r.goodRules.length === 0 && r.tagRules.length === 0 && r.defaultEffect === 'allow'
+	}
+	const defaultIcon = () => {
+		const r = rules()
+		return r.defaultEffect === 'allow' ? icon(tablerOutlineCheck) : icon(tablerOutlineX)
+	}
+	const summaryText = () => {
+		const r = rules()
+		if (isUnrestricted()) return 'All goods'
+		const parts: string[] = []
+		if (r.goodRules.length > 0) {
+			const allowGoods = r.goodRules
+				.filter((rule) => rule.effect === 'allow')
+				.map((rule) => rule.goodType)
+			const denyGoods = r.goodRules
+				.filter((rule) => rule.effect === 'deny')
+				.map((rule) => rule.goodType)
+			if (allowGoods.length > 0) parts.push(`+${allowGoods.length}`)
+			if (denyGoods.length > 0) parts.push(`-${denyGoods.length}`)
+		}
+		if (r.tagRules.length > 0) {
+			const allowTags = r.tagRules.filter((rule) => rule.effect === 'allow').length
+			const denyTags = r.tagRules.filter((rule) => rule.effect === 'deny').length
+			if (allowTags > 0) parts.push(`+${allowTags} tags`)
+			if (denyTags > 0) parts.push(`-${denyTags} tags`)
+		}
+		if (parts.length === 0) return r.defaultEffect === 'allow' ? 'All goods' : 'Deny all'
+		return parts.join(', ')
+	}
+	return (
+		<span
+			class="freight-stop-list__policy-summary__item"
+			title={
+				isUnrestricted()
+					? `${props.label}: All goods allowed`
+					: `${props.label}: ${summaryText()}, default ${rules().defaultEffect}`
+			}
+		>
+			<span class="freight-stop-list__policy-summary__label">{props.label}</span>
+			<span
+				class={`freight-stop-list__policy-summary__icon ${
+					rules().defaultEffect === 'allow'
+						? 'freight-stop-list__policy-summary__icon--allow'
+						: 'freight-stop-list__policy-summary__icon--deny'
+				}`}
+			>
+				{isUnrestricted() ? '∞' : defaultIcon()}
+			</span>
+			<span class="freight-stop-list__policy-summary__text">{summaryText()}</span>
+		</span>
+	)
 }
 
 const FreightStopList = (props: FreightStopListProps) => {
@@ -221,8 +316,12 @@ const FreightStopList = (props: FreightStopListProps) => {
 	const namedZones = () => props.game.hex.zoneManager.listCustomZoneDefinitions()
 	const goodOptions = () => freightInspectorGoodOptions(goods())
 	const tagOptions = () => freightInspectorTagOptions(goodsTags())
-	const stopsIndexed = (): { stop: FreightStop; index: number }[] =>
-		(currentDraft()?.stops ?? []).map((stop, index) => ({ stop, index }))
+	const stopsIndexed = memoize((): { stop: FreightStop; index: number }[] => {
+		const draft = currentDraft()
+		if (!draft) return []
+		void draft.stops.length
+		return draft.stops.map((stop, index) => ({ stop, index }))
+	})
 
 	const apply = (fn: (line: FreightLineDefinition) => FreightLineDefinition) => {
 		const draft = currentDraft()
@@ -233,50 +332,6 @@ const FreightStopList = (props: FreightStopListProps) => {
 		const draft = currentDraft()
 		if (props.readOnly || !draft) return
 		props.onChange(addFreightDraftStop(draft, draft.stops.length))
-	}
-	const handleKindInput = (index: number, value: string) => {
-		if (props.readOnly) return
-		if (value === 'anchor') {
-			apply((line) => setFreightDraftStopKindAnchor(line, index))
-		} else if (value === 'named') {
-			const zoneId = namedZones()[0]?.id
-			if (zoneId) apply((line) => setFreightDraftStopKindNamedZone(line, index, zoneId))
-		} else {
-			apply((line) =>
-				setFreightDraftStopKindZone(
-					line,
-					index,
-					defaultZoneCenterFromAnchorSwitch(line, index),
-					defaultZoneRadiusForNewZone(line, index)
-				)
-			)
-		}
-	}
-	const rowKind = (stop: FreightStop) =>
-		'anchor' in stop ? 'anchor' : stop.zone.kind === 'named' ? 'named' : 'radius'
-	const startPickBay = (index: number) => {
-		const lineId = currentDraft()?.id
-		if (!lineId || props.readOnly) return
-		freightMapPick.pending = {
-			lineId,
-			pickKind: 'bay',
-			apply: (result) => {
-				if (result.kind !== 'bay') return
-				apply((line) => applyFreightDraftBayAnchor(line, index, result.anchor))
-			},
-		}
-	}
-	const startPickCenter = (index: number) => {
-		const lineId = currentDraft()?.id
-		if (!lineId || props.readOnly) return
-		freightMapPick.pending = {
-			lineId,
-			pickKind: 'center',
-			apply: (result) => {
-				if (result.kind !== 'center') return
-				apply((line) => applyFreightDraftZoneCenter(line, index, result.coord))
-			},
-		}
 	}
 	const toggleExpanded = (stopId: string) => {
 		expanded.byStopId[stopId] = !expanded.byStopId[stopId]
@@ -296,8 +351,8 @@ const FreightStopList = (props: FreightStopListProps) => {
 				<thead>
 					<tr>
 						<th class="freight-stop-list__index">#</th>
-						<th class="freight-stop-list__kind">{t().locationKind}</th>
 						<th>{t().zoneLocation}</th>
+						<th class="freight-stop-list__policies">{t().policies}</th>
 						<th class="freight-stop-list__actions">{t().actions}</th>
 					</tr>
 				</thead>
@@ -305,6 +360,7 @@ const FreightStopList = (props: FreightStopListProps) => {
 					<for each={stopsIndexed()}>
 						{({ stop, index }: { stop: FreightStop; index: number }) => {
 							const tile = () => stationTileForStop(props.game, stop)
+							const zoneObj = () => zoneObjectForStop(stop)
 							const expandedPolicy = () => !!expanded.byStopId[stop.id]
 							return (
 								<>
@@ -330,24 +386,21 @@ const FreightStopList = (props: FreightStopListProps) => {
 												{index + 1}
 											</button>
 										</td>
-										<td class="freight-stop-list__kind">
-											<select
-												class="freight-stop-list__select"
-												disabled={props.readOnly}
-												value={rowKind(stop)}
-												update:value={(value: string) => handleKindInput(index, value)}
-												data-testid={`freight-stop-kind-${index}`}
-											>
-												<option value="anchor">{t().kindAnchor}</option>
-												<option value="radius">{t().kindZone}</option>
-												<option value="named">Named zone</option>
-											</select>
-										</td>
 										<td class="freight-stop-list__location">
 											<div class="freight-stop-list__location-main">
 												<LinkedEntityControl if={tile()} object={tile()!} />
-												<InspectorObjectLink if={tile()} object={tile()!} label={stopLabel(props.game, stop)} />
-												<span if={!tile()} class="freight-stop-list__summary">
+												<InspectorObjectLink
+													if={tile()}
+													object={tile()!}
+													label={stopLabel(props.game, stop)}
+												/>
+												<LinkedEntityControl if={zoneObj()} object={zoneObj()!} />
+												<InspectorObjectLink
+													if={zoneObj()}
+													object={zoneObj()!}
+													label={stopLabel(props.game, stop)}
+												/>
+												<span if={!tile() && !zoneObj()} class="freight-stop-list__summary">
 													{stopLabel(props.game, stop)}
 												</span>
 												<input
@@ -356,7 +409,11 @@ const FreightStopList = (props: FreightStopListProps) => {
 													type="text"
 													inputMode="numeric"
 													disabled={props.readOnly}
-													value={'zone' in stop && stop.zone.kind === 'radius' ? String(stop.zone.radius) : ''}
+													value={
+														'zone' in stop && stop.zone.kind === 'radius'
+															? String(stop.zone.radius)
+															: ''
+													}
 													update:value={(raw: string) => {
 														const radius =
 															raw.trim() === '' || Number.isNaN(Number(raw))
@@ -370,45 +427,30 @@ const FreightStopList = (props: FreightStopListProps) => {
 													if={'zone' in stop && stop.zone.kind === 'named'}
 													class="freight-stop-list__select"
 													disabled={props.readOnly}
-													value={'zone' in stop && stop.zone.kind === 'named' ? stop.zone.zoneId : ''}
+													value={
+														'zone' in stop && stop.zone.kind === 'named' ? stop.zone.zoneId : ''
+													}
 													update:value={(zoneId: string) =>
 														apply((line) => setFreightDraftStopNamedZoneId(line, index, zoneId))
 													}
 													data-testid={`freight-stop-named-zone-${index}`}
 												>
 													<for each={namedZones()}>
-														{(zone) => <option value={zone.id}>{zone.name?.trim() || zone.id}</option>}
+														{(zone) => (
+															<option value={zone.id}>{zone.name?.trim() || zone.id}</option>
+														)}
 													</for>
 												</select>
 											</div>
-											<div class="freight-stop-list__muted">
-												L {policySummary(stop.loadSelection)} / U {policySummary(stop.unloadSelection)}
+										</td>
+										<td class="freight-stop-list__policies">
+											<div class="freight-stop-list__policy-summary">
+												<PolicySummary policy={stop.loadSelection} label="L" />
+												<PolicySummary policy={stop.unloadSelection} label="U" />
 											</div>
 										</td>
 										<td class="freight-stop-list__actions">
 											<span class="freight-stop-list__actions-group">
-												<button
-													type="button"
-													class="freight-stop-list__icon-btn"
-													title={'anchor' in stop ? t().pickBay : t().pickCenter}
-													disabled={props.readOnly || ('zone' in stop && stop.zone.kind === 'named')}
-													onClick={() => ('anchor' in stop ? startPickBay(index) : startPickCenter(index))}
-												>
-													{icon('anchor' in stop ? tablerOutlineMapPin : tablerOutlineTarget)}
-												</button>
-												<button
-													type="button"
-													class="freight-stop-list__icon-btn"
-													title="Open zone"
-													disabled={props.readOnly || !('zone' in stop) || stop.zone.kind !== 'named'}
-													onClick={() => {
-														if ('zone' in stop && stop.zone.kind === 'named') {
-															showZoneObject(stop.zone.zoneId)
-														}
-													}}
-												>
-													{icon(tablerOutlineRoute)}
-												</button>
 												<button
 													type="button"
 													class="freight-stop-list__icon-btn"
@@ -432,7 +474,7 @@ const FreightStopList = (props: FreightStopListProps) => {
 									</tr>
 									<tr if={expandedPolicy()} class="freight-stop-list__policy-row">
 										<td />
-										<td colSpan={3}>
+										<td colSpan={2}>
 											<div class="freight-stop-list__policy-grid">
 												<div>
 													<div class="freight-stop-list__muted">{t().loadPolicy}</div>

@@ -29,8 +29,7 @@ const game = {
 			autoBuyNeededGoods: true,
 			usePurchaseReserveVp: 20,
 			bufferPurchaseReserveVp: 80,
-			maxInFlightPerGood: 1,
-			goods: { concrete: { bufferTargetUnits: 3 } },
+			goods: {},
 		},
 	})),
 	getObject: vi.fn(() => marketObject),
@@ -43,7 +42,6 @@ const game = {
 			: undefined
 	),
 	updateDistrictProcurementPolicy: vi.fn(),
-	setDistrictProcurementGoodPolicy: vi.fn(),
 	listDistrictEligibleSellGoods: vi.fn(() => ['wood']),
 	listDistrictPurchaseRequests: vi.fn(() => [
 		{
@@ -161,7 +159,6 @@ describe('DistrictWidget', () => {
 		showProps.mockClear()
 		game.getObject.mockClear()
 		game.updateDistrictProcurementPolicy.mockClear()
-		game.setDistrictProcurementGoodPolicy.mockClear()
 	})
 
 	afterEach(() => {
@@ -230,14 +227,6 @@ describe('DistrictWidget', () => {
 		expect(game.updateDistrictProcurementPolicy).toHaveBeenCalledWith('default', {
 			usePurchaseReserveVp: 42,
 		})
-
-		const bufferInput = container.querySelector(
-			'input[title="Buffer target for concrete"]'
-		) as HTMLInputElement
-		bufferInput.value = '4'
-		bufferInput.dispatchEvent(new InputEvent('input', { bubbles: true }))
-		expect(game.setDistrictProcurementGoodPolicy).toHaveBeenCalledWith('default', 'concrete', {
-			bufferTargetUnits: 4,
-		})
+		expect(container.querySelector('input[title="Buffer target for concrete"]')).toBeNull()
 	})
 })
