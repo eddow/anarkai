@@ -17,6 +17,7 @@ const hive = {
 			goodsRelations: {
 				wood: { advertisement: 'provide', priority: '1-buffer' },
 			},
+			storage: { stock: { wood: 4 } },
 		},
 		{
 			name: 'sawmill',
@@ -24,6 +25,7 @@ const hive = {
 			goodsRelations: {
 				wood: { advertisement: 'demand', priority: '2-use' },
 			},
+			storage: { stock: { wood: 1 } },
 		},
 		Object.assign(new MockBuildAlveolus(), {
 			uid: 'build:1',
@@ -34,6 +36,7 @@ const hive = {
 			goodsRelations: {
 				wood: { advertisement: 'demand', priority: '2-use' },
 			},
+			storage: { stock: { wood: 2 } },
 		}),
 	],
 }
@@ -182,6 +185,12 @@ describe('HiveProperties', () => {
 		expect(nameInput.value).toBe('North Hive')
 		expect(container.querySelector('[data-testid="hive-ad-row-wood-demand"]')).not.toBeNull()
 		expect(container.querySelector('[data-testid="hive-ad-row-wood-provide"]')).not.toBeNull()
+		expect(
+			container.querySelector('[data-testid="hive-ad-quantity-wood-demand"]')?.textContent
+		).toBe('7')
+		expect(
+			container.querySelector('[data-testid="hive-ad-quantity-wood-provide"]')?.textContent
+		).toBe('7')
 		expect(container.querySelector('[data-testid="badge-Wood"]')).not.toBeNull()
 		expect(
 			container.querySelector('[data-testid="hive-build-site-build:1"]')?.textContent

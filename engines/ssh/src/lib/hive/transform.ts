@@ -84,13 +84,23 @@ export class TransformAlveolus extends Alveolus {
 	get isBelowProductRatioLimit(): boolean {
 		const config = this.productRatioConfiguration
 		if (!config) return true
-		const inputAmount =
-			(this.storage.stock[config.inputGood] ?? 0) + this.processBuffer(config.inputGood)
-		const outputAmount =
-			(this.storage.stock[config.outputGood] ?? 0) + this.processBuffer(config.outputGood)
+		const inputAmount = this.hiveGoodAmountForProductRatio(config.inputGood)
+		const outputAmount = this.hiveGoodAmountForProductRatio(config.outputGood)
 		const total = inputAmount + outputAmount
 		if (total <= epsilon) return true
 		return outputAmount / total < config.maxProductRatio - epsilon
+	}
+
+	private hiveGoodAmountForProductRatio(goodType: GoodType): number {
+		const alveoli = this.hive?.alveoli ?? [this]
+		let amount = 0
+		for (const alveolus of alveoli) {
+			amount += alveolus.storage.stock[goodType] ?? 0
+			if (alveolus instanceof TransformAlveolus) {
+				amount += alveolus.processBuffer(goodType)
+			}
+		}
+		return amount
 	}
 
 	setProductRatioConfiguration(config: Ssh.TransformProductRatioConfiguration): void {
@@ -180,13 +190,12 @@ export class TransformAlveolus extends Alveolus {
 
 		// Do not accept more inputs if the next produced unit would have nowhere to unload.
 		const hasOutputRoom = this.hasOutputRoom
-		const isBelowProductRatioLimit = this.isBelowProductRatioLimit
 
 		// Check if storage has capacity for this input
 		// Use canStoreAll to check if we can store at least 1 of this good type
 		const hasCapacity = this.storage.canStoreAll({ [goodType]: 1 })
 
-		return isInput && hasOutputRoom && isBelowProductRatioLimit && hasCapacity
+		return isInput && hasOutputRoom && hasCapacity
 	}
 
 	/**
@@ -258,9 +267,7 @@ export class TransformAlveolus extends Alveolus {
 				.filter(([goodType]) => {
 					const plannedStock =
 						(stock[goodType as GoodType] ?? 0) + this.storage.allocated(goodType as GoodType)
-					return (
-						this.hasOutputRoom && this.isBelowProductRatioLimit && plannedStock < inputBufferSize
-					)
+					return this.hasOutputRoom && plannedStock < inputBufferSize
 				})
 				.map(([goodType]) => [
 					goodType as GoodType,

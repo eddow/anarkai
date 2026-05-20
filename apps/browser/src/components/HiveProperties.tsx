@@ -149,6 +149,7 @@ const HiveProperties = (props: HivePropertiesProps) => {
 				action: alveolus.action,
 				target: alveolus instanceof BuildAlveolus ? alveolus.target : undefined,
 				goodsRelations: alveolus.goodsRelations,
+				stock: alveolus.storage?.stock ?? {},
 			}))
 		)
 		state.dockedVehicles = collectDockedVehiclesForHive(props.hiveObject.game, hive)
@@ -257,7 +258,6 @@ const HiveProperties = (props: HivePropertiesProps) => {
 								const weightClass = `hive-properties__arrow--w${tier}`
 								const sprite = goodSprite(entry.goodType)
 								const label = goodLabel(entry.goodType)
-								const count = entry.types.length
 								return (
 									<div
 										class="hive-properties__ad-row"
@@ -271,8 +271,12 @@ const HiveProperties = (props: HivePropertiesProps) => {
 											height={22}
 										/>
 										<div class="hive-properties__meta">
-											<span class="hive-properties__count" title={T.hive.sourcesHint}>
-												{count}
+											<span
+												class="hive-properties__count"
+												data-testid={`hive-ad-quantity-${entry.goodType}-${entry.advertisement}`}
+												title={`${label}: ${entry.quantity}`}
+											>
+												{entry.quantity}
 											</span>
 											<span
 												class={[arrowClass, weightClass]}

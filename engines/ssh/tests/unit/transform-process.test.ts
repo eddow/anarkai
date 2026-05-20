@@ -79,9 +79,50 @@ describe('transform process buffers', () => {
 			expect(sawmill.isBelowProductRatioLimit).toBe(false)
 			expect(sawmill.canWork).toBe(false)
 			expect(sawmill.nextLoadGood).toBeUndefined()
-			expect(sawmill.canTake('wood', '2-use')).toBe(false)
-			expect(sawmill.workingGoodsRelations.wood).toBeUndefined()
+			expect(sawmill.canTake('wood', '2-use')).toBe(true)
+			expect(sawmill.workingGoodsRelations.wood?.advertisement).toBe('demand')
 		})
+	})
+
+	it('uses hive-level stock for the product ratio work gate', async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+		try {
+			engine.loadScenario({
+				hives: [
+					{
+						name: 'TransformProcess',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'sawmill', goods: {} },
+							{ coord: [1, 0], alveolus: 'woodpile', goods: { wood: 1 } },
+							{ coord: [0, 1], alveolus: 'storage', goods: { planks: 10 } },
+						],
+					},
+				],
+			})
+			await Promise.resolve()
+			const sawmill = engine.game.hex.getTile({ q: 0, r: 0 })?.content
+			if (!(sawmill instanceof TransformAlveolus)) {
+				throw new Error(`expected sawmill, got ${sawmill?.constructor?.name ?? 'nothing'}`)
+			}
+
+			expect(sawmill.isBelowProductRatioLimit).toBe(false)
+			expect(sawmill.canWork).toBe(false)
+			expect(sawmill.canTake('wood', '2-use')).toBe(true)
+			expect(sawmill.workingGoodsRelations.wood?.advertisement).toBe('demand')
+
+			const woodpile = engine.game.hex.getTile({ q: 1, r: 0 })?.content
+			woodpile?.storage.addGood('wood', 10)
+
+			expect(sawmill.isBelowProductRatioLimit).toBe(true)
+			expect(sawmill.canWork).toBe(false)
+
+			sawmill.storage.addGood('wood', 1)
+			expect(sawmill.canWork).toBe(true)
+			expect(sawmill.nextLoadGood).toBe('wood')
+		} finally {
+			await engine.destroy()
+		}
 	})
 
 	it('allows transform product ratio input/output and limit to be overridden by configuration', async () => {

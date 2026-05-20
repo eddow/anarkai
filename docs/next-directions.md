@@ -34,11 +34,6 @@ Already landed or mostly landed:
 - Browser board highlights for lines, zones, hives, and stops are hover-driven rather than persistent just
   because a widget is open.
 
-Still architecturally important:
-
-- Off-screen gameplay unloading is deferred until a larger-world feature needs it.
-- Freight line diagnostics can still deepen once playtesting exposes confusing failures.
-
 ## Details to add
 
 - alveoli configurations (ex storage buffer/allowance) should be able to be memorized, given a name and re-used with a combo-box containing all applicable configurations, "specific" = for this alveoli only or the ability to create a new configuration (no add button, just entering a text in the combo and checking for conflict)
@@ -65,10 +60,11 @@ Still architecturally important:
 - specific commerces will have to be generated in settlements, trade should depend on the present commerces and the vehicle using the road should go to the commerce - again (un)loading to/from a vehicle: vehicle goes on the shop border's and a convey-hop-like occur, transaction is when the character in the center of the shop spawn(buy)/unspawn(sell) good
 - Pickup-trucks and wheelbarrows are all-terrain vehicles. For most other vehicles, the line should have a road available
 - Remove districts
+- rocks produce one stone per harvesting, trees produce 4~6 (count for 6). Point is, for harvesting/..., tiles should be allowed to contain max the equivalent of 12 lose goods. So, 6 woods + 1 tree for instance. If there is no wood, we can put 2 trees. If there is 1-6, we can put one tree max, if more, we cannot put trees anymore.
+- one docking spot in a bay can only be used by one vehicle at a time, vehicles should queue. Note: this might demand the ability to have multiple bays for a hive designed as a stop so the vehicle could choose and/or parking places (where several vehicle can "dock" for waiting/being offloaded/...) - in the "road" category
 
 ## Little bugs
 
-- one docking spot in a bay can only be used by one vehicle at a time
 - Storage configuration, on good configuration add:
   - the menu is clipped in the widget
   - The maximum should be the total amount of slots minus the "other good"'s buffered slots - and this maximum (even if applied now) should be visible, the right-most "crates" of the `stars` component should be made clearly unavailable (redish?)

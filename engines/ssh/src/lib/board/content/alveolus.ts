@@ -2,6 +2,7 @@ import { configurations, harvestFatiguePremium, jobBalance } from 'engine-rules'
 import { inert, reactive, unreactive, unwrap } from 'mutts'
 import { isTileCoord } from 'ssh/board/tile-coord'
 import { traces } from 'ssh/dev/debug'
+import { isVehicleFreightDock } from 'ssh/freight/vehicle-freight-dock'
 import type { Hive, MovementSelection, TrackedMovement } from 'ssh/hive/hive'
 import { movementRefId } from 'ssh/hive/movement-ref'
 import { type AlveolusProposedJob, asAlveolusProposedJob } from 'ssh/jobs/offers'
@@ -598,12 +599,19 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	}
 
 	private conveyJob(): Job | undefined {
-		if (!this.aGoodMovement?.length && !this.incomingGoods) return undefined
+		const movements = this.aGoodMovement
+		if (!movements?.length && !this.incomingGoods) return undefined
+		const handlesVehicleDock = movements?.some(
+			({ movement }) =>
+				isVehicleFreightDock(movement.provider) || isVehicleFreightDock(movement.demander)
+		)
 
 		return {
 			job: 'convey',
 			fatigue: 1,
-			urgency: jobBalance.convey,
+			urgency: handlesVehicleDock
+				? Math.max(jobBalance.convey, jobBalance.offload.park + 1)
+				: jobBalance.convey,
 		}
 	}
 

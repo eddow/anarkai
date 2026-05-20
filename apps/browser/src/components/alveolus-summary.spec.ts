@@ -10,6 +10,7 @@ describe('summarizeHiveGoodsRelations', () => {
 				goodsRelations: {
 					planks: { advertisement: 'provide', priority: '0-store' },
 				},
+				stock: { planks: 3 },
 			},
 			{
 				name: 'build.storage',
@@ -25,12 +26,14 @@ describe('summarizeHiveGoodsRelations', () => {
 				goodType: 'planks',
 				advertisement: 'demand',
 				priority: '2-use',
+				quantity: 3,
 				types: ['build.storage'],
 			},
 			{
 				goodType: 'planks',
 				advertisement: 'provide',
 				priority: '0-store',
+				quantity: 3,
 				types: ['storage'],
 			},
 		])
@@ -44,12 +47,14 @@ describe('summarizeHiveGoodsRelations', () => {
 				goodsRelations: {
 					wood: { advertisement: 'provide', priority: '0-store' },
 				},
+				stock: { wood: 2 },
 			},
 			{
 				name: 'vehicle-dock:wheelbarrow-1',
 				goodsRelations: {
 					wood: { advertisement: 'provide', priority: '2-use' },
 				},
+				stock: { wood: 1 },
 			},
 		])
 
@@ -58,6 +63,7 @@ describe('summarizeHiveGoodsRelations', () => {
 				goodType: 'wood',
 				advertisement: 'provide',
 				priority: '2-use',
+				quantity: 3,
 				types: ['storage', 'vehicle-dock:wheelbarrow-1'],
 			},
 		])

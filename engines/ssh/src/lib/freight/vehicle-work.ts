@@ -23,6 +23,7 @@ import {
 import { scoreVehicleCandidate } from 'ssh/freight/vehicle-candidate-policy'
 import {
 	collectDockedVehicleAdvertisementCandidates,
+	isVehicleFreightDock,
 	refreshDockedVehicleAdvertisement,
 } from 'ssh/freight/vehicle-freight-dock'
 import {
@@ -185,6 +186,27 @@ function vehicleHasNoOtherOperator(
 		if (c.operates?.uid === vehicle.uid) return false
 	}
 	return true
+}
+
+function hasActiveVehicleDockMovement(game: Game): boolean {
+	const seen = new Set<unknown>()
+	for (const tile of game.hex.tiles) {
+		const hive = tile.content && 'hive' in tile.content ? (tile.content as Alveolus).hive : undefined
+		if (!hive || seen.has(hive)) continue
+		seen.add(hive)
+		if (
+			hive
+				.collectActiveMovements()
+				.some(
+					(movement) =>
+						isVehicleFreightDock(movement.provider) ||
+						isVehicleFreightDock(movement.demander)
+				)
+		) {
+			return true
+		}
+	}
+	return false
 }
 
 function characterCanUseLinkedVehicleHere(character: Character, vehicle: VehicleEntity): boolean {
@@ -884,6 +906,7 @@ function findVehicleOffloadJobApproach(
 ): VehicleOffloadJob | undefined {
 	if (character.driving) return undefined
 	if (character.operates) return undefined
+	if (hasActiveVehicleDockMovement(game)) return undefined
 
 	let best:
 		| {
@@ -950,6 +973,7 @@ function findVehicleOffloadJobApproach(
 			continue
 		}
 		if (isVehicleLineService(service)) {
+			if (vehicle.isDocked && dockedVehicleHasPendingDockWork(vehicle)) continue
 			if (projectedLineStopForVehicleHop(game, character, vehicle)) continue
 			const reachability = vehicleMaintenanceReachability(game, vehicle, character)
 			const candidate = pickParkingTargetForVehicle(game, vehicle, (tile) =>

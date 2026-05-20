@@ -1,5 +1,6 @@
 import { chopSaw } from 'ssh/game/exampleGames'
 import { executeNpcTradeStopTransfer } from 'ssh/freight/npc-trade-stop'
+import { collectDockedVehicleAdvertisementCandidates } from 'ssh/freight/vehicle-freight-dock'
 import { Game } from 'ssh/game/game'
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -199,5 +200,109 @@ describe('chopSaw example game', () => {
 		expect(result.spentVp).toBeGreaterThan(0)
 		expect(pickup.storage.stock.concrete ?? 0).toBeGreaterThan(0)
 		expect(pickup.storage.stock.planks ?? 0).toBe(0)
+	})
+
+	it('loads planks from the ChopSaw bay into the materials pickup for Melindbury export', async () => {
+		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines.find(
+			(candidate) => candidate.id === 'ChopSaw:materials-loop:0,0:Melindbury'
+		)
+		if (!line) throw new Error('Expected Chopsaw materials loop')
+		const bayStop = line.stops.find((stop) => stop.id === 'ChopSaw:materials-bay')
+		if (!bayStop) throw new Error('Expected Chopsaw materials bay stop')
+		const pickup = game.vehicles.vehicle('ChopSaw:pickup-truck')
+		if (!pickup) throw new Error('Expected Chopsaw pickup truck')
+		const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
+		const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
+		storage.storage.addGood('planks', 2)
+
+		pickup.position = { q: 0, r: 0 }
+		pickup.beginLineService(line, bayStop)
+		pickup.dock()
+
+		expect(collectDockedVehicleAdvertisementCandidates(pickup, bay)).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ goodType: 'planks', advertisement: 'demand' }),
+			])
+		)
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		expect(
+			bay.hive.collectActiveMovements().map((movement: any) => ({
+				goodType: movement.goodType,
+				provider: movement.provider?.name,
+				demander: movement.demander?.name,
+				pathLength: movement.path?.length,
+			}))
+		).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					goodType: 'planks',
+					demander: `vehicle-dock:${pickup.uid}`,
+				}),
+			])
+		)
+		expect(storage.proposedJobs).toEqual(
+			expect.arrayContaining([expect.objectContaining({ job: 'convey' })])
+		)
+	})
+
+	it('worker conveys planks from ChopSaw storage into the docked materials pickup', async () => {
+		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines.find(
+			(candidate) => candidate.id === 'ChopSaw:materials-loop:0,0:Melindbury'
+		)
+		if (!line) throw new Error('Expected Chopsaw materials loop')
+		const bayStop = line.stops.find((stop) => stop.id === 'ChopSaw:materials-bay')
+		if (!bayStop) throw new Error('Expected Chopsaw materials bay stop')
+		const pickup = game.vehicles.vehicle('ChopSaw:pickup-truck')
+		if (!pickup) throw new Error('Expected Chopsaw pickup truck')
+		const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
+		storage.storage.addGood('planks', 2)
+		const worker = game.population.createCharacter('PlankLoader', { q: 0, r: -1 })
+		worker.role = 'worker'
+		void worker.scriptsContext
+
+		pickup.position = { q: 0, r: 0 }
+		pickup.beginLineService(line, bayStop)
+		pickup.dock()
+
+		const timeline: string[] = []
+		for (let i = 0; i < 200 && (pickup.storage.stock.planks ?? 0) <= 0; i++) {
+			game.ticker.update(250)
+			if (i % 10 === 0) await new Promise((resolve) => setTimeout(resolve, 0))
+			if (i % 20 === 0) {
+				timeline.push(
+					[
+						`i=${i}`,
+						`pickup=${pickup.storage.stock.planks ?? 0}`,
+						`storage=${storage.storage.stock.planks ?? 0}`,
+						`action=${worker.actionDescription.join('/') || 'none'}`,
+						`storageJobs=${storage.proposedJobs.map((job: any) => job.job).join(',') || 'none'}`,
+						`bayJobs=${
+							game.hex
+								.getTile({ q: 0, r: 0 })
+								?.content?.proposedJobs?.map((job: any) => job.job)
+								.join(',') || 'none'
+						}`,
+						`movements=${storage.hive
+							.collectActiveMovements()
+							.map(
+								(movement: any) =>
+									`${movement.goodType}:${movement.provider?.name}->${movement.demander?.name}:claimed=${movement.claimed}:path=${movement.path.length}`
+							)
+							.join('|') || 'none'}`,
+					].join(' ')
+				)
+			}
+		}
+
+		expect(pickup.storage.stock.planks ?? 0, timeline.join('\n')).toBeGreaterThan(0)
 	})
 })

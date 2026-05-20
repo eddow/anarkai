@@ -4,6 +4,7 @@ export type HiveAdvertisementSummaryEntry = {
 	goodType: string
 	advertisement: Advertisement
 	priority: ExchangePriority
+	quantity: number
 	types: string[]
 }
 
@@ -12,6 +13,7 @@ export type SummaryAdvertiser = {
 	action?: unknown
 	target?: string
 	goodsRelations?: GoodsRelations
+	stock?: Partial<Record<string, number>>
 }
 
 const priorityValue = (priority: ExchangePriority) => Number(priority[0])
@@ -33,8 +35,16 @@ export const summarizeHiveGoodsRelations = (
 	alveoli: Iterable<SummaryAdvertiser>
 ): HiveAdvertisementSummaryEntry[] => {
 	const entries = new Map<string, HiveAdvertisementSummaryEntry>()
+	const quantities = new Map<string, number>()
+	const advertisers = [...alveoli]
 
-	for (const alveolus of alveoli) {
+	for (const alveolus of advertisers) {
+		for (const [goodType, quantity] of Object.entries(alveolus.stock ?? {})) {
+			quantities.set(goodType, (quantities.get(goodType) ?? 0) + (quantity ?? 0))
+		}
+	}
+
+	for (const alveolus of advertisers) {
 		const typeLabel = summaryTypeLabel(alveolus)
 		for (const [goodType, relation] of Object.entries(alveolus.goodsRelations ?? {})) {
 			const key = `${goodType}:${relation.advertisement}`
@@ -45,11 +55,13 @@ export const summarizeHiveGoodsRelations = (
 					goodType,
 					advertisement: relation.advertisement,
 					priority: relation.priority,
+					quantity: quantities.get(goodType) ?? 0,
 					types: typeLabel ? [typeLabel] : [],
 				})
 				continue
 			}
 
+			current.quantity = quantities.get(goodType) ?? 0
 			if (priorityValue(relation.priority) > priorityValue(current.priority)) {
 				current.priority = relation.priority
 			}
