@@ -28,6 +28,8 @@ export const plantedTreeMaxPerTile = 2
 export const plantedTreeImmatureAgeSeconds = 30
 export const plantedTreeMatureAgeSeconds = 60
 export const plantedTreeWoodYield = 6
+export const tileLooseGoodsCapacity = 12
+export const plantedTreeTileFootprint = plantedTreeWoodYield
 
 export class Deposit extends GcClassed<Ssh.DepositDefinition>() {
 	constructor(
@@ -296,11 +298,24 @@ export function hasMaturePlantedTree(land: UnBuiltLand): boolean {
 	return !!land.plantedTrees?.ages.some((age) => plantedTreeStage(age) === 'mature')
 }
 
+export function plantedTreeCountOnLand(land: UnBuiltLand): number {
+	return Math.max(0, Math.floor(land.deposit?.name === 'tree' ? land.deposit.amount : 0))
+}
+
+export function tilePhysicalLoadForPlanting(land: UnBuiltLand): number {
+	return land.tile.looseGoods.length + plantedTreeCountOnLand(land) * plantedTreeTileFootprint
+}
+
+export function tileHasRoomForPlantedTree(land: UnBuiltLand): boolean {
+	return tilePhysicalLoadForPlanting(land) + plantedTreeTileFootprint <= tileLooseGoodsCapacity
+}
+
 export function canPlantTreeOnLand(land: UnBuiltLand): boolean {
 	if (land.project) return false
 	if (land.terrain !== 'forest') return false
 	if (land.deposit && land.deposit.name !== 'tree') return false
-	return (land.deposit?.amount ?? 0) < plantedTreeMaxPerTile
+	if (plantedTreeCountOnLand(land) >= plantedTreeMaxPerTile) return false
+	return tileHasRoomForPlantedTree(land)
 }
 
 export function plantTreeOnLand(land: UnBuiltLand): boolean {

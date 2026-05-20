@@ -16,6 +16,8 @@ Already landed or mostly landed:
 - Selectable custom named-zone objects with a Zones palette entry, zone inspectors, tile/alveolus links, and board masks. Built-in residential/harvest remain ordinary tile markers.
 - Named zones can be marked harvestable; harvesters treat those zones like the built-in harvest zone, while planting/caring actors use explicit assigned named zones.
 - The first assigned-zone caring actor is landed: foresters plant sparse visible tree deposits in assigned forest zones, age those planted trees, and tree choppers can harvest mature planted trees.
+- Forester tree planting now respects tile physical room: loose goods count as `1`, planted trees count as
+  `6`, and a tile can hold at most the equivalent of `12` loose goods for planting decisions.
 - Zone inspectors show compact icon stats for tile count and physical area using the documented `3m` hex side scale.
 - Transform alveoli can keep a configured product ratio, with rule defaults and per-alveolus inspector controls for the input good, output good, and slider threshold.
 - Deterministic streamed terrain generation and Pixi continuous-terrain rendering.
@@ -29,8 +31,9 @@ Already landed or mostly landed:
   show one deterministic price per good.
 - Freight stop diagnostics explain local need/provide state, downstream demand, import/export opportunity,
   reserve/policy/offer blockers, and no-vehicle/no-room cases.
-- ChopSaw includes a hardcoded regression fixture: a cyclic materials loop from the `0,0` bay to the
-  Melindbury city hall with an assigned pickup truck.
+- Freight line inspectors can assign or unassign compatible vehicles.
+- ChopSaw includes a regression fixture: a cyclic materials loop from the `0,0` bay to the Melindbury city
+  hall with an assigned pickup truck.
 - Browser board highlights for lines, zones, hives, and stops are hover-driven rather than persistent just
   because a widget is open.
 
@@ -43,11 +46,7 @@ Already landed or mostly landed:
   and candidate checks that no longer depend on gather/distribute as line kinds
 - "lines" management widget with filters: "have bay" (yes/all/no) and "visible" (only-intersecting-the-game-view:bool)
 - find a way to show the content of the docked vehicles. Perhaps add a check-box/button to show/hide vehicle content (docked and non-docked)
-- line edition widget (reflections still ongoing):
-  - the widget is always a bit too wide and has a horizontal scroll for 1~2px
 - roads & velocity calculation. Some vehicles can just not drive beside roads. There should be a multiplier somewhere as well as a `min(road-max-velocity, vehicle/character-ax-velocity)`. How to calculate exactly the velocity for it to be realistic somehow but still simple ?
-- line vehicle assignment UI. ChopSaw currently hardcodes a pickup truck to the Melindbury materials loop;
-  the inspector should eventually let a player assign or unassign compatible vehicles per line.
 - market analysis for settlement trade: compare settlement prices and positions, surface why Melindbury is
   or is not a good source/sink, and keep the view focused on route decisions rather than finance UI.
 - generated settlement shops beyond city halls. City halls are the current V1 target; future material shops,
@@ -56,18 +55,14 @@ Already landed or mostly landed:
   after loading/unloading; decide whether route planning should reserve carried snacks, schedule a meal
   before departure, or allow temporary off-route eating near a stop. Note: this could wait for commercial zones so characters could "buy a snack"
 - When providing to an external building (residence/construction/commerce), the vehicle should indeed stop on the border and unloading the vehicle in the building should indeed be a convey-hop-like action (character in the center of the tile, visible moving good)
-- planters/foresters/... should not plant indefinitely when too much loose good is present; planted trees already cap at two visible tree slots per tile, but planting/caring actors still need a general "tile room" rule for loose goods and future crops.
+- extend the forester tile-room rule into a general physical-load rule for future crops, generated loose
+  goods, and harvesting output.
 - specific commerces will have to be generated in settlements, trade should depend on the present commerces and the vehicle using the road should go to the commerce - again (un)loading to/from a vehicle: vehicle goes on the shop border's and a convey-hop-like occur, transaction is when the character in the center of the shop spawn(buy)/unspawn(sell) good
 - Pickup-trucks and wheelbarrows are all-terrain vehicles. For most other vehicles, the line should have a road available
 - Remove districts
-- rocks produce one stone per harvesting, trees produce 4~6 (count for 6). Point is, for harvesting/..., tiles should be allowed to contain max the equivalent of 12 lose goods. So, 6 woods + 1 tree for instance. If there is no wood, we can put 2 trees. If there is 1-6, we can put one tree max, if more, we cannot put trees anymore.
+- harvesting/generation output should eventually obey the same tile physical-load model as forester
+  planting, so rock/tree/crop outputs avoid overfilling already-burdened tiles.
 - one docking spot in a bay can only be used by one vehicle at a time, vehicles should queue. Note: this might demand the ability to have multiple bays for a hive designed as a stop so the vehicle could choose and/or parking places (where several vehicle can "dock" for waiting/being offloaded/...) - in the "road" category
-
-## Little bugs
-
-- Storage configuration, on good configuration add:
-  - the menu is clipped in the widget
-  - The maximum should be the total amount of slots minus the "other good"'s buffered slots - and this maximum (even if applied now) should be visible, the right-most "crates" of the `stars` component should be made clearly unavailable (redish?)
 
 ## Recommended Next Tranche
 
@@ -155,9 +150,10 @@ Important first-level boundaries:
 - Useful procurement status:
   - **Landed V1:** city-hall settlement markets, all-settlement basic-materials availability, one price per
     good, NPC trade freight stops, export-before-import transfers, stop-level reserve, downstream-demand
-    imports, district procurement removed from normal UI/tick paths, and the ChopSaw materials loop fixture.
-  - **Next V1.x:** vehicle assignment UI, line list filters, route/market comparison by settlement
-    position and price, last-transfer/history display, and better visibility into docked vehicle contents.
+    imports, district procurement removed from normal UI/tick paths, compatible vehicle assignment from
+    the line inspector, and the ChopSaw materials loop fixture.
+  - **Next V1.x:** line list filters, route/market comparison by settlement position and price,
+    last-transfer/history display, and better visibility into docked vehicle contents.
   - **Later V2:** generated shop targets beyond city halls, source/sink suggestions, commercial/resale
     points, and consumption goods delivered to residential or shop areas.
 - District/project views should surface missing useful goods and possible physical supply routes without
@@ -263,8 +259,8 @@ Risks:
 
 ## Suggested Ordering
 
-1. Commerce polish: playtest the ChopSaw materials loop, add vehicle assignment UI, and make settlement
-   price/position comparisons legible.
+1. Commerce polish: playtest the ChopSaw materials loop, make settlement price/position comparisons
+   legible, and show recent trade transfers.
 2. Roads and velocity, especially where vehicle route choice should change the commerce outcome.
 3. One small content tranche that proves roads and imported materials matter.
 4. Shops/markets or NPC villages, depending on whether the next desired feeling is "internal economy" or
@@ -288,8 +284,8 @@ Small slices worth considering:
 
 - **Roads v2:** turn instant roads into build projects, add route-benefit summaries, and add at least one
   upgraded road kind/material.
-- **Commerce polish v1:** assign vehicles from the line inspector, compare nearby settlement material
-  prices/positions, and show the last settlement transfers on the line.
+- **Commerce polish v1:** compare nearby settlement material prices/positions and show the last settlement
+  transfers on the line.
 - **Market v1:** one shop consumes one good type and creates a visible demand/satisfaction signal.
 - **Content v1:** add one new raw resource, one transformer, one produced good, and one construction recipe that uses it.
 - **Village v1:** generate one persisted external village with one import need and one export good.

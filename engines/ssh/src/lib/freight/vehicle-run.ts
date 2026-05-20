@@ -16,7 +16,6 @@ import {
 	findGatherRouteSegments,
 	freightLineStopOrder,
 	nextFreightLineStop,
-	freightZoneContainsPosition,
 	freightZoneFallbackPosition,
 	freightZoneTiles,
 	gatherSegmentAllowsGoodType,

@@ -2,7 +2,9 @@ import {
 	Deposit,
 	plantedTreeMatureAgeSeconds,
 	plantedTreeMaxPerTile,
+	plantedTreeTileFootprint,
 	plantedTreeWoodYield,
+	tileLooseGoodsCapacity,
 	UnBuiltLand,
 } from 'ssh/board/content/unbuilt-land'
 import type { ForesterAlveolus } from 'ssh/hive/forester'
@@ -68,6 +70,38 @@ describe('forester planted trees', () => {
 		expect(zoneLand.deposit?.amount).toBe(plantedTreeMaxPerTile)
 		expect(zoneLand.plantedTrees?.ages).toHaveLength(plantedTreeMaxPerTile)
 		expect(outOfZoneLand.deposit).toBeUndefined()
+	})
+
+	it('counts loose goods against tree planting room', async () => {
+		const { engine, forester } = await loadForesterScenario(['north-grove'])
+		const zoneTile = engine.game.hex.getTile({ q: 1, r: 0 })!
+		const worker = engine.game.population.createCharacter('Planter', zoneTile.position)
+
+		for (let i = 0; i < plantedTreeTileFootprint; i++) {
+			engine.game.hex.looseGoods.add(zoneTile, 'wood')
+		}
+
+		expect(forester.nextJob()?.job).toBe('forester')
+		expect(forester.plantAtCurrentTile(worker)).toBe(true)
+		expect(forester.plantAtCurrentTile(worker)).toBe(false)
+
+		const land = zoneTile.content as UnBuiltLand
+		expect(land.deposit?.amount).toBe(1)
+		expect(land.plantedTrees?.ages).toHaveLength(1)
+	})
+
+	it('does not propose planting jobs where loose goods leave no tree room', async () => {
+		const { engine, forester } = await loadForesterScenario(['north-grove'])
+		const zoneTile = engine.game.hex.getTile({ q: 1, r: 0 })!
+		const worker = engine.game.population.createCharacter('Planter', zoneTile.position)
+
+		for (let i = 0; i < tileLooseGoodsCapacity - plantedTreeTileFootprint + 1; i++) {
+			engine.game.hex.looseGoods.add(zoneTile, 'wood')
+		}
+
+		expect(forester.nextJob()?.job).toBeUndefined()
+		expect(forester.plantAtCurrentTile(worker)).toBe(false)
+		expect((zoneTile.content as UnBuiltLand).deposit).toBeUndefined()
 	})
 
 	it('advertises planting jobs at the planting tile so workers score their own distance', async () => {

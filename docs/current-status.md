@@ -50,6 +50,7 @@ Gameplay streaming is owned by `ssh`:
 - settlement city halls are first-class NPC trade halt targets while remaining tile-native board selections
 - board previews for freight lines, zones, hives, and stops are hover-driven; opening an inspector does not draw a persistent board highlight by itself
 - freight stop commerce diagnostics explain allowed policies, local need/provide state, downstream demand, import/export opportunities, and no-trade reasons
+- line inspectors can assign and unassign compatible freight vehicles
 - docked vehicle work is surfaced through cheap provider-side advertised jobs for inspectors, while
   character-scoped planner search stays in job claiming/ranking paths
 
@@ -97,9 +98,9 @@ Commerce V1 is now line-based and physical:
 - optional NPC trade transfer presentation data records exported goods, imported goods, credited VP, and spent VP when a trade happens
 - ChopSaw includes a regression fixture line, `ChopSaw materials loop`, cycling between the `0,0` bay and the Melindbury city hall with an assigned pickup truck; it can sell basic materials such as planks and import concrete only when downstream demand exists
 
-Deferred commerce work: vehicle assignment UI, richer line history/last-transfer display, generated shop
-targets beyond city halls, market analysis based on price and settlement position, consumption goods,
-residential/shop delivery, and long-route hunger/snack behavior.
+Deferred commerce work: richer line history/last-transfer display, generated shop targets beyond city
+halls, market analysis based on price and settlement position, consumption goods, residential/shop delivery,
+and long-route hunger/snack behavior.
 
 ### Verification
 
@@ -176,12 +177,10 @@ retention policy live in `ssh`, and Pixi only asks for visibility-driven frontie
 
 1. Playtest the ChopSaw materials loop: bay buffer demand, Melindbury prices, planks/wood/stone export,
    concrete import, and whether the stop diagnostics explain idle cases clearly enough.
-2. Add player-facing vehicle assignment for freight lines; the pickup truck is currently hardcoded for the
-   ChopSaw regression fixture.
-3. Revisit market analysis: settlement positions, price comparison, and how generated shops should extend
+2. Revisit market analysis: settlement positions, price comparison, and how generated shops should extend
    the city-hall trade target model.
-4. Playtest the forester/North Grove slice: assigned planting zones, harvestable named zones, sparse tree
+3. Playtest the forester/North Grove slice: assigned planting zones, harvestable named zones, sparse tree
    generation, and rock/tree harvesting inside named zones.
-5. Restore the full `ssh` unit suite to green, or mark/remove stale expectations if they are intentionally
+4. Restore the full `ssh` unit suite to green, or mark/remove stale expectations if they are intentionally
    obsolete.
-6. Design off-screen gameplay unloading later, after at least one larger-world feature needs it.
+5. Design off-screen gameplay unloading later, after at least one larger-world feature needs it.

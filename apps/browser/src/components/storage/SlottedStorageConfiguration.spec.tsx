@@ -236,6 +236,34 @@ describe('SlottedStorageConfiguration', () => {
 		expect(updatedStars[1].dataset.maximum).toBe('6')
 		expect(updatedStars[1].dataset.value).toBe('2,4')
 		expect(container.textContent).toContain('2 / 4 slots')
-		expect(container.textContent).toContain('buffer 6, total 12')
+		expect(container.textContent).toContain('buffer 6, total 12 / 18')
+	})
+
+	it('caps each specific good by the other goods buffered slots', () => {
+		const { configuration, content } = createContent()
+		configuration.goods.stone = { minSlots: 2, maxSlots: 1 }
+
+		stop = latch(
+			container,
+			<table>
+				<tbody>
+					<SlottedStorageConfiguration content={content as never} game={{} as never} />
+				</tbody>
+			</table>
+		)
+
+		const initialStars = Array.from(
+			container.querySelectorAll('[data-testid="stars"]')
+		) as HTMLButtonElement[]
+		expect(initialStars.map((button) => button.dataset.maximum)).toEqual(['3', '4', '5'])
+		expect(initialStars[1].dataset.value).toBe('1,3')
+		expect(initialStars[2].dataset.value).toBe('2,3')
+		expect(container.querySelectorAll('.slotted-storage-stars__unavailable')).toHaveLength(3)
+		expect(container.textContent).toContain('buffer 3, total 9 / 12')
+		expect(container.textContent).toContain('buffer 6, total 9 / 15')
+
+		initialStars[1].click()
+
+		expect(configuration.goods.wood).toEqual({ minSlots: 2, maxSlots: 2 })
 	})
 })

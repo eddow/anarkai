@@ -22,6 +22,20 @@ css`
 	gap: 0.35rem;
 }
 
+.slotted-storage-stars__row {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.15rem;
+}
+
+.slotted-storage-stars__unavailable {
+	color: color-mix(in srgb, var(--ak-danger, #c44) 72%, var(--ak-text-muted));
+	opacity: 0.8;
+	font-size: 1rem;
+	line-height: 1;
+	user-select: none;
+}
+
 .slotted-storage-summary {
 	font-size: 0.75rem;
 	color: var(--ak-text-muted);
@@ -90,6 +104,12 @@ export default function SlottedStorageConfiguration(props: SlottedStorageConfigu
 		rule(goodType: GoodType) {
 			return this.configuration?.goods[goodType] ?? { minSlots: 0, maxSlots: 0 }
 		},
+		specificGoodMaximum(goodType: GoodType) {
+			const otherBufferedSlots = this.configuredGoods
+				.filter((candidate) => candidate !== goodType)
+				.reduce((total, candidate) => total + (this.rule(candidate).minSlots ?? 0), 0)
+			return Math.max(0, this.totalSlots - otherBufferedSlots)
+		},
 	}
 
 	effect`slotted-storage-configuration:draft-sync`(() => {
@@ -152,29 +172,41 @@ export default function SlottedStorageConfiguration(props: SlottedStorageConfigu
 					onRemove={removeGood}
 					renderItemExtra={(goodType) => {
 						const rule = view.rule(goodType)
-						const displayedRange: [number, number] = [rule.minSlots, rule.minSlots + rule.maxSlots]
+						const maximum = view.specificGoodMaximum(goodType)
+						const displayedRange: [number, number] = [
+							Math.min(rule.minSlots, maximum),
+							Math.min(rule.minSlots + rule.maxSlots, maximum),
+						]
 						const range = draft.ranges[goodType] ?? displayedRange
+						const unavailableSlots = Math.max(0, view.totalSlots - maximum)
 						return (
 							<div class="slotted-storage-stars">
-								<Stars
-									maximum={view.totalSlots}
-									value={range}
-									onChange={(value: StarsValue) => {
-										const [nextMinSlots, nextTotalSlots] = starsRangeValue(value, range)
-										draft.ranges[goodType] = [nextMinSlots, nextTotalSlots]
-										view.content?.setSlottedGoodConfiguration(goodType, {
-											minSlots: nextMinSlots,
-											maxSlots: Math.max(0, nextTotalSlots - nextMinSlots),
-										})
-									}}
-									size="1rem"
-									zeroElement="□"
-									before="■"
-									after="■"
-								/>
+								<div class="slotted-storage-stars__row">
+									<Stars
+										maximum={maximum}
+										value={range}
+										onChange={(value: StarsValue) => {
+											const [rawMinSlots, rawTotalSlots] = starsRangeValue(value, range)
+											const nextMinSlots = Math.min(rawMinSlots, maximum)
+											const nextTotalSlots = Math.min(rawTotalSlots, maximum)
+											draft.ranges[goodType] = [nextMinSlots, nextTotalSlots]
+											view.content?.setSlottedGoodConfiguration(goodType, {
+												minSlots: nextMinSlots,
+												maxSlots: Math.max(0, nextTotalSlots - nextMinSlots),
+											})
+										}}
+										size="1rem"
+										zeroElement="□"
+										before="■"
+										after="■"
+									/>
+									<for each={Array.from({ length: unavailableSlots })}>
+										{() => <span class="slotted-storage-stars__unavailable">■</span>}
+									</for>
+								</div>
 								<span class="slotted-storage-summary">
 									buffer {displayedRange[0] * view.capacity}, total{' '}
-									{displayedRange[1] * view.capacity}
+									{displayedRange[1] * view.capacity} / {maximum * view.capacity}
 								</span>
 							</div>
 						)

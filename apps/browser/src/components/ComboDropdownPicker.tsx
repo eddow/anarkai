@@ -17,10 +17,7 @@ css`
 }
 
 .combo-picker__menu {
-	position: absolute;
-	top: 100%;
-	left: 0;
-	margin-top: 2px;
+	position: fixed;
 	z-index: 10001;
 	box-sizing: border-box;
 	background: color-mix(in srgb, var(--ak-surface-panel) 96%, transparent);
@@ -135,7 +132,12 @@ export const tagsAddComboIcon = (): JSX.Element => (
 const defaultEmptyMessage = 'No items available'
 
 export default function ComboDropdownPicker(props: ComboDropdownPickerProps) {
-	const menuState = reactive({ show: false })
+	const menuState = reactive({
+		show: false,
+		left: 0,
+		top: 0,
+		minWidth: 0,
+	})
 
 	const label = () => props.ariaLabel ?? props.title ?? 'Choose'
 	const empty = () => props.emptyMessage ?? defaultEmptyMessage
@@ -150,6 +152,10 @@ export default function ComboDropdownPicker(props: ComboDropdownPickerProps) {
 		const fromTarget = e.target instanceof HTMLElement ? e.target.closest('button') : null
 		const trigger = fromCurrent ?? fromTarget
 		if (!(trigger instanceof HTMLElement)) return
+		const rect = trigger.getBoundingClientRect()
+		menuState.left = rect.left
+		menuState.top = rect.bottom + 2
+		menuState.minWidth = rect.width
 		menuState.show = true
 	}
 
@@ -202,6 +208,11 @@ export default function ComboDropdownPicker(props: ComboDropdownPickerProps) {
 			<div
 				if={menuState.show}
 				class="combo-picker__menu"
+				style={{
+					left: `${menuState.left}px`,
+					top: `${menuState.top}px`,
+					minWidth: `${menuState.minWidth}px`,
+				}}
 				onClick={(e: Event) => e.stopPropagation()}
 			>
 				<for each={props.items}>

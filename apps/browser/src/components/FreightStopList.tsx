@@ -58,6 +58,9 @@ css`
 	border-collapse: collapse;
 	table-layout: fixed;
 }
+.freight-stop-list__table * {
+	box-sizing: border-box;
+}
 .freight-stop-list__table th {
 	text-align: left;
 	font-size: 0.68rem;
@@ -77,7 +80,7 @@ css`
 	opacity: 0.55;
 }
 .freight-stop-list__index {
-	width: 2rem;
+	width: 2.4rem;
 	color: var(--ak-text-muted);
 	font-variant-numeric: tabular-nums;
 }
@@ -109,7 +112,7 @@ css`
 	min-width: 0;
 }
 .freight-stop-list__actions {
-	width: auto;
+	width: 4.6rem;
 	text-align: right;
 }
 .freight-stop-list__select,

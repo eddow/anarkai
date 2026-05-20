@@ -96,6 +96,32 @@ describe('storage controls', () => {
 		expect(container.querySelector('.combo-picker__backdrop')).toBeNull()
 	})
 
+	it('GoodPickerButton positions its menu from the trigger viewport rect', () => {
+		stop = latch(
+			container,
+			<GoodPickerButton availableGoods={['wood']} game={{} as never} onSelect={() => undefined} />
+		)
+
+		const trigger = container.querySelector('.combo-picker button') as HTMLButtonElement
+		vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue({
+			x: 40,
+			y: 24,
+			left: 40,
+			top: 24,
+			right: 72,
+			bottom: 56,
+			width: 32,
+			height: 32,
+			toJSON: () => undefined,
+		} as DOMRect)
+		trigger.click()
+
+		const menu = container.querySelector('.combo-picker__menu') as HTMLElement
+		expect(menu.style.left).toBe('40px')
+		expect(menu.style.top).toBe('58px')
+		expect(menu.style.minWidth).toBe('32px')
+	})
+
 	it('GoodPickerButton shows an empty message when no goods are available', () => {
 		stop = latch(
 			container,

@@ -298,6 +298,12 @@
 	border-collapse: collapse;
 }
 
+.ak-property-grid__table *,
+.ak-property-grid__label,
+.ak-property-grid__value {
+	box-sizing: border-box;
+}
+
 .ak-property-grid__row {
 	border-bottom: 1px solid color-mix(in srgb, var(--ak-border) 88%, white 12%);
 }
