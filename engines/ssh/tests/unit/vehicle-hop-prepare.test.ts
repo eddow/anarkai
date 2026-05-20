@@ -179,6 +179,42 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		expect(vehicle.service).toBeDefined()
 	})
 
+	it('vehicle dock refuses to clear world position before reaching the anchor tile', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'grass' as const },
+				{ coord: [1, 0] as const, terrain: 'grass' as const },
+			],
+			freightLines: [
+				distributeFreightLine({
+					id: 'hop:anchor-dock-position',
+					name: 'Distribute',
+					hiveName: 'H',
+					coord: [0, 0],
+					filters: ['wood'],
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 96121, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines[0]!
+		const loadStop = line.stops[0]!
+		const vehicle = game.vehicles.createVehicle(
+			'hop-dock-position',
+			'wheelbarrow',
+			{ q: 1, r: 0 },
+			[line]
+		)
+		const character = game.population.createCharacter('AnchorDockPosition', { q: 1, r: 0 })
+		vehicle.beginLineService(line, loadStop, character)
+
+		expect(() => vehicle.dock()).toThrow(/dock requires vehicle to be on the anchor tile/)
+		expect(vehicle.position).toMatchObject({ q: 1, r: 0 })
+		expect(isVehicleLineService(vehicle.service) && vehicle.service.docked).toBe(false)
+	})
+
 	it('vehicleHopDockStep checks final empty anchors after dock advertisements settle', async () => {
 		const patches = {
 			tiles: [

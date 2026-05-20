@@ -520,6 +520,52 @@ describe('Vehicle zone hop semantics', () => {
 		expect(provideJob?.targetCoord).toMatchObject({ q: 1, r: 0 })
 	})
 
+	it('does not provide loaded cargo while stopped on a gather load zone', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'grass' as const },
+				{ coord: [1, 0] as const, terrain: 'grass' as const },
+			],
+			hives: [
+				{
+					name: 'GatherBay',
+					alveoli: [{ coord: [0, 0] as const, alveolus: 'freight_bay' as const, goods: {} }],
+				},
+			],
+			freightLines: [
+				gatherFreightLine({
+					id: 'gather-load-only',
+					name: 'Gather load only',
+					hiveName: 'GatherBay',
+					coord: [0, 0],
+					filters: ['wood'],
+					radius: 1,
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 94062, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+		const siteTile = game.hex.getTile({ q: 1, r: 0 })!
+		siteTile.content = new BuildDwelling(siteTile, 'basic_dwelling')
+
+		const line = game.freightLines[0]!
+		const stop = line.stops[0]!
+		const vehicle = game.vehicles.createVehicle(
+			'v-gather-load-zone',
+			'wheelbarrow',
+			{ q: 1, r: 0 },
+			[line]
+		)
+		vehicle.storage.addGood('wood', 1)
+		const character = game.population.createCharacter('GatherLoadZone', { q: 1, r: 0 })
+		vehicle.beginLineService(line, stop, character)
+		character.operates = vehicle
+		character.onboard()
+
+		expect(findZoneBrowseJob(game, character)).toBeUndefined()
+	})
+
 	it('zoneBrowse prioritizes current-zone demand over later hive demand for the same loaded good', async () => {
 		const patches = {
 			tiles: [
@@ -571,9 +617,12 @@ describe('Vehicle zone hop semantics', () => {
 		expect((bayHive?.needs as { wood?: unknown } | undefined)?.wood).toBeDefined()
 
 		const line = game.freightLines.find((candidate) => candidate.id === 'VH:local-before-hive')!
-		const vehicle = game.vehicles.createVehicle('v-local-before-hive', 'wheelbarrow', { q: 1, r: 0 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle(
+			'v-local-before-hive',
+			'wheelbarrow',
+			{ q: 1, r: 0 },
+			[line]
+		)
 		const character = game.population.createCharacter('LocalBeforeHive', { q: 1, r: 0 })
 		vehicle.beginLineService(line, line.stops[0]!, character)
 		character.operates = vehicle
@@ -719,9 +768,12 @@ describe('Vehicle zone hop semantics', () => {
 		)
 
 		const line = game.freightLines.find((candidate) => candidate.id === 'VH:empty-bay-keeps-zone')!
-		const vehicle = game.vehicles.createVehicle('v-empty-bay-keeps-zone', 'wheelbarrow', { q: 0, r: 0 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle(
+			'v-empty-bay-keeps-zone',
+			'wheelbarrow',
+			{ q: 0, r: 0 },
+			[line]
+		)
 		const character = game.population.createCharacter('EmptyBayKeepsZone', { q: 0, r: 0 })
 		vehicle.beginLineService(line, line.stops[0]!, character)
 		vehicle.dock()

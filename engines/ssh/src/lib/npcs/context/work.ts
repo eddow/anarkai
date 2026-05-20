@@ -1,12 +1,12 @@
 import { waitForIncomingGoodsPollSeconds } from 'engine-rules'
 import { atomic } from 'mutts'
 import { isTileCoord } from 'ssh/board/board'
-import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import {
 	harvestMaturePlantedTree,
 	hasMaturePlantedTree,
 	normalizePlantedTrees,
 	plantedTreeWoodYield,
+	UnBuiltLand,
 } from 'ssh/board/content/unbuilt-land'
 import type { LooseGood } from 'ssh/board/looseGoods'
 import { isConstructionSiteShell } from 'ssh/build-site'
@@ -25,12 +25,12 @@ import {
 	setConstructionFoundationDeliveredGoods,
 } from 'ssh/construction-state'
 import { assert, traces } from 'ssh/dev/debug'
+import { ForesterAlveolus } from 'ssh/hive/forester'
 import { commitmentValid, type TrackedMovement } from 'ssh/hive/hive'
 import { movementRefId } from 'ssh/hive/movement-ref'
 import { MovementState, transitionMovement } from 'ssh/hive/movement-state'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { TransformAlveolus } from 'ssh/hive/transform'
-import { ForesterAlveolus } from 'ssh/hive/forester'
 import type { Character } from 'ssh/population/character'
 import type { Storage } from 'ssh/storage'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
@@ -434,7 +434,16 @@ class WorkFunctions {
 		const characterCoord = toAxialCoord(character.tile.position)
 		const assignedCoord = toAxialCoord(alveolus.tile.position)
 		const onAssignedTile = axial.key(characterCoord) === axial.key(assignedCoord)
-		assert(onAssignedTile, 'Character must be on the assigned convey alveolus tile')
+		if (!onAssignedTile) {
+			traces.convey.warn?.('[conveyStep] skipped: character is off assigned alveolus tile', {
+				character: character.uid,
+				characterTile: characterCoord ? axial.key(characterCoord) : undefined,
+				assignedTile: assignedCoord ? axial.key(assignedCoord) : undefined,
+				alveolus: alveolus.name,
+				actionDescription: character.actionDescription,
+			})
+			return undefined
+		}
 		// Get movement(s) - either a single movement or a cycle
 		const movements = alveolus.aGoodMovement
 		if (!movements || movements.length === 0) {

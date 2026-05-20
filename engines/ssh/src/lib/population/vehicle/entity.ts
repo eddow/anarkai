@@ -397,6 +397,16 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		const svc = this.service
 		if (!isVehicleLineService(svc)) return
 		assert('anchor' in svc.stop, `Vehicle ${this.uid}: dock requires an anchor stop`)
+		if (svc.docked && !this.position) return
+		const dockTile = this.dockTile
+		assert(dockTile, `Vehicle ${this.uid}: dock requires an anchor tile`)
+		assert(this.position, `Vehicle ${this.uid}: dock requires a world position on the anchor tile`)
+		const vehicleCoord = axial.round(toAxialCoord(this.position)!)
+		const dockCoord = axial.round(toAxialCoord(dockTile.position)!)
+		assert(
+			axial.key(vehicleCoord) === axial.key(dockCoord),
+			`Vehicle ${this.uid}: dock requires vehicle to be on the anchor tile`
+		)
 		svc.docked = true
 		this.position = undefined
 		this.game.invalidateWorkPlanning('vehicle.dock')

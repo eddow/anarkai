@@ -7,7 +7,7 @@ import type { Character } from 'ssh/population/character'
 import type { Storage } from 'ssh/storage'
 import type { GoodType } from 'ssh/types'
 import { casing } from 'ssh/utils'
-import type { Position, Positioned } from 'ssh/utils/position'
+import { axialDistance, type Position, type Positioned } from 'ssh/utils/position'
 import { activityDurations, needUpdate } from '../../../assets/constants'
 import { assert } from '../dev/debug.ts'
 import type { ScriptedObject } from './object'
@@ -210,6 +210,29 @@ export abstract class ALerpStep<T extends number | Positioned> extends AEvolutio
 	}
 }
 
+function axialDistanceBetween(a: Positioned, b: Positioned): number {
+	return axialDistance(a, b)
+}
+
+function assertStepVelocityWithinBudget(
+	label: string,
+	from: Positioned,
+	to: Positioned,
+	before: Positioned,
+	after: Positioned,
+	duration: number,
+	consumedDt: number
+) {
+	const totalDistance = axialDistanceBetween(from, to)
+	if (totalDistance <= 0 || duration <= 0 || consumedDt <= 0) return
+	const browsedDistance = axialDistanceBetween(before, after)
+	const maxDistance = (totalDistance / duration) * consumedDt * 2
+	assert(
+		browsedDistance <= maxDistance + 1e-6,
+		`${label}: moved ${browsedDistance.toFixed(3)} in ${consumedDt.toFixed(3)}s, exceeding twice max velocity (${maxDistance.toFixed(3)})`
+	)
+}
+
 //#endregion
 //#region Commons
 export class MoveToStep extends ALerpStep<Positioned> {
@@ -228,6 +251,22 @@ export class MoveToStep extends ALerpStep<Positioned> {
 		readonly givenDescriptionKey?: TextKey
 	) {
 		super(duration, givenDescription ?? 'move-to', who.position, to)
+	}
+	override tick(dt: number): number | undefined {
+		const before = { ...this.who.position }
+		const previousEvolution = this.evolution
+		const consumedDt = Math.max(0, Math.min(dt, (1 - previousEvolution) * this.duration))
+		const remaining = super.tick(dt)
+		assertStepVelocityWithinBudget(
+			this.givenDescription ?? 'move-to',
+			this.from,
+			this.to,
+			before,
+			this.who.position,
+			this.duration,
+			consumedDt
+		)
+		return remaining
 	}
 	lerp(position: Positioned): void {
 		this.who.position = 'position' in position ? position.position : position
@@ -280,6 +319,9 @@ export class MultiMoveStep extends AEvolutionStep {
 			this.firstTickDeferred = true
 			return undefined
 		}
+		const before = this.movements.map((movement) => ({ ...movement.who.position }))
+		const previousEvolution = this.evolution
+		const consumedDt = Math.max(0, Math.min(dt, (1 - previousEvolution) * this.duration))
 		if (this.fulfillBeforeFinalEvolve && dt !== 0) {
 			this.evolution += dt / this.duration
 			if (this.evolution >= 1) {
@@ -288,15 +330,31 @@ export class MultiMoveStep extends AEvolutionStep {
 					return (this.evolution - 1) * this.duration
 				}
 				this.fulfill()
+				this.assertVelocityBudgets(before, consumedDt)
 				return (this.evolution - 1) * this.duration
 			}
 			this.evolve(this.evolution)
+			this.assertVelocityBudgets(before, consumedDt)
 			if (stepEnded(this)) return 0
 			return undefined
 		}
 		const remaining = super.tick(dt)
+		this.assertVelocityBudgets(before, consumedDt)
 		if (remaining === undefined && stepEnded(this)) return 0
 		return remaining
+	}
+	private assertVelocityBudgets(before: Positioned[], consumedDt: number): void {
+		for (const [index, movement] of this.movements.entries()) {
+			assertStepVelocityWithinBudget(
+				this.givenDescription ?? 'multi-move',
+				movement.from!,
+				movement.to,
+				before[index]!,
+				movement.who.position,
+				this.duration,
+				consumedDt
+			)
+		}
 	}
 	evolve(evolution: number): void {
 		this.beforeEvolve?.()

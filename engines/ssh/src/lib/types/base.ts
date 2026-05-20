@@ -478,7 +478,7 @@ export type WorkPlan =
 			readonly target: TileContent | any // Allow Tile or other targets
 			offloadPickupPlan?: PickupPlan
 			invariant?: () => boolean
-			/** Planner walk path to the target; set by {@link Character.workExecution}. */
+			/** Planner walk path to the target; vehicle jobs use their script-owned route path. */
 			path?: AxialCoord[]
 			/** Current inner job path resolved by the assigned work provider after preparation. */
 			currentJobPath?: AxialCoord[]

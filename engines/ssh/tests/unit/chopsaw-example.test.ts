@@ -155,6 +155,7 @@ describe('chopSaw example game', () => {
 
 		game.hex.looseGoods.add(bayTile, 'planks')
 		game.hex.looseGoods.add(zoneTile, 'wood')
+		vehicle.position = bayTile.position
 		vehicle.beginLineService(line, line.stops[0]!)
 		vehicle.dock()
 

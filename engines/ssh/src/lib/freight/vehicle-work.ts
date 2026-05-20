@@ -17,8 +17,8 @@ import {
 import { aggregateHiveNeedTypes } from 'ssh/freight/freight-zone-gather-target'
 import {
 	isLineFreightVehicleType,
-	lineFreightVehicleTypes,
 	type LineFreightVehicleType,
+	lineFreightVehicleTypes,
 } from 'ssh/freight/line-freight-vehicles'
 import { scoreVehicleCandidate } from 'ssh/freight/vehicle-candidate-policy'
 import {
@@ -105,13 +105,13 @@ export function allocateVehicleServiceForJob(
 	job: Job
 ): void {
 	switch (job.job) {
-			case 'vehicleOffload': {
-				if (isVehicleLineService(vehicle.service)) {
-					if (job.maintenanceKind === 'park' && !vehicle.isDocked) {
-						throw new Error('vehicleOffload: line service already active')
-					}
-					vehicle.endService()
+		case 'vehicleOffload': {
+			if (isVehicleLineService(vehicle.service)) {
+				if (job.maintenanceKind === 'park' && !vehicle.isDocked) {
+					throw new Error('vehicleOffload: line service already active')
 				}
+				vehicle.endService()
+			}
 			// Discard any prior maintenance service: each offload run gets a fresh per-kind service.
 			if (isVehicleMaintenanceService(vehicle.service)) {
 				vehicle.endService()
@@ -1233,6 +1233,11 @@ function zoneBrowseJobFromConstructionProvide(
 
 	const utility = zoneBrowseUtilityContext(game, vehicle, svc.line, svc.stop)
 	if (!utility) return undefined
+	if (
+		findGatherRouteSegments(svc.line).some((segment) => segment.loadStopIndex === utility.stopIndex)
+	) {
+		return undefined
+	}
 
 	const site = freightConstructionDemandTarget(character.tile.content)
 	if (!site || site.destroyed || site.isReady) return undefined
@@ -1438,9 +1443,14 @@ function findVehicleHopJobLineHop(game: Game, character: Character): VehicleHopJ
 		const targetPos = freightStopMovementTarget(game, character, line, stop)
 		if (!targetPos) return undefined
 		const startPos = axial.round(toAxialCoord(character.position)!)
-			path =
-				game.hex.findPathForCharacter(startPos, targetPos, character, Number.POSITIVE_INFINITY, false) ??
-				[]
+		path =
+			game.hex.findPathForCharacter(
+				startPos,
+				targetPos,
+				character,
+				Number.POSITIVE_INFINITY,
+				false
+			) ?? []
 		// Use rounded hex, not raw fractional keys: foot/vehicle position on a tile must match the
 		// anchor tile even when sub-hex coords differ from the tile center.
 		const sameHex = axial.key(startPos) === axial.key(axial.round(toAxialCoord(targetPos)!))
@@ -1544,16 +1554,16 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 			const targetPos = freightStopMovementTarget(game, character, pick.line, pick.stop)
 			if (targetPos) {
 				const startPos = axial.round(toAxialCoord(vehicle.effectivePosition)!)
-					path =
-						game.hex.findPathForCharacter(
-							startPos,
-							targetPos,
-							character,
-							Number.POSITIVE_INFINITY,
-							false
-						) ?? []
+				path =
+					game.hex.findPathForCharacter(
+						startPos,
+						targetPos,
+						character,
+						Number.POSITIVE_INFINITY,
+						false
+					) ?? []
 			}
-			}
+		}
 		const beginServiceUrgency =
 			'urgency' in pick && typeof pick.urgency === 'number' ? pick.urgency : 0
 		return {

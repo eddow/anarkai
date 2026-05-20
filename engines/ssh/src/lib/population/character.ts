@@ -293,13 +293,33 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		const changedTile = axial.key(previousCoord) !== axial.key(nextCoord)
 		if (this._footPosition) {
 			this._footPosition = reactive(value)
-			if (changedTile) this.game.invalidateWorkPlanning('character.position')
+			if (changedTile) {
+				this._tile = this.game.hex.getTile(nextCoord)!
+				this.game.invalidateWorkPlanning('character.position')
+			}
 			traces.position.log?.('character.position.set.after', this.positionTracePayload('after'))
 			return
 		}
-		assert(this.operates, 'position set requires an operated vehicle')
+		if (!this.operates) {
+			traces.position.warn?.(
+				'character.position.set.recoverFootPositionWithoutVehicle',
+				this.positionTracePayload('recover-foot-position', value)
+			)
+			this._footPosition = reactive(value)
+			if (changedTile) {
+				this._tile = this.game.hex.getTile(nextCoord)!
+				this.game.invalidateWorkPlanning('character.position')
+			}
+			traces.position.log?.('character.position.set.after', this.positionTracePayload('after'))
+			return
+		}
 		this.operates.position = reactive(value)
-		if (changedTile) this.game.invalidateWorkPlanning('character.position')
+		// Keep _tile in sync with the vehicle's current position during driving.
+		// Without this, walk.enter() uses the stale boarding tile, moving the vehicle off the anchor.
+		if (changedTile) {
+			this._tile = this.game.hex.getTile(nextCoord)!
+			this.game.invalidateWorkPlanning('character.position')
+		}
 		traces.position.log?.('character.position.set.after', this.positionTracePayload('after'))
 	}
 
@@ -475,11 +495,17 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			if (this._operatedVehicle && this._operatedVehicle.uid !== vehicle.uid) {
 				return this.scriptsContext.selfCare.wander()
 			}
+			const vehicleJobPath =
+				'path' in job && Array.isArray(job.path)
+					? job.path
+							.map((step) => toAxialCoord(step))
+							.filter((step): step is AxialCoord => !!step)
+					: safePath
 			const workPlan: WorkPlan = withoutUndefinedProperties({
 				...job,
 				type: 'work',
 				target: vehicle,
-				path: safePath,
+				path: vehicleJobPath,
 			})
 			return this.scriptsContext.work.goWork(workPlan)
 		}

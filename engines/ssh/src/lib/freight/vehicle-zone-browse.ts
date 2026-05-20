@@ -25,8 +25,8 @@ import {
 } from 'ssh/freight/freight-stop-utility'
 import {
 	FREIGHT_LINE_ALL_GOOD_TYPES,
-	listGoodTypesMatchingSelectionPolicy,
 	type GoodSelectionPolicy,
+	listGoodTypesMatchingSelectionPolicy,
 } from 'ssh/freight/goods-selection-policy'
 import type { FreightAdSource, FreightPriorityTier } from 'ssh/freight/priority-channel'
 import {
@@ -131,7 +131,9 @@ export function zoneBrowseUtilityContext(
 
 function allowedByPolicy(policy: GoodSelectionPolicy | undefined, goodType: GoodType): boolean {
 	if (!policy) return true
-	return listGoodTypesMatchingSelectionPolicy(policy, FREIGHT_LINE_ALL_GOOD_TYPES).includes(goodType)
+	return listGoodTypesMatchingSelectionPolicy(policy, FREIGHT_LINE_ALL_GOOD_TYPES).includes(
+		goodType
+	)
 }
 
 function explicitZoneLoadGoods(
@@ -229,6 +231,11 @@ function pickZoneProvideSelection(
 	startPos: Positioned,
 	utility: ZoneBrowseUtilityContext
 ): VehicleZoneBrowseSelection | undefined {
+	if (
+		findGatherRouteSegments(line).some((segment) => segment.loadStopIndex === utility.stopIndex)
+	) {
+		return undefined
+	}
 	const segments = findDistributeRouteSegments(line).filter(
 		(segment) => segment.unloadStopIndex === utility.stopIndex
 	)
