@@ -717,6 +717,39 @@ export class GameGenerator {
 			})
 		}
 
+		if (characters.length < config.characterCount) {
+			const occupied = new Set(characters.map((character) => `${character.coord.q},${character.coord.r}`))
+			const axialDistance = (coord: AxialCoord) =>
+				(Math.abs(coord.q - config.origin.q) +
+					Math.abs(coord.q + coord.r - config.origin.q - config.origin.r) +
+					Math.abs(coord.r - config.origin.r)) /
+				2
+			const fallbackCoords = boardData
+				.map((tile) => tile.coord)
+				.filter((coord) => {
+					const key = `${coord.q},${coord.r}`
+					if (occupied.has(key)) return false
+					const distance = axialDistance(coord)
+					return distance > 0 && distance <= maxRadius
+				})
+				.sort((a, b) => axialDistance(a) - axialDistance(b) || a.q - b.q || a.r - b.r)
+			for (const coord of fallbackCoords) {
+				if (characters.length >= config.characterCount) break
+				const key = `${coord.q},${coord.r}`
+				occupied.add(key)
+				const index = characters.length
+				characters.push({
+					name: generateName({
+						seed,
+						theme: config.nameTheme ?? defaultNameTheme,
+						kind: 'character',
+						key: `character-${index}:${coord.q},${coord.r}`,
+					}),
+					coord: { q: coord.q, r: coord.r },
+				})
+			}
+		}
+
 		return characters
 	}
 }
@@ -743,6 +776,7 @@ export {
 	type SettlementRegionSetPlan,
 	generateSettlementRegionSetPlan,
 	generateZonePlanForSettlements,
+	selectSettlementCityHallPosition,
 	type SettlementKind,
 	type SettlementZonePlan,
 } from './settlements'

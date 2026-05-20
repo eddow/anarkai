@@ -34,6 +34,17 @@ import {
 	type WorldVehicleType,
 } from './vehicle'
 
+function sameAnchorStop(left: FreightStop, right: FreightStop): boolean {
+	if (!('anchor' in left) || !('anchor' in right)) return false
+	return (
+		left.anchor.kind === right.anchor.kind &&
+		left.anchor.hiveName === right.anchor.hiveName &&
+		left.anchor.alveolusType === right.anchor.alveolusType &&
+		left.anchor.coord[0] === right.anchor.coord[0] &&
+		left.anchor.coord[1] === right.anchor.coord[1]
+	)
+}
+
 @reactive
 export class VehicleEntity extends withInteractive(GameObject) {
 	declare readonly storage: Storage
@@ -435,6 +446,68 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		this.service = undefined
 		this.game.invalidateWorkPlanning('vehicle.service')
 		this.pokeDockStorageCompletionLifecycle()
+	}
+
+	setServedLines(lines: readonly FreightLineDefinition[], reason = 'vehicle.served-lines'): void {
+		const unique = new Map<string, FreightLineDefinition>()
+		for (const line of lines) unique.set(line.id, line)
+		const next = [...unique.values()]
+		const currentIds = this.servedLines.map((line) => line.id).join('\n')
+		const nextIds = next.map((line) => line.id).join('\n')
+		const sameReferences =
+			this.servedLines.length === next.length &&
+			this.servedLines.every((line, index) => line === next[index])
+		if (currentIds === nextIds && sameReferences) return
+		this.servedLines = reactive(next)
+		this.game.invalidateWorkPlanning(reason)
+	}
+
+	setServedLineIds(lineIds: readonly string[], reason = 'vehicle.served-lines'): void {
+		const lines = lineIds
+			.map((lineId) => this.game.freightLines.find((line) => line.id === lineId))
+			.filter((line): line is FreightLineDefinition => !!line)
+		this.setServedLines(lines, reason)
+	}
+
+	assignFreightLine(line: FreightLineDefinition): boolean {
+		if (this.servedLines.some((entry) => entry.id === line.id)) return false
+		this.setServedLines([...this.servedLines, line], 'vehicle.assign-line')
+		return true
+	}
+
+	unassignFreightLine(lineId: string): boolean {
+		const next = this.servedLines.filter((line) => line.id !== lineId)
+		if (next.length === this.servedLines.length) return false
+		this.setServedLines(next, 'vehicle.unassign-line')
+		const svc = this.service
+		if (isVehicleLineService(svc) && svc.line.id === lineId) this.endService()
+		return true
+	}
+
+	refreshFreightLineReference(line: FreightLineDefinition): void {
+		let changed = false
+		const next = this.servedLines.map((entry) => {
+			if (entry.id !== line.id) return entry
+			changed = changed || entry !== line
+			return line
+		})
+		const svc = this.service
+		if (isVehicleLineService(svc) && svc.line.id === line.id) {
+			svc.line = line
+			const stop = line.stops.find((entry) => entry.id === svc.stop.id)
+			if (stop) {
+				const wasDocked = this.isDocked
+				if (wasDocked && !sameAnchorStop(svc.stop, stop)) {
+					this.enqueueDockPresentationChange()
+					this.restoreWorldPositionFromDock('refresh-line')
+					svc.docked = false
+				}
+				svc.stop = stop
+			}
+			changed = true
+		}
+		if (changed) this.setServedLines(next, 'vehicle.refresh-line')
+		if (changed) this.game.invalidateWorkPlanning('vehicle.refresh-line')
 	}
 
 	private serializeService(): VehicleServiceSerialized | undefined {

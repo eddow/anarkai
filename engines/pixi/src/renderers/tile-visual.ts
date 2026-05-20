@@ -1,17 +1,19 @@
 import { interactionMode } from '@app/lib/interactive-state'
 import { effect } from 'mutts'
-import { ColorMatrixFilter, Container, Graphics, Point, type TilingSprite } from 'pixi.js'
+import { ColorMatrixFilter, Container, Graphics, Point, Sprite, Texture, type TilingSprite } from 'pixi.js'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import type { Tile } from 'ssh/board/tile'
-import { toWorldCoord } from 'ssh/utils/position'
+import type { RenderedGoodSlots } from 'ssh/storage/types'
+import { toAxialCoord, toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
 import { scopedPixiName, setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
 import { AlveolusVisual } from './alveolus-visual'
 import { DwellingVisual } from './dwelling-visual'
 import { createTerrainHexSprite } from './terrain-hex-sprite'
+import { createGoodsRenderer, type GoodsRenderer } from './goods-renderer'
 import { VisualObject } from './visual-object'
 
 export class TileVisual extends VisualObject<Tile> {
@@ -19,7 +21,11 @@ export class TileVisual extends VisualObject<Tile> {
 	private tileContainer: Container
 	private backgroundSprite: TilingSprite
 	private contentContainer: Container
+	private genericGoodsContainer: Container
+	private genericGoodsRenderer: GoodsRenderer | undefined
+	private genericGoodsSource: { renderedGoods?: () => RenderedGoodSlots } | undefined
 	private zoneBorder: Graphics
+	private cityHallSprite: Sprite | undefined
 
 	// Cache for interaction state to avoid redundant updates
 	private cachedBrightness = 1
@@ -37,6 +43,7 @@ export class TileVisual extends VisualObject<Tile> {
 		// Setup layers
 		const backgroundLayer = setPixiName(new Container(), scopedPixiName(scope, 'backgroundLayer'))
 		this.contentContainer = setPixiName(new Container(), scopedPixiName(scope, 'content'))
+		this.genericGoodsContainer = setPixiName(new Container(), scopedPixiName(scope, 'goods'))
 		this.tileContainer.addChild(backgroundLayer, this.contentContainer)
 
 		this.zoneBorder = setPixiName(new Graphics(), scopedPixiName(scope, 'zoneBorder'))
@@ -94,6 +101,8 @@ export class TileVisual extends VisualObject<Tile> {
 						this.currentContentVisual.bind()
 					}
 				}
+				this.syncGenericStoredGoods()
+				this.syncCityHallIcon()
 
 				// Update background texture based on content
 				if (content) {
@@ -119,6 +128,41 @@ export class TileVisual extends VisualObject<Tile> {
 		)
 	}
 
+	private getCityHallTexture(): Texture {
+		const texture = this.renderer.getTexture('buildings.city-hall')
+		if (!(texture instanceof Texture)) return Texture.WHITE
+		const source = (texture as { source?: { width?: number; height?: number } } | undefined)?.source
+		if (!texture || !source || !source.width || !source.height) return Texture.WHITE
+		return texture
+	}
+
+	private syncCityHallIcon() {
+		const coord = toAxialCoord(this.object.position)
+		const profile = coord
+			? this.renderer.game?.getSettlementTradeProfileAtCityHall?.(coord)
+			: undefined
+		if (!profile) {
+			if (this.cityHallSprite) {
+				this.cityHallSprite.destroy()
+				this.cityHallSprite = undefined
+			}
+			return
+		}
+		const texture = this.getCityHallTexture()
+		if (!this.cityHallSprite) {
+			this.cityHallSprite = setPixiName(
+				new Sprite(texture),
+				scopedPixiName(`tile:${this.object.uid}`, 'cityHall')
+			)
+			this.cityHallSprite.anchor.set(0.5, 0.62)
+			this.tileContainer.addChild(this.cityHallSprite)
+		}
+		this.cityHallSprite.texture = texture
+		const maxDim = Math.max(texture.width, texture.height)
+		const targetSize = tileSize * 0.95
+		this.cityHallSprite.scale.set(maxDim > 0 ? targetSize / maxDim : 1)
+	}
+
 	public setHoverActive(active: boolean) {
 		if (this.isHovered === active) return
 		this.isHovered = active
@@ -134,6 +178,68 @@ export class TileVisual extends VisualObject<Tile> {
 		) {
 			visual.refreshStoredGoods()
 		}
+		this.syncGenericStoredGoods()
+	}
+
+	private syncGenericStoredGoods() {
+		const content = this.object.content as
+			| {
+					storage?: { renderedGoods?: () => RenderedGoodSlots }
+					foundationStorage?: { renderedGoods?: () => RenderedGoodSlots }
+			  }
+			| undefined
+		const storage = this.currentContentVisual
+			? undefined
+			: content?.storage?.renderedGoods
+				? content.storage
+				: content?.foundationStorage
+		const renderedGoods = storage?.renderedGoods
+		if (!renderedGoods) {
+			this.genericGoodsRenderer?.dispose()
+			this.genericGoodsRenderer = undefined
+			this.genericGoodsSource = undefined
+			if (this.renderer.layers?.storedGoods) {
+				this.renderer.detachFromLayer(this.renderer.layers.storedGoods, this.genericGoodsContainer)
+			}
+			if (this.genericGoodsContainer.parent === this.view) {
+				this.view.removeChild(this.genericGoodsContainer)
+			}
+			return
+		}
+
+		if (this.genericGoodsRenderer && this.genericGoodsSource !== storage) {
+			this.genericGoodsRenderer.dispose()
+			this.genericGoodsRenderer = undefined
+			this.genericGoodsSource = undefined
+		}
+
+		if (!this.genericGoodsRenderer) {
+			this.genericGoodsSource = storage
+			const worldPos = toWorldCoord(this.object.position)
+			if (this.genericGoodsContainer.parent !== this.view) {
+				this.view.addChild(this.genericGoodsContainer)
+			}
+			this.genericGoodsContainer.position.set(0, 0)
+			this.genericGoodsContainer.zIndex = worldPos.y
+			const storedGoodsLayer = this.renderer.layers?.storedGoods
+			if (storedGoodsLayer) {
+				this.renderer.attachToLayer(storedGoodsLayer, this.genericGoodsContainer)
+			}
+			this.genericGoodsRenderer = createGoodsRenderer(
+				this.renderer,
+				this.genericGoodsContainer,
+				tileSize,
+				() => {
+					const goods = renderedGoods.call(storage)
+					return goods
+						? { slots: goods.slots, assumedMaxSlots: goods.assumedMaxSlots }
+						: { slots: [] }
+				},
+				{ x: 0, y: 0 },
+				`tile:${this.object.uid}.goods`
+			)
+		}
+		this.genericGoodsRenderer.render()
 	}
 
 	public refreshDockedVehicles() {
@@ -236,6 +342,12 @@ export class TileVisual extends VisualObject<Tile> {
 		if (this.renderer.layers?.ground) {
 			this.renderer.detachFromLayer(this.renderer.layers.ground, this.view)
 		}
+		this.genericGoodsRenderer?.dispose()
+		if (this.renderer.layers?.storedGoods) {
+			this.renderer.detachFromLayer(this.renderer.layers.storedGoods, this.genericGoodsContainer)
+		}
+		this.cityHallSprite?.destroy()
+		this.cityHallSprite = undefined
 		this.currentContentVisual?.dispose()
 		super.dispose()
 	}

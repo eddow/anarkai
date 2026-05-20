@@ -2,7 +2,6 @@ import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { queryConstructionSiteView } from 'ssh/construction'
 import { createConstructionShell } from 'ssh/construction-shell'
 import { createConstructionSiteState } from 'ssh/construction-state'
-import { chopSaw } from 'ssh/game/exampleGames'
 import { Game } from 'ssh/game/game'
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -67,11 +66,34 @@ describe('queryConstructionSiteView', () => {
 	})
 
 	it('returns foundation without blocking when an engineer can reach a clear project tile', async () => {
-		game = new Game({ terrainSeed: 99, characterCount: 0 }, chopSaw)
+		game = new Game(
+			{ terrainSeed: 99, characterCount: 0 },
+			{
+				tiles: [
+					{ coord: [0, 0], terrain: 'concrete' },
+					{ coord: [1, 0], terrain: 'concrete' },
+				],
+				hives: [
+					{
+						name: 'ReadyHive',
+						alveoli: [{ coord: [0, 0], alveolus: 'engineer' }],
+					},
+				],
+				projectSites: [
+					{
+						coord: [1, 0],
+						project: 'build:storage',
+						foundationGoods: { concrete: 1 },
+					},
+				],
+			}
+		)
 		await game.loaded
 		game.ticker.stop()
-		const tile = game.hex.getTile({ q: 9, r: -7 })
+		const tile = game.hex.getTile({ q: 1, r: 0 })
 		expect(tile).toBeTruthy()
+		for (const loose of [...(tile?.looseGoods ?? [])]) loose.remove()
+		if (tile?.content instanceof UnBuiltLand) tile.content.deposit = undefined
 		const land = tile?.content
 		expect(land).toBeInstanceOf(UnBuiltLand)
 		const phaseBeforeQuery = land instanceof UnBuiltLand ? land.constructionSite?.phase : undefined

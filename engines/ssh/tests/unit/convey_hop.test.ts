@@ -163,6 +163,52 @@ describe('Convey hop mechanism', () => {
 		}
 	})
 
+	it('reconstructs movement on the rebuilt hive that owns its provider after a split', async () => {
+		const engine = new TestEngine({
+			terrainSeed: 1234,
+			characterCount: 0,
+		})
+
+		await engine.init()
+		try {
+			engine.loadScenario({
+				generationOptions: {
+					terrainSeed: 1234,
+					characterCount: 0,
+				},
+				hives: [
+					{
+						name: 'SplitHive',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'storage', goods: {} },
+							{ coord: [1, 0], alveolus: 'storage', goods: {} },
+							{ coord: [2, 0], alveolus: 'storage', goods: { wood: 1 } },
+							{ coord: [3, 0], alveolus: 'storage', goods: {} },
+						],
+					},
+				],
+			} as any)
+
+			const game = engine.game
+			const bridge = game.hex.getTile({ q: 1, r: 0 })!.content as StorageAlveolus
+			const provider = game.hex.getTile({ q: 2, r: 0 })!.content as StorageAlveolus
+			const demander = game.hex.getTile({ q: 3, r: 0 })!.content as StorageAlveolus
+			const originalHive = provider.hive as Hive
+			expect(originalHive.createMovement('wood', provider, demander)).toBe(true)
+
+			bridge.deconstruct()
+			await new Promise((resolve) => setTimeout(resolve, 0))
+
+			expect(provider.hive).toBe(demander.hive)
+			expect(provider.hive).not.toBe(originalHive)
+			const rebuiltHive = provider.hive as Hive
+			const tracked = rebuiltHive.movingGoods.get(toAxialCoord(provider.tile.position)!)
+			expect(tracked?.map((movement) => movement.goodType)).toEqual(['wood'])
+		} finally {
+			await engine.destroy()
+		}
+	})
+
 	it('requires the conveyor planning range to be the assigned tile', () => {
 		const work = new WorkFunctions()
 		const character = {

@@ -12,6 +12,7 @@ import {
 import {
 	findProvideFromVehicleJob,
 	findUnloadFromVehicleJob,
+	findVehicleApproachJob,
 	findVehicleBeginServiceJob,
 	findVehicleHopJob,
 	findVehicleOffloadJob,
@@ -378,12 +379,13 @@ describe('Vehicle begin-service arbitration', () => {
 				}),
 			],
 		} satisfies GamePatches
-		game = new Game({ terrainSeed: 9511, characterCount: 0 }, patches)
+		game = new Game({ terrainSeed: 9511, characterCount: 0, settlementGeneration: false }, patches)
 		await game.loaded
 		game.ticker.stop()
 
 		const idleTile = game.hex.getTile({ q: 0, r: 0 })!
 		const dockTile = game.hex.getTile({ q: 1, r: 0 })!
+		for (const good of game.hex.looseGoods.getGoodsAt(dockTile.position)) good.remove()
 		const line = game.freightLines[0]!
 		const unloadStop = line.stops[1]!
 
@@ -758,6 +760,55 @@ describe('Vehicle begin-service arbitration', () => {
 
 		const proj = projectedLineStopForVehicleHop(game, character, vehicle)
 		expect(proj?.stop.id).toBe(line.stops[1]!.id)
+	})
+
+	it('approach skips a closer idle assigned vehicle when it cannot start useful line service', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'grass' as const },
+				{ coord: [1, 0] as const, terrain: 'grass' as const },
+				{ coord: [6, 0] as const, terrain: 'grass' as const },
+			],
+			hives: [
+				{
+					name: 'ApproachHive',
+					alveoli: [
+						{ coord: [0, 0] as const, alveolus: 'freight_bay', goods: {} },
+						{ coord: [1, 0] as const, alveolus: 'sawmill', goods: {} },
+					],
+				},
+			],
+			freightLines: [
+				gatherFreightLine({
+					id: 'arb:no-action',
+					name: 'No action',
+					hiveName: 'ApproachHive',
+					coord: [0, 0],
+					filters: ['wood'],
+					radius: 1,
+				}),
+				gatherFreightLine({
+					id: 'arb:truck-action',
+					name: 'Truck action',
+					hiveName: 'ApproachHive',
+					coord: [0, 0],
+					filters: ['wood'],
+					radius: 8,
+				}),
+			],
+			looseGoods: [{ goodType: 'wood' as const, position: { q: 6, r: 0 } }],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 9521, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const noAction = game.freightLines.find((line) => line.id === 'arb:no-action')!
+		const truckAction = game.freightLines.find((line) => line.id === 'arb:truck-action')!
+		game.vehicles.createVehicle('arb-near-idle', 'wheelbarrow', { q: 0, r: 0 }, [noAction])
+		game.vehicles.createVehicle('arb-far-truck', 'pickup_truck', { q: 6, r: 0 }, [truckAction])
+		const character = game.population.createCharacter('Approach', { q: 0, r: 0 })
+
+		expect(findVehicleApproachJob(game, character)?.vehicleUid).toBe('arb-far-truck')
 	})
 
 	it('prefers continuing a loaded line over same-tile ordinary transform work', async () => {

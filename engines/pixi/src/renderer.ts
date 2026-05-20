@@ -20,6 +20,7 @@ import type { VisualFactoryDiagnostics } from './visual-factory'
 import { VisualFactory } from './visual-factory'
 
 export class PixiGameRenderer implements GameRenderer {
+	public readonly viewId = 'primary'
 	public app?: Application
 	public stage?: Container
 	private interactionManager?: InteractionManager
@@ -241,6 +242,7 @@ export class PixiGameRenderer implements GameRenderer {
 		if (this.app.screen.width === width && this.app.screen.height === height) return
 		this.app.renderer.resize(width, height)
 		if (this.app.stage) this.app.stage.hitArea = this.app.screen
+		this.interactionManager?.publishActiveViewPov()
 		this.terrainVisual?.invalidate()
 	}
 
@@ -371,6 +373,7 @@ export class PixiGameRenderer implements GameRenderer {
 			this.app.screen.width / 2 - centerX * clampedZoom,
 			this.app.screen.height / 2 - centerY * clampedZoom
 		)
+		this.interactionManager?.publishActiveViewPov()
 	}
 
 	public async reload() {

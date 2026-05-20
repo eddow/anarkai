@@ -23,6 +23,7 @@ import { BuildAlveolus } from 'ssh/hive/build'
 import { TransformAlveolus } from 'ssh/hive/transform'
 import type { GoodType } from 'ssh/types/base'
 import { computeStyleFromTexture } from 'ssh/utils/images'
+import { toAxialCoord } from 'ssh/utils/position'
 import ConstructionProgressBar from '../ConstructionProgressBar'
 import EntityBadge from '../EntityBadge'
 import GoodsList from '../GoodsList'
@@ -36,6 +37,7 @@ import AlveolusProperties from './AlveolusProperties'
 import DwellingProperties from './DwellingProperties'
 import TileWorkProperties from './TileWorkProperties'
 import UnBuiltProperties from './UnBuiltProperties'
+import SettlementProperties from './SettlementProperties'
 
 css`
   .tile-properties {
@@ -582,6 +584,19 @@ const TileProperties = (props: TilePropertiesProps) => {
 		get game() {
 			return props.tile.board?.game
 		},
+		get settlementTradeProfile() {
+			const position = props.tile.position
+			if (
+				!position ||
+				typeof (position as { q?: unknown }).q !== 'number' ||
+				typeof (position as { r?: unknown }).r !== 'number'
+			) {
+				return undefined
+			}
+			const coord = toAxialCoord(position)
+			if (!coord) return undefined
+			return this.game?.getSettlementTradeProfileAtCityHall?.(coord)
+		},
 		get contentTerrain() {
 			const contentCase = this.contentCase
 			if (!contentCase) return undefined
@@ -663,6 +678,7 @@ const TileProperties = (props: TilePropertiesProps) => {
 					/>
 				</PropertyGrid>
 			</InspectorSection>
+			<SettlementProperties if={model.settlementTradeProfile} profile={model.settlementTradeProfile} />
 			<TileWorkProperties tile={tile} />
 		</div>
 	)

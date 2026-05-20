@@ -1,5 +1,6 @@
 import { reactive, unwrap } from 'mutts'
 import type { InteractiveGameObject } from 'ssh/game/object'
+import type { AxialCoord } from 'ssh/utils'
 
 export const mrg = reactive({
 	hoveredObject: undefined as InteractiveGameObject | undefined,
@@ -8,6 +9,26 @@ export const mrg = reactive({
 export const interactionMode = reactive({
 	selectedAction: '' as string,
 })
+
+export interface ActiveWorldViewPov {
+	readonly viewId: string
+	readonly center: AxialCoord
+}
+
+export const activeWorldViewPov = reactive<{
+	viewId: string
+	center: AxialCoord | undefined
+}>({
+	viewId: 'primary',
+	center: undefined,
+})
+
+export function setActiveWorldViewPov(pov: ActiveWorldViewPov): void {
+	// V1 has one game widget POV. Keep the view id in the state so multiple world views can
+	// publish independent centers without changing picker call sites later.
+	activeWorldViewPov.viewId = pov.viewId
+	activeWorldViewPov.center = pov.center
+}
 
 export function getHoveredUid(): string | undefined {
 	const hoveredObject = mrg.hoveredObject

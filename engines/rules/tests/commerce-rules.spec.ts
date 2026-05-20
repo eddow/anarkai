@@ -14,10 +14,14 @@ describe('commerce and construction rules', () => {
 
 	it('exports settlement trade tuning from rules', () => {
 		expect(settlementTrade.goods).toContain('concrete')
+		expect(settlementTrade.basicMaterialGoods).toEqual(['concrete', 'planks', 'stone', 'wood'])
 		expect(settlementTrade.offerCounts).toMatchObject({ village: 2, town: 3, city: 4 })
-		expect(settlementTrade.priceMultipliers.sell.village).toBeGreaterThan(
-			settlementTrade.priceMultipliers.sell.city
+		expect(settlementTrade.priceMultipliers.village).toBeGreaterThan(
+			settlementTrade.priceMultipliers.city
 		)
+		for (const good of settlementTrade.basicMaterialGoods) {
+			expect(goods[good].tags).toContain('basic-materials')
+		}
 	})
 
 	it('exports the initial player account balance from rules', () => {

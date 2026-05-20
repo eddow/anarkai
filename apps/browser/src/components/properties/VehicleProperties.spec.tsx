@@ -6,6 +6,15 @@ import { document, latch } from '@sursaut/core'
 import { disconnectAllProfiles, profile, setProfileLevel } from 'ssh/dev/debug'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const activeWorldViewPov = vi.hoisted(() => ({
+	viewId: 'primary',
+	center: undefined as { q: number; r: number } | undefined,
+}))
+
+vi.mock('@app/lib/globals', () => ({
+	activeWorldViewPov,
+}))
+
 const i18nState = {
 	translator: {
 		goods: 'Goods',
@@ -140,6 +149,8 @@ describe('VehicleProperties', () => {
 
 	beforeEach(() => {
 		resetPresentationRevisionsForTests()
+		activeWorldViewPov.viewId = 'primary'
+		activeWorldViewPov.center = { q: 0, r: 0 }
 		container = document.createElement('div')
 		document.body.appendChild(container)
 	})
@@ -275,6 +286,59 @@ describe('VehicleProperties', () => {
 			...container.querySelectorAll('[data-testid="inspector-object-link"]'),
 		].filter((el) => el.getAttribute('data-target-uid') === 'freight-line:L1')
 		expect(lineLinks.length).toBeGreaterThan(0)
+	})
+
+	it('assigns and unassigns served freight lines without changing active service text', () => {
+		const lineA = {
+			id: 'L1',
+			name: 'North route',
+			stops: [{ id: 'a', zone: { kind: 'radius', center: [1, 0] as const, radius: 1 } }],
+		}
+		const lineB = {
+			id: 'L2',
+			name: 'South route',
+			stops: [{ id: 'b', zone: { kind: 'radius', center: [2, 0] as const, radius: 1 } }],
+		}
+		const vehicle = {
+			uid: 'veh-lines',
+			title: 'wheelbarrow lines',
+			vehicleType: 'wheelbarrow',
+			storage: { stock: {} },
+			servedLines: [lineA],
+			service: {
+				line: lineA,
+				stop: lineA.stops[0],
+				docked: false,
+			},
+			game: {
+				freightLines: [lineA, lineB],
+				assignVehicleToFreightLine: vi.fn((_vehicleUid: string, lineId: string) => {
+					const line = lineId === lineB.id ? lineB : lineA
+					vehicle.servedLines = [...vehicle.servedLines, line]
+				}),
+				unassignVehicleFromFreightLine: vi.fn((_vehicleUid: string, lineId: string) => {
+					vehicle.servedLines = vehicle.servedLines.filter((line) => line.id !== lineId)
+				}),
+			},
+		}
+
+		stop = latch(container, <VehicleProperties vehicle={vehicle as never} />, {
+			setTitle: vi.fn(),
+		} as never)
+
+		expect(container.textContent).toContain('North route · Stop a · Underway')
+		expect(
+			container
+				.querySelector('[data-testid="vehicle-assigned-line"] [data-testid="inspector-object-link"]')
+				?.getAttribute('data-target-uid')
+		).toBe('freight-line:L1')
+
+		;(container.querySelector('[data-testid="vehicle-line-picker-item"]') as HTMLButtonElement).click()
+		expect(vehicle.game.assignVehicleToFreightLine).toHaveBeenCalledWith('veh-lines', 'L2')
+
+		;(container.querySelector('[data-testid="vehicle-unassign-line"]') as HTMLButtonElement).click()
+		expect(vehicle.game.unassignVehicleFromFreightLine).toHaveBeenCalledWith('veh-lines', 'L1')
+		expect(container.textContent).toContain('North route · Stop a · Underway')
 	})
 
 	it('shows offload text when service is offload-only', () => {

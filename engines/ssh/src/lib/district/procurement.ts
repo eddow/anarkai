@@ -3,6 +3,10 @@ import type {
 	NpcSettlementTradeOffer,
 	NpcSettlementTradeProfile,
 } from 'ssh/commerce/settlement-trade'
+import {
+	setConstructionDeliveredGoods,
+	setConstructionFoundationDeliveredGoods,
+} from 'ssh/construction-state'
 import type { District } from 'ssh/district/district'
 import type { Game } from 'ssh/game/game'
 import type { GoodType } from 'ssh/types/base'
@@ -19,6 +23,7 @@ export type DistrictPurchaseBlockReason =
 
 export interface DistrictGoodProcurementPolicy {
 	readonly maxUnitPriceVp?: number
+	readonly autoBuy?: boolean
 }
 
 export interface DistrictProcurementPolicy {
@@ -41,6 +46,30 @@ export interface DistrictPurchaseRequest {
 	readonly status: DistrictPurchaseStatus
 	readonly blockReason?: DistrictPurchaseBlockReason
 }
+
+export type DistrictPurchaseExecutionStatus =
+	| 'ok'
+	| 'not_found'
+	| 'not_planned'
+	| 'missing_target'
+	| 'missing_storage'
+	| 'insufficient_storage'
+	| 'insufficient_funds'
+
+export interface DistrictPurchaseExecutionResult {
+	readonly status: DistrictPurchaseExecutionStatus
+	readonly request?: DistrictPurchaseRequest
+	readonly spentVp?: number
+	readonly delivered?: number
+}
+
+/**
+ * Compatibility-only district procurement model.
+ *
+ * Normal gameplay commerce is line-based: goods cross the player/NPC boundary only at
+ * freight trade stops. These helpers stay to load older saves and support targeted
+ * regression tests, but player-facing UI and ticking should not call them for direct buying.
+ */
 
 interface PurchaseDemand {
 	readonly good: GoodType
@@ -71,6 +100,7 @@ export function createDistrictProcurementPolicy(
 		goods[good] = {
 			...goods[good],
 			...policy,
+			autoBuy: policy.autoBuy ?? goods[good]?.autoBuy,
 			maxUnitPriceVp:
 				policy.maxUnitPriceVp === undefined
 					? goods[good]?.maxUnitPriceVp
@@ -142,8 +172,95 @@ export function listDistrictEligibleSellGoods(game: Game, district: District): G
 	return [...goods].sort((left, right) => left.localeCompare(right))
 }
 
+export function executeDistrictPurchaseRequest(
+	game: Game,
+	district: District,
+	requestId: string
+): DistrictPurchaseExecutionResult {
+	const request = listDistrictPurchaseRequests(game, district).find(
+		(candidate) => candidate.id === requestId
+	)
+	if (!request) return { status: 'not_found' }
+	if (request.status !== 'planned') return { status: 'not_planned', request }
+	if (!request.targetCoord) return { status: 'missing_target', request }
+	const target = purchaseDeliveryTarget(game, request)
+	if (!target) return { status: 'missing_target', request }
+	if (!target.storage) return { status: 'missing_storage', request }
+	if ((target.storage.hasRoom(request.good) ?? 0) < request.quantity) {
+		return { status: 'insufficient_storage', request }
+	}
+	if (request.totalPriceVp === undefined || !game.canAffordVp(request.totalPriceVp)) {
+		return { status: 'insufficient_funds', request }
+	}
+	if (!game.spendVp(request.totalPriceVp)) return { status: 'insufficient_funds', request }
+	const delivered = target.storage.addGood(request.good, request.quantity)
+	if (delivered !== request.quantity) {
+		game.creditVp(request.totalPriceVp)
+		return { status: 'insufficient_storage', request, delivered }
+	}
+	target.syncDelivered()
+	return {
+		status: 'ok',
+		request,
+		spentVp: request.totalPriceVp,
+		delivered,
+	}
+}
+
+export function executeDistrictAutomaticPurchases(
+	game: Game,
+	district: District
+): DistrictPurchaseExecutionResult[] {
+	if (!district.procurementPolicy.autoBuyNeededGoods) return []
+	const results: DistrictPurchaseExecutionResult[] = []
+	const attempted = new Set<string>()
+	for (;;) {
+		const request = listDistrictPurchaseRequests(game, district).find(
+			(candidate) =>
+				candidate.status === 'planned' &&
+				district.procurementPolicy.goods[candidate.good]?.autoBuy === true &&
+				!attempted.has(candidate.id)
+		)
+		if (!request) return results
+		attempted.add(request.id)
+		const result = executeDistrictPurchaseRequest(game, district, request.id)
+		results.push(result)
+		if (result.status !== 'ok') return results
+	}
+}
+
 function collectUseDemands(game: Game, district: District): PurchaseDemand[] {
 	return missingConstructionDemands(game, district)
+}
+
+function purchaseDeliveryTarget(game: Game, request: DistrictPurchaseRequest) {
+	if (!request.targetCoord) return undefined
+	const tile = game.hex.getTile(request.targetCoord)
+	const content = tile?.content
+	if (!content) return undefined
+	if (request.purpose === 'buffer') {
+		const storage = 'storage' in content ? content.storage : undefined
+		return storage ? { storage, syncDelivered: () => {} } : undefined
+	}
+	if (isConstructionSiteShell(content)) {
+		return {
+			storage: content.storage,
+			syncDelivered: () => {
+				setConstructionDeliveredGoods(content.constructionSite, content.storage.stock ?? {})
+			},
+		}
+	}
+	const constructionSite =
+		'constructionSite' in content ? content.constructionSite : undefined
+	const foundationStorage =
+		'foundationStorage' in content ? content.foundationStorage : undefined
+	if (!constructionSite || !foundationStorage) return undefined
+	return {
+		storage: foundationStorage,
+		syncDelivered: () => {
+			setConstructionFoundationDeliveredGoods(constructionSite, foundationStorage.stock ?? {})
+		},
+	}
 }
 
 function missingConstructionDemands(game: Game, district: District): PurchaseDemand[] {
@@ -249,9 +366,6 @@ function createPurchaseRequest(
 		quantity: demand.quantity,
 		purpose: demand.purpose,
 		targetCoord: demand.targetCoord,
-	}
-	if (demand.purpose === 'use' && !district.procurementPolicy.autoBuyNeededGoods) {
-		return { ...base, status: 'blocked', blockReason: 'auto_buy_disabled' }
 	}
 	const seller = chooseSeller(game, demand.good, demand.targetCoord ?? district.members[0])
 	if (!seller) return { ...base, status: 'blocked', blockReason: 'no_seller' }

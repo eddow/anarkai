@@ -226,6 +226,13 @@ vi.mock('./UnBuiltProperties', () => ({
 	default: () => null,
 }))
 
+vi.mock('./SettlementProperties', () => ({
+	default: (props: { if?: boolean; profile?: { name?: string } }) =>
+		props.if === false ? null : (
+			<div data-testid="tile-settlement-market">{props.profile?.name}</div>
+		),
+}))
+
 let TileProperties: typeof import('./TileProperties').default
 
 describe('TileProperties', () => {
@@ -279,6 +286,37 @@ describe('TileProperties', () => {
 		}).not.toThrow()
 
 		expect(container.textContent).not.toContain('wood')
+	})
+
+	it('embeds the settlement market on a city hall tile', () => {
+		const content = reactive({
+			walkTime: 1,
+		})
+		const tile = reactive({
+			position: { q: 2, r: 3 },
+			content,
+			looseGoods: [],
+			board: {
+				game: {
+					loaded: Promise.resolve(),
+					getTexture: vi.fn(() => undefined),
+					getSettlementTradeProfileAtCityHall: vi.fn(() => ({
+						id: 'settlement-2,3',
+						name: 'Town Market',
+						kind: 'town',
+						center: { q: 2, r: 3 },
+						radius: 3,
+						offers: [],
+					})),
+				},
+			},
+		})
+
+		stop = latch(container, <TileProperties tile={tile as never} />)
+
+		expect(container.querySelector('[data-testid="tile-settlement-market"]')?.textContent).toBe(
+			'Town Market'
+		)
 	})
 
 	it('does not throw when board game disappears after mount', () => {

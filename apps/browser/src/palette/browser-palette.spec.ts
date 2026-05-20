@@ -93,6 +93,17 @@ describe('browser palette registry & palettePanelBridge', () => {
 		expect(path?.icon).toBeTruthy()
 	})
 
+	it('exposes freight add-stop as a selected action while line picking is active', () => {
+		const palette = getBrowserPalette().palette
+		const selectedAction = palette.tool('selectedAction') as {
+			values: Array<{ value: string; icon?: string; keywords?: string[] }>
+		}
+
+		const addStop = selectedAction.values.find((entry) => entry.value === 'freight:add-stop')
+		expect(addStop?.icon).toBeTruthy()
+		expect(addStop?.keywords).toContain('freight')
+	})
+
 	it('uses the freight bay visual for the freight bay build entry', () => {
 		const palette = getBrowserPalette().palette
 		const selectedAction = palette.tool('selectedAction') as {

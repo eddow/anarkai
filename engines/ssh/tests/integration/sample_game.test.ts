@@ -62,11 +62,11 @@ describe('Source Allocation Stability', () => {
 					const actions = Array.from(game.population)
 						.map((char: any) => char.actionDescription?.join('/') || 'none')
 						.join(',')
-					timeline.push(
-						[
-							`tick=${i}`,
-							`t=${game.clock.virtualTime.toFixed(1)}`,
-							`woodStorage=${stockOf(woodStorage, 'wood')}`,
+						timeline.push(
+							[
+								`tick=${i}`,
+								`t=${game.clock.virtualTime.toFixed(1)}`,
+								`woodStorage=${stockOf(woodStorage, 'wood')}`,
 							`sawmillWood=${stockOf(sawmill, 'wood')}`,
 							`sawmillPlanks=${stockOf(sawmill, 'planks')}`,
 							`plankStorage=${stockOf(plankStorage, 'planks')}`,

@@ -1,23 +1,18 @@
 export const settlementTrade = {
 	goods: ['berries', 'concrete', 'mushrooms', 'wood', 'planks', 'stone'],
 	constructionGoods: ['concrete', 'wood', 'planks', 'stone'],
+	basicMaterialGoods: ['concrete', 'planks', 'stone', 'wood'],
 	offerCounts: {
 		village: 2,
 		town: 3,
 		city: 4,
 	},
 	priceMultipliers: {
-		sell: {
-			village: 1.2,
-			town: 1,
-			city: 0.9,
-		},
-		buy: {
-			village: 0.95,
-			town: 1.05,
-			city: 1.15,
-		},
+		village: 1.08,
+		town: 1,
+		city: 0.94,
 	},
+	priceJitter: 0.18,
 	scoreWeights: {
 		initialBase: 1,
 		initialJitter: 0.25,

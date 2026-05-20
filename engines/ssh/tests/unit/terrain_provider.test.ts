@@ -240,13 +240,13 @@ describe('terrain provider', () => {
 					0: { flux: 12, width: 4, depth: 2 },
 				},
 			},
-			deposit: {
-				type: 'tree',
-				amount: 3,
-				maxAmount: 100,
-				name: 'tree',
-			},
-		})
+				deposit: {
+					type: 'tree',
+					amount: 3,
+					maxAmount: 12,
+					name: 'tree',
+				},
+			})
 	})
 
 	it('caches macro hydrology by snapped macro center', async () => {
@@ -270,8 +270,8 @@ describe('terrain provider', () => {
 			getGameplayTerrainSample: () => undefined,
 		})
 
-		await provider.ensureMacroHydrology('3,4')
-		await provider.ensureMacroHydrology('7,7')
+		await provider.ensureMacroHydrology('3,3')
+		await provider.ensureMacroHydrology('-3,-3')
 		expect(generateMacroHydrologyAsync).toHaveBeenCalledTimes(1)
 		expect(generateMacroHydrologyAsync.mock.calls[0]![1]).toEqual({ q: 0, r: 0 })
 		expect(generateMacroHydrologyAsync.mock.calls[0]![2]).toEqual({

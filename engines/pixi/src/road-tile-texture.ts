@@ -7,6 +7,7 @@ import type { PixiGameRenderer } from './renderer'
 const ROAD_TILE_TEXTURE_PIXELS = 96
 const ROAD_TILE_WORLD_SIZE = tileSize * 2
 const ROAD_PATH_WIDTH = tileSize
+const ROAD_MATERIAL_WORLD_SIZE = ROAD_PATH_WIDTH * 2
 const ROAD_EDGE_FADE = tileSize * 0.14
 const ROAD_MATERIAL_SPEC = 'roads.brick_moss'
 
@@ -96,8 +97,8 @@ function sampleMaterial(
 	const axisY = contribution.end.y / length
 	const along = point.x * axisX + point.y * axisY
 	const across = -point.x * axisY + point.y * axisX
-	const u = wrap01(contribution.uv.u + along / ROAD_PATH_WIDTH)
-	const v = wrap01(contribution.uv.v + across / ROAD_PATH_WIDTH)
+	const u = wrap01(contribution.uv.u + along / ROAD_MATERIAL_WORLD_SIZE)
+	const v = wrap01(contribution.uv.v + across / ROAD_MATERIAL_WORLD_SIZE)
 	const x = Math.floor(u * material.width) % material.width
 	const y = Math.floor(v * material.height) % material.height
 	const offset = (y * material.width + x) * 4

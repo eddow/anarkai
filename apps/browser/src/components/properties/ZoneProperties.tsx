@@ -146,9 +146,7 @@ const ZoneProperties = (props: ZonePropertiesProps) => {
 	const deposits = () => Object.keys(depositCounts())
 
 	effect`zone-properties:overlay`(() => {
-		zoneOverlayState.selectedZoneId = zoneId()
 		return () => {
-			if (zoneOverlayState.selectedZoneId === zoneId()) zoneOverlayState.selectedZoneId = undefined
 			const owned = unnamedZoneOwnership.zoneId
 			const ownedDefinition = owned ? game.hex.zoneManager.getZoneDefinition(owned) : undefined
 			if (owned === zoneId() && ownedDefinition && !ownedDefinition.name.trim()) {

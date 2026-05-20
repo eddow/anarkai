@@ -17,6 +17,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 describe('constructionStep resumable work', () => {
 	let game: Game
 
+	function clearGeneratedBurden(coord: { q: number; r: number }) {
+		const tile = game.hex.getTile(coord)
+		const content = tile?.content
+		if (content instanceof UnBuiltLand) content.deposit = undefined
+		for (const good of [...(tile?.looseGoods ?? [])]) good.remove()
+	}
+
 	afterEach(() => {
 		game.destroy()
 	})
@@ -36,10 +43,11 @@ describe('constructionStep resumable work', () => {
 					},
 				],
 			}
-		)
-		await game.loaded
-		game.ticker.stop()
-	})
+			)
+			await game.loaded
+			game.ticker.stop()
+			clearGeneratedBurden({ q: 1, r: 0 })
+		})
 
 	it('creates construction shells from construction-site targets', () => {
 		const tileB = game.hex.getTile({ q: 1, r: 0 })!
@@ -147,9 +155,10 @@ describe('constructionStep resumable work', () => {
 		if (!(land instanceof UnBuiltLand)) return
 		land.terrain = 'forest'
 		tileB.baseTerrain = 'forest'
-		tileB.terrainState = { ...(tileB.terrainState ?? {}), terrain: 'forest' }
-		land.setProject('build:storage')
-		expect(tileB.baseTerrain).toBe('forest')
+			tileB.terrainState = { ...(tileB.terrainState ?? {}), terrain: 'forest' }
+			land.setProject('build:storage')
+			land.foundationStorage?.addGood('concrete', 1)
+			expect(tileB.baseTerrain).toBe('forest')
 
 		const char = game.population.createCharacter('Builder', { q: 1, r: 0 })
 		const wf = new WorkFunctions()
@@ -186,8 +195,9 @@ describe('constructionStep resumable work', () => {
 		if (!(land instanceof UnBuiltLand)) return
 		land.terrain = 'forest'
 		tileB.baseTerrain = 'forest'
-		tileB.terrainState = { ...(tileB.terrainState ?? {}), terrain: 'forest' }
-		land.setProject('build:storage')
+			tileB.terrainState = { ...(tileB.terrainState ?? {}), terrain: 'forest' }
+			land.setProject('build:storage')
+			land.foundationStorage?.addGood('concrete', 1)
 
 		const char = game.population.createCharacter('Builder', { q: 1, r: 0 })
 		const wf = new WorkFunctions()

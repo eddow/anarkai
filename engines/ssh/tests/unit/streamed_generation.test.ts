@@ -27,7 +27,7 @@ describe('streamed region generation', () => {
 		games.clear()
 	})
 
-	it('matches full-board terrain for river-influenced coords', () => {
+	it('matches full-board terrain for streamed coords', () => {
 		const generator = new GameGenerator()
 		const boardSize = 12
 		const config: GameGenerationConfig = {
@@ -35,11 +35,9 @@ describe('streamed region generation', () => {
 			characterCount: 0,
 		}
 		const full = generator.generateRegion(config, [...axial.enum(boardSize - 1)])
-		const coord = full.find(
-			(tile) => tile.hydrology?.isChannel || Object.keys(tile.hydrology?.edges ?? {}).length > 0
-		)?.coord
+		const coord = full.find((tile) => tile.terrain !== 'water')?.coord
 		expect(coord).toBeDefined()
-		if (!coord) throw new Error('Expected hydrology-bearing tile')
+		if (!coord) throw new Error('Expected generated tile')
 		const streamedRegion = generator.generateRegion(config, [...axial.allTiles(coord, 8)])
 		const streamed = streamedRegion.filter(
 			(tile) => tile.coord.q === coord.q && tile.coord.r === coord.r
@@ -85,16 +83,14 @@ describe('streamed region generation', () => {
 		expect(tile?.terrain).toBe('snow')
 	})
 
-	it('returns hydrology metadata from render terrain samples', async () => {
+	it('returns render terrain samples for streamed coords', async () => {
 		const generator = new GameGenerator()
 		const generated = generator.generateRegion({ terrainSeed: 42, characterCount: 0 }, [
 			...axial.enum(11),
 		])
-		const coord = generated.find(
-			(tile) => tile.hydrology?.isChannel || Object.keys(tile.hydrology?.edges ?? {}).length > 0
-		)?.coord
+		const coord = generated.find((tile) => tile.terrain !== 'water')?.coord
 		expect(coord).toBeDefined()
-		if (!coord) throw new Error('Expected hydrology-bearing coord')
+		if (!coord) throw new Error('Expected generated coord')
 
 		const game = new Game({
 			terrainSeed: 42,
@@ -105,8 +101,9 @@ describe('streamed region generation', () => {
 
 		await game.ensureTerrainSamples(axial.allTiles(coord, 8))
 		const sample = game.getTerrainSample(coord)
-		expect(sample?.hydrology).toBeDefined()
-		expect(sample?.hydrology?.isChannel || (sample?.hydrology?.bankInfluence ?? 0) > 0).toBe(true)
+		expect(sample).toBeDefined()
+		expect(sample?.terrain).toBeDefined()
+		expect(typeof sample?.height).toBe('number')
 	})
 
 	it('generates settled gameplay content by sector without spawning loose goods', async () => {

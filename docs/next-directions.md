@@ -20,6 +20,19 @@ Already landed or mostly landed:
 - Transform alveoli can keep a configured product ratio, with rule defaults and per-alveolus inspector controls for the input good, output good, and slider threshold.
 - Deterministic streamed terrain generation and Pixi continuous-terrain rendering.
 - Browser client panels for inspecting and editing the active simulation.
+- Districts remain planning geography: they name areas, collect build/zone/road context, and summarize
+  material needs, but normal gameplay commerce no longer buys directly through districts.
+- Line-based external commerce is the active material procurement model. Settlement city-hall freight stops
+  buy/sell basic materials through physical vehicle cargo, stop policies, downstream demand, and stop-level
+  reserve rules.
+- Settlement markets include the current `basic-materials` goods (`wood`, `stone`, `planks`, `concrete`) and
+  show one deterministic price per good.
+- Freight stop diagnostics explain local need/provide state, downstream demand, import/export opportunity,
+  reserve/policy/offer blockers, and no-vehicle/no-room cases.
+- ChopSaw includes a hardcoded regression fixture: a cyclic materials loop from the `0,0` bay to the
+  Melindbury city hall with an assigned pickup truck.
+- Browser board highlights for lines, zones, hives, and stops are hover-driven rather than persistent just
+  because a widget is open.
 
 Still architecturally important:
 
@@ -36,19 +49,36 @@ Still architecturally important:
 - "lines" management widget with filters: "have bay" (yes/all/no) and "visible" (only-intersecting-the-game-view:bool)
 - find a way to show the content of the docked vehicles. Perhaps add a check-box/button to show/hide vehicle content (docked and non-docked)
 - line edition widget (reflections still ongoing):
-  - the line stop (bay/zone/...) should only be editable like on add: the set should have a sub-menu (bay/circle/named zone)
-  - The add stop should allow the selection (indeed, for now it adds something but the change is not visible without refreshing the widget)
   - the widget is always a bit too wide and has a horizontal scroll for 1~2px
-  - the "open zone" button seems quite useless as the stop is shown as a link (it is for the bay and should be for the zone)
 - roads & velocity calculation. Some vehicles can just not drive beside roads. There should be a multiplier somewhere as well as a `min(road-max-velocity, vehicle/character-ax-velocity)`. How to calculate exactly the velocity for it to be realistic somehow but still simple ?
+- line vehicle assignment UI. ChopSaw currently hardcodes a pickup truck to the Melindbury materials loop;
+  the inspector should eventually let a player assign or unassign compatible vehicles per line.
+- market analysis for settlement trade: compare settlement prices and positions, surface why Melindbury is
+  or is not a good source/sink, and keep the view focused on route decisions rather than finance UI.
+- generated settlement shops beyond city halls. City halls are the current V1 target; future material shops,
+  cafes, or other commerces should be separate generated trade targets using the same board-pick model.
+- long freight errands and hunger. A driver stopped in an NPC city should probably keep using the vehicle
+  after loading/unloading; decide whether route planning should reserve carried snacks, schedule a meal
+  before departure, or allow temporary off-route eating near a stop. Note: this could wait for commercial zones so characters could "buy a snack"
 - When providing to an external building (residence/construction/commerce), the vehicle should indeed stop on the border and unloading the vehicle in the building should indeed be a convey-hop-like action (character in the center of the tile, visible moving good)
 - planters/foresters/... should not plant indefinitely when too much loose good is present; planted trees already cap at two visible tree slots per tile, but planting/caring actors still need a general "tile room" rule for loose goods and future crops.
+- specific commerces will have to be generated in settlements, trade should depend on the present commerces and the vehicle using the road should go to the commerce - again (un)loading to/from a vehicle: vehicle goes on the shop border's and a convey-hop-like occur, transaction is when the character in the center of the shop spawn(buy)/unspawn(sell) good
+- Pickup-trucks and wheelbarrows are all-terrain vehicles. For most other vehicles, the line should have a road available
+- Remove districts
+
+## Little bugs
+
+- one docking spot in a bay can only be used by one vehicle at a time
+- Storage configuration, on good configuration add:
+  - the menu is clipped in the widget
+  - The maximum should be the total amount of slots minus the "other good"'s buffered slots - and this maximum (even if applied now) should be visible, the right-most "crates" of the `stars` component should be made clearly unavailable (redish?)
 
 ## Recommended Next Tranche
 
-Gameplay streaming ownership is now baseline. The strongest next tranche is therefore a gameplay-facing
-choice: roads/path infrastructure if the goal is a larger map, shops/markets if the goal is demand, or a
-small content chain if the goal is more immediate play texture.
+Gameplay streaming ownership is now baseline. The strongest immediate tranche is commerce polish: make the
+line-owned material loop easy to assign, compare, and debug. After that, roads/path infrastructure is the
+natural larger-map move, shops/markets deepen demand, and a small content chain can add immediate play
+texture.
 
 ## Candidate Directions
 
@@ -113,10 +143,9 @@ Commerce should land in three levels, with the first one serving construction an
 trying to become Simutrans all at once.
 
 1. **Useful procurement for our team.** When a needed good is missing, such as concrete for a foundation,
-   the player can choose a seller. The purchase spends value points from the shared team account, sends a
-   vehicle/worker to the seller, parks at the seller tile border, performs a convey-hop-like shop transfer
-   that spawns the bought material, then brings it back to the construction/site/storage that needs it.
-   Player-owned storage may buffer imported goods so later needs can consume local stock before buying.
+   storage buffers and construction/hive demand advertise the need. A freight line can visit a settlement
+   city hall, sell allowed surplus cargo, buy allowed missing materials if the stop reserve permits it, and
+   bring those goods back as ordinary vehicle cargo.
 2. **Industry commerce and arbitrage.** Once procurement is reliable, the player can buy near producers
    where goods are cheap and sell near demanders where goods are expensive, such as buying wood near a
    forester and selling it to an NPC sawmill complex.
@@ -127,18 +156,16 @@ Important first-level boundaries:
 
 - The shared player/team account is the common pot. Player characters use player-owned goods freely; NPC
   purchases add value points to this account.
-- Useful procurement lands in stages:
-  - **V0.9:** districts own buy policy, budget reserves, automatic source choice, and a planned/blocked
-    purchase queue. Buffer demand comes from storage alveolus buffer configuration, not district config. No
-    money or goods move yet.
-  - **V1:** the player can choose one source settlement for the whole district.
-  - **V2:** if wanted, a district can override the source settlement per good.
-  - Later execution sends a worker/vehicle to the seller, pays at pickup, loads via the border/convey-hop
-    shop interaction, and returns goods to the site or storage.
-- Selling from player inventory should eventually happen through commercial zones or resale points near or
-  inside settlements, but the resale-point gameplay can come after purchase procurement works.
-- Buying should not force micromanagement per building. District/project views should surface missing
-  useful goods, possible sellers, and purchase actions.
+- Useful procurement status:
+  - **Landed V1:** city-hall settlement markets, all-settlement basic-materials availability, one price per
+    good, NPC trade freight stops, export-before-import transfers, stop-level reserve, downstream-demand
+    imports, district procurement removed from normal UI/tick paths, and the ChopSaw materials loop fixture.
+  - **Next V1.x:** vehicle assignment UI, line list filters, route/market comparison by settlement
+    position and price, last-transfer/history display, and better visibility into docked vehicle contents.
+  - **Later V2:** generated shop targets beyond city halls, source/sink suggestions, commercial/resale
+    points, and consumption goods delivered to residential or shop areas.
+- District/project views should surface missing useful goods and possible physical supply routes without
+  becoming direct purchase surfaces again.
 - External building loading/unloading should use the border-parking plus convey-hop interaction already
   planned for shops, construction, and other non-freight-bay endpoints.
 
@@ -216,13 +243,16 @@ See [`./terrain-generation-roadmap.md`](./terrain-generation-roadmap.md).
 
 ### 6. Freight-line diagnostics depth
 
-Vehicle management and route authoring exist, but diagnostics can still make routes easier to debug.
+Vehicle management and route authoring exist, and stop-level commerce diagnostics are now present. The next
+diagnostic layer should focus on route-level and fleet-level clarity.
 
 Potential scope:
 
-- Better line diagnostics: blocked pickup, missing unload, no eligible goods, no vehicle.
-- Route health summaries for multi-segment lines.
-- Exchange-route summaries that explain which halt rotations are actionable on cyclic lines.
+- Route health summaries for multi-stop lines, including which cyclic rotations are actionable.
+- Last-transfer history for settlement stops: exported goods, imported goods, credited VP, spent VP.
+- Vehicle assignment status and compatibility hints.
+- Docked vehicle contents and line cargo visibility.
+- Exchange-route summaries for multi-segment lines.
 - Optional road-aware route benefit summaries now that border roads can affect travel cost.
 
 Good follow-up to:
@@ -237,12 +267,14 @@ Risks:
 
 ## Suggested Ordering
 
-1. Roads and path infrastructure.
-2. One small content tranche that proves roads matter.
-3. Shops/markets or NPC villages, depending on whether the next desired feeling is "internal economy" or
+1. Commerce polish: playtest the ChopSaw materials loop, add vehicle assignment UI, and make settlement
+   price/position comparisons legible.
+2. Roads and velocity, especially where vehicle route choice should change the commerce outcome.
+3. One small content tranche that proves roads and imported materials matter.
+4. Shops/markets or NPC villages, depending on whether the next desired feeling is "internal economy" or
    "inhabited world".
-4. Terrain generation rework when settlements, roads, and resource placement need stronger geography.
-5. Freight-line authoring depth as needed whenever route complexity starts slowing playtesting.
+5. Terrain generation rework when settlements, roads, and resource placement need stronger geography.
+6. Freight-line authoring depth as needed whenever route complexity starts slowing playtesting.
 
 ## Decision Prompts
 
@@ -260,8 +292,11 @@ Small slices worth considering:
 
 - **Roads v2:** turn instant roads into build projects, add route-benefit summaries, and add at least one
   upgraded road kind/material.
+- **Commerce polish v1:** assign vehicles from the line inspector, compare nearby settlement material
+  prices/positions, and show the last settlement transfers on the line.
 - **Market v1:** one shop consumes one good type and creates a visible demand/satisfaction signal.
 - **Content v1:** add one new raw resource, one transformer, one produced good, and one construction recipe that uses it.
 - **Village v1:** generate one persisted external village with one import need and one export good.
 - **Terrain v1:** add biome-weighted deposit distribution and a seed debug panel.
-- **Freight diagnostics v1:** show blocked pickup, missing unload, no eligible goods, and no vehicle signals on existing lines.
+- **Freight route health v1:** summarize actionable cyclic rotations, vehicle assignment, cargo visibility,
+  and road-aware route benefit on existing lines.

@@ -1,5 +1,6 @@
 import { reset } from 'mutts'
 import { Container, RenderLayer, Sprite } from 'pixi.js'
+import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { createAlveolus } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -12,6 +13,7 @@ import { TileVisual } from './tile-visual'
 function createRendererStub(game?: TestEngine['game']): PixiGameRenderer {
 	const fakeTexture = {
 		frame: { width: 16, height: 16 },
+		source: { width: 16, height: 16 },
 		width: 16,
 		height: 16,
 	} as never
@@ -113,8 +115,40 @@ describe('TileVisual storage goods layering', () => {
 			visual.bind()
 
 			expect(renderer.layers.storedGoods.renderLayerChildren).toHaveLength(1)
+			expect(renderer.layers.storedGoods.renderLayerChildren[0]?.parent).not.toBeNull()
 			expect(storageLayerSpriteCount(renderer)).toBe(1)
 			expect(nonStorageGoodsAttachmentCount(renderer)).toBe(0)
+
+			visual.dispose()
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('renders the city hall icon from tile visual state', async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+
+		try {
+			engine.loadScenario({
+				tiles: [{ coord: [0, 0], terrain: 'grass' }],
+				population: [],
+			})
+
+			const tile = engine.game.hex.getTile({ q: 0, r: 0 })
+			if (!tile) throw new Error('Expected city hall tile to exist')
+			;(engine.game as unknown as {
+				getSettlementTradeProfileAtCityHall(coord: { q: number; r: number }): unknown
+			}).getSettlementTradeProfileAtCityHall = (coord) =>
+				coord.q === 0 && coord.r === 0
+					? { id: 'settlement-1', cityHall: { position: { q: 0, r: 0 } } }
+					: undefined
+
+			const renderer = createRendererStub(engine.game)
+			const visual = new TileVisual(tile, renderer)
+			visual.bind()
+
+			expect(collectLabelsIncluding(visual.view, 'cityHall')).toHaveLength(1)
 
 			visual.dispose()
 		} finally {
@@ -146,6 +180,38 @@ describe('TileVisual storage goods layering', () => {
 			if (!finishedStorage) throw new Error('Expected storage alveolus')
 			tile.content = finishedStorage
 			finishedStorage.storage.addGood('wood', 1)
+			visual.refreshStoredGoods()
+
+			expect(renderer.layers.storedGoods.renderLayerChildren).toHaveLength(1)
+			expect(storageLayerSpriteCount(renderer)).toBe(1)
+			expect(nonStorageGoodsAttachmentCount(renderer)).toBe(0)
+
+			visual.dispose()
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('renders foundation storage goods for unbuilt construction projects', async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+
+		try {
+			engine.loadScenario({
+				tiles: [{ coord: [0, 0], terrain: 'grass' }],
+				population: [],
+			})
+
+			const tile = engine.game.hex.getTile({ q: 0, r: 0 })
+			if (!tile) throw new Error('Expected project tile to exist')
+			if (!(tile.content instanceof UnBuiltLand)) throw new Error('Expected unbuilt land')
+
+			const renderer = createRendererStub()
+			const visual = new TileVisual(tile, renderer)
+			visual.bind()
+
+			tile.content.setProject('build:storage')
+			tile.content.foundationStorage?.addGood('concrete', 1)
 			visual.refreshStoredGoods()
 
 			expect(renderer.layers.storedGoods.renderLayerChildren).toHaveLength(1)

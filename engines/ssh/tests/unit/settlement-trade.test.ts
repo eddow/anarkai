@@ -73,7 +73,7 @@ describe('settlement trade profiles', () => {
 		['village', 2],
 		['town', 3],
 		['city', 4],
-	] as const)('creates %s buy and sell offer counts', (kind, count) => {
+	] as const)('creates %s material plus ranked buy and sell offer counts', (kind, count) => {
 		const profile = createNpcSettlementTradeProfile({
 			seed: 42,
 			regionSetKey: '0,0',
@@ -82,8 +82,13 @@ describe('settlement trade profiles', () => {
 			zones,
 		})
 
-		expect(profile.offers.filter((offer) => offer.direction === 'sell')).toHaveLength(count)
-		expect(profile.offers.filter((offer) => offer.direction === 'buy')).toHaveLength(count)
+		const expectedDirectionalCount = 4 + Math.min(count, 2)
+		expect(profile.offers.filter((offer) => offer.direction === 'sell')).toHaveLength(
+			expectedDirectionalCount
+		)
+		expect(profile.offers.filter((offer) => offer.direction === 'buy')).toHaveLength(
+			expectedDirectionalCount
+		)
 	})
 
 	it('derives positive integer prices from goods base values', () => {
@@ -102,16 +107,56 @@ describe('settlement trade profiles', () => {
 		}
 	})
 
-	it('can include concrete from the rules-backed trade goods list', () => {
+	it('creates one city hall target at the settlement center', () => {
 		const profile = createNpcSettlementTradeProfile({
 			seed: 42,
 			regionSetKey: '0,0',
-			settlement: settlement('city'),
+			settlement: settlement('town'),
 			tileData: tiles,
 			zones,
 		})
 
-		expect(profile.offers.some((offer) => offer.good === 'concrete')).toBe(true)
+		expect(profile.cityHall).toEqual({
+			id: `${profile.id}:city-hall`,
+			kind: 'city_hall',
+			settlementId: profile.id,
+			name: `${profile.name} City Hall`,
+			position: profile.center,
+		})
+	})
+
+	it('keeps the city hall at the settlement center even if the center terrain is blocked', () => {
+		const profile = createNpcSettlementTradeProfile({
+			seed: 42,
+			regionSetKey: '0,0',
+			settlement: settlement('town'),
+			tileData: [
+				tile(0, 0, { terrain: 'water' }),
+				tile(1, 0),
+				tile(0, 1),
+			],
+			zones,
+		})
+
+		expect(profile.cityHall.position).toEqual(profile.center)
+	})
+
+
+	it('trades all basic materials with one settlement price for buy and sell', () => {
+		const profile = createNpcSettlementTradeProfile({
+			seed: 42,
+			regionSetKey: '0,0',
+			settlement: settlement('village'),
+			tileData: tiles,
+			zones,
+		})
+
+		for (const good of ['concrete', 'planks', 'stone', 'wood']) {
+			const sell = profile.offers.find((offer) => offer.direction === 'sell' && offer.good === good)
+			const buy = profile.offers.find((offer) => offer.direction === 'buy' && offer.good === good)
+			expect(sell?.priceVp).toBeGreaterThan(0)
+			expect(buy?.priceVp).toBe(sell?.priceVp)
+		}
 	})
 
 	it('resolves settlement trade objects from the game object registry facade', async () => {
@@ -131,9 +176,10 @@ describe('settlement trade profiles', () => {
 		const object = game.getObject(settlementTradeObjectUid(profile.id))
 
 		expect(object?.uid).toBe(settlementTradeObjectUid(profile.id))
-		expect(object?.title).toBe(profile.name)
-		expect(object?.position).toEqual(profile.center)
-		expect(object?.hoverObject).toBe(game.hex.getTile(profile.center))
+		expect(object?.title).toBe(profile.cityHall.name)
+		expect(object?.position).toEqual(profile.cityHall.position)
+		expect(object?.hoverObject).toBe(game.hex.getTile(profile.cityHall.position))
+		expect(game.getSettlementTradeProfileAtCityHall(profile.cityHall.position)).toBe(profile)
 	})
 
 	it('keeps streamed settlement trade profiles unique by settlement id', async () => {

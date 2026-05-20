@@ -14,6 +14,8 @@ export function vehicleTextureKey(vehicleType: WorldVehicleType): string {
 	switch (vehicleType) {
 		case 'wheelbarrow':
 			return 'vehicles.wheelbarrow'
+		case 'pickup_truck':
+			return 'vehicles.pickupTruck'
 	}
 }
 

@@ -14,7 +14,7 @@ import {
 
 /** Default trace channel levels. Remove a key or call `setTraceLevel(name, undefined)` to disable it. When a new TraceSink is needed, adding its name here is enough */
 export const traceLevels: Record<string, TraceVerb> = {
-	vehicle: 'assert',
+	vehicle: 'log',
 	npc: 'assert',
 	advertising: 'assert',
 	allocations: 'assert',
@@ -27,12 +27,22 @@ export const traceLevels: Record<string, TraceVerb> = {
 	idleDiagnosis: 'assert',
 	position: 'assert',
 	terrain: 'assert',
+	ui: 'assert',
 	/** Missing keys, interpolation issues, and other `I18nClient.report` output. */
 	i18n: 'warn',
 }
 
+const TERRAIN_PROFILING_ENABLED = false
+
 /** Default profile channel levels. Keep empty for normal play; use `setProfileLevel` or env-gated test setup to enable hot-path profiling. */
-export const profileLevels: Record<string, ProfileLevel> = {}
+export const profileLevels: Record<string, ProfileLevel> = {
+	...(TERRAIN_PROFILING_ENABLED
+		? {
+				terrainGeneration: 'summary' as const,
+				terrainProvider: 'summary' as const,
+			}
+		: {}),
+}
 
 export function nf<T extends Function>(name: string, fn: T): T {
 	Object.defineProperty(fn, 'name', { value: name })

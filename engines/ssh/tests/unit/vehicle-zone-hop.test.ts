@@ -1254,6 +1254,41 @@ describe('Vehicle zone hop semantics', () => {
 		expect(hop?.dockEnter).toBe(true)
 	})
 
+	it('keeps ChopSaw on the gather zone while another needed wood can be loaded', async () => {
+		game = new Game({ terrainSeed: 9425, characterCount: 0 }, chopSaw)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines.find(
+			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
+		)
+		if (!line) throw new Error('expected ChopSaw implicit gather line')
+		const load = line.stops.find((stop) => stop.id === 'ChopSaw:ig-load')
+		if (!load) throw new Error('expected ChopSaw load stop')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
+		const character = game.population.createCharacter('ChopSawSecondLoad', { q: -5, r: 1 })
+		character.position = { q: -5, r: 1 }
+		vehicle.position = { q: -5, r: 1 }
+		vehicle.storage.addGood('wood', 1)
+		vehicle.beginLineService(line, load, character)
+		character.operates = vehicle
+		character.onboard()
+		game.hex.looseGoods.add({ q: -4, r: 1 }, 'wood')
+
+		maybeAdvanceVehiclePastCompletedZoneStop(game, vehicle, character)
+		character.stepOffVehicleKeepingControl()
+
+		expect(isVehicleLineService(vehicle.service) && vehicle.service.stop.id).toBe(load.id)
+		const browse = findZoneBrowseJob(game, character)
+		expect(browse?.job).toBe('zoneBrowse')
+		expect(browse?.stopId).toBe(load.id)
+		expect(browse?.zoneBrowseAction).toBe('load')
+		expect(browse?.goodType).toBe('wood')
+		expect(browse?.targetCoord).toMatchObject({ q: -4, r: 1 })
+		expect(browse?.path.at(-1)).toMatchObject({ q: -4, r: 1 })
+	})
+
 	it('ends a distribute line at an empty zone unload stop with no cargo to provide', async () => {
 		const patches = {
 			tiles: [

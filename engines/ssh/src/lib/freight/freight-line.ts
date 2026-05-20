@@ -8,7 +8,6 @@ import { type Position, toAxialCoord } from 'ssh/utils/position'
 import type { GoodSelectionPolicy } from './goods-selection-policy'
 import {
 	evaluateGoodSelectionPolicy,
-	FREIGHT_LINE_ALL_GOOD_TYPES,
 	isUnrestrictedGoodsSelectionPolicy,
 	listGoodTypesMatchingSelectionPolicy,
 	normalizeGoodSelectionPolicy,
@@ -49,6 +48,11 @@ export type FreightBayAnchor = FreightStopAnchorAlveolus
 
 export type FreightStopAnchor = FreightStopAnchorAlveolus
 
+export interface FreightNpcTradeStop {
+	readonly kind: 'settlement'
+	readonly settlementId: string
+}
+
 export interface FreightZoneDefinitionRadius {
 	readonly kind: 'radius'
 	readonly center: readonly [number, number]
@@ -62,18 +66,24 @@ export interface FreightZoneDefinitionNamed {
 
 export type FreightZoneDefinition = FreightZoneDefinitionRadius | FreightZoneDefinitionNamed
 
-/** One route step: optional load/unload goods policies at a bay anchor or radius zone. */
+/** One route step: optional load/unload goods policies at a bay anchor, zone, or external trade point. */
 export type FreightStop = {
 	readonly id: string
 	readonly loadSelection?: GoodSelectionPolicy
 	readonly unloadSelection?: GoodSelectionPolicy
-} & ({ readonly anchor: FreightBayAnchor } | { readonly zone: FreightZoneDefinition })
+	readonly minBalanceAfterBuyVp?: number
+} & (
+	| { readonly anchor: FreightBayAnchor }
+	| { readonly zone: FreightZoneDefinition }
+	| { readonly trade: FreightNpcTradeStop }
+)
 
 export interface FreightLineDefinition {
 	readonly id: string
 	readonly name: string
 	readonly stops: ReadonlyArray<FreightStop>
 	readonly cyclic?: boolean
+	readonly minBalanceAfterBuyVp?: number
 }
 
 export const DEFAULT_GATHER_FREIGHT_RADIUS = defaultGatherFreightRadius
@@ -136,7 +146,7 @@ export function freightStopAnchorMatchesAlveolus(
 	if (!coord) return false
 	const hiveName = freightLineStopHiveName(alveolus.hive?.name)
 	return (
-		anchor.hiveName === hiveName &&
+		(anchor.hiveName === '' || anchor.hiveName === hiveName) &&
 		canonicalFreightLineStopAlveolusType(anchor.alveolusType) ===
 			canonicalFreightLineStopAlveolusType(alveolus.name as FreightLineStopAlveolusType) &&
 		anchor.coord[0] === coord.q &&
@@ -208,6 +218,13 @@ function normalizeFreightZone(zone: FreightZoneDefinition): FreightZoneDefinitio
 	return normalizeRadiusZone(zone)
 }
 
+function normalizeNpcTradeStop(trade: FreightNpcTradeStop): FreightNpcTradeStop {
+	return {
+		kind: 'settlement',
+		settlementId: trade.settlementId.trim(),
+	}
+}
+
 function normalizeOptionalSelectionPolicy(
 	policy: GoodSelectionPolicy | undefined
 ): GoodSelectionPolicy | undefined {
@@ -220,13 +237,21 @@ function normalizeFreightStop(stop: FreightStop, index: number): FreightStop {
 	const id = stop.id?.trim().length ? stop.id : `stop-${index}`
 	const loadSelection = normalizeOptionalSelectionPolicy(stop.loadSelection)
 	const unloadSelection = normalizeOptionalSelectionPolicy(stop.unloadSelection)
+	const reserve =
+		stop.minBalanceAfterBuyVp === undefined
+			? {}
+			: { minBalanceAfterBuyVp: Math.max(0, Math.floor(stop.minBalanceAfterBuyVp)) }
 	if ('anchor' in stop) {
-		return { id, loadSelection, unloadSelection, anchor: normalizeBayAnchor(stop.anchor) }
+		return { id, loadSelection, unloadSelection, ...reserve, anchor: normalizeBayAnchor(stop.anchor) }
+	}
+	if ('trade' in stop) {
+		return { id, loadSelection, unloadSelection, ...reserve, trade: normalizeNpcTradeStop(stop.trade) }
 	}
 	return {
 		id,
 		loadSelection,
 		unloadSelection,
+		...reserve,
 		zone: normalizeFreightZone(stop.zone),
 	}
 }
@@ -291,7 +316,7 @@ export function findDistributeRouteSegments(
 		const unloadStop = line.stops[i + 1]
 		if (!loadStop || !unloadStop) continue
 		if (!('anchor' in loadStop)) continue
-		if (!('anchor' in unloadStop) && !('zone' in unloadStop)) continue
+		if (!('anchor' in unloadStop) && !('zone' in unloadStop) && !('trade' in unloadStop)) continue
 		out.push({
 			loadStopIndex: i,
 			unloadStopIndex: i + 1,
@@ -307,7 +332,12 @@ export function normalizeFreightLineDefinition(line: FreightLineDefinition): Fre
 		name: line.name,
 		stops: line.stops.map((stop, index) => normalizeFreightStop(stop, index)),
 	}
-	return line.cyclic === true ? { ...normalized, cyclic: true } : normalized
+	const withCyclic = line.cyclic === true ? { ...normalized, cyclic: true } : normalized
+	if (line.minBalanceAfterBuyVp === undefined) return withCyclic
+	return {
+		...withCyclic,
+		minBalanceAfterBuyVp: Math.max(0, Math.floor(line.minBalanceAfterBuyVp)),
+	}
 }
 
 /** Stop indices to inspect when a service starts/continues from `startIndex`. */
@@ -784,11 +814,6 @@ export function createExchangeFreightLineDraftForFreightBay(
 		alveolusType: 'freight_bay',
 		coord: axialCoord,
 	}
-	const selection: GoodSelectionPolicy = {
-		goodRules: FREIGHT_LINE_ALL_GOOD_TYPES.map((goodType) => ({ goodType, effect: 'allow' })),
-		tagRules: [],
-		defaultEffect: 'deny',
-	}
 	return normalizeFreightLineDefinition({
 		id: `${displayName}:explicit:${coord.q},${coord.r}:exchange:${unique}`,
 		name: `${displayName} (${coord.q}, ${coord.r}) exchange`,
@@ -796,19 +821,7 @@ export function createExchangeFreightLineDraftForFreightBay(
 		stops: [
 			{
 				id: 'exchange-bay',
-				loadSelection: selection,
-				unloadSelection: selection,
 				anchor,
-			},
-			{
-				id: 'exchange-zone',
-				loadSelection: selection,
-				unloadSelection: selection,
-				zone: {
-					kind: 'radius',
-					center: axialCoord,
-					radius: DEFAULT_GATHER_FREIGHT_RADIUS,
-				},
 			},
 		],
 	})
@@ -847,7 +860,12 @@ export function getFreightLinePrimaryTile(
 }
 
 export function freightLineSummary(line: FreightLineDefinition): string {
-	return line.cyclic ? 'Exchange' : 'Freight'
+	const hasGather = findGatherRouteSegments(line).length > 0
+	const hasDistribute = findDistributeRouteSegments(line).length > 0
+	if (hasGather && hasDistribute) return 'Gather + distribute'
+	if (hasGather) return 'Gather'
+	if (hasDistribute) return 'Distribute'
+	return line.cyclic ? 'Cyclic' : 'Freight'
 }
 
 export function createSyntheticFreightLineObject(
@@ -855,11 +873,10 @@ export function createSyntheticFreightLineObject(
 	line: FreightLineDefinition
 ): SyntheticFreightLineObject {
 	const tile = getFreightLinePrimaryTile(game, line)
-	const summaryLabel = freightLineSummary(line)
 	return {
 		kind: 'freight-line',
 		uid: freightLineUid(line.id),
-		title: `${line.name} (${summaryLabel})`,
+		title: line.name,
 		game,
 		line,
 		lineId: line.id,
@@ -1042,6 +1059,10 @@ export function collectFreightLineBootstrapCoords(line: FreightLineDefinition): 
 		if ('zone' in stop && stop.zone.kind === 'radius') {
 			const zone = stop.zone
 			out.push({ q: zone.center[0], r: zone.center[1] })
+		}
+		if ('trade' in stop && stop.trade.kind === 'settlement') {
+			const match = /^settlement-(-?\d+),(-?\d+)$/.exec(stop.trade.settlementId)
+			if (match) out.push({ q: Number(match[1]), r: Number(match[2]) })
 		}
 	}
 	return out

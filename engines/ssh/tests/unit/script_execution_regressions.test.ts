@@ -41,6 +41,22 @@ describe('Script execution regressions', () => {
 		}
 	})
 
+	it('walk.until yields for a non-empty no-op path so callers cannot busy-spin', async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+
+		try {
+			const worker = engine.spawnCharacter('Pacer', { q: 0, r: 0 })
+			const execution = worker.scriptsContext.walk.until([{ q: 1, r: 0 }])
+			const first = execution.run(worker.scriptsContext)
+			expect(first.type).toBe('yield')
+			if (first.type !== 'yield') throw new Error('walk.until should yield a completion pause')
+			expect(first.value.description).toBe('walk.pause')
+		} finally {
+			await engine.destroy()
+		}
+	})
+
 	it('walk.moveTo skips zero-duration movement steps', async () => {
 		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
 		await engine.init()

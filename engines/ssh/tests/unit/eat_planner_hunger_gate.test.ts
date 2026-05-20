@@ -54,6 +54,12 @@ describe('Eat planning vs hunger (no goEat when sated)', () => {
 		return game
 	}
 
+	function clearLooseGoods(game: Game) {
+		for (const goods of game.hex.looseGoods.goods.values()) {
+			for (const good of [...goods]) good.remove()
+		}
+	}
+
 	it('computeActivityScores omits eat when hunger is fully sated (-1) despite reachable food', async () => {
 		const game = await loadMiniGame()
 		try {
@@ -120,6 +126,7 @@ describe('Eat planning vs hunger (no goEat when sated)', () => {
 			],
 		})
 		try {
+			clearLooseGoods(game)
 			const c = game.population.createCharacter('HungryFractional', { q: 0, r: -1 })
 			c.hunger = 0.92
 			expect(c.scriptsContext.find.food()).toBe(false)

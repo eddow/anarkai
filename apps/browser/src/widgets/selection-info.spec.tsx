@@ -1,4 +1,5 @@
 import { hiveUidForAnchorTile } from '@app/lib/hive-inspector'
+import { cancelFreightMapPick, freightMapPick } from '@app/lib/freight-map-pick'
 import { document, latch } from '@sursaut/core'
 import type { DockviewWidgetProps } from '@sursaut/ui/dockview'
 import { reactive } from 'mutts'
@@ -8,6 +9,7 @@ import { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SelectionInfoContext, SelectionInfoTool } from './selection-info-tab'
 
+const interactionModeMock = vi.hoisted(() => ({ selectedAction: '' }))
 const updateParameters = vi.fn<(params: { uid?: string }) => void>()
 const removePanel = vi.fn()
 const onDidRemovePanel = vi.fn((handler: (panel: { id: string }) => void) => {
@@ -154,6 +156,7 @@ vi.mock('ssh/game/object', async (importOriginal) => {
 })
 
 vi.mock('@app/lib/interactive-state', () => ({
+	interactionMode: interactionModeMock,
 	setHoveredObject: vi.fn((object: unknown) => {
 		globals.mrg.hoveredObject = object as typeof gameObject | undefined
 	}),
@@ -227,6 +230,7 @@ describe('SelectionInfoWidget', () => {
 		globals.selectionState.titleVersion = 0
 		globals.mrg.hoveredObject = undefined
 		globals.unreactiveInfo.hasLastSelectedInfoPanel = true
+		cancelFreightMapPick()
 		updateParameters.mockClear()
 		removePanel.mockClear()
 		onDidRemovePanel.mockClear()
@@ -406,6 +410,22 @@ describe('SelectionInfoWidget', () => {
 		stop = latch(container, <SelectionInfoWidget {...props} />, scope as never)
 
 		expect(props.context.hoveredObject).toBe(gameObject)
+	})
+
+	it('keeps rendering properties while a freight map pick is pending', () => {
+		globals.selectionState.selectedUid = 'object-1'
+		freightMapPick.pending = {
+			lineId: 'line-1',
+			pickKind: 'add-stop',
+			apply: vi.fn(),
+		}
+		const props = createProps()
+		const scope = createScope()
+
+		stop = latch(container, <SelectionInfoWidget {...props} />, scope as never)
+
+		expect(container.querySelector('[data-testid="freight-map-pick-banner"]')).not.toBeNull()
+		expect(container.textContent).toContain('Workbench')
 	})
 
 	it('highlights the inspected object while hovering the tab', () => {

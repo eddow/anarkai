@@ -3,6 +3,7 @@ import {
 	findBest,
 	findNearest,
 	findPath,
+	findReachable,
 	type GetNeighbors,
 	heuristic,
 } from 'ssh/utils/pathfinding'
@@ -273,6 +274,39 @@ describe('Pathfinding', () => {
 			// Should find the highest scoring coordinate within reach
 			const finalCoord = path![path!.length - 1]
 			expect(scoring(finalCoord)).toBeGreaterThan(0)
+		})
+	})
+
+	describe('findReachable', () => {
+		it('includes the start and adjacent walkable tiles within budget', () => {
+			const reachable = findReachable(createGridNeighbors(2), { q: 0, r: 0 }, 1)
+
+			expect(reachable.get({ q: 0, r: 0 })).toBe(0)
+			expect(reachable.get({ q: 1, r: 0 })).toBe(1)
+		})
+
+		it('excludes blocked and over-budget tiles', () => {
+			const reachable = findReachable(createGridNeighbors(3, new Set(['1,0'])), { q: 0, r: 0 }, 1)
+
+			expect(reachable.has({ q: 1, r: 0 })).toBe(false)
+			expect(reachable.has({ q: 2, r: 0 })).toBe(false)
+		})
+
+		it('uses cumulative walkTime costs', () => {
+			const getNeighbors = (coord: AxialCoord) => {
+				if (coord.q === 0 && coord.r === 0) {
+					return [
+						{ coord: { q: 1, r: 0 }, walkTime: 2 },
+						{ coord: { q: 0, r: 1 }, walkTime: 1 },
+					]
+				}
+				return []
+			}
+
+			const reachable = findReachable(getNeighbors, { q: 0, r: 0 }, 1)
+
+			expect(reachable.has({ q: 1, r: 0 })).toBe(false)
+			expect(reachable.get({ q: 0, r: 1 })).toBe(1)
 		})
 	})
 

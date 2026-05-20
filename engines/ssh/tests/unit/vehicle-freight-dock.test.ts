@@ -865,4 +865,59 @@ describe('vehicle-freight-dock', () => {
 			await engine.destroy()
 		}
 	})
+
+	it('begins a distribute line from buffered concrete when a foundation project needs it', async () => {
+		const engine = new TestEngine({
+			terrainSeed: 12015,
+			characterCount: 0,
+			settlementGeneration: false,
+		})
+		await engine.init()
+		try {
+			const line = distributeFreightLine({
+				id: 'dock:distribute-foundation-concrete',
+				name: 'Dock distribute foundation concrete',
+				hiveName: 'DockFoundationConcrete',
+				coord: [0, 0],
+				filters: ['concrete'],
+				unloadRadius: 1,
+			})
+			engine.loadScenario({
+				tiles: [{ coord: [0, -1], terrain: 'grass' }],
+				hives: [
+					{
+						name: 'DockFoundationConcrete',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
+							{ coord: [1, 0], alveolus: 'storage', goods: {} },
+						],
+					},
+				],
+				freightLines: [line],
+			} satisfies Partial<SaveState>)
+			const projectTile = engine.game.hex.getTile({ q: 0, r: -1 })!
+			projectTile.build('storage')
+
+			const worker = engine.game.population.createCharacter('ConcreteWorker', { q: 0, r: 0 })
+			const vehicle = engine.game.vehicles.createVehicle(
+				'dock-distribute-foundation-concrete-v',
+				'wheelbarrow',
+				{ q: 0, r: 0 },
+				[line]
+			)
+
+			const storage = engine.game.hex.getTile({ q: 1, r: 0 })?.content as
+				| StorageAlveolus
+				| undefined
+			storage?.setBuffers({ concrete: 1 })
+			storage?.storage.addGood('concrete', 1)
+			expect(storage?.goodsRelations.concrete?.advertisement).not.toBe('provide')
+
+			const pick = pickInitialVehicleServiceCandidate(engine.game, worker, vehicle)
+			expect(pick).toMatchObject({ line, stop: line.stops[0] })
+			expect(pick?.urgency).toBe(jobBalance.vehicleBeginService)
+		} finally {
+			await engine.destroy()
+		}
+	})
 })

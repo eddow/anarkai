@@ -19,6 +19,7 @@ vi.mock('@app/ui/anarkai', () => ({
 
 vi.mock('engine-pixi/assets/visual-content', () => ({
 	goods: {
+		concrete: { sprites: ['concrete-sprite'] },
 		wood: { sprites: ['wood-sprite'] },
 		planks: { sprites: ['planks-sprite'] },
 		stone: { sprites: ['stone-sprite'] },
@@ -72,7 +73,7 @@ describe('SettlementProperties', () => {
 		document.body.innerHTML = ''
 	})
 
-	it('renders read-only settlement market details and offer rows', () => {
+	it('renders read-only settlement market details and one price row per good', () => {
 		const settlementObject = {
 			profile: {
 				id: 'settlement-2,3',
@@ -83,6 +84,7 @@ describe('SettlementProperties', () => {
 				radius: 3,
 				offers: [
 					{ good: 'wood', direction: 'sell', priceVp: 6 },
+					{ good: 'wood', direction: 'buy', priceVp: 6 },
 					{ good: 'stone', direction: 'sell', priceVp: 4 },
 					{ good: 'planks', direction: 'buy', priceVp: 8 },
 					{ good: 'berries', direction: 'buy', priceVp: 2 },
@@ -99,13 +101,13 @@ describe('SettlementProperties', () => {
 		expect(container.querySelector('[data-testid="row-Center"]')?.textContent).toContain('2, 3')
 		expect(container.querySelector('[data-testid="row-Radius"]')?.textContent).toContain('3')
 
-		const sells = [...container.querySelectorAll('[data-testid="settlement-offer-sell"]')]
-		const buys = [...container.querySelectorAll('[data-testid="settlement-offer-buy"]')]
-		expect(sells).toHaveLength(2)
-		expect(buys).toHaveLength(2)
-		expect(sells[0]?.textContent).toContain('wood:wood')
-		expect(sells[0]?.textContent).toContain('6 vp')
-		expect(buys[0]?.textContent).toContain('planks:planks')
-		expect(buys[0]?.textContent).toContain('8 vp')
+		const prices = [...container.querySelectorAll('[data-testid="settlement-market-price"]')]
+		expect(prices).toHaveLength(4)
+		expect(container.querySelector('[data-testid="row-Market"]')?.textContent).toContain('wood:wood')
+		expect(container.querySelector('[data-testid="row-Market"]')?.textContent).toContain('6 vp')
+		expect(container.querySelector('[data-testid="row-Market"]')?.textContent).toContain(
+			'planks:planks'
+		)
+		expect(container.querySelector('[data-testid="row-Market"]')?.textContent).toContain('8 vp')
 	})
 })

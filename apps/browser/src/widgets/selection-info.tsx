@@ -4,7 +4,11 @@ import {
 	registerPinnedInspectorPanel,
 	unregisterPinnedInspectorPanel,
 } from '@app/lib/follow-selection'
-import { cancelFreightMapPick, freightMapPick } from '@app/lib/freight-map-pick'
+import {
+	cancelFreightMapPick,
+	clearFreightMapPickForLine,
+	freightMapPick,
+} from '@app/lib/freight-map-pick'
 import { game, mrg, selectionState } from '@app/lib/globals'
 import {
 	createSyntheticHiveObjectForUid,
@@ -19,7 +23,7 @@ import { isZoneObjectUid, isZonesUid } from '@app/lib/zone-selection'
 import { InspectorSection, Panel } from '@app/ui/anarkai'
 import { latch } from '@sursaut/core'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
-import { effect, reactive } from 'mutts'
+import { effect, reactive, untracked } from 'mutts'
 import { Tile } from 'ssh/board/tile'
 import {
 	isSettlementTradeObjectUid,
@@ -28,7 +32,6 @@ import {
 import { isDistrictUid, type DistrictObject } from 'ssh/district/district'
 import {
 	freightLineIdFromUid,
-	freightLineSummary,
 	isFreightLineUid,
 	type SyntheticFreightLineObject,
 } from 'ssh/freight/freight-line'
@@ -108,6 +111,7 @@ css`
 
 .selection-info-panel__pick-banner {
 	display: flex;
+	order: -1;
 	align-items: center;
 	justify-content: space-between;
 	gap: 0.65rem;
@@ -167,9 +171,12 @@ const TileSelectionProperties = (props: { object?: unknown }) => (
 	</div>
 )
 
-const FreightLineSelectionProperties = (props: { object?: unknown }) => (
+const FreightLineSelectionProperties = (props: { object?: unknown; onClose?: () => void }) => (
 	<div data-selection-properties-kind="freight-line">
-		<FreightLineProperties lineObject={props.object as SyntheticFreightLineObject} />
+		<FreightLineProperties
+			lineObject={props.object as SyntheticFreightLineObject}
+			onClose={props.onClose}
+		/>
 	</div>
 )
 
@@ -224,7 +231,7 @@ const renderPropertiesForObject = (
 	if (isCharacterObject(object)) return <CharacterSelectionProperties object={object} />
 	if (isTileObject(object)) return <TileSelectionProperties object={object} />
 	if (object.uid && isFreightLineUid(object.uid)) {
-		return <FreightLineSelectionProperties object={object} />
+		return <FreightLineSelectionProperties object={object} onClose={options.onClose} />
 	}
 	if (object.uid && isHiveUid(object.uid)) return <HiveSelectionProperties object={object} />
 	if (object.uid && isZonesUid(object.uid)) return <ZonesSelectionProperties object={object} />
@@ -264,6 +271,9 @@ const SelectionInfoWidget = (
 	const local = reactive({
 		propertiesHost: undefined as HTMLDivElement | undefined,
 	})
+	let stopProperties: (() => void) | undefined
+	let renderedPropertiesHost: HTMLDivElement | undefined
+	let renderedPropertiesUid: string | undefined
 	const resolvePanelTitle = () => {
 		const object = current.object
 		if (!object) return 'Object'
@@ -276,8 +286,7 @@ const SelectionInfoWidget = (
 			const line =
 				lineId && Array.isArray(lines) ? lines.find((entry) => entry.id === lineId) : undefined
 			if (line) {
-				const summaryLabel = freightLineSummary(line)
-				return `${line.name} (${summaryLabel})`
+				return line.name
 			}
 		}
 
@@ -383,6 +392,9 @@ const SelectionInfoWidget = (
 	effect`selection-info:panel-cleanup`(() => {
 		const disposable = scope.dockviewApi!.onDidRemovePanel((panel) => {
 			if (panel.id === api.id) {
+				const uid = props.params.uid ?? selectionState.selectedUid
+				const lineId = uid && isFreightLineUid(uid) ? freightLineIdFromUid(uid) : undefined
+				if (lineId) clearFreightMapPickForLine(lineId)
 				unregisterPinnedInspectorPanel(api.id, props.params.uid)
 				// If this panel was the one tracking active selection (not pinned)
 				// Reset the flag so selection in game can re-open it.
@@ -427,17 +439,31 @@ const SelectionInfoWidget = (
 	effect`selection-info:properties-widget`(() => {
 		const host = local.propertiesHost
 		const object = current.object
-		void current.uid
+		const uid = current.uid
+		if (host === renderedPropertiesHost && uid === renderedPropertiesUid) return
+		stopProperties?.()
+		stopProperties = undefined
+		renderedPropertiesHost = host
+		renderedPropertiesUid = uid
 		if (!host || !object) return
-		return latch(
-			host,
-			renderPropertiesForObject(object, {
-				onClose: () => api.close?.(),
-			}),
-			scope as never
+		stopProperties = untracked`selection-info:properties-latch`(() =>
+			latch(
+				host,
+				renderPropertiesForObject(object, {
+					onClose: () => api.close?.(),
+				}),
+				scope as never
+			)
 		)
 	})
-
+	effect`selection-info:properties-cleanup`(() => {
+		return () => {
+			stopProperties?.()
+			stopProperties = undefined
+			renderedPropertiesHost = undefined
+			renderedPropertiesUid = undefined
+		}
+	})
 	return (
 		<div
 			class="selection-info-panel"
@@ -445,6 +471,13 @@ const SelectionInfoWidget = (
 			data-test-object-uid={current.object?.uid}
 		>
 			<div if={current.object} class="selection-info-panel__content-wrapper">
+				<div
+					if={current.object}
+					class="selection-info-panel__content"
+					this={(element: HTMLDivElement | undefined) => {
+						local.propertiesHost = element
+					}}
+				/>
 				<div
 					if={mapPick()}
 					class="selection-info-panel__pick-banner"
@@ -455,13 +488,6 @@ const SelectionInfoWidget = (
 						{mapPickCancel()}
 					</button>
 				</div>
-				<div
-					if={current.object}
-					class="selection-info-panel__content"
-					this={(element: HTMLDivElement | undefined) => {
-						local.propertiesHost = element
-					}}
-				/>
 				<InspectorSection
 					if={current.logs.length}
 					title="Logs"

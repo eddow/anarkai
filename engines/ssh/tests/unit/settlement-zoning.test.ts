@@ -5,6 +5,7 @@ import {
 	type GeneratedTileData,
 	generateSettlementRegionSetPlan,
 	generateZonePlanForSettlements,
+	selectSettlementCityHallPosition,
 } from 'ssh/generation'
 import { type AxialCoord, axial, hexSides } from 'ssh/utils'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -151,7 +152,7 @@ describe('settlement zoning generation', () => {
 		expect(first.settlements.every((settlement) => !settlement.name.includes('('))).toBe(true)
 		expect(first.settlements.every((settlement) => !settlement.name.includes(','))).toBe(true)
 		expect(first.zones.residential.length).toBeGreaterThan(0)
-		expect(first.zones.harvest.length).toBeGreaterThan(0)
+		expect(first.zones.harvest).toEqual([])
 		expect(first.zones.named.map((zone) => zone.id)).toContain('industrial')
 		expect(first.roads.path?.length).toBeGreaterThan(0)
 	})
@@ -425,7 +426,7 @@ describe('settlement zoning generation', () => {
 		expect(marketCoords.length).toBeGreaterThanOrEqual(plan.settlements.length)
 	})
 
-	it('zones harvest zones at settlement perimeters', async () => {
+	it('does not add harvest zones to generated settlement footprints', async () => {
 		const tiles = region({ q: 0, r: 0 }, 4)
 		const generator = new GameGenerator()
 		const settlements = await generator.placeSettlements(42, tiles, {
@@ -442,15 +443,64 @@ describe('settlement zoning generation', () => {
 			hasRiver
 		)
 
-		expect(plan.zones.harvest.length).toBeGreaterThan(0)
+		expect(plan.zones.harvest).toEqual([])
 		const settlement = plan.settlements[0]
 		expect(settlement).toBeDefined()
 		if (settlement) {
-			const harvestCoords = new Set(plan.zones.harvest.map(([q, r]) => `${q},${r}`))
-			const perimeterTiles = [...axial.allTiles(settlement.center, settlement.radius)].filter(
-				(coord) => axial.distance(settlement.center, coord) === settlement.radius
+			const generatedSettlementCoords = new Set(
+				[
+					...plan.zones.residential,
+					...plan.zones.named.flatMap((zone) => zone.coords),
+				].map(([q, r]) => `${q},${r}`)
 			)
-			expect(perimeterTiles.some((coord) => harvestCoords.has(`${coord.q},${coord.r}`))).toBe(true)
+			expect(
+				[...axial.allTiles(settlement.center, settlement.radius)].some((coord) =>
+					generatedSettlementCoords.has(`${coord.q},${coord.r}`)
+				)
+			).toBe(true)
+		}
+	})
+
+	it('forces each city hall tile into the generated civic zone only', async () => {
+		const tiles = region({ q: 0, r: 0 }, 5)
+		const generator = new GameGenerator()
+		const settlements = await generator.placeSettlements(42, tiles, {
+			settlementCount: 2,
+			minSpacing: 3,
+		})
+		const { coords, terrainKinds, hasRiver } = buildTypedArrays(tiles, 42)
+		const plan = await generateZonePlanForSettlements(
+			tiles,
+			settlements.settlements,
+			42,
+			coords,
+			terrainKinds,
+			hasRiver
+		)
+		const civic = new Set(
+			(plan.zones.named.find((zone) => zone.id === 'civic')?.coords ?? []).map(
+				([q, r]) => `${q},${r}`
+			)
+		)
+		const residential = new Set(plan.zones.residential.map(([q, r]) => `${q},${r}`))
+		const market = new Set(
+			(plan.zones.named.find((zone) => zone.id === 'market')?.coords ?? []).map(
+				([q, r]) => `${q},${r}`
+			)
+		)
+		const industrial = new Set(
+			(plan.zones.named.find((zone) => zone.id === 'industrial')?.coords ?? []).map(
+				([q, r]) => `${q},${r}`
+			)
+		)
+
+		for (const settlement of plan.settlements) {
+			const cityHall = selectSettlementCityHallPosition(settlement, tiles)
+			const key = `${cityHall.q},${cityHall.r}`
+			expect(civic.has(key)).toBe(true)
+			expect(residential.has(key)).toBe(false)
+			expect(market.has(key)).toBe(false)
+			expect(industrial.has(key)).toBe(false)
 		}
 	})
 

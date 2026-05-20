@@ -2,7 +2,11 @@ import { css } from '@app/lib/css'
 import { game } from '@app/lib/globals'
 import { InspectorSection } from '@app/ui/anarkai'
 import { goods as visualGoods } from 'engine-pixi/assets/visual-content'
-import type { NpcSettlementTradeOffer, SettlementTradeObject } from 'ssh/commerce/settlement-trade'
+import type {
+	NpcSettlementTradeOffer,
+	NpcSettlementTradeProfile,
+	SettlementTradeObject,
+} from 'ssh/commerce/settlement-trade'
 import EntityBadge from '../EntityBadge'
 import PropertyGrid from '../PropertyGrid'
 import PropertyGridRow from '../PropertyGridRow'
@@ -30,15 +34,29 @@ css`
 `
 
 interface SettlementPropertiesProps {
-	settlementObject: SettlementTradeObject
+	settlementObject?: SettlementTradeObject
+	profile?: NpcSettlementTradeProfile
 }
 
 const formatKind = (kind: string): string => kind.charAt(0).toUpperCase() + kind.slice(1)
 
-const offersFor = (
-	settlementObject: SettlementTradeObject,
-	direction: NpcSettlementTradeOffer['direction']
-) => settlementObject.profile.offers.filter((offer) => offer.direction === direction)
+const singlePriceOffers = (
+	profile: NpcSettlementTradeProfile
+): Array<NpcSettlementTradeOffer & { directions: Set<NpcSettlementTradeOffer['direction']> }> => {
+	const byGood = new Map<
+		string,
+		NpcSettlementTradeOffer & { directions: Set<NpcSettlementTradeOffer['direction']> }
+	>()
+	for (const offer of profile.offers) {
+		const existing = byGood.get(offer.good)
+		if (existing) {
+			existing.directions.add(offer.direction)
+			continue
+		}
+		byGood.set(offer.good, { ...offer, directions: new Set([offer.direction]) })
+	}
+	return [...byGood.values()].sort((left, right) => left.good.localeCompare(right.good))
+}
 
 const OfferRows = (props: { offers: readonly NpcSettlementTradeOffer[] }) => (
 	<div class="settlement-properties__offers">
@@ -49,7 +67,7 @@ const OfferRows = (props: { offers: readonly NpcSettlementTradeOffer[] }) => (
 				return (
 					<div
 						class="settlement-properties__offer"
-						data-testid={`settlement-offer-${offer.direction}`}
+						data-testid="settlement-market-price"
 					>
 						<EntityBadge
 							game={game}
@@ -67,9 +85,8 @@ const OfferRows = (props: { offers: readonly NpcSettlementTradeOffer[] }) => (
 )
 
 const SettlementProperties = (props: SettlementPropertiesProps) => {
-	const profile = () => props.settlementObject.profile
-	const sells = () => offersFor(props.settlementObject, 'sell')
-	const buys = () => offersFor(props.settlementObject, 'buy')
+	const profile = () => props.profile ?? props.settlementObject!.profile
+	const prices = () => singlePriceOffers(profile())
 	const center = () => profile().center
 
 	return (
@@ -80,11 +97,8 @@ const SettlementProperties = (props: SettlementPropertiesProps) => {
 					{center().q}, {center().r}
 				</PropertyGridRow>
 				<PropertyGridRow label="Radius">{profile().radius}</PropertyGridRow>
-				<PropertyGridRow if={sells().length > 0} label="Sells">
-					<OfferRows offers={sells()} />
-				</PropertyGridRow>
-				<PropertyGridRow if={buys().length > 0} label="Buys">
-					<OfferRows offers={buys()} />
+				<PropertyGridRow if={prices().length > 0} label="Market">
+					<OfferRows offers={prices()} />
 				</PropertyGridRow>
 			</PropertyGrid>
 		</InspectorSection>

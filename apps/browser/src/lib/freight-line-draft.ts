@@ -1,5 +1,6 @@
 import type {
 	FreightLineDefinition,
+	FreightNpcTradeStop,
 	FreightStop,
 	FreightStopAnchorAlveolus,
 } from 'ssh/freight/freight-line'
@@ -43,6 +44,9 @@ export function cloneFreightStop(stop: FreightStop): FreightStop {
 		id: stop.id,
 		loadSelection: stop.loadSelection,
 		unloadSelection: stop.unloadSelection,
+		...(stop.minBalanceAfterBuyVp !== undefined
+			? { minBalanceAfterBuyVp: stop.minBalanceAfterBuyVp }
+			: {}),
 	}
 	if ('anchor' in stop) {
 		const a = stop.anchor
@@ -53,6 +57,15 @@ export function cloneFreightStop(stop: FreightStop): FreightStop {
 				hiveName: a.hiveName,
 				alveolusType: a.alveolusType,
 				coord: [a.coord[0], a.coord[1]] as const,
+			},
+		}
+	}
+	if ('trade' in stop) {
+		return {
+			...base,
+			trade: {
+				kind: 'settlement',
+				settlementId: stop.trade.settlementId,
 			},
 		}
 	}
@@ -81,6 +94,9 @@ export function cloneFreightLineDraft(line: FreightLineDefinition): FreightLineD
 		id: line.id,
 		name: line.name,
 		...(line.cyclic === true ? { cyclic: true } : {}),
+		...(line.minBalanceAfterBuyVp !== undefined
+			? { minBalanceAfterBuyVp: line.minBalanceAfterBuyVp }
+			: {}),
 		stops: line.stops.map((s) => cloneFreightStop(s)),
 	}
 }
@@ -89,9 +105,21 @@ export function newFreightStopId(): string {
 	return `stop-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
 }
 
+function freightStopDraftBase(stop: FreightStop) {
+	return {
+		id: stop.id,
+		loadSelection: stop.loadSelection,
+		unloadSelection: stop.unloadSelection,
+		...(stop.minBalanceAfterBuyVp !== undefined
+			? { minBalanceAfterBuyVp: stop.minBalanceAfterBuyVp }
+			: {}),
+	}
+}
+
 export function addFreightDraftStop(
 	line: FreightLineDefinition,
-	insertIndex: number
+	insertIndex: number,
+	stop?: FreightStop
 ): FreightLineDefinition {
 	const stops = [...line.stops]
 	const placeholderAnchor: FreightStopAnchorAlveolus = {
@@ -104,7 +132,7 @@ export function addFreightDraftStop(
 		id: newFreightStopId(),
 		anchor: placeholderAnchor,
 	}
-	stops.splice(insertIndex, 0, fresh)
+	stops.splice(insertIndex, 0, stop ?? fresh)
 	return { ...line, stops }
 }
 
@@ -135,7 +163,7 @@ export function setFreightDraftStopKindAnchor(
 ): FreightLineDefinition {
 	const stops = line.stops.map((s, i) => {
 		if (i !== index) return s
-		const base = { id: s.id, loadSelection: s.loadSelection, unloadSelection: s.unloadSelection }
+		const base = freightStopDraftBase(s)
 		const nextAnchor: FreightStopAnchorAlveolus =
 			anchor ??
 			({
@@ -157,7 +185,7 @@ export function setFreightDraftStopKindZone(
 ): FreightLineDefinition {
 	const stops = line.stops.map((s, i) => {
 		if (i !== index) return s
-		const base = { id: s.id, loadSelection: s.loadSelection, unloadSelection: s.unloadSelection }
+		const base = freightStopDraftBase(s)
 		return {
 			...base,
 			zone: {
@@ -177,12 +205,47 @@ export function setFreightDraftStopKindNamedZone(
 ): FreightLineDefinition {
 	const stops = line.stops.map((s, i) => {
 		if (i !== index) return s
-		const base = { id: s.id, loadSelection: s.loadSelection, unloadSelection: s.unloadSelection }
+		const base = freightStopDraftBase(s)
 		return {
 			...base,
 			zone: {
 				kind: 'named' as const,
 				zoneId,
+			},
+		}
+	})
+	return { ...line, stops }
+}
+
+export function setFreightDraftStopKindTrade(
+	line: FreightLineDefinition,
+	index: number,
+	trade: FreightNpcTradeStop
+): FreightLineDefinition {
+	const stops = line.stops.map((s, i) => {
+		if (i !== index) return s
+		const base = freightStopDraftBase(s)
+		return {
+			...base,
+			trade,
+		}
+	})
+	return { ...line, stops }
+}
+
+export function setFreightDraftStopTradeSettlementId(
+	line: FreightLineDefinition,
+	index: number,
+	settlementId: string
+): FreightLineDefinition {
+	const stops = line.stops.map((s, i) => {
+		if (i !== index) return s
+		if (!('trade' in s)) return s
+		return {
+			...s,
+			trade: {
+				kind: 'settlement' as const,
+				settlementId,
 			},
 		}
 	})
@@ -215,7 +278,7 @@ export function applyFreightDraftBayAnchor(
 ): FreightLineDefinition {
 	const stops = line.stops.map((s, i) => {
 		if (i !== index) return s
-		const base = { id: s.id, loadSelection: s.loadSelection, unloadSelection: s.unloadSelection }
+		const base = freightStopDraftBase(s)
 		return { ...base, anchor }
 	})
 	return { ...line, stops }
@@ -287,6 +350,22 @@ export function setFreightDraftStopUnloadSelection(
 		const next =
 			normalized && !isUnrestrictedGoodsSelectionPolicy(normalized) ? normalized : undefined
 		return { ...s, unloadSelection: next }
+	})
+	return { ...line, stops }
+}
+
+export function setFreightDraftStopMinBalanceAfterBuyVp(
+	line: FreightLineDefinition,
+	index: number,
+	value: number | undefined
+): FreightLineDefinition {
+	const stops = line.stops.map((s, i) => {
+		if (i !== index) return s
+		if (value === undefined) {
+			const { minBalanceAfterBuyVp: _unused, ...rest } = s
+			return rest
+		}
+		return { ...s, minBalanceAfterBuyVp: Math.max(0, Math.floor(value)) }
 	})
 	return { ...line, stops }
 }

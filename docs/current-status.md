@@ -45,8 +45,11 @@ Gameplay streaming is owned by `ssh`:
 - forester alveolus inspectors expose assigned named-zone controls, with zone chips linking back to the zone inspector
 - `freight_bay` stop content backed by a non-storage dock plus `VehicleFreightDock`
 - synthetic inspector objects for line selection and editing
-- compact browser stop-table editing with add/remove, drag reorder, bay/radius/named-zone stops, and per-stop policies
-- board previews for selected lines and hovered stops
+- compact browser stop-table editing with drag reorder, delete, readonly stop locations, per-stop policies, and stop-level settlement reserve controls where imports are possible
+- `+ Add stop` is a board-pick tool: click a freight bay, city hall, or custom named-zone tile, or drag from an ordinary tile to create a radius stop
+- settlement city halls are first-class NPC trade halt targets while remaining tile-native board selections
+- board previews for freight lines, zones, hives, and stops are hover-driven; opening an inspector does not draw a persistent board highlight by itself
+- freight stop commerce diagnostics explain allowed policies, local need/provide state, downstream demand, import/export opportunities, and no-trade reasons
 - docked vehicle work is surfaced through cheap provider-side advertised jobs for inspectors, while
   character-scoped planner search stays in job claiming/ranking paths
 
@@ -70,55 +73,54 @@ physical multi-hex corridors.
 
 Details and future lane/corridor vocabulary are documented in [`./roads.md`](./roads.md).
 
-### Districts and Commerce
+### Districts, Settlements, and Commerce
 
-Districts are now the player planning layer above hives:
+Districts are now planning geography above hives, not economy actors:
 
 - every game has a default player district (`district:default`)
 - district-scoped build, zone, and road actions record member coordinates
-- NPC settlements remain separate selectable trade actors with deterministic read-only market offers
+- district panels can summarize construction/material state and link to settlement markets
+- direct district buy buttons, auto-buy toggles, purchase request rows, and reserve controls are hidden from normal UI
+- district procurement save fields, types, and execution APIs remain temporarily for compatibility, but normal ticking/UI paths do not buy through districts
 - concrete is a foundation-only construction good in this slice
 - the shared player account exists and is shown in the toolbar
 
-District procurement V0.9 is landed as read-only purchase intent:
+Commerce V1 is now line-based and physical:
 
-- districts own auto-buy and budget-reserve policy
-- planned/blocked purchase requests are derived from missing construction/foundation goods and storage buffer
-  demand
-- source settlement choice is automatic for now: cheapest seller, then nearest, then stable id tie-break
-- account balance is not debited and no goods move yet
-- buffer quantities are configured on storage alveoli, not on district policy; for example, ChopSaw reserves
-  one concrete storage slot, which means three concrete units because that storage slot capacity is three
+- each generated settlement has a deterministic city-hall tile, forced to the generated `civic` zone, which acts as the V1 settlement trade target
+- settlement material markets include all current `basic-materials`: `wood`, `stone`, `planks`, and `concrete`
+- settlement market UI shows one price per good; the same price is used for buying from and selling to that settlement
+- NPC settlement freight stops can export allowed carried goods, then import allowed goods when later stops have real demand and the stop reserve permits the purchase
+- stop `loadSelection` and `unloadSelection` remain the goods controls; trade policy does not name materials
+- money changes only at the settlement stop when goods cross the player/NPC boundary
+- storage buffer settings are the preferred import contract; construction/foundation demand and hive use demand are also measured by line diagnostics
+- optional NPC trade transfer presentation data records exported goods, imported goods, credited VP, and spent VP when a trade happens
+- ChopSaw includes a regression fixture line, `ChopSaw materials loop`, cycling between the `0,0` bay and the Melindbury city hall with an assigned pickup truck; it can sell basic materials such as planks and import concrete only when downstream demand exists
 
-Deferred commerce work: choose one source settlement per district (V1), optional per-good source overrides
-(V2), vehicle pickup/payment, convey-hop shop loading, delivery to site/storage, resale points, and NPC
-buyers.
+Deferred commerce work: vehicle assignment UI, richer line history/last-transfer display, generated shop
+targets beyond city halls, market analysis based on price and settlement position, consumption goods,
+residential/shop delivery, and long-route hunger/snack behavior.
 
 ### Verification
 
-As of 2026-05-12, the current green road-adjacent verification set is:
+As of 2026-05-20, recent focused verification includes:
 
 ```bash
-pnpm -r check
 pnpm --filter ssh test -- tests/unit/roads.test.ts tests/unit/chopsaw-example.test.ts
 pnpm --filter engine-pixi test
 pnpm --filter ssh-browser test
 git diff --check
 ```
 
-The full `ssh` unit suite is not currently green. `pnpm --filter ssh test -- tests/unit` reports **9 failing
-tests / 546 passing tests** across hydrology fixtures, construction fixture setup, freight summary wording,
-one proposed-job path expectation, and one vehicle service invariant. Those failures are outside the roads
-slice but should be treated as a standing cleanup item before using full-suite green as a release signal.
-
-For the district procurement slice, the focused green checks are:
+For the line-based commerce finish, the focused green checks are:
 
 ```bash
-pnpm --filter ssh test -- tests/unit/district-construction.test.ts
 pnpm --filter ssh check
 pnpm --filter ssh-browser check
-pnpm --filter ssh-browser test -- src/widgets/district.spec.tsx
-pnpm --filter engine-rules test
+pnpm --filter ssh exec vitest run tests/unit/freight-stop-utility.test.ts tests/unit/npc-trade-stop.test.ts tests/unit/chopsaw-example.test.ts --reporter verbose
+pnpm --filter ssh-browser exec vitest run src/components/FreightStopList.spec.tsx src/widgets/district.spec.tsx src/components/properties/SettlementProperties.spec.tsx --reporter verbose
+pnpm --filter ssh-browser exec vitest run src/components/properties/FreightLineProperties.spec.tsx src/lib/i18n.spec.ts --reporter verbose
+git diff --check
 ```
 
 For the forester, planted-tree, and harvestable named-zone slice, recent focused green checks are:
@@ -143,6 +145,8 @@ area stats using the documented `3m` hex side scale.
 Forester inspectors can assign named zones through the existing dropdown/chip pattern; assigned-zone chips
 open the corresponding zone inspector. Job/planner rows translate forester work as "Plant trees" rather
 than exposing the raw job id.
+Line inspectors show the route on the board only while the inspector itself is hovered; unpinned line
+widgets close when selection moves elsewhere, matching the rest of the lightweight inspector behavior.
 
 ### Rendering
 
@@ -170,11 +174,14 @@ retention policy live in `ssh`, and Pixi only asks for visibility-driven frontie
 
 ## Suggested Near-Term Work
 
-1. Playtest district procurement V0.9 and decide whether the next commerce move is V1 source-settlement
-   selection or vehicle pickup/payment execution.
-2. Playtest the forester/North Grove slice: assigned planting zones, harvestable named zones, sparse tree
+1. Playtest the ChopSaw materials loop: bay buffer demand, Melindbury prices, planks/wood/stone export,
+   concrete import, and whether the stop diagnostics explain idle cases clearly enough.
+2. Add player-facing vehicle assignment for freight lines; the pickup truck is currently hardcoded for the
+   ChopSaw regression fixture.
+3. Revisit market analysis: settlement positions, price comparison, and how generated shops should extend
+   the city-hall trade target model.
+4. Playtest the forester/North Grove slice: assigned planting zones, harvestable named zones, sparse tree
    generation, and rock/tree harvesting inside named zones.
-3. Restore the full `ssh` unit suite to green, or mark/remove stale expectations if they are intentionally
+5. Restore the full `ssh` unit suite to green, or mark/remove stale expectations if they are intentionally
    obsolete.
-4. Continue freight diagnostics only if route failures become hard to understand during playtesting.
-5. Design off-screen gameplay unloading later, after at least one larger-world feature needs it.
+6. Design off-screen gameplay unloading later, after at least one larger-world feature needs it.

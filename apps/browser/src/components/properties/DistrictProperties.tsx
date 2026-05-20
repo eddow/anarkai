@@ -19,7 +19,6 @@ import {
 	settlementTradeObjectUid,
 } from 'ssh/commerce/settlement-trade'
 import type { DistrictObject } from 'ssh/district/district'
-import type { DistrictPurchaseRequest } from 'ssh/district/procurement'
 import type { GoodType } from 'ssh/types/base'
 import EntityBadge from '../EntityBadge'
 import PropertyGrid from '../PropertyGrid'
@@ -288,41 +287,6 @@ function openSettlementMarket(profile: NpcSettlementTradeProfile): void {
 	if (object) showProps(object)
 }
 
-function numberInputValue(event: Event): number {
-	return Math.max(0, Math.floor(Number((event.currentTarget as HTMLInputElement).value) || 0))
-}
-
-function formatRequestStatus(request: DistrictPurchaseRequest): string {
-	if (request.status === 'planned') return 'Planned'
-	switch (request.blockReason) {
-		case 'auto_buy_disabled':
-			return 'Blocked: auto-buy off'
-		case 'no_seller':
-			return 'Blocked: no seller'
-		case 'too_expensive':
-			return 'Blocked: price cap'
-		case 'reserve_limit':
-			return 'Blocked: reserve'
-		default:
-			return 'Blocked'
-	}
-}
-
-function requestSourceName(request: DistrictPurchaseRequest): string {
-	if (!request.providerSettlementId) return 'No source'
-	return (
-		game.getSettlementTradeProfile?.(request.providerSettlementId)?.name ??
-		request.providerSettlementId
-	)
-}
-
-function updateProcurementPolicy(
-	districtId: string,
-	patch: Parameters<NonNullable<typeof game.updateDistrictProcurementPolicy>>[1]
-): void {
-	game.updateDistrictProcurementPolicy?.(districtId, patch)
-}
-
 function DistrictMarkets(): JSX.Element {
 	const markets = () => game.listSettlementTradeProfiles?.() ?? []
 	const concreteSources = () =>
@@ -343,28 +307,7 @@ function DistrictMarkets(): JSX.Element {
 			)
 	return (
 		<div class="district-properties__markets">
-			<div class="district-properties__procurement">
-				<span if={concreteSources().length === 0}>No concrete sellers discovered</span>
-				<for each={concreteSources()}>
-					{(source) => (
-						<div
-							class="district-properties__procurement-row"
-							data-testid="district-concrete-source"
-						>
-							<span>
-								Concrete from {source.profile.name} · {source.offer.priceVp} vp
-							</span>
-							<Button
-								ariaLabel={`Buy concrete from ${source.profile.name}`}
-								disabled
-								el:title="Procurement jobs are next: vehicle goes to seller, pays, loads at border, then returns"
-							>
-								Buy
-							</Button>
-						</div>
-					)}
-				</for>
-			</div>
+			<span if={concreteSources().length === 0}>No concrete sellers discovered</span>
 			<span if={markets().length === 0}>No settlement markets discovered</span>
 			<for each={markets()}>
 				{(profile: NpcSettlementTradeProfile) => (
@@ -390,75 +333,11 @@ function DistrictMarkets(): JSX.Element {
 	)
 }
 
-function DistrictProcurement(props: { districtObject?: DistrictObject }): JSX.Element {
-	const district = () => props.districtObject?.district ?? game.getDistrict()
-	const districtId = () => district()?.id ?? 'default'
-	const policy = () => district()?.procurementPolicy
-	const requests = () => game.listDistrictPurchaseRequests?.(districtId()) ?? []
-	const sellGoods = () => game.listDistrictEligibleSellGoods?.(districtId()) ?? []
+function DistrictCommerceSummary(): JSX.Element {
 	return (
 		<div class="district-properties__procurement">
-			<div class="district-properties__procurement-controls">
-				<label>
-					<input
-						type="checkbox"
-						checked={policy()?.autoBuyNeededGoods ?? true}
-						onChange={(event) =>
-							updateProcurementPolicy(districtId(), {
-								autoBuyNeededGoods: (event.currentTarget as HTMLInputElement).checked,
-							})
-						}
-					/>{' '}
-					Buy needed goods
-				</label>
-				<span>{game.playerAccount?.balanceVp ?? 0} vp</span>
-				<label htmlFor="district-use-reserve">Use reserve</label>
-				<input
-					id="district-use-reserve"
-					class="district-properties__number-input"
-					type="number"
-					min="0"
-					value={String(policy()?.usePurchaseReserveVp ?? 0)}
-					onInput={(event) =>
-						updateProcurementPolicy(districtId(), {
-							usePurchaseReserveVp: numberInputValue(event),
-						})
-					}
-				/>
-				<label htmlFor="district-buffer-reserve">Buffer reserve</label>
-				<input
-					id="district-buffer-reserve"
-					class="district-properties__number-input"
-					type="number"
-					min="0"
-					value={String(policy()?.bufferPurchaseReserveVp ?? 0)}
-					onInput={(event) =>
-						updateProcurementPolicy(districtId(), {
-							bufferPurchaseReserveVp: numberInputValue(event),
-						})
-					}
-				/>
-			</div>
-			<span if={requests().length === 0}>No planned purchases</span>
-			<for each={requests()}>
-				{(request: DistrictPurchaseRequest) => (
-					<div class="district-properties__procurement-row" data-testid="district-purchase-request">
-						<span>
-							{request.quantity} {request.good} for {request.purpose}
-							<span class="district-properties__request-meta">
-								{requestSourceName(request)} ·{' '}
-								{request.totalPriceVp === undefined ? 'no price' : `${request.totalPriceVp} vp`} ·{' '}
-								{formatRequestStatus(request)}
-							</span>
-						</span>
-						<span>{request.unitPriceVp === undefined ? '-' : `${request.unitPriceVp} vp`}</span>
-					</div>
-				)}
-			</for>
-			<div>
-				<span>Eligible to sell: </span>
-				<span>{sellGoods().length === 0 ? 'None' : sellGoods().join(', ')}</span>
-			</div>
+			<span>{game.playerAccount?.balanceVp ?? 0} vp</span>
+			<span>Trade runs through freight lines and settlement halts.</span>
 		</div>
 	)
 }
@@ -487,7 +366,7 @@ export default function DistrictProperties(props: {
 			</InspectorSection>
 
 			<InspectorSection title="Commerce">
-				<DistrictProcurement districtObject={props.districtObject} />
+				<DistrictCommerceSummary />
 				<DistrictMarkets />
 			</InspectorSection>
 

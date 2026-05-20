@@ -8,4 +8,9 @@ export const vehicles = {
 		walkTime: 1.45,
 		transferTime: 1.5,
 	},
+	pickup_truck: {
+		storage: { capacity: 3, slots: 2 },
+		walkTime: 0.85,
+		transferTime: 1,
+	},
 } as const

@@ -29,7 +29,9 @@ const game = {
 			autoBuyNeededGoods: true,
 			usePurchaseReserveVp: 20,
 			bufferPurchaseReserveVp: 80,
-			goods: {},
+			goods: {
+				concrete: { autoBuy: false },
+			},
 		},
 	})),
 	getObject: vi.fn(() => marketObject),
@@ -42,8 +44,20 @@ const game = {
 			: undefined
 	),
 	updateDistrictProcurementPolicy: vi.fn(),
+	executeDistrictPurchaseRequest: vi.fn(),
 	listDistrictEligibleSellGoods: vi.fn(() => ['wood']),
 	listDistrictPurchaseRequests: vi.fn(() => [
+		{
+			id: 'purchase:default:use:concrete:0,0',
+			districtId: 'default',
+			good: 'concrete',
+			quantity: 1,
+			purpose: 'use',
+			providerSettlementId: 'market-1',
+			unitPriceVp: 10,
+			totalPriceVp: 10,
+			status: 'planned',
+		},
 		{
 			id: 'purchase:default:buffer:concrete:0,0',
 			districtId: 'default',
@@ -159,6 +173,7 @@ describe('DistrictWidget', () => {
 		showProps.mockClear()
 		game.getObject.mockClear()
 		game.updateDistrictProcurementPolicy.mockClear()
+		game.executeDistrictPurchaseRequest.mockClear()
 	})
 
 	afterEach(() => {
@@ -197,18 +212,13 @@ describe('DistrictWidget', () => {
 		stop = latch(container, <DistrictWidget {...(props as never)} />)
 
 		expect(container.textContent).toContain('Commerce')
-		expect(container.textContent).toContain('Buy needed goods')
-		expect(container.textContent).toContain('Use reserve')
-		expect(container.textContent).toContain('3 concrete for buffer')
-		expect(container.textContent).toContain('Market of One · 30 vp · Planned')
-		expect(container.textContent).toContain('Eligible to sell: wood')
+		expect(container.textContent).not.toContain('Buy needed goods')
+		expect(container.querySelector('input[title="Auto-buy concrete"]')).toBeNull()
+		expect(container.querySelector('button[title="Buy 1 concrete"]')).toBeNull()
+		expect(container.querySelector('button[title="Buy 3 concrete"]')).toBeNull()
+		expect(container.textContent).toContain('Trade runs through freight lines and settlement halts.')
 		expect(container.textContent).toContain('Market of One')
 		expect(container.textContent).toContain('Town · sells 1 · buys 1')
-		expect(container.textContent).toContain('Concrete from Market of One · 10 vp')
-		expect(container.querySelector('button[title^="Procurement jobs are next"]')).toHaveProperty(
-			'disabled',
-			true
-		)
 
 		const button = container.querySelector('button[title="Open market Market of One"]')
 		button?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -217,16 +227,24 @@ describe('DistrictWidget', () => {
 		expect(showProps).toHaveBeenCalledWith(marketObject)
 	})
 
-	it('updates district procurement controls', () => {
+	it('does not execute direct purchases from the district panel', () => {
+		const props = { title: '' }
+		stop = latch(container, <DistrictWidget {...(props as never)} />)
+
+		const button = container.querySelector('button[title="Buy 1 concrete"]')
+		button?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+
+		expect(game.executeDistrictPurchaseRequest).not.toHaveBeenCalled()
+	})
+
+	it('does not render district procurement controls', () => {
 		const props = { title: '' }
 		stop = latch(container, <DistrictWidget {...(props as never)} />)
 
 		const useReserve = container.querySelector('#district-use-reserve') as HTMLInputElement
-		useReserve.value = '42'
-		useReserve.dispatchEvent(new InputEvent('input', { bubbles: true }))
-		expect(game.updateDistrictProcurementPolicy).toHaveBeenCalledWith('default', {
-			usePurchaseReserveVp: 42,
-		})
+		expect(useReserve).toBeNull()
+		expect(container.querySelector('input[title="Auto-buy concrete"]')).toBeNull()
+		expect(game.updateDistrictProcurementPolicy).not.toHaveBeenCalled()
 		expect(container.querySelector('input[title="Buffer target for concrete"]')).toBeNull()
 	})
 })

@@ -28,6 +28,12 @@ describe('dorm example game', () => {
 		game.destroy()
 	})
 
+	function stageFoundationGoods(tile: { content?: unknown }): void {
+		if (tile.content instanceof UnBuiltLand) {
+			tile.content.foundationStorage?.addGood('concrete', 1)
+		}
+	}
+
 	function buildCurrentResidentialProject(storage: StorageAlveolus): void {
 		const tile = [...game.hex.tiles].find((candidate) => {
 			const content = candidate.content
@@ -40,6 +46,7 @@ describe('dorm example game', () => {
 		const work = new WorkFunctions()
 		Object.assign(work, { [subject]: builder })
 
+		stageFoundationGoods(tile)
 		const foundation = work.foundationStep() as DurationStep
 		expect(foundation).toBeInstanceOf(DurationStep)
 		foundation.tick(foundation.duration)
@@ -134,6 +141,7 @@ describe('dorm example game', () => {
 		game.population.createCharacter('Dorm resident B', { q: 2, r: 1 })
 		trySpawnResidentialProject(game)
 		expect((buildTile.content as UnBuiltLand).project).toBe(residentialBasicDwellingProject)
+		stageFoundationGoods(buildTile)
 
 		const builder = game.population.createCharacter('Residential builder', buildTile.position)
 		const work = new WorkFunctions()
@@ -192,6 +200,7 @@ describe('dorm example game', () => {
 		game.population.createCharacter('Dorm late resident B', { q: 2, r: 1 })
 		trySpawnResidentialProject(game)
 		expect((buildTile.content as UnBuiltLand).project).toBe(residentialBasicDwellingProject)
+		stageFoundationGoods(buildTile)
 
 		const builder = game.population.createCharacter('Late residential builder', buildTile.position)
 		const work = new WorkFunctions()

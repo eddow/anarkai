@@ -2,10 +2,23 @@ import type { GamePatches } from './game'
 
 const constructionGoodsSelection = {
 	goodRules: [
+		{ goodType: 'concrete', effect: 'allow' },
 		{ goodType: 'wood', effect: 'allow' },
 		{ goodType: 'planks', effect: 'allow' },
 		{ goodType: 'stone', effect: 'allow' },
 	],
+	tagRules: [],
+	defaultEffect: 'deny',
+} as const
+
+const concreteOnlySelection = {
+	goodRules: [{ goodType: 'concrete', effect: 'allow' }],
+	tagRules: [],
+	defaultEffect: 'deny',
+} as const
+
+const planksOnlySelection = {
+	goodRules: [{ goodType: 'planks', effect: 'allow' }],
 	tagRules: [],
 	defaultEffect: 'deny',
 } as const
@@ -44,8 +57,10 @@ export const chopSaw = {
 							working: true,
 							generalSlots: 5,
 							goods: {
-								concrete: { minSlots: 1, maxSlots: 0 },
-								wood: { minSlots: 1, maxSlots: 0 },
+								concrete: { minSlots: 1, maxSlots: 3 },
+								wood: { minSlots: 1, maxSlots: 3 },
+								planks: { minSlots: 1, maxSlots: 3 },
+								stone: { minSlots: 1, maxSlots: 3 },
 							},
 						},
 					},
@@ -78,6 +93,30 @@ export const chopSaw = {
 					loadSelection: constructionGoodsSelection,
 					unloadSelection: constructionGoodsSelection,
 					zone: { kind: 'radius', center: [0, 0], radius: 9 },
+				},
+			],
+		},
+		{
+			id: 'ChopSaw:materials-loop:0,0:Melindbury',
+			name: 'ChopSaw - Melindbury materials',
+			cyclic: true,
+			stops: [
+				{
+					id: 'ChopSaw:materials-bay',
+					loadSelection: planksOnlySelection,
+					unloadSelection: concreteOnlySelection,
+					anchor: {
+						kind: 'alveolus',
+						hiveName: 'ChopSaw',
+						alveolusType: 'freight_bay',
+						coord: [0, 0],
+					},
+				},
+				{
+					id: 'ChopSaw:materials-melindbury',
+					loadSelection: concreteOnlySelection,
+					unloadSelection: planksOnlySelection,
+					trade: { kind: 'settlement', settlementId: 'settlement-7,19' },
 				},
 			],
 		},
@@ -121,6 +160,7 @@ export const chopSaw = {
 				[1, -1],
 				[1, 0],
 				[2, -1],
+				[-1, 0],
 				[3, 0],
 				[4, 0],
 				[5, 0],
@@ -153,6 +193,12 @@ export const chopSaw = {
 			vehicleType: 'wheelbarrow',
 			position: { q: -1, r: 1 },
 			servedLineIds: ['ChopSaw:implicit-gather:0,0'],
+		},
+		{
+			uid: 'ChopSaw:pickup-truck',
+			vehicleType: 'pickup_truck',
+			position: { q: 0, r: 0 },
+			servedLineIds: ['ChopSaw:materials-loop:0,0:Melindbury'],
 		},
 	],
 } satisfies GamePatches

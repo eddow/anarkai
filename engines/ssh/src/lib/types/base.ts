@@ -114,6 +114,11 @@ export const baseGameScope = scope({
 		 * disembarked while keeping line service; NPC script must not run zone-browse transfer prelude.
 		 */
 		'vehicleHopAnchorDockDisembarked?': 'boolean',
+		/**
+		 * `vehicleHop` only: the destination stop handled its transfer/disembark tail directly, so the
+		 * NPC script must skip the generic zone-browse transfer prelude.
+		 */
+		'vehicleHopStopHandled?': 'boolean',
 		/** Set when a stale approach reaches a vehicle now operated by another worker. */
 		'vehicleApproachAborted?': 'boolean',
 		// Additional fields depend on job type (path, etc.)
@@ -492,6 +497,11 @@ export type WorkPlan =
 			 * vehicle keeps line service; skip `vehicleStepOffKeepingControl` / zone-browse prelude.
 			 */
 			vehicleHopAnchorDockDisembarked?: boolean
+			/**
+			 * `vehicleHop` only: the destination stop handled its transfer/disembark tail directly, so the
+			 * NPC script must skip the generic zone-browse transfer prelude.
+			 */
+			vehicleHopStopHandled?: boolean
 			/** Set when a stale approach reaches a vehicle now operated by another worker. */
 			vehicleApproachAborted?: boolean
 	  })

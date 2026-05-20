@@ -72,14 +72,15 @@ describe('BuildAlveolus save/load', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const storage = game.hex.getTile({ q: 11, r: -8 })?.content
+		const storageCoord = { q: 0, r: -1 }
+		const storage = game.hex.getTile(storageCoord)?.content
 		expect(storage).toBeInstanceOf(StorageAlveolus)
 		if (!(storage instanceof StorageAlveolus)) return
 		expect(storage.configurationRef).toEqual({ scope: 'individual' })
 		expect(storage.slottedStorageConfiguration).toMatchObject({
 			generalSlots: 5,
 			goods: {
-				wood: { minSlots: 1, maxSlots: 0 },
+				wood: { minSlots: 1, maxSlots: 3 },
 			},
 		})
 		expect(storage.workingGoodsRelations.wood).toMatchObject({
@@ -89,14 +90,16 @@ describe('BuildAlveolus save/load', () => {
 
 		const state = game.saveGameData()
 		const hiveEntry = state.hives?.find((h) => h.name === 'ChopSaw')
-		const storagePatch = hiveEntry?.alveoli.find((a) => a.coord[0] === 11 && a.coord[1] === -8)
+		const storagePatch = hiveEntry?.alveoli.find(
+			(a) => a.coord[0] === storageCoord.q && a.coord[1] === storageCoord.r
+		)
 		expect(storagePatch?.configuration).toMatchObject({
 			ref: { scope: 'individual' },
 			individual: {
 				working: true,
 				generalSlots: 5,
 				goods: {
-					wood: { minSlots: 1, maxSlots: 0 },
+					wood: { minSlots: 1, maxSlots: 3 },
 				},
 			},
 		})
@@ -108,13 +111,13 @@ describe('BuildAlveolus save/load', () => {
 		game2.ticker.stop()
 		game = game2
 
-		const restored = game.hex.getTile({ q: 11, r: -8 })?.content
+		const restored = game.hex.getTile(storageCoord)?.content
 		expect(restored).toBeInstanceOf(StorageAlveolus)
 		if (!(restored instanceof StorageAlveolus)) return
 		expect(restored.slottedStorageConfiguration).toMatchObject({
 			generalSlots: 5,
 			goods: {
-				wood: { minSlots: 1, maxSlots: 0 },
+				wood: { minSlots: 1, maxSlots: 3 },
 			},
 		})
 		expect(restored.workingGoodsRelations.wood).toMatchObject({

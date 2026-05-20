@@ -8,6 +8,7 @@ import type { GamePresentationEvent } from 'ssh/game/game'
 import type { GameObject, InteractiveGameObject } from 'ssh/game/object'
 import { Character } from 'ssh/population/character'
 import { VehicleEntity } from 'ssh/population/vehicle/entity'
+import { toAxialCoord } from 'ssh/utils/position'
 import type { PixiGameRenderer } from './renderer'
 import { BorderVisual } from './renderers/border-visual'
 import { CharacterVisual } from './renderers/character-visual'
@@ -52,6 +53,7 @@ export interface VisualFactoryDiagnostics {
 		characterVisuals: number
 		looseGoodsVisuals: number
 		alveolusVisuals: number
+		settlementTradeVisuals: number
 	}
 }
 
@@ -101,6 +103,7 @@ export class VisualFactory {
 			characterVisuals: 0,
 			looseGoodsVisuals: 0,
 			alveolusVisuals: 0,
+			settlementTradeVisuals: 0,
 		},
 	}
 
@@ -180,6 +183,7 @@ export class VisualFactory {
 			(visual) => visual instanceof LooseGoodsVisual
 		).length
 		const alveolusVisuals = this.renderer.layers.alveoli.renderLayerChildren.length
+		const settlementTradeVisuals = 0
 		return {
 			totalVisuals: this.renderer.visuals.size,
 			tileVisuals,
@@ -187,11 +191,14 @@ export class VisualFactory {
 			characterVisuals,
 			looseGoodsVisuals,
 			alveolusVisuals,
+			settlementTradeVisuals,
 		}
 	}
 
 	private shouldCreateTileVisual(tile: Tile): boolean {
 		if (tile.zone !== undefined) return true
+		const coord = toAxialCoord(tile.position)
+		if (coord && this.renderer.game.getSettlementTradeProfileAtCityHall?.(coord)) return true
 		const content = tile.content
 		if (!content) return false
 		if (content instanceof Alveolus) return true
@@ -325,6 +332,7 @@ export class VisualFactory {
 				if (vehicleVisualResult.reused) reusedVisualCount++
 				else if (vehicleVisual) createdVisualCount++
 				if (vehicleVisual) worldViews.push(vehicleVisual)
+				continue
 			}
 		}
 

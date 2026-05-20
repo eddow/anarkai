@@ -8,6 +8,7 @@ import {
 } from 'ssh/freight/freight-line'
 import {
 	computeLineFurtherGoods,
+	explainFreightStopCommerce,
 	listGoodsAllowedOnGatherSegment,
 	listTilesInAxialRadius,
 	measureHiveStoredGoodsSource,
@@ -26,6 +27,7 @@ import { gatherFreightLine } from '../freight-fixtures'
 import { TestEngine } from '../test-engine'
 
 const woodOnly = migrateV1FiltersToGoodsSelection(['wood'])
+const concreteOnly = migrateV1FiltersToGoodsSelection(['concrete'])
 
 function freightBayAnchor(hiveName: string, coord: readonly [number, number]) {
 	return {
@@ -33,6 +35,53 @@ function freightBayAnchor(hiveName: string, coord: readonly [number, number]) {
 		hiveName,
 		alveolusType: 'freight_bay' as const,
 		coord,
+	}
+}
+
+const neighborMarketProfile = {
+	id: 'neighbor-market',
+	regionSetKey: '0,0',
+	name: 'Neighbor market',
+	kind: 'village' as const,
+	center: { q: 4, r: 0 },
+	radius: 2,
+	cityHall: {
+		id: 'neighbor-market:city-hall',
+		kind: 'city_hall' as const,
+		settlementId: 'neighbor-market',
+		name: 'Neighbor market City Hall',
+		position: { q: 4, r: 0 },
+	},
+	offers: [
+		{ good: 'concrete' as const, direction: 'sell' as const, priceVp: 10 },
+		{ good: 'wood' as const, direction: 'buy' as const, priceVp: 3 },
+	],
+}
+
+function installNeighborMarket(game: Game): void {
+	;(game as unknown as { settlementTradeProfiles: Map<string, typeof neighborMarketProfile> })
+		.settlementTradeProfiles.set(neighborMarketProfile.id, neighborMarketProfile)
+}
+
+function marketLoopLine(patch: Partial<FreightLineDefinition> = {}): FreightLineDefinition {
+	return {
+		id: 'market-loop',
+		name: 'Market loop',
+		cyclic: true,
+		stops: [
+			{
+				id: 'market',
+				loadSelection: concreteOnly,
+				unloadSelection: woodOnly,
+				trade: { kind: 'settlement', settlementId: neighborMarketProfile.id },
+			},
+			{
+				id: 'bay',
+				unloadSelection: concreteOnly,
+				anchor: freightBayAnchor('Engineers', [0, 0]),
+			},
+		],
+		...patch,
 	}
 }
 
@@ -167,6 +216,44 @@ describe('freight-stop-utility', () => {
 		}
 	})
 
+	it('measureZoneStandaloneConstructionNeedSink includes foundation concrete on planned projects', async () => {
+		const patches = {
+			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
+		} satisfies GamePatches
+		const game = new Game(
+			{ terrainSeed: 12007, characterCount: 0, settlementGeneration: false },
+			patches
+		)
+		await game.loaded
+		game.ticker.stop()
+		try {
+			const tile = game.hex.getTile({ q: 0, r: 0 })!
+			tile.build('storage')
+
+			const snap = measureZoneStandaloneConstructionNeedSink(
+				game,
+				{ q: 0, r: 0 },
+				0,
+				new Set(['concrete'] as const)
+			)
+			expect(snap.adSource).toBe('project')
+			expect(snap.perGood.concrete).toBe(1)
+
+			const content = tile.content
+			if (!content || !('foundationStorage' in content)) throw new Error('expected foundation site')
+			content.foundationStorage?.addGood('concrete', 1)
+			const full = measureZoneStandaloneConstructionNeedSink(
+				game,
+				{ q: 0, r: 0 },
+				0,
+				new Set(['concrete'] as const)
+			)
+			expect(full.perGood.concrete ?? 0).toBe(0)
+		} finally {
+			game.destroy()
+		}
+	})
+
 	it('measureHiveStoredGoodsSource sums stock across hive logistics storages', async () => {
 		const engine = new TestEngine({ terrainSeed: 12004, characterCount: 0 })
 		await engine.init()
@@ -280,5 +367,149 @@ describe('freight-stop-utility', () => {
 		expect(projected.remainingNeededGoods.perGood.wood).toBe(3)
 		expect(projected.surplusLoadedGoods.perGood.berries).toBe(4)
 		expect(projected.surplusLoadedGoods.perGood.wood).toBeUndefined()
+	})
+
+	it('explains settlement import opportunity from downstream hive buffer demand', async () => {
+		const engine = new TestEngine({ terrainSeed: 12008, characterCount: 0 })
+		await engine.init()
+		try {
+			engine.loadScenario({
+				hives: [
+					{
+						name: 'Engineers',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'freight_bay' },
+							{
+								coord: [1, 0],
+								alveolus: 'storage',
+								configuration: {
+									ref: { scope: 'individual' },
+									individual: { working: true, buffers: { concrete: 2 } },
+								},
+							},
+						],
+					},
+				],
+			})
+			installNeighborMarket(engine.game)
+			engine.game.setPlayerAccountBalance(100)
+			const line = marketLoopLine()
+			const vehicle = engine.game.vehicles.createVehicle('market-cart', 'wheelbarrow', { q: 4, r: 0 }, [
+				line,
+			])
+
+			const explanation = explainFreightStopCommerce({
+				game: engine.game,
+				line,
+				stopIndex: 0,
+				vehicle,
+			})
+
+			expect(explanation.stopKind).toBe('settlement-trade')
+			expect(explanation.downstreamDemandGoods.perGood.concrete).toBeGreaterThan(0)
+			expect(explanation.importOpportunityGoods.perGood.concrete).toBe(2)
+			expect(explanation.blockReasons).not.toContain('no_downstream_demand')
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('explains full buffers as no downstream demand for settlement imports', async () => {
+		const engine = new TestEngine({ terrainSeed: 12009, characterCount: 0 })
+		await engine.init()
+		try {
+			engine.loadScenario({
+				hives: [
+					{
+						name: 'Engineers',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'freight_bay' },
+							{
+								coord: [1, 0],
+								alveolus: 'storage',
+								configuration: {
+									ref: { scope: 'individual' },
+									individual: { working: true, buffers: { concrete: 2 } },
+								},
+							},
+						],
+					},
+				],
+			})
+			installNeighborMarket(engine.game)
+			const storage = engine.game.hex.getTile({ q: 1, r: 0 })!.content as StorageAlveolus
+			storage.storage.addGood('concrete', 12)
+			const line = marketLoopLine()
+			const vehicle = engine.game.vehicles.createVehicle('market-cart', 'wheelbarrow', { q: 4, r: 0 }, [
+				line,
+			])
+
+			const explanation = explainFreightStopCommerce({
+				game: engine.game,
+				line,
+				stopIndex: 0,
+				vehicle,
+			})
+
+			expect(explanation.importOpportunityGoods.perGood.concrete ?? 0).toBe(0)
+			expect(explanation.blockReasons).toEqual(
+				expect.arrayContaining(['no_downstream_demand', 'buffer_full'])
+			)
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('explains reserve-blocked settlement imports while still showing export opportunity', async () => {
+		const engine = new TestEngine({ terrainSeed: 12010, characterCount: 0 })
+		await engine.init()
+		try {
+			engine.loadScenario({
+				hives: [
+					{
+						name: 'Engineers',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'freight_bay' },
+							{
+								coord: [1, 0],
+								alveolus: 'storage',
+								configuration: {
+									ref: { scope: 'individual' },
+									individual: { working: true, buffers: { concrete: 2 } },
+								},
+							},
+						],
+					},
+				],
+			})
+			installNeighborMarket(engine.game)
+			engine.game.setPlayerAccountBalance(15)
+			const line = marketLoopLine({
+				stops: [
+					{
+						...marketLoopLine().stops[0]!,
+						minBalanceAfterBuyVp: 15,
+					},
+					marketLoopLine().stops[1]!,
+				],
+			})
+			const vehicle = engine.game.vehicles.createVehicle('market-cart', 'wheelbarrow', { q: 4, r: 0 }, [
+				line,
+			])
+			vehicle.storage.addGood('wood', 1)
+
+			const explanation = explainFreightStopCommerce({
+				game: engine.game,
+				line,
+				stopIndex: 0,
+				vehicle,
+			})
+
+			expect(explanation.exportOpportunityGoods.perGood.wood).toBe(1)
+			expect(explanation.importOpportunityGoods.perGood.concrete ?? 0).toBe(0)
+			expect(explanation.blockReasons).toContain('reserve_blocks_import')
+		} finally {
+			await engine.destroy()
+		}
 	})
 })

@@ -73,7 +73,16 @@
 		"docked": "Docked",
 		"underway": "Underway",
 		"showContent": "Show cargo",
-		"hideContent": "Hide cargo"
+		"hideContent": "Hide cargo",
+		"lineAssignment": {
+			"section": "Assigned lines",
+			"assigned": "Lines",
+			"add": "Add line",
+			"filter": "Filter lines...",
+			"emptyAssigned": "No lines assigned",
+			"emptyAvailable": "No freight lines available",
+			"remove": "Remove line"
+		}
 	},
 	"step": {
 		"idle": "Idle",
@@ -98,7 +107,8 @@
 		"construct": "Construct",
 		"vehicleBeginService": "Start line service",
 		"walk": {
-			"foundation": "Walk to foundation site"
+			"foundation": "Walk to foundation site",
+			"pause": "Pause"
 		},
 		"vehicleHop": {
 			"dock": "Dock at stop",

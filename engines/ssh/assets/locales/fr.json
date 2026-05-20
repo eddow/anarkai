@@ -67,6 +67,15 @@
 			"section": "Zone sensible",
 			"action": "Supprimer la ligne"
 		},
+		"vehicleAssignment": {
+			"section": "Véhicules assignés",
+			"assigned": "Véhicules",
+			"add": "Ajouter un véhicule",
+			"filter": "Filtrer les véhicules...",
+			"emptyAssigned": "Aucun véhicule assigné",
+			"emptyAvailable": "Aucun véhicule compatible disponible",
+			"remove": "Retirer le véhicule"
+		},
 		"mapPick": {
 			"pending": "Choisissez une tuile sur la carte pour terminer la sélection fret.",
 			"cancel": "Annuler la sélection"

@@ -396,10 +396,7 @@ describe('Settlement Placement Integration Tests', () => {
 			for (const settlement of settlements) {
 				expect(settlement.name).toBeTruthy()
 				expect(settlement.name.length).toBeGreaterThan(0)
-				// Name should contain the kind prefix
-				expect(settlement.name).toMatch(/^(Village|Town|City)/)
-				// Name should contain coordinates
-				expect(settlement.name).toContain(`${settlement.center.q},${settlement.center.r}`)
+				expect(settlement.name).not.toContain(`${settlement.center.q},${settlement.center.r}`)
 			}
 		})
 	})

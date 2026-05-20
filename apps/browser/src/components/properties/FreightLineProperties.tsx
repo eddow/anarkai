@@ -2,15 +2,22 @@ import { css } from '@app/lib/css'
 import { type FreightDraftIssueCode, freightDraftIssueCodes } from '@app/lib/freight-line-draft'
 import { showFreightLineOverlay } from '@app/lib/freight-line-overlay'
 import { clearFreightMapPickForLine } from '@app/lib/freight-map-pick'
-import { bumpSelectionTitleVersion } from '@app/lib/globals'
+import { bumpSelectionTitleVersion, selectionState } from '@app/lib/globals'
 import { T } from '@app/lib/i18n'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
 import { InspectorSection } from '@app/ui/anarkai'
-import { effect } from 'mutts'
+import { effect, reactive } from 'mutts'
 import { tablerOutlineRepeat, tablerOutlineTrash } from 'pure-glyf/icons'
 import type { FreightLineDefinition, SyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import { normalizeFreightLineDefinition } from 'ssh/freight/freight-line'
+import { isLineFreightVehicleType } from 'ssh/freight/line-freight-vehicles'
+import type { Game } from 'ssh/game'
+import type { VehicleEntity } from 'ssh/population/vehicle/entity'
+import { toAxialCoord, type AxialCoord } from 'ssh/utils'
 import FreightStopList from '../FreightStopList'
+import HardListSearchPicker, { type HardListSearchPickerItem } from '../HardListSearchPicker'
+import InspectorObjectLink from '../InspectorObjectLink'
+import LinkedEntityControl from '../LinkedEntityControl'
 import PropertyGrid from '../PropertyGrid'
 import PropertyGridRow from '../PropertyGridRow'
 
@@ -69,10 +76,43 @@ css`
 	color: var(--ak-danger, #c44);
 }
 
+.freight-line-properties__assignment-list {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+}
+
+.freight-line-properties__assignment-row {
+	display: flex;
+	align-items: center;
+	gap: 0.45rem;
+	flex-wrap: wrap;
+	padding: 0.35rem 0.45rem;
+	border: 1px solid color-mix(in srgb, var(--ak-text-muted) 18%, transparent);
+	border-radius: 0.4rem;
+	background: color-mix(in srgb, var(--ak-surface-1) 78%, transparent);
+}
+
+.freight-line-properties__assignment-remove {
+	margin-inline-start: auto;
+	border: 0;
+	background: transparent;
+	color: var(--ak-danger, #c44);
+	cursor: pointer;
+	font-size: 1rem;
+	line-height: 1;
+}
+
+.freight-line-properties__assignment-empty {
+	color: var(--ak-text-muted);
+	font-size: 0.78rem;
+}
+
 `
 
 interface FreightLinePropertiesProps {
 	lineObject: SyntheticFreightLineObject
+	onClose?: () => void
 }
 
 const issueMessage = (code: FreightDraftIssueCode): string => {
@@ -91,9 +131,72 @@ const issueMessage = (code: FreightDraftIssueCode): string => {
 
 const icon = (source: string) => renderAnarkaiIcon(source, { size: 16 })
 
+const lineAssignmentText = () => {
+	const line = T.line as typeof T.line & {
+		vehicleAssignment?: {
+			section?: string
+			assigned?: string
+			add?: string
+			filter?: string
+			emptyAssigned?: string
+			emptyAvailable?: string
+			remove?: string
+		}
+	}
+	return {
+		section: line.vehicleAssignment?.section ?? 'Assigned vehicles',
+		assigned: line.vehicleAssignment?.assigned ?? 'Vehicles',
+		add: line.vehicleAssignment?.add ?? 'Add vehicle',
+		filter: line.vehicleAssignment?.filter ?? 'Filter vehicles...',
+		emptyAssigned: line.vehicleAssignment?.emptyAssigned ?? 'No vehicles assigned',
+		emptyAvailable: line.vehicleAssignment?.emptyAvailable ?? 'No compatible vehicles available',
+		remove: line.vehicleAssignment?.remove ?? 'Remove vehicle',
+	}
+}
+
+function vehicleCoord(vehicle: VehicleEntity): AxialCoord | undefined {
+	const position =
+		(vehicle as VehicleEntity & { effectivePosition?: unknown; position?: unknown }).effectivePosition ??
+		(vehicle as VehicleEntity & { position?: unknown }).position
+	return position ? toAxialCoord(position) : undefined
+}
+
+function vehicleStockSummary(vehicle: VehicleEntity): string {
+	const stock = vehicle.storage?.stock ?? {}
+	const entries = Object.entries(stock)
+		.filter(([, qty]) => (qty ?? 0) > 0)
+		.map(([good, qty]) => `${good}:${qty}`)
+	return entries.length > 0 ? entries.join(', ') : 'empty'
+}
+
+function assignedVehiclesForLine(game: Game | undefined, lineId: string): VehicleEntity[] {
+	if (!game?.vehicles) return []
+	return [...game.vehicles].filter((vehicle) =>
+		vehicle.servedLines?.some((line) => line.id === lineId)
+	)
+}
+
+function assignableVehicleItems(
+	game: Game | undefined,
+	lineId: string
+): HardListSearchPickerItem[] {
+	if (!game?.vehicles) return []
+	return [...game.vehicles]
+		.filter((vehicle) => isLineFreightVehicleType(vehicle.vehicleType))
+		.filter((vehicle) => !vehicle.servedLines?.some((line) => line.id === lineId))
+		.map((vehicle) => ({
+			id: vehicle.uid,
+			label: vehicle.title,
+			hint: `${vehicle.vehicleType} · ${vehicleStockSummary(vehicle)}`,
+			coord: vehicleCoord(vehicle),
+		}))
+}
+
 const FreightLineProperties = (props: FreightLinePropertiesProps) => {
+	const local = reactive({ revision: 0 })
 	const currentGame = () => props.lineObject?.game
 	const currentLine = () => {
+		void local.revision
 		const fallback = props.lineObject?.line
 		const lineId = props.lineObject?.lineId
 		const g = currentGame()
@@ -105,12 +208,19 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 
 	effect`freight-line-properties:pick-cleanup`(() => {
 		const lineId = props.lineObject?.lineId
-		showFreightLineOverlay(lineId)
 		return () => {
 			if (lineId) clearFreightMapPickForLine(lineId)
-			showFreightLineOverlay(undefined)
 		}
 	})
+
+	const handleMouseEnter = () => {
+		const lineId = props.lineObject?.lineId
+		showFreightLineOverlay(lineId)
+	}
+
+	const handleMouseLeave = () => {
+		showFreightLineOverlay(undefined)
+	}
 
 	const issues = () => {
 		const line = currentLine()
@@ -121,6 +231,7 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 		const g = currentGame()
 		if (!g) return
 		g.replaceFreightLine(normalizeFreightLineDefinition(next))
+		local.revision++
 		bumpSelectionTitleVersion()
 	}
 
@@ -146,13 +257,55 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 		const g = currentGame()
 		if (!lineId || !g) return
 		g.removeFreightLineById(lineId)
+		if (selectionState.selectedUid === props.lineObject.uid) selectionState.selectedUid = undefined
+		props.onClose?.()
+		local.revision++
+		bumpSelectionTitleVersion()
+	}
+
+	const handleAssignVehicle = (vehicleUid: string) => {
+		const line = currentLine()
+		const g = currentGame()
+		if (!line || !g) return
+		if ('assignVehicleToFreightLine' in g && typeof g.assignVehicleToFreightLine === 'function') {
+			g.assignVehicleToFreightLine(vehicleUid, line.id)
+		} else {
+			const vehicle = g.vehicles?.vehicle?.(vehicleUid)
+			vehicle?.assignFreightLine?.(line)
+		}
+		local.revision++
+		bumpSelectionTitleVersion()
+	}
+
+	const handleUnassignVehicle = (vehicleUid: string) => {
+		const line = currentLine()
+		const g = currentGame()
+		if (!line || !g) return
+		if ('unassignVehicleFromFreightLine' in g && typeof g.unassignVehicleFromFreightLine === 'function') {
+			g.unassignVehicleFromFreightLine(vehicleUid, line.id)
+		} else {
+			g.vehicles?.vehicle?.(vehicleUid)?.unassignFreightLine?.(line.id)
+		}
+		local.revision++
 		bumpSelectionTitleVersion()
 	}
 
 	const lineName = () => currentLine()?.name ?? ''
+	const assignmentText = () => lineAssignmentText()
+	const assignedVehicles = () => {
+		void local.revision
+		return assignedVehiclesForLine(currentGame(), currentLine()?.id ?? '')
+	}
+	const availableVehicleItems = () => {
+		void local.revision
+		return assignableVehicleItems(currentGame(), currentLine()?.id ?? '')
+	}
 
 	return (
-		<InspectorSection title={T.line.section}>
+		<InspectorSection
+			title={T.line.section}
+			el={{ onMouseenter: handleMouseEnter, onMouseleave: handleMouseLeave }}
+		>
 			<PropertyGrid>
 				<PropertyGridRow if={!isAvailable()}>
 					<span class="freight-line-properties__uid">{T.line.unavailable}</span>
@@ -204,6 +357,50 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 					</ul>
 				</PropertyGridRow>
 			</PropertyGrid>
+			<InspectorSection if={isAvailable()} title={assignmentText().section}>
+				<PropertyGrid>
+					<PropertyGridRow label={assignmentText().assigned}>
+						<div class="freight-line-properties__assignment-list">
+							<for each={assignedVehicles()}>
+								{(vehicle) => (
+									<div
+										class="freight-line-properties__assignment-row"
+										data-testid="line-assigned-vehicle"
+									>
+										<LinkedEntityControl object={vehicle} />
+										<InspectorObjectLink object={vehicle} />
+										<button
+											type="button"
+											class="freight-line-properties__assignment-remove"
+											title={assignmentText().remove}
+											aria-label={assignmentText().remove}
+											onClick={() => handleUnassignVehicle(vehicle.uid)}
+											data-testid="line-unassign-vehicle"
+										>
+											×
+										</button>
+									</div>
+								)}
+							</for>
+							<div
+								if={assignedVehicles().length === 0}
+								class="freight-line-properties__assignment-empty"
+							>
+								{assignmentText().emptyAssigned}
+							</div>
+						</div>
+					</PropertyGridRow>
+					<PropertyGridRow label={assignmentText().add}>
+						<HardListSearchPicker
+							items={availableVehicleItems()}
+							onSelect={handleAssignVehicle}
+							placeholder={assignmentText().filter}
+							emptyMessage={assignmentText().emptyAvailable}
+							testId="line-vehicle-picker"
+						/>
+					</PropertyGridRow>
+				</PropertyGrid>
+			</InspectorSection>
 			<FreightStopList
 				if={isAvailable() && currentLine() && currentGame()}
 				draft={currentLine()!}

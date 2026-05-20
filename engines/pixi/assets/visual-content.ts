@@ -106,6 +106,9 @@ export const vehicles: Record<string, VisualDefinition> = {
 	wheelbarrow: {
 		sprites: ['vehicles.wheelbarrow'],
 	},
+	pickup_truck: {
+		sprites: ['vehicles.pickupTruck'],
+	},
 }
 
 export const terrain: Record<string, VisualDefinition> = {
@@ -139,6 +142,13 @@ export const dwellings: Record<string, VisualDefinition> = {
 	},
 }
 
+export const settlementTargets: Record<string, VisualDefinition> = {
+	city_hall: {
+		sprites: ['buildings.city-hall'],
+		icon: 'buildings.city-hall',
+	},
+}
+
 export const visualContent = {
 	deposits,
 	alveoli,
@@ -148,4 +158,5 @@ export const visualContent = {
 	characters,
 	commands,
 	dwellings,
+	settlementTargets,
 }

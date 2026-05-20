@@ -1,6 +1,7 @@
 import { jobBalance } from 'engine-rules'
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import { type FreightLineDefinition, findDistributeRouteSegments } from 'ssh/freight/freight-line'
+import { isLineFreightVehicleType } from 'ssh/freight/line-freight-vehicles'
 import {
 	computeLineFurtherGoods,
 	projectLoadedGoodsAgainstFurtherNeeds,
@@ -101,7 +102,7 @@ function dockedVehicleLoadHasSource(bay: FreightBayAlveolus, goodType: GoodType)
 }
 
 /**
- * Scored dock transfer candidates for a docked wheelbarrow at a freight bay.
+ * Scored dock transfer candidates for a docked line freight vehicle at a freight bay.
  *
  * Current cargo is first projected against downstream line need:
  * - surplus loaded goods can be unloaded into real hive destinations
@@ -112,8 +113,8 @@ export function collectDockedVehicleAdvertisementCandidates(
 	bay: FreightBayAlveolus
 ): DockedVehicleAdvertisementCandidate[] {
 	const svc = vehicle.service
-	if (!isVehicleLineService(svc) || vehicle.vehicleType !== 'wheelbarrow') {
-		traces.vehicle.log?.('[dock.candidates] skipped: not line wheelbarrow', {
+	if (!isVehicleLineService(svc) || !isLineFreightVehicleType(vehicle.vehicleType)) {
+		traces.vehicle.log?.('[dock.candidates] skipped: not line freight vehicle', {
 			vehicleUid: vehicle.uid,
 			vehicleType: vehicle.vehicleType,
 			serviceKind: svc ? 'maintenance' : undefined,

@@ -1,5 +1,5 @@
 import { css } from '@app/lib/css'
-import { getBrowserPalette, getBrowserPaletteConfigurationJson } from '@app/palette/browser-palette'
+import { getBrowserPalette } from '@app/palette/browser-palette'
 import {
 	AnarkaiPaletteCommandBox,
 	AnarkaiPaletteKeyBindingsEditor,
@@ -55,7 +55,6 @@ const ConfigurationWidget = (props: DockviewWidgetProps, scope: DockviewWidgetSc
 					editable
 					expanded
 					floating={false}
-					onEditStop={() => console.log(getBrowserPaletteConfigurationJson())}
 					title="Configuration command box"
 				/>
 			</InspectorSection>

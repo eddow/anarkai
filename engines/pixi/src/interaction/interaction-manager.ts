@@ -1,10 +1,24 @@
-import { interactionMode, mrg, setHoveredObject } from '@app/lib/interactive-state'
+import {
+	interactionMode,
+	mrg,
+	setActiveWorldViewPov,
+	setHoveredObject,
+} from '@app/lib/interactive-state'
+import {
+	cancelFreightMapPick,
+	freightMapPick,
+	freightMapPickCanConsumeObject,
+	freightRadiusPreviewTiles,
+	isFreightAddStopAction,
+	tryConsumeFreightMapPickRadiusDrag,
+} from '@app/lib/freight-map-pick'
 import type { Application, Container, FederatedPointerEvent, FederatedWheelEvent } from 'pixi.js'
 import type { RoadType } from 'ssh/board/roads'
 import { canBuildRoadOnTrace, straightRoadTileTrace } from 'ssh/board/roads'
 import { Tile } from 'ssh/board/tile'
 import type { Game } from 'ssh/game/game'
 import type { InteractiveGameObject } from 'ssh/game/object'
+import { axial, fromCartesian, tileSize } from 'ssh/utils'
 
 /**
  * Bridges Pixi interactions to Logic interactions.
@@ -13,6 +27,7 @@ export class InteractionManager {
 	private isPanning: boolean = false
 	private dragStartTile: Tile | undefined
 	private dragCurrentTile: Tile | undefined
+	private dragHasMovedTile: boolean = false
 	private lastPosition: { x: number; y: number } = { x: 0, y: 0 }
 
 	constructor(
@@ -43,6 +58,7 @@ export class InteractionManager {
 			const world = renderer.world as Container
 			world.position.set(this.app.screen.width / 2, this.app.screen.height / 2)
 		}
+		this.publishActiveViewPov()
 	}
 
 	public teardown() {
@@ -61,7 +77,9 @@ export class InteractionManager {
 			this.game.emit('dragPreviewClear')
 			this.dragStartTile = undefined
 			this.dragCurrentTile = undefined
+			this.dragHasMovedTile = false
 		}
+		if (freightMapPick.pending || isFreightAddStopAction()) cancelFreightMapPick()
 	}
 
 	/**
@@ -80,6 +98,10 @@ export class InteractionManager {
 		if (!action.startsWith('road:')) return undefined
 		const type = action.replace('road:', '')
 		return type === 'path' ? 'path' : undefined
+	}
+
+	private isFreightAddStopTool(): boolean {
+		return isFreightAddStopAction() && freightMapPick.pending?.pickKind === 'add-stop'
 	}
 	/**
 	 * Calculate the parallelogram tiles where start and end are ALWAYS the acute (60°) corners.
@@ -163,6 +185,20 @@ export class InteractionManager {
 		return undefined
 	}
 
+	public publishActiveViewPov(): void {
+		const renderer = this.game.renderer as any
+		if (!renderer?.world) return
+		const world = renderer.world as Container
+		const localCenter = world.toLocal({
+			x: this.app.screen.width / 2,
+			y: this.app.screen.height / 2,
+		})
+		setActiveWorldViewPov({
+			viewId: renderer.viewId ?? 'primary',
+			center: axial.round(fromCartesian(localCenter, tileSize)),
+		})
+	}
+
 	private onPointerDown = (e: FederatedPointerEvent) => {
 		// Middle Mouse Button (1) -> Always Pan
 		if (e.button === 1) {
@@ -180,6 +216,7 @@ export class InteractionManager {
 		if (object instanceof Tile) {
 			// Start potential tile drag
 			this.dragStartTile = object
+			this.dragHasMovedTile = false
 		} else if (object && 'canInteract' in object) {
 			// Non-tile interactive object - click immediately
 			this.game.simulateObjectClick(object, e.nativeEvent)
@@ -189,6 +226,9 @@ export class InteractionManager {
 			const tile = this.getTileAtPosition(e.global)
 			if (tile) {
 				this.dragStartTile = tile
+				this.dragHasMovedTile = false
+			} else if (this.isFreightAddStopTool()) {
+				return
 			} else {
 				// Background click - start panning
 				this.isPanning = true
@@ -208,6 +248,7 @@ export class InteractionManager {
 				renderer.world.position.x += dx
 				renderer.world.position.y += dy
 			}
+			this.publishActiveViewPov()
 
 			this.lastPosition = { x: e.global.x, y: e.global.y }
 		} else if (this.dragStartTile) {
@@ -215,12 +256,22 @@ export class InteractionManager {
 			// Tile drag in progress - emit preview
 			const currentTile = this.getTileAtPosition(e.global)
 			const roadType = this.getCurrentRoadType()
-			if (currentTile && roadType) {
+			if (currentTile && this.isFreightAddStopTool()) {
 				this.dragCurrentTile = currentTile
+				if (currentTile !== this.dragStartTile) {
+					this.dragHasMovedTile = true
+					this.game.emit('dragPreview', freightRadiusPreviewTiles(this.game, this.dragStartTile, currentTile), '')
+				} else {
+					this.game.emit('dragPreviewClear')
+				}
+			} else if (currentTile && roadType) {
+				this.dragCurrentTile = currentTile
+				if (currentTile !== this.dragStartTile) this.dragHasMovedTile = true
 				const tiles = straightRoadTileTrace(this.dragStartTile, currentTile)
 				this.game.emit('roadPreview', tiles, roadType, canBuildRoadOnTrace(tiles))
 			} else if (currentTile && currentTile !== this.dragStartTile) {
 				this.dragCurrentTile = currentTile
+				this.dragHasMovedTile = true
 				const start = this.dragStartTile.position as { q: number; r: number }
 				const end = currentTile.position as { q: number; r: number }
 				const tiles = this.getParallelogramTiles(start, end)
@@ -252,7 +303,17 @@ export class InteractionManager {
 
 			if (endTile && endTile !== this.dragStartTile) {
 				const roadType = this.getCurrentRoadType()
-				if (roadType) {
+				if (
+					this.isFreightAddStopTool() &&
+					tryConsumeFreightMapPickRadiusDrag({
+						game: this.game,
+						startTile: this.dragStartTile,
+						endTile,
+						event: e.nativeEvent,
+					})
+				) {
+					// Handled by freight add-stop drag.
+				} else if (roadType) {
 					const tiles = straightRoadTileTrace(this.dragStartTile, endTile)
 					if (canBuildRoadOnTrace(tiles)) {
 						this.game.emit('roadDrag', tiles, roadType, e.nativeEvent)
@@ -266,7 +327,18 @@ export class InteractionManager {
 				}
 			} else if (endTile === this.dragStartTile) {
 				const roadType = this.getCurrentRoadType()
-				if (roadType) {
+				if (
+					this.dragHasMovedTile &&
+					this.isFreightAddStopTool() &&
+					tryConsumeFreightMapPickRadiusDrag({
+						game: this.game,
+						startTile: this.dragStartTile,
+						endTile,
+						event: e.nativeEvent,
+					})
+				) {
+					// Handled by freight add-stop drag.
+				} else if (roadType) {
 					const tiles = [this.dragStartTile]
 					if (canBuildRoadOnTrace(tiles)) {
 						this.game.emit('roadDrag', tiles, roadType, e.nativeEvent)
@@ -279,6 +351,7 @@ export class InteractionManager {
 
 			this.dragStartTile = undefined
 			this.dragCurrentTile = undefined
+			this.dragHasMovedTile = false
 		}
 
 		if (!this.dragStartTile) {
@@ -308,6 +381,7 @@ export class InteractionManager {
 		world.scale.set(newScale)
 		world.position.x = e.global.x - localPos.x * newScale
 		world.position.y = e.global.y - localPos.y * newScale
+		this.publishActiveViewPov()
 	}
 
 	/**
@@ -321,6 +395,11 @@ export class InteractionManager {
 		while (current) {
 			const logicObject = current._logicObject as InteractiveGameObject | undefined
 			if (logicObject) {
+				if (this.isFreightAddStopTool()) {
+					if (freightMapPickCanConsumeObject(this.game, logicObject)) return logicObject
+					current = current.parent
+					continue
+				}
 				// With no selected action, default hover/click should still resolve to the
 				// underlying logic object even if canInteract('') is false.
 				if (!action) {

@@ -5,10 +5,12 @@ export type { Configuration } from 'ssh/globals'
 // Re-export all game-related globals from ssh engine
 export { configuration, debugInfo, game, games } from 'ssh/globals'
 export {
+	activeWorldViewPov,
 	getHoveredUid,
 	interactionMode,
 	isHoveredObject,
 	mrg,
+	setActiveWorldViewPov,
 	setHoveredObject,
 } from './interactive-state'
 

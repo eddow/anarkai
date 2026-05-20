@@ -232,10 +232,14 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 			if (loopCount.length >= 100) throw new Error('nextStep loop count limit exceeded')
 		}
 
-		update(dt: number) {
-			// If we're in a long ponder/rest step but already standing on a legal wild offload tile with
-			// stock in active transport, prefer draining the buffer now — `findAction` won't run until the
-			// ponder step completes, which can stall gameplay/tests for a long time.
+			update(dt: number) {
+				if (!this.stepExecutor && !this.runningScripts.length) {
+					this.nextStep()
+				}
+
+				// If we're in a long ponder/rest step but already standing on a legal wild offload tile with
+				// stock in active transport, prefer draining the buffer now — `findAction` won't run until the
+				// ponder step completes, which can stall gameplay/tests for a long time.
 			if (
 				this.stepExecutor instanceof PonderingStep ||
 				this.stepExecutor?.constructor?.name === 'PonderingStep'

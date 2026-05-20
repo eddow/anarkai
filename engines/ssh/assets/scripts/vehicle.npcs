@@ -24,6 +24,11 @@ function driveJobPath(jobPlan)
 end function
 
 function zoneBrowseTransferAtCurrentTile(jobPlan)
+	if jobPlan.targetCoord then
+		targetPath = find.path(jobPlan.targetCoord, true)
+		if not targetPath then error "No path to vehicle zone browse target"
+		if targetPath.length > 0 then walk.until targetPath
+	end if
 	vehicleTransferAtCurrentTile jobPlan
 end function
 
@@ -90,8 +95,8 @@ function vehicleHop(jobPlan)
 	end if
 	vehicle.vehicleHopDockStep jobPlan
 	// Zone stops: operator is still driving; step off then transfer then disengage.
-	// Bay anchor: `vehicleHopDockStep` already disembarked the operator while keeping line service.
-	if not jobPlan.dockEnter and not jobPlan.vehicleHopAnchorDockDisembarked then
+	// Some stop kinds handle that tail directly in `vehicleHopDockStep`.
+	if not jobPlan.dockEnter and not jobPlan.vehicleHopStopHandled then
 		zoneBrowseTransferAtCurrentTile jobPlan
 	end if
 end function

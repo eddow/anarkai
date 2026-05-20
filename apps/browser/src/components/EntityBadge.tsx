@@ -18,6 +18,10 @@ css`
 	font-weight: 600;
 	color: var(--ak-text);
 }
+
+.entity-badge__qty.is-danger {
+	color: #dc2626;
+}
 `
 
 interface EntityBadgeProps {
@@ -26,6 +30,7 @@ interface EntityBadgeProps {
 	text: string
 	qty?: number
 	qtyLabel?: string
+	qtyTone?: 'default' | 'danger'
 	height?: number
 }
 
@@ -44,7 +49,10 @@ const EntityBadge = (props: EntityBadgeProps) => {
 				height={props.height ?? 20}
 				alt={props.text}
 			/>
-			<span if={view.qtyLabel} class="entity-badge__qty">
+			<span
+				if={view.qtyLabel}
+				class={['entity-badge__qty', props.qtyTone === 'danger' ? 'is-danger' : '']}
+			>
 				{view.qtyLabel}
 			</span>
 		</div>

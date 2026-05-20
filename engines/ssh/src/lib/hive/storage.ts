@@ -359,9 +359,9 @@ export class StorageAlveolus extends Alveolus {
 					}
 				}
 			}
-		} else if (this.storage instanceof SpecificStorage) {
-			const { buffers } = this
-			for (const goodType of Object.keys(this.storage.maxAmounts) as GoodType[]) {
+			} else if (this.storage instanceof SpecificStorage) {
+				const { buffers } = this
+				for (const goodType of Object.keys(this.storage.maxAmounts) as GoodType[]) {
 				const maxAmount = this.storage.maxAmounts[goodType] ?? 0
 				const stockQty = this.storage.stock[goodType] ?? 0
 				const plannedQty = stockQty + this.storage.allocated(goodType)
@@ -378,11 +378,20 @@ export class StorageAlveolus extends Alveolus {
 						advertisement: 'demand',
 						priority: '1-buffer',
 					}
+					}
+				}
+			} else {
+				for (const goodType of Object.keys(this.storage.stock) as GoodType[]) {
+					if ((this.storage.stock[goodType] ?? 0) <= 0) continue
+					if (!this.canGive(goodType, '0-store')) continue
+					relations[goodType] = {
+						advertisement: 'provide',
+						priority: '0-store',
+					}
 				}
 			}
-		}
 
-		return relations
+			return relations
 	}
 
 	setSlottedGeneralSlots(generalSlots: number): void {

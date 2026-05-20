@@ -1,7 +1,7 @@
 import { css } from '@app/lib/css'
 import { showProps } from '@app/lib/follow-selection'
-import { tryConsumeFreightMapPick } from '@app/lib/freight-map-pick'
-import { game, interactionMode, validateStoredSelectionState } from '@app/lib/globals'
+import { isFreightAddStopAction, tryConsumeFreightMapPick } from '@app/lib/freight-map-pick'
+import { game, interactionMode, selectionState, validateStoredSelectionState } from '@app/lib/globals'
 import { consumePresentationEvents } from '@app/lib/presentation-events'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
 import { PixiGameRenderer } from 'engine-pixi/renderer'
@@ -9,6 +9,7 @@ import { effect } from 'mutts'
 import type { RoadType } from 'ssh/board/roads'
 import { Tile } from 'ssh/board/tile'
 import type { GamePresentationEvent, InteractiveGameObject } from 'ssh/game'
+import { traces } from 'ssh/dev/debug'
 import type { AlveolusType } from 'ssh/types/base'
 
 css`
@@ -66,7 +67,13 @@ export default function GameWidget(
 	const gameEvents = {
 		objectClick(event: MouseEvent, object: InteractiveGameObject) {
 			if (event.button !== 0) return
+			const selectedBeforeFreightPick = selectionState.selectedUid
+			if (tryConsumeFreightMapPick(game, object, event)) {
+				selectionState.selectedUid = selectedBeforeFreightPick
+				return
+			}
 			const action = interactionMode.selectedAction
+			if (isFreightAddStopAction(action)) return
 			if (action.startsWith('build:')) {
 				const applied = handleBuildingAction(event, object)
 				if (applied && !event.shiftKey) interactionMode.selectedAction = ''
@@ -77,7 +84,6 @@ export default function GameWidget(
 				if (applied && !event.shiftKey) interactionMode.selectedAction = ''
 				return
 			}
-			if (tryConsumeFreightMapPick(game, object)) return
 			handleProjectSelection(object)
 		},
 		objectDrag(tiles: Tile[], event: unknown) {
@@ -114,7 +120,7 @@ export default function GameWidget(
 	})
 
 	const initView = (el: HTMLElement) => {
-		console.log('GameWidget: initView called')
+		traces.ui.log?.('game-widget.init-view')
 		if (container || gameView) return
 
 		container = el
@@ -139,17 +145,17 @@ export default function GameWidget(
 			resizeObserver.observe(container)
 		}
 
-		// Wait for game to load before creating view to ensure content is ready
-		console.log('GameWidget: awaiting game.loaded')
+		// Wait for game to load before creating view to ensure content is ready.
+		traces.ui.log?.('game-widget.await-loaded')
 		game.loaded
 			.then(() => {
 				if (!isMounted) return
-				console.log('GameWidget: game loaded')
+				traces.ui.log?.('game-widget.loaded')
 				if (container && !gameView) {
 					try {
-						console.log(`[GameWidget] Mounting PixiGameRenderer to ${containerId}`)
+						traces.ui.log?.('game-widget.mount-renderer', { containerId })
 						gameView = new PixiGameRenderer(game, container)
-						console.log('GameWidget: PixiGameRenderer created', gameView)
+						traces.ui.log?.('game-widget.renderer-created', { containerId })
 
 						// Fit camera to player content (if any)
 						gameView.fitViewToContent()
@@ -158,30 +164,30 @@ export default function GameWidget(
 
 						setupResizer()
 					} catch (e) {
-						console.error('Failed to create PixiGameRenderer', e)
+						traces.ui.error?.('game-widget.renderer-create-failed', { error: e })
 					}
 				}
 			})
 			.catch((err) => {
 				if (!isMounted) return
-				console.error('[GameWidget] game.loaded failed:', err)
+				traces.ui.error?.('game-widget.loaded-failed', { error: err })
 				// Try to initialize anyway if it's just a gameStart glitch
 				if (!game.renderer && container) {
-					console.log('[GameWidget] Attempting emergency Pixi initialization...')
+					traces.ui.warn?.('game-widget.emergency-renderer-init')
 					try {
 						gameView = new PixiGameRenderer(game, container)
 						// Fit camera to player content (if any)
 						gameView.fitViewToContent()
 						setupResizer()
 					} catch (e) {
-						console.error('Emergency initialization failed', e)
+						traces.ui.error?.('game-widget.emergency-renderer-failed', { error: e })
 					}
 				}
 			})
 
 		return () => {
 			isMounted = false
-			console.log(`[GameWidget] Unmounting PixiGameRenderer from ${containerId}`)
+			traces.ui.log?.('game-widget.unmount-renderer', { containerId })
 			resizeObserver?.disconnect()
 			gameView?.destroy()
 			gameView = undefined

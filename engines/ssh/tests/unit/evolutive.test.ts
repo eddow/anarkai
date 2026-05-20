@@ -221,8 +221,8 @@ describe('Evolutive & Determinism Tests', () => {
 		try {
 			await game.generate(config, patches)
 
-			const worker = game.population.createCharacter('Worker1', { q: 2, r: 2 })
-			const vehicle = game.vehicles.createVehicle('evolutive-wb', 'wheelbarrow', { q: 2, r: 2 })
+			const worker = game.population.createCharacter('Worker1', { q: 0, r: 0 })
+			const vehicle = game.vehicles.createVehicle('evolutive-wb', 'wheelbarrow', { q: 0, r: 0 })
 			vehicle.beginOffloadService(worker)
 			worker.operates = vehicle
 			worker.onboard()
@@ -256,6 +256,8 @@ describe('Evolutive & Determinism Tests', () => {
 				if (worker.stepExecutor !== moveStep) break
 			}
 			expect(toAxialCoord(worker.position).q).toBeCloseTo(0, 0)
+			worker.operates = vehicle
+			if (!worker.driving) worker.onboard()
 
 			// 2. Grab Wood
 			// Workaround: Create a fake Tile object that holds the correct content
@@ -270,7 +272,10 @@ describe('Evolutive & Determinism Tests', () => {
 
 			const grabGoods = { wood: 1 }
 			const grabCommitment = new Commitment('planGrabStored')
-			const vehicleAllocationResult = worker.carry.allocate(grabGoods, grabCommitment)
+			const transportStorage = worker.transportStorage
+			expect(transportStorage).toBeDefined()
+			if (!transportStorage) return
+			const vehicleAllocationResult = transportStorage.allocate(grabGoods, grabCommitment)
 			expect(vehicleAllocationResult).toBeUndefined()
 			const sourceCommitment = new Commitment('planGrabStored')
 			const sourceReservationResult = sourceStorage.reserve(grabGoods, sourceCommitment)
@@ -278,14 +283,14 @@ describe('Evolutive & Determinism Tests', () => {
 
 			// Assert Reservations (Allocations created immediately in planGrab)
 			expect((sourceStorage as any).available('wood')).toBe(0)
-			expect(worker.carry.available('wood')).toBe(0) // Not yet fulfilled
+			expect(transportStorage.available('wood')).toBe(0) // Not yet fulfilled
 
 			// Simulate Conclude
 			sourceCommitment.fulfill()
 			grabCommitment.fulfill()
 
 			// Assert Possession
-			expect(worker.carry.available('wood')).toBe(1)
+			expect(transportStorage.available('wood')).toBe(1)
 
 			// 3. Move to Target
 			// Teleport for simulation stability (pathfinding depends on map gen)
@@ -306,7 +311,7 @@ describe('Evolutive & Determinism Tests', () => {
 			const dropReserveCommitment = new Commitment('planDropStored')
 			const targetAllocationResult = currentTargetStorage.allocate!(dropGoods, dropAllocCommitment)
 			expect(targetAllocationResult).toBeUndefined()
-			const vehicleReservationResult = worker.carry.reserve(dropGoods, dropReserveCommitment)
+			const vehicleReservationResult = transportStorage.reserve(dropGoods, dropReserveCommitment)
 			expect(vehicleReservationResult).toBeUndefined()
 
 			// Fulfill
@@ -314,7 +319,7 @@ describe('Evolutive & Determinism Tests', () => {
 			dropReserveCommitment.fulfill()
 
 			// Final Assertion
-			expect(worker.carry.available('wood')).toBe(0)
+			expect(transportStorage.available('wood')).toBe(0)
 			expect((currentTargetStorage as any).available('wood')).toBe(1)
 		} finally {
 			game.destroy()

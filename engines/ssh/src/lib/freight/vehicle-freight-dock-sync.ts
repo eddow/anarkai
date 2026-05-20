@@ -1,4 +1,5 @@
 import type { Alveolus } from 'ssh/board/content/alveolus'
+import { isLineFreightVehicleType } from 'ssh/freight/line-freight-vehicles'
 import { VehicleFreightDock } from 'ssh/freight/vehicle-freight-dock'
 import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
@@ -9,7 +10,7 @@ export function freightVehicleDockBay(vehicle: VehicleEntity): FreightBayAlveolu
 	const svc = vehicle.service
 	if (!isVehicleLineService(svc) || !vehicle.isDocked) return undefined
 	if (!('anchor' in svc.stop)) return undefined
-	if (vehicle.vehicleType !== 'wheelbarrow') return undefined
+	if (!isLineFreightVehicleType(vehicle.vehicleType)) return undefined
 	const tile = vehicle.game.hex.getTile({
 		q: svc.stop.anchor.coord[0],
 		r: svc.stop.anchor.coord[1],

@@ -4,6 +4,7 @@ import {
 } from '@app/lib/construction-view'
 import { css } from '@app/lib/css'
 import { T } from '@app/lib/i18n'
+import { presentationRevisionFor } from '@app/lib/presentation-events'
 import { Badge } from '@app/ui/anarkai'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
 import { deposits as visualDeposits, goods as visualGoods } from 'engine-pixi/assets/visual-content'
@@ -71,6 +72,11 @@ const iconForZone = (zoneId: string): string => {
 	return tablerOutlinePolygon
 }
 
+const depositLabel = (name: string): string => {
+	if (!name) return ''
+	return String(T.deposits[name] ?? name)
+}
+
 const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 	const state = reactive({
 		zoneId: '',
@@ -108,10 +114,12 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 		const deposit = props.content?.deposit
 		const name = toDisplayText(deposit?.name)
 		const sprite = visualDeposits[name as keyof typeof visualDeposits]?.sprites?.[0] ?? ''
+		const showDeposit = name.length > 0 && deposit?.amount !== undefined && sprite.length > 0
+		if (!showDeposit) state.showDeposit = false
 		state.depositName = name
 		state.depositAmount = deposit?.amount
 		state.depositSprite = sprite
-		state.showDeposit = deposit?.amount !== undefined && sprite.length > 0
+		if (showDeposit) state.showDeposit = true
 	})
 
 	effect`unbuilt-properties:project`(() => {
@@ -132,6 +140,7 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 	effect`unbuilt-properties:construction`(() => {
 		const game = props.content?.tile?.board?.game
 		const tile = props.content?.tile
+		presentationRevisionFor(tile?.uid)
 		if (!game || !tile || !props.content?.constructionSite) {
 			state.showConstruction = false
 			state.constructionPhase = ''
@@ -206,13 +215,16 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 				<div class="unbuilt-project">
 					<for each={state.constructionMaterials}>
 						{(material: { good: GoodType; required: number; delivered: number }) => (
-							<EntityBadge
-								game={props.content?.tile?.board?.game}
-								height={16}
-								sprite={visualGoods[material.good]?.sprites?.[0] ?? ''}
-								text={String(T.goods?.[material.good] ?? material.good)}
-								qty={Math.max(0, material.required - material.delivered)}
-							/>
+							<>
+								<EntityBadge
+									game={props.content?.tile?.board?.game}
+									height={16}
+									sprite={visualGoods[material.good]?.sprites?.[0] ?? ''}
+									text={String(T.goods?.[material.good] ?? material.good)}
+									qtyLabel={`${material.delivered}/${material.required}`}
+									qtyTone={material.delivered < material.required ? 'danger' : 'default'}
+								/>
+							</>
 						)}
 					</for>
 				</div>
@@ -223,7 +235,7 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 					game={props.content?.tile?.board?.game}
 					height={16}
 					sprite={state.depositSprite}
-					text={String(T.deposits[state.depositName])}
+					text={depositLabel(state.depositName)}
 					qty={state.depositAmount}
 				/>
 			</PropertyGridRow>

@@ -6,12 +6,24 @@ vi.mock('@app/lib/css', () => ({
 }))
 
 vi.mock('@app/lib/globals', () => ({
+	activeWorldViewPov: { viewId: 'primary', center: { q: 0, r: 0 } },
 	bumpSelectionTitleVersion: vi.fn(),
+	selectionState: { selectedUid: undefined },
+}))
+
+const showFreightLineOverlay = vi.hoisted(() => vi.fn())
+
+vi.mock('@app/lib/freight-line-overlay', () => ({
+	showFreightLineOverlay,
+}))
+
+vi.mock('@app/lib/freight-map-pick', () => ({
+	clearFreightMapPickForLine: vi.fn(),
 }))
 
 vi.mock('@app/ui/anarkai', () => ({
-	InspectorSection: (props: { title?: string; children?: JSX.Element }) => (
-		<section data-testid="inspector-section" data-title={props.title}>
+	InspectorSection: (props: { title?: string; el?: JSX.IntrinsicElements['section']; children?: JSX.Element }) => (
+		<section {...props.el} data-testid="inspector-section" data-title={props.title}>
 			{props.children}
 		</section>
 	),
@@ -142,7 +154,18 @@ describe('FreightLineProperties', () => {
 		freightLines: ReturnType<typeof normalizeFreightLineDefinition>[]
 		replaceFreightLine: ReturnType<typeof vi.fn>
 		removeFreightLineById: ReturnType<typeof vi.fn>
+		assignVehicleToFreightLine: ReturnType<typeof vi.fn>
+		unassignVehicleFromFreightLine: ReturnType<typeof vi.fn>
+		vehicles: Iterable<{
+			uid: string
+			title: string
+			vehicleType: string
+			position: { q: number; r: number }
+			storage: { stock: Record<string, number> }
+			servedLines: { id: string }[]
+		}> & { vehicle: ReturnType<typeof vi.fn> }
 		hex: { getTile: ReturnType<typeof vi.fn> }
+		procurementDefaults: { bufferPurchaseReserveVp: number }
 	}
 
 	beforeAll(async () => {
@@ -152,7 +175,18 @@ describe('FreightLineProperties', () => {
 	beforeEach(() => {
 		container = document.createElement('div')
 		document.body.appendChild(container)
+		showFreightLineOverlay.mockClear()
 		removeFreightLineById = vi.fn()
+		const vehicleRecords = [
+			{
+				uid: 'veh-1',
+				title: 'wheelbarrow veh-1',
+				vehicleType: 'wheelbarrow',
+				position: { q: 1, r: 0 },
+				storage: { stock: {} },
+				servedLines: [] as { id: string }[],
+			},
+		]
 		game = {
 			freightLines: [
 				normalizeFreightLineDefinition({
@@ -179,6 +213,19 @@ describe('FreightLineProperties', () => {
 				game.freightLines = [next]
 			}),
 			removeFreightLineById,
+			assignVehicleToFreightLine: vi.fn((vehicleUid, lineId) => {
+				const vehicle = vehicleRecords.find((entry) => entry.uid === vehicleUid)
+				const line = game.freightLines.find((entry) => entry.id === lineId)
+				if (vehicle && line) vehicle.servedLines = [line]
+			}),
+			unassignVehicleFromFreightLine: vi.fn((vehicleUid, lineId) => {
+				const vehicle = vehicleRecords.find((entry) => entry.uid === vehicleUid)
+				if (vehicle) vehicle.servedLines = vehicle.servedLines.filter((line) => line.id !== lineId)
+			}),
+			vehicles: Object.assign(vehicleRecords, {
+				vehicle: vi.fn((uid: string) => vehicleRecords.find((entry) => entry.uid === uid)),
+			}),
+			procurementDefaults: { bufferPurchaseReserveVp: 80 },
 			hex: {
 				getTile: vi.fn(() => undefined),
 			},
@@ -216,6 +263,57 @@ describe('FreightLineProperties', () => {
 
 		expect(removeFreightLineById).toHaveBeenCalledTimes(1)
 		expect(removeFreightLineById.mock.calls[0]?.[0]).toBe('line-1')
+	})
+
+	it('shows the board route only while the line widget is hovered', () => {
+		stop = latch(
+			container,
+			<FreightLineProperties
+				lineObject={{
+					uid: 'freight-line:line-1',
+					kind: 'freight-line',
+					title: 'Line 1 (Exchange)',
+					game: game as never,
+					line: game.freightLines[0],
+					lineId: 'line-1',
+					logs: [],
+				}}
+			/>
+		)
+
+		expect(showFreightLineOverlay).not.toHaveBeenCalled()
+		const section = container.querySelector('[data-testid="inspector-section"]') as HTMLElement
+		section.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }))
+		expect(showFreightLineOverlay).toHaveBeenLastCalledWith('line-1')
+		section.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }))
+		expect(showFreightLineOverlay).toHaveBeenLastCalledWith(undefined)
+	})
+
+	it('assigns and unassigns compatible vehicles from the line inspector', () => {
+		stop = latch(
+			container,
+			<FreightLineProperties
+				lineObject={{
+					uid: 'freight-line:line-1',
+					kind: 'freight-line',
+					title: 'Line 1 (Exchange)',
+					game: game as never,
+					line: game.freightLines[0],
+					lineId: 'line-1',
+					logs: [],
+				}}
+			/>
+		)
+
+		const option = container.querySelector(
+			'[data-testid="line-vehicle-picker-item"]'
+		) as HTMLButtonElement
+		option.click()
+		expect(game.assignVehicleToFreightLine).toHaveBeenCalledWith('veh-1', 'line-1')
+
+		const remove = container.querySelector('[data-testid="line-unassign-vehicle"]') as HTMLButtonElement
+		remove.click()
+		expect(game.unassignVehicleFromFreightLine).toHaveBeenCalledWith('veh-1', 'line-1')
 	})
 
 	it('keeps Save disabled until the draft is dirty, then persists on Save', () => {

@@ -421,9 +421,10 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 	}
 	private ensureGeneratedName(key: string): void {
 		if (this.metadata.name) return
+		const generationOptions = this.board.game.generationOptions
 		this.metadata.name = generateName({
-			seed: this.board.game.generationOptions.terrainSeed,
-			theme: this.board.game.generationOptions.nameTheme ?? defaultNameTheme,
+			seed: generationOptions?.terrainSeed ?? 0,
+			theme: generationOptions?.nameTheme ?? defaultNameTheme,
 			kind: 'hive',
 			key,
 		})
@@ -2617,7 +2618,8 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			const demander = this.alveolusAt(snapshot.targetCoord)
 			const provider = demander ? this.resolveProviderForSnapshot(snapshot, demander) : undefined
 			if (provider && demander && !demander.destroyed && !provider.destroyed) {
-				if (this.createMovement(snapshot.goodType, provider, demander)) {
+				const ownerHive = provider.hive
+				if (ownerHive && ownerHive === demander.hive && ownerHive.createMovement(snapshot.goodType, provider, demander)) {
 					recreated += 1
 					continue
 				}
@@ -3048,14 +3050,18 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 					}
 					throw error
 				}
-				const wandering = actionDescription.includes('selfCare.wander')
-				const waitingIncoming = actionDescription.includes('waitForIncomingGoods')
-				if (!wandering && !waitingIncoming) continue
-				const assignedHere =
-					freightPartyMatchesAssignedAlveolus(_provider, worker.assignedAlveolus) ||
-					freightPartyMatchesAssignedAlveolus(_demander, worker.assignedAlveolus)
-				if (worker.assignedAlveolus && !assignedHere) continue
-				const nextAction = worker.findAction()
+					const assignedHere =
+						freightPartyMatchesAssignedAlveolus(_provider, worker.assignedAlveolus) ||
+						freightPartyMatchesAssignedAlveolus(_demander, worker.assignedAlveolus)
+					if (worker.assignedAlveolus && !assignedHere) continue
+					const wandering = actionDescription.includes('selfCare.wander')
+					const waitingIncoming = actionDescription.includes('waitForIncomingGoods')
+					const assignedPondering =
+						assignedHere &&
+						actionDescription.length === 0 &&
+						worker.stepExecutor?.constructor?.name === 'PonderingStep'
+					if (!wandering && !waitingIncoming && !assignedPondering) continue
+					const nextAction = worker.findAction()
 				if (!nextAction) continue
 				const running = worker.runningScript
 				// Same script name can still be a different target/job (e.g. goWork on another alveolus).

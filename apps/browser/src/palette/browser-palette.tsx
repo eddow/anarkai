@@ -3,6 +3,7 @@ import {
 	buildPaletteSelectedActionValues,
 	getAppShellBuildableAlveoli,
 } from '@app/lib/app-shell-controls'
+import { FREIGHT_ADD_STOP_ACTION } from '@app/lib/freight-map-pick'
 import type { Configuration } from '@app/lib/globals'
 import { configuration, game, interactionMode, uiConfiguration } from '@app/lib/globals'
 import { showZonesObject } from '@app/lib/zone-selection'
@@ -40,6 +41,7 @@ import {
 	tablerFilledArrowBigRight,
 	tablerOutlineBuildingCommunity,
 	tablerOutlinePolygon,
+	tablerOutlineRoute,
 } from 'pure-glyf/icons'
 import type { Game } from 'ssh/game'
 
@@ -59,7 +61,12 @@ const browserPaletteSelectedActionValues = buildPaletteSelectedActionValues(
 			? () => <ResourceImage game={game} sprite={sprite} width={20} height={20} alt={name} />
 			: undefined
 	}
-)
+).concat({
+	value: FREIGHT_ADD_STOP_ACTION,
+	label: 'Add freight stop',
+	icon: typeof tablerOutlineRoute === 'string' ? tablerOutlineRoute : undefined,
+	keywords: ['freight', 'line', 'stop', 'halt', 'route'],
+})
 
 const themeSettingsProxy: { theme: AnarkaiThemeMode } = {
 	get theme() {

@@ -144,8 +144,9 @@ export function macroRequestForTerrainLod(
 
 function snappedMacroSectorKey(centerSectorKey: string): string {
 	const [rawQ, rawR] = centerSectorKey.split(',').map(Number)
-	const q = Math.floor((rawQ ?? 0) / MACRO_OVERVIEW_SNAP_DRIFT_SECTORS) * MACRO_OVERVIEW_SNAP_DRIFT_SECTORS
-	const r = Math.floor((rawR ?? 0) / MACRO_OVERVIEW_SNAP_DRIFT_SECTORS) * MACRO_OVERVIEW_SNAP_DRIFT_SECTORS
+	const snap = MACRO_OVERVIEW_SNAP_DRIFT_SECTORS
+	const q = Math.round((rawQ ?? 0) / snap) * snap
+	const r = Math.round((rawR ?? 0) / snap) * snap
 	return `${q},${r}`
 }
 
@@ -317,10 +318,47 @@ function macroTerrainColor(biome: string, height: number): number {
 	return height > 0.25 ? 0x6b8743 : 0x5f8f4a
 }
 
+function coordFromAxialKey(key: string): AxialCoord | undefined {
+	const [q, r] = key.split(',').map(Number)
+	if (!Number.isFinite(q) || !Number.isFinite(r)) return undefined
+	return { q, r }
+}
+
+function fallbackZoneColor(zoneId: string): number {
+	let hash = 2166136261
+	for (let i = 0; i < zoneId.length; i++) {
+		hash ^= zoneId.charCodeAt(i)
+		hash = Math.imul(hash, 16777619)
+	}
+	return 0x555555 ^ (hash & 0x2f2f2f)
+}
+
+function parseZoneColor(color: string | undefined, zoneId: string): number {
+	if (!color) return fallbackZoneColor(zoneId)
+	const trimmed = color.trim()
+	const hex = trimmed.startsWith('#') ? trimmed.slice(1) : trimmed
+	if (!/^[0-9a-fA-F]{6}$/.test(hex)) return fallbackZoneColor(zoneId)
+	return Number.parseInt(hex, 16)
+}
+
+function drawHexAt(graphics: Graphics, coord: AxialCoord, radius: number): Graphics {
+	const center = cartesian(coord, tileSize)
+	const points: number[] = []
+	for (let corner = 0; corner < 6; corner++) {
+		const angle = Math.PI / 6 + corner * Math.PI / 3
+		points.push(center.x + Math.cos(angle) * radius, center.y + Math.sin(angle) * radius)
+	}
+	return graphics.poly(points)
+}
+
 export class TerrainVisual {
 	private static viewportSequence = 0
 	private readonly container = setPixiName(new Container(), 'terrain.continuous')
 	private readonly macroTerrainOverlay = setPixiName(new Graphics(), 'terrain.continuous:macro-terrain')
+	private readonly macroGeneratedZoneOverlay = setPixiName(
+		new Graphics(),
+		'terrain.continuous:macro-generated-zones'
+	)
 	private readonly macroRiverOverlay = setPixiName(new Graphics(), 'terrain.continuous:macro-rivers')
 	private readonly macroRoadOverlay = setPixiName(new Graphics(), 'terrain.continuous:macro-roads')
 	private readonly sectorsContainer = setPixiName(new Container(), 'terrain.continuous:sectors')
@@ -404,12 +442,14 @@ export class TerrainVisual {
 		this.roadTileTextures = new RoadTileTextureCache(renderer)
 		this.container.eventMode = 'none'
 		this.macroTerrainOverlay.eventMode = 'none'
+		this.macroGeneratedZoneOverlay.eventMode = 'none'
 		this.macroRiverOverlay.eventMode = 'none'
 		this.macroRoadOverlay.eventMode = 'none'
 		this.sectorsContainer.eventMode = 'none'
 		this.hoverOverlay.eventMode = 'none'
 		this.container.addChild(
 			this.macroTerrainOverlay,
+			this.macroGeneratedZoneOverlay,
 			this.macroRiverOverlay,
 			this.macroRoadOverlay,
 			this.sectorsContainer,
@@ -584,7 +624,9 @@ export class TerrainVisual {
 		const tilePixels = terrainLodTilePixels(world.scale.x)
 		const worldHalfWidth = app.screen.width / (2 * Math.max(world.scale.x, 0.001))
 		const worldHalfHeight = app.screen.height / (2 * Math.max(world.scale.y, 0.001))
-		const radius = Math.ceil(Math.max(worldHalfWidth, worldHalfHeight) / tileSize) + 6
+		const axisRadius = Math.ceil(Math.max(worldHalfWidth, worldHalfHeight) / tileSize) + 6
+		const viewportBounds = this.currentViewportWorldBounds()
+		const radius = Math.max(axisRadius, this.currentViewportTileRadius(center, viewportBounds))
 		
 		// Optimize signature calculation - use fewer decimal places for faster comparison
 		const signature = `${center.q},${center.r}:${radius}:${app.screen.width}x${app.screen.height}:${lodMode}:${world.scale.x.toFixed(2)},${world.scale.y.toFixed(2)}:${Math.round(worldPosition.x)},${Math.round(worldPosition.y)}`
@@ -620,7 +662,6 @@ export class TerrainVisual {
 		const minR = center.r - radius
 		const maxR = center.r + radius
 		const endVisibilityProfile = beginTerrainProfile('refresh.visibility', refreshProfilePayload)
-		const viewportBounds = this.currentViewportWorldBounds()
 		this.visibleTileKeys = collectVisibleTileKeys(center, radius + 2, viewportBounds)
 		this.visibleSectorKeys = macroOverview
 			? new Set()
@@ -651,27 +692,20 @@ export class TerrainVisual {
 				...request,
 			})
 			this.ensureAndRenderMacroHydrology(center, request)
+			this.renderMacroGeneratedZoneOverlay()
 			this.renderMacroRoadOverlay()
 			endMacroRequestProfile(request)
 		} else {
 			this.macroTerrainOverlay.visible = false
+			this.macroGeneratedZoneOverlay.visible = false
 			this.macroRiverOverlay.visible = false
 			this.macroRoadOverlay.visible = false
 		}
 		const streamDetailSectors = !macroOverview
 
 		const endRetentionProfile = beginTerrainProfile('refresh.retention', refreshProfilePayload)
-		const sectorMinQ = Math.trunc(minQ / SECTOR_STEP)
-		const sectorMaxQ = Math.trunc(maxQ / SECTOR_STEP)
-		const sectorMinR = Math.trunc(minR / SECTOR_STEP)
-		const sectorMaxR = Math.trunc(maxR / SECTOR_STEP)
 		const retainedSectorKeys = streamDetailSectors
-			? this.collectSectorKeys(
-					sectorMinQ - RETAINED_SECTOR_MARGIN,
-					sectorMaxQ + RETAINED_SECTOR_MARGIN,
-					sectorMinR - RETAINED_SECTOR_MARGIN,
-					sectorMaxR + RETAINED_SECTOR_MARGIN
-				)
+			? this.collectRetainedSectorKeys(this.visibleSectorKeys, RETAINED_SECTOR_MARGIN)
 			: new Set(this.sectors.keys())
 		
 		// Debug logging for retained vs visible sectors
@@ -679,7 +713,6 @@ export class TerrainVisual {
 			const visibleSectorsNotRetained = [...this.visibleSectorKeys].filter(k => !retainedSectorKeys.has(k))
 			const retainedSectorsNotVisible = [...retainedSectorKeys].filter(k => !this.visibleSectorKeys.has(k))
 			traces.terrain.log?.('sector-retention', {
-				sectorBounds: { sectorMinQ, sectorMaxQ, sectorMinR, sectorMaxR },
 				visibleSectorsNotRetained,
 				retainedSectorsNotVisible,
 				retainedSectorKeys: [...retainedSectorKeys].sort(),
@@ -894,6 +927,27 @@ export class TerrainVisual {
 			graphics.poly(points).fill({ color: macroTerrainColor(tile.biome, tile.height), alpha: 0.92 })
 		}
 		endTerrainProfile({ tiles: snapshot.tiles.length })
+	}
+
+	private renderMacroGeneratedZoneOverlay(): void {
+		const graphics = this.macroGeneratedZoneOverlay
+		graphics.visible = true
+		graphics.clear()
+		for (const key of this.visibleTileKeys) {
+			const coord = coordFromAxialKey(key)
+			if (!coord) continue
+			const tile =
+				(
+					this.renderer.game as {
+						getTerrainSample?: (coord: AxialCoord) => RenderableTerrainTile | undefined
+					}
+				).getTerrainSample?.(coord) ?? this.renderer.game.getRenderableTerrainAt(coord)
+			if (!tile?.zone?.generated) continue
+			drawHexAt(graphics, coord, tileSize).fill({
+				color: parseZoneColor(tile.zone.color, tile.zone.id),
+				alpha: 0.4,
+			})
+		}
 	}
 
 	private screenStrokeWorld(screenPixels: number, minWorld: number, maxWorld: number): number {
@@ -1342,11 +1396,15 @@ export class TerrainVisual {
 		return coords
 	}
 
-	private collectSectorKeys(minQ: number, maxQ: number, minR: number, maxR: number): Set<string> {
+	private collectRetainedSectorKeys(visibleSectorKeys: Iterable<string>, margin: number): Set<string> {
 		const keys = new Set<string>()
-		for (let q = minQ; q <= maxQ; q++) {
-			for (let r = minR; r <= maxR; r++) {
-				keys.add(`${q},${r}`)
+		for (const key of visibleSectorKeys) {
+			const [sectorQ, sectorR] = key.split(',').map(Number)
+			if (!Number.isFinite(sectorQ) || !Number.isFinite(sectorR)) continue
+			for (let q = sectorQ - margin; q <= sectorQ + margin; q++) {
+				for (let r = sectorR - margin; r <= sectorR + margin; r++) {
+					keys.add(`${q},${r}`)
+				}
 			}
 		}
 		return keys
@@ -1448,6 +1506,20 @@ export class TerrainVisual {
 			minY: Math.min(...worldCorners.map((corner) => corner.y)) - VIEWPORT_WORLD_OVERSCAN,
 			maxY: Math.max(...worldCorners.map((corner) => corner.y)) + VIEWPORT_WORLD_OVERSCAN,
 		}
+	}
+
+	private currentViewportTileRadius(center: AxialCoord, bounds: WorldBounds): number {
+		const corners = [
+			{ x: bounds.minX, y: bounds.minY },
+			{ x: bounds.maxX, y: bounds.minY },
+			{ x: bounds.minX, y: bounds.maxY },
+			{ x: bounds.maxX, y: bounds.maxY },
+		]
+		const cornerRadius = Math.max(
+			0,
+			...corners.map((corner) => axial.distance(center, axial.round(fromCartesian(corner, tileSize))))
+		)
+		return cornerRadius + 2
 	}
 
 	private pumpVisibleSectorQueue() {

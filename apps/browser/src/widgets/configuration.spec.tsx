@@ -4,7 +4,6 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 
 const commandBox = { input: { placeholder: 'Command...' } }
 const palette = { id: 'browser-palette' }
-const getBrowserPaletteConfigurationJson = vi.fn(() => '{"top":[],"keyBindings":{}}')
 const anarkaiPaletteCommandBox = vi.fn((props: Record<string, unknown>) => (
 	<div
 		data-testid="palette-command-box"
@@ -24,7 +23,6 @@ vi.mock('@app/palette/browser-palette', () => ({
 		commandBox,
 		palette,
 	}),
-	getBrowserPaletteConfigurationJson: () => getBrowserPaletteConfigurationJson(),
 }))
 
 vi.mock('@app/lib/css', () => ({
@@ -48,7 +46,6 @@ let ConfigurationWidget: typeof import('./configuration').default
 describe('ConfigurationWidget', () => {
 	let container: HTMLElement
 	let stop: (() => void) | undefined
-	let consoleLog: ReturnType<typeof vi.spyOn>
 
 	beforeAll(async () => {
 		;({ default: ConfigurationWidget } = await import('./configuration'))
@@ -57,16 +54,13 @@ describe('ConfigurationWidget', () => {
 	beforeEach(() => {
 		container = document.createElement('div')
 		document.body.appendChild(container)
-		consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {})
 		anarkaiPaletteCommandBox.mockClear()
 		anarkaiPaletteKeyBindingsEditor.mockClear()
-		getBrowserPaletteConfigurationJson.mockClear()
 	})
 
 	afterEach(() => {
 		stop?.()
 		stop = undefined
-		consoleLog.mockRestore()
 		container.remove()
 		document.body.innerHTML = ''
 	})
@@ -104,7 +98,7 @@ describe('ConfigurationWidget', () => {
 		expect(container.textContent).not.toContain('Time control')
 	})
 
-	it('logs the palette json when editing stops', () => {
+	it('does not attach debug logging to command box edit completion', () => {
 		const props: DockviewWidgetProps = {
 			title: '',
 			size: { width: 320, height: 240 },
@@ -114,13 +108,6 @@ describe('ConfigurationWidget', () => {
 
 		stop = latch(container, <ConfigurationWidget {...props} />, {} as never)
 
-		const onEditStop = anarkaiPaletteCommandBox.mock.calls[0]?.[0]?.onEditStop as
-			| (() => void)
-			| undefined
-		expect(onEditStop).toBeTypeOf('function')
-		if (!onEditStop) throw new Error('Missing onEditStop callback')
-		onEditStop()
-		expect(getBrowserPaletteConfigurationJson).toHaveBeenCalledTimes(1)
-		expect(consoleLog).toHaveBeenCalledWith('{"top":[],"keyBindings":{}}')
+		expect(anarkaiPaletteCommandBox.mock.calls[0]?.[0]?.onEditStop).toBeUndefined()
 	})
 })

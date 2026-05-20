@@ -49,7 +49,9 @@ import {
 import {
 	createDistrictProcurementPolicy,
 	type DistrictProcurementPolicy,
+	type DistrictPurchaseExecutionResult,
 	type DistrictPurchaseRequest,
+	executeDistrictPurchaseRequest,
 	listDistrictEligibleSellGoods,
 	listDistrictPurchaseRequests,
 	updateDistrictProcurementPolicy,
@@ -138,6 +140,17 @@ export type GamePresentationEvent =
 	| { type: 'storage.changed'; ownerUid: string }
 	| { type: 'vehicle.dock.changed'; ownerUid: string; vehicleUid: string }
 	| { type: 'work-planning.changed'; revision: number }
+	| {
+			type: 'npc-trade.transferred'
+			lineId: string
+			stopId: string
+			settlementId: string
+			vehicleUid: string
+			exported: Partial<Record<GoodType, number>>
+			imported: Partial<Record<GoodType, number>>
+			creditedVp: number
+			spentVp: number
+	  }
 
 /**
  * Gameplay-facing notification that a convey hop has committed.
@@ -458,6 +471,7 @@ export class Game extends Eventful<GameEvents> {
 	private readonly appliedSettlementRegionSets = new Set<string>()
 	private readonly inFlightSettlementRegionSets = new Map<string, Promise<void>>()
 	private readonly settlementTradeProfiles = new Map<string, NpcSettlementTradeProfile>()
+	private readonly settlementTradeProfilesByCityHallCoord = new Map<string, NpcSettlementTradeProfile>()
 	private readonly terrainProvider: TerrainProvider
 	private readonly gameplayFrontier = new GameplayFrontierController({
 		hasMaterializedTile: (coord) => this.hasMaterializedGameplayTile(coord),
@@ -561,7 +575,18 @@ export class Game extends Eventful<GameEvents> {
 		districtId: string = DEFAULT_DISTRICT_ID
 	): DistrictPurchaseRequest[] {
 		const district = this.getDistrict(districtId)
-		return district ? listDistrictPurchaseRequests(this, district) : []
+		if (!district) return []
+		return listDistrictPurchaseRequests(this, district)
+	}
+
+	public executeDistrictPurchaseRequest(
+		districtId: string = DEFAULT_DISTRICT_ID,
+		requestId = ''
+	): DistrictPurchaseExecutionResult {
+		const district = this.getDistrict(districtId)
+		return district
+			? executeDistrictPurchaseRequest(this, district, requestId)
+			: { status: 'not_found' }
 	}
 
 	public listDistrictEligibleSellGoods(districtId: string = DEFAULT_DISTRICT_ID): GoodType[] {
@@ -618,6 +643,10 @@ export class Game extends Eventful<GameEvents> {
 		return this.settlementTradeProfiles.get(id)
 	}
 
+	public getSettlementTradeProfileAtCityHall(coord: AxialCoord): NpcSettlementTradeProfile | undefined {
+		return this.settlementTradeProfilesByCityHallCoord.get(axial.key(coord))
+	}
+
 	public listSettlementTradeProfiles(): NpcSettlementTradeProfile[] {
 		return [...this.settlementTradeProfiles.values()].sort((left, right) =>
 			left.id.localeCompare(right.id)
@@ -640,6 +669,27 @@ export class Game extends Eventful<GameEvents> {
 		const next = [...this.freightLines]
 		next[index] = normalized
 		this.freightLines = next
+		for (const vehicle of this.vehicles) vehicle.refreshFreightLineReference(normalized)
+	}
+
+	assignVehicleToFreightLine(vehicleUid: string, lineId: string): boolean {
+		const vehicle = this.vehicles.vehicle(vehicleUid)
+		const line = this.freightLines.find((entry) => entry.id === lineId)
+		if (!vehicle || !line) return false
+		return vehicle.assignFreightLine(line)
+	}
+
+	unassignVehicleFromFreightLine(vehicleUid: string, lineId: string): boolean {
+		const vehicle = this.vehicles.vehicle(vehicleUid)
+		if (!vehicle) return false
+		return vehicle.unassignFreightLine(lineId)
+	}
+
+	setVehicleFreightLineIds(vehicleUid: string, lineIds: readonly string[]): boolean {
+		const vehicle = this.vehicles.vehicle(vehicleUid)
+		if (!vehicle) return false
+		vehicle.setServedLineIds(lineIds, 'vehicle.set-lines')
+		return true
 	}
 
 	/**
@@ -651,6 +701,7 @@ export class Game extends Eventful<GameEvents> {
 		const next = this.freightLines.filter((entry) => entry.id !== lineId)
 		if (next.length === this.freightLines.length) return false
 		this.freightLines = next
+		for (const vehicle of this.vehicles) vehicle.unassignFreightLine(lineId)
 		return true
 	}
 
@@ -710,6 +761,14 @@ export class Game extends Eventful<GameEvents> {
 			vehicleUid: vehicle.uid,
 		}
 		this.pendingPresentationEvents.set(`${event.type}:${event.ownerUid}:${event.vehicleUid}`, event)
+		this.schedulePresentationEventsFlush()
+	}
+
+	public enqueueNpcTradePresentationChange(event: Omit<Extract<GamePresentationEvent, { type: 'npc-trade.transferred' }>, 'type'>): void {
+		this.pendingPresentationEvents.set(
+			`npc-trade.transferred:${event.lineId}:${event.stopId}:${event.vehicleUid}`,
+			{ type: 'npc-trade.transferred', ...event }
+		)
 		this.schedulePresentationEventsFlush()
 	}
 
@@ -1266,6 +1325,7 @@ export class Game extends Eventful<GameEvents> {
 				zones: plan.zones,
 			})
 			this.settlementTradeProfiles.set(profile.id, profile)
+			this.settlementTradeProfilesByCityHallCoord.set(axial.key(profile.cityHall.position), profile)
 		}
 		this.applyGeneratedZonePatches(plan.zones)
 		this.applyRoadPatches(plan.roads)
@@ -1745,6 +1805,7 @@ export class Game extends Eventful<GameEvents> {
 			this.appliedSettlementRegionSets.clear()
 			this.inFlightSettlementRegionSets.clear()
 			this.settlementTradeProfiles.clear()
+			this.settlementTradeProfilesByCityHallCoord.clear()
 			this.districts.clear()
 			this.setPlayerAccountBalance(
 				patches.playerAccount?.balanceVp ?? commerce.startingAccountBalanceVp
@@ -1822,6 +1883,7 @@ export class Game extends Eventful<GameEvents> {
 			this.appliedSettlementRegionSets.clear()
 			this.inFlightSettlementRegionSets.clear()
 			this.settlementTradeProfiles.clear()
+			this.settlementTradeProfilesByCityHallCoord.clear()
 			this.districts.clear()
 			this.setPlayerAccountBalance(
 				patches.playerAccount?.balanceVp ?? commerce.startingAccountBalanceVp
@@ -2545,6 +2607,7 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	public async loadGameData(state: SaveState) {
+		await this.loaded
 		this.conveyRestoredAtLoad = []
 		console.info('[save-load][loadGameData] begin', {
 			seed: state.generationOptions?.terrainSeed,
@@ -2656,6 +2719,9 @@ export class Game extends Eventful<GameEvents> {
 							coords.push(coord)
 						}
 					}
+				} else if ('trade' in stop) {
+					const profile = this.getSettlementTradeProfile(stop.trade.settlementId)
+					if (profile) coords.push(profile.center)
 				}
 			}
 		}

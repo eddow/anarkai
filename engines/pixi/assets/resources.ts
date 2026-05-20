@@ -33,6 +33,7 @@ export const resources: ResourceTree = {
 		engineer: 'buildings/engineer.png',
 		forester: 'buildings/forester.png',
 		bulldozer: 'buildings/bulldozer.png',
+		cityHall: 'buildings/city-hall.png',
 	},
 	goods: {
 		berries: 'goods/berries.png',
@@ -48,5 +49,6 @@ export const resources: ResourceTree = {
 	character: 'character.png',
 	vehicles: {
 		wheelbarrow: 'vehicles/wheelbarrow.png',
+		pickupTruck: 'vehicles/pickup-truck.png',
 	},
 }

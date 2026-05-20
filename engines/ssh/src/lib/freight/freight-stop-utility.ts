@@ -1,7 +1,6 @@
-import { freightLineHiveNeedPriorityWeight } from 'engine-rules'
+import { commerce, freightLineHiveNeedPriorityWeight } from 'engine-rules'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
-import { type ConstructionSiteShell, isStandaloneConstructionSiteShell } from 'ssh/build-site'
 import {
 	distributeSegmentAllowsGoodTypeForSegment,
 	type FreightDistributeRouteSegment,
@@ -22,9 +21,11 @@ import {
 import type { FreightAdSource } from 'ssh/freight/priority-channel'
 import type { Game } from 'ssh/game/game'
 import type { Hive } from 'ssh/hive/hive'
+import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import type { GoodType } from 'ssh/types/base'
 import type { ExchangePriority } from 'ssh/utils/advertisement'
 import type { AxialCoord } from 'ssh/utils/axial'
+import { freightConstructionDemandTarget } from './construction-demand'
 
 /** Per-good quantities for a stop (loose goods, stored goods, or need sink). */
 export interface FreightStopGoodsSnapshot {
@@ -66,12 +67,71 @@ export interface FreightProjectedLoadedGoodsSnapshot {
 	readonly surplusLoadedGoods: FreightStopGoodsSnapshot
 }
 
+export type FreightStopCommerceKind = 'bay' | 'named-zone' | 'radius-zone' | 'settlement-trade'
+
+export type FreightStopCommerceBlockReason =
+	| 'no_vehicle'
+	| 'vehicle_full'
+	| 'no_downstream_demand'
+	| 'buffer_full'
+	| 'no_matching_settlement_offer'
+	| 'reserve_blocks_import'
+	| 'policy_blocks_good'
+
+export interface FreightStopCommerceExplanation {
+	readonly stopKind: FreightStopCommerceKind
+	readonly localProvidedGoods: FreightStopGoodsSnapshot
+	readonly localNeededGoods: FreightStopGoodsSnapshot
+	readonly downstreamDemandGoods: FreightStopGoodsSnapshot
+	readonly importOpportunityGoods: FreightStopGoodsSnapshot
+	readonly exportOpportunityGoods: FreightStopGoodsSnapshot
+	readonly retainedCargoGoods: FreightStopGoodsSnapshot
+	readonly surplusCargoGoods: FreightStopGoodsSnapshot
+	readonly minBalanceAfterBuyVp?: number
+	readonly blockReasons: readonly FreightStopCommerceBlockReason[]
+}
+
 function sumRecord(values: Partial<Record<GoodType, number>>): number {
 	let s = 0
 	for (const v of Object.values(values)) {
 		if (typeof v === 'number' && v > 0) s += v
 	}
 	return s
+}
+
+function addBlockReason(
+	reasons: FreightStopCommerceBlockReason[],
+	reason: FreightStopCommerceBlockReason
+): void {
+	if (!reasons.includes(reason)) reasons.push(reason)
+}
+
+function finiteGoodsCounts(
+	values: Partial<Record<GoodType, number>>
+): Partial<Record<GoodType, number>> {
+	const out: Partial<Record<GoodType, number>> = {}
+	for (const [goodType, quantity] of Object.entries(values) as [GoodType, number | undefined][]) {
+		if (quantity === undefined || quantity <= 0) continue
+		out[goodType] = Number.isFinite(quantity) ? quantity : Number.MAX_SAFE_INTEGER
+	}
+	return out
+}
+
+function freightStopKind(stop: FreightStop): FreightStopCommerceKind {
+	if ('anchor' in stop) return 'bay'
+	if ('trade' in stop) return 'settlement-trade'
+	return stop.zone.kind === 'named' ? 'named-zone' : 'radius-zone'
+}
+
+function freightStopReserve(line: FreightLineDefinition, stop: FreightStop): number {
+	return Math.max(
+		0,
+		Math.floor(
+			stop.minBalanceAfterBuyVp ??
+				line.minBalanceAfterBuyVp ??
+				commerce.procurement.bufferPurchaseReserveVp
+		)
+	)
 }
 
 /** Copy a goods map while dropping non-positive / non-finite quantities. */
@@ -194,10 +254,12 @@ function allowedGoodsProvidedAtStop(line: FreightLineDefinition, stopIndex: numb
 	if (stop?.loadSelection) {
 		return listGoodTypesMatchingSelectionPolicy(stop.loadSelection, FREIGHT_LINE_ALL_GOOD_TYPES)
 	}
+	if (stop && 'trade' in stop) return [...FREIGHT_LINE_ALL_GOOD_TYPES]
 	const gatherSegment = gatherLoadSegmentForStop(line, stopIndex)
 	if (gatherSegment) return listGoodsAllowedOnGatherSegment(line, gatherSegment)
 	const distributeSegment = distributeLoadSegmentForStop(line, stopIndex)
 	if (distributeSegment) return listGoodsAllowedOnDistributeSegment(line, distributeSegment)
+	if (stop && 'anchor' in stop) return [...FREIGHT_LINE_ALL_GOOD_TYPES]
 	return []
 }
 
@@ -209,6 +271,7 @@ function allowedGoodsNeededAtStop(
 	if (stop.unloadSelection) {
 		return listGoodTypesMatchingSelectionPolicy(stop.unloadSelection, FREIGHT_LINE_ALL_GOOD_TYPES)
 	}
+	if ('trade' in stop) return [...FREIGHT_LINE_ALL_GOOD_TYPES]
 	const gatherSegment = gatherUnloadSegmentForStop(line, stopIndex)
 	if (gatherSegment) {
 		return filterAllowedGoods(
@@ -223,6 +286,7 @@ function allowedGoodsNeededAtStop(
 			stop.unloadSelection
 		)
 	}
+	if ('anchor' in stop) return [...FREIGHT_LINE_ALL_GOOD_TYPES]
 	return []
 }
 
@@ -284,11 +348,10 @@ export function measureZoneStandaloneConstructionNeedSink(
 ): FreightStopGoodsSnapshot {
 	const perGood: Partial<Record<GoodType, number>> = {}
 	for (const tile of listTilesInAxialRadius(game, center, radius)) {
-		const c = tile.content
-		if (!isStandaloneConstructionSiteShell(c) || c.destroyed || c.isReady) continue
-		const site = c as ConstructionSiteShell
+		const site = freightConstructionDemandTarget(tile.content)
+		if (!site || site.destroyed || site.isReady) continue
 		for (const g of allowedGoods) {
-			const need = site.remainingNeeds[g as string]
+			const need = site.remainingNeeds[g]
 			if (need === undefined || need <= 0) continue
 			perGood[g] = (perGood[g] ?? 0) + need
 		}
@@ -324,6 +387,9 @@ export function measureHiveStoredGoodsSource(
 function sumHiveStorageHasRoomForGood(hive: Hive, goodType: GoodType): number {
 	let sum = 0
 	for (const alv of hive.generalStorages) {
+		const relation = alv.workingGoodsRelations[goodType]
+		if (relation?.advertisement !== 'demand') continue
+		if (relation.priority !== '1-buffer' && relation.priority !== '2-use') continue
 		const room = alv.storage.hasRoom(goodType) ?? 0
 		if (room > 0) sum += room
 	}
@@ -387,6 +453,16 @@ export function measureFreightStopProvidedGoods(
 	const allowedGoods = allowedGoodsProvidedAtStop(line, stopIndex)
 	if (allowedGoods.length === 0) return snapshotFromGoodsCounts({})
 	const allowedGoodsSet = new Set(allowedGoods)
+	if ('trade' in stop) {
+		const profile = game.getSettlementTradeProfile(stop.trade.settlementId)
+		const perGood: Partial<Record<GoodType, number>> = {}
+		for (const offer of profile?.offers ?? []) {
+			if (offer.direction !== 'sell') continue
+			if (!allowedGoodsSet.has(offer.good)) continue
+			perGood[offer.good] = Number.MAX_SAFE_INTEGER
+		}
+		return snapshotFromGoodsCounts(perGood, 'vehicle-station')
+	}
 	if ('zone' in stop) {
 		if (stop.zone.kind === 'radius') {
 			return measureZoneLooseGoodsSource(
@@ -423,6 +499,16 @@ export function measureFreightStopNeededGoods(
 	const allowedGoods = allowedGoodsNeededAtStop(line, stopIndex, stop)
 	if (allowedGoods.length === 0) return snapshotFromGoodsCounts({})
 	const allowedGoodsSet = new Set(allowedGoods)
+	if ('trade' in stop) {
+		const profile = game.getSettlementTradeProfile(stop.trade.settlementId)
+		const perGood: Partial<Record<GoodType, number>> = {}
+		for (const offer of profile?.offers ?? []) {
+			if (offer.direction !== 'buy') continue
+			if (!allowedGoodsSet.has(offer.good)) continue
+			perGood[offer.good] = Number.MAX_SAFE_INTEGER
+		}
+		return snapshotFromGoodsCounts(perGood, 'vehicle-station')
+	}
 	if ('zone' in stop) {
 		if (stop.zone.kind === 'radius') {
 			return measureZoneStandaloneConstructionNeedSink(
@@ -434,11 +520,10 @@ export function measureFreightStopNeededGoods(
 		}
 		const perGood: Partial<Record<GoodType, number>> = {}
 		for (const tile of freightZoneTiles(game, stop.zone)) {
-			const c = tile.content
-			if (!isStandaloneConstructionSiteShell(c) || c.destroyed || c.isReady) continue
-			const site = c as ConstructionSiteShell
+			const site = freightConstructionDemandTarget(tile.content)
+			if (!site || site.destroyed || site.isReady) continue
 			for (const g of allowedGoodsSet) {
-				const need = site.remainingNeeds[g as string]
+				const need = site.remainingNeeds[g]
 				if (need === undefined || need <= 0) continue
 				perGood[g] = (perGood[g] ?? 0) + need
 			}
@@ -513,5 +598,193 @@ export function projectLoadedGoodsAgainstFurtherNeeds(
 		surplusLoadedGoods: snapshotFromGoodsCounts(
 			subtractGoodsCounts(loadedGoods, reservedLoadedGoods)
 		),
+	}
+}
+
+function vehicleAvailableGoods(
+	vehicle: VehicleEntity | undefined,
+	goods: Partial<Record<GoodType, number>>
+): Partial<Record<GoodType, number>> {
+	if (!vehicle) return {}
+	const out: Partial<Record<GoodType, number>> = {}
+	for (const [goodType, quantity] of Object.entries(goods) as [GoodType, number][]) {
+		const available = vehicle.storage.available(goodType)
+		const transfer = Math.min(quantity, available)
+		if (transfer > 0) out[goodType] = transfer
+	}
+	return out
+}
+
+function vehicleRoomGoods(
+	vehicle: VehicleEntity | undefined,
+	goods: Partial<Record<GoodType, number>>
+): Partial<Record<GoodType, number>> {
+	if (!vehicle) return {}
+	const out: Partial<Record<GoodType, number>> = {}
+	for (const [goodType, quantity] of Object.entries(goods) as [GoodType, number][]) {
+		const room = vehicle.storage.hasRoom(goodType) ?? 0
+		const transfer = Math.min(quantity, room)
+		if (transfer > 0) out[goodType] = transfer
+	}
+	return out
+}
+
+function affordableImportGoods(args: {
+	readonly game: Game
+	readonly line: FreightLineDefinition
+	readonly stop: FreightStop
+	readonly goods: Partial<Record<GoodType, number>>
+	readonly creditedVp?: number
+}): Partial<Record<GoodType, number>> {
+	if (!('trade' in args.stop)) return args.goods
+	const profile = args.game.getSettlementTradeProfile(args.stop.trade.settlementId)
+	if (!profile) return {}
+	const prices = new Map<GoodType, number>()
+	for (const offer of profile.offers) {
+		if (offer.direction === 'sell') prices.set(offer.good, offer.priceVp)
+	}
+	const reserve = freightStopReserve(args.line, args.stop)
+	const out: Partial<Record<GoodType, number>> = {}
+	for (const [goodType, quantity] of Object.entries(args.goods) as [GoodType, number][]) {
+		const unitPrice = prices.get(goodType)
+		if (unitPrice === undefined || unitPrice <= 0) continue
+		const balanceAfterExports = args.game.playerAccount.balanceVp + Math.max(0, args.creditedVp ?? 0)
+		const affordable = Math.floor((balanceAfterExports - reserve) / unitPrice)
+		const transfer = Math.min(quantity, Math.max(0, affordable))
+		if (transfer > 0) out[goodType] = transfer
+	}
+	return out
+}
+
+function settlementCreditForGoods(
+	game: Game,
+	stop: FreightStop,
+	goods: Partial<Record<GoodType, number>>
+): number {
+	if (!('trade' in stop)) return 0
+	const profile = game.getSettlementTradeProfile(stop.trade.settlementId)
+	const prices = new Map<GoodType, number>()
+	for (const offer of profile?.offers ?? []) {
+		if (offer.direction === 'buy') prices.set(offer.good, offer.priceVp)
+	}
+	let total = 0
+	for (const [goodType, quantity] of Object.entries(goods) as [GoodType, number][]) {
+		total += quantity * (prices.get(goodType) ?? 0)
+	}
+	return total
+}
+
+function tradeOfferCounts(game: Game, stop: FreightStop): { buy: number; sell: number } {
+	if (!('trade' in stop)) return { buy: 0, sell: 0 }
+	const profile = game.getSettlementTradeProfile(stop.trade.settlementId)
+	let buy = 0
+	let sell = 0
+	for (const offer of profile?.offers ?? []) {
+		if (offer.direction === 'buy') buy++
+		else sell++
+	}
+	return { buy, sell }
+}
+
+export function explainFreightStopCommerce(args: {
+	readonly game: Game
+	readonly line: FreightLineDefinition
+	readonly stopIndex: number
+	readonly vehicle?: VehicleEntity
+}): FreightStopCommerceExplanation {
+	const stop = args.line.stops[args.stopIndex]
+	if (!stop) {
+		return {
+			stopKind: 'radius-zone',
+			localProvidedGoods: snapshotFromGoodsCounts({}),
+			localNeededGoods: snapshotFromGoodsCounts({}),
+			downstreamDemandGoods: snapshotFromGoodsCounts({}),
+			importOpportunityGoods: snapshotFromGoodsCounts({}),
+			exportOpportunityGoods: snapshotFromGoodsCounts({}),
+			retainedCargoGoods: snapshotFromGoodsCounts({}),
+			surplusCargoGoods: snapshotFromGoodsCounts({}),
+			blockReasons: ['no_downstream_demand'],
+		}
+	}
+	const localProvidedGoods = measureFreightStopProvidedGoods(args.game, args.line, args.stopIndex)
+	const localNeededGoods = measureFreightStopNeededGoods(args.game, args.line, args.stopIndex)
+	const further = computeLineFurtherGoods({
+		game: args.game,
+		line: args.line,
+		currentStopIndex: args.stopIndex,
+	})
+	const loadedGoods = args.vehicle?.storage.stock ?? {}
+	const projected = projectLoadedGoodsAgainstFurtherNeeds(
+		loadedGoods,
+		further.furtherNeededGoods.perGood
+	)
+	const exportOpportunityGoods = snapshotFromGoodsCounts(
+		vehicleAvailableGoods(args.vehicle, finiteGoodsCounts(localNeededGoods.perGood))
+	)
+	const projectedExportCreditVp = settlementCreditForGoods(
+		args.game,
+		stop,
+		exportOpportunityGoods.perGood
+	)
+	const neededProvidedIntersection = intersectGoodsCounts(
+		projected.remainingNeededGoods.perGood,
+		finiteGoodsCounts(localProvidedGoods.perGood)
+	)
+	const roomCappedImports = vehicleRoomGoods(args.vehicle, neededProvidedIntersection)
+	const roomCappedImportTotal = sumRecord(roomCappedImports)
+	const importOpportunityGoods = snapshotFromGoodsCounts(
+		affordableImportGoods({
+			game: args.game,
+			line: args.line,
+			stop,
+			goods: roomCappedImports,
+			creditedVp: projectedExportCreditVp,
+		})
+	)
+	const blockReasons: FreightStopCommerceBlockReason[] = []
+	const stopKind = freightStopKind(stop)
+	if (!args.vehicle) addBlockReason(blockReasons, 'no_vehicle')
+	if (further.furtherNeededGoods.total <= 0) {
+		addBlockReason(blockReasons, 'no_downstream_demand')
+		if (stopKind === 'settlement-trade' || stopKind === 'bay') {
+			addBlockReason(blockReasons, 'buffer_full')
+		}
+	}
+	if (args.vehicle && projected.remainingNeededGoods.total > 0 && roomCappedImportTotal <= 0) {
+		addBlockReason(blockReasons, 'vehicle_full')
+	}
+	if ('trade' in stop) {
+		const offerCounts = tradeOfferCounts(args.game, stop)
+		if (offerCounts.sell <= 0 && projected.remainingNeededGoods.total > 0) {
+			addBlockReason(blockReasons, 'no_matching_settlement_offer')
+		}
+		if (offerCounts.buy <= 0 && args.vehicle && sumRecord(args.vehicle.storage.stock) > 0) {
+			addBlockReason(blockReasons, 'no_matching_settlement_offer')
+		}
+		if (offerCounts.sell > 0 && localProvidedGoods.total <= 0) {
+			addBlockReason(blockReasons, 'policy_blocks_good')
+		}
+		if (offerCounts.buy > 0 && localNeededGoods.total <= 0) {
+			addBlockReason(blockReasons, 'policy_blocks_good')
+		}
+		if (
+			args.vehicle &&
+			roomCappedImportTotal > 0 &&
+			importOpportunityGoods.total <= 0
+		) {
+			addBlockReason(blockReasons, 'reserve_blocks_import')
+		}
+	}
+	return {
+		stopKind,
+		localProvidedGoods,
+		localNeededGoods,
+		downstreamDemandGoods: further.furtherNeededGoods,
+		importOpportunityGoods,
+		exportOpportunityGoods,
+		retainedCargoGoods: projected.reservedLoadedGoods,
+		surplusCargoGoods: projected.surplusLoadedGoods,
+		...('trade' in stop ? { minBalanceAfterBuyVp: freightStopReserve(args.line, stop) } : {}),
+		blockReasons,
 	}
 }

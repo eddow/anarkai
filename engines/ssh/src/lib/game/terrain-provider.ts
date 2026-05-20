@@ -303,8 +303,8 @@ export class TerrainProvider {
 			sectorRadius,
 		})
 		const snapped = {
-			q: Math.floor(center.q / MACRO_REGION_SNAP) * MACRO_REGION_SNAP,
-			r: Math.floor(center.r / MACRO_REGION_SNAP) * MACRO_REGION_SNAP,
+			q: Math.round(center.q / MACRO_REGION_SNAP) * MACRO_REGION_SNAP,
+			r: Math.round(center.r / MACRO_REGION_SNAP) * MACRO_REGION_SNAP,
 		}
 		const key = `${config.terrainSeed}:${snapped.q},${snapped.r}:r${sectorRadius}:m${macroStep}`
 		const cached = this.macroCache.get(key)

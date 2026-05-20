@@ -10,6 +10,7 @@ import {
 	findBest,
 	findNearest,
 	findPath,
+	findReachable,
 	fromCartesian,
 	type NeighborInfo,
 	type Positioned,
@@ -416,6 +417,14 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 
 	findPath(start: Positioned, goal: Positioned, maxTime: number, punctual: boolean = true) {
 		return findPath((c) => this.getNeighbors(c), start, goal, maxTime, punctual)
+	}
+
+	reachableForCharacter(start: Positioned, character: Character, maxTime: number) {
+		return findReachable(
+			(c) => this.getNeighborsForCharacter(c, character),
+			axial.round(toAxialCoord(start)),
+			maxTime
+		)
 	}
 
 	findNearest(

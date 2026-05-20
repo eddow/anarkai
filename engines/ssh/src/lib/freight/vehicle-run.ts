@@ -1,7 +1,7 @@
 import { jobBalance } from 'engine-rules'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
-import { isStandaloneConstructionSiteShell, materialRemainingNeeds } from 'ssh/build-site'
+import { freightConstructionDemandTarget } from 'ssh/freight/construction-demand'
 import type {
 	FreightLineDefinition,
 	FreightStop,
@@ -27,6 +27,10 @@ import {
 	measureFreightStopNeededGoods,
 	measureFreightStopProvidedGoods,
 } from 'ssh/freight/freight-stop-utility'
+import {
+	executeNpcTradeStopTransfer,
+	npcTradeStopHasTransfer,
+} from 'ssh/freight/npc-trade-stop'
 import { scoreVehicleCandidate } from 'ssh/freight/vehicle-candidate-policy'
 import { collectDockedVehicleAdvertisementCandidates } from 'ssh/freight/vehicle-freight-dock'
 import {
@@ -76,6 +80,9 @@ export function freightStopMovementTarget(
 		}
 		return freightZoneFallbackPosition(game, stop.zone)
 	}
+	if ('trade' in stop) {
+		return game.getSettlementTradeProfile(stop.trade.settlementId)?.cityHall.position
+	}
 	return undefined
 }
 
@@ -89,6 +96,8 @@ export function freightStopTargetPosition(game: Game, stop: FreightStop): Positi
 		return { q: stop.zone.center[0], r: stop.zone.center[1] }
 	}
 	if ('zone' in stop && stop.zone.kind === 'named') return freightZoneFallbackPosition(game, stop.zone)
+	if ('trade' in stop)
+		return game.getSettlementTradeProfile(stop.trade.settlementId)?.cityHall.position
 	return undefined
 }
 
@@ -273,7 +282,6 @@ function findBeginServiceActionableWork(
 			const unloadStop = line.stops[segment.unloadStopIndex]
 			if (!loadStop || !('zone' in loadStop)) continue
 			if (!unloadStop) continue
-			if (!freightZoneContainsPosition(game, loadStop.zone, vehicle.effectivePosition)) continue
 			for (const good of Object.keys(vehicle.storage.stock) as GoodType[]) {
 				if (vehicle.storage.available(good) <= 0) continue
 				if (!gatherSegmentAllowsGoodTypeForSegment(line, segment, good)) continue
@@ -332,16 +340,13 @@ function findBeginServiceActionableWork(
 					: freightZoneTiles(game, unloadStop.zone)
 				: game.hex.tiles
 		for (const tile of tiles) {
-			const c = tile.content
-			if (!isStandaloneConstructionSiteShell(c) || c.destroyed || c.isReady) continue
+			const c = freightConstructionDemandTarget(tile.content)
+			if (!c || c.destroyed || c.isReady) continue
 			const tilePos = toAxialCoord(tile.position)
 			if (!tilePos) continue
 			if (!distributeSegmentWithinRadius(line, segment, axial.distance(bayPos, tilePos))) continue
 			if (!distributeSegmentAllowsTile(game, line, segment, tile)) continue
-			const remaining =
-				c.remainingNeeds && typeof c.remainingNeeds === 'object'
-					? c.remainingNeeds
-					: materialRemainingNeeds(c.requiredGoods ?? {}, c.storage)
+			const remaining = c.remainingNeeds
 			for (const g of Object.keys(remaining) as GoodType[]) {
 				const neededGood = remaining[g] ?? 0
 				if (neededGood <= 0) continue
@@ -383,6 +388,17 @@ function findBeginServiceActionableWork(
 			target: selection.targetTile.position,
 			stop,
 			urgency: zoneBrowseUrgency(selection.action, selection.priorityTier),
+		})
+	}
+	for (const stop of line.stops) {
+		if (!('trade' in stop)) continue
+		if (!stopHasPotentialVehicleTransfer(game, character, vehicle, line, stop)) continue
+		const target = freightStopTargetPosition(game, stop)
+		if (!target) continue
+		consider({
+			target,
+			stop,
+			urgency: jobBalance.vehicleBeginService,
 		})
 	}
 	return best ? { target: best.target, stop: best.stop, urgency: best.urgency } : undefined
@@ -438,6 +454,10 @@ export function projectedLineStopForVehicleHop(
 	const line = svc.line
 	const stop = svc.stop
 	if (!('zone' in stop)) {
+		const targetPos = freightStopMovementTarget(game, character, line, stop)
+		const targetCoord = targetPos ? axial.round(toAxialCoord(targetPos)!) : undefined
+		const vehicleCoord = axial.round(toAxialCoord(vehicle.effectivePosition)!)
+		if (targetCoord && axial.key(targetCoord) !== axial.key(vehicleCoord)) return { line, stop }
 		if (!line.cyclic) return { line, stop }
 		if (stopHasPotentialVehicleTransfer(game, character, vehicle, line, stop)) return { line, stop }
 		return nextActionableVehicleLineStop(game, vehicle, line, stop, character)
@@ -658,6 +678,31 @@ export function advanceVehicleLineServicePastEmptyStops(
 			continue
 		}
 
+		if ('trade' in stop) {
+			if (stopHasPotentialVehicleTransfer(game, character, vehicle, line, stop)) return
+
+			traces.vehicle.log?.('vehicleJob.line.emptyStop', {
+				vehicleUid: vehicle.uid,
+				lineId: line.id,
+				stopId: stop.id,
+				reason: 'empty-trade-stop',
+				trade: stop.trade,
+			})
+			const ended = advanceVehicleToNextLineStopOrEnd(vehicle, line, stop, 'empty-trade-stop')
+			if (ended) return
+			const advancedService = vehicle.service
+			if (
+				line.cyclic &&
+				isVehicleLineService(advancedService) &&
+				lastSkippedStopId === advancedService.stop.id
+			) {
+				vehicle.endService()
+				return
+			}
+			lastSkippedStopId = stop.id
+			continue
+		}
+
 		return
 	}
 	if (isVehicleLineService(vehicle.service) && vehicle.service.line.cyclic) vehicle.endService()
@@ -828,6 +873,31 @@ export function advanceVehicleAfterDock(vehicle: VehicleEntity): void {
 		return
 	}
 	vehicle.advanceToStop(next)
+}
+
+export function executeNpcTradeStopAndAdvance(
+	game: Game,
+	vehicle: VehicleEntity,
+	character?: Character
+): boolean {
+	const svc = vehicle.service
+	if (!isVehicleLineService(svc)) return false
+	const { line, stop } = svc
+	if (!('trade' in stop)) return false
+	const result = executeNpcTradeStopTransfer({ game, vehicle, line, stop })
+	traces.vehicle.log?.('vehicleJob.tradeStop.transfer', {
+		vehicleUid: vehicle.uid,
+		lineId: line.id,
+		stopId: stop.id,
+		result,
+	})
+	if (npcTradeStopHasTransfer(result)) {
+		advanceVehicleAfterDock(vehicle)
+		advanceVehicleLineServicePastEmptyStops(game, vehicle, character)
+		return true
+	}
+	advanceVehicleLineServicePastEmptyStops(game, vehicle, character)
+	return false
 }
 
 /**

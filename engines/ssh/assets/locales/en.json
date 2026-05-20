@@ -67,6 +67,15 @@
 			"section": "Danger zone",
 			"action": "Delete line"
 		},
+		"vehicleAssignment": {
+			"section": "Assigned vehicles",
+			"assigned": "Vehicles",
+			"add": "Add vehicle",
+			"filter": "Filter vehicles...",
+			"emptyAssigned": "No vehicles assigned",
+			"emptyAvailable": "No compatible vehicles available",
+			"remove": "Remove vehicle"
+		},
 		"mapPick": {
 			"pending": "Choose a map tile to finish the freight pick.",
 			"cancel": "Cancel pick"

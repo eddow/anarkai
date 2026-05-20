@@ -54,6 +54,11 @@ export class FreightLineOverlay {
 			const world = toWorldCoord({ q: stop.anchor.coord[0], r: stop.anchor.coord[1] })
 			return world ?? undefined
 		}
+		if ('trade' in stop) {
+			const coord =
+				this.renderer.game.getSettlementTradeProfile(stop.trade.settlementId)?.cityHall.position
+			return coord ? (toWorldCoord(coord) ?? undefined) : undefined
+		}
 		if (stop.zone.kind === 'radius') {
 			const world = toWorldCoord({ q: stop.zone.center[0], r: stop.zone.center[1] })
 			return world ?? undefined

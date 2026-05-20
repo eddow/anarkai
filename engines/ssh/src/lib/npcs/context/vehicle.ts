@@ -8,6 +8,7 @@ import {
 import {
 	disembarkOperatorLeavingDockedVehicleInService,
 	ensureVehicleServiceStarted,
+	executeNpcTradeStopAndAdvance,
 	maybeAdvanceVehicleFromCompletedAnchorStop,
 	maybeAdvanceVehiclePastCompletedZoneStop,
 	offboardOperatorAfterFreightWorkComplete,
@@ -226,6 +227,7 @@ class VehicleFunctions {
 		assert(vehicle, 'vehicleHop: vehicle missing')
 		assert(character.operates?.uid === vehicle.uid, 'vehicleHop: wrong operated vehicle')
 		assert(character.driving, 'vehicleHop: not driving')
+		jobPlan.vehicleHopStopHandled = false
 		vehicleTraceAssert(
 			isVehicleLineService(vehicle.service),
 			'vehicleHop requires active line service (run vehicleBeginService first)'
@@ -296,6 +298,7 @@ class VehicleFunctions {
 		}
 		if ('anchor' in stop) {
 			jobPlan.vehicleHopAnchorDockDisembarked = true
+			jobPlan.vehicleHopStopHandled = true
 			vehicle.dock()
 			assertDockedSemantics(vehicle)
 			traces.vehicle.log?.('vehicleJob.hop.dock', {
@@ -315,7 +318,16 @@ class VehicleFunctions {
 			})
 		} else {
 			jobPlan.vehicleHopAnchorDockDisembarked = false
+			jobPlan.vehicleHopStopHandled = false
 			vehicle.undock()
+			if ('trade' in stop) {
+				jobPlan.vehicleHopStopHandled = true
+				if (character.driving) character.stepOffVehicleKeepingControl()
+				executeNpcTradeStopAndAdvance(character.game, vehicle, character)
+				if (character.operates?.uid === vehicle.uid && isVehicleLineService(vehicle.service)) {
+					character.disengageVehicleKeepingService()
+				}
+			}
 			traces.vehicle.log?.('vehicleJob.hop.zoneReach', {
 				characterUid: character.uid,
 				vehicleUid: vehicle.uid,

@@ -8,10 +8,14 @@ import {
 	moveFreightDraftStop,
 	removeFreightDraftStop,
 	setFreightDraftStopLoadSelection,
-	setFreightDraftStopNamedZoneId,
+	setFreightDraftStopMinBalanceAfterBuyVp,
 	setFreightDraftStopUnloadSelection,
-	setFreightDraftStopZoneRadius,
 } from '@app/lib/freight-line-draft'
+import {
+	activateFreightAddStopPick,
+	cancelFreightMapPick,
+	freightMapPick,
+} from '@app/lib/freight-map-pick'
 import { hoverFreightLineStop } from '@app/lib/freight-line-overlay'
 import { T } from '@app/lib/i18n'
 import { getZoneObject } from '@app/lib/zone-selection'
@@ -27,9 +31,16 @@ import {
 } from 'pure-glyf/icons'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
 import { freightLineStationLabel } from 'ssh/freight/freight-line'
+import { settlementTradeObjectUid } from 'ssh/commerce/settlement-trade'
+import {
+	explainFreightStopCommerce,
+	type FreightStopCommerceBlockReason,
+	type FreightStopGoodsSnapshot,
+} from 'ssh/freight/freight-stop-utility'
 import type { GoodSelectionPolicy } from 'ssh/freight/goods-selection-policy'
 import { UNRESTRICTED_GOODS_SELECTION_POLICY } from 'ssh/freight/goods-selection-policy'
 import type { Game } from 'ssh/game'
+import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import GoodSelectionRulesEditor from './GoodSelectionRulesEditor'
 import InspectorObjectLink from './InspectorObjectLink'
 import LinkedEntityControl from './LinkedEntityControl'
@@ -118,12 +129,36 @@ css`
 	gap: 0.35rem;
 	min-width: 0;
 }
+.freight-stop-list__kind-badge {
+	flex: 0 0 auto;
+	padding: 0.12rem 0.35rem;
+	border-radius: 0.3rem;
+	background: color-mix(in srgb, var(--ak-text-muted) 12%, transparent);
+	color: var(--ak-text-muted);
+	font-size: 0.68rem;
+	font-weight: 600;
+}
 .freight-stop-list__summary {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	color: var(--ak-text);
+}
+.freight-stop-list__commerce {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.25rem 0.45rem;
+	margin-top: 0.25rem;
+	color: var(--ak-text-muted);
+	font-size: 0.68rem;
+	line-height: 1.35;
+}
+.freight-stop-list__commerce-item {
+	white-space: nowrap;
+}
+.freight-stop-list__commerce-reason {
+	color: color-mix(in srgb, var(--ak-warning, #d8a33f) 82%, var(--ak-text));
 }
 .freight-stop-list__muted {
 	color: var(--ak-text-muted);
@@ -173,6 +208,7 @@ css`
 	align-items: center;
 	gap: 0.35rem;
 	font-size: 0.72rem;
+	flex-wrap: wrap;
 }
 .freight-stop-list__policy-summary__item {
 	display: inline-flex;
@@ -207,6 +243,49 @@ css`
 	color: var(--ak-text);
 	font-size: 0.68rem;
 }
+.freight-stop-list__reserve {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	color: var(--ak-text-muted);
+	font-size: 0.68rem;
+}
+.freight-stop-list__reserve-input {
+	width: 4.4rem;
+	padding: 0.18rem 0.3rem;
+	border-radius: 0.3rem;
+	border: 1px solid color-mix(in srgb, var(--ak-text-muted) 18%, transparent);
+	background: color-mix(in srgb, var(--ak-surface-panel) 92%, transparent);
+	color: var(--ak-text);
+	font-size: 0.68rem;
+}
+.freight-stop-list__add-panel {
+	display: grid;
+	grid-template-columns: minmax(8rem, 1fr) minmax(8rem, 1.2fr) auto;
+	gap: 0.4rem;
+	align-items: end;
+	padding: 0.55rem;
+	border: 1px solid color-mix(in srgb, var(--ak-text-muted) 14%, transparent);
+	border-radius: 0.45rem;
+	background: color-mix(in srgb, var(--ak-surface-panel) 88%, transparent);
+}
+.freight-stop-list__add-field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+	color: var(--ak-text-muted);
+	font-size: 0.68rem;
+}
+.freight-stop-list__add-coords {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 0.3rem;
+}
+.freight-stop-list__add-actions {
+	display: inline-flex;
+	gap: 0.25rem;
+	justify-content: flex-end;
+}
 `
 
 interface FreightStopListProps {
@@ -230,12 +309,87 @@ const zoneObjectForStop = (stop: FreightStop) => {
 	return getZoneObject(stop.zone.zoneId)
 }
 
+const tradeObjectForStop = (game: Game, stop: FreightStop) => {
+	if (!('trade' in stop)) return undefined
+	return game.getObject(settlementTradeObjectUid(stop.trade.settlementId))
+}
+
 const stopLabel = (game: Game, stop: FreightStop): string => {
 	if ('anchor' in stop) return freightLineStationLabel(stop.anchor)
+	if ('trade' in stop) {
+		return game.getSettlementTradeProfile(stop.trade.settlementId)?.name ?? stop.trade.settlementId
+	}
 	if (stop.zone.kind === 'named') {
 		return game.hex.zoneManager.getZoneDefinition(stop.zone.zoneId)?.name ?? stop.zone.zoneId
 	}
 	return `(${stop.zone.center[0]}, ${stop.zone.center[1]}) r<=${stop.zone.radius}`
+}
+
+const stopKind = (stop: FreightStop): 'anchor' | 'radius' | 'named' | 'trade' => {
+	if ('anchor' in stop) return 'anchor'
+	if ('trade' in stop) return 'trade'
+	if (stop.zone.kind === 'named') return 'named'
+	return 'radius'
+}
+
+const stopKindLabel = (stop: FreightStop): string => {
+	const kind = stopKind(stop)
+	if (kind === 'anchor') return 'Bay'
+	if (kind === 'radius') return 'Zone'
+	if (kind === 'named') return 'Named'
+	return 'Trade'
+}
+
+const parseNonNegativeInteger = (raw: string): number | undefined => {
+	if (raw.trim() === '' || Number.isNaN(Number(raw))) return undefined
+	return Math.max(0, Math.floor(Number(raw)))
+}
+
+const formatGoodsSnapshot = (snapshot: FreightStopGoodsSnapshot): string => {
+	const entries = Object.entries(snapshot.perGood)
+		.filter((entry): entry is [string, number] => typeof entry[1] === 'number' && entry[1] > 0)
+		.sort(([left], [right]) => left.localeCompare(right))
+	if (entries.length === 0) return 'none'
+	return entries
+		.map(([good, quantity]) =>
+			quantity >= Number.MAX_SAFE_INTEGER ? `${good} available` : `${good} ${quantity}`
+		)
+		.join(', ')
+}
+
+const blockReasonLabel = (reason: FreightStopCommerceBlockReason): string => {
+	switch (reason) {
+		case 'no_vehicle':
+			return 'no vehicle assigned'
+		case 'vehicle_full':
+			return 'vehicle full'
+		case 'no_downstream_demand':
+			return 'no downstream demand'
+		case 'buffer_full':
+			return 'buffer full / construction satisfied'
+		case 'no_matching_settlement_offer':
+			return 'no matching settlement offer'
+		case 'reserve_blocks_import':
+			return 'reserve blocks import'
+		case 'policy_blocks_good':
+			return 'policy blocks goods'
+		default:
+			return reason
+	}
+}
+
+const commerceReasonText = (reasons: readonly FreightStopCommerceBlockReason[]): string => {
+	if (reasons.length === 0) return 'ready'
+	return reasons.map(blockReasonLabel).join(', ')
+}
+
+const tradeStopCanImport = (game: Game, stop: FreightStop): boolean => {
+	if (!('trade' in stop)) return false
+	return (
+		game
+			.getSettlementTradeProfile(stop.trade.settlementId)
+			?.offers?.some((offer) => offer.direction === 'sell') ?? false
+	)
 }
 
 const PolicySummary = (props: { policy: GoodSelectionPolicy | undefined; label: string }) => {
@@ -313,7 +467,6 @@ const FreightStopList = (props: FreightStopListProps) => {
 	const goods = () => T.goods
 	const goodsTags = () => T.goodsTags
 	const currentDraft = () => props.draft
-	const namedZones = () => props.game.hex.zoneManager.listCustomZoneDefinitions()
 	const goodOptions = () => freightInspectorGoodOptions(goods())
 	const tagOptions = () => freightInspectorTagOptions(goodsTags())
 	const stopsIndexed = memoize((): { stop: FreightStop; index: number }[] => {
@@ -328,10 +481,26 @@ const FreightStopList = (props: FreightStopListProps) => {
 		if (!draft) return
 		props.onChange(fn(draft))
 	}
-	const handleAdd = () => {
+	const reserveDefault = () => props.game.procurementDefaults?.bufferPurchaseReserveVp ?? 0
+	const addPickActive = () => {
+		const draft = currentDraft()
+		return !!draft && freightMapPick.pending?.lineId === draft.id && freightMapPick.pending.pickKind === 'add-stop'
+	}
+	const toggleAddStopPick = () => {
 		const draft = currentDraft()
 		if (props.readOnly || !draft) return
-		props.onChange(addFreightDraftStop(draft, draft.stops.length))
+		if (addPickActive()) {
+			cancelFreightMapPick()
+			return
+		}
+		activateFreightAddStopPick({
+			lineId: draft.id,
+			apply: (stop) => {
+				const line = currentDraft()
+				if (!line) return
+				props.onChange(addFreightDraftStop(line, line.stops.length, stop))
+			},
+		})
 	}
 	const toggleExpanded = (stopId: string) => {
 		expanded.byStopId[stopId] = !expanded.byStopId[stopId]
@@ -343,6 +512,44 @@ const FreightStopList = (props: FreightStopListProps) => {
 		dragFrom = undefined
 		if (from === to) return
 		apply((line) => moveFreightDraftStop(line, from, to))
+	}
+	const handleStopReserveInput = (index: number, raw: string) => {
+		apply((line) => setFreightDraftStopMinBalanceAfterBuyVp(line, index, parseNonNegativeInteger(raw)))
+	}
+	const vehiclesForLine = (): VehicleEntity[] => {
+		const draft = currentDraft()
+		const vehicles = (props.game as { vehicles?: Iterable<VehicleEntity> }).vehicles
+		if (!draft || !vehicles) return []
+		const out: VehicleEntity[] = []
+		for (const vehicle of vehicles) {
+			if (vehicle.servedLines.some((line) => line.id === draft.id)) out.push(vehicle)
+		}
+		return out
+	}
+	const commerceForStop = (index: number) => {
+		const line = currentDraft()!
+		const vehicles = vehiclesForLine()
+		if (vehicles.length === 0) {
+			return explainFreightStopCommerce({
+				game: props.game,
+				line,
+				stopIndex: index,
+			})
+		}
+		const explanations = vehicles.map((vehicle) =>
+			explainFreightStopCommerce({
+				game: props.game,
+				line,
+				stopIndex: index,
+				vehicle,
+			})
+		)
+		return explanations.sort((a, b) => {
+			const aOpportunity = a.importOpportunityGoods.total + a.exportOpportunityGoods.total
+			const bOpportunity = b.importOpportunityGoods.total + b.exportOpportunityGoods.total
+			if (aOpportunity !== bOpportunity) return bOpportunity - aOpportunity
+			return a.blockReasons.length - b.blockReasons.length
+		})[0]!
 	}
 
 	return (
@@ -361,7 +568,9 @@ const FreightStopList = (props: FreightStopListProps) => {
 						{({ stop, index }: { stop: FreightStop; index: number }) => {
 							const tile = () => stationTileForStop(props.game, stop)
 							const zoneObj = () => zoneObjectForStop(stop)
+							const tradeObj = () => tradeObjectForStop(props.game, stop)
 							const expandedPolicy = () => !!expanded.byStopId[stop.id]
+							const commerce = () => commerceForStop(index)
 							return (
 								<>
 									<tr
@@ -388,6 +597,12 @@ const FreightStopList = (props: FreightStopListProps) => {
 										</td>
 										<td class="freight-stop-list__location">
 											<div class="freight-stop-list__location-main">
+												<span
+													class="freight-stop-list__kind-badge"
+													data-testid={`freight-stop-kind-label-${index}`}
+												>
+													{stopKindLabel(stop)}
+												</span>
 												<LinkedEntityControl if={tile()} object={tile()!} />
 												<InspectorObjectLink
 													if={tile()}
@@ -400,53 +615,56 @@ const FreightStopList = (props: FreightStopListProps) => {
 													object={zoneObj()!}
 													label={stopLabel(props.game, stop)}
 												/>
-												<span if={!tile() && !zoneObj()} class="freight-stop-list__summary">
+												<LinkedEntityControl if={tradeObj()} object={tradeObj()!} />
+												<InspectorObjectLink
+													if={tradeObj()}
+													object={tradeObj()!}
+													label={stopLabel(props.game, stop)}
+												/>
+												<span
+													if={!tile() && !zoneObj() && !tradeObj()}
+													class="freight-stop-list__summary"
+												>
 													{stopLabel(props.game, stop)}
 												</span>
-												<input
-													if={'zone' in stop && stop.zone.kind === 'radius'}
-													class="freight-stop-list__input"
-													type="text"
-													inputMode="numeric"
-													disabled={props.readOnly}
-													value={
-														'zone' in stop && stop.zone.kind === 'radius'
-															? String(stop.zone.radius)
-															: ''
-													}
-													update:value={(raw: string) => {
-														const radius =
-															raw.trim() === '' || Number.isNaN(Number(raw))
-																? 0
-																: Math.max(0, Math.floor(Number(raw)))
-														apply((line) => setFreightDraftStopZoneRadius(line, index, radius))
-													}}
-													data-testid={`freight-stop-zone-radius-${index}`}
-												/>
-												<select
-													if={'zone' in stop && stop.zone.kind === 'named'}
-													class="freight-stop-list__select"
-													disabled={props.readOnly}
-													value={
-														'zone' in stop && stop.zone.kind === 'named' ? stop.zone.zoneId : ''
-													}
-													update:value={(zoneId: string) =>
-														apply((line) => setFreightDraftStopNamedZoneId(line, index, zoneId))
-													}
-													data-testid={`freight-stop-named-zone-${index}`}
-												>
-													<for each={namedZones()}>
-														{(zone) => (
-															<option value={zone.id}>{zone.name?.trim() || zone.id}</option>
-														)}
-													</for>
-												</select>
+											</div>
+											<div class="freight-stop-list__commerce">
+												<span class="freight-stop-list__commerce-item">
+													demand {formatGoodsSnapshot(commerce().downstreamDemandGoods)}
+												</span>
+												<span class="freight-stop-list__commerce-item">
+													provides {formatGoodsSnapshot(commerce().localProvidedGoods)}
+												</span>
+												<span class="freight-stop-list__commerce-item">
+													needs {formatGoodsSnapshot(commerce().localNeededGoods)}
+												</span>
+												<span class="freight-stop-list__commerce-item">
+													import {formatGoodsSnapshot(commerce().importOpportunityGoods)}
+												</span>
+												<span class="freight-stop-list__commerce-item">
+													export {formatGoodsSnapshot(commerce().exportOpportunityGoods)}
+												</span>
+												<span class="freight-stop-list__commerce-item freight-stop-list__commerce-reason">
+													{commerceReasonText(commerce().blockReasons)}
+												</span>
 											</div>
 										</td>
 										<td class="freight-stop-list__policies">
 											<div class="freight-stop-list__policy-summary">
 												<PolicySummary policy={stop.loadSelection} label="L" />
 												<PolicySummary policy={stop.unloadSelection} label="U" />
+												<label if={tradeStopCanImport(props.game, stop)} class="freight-stop-list__reserve">
+													Reserve
+													<input
+														class="freight-stop-list__reserve-input"
+														type="text"
+														inputMode="numeric"
+														disabled={props.readOnly}
+														value={String(stop.minBalanceAfterBuyVp ?? reserveDefault())}
+														update:value={(raw: string) => handleStopReserveInput(index, raw)}
+														data-testid={`freight-stop-min-balance-${index}`}
+													/>
+												</label>
 											</div>
 										</td>
 										<td class="freight-stop-list__actions">
@@ -514,8 +732,9 @@ const FreightStopList = (props: FreightStopListProps) => {
 			<button
 				type="button"
 				class="freight-stop-list__add"
+				aria-pressed={addPickActive() ? 'true' : 'false'}
 				disabled={props.readOnly}
-				onClick={handleAdd}
+				onClick={toggleAddStopPick}
 				data-testid="freight-stop-add"
 			>
 				{icon(tablerOutlinePlus)}

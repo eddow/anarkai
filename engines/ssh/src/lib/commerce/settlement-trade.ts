@@ -1,8 +1,13 @@
 import { goods as goodsCatalog, settlementTrade } from 'engine-rules'
 import type { Tile } from 'ssh/board/tile'
 import type { Game } from 'ssh/game/game'
-import type { InspectorSelectableObject } from 'ssh/game/object'
-import type { GeneratedSettlement, GeneratedTileData, SettlementZonePlan } from 'ssh/generation'
+import { GameObject, withInteractive, type InspectorSelectableObject } from 'ssh/game/object'
+import {
+	selectSettlementCityHallPosition,
+	type GeneratedSettlement,
+	type GeneratedTileData,
+	type SettlementZonePlan,
+} from 'ssh/generation'
 import type { GoodType } from 'ssh/types'
 import type { AxialCoord } from 'ssh/utils'
 import { axial } from 'ssh/utils'
@@ -18,6 +23,14 @@ export interface NpcSettlementTradeOffer {
 	readonly label?: string
 }
 
+export interface NpcSettlementTradeTarget {
+	readonly id: string
+	readonly kind: 'city_hall'
+	readonly settlementId: string
+	readonly name: string
+	readonly position: AxialCoord
+}
+
 export interface NpcSettlementTradeProfile {
 	readonly id: string
 	readonly regionSetKey: string
@@ -25,6 +38,7 @@ export interface NpcSettlementTradeProfile {
 	readonly kind: GeneratedSettlement['kind']
 	readonly center: AxialCoord
 	readonly radius: number
+	readonly cityHall: NpcSettlementTradeTarget
 	readonly offers: readonly NpcSettlementTradeOffer[]
 }
 
@@ -34,6 +48,7 @@ const TRADE_GOODS = settlementTrade.goods as readonly GoodType[]
 const CONSTRUCTION_GOODS = new Set<GoodType>(
 	settlementTrade.constructionGoods as readonly GoodType[]
 )
+const BASIC_MATERIAL_GOODS = settlementTrade.basicMaterialGoods as readonly GoodType[]
 
 function goodBaseValue(good: GoodType): number {
 	const raw = goodsCatalog[good as keyof typeof goodsCatalog]?.baseValueVp
@@ -94,13 +109,25 @@ function rankGoods(args: {
 	})
 }
 
-function offerPrice(
-	good: GoodType,
+function offerPrice(good: GoodType, seed: number, settlement: GeneratedSettlement) {
+	const modifier = settlementTrade.priceMultipliers[settlement.kind]
+	const rnd = LCG('settlement-trade-price', seed, settlement.id, good)
+	const jitter = 1 + (rnd(2) - 1) * settlementTrade.priceJitter
+	return Math.max(1, Math.round(goodBaseValue(good) * modifier * jitter))
+}
+
+function directionalOffers(
+	goods: readonly GoodType[],
 	direction: NpcTradeDirection,
-	kind: GeneratedSettlement['kind']
-) {
-	const modifier = settlementTrade.priceMultipliers[direction][kind]
-	return Math.max(1, Math.round(goodBaseValue(good) * modifier))
+	seed: number,
+	settlement: GeneratedSettlement
+): NpcSettlementTradeOffer[] {
+	return goods.map((good) => ({
+		good,
+		direction,
+		priceVp: offerPrice(good, seed, settlement),
+		label: direction === 'sell' ? 'Trades' : 'Trades',
+	}))
 }
 
 export function createNpcSettlementTradeProfile(args: {
@@ -111,22 +138,21 @@ export function createNpcSettlementTradeProfile(args: {
 	readonly zones?: SettlementZonePlan['zones']
 }): NpcSettlementTradeProfile {
 	const count = settlementTrade.offerCounts[args.settlement.kind]
-	const sellGoods = rankGoods({ ...args, direction: 'sell' }).slice(0, count)
-	const buyGoods = rankGoods({ ...args, direction: 'buy' }).slice(0, count)
+	const materialGoods = sortedUniqueGoods(BASIC_MATERIAL_GOODS)
+	const materialSet = new Set(materialGoods)
+	const sellGoods = rankGoods({ ...args, direction: 'sell' })
+		.filter((good) => !materialSet.has(good))
+		.slice(0, count)
+	const buyGoods = rankGoods({ ...args, direction: 'buy' })
+		.filter((good) => !materialSet.has(good))
+		.slice(0, count)
 	const offers: NpcSettlementTradeOffer[] = [
-		...sellGoods.map((good) => ({
-			good,
-			direction: 'sell' as const,
-			priceVp: offerPrice(good, 'sell', args.settlement.kind),
-			label: 'Sells',
-		})),
-		...buyGoods.map((good) => ({
-			good,
-			direction: 'buy' as const,
-			priceVp: offerPrice(good, 'buy', args.settlement.kind),
-			label: 'Buys',
-		})),
+		...directionalOffers(materialGoods, 'sell', args.seed, args.settlement),
+		...directionalOffers(materialGoods, 'buy', args.seed, args.settlement),
+		...directionalOffers(sellGoods, 'sell', args.seed, args.settlement),
+		...directionalOffers(buyGoods, 'buy', args.seed, args.settlement),
 	]
+	const cityHallPosition = selectSettlementCityHallPosition(args.settlement, args.tileData)
 	return {
 		id: args.settlement.id,
 		regionSetKey: args.regionSetKey,
@@ -134,6 +160,13 @@ export function createNpcSettlementTradeProfile(args: {
 		kind: args.settlement.kind,
 		center: { ...args.settlement.center },
 		radius: args.settlement.radius,
+		cityHall: {
+			id: `${args.settlement.id}:city-hall`,
+			kind: 'city_hall',
+			settlementId: args.settlement.id,
+			name: `${args.settlement.name} City Hall`,
+			position: cityHallPosition,
+		},
 		offers,
 	}
 }
@@ -152,26 +185,29 @@ export function settlementIdFromTradeObjectUid(uid: string): string | undefined 
 	return encoded ? decodeURIComponent(encoded) : undefined
 }
 
-export class SettlementTradeObject implements InspectorSelectableObject {
-	readonly uid: string
-	readonly logs: string[] = []
+export class SettlementTradeObject
+	extends withInteractive(GameObject)
+	implements InspectorSelectableObject
+{
+	readonly profile: NpcSettlementTradeProfile
 
-	constructor(
-		readonly game: Game,
-		readonly profile: NpcSettlementTradeProfile
-	) {
-		this.uid = settlementTradeObjectUid(profile.id)
+	constructor(game: Game, profile: NpcSettlementTradeProfile) {
+		super(game, settlementTradeObjectUid(profile.id))
+		this.profile = profile
 	}
 
 	get title(): string {
-		return this.profile.name
+		return this.profile.cityHall.name
 	}
 
 	get debugInfo(): Record<string, unknown> {
 		return {
 			id: this.profile.id,
+			targetId: this.profile.cityHall.id,
+			targetKind: this.profile.cityHall.kind,
 			kind: this.profile.kind,
 			center: this.profile.center,
+			position: this.profile.cityHall.position,
 			radius: this.profile.radius,
 			buyOffers: this.profile.offers.filter((offer) => offer.direction === 'buy').length,
 			sellOffers: this.profile.offers.filter((offer) => offer.direction === 'sell').length,
@@ -179,15 +215,21 @@ export class SettlementTradeObject implements InspectorSelectableObject {
 	}
 
 	get position(): Position {
-		return this.profile.center
+		return this.profile.cityHall.position
 	}
 
-	get tile(): Tile | undefined {
-		return this.game.hex.getTile(this.profile.center)
+	get tile(): Tile {
+		const tile = this.game.hex.getTile(this.profile.cityHall.position)
+		if (!tile) throw new Error(`Missing city hall tile for settlement ${this.profile.id}`)
+		return tile
 	}
 
 	get hoverObject(): Tile | undefined {
-		return this.tile
+		return this.game.hex.getTile(this.profile.cityHall.position)
+	}
+
+	canInteract(_action: string): boolean {
+		return true
 	}
 }
 

@@ -284,6 +284,13 @@ export function summarizeFreightStopForDebug(stop: FreightStop) {
 			},
 		}
 	}
+	if ('trade' in stop) {
+		return {
+			...base,
+			kind: 'trade' as const,
+			trade: stop.trade,
+		}
+	}
 	return {
 		...base,
 		kind: 'zone' as const,

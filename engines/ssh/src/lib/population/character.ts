@@ -606,7 +606,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 					targetTile: pick.targetTile,
 				} as VehicleProposedJob,
 				character: this,
-				path: pick.job.path,
+				path: pick.job.approachPath ?? pick.job.path,
 				pathLength,
 				score: proposedJobScore(pick.job, pathLength),
 			}
@@ -744,7 +744,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 				character: this.name,
 				characterUid: this.uid,
 				...vehicleFreightJobTracePayload(match.job),
-				pathLen: match.path.length,
+				selectedPathLen: match.path.length,
 				characterAxial: pos ? axial.key(pos) : undefined,
 			})
 		} else {

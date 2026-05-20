@@ -10,6 +10,7 @@ import { alveoli } from '../../assets/visual-content'
 import { scopedPixiName, setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
 import { createGoodsRenderer, type GoodsRenderer } from './goods-renderer'
+import { vehicleTextureKey } from './vehicle-visual'
 import { VisualObject } from './visual-object'
 
 const hasUsableTexture = (texture: Texture | undefined) => {
@@ -156,7 +157,7 @@ export class AlveolusVisual extends VisualObject<any> {
 		if (!(this.object instanceof FreightBayAlveolus)) return
 		const docked = collectDockedVehiclesForBay(this.renderer.game, this.object)
 		for (const [index, entry] of docked.entries()) {
-			const tex = this.renderer.getTexture(`vehicles.${entry.vehicle.vehicleType}`)
+			const tex = this.renderer.getTexture(vehicleTextureKey(entry.vehicle.vehicleType))
 			if (!hasUsableTexture(tex)) continue
 			const sprite = setPixiName(
 				new Sprite(tex),

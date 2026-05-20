@@ -50,10 +50,10 @@ export interface SettlementRegionSetPlan extends SettlementZonePlan {
 	regionSet: SettlementRegionSet
 }
 
-type ZoneBucket = 'residential' | 'harvest' | 'civic' | 'market' | 'industrial'
+type ZoneBucket = 'residential' | 'civic' | 'market' | 'industrial'
 
 const ZONE_DEFINITIONS: Record<
-	Exclude<ZoneBucket, 'residential' | 'harvest'>,
+	Exclude<ZoneBucket, 'residential'>,
 	Omit<NamedZonePatch, 'coords'>
 > = {
 	civic: { id: 'civic', name: 'Civic', color: '#6f8fd6' },
@@ -91,16 +91,22 @@ function isZoneableLandTile(tile: GeneratedTileData): boolean {
 	return isLand(tile) && !isRiverConflictTile(tile)
 }
 
+export function selectSettlementCityHallPosition(
+	settlement: GeneratedSettlement,
+	_tileData: readonly GeneratedTileData[]
+): AxialCoord {
+	return { ...settlement.center }
+}
+
 function chooseSettlementCoreZoneForTile(
 	tile: GeneratedTileData,
 	settlement: GeneratedSettlement,
 	distance: number
 ): ZoneBucket | undefined {
 	if (!isZoneableLandTile(tile)) return undefined
-	if (distance === 0) return settlement.kind === 'village' ? 'market' : 'civic'
+	if (distance === 0) return 'civic'
 	if (distance === 1 && settlement.kind !== 'village') return 'market'
-	if (distance >= settlement.radius)
-		return tile.terrain === 'grass' || tile.terrain === 'forest' ? 'harvest' : undefined
+	if (distance >= settlement.radius) return undefined
 	return 'residential'
 }
 
@@ -131,7 +137,6 @@ export async function generateZonePlanForSettlements(
 		market: 4,
 		industrial: 3,
 		residential: 2,
-		harvest: 1,
 	}
 
 	for (const settlement of settlements) {
@@ -199,14 +204,14 @@ export async function generateZonePlanForSettlements(
 	for (const key of roadTileKeys) assigned.delete(key)
 
 	for (const settlement of settlements) {
-		const centerTile = tiles.get(tileKey(settlement.center))
-		if (!centerTile || !isZoneableLandTile(centerTile)) continue
-		assigned.set(tileKey(settlement.center), settlement.kind === 'village' ? 'market' : 'civic')
+		const cityHall = selectSettlementCityHallPosition(settlement, tileData)
+		const cityHallTile = tiles.get(tileKey(cityHall))
+		if (!cityHallTile) continue
+		assigned.set(tileKey(cityHall), 'civic')
 	}
 
 	const zoneCoords: Record<ZoneBucket, Array<[number, number]>> = {
 		residential: [],
-		harvest: [],
 		civic: [],
 		market: [],
 		industrial: [],
@@ -217,7 +222,7 @@ export async function generateZonePlanForSettlements(
 	return {
 		settlements,
 		zones: {
-			harvest: zoneCoords.harvest,
+			harvest: [],
 			residential: zoneCoords.residential,
 			named: Object.entries(ZONE_DEFINITIONS).map(([zone, definition]) => ({
 				...definition,

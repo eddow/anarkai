@@ -2,9 +2,11 @@ import { jobBalance } from 'engine-rules'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
-import { isStandaloneConstructionSiteShell } from 'ssh/build-site'
 import { profile } from 'ssh/dev/debug'
-import { CONSTRUCTION_DEMAND_AD_SOURCE } from 'ssh/freight/construction-demand'
+import {
+	CONSTRUCTION_DEMAND_AD_SOURCE,
+	freightConstructionDemandTarget,
+} from 'ssh/freight/construction-demand'
 import {
 	distributeSegmentAllowsGoodTypeForSegment,
 	type FreightLineDefinition,
@@ -235,9 +237,8 @@ function pickZoneProvideSelection(
 	const priorityTier: FreightPriorityTier = 'pureOffload'
 	let best: (VehicleZoneBrowseSelection & { score: number }) | undefined
 	for (const tile of freightZoneTiles(game, zoneStop.zone)) {
-		const content = tile.content
-		if (!isStandaloneConstructionSiteShell(content) || content.destroyed || content.isReady)
-			continue
+		const content = freightConstructionDemandTarget(tile.content)
+		if (!content || content.destroyed || content.isReady) continue
 		for (const goodType of Object.keys(content.remainingNeeds) as GoodType[]) {
 			const need = content.remainingNeeds[goodType] ?? 0
 			if (need <= 0) continue

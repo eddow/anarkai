@@ -9,10 +9,8 @@ function until(path)
 			walk.stepOn tileAt(step)
 		end if
 	end for
-	if not didMove then
-		// Yield once so callers looping on a path that resolves to "already here" do not busy-spin.
-		walk.pause
-	end if
+	// Yield once so callers that replan to a same/no-op path do not busy-spin in one tick.
+	walk.pause
 end function
 
 function into(path)

@@ -10,7 +10,7 @@ export const goods = {
 		halfLife: Number.POSITIVE_INFINITY,
 		massKg: 12,
 		baseValueVp: 10,
-		tags: ['bulk', 'construction/concrete'],
+		tags: ['bulk', 'construction/concrete', 'basic-materials'],
 	},
 	mushrooms: {
 		satiationStrength: Math.LN2, // felt ~0.5 hunger relief at equilibrium
@@ -23,18 +23,18 @@ export const goods = {
 		halfLife: 1200,
 		massKg: 4,
 		baseValueVp: 8,
-		tags: ['piece', 'construction/lumber'],
+		tags: ['piece', 'construction/lumber', 'basic-materials'],
 	},
 	stone: {
 		halfLife: Number.POSITIVE_INFINITY, // infinite half-life
 		massKg: 20,
 		baseValueVp: 4,
-		tags: ['bulk', 'construction/stone'],
+		tags: ['bulk', 'construction/stone', 'basic-materials'],
 	},
 	wood: {
 		halfLife: 900,
 		massKg: 8,
 		baseValueVp: 5,
-		tags: ['bulk', 'construction/lumber'],
+		tags: ['bulk', 'construction/lumber', 'basic-materials'],
 	},
 } as const

@@ -1,7 +1,7 @@
 import { Container, RenderLayer, Texture } from 'pixi.js'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { RenderableTerrainTile } from 'ssh/game/game'
-import { axial, cartesian, tileSize } from 'ssh/utils'
+import { axial, cartesian, fromCartesian, tileSize } from 'ssh/utils'
 import { describe, expect, it, vi } from 'vitest'
 import type { BiomeHint, TerrainMacroHydrologySnapshot, TileField } from '../../terrain/src'
 import {
@@ -17,6 +17,7 @@ import {
 	computeSectorDisplayBounds,
 	coordsForSectorBakeDomain,
 	coordsForSectorInterior,
+	sectorKeyForCoord,
 	sectorsAffectedByTile,
 } from './terrain-sector-topology'
 import { biomeTextureSpec, terrainTextureSpec, terrainTintForTile } from './terrain-visual-helpers'
@@ -240,6 +241,32 @@ describe('continuous terrain helpers', () => {
 		const diagnostics = visual.getDiagnostics()
 
 		expect(diagnostics.refresh.visibleSectorCount).toBeGreaterThan(1)
+	})
+
+	it('sizes visible selection from viewport corners, not only viewport axes', () => {
+		const renderer = createTerrainRendererStub({
+			hasRenderableTerrainAt: () => true,
+			getRenderableTerrainAt: () => ({ terrain: 'grass', height: 0 }),
+			requestGameplayFrontier: vi.fn(async () => false),
+			screen: { width: 1000, height: 1000 },
+			worldScale: 1,
+		}) as any
+		renderer.world.toLocal = (point: { x: number; y: number }) => ({
+			x: point.x,
+			y: point.y * 3,
+		})
+
+		const visual = new TerrainVisual(renderer)
+		;(visual as any).refresh()
+
+		const axisOnlyRadius = Math.ceil(500 / tileSize) + 6
+		const queueDebug = visual.getQueueDebug()
+		const overscannedTopLeftSector = sectorKeyForCoord(
+			axial.round(fromCartesian({ x: -90, y: -90 }, tileSize))
+		)
+
+		expect(visual.getDiagnostics().refresh.radius).toBeGreaterThan(axisOnlyRadius)
+		expect(queueDebug.selection.visibleSectorKeys).toContain(overscannedTopLeftSector)
 	})
 
 	it('selects a contiguous multi-sector visible set for default center and viewport', () => {
@@ -707,17 +734,17 @@ describe('continuous terrain helpers', () => {
 		expect(visual.lastMacroOverlaySignature).toBe('')
 	})
 
-	it('accepts a fresh macro snapshot snapped from a negative sector', () => {
+	it('accepts a fresh macro snapshot near the origin from a negative sector', () => {
 		const snapshot: TerrainMacroHydrologySnapshot = {
 			seed: 7,
-			centerSector: { q: -8, r: -8 },
+			centerSector: { q: 0, r: 0 },
 			sectorRadius: 15,
 			sectorStep: 17,
 			macroStep: 8,
 			macroTileCount: 1,
 			riverSegmentCount: 0,
 			maxAccumulation: 0,
-			tiles: [{ q: -8, r: -8, height: 0.1, biome: 'grass' }],
+			tiles: [{ q: 0, r: 0, height: 0.1, biome: 'grass' }],
 			segments: [],
 			timings: { wasmMs: 1, unpackMs: 0, totalMs: 1 },
 		}
@@ -739,7 +766,7 @@ describe('continuous terrain helpers', () => {
 			macroStep: 8,
 			sectorRadius: 15,
 		})
-		expect(visual.lastMacroOverlaySignature).toContain('7:-8,-8')
+		expect(visual.lastMacroOverlaySignature).toContain('7:0,0')
 	})
 
 	it('does not stream detail sectors while in macro LOD', async () => {
@@ -788,6 +815,31 @@ describe('continuous terrain helpers', () => {
 
 		expect(roadSegments).toHaveBeenCalled()
 		expect(getBorder).toHaveBeenCalledWith(expect.objectContaining({ q: 0.5, r: 0 }))
+	})
+
+	it('renders generated NPC zones in macro overview', () => {
+		const getRenderableTerrainAt = vi.fn((coord: { q: number; r: number }) => ({
+			terrain: 'grass' as const,
+			height: 0,
+			zone:
+				coord.q === 0 && coord.r === 0
+					? { id: 'market', name: 'Market', color: '#d6a34c', generated: true }
+					: undefined,
+		}))
+		const renderer = createTerrainRendererStub({
+			hasRenderableTerrainAt: () => true,
+			getRenderableTerrainAt,
+			ensureMacroHydrology: vi.fn(async () => {}),
+			requestGameplayFrontier: vi.fn(async () => false),
+			worldScale: 0.01,
+		})
+
+		const visual = new TerrainVisual(renderer) as any
+		visual.refresh()
+
+		expect(getRenderableTerrainAt).toHaveBeenCalled()
+		expect(visual.macroGeneratedZoneOverlay.visible).toBe(true)
+		expect(visual.macroGeneratedZoneOverlay.context.instructions.length).toBeGreaterThan(0)
 	})
 })
 

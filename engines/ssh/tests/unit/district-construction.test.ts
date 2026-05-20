@@ -128,14 +128,14 @@ describe('district and concrete construction', () => {
 		game.updateDistrictProcurementPolicy(DEFAULT_DISTRICT_ID, {
 			usePurchaseReserveVp: 55,
 			bufferPurchaseReserveVp: 130,
-			goods: { concrete: { maxUnitPriceVp: 12 } },
+			goods: { concrete: { maxUnitPriceVp: 12, autoBuy: true } },
 		})
 
 		const state = game.saveGameData()
 		expect(state.districts?.[0]?.procurementPolicy).toMatchObject({
 			usePurchaseReserveVp: 55,
 			bufferPurchaseReserveVp: 130,
-			goods: { concrete: { maxUnitPriceVp: 12 } },
+			goods: { concrete: { maxUnitPriceVp: 12, autoBuy: true } },
 		})
 
 		const game2 = new Game({ terrainSeed: 12, characterCount: 0, settlementGeneration: false })
@@ -145,7 +145,7 @@ describe('district and concrete construction', () => {
 		expect(game2.getDistrict()?.procurementPolicy).toMatchObject({
 			usePurchaseReserveVp: 55,
 			bufferPurchaseReserveVp: 130,
-			goods: { concrete: { maxUnitPriceVp: 12 } },
+			goods: { concrete: { maxUnitPriceVp: 12, autoBuy: true } },
 		})
 	})
 
@@ -196,6 +196,129 @@ describe('district and concrete construction', () => {
 			})
 		)
 		expect(game.playerAccount.balanceVp).toBe(beforeBalance)
+	})
+
+	it('executes a planned use purchase into foundation storage and debits the account', async () => {
+		const { game, tile } = await gameAtOrigin()
+		const content = tile.content
+		expect(content).toBeInstanceOf(UnBuiltLand)
+		if (!(content instanceof UnBuiltLand)) throw new Error('Expected unbuilt land')
+		addSeller(game, 'cheap-town', 9)
+		content.setProject('build:storage')
+		game.recordDistrictMember({ q: 0, r: 0 })
+		const beforeBalance = game.playerAccount.balanceVp
+		const request = game
+			.listDistrictPurchaseRequests()
+			.find((candidate) => candidate.purpose === 'use' && candidate.good === 'concrete')
+		expect(request).toBeDefined()
+		if (!request) throw new Error('Expected concrete request')
+
+		const result = game.executeDistrictPurchaseRequest(DEFAULT_DISTRICT_ID, request.id)
+
+		expect(result).toMatchObject({ status: 'ok', spentVp: 9, delivered: 1 })
+		expect(game.playerAccount.balanceVp).toBe(beforeBalance - 9)
+		expect(content.foundationStorage?.stock).toEqual({ concrete: 1 })
+		expect(content.constructionSite?.foundationDeliveredGoods).toEqual({ concrete: 1 })
+		const view = queryConstructionSiteView(game, tile)
+		expect(view?.phase).toBe('foundation')
+		expect(view?.blockingReasons).not.toContain('missing_goods')
+	})
+
+	it('executes planned buffer purchases into storage and debits the account', async () => {
+		const bufferGame = await gameWithStorageBuffer()
+		addSeller(bufferGame, 'cheap-town', 10)
+		const bufferRequest = bufferGame
+			.listDistrictPurchaseRequests()
+			.find((request) => request.purpose === 'buffer')
+		expect(bufferRequest).toBeDefined()
+		if (!bufferRequest) throw new Error('Expected buffer request')
+		const beforeBalance = bufferGame.playerAccount.balanceVp
+
+		const result = bufferGame.executeDistrictPurchaseRequest(DEFAULT_DISTRICT_ID, bufferRequest.id)
+
+		expect(result).toMatchObject({ status: 'ok', spentVp: 30, delivered: 3 })
+		expect(bufferGame.playerAccount.balanceVp).toBe(beforeBalance - 30)
+		expect(bufferGame.hex.getTile({ q: 0, r: 0 })?.content?.storage?.stock).toEqual({
+			concrete: 3,
+		})
+		expect(bufferGame.listDistrictPurchaseRequests().some((request) => request.purpose === 'buffer')).toBe(
+			false
+		)
+	})
+
+	it('does not execute blocked, missing target, or unaffordable purchase requests', async () => {
+		const { game, tile } = await gameAtOrigin()
+		const content = tile.content
+		expect(content).toBeInstanceOf(UnBuiltLand)
+		if (!(content instanceof UnBuiltLand)) throw new Error('Expected unbuilt land')
+		content.setProject('build:storage')
+		game.recordDistrictMember({ q: 0, r: 0 })
+		const noSellerRequest = game
+			.listDistrictPurchaseRequests()
+			.find((request) => request.purpose === 'use')
+		expect(noSellerRequest).toBeDefined()
+		if (!noSellerRequest) throw new Error('Expected blocked request')
+		expect(
+			game.executeDistrictPurchaseRequest(DEFAULT_DISTRICT_ID, noSellerRequest.id).status
+		).toBe('not_planned')
+
+		addSeller(game, 'cheap-town', 9)
+		const plannedRequest = game
+			.listDistrictPurchaseRequests()
+			.find((request) => request.purpose === 'use' && request.status === 'planned')
+		expect(plannedRequest).toBeDefined()
+		if (!plannedRequest) throw new Error('Expected planned request')
+		tile.board.setTileContent(tile.position, undefined)
+		expect(
+			game.executeDistrictPurchaseRequest(DEFAULT_DISTRICT_ID, plannedRequest.id).status
+		).toBe('not_found')
+
+		tile.content = content
+		game.setPlayerAccountBalance(28)
+		expect(
+			game.executeDistrictPurchaseRequest(DEFAULT_DISTRICT_ID, plannedRequest.id).status
+		).toBe('not_planned')
+	})
+
+	it('keeps use purchases executable when automatic needed-good buying is disabled', async () => {
+		const { game, tile } = await gameAtOrigin()
+		const content = tile.content
+		expect(content).toBeInstanceOf(UnBuiltLand)
+		if (!(content instanceof UnBuiltLand)) throw new Error('Expected unbuilt land')
+		addSeller(game, 'cheap-town', 9)
+		content.setProject('build:storage')
+		game.recordDistrictMember({ q: 0, r: 0 })
+		game.updateDistrictProcurementPolicy(DEFAULT_DISTRICT_ID, { autoBuyNeededGoods: false })
+
+		expect(game.listDistrictPurchaseRequests()).toContainEqual(
+			expect.objectContaining({
+				good: 'concrete',
+				quantity: 1,
+				purpose: 'use',
+				providerSettlementId: 'cheap-town',
+				status: 'planned',
+			})
+		)
+	})
+
+	it('keeps selected auto-buy goods as compatibility policy without executing purchases', async () => {
+		const { game, tile } = await gameAtOrigin()
+		const content = tile.content
+		expect(content).toBeInstanceOf(UnBuiltLand)
+		if (!(content instanceof UnBuiltLand)) throw new Error('Expected unbuilt land')
+		addSeller(game, 'cheap-town', 9)
+		content.setProject('build:storage')
+		game.recordDistrictMember({ q: 0, r: 0 })
+		game.updateDistrictProcurementPolicy(DEFAULT_DISTRICT_ID, {
+			goods: { concrete: { autoBuy: true } },
+		})
+		const beforeBalance = game.playerAccount.balanceVp
+
+		expect(game.listDistrictPurchaseRequests()).toContainEqual(
+			expect.objectContaining({ good: 'concrete', purpose: 'use' })
+		)
+		expect(game.playerAccount.balanceVp).toBe(beforeBalance)
+		expect(content.foundationStorage?.stock).toEqual({})
 	})
 
 	it('plans concrete buffer purchases from storage buffers and respects reserve limits', async () => {

@@ -19,8 +19,19 @@ const i18nState = {
 		alveoli: {
 			sawmill: 'Sawmill',
 		},
-		deposits: {
-			stone: 'Stone',
+		deposits: new Proxy(
+			{
+				stone: 'Stone',
+			},
+			{
+				get(target, key) {
+					if (key === '') throw new Error('empty deposit translation lookup')
+					return target[key as keyof typeof target]
+				},
+			}
+		),
+		goods: {
+			concrete: 'Concrete',
 		},
 	},
 }
@@ -35,6 +46,21 @@ vi.mock('@app/ui/anarkai', () => ({
 	Badge: (props: { children?: JSX.Children; tone?: string }) => (
 		<span data-tone={props.tone}>{props.children}</span>
 	),
+	Button: (props: {
+		ariaLabel?: string
+		'el:title'?: string
+		onClick?: () => void
+		children?: JSX.Children
+	}) => (
+		<button
+			aria-label={props.ariaLabel}
+			title={props['el:title']}
+			type="button"
+			onClick={props.onClick}
+		>
+			{props.children}
+		</button>
+	),
 }))
 
 vi.mock('@app/ui/anarkai/icons/render-icon', () => ({
@@ -45,7 +71,11 @@ vi.mock('@app/ui/anarkai/icons/render-icon', () => ({
 
 vi.mock('engine-pixi/assets/visual-content', () => ({
 	deposits: {
+		'': { sprites: ['empty-deposit-sprite'] },
 		stone: { sprites: ['stone-sprite'] },
+	},
+	goods: {
+		concrete: { sprites: ['concrete-sprite'] },
 	},
 }))
 
@@ -60,10 +90,10 @@ vi.mock('ssh/construction', () => ({
 }))
 
 vi.mock('../EntityBadge', () => ({
-	default: (props: { text: string; qty?: number }) => (
-		<span>
+	default: (props: { text: string; qty?: number; qtyLabel?: string; qtyTone?: string }) => (
+		<span data-tone={props.qtyTone}>
 			{props.text}
-			{props.qty ?? ''}
+			{props.qtyLabel ?? props.qty ?? ''}
 		</span>
 	),
 }))
@@ -156,6 +186,33 @@ describe('UnBuiltProperties', () => {
 		)
 
 		expect(container.innerHTML).toBeTruthy()
+	})
+
+	it('does not translate or render an unnamed deposit', () => {
+		const content = {
+			project: undefined,
+			deposit: {
+				amount: 3,
+				name: '',
+			},
+			tile: {
+				isClear: true,
+				board: { game: {} },
+			},
+		}
+
+		expect(() => {
+			stop = latch(
+				container,
+				<table>
+					<tbody>
+						<UnBuiltProperties content={content as never} />
+					</tbody>
+				</table>
+			)
+		}).not.toThrow()
+
+		expect(container.textContent).not.toContain('Deposit')
 	})
 
 	it('renders deposits using the generated deposit instance name', () => {
@@ -285,5 +342,58 @@ describe('UnBuiltProperties', () => {
 		expect(container.textContent).toContain('Construction')
 		expect(container.textContent).toContain('Foundation')
 		expect(container.textContent).toContain('No engineer in range')
+	})
+
+	it('renders foundation materials as delivered over required and marks missing goods', () => {
+		const executeDistrictPurchaseRequest = vi.fn()
+		const listDistrictPurchaseRequests = vi.fn(() => [
+			{
+				id: 'purchase:default:use:concrete:0,0',
+				districtId: 'default',
+				good: 'concrete',
+				quantity: 1,
+				purpose: 'use',
+				targetCoord: { q: 0, r: 0 },
+				status: 'planned',
+			},
+		])
+		const content = {
+			project: 'build:sawmill',
+			constructionSite: {},
+			tile: {
+				position: { q: 0, r: 0 },
+				isClear: true,
+				board: {
+					game: {
+						listDistricts: vi.fn(() => [{ id: 'default' }]),
+						listDistrictPurchaseRequests,
+						executeDistrictPurchaseRequest,
+					},
+				},
+			},
+		}
+		queryConstructionSiteView.mockReturnValue({
+			phase: 'waiting_materials',
+			requiredGoods: { concrete: 1 },
+			deliveredGoods: {},
+			blockingReasons: ['missing_goods'],
+		})
+
+		stop = latch(
+			container,
+			<table>
+				<tbody>
+					<UnBuiltProperties content={content as never} />
+				</tbody>
+			</table>
+		)
+
+		expect(container.textContent).toContain('Concrete')
+		expect(container.textContent).toContain('0/1')
+		expect(container.querySelector('[data-tone="danger"]')).not.toBeNull()
+		const button = container.querySelector('button[title="Buy Concrete"]')
+		expect(button).toBeNull()
+		button?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+		expect(executeDistrictPurchaseRequest).not.toHaveBeenCalled()
 	})
 })

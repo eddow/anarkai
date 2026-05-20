@@ -4,9 +4,16 @@ function rulesTestOverrides() {
 	return {
 		vehicles: {
 			wheelbarrow: { storage: { slots: 10, capacity: 100 }, transferTime: 1, walkTime: 1.45 },
+			pickup_truck: { storage: { slots: 2, capacity: 3 }, transferTime: 1, walkTime: 0.85 },
 			worker: { speed: 1, capacity: 10, transferTime: 1 },
 		},
 		goods: {
+			concrete: {
+				halfLife: Number.POSITIVE_INFINITY,
+				massKg: 12,
+				baseValueVp: 10,
+				tags: ['bulk', 'construction/concrete'],
+			},
 			wood: {
 				halfLife: 900,
 				massKg: 8,

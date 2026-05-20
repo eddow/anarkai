@@ -73,7 +73,16 @@
 		"docked": "À quai",
 		"underway": "En route",
 		"showContent": "Afficher le chargement",
-		"hideContent": "Masquer le chargement"
+		"hideContent": "Masquer le chargement",
+		"lineAssignment": {
+			"section": "Lignes assignées",
+			"assigned": "Lignes",
+			"add": "Ajouter une ligne",
+			"filter": "Filtrer les lignes...",
+			"emptyAssigned": "Aucune ligne assignée",
+			"emptyAvailable": "Aucune ligne de fret disponible",
+			"remove": "Retirer la ligne"
+		}
 	},
 	"step": {
 		"idle": "Inactif",
@@ -98,7 +107,8 @@
 		"construct": "Construit",
 		"vehicleBeginService": "Démarrage du service (ligne)",
 		"walk": {
-			"foundation": "Va au chantier de fondation"
+			"foundation": "Va au chantier de fondation",
+			"pause": "Pause"
 		},
 		"vehicleHop": {
 			"dock": "À l'escale (quai)",

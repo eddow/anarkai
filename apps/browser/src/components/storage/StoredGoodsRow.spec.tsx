@@ -7,7 +7,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 
 const classMocks = vi.hoisted(() => {
 	class MockBuildAlveolus {
-		tile = { uid: 'tile:build-site' }
+		tile = { uid: 'tile:build-site', position: { q: 0, r: 0 } }
 		constructionSite = { target: { kind: 'alveolus', alveolusType: 'tree_chopper' } }
 		requiredGoods = { stone: 1 }
 		storage = { stock: {} }
@@ -35,7 +35,15 @@ vi.mock('@app/lib/i18n', () => ({
 }))
 
 vi.mock('@app/ui/anarkai', () => ({
-	Button: (props: { children?: JSX.Children }) => <button type="button">{props.children}</button>,
+	Button: (props: {
+		children?: JSX.Children
+		'el:title'?: string
+		onClick?: () => void
+	}) => (
+		<button title={props['el:title']} type="button" onClick={props.onClick}>
+			{props.children}
+		</button>
+	),
 }))
 
 vi.mock('engine-pixi/assets/visual-content', () => ({
@@ -125,6 +133,37 @@ describe('StoredGoodsRow presentation refresh', () => {
 		)
 
 		expect(container.querySelector('[data-testid="badge-stone"]')?.textContent).toBe('0/1')
+	})
+
+	it('does not render direct purchase buttons for construction shells', async () => {
+		const { BuildAlveolus } = await import('ssh/hive/build')
+		const site = new BuildAlveolus()
+		const executeDistrictPurchaseRequest = vi.fn()
+		const game = {
+			listDistricts: vi.fn(() => [{ id: 'default' }]),
+			listDistrictPurchaseRequests: vi.fn(() => [
+				{
+					id: 'purchase:default:use:stone:0,0',
+					districtId: 'default',
+					good: 'stone',
+					quantity: 1,
+					purpose: 'use',
+					targetCoord: { q: 0, r: 0 },
+					status: 'planned',
+				},
+			]),
+			executeDistrictPurchaseRequest,
+		}
+
+		stop = latch(
+			container,
+			<StoredGoodsRow content={site as never} game={game as never} label="Materials" />
+		)
+
+		const button = container.querySelector('button[title="Buy stone"]')
+		expect(button).toBeNull()
+		button?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+		expect(executeDistrictPurchaseRequest).not.toHaveBeenCalled()
 	})
 
 	it('tolerates transient construction shells before required goods are populated', async () => {

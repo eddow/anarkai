@@ -148,6 +148,63 @@ export const findPath = wrapInert(function findPath(
 })
 
 /**
+ * Bounded Dijkstra flood from a start coordinate.
+ * @returns Map of every coordinate reachable within maxTime to its cheapest walk cost.
+ */
+export const findReachable = wrapInert(function findReachable(
+	getNeighbors: GetNeighbors,
+	start: Positioned,
+	maxTime: number
+): AxialKeyMap<number> {
+	const startCoord = toAxialCoord(start)
+	const openSet = new HeapMin<AxialKey, number>()
+	const openSetMap = new AxialKeyMap<PathfindingNode>()
+	const closedSet = new AxialKeyMap<PathfindingNode>()
+	const gCosts = new AxialKeyMap<number>()
+	const startNode: PathfindingNode = {
+		coord: startCoord,
+		gCost: 0,
+	}
+
+	openSet.set(axial.key(startCoord), startNode.gCost)
+	openSetMap.set(startCoord, startNode)
+	gCosts.set(startCoord, 0)
+
+	while (!openSet.isEmpty) {
+		const currentCoord = axial.keyAccess(openSet.pop()![0])
+		const currentNode = openSetMap.get(currentCoord)
+		if (!currentNode) continue
+
+		closedSet.set(currentCoord, currentNode)
+		openSetMap.delete(currentCoord)
+
+		for (const neighbor of getNeighbors(currentCoord)) {
+			const { coord: neighborCoord, walkTime } =
+				'coord' in neighbor ? neighbor : { coord: neighbor, walkTime: 1 }
+			if (!Number.isFinite(walkTime)) continue
+			if (closedSet.has(neighborCoord)) continue
+
+			const tentativeGCost = currentNode.gCost + walkTime
+			if (tentativeGCost > maxTime) continue
+
+			const existingGCost = gCosts.get(neighborCoord)
+			if (existingGCost !== undefined && tentativeGCost >= existingGCost) continue
+
+			const neighborNode: PathfindingNode = {
+				coord: neighborCoord,
+				gCost: tentativeGCost,
+				parent: currentCoord,
+			}
+			gCosts.set(neighborCoord, tentativeGCost)
+			openSet.set(axial.key(neighborCoord), neighborNode.gCost)
+			openSetMap.set(neighborCoord, neighborNode)
+		}
+	}
+
+	return gCosts
+})
+
+/**
  * Heuristic function for hexagonal grid (Manhattan distance approximation)
  */
 export function heuristic(a: Positioned, b: Positioned): number {
@@ -320,7 +377,8 @@ export const findBest = wrapInert(function findBest<_T>(
 	while (!openSet.isEmpty) {
 		// Get node with lowest fCost
 		const currentCoord = openSet.pop()![0]
-		const currentNode = openSetMap.get(currentCoord)!
+		const currentNode = openSetMap.get(currentCoord)
+		if (!currentNode) continue
 		if (relativeScore(bestPossibleScore, currentNode.gCost) < bestScore) continue
 		// Move to closed set
 		closedSet.set(currentCoord, currentNode)
