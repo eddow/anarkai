@@ -12,7 +12,7 @@ import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
 import type { GoodType } from 'ssh/types/base'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
-import { assert, traces } from '../dev/debug.ts'
+import { traces } from '../dev/debug.ts'
 
 /** Hive convey party for a docked line vehicle sharing a freight bay tile. */
 export class VehicleFreightDock {
@@ -101,6 +101,28 @@ function dockedVehicleLoadHasSource(bay: FreightBayAlveolus, goodType: GoodType)
 	return bay.hive.generalStorages.some((storage) => (storage.storage.stock[goodType] ?? 0) > 0)
 }
 
+function projectedDockedVehicleGoods(
+	vehicle: VehicleEntity,
+	bay: FreightBayAlveolus
+): ReturnType<typeof projectLoadedGoodsAgainstFurtherNeeds> | undefined {
+	const svc = vehicle.service
+	if (!isVehicleLineService(svc) || !isLineFreightVehicleType(vehicle.vehicleType)) return undefined
+	if (!vehicle.isDocked) return undefined
+	if (bay.action.type !== 'road-fret') return undefined
+	const { line, stop } = svc
+	const stopIdx = line.stops.findIndex((s) => s.id === stop.id)
+	if (stopIdx < 0 || !('anchor' in stop)) return undefined
+	const further = computeLineFurtherGoods({
+		game: vehicle.game,
+		line,
+		currentStopIndex: stopIdx,
+	})
+	return projectLoadedGoodsAgainstFurtherNeeds(
+		vehicle.storage.stock,
+		further.furtherNeededGoods.perGood
+	)
+}
+
 /**
  * Scored dock transfer candidates for a docked line freight vehicle at a freight bay.
  *
@@ -154,15 +176,8 @@ export function collectDockedVehicleAdvertisementCandidates(
 	}
 
 	const candidates: DockedVehicleAdvertisementCandidate[] = []
-	const further = computeLineFurtherGoods({
-		game: vehicle.game,
-		line,
-		currentStopIndex: stopIdx,
-	})
-	const projected = projectLoadedGoodsAgainstFurtherNeeds(
-		vehicle.storage.stock,
-		further.furtherNeededGoods.perGood
-	)
+	const projected = projectedDockedVehicleGoods(vehicle, bay)
+	if (!projected) return []
 
 	for (const goodType of Object.keys(projected.surplusLoadedGoods.perGood) as GoodType[]) {
 		const quantity = vehicle.storage.available(goodType)
@@ -231,18 +246,27 @@ export function collectDockedVehicleAdvertisementCandidates(
 	return candidates
 }
 
-/** `2-use` advertisements for a docked wheelbarrow at a freight bay. */
+/** Advertisements for a docked wheelbarrow at a freight bay. */
 export function dockedVehicleGoodsRelations(
 	vehicle: VehicleEntity,
 	bay: FreightBayAlveolus
 ): GoodsRelations {
 	const relations: GoodsRelations = {}
+	const projected = projectedDockedVehicleGoods(vehicle, bay)
+	if (projected) {
+		for (const goodType of Object.keys(projected.reservedLoadedGoods.perGood) as GoodType[]) {
+			if (vehicle.storage.available(goodType) <= 0) continue
+			relations[goodType] = {
+				advertisement: 'provide',
+				priority: '1-buffer',
+			}
+		}
+	}
 	for (const candidate of collectDockedVehicleAdvertisementCandidates(vehicle, bay)) {
 		const current = relations[candidate.goodType]
-		assert(
-			!current || current.advertisement === candidate.advertisement,
-			`dockedVehicleGoodsRelations: ${candidate.goodType} cannot be both ${current?.advertisement} and ${candidate.advertisement}`
-		)
+		if (current && current.advertisement !== candidate.advertisement) {
+			delete relations[candidate.goodType]
+		}
 		relations[candidate.goodType] = {
 			advertisement: candidate.advertisement,
 			priority: '2-use',
@@ -256,8 +280,9 @@ export function refreshDockedVehicleAdvertisement(
 	bay: FreightBayAlveolus
 ): DockedVehicleAdvertisementCandidate[] {
 	const candidates = collectDockedVehicleAdvertisementCandidates(vehicle, bay)
+	const relations = dockedVehicleGoodsRelations(vehicle, bay)
 	const dock = bay.hive.freightVehicleDockFor(vehicle.uid)
 	if (!dock) return candidates
-	bay.hive.advertise(dock, candidates.length > 0 ? dockedVehicleGoodsRelations(vehicle, bay) : {})
+	bay.hive.advertise(dock, Object.keys(relations).length > 0 ? relations : {})
 	return candidates
 }

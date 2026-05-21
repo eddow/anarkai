@@ -3,8 +3,6 @@ import { T } from '@app/lib/i18n'
 import type { DockedVehicleEntry } from 'ssh/freight/docked-vehicles'
 import type { Game } from 'ssh/game'
 import type { GoodType } from 'ssh/types/base'
-import { reactive } from 'mutts'
-import GoodsList from './GoodsList'
 import InspectorObjectLink from './InspectorObjectLink'
 import LinkedEntityControl from './LinkedEntityControl'
 
@@ -14,20 +12,6 @@ css`
 	flex-direction: column;
 	gap: 0.45rem;
 	min-width: 0;
-}
-
-.docked-vehicle-list__header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 0.5rem;
-	margin-bottom: 0.25rem;
-}
-
-.docked-vehicle-list__toggle-label {
-	font-size: 0.72rem;
-	font-weight: 600;
-	color: var(--ak-text-muted);
 }
 
 .docked-vehicle-list__item {
@@ -53,10 +37,18 @@ css`
 	color: var(--ak-text-muted);
 }
 
-.docked-vehicle-list__content {
-	padding-top: 0.25rem;
-	border-top: 1px solid color-mix(in srgb, var(--ak-text-muted) 10%, transparent);
+.docked-vehicle-list__cargo-summary {
+	font-size: 0.6875rem;
+	line-height: 1.35;
+	color: var(--ak-text-muted);
+	overflow-wrap: anywhere;
 }
+
+.docked-vehicle-list__cargo-summary-label {
+	font-weight: 600;
+	color: var(--ak-text);
+}
+
 `
 
 interface DockedVehicleListProps {
@@ -67,26 +59,19 @@ interface DockedVehicleListProps {
 
 const DockedVehicleList = (props: DockedVehicleListProps) => {
 	const stopLabel = () => T.line.stop
-	const state = reactive({
-		showContent: false,
-	})
+	const cargoLabel = () => (T.vehicle as typeof T.vehicle & { cargo?: string }).cargo ?? 'Cargo'
 
-	const vehicleStock = (entry: DockedVehicleEntry): GoodType[] => {
+	const cargoSummary = (entry: DockedVehicleEntry): string => {
 		const stock = entry.vehicle.storage?.stock ?? {}
-		return Object.keys(stock).filter((good) => (stock as Record<string, number>)[good] > 0) as GoodType[]
+		const entries = Object.entries(stock)
+			.filter((entry): entry is [GoodType, number] => entry[1] > 0)
+			.sort(([left], [right]) => left.localeCompare(right))
+		if (entries.length === 0) return 'empty'
+		return entries.map(([good, qty]) => `${T.goods[good] ?? good} ${qty}`).join(', ')
 	}
 
 	return (
 		<div class="docked-vehicle-list">
-			<div class="docked-vehicle-list__header">
-				<span class="docked-vehicle-list__toggle-label">{T.vehicle.showContent}</span>
-				<input
-					type="checkbox"
-					checked={state.showContent}
-					onChange={() => (state.showContent = !state.showContent)}
-					data-testid="docked-vehicle-show-content-toggle"
-				/>
-			</div>
 			<for each={props.entries}>
 				{(entry) => (
 					<div class="docked-vehicle-list__item" data-testid="docked-vehicle-row">
@@ -97,16 +82,9 @@ const DockedVehicleList = (props: DockedVehicleListProps) => {
 								{entry.line.name} · {stopLabel()} {entry.stop.id}
 							</span>
 						</div>
-						<div
-							if={state.showContent && props.game}
-							class="docked-vehicle-list__content"
-						>
-							<GoodsList
-								goods={vehicleStock(entry)}
-								game={props.game!}
-								getBadgeProps={(good) => ({ qty: (entry.vehicle.storage?.stock as Record<string, number>)?.[good] ?? 0 })}
-								itemSize={18}
-							/>
+						<div class="docked-vehicle-list__cargo-summary" data-testid="docked-vehicle-cargo-summary">
+							<span class="docked-vehicle-list__cargo-summary-label">{cargoLabel()}:</span>{' '}
+							{cargoSummary(entry)}
 						</div>
 					</div>
 				)}

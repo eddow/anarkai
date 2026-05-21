@@ -596,7 +596,35 @@ export function advanceVehicleLineServicePastEmptyStops(
 		}
 
 		if ('anchor' in stop) {
-			if (!vehicle.isDocked) return
+			if (!vehicle.isDocked) {
+				if (!line.cyclic || lastSkippedStopId === undefined) return
+				if (stopHasPotentialVehicleTransfer(game, character, vehicle, line, stop)) return
+				traces.vehicle.log?.('vehicleJob.line.emptyStop', {
+					vehicleUid: vehicle.uid,
+					lineId: line.id,
+					stopId: stop.id,
+					reason: 'empty-undocked-anchor-stop',
+					anchorCoord: stop.anchor.coord,
+				})
+				const ended = advanceVehicleToNextLineStopOrEnd(
+					vehicle,
+					line,
+					stop,
+					'empty-undocked-anchor-stop'
+				)
+				if (ended) return
+				const advancedService = vehicle.service
+				if (
+					line.cyclic &&
+					isVehicleLineService(advancedService) &&
+					lastSkippedStopId === advancedService.stop.id
+				) {
+					vehicle.endService()
+					return
+				}
+				lastSkippedStopId = stop.id
+				continue
+			}
 			const content = freightVehicleDockBay(vehicle)
 			if (!(content instanceof Alveolus)) return
 			const hive = content.hive

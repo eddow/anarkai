@@ -1,5 +1,6 @@
 import { Container, RenderLayer, Texture } from 'pixi.js'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import { Tile } from 'ssh/board/tile'
 import type { RenderableTerrainTile } from 'ssh/game/game'
 import { axial, cartesian, fromCartesian, tileSize } from 'ssh/utils'
 import { describe, expect, it, vi } from 'vitest'
@@ -8,6 +9,7 @@ import {
 	macroRequestForTerrainLod,
 	macroStepForTerrainLod,
 	resolveTerrainLod,
+	shouldRenderTerrainHoverForObject,
 	TerrainVisual,
 	terrainLodTilePixels,
 } from './continuous-terrain'
@@ -72,6 +74,14 @@ describe('continuous terrain helpers', () => {
 		expect(macroStepForTerrainLod('overview-coarse')).toBe(4)
 		expect(macroStepForTerrainLod('overview-distant')).toBe(8)
 		expect(macroStepForTerrainLod('macro')).toBe(8)
+	})
+
+	it('renders terrain hover only for actual tile objects', () => {
+		const tileLikeVehicle = { position: { q: 1, r: 2 } }
+		const tile = Object.assign(Object.create(Tile.prototype), { position: { q: 1, r: 2 } })
+
+		expect(shouldRenderTerrainHoverForObject(tileLikeVehicle)).toBe(false)
+		expect(shouldRenderTerrainHoverForObject(tile)).toBe(true)
 	})
 
 	it('sizes macro overview requests from the viewport radius', () => {

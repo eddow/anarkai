@@ -225,7 +225,8 @@ describe('SlottedStorageConfiguration', () => {
 		) as HTMLButtonElement[]
 		expect(initialStars.map((button) => button.dataset.maximum)).toEqual(['5', '6'])
 		expect(initialStars[1].dataset.value).toBe('1,3')
-		expect(container.textContent).toContain('2 / 5 slots')
+		expect(container.textContent).toContain('2 / 6 slots')
+		expect(container.querySelectorAll('.slotted-storage-stars__unavailable')).toHaveLength(1)
 
 		initialStars[1].click()
 
@@ -235,8 +236,9 @@ describe('SlottedStorageConfiguration', () => {
 		expect(updatedStars[0].dataset.maximum).toBe('4')
 		expect(updatedStars[1].dataset.maximum).toBe('6')
 		expect(updatedStars[1].dataset.value).toBe('2,4')
-		expect(container.textContent).toContain('2 / 4 slots')
+		expect(container.textContent).toContain('2 / 6 slots')
 		expect(container.textContent).toContain('buffer 6, total 12 / 18')
+		expect(container.querySelectorAll('.slotted-storage-stars__unavailable')).toHaveLength(2)
 	})
 
 	it('caps each specific good by the other goods buffered slots', () => {
@@ -258,12 +260,37 @@ describe('SlottedStorageConfiguration', () => {
 		expect(initialStars.map((button) => button.dataset.maximum)).toEqual(['3', '4', '5'])
 		expect(initialStars[1].dataset.value).toBe('1,3')
 		expect(initialStars[2].dataset.value).toBe('2,3')
-		expect(container.querySelectorAll('.slotted-storage-stars__unavailable')).toHaveLength(3)
+		expect(container.querySelectorAll('.slotted-storage-stars__unavailable')).toHaveLength(6)
 		expect(container.textContent).toContain('buffer 3, total 9 / 12')
 		expect(container.textContent).toContain('buffer 6, total 9 / 15')
 
 		initialStars[1].click()
 
 		expect(configuration.goods.wood).toEqual({ minSlots: 2, maxSlots: 2 })
+	})
+
+	it('clamps stale general slot display to the currently available budget', () => {
+		const { configuration, content } = createContent()
+		configuration.generalSlots = 5
+		configuration.goods.wood = { minSlots: 4, maxSlots: 1 }
+
+		stop = latch(
+			container,
+			<table>
+				<tbody>
+					<SlottedStorageConfiguration content={content as never} game={{} as never} />
+				</tbody>
+			</table>
+		)
+
+		const stars = container.querySelector('[data-testid="stars"]') as HTMLButtonElement
+		expect(stars.dataset.maximum).toBe('2')
+		expect(stars.dataset.value).toBe('2')
+		expect(container.textContent).toContain('2 / 6 slots')
+		expect(container.querySelectorAll('.slotted-storage-stars__unavailable')).toHaveLength(4)
+
+		stars.click()
+
+		expect(configuration.generalSlots).toBe(2)
 	})
 })

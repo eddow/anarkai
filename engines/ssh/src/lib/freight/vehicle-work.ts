@@ -221,7 +221,14 @@ function characterCanUseLinkedVehicleHere(character: Character, vehicle: Vehicle
 function dockedVehicleHasPendingDockWork(vehicle: VehicleEntity): boolean {
 	if (vehicle.storage.virtualGoodsCount > 0) return true
 	const bay = freightVehicleDockBay(vehicle)
-	return !!bay && collectDockedVehicleAdvertisementCandidates(vehicle, bay).length > 0
+	if (!bay) return false
+	if (bay.proposedJobs.some((job) => job.job === 'convey')) return true
+	const dock = bay.hive.freightVehicleDockFor(vehicle.uid)
+	return !!dock && bay.hive.collectActiveMovements().some((movement) => {
+		if (movement.provider !== dock && movement.demander !== dock) return false
+		if (movement.claimed) return true
+		return movement.path.length > 0 && movement.provider instanceof Alveolus
+	})
 }
 
 function vehicleStockCount(vehicle: VehicleEntity): number {
@@ -973,6 +980,7 @@ function findVehicleOffloadJobApproach(
 			continue
 		}
 		if (isVehicleLineService(service)) {
+			if (!vehicle.isDocked) continue
 			if (vehicle.isDocked && dockedVehicleHasPendingDockWork(vehicle)) continue
 			if (projectedLineStopForVehicleHop(game, character, vehicle)) continue
 			const reachability = vehicleMaintenanceReachability(game, vehicle, character)
@@ -1120,12 +1128,10 @@ export function findVehicleApproachJob(
 		if (isVehicleMaintenanceService(service)) continue
 		if (isVehicleLineService(service)) {
 			// Discovery is read-only: dock completion/advancement is handled by `vehicleHopPrepare`.
-			if (
-				vehicle.isDocked &&
-				'anchor' in service.stop &&
-				(vehicleStockCount(vehicle) <= 0 || dockedVehicleHasPendingDockWork(vehicle))
-			)
-				continue
+			if (vehicle.isDocked && 'anchor' in service.stop) {
+				if (dockedVehicleHasPendingDockWork(vehicle)) continue
+				if (!nextLineStopAfterCurrent(game, vehicle)) continue
+			}
 		} else {
 			if (vehicle.servedLines.length === 0) continue
 			if (!pickInitialVehicleServiceCandidate(game, character, vehicle)) continue
@@ -1535,10 +1541,6 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 		if (!vehicle) return undefined
 		const service = vehicle.service
 		if (isVehicleMaintenanceService(service)) return undefined
-		let pick = isVehicleLineService(service)
-			? projectedLineStopForVehicleHop(game, character, vehicle)
-			: pickInitialVehicleServiceCandidate(game, character, vehicle)
-		if (!pick) return undefined
 		const dockedNextStop =
 			isVehicleLineService(service) &&
 			vehicle.isDocked &&
@@ -1546,7 +1548,12 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 			!dockedVehicleHasPendingDockWork(vehicle)
 				? nextLineStopAfterCurrent(game, vehicle)
 				: undefined
-		if (dockedNextStop) pick = dockedNextStop
+		const pick =
+			dockedNextStop ??
+			(isVehicleLineService(service)
+				? projectedLineStopForVehicleHop(game, character, vehicle)
+				: pickInitialVehicleServiceCandidate(game, character, vehicle))
+		if (!pick) return undefined
 		const needsBeginService = !isVehicleLineService(service)
 		let path: AxialCoord[] = []
 		let zoneBrowseAction: VehicleHopJob['zoneBrowseAction']

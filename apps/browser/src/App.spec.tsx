@@ -62,8 +62,8 @@ vi.mock('@app/palette/browser-palette', async () => {
 	const paletteState = reactive({ editing: false })
 	const palettePanelBridge = {
 		openConfiguration: () => {},
-		openDistrict: () => {},
 		openGame: () => {},
+		openZones: () => {},
 	}
 	const tools = {
 		openConfiguration: {
@@ -72,8 +72,8 @@ vi.mock('@app/palette/browser-palette', async () => {
 		openGame: {
 			run: () => palettePanelBridge.openGame(),
 		},
-		openDistrict: {
-			run: () => palettePanelBridge.openDistrict(),
+		openZones: {
+			run: () => palettePanelBridge.openZones(),
 		},
 		timeControl: {
 			get value() {
@@ -164,7 +164,9 @@ vi.mock('pure-glyf/icons', () => ({
 	tablerFilledPointer: 'pure-glyf-icon glyf-tabler-filled-pointer',
 	tablerFilledSquareRoundedMinus: 'pure-glyf-icon glyf-tabler-filled-square-rounded-minus',
 	tablerFilledZoomMoney: 'pure-glyf-icon glyf-tabler-filled-zoom-money',
-	tablerOutlineBuildingCommunity: 'pure-glyf-icon glyf-tabler-outline-building-community',
+	tablerOutlinePolygon: 'pure-glyf-icon glyf-tabler-outline-polygon',
+	tablerOutlineRoad: 'pure-glyf-icon glyf-tabler-outline-road',
+	tablerOutlineRoute: 'pure-glyf-icon glyf-tabler-outline-route',
 	tablerOutlineTrees: 'pure-glyf-icon glyf-tabler-outline-trees',
 }))
 

@@ -72,8 +72,7 @@
 		"offloadService": "Offload",
 		"docked": "Docked",
 		"underway": "Underway",
-		"showContent": "Show cargo",
-		"hideContent": "Hide cargo",
+		"cargo": "Cargo",
 		"lineAssignment": {
 			"section": "Assigned lines",
 			"assigned": "Lines",

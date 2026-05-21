@@ -57,6 +57,10 @@ function starsRangeValue(value: StarsValue, fallback: [number, number]): [number
 	return [fallback[0], typeof value === 'number' ? value : fallback[1]]
 }
 
+function unavailableSlotElements(count: number) {
+	return Array.from({ length: Math.max(0, count) })
+}
+
 export default function SlottedStorageConfiguration(props: SlottedStorageConfigurationProps) {
 	const draft = reactive({
 		generalSlots: 0,
@@ -101,6 +105,9 @@ export default function SlottedStorageConfiguration(props: SlottedStorageConfigu
 		get remainingBudget() {
 			return Math.max(0, this.totalSlots - this.bufferedSlots)
 		},
+		get displayedGeneralSlots() {
+			return Math.min(this.configuration?.generalSlots ?? 0, this.remainingBudget)
+		},
 		rule(goodType: GoodType) {
 			return this.configuration?.goods[goodType] ?? { minSlots: 0, maxSlots: 0 }
 		},
@@ -113,8 +120,7 @@ export default function SlottedStorageConfiguration(props: SlottedStorageConfigu
 	}
 
 	effect`slotted-storage-configuration:draft-sync`(() => {
-		const configuration = view.configuration
-		draft.generalSlots = configuration?.generalSlots ?? 0
+		draft.generalSlots = view.displayedGeneralSlots
 
 		const activeGoods = new Set(view.configuredGoods)
 		for (const goodType of view.configuredGoods) {
@@ -143,21 +149,26 @@ export default function SlottedStorageConfiguration(props: SlottedStorageConfigu
 		<div if={view.isSlotted} class="slotted-storage-config">
 			<PropertyGridRow label="General goods">
 				<div class="slotted-storage-stars">
-					<Stars
-						maximum={view.remainingBudget}
-						value={draft.generalSlots}
-						onChange={(value: StarsValue) => {
-							const nextGeneralSlots = starsValue(value)
-							draft.generalSlots = nextGeneralSlots
-							view.content?.setSlottedGeneralSlots(nextGeneralSlots)
-						}}
-						size="1rem"
-						zeroElement="□"
-						before="■"
-						after="■"
-					/>
+					<div class="slotted-storage-stars__row">
+						<Stars
+							maximum={view.remainingBudget}
+							value={draft.generalSlots}
+							onChange={(value: StarsValue) => {
+								const nextGeneralSlots = Math.min(starsValue(value), view.remainingBudget)
+								draft.generalSlots = nextGeneralSlots
+								view.content?.setSlottedGeneralSlots(nextGeneralSlots)
+							}}
+							size="1rem"
+							zeroElement="□"
+							before="■"
+							after="■"
+						/>
+						<for each={unavailableSlotElements(view.bufferedSlots)}>
+							{() => <span class="slotted-storage-stars__unavailable">■</span>}
+						</for>
+					</div>
 					<span class="slotted-storage-summary">
-						{view.configuration?.generalSlots ?? 0} / {view.remainingBudget} slots
+						{view.displayedGeneralSlots} / {view.totalSlots} slots
 					</span>
 				</div>
 			</PropertyGridRow>
@@ -200,7 +211,7 @@ export default function SlottedStorageConfiguration(props: SlottedStorageConfigu
 										before="■"
 										after="■"
 									/>
-									<for each={Array.from({ length: unavailableSlots })}>
+									<for each={unavailableSlotElements(unavailableSlots)}>
 										{() => <span class="slotted-storage-stars__unavailable">■</span>}
 									</for>
 								</div>

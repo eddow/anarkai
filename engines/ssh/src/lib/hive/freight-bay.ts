@@ -3,7 +3,9 @@ import type { Tile } from 'ssh/board/tile'
 import {
 	type FreightLineDefinition,
 	findGatherFreightLines,
+	gatherSelectableGoodTypes,
 } from 'ssh/freight/freight-line'
+import { FREIGHT_LINE_ALL_GOOD_TYPES } from 'ssh/freight/goods-selection-policy'
 import {
 	gatherZoneLoadStopForBay,
 	pickGatherTargetInZoneStop,
@@ -43,20 +45,35 @@ export class FreightBayAlveolus extends Alveolus {
 		return findGatherFreightLines(freightLines, this)
 	}
 
+	private hiveStorageCanAccept(goodType: GoodType): boolean {
+		return this.hive.generalStorages.some((storage) => {
+			const acceptedRoomFor = (
+				storage as {
+					acceptedRoomFor?: (goodType: GoodType, priority: '0-store') => number
+				}
+			).acceptedRoomFor
+			if (acceptedRoomFor) return acceptedRoomFor.call(storage, goodType, '0-store') > 0
+			return storage.canTake(goodType, '0-store') && (storage.storage.hasRoom(goodType) ?? 0) > 0
+		})
+	}
+
 	get hasLooseGoodsToGather(): boolean {
 		const hiveNeeds = Object.keys(this.hive.needs) as GoodType[]
 		for (const line of this.gatherFreightLines()) {
 			const zoneStop = gatherZoneLoadStopForBay(line, this)
 			if (!zoneStop) continue
+			const acceptedGoods = gatherSelectableGoodTypes(line, FREIGHT_LINE_ALL_GOOD_TYPES).filter(
+				(good) => this.hiveStorageCanAccept(good)
+			)
 			const pick = pickGatherTargetInZoneStop(
 				this.tile.game,
 				line,
 				zoneStop,
 				this.tile.position,
-				hiveNeeds,
+				[...new Set([...hiveNeeds, ...acceptedGoods])],
 				{
 					bayAlveolus: this,
-					canAcceptGood: (good) => this.hive.needs[good] !== undefined,
+					canAcceptGood: (good) => this.hiveStorageCanAccept(good),
 				}
 			)
 			if (pick) return true

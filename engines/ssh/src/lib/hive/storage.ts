@@ -217,13 +217,39 @@ export class StorageAlveolus extends Alveolus {
 		return this.canTake(goodType, priority)
 	}
 
+	acceptedRoomFor(goodType: GoodType, _priority: ExchangePriority): number {
+		if (!this.working) return 0
+
+		if (this.storage instanceof SlottedStorage) {
+			const slotUsage = this.storage.slotUsage()
+			const capacity = this.storage.maxQuantityPerSlot
+			const rule = this.slottedRule(goodType)
+			const goodSlots = slotUsage[goodType] ?? 0
+			const generalSlots = this.slottedGeneralSlotUsage(slotUsage)
+			const allowedNewSlots = rule
+				? Math.max(0, rule.minSlots + rule.maxSlots - goodSlots)
+				: Math.max(0, this.slottedStorageConfiguration.generalSlots - generalSlots)
+			let partialRoom = 0
+			for (const slot of this.storage.slots) {
+				if (!slot || slot.goodType !== goodType) continue
+				partialRoom += Math.max(
+					0,
+					this.storage.maxQuantityPerSlot - slot.quantity - slot.allocated
+				)
+			}
+			return partialRoom + allowedNewSlots * capacity
+		}
+
+		return this.storage.hasRoom(goodType)
+	}
+
 	canTake(goodType: GoodType, _priority: ExchangePriority) {
 		// Only accept goods if working is enabled
 		if (!this.working) return false
 
 		let result = false
 		let debugInfo: Record<string, unknown> = { working: this.working }
-		const hasRoom = this.storage.hasRoom(goodType)
+		const acceptedRoom = this.acceptedRoomFor(goodType, _priority)
 
 		if (this.storage instanceof SlottedStorage) {
 			const slotUsage = this.storage.slotUsage()
@@ -238,7 +264,7 @@ export class StorageAlveolus extends Alveolus {
 			debugInfo = {
 				...debugInfo,
 				storageType: 'SlottedStorage',
-				hasRoom,
+				acceptedRoom,
 				totalSlots: this.storage.slots.length,
 				usedSlots: this.storage.usedSlots,
 				emptySlots: this.storage.emptySlots,
@@ -259,7 +285,7 @@ export class StorageAlveolus extends Alveolus {
 				})),
 			}
 
-			result = hasRoom > 0 && (partialRoom || canClaimNewSlot)
+			result = acceptedRoom > 0
 		} else if (this.storage instanceof SpecificStorage) {
 			const current = this.storage.stock[goodType] ?? 0
 			const max = this.storage.maxAmounts[goodType] ?? 0
@@ -269,18 +295,18 @@ export class StorageAlveolus extends Alveolus {
 				storageType: 'SpecificStorage',
 				current,
 				max,
-				hasRoom,
+				acceptedRoom,
 				maxAmounts: this.storage.maxAmounts,
 			}
 
-			result = hasRoom > 0
+			result = acceptedRoom > 0
 		} else {
 			debugInfo = {
 				...debugInfo,
 				storageType: 'Other',
-				hasRoom,
+				acceptedRoom,
 			}
-			result = hasRoom > 0
+			result = acceptedRoom > 0
 		}
 
 		traces.allocations.log?.(`[CANTAKE] ${this.name} can take ${goodType}:`, {

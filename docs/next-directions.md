@@ -45,7 +45,6 @@ Already landed or mostly landed:
 - freight lines should complete the exchange-route refactor: cyclic route order, zone-local exchange,
   and candidate checks that no longer depend on gather/distribute as line kinds
 - "lines" management widget with filters: "have bay" (yes/all/no) and "visible" (only-intersecting-the-game-view:bool)
-- find a way to show the content of the docked vehicles. Perhaps add a check-box/button to show/hide vehicle content (docked and non-docked)
 - roads & velocity calculation. Some vehicles can just not drive beside roads. There should be a multiplier somewhere as well as a `min(road-max-velocity, vehicle/character-ax-velocity)`. How to calculate exactly the velocity for it to be realistic somehow but still simple ?
 - market analysis for settlement trade: compare settlement prices and positions, surface why Melindbury is
   or is not a good source/sink, and keep the view focused on route decisions rather than finance UI.
@@ -80,12 +79,12 @@ walking cost modifiers. Roads remain a natural bridge between hive logistics and
 
 Potential next scope:
 
+- City halls are "on" the road. Though, they are buildings. Indeed, settlements should be joined by 2-lanes roads and lanes should be joined by a continuous white line instead of a gap. Beside, settlements should have all their residential/market/civil tiles connected to the road (in a settlement, 1-lane can be allowed)
 - Builder/project workflow for road construction instead of instant placement.
-- Route-benefit UI for characters and vehicles.
-- More road kinds/materials and road-rank rules.
+- Route-benefit UI for characters and vehicles. Forbid some vehicles (not 4x4) to drive off-road (no vehicle can traverse an occupied tile: alveolus, residence, market, industry, ...) - beside bays. For (un)loading an occupied tile, the vehicle puts itself on the border of the tile and the character makes a convey-hop-like ASingleStep (he goes on the center, then move the good from the border=vehicle to the center or vice-versa)
+- More road kinds/materials and road-rank rules. The rules are for drawing (an interaction with 2 different roads show the highest-rank) One rule is that one-lane road allow crossing (a vehicle in each direction) only with 30kph (thus, not inter-settlements) Drawing should consider borders of lane: side-walks, white markings, ...
 - Road-aware vehicle routing and line summaries.
 - Lane/band metadata and markings.
-- Optional maintenance/degradation later.
 
 Good follow-up to:
 

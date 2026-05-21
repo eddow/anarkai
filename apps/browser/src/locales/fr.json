@@ -72,8 +72,7 @@
 		"offloadService": "Déchargement",
 		"docked": "À quai",
 		"underway": "En route",
-		"showContent": "Afficher le chargement",
-		"hideContent": "Masquer le chargement",
+		"cargo": "Chargement",
 		"lineAssignment": {
 			"section": "Lignes assignées",
 			"assigned": "Lignes",

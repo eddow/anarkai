@@ -102,6 +102,60 @@ describe('vehicle-freight-dock', () => {
 		}
 	})
 
+	it('protects cargo needed by a later line stop as dock buffer instead of storage surplus', async () => {
+		const engine = new TestEngine({ terrainSeed: 12019, characterCount: 0 })
+		await engine.init()
+		try {
+			const line = distributeFreightLine({
+				id: 'dock:retained-cargo',
+				name: 'Dock retained cargo',
+				hiveName: 'DockRetain',
+				coord: [0, 0],
+				filters: ['wood'],
+				unloadRadius: 3,
+			})
+			engine.loadScenario({
+				hives: [
+					{
+						name: 'DockRetain',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
+							{ coord: [1, 0], alveolus: 'storage', goods: {} },
+						],
+					},
+				],
+				freightLines: [line],
+			} satisfies Partial<SaveState>)
+
+			const demandTile = engine.game.hex.getTile({ q: 2, r: 0 })!
+			demandTile.content = new BuildDwelling(demandTile, 'basic_dwelling')
+			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus
+			const vehicle = engine.game.vehicles.createVehicle(
+				'dock-retained-v',
+				'wheelbarrow',
+				{ q: 0, r: 0 },
+				[line]
+			)
+			vehicle.storage.addGood('wood', 2)
+			vehicle.beginLineService(line, line.stops[0]!)
+			if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
+			vehicle.service.docked = true
+			vehicle.position = undefined
+
+			const relations = dockedVehicleGoodsRelations(vehicle, bay)
+			const candidates = collectDockedVehicleAdvertisementCandidates(vehicle, bay)
+
+			expect(relations.wood).toEqual({ advertisement: 'provide', priority: '1-buffer' })
+			expect(candidates).not.toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ goodType: 'wood', advertisement: 'provide' }),
+				])
+			)
+		} finally {
+			await engine.destroy()
+		}
+	})
+
 	it('creates a convey unload from a docked gather vehicle into its own gather-only bay', async () => {
 		const engine = new TestEngine({ terrainSeed: 12008, characterCount: 0 })
 		await engine.init()

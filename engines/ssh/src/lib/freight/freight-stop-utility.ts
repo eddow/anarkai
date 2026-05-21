@@ -390,7 +390,23 @@ function sumHiveStorageHasRoomForGood(hive: Hive, goodType: GoodType): number {
 		const relation = alv.workingGoodsRelations[goodType]
 		if (relation?.advertisement !== 'demand') continue
 		if (relation.priority !== '1-buffer' && relation.priority !== '2-use') continue
-		const room = alv.storage.hasRoom(goodType) ?? 0
+		const acceptedRoomFor = (
+			alv as {
+				acceptedRoomFor?: (goodType: GoodType, priority: ExchangePriority) => number
+			}
+		).acceptedRoomFor
+		let room = acceptedRoomFor
+			? acceptedRoomFor.call(alv, goodType, relation.priority)
+			: (alv.storage.hasRoom(goodType) ?? 0)
+		if (relation.priority === '1-buffer') {
+			const buffer = (alv as { storageBuffers?: Partial<Record<GoodType, number>> }).storageBuffers?.[
+				goodType
+			]
+			if (buffer !== undefined) {
+				const planned = (alv.storage.stock[goodType] ?? 0) + alv.storage.allocated(goodType)
+				room = Math.min(room, Math.max(0, buffer - planned))
+			}
+		}
 		if (room > 0) sum += room
 	}
 	return sum

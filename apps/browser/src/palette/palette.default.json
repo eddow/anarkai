@@ -25,16 +25,6 @@
             }
           },
           {
-            "tool": "openDistrict",
-            "editor": "button",
-            "config": {
-              "label": "District",
-              "icon": "pure-glyf-icon glyf-tabler-outline-building-community",
-              "hint": "Open district planning",
-              "tone": "neutral"
-            }
-          },
-          {
             "tool": "openZones",
             "editor": "button",
             "config": {
@@ -47,7 +37,7 @@
         ]
       },
       {
-        "space": 0.16087526114708497,
+        "space": 0.2,
         "toolbar": [
           {
             "editor": "account",
@@ -82,7 +72,7 @@
         ]
       },
       {
-        "space": 0.21721507791081734,
+        "space": 0.2,
         "toolbar": [
           {
             "tool": "selectedAction",
@@ -99,7 +89,48 @@
         ]
       },
       {
-        "space": 0.12652766745278476,
+        "space": 0.1,
+        "toolbar": [
+          {
+            "tool": "selectedAction",
+            "editor": "segmented",
+            "config": {
+              "label": "Build",
+              "hint": "Build tools",
+              "acceptedKeywords": [
+                "build"
+              ],
+              "choiceDisplay": "icon"
+            }
+          },
+          {
+            "tool": "selectedAction",
+            "editor": "segmented",
+            "config": {
+              "label": "Zones",
+              "hint": "Zone tools",
+              "acceptedKeywords": [
+                "zone"
+              ],
+              "choiceDisplay": "icon"
+            }
+          },
+          {
+            "tool": "selectedAction",
+            "editor": "segmented",
+            "config": {
+              "label": "Roads",
+              "hint": "Road tools",
+              "acceptedKeywords": [
+                "road"
+              ],
+              "choiceDisplay": "icon"
+            }
+          }
+        ]
+      },
+      {
+        "space": 0.5,
         "toolbar": [
           {
             "tool": "theme",

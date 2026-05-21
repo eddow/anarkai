@@ -16,6 +16,10 @@ vi.mock('@app/lib/globals', () => ({
 	uiConfiguration: reactive({ darkMode: false }),
 }))
 
+vi.mock('@app/lib/zone-selection', () => ({
+	showZonesObject: vi.fn(),
+}))
+
 vi.mock('ssh/assets/game-content', () => ({
 	alveoli: {
 		house: { construction: true },
@@ -38,30 +42,30 @@ describe('browser palette registry & palettePanelBridge', () => {
 	afterEach(() => {
 		disposeBrowserPalette()
 		palettePanelBridge.openConfiguration = () => {}
-		palettePanelBridge.openDistrict = () => {}
 		palettePanelBridge.openGame = () => {}
+		palettePanelBridge.openZones = () => {}
 	})
 
 	it('run tools resolve to palettePanelBridge panel openers', () => {
 		const palette = getBrowserPalette().palette
 		const openCfg = palette.tool('openConfiguration') as { run(): void }
-		const openDistrict = palette.tool('openDistrict') as { run(): void }
 		const openGame = palette.tool('openGame') as { run(): void }
+		const openZones = palette.tool('openZones') as { run(): void }
 
 		const spyConfiguration = vi.fn()
-		const spyDistrict = vi.fn()
 		const spyGame = vi.fn()
+		const spyZones = vi.fn()
 		palettePanelBridge.openConfiguration = spyConfiguration
-		palettePanelBridge.openDistrict = spyDistrict
 		palettePanelBridge.openGame = spyGame
+		palettePanelBridge.openZones = spyZones
 
 		openCfg.run()
-		openDistrict.run()
 		openGame.run()
+		openZones.run()
 
 		expect(spyConfiguration).toHaveBeenCalledTimes(1)
-		expect(spyDistrict).toHaveBeenCalledTimes(1)
 		expect(spyGame).toHaveBeenCalledTimes(1)
+		expect(spyZones).toHaveBeenCalledTimes(1)
 	})
 
 	it('provides an icon for build selectedAction entries', () => {
@@ -114,7 +118,7 @@ describe('browser palette registry & palettePanelBridge', () => {
 		expect(freightBay?.icon).toBeTruthy()
 	})
 
-	it('keeps build, zone, and road tools out of the top toolbar', () => {
+	it('exposes build, zone, and road tools in the top toolbar', () => {
 		const acceptedKeywords = defaultPalette.top
 			.flat(2)
 			.flatMap((entry) => entry.toolbar)
@@ -122,9 +126,9 @@ describe('browser palette registry & palettePanelBridge', () => {
 			.flatMap((entry) => entry.config.acceptedKeywords ?? [])
 
 		expect(acceptedKeywords).toContain('select')
-		expect(acceptedKeywords).not.toContain('build')
-		expect(acceptedKeywords).not.toContain('zone')
-		expect(acceptedKeywords).not.toContain('road')
+		expect(acceptedKeywords).toContain('build')
+		expect(acceptedKeywords).toContain('zone')
+		expect(acceptedKeywords).toContain('road')
 		expect(acceptedKeywords).not.toContain('path')
 	})
 

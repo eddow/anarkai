@@ -39,7 +39,6 @@ import { effect, reactive, unwrap } from 'mutts'
 import {
 	tablerFilledAdjustments,
 	tablerFilledArrowBigRight,
-	tablerOutlineBuildingCommunity,
 	tablerOutlinePolygon,
 	tablerOutlineRoute,
 } from 'pure-glyf/icons'
@@ -48,7 +47,6 @@ import type { Game } from 'ssh/game'
 export const palettePanelBridge = reactive({
 	openConfiguration: () => {},
 	openGame: () => {},
-	openDistrict: () => {},
 	openZones: () => {},
 })
 
@@ -105,20 +103,6 @@ const tools = {
 		},
 		run() {
 			palettePanelBridge.openGame()
-		},
-	},
-	openDistrict: {
-		label: 'Open district',
-		icon:
-			typeof tablerOutlineBuildingCommunity === 'string'
-				? tablerOutlineBuildingCommunity
-				: undefined,
-		keywords: ['district', 'planning', 'build', 'zone', 'road'],
-		get can() {
-			return true
-		},
-		run() {
-			palettePanelBridge.openDistrict()
 		},
 	},
 	openZones: {

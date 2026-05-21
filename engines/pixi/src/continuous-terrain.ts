@@ -11,6 +11,7 @@ import {
 	Texture,
 } from 'pixi.js'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import { Tile } from 'ssh/board/tile'
 import { profile, traces } from 'ssh/dev/debug'
 import type { RenderableTerrainTile } from 'ssh/game/game'
 import type { TerrainMacroHydrologySnapshot } from 'engine-terrain'
@@ -295,8 +296,10 @@ interface ResourceSpriteBuild {
 	scale: number
 }
 
-function isHoveredTileObject(value: unknown): value is { position: AxialCoord } {
-	if (!value || typeof value !== 'object') return false
+export function shouldRenderTerrainHoverForObject(
+	value: unknown
+): value is Tile & { position: AxialCoord } {
+	if (!(value instanceof Tile)) return false
 	const position = (value as { position?: { q?: unknown; r?: unknown } }).position
 	return (
 		!!position &&
@@ -464,7 +467,7 @@ export class TerrainVisual {
 		this.renderer.app?.ticker.add(this.refresh)
 		this.hoverCleanup = effect`terrain.hover`(() => {
 			this.renderHoverOverlay(
-				isHoveredTileObject(mrg.hoveredObject) ? mrg.hoveredObject : undefined
+				shouldRenderTerrainHoverForObject(mrg.hoveredObject) ? mrg.hoveredObject : undefined
 			)
 		})
 		const onRoadsChanged = (coords: AxialCoord[]) => this.invalidateRoadTiles(coords)
