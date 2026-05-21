@@ -164,7 +164,7 @@ const ZoneProperties = (props: ZonePropertiesProps) => {
 			color: patch.color ?? existing.color,
 			builtIn: existing.builtIn,
 		})
-		if (patch.name !== undefined && patch.name.trim()) {
+		if (patch.name?.trim()) {
 			unnamedZoneOwnership.zoneId = undefined
 			unnamedZoneOwnership.panelId = undefined
 		}

@@ -32,7 +32,7 @@ function _hashConfig(c: TerrainConfig): string {
 
 export function getCachedWasmTerrainConfig(config: TerrainConfig): any {
 	const hash = _hashConfig(config)
-	let cached = _wasmConfigCache.get(hash)
+	const cached = _wasmConfigCache.get(hash)
 	if (cached) return cached
 
 	const core = _core()
@@ -293,9 +293,9 @@ export function generateSectorFieldsWasm(
 	const edges = new Map<EdgeKey, EdgeField>()
 	if (edgeInts && edgeFloats) {
 		for (
-			let edgeIndex = 0, intIndex = 0, floatIndex = 0;
+			let intIndex = 0, floatIndex = 0;
 			intIndex < edgeInts.length;
-			edgeIndex++, intIndex += 4, floatIndex += 4
+			intIndex += 4, floatIndex += 4
 		) {
 			const from = { q: edgeInts[intIndex]!, r: edgeInts[intIndex + 1]! }
 			const direction = edgeInts[intIndex + 2]!
@@ -329,9 +329,9 @@ export function generateSectorFieldsWasm(
 	const riverFlow = new Map<AxialKey, TileRiverFlow>()
 	if (channelInts && channelFloats) {
 		for (
-			let channelIndex = 0, intIndex = 0, floatIndex = 0;
+			let intIndex = 0, floatIndex = 0;
 			intIndex < channelInts.length;
-			channelIndex++, intIndex += 7, floatIndex += 2
+			intIndex += 7, floatIndex += 2
 		) {
 			const key = axial.key({ q: channelInts[intIndex]!, r: channelInts[intIndex + 1]! })
 			const upstreamMask = channelInts[intIndex + 2]!

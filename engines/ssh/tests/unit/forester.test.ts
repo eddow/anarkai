@@ -112,16 +112,16 @@ describe('forester planted trees', () => {
 		const match = worker.resolveBestJobMatch()
 
 		expect(match).not.toBe(false)
-		expect(match && match.job.job).toBe('forester')
-		expect(match && match.targetTile.position).toMatchObject({ q: 1, r: 0 })
-		expect(match && match.path).toHaveLength(0)
+		expect(match?.job.job).toBe('forester')
+		expect(match?.targetTile.position).toMatchObject({ q: 1, r: 0 })
+		expect(match?.path).toHaveLength(0)
 
 		worker.assignedAlveolus = forester
 		const assignedMatch = worker.resolveBestJobMatch()
 		expect(assignedMatch).not.toBe(false)
-		expect(assignedMatch && assignedMatch.job.job).toBe('forester')
-		expect(assignedMatch && assignedMatch.targetTile.position).toMatchObject({ q: 1, r: 0 })
-		expect(assignedMatch && assignedMatch.path).toHaveLength(0)
+		expect(assignedMatch?.job.job).toBe('forester')
+		expect(assignedMatch?.targetTile.position).toMatchObject({ q: 1, r: 0 })
+		expect(assignedMatch?.path).toHaveLength(0)
 	})
 
 	it('plants on forest terrain only for now', async () => {

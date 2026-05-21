@@ -105,9 +105,9 @@ export function generateMacroHydrologyWasm(
 	}
 	const segments: TerrainMacroRiverSegment[] = []
 	for (
-		let segmentIndex = 0, intIndex = 0, floatIndex = 0;
+		let intIndex = 0, floatIndex = 0;
 		intIndex < segmentInts.length;
-		segmentIndex++, intIndex += 5, floatIndex += 2
+		intIndex += 5, floatIndex += 2
 	) {
 		segments.push({
 			fromQ: segmentInts[intIndex]!,

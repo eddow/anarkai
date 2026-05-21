@@ -456,7 +456,6 @@ function materialColorForTile(tile: RenderableTerrainTile): number {
 			return 0xe0e8ed
 		case 'concrete':
 			return 0x8d918d
-		case 'grass':
 		default: {
 			const height = Math.max(-1, Math.min(1, tile.height ?? 0))
 			if (height > 0.22) return 0x5f7f42
