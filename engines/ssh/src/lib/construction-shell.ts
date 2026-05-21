@@ -49,6 +49,10 @@ export function finalizeConstructionShell(shell: ConstructionSiteShell): void {
 	const constructionSite = normalizeConstructionSiteState(shell.constructionSite)
 	setConstructionConsumedGoods(constructionSite, constructionSite.requiredGoods)
 	applyConstructionConcreteTerrain(shell.tile)
+	const assignableShell = shell as { assignedWorker?: { assignedAlveolus?: unknown } | undefined }
+	const assignedWorker = assignableShell.assignedWorker
+	if (assignedWorker?.assignedAlveolus === shell) assignedWorker.assignedAlveolus = undefined
+	if ('assignedWorker' in shell) assignableShell.assignedWorker = undefined
 	const target = constructionSite.target
 	if (target.kind === 'alveolus') {
 		const alveolus = createAlveolus(target.alveolusType, shell.tile)

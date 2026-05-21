@@ -2,19 +2,6 @@ import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
-const DEFAULT_EXCLUDES = [
-	'tests/integration/sample_game.test.ts',
-	'tests/integration/assigned_second_wood_debug.test.ts',
-	'tests/integration/atomicity_diff.test.ts',
-	'tests/integration/convey_bookkeeping_resilience.test.ts',
-	'tests/integration/convey_stall.test.ts',
-	'tests/integration/gather_to_sawmill_regression.test.ts',
-	'tests/integration/mixed_pipeline_stall_regression.test.ts',
-	'tests/integration/repro_deadlock.test.ts',
-	'tests/integration/reserved_wood_stuck_diagnostic.test.ts',
-	'tests/integration/single_worker_two_woods_regression.test.ts',
-]
-
 function timestamp() {
 	return new Date()
 		.toISOString()
@@ -31,14 +18,20 @@ function readFlagValue(arg, flag) {
 
 const rawArgs = process.argv.slice(2).filter((arg, index) => !(arg === '--' && index === 0))
 const forwardedArgs = []
-let includeDefaultExcludes = true
 let traceChannels
 let traceLevel
+let processTimeoutMs = Number(process.env.SSH_VITEST_PROCESS_TIMEOUT_MS || 0)
 
 for (let index = 0; index < rawArgs.length; index++) {
 	const arg = rawArgs[index]
-	if (arg === '--no-default-excludes') {
-		includeDefaultExcludes = false
+	if (arg === '--default-excludes') {
+		console.warn('--default-excludes is deprecated; run the suite with explicit timeouts instead.')
+		continue
+	}
+
+	const processTimeoutValue = readFlagValue(arg, '--process-timeout-ms')
+	if (processTimeoutValue !== undefined) {
+		processTimeoutMs = Number(processTimeoutValue || rawArgs[++index] || 0)
 		continue
 	}
 
@@ -71,12 +64,6 @@ const vitestArgs = [
 
 if (traceChannels && !hasExplicitSilentFlag) vitestArgs.push('--silent=false')
 
-if (includeDefaultExcludes) {
-	for (const testFile of DEFAULT_EXCLUDES) {
-		vitestArgs.push('--exclude', testFile)
-	}
-}
-
 vitestArgs.push(...forwardedArgs)
 
 const env = {
@@ -107,7 +94,22 @@ child.stderr.pipe(output, { end: false })
 child.stdout.pipe(process.stdout)
 child.stderr.pipe(process.stderr)
 
+let timeout
+if (Number.isFinite(processTimeoutMs) && processTimeoutMs > 0) {
+	timeout = setTimeout(() => {
+		const event = {
+			time: new Date().toISOString(),
+			event: 'parent-process-timeout',
+			timeoutMs: processTimeoutMs,
+		}
+		fs.appendFileSync(logPath, `${JSON.stringify(event)}\n`)
+		child.kill('SIGTERM')
+	}, processTimeoutMs)
+	timeout.unref?.()
+}
+
 child.on('exit', (code, signal) => {
+	if (timeout) clearTimeout(timeout)
 	output.end()
 	console.log(`progress log: ${logPath}`)
 	console.log(`output log: ${outputPath}`)

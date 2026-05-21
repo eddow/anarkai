@@ -16,7 +16,6 @@
 		"biome": "biome check . --fix",
 		"biome:unsafe": "biome check --fix --unsafe",
 		"test": "node ./scripts/run-vitest.mjs",
-		"test:no-timeouts": "node ./scripts/run-vitest.mjs --exclude tests/integration/sample_game.test.ts --exclude tests/integration/assigned_second_wood_debug.test.ts --exclude tests/integration/atomicity_diff.test.ts --exclude tests/integration/convey_bookkeeping_resilience.test.ts --exclude tests/integration/convey_stall.test.ts --exclude tests/integration/gather_to_sawmill_regression.test.ts --exclude tests/integration/mixed_pipeline_stall_regression.test.ts --exclude tests/integration/repro_deadlock.test.ts --exclude tests/integration/reserved_wood_stuck_diagnostic.test.ts --exclude tests/integration/single_worker_two_woods_regression.test.ts",
 		"test:trace-progress": "node ./scripts/trace-vitest-progress.mjs",
 		"test:core": "vitest run tests/unit/work_logic.test.ts tests/unit/pathfinding.test.ts tests/unit/storage.test.ts",
 		"test:watch": "vitest",

@@ -138,32 +138,14 @@ describe('StoredGoodsRow presentation refresh', () => {
 	it('does not render direct purchase buttons for construction shells', async () => {
 		const { BuildAlveolus } = await import('ssh/hive/build')
 		const site = new BuildAlveolus()
-		const executeDistrictPurchaseRequest = vi.fn()
-		const game = {
-			listDistricts: vi.fn(() => [{ id: 'default' }]),
-			listDistrictPurchaseRequests: vi.fn(() => [
-				{
-					id: 'purchase:default:use:stone:0,0',
-					districtId: 'default',
-					good: 'stone',
-					quantity: 1,
-					purpose: 'use',
-					targetCoord: { q: 0, r: 0 },
-					status: 'planned',
-				},
-			]),
-			executeDistrictPurchaseRequest,
-		}
 
 		stop = latch(
 			container,
-			<StoredGoodsRow content={site as never} game={game as never} label="Materials" />
+			<StoredGoodsRow content={site as never} game={{} as never} label="Materials" />
 		)
 
 		const button = container.querySelector('button[title="Buy stone"]')
 		expect(button).toBeNull()
-		button?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-		expect(executeDistrictPurchaseRequest).not.toHaveBeenCalled()
 	})
 
 	it('tolerates transient construction shells before required goods are populated', async () => {

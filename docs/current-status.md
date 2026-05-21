@@ -74,15 +74,13 @@ physical multi-hex corridors.
 
 Details and future lane/corridor vocabulary are documented in [`./roads.md`](./roads.md).
 
-### Districts, Settlements, and Commerce
+### Settlements and Commerce
 
-Districts are now planning geography above hives, not economy actors:
+Districts have been removed as a gameplay, UI, API, and save concept:
 
-- every game has a default player district (`district:default`)
-- district-scoped build, zone, and road actions record member coordinates
-- district panels can summarize construction/material state and link to settlement markets
-- direct district buy buttons, auto-buy toggles, purchase request rows, and reserve controls are hidden from normal UI
-- district procurement save fields, types, and execution APIs remain temporarily for compatibility, but normal ticking/UI paths do not buy through districts
+- build, zone, and road tools are direct toolbar actions
+- save files no longer write district member or procurement fields
+- material procurement is not routed through area buckets
 - concrete is a foundation-only construction good in this slice
 - the shared player account exists and is shown in the toolbar
 
@@ -119,7 +117,7 @@ For the line-based commerce finish, the focused green checks are:
 pnpm --filter ssh check
 pnpm --filter ssh-browser check
 pnpm --filter ssh exec vitest run tests/unit/freight-stop-utility.test.ts tests/unit/npc-trade-stop.test.ts tests/unit/chopsaw-example.test.ts --reporter verbose
-pnpm --filter ssh-browser exec vitest run src/components/FreightStopList.spec.tsx src/widgets/district.spec.tsx src/components/properties/SettlementProperties.spec.tsx --reporter verbose
+pnpm --filter ssh-browser exec vitest run src/components/FreightStopList.spec.tsx src/components/properties/SettlementProperties.spec.tsx --reporter verbose
 pnpm --filter ssh-browser exec vitest run src/components/properties/FreightLineProperties.spec.tsx src/lib/i18n.spec.ts --reporter verbose
 git diff --check
 ```

@@ -48,7 +48,7 @@ One possible split:
   can plausibly carry.
 - Direct delivery is good for staple household stock, bulky goods, emergency supply, and predictable
   recurring needs.
-- A dwelling may declare "pantry targets" while a district market declares "public shelf targets"; freight
+- A dwelling may declare "pantry targets" while a market declares "public shelf targets"; freight
   lines satisfy both with the same exchange-route machinery.
 
 ## External commerce
@@ -130,7 +130,7 @@ Generation shape:
 - choose one or more settlement blobs along terrain, roads, rivers, or coast;
 - allow roads to cross, branch, and form the settlement skeleton;
 - optionally tag broad subareas as residential, commercial, civic, industrial, or mixed later;
-- expose demand/production metadata on the settlement as a whole or on coarse districts;
+- expose demand/production metadata on the settlement as a whole or on coarse subareas;
 - place `NpcTradePoint`s at markets, depots, town gates, stations, ports, or roadside plazas.
 
 This model says "people live here" without requiring a full internal economy. For commerce, the

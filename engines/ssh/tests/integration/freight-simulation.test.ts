@@ -1,4 +1,5 @@
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
+import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { defined, traces } from 'ssh/dev/debug'
 import {
 	findLoadOntoVehicleJob,
@@ -12,6 +13,7 @@ import { VehicleFunctions } from 'ssh/npcs/context/vehicle'
 import { subject } from 'ssh/npcs/scripts'
 import { DurationStep } from 'ssh/npcs/steps'
 import type { Character } from 'ssh/population/character'
+import { residentialBasicDwellingProject } from 'ssh/residential/constants'
 import { afterEach, describe, expect, it } from 'vitest'
 import { distributeFreightLine, gatherFreightLine } from '../freight-fixtures'
 import { TestEngine } from '../test-engine'
@@ -127,6 +129,28 @@ async function simulateFreightUntil(
 	let i = 0
 	while (elapsed < maxVirtualSeconds && !isDone()) {
 		if (!worker.stepExecutor) {
+			const job = worker.findBestJob()
+			if (job) worker.begin(job)
+		}
+		engine.tick(step)
+		elapsed += step
+		i++
+		if (i % 200 === 0) await new Promise((r) => setTimeout(r, 0))
+	}
+}
+
+async function simulateWorkersUntil(
+	engine: TestEngine,
+	workers: readonly Character[],
+	isDone: () => boolean,
+	maxVirtualSeconds: number,
+	step = 0.1
+) {
+	let elapsed = 0
+	let i = 0
+	while (elapsed < maxVirtualSeconds && !isDone()) {
+		for (const worker of workers) {
+			if (worker.stepExecutor) continue
 			const job = worker.findBestJob()
 			if (job) worker.begin(job)
 		}
@@ -357,6 +381,85 @@ describe('Freight simulation (gather + distribute)', () => {
 			expect(npcFails).toHaveLength(0)
 		} finally {
 			collector.reset()
+			await engine?.destroy()
+		}
+	})
+
+	it('builds a dwelling from preloaded hive storage using a wheelbarrow and engineer', {
+		timeout: 60000,
+	}, async () => {
+		let engine: TestEngine | undefined
+		try {
+			engine = new TestEngine({ terrainSeed: 9103, characterCount: 0 })
+			await engine.init()
+
+			const scenario: Partial<SaveState> = {
+				tiles: [
+					{ coord: [0, 0] as [number, number], terrain: 'concrete' },
+					{ coord: [1, 0] as [number, number], terrain: 'concrete' },
+					{ coord: [0, 1] as [number, number], terrain: 'concrete' },
+					{ coord: [3, 0] as [number, number], terrain: 'concrete' },
+				],
+				hives: [
+					{
+						name: 'BuildFlow',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'storage', goods: { concrete: 1, wood: 2, planks: 1 } },
+							{ coord: [1, 0], alveolus: 'freight_bay', goods: {} },
+							{ coord: [0, 1], alveolus: 'engineer', goods: {} },
+						],
+					},
+				],
+				freightLines: [
+					distributeFreightLine({
+						id: 'build-flow-materials',
+						name: 'Build flow materials',
+						hiveName: 'BuildFlow',
+						coord: [1, 0],
+						filters: ['concrete', 'wood', 'planks'],
+						unloadRadius: 6,
+					}),
+				],
+				projectSites: [
+					{
+						coord: [3, 0],
+						project: residentialBasicDwellingProject,
+					},
+				],
+			}
+
+			engine.loadScenario(scenario)
+
+			const line = defined(
+				engine.game.freightLines.find((candidate) => candidate.id === 'build-flow-materials'),
+				'build-flow freight line'
+			)
+			engine.game.vehicles.createVehicle('build-flow-wb', lineFreightVehicleType(), { q: 1, r: 0 }, [
+				line,
+			])
+			const workers = [
+				engine.spawnCharacter('Builder One', { q: 1, r: 0 }),
+				engine.spawnCharacter('Builder Two', { q: 0, r: 1 }),
+				engine.spawnCharacter('Builder Three', { q: 1, r: 1 }),
+			]
+			for (const worker of workers) {
+				worker.role = 'worker'
+				void worker.scriptsContext
+			}
+
+			const projectTile = engine.game.hex.getTile({ q: 3, r: 0 })!
+			expect(projectTile.content).not.toBeInstanceOf(BasicDwelling)
+
+			await simulateWorkersUntil(
+				engine,
+				workers,
+				() => projectTile.content instanceof BasicDwelling,
+				90
+			)
+
+			expect(projectTile.content).toBeInstanceOf(BasicDwelling)
+			expect(projectTile.baseTerrain).toBe('concrete')
+		} finally {
 			await engine?.destroy()
 		}
 	})

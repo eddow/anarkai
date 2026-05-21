@@ -37,25 +37,6 @@ import {
 	createConstructionSiteState,
 	type DwellingTier,
 } from 'ssh/construction-state'
-import {
-	DEFAULT_DISTRICT_ID,
-	District,
-	DistrictObject,
-	type DistrictPatch,
-	defaultDistrict,
-	districtIdFromUid,
-	isDistrictUid,
-} from 'ssh/district/district'
-import {
-	createDistrictProcurementPolicy,
-	type DistrictProcurementPolicy,
-	type DistrictPurchaseExecutionResult,
-	type DistrictPurchaseRequest,
-	executeDistrictPurchaseRequest,
-	listDistrictEligibleSellGoods,
-	listDistrictPurchaseRequests,
-	updateDistrictProcurementPolicy,
-} from 'ssh/district/procurement'
 import type { FreightLineDefinition, SyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import {
 	collectFreightLineBootstrapCoords,
@@ -226,6 +207,8 @@ export interface ProjectSitePatch {
 	constructionPhase?: ConstructionPhase
 	foundationGoods?: Partial<Record<GoodType, number>>
 	foundationConsumedGoods?: Partial<Record<GoodType, number>>
+	constructionGoods?: Partial<Record<GoodType, number>>
+	constructionWorkSecondsApplied?: number
 }
 
 export interface PlayerAccountPatch {
@@ -280,7 +263,6 @@ export interface GamePatches {
 	projects?: Record<string, ReadonlyArray<readonly [number, number]>>
 	projectSites?: ReadonlyArray<ProjectSitePatch>
 	dwellings?: ReadonlyArray<DwellingPatch>
-	districts?: ReadonlyArray<DistrictPatch>
 	playerAccount?: PlayerAccountPatch
 	vehicles?: ReadonlyArray<VehiclePatch>
 	roads?: RoadPatchInput
@@ -442,7 +424,6 @@ export class Game extends Eventful<GameEvents> {
 	public readonly playerAccount = reactive<PlayerAccountPatch>({
 		balanceVp: commerce.startingAccountBalanceVp,
 	})
-	private readonly districts = reactive(new Map<string, District>())
 	/** Registered freight lines (gather/distribute); merged at bootstrap from hive patches and explicit saves. */
 	public freightLines: FreightLineDefinition[] = []
 	// Dynamically loaded usage of Hive class
@@ -526,90 +507,16 @@ export class Game extends Eventful<GameEvents> {
 		return (
 			this.objects.get(uid) ??
 			this.getSyntheticFreightLineObject(uid) ??
-			this.getDistrictObject(uid) ??
 			createSettlementTradeObjectForUid(this, uid) ??
 			createZoneObjectForUid(this, uid)
 		)
 	}
 
-	private ensureDefaultDistrict(): District {
-		let district = this.districts.get(DEFAULT_DISTRICT_ID)
-		if (!district) {
-			district = defaultDistrict(this)
-			this.districts.set(district.id, district)
-		}
-		return district
+	public applyBuildAction(tile: Tile, alveolusType: AlveolusType): boolean {
+		return tile.build(alveolusType)
 	}
 
-	private getDistrictObject(uid: string): DistrictObject | undefined {
-		if (!isDistrictUid(uid)) return undefined
-		const id = districtIdFromUid(uid)
-		const district = id ? this.getDistrict(id) : undefined
-		return district ? new DistrictObject(this, district) : undefined
-	}
-
-	public getDistrict(id: string = DEFAULT_DISTRICT_ID): District | undefined {
-		if (id === DEFAULT_DISTRICT_ID) return this.ensureDefaultDistrict()
-		return this.districts.get(id)
-	}
-
-	public listDistricts(): District[] {
-		this.ensureDefaultDistrict()
-		return [...this.districts.values()].sort((left, right) => left.id.localeCompare(right.id))
-	}
-
-	public recordDistrictMember(coord: AxialCoord, districtId = DEFAULT_DISTRICT_ID): void {
-		this.getDistrict(districtId)?.addMember(coord)
-	}
-
-	public updateDistrictProcurementPolicy(
-		districtId: string,
-		patch: Partial<DistrictProcurementPolicy>
-	): void {
-		const district = this.getDistrict(districtId)
-		if (!district) return
-		updateDistrictProcurementPolicy(district, patch)
-	}
-
-	public listDistrictPurchaseRequests(
-		districtId: string = DEFAULT_DISTRICT_ID
-	): DistrictPurchaseRequest[] {
-		const district = this.getDistrict(districtId)
-		if (!district) return []
-		return listDistrictPurchaseRequests(this, district)
-	}
-
-	public executeDistrictPurchaseRequest(
-		districtId: string = DEFAULT_DISTRICT_ID,
-		requestId = ''
-	): DistrictPurchaseExecutionResult {
-		const district = this.getDistrict(districtId)
-		return district
-			? executeDistrictPurchaseRequest(this, district, requestId)
-			: { status: 'not_found' }
-	}
-
-	public listDistrictEligibleSellGoods(districtId: string = DEFAULT_DISTRICT_ID): GoodType[] {
-		const district = this.getDistrict(districtId)
-		return district ? listDistrictEligibleSellGoods(this, district) : []
-	}
-
-	public applyDistrictBuildAction(
-		tile: Tile,
-		alveolusType: AlveolusType,
-		districtId = DEFAULT_DISTRICT_ID
-	): boolean {
-		const applied = tile.build(alveolusType)
-		const coord = toAxialCoord(tile.position)
-		if (applied && coord) this.recordDistrictMember(coord, districtId)
-		return applied
-	}
-
-	public applyDistrictZoneAction(
-		tile: Tile,
-		zoneType: string,
-		districtId = DEFAULT_DISTRICT_ID
-	): boolean {
+	public applyZoneAction(tile: Tile, zoneType: string): boolean {
 		if (!tile.canInteract(`zone:${zoneType}`)) return false
 		if (zoneType === 'none') tile.zone = undefined
 		else {
@@ -618,23 +525,13 @@ export class Game extends Eventful<GameEvents> {
 			}
 			tile.zone = zoneType as Zone
 		}
-		const coord = toAxialCoord(tile.position)
-		if (coord) this.recordDistrictMember(coord, districtId)
 		return true
 	}
 
-	public applyDistrictRoadTrace(
-		tiles: readonly Tile[],
-		roadType: RoadType,
-		districtId = DEFAULT_DISTRICT_ID
-	): boolean {
+	public applyRoadTrace(tiles: readonly Tile[], roadType: RoadType): boolean {
 		if (!canBuildRoadOnTrace(tiles)) return false
 		for (const border of roadBordersForTrace(tiles)) {
 			this.hex.setRoadType(border.position, roadType)
-		}
-		for (const tile of tiles) {
-			const coord = toAxialCoord(tile.position)
-			if (coord) this.recordDistrictMember(coord, districtId)
 		}
 		return true
 	}
@@ -1058,9 +955,6 @@ export class Game extends Eventful<GameEvents> {
 		for (const site of patches.projectSites ?? []) {
 			coords.push({ q: site.coord[0], r: site.coord[1] })
 		}
-		for (const district of patches.districts ?? []) {
-			for (const coord of district.members ?? []) coords.push({ q: coord[0], r: coord[1] })
-		}
 		for (const dwelling of patches.dwellings ?? []) {
 			coords.push({ q: dwelling.coord[0], r: dwelling.coord[1] })
 		}
@@ -1110,9 +1004,6 @@ export class Game extends Eventful<GameEvents> {
 			for (const coord of coordsForProject) addPatchCoord(coord)
 		}
 		for (const site of patches.projectSites ?? []) addPatchCoord(site.coord)
-		for (const district of patches.districts ?? []) {
-			for (const coord of district.members ?? []) addPatchCoord(coord)
-		}
 		for (const dwelling of patches.dwellings ?? []) addPatchCoord(dwelling.coord)
 		for (const [, goodCoords] of looseGoodsPatchEntries(patches.looseGoods)) {
 			for (const coord of goodCoords) addPatchCoord(coord)
@@ -1806,11 +1697,9 @@ export class Game extends Eventful<GameEvents> {
 			this.inFlightSettlementRegionSets.clear()
 			this.settlementTradeProfiles.clear()
 			this.settlementTradeProfilesByCityHallCoord.clear()
-			this.districts.clear()
 			this.setPlayerAccountBalance(
 				patches.playerAccount?.balanceVp ?? commerce.startingAccountBalanceVp
 			)
-			this.ensureDefaultDistrict()
 			this.vehicles.deserialize([])
 
 			const populationLoad = this.generateInitialWorld(config, patches)
@@ -1823,7 +1712,6 @@ export class Game extends Eventful<GameEvents> {
 			if (patches.zones) this.applyZonePatches(patches.zones)
 			if (patches.projects) this.applyProjectPatches(patches.projects)
 			if (patches.projectSites?.length) this.applyProjectSitePatches(patches.projectSites)
-			if (patches.districts) this.applyDistrictPatches(patches.districts)
 			if (patches.dwellings?.length) this.applyDwellingPatches(patches.dwellings)
 			this.bootstrapFreightLines(patches)
 			if (patches.vehicles?.length) this.applyVehiclePatches(patches.vehicles)
@@ -1884,11 +1772,9 @@ export class Game extends Eventful<GameEvents> {
 			this.inFlightSettlementRegionSets.clear()
 			this.settlementTradeProfiles.clear()
 			this.settlementTradeProfilesByCityHallCoord.clear()
-			this.districts.clear()
 			this.setPlayerAccountBalance(
 				patches.playerAccount?.balanceVp ?? commerce.startingAccountBalanceVp
 			)
-			this.ensureDefaultDistrict()
 			this.vehicles.deserialize([])
 
 			if (options.restoreMode && saveState) {
@@ -1911,7 +1797,6 @@ export class Game extends Eventful<GameEvents> {
 			if (patches.zones) this.applyZonePatches(patches.zones)
 			if (patches.projects) this.applyProjectPatches(patches.projects)
 			if (patches.projectSites?.length) this.applyProjectSitePatches(patches.projectSites)
-			if (patches.districts) this.applyDistrictPatches(patches.districts)
 			if (patches.dwellings?.length) this.applyDwellingPatches(patches.dwellings)
 			this.bootstrapFreightLines(patches)
 			if (patches.vehicles?.length) this.applyVehiclePatches(patches.vehicles)
@@ -2145,28 +2030,11 @@ export class Game extends Eventful<GameEvents> {
 					constructionSite.phase = a.constructionPhase ?? 'waiting_materials'
 					constructionSite.workSecondsApplied = a.constructionWorkSecondsApplied ?? 0
 					const build = createConstructionShell(tile, constructionSite)
-					assert(build instanceof Alveolus, 'Hive construction shell must be alveolus content')
 					build.constructionWorkSecondsApplied = a.constructionWorkSecondsApplied ?? 0
 					this.hex.setTileContent(tile, build)
 					if (a.goods)
 						for (const [good, qty] of Object.entries(a.goods))
 							build.storage?.addGood(good as GoodType, qty)
-					if (a.configuration) {
-						build.configurationRef = a.configuration.ref
-						if (a.configuration.individual) {
-							build.individualConfiguration = reactive({ ...a.configuration.individual })
-						}
-					}
-					if (a.assignedZoneIds) build.setAssignedZoneIds(a.assignedZoneIds)
-					if (!build.hive && this.HiveClass) {
-						const h = this.HiveClass.for(tile)
-						if (hive.name !== undefined) h.name = hive.name
-						h.working = hive.working ?? true
-						h.attach(build)
-					}
-					hiveInstance = build.hive
-					if (hive.name !== undefined) hiveInstance.name = hive.name
-					hiveInstance.working = hive.working ?? true
 					tile.asGenerated = false
 					continue
 				}
@@ -2300,40 +2168,34 @@ export class Game extends Eventful<GameEvents> {
 		}
 	}
 
-	private applyDistrictPatches(districts: NonNullable<GamePatches['districts']>) {
-		if (districts.length === 0) {
-			this.ensureDefaultDistrict()
-			return
-		}
-		this.districts.clear()
-		for (const patch of districts) {
-			this.districts.set(
-				patch.id,
-				new District(
-					this,
-					patch.id,
-					patch.name || (patch.id === DEFAULT_DISTRICT_ID ? 'Default district' : patch.id),
-					patch.kind,
-					(patch.members ?? []).map((coord) => ({ q: coord[0], r: coord[1] })),
-					createDistrictProcurementPolicy(this.procurementDefaults, patch.procurementPolicy)
-				)
-			)
-		}
-		this.ensureDefaultDistrict()
-	}
-
 	private applyProjectSitePatches(sites: NonNullable<GamePatches['projectSites']>) {
 		for (const entry of sites) {
 			const coordObj = { q: entry.coord[0], r: entry.coord[1] }
 			const tile = this.hex.getTile(coordObj)
 			if (!tile) continue
 			const content = tile.content
-			if (!(content instanceof UnBuiltLand)) continue
 			const constructionTarget = constructionTargetFromProject(entry.project)
 			if (!constructionTarget) continue
 			const constructionSite = createConstructionSiteState(constructionTarget)
 			constructionSite.phase = entry.constructionPhase ?? constructionSite.phase
 			constructionSite.foundationConsumedGoods = { ...(entry.foundationConsumedGoods ?? {}) }
+			if (entry.constructionGoods || entry.constructionWorkSecondsApplied !== undefined) {
+				tile.baseTerrain = 'concrete'
+				tile.terrainState = {
+					...(tile.terrainState ?? {}),
+					terrain: 'concrete',
+				}
+				this.upsertTerrainOverride(coordObj, { terrain: 'concrete' })
+				const build = createConstructionShell(tile, constructionSite)
+				build.constructionWorkSecondsApplied = entry.constructionWorkSecondsApplied ?? 0
+				this.hex.setTileContent(tile, build)
+				for (const [good, qty] of Object.entries(entry.constructionGoods ?? {})) {
+					build.storage?.addGood(good as GoodType, qty as number)
+				}
+				tile.asGenerated = false
+				continue
+			}
+			if (!(content instanceof UnBuiltLand)) continue
 			content.setProject(entry.project, constructionSite)
 			for (const [good, qty] of Object.entries(entry.foundationGoods ?? {})) {
 				content.foundationStorage?.addGood(good as GoodType, qty as number)
@@ -2491,6 +2353,17 @@ export class Game extends Eventful<GameEvents> {
 				})
 			}
 
+			if (isConstructionSiteShell(content) && content.constructionSite.target.kind === 'alveolus') {
+				projectSites.push({
+					coord: [q, r],
+					project: `build:${content.constructionSite.target.alveolusType}`,
+					constructionPhase: content.constructionSite.phase,
+					foundationConsumedGoods: content.constructionSite.foundationConsumedGoods ?? {},
+					constructionGoods: content.storage?.stock ?? {},
+					constructionWorkSecondsApplied: content.constructionWorkSecondsApplied,
+				})
+			}
+
 			if (content instanceof Alveolus) {
 				// Assume alveolus-like content decorated by GcClassed with resourceName accessible via .name
 				const alveolusName = content.name
@@ -2591,7 +2464,6 @@ export class Game extends Eventful<GameEvents> {
 				projects,
 				projectSites,
 				dwellings,
-				districts: this.listDistricts().map((district) => district.toPatch()),
 				playerAccount: { balanceVp: this.playerAccount.balanceVp },
 				vehicles: this.vehicles.serialize(),
 				roads,
@@ -2740,10 +2612,7 @@ export class Game extends Eventful<GameEvents> {
 			if (content instanceof BasicDwelling) {
 				const coord = toAxialCoord(tile.position)
 				if (coord) coords.push(coord)
-			} else if (
-				isConstructionSiteShell(content) &&
-				content.constructionSite.target.kind === 'dwelling'
-			) {
+			} else if (isConstructionSiteShell(content)) {
 				const coord = toAxialCoord(tile.position)
 				if (coord) coords.push(coord)
 			}
@@ -2763,13 +2632,6 @@ export class Game extends Eventful<GameEvents> {
 		// Add road endpoint coordinates
 		for (const road of this.hex.roadSegments()) {
 			coords.push(road.coord)
-		}
-
-		// Add district member coordinates
-		for (const district of this.listDistricts()) {
-			for (const coord of district.members ?? []) {
-				coords.push(coord)
-			}
 		}
 
 		if (coords.length === 0) return null

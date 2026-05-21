@@ -22,8 +22,7 @@ Already landed or mostly landed:
 - Transform alveoli can keep a configured product ratio, with rule defaults and per-alveolus inspector controls for the input good, output good, and slider threshold.
 - Deterministic streamed terrain generation and Pixi continuous-terrain rendering.
 - Browser client panels for inspecting and editing the active simulation.
-- Districts remain planning geography: they name areas, collect build/zone/road context, and summarize
-  material needs, but normal gameplay commerce no longer buys directly through districts.
+- Districts have been removed; build, zone, and road actions are direct toolbar/game actions again.
 - Line-based external commerce is the active material procurement model. Settlement city-hall freight stops
   buy/sell basic materials through physical vehicle cargo, stop policies, downstream demand, and stop-level
   reserve rules.
@@ -58,7 +57,6 @@ Already landed or mostly landed:
   goods, and harvesting output.
 - specific commerces will have to be generated in settlements, trade should depend on the present commerces and the vehicle using the road should go to the commerce - again (un)loading to/from a vehicle: vehicle goes on the shop border's and a convey-hop-like occur, transaction is when the character in the center of the shop spawn(buy)/unspawn(sell) good
 - Pickup-trucks and wheelbarrows are all-terrain vehicles. For most other vehicles, the line should have a road available
-- Remove districts
 - harvesting/generation output should eventually obey the same tile physical-load model as forester
   planting, so rock/tree/crop outputs avoid overfilling already-burdened tiles.
 - one docking spot in a bay can only be used by one vehicle at a time, vehicles should queue. Note: this might demand the ability to have multiple bays for a hive designed as a stop so the vehicle could choose and/or parking places (where several vehicle can "dock" for waiting/being offloaded/...) - in the "road" category
@@ -149,14 +147,14 @@ Important first-level boundaries:
 - Useful procurement status:
   - **Landed V1:** city-hall settlement markets, all-settlement basic-materials availability, one price per
     good, NPC trade freight stops, export-before-import transfers, stop-level reserve, downstream-demand
-    imports, district procurement removed from normal UI/tick paths, compatible vehicle assignment from
+    imports, area-bucket procurement removed, compatible vehicle assignment from
     the line inspector, and the ChopSaw materials loop fixture.
   - **Next V1.x:** line list filters, route/market comparison by settlement position and price,
     last-transfer/history display, and better visibility into docked vehicle contents.
   - **Later V2:** generated shop targets beyond city halls, source/sink suggestions, commercial/resale
     points, and consumption goods delivered to residential or shop areas.
-- District/project views should surface missing useful goods and possible physical supply routes without
-  becoming direct purchase surfaces again.
+- Project and construction views should surface missing useful goods and possible physical supply routes
+  without becoming direct purchase surfaces again.
 - External building loading/unloading should use the border-parking plus convey-hop interaction already
   planned for shops, construction, and other non-freight-bay endpoints.
 

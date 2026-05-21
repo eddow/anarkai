@@ -273,7 +273,9 @@ export class VehicleEntity extends withInteractive(GameObject) {
 			vehicleType: this.vehicleType,
 		}))
 		try {
-			return this.advertisedJobsCache.get(this.game.workPlanningRevision, () =>
+			const dockBay = freightVehicleDockBay(this)
+			const revision = `${this.game.workPlanningRevision}|${dockBay?.hive.conveyPlanningRevision ?? 0}`
+			return this.advertisedJobsCache.get(revision, () =>
 				collectVehicleAdvertisedJobs(this.game, this)
 			)
 		} finally {

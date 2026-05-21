@@ -12,10 +12,11 @@ export default defineConfig({
 		include: ["src/**/*.{test,spec}.{js,ts}", "tests/**/*.{test,spec}.{js,ts}"],
 		exclude: ["node_modules", "dist", ".git", ".cache", "tests/e2e"],
 		watch: false,
-		// Hard ceiling per test so a stuck loop cannot run indefinitely (integration tests can override down).
-		testTimeout: 120000,
-		hookTimeout: 60000,
-		teardownTimeout: 60000,
+		// Hard ceiling per test so a stuck loop fails with a named test instead of stalling the suite.
+		// Long integration scenarios must opt into a larger timeout at the test site.
+		testTimeout: 10000,
+		hookTimeout: 15000,
+		teardownTimeout: 15000,
 		silent: true,
 		pool: "threads",
 		fileParallelism: false,

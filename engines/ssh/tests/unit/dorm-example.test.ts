@@ -2,6 +2,7 @@ import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { collectDockedVehicleAdvertisementCandidates } from 'ssh/freight/vehicle-freight-dock'
+import { freightConstructionDemandTarget } from 'ssh/freight/construction-demand'
 import {
 	collectVehicleAdvertisedJobs,
 	collectVehicleWorkPicks,
@@ -92,9 +93,9 @@ describe('dorm example game', () => {
 		expect(
 			(chopperSite.advertisedNeeds.stone ?? 0) + chopperSite.storage.allocated('stone')
 		).toBeGreaterThan(0)
-		expect(
-			(chopperSite.hive as unknown as { activeMovements: Set<unknown> }).activeMovements.size
-		).toBeGreaterThan(0)
+		expect(freightConstructionDemandTarget(chopperSite)?.remainingNeeds.stone).toBe(
+			chopperSite.requiredGoods.stone
+		)
 		expect(game.freightLines.map((line) => line.id)).toContain('Dorm:implicit-gather:0,1')
 		expect(game.freightLines.map((line) => line.id)).not.toContain('Dorm:distribute:0,1')
 		expect(game.freightLines.find((line) => line.id === 'Dorm:implicit-gather:0,1')?.cyclic).toBe(
@@ -171,7 +172,7 @@ describe('dorm example game', () => {
 			expect(exchange.job.targetCoord).toMatchObject({ q: 3, r: 0 })
 		})
 
-	it('refreshes dock demand when downstream construction appears after docking', async () => {
+	it('refreshes dock demand when downstream residential construction appears after docking', async () => {
 		game = new Game({ terrainSeed: 867, characterCount: 0 }, dorm)
 		await game.loaded
 		game.ticker.stop()
@@ -179,10 +180,16 @@ describe('dorm example game', () => {
 		const bayTile = game.hex.getTile({ q: 0, r: 1 })!
 		const bay = bayTile.content as FreightBayAlveolus
 		const buildTile = game.hex.getTile({ q: 4, r: 0 })!
+		const chopperSite = game.hex.getTile({ q: 0, r: -1 })?.content
 		const vehicle = game.vehicles.vehicle('Dorm:wheelbarrow')
 		expect(vehicle).toBeDefined()
 		expect(bay).toBeInstanceOf(FreightBayAlveolus)
 		if (!vehicle) return
+		if (chopperSite instanceof BuildAlveolus) {
+			for (const [good, qty] of Object.entries(chopperSite.requiredGoods)) {
+				chopperSite.storage.addGood(good as GoodType, qty ?? 0)
+			}
+		}
 
 		const line = game.freightLines.find((candidate) => candidate.id === 'Dorm:implicit-gather:0,1')
 		const stop = line?.stops.find((candidate) => candidate.id === 'Dorm:gather-unload')

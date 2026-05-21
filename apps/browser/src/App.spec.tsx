@@ -181,7 +181,6 @@ vi.mock('./widgets/selection-info-tab', () => ({
 vi.mock('./widgets', () => ({
 	default: {
 		game: () => <div>game</div>,
-		district: () => <div>district</div>,
 		configuration: () => <div>configuration</div>,
 		paletteInspector: () => <div data-testid="palette-inspector-widget">palette-inspector</div>,
 	},

@@ -296,20 +296,22 @@ function dockedVehicleProviderJob(game: Game, vehicle: VehicleEntity): ProposedJ
 					(movement) =>
 						(movement.provider === dock || movement.demander === dock) &&
 						movement.path.length > 0 &&
-						!movement.claimed &&
-						movement.provider instanceof Alveolus
+						!movement.claimed
 				)
-		if (dockMovement && dockMovement.provider instanceof Alveolus) {
+		if (dockMovement) {
+			const sourceAlveolus =
+				dockMovement.provider instanceof Alveolus ? dockMovement.provider : dockBay
 			traces.vehicle.log?.('[vehicle.advertisedJobs] provider fallback convey', {
 				...vehicleTraceSnapshot(vehicle),
 				bay: dockBay.name,
 				provider: dockMovement.provider.name,
+				demander: dockMovement.demander.name,
 				goodType: dockMovement.goodType,
 				dockCandidates,
 			})
 			return asAlveolusProposedJob(
 				{ job: 'convey', fatigue: 1, urgency: jobBalance.convey },
-				dockMovement.provider
+				sourceAlveolus
 			)
 		}
 		if (vehicle.storage.virtualGoodsCount > 0) {

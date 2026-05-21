@@ -11,7 +11,7 @@ describe('BuildAlveolus save/load', () => {
 		game.destroy()
 	})
 
-	it('round-trips underConstruction patch and construction work seconds', async () => {
+	it('loads legacy hive construction and saves it as an exterior project site', async () => {
 		const gen = { terrainSeed: 55, characterCount: 0 }
 		const patches = {
 			tiles: [
@@ -48,8 +48,16 @@ describe('BuildAlveolus save/load', () => {
 
 		const state = game.saveGameData()
 		const hiveEntry = state.hives?.find((h) => h.name === 'PersistHive')
-		expect(hiveEntry?.alveoli.some((a) => a.underConstruction === true)).toBe(true)
-		expect(hiveEntry?.alveoli.find((a) => a.underConstruction)?.constructionPhase).toBe('building')
+		expect(hiveEntry?.alveoli.some((a) => a.underConstruction === true)).toBe(false)
+		const projectSite = state.projectSites?.find(
+			(site) => site.coord[0] === 1 && site.coord[1] === 0
+		)
+		expect(projectSite).toMatchObject({
+			project: 'build:storage',
+			constructionPhase: 'building',
+			constructionWorkSecondsApplied: 2.25,
+			constructionGoods: { wood: 1 },
+		})
 
 		game.destroy()
 
@@ -80,7 +88,7 @@ describe('BuildAlveolus save/load', () => {
 		expect(storage.slottedStorageConfiguration).toMatchObject({
 			generalSlots: 5,
 			goods: {
-				wood: { minSlots: 1, maxSlots: 3 },
+				wood: { minSlots: 1, maxSlots: 2 },
 			},
 		})
 		expect(storage.workingGoodsRelations.wood).toMatchObject({
@@ -99,7 +107,7 @@ describe('BuildAlveolus save/load', () => {
 				working: true,
 				generalSlots: 5,
 				goods: {
-					wood: { minSlots: 1, maxSlots: 3 },
+					wood: { minSlots: 1, maxSlots: 2 },
 				},
 			},
 		})
@@ -117,7 +125,7 @@ describe('BuildAlveolus save/load', () => {
 		expect(restored.slottedStorageConfiguration).toMatchObject({
 			generalSlots: 5,
 			goods: {
-				wood: { minSlots: 1, maxSlots: 3 },
+				wood: { minSlots: 1, maxSlots: 2 },
 			},
 		})
 		expect(restored.workingGoodsRelations.wood).toMatchObject({

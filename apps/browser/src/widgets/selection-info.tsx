@@ -29,7 +29,6 @@ import {
 	isSettlementTradeObjectUid,
 	type SettlementTradeObject,
 } from 'ssh/commerce/settlement-trade'
-import { isDistrictUid, type DistrictObject } from 'ssh/district/district'
 import {
 	freightLineIdFromUid,
 	isFreightLineUid,
@@ -42,7 +41,6 @@ import { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { toWorldCoord } from 'ssh/utils/position'
 import HiveProperties from '../components/HiveProperties'
 import CharacterProperties from '../components/properties/CharacterProperties'
-import DistrictProperties from '../components/properties/DistrictProperties'
 import FreightLineProperties from '../components/properties/FreightLineProperties'
 import SettlementProperties from '../components/properties/SettlementProperties'
 import TileProperties from '../components/properties/TileProperties'
@@ -210,12 +208,6 @@ const SettlementSelectionProperties = (props: { object?: unknown }) => (
 	</div>
 )
 
-const DistrictSelectionProperties = (props: { object?: unknown }) => (
-	<div data-selection-properties-kind="district">
-		<DistrictProperties districtObject={props.object as DistrictObject} />
-	</div>
-)
-
 const ObjectSummaryProperties = (props: { object?: { uid?: string; title?: string } }) => (
 	<div data-selection-properties-kind="summary">
 		<InspectorSection class="selection-info-panel__summary" title={props.object?.title ?? 'Object'}>
@@ -241,7 +233,6 @@ const renderPropertiesForObject = (
 	if (object.uid && isSettlementTradeObjectUid(object.uid)) {
 		return <SettlementSelectionProperties object={object} />
 	}
-	if (object.uid && isDistrictUid(object.uid)) return <DistrictSelectionProperties object={object} />
 	if (isVehicleObject(object)) return <VehicleSelectionProperties object={object} />
 	return <ObjectSummaryProperties object={object} />
 }

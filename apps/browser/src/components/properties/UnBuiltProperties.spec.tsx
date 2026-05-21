@@ -345,18 +345,6 @@ describe('UnBuiltProperties', () => {
 	})
 
 	it('renders foundation materials as delivered over required and marks missing goods', () => {
-		const executeDistrictPurchaseRequest = vi.fn()
-		const listDistrictPurchaseRequests = vi.fn(() => [
-			{
-				id: 'purchase:default:use:concrete:0,0',
-				districtId: 'default',
-				good: 'concrete',
-				quantity: 1,
-				purpose: 'use',
-				targetCoord: { q: 0, r: 0 },
-				status: 'planned',
-			},
-		])
 		const content = {
 			project: 'build:sawmill',
 			constructionSite: {},
@@ -364,11 +352,7 @@ describe('UnBuiltProperties', () => {
 				position: { q: 0, r: 0 },
 				isClear: true,
 				board: {
-					game: {
-						listDistricts: vi.fn(() => [{ id: 'default' }]),
-						listDistrictPurchaseRequests,
-						executeDistrictPurchaseRequest,
-					},
+					game: {},
 				},
 			},
 		}
@@ -393,7 +377,5 @@ describe('UnBuiltProperties', () => {
 		expect(container.querySelector('[data-tone="danger"]')).not.toBeNull()
 		const button = container.querySelector('button[title="Buy Concrete"]')
 		expect(button).toBeNull()
-		button?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-		expect(executeDistrictPurchaseRequest).not.toHaveBeenCalled()
 	})
 })

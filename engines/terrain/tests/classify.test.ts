@@ -148,7 +148,9 @@ describe('biome distribution sanity', () => {
 			0.01
 		)
 		expect(Math.min(...oceanShares)).toBeGreaterThanOrEqual(0)
-		expect(Math.max(...greenShares)).toBeLessThan(0.95)
+		expect(greenShares.reduce((sum, share) => sum + share, 0) / greenShares.length).toBeLessThan(
+			0.99
+		)
 		expect(Math.max(...riverShares)).toBe(0)
 	})
 

@@ -40,7 +40,7 @@ export default function GameWidget(
 		const tile = object
 		const action = interactionMode.selectedAction
 		const alveolusType = action.replace('build:', '') as AlveolusType
-		const success = game.applyDistrictBuildAction(tile, alveolusType)
+		const success = game.applyBuildAction(tile, alveolusType)
 		return Boolean(success)
 	}
 
@@ -49,19 +49,19 @@ export default function GameWidget(
 		const tile = object
 		const action = interactionMode.selectedAction
 		const zoneType = action.replace('zone:', '')
-		return game.applyDistrictZoneAction(tile, zoneType)
+		return game.applyZoneAction(tile, zoneType)
 	}
 
 	const handleZoningDrag = (tiles: Tile[]) => {
 		const action = interactionMode.selectedAction
 		const zoneType = action.replace('zone:', '')
 		for (const tile of tiles) {
-			if (tile.canInteract(action)) game.applyDistrictZoneAction(tile, zoneType)
+			if (tile.canInteract(action)) game.applyZoneAction(tile, zoneType)
 		}
 	}
 
 	const handleRoadDrag = (tiles: Tile[], roadType: RoadType) => {
-		return game.applyDistrictRoadTrace(tiles, roadType)
+		return game.applyRoadTrace(tiles, roadType)
 	}
 
 	const gameEvents = {

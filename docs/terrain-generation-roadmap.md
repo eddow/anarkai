@@ -136,7 +136,7 @@ For `NpcInhabitationArea`:
 
 - prefer road corridors, crossroads, river crossings, coasts, valleys, and flat land;
 - allow roads to pass through and define the settlement shape;
-- reserve room for trade points, public/commercial areas, and later districts;
+- reserve room for trade points and public/commercial areas;
 - keep internal residential/commercial detail abstract at first.
 
 For `NpcProductionHive`:
@@ -247,4 +247,3 @@ The smallest slice that proves the direction:
 6. Render/debug the chosen sites, roads, and flow intensity.
 
 At that point, the map has a reason to contain roads before the player touches it.
-

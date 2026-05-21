@@ -120,30 +120,14 @@ describe('chopSaw example game', () => {
 		expect(game.hex.getRoadType({ q: 0.5, r: 1 })).toBe('path')
 	})
 
-	it('loads the starter hive and zones into the default district', async () => {
+	it('loads the starter hive and authored zones', async () => {
 		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
 		await game.loaded
 		game.ticker.stop()
 
-		const members = game.getDistrict()?.members.map((coord) => `${coord.q},${coord.r}`) ?? []
-		expect(members).toEqual(
-			expect.arrayContaining([
-				'-1,-1',
-				'2,0',
-				'0,-1',
-				'0,0',
-				'1,-1',
-				'1,0',
-				'-1,0',
-				'4,1',
-				'3,2',
-				'3,3',
-				'-4,2',
-				'-5,2',
-				'-4,1',
-				'-4,0',
-			])
-		)
+		expect(game.hex.getTile({ q: 1, r: -1 })?.content?.name).toBe('engineer')
+		expect(game.hex.zoneManager.getZone({ q: 3, r: 0 })).toBe('north-grove')
+		expect(game.hex.zoneManager.getZone({ q: -4, r: 1 })).toBe('residential')
 	})
 
 	it('lets the docked gather wheelbarrow leave the bay when dock demand has no convey job', async () => {
@@ -288,6 +272,54 @@ describe('chopSaw example game', () => {
 
 		expect(pickup.storage.stock.concrete).toBe(2)
 		expect(storage.storage.stock.concrete).toBe(4)
+	})
+
+	it('advertises convey for the last reserved concrete while storage still has room', async () => {
+		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines.find(
+			(candidate) => candidate.id === 'ChopSaw:materials-loop:0,0:Melindbury'
+		)
+		if (!line) throw new Error('Expected Chopsaw materials loop')
+		const bayStop = line.stops.find((stop) => stop.id === 'ChopSaw:materials-bay')
+		if (!bayStop) throw new Error('Expected Chopsaw materials bay stop')
+		const pickup = game.vehicles.vehicle('ChopSaw:pickup-truck')
+		if (!pickup) throw new Error('Expected Chopsaw pickup truck')
+		const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
+		const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
+
+		storage.storage.addGood('concrete', 3)
+		expect(storage.acceptedRoomFor('concrete', '0-store')).toBeGreaterThan(0)
+		pickup.storage.addGood('concrete', 1)
+		pickup.position = { q: 0, r: 0 }
+		pickup.beginLineService(line, bayStop)
+		pickup.dock()
+
+		void pickup.advertisedJobs
+		await new Promise((resolve) => setTimeout(resolve, 10))
+
+		expect(pickup.storage.virtualGoodsCount).toBe(1)
+		expect(
+			bay.hive.collectActiveMovements().some(
+				(movement: any) =>
+					movement.goodType === 'concrete' &&
+					movement.provider?.vehicle?.uid === pickup.uid &&
+					!movement.claimed
+			)
+		).toBe(true)
+		expect(pickup.advertisedJobs).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					job: 'convey',
+					source: expect.objectContaining({
+						kind: 'alveolus',
+						alveolus: bay,
+					}),
+				}),
+			])
+		)
 	})
 
 	it('ends the materials pickup line at the bay when storage has room but no downstream demand', async () => {

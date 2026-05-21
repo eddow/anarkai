@@ -64,12 +64,12 @@ describe('GPU field groundwork', () => {
 		expect(typeof canUseWebGpuFields()).toBe('boolean')
 	})
 
-	it('keeps sync generation on cpu while async auto can choose gpu', () => {
+	it('keeps sync generation on cpu while async auto prefers wasm when available', () => {
 		disposeGpuFieldRuntime()
 		expect(resolveSyncFieldGenerationBackend('gpu')).toBe('cpu')
 		expect(resolveAsyncFieldGenerationBackend('gpu')).toBe('gpu')
-		expect(resolveAsyncFieldGenerationBackend('auto', AUTO_GPU_MIN_TILES - 1)).toBe('cpu')
-		expect(resolveAsyncFieldGenerationBackend('auto', AUTO_GPU_MIN_TILES)).toBe('cpu')
+		expect(resolveAsyncFieldGenerationBackend('auto', AUTO_GPU_MIN_TILES - 1)).toBe('wasm')
+		expect(resolveAsyncFieldGenerationBackend('auto', AUTO_GPU_MIN_TILES)).toBe('wasm')
 	})
 
 	it('matches CPU field generation for representative coords', async () => {

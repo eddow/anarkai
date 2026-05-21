@@ -1,5 +1,4 @@
 import { effect } from 'mutts'
-import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
 import {
 	type ConstructionSiteState,
@@ -26,8 +25,7 @@ export interface ConstructionMaterialShell {
 /**
  * Shared structural contract for any in-progress construction shell on a tile.
  *
- * Runtime classes differ (`BuildAlveolus` inherits hive behavior, `BuildDwelling` stays standalone),
- * but construction-facing semantics should stay identical.
+ * Runtime classes differ by target, but construction-facing semantics should stay identical.
  */
 export interface ConstructionSiteShell extends ConstructionMaterialShell {
 	readonly tile: Tile
@@ -59,11 +57,11 @@ export function isConstructionSiteShell(value: unknown): value is ConstructionSi
 /** Compatibility alias while callers migrate to `isConstructionSiteShell`. */
 export const isBuildSite = isConstructionSiteShell
 
-/** Standalone construction shells (`BuildDwelling`, ...); excludes hive-attached `BuildAlveolus`. */
+/** Standalone construction shells (`BuildAlveolus`, `BuildDwelling`, ...). */
 export function isStandaloneConstructionSiteShell(
 	content: unknown
 ): content is ConstructionSiteShell {
-	return isConstructionSiteShell(content) && !(content instanceof Alveolus)
+	return isConstructionSiteShell(content)
 }
 
 /** Compatibility alias while callers migrate to `isStandaloneConstructionSiteShell`. */
