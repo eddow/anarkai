@@ -7,12 +7,12 @@
  * - Edge cases (empty tiles, single tile, large regions, coordinate preservation)
  */
 
-import { describe, expect, it, beforeAll } from 'vitest'
 import { ensureWasmLoaded } from 'engine-terrain'
-import { GameGenerator } from './index'
-import type { GeneratedTileData } from './board'
-import type { AxialCoord } from 'ssh/utils'
 import type { TerrainType } from 'ssh/types'
+import type { AxialCoord } from 'ssh/utils'
+import { beforeAll, describe, expect, it } from 'vitest'
+import type { GeneratedTileData } from './board'
+import { GameGenerator } from './index'
 
 describe('Board Generation Integration Tests', () => {
 	let generator: GameGenerator
@@ -50,7 +50,10 @@ describe('Board Generation Integration Tests', () => {
 	}
 
 	// Helper function to get tiles by terrain type
-	function getTilesByTerrain(tiles: GeneratedTileData[], terrainType: TerrainType): GeneratedTileData[] {
+	function getTilesByTerrain(
+		tiles: GeneratedTileData[],
+		terrainType: TerrainType
+	): GeneratedTileData[] {
 		return tiles.filter((t) => t.terrain === terrainType)
 	}
 
@@ -137,7 +140,15 @@ describe('Board Generation Integration Tests', () => {
 			}
 
 			// Verify each tile has valid terrain type
-			const validTerrainTypes: TerrainType[] = ['water', 'sand', 'grass', 'forest', 'rocky', 'snow', 'concrete']
+			const validTerrainTypes: TerrainType[] = [
+				'water',
+				'sand',
+				'grass',
+				'forest',
+				'rocky',
+				'snow',
+				'concrete',
+			]
 			for (const tile of result) {
 				expect(validTerrainTypes).toContain(tile.terrain)
 			}
@@ -221,16 +232,14 @@ describe('Board Generation Integration Tests', () => {
 				forcedGrass
 			)
 			expect(
-				grass
-					.filter((tile) => tile.terrain === 'grass')
-					.flatMap((tile) => tile.deposit?.type ?? [])
+				grass.filter((tile) => tile.terrain === 'grass').flatMap((tile) => tile.deposit?.type ?? [])
 			).toContain('berry_bush')
 		})
 
 		it('should not generate deposits on water terrain', async () => {
 			// Test with multiple seeds to find water terrain
 			let foundWater = false
-			
+
 			for (let testSeed = 44444; testSeed < 44700; testSeed++) {
 				// Use a larger region to increase chances of finding water
 				const coords: AxialCoord[] = []
@@ -247,14 +256,14 @@ describe('Board Generation Integration Tests', () => {
 
 				// Filter for water terrain tiles
 				const waterTiles = getTilesByTerrain(result, 'water')
-				
+
 				if (waterTiles.length > 0) {
 					foundWater = true
-					
+
 					// Water terrain should not generate deposits
 					const waterDeposits = waterTiles.filter((t) => t.deposit !== undefined)
 					expect(waterDeposits.length).toBe(0)
-					
+
 					break
 				}
 			}
@@ -268,7 +277,7 @@ describe('Board Generation Integration Tests', () => {
 		it('should not generate goods on water terrain', async () => {
 			// Test with multiple seeds to find water terrain
 			let foundWater = false
-			
+
 			for (let testSeed = 30303; testSeed < 30600; testSeed++) {
 				// Use a larger region to increase chances of finding water
 				const coords: AxialCoord[] = []
@@ -285,14 +294,14 @@ describe('Board Generation Integration Tests', () => {
 
 				// Filter for water terrain tiles
 				const waterTiles = getTilesByTerrain(result, 'water')
-				
+
 				if (waterTiles.length > 0) {
 					foundWater = true
-					
+
 					// Water terrain should not generate goods
 					const waterGoods = waterTiles.filter((t) => Object.keys(t.goods).length > 0)
 					expect(waterGoods.length).toBe(0)
-					
+
 					break
 				}
 			}

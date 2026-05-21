@@ -26,20 +26,16 @@ import {
 import type { DepositType, GoodType, TerrainType } from 'ssh/types'
 import type { AxialCoord } from 'ssh/utils'
 import { hexSides } from 'ssh/utils'
-import type { GeneratedSettlement, SettlementKind } from './settlements'
-import {
-	defaultNameTheme,
-	generateName,
-	type NameThemeId,
-} from './names'
 import { profile } from '../dev/debug'
+import type { GeneratedTileData } from './board'
 import {
 	BoardGenerator,
 	type GeneratedDepositData,
 	resolveHydrologyForTile,
 	resolveTerrainForTile,
 } from './board'
-import type { GeneratedTileData } from './board'
+import { defaultNameTheme, generateName, type NameThemeId } from './names'
+import type { GeneratedSettlement, SettlementKind } from './settlements'
 
 export interface GameGenerationConfig {
 	terrainSeed: number
@@ -104,14 +100,22 @@ function toTileOverrides(terraforming: TerrainTerraformPatch[]): TileOverride[] 
  */
 function toWasmTerrainKind(terrain: TerrainType): number {
 	switch (terrain) {
-		case 'water': return 0
-		case 'forest': return 2
-		case 'rocky': return 4
-		case 'grass': return 1
-		case 'sand': return 3
-		case 'snow': return 5
-		case 'concrete': return 6
-		default: return 1 // fallback to plains
+		case 'water':
+			return 0
+		case 'forest':
+			return 2
+		case 'rocky':
+			return 4
+		case 'grass':
+			return 1
+		case 'sand':
+			return 3
+		case 'snow':
+			return 5
+		case 'concrete':
+			return 6
+		default:
+			return 1 // fallback to plains
 	}
 }
 
@@ -173,7 +177,7 @@ const WASM_TILE_HEADER_SIZE = 10 // 4+4+1+1 bytes per tile header
  * coord key → { deposit: DepositType | null, goods: GoodType[] }.
  */
 function parseWasmBoardResult(
-	packed: Uint8Array,
+	packed: Uint8Array
 ): Map<string, { deposit: DepositType | null; goods: GoodType[] }> {
 	const result = new Map<string, { deposit: DepositType | null; goods: GoodType[] }>()
 	const dv = new DataView(packed.buffer, packed.byteOffset, packed.byteLength)
@@ -243,7 +247,7 @@ function computeDepositAmount(depositType: DepositType, coordKey: string): numbe
 	const rnd = simpleRng(`deposit-amount-${depositType}-${coordKey}`)
 	const amount = Math.floor(
 		((1 + rnd() * boardDepositFillRandomSpread) * (depositDef.maxAmount ?? 18)) /
-			boardDepositFillDivisor,
+			boardDepositFillDivisor
 	)
 	return capGeneratedDepositAmount(depositType, amount)
 }
@@ -258,7 +262,7 @@ function capGeneratedDepositAmount(depositType: DepositType, amount: number): nu
  */
 function computeGoodsAmounts(
 	terrain: TerrainType,
-	deposit: GeneratedDepositData | undefined,
+	deposit: GeneratedDepositData | undefined
 ): Record<string, number> {
 	const goods: Record<string, number> = {}
 
@@ -345,7 +349,7 @@ export class GameGenerator {
 	generateRegion(
 		config: GameGenerationConfig,
 		coords: Iterable<AxialCoord>,
-		terraforming: TerrainTerraformPatch[] = [],
+		terraforming: TerrainTerraformPatch[] = []
 	): GeneratedTileData[] {
 		const snapshot = generateTerrainRegion(config.terrainSeed, coords, {
 			tileOverrides: toTileOverrides(terraforming),
@@ -369,10 +373,17 @@ export class GameGenerator {
 			const r = Number(parts[1]!)
 			const terrain = resolveTerrainForTile(
 				biome,
-				tileField as Parameters<typeof resolveTerrainForTile>[1],
+				tileField as Parameters<typeof resolveTerrainForTile>[1]
 			)
 
-			entries.push({ key, q, r, biome, tileField: tileField as Parameters<typeof resolveTerrainForTile>[1], terrain })
+			entries.push({
+				key,
+				q,
+				r,
+				biome,
+				tileField: tileField as Parameters<typeof resolveTerrainForTile>[1],
+				terrain,
+			})
 		}
 		return entries
 	}
@@ -457,7 +468,7 @@ export class GameGenerator {
 	async generateRegionAsync(
 		config: GameGenerationConfig,
 		coords: Iterable<AxialCoord>,
-		terraforming: TerrainTerraformPatch[] = [],
+		terraforming: TerrainTerraformPatch[] = []
 	): Promise<GeneratedTileData[]> {
 		const coordList = [...coords]
 		console.info('[save-load][generation.generateRegionAsync] begin', {
@@ -480,7 +491,7 @@ export class GameGenerator {
 		config: GameGenerationConfig,
 		sectors: Iterable<TerrainSectorCoord>,
 		terraforming: TerrainTerraformPatch[] = [],
-		options: { includeHydrology?: boolean } = {},
+		options: { includeHydrology?: boolean } = {}
 	): Promise<GeneratedTileData[]> {
 		const sectorList = [...sectors]
 		const endProfile = beginGenerationProfile('generateSectorsAsync', {
@@ -510,7 +521,7 @@ export class GameGenerator {
 	async generateMacroHydrologyAsync(
 		config: GameGenerationConfig,
 		centerSector: TerrainSectorCoord,
-		options: { macroStep?: number; sectorRadius?: number } = {},
+		options: { macroStep?: number; sectorRadius?: number } = {}
 	): Promise<TerrainMacroHydrologySnapshot> {
 		const macroStep = options.macroStep ?? 8
 		const sectorRadius = options.sectorRadius ?? 12
@@ -535,22 +546,33 @@ export class GameGenerator {
 	}
 
 	/**
-		* Place settlements on generated tiles using the WASM settlement engine.
-		*
-		* The WASM function `wasm_place_settlements` is exported from `anarkai-core`
-		* and uses the pure-Rust `place_settlements()` from `generation::settlements`.
-		*
-		* @param seed          Deterministic seed for settlement placement
-		* @param tiles         Board tiles with terrain & hydrology data
-		* @param config        Settlement count and minimum spacing
-		* @returns Sorted list of placed settlements (highest score first)
-		*/
+	 * Place settlements on generated tiles using the WASM settlement engine.
+	 *
+	 * The WASM function `wasm_place_settlements` is exported from `anarkai-core`
+	 * and uses the pure-Rust `place_settlements()` from `generation::settlements`.
+	 *
+	 * @param seed          Deterministic seed for settlement placement
+	 * @param tiles         Board tiles with terrain & hydrology data
+	 * @param config        Settlement count and minimum spacing
+	 * @returns Sorted list of placed settlements (highest score first)
+	 */
 	async placeSettlements(
 		seed: number,
 		tiles: GeneratedTileData[],
 		config: { settlementCount: number; minSpacing: number; nameTheme?: NameThemeId }
-	): Promise<{ settlements: GeneratedSettlement[]; coords: Int32Array; terrainKinds: Uint8Array; hasRiver: Uint8Array }> {
-		if (tiles.length === 0 || config.settlementCount === 0) return { settlements: [], coords: new Int32Array(0), terrainKinds: new Uint8Array(0), hasRiver: new Uint8Array(0) }
+	): Promise<{
+		settlements: GeneratedSettlement[]
+		coords: Int32Array
+		terrainKinds: Uint8Array
+		hasRiver: Uint8Array
+	}> {
+		if (tiles.length === 0 || config.settlementCount === 0)
+			return {
+				settlements: [],
+				coords: new Int32Array(0),
+				terrainKinds: new Uint8Array(0),
+				hasRiver: new Uint8Array(0),
+			}
 
 		const tileCount = tiles.length
 
@@ -605,7 +627,7 @@ export class GameGenerator {
 				if (nIndex === undefined) continue
 				// Find the index of this neighbour in the tiles array
 				const ni = tiles.findIndex(
-					(t) => t.coord.q === tile.coord.q + side.q && t.coord.r === tile.coord.r + side.r,
+					(t) => t.coord.q === tile.coord.q + side.q && t.coord.r === tile.coord.r + side.r
 				)
 				if (ni >= 0) hasRiver[ni] = 1
 			}
@@ -620,7 +642,7 @@ export class GameGenerator {
 			terrainKinds,
 			hasWaterAccess,
 			hasRiver,
-			config.minSpacing,
+			config.minSpacing
 		)
 
 		// Parse packed result: [q, r, kind, score*100, ...]
@@ -629,10 +651,9 @@ export class GameGenerator {
 			const q = packed[i]!
 			const r = packed[i + 1]!
 			const kindCode = packed[i + 2]!
-			const score = (packed[i + 3]! / 100)
+			const score = packed[i + 3]! / 100
 
-			const kind: SettlementKind =
-				kindCode === 2 ? 'city' : kindCode === 1 ? 'town' : 'village'
+			const kind: SettlementKind = kindCode === 2 ? 'city' : kindCode === 1 ? 'town' : 'village'
 			const radius = kind === 'city' ? 4 : kind === 'town' ? 3 : 2
 
 			const id = `settlement-${q},${r}`
@@ -697,7 +718,7 @@ export class GameGenerator {
 			coords,
 			terrainKinds,
 			new Int32Array([1, maxRadius]), // min_radius=1 (exclude origin), max_radius
-			new Int32Array([config.origin.q, config.origin.r]),
+			new Int32Array([config.origin.q, config.origin.r])
 		)
 
 		// Parse packed result: [q, r, q, r, ...]
@@ -718,7 +739,9 @@ export class GameGenerator {
 		}
 
 		if (characters.length < config.characterCount) {
-			const occupied = new Set(characters.map((character) => `${character.coord.q},${character.coord.r}`))
+			const occupied = new Set(
+				characters.map((character) => `${character.coord.q},${character.coord.r}`)
+			)
 			const axialDistance = (coord: AxialCoord) =>
 				(Math.abs(coord.q - config.origin.q) +
 					Math.abs(coord.q + coord.r - config.origin.q - config.origin.r) +
@@ -770,13 +793,13 @@ export {
 } from './names'
 export {
 	type GeneratedSettlement,
+	generateSettlementRegionSetPlan,
+	generateZonePlanForSettlements,
+	type SettlementKind,
 	type SettlementRegion,
 	type SettlementRegionNode,
 	type SettlementRegionSet,
 	type SettlementRegionSetPlan,
-	generateSettlementRegionSetPlan,
-	generateZonePlanForSettlements,
-	selectSettlementCityHallPosition,
-	type SettlementKind,
 	type SettlementZonePlan,
+	selectSettlementCityHallPosition,
 } from './settlements'

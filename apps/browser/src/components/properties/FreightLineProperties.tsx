@@ -4,8 +4,8 @@ import { showFreightLineOverlay } from '@app/lib/freight-line-overlay'
 import { clearFreightMapPickForLine } from '@app/lib/freight-map-pick'
 import { bumpSelectionTitleVersion, selectionState } from '@app/lib/globals'
 import { T } from '@app/lib/i18n'
-import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
 import { InspectorSection } from '@app/ui/anarkai'
+import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
 import { effect, reactive } from 'mutts'
 import { tablerOutlineRepeat, tablerOutlineTrash } from 'pure-glyf/icons'
 import type { FreightLineDefinition, SyntheticFreightLineObject } from 'ssh/freight/freight-line'
@@ -13,7 +13,7 @@ import { normalizeFreightLineDefinition } from 'ssh/freight/freight-line'
 import { isLineFreightVehicleType } from 'ssh/freight/line-freight-vehicles'
 import type { Game } from 'ssh/game'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
-import { toAxialCoord, type AxialCoord } from 'ssh/utils'
+import { type AxialCoord, toAxialCoord } from 'ssh/utils'
 import FreightStopList from '../FreightStopList'
 import HardListSearchPicker, { type HardListSearchPickerItem } from '../HardListSearchPicker'
 import InspectorObjectLink from '../InspectorObjectLink'
@@ -156,8 +156,8 @@ const lineAssignmentText = () => {
 
 function vehicleCoord(vehicle: VehicleEntity): AxialCoord | undefined {
 	const position =
-		(vehicle as VehicleEntity & { effectivePosition?: unknown; position?: unknown }).effectivePosition ??
-		(vehicle as VehicleEntity & { position?: unknown }).position
+		(vehicle as VehicleEntity & { effectivePosition?: unknown; position?: unknown })
+			.effectivePosition ?? (vehicle as VehicleEntity & { position?: unknown }).position
 	return position ? toAxialCoord(position) : undefined
 }
 
@@ -281,7 +281,10 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 		const line = currentLine()
 		const g = currentGame()
 		if (!line || !g) return
-		if ('unassignVehicleFromFreightLine' in g && typeof g.unassignVehicleFromFreightLine === 'function') {
+		if (
+			'unassignVehicleFromFreightLine' in g &&
+			typeof g.unassignVehicleFromFreightLine === 'function'
+		) {
 			g.unassignVehicleFromFreightLine(vehicleUid, line.id)
 		} else {
 			g.vehicles?.vehicle?.(vehicleUid)?.unassignFreightLine?.(line.id)

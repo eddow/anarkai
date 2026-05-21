@@ -65,10 +65,7 @@ const OfferRows = (props: { offers: readonly NpcSettlementTradeOffer[] }) => (
 				const visual = visualGoods[offer.good as keyof typeof visualGoods]
 				const sprite = visual?.sprites?.[0] ?? ''
 				return (
-					<div
-						class="settlement-properties__offer"
-						data-testid="settlement-market-price"
-					>
+					<div class="settlement-properties__offer" data-testid="settlement-market-price">
 						<EntityBadge
 							game={game}
 							height={16}

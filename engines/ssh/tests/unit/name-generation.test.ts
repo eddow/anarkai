@@ -1,9 +1,4 @@
-import {
-	generateName,
-	listNameThemes,
-	type NameKind,
-	type NameThemeId,
-} from 'ssh/generation'
+import { generateName, listNameThemes, type NameKind, type NameThemeId } from 'ssh/generation'
 import { describe, expect, it } from 'vitest'
 import en from '../../assets/locales/en.json'
 import fr from '../../assets/locales/fr.json'

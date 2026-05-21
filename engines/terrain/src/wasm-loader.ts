@@ -49,18 +49,22 @@ export async function loadWasmModule(): Promise<any> {
 				typeof process !== 'undefined' &&
 				typeof process?.versions?.node === 'string'
 			) {
-				// @ts-ignore: node: imports only resolve in Node/Vitest, not browser builds
+				// @ts-expect-error: node: imports only resolve in Node/Vitest, not browser builds
 				const nodeFs = await import('node:fs')
-				// @ts-ignore: node: imports only resolve in Node/Vitest, not browser builds
+				// @ts-expect-error: node: imports only resolve in Node/Vitest, not browser builds
 				const nodePath = await import('node:path')
-				// @ts-ignore: node: imports only resolve in Node/Vitest, not browser builds
+				// @ts-expect-error: node: imports only resolve in Node/Vitest, not browser builds
 				const nodeUrl = await import('node:url')
 
 				// From engines/terrain/src/, go up 2 to engines/, then core/pkg/
-				// @ts-ignore
+				// @ts-expect-error
 				const wasmPath = nodePath.join(
 					nodePath.dirname(nodeUrl.fileURLToPath(import.meta.url)),
-					'..', '..', 'core', 'pkg', 'anarkai_core_bg.wasm',
+					'..',
+					'..',
+					'core',
+					'pkg',
+					'anarkai_core_bg.wasm'
 				)
 				const bytes = nodeFs.readFileSync(wasmPath)
 				core.initSync(bytes)
@@ -72,7 +76,8 @@ export async function loadWasmModule(): Promise<any> {
 			}
 
 			trace('loader', 'log', 'WASM module loaded successfully', {
-				exportCount: Object.keys(wasmModule).filter(k => typeof wasmModule[k] === 'function').length,
+				exportCount: Object.keys(wasmModule).filter((k) => typeof wasmModule[k] === 'function')
+					.length,
 			})
 			return wasmModule
 		} catch (e) {
@@ -94,7 +99,9 @@ export function getWasmModule(): any {
 	if (wasmModule) {
 		return wasmModule
 	}
-	throw new Error('WASM module not loaded — terrain generation requires WASM. Call loadWasmModule() first.')
+	throw new Error(
+		'WASM module not loaded — terrain generation requires WASM. Call loadWasmModule() first.'
+	)
 }
 
 /**

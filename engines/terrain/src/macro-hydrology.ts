@@ -1,7 +1,7 @@
-import { getWasmModule } from './wasm-loader'
 import { getCachedWasmTerrainConfig } from './fields'
-import { DEFAULT_TERRAIN_CONFIG, type BiomeHint, type TerrainConfig } from './types'
 import { logTerrainProfile } from './profile'
+import { type BiomeHint, DEFAULT_TERRAIN_CONFIG, type TerrainConfig } from './types'
+import { getWasmModule } from './wasm-loader'
 
 export interface TerrainMacroTile {
 	q: number

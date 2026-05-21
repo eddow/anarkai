@@ -1,15 +1,20 @@
 import { css } from '@app/lib/css'
 import { showProps } from '@app/lib/follow-selection'
 import { isFreightAddStopAction, tryConsumeFreightMapPick } from '@app/lib/freight-map-pick'
-import { game, interactionMode, selectionState, validateStoredSelectionState } from '@app/lib/globals'
+import {
+	game,
+	interactionMode,
+	selectionState,
+	validateStoredSelectionState,
+} from '@app/lib/globals'
 import { consumePresentationEvents } from '@app/lib/presentation-events'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
 import { PixiGameRenderer } from 'engine-pixi/renderer'
 import { effect } from 'mutts'
 import type { RoadType } from 'ssh/board/roads'
 import { Tile } from 'ssh/board/tile'
-import type { GamePresentationEvent, InteractiveGameObject } from 'ssh/game'
 import { traces } from 'ssh/dev/debug'
+import type { GamePresentationEvent, InteractiveGameObject } from 'ssh/game'
 import type { AlveolusType } from 'ssh/types/base'
 
 css`

@@ -912,9 +912,7 @@ describe('vehicle-freight-dock', () => {
 			storage?.storage.addGood('wood', 3)
 			const pick = pickInitialVehicleServiceCandidate(engine.game, worker, vehicle)
 			expect(pick).toMatchObject({ line, stop: line.stops[0] })
-			expect(pick?.urgency).toBe(
-				jobBalance.vehicleBeginService * (Math.min(neededWood, 2) / 4)
-			)
+			expect(pick?.urgency).toBe(jobBalance.vehicleBeginService * (Math.min(neededWood, 2) / 4))
 		} finally {
 			await engine.destroy()
 		}

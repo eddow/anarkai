@@ -23,11 +23,6 @@ describe('road tile texture helpers', () => {
 			])
 		).toEqual([50, 50, 0, 255])
 
-		expect(blendRoadPixel([{ color: [10, 20, 30], alpha: 0.5 }])).toEqual([
-			10,
-			20,
-			30,
-			128,
-		])
+		expect(blendRoadPixel([{ color: [10, 20, 30], alpha: 0.5 }])).toEqual([10, 20, 30, 128])
 	})
 })

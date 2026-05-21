@@ -1,7 +1,6 @@
 import type { Texture } from 'pixi.js'
 import type { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
-import { plantedTreeStage } from 'ssh/board/content/unbuilt-land'
-import { plantedTreeMaxPerTile } from 'ssh/board/content/unbuilt-land'
+import { plantedTreeMaxPerTile, plantedTreeStage } from 'ssh/board/content/unbuilt-land'
 import type { TerrainSample } from 'ssh/game/terrain-provider'
 import type { AxialCoord } from 'ssh/utils'
 import { LCG, subSeed } from 'ssh/utils/numbers'
@@ -60,7 +59,12 @@ export function buildStaticResourceSpriteSpecsFromTerrainSample(
 
 function buildStaticResourceSpriteSpecsForCoord(
 	tileCoord: AxialCoord,
-	deposit: { name?: string; amount: number; maxAmount?: number; plantedTreeAges?: readonly number[] },
+	deposit: {
+		name?: string
+		amount: number
+		maxAmount?: number
+		plantedTreeAges?: readonly number[]
+	},
 	resolveTexture: (spec: string) => Texture | undefined
 ): StaticResourceSpriteSpec[] {
 	const visibleCount = Math.max(1, Math.floor(deposit.amount))
@@ -77,7 +81,11 @@ function buildStaticResourceSpriteSpecsForCoord(
 	for (let i = 0; i < visibleCount; i++) {
 		const seed = subSeed('deposit-unit', tileCoord.q, tileCoord.r, i)
 		const rnd = LCG('gameSeed', seed)
-		const spriteBand = plantedTreeSpriteBand(deposit.name, deposit.plantedTreeAges?.[i], def.sprites)
+		const spriteBand = plantedTreeSpriteBand(
+			deposit.name,
+			deposit.plantedTreeAges?.[i],
+			def.sprites
+		)
 		const spriteIndex = Math.floor(rnd() * spriteBand.length)
 		const textureKey = spriteBand[spriteIndex]
 		const texture = resolveTexture(textureKey)

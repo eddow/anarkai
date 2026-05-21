@@ -131,6 +131,7 @@ const App = () => {
 	const openGamePanel = () => ensurePanel('game', 'game-view', undefined, { floating: false })
 
 	const openConfigurationPanel = () => ensurePanel('configuration', 'system.configuration')
+	const openLinesPanel = () => ensurePanel('linesManagement', 'freight-lines')
 
 	const handleDockviewReady = (api: unknown) => {
 		state.api = api
@@ -151,6 +152,7 @@ const App = () => {
 	effect`app:palette-bridge`(() => {
 		palettePanelBridge.openConfiguration = openConfigurationPanel
 		palettePanelBridge.openGame = openGamePanel
+		palettePanelBridge.openLines = openLinesPanel
 	})
 
 	effect`app:palette-dispose`(() => {

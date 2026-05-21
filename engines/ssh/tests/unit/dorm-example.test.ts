@@ -1,12 +1,9 @@
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
-import { collectDockedVehicleAdvertisementCandidates } from 'ssh/freight/vehicle-freight-dock'
 import { freightConstructionDemandTarget } from 'ssh/freight/construction-demand'
-import {
-	collectVehicleAdvertisedJobs,
-	collectVehicleWorkPicks,
-} from 'ssh/freight/vehicle-work'
+import { collectDockedVehicleAdvertisementCandidates } from 'ssh/freight/vehicle-freight-dock'
+import { collectVehicleAdvertisedJobs, collectVehicleWorkPicks } from 'ssh/freight/vehicle-work'
 import { dorm } from 'ssh/game/exampleGames'
 import { Game } from 'ssh/game/game'
 import { BuildAlveolus } from 'ssh/hive/build'
@@ -162,15 +159,15 @@ describe('dorm example game', () => {
 				pick.job.job === 'vehicleHop' &&
 				pick.job.lineId === 'Dorm:implicit-gather:0,1' &&
 				pick.job.needsBeginService
-			)
-			expect(exchange).toBeDefined()
-			if (!exchange || exchange.job.job !== 'vehicleHop') return
-			expect(exchange.job.dockEnter).toBe(false)
-			expect(exchange.job.stopId).toBe('Dorm:gather-zone')
-			expect(exchange.job.zoneBrowseAction).toBe('load')
-			expect(exchange.job.goodType).toBe('wood')
-			expect(exchange.job.targetCoord).toMatchObject({ q: 3, r: 0 })
-		})
+		)
+		expect(exchange).toBeDefined()
+		if (!exchange || exchange.job.job !== 'vehicleHop') return
+		expect(exchange.job.dockEnter).toBe(false)
+		expect(exchange.job.stopId).toBe('Dorm:gather-zone')
+		expect(exchange.job.zoneBrowseAction).toBe('load')
+		expect(exchange.job.goodType).toBe('wood')
+		expect(exchange.job.targetCoord).toMatchObject({ q: 3, r: 0 })
+	})
 
 	it('refreshes dock demand when downstream residential construction appears after docking', async () => {
 		game = new Game({ terrainSeed: 867, characterCount: 0 }, dorm)

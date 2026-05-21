@@ -43,11 +43,11 @@ describe('constructionStep resumable work', () => {
 					},
 				],
 			}
-			)
-			await game.loaded
-			game.ticker.stop()
-			clearGeneratedBurden({ q: 1, r: 0 })
-		})
+		)
+		await game.loaded
+		game.ticker.stop()
+		clearGeneratedBurden({ q: 1, r: 0 })
+	})
 
 	it('creates construction shells from construction-site targets', () => {
 		const tileB = game.hex.getTile({ q: 1, r: 0 })!
@@ -155,10 +155,10 @@ describe('constructionStep resumable work', () => {
 		if (!(land instanceof UnBuiltLand)) return
 		land.terrain = 'forest'
 		tileB.baseTerrain = 'forest'
-			tileB.terrainState = { ...(tileB.terrainState ?? {}), terrain: 'forest' }
-			land.setProject('build:storage')
-			land.foundationStorage?.addGood('concrete', 1)
-			expect(tileB.baseTerrain).toBe('forest')
+		tileB.terrainState = { ...(tileB.terrainState ?? {}), terrain: 'forest' }
+		land.setProject('build:storage')
+		land.foundationStorage?.addGood('concrete', 1)
+		expect(tileB.baseTerrain).toBe('forest')
 
 		const char = game.population.createCharacter('Builder', { q: 1, r: 0 })
 		const wf = new WorkFunctions()
@@ -195,9 +195,9 @@ describe('constructionStep resumable work', () => {
 		if (!(land instanceof UnBuiltLand)) return
 		land.terrain = 'forest'
 		tileB.baseTerrain = 'forest'
-			tileB.terrainState = { ...(tileB.terrainState ?? {}), terrain: 'forest' }
-			land.setProject('build:storage')
-			land.foundationStorage?.addGood('concrete', 1)
+		tileB.terrainState = { ...(tileB.terrainState ?? {}), terrain: 'forest' }
+		land.setProject('build:storage')
+		land.foundationStorage?.addGood('concrete', 1)
 
 		const char = game.population.createCharacter('Builder', { q: 1, r: 0 })
 		const wf = new WorkFunctions()

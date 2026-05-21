@@ -46,9 +46,9 @@ function canonicalTileForHive(hive: Hive): Tile | undefined {
 	return Array.from(hive.alveoli, (alveolus) => alveolus.tile)
 		.filter((tile): tile is Tile => tile instanceof Tile)
 		.sort((a, b) =>
-			axial.key(toAxialCoord(a.position) ?? { q: 0, r: 0 }).localeCompare(
-				axial.key(toAxialCoord(b.position) ?? { q: 0, r: 0 })
-			)
+			axial
+				.key(toAxialCoord(a.position) ?? { q: 0, r: 0 })
+				.localeCompare(axial.key(toAxialCoord(b.position) ?? { q: 0, r: 0 }))
 		)[0]
 }
 

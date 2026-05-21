@@ -43,6 +43,7 @@ describe('browser palette registry & palettePanelBridge', () => {
 		disposeBrowserPalette()
 		palettePanelBridge.openConfiguration = () => {}
 		palettePanelBridge.openGame = () => {}
+		palettePanelBridge.openLines = () => {}
 		palettePanelBridge.openZones = () => {}
 	})
 
@@ -50,21 +51,26 @@ describe('browser palette registry & palettePanelBridge', () => {
 		const palette = getBrowserPalette().palette
 		const openCfg = palette.tool('openConfiguration') as { run(): void }
 		const openGame = palette.tool('openGame') as { run(): void }
+		const openLines = palette.tool('openLines') as { run(): void }
 		const openZones = palette.tool('openZones') as { run(): void }
 
 		const spyConfiguration = vi.fn()
 		const spyGame = vi.fn()
+		const spyLines = vi.fn()
 		const spyZones = vi.fn()
 		palettePanelBridge.openConfiguration = spyConfiguration
 		palettePanelBridge.openGame = spyGame
+		palettePanelBridge.openLines = spyLines
 		palettePanelBridge.openZones = spyZones
 
 		openCfg.run()
 		openGame.run()
+		openLines.run()
 		openZones.run()
 
 		expect(spyConfiguration).toHaveBeenCalledTimes(1)
 		expect(spyGame).toHaveBeenCalledTimes(1)
+		expect(spyLines).toHaveBeenCalledTimes(1)
 		expect(spyZones).toHaveBeenCalledTimes(1)
 	})
 
@@ -154,5 +160,14 @@ describe('browser palette registry & palettePanelBridge', () => {
 			.find((entry) => entry.editor === 'account')
 
 		expect(accountItem?.config?.label).toBe('Account')
+	})
+
+	it('keeps the lines panel in the top toolbar preset', () => {
+		const linesItem = defaultPalette.top
+			.flat(2)
+			.flatMap((entry) => entry.toolbar)
+			.find((entry) => entry.tool === 'openLines')
+
+		expect(linesItem?.config?.label).toBe('Lines')
 	})
 })

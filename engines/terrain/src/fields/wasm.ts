@@ -4,12 +4,19 @@
  * implemented in Rust for better performance.
  */
 
+import { edgeKey } from '../edge-key'
 import { axial } from '../hex/axial'
 import type { AxialCoord, AxialKey } from '../hex/types'
-import { edgeKey } from '../edge-key'
-import type { BiomeHint, EdgeField, EdgeKey, TerrainConfig, TileField, TileRiverFlow } from '../types'
-import { getWasmModule } from '../wasm-loader'
 import { logTerrainProfile } from '../profile'
+import type {
+	BiomeHint,
+	EdgeField,
+	EdgeKey,
+	TerrainConfig,
+	TileField,
+	TileRiverFlow,
+} from '../types'
+import { getWasmModule } from '../wasm-loader'
 
 // Cache WasmTerrainConfig by hash of config to avoid 20+ property assignments per batch
 const _wasmConfigCache = new Map<string, any>()
@@ -285,7 +292,11 @@ export function generateSectorFieldsWasm(
 	}
 	const edges = new Map<EdgeKey, EdgeField>()
 	if (edgeInts && edgeFloats) {
-		for (let edgeIndex = 0, intIndex = 0, floatIndex = 0; intIndex < edgeInts.length; edgeIndex++, intIndex += 4, floatIndex += 4) {
+		for (
+			let edgeIndex = 0, intIndex = 0, floatIndex = 0;
+			intIndex < edgeInts.length;
+			edgeIndex++, intIndex += 4, floatIndex += 4
+		) {
 			const from = { q: edgeInts[intIndex]!, r: edgeInts[intIndex + 1]! }
 			const direction = edgeInts[intIndex + 2]!
 			const to = axial.neighbors(from)[direction]
@@ -301,7 +312,11 @@ export function generateSectorFieldsWasm(
 
 	const banks = new Map<AxialKey, number>()
 	if (bankCoords && bankInfluenceValues) {
-		for (let bankIndex = 0, coordIndex = 0; coordIndex < bankCoords.length; bankIndex++, coordIndex += 2) {
+		for (
+			let bankIndex = 0, coordIndex = 0;
+			coordIndex < bankCoords.length;
+			bankIndex++, coordIndex += 2
+		) {
 			banks.set(
 				axial.key({ q: bankCoords[coordIndex]!, r: bankCoords[coordIndex + 1]! }),
 				bankInfluenceValues[bankIndex]!
@@ -313,7 +328,11 @@ export function generateSectorFieldsWasm(
 	const channelInfluence = new Map<AxialKey, number>()
 	const riverFlow = new Map<AxialKey, TileRiverFlow>()
 	if (channelInts && channelFloats) {
-		for (let channelIndex = 0, intIndex = 0, floatIndex = 0; intIndex < channelInts.length; channelIndex++, intIndex += 7, floatIndex += 2) {
+		for (
+			let channelIndex = 0, intIndex = 0, floatIndex = 0;
+			intIndex < channelInts.length;
+			channelIndex++, intIndex += 7, floatIndex += 2
+		) {
 			const key = axial.key({ q: channelInts[intIndex]!, r: channelInts[intIndex + 1]! })
 			const upstreamMask = channelInts[intIndex + 2]!
 			const downstreamMask = channelInts[intIndex + 3]!

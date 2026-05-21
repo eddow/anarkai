@@ -242,10 +242,22 @@ function normalizeFreightStop(stop: FreightStop, index: number): FreightStop {
 			? {}
 			: { minBalanceAfterBuyVp: Math.max(0, Math.floor(stop.minBalanceAfterBuyVp)) }
 	if ('anchor' in stop) {
-		return { id, loadSelection, unloadSelection, ...reserve, anchor: normalizeBayAnchor(stop.anchor) }
+		return {
+			id,
+			loadSelection,
+			unloadSelection,
+			...reserve,
+			anchor: normalizeBayAnchor(stop.anchor),
+		}
 	}
 	if ('trade' in stop) {
-		return { id, loadSelection, unloadSelection, ...reserve, trade: normalizeNpcTradeStop(stop.trade) }
+		return {
+			id,
+			loadSelection,
+			unloadSelection,
+			...reserve,
+			trade: normalizeNpcTradeStop(stop.trade),
+		}
 	}
 	return {
 		id,

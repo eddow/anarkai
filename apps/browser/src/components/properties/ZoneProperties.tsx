@@ -1,10 +1,7 @@
 import GoodsList from '@app/components/GoodsList'
 import { css } from '@app/lib/css'
 import { bumpSelectionTitleVersion, game, interactionMode } from '@app/lib/globals'
-import {
-	unnamedZoneOwnership,
-	zoneOverlayState,
-} from '@app/lib/zone-selection'
+import { unnamedZoneOwnership, zoneOverlayState } from '@app/lib/zone-selection'
 import { InspectorSection } from '@app/ui/anarkai'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
 import { deposits as visualDeposits } from 'engine-pixi/assets/visual-content'
@@ -177,7 +174,8 @@ const ZoneProperties = (props: ZonePropertiesProps) => {
 		const existing = definition()
 		if (!existing || existing.builtIn) return
 		game.hex.zoneManager.removeNamedZone(existing.id)
-		if (interactionMode.selectedAction === `zone:${existing.id}`) interactionMode.selectedAction = ''
+		if (interactionMode.selectedAction === `zone:${existing.id}`)
+			interactionMode.selectedAction = ''
 		bumpSelectionTitleVersion()
 		props.onClose?.()
 	}

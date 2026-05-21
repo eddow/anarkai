@@ -33,6 +33,16 @@
               "hint": "Open zones",
               "tone": "neutral"
             }
+          },
+          {
+            "tool": "openLines",
+            "editor": "button",
+            "config": {
+              "label": "Lines",
+              "icon": "pure-glyf-icon glyf-tabler-outline-route",
+              "hint": "Open lines",
+              "tone": "neutral"
+            }
           }
         ]
       },

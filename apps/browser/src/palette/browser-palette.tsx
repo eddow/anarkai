@@ -47,6 +47,7 @@ import type { Game } from 'ssh/game'
 export const palettePanelBridge = reactive({
 	openConfiguration: () => {},
 	openGame: () => {},
+	openLines: () => {},
 	openZones: () => {},
 })
 
@@ -103,6 +104,17 @@ const tools = {
 		},
 		run() {
 			palettePanelBridge.openGame()
+		},
+	},
+	openLines: {
+		label: 'Open lines',
+		icon: typeof tablerOutlineRoute === 'string' ? tablerOutlineRoute : undefined,
+		keywords: ['line', 'lines', 'freight', 'route'],
+		get can() {
+			return true
+		},
+		run() {
+			palettePanelBridge.openLines()
 		},
 	},
 	openZones: {

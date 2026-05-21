@@ -1,6 +1,6 @@
+import { profileCall } from './noise'
 import type { BiomeHint, EdgeField, TerrainConfig, TileField } from './types'
 import { ensureWasmLoaded, getWasmModule, isWasmLoaded } from './wasm-loader'
-import { profileCall } from './noise'
 
 export interface HydrologyClassification {
 	bankInfluence?: number

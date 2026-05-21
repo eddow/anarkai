@@ -1,6 +1,14 @@
 import { interactionMode } from '@app/lib/interactive-state'
 import { effect } from 'mutts'
-import { ColorMatrixFilter, Container, Graphics, Point, Sprite, Texture, type TilingSprite } from 'pixi.js'
+import {
+	ColorMatrixFilter,
+	Container,
+	Graphics,
+	Point,
+	Sprite,
+	Texture,
+	type TilingSprite,
+} from 'pixi.js'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
@@ -12,8 +20,8 @@ import { scopedPixiName, setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
 import { AlveolusVisual } from './alveolus-visual'
 import { DwellingVisual } from './dwelling-visual'
-import { createTerrainHexSprite } from './terrain-hex-sprite'
 import { createGoodsRenderer, type GoodsRenderer } from './goods-renderer'
+import { createTerrainHexSprite } from './terrain-hex-sprite'
 import { VisualObject } from './visual-object'
 
 export class TileVisual extends VisualObject<Tile> {

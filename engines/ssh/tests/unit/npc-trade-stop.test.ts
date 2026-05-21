@@ -1,8 +1,8 @@
 import type { NpcSettlementTradeProfile } from 'ssh/commerce/settlement-trade'
 import type { FreightLineDefinition } from 'ssh/freight/freight-line'
+import { migrateV1FiltersToGoodsSelection } from 'ssh/freight/goods-selection-policy'
 import { executeNpcTradeStopTransfer } from 'ssh/freight/npc-trade-stop'
 import type { Game } from 'ssh/game'
-import { migrateV1FiltersToGoodsSelection } from 'ssh/freight/goods-selection-policy'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
 
@@ -20,8 +20,9 @@ const tradeProfile: NpcSettlementTradeProfile = {
 }
 
 function installTradeProfile(game: Game): void {
-	;(game as unknown as { settlementTradeProfiles: Map<string, NpcSettlementTradeProfile> })
-		.settlementTradeProfiles.set(tradeProfile.id, tradeProfile)
+	;(
+		game as unknown as { settlementTradeProfiles: Map<string, NpcSettlementTradeProfile> }
+	).settlementTradeProfiles.set(tradeProfile.id, tradeProfile)
 }
 
 function marketLine(patch: Partial<FreightLineDefinition> = {}): FreightLineDefinition {

@@ -135,13 +135,22 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 			}
 		}
 		if (isSpecific()) {
-			current.specificBuffers = (props.content.specificStorageConfiguration?.buffers ?? {}) as Record<GoodType, number>
+			current.specificBuffers = (props.content.specificStorageConfiguration?.buffers ??
+				{}) as Record<GoodType, number>
 		}
 		for (const config of configRegistry.configs) {
 			if (config.storageMode !== current.storageMode) continue
-			if (JSON.stringify(config.storageExceptions.sort()) !== JSON.stringify(current.storageExceptions.sort())) continue
+			if (
+				JSON.stringify(config.storageExceptions.sort()) !==
+				JSON.stringify(current.storageExceptions.sort())
+			)
+				continue
 			if (JSON.stringify(config.storageBuffers) !== JSON.stringify(current.storageBuffers)) continue
-			if (isSpecific() && JSON.stringify(config.specificBuffers) !== JSON.stringify(current.specificBuffers)) continue
+			if (
+				isSpecific() &&
+				JSON.stringify(config.specificBuffers) !== JSON.stringify(current.specificBuffers)
+			)
+				continue
 			if (!isSpecific() && config.specificBuffers) continue
 			return config.name
 		}
@@ -191,7 +200,8 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 			}
 		}
 		if (isSpecific()) {
-			config.specificBuffers = (props.content.specificStorageConfiguration?.buffers ?? {}) as Record<GoodType, number>
+			config.specificBuffers = (props.content.specificStorageConfiguration?.buffers ??
+				{}) as Record<GoodType, number>
 		}
 		saveConfig(name, config)
 		draft.selectedPreset = name

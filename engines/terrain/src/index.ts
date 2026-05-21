@@ -24,28 +24,20 @@ export {
 	resolveFieldGenerationBackend,
 	resolveSyncFieldGenerationBackend,
 	unpackFieldResult,
-	warmGpuFieldRuntime,
 	type WasmSectorCoord,
 	type WasmSectorFieldBatch,
+	warmGpuFieldRuntime,
 } from './fields'
 export { generateFieldsCpu, generateTileFieldCpu } from './fields/cpu'
 export {
-	DEFAULT_MACRO_HYDROLOGY_SECTOR_RADIUS,
-	DEFAULT_MACRO_HYDROLOGY_SECTOR_STEP,
-	DEFAULT_MACRO_HYDROLOGY_STEP,
-	generateMacroHydrologyWasm,
-	type GenerateMacroHydrologyOptions,
-	type TerrainMacroHydrologySnapshot,
-	type TerrainMacroRiverSegment,
-	type TerrainMacroTile,
-} from './macro-hydrology'
-export {
 	applyTileOverrides,
 	createSnapshot,
+	DEFAULT_SECTOR_HYDROLOGY_PADDING,
 	edgeKey,
 	type GenerateHydratedRegionOptions,
 	type GenerateHydratedRegionWithMetricsResult,
 	type GenerateOptions,
+	type GenerateSectorRegionOptions,
 	generate,
 	generateAsync,
 	generateHydratedRegion,
@@ -57,8 +49,6 @@ export {
 	generateSectorRegionAsync,
 	generateSectorRegionAsyncWithMetrics,
 	generateTile,
-	DEFAULT_SECTOR_HYDROLOGY_PADDING,
-	type GenerateSectorRegionOptions,
 	type MergeSnapshotResult,
 	mergeSnapshotRegion,
 	type PopulateSnapshotResult,
@@ -70,7 +60,17 @@ export {
 } from './generate'
 export * from './hex/index'
 export { type HydrologyResult, isSpring, runHydrology, runHydrologyDetailed } from './hydrology'
-export { fbm, PerlinNoise, dumpNoiseProfile, resetNoiseProfile } from './noise'
+export {
+	DEFAULT_MACRO_HYDROLOGY_SECTOR_RADIUS,
+	DEFAULT_MACRO_HYDROLOGY_SECTOR_STEP,
+	DEFAULT_MACRO_HYDROLOGY_STEP,
+	type GenerateMacroHydrologyOptions,
+	generateMacroHydrologyWasm,
+	type TerrainMacroHydrologySnapshot,
+	type TerrainMacroRiverSegment,
+	type TerrainMacroTile,
+} from './macro-hydrology'
+export { dumpNoiseProfile, fbm, PerlinNoise, resetNoiseProfile } from './noise'
 export * from './types'
 export {
 	ensureWasmLoaded,

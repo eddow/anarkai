@@ -1,8 +1,8 @@
-import { chopSaw } from 'ssh/game/exampleGames'
 import { executeNpcTradeStopTransfer } from 'ssh/freight/npc-trade-stop'
 import { collectDockedVehicleAdvertisementCandidates } from 'ssh/freight/vehicle-freight-dock'
-import { findVehicleOffloadJob } from 'ssh/freight/vehicle-work'
 import { maybeAdvanceVehicleFromCompletedAnchorStop } from 'ssh/freight/vehicle-run'
+import { findVehicleOffloadJob } from 'ssh/freight/vehicle-work'
+import { chopSaw } from 'ssh/game/exampleGames'
 import { Game } from 'ssh/game/game'
 import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -135,7 +135,9 @@ describe('chopSaw example game', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find((candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0')
+		const line = game.freightLines.find(
+			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
+		)
 		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
 		const bayTile = game.hex.getTile({ q: 0, r: 0 })
 		const zoneTile = game.hex.getTile({ q: -1, r: 0 })
@@ -302,12 +304,14 @@ describe('chopSaw example game', () => {
 
 		expect(pickup.storage.virtualGoodsCount).toBe(1)
 		expect(
-			bay.hive.collectActiveMovements().some(
-				(movement: any) =>
-					movement.goodType === 'concrete' &&
-					movement.provider?.vehicle?.uid === pickup.uid &&
-					!movement.claimed
-			)
+			bay.hive
+				.collectActiveMovements()
+				.some(
+					(movement: any) =>
+						movement.goodType === 'concrete' &&
+						movement.provider?.vehicle?.uid === pickup.uid &&
+						!movement.claimed
+				)
 		).toBe(true)
 		expect(pickup.advertisedJobs).toEqual(
 			expect.arrayContaining([
@@ -532,13 +536,15 @@ describe('chopSaw example game', () => {
 								?.content?.proposedJobs?.map((job: any) => job.job)
 								.join(',') || 'none'
 						}`,
-						`movements=${storage.hive
-							.collectActiveMovements()
-							.map(
-								(movement: any) =>
-									`${movement.goodType}:${movement.provider?.name}->${movement.demander?.name}:claimed=${movement.claimed}:path=${movement.path.length}`
-							)
-							.join('|') || 'none'}`,
+						`movements=${
+							storage.hive
+								.collectActiveMovements()
+								.map(
+									(movement: any) =>
+										`${movement.goodType}:${movement.provider?.name}->${movement.demander?.name}:claimed=${movement.claimed}:path=${movement.path.length}`
+								)
+								.join('|') || 'none'
+						}`,
 					].join(' ')
 				)
 			}

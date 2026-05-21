@@ -329,11 +329,15 @@ describe('VehicleProperties', () => {
 		expect(container.textContent).toContain('North route · Stop a · Underway')
 		expect(
 			container
-				.querySelector('[data-testid="vehicle-assigned-line"] [data-testid="inspector-object-link"]')
+				.querySelector(
+					'[data-testid="vehicle-assigned-line"] [data-testid="inspector-object-link"]'
+				)
 				?.getAttribute('data-target-uid')
 		).toBe('freight-line:L1')
 
-		;(container.querySelector('[data-testid="vehicle-line-picker-item"]') as HTMLButtonElement).click()
+		;(
+			container.querySelector('[data-testid="vehicle-line-picker-item"]') as HTMLButtonElement
+		).click()
 		expect(vehicle.game.assignVehicleToFreightLine).toHaveBeenCalledWith('veh-lines', 'L2')
 
 		;(container.querySelector('[data-testid="vehicle-unassign-line"]') as HTMLButtonElement).click()

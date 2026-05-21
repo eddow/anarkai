@@ -44,11 +44,11 @@ describe('EngineerAlveolus.nextJob residential construction priority', () => {
 					},
 				],
 			}
-			)
-			await game.loaded
-			game.ticker.stop()
-			for (let q = 1; q <= 5; q++) clearGeneratedBurden({ q, r: 0 })
-		})
+		)
+		await game.loaded
+		game.ticker.stop()
+		for (let q = 1; q <= 5; q++) clearGeneratedBurden({ q, r: 0 })
+	})
 
 	it('prefers a farther ready BuildDwelling over a nearer residential foundation site', () => {
 		const tileNear = game.hex.getTile({ q: 1, r: 0 })!
@@ -56,7 +56,7 @@ describe('EngineerAlveolus.nextJob residential construction priority', () => {
 		const nearLand = tileNear.content
 		expect(nearLand).toBeInstanceOf(UnBuiltLand)
 		if (!(nearLand instanceof UnBuiltLand)) return
-			makeReadyResidentialFoundation(nearLand)
+		makeReadyResidentialFoundation(nearLand)
 
 		const tileFar = game.hex.getTile({ q: 5, r: 0 })!
 		tileFar.zone = 'residential'
@@ -84,7 +84,7 @@ describe('EngineerAlveolus.nextJob residential construction priority', () => {
 		const nearLand = tileNear.content
 		expect(nearLand).toBeInstanceOf(UnBuiltLand)
 		if (!(nearLand instanceof UnBuiltLand)) return
-			makeReadyResidentialFoundation(nearLand)
+		makeReadyResidentialFoundation(nearLand)
 
 		const engineerTile = game.hex.getTile({ q: 0, r: 0 })!
 		const engineer = engineerTile.content
@@ -105,7 +105,7 @@ describe('EngineerAlveolus.nextJob residential construction priority', () => {
 		const nearLand = tileNear.content
 		expect(nearLand).toBeInstanceOf(UnBuiltLand)
 		if (!(nearLand instanceof UnBuiltLand)) return
-			makeReadyResidentialFoundation(nearLand)
+		makeReadyResidentialFoundation(nearLand)
 
 		const tileFar = game.hex.getTile({ q: 5, r: 0 })!
 		tileFar.zone = 'residential'
@@ -144,7 +144,7 @@ describe('EngineerAlveolus.nextJob residential construction priority', () => {
 		const nearLand = tileNear.content
 		expect(nearLand).toBeInstanceOf(UnBuiltLand)
 		if (!(nearLand instanceof UnBuiltLand)) return
-			makeReadyResidentialFoundation(nearLand)
+		makeReadyResidentialFoundation(nearLand)
 		game.vehicles.createVehicle('barrow-on-foundation', 'wheelbarrow', tileNear.position)
 		expect(tileNear.isBurdened).toBe(true)
 
@@ -165,7 +165,7 @@ describe('EngineerAlveolus.nextJob residential construction priority', () => {
 		const nearLand = tileNear.content
 		expect(nearLand).toBeInstanceOf(UnBuiltLand)
 		if (!(nearLand instanceof UnBuiltLand)) return
-			makeReadyResidentialFoundation(nearLand)
+		makeReadyResidentialFoundation(nearLand)
 		const loose = game.hex.looseGoods.add(tileNear, 'wood')
 		expect(tileNear.isBurdened).toBe(true)
 		expect(nearLand.constructionSite?.phase).toBe('planned')
@@ -196,14 +196,14 @@ describe('EngineerAlveolus.nextJob residential construction priority', () => {
 		const nearLand = tileNear.content
 		expect(nearLand).toBeInstanceOf(UnBuiltLand)
 		if (!(nearLand instanceof UnBuiltLand)) return
-			makeReadyResidentialFoundation(nearLand)
+		makeReadyResidentialFoundation(nearLand)
 
 		const tileFar = game.hex.getTile({ q: 5, r: 0 })!
 		tileFar.zone = 'residential'
 		const farLand = tileFar.content
 		expect(farLand).toBeInstanceOf(UnBuiltLand)
 		if (!(farLand instanceof UnBuiltLand)) return
-			makeReadyResidentialFoundation(farLand)
+		makeReadyResidentialFoundation(farLand)
 
 		const engineerTile = game.hex.getTile({ q: 0, r: 0 })!
 		const engineer = engineerTile.content
@@ -230,7 +230,7 @@ describe('EngineerAlveolus.nextJob residential construction priority', () => {
 		const land = tileNear.content
 		expect(land).toBeInstanceOf(UnBuiltLand)
 		if (!(land instanceof UnBuiltLand)) return
-			makeReadyResidentialFoundation(land)
+		makeReadyResidentialFoundation(land)
 
 		const character = game.population.createCharacter('Eng', { q: 0, r: 0 })
 		const action = character.findAction()

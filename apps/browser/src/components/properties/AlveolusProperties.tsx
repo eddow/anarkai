@@ -8,6 +8,7 @@ import { T } from '@app/lib/i18n'
 import { presentationRevisionFor } from '@app/lib/presentation-events'
 import { effect, reactive } from 'mutts'
 import type { Alveolus } from 'ssh/board/content/alveolus'
+import { zoneObjectUid } from 'ssh/board/zone'
 import { isConstructionSiteShell } from 'ssh/build-site'
 import { queryConstructionSiteView } from 'ssh/construction'
 import { collectDockedVehiclesForBay, type DockedVehicleEntry } from 'ssh/freight/docked-vehicles'
@@ -19,20 +20,19 @@ import {
 	type SyntheticFreightLineObject,
 } from 'ssh/freight/freight-line'
 import type { Game } from 'ssh/game'
+import { ForesterAlveolus } from 'ssh/hive/forester'
 import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { TransformAlveolus } from 'ssh/hive/transform'
 import type { GoodType } from 'ssh/types/base'
-import ConstructionProgressBar from '../ConstructionProgressBar'
 import ComboDropdownPicker from '../ComboDropdownPicker'
+import ConstructionProgressBar from '../ConstructionProgressBar'
 import DockedVehicleList from '../DockedVehicleList'
 import InspectorObjectLink from '../InspectorObjectLink'
 import LinkedEntityControl from '../LinkedEntityControl'
 import PropertyGridRow from '../PropertyGridRow'
 import StorageConfiguration from '../storage/StorageConfiguration'
 import StoredGoodsRow from '../storage/StoredGoodsRow'
-import { ForesterAlveolus } from 'ssh/hive/forester'
-import { zoneObjectUid } from 'ssh/board/zone'
 
 css`
 .alveolus-commands {
@@ -417,8 +417,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 							title={String(T.alveolus.productRatio)}
 							onInput={(event) =>
 								setTransformRatio({
-									maxProductRatio:
-										Number((event.currentTarget as HTMLInputElement).value) / 100,
+									maxProductRatio: Number((event.currentTarget as HTMLInputElement).value) / 100,
 								})
 							}
 						/>

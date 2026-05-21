@@ -2,9 +2,10 @@
  * Smoke test: verify the WASM core engine can be initialized and the `add`
  * function works in Node.js/Vitest.
  */
+
+import { fbm, PerlinNoise } from 'engine-terrain'
 import { describe, expect, test } from 'vitest'
 import { initCore, isWasmAvailable, wasmAdd, wasmFbmSample } from './wasm-adapter'
-import { PerlinNoise, fbm } from 'engine-terrain'
 
 describe('WASM core integration', () => {
 	test('WASM is available in Node.js', () => {
@@ -67,23 +68,9 @@ describe('WASM core integration', () => {
 
 				// Test TypeScript FBM
 				const perlin = new PerlinNoise(seed)
-				const tsValue1 = fbm(
-					perlin,
-					tc.x,
-					tc.y,
-					tc.octaves,
-					tc.persistence,
-					tc.lacunarity
-				)
+				const tsValue1 = fbm(perlin, tc.x, tc.y, tc.octaves, tc.persistence, tc.lacunarity)
 				const perlin2 = new PerlinNoise(seed)
-				const tsValue2 = fbm(
-					perlin2,
-					tc.x,
-					tc.y,
-					tc.octaves,
-					tc.persistence,
-					tc.lacunarity
-				)
+				const tsValue2 = fbm(perlin2, tc.x, tc.y, tc.octaves, tc.persistence, tc.lacunarity)
 
 				// Verify TypeScript FBM is deterministic
 				expect(tsValue1).toBe(tsValue2)
@@ -94,49 +81,51 @@ describe('WASM core integration', () => {
 
 				// Note: WASM and TypeScript use different PRNGs (ChaCha8 vs LCG),
 				// so they produce different values. Both are valid FBM implementations.
-				}
-			})
-		})
-	
-		describe('Performance benchmarks', () => {
-			test.skip('10k tiles: WASM vs CPU benchmark', async () => {
-				const seed = 12345
-				const regionSize = 100 // 100x100 = 10k tiles
-				const coords: Array<{ q: number; r: number }> = []
-				
-				// Generate 100x100 region coordinates
-				for (let q = 0; q < regionSize; q++) {
-					for (let r = 0; r < regionSize; r++) {
-						coords.push({ q, r })
-					}
-				}
-	
-				// Benchmark WASM
-				const wasmStart = performance.now()
-				for (const coord of coords) {
-					await wasmFbmSample(seed, coord.q, coord.r, 4, 0.5, 2.0)
-				}
-				const wasmTime = performance.now() - wasmStart
-	
-				// Benchmark CPU
-				const perlin = new PerlinNoise(seed)
-				const cpuStart = performance.now()
-				for (const coord of coords) {
-					fbm(perlin, coord.q, coord.r, 4, 0.5, 2.0)
-				}
-				const cpuTime = performance.now() - cpuStart
-	
-				const speedup = cpuTime / wasmTime
-				console.log(`WASM time: ${wasmTime.toFixed(2)}ms, CPU time: ${cpuTime.toFixed(2)}ms, Speedup: ${speedup.toFixed(2)}x`)
-	
-				// Assert WASM is at least 5x faster (conservative threshold)
-				expect(speedup).toBeGreaterThanOrEqual(5)
-			})
-	
-			test.skip('Erosion benchmark: 100k droplets on 10k tiles', async () => {
-				// This is a placeholder for the erosion benchmark
-				// The actual erosion implementation would need to be added
-				console.log('Erosion benchmark: Not yet implemented - requires erosion WASM exports')
-			})
+			}
 		})
 	})
+
+	describe('Performance benchmarks', () => {
+		test.skip('10k tiles: WASM vs CPU benchmark', async () => {
+			const seed = 12345
+			const regionSize = 100 // 100x100 = 10k tiles
+			const coords: Array<{ q: number; r: number }> = []
+
+			// Generate 100x100 region coordinates
+			for (let q = 0; q < regionSize; q++) {
+				for (let r = 0; r < regionSize; r++) {
+					coords.push({ q, r })
+				}
+			}
+
+			// Benchmark WASM
+			const wasmStart = performance.now()
+			for (const coord of coords) {
+				await wasmFbmSample(seed, coord.q, coord.r, 4, 0.5, 2.0)
+			}
+			const wasmTime = performance.now() - wasmStart
+
+			// Benchmark CPU
+			const perlin = new PerlinNoise(seed)
+			const cpuStart = performance.now()
+			for (const coord of coords) {
+				fbm(perlin, coord.q, coord.r, 4, 0.5, 2.0)
+			}
+			const cpuTime = performance.now() - cpuStart
+
+			const speedup = cpuTime / wasmTime
+			console.log(
+				`WASM time: ${wasmTime.toFixed(2)}ms, CPU time: ${cpuTime.toFixed(2)}ms, Speedup: ${speedup.toFixed(2)}x`
+			)
+
+			// Assert WASM is at least 5x faster (conservative threshold)
+			expect(speedup).toBeGreaterThanOrEqual(5)
+		})
+
+		test.skip('Erosion benchmark: 100k droplets on 10k tiles', async () => {
+			// This is a placeholder for the erosion benchmark
+			// The actual erosion implementation would need to be added
+			console.log('Erosion benchmark: Not yet implemented - requires erosion WASM exports')
+		})
+	})
+})

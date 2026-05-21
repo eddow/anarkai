@@ -1,11 +1,7 @@
 import { css } from '@app/lib/css'
 import { showProps } from '@app/lib/follow-selection'
 import { bumpSelectionTitleVersion, game, interactionMode } from '@app/lib/globals'
-import {
-	getZoneObject,
-	unnamedZoneOwnership,
-	zoneObjectUid,
-} from '@app/lib/zone-selection'
+import { getZoneObject, unnamedZoneOwnership, zoneObjectUid } from '@app/lib/zone-selection'
 import { InspectorSection } from '@app/ui/anarkai'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
 import { tablerOutlinePencil, tablerOutlinePlus, tablerOutlineTrash } from 'pure-glyf/icons'
@@ -109,7 +105,8 @@ const zoneLabel = (zone: NamedZoneDefinition) => zone.name?.trim() || '(unnamed 
 
 const ZonesProperties = (_props: ZonesPropertiesProps) => {
 	const zones = () => game.hex.zoneManager.listCustomZoneDefinitions()
-	const memberCount = (zone: NamedZoneDefinition) => game.hex.zoneManager.coordsForZone(zone.id).length
+	const memberCount = (zone: NamedZoneDefinition) =>
+		game.hex.zoneManager.coordsForZone(zone.id).length
 	const createZone = () => {
 		const base = `zone-${Date.now().toString(36)}`
 		const zone = game.hex.zoneManager.defineZone({

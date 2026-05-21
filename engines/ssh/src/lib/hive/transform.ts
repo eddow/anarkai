@@ -61,7 +61,7 @@ export class TransformAlveolus extends Alveolus {
 			working: baseConfig.working,
 			productRatio: isTransformConfiguration(baseConfig)
 				? baseConfig.productRatio
-				: this.action.productRatio ?? defaults.productRatio,
+				: (this.action.productRatio ?? defaults.productRatio),
 		}
 	}
 
@@ -107,10 +107,7 @@ export class TransformAlveolus extends Alveolus {
 		if (this.configurationRef.scope !== 'individual') {
 			this.configurationRef = { scope: 'individual' }
 		}
-		if (
-			!this.individualConfiguration ||
-			!isTransformConfiguration(this.individualConfiguration)
-		) {
+		if (!this.individualConfiguration || !isTransformConfiguration(this.individualConfiguration)) {
 			this.individualConfiguration = reactive({
 				...(configurations.transform as Ssh.TransformAlveolusConfiguration),
 				working: this.configuration.working,

@@ -22,7 +22,11 @@ vi.mock('@app/lib/freight-map-pick', () => ({
 }))
 
 vi.mock('@app/ui/anarkai', () => ({
-	InspectorSection: (props: { title?: string; el?: JSX.IntrinsicElements['section']; children?: JSX.Element }) => (
+	InspectorSection: (props: {
+		title?: string
+		el?: JSX.IntrinsicElements['section']
+		children?: JSX.Element
+	}) => (
 		<section {...props.el} data-testid="inspector-section" data-title={props.title}>
 			{props.children}
 		</section>
@@ -311,7 +315,9 @@ describe('FreightLineProperties', () => {
 		option.click()
 		expect(game.assignVehicleToFreightLine).toHaveBeenCalledWith('veh-1', 'line-1')
 
-		const remove = container.querySelector('[data-testid="line-unassign-vehicle"]') as HTMLButtonElement
+		const remove = container.querySelector(
+			'[data-testid="line-unassign-vehicle"]'
+		) as HTMLButtonElement
 		remove.click()
 		expect(game.unassignVehicleFromFreightLine).toHaveBeenCalledWith('veh-1', 'line-1')
 	})

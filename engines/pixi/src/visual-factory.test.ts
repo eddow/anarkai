@@ -191,9 +191,7 @@ describe('VisualFactory batched lifecycle sync', () => {
 			renderer.visuals.delete(border.uid)
 			expect(renderer.visuals.has(border.uid)).toBe(false)
 
-			engine.game.emit('presentationEvents', [
-				{ type: 'storage.changed', ownerUid: border.uid },
-			])
+			engine.game.emit('presentationEvents', [{ type: 'storage.changed', ownerUid: border.uid }])
 
 			expect(renderer.visuals.has(border.uid)).toBe(true)
 

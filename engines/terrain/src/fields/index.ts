@@ -18,16 +18,9 @@ export {
 	warmGpuFieldRuntime,
 } from './gpu'
 
-import {
-	generateFieldsGpu,
-	generateTileFieldGpu,
-} from './gpu'
+import { generateFieldsGpu, generateTileFieldGpu } from './gpu'
 
-import {
-	generateFieldsWasm,
-	generateTileFieldWasm,
-	isWasmFieldGenerationAvailable,
-} from './wasm'
+import { generateFieldsWasm, generateTileFieldWasm, isWasmFieldGenerationAvailable } from './wasm'
 
 export const AUTO_GPU_MIN_TILES = 64
 

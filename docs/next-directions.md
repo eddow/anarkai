@@ -26,24 +26,31 @@ Already landed or mostly landed:
 - Line-based external commerce is the active material procurement model. Settlement city-hall freight stops
   buy/sell basic materials through physical vehicle cargo, stop policies, downstream demand, and stop-level
   reserve rules.
+- Settlement imports are demand-gated: storage room can accept cargo already in the bay, but by itself does
+  not make a vehicle buy more goods from an NPC stop.
 - Settlement markets include the current `basic-materials` goods (`wood`, `stone`, `planks`, `concrete`) and
   show one deterministic price per good.
 - Freight stop diagnostics explain local need/provide state, downstream demand, import/export opportunity,
   reserve/policy/offer blockers, and no-vehicle/no-room cases.
 - Freight line inspectors can assign or unassign compatible vehicles.
+- Bay and hive inspectors show docked vehicles with compact cargo summaries; deeper line-cargo intent
+  remains diagnostic work.
 - ChopSaw includes a regression fixture: a cyclic materials loop from the `0,0` bay to the Melindbury city
   hall with an assigned pickup truck.
 - Browser board highlights for lines, zones, hives, and stops are hover-driven rather than persistent just
   because a widget is open.
+- The Lines palette entry opens a regular pinnable line-management widget with name search, `Visible`, and
+  `No bay` filters; hovering a line row highlights it on the board, and clicking opens the line properties.
 
 ## Details to add
 
 - alveoli configurations (ex storage buffer/allowance) should be able to be memorized, given a name and re-used with a combo-box containing all applicable configurations, "specific" = for this alveoli only or the ability to create a new configuration (no add button, just entering a text in the combo and checking for conflict)
 - We'll need to add config for: locale, measure units (1 tile-border = 3m = 10feet), decimal/duo-decimal
 - we should have bay-less roads (from zone to zone)
-- freight lines should complete the exchange-route refactor: cyclic route order, zone-local exchange,
-  and candidate checks that no longer depend on gather/distribute as line kinds
-- "lines" management widget with filters: "have bay" (yes/all/no) and "visible" (only-intersecting-the-game-view:bool)
+- freight lines should complete the exchange-route refactor by removing remaining legacy
+  gather/distribute assumptions from helper names, route summaries, and UI/debug vocabulary. Cyclic route
+  order, zone-local exchange opportunities, docked-vehicle candidates, and demand-gated trade behavior are
+  mostly landed, but the route model still reads partly through older segment concepts.
 - roads & velocity calculation. Some vehicles can just not drive beside roads. There should be a multiplier somewhere as well as a `min(road-max-velocity, vehicle/character-ax-velocity)`. How to calculate exactly the velocity for it to be realistic somehow but still simple ?
 - market analysis for settlement trade: compare settlement prices and positions, surface why Melindbury is
   or is not a good source/sink, and keep the view focused on route decisions rather than finance UI.
@@ -63,10 +70,11 @@ Already landed or mostly landed:
 
 ## Recommended Next Tranche
 
-Gameplay streaming ownership is now baseline. The strongest immediate tranche is commerce polish: make the
-line-owned material loop easy to assign, compare, and debug. After that, roads/path infrastructure is the
-natural larger-map move, shops/markets deepen demand, and a small content chain can add immediate play
-texture.
+Gameplay streaming ownership is now baseline. The strongest immediate tranche is commerce and freight
+diagnostics polish: make the line-owned material loop easy to compare and explain, especially retained
+cargo, surplus unloading, demand-gated imports, and completed/idle cyclic routes. After that,
+roads/path infrastructure is the natural larger-map move, shops/markets deepen demand, and a small content
+chain can add immediate play texture.
 
 ## Candidate Directions
 
@@ -148,9 +156,12 @@ Important first-level boundaries:
   - **Landed V1:** city-hall settlement markets, all-settlement basic-materials availability, one price per
     good, NPC trade freight stops, export-before-import transfers, stop-level reserve, downstream-demand
     imports, area-bucket procurement removed, compatible vehicle assignment from
-    the line inspector, and the ChopSaw materials loop fixture.
-  - **Next V1.x:** line list filters, route/market comparison by settlement position and price,
-    last-transfer/history display, and better visibility into docked vehicle contents.
+    the line inspector, docked-vehicle cargo summaries in bay/hive inspectors, demand-gated settlement
+    imports, already-carried surplus unloading into accepted storage, later-stop cargo protected as
+    `1-buffer`, empty cyclic route cleanup, and the ChopSaw materials loop fixture.
+  - **Next V1.x:** route/market comparison by settlement position and price, last-transfer/history
+    display, and better visibility into docked vehicle intent: retained cargo, surplus cargo, actionable
+    rotations, and why a line is idle or done.
   - **Later V2:** generated shop targets beyond city halls, source/sink suggestions, commercial/resale
     points, and consumption goods delivered to residential or shop areas.
 - Project and construction views should surface missing useful goods and possible physical supply routes
@@ -232,15 +243,16 @@ See [`./terrain-generation-roadmap.md`](./terrain-generation-roadmap.md).
 
 ### 6. Freight-line diagnostics depth
 
-Vehicle management and route authoring exist, and stop-level commerce diagnostics are now present. The next
-diagnostic layer should focus on route-level and fleet-level clarity.
+Vehicle management and route authoring exist, compact docked cargo is visible, and stop-level commerce
+diagnostics are now present. The next diagnostic layer should focus on route-level and fleet-level clarity.
 
 Potential scope:
 
 - Route health summaries for multi-stop lines, including which cyclic rotations are actionable.
 - Last-transfer history for settlement stops: exported goods, imported goods, credited VP, spent VP.
 - Vehicle assignment status and compatibility hints.
-- Docked vehicle contents and line cargo visibility.
+- Line cargo intent: what is retained for a later stop, what is surplus and unloadable, and what demand
+  would justify an import.
 - Exchange-route summaries for multi-segment lines.
 - Optional road-aware route benefit summaries now that border roads can affect travel cost.
 
@@ -256,8 +268,9 @@ Risks:
 
 ## Suggested Ordering
 
-1. Commerce polish: playtest the ChopSaw materials loop, make settlement price/position comparisons
-   legible, and show recent trade transfers.
+1. Commerce/freight diagnostics polish: playtest the ChopSaw materials loop, make retained/surplus cargo
+   and idle-loop reasons legible, make settlement price/position comparisons legible, and show recent trade
+   transfers.
 2. Roads and velocity, especially where vehicle route choice should change the commerce outcome.
 3. One small content tranche that proves roads and imported materials matter.
 4. Shops/markets or NPC villages, depending on whether the next desired feeling is "internal economy" or

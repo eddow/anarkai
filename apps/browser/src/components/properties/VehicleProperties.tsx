@@ -25,7 +25,7 @@ import {
 	type WorldVehicleType,
 } from 'ssh/population/vehicle/vehicle'
 import type { GoodType, JobType } from 'ssh/types/base'
-import { axial, toAxialCoord, type AxialCoord } from 'ssh/utils'
+import { type AxialCoord, axial, toAxialCoord } from 'ssh/utils'
 import EntityBadge from '../EntityBadge'
 import GoodsList from '../GoodsList'
 import HardListSearchPicker, { type HardListSearchPickerItem } from '../HardListSearchPicker'
@@ -304,7 +304,10 @@ function stopCoord(game: VehicleEntity['game'], stop: FreightStop): AxialCoord |
 	return undefined
 }
 
-function lineCoord(game: VehicleEntity['game'], line: FreightLineDefinition): AxialCoord | undefined {
+function lineCoord(
+	game: VehicleEntity['game'],
+	line: FreightLineDefinition
+): AxialCoord | undefined {
 	for (const stop of line.stops) {
 		const coord = stopCoord(game, stop)
 		if (coord) return coord
@@ -481,10 +484,7 @@ const VehicleProperties = (
 							<div class="vehicle-line-assignment__list">
 								<for each={assignedLineObjects()}>
 									{(lineObject) => (
-										<div
-											class="vehicle-line-assignment__row"
-											data-testid="vehicle-assigned-line"
-										>
+										<div class="vehicle-line-assignment__row" data-testid="vehicle-assigned-line">
 											<LinkedEntityControl object={lineObject} />
 											<InspectorObjectLink object={lineObject} />
 											<button
@@ -500,10 +500,7 @@ const VehicleProperties = (
 										</div>
 									)}
 								</for>
-								<div
-									if={assignedLineObjects().length === 0}
-									class="vehicle-line-assignment__empty"
-								>
+								<div if={assignedLineObjects().length === 0} class="vehicle-line-assignment__empty">
 									{assignmentText().emptyAssigned}
 								</div>
 							</div>

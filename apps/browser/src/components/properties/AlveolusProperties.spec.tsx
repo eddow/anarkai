@@ -25,71 +25,71 @@ const replaceFreightLine = vi.fn()
 const removeFreightLineById = vi.fn()
 
 const { MockForesterAlveolus, MockFreightBayAlveolus, MockStorageAlveolus, MockTransformAlveolus } =
-vi.hoisted(() => ({
-	MockForesterAlveolus: class MockForesterAlveolus {
-		hive = { name: 'H' }
-		name = 'forester'
-		tile = { position: { q: 0, r: 0 } }
-		working = true
-		action = { type: 'plant', deposit: 'tree' }
-		assignedZoneIds: string[] = []
-		addAssignedZoneId(zoneId: string) {
-			if (!this.assignedZoneIds.includes(zoneId)) this.assignedZoneIds.push(zoneId)
-		}
-		removeAssignedZoneId(zoneId: string) {
-			this.assignedZoneIds = this.assignedZoneIds.filter((id) => id !== zoneId)
-		}
-	},
-	MockFreightBayAlveolus: class MockFreightBayAlveolus {
-		hive = { name: 'H' }
-		name = 'freight_bay'
-		tile = { position: { q: 0, r: 0 } }
-		working = true
-		action = { type: 'road-fret' }
-	},
-	MockStorageAlveolus: class MockStorageAlveolus {
-		hive = { name: 'H' }
-		name = 'storage'
-		tile = { position: { q: 0, r: 0 } }
-		working = true
-		action = { type: 'storage', kind: 'slotted', slots: 4, capacity: 2 }
-	},
-	MockTransformAlveolus: class MockTransformAlveolus {
-		hive = { name: 'H' }
-		name = 'sawmill'
-		tile = { uid: 'tile:transform', position: { q: 0, r: 0 } }
-		game = { freightLines: [] }
-		working = true
-		action = {
-			type: 'transform',
-			rates: { wood: -0.2, planks: 0.2 },
-			productRatio: { inputGood: 'wood', outputGood: 'planks', maxProductRatio: 0.5 },
-		}
-		transformConfiguration = reactive({
-			working: true,
-			productRatio: { inputGood: 'wood', outputGood: 'planks', maxProductRatio: 0.5 },
-		})
-		processBuffers = { wood: 0.4, planks: 0.6 }
-		consumedGoods = ['wood']
-		producedGoods = ['planks']
-		get rateEntries() {
-			return [
-				['planks', 0.2],
-				['wood', -0.2],
-			]
-		}
-		processBuffer(goodType: 'wood' | 'planks') {
-			return this.processBuffers[goodType]
-		}
-		setProductRatioConfiguration(config: {
-			inputGood?: string
-			outputGood?: string
-			maxProductRatio: number
-		}) {
-			this.transformConfiguration.productRatio = config
-		}
-	},
-}))
+	vi.hoisted(() => ({
+		MockForesterAlveolus: class MockForesterAlveolus {
+			hive = { name: 'H' }
+			name = 'forester'
+			tile = { position: { q: 0, r: 0 } }
+			working = true
+			action = { type: 'plant', deposit: 'tree' }
+			assignedZoneIds: string[] = []
+			addAssignedZoneId(zoneId: string) {
+				if (!this.assignedZoneIds.includes(zoneId)) this.assignedZoneIds.push(zoneId)
+			}
+			removeAssignedZoneId(zoneId: string) {
+				this.assignedZoneIds = this.assignedZoneIds.filter((id) => id !== zoneId)
+			}
+		},
+		MockFreightBayAlveolus: class MockFreightBayAlveolus {
+			hive = { name: 'H' }
+			name = 'freight_bay'
+			tile = { position: { q: 0, r: 0 } }
+			working = true
+			action = { type: 'road-fret' }
+		},
+		MockStorageAlveolus: class MockStorageAlveolus {
+			hive = { name: 'H' }
+			name = 'storage'
+			tile = { position: { q: 0, r: 0 } }
+			working = true
+			action = { type: 'storage', kind: 'slotted', slots: 4, capacity: 2 }
+		},
+		MockTransformAlveolus: class MockTransformAlveolus {
+			hive = { name: 'H' }
+			name = 'sawmill'
+			tile = { uid: 'tile:transform', position: { q: 0, r: 0 } }
+			game = { freightLines: [] }
+			working = true
+			action = {
+				type: 'transform',
+				rates: { wood: -0.2, planks: 0.2 },
+				productRatio: { inputGood: 'wood', outputGood: 'planks', maxProductRatio: 0.5 },
+			}
+			transformConfiguration = reactive({
+				working: true,
+				productRatio: { inputGood: 'wood', outputGood: 'planks', maxProductRatio: 0.5 },
+			})
+			processBuffers = { wood: 0.4, planks: 0.6 }
+			consumedGoods = ['wood']
+			producedGoods = ['planks']
+			get rateEntries() {
+				return [
+					['planks', 0.2],
+					['wood', -0.2],
+				]
+			}
+			processBuffer(goodType: 'wood' | 'planks') {
+				return this.processBuffers[goodType]
+			}
+			setProductRatioConfiguration(config: {
+				inputGood?: string
+				outputGood?: string
+				maxProductRatio: number
+			}) {
+				this.transformConfiguration.productRatio = config
+			}
+		},
+	}))
 
 class MockBuildAlveolus {
 	tile = { uid: 'tile:build' }

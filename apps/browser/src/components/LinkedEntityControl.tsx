@@ -112,7 +112,7 @@ const LinkedEntityControl = (props: LinkedEntityControlProps) => {
 			typeof object === 'object' &&
 			'vehicleType' in object &&
 			typeof (object as { vehicleType?: unknown }).vehicleType === 'string')
-			? ((object as { vehicleType: WorldVehicleType }).vehicleType)
+			? (object as { vehicleType: WorldVehicleType }).vehicleType
 			: undefined
 	const visualTile = () => {
 		const object = currentObject()

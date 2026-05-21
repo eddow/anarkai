@@ -1,9 +1,6 @@
-import type { Tile } from 'ssh/board/tile'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
-import {
-	isStandaloneConstructionSiteShell,
-	materialRemainingNeeds,
-} from 'ssh/build-site'
+import type { Tile } from 'ssh/board/tile'
+import { isStandaloneConstructionSiteShell, materialRemainingNeeds } from 'ssh/build-site'
 import {
 	distributeSegmentAllowsTile,
 	distributeSegmentWithinRadius,

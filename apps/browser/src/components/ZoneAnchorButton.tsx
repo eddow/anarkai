@@ -63,7 +63,8 @@ const ZoneAnchorButton = (props: ZoneAnchorButtonProps) => {
 		const target = hoverTarget()
 		if (target && isHoveredObject(target)) mrg.hoveredObject = undefined
 		const zoneId = currentTile()?.zone
-		if (zoneId && zoneOverlayState.hoveredZoneId === zoneId) zoneOverlayState.hoveredZoneId = undefined
+		if (zoneId && zoneOverlayState.hoveredZoneId === zoneId)
+			zoneOverlayState.hoveredZoneId = undefined
 	}
 
 	const handleClick = (event: MouseEvent) => {

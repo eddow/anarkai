@@ -1,7 +1,7 @@
 import { Rectangle } from 'pixi.js'
+import { traces } from 'ssh/dev/debug'
 import { type AxialCoord, axial, cartesian } from 'ssh/utils'
 import { tileSize } from 'ssh/utils/varied'
-import { traces } from 'ssh/dev/debug'
 
 const SECTOR_STEP = 17
 const HEX_HALF_WIDTH = (Math.sqrt(3) / 2) * tileSize
@@ -26,19 +26,21 @@ export interface SectorCoverage {
 export function sectorKeyForCoord(coord: AxialCoord, sectorStep = SECTOR_STEP): string {
 	// Use floor for positive, adjusted floor for negative to ensure proper sector boundaries
 	// This maps: -17..-1 → -1, 0..16 → 0, 17..33 → 1, etc.
-	const q = coord.q >= 0
-		? Math.floor(coord.q / sectorStep)
-		: Math.floor((coord.q + sectorStep) / sectorStep) - 1
-	const r = coord.r >= 0
-		? Math.floor(coord.r / sectorStep)
-		: Math.floor((coord.r + sectorStep) / sectorStep) - 1
+	const q =
+		coord.q >= 0
+			? Math.floor(coord.q / sectorStep)
+			: Math.floor((coord.q + sectorStep) / sectorStep) - 1
+	const r =
+		coord.r >= 0
+			? Math.floor(coord.r / sectorStep)
+			: Math.floor((coord.r + sectorStep) / sectorStep) - 1
 	const result = `${q},${r}`
-	
+
 	// Debug logging for negative coordinates
 	if (coord.q < 0 || coord.r < 0) {
 		traces.terrain.log?.('sector-key-for-coord', { coord, q, r, result })
 	}
-	
+
 	return result
 }
 

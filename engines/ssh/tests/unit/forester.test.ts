@@ -174,9 +174,7 @@ describe('forester planted trees', () => {
 		const land = engine.game.hex.getTile({ q: 0, r: 0 })?.content as UnBuiltLand
 		expect(land.deposit?.amount).toBe(1)
 		expect(land.plantedTrees?.ages).toHaveLength(1)
-		expect(engine.game.hex.looseGoods.getGoodsAt({ q: 0, r: 0 })).toHaveLength(
-			plantedTreeWoodYield
-		)
+		expect(engine.game.hex.looseGoods.getGoodsAt({ q: 0, r: 0 })).toHaveLength(plantedTreeWoodYield)
 	})
 
 	it('keeps immature planted trees out of ordinary chopper jobs', async () => {
@@ -225,16 +223,16 @@ describe('forester planted trees', () => {
 
 		const saved = setup.engine.game.saveGameData()
 		expect(saved.hives?.[0]?.alveoli[0]?.assignedZoneIds).toEqual(['north-grove'])
-		expect(saved.tiles?.find((tile) => tile.coord[0] === 1 && tile.coord[1] === 0)?.plantedTrees)
-			.toEqual({ ages: [plantedTreeMatureAgeSeconds] })
+		expect(
+			saved.tiles?.find((tile) => tile.coord[0] === 1 && tile.coord[1] === 0)?.plantedTrees
+		).toEqual({ ages: [plantedTreeMatureAgeSeconds] })
 		expect(setup.forester.assignedZoneIds).toEqual(['north-grove'])
 
 		await setup.engine.destroy()
 		engine = new TestEngine({ terrainSeed: 123, characterCount: 0 })
 		await engine.init()
 		engine.loadScenario(saved)
-		const restoredForester = engine.game.hex.getTile({ q: 0, r: 0 })
-			?.content as ForesterAlveolus
+		const restoredForester = engine.game.hex.getTile({ q: 0, r: 0 })?.content as ForesterAlveolus
 		const restoredLand = engine.game.hex.getTile({ q: 1, r: 0 })?.content as UnBuiltLand
 		expect(restoredForester.assignedZoneIds).toEqual(['north-grove'])
 		expect(restoredLand.deposit?.amount).toBe(1)

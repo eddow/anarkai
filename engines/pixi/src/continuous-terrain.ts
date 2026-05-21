@@ -1,4 +1,5 @@
 import { mrg } from '@app/lib/interactive-state'
+import type { TerrainMacroHydrologySnapshot } from 'engine-terrain'
 import { defer, effect, type ScopedCallback } from 'mutts'
 import {
 	Container,
@@ -14,17 +15,16 @@ import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { Tile } from 'ssh/board/tile'
 import { profile, traces } from 'ssh/dev/debug'
 import type { RenderableTerrainTile } from 'ssh/game/game'
-import type { TerrainMacroHydrologySnapshot } from 'engine-terrain'
 import { type AxialCoord, axial, cartesian, fromCartesian, toAxialCoord } from 'ssh/utils'
 import { tileSize } from 'ssh/utils/varied'
 import { setPixiName } from './debug-names'
 import type { PixiGameRenderer } from './renderer'
-import { RoadTileTextureCache } from './road-tile-texture'
 import {
 	buildStaticResourceSpriteSpecs,
 	buildStaticResourceSpriteSpecsFromTerrainSample,
 	resolveUsableTexture,
 } from './renderers/static-resource-sprites'
+import { RoadTileTextureCache } from './road-tile-texture'
 import {
 	type SectorTerrainBakeDebug,
 	type SectorTerrainBakeInput,
@@ -157,7 +157,8 @@ function macroSnapshotMatchesRequest(
 	request: TerrainMacroRequest
 ): boolean {
 	return (
-		`${snapshot.centerSector.q},${snapshot.centerSector.r}` === snappedMacroSectorKey(centerSectorKey) &&
+		`${snapshot.centerSector.q},${snapshot.centerSector.r}` ===
+			snappedMacroSectorKey(centerSectorKey) &&
 		snapshot.sectorRadius === request.sectorRadius &&
 		snapshot.macroStep === request.macroStep
 	)
@@ -348,7 +349,7 @@ function drawHexAt(graphics: Graphics, coord: AxialCoord, radius: number): Graph
 	const center = cartesian(coord, tileSize)
 	const points: number[] = []
 	for (let corner = 0; corner < 6; corner++) {
-		const angle = Math.PI / 6 + corner * Math.PI / 3
+		const angle = Math.PI / 6 + (corner * Math.PI) / 3
 		points.push(center.x + Math.cos(angle) * radius, center.y + Math.sin(angle) * radius)
 	}
 	return graphics.poly(points)
@@ -357,12 +358,18 @@ function drawHexAt(graphics: Graphics, coord: AxialCoord, radius: number): Graph
 export class TerrainVisual {
 	private static viewportSequence = 0
 	private readonly container = setPixiName(new Container(), 'terrain.continuous')
-	private readonly macroTerrainOverlay = setPixiName(new Graphics(), 'terrain.continuous:macro-terrain')
+	private readonly macroTerrainOverlay = setPixiName(
+		new Graphics(),
+		'terrain.continuous:macro-terrain'
+	)
 	private readonly macroGeneratedZoneOverlay = setPixiName(
 		new Graphics(),
 		'terrain.continuous:macro-generated-zones'
 	)
-	private readonly macroRiverOverlay = setPixiName(new Graphics(), 'terrain.continuous:macro-rivers')
+	private readonly macroRiverOverlay = setPixiName(
+		new Graphics(),
+		'terrain.continuous:macro-rivers'
+	)
 	private readonly macroRoadOverlay = setPixiName(new Graphics(), 'terrain.continuous:macro-roads')
 	private readonly sectorsContainer = setPixiName(new Container(), 'terrain.continuous:sectors')
 	private readonly hoverOverlay = setPixiName(new Graphics(), 'terrain.continuous:hover')
@@ -598,18 +605,18 @@ export class TerrainVisual {
 
 	private refresh = () => {
 		const refreshStartedAt = nowMs()
-		
+
 		const app = this.renderer.app
 		const world = this.renderer.world
 		if (!app || !world) return
-		
+
 		// Compute viewport settled status first for throttling
 		const screenCenter = new Point(app.screen.width / 2, app.screen.height / 2)
 		const localCenter = world.toLocal(screenCenter)
 		const center = axial.round(fromCartesian(localCenter, tileSize))
 		const worldPosition = world.position ?? { x: 0, y: 0 }
 		const viewportSettled = refreshStartedAt - this.viewportChangedAtMs >= VIEWPORT_SETTLE_MS
-		
+
 		// Throttle refresh operations during rapid panning
 		const timeSinceLastRefresh = refreshStartedAt - this.lastRefreshTime
 		if (timeSinceLastRefresh < REFRESH_THROTTLE_MS && !viewportSettled) {
@@ -630,7 +637,7 @@ export class TerrainVisual {
 		const axisRadius = Math.ceil(Math.max(worldHalfWidth, worldHalfHeight) / tileSize) + 6
 		const viewportBounds = this.currentViewportWorldBounds()
 		const radius = Math.max(axisRadius, this.currentViewportTileRadius(center, viewportBounds))
-		
+
 		// Optimize signature calculation - use fewer decimal places for faster comparison
 		const signature = `${center.q},${center.r}:${radius}:${app.screen.width}x${app.screen.height}:${lodMode}:${world.scale.x.toFixed(2)},${world.scale.y.toFixed(2)}:${Math.round(worldPosition.x)},${Math.round(worldPosition.y)}`
 		if (signature !== this.viewportSettleSignature) {
@@ -669,7 +676,7 @@ export class TerrainVisual {
 		this.visibleSectorKeys = macroOverview
 			? new Set()
 			: collectVisibleSectorKeys(this.visibleTileKeys)
-		
+
 		// Debug logging for negative coordinate regions
 		if (minQ < 0 || minR < 0) {
 			traces.terrain.log?.('negative-coordinate-region', {
@@ -710,18 +717,22 @@ export class TerrainVisual {
 		const retainedSectorKeys = streamDetailSectors
 			? this.collectRetainedSectorKeys(this.visibleSectorKeys, RETAINED_SECTOR_MARGIN)
 			: new Set(this.sectors.keys())
-		
+
 		// Debug logging for retained vs visible sectors
 		if (minQ < 0 || minR < 0) {
-			const visibleSectorsNotRetained = [...this.visibleSectorKeys].filter(k => !retainedSectorKeys.has(k))
-			const retainedSectorsNotVisible = [...retainedSectorKeys].filter(k => !this.visibleSectorKeys.has(k))
+			const visibleSectorsNotRetained = [...this.visibleSectorKeys].filter(
+				(k) => !retainedSectorKeys.has(k)
+			)
+			const retainedSectorsNotVisible = [...retainedSectorKeys].filter(
+				(k) => !this.visibleSectorKeys.has(k)
+			)
 			traces.terrain.log?.('sector-retention', {
 				visibleSectorsNotRetained,
 				retainedSectorsNotVisible,
 				retainedSectorKeys: [...retainedSectorKeys].sort(),
 			})
 		}
-		
+
 		endRetentionProfile({
 			retainedSectors: retainedSectorKeys.size,
 			loadedSectors: this.sectors.size,
@@ -924,7 +935,7 @@ export class TerrainVisual {
 			const center = cartesian({ q: tile.q, r: tile.r }, tileSize)
 			const points: number[] = []
 			for (let corner = 0; corner < 6; corner++) {
-				const angle = Math.PI / 6 + corner * Math.PI / 3
+				const angle = Math.PI / 6 + (corner * Math.PI) / 3
 				points.push(center.x + Math.cos(angle) * radius, center.y + Math.sin(angle) * radius)
 			}
 			graphics.poly(points).fill({ color: macroTerrainColor(tile.biome, tile.height), alpha: 0.92 })
@@ -1073,18 +1084,18 @@ export class TerrainVisual {
 		const sectorStartedAt = nowMs()
 		const lodMode = this.diagnostics.refresh.lodMode
 		const lodChanged = sectorState.lodMode !== lodMode
-		
+
 		// Early exit if sector is not visible
 		if (!this.visibleSectorKeys.has(sectorKey)) {
 			sectorState.container.visible = false
 			return { renderedTileCount: 0, missingTileCount: 0 }
 		}
-		
+
 		// Cache visible coords to avoid repeated filtering
 		const visibleCoords = sectorState.coverage.interiorTileCoords.filter((coord) =>
 			this.visibleTileKeys.has(axial.key(coord))
 		)
-		
+
 		// Count missing tiles more efficiently with early exit
 		let missingTileCount = 0
 		for (const coord of sectorState.coverage.bakeTileCoords) {
@@ -1094,7 +1105,7 @@ export class TerrainVisual {
 				if (missingTileCount > 0 && !sectorState.groundSprite) break
 			}
 		}
-		
+
 		const shouldBuildResources = lodMode === 'detail'
 		if (!shouldBuildResources && !loggedNonDetailResourceMode) {
 			loggedNonDetailResourceMode = true
@@ -1103,7 +1114,7 @@ export class TerrainVisual {
 			)
 		}
 		const isDirty = sectorState.dirty || this.dirtySectorKeys.has(sectorKey) || lodChanged
-		
+
 		// Only count materialized coords if we need to rebuild or update visibility
 		let renderedTileCount = 0
 		if (isDirty || missingTileCount > 0 || !sectorState.groundSprite) {
@@ -1116,7 +1127,7 @@ export class TerrainVisual {
 			// Use cached value if nothing changed
 			renderedTileCount = visibleCoords.length
 		}
-		
+
 		if (missingTileCount > 0) {
 			sectorState.container.visible = !!sectorState.groundSprite && renderedTileCount > 0
 			return {
@@ -1381,9 +1392,10 @@ export class TerrainVisual {
 		return { resourceBatchCount, staticResourceSpriteCount }
 	}
 
-	private clearSectorResources(
-		sectorState: SectorVisualState
-	): { resourceBatchCount: number; staticResourceSpriteCount: number } {
+	private clearSectorResources(sectorState: SectorVisualState): {
+		resourceBatchCount: number
+		staticResourceSpriteCount: number
+	} {
 		for (const child of sectorState.resourceLayer.removeChildren()) {
 			child.destroy({ children: true })
 		}
@@ -1399,7 +1411,10 @@ export class TerrainVisual {
 		return coords
 	}
 
-	private collectRetainedSectorKeys(visibleSectorKeys: Iterable<string>, margin: number): Set<string> {
+	private collectRetainedSectorKeys(
+		visibleSectorKeys: Iterable<string>,
+		margin: number
+	): Set<string> {
 		const keys = new Set<string>()
 		for (const key of visibleSectorKeys) {
 			const [sectorQ, sectorR] = key.split(',').map(Number)
@@ -1520,7 +1535,9 @@ export class TerrainVisual {
 		]
 		const cornerRadius = Math.max(
 			0,
-			...corners.map((corner) => axial.distance(center, axial.round(fromCartesian(corner, tileSize))))
+			...corners.map((corner) =>
+				axial.distance(center, axial.round(fromCartesian(corner, tileSize)))
+			)
 		)
 		return cornerRadius + 2
 	}
@@ -1597,10 +1614,14 @@ export class TerrainVisual {
 				if (ensureGameplaySectors) {
 					for (const key of sectorsNeedingTerrain)
 						requestInfo.get(key)!.requestMode = 'gameplay-sector'
-					const generated = await ensureGameplaySectors.call(this.renderer.game, sectorsNeedingTerrain, {
-						includeHydrology: includesDetailedHydrology(this.currentLodMode),
-						populateInitialGoods: false,
-					})
+					const generated = await ensureGameplaySectors.call(
+						this.renderer.game,
+						sectorsNeedingTerrain,
+						{
+							includeHydrology: includesDetailedHydrology(this.currentLodMode),
+							populateInitialGoods: false,
+						}
+					)
 					for (const key of sectorsNeedingTerrain) requestInfo.get(key)!.generated = generated
 				} else {
 					for (const next of batch) {
@@ -1838,9 +1859,9 @@ const MAX_CACHE_SIZE = 100
 function getCachedSectorInteriorCoords(sectorKey: string, sectorStep: number): AxialCoord[] {
 	const cached = sectorInteriorCoordsCache.get(sectorKey)
 	if (cached) return cached
-	
+
 	const coords = coordsForSectorInterior(sectorKey, sectorStep)
-	
+
 	// Simple LRU cache eviction
 	if (sectorInteriorCoordsCache.size >= MAX_CACHE_SIZE) {
 		const firstKey = sectorInteriorCoordsCache.keys().next().value
@@ -1848,7 +1869,7 @@ function getCachedSectorInteriorCoords(sectorKey: string, sectorStep: number): A
 			sectorInteriorCoordsCache.delete(firstKey)
 		}
 	}
-	
+
 	sectorInteriorCoordsCache.set(sectorKey, coords)
 	return coords
 }

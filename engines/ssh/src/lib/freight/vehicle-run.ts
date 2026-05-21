@@ -8,28 +8,25 @@ import type {
 	FreightZoneDefinition,
 } from 'ssh/freight/freight-line'
 import {
-	distributeSegmentAllowsTile,
 	distributeSegmentAllowsGoodTypeForSegment,
+	distributeSegmentAllowsTile,
 	distributeSegmentBayTile,
 	distributeSegmentWithinRadius,
 	findDistributeRouteSegments,
 	findGatherRouteSegments,
 	freightLineStopOrder,
-	nextFreightLineStop,
 	freightZoneFallbackPosition,
 	freightZoneTiles,
 	gatherSegmentAllowsGoodType,
 	gatherSegmentAllowsGoodTypeForSegment,
+	nextFreightLineStop,
 } from 'ssh/freight/freight-line'
 import {
 	computeLineFurtherGoods,
 	measureFreightStopNeededGoods,
 	measureFreightStopProvidedGoods,
 } from 'ssh/freight/freight-stop-utility'
-import {
-	executeNpcTradeStopTransfer,
-	npcTradeStopHasTransfer,
-} from 'ssh/freight/npc-trade-stop'
+import { executeNpcTradeStopTransfer, npcTradeStopHasTransfer } from 'ssh/freight/npc-trade-stop'
 import { scoreVehicleCandidate } from 'ssh/freight/vehicle-candidate-policy'
 import { collectDockedVehicleAdvertisementCandidates } from 'ssh/freight/vehicle-freight-dock'
 import {
@@ -94,7 +91,8 @@ export function freightStopTargetPosition(game: Game, stop: FreightStop): Positi
 	if ('zone' in stop && stop.zone.kind === 'radius') {
 		return { q: stop.zone.center[0], r: stop.zone.center[1] }
 	}
-	if ('zone' in stop && stop.zone.kind === 'named') return freightZoneFallbackPosition(game, stop.zone)
+	if ('zone' in stop && stop.zone.kind === 'named')
+		return freightZoneFallbackPosition(game, stop.zone)
 	if ('trade' in stop)
 		return game.getSettlementTradeProfile(stop.trade.settlementId)?.cityHall.position
 	return undefined
@@ -293,7 +291,7 @@ function findBeginServiceActionableWork(
 					character,
 					Number.POSITIVE_INFINITY,
 					true
-					)
+				)
 				if (path) {
 					consider({
 						target,
@@ -532,7 +530,10 @@ function shouldAdvancePastZoneStop(
 }
 
 function vehicleStorageStockCount(vehicle: VehicleEntity): number {
-	return Object.values(vehicle.storage.stock).reduce((total, qty) => total + Math.max(0, qty ?? 0), 0)
+	return Object.values(vehicle.storage.stock).reduce(
+		(total, qty) => total + Math.max(0, qty ?? 0),
+		0
+	)
 }
 
 function isDistributeUnloadStop(line: FreightLineDefinition, stopIndex: number): boolean {
@@ -642,12 +643,7 @@ export function advanceVehicleLineServicePastEmptyStops(
 				reason: 'empty-dock-load-stop',
 				anchorCoord: stop.anchor.coord,
 			})
-			const ended = advanceVehicleToNextLineStopOrEnd(
-				vehicle,
-				line,
-				stop,
-				'empty-dock-load-stop'
-			)
+			const ended = advanceVehicleToNextLineStopOrEnd(vehicle, line, stop, 'empty-dock-load-stop')
 			syncFreightVehicleDockRegistration(vehicle)
 			if (ended) return
 			const advancedService = vehicle.service
@@ -685,12 +681,7 @@ export function advanceVehicleLineServicePastEmptyStops(
 				reason: 'empty-zone-unload-stop',
 				zone: zoneStop.zone,
 			})
-			const ended = advanceVehicleToNextLineStopOrEnd(
-				vehicle,
-				line,
-				stop,
-				'empty-zone-unload-stop'
-			)
+			const ended = advanceVehicleToNextLineStopOrEnd(vehicle, line, stop, 'empty-zone-unload-stop')
 			if (ended) return
 			const advancedService = vehicle.service
 			if (

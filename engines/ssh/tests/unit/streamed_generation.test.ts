@@ -116,16 +116,18 @@ describe('streamed region generation', () => {
 
 		const coord = { q: 85, r: 85 }
 		const generateRegionAsync = vi.spyOn(game.generator, 'generateRegionAsync')
-		const generateSectorsAsync = vi.spyOn(game.generator, 'generateSectorsAsync').mockResolvedValue([
-			{
-				coord,
-				terrain: 'grass',
-				height: 0.25,
-				deposit: { type: 'rock', amount: 12 },
-				goods: { wood: 2 },
-				walkTime: 1,
-			},
-		])
+		const generateSectorsAsync = vi
+			.spyOn(game.generator, 'generateSectorsAsync')
+			.mockResolvedValue([
+				{
+					coord,
+					terrain: 'grass',
+					height: 0.25,
+					deposit: { type: 'rock', amount: 12 },
+					goods: { wood: 2 },
+					walkTime: 1,
+				},
+			])
 
 		const generated = await game.ensureGameplaySectors(['5,5'])
 
@@ -136,7 +138,9 @@ describe('streamed region generation', () => {
 		expect(game.getRenderableTerrainAt(coord)?.terrain).toBe('grass')
 		expect(game.hex.getTile(coord)?.content).toBeInstanceOf(UnBuiltLand)
 		expect(game.hex.zoneManager.coordsForGeneratedZone('npc-factory')).toHaveLength(0)
-		expect(game.hex.zoneManager.coordsForGeneratedZone('npc-residential-commercial')).toHaveLength(0)
+		expect(game.hex.zoneManager.coordsForGeneratedZone('npc-residential-commercial')).toHaveLength(
+			0
+		)
 		expect(game.hex.looseGoods.getGoodsAt(coord)).toHaveLength(0)
 	})
 

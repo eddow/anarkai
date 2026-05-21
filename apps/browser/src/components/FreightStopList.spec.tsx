@@ -2,7 +2,9 @@ import { document, latch } from '@sursaut/core'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const freightMapPickMock = vi.hoisted(() => ({
-	pending: undefined as undefined | { lineId: string; pickKind: string; apply: (stop: any) => void },
+	pending: undefined as
+		| undefined
+		| { lineId: string; pickKind: string; apply: (stop: any) => void },
 }))
 
 vi.mock('@app/lib/css', () => ({
@@ -176,14 +178,21 @@ describe('FreightStopList', () => {
 
 		stop = latch(
 			container,
-			<FreightStopList draft={draft as never} game={mockGame as never} readOnly={false} onChange={vi.fn()} />
+			<FreightStopList
+				draft={draft as never}
+				game={mockGame as never}
+				readOnly={false}
+				onChange={vi.fn()}
+			/>
 		)
 
 		const orderButton = container.querySelector('.freight-stop-list__order-button')
 		expect(orderButton?.textContent?.trim()).toBe('1')
 		expect(orderButton?.hasAttribute('draggable')).toBe(true)
 
-		const configure = container.querySelector('button[title="Configure policies"]') as HTMLButtonElement
+		const configure = container.querySelector(
+			'button[title="Configure policies"]'
+		) as HTMLButtonElement
 		expect(container.querySelectorAll('[data-testid="goods-editor"]')).toHaveLength(0)
 		configure.click()
 		expect(container.querySelectorAll('[data-testid="goods-editor"]')).toHaveLength(2)
@@ -227,13 +236,18 @@ describe('FreightStopList', () => {
 
 		stop = latch(
 			container,
-			<FreightStopList draft={draft as never} game={mockGame as never} readOnly={false} onChange={vi.fn()} />
+			<FreightStopList
+				draft={draft as never}
+				game={mockGame as never}
+				readOnly={false}
+				onChange={vi.fn()}
+			/>
 		)
 
 		expect(container.querySelector('[data-testid="freight-stop-trade-settlement-0"]')).toBeNull()
-		expect(container.querySelector('[data-testid="freight-stop-kind-label-0"]')?.textContent).toContain(
-			'Trade'
-		)
+		expect(
+			container.querySelector('[data-testid="freight-stop-kind-label-0"]')?.textContent
+		).toContain('Trade')
 		const reserve = container.querySelector(
 			'[data-testid="freight-stop-min-balance-0"]'
 		) as HTMLInputElement | null
@@ -281,7 +295,12 @@ describe('FreightStopList', () => {
 
 		stop = latch(
 			container,
-			<FreightStopList draft={draft as never} game={mockGame as never} readOnly={false} onChange={vi.fn()} />
+			<FreightStopList
+				draft={draft as never}
+				game={mockGame as never}
+				readOnly={false}
+				onChange={vi.fn()}
+			/>
 		)
 
 		expect(container.querySelector('[data-testid="freight-stop-min-balance-0"]')).toBeNull()
@@ -329,7 +348,12 @@ describe('FreightStopList', () => {
 
 		stop = latch(
 			container,
-			<FreightStopList draft={draft as never} game={mockGame as never} readOnly={false} onChange={onChange} />
+			<FreightStopList
+				draft={draft as never}
+				game={mockGame as never}
+				readOnly={false}
+				onChange={onChange}
+			/>
 		)
 
 		;(container.querySelector('[data-testid="freight-stop-add"]') as HTMLButtonElement).click()
@@ -340,7 +364,9 @@ describe('FreightStopList', () => {
 			trade: { kind: 'settlement', settlementId: 'settlement-1' },
 		})
 
-		const next = onChange.mock.calls.at(-1)?.[0] as { stops: Array<{ trade?: { settlementId: string } }> }
+		const next = onChange.mock.calls.at(-1)?.[0] as {
+			stops: Array<{ trade?: { settlementId: string } }>
+		}
 		expect(next.stops.at(-1)?.trade?.settlementId).toBe('settlement-1')
 	})
 })

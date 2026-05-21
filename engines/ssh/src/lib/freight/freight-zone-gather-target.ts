@@ -7,8 +7,8 @@ import type {
 import {
 	DEFAULT_GATHER_FREIGHT_RADIUS,
 	findGatherRouteSegments,
-	freightZoneTiles,
 	freightStopAnchorMatchesAlveolus,
+	freightZoneTiles,
 	gatherLoadRadiusForLineAtStop,
 	gatherSegmentAllowsGoodType,
 	gatherSelectableGoodTypes,
@@ -111,9 +111,7 @@ export function pickGatherTargetInZoneStop(
 
 	const goodCounts = Object.fromEntries(selectableGoods.map((good) => [good, 0])) as Goods
 	const scanTiles =
-		zoneStop.zone.kind === 'named'
-			? freightZoneTiles(game, zoneStop.zone)
-			: undefined
+		zoneStop.zone.kind === 'named' ? freightZoneTiles(game, zoneStop.zone) : undefined
 	if (scanTiles) {
 		for (const tile of scanTiles) {
 			const goodsAtTile = hex.looseGoods.getGoodsAt(tile.position)

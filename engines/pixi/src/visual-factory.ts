@@ -332,7 +332,6 @@ export class VisualFactory {
 				if (vehicleVisualResult.reused) reusedVisualCount++
 				else if (vehicleVisual) createdVisualCount++
 				if (vehicleVisual) worldViews.push(vehicleVisual)
-				continue
 			}
 		}
 

@@ -1,6 +1,5 @@
 import { jobBalance } from 'engine-rules'
 import { inert } from 'mutts'
-import type { Tile } from 'ssh/board/tile'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import {
 	canPlantTreeOnLand,
@@ -8,12 +7,13 @@ import {
 	plantTreeOnLand,
 	UnBuiltLand,
 } from 'ssh/board/content/unbuilt-land'
+import type { Tile } from 'ssh/board/tile'
+import type { Character } from 'ssh/population/character'
 import { noStorage } from 'ssh/storage/no-storage'
 import type { ForesterJob } from 'ssh/types/base'
 import type { GoodsRelations } from 'ssh/utils/advertisement'
 import { axialDistance, type Positioned, toAxialCoord } from 'ssh/utils/position'
 import { maxWalkTime } from '../../../assets/constants'
-import type { Character } from 'ssh/population/character'
 
 export class ForesterAlveolus extends Alveolus {
 	declare action: Ssh.PlantingAction

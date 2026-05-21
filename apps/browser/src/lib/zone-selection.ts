@@ -1,10 +1,10 @@
 import { showProps } from '@app/lib/follow-selection'
-import { game } from '@app/lib/globals'
 import { zoneOverlayState } from '@app/lib/freight-line-overlay'
+import { game } from '@app/lib/globals'
 import { reactive } from 'mutts'
 import {
-	ZONES_OBJECT_UID,
 	isZoneObjectUid,
+	ZONES_OBJECT_UID,
 	type Zone,
 	zoneIdFromObjectUid,
 	zoneObjectUid,

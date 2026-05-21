@@ -108,9 +108,8 @@ interface WorkingIndicatorProps {
 }
 
 const WorkingIndicator = (props: WorkingIndicatorProps) => {
-	const tooltip = () => [props.tooltip, props.burdened ? props.warning : undefined]
-		.filter(Boolean)
-		.join('\n')
+	const tooltip = () =>
+		[props.tooltip, props.burdened ? props.warning : undefined].filter(Boolean).join('\n')
 
 	const toggle = () => {
 		const checked = !props.checked

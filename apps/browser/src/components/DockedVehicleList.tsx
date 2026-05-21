@@ -82,7 +82,10 @@ const DockedVehicleList = (props: DockedVehicleListProps) => {
 								{entry.line.name} · {stopLabel()} {entry.stop.id}
 							</span>
 						</div>
-						<div class="docked-vehicle-list__cargo-summary" data-testid="docked-vehicle-cargo-summary">
+						<div
+							class="docked-vehicle-list__cargo-summary"
+							data-testid="docked-vehicle-cargo-summary"
+						>
 							<span class="docked-vehicle-list__cargo-summary-label">{cargoLabel()}:</span>{' '}
 							{cargoSummary(entry)}
 						</div>

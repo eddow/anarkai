@@ -231,7 +231,10 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	setAssignedZoneIds(zoneIds: readonly string[]): void {
 		const next = [...new Set(zoneIds.map((zoneId) => normalizeZoneId(zoneId)).filter(Boolean))]
 		const current = this.assignedZoneIds
-		if (current.length === next.length && current.every((zoneId, index) => zoneId === next[index])) {
+		if (
+			current.length === next.length &&
+			current.every((zoneId, index) => zoneId === next[index])
+		) {
 			return
 		}
 		this.assignedZoneIds = next

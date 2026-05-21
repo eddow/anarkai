@@ -103,7 +103,9 @@ describe('SettlementProperties', () => {
 
 		const prices = [...container.querySelectorAll('[data-testid="settlement-market-price"]')]
 		expect(prices).toHaveLength(4)
-		expect(container.querySelector('[data-testid="row-Market"]')?.textContent).toContain('wood:wood')
+		expect(container.querySelector('[data-testid="row-Market"]')?.textContent).toContain(
+			'wood:wood'
+		)
 		expect(container.querySelector('[data-testid="row-Market"]')?.textContent).toContain('6 vp')
 		expect(container.querySelector('[data-testid="row-Market"]')?.textContent).toContain(
 			'planks:planks'

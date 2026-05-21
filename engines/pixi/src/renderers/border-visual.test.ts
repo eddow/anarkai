@@ -32,10 +32,13 @@ describe('getBorderGoodsPositions', () => {
 
 	it('hides claimed reserved gate slots while their hop is active', () => {
 		expect(
-			visibleBorderGateSlots([
-				{ goodType: 'wood', present: 0, reserved: 1, allocated: 0, allowed: 1 },
-				{ goodType: 'stone', present: 0, reserved: 0, allocated: 1, allowed: 1 },
-			], { wood: 1 })
+			visibleBorderGateSlots(
+				[
+					{ goodType: 'wood', present: 0, reserved: 1, allocated: 0, allowed: 1 },
+					{ goodType: 'stone', present: 0, reserved: 0, allocated: 1, allowed: 1 },
+				],
+				{ wood: 1 }
+			)
 		).toEqual([
 			{ present: 0, reserved: 0, allocated: 0, allowed: 1 },
 			{ goodType: 'stone', present: 0, reserved: 0, allocated: 1, allowed: 1 },

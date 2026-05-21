@@ -1,7 +1,7 @@
 import { css } from '@app/lib/css'
 import { activeWorldViewPov } from '@app/lib/globals'
 import { reactive } from 'mutts'
-import { axial, type AxialCoord } from 'ssh/utils'
+import { type AxialCoord, axial } from 'ssh/utils'
 
 css`
 .hard-list-picker {

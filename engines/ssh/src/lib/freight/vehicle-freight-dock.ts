@@ -1,11 +1,11 @@
 import { jobBalance } from 'engine-rules'
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import { type FreightLineDefinition, findDistributeRouteSegments } from 'ssh/freight/freight-line'
-import { isLineFreightVehicleType } from 'ssh/freight/line-freight-vehicles'
 import {
 	computeLineFurtherGoods,
 	projectLoadedGoodsAgainstFurtherNeeds,
 } from 'ssh/freight/freight-stop-utility'
+import { isLineFreightVehicleType } from 'ssh/freight/line-freight-vehicles'
 import { scoreVehicleCandidate } from 'ssh/freight/vehicle-candidate-policy'
 import type { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'

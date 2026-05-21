@@ -10,9 +10,9 @@ import {
 	resolveSyncFieldGenerationBackend,
 } from './fields'
 import { axial } from './hex/axial'
-import { dumpNoiseProfile, resetNoiseProfile } from './noise'
 import type { AxialCoord, AxialKey } from './hex/types'
 import type { HydrologyResult } from './hydrology'
+import { dumpNoiseProfile, resetNoiseProfile } from './noise'
 import { logTerrainProfile } from './profile'
 import {
 	type BiomeHint,

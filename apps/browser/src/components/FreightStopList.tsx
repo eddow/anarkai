@@ -11,12 +11,12 @@ import {
 	setFreightDraftStopMinBalanceAfterBuyVp,
 	setFreightDraftStopUnloadSelection,
 } from '@app/lib/freight-line-draft'
+import { hoverFreightLineStop } from '@app/lib/freight-line-overlay'
 import {
 	activateFreightAddStopPick,
 	cancelFreightMapPick,
 	freightMapPick,
 } from '@app/lib/freight-map-pick'
-import { hoverFreightLineStop } from '@app/lib/freight-line-overlay'
 import { T } from '@app/lib/i18n'
 import { getZoneObject } from '@app/lib/zone-selection'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
@@ -29,9 +29,9 @@ import {
 	tablerOutlineTrash,
 	tablerOutlineX,
 } from 'pure-glyf/icons'
+import { settlementTradeObjectUid } from 'ssh/commerce/settlement-trade'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
 import { freightLineStationLabel } from 'ssh/freight/freight-line'
-import { settlementTradeObjectUid } from 'ssh/commerce/settlement-trade'
 import {
 	explainFreightStopCommerce,
 	type FreightStopCommerceBlockReason,
@@ -487,7 +487,11 @@ const FreightStopList = (props: FreightStopListProps) => {
 	const reserveDefault = () => props.game.procurementDefaults?.bufferPurchaseReserveVp ?? 0
 	const addPickActive = () => {
 		const draft = currentDraft()
-		return !!draft && freightMapPick.pending?.lineId === draft.id && freightMapPick.pending.pickKind === 'add-stop'
+		return (
+			!!draft &&
+			freightMapPick.pending?.lineId === draft.id &&
+			freightMapPick.pending.pickKind === 'add-stop'
+		)
 	}
 	const toggleAddStopPick = () => {
 		const draft = currentDraft()
@@ -517,7 +521,9 @@ const FreightStopList = (props: FreightStopListProps) => {
 		apply((line) => moveFreightDraftStop(line, from, to))
 	}
 	const handleStopReserveInput = (index: number, raw: string) => {
-		apply((line) => setFreightDraftStopMinBalanceAfterBuyVp(line, index, parseNonNegativeInteger(raw)))
+		apply((line) =>
+			setFreightDraftStopMinBalanceAfterBuyVp(line, index, parseNonNegativeInteger(raw))
+		)
 	}
 	const vehiclesForLine = (): VehicleEntity[] => {
 		const draft = currentDraft()
@@ -656,7 +662,10 @@ const FreightStopList = (props: FreightStopListProps) => {
 											<div class="freight-stop-list__policy-summary">
 												<PolicySummary policy={stop.loadSelection} label="L" />
 												<PolicySummary policy={stop.unloadSelection} label="U" />
-												<label if={tradeStopCanImport(props.game, stop)} class="freight-stop-list__reserve">
+												<label
+													if={tradeStopCanImport(props.game, stop)}
+													class="freight-stop-list__reserve"
+												>
 													Reserve
 													<input
 														class="freight-stop-list__reserve-input"

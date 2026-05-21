@@ -90,15 +90,17 @@ Commerce V1 is now line-based and physical:
 - settlement material markets include all current `basic-materials`: `wood`, `stone`, `planks`, and `concrete`
 - settlement market UI shows one price per good; the same price is used for buying from and selling to that settlement
 - NPC settlement freight stops can export allowed carried goods, then import allowed goods when later stops have real demand and the stop reserve permits the purchase
+- storage room alone does not create settlement purchase demand; a bay can still unload already-carried
+  surplus cargo into accepted storage, while cargo needed by a later stop is protected as line buffer cargo
 - stop `loadSelection` and `unloadSelection` remain the goods controls; trade policy does not name materials
 - money changes only at the settlement stop when goods cross the player/NPC boundary
 - storage buffer settings are the preferred import contract; construction/foundation demand and hive use demand are also measured by line diagnostics
 - optional NPC trade transfer presentation data records exported goods, imported goods, credited VP, and spent VP when a trade happens
 - ChopSaw includes a regression fixture line, `ChopSaw materials loop`, cycling between the `0,0` bay and the Melindbury city hall with an assigned pickup truck; it can sell basic materials such as planks and import concrete only when downstream demand exists
 
-Deferred commerce work: richer line history/last-transfer display, generated shop targets beyond city
-halls, market analysis based on price and settlement position, consumption goods, residential/shop delivery,
-and long-route hunger/snack behavior.
+Deferred commerce work: route-level explanations for retained/surplus cargo and idle cyclic routes, richer
+line history/last-transfer display, generated shop targets beyond city halls, market analysis based on price
+and settlement position, consumption goods, residential/shop delivery, and long-route hunger/snack behavior.
 
 ### Verification
 
@@ -174,7 +176,8 @@ retention policy live in `ssh`, and Pixi only asks for visibility-driven frontie
 ## Suggested Near-Term Work
 
 1. Playtest the ChopSaw materials loop: bay buffer demand, Melindbury prices, planks/wood/stone export,
-   concrete import, and whether the stop diagnostics explain idle cases clearly enough.
+   concrete import, already-carried surplus unloading, retained later-stop cargo, and whether the stop
+   diagnostics explain idle/done cases clearly enough.
 2. Revisit market analysis: settlement positions, price comparison, and how generated shops should extend
    the city-hall trade target model.
 3. Playtest the forester/North Grove slice: assigned planting zones, harvestable named zones, sparse tree

@@ -1,7 +1,11 @@
-import { describe, it, expect, beforeAll } from 'vitest'
-import { PerlinNoise, fbm, domainWarp, initWasmNoise, isWasmNoiseAvailable } from '../src/noise'
-import { classifyTile, initWasmClassification, isWasmClassificationAvailable } from '../src/classify'
-import type { TileField, TerrainConfig, EdgeField } from '../src/types'
+import { beforeAll, describe, expect, it } from 'vitest'
+import {
+	classifyTile,
+	initWasmClassification,
+	isWasmClassificationAvailable,
+} from '../src/classify'
+import { domainWarp, fbm, initWasmNoise, isWasmNoiseAvailable, PerlinNoise } from '../src/noise'
+import type { EdgeField, TerrainConfig, TileField } from '../src/types'
 
 describe('WASM Usage Verification', () => {
 	let wasmLoaded = false
@@ -71,7 +75,17 @@ describe('WASM Usage Verification', () => {
 		}
 		const edges: EdgeField[] = []
 		const result = classifyTile(tile, edges, config)
-		expect(['ocean', 'lake', 'river-bank', 'wetland', 'snow', 'rocky', 'sand', 'forest', 'grass']).toContain(result)
+		expect([
+			'ocean',
+			'lake',
+			'river-bank',
+			'wetland',
+			'snow',
+			'rocky',
+			'sand',
+			'forest',
+			'grass',
+		]).toContain(result)
 	})
 
 	it('should produce deterministic results with WASM', () => {

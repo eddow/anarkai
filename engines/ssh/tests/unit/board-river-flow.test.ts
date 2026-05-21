@@ -63,14 +63,8 @@ describe('BoardGenerator riverFlow projection', () => {
 				[landKey, 'grass'],
 			]),
 			edges: new Map([
-				[
-					edgeKey(waterAKey, waterBKey),
-					{ flux: 10, width: 3, depth: 1, slope: 0.01 },
-				],
-				[
-					edgeKey(waterAKey, landKey),
-					{ flux: 8, width: 2, depth: 0.8, slope: 0.01 },
-				],
+				[edgeKey(waterAKey, waterBKey), { flux: 10, width: 3, depth: 1, slope: 0.01 }],
+				[edgeKey(waterAKey, landKey), { flux: 8, width: 2, depth: 0.8, slope: 0.01 }],
 			]),
 			hydrology: {
 				banks: new Map(),

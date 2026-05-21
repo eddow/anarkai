@@ -1,8 +1,7 @@
 import { reactive } from 'mutts'
-import { interactionMode } from './interactive-state'
+import { Tile } from 'ssh/board/tile'
 import { SettlementTradeObject } from 'ssh/commerce/settlement-trade'
 import { traces } from 'ssh/dev/debug'
-import { Tile } from 'ssh/board/tile'
 import {
 	type FreightStop,
 	type FreightStopAnchorAlveolus,
@@ -14,20 +13,23 @@ import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import { axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
 import { newFreightStopId } from './freight-line-draft'
+import { interactionMode } from './interactive-state'
 
 export type FreightMapPickApplyResult =
 	| { kind: 'bay'; anchor: FreightStopAnchorAlveolus }
 	| { kind: 'center'; coord: readonly [number, number] }
 
-export type FreightMapPickPending = {
-	readonly lineId: string
-	readonly pickKind: 'bay' | 'center'
-	readonly apply: (result: FreightMapPickApplyResult) => void
-} | {
-	readonly lineId: string
-	readonly pickKind: 'add-stop'
-	readonly apply: (stop: FreightStop) => void
-}
+export type FreightMapPickPending =
+	| {
+			readonly lineId: string
+			readonly pickKind: 'bay' | 'center'
+			readonly apply: (result: FreightMapPickApplyResult) => void
+	  }
+	| {
+			readonly lineId: string
+			readonly pickKind: 'add-stop'
+			readonly apply: (stop: FreightStop) => void
+	  }
 
 export const freightMapPick = reactive({
 	pending: undefined as FreightMapPickPending | undefined,
@@ -114,7 +116,8 @@ function customZoneIdForTile(game: Game, tile: Tile): string | undefined {
 	if (!coord) return undefined
 	const zoneId = game.hex.zoneManager.getZone(coord)
 	const definition = game.hex.zoneManager.getZoneDefinition(zoneId)
-	if (!definition || definition.builtIn || definition.generated || definition.readonly) return undefined
+	if (!definition || definition.builtIn || definition.generated || definition.readonly)
+		return undefined
 	return String(definition.id)
 }
 
@@ -225,11 +228,7 @@ export function freightMapPickCanConsumeObject(game: Game, object: InteractiveGa
 	return !!stopForPickedObject(game, object) || object instanceof Tile
 }
 
-export function freightRadiusPreviewTiles(
-	game: Game,
-	startTile: Tile,
-	endTile: Tile
-): Tile[] {
+export function freightRadiusPreviewTiles(game: Game, startTile: Tile, endTile: Tile): Tile[] {
 	const start = toAxialCoord(startTile.position)
 	const end = toAxialCoord(endTile.position)
 	if (!start || !end) return []

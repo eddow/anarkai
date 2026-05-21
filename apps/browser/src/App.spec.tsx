@@ -63,6 +63,7 @@ vi.mock('@app/palette/browser-palette', async () => {
 	const palettePanelBridge = {
 		openConfiguration: () => {},
 		openGame: () => {},
+		openLines: () => {},
 		openZones: () => {},
 	}
 	const tools = {
@@ -71,6 +72,9 @@ vi.mock('@app/palette/browser-palette', async () => {
 		},
 		openGame: {
 			run: () => palettePanelBridge.openGame(),
+		},
+		openLines: {
+			run: () => palettePanelBridge.openLines(),
 		},
 		openZones: {
 			run: () => palettePanelBridge.openZones(),
@@ -183,6 +187,7 @@ vi.mock('./widgets', () => ({
 		game: () => <div>game</div>,
 		configuration: () => <div>configuration</div>,
 		paletteInspector: () => <div data-testid="palette-inspector-widget">palette-inspector</div>,
+		linesManagement: () => <div>lines-management</div>,
 	},
 }))
 
@@ -336,6 +341,7 @@ describe('Palette IDE shell', () => {
 		const { palette } = getBrowserPalette()
 		const openConfiguration = palette.tool('openConfiguration') as PaletteToolRun
 		const openGame = palette.tool('openGame') as PaletteToolRun
+		const openLines = palette.tool('openLines') as PaletteToolRun
 		const timeControl = palette.tool('timeControl') as PaletteToolValue<
 			(typeof globals.configuration)['timeControl']
 		>
@@ -358,6 +364,15 @@ describe('Palette IDE shell', () => {
 			component: 'game',
 			params: undefined,
 			floating: undefined,
+		})
+
+		addPanel.mockClear()
+		openLines.run()
+		expect(addPanel).toHaveBeenCalledWith({
+			id: 'freight-lines',
+			component: 'linesManagement',
+			params: undefined,
+			floating: { width: 400, height: 600 },
 		})
 
 		timeControl.value = 1

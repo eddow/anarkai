@@ -1,9 +1,9 @@
-import { describe, expect, it, beforeAll } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 import {
-	generateMacroHydrologyWasm,
-	ensureWasmLoaded,
 	DEFAULT_MACRO_HYDROLOGY_SECTOR_RADIUS,
 	DEFAULT_MACRO_HYDROLOGY_STEP,
+	ensureWasmLoaded,
+	generateMacroHydrologyWasm,
 } from '../src'
 
 describe('macro hydrology', () => {

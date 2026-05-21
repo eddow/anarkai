@@ -1,12 +1,12 @@
 import { goods as goodsCatalog, settlementTrade } from 'engine-rules'
 import type { Tile } from 'ssh/board/tile'
 import type { Game } from 'ssh/game/game'
-import { GameObject, withInteractive, type InspectorSelectableObject } from 'ssh/game/object'
+import { GameObject, type InspectorSelectableObject, withInteractive } from 'ssh/game/object'
 import {
-	selectSettlementCityHallPosition,
 	type GeneratedSettlement,
 	type GeneratedTileData,
 	type SettlementZonePlan,
+	selectSettlementCityHallPosition,
 } from 'ssh/generation'
 import type { GoodType } from 'ssh/types'
 import type { AxialCoord } from 'ssh/utils'

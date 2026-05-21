@@ -390,9 +390,12 @@ describe('findVehicleOffloadJob', () => {
 				],
 			} as any)
 			const line = game.freightLines.find((entry) => entry.id === 'loaded-gather')!
-			const vehicle = game.vehicles.createVehicle('wb-loaded-gather', 'wheelbarrow', { q: 3, r: 0 }, [
-				line,
-			])
+			const vehicle = game.vehicles.createVehicle(
+				'wb-loaded-gather',
+				'wheelbarrow',
+				{ q: 3, r: 0 },
+				[line]
+			)
 			vehicle.storage.addGood('wood', 1)
 			const char = engine.spawnCharacter('Worker', { q: 3, r: 0 })
 			void char.scriptsContext

@@ -245,7 +245,11 @@ const HiveProperties = (props: HivePropertiesProps) => {
 					</div>
 				</PropertyGridRow>
 				<PropertyGridRow if={state.dockedVehicles.length > 0} label={T.vehicle.docked}>
-					<DockedVehicleList entries={state.dockedVehicles} showLineMeta game={props.hiveObject.game} />
+					<DockedVehicleList
+						entries={state.dockedVehicles}
+						showLineMeta
+						game={props.hiveObject.game}
+					/>
 				</PropertyGridRow>
 			</PropertyGrid>
 		</InspectorSection>

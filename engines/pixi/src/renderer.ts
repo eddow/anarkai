@@ -316,9 +316,9 @@ export class PixiGameRenderer implements GameRenderer {
 	}
 
 	/**
-		* Fit the camera view to show all player-owned content.
-		* If there is no player content (new game), keeps the default center at (0,0).
-		*/
+	 * Fit the camera view to show all player-owned content.
+	 * If there is no player content (new game), keeps the default center at (0,0).
+	 */
 	public fitViewToContent() {
 		if (!this.world || !this.app) return
 

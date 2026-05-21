@@ -130,17 +130,12 @@ describe('settlement trade profiles', () => {
 			seed: 42,
 			regionSetKey: '0,0',
 			settlement: settlement('town'),
-			tileData: [
-				tile(0, 0, { terrain: 'water' }),
-				tile(1, 0),
-				tile(0, 1),
-			],
+			tileData: [tile(0, 0, { terrain: 'water' }), tile(1, 0), tile(0, 1)],
 			zones,
 		})
 
 		expect(profile.cityHall.position).toEqual(profile.center)
 	})
-
 
 	it('trades all basic materials with one settlement price for buy and sell', () => {
 		const profile = createNpcSettlementTradeProfile({

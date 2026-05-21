@@ -1,5 +1,5 @@
-import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
+import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import { defined, traces } from 'ssh/dev/debug'
 import {
 	findLoadOntoVehicleJob,
@@ -434,9 +434,12 @@ describe('Freight simulation (gather + distribute)', () => {
 				engine.game.freightLines.find((candidate) => candidate.id === 'build-flow-materials'),
 				'build-flow freight line'
 			)
-			engine.game.vehicles.createVehicle('build-flow-wb', lineFreightVehicleType(), { q: 1, r: 0 }, [
-				line,
-			])
+			engine.game.vehicles.createVehicle(
+				'build-flow-wb',
+				lineFreightVehicleType(),
+				{ q: 1, r: 0 },
+				[line]
+			)
 			const workers = [
 				engine.spawnCharacter('Builder One', { q: 1, r: 0 }),
 				engine.spawnCharacter('Builder Two', { q: 0, r: 1 }),

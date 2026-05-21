@@ -191,7 +191,8 @@ function vehicleHasNoOtherOperator(
 function hasActiveVehicleDockMovement(game: Game): boolean {
 	const seen = new Set<unknown>()
 	for (const tile of game.hex.tiles) {
-		const hive = tile.content && 'hive' in tile.content ? (tile.content as Alveolus).hive : undefined
+		const hive =
+			tile.content && 'hive' in tile.content ? (tile.content as Alveolus).hive : undefined
 		if (!hive || seen.has(hive)) continue
 		seen.add(hive)
 		if (
@@ -199,8 +200,7 @@ function hasActiveVehicleDockMovement(game: Game): boolean {
 				.collectActiveMovements()
 				.some(
 					(movement) =>
-						isVehicleFreightDock(movement.provider) ||
-						isVehicleFreightDock(movement.demander)
+						isVehicleFreightDock(movement.provider) || isVehicleFreightDock(movement.demander)
 				)
 		) {
 			return true
@@ -224,11 +224,14 @@ function dockedVehicleHasPendingDockWork(vehicle: VehicleEntity): boolean {
 	if (!bay) return false
 	if (bay.proposedJobs.some((job) => job.job === 'convey')) return true
 	const dock = bay.hive.freightVehicleDockFor(vehicle.uid)
-	return !!dock && bay.hive.collectActiveMovements().some((movement) => {
-		if (movement.provider !== dock && movement.demander !== dock) return false
-		if (movement.claimed) return true
-		return movement.path.length > 0 && movement.provider instanceof Alveolus
-	})
+	return (
+		!!dock &&
+		bay.hive.collectActiveMovements().some((movement) => {
+			if (movement.provider !== dock && movement.demander !== dock) return false
+			if (movement.claimed) return true
+			return movement.path.length > 0 && movement.provider instanceof Alveolus
+		})
+	)
 }
 
 function vehicleStockCount(vehicle: VehicleEntity): number {

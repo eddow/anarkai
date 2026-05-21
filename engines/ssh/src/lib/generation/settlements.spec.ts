@@ -10,14 +10,14 @@
  * - Edge cases (empty tiles, zero settlements, all water, etc.)
  */
 
-import { describe, expect, it, beforeAll } from 'vitest'
 import { ensureWasmLoaded } from 'engine-terrain'
-import { GameGenerator } from './index'
-import type { GeneratedTileData } from './board'
-import type { GeneratedSettlement } from './settlements'
-import type { AxialCoord } from 'ssh/utils'
-import type { TerrainType } from 'ssh/types'
 import type { TerrainHydrologySample } from 'ssh/game/terrain-provider'
+import type { TerrainType } from 'ssh/types'
+import type { AxialCoord } from 'ssh/utils'
+import { beforeAll, describe, expect, it } from 'vitest'
+import type { GeneratedTileData } from './board'
+import { GameGenerator } from './index'
+import type { GeneratedSettlement } from './settlements'
 
 describe('Settlement Placement Integration Tests', () => {
 	let generator: GameGenerator
@@ -28,14 +28,16 @@ describe('Settlement Placement Integration Tests', () => {
 	})
 
 	// Helper function to create test tiles
-	function createTestTiles(tiles: Array<{
-		q: number
-		r: number
-		terrain: TerrainType
-		height?: number
-		hydrology?: TerrainHydrologySample
-		deposit?: { type: 'berry_bush' | 'rock' | 'tree'; amount: number }
-	}>): GeneratedTileData[] {
+	function createTestTiles(
+		tiles: Array<{
+			q: number
+			r: number
+			terrain: TerrainType
+			height?: number
+			hydrology?: TerrainHydrologySample
+			deposit?: { type: 'berry_bush' | 'rock' | 'tree'; amount: number }
+		}>
+	): GeneratedTileData[] {
 		return tiles.map((t) => ({
 			coord: { q: t.q, r: t.r },
 			terrain: t.terrain,
@@ -70,7 +72,10 @@ describe('Settlement Placement Integration Tests', () => {
 	}
 
 	// Helper function to check if two settlements respect min spacing
-	function settlementsRespectSpacing(settlements: GeneratedSettlement[], minSpacing: number): boolean {
+	function settlementsRespectSpacing(
+		settlements: GeneratedSettlement[],
+		minSpacing: number
+	): boolean {
 		for (let i = 0; i < settlements.length; i++) {
 			for (let j = i + 1; j < settlements.length; j++) {
 				const dist = axialDistance(settlements[i]!.center, settlements[j]!.center)
@@ -233,7 +238,9 @@ describe('Settlement Placement Integration Tests', () => {
 
 			// At least one settlement should be on grass (plains)
 			const hasGrassSettlement = settlements.some((s) => {
-				return tiles.some((t) => t.coord.q === s.center.q && t.coord.r === s.center.r && t.terrain === 'grass')
+				return tiles.some(
+					(t) => t.coord.q === s.center.q && t.coord.r === s.center.r && t.terrain === 'grass'
+				)
 			})
 			expect(hasGrassSettlement).toBe(true)
 		})
@@ -286,7 +293,13 @@ describe('Settlement Placement Integration Tests', () => {
 			const seed = 12345
 			const tiles = createTestTiles([
 				{ q: 0, r: 0, terrain: 'grass', height: 0 },
-				{ q: 1, r: 0, terrain: 'grass', height: 0, hydrology: { isChannel: false, edges: { 0: { flux: 1, width: 1, depth: 1 } } } }, // Has river
+				{
+					q: 1,
+					r: 0,
+					terrain: 'grass',
+					height: 0,
+					hydrology: { isChannel: false, edges: { 0: { flux: 1, width: 1, depth: 1 } } },
+				}, // Has river
 				{ q: 2, r: 0, terrain: 'grass', height: 0 },
 				{ q: 3, r: 0, terrain: 'grass', height: 0 },
 				{ q: 0, r: 1, terrain: 'grass', height: 0 },
@@ -545,7 +558,11 @@ describe('Settlement Placement Integration Tests', () => {
 					{ q: t.coord.q, r: t.coord.r - 1 },
 					{ q: t.coord.q + 1, r: t.coord.r - 1 },
 				]
-				return neighbors.some((n) => tiles.some((tile) => tile.coord.q === n.q && tile.coord.r === n.r && tile.terrain === 'water'))
+				return neighbors.some((n) =>
+					tiles.some(
+						(tile) => tile.coord.q === n.q && tile.coord.r === n.r && tile.terrain === 'water'
+					)
+				)
 			})
 
 			const hasWaterAccessSettlement = settlements.some((s) =>
@@ -577,7 +594,13 @@ describe('Settlement Placement Integration Tests', () => {
 			const seed = 12345
 			const tiles = createTestTiles([
 				{ q: 0, r: 0, terrain: 'grass', height: 0 },
-				{ q: 1, r: 0, terrain: 'grass', height: 0, hydrology: { isChannel: false, edges: { 0: { flux: 1, width: 1, depth: 1 } } } }, // Has river edge
+				{
+					q: 1,
+					r: 0,
+					terrain: 'grass',
+					height: 0,
+					hydrology: { isChannel: false, edges: { 0: { flux: 1, width: 1, depth: 1 } } },
+				}, // Has river edge
 				{ q: 2, r: 0, terrain: 'grass', height: 0 },
 				{ q: 0, r: 1, terrain: 'grass', height: 0 },
 				{ q: 1, r: 1, terrain: 'grass', height: 0 },
@@ -629,7 +652,13 @@ describe('Settlement Placement Integration Tests', () => {
 			const seed = 12345
 			const tiles = createTestTiles([
 				{ q: 0, r: 0, terrain: 'grass', height: 0 },
-				{ q: 1, r: 0, terrain: 'grass', height: 0, hydrology: { isChannel: false, bankInfluence: 1, edges: {} } }, // Has bank influence
+				{
+					q: 1,
+					r: 0,
+					terrain: 'grass',
+					height: 0,
+					hydrology: { isChannel: false, bankInfluence: 1, edges: {} },
+				}, // Has bank influence
 				{ q: 2, r: 0, terrain: 'grass', height: 0 },
 				{ q: 0, r: 1, terrain: 'grass', height: 0 },
 				{ q: 1, r: 1, terrain: 'grass', height: 0 },

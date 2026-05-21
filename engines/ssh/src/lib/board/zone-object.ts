@@ -3,9 +3,9 @@ import type { InspectorSelectableObject } from 'ssh/game/object'
 import type { Position } from 'ssh/utils/position'
 import type { Tile } from './tile'
 import {
-	type Zone,
 	isZoneObjectUid,
 	ZONES_OBJECT_UID,
+	type Zone,
 	zoneIdFromObjectUid,
 	zoneObjectUid,
 } from './zone'

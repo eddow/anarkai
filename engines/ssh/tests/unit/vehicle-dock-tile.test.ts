@@ -1,10 +1,9 @@
-import { describe, expect, it } from 'vitest'
-import { TestEngine } from '../test-engine'
-import { gatherFreightLine } from '../freight-fixtures'
+import { reactive } from 'mutts'
 import type { SaveState } from 'ssh/game'
 import { toAxialCoord } from 'ssh/utils/position'
-import { axial } from 'ssh/utils'
-import { reactive } from 'mutts'
+import { describe, expect, it } from 'vitest'
+import { gatherFreightLine } from '../freight-fixtures'
+import { TestEngine } from '../test-engine'
 
 /** Extract q,r for comparison, ignoring extra properties returned by toAxialCoord. */
 function qr(pos: unknown): { q: number; r: number } {
@@ -36,9 +35,7 @@ describe('Vehicle dock tile synchronization', () => {
 				hives: [
 					{
 						name: 'TestHive',
-						alveoli: [
-							{ coord: [1, 0], alveolus: 'freight_bay', goods: {} },
-						],
+						alveoli: [{ coord: [1, 0], alveolus: 'freight_bay', goods: {} }],
 					},
 				],
 				tiles: [
@@ -64,9 +61,7 @@ describe('Vehicle dock tile synchronization', () => {
 			void character.scriptsContext
 
 			const line = game.freightLines[0]!
-			const vehicle = game.vehicles.createVehicle(
-				'test-wb', 'wheelbarrow', { q: 0, r: 0 }, [line]
-			)
+			const vehicle = game.vehicles.createVehicle('test-wb', 'wheelbarrow', { q: 0, r: 0 }, [line])
 
 			// Attach line service with anchor stop at (1,0), then board
 			vehicle.beginService(line, line.stops.at(-1)!, character)
@@ -101,9 +96,7 @@ describe('Vehicle dock tile synchronization', () => {
 				hives: [
 					{
 						name: 'TestHive',
-						alveoli: [
-							{ coord: [1, 0], alveolus: 'freight_bay', goods: {} },
-						],
+						alveoli: [{ coord: [1, 0], alveolus: 'freight_bay', goods: {} }],
 					},
 				],
 				tiles: [
@@ -129,9 +122,7 @@ describe('Vehicle dock tile synchronization', () => {
 			void character.scriptsContext
 
 			const line = game.freightLines[0]!
-			const vehicle = game.vehicles.createVehicle(
-				'test-wb', 'wheelbarrow', { q: 0, r: 0 }, [line]
-			)
+			const vehicle = game.vehicles.createVehicle('test-wb', 'wheelbarrow', { q: 0, r: 0 }, [line])
 
 			vehicle.beginService(line, line.stops.at(-1)!, character)
 			character.operates = vehicle
@@ -157,9 +148,7 @@ describe('Vehicle dock tile synchronization', () => {
 				hives: [
 					{
 						name: 'TestHive',
-						alveoli: [
-							{ coord: [2, 0], alveolus: 'freight_bay', goods: {} },
-						],
+						alveoli: [{ coord: [2, 0], alveolus: 'freight_bay', goods: {} }],
 					},
 				],
 				tiles: [
@@ -186,9 +175,7 @@ describe('Vehicle dock tile synchronization', () => {
 			void character.scriptsContext
 
 			const line = game.freightLines[0]!
-			const vehicle = game.vehicles.createVehicle(
-				'test-wb', 'wheelbarrow', { q: 0, r: 0 }, [line]
-			)
+			const vehicle = game.vehicles.createVehicle('test-wb', 'wheelbarrow', { q: 0, r: 0 }, [line])
 
 			vehicle.beginService(line, line.stops.at(-1)!, character)
 			character.operates = vehicle

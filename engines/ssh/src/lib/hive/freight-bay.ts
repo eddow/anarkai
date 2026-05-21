@@ -5,11 +5,11 @@ import {
 	findGatherFreightLines,
 	gatherSelectableGoodTypes,
 } from 'ssh/freight/freight-line'
-import { FREIGHT_LINE_ALL_GOOD_TYPES } from 'ssh/freight/goods-selection-policy'
 import {
 	gatherZoneLoadStopForBay,
 	pickGatherTargetInZoneStop,
 } from 'ssh/freight/freight-zone-gather-target'
+import { FREIGHT_LINE_ALL_GOOD_TYPES } from 'ssh/freight/goods-selection-policy'
 import { NoStorage } from 'ssh/storage/no-storage'
 import type { GoodType } from 'ssh/types/base'
 import type { GoodsRelations } from 'ssh/utils/advertisement'

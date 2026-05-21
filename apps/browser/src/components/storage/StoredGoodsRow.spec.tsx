@@ -35,11 +35,7 @@ vi.mock('@app/lib/i18n', () => ({
 }))
 
 vi.mock('@app/ui/anarkai', () => ({
-	Button: (props: {
-		children?: JSX.Children
-		'el:title'?: string
-		onClick?: () => void
-	}) => (
+	Button: (props: { children?: JSX.Children; 'el:title'?: string; onClick?: () => void }) => (
 		<button title={props['el:title']} type="button" onClick={props.onClick}>
 			{props.children}
 		</button>

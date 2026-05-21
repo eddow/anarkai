@@ -183,9 +183,9 @@ describe('settlement zoning generation', () => {
 		expect(plan.regionSet.name).not.toContain('0,0')
 		expect(plan.regionSet.children.length).toBe(plan.settlements.length)
 		expect(plan.regionSet.children.every((child) => child.type === 'region')).toBe(true)
-		expect(plan.regionSet.children.every((child) => !!child.name && !child.name.includes(','))).toBe(
-			true
-		)
+		expect(
+			plan.regionSet.children.every((child) => !!child.name && !child.name.includes(','))
+		).toBe(true)
 		expect(plan.settlements.every((settlement) => settlement.id.startsWith('settlement-'))).toBe(
 			true
 		)
@@ -448,10 +448,9 @@ describe('settlement zoning generation', () => {
 		expect(settlement).toBeDefined()
 		if (settlement) {
 			const generatedSettlementCoords = new Set(
-				[
-					...plan.zones.residential,
-					...plan.zones.named.flatMap((zone) => zone.coords),
-				].map(([q, r]) => `${q},${r}`)
+				[...plan.zones.residential, ...plan.zones.named.flatMap((zone) => zone.coords)].map(
+					([q, r]) => `${q},${r}`
+				)
 			)
 			expect(
 				[...axial.allTiles(settlement.center, settlement.radius)].some((coord) =>

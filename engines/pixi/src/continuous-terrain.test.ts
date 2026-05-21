@@ -626,12 +626,12 @@ describe('continuous terrain helpers', () => {
 		])
 
 		expect(ensureGameplaySectors).toHaveBeenCalledTimes(1)
-		expect([...ensureGameplaySectors.mock.calls[0]![0] as Iterable<string>]).toEqual([
+		expect([...(ensureGameplaySectors.mock.calls[0]![0] as Iterable<string>)]).toEqual([
 			'0,0',
 			'1,0',
 		])
 		expect(ensureTerrainSectors).toHaveBeenCalledTimes(1)
-		expect([...ensureTerrainSectors.mock.calls[0]![0] as Iterable<string>]).toEqual([
+		expect([...(ensureTerrainSectors.mock.calls[0]![0] as Iterable<string>)]).toEqual([
 			'0,0',
 			'1,0',
 		])
@@ -937,9 +937,9 @@ function createTerrainRendererStub(gameOverrides: {
 			layer.detach(child)
 		},
 		getTexture(spec: string) {
-			expect(spec.startsWith('terrain.') || spec.startsWith('objects.') || spec.startsWith('roads.')).toBe(
-				true
-			)
+			expect(
+				spec.startsWith('terrain.') || spec.startsWith('objects.') || spec.startsWith('roads.')
+			).toBe(true)
 			return Texture.WHITE
 		},
 	} as unknown as PixiGameRenderer

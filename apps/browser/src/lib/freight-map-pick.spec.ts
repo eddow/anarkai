@@ -4,9 +4,9 @@ import { traces } from 'ssh/dev/debug'
 import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-	FREIGHT_ADD_STOP_ACTION,
 	activateFreightAddStopPick,
 	cancelFreightMapPick,
+	FREIGHT_ADD_STOP_ACTION,
 	freightMapPick,
 	tryConsumeFreightMapPick,
 	tryConsumeFreightMapPickRadiusDrag,

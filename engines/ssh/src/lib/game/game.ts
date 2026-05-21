@@ -452,7 +452,10 @@ export class Game extends Eventful<GameEvents> {
 	private readonly appliedSettlementRegionSets = new Set<string>()
 	private readonly inFlightSettlementRegionSets = new Map<string, Promise<void>>()
 	private readonly settlementTradeProfiles = new Map<string, NpcSettlementTradeProfile>()
-	private readonly settlementTradeProfilesByCityHallCoord = new Map<string, NpcSettlementTradeProfile>()
+	private readonly settlementTradeProfilesByCityHallCoord = new Map<
+		string,
+		NpcSettlementTradeProfile
+	>()
 	private readonly terrainProvider: TerrainProvider
 	private readonly gameplayFrontier = new GameplayFrontierController({
 		hasMaterializedTile: (coord) => this.hasMaterializedGameplayTile(coord),
@@ -540,7 +543,9 @@ export class Game extends Eventful<GameEvents> {
 		return this.settlementTradeProfiles.get(id)
 	}
 
-	public getSettlementTradeProfileAtCityHall(coord: AxialCoord): NpcSettlementTradeProfile | undefined {
+	public getSettlementTradeProfileAtCityHall(
+		coord: AxialCoord
+	): NpcSettlementTradeProfile | undefined {
 		return this.settlementTradeProfilesByCityHallCoord.get(axial.key(coord))
 	}
 
@@ -661,7 +666,9 @@ export class Game extends Eventful<GameEvents> {
 		this.schedulePresentationEventsFlush()
 	}
 
-	public enqueueNpcTradePresentationChange(event: Omit<Extract<GamePresentationEvent, { type: 'npc-trade.transferred' }>, 'type'>): void {
+	public enqueueNpcTradePresentationChange(
+		event: Omit<Extract<GamePresentationEvent, { type: 'npc-trade.transferred' }>, 'type'>
+	): void {
 		this.pendingPresentationEvents.set(
 			`npc-trade.transferred:${event.lineId}:${event.stopId}:${event.vehicleUid}`,
 			{ type: 'npc-trade.transferred', ...event }

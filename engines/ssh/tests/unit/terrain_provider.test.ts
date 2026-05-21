@@ -240,13 +240,13 @@ describe('terrain provider', () => {
 					0: { flux: 12, width: 4, depth: 2 },
 				},
 			},
-				deposit: {
-					type: 'tree',
-					amount: 3,
-					maxAmount: 12,
-					name: 'tree',
-				},
-			})
+			deposit: {
+				type: 'tree',
+				amount: 3,
+				maxAmount: 12,
+				name: 'tree',
+			},
+		})
 	})
 
 	it('caches macro hydrology by snapped macro center', async () => {

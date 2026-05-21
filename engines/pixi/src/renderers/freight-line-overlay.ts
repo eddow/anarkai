@@ -4,10 +4,10 @@ import { Container, Graphics, Point } from 'pixi.js'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { Tile } from 'ssh/board/tile'
 import {
+	type FreightStop,
 	findFreightLineById,
 	freightZoneFallbackPosition,
 	freightZoneTiles,
-	type FreightStop,
 } from 'ssh/freight/freight-line'
 import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
@@ -25,7 +25,10 @@ function hexPoints(x: number, y: number, inset = 2): Point[] {
 	return Array.from(
 		{ length: 6 },
 		(_, i) =>
-			new Point(x + Math.cos((Math.PI / 3) * (i + 0.5)) * size, y + Math.sin((Math.PI / 3) * (i + 0.5)) * size)
+			new Point(
+				x + Math.cos((Math.PI / 3) * (i + 0.5)) * size,
+				y + Math.sin((Math.PI / 3) * (i + 0.5)) * size
+			)
 	)
 }
 
@@ -55,8 +58,8 @@ export class FreightLineOverlay {
 			return world ?? undefined
 		}
 		if ('trade' in stop) {
-			const coord =
-				this.renderer.game.getSettlementTradeProfile(stop.trade.settlementId)?.cityHall.position
+			const coord = this.renderer.game.getSettlementTradeProfile(stop.trade.settlementId)?.cityHall
+				.position
 			return coord ? (toWorldCoord(coord) ?? undefined) : undefined
 		}
 		if (stop.zone.kind === 'radius') {
@@ -76,7 +79,10 @@ export class FreightLineOverlay {
 				if (!world) continue
 				const zoneColor = emphasized
 					? color
-					: parseColor(this.renderer.game.hex.zoneManager.getZoneDefinition(stop.zone.zoneId)?.color, color)
+					: parseColor(
+							this.renderer.game.hex.zoneManager.getZoneDefinition(stop.zone.zoneId)?.color,
+							color
+						)
 				const points = hexPoints(world.x, world.y, emphasized ? 0 : 2)
 				this.graphics.poly(points).fill({ color: zoneColor, alpha })
 				this.graphics.poly(points).stroke({ width: strokeWidth, color: zoneColor, alpha: 0.9 })

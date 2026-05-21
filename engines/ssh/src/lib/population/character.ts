@@ -497,9 +497,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			}
 			const vehicleJobPath =
 				'path' in job && Array.isArray(job.path)
-					? job.path
-							.map((step) => toAxialCoord(step))
-							.filter((step): step is AxialCoord => !!step)
+					? job.path.map((step) => toAxialCoord(step)).filter((step): step is AxialCoord => !!step)
 					: safePath
 			const workPlan: WorkPlan = withoutUndefinedProperties({
 				...job,

@@ -1,20 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
-	createSnapshot,
 	DEFAULT_SECTOR_HYDROLOGY_PADDING,
 	generate,
 	generateAsync,
 	generateHydratedRegion,
 	generateHydratedRegionAsync,
-	generateRegion,
-	generateRegionAsync,
 	generateSectorRegionAsync,
 	generateSectorRegionAsyncWithMetrics,
-	mergeSnapshotRegion,
-	populateSnapshot,
-	populateSnapshotAsync,
 } from '../src/generate'
-import { DEFAULT_TERRAIN_CONFIG } from '../src/types'
 
 describe('generate()', () => {
 	it('produces correct tile count for hex board', () => {
@@ -23,7 +16,17 @@ describe('generate()', () => {
 		expect(snap.tiles.size).toBe(snap.biomes.size)
 		for (const [key, biome] of snap.biomes) {
 			expect(snap.tiles.has(key)).toBe(true)
-			expect(['ocean', 'lake', 'sand', 'grass', 'forest', 'rocky', 'snow', 'wetland', 'river-bank']).toContain(biome)
+			expect([
+				'ocean',
+				'lake',
+				'sand',
+				'grass',
+				'forest',
+				'rocky',
+				'snow',
+				'wetland',
+				'river-bank',
+			]).toContain(biome)
 		}
 	})
 

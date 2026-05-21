@@ -399,9 +399,8 @@ function sumHiveStorageHasRoomForGood(hive: Hive, goodType: GoodType): number {
 			? acceptedRoomFor.call(alv, goodType, relation.priority)
 			: (alv.storage.hasRoom(goodType) ?? 0)
 		if (relation.priority === '1-buffer') {
-			const buffer = (alv as { storageBuffers?: Partial<Record<GoodType, number>> }).storageBuffers?.[
-				goodType
-			]
+			const buffer = (alv as { storageBuffers?: Partial<Record<GoodType, number>> })
+				.storageBuffers?.[goodType]
 			if (buffer !== undefined) {
 				const planned = (alv.storage.stock[goodType] ?? 0) + alv.storage.allocated(goodType)
 				room = Math.min(room, Math.max(0, buffer - planned))
@@ -567,8 +566,7 @@ export function computeLineFurtherGoods(args: {
 	let furtherProvidedGoods: Partial<Record<GoodType, number>> = {}
 	let furtherTransferredGoods: Partial<Record<GoodType, number>> = {}
 	const order =
-		args.orderedStopIndices ??
-		freightLineStopOrder(args.line, args.currentStopIndex).slice(1)
+		args.orderedStopIndices ?? freightLineStopOrder(args.line, args.currentStopIndex).slice(1)
 	for (const stopIndex of order) {
 		const neededHere = measureFreightStopNeededGoods(args.game, args.line, stopIndex).perGood
 		for (const [goodType, quantity] of Object.entries(neededHere) as [GoodType, number][]) {
@@ -664,7 +662,8 @@ function affordableImportGoods(args: {
 	for (const [goodType, quantity] of Object.entries(args.goods) as [GoodType, number][]) {
 		const unitPrice = prices.get(goodType)
 		if (unitPrice === undefined || unitPrice <= 0) continue
-		const balanceAfterExports = args.game.playerAccount.balanceVp + Math.max(0, args.creditedVp ?? 0)
+		const balanceAfterExports =
+			args.game.playerAccount.balanceVp + Math.max(0, args.creditedVp ?? 0)
 		const affordable = Math.floor((balanceAfterExports - reserve) / unitPrice)
 		const transfer = Math.min(quantity, Math.max(0, affordable))
 		if (transfer > 0) out[goodType] = transfer
@@ -783,11 +782,7 @@ export function explainFreightStopCommerce(args: {
 		if (offerCounts.buy > 0 && localNeededGoods.total <= 0) {
 			addBlockReason(blockReasons, 'policy_blocks_good')
 		}
-		if (
-			args.vehicle &&
-			roomCappedImportTotal > 0 &&
-			importOpportunityGoods.total <= 0
-		) {
+		if (args.vehicle && roomCappedImportTotal > 0 && importOpportunityGoods.total <= 0) {
 			addBlockReason(blockReasons, 'reserve_blocks_import')
 		}
 	}

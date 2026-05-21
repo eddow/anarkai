@@ -1,4 +1,4 @@
-import { Rectangle, Sprite, Texture } from 'pixi.js'
+import { type Rectangle, Sprite, Texture } from 'pixi.js'
 import { type AxialCoord, axial, cartesian, hexSides } from 'ssh/utils'
 import { tileSize } from 'ssh/utils/varied'
 import { setPixiName } from './debug-names'
@@ -28,12 +28,9 @@ export interface RoadPixelContribution {
 	readonly alpha: number
 }
 
-export function blendRoadPixel(contributions: readonly RoadPixelContribution[]): readonly [
-	number,
-	number,
-	number,
-	number,
-] {
+export function blendRoadPixel(
+	contributions: readonly RoadPixelContribution[]
+): readonly [number, number, number, number] {
 	let alphaSum = 0
 	let red = 0
 	let green = 0
@@ -102,7 +99,11 @@ function sampleMaterial(
 	const x = Math.floor(u * material.width) % material.width
 	const y = Math.floor(v * material.height) % material.height
 	const offset = (y * material.width + x) * 4
-	return [material.data[offset] ?? 0, material.data[offset + 1] ?? 0, material.data[offset + 2] ?? 0]
+	return [
+		material.data[offset] ?? 0,
+		material.data[offset + 1] ?? 0,
+		material.data[offset + 2] ?? 0,
+	]
 }
 
 function wrap01(value: number): number {
@@ -132,7 +133,10 @@ function fallbackRoadMaterial(): RoadMaterialPixels {
 	return { width: 1, height: 1, data }
 }
 
-function collectTileRoadContributions(renderer: PixiGameRenderer, coord: AxialCoord): RoadContribution[] {
+function collectTileRoadContributions(
+	renderer: PixiGameRenderer,
+	coord: AxialCoord
+): RoadContribution[] {
 	const contributions: RoadContribution[] = []
 	const hex = renderer.game.hex
 	if (!hex) return contributions

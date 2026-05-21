@@ -35,9 +35,9 @@ import StoredGoodsRow from '../storage/StoredGoodsRow'
 import ZoneAnchorButton from '../ZoneAnchorButton'
 import AlveolusProperties from './AlveolusProperties'
 import DwellingProperties from './DwellingProperties'
+import SettlementProperties from './SettlementProperties'
 import TileWorkProperties from './TileWorkProperties'
 import UnBuiltProperties from './UnBuiltProperties'
-import SettlementProperties from './SettlementProperties'
 
 css`
   .tile-properties {
@@ -678,7 +678,10 @@ const TileProperties = (props: TilePropertiesProps) => {
 					/>
 				</PropertyGrid>
 			</InspectorSection>
-			<SettlementProperties if={model.settlementTradeProfile} profile={model.settlementTradeProfile} />
+			<SettlementProperties
+				if={model.settlementTradeProfile}
+				profile={model.settlementTradeProfile}
+			/>
 			<TileWorkProperties tile={tile} />
 		</div>
 	)

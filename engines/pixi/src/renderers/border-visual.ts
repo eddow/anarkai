@@ -19,7 +19,10 @@ type GateLike = {
 	}
 	hive?: {
 		movingGoods?: {
-			get(coord: { q: number; r: number }): Array<{ goodType: GoodType; claimed?: boolean }> | undefined
+			get(coord: {
+				q: number
+				r: number
+			}): Array<{ goodType: GoodType; claimed?: boolean }> | undefined
 		}
 	}
 }

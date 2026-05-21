@@ -1,10 +1,4 @@
 import {
-	interactionMode,
-	mrg,
-	setActiveWorldViewPov,
-	setHoveredObject,
-} from '@app/lib/interactive-state'
-import {
 	cancelFreightMapPick,
 	freightMapPick,
 	freightMapPickCanConsumeObject,
@@ -12,6 +6,12 @@ import {
 	isFreightAddStopAction,
 	tryConsumeFreightMapPickRadiusDrag,
 } from '@app/lib/freight-map-pick'
+import {
+	interactionMode,
+	mrg,
+	setActiveWorldViewPov,
+	setHoveredObject,
+} from '@app/lib/interactive-state'
 import type { Application, Container, FederatedPointerEvent, FederatedWheelEvent } from 'pixi.js'
 import type { RoadType } from 'ssh/board/roads'
 import { canBuildRoadOnTrace, straightRoadTileTrace } from 'ssh/board/roads'
@@ -260,7 +260,11 @@ export class InteractionManager {
 				this.dragCurrentTile = currentTile
 				if (currentTile !== this.dragStartTile) {
 					this.dragHasMovedTile = true
-					this.game.emit('dragPreview', freightRadiusPreviewTiles(this.game, this.dragStartTile, currentTile), '')
+					this.game.emit(
+						'dragPreview',
+						freightRadiusPreviewTiles(this.game, this.dragStartTile, currentTile),
+						''
+					)
 				} else {
 					this.game.emit('dragPreviewClear')
 				}

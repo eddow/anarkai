@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
-	sectorKeyForCoord,
-	coordsForSectorInterior,
 	coordsForSectorBakeDomain,
+	coordsForSectorInterior,
+	sectorKeyForCoord,
 } from './terrain-sector-topology'
 
 describe('terrain-sector-topology', () => {

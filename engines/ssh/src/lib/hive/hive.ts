@@ -2619,7 +2619,11 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			const provider = demander ? this.resolveProviderForSnapshot(snapshot, demander) : undefined
 			if (provider && demander && !demander.destroyed && !provider.destroyed) {
 				const ownerHive = provider.hive
-				if (ownerHive && ownerHive === demander.hive && ownerHive.createMovement(snapshot.goodType, provider, demander)) {
+				if (
+					ownerHive &&
+					ownerHive === demander.hive &&
+					ownerHive.createMovement(snapshot.goodType, provider, demander)
+				) {
 					recreated += 1
 					continue
 				}
@@ -3050,18 +3054,18 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 					}
 					throw error
 				}
-					const assignedHere =
-						freightPartyMatchesAssignedAlveolus(_provider, worker.assignedAlveolus) ||
-						freightPartyMatchesAssignedAlveolus(_demander, worker.assignedAlveolus)
-					if (worker.assignedAlveolus && !assignedHere) continue
-					const wandering = actionDescription.includes('selfCare.wander')
-					const waitingIncoming = actionDescription.includes('waitForIncomingGoods')
-					const assignedPondering =
-						assignedHere &&
-						actionDescription.length === 0 &&
-						worker.stepExecutor?.constructor?.name === 'PonderingStep'
-					if (!wandering && !waitingIncoming && !assignedPondering) continue
-					const nextAction = worker.findAction()
+				const assignedHere =
+					freightPartyMatchesAssignedAlveolus(_provider, worker.assignedAlveolus) ||
+					freightPartyMatchesAssignedAlveolus(_demander, worker.assignedAlveolus)
+				if (worker.assignedAlveolus && !assignedHere) continue
+				const wandering = actionDescription.includes('selfCare.wander')
+				const waitingIncoming = actionDescription.includes('waitForIncomingGoods')
+				const assignedPondering =
+					assignedHere &&
+					actionDescription.length === 0 &&
+					worker.stepExecutor?.constructor?.name === 'PonderingStep'
+				if (!wandering && !waitingIncoming && !assignedPondering) continue
+				const nextAction = worker.findAction()
 				if (!nextAction) continue
 				const running = worker.runningScript
 				// Same script name can still be a different target/job (e.g. goWork on another alveolus).

@@ -1,7 +1,7 @@
-import type { Tile } from 'ssh/board/tile'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import type { Tile } from 'ssh/board/tile'
 import { isConstructionSiteShell } from 'ssh/build-site'
 import type { TerrainHydrologyDirection } from 'ssh/game/terrain-provider'
 import type { AxialCoord } from 'ssh/utils'
@@ -34,9 +34,7 @@ export function straightRoadCoords(start: AxialCoord, end: AxialCoord): AxialCoo
 	let lastKey: string | undefined
 	for (let i = 0; i <= distance; i++) {
 		const t = i / distance
-		const coord = axial.round(
-			axial.linear([1 - t, start], [t, end])
-		)
+		const coord = axial.round(axial.linear([1 - t, start], [t, end]))
 		const key = axial.key(coord)
 		if (key !== lastKey) {
 			coords.push(coord)
@@ -101,7 +99,8 @@ export function borderHasRiver(border: TileBorder): boolean {
 }
 
 export function canBuildRoadAcrossBorder(border: TileBorder): boolean {
-	if (!isRoadCompatibleTerrain(border.tile.a) || !isRoadCompatibleTerrain(border.tile.b)) return false
+	if (!isRoadCompatibleTerrain(border.tile.a) || !isRoadCompatibleTerrain(border.tile.b))
+		return false
 	return !borderHasRiver(border)
 }
 

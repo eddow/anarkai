@@ -137,9 +137,11 @@ describe('TileVisual storage goods layering', () => {
 
 			const tile = engine.game.hex.getTile({ q: 0, r: 0 })
 			if (!tile) throw new Error('Expected city hall tile to exist')
-			;(engine.game as unknown as {
-				getSettlementTradeProfileAtCityHall(coord: { q: number; r: number }): unknown
-			}).getSettlementTradeProfileAtCityHall = (coord) =>
+			;(
+				engine.game as unknown as {
+					getSettlementTradeProfileAtCityHall(coord: { q: number; r: number }): unknown
+				}
+			).getSettlementTradeProfileAtCityHall = (coord) =>
 				coord.q === 0 && coord.r === 0
 					? { id: 'settlement-1', cityHall: { position: { q: 0, r: 0 } } }
 					: undefined

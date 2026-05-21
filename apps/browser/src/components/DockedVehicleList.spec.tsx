@@ -71,10 +71,7 @@ describe('DockedVehicleList', () => {
 		stop = latch(
 			container,
 			<DockedVehicleList
-				entries={[
-					entry('truck', { wood: 3, concrete: 2, stone: 0 }),
-					entry('cart', {}),
-				] as never}
+				entries={[entry('truck', { wood: 3, concrete: 2, stone: 0 }), entry('cart', {})] as never}
 				game={{} as never}
 			/>
 		)

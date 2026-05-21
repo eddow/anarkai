@@ -88,7 +88,9 @@ describe('buildStaticResourceSpriteSpecsFromTerrainSample', () => {
 			plantedTrees: { ages: [plantedTreeMatureAgeSeconds] },
 		} as unknown as UnBuiltLand
 
-		expect(buildStaticResourceSpriteSpecs(small, resolveTexture)[0]?.textureKey).toMatch(/tree[1-4]$/)
+		expect(buildStaticResourceSpriteSpecs(small, resolveTexture)[0]?.textureKey).toMatch(
+			/tree[1-4]$/
+		)
 		expect(buildStaticResourceSpriteSpecs(medium, resolveTexture)[0]?.textureKey).toMatch(
 			/tree[5-8]$/
 		)

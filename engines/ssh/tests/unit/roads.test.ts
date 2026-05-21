@@ -149,13 +149,13 @@ describe('road storage', () => {
 		game.ticker.stop()
 
 		try {
-				const start = game.hex.getTile({ q: 0, r: 0 })!
-				const roaded = game.hex.getTile({ q: 1, r: 0 })!
-				const offroad = game.hex.getTile({ q: 0, r: 1 })!
-				clearRoadBurden(start, roaded, offroad)
-				game.hex.setRoadType(start.borderWith(roaded)!.position, 'path')
+			const start = game.hex.getTile({ q: 0, r: 0 })!
+			const roaded = game.hex.getTile({ q: 1, r: 0 })!
+			const offroad = game.hex.getTile({ q: 0, r: 1 })!
+			clearRoadBurden(start, roaded, offroad)
+			game.hex.setRoadType(start.borderWith(roaded)!.position, 'path')
 
-				const roadNeighbor = game.hex
+			const roadNeighbor = game.hex
 				.getNeighbors(start.position)
 				.find((neighbor) => axial.key(neighbor.coord) === axial.key(roaded.position))
 			const offroadNeighbor = game.hex
@@ -182,12 +182,12 @@ describe('road storage', () => {
 		await game.loaded
 		game.ticker.stop()
 
-			try {
-				const start = game.hex.getTile({ q: 0, r: 0 })!
-				const roaded = game.hex.getTile({ q: 1, r: 0 })!
-				clearRoadBurden(start, roaded)
-				game.hex.setRoadType(start.borderWith(roaded)!.position, 'path')
-				game.hex.looseGoods.add(roaded, 'wood')
+		try {
+			const start = game.hex.getTile({ q: 0, r: 0 })!
+			const roaded = game.hex.getTile({ q: 1, r: 0 })!
+			clearRoadBurden(start, roaded)
+			game.hex.setRoadType(start.borderWith(roaded)!.position, 'path')
+			game.hex.looseGoods.add(roaded, 'wood')
 
 			const roadNeighbor = game.hex
 				.getNeighbors(start.position)

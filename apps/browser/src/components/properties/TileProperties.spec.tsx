@@ -364,9 +364,9 @@ describe('TileProperties', () => {
 		expect(
 			container.querySelector('[data-testid="working-indicator"]')?.getAttribute('data-burdened')
 		).toBe('true')
-		expect(container.querySelector('[data-testid="working-indicator"]')?.getAttribute('title')).toBe(
-			'Working\nTile is blocked'
-		)
+		expect(
+			container.querySelector('[data-testid="working-indicator"]')?.getAttribute('title')
+		).toBe('Working\nTile is blocked')
 	})
 
 	it('adds transform warning details to the working indicator tooltip', () => {

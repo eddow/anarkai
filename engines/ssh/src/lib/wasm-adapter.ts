@@ -6,7 +6,7 @@
  *
  * The Node code path uses direct `import('node:*')` — Vitest supports this.
  * TypeScript errors on `node:*` imports in the browser tsconfig are suppressed
- * with `@ts-ignore` since this code only executes in Node.
+ * with `@ts-expect-error` since this code only executes in Node.
  */
 
 import type { InitOutput } from 'anarkai-core'
@@ -29,17 +29,22 @@ export async function initCore(): Promise<InitOutput> {
 		typeof process !== 'undefined' &&
 		typeof process?.versions?.node === 'string'
 	) {
-		// @ts-ignore: node: imports only resolve in Node/Vitest, not browser builds
+		// @ts-expect-error: node: imports only resolve in Node/Vitest, not browser builds
 		const nodeFs = await import('node:fs')
-		// @ts-ignore: node: imports only resolve in Node/Vitest, not browser builds
+		// @ts-expect-error: node: imports only resolve in Node/Vitest, not browser builds
 		const nodePath = await import('node:path')
-		// @ts-ignore: node: imports only resolve in Node/Vitest, not browser builds
+		// @ts-expect-error: node: imports only resolve in Node/Vitest, not browser builds
 		const nodeUrl = await import('node:url')
 
 		// From engines/ssh/src/lib/, go up 3 to engines/, then core/pkg/
 		const wasmPath = nodePath.join(
 			nodePath.dirname(nodeUrl.fileURLToPath(import.meta.url)),
-			'..', '..', '..', 'core', 'pkg', 'anarkai_core_bg.wasm',
+			'..',
+			'..',
+			'..',
+			'core',
+			'pkg',
+			'anarkai_core_bg.wasm'
 		)
 		const bytes = nodeFs.readFileSync(wasmPath)
 		const core = await import('anarkai-core')
@@ -49,7 +54,7 @@ export async function initCore(): Promise<InitOutput> {
 
 	// Browser: default async init fetches the .wasm file
 	const core = await import('anarkai-core')
-	wasm = await core.default() as InitOutput
+	wasm = (await core.default()) as InitOutput
 	return wasm
 }
 
@@ -140,7 +145,7 @@ export async function wasmGenerateTileField(
 }> {
 	await initCore()
 	const { wasm_generate_tile_field, WasmTerrainConfig } = await import('anarkai-core')
-	
+
 	const wasmConfig = new WasmTerrainConfig()
 	wasmConfig.scale = config.scale
 	wasmConfig.octaves = config.octaves
@@ -161,9 +166,9 @@ export async function wasmGenerateTileField(
 	wasmConfig.hydrology_land_ceiling = config.hydrology_land_ceiling
 	wasmConfig.hydrology_max_trace_steps = config.hydrology_max_trace_steps
 	wasmConfig.hydrology_flux_step_weight = config.hydrology_flux_step_weight
-	
+
 	const result = wasm_generate_tile_field(q, r, BigInt(seed), wasmConfig)
-	
+
 	return {
 		height: result.height,
 		temperature: result.temperature,

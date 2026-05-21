@@ -59,8 +59,9 @@ const neighborMarketProfile = {
 }
 
 function installNeighborMarket(game: Game): void {
-	;(game as unknown as { settlementTradeProfiles: Map<string, typeof neighborMarketProfile> })
-		.settlementTradeProfiles.set(neighborMarketProfile.id, neighborMarketProfile)
+	;(
+		game as unknown as { settlementTradeProfiles: Map<string, typeof neighborMarketProfile> }
+	).settlementTradeProfiles.set(neighborMarketProfile.id, neighborMarketProfile)
 }
 
 function marketLoopLine(patch: Partial<FreightLineDefinition> = {}): FreightLineDefinition {
@@ -394,9 +395,12 @@ describe('freight-stop-utility', () => {
 			installNeighborMarket(engine.game)
 			engine.game.setPlayerAccountBalance(100)
 			const line = marketLoopLine()
-			const vehicle = engine.game.vehicles.createVehicle('market-cart', 'wheelbarrow', { q: 4, r: 0 }, [
-				line,
-			])
+			const vehicle = engine.game.vehicles.createVehicle(
+				'market-cart',
+				'wheelbarrow',
+				{ q: 4, r: 0 },
+				[line]
+			)
 
 			const explanation = explainFreightStopCommerce({
 				game: engine.game,
@@ -440,9 +444,12 @@ describe('freight-stop-utility', () => {
 			const storage = engine.game.hex.getTile({ q: 1, r: 0 })!.content as StorageAlveolus
 			storage.storage.addGood('concrete', 12)
 			const line = marketLoopLine()
-			const vehicle = engine.game.vehicles.createVehicle('market-cart', 'wheelbarrow', { q: 4, r: 0 }, [
-				line,
-			])
+			const vehicle = engine.game.vehicles.createVehicle(
+				'market-cart',
+				'wheelbarrow',
+				{ q: 4, r: 0 },
+				[line]
+			)
 
 			const explanation = explainFreightStopCommerce({
 				game: engine.game,
@@ -493,9 +500,12 @@ describe('freight-stop-utility', () => {
 					marketLoopLine().stops[1]!,
 				],
 			})
-			const vehicle = engine.game.vehicles.createVehicle('market-cart', 'wheelbarrow', { q: 4, r: 0 }, [
-				line,
-			])
+			const vehicle = engine.game.vehicles.createVehicle(
+				'market-cart',
+				'wheelbarrow',
+				{ q: 4, r: 0 },
+				[line]
+			)
 			vehicle.storage.addGood('wood', 1)
 
 			const explanation = explainFreightStopCommerce({

@@ -1,5 +1,5 @@
-import { hiveUidForAnchorTile } from '@app/lib/hive-inspector'
 import { cancelFreightMapPick, freightMapPick } from '@app/lib/freight-map-pick'
+import { hiveUidForAnchorTile } from '@app/lib/hive-inspector'
 import { document, latch } from '@sursaut/core'
 import type { DockviewWidgetProps } from '@sursaut/ui/dockview'
 import { reactive } from 'mutts'
