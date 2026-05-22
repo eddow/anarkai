@@ -3,7 +3,7 @@ import {
 	borderHasRiver,
 	canBuildRoadAcrossBorder,
 	canBuildRoadOnTrace,
-	ROAD_WALK_TIME_MULTIPLIER,
+	ROAD_WALK_TIME_MULTIPLIERS,
 	roadBordersForTrace,
 	straightRoadCoords,
 	straightRoadTileTrace,
@@ -45,7 +45,7 @@ describe('road traces', () => {
 
 	it('converts a tile trace to shared borders', async () => {
 		const game = new Game(
-			{ terrainSeed: 1234, characterCount: 0 },
+			{ terrainSeed: 1234, characterCount: 0, settlementGeneration: false },
 			{ tiles: [{ coord: [0, 0], terrain: 'grass' }] }
 		)
 		await game.loaded
@@ -115,7 +115,7 @@ describe('road storage', () => {
 
 	it('loads legacy array-shaped road patches', async () => {
 		const game = new Game(
-			{ terrainSeed: 1234, characterCount: 0 },
+			{ terrainSeed: 1234, characterCount: 0, settlementGeneration: false },
 			{
 				tiles: [
 					{ coord: [0, 0], terrain: 'grass' },
@@ -129,6 +129,39 @@ describe('road storage', () => {
 
 		try {
 			expect(game.hex.getRoadType({ q: 0.5, r: 0 })).toBe('path')
+		} finally {
+			game.destroy()
+		}
+	})
+
+	it('roundtrips asphalt roads and applies their faster walk multiplier', async () => {
+		const game = new Game(
+			{ terrainSeed: 1234, characterCount: 0, settlementGeneration: false },
+			{
+				tiles: [
+					{ coord: [0, 0], terrain: 'grass' },
+					{ coord: [1, 0], terrain: 'grass' },
+				],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		try {
+			const start = game.hex.getTile({ q: 0, r: 0 })!
+			const roaded = game.hex.getTile({ q: 1, r: 0 })!
+			clearRoadBurden(start, roaded)
+			game.hex.setRoadType(start.borderWith(roaded)!.position, 'asphalt')
+
+			const roadNeighbor = game.hex
+				.getNeighbors(start.position)
+				.find((neighbor) => axial.key(neighbor.coord) === axial.key(roaded.position))
+			expect(roadNeighbor?.walkTime).toBe(
+				roaded.effectiveWalkTime * ROAD_WALK_TIME_MULTIPLIERS.asphalt
+			)
+
+			const save = game.saveGameData()
+			expect(save.roads).toEqual({ asphalt: [[0.5, 0]] })
 		} finally {
 			game.destroy()
 		}
@@ -162,7 +195,9 @@ describe('road storage', () => {
 				.getNeighbors(start.position)
 				.find((neighbor) => axial.key(neighbor.coord) === axial.key(offroad.position))
 
-			expect(roadNeighbor?.walkTime).toBe(roaded.effectiveWalkTime * ROAD_WALK_TIME_MULTIPLIER)
+			expect(roadNeighbor?.walkTime).toBe(
+				roaded.effectiveWalkTime * ROAD_WALK_TIME_MULTIPLIERS.path
+			)
 			expect(offroadNeighbor?.walkTime).toBe(offroad.effectiveWalkTime)
 		} finally {
 			game.destroy()

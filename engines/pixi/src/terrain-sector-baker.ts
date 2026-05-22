@@ -15,6 +15,7 @@ import { type AxialCoord, axial, cartesian, hexSides } from 'ssh/utils'
 import { tileSize } from 'ssh/utils/varied'
 import { setPixiName } from './debug-names'
 import type { PixiGameRenderer } from './renderer'
+import { roadLineStyle } from './road-definitions'
 import type { RoadTileTextureCache } from './road-tile-texture'
 import { terrainTextureSpec } from './terrain-visual-helpers'
 
@@ -585,10 +586,17 @@ function buildRoadLineOverlay(
 		const endpoints = roadLineEndpoints(segment)
 		const from = cartesian(endpoints.from, tileSize)
 		const to = cartesian(endpoints.to, tileSize)
+		const style = roadLineStyle(segment.type)
 		graphics
 			.moveTo(from.x - input.displayBounds.x, from.y - input.displayBounds.y)
 			.lineTo(to.x - input.displayBounds.x, to.y - input.displayBounds.y)
-			.stroke({ width: 5, color: 0x9b7048, alpha: 0.82, cap: 'round', join: 'round' })
+			.stroke({
+				width: style.width,
+				color: style.color,
+				alpha: style.alpha,
+				cap: 'round',
+				join: 'round',
+			})
 		count++
 	}
 	if (count > 0) return { graphics, count }

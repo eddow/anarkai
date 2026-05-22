@@ -5,6 +5,7 @@ import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
 import { scopedPixiName, setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
+import { roadMacroStyle } from '../road-definitions'
 
 /**
  * Zone-specific color schemes for the drag preview overlay
@@ -15,7 +16,6 @@ const ZONE_COLORS: Record<string, { fill: number; stroke: number }> = {
 	none: { fill: 0x888888, stroke: 0x666666 }, // Gray for unzone
 	'': { fill: 0x44aaff, stroke: 0x2288dd }, // Blue (default/fallback)
 }
-const ROAD_COLORS = { fill: 0x44aaff, stroke: 0x1f7fe5 }
 const INVALID_ROAD_COLORS = { fill: 0xd95858, stroke: 0x9b1d24 }
 
 function parseHexColor(color: string | undefined): number | undefined {
@@ -92,10 +92,12 @@ export class DragPreviewOverlay {
 		}
 	}
 
-	private showRoadPreview(tiles: Tile[], _roadType: RoadType, valid: boolean) {
+	private showRoadPreview(tiles: Tile[], roadType: RoadType, valid: boolean) {
 		this.graphics.clear()
+		const style = roadMacroStyle(roadType)
+		const roadColors = { fill: style.color, stroke: style.color }
 		for (const tile of tiles) {
-			const colors = canBuildRoadThroughTile(tile) ? ROAD_COLORS : INVALID_ROAD_COLORS
+			const colors = canBuildRoadThroughTile(tile) ? roadColors : INVALID_ROAD_COLORS
 			this.drawTileHighlight(tile, colors.fill, colors.stroke, 0.36, 0.9)
 		}
 		const points = tiles.map((tile) => toWorldCoord(tile.position)).filter(Boolean) as Array<{
@@ -108,7 +110,7 @@ export class DragPreviewOverlay {
 		this.graphics.lineTo(end.x, end.y)
 		this.graphics.stroke({
 			width: tileSize * 0.22,
-			color: valid ? ROAD_COLORS.stroke : INVALID_ROAD_COLORS.stroke,
+			color: valid ? roadColors.stroke : INVALID_ROAD_COLORS.stroke,
 			alpha: 0.95,
 			cap: 'round',
 			join: 'round',

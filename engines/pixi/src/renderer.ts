@@ -19,6 +19,11 @@ import { FreightLineOverlay } from './renderers/freight-line-overlay'
 import type { VisualFactoryDiagnostics } from './visual-factory'
 import { VisualFactory } from './visual-factory'
 
+function appScreen(app: Application | undefined): { width: number; height: number } | undefined {
+	return (app as { renderer?: { screen?: { width: number; height: number } } } | undefined)
+		?.renderer?.screen
+}
+
 export class PixiGameRenderer implements GameRenderer {
 	public readonly viewId = 'primary'
 	public app?: Application
@@ -238,10 +243,15 @@ export class PixiGameRenderer implements GameRenderer {
 	}
 
 	public resize(width: number, height: number) {
-		if (!this.app?.renderer) return
-		if (this.app.screen.width === width && this.app.screen.height === height) return
-		this.app.renderer.resize(width, height)
-		if (this.app.stage) this.app.stage.hitArea = this.app.screen
+		if (this.isDestroyed) return
+		const app = this.app
+		const renderer = app?.renderer
+		const screen = appScreen(app)
+		if (!app || !renderer || !screen) return
+		if (screen.width === width && screen.height === height) return
+		renderer.resize(width, height)
+		const resizedScreen = appScreen(app)
+		if (app.stage && resizedScreen) app.stage.hitArea = resizedScreen
 		this.interactionManager?.publishActiveViewPov()
 		this.terrainVisual?.invalidate()
 	}
@@ -321,6 +331,8 @@ export class PixiGameRenderer implements GameRenderer {
 	 */
 	public fitViewToContent() {
 		if (!this.world || !this.app) return
+		const screen = appScreen(this.app)
+		if (!screen) return
 
 		const bounds = this.game.getPlayerContentBounds()
 		if (!bounds) return // new game: keep defaults
@@ -356,8 +368,8 @@ export class PixiGameRenderer implements GameRenderer {
 		const pad = 1.1
 
 		// Calculate zoom to fit with padding
-		const zoomX = (this.app.screen.width * pad) / pixelWidth
-		const zoomY = (this.app.screen.height * pad) / pixelHeight
+		const zoomX = (screen.width * pad) / pixelWidth
+		const zoomY = (screen.height * pad) / pixelHeight
 		const zoom = Math.min(zoomX, zoomY)
 
 		// Clamp zoom to InteractionManager limits
@@ -370,8 +382,8 @@ export class PixiGameRenderer implements GameRenderer {
 		// Apply zoom and position to center the content
 		this.world.scale.set(clampedZoom)
 		this.world.position.set(
-			this.app.screen.width / 2 - centerX * clampedZoom,
-			this.app.screen.height / 2 - centerY * clampedZoom
+			screen.width / 2 - centerX * clampedZoom,
+			screen.height / 2 - centerY * clampedZoom
 		)
 		this.interactionManager?.publishActiveViewPov()
 	}

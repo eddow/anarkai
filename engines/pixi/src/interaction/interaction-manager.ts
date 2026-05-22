@@ -14,11 +14,15 @@ import {
 } from '@app/lib/interactive-state'
 import type { Application, Container, FederatedPointerEvent, FederatedWheelEvent } from 'pixi.js'
 import type { RoadType } from 'ssh/board/roads'
-import { canBuildRoadOnTrace, straightRoadTileTrace } from 'ssh/board/roads'
+import { canBuildRoadOnTrace, isRoadType, straightRoadTileTrace } from 'ssh/board/roads'
 import { Tile } from 'ssh/board/tile'
 import type { Game } from 'ssh/game/game'
 import type { InteractiveGameObject } from 'ssh/game/object'
 import { axial, fromCartesian, tileSize } from 'ssh/utils'
+
+function appScreen(app: Application): { width: number; height: number } | undefined {
+	return (app as { renderer?: { screen?: { width: number; height: number } } }).renderer?.screen
+}
 
 /**
  * Bridges Pixi interactions to Logic interactions.
@@ -40,7 +44,8 @@ export class InteractionManager {
 	 */
 	public setup() {
 		this.app.stage.eventMode = 'static'
-		this.app.stage.hitArea = this.app.screen
+		const screen = appScreen(this.app)
+		if (screen) this.app.stage.hitArea = screen
 
 		// Bind pointer events
 		this.app.stage.on('pointerdown', this.onPointerDown)
@@ -54,9 +59,9 @@ export class InteractionManager {
 
 		// Center camera initially (rough guess)
 		const renderer = this.game.renderer as any
-		if (renderer?.world) {
+		if (renderer?.world && screen) {
 			const world = renderer.world as Container
-			world.position.set(this.app.screen.width / 2, this.app.screen.height / 2)
+			world.position.set(screen.width / 2, screen.height / 2)
 		}
 		this.publishActiveViewPov()
 	}
@@ -97,7 +102,7 @@ export class InteractionManager {
 		const action = interactionMode.selectedAction
 		if (!action.startsWith('road:')) return undefined
 		const type = action.replace('road:', '')
-		return type === 'path' ? 'path' : undefined
+		return isRoadType(type) ? type : undefined
 	}
 
 	private isFreightAddStopTool(): boolean {
@@ -188,10 +193,12 @@ export class InteractionManager {
 	public publishActiveViewPov(): void {
 		const renderer = this.game.renderer as any
 		if (!renderer?.world) return
+		const screen = appScreen(this.app)
+		if (!screen) return
 		const world = renderer.world as Container
 		const localCenter = world.toLocal({
-			x: this.app.screen.width / 2,
-			y: this.app.screen.height / 2,
+			x: screen.width / 2,
+			y: screen.height / 2,
 		})
 		setActiveWorldViewPov({
 			viewId: renderer.viewId ?? 'primary',

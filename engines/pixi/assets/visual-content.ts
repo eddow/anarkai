@@ -121,6 +121,73 @@ export const terrain: Record<string, VisualDefinition> = {
 	snow: {},
 }
 
+export interface RoadVisualDefinition {
+	tileTexturePixels: number
+	tileTextureWorldSizeTileSideMultiplier: number
+	pathWidthTileSideMultiplier: number
+	materialWorldSizePathWidthMultiplier: number
+	edgeFadeTileSideMultiplier: number
+	texture: string
+	fallbackRgb: readonly [number, number, number]
+	macro: {
+		color: string
+		widthMultiplier: number
+		alpha: number
+	}
+	line: {
+		color: string
+		width: number
+		alpha: number
+	}
+}
+
+export interface RoadVisualContent {
+	types: Record<string, RoadVisualDefinition>
+}
+
+export const roads: RoadVisualContent = {
+	types: {
+		path: {
+			tileTexturePixels: 96,
+			tileTextureWorldSizeTileSideMultiplier: 2,
+			pathWidthTileSideMultiplier: 1,
+			materialWorldSizePathWidthMultiplier: 2,
+			edgeFadeTileSideMultiplier: 0.14,
+			texture: 'roads.brick_moss',
+			fallbackRgb: [116, 83, 53],
+			macro: {
+				color: '#a9784d',
+				widthMultiplier: 1,
+				alpha: 0.78,
+			},
+			line: {
+				color: '#9b7048',
+				width: 5,
+				alpha: 0.82,
+			},
+		},
+		asphalt: {
+			tileTexturePixels: 96,
+			tileTextureWorldSizeTileSideMultiplier: 2,
+			pathWidthTileSideMultiplier: 1,
+			materialWorldSizePathWidthMultiplier: 2,
+			edgeFadeTileSideMultiplier: 0.14,
+			texture: 'roads.asphalt',
+			fallbackRgb: [86, 88, 86],
+			macro: {
+				color: '#55585a',
+				widthMultiplier: 1.2,
+				alpha: 0.78,
+			},
+			line: {
+				color: '#55585a',
+				width: 6,
+				alpha: 0.82,
+			},
+		},
+	},
+}
+
 export const characters: Record<string, VisualDefinition> = {
 	default: {
 		sprites: ['characters.default'],
@@ -155,6 +222,7 @@ export const visualContent = {
 	goods,
 	vehicles,
 	terrain,
+	roads,
 	characters,
 	commands,
 	dwellings,

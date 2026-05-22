@@ -9,8 +9,16 @@ import { axial } from 'ssh/utils/axial'
 import { toAxialCoord } from 'ssh/utils/position'
 import type { TileBorder } from './border/border'
 
-export type RoadType = 'path'
-export const ROAD_WALK_TIME_MULTIPLIER = 0.5
+export type RoadType = 'path' | 'asphalt'
+export const ROAD_TYPES = ['path', 'asphalt'] as const satisfies readonly RoadType[]
+export const ROAD_WALK_TIME_MULTIPLIERS: Record<RoadType, number> = {
+	path: 0.5,
+	asphalt: 0.25,
+}
+
+export function isRoadType(value: string): value is RoadType {
+	return (ROAD_TYPES as readonly string[]).includes(value)
+}
 
 export interface RoadPatch {
 	coord: readonly [number, number]

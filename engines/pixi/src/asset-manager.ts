@@ -6,6 +6,7 @@ import {
 	deposits,
 	dwellings,
 	goods,
+	roads,
 	settlementTargets,
 	terrain,
 	vehicles,
@@ -68,7 +69,7 @@ export class PixiAssetManager {
 				assetKeys.add(`terrain.${key}`)
 			}
 		}
-		assetKeys.add('roads.brick_moss')
+		for (const road of Object.values(roads.types)) assetKeys.add(road.texture)
 
 		// Build asset bundles from extracted keys
 		const assetsToLoad: Record<string, string> = {}

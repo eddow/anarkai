@@ -154,7 +154,7 @@ describe('settlement zoning generation', () => {
 		expect(first.zones.residential.length).toBeGreaterThan(0)
 		expect(first.zones.harvest).toEqual([])
 		expect(first.zones.named.map((zone) => zone.id)).toContain('industrial')
-		expect(first.roads.path?.length).toBeGreaterThan(0)
+		expect(first.roads.asphalt?.length).toBeGreaterThan(0)
 	})
 
 	it('describes settlement regions inside a generic region set', async () => {
@@ -246,7 +246,7 @@ describe('settlement zoning generation', () => {
 			plan.settlements.map((settlement) => axial.key(settlement.center))
 		)
 
-		for (const [q, r] of plan.roads.path ?? []) {
+		for (const [q, r] of plan.roads.asphalt ?? []) {
 			const floorKey = `${Math.floor(q)},${Math.floor(r)}`
 			const ceilKey = `${Math.ceil(q)},${Math.ceil(r)}`
 			if (!settlementAnchors.has(floorKey)) expect(zoned.has(floorKey)).toBe(false)
@@ -319,7 +319,7 @@ describe('settlement zoning generation', () => {
 			hasRiver
 		)
 
-		const roadBorders = new Set(plan.roads.path ?? [])
+		const roadBorders = new Set(plan.roads.asphalt ?? [])
 		expect(roadBorders.has([0, 0.5])).toBe(false)
 		expect(roadBorders.has([-0.5, 0.5])).toBe(false)
 		expect(roadBorders.has([-0.5, 0])).toBe(false)
@@ -549,7 +549,7 @@ describe('settlement zoning generation', () => {
 		)
 
 		if (plan.settlements.length >= 2) {
-			expect(plan.roads.path?.length).toBeGreaterThan(0)
+			expect(plan.roads.asphalt?.length).toBeGreaterThan(0)
 		}
 	})
 
@@ -570,7 +570,7 @@ describe('settlement zoning generation', () => {
 			hasRiver
 		)
 
-		expect(plan.roads.path?.length).toBeGreaterThan(0)
+		expect(plan.roads.asphalt?.length).toBeGreaterThan(0)
 		const settlement = plan.settlements[0]
 		expect(settlement).toBeDefined()
 		if (settlement) {
@@ -611,7 +611,7 @@ describe('settlement zoning generation', () => {
 			hasRiver
 		)
 
-		const roadBorders = new Set(plan.roads.path ?? [])
+		const roadBorders = new Set(plan.roads.asphalt ?? [])
 		expect(roadBorders.has([0, 0.5])).toBe(false)
 	})
 
@@ -635,7 +635,7 @@ describe('settlement zoning generation', () => {
 		const settlement = plan.settlements[0]
 		expect(settlement).toBeDefined()
 		if (settlement) {
-			const roadTileKeys = new Set(plan.roads.path ?? [])
+			const roadTileKeys = new Set(plan.roads.asphalt ?? [])
 			expect(roadTileKeys.has([settlement.center.q, settlement.center.r])).toBe(false)
 		}
 	})
@@ -662,7 +662,7 @@ describe('settlement zoning generation', () => {
 			...plan.zones.residential,
 			...plan.zones.named.flatMap((zone) => zone.coords),
 		])
-		const roadTileKeys = new Set(plan.roads.path ?? [])
+		const roadTileKeys = new Set(plan.roads.asphalt ?? [])
 		for (const roadCoord of roadTileKeys) {
 			expect(zonedCoords.has(roadCoord)).toBe(false)
 		}
@@ -687,7 +687,7 @@ describe('settlement zoning generation', () => {
 
 		// WASM placement may produce fewer than requested settlements due to spacing.
 		if (plan.settlements.length >= 2) {
-			const roadTileKeys = new Set(plan.roads.path ?? [])
+			const roadTileKeys = new Set(plan.roads.asphalt ?? [])
 			let connectedCount = 0
 			for (const settlement of plan.settlements) {
 				const neighborRoads = axial
@@ -723,7 +723,7 @@ describe('settlement zoning generation', () => {
 			hasRiver
 		)
 
-		const roadTileKeys = new Set(plan.roads.path ?? [])
+		const roadTileKeys = new Set(plan.roads.asphalt ?? [])
 		for (const waterTile of waterTiles) {
 			expect(roadTileKeys.has(waterTile)).toBe(false)
 		}

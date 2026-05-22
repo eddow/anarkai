@@ -250,6 +250,12 @@ function vehicleTraceSnapshot(vehicle: VehicleEntity) {
 		vehicleType: vehicle.vehicleType,
 		isDocked: vehicle.isDocked,
 		stock: { ...vehicle.storage.stock },
+		available: { ...vehicle.storage.availables },
+		allocated: Object.fromEntries(
+			(Object.keys(vehicle.storage.stock) as GoodType[])
+				.map((goodType) => [goodType, vehicle.storage.allocated(goodType)] as const)
+				.filter(([, quantity]) => quantity > 0)
+		),
 		virtualGoodsCount: vehicle.storage.virtualGoodsCount,
 		serviceKind: lineService ? 'line' : maintenanceService?.kind,
 		lineId: lineService?.line.id,

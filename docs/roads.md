@@ -79,8 +79,8 @@ Consequences:
 - Simple movement model: still compatible with current tile-to-tile walking.
 - A road bonus applies only when crossing that specific border.
 - Going off-road means crossing a non-road border, so the road benefit is lost immediately.
-- V1 has one road kind, `path`. Future road kinds can be ranked per border, for example track < dirt road <
-  paved road.
+- V1 has two road kinds: `path` and `asphalt`. Future road kinds can be ranked per border, for example track
+  < dirt road < paved road.
 
 This is the landed Roads v1 model.
 
@@ -90,7 +90,7 @@ Roads v1 is a single pedestrian/wheelbarrow lane.
 
 Implemented:
 
-- `road:path` authoring tool in the palette.
+- `road:path` and `road:asphalt` authoring tools in the palette.
 - Drag from one tile to another to preview the straightest tile trace.
 - Blue planning highlight for valid trace tiles and a straight preview line from drag start to drag end.
 - Red highlight for forbidden trace tiles, and a red line if the whole trace cannot be built.
@@ -105,9 +105,10 @@ Implemented:
 - Legacy array-shaped road saves still load.
 - Pathfinding/walking cost is reduced for roaded border crossings.
 - Textured Pixi road rendering is baked into terrain sectors from per-tile transparent road textures.
-- Road material textures are runtime-sized to `256x256`; `brick_moss` is the current material, with
-  `asphalt` and `ground_grey` prepared for later.
-- Chopsaw starts with a sample road from `-3,1` to `1,1`.
+- Road material textures are runtime-sized before sampling. `path` uses `brick_moss`; `asphalt` uses
+  `asphalt`.
+- Chopsaw starts with a sample `path` road from `-3,1` to `1,1`.
+- Generated settlement roads are emitted as `asphalt`.
 
 Road building constraints:
 
@@ -124,12 +125,13 @@ Deferred:
 - lane direction markings
 - builder/project workflow for roads
 - physical multi-hex road corridors
-- road rank/material effects beyond the one `path` type
+- road rank/material effects beyond the current `path` and `asphalt` types
 
-The first material uses the existing seamless texture:
+Current materials use these existing seamless textures:
 
 ```text
 engines/pixi/assets/roads/brick_moss.jpg
+engines/pixi/assets/roads/asphalt.jpg
 ```
 
 This keeps the first road useful for walking and wheelbarrows without turning it into a full traffic system.

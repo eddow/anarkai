@@ -58,13 +58,14 @@ Details and constraints are documented in [`./freight-lines.md`](./freight-lines
 
 ### Roads
 
-Roads v1/v1.5 is landed as border-owned `path` infrastructure:
+Roads v1/v1.5 is landed as border-owned road infrastructure:
 
-- the `road:path` palette tool previews a straight tile trace and commits instantly on release
+- the `road:path` and `road:asphalt` palette tools preview a straight tile trace and commit instantly on release
 - road state is stored per border on `HexBoard` and saved as grouped coordinates, for example
-  `roads: { path: [[q, r]] }`
-- walking/pathfinding receives a cost reduction only when crossing a roaded border
-- Pixi bakes textured road overlays into terrain sectors using the `brick_moss` road material
+  `roads: { path: [[q, r]], asphalt: [[q, r]] }`
+- walking/pathfinding receives a type-specific cost reduction only when crossing a roaded border
+- Pixi bakes textured road overlays into terrain sectors using the road material for each road type
+- generated settlement roads are emitted as `asphalt`
 - road authoring rejects traces through hive/alveolus tiles except `freight_bay`, residential/dwelling tiles,
   and construction projects
 - Chopsaw includes a sample road from `-3,1` to `1,1`

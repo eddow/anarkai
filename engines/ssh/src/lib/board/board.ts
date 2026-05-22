@@ -26,7 +26,7 @@ import { UnBuiltLand } from './content/unbuilt-land'
 import { LooseGoods } from './looseGoods'
 import {
 	canBuildRoadAcrossBorder,
-	ROAD_WALK_TIME_MULTIPLIER,
+	ROAD_WALK_TIME_MULTIPLIERS,
 	type RoadSegment,
 	type RoadType,
 } from './roads'
@@ -223,9 +223,10 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 			return baseWalkTime
 		}
 		const borderCoord = axial.linear([0.5, fromTile], [0.5, toTile])
+		const roadType = this.getRoadType(borderCoord)
 		const multiplier =
-			this.getRoadType(borderCoord) && this.roadEffectAvailable(fromTile, toTile)
-				? ROAD_WALK_TIME_MULTIPLIER
+			roadType && this.roadEffectAvailable(fromTile, toTile)
+				? ROAD_WALK_TIME_MULTIPLIERS[roadType]
 				: 1
 		return baseWalkTime * multiplier
 	}

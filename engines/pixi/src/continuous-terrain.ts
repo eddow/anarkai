@@ -24,6 +24,7 @@ import {
 	buildStaticResourceSpriteSpecsFromTerrainSample,
 	resolveUsableTexture,
 } from './renderers/static-resource-sprites'
+import { roadMacroStyle } from './road-definitions'
 import { RoadTileTextureCache } from './road-tile-texture'
 import {
 	type SectorTerrainBakeDebug,
@@ -984,10 +985,17 @@ export class TerrainVisual {
 			if (!fromCoord || !toCoord) continue
 			const from = cartesian(fromCoord, tileSize)
 			const to = cartesian(toCoord, tileSize)
+			const style = roadMacroStyle(segment.type)
 			graphics
 				.moveTo(from.x, from.y)
 				.lineTo(to.x, to.y)
-				.stroke({ width, color: 0xa9784d, alpha: 0.78, cap: 'round', join: 'round' })
+				.stroke({
+					width: width * style.widthMultiplier,
+					color: style.color,
+					alpha: style.alpha,
+					cap: 'round',
+					join: 'round',
+				})
 		}
 	}
 

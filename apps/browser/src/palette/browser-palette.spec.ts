@@ -93,14 +93,16 @@ describe('browser palette registry & palettePanelBridge', () => {
 		expect(selectedAction.values.some((entry) => entry.value === 'build:freight_bay')).toBe(true)
 	})
 
-	it('exposes the path road tool as a selected action', () => {
+	it('exposes road tools as selected actions', () => {
 		const palette = getBrowserPalette().palette
 		const selectedAction = palette.tool('selectedAction') as {
 			values: Array<{ value: string; icon?: string }>
 		}
 
 		const path = selectedAction.values.find((entry) => entry.value === 'road:path')
+		const asphalt = selectedAction.values.find((entry) => entry.value === 'road:asphalt')
 		expect(path?.icon).toBeTruthy()
+		expect(asphalt?.icon).toBeTruthy()
 	})
 
 	it('exposes freight add-stop as a selected action while line picking is active', () => {

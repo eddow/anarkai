@@ -873,7 +873,7 @@ function createTerrainRendererStub(gameOverrides: {
 	getTerrainMacroHydrology?(): import('engine-terrain').TerrainMacroHydrologySnapshot | undefined
 	hex?: {
 		getTile?(coord: { q: number; r: number }): unknown
-		roadSegments?(): Array<{ coord: { q: number; r: number }; type: 'path' }>
+		roadSegments?(): Array<{ coord: { q: number; r: number }; type: 'path' | 'asphalt' }>
 		getBorder?(coord: { q: number; r: number }): unknown
 	}
 	requestGameplayFrontier(

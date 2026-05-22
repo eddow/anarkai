@@ -85,7 +85,9 @@ walking cost modifiers. Roads remain a natural bridge between hive logistics and
 
 Potential next scope:
 
-- City halls are "on" the road. Though, they are buildings. Indeed, settlements should be joined by 2-lanes roads and lanes should be joined by a continuous white line instead of a gap. Beside, settlements should have all their residential/market/civil tiles connected to the road (in a settlement, 1-lane can be allowed)
+- City halls are "on" the road. Though, they are buildings. Beside, settlements should have all their residential/market/civil tiles connected to the road (in a settlement, 1-lane can be allowed)
+- Allow several-lanes roads: each lane should have his direction (one-way or both) - ex. 2-lanes = 2 one-way lane. Find a way to fill gap between lanes with markings.
+- Texture: while Alpha is calculate, u,v could just be a projection of x,y in the seamless texture
 - Builder/project workflow for road construction instead of instant placement.
 - Route-benefit UI for characters and vehicles. Forbid some vehicles (not 4x4) to drive off-road (no vehicle can traverse an occupied tile: alveolus, residence, market, industry, ...) - beside bays. For (un)loading an occupied tile, the vehicle puts itself on the border of the tile and the character makes a convey-hop-like ASingleStep (he goes on the center, then move the good from the border=vehicle to the center or vice-versa)
 - More road kinds/materials and road-rank rules. The rules are for drawing (an interaction with 2 different roads show the highest-rank) One rule is that one-lane road allow crossing (a vehicle in each direction) only with 30kph (thus, not inter-settlements) Drawing should consider borders of lane: side-walks, white markings, ...

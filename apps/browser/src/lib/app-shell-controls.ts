@@ -80,6 +80,12 @@ export function buildPaletteSelectedActionValues(
 			icon: typeof tablerOutlineRoad === 'string' ? tablerOutlineRoad : undefined,
 			keywords: ['road', 'path'],
 		},
+		{
+			value: 'road:asphalt',
+			label: 'Asphalt',
+			icon: typeof tablerOutlineRoad === 'string' ? tablerOutlineRoad : undefined,
+			keywords: ['road', 'asphalt', 'paved'],
+		},
 	]
 	return [...select, ...build, ...zones, ...roads]
 }
