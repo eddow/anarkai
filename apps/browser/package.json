@@ -13,8 +13,6 @@
 		"build": "vite build",
 		"preview": "vite preview",
 		"check": "tsc -p tsconfig.app.json && tsc -p tsconfig.node.json",
-		"biome": "biome check . --fix",
-		"biome:unsafe": "biome check --fix --unsafe",
 		"test": "vitest run",
 		"test:core": "vitest run src/lib/game/job.test.ts src/lib/utils/pathfinding.test.ts src/lib/board/storage/storage.test.ts",
 		"test:watch": "vitest",

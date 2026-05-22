@@ -285,20 +285,22 @@ export function findGatherRouteSegments(line: FreightLineDefinition): FreightGat
 	const cached = _gatherSegmentCache.get(line)
 	if (cached) return cached
 	const out: FreightGatherRouteSegment[] = []
-	for (let i = 0; i < line.stops.length - 1; i++) {
+	const stopCount = line.stops.length
+	const pairCount = line.cyclic && stopCount > 1 ? stopCount : Math.max(0, stopCount - 1)
+	for (let i = 0; i < pairCount; i++) {
 		const zoneStop = line.stops[i]
-		const anchorStop = line.stops[i + 1]
+		const anchorStop = line.stops[(i + 1) % stopCount]
 		if (!zoneStop || !anchorStop) continue
 		if (!('zone' in zoneStop)) continue
 		if (!('anchor' in anchorStop) || anchorStop.anchor.kind !== 'alveolus') continue
 		if (zoneStop.zone.kind === 'named') {
-			out.push({ loadStopIndex: i, unloadStopIndex: i + 1 })
+			out.push({ loadStopIndex: i, unloadStopIndex: (i + 1) % stopCount })
 			continue
 		}
 		const z = zoneStop.zone.center
 		const c = anchorStop.anchor.coord
 		if (z[0] !== c[0] || z[1] !== c[1]) continue
-		out.push({ loadStopIndex: i, unloadStopIndex: i + 1 })
+		out.push({ loadStopIndex: i, unloadStopIndex: (i + 1) % stopCount })
 	}
 	_gatherSegmentCache.set(line, out)
 	return out

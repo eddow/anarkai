@@ -313,6 +313,34 @@ describe('Freight bay multi-line', () => {
 		expect(gatherSegmentAllowsGoodType(line, 'planks')).toBe(false)
 	})
 
+	it('detects cyclic gather segments that wrap from the last zone to the first bay', () => {
+		const woodPol = {
+			goodRules: [{ goodType: 'wood' as const, effect: 'allow' as const }],
+			tagRules: [],
+			defaultEffect: 'deny' as const,
+		}
+		const line: FreightLineDefinition = normalizeFreightLineDefinition({
+			id: 'wrapped-gather',
+			name: 'Wrapped gather',
+			cyclic: true,
+			stops: [
+				{
+					id: 'gather-unload',
+					anchor: { kind: 'alveolus', hiveName: 'H', alveolusType: 'freight_bay', coord: [0, 0] },
+				},
+				{
+					id: 'gather-load',
+					loadSelection: woodPol,
+					zone: { kind: 'radius', center: [0, 0], radius: 5 },
+				},
+			],
+		})
+
+		expect(findGatherRouteSegments(line)).toEqual([{ loadStopIndex: 1, unloadStopIndex: 0 }])
+		expect(findDistributeRouteSegments(line)).toHaveLength(0)
+		expect(gatherSegmentAllowsGoodType(line, 'wood')).toBe(true)
+	})
+
 	it('freight bay never accepts storage intake even when distribute lines exist', async () => {
 		const engine = new TestEngine({ terrainSeed: 1, characterCount: 0 })
 		await engine.init()

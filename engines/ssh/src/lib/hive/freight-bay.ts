@@ -73,7 +73,8 @@ export class FreightBayAlveolus extends Alveolus {
 				[...new Set([...hiveNeeds, ...acceptedGoods])],
 				{
 					bayAlveolus: this,
-					canAcceptGood: (good) => this.hiveStorageCanAccept(good),
+					canAcceptGood: (good) =>
+						hiveNeeds.includes(good) || this.hiveStorageCanAccept(good),
 				}
 			)
 			if (pick) return true

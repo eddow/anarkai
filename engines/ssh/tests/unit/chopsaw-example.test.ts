@@ -164,6 +164,9 @@ describe('chopSaw example game', () => {
 				}),
 			])
 		)
+		expect(collectDockedVehicleAdvertisementCandidates(vehicle, bayTile.content as any)).not.toEqual(
+			expect.arrayContaining([expect.objectContaining({ advertisement: 'demand' })])
+		)
 		expect(worker.resolveBestJobMatch()).toEqual(
 			expect.objectContaining({
 				job: expect.objectContaining({

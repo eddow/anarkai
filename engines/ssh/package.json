@@ -13,8 +13,6 @@
 	"scripts": {
 		"build": "tsc -p tsconfig.app.json && tsc -p tsconfig.node.json",
 		"check": "tsc -p tsconfig.app.json && tsc -p tsconfig.node.json",
-		"biome": "biome check . --fix",
-		"biome:unsafe": "biome check --fix --unsafe",
 		"test": "node ./scripts/run-vitest.mjs",
 		"test:trace-progress": "node ./scripts/trace-vitest-progress.mjs",
 		"test:core": "vitest run tests/unit/work_logic.test.ts tests/unit/pathfinding.test.ts tests/unit/storage.test.ts",
