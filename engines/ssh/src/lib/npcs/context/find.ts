@@ -18,6 +18,13 @@ class FindFunctions {
 	path(to: Positioned, punctual: boolean = true) {
 		const from = toAxialCoord(this[subject].position)
 		if (!from) return undefined
+		if (this[subject].driving) {
+			return this[subject].game.hex.findPathForVehicleServiceBorder(
+				axial.round(from),
+				axial.round(toAxialCoord(to)!),
+				maxWalkTime
+			)
+		}
 		return this[subject].game.hex.findPathForCharacter(
 			axial.round(from),
 			axial.round(toAxialCoord(to)!),

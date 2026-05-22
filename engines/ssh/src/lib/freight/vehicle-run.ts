@@ -285,12 +285,10 @@ function findBeginServiceActionableWork(
 				if (!gatherUnloadAnchorHiveDemandsGood(game, unloadStop, good)) continue
 				const target = freightStopTargetPosition(game, unloadStop)
 				if (!target) continue
-				const path = game.hex.findPathForCharacter(
+				const path = game.hex.findPathForVehicleServiceBorder(
 					vehicle.effectivePosition,
 					target,
-					character,
-					Number.POSITIVE_INFINITY,
-					true
+					Number.POSITIVE_INFINITY
 				)
 				if (path) {
 					consider({

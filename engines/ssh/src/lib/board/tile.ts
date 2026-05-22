@@ -119,6 +119,11 @@ export class Tile extends withInteractive(GameObject) {
 		return baseWalkTime * this.riverWalkTimeMultiplier
 	}
 
+	get isBlockingSpace(): boolean {
+		const content = this.content
+		return !!content && !(content instanceof UnBuiltLand)
+	}
+
 	// Tile-level job offering
 	get proposedJobs(): readonly ProposedJob[] {
 		if (this.content instanceof UnBuiltLand) return []

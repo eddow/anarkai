@@ -415,6 +415,7 @@ function tileTouchesRoad(tile: Tile): boolean {
 }
 
 type MaintenanceReachability = {
+	readonly game: Game
 	readonly start: AxialCoord
 	readonly reachable: AxialKeyMap<number>
 }
@@ -422,14 +423,15 @@ type MaintenanceReachability = {
 function vehicleMaintenanceReachability(
 	game: Game,
 	vehicle: VehicleEntity,
-	character: Character
+	_character: Character
 ): MaintenanceReachability | undefined {
 	const from = toAxialCoord(vehicle.effectivePosition)
 	if (!from) return undefined
 	const start = axial.round(from)
 	return {
+		game,
 		start,
-		reachable: game.hex.reachableForCharacter(start, character, maxWalkTime),
+		reachable: game.hex.reachableForVehicle(start, maxWalkTime),
 	}
 }
 
@@ -442,6 +444,13 @@ function maintenanceReachabilityCanReach(
 	if (!to) return false
 	const goal = axial.round(to)
 	if (axial.key(reachability.start) === axial.key(goal)) return true
+	if (tile.isBlockingSpace) {
+		return !!reachability.game.hex.findPathForVehicleServiceBorder(
+			reachability.start,
+			tile.position,
+			maxWalkTime
+		)
+	}
 	return reachability.reachable.has(goal)
 }
 
@@ -991,7 +1000,6 @@ function findVehicleOffloadJobApproach(
 			continue
 		}
 		if (isVehicleLineService(service)) {
-			if (!vehicle.isDocked) continue
 			if (vehicle.isDocked && dockedVehicleHasPendingDockWork(vehicle)) continue
 			if (projectedLineStopForVehicleHop(game, character, vehicle)) continue
 			const reachability = vehicleMaintenanceReachability(game, vehicle, character)
@@ -1052,12 +1060,10 @@ function findVehicleOffloadJobDriving(
 	const tc = toAxialCoord(candidate.tile.position)!
 	const here = toAxialCoord(character.position)!
 	const sameTile = axial.key(tc) === axial.key(here)
-	const pathToTile = game.hex.findPathForCharacter(
+	const pathToTile = game.hex.findPathForVehicleServiceBorder(
 		character.position,
 		candidate.tile.position,
-		character,
-		maxWalkTime,
-		true
+		maxWalkTime
 	)
 	if (!pathToTile && !sameTile) return undefined
 	return maintenanceCandidateToJob(candidate, vehicle, [])
@@ -1485,12 +1491,10 @@ function findVehicleHopJobLineHop(game: Game, character: Character): VehicleHopJ
 		if (!targetPos) return undefined
 		const startPos = axial.round(toAxialCoord(character.position)!)
 		path =
-			game.hex.findPathForCharacter(
+			game.hex.findPathForVehicleServiceBorder(
 				startPos,
 				targetPos,
-				character,
-				Number.POSITIVE_INFINITY,
-				false
+				Number.POSITIVE_INFINITY
 			) ?? []
 		// Use rounded hex, not raw fractional keys: foot/vehicle position on a tile must match the
 		// anchor tile even when sub-hex coords differ from the tile center.
@@ -1597,12 +1601,10 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 			if (targetPos) {
 				const startPos = axial.round(toAxialCoord(vehicle.effectivePosition)!)
 				path =
-					game.hex.findPathForCharacter(
+					game.hex.findPathForVehicleServiceBorder(
 						startPos,
 						targetPos,
-						character,
-						Number.POSITIVE_INFINITY,
-						false
+						Number.POSITIVE_INFINITY
 					) ?? []
 			}
 		}

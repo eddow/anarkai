@@ -22,7 +22,7 @@
 		"@mdi/svg": "^7.4.47",
 		"@sursaut/core": "^0.1.0",
 		"@sursaut/kit": "^0.1.0",
-		"@sursaut/ui": "workspace:*",
+		"@sursaut/ui": "^0.1.0",
 		"@xmldom/xmldom": "0.8.11",
 		"arktype": "^2.1.22",
 		"dockview-core": "^5.0.0",

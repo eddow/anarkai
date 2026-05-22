@@ -388,7 +388,13 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 	getNeighborsForCharacter(coord: Positioned, _character: Character): NeighborInfo[] {
 		const tile = this.getTile(coord)
 		if (!tile) return []
-		return this.getWalkNeighborsFromTile(tile)
+		return this.getPedestrianTransitNeighborsFromTile(tile)
+	}
+
+	getNeighborsForVehicle(coord: Positioned): NeighborInfo[] {
+		const tile = this.getTile(coord)
+		if (!tile) return []
+		return this.getVehicleTransitNeighborsFromTile(tile)
 	}
 
 	private getWalkNeighborsFromTile(fromTile: Tile): NeighborInfo[] {
@@ -400,6 +406,54 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		}))
 	}
 
+	private getPedestrianTransitNeighborsFromTile(
+		fromTile: Tile,
+		goalCoord?: AxialCoord
+	): NeighborInfo[] {
+		return this.getWalkNeighborsFromTile(fromTile).map((neighbor) => {
+			if (goalCoord && axial.key(neighbor.coord) === axial.key(goalCoord)) {
+				return neighbor
+			}
+			const neighborTile = this.getTile(neighbor.coord)
+			if (neighborTile?.isBlockingSpace) {
+				return { ...neighbor, walkTime: Number.POSITIVE_INFINITY }
+			}
+			return neighbor
+		})
+	}
+
+	private getVehicleTransitNeighborsFromTile(fromTile: Tile): NeighborInfo[] {
+		return this.getWalkNeighborsFromTile(fromTile).map((neighbor) => {
+			const neighborTile = this.getTile(neighbor.coord)
+			if (neighborTile?.isBlockingSpace) {
+				return { ...neighbor, walkTime: Number.POSITIVE_INFINITY }
+			}
+			return neighbor
+		})
+	}
+
+	private getPedestrianSearchNeighborsFromTile(
+		fromTile: Tile,
+		startCoord: AxialCoord,
+		isEndpointAllowed: (coord: AxialCoord) => boolean
+	): NeighborInfo[] {
+		const fromCoord = toAxialCoord(fromTile.position)
+		if (
+			fromCoord &&
+			axial.key(fromCoord) !== axial.key(startCoord) &&
+			fromTile.isBlockingSpace
+		) {
+			return []
+		}
+		return this.getWalkNeighborsFromTile(fromTile).map((neighbor) => {
+			const neighborTile = this.getTile(neighbor.coord)
+			if (neighborTile?.isBlockingSpace && !isEndpointAllowed(neighbor.coord)) {
+				return { ...neighbor, walkTime: Number.POSITIVE_INFINITY }
+			}
+			return neighbor
+		})
+	}
+
 	findPathForCharacter(
 		start: Positioned,
 		goal: Positioned,
@@ -407,8 +461,13 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		maxTime: number,
 		punctual: boolean = true
 	) {
+		const goalCoord = toAxialCoord(goal)
 		return findPath(
-			(c) => this.getNeighborsForCharacter(c, character),
+			(c) => {
+				const tile = this.getTile(c)
+				if (!tile) return []
+				return this.getPedestrianTransitNeighborsFromTile(tile, goalCoord)
+			},
 			start,
 			goal,
 			maxTime,
@@ -417,12 +476,64 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 	}
 
 	findPath(start: Positioned, goal: Positioned, maxTime: number, punctual: boolean = true) {
-		return findPath((c) => this.getNeighbors(c), start, goal, maxTime, punctual)
+		const goalCoord = toAxialCoord(goal)
+		return findPath(
+			(c) => {
+				const tile = this.getTile(c)
+				if (!tile) return []
+				return this.getPedestrianTransitNeighborsFromTile(tile, goalCoord)
+			},
+			start,
+			goal,
+			maxTime,
+			punctual
+		)
+	}
+
+	findPathForVehicle(
+		start: Positioned,
+		goal: Positioned,
+		maxTime: number,
+		punctual: boolean = true
+	) {
+		const goalTile = this.getTile(goal)
+		if (goalTile?.isBlockingSpace) return undefined
+		return findPath((c) => this.getNeighborsForVehicle(c), start, goal, maxTime, punctual)
+	}
+
+	findPathForVehicleServiceBorder(start: Positioned, target: Positioned, maxTime: number) {
+		const targetTile = this.getTile(target)
+		if (!targetTile) return undefined
+		if (!targetTile.isBlockingSpace) {
+			return this.findPathForVehicle(start, targetTile.position, maxTime, true)
+		}
+		const startCoord = axial.round(toAxialCoord(start))
+		let best: { path: AxialCoord[]; cost: number } | undefined
+		for (const neighbor of targetTile.neighborTiles) {
+			if (neighbor.isBlockingSpace) continue
+			const neighborCoord = axial.round(toAxialCoord(neighbor.position))
+			const path =
+				axial.key(startCoord) === axial.key(neighborCoord)
+					? [neighborCoord]
+					: this.findPathForVehicle(startCoord, neighborCoord, maxTime, true)
+			if (!path) continue
+			const cost = path.length
+			if (!best || cost < best.cost) best = { path, cost }
+		}
+		return best?.path
 	}
 
 	reachableForCharacter(start: Positioned, character: Character, maxTime: number) {
 		return findReachable(
 			(c) => this.getNeighborsForCharacter(c, character),
+			axial.round(toAxialCoord(start)),
+			maxTime
+		)
+	}
+
+	reachableForVehicle(start: Positioned, maxTime: number) {
+		return findReachable(
+			(c) => this.getNeighborsForVehicle(c),
 			axial.round(toAxialCoord(start)),
 			maxTime
 		)
@@ -434,7 +545,20 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		stop: number | ((coord: Positioned, walkTime: number) => boolean),
 		punctual: boolean = true
 	) {
-		return findNearest((c) => this.getNeighbors(c), start, isGoal, stop, punctual)
+		const startCoord = axial.round(toAxialCoord(start))
+		return findNearest(
+			(c) => {
+				const tile = this.getTile(c)
+				if (!tile) return []
+				return this.getPedestrianSearchNeighborsFromTile(tile, startCoord, (coord) =>
+					Boolean(isGoal(coord))
+				)
+			},
+			start,
+			isGoal,
+			stop,
+			punctual
+		)
 	}
 
 	findNearestForCharacter(
@@ -444,8 +568,15 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		stop: number | ((coord: Positioned, walkTime: number) => boolean),
 		punctual: boolean = true
 	) {
+		const startCoord = axial.round(toAxialCoord(start))
 		return findNearest(
-			(c) => this.getNeighborsForCharacter(c, character),
+			(c) => {
+				const tile = this.getTile(c)
+				if (!tile) return []
+				return this.getPedestrianSearchNeighborsFromTile(tile, startCoord, (coord) =>
+					Boolean(isGoal(coord))
+				)
+			},
 			start,
 			isGoal,
 			stop,
@@ -461,8 +592,17 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		bestPossibleScore: number,
 		punctual: boolean = true
 	) {
+		const startCoord = axial.round(toAxialCoord(start))
 		return findBest(
-			(c) => this.getNeighborsForCharacter(c, character),
+			(c) => {
+				const tile = this.getTile(c)
+				if (!tile) return []
+				return this.getPedestrianSearchNeighborsFromTile(
+					tile,
+					startCoord,
+					(coord) => scoring(coord) !== false
+				)
+			},
 			start,
 			scoring,
 			stop,

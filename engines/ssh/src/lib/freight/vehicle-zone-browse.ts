@@ -92,15 +92,7 @@ function pathToTile(
 	if (!targetCoord || !startCoord) return undefined
 	const roundedStart = axial.round(startCoord)
 	if (axial.key(targetCoord) === axial.key(roundedStart)) return []
-	return (
-		game.hex.findPathForCharacter(
-			roundedStart,
-			targetTile.position,
-			character,
-			maxWalkTime,
-			true
-		) ?? undefined
-	)
+	return game.hex.findPathForVehicleServiceBorder(roundedStart, targetTile.position, maxWalkTime)
 }
 
 export function zoneBrowseUtilityContext(
