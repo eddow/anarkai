@@ -137,6 +137,7 @@ export const baseGameScope = scope({
 		'looseGood?': 'object',
 		'path?': 'AxialCoord[]',
 		'offloadPickupPlan?': 'PickupPlan',
+		'vehicleMaintenanceCompletionDeferred?': 'boolean',
 		/** Set when a stale approach reaches a vehicle now operated by another worker. */
 		'vehicleApproachAborted?': 'boolean',
 	},
@@ -511,6 +512,7 @@ export type WorkPlan =
 			offloadPickupPlan?: PickupPlan
 			invariant?: () => boolean
 			path?: AxialCoord[]
+			vehicleMaintenanceCompletionDeferred?: boolean
 			/** Set when a stale approach reaches a vehicle now operated by another worker. */
 			vehicleApproachAborted?: boolean
 	  })

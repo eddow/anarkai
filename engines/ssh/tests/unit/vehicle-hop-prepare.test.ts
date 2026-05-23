@@ -1,6 +1,7 @@
 import { normalizeFreightLineDefinition } from 'ssh/freight/freight-line'
 import { migrateV1FiltersToGoodsSelection } from 'ssh/freight/goods-selection-policy'
-import { findVehicleOffloadJob } from 'ssh/freight/vehicle-work'
+import { findVehicleHopJob, findVehicleOffloadJob } from 'ssh/freight/vehicle-work'
+import { chopSaw } from 'ssh/game/exampleGames'
 import type { GamePatches } from 'ssh/game/game'
 import { Game } from 'ssh/game/game'
 import { VehicleFunctions } from 'ssh/npcs/context/vehicle'
@@ -184,6 +185,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			tiles: [
 				{ coord: [0, 0] as const, terrain: 'grass' as const },
 				{ coord: [1, 0] as const, terrain: 'grass' as const },
+				{ coord: [2, 0] as const, terrain: 'grass' as const },
 			],
 			freightLines: [
 				distributeFreightLine({
@@ -204,15 +206,151 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		const vehicle = game.vehicles.createVehicle(
 			'hop-dock-position',
 			'wheelbarrow',
-			{ q: 1, r: 0 },
+			{ q: 2, r: 0 },
 			[line]
 		)
-		const character = game.population.createCharacter('AnchorDockPosition', { q: 1, r: 0 })
+		const character = game.population.createCharacter('AnchorDockPosition', { q: 2, r: 0 })
 		vehicle.beginLineService(line, loadStop, character)
 
 		expect(() => vehicle.dock()).toThrow(/dock requires vehicle to be on the anchor tile/)
-		expect(vehicle.position).toMatchObject({ q: 1, r: 0 })
+		expect(vehicle.position).toMatchObject({ q: 2, r: 0 })
 		expect(isVehicleLineService(vehicle.service) && vehicle.service.docked).toBe(false)
+	})
+
+	it('vehicleHopDockStep docks the live ChopSaw wheelbarrow from the adjacent bay border tile', async () => {
+		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines.find(
+			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
+		)
+		const unloadStop = line?.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		if (!line || !unloadStop || !vehicle) throw new Error('expected ChopSaw gather fixture')
+
+		vehicle.position = { q: -1, r: 0 }
+		const character = game.population.createCharacter('ChopSawDockRegression', { q: -1, r: 0 })
+		vehicle.beginLineService(line, unloadStop, character)
+		character.operates = vehicle
+		character.onboard()
+
+		const vf = new VehicleFunctions()
+		Object.assign(vf, { [subject]: character })
+
+		const jobPlan: WorkPlan = {
+			type: 'work',
+			job: 'vehicleHop',
+			target: character.tile,
+			urgency: 1,
+			fatigue: 1,
+			vehicleUid: 'ChopSaw:wheelbarrow',
+			lineId: 'ChopSaw:implicit-gather:0,0',
+			stopId: 'ChopSaw:ig-unload',
+			path: [],
+			dockEnter: true,
+		}
+
+		expect(() => vf.vehicleHopDockStep(jobPlan)).not.toThrow()
+		expect(vehicle.isDocked).toBe(true)
+		expect(vehicle.position).toBeUndefined()
+		expect(jobPlan.vehicleHopAnchorDockDisembarked).toBe(true)
+	})
+
+	it('vehicleHop reaches the ChopSaw bay before docking from a returned zone service', async () => {
+		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines.find(
+			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
+		)
+		const unloadStop = line?.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		if (!line || !unloadStop || !vehicle) throw new Error('expected ChopSaw gather fixture')
+
+		vehicle.position = { q: -2, r: 1 }
+		vehicle.beginLineService(line, unloadStop)
+		const character = game.population.createCharacter('ChopSawDockReturn', { q: -2, r: 1 })
+		character.operates = vehicle
+		character.onboard()
+
+		const hop = findVehicleHopJob(game, character)
+		expect(hop?.job).toBe('vehicleHop')
+		expect(hop?.stopId).toBe(unloadStop.id)
+		expect(hop?.dockEnter).toBe(true)
+		expect(hop?.path.length).toBeGreaterThan(0)
+
+		for (const step of hop!.path) {
+			const targetTile = game.hex.getTile(step)
+			if (targetTile && axial.key(toAxialCoord(targetTile.position)!) === axial.key(step)) {
+				character.position = {
+					q: (toAxialCoord(character.tile.position)!.q + step.q) / 2,
+					r: (toAxialCoord(character.tile.position)!.r + step.r) / 2,
+				}
+				character.stepOn(targetTile)
+			} else {
+				character.position = step
+			}
+		}
+		if (hop!.dockEnter) character.position = character.tile.position
+
+		const vf = new VehicleFunctions()
+		Object.assign(vf, { [subject]: character })
+		const jobPlan: WorkPlan = {
+			type: 'work',
+			job: 'vehicleHop',
+			target: character.tile,
+			urgency: hop!.urgency,
+			fatigue: hop!.fatigue,
+			vehicleUid: vehicle.uid,
+			lineId: line.id,
+			stopId: unloadStop.id,
+			path: hop!.path,
+			dockEnter: true,
+		}
+
+		expect(() => vf.vehicleHopDockStep(jobPlan)).not.toThrow()
+		expect(vehicle.isDocked).toBe(true)
+	})
+
+	it('vehicleHopDockStep replans instead of asserting when the ChopSaw bay dock tail is stale', async () => {
+		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines.find(
+			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
+		)
+		const unloadStop = line?.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		if (!line || !unloadStop || !vehicle) throw new Error('expected ChopSaw gather fixture')
+
+		vehicle.position = { q: -2, r: 1 }
+		vehicle.beginLineService(line, unloadStop)
+		const character = game.population.createCharacter('ChopSawStaleDockTail', { q: -2, r: 1 })
+		character.operates = vehicle
+		character.onboard()
+
+		const vf = new VehicleFunctions()
+		Object.assign(vf, { [subject]: character })
+		const jobPlan: WorkPlan = {
+			type: 'work',
+			job: 'vehicleHop',
+			target: character.tile,
+			urgency: 1,
+			fatigue: 1,
+			vehicleUid: vehicle.uid,
+			lineId: line.id,
+			stopId: unloadStop.id,
+			path: [],
+			dockEnter: true,
+		}
+
+		expect(() => vf.vehicleHopDockStep(jobPlan)).not.toThrow()
+		expect(jobPlan.vehicleHopReplanRequired).toBe(true)
+		expect(vehicle.isDocked).toBe(false)
+		expect(vehicle.position).toMatchObject({ q: -2, r: 1 })
 	})
 
 	it('vehicleHopDockStep checks final empty anchors after dock advertisements settle', async () => {

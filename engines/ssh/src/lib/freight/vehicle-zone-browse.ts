@@ -223,7 +223,9 @@ function pickZoneProvideSelection(
 	startPos: Positioned,
 	utility: ZoneBrowseUtilityContext
 ): VehicleZoneBrowseSelection | undefined {
+	const hasExplicitUnload = !!zoneStop.unloadSelection
 	if (
+		!hasExplicitUnload &&
 		findGatherRouteSegments(line).some((segment) => segment.loadStopIndex === utility.stopIndex)
 	) {
 		return undefined
@@ -231,7 +233,6 @@ function pickZoneProvideSelection(
 	const segments = findDistributeRouteSegments(line).filter(
 		(segment) => segment.unloadStopIndex === utility.stopIndex
 	)
-	const hasExplicitUnload = !!zoneStop.unloadSelection
 	if (segments.length === 0 && !hasExplicitUnload) return undefined
 	const priorityTier: FreightPriorityTier = 'pureOffload'
 	let best: (VehicleZoneBrowseSelection & { score: number }) | undefined

@@ -19,6 +19,7 @@ import {
 	projectedLineStopForVehicleHop,
 } from 'ssh/freight/vehicle-run'
 import {
+	collectVehicleAdvertisedJobs,
 	findVehicleBeginServiceJob,
 	findVehicleHopJob,
 	findVehicleOffloadJob,
@@ -80,6 +81,139 @@ describe('Vehicle zone hop semantics', () => {
 
 		expect(character.driving).toBe(true)
 		expect(isVehicleMaintenanceService(vehicle.service)).toBe(true)
+	})
+
+	it('docks an anchor stop from the adjacent border side', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'grass' as const },
+				{ coord: [1, 0] as const, terrain: 'grass' as const },
+			],
+			hives: [
+				{
+					name: 'BorderDock',
+					alveoli: [{ coord: [1, 0] as const, alveolus: 'freight_bay', goods: {} }],
+				},
+			],
+			freightLines: [
+				distributeFreightLine({
+					id: 'BorderDock:line',
+					name: 'Border dock',
+					hiveName: 'BorderDock',
+					coord: [1, 0],
+					filters: ['wood'],
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 94021, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines.find((candidate) => candidate.id === 'BorderDock:line')!
+		const vehicle = game.vehicles.createVehicle('v-border-dock', 'wheelbarrow', { q: 0.5, r: 0 }, [
+			line,
+		])
+		const character = game.population.createCharacter('BorderDockWorker', { q: 0, r: 0 })
+		vehicle.beginLineService(line, line.stops[0]!, character)
+		character.operates = vehicle
+		character.onboard()
+
+		vehicle.dock()
+
+		expect(vehicle.isDocked).toBe(true)
+		expect(vehicle.position).toBeUndefined()
+	})
+
+	it('normalizes an adjacent service-side tile to the anchor border before docking', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'grass' as const },
+				{ coord: [1, 0] as const, terrain: 'grass' as const },
+			],
+			hives: [
+				{
+					name: 'AdjacentDock',
+					alveoli: [{ coord: [1, 0] as const, alveolus: 'freight_bay', goods: {} }],
+				},
+			],
+			freightLines: [
+				distributeFreightLine({
+					id: 'AdjacentDock:line',
+					name: 'Adjacent dock',
+					hiveName: 'AdjacentDock',
+					coord: [1, 0],
+					filters: ['wood'],
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 94022, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines.find((candidate) => candidate.id === 'AdjacentDock:line')!
+		const vehicle = game.vehicles.createVehicle('v-adjacent-dock', 'wheelbarrow', { q: 0, r: 0 }, [
+			line,
+		])
+		const character = game.population.createCharacter('AdjacentDockWorker', { q: 0, r: 0 })
+		vehicle.beginLineService(line, line.stops[0]!, character)
+		character.operates = vehicle
+		character.onboard()
+
+		vehicle.dock()
+
+		expect(vehicle.isDocked).toBe(true)
+		expect(vehicle.position).toBeUndefined()
+	})
+
+	it('begins advertised park fallback for a completed docked anchor line', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'grass' as const },
+				{ coord: [1, 0] as const, terrain: 'grass' as const },
+			],
+			hives: [
+				{
+					name: 'CompletedDock',
+					alveoli: [{ coord: [0, 0] as const, alveolus: 'freight_bay', goods: {} }],
+				},
+			],
+			freightLines: [
+				normalizeFreightLineDefinition({
+					id: 'CompletedDock:line',
+					name: 'Completed dock line',
+					cyclic: false,
+					stops: [
+						{
+							id: 'CompletedDock:unload',
+							unloadSelection: woodOnly,
+							anchor: freightBayAnchor('CompletedDock', [0, 0]),
+						},
+					],
+				}),
+			],
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 94023, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines.find((candidate) => candidate.id === 'CompletedDock:line')!
+		const stop = line.stops[0]!
+		const vehicle = game.vehicles.createVehicle('v-completed-dock', 'wheelbarrow', { q: 0, r: 0 }, [
+			line,
+		])
+		const character = game.population.createCharacter('CompletedDockWorker', { q: 0, r: 0 })
+		vehicle.beginLineService(line, stop)
+		vehicle.dock()
+
+		const park = collectVehicleAdvertisedJobs(game, vehicle).find(
+			(job) => job.job === 'vehicleOffload'
+		)
+		expect(park?.job).toBe('vehicleOffload')
+		expect(park?.maintenanceKind).toBe('park')
+
+		character.scriptsContext.plan.begin({ ...park, type: 'work' } as any)
+		expect(isVehicleMaintenanceService(vehicle.service)).toBe(true)
+		expect(vehicle.service?.kind).toBe('park')
 	})
 
 	it('falls back to the zone center when no downstream utility makes a loose-good target actionable', async () => {
@@ -1496,6 +1630,10 @@ describe('Vehicle zone hop semantics', () => {
 		expect(park?.job).toBe('vehicleOffload')
 		expect(park?.maintenanceKind).toBe('park')
 		expect(park?.targetCoord).not.toEqual({ q: 0, r: 0 })
+
+		character.scriptsContext.plan.begin({ ...park, type: 'work' } as any)
+		expect(isVehicleMaintenanceService(vehicle.service)).toBe(true)
+		expect(vehicle.service?.kind).toBe('park')
 	})
 
 	it('unfinished maintenance service without operator is offered to another worker', async () => {

@@ -1,7 +1,11 @@
 import { executeNpcTradeStopTransfer } from 'ssh/freight/npc-trade-stop'
 import { collectDockedVehicleAdvertisementCandidates } from 'ssh/freight/vehicle-freight-dock'
 import { maybeAdvanceVehicleFromCompletedAnchorStop } from 'ssh/freight/vehicle-run'
-import { findVehicleOffloadJob } from 'ssh/freight/vehicle-work'
+import {
+	collectVehicleAdvertisedJobs,
+	collectVehicleWorkPicks,
+	findVehicleOffloadJob,
+} from 'ssh/freight/vehicle-work'
 import { chopSaw } from 'ssh/game/exampleGames'
 import { Game } from 'ssh/game/game'
 import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
@@ -176,6 +180,75 @@ describe('chopSaw example game', () => {
 					stopId: 'ChopSaw:ig-load',
 				}),
 			})
+		)
+	})
+
+	it('advertises dock demand for stored concrete on the ChopSaw exchange line', async () => {
+		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines.find(
+			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
+		)
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
+		const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
+		if (!line || !vehicle || !bay || !storage) throw new Error('Expected ChopSaw fixture')
+
+		storage.storage.addGood('concrete', 2)
+		vehicle.position = { q: 0, r: 0 }
+		vehicle.beginLineService(line, line.stops[0]!)
+		vehicle.dock()
+
+		expect(collectDockedVehicleAdvertisementCandidates(vehicle, bay)).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ goodType: 'concrete', advertisement: 'demand' }),
+			])
+		)
+
+		const advertised = collectVehicleAdvertisedJobs(game, vehicle)
+		expect(advertised).toEqual(expect.arrayContaining([expect.objectContaining({ job: 'convey' })]))
+		expect(advertised).not.toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ job: 'vehicleOffload', maintenanceKind: 'park' }),
+			])
+		)
+	})
+
+	it('offers a concrete distribution hop from a loaded active ChopSaw wheelbarrow', async () => {
+		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines.find(
+			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
+		)
+		const load = line?.stops.find((stop) => stop.id === 'ChopSaw:ig-load')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		if (!line || !load || !vehicle) throw new Error('Expected ChopSaw fixture')
+
+		vehicle.storage.addGood('concrete', 2)
+		vehicle.position = { q: 0, r: 0 }
+		vehicle.beginLineService(line, load)
+
+		const worker = game.population.createCharacter('ConcreteRunner', { q: -4, r: -1 })
+		worker.role = 'worker'
+		void worker.scriptsContext
+
+		expect(collectVehicleWorkPicks(game, worker)).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					job: expect.objectContaining({
+						job: 'vehicleHop',
+						vehicleUid: vehicle.uid,
+						lineId: line.id,
+						stopId: load.id,
+						zoneBrowseAction: 'provide',
+						goodType: 'concrete',
+					}),
+				}),
+			])
 		)
 	})
 

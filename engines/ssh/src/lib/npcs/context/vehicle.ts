@@ -18,12 +18,47 @@ import type { Character } from 'ssh/population/character'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService, isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
 import { contract } from 'ssh/types'
+import { type AxialCoord, axial } from 'ssh/utils'
+import { positionRoughlyEquals, toAxialCoord } from 'ssh/utils/position'
 import { assert, traces } from '../../dev/debug.ts'
 import { subject } from '../scripts'
 import { DurationStep } from '../steps'
 import type { WorkPlan } from '.'
 
 type VehicleHopRunEndedReason = 'zone-complete-ended-run' | 'anchor-freight-drained-ended-run'
+
+function vehicleServiceTargetCoord(jobPlan: WorkPlan): AxialCoord | undefined {
+	if (jobPlan.type !== 'work') return undefined
+	if (!('targetCoord' in jobPlan)) return undefined
+	const coord = jobPlan.targetCoord
+	return coord ? axial.round(toAxialCoord(coord)!) : undefined
+}
+
+function vehicleServiceTargetIsBlocking(character: Character, jobPlan: WorkPlan): boolean {
+	const coord = vehicleServiceTargetCoord(jobPlan)
+	if (!coord) return false
+	return !!character.game.hex.getTile(coord)?.isBlockingSpace
+}
+
+function vehicleCanDockAtCurrentPosition(vehicle: VehicleEntity): boolean {
+	const dockTile = vehicle.dockTile
+	const position = vehicle.position
+	if (!dockTile || !position) return false
+	const rawVehicleCoord = toAxialCoord(position)!
+	const vehicleCoord = axial.round(rawVehicleCoord)
+	const dockCoord = axial.round(toAxialCoord(dockTile.position)!)
+	if (axial.key(vehicleCoord) === axial.key(dockCoord)) return true
+	const border = vehicle.game.hex.getBorder(rawVehicleCoord)
+	if (
+		border &&
+		(axial.key(toAxialCoord(border.tile.a.position)!) === axial.key(dockCoord) ||
+			axial.key(toAxialCoord(border.tile.b.position)!) === axial.key(dockCoord))
+	) {
+		return true
+	}
+	const vehicleTile = vehicle.game.hex.getTile(vehicleCoord)
+	return !!vehicleTile?.borderWith(dockTile)
+}
 
 function markVehicleHopRunEndedBeforeDock(
 	jobPlan: WorkPlan,
@@ -299,6 +334,21 @@ class VehicleFunctions {
 		if ('anchor' in stop) {
 			jobPlan.vehicleHopAnchorDockDisembarked = true
 			jobPlan.vehicleHopStopHandled = true
+			if (!vehicleCanDockAtCurrentPosition(vehicle)) {
+				;(jobPlan as WorkPlan & { vehicleHopReplanRequired?: boolean }).vehicleHopReplanRequired =
+					true
+				jobPlan.vehicleHopAnchorDockDisembarked = false
+				jobPlan.vehicleHopStopHandled = false
+				traces.vehicle.warn?.('vehicleHopDockStep: vehicle not at dock; replan required', {
+					characterUid: character.uid,
+					vehicleUid: vehicle.uid,
+					lineId: vehicle.service.line.id,
+					stopId: stop.id,
+					vehicleCoord: toAxialCoord(vehicle.position),
+					dockCoord: vehicle.dockTile ? toAxialCoord(vehicle.dockTile.position) : undefined,
+				})
+				return
+			}
 			vehicle.dock()
 			assertDockedSemantics(vehicle)
 			traces.vehicle.log?.('vehicleJob.hop.dock', {
@@ -343,7 +393,12 @@ class VehicleFunctions {
 	vehicleStepOffKeepingControl(jobPlan: WorkPlan) {
 		const character = this[subject] as Character
 		if (jobPlan.type !== 'work') return
-		if (jobPlan.job !== 'vehicleHop' && jobPlan.job !== 'zoneBrowse') return
+		if (
+			jobPlan.job !== 'vehicleHop' &&
+			jobPlan.job !== 'zoneBrowse' &&
+			jobPlan.job !== 'vehicleOffload'
+		)
+			return
 		const vehicle = character.game.vehicles.vehicle(jobPlan.vehicleUid)
 		assert(vehicle, 'vehicleStepOffKeepingControl: vehicle missing')
 		assert(
@@ -352,6 +407,40 @@ class VehicleFunctions {
 		)
 		assert(character.driving, 'vehicleStepOffKeepingControl: not driving')
 		character.stepOffVehicleKeepingControl()
+		assertVehicleOperationConsistency(vehicle, character)
+	}
+
+	@contract('WorkPlan')
+	serviceTargetIsBlocking(jobPlan: WorkPlan): boolean {
+		return vehicleServiceTargetIsBlocking(this[subject] as Character, jobPlan)
+	}
+
+	@contract()
+	pathToOperatedVehicle(): AxialCoord[] {
+		const character = this[subject] as Character
+		const vehicle = character.operates
+		if (!vehicle) return []
+		const vehiclePosition = toAxialCoord(vehicle.effectivePosition)
+		if (!vehiclePosition) return []
+		if (positionRoughlyEquals(toAxialCoord(character.position), vehiclePosition)) return []
+		return [vehiclePosition]
+	}
+
+	@contract('WorkPlan')
+	vehicleBoardLinkedVehicle(jobPlan: WorkPlan) {
+		const character = this[subject] as Character
+		if (jobPlan.type !== 'work') return
+		if (
+			jobPlan.job !== 'vehicleHop' &&
+			jobPlan.job !== 'zoneBrowse' &&
+			jobPlan.job !== 'vehicleOffload'
+		)
+			return
+		const vehicle = character.game.vehicles.vehicle(jobPlan.vehicleUid)
+		assert(vehicle, 'vehicleBoardLinkedVehicle: vehicle missing')
+		if (character.operates?.uid !== vehicle.uid) return
+		if (character.driving) return
+		character.boardLinkedVehicle()
 		assertVehicleOperationConsistency(vehicle, character)
 	}
 
@@ -409,9 +498,11 @@ class VehicleFunctions {
 				goodType: jobPlan.offloadPickupPlan.goodType,
 			})
 			const result = character.scriptsContext.inventory.effectuate(jobPlan.offloadPickupPlan)
-			result.onFulfilled(() => {
-				VehicleFunctions.prototype.completeVehicleMaintenanceService.call(this, jobPlan)
-			})
+			if (!jobPlan.vehicleMaintenanceCompletionDeferred) {
+				result.onFulfilled(() => {
+					VehicleFunctions.prototype.completeVehicleMaintenanceService.call(this, jobPlan)
+				})
+			}
 			assertVehicleOperationConsistency(vehicle, character)
 			return result
 		}
@@ -438,9 +529,11 @@ class VehicleFunctions {
 				'vehicleUnloadTransferStep: expected unload-capable maintenance'
 			)
 			const result = character.scriptsContext.inventory.offloadDropBuffer()
-			result.onFulfilled(() => {
-				VehicleFunctions.prototype.completeVehicleMaintenanceService.call(this, jobPlan)
-			})
+			if (!jobPlan.vehicleMaintenanceCompletionDeferred) {
+				result.onFulfilled(() => {
+					VehicleFunctions.prototype.completeVehicleMaintenanceService.call(this, jobPlan)
+				})
+			}
 			return result
 		}
 		if (jobPlan.job === 'provideFromVehicle') {

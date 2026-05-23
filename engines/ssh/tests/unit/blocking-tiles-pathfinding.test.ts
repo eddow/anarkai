@@ -1,7 +1,7 @@
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { Game } from 'ssh/game/game'
-import { axial, type AxialCoord } from 'ssh/utils'
+import { type AxialCoord, axial } from 'ssh/utils'
 import { describe, expect, it } from 'vitest'
 
 const grass = (coord: readonly [number, number]) => ({ coord, terrain: 'grass' as const })
@@ -302,14 +302,35 @@ describe('blocking tile vehicle pathfinding', () => {
 				const target = game.hex.getTile({ q: 1, r: 0 })!
 				target.content = new BasicDwelling(target)
 
-				const path = game.hex.findPathForVehicleServiceBorder(
-					{ q: -1, r: 0 },
-					target.position,
-					10
-				)
+				const path = game.hex.findPathForVehicleServiceBorder({ q: -1, r: 0 }, target.position, 10)
 
-				expect(keys(path)).toEqual(['-1,0', '0,0'])
+				expect(keys(path)).toEqual(['-1,0', '0,0', '0.5,0'])
 				expect(keys(path)).not.toContain('1,0')
+			}
+		)
+	})
+
+	it('can continue a vehicle service route from a border-side position', async () => {
+		await withGame(
+			[
+				[0, 0],
+				[1, 0],
+				[0, 1],
+				[1, 1],
+				[2, 0],
+			],
+			(game) => {
+				const source = game.hex.getTile({ q: 1, r: 0 })!
+				source.content = new BasicDwelling(source)
+				const target = game.hex.getTile({ q: 2, r: 0 })!
+				target.content = new BasicDwelling(target)
+
+				const path = game.hex.findPathForVehicleServiceBorder({ q: 0.5, r: 0 }, target.position, 10)
+
+				expect(keys(path)?.[0]).toBe('0.5,0')
+				expect(keys(path)?.at(-1)).not.toBe('2,0')
+				expect(keys(path)).not.toContain('1,0')
+				expect(keys(path)).not.toContain('2,0')
 			}
 		)
 	})
@@ -328,11 +349,7 @@ describe('blocking tile vehicle pathfinding', () => {
 					neighbor.content = new BasicDwelling(neighbor)
 				}
 
-				const path = game.hex.findPathForVehicleServiceBorder(
-					{ q: 0, r: 0 },
-					target.position,
-					10
-				)
+				const path = game.hex.findPathForVehicleServiceBorder({ q: 0, r: 0 }, target.position, 10)
 
 				expect(path).toBeUndefined()
 			}

@@ -317,7 +317,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		// Keep _tile in sync with the vehicle's current position during driving.
 		// Without this, walk.enter() uses the stale boarding tile, moving the vehicle off the anchor.
 		if (changedTile) {
-			this._tile = this.game.hex.getTile(nextCoord)!
+			this._tile = this.operates.effectiveTile
 			this.game.invalidateWorkPlanning('character.position')
 		}
 		traces.position.log?.('character.position.set.after', this.positionTracePayload('after'))
@@ -354,7 +354,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		)
 		// While onboard, character position is fully delegated to the operated vehicle.
 		this._footPosition = undefined
-		this._tile = this.game.hex.getTile(axial.round(toAxialCoord(vehicle.effectivePosition)))!
+		this._tile = vehicle.effectiveTile
 	}
 
 	private regainFootPosition(position: Position): void {

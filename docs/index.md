@@ -5,6 +5,7 @@
 - [`./current-status.md`](./current-status.md): what is implemented, what drifted, and what to tackle next
 - [`./project-inventory.md`](./project-inventory.md): current repo layout
 - [`./architecture-overview.md`](./architecture-overview.md): high-level system boundaries
+- [`./video-plan.md`](./video-plan.md): outline for a 10-20 minute presentation of Anark-AI
 - [`./browser-adapter.md`](./browser-adapter.md): browser-local Anarkai UI adapter plan
 - [`./engine-render-events-analysis.md`](./engine-render-events-analysis.md): why explicit SSH-to-Pixi presentation events should replace hidden reactive coupling
 - [`./freight-lines.md`](./freight-lines.md): freight routes (`FreightStop` bay vs zone, normalization, UI status)

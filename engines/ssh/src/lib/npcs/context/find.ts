@@ -20,7 +20,7 @@ class FindFunctions {
 		if (!from) return undefined
 		if (this[subject].driving) {
 			return this[subject].game.hex.findPathForVehicleServiceBorder(
-				axial.round(from),
+				from,
 				axial.round(toAxialCoord(to)!),
 				maxWalkTime
 			)
@@ -297,15 +297,16 @@ class FindFunctions {
 		return result
 	}
 
-	/** Walk path to the vehicle's tile (`punctual`: exact vehicle hex). Matches {@link findVehicleApproachJob} / {@link FindFunctions.path}. */
+	/** Walk path to the vehicle's boarding hex. Matches {@link Character.onboard}. */
 	@contract('string')
 	pathToVehicle(vehicleUid: string): AxialCoord[] | undefined {
 		const character = this[subject]
 		const vehicle = character.game.vehicles.vehicle(vehicleUid)
 		if (!vehicle) return undefined
+		const vehicleCoord = axial.round(toAxialCoord(vehicle.effectivePosition)!)
 		return character.game.hex.findPathForCharacter(
 			character.tile.position,
-			vehicle.tile.position,
+			vehicleCoord,
 			character,
 			maxWalkTime,
 			true

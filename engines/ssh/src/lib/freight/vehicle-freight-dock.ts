@@ -80,7 +80,17 @@ function distributeLoadSegmentForAnchor(
 	line: FreightLineDefinition,
 	anchorStopIndex: number
 ): ReturnType<typeof findDistributeRouteSegments>[number] | undefined {
-	return findDistributeRouteSegments(line).find((s) => s.loadStopIndex === anchorStopIndex)
+	const segment = findDistributeRouteSegments(line).find((s) => s.loadStopIndex === anchorStopIndex)
+	if (segment) return segment
+	const loadStop = line.stops[anchorStopIndex]
+	const unloadStop = line.stops[anchorStopIndex + 1]
+	if (!loadStop || !unloadStop) return undefined
+	if (!('anchor' in loadStop) || !loadStop.loadSelection) return undefined
+	if (!unloadStop.unloadSelection) return undefined
+	if (!('anchor' in unloadStop) && !('zone' in unloadStop) && !('trade' in unloadStop)) {
+		return undefined
+	}
+	return { loadStopIndex: anchorStopIndex, unloadStopIndex: anchorStopIndex + 1 }
 }
 
 export interface DockedVehicleAdvertisementCandidate {

@@ -1,5 +1,6 @@
 import { effect, reactive } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
+import { isTileCoord } from 'ssh/board/tile-coord'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
 import { collectDockedVehicleAdvertisementCandidates } from 'ssh/freight/vehicle-freight-dock'
 import {
@@ -169,12 +170,26 @@ export class VehicleEntity extends withInteractive(GameObject) {
 
 	get effectiveTile(): Tile {
 		if (this.position) {
-			const coord = axial.round(toAxialCoord(this.position)!)
-			return this.game.hex.getTile(coord)!
+			return this.tileForWorldPosition(this.position)
 		}
 		const tile = this.dockTile
 		assert(tile, `Vehicle ${this.uid}: unpositioned vehicle has no dock tile`)
 		return tile
+	}
+
+	private tileForWorldPosition(position: Position): Tile {
+		const coord = toAxialCoord(position)!
+		if (isTileCoord(coord)) return this.game.hex.getTile(coord)!
+		const border = this.game.hex.getBorder(coord)
+		if (border) {
+			const serviceSide = !border.tile.a.isBlockingSpace
+				? border.tile.a
+				: !border.tile.b.isBlockingSpace
+					? border.tile.b
+					: undefined
+			if (serviceSide) return serviceSide
+		}
+		return this.game.hex.getTile(axial.round(coord))!
 	}
 
 	get isDocked(): boolean {
@@ -220,8 +235,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 
 	get worldTile(): Tile | undefined {
 		if (!this.position) return undefined
-		const coord = axial.round(toAxialCoord(this.position)!)
-		return this.game.hex.getTile(coord)!
+		return this.tileForWorldPosition(this.position)
 	}
 
 	get debugInfo(): Record<string, unknown> {
@@ -403,11 +417,28 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		const dockTile = this.dockTile
 		assert(dockTile, `Vehicle ${this.uid}: dock requires an anchor tile`)
 		assert(this.position, `Vehicle ${this.uid}: dock requires a world position on the anchor tile`)
-		const vehicleCoord = axial.round(toAxialCoord(this.position)!)
+		const rawVehicleCoord = toAxialCoord(this.position)!
+		const vehicleCoord = axial.round(rawVehicleCoord)
 		const dockCoord = axial.round(toAxialCoord(dockTile.position)!)
+		const border = this.game.hex.getBorder(rawVehicleCoord)
+		const isDockBorder =
+			!!border &&
+			(axial.key(toAxialCoord(border.tile.a.position)!) === axial.key(dockCoord) ||
+				axial.key(toAxialCoord(border.tile.b.position)!) === axial.key(dockCoord))
+		if (axial.key(vehicleCoord) !== axial.key(dockCoord) && !isDockBorder) {
+			const vehicleTile = this.game.hex.getTile(vehicleCoord)
+			const serviceBorder = vehicleTile?.borderWith(dockTile)
+			if (serviceBorder) this.position = reactive({ ...serviceBorder.position })
+		}
+		const dockPosition = toAxialCoord(this.position)!
+		const dockBorder = this.game.hex.getBorder(dockPosition)
+		const isAtDockBorder =
+			!!dockBorder &&
+			(axial.key(toAxialCoord(dockBorder.tile.a.position)!) === axial.key(dockCoord) ||
+				axial.key(toAxialCoord(dockBorder.tile.b.position)!) === axial.key(dockCoord))
 		assert(
-			axial.key(vehicleCoord) === axial.key(dockCoord),
-			`Vehicle ${this.uid}: dock requires vehicle to be on the anchor tile`
+			axial.key(axial.round(dockPosition)) === axial.key(dockCoord) || isAtDockBorder,
+			`Vehicle ${this.uid}: dock requires vehicle to be on the anchor tile or its border`
 		)
 		svc.docked = true
 		this.position = undefined

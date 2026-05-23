@@ -49,15 +49,11 @@ export async function loadWasmModule(): Promise<any> {
 				typeof process !== 'undefined' &&
 				typeof process?.versions?.node === 'string'
 			) {
-				// @ts-expect-error: node: imports only resolve in Node/Vitest, not browser builds
 				const nodeFs = await import('node:fs')
-				// @ts-expect-error: node: imports only resolve in Node/Vitest, not browser builds
 				const nodePath = await import('node:path')
-				// @ts-expect-error: node: imports only resolve in Node/Vitest, not browser builds
 				const nodeUrl = await import('node:url')
 
 				// From engines/terrain/src/, go up 2 to engines/, then core/pkg/
-				// @ts-expect-error
 				const wasmPath = nodePath.join(
 					nodePath.dirname(nodeUrl.fileURLToPath(import.meta.url)),
 					'..',

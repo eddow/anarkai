@@ -10,6 +10,7 @@ import {
 } from 'ssh/freight/vehicle-work'
 import { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
+import { axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
 import { describe, expect, it, vi } from 'vitest'
 import { TestEngine } from '../test-engine'
@@ -40,6 +41,41 @@ describe('findVehicleOffloadJob', () => {
 			if (job?.maintenanceKind !== 'loadFromBurden') throw new Error('expected loadFromBurden')
 			expect(job.looseGood.goodType).toBe('mushrooms')
 			expect(toAxialCoord(job.targetCoord)).toEqual(toAxialCoord(center))
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('approaches a border-positioned vehicle at its boarding hex, not its service-side tile', async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+		const { game } = engine
+		try {
+			engine.loadScenario({
+				generationOptions: { terrainSeed: 1234, characterCount: 0 },
+				tiles: [
+					{ coord: [0, 0], terrain: 'grass' },
+					{ coord: [1, -1], terrain: 'grass' },
+				],
+				looseGoods: [{ goodType: 'mushrooms', position: { q: 0, r: 0 } }],
+				hives: [
+					{
+						name: 'Hive',
+						alveoli: [{ coord: [0, 0], alveolus: 'tree_chopper', goods: {} }],
+					},
+				],
+			} as any)
+			const vehicle = game.vehicles.createVehicle('wb-border', 'wheelbarrow', { q: 0.5, r: -0.5 }, [])
+			const char = engine.spawnCharacter('Worker', { q: 1, r: -1 })
+			void char.scriptsContext
+
+			expect(axial.key(toAxialCoord(vehicle.tile.position)!)).toBe('1,-1')
+			expect(axial.key(axial.round(toAxialCoord(vehicle.effectivePosition)!))).toBe('0,0')
+
+			const job = findVehicleOffloadJob(game, char)
+			expect(job?.job).toBe('vehicleOffload')
+			const last = job!.approachPath[job!.approachPath.length - 1]!
+			expect(axial.key(last)).toBe('0,0')
 		} finally {
 			await engine.destroy()
 		}

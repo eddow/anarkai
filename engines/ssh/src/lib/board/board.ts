@@ -438,11 +438,7 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		isEndpointAllowed: (coord: AxialCoord) => boolean
 	): NeighborInfo[] {
 		const fromCoord = toAxialCoord(fromTile.position)
-		if (
-			fromCoord &&
-			axial.key(fromCoord) !== axial.key(startCoord) &&
-			fromTile.isBlockingSpace
-		) {
+		if (fromCoord && axial.key(fromCoord) !== axial.key(startCoord) && fromTile.isBlockingSpace) {
 			return []
 		}
 		return this.getWalkNeighborsFromTile(fromTile).map((neighbor) => {
@@ -457,7 +453,7 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 	findPathForCharacter(
 		start: Positioned,
 		goal: Positioned,
-		character: Character,
+		_character: Character,
 		maxTime: number,
 		punctual: boolean = true
 	) {
@@ -498,7 +494,21 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 	) {
 		const goalTile = this.getTile(goal)
 		if (goalTile?.isBlockingSpace) return undefined
-		return findPath((c) => this.getNeighborsForVehicle(c), start, goal, maxTime, punctual)
+		const startCoord = toAxialCoord(start)
+		const startTileCoord =
+			startCoord && !isTileCoord(startCoord)
+				? this.vehicleServiceSideTileCoord(startCoord)
+				: startCoord
+		if (!startTileCoord) return undefined
+		const path = findPath(
+			(c) => this.getNeighborsForVehicle(c),
+			startTileCoord,
+			goal,
+			maxTime,
+			punctual
+		)
+		if (!path || !startCoord || isTileCoord(startCoord)) return path
+		return [startCoord, ...path.filter((coord) => axial.key(coord) !== axial.key(startCoord))]
 	}
 
 	findPathForVehicleServiceBorder(start: Positioned, target: Positioned, maxTime: number) {
@@ -507,20 +517,48 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		if (!targetTile.isBlockingSpace) {
 			return this.findPathForVehicle(start, targetTile.position, maxTime, true)
 		}
-		const startCoord = axial.round(toAxialCoord(start))
+		const rawStartCoord = toAxialCoord(start)
+		if (!rawStartCoord) return undefined
 		let best: { path: AxialCoord[]; cost: number } | undefined
 		for (const neighbor of targetTile.neighborTiles) {
 			if (neighbor.isBlockingSpace) continue
+			const border = targetTile.borderWith(neighbor)
+			if (!border) continue
+			const borderCoord = toAxialCoord(border.position)!
+			if (axial.key(rawStartCoord) === axial.key(borderCoord)) return [borderCoord]
 			const neighborCoord = axial.round(toAxialCoord(neighbor.position))
-			const path =
+			const startCoord = isTileCoord(rawStartCoord)
+				? axial.round(rawStartCoord)
+				: (this.vehicleServiceSideTileCoord(rawStartCoord, targetTile.position) ?? rawStartCoord)
+			const pathToNeighbor =
 				axial.key(startCoord) === axial.key(neighborCoord)
 					? [neighborCoord]
 					: this.findPathForVehicle(startCoord, neighborCoord, maxTime, true)
-			if (!path) continue
+			if (!pathToNeighbor) continue
+			const servicePath =
+				axial.key(pathToNeighbor.at(-1)!) === axial.key(borderCoord)
+					? pathToNeighbor
+					: [...pathToNeighbor, borderCoord]
+			const path = isTileCoord(rawStartCoord) ? servicePath : [rawStartCoord, ...servicePath]
 			const cost = path.length
 			if (!best || cost < best.cost) best = { path, cost }
 		}
 		return best?.path
+	}
+
+	private vehicleServiceSideTileCoord(
+		borderCoord: AxialCoord,
+		target?: Positioned
+	): AxialCoord | undefined {
+		const border = this.getBorder(borderCoord)
+		if (!border) return undefined
+		const targetCoord = target ? axial.round(toAxialCoord(target)!) : undefined
+		const candidates = [border.tile.a, border.tile.b].filter((tile) => {
+			if (tile.isBlockingSpace) return false
+			if (!targetCoord) return true
+			return axial.key(toAxialCoord(tile.position)!) !== axial.key(targetCoord)
+		})
+		return toAxialCoord((candidates[0] ?? border.tile.a).position)
 	}
 
 	reachableForCharacter(start: Positioned, character: Character, maxTime: number) {
@@ -563,7 +601,7 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 
 	findNearestForCharacter(
 		start: Positioned,
-		character: Character,
+		_character: Character,
 		isGoal: Scoring<true>,
 		stop: number | ((coord: Positioned, walkTime: number) => boolean),
 		punctual: boolean = true
@@ -586,7 +624,7 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 
 	findBestForCharacter(
 		start: Positioned,
-		character: Character,
+		_character: Character,
 		scoring: Scoring<number>,
 		stop: number | ((coord: Positioned, walkTime: number) => boolean),
 		bestPossibleScore: number,

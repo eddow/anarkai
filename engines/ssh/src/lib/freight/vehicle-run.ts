@@ -463,7 +463,8 @@ export function projectedLineStopForVehicleHop(
 			character,
 			vehicle,
 			line,
-			stop as FreightStop & { zone: FreightZoneDefinition }
+			stop as FreightStop & { zone: FreightZoneDefinition },
+			vehicle.effectivePosition
 		)
 	)
 		return { line, stop }
@@ -521,9 +522,10 @@ function shouldAdvancePastZoneStop(
 	character: Character,
 	vehicle: VehicleEntity,
 	line: FreightLineDefinition,
-	stop: FreightStop & { zone: FreightZoneDefinition }
+	stop: FreightStop & { zone: FreightZoneDefinition },
+	startPos: Position = character.position
 ): boolean {
-	if (pickVehicleZoneBrowseSelection(game, character, vehicle, line, stop)) return false
+	if (pickVehicleZoneBrowseSelection(game, character, vehicle, line, stop, startPos)) return false
 	return true
 }
 

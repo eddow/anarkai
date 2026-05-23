@@ -4,6 +4,7 @@ import {
 	ensureVehicleServiceStarted,
 	releaseVehicleFreightWorkOnPlanInterrupt,
 } from 'ssh/freight/vehicle-run'
+import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { findVehicleApproachJob } from 'ssh/freight/vehicle-work'
 import { Game } from 'ssh/game/game'
 import { offloadDropBufferNative } from 'ssh/npcs/context/inventory'
@@ -454,6 +455,59 @@ describe('Character vehicle seam', () => {
 		expect(character.operates).toBeUndefined()
 		expect(isVehicleLineService(vehicle.service)).toBe(true)
 		expect(vehicle.operator).toBeUndefined()
+	})
+
+	it('border service can step into a blocking target and re-board at the border', async () => {
+		game = new Game(
+			{ terrainSeed: 9318, characterCount: 0 },
+			{
+				tiles: [
+					{ coord: [0, 0] as const, terrain: 'grass' as const },
+					{ coord: [1, 0] as const, terrain: 'grass' as const },
+				],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		const target = game.hex.getTile({ q: 1, r: 0 })!
+		target.content = new BasicDwelling(target)
+		const serviceSide = game.hex.getTile({ q: 0, r: 0 })!
+		const vehicle = game.vehicles.createVehicle('v-border-service', 'wheelbarrow', serviceSide.position)
+		const character = game.population.createCharacter('Borderer', serviceSide.position)
+		vehicle.beginOffloadService(character)
+		character.operates = vehicle
+		character.onboard()
+		character.position = { q: 0.5, r: 0 }
+
+		const jobPlan = {
+			type: 'work',
+			job: 'vehicleOffload',
+			target,
+			urgency: 1,
+			fatigue: 0,
+			maintenanceKind: 'loadFromBurden',
+			vehicleUid: vehicle.uid,
+			targetCoord: toAxialCoord(target.position)!,
+			path: [],
+		} as const
+
+		expect(character.scriptsContext.vehicle.serviceTargetIsBlocking(jobPlan as any)).toBe(true)
+		character.scriptsContext.vehicle.vehicleStepOffKeepingControl(jobPlan as any)
+		expect(character.driving).toBe(false)
+		expect(character.operates?.uid).toBe(vehicle.uid)
+		expect(vehicle.operator?.uid).toBe(character.uid)
+
+		character.position = target.position
+		const returnPath = character.scriptsContext.vehicle.pathToOperatedVehicle()
+		expect(returnPath.map((coord) => axial.key(coord))).toEqual(['0.5,0'])
+
+		character.position = returnPath[0]!
+		character.scriptsContext.vehicle.vehicleBoardLinkedVehicle(jobPlan as any)
+		expect(character.driving).toBe(true)
+		expect(character.operates?.uid).toBe(vehicle.uid)
+		expect(character.tile).toBe(serviceSide)
+		expect(vehicle.operator?.uid).toBe(character.uid)
 	})
 
 	it('offboard clears freight service but keeps vehicle stock', async () => {

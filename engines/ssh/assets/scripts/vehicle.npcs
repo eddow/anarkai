@@ -41,29 +41,57 @@ function zoneBrowse(jobPlan)
 	zoneBrowseTransfer jobPlan
 end function
 
+function enterVehicleServiceTarget(jobPlan)
+	if vehicle.serviceTargetIsBlocking(jobPlan) then
+		vehicle.vehicleStepOffKeepingControl jobPlan
+		targetPath = find.path(jobPlan.targetCoord, true)
+		if not targetPath then error "No path from vehicle border to blocking service target"
+		if targetPath.length > 0 then walk.until targetPath
+		walk.enter
+		return
+	end if
+	walk.enter
+end function
+
+function returnToVehicleServiceBorder(jobPlan)
+	if not vehicle.serviceTargetIsBlocking(jobPlan) then return
+	returnPath = vehicle.pathToOperatedVehicle()
+	if returnPath and returnPath.length > 0 then walk.until returnPath
+	vehicle.vehicleBoardLinkedVehicle jobPlan
+end function
+
 function vehicleTransferAtCurrentTile(jobPlan)
 	if jobPlan.job == "vehicleOffload" then
 		kind = vehicle.maintenanceKind()
-		walk.enter
+		enterVehicleServiceTarget jobPlan
 		if kind == "unloadToTile" then
 			do while not inventory.canDropLooseHere()
 				fp = find.freeSpot()
 				if not fp then error "No unload free spot path"
 				walk.until fp
 			loop
+			jobPlan.vehicleMaintenanceCompletionDeferred = true
 			vehicle.vehicleUnloadTransferStep jobPlan
+			returnToVehicleServiceBorder jobPlan
+			vehicle.completeVehicleMaintenanceService jobPlan
 			return
 		end if
 		if kind == "loadFromBurden" then
 			grab = jobPlan.offloadPickupPlan
 			if not grab then return
+			jobPlan.vehicleMaintenanceCompletionDeferred = true
 			vehicle.vehicleLoadTransferStep jobPlan
+			returnToVehicleServiceBorder jobPlan
+			vehicle.completeVehicleMaintenanceService jobPlan
 			return
 		end if
 	end if
-	walk.enter
-	vehicle.vehicleStepOffKeepingControl jobPlan
+	enterVehicleServiceTarget jobPlan
+	if not vehicle.serviceTargetIsBlocking(jobPlan) then
+		vehicle.vehicleStepOffKeepingControl jobPlan
+	end if
 	vehicle.vehicleZoneBrowseTransferStep jobPlan
+	returnToVehicleServiceBorder jobPlan
 	vehicle.vehicleDisengageKeepingService jobPlan
 end function
 

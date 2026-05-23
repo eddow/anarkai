@@ -108,9 +108,16 @@ export function allocateVehicleServiceForJob(
 	switch (job.job) {
 		case 'vehicleOffload': {
 			if (isVehicleLineService(vehicle.service)) {
-				if (job.maintenanceKind === 'park' && !vehicle.isDocked) {
+				const canParkCompletedDockedLine =
+					job.maintenanceKind === 'park' &&
+					vehicle.isDocked &&
+					!dockedVehicleHasPendingDockWork(vehicle) &&
+					!nextLineStopAfterCurrent(game, vehicle)
+				if (!canParkCompletedDockedLine && projectedLineStopForVehicleHop(game, character, vehicle)) {
 					throw new Error('vehicleOffload: line service already active')
 				}
+				if (job.maintenanceKind !== 'park')
+					throw new Error('vehicleOffload: line service already active')
 				vehicle.endService()
 			}
 			// Discard any prior maintenance service: each offload run gets a fresh per-kind service.
@@ -224,6 +231,7 @@ function dockedVehicleHasPendingDockWork(vehicle: VehicleEntity): boolean {
 	if (!bay) return false
 	if (bay.proposedJobs.some((job) => job.job === 'convey')) return true
 	const dock = bay.hive.freightVehicleDockFor(vehicle.uid)
+	if (dock && bay.hive.hasActiveFreightVehicleDockMovement(vehicle.uid)) return true
 	return (
 		!!dock &&
 		bay.hive.collectActiveMovements().some((movement) => {
@@ -336,6 +344,14 @@ function dockedVehicleProviderJob(game: Game, vehicle: VehicleEntity): ProposedJ
 			bay: dockBay.name,
 			dockCandidates,
 		})
+	}
+
+	if (dockedVehicleHasPendingDockWork(vehicle)) {
+		traces.vehicle.log?.('[vehicle.advertisedJobs] provider waits for pending dock work', {
+			...vehicleTraceSnapshot(vehicle),
+			bay: dockBay?.name,
+		})
+		return undefined
 	}
 
 	const next = nextLineStopAfterCurrent(game, vehicle)
@@ -951,11 +967,12 @@ function findVehicleOffloadJobApproach(
 		const sameVehicleHex =
 			axial.key(axial.round(toAxialCoord(character.position)!)) ===
 			axial.key(axial.round(toAxialCoord(vehicle.effectivePosition)!))
+		const vehicleCoord = axial.round(toAxialCoord(vehicle.effectivePosition)!)
 		const pathToVehicle = sameVehicleHex
 			? []
 			: game.hex.findPathForCharacter(
 					character.tile.position,
-					vehicle.tile.position,
+					vehicleCoord,
 					character,
 					maxWalkTime,
 					true
@@ -1100,11 +1117,12 @@ function findAdvertisedVehicleOffloadJob(
 		const sameVehicleHex =
 			axial.key(axial.round(toAxialCoord(character.position)!)) ===
 			axial.key(axial.round(toAxialCoord(vehicle.effectivePosition)!))
+		const vehicleCoord = axial.round(toAxialCoord(vehicle.effectivePosition)!)
 		const pathToVehicle = sameVehicleHex
 			? []
 			: game.hex.findPathForCharacter(
 					character.tile.position,
-					vehicle.tile.position,
+					vehicleCoord,
 					character,
 					maxWalkTime,
 					true
@@ -1156,14 +1174,15 @@ export function findVehicleApproachJob(
 		const sameVehicleHex =
 			axial.key(axial.round(toAxialCoord(character.position)!)) ===
 			axial.key(axial.round(toAxialCoord(vehicle.effectivePosition)!))
+		const vehicleCoord = axial.round(toAxialCoord(vehicle.effectivePosition)!)
 		// punctual must be true: false stops one hex short of the vehicle, breaking onboarding.
-		// Start from the occupied tile (same as `find.path`), not foot `character.position`, so
-		// replanning in `find.pathToVehicle` matches this job when the character is mid-step.
+		// Target the rounded effective position, not `vehicle.tile`: border service can resolve the
+		// tile to an adjacent service side while boarding checks the effective hex.
 		const path = sameVehicleHex
 			? []
 			: game.hex.findPathForCharacter(
 					character.tile.position,
-					vehicle.tile.position,
+					vehicleCoord,
 					character,
 					maxWalkTime,
 					true

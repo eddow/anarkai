@@ -29,11 +29,8 @@ export async function initCore(): Promise<InitOutput> {
 		typeof process !== 'undefined' &&
 		typeof process?.versions?.node === 'string'
 	) {
-		// @ts-expect-error: node: imports only resolve in Node/Vitest, not browser builds
 		const nodeFs = await import('node:fs')
-		// @ts-expect-error: node: imports only resolve in Node/Vitest, not browser builds
 		const nodePath = await import('node:path')
-		// @ts-expect-error: node: imports only resolve in Node/Vitest, not browser builds
 		const nodeUrl = await import('node:url')
 
 		// From engines/ssh/src/lib/, go up 3 to engines/, then core/pkg/
