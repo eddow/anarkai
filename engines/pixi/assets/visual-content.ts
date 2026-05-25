@@ -79,10 +79,6 @@ export const alveoli: Record<string, VisualDefinition> = {
 		sprites: ['buildings.shop'],
 		icon: 'buildings.shop',
 	},
-	clothes_shop: {
-		sprites: ['buildings.store'],
-		icon: 'buildings.store',
-	},
 	storage: {
 		sprites: ['buildings.store'],
 		icon: 'buildings.store',

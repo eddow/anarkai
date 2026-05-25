@@ -478,7 +478,10 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	public setPlayerAccountBalance(balanceVp: number): void {
-		this.playerAccount.balanceVp = Math.max(0, Math.floor(balanceVp))
+		const next = Math.max(0, Math.floor(balanceVp))
+		if (this.playerAccount.balanceVp === next) return
+		this.playerAccount.balanceVp = next
+		this.invalidateWorkPlanning('player-account.balance.set')
 	}
 
 	public canAffordVp(amountVp: number): boolean {
@@ -489,11 +492,15 @@ export class Game extends Eventful<GameEvents> {
 		const amount = Math.max(0, Math.ceil(amountVp))
 		if (!this.canAffordVp(amount)) return false
 		this.playerAccount.balanceVp -= amount
+		this.invalidateWorkPlanning('player-account.balance.spend')
 		return true
 	}
 
 	public creditVp(amountVp: number): void {
-		this.playerAccount.balanceVp += Math.max(0, Math.floor(amountVp))
+		const amount = Math.max(0, Math.floor(amountVp))
+		if (amount <= 0) return
+		this.playerAccount.balanceVp += amount
+		this.invalidateWorkPlanning('player-account.balance.credit')
 	}
 
 	public readonly clock = reactive({

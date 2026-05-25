@@ -173,17 +173,6 @@ function rulesTestOverrides() {
 				},
 				construction: { goods: { wood: 1 }, time: 1 },
 			},
-			clothes_shop: {
-				preparationTime: 1,
-				workTime: 0,
-				action: {
-					type: 'storage',
-					kind: 'specific',
-					goods: { clothes: 12, sunglasses: 12 },
-					buffers: { clothes: 4, sunglasses: 4 },
-				},
-				construction: { goods: { wood: 1 }, time: 1 },
-			},
 			stonecutter: {
 				preparationTime: 1,
 				workTime: 2,

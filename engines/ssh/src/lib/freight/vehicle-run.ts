@@ -50,6 +50,21 @@ import { assert, traces } from '../dev/debug.ts'
  */
 export function vehicleNeedsParkingOnCurrentTile(vehicle: VehicleEntity): boolean {
 	const here = vehicle.tile
+	const hereCoord = toAxialCoord(here.position)
+	if (
+		hereCoord &&
+		!vehicle.isDocked &&
+		vehicle.servedLines.some((line) =>
+			line.stops.some(
+				(stop) =>
+					'anchor' in stop &&
+					stop.anchor.coord[0] === hereCoord.q &&
+					stop.anchor.coord[1] === hereCoord.r
+			)
+		)
+	) {
+		return false
+	}
 	if (!(here.content instanceof UnBuiltLand)) return true
 	if (here.content.project) return true
 	if (here.zone === 'residential') return true
@@ -186,6 +201,10 @@ function distributeBeginServiceUrgency(args: {
 		jobBalance.vehicleBeginService *
 		(Math.min(args.neededGood, args.vehicleCapacity) / args.availableGoods)
 	)
+}
+
+function tradeBeginServiceUrgency(): number {
+	return Math.max(jobBalance.vehicleBeginService, jobBalance.convey + 0.25)
 }
 
 function goodsIntersectAvailableStock(
@@ -393,7 +412,7 @@ function findBeginServiceActionableWork(
 		consider({
 			target,
 			stop,
-			urgency: jobBalance.vehicleBeginService,
+			urgency: tradeBeginServiceUrgency(),
 		})
 	}
 	return best ? { target: best.target, stop: best.stop, urgency: best.urgency } : undefined

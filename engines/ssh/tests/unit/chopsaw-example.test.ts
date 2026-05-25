@@ -479,6 +479,40 @@ describe('chopSaw example game', () => {
 		expect(pickup.storage.stock.planks ?? 0).toBe(0)
 	})
 
+	it('offers the materials pickup even when the settlement stop is outside the local path graph', async () => {
+		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
+		await game.loaded
+		game.ticker.stop()
+		game.setPlayerAccountBalance(1000)
+
+		const pickup = game.vehicles.vehicle('ChopSaw:pickup-truck')
+		if (!pickup) throw new Error('Expected Chopsaw pickup truck')
+		const melindbury = game.getSettlementTradeProfile('settlement-7,19')
+		if (!melindbury) throw new Error('Expected Melindbury trade profile')
+		expect(
+			game.hex.findPathForVehicleServiceBorder(
+				pickup.effectivePosition,
+				melindbury.cityHall.position,
+				Number.POSITIVE_INFINITY
+			)
+		).toBeUndefined()
+
+		const worker = game.population.createCharacter('Materials Runner', { q: 0, r: 0 })
+		const picks = collectVehicleWorkPicks(game, worker)
+
+		expect(picks.map((pick) => pick.job)).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					job: 'vehicleHop',
+					vehicleUid: 'ChopSaw:pickup-truck',
+					lineId: 'ChopSaw:materials-loop:0,0:Melindbury',
+					stopId: 'ChopSaw:materials-melindbury',
+					needsBeginService: true,
+				}),
+			])
+		)
+	})
+
 	it('imports only buffered concrete demand, not extra storage room', async () => {
 		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
 		await game.loaded

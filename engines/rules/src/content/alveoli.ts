@@ -96,20 +96,6 @@ export const alveoli = {
 			time: 6,
 		},
 	},
-	clothes_shop: {
-		preparationTime: 1,
-		action: {
-			type: 'storage',
-			kind: 'specific',
-			goods: { clothes: 12, sunglasses: 12 },
-			buffers: { clothes: 4, sunglasses: 4 },
-		},
-		workTime: 0,
-		construction: {
-			goods: { wood: 2, planks: 3 },
-			time: 5,
-		},
-	},
 	storage: {
 		preparationTime: 1,
 		action: { type: 'storage', kind: 'slotted', capacity: 3, slots: 6 },
