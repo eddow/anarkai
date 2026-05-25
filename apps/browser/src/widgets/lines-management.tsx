@@ -11,6 +11,7 @@ import {
 	createSyntheticFreightLineObject,
 	type FreightLineDefinition,
 	type FreightStop,
+	freightLineSummary,
 	freightZoneFallbackPosition,
 } from 'ssh/freight/freight-line'
 import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
@@ -370,6 +371,7 @@ const LinesManagementWidget = (
 								<span class="lines-management__name">{line.name}</span>
 								<span class="lines-management__meta">
 									<span class="lines-management__badge">{line.stops.length} stops</span>
+									<span class="lines-management__badge">{freightLineSummary(line)}</span>
 									<span if={lineHasBay(line)} class="lines-management__badge">
 										bay
 									</span>

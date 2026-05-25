@@ -84,6 +84,20 @@ describe('Eat planning vs hunger (no goEat when sated)', () => {
 		}
 	})
 
+	it('computeActivityScores includes eat when hungry with personal food and no world food', async () => {
+		const game = await loadMiniGame({ hives: [] })
+		try {
+			clearLooseGoods(game)
+			const c = game.population.createCharacter('PocketSnack', { q: 0, r: -1 })
+			c.hunger = 0.92
+			c.addPersonalGood('bread', 1)
+			const scores = inert(() => computeActivityScores(c))
+			expect(scores.some((s) => s.kind === 'eat')).toBe(true)
+		} finally {
+			game.destroy()
+		}
+	})
+
 	it('tryScriptForActivityKind(eat) is false when sated even with reachable food', async () => {
 		const game = await loadMiniGame()
 		try {
@@ -160,6 +174,60 @@ describe('Eat planning vs hunger (no goEat when sated)', () => {
 			const stale = second.scriptsContext.selfCare.eatFromWorld('berries', tile)
 
 			expect(stale).toBeInstanceOf(PonderingStep)
+		} finally {
+			game.destroy()
+		}
+	})
+
+	it('takes food from storage into personal inventory and eats from it', async () => {
+		const game = await loadMiniGame({
+			hives: [
+				{
+					name: 'Mini',
+					alveoli: [
+						{
+							coord: [0, 0],
+							alveolus: 'storage',
+							goods: { bread: 1 },
+						},
+					],
+				},
+			],
+		})
+		try {
+			const tile = game.hex.getTile({ q: 0, r: 0 })
+			if (!tile) throw new Error('expected storage tile')
+			const c = game.population.createCharacter('Customer', { q: 0, r: -1 })
+			c.hunger = 0.92
+
+			expect(c.scriptsContext.selfCare.takeFoodFromWorld('bread', tile)).toBe(true)
+			expect(c.personalGoodAvailable('bread')).toBe(1)
+			expect(tile.content?.storage?.available('bread')).toBe(0)
+
+			const step = c.scriptsContext.selfCare.eatFromInventory('bread')
+			expect(c.personalGoodAvailable('bread')).toBe(0)
+			step.tick(step.duration)
+			expect(c.hunger).toBeLessThan(0.92)
+		} finally {
+			game.destroy()
+		}
+	})
+
+	it('serializes and restores personal inventory', async () => {
+		const game = await loadMiniGame({ hives: [] })
+		try {
+			const c = game.population.createCharacter('Keeper', { q: 0, r: -1 })
+			c.addPersonalGood('sandwich', 2)
+			const saved = c.serialize()
+			const restoredGame = await loadMiniGame({ hives: [] })
+			try {
+				restoredGame.population.deserialize([saved])
+				const restored = restoredGame.population.characters.get(c.uid)
+				if (!restored) throw new Error('expected restored character')
+				expect(restored.personalGoodAvailable('sandwich')).toBe(2)
+			} finally {
+				restoredGame.destroy()
+			}
 		} finally {
 			game.destroy()
 		}

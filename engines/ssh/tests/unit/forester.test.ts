@@ -213,6 +213,47 @@ describe('forester planted trees', () => {
 		expect(chopper.nextJob()?.job).toBe('harvest')
 	})
 
+	it('lets wheat planters seed grass and wheat harvesters harvest the crop', async () => {
+		engine = new TestEngine({ terrainSeed: 246, characterCount: 0 })
+		await engine.init()
+		engine.loadScenario({
+			tiles: [
+				{ coord: [1, 0], terrain: 'grass' },
+				{ coord: [0, 0], terrain: 'concrete' },
+				{ coord: [2, 0], terrain: 'concrete' },
+			],
+			hives: [
+				{
+					name: 'Bread Basket',
+					alveoli: [
+						{ coord: [0, 0], alveolus: 'wheat_planter', assignedZoneIds: ['field'] },
+						{ coord: [2, 0], alveolus: 'wheat_harvester' },
+					],
+				},
+			],
+			zones: {
+				named: [{ id: 'field', name: 'Field', coords: [[1, 0]] }],
+			},
+			population: [],
+		} as never)
+		engine.game.hex.zoneManager.defineZone({ id: 'field', name: 'Field', harvestable: true })
+
+		const planter = engine.game.hex.getTile({ q: 0, r: 0 })?.content as ForesterAlveolus
+		const harvester = engine.game.hex.getTile({ q: 2, r: 0 })?.content as HarvestAlveolus
+		const fieldTile = engine.game.hex.getTile({ q: 1, r: 0 })!
+		const worker = engine.game.population.createCharacter('Planter', fieldTile.position)
+		worker.assignedAlveolus = planter
+
+		expect(planter.nextJob()?.job).toBe('forester')
+		expect(planter.plantAtCurrentTile(worker)).toBe(true)
+
+		const land = fieldTile.content as UnBuiltLand
+		expect(land.deposit?.name).toBe('wheat_crop')
+		expect(land.deposit?.amount).toBe(1)
+		expect(land.plantedTrees).toBeUndefined()
+		expect(harvester.nextJob()?.job).toBe('harvest')
+	})
+
 	it('saves and loads forester assignments and planted tree ages', async () => {
 		const setup = await loadForesterScenario(['north-grove'])
 		const zoneTile = setup.engine.game.hex.getTile({ q: 1, r: 0 })!

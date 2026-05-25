@@ -23,6 +23,7 @@ import { Game } from 'ssh/game/game'
 import type { StorageAlveolus } from 'ssh/hive/storage'
 import { toAxialCoord } from 'ssh/utils/position'
 import { describe, expect, it } from 'vitest'
+import { namedTrace, traces } from '../../src/lib/dev/debug'
 import { gatherFreightLine } from '../freight-fixtures'
 import { TestEngine } from '../test-engine'
 
@@ -414,6 +415,43 @@ describe('freight-stop-utility', () => {
 			expect(explanation.importOpportunityGoods.perGood.concrete).toBe(2)
 			expect(explanation.blockReasons).not.toContain('no_downstream_demand')
 		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('explains and traces border service for blocking bay stops', async () => {
+		const engine = new TestEngine({ terrainSeed: 12011, characterCount: 0 })
+		await engine.init()
+		const trace = namedTrace('vehicle', { silent: true })
+		traces.vehicle = trace
+		try {
+			engine.loadScenario({
+				hives: [
+					{
+						name: 'Dockers',
+						alveoli: [{ coord: [0, 0], alveolus: 'freight_bay' }],
+					},
+				],
+			})
+			const line = normalizeFreightLineDefinition({
+				id: 'dock-line',
+				name: 'Dock line',
+				stops: [{ id: 'bay', anchor: freightBayAnchor('Dockers', [0, 0]) }],
+			})
+
+			const explanation = explainFreightStopCommerce({
+				game: engine.game,
+				line,
+				stopIndex: 0,
+			})
+
+			expect(explanation.servicePosition.kind).toBe('border')
+			expect(explanation.servicePosition.label).toBe('border service')
+			expect(explanation.servicePosition.borderCount).toBeGreaterThan(0)
+			expect(trace.read()).toContain('freightStop.servicePosition')
+			expect(trace.read()).toContain('border service')
+		} finally {
+			delete traces.vehicle
 			await engine.destroy()
 		}
 	})

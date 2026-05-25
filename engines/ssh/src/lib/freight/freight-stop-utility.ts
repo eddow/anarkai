@@ -25,7 +25,9 @@ import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import type { GoodType } from 'ssh/types/base'
 import type { ExchangePriority } from 'ssh/utils/advertisement'
 import type { AxialCoord } from 'ssh/utils/axial'
+import { toAxialCoord } from 'ssh/utils/position'
 import { freightConstructionDemandTarget } from './construction-demand'
+import { traces } from '../dev/debug.ts'
 
 /** Per-good quantities for a stop (loose goods, stored goods, or need sink). */
 export interface FreightStopGoodsSnapshot {
@@ -78,8 +80,19 @@ export type FreightStopCommerceBlockReason =
 	| 'reserve_blocks_import'
 	| 'policy_blocks_good'
 
+export type FreightStopServicePositionKind = 'center' | 'border' | 'unreachable'
+
+export interface FreightStopServicePositionExplanation {
+	readonly kind: FreightStopServicePositionKind
+	readonly label: string
+	readonly targetCoord?: AxialCoord
+	readonly borderCount?: number
+	readonly sampleBorderCoord?: AxialCoord
+}
+
 export interface FreightStopCommerceExplanation {
 	readonly stopKind: FreightStopCommerceKind
+	readonly servicePosition: FreightStopServicePositionExplanation
 	readonly localProvidedGoods: FreightStopGoodsSnapshot
 	readonly localNeededGoods: FreightStopGoodsSnapshot
 	readonly downstreamDemandGoods: FreightStopGoodsSnapshot
@@ -121,6 +134,55 @@ function freightStopKind(stop: FreightStop): FreightStopCommerceKind {
 	if ('anchor' in stop) return 'bay'
 	if ('trade' in stop) return 'settlement-trade'
 	return stop.zone.kind === 'named' ? 'named-zone' : 'radius-zone'
+}
+
+function freightStopTargetTile(game: Game, stop: FreightStop): Tile | undefined {
+	if ('anchor' in stop) {
+		return game.hex.getTile({ q: stop.anchor.coord[0], r: stop.anchor.coord[1] })
+	}
+	if ('trade' in stop) {
+		const position = game.getSettlementTradeProfile(stop.trade.settlementId)?.cityHall?.position
+		return position ? game.hex.getTile(position) : undefined
+	}
+	if (stop.zone.kind === 'radius') {
+		return game.hex.getTile({ q: stop.zone.center[0], r: stop.zone.center[1] })
+	}
+	return undefined
+}
+
+function explainFreightStopServicePosition(
+	game: Game,
+	stop: FreightStop
+): FreightStopServicePositionExplanation {
+	const tile = freightStopTargetTile(game, stop)
+	const targetCoord = tile ? toAxialCoord(tile.position) : undefined
+	if (!tile || !targetCoord) {
+		return {
+			kind: 'unreachable',
+			label: 'service target unavailable',
+		}
+	}
+	if (!tile.isBlockingSpace) {
+		return {
+			kind: 'center',
+			label: 'center service',
+			targetCoord,
+		}
+	}
+	const serviceBorders = tile.neighborTiles
+		.filter((neighbor) => !neighbor.isBlockingSpace)
+		.map((neighbor) => tile.borderWith(neighbor))
+		.filter((border): border is NonNullable<ReturnType<Tile['borderWith']>> => !!border)
+	const sampleBorderCoord = serviceBorders[0]
+		? toAxialCoord(serviceBorders[0].position)
+		: undefined
+	return {
+		kind: serviceBorders.length > 0 ? 'border' : 'unreachable',
+		label: serviceBorders.length > 0 ? 'border service' : 'no service border',
+		targetCoord,
+		borderCount: serviceBorders.length,
+		sampleBorderCoord,
+	}
 }
 
 function freightStopReserve(line: FreightLineDefinition, stop: FreightStop): number {
@@ -711,6 +773,10 @@ export function explainFreightStopCommerce(args: {
 	if (!stop) {
 		return {
 			stopKind: 'radius-zone',
+			servicePosition: {
+				kind: 'unreachable',
+				label: 'service target unavailable',
+			},
 			localProvidedGoods: snapshotFromGoodsCounts({}),
 			localNeededGoods: snapshotFromGoodsCounts({}),
 			downstreamDemandGoods: snapshotFromGoodsCounts({}),
@@ -721,6 +787,7 @@ export function explainFreightStopCommerce(args: {
 			blockReasons: ['no_downstream_demand'],
 		}
 	}
+	const servicePosition = explainFreightStopServicePosition(args.game, stop)
 	const localProvidedGoods = measureFreightStopProvidedGoods(args.game, args.line, args.stopIndex)
 	const localNeededGoods = measureFreightStopNeededGoods(args.game, args.line, args.stopIndex)
 	const further = computeLineFurtherGoods({
@@ -786,8 +853,9 @@ export function explainFreightStopCommerce(args: {
 			addBlockReason(blockReasons, 'reserve_blocks_import')
 		}
 	}
-	return {
+	const explanation = {
 		stopKind,
+		servicePosition,
 		localProvidedGoods,
 		localNeededGoods,
 		downstreamDemandGoods: further.furtherNeededGoods,
@@ -798,4 +866,11 @@ export function explainFreightStopCommerce(args: {
 		...('trade' in stop ? { minBalanceAfterBuyVp: freightStopReserve(args.line, stop) } : {}),
 		blockReasons,
 	}
+	traces.vehicle.log?.('freightStop.servicePosition', {
+		line: args.line,
+		stop,
+		stopIndex: args.stopIndex,
+		servicePosition,
+	})
+	return explanation
 }

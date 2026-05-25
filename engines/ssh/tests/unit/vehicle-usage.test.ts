@@ -2,10 +2,13 @@ import { releaseVehicleFreightWorkOnPlanInterrupt } from 'ssh/freight/vehicle-ru
 import { allocateVehicleServiceForJob, findVehicleOffloadJob } from 'ssh/freight/vehicle-work'
 import type { GamePatches } from 'ssh/game/game'
 import { Game } from 'ssh/game/game'
+import { VehicleFunctions } from 'ssh/npcs/context/vehicle'
+import { subject } from 'ssh/npcs/scripts'
 import { isVehicleLineService, isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
 import type { WorkPlan } from 'ssh/types/base'
 import { axialDistance, toAxialCoord } from 'ssh/utils/position'
 import { afterEach, describe, expect, it } from 'vitest'
+import { namedTrace, traces } from '../../src/lib/dev/debug'
 import { gatherFreightLine } from '../freight-fixtures'
 import { bindOperatedWheelbarrowOffload } from '../test-engine/vehicle-bind'
 
@@ -104,6 +107,69 @@ describe('Vehicle usage invariant', () => {
 		expect(vehicle.service.kind).toBe('loadFromBurden')
 		expect(toAxialCoord(character.position)).toMatchObject({ q: 0, r: 0 })
 		expect(character.stepExecutor).toBeDefined()
+	})
+
+	it('aborts stale loadFromBurden pickup binding without warning', async () => {
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'grass' as const },
+				{ coord: [1, 0] as const, terrain: 'grass' as const },
+			],
+			looseGoods: { mushrooms: [[1, 0]] },
+		} satisfies GamePatches
+		game = new Game({ terrainSeed: 9608, characterCount: 0 }, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const targetTile = game.hex.getTile({ q: 1, r: 0 })
+		if (!targetTile) throw new Error('expected target tile')
+		const looseGood = targetTile.looseGoods.find((good) => good.goodType === 'mushrooms')
+		if (!looseGood) throw new Error('expected loose mushrooms')
+		const vehicle = game.vehicles.createVehicle('vu-stale-pickup', 'pickup_truck', { q: 0, r: 0 }, [])
+		const character = game.population.createCharacter('StalePickup', { q: 0, r: 0 })
+		vehicle.beginMaintenanceService(
+			{ kind: 'loadFromBurden', looseGood, targetCoord: { q: 1, r: 0 } },
+			character
+		)
+		character.operates = vehicle
+		character.onboard()
+		looseGood.remove()
+
+		const previousTrace = traces.vehicle
+		const vehicleTrace = namedTrace('vehicle', { silent: true })
+		traces.vehicle = vehicleTrace
+		try {
+			const vf = new VehicleFunctions()
+			Object.assign(vf, { [subject]: character })
+			const plan: WorkPlan = {
+				type: 'work',
+				job: 'vehicleOffload',
+				target: targetTile,
+				urgency: 1,
+				fatigue: 1,
+				vehicleUid: vehicle.uid,
+				maintenanceKind: 'loadFromBurden',
+				looseGood,
+				targetCoord: { q: 1, r: 0 },
+				path: [],
+				approachPath: [],
+			}
+
+			vf.ensureVehicleOffloadPickupPlan(plan)
+
+			expect(plan.vehicleApproachAborted).toBe(true)
+			expect(vehicle.service).toBeUndefined()
+			expect(
+				(vehicleTrace as unknown as Array<[string, string]>).some(
+					([level, head]) =>
+						level === 'warn' &&
+						typeof head === 'string' &&
+						head.startsWith('vehicleOffload pickup: stale loose good')
+				)
+			).toBe(false)
+		} finally {
+			traces.vehicle = previousTrace
+		}
 	})
 
 	it('non-vehicle work-plan begin releases vehicle usage but keeps unfinished service resumable', async () => {

@@ -2179,6 +2179,74 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		return canceled
 	}
 
+	cancelOrphanedFreightVehicleDockAllocations(dock: VehicleFreightDock): number {
+		const activeRefs = this.activeMovementRefs()
+		const matches = findLiveAllocations((held) => {
+			const reason = held.reason as
+				| {
+						type?: string
+						movementRef?: MovementRef
+						provider?: FreightMovementParty
+						demander?: FreightMovementParty
+						providerRef?: FreightMovementParty
+						demanderRef?: FreightMovementParty
+						providerName?: string
+						demanderName?: string
+						movement?: {
+							ref?: MovementRef
+							provider?: { name?: string }
+							demander?: { name?: string }
+						}
+				  }
+				| undefined
+			if (!reason) return false
+			if (
+				reason.type !== 'hive-transfer' &&
+				reason.type !== 'convey.path' &&
+				reason.type !== 'convey.hop'
+			) {
+				return false
+			}
+			const movementRef = reason.movementRef ?? reason.movement?.ref
+			if (movementRef && activeRefs.has(movementRefId(movementRef))) return false
+			const matchesDock = (
+				ref: { name?: string } | undefined,
+				name: string | undefined
+			): boolean => ref === dock || unwrap(ref) === unwrap(dock) || name === dock.name
+			return (
+				matchesDock(
+					reason.providerRef ?? reason.provider ?? reason.movement?.provider,
+					reason.providerName ?? reason.movement?.provider?.name
+				) ||
+				matchesDock(
+					reason.demanderRef ?? reason.demander ?? reason.movement?.demander,
+					reason.demanderName ?? reason.movement?.demander?.name
+				)
+			)
+		})
+		let canceled = 0
+		for (const { allocation } of matches) {
+			const token = allocation as Commitment
+			if (!commitmentValid(token)) continue
+			try {
+				token.cancel('orphaned-dock-allocation')
+				canceled += 1
+			} catch (error) {
+				traces.allocations.warn?.('[WATCHDOG] Failed to cancel orphaned dock allocation', {
+					dock: dock.name,
+					error: error instanceof Error ? error.message : String(error),
+				})
+			}
+		}
+		if (canceled > 0) {
+			traces.advertising.warn?.('[WATCHDOG] Cancelled orphaned dock allocations', {
+				dock: dock.name,
+				canceled,
+			})
+		}
+		return canceled
+	}
+
 	scanForStuckClaimedMovements(now: number, settleMs: number) {
 		for (const [, goods] of this.movingGoods.entries()) {
 			for (const mg of goods) {

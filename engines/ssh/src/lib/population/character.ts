@@ -1,4 +1,4 @@
-import { vehicles as vehicleRules } from 'engine-rules'
+import { goods as goodsCatalog, vehicles as vehicleRules } from 'engine-rules'
 import { inert, reactive, unwrap } from 'mutts'
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
@@ -37,7 +37,7 @@ import {
 } from 'ssh/population/findNextActivity'
 import { releaseAllHomeReservations } from 'ssh/residential/housing-reservations'
 import type { Storage } from 'ssh/storage'
-import type { Job, WorkPlan } from 'ssh/types/base'
+import type { GoodType, Job, WorkPlan } from 'ssh/types/base'
 import { type AxialCoord, axial, type Positioned } from 'ssh/utils'
 import { type Position, toAxialCoord } from 'ssh/utils/position'
 import {
@@ -149,6 +149,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	public hunger: number = 0
 	public tiredness: number = 0
 	public fatigue: number = 0
+	public readonly personalInventory: Partial<Record<GoodType, number>> = reactive({})
 
 	/** Stabilizes `findNextActivity` picks across replans. */
 	lastPickedActivityKind: NextActivityKind | undefined
@@ -232,6 +233,9 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			if (!vehicle.service.operator) vehicle.service.operator = this
 		}
 		if (current?.uid === vehicle?.uid) return
+		if (!vehicle && current && !this._footPosition) {
+			this.regainFootPosition(current.effectivePosition)
+		}
 		this._operatedVehicle = vehicle
 	}
 	private _footPosition?: Position
@@ -1071,6 +1075,44 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		return this.operates?.storage
 	}
 
+	personalGoodAvailable(goodType: GoodType): number {
+		return Math.max(0, this.personalInventory[goodType] ?? 0)
+	}
+
+	addPersonalGood(goodType: GoodType, quantity: number = 1): number {
+		if (quantity <= 0) return 0
+		this.personalInventory[goodType] = this.personalGoodAvailable(goodType) + quantity
+		return quantity
+	}
+
+	removePersonalGood(goodType: GoodType, quantity: number = 1): number {
+		if (quantity <= 0) return 0
+		const current = this.personalGoodAvailable(goodType)
+		const removed = Math.min(current, quantity)
+		if (removed <= 0) return 0
+		const next = current - removed
+		if (next > 0) this.personalInventory[goodType] = next
+		else delete this.personalInventory[goodType]
+		return removed
+	}
+
+	bestPersonalFood(): GoodType | undefined {
+		let best: { good: GoodType; strength: number } | undefined
+		for (const [goodType, quantity] of Object.entries(this.personalInventory) as [
+			GoodType,
+			number,
+		][]) {
+			if (!quantity || quantity <= 0) continue
+			const definition = goodsCatalog[goodType]
+			const strength =
+				definition && 'satiationStrength' in definition ? definition.satiationStrength : 0
+			if (strength > 0 && (!best || strength > best.strength)) {
+				best = { good: goodType, strength }
+			}
+		}
+		return best?.good
+	}
+
 	/**
 	 * Resolves {@link carry} and asserts it is present. Use in code paths that only make sense on
 	 * an operated vehicle (line freight load/unload/provide, gate drops, etc.).
@@ -1116,6 +1158,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 				fatigue: this.fatigue,
 				tiredness: this.tiredness,
 			},
+			personalInventory: { ...this.personalInventory },
 			assignedAlveolus: this.assignedAlveolus
 				? {
 						q: (this.assignedAlveolus.tile.position as any).q,
@@ -1137,8 +1180,16 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		char.fatigue = data.stats.fatigue
 		char.tiredness = data.stats.tiredness
 
-		// Legacy saves may include `inventory`; ignore (goods were never re-applied after removal).
-		void data.inventory
+		const personalInventory = data.personalInventory ?? data.inventory
+		if (personalInventory && typeof personalInventory === 'object') {
+			for (const [goodType, quantity] of Object.entries(personalInventory) as [
+				GoodType,
+				number,
+			][]) {
+				if (!(goodType in goodsCatalog) || typeof quantity !== 'number' || quantity <= 0) continue
+				char.personalInventory[goodType] = quantity
+			}
+		}
 
 		// Restore Scripts (after Character is created and context is available)
 		// We need to defer assignments that depend on other objects (e.g. Alveolus)?

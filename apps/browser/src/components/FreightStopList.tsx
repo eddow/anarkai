@@ -639,6 +639,12 @@ const FreightStopList = (props: FreightStopListProps) => {
 											</div>
 											<div class="freight-stop-list__commerce">
 												<span class="freight-stop-list__commerce-item">
+													{commerce().servicePosition.label}
+													{commerce().servicePosition.borderCount !== undefined
+														? ` (${commerce().servicePosition.borderCount})`
+														: ''}
+												</span>
+												<span class="freight-stop-list__commerce-item">
 													demand {formatGoodsSnapshot(commerce().downstreamDemandGoods)}
 												</span>
 												<span class="freight-stop-list__commerce-item">

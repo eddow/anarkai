@@ -4,10 +4,19 @@ function goEat()
 	satisfied = I.triggerLevels.hunger.satisfied
 	if not (I.hunger > satisfied) then return selfCare.pondering()
 	do
+		inventoryGood = selfCare.inventoryFood()
+		if inventoryGood then
+			selfCare.eatFromInventory inventoryGood
+		else
 		found = find.food()
 		if not found then return selfCare.pondering()
 		walk.into found.path
-		selfCare.eatFromWorld found.good, found.tile
+			if selfCare.takeFoodFromWorld(found.good, found.tile) then
+				selfCare.eatFromInventory found.good
+			else
+				selfCare.eatFromWorld found.good, found.tile
+			end if
+		end if
 	while I.hunger > satisfied
 	loop
 end function

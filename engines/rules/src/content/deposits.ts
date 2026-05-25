@@ -16,4 +16,7 @@ export const deposits = {
 			mushrooms: 0.000097, // Balanced for 1 mushroom per 2 trees at equilibrium
 		},
 	},
+	wheat_crop: {
+		maxAmount: 18,
+	},
 } as const

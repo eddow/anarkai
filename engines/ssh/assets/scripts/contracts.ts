@@ -14,6 +14,9 @@ export const CharacterContract = {
 		goHome: [],
 		wander: [],
 		eatFromWorld: ['GoodType', 'Tile'],
+		inventoryFood: [],
+		eatFromInventory: ['GoodType'],
+		takeFoodFromWorld: ['GoodType', 'Tile'],
 	},
 	work: {
 		goWork: ['WorkPlan'],

@@ -917,22 +917,37 @@ describe('Hive Offload Scenario', () => {
 
 			createOffloadWheelbarrow(game, { q: 3, r: 4 }, 'wb-removed')
 
-			const worker = engine.spawnCharacter('Worker', { q: 3, r: 4 })
-			worker.role = 'worker'
-			void worker.scriptsContext
+			const previousVehicleTrace = traces.vehicle
+			const vehicleTrace = namedTrace('vehicle', { silent: true })
+			traces.vehicle = vehicleTrace
+			try {
+				const worker = engine.spawnCharacter('Worker', { q: 3, r: 4 })
+				worker.role = 'worker'
+				void worker.scriptsContext
 
-			void game.hex.getTile(target)!
-			const directJob = findVehicleOffloadJob(game, worker)
-			expect(directJob?.job).toBe('vehicleOffload')
-			if (directJob?.job !== 'vehicleOffload' || directJob.maintenanceKind !== 'loadFromBurden')
-				throw new Error('Expected loadFromBurden vehicleOffload job before engagement')
+				void game.hex.getTile(target)!
+				const directJob = findVehicleOffloadJob(game, worker)
+				expect(directJob?.job).toBe('vehicleOffload')
+				if (directJob?.job !== 'vehicleOffload' || directJob.maintenanceKind !== 'loadFromBurden')
+					throw new Error('Expected loadFromBurden vehicleOffload job before engagement')
 
-			directJob.looseGood?.remove()
+				directJob.looseGood?.remove()
 
-			const action = worker.findBestJob()
-			expect(() => {
-				if (action) worker.begin(action)
-			}).not.toThrow()
+				const action = worker.findBestJob()
+				expect(() => {
+					if (action) worker.begin(action)
+				}).not.toThrow()
+				expect(
+					(vehicleTrace as unknown as Array<[string, string]>).some(
+						([level, head]) =>
+							level === 'warn' &&
+							typeof head === 'string' &&
+							head.startsWith('vehicleOffload pickup: stale loose good')
+					)
+				).toBe(false)
+			} finally {
+				traces.vehicle = previousVehicleTrace
+			}
 		} finally {
 			await engine.destroy()
 		}

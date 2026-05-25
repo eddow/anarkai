@@ -318,6 +318,17 @@ export function canPlantTreeOnLand(land: UnBuiltLand): boolean {
 	return tileHasRoomForPlantedTree(land)
 }
 
+export function canPlantDepositOnLand(land: UnBuiltLand, depositType: string): boolean {
+	if (depositType === 'tree') return canPlantTreeOnLand(land)
+	if (land.project) return false
+	if (land.terrain !== 'grass') return false
+	if (land.deposit && land.deposit.name !== depositType) return false
+	const definition = deposits[depositType as keyof typeof deposits]
+	if (!definition) return false
+	const amount = land.deposit?.amount ?? 0
+	return amount < definition.maxAmount
+}
+
 export function plantTreeOnLand(land: UnBuiltLand): boolean {
 	if (!canPlantTreeOnLand(land)) return false
 	if (!land.deposit) {
@@ -334,6 +345,21 @@ export function plantTreeOnLand(land: UnBuiltLand): boolean {
 	}
 	land.tile.board.game.notifyTerrainDepositsChanged(land.tile)
 	land.tile.board.game.invalidateWorkPlanning('planted-tree.plant')
+	return true
+}
+
+export function plantDepositOnLand(land: UnBuiltLand, depositType: string): boolean {
+	if (depositType === 'tree') return plantTreeOnLand(land)
+	if (!canPlantDepositOnLand(land, depositType)) return false
+	if (!land.deposit) {
+		const deposit = Deposit.create(depositType, 0)
+		if (!deposit) return false
+		land.deposit = deposit
+	}
+	const definition = deposits[depositType as keyof typeof deposits]
+	land.deposit.amount = Math.max(0, Math.min(definition.maxAmount, land.deposit.amount + 1))
+	land.tile.board.game.notifyTerrainDepositsChanged(land.tile)
+	land.tile.board.game.invalidateWorkPlanning('deposit.plant')
 	return true
 }
 

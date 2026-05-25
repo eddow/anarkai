@@ -26,6 +26,28 @@ export abstract class GameObject extends ReactiveBase {
 	}
 }
 
+export interface InteractiveLogObject {
+	readonly uid: string
+	readonly logs: string[]
+	logAbout(topic: unknown, ...args: unknown[]): void
+}
+
+const interactiveLogObjectsByUid = new Map<string, InteractiveLogObject>()
+
+export function interactiveLogObject(uid: string): InteractiveLogObject | undefined {
+	return interactiveLogObjectsByUid.get(uid)
+}
+
+function registerInteractiveLogObject(object: InteractiveLogObject): void {
+	interactiveLogObjectsByUid.set(object.uid, object)
+}
+
+function unregisterInteractiveLogObject(object: InteractiveLogObject): void {
+	if (interactiveLogObjectsByUid.get(object.uid) === object) {
+		interactiveLogObjectsByUid.delete(object.uid)
+	}
+}
+
 // Mixin functions for composition
 
 export function withInteractive<T extends abstract new (...args: any[]) => GameObject>(Base: T) {
@@ -41,6 +63,7 @@ export function withInteractive<T extends abstract new (...args: any[]) => GameO
 			const [game, uid] = args
 			super(...args)
 			this.uid = uid
+			registerInteractiveLogObject(this)
 			// Interactive objects should not become externally visible while subclass construction
 			// is still running. We still defer publication until after the current construction/
 			// reactive batch, but we do it through the game's batch-aware lifecycle queue rather
@@ -79,6 +102,7 @@ export function withInteractive<T extends abstract new (...args: any[]) => GameO
 		abstract readonly tile: Tile
 
 		destroy(): void {
+			unregisterInteractiveLogObject(this)
 			this.game.enqueueInteractiveUnregistration(this)
 			super.destroy()
 		}

@@ -115,6 +115,20 @@ describe('LinesManagementWidget', () => {
 		expect(rowIds(container)).toEqual(['snack-line'])
 	})
 
+	it('shows exchange-route pickup and delivery summaries', () => {
+		game.freightLines = [
+			line('exchange-line', 'Material Loop', [
+				radiusStop(0, 0),
+				anchorStop(0, 0),
+				anchorStop(1, 0),
+				radiusStop(1, 0),
+			]),
+		]
+		stop = latch(container, <LinesManagementWidget {...props()} />, scope())
+
+		expect(rows(container)[0]?.textContent).toContain('1 pickup + 1 delivery')
+	})
+
 	it('filters bay-backed lines out with No bay', () => {
 		stop = latch(container, <LinesManagementWidget {...props()} />, scope())
 

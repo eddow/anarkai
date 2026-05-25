@@ -561,4 +561,24 @@ describe('VehicleProperties', () => {
 
 		expect(container.textContent).toContain('Idle')
 	})
+
+	it('renders vehicle-local logs in the vehicle widget', () => {
+		const vehicle = {
+			uid: 'veh-logs',
+			title: 'wheelbarrow veh-logs',
+			vehicleType: 'wheelbarrow',
+			game: {},
+			storage: { stock: {} },
+			service: undefined,
+			logs: ['vehicleJob.selected\n\tvehicleUid: veh-logs'],
+		}
+
+		stop = latch(container, <VehicleProperties vehicle={vehicle as never} />, {
+			setTitle: vi.fn(),
+		} as never)
+
+		expect(container.querySelector('[data-testid="vehicle-logs"]')).not.toBeNull()
+		expect(container.textContent).toContain('vehicleJob.selected')
+		expect(container.textContent).toContain('vehicleUid: veh-logs')
+	})
 })

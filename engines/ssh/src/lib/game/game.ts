@@ -258,6 +258,7 @@ export interface GamePatches {
 	zones?: {
 		harvest?: ReadonlyArray<readonly [number, number]>
 		residential?: ReadonlyArray<readonly [number, number]>
+		commercial?: ReadonlyArray<readonly [number, number]>
 		named?: ReadonlyArray<NamedZonePatch>
 	}
 	projects?: Record<string, ReadonlyArray<readonly [number, number]>>
@@ -2129,6 +2130,7 @@ export class Game extends Eventful<GameEvents> {
 		}
 		applyCoords('harvest', zones.harvest)
 		applyCoords('residential', zones.residential)
+		applyCoords('commercial', zones.commercial)
 		for (const zone of zones.named ?? []) {
 			for (const coord of zone.coords) {
 				const coordObj = { q: coord[0], r: coord[1] }
@@ -2153,6 +2155,7 @@ export class Game extends Eventful<GameEvents> {
 		}
 		applyCoords('harvest', zones.harvest)
 		applyCoords('residential', zones.residential)
+		applyCoords('commercial', zones.commercial)
 		for (const zone of zones.named ?? []) {
 			for (const coord of zone.coords) {
 				this.hex.zoneManager.setGeneratedZone({ q: coord[0], r: coord[1] }, zone.id)
@@ -2277,10 +2280,12 @@ export class Game extends Eventful<GameEvents> {
 		const zones: {
 			harvest: Array<[number, number]>
 			residential: Array<[number, number]>
+			commercial: Array<[number, number]>
 			named: NamedZonePatch[]
 		} = {
 			harvest: [],
 			residential: [],
+			commercial: [],
 			named: [],
 		}
 		const namedZoneCoords = new Map<string, Array<[number, number]>>()
@@ -2304,6 +2309,8 @@ export class Game extends Eventful<GameEvents> {
 				zones.harvest!.push([q, r])
 			} else if (zone === 'residential') {
 				zones.residential!.push([q, r])
+			} else if (zone === 'commercial') {
+				zones.commercial!.push([q, r])
 			} else if (zone) {
 				const coords = namedZoneCoords.get(zone) ?? []
 				coords.push([q, r])

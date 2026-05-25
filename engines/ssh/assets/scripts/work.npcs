@@ -66,6 +66,7 @@ function convey(jobPlan)
 	if not work.inConveyRange(jobPlan) then
 		path = jobPlan.path
 		if path and path.length > 0 then walk.into path
+		if not work.inConveyRange(jobPlan) then return false
 	end if
 	assignAlveolus jobPlan
 	work.prepare jobPlan
@@ -74,6 +75,7 @@ function convey(jobPlan)
 	if not I.assignedAlveolus then I.assignedAlveolus = alveolus
 	work.conveyStep
 	do while I.keepWorking and (alveolus.aGoodMovement or alveolus.incomingGoods)
+		if not work.inConveyRange(jobPlan) then return false
 		if alveolus.aGoodMovement then
 			if not I.assignedAlveolus then I.assignedAlveolus = alveolus
 			idlePolls = 0

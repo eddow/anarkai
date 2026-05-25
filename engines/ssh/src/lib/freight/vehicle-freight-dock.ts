@@ -3,6 +3,7 @@ import type { Alveolus } from 'ssh/board/content/alveolus'
 import { type FreightLineDefinition, findDistributeRouteSegments } from 'ssh/freight/freight-line'
 import {
 	computeLineFurtherGoods,
+	measureFreightStopNeededGoods,
 	projectLoadedGoodsAgainstFurtherNeeds,
 } from 'ssh/freight/freight-stop-utility'
 import { isLineFreightVehicleType } from 'ssh/freight/line-freight-vehicles'
@@ -133,6 +134,32 @@ function projectedDockedVehicleGoods(
 	)
 }
 
+function clearUnbackedVirtualGoods(vehicle: VehicleEntity): number {
+	const storage = vehicle.storage as unknown as {
+		slots?: Array<{ reserved: number; allocated: number } | undefined>
+		_reserved?: Record<string, number | undefined>
+		_allocated?: Record<string, number | undefined>
+	}
+	let cleared = 0
+	if (Array.isArray(storage.slots)) {
+		for (const slot of storage.slots) {
+			if (!slot) continue
+			cleared += Math.max(0, slot.reserved) + Math.max(0, slot.allocated)
+			slot.reserved = 0
+			slot.allocated = 0
+		}
+	}
+	for (const bucket of [storage._reserved, storage._allocated]) {
+		if (!bucket) continue
+		for (const key of Object.keys(bucket)) {
+			cleared += Math.max(0, bucket[key] ?? 0)
+			delete bucket[key]
+		}
+	}
+	if (cleared > 0) vehicle.game.invalidateWorkPlanning('vehicle.dock.orphaned-virtual-goods')
+	return cleared
+}
+
 /**
  * Scored dock transfer candidates for a docked line freight vehicle at a freight bay.
  *
@@ -188,8 +215,29 @@ export function collectDockedVehicleAdvertisementCandidates(
 	const candidates: DockedVehicleAdvertisementCandidate[] = []
 	const projected = projectedDockedVehicleGoods(vehicle, bay)
 	if (!projected) return []
+	const providedCandidates = new Set<GoodType>()
+
+	const neededHere = measureFreightStopNeededGoods(vehicle.game, line, stopIdx).perGood
+	for (const [goodType, needed] of Object.entries(neededHere) as [GoodType, number][]) {
+		const quantity = Math.min(vehicle.storage.available(goodType), needed)
+		if (quantity <= 0) continue
+		providedCandidates.add(goodType)
+		candidates.push({
+			goodType,
+			advertisement: 'provide',
+			quantity,
+			score: scoreVehicleCandidate({
+				kind: 'dockProvide',
+				urgency: jobBalance.unloadFromVehicle,
+				distance: 0,
+				priorityTier: 'pureLine',
+				quantity,
+			}).score,
+		})
+	}
 
 	for (const goodType of Object.keys(projected.surplusLoadedGoods.perGood) as GoodType[]) {
+		if (providedCandidates.has(goodType)) continue
 		const quantity = vehicle.storage.available(goodType)
 		if (quantity <= 0) continue
 		if (!dockedVehicleSurplusHasDestination(bay, goodType)) {
@@ -289,10 +337,27 @@ export function refreshDockedVehicleAdvertisement(
 	vehicle: VehicleEntity,
 	bay: FreightBayAlveolus
 ): DockedVehicleAdvertisementCandidate[] {
+	const dock = bay.hive.freightVehicleDockFor(vehicle.uid)
+	if (!dock) return collectDockedVehicleAdvertisementCandidates(vehicle, bay)
+	if (
+		vehicle.storage.virtualGoodsCount > 0 &&
+		!bay.hive.hasActiveFreightVehicleDockMovement(vehicle.uid)
+	) {
+		const canceled = bay.hive.cancelOrphanedFreightVehicleDockAllocations(dock)
+		if (vehicle.storage.virtualGoodsCount > 0) {
+			const cleared = clearUnbackedVirtualGoods(vehicle)
+			if (cleared > 0) {
+				traces.vehicle.warn?.('[dock.candidates] cleared unbacked virtual goods', {
+					vehicleUid: vehicle.uid,
+					dock: dock.name,
+					canceled,
+					cleared,
+				})
+			}
+		}
+	}
 	const candidates = collectDockedVehicleAdvertisementCandidates(vehicle, bay)
 	const relations = dockedVehicleGoodsRelations(vehicle, bay)
-	const dock = bay.hive.freightVehicleDockFor(vehicle.uid)
-	if (!dock) return candidates
 	bay.hive.advertise(dock, Object.keys(relations).length > 0 ? relations : {})
 	return candidates
 }

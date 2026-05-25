@@ -53,6 +53,44 @@ function rulesTestOverrides() {
 				baseValueVp: 2,
 				tags: ['food'],
 			},
+			wheat: {
+				halfLife: 1800,
+				massKg: 3,
+				baseValueVp: 3,
+				tags: ['food', 'grain'],
+			},
+			flour: {
+				halfLife: 1600,
+				massKg: 2,
+				baseValueVp: 5,
+				tags: ['food', 'grain', 'prepared-food'],
+			},
+			bread: {
+				satiationStrength: 0.82,
+				halfLife: 900,
+				massKg: 1,
+				baseValueVp: 7,
+				tags: ['food', 'prepared-food'],
+			},
+			sandwich: {
+				satiationStrength: 1.05,
+				halfLife: 900,
+				massKg: 1,
+				baseValueVp: 8,
+				tags: ['food', 'prepared-food'],
+			},
+			clothes: {
+				halfLife: 2400,
+				massKg: 2,
+				baseValueVp: 12,
+				tags: ['piece', 'personal-goods'],
+			},
+			sunglasses: {
+				halfLife: 3600,
+				massKg: 1,
+				baseValueVp: 10,
+				tags: ['piece', 'personal-goods'],
+			},
 		},
 		terrain: new Proxy(
 			{},
@@ -68,6 +106,7 @@ function rulesTestOverrides() {
 			tree: { maxAmount: 12, regenerate: 0.01, generation: { mushrooms: 0.000097 } },
 			rock: { maxAmount: 18 },
 			berry_bush: { maxAmount: 18, regenerate: 0.01, generation: { berries: 0.000214 } },
+			wheat_crop: { maxAmount: 18 },
 		},
 		alveoli: {
 			forester: {
@@ -89,6 +128,59 @@ function rulesTestOverrides() {
 					type: 'transform',
 					rates: { wood: -0.2, planks: 0.2 },
 					productRatio: { inputGood: 'wood', outputGood: 'planks', maxProductRatio: 0.5 },
+				},
+				construction: { goods: { wood: 1 }, time: 1 },
+			},
+			wheat_planter: {
+				preparationTime: 1,
+				workTime: 1,
+				action: { type: 'plant', deposit: 'wheat_crop' },
+				construction: { goods: { wood: 1 }, time: 1 },
+			},
+			wheat_harvester: {
+				preparationTime: 1,
+				workTime: 2,
+				action: { type: 'harvest', deposit: 'wheat_crop', output: { wheat: 1 } },
+				construction: { goods: { wood: 1 }, time: 1 },
+			},
+			flour_mill: {
+				preparationTime: 1,
+				workTime: 2,
+				action: {
+					type: 'transform',
+					rates: { wheat: -0.2, flour: 0.2 },
+					productRatio: { inputGood: 'wheat', outputGood: 'flour', maxProductRatio: 0.6 },
+				},
+				construction: { goods: { wood: 1 }, time: 1 },
+			},
+			bakery: {
+				preparationTime: 1,
+				workTime: 2,
+				action: {
+					type: 'transform',
+					rates: { flour: -0.15, bread: 0.15 },
+					productRatio: { inputGood: 'flour', outputGood: 'bread', maxProductRatio: 0.7 },
+				},
+				construction: { goods: { wood: 1 }, time: 1 },
+			},
+			restaurant: {
+				preparationTime: 1,
+				workTime: 2,
+				action: {
+					type: 'transform',
+					rates: { berries: -0.1, mushrooms: -0.1, sandwich: 0.1 },
+					productRatio: { inputGood: 'berries', outputGood: 'sandwich', maxProductRatio: 0.65 },
+				},
+				construction: { goods: { wood: 1 }, time: 1 },
+			},
+			clothes_shop: {
+				preparationTime: 1,
+				workTime: 0,
+				action: {
+					type: 'storage',
+					kind: 'specific',
+					goods: { clothes: 12, sunglasses: 12 },
+					buffers: { clothes: 4, sunglasses: 4 },
 				},
 				construction: { goods: { wood: 1 }, time: 1 },
 			},

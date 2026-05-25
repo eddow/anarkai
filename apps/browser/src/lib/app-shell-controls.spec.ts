@@ -18,6 +18,7 @@ describe('app-shell-controls', () => {
 		expect(appShellZoneActions.map((z) => z.value)).toEqual([
 			'zone:residential',
 			'zone:harvest',
+			'zone:commercial',
 			'zone:none',
 		])
 	})
@@ -31,5 +32,6 @@ describe('app-shell-controls', () => {
 		expect([...buildValues].sort()).toEqual(['build:house', 'build:mine'].sort())
 		expect(values.some((v) => v.value === '')).toBe(true)
 		expect(values.some((v) => v.value === 'zone:residential')).toBe(true)
+		expect(values.some((v) => v.value === 'zone:commercial')).toBe(true)
 	})
 })

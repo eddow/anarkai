@@ -1,9 +1,11 @@
 import { devPreset, reactiveOptions } from 'mutts'
+import { interactiveLogObject, type InteractiveLogObject } from 'ssh/game/object'
 import type { PlannerFindActionSnapshot } from 'ssh/population/findNextActivity'
 import { debugActiveAllocations, getAllocationStats } from 'ssh/storage/guard'
 import { namedProfile, type ProfileLevel, type ProfileSink } from './profile.ts'
 import {
 	captureTraceRow,
+	readTraceConsoleRow,
 	readTraceConsoleParts,
 	readTraceRows,
 	type TraceCaptureOptions,
@@ -86,6 +88,41 @@ const TRACE_VERB_RANK: Record<TraceVerb, number> = {
 	error: 3,
 }
 
+const UID_TRACE_KEYS = new Set([
+	'uid',
+	'vehicleUid',
+	'characterUid',
+	'operatorUid',
+	'ownerUid',
+	'targetUid',
+	'sourceUid',
+	'claimedByUid',
+])
+
+function collectTraceLogUids(value: unknown, out: Set<string>): void {
+	if (Array.isArray(value)) {
+		for (const item of value) collectTraceLogUids(item, out)
+		return
+	}
+	if (!value || typeof value !== 'object') return
+	const record = value as Record<string, unknown>
+	for (const [key, entry] of Object.entries(record)) {
+		if (typeof entry === 'string' && UID_TRACE_KEYS.has(key)) {
+			out.add(entry)
+			continue
+		}
+		collectTraceLogUids(entry, out)
+	}
+}
+
+function traceLogTargets(row: TraceRow): InteractiveLogObject[] {
+	const uids = new Set<string>()
+	for (const value of row.slice(1)) collectTraceLogUids(value, uids)
+	return [...uids]
+		.map((uid) => interactiveLogObject(uid))
+		.filter((object): object is InteractiveLogObject => !!object)
+}
+
 /**
  * Clears all trace hooks. Used by Vitest setup so tests start with fresh `traces.*` sinks.
  * Dev: configure `traceLevels`, `setTraceLevel(...)`, or assign a custom sink locally.
@@ -113,6 +150,42 @@ export type NamedTraceOptions = TraceCaptureOptions & {
 	logLifetime?: number
 }
 
+export type TraceDiagnosticReporter = (diagnostic: {
+	readonly channel: string
+	readonly level: TraceLevel
+	readonly row: TraceRow
+	readonly text: string
+}) => void
+
+export type TraceInvariantResult =
+	| boolean
+	| {
+			readonly ok: boolean
+			readonly message?: string
+			readonly payload?: Record<string, unknown>
+	  }
+
+export type TraceInvariantCheck = (...args: unknown[]) => TraceInvariantResult
+
+export type TraceInvariantMap = Record<string, TraceInvariantCheck>
+
+const traceInvariantRegistry: Record<string, TraceInvariantMap | undefined> = {}
+
+let traceDiagnosticReporter: TraceDiagnosticReporter | undefined
+
+export function setTraceDiagnosticReporter(reporter: TraceDiagnosticReporter | undefined): void {
+	traceDiagnosticReporter = reporter
+}
+
+export function registerTraceInvariants(channel: string, invariants: TraceInvariantMap): void {
+	traceInvariantRegistry[channel] = {
+		...(traceInvariantRegistry[channel] ?? {}),
+		...invariants,
+	}
+	const existing = traceCache[channel]
+	if (existing instanceof NamedTraceList) existing.refreshInvariantSink()
+}
+
 /**
  * Array-backed trace sink.
  *
@@ -134,6 +207,7 @@ class NamedTraceList extends Array<TraceRow> implements TraceSink {
 	groupCollapsed?: (...args: unknown[]) => void
 	groupEnd?: (...args: unknown[]) => void
 	assert?: (condition?: boolean, ...args: unknown[]) => void
+	invariant?: Record<string, (...args: unknown[]) => void>
 
 	constructor(
 		private readonly name: string,
@@ -199,6 +273,37 @@ class NamedTraceList extends Array<TraceRow> implements TraceSink {
 		this.groupEnd = this.isEnabled(level, 'log')
 			? (...args) => this.pushRow('log', 'groupEnd', ['groupEnd', ...args])
 			: undefined
+		this.refreshInvariantSink()
+	}
+
+	refreshInvariantSink(): void {
+		const invariants = traceInvariantRegistry[this.name]
+		if (!this.assert || !invariants || Object.keys(invariants).length === 0) {
+			this.invariant = undefined
+			return
+		}
+		this.invariant = Object.fromEntries(
+			Object.entries(invariants).map(([id, check]) => [
+				id,
+				(...args: unknown[]) => {
+					const result = check(...args)
+					const ok = typeof result === 'boolean' ? result : result.ok
+					if (ok) return
+					const message =
+						typeof result === 'boolean'
+							? `[invariant] ${this.name}.${id}`
+							: (result.message ?? `[invariant] ${this.name}.${id}`)
+					const payload =
+						typeof result === 'boolean'
+							? { invariant: `${this.name}.${id}` }
+							: {
+									invariant: `${this.name}.${id}`,
+									...result.payload,
+								}
+					this.assert?.(false, message, payload)
+				},
+			])
+		)
 	}
 
 	private isEnabled(current: TraceVerb, verb: TraceVerb): boolean {
@@ -213,6 +318,17 @@ class NamedTraceList extends Array<TraceRow> implements TraceSink {
 		const row = captureTraceRow(level, args, this.options)
 		this.pruneExpiredRows(row.time)
 		this.push(row)
+		if (level === 'warn' || level === 'error' || level === 'assert failure') {
+			traceDiagnosticReporter?.({
+				channel: this.name,
+				level,
+				row,
+				text: readTraceConsoleRow(row),
+			})
+		}
+		for (const object of traceLogTargets(row)) {
+			object.logAbout(row, readTraceConsoleRow(row))
+		}
 		if (!this.options.silent) this.writeConsole(consoleMethod, row)
 	}
 

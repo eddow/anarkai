@@ -451,6 +451,7 @@ export class WaitForPredicateStep extends ASingleStep {
 export type EatWorldSource =
 	| { kind: 'loose'; looseGood: LooseGood }
 	| { kind: 'storage'; storage: Storage }
+	| { kind: 'personal' }
 
 export class EatStep extends AEvolutionStep {
 	get type() {
@@ -474,7 +475,7 @@ export class EatStep extends AEvolutionStep {
 				return
 			}
 			commitment.fulfill()
-		} else {
+		} else if (source.kind === 'storage') {
 			const commitment = new Commitment(`eat.storage.${food}`)
 			const result = source.storage.reserve({ [food]: 1 }, commitment)
 			if (result !== undefined) {
@@ -482,6 +483,12 @@ export class EatStep extends AEvolutionStep {
 				return
 			}
 			commitment.fulfill()
+		} else {
+			const removed = character.removePersonalGood(food, 1)
+			if (removed < 1) {
+				console.error(`[EatStep] Failed to consume personal food: ${food}`)
+				return
+			}
 		}
 	}
 	evolve(evolution: number): void {

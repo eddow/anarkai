@@ -2,6 +2,7 @@ import {
 	tablerFilledPointer,
 	tablerFilledSquareRoundedMinus,
 	tablerFilledZoomMoney,
+	tablerOutlineBuildingStore,
 	tablerOutlineRoad,
 	tablerOutlineTrees,
 } from 'pure-glyf/icons'
@@ -17,6 +18,7 @@ export const appShellZoneActions = [
 		icon: tablerFilledZoomMoney,
 	},
 	{ value: 'zone:harvest', label: 'Harvest', icon: tablerOutlineTrees },
+	{ value: 'zone:commercial', label: 'Commercial', icon: tablerOutlineBuildingStore },
 	{ value: 'zone:none', label: 'Unzone', icon: tablerFilledSquareRoundedMinus },
 ] as const
 
@@ -71,7 +73,9 @@ export function buildPaletteSelectedActionValues(
 				? ['zone', 'residential', 'zoning']
 				: z.value === 'zone:harvest'
 					? ['zone', 'harvest', 'trees']
-					: ['zone', 'unzone', 'clear'],
+					: z.value === 'zone:commercial'
+						? ['zone', 'commercial', 'shop', 'restaurant', 'leisure']
+						: ['zone', 'unzone', 'clear'],
 	}))
 	const roads: PaletteSelectedActionValue[] = [
 		{

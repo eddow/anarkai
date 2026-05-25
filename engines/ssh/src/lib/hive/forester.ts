@@ -2,9 +2,9 @@ import { jobBalance } from 'engine-rules'
 import { inert } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import {
-	canPlantTreeOnLand,
+	canPlantDepositOnLand,
 	type PlantedTreesState,
-	plantTreeOnLand,
+	plantDepositOnLand,
 	UnBuiltLand,
 } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
@@ -33,7 +33,6 @@ export class ForesterAlveolus extends Alveolus {
 	@inert
 	protected override nextAlveolusJob(character?: Character): ForesterJob | undefined {
 		if (!this.canProposeAlveolusSpecificJobs) return undefined
-		if (this.action.deposit !== 'tree') return undefined
 		if (this.assignedZoneIds.length === 0) return undefined
 
 		const startPos = toAxialCoord(character ? character.position : this.tile.position)
@@ -46,7 +45,7 @@ export class ForesterAlveolus extends Alveolus {
 		for (const coord of candidateCoords) {
 			const tile = hex.getTile(coord)
 			if (!(tile?.content instanceof UnBuiltLand)) continue
-			if (!canPlantTreeOnLand(tile.content)) continue
+			if (!canPlantDepositOnLand(tile.content, this.action.deposit)) continue
 			const path = character
 				? hex.findPathForCharacter(startPos, coord, character, maxWalkTime, false)
 				: hex.findPath(startPos, coord, maxWalkTime, false)
@@ -67,7 +66,7 @@ export class ForesterAlveolus extends Alveolus {
 
 	plantAtCurrentTile(character: Character): boolean {
 		const content = character.tile.content
-		return content instanceof UnBuiltLand ? plantTreeOnLand(content) : false
+		return content instanceof UnBuiltLand ? plantDepositOnLand(content, this.action.deposit) : false
 	}
 }
 

@@ -38,7 +38,7 @@ function ensureGame(): Game {
 				new Game(
 					{
 						terrainSeed: patches.seed,
-						characterCount: 3,
+						characterCount: 6,
 						characterRadius: 5,
 					},
 					patches

@@ -168,6 +168,23 @@ css`
 	color: var(--ak-text-muted);
 	font-size: 0.78rem;
 }
+
+.vehicle-properties__logs {
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+	max-height: 12rem;
+	overflow-y: auto;
+	font-family: ui-monospace, monospace;
+	font-size: 0.72rem;
+	line-height: 1.35;
+	color: var(--ak-text-muted);
+}
+
+.vehicle-properties__log-line {
+	white-space: pre-wrap;
+	word-break: break-word;
+}
 `
 
 interface VehiclePropertiesProps {
@@ -538,6 +555,21 @@ const VehicleProperties = (
 												<div class="vehicle-work__meta">{choice.targetLabel}</div>
 												<div class="vehicle-work__meta">{choice.metaText}</div>
 											</div>
+										</div>
+									)}
+								</for>
+							</div>
+						</PropertyGridRow>
+					</PropertyGrid>
+				</InspectorSection>
+				<InspectorSection if={(props.vehicle.logs?.length ?? 0) > 0}>
+					<PropertyGrid>
+						<PropertyGridRow label="Logs">
+							<div class="vehicle-properties__logs" role="log" data-testid="vehicle-logs">
+								<for each={props.vehicle.logs ?? []}>
+									{(line) => (
+										<div class="vehicle-properties__log-line" title={line}>
+											{line}
 										</div>
 									)}
 								</for>

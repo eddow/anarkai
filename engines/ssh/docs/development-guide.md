@@ -329,6 +329,15 @@ state.count++
 
 ## Testing Strategies
 
+### Runtime Invariants
+
+When a bug reveals invalid runtime state, document the invariant in
+[`docs/invariants`](./invariants.md) before or alongside the fix. Pair the invariant with a
+focused test, an integration/viability scenario, or a trace diagnostic that fails tests when emitted.
+
+Use stable invariant ids in trace payloads so future debugging sessions can jump from a warning to
+the contract it violated.
+
 ### Unit Tests
 
 Test individual functions or classes in isolation:

@@ -2,13 +2,20 @@
 	"deposits": {
 		"berry_bush": "Berry Bush",
 		"rock": "Rock",
-		"tree": "Tree"
+		"tree": "Tree",
+		"wheat_crop": "Wheat Crop"
 	},
 	"alveoli": {
 		"forester": "Forester",
 		"tree_chopper": "Tree Chopper",
 		"stonecutter": "Stone Cutter",
 		"sawmill": "Sawmill",
+		"wheat_planter": "Wheat Planter",
+		"wheat_harvester": "Wheat Harvester",
+		"flour_mill": "Flour Mill",
+		"bakery": "Bakery",
+		"restaurant": "Restaurant",
+		"clothes_shop": "Clothes shop",
 		"storage": "Store",
 		"building": "Building",
 		"engineer": "Engineer",
@@ -119,14 +126,21 @@
 		"food": "Food",
 		"bulk": "Bulk",
 		"piece": "Piece goods",
+		"grain": "Grain",
 		"construction/lumber": "Construction — lumber",
 		"construction/stone": "Construction — stone",
 		"construction/concrete": "Construction — concrete"
 	},
 	"goods": {
 		"berries": "Berries",
+		"sandwich": "Sandwich",
 		"concrete": "Concrete",
+		"clothes": "Clothes",
 		"mushrooms": "Mushrooms",
+		"sunglasses": "Sunglasses",
+		"wheat": "Wheat",
+		"flour": "Flour",
+		"bread": "Bread",
 		"planks": "Planks",
 		"stone": "Stone",
 		"wood": "Wood"
@@ -149,7 +163,7 @@
 			"harvest": "Harvest",
 			"convey": "Convey",
 			"vehicleOffload": "Offload vehicle",
-			"forester": "Plant trees",
+			"forester": "Plant",
 			"transform": "Transform",
 			"construct": "Build",
 			"foundation": "Lay foundation",

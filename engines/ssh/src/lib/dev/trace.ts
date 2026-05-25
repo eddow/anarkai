@@ -26,6 +26,7 @@ export type TraceSink = Partial<
 		'assert' | 'debug' | 'error' | 'groupCollapsed' | 'groupEnd' | 'info' | 'log' | 'trace' | 'warn'
 	>
 > & {
+	readonly invariant?: Record<string, (...args: unknown[]) => void>
 	readonly heads?: readonly unknown[]
 	read: (count?: number) => string
 	display: (count?: number) => void

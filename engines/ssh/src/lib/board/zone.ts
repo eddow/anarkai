@@ -2,7 +2,7 @@ import { reactive } from 'mutts'
 import type { AxialCoord } from 'ssh/utils'
 import { AxialKeyMap } from 'ssh/utils/mem'
 
-export type BuiltInZone = 'residential' | 'harvest'
+export type BuiltInZone = 'residential' | 'harvest' | 'commercial'
 export type Zone = BuiltInZone | string
 
 export interface NamedZoneDefinition {
@@ -21,6 +21,7 @@ export const ZONE_UID_PREFIX = 'zone:'
 const BUILT_IN_ZONES: NamedZoneDefinition[] = [
 	{ id: 'residential', name: 'Residential', color: '#44dd44', builtIn: true },
 	{ id: 'harvest', name: 'Harvest', color: '#aa7744', builtIn: true },
+	{ id: 'commercial', name: 'Commercial', color: '#4f9cff', builtIn: true },
 ]
 
 export function normalizeZoneId(id: string): Zone {

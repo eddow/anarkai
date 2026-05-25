@@ -2,13 +2,20 @@
 	"deposits": {
 		"berry_bush": "Buisson de Baies",
 		"rock": "Rocher",
-		"tree": "Arbre"
+		"tree": "Arbre",
+		"wheat_crop": "Culture de blé"
 	},
 	"alveoli": {
 		"forester": "Sylviculteur",
 		"tree_chopper": "Bûcheron",
 		"stonecutter": "Tailleur de Pierre",
 		"sawmill": "Scierie",
+		"wheat_planter": "Semoir à blé",
+		"wheat_harvester": "Moissonneur de blé",
+		"flour_mill": "Moulin à farine",
+		"bakery": "Boulangerie",
+		"restaurant": "Restaurant",
+		"clothes_shop": "Boutique de vêtements",
 		"storage": "Magasin",
 		"building": "Construction",
 		"engineer": "Ingénieur",
@@ -119,14 +126,21 @@
 		"food": "Nourriture",
 		"bulk": "Vrac",
 		"piece": "Pièces",
+		"grain": "Céréales",
 		"construction/lumber": "Construction — bois",
 		"construction/stone": "Construction — pierre",
 		"construction/concrete": "Construction — béton"
 	},
 	"goods": {
 		"berries": "Baies",
+		"sandwich": "Sandwich",
 		"concrete": "Béton",
+		"clothes": "Vêtements",
 		"mushrooms": "Champignons",
+		"sunglasses": "Lunettes de soleil",
+		"wheat": "Blé",
+		"flour": "Farine",
+		"bread": "Pain",
 		"planks": "Planches",
 		"stone": "Pierre",
 		"wood": "Bois"
@@ -149,7 +163,7 @@
 			"harvest": "Récolter",
 			"convey": "Convoyer",
 			"vehicleOffload": "Décharger le véhicule",
-			"forester": "Planter des arbres",
+			"forester": "Planter",
 			"transform": "Transformer",
 			"construct": "Construire",
 			"foundation": "Poser les fondations",

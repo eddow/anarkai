@@ -452,7 +452,8 @@ class WorkFunctions {
 				alveolus: alveolus.name,
 				incomingGoods: alveolus.incomingGoods,
 			})
-			return alveolus.incomingGoods ? waitStep() : undefined
+			alveolus.hive?.invalidateConveyPlanning('conveyStep.no-work')
+			return waitStep()
 		}
 
 		const hive = alveolus.hive
@@ -963,10 +964,21 @@ class WorkFunctions {
 		assert(alveolus, 'assignedAlveolus must be set')
 		assert(alveolus.action.type === 'harvest', 'assignedAlveolus.action must be a harvest')
 		const action = alveolus.action as Ssh.HarvestingAction
-		assert(
-			action.deposit === unbuiltLand.deposit?.name,
-			'assignedAlveolus.action.deposit must be the same as tile.content.deposit.name'
-		)
+		if (action.deposit !== unbuiltLand.deposit?.name) {
+			const tileCoord = toAxialCoord(this[subject].tile.position)
+			traces.work.warn?.('work.harvestStep.skip', {
+				character: this[subject].name,
+				characterUid: this[subject].uid,
+				reason: 'deposit-mismatch',
+				assignedAlveolus: this[subject].assignedAlveolus?.name,
+				expectedDeposit: action.deposit,
+				actualDeposit: unbuiltLand.deposit?.name,
+				tileQ: tileCoord?.q,
+				tileR: tileCoord?.r,
+			})
+			this[subject].game.invalidateWorkPlanning('harvest.deposit-mismatch')
+			return
+		}
 		const isMaturePlantedTree =
 			action.deposit === 'tree' &&
 			unbuiltLand.deposit?.name === 'tree' &&

@@ -140,5 +140,31 @@ describe('notifyTerrainDepositsChanged / sector resource refresh hooks', () => {
 				expect(land.deposit?.amount).toBe(1)
 			}
 		})
+
+		it('does not throw when a stale harvest assignment reaches a different deposit', () => {
+			const tileForest = game.hex.getTile({ q: 0, r: 0 })!
+			const rockDeposit = Deposit.create('rock', 2)
+			if (!rockDeposit) throw new Error('rock deposit missing')
+			game.hex.setTileContent(tileForest, new UnBuiltLand(tileForest, 'forest', rockDeposit))
+
+			const tileWork = game.hex.getTile({ q: 1, r: 0 })!
+			const chopper = createAlveolus('tree_chopper', tileWork)
+			if (!chopper) throw new Error('tree_chopper alveolus missing')
+			game.hex.setTileContent(tileWork, chopper)
+
+			const char = game.population.createCharacter('Worker', { q: 0, r: 0 })
+			char.assignedAlveolus = chopper
+
+			const wf = new WorkFunctions()
+			Object.assign(wf, { [subject]: char })
+
+			expect(() => wf.harvestStep()).not.toThrow()
+			const land = char.tile.content
+			expect(land).toBeInstanceOf(UnBuiltLand)
+			if (land instanceof UnBuiltLand) {
+				expect(land.deposit?.name).toBe('rock')
+				expect(land.deposit?.amount).toBe(2)
+			}
+		})
 	})
 })

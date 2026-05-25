@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import type { Hive } from 'ssh/hive/hive'
+import type { StorageAlveolus } from 'ssh/hive/storage'
 import type { HomePlan } from 'ssh/types/base'
 import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
@@ -110,5 +112,94 @@ describe('Script execution regressions', () => {
 
 		expect(conveyBody).toContain('walk.into path')
 		expect(conveyBody).not.toContain('walk.until path')
+	})
+
+	it('convey returns for replan instead of spinning when the worker is off the assigned tile', async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+
+		try {
+			engine.loadScenario({
+				generationOptions: {
+					terrainSeed: 1234,
+					characterCount: 0,
+				},
+				hives: [
+					{
+						name: 'ConveyReplanHive',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'storage', goods: { wood: 1 } },
+							{ coord: [1, 0], alveolus: 'storage', goods: {} },
+						],
+					},
+				],
+			} as any)
+
+			const provider = engine.game.hex.getTile({ q: 0, r: 0 })!.content as StorageAlveolus
+			const demander = engine.game.hex.getTile({ q: 1, r: 0 })!.content as StorageAlveolus
+			expect((provider.hive as Hive).createMovement('wood', provider, demander)).toBe(true)
+			expect(provider.aGoodMovement?.length).toBe(1)
+
+			const worker = engine.spawnCharacter('OffTileConveyor', { q: 0, r: 1 })
+			worker.assignedAlveolus = provider
+			provider.assignedWorker = worker
+
+			const execution = worker.scriptsContext.work.goWork({
+				type: 'work',
+				job: 'convey',
+				target: provider,
+				path: [],
+				urgency: 1,
+				fatigue: 1,
+			})
+
+			worker.begin(execution)
+			expect(() => engine.tick(0.5)).not.toThrow()
+			expect(worker.actionDescription).not.toContain('work.conveyStep')
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('stale convey execution waits and invalidates instead of finishing immediately', async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+
+		try {
+			engine.loadScenario({
+				generationOptions: {
+					terrainSeed: 1234,
+					characterCount: 0,
+				},
+				hives: [
+					{
+						name: 'StaleConveyHive',
+						alveoli: [{ coord: [0, 0], alveolus: 'storage', goods: {} }],
+					},
+				],
+			} as any)
+
+			const storage = engine.game.hex.getTile({ q: 0, r: 0 })!.content as StorageAlveolus
+			const worker = engine.spawnCharacter('StaleConveyor', { q: 0, r: 0 })
+			worker.assignedAlveolus = storage
+			storage.assignedWorker = worker
+
+			const beforeRevision = (storage.hive as Hive).conveyPlanningRevision
+			const execution = worker.scriptsContext.work.goWork({
+				type: 'work',
+				job: 'convey',
+				target: storage,
+				path: [],
+				urgency: 1,
+				fatigue: 1,
+			})
+
+			worker.begin(execution)
+
+			expect(worker.stepExecutor?.description).toBe('waitForIncomingGoods')
+			expect((storage.hive as Hive).conveyPlanningRevision).toBeGreaterThan(beforeRevision)
+		} finally {
+			await engine.destroy()
+		}
 	})
 })

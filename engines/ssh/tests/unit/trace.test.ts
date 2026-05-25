@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
 	DEFAULT_TRACE_LOG_LIFETIME,
 	namedTrace,
+	registerTraceInvariants,
 	setTraceLevel,
 	traceLevels,
 	traces,
@@ -115,6 +116,10 @@ describe('safe trace serialization', () => {
 		expect(text).toContain('character: &Character:')
 		expect(text).toContain('path:')
 		expect(text).toContain('length: 2')
+		expect(vehicle.logs.at(-1)).toContain('vehicleJob.selected')
+		expect(character.logs.at(-1)).toContain('vehicleJob.selected')
+		expect(tile.logs.at(-1)).toContain('vehicleJob.selected')
+		expect(vehicle.logs.at(-1)).toContain('movement:')
 	})
 
 	it('keeps plain objects safe without treating them as unprojected runtime objects', () => {
@@ -142,6 +147,7 @@ describe('safe trace serialization', () => {
 	})
 
 	it('gates trace methods by configured level while keeping read available', () => {
+		;(globalThis as any).allowExpectedDiagnostics?.(/\[trace:levels:error\] error/)
 		const sink = namedTrace('levels', { silent: true, level: 'warn' })
 
 		expect(sink.log).toBeUndefined()
@@ -240,6 +246,43 @@ describe('safe trace serialization', () => {
 		sink.assert?.(expensive(), 'should not be evaluated')
 
 		expect(evaluated).toBe(false)
+		expect(sink).toHaveLength(0)
+	})
+
+	it('connects invariants when assert is connected', () => {
+		;(globalThis as any).allowExpectedDiagnostics?.(
+			/\[trace:invariantProbe:assert failure\] probe invariant failed/
+		)
+		registerTraceInvariants('invariantProbe', {
+			'always-fails': (value) => ({
+				ok: false,
+				message: 'probe invariant failed',
+				payload: { value },
+			}),
+		})
+		const sink = namedTrace('invariantProbe', { silent: true, level: 'assert' })
+
+		expect(sink.invariant?.['always-fails']).toBeDefined()
+
+		sink.invariant?.['always-fails']('seen')
+
+		expect(sink.heads).toEqual(['probe invariant failed'])
+		expect(sink.read()).toContain('assert failure probe invariant failed')
+		expect(sink.read()).toContain('invariant: invariantProbe.always-fails')
+		expect(sink.read()).toContain('value: seen')
+	})
+
+	it('disconnects invariants when assert is disconnected', () => {
+		registerTraceInvariants('invariantOffProbe', {
+			'expensive-check': () => {
+				throw new Error('should not evaluate')
+			},
+		})
+		const sink = namedTrace('invariantOffProbe', { silent: true, level: 'error' })
+
+		expect(sink.assert).toBeUndefined()
+		expect(sink.invariant).toBeUndefined()
+		expect(() => sink.invariant?.['expensive-check']()).not.toThrow()
 		expect(sink).toHaveLength(0)
 	})
 

@@ -198,7 +198,7 @@ function goodsIntersectAvailableStock(
 	return false
 }
 
-function stopHasPotentialVehicleTransfer(
+export function stopHasPotentialVehicleTransfer(
 	game: Game,
 	character: Character | undefined,
 	vehicle: VehicleEntity,

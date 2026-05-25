@@ -39,6 +39,77 @@ export const alveoli = {
 			time: 6,
 		},
 	},
+	wheat_planter: {
+		preparationTime: 1,
+		action: { type: 'plant', deposit: 'wheat_crop' },
+		workTime: 2,
+		construction: {
+			goods: { wood: 1, planks: 1 },
+			time: 4,
+		},
+	},
+	wheat_harvester: {
+		preparationTime: 1,
+		action: { type: 'harvest', deposit: 'wheat_crop', output: { wheat: 1 } },
+		workTime: 2,
+		construction: {
+			goods: { wood: 2, planks: 1 },
+			time: 4,
+		},
+	},
+	flour_mill: {
+		preparationTime: 1,
+		action: {
+			type: 'transform',
+			rates: { wheat: -0.2, flour: 0.2 },
+			productRatio: { inputGood: 'wheat', outputGood: 'flour', maxProductRatio: 0.6 },
+		},
+		workTime: 2,
+		construction: {
+			goods: { wood: 3, planks: 2, stone: 1 },
+			time: 6,
+		},
+	},
+	bakery: {
+		preparationTime: 1,
+		action: {
+			type: 'transform',
+			rates: { flour: -0.15, bread: 0.15 },
+			productRatio: { inputGood: 'flour', outputGood: 'bread', maxProductRatio: 0.7 },
+		},
+		workTime: 2,
+		construction: {
+			goods: { wood: 2, planks: 2, stone: 1 },
+			time: 5,
+		},
+	},
+	restaurant: {
+		preparationTime: 1,
+		action: {
+			type: 'transform',
+			rates: { berries: -0.1, mushrooms: -0.1, sandwich: 0.1 },
+			productRatio: { inputGood: 'berries', outputGood: 'sandwich', maxProductRatio: 0.65 },
+		},
+		workTime: 2,
+		construction: {
+			goods: { wood: 3, planks: 2, stone: 1 },
+			time: 6,
+		},
+	},
+	clothes_shop: {
+		preparationTime: 1,
+		action: {
+			type: 'storage',
+			kind: 'specific',
+			goods: { clothes: 12, sunglasses: 12 },
+			buffers: { clothes: 4, sunglasses: 4 },
+		},
+		workTime: 0,
+		construction: {
+			goods: { wood: 2, planks: 3 },
+			time: 5,
+		},
+	},
 	storage: {
 		preparationTime: 1,
 		action: { type: 'storage', kind: 'slotted', capacity: 3, slots: 6 },

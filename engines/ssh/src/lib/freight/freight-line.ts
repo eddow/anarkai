@@ -874,11 +874,12 @@ export function getFreightLinePrimaryTile(
 }
 
 export function freightLineSummary(line: FreightLineDefinition): string {
-	const hasGather = findGatherRouteSegments(line).length > 0
-	const hasDistribute = findDistributeRouteSegments(line).length > 0
-	if (hasGather && hasDistribute) return 'Gather + distribute'
-	if (hasGather) return 'Gather'
-	if (hasDistribute) return 'Distribute'
+	const pickupStops = findGatherRouteSegments(line).length
+	const deliveryStops = findDistributeRouteSegments(line).length
+	const pieces: string[] = []
+	if (pickupStops > 0) pieces.push(`${pickupStops} pickup${pickupStops === 1 ? '' : 's'}`)
+	if (deliveryStops > 0) pieces.push(`${deliveryStops} delivery${deliveryStops === 1 ? '' : 'ies'}`)
+	if (pieces.length > 0) return pieces.join(' + ')
 	return line.cyclic ? 'Cyclic' : 'Freight'
 }
 

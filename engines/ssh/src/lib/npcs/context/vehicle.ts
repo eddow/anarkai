@@ -167,7 +167,7 @@ class VehicleFunctions {
 		}
 		if (!svc.looseGood.available || svc.looseGood.isRemoved) {
 			jobPlan.vehicleApproachAborted = true
-			traces.vehicle.warn?.('vehicleOffload pickup: stale loose good before binding pickup plan', {
+			traces.vehicle.log?.('vehicleOffload pickup: stale loose good before binding pickup plan', {
 				characterUid: character.uid,
 				vehicleUid: vehicle.uid,
 				goodType: svc.looseGood.goodType,
@@ -190,7 +190,7 @@ class VehicleFunctions {
 			)
 		} catch (error) {
 			jobPlan.vehicleApproachAborted = true
-			traces.vehicle.warn?.('vehicleOffload pickup: stale loose good while binding pickup plan', {
+			traces.vehicle.log?.('vehicleOffload pickup: stale loose good while binding pickup plan', {
 				characterUid: character.uid,
 				vehicleUid: vehicle.uid,
 				goodType: svc.looseGood.goodType,
@@ -344,7 +344,7 @@ class VehicleFunctions {
 					vehicleUid: vehicle.uid,
 					lineId: vehicle.service.line.id,
 					stopId: stop.id,
-					vehicleCoord: toAxialCoord(vehicle.position),
+					vehicleCoord: vehicle.position ? toAxialCoord(vehicle.position) : undefined,
 					dockCoord: vehicle.dockTile ? toAxialCoord(vehicle.dockTile.position) : undefined,
 				})
 				return

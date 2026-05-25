@@ -164,6 +164,36 @@ describe('Character vehicle seam', () => {
 		expect(vehicle.operator?.uid).toBe(character.uid)
 	})
 
+	it('restores foot position when an onboard operator is released through vehicle service', async () => {
+		game = new Game(
+			{ terrainSeed: 9322, characterCount: 0 },
+			{
+				tiles: [
+					{ coord: [0, 0] as const, terrain: 'grass' as const },
+					{ coord: [1, 0] as const, terrain: 'grass' as const },
+				],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		const vehicle = game.vehicles.createVehicle('v-release-onboard', 'wheelbarrow', { q: 0, r: 0 })
+		const character = game.population.createCharacter('ReleaseOnboard', { q: 0, r: 0 })
+		vehicle.beginOffloadService()
+		character.operates = vehicle
+		character.onboard()
+
+		vehicle.releaseOperator(character)
+
+		expect(character.operates).toBeUndefined()
+		expect(character.driving).toBe(false)
+		expect(toAxialCoord(character.position)).toMatchObject({ q: 0, r: 0 })
+		expect(() => {
+			character.position = { q: 0.25, r: -0.25 }
+		}).not.toThrow()
+		expect(toAxialCoord(character.position)).toMatchObject({ q: 0.25, r: -0.25 })
+	})
+
 	it('does not offer a line-claimed wheelbarrow to a second character', async () => {
 		const patches = {
 			tiles: [

@@ -17,6 +17,7 @@ import {
 	disconnectAllProfiles,
 	disconnectAllTraces,
 	setProfileLevel,
+	setTraceDiagnosticReporter,
 	setTraceLevel,
 	type TraceVerb,
 } from "./src/lib/dev/debug.ts";
@@ -25,13 +26,20 @@ import { options } from "ssh/globals";
 import { resetDebugActiveAllocations } from "ssh/storage/guard";
 
 type TestDiagnosticEntry = {
-	level: "warn" | "error";
+	level: "warn" | "assert" | "error";
 	text: string;
 };
 
 const originalConsoleWarn = console.warn.bind(console);
 const originalConsoleError = console.error.bind(console);
 const defaultDisallowedDiagnostics = [
+	/^\[trace:[^:\]]+:assert failure\]/,
+	/^\[trace:[^:\]]+:error\]/,
+	/\[vehicle\.advertisedJobs\] dock work exists but bay has no convey job/,
+	/\[vehicle\.advertisedJobs\] loaded docked vehicle has no advertised job/,
+	/vehicleOffload pickup: stale loose good/,
+	/character\.position\.set\.recoverFootPositionWithoutVehicle/,
+	/High loop count in nextStep/,
 	/\[WATCHDOG\]/,
 	/\[aGoodMovement\]/,
 	/\[conveyStep\]/,
@@ -89,12 +97,18 @@ const formatDiagnosticArg = (arg: unknown): string => {
 	return inspect(arg, { depth: 4, breakLength: Infinity });
 };
 
-const recordDiagnostic = (level: "warn" | "error", args: unknown[]) => {
+const recordDiagnostic = (level: TestDiagnosticEntry["level"], args: unknown[]) => {
 	capturedDiagnostics.push({
 		level,
 		text: args.map(formatDiagnosticArg).join(" "),
 	});
 };
+
+setTraceDiagnosticReporter(({ channel, level, text }) => {
+	recordDiagnostic(level === "assert failure" ? "assert" : level, [
+		`[trace:${channel}:${level}] ${text}`,
+	]);
+});
 
 console.warn = (...args: Parameters<typeof console.warn>) => {
 	recordDiagnostic("warn", args);

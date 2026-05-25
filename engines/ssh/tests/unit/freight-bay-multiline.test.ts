@@ -210,7 +210,7 @@ describe('Freight bay multi-line', () => {
 		expect(distributeSegmentAllowsGoodType(line, 'wood')).toBe(false)
 		expect(freightLineAllowsGoodType(line, 'wood')).toBe(true)
 		expect(freightLineAllowsGoodType(line, 'planks')).toBe(true)
-		expect(freightLineSummary(line)).toBe('Gather + distribute')
+		expect(freightLineSummary(line)).toBe('1 pickup + 1 delivery')
 	})
 
 	it('detects multiple distribute segments on one line', () => {

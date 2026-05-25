@@ -33,6 +33,9 @@ export const deposits: Record<string, VisualDefinition> = {
 			'objects.trees/tree11',
 		],
 	},
+	wheat_crop: {
+		sprites: ['objects.bushes/bush1'],
+	},
 }
 
 export const alveoli: Record<string, VisualDefinition> = {
@@ -55,6 +58,30 @@ export const alveoli: Record<string, VisualDefinition> = {
 	sawmill: {
 		sprites: ['buildings.sawmill'],
 		icon: 'buildings.sawmill',
+	},
+	wheat_planter: {
+		sprites: ['buildings.wheat-planter'],
+		icon: 'buildings.wheat-planter',
+	},
+	wheat_harvester: {
+		sprites: ['buildings.chopper'],
+		icon: 'buildings.chopper',
+	},
+	flour_mill: {
+		sprites: ['buildings.flour-mill'],
+		icon: 'buildings.flour-mill',
+	},
+	bakery: {
+		sprites: ['buildings.bakery'],
+		icon: 'buildings.bakery',
+	},
+	restaurant: {
+		sprites: ['buildings.shop'],
+		icon: 'buildings.shop',
+	},
+	clothes_shop: {
+		sprites: ['buildings.store'],
+		icon: 'buildings.store',
 	},
 	storage: {
 		sprites: ['buildings.store'],
@@ -80,13 +107,37 @@ export const goods: Record<string, VisualDefinition> = {
 		sprites: ['goods.berries'],
 		icon: 'goods.berries',
 	},
+	sandwich: {
+		sprites: ['goods.berries'],
+		icon: 'goods.berries',
+	},
 	concrete: {
 		sprites: ['goods.cement'],
 		icon: 'goods.cement',
 	},
+	clothes: {
+		sprites: ['goods.planks'],
+		icon: 'goods.planks',
+	},
 	mushrooms: {
 		sprites: ['goods.mushrooms'],
 		icon: 'goods.mushrooms',
+	},
+	sunglasses: {
+		sprites: ['goods.planks'],
+		icon: 'goods.planks',
+	},
+	wheat: {
+		sprites: ['goods.wheat'],
+		icon: 'goods.wheat',
+	},
+	flour: {
+		sprites: ['goods.flour'],
+		icon: 'goods.flour',
+	},
+	bread: {
+		sprites: ['goods.bread'],
+		icon: 'goods.bread',
 	},
 	planks: {
 		sprites: ['goods.planks'],

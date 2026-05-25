@@ -9,7 +9,12 @@ import { Badge } from '@app/ui/anarkai'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
 import { deposits as visualDeposits, goods as visualGoods } from 'engine-pixi/assets/visual-content'
 import { effect, reactive } from 'mutts'
-import { tablerFilledZoomMoney, tablerOutlinePolygon, tablerOutlineTrees } from 'pure-glyf/icons'
+import {
+	tablerFilledZoomMoney,
+	tablerOutlineBuildingStore,
+	tablerOutlinePolygon,
+	tablerOutlineTrees,
+} from 'pure-glyf/icons'
 import type { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { type ConstructionPhase, queryConstructionSiteView } from 'ssh/construction'
 import type { GoodType } from 'ssh/types/base'
@@ -69,6 +74,7 @@ const toDisplayText = (value: unknown, fallback = ''): string => {
 const iconForZone = (zoneId: string): string => {
 	if (zoneId === 'residential') return tablerFilledZoomMoney
 	if (zoneId === 'harvest') return tablerOutlineTrees
+	if (zoneId === 'commercial') return tablerOutlineBuildingStore
 	return tablerOutlinePolygon
 }
 

@@ -62,6 +62,7 @@ export interface ActivityPlanningCharacter {
 	/** Same idea as `Character.keepWorking`: still fit enough that rest at home should not outrank jobs. */
 	readonly keepWorking: boolean
 	resolveBestJobMatch(): { job: Job; targetTile: Tile; path: AxialCoord[] } | false
+	bestPersonalFood(): GoodType | undefined
 	readonly assignedAlveolus?: { tile: Tile }
 }
 
@@ -190,18 +191,21 @@ export function computeActivityScores(character: ActivityPlanningCharacter): Act
 	// immediately (falsy) and `findAction` can re-pick eat in the same tick → infinite fail.
 	const wantsEat = h0 > characterTriggerLevels.hunger.satisfied
 	if (wantsEat) {
+		const personalFood = character.bestPersonalFood()
 		const found = find.food()
-		if (
-			found &&
-			typeof found === 'object' &&
-			found !== null &&
-			'path' in found &&
-			'good' in found
-		) {
-			const pathLen = Array.isArray((found as { path: AxialCoord[] }).path)
-				? (found as { path: AxialCoord[] }).path.length
-				: 0
-			const good = (found as { good: GoodType }).good
+		const foodCandidate = personalFood
+			? { good: personalFood, path: [] as AxialCoord[] }
+			: found &&
+				  typeof found === 'object' &&
+				  found !== null &&
+				  'path' in found &&
+				  'good' in found
+				? found
+				: undefined
+		if (foodCandidate) {
+			const candidatePath = (foodCandidate as { path?: AxialCoord[] }).path
+			const pathLen = Array.isArray(candidatePath) ? candidatePath.length : 0
+			const good = (foodCandidate as { good: GoodType }).good
 			const strength = satiationForGood(good)
 			if (strength > 0) {
 				push(
