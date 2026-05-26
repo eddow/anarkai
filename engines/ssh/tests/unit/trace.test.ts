@@ -6,6 +6,7 @@ import {
 	namedTrace,
 	registerTraceInvariants,
 	setTraceLevel,
+	setTraceTimeSource,
 	traceLevels,
 	traces,
 } from '../../src/lib/dev/debug.ts'
@@ -299,6 +300,37 @@ describe('safe trace serialization', () => {
 		sink.log?.('fresh')
 
 		expect(sink.heads).toEqual(['fresh'])
+	})
+
+	it('uses the shared trace time source when a sink has no explicit clock', () => {
+		let now = 3
+		const clearTimeSource = setTraceTimeSource(() => now)
+		try {
+			const sink = namedTrace('clocked', { silent: true })
+
+			sink.log?.('clocked.event')
+			now = 4.25
+			sink.warn?.('clocked.warning')
+
+			expect(sink.read()).toContain('log clocked.event @t=3')
+			expect(sink.read()).toContain('warn clocked.warning @t=4.25')
+		} finally {
+			clearTimeSource()
+		}
+	})
+
+	it('prefers a sink-specific clock over the shared trace time source', () => {
+		const clearTimeSource = setTraceTimeSource(() => 3)
+		try {
+			const sink = namedTrace('explicit-clock', { silent: true, time: () => 9 })
+
+			sink.log?.('explicit.event')
+
+			expect(sink.read()).toContain('log explicit.event @t=9')
+			expect(sink.read()).not.toContain('@t=3')
+		} finally {
+			clearTimeSource()
+		}
 	})
 
 	it('keeps proxy channel identity while changing levels', () => {

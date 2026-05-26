@@ -126,6 +126,12 @@
 		"bulk": "Vrac",
 		"piece": "Pièces",
 		"grain": "Céréales",
+		"basic-materials": "Matériaux de base",
+		"prepared-food": "Nourriture préparée",
+		"personal-goods": "Biens personnels",
+		"research": "Recherche",
+		"commercial/clothes": "Commercial — vêtements",
+		"commercial/restaurant": "Commercial — restaurant",
 		"construction/lumber": "Construction — bois",
 		"construction/stone": "Construction — pierre",
 		"construction/concrete": "Construction — béton"

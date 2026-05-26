@@ -172,9 +172,17 @@ export type TraceInvariantMap = Record<string, TraceInvariantCheck>
 const traceInvariantRegistry: Record<string, TraceInvariantMap | undefined> = {}
 
 let traceDiagnosticReporter: TraceDiagnosticReporter | undefined
+let traceTimeSource: (() => number | undefined) | undefined
 
 export function setTraceDiagnosticReporter(reporter: TraceDiagnosticReporter | undefined): void {
 	traceDiagnosticReporter = reporter
+}
+
+export function setTraceTimeSource(source: (() => number | undefined) | undefined): () => void {
+	traceTimeSource = source
+	return () => {
+		if (traceTimeSource === source) traceTimeSource = undefined
+	}
 }
 
 export function registerTraceInvariants(channel: string, invariants: TraceInvariantMap): void {
@@ -315,7 +323,10 @@ class NamedTraceList extends Array<TraceRow> implements TraceSink {
 		consoleMethod: TraceConsoleMethod,
 		args: readonly unknown[]
 	): void {
-		const row = captureTraceRow(level, args, this.options)
+		const row = captureTraceRow(level, args, {
+			...this.options,
+			time: this.options.time ?? traceTimeSource,
+		})
 		this.pruneExpiredRows(row.time)
 		this.push(row)
 		if (level === 'warn' || level === 'error' || level === 'assert failure') {

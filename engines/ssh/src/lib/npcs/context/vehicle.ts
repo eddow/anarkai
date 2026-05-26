@@ -23,7 +23,7 @@ import { type AxialCoord, axial } from 'ssh/utils'
 import { positionRoughlyEquals, toAxialCoord } from 'ssh/utils/position'
 import { assert, traces } from '../../dev/debug.ts'
 import { subject } from '../scripts'
-import { DurationStep } from '../steps'
+import { DurationStep, MoveToStep } from '../steps'
 import type { WorkPlan } from '.'
 
 type VehicleHopRunEndedReason = 'zone-complete-ended-run' | 'anchor-freight-drained-ended-run'
@@ -65,14 +65,26 @@ function refreshAnchorHopPathToLiveDock(
 	character: Character,
 	vehicle: VehicleEntity,
 	jobPlan: WorkPlan
-): void {
-	if (jobPlan.type !== 'work' || jobPlan.job !== 'vehicleHop') return
-	if (!isVehicleLineService(vehicle.service)) return
+): AxialCoord[] | undefined {
+	if (jobPlan.type !== 'work' || jobPlan.job !== 'vehicleHop') return undefined
+	if (!isVehicleLineService(vehicle.service)) return undefined
 	const { line, stop } = vehicle.service
-	if (!('anchor' in stop)) return
-	if (vehicleCanDockAtCurrentPosition(vehicle)) return
+	if (!('anchor' in stop)) return undefined
+	if (vehicleCanDockAtCurrentPosition(vehicle)) return undefined
+	if (line.id !== jobPlan.lineId || stop.id !== jobPlan.stopId) {
+		traces.vehicle.warn?.('vehicleHopPrepare: stale dock tail against drifted live stop', {
+			characterUid: character.uid,
+			vehicleUid: vehicle.uid,
+			plannedLineId: jobPlan.lineId,
+			plannedStopId: jobPlan.stopId,
+			actualLineId: line.id,
+			actualStopId: stop.id,
+			vehicleCoord: toAxialCoord(vehicle.effectivePosition),
+			dockCoord: vehicle.dockTile ? toAxialCoord(vehicle.dockTile.position) : undefined,
+		})
+	}
 	const targetPos = freightStopMovementTarget(character.game, character, line, stop)
-	if (!targetPos) return
+	if (!targetPos) return undefined
 	const startPos = axial.round(toAxialCoord(vehicle.effectivePosition)!)
 	const path =
 		character.game.hex.findPathForVehicleServiceBorder(
@@ -91,7 +103,7 @@ function refreshAnchorHopPathToLiveDock(
 			startCoord: startPos,
 			targetCoord: toAxialCoord(targetPos),
 		})
-		return
+		return undefined
 	}
 	jobPlan.path = path
 	traces.vehicle.log?.('vehicleHopPrepare: refreshed live dock path', {
@@ -99,10 +111,71 @@ function refreshAnchorHopPathToLiveDock(
 		vehicleUid: vehicle.uid,
 		lineId: line.id,
 		stopId: stop.id,
+		plannedLineId: jobPlan.lineId,
+		plannedStopId: jobPlan.stopId,
 		pathLen: path.length,
 		startCoord: startPos,
+		targetHex: axial.round(toAxialCoord(targetPos)!),
 		targetCoord: toAxialCoord(targetPos),
 	})
+	return path
+}
+
+function moveTowardLiveDockStep(
+	character: Character,
+	vehicle: VehicleEntity,
+	jobPlan: WorkPlan
+): MoveToStep | undefined {
+	const path = refreshAnchorHopPathToLiveDock(character, vehicle, jobPlan)
+	const from = axial.round(toAxialCoord(vehicle.effectivePosition)!)
+	const next = path?.find((step) => axial.key(axial.round(step)) !== axial.key(from))
+	if (!next) return undefined
+	const pathLen = path?.length ?? 0
+	const distance = Math.max(1, axial.distance(from, next))
+	const duration =
+		character.tile.effectiveWalkTime * character.mobilityMultiplier * distance
+	if (!Number.isFinite(duration) || duration <= 0) return undefined
+	const dockCoord = vehicle.dockTile
+		? axial.round(toAxialCoord(vehicle.dockTile.position)!)
+		: undefined
+	const distanceToDock = dockCoord ? axial.distance(from, dockCoord) : Number.POSITIVE_INFINITY
+	const isNearDock = distanceToDock <= 1
+	const plannedLineId =
+		jobPlan.type === 'work' && jobPlan.job === 'vehicleHop' ? jobPlan.lineId : undefined
+	const plannedStopId =
+		jobPlan.type === 'work' && jobPlan.job === 'vehicleHop' ? jobPlan.stopId : undefined
+	;(jobPlan as WorkPlan & { vehicleHopReplanRequired?: boolean }).vehicleHopReplanRequired = true
+	const logMethod = isNearDock ? traces.vehicle.warn : traces.vehicle.log
+	const message = isNearDock
+		? 'vehicleHopDockStep: recovering stale dock tail by moving toward dock'
+		: 'vehicleHopDockStep: continuing approach toward dock'
+	logMethod?.(message, {
+		characterUid: character.uid,
+		vehicleUid: vehicle.uid,
+		lineId: isVehicleLineService(vehicle.service) ? vehicle.service.line.id : undefined,
+		stopId: isVehicleLineService(vehicle.service) ? vehicle.service.stop.id : undefined,
+		plannedLineId,
+		plannedStopId,
+		from,
+		next,
+		pathLen,
+		distanceToDock,
+		vehicleCoordRaw: vehicle.position ? toAxialCoord(vehicle.position) : undefined,
+		dockCoord: vehicle.dockTile ? toAxialCoord(vehicle.dockTile.position) : undefined,
+		canDockNow: vehicleCanDockAtCurrentPosition(vehicle),
+	})
+	return new MoveToStep(duration, character, next, 'walk', 'vehicleHop.recoverDockPath').onFulfilled(
+		() => {
+			traces.vehicle.log?.('vehicleHopDockStep: recovered stale dock tail movement completed', {
+				characterUid: character.uid,
+				vehicleUid: vehicle.uid,
+				from,
+				next,
+				vehicleCoord: vehicle.position ? axial.round(toAxialCoord(vehicle.position)!) : undefined,
+				dockable: vehicleCanDockAtCurrentPosition(vehicle),
+			})
+		}
+	)
 }
 
 function markVehicleHopRunEndedBeforeDock(
@@ -351,6 +424,8 @@ class VehicleFunctions {
 	vehicleHopDockStep(jobPlan: WorkPlan) {
 		const character = this[subject] as Character
 		if (jobPlan.type !== 'work' || jobPlan.job !== 'vehicleHop') return
+		;(jobPlan as WorkPlan & { vehicleHopReplanRequired?: boolean }).vehicleHopReplanRequired =
+			false
 		const vehicle = character.game.vehicles.vehicle(jobPlan.vehicleUid)
 		assert(vehicle, 'vehicleHopDockStep: vehicle missing')
 		if (!isVehicleLineService(vehicle.service)) {
@@ -382,6 +457,8 @@ class VehicleFunctions {
 			jobPlan.vehicleHopAnchorDockDisembarked = true
 			jobPlan.vehicleHopStopHandled = true
 			if (!vehicleCanDockAtCurrentPosition(vehicle)) {
+				const recoveryStep = moveTowardLiveDockStep(character, vehicle, jobPlan)
+				if (recoveryStep) return recoveryStep
 				;(jobPlan as WorkPlan & { vehicleHopReplanRequired?: boolean }).vehicleHopReplanRequired =
 					true
 				jobPlan.vehicleHopAnchorDockDisembarked = false

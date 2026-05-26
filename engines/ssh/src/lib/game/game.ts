@@ -86,7 +86,7 @@ import { SimulationLoop } from 'ssh/utils/loop'
 import { LCG } from 'ssh/utils/numbers'
 import { toAxialCoord } from 'ssh/utils/position'
 import * as gameContent from '../../../assets/game-content'
-import { assert } from '../dev/debug.ts'
+import { assert, setTraceTimeSource } from '../dev/debug.ts'
 import { GameplayFrontierController } from './gameplay-frontier'
 import type { HittableGameObject, InteractiveGameObject } from './object'
 import {
@@ -521,6 +521,8 @@ export class Game extends Eventful<GameEvents> {
 	public readonly clock = reactive({
 		virtualTime: 0,
 	})
+	private readonly traceTimeSource = () => this.clock.virtualTime
+	private clearTraceTimeSource: (() => void) | undefined
 	public loaded: Promise<void>
 	public rendererReady: Promise<void>
 	public rendererReadyResolver?: () => void
@@ -928,6 +930,7 @@ export class Game extends Eventful<GameEvents> {
 			...generationOptions,
 			terrainSeed: patches.seed ?? generationOptions.terrainSeed,
 		}
+		this.clearTraceTimeSource = setTraceTimeSource(this.traceTimeSource)
 		this.ticker = new SimulationLoop()
 		this.loaded = this.load()
 		// Create rendererReady promise that will be resolved when renderer is initialized
@@ -2753,6 +2756,8 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	public destroy() {
+		this.clearTraceTimeSource?.()
+		this.clearTraceTimeSource = undefined
 		// Stop clock-driven work first so teardown does not race with pending simulation ticks.
 		this.ticker.remove(this.tickerCallback)
 		this.ticker.stop()

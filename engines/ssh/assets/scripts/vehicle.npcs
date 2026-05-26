@@ -119,9 +119,15 @@ function vehicleHop(jobPlan)
 	end if
 	driveJobPath jobPlan
 	if jobPlan.dockEnter then
-		walk.enter
+		jobPlan.vehicleHopReplanRequired = true
 	end if
-	vehicle.vehicleHopDockStep jobPlan
+	do while jobPlan.dockEnter and jobPlan.vehicleHopReplanRequired
+		walk.enter
+		vehicle.vehicleHopDockStep jobPlan
+	loop
+	if not jobPlan.dockEnter then
+		vehicle.vehicleHopDockStep jobPlan
+	end if
 	// Zone stops: operator is still driving; step off then transfer then disengage.
 	// Some stop kinds handle that tail directly in `vehicleHopDockStep`.
 	if not jobPlan.dockEnter and not jobPlan.vehicleHopStopHandled then

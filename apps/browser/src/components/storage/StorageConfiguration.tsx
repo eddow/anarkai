@@ -49,7 +49,7 @@ css`
 	gap: 0.5rem;
 }
 
-.config-preset-select {
+.config-preset-input {
 	flex: 1;
 	padding: 0.25rem 0.35rem;
 	border-radius: 0.35rem;
@@ -57,6 +57,21 @@ css`
 	background: color-mix(in srgb, var(--ak-surface-panel) 92%, transparent);
 	color: var(--ak-text);
 	font-size: 0.78rem;
+}
+
+.config-preset-clear {
+	width: 1.6rem;
+	height: 1.6rem;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border-radius: 999px;
+	border: 1px solid color-mix(in srgb, var(--ak-text-muted) 18%, transparent);
+	background: color-mix(in srgb, var(--ak-surface-panel) 92%, transparent);
+	color: var(--ak-text-muted);
+	font-size: 1rem;
+	line-height: 1;
 }
 `
 
@@ -79,6 +94,8 @@ const configRegistry = reactive({
 	configs: [] as NamedStorageConfig[],
 })
 
+let nextPresetListId = 0
+
 function getConfig(name: string): NamedStorageConfig | undefined {
 	return configRegistry.configs.find((c) => c.name === name)
 }
@@ -92,6 +109,13 @@ function saveConfig(name: string, config: NamedStorageConfig): void {
 	}
 }
 
+function renameConfig(previousName: string, nextName: string): boolean {
+	const existing = getConfig(previousName)
+	if (!existing || !isConfigNameAvailable(nextName)) return false
+	existing.name = nextName
+	return true
+}
+
 function isConfigNameAvailable(name: string): boolean {
 	if (name === SPECIFIC_PRESET) return false
 	return !configRegistry.configs.some((c) => c.name === name)
@@ -101,8 +125,9 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 	const draft = reactive({
 		bufferStars: {} as Partial<Record<GoodType, number>>,
 		selectedPreset: SPECIFIC_PRESET,
-		presetNameInput: '',
+		presetName: '',
 	})
+	const presetListId = `storage-config-presets-${nextPresetListId++}`
 
 	// Robust getters using memoize
 	const mode = memoize(() => props.content.storageMode || 'all-but')
@@ -123,26 +148,12 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 
 	const currentConfigName = () => {
 		// Check if current settings match any saved config
-		const current: NamedStorageConfig = {
-			name: '',
-			storageMode: mode(),
-			storageExceptions: [...exceptions()],
-			storageBuffers: {} as Record<GoodType, number>,
-		}
-		for (const [good, qty] of Object.entries(buffers())) {
-			if (qty !== undefined && qty !== null) {
-				current.storageBuffers[good as GoodType] = qty
-			}
-		}
-		if (isSpecific()) {
-			current.specificBuffers = (props.content.specificStorageConfiguration?.buffers ??
-				{}) as Record<GoodType, number>
-		}
+		const current = currentConfigSnapshot('')
 		for (const config of configRegistry.configs) {
 			if (config.storageMode !== current.storageMode) continue
 			if (
-				JSON.stringify(config.storageExceptions.sort()) !==
-				JSON.stringify(current.storageExceptions.sort())
+				JSON.stringify([...config.storageExceptions].sort()) !==
+				JSON.stringify([...current.storageExceptions].sort())
 			)
 				continue
 			if (JSON.stringify(config.storageBuffers) !== JSON.stringify(current.storageBuffers)) continue
@@ -157,37 +168,7 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 		return SPECIFIC_PRESET
 	}
 
-	const handlePresetChange = (value: string) => {
-		if (value === SPECIFIC_PRESET) {
-			draft.selectedPreset = SPECIFIC_PRESET
-			return
-		}
-		const config = getConfig(value)
-		if (!config) {
-			// New config name entered
-			draft.presetNameInput = value
-			draft.selectedPreset = SPECIFIC_PRESET
-			return
-		}
-		// Load config
-		props.content.storageMode = config.storageMode
-		props.content.storageExceptions = [...config.storageExceptions]
-		props.content.storageBuffers = { ...config.storageBuffers }
-		if (isSpecific() && config.specificBuffers) {
-			const existingConfig = props.content.specificStorageConfiguration
-			if (existingConfig) {
-				// Mutate the buffers property
-				for (const [good, qty] of Object.entries(config.specificBuffers)) {
-					existingConfig.buffers[good as GoodType] = qty
-				}
-			}
-		}
-		draft.selectedPreset = value
-	}
-
-	const handleSaveConfig = () => {
-		const name = draft.presetNameInput.trim()
-		if (!name || !isConfigNameAvailable(name)) return
+	const currentConfigSnapshot = (name: string): NamedStorageConfig => {
 		const config: NamedStorageConfig = {
 			name,
 			storageMode: mode(),
@@ -203,16 +184,75 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 			config.specificBuffers = (props.content.specificStorageConfiguration?.buffers ??
 				{}) as Record<GoodType, number>
 		}
-		saveConfig(name, config)
+		return config
+	}
+
+	const loadPreset = (name: string, config: NamedStorageConfig) => {
+		props.content.storageMode = config.storageMode
+		props.content.storageExceptions = [...config.storageExceptions]
+		props.content.storageBuffers = { ...config.storageBuffers }
+		if (isSpecific() && config.specificBuffers) {
+			const storageConfig = props.content.specificStorageConfiguration
+			if (storageConfig) {
+				for (const [good, qty] of Object.entries(config.specificBuffers)) {
+					storageConfig.buffers[good as GoodType] = qty
+				}
+			}
+		}
 		draft.selectedPreset = name
-		draft.presetNameInput = ''
+		draft.presetName = name
+	}
+
+	const loadPresetIfNamed = (value: string): boolean => {
+		const name = value.trim()
+		if (!name) return false
+		const existingConfig = getConfig(name)
+		if (!existingConfig) return false
+		loadPreset(name, existingConfig)
+		return true
+	}
+
+	const handlePresetInput = (value: string) => {
+		draft.presetName = value
+		loadPresetIfNamed(value)
+	}
+
+	const handlePresetSelection = () => {
+		loadPresetIfNamed(draft.presetName)
+	}
+
+	const handlePresetCommit = () => {
+		const name = draft.presetName.trim()
+		if (!name) {
+			clearPreset()
+			return
+		}
+		if (loadPresetIfNamed(name)) return
+
+		if (draft.selectedPreset !== SPECIFIC_PRESET) {
+			if (renameConfig(draft.selectedPreset, name)) {
+				draft.selectedPreset = name
+				draft.presetName = name
+			}
+			return
+		}
+
+		saveConfig(name, currentConfigSnapshot(name))
+		draft.selectedPreset = name
+		draft.presetName = name
+	}
+
+	const clearPreset = () => {
+		draft.selectedPreset = SPECIFIC_PRESET
+		draft.presetName = ''
 	}
 
 	// Sync selected preset when settings change externally
 	effect`storage-configuration:preset-sync`(() => {
 		const matched = currentConfigName()
-		if (matched !== draft.selectedPreset) {
-			draft.selectedPreset = matched
+		if (draft.selectedPreset !== SPECIFIC_PRESET && matched !== draft.selectedPreset) {
+			draft.selectedPreset = SPECIFIC_PRESET
+			draft.presetName = ''
 		}
 	})
 
@@ -344,25 +384,31 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 			{/* Config Preset Row */}
 			<PropertyGridRow if={allowStorageEditors()} label={T.storage.configPreset}>
 				<div class="config-preset-row">
-					<select
-						class="config-preset-select"
-						value={draft.selectedPreset}
-						update:value={handlePresetChange}
-						data-testid="storage-config-preset-select"
-					>
-						<option value={SPECIFIC_PRESET}>{T.storage.configSpecific}</option>
+					<input
+						class="config-preset-input"
+						type="text"
+						value={draft.presetName}
+						update:value={handlePresetInput}
+						onChange={handlePresetSelection}
+						onBlur={handlePresetCommit}
+						list={presetListId}
+						placeholder={T.storage.configSpecific}
+						data-testid="storage-config-preset-combobox"
+					/>
+					<datalist id={presetListId}>
 						<for each={applicableConfigs()}>
-							{(config) => <option value={config.name}>{config.name}</option>}
+							{(config) => <option value={config.name} />}
 						</for>
-					</select>
+					</datalist>
 					<button
-						if={draft.presetNameInput && isConfigNameAvailable(draft.presetNameInput)}
+						if={draft.presetName}
 						type="button"
-						onClick={handleSaveConfig}
-						title={T.storage.configCreateLabel.replace('{name}', draft.presetNameInput)}
-						data-testid="storage-config-save-preset"
+						class="config-preset-clear"
+						onClick={clearPreset}
+						title={T.storage.configSpecific}
+						data-testid="storage-config-clear-preset"
 					>
-						+
+						x
 					</button>
 				</div>
 			</PropertyGridRow>

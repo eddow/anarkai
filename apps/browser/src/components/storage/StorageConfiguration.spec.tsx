@@ -1,4 +1,5 @@
 import { document, latch } from '@sursaut/core'
+import { reactive } from 'mutts'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const goodMultiSelectCalls: Array<Record<string, unknown>> = []
@@ -258,5 +259,75 @@ describe('StorageConfiguration', () => {
 
 		expect(content.storageBuffers).toBe(liveBuffers)
 		expect(content.storageBuffers.wood).toBeUndefined()
+	})
+
+	it('creates, renames, clears, and reloads storage presets from the combobox text', () => {
+		const content = reactive({
+			storage: {},
+			storageMode: 'all-but' as 'all-but' | 'only',
+			storageExceptions: ['wood'],
+			storageBuffers: { wood: 2 },
+			storageConfiguration: { buffers: {} },
+		})
+
+		stop = latch(
+			container,
+			<table>
+				<tbody>
+					<StorageConfiguration content={content as never} game={{} as never} />
+				</tbody>
+			</table>
+		)
+
+		let input = container.querySelector(
+			'[data-testid="storage-config-preset-combobox"]'
+		) as HTMLInputElement
+		expect(input.placeholder).not.toBe('')
+
+		input.value = 'Depot preset'
+		input.dispatchEvent(new Event('input', { bubbles: true }))
+		input.dispatchEvent(new Event('blur', { bubbles: true }))
+		expect(input.value).toBe('Depot preset')
+
+		input.value = 'Depot renamed'
+		input.dispatchEvent(new Event('input', { bubbles: true }))
+		input.dispatchEvent(new Event('blur', { bubbles: true }))
+		expect(input.value).toBe('Depot renamed')
+
+		content.storageMode = 'only'
+		content.storageExceptions = ['stone']
+		content.storageBuffers = { stone: 5 }
+
+		const clear = container.querySelector(
+			'[data-testid="storage-config-clear-preset"]'
+		) as HTMLButtonElement
+		clear?.click()
+		input = container.querySelector(
+			'[data-testid="storage-config-preset-combobox"]'
+		) as HTMLInputElement
+		expect(input.value).toBe('')
+
+		input.value = 'Other preset'
+		input.dispatchEvent(new Event('input', { bubbles: true }))
+		input.dispatchEvent(new Event('blur', { bubbles: true }))
+		expect(input.value).toBe('Other preset')
+
+		input.value = 'Depot renamed'
+		input.dispatchEvent(new Event('input', { bubbles: true }))
+		input.dispatchEvent(new Event('change', { bubbles: true }))
+
+		expect(content.storageMode).toBe('all-but')
+		expect(content.storageExceptions).toEqual(['wood'])
+		expect(content.storageBuffers).toEqual({ wood: 2 })
+		expect(input.value).toBe('Depot renamed')
+
+		input.value = 'Other preset'
+		input.dispatchEvent(new Event('input', { bubbles: true }))
+		input.dispatchEvent(new Event('change', { bubbles: true }))
+
+		expect(content.storageMode).toBe('only')
+		expect(content.storageExceptions).toEqual(['stone'])
+		expect(content.storageBuffers).toEqual({ stone: 5 })
+		expect(input.value).toBe('Other preset')
 	})
 })

@@ -126,6 +126,12 @@
 		"bulk": "Bulk",
 		"piece": "Piece goods",
 		"grain": "Grain",
+		"basic-materials": "Basic materials",
+		"prepared-food": "Prepared food",
+		"personal-goods": "Personal goods",
+		"research": "Research",
+		"commercial/clothes": "Commercial — clothes",
+		"commercial/restaurant": "Commercial — restaurant",
 		"construction/lumber": "Construction — lumber",
 		"construction/stone": "Construction — stone",
 		"construction/concrete": "Construction — concrete"

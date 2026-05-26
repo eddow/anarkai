@@ -1,4 +1,5 @@
 import { gameRootSpeed, gameTimeSpeedFactors } from 'engine-rules'
+import { namedTrace } from 'ssh/dev/debug'
 import { Game } from 'ssh/game'
 import { configuration } from 'ssh/globals'
 import type { SimulationLoop } from 'ssh/utils/loop'
@@ -50,5 +51,14 @@ describe('Game Clock', () => {
 			0.1
 		)
 		expect(gameRootSpeed).toBe(2)
+	})
+
+	it('stamps debug traces with the current virtual time', () => {
+		const sink = namedTrace('clock-probe', { silent: true })
+
+		game.clock.virtualTime = 12.75
+		sink.warn?.('clock.probe')
+
+		expect(sink.read()).toContain('warn clock.probe @t=12.75')
 	})
 })

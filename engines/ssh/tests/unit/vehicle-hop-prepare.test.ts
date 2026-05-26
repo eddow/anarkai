@@ -349,10 +349,12 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			dockEnter: true,
 		}
 
-		expect(() => vf.vehicleHopDockStep(jobPlan)).not.toThrow()
+		const recoveryStep = vf.vehicleHopDockStep(jobPlan)
+		expect(recoveryStep).toBeDefined()
 		expect(jobPlan.vehicleHopReplanRequired).toBe(true)
 		expect(vehicle.isDocked).toBe(false)
-		expect(vehicle.position).toMatchObject({ q: -2, r: 1 })
+		recoveryStep?.tick(Number.POSITIVE_INFINITY)
+		expect(vehicle.position).not.toMatchObject({ q: -2, r: 1 })
 	})
 
 	it('vehicleHopPrepare repairs a missing path to a live ChopSaw bay anchor', async () => {
