@@ -34,6 +34,9 @@ vi.mock('engine-pixi/assets/visual-content', () => ({
 		freight_bay: { sprites: ['freight-bay-sprite'] },
 		storage: { sprites: ['storage-sprite'] },
 	},
+	commands: {
+		bulldoze: { sprites: ['bulldozer-sprite'] },
+	},
 }))
 
 import { disposeBrowserPalette, getBrowserPalette, palettePanelBridge } from './browser-palette'
@@ -124,6 +127,16 @@ describe('browser palette registry & palettePanelBridge', () => {
 
 		const freightBay = selectedAction.values.find((entry) => entry.value === 'build:freight_bay')
 		expect(freightBay?.icon).toBeTruthy()
+	})
+
+	it('exposes bulldoze with the command visual', () => {
+		const palette = getBrowserPalette().palette
+		const selectedAction = palette.tool('selectedAction') as {
+			values: Array<{ value: string; icon?: string | JSX.Element | (() => JSX.Element) }>
+		}
+
+		const bulldoze = selectedAction.values.find((entry) => entry.value === 'bulldoze')
+		expect(bulldoze?.icon).toBeTruthy()
 	})
 
 	it('exposes build, zone, and road tools in the top toolbar', () => {

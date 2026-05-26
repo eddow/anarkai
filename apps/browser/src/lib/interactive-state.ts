@@ -10,6 +10,11 @@ export const interactionMode = reactive({
 	selectedAction: '' as string,
 })
 
+export const hivePlanPlacementState = reactive({
+	rotation: 0,
+	lastMessage: '',
+})
+
 export interface ActiveWorldViewPov {
 	readonly viewId: string
 	readonly center: AxialCoord

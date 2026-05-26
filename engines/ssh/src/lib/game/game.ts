@@ -65,6 +65,13 @@ import {
 import type { SerializedConveyMovement } from 'ssh/hive/convey-serialize'
 import type { TrackedMovement } from 'ssh/hive/hive'
 import type { MovementRef } from 'ssh/hive/movement-ref'
+import {
+	createConstructionSiteForHivePlanEntry,
+	HivePlanCollection,
+	previewHivePlanPlacement,
+	type HivePlanPlacementPreview,
+	type SerializedHivePlan,
+} from 'ssh/hive-plan'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { readSlottedStorageParams, usesSlottedStorageLayout } from 'ssh/hive/storage-action'
 import { TransformAlveolus } from 'ssh/hive/transform'
@@ -183,6 +190,9 @@ export interface AlveolusPatch {
 	/** Persisted construction work seconds on the build shell. */
 	constructionWorkSecondsApplied?: number
 	constructionPhase?: ConstructionPhase
+	hivePlanId?: string
+	hivePlanVersion?: number
+	planRoleId?: string
 	/** Configuration reference and individual config for this alveolus */
 	configuration?: {
 		ref: Ssh.ConfigurationReference
@@ -209,6 +219,9 @@ export interface ProjectSitePatch {
 	foundationConsumedGoods?: Partial<Record<GoodType, number>>
 	constructionGoods?: Partial<Record<GoodType, number>>
 	constructionWorkSecondsApplied?: number
+	hivePlanId?: string
+	hivePlanVersion?: number
+	planRoleId?: string
 }
 
 export interface PlayerAccountPatch {
@@ -279,6 +292,7 @@ export interface SaveState extends GamePatches {
 	namedConfigurations?: Record<AlveolusType, Record<string, Ssh.AlveolusConfiguration>>
 	/** Per-hive configurations by alveolus type */
 	hiveConfigurations?: Record<string, Record<string, Ssh.AlveolusConfiguration>>
+	hivePlans?: ReadonlyArray<SerializedHivePlan>
 }
 
 function terrainPatchesAsTiles(terrains: TerrainPatches | undefined): TilePatch[] {
@@ -421,6 +435,7 @@ export class Game extends Eventful<GameEvents> {
 	public readonly population: Population
 	public readonly vehicles: Vehicles
 	public readonly configurationManager = new AlveolusConfigurationManager()
+	public readonly hivePlans = new HivePlanCollection(this)
 	public readonly procurementDefaults = commerce.procurement
 	public readonly playerAccount = reactive<PlayerAccountPatch>({
 		balanceVp: commerce.startingAccountBalanceVp,
@@ -525,6 +540,40 @@ export class Game extends Eventful<GameEvents> {
 
 	public applyBuildAction(tile: Tile, alveolusType: AlveolusType): boolean {
 		return tile.build(alveolusType)
+	}
+
+	public previewHivePlanPlacement(
+		planId: string,
+		anchor: AxialCoord,
+		rotation: number
+	): HivePlanPlacementPreview | undefined {
+		const plan = this.hivePlans.find(planId)
+		if (!plan || plan.stage !== 'working') return undefined
+		return previewHivePlanPlacement(this, plan, anchor, rotation)
+	}
+
+	public applyHivePlanPlacement(planId: string, anchor: AxialCoord, rotation: number): boolean {
+		const plan = this.hivePlans.find(planId)
+		if (!plan || plan.stage !== 'working') return false
+		const preview = previewHivePlanPlacement(this, plan, anchor, rotation)
+		if (!preview.valid) return false
+		for (const cell of preview.cells) {
+			if (!cell.tile) return false
+		}
+		for (const cell of preview.cells) {
+			const tile = cell.tile!
+			tile.baseTerrain = 'concrete'
+			tile.terrainState = {
+				...(tile.terrainState ?? {}),
+				terrain: 'concrete',
+			}
+			this.upsertTerrainOverride(cell.coord, { terrain: 'concrete' })
+			const shell = createConstructionSiteForHivePlanEntry(tile, plan, cell.entry)
+			this.hex.setTileContent(tile, shell)
+			tile.asGenerated = false
+		}
+		this.invalidateWorkPlanning('hive-plan.place')
+		return true
 	}
 
 	public applyZoneAction(tile: Tile, zoneType: string): boolean {
@@ -2046,6 +2095,12 @@ export class Game extends Eventful<GameEvents> {
 					constructionSite.workSecondsApplied = a.constructionWorkSecondsApplied ?? 0
 					const build = createConstructionShell(tile, constructionSite)
 					build.constructionWorkSecondsApplied = a.constructionWorkSecondsApplied ?? 0
+					Object.assign(build, {
+						hivePlanId: a.hivePlanId,
+						hivePlanVersion: a.hivePlanVersion,
+						planRoleId: a.planRoleId,
+						planConfiguration: a.configuration,
+					})
 					this.hex.setTileContent(tile, build)
 					if (a.goods)
 						for (const [good, qty] of Object.entries(a.goods))
@@ -2205,6 +2260,14 @@ export class Game extends Eventful<GameEvents> {
 				this.upsertTerrainOverride(coordObj, { terrain: 'concrete' })
 				const build = createConstructionShell(tile, constructionSite)
 				build.constructionWorkSecondsApplied = entry.constructionWorkSecondsApplied ?? 0
+				Object.assign(build, {
+					hivePlanId: entry.hivePlanId,
+					hivePlanVersion: entry.hivePlanVersion,
+					planRoleId: entry.planRoleId,
+					planConfiguration: this.hivePlans
+						.find(entry.hivePlanId)
+						?.entries.find((planEntry) => planEntry.roleId === entry.planRoleId)?.configuration,
+				})
 				this.hex.setTileContent(tile, build)
 				for (const [good, qty] of Object.entries(entry.constructionGoods ?? {})) {
 					build.storage?.addGood(good as GoodType, qty as number)
@@ -2382,6 +2445,9 @@ export class Game extends Eventful<GameEvents> {
 					foundationConsumedGoods: content.constructionSite.foundationConsumedGoods ?? {},
 					constructionGoods: content.storage?.stock ?? {},
 					constructionWorkSecondsApplied: content.constructionWorkSecondsApplied,
+					hivePlanId: (content as { hivePlanId?: string }).hivePlanId,
+					hivePlanVersion: (content as { hivePlanVersion?: number }).hivePlanVersion,
+					planRoleId: (content as { planRoleId?: string }).planRoleId,
 				})
 			}
 
@@ -2399,6 +2465,9 @@ export class Game extends Eventful<GameEvents> {
 								constructionWorkSecondsApplied: constructionShell.constructionWorkSecondsApplied,
 								constructionPhase: constructionShell.constructionSite.phase,
 								goods: constructionShell.storage?.stock || {},
+								hivePlanId: (constructionShell as { hivePlanId?: string }).hivePlanId,
+								hivePlanVersion: (constructionShell as { hivePlanVersion?: number }).hivePlanVersion,
+								planRoleId: (constructionShell as { planRoleId?: string }).planRoleId,
 							}
 						: {
 								coord: [q, r],
@@ -2493,6 +2562,7 @@ export class Game extends Eventful<GameEvents> {
 				generationOptions: this.generationOptions,
 				namedConfigurations: this.configurationManager.serialize(),
 				hiveConfigurations,
+				hivePlans: this.hivePlans.serialize(),
 			}
 		} finally {
 			this.conveySaveIndexByRef = undefined
@@ -2519,6 +2589,7 @@ export class Game extends Eventful<GameEvents> {
 		if (state.namedConfigurations) {
 			this.configurationManager.deserialize(state.namedConfigurations)
 		}
+		this.hivePlans.deserialize(state.hivePlans)
 
 		// 2. Re-generate the base world (terrain)
 		// We assume state.generationOptions has the original seed

@@ -43,6 +43,16 @@
               "hint": "Open lines",
               "tone": "neutral"
             }
+          },
+          {
+            "tool": "openPlans",
+            "editor": "button",
+            "config": {
+              "label": "Plans",
+              "icon": "pure-glyf-icon glyf-tabler-outline-layout-grid-add",
+              "hint": "Open hive plans",
+              "tone": "neutral"
+            }
           }
         ]
       },

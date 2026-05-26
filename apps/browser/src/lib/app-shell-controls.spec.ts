@@ -31,6 +31,7 @@ describe('app-shell-controls', () => {
 		const buildValues = values.filter((v) => v.value.startsWith('build:')).map((v) => v.value)
 		expect([...buildValues].sort()).toEqual(['build:house', 'build:mine'].sort())
 		expect(values.some((v) => v.value === '')).toBe(true)
+		expect(values.some((v) => v.value === 'bulldoze')).toBe(true)
 		expect(values.some((v) => v.value === 'zone:residential')).toBe(true)
 		expect(values.some((v) => v.value === 'zone:commercial')).toBe(true)
 	})

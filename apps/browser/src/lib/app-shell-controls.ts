@@ -48,7 +48,8 @@ export type PaletteSelectedActionValue = {
  */
 export function buildPaletteSelectedActionValues(
 	buildableAlveoli: readonly GameAlveolusEntry[],
-	getBuildIcon?: (name: string) => string | JSX.Element | (() => JSX.Element) | undefined
+	getBuildIcon?: (name: string) => string | JSX.Element | (() => JSX.Element) | undefined,
+	getCommandIcon?: (name: string) => string | JSX.Element | (() => JSX.Element) | undefined
 ): PaletteSelectedActionValue[] {
 	const select: PaletteSelectedActionValue[] = [
 		{
@@ -64,6 +65,12 @@ export function buildPaletteSelectedActionValues(
 		icon: getBuildIcon?.(name),
 		keywords: ['build', 'construction', name],
 	}))
+	const bulldoze: PaletteSelectedActionValue = {
+		value: 'bulldoze',
+		label: 'Bulldoze',
+		icon: getCommandIcon?.('bulldoze'),
+		keywords: ['bulldoze', 'remove', 'delete', 'clear'],
+	}
 	const zones = appShellZoneActions.map((z) => ({
 		value: z.value,
 		label: z.label,
@@ -91,5 +98,5 @@ export function buildPaletteSelectedActionValues(
 			keywords: ['road', 'asphalt', 'paved'],
 		},
 	]
-	return [...select, ...build, ...zones, ...roads]
+	return [...select, ...build, bulldoze, ...zones, ...roads]
 }

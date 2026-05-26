@@ -37,6 +37,7 @@ export const baseGameScope = scope({
 		'convey',
 		'vehicleOffload',
 		'construct',
+		'validateHivePlan',
 		'forester',
 		'foundation',
 		'defragment',
@@ -79,7 +80,7 @@ export const baseGameScope = scope({
 
 	GenericWorkPlan: {
 		type: "'work'",
-		job: "'harvest' | 'transform' | 'convey' | 'construct' | 'forester' | 'foundation' | 'defragment' | 'vehicleHop' | 'zoneBrowse'",
+		job: "'harvest' | 'transform' | 'convey' | 'construct' | 'validateHivePlan' | 'forester' | 'foundation' | 'defragment' | 'vehicleHop' | 'zoneBrowse'",
 		target: 'object', // TileContent validated at runtime
 		urgency: 'number',
 		fatigue: 'number',
@@ -302,6 +303,14 @@ export interface ConstructJob {
 	path?: Positioned[] // Path to construction site
 }
 
+export interface ValidateHivePlanJob {
+	job: 'validateHivePlan'
+	urgency: number
+	fatigue: number
+	planId: string
+	path?: Positioned[]
+}
+
 export interface ForesterJob {
 	job: 'forester'
 	urgency: number
@@ -438,6 +447,7 @@ export type Job =
 	| TransformJob
 	| ConveyJob
 	| ConstructJob
+	| ValidateHivePlanJob
 	| ForesterJob
 	| VehicleOffloadJob
 	| FoundationJob

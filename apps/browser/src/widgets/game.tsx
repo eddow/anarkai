@@ -3,7 +3,9 @@ import { showProps } from '@app/lib/follow-selection'
 import { isFreightAddStopAction, tryConsumeFreightMapPick } from '@app/lib/freight-map-pick'
 import {
 	game,
+	hivePlanPlacementState,
 	interactionMode,
+	mrg,
 	selectionState,
 	validateStoredSelectionState,
 } from '@app/lib/globals'
@@ -16,6 +18,7 @@ import { Tile } from 'ssh/board/tile'
 import { traces } from 'ssh/dev/debug'
 import type { GamePresentationEvent, InteractiveGameObject } from 'ssh/game'
 import type { AlveolusType } from 'ssh/types/base'
+import { toAxialCoord } from 'ssh/utils/position'
 
 css`
 	.dockview-widget--game {
@@ -69,6 +72,30 @@ export default function GameWidget(
 		return game.applyRoadTrace(tiles, roadType)
 	}
 
+	const handleHivePlanPlacement = (_event: MouseEvent, object: InteractiveGameObject) => {
+		if (!(object instanceof Tile)) return false
+		const planId = interactionMode.selectedAction.slice('hive-plan:'.length)
+		const anchor = toAxialCoord(object.position)
+		if (!anchor) return false
+		const preview = game.previewHivePlanPlacement(planId, anchor, hivePlanPlacementState.rotation)
+		if (!preview) {
+			hivePlanPlacementState.lastMessage = 'Plan is not available.'
+			return false
+		}
+		if (!preview.valid) {
+			const blocked = preview.cells.find((cell) => !cell.valid)
+			hivePlanPlacementState.lastMessage = blocked?.reason ?? 'Plan does not fit here.'
+			return false
+		}
+		const success = game.applyHivePlanPlacement(
+			planId,
+			anchor,
+			hivePlanPlacementState.rotation
+		)
+		hivePlanPlacementState.lastMessage = success ? 'Plan placed.' : 'Plan does not fit here.'
+		return success
+	}
+
 	const gameEvents = {
 		objectClick(event: MouseEvent, object: InteractiveGameObject) {
 			if (event.button !== 0) return
@@ -81,6 +108,11 @@ export default function GameWidget(
 			if (isFreightAddStopAction(action)) return
 			if (action.startsWith('build:')) {
 				const applied = handleBuildingAction(event, object)
+				if (applied && !event.shiftKey) interactionMode.selectedAction = ''
+				return
+			}
+			if (action.startsWith('hive-plan:')) {
+				const applied = handleHivePlanPlacement(event, object)
 				if (applied && !event.shiftKey) interactionMode.selectedAction = ''
 				return
 			}
@@ -122,6 +154,48 @@ export default function GameWidget(
 	effect`game:events`(() => {
 		game.on(gameEvents)
 		return () => game.off(gameEvents)
+	})
+
+	effect`game:hive-plan-rotation-keys`(() => {
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (!interactionMode.selectedAction.startsWith('hive-plan:')) return
+			if (event.key !== 'r' && event.key !== 'R' && event.key !== 'q' && event.key !== 'Q') return
+			event.preventDefault()
+			const delta = event.key === 'q' || event.key === 'Q' ? -1 : 1
+			hivePlanPlacementState.rotation = (hivePlanPlacementState.rotation + delta + 6) % 6
+		}
+		window.addEventListener('keydown', onKeyDown)
+		return () => window.removeEventListener('keydown', onKeyDown)
+	})
+
+	effect`game:hive-plan-hover-preview`(() => {
+		const action = interactionMode.selectedAction
+		if (!action.startsWith('hive-plan:')) {
+			game.emit('dragPreviewClear')
+			return
+		}
+		const hovered = mrg.hoveredObject
+		if (!(hovered instanceof Tile)) {
+			game.emit('dragPreviewClear')
+			return
+		}
+		const anchor = toAxialCoord(hovered.position)
+		if (!anchor) {
+			game.emit('dragPreviewClear')
+			return
+		}
+		const planId = action.slice('hive-plan:'.length)
+		const preview = game.previewHivePlanPlacement(planId, anchor, hivePlanPlacementState.rotation)
+		if (!preview) {
+			game.emit('dragPreviewClear')
+			return
+		}
+		const tiles = preview.cells.map((cell) => cell.tile).filter((tile): tile is Tile => !!tile)
+		game.emit('dragPreview', tiles, preview.valid ? '' : 'none')
+		hivePlanPlacementState.lastMessage = preview.valid
+			? 'Click to place the plan.'
+			: (preview.cells.find((cell) => !cell.valid)?.reason ?? 'Plan does not fit here.')
+		return () => game.emit('dragPreviewClear')
 	})
 
 	const initView = (el: HTMLElement) => {

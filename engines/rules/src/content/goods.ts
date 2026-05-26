@@ -12,6 +12,12 @@ export const goods = {
 		baseValueVp: 10,
 		tags: ['bulk', 'construction/concrete', 'basic-materials'],
 	},
+	charcoal: {
+		halfLife: Number.POSITIVE_INFINITY,
+		massKg: 1,
+		baseValueVp: 4,
+		tags: ['piece', 'research'],
+	},
 	mushrooms: {
 		satiationStrength: Math.LN2, // felt ~0.5 hunger relief at equilibrium
 		halfLife: 600,

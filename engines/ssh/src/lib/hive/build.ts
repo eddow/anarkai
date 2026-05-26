@@ -32,6 +32,13 @@ export class BuildAlveolus extends TileContent {
 	public working = true
 	public destroyed = false
 	public assignedWorker: unknown
+	public hivePlanId?: string
+	public hivePlanVersion?: number
+	public planRoleId?: string
+	public planConfiguration?: {
+		ref: Ssh.ConfigurationReference
+		individual?: Ssh.AlveolusConfiguration
+	}
 
 	constructor(tile: Tile, target: AlveolusType, constructionSite?: ConstructionSiteState) {
 		const definition = alveoliDefs[target]

@@ -103,6 +103,13 @@ function construct(jobPlan)
 	end if
 end function
 
+function validateHivePlan(jobPlan)
+	reachTargetTileLoop jobPlan
+	assignAlveolus jobPlan
+	work.prepare jobPlan
+	work.validateHivePlanStep jobPlan
+end function
+
 function forester(jobPlan)
 	reachTargetTileLoop jobPlan
 	assignAlveolus jobPlan

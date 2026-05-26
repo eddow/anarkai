@@ -1254,6 +1254,43 @@ class WorkFunctions {
 		}
 		assert(false, 'Tile must be a construction site shell')
 	}
+
+	@contract('WorkPlan')
+	validateHivePlanStep(workPlan: WorkPlan) {
+		const character = this[subject]
+		const planId = workPlan.job === 'validateHivePlan' ? workPlan.planId : undefined
+		const plan = character.game.hivePlans.find(planId)
+		assert(plan && plan.stage === 'validating', 'A validating hive plan is required')
+		const engineer = character.assignedAlveolus
+		assert(engineer, 'An engineer alveolus must be assigned for hive-plan validation')
+		const progress = plan.validationProgress
+		for (const [good, qty] of Object.entries(progress.requiredGoods) as [GoodType, number][]) {
+			const delivered = progress.deliveredGoods[good] ?? 0
+			const needed = Math.max(0, (qty ?? 0) - delivered)
+			const available = engineer.storage?.available(good) ?? 0
+			const taken = Math.min(needed, available)
+			if (taken > 0) {
+				engineer.storage?.removeGood(good, taken)
+				progress.deliveredGoods[good] = delivered + taken
+			}
+		}
+		const missing = Object.entries(progress.requiredGoods).some(([good, qty]) => {
+			const delivered = progress.deliveredGoods[good as GoodType] ?? 0
+			return delivered < (qty ?? 0)
+		})
+		if (missing) return waitStep()
+		const remaining = Math.max(0, progress.workSecondsRequired - progress.workSecondsApplied)
+		if (remaining <= 0) {
+			character.game.hivePlans.applyResearchWork(plan, 0)
+			return
+		}
+		return new DurationStep(remaining, 'work', 'validateHivePlan', {
+			key: 'work.validateHivePlan',
+			params: { plan: plan.name },
+		}).onFulfilled(() => {
+			character.game.hivePlans.applyResearchWork(plan, remaining)
+		})
+	}
 }
 
 export { WorkFunctions }

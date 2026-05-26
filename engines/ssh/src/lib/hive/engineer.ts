@@ -12,7 +12,7 @@ import { type AlveolusProposedJob, asAlveolusProposedJob } from 'ssh/jobs/offers
 import type { Character } from 'ssh/population/character'
 import { residentialBasicDwellingProject } from 'ssh/residential/constants'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
-import type { ConstructJob, FoundationJob } from 'ssh/types/base'
+import type { ConstructJob, FoundationJob, GoodType, ValidateHivePlanJob } from 'ssh/types/base'
 import { type AxialCoord, axial } from 'ssh/utils'
 import type { GoodsRelations } from 'ssh/utils/advertisement'
 import { toAxialCoord } from 'ssh/utils/position'
@@ -20,7 +20,7 @@ import { RevisionedCache } from 'ssh/utils/revisioned-cache'
 import { maxWalkTime } from '../../../assets/constants'
 import { traces } from '../dev/debug.ts'
 
-type EngineeringJob = ConstructJob | FoundationJob
+type EngineeringJob = ConstructJob | FoundationJob | ValidateHivePlanJob
 type EngineeringTarget = {
 	readonly job: EngineeringJob
 	readonly tile: Tile
@@ -46,7 +46,7 @@ export class EngineerAlveolus extends Alveolus {
 		if (definition.action.type !== 'engineer') {
 			throw new Error('EngineerAlveolus can only be created from an engineer action')
 		}
-		super(tile, new SlottedStorage(0, 0))
+		super(tile, new SlottedStorage(4, 2))
 		this.assignGameContent(definition, resourceName)
 	}
 
@@ -94,8 +94,23 @@ export class EngineerAlveolus extends Alveolus {
 				})
 			}
 		}
+		for (const plan of this.game.hivePlans.validatingPlans) {
+			if (plan.validationProgress.workSecondsApplied >= plan.validationProgress.workSecondsRequired) {
+				continue
+			}
+			targets.push({
+				tile: this.tile,
+				job: {
+					job: 'validateHivePlan',
+					planId: plan.id,
+					urgency: jobBalance.engineer.construct * 0.8,
+					fatigue: this.getFatigueCost(),
+				},
+			})
+		}
 		return targets.sort((a, b) => {
-			const priority = (job: EngineeringJob) => (job.job === 'construct' ? 0 : 1)
+			const priority = (job: EngineeringJob) =>
+				job.job === 'construct' ? 0 : job.job === 'foundation' ? 1 : 2
 			const priorityDiff = priority(a.job) - priority(b.job)
 			if (priorityDiff !== 0) return priorityDiff
 			const ac = toAxialCoord(a.tile.position)!
@@ -119,7 +134,7 @@ export class EngineerAlveolus extends Alveolus {
 	@inert
 	protected override nextAlveolusJob(
 		character?: Character
-	): ConstructJob | FoundationJob | undefined {
+	): ConstructJob | FoundationJob | ValidateHivePlanJob | undefined {
 		const targets = this.engineeringTargets()
 		if (!character) return targets[0]?.job
 		const startPos = toAxialCoord(character.position)
@@ -183,6 +198,16 @@ export class EngineerAlveolus extends Alveolus {
 	}
 
 	get workingGoodsRelations(): GoodsRelations {
-		return {}
+		const relations: GoodsRelations = {}
+		for (const plan of this.game.hivePlans.validatingPlans) {
+			for (const [good, qty] of Object.entries(plan.validationProgress.requiredGoods)) {
+				const delivered = plan.validationProgress.deliveredGoods[good as GoodType] ?? 0
+				const stocked = this.storage.stock[good as GoodType] ?? 0
+				if (delivered + stocked < (qty ?? 0)) {
+					relations[good as GoodType] = { advertisement: 'demand', priority: '1-buffer' }
+				}
+			}
+		}
+		return relations
 	}
 }

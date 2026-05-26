@@ -57,6 +57,18 @@ export function finalizeConstructionShell(shell: ConstructionSiteShell): void {
 	if (target.kind === 'alveolus') {
 		const alveolus = createAlveolus(target.alveolusType, shell.tile)
 		assert(alveolus, 'Target alveolus must exist')
+		const planned = shell as {
+			planConfiguration?: {
+				ref: Ssh.ConfigurationReference
+				individual?: Ssh.AlveolusConfiguration
+			}
+		}
+		if (planned.planConfiguration) {
+			alveolus.configurationRef = planned.planConfiguration.ref
+			if (planned.planConfiguration.individual) {
+				alveolus.individualConfiguration = planned.planConfiguration.individual
+			}
+		}
 		shell.tile.content = alveolus
 		return
 	}

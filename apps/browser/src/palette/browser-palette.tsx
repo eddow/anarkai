@@ -33,12 +33,16 @@ import {
 	paletteCommandEntries,
 	palettes,
 } from '@sursaut/ui/palette'
-import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content'
+import {
+	alveoli as visualAlveoli,
+	commands as visualCommands,
+} from 'engine-pixi/assets/visual-content'
 import { gameTimeSpeedFactors } from 'engine-rules'
 import { effect, reactive, unwrap } from 'mutts'
 import {
 	tablerFilledAdjustments,
 	tablerFilledArrowBigRight,
+	tablerOutlineLayoutGridAdd,
 	tablerOutlinePolygon,
 	tablerOutlineRoute,
 } from 'pure-glyf/icons'
@@ -48,6 +52,7 @@ export const palettePanelBridge = reactive({
 	openConfiguration: () => {},
 	openGame: () => {},
 	openLines: () => {},
+	openPlans: () => {},
 	openZones: () => {},
 })
 
@@ -56,6 +61,12 @@ const browserPaletteSelectedActionValues = buildPaletteSelectedActionValues(
 	browserPaletteBuildableAlveoli,
 	(name) => {
 		const sprite = visualAlveoli[name]?.sprites?.[0]
+		return sprite
+			? () => <ResourceImage game={game} sprite={sprite} width={20} height={20} alt={name} />
+			: undefined
+	},
+	(name) => {
+		const sprite = visualCommands[name]?.sprites?.[0]
 		return sprite
 			? () => <ResourceImage game={game} sprite={sprite} width={20} height={20} alt={name} />
 			: undefined
@@ -115,6 +126,17 @@ const tools = {
 		},
 		run() {
 			palettePanelBridge.openLines()
+		},
+	},
+	openPlans: {
+		label: 'Open plans',
+		icon: typeof tablerOutlineLayoutGridAdd === 'string' ? tablerOutlineLayoutGridAdd : undefined,
+		keywords: ['plan', 'plans', 'hive', 'blueprint'],
+		get can() {
+			return true
+		},
+		run() {
+			palettePanelBridge.openPlans()
 		},
 	},
 	openZones: {
