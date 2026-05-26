@@ -1,10 +1,15 @@
 import { executeNpcTradeStopTransfer } from 'ssh/freight/npc-trade-stop'
+import { Commitment } from 'ssh/commitment'
 import { namedTrace, traces } from 'ssh/dev/debug'
 import { collectDockedVehicleAdvertisementCandidates } from 'ssh/freight/vehicle-freight-dock'
-import { maybeAdvanceVehicleFromCompletedAnchorStop } from 'ssh/freight/vehicle-run'
+import {
+	maybeAdvanceVehicleFromCompletedAnchorStop,
+	projectedLineStopForVehicleHop,
+} from 'ssh/freight/vehicle-run'
 import {
 	collectVehicleAdvertisedJobs,
 	collectVehicleWorkPicks,
+	findVehicleHopJob,
 	findVehicleOffloadJob,
 } from 'ssh/freight/vehicle-work'
 import { chopSaw } from 'ssh/game/exampleGames'
@@ -218,7 +223,7 @@ describe('chopSaw example game', () => {
 		)
 	})
 
-	it('advertises dock demand for stored concrete on the ChopSaw exchange line', async () => {
+	it('loads stored concrete on the ChopSaw gather unload anchor without offering it back', async () => {
 		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
 		await game.loaded
 		game.ticker.stop()
@@ -236,22 +241,110 @@ describe('chopSaw example game', () => {
 		vehicle.beginLineService(line, line.stops[0]!)
 		vehicle.dock()
 
-		expect(collectDockedVehicleAdvertisementCandidates(vehicle, bay)).toEqual(
+		expect(vehicle.storage.allocated('concrete')).toBeGreaterThan(0)
+		expect(
+			bay.hive
+				.collectActiveMovements()
+				.some(
+					(movement: any) =>
+						movement.goodType === 'concrete' &&
+						movement.demander?.vehicle?.uid === vehicle.uid &&
+						movement.provider === storage
+				)
+		).toBe(true)
+
+		const advertised = collectVehicleAdvertisedJobs(game, vehicle)
+		expect(advertised).toEqual(
 			expect.arrayContaining([
-				expect.objectContaining({ goodType: 'concrete', advertisement: 'demand' }),
+				expect.objectContaining({
+					job: 'convey',
+					source: expect.objectContaining({
+						kind: 'alveolus',
+						alveolus: storage,
+					}),
+				}),
+			])
+		)
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		expect(storage.proposedJobs).toEqual(
+			expect.arrayContaining([expect.objectContaining({ job: 'convey' })])
+		)
+		const worker = game.population.createCharacter('Concrete Dock Worker', { q: 1, r: 2 })
+		expect(worker.workPlannerSnapshot?.ranked).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					jobKind: 'convey',
+					targetCoord: { q: 0, r: -1 },
+				}),
 			])
 		)
 
-		const advertised = collectVehicleAdvertisedJobs(game, vehicle)
-		expect(advertised).toEqual(expect.arrayContaining([expect.objectContaining({ job: 'convey' })]))
-		expect(advertised).not.toEqual(
+		vehicle.storage.addGood('concrete', 1)
+		expect(collectDockedVehicleAdvertisementCandidates(vehicle, bay)).not.toEqual(
 			expect.arrayContaining([
-				expect.objectContaining({ job: 'vehicleOffload', maintenanceKind: 'park' }),
+				expect.objectContaining({
+					goodType: 'concrete',
+					advertisement: 'provide',
+				}),
 			])
 		)
 	})
 
-	it('does not warn when a docked gather wheelbarrow can offload concrete into storage', async () => {
+	it('releases stale claimed dock concrete loads so workers can pick the convey again', async () => {
+		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines.find(
+			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
+		)
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
+		const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
+		if (!line || !vehicle || !bay || !storage) throw new Error('Expected ChopSaw fixture')
+
+		storage.storage.addGood('concrete', 2)
+		vehicle.position = { q: 0, r: 0 }
+		vehicle.beginLineService(line, line.stops[0]!)
+		vehicle.dock()
+
+		void collectVehicleAdvertisedJobs(game, vehicle)
+		const dock = bay.hive.freightVehicleDockFor(vehicle.uid)
+		const movement = bay.hive
+			.collectActiveMovements()
+			.find(
+				(candidate: any) =>
+					candidate.goodType === 'concrete' &&
+					(candidate.provider === dock || candidate.demander === dock)
+			)
+		if (!movement) throw new Error('Expected active dock concrete movement')
+
+		const staleWorker = game.population.createCharacter('Stale Dock Claimant', { q: 1, r: 2 })
+		movement.claimed = true
+		movement.claimedBy = staleWorker
+		movement.claimedAtMs = Date.now() - 5_000
+		bay.hive.invalidateConveyPlanning('test.stale-dock-claim')
+		expect(movement.claimed).toBe(true)
+
+		const advertised = collectVehicleAdvertisedJobs(game, vehicle)
+		expect(movement.claimed).toBe(false)
+		expect(advertised).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					job: 'convey',
+					source: expect.objectContaining({ kind: 'alveolus' }),
+				}),
+			])
+		)
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		expect(storage.proposedJobs).toEqual(
+			expect.arrayContaining([expect.objectContaining({ job: 'convey' })])
+		)
+	})
+
+	it('does not warn when a docked gather wheelbarrow keeps concrete reserved for the route', async () => {
 		const previousVehicleTrace = traces.vehicle
 		const vehicleTrace = namedTrace('vehicle', { silent: true })
 		traces.vehicle = vehicleTrace
@@ -276,7 +369,7 @@ describe('chopSaw example game', () => {
 			vehicle.beginLineService(line, unloadStop)
 			vehicle.dock()
 
-			expect(vehicle.advertisedJobs).toEqual(
+			expect(vehicle.advertisedJobs).not.toEqual(
 				expect.arrayContaining([expect.objectContaining({ job: 'convey' })])
 			)
 			expect(vehicleTrace.read()).not.toContain(
@@ -448,6 +541,86 @@ describe('chopSaw example game', () => {
 		)
 	})
 
+	it('advances a docked gather wheelbarrow with only downstream-reserved cargo', async () => {
+		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines.find(
+			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
+		)
+		if (!line) throw new Error('expected ChopSaw implicit gather line')
+		const unload = line.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
+		const load = line.stops.find((stop) => stop.id === 'ChopSaw:ig-load')
+		if (!unload || !load) throw new Error('expected ChopSaw load/unload stops')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
+
+		vehicle.storage.addGood('concrete', 1)
+		const downstreamReservation = new Commitment('test.downstream-reserved-concrete')
+		expect(vehicle.storage.reserve({ concrete: 1 }, downstreamReservation)).toBeUndefined()
+		expect(vehicle.storage.virtualGoodsCount).toBe(1)
+
+		vehicle.position = { q: 0, r: 0 }
+		vehicle.beginLineService(line, unload)
+		vehicle.dock()
+
+		maybeAdvanceVehicleFromCompletedAnchorStop(game, vehicle)
+
+		expect(isVehicleLineService(vehicle.service) && vehicle.service.stop.id).toBe(load.id)
+		downstreamReservation.cancel('test cleanup')
+	})
+
+	it('lets a worker pick the storage convey when a docked wheelbarrow has reserved concrete', async () => {
+		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines.find(
+			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
+		)
+		if (!line) throw new Error('expected ChopSaw implicit gather line')
+		const unload = line.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
+		if (!unload) throw new Error('expected ChopSaw unload stop')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
+		const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
+		if (!vehicle || !bay || !storage) throw new Error('expected ChopSaw dock fixture')
+
+		storage.storage.addGood('concrete', 1)
+
+		vehicle.position = { q: 0, r: 0 }
+		vehicle.beginLineService(line, unload)
+		vehicle.dock()
+		expect(vehicle.storage.allocated('concrete')).toBe(1)
+
+		vehicle.storage.addGood('concrete', 1)
+
+		expect(vehicle.storage.stock.concrete).toBe(1)
+		expect(vehicle.storage.allocated('concrete')).toBe(1)
+		expect(vehicle.storage.virtualGoodsCount).toBe(1)
+		const advertised = vehicle.advertisedJobs
+		expect(advertised).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					job: 'convey',
+					source: expect.objectContaining({ kind: 'alveolus', alveolus: storage }),
+					targetTile: storage.tile,
+				}),
+			])
+		)
+
+		const worker = game.population.createCharacter('Concrete Dock Worker', { q: 0, r: -1 })
+		expect(worker.workPlannerSnapshot?.ranked).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					jobKind: 'convey',
+					targetCoord: { q: 0, r: -1 },
+				}),
+			])
+		)
+	})
+
 	it('uses the materials loop as a concrete import and planks export fixture', async () => {
 		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
 		await game.loaded
@@ -513,6 +686,92 @@ describe('chopSaw example game', () => {
 		)
 	})
 
+	it('advances a virtual trade stop back to the real bay once imports are loaded', async () => {
+		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines.find(
+			(candidate) => candidate.id === 'ChopSaw:materials-loop:0,0:Melindbury'
+		)
+		if (!line) throw new Error('Expected Chopsaw materials loop')
+		const marketStop = line.stops.find((stop) => stop.id === 'ChopSaw:materials-melindbury')
+		if (!marketStop) throw new Error('Expected Melindbury trade stop')
+		const bayStop = line.stops.find((stop) => stop.id === 'ChopSaw:materials-bay')
+		if (!bayStop) throw new Error('Expected Chopsaw materials bay stop')
+		const pickup = game.vehicles.vehicle('ChopSaw:pickup-truck')
+		if (!pickup) throw new Error('Expected Chopsaw pickup truck')
+		const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
+		const worker = game.population.createCharacter('Materials Driver', { q: -1, r: 0 })
+
+		storage.storage.addGood('concrete', 2)
+		pickup.position = { q: -1, r: 0 }
+		pickup.storage.addGood('concrete', 1)
+		pickup.beginLineService(line, marketStop, worker)
+		worker.setOperatedVehicleFromService(pickup)
+		worker.onboard()
+
+		expect(projectedLineStopForVehicleHop(game, worker, pickup)?.stop.id).toBe(bayStop.id)
+		expect(findVehicleHopJob(game, worker)).toMatchObject({
+			job: 'vehicleHop',
+			vehicleUid: pickup.uid,
+			lineId: line.id,
+			stopId: bayStop.id,
+			dockEnter: true,
+		})
+	})
+
+	it('does not use the materials pickup as a generic local offload vehicle', async () => {
+		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
+		await game.loaded
+		game.ticker.stop()
+
+		const pickup = game.vehicles.vehicle('ChopSaw:pickup-truck')
+		if (!pickup) throw new Error('Expected Chopsaw pickup truck')
+		const worker = game.population.createCharacter('Materials Offload Probe', { q: -1, r: 0 })
+		pickup.position = { q: -1, r: 0 }
+		pickup.storage.addGood('concrete', 1)
+
+		expect(findVehicleOffloadJob(game, worker)?.vehicleUid).not.toBe(pickup.uid)
+	})
+
+	it('keeps loaded ChopSaw wheelbarrow cargo for zone provide after a full bay dock', async () => {
+		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines.find(
+			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
+		)
+		if (!line) throw new Error('expected ChopSaw implicit gather line')
+		const unload = line.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
+		const load = line.stops.find((stop) => stop.id === 'ChopSaw:ig-load')
+		if (!unload || !load) throw new Error('expected ChopSaw load/unload stops')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
+		const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
+		const worker = game.population.createCharacter('Concrete Provider', { q: 0, r: 0 })
+
+		storage.storage.addGood('concrete', 12)
+		vehicle.storage.addGood('concrete', 1)
+		vehicle.beginLineService(line, unload, worker)
+		vehicle.dock()
+
+		maybeAdvanceVehicleFromCompletedAnchorStop(game, vehicle, worker)
+
+		expect(isVehicleLineService(vehicle.service) && vehicle.service.stop.id).toBe(load.id)
+		const hop = findVehicleHopJob(game, worker)
+		expect(hop).toMatchObject({
+			job: 'vehicleHop',
+			vehicleUid: vehicle.uid,
+			lineId: line.id,
+			stopId: load.id,
+			zoneBrowseAction: 'provide',
+			goodType: 'concrete',
+			targetCoord: { q: -1, r: 0 },
+		})
+	})
+
 	it('imports only buffered concrete demand, not extra storage room', async () => {
 		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
 		await game.loaded
@@ -539,7 +798,7 @@ describe('chopSaw example game', () => {
 		expect(pickup.storage.stock.concrete).toBe(3)
 	})
 
-	it('keeps offering concrete from a full materials pickup while configured storage can accept it', async () => {
+	it('keeps offering concrete from a full materials pickup while configured storage demands it', async () => {
 		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
 		await game.loaded
 		game.ticker.stop()
@@ -562,27 +821,21 @@ describe('chopSaw example game', () => {
 		pickup.service.docked = true
 		pickup.position = undefined
 
-		for (let offloaded = 0; offloaded < 4; offloaded++) {
-			expect(storage.acceptedRoomFor('concrete', '0-store')).toBeGreaterThan(0)
-			const candidates = collectDockedVehicleAdvertisementCandidates(pickup, bay)
-			expect(candidates).toEqual(
-				expect.arrayContaining([
-					expect.objectContaining({
-						goodType: 'concrete',
-						advertisement: 'provide',
-					}),
-				])
-			)
+		expect(storage.acceptedRoomFor('concrete', '0-store')).toBeGreaterThan(0)
+		expect(collectDockedVehicleAdvertisementCandidates(pickup, bay)).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					goodType: 'concrete',
+					advertisement: 'provide',
+				}),
+			])
+		)
 
-			expect(pickup.storage.removeGood('concrete', 1)).toBe(1)
-			expect(storage.storage.addGood('concrete', 1)).toBe(1)
-		}
-
-		expect(pickup.storage.stock.concrete).toBe(2)
-		expect(storage.storage.stock.concrete).toBe(4)
+		expect(pickup.storage.stock.concrete).toBe(6)
+		expect(storage.storage.stock.concrete ?? 0).toBe(0)
 	})
 
-	it('advertises convey for the last reserved concrete while storage still has room', async () => {
+	it('does not reserve the last concrete for generic storage room', async () => {
 		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
 		await game.loaded
 		game.ticker.stop()
@@ -608,7 +861,7 @@ describe('chopSaw example game', () => {
 		void pickup.advertisedJobs
 		await new Promise((resolve) => setTimeout(resolve, 10))
 
-		expect(pickup.storage.virtualGoodsCount).toBe(1)
+		expect(pickup.storage.virtualGoodsCount).toBe(0)
 		expect(
 			bay.hive
 				.collectActiveMovements()
@@ -618,8 +871,8 @@ describe('chopSaw example game', () => {
 						movement.provider?.vehicle?.uid === pickup.uid &&
 						!movement.claimed
 				)
-		).toBe(true)
-		expect(pickup.advertisedJobs).toEqual(
+		).toBe(false)
+		expect(pickup.advertisedJobs).not.toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
 					job: 'convey',
@@ -657,6 +910,47 @@ describe('chopSaw example game', () => {
 		maybeAdvanceVehicleFromCompletedAnchorStop(game, pickup, worker)
 
 		expect(pickup.service).toBeUndefined()
+	})
+
+	it('offers a dock job for an undocked line vehicle already sitting on its bay anchor', async () => {
+		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines.find(
+			(candidate) => candidate.id === 'ChopSaw:materials-loop:0,0:Melindbury'
+		)
+		if (!line) throw new Error('Expected Chopsaw materials loop')
+		const bayStop = line.stops.find((stop) => stop.id === 'ChopSaw:materials-bay')
+		if (!bayStop) throw new Error('Expected Chopsaw materials bay stop')
+		const pickup = game.vehicles.vehicle('ChopSaw:pickup-truck')
+		if (!pickup) throw new Error('Expected Chopsaw pickup truck')
+		const worker = game.population.createCharacter('Docking Driver', { q: 0, r: 0 })
+
+		pickup.position = { q: 0, r: 0 }
+		pickup.beginLineService(line, bayStop)
+
+		expect(pickup.isDocked).toBe(false)
+		expect(pickup.advertisedJobs).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					job: 'vehicleHop',
+					vehicleUid: pickup.uid,
+					lineId: line.id,
+					stopId: bayStop.id,
+					dockEnter: true,
+				}),
+			])
+		)
+		expect(findVehicleHopJob(game, worker)).toEqual(
+			expect.objectContaining({
+				job: 'vehicleHop',
+				vehicleUid: pickup.uid,
+				lineId: line.id,
+				stopId: bayStop.id,
+				dockEnter: true,
+			})
+		)
 	})
 
 	it('lets the gather bay notice offloaded wood that storage can still accept', async () => {

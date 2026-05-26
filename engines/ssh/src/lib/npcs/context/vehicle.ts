@@ -9,6 +9,7 @@ import {
 	disembarkOperatorLeavingDockedVehicleInService,
 	ensureVehicleServiceStarted,
 	executeNpcTradeStopAndAdvance,
+	freightStopMovementTarget,
 	maybeAdvanceVehicleFromCompletedAnchorStop,
 	maybeAdvanceVehiclePastCompletedZoneStop,
 	offboardOperatorAfterFreightWorkComplete,
@@ -58,6 +59,50 @@ function vehicleCanDockAtCurrentPosition(vehicle: VehicleEntity): boolean {
 	}
 	const vehicleTile = vehicle.game.hex.getTile(vehicleCoord)
 	return !!vehicleTile?.borderWith(dockTile)
+}
+
+function refreshAnchorHopPathToLiveDock(
+	character: Character,
+	vehicle: VehicleEntity,
+	jobPlan: WorkPlan
+): void {
+	if (jobPlan.type !== 'work' || jobPlan.job !== 'vehicleHop') return
+	if (!isVehicleLineService(vehicle.service)) return
+	const { line, stop } = vehicle.service
+	if (!('anchor' in stop)) return
+	if (vehicleCanDockAtCurrentPosition(vehicle)) return
+	const targetPos = freightStopMovementTarget(character.game, character, line, stop)
+	if (!targetPos) return
+	const startPos = axial.round(toAxialCoord(vehicle.effectivePosition)!)
+	const path =
+		character.game.hex.findPathForVehicleServiceBorder(
+			startPos,
+			targetPos,
+			Number.POSITIVE_INFINITY
+		) ?? []
+	if (path.length === 0) {
+		;(jobPlan as WorkPlan & { vehicleHopReplanRequired?: boolean }).vehicleHopReplanRequired =
+			true
+		traces.vehicle.warn?.('vehicleHopPrepare: no path to live dock anchor', {
+			characterUid: character.uid,
+			vehicleUid: vehicle.uid,
+			lineId: line.id,
+			stopId: stop.id,
+			startCoord: startPos,
+			targetCoord: toAxialCoord(targetPos),
+		})
+		return
+	}
+	jobPlan.path = path
+	traces.vehicle.log?.('vehicleHopPrepare: refreshed live dock path', {
+		characterUid: character.uid,
+		vehicleUid: vehicle.uid,
+		lineId: line.id,
+		stopId: stop.id,
+		pathLen: path.length,
+		startCoord: startPos,
+		targetCoord: toAxialCoord(targetPos),
+	})
 }
 
 function markVehicleHopRunEndedBeforeDock(
@@ -287,7 +332,9 @@ class VehicleFunctions {
 		}
 		if (vehicle.service.line.id !== jobPlan.lineId || vehicle.service.stop.id !== jobPlan.stopId) {
 			hopPlan.vehicleHopReplanRequired = true
+			return
 		}
+		refreshAnchorHopPathToLiveDock(character, vehicle, jobPlan)
 	}
 
 	/**

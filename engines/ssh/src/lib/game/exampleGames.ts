@@ -1,4 +1,5 @@
 import type { GamePatches } from './game'
+import { residentialBasicDwellingProject } from '../residential/constants'
 
 const constructionGoodsSelection = {
 	goodRules: [
@@ -172,6 +173,184 @@ export const chopSaw = {
 			vehicleType: 'pickup_truck',
 			position: { q: 0, r: 0 },
 			servedLineIds: ['ChopSaw:materials-loop:0,0:Melindbury'],
+		},
+	],
+} satisfies GamePatches
+
+export const demoHive = {
+	seed: 549,
+	terrains: {
+		concrete: [
+			[-1, 0],
+			[0, 0],
+			[0, 1],
+			[1, -1],
+			[1, 0],
+			[2, -1],
+			[2, 0],
+			[-4, 1],
+			[-3, 1],
+		],
+		forest: [
+			[3, -1],
+			[4, -1],
+			[4, 0],
+			[5, -1],
+		],
+	},
+	hives: [
+		{
+			name: 'HearthLoop',
+			alveoli: [
+				{
+					alveolus: 'storage',
+					coord: [0, 0],
+					goods: { wood: 4, planks: 3, stone: 2, concrete: 1 },
+					configuration: {
+						ref: { scope: 'individual' },
+						individual: {
+							working: true,
+							generalSlots: 6,
+							goods: {
+								concrete: { minSlots: 1, maxSlots: 2 },
+								wood: { minSlots: 1, maxSlots: 3 },
+								planks: { minSlots: 1, maxSlots: 3 },
+								stone: { minSlots: 1, maxSlots: 2 },
+							},
+						},
+					},
+				},
+				{ alveolus: 'freight_bay', coord: [0, 1] },
+				{ alveolus: 'engineer', coord: [1, -1] },
+				{ alveolus: 'sawmill', coord: [1, 0] },
+				{ alveolus: 'tree_chopper', coord: [2, 0] },
+				{ alveolus: 'forester', coord: [2, -1], assignedZoneIds: ['green-ring'] },
+				{ alveolus: 'stonecutter', coord: [-1, 0] },
+			],
+		},
+	],
+	freightLines: [
+		{
+			id: 'HearthLoop:commons-exchange',
+			name: 'HearthLoop commons exchange',
+			cyclic: true,
+			stops: [
+				{
+					id: 'HearthLoop:commons-bay',
+					loadSelection: constructionGoodsSelection,
+					unloadSelection: constructionGoodsSelection,
+					anchor: {
+						kind: 'alveolus',
+						hiveName: 'HearthLoop',
+						alveolusType: 'freight_bay',
+						coord: [0, 1],
+					},
+				},
+				{
+					id: 'HearthLoop:commons-zone',
+					loadSelection: constructionGoodsSelection,
+					unloadSelection: constructionGoodsSelection,
+					zone: { kind: 'radius', center: [0, 1], radius: 8 },
+				},
+			],
+		},
+		{
+			id: 'HearthLoop:melindbury-comfort-loop',
+			name: 'HearthLoop - Melindbury comfort loop',
+			cyclic: true,
+			stops: [
+				{
+					id: 'HearthLoop:melindbury-bay',
+					loadSelection: planksOnlySelection,
+					unloadSelection: concreteOnlySelection,
+					anchor: {
+						kind: 'alveolus',
+						hiveName: 'HearthLoop',
+						alveolusType: 'freight_bay',
+						coord: [0, 1],
+					},
+				},
+				{
+					id: 'HearthLoop:melindbury-city-hall',
+					loadSelection: concreteOnlySelection,
+					unloadSelection: planksOnlySelection,
+					trade: { kind: 'settlement', settlementId: 'settlement-7,19' },
+				},
+			],
+		},
+	],
+	zones: {
+		harvest: [
+			[3, -1],
+			[4, -1],
+			[4, 0],
+		],
+		residential: [
+			[-4, 1],
+			[-3, 1],
+			[-4, 2],
+			[-3, 2],
+		],
+		commercial: [
+			[-5, 1],
+			[-5, 2],
+		],
+		named: [
+			{
+				id: 'green-ring',
+				name: 'Green Ring',
+				color: '#3f9f6b',
+				harvestable: true,
+				coords: [
+					[3, -1],
+					[4, -1],
+					[4, 0],
+					[5, -1],
+				],
+			},
+		],
+	},
+	dwellings: [{ coord: [-4, 1], tier: 'basic_dwelling' }],
+	projectSites: [
+		{
+			coord: [-3, 1],
+			project: residentialBasicDwellingProject,
+			constructionPhase: 'waiting_materials',
+			foundationConsumedGoods: { concrete: 1 },
+			constructionGoods: { wood: 1 },
+		},
+	],
+	looseGoods: {
+		wood: [
+			[3, -1],
+			[4, -1],
+		],
+		stone: [[-2, 0]],
+	},
+	roads: {
+		path: [
+			[-0.5, 1],
+			[-1.5, 1],
+			[-2.5, 1],
+			[-3.5, 1],
+			[0.5, 1],
+			[1.5, 1],
+			[2.5, 0.5],
+		],
+	},
+	playerAccount: { balanceVp: 120 },
+	vehicles: [
+		{
+			uid: 'HearthLoop:wheelbarrow',
+			vehicleType: 'wheelbarrow',
+			position: { q: 0, r: 1 },
+			servedLineIds: ['HearthLoop:commons-exchange'],
+		},
+		{
+			uid: 'HearthLoop:pickup-truck',
+			vehicleType: 'pickup_truck',
+			position: { q: 0, r: 1 },
+			servedLineIds: ['HearthLoop:melindbury-comfort-loop'],
 		},
 	],
 } satisfies GamePatches

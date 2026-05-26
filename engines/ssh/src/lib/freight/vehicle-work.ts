@@ -51,6 +51,7 @@ import {
 	zoneBrowseUtilityContext,
 } from 'ssh/freight/vehicle-zone-browse'
 import type { Game } from 'ssh/game/game'
+import { options } from 'ssh/globals'
 import {
 	asAlveolusProposedJob,
 	asVehicleProposedJob,
@@ -253,6 +254,93 @@ function hasActiveMovementForVehicleDock(bay: FreightBayAlveolus, vehicle: Vehic
 		.some((movement) => movement.provider === dock || movement.demander === dock)
 }
 
+function alveolusHasConveyableGood(alveolus: Alveolus, goodType: GoodType): boolean {
+	return (
+		(alveolus.storage?.available(goodType) ?? 0) > 0 ||
+		(alveolus.storage?.stock[goodType] ?? 0) > 0
+	)
+}
+
+function activeDockSourceConveyJob(
+	bay: FreightBayAlveolus,
+	vehicle: VehicleEntity,
+	targetTile?: Tile
+): ProposedJob | undefined {
+	const dock = bay.hive.freightVehicleDockFor(vehicle.uid)
+	if (!dock) return undefined
+	const movement = bay.hive.collectActiveMovements().find((candidate) => {
+		if (candidate.demander !== dock) return false
+		if (candidate.claimed) return false
+		if (!(candidate.provider instanceof Alveolus)) return false
+		return alveolusHasConveyableGood(candidate.provider, candidate.goodType)
+	})
+	if (!movement || !(movement.provider instanceof Alveolus)) return undefined
+	return asAlveolusProposedJob(
+		{ job: 'convey', fatigue: 1, urgency: jobBalance.convey },
+		movement.provider,
+		targetTile ?? movement.provider.tile
+	)
+}
+
+function rerouteBayConveyToActiveDockSource(
+	bay: FreightBayAlveolus,
+	vehicle: VehicleEntity,
+	job: ProposedJob
+): ProposedJob {
+	if (job.source.kind !== 'alveolus' || job.source.alveolus !== bay) return job
+	const rerouted = activeDockSourceConveyJob(bay, vehicle)
+	if (!rerouted || rerouted.source.kind !== 'alveolus') return job
+	traces.vehicle.log?.('[vehicle.advertisedJobs] rerouted bay convey to active dock source', {
+		...vehicleTraceSnapshot(vehicle),
+		bay: bay.name,
+		provider: rerouted.source.alveolus.name,
+	})
+	return rerouted
+}
+
+function characterOwnsConveyClaim(character: Character | undefined): boolean {
+	if (!character) return false
+	const action = character.actionDescription ?? []
+	if (action.includes('work.convey') || action.includes('work.conveyStep')) return true
+	return character.runningScripts.some((script) => script.name === 'work.convey')
+}
+
+function releaseStaleDockMovementClaims(bay: FreightBayAlveolus, vehicle: VehicleEntity): number {
+	const dock = bay.hive.freightVehicleDockFor(vehicle.uid)
+	if (!dock) return 0
+	const now = Date.now()
+	const settleMs = Math.max(
+		options.stalledMovementSettleMs,
+		Number(options.stalledMovementScanIntervalMs) || 0
+	)
+	let released = 0
+	for (const movement of bay.hive.collectActiveMovements()) {
+		if (movement.provider !== dock && movement.demander !== dock) continue
+		if (!movement.claimed) continue
+		if (characterOwnsConveyClaim(movement.claimedBy)) continue
+		const claimedAt = movement.claimedAtMs ?? 0
+		if (now - claimedAt < settleMs) continue
+		traces.vehicle.warn?.('vehicleJob.dock.releaseStaleClaim', {
+			vehicleUid: vehicle.uid,
+			goodType: movement.goodType,
+			provider: movement.provider.name,
+			demander: movement.demander.name,
+			claimedByUid: movement.claimedBy?.uid,
+			claimedByAction: movement.claimedBy?.actionDescription,
+			claimedForMs: now - claimedAt,
+		})
+		movement.claimed = false
+		delete movement.claimedBy
+		delete movement.claimedAtMs
+		released++
+	}
+	if (released > 0) {
+		bay.hive.invalidateConveyPlanning('vehicle-dock.stale-claim')
+		bay.hive.invalidateAdvertisements([dock, bay], 'audit.cleanup')
+	}
+	return released
+}
+
 function vehicleStockCount(vehicle: VehicleEntity): number {
 	return Object.values(vehicle.storage.stock).reduce(
 		(total, qty) => total + Math.max(0, qty ?? 0),
@@ -413,6 +501,38 @@ function dockedVehicleProviderJob(game: Game, vehicle: VehicleEntity): ProposedJ
 			}
 		}
 	}
+	if (
+		isVehicleLineService(service) &&
+		!vehicle.isDocked &&
+		'anchor' in service.stop &&
+		(() => {
+			const targetCoord = {
+				q: service.stop.anchor.coord[0],
+				r: service.stop.anchor.coord[1],
+			}
+			const vehicleCoord = axial.round(toAxialCoord(vehicle.effectivePosition)!)
+			return axial.key(targetCoord) === axial.key(vehicleCoord)
+		})()
+	) {
+		traces.vehicle.log?.('[vehicle.advertisedJobs] provider dock current anchor', {
+			...vehicleTraceSnapshot(vehicle),
+		})
+		return asVehicleProposedJob(
+			{
+				job: 'vehicleHop',
+				urgency: jobBalance.vehicleHop,
+				fatigue: 1,
+				vehicleUid: vehicle.uid,
+				lineId: service.line.id,
+				stopId: service.stop.id,
+				path: [],
+				approachPath: [],
+				dockEnter: true,
+			},
+			vehicle,
+			vehicle.tile
+		)
+	}
 	if (!isVehicleLineService(service) || !vehicle.isDocked || !('anchor' in service.stop)) {
 		traces.vehicle.log?.(
 			'[vehicle.advertisedJobs] no docked provider job: not docked anchor line',
@@ -424,6 +544,7 @@ function dockedVehicleProviderJob(game: Game, vehicle: VehicleEntity): ProposedJ
 	}
 
 	const dockBay = ensureFreightVehicleDockRegistration(vehicle)
+	if (dockBay) releaseStaleDockMovementClaims(dockBay, vehicle)
 	const dockCandidates = dockBay
 		? collectDockedVehicleAdvertisementCandidates(vehicle, dockBay)
 		: []
@@ -991,6 +1112,17 @@ function pickMaintenanceForVehicle(
 			}
 		}
 		if (bestUnload) {
+			if (vehicleServesTradeLine(vehicle)) {
+				traces.vehicle.log?.('vehicleJob.maintenance.skipUnloadForTradeVehicle', {
+					characterUid: character.uid,
+					vehicleUid: vehicle.uid,
+					targetCoord: toAxialCoord(bestUnload.tile.position),
+					urgency: bestUnload.urgency,
+					distance: bestUnloadDistance,
+					competingLoadDistance: bestLoadDistance,
+				})
+				return undefined
+			}
 			traces.vehicle.log?.('vehicleJob.maintenance.pick', {
 				characterUid: character.uid,
 				vehicleUid: vehicle.uid,
@@ -1672,6 +1804,27 @@ function findVehicleHopJobLineHop(game: Game, character: Character): VehicleHopJ
 				targetPos,
 				Number.POSITIVE_INFINITY
 			) ?? []
+		if (path.length === 0 && 'trade' in stop) {
+			traces.vehicle.log?.('vehicleJob.tradeStop.virtualPath', {
+				characterUid: character.uid,
+				vehicleUid: vehicle.uid,
+				lineId: line.id,
+				stopId: stop.id,
+				startCoord: startPos,
+				targetCoord: axial.round(toAxialCoord(targetPos)!),
+			})
+			return {
+				job: 'vehicleHop',
+				urgency: jobBalance.vehicleHop,
+				fatigue: 1,
+				vehicleUid: vehicle.uid,
+				lineId: line.id,
+				stopId: stop.id,
+				path,
+				approachPath: [],
+				dockEnter: false,
+			}
+		}
 		// Use rounded hex, not raw fractional keys: foot/vehicle position on a tile must match the
 		// anchor tile even when sub-hex coords differ from the tile center.
 		const sameHex = axial.key(startPos) === axial.key(axial.round(toAxialCoord(targetPos)!))
@@ -1907,7 +2060,7 @@ function traceNoVehicleWorkPicks(game: Game, character: Character): void {
 		character: character.name,
 		driving: character.driving,
 		operatesUid: character.operates?.uid,
-		why: 'no-picks-active-wheelbarrow-service',
+		why: 'no-picks-active-line-freight-service',
 		characterCoord: toAxialCoord(character.position),
 		vehicles: relevant,
 	})
@@ -2074,6 +2227,7 @@ export function collectVehicleProposedJobs(
  */
 export function collectVehicleAdvertisedJobs(game: Game, vehicle: VehicleEntity): ProposedJob[] {
 	const dockBay = ensureFreightVehicleDockRegistration(vehicle)
+	if (dockBay) releaseStaleDockMovementClaims(dockBay, vehicle)
 	let dockConvey = dockBay?.proposedJobs.find((job) => job.job === 'convey')
 	if (
 		dockBay &&
@@ -2088,15 +2242,68 @@ export function collectVehicleAdvertisedJobs(game: Game, vehicle: VehicleEntity)
 		dockBay && !dockConvey ? refreshDockedVehicleAdvertisement(vehicle, dockBay) : []
 	dockConvey = dockConvey ?? dockBay?.proposedJobs.find((job) => job.job === 'convey')
 	if (dockConvey) {
+		const advertisedConvey = dockBay
+			? rerouteBayConveyToActiveDockSource(dockBay, vehicle, dockConvey)
+			: dockConvey
 		traces.vehicle.log?.('[vehicle.advertisedJobs] using bay convey', {
 			...vehicleTraceSnapshot(vehicle),
 			bay: dockBay?.name,
-			jobSource: dockConvey.source,
+			jobSource: advertisedConvey.source,
 		})
-		return [dockConvey]
+		return [advertisedConvey]
+	}
+	const activeDockConvey = dockBay ? activeDockSourceConveyJob(dockBay, vehicle) : undefined
+	if (activeDockConvey) {
+		traces.vehicle.log?.('[vehicle.advertisedJobs] active dock movement source convey', {
+			...vehicleTraceSnapshot(vehicle),
+			bay: dockBay?.name,
+			jobSource: activeDockConvey.source,
+		})
+		return [activeDockConvey]
 	}
 	const dockedJob = dockedVehicleProviderJob(game, vehicle)
 	if (dockedJob) return [dockedJob]
+	if (
+		dockBay &&
+		dockCandidates.length > 0 &&
+		(vehicle.storage.virtualGoodsCount <= 0 ||
+			dockBay.hive.hasActiveFreightVehicleDockMovement(vehicle.uid))
+	) {
+		const demand = dockCandidates.find((candidate) => candidate.advertisement === 'demand')
+		const source = demand
+			? ([dockBay, ...dockBay.hive.generalStorages] as Alveolus[]).find((alveolus) =>
+					alveolusHasConveyableGood(alveolus, demand.goodType)
+				)
+			: undefined
+		if (source) {
+			if (dockBay.hive.hasActiveFreightVehicleDockMovement(vehicle.uid)) {
+				traces.vehicle.log?.('[vehicle.advertisedJobs] active dock movement convey', {
+					...vehicleTraceSnapshot(vehicle),
+					bay: dockBay.name,
+					goodType: demand?.goodType,
+					dockCandidates,
+				})
+				return [
+					asAlveolusProposedJob(
+						{ job: 'convey', fatigue: 1, urgency: jobBalance.convey },
+						source
+					),
+				]
+			}
+			traces.vehicle.log?.('[vehicle.advertisedJobs] source fallback convey', {
+				...vehicleTraceSnapshot(vehicle),
+				bay: dockBay.name,
+				goodType: demand?.goodType,
+				dockCandidates,
+			})
+			return [
+				asAlveolusProposedJob(
+					{ job: 'convey', fatigue: 1, urgency: jobBalance.convey },
+					source
+				),
+			]
+		}
+	}
 	if (
 		dockBay &&
 		!hasActiveMovementForVehicleDock(dockBay, vehicle) &&

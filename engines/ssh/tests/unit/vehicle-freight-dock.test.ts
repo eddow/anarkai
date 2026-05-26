@@ -1,5 +1,6 @@
 import { jobBalance } from 'engine-rules'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
+import { Commitment } from 'ssh/commitment'
 import { namedTrace, traces } from 'ssh/dev/debug'
 import type { FreightLineDefinition } from 'ssh/freight/freight-line'
 import { normalizeFreightLineDefinition } from 'ssh/freight/freight-line'
@@ -34,7 +35,7 @@ function freightBayAnchor(hiveName: string, coord: readonly [number, number]) {
 }
 
 describe('vehicle-freight-dock', () => {
-	it('can provide surplus cargo while demanding downstream-needed goods at the same dock', async () => {
+	it('demands downstream goods without unloading unrelated surplus into generic storage', async () => {
 		const engine = new TestEngine({ terrainSeed: 12007, characterCount: 0 })
 		await engine.init()
 		try {
@@ -84,14 +85,17 @@ describe('vehicle-freight-dock', () => {
 			const relations = dockedVehicleGoodsRelations(vehicle, bay!)
 			const candidates = collectDockedVehicleAdvertisementCandidates(vehicle, bay!)
 
-			expect(relations.berries?.advertisement).toBe('provide')
-			expect(relations.berries?.priority).toBe('2-use')
+			expect(relations.berries).toBeUndefined()
 			expect(relations.wood?.advertisement).toBe('demand')
 			expect(relations.wood?.priority).toBe('2-use')
 			expect(candidates).toEqual(
 				expect.arrayContaining([
-					expect.objectContaining({ goodType: 'berries', advertisement: 'provide', quantity: 1 }),
-					expect.objectContaining({ goodType: 'wood', advertisement: 'demand', quantity: 3 }),
+					expect.objectContaining({ goodType: 'wood', advertisement: 'demand', quantity: 1 }),
+				])
+			)
+			expect(candidates).not.toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ goodType: 'berries', advertisement: 'provide' }),
 				])
 			)
 			for (const candidate of candidates) {
@@ -102,7 +106,7 @@ describe('vehicle-freight-dock', () => {
 		}
 	})
 
-	it('protects cargo needed by a later line stop as dock buffer instead of storage surplus', async () => {
+	it('keeps cargo needed by a later line stop on the vehicle instead of advertising dock unload', async () => {
 		const engine = new TestEngine({ terrainSeed: 12019, characterCount: 0 })
 		await engine.init()
 		try {
@@ -145,7 +149,7 @@ describe('vehicle-freight-dock', () => {
 			const relations = dockedVehicleGoodsRelations(vehicle, bay)
 			const candidates = collectDockedVehicleAdvertisementCandidates(vehicle, bay)
 
-			expect(relations.wood).toEqual({ advertisement: 'provide', priority: '1-buffer' })
+			expect(relations.wood).toBeUndefined()
 			expect(candidates).not.toEqual(
 				expect.arrayContaining([
 					expect.objectContaining({ goodType: 'wood', advertisement: 'provide' }),
@@ -234,6 +238,7 @@ describe('vehicle-freight-dock', () => {
 
 			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
 			expect(bay).toBeDefined()
+			const storage = engine.game.hex.getTile({ q: 1, r: 0 })?.content
 			const vehicle = engine.game.vehicles.createVehicle(
 				'dock-forty-v',
 				'wheelbarrow',
@@ -508,6 +513,7 @@ describe('vehicle-freight-dock', () => {
 
 			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
 			expect(bay).toBeDefined()
+			const storage = engine.game.hex.getTile({ q: 1, r: 0 })?.content
 			const vehicle = engine.game.vehicles.createVehicle(
 				'dock-finished-v',
 				'wheelbarrow',
@@ -729,7 +735,7 @@ describe('vehicle-freight-dock', () => {
 		}
 	})
 
-	it('advertises a convey job while an empty docked distribute vehicle can load from hive storage', async () => {
+	it('advertises source convey after an empty docked distribute vehicle already allocated its load', async () => {
 		const engine = new TestEngine({ terrainSeed: 12013, characterCount: 0 })
 		await engine.init()
 		try {
@@ -773,6 +779,7 @@ describe('vehicle-freight-dock', () => {
 					expect.objectContaining({ goodType: 'wood', advertisement: 'demand' }),
 				])
 			)
+			expect(vehicle.storage.virtualGoodsCount).toBeGreaterThan(0)
 			expect(vehicle.advertisedJobs).toEqual(
 				expect.arrayContaining([
 					expect.objectContaining({
@@ -781,15 +788,68 @@ describe('vehicle-freight-dock', () => {
 					}),
 				])
 			)
-			expect(vehicle.proposedJobs).toEqual(
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('advertises the active source convey while dock concrete load is already allocated', async () => {
+		const engine = new TestEngine({ terrainSeed: 12024, characterCount: 0 })
+		await engine.init()
+		try {
+			const line = distributeFreightLine({
+				id: 'dock:distribute-pending-concrete-load',
+				name: 'Dock distribute pending concrete load',
+				hiveName: 'DockDistributePendingConcreteLoad',
+				coord: [0, 0],
+				filters: ['concrete'],
+				unloadRadius: 1,
+			})
+			engine.loadScenario({
+				tiles: [{ coord: [0, -1], terrain: 'grass' }],
+				hives: [
+					{
+						name: 'DockDistributePendingConcreteLoad',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
+							{ coord: [1, 0], alveolus: 'storage', goods: { concrete: 2 } },
+						],
+					},
+				],
+				freightLines: [line],
+			} satisfies Partial<SaveState>)
+			const constructionTile = engine.game.hex.getTile({ q: 0, r: -1 })!
+			constructionTile.build('storage')
+
+			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
+			expect(bay).toBeDefined()
+			const storage = engine.game.hex.getTile({ q: 1, r: 0 })?.content
+			const vehicle = engine.game.vehicles.createVehicle(
+				'dock-distribute-pending-concrete-load-v',
+				'pickup_truck',
+				{ q: 0, r: 0 },
+				[line]
+			)
+			vehicle.beginLineService(line, line.stops[0]!)
+			vehicle.dock()
+
+			const pending =
+				vehicle.storage.virtualGoodsCount > 0
+					? undefined
+					: new Commitment('test.pending-dock-load')
+			if (pending) expect(vehicle.storage.allocate({ concrete: 1 }, pending)).toBeUndefined()
+			expect(vehicle.storage.virtualGoodsCount).toBeGreaterThan(0)
+			expect(collectDockedVehicleAdvertisementCandidates(vehicle, bay!)).toHaveLength(0)
+
+			expect(vehicle.advertisedJobs).toEqual(
 				expect.arrayContaining([
 					expect.objectContaining({
 						job: 'convey',
-						vehicleUid: vehicle.uid,
-						source: expect.objectContaining({ kind: 'vehicle' }),
+						source: expect.objectContaining({ kind: 'alveolus', alveolus: storage }),
 					}),
 				])
 			)
+			pending?.cancel('test cleanup')
 		} finally {
 			await engine.destroy()
 		}

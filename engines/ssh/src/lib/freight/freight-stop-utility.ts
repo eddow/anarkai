@@ -69,6 +69,18 @@ export interface FreightProjectedLoadedGoodsSnapshot {
 	readonly surplusLoadedGoods: FreightStopGoodsSnapshot
 }
 
+/**
+ * Route-order future transfer intent for a vehicle at a line stop.
+ *
+ * This is the one place where cyclicity matters: callers receive already-ordered future counters and
+ * should not need to branch on `line.cyclic` again.
+ */
+export interface FreightFutureTransferSnapshot {
+	readonly routeNeedGoods: FreightStopGoodsSnapshot
+	readonly routeSupplyGoods: FreightStopGoodsSnapshot
+	readonly routeTransferredGoods: FreightStopGoodsSnapshot
+}
+
 export type FreightStopCommerceKind = 'bay' | 'named-zone' | 'radius-zone' | 'settlement-trade'
 
 export type FreightStopCommerceBlockReason =
@@ -657,6 +669,19 @@ export function computeLineFurtherGoods(args: {
 		furtherNeededGoods: snapshotFromGoodsCounts(furtherNeededGoods),
 		furtherProvidedGoods: snapshotFromGoodsCounts(furtherProvidedGoods),
 		furtherTransferredGoods: snapshotFromGoodsCounts(furtherTransferredGoods),
+	}
+}
+
+export function computeFutureFreightTransfer(args: {
+	readonly game: Game
+	readonly line: FreightLineDefinition
+	readonly currentStopIndex: number
+}): FreightFutureTransferSnapshot {
+	const further = computeLineFurtherGoods(args)
+	return {
+		routeNeedGoods: further.furtherNeededGoods,
+		routeSupplyGoods: further.furtherProvidedGoods,
+		routeTransferredGoods: further.furtherTransferredGoods,
 	}
 }
 

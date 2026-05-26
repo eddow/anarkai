@@ -28,7 +28,10 @@ import {
 } from 'ssh/freight/freight-stop-utility'
 import { executeNpcTradeStopTransfer, npcTradeStopHasTransfer } from 'ssh/freight/npc-trade-stop'
 import { scoreVehicleCandidate } from 'ssh/freight/vehicle-candidate-policy'
-import { collectDockedVehicleAdvertisementCandidates } from 'ssh/freight/vehicle-freight-dock'
+import {
+	refreshDockedVehicleAdvertisement,
+	vehicleDockBlockingVirtualGoodsCount,
+} from 'ssh/freight/vehicle-freight-dock'
 import {
 	freightVehicleDockBay,
 	syncFreightVehicleDockRegistration,
@@ -54,6 +57,7 @@ export function vehicleNeedsParkingOnCurrentTile(vehicle: VehicleEntity): boolea
 	if (
 		hereCoord &&
 		!vehicle.isDocked &&
+		isVehicleLineService(vehicle.service) &&
 		vehicle.servedLines.some((line) =>
 			line.stops.some(
 				(stop) =>
@@ -235,6 +239,9 @@ export function stopHasPotentialVehicleTransfer(
 
 	const providedHere = measureFreightStopProvidedGoods(game, line, stopIndex).perGood
 	const further = computeLineFurtherGoods({ game, line, currentStopIndex: stopIndex })
+	if ('trade' in stop && goodsIntersectAvailableStock(vehicle, further.furtherNeededGoods.perGood)) {
+		return false
+	}
 	for (const [goodType, quantity] of Object.entries(providedHere) as [GoodType, number][]) {
 		if (quantity <= 0) continue
 		if ((vehicle.storage.hasRoom(goodType) ?? 0) <= 0) continue
@@ -468,10 +475,19 @@ export function projectedLineStopForVehicleHop(
 	const line = svc.line
 	const stop = svc.stop
 	if (!('zone' in stop)) {
+		if ('trade' in stop) {
+			if (stopHasPotentialVehicleTransfer(game, character, vehicle, line, stop)) {
+				return { line, stop }
+			}
+			return line.cyclic
+				? nextActionableVehicleLineStop(game, vehicle, line, stop, character)
+				: { line, stop }
+		}
 		const targetPos = freightStopMovementTarget(game, character, line, stop)
 		const targetCoord = targetPos ? axial.round(toAxialCoord(targetPos)!) : undefined
 		const vehicleCoord = axial.round(toAxialCoord(vehicle.effectivePosition)!)
 		if (targetCoord && axial.key(targetCoord) !== axial.key(vehicleCoord)) return { line, stop }
+		if ('anchor' in stop && !vehicle.isDocked) return { line, stop }
 		if (!line.cyclic) return { line, stop }
 		if (stopHasPotentialVehicleTransfer(game, character, vehicle, line, stop)) return { line, stop }
 		return nextActionableVehicleLineStop(game, vehicle, line, stop, character)
@@ -651,9 +667,17 @@ export function advanceVehicleLineServicePastEmptyStops(
 			if (!hive) return
 			if (!hive.freightVehicleDockFor(vehicle.uid)) return
 			if (hive.hasActiveFreightVehicleDockMovement(vehicle.uid)) return
+			const candidates = refreshDockedVehicleAdvertisement(vehicle, content)
 			if (vehicle.storage.virtualGoodsCount > 0) return
-			if (collectDockedVehicleAdvertisementCandidates(vehicle, content).length > 0) return
-			if (vehicleStorageStockCount(vehicle) > 0) return
+			if (candidates.length > 0) return
+			if (vehicleStorageStockCount(vehicle) > 0) {
+				const next = line.cyclic
+					? nextActionableVehicleLineStop(game, vehicle, line, stop, character)
+					: nextFreightLineStop(line, stop)
+						? { line, stop: nextFreightLineStop(line, stop)! }
+						: undefined
+				if (!next) return
+			}
 
 			traces.vehicle.log?.('vehicleJob.line.emptyStop', {
 				vehicleUid: vehicle.uid,
@@ -850,7 +874,8 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 	}
 	const stockCount = vehicleStorageStockCount(vehicle)
 	const virtualGoodsCount = vehicle.storage.virtualGoodsCount
-	const candidates = collectDockedVehicleAdvertisementCandidates(vehicle, content)
+	const blockingVirtualGoodsCount = vehicleDockBlockingVirtualGoodsCount(vehicle)
+	const candidates = refreshDockedVehicleAdvertisement(vehicle, content)
 	if (candidates.length > 0) {
 		traces.vehicle.log?.('vehicleJob.dock.check', {
 			vehicleUid: vehicle.uid,
@@ -865,7 +890,7 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 		})
 		return
 	}
-	if (virtualGoodsCount > 0) {
+	if (blockingVirtualGoodsCount > 0) {
 		traces.vehicle.log?.('vehicleJob.dock.check', {
 			vehicleUid: vehicle.uid,
 			lineId: svc.line.id,
@@ -875,6 +900,7 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 			anchorCoord: stop.anchor.coord,
 			stockCount,
 			virtualGoodsCount,
+			blockingVirtualGoodsCount,
 			stock: vehicle.storage.stock,
 		})
 		return

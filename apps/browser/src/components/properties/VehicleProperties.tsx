@@ -562,21 +562,6 @@ const VehicleProperties = (
 						</PropertyGridRow>
 					</PropertyGrid>
 				</InspectorSection>
-				<InspectorSection if={(props.vehicle.logs?.length ?? 0) > 0}>
-					<PropertyGrid>
-						<PropertyGridRow label="Logs">
-							<div class="vehicle-properties__logs" role="log" data-testid="vehicle-logs">
-								<for each={props.vehicle.logs ?? []}>
-									{(line) => (
-										<div class="vehicle-properties__log-line" title={line}>
-											{line}
-										</div>
-									)}
-								</for>
-							</div>
-						</PropertyGridRow>
-					</PropertyGrid>
-				</InspectorSection>
 			</div>
 			<div else />
 		</>

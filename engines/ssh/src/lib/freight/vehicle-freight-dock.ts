@@ -1,10 +1,13 @@
 import { jobBalance } from 'engine-rules'
 import type { Alveolus } from 'ssh/board/content/alveolus'
-import { type FreightLineDefinition, findDistributeRouteSegments } from 'ssh/freight/freight-line'
 import {
-	computeLineFurtherGoods,
+	type FreightLineDefinition,
+	findDistributeRouteSegments,
+} from 'ssh/freight/freight-line'
+import {
+	computeFutureFreightTransfer,
 	measureFreightStopNeededGoods,
-	projectLoadedGoodsAgainstFurtherNeeds,
+	snapshotFromGoodsCounts,
 } from 'ssh/freight/freight-stop-utility'
 import { isLineFreightVehicleType } from 'ssh/freight/line-freight-vehicles'
 import { scoreVehicleCandidate } from 'ssh/freight/vehicle-candidate-policy'
@@ -101,21 +104,74 @@ export interface DockedVehicleAdvertisementCandidate {
 	readonly score: number
 }
 
-function dockedVehicleSurplusHasDestination(bay: FreightBayAlveolus, goodType: GoodType): boolean {
-	if (bay.hive.needs[goodType] !== undefined) return true
-	return bay.hive.generalStorages.some((storage) => storage.canTake(goodType, '0-store'))
+function storageReservedGoods(vehicle: VehicleEntity, goodType: GoodType): number {
+	return vehicle.storage.renderedGoods().slots.reduce(
+		(total, slot) => total + (slot.goodType === goodType ? Math.max(0, slot.reserved) : 0),
+		0
+	)
 }
 
-function dockedVehicleLoadHasSource(bay: FreightBayAlveolus, goodType: GoodType): boolean {
-	if (bay.tile.availableGoods.some((good) => good.goodType === goodType)) return true
-	if ((bay.storage.stock[goodType] ?? 0) > 0) return true
-	return bay.hive.generalStorages.some((storage) => (storage.storage.stock[goodType] ?? 0) > 0)
+function advertisedProviderQuantity(alveolus: Alveolus, goodType: GoodType): number {
+	const relation = alveolus.goodsRelations[goodType]
+	if (relation?.advertisement !== 'provide') return 0
+	if (!alveolus.canGive(goodType, relation.priority)) return 0
+	return alveolus.storage?.available(goodType) ?? 0
 }
 
-function projectedDockedVehicleGoods(
+function advertisedDemanderQuantity(alveolus: Alveolus, goodType: GoodType): number {
+	const relation = alveolus.goodsRelations[goodType]
+	if (relation?.advertisement !== 'demand') return 0
+	if (relation.priority === '0-store') return 0
+	if (!alveolus.canTake(goodType, relation.priority)) return 0
+	const acceptedRoomFor = (
+		alveolus as {
+			acceptedRoomFor?: (goodType: GoodType, priority: ExchangePriority) => number
+		}
+	).acceptedRoomFor
+	return acceptedRoomFor
+		? acceptedRoomFor.call(alveolus, goodType, relation.priority)
+		: (alveolus.storage?.hasRoom(goodType) ?? 0)
+}
+
+function currentAdvertisedSupply(bay: FreightBayAlveolus, goodType: GoodType): number {
+	let quantity = 0
+	const counted = new Set<Alveolus>()
+	for (const alveolus of bay.hive.alveoli) {
+		if (alveolus === bay) continue
+		const provided = advertisedProviderQuantity(alveolus, goodType)
+		if (provided > 0) {
+			counted.add(alveolus)
+			quantity += provided
+		}
+	}
+	for (const storage of bay.hive.generalStorages) {
+		if (counted.has(storage)) continue
+		if (!storage.canGive(goodType, '2-use')) continue
+		quantity += storage.storage.available(goodType)
+	}
+	return quantity
+}
+
+function currentAdvertisedDemand(bay: FreightBayAlveolus, goodType: GoodType): number {
+	let quantity = 0
+	for (const alveolus of bay.hive.alveoli) {
+		if (alveolus === bay) continue
+		quantity += advertisedDemanderQuantity(alveolus, goodType)
+	}
+	return quantity
+}
+
+function dockedVehicleFutureTransfer(
 	vehicle: VehicleEntity,
 	bay: FreightBayAlveolus
-): ReturnType<typeof projectLoadedGoodsAgainstFurtherNeeds> | undefined {
+):
+	| {
+			readonly routeNeed: Partial<Record<GoodType, number>>
+			readonly routeReservedCargo: Partial<Record<GoodType, number>>
+			readonly remainingRouteNeed: Partial<Record<GoodType, number>>
+			readonly surplusCargo: Partial<Record<GoodType, number>>
+	  }
+	| undefined {
 	const svc = vehicle.service
 	if (!isVehicleLineService(svc) || !isLineFreightVehicleType(vehicle.vehicleType)) return undefined
 	if (!vehicle.isDocked) return undefined
@@ -123,15 +179,34 @@ function projectedDockedVehicleGoods(
 	const { line, stop } = svc
 	const stopIdx = line.stops.findIndex((s) => s.id === stop.id)
 	if (stopIdx < 0 || !('anchor' in stop)) return undefined
-	const further = computeLineFurtherGoods({
+	const future = computeFutureFreightTransfer({
 		game: vehicle.game,
 		line,
 		currentStopIndex: stopIdx,
 	})
-	return projectLoadedGoodsAgainstFurtherNeeds(
-		vehicle.storage.stock,
-		further.furtherNeededGoods.perGood
-	)
+	const routeNeed = future.routeNeedGoods.perGood
+	const goods = new Set<GoodType>([
+		...(Object.keys(vehicle.storage.stock) as GoodType[]),
+		...(Object.keys(routeNeed) as GoodType[]),
+	])
+	const routeReservedCargo: Partial<Record<GoodType, number>> = {}
+	const remainingRouteNeed: Partial<Record<GoodType, number>> = {}
+	const surplusCargo: Partial<Record<GoodType, number>> = {}
+	for (const goodType of goods) {
+		const stock = vehicle.storage.stock[goodType] ?? 0
+		const allocated = vehicle.storage.allocated(goodType)
+		const reserved = storageReservedGoods(vehicle, goodType)
+		const projectedOnVehicle = stock + allocated
+		const needed = routeNeed[goodType] ?? 0
+		const retained = Math.min(projectedOnVehicle, needed)
+		const freeStock = Math.max(0, stock - reserved)
+		const surplus = Math.max(0, freeStock - Math.max(0, needed - allocated))
+		const remaining = Math.max(0, needed - projectedOnVehicle)
+		if (retained > 0) routeReservedCargo[goodType] = retained
+		if (surplus > 0) surplusCargo[goodType] = surplus
+		if (remaining > 0) remainingRouteNeed[goodType] = remaining
+	}
+	return { routeNeed, routeReservedCargo, remainingRouteNeed, surplusCargo }
 }
 
 function clearUnbackedVirtualGoods(vehicle: VehicleEntity): number {
@@ -158,6 +233,11 @@ function clearUnbackedVirtualGoods(vehicle: VehicleEntity): number {
 	}
 	if (cleared > 0) vehicle.game.invalidateWorkPlanning('vehicle.dock.orphaned-virtual-goods')
 	return cleared
+}
+
+export function vehicleDockBlockingVirtualGoodsCount(vehicle: VehicleEntity): number {
+	const rendered = vehicle.storage.renderedGoods()
+	return rendered.slots.reduce((total, slot) => total + Math.max(0, slot.allocated), 0)
 }
 
 /**
@@ -213,79 +293,61 @@ export function collectDockedVehicleAdvertisementCandidates(
 	}
 
 	const candidates: DockedVehicleAdvertisementCandidate[] = []
-	const projected = projectedDockedVehicleGoods(vehicle, bay)
-	if (!projected) return []
-	const providedCandidates = new Set<GoodType>()
-
-	const neededHere = measureFreightStopNeededGoods(vehicle.game, line, stopIdx).perGood
-	for (const [goodType, needed] of Object.entries(neededHere) as [GoodType, number][]) {
-		const quantity = Math.min(vehicle.storage.available(goodType), needed)
-		if (quantity <= 0) continue
-		providedCandidates.add(goodType)
-		candidates.push({
-			goodType,
-			advertisement: 'provide',
-			quantity,
-			score: scoreVehicleCandidate({
-				kind: 'dockProvide',
-				urgency: jobBalance.unloadFromVehicle,
-				distance: 0,
-				priorityTier: 'pureLine',
-				quantity,
-			}).score,
-		})
-	}
-
-	for (const goodType of Object.keys(projected.surplusLoadedGoods.perGood) as GoodType[]) {
-		if (providedCandidates.has(goodType)) continue
-		const quantity = vehicle.storage.available(goodType)
-		if (quantity <= 0) continue
-		if (!dockedVehicleSurplusHasDestination(bay, goodType)) {
-			traces.vehicle.warn?.('[dock.candidates] surplus has no destination', {
-				vehicleUid: vehicle.uid,
-				bay: bay.name,
-				lineId: line.id,
-				stopId: stop.id,
-				goodType,
-				vehicleStock: vehicle.storage.stock[goodType] ?? 0,
-				vehicleAvailable: quantity,
-			})
-			continue
-		}
-		candidates.push({
-			goodType,
-			advertisement: 'provide',
-			quantity,
-			score: scoreVehicleCandidate({
-				kind: 'dockProvide',
-				urgency: jobBalance.unloadFromVehicle,
-				distance: 0,
-				priorityTier: 'pureLine',
-				quantity,
-			}).score,
-		})
-	}
-
+	const future = dockedVehicleFutureTransfer(vehicle, bay)
+	if (!future) return []
 	const distLoad = distributeLoadSegmentForAnchor(line, stopIdx)
-	if (distLoad) {
-		for (const goodType of Object.keys(projected.remainingNeededGoods.perGood) as GoodType[]) {
-			const quantity = Math.min(
-				vehicle.storage.hasRoom(goodType) ?? 0,
-				projected.remainingNeededGoods.perGood[goodType] ?? 0
-			)
-			if (quantity <= 0) continue
-			if ((vehicle.storage.hasRoom(goodType) ?? 0) <= 0) continue
-			if (!dockedVehicleLoadHasSource(bay, goodType)) continue
+	const currentNeeded = measureFreightStopNeededGoods(vehicle.game, line, stopIdx).perGood
+	const goods = new Set<GoodType>([
+		...(Object.keys(future.remainingRouteNeed) as GoodType[]),
+		...(Object.keys(future.surplusCargo) as GoodType[]),
+		...(Object.keys(currentNeeded) as GoodType[]),
+	])
+	for (const goodType of goods) {
+		const currentSupply = distLoad ? currentAdvertisedSupply(bay, goodType) : 0
+		const currentDemand = Math.max(
+			currentAdvertisedDemand(bay, goodType),
+			currentNeeded[goodType] ?? 0
+		)
+		const allocatedToVehicle = vehicle.storage.allocated(goodType)
+		const room = vehicle.storage.hasRoom(goodType) ?? 0
+		const freshVehicleDemand = Math.min(
+			room,
+			currentSupply,
+			future.remainingRouteNeed[goodType] ?? 0
+		)
+		const pendingRouteLoad = Math.min(allocatedToVehicle, future.routeNeed[goodType] ?? 0)
+		const vehicleDemand = Math.max(freshVehicleDemand, pendingRouteLoad)
+		const vehicleProvide = Math.min(
+			currentDemand,
+			future.surplusCargo[goodType] ?? 0,
+			vehicle.storage.available(goodType)
+		)
+		if (vehicleDemand > 0) {
 			candidates.push({
 				goodType,
 				advertisement: 'demand',
-				quantity,
+				quantity: vehicleDemand,
 				score: scoreVehicleCandidate({
 					kind: 'dockDemand',
 					urgency: jobBalance.loadOntoVehicle,
 					distance: 0,
 					priorityTier: 'pureLine',
-					quantity,
+					quantity: vehicleDemand,
+				}).score,
+			})
+			continue
+		}
+		if (vehicleProvide > 0) {
+			candidates.push({
+				goodType,
+				advertisement: 'provide',
+				quantity: vehicleProvide,
+				score: scoreVehicleCandidate({
+					kind: 'dockProvide',
+					urgency: jobBalance.unloadFromVehicle,
+					distance: 0,
+					priorityTier: 'pureLine',
+					quantity: vehicleProvide,
 				}).score,
 			})
 		}
@@ -297,8 +359,10 @@ export function collectDockedVehicleAdvertisementCandidates(
 		lineId: line.id,
 		stopId: stop.id,
 		stock: { ...vehicle.storage.stock },
-		projectedSurplus: projected.surplusLoadedGoods.perGood,
-		projectedRemainingNeed: projected.remainingNeededGoods.perGood,
+		routeNeed: future.routeNeed,
+		routeReservedCargo: snapshotFromGoodsCounts(future.routeReservedCargo).perGood,
+		projectedSurplus: snapshotFromGoodsCounts(future.surplusCargo).perGood,
+		projectedRemainingNeed: snapshotFromGoodsCounts(future.remainingRouteNeed).perGood,
 		candidates,
 	})
 	return candidates
@@ -310,16 +374,6 @@ export function dockedVehicleGoodsRelations(
 	bay: FreightBayAlveolus
 ): GoodsRelations {
 	const relations: GoodsRelations = {}
-	const projected = projectedDockedVehicleGoods(vehicle, bay)
-	if (projected) {
-		for (const goodType of Object.keys(projected.reservedLoadedGoods.perGood) as GoodType[]) {
-			if (vehicle.storage.available(goodType) <= 0) continue
-			relations[goodType] = {
-				advertisement: 'provide',
-				priority: '1-buffer',
-			}
-		}
-	}
 	for (const candidate of collectDockedVehicleAdvertisementCandidates(vehicle, bay)) {
 		const current = relations[candidate.goodType]
 		if (current && current.advertisement !== candidate.advertisement) {
@@ -339,12 +393,9 @@ export function refreshDockedVehicleAdvertisement(
 ): DockedVehicleAdvertisementCandidate[] {
 	const dock = bay.hive.freightVehicleDockFor(vehicle.uid)
 	if (!dock) return collectDockedVehicleAdvertisementCandidates(vehicle, bay)
-	if (
-		vehicle.storage.virtualGoodsCount > 0 &&
-		!bay.hive.hasActiveFreightVehicleDockMovement(vehicle.uid)
-	) {
+	if (vehicle.storage.virtualGoodsCount > 0 && !bay.hive.hasActiveFreightVehicleDockMovement(vehicle.uid)) {
 		const canceled = bay.hive.cancelOrphanedFreightVehicleDockAllocations(dock)
-		if (vehicle.storage.virtualGoodsCount > 0) {
+		if (canceled > 0 && vehicle.storage.virtualGoodsCount > 0) {
 			const cleared = clearUnbackedVirtualGoods(vehicle)
 			if (cleared > 0) {
 				traces.vehicle.warn?.('[dock.candidates] cleared unbacked virtual goods', {

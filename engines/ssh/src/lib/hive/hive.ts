@@ -2239,7 +2239,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			}
 		}
 		if (canceled > 0) {
-			traces.advertising.warn?.('[WATCHDOG] Cancelled orphaned dock allocations', {
+			traces.advertising.log?.('[WATCHDOG] Cancelled orphaned dock allocations', {
 				dock: dock.name,
 				canceled,
 			})

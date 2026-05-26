@@ -251,7 +251,8 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			dockEnter: true,
 		}
 
-		expect(() => vf.vehicleHopDockStep(jobPlan)).not.toThrow()
+		const dockStep = vf.vehicleHopDockStep(jobPlan)
+		dockStep?.finish()
 		expect(vehicle.isDocked).toBe(true)
 		expect(vehicle.position).toBeUndefined()
 		expect(jobPlan.vehicleHopAnchorDockDisembarked).toBe(true)
@@ -310,7 +311,8 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			dockEnter: true,
 		}
 
-		expect(() => vf.vehicleHopDockStep(jobPlan)).not.toThrow()
+		const dockStep = vf.vehicleHopDockStep(jobPlan)
+		dockStep?.finish()
 		expect(vehicle.isDocked).toBe(true)
 	})
 
@@ -349,6 +351,46 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 
 		expect(() => vf.vehicleHopDockStep(jobPlan)).not.toThrow()
 		expect(jobPlan.vehicleHopReplanRequired).toBe(true)
+		expect(vehicle.isDocked).toBe(false)
+		expect(vehicle.position).toMatchObject({ q: -2, r: 1 })
+	})
+
+	it('vehicleHopPrepare repairs a missing path to a live ChopSaw bay anchor', async () => {
+		game = new Game({ terrainSeed: 550, characterCount: 0 }, chopSaw)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = game.freightLines.find(
+			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
+		)
+		const unloadStop = line?.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		if (!line || !unloadStop || !vehicle) throw new Error('expected ChopSaw gather fixture')
+
+		vehicle.position = { q: -2, r: 1 }
+		vehicle.beginLineService(line, unloadStop)
+		const character = game.population.createCharacter('ChopSawRepairDockPath', { q: -2, r: 1 })
+		character.operates = vehicle
+		character.onboard()
+
+		const vf = new VehicleFunctions()
+		Object.assign(vf, { [subject]: character })
+		const jobPlan: WorkPlan = {
+			type: 'work',
+			job: 'vehicleHop',
+			target: character.tile,
+			urgency: 1,
+			fatigue: 1,
+			vehicleUid: vehicle.uid,
+			lineId: line.id,
+			stopId: unloadStop.id,
+			path: [],
+			dockEnter: true,
+		}
+
+		vf.vehicleHopPrepare(jobPlan)
+		expect(jobPlan.vehicleHopReplanRequired).toBe(false)
+		expect(jobPlan.path?.length).toBeGreaterThan(0)
 		expect(vehicle.isDocked).toBe(false)
 		expect(vehicle.position).toMatchObject({ q: -2, r: 1 })
 	})
@@ -534,7 +576,8 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			vehicleHopAnchorDockDisembarked: true,
 		}
 
-		vf.vehicleHopDockStep(jobPlan)
+		const step = vf.vehicleHopDockStep(jobPlan)
+		step?.finish()
 		expect(jobPlan.vehicleHopAnchorDockDisembarked).toBe(false)
 		expect(character.operates?.uid).toBe(vehicle.uid)
 	})

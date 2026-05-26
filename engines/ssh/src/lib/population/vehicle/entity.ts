@@ -2,7 +2,10 @@ import { effect, reactive } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
 import { isTileCoord } from 'ssh/board/tile-coord'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
-import { collectDockedVehicleAdvertisementCandidates } from 'ssh/freight/vehicle-freight-dock'
+import {
+	refreshDockedVehicleAdvertisement,
+	vehicleDockBlockingVirtualGoodsCount,
+} from 'ssh/freight/vehicle-freight-dock'
 import {
 	freightVehicleDockBay,
 	syncFreightVehicleDockRegistration,
@@ -111,8 +114,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 			const svc = this.service
 			if (!isVehicleLineService(svc) || !('anchor' in svc.stop) || !this.isDocked) return
 			if (svc.operator) return
-			const virtualGoodsCount = this.storage.virtualGoodsCount
-			if (virtualGoodsCount > 0) return
+			if (vehicleDockBlockingVirtualGoodsCount(this) > 0) return
 			this.scheduleDockStorageCompletionCheck()
 		})
 	}
@@ -121,7 +123,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		const svc = this.service
 		if (!isVehicleLineService(svc) || !('anchor' in svc.stop) || !this.isDocked) return
 		if (svc.operator) return
-		if (this.storage.virtualGoodsCount > 0) return
+		if (vehicleDockBlockingVirtualGoodsCount(this) > 0) return
 		if (this.dockStorageCompletionScheduled) return
 		this.dockStorageCompletionScheduled = true
 		setTimeout(() => {
@@ -130,9 +132,9 @@ export class VehicleEntity extends withInteractive(GameObject) {
 			const current = this.service
 			if (!isVehicleLineService(current) || !('anchor' in current.stop) || !this.isDocked) return
 			if (current.operator) return
-			if (this.storage.virtualGoodsCount > 0) return
+			if (vehicleDockBlockingVirtualGoodsCount(this) > 0) return
 			const bay = freightVehicleDockBay(this)
-			const candidates = bay ? collectDockedVehicleAdvertisementCandidates(this, bay) : []
+			const candidates = bay ? refreshDockedVehicleAdvertisement(this, bay) : []
 			if (candidates.length > 0) return
 			const currentStockCount = Object.values(this.storage.stock).reduce(
 				(total, qty) => total + Math.max(0, qty ?? 0),
