@@ -1260,7 +1260,7 @@ pub fn wasm_place_settlements(
 /// * `seed`               - Deterministic seed
 /// * `coords`             - Packed as [q, r, q, r, ...]
 /// * `terrain_kinds`      - u8 per tile (0=water, 1=plains, 2=forest, ...)
-/// * `has_river`          - u8 per tile (0 or 1)
+/// * `river_edge_borders` - Packed doubled border coordinates for river edges
 /// * `settlement_coords`  - Packed as [q, r, ...] in score-descending order
 ///
 /// # Returns
@@ -1268,15 +1268,15 @@ pub fn wasm_place_settlements(
 /// TypeScript divides each by 2 to get midpoint storage format.
 ///
 /// # Note on rivers
-/// River borders carry a 10.0 cost in Dijkstra. This means the pathfinder
-/// will explore up to ~10 non-river tiles before choosing a river crossing.
-/// No separate detour post-processing is needed.
+/// River-edge borders are rejected: roads may cross river-influenced tiles when
+/// a route exists, but they must not share the exact tile border used by the
+/// river edge.
 #[wasm_bindgen]
 pub fn wasm_generate_settlement_roads(
     seed: u32,
     coords: &[i32],
     terrain_kinds: &[u8],
-    has_river: &[u8],
+    river_edge_borders: &[i32],
     settlement_coords: &[i32],
 ) -> Vec<i32> {
     // Handle edge cases
@@ -1285,12 +1285,15 @@ pub fn wasm_generate_settlement_roads(
     }
 
     // Validate input lengths
-    if coords.len() % 2 != 0 || settlement_coords.len() % 2 != 0 {
+    if coords.len() % 2 != 0
+        || river_edge_borders.len() % 2 != 0
+        || settlement_coords.len() % 2 != 0
+    {
         return Vec::new();
     }
 
     let tile_count = coords.len() / 2;
-    if terrain_kinds.len() != tile_count || has_river.len() != tile_count {
+    if terrain_kinds.len() != tile_count {
         return Vec::new();
     }
 
@@ -1306,12 +1309,17 @@ pub fn wasm_generate_settlement_roads(
         .map(|chunk| HexCoord::new(chunk[0], chunk[1]))
         .collect();
 
+    let river_borders: Vec<(i32, i32)> = river_edge_borders
+        .chunks(2)
+        .map(|chunk| (chunk[0], chunk[1]))
+        .collect();
+
     // Call the pure Rust generation function
     let borders = generation::generate_settlement_roads(
         seed,
         &hex_coords,
         terrain_kinds,
-        has_river,
+        &river_borders,
         &hex_settlements,
     );
 

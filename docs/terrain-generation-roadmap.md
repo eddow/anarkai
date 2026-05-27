@@ -136,8 +136,97 @@ For `NpcInhabitationArea`:
 
 - prefer road corridors, crossroads, river crossings, coasts, valleys, and flat land;
 - allow roads to pass through and define the settlement shape;
-- reserve room for trade points and public/commercial areas;
-- keep internal residential/commercial detail abstract at first.
+- generate an internal street graph before assigning occupied settlement tiles;
+- reserve room for trade points, civic anchors, commercial frontage, housing, and light industrial/work yards;
+- keep heavy or large industry out of this first pass; production hives remain separate generated entities;
+- keep the settlement footprint abstract enough to stream and persist, but concrete enough that every occupied
+  tile has road access.
+
+### Settlement internal zones
+
+The next useful settlement slice is not a full city simulator. It is a deterministic, tunable layout pass that
+turns a chosen settlement center and radius into zones served by nearby street tiles:
+
+- `civic`: city hall, small public service anchors, and plazas/greens if needed;
+- `residential`: housing and local living space;
+- `commercial`: markets, material shops, cafes, and future player/NPC trade targets;
+- `industrial`: light workshops, yards, and terrain/resource-adjacent work lots inside or near the settlement.
+
+Large specialized production should stay in `NpcProductionHive` generation. Settlement `industrial` is only for
+small local work and freight-facing lots, not a big mine/factory block.
+
+The current implementation already emits a simple generated shape: a civic city-hall center, market tiles near
+the core for towns/cities, residential interior tiles, and industrial tiles in a rough outer ring when deposits
+or terrain suggest it. That is a good bootstrap, but the next pass should replace hard rings with ratio and road
+access rules.
+
+Candidate rules-owned tuning shape:
+
+```ts
+type SettlementZoneKind = 'civic' | 'residential' | 'commercial' | 'industrial'
+
+interface SettlementZoneMixRule {
+  target: Record<SettlementZoneKind, number>
+  min?: Partial<Record<SettlementZoneKind, number>>
+  max?: Partial<Record<SettlementZoneKind, number>>
+  centerBias: Partial<Record<SettlementZoneKind, number>>
+  edgeBias: Partial<Record<SettlementZoneKind, number>>
+  randomness: number
+}
+```
+
+Example starting ratios, intentionally soft:
+
+- village: civic 5%, residential 70%, commercial 15%, industrial 10%;
+- town: civic 4%, residential 60%, commercial 25%, industrial 11%;
+- city: civic 3%, residential 55%, commercial 30%, industrial 12%.
+
+These ratios now live in `engines/rules` alongside settlement radii, soft parcel density, and fringe-fill
+tuning so content can steer how compact or occupied villages, towns, and cities feel without changing the
+layout algorithm. The generator treats them as targets, not exact quotas: terrain suitability, street access,
+water/road edges, settlement kind, and seeded randomness can shift the final counts.
+
+Important constraints:
+
+- Civic should be central and present, but capped to small anchors. Avoid a single large civic district taking
+  over a settlement sector.
+- The center may be more mixed: civic anchors, market/commercial frontage, and some residential should be able
+  to interleave around the first streets.
+- Farther from the center, zones can become larger and calmer: mostly residential blocks, commercial along
+  stronger roads or crossroads, and industrial toward outer edges/resource-facing sides.
+- Small settlements should not collapse into tiny three-tile hamlets by default. Current tuning gives villages
+  enough radius and parcel density to use more of their road frontage while still leaving some open land.
+- Roads should not go into occupied civic/residential/commercial/industrial tiles. Every occupied settlement
+  tile should instead neighbor a separate road-carrier tile whose road joins the main road/street network. If a
+  tile cannot be served by a neighboring road-carrier tile, leave it unoccupied rather than creating an
+  unreachable building tile.
+- Roads/paths are first-class settlement structure. For now, generated internal roads can use `path` where a
+  narrow local lane is enough, while inter-settlement corridors may remain `asphalt`.
+- The main inter-settlement road should pass through, or at least directly touch, the settlement center/core.
+  Local `path` streets can then branch, loop, or wrap around that main road to provide parcel access without
+  turning every local lane into a through corridor.
+- Every generated local `path` must connect back through the settlement road graph to the main road/core
+  network. Avoid short decorative stubs and avoid 2x2 clusters where every tile is a road-carrier tile.
+- Roads and paths may pass through river-influenced tiles when necessary, but must not share the exact
+  tile-border used by a river edge. Buildings and zones remain stricter and stay off channels, banks, and
+  river-edge tiles.
+- Generated roads should avoid erasing useful zone area after the fact. Prefer generating the street skeleton
+  first, then assigning zones to parcels beside road-carrier tiles.
+- Trade/commercial targets should sit on accessible road edges so vehicle stops can later use the
+  border-to-building transfer model.
+
+Suggested deterministic layout pass:
+
+1. Choose center, radius, and local settlement kind.
+2. Build a street skeleton from through-road/crossroad anchors, making the main external road pass through the
+   settlement core, plus seeded local branches or loops.
+3. Enumerate parcel tiles inside the settlement footprint that are not road-carrier tiles themselves, but
+   neighbor a road-carrier tile.
+4. Score each parcel for zone kinds using distance-to-center, road rank, crossroads, terrain/deposit hints,
+   water/coast access, and seeded noise.
+5. Apply the rules-owned zone mix targets with min/max caps, especially civic caps.
+6. Persist the selected roads, zone assignments, city hall, and future trade/commercial anchors as generated
+   world facts.
 
 For `NpcProductionHive`:
 

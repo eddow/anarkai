@@ -19,7 +19,9 @@
 		"dev": "vite",
 		"build": "tsc",
 		"check": "tsc",
-		"test": "vitest run --config vitest.config.ts"
+		"test": "vitest run --config vitest.config.ts",
+		"generate-spritesheet": "tsx scripts/generate-spritesheet.ts",
+		"postgenerate-spritesheet": "cp -r public/pixi-assets ../../apps/browser/public/"
 	},
 	"dependencies": {
 		"engine-terrain": "workspace:*",
@@ -31,6 +33,9 @@
 		"vitest": "^4.1.4"
 	},
 	"devDependencies": {
-		"@types/node": "^24.10.4"
+		"@types/node": "^24.10.4",
+		"@types/spritesmith": "^3.4.5",
+		"sharp": "^0.34.5",
+		"spritesmith": "^3.5.1"
 	}
 }

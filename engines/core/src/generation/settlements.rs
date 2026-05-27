@@ -26,9 +26,9 @@ impl SettlementKind {
     /// Returns the radius for this settlement kind
     pub fn radius(self) -> i32 {
         match self {
-            SettlementKind::City => 4,
-            SettlementKind::Town => 3,
-            SettlementKind::Village => 2,
+            SettlementKind::City => 5,
+            SettlementKind::Town => 4,
+            SettlementKind::Village => 3,
         }
     }
 }
@@ -353,9 +353,9 @@ mod tests {
 
     #[test]
     fn test_settlement_radius() {
-        assert_eq!(SettlementKind::City.radius(), 4);
-        assert_eq!(SettlementKind::Town.radius(), 3);
-        assert_eq!(SettlementKind::Village.radius(), 2);
+        assert_eq!(SettlementKind::City.radius(), 5);
+        assert_eq!(SettlementKind::Town.radius(), 4);
+        assert_eq!(SettlementKind::Village.radius(), 3);
     }
 
     #[test]

@@ -9,6 +9,7 @@ export {
 } from './content/freight-line-utility'
 export { goods } from './content/goods'
 export { jobBalance } from './content/job-balance'
+export { settlementZones } from './content/settlement-zones'
 export { settlementTrade } from './content/settlement-trade'
 export { terrain } from './content/terrain'
 export { offloadRange, vehicles } from './content/vehicles'

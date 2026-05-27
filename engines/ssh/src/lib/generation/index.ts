@@ -12,6 +12,7 @@ import {
 	boardInfiniteHalfLifeEquilibriumMultiplier,
 	deposits,
 	goods as goodsCatalog,
+	settlementZones,
 } from 'engine-rules'
 import {
 	type BiomeHint,
@@ -654,7 +655,7 @@ export class GameGenerator {
 			const score = packed[i + 3]! / 100
 
 			const kind: SettlementKind = kindCode === 2 ? 'city' : kindCode === 1 ? 'town' : 'village'
-			const radius = kind === 'city' ? 4 : kind === 'town' ? 3 : 2
+			const radius = settlementZones[kind].radius
 
 			const id = `settlement-${q},${r}`
 			settlements.push({

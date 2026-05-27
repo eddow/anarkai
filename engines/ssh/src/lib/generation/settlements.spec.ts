@@ -386,11 +386,11 @@ describe('Settlement Placement Integration Tests', () => {
 
 			for (const settlement of settlements) {
 				if (settlement.kind === 'city') {
-					expect(settlement.radius).toBe(4)
+					expect(settlement.radius).toBe(5)
 				} else if (settlement.kind === 'town') {
-					expect(settlement.radius).toBe(3)
+					expect(settlement.radius).toBe(4)
 				} else {
-					expect(settlement.radius).toBe(2)
+					expect(settlement.radius).toBe(3)
 				}
 			}
 		})

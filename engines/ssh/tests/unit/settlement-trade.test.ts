@@ -39,6 +39,7 @@ const tiles: GeneratedTileData[] = [
 const zones: SettlementZonePlan['zones'] = {
 	harvest: [[1, 0]],
 	residential: [],
+	commercial: [],
 	named: [{ id: 'industrial', name: 'Industrial', coords: [[4, -1]] }],
 }
 

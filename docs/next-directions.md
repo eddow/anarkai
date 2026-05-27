@@ -35,6 +35,9 @@ Already landed or mostly landed:
 - Freight line inspectors can assign or unassign compatible vehicles.
 - Bay and hive inspectors show docked vehicles with compact cargo summaries; deeper line-cargo intent
   remains diagnostic work.
+- Bay queue core infrastructure is now specified and partially implemented: bay groups can own runtime queue
+  graphs, local dock requests, movement grants, merge policies, node capacity/occupancy invariants, grant
+  expiry, a `bay` trace sink, and a game-level bay queue registry/tick hook.
 - ChopSaw includes a regression fixture: a cyclic materials loop from the `0,0` bay to the Melindbury city
   hall with an assigned SUV.
 - Browser board highlights for lines, zones, hives, and stops are hover-driven rather than persistent just
@@ -56,6 +59,11 @@ Already landed or mostly landed:
   or is not a good source/sink, and keep the view focused on route decisions rather than finance UI.
 - generated settlement shops beyond city halls. City halls are the current V1 target; future material shops,
   cafes, or other commerces should be separate generated trade targets using the same board-pick model.
+- generated settlement zoning should move from simple center/ring assignment to a rules-owned civic /
+  residential / commercial / industrial mix. Civic must stay small and central, commercial can be mixed around
+  the core and road frontage, and larger residential/commercial areas should emerge farther out. Every occupied
+  generated settlement tile should neighbor an internal road/path; generate the street skeleton before assigning
+  parcels so roads structure zones instead of deleting them after the fact.
 - long freight errands and hunger. A driver stopped in an NPC city should probably keep using the vehicle
   after loading/unloading; decide whether route planning should reserve carried snacks, schedule a meal
   before departure, or allow temporary off-route eating near a stop. Note: this could wait for commercial zones so characters could "buy a snack"
@@ -66,7 +74,13 @@ Already landed or mostly landed:
 - SUVs and wheelbarrows are off-road vehicles. Pickup trucks are road-only, so their lines should have a road available.
 - harvesting/generation output should eventually obey the same tile physical-load model as forester
   planting, so rock/tree/crop outputs avoid overfilling already-burdened tiles.
-- one docking spot in a bay can only be used by one vehicle at a time, vehicles should queue. Note: this might demand the ability to have multiple bays for a hive designed as a stop so the vehicle could choose and/or parking places (where several vehicle can "dock" for waiting/being offloaded/...) - in the "road" category
+- bay queues still need their player-facing authoring and final gameplay wiring. The core model exists, but
+  the UI should let the player select several freight bays in the same hive, group them as one shared dock
+  operating area, name that group, and see the shared approach/queue overlay. The UI should expose service
+  bays, detected approach branches, and optional waiting areas/parking/sidings; the internal queue graph should
+  be derived from those choices rather than authored as nodes and edges directly. Vehicle job completion and
+  service/exit lifecycle hooks also need to be connected cleanly to the registry so live queue status stays
+  valid during normal play.
 
 ## Recommended Next Tranche
 
@@ -86,6 +100,16 @@ walking cost modifiers. Roads remain a natural bridge between hive logistics and
 Potential next scope:
 
 - City halls are "on" the road. Though, they are buildings. Beside, settlements should have all their residential/market/civil tiles connected to the road (in a settlement, 1-lane can be allowed)
+- Treat generated settlement streets as road/path infrastructure: all civic, residential, commercial, and light
+  industrial parcels should sit beside neighboring road-carrier tiles, not have roads entering their own tile,
+  while through-roads and larger corridors should stay distinguishable from narrow local lanes.
+- Generated inter-settlement asphalt roads should pass through or directly touch the settlement center/core;
+  local `path` streets can branch around them for block and parcel access.
+- Local settlement paths should all connect back to the main road/core graph and should avoid fully roaded 2x2
+  tile blocks; roads can cross river-influenced tiles but cannot reuse the river's own tile-border.
+- Settlement size and zone fill should stay rules-tuned: villages are no longer extremely tiny by default, and
+  residential/commercial/light industrial parcels should use more available road frontage statistically without
+  forcing every eligible tile to become occupied.
 - Allow several-lanes roads: each lane should have his direction (one-way or both) - ex. 2-lanes = 2 one-way lane. Find a way to fill gap between lanes with markings.
 - Texture: while Alpha is calculate, u,v could just be a projection of x,y in the seamless texture
 - Builder/project workflow for road construction instead of instant placement.

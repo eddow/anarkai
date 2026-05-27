@@ -72,36 +72,17 @@ export class PixiAssetManager {
 		for (const road of Object.values(roads.types)) assetKeys.add(road.texture)
 
 		// Build asset bundles from extracted keys
-		const assetsToLoad: Record<string, string> = {}
+		const assetsToLoad: Record<string, string> = {
+			'unified-spritesheet': `${assetBase}/unified-spritesheet.json`
+		}
 
 		for (const key of assetKeys) {
-			// 1. Spritesheets
-			if (key.includes('/')) {
-				const [sheetName, _frame] = key.split('/')
-				if (!assetsToLoad[sheetName]) {
-					const [category, name] = sheetName.split('.')
-					assetsToLoad[sheetName] = `${assetBase}/${category}/${name}.json`
-				}
-				continue
-			}
-
-			// 2. Direct assets
 			const parts = key.split('.')
 			if (parts.length === 2) {
 				const [category, name] = parts
-
-				let ext = 'png'
-				if (category === 'terrain' || category === 'roads') ext = 'jpg'
-
-				let fileName = name
-				if (category === 'vehicles') {
-					fileName = name
-						.replace(/([A-Z])/g, '-$1')
-						.toLowerCase()
-						.replace(/^-/, '')
+				if (category === 'terrain' || category === 'roads') {
+					assetsToLoad[key] = `${assetBase}/${category}/${name}.jpg`
 				}
-
-				assetsToLoad[key] = `${assetBase}/${category}/${fileName}.${ext}`
 			}
 		}
 
@@ -164,19 +145,60 @@ export class PixiAssetManager {
 			}
 			return t
 		}
+		
+		// Handle direct root files (e.g., 'bakery', 'clothes', etc.)
+		if (!spec.includes('.') && this.assetMap.has(spec)) {
+		    return this.assetMap.get(spec)!
+		}
+		if (!spec.includes('.') && this.assetMap.has(`unified-spritesheet/${spec}`)) {
+		    return this.assetMap.get(`unified-spritesheet/${spec}`)!
+		}
+		
+		// Map standalone files that are now in unified spritesheet
+		const parts = spec.split('.')
+		if (parts.length === 2 && ['buildings', 'characters', 'commands', 'goods', 'vehicles'].includes(parts[0])) {
+			let fileName = parts[1]
+			if (parts[0] === 'vehicles') {
+				fileName = fileName
+					.replace(/([A-Z])/g, '-$1')
+					.toLowerCase()
+					.replace(/^-/, '')
+			}
+			const unifiedKey = `${parts[0]}.${fileName}`
+			if (this.assetMap.has(unifiedKey)) {
+				return this.assetMap.get(unifiedKey)!
+			} else if (this.assetMap.has(`unified-spritesheet/${unifiedKey}`)) {
+				return this.assetMap.get(`unified-spritesheet/${unifiedKey}`)!
+			}
+		}
+
+		// Handle missing sheet name prefix
+		if (this.assetMap.has(`unified-spritesheet/${spec}`)) {
+			const t = this.assetMap.get(`unified-spritesheet/${spec}`)!
+			if (!hasUsableTexture(t)) {
+				return Texture.WHITE
+			}
+			return t
+		}
 
 		// 2. Fallbacks / Mapping Logic (Specials)
-		if (spec === 'deposits.tree') return this.getTexture('objects.trees/tree1')
-		if (spec === 'deposits.rock') return this.getTexture('objects.rocks/rock1')
-		if (spec === 'deposits.berry_bush') return this.getTexture('objects.bushes/bush1')
+		let fallbackSpec = spec
+		if (spec === 'deposits.tree') fallbackSpec = 'objects.trees/tree1'
+		if (spec === 'deposits.rock') fallbackSpec = 'objects.rocks/rock1'
+		if (spec === 'deposits.berry_bush') fallbackSpec = 'objects.bushes/bush1'
 
 		// Existing partial matches (legacy support)
-		if (spec.startsWith('objects.trees') && spec !== 'objects.trees/tree1')
-			return this.getTexture('objects.trees/tree1')
-		if (spec.startsWith('objects.rocks') && spec !== 'objects.rocks/rock1')
-			return this.getTexture('objects.rocks/rock1')
-		if (spec.startsWith('objects.bushes') && spec !== 'objects.bushes/bush1')
-			return this.getTexture('objects.bushes/bush1')
+		if (fallbackSpec.startsWith('objects.trees') && fallbackSpec !== 'objects.trees/tree1')
+			fallbackSpec = 'objects.trees/tree1'
+		if (fallbackSpec.startsWith('objects.rocks') && fallbackSpec !== 'objects.rocks/rock1')
+			fallbackSpec = 'objects.rocks/rock1'
+		if (fallbackSpec.startsWith('objects.bushes') && fallbackSpec !== 'objects.bushes/bush1')
+			fallbackSpec = 'objects.bushes/bush1'
+			
+		// Re-evaluate mapping with fallbackSpec if it changed
+		if (fallbackSpec !== spec) {
+		    return this.getTexture(fallbackSpec)
+		}
 
 		return Texture.WHITE
 	}

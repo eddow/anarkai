@@ -1,4 +1,5 @@
 import type { Game } from 'ssh/game/game'
+import { settlementZones } from 'engine-rules'
 import {
 	GameGenerator,
 	type GeneratedSettlement,
@@ -98,7 +99,7 @@ function dryRegion(center: AxialCoord, radius: number): GeneratedTileData[] {
 
 function settlement(overrides: Partial<GeneratedSettlement> = {}): GeneratedSettlement {
 	const kind = overrides.kind ?? 'town'
-	const radius = overrides.radius ?? (kind === 'city' ? 4 : kind === 'town' ? 3 : 2)
+	const radius = overrides.radius ?? settlementZones[kind].radius
 	return {
 		id: 'settlement-0,0',
 		name: 'Town of (0,0)',
@@ -108,6 +109,99 @@ function settlement(overrides: Partial<GeneratedSettlement> = {}): GeneratedSett
 		radius,
 		...overrides,
 	}
+}
+
+function allZonedCoords(plan: Awaited<ReturnType<typeof generateZonePlanForSettlements>>) {
+	return [
+		...plan.zones.harvest,
+		...plan.zones.residential,
+		...plan.zones.commercial,
+		...plan.zones.named.flatMap((zone) => zone.coords),
+	]
+}
+
+function roadKey(coord: readonly [number, number]): string {
+	return `${coord[0]},${coord[1]}`
+}
+
+function roadKeys(plan: Awaited<ReturnType<typeof generateZonePlanForSettlements>>) {
+	return new Set([
+		...(plan.roads.asphalt ?? []).map(roadKey),
+		...(plan.roads.path ?? []).map(roadKey),
+	])
+}
+
+function borderKey(a: AxialCoord, b: AxialCoord): string {
+	return `${(a.q + b.q) / 2},${(a.r + b.r) / 2}`
+}
+
+function isRoadCarrierTile(
+	coord: AxialCoord,
+	roads: ReadonlySet<string>
+): boolean {
+	return hexSides.some((side) =>
+		roads.has(borderKey(coord, { q: coord.q + side.q, r: coord.r + side.r }))
+	)
+}
+
+function hasNeighboringRoadCarrier(
+	coord: AxialCoord,
+	roads: ReadonlySet<string>
+): boolean {
+	return hexSides.some((side) =>
+		isRoadCarrierTile({ q: coord.q + side.q, r: coord.r + side.r }, roads)
+	)
+}
+
+function connectedRoadCarriers(
+	starts: readonly AxialCoord[],
+	roads: ReadonlySet<string>,
+	tiles: readonly GeneratedTileData[]
+): Set<string> {
+	const tileKeys = new Set(tiles.map((entry) => axial.key(entry.coord)))
+	const queue = starts.filter((coord) => isRoadCarrierTile(coord, roads))
+	const connected = new Set(queue.map(axial.key))
+	for (let i = 0; i < queue.length; i++) {
+		const current = queue[i]!
+		for (const side of hexSides) {
+			const neighbor = { q: current.q + side.q, r: current.r + side.r }
+			const key = axial.key(neighbor)
+			if (connected.has(key) || !tileKeys.has(key)) continue
+			if (!roads.has(borderKey(current, neighbor))) continue
+			connected.add(key)
+			queue.push(neighbor)
+		}
+	}
+	return connected
+}
+
+function allRoadCarrierCoords(
+	roads: ReadonlySet<string>,
+	tiles: readonly GeneratedTileData[]
+): AxialCoord[] {
+	return tiles.map((entry) => entry.coord).filter((coord) => isRoadCarrierTile(coord, roads))
+}
+
+function hasSolidRoadBlock(
+	roads: ReadonlySet<string>,
+	tiles: readonly GeneratedTileData[]
+): boolean {
+	const tileKeys = new Set(tiles.map((entry) => axial.key(entry.coord)))
+	for (const tile of tiles) {
+		for (let direction = 0; direction < hexSides.length; direction++) {
+			const a = hexSides[direction]!
+			const b = hexSides[(direction + 1) % hexSides.length]!
+			const corners = [
+				tile.coord,
+				{ q: tile.coord.q + a.q, r: tile.coord.r + a.r },
+				{ q: tile.coord.q + b.q, r: tile.coord.r + b.r },
+				{ q: tile.coord.q + a.q + b.q, r: tile.coord.r + a.r + b.r },
+			]
+			if (!corners.every((coord) => tileKeys.has(axial.key(coord)))) continue
+			if (corners.every((coord) => isRoadCarrierTile(coord, roads))) return true
+		}
+	}
+	return false
 }
 
 describe('settlement zoning generation', () => {
@@ -152,9 +246,11 @@ describe('settlement zoning generation', () => {
 		expect(first.settlements.every((settlement) => !settlement.name.includes('('))).toBe(true)
 		expect(first.settlements.every((settlement) => !settlement.name.includes(','))).toBe(true)
 		expect(first.zones.residential.length).toBeGreaterThan(0)
+		expect(first.zones.commercial.length).toBeGreaterThan(0)
 		expect(first.zones.harvest).toEqual([])
 		expect(first.zones.named.map((zone) => zone.id)).toContain('industrial')
-		expect(first.roads.asphalt?.length).toBeGreaterThan(0)
+		expect(first.zones.named.map((zone) => zone.id)).not.toContain('market')
+		expect(first.roads.path?.length).toBeGreaterThan(0)
 	})
 
 	it('describes settlement regions inside a generic region set', async () => {
@@ -211,15 +307,11 @@ describe('settlement zoning generation', () => {
 			hasRiver
 		)
 
-		const zonedCoords = [
-			...plan.zones.harvest,
-			...plan.zones.residential,
-			...plan.zones.named.flatMap((zone) => zone.coords),
-		]
+		const zonedCoords = allZonedCoords(plan)
 		expect(zonedCoords.some(([q, r]) => water.has(`${q},${r}`))).toBe(false)
 	})
 
-	it('keeps generated road corridors unzoned', async () => {
+	it('keeps generated occupied parcels beside road-carrier tiles', async () => {
 		const tiles = region({ q: 0, r: 0 }, 6)
 		const generator = new GameGenerator()
 		const settlements = await generator.placeSettlements(42, tiles, {
@@ -235,22 +327,10 @@ describe('settlement zoning generation', () => {
 			terrainKinds,
 			hasRiver
 		)
-		const zoned = new Set(
-			[
-				...plan.zones.harvest,
-				...plan.zones.residential,
-				...plan.zones.named.flatMap((zone) => zone.coords),
-			].map(([q, r]) => `${q},${r}`)
-		)
-		const settlementAnchors = new Set(
-			plan.settlements.map((settlement) => axial.key(settlement.center))
-		)
-
-		for (const [q, r] of plan.roads.asphalt ?? []) {
-			const floorKey = `${Math.floor(q)},${Math.floor(r)}`
-			const ceilKey = `${Math.ceil(q)},${Math.ceil(r)}`
-			if (!settlementAnchors.has(floorKey)) expect(zoned.has(floorKey)).toBe(false)
-			if (!settlementAnchors.has(ceilKey)) expect(zoned.has(ceilKey)).toBe(false)
+		const roads = roadKeys(plan)
+		for (const [q, r] of allZonedCoords(plan)) {
+			expect(isRoadCarrierTile({ q, r }, roads)).toBe(false)
+			expect(hasNeighboringRoadCarrier({ q, r }, roads)).toBe(true)
 		}
 	})
 
@@ -281,15 +361,11 @@ describe('settlement zoning generation', () => {
 			hasRiver
 		)
 
-		const zonedCoords = [
-			...plan.zones.harvest,
-			...plan.zones.residential,
-			...plan.zones.named.flatMap((zone) => zone.coords),
-		]
+		const zonedCoords = allZonedCoords(plan)
 		expect(zonedCoords.some(([q, r]) => riverTiles.has(`${q},${r}`))).toBe(false)
 	})
 
-	it('does not place generated roads on river-edge borders', async () => {
+	it('does not place local generated roads on river-edge borders', async () => {
 		const tiles = region({ q: 0, r: 0 }, 5).map((entry) =>
 			axial.key(entry.coord) === '0,0'
 				? {
@@ -319,18 +395,12 @@ describe('settlement zoning generation', () => {
 			hasRiver
 		)
 
-		const roadBorders = new Set(plan.roads.asphalt ?? [])
-		expect(roadBorders.has([0, 0.5])).toBe(false)
-		expect(roadBorders.has([-0.5, 0.5])).toBe(false)
-		expect(roadBorders.has([-0.5, 0])).toBe(false)
-		expect(roadBorders.has([0, -0.5])).toBe(false)
-		expect(roadBorders.has([0.5, -0.5])).toBe(false)
-		expect(roadBorders.has([0.5, 0])).toBe(false)
+		expect(roadKeys(plan).has('0.5,0')).toBe(false)
 	})
 
 	it('zones nearby outer-ring deposits as industrial', async () => {
 		const tiles = dryRegion({ q: 0, r: 0 }, 7).map((entry) =>
-			axial.key(entry.coord) === '4,-1'
+			axial.key(entry.coord) === '5,-1'
 				? { ...entry, terrain: 'rocky' as const, deposit: { type: 'rock' as const, amount: 20 } }
 				: entry
 		)
@@ -375,10 +445,11 @@ describe('settlement zoning generation', () => {
 		const industrialCoords = plan.zones.named.find((zone) => zone.id === 'industrial')?.coords ?? []
 		expect(industrialCoords.some(([q, r]) => q === 2 && r === -1)).toBe(false)
 		const residentialCoords = new Set(plan.zones.residential.map(([q, r]) => `${q},${r}`))
-		expect(residentialCoords.has('2,-1')).toBe(true)
+		const commercialCoords = new Set(plan.zones.commercial.map(([q, r]) => `${q},${r}`))
+		expect(residentialCoords.has('2,-1') || commercialCoords.has('2,-1')).toBe(true)
 	})
 
-	it('zones civic or market zones at settlement centers', async () => {
+	it('zones civic at settlement city halls', async () => {
 		const tiles = dryRegion({ q: 0, r: 0 }, 4)
 		const settlements = { settlements: [settlement({ kind: 'town', radius: 3 })] }
 		const { coords, terrainKinds, hasRiver } = buildTypedArrays(tiles, 42)
@@ -392,19 +463,18 @@ describe('settlement zoning generation', () => {
 		)
 
 		const civicCoords = plan.zones.named.find((zone) => zone.id === 'civic')?.coords ?? []
-		const marketCoords = plan.zones.named.find((zone) => zone.id === 'market')?.coords ?? []
-		const centerCoords = civicCoords.length > 0 ? civicCoords : marketCoords
-		expect(centerCoords.length).toBeGreaterThan(0)
+		expect(civicCoords.length).toBeGreaterThan(0)
 		const settlementCenter = plan.settlements[0]?.center
 		expect(settlementCenter).toBeDefined()
 		if (settlementCenter) {
+			const cityHall = selectSettlementCityHallPosition(plan.settlements[0]!, tiles)
 			expect(
-				centerCoords.some(([q, r]) => q === settlementCenter.q && r === settlementCenter.r)
+				civicCoords.some(([q, r]) => q === cityHall.q && r === cityHall.r)
 			).toBe(true)
 		}
 	})
 
-	it('zones market zones for settlements', async () => {
+	it('zones commercial areas for settlements without generating market zones', async () => {
 		const tiles = dryRegion({ q: 0, r: 0 }, 8)
 		const settlements = {
 			settlements: [
@@ -423,7 +493,8 @@ describe('settlement zoning generation', () => {
 		)
 
 		const marketCoords = plan.zones.named.find((zone) => zone.id === 'market')?.coords ?? []
-		expect(marketCoords.length).toBeGreaterThanOrEqual(plan.settlements.length)
+		expect(marketCoords).toEqual([])
+		expect(plan.zones.commercial.length).toBeGreaterThanOrEqual(plan.settlements.length)
 	})
 
 	it('does not add harvest zones to generated settlement footprints', async () => {
@@ -447,11 +518,7 @@ describe('settlement zoning generation', () => {
 		const settlement = plan.settlements[0]
 		expect(settlement).toBeDefined()
 		if (settlement) {
-			const generatedSettlementCoords = new Set(
-				[...plan.zones.residential, ...plan.zones.named.flatMap((zone) => zone.coords)].map(
-					([q, r]) => `${q},${r}`
-				)
-			)
+			const generatedSettlementCoords = new Set(allZonedCoords(plan).map(([q, r]) => `${q},${r}`))
 			expect(
 				[...axial.allTiles(settlement.center, settlement.radius)].some((coord) =>
 					generatedSettlementCoords.has(`${coord.q},${coord.r}`)
@@ -482,11 +549,7 @@ describe('settlement zoning generation', () => {
 			)
 		)
 		const residential = new Set(plan.zones.residential.map(([q, r]) => `${q},${r}`))
-		const market = new Set(
-			(plan.zones.named.find((zone) => zone.id === 'market')?.coords ?? []).map(
-				([q, r]) => `${q},${r}`
-			)
-		)
+		const commercial = new Set(plan.zones.commercial.map(([q, r]) => `${q},${r}`))
 		const industrial = new Set(
 			(plan.zones.named.find((zone) => zone.id === 'industrial')?.coords ?? []).map(
 				([q, r]) => `${q},${r}`
@@ -498,7 +561,7 @@ describe('settlement zoning generation', () => {
 			const key = `${cityHall.q},${cityHall.r}`
 			expect(civic.has(key)).toBe(true)
 			expect(residential.has(key)).toBe(false)
-			expect(market.has(key)).toBe(false)
+			expect(commercial.has(key)).toBe(false)
 			expect(industrial.has(key)).toBe(false)
 		}
 	})
@@ -526,18 +589,19 @@ describe('settlement zoning generation', () => {
 		if (settlement) {
 			const residentialCoords = new Set(plan.zones.residential.map(([q, r]) => `${q},${r}`))
 			expect(residentialCoords.size).toBeGreaterThan(0)
-			// Harvest zones may be empty when settlement radius is small (village radius=2)
+			// Harvest zones may be empty when settlement radius is small,
 			// but residential should always exist
 		}
 	})
 
 	it('generates roads connecting settlements', async () => {
-		const tiles = region({ q: 0, r: 0 }, 6)
-		const generator = new GameGenerator()
-		const settlements = await generator.placeSettlements(42, tiles, {
-			settlementCount: 3,
-			minSpacing: 2,
-		})
+		const tiles = dryRegion({ q: 0, r: 0 }, 6)
+		const settlements = {
+			settlements: [
+				settlement({ id: 'settlement-0,0', center: { q: 0, r: 0 }, kind: 'town', radius: 3 }),
+				settlement({ id: 'settlement-4,0', center: { q: 4, r: 0 }, kind: 'village', radius: 2 }),
+			],
+		}
 		const { coords, terrainKinds, hasRiver } = buildTypedArrays(tiles, 42)
 		const plan = await generateZonePlanForSettlements(
 			tiles,
@@ -550,10 +614,14 @@ describe('settlement zoning generation', () => {
 
 		if (plan.settlements.length >= 2) {
 			expect(plan.roads.asphalt?.length).toBeGreaterThan(0)
+			const asphalt = new Set((plan.roads.asphalt ?? []).map(roadKey))
+			for (const settlement of plan.settlements) {
+				expect(isRoadCarrierTile(settlement.center, asphalt)).toBe(true)
+			}
 		}
 	})
 
-	it('generates roads connecting settlements to neighbors', async () => {
+	it('generates local path roads for a single settlement', async () => {
 		const tiles = region({ q: 0, r: 0 }, 4)
 		const generator = new GameGenerator()
 		const settlements = await generator.placeSettlements(42, tiles, {
@@ -570,18 +638,69 @@ describe('settlement zoning generation', () => {
 			hasRiver
 		)
 
-		expect(plan.roads.asphalt?.length).toBeGreaterThan(0)
+		expect(plan.roads.asphalt ?? []).toEqual([])
+		expect(plan.roads.path?.length).toBeGreaterThan(0)
 		const settlement = plan.settlements[0]
 		expect(settlement).toBeDefined()
 		if (settlement) {
-			const neighborTiles = axial
-				.neighbors(settlement.center)
-				.filter((coord) => tiles.some((tile) => axial.key(tile.coord) === axial.key(coord)))
-			expect(neighborTiles.length).toBeGreaterThan(0)
+			const cityHall = selectSettlementCityHallPosition(settlement, tiles)
+			const roads = roadKeys(plan)
+			expect(isRoadCarrierTile(cityHall, roads)).toBe(false)
+			expect(hasNeighboringRoadCarrier(cityHall, roads)).toBe(true)
 		}
 	})
 
-	it('generates roads that avoid river edges', async () => {
+	it('keeps local path streets connected to the main road network', async () => {
+		const tiles = dryRegion({ q: 0, r: 0 }, 8)
+		const settlements = {
+			settlements: [
+				settlement({ id: 'settlement-0,0', center: { q: 0, r: 0 }, kind: 'town', radius: 3 }),
+				settlement({ id: 'settlement-5,0', center: { q: 5, r: 0 }, kind: 'village', radius: 2 }),
+			],
+		}
+		const { coords, terrainKinds, hasRiver } = buildTypedArrays(tiles, 42)
+		const plan = await generateZonePlanForSettlements(
+			tiles,
+			settlements.settlements,
+			42,
+			coords,
+			terrainKinds,
+			hasRiver
+		)
+
+		const roads = roadKeys(plan)
+		const reachable = connectedRoadCarriers(
+			plan.settlements.map((entry) => entry.center),
+			roads,
+			tiles
+		)
+		const carriers = allRoadCarrierCoords(roads, tiles)
+		expect(plan.roads.path?.length).toBeGreaterThan(0)
+		expect(carriers.every((coord) => reachable.has(axial.key(coord)))).toBe(true)
+	})
+
+	it('does not create fully road-carrier 2x2 blocks', async () => {
+		const tiles = dryRegion({ q: 0, r: 0 }, 8)
+		const settlements = {
+			settlements: [
+				settlement({ id: 'settlement-0,0', center: { q: 0, r: 0 }, kind: 'town', radius: 3 }),
+				settlement({ id: 'settlement-5,0', center: { q: 5, r: 0 }, kind: 'village', radius: 2 }),
+			],
+		}
+		const { coords, terrainKinds, hasRiver } = buildTypedArrays(tiles, 42)
+		const plan = await generateZonePlanForSettlements(
+			tiles,
+			settlements.settlements,
+			42,
+			coords,
+			terrainKinds,
+			hasRiver
+		)
+
+		expect(hasSolidRoadBlock(roadKeys(plan), tiles)).toBe(false)
+	})
+
+	it('generates local path roads that avoid river edges', async () => {
 		const tiles = region({ q: 0, r: 0 }, 5).map((entry) =>
 			axial.key(entry.coord) === '0,0'
 				? {
@@ -611,11 +730,32 @@ describe('settlement zoning generation', () => {
 			hasRiver
 		)
 
-		const roadBorders = new Set(plan.roads.asphalt ?? [])
-		expect(roadBorders.has([0, 0.5])).toBe(false)
+		const roads = roadKeys(plan)
+		expect(roads.has('0.5,0')).toBe(false)
 	})
 
-	it('generates roads that avoid settlement centers', async () => {
+	it('allows roads through river-influenced tiles without using river-edge borders', async () => {
+		const tiles = dryRegion({ q: 0, r: 0 }, 4).map((entry) =>
+			axial.key(entry.coord) === '0,0'
+				? { ...entry, hydrology: { isChannel: false, bankInfluence: 1, edges: {} } }
+				: entry
+		)
+		const settlements = { settlements: [settlement()] }
+		const { coords, terrainKinds, hasRiver } = buildTypedArrays(tiles, 42)
+		const plan = await generateZonePlanForSettlements(
+			tiles,
+			settlements.settlements,
+			42,
+			coords,
+			terrainKinds,
+			hasRiver
+		)
+
+		expect(isRoadCarrierTile({ q: 0, r: 0 }, roadKeys(plan))).toBe(true)
+		expect(allZonedCoords(plan).some(([q, r]) => q === 0 && r === 0)).toBe(false)
+	})
+
+	it('generates beside-road zoning without putting zones on river tiles', async () => {
 		const tiles = region({ q: 0, r: 0 }, 4)
 		const generator = new GameGenerator()
 		const settlements = await generator.placeSettlements(42, tiles, {
@@ -632,39 +772,12 @@ describe('settlement zoning generation', () => {
 			hasRiver
 		)
 
-		const settlement = plan.settlements[0]
-		expect(settlement).toBeDefined()
-		if (settlement) {
-			const roadTileKeys = new Set(plan.roads.asphalt ?? [])
-			expect(roadTileKeys.has([settlement.center.q, settlement.center.r])).toBe(false)
-		}
-	})
-
-	it('generates roads that avoid zoned tiles', async () => {
-		const tiles = region({ q: 0, r: 0 }, 4)
-		const generator = new GameGenerator()
-		const settlements = await generator.placeSettlements(42, tiles, {
-			settlementCount: 1,
-			minSpacing: 2,
-		})
-		const { coords, terrainKinds, hasRiver } = buildTypedArrays(tiles, 42)
-		const plan = await generateZonePlanForSettlements(
-			tiles,
-			settlements.settlements,
-			42,
-			coords,
-			terrainKinds,
-			hasRiver
-		)
-
-		const zonedCoords = new Set([
-			...plan.zones.harvest,
-			...plan.zones.residential,
-			...plan.zones.named.flatMap((zone) => zone.coords),
-		])
-		const roadTileKeys = new Set(plan.roads.asphalt ?? [])
-		for (const roadCoord of roadTileKeys) {
-			expect(zonedCoords.has(roadCoord)).toBe(false)
+		const roads = roadKeys(plan)
+		for (const [q, r] of allZonedCoords(plan)) {
+			const coord = { q, r }
+			expect(isRoadCarrierTile(coord, roads)).toBe(false)
+			expect(hasNeighboringRoadCarrier(coord, roads)).toBe(true)
+			expect(tiles.find((tile) => axial.key(tile.coord) === axial.key(coord))?.hydrology).toBeUndefined()
 		}
 	})
 
@@ -687,12 +800,12 @@ describe('settlement zoning generation', () => {
 
 		// WASM placement may produce fewer than requested settlements due to spacing.
 		if (plan.settlements.length >= 2) {
-			const roadTileKeys = new Set(plan.roads.asphalt ?? [])
+			const roadTileKeys = new Set((plan.roads.asphalt ?? []).map(roadKey))
 			let connectedCount = 0
 			for (const settlement of plan.settlements) {
 				const neighborRoads = axial
 					.neighbors(settlement.center)
-					.filter((coord) => roadTileKeys.has([coord.q, coord.r]))
+					.filter((coord) => roadTileKeys.has(borderKey(settlement.center, coord)))
 				if (neighborRoads.length > 0) connectedCount++
 			}
 			// At least 2 settlements should be connected (road may not reach all
@@ -706,7 +819,7 @@ describe('settlement zoning generation', () => {
 		const waterTiles = new Set(
 			tiles
 				.filter((entry) => entry.terrain === 'water')
-				.map((entry) => [entry.coord.q, entry.coord.r] as [number, number])
+				.map((entry) => axial.key(entry.coord))
 		)
 		const generator = new GameGenerator()
 		const settlements = await generator.placeSettlements(42, tiles, {
@@ -723,9 +836,13 @@ describe('settlement zoning generation', () => {
 			hasRiver
 		)
 
-		const roadTileKeys = new Set(plan.roads.asphalt ?? [])
-		for (const waterTile of waterTiles) {
-			expect(roadTileKeys.has(waterTile)).toBe(false)
+		const roads = roadKeys(plan)
+		for (const waterTileKey of waterTiles) {
+			const waterTile = axial.coord(waterTileKey)
+			for (const side of hexSides) {
+				const neighbor = { q: waterTile.q + side.q, r: waterTile.r + side.r }
+				expect(roads.has(borderKey(waterTile, neighbor))).toBe(false)
+			}
 		}
 	})
 })

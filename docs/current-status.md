@@ -65,7 +65,11 @@ Roads v1/v1.5 is landed as border-owned road infrastructure:
   `roads: { path: [[q, r]], asphalt: [[q, r]] }`
 - walking/pathfinding receives a type-specific cost reduction only when crossing a roaded border
 - Pixi bakes textured road overlays into terrain sectors using the road material for each road type
-- generated settlement roads are emitted as `asphalt`
+- generated settlement roads split inter-settlement corridors as `asphalt` and local settlement streets as
+  `path`; local paths are connected back to the settlement road graph, avoid fully roaded 2x2 tile blocks, and
+  avoid river-edge tile borders while still allowing routes across river-influenced tiles
+- generated settlement zoning uses rules-owned radii, zone mix, parcel density, and fringe-fill tuning so small
+  settlements are less tiny and more road-frontage parcels are used without filling every eligible tile
 - road authoring rejects traces through hive/alveolus tiles except `freight_bay`, residential/dwelling tiles,
   and construction projects
 - Chopsaw includes a sample road from `-3,1` to `1,1`
