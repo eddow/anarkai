@@ -3,8 +3,24 @@ import { vi } from 'vitest'
 function rulesTestOverrides() {
 	return {
 		vehicles: {
-			wheelbarrow: { storage: { slots: 10, capacity: 100 }, transferTime: 1, walkTime: 1.45 },
-			pickup_truck: { storage: { slots: 2, capacity: 3 }, transferTime: 1, walkTime: 0.85 },
+			wheelbarrow: {
+				storage: { slots: 10, capacity: 100 },
+				transferTime: 1,
+				walkTime: 1.45,
+				movement: 'offroad',
+			},
+			pickup_truck: {
+				storage: { slots: 2, capacity: 3 },
+				transferTime: 1,
+				walkTime: 0.85,
+				movement: 'road',
+			},
+			suv: {
+				storage: { slots: 1, capacity: 3 },
+				transferTime: 1,
+				walkTime: 0.85,
+				movement: 'offroad',
+			},
 			worker: { speed: 1, capacity: 10, transferTime: 1 },
 		},
 		goods: {

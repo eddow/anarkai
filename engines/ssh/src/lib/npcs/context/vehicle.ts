@@ -424,8 +424,15 @@ class VehicleFunctions {
 	vehicleHopDockStep(jobPlan: WorkPlan) {
 		const character = this[subject] as Character
 		if (jobPlan.type !== 'work' || jobPlan.job !== 'vehicleHop') return
-		;(jobPlan as WorkPlan & { vehicleHopReplanRequired?: boolean }).vehicleHopReplanRequired =
-			false
+		const hopPlan = jobPlan as WorkPlan & { vehicleHopReplanRequired?: boolean }
+		const wasReplanRequired = hopPlan.vehicleHopReplanRequired
+		hopPlan.vehicleHopReplanRequired = false
+		traces.vehicle.log?.('vehicleHopDockStep: entry', {
+			characterUid: character.uid,
+			dockEnter: (jobPlan as any).dockEnter,
+			wasReplanRequired,
+			vehicleHopStopHandled: (jobPlan as any).vehicleHopStopHandled,
+		})
 		const vehicle = character.game.vehicles.vehicle(jobPlan.vehicleUid)
 		assert(vehicle, 'vehicleHopDockStep: vehicle missing')
 		if (!isVehicleLineService(vehicle.service)) {
@@ -457,8 +464,23 @@ class VehicleFunctions {
 			jobPlan.vehicleHopAnchorDockDisembarked = true
 			jobPlan.vehicleHopStopHandled = true
 			if (!vehicleCanDockAtCurrentPosition(vehicle)) {
+				traces.vehicle.log?.('vehicleHopDockStep: cannot dock, attempting recovery', {
+					characterUid: character.uid,
+					vehicleUid: vehicle.uid,
+					lineId: vehicle.service.line.id,
+					stopId: stop.id,
+					vehicleCoord: vehicle.position ? toAxialCoord(vehicle.position) : undefined,
+					dockCoord: vehicle.dockTile ? toAxialCoord(vehicle.dockTile.position) : undefined,
+				})
 				const recoveryStep = moveTowardLiveDockStep(character, vehicle, jobPlan)
-				if (recoveryStep) return recoveryStep
+				if (recoveryStep) {
+					traces.vehicle.log?.('vehicleHopDockStep: returning recovery step', {
+						characterUid: character.uid,
+						vehicleUid: vehicle.uid,
+						stepType: 'MoveToStep',
+					})
+					return recoveryStep
+				}
 				;(jobPlan as WorkPlan & { vehicleHopReplanRequired?: boolean }).vehicleHopReplanRequired =
 					true
 				jobPlan.vehicleHopAnchorDockDisembarked = false
@@ -471,6 +493,11 @@ class VehicleFunctions {
 					vehicleCoord: vehicle.position ? toAxialCoord(vehicle.position) : undefined,
 					dockCoord: vehicle.dockTile ? toAxialCoord(vehicle.dockTile.position) : undefined,
 				})
+				traces.vehicle.log?.('vehicleHopDockStep: returning undefined for replan', {
+					characterUid: character.uid,
+					vehicleUid: vehicle.uid,
+					vehicleHopReplanRequired: true,
+				})
 				return
 			}
 			vehicle.dock()
@@ -482,7 +509,7 @@ class VehicleFunctions {
 				stopId: vehicle.service?.stop.id,
 			})
 			assertVehicleOperationConsistency(vehicle, character)
-			return new DurationStep(
+			const dockStep = new DurationStep(
 				character.freightTransferTime * 0.25,
 				'work',
 				'vehicleHop.dock'
@@ -490,6 +517,11 @@ class VehicleFunctions {
 				disembarkOperatorLeavingDockedVehicleInService(character, vehicle)
 				assertVehicleOperationConsistency(vehicle, character)
 			})
+			traces.vehicle.log?.('vehicleHopDockStep: returning dock DurationStep', {
+				characterUid: character.uid,
+				vehicleUid: vehicle.uid,
+			})
+			return dockStep
 		} else {
 			jobPlan.vehicleHopAnchorDockDisembarked = false
 			jobPlan.vehicleHopStopHandled = false
@@ -510,7 +542,12 @@ class VehicleFunctions {
 			})
 		}
 		assertVehicleOperationConsistency(vehicle, character)
-		return new DurationStep(character.freightTransferTime * 0.25, 'work', 'vehicleHop.zoneReach')
+		const zoneReachStep = new DurationStep(character.freightTransferTime * 0.25, 'work', 'vehicleHop.zoneReach')
+		traces.vehicle.log?.('vehicleHopDockStep: returning zoneReach DurationStep', {
+			characterUid: character.uid,
+			vehicleUid: vehicle.uid,
+		})
+		return zoneReachStep
 	}
 
 	@contract('WorkPlan')

@@ -36,7 +36,7 @@ Already landed or mostly landed:
 - Bay and hive inspectors show docked vehicles with compact cargo summaries; deeper line-cargo intent
   remains diagnostic work.
 - ChopSaw includes a regression fixture: a cyclic materials loop from the `0,0` bay to the Melindbury city
-  hall with an assigned pickup truck.
+  hall with an assigned SUV.
 - Browser board highlights for lines, zones, hives, and stops are hover-driven rather than persistent just
   because a widget is open.
 - The Lines palette entry opens a regular pinnable line-management widget with name search, `Visible`, and
@@ -63,7 +63,7 @@ Already landed or mostly landed:
 - extend the forester tile-room rule into a general physical-load rule for future crops, generated loose
   goods, and harvesting output.
 - specific commerces will have to be generated in settlements, trade should depend on the present commerces and the vehicle using the road should go to the commerce - again (un)loading to/from a vehicle: vehicle goes on the shop border's and a convey-hop-like occur, transaction is when the character in the center of the shop spawn(buy)/unspawn(sell) good
-- Pickup-trucks and wheelbarrows are all-terrain vehicles. For most other vehicles, the line should have a road available
+- SUVs and wheelbarrows are off-road vehicles. Pickup trucks are road-only, so their lines should have a road available.
 - harvesting/generation output should eventually obey the same tile physical-load model as forester
   planting, so rock/tree/crop outputs avoid overfilling already-burdened tiles.
 - one docking spot in a bay can only be used by one vehicle at a time, vehicles should queue. Note: this might demand the ability to have multiple bays for a hive designed as a stop so the vehicle could choose and/or parking places (where several vehicle can "dock" for waiting/being offloaded/...) - in the "road" category

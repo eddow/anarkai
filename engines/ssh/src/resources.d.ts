@@ -168,6 +168,7 @@ declare namespace Ssh {
 		storage: StorageSpec
 		walkTime: number
 		transferTime: number
+		movement?: 'road' | 'offroad'
 	}
 	interface TerrainDefinition {
 		generation?: {

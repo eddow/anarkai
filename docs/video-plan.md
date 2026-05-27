@@ -339,7 +339,7 @@ The goal is that all of this becomes readable. The player should understand why 
 
 ## Demo Hive
 
-`ChopSaw` is useful because it already demonstrates several real systems: a hive, a freight bay, a wheelbarrow, a pickup truck, zones, a road, a forester, planks export, and concrete import through Melindbury. It is a good proof fixture.
+`ChopSaw` is useful because it already demonstrates several real systems: a hive, a freight bay, a wheelbarrow, an SUV, zones, a road, a forester, planks export, and concrete import through Melindbury. It is a good proof fixture.
 
 For the video, though, a better example hive should be built as a small story, not only a regression fixture.
 
@@ -374,7 +374,7 @@ Suggested setup:
 3. A named forest zone assigned to the forester, so care and resource renewal are visible.
 4. A wheelbarrow line that gathers wood/stone/planks around the hive.
 5. A short road/path that visually connects the hive to a residential or freight area.
-6. A pickup-truck line to a nearby settlement or generated industry:
+6. An SUV line to a nearby settlement or generated industry:
    - export planks or wood where demand exists;
    - import concrete or a future comfort good;
    - show that prices are geographical, not abstract.
@@ -395,7 +395,7 @@ Use the demo hive to tell the story in this order:
    Show tree chopper, forester, sawmill, storage, and freight bay as a compact production organism.
 
 4. **Vehicles extend the hive.**
-   Show a wheelbarrow or pickup truck serving a line.
+   Show a wheelbarrow or SUV serving a line.
 
 5. **Geography matters.**
    Show the external settlement/trade stop and explain that prices should depend on generated places.

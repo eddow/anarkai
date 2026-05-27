@@ -1,5 +1,5 @@
-import type { GamePatches } from './game'
 import { residentialBasicDwellingProject } from '../residential/constants'
+import type { GamePatches } from './game'
 
 const constructionGoodsSelection = {
 	goodRules: [
@@ -169,8 +169,8 @@ export const chopSaw = {
 			servedLineIds: ['ChopSaw:implicit-gather:0,0'],
 		},
 		{
-			uid: 'ChopSaw:pickup-truck',
-			vehicleType: 'pickup_truck',
+			uid: 'ChopSaw:suv',
+			vehicleType: 'suv',
 			position: { q: 0, r: 0 },
 			servedLineIds: ['ChopSaw:materials-loop:0,0:Melindbury'],
 		},

@@ -50,5 +50,6 @@ export const resources: ResourceTree = {
 	vehicles: {
 		wheelbarrow: 'vehicles/wheelbarrow.png',
 		pickupTruck: 'vehicles/pickup-truck.png',
+		suv: 'vehicles/suv.png',
 	},
 }

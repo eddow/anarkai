@@ -44,7 +44,7 @@ describe('ChopSaw viability', () => {
 				},
 			},
 			({ game, virtualTime }) => {
-				const pickup = game.vehicles.vehicle('ChopSaw:pickup-truck')
+				const pickup = game.vehicles.vehicle('ChopSaw:suv')
 				const storage = game.hex.getTile({ q: 0, r: -1 })?.content as
 					| { storage?: { stock: Partial<Record<string, number>> } }
 					| undefined

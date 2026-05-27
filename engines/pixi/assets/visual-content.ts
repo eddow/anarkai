@@ -160,6 +160,9 @@ export const vehicles: Record<string, VisualDefinition> = {
 	pickup_truck: {
 		sprites: ['vehicles.pickupTruck'],
 	},
+	suv: {
+		sprites: ['vehicles.suv'],
+	},
 }
 
 export const terrain: Record<string, VisualDefinition> = {

@@ -1,6 +1,6 @@
 import type { WorldVehicleType } from 'ssh/population/vehicle/vehicle'
 
-export const lineFreightVehicleTypes = ['wheelbarrow', 'pickup_truck'] as const
+export const lineFreightVehicleTypes = ['wheelbarrow', 'pickup_truck', 'suv'] as const
 
 export type LineFreightVehicleType = (typeof lineFreightVehicleTypes)[number]
 

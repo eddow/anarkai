@@ -16,6 +16,8 @@ export function vehicleTextureKey(vehicleType: WorldVehicleType): string {
 			return 'vehicles.wheelbarrow'
 		case 'pickup_truck':
 			return 'vehicles.pickupTruck'
+		case 'suv':
+			return 'vehicles.suv'
 	}
 }
 

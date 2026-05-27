@@ -97,7 +97,7 @@ Commerce V1 is now line-based and physical:
 - money changes only at the settlement stop when goods cross the player/NPC boundary
 - storage buffer settings are the preferred import contract; construction/foundation demand and hive use demand are also measured by line diagnostics
 - optional NPC trade transfer presentation data records exported goods, imported goods, credited VP, and spent VP when a trade happens
-- ChopSaw includes a regression fixture line, `ChopSaw materials loop`, cycling between the `0,0` bay and the Melindbury city hall with an assigned pickup truck; it can sell basic materials such as planks and import concrete only when downstream demand exists
+- ChopSaw includes a regression fixture line, `ChopSaw materials loop`, cycling between the `0,0` bay and the Melindbury city hall with an assigned SUV; it can sell basic materials such as planks and import concrete only when downstream demand exists
 
 Deferred commerce work: route-level explanations for retained/surplus cargo and idle cyclic routes, richer
 line history/last-transfer display, generated shop targets beyond city halls, market analysis based on price
