@@ -253,6 +253,9 @@ function projectKnownRuntimeObject(
 	if (isTrackedMovementRecord(record)) return projectTrackedMovement(record, ctx)
 	if (isFreightLineRecord(record)) return projectFreightLine(record)
 	if (isFreightStopRecord(record)) return projectFreightStop(record)
+	if (isBayQueueNodeRecord(record)) return projectBayQueueNode(record)
+	if (isMovementGrantRecord(record)) return projectMovementGrant(record)
+	if (isDockRequestRecord(record)) return projectDockRequest(record)
 	return undefined
 }
 
@@ -484,6 +487,97 @@ function selectionSummary(value: unknown): TraceValue {
 	return {
 		goods: Array.isArray(record.goods) ? record.goods.map(String) : undefined,
 		mode: stringValue(record.mode),
+	}
+}
+
+// ─── Bay queue type detection ──────────────────────────────────────────────
+
+function isBayQueueNodeRecord(record: UnknownRecord): boolean {
+	return (
+		typeof record.capacity === 'number' &&
+		'occupiedBy' in record &&
+		'reservedBy' in record &&
+		'outgoing' in record
+	)
+}
+
+function isMovementGrantRecord(record: UnknownRecord): boolean {
+	return (
+		typeof record.vehicleUid === 'string' &&
+		typeof record.expiresAt === 'number' &&
+		'from' in record &&
+		'to' in record
+	)
+}
+
+function isDockRequestRecord(record: UnknownRecord): boolean {
+	return (
+		typeof record.vehicleUid === 'string' &&
+		typeof record.bayGroupUid === 'string' &&
+		typeof record.arrivedAt === 'number' &&
+		'state' in record &&
+		'requirements' in record
+	)
+}
+
+// ─── Bay queue projections ─────────────────────────────────────────────────
+
+function projectBayQueueNode(record: UnknownRecord): RuntimeProjection {
+	const branch = stringValue(record.branch)
+	return {
+		ref: branch ? `BayNode:${branch}` : 'BayNode',
+		body: {
+			$type: 'BayQueueNode',
+			handle: record.handle ? stringValue((record.handle as any).kind) ?? 'unknown' : undefined,
+			branch,
+			capacity: numberValue(record.capacity),
+			occupied: Array.isArray(record.occupiedBy)
+				? record.occupiedBy.length
+				: (record.occupiedBy as any)?.size,
+			reserved: Array.isArray(record.reservedBy)
+				? record.reservedBy.length
+				: (record.reservedBy as any)?.size,
+			canService: booleanValue(record.canService),
+			canWait: booleanValue(record.canWait),
+		},
+	}
+}
+
+function projectMovementGrant(record: UnknownRecord): RuntimeProjection {
+	return {
+		ref: `Grant:${stringValue(record.vehicleUid) ?? 'unknown'}`,
+		body: {
+			$type: 'MovementGrant',
+			vehicleUid: stringValue(record.vehicleUid),
+			fromNode: nodeSummary(record.from),
+			toNode: nodeSummary(record.to),
+			expiresAt: numberValue(record.expiresAt),
+		},
+	}
+}
+
+function projectDockRequest(record: UnknownRecord): RuntimeProjection {
+	return {
+		ref: `DockReq:${stringValue(record.vehicleUid) ?? 'unknown'}`,
+		body: {
+			$type: 'DockRequest',
+			vehicleUid: stringValue(record.vehicleUid),
+			bayGroupUid: stringValue(record.bayGroupUid),
+			state: stringValue(record.state),
+			priority: numberValue(record.priority),
+			arrivedAt: numberValue(record.arrivedAt),
+			ingressBranch: stringValue(record.ingressBranch),
+		},
+	}
+}
+
+function nodeSummary(value: unknown): TraceValue {
+	if (!isObject(value)) return 'undefined'
+	const record = value as UnknownRecord
+	return {
+		branch: stringValue(record.branch),
+		canService: booleanValue(record.canService),
+		canWait: booleanValue(record.canWait),
 	}
 }
 

@@ -77,6 +77,7 @@ import { readSlottedStorageParams, usesSlottedStorageLayout } from 'ssh/hive/sto
 import { TransformAlveolus } from 'ssh/hive/transform'
 import { Population } from 'ssh/population/population'
 import { type VehicleSerializedState, Vehicles } from 'ssh/population/vehicle'
+import { BayQueueRegistry } from 'ssh/freight/bay-queue-registry'
 import { ResidentialDemandTicker } from 'ssh/residential/demand'
 import type { AlveolusType, DepositType, GoodType, TerrainType } from 'ssh/types'
 import type { GameRenderer, InputAdapter } from 'ssh/types/engine'
@@ -450,6 +451,8 @@ export class Game extends Eventful<GameEvents> {
 	public readonly hex: HexBoard
 	public readonly generator: GameGenerator
 	public readonly ticker: SimulationLoop
+	/** Bay queue registry — created at bootstrap, integrated into the ticker. */
+	public readonly bayQueueRegistry: BayQueueRegistry
 	private tickedObjects = new Set<{ update(deltaSeconds: number): void }>()
 	private readonly pendingInteractiveRegistrations = new Map<string, InteractiveGameObject>()
 	private readonly pendingInteractiveChanges = new Map<string, InteractiveGameObject>()
@@ -943,6 +946,11 @@ export class Game extends Eventful<GameEvents> {
 		// Create population singleton
 		this.population = new Population(this)
 		this.vehicles = new Vehicles(this)
+
+		// Create bay queue registry and integrate into the ticker
+		this.bayQueueRegistry = new BayQueueRegistry(this)
+		const self = this
+		this.registerTickedObject({ update() { self.bayQueueRegistry.updateAllQueues() } })
 
 		this.generator = new GameGenerator()
 		this.terrainProvider = new TerrainProvider({

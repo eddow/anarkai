@@ -32,6 +32,7 @@ export const traceLevels: Record<string, TraceVerb> = {
 	ui: 'warn',
 	/** Missing keys, interpolation issues, and other `I18nClient.report` output. */
 	i18n: 'warn',
+	bay: 'warn',
 }
 
 const TERRAIN_PROFILING_ENABLED = false

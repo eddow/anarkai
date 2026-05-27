@@ -354,6 +354,98 @@ bay_groups:
         kind: priority_then_fifo
 ```
 
+## Serialized state vs runtime state
+
+The saved or authored representation should use stable handles only where the state crosses a
+boundary. It should not store object references, closures, cached paths, or live reservations that
+cannot be safely rebuilt.
+
+Important boundary examples:
+
+- vehicles need `vehicleUid`;
+- bay groups, authored bays, and line stops need stable ids or coordinates;
+- an active saved request may need a handle to its current holding position;
+- player-authored queue layouts may need handles for nodes that can be edited, inspected, or
+  referenced by a job.
+
+This does not mean every runtime node or edge needs an id. If a queue graph is owned by one bay
+group and its nodes are never referenced outside that graph, direct object references and local array
+positions are simpler.
+
+Serialized queue configuration can use stable handles only for externally referenced pieces:
+
+```ts
+type QueueNodeHandle =
+	| { kind: 'tile'; coord: AxialCoord }
+	| { kind: 'border'; coord: FractionalAxialCoord }
+	| { kind: 'bay-dock'; bayUid: string; dockIndex: number }
+	| { kind: 'local'; bayGroupId: string; index: number }
+
+type SerializedBayQueueGraph = {
+	bayGroupId: string
+	serviceNodes: QueueNodeHandle[]
+	nodes: SerializedQueueNode[]
+	edges: Array<{ from: QueueNodeHandle; to: QueueNodeHandle; requires: string[] }>
+	mergePolicy: SerializedMergePolicy
+}
+
+type SerializedDockRequest = {
+	vehicleUid: string
+	bayGroupId: string
+	queueNode?: QueueNodeHandle
+	arrivedAt: number
+	priority: number
+	state: 'waiting' | 'servicing'
+}
+```
+
+Runtime state should use the live objects and helpers that are convenient for simulation:
+
+```ts
+type RuntimeBayQueue = {
+	bayGroup: BayGroup
+	nodes: RuntimeQueueNode[]
+	requests: DockRequest[]
+	grants: MovementGrant[]
+}
+
+type RuntimeQueueNode = {
+	handle?: QueueNodeHandle
+	tile?: Tile
+	border?: TileBorder
+	serviceBay?: FreightBayAlveolus
+	occupiedBy: Set<VehicleEntity>
+	reservedBy: Set<VehicleEntity>
+	outgoing: RuntimeQueueEdge[]
+}
+
+type RuntimeQueueEdge = {
+	to: RuntimeQueueNode
+	requires: VehicleCapabilityFilter
+}
+```
+
+The runtime form may hold direct references to `VehicleEntity`, `Tile`, `TileBorder`,
+`FreightBayAlveolus`, `Hive`, or a precomputed path/routing adapter. Those references are cache and
+execution state. They must be reconstructed after load by resolving whatever handles the save
+actually needed against the current game world.
+
+This gives the design two different responsibilities:
+
+- serialized data records intent, topology, stable occupancy, and enough handles to rebuild;
+- runtime data provides fast object navigation, derived compatibility, cached reachability, and
+  active movement grants.
+
+Active grants are especially sensitive. A saved game can either persist them as short id-based
+claims and revalidate them on load, or drop them and let the queue controller emit fresh movement
+jobs. In either case, load must check node capacity, vehicle existence, bay existence, and route
+reachability before restoring a grant.
+
+The same split applies to authored bay groups. A line stop should point to a bay group or anchor by
+stable id/coordinate. At runtime, that stop may cache the resolved bay group object, but save/load
+and patch data should keep the stable handle as the source of truth. For internal queue nodes and
+edges that are not externally addressed, the runtime object graph can simply own them directly.
+
 ## Admission loop
 
 Conceptually, the queue controller runs when:
