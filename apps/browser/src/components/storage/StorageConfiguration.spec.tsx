@@ -266,7 +266,7 @@ describe('StorageConfiguration', () => {
 			storage: {},
 			storageMode: 'all-but' as 'all-but' | 'only',
 			storageExceptions: ['wood'],
-			storageBuffers: { wood: 2 },
+			storageBuffers: { wood: 2 } as Record<string, number>,
 			storageConfiguration: { buffers: {} },
 		})
 

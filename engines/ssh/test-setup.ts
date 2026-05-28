@@ -18,7 +18,8 @@ import {
 	disconnectAllTraces,
 	setProfileLevel,
 	setTraceDiagnosticReporter,
-	setTraceLevel,
+	traces,
+	traceVerbs,
 	type TraceVerb,
 } from "./src/lib/dev/debug.ts";
 import type { ProfileLevel } from "./src/lib/dev/profile.ts";
@@ -58,7 +59,6 @@ const requestedTraceChannels = (process.env.SSH_TRACE_CHANNELS ?? "")
 	.map((channel) => channel.trim())
 	.filter(Boolean);
 const requestedTraceLevel = process.env.SSH_TRACE_LEVEL ?? "log";
-const traceVerbs: readonly TraceVerb[] = ["log", "warn", "assert", "error"];
 const requestedProfileChannels = (process.env.SSH_PROFILE_CHANNELS ?? "")
 	.split(",")
 	.map((channel) => channel.trim())
@@ -73,7 +73,7 @@ const applyRequestedTraceLevels = () => {
 		);
 	}
 	for (const channel of requestedTraceChannels) {
-		setTraceLevel(channel, requestedTraceLevel as TraceVerb);
+		traces[channel]?.setLevel?.(requestedTraceLevel as TraceVerb);
 	}
 };
 
@@ -105,7 +105,9 @@ const recordDiagnostic = (level: TestDiagnosticEntry["level"], args: unknown[]) 
 };
 
 setTraceDiagnosticReporter(({ channel, level, text }) => {
-	recordDiagnostic(level === "assert failure" ? "assert" : level, [
+	const mappedLevel: TestDiagnosticEntry["level"] =
+		level === "assert failure" ? "assert" : level === "log" || level === "debug" || level === "info" || level === "trace" ? "error" : level
+	recordDiagnostic(mappedLevel, [
 		`[trace:${channel}:${level}] ${text}`,
 	]);
 });

@@ -5,7 +5,6 @@ import {
 	DEFAULT_TRACE_LOG_LIFETIME,
 	namedTrace,
 	registerTraceInvariants,
-	setTraceLevel,
 	setTraceTimeSource,
 	traceLevels,
 	traces,
@@ -205,7 +204,7 @@ describe('safe trace serialization', () => {
 		const groupEnd = vi.spyOn(console, 'groupEnd').mockImplementation(() => {})
 		const log = vi.spyOn(console, 'log').mockImplementation(() => {})
 		try {
-			setTraceLevel('forwardProbe', 'log')
+			traces.forwardProbe?.setLevel?.('log')
 
 			traces.forwardProbe.log?.('probe.event', { nested: 'yes' })
 
@@ -213,7 +212,9 @@ describe('safe trace serialization', () => {
 			expect(log).toHaveBeenCalledWith(expect.stringContaining('nested: yes'))
 			expect(groupEnd).toHaveBeenCalledTimes(1)
 		} finally {
-			setTraceLevel('forwardProbe', previousLevel)
+			if (previousLevel !== undefined) {
+				traces.forwardProbe?.setLevel?.(previousLevel)
+			}
 			log.mockRestore()
 			groupEnd.mockRestore()
 			groupCollapsed.mockRestore()
@@ -336,18 +337,22 @@ describe('safe trace serialization', () => {
 	it('keeps proxy channel identity while changing levels', () => {
 		const previousLevel = traceLevels.identityProbe
 		try {
-			const first = setTraceLevel('identityProbe', 'error')
+			const first = traces.identityProbe
+			first?.setLevel?.('error')
 			const throughProxy = traces.identityProbe
 			expect(throughProxy).toBe(first)
-			expect(throughProxy.log).toBeUndefined()
-			expect(throughProxy.error).toBeDefined()
+			expect(throughProxy?.log).toBeUndefined()
+			expect(throughProxy?.error).toBeDefined()
 
-			const second = setTraceLevel('identityProbe', 'log')
+			const second = traces.identityProbe
+			second?.setLevel?.('log')
 			expect(second).toBe(throughProxy)
 			expect(traces.identityProbe).toBe(throughProxy)
-			expect(traces.identityProbe.log).toBeDefined()
+			expect(traces.identityProbe?.log).toBeDefined()
 		} finally {
-			setTraceLevel('identityProbe', previousLevel)
+			if (previousLevel !== undefined) {
+				traces.identityProbe?.setLevel?.(previousLevel)
+			}
 		}
 	})
 })

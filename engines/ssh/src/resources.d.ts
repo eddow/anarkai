@@ -78,6 +78,28 @@ declare namespace Ssh {
 		| StorageAction
 		| RoadFretAction
 
+	/** Engineering specialization for engineer alveolus variants. */
+	type EngineeringSpec =
+		| { kind: 'building' }
+		| { kind: 'research' }
+		| { kind: 'road' }
+		| { kind: 'construct-foundation' }
+
+	/** Definition for an alveolus variant nested under a root type. */
+	interface AlveolusVariantDefinition {
+		/** Override the root action when this variant is active. */
+		action?: Action
+		/** Construction recipe for reaching this variant state from its parent. */
+		construction?: {
+			goods: Record<string, number>
+			time: number
+		}
+		/** Engineering specialization (engineer variants only). */
+		spec?: EngineeringSpec
+		/** Nested sub-variants. */
+		variants?: Record<string, AlveolusVariantDefinition>
+	}
+
 	/**
 	 * Configuration scope determines where the configuration is stored and resolved from.
 	 * Priority order: individual > named > hive > default
@@ -152,6 +174,10 @@ declare namespace Ssh {
 			goods: Record<string, number>
 			time: number
 		}
+		/** Nested variant definitions (e.g., pile.wood, pile.wood.extra). */
+		variants?: Record<string, AlveolusVariantDefinition>
+		/** Engineering specialization for the root (only used by `engineer` type). */
+		spec?: EngineeringSpec
 	}
 	interface GoodsDefinition {
 		satiationStrength?: number

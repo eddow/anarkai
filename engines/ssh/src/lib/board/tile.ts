@@ -227,9 +227,12 @@ export class Tile extends withInteractive(GameObject) {
 		return false
 	}
 
-	build(alveolusType: AlveolusType): boolean {
+	build(alveolusType: AlveolusType, variantId?: string): boolean {
 		// Check if content can be built on
-		if (!this.canInteract(`build:${alveolusType}`)) {
+		const project = variantId
+			? `build:${alveolusType}#${variantId}`
+			: `build:${alveolusType}`
+		if (!this.canInteract(project)) {
 			return false
 		}
 
@@ -237,7 +240,7 @@ export class Tile extends withInteractive(GameObject) {
 		// The tile must be cleared first, then BuildAlveolus will be created
 		const content = this.content
 		if (content instanceof UnBuiltLand) {
-			content.setProject(`build:${alveolusType}`)
+			content.setProject(project)
 		}
 		return true
 	}

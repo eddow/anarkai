@@ -105,15 +105,50 @@ export const alveoli = {
 			time: 6,
 		},
 	},
-	woodpile: {
-		preparationTime: 1,
-		action: { type: 'storage', kind: 'specific', goods: { wood: 24 } },
-		workTime: 0,
-		construction: {
-			goods: { wood: 10 },
-			time: 4,
-		},
-	},
+	  // Legacy woodpile removed in favor of variant-capable pile
+	  pile: {
+	    preparationTime: 0,
+	    action: { type: 'storage', kind: 'specific', goods: {} }, // minimal root (incomplete)
+	    workTime: 0,
+	    construction: {
+	      goods: { wood: 4 },
+	      time: 2,
+	    },
+    variants: {
+      wood: {
+        construction: {
+          goods: { wood: 10 },
+          time: 4,
+        },
+        action: { type: 'storage', kind: 'specific', goods: { wood: 24 } },
+        variants: {
+          extra: {
+            construction: {
+              goods: { wood: 15, planks: 5 },
+              time: 6,
+            },
+            action: { type: 'storage', kind: 'specific', goods: { wood: 48 } },
+          },
+        },
+      },
+      planks: {
+        construction: {
+          goods: { wood: 10, planks: 5 },
+          time: 4,
+        },
+        action: { type: 'storage', kind: 'specific', goods: { planks: 24 } },
+        variants: {
+          extra: {
+            construction: {
+              goods: { wood: 15, planks: 10 },
+              time: 6,
+            },
+            action: { type: 'storage', kind: 'specific', goods: { planks: 48 } },
+          },
+        },
+      },
+    },
+  },
 	freight_bay: {
 		preparationTime: 1,
 		action: { type: 'road-fret' },
@@ -123,13 +158,36 @@ export const alveoli = {
 			time: 4,
 		},
 	},
-	engineer: {
-		preparationTime: 1,
-		action: { type: 'engineer', radius: 6 },
-		workTime: 2,
-		construction: {
-			goods: { wood: 1, stone: 1 },
-			time: 4,
-		},
-	},
+  engineer: {
+    preparationTime: 1,
+    action: { type: 'engineer', radius: 6 },
+    workTime: 2,
+    construction: {
+      goods: { wood: 1, stone: 1 },
+      time: 4,
+    },
+    variants: {
+      building: {
+        construction: {
+          goods: { wood: 3, stone: 3, planks: 2 },
+          time: 8,
+        },
+        spec: { kind: 'building' },
+      },
+      research: {
+        construction: {
+          goods: { wood: 2, stone: 1, planks: 3 },
+          time: 10,
+        },
+        spec: { kind: 'research' },
+      },
+      road: {
+        construction: {
+          goods: { wood: 3, stone: 5 },
+          time: 8,
+        },
+        spec: { kind: 'road' },
+      },
+    },
+  },
 } as const

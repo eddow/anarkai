@@ -14,7 +14,7 @@ import {
 	type TraceSink,
 } from './trace.ts'
 
-/** Default trace channel levels. Remove a key or call `setTraceLevel(name, undefined)` to disable it. When a new TraceSink is needed, adding its name here is enough */
+/** Default trace channel levels. To disable, delete the key and assign `undefined` to `traceLevels[name]` or call `traces[name]?.setLevel(TraceVerb)`. When a new TraceSink is needed, adding its name here is enough */
 export const traceLevels: Record<string, TraceVerb> = {
 	vehicle: 'warn',
 	npc: 'warn',
@@ -74,7 +74,8 @@ export function defined<T>(value: T | undefined, message = 'Value is defined'): 
  * failed assertions and errors, and `error` enables errors only. Disabled methods are `undefined`,
  * so optional-call trace sites do not evaluate their arguments.
  */
-export type TraceVerb = 'log' | 'warn' | 'assert' | 'error'
+export const traceVerbs = ["log", "warn", "assert", "error"] as const
+export type TraceVerb = typeof traceVerbs[number]
 type TraceConsoleMethod = keyof Pick<
 	Console,
 	'assert' | 'debug' | 'error' | 'groupCollapsed' | 'groupEnd' | 'info' | 'log' | 'trace' | 'warn'
@@ -126,7 +127,7 @@ function traceLogTargets(row: TraceRow): InteractiveLogObject[] {
 
 /**
  * Clears all trace hooks. Used by Vitest setup so tests start with fresh `traces.*` sinks.
- * Dev: configure `traceLevels`, `setTraceLevel(...)`, or assign a custom sink locally.
+ * Dev: configure `traceLevels`, call `traces.channel?.setLevel(...)`, or assign a custom sink locally.
  */
 export function disconnectAllTraces(): void {
 	for (const key in traceLevels) {
@@ -423,27 +424,6 @@ function createConfiguredTrace(name: string): TraceSink | undefined {
 	return namedTrace(name, { level })
 }
 
-export function setTraceLevel(
-	name: string,
-	...levelArg: [] | [TraceVerb | undefined]
-): TraceSink | undefined {
-	const nextLevel = levelArg.length === 0 ? 'assert' : levelArg[0]
-	if (nextLevel === undefined) {
-		delete traceLevels[name]
-		delete traceCache[name]
-		return undefined
-	}
-	traceLevels[name] = nextLevel
-	const existing = traceCache[name]
-	if (existing instanceof NamedTraceList) {
-		existing.setLevel(nextLevel)
-		return existing
-	}
-	const next = namedTrace(name, { level: nextLevel })
-	traceCache[name] = next
-	return next
-}
-
 /**
  * Lazy trace registry keyed by channel name.
  *
@@ -668,7 +648,7 @@ export const blackBoxLog = {
 	idleDiagnosis: undefined as LogFn | undefined,
 }
 
-/** Structured hook for tests / devtools: use `setTraceLevel('characterNeeds', 'log')`. */
+/** Structured hook for tests / devtools: use `traces.characterNeeds?.setLevel('log')`. */
 export function traceNeeds(topic: string, payload: unknown) {
 	traces.characterNeeds.log?.(topic, payload)
 }
@@ -679,7 +659,7 @@ export type IdleDiagnosisPayload = PlannerFindActionSnapshot & {
 	note?: string
 }
 
-/** Use `setTraceLevel('idleDiagnosis', 'log')` and/or `blackBoxLog.idleDiagnosis = console.log` to inspect `findAction`. */
+/** Use `traces.idleDiagnosis?.setLevel('log')` and/or `blackBoxLog.idleDiagnosis = console.log` to inspect `findAction`. */
 export function traceIdleDiagnosis(payload: IdleDiagnosisPayload) {
 	traces.idleDiagnosis.log?.('findAction', payload)
 	if (blackBoxLog.idleDiagnosis) {

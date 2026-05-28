@@ -1,6 +1,6 @@
-import { alveoli } from 'engine-rules'
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
+import { resolveAlveolusVariant } from 'ssh/construction-state'
 import type { AlveolusType } from 'ssh/types/base'
 import { EngineerAlveolus } from './engineer'
 import { ForesterAlveolus } from './forester'
@@ -36,12 +36,26 @@ function ctorForDefinition(def: Ssh.AlveolusDefinition): AlveolusCtor | undefine
 	}
 }
 
-export function createAlveolus(resourceName: AlveolusType, tile: Tile): Alveolus | undefined {
-	const def = alveoli[resourceName as keyof typeof alveoli]
-	if (!def) return undefined
+export function createAlveolus(
+	resourceName: AlveolusType,
+	tile: Tile,
+	variantId?: string
+): Alveolus | undefined {
+	const resolved = resolveAlveolusVariant(resourceName, variantId)
+	if (!resolved) return undefined
+	const def = resolved.definition
 	const Ctor = ctorForDefinition(def)
 	if (!Ctor) return undefined
-	return new Ctor(tile, def, resourceName)
+	const alveolus = new Ctor(tile, def, resourceName)
+	// Store variantId on the alveolus for save/load and runtime checks
+	if (variantId) {
+		;(alveolus as { variantId?: string }).variantId = variantId
+	}
+	// Store spec if the variant carries one (e.g., engineer.building/research/road)
+	if (resolved.variantDef?.spec) {
+		;(alveolus as { variantSpec?: Ssh.EngineeringSpec }).variantSpec = resolved.variantDef.spec
+	}
+	return alveolus
 }
 
 export * from './alveolus-configuration'

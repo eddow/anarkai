@@ -58,6 +58,18 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	}
 
 	/**
+	 * Dot-separated variant path (e.g., "wood.extra") for variant-capable alveoli.
+	 * `undefined` means the root variant.
+	 */
+	public variantId?: string
+
+	/**
+	 * Engineering specialization from the resolved variant (engineer variants).
+	 * `undefined` for non-variant or non-engineer alveoli.
+	 */
+	public variantSpec?: Ssh.EngineeringSpec
+
+	/**
 	 * Reference to which configuration scope to use.
 	 * Default is hive scope.
 	 */

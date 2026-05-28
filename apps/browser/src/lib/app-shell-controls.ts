@@ -36,6 +36,42 @@ export function getAppShellBuildableAlveoli(): GameAlveolusEntry[] {
 	)
 }
 
+/** A flat entry for a buildable variant leaf. */
+export interface AppShellVariantEntry {
+	/** Palette action value, e.g. "build:engineer#building" */
+	value: string
+	/** Display label, e.g. "Build engineer (building)" */
+	label: string
+	/** The root alveolus type name for icon lookup. */
+	rootName: string
+}
+
+/** Walk variant trees and produce palette entries for every leaf. */
+export function getAppShellVariantEntries(): AppShellVariantEntry[] {
+	const entries: AppShellVariantEntry[] = []
+	for (const [name, def] of Object.entries(gameContent.alveoli) as GameAlveolusEntry[]) {
+		if (!('construction' in def)) continue
+		const variants = (def as any).variants as Record<string, any> | undefined
+		if (!variants) continue
+		const collect = (prefix: string, v: Record<string, any>, parentLabel: string) => {
+			for (const [key, vdef] of Object.entries(v)) {
+				const fullId = prefix ? `${prefix}.${key}` : key
+				const hasSubVariants = !!(vdef as any).variants
+				entries.push({
+					value: `build:${name}#${fullId}`,
+					label: `Build ${name} (${fullId})`,
+					rootName: name,
+				})
+				if (hasSubVariants) {
+					collect(fullId, (vdef as any).variants, `${parentLabel} ${key}`)
+				}
+			}
+		}
+		collect('', variants, name)
+	}
+	return entries
+}
+
 export type PaletteSelectedActionValue = {
 	value: string
 	label: string
@@ -45,6 +81,7 @@ export type PaletteSelectedActionValue = {
 
 /**
  * Enum options for the palette `selectedAction` tool (command box keywords stay aligned with labels).
+ * Includes root alveoli as well as variant leaf entries.
  */
 export function buildPaletteSelectedActionValues(
 	buildableAlveoli: readonly GameAlveolusEntry[],
@@ -59,12 +96,19 @@ export function buildPaletteSelectedActionValues(
 			keywords: ['select', 'pointer'],
 		},
 	]
-	const build = buildableAlveoli.map(([name]) => ({
+	const buildRoots = buildableAlveoli.map(([name]) => ({
 		value: `build:${name}`,
 		label: `Build ${name}`,
 		icon: getBuildIcon?.(name),
 		keywords: ['build', 'construction', name],
 	}))
+	const variantEntries = getAppShellVariantEntries().map((v) => ({
+		value: v.value,
+		label: v.label,
+		icon: getBuildIcon?.(v.rootName),
+		keywords: ['build', 'construction', 'variant', v.rootName],
+	}))
+	const build = [...buildRoots, ...variantEntries]
 	const bulldoze: PaletteSelectedActionValue = {
 		value: 'bulldoze',
 		label: 'Bulldoze',

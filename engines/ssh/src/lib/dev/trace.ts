@@ -1,4 +1,5 @@
 import { unreactive, untracked } from 'mutts'
+import { TraceVerb } from './debug'
 
 export type TraceLevel = 'log' | 'warn' | 'error' | 'debug' | 'info' | 'trace' | 'assert failure'
 
@@ -31,6 +32,7 @@ export type TraceSink = Partial<
 	read: (count?: number) => string
 	display: (count?: number) => void
 	reset: () => void
+	setLevel: (level: TraceVerb) => void
 }
 
 export type TraceConsoleRow = {

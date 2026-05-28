@@ -36,6 +36,7 @@ import {
 	constructionTargetFromProject,
 	createConstructionSiteState,
 	type DwellingTier,
+	VARIANT_DELIMITER,
 } from 'ssh/construction-state'
 import type { FreightLineDefinition, SyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import {
@@ -186,6 +187,8 @@ export interface AlveolusPatch {
 	goods?: Partial<Record<GoodType, number>>
 	processBuffers?: Partial<Record<GoodType, number>>
 	alveolus: AlveolusType
+	/** Dot-separated variant path (e.g., "wood.extra"). Persisted for save/load round-trip. */
+	variantId?: string
 	/** When true, tile hosts a build shell for `alveolus` target, not the finished building. */
 	underConstruction?: boolean
 	/** Persisted construction work seconds on the build shell. */
@@ -215,6 +218,8 @@ export interface DwellingPatch {
 export interface ProjectSitePatch {
 	coord: readonly [number, number]
 	project: string
+	/** Dot-separated variant path for variant-capable alveolus projects. */
+	variantId?: string
 	constructionPhase?: ConstructionPhase
 	foundationGoods?: Partial<Record<GoodType, number>>
 	foundationConsumedGoods?: Partial<Record<GoodType, number>>
@@ -543,8 +548,8 @@ export class Game extends Eventful<GameEvents> {
 		)
 	}
 
-	public applyBuildAction(tile: Tile, alveolusType: AlveolusType): boolean {
-		return tile.build(alveolusType)
+	public applyBuildAction(tile: Tile, alveolusType: AlveolusType, variantId?: string): boolean {
+		return tile.build(alveolusType, variantId)
 	}
 
 	public previewHivePlanPlacement(
@@ -2101,6 +2106,7 @@ export class Game extends Eventful<GameEvents> {
 					const constructionSite = createConstructionSiteState({
 						kind: 'alveolus',
 						alveolusType,
+						variantId: a.variantId,
 					})
 					constructionSite.phase = a.constructionPhase ?? 'waiting_materials'
 					constructionSite.workSecondsApplied = a.constructionWorkSecondsApplied ?? 0
@@ -2119,7 +2125,7 @@ export class Game extends Eventful<GameEvents> {
 					tile.asGenerated = false
 					continue
 				}
-				const alv = createAlveolus(alveolusType, tile)
+				const alv = createAlveolus(alveolusType, tile, a.variantId)
 				if (!alv) throw new Error(`Unknown alveolus type in hive patch: ${a.alveolus}`)
 				this.hex.setTileContent(tile, alv)
 				if (a.goods && alv.name !== 'freight_bay')
@@ -2259,6 +2265,10 @@ export class Game extends Eventful<GameEvents> {
 			const content = tile.content
 			const constructionTarget = constructionTargetFromProject(entry.project)
 			if (!constructionTarget) continue
+			// Attach variantId from the save if not already parsed from the project string
+			if (entry.variantId && constructionTarget.kind === 'alveolus' && !constructionTarget.variantId) {
+				;(constructionTarget as { variantId?: string }).variantId = entry.variantId
+			}
 			const constructionSite = createConstructionSiteState(constructionTarget)
 			constructionSite.phase = entry.constructionPhase ?? constructionSite.phase
 			constructionSite.foundationConsumedGoods = { ...(entry.foundationConsumedGoods ?? {}) }
@@ -2429,6 +2439,9 @@ export class Game extends Eventful<GameEvents> {
 					projectSites.push({
 						coord: [q, r],
 						project: content.project,
+						variantId: content.constructionSite?.target.kind === 'alveolus'
+							? content.constructionSite.target.variantId
+							: undefined,
 						constructionPhase: content.constructionSite?.phase,
 						foundationGoods: content.foundationStorage?.stock ?? {},
 						foundationConsumedGoods: content.constructionSite?.foundationConsumedGoods ?? {},
@@ -2449,9 +2462,15 @@ export class Game extends Eventful<GameEvents> {
 			}
 
 			if (isConstructionSiteShell(content) && content.constructionSite.target.kind === 'alveolus') {
+				const target = content.constructionSite.target
+				const buildVariantId = (content as { variantId?: string }).variantId ?? target.variantId
+				const projectStr = buildVariantId
+					? `build:${target.alveolusType}${VARIANT_DELIMITER}${buildVariantId}`
+					: `build:${target.alveolusType}`
 				projectSites.push({
 					coord: [q, r],
-					project: `build:${content.constructionSite.target.alveolusType}`,
+					project: projectStr,
+					variantId: buildVariantId,
 					constructionPhase: content.constructionSite.phase,
 					foundationConsumedGoods: content.constructionSite.foundationConsumedGoods ?? {},
 					constructionGoods: content.storage?.stock ?? {},
@@ -2483,6 +2502,7 @@ export class Game extends Eventful<GameEvents> {
 						: {
 								coord: [q, r],
 								alveolus: alveolusName as AlveolusType,
+								variantId: (content as { variantId?: string }).variantId,
 								goods: content.storage?.stock || {},
 								processBuffers:
 									content instanceof TransformAlveolus ? { ...content.processBuffers } : undefined,

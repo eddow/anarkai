@@ -38,6 +38,7 @@ import { defaultNameTheme, generateName } from 'ssh/generation/names'
 import { options } from 'ssh/globals'
 import type { Character } from 'ssh/population/character'
 import { findLiveAllocations, trackAllocation, untrackAllocation } from 'ssh/storage/guard'
+import { NoStorage } from 'ssh/storage/no-storage'
 import type { Storage } from 'ssh/storage/storage'
 import type { GoodType } from 'ssh/types'
 import { type AxialCoord, axial, findPath, type Positioned, setPop } from 'ssh/utils'
@@ -606,6 +607,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		this.working = hive.working
 		this.configurations.clear()
 		for (const [key, value] of hive.configurations.entries()) this.configurations.set(key, value)
+		this.transferFreightVehicleDocksFrom(hive)
 		return this
 	}
 	/**
@@ -623,8 +625,23 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		for (const [key, value] of hive.configurations.entries()) {
 			if (!this.configurations.has(key)) this.configurations.set(key, value)
 		}
+		this.transferFreightVehicleDocksFrom(hive)
 		// TODO: destroying an alveolus (and its borders) should "loose" the goods and cancel all the movements going through
 		return this
+	}
+
+	/**
+	 * Transfer freight vehicle dock registrations from a source hive during topology refresh.
+	 * Each dock is re-registered so the new hive owns the advertisement endpoint.
+	 */
+	private transferFreightVehicleDocksFrom(source: Hive) {
+		for (const dock of source.freightVehicleDocks.values()) {
+			// Only transfer docks whose bay alveolus belongs to this rebuilt hive.
+			// After hive.attach() runs, dock.bay.hive already points to the new hive.
+			if (dock.bay.hive === this) {
+				this.registerFreightVehicleDock(dock)
+			}
+		}
 	}
 	/**
 	 * Has to be called *after* tile.content is not a alveolus anymore
@@ -3159,6 +3176,21 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				demander: demander.name,
 				providerDestroyed: !provider.tile || provider.destroyed,
 				demanderDestroyed: !demander.tile || demander.destroyed,
+			})
+			return false
+		}
+		// FreightBayAlveolus and other non-storage parties use NoStorage and can never
+		// fulfill movement allocations. VehicleFreightDock must be used instead.
+		if (
+			provider.storage instanceof NoStorage ||
+			demander.storage instanceof NoStorage
+		) {
+			traces.advertising.warn?.(`[CREATE] SKIP NO-STORAGE: ${goodType} ${provider.name} -> ${demander.name}`, {
+				goodType,
+				provider: provider.name,
+				demander: demander.name,
+				providerNoStorage: provider.storage instanceof NoStorage,
+				demanderNoStorage: demander.storage instanceof NoStorage,
 			})
 			return false
 		}

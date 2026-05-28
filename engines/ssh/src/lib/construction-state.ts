@@ -21,12 +21,137 @@ export type ConstructionBlockingReason =
 export type DwellingTier = 'basic_dwelling'
 
 export type ConstructionTarget =
-	| { readonly kind: 'alveolus'; readonly alveolusType: AlveolusType }
+	| { readonly kind: 'alveolus'; readonly alveolusType: AlveolusType; readonly variantId?: string }
 	| { readonly kind: 'dwelling'; readonly tier: DwellingTier }
 
 export interface ConstructionRecipe {
 	readonly goods: Partial<Record<GoodType, number>>
 	readonly workSeconds: number
+}
+
+/**
+ * Result of resolving an alveolus variant against the rules.
+ * `definition` is the merged behavior (root action overridden by variant action if present).
+ * `construction` is the recipe for the LAST hop in the chain.
+ * `ancestorChain` lists every construction recipe from current state through each segment
+ * (e.g. for "wood.extra": [root→wood, wood→extra]).
+ */
+export interface ResolvedAlveolusVariant {
+	definition: Ssh.AlveolusDefinition
+	/** Recipe for the final hop (leaf variant's construction). */
+	construction: ConstructionRecipe
+	/** Dot-separated variant path (e.g., "wood.extra"), or undefined for root. */
+	variantId?: string
+	/** The raw variant definition (for spec access), or undefined for root. */
+	variantDef?: Ssh.AlveolusVariantDefinition
+	/**
+	 * Ordered list of construction recipes from current state to the final variant.
+	 * First entry is the root's construction recipe, then each successive variant segment.
+	 * For a root-only alveolus this is a single-element array.
+	 */
+	ancestorChain: ConstructionRecipe[]
+}
+
+/** Project string delimiter for variant encoding: `build:type#variant.path` */
+export const VARIANT_DELIMITER = '#'
+
+/** Splits a project string into base type + optional variant */
+export function parseBuildActionProject(action: string): {
+	alveolusType: AlveolusType
+	variantId?: string
+} | undefined {
+	const raw = action.startsWith('build:') ? action.slice('build:'.length) : action
+	const hashIdx = raw.indexOf(VARIANT_DELIMITER)
+	if (hashIdx >= 0) {
+		return { alveolusType: raw.slice(0, hashIdx) as AlveolusType, variantId: raw.slice(hashIdx + 1) }
+	}
+	return { alveolusType: raw as AlveolusType }
+}
+
+/**
+ * Walk variant segments on a root alveolus definition and return the merged result.
+ * Falls back to root if any segment is missing.
+ */
+export function resolveAlveolusVariant(
+	alveolusType: AlveolusType,
+	variantId?: string
+): ResolvedAlveolusVariant | undefined {
+	const root = alveoli[alveolusType as keyof typeof alveoli] as Ssh.AlveolusDefinition | undefined
+	if (!root) return undefined
+
+	const rootRecipe: ConstructionRecipe = {
+		goods: { ...((root.construction?.goods ?? {}) as Partial<Record<GoodType, number>>) },
+		workSeconds: root.construction?.time ?? 0,
+	}
+
+	const segments = variantId ? variantId.split('.') : []
+	if (segments.length === 0) {
+		return {
+			definition: root,
+			construction: rootRecipe,
+			ancestorChain: [rootRecipe],
+		}
+	}
+
+	const chain: ConstructionRecipe[] = [rootRecipe]
+	let currentDef: Ssh.AlveolusDefinition = root
+	let currentVariant: Ssh.AlveolusVariantDefinition | undefined
+	let mergeAction: Ssh.Action = root.action
+	const resolvedSegments: string[] = []
+
+	for (const segment of segments) {
+		const variants = currentDef.variants as Record<string, Ssh.AlveolusVariantDefinition> | undefined
+		const found = variants?.[segment]
+		if (!found) {
+			console.warn(
+				`[resolveAlveolusVariant] Unknown variant "${variantId}" for "${alveolusType}"; falling back to "${resolvedSegments.join('.') || '(root)'}"`
+			)
+			return {
+				definition: { ...currentDef, action: mergeAction },
+				construction: chain[chain.length - 1],
+				variantId: resolvedSegments.length ? resolvedSegments.join('.') : undefined,
+				variantDef: currentVariant,
+				ancestorChain: chain,
+			}
+		}
+
+		currentVariant = found
+		resolvedSegments.push(segment)
+		const stepRecipe: ConstructionRecipe = {
+			goods: { ...((found.construction?.goods ?? {}) as Partial<Record<GoodType, number>>) },
+			workSeconds: found.construction?.time ?? 0,
+		}
+		chain.push(stepRecipe)
+
+		if (found.action) mergeAction = found.action
+		if (found.variants || found.action) {
+			currentDef = { ...currentDef, action: mergeAction, variants: found.variants }
+		}
+	}
+
+	return {
+		definition: { ...currentDef, action: mergeAction },
+		construction: chain[chain.length - 1],
+		variantId: resolvedSegments.join('.'),
+		variantDef: currentVariant,
+		ancestorChain: chain,
+	}
+}
+
+/**
+ * Parse a project string like `build:pile` or `build:pile#wood.extra`
+ * into a ConstructionTarget with optional variantId.
+ */
+function parseBuildProject(project: string): { alveolusType: AlveolusType; variantId?: string } | undefined {
+	const raw = project.slice('build:'.length)
+	const hashIdx = raw.indexOf(VARIANT_DELIMITER)
+	if (hashIdx >= 0) {
+		return {
+			alveolusType: raw.slice(0, hashIdx) as AlveolusType,
+			variantId: raw.slice(hashIdx + 1),
+		}
+	}
+	return { alveolusType: raw as AlveolusType }
 }
 
 export interface ConstructionSiteState {
@@ -60,13 +185,22 @@ export function constructionTargetFromProject(project: string): ConstructionTarg
 		return { kind: 'dwelling', tier: 'basic_dwelling' }
 	}
 	if (!project.startsWith('build:')) return undefined
-	const alveolusType = project.slice('build:'.length) as AlveolusType
-	return { kind: 'alveolus', alveolusType }
+	const parsed = parseBuildProject(project)
+	if (!parsed) return undefined
+	return { kind: 'alveolus', alveolusType: parsed.alveolusType, variantId: parsed.variantId }
 }
 
 export function createConstructionRecipe(target: ConstructionTarget): ConstructionRecipe {
 	if (target.kind === 'alveolus') {
-		const def = alveoli[target.alveolusType as keyof typeof alveoli]
+		const resolved = resolveAlveolusVariant(target.alveolusType, target.variantId)
+		if (resolved) {
+			return {
+				goods: { ...((resolved.construction.goods ?? {}) as Partial<Record<GoodType, number>>) },
+				workSeconds: resolved.construction.workSeconds,
+			}
+		}
+		// Fallback for unknown types
+		const def = alveoli[target.alveolusType as keyof typeof alveoli] as Ssh.AlveolusDefinition | undefined
 		return {
 			goods: { ...((def?.construction?.goods ?? {}) as Partial<Record<GoodType, number>>) },
 			workSeconds: def?.construction?.time ?? 0,
@@ -76,6 +210,15 @@ export function createConstructionRecipe(target: ConstructionTarget): Constructi
 		return { ...dwellingRecipeByTier[target.tier] }
 	}
 	throw new Error('Unsupported construction target')
+}
+
+/** Reconstitute a project string from a ConstructionTarget (e.g., "build:pile#wood.extra"). */
+export function projectFromConstructionTarget(target: ConstructionTarget): string {
+	if (target.kind === 'dwelling') return residentialBasicDwellingProject
+	if (target.variantId) {
+		return `build:${target.alveolusType}${VARIANT_DELIMITER}${target.variantId}`
+	}
+	return `build:${target.alveolusType}`
 }
 
 export function createConstructionSiteState(target: ConstructionTarget): ConstructionSiteState {

@@ -10,6 +10,7 @@ import {
 	alveoli as visualAlveoli,
 	dwellings as visualDwellings,
 } from 'engine-pixi/assets/visual-content'
+import * as gameContent from 'ssh/assets/game-content'
 import { effect, reactive } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
@@ -80,6 +81,26 @@ css`
     font-size: 1.2rem;
   }
 
+  .tile-properties__variant-select {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.1rem 0.3rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #3b82f6;
+    background: rgba(59, 130, 246, 0.10);
+    border: 1px solid rgba(59, 130, 246, 0.30);
+    border-radius: 0.35rem;
+    white-space: nowrap;
+    user-select: none;
+    cursor: pointer;
+    max-width: 7rem;
+  }
+  .tile-properties__variant-select:hover {
+    background: rgba(59, 130, 246, 0.18);
+    border-color: rgba(59, 130, 246, 0.50);
+  }
+
   .tile-properties__header-actions {
     display: flex;
     gap: 0.35rem;
@@ -114,6 +135,7 @@ type TileContentCase =
 			kind: 'alveolus'
 			content: Alveolus
 			visualType?: keyof typeof visualAlveoli
+			variantId?: string
 	  }
 	| {
 			kind: 'basicDwelling'
@@ -127,6 +149,7 @@ type TileContentCase =
 			kind: 'constructionShell'
 			content: TileContent
 			visualType?: keyof typeof visualAlveoli
+			variantId?: string
 	  }
 	| {
 			kind: 'unbuilt'
@@ -144,6 +167,7 @@ const tileContentCase = (content: Tile['content']): TileContentCase | undefined 
 			kind: 'constructionShell',
 			content,
 			visualType: content.target as keyof typeof visualAlveoli,
+			variantId: content.variantId,
 		}
 	}
 	if (isConstructionSiteShell(content)) {
@@ -154,6 +178,10 @@ const tileContentCase = (content: Tile['content']): TileContentCase | undefined 
 				content.constructionSite.target.kind === 'alveolus'
 					? (content.constructionSite.target.alveolusType as keyof typeof visualAlveoli)
 					: undefined,
+			variantId:
+				content.constructionSite.target.kind === 'alveolus'
+					? content.constructionSite.target.variantId
+					: undefined,
 		}
 	}
 	if (content instanceof Alveolus) {
@@ -161,6 +189,7 @@ const tileContentCase = (content: Tile['content']): TileContentCase | undefined 
 			kind: 'alveolus',
 			content,
 			visualType: content.name as keyof typeof visualAlveoli | undefined,
+			variantId: content.variantId,
 		}
 	}
 	if (content instanceof BasicDwelling) {
@@ -269,6 +298,21 @@ const TileZoneHeaderFallback = (props: { game?: TileGame; tile: Tile }) => {
 	)
 }
 
+function collectVariantOptions(alveolusType: string): { value: string; label: string }[] {
+	const def = (gameContent.alveoli as any)[alveolusType]
+	if (!def || !def.variants) return []
+	const options: { value: string; label: string }[] = []
+	const walk = (prefix: string, variants: Record<string, any>) => {
+		for (const [key, vdef] of Object.entries(variants)) {
+			const fullId = prefix ? `${prefix}.${key}` : key
+			options.push({ value: fullId, label: fullId })
+			if (vdef.variants) walk(fullId, vdef.variants)
+		}
+	}
+	walk('', def.variants)
+	return options
+}
+
 interface AlveolusTileHeaderProps {
 	contentCase?: Extract<TileContentCase, { kind: 'alveolus' | 'constructionShell' }>
 	game?: TileGame
@@ -294,6 +338,18 @@ const AlveolusTileHeader = (props: AlveolusTileHeaderProps) => {
 				? String(T.alveoli[contentCase.visualType])
 				: contentCase.content.title
 		},
+		get visualType() {
+			return this.contentCase?.visualType
+		},
+		get variantOptions() {
+			return this.visualType ? collectVariantOptions(this.visualType as string) : []
+		},
+		get hasVariants() {
+			return this.variantOptions.length > 0
+		},
+		get currentVariant() {
+			return this.contentCase?.variantId ?? ''
+		},
 		get hiveTitle() {
 			return this.contentCase?.content.hive?.name?.trim() || 'Hive'
 		},
@@ -317,6 +373,20 @@ const AlveolusTileHeader = (props: AlveolusTileHeaderProps) => {
 					text={model.title ?? ''}
 					height={32}
 				/>
+				<select
+					if={model.hasVariants}
+					class="tile-properties__variant-select"
+					value={model.currentVariant}
+					onChange={() => {
+						// TODO(alveoli-variants): propagate variant change — set new project on tile
+						// or mutate alveolus via model.contentCase?.content
+					}}
+				>
+					<option value="">(none)</option>
+					<for each={model.variantOptions}>
+						{(opt) => <option value={opt.value}>{opt.label}</option>}
+					</for>
+				</select>
 				<WorkingIndicator
 					checked={model.contentCase!.content.working}
 					burdened={!!model.workingWarning}
