@@ -81,6 +81,10 @@ Already landed or mostly landed:
   be derived from those choices rather than authored as nodes and edges directly. Vehicle job completion and
   service/exit lifecycle hooks also need to be connected cleanly to the registry so live queue status stays
   valid during normal play.
+- External-work radius needs a dedicated pass. For now, radius is a specification of constructed external-work
+  capabilities such as construction, foundation laying, road work, and harvesting. Later, unify that radius
+  model across all external-work alveoli and decide how actual vehicle objects can extend or constrain reach as
+  configuration/equipment attached to the hive or alveolus, rather than as a variant-only field.
 
 ## Recommended Next Tranche
 
