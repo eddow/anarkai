@@ -1,16 +1,11 @@
-import { harvestNpcSearchDistance, harvestTravelFatiguePerStep, jobBalance } from 'engine-rules'
-import { inert, memoize } from 'mutts'
+import { memoize } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
-import { hasMaturePlantedTree, UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { multiplyGoodsQty } from 'ssh/board/content/utils'
 import type { Tile } from 'ssh/board/tile'
 import { findGatherFreightLine } from 'ssh/freight/freight-line'
 import { TransitAlveolus } from 'ssh/hive/transit'
-import type { Character } from 'ssh/population/character'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
-import type { HarvestJob } from 'ssh/types/base'
-import { axialDistance, type Positioned, toAxialCoord } from 'ssh/utils/position'
-import { maxWalkTime, outputBufferSize } from '../../../assets/constants'
+import { outputBufferSize } from '../../../assets/constants'
 export class HarvestAlveolus extends TransitAlveolus {
 	declare action: Ssh.HarvestingAction
 	constructor(tile: Tile, definition: Ssh.AlveolusDefinition, resourceName: string) {
@@ -52,97 +47,4 @@ export class HarvestAlveolus extends TransitAlveolus {
 		)
 	}
 
-	@inert
-	protected override nextAlveolusJob(character?: Character): HarvestJob | undefined {
-		if (!this.canProposeAlveolusSpecificJobs) return undefined
-		const action = this.action
-		if (!action) {
-			return undefined
-		}
-		const startPos = toAxialCoord(character ? character.position : this.tile.position)
-		const hex = this.tile.game.hex
-		const searchDistance = character ? maxWalkTime : harvestNpcSearchDistance
-
-		const findDeposit = (priority: 'project' | 'clearing' | 'any') => {
-			const searchFn = (coord: Positioned) => {
-				const tile = hex.getTile(coord)
-				if (!tile) {
-					return false
-				}
-				const content = tile.content
-				if (!(content instanceof UnBuiltLand)) {
-					return false
-				}
-				if (content?.deposit?.name !== action.deposit) {
-					return false
-				}
-
-				if (priority === 'project') {
-					return !!content.project
-				}
-
-				if (priority === 'clearing') {
-					return (
-						tile.clearing ||
-						tile.neighborTiles.some((neighbor) => neighbor.content instanceof Alveolus)
-					)
-				}
-
-				if (content.plantedTrees) return hasMaturePlantedTree(content)
-				return hex.zoneManager.isHarvestableZone(tile.zone)
-			}
-
-			return hex.findNearest(startPos, searchFn, searchDistance, false)
-		}
-
-		let path = findDeposit('project')
-		if (path) {
-			return {
-				job: 'harvest',
-				path,
-				urgency: jobBalance.harvest.project ?? jobBalance.harvest.clearing,
-				fatigue:
-					this.getFatigueCost() +
-					(character
-						? axialDistance(startPos, path[path.length - 1]!) * harvestTravelFatiguePerStep
-						: 0),
-			}
-		}
-
-		path = findDeposit('clearing')
-		if (path) {
-			return {
-				job: 'harvest',
-				path,
-				urgency: jobBalance.harvest.clearing,
-				fatigue:
-					this.getFatigueCost() +
-					(character
-						? axialDistance(startPos, path[path.length - 1]!) * harvestTravelFatiguePerStep
-						: 0),
-			}
-		}
-
-		if (!this.canStoreInHarvester) {
-			return undefined
-		}
-
-		path = findDeposit('any')
-		if (path) {
-			return {
-				job: 'harvest',
-				path,
-				urgency:
-					(this.alveoliNeedingGood ? jobBalance.harvest.needsBonus : 0) +
-					jobBalance.harvest.fallbackBase,
-				fatigue:
-					this.getFatigueCost() +
-					(character
-						? axialDistance(startPos, path[path.length - 1]!) * harvestTravelFatiguePerStep
-						: 0),
-			}
-		}
-
-		return undefined
-	}
 }

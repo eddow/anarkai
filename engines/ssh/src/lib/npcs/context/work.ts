@@ -990,6 +990,7 @@ class WorkFunctions {
 			if (deposit.amount <= 0) {
 				unbuiltLand.deposit = undefined
 				unbuiltLand.plantedTrees = undefined
+				this[subject].game.invalidateWorkPlanning('harvest.deposit-cleared')
 			} else if (unbuiltLand.plantedTrees) {
 				unbuiltLand.plantedTrees = normalizePlantedTrees(unbuiltLand.plantedTrees, deposit)
 			}

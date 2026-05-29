@@ -1,11 +1,11 @@
 import { goods as allGoodsList, configurations, jobBalance } from 'engine-rules'
-import { inert, reactive } from 'mutts'
+import { reactive } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { Storage } from 'ssh/storage/storage'
-import type { GoodType, Job } from 'ssh/types/base'
+import type { GoodType } from 'ssh/types/base'
 import type { ExchangePriority, GoodsRelations, StorageBase } from 'ssh/utils/advertisement'
 import { traces } from '../dev/debug.ts'
 import {
@@ -467,19 +467,6 @@ export class StorageAlveolus extends Alveolus {
 			config.generalSlots,
 			this.slottedRemainingSlotBudget(config.goods)
 		)
-	}
-
-	@inert
-	protected override nextAlveolusJob(): Job | undefined {
-		const fragmentedGoodType = this.storage.fragmented
-		return fragmentedGoodType && this.canProposeAlveolusSpecificJobs
-			? ({
-					job: 'defragment',
-					fatigue: 1,
-					urgency: jobBalance.defragment,
-					goodType: fragmentedGoodType,
-				} as Job)
-			: undefined
 	}
 
 	private get slottedDefinition(): { slots: number; capacity: number } {

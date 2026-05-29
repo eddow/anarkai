@@ -776,6 +776,8 @@ export class Game extends Eventful<GameEvents> {
 	public notifyTerrainDepositsChanged(tile: Tile): void {
 		tile.asGenerated = false
 		this.enqueueInteractiveChange(tile)
+		// Any deposit mutation affects work/job planning (harvest targets, planted-tree state, etc.)
+		this.invalidateWorkPlanning('terrain.deposit-changed')
 		const coord = toAxialCoord(tile.position)
 		if (!coord) return
 		this.renderer?.invalidateTerrain?.(coord)

@@ -5,6 +5,7 @@ import { traces } from 'ssh/dev/debug'
 import { isVehicleFreightDock } from 'ssh/freight/vehicle-freight-dock'
 import type { Hive, MovementSelection, TrackedMovement } from 'ssh/hive/hive'
 import { movementRefId } from 'ssh/hive/movement-ref'
+import { getActionJobProvider, type ActionProposedJob } from 'ssh/jobs/action-job-registry'
 import { type AlveolusProposedJob, asAlveolusProposedJob } from 'ssh/jobs/offers'
 import { gameIsaTypes } from 'ssh/npcs/utils'
 import type { Character } from 'ssh/population/character'
@@ -273,15 +274,33 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		const carry = this.conveyJob()
 		if (carry) return [asAlveolusProposedJob(carry, this)]
 		if (this.tile.isBurdened && !this.hasConveyNearby) return []
-		const job = this.nextAlveolusJob()
-		return job ? [asAlveolusProposedJob(job, this)] : []
+		if (this.tile.isBurdened) return []
+		if (!this.working) return []
+		const action = this.action
+		if (!action) return []
+		const provider = getActionJobProvider(action.type)
+		if (provider) {
+			const result = provider(this)
+			return result.proposedJobs.map((p: ActionProposedJob) =>
+				asAlveolusProposedJob(p.job, this, p.targetTile),
+			)
+		}
+		return []
 	}
 
 	/** @deprecated Use {@link proposedJobs}; kept while legacy tests and scripts migrate. */
 	nextJob(character?: Character): Job | undefined {
-		return this.nextAlveolusJob(character)
+		if (!this.canProposeAlveolusSpecificJobs) return undefined
+		const action = this.action
+		if (!action) return undefined
+		const provider = getActionJobProvider(action.type)
+		if (provider) {
+			return provider(this).jobForCharacter(character as any)
+		}
+		return undefined
 	}
 
+	/** @deprecated No longer used by alveolus subclasses; provided through the action-job registry. */
 	protected nextAlveolusJob(_character?: Character): Job | undefined {
 		return undefined
 	}
@@ -351,15 +370,21 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			}
 			return undefined
 		}
-		const job = this.nextAlveolusJob(currentCharacter)
-		if (this.hasConveyNearby) {
-			traces.convey.log?.(`[getJob] ${job ? 'work' : 'none'} ${this.name}`, {
-				alveolus: this.name,
-				character: currentCharacter?.uid,
-				urgency: job?.urgency,
-			})
+		const action = this.action
+		if (!action) return undefined
+		const provider = getActionJobProvider(action.type)
+		if (provider) {
+			const job = provider(this).jobForCharacter(currentCharacter as any)
+			if (this.hasConveyNearby) {
+				traces.convey.log?.(`[getJob] ${job ? 'work' : 'none'} ${this.name}`, {
+					alveolus: this.name,
+					character: currentCharacter?.uid,
+					urgency: job?.urgency,
+				})
+			}
+			return job
 		}
-		return job
+		return undefined
 	}
 
 	getFatigueCost(): number {

@@ -361,6 +361,50 @@ export abstract class Alveolus {
 }
 ```
 
+Alveoli **no longer override `nextAlveolusJob()`**. Job proposal is driven by the
+[action→job provider registry](#action--job-provider-registry) keyed on
+`action.type`. The base class gates convey/burden/working checks, then delegates
+to the registry's `proposedJobs` and `jobForCharacter`. Per-alveolus-class
+switches (harvest, transform, forester, storage defrag, engineer) are removed.
+
+### Action → job provider registry (ssh — [`action-job-registry.ts`](../src/lib/jobs/action-job-registry.ts))
+
+Every [`Action`](../src/resources.d.ts) type registers a **job provider** that
+returns `ActionJobResult`:
+
+```ts
+interface ActionProposedJob {
+    job: Job
+    /** Target tile for multi-target jobs (engineer construct/foundation, forester planting). */
+    targetTile?: Tile
+}
+
+interface ActionJobResult {
+    proposedJobs: readonly ActionProposedJob[]
+    jobForCharacter(character?: Character): Job | undefined
+}
+
+type ActionJobProvider = (alveolus: Alveolus) => ActionJobResult
+```
+
+Registered providers:
+
+| Action type | Job(s) offered | Key inputs |
+|---|---|---|
+| `harvest` | `HarvestJob` | `action.deposit`, `action.output`, zone/clearing/project status |
+| `transform` | `TransformJob` | `canWork` (has output room, below product ratio, process buffers) |
+| `plant` | `ForesterJob` | `assignedZoneIds`, `canPlantDepositOnLand` |
+| `slotted-storage` | `DefragmentJob` (only when fragmented) | `storage.fragmented` |
+| `specific-storage` | *(none)* | — |
+| `storage` (unified) | `DefragmentJob` (if `kind: 'slotted'` and fragmented) | `action.kind` |
+| `engineer` | `ConstructJob`, `FoundationJob`, `ValidateHivePlanJob` | `action.radius`, construction sites, hive plans |
+| `road-fret` | *(none)* | — |
+| *(no action / undefined)* | *(none)* | Falls back to empty; pure root states like `pile` propose nothing |
+
+The registry lives in [`engines/ssh/src/lib/jobs/action-job-registry.ts`](../src/lib/jobs/action-job-registry.ts).
+New action types register a provider via `registerActionJobProvider(type, provider)`.
+Alveoli never need to override `nextAlveolusJob()` or `proposedJobs` again.
+
 ### `HivePlanEntry` (ssh — [`hive-plan.ts`](../src/lib/hive-plan.ts))
 
 ```ts
@@ -456,7 +500,13 @@ starting state, not only the leaf variant recipe.
 | [`engines/ssh/src/lib/construction-state.ts`](../src/lib/construction-state.ts) | `ConstructionTarget.alveolus` gains optional `variantId`; `createConstructionRecipe` selects the recipe for the target state |
 | [`engines/ssh/src/lib/construction-shell.ts`](../src/lib/construction-shell.ts) | `finalizeConstructionShell` resolves variant, passes to `createAlveolus` |
 | [`engines/ssh/src/lib/hive/index.ts`](../src/lib/hive/index.ts) | `createAlveolus` accepts `variantId`, resolves merged definition |
-| [`engines/ssh/src/lib/board/content/alveolus.ts`](../src/lib/board/content/alveolus.ts) | Store `variantId`, expose `resolvedDefinition` getter |
+| [`engines/ssh/src/lib/board/content/alveolus.ts`](../src/lib/board/content/alveolus.ts) | Store `variantId`, expose `resolvedDefinition` getter; `computeProposedJobs`/`computeJobForCharacter` delegate to action→job registry |
+| [`engines/ssh/src/lib/jobs/action-job-registry.ts`](../src/lib/jobs/action-job-registry.ts) | **New**: action→job provider registry with providers for all action types |
+| [`engines/ssh/src/lib/hive/engineer.ts`](../src/lib/hive/engineer.ts) | Removed `nextAlveolusJob`, `proposedJobs` override, `engineeringTargets`; now purely data |
+| [`engines/ssh/src/lib/hive/harvest.ts`](../src/lib/hive/harvest.ts) | Removed `nextAlveolusJob` override |
+| [`engines/ssh/src/lib/hive/transform.ts`](../src/lib/hive/transform.ts) | Removed `nextAlveolusJob` override |
+| [`engines/ssh/src/lib/hive/forester.ts`](../src/lib/hive/forester.ts) | Removed `nextAlveolusJob` override |
+| [`engines/ssh/src/lib/hive/storage.ts`](../src/lib/hive/storage.ts) | Removed `nextAlveolusJob` override |
 | [`engines/ssh/src/lib/hive/build.ts`](../src/lib/hive/build.ts) | `BuildAlveolus` carries `variantId` |
 | [`engines/ssh/src/lib/board/content/unbuilt-land.ts`](../src/lib/board/content/unbuilt-land.ts) | `setProject` accepts `variantId` |
 | [`engines/ssh/src/lib/board/tile.ts`](../src/lib/board/tile.ts) | `build(alveolusType, variantId?)` signature |

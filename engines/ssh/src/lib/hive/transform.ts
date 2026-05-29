@@ -1,5 +1,5 @@
-import { configurations, jobBalance } from 'engine-rules'
-import { inert, reactive, untracked } from 'mutts'
+import { configurations } from 'engine-rules'
+import { reactive, untracked } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
 import { SpecificStorage } from 'ssh/storage'
@@ -231,17 +231,6 @@ export class TransformAlveolus extends Alveolus {
 			this.producedGoods.every((goodType) => this.processBuffer(goodType) < 1 - epsilon)
 		return canUnloadBoundary || canLoadBoundary || canProcess
 	}
-	@inert
-	protected override nextAlveolusJob(): TransformJob | undefined {
-		if (!this.canProposeAlveolusSpecificJobs || !this.canWork) return undefined
-
-		return {
-			job: 'transform',
-			urgency: jobBalance.transform,
-			fatigue: this.getFatigueCost(),
-		}
-	}
-
 	override getFatigueCost(): number {
 		return 0
 	}
