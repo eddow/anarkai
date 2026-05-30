@@ -320,7 +320,7 @@
         "h": 64
       }
     },
-    "buildings.wheat-planter": {
+    "buildings.variant-building": {
       "frame": {
         "x": 198,
         "y": 354,
@@ -340,7 +340,7 @@
         "h": 64
       }
     },
-    "buildings.woodpile": {
+    "buildings.wheat-planter": {
       "frame": {
         "x": 264,
         "y": 354,
@@ -360,7 +360,7 @@
         "h": 64
       }
     },
-    "characters.default": {
+    "buildings.woodpile": {
       "frame": {
         "x": 330,
         "y": 354,
@@ -380,10 +380,30 @@
         "h": 64
       }
     },
-    "commands.click": {
+    "characters.default": {
       "frame": {
         "x": 421,
         "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "commands.click": {
+      "frame": {
+        "x": 421,
+        "y": 66,
         "w": 64,
         "h": 64
       },
@@ -582,7 +602,7 @@
     },
     "objects.bushes/bush1": {
       "frame": {
-        "x": 366,
+        "x": 406,
         "y": 476,
         "w": 31,
         "h": 29
@@ -602,8 +622,8 @@
     },
     "objects.bushes/bush10": {
       "frame": {
-        "x": 399,
-        "y": 476,
+        "x": 389,
+        "y": 518,
         "w": 27,
         "h": 28
       },
@@ -622,7 +642,7 @@
     },
     "objects.bushes/bush11": {
       "frame": {
-        "x": 154,
+        "x": 358,
         "y": 518,
         "w": 29,
         "h": 30
@@ -642,8 +662,8 @@
     },
     "objects.bushes/bush12": {
       "frame": {
-        "x": 194,
-        "y": 112,
+        "x": 471,
+        "y": 476,
         "w": 29,
         "h": 27
       },
@@ -662,8 +682,8 @@
     },
     "objects.bushes/bush13": {
       "frame": {
-        "x": 331,
-        "y": 253,
+        "x": 265,
+        "y": 187,
         "w": 20,
         "h": 26
       },
@@ -682,8 +702,8 @@
     },
     "objects.bushes/bush14": {
       "frame": {
-        "x": 459,
-        "y": 390,
+        "x": 263,
+        "y": 218,
         "w": 26,
         "h": 26
       },
@@ -722,7 +742,7 @@
     },
     "objects.bushes/bush16": {
       "frame": {
-        "x": 428,
+        "x": 502,
         "y": 476,
         "w": 28,
         "h": 27
@@ -742,8 +762,8 @@
     },
     "objects.bushes/bush17": {
       "frame": {
-        "x": 263,
-        "y": 218,
+        "x": 330,
+        "y": 288,
         "w": 22,
         "h": 23
       },
@@ -762,8 +782,8 @@
     },
     "objects.bushes/bush18": {
       "frame": {
-        "x": 227,
-        "y": 191,
+        "x": 418,
+        "y": 518,
         "w": 28,
         "h": 25
       },
@@ -782,8 +802,8 @@
     },
     "objects.bushes/bush19": {
       "frame": {
-        "x": 396,
-        "y": 354,
+        "x": 0,
+        "y": 558,
         "w": 20,
         "h": 20
       },
@@ -822,8 +842,8 @@
     },
     "objects.bushes/bush20": {
       "frame": {
-        "x": 263,
-        "y": 243,
+        "x": 330,
+        "y": 313,
         "w": 21,
         "h": 22
       },
@@ -842,8 +862,8 @@
     },
     "objects.bushes/bush21": {
       "frame": {
-        "x": 330,
-        "y": 333,
+        "x": 396,
+        "y": 399,
         "w": 23,
         "h": 19
       },
@@ -882,8 +902,8 @@
     },
     "objects.bushes/bush23": {
       "frame": {
-        "x": 488,
-        "y": 476,
+        "x": 192,
+        "y": 118,
         "w": 31,
         "h": 14
       },
@@ -902,8 +922,8 @@
     },
     "objects.bushes/bush24": {
       "frame": {
-        "x": 263,
-        "y": 267,
+        "x": 330,
+        "y": 337,
         "w": 15,
         "h": 14
       },
@@ -1102,8 +1122,8 @@
     },
     "objects.bushes/bush33": {
       "frame": {
-        "x": 257,
-        "y": 191,
+        "x": 263,
+        "y": 246,
         "w": 26,
         "h": 25
       },
@@ -1122,8 +1142,8 @@
     },
     "objects.bushes/bush34": {
       "frame": {
-        "x": 330,
-        "y": 288,
+        "x": 396,
+        "y": 354,
         "w": 21,
         "h": 21
       },
@@ -1142,8 +1162,8 @@
     },
     "objects.bushes/bush35": {
       "frame": {
-        "x": 330,
-        "y": 311,
+        "x": 396,
+        "y": 377,
         "w": 22,
         "h": 20
       },
@@ -1162,8 +1182,8 @@
     },
     "objects.bushes/bush36": {
       "frame": {
-        "x": 396,
-        "y": 376,
+        "x": 22,
+        "y": 558,
         "w": 21,
         "h": 18
       },
@@ -1242,7 +1262,7 @@
     },
     "objects.bushes/bush7": {
       "frame": {
-        "x": 332,
+        "x": 372,
         "y": 476,
         "w": 32,
         "h": 30
@@ -1262,8 +1282,8 @@
     },
     "objects.bushes/bush8": {
       "frame": {
-        "x": 162,
-        "y": 112,
+        "x": 439,
+        "y": 476,
         "w": 30,
         "h": 28
       },
@@ -1282,7 +1302,7 @@
     },
     "objects.bushes/bush9": {
       "frame": {
-        "x": 121,
+        "x": 325,
         "y": 518,
         "w": 31,
         "h": 31
@@ -1422,8 +1442,8 @@
     },
     "objects.rocks/rock16": {
       "frame": {
-        "x": 421,
-        "y": 390,
+        "x": 227,
+        "y": 187,
         "w": 36,
         "h": 28
       },
@@ -1602,8 +1622,8 @@
     },
     "objects.rocks/rock25": {
       "frame": {
-        "x": 291,
-        "y": 215,
+        "x": 227,
+        "y": 149,
         "w": 56,
         "h": 36
       },
@@ -1742,8 +1762,8 @@
     },
     "objects.rocks/rock31": {
       "frame": {
-        "x": 421,
-        "y": 354,
+        "x": 291,
+        "y": 215,
         "w": 60,
         "h": 34
       },
@@ -1762,8 +1782,8 @@
     },
     "objects.rocks/rock32": {
       "frame": {
-        "x": 162,
-        "y": 76,
+        "x": 291,
+        "y": 251,
         "w": 56,
         "h": 34
       },
@@ -1782,8 +1802,8 @@
     },
     "objects.rocks/rock33": {
       "frame": {
-        "x": 227,
-        "y": 149,
+        "x": 162,
+        "y": 76,
         "w": 48,
         "h": 40
       },
@@ -1803,7 +1823,7 @@
     "objects.rocks/rock34": {
       "frame": {
         "x": 421,
-        "y": 312,
+        "y": 378,
         "w": 60,
         "h": 40
       },
@@ -1903,7 +1923,7 @@
     "objects.rocks/rock8": {
       "frame": {
         "x": 421,
-        "y": 264,
+        "y": 330,
         "w": 56,
         "h": 46
       },
@@ -1942,8 +1962,8 @@
     },
     "objects.rocks/stone1": {
       "frame": {
-        "x": 291,
-        "y": 253,
+        "x": 292,
+        "y": 476,
         "w": 38,
         "h": 30
       },
@@ -1962,8 +1982,8 @@
     },
     "objects.rocks/stone2": {
       "frame": {
-        "x": 185,
-        "y": 518,
+        "x": 532,
+        "y": 476,
         "w": 24,
         "h": 18
       },
@@ -1982,8 +2002,8 @@
     },
     "objects.rocks/stone3": {
       "frame": {
-        "x": 458,
-        "y": 476,
+        "x": 162,
+        "y": 118,
         "w": 28,
         "h": 18
       },
@@ -2002,8 +2022,8 @@
     },
     "objects.rocks/stone4": {
       "frame": {
-        "x": 396,
-        "y": 396,
+        "x": 476,
+        "y": 518,
         "w": 20,
         "h": 16
       },
@@ -2022,7 +2042,7 @@
     },
     "objects.rocks/stone5": {
       "frame": {
-        "x": 211,
+        "x": 448,
         "y": 518,
         "w": 26,
         "h": 16
@@ -2062,7 +2082,7 @@
     },
     "objects.rocks/stone7": {
       "frame": {
-        "x": 292,
+        "x": 332,
         "y": 476,
         "w": 38,
         "h": 30
@@ -2320,27 +2340,127 @@
         "h": 69
       }
     },
-    "vehicles.pickup-truck": {
+    "variants.extra-planks": {
       "frame": {
-        "x": 421,
-        "y": 66,
-        "w": 64,
-        "h": 64
+        "x": 121,
+        "y": 518,
+        "w": 32,
+        "h": 32
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 64,
-        "h": 64
+        "w": 32,
+        "h": 32
       },
       "sourceSize": {
-        "w": 64,
-        "h": 64
+        "w": 32,
+        "h": 32
       }
     },
-    "vehicles.suv": {
+    "variants.extra-stone": {
+      "frame": {
+        "x": 155,
+        "y": 518,
+        "w": 32,
+        "h": 32
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 32,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 32,
+        "h": 32
+      }
+    },
+    "variants.extra-wood": {
+      "frame": {
+        "x": 189,
+        "y": 518,
+        "w": 32,
+        "h": 32
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 32,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 32,
+        "h": 32
+      }
+    },
+    "variants.medalion-base": {
+      "frame": {
+        "x": 223,
+        "y": 518,
+        "w": 32,
+        "h": 32
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 32,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 32,
+        "h": 32
+      }
+    },
+    "variants.research": {
+      "frame": {
+        "x": 257,
+        "y": 518,
+        "w": 32,
+        "h": 32
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 32,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 32,
+        "h": 32
+      }
+    },
+    "variants.road": {
+      "frame": {
+        "x": 291,
+        "y": 518,
+        "w": 32,
+        "h": 32
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 32,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 32,
+        "h": 32
+      }
+    },
+    "vehicles.pickup-truck": {
       "frame": {
         "x": 421,
         "y": 132,
@@ -2360,10 +2480,30 @@
         "h": 64
       }
     },
-    "vehicles.wheelbarrow": {
+    "vehicles.suv": {
       "frame": {
         "x": 421,
         "y": 198,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "vehicles.wheelbarrow": {
+      "frame": {
+        "x": 421,
+        "y": 264,
         "w": 64,
         "h": 64
       },
@@ -2387,7 +2527,7 @@
     "format": "RGBA8888",
     "size": {
       "w": 595,
-      "h": 556
+      "h": 578
     },
     "scale": 1
   }

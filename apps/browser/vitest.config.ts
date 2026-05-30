@@ -11,6 +11,13 @@ export default mergeConfig(
 			include: ["src/**/*.{test,spec}.{js,ts,tsx}"],
 			exclude: ["node_modules", "dist", ".git", ".cache"],
 			watch: false,
+			deps: {
+				optimizer: {
+					ssr: {
+						include: ['mutts'],
+					},
+				},
+			},
 		},
 		resolve: {
 			conditions: ["browser", "development", "import", "default"],

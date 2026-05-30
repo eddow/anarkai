@@ -1,18 +1,20 @@
 import { Button, ButtonGroup, CheckButton, RadioButton } from '@app/ui/anarkai'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons'
-import { document, latch } from '@sursaut/core'
+import { document, latch, rootEnv } from '@sursaut/core'
 import type {
 	PaletteConfig,
 	PaletteEditorContext,
 	PaletteEditorRegistry,
+	PaletteToolbar as PaletteToolbarModel,
 	PaletteTool,
 } from '@sursaut/ui/palette'
-import { paletteToolFamily } from '@sursaut/ui/palette'
+import { paletteToolFamily, Toolbar as PaletteToolbarView } from '@sursaut/ui/palette'
 import { effect, reactive } from 'mutts'
 import { Stars } from '../components/Stars'
 import { AnarkaiCommandBoxEditor } from './command-box'
 import type {
 	AnarkaiPaletteChoiceDisplay,
+	AnarkaiPaletteDrawerConfig,
 	AnarkaiPaletteEditorConfigByVariant,
 	AnarkaiPaletteEditorVariant,
 	AnarkaiPaletteEnumConfig,
@@ -28,16 +30,26 @@ type AnarkaiPaletteEditorOption = {
 }
 
 type AnarkaiPaletteAnyItem = AnarkaiPaletteToolbarItem
+type AnarkaiPaletteDrawerItem = AnarkaiPaletteAnyItem & {
+	editor: 'drawer'
+	toolbar: PaletteToolbarModel<AnarkaiPaletteAnyItem>
+	config?: AnarkaiPaletteDrawerConfig
+}
 type AnarkaiPaletteRunTool = Extract<PaletteTool, { run(): void }>
 type AnarkaiPaletteBooleanTool = Extract<PaletteTool, { type: 'boolean' }>
 type AnarkaiPaletteNumberTool = Extract<PaletteTool, { type: 'number' }>
 type AnarkaiPaletteEnumTool = Extract<PaletteTool, { type: 'enum' }>
 type AnarkaiPaletteEnumValue = AnarkaiPaletteEnumTool['values'][number]
 
+function isDrawerItem(item: AnarkaiPaletteAnyItem): item is AnarkaiPaletteDrawerItem {
+	return item.editor === 'drawer' && Array.isArray((item as { toolbar?: unknown }).toolbar)
+}
+
 const anarkaiPaletteEditorLabels = {
 	button: 'Button',
 	cycle: 'Cycle',
 	commandBox: 'Command box',
+	drawer: 'Drawer',
 	select: 'Select',
 	segmented: 'Segmented',
 	stars: 'Stars',
@@ -223,7 +235,11 @@ function editorOptions(
 	item: AnarkaiPaletteAnyItem,
 	tool: PaletteTool | undefined
 ): readonly AnarkaiPaletteEditorOption[] {
-	if (!item.tool) return [{ value: 'commandBox', label: anarkaiPaletteEditorLabels.commandBox }]
+	if (!item.tool)
+		return [
+			{ value: 'commandBox', label: anarkaiPaletteEditorLabels.commandBox },
+			{ value: 'drawer', label: anarkaiPaletteEditorLabels.drawer },
+		]
 	if (!tool) return []
 	const family = paletteToolFamily(tool)
 	if (family === 'run') return [{ value: 'button', label: anarkaiPaletteEditorLabels.button }]
@@ -539,6 +555,110 @@ function ButtonEditor(
 		<Button ariaLabel={meta.label} el:title={title} onClick={context.tool.run}>
 			{meta.label}
 		</Button>
+	)
+}
+
+function DrawerEditor(
+	context: PaletteEditorContext<undefined, AnarkaiPaletteAnyItem, AnarkaiPaletteSchema>
+) {
+	if (!isDrawerItem(context.item)) return <span />
+	const item = context.item
+	const meta = itemMeta(item)
+	const rawIcon = meta.icon as string | JSX.Element | (() => JSX.Element) | undefined
+	const badge = typeof rawIcon === 'string' && rawIcon.length === 1 ? rawIcon : controlIcon(rawIcon)
+	const title = paletteToolbarControlTitle(item)
+	const ui = reactive({ left: 0, open: false, top: 0 })
+	let trigger: HTMLButtonElement | undefined
+	const childDirection = () => (context.surface?.axis === 'vertical' ? 'horizontal' : 'vertical')
+	const syncPopup = () => {
+		if (!trigger) return
+		const rect = trigger.getBoundingClientRect()
+		const offset = 6
+		if (context.surface?.axis === 'vertical') {
+			ui.left = rect.right + offset
+			ui.top = rect.top
+			return
+		}
+		ui.left = rect.left
+		ui.top = rect.bottom + offset
+	}
+	effect`anarkai-palette-drawer-popup`(() => {
+		if (!ui.open) return
+		syncPopup()
+		const host = document.createElement('div')
+		document.body.appendChild(host)
+		const childDir = childDirection()
+		const drawerEnv = Object.create(rootEnv) as Record<string, unknown>
+		drawerEnv.palette = context.scope.palette
+		drawerEnv.region = childDir === 'vertical' ? 'left' : 'top'
+		const stopLatch = latch(
+			host,
+			<div class="ak-palette-drawer__overlay" onClick={() => (ui.open = false)}>
+				<div
+					class={['ak-palette-drawer__popup', `is-${childDir}`]}
+					style={{ left: `${ui.left}px`, top: `${ui.top}px` }}
+					onClick={(event: Event) => event.stopPropagation()}
+				>
+					<PaletteToolbarView direction={childDir} toolbar={item.toolbar} />
+				</div>
+			</div>,
+			drawerEnv
+		)
+		const onKey = (event: KeyboardEvent) => {
+			if (event.key !== 'Escape') return
+			ui.open = false
+			trigger?.focus()
+		}
+		const onLayout = () => syncPopup()
+		window.addEventListener('resize', onLayout)
+		window.addEventListener('scroll', onLayout, true)
+		window.addEventListener('keydown', onKey)
+		return () => {
+			window.removeEventListener('resize', onLayout)
+			window.removeEventListener('scroll', onLayout, true)
+			window.removeEventListener('keydown', onKey)
+			stopLatch()
+			host.remove()
+		}
+	})
+	return (
+		<button
+			this={trigger}
+			type="button"
+			class="ak-palette-drawer__trigger"
+			style:width="auto"
+			style:min-width="0"
+			style:padding-inline="0.35rem"
+			style:display="inline-flex"
+			style:align-items="center"
+			style:justify-content="flex-start"
+			style:gap="0.2rem"
+			style:flex-shrink="0"
+			style:border="1px solid var(--ak-border)"
+			style:border-radius="var(--ak-radius-sm)"
+			style:background="linear-gradient(180deg, rgba(255,255,255,0.08), rgba(15,23,42,0.06))"
+			style:box-shadow="inset 0 1px 0 rgba(255,255,255,0.2)"
+			style:color="var(--ak-text)"
+			style:line-height="1"
+			style:cursor="pointer"
+			style:font-family="inherit"
+			style:font-size="0.8rem"
+			style:height="var(--ak-control-height-compact)"
+			style:box-sizing="border-box"
+			style:white-space="nowrap"
+			aria-label={meta.label || title}
+			aria-expanded={ui.open ? 'true' : 'false'}
+			title={title}
+			onClick={() => {
+				if (!ui.open) syncPopup()
+				ui.open = !ui.open
+			}}
+		>
+			<span if={badge} style="display:inline-flex;align-items:center;flex-shrink:0;font-size:0.7rem;color:var(--ak-text-muted,#94a3b8);margin-right:0.1rem">{badge}</span>
+			<span if={!badge || meta.label} class="ak-palette-drawer__label">
+				{meta.label}
+			</span>
+		</button>
 	)
 }
 
@@ -950,6 +1070,13 @@ export function createAnarkaiPaletteEditors(): PaletteEditorRegistry<AnarkaiPale
 				),
 				flags: { footprint: 'horizontal' },
 			},
+			drawer: {
+				editor: DrawerEditor,
+				configure: (context) => (
+					<BaseConfigurator item={context.item as AnarkaiPaletteAnyItem} tool={undefined} />
+				),
+				flags: { footprint: 'horizontal' },
+			},
 		},
 	}
 }
@@ -971,6 +1098,7 @@ export const anarkaiPaletteEditorSpecs: Record<AnarkaiPaletteEditorVariant, unkn
 	button: anarkaiPaletteEditors.run?.button,
 	cycle: anarkaiPaletteEditors.enum?.cycle,
 	commandBox: anarkaiPaletteEditors.item?.commandBox,
+	drawer: anarkaiPaletteEditors.item?.drawer,
 	select: anarkaiPaletteEditors.enum?.select,
 	segmented: anarkaiPaletteEditors.enum?.segmented,
 	stars: anarkaiPaletteEditors.number?.stars,

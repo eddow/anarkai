@@ -24,6 +24,17 @@ vi.mock('ssh/assets/game-content', () => ({
 	alveoli: {
 		house: { construction: true },
 		freight_bay: { construction: true },
+		pile: {
+			construction: true,
+			variants: {
+				wood: {
+					variants: {
+						dry: {},
+					},
+				},
+				stone: {},
+			},
+		},
 		decor: {},
 	},
 }))
@@ -37,9 +48,19 @@ vi.mock('engine-pixi/assets/visual-content', () => ({
 	commands: {
 		bulldoze: { sprites: ['bulldozer-sprite'] },
 	},
+	variantBadges: {
+		'pile.wood': { sprites: ['goods.wood'], icon: 'goods.wood' },
+		'pile.wood.dry': { sprites: ['goods.wood'], icon: 'goods.wood' },
+		'pile.stone': { sprites: ['goods.stone'], icon: 'goods.stone' },
+	},
 }))
 
-import { disposeBrowserPalette, getBrowserPalette, palettePanelBridge } from './browser-palette'
+import {
+	browserPaletteIdeConfig,
+	disposeBrowserPalette,
+	getBrowserPalette,
+	palettePanelBridge,
+} from './browser-palette'
 
 describe('browser palette registry & palettePanelBridge', () => {
 	afterEach(() => {
@@ -94,6 +115,16 @@ describe('browser palette registry & palettePanelBridge', () => {
 		}
 
 		expect(selectedAction.values.some((entry) => entry.value === 'build:freight_bay')).toBe(true)
+	})
+
+	it('keeps nested variant build actions in selectedAction values', () => {
+		const palette = getBrowserPalette().palette
+		const selectedAction = palette.tool('selectedAction') as {
+			values: Array<{ value: string }>
+		}
+
+		expect(selectedAction.values.some((entry) => entry.value === 'build:pile#wood')).toBe(true)
+		expect(selectedAction.values.some((entry) => entry.value === 'build:pile#wood.dry')).toBe(true)
 	})
 
 	it('exposes road tools as selected actions', () => {
@@ -151,6 +182,23 @@ describe('browser palette registry & palettePanelBridge', () => {
 		expect(acceptedKeywords).toContain('zone')
 		expect(acceptedKeywords).toContain('road')
 		expect(acceptedKeywords).not.toContain('path')
+	})
+
+	it('replaces the static build segment with generated building drawer items', () => {
+		const topItems = browserPaletteIdeConfig.top.flat(2).flatMap((entry) => entry.toolbar)
+		const pileDrawer = topItems.find(
+			(item) => item.editor === 'drawer' && item.config?.label === 'Pile'
+		) as
+			| (AnarkaiPaletteToolbarItem & { toolbar?: AnarkaiPaletteToolbarItem[] })
+			| undefined
+
+		expect(pileDrawer).toBeTruthy()
+		expect(pileDrawer?.toolbar?.some((item) => item.tool === 'selectedAction|build:pile')).toBe(true)
+		expect(
+			pileDrawer?.toolbar?.some(
+				(item) => item.editor === 'drawer' && item.config?.hint === 'Pile — Wood variants'
+			)
+		).toBe(true)
 	})
 
 	it('derives the speed tool max from gameTimeSpeedFactors length', () => {

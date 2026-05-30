@@ -114,41 +114,57 @@ export const alveoli = {
 	      goods: { wood: 4 },
 	      time: 2,
 	    },
-    variants: {
-      wood: {
-        construction: {
-          goods: { wood: 10 },
-          time: 4,
-        },
-        action: { type: 'storage', kind: 'specific', goods: { wood: 24 } },
-        variants: {
-          extra: {
-            construction: {
-              goods: { wood: 15, planks: 5 },
-              time: 6,
-            },
-            action: { type: 'storage', kind: 'specific', goods: { wood: 48 } },
-          },
-        },
-      },
-      planks: {
-        construction: {
-          goods: { wood: 10, planks: 5 },
-          time: 4,
-        },
-        action: { type: 'storage', kind: 'specific', goods: { planks: 24 } },
-        variants: {
-          extra: {
-            construction: {
-              goods: { wood: 15, planks: 10 },
-              time: 6,
-            },
-            action: { type: 'storage', kind: 'specific', goods: { planks: 48 } },
-          },
-        },
-      },
-    },
-  },
+	    variants: {
+	      wood: {
+	        construction: {
+	          goods: { wood: 10 },
+	          time: 4,
+	        },
+	        action: { type: 'storage', kind: 'specific', goods: { wood: 24 } },
+	        variants: {
+	          extra: {
+	            construction: {
+	              goods: { wood: 15, planks: 5 },
+	              time: 6,
+	            },
+	            action: { type: 'storage', kind: 'specific', goods: { wood: 48 } },
+	          },
+	        },
+	      },
+	      planks: {
+	        construction: {
+	          goods: { wood: 10, planks: 5 },
+	          time: 4,
+	        },
+	        action: { type: 'storage', kind: 'specific', goods: { planks: 24 } },
+	        variants: {
+	          extra: {
+	            construction: {
+	              goods: { wood: 15, planks: 10 },
+	              time: 6,
+	            },
+	            action: { type: 'storage', kind: 'specific', goods: { planks: 48 } },
+	          },
+	        },
+	      },
+	      stone: {
+	        construction: {
+	          goods: { wood: 8, stone: 4 },
+	          time: 4,
+	        },
+	        action: { type: 'storage', kind: 'specific', goods: { stone: 24 } },
+	        variants: {
+	          extra: {
+	            construction: {
+	              goods: { wood: 12, stone: 8 },
+	              time: 6,
+	            },
+	            action: { type: 'storage', kind: 'specific', goods: { stone: 48 } },
+	          },
+	        },
+	      },
+	    },
+	  },
 	freight_bay: {
 		preparationTime: 1,
 		action: { type: 'road-fret' },

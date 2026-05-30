@@ -130,7 +130,7 @@ describe('notifyTerrainDepositsChanged / sector resource refresh hooks', () => {
 
 			const wf = new WorkFunctions()
 			Object.assign(wf, { [subject]: char })
-			wf.harvestStep()
+			const result = wf.harvestStep()
 
 			expect(notifySpy).toHaveBeenCalledTimes(1)
 			expect(notifySpy).toHaveBeenCalledWith(char.tile)
@@ -139,6 +139,8 @@ describe('notifyTerrainDepositsChanged / sector resource refresh hooks', () => {
 			if (land instanceof UnBuiltLand) {
 				expect(land.deposit?.amount).toBe(1)
 			}
+			// Clean up the harvest step to avoid leaked-commitment diagnostic
+			result?.cancel('test-cleanup')
 		})
 
 		it('does not throw when a stale harvest assignment reaches a different deposit', () => {
@@ -158,7 +160,10 @@ describe('notifyTerrainDepositsChanged / sector resource refresh hooks', () => {
 			const wf = new WorkFunctions()
 			Object.assign(wf, { [subject]: char })
 
-			expect(() => wf.harvestStep()).not.toThrow()
+			const result = wf.harvestStep()
+			// The fallback may return a MoveToStep to walk to a nearby matching
+			// deposit; cancel it to avoid a leaked-commitment diagnostic.
+			result?.cancel('test-cleanup')
 			const land = char.tile.content
 			expect(land).toBeInstanceOf(UnBuiltLand)
 			if (land instanceof UnBuiltLand) {

@@ -28,8 +28,7 @@
 	backdrop-filter: blur(10px);
 	color: var(--ak-text);
 	overflow-x: auto;
-	overflow-y: hidden;
-	scrollbar-width: thin;
+	overflow-y: clip;
 }
 
 .app-palette-ide .toolbar-track,
@@ -45,6 +44,12 @@
 	flex-wrap: nowrap;
 	align-items: center;
 	gap: 0.15rem;
+	overflow: hidden;
+}
+
+/* Suppress sursaut ::before overflow and phantom scrollbar */
+.app-palette-ide .toolbar::before {
+	display: none !important;
 }
 
 .app-palette-ide .toolbar [role='group'] {
@@ -63,6 +68,7 @@
 	padding: 0.2rem !important;
 	margin: 0 !important;
 	border: 1px solid var(--ak-border);
+	box-sizing: border-box;
 	border-radius: var(--ak-radius-sm);
 	background: linear-gradient(
 		180deg,
@@ -478,6 +484,176 @@
 	position: fixed;
 	inset: 0;
 	z-index: 200;
+}
+
+.ak-palette-drawer__overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 210;
+}
+
+.ak-palette-drawer__trigger {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.2rem;
+	justify-content: flex-start;
+	min-width: 0;
+	max-width: min(13rem, 36vw);
+	width: auto;
+	padding-inline: 0.35rem !important;
+	white-space: nowrap;
+}
+
+/* Override .app-palette-ide .toolbar button square constraints for drawer triggers */
+.app-palette-ide .toolbar .ak-palette-drawer__trigger,
+.app-palette-ide .toolbar button.ak-palette-drawer__trigger {
+	width: auto !important;
+	min-width: var(--ak-control-height-compact) !important;
+	height: var(--ak-control-height-compact) !important;
+	padding-inline: 0.35rem !important;
+	display: inline-flex !important;
+	align-items: center !important;
+	justify-content: flex-start !important;
+	flex: 0 0 auto !important;
+	box-sizing: border-box !important;
+}
+
+/* The literal badge glyph inside the drawer trigger icon container */
+.app-palette-ide .toolbar .ak-palette-drawer__trigger .ak-icon--literal {
+	font-size: 0.65rem !important;
+	line-height: 1 !important;
+	color: var(--ak-accent) !important;
+}
+
+.ak-palette-drawer__trigger.is-open {
+	border-color: color-mix(in srgb, var(--ak-accent) 55%, white);
+	box-shadow: 0 0 0 1px color-mix(in srgb, var(--ak-accent) 55%, white);
+}
+
+.ak-palette-drawer__icon,
+.ak-palette-drawer__chevron {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+}
+
+.ak-palette-drawer__icon {
+	font-size: 0.7rem;
+	color: var(--ak-accent);
+}
+
+/* Ensure literal badge icons inside drawer triggers are visible */
+.ak-palette-drawer__icon .ak-icon--literal {
+	font-size: inherit;
+	line-height: 1;
+}
+
+.ak-palette-drawer__label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	flex: 1 1 auto;
+}
+
+.ak-palette-drawer__chevron {
+	color: var(--ak-text-muted);
+}
+
+.ak-palette-drawer__popup {
+	position: fixed;
+	z-index: 211;
+	padding: 0.25rem;
+	border: 1px solid var(--ak-border);
+	border-radius: var(--ak-radius-md);
+	background: color-mix(in srgb, var(--ak-surface-panel) 96%, transparent);
+	box-shadow: var(--ak-shadow-raised);
+	max-width: min(80vw, 28rem);
+	max-height: min(70vh, 24rem);
+	overflow-y: auto;
+	overflow-x: hidden;
+}
+
+/* Kill sursaut ::before overflow (inset: -6px) that creates phantom scrollbar */
+.ak-palette-drawer__popup .toolbar::before {
+	content: none;
+}
+
+/* Universal: no child of a toolbar button may capture pointer events —
+   only the button's own title/hint is the canonical tooltip. */
+.app-palette-ide .toolbar button .ak-icon,
+.app-palette-ide .toolbar button .ak-icon *,
+.app-palette-ide .toolbar button img,
+.app-palette-ide .toolbar button .ssh-resource-image,
+.ak-palette-drawer__popup .toolbar button .ak-icon,
+.ak-palette-drawer__popup .toolbar button .ak-icon *,
+.ak-palette-drawer__popup .toolbar button img,
+.ak-palette-drawer__popup .toolbar button .ssh-resource-image {
+	pointer-events: none !important;
+}
+
+.ak-palette-drawer__popup .toolbar {
+	gap: 0.2rem;
+}
+
+.ak-palette-drawer__popup.is-vertical .toolbar {
+	flex-direction: column;
+	align-items: stretch;
+}
+
+.ak-palette-drawer__popup.is-horizontal .toolbar {
+	flex-direction: row;
+}
+
+.ak-palette-drawer__popup .toolbar-item {
+	min-width: 0;
+}
+
+.ak-palette-drawer__popup .toolbar-item-space {
+	display: none;
+}
+
+/* Popup toolbar buttons: inherit IDE button look without square constraint */
+.ak-palette-drawer__popup .toolbar button {
+	min-width: var(--ak-control-height-compact);
+	width: auto !important;
+	min-height: var(--ak-control-height-compact);
+	height: var(--ak-control-height-compact);
+	padding: 0.2rem 0.4rem !important;
+	margin: 0 !important;
+	border: 1px solid var(--ak-border);
+	border-radius: var(--ak-radius-sm);
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(15, 23, 42, 0.06));
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+	color: var(--ak-text);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	line-height: 1;
+	vertical-align: middle;
+	flex: 0 0 auto;
+	box-sizing: border-box;
+}
+
+.ak-palette-drawer__popup.is-vertical .toolbar button {
+	justify-content: flex-start;
+	width: 100% !important;
+}
+
+.ak-palette-drawer__popup .toolbar button:hover {
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(15, 23, 42, 0.12));
+	border-color: color-mix(in srgb, var(--ak-border) 55%, white);
+}
+
+.ak-palette-drawer__popup .toolbar button[aria-pressed='true'],
+.ak-palette-drawer__popup .toolbar button[role='radio'][aria-checked='true'],
+.ak-palette-drawer__popup .toolbar button:active,
+.ak-palette-drawer__popup .toolbar button:focus-visible {
+	background: var(--ak-accent-active);
+	border-color: color-mix(in srgb, var(--ak-accent) 55%, white);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 0 0 1px color-mix(in srgb, var(--ak-accent) 55%, white);
+	outline: none;
 }
 
 .ak-palette-select-field__list {

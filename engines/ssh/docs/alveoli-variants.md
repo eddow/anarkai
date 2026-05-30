@@ -7,7 +7,7 @@ that the root or an ancestor leaves open.
 
 Some states in the tree are intentionally **incomplete**. For example, `pile`
 is a valid constructed state, but has no meaningful storage capacity until the
-player constructs a useful variant such as `pile.wood` or `pile.planks`.
+player constructs a useful variant such as `pile.wood`, `pile.planks` or `pile.stone`.
 
 Types without variants — the common case — are fully defined by their root and work
 exactly as they do today.
@@ -24,7 +24,8 @@ exactly as they do today.
 ## Initial scope
 
 Only two alveolus types introduce variants in the first iteration: `pile` and
-`engineer`. All other types (`storage`, `freight_bay`, `sawmill`, `flour_mill`,
+`engineer`. `pile` variants include `wood`, `planks`, and `stone` (each with
+an optional `extra` tier). All other types (`storage`, `freight_bay`, `sawmill`, `flour_mill`,
 `bakery`, `forester`, `restaurant`, `wheat_planter`, `wheat_harvester`,
 `stonecutter`) remain untouched — their root definition is already complete and
 they have no `variants` field.
@@ -65,18 +66,30 @@ pile: {
                 },
             },
         },
+        stone: {
+            goods: { stone: 24 },
+            construction: { time: 2, stone: 4, wood: 4 },
+            variants: {
+                extra: {
+                    goods: { stone: 48 },
+                    construction: { time: 3, stone: 6, wood: 6 },
+                },
+            },
+        },
     },
 }
 ```
 
-- `pile` alone (no variant) is an incomplete state with no meaningful storage capacity. Construction cost: `wood: 4, time: 2`. It should present useful variants such as `pile.wood` and `pile.planks`.
+- `pile` alone (no variant) is an incomplete state with no meaningful storage capacity. Construction cost: `wood: 4, time: 2`. It should present useful variants such as `pile.wood`, `pile.planks`, and `pile.stone`.
 - `pile.wood` → `SpecificStorage({ wood: 24 })`. Construction cost from an existing pile state: `wood: 6, time: 2`.
 - `pile.wood.extra` → `SpecificStorage({ wood: 48 })`. Construction cost from `pile.wood`: `wood: 8, time: 3`.
 - `pile.planks` → `SpecificStorage({ planks: 24 })`. Construction cost from an existing pile state: `planks: 4, time: 2`.
 - `pile.planks.extra` → `SpecificStorage({ planks: 48 })`. Construction cost from `pile.planks`: `planks: 6, time: 3`.
+- `pile.stone` → `SpecificStorage({ stone: 24 })`. Construction cost from an existing pile state: `wood: 4, stone: 4, time: 2`.
+- `pile.stone.extra` → `SpecificStorage({ stone: 48 })`. Construction cost from `pile.stone`: `wood: 6, stone: 6, time: 3`.
 
-Material availability gates the `extra` variant implicitly. If `pile.wood.extra`
-or `pile.planks.extra` costs `steel` (a good that does not yet exist in the
+Material availability gates the `extra` variant implicitly. If `pile.wood.extra`,
+`pile.planks.extra` or `pile.stone.extra` costs `steel` (a good that does not yet exist in the
 economy), the player cannot gather the required material and the variant is
 effectively unavailable until steel production or trade is established. No
 separate gating field is needed — the construction cost itself encodes

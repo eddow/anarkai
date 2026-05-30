@@ -2,6 +2,8 @@ import ResourceImage from '@app/components/ResourceImage'
 import {
 	buildPaletteSelectedActionValues,
 	getAppShellBuildableAlveoli,
+	getAppShellBuildToolbarRoots,
+	type AppShellBuildVariantNode,
 } from '@app/lib/app-shell-controls'
 import { FREIGHT_ADD_STOP_ACTION } from '@app/lib/freight-map-pick'
 import type { Configuration } from '@app/lib/globals'
@@ -36,6 +38,7 @@ import {
 import {
 	alveoli as visualAlveoli,
 	commands as visualCommands,
+	variantBadges,
 } from 'engine-pixi/assets/visual-content'
 import { gameTimeSpeedFactors } from 'engine-rules'
 import { effect, reactive, unwrap } from 'mutts'
@@ -57,20 +60,34 @@ export const palettePanelBridge = reactive({
 })
 
 const browserPaletteBuildableAlveoli = getAppShellBuildableAlveoli()
+const browserPaletteBuildToolbarRoots = getAppShellBuildToolbarRoots()
+
+function browserPaletteBuildIcon(name: string) {
+	const sprite = visualAlveoli[name]?.sprites?.[0]
+	return sprite
+		? () => <ResourceImage game={game} sprite={sprite} width={20} height={20} alt="" />
+		: undefined
+}
+
+function browserPaletteVariantBadgeIcon(rootName: string, variantId: string) {
+	const key = `${rootName}.${variantId}`
+	const def = variantBadges[key]
+	if (!def?.sprites?.[0]) return undefined
+	const sprite = def.sprites[0]
+	return () => <ResourceImage game={game} sprite={sprite} width={18} height={18} alt="" />
+}
+
+function browserPaletteCommandIcon(name: string) {
+	const sprite = visualCommands[name]?.sprites?.[0]
+	return sprite
+		? () => <ResourceImage game={game} sprite={sprite} width={20} height={20} alt={name} />
+		: undefined
+}
+
 const browserPaletteSelectedActionValues = buildPaletteSelectedActionValues(
 	browserPaletteBuildableAlveoli,
-	(name) => {
-		const sprite = visualAlveoli[name]?.sprites?.[0]
-		return sprite
-			? () => <ResourceImage game={game} sprite={sprite} width={20} height={20} alt={name} />
-			: undefined
-	},
-	(name) => {
-		const sprite = visualCommands[name]?.sprites?.[0]
-		return sprite
-			? () => <ResourceImage game={game} sprite={sprite} width={20} height={20} alt={name} />
-			: undefined
-	}
+	browserPaletteBuildIcon,
+	browserPaletteCommandIcon
 ).concat({
 	value: FREIGHT_ADD_STOP_ACTION,
 	label: 'Add freight stop',
@@ -211,6 +228,131 @@ export type BrowserPaletteSchema = AnarkaiPaletteSchema<
 	BrowserPaletteEditorConfigByVariant,
 	BrowserPaletteToolbarItem
 >
+
+function createSelectedActionButton(
+	actionValue: string,
+	label: string,
+	keywords: string[],
+	icon?: string | JSX.Element | (() => JSX.Element)
+): BrowserPaletteToolbarItem {
+	return {
+		tool: `selectedAction|${actionValue}`,
+		editor: 'button',
+		config: {
+			label,
+			hint: label,
+			icon,
+			keywords,
+			tone: 'neutral',
+		},
+	}
+}
+
+function createVariantToolbarItem(
+	rootName: string,
+	variant: AppShellBuildVariantNode,
+	rootLabel: string,
+	isChild = false
+): BrowserPaletteToolbarItem {
+	const badgeIcon = browserPaletteVariantBadgeIcon(rootName, variant.id)
+	if (variant.children.length === 0) {
+		// Leaf variant: short label, descriptive tooltip
+		const descriptiveHint = `${rootLabel} — ${variant.id.split('.').map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(' ')}`
+		return {
+			tool: `selectedAction|${variant.value}`,
+			editor: 'button',
+			config: {
+				label: variant.label,
+				hint: descriptiveHint,
+				icon: badgeIcon,
+				keywords: ['build', 'variant', rootName, variant.id],
+				tone: 'neutral',
+			},
+		}
+	}
+	const triggerIcon = isChild ? badgeIcon : browserPaletteBuildIcon(rootName)
+	return {
+		editor: 'drawer',
+		toolbar: [
+			createSelectedActionButton(
+				variant.value,
+				`Build ${variant.label}`,
+				['build', 'variant', rootName, variant.id],
+				browserPaletteBuildIcon(rootName) ?? badgeIcon
+			),
+			...variant.children.map((child) => createVariantToolbarItem(rootName, child, rootLabel, true)),
+		],
+		config: {
+			icon: triggerIcon,
+			// Child drawers: badge-only trigger (no label, hint=tooltip)
+			label: isChild ? '' : variant.label,
+			hint: `${rootLabel} — ${variant.label} variants`,
+			tone: 'neutral',
+		},
+	}
+}
+
+function createBrowserPaletteBuildToolbar(): BrowserPaletteToolbarItem[] {
+	return browserPaletteBuildToolbarRoots.map((root) => {
+		const icon = browserPaletteBuildIcon(root.rootName)
+		if (root.variants.length === 0) {
+			return createSelectedActionButton(
+				root.value,
+				root.label,
+				['build', root.rootName],
+				icon
+			)
+		}
+		return {
+			editor: 'drawer',
+			toolbar: [
+				createSelectedActionButton(root.value, root.label, ['build', root.rootName], icon),
+				...root.variants.map((variant) => createVariantToolbarItem(root.rootName, variant, root.label, true)),
+			],
+			config: {
+				icon,
+				label: root.label,
+				hint: `${root.label} variants`,
+				tone: 'neutral',
+			},
+		}
+	})
+}
+
+function createBrowserPaletteTop(): PaletteBorder<BrowserPaletteToolbarItem> {
+	const top = structuredClone(browserPaletteDefaults.top)
+	const track = top[0]
+	if (!track) return top
+	const actionSectionIndex = track.findIndex((section) =>
+		section.toolbar.some(
+			(item) =>
+				item.tool === 'selectedAction' &&
+				item.config &&
+				typeof item.config === 'object' &&
+				'acceptedKeywords' in item.config &&
+				Array.isArray((item.config as AnarkaiPaletteEnumConfig).acceptedKeywords) &&
+				(item.config as AnarkaiPaletteEnumConfig).acceptedKeywords?.includes('build')
+		)
+	)
+	if (actionSectionIndex < 0) return top
+	const actionSection = track[actionSectionIndex]
+	const otherActionItems = actionSection.toolbar.filter(
+		(item) =>
+			!(item.tool === 'selectedAction' &&
+				item.config &&
+				typeof item.config === 'object' &&
+				'acceptedKeywords' in item.config &&
+				Array.isArray((item.config as AnarkaiPaletteEnumConfig).acceptedKeywords) &&
+				(item.config as AnarkaiPaletteEnumConfig).acceptedKeywords?.includes('build'))
+	)
+	track.splice(
+		actionSectionIndex,
+		1,
+		{ space: actionSection.space, toolbar: createBrowserPaletteBuildToolbar() },
+		{ space: 0.1, toolbar: otherActionItems }
+	)
+	return top
+}
 
 function clockPaletteTitle(item: BrowserPaletteToolbarItem): string {
 	const c = item.config
@@ -479,7 +621,7 @@ function createBrowserPaletteBundle() {
 }
 
 export const browserPaletteIdeConfig = {
-	top: structuredClone(browserPaletteDefaults.top),
+	top: createBrowserPaletteTop(),
 } satisfies { top: PaletteBorder<BrowserPaletteToolbarItem> }
 
 export type BrowserPaletteBundle = {

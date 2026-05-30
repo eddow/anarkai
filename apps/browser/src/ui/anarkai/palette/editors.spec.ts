@@ -222,6 +222,61 @@ describe('createAnarkaiPaletteEditors enum editors', () => {
 		root.remove()
 	})
 
+	it('opens a child toolbar from the drawer editor', async () => {
+		const root = document.createElement('div')
+		document.body.appendChild(root)
+		const item = {
+			editor: 'drawer',
+			toolbar: [
+				{
+					tool: 'selectedAction|build:pile',
+					editor: 'button',
+					config: { label: 'Pile' },
+				},
+			],
+			config: { label: 'Pile', hint: 'Pile variants' },
+		} satisfies AnarkaiPaletteToolbarItem & { toolbar: AnarkaiPaletteToolbarItem[] }
+		const mockPalette = {
+			id: 'mock-palette',
+			editing: false,
+			tool(_spec: string) {
+				return { run: () => {} }
+			},
+			renderEditor(childItem: AnarkaiPaletteToolbarItem, tool: unknown, _scope: unknown) {
+				const buttonEditor = createAnarkaiPaletteEditors().run?.button?.editor
+				return buttonEditor?.({
+					item: childItem as never,
+					tool: tool as never,
+					scope: _scope as never,
+					flags: {},
+				}) ?? ''
+			},
+		}
+		const editor = createAnarkaiPaletteEditors().item?.drawer?.editor
+		const stop = latch(
+			root,
+			editor?.({
+				item: item as never,
+				tool: undefined,
+				scope: { palette: mockPalette } as never,
+				flags: {},
+				surface: { axis: 'horizontal' },
+			})
+		)
+
+		const trigger = root.querySelector('.ak-palette-drawer__trigger') as HTMLButtonElement
+		trigger.click()
+		await Promise.resolve()
+
+		expect(document.body.querySelector('.ak-palette-drawer__popup')).not.toBeNull()
+		expect(document.body.textContent).toContain('Pile')
+		trigger.click()
+		await Promise.resolve()
+
+		stop?.()
+		root.remove()
+	})
+
 	it('renders numeric stars editor with a zero pause state', () => {
 		const root = document.createElement('div')
 		document.body.appendChild(root)

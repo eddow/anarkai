@@ -422,7 +422,11 @@ describe('Palette IDE shell', () => {
 
 	it('initializes the browser palette from the json preset', () => {
 		const { palette } = getBrowserPalette()
-		expect(browserPaletteIdeConfig.top).toEqual(paletteDefaultJson.top)
 		expect(palette.keys.bindings).toEqual(paletteDefaultJson.keyBindings)
+		expect(browserPaletteIdeConfig.top.flat(2).flatMap((entry) => entry.toolbar)).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ tool: 'openConfiguration', editor: 'button' }),
+			])
+		)
 	})
 })

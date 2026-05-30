@@ -27,6 +27,14 @@ export type AppShellZoneAction = (typeof appShellZoneActions)[number]
 type GameAlveolusMap = typeof gameContent.alveoli
 type GameAlveolusEntry = [string, GameAlveolusMap[keyof GameAlveolusMap]]
 
+function humanizeAppShellName(value: string): string {
+	return value
+		.replace(/[._]+/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim()
+		.replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
 /**
  * Alveolus types that can be built from the toolbar / palette.
  */
@@ -46,29 +54,75 @@ export interface AppShellVariantEntry {
 	rootName: string
 }
 
+export interface AppShellBuildVariantNode {
+	/** Variant path relative to the root alveolus, e.g. "wood.extra". */
+	id: string
+	/** Human-readable label for the toolbar trigger or choice. */
+	label: string
+	/** Palette action value, e.g. "build:pile#wood.extra". */
+	value: string
+	/** Child variants, when this node opens another drawer level. */
+	children: AppShellBuildVariantNode[]
+}
+
+export interface AppShellBuildToolbarRoot {
+	/** Root alveolus name from ssh/assets/game-content. */
+	rootName: string
+	/** Human-readable label for the root toolbar button. */
+	label: string
+	/** Palette action value for the root build action. */
+	value: string
+	/** Nested build variants available under this root. */
+	variants: AppShellBuildVariantNode[]
+}
+
+function appShellBuildVariantNodes(
+	rootName: string,
+	variants: Record<string, any>,
+	prefix = ''
+): AppShellBuildVariantNode[] {
+	return Object.entries(variants).map(([key, variant]) => {
+		const id = prefix ? `${prefix}.${key}` : key
+		const nested =
+			typeof variant === 'object' && variant !== null && 'variants' in variant && variant.variants
+				? appShellBuildVariantNodes(rootName, variant.variants as Record<string, any>, id)
+				: []
+		return {
+			id,
+			label: humanizeAppShellName(key),
+			value: `build:${rootName}#${id}`,
+			children: nested,
+		}
+	})
+}
+
+/** Buildable root alveoli plus nested variant trees for toolbar generation. */
+export function getAppShellBuildToolbarRoots(): AppShellBuildToolbarRoot[] {
+	return getAppShellBuildableAlveoli().map(([name, def]) => ({
+		rootName: name,
+		label: humanizeAppShellName(name),
+		value: `build:${name}`,
+		variants:
+			typeof def === 'object' && def !== null && 'variants' in def && def.variants
+				? appShellBuildVariantNodes(name, def.variants as Record<string, any>)
+				: [],
+	}))
+}
+
 /** Walk variant trees and produce palette entries for every leaf. */
 export function getAppShellVariantEntries(): AppShellVariantEntry[] {
 	const entries: AppShellVariantEntry[] = []
-	for (const [name, def] of Object.entries(gameContent.alveoli) as GameAlveolusEntry[]) {
-		if (!('construction' in def)) continue
-		const variants = (def as any).variants as Record<string, any> | undefined
-		if (!variants) continue
-		const collect = (prefix: string, v: Record<string, any>, parentLabel: string) => {
-			for (const [key, vdef] of Object.entries(v)) {
-				const fullId = prefix ? `${prefix}.${key}` : key
-				const hasSubVariants = !!(vdef as any).variants
-				entries.push({
-					value: `build:${name}#${fullId}`,
-					label: `Build ${name} (${fullId})`,
-					rootName: name,
-				})
-				if (hasSubVariants) {
-					collect(fullId, (vdef as any).variants, `${parentLabel} ${key}`)
-				}
-			}
+	const collect = (rootName: string, nodes: readonly AppShellBuildVariantNode[]) => {
+		for (const node of nodes) {
+			entries.push({
+				value: node.value,
+				label: `Build ${humanizeAppShellName(rootName)} (${node.id})`,
+				rootName,
+			})
+			if (node.children.length > 0) collect(rootName, node.children)
 		}
-		collect('', variants, name)
 	}
+	for (const root of getAppShellBuildToolbarRoots()) collect(root.rootName, root.variants)
 	return entries
 }
 

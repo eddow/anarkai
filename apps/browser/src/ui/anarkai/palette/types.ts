@@ -24,6 +24,11 @@ export type AnarkaiPaletteEnumConfig = AnarkaiPaletteItemConfigBase & {
 	keywords?: readonly string[]
 }
 
+export type AnarkaiPaletteDrawerConfig = AnarkaiPaletteItemConfigBase & {
+	open?: 'click' | 'hover' | 'press'
+	placement?: 'start' | 'center' | 'end'
+}
+
 export type AnarkaiPaletteStarsConfig = AnarkaiPaletteItemConfigBase & {
 	after?: string
 	before?: string
@@ -37,6 +42,7 @@ export type AnarkaiPaletteEditorConfigByVariant = {
 	button: AnarkaiPaletteItemConfigBase
 	cycle: AnarkaiPaletteEnumConfig
 	commandBox: AnarkaiPaletteItemConfigBase
+	drawer: AnarkaiPaletteDrawerConfig
 	select: AnarkaiPaletteEnumConfig
 	segmented: AnarkaiPaletteEnumConfig
 	stars: AnarkaiPaletteStarsConfig

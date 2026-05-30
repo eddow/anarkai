@@ -32,6 +32,74 @@ Anarkai is a modular monorepo driven by a custom game engine (`engines/ssh`) and
  - **Translations**: `engines/ssh/assets/locales/*.json` (en, fr, etc.)
  - **Visual Assets**: `engines/pixi/assets/buildings/`, `engines/pixi/assets/goods/`, etc.
 
+## Palette / toolbar system
+
+### Architecture
+
+The browser palette is an **Anarkai adapter** on top of **Sursaut/UI's generic palette framework** (`@sursaut/ui/palette`).
+
+| Layer | Location | Role |
+|---|---|---|
+| Sursaut/UI | `sursaut/packages/ui/src/palette/` | Generic layout (`Toolbar`, `Track`, `Border`, `Ide`), drag & drop, command box, key bindings, serialization, editor registry |
+| Anarkai adapter | `apps/browser/src/palette/browser-palette.tsx` | Concrete tools, editor implementations, default layout, badge icons |
+| Anarkai editor impls | `apps/browser/src/ui/anarkai/palette/editors.tsx` | `ButtonEditor`, `ToggleEditor`, `DrawerEditor`, enum editors, stars editor |
+| Build-tree API | `apps/browser/src/lib/app-shell-controls.ts` | Reads `engine-rules` alveoli → toolbar roots + variant trees |
+| Visual badges | `engines/pixi/assets/visual-content.ts` | `variantBadges` map — `pile.wood`, `pile.planks`, `pile.stone`, extras |
+
+### Key types (Sursaut/UI)
+
+- `PaletteDrawerToolbarItem` — toolbar item with `editor: 'drawer'` and a `toolbar: PaletteToolbar` for the child popup
+- `PaletteDrawerState` — carries `parentAxis`/`childAxis` for the perpendicular contract
+- `PaletteEditorContext` — passed to every editor; contains `item`, `tool`, `scope`, `surface`
+- `PaletteSurfaceContext` — carries `axis` (derived from `scope.region`) and `region`
+- `PaletteScope` — rendering scope with `palette` instance and `region`; must be propagated to drawer popup roots
+
+### Build-tree generation
+
+`getAppShellBuildToolbarRoots()` reads `gameContent.alveoli` (from `engine-rules`), filters to those with `construction`, and recursively walks any `variants` blocks to produce a tree of `AppShellBuildToolbarRoot` → `AppShellBuildVariantNode[]`.
+
+Root alveoli without variants become simple `selectedAction` setter buttons. Roots with variants become `drawer` items whose child toolbar lists variants. Variants with their own children become nested drawers. Leaf variants become action-setter buttons.
+
+### Variant badges
+
+Each variant gets a badge icon from `variantBadges` in `engines/pixi/assets/visual-content.ts`. The key is `${rootName}.${variantId}` (e.g. `'pile.wood'`, `'pile.wood.extra'`). The badge is rendered via `ResourceImage` using the sprite from the visual definition.
+
+### Perpendicular-direction contract
+
+**Sursaut contract** (documented in `sursaut/packages/ui/src/palette/types.ts`):
+
+- `PaletteEditorContext.surface.axis` carries the **parent** toolbar axis.
+- A drawer editor must **invert** it for the child popup: horizontal → vertical, vertical → horizontal.
+- The child popup root scope must propagate `palette` and set `region` (`'top'` or `'left'`) so nested drawers inherit the correct axis.
+- `PaletteDrawerState` captures `parentAxis` and `childAxis` for reference (currently aspirational — not instantiated by any Sursaut component).
+
+**Anarkai implementation** (`DrawerEditor` in `editors.tsx`):
+
+```ts
+const childDirection = () =>
+  context.surface?.axis === 'vertical' ? 'horizontal' : 'vertical'
+```
+
+The popup scope is injected via `latch()`'s `env` parameter:
+
+```ts
+const drawerEnv = Object.create(rootEnv)
+drawerEnv.palette = context.scope.palette
+drawerEnv.region = childDir === 'vertical' ? 'left' : 'top'
+```
+
+### Drawer trigger rendering
+
+The trigger button avoids `.ak-button` / `.ak-control-button` classes because the palette toolbar CSS rules (`width: 2rem`) force buttons into fixed squares. All styling uses Sursaut `style:` inline attributes.
+
+- Child drawer items (with children of their own): `label` is set to `''`, so only the badge icon renders. `hint` becomes the tooltip.
+- Leaf variants: show badge + label as a regular button.
+- Single-character glyph badges (e.g. `'▪'`) bypass the `ak-icon` wrapper to avoid its `font-size: 1rem` override.
+
+### Popup toolbar styling
+
+Popup buttons live outside `.app-palette-ide` scope, so they are styled by `.ak-palette-drawer__popup .toolbar button` rules in `palette.css`. Vertical popups (`is-vertical`) use `flex-direction: column` and `width: 100%` on buttons.
+
 ## Commerce tuning
 
 - **Rules ownership**: gameplay tuning constants belong in `engines/rules`, including settlement trade offer counts, trade good lists, price multipliers, scoring weights, construction recipes, and foundation requirements. `engines/ssh` should import those rules and implement behavior only.

@@ -96,6 +96,53 @@ export const alveoli: Record<string, VisualDefinition> = {
 		sprites: ['buildings.load'],
 		icon: 'buildings.load',
 	},
+	pile: {
+		sprites: ['buildings.woodpile'],
+		icon: 'buildings.woodpile',
+	},
+}
+
+/** Badge sprites for alveolus variants (overlaid on root icon). */
+export const variantBadges: Record<string, VisualDefinition> = {
+	// Pile variant badges — reuse goods icons
+	'pile.wood': {
+		sprites: ['goods.wood'],
+		icon: 'goods.wood',
+	},
+	'pile.planks': {
+		sprites: ['goods.planks'],
+		icon: 'goods.planks',
+	},
+	'pile.stone': {
+		sprites: ['goods.stone'],
+		icon: 'goods.stone',
+	},
+	// "Extra" tier badges — medalion with good icon
+	'pile.wood.extra': {
+		sprites: ['variants.extra-wood'],
+		icon: 'variants.extra-wood',
+	},
+	'pile.planks.extra': {
+		sprites: ['variants.extra-planks'],
+		icon: 'variants.extra-planks',
+	},
+	'pile.stone.extra': {
+		sprites: ['variants.extra-stone'],
+		icon: 'variants.extra-stone',
+	},
+	// Engineer variant badges
+	'engineer.building': {
+		sprites: ['buildings.trowel'],
+		icon: 'buildings.trowel',
+	},
+	'engineer.research': {
+		sprites: ['buildings.variant-building'],
+		icon: 'buildings.variant-building',
+	},
+	'engineer.road': {
+		sprites: ['variants.road'],
+		icon: 'variants.road',
+	},
 }
 
 export const goods: Record<string, VisualDefinition> = {
@@ -285,4 +332,5 @@ export const visualContent = {
 	commands,
 	dwellings,
 	settlementTargets,
+	variantBadges,
 }

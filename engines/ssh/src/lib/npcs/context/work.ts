@@ -29,6 +29,7 @@ import { ForesterAlveolus } from 'ssh/hive/forester'
 import { commitmentValid, type TrackedMovement } from 'ssh/hive/hive'
 import { movementRefId } from 'ssh/hive/movement-ref'
 import { MovementState, transitionMovement } from 'ssh/hive/movement-state'
+import { getActionJobProvider } from 'ssh/jobs/action-job-registry'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { TransformAlveolus } from 'ssh/hive/transform'
 import type { Character } from 'ssh/population/character'
@@ -951,7 +952,7 @@ class WorkFunctions {
 			})
 	}
 	@contract()
-	harvestStep() {
+	harvestStep(): AEvolutionStep | undefined {
 		const unbuiltLand = this[subject].tile.content as UnBuiltLand
 		if (!(unbuiltLand instanceof UnBuiltLand)) {
 			console.error(
@@ -976,6 +977,23 @@ class WorkFunctions {
 				tileQ: tileCoord?.q,
 				tileR: tileCoord?.r,
 			})
+			// Attempt immediate fallback: ask the alveolus for a fresh harvest target
+			// from the worker's current position, avoiding a full work-planning round-trip.
+			const provider = getActionJobProvider('harvest')
+			const fallback = provider?.(alveolus as any).jobForCharacter(this[subject] as any)
+			if (fallback && fallback.job === 'harvest' && fallback.path?.length) {
+				traces.work.warn?.('work.harvestStep.replanned', {
+					character: this[subject].name,
+					characterUid: this[subject].uid,
+					reason: 'deposit-mismatch-fallback',
+					assignedAlveolus: this[subject].assignedAlveolus?.name,
+					expectedDeposit: action.deposit,
+					previousTileQ: tileCoord?.q,
+					previousTileR: tileCoord?.r,
+					fallbackPathLength: fallback.path.length,
+				})
+				return this.travelAndHarvest(fallback)
+			}
 			this[subject].game.invalidateWorkPlanning('harvest.deposit-mismatch')
 			return
 		}
@@ -1017,6 +1035,51 @@ class WorkFunctions {
 					remaining -= chunk
 				}
 			}
+		})
+	}
+
+	/**
+	 * Walk to a new harvest target and then harvest, used as a fallback when
+	 * arriving at a tile whose deposit no longer matches the alveolus action.
+	 */
+	private travelAndHarvest(job: import('ssh/types/base').HarvestJob): AEvolutionStep | undefined {
+		const character = this[subject]
+		const lastStep = job.path?.at(-1)
+		if (!lastStep) {
+			// Already on the correct tile — harvest directly
+			return this.harvestStep()
+		}
+		const targetTile = character.game.hex.getTile(lastStep)
+		if (!targetTile) {
+			character.game.invalidateWorkPlanning('harvest.deposit-mismatch')
+			return
+		}
+		// Walk to the target tile, then harvest
+		const from = axial.round(toAxialCoord(character.position)!)
+		const toCoord = toAxialCoord(lastStep)
+		if (!toCoord) {
+			character.game.invalidateWorkPlanning('harvest.deposit-mismatch')
+			return
+		}
+		const to = axial.round(toCoord)
+		const distance = axial.distance(from, to)
+		if (distance <= 0) {
+			return this.harvestStep()
+		}
+		const walkDuration =
+			character.tile.effectiveWalkTime *
+			character.mobilityMultiplier *
+			Math.max(1, distance)
+		return new MoveToStep(
+			walkDuration,
+			character,
+			targetTile.position,
+			'work',
+			`harvest.${character.assignedAlveolus!.name}.replan`,
+			{ key: 'work.harvest', params: { alveolus: character.assignedAlveolus!.name } }
+		).onFulfilled(() => {
+			;(character as unknown as { _tile: typeof targetTile })._tile = targetTile
+			character.game.invalidateWorkPlanning('character.position')
 		})
 	}
 

@@ -9,6 +9,7 @@ import {
 	roads,
 	settlementTargets,
 	terrain,
+	variantBadges,
 	vehicles,
 } from '../assets/visual-content'
 
@@ -60,6 +61,7 @@ export class PixiAssetManager {
 		extractKeys(commands)
 		extractKeys(dwellings)
 		extractKeys(settlementTargets)
+		extractKeys(variantBadges)
 
 		// Terrain is special: keys imply assets 'terrain.NAME' only if definition doesn't override it
 		for (const [key, def] of Object.entries(terrain)) {

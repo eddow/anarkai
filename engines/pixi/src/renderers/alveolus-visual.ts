@@ -6,7 +6,7 @@ import { BuildAlveolus } from 'ssh/hive/build'
 import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
-import { alveoli } from '../../assets/visual-content'
+import { alveoli, variantBadges } from '../../assets/visual-content'
 import { scopedPixiName, setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
 import { createGoodsRenderer, type GoodsRenderer } from './goods-renderer'
@@ -28,9 +28,17 @@ function alveolusVisualKey(alveolus: Alveolus): keyof typeof alveoli | undefined
 	return alveolus.name as keyof typeof alveoli | undefined
 }
 
+/** Derive the variant badge sprite key, e.g. "pile.wood" or "engineer.building". */
+function alveolusVariantBadgeKey(alveolus: Alveolus): keyof typeof variantBadges | undefined {
+	if (!alveolus.variantId) return undefined
+	const key = `${alveolus.name}.${alveolus.variantId}` as keyof typeof variantBadges
+	return key in variantBadges ? key : undefined
+}
+
 export class AlveolusVisual extends VisualObject<any> {
 	private readonly scope: string
 	private sprite: Sprite | undefined
+	private variantBadgeSprite: Sprite | undefined
 	private goodsContainer: Container
 	private dockedVehiclesContainer: Container
 	private goodsRenderer: GoodsRenderer | undefined
@@ -101,6 +109,41 @@ export class AlveolusVisual extends VisualObject<any> {
 					if (this.sprite) {
 						this.sprite.destroy()
 						this.sprite = undefined
+					}
+				}
+			})
+		)
+
+		// Variant badge overlay (on alveoli layer, on top of the main sprite)
+		this.register(
+			effect`${this.scope}.variant-badge`(() => {
+				if (this._disposed) return
+				const badgeKey = alveolusVariantBadgeKey(this.object)
+				const badgeDef = badgeKey ? variantBadges[badgeKey] : undefined
+				const textureName = badgeDef?.sprites?.[0]
+				if (textureName) {
+					const tex = this.renderer.getTexture(textureName)
+					if (hasUsableTexture(tex)) {
+						if (!this.variantBadgeSprite) {
+							this.variantBadgeSprite = setPixiName(new Sprite(), scopedPixiName(this.scope, 'variant-badge'))
+							this.variantBadgeSprite.anchor.set(1, 0) // top-right anchor
+							this.variantBadgeSprite.position.set(tileSize * 0.4, -tileSize * 0.4)
+							this.view.addChild(this.variantBadgeSprite)
+						}
+						this.variantBadgeSprite.texture = tex
+						const badgeSize = tileSize * 0.35
+						const maxDim = Math.max(tex.width, tex.height)
+						if (maxDim > 1) {
+							const scale = badgeSize / maxDim
+							this.variantBadgeSprite.scale.set(scale)
+						} else {
+							this.variantBadgeSprite.scale.set(1)
+						}
+					}
+				} else {
+					if (this.variantBadgeSprite) {
+						this.variantBadgeSprite.destroy()
+						this.variantBadgeSprite = undefined
 					}
 				}
 			})
@@ -181,6 +224,9 @@ export class AlveolusVisual extends VisualObject<any> {
 		}
 		if (this.sprite) {
 			this.sprite.destroy()
+		}
+		if (this.variantBadgeSprite) {
+			this.variantBadgeSprite.destroy()
 		}
 		this.goodsRenderer?.dispose()
 		this.goodsRenderer = undefined

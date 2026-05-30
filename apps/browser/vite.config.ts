@@ -34,7 +34,9 @@ const aliases: Alias[] = Object.entries(sharedAliasPaths).map(([find, replacemen
 	find,
 	replacement,
 }));
-aliases.push({ find: /^mutts$/, replacement: muttsBrowserEntry });
+aliases.push(
+	{ find: 'mutts', replacement: muttsBrowserEntry },
+);
 const optimizeAliases = {
 	...sharedAliasPaths,
 	mutts: muttsBrowserEntry,
@@ -104,6 +106,7 @@ export const browserViteConfig: UserConfig = {
 	resolve: {
 		alias: aliases,
 		preserveSymlinks: false,
+		dedupe: ['mutts', '@sursaut/core', '@sursaut/kit'],
 	},
 	build: {
 		rolldownOptions: {

@@ -80,7 +80,7 @@ async function main() {
 	}
 
 	// 2. Collect other sprites
-	const standaloneCategories = ['buildings', 'characters', 'commands', 'goods', 'vehicles'];
+	const standaloneCategories = ['buildings', 'characters', 'commands', 'goods', 'variants', 'vehicles'];
 	for (const category of standaloneCategories) {
 		console.log(`Collecting standalone sprites for ${category}...`);
 		const categoryPath = path.join(ASSETS_DIR, category);
