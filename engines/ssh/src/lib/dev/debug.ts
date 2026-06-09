@@ -1,12 +1,12 @@
 import { devPreset, reactiveOptions } from 'mutts'
-import { interactiveLogObject, type InteractiveLogObject } from 'ssh/game/object'
+import { type InteractiveLogObject, interactiveLogObject } from 'ssh/game/object'
 import type { PlannerFindActionSnapshot } from 'ssh/population/findNextActivity'
 import { debugActiveAllocations, getAllocationStats } from 'ssh/storage/guard'
 import { namedProfile, type ProfileLevel, type ProfileSink } from './profile.ts'
 import {
 	captureTraceRow,
-	readTraceConsoleRow,
 	readTraceConsoleParts,
+	readTraceConsoleRow,
 	readTraceRows,
 	type TraceCaptureOptions,
 	type TraceLevel,
@@ -74,8 +74,8 @@ export function defined<T>(value: T | undefined, message = 'Value is defined'): 
  * failed assertions and errors, and `error` enables errors only. Disabled methods are `undefined`,
  * so optional-call trace sites do not evaluate their arguments.
  */
-export const traceVerbs = ["log", "warn", "assert", "error"] as const
-export type TraceVerb = typeof traceVerbs[number]
+export const traceVerbs = ['log', 'warn', 'assert', 'error'] as const
+export type TraceVerb = (typeof traceVerbs)[number]
 type TraceConsoleMethod = keyof Pick<
 	Console,
 	'assert' | 'debug' | 'error' | 'groupCollapsed' | 'groupEnd' | 'info' | 'log' | 'trace' | 'warn'

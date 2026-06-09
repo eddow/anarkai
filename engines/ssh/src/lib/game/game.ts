@@ -38,6 +38,7 @@ import {
 	type DwellingTier,
 	VARIANT_DELIMITER,
 } from 'ssh/construction-state'
+import { BayQueueRegistry } from 'ssh/freight/bay-queue-registry'
 import type { FreightLineDefinition, SyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import {
 	collectFreightLineBootstrapCoords,
@@ -66,19 +67,18 @@ import {
 import type { SerializedConveyMovement } from 'ssh/hive/convey-serialize'
 import type { TrackedMovement } from 'ssh/hive/hive'
 import type { MovementRef } from 'ssh/hive/movement-ref'
-import {
-	createConstructionSiteForHivePlanEntry,
-	HivePlanCollection,
-	previewHivePlanPlacement,
-	type HivePlanPlacementPreview,
-	type SerializedHivePlan,
-} from 'ssh/hive-plan'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { readSlottedStorageParams, usesSlottedStorageLayout } from 'ssh/hive/storage-action'
 import { TransformAlveolus } from 'ssh/hive/transform'
+import {
+	createConstructionSiteForHivePlanEntry,
+	HivePlanCollection,
+	type HivePlanPlacementPreview,
+	previewHivePlanPlacement,
+	type SerializedHivePlan,
+} from 'ssh/hive-plan'
 import { Population } from 'ssh/population/population'
 import { type VehicleSerializedState, Vehicles } from 'ssh/population/vehicle'
-import { BayQueueRegistry } from 'ssh/freight/bay-queue-registry'
 import { ResidentialDemandTicker } from 'ssh/residential/demand'
 import type { AlveolusType, DepositType, GoodType, TerrainType } from 'ssh/types'
 import type { GameRenderer, InputAdapter } from 'ssh/types/engine'
@@ -957,7 +957,11 @@ export class Game extends Eventful<GameEvents> {
 		// Create bay queue registry and integrate into the ticker
 		this.bayQueueRegistry = new BayQueueRegistry(this)
 		const self = this
-		this.registerTickedObject({ update() { self.bayQueueRegistry.updateAllQueues() } })
+		this.registerTickedObject({
+			update() {
+				self.bayQueueRegistry.updateAllQueues()
+			},
+		})
 
 		this.generator = new GameGenerator()
 		this.terrainProvider = new TerrainProvider({
@@ -2268,7 +2272,11 @@ export class Game extends Eventful<GameEvents> {
 			const constructionTarget = constructionTargetFromProject(entry.project)
 			if (!constructionTarget) continue
 			// Attach variantId from the save if not already parsed from the project string
-			if (entry.variantId && constructionTarget.kind === 'alveolus' && !constructionTarget.variantId) {
+			if (
+				entry.variantId &&
+				constructionTarget.kind === 'alveolus' &&
+				!constructionTarget.variantId
+			) {
 				;(constructionTarget as { variantId?: string }).variantId = entry.variantId
 			}
 			const constructionSite = createConstructionSiteState(constructionTarget)
@@ -2441,9 +2449,10 @@ export class Game extends Eventful<GameEvents> {
 					projectSites.push({
 						coord: [q, r],
 						project: content.project,
-						variantId: content.constructionSite?.target.kind === 'alveolus'
-							? content.constructionSite.target.variantId
-							: undefined,
+						variantId:
+							content.constructionSite?.target.kind === 'alveolus'
+								? content.constructionSite.target.variantId
+								: undefined,
 						constructionPhase: content.constructionSite?.phase,
 						foundationGoods: content.foundationStorage?.stock ?? {},
 						foundationConsumedGoods: content.constructionSite?.foundationConsumedGoods ?? {},
@@ -2498,7 +2507,8 @@ export class Game extends Eventful<GameEvents> {
 								constructionPhase: constructionShell.constructionSite.phase,
 								goods: constructionShell.storage?.stock || {},
 								hivePlanId: (constructionShell as { hivePlanId?: string }).hivePlanId,
-								hivePlanVersion: (constructionShell as { hivePlanVersion?: number }).hivePlanVersion,
+								hivePlanVersion: (constructionShell as { hivePlanVersion?: number })
+									.hivePlanVersion,
 								planRoleId: (constructionShell as { planRoleId?: string }).planRoleId,
 							}
 						: {

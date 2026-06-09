@@ -1,21 +1,17 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { Game } from 'ssh/game/game'
-import { HexBoard } from 'ssh/board/board'
+import type { HexBoard } from 'ssh/board/board'
 import { Tile } from 'ssh/board/tile'
-import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
-import { Alveolus } from 'ssh/board/content/alveolus'
-import { Hive } from 'ssh/hive/hive'
-import { validateBlockingTiles, wouldBecomeLandlocked, findNearestServicePoint, isServicePositionReachable } from 'ssh/dev/blocking-tile-validation'
+import {
+	findNearestServicePoint,
+	isServicePositionReachable,
+	validateBlockingTiles,
+	wouldBecomeLandlocked,
+} from 'ssh/dev/blocking-tile-validation'
 import type { AxialCoord } from 'ssh/utils'
 import { axial, toAxialCoord } from 'ssh/utils'
+import { describe, expect, it, vi } from 'vitest'
 
 // Mock tile creation helper
-function createMockTile(
-	board: HexBoard,
-	q: number,
-	r: number,
-	isBlocking: boolean
-): Tile {
+function createMockTile(board: HexBoard, q: number, r: number, isBlocking: boolean): Tile {
 	const tile = new Tile(board, { q, r })
 	if (isBlocking) {
 		// Create a mock blocking content
@@ -500,7 +496,13 @@ describe('Blocking Tile Validation', () => {
 				borderPosition: axial.linear([0.5, { q: 1, r: 0 }], [0.5, { q: 2, r: 0 }]),
 			}
 
-			const result = isServicePositionReachable(tiles, getNeighbors, { q: 0, r: 0 }, servicePosition, 10)
+			const result = isServicePositionReachable(
+				tiles,
+				getNeighbors,
+				{ q: 0, r: 0 },
+				servicePosition,
+				10
+			)
 
 			expect(result).toBe(true)
 		})
@@ -549,7 +551,13 @@ describe('Blocking Tile Validation', () => {
 				borderPosition: axial.linear([0.5, { q: 1, r: 0 }], [0.5, { q: 2, r: 0 }]),
 			}
 
-			const result = isServicePositionReachable(tiles, getNeighbors, { q: 0, r: 0 }, servicePosition, 10)
+			const result = isServicePositionReachable(
+				tiles,
+				getNeighbors,
+				{ q: 0, r: 0 },
+				servicePosition,
+				10
+			)
 
 			expect(result).toBe(false)
 		})

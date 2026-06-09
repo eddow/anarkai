@@ -125,7 +125,12 @@ describe('Vehicle usage invariant', () => {
 		if (!targetTile) throw new Error('expected target tile')
 		const looseGood = targetTile.looseGoods.find((good) => good.goodType === 'mushrooms')
 		if (!looseGood) throw new Error('expected loose mushrooms')
-		const vehicle = game.vehicles.createVehicle('vu-stale-pickup', 'pickup_truck', { q: 0, r: 0 }, [])
+		const vehicle = game.vehicles.createVehicle(
+			'vu-stale-pickup',
+			'pickup_truck',
+			{ q: 0, r: 0 },
+			[]
+		)
 		const character = game.population.createCharacter('StalePickup', { q: 0, r: 0 })
 		vehicle.beginMaintenanceService(
 			{ kind: 'loadFromBurden', looseGood, targetCoord: { q: 1, r: 0 } },

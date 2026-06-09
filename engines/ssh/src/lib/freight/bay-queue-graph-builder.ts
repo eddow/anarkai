@@ -22,17 +22,17 @@
  * traverses the graph via `node.outgoing[i].to`.
  */
 
-import type { Tile } from 'ssh/board/tile'
 import type { TileBorder } from 'ssh/board/border/border'
+import type { Tile } from 'ssh/board/tile'
 import type { Game } from 'ssh/game/game'
 import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 
-import {
-	type BayGroup,
-	type RuntimeQueueEdge,
-	type RuntimeQueueNode,
-	type SerializedBayQueueGraph,
-	type VehicleCapabilityFilter,
+import type {
+	BayGroup,
+	RuntimeQueueEdge,
+	RuntimeQueueNode,
+	SerializedBayQueueGraph,
+	VehicleCapabilityFilter,
 } from './bay-queue-types'
 
 /**
@@ -90,9 +90,7 @@ export function buildRuntimeQueueGraph(
 	repairMode = false
 ): RuntimeQueueNode[] {
 	// Step 1: resolve each serialized node into a RuntimeQueueNode
-	const liveNodes = serialized.nodes.map((sn) =>
-		resolveSerializedNode(sn, resolver, repairMode)
-	)
+	const liveNodes = serialized.nodes.map((sn) => resolveSerializedNode(sn, resolver, repairMode))
 
 	// Step 2: resolve edges (fail loudly on unresolved edge handles)
 	for (const se of serialized.edges) {
@@ -252,29 +250,13 @@ function handlesEqual(
 	if (a.kind !== b.kind) return false
 	switch (a.kind) {
 		case 'tile':
-			return (
-				b.kind === 'tile' &&
-				a.coord.q === b.coord.q &&
-				a.coord.r === b.coord.r
-			)
+			return b.kind === 'tile' && a.coord.q === b.coord.q && a.coord.r === b.coord.r
 		case 'border':
-			return (
-				b.kind === 'border' &&
-				a.coord.q === b.coord.q &&
-				a.coord.r === b.coord.r
-			)
+			return b.kind === 'border' && a.coord.q === b.coord.q && a.coord.r === b.coord.r
 		case 'bay-dock':
-			return (
-				b.kind === 'bay-dock' &&
-				a.bayUid === b.bayUid &&
-				a.dockIndex === b.dockIndex
-			)
+			return b.kind === 'bay-dock' && a.bayUid === b.bayUid && a.dockIndex === b.dockIndex
 		case 'local':
-			return (
-				b.kind === 'local' &&
-				a.bayGroupId === b.bayGroupId &&
-				a.index === b.index
-			)
+			return b.kind === 'local' && a.bayGroupId === b.bayGroupId && a.index === b.index
 	}
 }
 
@@ -298,7 +280,7 @@ export function validateRuntimeQueueGraph(nodes: RuntimeQueueNode[]): void {
 			if (!nodeSet.has(edge.to)) {
 				throw new Error(
 					`Queue node has outgoing edge to a node not in the graph. ` +
-					`Source handle: ${node.handle ? JSON.stringify(node.handle) : '(none)'}`
+						`Source handle: ${node.handle ? JSON.stringify(node.handle) : '(none)'}`
 				)
 			}
 		}
@@ -308,7 +290,7 @@ export function validateRuntimeQueueGraph(nodes: RuntimeQueueNode[]): void {
 			if (node.capacity <= 0) {
 				throw new Error(
 					`Service node has capacity ${node.capacity} (must be > 0). ` +
-					`Handle: ${node.handle ? JSON.stringify(node.handle) : '(none)'}`
+						`Handle: ${node.handle ? JSON.stringify(node.handle) : '(none)'}`
 				)
 			}
 		}

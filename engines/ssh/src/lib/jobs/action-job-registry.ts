@@ -1,9 +1,4 @@
-import {
-	harvestFatiguePremium,
-	harvestNpcSearchDistance,
-	harvestTravelFatiguePerStep,
-	jobBalance,
-} from 'engine-rules'
+import { harvestNpcSearchDistance, harvestTravelFatiguePerStep, jobBalance } from 'engine-rules'
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import {
 	canPlantDepositOnLand,
@@ -11,25 +6,14 @@ import {
 	UnBuiltLand,
 } from 'ssh/board/content/unbuilt-land'
 import { isConstructionSiteShell } from 'ssh/build-site'
-import { findGatherFreightLine } from 'ssh/freight/freight-line'
 import {
-	setConstructionFoundationDeliveredGoods,
 	foundationGoodsComplete,
+	setConstructionFoundationDeliveredGoods,
 } from 'ssh/construction-state'
-import { SlottedStorage } from 'ssh/storage'
-import type {
-	ConstructJob,
-	DefragmentJob,
-	ForesterJob,
-	FoundationJob,
-	HarvestJob,
-	Job,
-	TransformJob,
-	ValidateHivePlanJob,
-} from 'ssh/types/base'
-import { axial, AxialCoord } from 'ssh/utils'
+import type { ConstructJob, FoundationJob, Job, ValidateHivePlanJob } from 'ssh/types/base'
+import { type AxialCoord, axial } from 'ssh/utils'
 import { axialDistance, type Positioned, toAxialCoord } from 'ssh/utils/position'
-import { maxWalkTime, outputBufferSize } from '../../../assets/constants'
+import { maxWalkTime } from '../../../assets/constants'
 import { traces } from '../dev/debug.ts'
 
 function isUndestroyedReadyConstructionSite(content: unknown): boolean {
@@ -74,7 +58,7 @@ registerActionJobProvider('harvest', (alveolus) => {
 
 	const findDeposit = (
 		characterPosition: Positioned | undefined,
-		priority: 'project' | 'clearing' | 'any',
+		priority: 'project' | 'clearing' | 'any'
 	): Positioned[] | undefined => {
 		const startPos = toAxialCoord(characterPosition ?? alveolus.tile.position)
 		const hex = alveolus.tile.game.hex
@@ -93,9 +77,7 @@ registerActionJobProvider('harvest', (alveolus) => {
 				return (
 					tile.clearing ||
 					tile.neighborTiles.some(
-						(neighbor) =>
-							neighbor.content !== undefined &&
-							'hive' in (neighbor.content as object),
+						(neighbor) => neighbor.content !== undefined && 'hive' in (neighbor.content as object)
 					)
 				)
 			}
@@ -117,13 +99,12 @@ registerActionJobProvider('harvest', (alveolus) => {
 		if (!output) return 0
 		return Object.keys(output).reduce(
 			(acc, goodType) => acc + (goodType in (alveolus.hive?.needs ?? {}) ? 1 : 0),
-			0,
+			0
 		)
 	})()
 
 	const fallbackUrgency =
-		jobBalance.harvest.clearing +
-		(alveoliNeedingGood ? jobBalance.harvest.needsBonus : 0)
+		jobBalance.harvest.clearing + (alveoliNeedingGood ? jobBalance.harvest.needsBonus : 0)
 
 	return {
 		proposedJobs: [
@@ -235,7 +216,7 @@ registerActionJobProvider('plant', (alveolus) => {
 		const startPos = toAxialCoord(characterPosition ?? alveolus.tile.position)
 		const hex = alveolus.tile.game.hex
 		const candidateCoords = assignedZoneIds.flatMap((zoneId) =>
-			hex.zoneManager.coordsForZone(zoneId),
+			hex.zoneManager.coordsForZone(zoneId)
 		)
 		let bestPath: Positioned[] | undefined
 
@@ -256,21 +237,24 @@ registerActionJobProvider('plant', (alveolus) => {
 	// Find a best target tile for proposed-jobs advertisement so workers
 	// can score distance themselves.
 	const proposedPath = findBestPath(undefined)
-	const targetTile = proposedPath ? alveolus.tile.game.hex.getTile(proposedPath[proposedPath.length - 1]!) : undefined
+	const targetTile = proposedPath
+		? alveolus.tile.game.hex.getTile(proposedPath[proposedPath.length - 1]!)
+		: undefined
 
 	return {
-		proposedJobs: assignedZoneIds.length > 0
-			? [
-					{
-						job: {
-							job: 'forester' as const,
-							urgency: jobBalance.forester,
-							fatigue: alveolus.getFatigueCost(),
-						} satisfies Job,
-						targetTile,
-					} satisfies ActionProposedJob,
-				]
-			: [],
+		proposedJobs:
+			assignedZoneIds.length > 0
+				? [
+						{
+							job: {
+								job: 'forester' as const,
+								urgency: jobBalance.forester,
+								fatigue: alveolus.getFatigueCost(),
+							} satisfies Job,
+							targetTile,
+						} satisfies ActionProposedJob,
+					]
+				: [],
 
 		jobForCharacter(character: any) {
 			const startPos = toAxialCoord(character ? character.position : alveolus.tile.position)
@@ -282,9 +266,7 @@ registerActionJobProvider('plant', (alveolus) => {
 				urgency: jobBalance.forester,
 				fatigue:
 					alveolus.getFatigueCost() +
-					(character
-						? axialDistance(startPos, bestPath[bestPath.length - 1]!) * 0.01
-						: 0),
+					(character ? axialDistance(startPos, bestPath[bestPath.length - 1]!) * 0.01 : 0),
 			} satisfies Job
 		},
 	}
@@ -381,11 +363,13 @@ registerActionJobProvider('engineer', (alveolus) => {
 	})()
 
 	const collectTargets = () => {
-		if (allowedJobs.size === 0) return [] as { tile: any; job: ConstructJob | FoundationJob | ValidateHivePlanJob }[]
+		if (allowedJobs.size === 0)
+			return [] as { tile: any; job: ConstructJob | FoundationJob | ValidateHivePlanJob }[]
 
 		const hex = alveolus.tile.game.hex
 		const origin = toAxialCoord(alveolus.tile.position)
-		if (!origin) return [] as { tile: any; job: ConstructJob | FoundationJob | ValidateHivePlanJob }[]
+		if (!origin)
+			return [] as { tile: any; job: ConstructJob | FoundationJob | ValidateHivePlanJob }[]
 
 		type EngTarget = {
 			tile: any
@@ -408,10 +392,14 @@ registerActionJobProvider('engineer', (alveolus) => {
 				})
 				continue
 			}
-			if (allowedJobs.has('foundation') && content instanceof UnBuiltLand && content.constructionSite) {
+			if (
+				allowedJobs.has('foundation') &&
+				content instanceof UnBuiltLand &&
+				content.constructionSite
+			) {
 				setConstructionFoundationDeliveredGoods(
 					content.constructionSite,
-					content.foundationStorage?.stock ?? {},
+					content.foundationStorage?.stock ?? {}
 				)
 			}
 			if (
@@ -434,7 +422,9 @@ registerActionJobProvider('engineer', (alveolus) => {
 		}
 		if (allowedJobs.has('validateHivePlan'))
 			for (const plan of alveolus.tile.game.hivePlans.validatingPlans) {
-				if (plan.validationProgress.workSecondsApplied >= plan.validationProgress.workSecondsRequired) {
+				if (
+					plan.validationProgress.workSecondsApplied >= plan.validationProgress.workSecondsRequired
+				) {
 					continue
 				}
 				targets.push({
@@ -470,7 +460,7 @@ registerActionJobProvider('engineer', (alveolus) => {
 			(t): ActionProposedJob => ({
 				job: t.job satisfies Job,
 				targetTile: t.tile,
-			}),
+			})
 		),
 
 		jobForCharacter(character: any) {
@@ -480,14 +470,14 @@ registerActionJobProvider('engineer', (alveolus) => {
 			if (!startPos) return undefined
 
 			const priority = (job: any) => (job.job === 'construct' ? 0 : 1)
-			let best: (typeof targets[number] & { path: any[] }) | undefined
+			let best: ((typeof targets)[number] & { path: any[] }) | undefined
 			for (const target of targets) {
 				const path = character.game.hex.findPathForCharacter(
 					startPos,
 					target.tile.position,
 					character,
 					maxWalkTime,
-					false,
+					false
 				)
 				if (!path) continue
 				if (
@@ -501,7 +491,11 @@ registerActionJobProvider('engineer', (alveolus) => {
 			if (!best) return undefined
 			const terminal = toAxialCoord(best.tile.position)
 			const c = best.tile.content
-			if (best.job.job === 'construct' && isConstructionSiteShell(c) && c.constructionSite.target.kind === 'dwelling') {
+			if (
+				best.job.job === 'construct' &&
+				isConstructionSiteShell(c) &&
+				c.constructionSite.target.kind === 'dwelling'
+			) {
 				traces.residential.log?.('[engineer] nextJob', {
 					job: 'construct',
 					fromQ: startPos.q,

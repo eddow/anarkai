@@ -3,20 +3,16 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import {
-	applyMergePolicy,
-	branchLabel,
-	collectBranchLabels,
-} from './bay-queue-merge-policy'
-import { buildRuntimeQueueGraph } from './bay-queue-graph-builder'
-import {
-	type DockRequest,
-	type SerializedBayQueueGraph,
-	type RuntimeQueueNode,
-	type MovementGrant,
-} from './bay-queue-types'
-import { invariantNodeCapacity, invariantSingleNodeOccupancy } from './bay-queue-invariants'
 import { BayQueueController, defaultRoadCapabilityResolver } from './bay-queue-controller'
+import { buildRuntimeQueueGraph } from './bay-queue-graph-builder'
+import { invariantNodeCapacity, invariantSingleNodeOccupancy } from './bay-queue-invariants'
+import { applyMergePolicy, branchLabel, collectBranchLabels } from './bay-queue-merge-policy'
+import type {
+	DockRequest,
+	MovementGrant,
+	RuntimeQueueNode,
+	SerializedBayQueueGraph,
+} from './bay-queue-types'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -85,18 +81,31 @@ describe('merge policies', () => {
 		const c = makeRequest({ vehicleUid: 'C', arrivedAt: 200, ingressBranch: 'north' })
 
 		const branchList = ['north', 'south']
-		const r0 = applyMergePolicy([a, b, c], { kind: 'round_robin_by_branch' }, { branchList, branchIndex: 0 })
+		const r0 = applyMergePolicy(
+			[a, b, c],
+			{ kind: 'round_robin_by_branch' },
+			{ branchList, branchIndex: 0 }
+		)
 		expect(r0.selectedBranch).toBe('north')
 		expect(r0.ordered[0].vehicleUid).toBe('A')
 
-		const r1 = applyMergePolicy([a, b, c], { kind: 'round_robin_by_branch' }, { branchList, branchIndex: 1 })
+		const r1 = applyMergePolicy(
+			[a, b, c],
+			{ kind: 'round_robin_by_branch' },
+			{ branchList, branchIndex: 1 }
+		)
 		expect(r1.selectedBranch).toBe('south')
 		expect(r1.ordered[0].vehicleUid).toBe('B')
 	})
 
 	it('branchLabel uses ingressBranch over node.branch', () => {
 		const node = makeNode({ branch: 'node-branch' })
-		const req = makeRequest({ vehicleUid: 'A', arrivedAt: 100, ingressBranch: 'ingress-branch', currentNode: node })
+		const req = makeRequest({
+			vehicleUid: 'A',
+			arrivedAt: 100,
+			ingressBranch: 'ingress-branch',
+			currentNode: node,
+		})
 		expect(branchLabel(req)).toBe('ingress-branch')
 		const req2 = makeRequest({ vehicleUid: 'B', arrivedAt: 100, currentNode: node })
 		expect(branchLabel(req2)).toBe('node-branch')
@@ -138,21 +147,56 @@ describe('queue graph builder', () => {
 
 	it('throws on unresolved tile handle', () => {
 		const s: SerializedBayQueueGraph = {
-			bayGroupId: 'test', serviceNodes: [],
-			nodes: [{ handle: { kind: 'tile', coord: { q: 999, r: 999 } }, capacity: 1, accepts: ['road'], canWait: true, canService: false, blocksThroughTraffic: true }],
-			edges: [], mergePolicy: { kind: 'priority_then_fifo' },
+			bayGroupId: 'test',
+			serviceNodes: [],
+			nodes: [
+				{
+					handle: { kind: 'tile', coord: { q: 999, r: 999 } },
+					capacity: 1,
+					accepts: ['road'],
+					canWait: true,
+					canService: false,
+					blocksThroughTraffic: true,
+				},
+			],
+			edges: [],
+			mergePolicy: { kind: 'priority_then_fifo' },
 		}
-		expect(() => buildRuntimeQueueGraph(s, { ...mockResolver, tile: () => undefined })).toThrow(/Tile handle unresolved/)
+		expect(() => buildRuntimeQueueGraph(s, { ...mockResolver, tile: () => undefined })).toThrow(
+			/Tile handle unresolved/
+		)
 	})
 
 	it('succeeds on a valid graph', () => {
 		const s: SerializedBayQueueGraph = {
-			bayGroupId: 'test', serviceNodes: [{ kind: 'bay-dock', bayUid: 'bay-1', dockIndex: 0 }],
+			bayGroupId: 'test',
+			serviceNodes: [{ kind: 'bay-dock', bayUid: 'bay-1', dockIndex: 0 }],
 			nodes: [
-				{ handle: { kind: 'tile', coord: { q: 0, r: 0 } }, capacity: 1, accepts: ['road'], canWait: true, canService: false, blocksThroughTraffic: true, branch: 'north' },
-				{ handle: { kind: 'bay-dock', bayUid: 'bay-1', dockIndex: 0 }, capacity: 1, accepts: ['road'], canWait: false, canService: true, blocksThroughTraffic: false },
+				{
+					handle: { kind: 'tile', coord: { q: 0, r: 0 } },
+					capacity: 1,
+					accepts: ['road'],
+					canWait: true,
+					canService: false,
+					blocksThroughTraffic: true,
+					branch: 'north',
+				},
+				{
+					handle: { kind: 'bay-dock', bayUid: 'bay-1', dockIndex: 0 },
+					capacity: 1,
+					accepts: ['road'],
+					canWait: false,
+					canService: true,
+					blocksThroughTraffic: false,
+				},
 			],
-			edges: [{ from: { kind: 'tile', coord: { q: 0, r: 0 } }, to: { kind: 'bay-dock', bayUid: 'bay-1', dockIndex: 0 }, requires: ['road'] }],
+			edges: [
+				{
+					from: { kind: 'tile', coord: { q: 0, r: 0 } },
+					to: { kind: 'bay-dock', bayUid: 'bay-1', dockIndex: 0 },
+					requires: ['road'],
+				},
+			],
 			mergePolicy: { kind: 'priority_then_fifo' },
 		}
 		const nodes = buildRuntimeQueueGraph(s, mockResolver)
@@ -171,7 +215,9 @@ describe('BayQueueController regression', () => {
 
 		const c = new BayQueueController(
 			{ uid: 't', name: 't', serviceNodes: [], mergePolicy: { kind: 'priority_then_fifo' } },
-			[ingress, holding], defaultRoadCapabilityResolver, () => {}
+			[ingress, holding],
+			defaultRoadCapabilityResolver,
+			() => {}
 		)
 
 		const v = makeVehicle('v1')
@@ -189,7 +235,9 @@ describe('BayQueueController regression', () => {
 
 		const c = new BayQueueController(
 			{ uid: 't', name: 't', serviceNodes: [dock], mergePolicy: { kind: 'priority_then_fifo' } },
-			[ingress, mid, dock], defaultRoadCapabilityResolver, () => {}
+			[ingress, mid, dock],
+			defaultRoadCapabilityResolver,
+			() => {}
 		)
 
 		const v = makeVehicle('v1')
@@ -211,7 +259,9 @@ describe('BayQueueController regression', () => {
 
 		const c = new BayQueueController(
 			{ uid: 't', name: 't', serviceNodes: [], mergePolicy: { kind: 'priority_then_fifo' } },
-			[ingress, mid], defaultRoadCapabilityResolver, () => {}
+			[ingress, mid],
+			defaultRoadCapabilityResolver,
+			() => {}
 		)
 
 		const v = makeVehicle('v1')
@@ -229,7 +279,9 @@ describe('BayQueueController regression', () => {
 
 		const c = new BayQueueController(
 			{ uid: 't', name: 't', serviceNodes: [dock], mergePolicy: { kind: 'priority_then_fifo' } },
-			[ingress, dock], defaultRoadCapabilityResolver, () => {}
+			[ingress, dock],
+			defaultRoadCapabilityResolver,
+			() => {}
 		)
 
 		const v = makeVehicle('v1')
@@ -253,7 +305,9 @@ describe('BayQueueController regression', () => {
 
 		const c = new BayQueueController(
 			{ uid: 't', name: 't', serviceNodes: [], mergePolicy: { kind: 'priority_then_fifo' } },
-			[ingress], defaultRoadCapabilityResolver, () => {}
+			[ingress],
+			defaultRoadCapabilityResolver,
+			() => {}
 		)
 
 		const v = makeVehicle('v2')
@@ -267,12 +321,16 @@ describe('BayQueueController regression', () => {
 
 		const c = new BayQueueController(
 			{ uid: 't', name: 't', serviceNodes: [], mergePolicy: { kind: 'priority_then_fifo' } },
-			[ingress, mid], defaultRoadCapabilityResolver, () => {}
+			[ingress, mid],
+			defaultRoadCapabilityResolver,
+			() => {}
 		)
 
 		const v = makeVehicle('v1')
 		c.registerRequest(v, 't', [], 0, undefined, ingress)
-		expect(() => c.registerRequest(makeVehicle('v1'), 't', [], 0, undefined, mid)).toThrow(/already/)
+		expect(() => c.registerRequest(makeVehicle('v1'), 't', [], 0, undefined, mid)).toThrow(
+			/already/
+		)
 	})
 
 	it('completeMovement with wrong grant cleans reservation and returns', () => {
@@ -282,7 +340,9 @@ describe('BayQueueController regression', () => {
 
 		const c = new BayQueueController(
 			{ uid: 't', name: 't', serviceNodes: [], mergePolicy: { kind: 'priority_then_fifo' } },
-			[ingress, mid], defaultRoadCapabilityResolver, () => {}
+			[ingress, mid],
+			defaultRoadCapabilityResolver,
+			() => {}
 		)
 
 		const v = makeVehicle('v1')
@@ -292,7 +352,10 @@ describe('BayQueueController regression', () => {
 		// Complete with a fake/stale grant
 		const fakeTarget = makeNode()
 		const fakeGrant: MovementGrant = {
-			vehicleUid: 'v1', from: ingress, to: fakeTarget, expiresAt: 0,
+			vehicleUid: 'v1',
+			from: ingress,
+			to: fakeTarget,
+			expiresAt: 0,
 		}
 		fakeTarget.reservedBy.add(v)
 
@@ -314,7 +377,9 @@ describe('BayQueueController regression', () => {
 
 		const c = new BayQueueController(
 			{ uid: 't', name: 't', serviceNodes: [], mergePolicy: { kind: 'priority_then_fifo' } },
-			[ingress, mid], defaultRoadCapabilityResolver, () => {}
+			[ingress, mid],
+			defaultRoadCapabilityResolver,
+			() => {}
 		)
 
 		const v = makeVehicle('v1')
@@ -337,7 +402,10 @@ describe('BayQueueController regression', () => {
 
 describe('bay queue invariants', () => {
 	it('single occupancy passes', () => {
-		const n = [makeNode({ occupiedBy: new Set([{ uid: 'v1' } as any]) }), makeNode({ occupiedBy: new Set([{ uid: 'v2' } as any]) })]
+		const n = [
+			makeNode({ occupiedBy: new Set([{ uid: 'v1' } as any]) }),
+			makeNode({ occupiedBy: new Set([{ uid: 'v2' } as any]) }),
+		]
 		expect(invariantSingleNodeOccupancy(n).ok).toBe(true)
 	})
 
@@ -354,7 +422,9 @@ describe('bay queue invariants', () => {
 	})
 
 	it('capacity fails when over', () => {
-		const n = [makeNode({ occupiedBy: new Set([{ uid: 'a' } as any, { uid: 'b' } as any]), capacity: 1 })]
+		const n = [
+			makeNode({ occupiedBy: new Set([{ uid: 'a' } as any, { uid: 'b' } as any]), capacity: 1 }),
+		]
 		expect(invariantNodeCapacity(n).ok).toBe(false)
 	})
 

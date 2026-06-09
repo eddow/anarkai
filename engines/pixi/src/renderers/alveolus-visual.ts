@@ -125,7 +125,10 @@ export class AlveolusVisual extends VisualObject<any> {
 					const tex = this.renderer.getTexture(textureName)
 					if (hasUsableTexture(tex)) {
 						if (!this.variantBadgeSprite) {
-							this.variantBadgeSprite = setPixiName(new Sprite(), scopedPixiName(this.scope, 'variant-badge'))
+							this.variantBadgeSprite = setPixiName(
+								new Sprite(),
+								scopedPixiName(this.scope, 'variant-badge')
+							)
 							this.variantBadgeSprite.anchor.set(1, 0) // top-right anchor
 							this.variantBadgeSprite.position.set(tileSize * 0.4, -tileSize * 0.4)
 							this.view.addChild(this.variantBadgeSprite)

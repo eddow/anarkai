@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
 import { resolveAlveolusVariant } from 'ssh/construction-state'
+import { describe, expect, it } from 'vitest'
 
 describe('variant resolution fallback', () => {
 	it('falls back to root when the entire variant path is unknown', () => {

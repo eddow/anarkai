@@ -1,9 +1,9 @@
 import ResourceImage from '@app/components/ResourceImage'
 import {
+	type AppShellBuildVariantNode,
 	buildPaletteSelectedActionValues,
 	getAppShellBuildableAlveoli,
 	getAppShellBuildToolbarRoots,
-	type AppShellBuildVariantNode,
 } from '@app/lib/app-shell-controls'
 import { FREIGHT_ADD_STOP_ACTION } from '@app/lib/freight-map-pick'
 import type { Configuration } from '@app/lib/globals'
@@ -36,9 +36,9 @@ import {
 	palettes,
 } from '@sursaut/ui/palette'
 import {
+	variantBadges,
 	alveoli as visualAlveoli,
 	commands as visualCommands,
-	variantBadges,
 } from 'engine-pixi/assets/visual-content'
 import { gameTimeSpeedFactors } from 'engine-rules'
 import { effect, reactive, unwrap } from 'mutts'
@@ -257,7 +257,10 @@ function createVariantToolbarItem(
 	const badgeIcon = browserPaletteVariantBadgeIcon(rootName, variant.id)
 	if (variant.children.length === 0) {
 		// Leaf variant: short label, descriptive tooltip
-		const descriptiveHint = `${rootLabel} — ${variant.id.split('.').map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(' ')}`
+		const descriptiveHint = `${rootLabel} — ${variant.id
+			.split('.')
+			.map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+			.join(' ')}`
 		return {
 			tool: `selectedAction|${variant.value}`,
 			editor: 'button',
@@ -280,7 +283,9 @@ function createVariantToolbarItem(
 				['build', 'variant', rootName, variant.id],
 				browserPaletteBuildIcon(rootName) ?? badgeIcon
 			),
-			...variant.children.map((child) => createVariantToolbarItem(rootName, child, rootLabel, true)),
+			...variant.children.map((child) =>
+				createVariantToolbarItem(rootName, child, rootLabel, true)
+			),
 		],
 		config: {
 			icon: triggerIcon,
@@ -296,22 +301,19 @@ function createBrowserPaletteBuildToolbar(): BrowserPaletteToolbarItem[] {
 	return browserPaletteBuildToolbarRoots.map((root) => {
 		const icon = browserPaletteBuildIcon(root.rootName)
 		if (root.variants.length === 0) {
-			return createSelectedActionButton(
-				root.value,
-				root.label,
-				['build', root.rootName],
-				icon
-			)
+			return createSelectedActionButton(root.value, root.label, ['build', root.rootName], icon)
 		}
 		return {
 			editor: 'drawer',
 			toolbar: [
 				createSelectedActionButton(root.value, root.label, ['build', root.rootName], icon),
-				...root.variants.map((variant) => createVariantToolbarItem(root.rootName, variant, root.label, true)),
+				...root.variants.map((variant) =>
+					createVariantToolbarItem(root.rootName, variant, root.label, true)
+				),
 			],
 			config: {
 				icon,
-				label: root.label,
+				label: '',
 				hint: `${root.label} variants`,
 				tone: 'neutral',
 			},
@@ -338,12 +340,14 @@ function createBrowserPaletteTop(): PaletteBorder<BrowserPaletteToolbarItem> {
 	const actionSection = track[actionSectionIndex]
 	const otherActionItems = actionSection.toolbar.filter(
 		(item) =>
-			!(item.tool === 'selectedAction' &&
+			!(
+				item.tool === 'selectedAction' &&
 				item.config &&
 				typeof item.config === 'object' &&
 				'acceptedKeywords' in item.config &&
 				Array.isArray((item.config as AnarkaiPaletteEnumConfig).acceptedKeywords) &&
-				(item.config as AnarkaiPaletteEnumConfig).acceptedKeywords?.includes('build'))
+				(item.config as AnarkaiPaletteEnumConfig).acceptedKeywords?.includes('build')
+			)
 	)
 	track.splice(
 		actionSectionIndex,

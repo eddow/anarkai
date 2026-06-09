@@ -1,5 +1,5 @@
-import type { Game } from 'ssh/game/game'
 import { settlementZones } from 'engine-rules'
+import type { Game } from 'ssh/game/game'
 import {
 	GameGenerator,
 	type GeneratedSettlement,
@@ -135,19 +135,13 @@ function borderKey(a: AxialCoord, b: AxialCoord): string {
 	return `${(a.q + b.q) / 2},${(a.r + b.r) / 2}`
 }
 
-function isRoadCarrierTile(
-	coord: AxialCoord,
-	roads: ReadonlySet<string>
-): boolean {
+function isRoadCarrierTile(coord: AxialCoord, roads: ReadonlySet<string>): boolean {
 	return hexSides.some((side) =>
 		roads.has(borderKey(coord, { q: coord.q + side.q, r: coord.r + side.r }))
 	)
 }
 
-function hasNeighboringRoadCarrier(
-	coord: AxialCoord,
-	roads: ReadonlySet<string>
-): boolean {
+function hasNeighboringRoadCarrier(coord: AxialCoord, roads: ReadonlySet<string>): boolean {
 	return hexSides.some((side) =>
 		isRoadCarrierTile({ q: coord.q + side.q, r: coord.r + side.r }, roads)
 	)
@@ -468,9 +462,7 @@ describe('settlement zoning generation', () => {
 		expect(settlementCenter).toBeDefined()
 		if (settlementCenter) {
 			const cityHall = selectSettlementCityHallPosition(plan.settlements[0]!, tiles)
-			expect(
-				civicCoords.some(([q, r]) => q === cityHall.q && r === cityHall.r)
-			).toBe(true)
+			expect(civicCoords.some(([q, r]) => q === cityHall.q && r === cityHall.r)).toBe(true)
 		}
 	})
 
@@ -777,7 +769,9 @@ describe('settlement zoning generation', () => {
 			const coord = { q, r }
 			expect(isRoadCarrierTile(coord, roads)).toBe(false)
 			expect(hasNeighboringRoadCarrier(coord, roads)).toBe(true)
-			expect(tiles.find((tile) => axial.key(tile.coord) === axial.key(coord))?.hydrology).toBeUndefined()
+			expect(
+				tiles.find((tile) => axial.key(tile.coord) === axial.key(coord))?.hydrology
+			).toBeUndefined()
 		}
 	})
 
@@ -817,9 +811,7 @@ describe('settlement zoning generation', () => {
 	it('generates roads that avoid water tiles', async () => {
 		const tiles = region({ q: 0, r: 0 }, 5)
 		const waterTiles = new Set(
-			tiles
-				.filter((entry) => entry.terrain === 'water')
-				.map((entry) => axial.key(entry.coord))
+			tiles.filter((entry) => entry.terrain === 'water').map((entry) => axial.key(entry.coord))
 		)
 		const generator = new GameGenerator()
 		const settlements = await generator.placeSettlements(42, tiles, {

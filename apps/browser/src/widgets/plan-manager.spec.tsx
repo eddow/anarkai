@@ -1,6 +1,6 @@
 import { document, latch } from '@sursaut/core'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HivePlanCollection } from 'ssh/hive-plan'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@app/lib/css', () => ({
 	css: () => '',
@@ -27,7 +27,12 @@ const globals = vi.hoisted(() => ({
 vi.mock('@app/lib/globals', () => globals)
 
 vi.mock('@app/ui/anarkai', () => ({
-	Button: (props: { children?: JSX.Element; disabled?: boolean; if?: boolean; onClick?: () => void }) =>
+	Button: (props: {
+		children?: JSX.Element
+		disabled?: boolean
+		if?: boolean
+		onClick?: () => void
+	}) =>
 		props.if === false ? undefined : (
 			<button disabled={props.disabled} onClick={props.onClick}>
 				{props.children}
@@ -94,11 +99,15 @@ describe('PlanManagerWidget', () => {
 		void draft
 		stop = latch(container, <PlanManagerWidget />)
 
-		click([...container.querySelectorAll('button')].find((button) => button.textContent === 'Working'))
+		click(
+			[...container.querySelectorAll('button')].find((button) => button.textContent === 'Working')
+		)
 		expect(container.textContent).toContain('Working plan')
 		expect(container.textContent).not.toContain('Draft plan')
 
-		click([...container.querySelectorAll('button')].find((button) => button.textContent === 'Working'))
+		click(
+			[...container.querySelectorAll('button')].find((button) => button.textContent === 'Working')
+		)
 		expect(container.textContent).toContain('Working plan')
 		expect(container.textContent).toContain('Draft plan')
 	})

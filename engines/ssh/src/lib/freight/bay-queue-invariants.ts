@@ -8,8 +8,8 @@
  * test assertions.
  */
 
-import type { RuntimeQueueNode } from './bay-queue-types'
 import type { BayQueueController } from './bay-queue-controller'
+import type { RuntimeQueueNode } from './bay-queue-types'
 
 // ─── Invariant result type ────────────────────────────────────────────────
 
@@ -34,9 +34,7 @@ export interface QueueInvariantResult {
  * `occupiedBy` across **multiple** nodes, or appear in `reservedBy` across
  * multiple nodes without also being occupied somewhere.
  */
-export function invariantSingleNodeOccupancy(
-	nodes: RuntimeQueueNode[]
-): QueueInvariantResult {
+export function invariantSingleNodeOccupancy(nodes: RuntimeQueueNode[]): QueueInvariantResult {
 	const occupiedCount = new Map<string, number>()
 	const reservedCount = new Map<string, number>()
 
@@ -74,9 +72,7 @@ export function invariantSingleNodeOccupancy(
 /**
  * A queue node's occupied + reserved count must not exceed capacity.
  */
-export function invariantNodeCapacity(
-	nodes: RuntimeQueueNode[]
-): QueueInvariantResult {
+export function invariantNodeCapacity(nodes: RuntimeQueueNode[]): QueueInvariantResult {
 	const violations: Array<{ node: string; capacity: number; total: number }> = []
 
 	for (const node of nodes) {
@@ -137,9 +133,7 @@ export function invariantServiceReservationInGraph(
  * Check: for every active grant, the target node must have the vehicle in
  * its `reservedBy` set.
  */
-export function invariantGrantTargetReserved(
-	controller: BayQueueController
-): QueueInvariantResult {
+export function invariantGrantTargetReserved(controller: BayQueueController): QueueInvariantResult {
 	const violations: string[] = []
 
 	for (const grant of controller.allGrants) {
@@ -167,9 +161,7 @@ export function invariantGrantTargetReserved(
  * This is a definition — no real invariant violation, but we can check
  * that `blocksThroughTraffic` values match expectations for known node types.
  */
-export function invariantBlockingSemantics(
-	nodes: RuntimeQueueNode[]
-): QueueInvariantResult {
+export function invariantBlockingSemantics(nodes: RuntimeQueueNode[]): QueueInvariantResult {
 	// Inline nodes (on roads/rails) should typically block through traffic.
 	// Off-path nodes (parking, siding) should typically NOT block.
 	// This is advisory, not a hard rule — the config may deliberately choose
@@ -180,7 +172,7 @@ export function invariantBlockingSemantics(
 		if (node.canService && node.blocksThroughTraffic) {
 			warnings.push(
 				`Service node ${node.handle ? JSON.stringify(node.handle) : '(anonymous)'} ` +
-				`has blocksThroughTraffic=true — dock should not block through traffic`
+					`has blocksThroughTraffic=true — dock should not block through traffic`
 			)
 		}
 	}

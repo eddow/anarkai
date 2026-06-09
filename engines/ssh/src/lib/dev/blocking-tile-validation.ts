@@ -2,7 +2,7 @@ import type { AxialCoord } from 'ssh/utils'
 import { axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
 import type { Tile } from '../board/tile'
-import type { GetNeighbors, NeighborInfo } from '../utils/pathfinding'
+import type { GetNeighbors } from '../utils/pathfinding'
 
 /**
  * Represents a border position between two adjacent tiles
@@ -51,7 +51,7 @@ export interface BlockingTileValidationResult {
  * Check if a tile is blocking space
  * A tile is blocking if it has content other than UnBuiltLand
  */
-function isBlockingTile(tile: Tile | undefined): boolean {
+function _isBlockingTile(tile: Tile | undefined): boolean {
 	return tile?.isBlockingSpace ?? false
 }
 
@@ -204,9 +204,7 @@ export function validateBlockingTiles(tiles: Tile[]): BlockingTileValidationResu
 /**
  * Get a human-readable summary of blocking tile validation results
  */
-export function formatBlockingTileValidationSummary(
-	result: BlockingTileValidationResult
-): string {
+export function formatBlockingTileValidationSummary(result: BlockingTileValidationResult): string {
 	const lines: string[] = []
 
 	lines.push('=== Blocking Tile Validation Summary ===')
@@ -353,9 +351,7 @@ export function findNearestServicePoint(
 
 	// BFS over reachable tiles using proper pathfinding
 	const visited = new Set<string>()
-	const queue: { coord: AxialCoord; distance: number }[] = [
-		{ coord: startCoord, distance: 0 },
-	]
+	const queue: { coord: AxialCoord; distance: number }[] = [{ coord: startCoord, distance: 0 }]
 
 	visited.add(axial.key(startCoord))
 
@@ -404,7 +400,7 @@ export function findNearestServicePoint(
  * @returns true if reachable, false otherwise
  */
 export function isServicePositionReachable(
-	tiles: Tile[],
+	_tiles: Tile[],
 	getNeighbors: GetNeighbors,
 	startCoord: AxialCoord,
 	servicePosition: BorderServicePosition,
@@ -415,9 +411,7 @@ export function isServicePositionReachable(
 
 	// BFS over reachable tiles using proper pathfinding
 	const visited = new Set<string>()
-	const queue: { coord: AxialCoord; distance: number }[] = [
-		{ coord: startCoord, distance: 0 },
-	]
+	const queue: { coord: AxialCoord; distance: number }[] = [{ coord: startCoord, distance: 0 }]
 
 	visited.add(axial.key(startCoord))
 

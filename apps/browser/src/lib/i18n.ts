@@ -9,9 +9,9 @@ import {
 } from 'omni18n/s-a'
 import gameEn from 'ssh/assets/locales/en.json'
 import gameFr from 'ssh/assets/locales/fr.json'
+import { traces } from 'ssh/dev/debug'
 import baseEn from '../locales/en.json'
 import baseFr from '../locales/fr.json'
-import { traces } from 'ssh/dev/debug'
 
 export const locales = ['en', 'fr'] as const
 export type Locale = (typeof locales)[number]

@@ -2,14 +2,11 @@
 	"$schema": "https://biomejs.dev/schemas/2.4.6/schema.json",
 	"files": {
 		"includes": [
-			"apps/**/src/**/*.ts",
-			"apps/**/src/**/*.tsx",
-			"apps/**/tests/**/*.ts",
-			"apps/**/tests/**/*.tsx",
-			"engines/**/src/**/*.ts",
-			"engines/**/src/**/*.tsx",
-			"engines/**/tests/**/*.ts",
-			"engines/**/tests/**/*.tsx",
+			"*.ts",
+			"apps/**/*.ts",
+			"apps/**/*.tsx",
+			"engines/**/*.ts",
+			"engines/**/*.tsx",
 			"engines/**/assets/**/*.ts",
 			"src/**/*.ts",
 			"sandbox/**/*.ts",
@@ -20,7 +17,9 @@
 			"!**/.turbo",
 			"!**/.vite",
 			"!**/coverage",
-			"!**/out"
+			"!**/out",
+			"!**/downloads",
+			"!engines/core/pkg"
 		]
 	},
 	"javascript": {

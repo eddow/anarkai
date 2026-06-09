@@ -196,8 +196,7 @@ export const freightTransferInvariantChecks = {
 			characterOwnsFreightTransferClaim(claimOwner, transfer.id)
 		return {
 			ok,
-			message:
-				'blocking freight transfer must have an executable job or live convey claim owner',
+			message: 'blocking freight transfer must have an executable job or live convey claim owner',
 			payload: {
 				...freightTransferPayload(transfer),
 				hasExecutableJob,
@@ -256,10 +255,7 @@ export const freightTransferInvariantChecks = {
 	[freightTransferInvariantIds.transitHasLocalRoutePromise]: (
 		transfer: FreightTransferMeta
 	): TraceInvariantResult => ({
-		ok:
-			transfer.purpose !== 'transit' ||
-			!!transfer.routePromiseId ||
-			!!transfer.demand?.id,
+		ok: transfer.purpose !== 'transit' || !!transfer.routePromiseId || !!transfer.demand?.id,
 		message: 'transit freight transfer must name the local route promise it serves',
 		payload: freightTransferPayload(transfer),
 	}),

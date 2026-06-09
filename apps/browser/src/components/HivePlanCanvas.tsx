@@ -1,13 +1,9 @@
-import { effect } from 'mutts'
-import { Application, Container, Graphics, Sprite, Texture } from 'pixi.js'
 import { assetManager } from 'engine-pixi/asset-manager'
 import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content'
+import { effect } from 'mutts'
+import { Application, Container, Graphics, Sprite, Texture } from 'pixi.js'
 import type { HivePlan, HivePlanStructuralIssue } from 'ssh/hive-plan'
-import {
-	hivePlanCoordKey,
-	hivePlanEntryAt,
-	hivePlanVisibleCandidateCoords,
-} from 'ssh/hive-plan'
+import { hivePlanCoordKey, hivePlanEntryAt, hivePlanVisibleCandidateCoords } from 'ssh/hive-plan'
 import type { AxialCoord } from 'ssh/utils/axial'
 
 type HivePlanCanvasProps = {
@@ -133,7 +129,10 @@ const HivePlanCanvas = (props: HivePlanCanvasProps) => {
 			sprite.y = y
 			const textureWidth = Math.max(1, texture.width)
 			const textureHeight = Math.max(1, texture.height)
-			const spriteScale = Math.min((side * 1.32 * scale) / textureWidth, (side * 1.32 * scale) / textureHeight)
+			const spriteScale = Math.min(
+				(side * 1.32 * scale) / textureWidth,
+				(side * 1.32 * scale) / textureHeight
+			)
 			sprite.scale.set(spriteScale)
 			stage?.addChild(sprite)
 		}

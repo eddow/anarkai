@@ -192,16 +192,15 @@ export function selectSettlementCityHallPosition(
 	const nearby = zoneable.filter(
 		(tile) => axial.distance(settlement.center, tile.coord) <= settlement.radius
 	)
-	const candidates = (nearby.length > 0 ? nearby : zoneable)
-		.sort((a, b) => {
-			const byStreet =
-				Number(isLocalStreetSpokeCoord(settlement, a.coord)) -
-				Number(isLocalStreetSpokeCoord(settlement, b.coord))
-			if (byStreet !== 0) return byStreet
-			const byDistance =
-				axial.distance(settlement.center, a.coord) - axial.distance(settlement.center, b.coord)
-			return byDistance || a.coord.q - b.coord.q || a.coord.r - b.coord.r
-		})
+	const candidates = (nearby.length > 0 ? nearby : zoneable).sort((a, b) => {
+		const byStreet =
+			Number(isLocalStreetSpokeCoord(settlement, a.coord)) -
+			Number(isLocalStreetSpokeCoord(settlement, b.coord))
+		if (byStreet !== 0) return byStreet
+		const byDistance =
+			axial.distance(settlement.center, a.coord) - axial.distance(settlement.center, b.coord)
+		return byDistance || a.coord.q - b.coord.q || a.coord.r - b.coord.r
+	})
 	const first = candidates[0]
 	if (first) return { ...first.coord }
 	return { ...settlement.center }
@@ -214,7 +213,10 @@ function isIndustrialCandidate(tile: GeneratedTileData, settlement: GeneratedSet
 	return !!tile.deposit || INDUSTRIAL_TERRAINS.has(tile.terrain)
 }
 
-function isResidentialFringeCandidate(tile: GeneratedTileData, settlement: GeneratedSettlement): boolean {
+function isResidentialFringeCandidate(
+	tile: GeneratedTileData,
+	settlement: GeneratedSettlement
+): boolean {
 	const distance = axial.distance(settlement.center, tile.coord)
 	const mix = settlementZones[settlement.kind]
 	if (distance <= settlement.radius) return true
@@ -494,9 +496,7 @@ function localStreetDirections(
 	const blocked = new Set(
 		asphaltDirections.flatMap((direction) => [direction, (direction + 3) % hexSides.length])
 	)
-	return hexSides
-		.map((_, direction) => direction)
-		.filter((direction) => !blocked.has(direction))
+	return hexSides.map((_, direction) => direction).filter((direction) => !blocked.has(direction))
 }
 
 function generateLocalStreetKeys(args: {
@@ -542,7 +542,8 @@ function generateLocalStreetKeys(args: {
 			})
 			.sort((a, b) => {
 				const roads = new Set([...args.asphaltKeys, ...pathKeys])
-				const byExistingAccess = Number(!isRoadCarrierTile(a, roads)) - Number(!isRoadCarrierTile(b, roads))
+				const byExistingAccess =
+					Number(!isRoadCarrierTile(a, roads)) - Number(!isRoadCarrierTile(b, roads))
 				return (
 					byExistingAccess ||
 					axial.distance(a, settlement.center) - axial.distance(b, settlement.center) ||
@@ -596,7 +597,7 @@ export async function generateZonePlanForSettlements(
 	seed: number,
 	coords: Int32Array,
 	terrainKinds: Uint8Array,
-	hasRiver: Uint8Array
+	_hasRiver: Uint8Array
 ): Promise<SettlementZonePlan> {
 	const tiles = new Map(tileData.map((tile) => [tileKey(tile.coord), tile]))
 	const riverEdgeKeys = collectRiverEdgeBorderKeys(tileData)
@@ -646,7 +647,11 @@ export async function generateZonePlanForSettlements(
 	for (const settlement of settlements) {
 		const cityHall = selectSettlementCityHallPosition(settlement, tileData)
 		const cityHallTile = tiles.get(tileKey(cityHall))
-		if (cityHallTile && isZoneableLandTile(cityHallTile) && hasRoadAccessBeside(cityHall, allRoadKeys)) {
+		if (
+			cityHallTile &&
+			isZoneableLandTile(cityHallTile) &&
+			hasRoadAccessBeside(cityHall, allRoadKeys)
+		) {
 			assignZone(assigned, cityHall, 'civic', priority)
 		}
 
@@ -731,7 +736,12 @@ export async function generateZonePlanForSettlements(
 
 		for (const candidate of candidates
 			.filter((candidate) => candidate.residentialEligible)
-			.sort((a, b) => a.distance - b.distance || a.tile.coord.q - b.tile.coord.q || a.tile.coord.r - b.tile.coord.r)) {
+			.sort(
+				(a, b) =>
+					a.distance - b.distance ||
+					a.tile.coord.q - b.tile.coord.q ||
+					a.tile.coord.r - b.tile.coord.r
+			)) {
 			if (remainingSlots() <= 0) break
 			if (assigned.has(tileKey(candidate.tile.coord))) continue
 			assignZone(assigned, candidate.tile.coord, 'residential', priority)

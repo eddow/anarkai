@@ -4,9 +4,9 @@
  * @see engines/ssh/docs/bay-queues.md
  */
 
-import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { traces } from 'ssh/dev/debug'
-
+import type { VehicleEntity } from 'ssh/population/vehicle/entity'
+import { applyMergePolicy, collectBranchLabels } from './bay-queue-merge-policy'
 import type {
 	BayGroup,
 	DockRequest,
@@ -16,7 +16,6 @@ import type {
 	VehicleCapability,
 	VehicleCapabilityFilter,
 } from './bay-queue-types'
-import { applyMergePolicy, collectBranchLabels } from './bay-queue-merge-policy'
 
 // ─── Injectable callbacks ──────────────────────────────────────────────────
 
@@ -52,10 +51,14 @@ function handlesEqual(
 	if (!a || !b) return false
 	if (a.kind !== b.kind) return false
 	switch (a.kind) {
-		case 'tile': return a.coord.q === b.coord.q && a.coord.r === b.coord.r
-		case 'border': return a.coord.q === b.coord.q && a.coord.r === b.coord.r
-		case 'bay-dock': return a.bayUid === b.bayUid && a.dockIndex === b.dockIndex
-		case 'local': return a.bayGroupId === b.bayGroupId && a.index === b.index
+		case 'tile':
+			return a.coord.q === b.coord.q && a.coord.r === b.coord.r
+		case 'border':
+			return a.coord.q === b.coord.q && a.coord.r === b.coord.r
+		case 'bay-dock':
+			return a.bayUid === b.bayUid && a.dockIndex === b.dockIndex
+		case 'local':
+			return a.bayGroupId === b.bayGroupId && a.index === b.index
 	}
 	return false
 }
@@ -138,7 +141,12 @@ export class BayQueueController {
 
 		currentNode.occupiedBy.add(vehicle)
 		this.requests.set(vehicle.uid, request)
-		traces.bay.log?.('request:registered', { vehicleUid: vehicle.uid, bayGroupUid, branch, node: currentNode })
+		traces.bay.log?.('request:registered', {
+			vehicleUid: vehicle.uid,
+			bayGroupUid,
+			branch,
+			node: currentNode,
+		})
 		return request
 	}
 
@@ -267,10 +275,18 @@ export class BayQueueController {
 			if (next.canService) {
 				request.state = 'granted'
 				request.grantedServiceNode = next
-				traces.bay.log?.('grant:issued->service', { vehicleUid: request.vehicleUid, from: current, to: next })
+				traces.bay.log?.('grant:issued->service', {
+					vehicleUid: request.vehicleUid,
+					from: current,
+					to: next,
+				})
 			} else {
 				request.state = 'advancing'
-				traces.bay.log?.('grant:issued->hop', { vehicleUid: request.vehicleUid, from: current, to: next })
+				traces.bay.log?.('grant:issued->hop', {
+					vehicleUid: request.vehicleUid,
+					from: current,
+					to: next,
+				})
 			}
 
 			this.emitJob(grant)
@@ -287,7 +303,10 @@ export class BayQueueController {
 		for (const [uid, grant] of this.grants) {
 			if (grant.expiresAt !== undefined && now >= grant.expiresAt) {
 				for (const v of grant.to.reservedBy) {
-					if (v.uid === uid) { grant.to.reservedBy.delete(v); break }
+					if (v.uid === uid) {
+						grant.to.reservedBy.delete(v)
+						break
+					}
 				}
 				const request = this.requests.get(uid)
 				if (request) {
@@ -323,15 +342,21 @@ export class BayQueueController {
 	// ─── Internal helpers ─────────────────────────────────────────────────
 
 	private findVehicleInNode(node: RuntimeQueueNode, vehicleUid: string): VehicleEntity | undefined {
-		for (const v of node.occupiedBy) { if (v.uid === vehicleUid) return v }
-		for (const v of node.reservedBy) { if (v.uid === vehicleUid) return v }
+		for (const v of node.occupiedBy) {
+			if (v.uid === vehicleUid) return v
+		}
+		for (const v of node.reservedBy) {
+			if (v.uid === vehicleUid) return v
+		}
 		return undefined
 	}
 
 	private capabilitiesMatch(
 		vehicleCaps: ReadonlySet<VehicleCapability>,
 		filter: VehicleCapabilityFilter
-	): boolean { return filter.every((req) => vehicleCaps.has(req)) }
+	): boolean {
+		return filter.every((req) => vehicleCaps.has(req))
+	}
 
 	private isCompatibleServiceNode(
 		node: RuntimeQueueNode,
@@ -372,7 +397,10 @@ export class BayQueueController {
 		const weight = this.rrState.branchWeights.get(selectedBranch) ?? 1
 		if (selectedBranch === currentBranch && this.rrState.consecutiveCount < weight) {
 			this.rrState.consecutiveCount++
-		} else { this.rrState.branchIndex = idx; this.rrState.consecutiveCount = 1 }
+		} else {
+			this.rrState.branchIndex = idx
+			this.rrState.consecutiveCount = 1
+		}
 	}
 
 	// ─── Queries ──────────────────────────────────────────────────────────
@@ -381,10 +409,18 @@ export class BayQueueController {
 		return [...this.requests.values()].filter((r) => r.state === 'waiting')
 	}
 
-	getRequest(vehicleUid: string): DockRequest | undefined { return this.requests.get(vehicleUid) }
-	getGrant(vehicleUid: string): MovementGrant | undefined { return this.grants.get(vehicleUid) }
-	get allRequests(): readonly DockRequest[] { return [...this.requests.values()] }
-	get allGrants(): readonly MovementGrant[] { return [...this.grants.values()] }
+	getRequest(vehicleUid: string): DockRequest | undefined {
+		return this.requests.get(vehicleUid)
+	}
+	getGrant(vehicleUid: string): MovementGrant | undefined {
+		return this.grants.get(vehicleUid)
+	}
+	get allRequests(): readonly DockRequest[] {
+		return [...this.requests.values()]
+	}
+	get allGrants(): readonly MovementGrant[] {
+		return [...this.grants.values()]
+	}
 	getVehicleCurrentNode(vehicleUid: string): RuntimeQueueNode | undefined {
 		return this.requests.get(vehicleUid)?.currentNode
 	}
@@ -392,8 +428,8 @@ export class BayQueueController {
 
 // ─── Invariant registration ────────────────────────────────────────────────
 
-import { registerTraceInvariants } from '../dev/debug.ts'
 import type { TraceInvariantMap, TraceInvariantResult } from '../dev/debug.ts'
+import { registerTraceInvariants } from '../dev/debug.ts'
 import { validateBayQueueInvariants } from './bay-queue-invariants'
 
 export function registerBayQueueInvariants(controller?: BayQueueController): void {

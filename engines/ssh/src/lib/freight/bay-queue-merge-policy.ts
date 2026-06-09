@@ -26,12 +26,7 @@
  * ```
  */
 
-import type {
-	DockRequest,
-	MergeOrdering,
-	MergePolicy,
-	RuntimeQueueNode,
-} from './bay-queue-types'
+import type { DockRequest, MergeOrdering, MergePolicy, RuntimeQueueNode } from './bay-queue-types'
 
 // ─── Pure ordering functions (no side effects) ─────────────────────────────
 

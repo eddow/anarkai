@@ -26,8 +26,8 @@ import type { GoodType } from 'ssh/types/base'
 import type { ExchangePriority } from 'ssh/utils/advertisement'
 import type { AxialCoord } from 'ssh/utils/axial'
 import { toAxialCoord } from 'ssh/utils/position'
-import { freightConstructionDemandTarget } from './construction-demand'
 import { traces } from '../dev/debug.ts'
+import { freightConstructionDemandTarget } from './construction-demand'
 
 /** Per-good quantities for a stop (loose goods, stored goods, or need sink). */
 export interface FreightStopGoodsSnapshot {
@@ -185,9 +185,7 @@ function explainFreightStopServicePosition(
 		.filter((neighbor) => !neighbor.isBlockingSpace)
 		.map((neighbor) => tile.borderWith(neighbor))
 		.filter((border): border is NonNullable<ReturnType<Tile['borderWith']>> => !!border)
-	const sampleBorderCoord = serviceBorders[0]
-		? toAxialCoord(serviceBorders[0].position)
-		: undefined
+	const sampleBorderCoord = serviceBorders[0] ? toAxialCoord(serviceBorders[0].position) : undefined
 	return {
 		kind: serviceBorders.length > 0 ? 'border' : 'unreachable',
 		label: serviceBorders.length > 0 ? 'border service' : 'no service border',

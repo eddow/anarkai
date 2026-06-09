@@ -1,12 +1,7 @@
 import type { Character } from 'ssh/population/character'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
-import {
-	assert,
-	registerTraceInvariants,
-	traces,
-	type TraceInvariantResult,
-} from '../dev/debug.ts'
+import { assert, registerTraceInvariants, type TraceInvariantResult, traces } from '../dev/debug.ts'
 
 function isCharacter(value: unknown): value is Character {
 	return !!value && typeof value === 'object' && 'uid' in value && 'driving' in value
@@ -158,7 +153,9 @@ export function assertVehicleOperationConsistency(
 	const result = vehicleOperationConsistencyResult(vehicle, character)
 	vehicleTraceAssert(
 		typeof result === 'boolean' ? result : result.ok,
-		typeof result === 'boolean' ? 'vehicle.service.operator must be the operating character' : result.message!
+		typeof result === 'boolean'
+			? 'vehicle.service.operator must be the operating character'
+			: result.message!
 	)
 }
 

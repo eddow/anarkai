@@ -396,9 +396,7 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 						data-testid="storage-config-preset-combobox"
 					/>
 					<datalist id={presetListId}>
-						<for each={applicableConfigs()}>
-							{(config) => <option value={config.name} />}
-						</for>
+						<for each={applicableConfigs()}>{(config) => <option value={config.name} />}</for>
 					</datalist>
 					<button
 						if={draft.presetName}

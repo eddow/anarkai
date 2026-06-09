@@ -18,7 +18,7 @@ import type { Tile } from 'ssh/board/tile'
 import type { Game } from 'ssh/game/game'
 import type { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
-import { BayQueueController } from './bay-queue-controller'
+import type { BayQueueController } from './bay-queue-controller'
 import type { DockRequirement } from './bay-queue-types'
 
 /**
@@ -42,8 +42,6 @@ export class BayQueueRegistry {
 
 	/** All known bay groups (for iteration). */
 	private readonly bayGroupIds = new Set<string>()
-
-	private readonly game: Game
 
 	constructor(game: Game) {
 		this.game = game
@@ -150,7 +148,7 @@ export class BayQueueRegistry {
 
 	/** Called when a vehicle leaves the queue graph. */
 	onVehicleLeaveQueue(vehicle: VehicleEntity): void {
-		for (const [groupUid, controller] of this.controllers) {
+		for (const [_groupUid, controller] of this.controllers) {
 			if (controller.getRequest(vehicle.uid)) {
 				controller.cancelRequest(vehicle)
 			}
@@ -220,9 +218,7 @@ export class BayQueueRegistry {
 					// Compare positions (approximate match)
 					const nodePos = node.border.position
 					if (typeof nodePos === 'object' && 'q' in nodePos) {
-						const vc = 'x' in vehicleCoord
-							? { q: vehicleCoord.x, r: vehicleCoord.y }
-							: vehicleCoord
+						const vc = 'x' in vehicleCoord ? { q: vehicleCoord.x, r: vehicleCoord.y } : vehicleCoord
 						if (
 							Math.abs((vc as any).q - (nodePos as any).q) < 0.001 &&
 							Math.abs((vc as any).r - (nodePos as any).r) < 0.001

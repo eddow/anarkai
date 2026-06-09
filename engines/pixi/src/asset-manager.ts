@@ -75,7 +75,7 @@ export class PixiAssetManager {
 
 		// Build asset bundles from extracted keys
 		const assetsToLoad: Record<string, string> = {
-			'unified-spritesheet': `${assetBase}/unified-spritesheet.json`
+			'unified-spritesheet': `${assetBase}/unified-spritesheet.json`,
 		}
 
 		for (const key of assetKeys) {
@@ -147,18 +147,21 @@ export class PixiAssetManager {
 			}
 			return t
 		}
-		
+
 		// Handle direct root files (e.g., 'bakery', 'clothes', etc.)
 		if (!spec.includes('.') && this.assetMap.has(spec)) {
-		    return this.assetMap.get(spec)!
+			return this.assetMap.get(spec)!
 		}
 		if (!spec.includes('.') && this.assetMap.has(`unified-spritesheet/${spec}`)) {
-		    return this.assetMap.get(`unified-spritesheet/${spec}`)!
+			return this.assetMap.get(`unified-spritesheet/${spec}`)!
 		}
-		
+
 		// Map standalone files that are now in unified spritesheet
 		const parts = spec.split('.')
-		if (parts.length === 2 && ['buildings', 'characters', 'commands', 'goods', 'vehicles'].includes(parts[0])) {
+		if (
+			parts.length === 2 &&
+			['buildings', 'characters', 'commands', 'goods', 'vehicles'].includes(parts[0])
+		) {
 			let fileName = parts[1]
 			if (parts[0] === 'vehicles') {
 				fileName = fileName
@@ -196,10 +199,10 @@ export class PixiAssetManager {
 			fallbackSpec = 'objects.rocks/rock1'
 		if (fallbackSpec.startsWith('objects.bushes') && fallbackSpec !== 'objects.bushes/bush1')
 			fallbackSpec = 'objects.bushes/bush1'
-			
+
 		// Re-evaluate mapping with fallbackSpec if it changed
 		if (fallbackSpec !== spec) {
-		    return this.getTexture(fallbackSpec)
+			return this.getTexture(fallbackSpec)
 		}
 
 		return Texture.WHITE

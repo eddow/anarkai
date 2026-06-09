@@ -1,14 +1,11 @@
 import { alveoli } from 'engine-rules'
 import { reactive } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
-import {
-	createConstructionSiteState,
-	type ConstructionSiteState,
-} from 'ssh/construction-state'
-import type { Game } from 'ssh/game'
 import { createConstructionShell } from 'ssh/construction-shell'
+import { type ConstructionSiteState, createConstructionSiteState } from 'ssh/construction-state'
+import type { Game } from 'ssh/game'
 import type { AlveolusType, GoodType } from 'ssh/types/base'
-import { axial, type AxialCoord } from 'ssh/utils/axial'
+import { type AxialCoord, axial } from 'ssh/utils/axial'
 
 export type HivePlanStage = 'draft' | 'validating' | 'working' | 'archived'
 export type HivePlanArchiveReason = 'manual' | 'obsolete'
@@ -48,12 +45,7 @@ export interface HivePlan {
 export interface SerializedHivePlan extends HivePlan {}
 
 export interface HivePlanStructuralIssue {
-	code:
-		| 'empty'
-		| 'disconnected'
-		| 'duplicate-role'
-		| 'invalid-alveolus'
-		| 'missing-configuration'
+	code: 'empty' | 'disconnected' | 'duplicate-role' | 'invalid-alveolus' | 'missing-configuration'
 	message: string
 	roleId?: string
 	groups?: string[][]
@@ -169,8 +161,7 @@ export function applyHivePlanToolAction(
 					? {
 							...cloneHivePlanEntry(entry),
 							alveolusType,
-							configuration:
-								entry.alveolusType === alveolusType ? entry.configuration : undefined,
+							configuration: entry.alveolusType === alveolusType ? entry.configuration : undefined,
 						}
 					: cloneHivePlanEntry(entry)
 			),
@@ -194,7 +185,10 @@ function rotateOnce(coord: AxialCoord): AxialCoord {
 	return { q: -coord.r, r: coord.q + coord.r }
 }
 
-export function rotateHivePlanCoord(coord: readonly [number, number], rotation: number): AxialCoord {
+export function rotateHivePlanCoord(
+	coord: readonly [number, number],
+	rotation: number
+): AxialCoord {
 	let next = { q: coord[0], r: coord[1] }
 	for (let i = 0; i < ((rotation % 6) + 6) % 6; i++) next = rotateOnce(next)
 	return next
@@ -425,7 +419,9 @@ export class HivePlanCollection {
 		return plan
 	}
 
-	sendToValidation(id: string): { ok: true; plan: HivePlan } | { ok: false; issues: HivePlanStructuralIssue[] } {
+	sendToValidation(
+		id: string
+	): { ok: true; plan: HivePlan } | { ok: false; issues: HivePlanStructuralIssue[] } {
 		const plan = this.find(id)
 		if (!plan) return { ok: false, issues: [{ code: 'empty', message: 'Unknown plan.' }] }
 		const issues = validateHivePlanStructure(this.game, plan.entries)
@@ -439,7 +435,11 @@ export class HivePlanCollection {
 		return { ok: true, plan }
 	}
 
-	archive(id: string, reason: HivePlanArchiveReason = 'manual', replacedByPlanId?: string): boolean {
+	archive(
+		id: string,
+		reason: HivePlanArchiveReason = 'manual',
+		replacedByPlanId?: string
+	): boolean {
 		const plan = this.find(id)
 		if (!plan) return false
 		plan.stage = 'archived'
@@ -536,7 +536,13 @@ export function previewHivePlanPlacement(
 		return { ...entry, coord: [c.q, c.r] as const }
 	})
 	const structurallyValid = validateHivePlanStructure(game, rotatedEntries).length === 0
-	return { plan, anchor, rotation, cells, valid: structurallyValid && cells.every((cell) => cell.valid) }
+	return {
+		plan,
+		anchor,
+		rotation,
+		cells,
+		valid: structurallyValid && cells.every((cell) => cell.valid),
+	}
 }
 
 export function createConstructionSiteForHivePlanEntry(

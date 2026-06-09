@@ -1,5 +1,5 @@
 import { unreactive, untracked } from 'mutts'
-import { TraceVerb } from './debug'
+import type { TraceVerb } from './debug'
 
 export type TraceLevel = 'log' | 'warn' | 'error' | 'debug' | 'info' | 'trace' | 'assert failure'
 
@@ -530,7 +530,7 @@ function projectBayQueueNode(record: UnknownRecord): RuntimeProjection {
 		ref: branch ? `BayNode:${branch}` : 'BayNode',
 		body: {
 			$type: 'BayQueueNode',
-			handle: record.handle ? stringValue((record.handle as any).kind) ?? 'unknown' : undefined,
+			handle: record.handle ? (stringValue((record.handle as any).kind) ?? 'unknown') : undefined,
 			branch,
 			capacity: numberValue(record.capacity),
 			occupied: Array.isArray(record.occupiedBy)

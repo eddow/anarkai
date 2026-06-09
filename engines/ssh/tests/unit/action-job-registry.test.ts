@@ -9,12 +9,14 @@ describe('Action→job provider registry coverage', () => {
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		for (const [, def] of Object.entries(alveoli) as [string, any][]) {
 			if (def?.action?.type) types.add(def.action.type)
-			const variants = def?.variants as Record<string, { action?: { type?: string }; variants?: Record<string, unknown> }> | undefined
+			const variants = def?.variants as
+				| Record<string, { action?: { type?: string }; variants?: Record<string, unknown> }>
+				| undefined
 			if (variants) {
 				const walk = (v: { action?: { type?: string }; variants?: Record<string, unknown> }) => {
 					if (v.action?.type) types.add(v.action.type)
 					if (v.variants) {
-						for (const child of Object.values(v.variants) as typeof v[]) walk(child as typeof v)
+						for (const child of Object.values(v.variants) as (typeof v)[]) walk(child as typeof v)
 					}
 				}
 				for (const v of Object.values(variants)) walk(v as typeof v)

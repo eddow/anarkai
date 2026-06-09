@@ -31,14 +31,11 @@ describe('demoHive example game', () => {
 		expect(game.hex.getTile({ q: -3, r: 1 })?.content).toBeInstanceOf(BuildDwelling)
 
 		expect(game.freightLines.map((line) => line.id)).toEqual(
-			expect.arrayContaining([
-				'HearthLoop:commons-exchange',
-				'HearthLoop:melindbury-comfort-loop',
-			])
+			expect.arrayContaining(['HearthLoop:commons-exchange', 'HearthLoop:melindbury-comfort-loop'])
 		)
-		expect(game.vehicles.vehicle('HearthLoop:wheelbarrow')?.servedLines.map((line) => line.id)).toEqual([
-			'HearthLoop:commons-exchange',
-		])
+		expect(
+			game.vehicles.vehicle('HearthLoop:wheelbarrow')?.servedLines.map((line) => line.id)
+		).toEqual(['HearthLoop:commons-exchange'])
 		expect(
 			game.vehicles.vehicle('HearthLoop:pickup-truck')?.servedLines.map((line) => line.id)
 		).toEqual(['HearthLoop:melindbury-comfort-loop'])

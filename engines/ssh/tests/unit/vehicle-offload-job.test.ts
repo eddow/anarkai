@@ -65,7 +65,12 @@ describe('findVehicleOffloadJob', () => {
 					},
 				],
 			} as any)
-			const vehicle = game.vehicles.createVehicle('wb-border', 'wheelbarrow', { q: 0.5, r: -0.5 }, [])
+			const vehicle = game.vehicles.createVehicle(
+				'wb-border',
+				'wheelbarrow',
+				{ q: 0.5, r: -0.5 },
+				[]
+			)
 			const char = engine.spawnCharacter('Worker', { q: 1, r: -1 })
 			void char.scriptsContext
 

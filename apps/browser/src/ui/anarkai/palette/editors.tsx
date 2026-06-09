@@ -1,3 +1,5 @@
+import ResourceImage from '@app/components/ResourceImage'
+import { game, interactionMode } from '@app/lib/globals'
 import { Button, ButtonGroup, CheckButton, RadioButton } from '@app/ui/anarkai'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons'
 import { document, latch, rootEnv } from '@sursaut/core'
@@ -5,10 +7,11 @@ import type {
 	PaletteConfig,
 	PaletteEditorContext,
 	PaletteEditorRegistry,
-	PaletteToolbar as PaletteToolbarModel,
 	PaletteTool,
+	PaletteToolbar as PaletteToolbarModel,
 } from '@sursaut/ui/palette'
-import { paletteToolFamily, Toolbar as PaletteToolbarView } from '@sursaut/ui/palette'
+import { Toolbar as PaletteToolbarView, paletteToolFamily } from '@sursaut/ui/palette'
+import { variantBadges } from 'engine-pixi/assets/visual-content'
 import { effect, reactive } from 'mutts'
 import { Stars } from '../components/Stars'
 import { AnarkaiCommandBoxEditor } from './command-box'
@@ -43,6 +46,23 @@ type AnarkaiPaletteEnumValue = AnarkaiPaletteEnumTool['values'][number]
 
 function isDrawerItem(item: AnarkaiPaletteAnyItem): item is AnarkaiPaletteDrawerItem {
 	return item.editor === 'drawer' && Array.isArray((item as { toolbar?: unknown }).toolbar)
+}
+
+/** Extract the root alveolus name from a drawer item, if its child toolbar items use selectedAction tools. */
+function drawerItemRootName(item: AnarkaiPaletteDrawerItem): string | undefined {
+	const toolbar = item.toolbar
+	if (!toolbar || toolbar.length === 0) return undefined
+	for (const child of toolbar) {
+		if (!child.tool || typeof child.tool !== 'string') continue
+		const spec = child.tool
+		if (!spec.startsWith('selectedAction|')) continue
+		const action = spec.slice('selectedAction|'.length)
+		if (!action.startsWith('build:')) continue
+		const hashAt = action.indexOf('#')
+		const root = hashAt >= 0 ? action.slice('build:'.length, hashAt) : action.slice('build:'.length)
+		if (root.length > 0) return root
+	}
+	return undefined
 }
 
 const anarkaiPaletteEditorLabels = {
@@ -564,12 +584,39 @@ function DrawerEditor(
 	if (!isDrawerItem(context.item)) return <span />
 	const item = context.item
 	const meta = itemMeta(item)
-	const rawIcon = meta.icon as string | JSX.Element | (() => JSX.Element) | undefined
-	const badge = typeof rawIcon === 'string' && rawIcon.length === 1 ? rawIcon : controlIcon(rawIcon)
 	const title = paletteToolbarControlTitle(item)
 	const ui = reactive({ left: 0, open: false, top: 0 })
 	let trigger: HTMLButtonElement | undefined
 	const childDirection = () => (context.surface?.axis === 'vertical' ? 'horizontal' : 'vertical')
+
+	/** Resolve the child variant badge for this root from interactionMode.selectedAction. */
+	const resolveCornerBadge = () => {
+		const action = interactionMode.selectedAction
+		if (!action.startsWith('build:')) return undefined
+		const spec = action.slice('build:'.length)
+		if (!spec.includes('#')) return undefined
+		const [rootName, variantPath] = spec.split('#', 2)
+		// Only show corner badge on root drawers (not child drawers inside popups)
+		const itemRoot = drawerItemRootName(item)
+		if (!itemRoot || rootName !== itemRoot) return undefined
+		const key = `${rootName}.${variantPath}`
+		const def = variantBadges[key]
+		if (!def?.sprites?.[0]) return undefined
+		return <ResourceImage game={game} sprite={def.sprites[0]} width={10} height={10} alt="" />
+	}
+
+	// Collapse all open drawer popups when the selected action changes.
+	// Each drawer watches the semantic value directly — no need for a global signal.
+	let _lastAction = interactionMode.selectedAction
+	effect`anarkai-drawer-collapse`(() => {
+		const current = interactionMode.selectedAction
+		if (current !== _lastAction && ui.open) {
+			ui.open = false
+			trigger?.focus()
+		}
+		_lastAction = current
+	})
+
 	const syncPopup = () => {
 		if (!trigger) return
 		const rect = trigger.getBoundingClientRect()
@@ -621,6 +668,9 @@ function DrawerEditor(
 			host.remove()
 		}
 	})
+
+	// Icon rendered at JSX time — supports factory functions (reactive re-render)
+	const iconEl = () => controlIcon(meta.icon)
 	return (
 		<button
 			this={trigger}
@@ -654,8 +704,16 @@ function DrawerEditor(
 				ui.open = !ui.open
 			}}
 		>
-			<span if={badge} style="display:inline-flex;align-items:center;flex-shrink:0;font-size:0.7rem;color:var(--ak-text-muted,#94a3b8);margin-right:0.1rem">{badge}</span>
-			<span if={!badge || meta.label} class="ak-palette-drawer__label">
+			<span style="position:relative;display:inline-flex;align-items:center;flex-shrink:0">
+				{iconEl()}
+				<span
+					if={resolveCornerBadge()}
+					style="position:absolute;right:-2px;bottom:-2px;display:inline-flex;align-items:center;justify-content:center;width:10px;height:10px;border-radius:2px;background:var(--ak-surface-panel, rgba(15,23,42,0.95));box-shadow:0 0 0 1px var(--ak-border)"
+				>
+					{resolveCornerBadge()}
+				</span>
+			</span>
+			<span if={meta.label} class="ak-palette-drawer__label">
 				{meta.label}
 			</span>
 		</button>

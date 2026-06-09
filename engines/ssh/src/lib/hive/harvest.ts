@@ -1,5 +1,4 @@
 import { memoize } from 'mutts'
-import { Alveolus } from 'ssh/board/content/alveolus'
 import { multiplyGoodsQty } from 'ssh/board/content/utils'
 import type { Tile } from 'ssh/board/tile'
 import { findGatherFreightLine } from 'ssh/freight/freight-line'
@@ -46,5 +45,4 @@ export class HarvestAlveolus extends TransitAlveolus {
 			0
 		)
 	}
-
 }

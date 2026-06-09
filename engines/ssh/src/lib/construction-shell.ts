@@ -59,7 +59,17 @@ export function finalizeConstructionShell(shell: ConstructionSiteShell): void {
 	const target = constructionSite.target
 	if (target.kind === 'alveolus') {
 		// Multi-hop construction queue: if there are more steps, advance to the next one
-		const buildShell = shell as { constructionQueue?: readonly any[]; constructionStepIndex?: number; nextVariantId?: string; variantId?: string; targetVariantId?: string; planConfiguration?: any; hivePlanId?: string; hivePlanVersion?: number; planRoleId?: string }
+		const buildShell = shell as {
+			constructionQueue?: readonly any[]
+			constructionStepIndex?: number
+			nextVariantId?: string
+			variantId?: string
+			targetVariantId?: string
+			planConfiguration?: any
+			hivePlanId?: string
+			hivePlanVersion?: number
+			planRoleId?: string
+		}
 		const queue = buildShell.constructionQueue
 		const currentIdx = buildShell.constructionStepIndex ?? 0
 		if (queue && currentIdx + 1 < queue.length) {
@@ -87,7 +97,12 @@ export function finalizeConstructionShell(shell: ConstructionSiteShell): void {
 		// Final step: create the finished alveolus
 		const alveolus = createAlveolus(target.alveolusType, shell.tile, target.variantId)
 		assert(alveolus, 'Target alveolus must exist')
-		const planned = shell as { planConfiguration?: { ref: Ssh.ConfigurationReference; individual?: Ssh.AlveolusConfiguration } }
+		const planned = shell as {
+			planConfiguration?: {
+				ref: Ssh.ConfigurationReference
+				individual?: Ssh.AlveolusConfiguration
+			}
+		}
 		if (planned.planConfiguration) {
 			alveolus.configurationRef = planned.planConfiguration.ref
 			if (planned.planConfiguration.individual) {

@@ -56,14 +56,19 @@ export interface ResolvedAlveolusVariant {
 export const VARIANT_DELIMITER = '#'
 
 /** Splits a project string into base type + optional variant */
-export function parseBuildActionProject(action: string): {
-	alveolusType: AlveolusType
-	variantId?: string
-} | undefined {
+export function parseBuildActionProject(action: string):
+	| {
+			alveolusType: AlveolusType
+			variantId?: string
+	  }
+	| undefined {
 	const raw = action.startsWith('build:') ? action.slice('build:'.length) : action
 	const hashIdx = raw.indexOf(VARIANT_DELIMITER)
 	if (hashIdx >= 0) {
-		return { alveolusType: raw.slice(0, hashIdx) as AlveolusType, variantId: raw.slice(hashIdx + 1) }
+		return {
+			alveolusType: raw.slice(0, hashIdx) as AlveolusType,
+			variantId: raw.slice(hashIdx + 1),
+		}
 	}
 	return { alveolusType: raw as AlveolusType }
 }
@@ -100,7 +105,9 @@ export function resolveAlveolusVariant(
 	const resolvedSegments: string[] = []
 
 	for (const segment of segments) {
-		const variants = currentDef.variants as Record<string, Ssh.AlveolusVariantDefinition> | undefined
+		const variants = currentDef.variants as
+			| Record<string, Ssh.AlveolusVariantDefinition>
+			| undefined
 		const found = variants?.[segment]
 		if (!found) {
 			console.warn(
@@ -142,7 +149,9 @@ export function resolveAlveolusVariant(
  * Parse a project string like `build:pile` or `build:pile#wood.extra`
  * into a ConstructionTarget with optional variantId.
  */
-function parseBuildProject(project: string): { alveolusType: AlveolusType; variantId?: string } | undefined {
+function parseBuildProject(
+	project: string
+): { alveolusType: AlveolusType; variantId?: string } | undefined {
 	const raw = project.slice('build:'.length)
 	const hashIdx = raw.indexOf(VARIANT_DELIMITER)
 	if (hashIdx >= 0) {
@@ -200,7 +209,9 @@ export function createConstructionRecipe(target: ConstructionTarget): Constructi
 			}
 		}
 		// Fallback for unknown types
-		const def = alveoli[target.alveolusType as keyof typeof alveoli] as Ssh.AlveolusDefinition | undefined
+		const def = alveoli[target.alveolusType as keyof typeof alveoli] as
+			| Ssh.AlveolusDefinition
+			| undefined
 		return {
 			goods: { ...((def?.construction?.goods ?? {}) as Partial<Record<GoodType, number>>) },
 			workSeconds: def?.construction?.time ?? 0,

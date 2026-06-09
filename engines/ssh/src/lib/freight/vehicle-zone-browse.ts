@@ -83,7 +83,7 @@ export function zoneBrowseLoadPriorityTier(adSource: FreightAdSource): FreightPr
 
 function pathToTile(
 	game: Game,
-	character: Character,
+	_character: Character,
 	startPos: Positioned,
 	targetTile: Tile
 ): AxialCoord[] | undefined {

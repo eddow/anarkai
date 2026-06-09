@@ -195,11 +195,7 @@ export function computeActivityScores(character: ActivityPlanningCharacter): Act
 		const found = find.food()
 		const foodCandidate = personalFood
 			? { good: personalFood, path: [] as AxialCoord[] }
-			: found &&
-				  typeof found === 'object' &&
-				  found !== null &&
-				  'path' in found &&
-				  'good' in found
+			: found && typeof found === 'object' && found !== null && 'path' in found && 'good' in found
 				? found
 				: undefined
 		if (foodCandidate) {

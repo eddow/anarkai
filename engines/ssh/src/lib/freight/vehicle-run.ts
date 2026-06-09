@@ -239,7 +239,10 @@ export function stopHasPotentialVehicleTransfer(
 
 	const providedHere = measureFreightStopProvidedGoods(game, line, stopIndex).perGood
 	const further = computeLineFurtherGoods({ game, line, currentStopIndex: stopIndex })
-	if ('trade' in stop && goodsIntersectAvailableStock(vehicle, further.furtherNeededGoods.perGood)) {
+	if (
+		'trade' in stop &&
+		goodsIntersectAvailableStock(vehicle, further.furtherNeededGoods.perGood)
+	) {
 		return false
 	}
 	for (const [goodType, quantity] of Object.entries(providedHere) as [GoodType, number][]) {

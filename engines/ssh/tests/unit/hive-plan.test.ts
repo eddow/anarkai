@@ -1,16 +1,16 @@
-import { describe, expect, it } from 'vitest'
-import { Game } from 'ssh/game/game'
 import { isConstructionSiteShell } from 'ssh/build-site'
+import { Game } from 'ssh/game/game'
 import {
 	applyHivePlanToolAction,
 	HivePlanCollection,
+	type HivePlanEntry,
 	hivePlanEntryAt,
 	hivePlanFingerprint,
 	hivePlanNoveltyCost,
 	hivePlanVisibleCandidateCoords,
-	type HivePlanEntry,
 	validateHivePlanStructure,
 } from 'ssh/hive-plan'
+import { describe, expect, it } from 'vitest'
 
 const mockGame = () =>
 	({
@@ -110,7 +110,12 @@ describe('hive plans', () => {
 
 		const candidates = hivePlanVisibleCandidateCoords([entry('a', 0, 0)])
 		expect(candidates).toHaveLength(6)
-		expect(candidates).toEqual(expect.arrayContaining([{ q: 1, r: 0 }, { q: 0, r: 1 }]))
+		expect(candidates).toEqual(
+			expect.arrayContaining([
+				{ q: 1, r: 0 },
+				{ q: 0, r: 1 },
+			])
+		)
 	})
 
 	it('uses archived plans as known memory for novelty', () => {
@@ -142,10 +147,7 @@ describe('hive plans', () => {
 		await game.loaded
 		game.ticker.stop()
 		try {
-			const plan = game.hivePlans.createDraft('Storage Pair', [
-				entry('a', 0, 0),
-				entry('b', 1, 0),
-			])
+			const plan = game.hivePlans.createDraft('Storage Pair', [entry('a', 0, 0), entry('b', 1, 0)])
 			plan.stage = 'working'
 
 			expect(game.applyHivePlanPlacement(plan.id, { q: 0, r: 0 }, 0)).toBe(true)

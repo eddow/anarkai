@@ -1,10 +1,10 @@
+import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import {
 	detachVehicleServiceIfStorageEmpty,
 	disembarkOperatorLeavingDockedVehicleInService,
 	ensureVehicleServiceStarted,
 	releaseVehicleFreightWorkOnPlanInterrupt,
 } from 'ssh/freight/vehicle-run'
-import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { findVehicleApproachJob } from 'ssh/freight/vehicle-work'
 import { Game } from 'ssh/game/game'
 import { offloadDropBufferNative } from 'ssh/npcs/context/inventory'
@@ -503,7 +503,11 @@ describe('Character vehicle seam', () => {
 		const target = game.hex.getTile({ q: 1, r: 0 })!
 		target.content = new BasicDwelling(target)
 		const serviceSide = game.hex.getTile({ q: 0, r: 0 })!
-		const vehicle = game.vehicles.createVehicle('v-border-service', 'wheelbarrow', serviceSide.position)
+		const vehicle = game.vehicles.createVehicle(
+			'v-border-service',
+			'wheelbarrow',
+			serviceSide.position
+		)
 		const character = game.population.createCharacter('Borderer', serviceSide.position)
 		vehicle.beginOffloadService(character)
 		character.operates = vehicle

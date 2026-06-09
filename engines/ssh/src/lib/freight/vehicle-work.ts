@@ -52,6 +52,7 @@ import {
 } from 'ssh/freight/vehicle-zone-browse'
 import type { Game } from 'ssh/game/game'
 import { options } from 'ssh/globals'
+import type { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import {
 	asAlveolusProposedJob,
 	asVehicleProposedJob,
@@ -67,7 +68,6 @@ import {
 	isVehicleMaintenanceService,
 	type VehicleMaintenanceService,
 } from 'ssh/population/vehicle/vehicle'
-import type { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import type { Storage } from 'ssh/storage'
 import type {
 	GoodType,
@@ -117,7 +117,10 @@ export function allocateVehicleServiceForJob(
 					vehicle.isDocked &&
 					!dockedVehicleHasPendingDockWork(vehicle) &&
 					!nextLineStopAfterCurrent(game, vehicle)
-				if (!canParkCompletedDockedLine && projectedLineStopForVehicleHop(game, character, vehicle)) {
+				if (
+					!canParkCompletedDockedLine &&
+					projectedLineStopForVehicleHop(game, character, vehicle)
+				) {
 					throw new Error('vehicleOffload: line service already active')
 				}
 				if (job.maintenanceKind !== 'park')
@@ -256,8 +259,7 @@ function hasActiveMovementForVehicleDock(bay: FreightBayAlveolus, vehicle: Vehic
 
 function alveolusHasConveyableGood(alveolus: Alveolus, goodType: GoodType): boolean {
 	return (
-		(alveolus.storage?.available(goodType) ?? 0) > 0 ||
-		(alveolus.storage?.stock[goodType] ?? 0) > 0
+		(alveolus.storage?.available(goodType) ?? 0) > 0 || (alveolus.storage?.stock[goodType] ?? 0) > 0
 	)
 }
 
@@ -417,7 +419,10 @@ function dockCandidateTargetDiagnostics(
 		targets: bay.hive.generalStorages.map((storage) => {
 			const acceptedRoomFor = (
 				storage as {
-					acceptedRoomFor?: (goodType: GoodType, priority: '0-store' | '1-buffer' | '2-use') => number
+					acceptedRoomFor?: (
+						goodType: GoodType,
+						priority: '0-store' | '1-buffer' | '2-use'
+					) => number
 				}
 			).acceptedRoomFor
 			return {
@@ -432,8 +437,8 @@ function dockCandidateTargetDiagnostics(
 				),
 				canTakeFromDock2Use:
 					candidate.advertisement === 'provide' && dock
-						? storage.canTakeFrom?.(dock, candidate.goodType, '2-use') ??
-							storage.canTake(candidate.goodType, '2-use')
+						? (storage.canTakeFrom?.(dock, candidate.goodType, '2-use') ??
+							storage.canTake(candidate.goodType, '2-use'))
 						: undefined,
 				acceptedRoom2Use: acceptedRoomFor?.call(storage, candidate.goodType, '2-use'),
 				canGive2Use:
@@ -477,11 +482,14 @@ function dockedVehicleProviderJob(game: Game, vehicle: VehicleEntity): ProposedJ
 				if (!stopHasPotentialVehicleTransfer(game, undefined, vehicle, line, stop)) continue
 				const targetPos = freightStopTargetPosition(game, stop)
 				if (!targetPos) continue
-				traces.vehicle.log?.('[vehicle.advertisedJobs] provider begin-service for unserviced vehicle', {
-					...vehicleTraceSnapshot(vehicle),
-					lineId: line.id,
-					stopId: stop.id,
-				})
+				traces.vehicle.log?.(
+					'[vehicle.advertisedJobs] provider begin-service for unserviced vehicle',
+					{
+						...vehicleTraceSnapshot(vehicle),
+						lineId: line.id,
+						stopId: stop.id,
+					}
+				)
 				return asVehicleProposedJob(
 					{
 						job: 'vehicleHop',
@@ -1088,7 +1096,10 @@ function pickMaintenanceForVehicle(
 	}
 	if (bestLoad || bestUnload) {
 		if (bestLoad && bestLoadDistance <= bestUnloadDistance) {
-			if (vehicleServesTradeLine(vehicle) && !isJointLineLoadCandidate(character, vehicle, bestLoad)) {
+			if (
+				vehicleServesTradeLine(vehicle) &&
+				!isJointLineLoadCandidate(character, vehicle, bestLoad)
+			) {
 				traces.vehicle.log?.('vehicleJob.maintenance.skipNonLineLoadForTradeVehicle', {
 					characterUid: character.uid,
 					vehicleUid: vehicle.uid,
@@ -1430,7 +1441,9 @@ export function findVehicleApproachJob(
 ): { vehicleUid: string; path: AxialCoord[] } | undefined {
 	if (character.driving) return undefined
 	if (character.operates) return undefined
-	let best: { vehicleUid: string; path: AxialCoord[]; len: number; score: number; urgency: number } | undefined
+	let best:
+		| { vehicleUid: string; path: AxialCoord[]; len: number; score: number; urgency: number }
+		| undefined
 	for (const vehicle of game.vehicles) {
 		if (!isLineFreightVehicleType(vehicle.vehicleType)) continue
 		if (!vehicleHasNoOtherOperator(game, vehicle, character)) continue
@@ -1799,11 +1812,7 @@ function findVehicleHopJobLineHop(game: Game, character: Character): VehicleHopJ
 		if (!targetPos) return undefined
 		const startPos = axial.round(toAxialCoord(character.position)!)
 		path =
-			game.hex.findPathForVehicleServiceBorder(
-				startPos,
-				targetPos,
-				Number.POSITIVE_INFINITY
-			) ?? []
+			game.hex.findPathForVehicleServiceBorder(startPos, targetPos, Number.POSITIVE_INFINITY) ?? []
 		if (path.length === 0 && 'trade' in stop) {
 			traces.vehicle.log?.('vehicleJob.tradeStop.virtualPath', {
 				characterUid: character.uid,
@@ -2284,10 +2293,7 @@ export function collectVehicleAdvertisedJobs(game: Game, vehicle: VehicleEntity)
 					dockCandidates,
 				})
 				return [
-					asAlveolusProposedJob(
-						{ job: 'convey', fatigue: 1, urgency: jobBalance.convey },
-						source
-					),
+					asAlveolusProposedJob({ job: 'convey', fatigue: 1, urgency: jobBalance.convey }, source),
 				]
 			}
 			traces.vehicle.log?.('[vehicle.advertisedJobs] source fallback convey', {
@@ -2297,10 +2303,7 @@ export function collectVehicleAdvertisedJobs(game: Game, vehicle: VehicleEntity)
 				dockCandidates,
 			})
 			return [
-				asAlveolusProposedJob(
-					{ job: 'convey', fatigue: 1, urgency: jobBalance.convey },
-					source
-				),
+				asAlveolusProposedJob({ job: 'convey', fatigue: 1, urgency: jobBalance.convey }, source),
 			]
 		}
 	}

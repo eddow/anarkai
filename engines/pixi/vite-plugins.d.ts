@@ -1,6 +1,6 @@
-import type { Plugin } from "vite";
+import type { Plugin } from 'vite'
 
 /**
  * Vite plugin to serve and copy Pixi assets.
  */
-export function servePixiAssets(): Plugin;
+export function servePixiAssets(): Plugin

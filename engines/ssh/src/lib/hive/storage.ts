@@ -1,4 +1,4 @@
-import { goods as allGoodsList, configurations, jobBalance } from 'engine-rules'
+import { goods as allGoodsList, configurations } from 'engine-rules'
 import { reactive } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'

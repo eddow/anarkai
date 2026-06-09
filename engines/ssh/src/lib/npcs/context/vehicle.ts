@@ -93,8 +93,7 @@ function refreshAnchorHopPathToLiveDock(
 			Number.POSITIVE_INFINITY
 		) ?? []
 	if (path.length === 0) {
-		;(jobPlan as WorkPlan & { vehicleHopReplanRequired?: boolean }).vehicleHopReplanRequired =
-			true
+		;(jobPlan as WorkPlan & { vehicleHopReplanRequired?: boolean }).vehicleHopReplanRequired = true
 		traces.vehicle.warn?.('vehicleHopPrepare: no path to live dock anchor', {
 			characterUid: character.uid,
 			vehicleUid: vehicle.uid,
@@ -132,8 +131,7 @@ function moveTowardLiveDockStep(
 	if (!next) return undefined
 	const pathLen = path?.length ?? 0
 	const distance = Math.max(1, axial.distance(from, next))
-	const duration =
-		character.tile.effectiveWalkTime * character.mobilityMultiplier * distance
+	const duration = character.tile.effectiveWalkTime * character.mobilityMultiplier * distance
 	if (!Number.isFinite(duration) || duration <= 0) return undefined
 	const dockCoord = vehicle.dockTile
 		? axial.round(toAxialCoord(vehicle.dockTile.position)!)
@@ -164,18 +162,22 @@ function moveTowardLiveDockStep(
 		dockCoord: vehicle.dockTile ? toAxialCoord(vehicle.dockTile.position) : undefined,
 		canDockNow: vehicleCanDockAtCurrentPosition(vehicle),
 	})
-	return new MoveToStep(duration, character, next, 'walk', 'vehicleHop.recoverDockPath').onFulfilled(
-		() => {
-			traces.vehicle.log?.('vehicleHopDockStep: recovered stale dock tail movement completed', {
-				characterUid: character.uid,
-				vehicleUid: vehicle.uid,
-				from,
-				next,
-				vehicleCoord: vehicle.position ? axial.round(toAxialCoord(vehicle.position)!) : undefined,
-				dockable: vehicleCanDockAtCurrentPosition(vehicle),
-			})
-		}
-	)
+	return new MoveToStep(
+		duration,
+		character,
+		next,
+		'walk',
+		'vehicleHop.recoverDockPath'
+	).onFulfilled(() => {
+		traces.vehicle.log?.('vehicleHopDockStep: recovered stale dock tail movement completed', {
+			characterUid: character.uid,
+			vehicleUid: vehicle.uid,
+			from,
+			next,
+			vehicleCoord: vehicle.position ? axial.round(toAxialCoord(vehicle.position)!) : undefined,
+			dockable: vehicleCanDockAtCurrentPosition(vehicle),
+		})
+	})
 }
 
 function markVehicleHopRunEndedBeforeDock(
@@ -542,7 +544,11 @@ class VehicleFunctions {
 			})
 		}
 		assertVehicleOperationConsistency(vehicle, character)
-		const zoneReachStep = new DurationStep(character.freightTransferTime * 0.25, 'work', 'vehicleHop.zoneReach')
+		const zoneReachStep = new DurationStep(
+			character.freightTransferTime * 0.25,
+			'work',
+			'vehicleHop.zoneReach'
+		)
 		traces.vehicle.log?.('vehicleHopDockStep: returning zoneReach DurationStep', {
 			characterUid: character.uid,
 			vehicleUid: vehicle.uid,

@@ -238,7 +238,7 @@ describe('vehicle-freight-dock', () => {
 
 			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
 			expect(bay).toBeDefined()
-			const storage = engine.game.hex.getTile({ q: 1, r: 0 })?.content
+			const _storage = engine.game.hex.getTile({ q: 1, r: 0 })?.content
 			const vehicle = engine.game.vehicles.createVehicle(
 				'dock-forty-v',
 				'wheelbarrow',
@@ -513,7 +513,7 @@ describe('vehicle-freight-dock', () => {
 
 			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
 			expect(bay).toBeDefined()
-			const storage = engine.game.hex.getTile({ q: 1, r: 0 })?.content
+			const _storage = engine.game.hex.getTile({ q: 1, r: 0 })?.content
 			const vehicle = engine.game.vehicles.createVehicle(
 				'dock-finished-v',
 				'wheelbarrow',
@@ -834,9 +834,7 @@ describe('vehicle-freight-dock', () => {
 			vehicle.dock()
 
 			const pending =
-				vehicle.storage.virtualGoodsCount > 0
-					? undefined
-					: new Commitment('test.pending-dock-load')
+				vehicle.storage.virtualGoodsCount > 0 ? undefined : new Commitment('test.pending-dock-load')
 			if (pending) expect(vehicle.storage.allocate({ concrete: 1 }, pending)).toBeUndefined()
 			expect(vehicle.storage.virtualGoodsCount).toBeGreaterThan(0)
 			expect(collectDockedVehicleAdvertisementCandidates(vehicle, bay!)).toHaveLength(0)

@@ -21,11 +21,11 @@
 
 import type { AxialCoord } from 'ssh/utils'
 
-import {
-	type QueueNodeHandle,
-	type SerializedBayQueueGraph,
-	type SerializedQueueEdge,
-	type SerializedQueueNode,
+import type {
+	QueueNodeHandle,
+	SerializedBayQueueGraph,
+	SerializedQueueEdge,
+	SerializedQueueNode,
 } from './bay-queue-types'
 
 /**
@@ -66,7 +66,7 @@ export function generateSimpleQueueGraph(
 	const nodes: SerializedQueueNode[] = []
 
 	// Service node (dock)
-	const serviceNodeIndex = nodes.length
+	const _serviceNodeIndex = nodes.length
 	nodes.push({
 		handle: serviceDockHandle,
 		capacity: 1,
@@ -84,7 +84,7 @@ export function generateSimpleQueueGraph(
 			coord: { q: coord.q, r: coord.r },
 		}
 
-		const index = nodes.length
+		const _index = nodes.length
 		const coordKey = `${coord.q},${coord.r}`
 		const branch = options.branchLabels?.get(coordKey)
 
@@ -251,9 +251,7 @@ export function generateMultiBayQueueGraph(
  * This is a lightweight parser; for production use, a full YAML library
  * + validation layer would be appropriate.
  */
-export function parseBayQueueConfig(
-	config: BayQueueConfigInput
-): SerializedBayQueueGraph[] {
+export function parseBayQueueConfig(config: BayQueueConfigInput): SerializedBayQueueGraph[] {
 	return config.bayGroups.map((group) => ({
 		bayGroupId: group.id,
 		serviceNodes: group.serviceNodes.map((sn) => sn.handle),

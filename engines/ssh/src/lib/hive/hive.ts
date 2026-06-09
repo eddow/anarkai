@@ -2226,10 +2226,8 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			}
 			const movementRef = reason.movementRef ?? reason.movement?.ref
 			if (movementRef && activeRefs.has(movementRefId(movementRef))) return false
-			const matchesDock = (
-				ref: { name?: string } | undefined,
-				name: string | undefined
-			): boolean => ref === dock || unwrap(ref) === unwrap(dock) || name === dock.name
+			const matchesDock = (ref: { name?: string } | undefined, name: string | undefined): boolean =>
+				ref === dock || unwrap(ref) === unwrap(dock) || name === dock.name
 			return (
 				matchesDock(
 					reason.providerRef ?? reason.provider ?? reason.movement?.provider,
@@ -3181,17 +3179,17 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		}
 		// FreightBayAlveolus and other non-storage parties use NoStorage and can never
 		// fulfill movement allocations. VehicleFreightDock must be used instead.
-		if (
-			provider.storage instanceof NoStorage ||
-			demander.storage instanceof NoStorage
-		) {
-			traces.advertising.warn?.(`[CREATE] SKIP NO-STORAGE: ${goodType} ${provider.name} -> ${demander.name}`, {
-				goodType,
-				provider: provider.name,
-				demander: demander.name,
-				providerNoStorage: provider.storage instanceof NoStorage,
-				demanderNoStorage: demander.storage instanceof NoStorage,
-			})
+		if (provider.storage instanceof NoStorage || demander.storage instanceof NoStorage) {
+			traces.advertising.warn?.(
+				`[CREATE] SKIP NO-STORAGE: ${goodType} ${provider.name} -> ${demander.name}`,
+				{
+					goodType,
+					provider: provider.name,
+					demander: demander.name,
+					providerNoStorage: provider.storage instanceof NoStorage,
+					demanderNoStorage: demander.storage instanceof NoStorage,
+				}
+			)
 			return false
 		}
 		if (this.hasActiveMovement(provider, demander, goodType)) {

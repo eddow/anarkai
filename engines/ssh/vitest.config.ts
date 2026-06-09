@@ -1,16 +1,16 @@
-import { dirname, resolve as resolvePath } from "node:path";
-import { fileURLToPath } from "node:url";
-import { defineConfig } from "vitest/config";
+import { dirname, resolve as resolvePath } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { defineConfig } from 'vitest/config'
 
-const projectRootDir = dirname(fileURLToPath(import.meta.url));
+const projectRootDir = dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
 	test: {
-		environment: "node",
+		environment: 'node',
 		globals: true,
-		setupFiles: ["./test-setup.ts"],
-		include: ["src/**/*.{test,spec}.{js,ts}", "tests/**/*.{test,spec}.{js,ts}"],
-		exclude: ["node_modules", "dist", ".git", ".cache", "tests/e2e"],
+		setupFiles: ['./test-setup.ts'],
+		include: ['src/**/*.{test,spec}.{js,ts}', 'tests/**/*.{test,spec}.{js,ts}'],
+		exclude: ['node_modules', 'dist', '.git', '.cache', 'tests/e2e'],
 		watch: false,
 		// Hard ceiling per test so a stuck loop fails with a named test instead of stalling the suite.
 		// Long integration scenarios must opt into a larger timeout at the test site.
@@ -18,30 +18,36 @@ export default defineConfig({
 		hookTimeout: 15000,
 		teardownTimeout: 15000,
 		silent: true,
-		pool: "threads",
+		pool: 'threads',
 		fileParallelism: false,
 	},
 	oxc: {
-		target: "node14",
+		target: 'node14',
 		decorator: {
 			legacy: true,
 		},
 	},
 	resolve: {
 		alias: [
-			{ find: /^engine-terrain\/hex$/, replacement: resolvePath(projectRootDir, "../terrain/src/hex/index.ts") },
-			{ find: /^engine-terrain$/, replacement: resolvePath(projectRootDir, "../terrain/src/index.ts") },
+			{
+				find: /^engine-terrain\/hex$/,
+				replacement: resolvePath(projectRootDir, '../terrain/src/hex/index.ts'),
+			},
+			{
+				find: /^engine-terrain$/,
+				replacement: resolvePath(projectRootDir, '../terrain/src/index.ts'),
+			},
 			{
 				find: /^ssh\/debug-game-state$/,
-				replacement: resolvePath(projectRootDir, "src/lib/dev/debug-game-state.ts"),
+				replacement: resolvePath(projectRootDir, 'src/lib/dev/debug-game-state.ts'),
 			},
 			{
 				find: /^ssh\/(.*)$/,
-				replacement: `${resolvePath(projectRootDir, "src/lib")}/$1`,
+				replacement: `${resolvePath(projectRootDir, 'src/lib')}/$1`,
 			},
-			{ find: /^ssh$/, replacement: resolvePath(projectRootDir, "src/lib") },
-			{ find: /^npc-script$/, replacement: resolvePath(projectRootDir, "../../../ownk/npcs/src") },
-			{ find: /^mutts$/, replacement: resolvePath(projectRootDir, "../../../ownk/mutts") },
+			{ find: /^ssh$/, replacement: resolvePath(projectRootDir, 'src/lib') },
+			{ find: /^npc-script$/, replacement: resolvePath(projectRootDir, '../../../ownk/npcs/src') },
+			{ find: /^mutts$/, replacement: resolvePath(projectRootDir, '../../../ownk/mutts') },
 		],
 	},
-});
+})

@@ -1,5 +1,5 @@
-import { BuildAlveolus } from 'ssh/hive/build'
 import type { Tile } from 'ssh/board/tile'
+import { BuildAlveolus } from 'ssh/hive/build'
 import { describe, expect, it } from 'vitest'
 
 describe('variant construction queue expansion', () => {

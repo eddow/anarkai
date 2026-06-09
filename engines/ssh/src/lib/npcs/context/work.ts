@@ -29,9 +29,9 @@ import { ForesterAlveolus } from 'ssh/hive/forester'
 import { commitmentValid, type TrackedMovement } from 'ssh/hive/hive'
 import { movementRefId } from 'ssh/hive/movement-ref'
 import { MovementState, transitionMovement } from 'ssh/hive/movement-state'
-import { getActionJobProvider } from 'ssh/jobs/action-job-registry'
 import { StorageAlveolus } from 'ssh/hive/storage'
 import { TransformAlveolus } from 'ssh/hive/transform'
+import { getActionJobProvider } from 'ssh/jobs/action-job-registry'
 import type { Character } from 'ssh/population/character'
 import type { Storage } from 'ssh/storage'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
@@ -1067,9 +1067,7 @@ class WorkFunctions {
 			return this.harvestStep()
 		}
 		const walkDuration =
-			character.tile.effectiveWalkTime *
-			character.mobilityMultiplier *
-			Math.max(1, distance)
+			character.tile.effectiveWalkTime * character.mobilityMultiplier * Math.max(1, distance)
 		return new MoveToStep(
 			walkDuration,
 			character,

@@ -5,7 +5,7 @@ import { traces } from 'ssh/dev/debug'
 import { isVehicleFreightDock } from 'ssh/freight/vehicle-freight-dock'
 import type { Hive, MovementSelection, TrackedMovement } from 'ssh/hive/hive'
 import { movementRefId } from 'ssh/hive/movement-ref'
-import { getActionJobProvider, type ActionProposedJob } from 'ssh/jobs/action-job-registry'
+import { type ActionProposedJob, getActionJobProvider } from 'ssh/jobs/action-job-registry'
 import { type AlveolusProposedJob, asAlveolusProposedJob } from 'ssh/jobs/offers'
 import { gameIsaTypes } from 'ssh/npcs/utils'
 import type { Character } from 'ssh/population/character'
@@ -282,7 +282,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		if (provider) {
 			const result = provider(this)
 			return result.proposedJobs.map((p: ActionProposedJob) =>
-				asAlveolusProposedJob(p.job, this, p.targetTile),
+				asAlveolusProposedJob(p.job, this, p.targetTile)
 			)
 		}
 		return []

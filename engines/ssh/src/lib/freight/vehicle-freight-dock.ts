@@ -1,9 +1,6 @@
 import { jobBalance } from 'engine-rules'
 import type { Alveolus } from 'ssh/board/content/alveolus'
-import {
-	type FreightLineDefinition,
-	findDistributeRouteSegments,
-} from 'ssh/freight/freight-line'
+import { type FreightLineDefinition, findDistributeRouteSegments } from 'ssh/freight/freight-line'
 import {
 	computeFutureFreightTransfer,
 	measureFreightStopNeededGoods,
@@ -105,10 +102,12 @@ export interface DockedVehicleAdvertisementCandidate {
 }
 
 function storageReservedGoods(vehicle: VehicleEntity, goodType: GoodType): number {
-	return vehicle.storage.renderedGoods().slots.reduce(
-		(total, slot) => total + (slot.goodType === goodType ? Math.max(0, slot.reserved) : 0),
-		0
-	)
+	return vehicle.storage
+		.renderedGoods()
+		.slots.reduce(
+			(total, slot) => total + (slot.goodType === goodType ? Math.max(0, slot.reserved) : 0),
+			0
+		)
 }
 
 function advertisedProviderQuantity(alveolus: Alveolus, goodType: GoodType): number {
@@ -393,7 +392,10 @@ export function refreshDockedVehicleAdvertisement(
 ): DockedVehicleAdvertisementCandidate[] {
 	const dock = bay.hive.freightVehicleDockFor(vehicle.uid)
 	if (!dock) return collectDockedVehicleAdvertisementCandidates(vehicle, bay)
-	if (vehicle.storage.virtualGoodsCount > 0 && !bay.hive.hasActiveFreightVehicleDockMovement(vehicle.uid)) {
+	if (
+		vehicle.storage.virtualGoodsCount > 0 &&
+		!bay.hive.hasActiveFreightVehicleDockMovement(vehicle.uid)
+	) {
 		const canceled = bay.hive.cancelOrphanedFreightVehicleDockAllocations(dock)
 		if (canceled > 0 && vehicle.storage.virtualGoodsCount > 0) {
 			const cleared = clearUnbackedVirtualGoods(vehicle)

@@ -10,8 +10,8 @@ import {
 	alveoli as visualAlveoli,
 	dwellings as visualDwellings,
 } from 'engine-pixi/assets/visual-content'
-import * as gameContent from 'ssh/assets/game-content'
 import { effect, reactive } from 'mutts'
+import * as gameContent from 'ssh/assets/game-content'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'

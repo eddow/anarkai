@@ -1,16 +1,16 @@
 import type { AxialCoord } from 'ssh/utils'
 import { axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
-import type { Game } from '../game/game'
 import type { Tile } from '../board/tile'
+import type { Game } from '../game/game'
 import type { GetNeighbors } from '../utils/pathfinding'
 import {
-	findNearestServicePoint,
-	formatBlockingTileValidationSummary,
-	isServicePositionReachable,
 	type BlockingTileIssue,
 	type BlockingTileValidationResult,
 	type BorderServicePosition,
+	findNearestServicePoint,
+	formatBlockingTileValidationSummary,
+	isServicePositionReachable,
 	validateBlockingTiles,
 	wouldBecomeLandlocked,
 } from './blocking-tile-validation'
@@ -93,7 +93,10 @@ export class BlockingTileDebugCommands {
 	 * @param r - R coordinate of the tile to check
 	 * @returns Result indicating if landlocked tiles would be created
 	 */
-	checkWouldBecomeLandlocked(q: number, r: number): {
+	checkWouldBecomeLandlocked(
+		q: number,
+		r: number
+	): {
 		wouldBeLandlocked: boolean
 		affectedTiles: AxialCoord[]
 		details: string
@@ -122,7 +125,11 @@ export class BlockingTileDebugCommands {
 	 * @param maxDistance - Maximum search distance (default: 10)
 	 * @returns Border service position if found, null otherwise
 	 */
-	findNearestServicePoint(q: number, r: number, maxDistance: number = 10): {
+	findNearestServicePoint(
+		q: number,
+		r: number,
+		maxDistance: number = 10
+	): {
 		servicePosition: BorderServicePosition | null
 		message: string
 	} {
@@ -210,7 +217,10 @@ export class BlockingTileDebugCommands {
 	 * @param r - R coordinate of the tile
 	 * @returns Detailed tile information
 	 */
-	getTileBlockingInfo(q: number, r: number): {
+	getTileBlockingInfo(
+		q: number,
+		r: number
+	): {
 		coord: AxialCoord
 		isBlocking: boolean
 		isLandlocked: boolean
@@ -358,8 +368,7 @@ export function attachBlockingTileDebugCommands(game: Game): void {
 		validate: () => commands.validateBlockingTiles(),
 		findLandlocked: () => commands.findLandlockedTiles(),
 		findBorderServicePositions: () => commands.findBorderServicePositions(),
-		checkWouldBecomeLandlocked: (q: number, r: number) =>
-			commands.checkWouldBecomeLandlocked(q, r),
+		checkWouldBecomeLandlocked: (q: number, r: number) => commands.checkWouldBecomeLandlocked(q, r),
 		findNearestServicePoint: (q: number, r: number, maxDistance?: number) =>
 			commands.findNearestServicePoint(q, r, maxDistance),
 		checkServicePositionReachable: (
@@ -389,9 +398,13 @@ export function attachBlockingTileDebugCommands(game: Game): void {
 	console.log('  .validate() - Run full validation')
 	console.log('  .findLandlocked() - Find landlocked tiles')
 	console.log('  .findBorderServicePositions() - Find vehicle service positions')
-	console.log('  .checkWouldBecomeLandlocked(q, r) - Check if building would create landlocked tiles')
+	console.log(
+		'  .checkWouldBecomeLandlocked(q, r) - Check if building would create landlocked tiles'
+	)
 	console.log('  .findNearestServicePoint(q, r, maxDistance?) - Find nearest service position')
-	console.log('  .checkServicePositionReachable(startQ, startR, blockingQ, blockingR, passableQ, passableR, maxDistance?) - Check if service position is reachable')
+	console.log(
+		'  .checkServicePositionReachable(startQ, startR, blockingQ, blockingR, passableQ, passableR, maxDistance?) - Check if service position is reachable'
+	)
 	console.log('  .getTileInfo(q, r) - Get detailed tile information')
 	console.log('  .visualize(q, r, radius?) - Visualize blocking tiles around a position')
 }

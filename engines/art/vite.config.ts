@@ -1,9 +1,9 @@
-import { dirname, resolve as resolvePath } from "node:path";
-import { fileURLToPath } from "node:url";
-import { sursautCorePlugin } from "@sursaut/core/plugin";
-import { defineConfig } from "vite";
+import { dirname, resolve as resolvePath } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { sursautCorePlugin } from '@sursaut/core/plugin'
+import { defineConfig } from 'vite'
 
-const projectRootDir = dirname(fileURLToPath(import.meta.url));
+const projectRootDir = dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
 	plugins: [
@@ -14,24 +14,24 @@ export default defineConfig({
 	],
 	resolve: {
 		alias: {
-			"@art": resolvePath(projectRootDir, "src"),
+			'@art': resolvePath(projectRootDir, 'src'),
 		},
 		preserveSymlinks: false,
 	},
 	server: {
 		port: 5370,
 		fs: {
-			allow: ["..", "../../.."],
+			allow: ['..', '../../..'],
 		},
 	},
 	oxc: {
-		target: "es2023",
+		target: 'es2023',
 	},
 	optimizeDeps: {
 		rolldownOptions: {
 			transform: {
-				target: "es2023",
+				target: 'es2023',
 			},
 		},
 	},
-});
+})

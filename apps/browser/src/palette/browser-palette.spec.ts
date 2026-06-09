@@ -187,13 +187,13 @@ describe('browser palette registry & palettePanelBridge', () => {
 	it('replaces the static build segment with generated building drawer items', () => {
 		const topItems = browserPaletteIdeConfig.top.flat(2).flatMap((entry) => entry.toolbar)
 		const pileDrawer = topItems.find(
-			(item) => item.editor === 'drawer' && item.config?.label === 'Pile'
-		) as
-			| (AnarkaiPaletteToolbarItem & { toolbar?: AnarkaiPaletteToolbarItem[] })
-			| undefined
+			(item) => item.editor === 'drawer' && item.config?.hint === 'Pile variants'
+		) as (AnarkaiPaletteToolbarItem & { toolbar?: AnarkaiPaletteToolbarItem[] }) | undefined
 
 		expect(pileDrawer).toBeTruthy()
-		expect(pileDrawer?.toolbar?.some((item) => item.tool === 'selectedAction|build:pile')).toBe(true)
+		expect(pileDrawer?.toolbar?.some((item) => item.tool === 'selectedAction|build:pile')).toBe(
+			true
+		)
 		expect(
 			pileDrawer?.toolbar?.some(
 				(item) => item.editor === 'drawer' && item.config?.hint === 'Pile — Wood variants'

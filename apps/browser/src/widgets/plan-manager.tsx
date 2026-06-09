@@ -2,16 +2,12 @@ import HivePlanCanvas from '@app/components/HivePlanCanvas'
 import { css } from '@app/lib/css'
 import { game, hivePlanPlacementState, interactionMode } from '@app/lib/globals'
 import { Button, InspectorSection } from '@app/ui/anarkai'
-import { effect, reactive } from 'mutts'
 import { alveoli as alveoliRules } from 'engine-rules'
+import { effect, reactive } from 'mutts'
 import type { HivePlan, HivePlanEntry, HivePlanStage } from 'ssh/hive-plan'
-import {
-	applyHivePlanToolAction,
-	hivePlanEntryAt,
-	validateHivePlanStructure,
-} from 'ssh/hive-plan'
-import type { AxialCoord } from 'ssh/utils/axial'
+import { applyHivePlanToolAction, hivePlanEntryAt, validateHivePlanStructure } from 'ssh/hive-plan'
 import type { AlveolusType } from 'ssh/types/base'
+import type { AxialCoord } from 'ssh/utils/axial'
 
 css`
 .plan-manager {
@@ -437,15 +433,12 @@ const PlanManagerWidget = (props: { title?: string }) => {
 								const entry = selectedEntry()
 								if (!entry) return
 								setEntry(entry.roleId, {
-									alveolusType: (event.currentTarget as HTMLSelectElement)
-										.value as AlveolusType,
+									alveolusType: (event.currentTarget as HTMLSelectElement).value as AlveolusType,
 									configuration: undefined,
 								})
 							}}
 						>
-							<for each={alveolusTypes}>
-								{(type) => <option value={type}>{type}</option>}
-							</for>
+							<for each={alveolusTypes}>{(type) => <option value={type}>{type}</option>}</for>
 						</select>
 						<label>Configuration</label>
 						<select

@@ -26,6 +26,14 @@ css`
 		height: 100%;
 		background-color: var(--app-bg);
 	}
+
+	.dockview-widget--game[data-build-action] {
+		cursor: crosshair;
+	}
+
+	.dockview-widget--game[data-build-action] canvas {
+		cursor: crosshair !important;
+	}
 `
 
 export default function GameWidget(
@@ -91,11 +99,7 @@ export default function GameWidget(
 			hivePlanPlacementState.lastMessage = blocked?.reason ?? 'Plan does not fit here.'
 			return false
 		}
-		const success = game.applyHivePlanPlacement(
-			planId,
-			anchor,
-			hivePlanPlacementState.rotation
-		)
+		const success = game.applyHivePlanPlacement(planId, anchor, hivePlanPlacementState.rotation)
 		hivePlanPlacementState.lastMessage = success ? 'Plan placed.' : 'Plan does not fit here.'
 		return success
 	}
@@ -200,6 +204,34 @@ export default function GameWidget(
 			? 'Click to place the plan.'
 			: (preview.cells.find((cell) => !cell.valid)?.reason ?? 'Plan does not fit here.')
 		return () => game.emit('dragPreviewClear')
+	})
+
+	// Reactive cursor: distinct cursor per active tool.
+	effect`game:cursor`(() => {
+		const action = interactionMode.selectedAction
+		const canvas = container?.querySelector('canvas') as HTMLCanvasElement | null
+		if (action.startsWith('build:')) {
+			container?.setAttribute('data-build-action', '')
+			if (canvas) canvas.style.cursor = 'crosshair'
+		} else if (action.startsWith('zone:')) {
+			container?.setAttribute('data-build-action', '')
+			if (canvas) canvas.style.cursor = 'crosshair'
+		} else if (action.startsWith('road:')) {
+			container?.setAttribute('data-build-action', '')
+			if (canvas) canvas.style.cursor = 'crosshair'
+		} else if (action === 'bulldoze') {
+			container?.setAttribute('data-build-action', '')
+			if (canvas) canvas.style.cursor = 'not-allowed'
+		} else if (action.startsWith('hive-plan:')) {
+			container?.setAttribute('data-build-action', '')
+			if (canvas) canvas.style.cursor = 'crosshair'
+		} else if (action && action !== '') {
+			container?.setAttribute('data-build-action', '')
+			if (canvas) canvas.style.cursor = 'crosshair'
+		} else {
+			container?.removeAttribute('data-build-action')
+			if (canvas) canvas.style.cursor = ''
+		}
 	})
 
 	const initView = (el: HTMLElement) => {

@@ -1,48 +1,46 @@
-import { dirname, resolve as resolvePath } from "node:path";
-import { fileURLToPath } from "node:url";
-import { sursautCorePlugin } from "@sursaut/core/plugin";
-import { commonEsbuild, commonOptimizeDeps } from "engine-pixi/vite-config";
-import { servePixiAssets } from "engine-pixi/vite-plugins";
-import { type Alias, defineConfig, type Plugin, type PluginOption, type UserConfig } from "vite";
-import { pureGlyfPlugin } from "pure-glyf/plugin";
-import { cssTagPlugin } from "./src/lib/css-tag-plugin";
+import { dirname, resolve as resolvePath } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { sursautCorePlugin } from '@sursaut/core/plugin'
+import { commonEsbuild, commonOptimizeDeps } from 'engine-pixi/vite-config'
+import { servePixiAssets } from 'engine-pixi/vite-plugins'
+import { pureGlyfPlugin } from 'pure-glyf/plugin'
+import { type Alias, defineConfig, type Plugin, type PluginOption, type UserConfig } from 'vite'
+import { cssTagPlugin } from './src/lib/css-tag-plugin'
 
-const projectRootDir = dirname(fileURLToPath(import.meta.url));
-const sshAssetsDir = resolvePath(projectRootDir, "../../engines/ssh/assets");
-const sshSourceDir = resolvePath(projectRootDir, "../../engines/ssh/src/lib");
-const pixiAssetsDir = resolvePath(projectRootDir, "../../engines/pixi/assets");
-const pixiSourceDir = resolvePath(projectRootDir, "../../engines/pixi/src");
-const picoCssDir = resolvePath(projectRootDir, "node_modules/@picocss/pico");
-const dockviewCoreDir = resolvePath(projectRootDir, "node_modules/dockview-core");
-const muttsBrowserEntry = resolvePath(projectRootDir, "node_modules/mutts/dist/browser.esm.js");
+const projectRootDir = dirname(fileURLToPath(import.meta.url))
+const sshAssetsDir = resolvePath(projectRootDir, '../../engines/ssh/assets')
+const sshSourceDir = resolvePath(projectRootDir, '../../engines/ssh/src/lib')
+const pixiAssetsDir = resolvePath(projectRootDir, '../../engines/pixi/assets')
+const pixiSourceDir = resolvePath(projectRootDir, '../../engines/pixi/src')
+const picoCssDir = resolvePath(projectRootDir, 'node_modules/@picocss/pico')
+const dockviewCoreDir = resolvePath(projectRootDir, 'node_modules/dockview-core')
+const muttsBrowserEntry = resolvePath(projectRootDir, 'node_modules/mutts/dist/browser.esm.js')
 const pureGlyfIcons = {
-	mdi: resolvePath(projectRootDir, "node_modules/@mdi/svg/svg"),
-	tabler: resolvePath(projectRootDir, "node_modules/@tabler/icons/icons"),
-} satisfies Record<string, string>;
+	mdi: resolvePath(projectRootDir, 'node_modules/@mdi/svg/svg'),
+	tabler: resolvePath(projectRootDir, 'node_modules/@tabler/icons/icons'),
+} satisfies Record<string, string>
 const sharedAliasPaths = {
-	"@app": resolvePath(projectRootDir, "src"),
-	$lib: resolvePath(projectRootDir, "src/lib"),
-	$assets: resolvePath(projectRootDir, "assets"),
-	"ssh/assets": sshAssetsDir,
+	'@app': resolvePath(projectRootDir, 'src'),
+	$lib: resolvePath(projectRootDir, 'src/lib'),
+	$assets: resolvePath(projectRootDir, 'assets'),
+	'ssh/assets': sshAssetsDir,
 	ssh: sshSourceDir,
-	"engine-pixi/assets": pixiAssetsDir,
-	"engine-pixi": pixiSourceDir,
-	"@picocss/pico": picoCssDir,
-	"dockview-core": dockviewCoreDir,
-} satisfies Record<string, string>;
+	'engine-pixi/assets': pixiAssetsDir,
+	'engine-pixi': pixiSourceDir,
+	'@picocss/pico': picoCssDir,
+	'dockview-core': dockviewCoreDir,
+} satisfies Record<string, string>
 const aliases: Alias[] = Object.entries(sharedAliasPaths).map(([find, replacement]) => ({
 	find,
 	replacement,
-}));
-aliases.push(
-	{ find: 'mutts', replacement: muttsBrowserEntry },
-);
+}))
+aliases.push({ find: 'mutts', replacement: muttsBrowserEntry })
 const optimizeAliases = {
 	...sharedAliasPaths,
 	mutts: muttsBrowserEntry,
-} satisfies Record<string, string>;
-const serverWatchIgnored = ["**/node_modules/**", "**/.git/**", "**/dist/**", "**/coverage/**"];
-const usePollingWatch = process.env.VITE_USE_POLLING === "true";
+} satisfies Record<string, string>
+const serverWatchIgnored = ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/coverage/**']
+const usePollingWatch = process.env.VITE_USE_POLLING === 'true'
 const serverWatchConfig = usePollingWatch
 	? {
 			usePolling: true,
@@ -51,24 +49,24 @@ const serverWatchConfig = usePollingWatch
 		}
 	: {
 			ignored: serverWatchIgnored,
-		};
+		}
 const pureGlyfPluginOption = pureGlyfPlugin({
 	icons: pureGlyfIcons,
-	dts: "src/pure-glyf-icons.d.ts",
-}) as unknown as PluginOption;
+	dts: 'src/pure-glyf-icons.d.ts',
+}) as unknown as PluginOption
 
 function stripDeclare(): Plugin {
 	// Ambient declaration keywords that must NOT be stripped
 	const ambientKeywords =
-		/^(module|namespace|class|function|var|let|const|enum|abstract|interface|type|global)\b/;
+		/^(module|namespace|class|function|var|let|const|enum|abstract|interface|type|global)\b/
 
 	return {
-		name: "strip-declare",
-		enforce: "pre",
+		name: 'strip-declare',
+		enforce: 'pre',
 		transform(code, id) {
-			if (!/\.[cm]?tsx?$/.test(id)) return null;
-			if (id.includes("node_modules")) return null;
-			if (!code.includes("declare ")) return null;
+			if (!/\.[cm]?tsx?$/.test(id)) return null
+			if (id.includes('node_modules')) return null
+			if (!code.includes('declare ')) return null
 
 			// Only strip declare from ssh engine files.
 			// The npcs parser files use 'declare block:' to prevent class field
@@ -76,20 +74,17 @@ function stripDeclare(): Plugin {
 			// correctly by babelPluginTs allowDeclareFields:true and must NOT be stripped.
 			// The ssh engine files have decorated classes where the Babel decorators
 			// plugin (running before babelPluginTs) rejects 'declare' fields outright.
-			if (!id.includes("/engines/ssh/")) return null;
+			if (!id.includes('/engines/ssh/')) return null
 
-			const result = code.replace(
-				/\bdeclare\s+(?=[a-zA-Z_$[])/g,
-				(match, offset) => {
-					const after = code.slice(offset + match.length);
-					if (ambientKeywords.test(after)) return match;
-					return "";
-				},
-			);
+			const result = code.replace(/\bdeclare\s+(?=[a-zA-Z_$[])/g, (match, offset) => {
+				const after = code.slice(offset + match.length)
+				if (ambientKeywords.test(after)) return match
+				return ''
+			})
 
-			return result !== code ? result : null;
+			return result !== code ? result : null
 		},
-	};
+	}
 }
 
 export const browserViteConfig: UserConfig = {
@@ -118,7 +113,7 @@ export const browserViteConfig: UserConfig = {
 	server: {
 		port: 5360,
 		fs: {
-			allow: ["..", "../../.."],
+			allow: ['..', '../../..'],
 		},
 		watch: serverWatchConfig,
 	},
@@ -142,6 +137,6 @@ export const browserViteConfig: UserConfig = {
 		},
 		...commonOptimizeDeps,
 	},
-};
+}
 
-export default defineConfig(browserViteConfig);
+export default defineConfig(browserViteConfig)

@@ -17,12 +17,7 @@ import type { AxialCoord } from 'ssh/utils'
 // ─── Vehicle capability ────────────────────────────────────────────────────
 
 /** Vehicle capability enum — vehicle type is not the main branching concept. */
-export type VehicleCapability =
-	| 'road'
-	| 'rail'
-	| 'offroad'
-	| 'canWaitOffNetwork'
-	| 'canReverse'
+export type VehicleCapability = 'road' | 'rail' | 'offroad' | 'canWaitOffNetwork' | 'canReverse'
 
 /**
  * A node or edge is tagged with a set of required capabilities.
@@ -133,11 +128,11 @@ export interface SerializedDockRequest {
 
 // ─── Runtime types (transient, live object references) ─────────────────────
 
+import type { TileBorder } from 'ssh/board/border/border'
 // Forward-declare the types that RuntimeQueueNode references.
 // These are actual classes in the ssh engine; we import them where needed
 // and use `type` imports here to avoid circular deps.
 import type { Tile } from 'ssh/board/tile'
-import type { TileBorder } from 'ssh/board/border/border'
 import type { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 
