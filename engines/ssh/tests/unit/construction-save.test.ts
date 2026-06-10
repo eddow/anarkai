@@ -2,6 +2,7 @@ import { chopSaw } from 'ssh/game/exampleGames'
 import { Game } from 'ssh/game/game'
 import { BuildAlveolus } from 'ssh/hive/build'
 import { StorageAlveolus } from 'ssh/hive/storage'
+import { SpecificStorage } from 'ssh/storage/specific-storage'
 import { afterEach, describe, expect, it } from 'vitest'
 
 describe('BuildAlveolus save/load', () => {
@@ -15,16 +16,16 @@ describe('BuildAlveolus save/load', () => {
 		const gen = { terrainSeed: 55, characterCount: 0 }
 		const patches = {
 			tiles: [
-				{ coord: [0, 0], terrain: 'concrete' },
-				{ coord: [1, 0], terrain: 'concrete' },
+				{ coord: [0, 0] as const, terrain: 'concrete' as const },
+				{ coord: [1, 0] as const, terrain: 'concrete' as const },
 			],
 			hives: [
 				{
 					name: 'PersistHive',
 					alveoli: [
-						{ coord: [0, 0], alveolus: 'engineer' as const },
+						{ coord: [0, 0] as const, alveolus: 'engineer' as const },
 						{
-							coord: [1, 0],
+							coord: [1, 0] as const,
 							alveolus: 'storage' as const,
 							underConstruction: true,
 							constructionPhase: 'building' as const,
@@ -74,43 +75,28 @@ describe('BuildAlveolus save/load', () => {
 		expect(after.constructionSite.phase).toBe('building')
 	})
 
-	it('loads and saves individual slotted storage configuration from patches', async () => {
+	it('loads and saves pile variant configuration from patches', async () => {
 		const gen = { terrainSeed: 549, characterCount: 0 }
 		game = new Game(gen, chopSaw)
 		await game.loaded
 		game.ticker.stop()
 
-		const storageCoord = { q: 0, r: -1 }
-		const storage = game.hex.getTile(storageCoord)?.content
-		expect(storage).toBeInstanceOf(StorageAlveolus)
-		if (!(storage instanceof StorageAlveolus)) return
-		expect(storage.configurationRef).toEqual({ scope: 'individual' })
-		expect(storage.slottedStorageConfiguration).toMatchObject({
-			generalSlots: 5,
-			goods: {
-				wood: { minSlots: 1, maxSlots: 2 },
-			},
-		})
-		expect(storage.workingGoodsRelations.wood).toMatchObject({
-			advertisement: 'demand',
-			priority: '1-buffer',
-		})
+		const pileCoord = { q: 0, r: -1 }
+		const pile = game.hex.getTile(pileCoord)?.content
+		expect(pile).toBeInstanceOf(StorageAlveolus)
+		if (!(pile instanceof StorageAlveolus)) return
+		expect(pile.alveolusType).toBe('pile')
+		expect(pile.variantId).toBe('planks')
+		expect(pile.storage).toBeInstanceOf(SpecificStorage)
+		expect(pile.storage.maxAmounts.planks).toBe(24)
 
 		const state = game.saveGameData()
 		const hiveEntry = state.hives?.find((h) => h.name === 'ChopSaw')
-		const storagePatch = hiveEntry?.alveoli.find(
-			(a) => a.coord[0] === storageCoord.q && a.coord[1] === storageCoord.r
+		const pilePatch = hiveEntry?.alveoli.find(
+			(a) => a.coord[0] === pileCoord.q && a.coord[1] === pileCoord.r
 		)
-		expect(storagePatch?.configuration).toMatchObject({
-			ref: { scope: 'individual' },
-			individual: {
-				working: true,
-				generalSlots: 5,
-				goods: {
-					wood: { minSlots: 1, maxSlots: 2 },
-				},
-			},
-		})
+		expect(pilePatch?.alveolus).toBe('pile')
+		expect(pilePatch?.variantId).toBe('planks')
 
 		game.destroy()
 
@@ -119,18 +105,12 @@ describe('BuildAlveolus save/load', () => {
 		game2.ticker.stop()
 		game = game2
 
-		const restored = game.hex.getTile(storageCoord)?.content
+		const restored = game.hex.getTile(pileCoord)?.content
 		expect(restored).toBeInstanceOf(StorageAlveolus)
 		if (!(restored instanceof StorageAlveolus)) return
-		expect(restored.slottedStorageConfiguration).toMatchObject({
-			generalSlots: 5,
-			goods: {
-				wood: { minSlots: 1, maxSlots: 2 },
-			},
-		})
-		expect(restored.workingGoodsRelations.wood).toMatchObject({
-			advertisement: 'demand',
-			priority: '1-buffer',
-		})
+		expect(restored.alveolusType).toBe('pile')
+		expect(restored.variantId).toBe('planks')
+		expect(restored.storage).toBeInstanceOf(SpecificStorage)
+		expect(restored.storage.maxAmounts.planks).toBe(24)
 	})
 })

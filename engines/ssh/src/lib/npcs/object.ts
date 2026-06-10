@@ -272,8 +272,13 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 					newRemaining === remaining &&
 					previousStepExecutor &&
 					!stepPassesFullRemainingOnComplete(previousStepExecutor.constructor)
-				)
+				) {
 					uselessStepExecutor = previousStepExecutor.constructor
+				} else {
+					// Step consumed time — reset the useless-step tracker so it
+					// doesn't leak across time-consuming steps and cause false positives.
+					uselessStepExecutor = undefined
+				}
 				remaining = newRemaining
 				if (remaining !== undefined) {
 					assert(

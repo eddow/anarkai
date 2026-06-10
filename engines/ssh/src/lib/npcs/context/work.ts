@@ -211,6 +211,84 @@ function transformProcessDuration(alveolus: TransformAlveolus): number | undefin
 	return Number.isFinite(duration) && duration > epsilon ? duration : undefined
 }
 
+/**
+ * When all harvest fallback is exhausted (no valid rock within search range from
+ * the current tile), walk the character one hex away so the next `myNextJob`
+ * search starts from a different origin. Stagnating on the mismatched tile lets
+ * the zone-based search re-pick the same hex, creating an endless skip loop.
+ *
+ * Chooses a walkable neighbor tile farthest from the assigned alveolus so the
+ * next deposit search explores fresh ground.
+ */
+function harvestGiveUp(character: Character, expectedDeposit: string): AEvolutionStep | undefined {
+	const tileCoord = toAxialCoord(character.tile.position)
+	const alveolus = character.assignedAlveolus
+	traces.work.warn?.('work.harvestStep.giveUp', {
+		character: character.name,
+		characterUid: character.uid,
+		reason: 'fallback-exhausted',
+		expectedDeposit,
+		tileQ: tileCoord?.q,
+		tileR: tileCoord?.r,
+	})
+
+	if (!tileCoord || !alveolus) {
+		return new DurationStep(0.5, 'idle', 'harvest.give-up', {
+			key: 'work.harvest.wait',
+		})
+	}
+	const alveolusCoord = axial.round(toAxialCoord(alveolus.tile.position)!)
+	const from = axial.round(tileCoord)
+
+	// Pick the neighbor farthest from the alveolus so the next search
+	// explores away from the stonecutter rather than back through it.
+	const hex = character.game.hex
+	let bestNeighbor: AxialCoord | undefined
+	let bestDistance = -1
+	for (const n of axial.neighbors(from)) {
+		const tile = hex.getTile(n)
+		if (!tile || !Number.isFinite(tile.effectiveWalkTime)) continue
+		const d = axial.distance(n, alveolusCoord)
+		if (d > bestDistance) {
+			bestDistance = d
+			bestNeighbor = n
+		}
+	}
+	if (!bestNeighbor) {
+		// Nowhere to step — yield in place as last resort.
+		return new DurationStep(0.5, 'idle', 'harvest.give-up', {
+			key: 'work.harvest.wait',
+		})
+	}
+
+	const targetTile = hex.getTile(bestNeighbor)!
+	const distance = axial.distance(from, bestNeighbor)
+	const walkDuration =
+		character.tile.effectiveWalkTime * character.mobilityMultiplier * Math.max(1, distance)
+	traces.work.warn?.('work.harvestStep.giveUp.move', {
+		character: character.name,
+		characterUid: character.uid,
+		fromQ: from.q,
+		fromR: from.r,
+		toQ: bestNeighbor.q,
+		toR: bestNeighbor.r,
+		distance,
+		alveolusQ: alveolusCoord.q,
+		alveolusR: alveolusCoord.r,
+	})
+	return new MoveToStep(
+		walkDuration,
+		character,
+		targetTile.position,
+		'work',
+		'harvest.give-up.move',
+		{ key: 'work.harvest.wait' }
+	).onFulfilled(() => {
+		;(character as unknown as { _tile: typeof targetTile })._tile = targetTile
+		character.game.invalidateWorkPlanning('character.position')
+	})
+}
+
 class WorkFunctions {
 	declare [subject]: Character
 	@contract('WorkPlan')
@@ -995,7 +1073,9 @@ class WorkFunctions {
 				return this.travelAndHarvest(fallback)
 			}
 			this[subject].game.invalidateWorkPlanning('harvest.deposit-mismatch')
-			return
+			// No valid harvest target nearby from the current tile —
+			// yield so the NPC script loop re-evaluates via myNextJob.
+			return harvestGiveUp(this[subject], action.deposit)
 		}
 		const isMaturePlantedTree =
 			action.deposit === 'tree' &&
@@ -1042,7 +1122,7 @@ class WorkFunctions {
 	 * Walk to a new harvest target and then harvest, used as a fallback when
 	 * arriving at a tile whose deposit no longer matches the alveolus action.
 	 */
-	private travelAndHarvest(job: import('ssh/types/base').HarvestJob): AEvolutionStep | undefined {
+	travelAndHarvest(job: import('ssh/types/base').HarvestJob): AEvolutionStep | undefined {
 		const character = this[subject]
 		const lastStep = job.path?.at(-1)
 		if (!lastStep) {
@@ -1080,6 +1160,8 @@ class WorkFunctions {
 			character.game.invalidateWorkPlanning('character.position')
 		})
 	}
+
+
 
 	@contract()
 	plantTreeStep() {

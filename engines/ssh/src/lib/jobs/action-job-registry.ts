@@ -106,16 +106,25 @@ registerActionJobProvider('harvest', (alveolus) => {
 	const fallbackUrgency =
 		jobBalance.harvest.clearing + (alveoliNeedingGood ? jobBalance.harvest.needsBonus : 0)
 
+	// Only propose harvest jobs when at least one valid deposit exists within
+	// search distance from the alveolus.  Without this guard the planner keeps
+	// assigning workers to the stonecutter even after every rock has been
+	// depleted or planted over, creating an endless skip→give-up→retry loop.
+	const anyDeposit = findDeposit(undefined, 'any')
+	const proposedJobs: ActionProposedJob[] = anyDeposit
+		? [
+				{
+					job: {
+						job: 'harvest' as const,
+						urgency: fallbackUrgency,
+						fatigue: alveolus.getFatigueCost(),
+					} satisfies Job,
+				} satisfies ActionProposedJob,
+			]
+		: []
+
 	return {
-		proposedJobs: [
-			{
-				job: {
-					job: 'harvest' as const,
-					urgency: fallbackUrgency,
-					fatigue: alveolus.getFatigueCost(),
-				} satisfies Job,
-			} satisfies ActionProposedJob,
-		],
+		proposedJobs,
 
 		jobForCharacter(character: any) {
 			const startPos = toAxialCoord(character ? character.position : alveolus.tile.position)
