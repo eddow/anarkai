@@ -117,14 +117,14 @@ export const alveoli = {
 		variants: {
 			wood: {
 				construction: {
-					goods: { wood: 10 },
+					goods: { wood: 8 },
 					time: 4,
 				},
 				action: { type: 'storage', kind: 'specific', goods: { wood: 24 } },
 				variants: {
 					extra: {
 						construction: {
-							goods: { wood: 15, planks: 5 },
+							goods: { steel: 3, wood: 5 },
 							time: 6,
 						},
 						action: { type: 'storage', kind: 'specific', goods: { wood: 48 } },
@@ -133,14 +133,14 @@ export const alveoli = {
 			},
 			planks: {
 				construction: {
-					goods: { wood: 10, planks: 5 },
+					goods: { wood: 3, planks: 5 },
 					time: 4,
 				},
 				action: { type: 'storage', kind: 'specific', goods: { planks: 24 } },
 				variants: {
 					extra: {
 						construction: {
-							goods: { wood: 15, planks: 10 },
+							goods: { steel: 3, planks: 5  },
 							time: 6,
 						},
 						action: { type: 'storage', kind: 'specific', goods: { planks: 48 } },
@@ -149,14 +149,14 @@ export const alveoli = {
 			},
 			stone: {
 				construction: {
-					goods: { wood: 8, stone: 4 },
+					goods: { wood: 3, stone: 5 },
 					time: 4,
 				},
 				action: { type: 'storage', kind: 'specific', goods: { stone: 24 } },
 				variants: {
 					extra: {
 						construction: {
-							goods: { wood: 12, stone: 8 },
+							goods: { steel: 3, stone: 5 },
 							time: 6,
 						},
 						action: { type: 'storage', kind: 'specific', goods: { stone: 48 } },

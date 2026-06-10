@@ -576,6 +576,7 @@ const emptyConstruction = {
 	workLine: '',
 	applied: 0,
 	total: 0,
+	targetDisplay: '',
 }
 
 const BuildDwellingTileDetails = (props: BuildDwellingTileDetailsProps) => {
@@ -592,6 +593,7 @@ const BuildDwellingTileDetails = (props: BuildDwellingTileDetailsProps) => {
 				workLine: construction.workLine,
 				applied: construction.applied,
 				total: construction.total,
+				targetDisplay: construction.targetDisplay,
 			}
 		},
 	}
@@ -601,8 +603,9 @@ const BuildDwellingTileDetails = (props: BuildDwellingTileDetailsProps) => {
 			<PropertyGridRow if={model.dwellingConstruction.show} label={String(T.construction.section)}>
 				<div style="display:grid; gap:0.5rem; width:100%;">
 					<div style="display:flex; flex-wrap:wrap; gap:0.25rem; align-items:center;">
-						<span>{model.dwellingConstruction.phaseLabel}</span>
-						<for each={model.dwellingConstruction.blocking}>
+						<span>{model.dwellingConstruction.phaseLabel}</span>					<span if={model.dwellingConstruction.targetDisplay.length > 0} style="color: var(--ak-accent, #8b5cf6);">
+						 · {model.dwellingConstruction.targetDisplay}
+					</span>						<for each={model.dwellingConstruction.blocking}>
 							{(text) => <span style="color: var(--ak-text-muted)"> · {text}</span>}
 						</for>
 					</div>

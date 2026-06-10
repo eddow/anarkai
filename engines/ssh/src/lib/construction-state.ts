@@ -166,6 +166,8 @@ function parseBuildProject(
 export interface ConstructionSiteState {
 	target: ConstructionTarget
 	recipe: ConstructionRecipe
+	/** 0-based index into the variant ancestor chain for multi-hop construction (0 = root recipe). */
+	stepIndex: number
 	foundationRequiredGoods: Partial<Record<GoodType, number>>
 	foundationDeliveredGoods: Partial<Record<GoodType, number>>
 	foundationConsumedGoods: Partial<Record<GoodType, number>>
@@ -199,13 +201,20 @@ export function constructionTargetFromProject(project: string): ConstructionTarg
 	return { kind: 'alveolus', alveolusType: parsed.alveolusType, variantId: parsed.variantId }
 }
 
-export function createConstructionRecipe(target: ConstructionTarget): ConstructionRecipe {
+export function createConstructionRecipe(
+	target: ConstructionTarget,
+	stepIndex?: number
+): ConstructionRecipe {
 	if (target.kind === 'alveolus') {
 		const resolved = resolveAlveolusVariant(target.alveolusType, target.variantId)
 		if (resolved) {
-			return {
-				goods: { ...((resolved.construction.goods ?? {}) as Partial<Record<GoodType, number>>) },
-				workSeconds: resolved.construction.workSeconds,
+			const idx = stepIndex ?? (resolved.ancestorChain.length - 1)
+			const recipe = resolved.ancestorChain[idx]
+			if (recipe) {
+				return {
+					goods: { ...((recipe.goods ?? {}) as Partial<Record<GoodType, number>>) },
+					workSeconds: recipe.workSeconds,
+				}
 			}
 		}
 		// Fallback for unknown types
@@ -232,13 +241,17 @@ export function projectFromConstructionTarget(target: ConstructionTarget): strin
 	return `build:${target.alveolusType}`
 }
 
-export function createConstructionSiteState(target: ConstructionTarget): ConstructionSiteState {
-	const recipe = createConstructionRecipe(target)
+export function createConstructionSiteState(
+	target: ConstructionTarget,
+	stepIndex = 0
+): ConstructionSiteState {
+	const recipe = createConstructionRecipe(target, stepIndex)
 	const foundationRecipe = ruleConstructionRecipe(construction.foundation)
 	return normalizeConstructionSiteState(
 		reactive({
 			target,
 			recipe,
+			stepIndex,
 			foundationRequiredGoods: { ...foundationRecipe.goods },
 			foundationDeliveredGoods: {},
 			foundationConsumedGoods: {},
@@ -272,7 +285,8 @@ function goodsEqual(
 export function normalizeConstructionSiteState(
 	state: ConstructionSiteState
 ): ConstructionSiteState {
-	const recipe = createConstructionRecipe(state.target)
+	const stepIdx = state.stepIndex ?? 0
+	const recipe = createConstructionRecipe(state.target, stepIdx)
 	const foundationRecipe = ruleConstructionRecipe(construction.foundation)
 	if (
 		!state.recipe ||
@@ -300,6 +314,7 @@ export function normalizeConstructionSiteState(
 	if (state.workSecondsApplied === undefined) state.workSecondsApplied = 0
 	if (!state.blockingReasons) state.blockingReasons = []
 	if (!state.phase) state.phase = 'planned'
+	if (state.stepIndex === undefined) state.stepIndex = 0
 	return state
 }
 

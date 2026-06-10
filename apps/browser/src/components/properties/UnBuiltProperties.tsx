@@ -102,6 +102,7 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 		constructionPhaseLabel: '',
 		constructionBlocking: [] as string[],
 		constructionMaterials: [] as Array<{ good: GoodType; required: number; delivered: number }>,
+		constructionTarget: '',
 		showConstruction: false,
 	})
 
@@ -165,6 +166,7 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 		const model = buildConstructionViewModel(snap, T as ConstructionTranslatorShape)
 		state.constructionPhaseLabel = model.phaseLabel
 		state.constructionBlocking = model.blockingLabels
+		state.constructionTarget = model.targetDisplay
 		state.constructionMaterials = Object.entries(snap.requiredGoods ?? {}).map(([good, qty]) => ({
 			good: good as GoodType,
 			required: qty ?? 0,
@@ -203,38 +205,40 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 
 			<PropertyGridRow if={state.showConstruction} label={String(T.construction.section)}>
 				<div class="unbuilt-project">
-					<Badge tone="blue">{state.constructionPhaseLabel}</Badge>
-					<for each={state.constructionBlocking}>
-						{(text) => (
-							<Badge if={text.length > 0} tone="yellow">
-								{text}
-							</Badge>
-						)}
-					</for>
-				</div>
-			</PropertyGridRow>
-
-			<PropertyGridRow
-				if={state.constructionMaterials.length > 0}
-				label={String(T.construction.materials)}
-			>
-				<div class="unbuilt-project">
-					<for each={state.constructionMaterials}>
-						{(material: { good: GoodType; required: number; delivered: number }) => (
-							<>
-								<EntityBadge
-									game={props.content?.tile?.board?.game}
-									height={16}
-									sprite={visualGoods[material.good]?.sprites?.[0] ?? ''}
-									text={String(T.goods?.[material.good] ?? material.good)}
-									qtyLabel={`${material.delivered}/${material.required}`}
-									qtyTone={material.delivered < material.required ? 'danger' : 'default'}
-								/>
-							</>
-						)}
-					</for>
-				</div>
-			</PropertyGridRow>
+				<Badge if={state.constructionTarget.length > 0} tone="blue">
+					{state.constructionTarget}
+				</Badge>
+				<Badge tone="blue">{state.constructionPhaseLabel}</Badge>
+				<for each={state.constructionBlocking}>
+					{(text) => (
+						<Badge if={text.length > 0} tone="yellow">
+							{text}
+						</Badge>
+					)}
+				</for>
+			</div>
+		</PropertyGridRow>
+		<PropertyGridRow
+			if={state.constructionMaterials.length > 0}
+			label={String(T.construction.materials)}
+		>
+			<div class="unbuilt-project">
+				<for each={state.constructionMaterials}>
+					{(material: { good: GoodType; required: number; delivered: number }) => (
+						<>
+							<EntityBadge
+								game={props.content?.tile?.board?.game}
+								height={16}
+								sprite={visualGoods[material.good]?.sprites?.[0] ?? ''}
+								text={String(T.goods?.[material.good] ?? material.good)}
+								qtyLabel={`${material.delivered}/${material.required}`}
+								qtyTone={material.delivered < material.required ? 'danger' : 'default'}
+							/>
+						</>
+					)}
+				</for>
+			</div>
+		</PropertyGridRow>
 
 			<PropertyGridRow if={state.showDeposit} label={String(T.deposit)}>
 				<EntityBadge

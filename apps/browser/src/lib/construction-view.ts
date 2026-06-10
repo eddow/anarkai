@@ -20,6 +20,8 @@ export interface ConstructionViewModel {
 	workLine: string
 	applied: number
 	total: number
+	/** Human-readable final target, e.g. "pile.wood.extra" or "pile" for root-only. */
+	targetDisplay: string
 }
 
 const toDisplayText = (value: unknown, fallback = ''): string => {
@@ -41,6 +43,7 @@ export function buildConstructionViewModel(
 	const applied = view.constructionWorkSecondsApplied ?? 0
 	const total = view.constructionTotalSeconds ?? 0
 	const workTemplate = translator?.construction?.workProgress
+	const target = view.variantId ? `${view.target ?? ''}.${view.variantId}` : (view.target ?? '')
 	return {
 		phaseLabel: toDisplayText(translator?.construction?.phases?.[view.phase], view.phase),
 		blockingLabels: view.blockingReasons.map((reason) =>
@@ -54,5 +57,6 @@ export function buildConstructionViewModel(
 					: '',
 		applied,
 		total,
+		targetDisplay: target,
 	}
 }

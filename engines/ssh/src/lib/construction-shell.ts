@@ -5,6 +5,7 @@ import type { Tile } from 'ssh/board/tile'
 import type { ConstructionSiteShell } from 'ssh/build-site'
 import {
 	type ConstructionSiteState,
+	createConstructionSiteState,
 	normalizeConstructionSiteState,
 	setConstructionConsumedGoods,
 } from 'ssh/construction-state'
@@ -75,10 +76,15 @@ export function finalizeConstructionShell(shell: ConstructionSiteShell): void {
 		if (queue && currentIdx + 1 < queue.length) {
 			// Intermediate step: create a new BuildAlveolus for the next variant segment
 			const nextIdx = currentIdx + 1
+			// Build a construction site with the correct step recipe, not the leaf
+			const nextSite = createConstructionSiteState(
+				{ kind: 'alveolus', alveolusType: target.alveolusType, variantId: buildShell.targetVariantId },
+				nextIdx
+			)
 			const nextBuild = new BuildAlveolus(
 				shell.tile,
 				target.alveolusType,
-				undefined,
+				nextSite,
 				buildShell.targetVariantId,
 				queue,
 				nextIdx

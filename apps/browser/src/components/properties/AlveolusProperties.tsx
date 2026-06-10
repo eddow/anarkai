@@ -154,6 +154,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 		constructionWorkLine: '',
 		constructionApplied: 0,
 		constructionTotal: 0,
+		constructionTarget: '',
 		showConstruction: false,
 	})
 
@@ -207,6 +208,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 		state.constructionApplied = model.applied
 		state.constructionTotal = model.total
 		state.constructionWorkLine = model.workLine
+		state.constructionTarget = model.targetDisplay
 	})
 
 	const bayTranslator = () => T.bay
@@ -286,6 +288,9 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 					<div style="display:grid; gap:0.5rem; width:100%;">
 						<div class="alveolus-commands">
 							<span>{state.constructionPhaseLabel}</span>
+							<span if={state.constructionTarget.length > 0} style="color: var(--ak-accent, #8b5cf6);">
+								 · {state.constructionTarget}
+							</span>
 							<for each={state.constructionBlocking}>
 								{(text) => <span style="color: var(--ak-text-muted)"> · {text}</span>}
 							</for>
