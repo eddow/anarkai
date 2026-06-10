@@ -349,10 +349,7 @@ registerActionJobProvider('engineer', (alveolus) => {
 	const allowedJobs = (() => {
 		const jobs = new Set<string>()
 		if (!spec) {
-			// Root engineer: enable everything (backward-compatible default)
-			jobs.add('construct')
-			jobs.add('foundation')
-			jobs.add('validateHivePlan')
+			// Root engineer: no variant-specific jobs; must pick a variant
 			return jobs
 		}
 		switch (spec.kind) {

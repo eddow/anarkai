@@ -1,5 +1,5 @@
 import { assetManager } from 'engine-pixi/asset-manager'
-import { alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content'
+import { alveoli as visualAlveoli, variantBadges } from 'engine-pixi/assets/visual-content'
 import { effect } from 'mutts'
 import { Application, Container, Graphics, Sprite, Texture } from 'pixi.js'
 import type { HivePlan, HivePlanStructuralIssue } from 'ssh/hive-plan'
@@ -135,8 +135,29 @@ const HivePlanCanvas = (props: HivePlanCanvasProps) => {
 			)
 			sprite.scale.set(spriteScale)
 			stage?.addChild(sprite)
-		}
 
+			// Variant badge overlay
+			if (entry.variantId) {
+				const badgeKey = `${entry.alveolusType}.${entry.variantId}`
+				const badgeDef = variantBadges[badgeKey]
+				const badgeTextureName = badgeDef?.sprites?.[0]
+				if (badgeTextureName) {
+					const badgeTex = assetManager.getTexture(badgeTextureName)
+					if (badgeTex && badgeTex !== Texture.WHITE) {
+						const badge = new Sprite(badgeTex)
+						badge.anchor.set(1, 0)
+						const badgeSize = side * 0.42 * scale
+						const maxDim = Math.max(badgeTex.width, badgeTex.height)
+						if (maxDim > 1) {
+							badge.scale.set(badgeSize / maxDim)
+						}
+						badge.x = x + side * 0.5 * scale
+						badge.y = y - side * 0.5 * scale
+						stage?.addChild(badge)
+					}
+				}
+			}
+		}
 		for (const coord of candidates) drawHex(coord, false)
 		for (const entry of entries) drawHex({ q: entry.coord[0], r: entry.coord[1] }, true)
 		try {

@@ -9,6 +9,7 @@ import { lazy } from '@sursaut/core'
 import {
 	alveoli as visualAlveoli,
 	dwellings as visualDwellings,
+	variantBadges,
 } from 'engine-pixi/assets/visual-content'
 import { effect, reactive } from 'mutts'
 import * as gameContent from 'ssh/assets/game-content'
@@ -23,6 +24,7 @@ import { queryConstructionSiteView } from 'ssh/construction'
 import { BuildAlveolus } from 'ssh/hive/build'
 import { TransformAlveolus } from 'ssh/hive/transform'
 import type { GoodType } from 'ssh/types/base'
+import type { AlveolusType } from 'ssh/types/base'
 import { computeStyleFromTexture } from 'ssh/utils/images'
 import { toAxialCoord } from 'ssh/utils/position'
 import ConstructionProgressBar from '../ConstructionProgressBar'
@@ -39,6 +41,7 @@ import DwellingProperties from './DwellingProperties'
 import SettlementProperties from './SettlementProperties'
 import TileWorkProperties from './TileWorkProperties'
 import UnBuiltProperties from './UnBuiltProperties'
+import VariantPicker, { type VariantOption, variantDisplayLabel } from './VariantPicker'
 
 css`
   .tile-properties {
@@ -79,26 +82,6 @@ css`
     width: 1.2rem;
     height: 1.2rem;
     font-size: 1.2rem;
-  }
-
-  .tile-properties__variant-select {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.1rem 0.3rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #3b82f6;
-    background: rgba(59, 130, 246, 0.10);
-    border: 1px solid rgba(59, 130, 246, 0.30);
-    border-radius: 0.35rem;
-    white-space: nowrap;
-    user-select: none;
-    cursor: pointer;
-    max-width: 7rem;
-  }
-  .tile-properties__variant-select:hover {
-    background: rgba(59, 130, 246, 0.18);
-    border-color: rgba(59, 130, 246, 0.50);
   }
 
   .tile-properties__header-actions {
@@ -298,14 +281,17 @@ const TileZoneHeaderFallback = (props: { game?: TileGame; tile: Tile }) => {
 	)
 }
 
-function collectVariantOptions(alveolusType: string): { value: string; label: string }[] {
+function collectVariantOptions(alveolusType: string): VariantOption[] {
 	const def = (gameContent.alveoli as any)[alveolusType]
 	if (!def || !def.variants) return []
-	const options: { value: string; label: string }[] = []
+	const options: VariantOption[] = []
 	const walk = (prefix: string, variants: Record<string, any>) => {
 		for (const [key, vdef] of Object.entries(variants)) {
 			const fullId = prefix ? `${prefix}.${key}` : key
-			options.push({ value: fullId, label: fullId })
+			const badgeKey = `${alveolusType}.${fullId}`
+			const badgeSprite = variantBadges[badgeKey]?.sprites?.[0]
+			const label = variantDisplayLabel(key)
+			options.push({ value: fullId, label, badgeSprite })
 			if (vdef.variants) walk(fullId, vdef.variants)
 		}
 	}
@@ -348,7 +334,7 @@ const AlveolusTileHeader = (props: AlveolusTileHeaderProps) => {
 			return this.variantOptions.length > 0
 		},
 		get currentVariant() {
-			return this.contentCase?.variantId ?? ''
+			return props.contentCase?.variantId ?? ''
 		},
 		get hiveTitle() {
 			return this.contentCase?.content.hive?.name?.trim() || 'Hive'
@@ -373,20 +359,20 @@ const AlveolusTileHeader = (props: AlveolusTileHeaderProps) => {
 					text={model.title ?? ''}
 					height={32}
 				/>
-				<select
+				<VariantPicker
 					if={model.hasVariants}
-					class="tile-properties__variant-select"
+					options={model.variantOptions}
 					value={model.currentVariant}
-					onChange={() => {
-						// TODO(alveoli-variants): propagate variant change — set new project on tile
-						// or mutate alveolus via model.contentCase?.content
+					onChange={(newValue) => {
+						const alveolusType = model.contentCase?.visualType
+						if (!alveolusType) return
+						props.game?.changeAlveolusVariant(
+							props.tile,
+							alveolusType as AlveolusType,
+							newValue || undefined
+						)
 					}}
-				>
-					<option value="">(none)</option>
-					<for each={model.variantOptions}>
-						{(opt) => <option value={opt.value}>{opt.label}</option>}
-					</for>
-				</select>
+				/>
 				<WorkingIndicator
 					checked={model.contentCase!.content.working}
 					burdened={!!model.workingWarning}

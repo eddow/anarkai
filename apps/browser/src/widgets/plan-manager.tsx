@@ -1,4 +1,5 @@
 import HivePlanCanvas from '@app/components/HivePlanCanvas'
+import { variantDisplayLabel } from '@app/components/properties/VariantPicker'
 import { css } from '@app/lib/css'
 import { game, hivePlanPlacementState, interactionMode } from '@app/lib/globals'
 import { Button, InspectorSection } from '@app/ui/anarkai'
@@ -169,6 +170,27 @@ function uniquePlanName(base: string): string {
 	let index = 2
 	while (names.has(`${base} ${index}`)) index++
 	return `${base} ${index}`
+}
+
+interface PlanVariantOption {
+	value: string
+	label: string
+}
+
+function planEntryVariantOptions(alveolusType: string): PlanVariantOption[] {
+	const def = (alveoliRules as any)[alveolusType]
+	if (!def || !def.variants) return []
+	const options: PlanVariantOption[] = []
+	const walk = (prefix: string, variants: Record<string, any>) => {
+		for (const [key, vdef] of Object.entries(variants)) {
+			const fullId = prefix ? `${prefix}.${key}` : key
+			const label = variantDisplayLabel(key)
+			options.push({ value: fullId, label })
+			if (vdef.variants) walk(fullId, vdef.variants)
+		}
+	}
+	walk('', def.variants)
+	return options
 }
 
 const PlanManagerWidget = (props: { title?: string }) => {
@@ -435,10 +457,42 @@ const PlanManagerWidget = (props: { title?: string }) => {
 								setEntry(entry.roleId, {
 									alveolusType: (event.currentTarget as HTMLSelectElement).value as AlveolusType,
 									configuration: undefined,
+									variantId: undefined,
 								})
 							}}
 						>
 							<for each={alveolusTypes}>{(type) => <option value={type}>{type}</option>}</for>
+						</select>
+						<label
+							if={planEntryVariantOptions(selectedEntry()?.alveolusType ?? '').length > 0}
+						>
+							Variant
+						</label>
+						<select
+							if={planEntryVariantOptions(selectedEntry()?.alveolusType ?? '').length > 0}
+						disabled={selectedPlan()?.stage !== 'draft'}
+						onChange={(event) => {
+							const entry = selectedEntry()
+							if (!entry) return
+							const newValue = (event.currentTarget as HTMLSelectElement).value
+							setEntry(entry.roleId, {
+								variantId: newValue || undefined,
+							})
+						}}
+					>
+						<option value="" selected={!selectedEntry()?.variantId}>
+							(none)
+						</option>
+						<for each={planEntryVariantOptions(selectedEntry()?.alveolusType ?? '')}>
+							{(opt) => (
+								<option
+									value={opt.value}
+									selected={selectedEntry()?.variantId === opt.value}
+								>
+									{opt.label}
+								</option>
+							)}
+							</for>
 						</select>
 						<label>Configuration</label>
 						<select

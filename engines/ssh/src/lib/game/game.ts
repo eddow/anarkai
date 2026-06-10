@@ -552,6 +552,28 @@ export class Game extends Eventful<GameEvents> {
 		return tile.build(alveolusType, variantId)
 	}
 
+	/**
+	 * Change the variant of an existing alveolus or construction shell.
+	 * Bulldozes the tile then sets a new build project with the desired variant.
+	 *
+	 * For a finished alveolus this clears the tile and starts reconstruction.
+	 * For a construction shell in progress this resets the build with the new variant target.
+	 */
+	public changeAlveolusVariant(tile: Tile, alveolusType: AlveolusType, variantId?: string): boolean {
+		const content = tile.content
+		if (!(content instanceof Alveolus || isConstructionSiteShell(content))) return false
+
+		const terrain = tile.terrainState?.terrain ?? tile.baseTerrain ?? 'concrete'
+		this.hex.setTileContent(tile, new UnBuiltLand(tile, terrain, undefined))
+		tile.asGenerated = false
+
+		const success = tile.build(alveolusType, variantId || undefined)
+		if (success) {
+			this.invalidateWorkPlanning('variant-change')
+		}
+		return success
+	}
+
 	public previewHivePlanPlacement(
 		planId: string,
 		anchor: AxialCoord,

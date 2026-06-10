@@ -6,6 +6,7 @@ import { isHoveredObject, setHoveredObject } from '@app/lib/interactive-state'
 import {
 	alveoli as visualAlveoli,
 	characters as visualCharacters,
+	variantBadges,
 	vehicles as visualVehicles,
 } from 'engine-pixi/assets/visual-content'
 import { vehicleTextureKey } from 'engine-pixi/renderers/vehicle-visual'
@@ -85,6 +86,23 @@ css`
 	background-color: color-mix(in srgb, var(--ak-surface-panel) 86%, transparent);
 }
 
+.linked-entity-control__variant-badge {
+	position: absolute;
+	top: -2px;
+	right: -2px;
+	width: 12px;
+	height: 12px;
+	border-radius: 3px;
+	background: color-mix(in srgb, var(--ak-surface-panel) 94%, transparent);
+	border: 1px solid color-mix(in srgb, var(--ak-text-muted) 18%, transparent);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 2;
+	overflow: hidden;
+	box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+}
+
 `
 
 interface LinkedEntityControlProps {
@@ -101,6 +119,7 @@ const LinkedEntityControl = (props: LinkedEntityControlProps) => {
 	const state = reactive({
 		backgroundStyle: '',
 		sprite: undefined as string | undefined,
+		variantBadgeSprite: undefined as string | undefined,
 		visualObjectUid: '',
 		objectTitle: '',
 		objectGame: undefined as LinkedEntityTarget['game'] | undefined,
@@ -134,6 +153,7 @@ const LinkedEntityControl = (props: LinkedEntityControlProps) => {
 		if (state.visualObjectUid === nextUid) return
 		state.visualObjectUid = nextUid
 		state.sprite = undefined
+		state.variantBadgeSprite = undefined
 		state.backgroundStyle = ''
 	})
 
@@ -158,6 +178,16 @@ const LinkedEntityControl = (props: LinkedEntityControlProps) => {
 		const type = tile.content.name as keyof typeof visualAlveoli | undefined
 		const nextSprite = type ? visualAlveoli[type]?.sprites?.[0] : undefined
 		if (nextSprite) state.sprite = nextSprite
+
+		// Variant badge
+		const variantId = (tile.content as { variantId?: string }).variantId
+		if (variantId && type) {
+			const badgeKey = `${type}.${variantId}`
+			const badgeSprite = variantBadges[badgeKey]?.sprites?.[0]
+			state.variantBadgeSprite = badgeSprite
+		} else {
+			state.variantBadgeSprite = undefined
+		}
 	})
 
 	effect`linked-entity:terrain-style`(() => {
@@ -248,6 +278,17 @@ const LinkedEntityControl = (props: LinkedEntityControlProps) => {
 				) : (
 					<span class="linked-entity-control__terrain" />
 				)}
+				{state.variantBadgeSprite ? (
+					<span class="linked-entity-control__variant-badge">
+						<ResourceImage
+							game={state.objectGame}
+							sprite={state.variantBadgeSprite}
+							width={10}
+							height={10}
+							alt=""
+						/>
+					</span>
+				) : null}
 			</span>
 		</button>
 	)
