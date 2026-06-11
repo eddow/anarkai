@@ -170,6 +170,9 @@ describe('FreightLineProperties', () => {
 		}> & { vehicle: ReturnType<typeof vi.fn> }
 		hex: { getTile: ReturnType<typeof vi.fn> }
 		procurementDefaults: { bufferPurchaseReserveVp: number }
+		getFreightLineTradeHistory: ReturnType<typeof vi.fn>
+		listSettlementTradeProfiles: ReturnType<typeof vi.fn>
+		getSettlementTradeProfile: ReturnType<typeof vi.fn>
 	}
 
 	beforeAll(async () => {
@@ -233,6 +236,9 @@ describe('FreightLineProperties', () => {
 			hex: {
 				getTile: vi.fn(() => undefined),
 			},
+			getFreightLineTradeHistory: vi.fn(() => []),
+			listSettlementTradeProfiles: vi.fn(() => []),
+			getSettlementTradeProfile: vi.fn(() => undefined),
 		}
 	})
 

@@ -163,6 +163,12 @@ css`
 .freight-stop-list__commerce-reason {
 	color: color-mix(in srgb, var(--ak-warning, #d8a33f) 82%, var(--ak-text));
 }
+.freight-stop-list__commerce-retained {
+	color: color-mix(in srgb, #22c55e 78%, var(--ak-text));
+}
+.freight-stop-list__commerce-surplus {
+	color: color-mix(in srgb, #f59e0b 78%, var(--ak-text));
+}
 .freight-stop-list__muted {
 	color: var(--ak-text-muted);
 }
@@ -381,9 +387,20 @@ const blockReasonLabel = (reason: FreightStopCommerceBlockReason): string => {
 	}
 }
 
-const commerceReasonText = (reasons: readonly FreightStopCommerceBlockReason[]): string => {
+const commerceReasonText = (
+	reasons: readonly FreightStopCommerceBlockReason[],
+	vehicleCount?: number,
+	vehicleLabel?: string
+): string => {
 	if (reasons.length === 0) return 'ready'
-	return reasons.map(blockReasonLabel).join(', ')
+	return reasons.map((reason) => {
+		if (reason === 'vehicle_full' && vehicleCount !== undefined) {
+			if (vehicleCount > 1 && vehicleLabel) return `${vehicleLabel} full`
+			if (vehicleCount > 1) return `all ${vehicleCount} vehicles full`
+			return 'vehicle full'
+		}
+		return blockReasonLabel(reason)
+	}).join(', ')
 }
 
 const tradeStopCanImport = (game: Game, stop: FreightStop): boolean => {
@@ -539,26 +556,36 @@ const FreightStopList = (props: FreightStopListProps) => {
 		const line = currentDraft()!
 		const vehicles = vehiclesForLine()
 		if (vehicles.length === 0) {
-			return explainFreightStopCommerce({
-				game: props.game,
-				line,
-				stopIndex: index,
-			})
+			return {
+				explanation: explainFreightStopCommerce({
+					game: props.game,
+					line,
+					stopIndex: index,
+				}),
+				vehicleLabel: undefined as string | undefined,
+				vehicleCount: 0,
+			}
 		}
 		const explanations = vehicles.map((vehicle) =>
-			explainFreightStopCommerce({
+			({ vehicle, explanation: explainFreightStopCommerce({
 				game: props.game,
 				line,
 				stopIndex: index,
 				vehicle,
-			})
+			}) })
 		)
-		return explanations.sort((a, b) => {
-			const aOpportunity = a.importOpportunityGoods.total + a.exportOpportunityGoods.total
-			const bOpportunity = b.importOpportunityGoods.total + b.exportOpportunityGoods.total
+		explanations.sort((a, b) => {
+			const aOpportunity = a.explanation.importOpportunityGoods.total + a.explanation.exportOpportunityGoods.total
+			const bOpportunity = b.explanation.importOpportunityGoods.total + b.explanation.exportOpportunityGoods.total
 			if (aOpportunity !== bOpportunity) return bOpportunity - aOpportunity
-			return a.blockReasons.length - b.blockReasons.length
-		})[0]!
+			return a.explanation.blockReasons.length - b.explanation.blockReasons.length
+		})
+		const best = explanations[0]!
+		return {
+			explanation: best.explanation,
+			vehicleLabel: vehicles.length === 1 ? best.vehicle.title : undefined,
+			vehicleCount: vehicles.length,
+		}
 	}
 
 	return (
@@ -580,6 +607,8 @@ const FreightStopList = (props: FreightStopListProps) => {
 							const tradeObj = () => tradeObjectForStop(props.game, stop)
 							const expandedPolicy = () => !!expanded.byStopId[stop.id]
 							const commerce = () => commerceForStop(index)
+							const commerceExpl = () => commerce().explanation
+							const commerceCtx = () => ({ vehicleCount: commerce().vehicleCount, vehicleLabel: commerce().vehicleLabel })
 							return (
 								<>
 									<tr
@@ -639,28 +668,40 @@ const FreightStopList = (props: FreightStopListProps) => {
 											</div>
 											<div class="freight-stop-list__commerce">
 												<span class="freight-stop-list__commerce-item">
-													{commerce().servicePosition.label}
-													{commerce().servicePosition.borderCount !== undefined
-														? ` (${commerce().servicePosition.borderCount})`
+													{commerceExpl().servicePosition.label}
+													{commerceExpl().servicePosition.borderCount !== undefined
+														? ` (${commerceExpl().servicePosition.borderCount})`
 														: ''}
 												</span>
 												<span class="freight-stop-list__commerce-item">
-													demand {formatGoodsSnapshot(commerce().downstreamDemandGoods)}
+													demand {formatGoodsSnapshot(commerceExpl().downstreamDemandGoods)}
 												</span>
 												<span class="freight-stop-list__commerce-item">
-													provides {formatGoodsSnapshot(commerce().localProvidedGoods)}
+													provides {formatGoodsSnapshot(commerceExpl().localProvidedGoods)}
 												</span>
 												<span class="freight-stop-list__commerce-item">
-													needs {formatGoodsSnapshot(commerce().localNeededGoods)}
+													needs {formatGoodsSnapshot(commerceExpl().localNeededGoods)}
 												</span>
 												<span class="freight-stop-list__commerce-item">
-													import {formatGoodsSnapshot(commerce().importOpportunityGoods)}
+													import {formatGoodsSnapshot(commerceExpl().importOpportunityGoods)}
 												</span>
 												<span class="freight-stop-list__commerce-item">
-													export {formatGoodsSnapshot(commerce().exportOpportunityGoods)}
+													export {formatGoodsSnapshot(commerceExpl().exportOpportunityGoods)}
+												</span>
+												<span
+													if={commerceExpl().retainedCargoGoods.total > 0}
+													class="freight-stop-list__commerce-item freight-stop-list__commerce-retained"
+												>
+													retained {formatGoodsSnapshot(commerceExpl().retainedCargoGoods)}
+												</span>
+												<span
+													if={commerceExpl().surplusCargoGoods.total > 0}
+													class="freight-stop-list__commerce-item freight-stop-list__commerce-surplus"
+												>
+													surplus {formatGoodsSnapshot(commerceExpl().surplusCargoGoods)}
 												</span>
 												<span class="freight-stop-list__commerce-item freight-stop-list__commerce-reason">
-													{commerceReasonText(commerce().blockReasons)}
+													{commerceReasonText(commerceExpl().blockReasons, commerceCtx().vehicleCount, commerceCtx().vehicleLabel)}
 												</span>
 											</div>
 										</td>

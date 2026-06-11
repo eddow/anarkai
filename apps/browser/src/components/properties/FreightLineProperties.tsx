@@ -11,7 +11,13 @@ import { tablerOutlineRepeat, tablerOutlineTrash } from 'pure-glyf/icons'
 import type { FreightLineDefinition, SyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import { normalizeFreightLineDefinition } from 'ssh/freight/freight-line'
 import { isLineFreightVehicleType } from 'ssh/freight/line-freight-vehicles'
-import type { Game } from 'ssh/game'
+import {
+	type FreightLineRouteStatus,
+	type FreightLineStopSummary,
+	type FreightLineVehicleStatus,
+	summarizeFreightLineRoute,
+} from 'ssh/freight/freight-stop-utility'
+import { type Game, type TradeTransferLogEntry } from 'ssh/game'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { type AxialCoord, toAxialCoord } from 'ssh/utils'
 import FreightStopList from '../FreightStopList'
@@ -106,6 +112,105 @@ css`
 .freight-line-properties__assignment-empty {
 	color: var(--ak-text-muted);
 	font-size: 0.78rem;
+}
+
+.freight-line-properties__route-summary {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+	font-size: 0.78rem;
+}
+
+.freight-line-properties__route-status {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	padding: 0.15rem 0.5rem;
+	border-radius: 0.35rem;
+	font-weight: 600;
+	font-size: 0.72rem;
+	text-transform: uppercase;
+}
+
+.freight-line-properties__route-status--active {
+	background: color-mix(in srgb, #22c55e 18%, transparent);
+	color: #22c55e;
+}
+
+.freight-line-properties__route-status--idle {
+	background: color-mix(in srgb, var(--ak-warning, #d8a33f) 18%, transparent);
+	color: var(--ak-warning, #d8a33f);
+}
+
+.freight-line-properties__route-status--complete {
+	background: color-mix(in srgb, var(--ak-text-muted) 18%, transparent);
+	color: var(--ak-text-muted);
+}
+
+.freight-line-properties__vehicle-status {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+}
+
+.freight-line-properties__vehicle-row {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	flex-wrap: wrap;
+	padding: 0.25rem 0;
+	border-bottom: 1px solid color-mix(in srgb, var(--ak-text-muted) 8%, transparent);
+}
+
+.freight-line-properties__vehicle-row:last-child {
+	border-bottom: none;
+}
+
+.freight-line-properties__vehicle-cargo {
+	color: var(--ak-text-muted);
+	font-size: 0.72rem;
+}
+
+.freight-line-properties__route-demand {
+	color: var(--ak-text-muted);
+	font-size: 0.72rem;
+}
+
+.freight-line-properties__trade-history {
+	display: flex;
+	flex-direction: column;
+	gap: 0.3rem;
+	font-size: 0.72rem;
+}
+
+.freight-line-properties__trade-row {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	flex-wrap: wrap;
+	padding: 0.2rem 0;
+	border-bottom: 1px solid color-mix(in srgb, var(--ak-text-muted) 8%, transparent);
+}
+
+.freight-line-properties__trade-row:last-child {
+	border-bottom: none;
+}
+
+.freight-line-properties__trade-stop {
+	color: var(--ak-text);
+	font-weight: 600;
+}
+
+.freight-line-properties__trade-export {
+	color: #22c55e;
+}
+
+.freight-line-properties__trade-import {
+	color: #f59e0b;
+}
+
+.freight-line-properties__trade-empty {
+	color: var(--ak-text-muted);
 }
 
 `
@@ -304,6 +409,53 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 		return assignableVehicleItems(currentGame(), currentLine()?.id ?? '')
 	}
 
+	const statusLabel = (status: FreightLineRouteStatus): string => {
+		if (status === 'active') return 'Active'
+		if (status === 'complete') return 'Complete'
+		return 'Idle'
+	}
+
+	const routeSummary = () => {
+		const g = currentGame()
+		const line = currentLine()
+		const vehicles = assignedVehicles()
+		if (!g || !line || vehicles.length === 0) return undefined
+		try {
+			return summarizeFreightLineRoute({ game: g, line, vehicles })
+		} catch {
+			return undefined
+		}
+	}
+
+	const stopsWithVehicleAt = (summary: NonNullable<ReturnType<typeof routeSummary>>) => {
+		const indices = new Set<number>()
+		for (const v of summary.vehicles) {
+			if (v.currentStopIndex !== undefined) indices.add(v.currentStopIndex)
+		}
+		return indices
+	}
+
+	const formatCargoShort = (cargoSummary: string): string => {
+		if (cargoSummary === 'empty') return cargoSummary
+		const parts = cargoSummary.split(', ')
+		if (parts.length <= 2) return cargoSummary
+		return `${parts.slice(0, 2).join(', ')} +${parts.length - 2}`
+	}
+
+	const formatTradeGoods = (goods: Partial<Record<string, number>>): string => {
+		const entries = Object.entries(goods)
+			.filter(([, qty]) => (qty ?? 0) > 0)
+			.map(([good, qty]) => `${good} ×${qty}`)
+		return entries.length > 0 ? entries.join(', ') : 'none'
+	}
+
+	const tradeHistory = () => {
+		const g = currentGame()
+		const line = currentLine()
+		if (!g || !line) return []
+		return g.getFreightLineTradeHistory(line.id)
+	}
+
 	return (
 		<InspectorSection
 			title={T.line.section}
@@ -403,6 +555,106 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 						/>
 					</PropertyGridRow>
 				</PropertyGrid>
+			</InspectorSection>
+			<InspectorSection
+				if={isAvailable() && routeSummary() !== undefined}
+				title="Route status"
+				data-testid="freight-line-route-summary"
+			>
+				<div class="freight-line-properties__route-summary">
+					<PropertyGrid>
+						<PropertyGridRow label="Status">
+							<span
+								class={`freight-line-properties__route-status freight-line-properties__route-status--${routeSummary()!.status}`}
+								data-testid="freight-line-route-status"
+							>
+								{statusLabel(routeSummary()!.status)}
+							</span>
+						</PropertyGridRow>
+						<PropertyGridRow
+							if={routeSummary()!.vehicles.length > 0}
+							label="Vehicles"
+						>
+							<div class="freight-line-properties__vehicle-status">
+								<for each={routeSummary()!.vehicles}>
+									{(vehicle: FreightLineVehicleStatus) => (
+										<div
+											class="freight-line-properties__vehicle-row"
+											data-testid="freight-line-vehicle-status"
+										>
+											<span>{vehicle.vehicleTitle}</span>
+											<span class="freight-line-properties__vehicle-cargo">
+												{vehicle.currentStopIndex !== undefined
+													? `at stop ${vehicle.currentStopIndex + 1}`
+													: 'not on route'}
+												{vehicle.isDocked ? ' · docked' : ''}
+												{vehicle.cargoSummary !== 'empty'
+													? ` · ${formatCargoShort(vehicle.cargoSummary)}`
+													: ''}
+												{vehicle.actionable ? ' · ready' : ''}
+											</span>
+										</div>
+									)}
+								</for>
+							</div>
+						</PropertyGridRow>
+						<PropertyGridRow
+							if={routeSummary()!.aggregateDownstreamDemand.total > 0}
+							label="Downstream demand"
+						>
+							<span class="freight-line-properties__route-demand">
+								{formatCargoShort(
+									Object.entries(routeSummary()!.aggregateDownstreamDemand.perGood)
+										.filter(([, qty]) => (qty ?? 0) > 0)
+										.map(([good, qty]) => `${good}:${qty}`)
+										.join(', ') || 'none'
+								)}
+							</span>
+						</PropertyGridRow>
+						<PropertyGridRow label="Actionable stops">
+							<span>
+								{routeSummary()!.totalActionableStops} / {routeSummary()!.stops.length}
+							</span>
+						</PropertyGridRow>
+					</PropertyGrid>
+				</div>
+			</InspectorSection>
+			<InspectorSection
+				if={isAvailable() && tradeHistory().length > 0}
+				title="Recent transfers"
+				data-testid="freight-line-trade-history"
+			>
+				<div class="freight-line-properties__trade-history">
+					<for each={tradeHistory().slice(0, 5)}>
+						{(entry: TradeTransferLogEntry) => {
+							const stop = currentLine()?.stops.find((s) => s.id === entry.stopId)
+							const stopLabel = stop
+								? `Stop ${currentLine()!.stops.indexOf(stop) + 1}`
+								: entry.stopId
+							const hasExports = Object.values(entry.exported).some((q) => (q ?? 0) > 0)
+							const hasImports = Object.values(entry.imported).some((q) => (q ?? 0) > 0)
+							return (
+								<div class="freight-line-properties__trade-row">
+									<span class="freight-line-properties__trade-stop">{stopLabel}</span>
+									<span
+										if={hasExports}
+										class="freight-line-properties__trade-export"
+									>
+										export {formatTradeGoods(entry.exported as Partial<Record<string, number>>)}
+										{' '}+{entry.creditedVp} vp
+									</span>
+									<span
+										if={hasImports}
+										class="freight-line-properties__trade-import"
+									>
+										import {formatTradeGoods(entry.imported as Partial<Record<string, number>>)}
+										{' '}−{entry.spentVp} vp
+									</span>
+								</div>
+							)
+						}}
+					</for>
+				</div>
 			</InspectorSection>
 			<FreightStopList
 				if={isAvailable() && currentLine() && currentGame()}

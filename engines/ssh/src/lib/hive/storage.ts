@@ -440,22 +440,15 @@ export class StorageAlveolus extends Alveolus {
 		}
 
 		const nextMinSlots = clampSlotCount(rule.minSlots ?? 0, this.slottedDefinition.slots)
-		if (nextMinSlots <= 0 && (rule.maxSlots ?? 0) <= 0) {
-			delete config.goods[goodType]
-			config.generalSlots = clampSlotCount(
-				config.generalSlots,
-				this.slottedRemainingSlotBudget(config.goods)
-			)
-			return
-		}
 
 		const currentRule = config.goods[goodType]
+		const nextMaxSlots = clampSlotCount(
+			rule.maxSlots ?? currentRule?.maxSlots ?? 0,
+			this.slottedDefinition.slots
+		)
 		config.goods[goodType] = {
 			minSlots: nextMinSlots,
-			maxSlots: clampSlotCount(
-				rule.maxSlots ?? currentRule?.maxSlots ?? 0,
-				this.slottedDefinition.slots
-			),
+			maxSlots: nextMaxSlots,
 		}
 		this.normalizeEditableSlottedConfiguration()
 	}
@@ -527,11 +520,11 @@ export class StorageAlveolus extends Alveolus {
 
 		const maxBudget = this.slottedRemainingSlotBudget(this.individualConfiguration.goods)
 		for (const [goodType, rule] of Object.entries(this.individualConfiguration.goods)) {
-			if (!rule) continue
-			rule.maxSlots = clampSlotCount(rule.maxSlots, maxBudget)
-			if (rule.minSlots <= 0 && rule.maxSlots <= 0) {
+			if (!rule) {
 				delete this.individualConfiguration.goods[goodType]
+				continue
 			}
+			rule.maxSlots = clampSlotCount(rule.maxSlots, maxBudget)
 		}
 
 		this.individualConfiguration.generalSlots = clampSlotCount(

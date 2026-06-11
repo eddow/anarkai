@@ -165,6 +165,20 @@ export type GameConveyEvent = {
 	/** Hop destination reached by the completed step. */
 	to: AxialCoord
 }
+
+/** Accumulated trade transfer log entry, keyed by line-stop-vehicle. */
+export interface TradeTransferLogEntry {
+	readonly lineId: string
+	readonly stopId: string
+	readonly settlementId: string
+	readonly vehicleUid: string
+	readonly exported: Partial<Record<GoodType, number>>
+	readonly imported: Partial<Record<GoodType, number>>
+	readonly creditedVp: number
+	readonly spentVp: number
+	readonly tick: number
+}
+
 unreactive(Eventful)
 export type GameGenerationOptions = {
 	terrainSeed: number
@@ -482,6 +496,8 @@ export class Game extends Eventful<GameEvents> {
 		string,
 		NpcSettlementTradeProfile
 	>()
+	/** Accumulated trade transfer events keyed by `lineId:stopId:vehicleUid` for inspector display. */
+	private readonly tradeTransferLog = new Map<string, TradeTransferLogEntry[]>()
 	private readonly terrainProvider: TerrainProvider
 	private readonly gameplayFrontier = new GameplayFrontierController({
 		hasMaterializedTile: (coord) => this.hasMaterializedGameplayTile(coord),
@@ -814,6 +830,31 @@ export class Game extends Eventful<GameEvents> {
 			{ type: 'npc-trade.transferred', ...event }
 		)
 		this.schedulePresentationEventsFlush()
+		this.accumulateTradeTransferLog(event)
+	}
+
+	private accumulateTradeTransferLog(
+		event: Omit<Extract<GamePresentationEvent, { type: 'npc-trade.transferred' }>, 'type'>
+	): void {
+		const key = `${event.lineId}:${event.stopId}:${event.vehicleUid}`
+		const entries = this.tradeTransferLog.get(key) ?? []
+		const entry: TradeTransferLogEntry = {
+			...event,
+			tick: this.ticker.elapsedMS,
+		}
+		entries.push(entry)
+		// Keep at most 10 recent entries per key
+		if (entries.length > 10) entries.splice(0, entries.length - 10)
+		this.tradeTransferLog.set(key, entries)
+	}
+
+	/** Returns trade transfer history for a freight line, most recent first. */
+	public getFreightLineTradeHistory(lineId: string): TradeTransferLogEntry[] {
+		const out: TradeTransferLogEntry[] = []
+		for (const [key, entries] of this.tradeTransferLog) {
+			if (key.startsWith(`${lineId}:`)) out.push(...entries)
+		}
+		return out.sort((a, b) => b.tick - a.tick)
 	}
 
 	/**

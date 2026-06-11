@@ -22,6 +22,7 @@ import type { FreightAdSource } from 'ssh/freight/priority-channel'
 import type { Game } from 'ssh/game/game'
 import type { Hive } from 'ssh/hive/hive'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
+import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
 import type { GoodType } from 'ssh/types/base'
 import type { ExchangePriority } from 'ssh/utils/advertisement'
 import type { AxialCoord } from 'ssh/utils/axial'
@@ -896,4 +897,141 @@ export function explainFreightStopCommerce(args: {
 		servicePosition,
 	})
 	return explanation
+}
+
+/** Aggregate line route status for inspector summary display. */
+export type FreightLineRouteStatus = 'active' | 'idle' | 'complete'
+
+/** Per-vehicle status within a freight line route summary. */
+export interface FreightLineVehicleStatus {
+	readonly vehicleUid: string
+	readonly vehicleType: string
+	readonly vehicleTitle: string
+	readonly currentStopId?: string
+	readonly currentStopIndex?: number
+	readonly isDocked: boolean
+	readonly cargoSummary: string
+	readonly actionable: boolean
+}
+
+/** Per-stop actionable summary for the route aggregate. */
+export interface FreightLineStopSummary {
+	readonly stopIndex: number
+	readonly stopId: string
+	readonly hasImportOpportunity: boolean
+	readonly hasExportOpportunity: boolean
+	readonly hasSurplusToUnload: boolean
+	readonly hasDemandToSatisfy: boolean
+	readonly blockReasons: readonly FreightStopCommerceBlockReason[]
+}
+
+/** Aggregate route summary for the line inspector header. */
+export interface FreightLineRouteSummary {
+	readonly status: FreightLineRouteStatus
+	readonly vehicles: readonly FreightLineVehicleStatus[]
+	readonly stops: readonly FreightLineStopSummary[]
+	readonly aggregateDownstreamDemand: FreightStopGoodsSnapshot
+	readonly totalActionableStops: number
+}
+
+function vehicleCargoSummary(vehicle: VehicleEntity): string {
+	const stock = vehicle.storage?.stock ?? {}
+	const entries = Object.entries(stock)
+		.filter(([, qty]) => (qty ?? 0) > 0)
+		.map(([good, qty]) => `${good}:${qty}`)
+	return entries.length > 0 ? entries.join(', ') : 'empty'
+}
+
+/**
+ * Builds a route-level aggregate summary for a freight line with its assigned vehicles.
+ *
+ * Computed on-demand from live vehicle state; does not cache.
+ */
+export function summarizeFreightLineRoute(args: {
+	readonly game: Game
+	readonly line: FreightLineDefinition
+	readonly vehicles: readonly VehicleEntity[]
+}): FreightLineRouteSummary {
+	const { game, line, vehicles } = args
+	const stops: FreightLineStopSummary[] = []
+	let aggregateDemand: Partial<Record<GoodType, number>> = {}
+
+	for (let i = 0; i < line.stops.length; i++) {
+		// Compute per-stop commerce for the first assigned vehicle (best-effort)
+		const primaryVehicle = vehicles.length > 0 ? vehicles[0] : undefined
+		const explanation = explainFreightStopCommerce({
+			game,
+			line,
+			stopIndex: i,
+			vehicle: primaryVehicle,
+		})
+		stops.push({
+			stopIndex: i,
+			stopId: line.stops[i]?.id ?? `stop-${i}`,
+			hasImportOpportunity: explanation.importOpportunityGoods.total > 0,
+			hasExportOpportunity: explanation.exportOpportunityGoods.total > 0,
+			hasSurplusToUnload: explanation.surplusCargoGoods.total > 0,
+			hasDemandToSatisfy: explanation.downstreamDemandGoods.total > 0,
+			blockReasons: explanation.blockReasons,
+		})
+		aggregateDemand = addGoodsCounts(
+			aggregateDemand,
+			explanation.downstreamDemandGoods.perGood
+		)
+	}
+
+	const vehicleStatuses: FreightLineVehicleStatus[] = vehicles.map((vehicle) => {
+		const svc = vehicle.service
+		const lineSvc = isVehicleLineService(svc) ? svc : undefined
+		const currentStopId = lineSvc?.stop?.id
+		const currentStopIndex = currentStopId
+			? line.stops.findIndex((s) => s.id === currentStopId)
+			: undefined
+		const docked = vehicle.isDocked
+		const actionable =
+			docked && lineSvc
+				? stops.some(
+						(s) =>
+							s.stopIndex === currentStopIndex &&
+							(s.hasImportOpportunity ||
+								s.hasExportOpportunity ||
+								s.hasSurplusToUnload)
+					)
+				: false
+		return {
+			vehicleUid: vehicle.uid,
+			vehicleType: vehicle.vehicleType,
+			vehicleTitle: vehicle.title,
+			currentStopId,
+			currentStopIndex: currentStopIndex !== undefined && currentStopIndex >= 0
+				? currentStopIndex
+				: undefined,
+			isDocked: docked,
+			cargoSummary: vehicleCargoSummary(vehicle),
+			actionable,
+		}
+	})
+
+	const totalActionableStops = stops.filter(
+		(s) =>
+			s.hasImportOpportunity ||
+			s.hasExportOpportunity ||
+			s.hasSurplusToUnload ||
+			s.hasDemandToSatisfy
+	).length
+
+	let status: FreightLineRouteStatus = 'idle'
+	if (totalActionableStops > 0 && vehicleStatuses.some((v) => v.actionable)) {
+		status = 'active'
+	} else if (totalActionableStops === 0 && line.cyclic) {
+		status = 'complete'
+	}
+
+	return {
+		status,
+		vehicles: vehicleStatuses,
+		stops,
+		aggregateDownstreamDemand: snapshotFromGoodsCounts(aggregateDemand),
+		totalActionableStops,
+	}
 }
