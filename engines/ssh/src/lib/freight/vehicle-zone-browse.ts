@@ -186,6 +186,13 @@ function pickZoneLoadSelection(
 		const path = pathToTile(game, character, startPos, tile)
 		if (!path) continue
 		for (const goodType of candidates) {
+			const tileAvailable = tile.availableGoods.filter(
+				(g) => g.goodType === goodType && g.available && !g.isRemoved
+			).length
+			const downstreamNeed = utility.remainingNeededGoods[goodType] ?? 0
+			const vehicleRoom = vehicle.storage.hasRoom(goodType) ?? 0
+			const quantity = Math.min(tileAvailable, downstreamNeed, vehicleRoom)
+			if (quantity <= 0) continue
 			const localNeed = (utility.localNeededGoods[goodType] ?? 0) > 0
 			const adSource = localNeed ? CONSTRUCTION_DEMAND_AD_SOURCE : tileAdSource
 			const priorityTier: FreightPriorityTier = localNeed
@@ -197,11 +204,13 @@ function pickZoneLoadSelection(
 				distance: path.length,
 				adSource,
 				priorityTier,
+				quantity,
 			}).score
 			if (!best || score > best.score || (score === best.score && path.length < best.path.length)) {
 				best = {
 					action: 'load',
 					goodType,
+					quantity,
 					targetTile: tile,
 					path,
 					adSource,
@@ -233,30 +242,39 @@ function pickZoneProvideSelection(
 	const segments = findDistributeRouteSegments(line).filter(
 		(segment) => segment.unloadStopIndex === utility.stopIndex
 	)
-	if (segments.length === 0 && !hasExplicitUnload) return undefined
+	const isDistributeStop = segments.length > 0
+	const hasSurplus = Object.values(utility.surplusLoadedGoods).some((q) => q > 0)
+	// Allow surplus offload at any zone stop (not just distribute-unload), so vehicles
+	// can drop stranded cargo when downstream need disappears (e.g. construction sites
+	// that were satisfied mid-route).
+	const canProvide = hasExplicitUnload || isDistributeStop || hasSurplus
+	if (!canProvide) return undefined
 	const priorityTier: FreightPriorityTier = 'pureOffload'
 	let best: (VehicleZoneBrowseSelection & { score: number }) | undefined
 	for (const tile of freightZoneTiles(game, zoneStop.zone)) {
 		const content = freightConstructionDemandTarget(tile.content)
 		if (!content || content.destroyed || content.isReady) continue
 		for (const goodType of Object.keys(content.remainingNeeds) as GoodType[]) {
-			const need = content.remainingNeeds[goodType] ?? 0
+			const need = content.effectiveRemainingNeeds[goodType] ?? 0
 			if (need <= 0) continue
 			if (hasExplicitUnload) {
 				if (!allowedByPolicy(zoneStop.unloadSelection, goodType)) continue
-			} else if (
-				!segments.some((segment) =>
-					distributeSegmentAllowsGoodTypeForSegment(line, segment, goodType)
-				)
-			) {
-				continue
+			} else if (isDistributeStop) {
+				if (
+					!segments.some((segment) =>
+						distributeSegmentAllowsGoodTypeForSegment(line, segment, goodType)
+					)
+				) {
+					continue
+				}
 			}
-			const available = Math.min(
-				vehicle.storage.available(goodType),
-				hasExplicitUnload
-					? (vehicle.storage.available(goodType) ?? 0)
-					: (utility.surplusLoadedGoods[goodType] ?? 0)
-			)
+			// For surplus offload (non-distribute, non-explicit), gate by surplusLoadedGoods
+			const isSurplusOnly = !hasExplicitUnload && !isDistributeStop
+			const surplusGate = isSurplusOnly ? (utility.surplusLoadedGoods[goodType] ?? 0) : Infinity
+			const rawAvail = vehicle.storage.available(goodType)
+			const available = isSurplusOnly
+				? Math.min(rawAvail, surplusGate)
+				: Math.min(rawAvail, utility.surplusLoadedGoods[goodType] ?? rawAvail)
 			if (available <= 0) continue
 			const room = content.storage.hasRoom(goodType) ?? 0
 			if (room <= 0) continue

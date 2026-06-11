@@ -10,9 +10,10 @@
 
 `ssh` contains the core colony simulation:
 
-- alveolus building logic
+- alveolus building logic, including a variant system for `pile` and `engineer` types
 - hive attachment/merging
 - harvesting, gathering, transit, transform, and build flows
+- **Alveolus variants**: `pile` can specialize into material variants (`wood`, `wood.reinforced`, `planks`, `planks.reinforced`, `stone`, `stone.reinforced`) with different storage capacities; `engineer` can specialize into role variants (`building`, `research`, `road`) with different job sets and action specs. Variants flow through rules → construction queue → factory → save/load. The Pixi renderer overlays variant badge sprites. The tile inspector uses a `<details><summary>` icon picker (badge sprites from `variantBadges` in `visual-content.ts`). Variant changes find the nearest common ancestor and only rebuild remaining construction steps. HivePlanCanvas and LinkedEntityControl show variant badge overlays.
 - the first zone-assigned caring alveolus, `forester`, which plants sparse visible tree deposits in assigned named forest zones
 - planted tree metadata on `UnBuiltLand`; planted tree deposit amount is the visible tree count, trees age into maturity, and mature planted trees yield multiple wood when cut
 - storage reservations and allocations
@@ -53,6 +54,10 @@ Gameplay streaming is owned by `ssh`:
 - line inspectors can assign and unassign compatible freight vehicles
 - docked vehicle work is surfaced through cheap provider-side advertised jobs for inspectors, while
   character-scoped planner search stays in job claiming/ranking paths
+- in-transit reservations prevent double-loading by subtracting goods already committed to a
+  fixed-quantity consumer (construction site, foundation) from its visible remaining needs;
+  zone-browse load quantities are capped by downstream need; surplus cargo can offload at any
+  zone stop; stale reservations emit warning traces as algorithm-bug indicators
 
 Details and constraints are documented in [`./freight-lines.md`](./freight-lines.md).
 

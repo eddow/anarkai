@@ -85,7 +85,6 @@ Already landed or mostly landed:
   capabilities such as construction, foundation laying, road work, and harvesting. Later, unify that radius
   model across all external-work alveoli and decide how actual vehicle objects can extend or constrain reach as
   configuration/equipment attached to the hive or alveolus, rather than as a variant-only field.
-- When loading a vehicle, *too much* should be avoided: check you don't take much more than what next stops can receive
 - When changing the variant, the alveolus storage should be emptied before re-construction
 
 ## Recommended Next Tranche

@@ -1,6 +1,10 @@
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
-import { isStandaloneConstructionSiteShell, materialRemainingNeeds } from 'ssh/build-site'
+import {
+	effectiveRemainingNeeds,
+	isStandaloneConstructionSiteShell,
+	materialRemainingNeeds,
+} from 'ssh/build-site'
 import {
 	distributeSegmentAllowsTile,
 	distributeSegmentWithinRadius,
@@ -24,6 +28,8 @@ export const CONSTRUCTION_DEMAND_AD_SOURCE: FreightAdSource = 'project'
 export interface FreightConstructionDemandTarget {
 	readonly storage: Storage
 	readonly remainingNeeds: Partial<Record<GoodType, number>>
+	/** Needs with in-transit vehicle reservations subtracted (load-decision view). */
+	readonly effectiveRemainingNeeds: Partial<Record<GoodType, number>>
 	readonly destroyed: boolean
 	readonly isReady: boolean
 }
@@ -35,6 +41,7 @@ export function freightConstructionDemandTarget(
 		return {
 			storage: content.storage,
 			remainingNeeds: content.remainingNeeds as Partial<Record<GoodType, number>>,
+			effectiveRemainingNeeds: effectiveRemainingNeeds(content) as Partial<Record<GoodType, number>>,
 			destroyed: content.destroyed,
 			isReady: content.isReady,
 		}
@@ -48,6 +55,7 @@ export function freightConstructionDemandTarget(
 	return {
 		storage: content.foundationStorage,
 		remainingNeeds,
+		effectiveRemainingNeeds: remainingNeeds,
 		destroyed: false,
 		isReady: Object.keys(remainingNeeds).length === 0,
 	}

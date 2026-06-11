@@ -79,6 +79,91 @@ concrete demand" or "store wood here because this hive has a forwarding line tha
 does not need to know "this exact concrete belongs to foundation X" unless a future feature chooses
 to add that specificity for a special economy rule.
 
+## In-transit reservations for fixed-quantity consumers
+
+### Problem
+
+Fixed-quantity consumers (construction sites, foundations) need an exact amount of each good. When
+a vehicle loads goods for a downstream construction stop, the stop's raw `remainingNeeds` does not
+reflect that the goods are already in transit. Two vehicles may both measure "needs 1 stone" and
+both load 1 stone — one of them will arrive to find the site satisfied and be left with stranded
+cargo occupying a storage slot indefinitely.
+
+Streaming consumers (transformers, storage buffers) do not suffer from this because their demand
+regenerates continuously as goods are consumed.
+
+### Model
+
+Each construction site carries a module-level `WeakMap` of `InTransitReservation` records:
+
+```ts
+interface InTransitReservation {
+    readonly vehicleUid: string
+    readonly goodType: GoodType
+    readonly quantity: number
+    readonly expiresAtTick: number
+}
+```
+
+When a vehicle commits to loading goods that will be consumed by a downstream construction stop,
+the reservation is created against that site. The site's **effective** remaining needs subtract
+all active reservations:
+
+```ts
+effectiveRemainingNeeds[g] = max(0, rawRemainingNeeds[g] - sum(inTransit[g]))
+```
+
+All load-decision callers use `effectiveRemainingNeeds` instead of raw `remainingNeeds`, so a
+second vehicle measuring the same site sees reduced need and avoids double-loading.
+
+### Lifecycle
+
+- **Creation**: when a zone-browse load job or dock-anchor load commits goods for a downstream
+  fixed-quantity consumer.
+- **Cancellation on delivery**: when the vehicle arrives and the convey worker deposits goods
+  into the construction site's storage, the reservation is cleared (the goods are no longer in
+  transit — they are delivered).
+- **Cancellation on service end**: `VehicleEntity.endService()` iterates all construction sites
+  and cancels reservations from that vehicle, so line reassignment, deletion, or maintenance
+  fallback does not leave ghost reservations.
+- **Expiry (algorithm bug guard)**: each reservation carries `expiresAtTick = now + 2 × route cycle ticks`.
+  The game tick loop scans all construction sites every 2 seconds for expired reservations. An
+  expired reservation means the vehicle never delivered what it reserved — an algorithm bug — and
+  **logs a warning trace** (`traces.vehicle.warn('inTransit.stale', ...)`). It does not silently
+  eat the error.
+
+### Surplus offload as safety net
+
+Even with in-transit reservations, edge cases exist (cancelled reservations, bugs, line changes
+mid-route). Zone stops now allow surplus offload: if a vehicle has `surplusLoadedGoods` (cargo
+no downstream stop needs), any zone stop with a valid sink (construction, storage, unload tile)
+can accept the surplus, not just distribute-unload stops. This is the last-resort safety net.
+
+### Quantity capping in zone browse loads
+
+`pickZoneLoadSelection` and `zoneBrowseJobFromTileLooseLoad` now compute an explicit quantity
+capped by downstream need:
+
+```ts
+quantity = min(tileAvailable, downstreamNeed, vehicleRoom)
+```
+
+This prevents a zone browse load from picking up 5 loose stones when downstream stops need 1.
+
+The same-tile loose-load path (`zoneBrowseJobFromTileLooseLoad`) also gates by downstream need
+and skips goods whose `remainingNeededGoods[g] <= 0`.
+
+### Relevant code
+
+| Concern | File |
+|---|---|
+| Reservation type, registration, effective needs, expiry | `engines/ssh/src/lib/build-site.ts` |
+| Load-decision callers use `effectiveRemainingNeeds` | `construction-demand.ts`, `freight-stop-utility.ts` |
+| Quantity cap in zone browse loads | `vehicle-zone-browse.ts`, `vehicle-work.ts` |
+| Surplus offload at any zone stop | `vehicle-zone-browse.ts` |
+| `endService()` cancels reservations | `population/vehicle/entity.ts` |
+| Tick-based stale reservation check | `game/game.ts` |
+
 ## Transit
 
 A hive may accept a good it does not locally consume when it is responsible for forwarding that good.

@@ -1,6 +1,7 @@
 import { effect, reactive } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
 import { isTileCoord } from 'ssh/board/tile-coord'
+import { cancelVehicleReservationsOnSites } from 'ssh/build-site'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
 import {
 	refreshDockedVehicleAdvertisement,
@@ -487,6 +488,8 @@ export class VehicleEntity extends withInteractive(GameObject) {
 			if (this.service.docked) this.enqueueDockPresentationChange()
 			this.service.docked = false
 		}
+		// Release any in-transit reservations this vehicle holds on construction sites.
+		cancelVehicleReservationsOnSites(this.game.hex.tiles, this.uid)
 		syncFreightVehicleDockRegistration(this)
 		this.service = undefined
 		this.game.invalidateWorkPlanning('vehicle.service')

@@ -40,6 +40,10 @@ import {
 	VARIANT_DELIMITER,
 } from 'ssh/construction-state'
 import { BayQueueRegistry } from 'ssh/freight/bay-queue-registry'
+import {
+	cancelVehicleReservationsOnSites,
+	cleanupStaleReservationsOnAllSites,
+} from 'ssh/build-site'
 import type { FreightLineDefinition, SyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import {
 	collectFreightLineBootstrapCoords,
@@ -1070,10 +1074,17 @@ export class Game extends Eventful<GameEvents> {
 
 		// Create bay queue registry and integrate into the ticker
 		this.bayQueueRegistry = new BayQueueRegistry(this)
+		let staleReservationAccumulator = 0
+		const STALE_RESERVATION_SCAN_INTERVAL_S = 2
 		const self = this
 		this.registerTickedObject({
-			update() {
+			update(deltaSeconds) {
 				self.bayQueueRegistry.updateAllQueues()
+				staleReservationAccumulator += deltaSeconds
+				if (staleReservationAccumulator >= STALE_RESERVATION_SCAN_INTERVAL_S) {
+					staleReservationAccumulator -= STALE_RESERVATION_SCAN_INTERVAL_S
+					cleanupStaleReservationsOnAllSites(self.hex.tiles, self.ticker.elapsedMS)
+				}
 			},
 		})
 

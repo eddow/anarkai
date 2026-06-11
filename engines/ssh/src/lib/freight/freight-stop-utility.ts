@@ -424,7 +424,7 @@ export function measureZoneStandaloneConstructionNeedSink(
 		const site = freightConstructionDemandTarget(tile.content)
 		if (!site || site.destroyed || site.isReady) continue
 		for (const g of allowedGoods) {
-			const need = site.remainingNeeds[g]
+			const need = site.effectiveRemainingNeeds[g]
 			if (need === undefined || need <= 0) continue
 			perGood[g] = (perGood[g] ?? 0) + need
 		}
@@ -611,7 +611,7 @@ export function measureFreightStopNeededGoods(
 			const site = freightConstructionDemandTarget(tile.content)
 			if (!site || site.destroyed || site.isReady) continue
 			for (const g of allowedGoodsSet) {
-				const need = site.remainingNeeds[g]
+				const need = site.effectiveRemainingNeeds[g]
 				if (need === undefined || need <= 0) continue
 				perGood[g] = (perGood[g] ?? 0) + need
 			}

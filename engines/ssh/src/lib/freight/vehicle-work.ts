@@ -1555,17 +1555,24 @@ function zoneBrowseJobFromTileLooseLoad(
 	)
 	const loose = game.hex.looseGoods.getGoodsAt(character.tile.position)
 	const storage = vehicle.storage
+	const utility = zoneBrowseUtilityContext(game, vehicle, svc.line, svc.stop)
+	const downstreamNeed = utility?.remainingNeededGoods ?? {}
 	const pick = loose.find(
 		(g) =>
 			g.available &&
 			!g.isRemoved &&
 			selectable.includes(g.goodType as GoodType) &&
-			storage.hasRoom(g.goodType as GoodType) > 0
+			storage.hasRoom(g.goodType as GoodType) > 0 &&
+			(downstreamNeed[g.goodType as GoodType] ?? 1) > 0
 	)
 	if (!pick) return undefined
 	const tc = toAxialCoord(character.tile.position)!
 	const adSource = inferZoneLoadAdSource(character.tile)
 	const priorityTier = zoneBrowseLoadPriorityTier(adSource)
+	const room = vehicle.storage.hasRoom(pick.goodType as GoodType) ?? 0
+	const need = downstreamNeed[pick.goodType as GoodType] ?? 0
+	const quantity = room > 0 ? Math.min(room, Math.max(1, need)) : 0
+	if (quantity <= 0) return undefined
 	return {
 		job: 'zoneBrowse',
 		urgency: zoneBrowseUrgency('load', priorityTier),
@@ -1577,7 +1584,7 @@ function zoneBrowseJobFromTileLooseLoad(
 		approachPath: [],
 		zoneBrowseAction: 'load',
 		goodType: pick.goodType as GoodType,
-		quantity: 1,
+		quantity,
 		targetCoord: tc,
 		adSource,
 		priorityTier,
@@ -1609,11 +1616,7 @@ function zoneBrowseJobFromConstructionProvide(
 
 	const site = freightConstructionDemandTarget(character.tile.content)
 	if (!site || site.destroyed || site.isReady) return undefined
-	const remainingRaw = site.remainingNeeds
-	const remaining =
-		remainingRaw && typeof remainingRaw === 'object'
-			? remainingRaw
-			: ({} as Partial<Record<GoodType, number>>)
+	const remaining = site.effectiveRemainingNeeds
 	const goodTypes = (Object.keys(remaining) as GoodType[]).filter((g) => (remaining[g] ?? 0) > 0)
 	goodTypes.sort()
 	for (const goodType of goodTypes) {
