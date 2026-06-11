@@ -137,7 +137,7 @@ export function characterOwnsFreightTransferClaim(
 	return false
 }
 
-export const freightTransferInvariantIds = {
+export const freightTransferInvariants = {
 	blockingTransferHasExecutableJob: 'freight.transfer.blocking-transfer-has-executable-job',
 	claimHasLiveConveyOwner: 'freight.transfer.claim-has-live-convey-owner',
 	reservedCargoIsNotLocalOffer: 'freight.transfer.reserved-cargo-is-not-local-offer',
@@ -185,7 +185,7 @@ function freightTransferPayload(transfer: FreightTransferMeta): Record<string, u
 }
 
 export const freightTransferInvariantChecks = {
-	[freightTransferInvariantIds.blockingTransferHasExecutableJob]: ({
+	[freightTransferInvariants.blockingTransferHasExecutableJob]: ({
 		transfer,
 		hasExecutableJob,
 		claimOwner,
@@ -204,7 +204,7 @@ export const freightTransferInvariantChecks = {
 			},
 		}
 	},
-	[freightTransferInvariantIds.claimHasLiveConveyOwner]: ({
+	[freightTransferInvariants.claimHasLiveConveyOwner]: ({
 		transfer,
 		claimOwner,
 	}: ClaimHasLiveConveyOwnerContext): TraceInvariantResult => {
@@ -220,7 +220,7 @@ export const freightTransferInvariantChecks = {
 			},
 		}
 	},
-	[freightTransferInvariantIds.reservedCargoIsNotLocalOffer]: ({
+	[freightTransferInvariants.reservedCargoIsNotLocalOffer]: ({
 		transfer,
 		advertisedAsLocalOffer,
 	}: ReservedCargoLocalOfferContext): TraceInvariantResult => {
@@ -239,7 +239,7 @@ export const freightTransferInvariantChecks = {
 			},
 		}
 	},
-	[freightTransferInvariantIds.candidatesAreNotBlockers]: ({
+	[freightTransferInvariants.candidatesAreNotBlockers]: ({
 		blockedOnlyByCandidates,
 		hasBlockingExecutionState,
 		candidateCount,
@@ -252,7 +252,7 @@ export const freightTransferInvariantChecks = {
 			candidateCount,
 		},
 	}),
-	[freightTransferInvariantIds.transitHasLocalRoutePromise]: (
+	[freightTransferInvariants.transitHasLocalRoutePromise]: (
 		transfer: FreightTransferMeta
 	): TraceInvariantResult => ({
 		ok: transfer.purpose !== 'transit' || !!transfer.routePromiseId || !!transfer.demand?.id,

@@ -86,7 +86,7 @@ describe('BuildAlveolus save/load', () => {
 		expect(pile).toBeInstanceOf(StorageAlveolus)
 		if (!(pile instanceof StorageAlveolus)) return
 		expect(pile.alveolusType).toBe('pile')
-		expect(pile.variantId).toBe('planks')
+		expect(pile.variant).toBe('planks')
 		expect(pile.storage).toBeInstanceOf(SpecificStorage)
 		expect(pile.storage.maxAmounts.planks).toBe(24)
 
@@ -96,7 +96,7 @@ describe('BuildAlveolus save/load', () => {
 			(a) => a.coord[0] === pileCoord.q && a.coord[1] === pileCoord.r
 		)
 		expect(pilePatch?.alveolus).toBe('pile')
-		expect(pilePatch?.variantId).toBe('planks')
+		expect(pilePatch?.variant).toBe('planks')
 
 		game.destroy()
 
@@ -109,7 +109,7 @@ describe('BuildAlveolus save/load', () => {
 		expect(restored).toBeInstanceOf(StorageAlveolus)
 		if (!(restored instanceof StorageAlveolus)) return
 		expect(restored.alveolusType).toBe('pile')
-		expect(restored.variantId).toBe('planks')
+		expect(restored.variant).toBe('planks')
 		expect(restored.storage).toBeInstanceOf(SpecificStorage)
 		expect(restored.storage.maxAmounts.planks).toBe(24)
 	})

@@ -30,12 +30,13 @@ import {
 	createSettlementTradeObjectForUid,
 	type NpcSettlementTradeProfile,
 } from 'ssh/commerce/settlement-trade'
-import { createConstructionShell } from 'ssh/construction-shell'
+import { createConstructionShell, applyConstructionConcreteTerrain } from 'ssh/construction-shell'
 import {
 	type ConstructionPhase,
 	constructionTargetFromProject,
 	createConstructionSiteState,
 	type DwellingTier,
+	resolveAlveolusVariant,
 	VARIANT_DELIMITER,
 } from 'ssh/construction-state'
 import { BayQueueRegistry } from 'ssh/freight/bay-queue-registry'
@@ -60,6 +61,7 @@ import {
 } from 'ssh/generation'
 import { configuration } from 'ssh/globals'
 import { AlveolusConfigurationManager, createAlveolus, Hive } from 'ssh/hive'
+import { BuildAlveolus } from 'ssh/hive/build'
 import {
 	collectSerializedConveyMovementsWithIndex,
 	restoreSerializedConveyMovements,
@@ -188,7 +190,7 @@ export interface AlveolusPatch {
 	processBuffers?: Partial<Record<GoodType, number>>
 	alveolus: AlveolusType
 	/** Dot-separated variant path (e.g., "wood.extra"). Persisted for save/load round-trip. */
-	variantId?: string
+	variant?: string
 	/** When true, tile hosts a build shell for `alveolus` target, not the finished building. */
 	underConstruction?: boolean
 	/** Persisted construction work seconds on the build shell. */
@@ -219,7 +221,7 @@ export interface ProjectSitePatch {
 	coord: readonly [number, number]
 	project: string
 	/** Dot-separated variant path for variant-capable alveolus projects. */
-	variantId?: string
+	variant?: string
 	constructionPhase?: ConstructionPhase
 	foundationGoods?: Partial<Record<GoodType, number>>
 	foundationConsumedGoods?: Partial<Record<GoodType, number>>
@@ -548,30 +550,79 @@ export class Game extends Eventful<GameEvents> {
 		)
 	}
 
-	public applyBuildAction(tile: Tile, alveolusType: AlveolusType, variantId?: string): boolean {
-		return tile.build(alveolusType, variantId)
+	public applyBuildAction(tile: Tile, alveolusType: AlveolusType, variant?: string): boolean {
+		return tile.build(alveolusType, variant)
 	}
 
 	/**
 	 * Change the variant of an existing alveolus or construction shell.
-	 * Bulldozes the tile then sets a new build project with the desired variant.
+	 * Finds the nearest common ancestor between current and target variants,
+	 * preserves that ancestor, and starts construction only for the remaining steps.
 	 *
-	 * For a finished alveolus this clears the tile and starts reconstruction.
-	 * For a construction shell in progress this resets the build with the new variant target.
+	 * E.g. changing "planks" → "stone" on a pile keeps the root pile and only
+	 * constructs the stone variant recipe (no foundation/root rebuild).
 	 */
-	public changeAlveolusVariant(tile: Tile, alveolusType: AlveolusType, variantId?: string): boolean {
+	public changeAlveolusVariant(tile: Tile, alveolusType: AlveolusType, variant?: string): boolean {
 		const content = tile.content
 		if (!(content instanceof Alveolus || isConstructionSiteShell(content))) return false
 
-		const terrain = tile.terrainState?.terrain ?? tile.baseTerrain ?? 'concrete'
-		this.hex.setTileContent(tile, new UnBuiltLand(tile, terrain, undefined))
-		tile.asGenerated = false
+		const resolved = resolveAlveolusVariant(alveolusType, variant || undefined)
+		if (!resolved) return false
 
-		const success = tile.build(alveolusType, variantId || undefined)
-		if (success) {
-			this.invalidateWorkPlanning('variant-change')
+		// Find nearest common ancestor between current and target variant paths
+		const currentSegments = (
+			(content as { variant?: string }).variant ?? ''
+		).split('.').filter(Boolean)
+		const targetSegments = (variant ?? '').split('.').filter(Boolean)
+
+		let commonCount = 0
+		while (
+			commonCount < currentSegments.length &&
+			commonCount < targetSegments.length &&
+			currentSegments[commonCount] === targetSegments[commonCount]
+		) {
+			commonCount++
 		}
-		return success
+
+		const chain = resolved.ancestorChain
+		// Start construction at the step immediately after the common ancestor.
+		// If commonCount = 0, step 0 is the root recipe → we're at root, start at step 1 (variant recipe).
+		// If commonCount = 1 (e.g. both variants share "wood"), start at step 2.
+		const stepIndex = commonCount + 1
+
+		if (stepIndex >= chain.length) {
+			// Target is the common ancestor itself (or we're clearing back to root).
+			// Just create the finished alveolus at that ancestor.
+			const ancestorVariantId =
+				targetSegments.slice(0, commonCount).join('.') || undefined
+			const alv = createAlveolus(alveolusType, tile, ancestorVariantId)
+			if (!alv) return false
+			applyConstructionConcreteTerrain(tile)
+			this.hex.setTileContent(tile, alv)
+			tile.asGenerated = false
+			this.invalidateWorkPlanning('variant-change')
+			return true
+		}
+
+		// Create BuildAlveolus starting from the step after common ancestor
+		const site = createConstructionSiteState(
+			{ kind: 'alveolus', alveolusType, variant: variant || undefined },
+			stepIndex
+		)
+		const build = new BuildAlveolus(
+			tile,
+			alveolusType,
+			site,
+			variant || undefined,
+			chain,
+			stepIndex
+		)
+
+		applyConstructionConcreteTerrain(tile)
+		this.hex.setTileContent(tile, build)
+		tile.asGenerated = false
+		this.invalidateWorkPlanning('variant-change')
+		return true
 	}
 
 	public previewHivePlanPlacement(
@@ -2134,7 +2185,7 @@ export class Game extends Eventful<GameEvents> {
 					const constructionSite = createConstructionSiteState({
 						kind: 'alveolus',
 						alveolusType,
-						variantId: a.variantId,
+						variant: a.variant,
 					})
 					constructionSite.phase = a.constructionPhase ?? 'waiting_materials'
 					constructionSite.workSecondsApplied = a.constructionWorkSecondsApplied ?? 0
@@ -2153,7 +2204,7 @@ export class Game extends Eventful<GameEvents> {
 					tile.asGenerated = false
 					continue
 				}
-				const alv = createAlveolus(alveolusType, tile, a.variantId)
+				const alv = createAlveolus(alveolusType, tile, a.variant)
 				if (!alv) throw new Error(`Unknown alveolus type in hive patch: ${a.alveolus}`)
 				this.hex.setTileContent(tile, alv)
 				if (a.goods && alv.name !== 'freight_bay')
@@ -2293,13 +2344,13 @@ export class Game extends Eventful<GameEvents> {
 			const content = tile.content
 			const constructionTarget = constructionTargetFromProject(entry.project)
 			if (!constructionTarget) continue
-			// Attach variantId from the save if not already parsed from the project string
+			// Attach variant from the save if not already parsed from the project string
 			if (
-				entry.variantId &&
+				entry.variant &&
 				constructionTarget.kind === 'alveolus' &&
-				!constructionTarget.variantId
+				!constructionTarget.variant
 			) {
-				;(constructionTarget as { variantId?: string }).variantId = entry.variantId
+				;(constructionTarget as { variant?: string }).variant = entry.variant
 			}
 			const constructionSite = createConstructionSiteState(constructionTarget)
 			constructionSite.phase = entry.constructionPhase ?? constructionSite.phase
@@ -2471,9 +2522,9 @@ export class Game extends Eventful<GameEvents> {
 					projectSites.push({
 						coord: [q, r],
 						project: content.project,
-						variantId:
+						variant:
 							content.constructionSite?.target.kind === 'alveolus'
-								? content.constructionSite.target.variantId
+								? content.constructionSite.target.variant
 								: undefined,
 						constructionPhase: content.constructionSite?.phase,
 						foundationGoods: content.foundationStorage?.stock ?? {},
@@ -2496,14 +2547,14 @@ export class Game extends Eventful<GameEvents> {
 
 			if (isConstructionSiteShell(content) && content.constructionSite.target.kind === 'alveolus') {
 				const target = content.constructionSite.target
-				const buildVariantId = (content as { variantId?: string }).variantId ?? target.variantId
+				const buildVariantId = (content as { variant?: string }).variant ?? target.variant
 				const projectStr = buildVariantId
 					? `build:${target.alveolusType}${VARIANT_DELIMITER}${buildVariantId}`
 					: `build:${target.alveolusType}`
 				projectSites.push({
 					coord: [q, r],
 					project: projectStr,
-					variantId: buildVariantId,
+					variant: buildVariantId,
 					constructionPhase: content.constructionSite.phase,
 					foundationConsumedGoods: content.constructionSite.foundationConsumedGoods ?? {},
 					constructionGoods: content.storage?.stock ?? {},
@@ -2536,7 +2587,7 @@ export class Game extends Eventful<GameEvents> {
 						: {
 								coord: [q, r],
 								alveolus: alveolusName as AlveolusType,
-								variantId: (content as { variantId?: string }).variantId,
+								variant: (content as { variant?: string }).variant,
 								goods: content.storage?.stock || {},
 								processBuffers:
 									content instanceof TransformAlveolus ? { ...content.processBuffers } : undefined,

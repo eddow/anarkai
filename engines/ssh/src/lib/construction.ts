@@ -24,7 +24,7 @@ export type { ConstructionBlockingReason, ConstructionPhase, ConstructionSiteSta
 export interface ConstructionSiteView {
 	readonly phase: ConstructionPhase
 	readonly target?: AlveolusType
-	readonly variantId?: string
+	readonly variant?: string
 	readonly dwellingTier?: DwellingTier
 	/** Seconds of construction work applied toward `constructionTotalSeconds`. */
 	readonly constructionWorkSecondsApplied?: number
@@ -74,12 +74,12 @@ function snapshotConstructionState(
 ): ConstructionSiteView {
 	state = normalizeConstructionSiteState(state)
 	const targetAlveolus = state.target.kind === 'alveolus' ? state.target.alveolusType : undefined
-	const variantId = state.target.kind === 'alveolus' ? state.target.variantId : undefined
+	const variant = state.target.kind === 'alveolus' ? state.target.variant : undefined
 	const dwellingTier = state.target.kind === 'dwelling' ? state.target.tier : undefined
 	return {
 		phase: overrides?.phase ?? state.phase,
 		target: overrides?.target ?? targetAlveolus,
-		variantId: overrides?.variantId ?? variantId,
+		variant: overrides?.variant ?? variant,
 		dwellingTier: overrides?.dwellingTier ?? dwellingTier,
 		constructionWorkSecondsApplied:
 			overrides?.constructionWorkSecondsApplied ?? state.workSecondsApplied,

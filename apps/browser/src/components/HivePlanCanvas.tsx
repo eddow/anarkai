@@ -137,8 +137,8 @@ const HivePlanCanvas = (props: HivePlanCanvasProps) => {
 			stage?.addChild(sprite)
 
 			// Variant badge overlay
-			if (entry.variantId) {
-				const badgeKey = `${entry.alveolusType}.${entry.variantId}`
+			if (entry.variant) {
+				const badgeKey = `${entry.alveolusType}.${entry.variant}`
 				const badgeDef = variantBadges[badgeKey]
 				const badgeTextureName = badgeDef?.sprites?.[0]
 				if (badgeTextureName) {

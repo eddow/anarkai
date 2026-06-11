@@ -198,7 +198,7 @@ goods are optional.
 Variant IDs are dot-delimited paths through nested `variants` objects. The first
 segment is a **root variant** (`wood`, `planks`); later segments are child
 variants (`wood.extra`, `planks.extra`). The full alveolus identity is written
-as `alveolusType.variantId`, e.g. `pile.wood.extra`.
+as `alveolusType.variant`, e.g. `pile.wood.extra`.
 
 Reachability is intentionally broad once the root alveolus exists: from any node
 in an alveolus' variant tree, the player may request any other node in that same
@@ -256,7 +256,7 @@ the behavioral definition. A first-segment variant merges one overlay on top of
 the root. A nested variant merges each prefix in order:
 
 ```
-variantId = 'planks.extra'
+variant = 'planks.extra'
 variantPath = [variants.planks, variants.planks.variants.extra]
 
 resolvedDefinition =
@@ -271,7 +271,7 @@ that determine runtime behavior (`actions`, `specifications`, `workTime`,
 
 The resolved definition is what `createAlveolus` in [`hive/index.ts`](../src/lib/hive/index.ts) dispatches on. Each merge step is **shallow** — later variant fields replace earlier fields of the same name, with `action` shallow-merged so the root's `type` is preserved.
 
-If no variant is resolved because the saved `variantId` path no longer exists in
+If no variant is resolved because the saved `variant` path no longer exists in
 the nested variant tree, the bare root definition is used. For variant-capable
 types like `pile`, this may produce an incomplete state that awaits variant
 construction and should offer useful variants. Missing children in authored
@@ -356,18 +356,18 @@ treated as a missing variant at runtime and falls back as described above.
 
 ```ts
 export type ConstructionTarget =
-    | { readonly kind: 'alveolus'; readonly alveolusType: AlveolusType; readonly variantId?: string }
+    | { readonly kind: 'alveolus'; readonly alveolusType: AlveolusType; readonly variant?: string }
     | { readonly kind: 'dwelling'; readonly tier: DwellingTier }
 ```
 
-`constructionTargetFromProject` and `createConstructionRecipe` are extended to incorporate `variantId` when selecting the target state's recipe.
+`constructionTargetFromProject` and `createConstructionRecipe` are extended to incorporate `variant` when selecting the target state's recipe.
 
 ### `Alveolus` base class (ssh — [`alveolus.ts`](../src/lib/board/content/alveolus.ts))
 
 ```ts
 export abstract class Alveolus {
     /** Which variant this alveolus was built with. `undefined` means root-only or not applicable. */
-    public readonly variantId?: string
+    public readonly variant?: string
 
     /** The fully resolved definition, with variant merged in. */
     get resolvedDefinition(): Ssh.AlveolusDefinition { … }
@@ -425,7 +425,7 @@ export interface HivePlanEntry {
     roleId: string
     coord: readonly [number, number]
     alveolusType: AlveolusType
-    variantId?: string                                       // new
+    variant?: string                                       // new
     configuration?: {
         ref: Ssh.ConfigurationReference
         individual?: Ssh.AlveolusConfiguration
@@ -435,15 +435,15 @@ export interface HivePlanEntry {
 
 ### `BuildAlveolus` (ssh — [`build.ts`](../src/lib/hive/build.ts))
 
-The construction shell already carries `planConfiguration`. A `variantId` follows the same propagation pattern — stored on the shell during construction, transferred to the final alveolus in `finalizeConstructionShell`.
+The construction shell already carries `planConfiguration`. A `variant` follows the same propagation pattern — stored on the shell during construction, transferred to the final alveolus in `finalizeConstructionShell`.
 
 ### Save data (ssh — [`game.ts`](../src/lib/game/game.ts))
 
-`variantId` is serialized alongside the alveolus type. On deserialization, the runtime re-resolves the root + variant merge from the rule definitions. If a saved `variantId` no longer exists in the rules (e.g. the variant was removed in a game update), the alveolus falls back to its root definition — possibly incomplete but still present, allowing the player to apply a different variant.
+`variant` is serialized alongside the alveolus type. On deserialization, the runtime re-resolves the root + variant merge from the rule definitions. If a saved `variant` no longer exists in the rules (e.g. the variant was removed in a game update), the alveolus falls back to its root definition — possibly incomplete but still present, allowing the player to apply a different variant.
 
 ---
 
-## `variantId` vs configuration
+## `variant` vs configuration
 
 Variant and configuration are orthogonal:
 
@@ -452,7 +452,7 @@ Variant and configuration are orthogonal:
 | **When chosen** | Construction time | Anytime through inspector |
 | **What it changes** | Action set, specifications, output goods, work time, visual | Working flag, buffers, product ratio, slot allocation |
 | **Cost to change** | Construction materials + engineer work | Free |
-| **Where stored** | `alveolus.variantId` | `alveolus.configurationRef` + `alveolus.individualConfiguration` |
+| **Where stored** | `alveolus.variant` | `alveolus.configurationRef` + `alveolus.individualConfiguration` |
 | **Scope** | Per building instance | Per building instance (individual), per hive (hive scope), or global (named) |
 
 A `pile.wood` alveolus can still have its `working` flag toggled or its buffer sizes configured through the existing configuration system. An `engineer.building` can have individual buffers adjusted. Variant chooses *what* the building is; configuration tunes *how* it operates.
@@ -486,7 +486,7 @@ the combined cost of those jobs. Selecting `pile.wood.extra` from an existing
 
 ### Inspector
 
-A built alveolus with variants shows its current `variantId` in the inspector. If the alveolus type has multiple variants, a "Change Variant" action is available, which opens the variant picker and, on confirmation, starts a construction job targeting the selected variant state.
+A built alveolus with variants shows its current `variant` in the inspector. If the alveolus type has multiple variants, a "Change Variant" action is available, which opens the variant picker and, on confirmation, starts a construction job targeting the selected variant state.
 
 If the current state is incomplete, the inspector should make variant selection
 the obvious next action rather than presenting the state as broken. For example,
@@ -499,7 +499,7 @@ so the base footprint is stable while specialization is visible.
 
 ### Hive plan editor
 
-Each `HivePlanEntry` exposes a variant picker. When validating or placing a plan, entries with a `variantId` resolve to the merged definition for construction cost calculation and placement validation.
+Each `HivePlanEntry` exposes a variant picker. When validating or placing a plan, entries with a `variant` resolve to the merged definition for construction cost calculation and placement validation.
 Plan cost previews should use the expanded construction queue from the planned
 starting state, not only the leaf variant recipe.
 
@@ -510,20 +510,20 @@ starting state, not only the leaf variant recipe.
 | File | Change |
 |---|---|
 | [`engines/rules/src/content/alveoli.ts`](../../rules/src/content/alveoli.ts) | Add `variants` to `pile` and `engineer` only |
-| [`engines/ssh/src/lib/construction-state.ts`](../src/lib/construction-state.ts) | `ConstructionTarget.alveolus` gains optional `variantId`; `createConstructionRecipe` selects the recipe for the target state |
+| [`engines/ssh/src/lib/construction-state.ts`](../src/lib/construction-state.ts) | `ConstructionTarget.alveolus` gains optional `variant`; `createConstructionRecipe` selects the recipe for the target state |
 | [`engines/ssh/src/lib/construction-shell.ts`](../src/lib/construction-shell.ts) | `finalizeConstructionShell` resolves variant, passes to `createAlveolus` |
-| [`engines/ssh/src/lib/hive/index.ts`](../src/lib/hive/index.ts) | `createAlveolus` accepts `variantId`, resolves merged definition |
-| [`engines/ssh/src/lib/board/content/alveolus.ts`](../src/lib/board/content/alveolus.ts) | Store `variantId`, expose `resolvedDefinition` getter; `computeProposedJobs`/`computeJobForCharacter` delegate to action→job registry |
+| [`engines/ssh/src/lib/hive/index.ts`](../src/lib/hive/index.ts) | `createAlveolus` accepts `variant`, resolves merged definition |
+| [`engines/ssh/src/lib/board/content/alveolus.ts`](../src/lib/board/content/alveolus.ts) | Store `variant`, expose `resolvedDefinition` getter; `computeProposedJobs`/`computeJobForCharacter` delegate to action→job registry |
 | [`engines/ssh/src/lib/jobs/action-job-registry.ts`](../src/lib/jobs/action-job-registry.ts) | **New**: action→job provider registry with providers for all action types |
 | [`engines/ssh/src/lib/hive/engineer.ts`](../src/lib/hive/engineer.ts) | Removed `nextAlveolusJob`, `proposedJobs` override, `engineeringTargets`; now purely data |
 | [`engines/ssh/src/lib/hive/harvest.ts`](../src/lib/hive/harvest.ts) | Removed `nextAlveolusJob` override |
 | [`engines/ssh/src/lib/hive/transform.ts`](../src/lib/hive/transform.ts) | Removed `nextAlveolusJob` override |
 | [`engines/ssh/src/lib/hive/forester.ts`](../src/lib/hive/forester.ts) | Removed `nextAlveolusJob` override |
 | [`engines/ssh/src/lib/hive/storage.ts`](../src/lib/hive/storage.ts) | Removed `nextAlveolusJob` override |
-| [`engines/ssh/src/lib/hive/build.ts`](../src/lib/hive/build.ts) | `BuildAlveolus` carries `variantId` |
-| [`engines/ssh/src/lib/board/content/unbuilt-land.ts`](../src/lib/board/content/unbuilt-land.ts) | `setProject` accepts `variantId` |
-| [`engines/ssh/src/lib/board/tile.ts`](../src/lib/board/tile.ts) | `build(alveolusType, variantId?)` signature |
-| [`engines/ssh/src/lib/hive-plan.ts`](../src/lib/hive-plan.ts) | `HivePlanEntry` gains `variantId` |
-| [`engines/ssh/src/lib/game/game.ts`](../src/lib/game/game.ts) | Serialize/deserialize `variantId` in saved game data |
+| [`engines/ssh/src/lib/hive/build.ts`](../src/lib/hive/build.ts) | `BuildAlveolus` carries `variant` |
+| [`engines/ssh/src/lib/board/content/unbuilt-land.ts`](../src/lib/board/content/unbuilt-land.ts) | `setProject` accepts `variant` |
+| [`engines/ssh/src/lib/board/tile.ts`](../src/lib/board/tile.ts) | `build(alveolusType, variant?)` signature |
+| [`engines/ssh/src/lib/hive-plan.ts`](../src/lib/hive-plan.ts) | `HivePlanEntry` gains `variant` |
+| [`engines/ssh/src/lib/game/game.ts`](../src/lib/game/game.ts) | Serialize/deserialize `variant` in saved game data |
 | `apps/browser` widgets | Variant picker in construction palette, plan editor, inspector |
 | [`engines/pixi`](../../pixi) | Optionally different sprites per variant in `alveolus-visual.ts` |

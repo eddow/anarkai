@@ -31,7 +31,7 @@ export function createConstructionShell(
 ): ConstructionSiteShell & TileContent {
 	const site = normalizeConstructionSiteState(constructionSite)
 	if (site.target.kind === 'alveolus') {
-		return new BuildAlveolus(tile, site.target.alveolusType, site, site.target.variantId)
+		return new BuildAlveolus(tile, site.target.alveolusType, site, site.target.variant)
 	}
 	if (site.target.kind === 'dwelling') {
 		return new BuildDwelling(tile, site.target.tier, site)
@@ -43,7 +43,7 @@ export function constructionShellStepDescription(shell: ConstructionSiteShell): 
 	const target = normalizeConstructionSiteState(shell.constructionSite).target
 	if (target.kind === 'alveolus') {
 		const desc = `construct.${String(target.alveolusType)}`
-		return target.variantId ? `${desc}#${target.variantId}` : desc
+		return target.variant ? `${desc}#${target.variant}` : desc
 	}
 	if (target.kind === 'dwelling') return `construct.dwelling.${target.tier}`
 	assert(false, 'Unsupported construction target')
@@ -64,7 +64,7 @@ export function finalizeConstructionShell(shell: ConstructionSiteShell): void {
 			constructionQueue?: readonly any[]
 			constructionStepIndex?: number
 			nextVariantId?: string
-			variantId?: string
+			variant?: string
 			targetVariantId?: string
 			planConfiguration?: any
 			hivePlanId?: string
@@ -78,7 +78,7 @@ export function finalizeConstructionShell(shell: ConstructionSiteShell): void {
 			const nextIdx = currentIdx + 1
 			// Build a construction site with the correct step recipe, not the leaf
 			const nextSite = createConstructionSiteState(
-				{ kind: 'alveolus', alveolusType: target.alveolusType, variantId: buildShell.targetVariantId },
+				{ kind: 'alveolus', alveolusType: target.alveolusType, variant: buildShell.targetVariantId },
 				nextIdx
 			)
 			const nextBuild = new BuildAlveolus(
@@ -101,7 +101,7 @@ export function finalizeConstructionShell(shell: ConstructionSiteShell): void {
 			return
 		}
 		// Final step: create the finished alveolus
-		const alveolus = createAlveolus(target.alveolusType, shell.tile, target.variantId)
+		const alveolus = createAlveolus(target.alveolusType, shell.tile, target.variant)
 		assert(alveolus, 'Target alveolus must exist')
 		const planned = shell as {
 			planConfiguration?: {

@@ -11,13 +11,13 @@ describe('resolveAlveolusVariant validation', () => {
 	it('returns root definition for variant-less alveolus', () => {
 		const result = resolveAlveolusVariant('sawmill')
 		expect(result).toBeDefined()
-		expect(result!.variantId).toBeUndefined()
+		expect(result!.variant).toBeUndefined()
 		expect(result!.ancestorChain).toHaveLength(1)
 	})
 
 	it('resolves full variant path for pile.wood.extra with correct construction chain', () => {
 		const resolved = resolveAlveolusVariant('pile', 'wood.extra')
-		expect(resolved?.variantId).toBe('wood.extra')
+		expect(resolved?.variant).toBe('wood.extra')
 		expect(resolved?.ancestorChain).toHaveLength(3)
 		const [root, wood, extra] = resolved!.ancestorChain
 		expect(root).toEqual({ goods: { wood: 4 }, workSeconds: 2 })
@@ -27,13 +27,13 @@ describe('resolveAlveolusVariant validation', () => {
 
 	it('falls back to the deepest existing variant segment when a child is missing', () => {
 		const resolved = resolveAlveolusVariant('pile', 'wood.missing.child')
-		expect(resolved?.variantId).toBe('wood')
+		expect(resolved?.variant).toBe('wood')
 		expect(resolved?.ancestorChain).toHaveLength(2)
 		const [, wood] = resolved!.ancestorChain
 		expect(wood).toEqual({ goods: { wood: 10 }, workSeconds: 4 })
 	})
 
-	it('assigns variantId and variantSpec on engineer variants', async () => {
+	it('assigns variant and variantSpec on engineer variants', async () => {
 		const engine = new TestEngine({ terrainSeed: 9_999, characterCount: 0 })
 		await engine.init()
 		try {
@@ -44,9 +44,9 @@ describe('resolveAlveolusVariant validation', () => {
 			const tile = engine.game.hex.getTile({ q: 0, r: 0 })!
 			const roadEngineer = createAlveolus('engineer', tile, 'road')
 			const baseEngineer = createAlveolus('engineer', tile)
-			expect(roadEngineer?.variantId).toBe('road')
+			expect(roadEngineer?.variant).toBe('road')
 			expect(roadEngineer?.variantSpec).toEqual({ kind: 'road' })
-			expect(baseEngineer?.variantId).toBeUndefined()
+			expect(baseEngineer?.variant).toBeUndefined()
 			expect(baseEngineer?.variantSpec).toBeUndefined()
 		} finally {
 			await engine.destroy()

@@ -67,7 +67,7 @@ export const chopSaw = {
 					},
 				},
 				{ alveolus: 'freight_bay', coord: [0, 0] },
-				{ alveolus: 'engineer', coord: [1, -1], variantId: 'building' },
+				{ alveolus: 'engineer', coord: [1, -1], variant: 'building' },
 				{ alveolus: 'sawmill', coord: [1, 0] },
 			],
 		},

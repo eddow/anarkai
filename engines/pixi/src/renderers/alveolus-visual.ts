@@ -30,8 +30,8 @@ function alveolusVisualKey(alveolus: Alveolus): keyof typeof alveoli | undefined
 
 /** Derive the variant badge sprite key, e.g. "pile.wood" or "engineer.building". */
 function alveolusVariantBadgeKey(alveolus: Alveolus): keyof typeof variantBadges | undefined {
-	if (!alveolus.variantId) return undefined
-	const key = `${alveolus.name}.${alveolus.variantId}` as keyof typeof variantBadges
+	if (!alveolus.variant) return undefined
+	const key = `${alveolus.name}.${alveolus.variant}` as keyof typeof variantBadges
 	return key in variantBadges ? key : undefined
 }
 

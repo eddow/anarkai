@@ -69,8 +69,8 @@ function browserPaletteBuildIcon(name: string) {
 		: undefined
 }
 
-function browserPaletteVariantBadgeIcon(rootName: string, variantId: string) {
-	const key = `${rootName}.${variantId}`
+function browserPaletteVariantBadgeIcon(rootName: string, variant: string) {
+	const key = `${rootName}.${variant}`
 	const def = variantBadges[key]
 	if (!def?.sprites?.[0]) return undefined
 	const sprite = def.sprites[0]

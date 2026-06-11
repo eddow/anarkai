@@ -227,9 +227,9 @@ export class Tile extends withInteractive(GameObject) {
 		return false
 	}
 
-	build(alveolusType: AlveolusType, variantId?: string): boolean {
+	build(alveolusType: AlveolusType, variant?: string): boolean {
 		// Check if content can be built on
-		const project = variantId ? `build:${alveolusType}#${variantId}` : `build:${alveolusType}`
+		const project = variant ? `build:${alveolusType}#${variant}` : `build:${alveolusType}`
 		if (!this.canInteract(project)) {
 			return false
 		}

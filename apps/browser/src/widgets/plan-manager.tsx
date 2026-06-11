@@ -457,7 +457,7 @@ const PlanManagerWidget = (props: { title?: string }) => {
 								setEntry(entry.roleId, {
 									alveolusType: (event.currentTarget as HTMLSelectElement).value as AlveolusType,
 									configuration: undefined,
-									variantId: undefined,
+									variant: undefined,
 								})
 							}}
 						>
@@ -476,18 +476,18 @@ const PlanManagerWidget = (props: { title?: string }) => {
 							if (!entry) return
 							const newValue = (event.currentTarget as HTMLSelectElement).value
 							setEntry(entry.roleId, {
-								variantId: newValue || undefined,
+								variant: newValue || undefined,
 							})
 						}}
 					>
-						<option value="" selected={!selectedEntry()?.variantId}>
+						<option value="" selected={!selectedEntry()?.variant}>
 							(none)
 						</option>
 						<for each={planEntryVariantOptions(selectedEntry()?.alveolusType ?? '')}>
 							{(opt) => (
 								<option
 									value={opt.value}
-									selected={selectedEntry()?.variantId === opt.value}
+									selected={selectedEntry()?.variant === opt.value}
 								>
 									{opt.label}
 								</option>

@@ -43,7 +43,7 @@ export function buildConstructionViewModel(
 	const applied = view.constructionWorkSecondsApplied ?? 0
 	const total = view.constructionTotalSeconds ?? 0
 	const workTemplate = translator?.construction?.workProgress
-	const target = view.variantId ? `${view.target ?? ''}.${view.variantId}` : (view.target ?? '')
+	const target = view.variant ? `${view.target ?? ''}.${view.variant}` : (view.target ?? '')
 	return {
 		phaseLabel: toDisplayText(translator?.construction?.phases?.[view.phase], view.phase),
 		blockingLabels: view.blockingReasons.map((reason) =>

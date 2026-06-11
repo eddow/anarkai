@@ -21,7 +21,7 @@ import { buildAlveolusMarker } from './build-marker'
 @reactive
 export class BuildAlveolus extends TileContent {
 	public readonly target: AlveolusType
-	public readonly variantId?: string
+	public readonly variant?: string
 	/** Full variant target (e.g., "wood.extra" when building pile.wood.extra). */
 	public readonly targetVariantId?: string
 	public readonly constructionSite: ConstructionSiteState
@@ -55,13 +55,13 @@ export class BuildAlveolus extends TileContent {
 		tile: Tile,
 		target: AlveolusType,
 		constructionSite?: ConstructionSiteState,
-		variantId?: string,
-		/** Pre-resolved chain; if omitted, resolve from target/variantId. */
+		variant?: string,
+		/** Pre-resolved chain; if omitted, resolve from target/variant. */
 		chain?: readonly ConstructionRecipe[],
 		/** Starting step index within chain. */
 		stepIndex?: number
 	) {
-		const resolved = resolveAlveolusVariant(target, variantId)
+		const resolved = resolveAlveolusVariant(target, variant)
 		const ancestorChain = chain ?? resolved?.ancestorChain ?? []
 		const activeStep = stepIndex ?? 0
 		const recipe = ancestorChain[activeStep]
@@ -69,8 +69,8 @@ export class BuildAlveolus extends TileContent {
 		const coord = toAxialCoord(tile.position)!
 		super(tile.board.game, `build-alveolus:${target}:${coord.q},${coord.r}`)
 		this.tile = tile
-		this.variantId = variantId
-		this.targetVariantId = variantId
+		this.variant = variant
+		this.targetVariantId = variant
 		this.constructionQueue = ancestorChain
 		this.constructionStepIndex = activeStep
 		this.storage = new SpecificStorage(goods)
@@ -82,7 +82,7 @@ export class BuildAlveolus extends TileContent {
 		this.constructionSite = normalizeConstructionSiteState(
 			constructionSite ??
 				createConstructionSiteState(
-					{ kind: 'alveolus', alveolusType: target, variantId },
+					{ kind: 'alveolus', alveolusType: target, variant },
 					activeStep
 				)
 		)
@@ -92,7 +92,7 @@ export class BuildAlveolus extends TileContent {
 		registerConstructionMaterialPhaseEffect(`build-alveolus:${this.uid}`, this)
 	}
 
-	/** Next variantId after the current step completes (intermediate segment). */
+	/** Next variant after the current step completes (intermediate segment). */
 	get nextVariantId(): string | undefined {
 		if (this.constructionStepIndex + 1 >= this.constructionQueue.length) return undefined
 		const nextIdx = this.constructionStepIndex + 1

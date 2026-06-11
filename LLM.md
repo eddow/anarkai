@@ -62,7 +62,7 @@ Root alveoli without variants become simple `selectedAction` setter buttons. Roo
 
 ### Variant badges
 
-Each variant gets a badge icon from `variantBadges` in `engines/pixi/assets/visual-content.ts`. The key is `${rootName}.${variantId}` (e.g. `'pile.wood'`, `'pile.wood.extra'`). The badge is rendered via `ResourceImage` using the sprite from the visual definition.
+Each variant gets a badge icon from `variantBadges` in `engines/pixi/assets/visual-content.ts`. The key is `${rootName}.${variant}` (e.g. `'pile.wood'`, `'pile.wood.extra'`). The badge is rendered via `ResourceImage` using the sprite from the visual definition.
 
 ### Perpendicular-direction contract
 

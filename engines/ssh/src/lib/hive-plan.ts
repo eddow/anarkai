@@ -15,7 +15,7 @@ export interface HivePlanEntry {
 	coord: readonly [number, number]
 	alveolusType: AlveolusType
 	/** Dot-separated variant path (e.g., "wood.extra") for variant-capable alveoli. */
-	variantId?: string
+	variant?: string
 	configuration?: {
 		ref: Ssh.ConfigurationReference
 		individual?: Ssh.AlveolusConfiguration
@@ -205,7 +205,7 @@ function normalizedEntryTokens(entries: readonly HivePlanEntry[], rotation: numb
 	return entries
 		.map((entry) => {
 			const c = rotateHivePlanCoord(entry.coord, rotation)
-			const variant = entry.variantId ? `#${entry.variantId}` : ''
+			const variant = entry.variant ? `#${entry.variant}` : ''
 			return `${c.q},${c.r}:${entry.alveolusType}${variant}:${configurationKey(entry)}`
 		})
 		.sort()
@@ -553,7 +553,7 @@ export function createConstructionSiteForHivePlanEntry(
 	const constructionSite: ConstructionSiteState = createConstructionSiteState({
 		kind: 'alveolus',
 		alveolusType: entry.alveolusType,
-		variantId: entry.variantId,
+		variant: entry.variant,
 	})
 	constructionSite.phase = 'waiting_materials'
 	const shell = createConstructionShell(tile, constructionSite)

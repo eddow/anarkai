@@ -21,7 +21,7 @@ export type ConstructionBlockingReason =
 export type DwellingTier = 'basic_dwelling'
 
 export type ConstructionTarget =
-	| { readonly kind: 'alveolus'; readonly alveolusType: AlveolusType; readonly variantId?: string }
+	| { readonly kind: 'alveolus'; readonly alveolusType: AlveolusType; readonly variant?: string }
 	| { readonly kind: 'dwelling'; readonly tier: DwellingTier }
 
 export interface ConstructionRecipe {
@@ -41,7 +41,7 @@ export interface ResolvedAlveolusVariant {
 	/** Recipe for the final hop (leaf variant's construction). */
 	construction: ConstructionRecipe
 	/** Dot-separated variant path (e.g., "wood.extra"), or undefined for root. */
-	variantId?: string
+	variant?: string
 	/** The raw variant definition (for spec access), or undefined for root. */
 	variantDef?: Ssh.AlveolusVariantDefinition
 	/**
@@ -59,7 +59,7 @@ export const VARIANT_DELIMITER = '#'
 export function parseBuildActionProject(action: string):
 	| {
 			alveolusType: AlveolusType
-			variantId?: string
+			variant?: string
 	  }
 	| undefined {
 	const raw = action.startsWith('build:') ? action.slice('build:'.length) : action
@@ -67,7 +67,7 @@ export function parseBuildActionProject(action: string):
 	if (hashIdx >= 0) {
 		return {
 			alveolusType: raw.slice(0, hashIdx) as AlveolusType,
-			variantId: raw.slice(hashIdx + 1),
+			variant: raw.slice(hashIdx + 1),
 		}
 	}
 	return { alveolusType: raw as AlveolusType }
@@ -79,7 +79,7 @@ export function parseBuildActionProject(action: string):
  */
 export function resolveAlveolusVariant(
 	alveolusType: AlveolusType,
-	variantId?: string
+	variant?: string
 ): ResolvedAlveolusVariant | undefined {
 	const root = alveoli[alveolusType as keyof typeof alveoli] as Ssh.AlveolusDefinition | undefined
 	if (!root) return undefined
@@ -89,7 +89,7 @@ export function resolveAlveolusVariant(
 		workSeconds: root.construction?.time ?? 0,
 	}
 
-	const segments = variantId ? variantId.split('.') : []
+	const segments = variant ? variant.split('.') : []
 	if (segments.length === 0) {
 		return {
 			definition: root,
@@ -111,12 +111,12 @@ export function resolveAlveolusVariant(
 		const found = variants?.[segment]
 		if (!found) {
 			console.warn(
-				`[resolveAlveolusVariant] Unknown variant "${variantId}" for "${alveolusType}"; falling back to "${resolvedSegments.join('.') || '(root)'}"`
+				`[resolveAlveolusVariant] Unknown variant "${variant}" for "${alveolusType}"; falling back to "${resolvedSegments.join('.') || '(root)'}"`
 			)
 			return {
 				definition: { ...currentDef, action: mergeAction },
 				construction: chain[chain.length - 1],
-				variantId: resolvedSegments.length ? resolvedSegments.join('.') : undefined,
+				variant: resolvedSegments.length ? resolvedSegments.join('.') : undefined,
 				variantDef: currentVariant,
 				ancestorChain: chain,
 			}
@@ -139,7 +139,7 @@ export function resolveAlveolusVariant(
 	return {
 		definition: { ...currentDef, action: mergeAction },
 		construction: chain[chain.length - 1],
-		variantId: resolvedSegments.join('.'),
+		variant: resolvedSegments.join('.'),
 		variantDef: currentVariant,
 		ancestorChain: chain,
 	}
@@ -147,17 +147,17 @@ export function resolveAlveolusVariant(
 
 /**
  * Parse a project string like `build:pile` or `build:pile#wood.extra`
- * into a ConstructionTarget with optional variantId.
+ * into a ConstructionTarget with optional variant.
  */
 function parseBuildProject(
 	project: string
-): { alveolusType: AlveolusType; variantId?: string } | undefined {
+): { alveolusType: AlveolusType; variant?: string } | undefined {
 	const raw = project.slice('build:'.length)
 	const hashIdx = raw.indexOf(VARIANT_DELIMITER)
 	if (hashIdx >= 0) {
 		return {
 			alveolusType: raw.slice(0, hashIdx) as AlveolusType,
-			variantId: raw.slice(hashIdx + 1),
+			variant: raw.slice(hashIdx + 1),
 		}
 	}
 	return { alveolusType: raw as AlveolusType }
@@ -198,7 +198,7 @@ export function constructionTargetFromProject(project: string): ConstructionTarg
 	if (!project.startsWith('build:')) return undefined
 	const parsed = parseBuildProject(project)
 	if (!parsed) return undefined
-	return { kind: 'alveolus', alveolusType: parsed.alveolusType, variantId: parsed.variantId }
+	return { kind: 'alveolus', alveolusType: parsed.alveolusType, variant: parsed.variant }
 }
 
 export function createConstructionRecipe(
@@ -206,7 +206,7 @@ export function createConstructionRecipe(
 	stepIndex?: number
 ): ConstructionRecipe {
 	if (target.kind === 'alveolus') {
-		const resolved = resolveAlveolusVariant(target.alveolusType, target.variantId)
+		const resolved = resolveAlveolusVariant(target.alveolusType, target.variant)
 		if (resolved) {
 			const idx = stepIndex ?? (resolved.ancestorChain.length - 1)
 			const recipe = resolved.ancestorChain[idx]
@@ -235,8 +235,8 @@ export function createConstructionRecipe(
 /** Reconstitute a project string from a ConstructionTarget (e.g., "build:pile#wood.extra"). */
 export function projectFromConstructionTarget(target: ConstructionTarget): string {
 	if (target.kind === 'dwelling') return residentialBasicDwellingProject
-	if (target.variantId) {
-		return `build:${target.alveolusType}${VARIANT_DELIMITER}${target.variantId}`
+	if (target.variant) {
+		return `build:${target.alveolusType}${VARIANT_DELIMITER}${target.variant}`
 	}
 	return `build:${target.alveolusType}`
 }

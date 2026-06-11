@@ -39,17 +39,17 @@ function ctorForDefinition(def: Ssh.AlveolusDefinition): AlveolusCtor | undefine
 export function createAlveolus(
 	resourceName: AlveolusType,
 	tile: Tile,
-	variantId?: string
+	variant?: string
 ): Alveolus | undefined {
-	const resolved = resolveAlveolusVariant(resourceName, variantId)
+	const resolved = resolveAlveolusVariant(resourceName, variant)
 	if (!resolved) return undefined
 	const def = resolved.definition
 	const Ctor = ctorForDefinition(def)
 	if (!Ctor) return undefined
 	const alveolus = new Ctor(tile, def, resourceName)
-	// Store variantId on the alveolus for save/load and runtime checks
-	if (variantId) {
-		;(alveolus as { variantId?: string }).variantId = variantId
+	// Store variant on the alveolus for save/load and runtime checks
+	if (variant) {
+		;(alveolus as { variant?: string }).variant = variant
 	}
 	// Store spec if the variant carries one (e.g., engineer.building/research/road)
 	if (resolved.variantDef?.spec) {

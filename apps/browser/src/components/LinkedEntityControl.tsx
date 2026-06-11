@@ -180,9 +180,9 @@ const LinkedEntityControl = (props: LinkedEntityControlProps) => {
 		if (nextSprite) state.sprite = nextSprite
 
 		// Variant badge
-		const variantId = (tile.content as { variantId?: string }).variantId
-		if (variantId && type) {
-			const badgeKey = `${type}.${variantId}`
+		const variant = (tile.content as { variant?: string }).variant
+		if (variant && type) {
+			const badgeKey = `${type}.${variant}`
 			const badgeSprite = variantBadges[badgeKey]?.sprites?.[0]
 			state.variantBadgeSprite = badgeSprite
 		} else {

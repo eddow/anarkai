@@ -118,7 +118,7 @@ type TileContentCase =
 			kind: 'alveolus'
 			content: Alveolus
 			visualType?: keyof typeof visualAlveoli
-			variantId?: string
+			variant?: string
 	  }
 	| {
 			kind: 'basicDwelling'
@@ -132,7 +132,7 @@ type TileContentCase =
 			kind: 'constructionShell'
 			content: TileContent
 			visualType?: keyof typeof visualAlveoli
-			variantId?: string
+			variant?: string
 	  }
 	| {
 			kind: 'unbuilt'
@@ -150,7 +150,7 @@ const tileContentCase = (content: Tile['content']): TileContentCase | undefined 
 			kind: 'constructionShell',
 			content,
 			visualType: content.target as keyof typeof visualAlveoli,
-			variantId: content.variantId,
+			variant: content.variant,
 		}
 	}
 	if (isConstructionSiteShell(content)) {
@@ -161,9 +161,9 @@ const tileContentCase = (content: Tile['content']): TileContentCase | undefined 
 				content.constructionSite.target.kind === 'alveolus'
 					? (content.constructionSite.target.alveolusType as keyof typeof visualAlveoli)
 					: undefined,
-			variantId:
+			variant:
 				content.constructionSite.target.kind === 'alveolus'
-					? content.constructionSite.target.variantId
+					? content.constructionSite.target.variant
 					: undefined,
 		}
 	}
@@ -172,7 +172,7 @@ const tileContentCase = (content: Tile['content']): TileContentCase | undefined 
 			kind: 'alveolus',
 			content,
 			visualType: content.name as keyof typeof visualAlveoli | undefined,
-			variantId: content.variantId,
+			variant: content.variant,
 		}
 	}
 	if (content instanceof BasicDwelling) {
@@ -328,13 +328,24 @@ const AlveolusTileHeader = (props: AlveolusTileHeaderProps) => {
 			return this.contentCase?.visualType
 		},
 		get variantOptions() {
-			return this.visualType ? collectVariantOptions(this.visualType as string) : []
+			const all = this.visualType ? collectVariantOptions(this.visualType as string) : []
+			const current = this.currentVariant
+			if (!current) return all
+			// Filter out pure degradation: ancestors of the current variant
+			// and the current variant itself (no-op).
+			const isAncestor = (optValue: string) =>
+				optValue !== '' &&
+				(current === optValue ||
+					current.startsWith(optValue + '.'))
+			return all.filter((opt) => !isAncestor(opt.value))
 		},
 		get hasVariants() {
 			return this.variantOptions.length > 0
 		},
 		get currentVariant() {
-			return props.contentCase?.variantId ?? ''
+			// contentCase is computed by tileContentCase() which reads .variant
+			// directly from the Alveolus instance — bypasses @unreactive proxy
+			return props.contentCase?.variant ?? ''
 		},
 		get hiveTitle() {
 			return this.contentCase?.content.hive?.name?.trim() || 'Hive'
@@ -363,6 +374,8 @@ const AlveolusTileHeader = (props: AlveolusTileHeaderProps) => {
 					if={model.hasVariants}
 					options={model.variantOptions}
 					value={model.currentVariant}
+					hideRoot={!!model.currentVariant}
+					typeKey={model.visualType as string}
 					onChange={(newValue) => {
 						const alveolusType = model.contentCase?.visualType
 						if (!alveolusType) return

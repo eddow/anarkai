@@ -117,13 +117,23 @@ interface VariantPickerProps {
   value: string
   onChange: (value: string) => void
   rootLabel?: string
+  /** Hide the root (∅) button when a variant is already active. */
+  hideRoot?: boolean
+  /** Root type key (e.g. 'engineer') for looking up the current variant badge directly. */
+  typeKey?: string
 }
 
 const VariantPicker = (props: VariantPickerProps) => {
   const selectedOption = () =>
     props.value ? props.options.find((opt) => opt.value === props.value) : undefined
-  const selectedBadge = () => selectedOption()?.badgeSprite
-  const selectedTitle = () => selectedOption()?.label ?? (props.rootLabel ?? 'Root')
+  const selectedBadge = () =>
+    selectedOption()?.badgeSprite ??
+    (props.value && props.typeKey
+      ? variantBadges[`${props.typeKey}.${props.value}`]?.sprites?.[0]
+      : undefined)
+  const selectedTitle = () =>
+    selectedOption()?.label ??
+    (props.value ? variantDisplayLabel(props.value.split('.').pop() ?? props.value) : (props.rootLabel ?? 'Root'))
 
   const pick = (value: string, detailsEl: HTMLDetailsElement | null) => {
     props.onChange(value)
@@ -157,6 +167,7 @@ const VariantPicker = (props: VariantPickerProps) => {
         </summary>
         <div class="variant-picker__panel">
           <button
+            if={!props.hideRoot}
             type="button"
             class="variant-picker__btn variant-picker__btn--root"
             data-selected={!props.value ? 'true' : 'false'}
