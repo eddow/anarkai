@@ -928,9 +928,12 @@ export interface FreightLineStopSummary {
 /** Aggregate route summary for the line inspector header. */
 export interface FreightLineRouteSummary {
 	readonly status: FreightLineRouteStatus
+	readonly statusExplanation: string
 	readonly vehicles: readonly FreightLineVehicleStatus[]
 	readonly stops: readonly FreightLineStopSummary[]
 	readonly aggregateDownstreamDemand: FreightStopGoodsSnapshot
+	readonly aggregateRetainedCargo: FreightStopGoodsSnapshot
+	readonly aggregateSurplusCargo: FreightStopGoodsSnapshot
 	readonly totalActionableStops: number
 }
 
@@ -955,6 +958,8 @@ export function summarizeFreightLineRoute(args: {
 	const { game, line, vehicles } = args
 	const stops: FreightLineStopSummary[] = []
 	let aggregateDemand: Partial<Record<GoodType, number>> = {}
+	let aggregateRetained: Partial<Record<GoodType, number>> = {}
+	let aggregateSurplus: Partial<Record<GoodType, number>> = {}
 
 	for (let i = 0; i < line.stops.length; i++) {
 		// Compute per-stop commerce for the first assigned vehicle (best-effort)
@@ -977,6 +982,14 @@ export function summarizeFreightLineRoute(args: {
 		aggregateDemand = addGoodsCounts(
 			aggregateDemand,
 			explanation.downstreamDemandGoods.perGood
+		)
+		aggregateRetained = addGoodsCounts(
+			aggregateRetained,
+			explanation.retainedCargoGoods.perGood
+		)
+		aggregateSurplus = addGoodsCounts(
+			aggregateSurplus,
+			explanation.surplusCargoGoods.perGood
 		)
 	}
 
@@ -1027,11 +1040,91 @@ export function summarizeFreightLineRoute(args: {
 		status = 'complete'
 	}
 
+	// Build human-readable status explanation
+	const statusExplanation = buildStatusExplanation(
+		status,
+		stops,
+		vehicleStatuses,
+		vehicles.length,
+		line.cyclic
+	)
+
 	return {
 		status,
+		statusExplanation,
 		vehicles: vehicleStatuses,
 		stops,
 		aggregateDownstreamDemand: snapshotFromGoodsCounts(aggregateDemand),
+		aggregateRetainedCargo: snapshotFromGoodsCounts(aggregateRetained),
+		aggregateSurplusCargo: snapshotFromGoodsCounts(aggregateSurplus),
 		totalActionableStops,
 	}
+}
+
+function buildStatusExplanation(
+	status: FreightLineRouteStatus,
+	stops: readonly FreightLineStopSummary[],
+	vehicleStatuses: readonly FreightLineVehicleStatus[],
+	assignedCount: number,
+	isCyclic: boolean | undefined
+): string {
+	if (assignedCount === 0) {
+		return 'No vehicles assigned to this line.'
+	}
+	if (status === 'active') {
+		const actionableStopCount = stops.filter(
+			(s) => s.hasImportOpportunity || s.hasExportOpportunity || s.hasSurplusToUnload
+		).length
+		const dockedVehicles = vehicleStatuses.filter((v) => v.actionable)
+		if (dockedVehicles.length > 0) {
+			const names = dockedVehicles.map((v) => v.vehicleTitle).join(', ')
+			return `Active — ${names} docked with actionable transfers at ${actionableStopCount} stop(s).`
+		}
+		return `Active — ${actionableStopCount} stop(s) have actionable transfers.`
+	}
+	if (status === 'complete') {
+		return 'All cyclic stops satisfied — no remaining import or export opportunity.'
+	}
+	// 'idle' — pick most informative reason
+	const atStop = vehicleStatuses.filter(
+		(v) => v.currentStopIndex !== undefined
+	)
+	if (atStop.length === 0) {
+		return `Idle — ${assignedCount} vehicle(s) assigned but none currently at a stop.`
+	}
+	// Check if any vehicle is at a stop but not docked
+	const atStopNotDocked = atStop.filter((v) => !v.isDocked)
+	if (atStopNotDocked.length > 0) {
+		const name = atStopNotDocked[0]!.vehicleTitle
+		const idx = atStopNotDocked[0]!.currentStopIndex
+		return `Idle — ${name} is at stop ${idx !== undefined ? idx + 1 : '?'} but not yet docked.`
+	}
+	// Check if any vehicle is docked at a stop with no opportunity
+	const dockedNoOpportunity = atStop.filter(
+		(v) => v.isDocked && !v.actionable
+	)
+	if (dockedNoOpportunity.length > 0) {
+		const name = dockedNoOpportunity[0]!.vehicleTitle
+		const idx = dockedNoOpportunity[0]!.currentStopIndex
+		const stopBlockReasons =
+			idx !== undefined && stops[idx]
+				? stops[idx]!.blockReasons
+				: []
+		const reasonText =
+			stopBlockReasons.length > 0
+				? stopBlockReasons.map((r) => r.replace(/_/g, ' ')).join(', ')
+				: 'no current opportunity'
+		return `Idle — ${name} docked at stop ${idx !== undefined ? idx + 1 : '?'} but ${reasonText}.`
+	}
+	// Generic idle with unclear reason
+	const totalBlockReasons = Array.from(
+		new Set(stops.flatMap((s) => s.blockReasons))
+	)
+	if (totalBlockReasons.length > 0) {
+		return `Idle — ${totalBlockReasons.map((r) => r.replace(/_/g, ' ')).join(', ')}.`
+	}
+	if (isCyclic) {
+		return 'Idle — no actionable transfers at any stop.'
+	}
+	return 'Idle — no downstream demand at any stop.'
 }

@@ -33,6 +33,7 @@ import {
 	freightLineIdFromUid,
 	isFreightLineUid,
 	type SyntheticFreightLineObject,
+	createSyntheticFreightLineObject,
 } from 'ssh/freight/freight-line'
 import type { InspectorSelectableObject, InteractiveGameObject } from 'ssh/game/object'
 import { resolveSelectableHoverObject } from 'ssh/game/object'
@@ -253,7 +254,17 @@ const SelectionInfoWidget = (
 		get object() {
 			const uid = this.uid
 			if (!uid) return undefined
-			return isHiveUid(uid) ? createSyntheticHiveObjectForUid(game, uid) : game.getObject(uid)
+			if (isHiveUid(uid)) return createSyntheticHiveObjectForUid(game, uid)
+			if (isFreightLineUid(uid)) {
+				const lineId = freightLineIdFromUid(uid)
+				const lines = game.freightLines
+				const line =
+					lineId && Array.isArray(lines)
+						? lines.find((entry) => entry.id === lineId)
+						: undefined
+				return line ? createSyntheticFreightLineObject(game, line) : undefined
+			}
+			return game.getObject(uid)
 		},
 		get logs() {
 			return this.object?.logs ?? []

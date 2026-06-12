@@ -50,16 +50,34 @@ Gameplay streaming is owned by `ssh`:
 - `+ Add stop` is a board-pick tool: click a freight bay, city hall, or custom named-zone tile, or drag from an ordinary tile to create a radius stop
 - settlement city halls are first-class NPC trade halt targets while remaining tile-native board selections
 - board previews for freight lines, zones, hives, and stops are hover-driven; opening an inspector does not draw a persistent board highlight by itself
-- freight stop commerce diagnostics explain allowed policies, local need/provide state, downstream demand, import/export opportunities, and no-trade reasons
-- line inspectors can assign and unassign compatible freight vehicles
+- per-stop commerce diagnostics via `explainFreightStopCommerce()`: local provided/needed goods, downstream demand, import/export opportunities, retained cargo, surplus cargo, service position (center/border/unreachable), and seven block reasons (`no_vehicle`, `vehicle_full`, `no_downstream_demand`, `buffer_full`, `no_matching_settlement_offer`, `reserve_blocks_import`, `policy_blocks_good`). Rendered inline in `FreightStopList` per-stop rows.
+- route-level aggregate summary via `summarizeFreightLineRoute()`: status (`active`/`idle`/`complete`), status explanation text (human-readable sentence explaining why the line is idle/done/active), per-vehicle position/cargo/actionable flags, per-stop opportunity flags, aggregated downstream demand, aggregated retained cargo, aggregated surplus cargo, and actionable-stop count. Rendered as a "Route status" inspector section.
+- cross-settlement market price comparison via `compareSettlementPrices()`: cheapest source and best sink per good across all known settlement trade profiles. Rendered in the standalone `CommercialOverview` dockview widget.
+- accumulated trade transfer log: exported goods, imported goods, credited VP, spent VP, per tick. `getFreightLineTradeHistory()` returns entries most-recent-first. Rendered as "Recent transfers" (last 5) in line properties.
+- vehicle assignment: `HardListSearchPicker` filters compatible types (`wheelbarrow`, `pickup_truck`, `suv`) via `isLineFreightVehicleType()`; assign/unassign from the line inspector.
 - docked vehicle work is surfaced through cheap provider-side advertised jobs for inspectors, while
   character-scoped planner search stays in job claiming/ranking paths
 - in-transit reservations prevent double-loading by subtracting goods already committed to a
   fixed-quantity consumer (construction site, foundation) from its visible remaining needs;
   zone-browse load quantities are capped by downstream need; surplus cargo can offload at any
   zone stop; stale reservations emit warning traces as algorithm-bug indicators
+- docked vehicle list shows clickable freight line names via `InspectorObjectLink`, opening the line
+  inspector through the standard `showProps` → `selection-info` path; `selection-info` now synthesizes
+  `SyntheticFreightLineObject` from freight line UIDs (matching the existing hive pattern).
+- line widget header reorganized: name/cyclic/delete one-liner, issues pane uncollapsible, stops table
+  moved above route status and transfers, internal sections collapsible via `InspectorSection` toggle.
 
 Details and constraints are documented in [`./freight-lines.md`](./freight-lines.md).
+
+### Bay Queues
+
+Bay queue core infrastructure is specified and partially implemented:
+
+- bay groups can own runtime queue graphs, local dock requests, movement grants, merge policies,
+  node capacity/occupancy invariants, grant expiry, a `bay` trace sink, and a game-level bay queue
+  registry/tick hook
+- player-facing authoring (grouping bays, naming groups, approach/queue overlay) and vehicle
+  job-completion/exit lifecycle hooks are not yet wired
 
 ### Roads
 
@@ -108,9 +126,10 @@ Commerce V1 is now line-based and physical:
 - optional NPC trade transfer presentation data records exported goods, imported goods, credited VP, and spent VP when a trade happens
 - ChopSaw includes a regression fixture line, `ChopSaw materials loop`, cycling between the `0,0` bay and the Melindbury city hall with an assigned SUV; it can sell basic materials such as planks and import concrete only when downstream demand exists
 
-Deferred commerce work: route-level explanations for retained/surplus cargo and idle cyclic routes, richer
-line history/last-transfer display, generated shop targets beyond city halls, market analysis based on price
-and settlement position, consumption goods, residential/shop delivery, and long-route hunger/snack behavior.
+Deferred commerce work: exchange-route vocabulary cleanup (mechanics use load/unload but helpers still named
+gather/distribute), vehicle pathfinding does not read roads (walking costs use road multipliers but
+`vehicleHop` pathfinding does not), generated shop targets beyond city halls, consumption goods,
+residential/shop delivery, and long-route hunger/snack behavior.
 
 ### Verification
 
@@ -185,13 +204,9 @@ retention policy live in `ssh`, and Pixi only asks for visibility-driven frontie
 
 ## Suggested Near-Term Work
 
-1. Playtest the ChopSaw materials loop: bay buffer demand, Melindbury prices, planks/wood/stone export,
-   concrete import, already-carried surplus unloading, retained later-stop cargo, and whether the stop
-   diagnostics explain idle/done cases clearly enough.
-2. Revisit market analysis: settlement positions, price comparison, and how generated shops should extend
-   the city-hall trade target model.
-3. Playtest the forester/North Grove slice: assigned planting zones, harvestable named zones, sparse tree
-   generation, and rock/tree harvesting inside named zones.
-4. Restore the full `ssh` unit suite to green, or mark/remove stale expectations if they are intentionally
+1. Clean up exchange-route vocabulary: rename `findGatherRouteSegments`/`findDistributeRouteSegments`
+   and update `freightLineSummary()` to reflect load/unload exchange model rather than pickup/delivery.
+2. Playtest the ChopSaw materials loop with the new diagnostics: verify idle/done explanation text,
+   retained/surplus cargo rollup, and settlement price comparison.
+3. Restore the full `ssh` unit suite to green, or mark/remove stale expectations if they are intentionally
    obsolete.
-5. Design off-screen gameplay unloading later, after at least one larger-world feature needs it.

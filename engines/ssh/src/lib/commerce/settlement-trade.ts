@@ -171,6 +171,75 @@ export function createNpcSettlementTradeProfile(args: {
 	}
 }
 
+/** Price entry for a single settlement's offer on a good in one direction. */
+export interface SettlementPriceEntry {
+	readonly settlementId: string
+	readonly settlementName: string
+	readonly good: GoodType
+	readonly direction: NpcTradeDirection
+	readonly priceVp: number
+}
+
+/** Comparison result: source and sink ranking per good across all known settlements. */
+export interface SettlementPriceComparison {
+	/** Cheapest source to buy from (cheapest `sell` offers), sorted by price ascending. */
+	readonly cheapestSources: Readonly<Partial<Record<GoodType, SettlementPriceEntry[]>>>
+	/** Most expensive sink to sell to (highest-price `buy` offers), sorted by price descending. */
+	readonly bestSinks: Readonly<Partial<Record<GoodType, SettlementPriceEntry[]>>>
+	/** All settlement IDs that contributed to this comparison. */
+	readonly settlementIds: readonly string[]
+}
+
+/**
+ * Compare prices across all known settlement trade profiles.
+ *
+ * Returns the cheapest source and best sink for each good that is available from
+ * at least one settlement. Only includes goods traded by at least one settlement.
+ */
+export function compareSettlementPrices(
+	profiles: readonly NpcSettlementTradeProfile[]
+): SettlementPriceComparison {
+	const sourceByGood = new Map<GoodType, SettlementPriceEntry[]>()
+	const sinkByGood = new Map<GoodType, SettlementPriceEntry[]>()
+	const settlementIds: string[] = []
+
+	for (const profile of profiles) {
+		settlementIds.push(profile.id)
+		for (const offer of profile.offers) {
+			const entry: SettlementPriceEntry = {
+				settlementId: profile.id,
+				settlementName: profile.name,
+				good: offer.good,
+				direction: offer.direction,
+				priceVp: offer.priceVp,
+			}
+			if (offer.direction === 'sell') {
+				const list = sourceByGood.get(offer.good) ?? []
+				list.push(entry)
+				sourceByGood.set(offer.good, list)
+			} else {
+				const list = sinkByGood.get(offer.good) ?? []
+				list.push(entry)
+				sinkByGood.set(offer.good, list)
+			}
+		}
+	}
+
+	// Sort sources by cheapest first
+	const cheapestSources: Partial<Record<GoodType, SettlementPriceEntry[]>> = {}
+	for (const [good, entries] of sourceByGood) {
+		cheapestSources[good] = entries.sort((a, b) => a.priceVp - b.priceVp)
+	}
+
+	// Sort sinks by highest price first (best to sell to)
+	const bestSinks: Partial<Record<GoodType, SettlementPriceEntry[]>> = {}
+	for (const [good, entries] of sinkByGood) {
+		bestSinks[good] = entries.sort((a, b) => b.priceVp - a.priceVp)
+	}
+
+	return { cheapestSources, bestSinks, settlementIds }
+}
+
 export function settlementTradeObjectUid(settlementId: string): string {
 	return `${SETTLEMENT_TRADE_UID_PREFIX}${encodeURIComponent(settlementId)}`
 }

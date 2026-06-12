@@ -45,6 +45,7 @@ import { effect, reactive, unwrap } from 'mutts'
 import {
 	tablerFilledAdjustments,
 	tablerFilledArrowBigRight,
+	tablerOutlineBuildingStore,
 	tablerOutlineLayoutGridAdd,
 	tablerOutlinePolygon,
 	tablerOutlineRoute,
@@ -52,6 +53,7 @@ import {
 import type { Game } from 'ssh/game'
 
 export const palettePanelBridge = reactive({
+	openCommercial: () => {},
 	openConfiguration: () => {},
 	openGame: () => {},
 	openLines: () => {},
@@ -143,6 +145,17 @@ const tools = {
 		},
 		run() {
 			palettePanelBridge.openLines()
+		},
+	},
+	openCommercial: {
+		label: 'Open commercial overview',
+		icon: typeof tablerOutlineBuildingStore === 'string' ? tablerOutlineBuildingStore : undefined,
+		keywords: ['commerce', 'market', 'trade', 'price', 'economy'],
+		get can() {
+			return true
+		},
+		run() {
+			palettePanelBridge.openCommercial()
 		},
 	},
 	openPlans: {

@@ -146,6 +146,20 @@ vi.mock('../FreightStopList', () => ({
 	),
 }))
 
+import type { FreightLineRouteSummary } from 'ssh/freight/freight-stop-utility'
+
+const mockSummarizeFreightLineRoute = vi.hoisted(() =>
+	vi.fn<() => FreightLineRouteSummary | undefined>(() => undefined)
+)
+
+vi.mock('ssh/freight/freight-stop-utility', async () => {
+	const actual = await vi.importActual('ssh/freight/freight-stop-utility')
+	return {
+		...actual,
+		summarizeFreightLineRoute: mockSummarizeFreightLineRoute,
+	}
+})
+
 import { normalizeFreightLineDefinition } from 'ssh/freight/freight-line'
 
 let FreightLineProperties: typeof import('./FreightLineProperties').default
@@ -183,6 +197,8 @@ describe('FreightLineProperties', () => {
 		container = document.createElement('div')
 		document.body.appendChild(container)
 		showFreightLineOverlay.mockClear()
+		mockSummarizeFreightLineRoute.mockReset()
+		mockSummarizeFreightLineRoute.mockReturnValue(undefined)
 		removeFreightLineById = vi.fn()
 		const vehicleRecords = [
 			{
@@ -406,5 +422,110 @@ describe('FreightLineProperties', () => {
 
 		expect(nameInput?.disabled).toBe(false)
 		expect(deleteBtn?.disabled).not.toBe(true)
+	})
+
+	it('shows the route status explanation text', () => {
+		;[...game.vehicles][0]!.servedLines = [game.freightLines[0]!]
+
+		mockSummarizeFreightLineRoute.mockReturnValue({
+			status: 'idle',
+			statusExplanation: 'Idle — 1 vehicle(s) assigned but none currently at a stop.',
+			vehicles: [
+				{
+					vehicleUid: 'veh-1',
+					vehicleType: 'wheelbarrow',
+					vehicleTitle: 'wheelbarrow veh-1',
+					currentStopIndex: undefined,
+					isDocked: false,
+					cargoSummary: 'empty',
+					actionable: false,
+				},
+			],
+			stops: [
+				{ stopIndex: 0, stopId: 'line-1-z', hasImportOpportunity: false, hasExportOpportunity: false, hasSurplusToUnload: false, hasDemandToSatisfy: false, blockReasons: [] },
+				{ stopIndex: 1, stopId: 'line-1-b', hasImportOpportunity: false, hasExportOpportunity: false, hasSurplusToUnload: false, hasDemandToSatisfy: false, blockReasons: [] },
+			],
+			aggregateDownstreamDemand: { perGood: {}, total: 0 },
+			aggregateRetainedCargo: { perGood: {}, total: 0 },
+			aggregateSurplusCargo: { perGood: {}, total: 0 },
+			totalActionableStops: 0,
+		})
+
+		stop = latch(
+			container,
+			<FreightLineProperties
+				lineObject={{
+					uid: 'freight-line:line-1',
+					kind: 'freight-line',
+					title: 'Line 1 (Exchange)',
+					game: game as never,
+					line: game.freightLines[0],
+					lineId: 'line-1',
+					logs: [],
+				}}
+			/>
+		)
+
+		const explanation = container.querySelector(
+			'[data-testid="freight-line-route-explanation"]'
+		) as HTMLElement | null
+		expect(explanation?.textContent).toBe(
+			'Idle — 1 vehicle(s) assigned but none currently at a stop.'
+		)
+	})
+
+	it('shows retained and surplus cargo in the route summary', () => {
+		;[...game.vehicles][0]!.servedLines = [game.freightLines[0]!]
+
+		mockSummarizeFreightLineRoute.mockReturnValue({
+			status: 'active',
+			statusExplanation: 'Active — 1 stop(s) have actionable transfers.',
+			vehicles: [
+				{
+					vehicleUid: 'veh-1',
+					vehicleType: 'wheelbarrow',
+					vehicleTitle: 'wheelbarrow veh-1',
+					currentStopIndex: 0,
+					isDocked: true,
+					cargoSummary: 'wood:3, planks:1',
+					actionable: true,
+				},
+			],
+			stops: [
+				{ stopIndex: 0, stopId: 'line-1-z', hasImportOpportunity: true, hasExportOpportunity: false, hasSurplusToUnload: false, hasDemandToSatisfy: true, blockReasons: [] },
+				{ stopIndex: 1, stopId: 'line-1-b', hasImportOpportunity: false, hasExportOpportunity: false, hasSurplusToUnload: false, hasDemandToSatisfy: false, blockReasons: [] },
+			],
+			aggregateDownstreamDemand: { perGood: { concrete: 4 }, total: 4 },
+			aggregateRetainedCargo: { perGood: { wood: 2 }, total: 2 },
+			aggregateSurplusCargo: { perGood: { planks: 3 }, total: 3 },
+			totalActionableStops: 1,
+		})
+
+		stop = latch(
+			container,
+			<FreightLineProperties
+				lineObject={{
+					uid: 'freight-line:line-1',
+					kind: 'freight-line',
+					title: 'Line 1 (Exchange)',
+					game: game as never,
+					line: game.freightLines[0],
+					lineId: 'line-1',
+					logs: [],
+				}}
+			/>
+		)
+
+		const retainedRow = container.querySelector(
+			'[data-testid="row-Retained cargo"]'
+		) as HTMLElement | null
+		expect(retainedRow).toBeTruthy()
+		expect(retainedRow?.textContent).toContain('wood:2')
+
+		const surplusRow = container.querySelector(
+			'[data-testid="row-Surplus cargo"]'
+		) as HTMLElement | null
+		expect(surplusRow).toBeTruthy()
+		expect(surplusRow?.textContent).toContain('planks:3')
 	})
 })

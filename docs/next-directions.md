@@ -8,57 +8,20 @@ are deliberately broad; each one can become its own implementation plan once cho
 
 ## Current Baseline
 
-Already landed or mostly landed:
-
-- Hive construction, attachment, merging, storage flow, harvesting, transforms, transit, and build loops.
-- Vehicle-backed freight management, including freight bays, exchange-route line definitions, legacy
-  gather/distribute segment helpers, line inspectors, and docked vehicle work.
-- Selectable custom named-zone objects with a Zones palette entry, zone inspectors, tile/alveolus links, and board masks. Built-in residential/harvest remain ordinary tile markers.
-- Named zones can be marked harvestable; harvesters treat those zones like the built-in harvest zone, while planting/caring actors use explicit assigned named zones.
-- The first assigned-zone caring actor is landed: foresters plant sparse visible tree deposits in assigned forest zones, age those planted trees, and tree choppers can harvest mature planted trees.
-- Forester tree planting now respects tile physical room: loose goods count as `1`, planted trees count as
-  `6`, and a tile can hold at most the equivalent of `12` loose goods for planting decisions.
-- Zone inspectors show compact icon stats for tile count and physical area using the documented `3m` hex side scale.
-- Transform alveoli can keep a configured product ratio, with rule defaults and per-alveolus inspector controls for the input good, output good, and slider threshold.
-- Deterministic streamed terrain generation and Pixi continuous-terrain rendering.
-- Browser client panels for inspecting and editing the active simulation.
-- Districts have been removed; build, zone, and road actions are direct toolbar/game actions again.
-- Line-based external commerce is the active material procurement model. Settlement city-hall freight stops
-  buy/sell basic materials through physical vehicle cargo, stop policies, downstream demand, and stop-level
-  reserve rules.
-- Settlement imports are demand-gated: storage room can accept cargo already in the bay, but by itself does
-  not make a vehicle buy more goods from an NPC stop.
-- Settlement markets include the current `basic-materials` goods (`wood`, `stone`, `planks`, `concrete`) and
-  show one deterministic price per good.
-- Freight stop diagnostics explain local need/provide state, downstream demand, import/export opportunity,
-  reserve/policy/offer blockers, and no-vehicle/no-room cases.
-- Freight line inspectors can assign or unassign compatible vehicles.
-- Bay and hive inspectors show docked vehicles with compact cargo summaries; deeper line-cargo intent
-  remains diagnostic work.
-- Bay queue core infrastructure is now specified and partially implemented: bay groups can own runtime queue
-  graphs, local dock requests, movement grants, merge policies, node capacity/occupancy invariants, grant
-  expiry, a `bay` trace sink, and a game-level bay queue registry/tick hook.
-- ChopSaw includes a regression fixture: a cyclic materials loop from the `0,0` bay to the Melindbury city
-  hall with an assigned SUV.
-- Browser board highlights for lines, zones, hives, and stops are hover-driven rather than persistent just
-  because a widget is open.
-- The Lines palette entry opens a regular pinnable line-management widget with name search, `Visible`, and
-  `No bay` filters; hovering a line row highlights it on the board, and clicking opens the line properties.
+See [`./current-status.md`](./current-status.md) for what is already landed.
 
 ## Details to add
 
 - alveoli configurations (ex storage buffer/allowance) should be able to be memorized, given a name and re-used with a combo-box containing all applicable configurations, "specific" = for this alveoli only or the ability to create a new configuration (no add button, just entering a text in the combo and checking for conflict)
 - We'll need to add config for: locale, measure units (1 tile-border = 3m = 10feet), decimal/duo-decimal
 - we should have bay-less roads (from zone to zone)
-- freight lines should complete the exchange-route refactor by removing remaining legacy
-  gather/distribute assumptions from helper names, route summaries, and UI/debug vocabulary. Cyclic route
-  order, zone-local exchange opportunities, docked-vehicle candidates, and demand-gated trade behavior are
-  mostly landed, but the route model still reads partly through older segment concepts.
+- complete the exchange-route refactor: rename gather/distribute helpers and update route summaries / UI
+  vocabulary to reflect per-stop load/unload selection rather than legacy segment concepts.
 - roads & velocity calculation. Some vehicles can just not drive beside roads. There should be a multiplier somewhere as well as a `min(road-max-velocity, vehicle/character-ax-velocity)`. How to calculate exactly the velocity for it to be realistic somehow but still simple ?
 - market analysis for settlement trade: compare settlement prices and positions, surface why Melindbury is
   or is not a good source/sink, and keep the view focused on route decisions rather than finance UI.
-- generated settlement shops beyond city halls. City halls are the current V1 target; future material shops,
-  cafes, or other commerces should be separate generated trade targets using the same board-pick model.
+- generate material shops, cafes, and other commerces as separate trade targets beyond city halls,
+  using the same board-pick model.
 - generated settlement zoning should move from simple center/ring assignment to a rules-owned civic /
   residential / commercial / industrial mix. Civic must stay small and central, commercial can be mixed around
   the core and road frontage, and larger residential/commercial areas should emerge farther out. Every occupied
@@ -74,33 +37,30 @@ Already landed or mostly landed:
 - SUVs and wheelbarrows are off-road vehicles. Pickup trucks are road-only, so their lines should have a road available.
 - harvesting/generation output should eventually obey the same tile physical-load model as forester
   planting, so rock/tree/crop outputs avoid overfilling already-burdened tiles.
-- bay queues still need their player-facing authoring and final gameplay wiring. The core model exists, but
-  the UI should let the player select several freight bays in the same hive, group them as one shared dock
-  operating area, name that group, and see the shared approach/queue overlay. The UI should expose service
-  bays, detected approach branches, and optional waiting areas/parking/sidings; the internal queue graph should
-  be derived from those choices rather than authored as nodes and edges directly. Vehicle job completion and
-  service/exit lifecycle hooks also need to be connected cleanly to the registry so live queue status stays
-  valid during normal play.
-- External-work radius needs a dedicated pass. For now, radius is a specification of constructed external-work
-  capabilities such as construction, foundation laying, road work, and harvesting. Later, unify that radius
-  model across all external-work alveoli and decide how actual vehicle objects can extend or constrain reach as
-  configuration/equipment attached to the hive or alveolus, rather than as a variant-only field.
+- add player-facing bay queue authoring: select several freight bays in the same hive, group them as
+  one shared dock operating area, name that group, and see the shared approach/queue overlay. The UI
+  should expose service bays, detected approach branches, and optional waiting areas/parking/sidings;
+  the internal queue graph should be derived from those choices rather than authored as nodes and edges
+  directly. Wire vehicle job completion and service/exit lifecycle hooks to the registry.
+- unify external-work radius across all external-work alveoli (construction, foundation laying, road work,
+  harvesting). Decide how vehicle objects extend or constrain reach as configuration/equipment attached to
+  the hive or alveolus, rather than as a variant-only field.
 - When changing the variant, the alveolus storage should be emptied before re-construction
 
 ## Recommended Next Tranche
 
-Gameplay streaming ownership is now baseline. The strongest immediate tranche is commerce and freight
-diagnostics polish: make the line-owned material loop easy to compare and explain, especially retained
-cargo, surplus unloading, demand-gated imports, and completed/idle cyclic routes. After that,
-roads/path infrastructure is the natural larger-map move, shops/markets deepen demand, and a small content
+The strongest immediate tranche is commerce and freight diagnostics polish: line-level idle/done
+explanation text, line-level cargo intent rollup, market price comparison, widget reorg (collapsible
+sections, header one-liner, line-click-from-bay fix), and the standalone `CommercialOverview` widget
+are now landed. The remaining piece is exchange-route vocabulary cleanup. After that, roads/path
+infrastructure is the natural larger-map move, shops/markets deepen demand, and a small content
 chain can add immediate play texture.
 
 ## Candidate Directions
 
 ### 1. Roads and path infrastructure
 
-Roads v1/v1.5 is already landed as instantly authored, border-owned `path` roads with textured rendering and
-walking cost modifiers. Roads remain a natural bridge between hive logistics and larger world management.
+Roads remain a natural bridge between hive logistics and larger world management.
 
 Potential next scope:
 
@@ -181,15 +141,7 @@ trying to become Simutrans all at once.
 
 Important first-level boundaries:
 
-- The shared player/team account is the common pot. Player characters use player-owned goods freely; NPC
-  purchases add value points to this account.
 - Useful procurement status:
-  - **Landed V1:** city-hall settlement markets, all-settlement basic-materials availability, one price per
-    good, NPC trade freight stops, export-before-import transfers, stop-level reserve, downstream-demand
-    imports, area-bucket procurement removed, compatible vehicle assignment from
-    the line inspector, docked-vehicle cargo summaries in bay/hive inspectors, demand-gated settlement
-    imports, already-carried surplus unloading into accepted storage, later-stop cargo protected as
-    `1-buffer`, empty cyclic route cleanup, and the ChopSaw materials loop fixture.
   - **Next V1.x:** route/market comparison by settlement position and price, last-transfer/history
     display, and better visibility into docked vehicle intent: retained cargo, surplus cargo, actionable
     rotations, and why a line is idle or done.
@@ -274,23 +226,22 @@ See [`./terrain-generation-roadmap.md`](./terrain-generation-roadmap.md).
 
 ### 6. Freight-line diagnostics depth
 
-Vehicle management and route authoring exist, compact docked cargo is visible, and stop-level commerce
-diagnostics are now present. The next diagnostic layer should focus on route-level and fleet-level clarity.
+Some diagnostics are already landed (see [`current-status.md`](./current-status.md)).
 
-Potential scope:
+Remaining:
 
-- Route health summaries for multi-stop lines, including which cyclic rotations are actionable.
-- Last-transfer history for settlement stops: exported goods, imported goods, credited VP, spent VP.
-- Vehicle assignment status and compatibility hints.
-- Line cargo intent: what is retained for a later stop, what is surplus and unloadable, and what demand
-  would justify an import.
-- Exchange-route summaries for multi-segment lines.
-- Optional road-aware route benefit summaries now that border roads can affect travel cost.
+- **Exchange-route vocabulary cleanup.** Rename `findGatherRouteSegments` /
+  `findDistributeRouteSegments` and update `freightLineSummary()` to reflect load/unload
+  exchange model rather than pickup/delivery.
+- **Road-aware vehicle pathfinding.** Make vehicle routing read road state so road-only vehicles
+  (`pickup_truck`) require roads and off-road vehicles (`wheelbarrow`, `suv`) are unrestricted.
+- **Vehicle compatibility explanations.** Show *why* a vehicle is or isn't compatible with a line
+  (e.g. "requires roads" / "off-road capable").
 
 Good follow-up to:
 
-- The current freight v2 editor.
-- Roads, if road-aware routing becomes visible in the line editor.
+- Roads, because road-aware routing needs road data before it can produce diagnostics.
+- Market analysis, because price comparison feeds directly into route decisions.
 
 Risks:
 
@@ -299,9 +250,8 @@ Risks:
 
 ## Suggested Ordering
 
-1. Commerce/freight diagnostics polish: playtest the ChopSaw materials loop, make retained/surplus cargo
-   and idle-loop reasons legible, make settlement price/position comparisons legible, and show recent trade
-   transfers.
+1. Commerce/freight diagnostics polish: clean up exchange-route vocabulary (line-level idle/done
+   explanation, cargo intent rollup, and settlement price comparison are now landed).
 2. Roads and velocity, especially where vehicle route choice should change the commerce outcome.
 3. One small content tranche that proves roads and imported materials matter.
 4. Shops/markets or NPC villages, depending on whether the next desired feeling is "internal economy" or
@@ -325,11 +275,11 @@ Small slices worth considering:
 
 - **Roads v2:** turn instant roads into build projects, add route-benefit summaries, and add at least one
   upgraded road kind/material.
-- **Commerce polish v1:** compare nearby settlement material prices/positions and show the last settlement
-  transfers on the line.
+- **Commerce polish v1:** clean up exchange-route vocabulary (price comparison widget,
+  cargo diagnostics, and collapsible line widget are now landed).
 - **Market v1:** one shop consumes one good type and creates a visible demand/satisfaction signal.
 - **Content v1:** add one new raw resource, one transformer, one produced good, and one construction recipe that uses it.
 - **Village v1:** generate one persisted external village with one import need and one export good.
 - **Terrain v1:** add biome-weighted deposit distribution and a seed debug panel.
-- **Freight route health v1:** summarize actionable cyclic rotations, vehicle assignment, cargo visibility,
-  and road-aware route benefit on existing lines.
+- **Freight route health v1:** add road-aware vehicle routing and line-level route benefit summaries
+  (idle/done explanation and cargo rollup are now landed).

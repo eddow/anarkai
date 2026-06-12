@@ -715,6 +715,43 @@ export class Game extends Eventful<GameEvents> {
 		)
 	}
 
+	/**
+	 * Ensure at least `minCount` settlement trade profiles exist near `center`.
+	 *
+	 * Scans expanding sector rings until enough settlements are found or a max ring
+	 * radius is exhausted. Calls {@link ensureGameplaySectors} under the hood — this
+	 * generates terrain, gameplay tiles, and settlement data as needed.
+	 *
+	 * @returns the current list of trade profiles (may be fewer than minCount if
+	 *          generation did not produce enough).
+	 */
+	public async ensureNearbySettlements(
+		center: AxialCoord,
+		minCount: number
+	): Promise<NpcSettlementTradeProfile[]> {
+		const SETTLEMENT_SECTOR_RING = 4 as const
+		const MAX_RINGS = 5 as const
+		const current = () => this.listSettlementTradeProfiles()
+
+		for (let ring = 0; ring < MAX_RINGS && current().length < minCount; ring++) {
+			const sectorKeys: string[] = []
+			const centerSectorQ = Math.floor(center.q / GAMEPLAY_SECTOR_STEP)
+			const centerSectorR = Math.floor(center.r / GAMEPLAY_SECTOR_STEP)
+			const radius = ring * SETTLEMENT_SECTOR_RING
+
+			for (let dq = -radius; dq <= radius; dq++) {
+				for (let dr = -radius; dr <= radius; dr++) {
+					if (Math.abs(dq) < radius - 1 && Math.abs(dr) < radius - 1) continue
+					sectorKeys.push(`${centerSectorQ + dq},${centerSectorR + dr}`)
+				}
+			}
+			if (sectorKeys.length > 0) {
+				await this.ensureGameplaySectors(sectorKeys)
+			}
+		}
+		return current()
+	}
+
 	getSyntheticFreightLineObject(uid: string): SyntheticFreightLineObject | undefined {
 		if (!isFreightLineUid(uid)) return undefined
 		const line = findFreightLineByUid(this.freightLines, uid)

@@ -45,6 +45,16 @@
             }
           },
           {
+            "tool": "openCommercial",
+            "editor": "button",
+            "config": {
+              "label": "Commerce",
+              "icon": "pure-glyf-icon glyf-tabler-outline-building-store",
+              "hint": "Open commercial overview",
+              "tone": "neutral"
+            }
+          },
+          {
             "tool": "openPlans",
             "editor": "button",
             "config": {

@@ -130,6 +130,7 @@ const App = () => {
 
 	const openGamePanel = () => ensurePanel('game', 'game-view', undefined, { floating: false })
 
+	const openCommercialPanel = () => ensurePanel('commercialOverview', 'commercial-overview')
 	const openConfigurationPanel = () => ensurePanel('configuration', 'system.configuration')
 	const openLinesPanel = () => ensurePanel('linesManagement', 'freight-lines')
 	const openPlansPanel = () => ensurePanel('planManager', 'hive-plans')
@@ -151,6 +152,7 @@ const App = () => {
 	const { PaletteIde } = getBrowserPalette()
 
 	effect`app:palette-bridge`(() => {
+		palettePanelBridge.openCommercial = openCommercialPanel
 		palettePanelBridge.openConfiguration = openConfigurationPanel
 		palettePanelBridge.openGame = openGamePanel
 		palettePanelBridge.openLines = openLinesPanel

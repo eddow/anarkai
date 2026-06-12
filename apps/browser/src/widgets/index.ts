@@ -1,3 +1,4 @@
+import CommercialOverviewWidget from './commercial-overview'
 import ConfigurationWidget from './configuration'
 import GameWidget from './game'
 import LinesManagementWidget from './lines-management'
@@ -12,6 +13,7 @@ export const widgets = {
 	planManager: PlanManagerWidget,
 	paletteInspector: PaletteInspectorWidget,
 	'selection-info': SelectionInfoWidget,
+	commercialOverview: CommercialOverviewWidget,
 }
 
 export default widgets

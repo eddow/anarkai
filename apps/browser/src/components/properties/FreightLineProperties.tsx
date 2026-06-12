@@ -13,7 +13,6 @@ import { normalizeFreightLineDefinition } from 'ssh/freight/freight-line'
 import { isLineFreightVehicleType } from 'ssh/freight/line-freight-vehicles'
 import {
 	type FreightLineRouteStatus,
-	type FreightLineStopSummary,
 	type FreightLineVehicleStatus,
 	summarizeFreightLineRoute,
 } from 'ssh/freight/freight-stop-utility'
@@ -51,6 +50,17 @@ css`
 	justify-content: center;
 	gap: 0.45rem;
 	width: 100%;
+}
+
+.freight-line-properties__header {
+	display: flex;
+	align-items: center;
+	gap: 0.45rem;
+	margin-bottom: 0.5rem;
+}
+
+.freight-line-properties__header .freight-line-properties__name {
+	flex: 1;
 }
 
 .freight-line-properties__icon-btn {
@@ -211,6 +221,22 @@ css`
 
 .freight-line-properties__trade-empty {
 	color: var(--ak-text-muted);
+}
+
+.freight-line-properties__explanation {
+	color: var(--ak-text-muted);
+	font-size: 0.74rem;
+	line-height: 1.45;
+}
+
+.freight-line-properties__retained {
+	color: #22c55e;
+	font-size: 0.72rem;
+}
+
+.freight-line-properties__surplus {
+	color: #f59e0b;
+	font-size: 0.72rem;
 }
 
 `
@@ -427,14 +453,6 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 		}
 	}
 
-	const stopsWithVehicleAt = (summary: NonNullable<ReturnType<typeof routeSummary>>) => {
-		const indices = new Set<number>()
-		for (const v of summary.vehicles) {
-			if (v.currentStopIndex !== undefined) indices.add(v.currentStopIndex)
-		}
-		return indices
-	}
-
 	const formatCargoShort = (cargoSummary: string): string => {
 		if (cargoSummary === 'empty') return cargoSummary
 		const parts = cargoSummary.split(', ')
@@ -461,58 +479,58 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 			title={T.line.section}
 			el={{ onMouseenter: handleMouseEnter, onMouseleave: handleMouseLeave }}
 		>
-			<PropertyGrid>
-				<PropertyGridRow if={!isAvailable()}>
-					<span class="freight-line-properties__uid">{T.line.unavailable}</span>
-				</PropertyGridRow>
-				<PropertyGridRow if={isAvailable()}>
-					<div class="freight-line-properties__actions">
-						<button
-							type="button"
-							class="freight-line-properties__icon-btn"
-							title={T.line.cyclic.hint}
-							aria-label={T.line.cyclic.label}
-							aria-pressed={currentLine()?.cyclic === true ? 'true' : 'false'}
-							disabled={!isAvailable()}
-							onClick={() => handleCyclicInput(currentLine()?.cyclic !== true)}
-							data-testid="freight-line-cyclic"
-						>
-							{icon(tablerOutlineRepeat)}
-						</button>
-						<button
-							type="button"
-							class="freight-line-properties__icon-btn danger"
-							title={T.line.deleteLine.action}
-							aria-label={T.line.deleteLine.action}
-							data-testid="freight-line-delete"
-							onClick={handleDeleteLine}
-						>
-							{icon(tablerOutlineTrash)}
-						</button>
-					</div>
-				</PropertyGridRow>
-				<PropertyGridRow label={T.line.name}>
-					<input
-						class="freight-line-properties__name"
-						type="text"
-						disabled={!isAvailable()}
-						value={lineName()}
-						onInput={(event) => handleNameInput((event.currentTarget as HTMLInputElement).value)}
-						data-testid="freight-line-name"
-					/>
-				</PropertyGridRow>
-				<PropertyGridRow
-					if={isAvailable() && issues().length > 0}
-					label={T.line.stopsEditor.validation}
+			{/* Header one-liner: name + cyclic + delete */}
+			<div class="freight-line-properties__header">
+				<input
+					class="freight-line-properties__name"
+					type="text"
+					disabled={!isAvailable()}
+					value={lineName()}
+					onInput={(event) => handleNameInput((event.currentTarget as HTMLInputElement).value)}
+					data-testid="freight-line-name"
+				/>
+				<button
+					type="button"
+					class="freight-line-properties__icon-btn"
+					title={T.line.cyclic.hint}
+					aria-label={T.line.cyclic.label}
+					aria-pressed={currentLine()?.cyclic === true ? 'true' : 'false'}
+					disabled={!isAvailable()}
+					onClick={() => handleCyclicInput(currentLine()?.cyclic !== true)}
+					data-testid="freight-line-cyclic"
 				>
-					<ul class="freight-line-properties__issues">
-						<for each={issues()}>
-							{(code: FreightDraftIssueCode) => <li>{issueMessage(code)}</li>}
-						</for>
-					</ul>
-				</PropertyGridRow>
-			</PropertyGrid>
-			<InspectorSection if={isAvailable()} title={assignmentText().section}>
+					{icon(tablerOutlineRepeat)}
+				</button>
+				<button
+					type="button"
+					class="freight-line-properties__icon-btn danger"
+					title={T.line.deleteLine.action}
+					aria-label={T.line.deleteLine.action}
+					data-testid="freight-line-delete"
+					onClick={handleDeleteLine}
+				>
+					{icon(tablerOutlineTrash)}
+				</button>
+			</div>
+			{/* Issues — always visible, not collapsible */}
+			<ul
+				if={isAvailable() && issues().length > 0}
+				class="freight-line-properties__issues"
+			>
+				<for each={issues()}>
+					{(code: FreightDraftIssueCode) => <li>{issueMessage(code)}</li>}
+				</for>
+			</ul>
+			{/* "Unavailable" fallback */}
+			<span if={!isAvailable()} class="freight-line-properties__uid">
+				{T.line.unavailable}
+			</span>
+			{/* Assigned vehicles */}
+			<InspectorSection
+				if={isAvailable()}
+				title={assignmentText().section}
+				collapsible
+			>
 				<PropertyGrid>
 					<PropertyGridRow label={assignmentText().assigned}>
 						<div class="freight-line-properties__assignment-list">
@@ -556,10 +574,25 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 					</PropertyGridRow>
 				</PropertyGrid>
 			</InspectorSection>
+			{/* Stops — collapsible */}
+			<InspectorSection
+				if={isAvailable() && currentLine() && currentGame()}
+				title={T.line.stopsEditor.section ?? 'Stops'}
+				collapsible
+			>
+				<FreightStopList
+					draft={currentLine()!}
+					game={currentGame()!}
+					readOnly={readOnly()}
+					onChange={onLineChange}
+				/>
+			</InspectorSection>
+			{/* Route status */}
 			<InspectorSection
 				if={isAvailable() && routeSummary() !== undefined}
 				title="Route status"
 				data-testid="freight-line-route-summary"
+				collapsible
 			>
 				<div class="freight-line-properties__route-summary">
 					<PropertyGrid>
@@ -569,6 +602,14 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 								data-testid="freight-line-route-status"
 							>
 								{statusLabel(routeSummary()!.status)}
+							</span>
+						</PropertyGridRow>
+						<PropertyGridRow>
+							<span
+								class="freight-line-properties__explanation"
+								data-testid="freight-line-route-explanation"
+							>
+								{routeSummary()!.statusExplanation}
 							</span>
 						</PropertyGridRow>
 						<PropertyGridRow
@@ -611,6 +652,32 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 								)}
 							</span>
 						</PropertyGridRow>
+						<PropertyGridRow
+							if={routeSummary()!.aggregateRetainedCargo.total > 0}
+							label="Retained cargo"
+						>
+							<span class="freight-line-properties__retained">
+								{formatCargoShort(
+									Object.entries(routeSummary()!.aggregateRetainedCargo.perGood)
+										.filter(([, qty]) => (qty ?? 0) > 0)
+										.map(([good, qty]) => `${good}:${qty}`)
+										.join(', ') || 'none'
+								)}
+							</span>
+						</PropertyGridRow>
+						<PropertyGridRow
+							if={routeSummary()!.aggregateSurplusCargo.total > 0}
+							label="Surplus cargo"
+						>
+							<span class="freight-line-properties__surplus">
+								{formatCargoShort(
+									Object.entries(routeSummary()!.aggregateSurplusCargo.perGood)
+										.filter(([, qty]) => (qty ?? 0) > 0)
+										.map(([good, qty]) => `${good}:${qty}`)
+										.join(', ') || 'none'
+								)}
+							</span>
+						</PropertyGridRow>
 						<PropertyGridRow label="Actionable stops">
 							<span>
 								{routeSummary()!.totalActionableStops} / {routeSummary()!.stops.length}
@@ -619,10 +686,12 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 					</PropertyGrid>
 				</div>
 			</InspectorSection>
+			{/* Recent transfers */}
 			<InspectorSection
 				if={isAvailable() && tradeHistory().length > 0}
 				title="Recent transfers"
 				data-testid="freight-line-trade-history"
+				collapsible
 			>
 				<div class="freight-line-properties__trade-history">
 					<for each={tradeHistory().slice(0, 5)}>
@@ -656,13 +725,6 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 					</for>
 				</div>
 			</InspectorSection>
-			<FreightStopList
-				if={isAvailable() && currentLine() && currentGame()}
-				draft={currentLine()!}
-				game={currentGame()!}
-				readOnly={readOnly()}
-				onChange={onLineChange}
-			/>
 		</InspectorSection>
 	)
 }
