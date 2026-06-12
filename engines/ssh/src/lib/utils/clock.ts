@@ -113,6 +113,9 @@ export class Clock {
 			}
 		}
 		// If the `clocked` was freshly added during this advance, it shouldn't receive progress for the whole current advance, only the advance after its insertion
+		// All surviving entries (timed + off-clock) receive progress.
+		// Off-clock entries (QueueStep, WaitForPredicateStep) still need
+		// animation even though their completion is externally managed.
 		for (const entry of this.list)
 			entry.step.progress(ds - (this.partiallyProgressed!.freshEntries.get(entry.step) ?? 0))
 		this.partiallyProgressed = undefined
@@ -130,12 +133,15 @@ export class Clock {
 	begin(step: Clocked, ds: number): void
 	begin(step: Clocked, ds?: number): void {
 		this.serializationTimes = undefined
-		// Remove any existing entry for this step before re-inserting
 		this.remove(step)
 
-		if (ds!== undefined) this.insert(ds!, step)
-		// Off-clock: store at end with infinite relDs
-		else this.list.push({ relDs: Number.POSITIVE_INFINITY, step })
+		if (ds === undefined) this.list.push({ relDs: Number.POSITIVE_INFINITY, step })
+		else if (ds <= 0) step.complete()
+		else {
+			if (this.partiallyProgressed)
+				this.partiallyProgressed.freshEntries.set(step, this.partiallyProgressed.partialDs)
+			this.insert(ds, step)
+		}
 	}
 
 	/**
@@ -187,6 +193,11 @@ export class Clock {
 		} else {
 			this.list.splice(insertIdx, 0, { relDs: effDs, step })
 		}
+	}
+
+	/** Number of steps currently on the clock. */
+	get size(): number {
+		return this.list.length
 	}
 
 	// ── Debug ───────────────────────────────────────────────────────────────
