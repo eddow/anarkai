@@ -155,12 +155,6 @@ const HiveProperties = (props: HivePropertiesProps) => {
 		}
 	}
 
-	const handleWorkingChange = (checked: boolean) => {
-		const hive = currentHive()
-		if (!hive) return
-		hive.working = checked
-		state.working = checked
-	}
 	const applyHover = () => {
 		zoneOverlayState.hoveredHiveAnchorTileUid = props.hiveObject.anchorTileUid
 	}
@@ -168,6 +162,17 @@ const HiveProperties = (props: HivePropertiesProps) => {
 		if (zoneOverlayState.hoveredHiveAnchorTileUid === props.hiveObject.anchorTileUid) {
 			zoneOverlayState.hoveredHiveAnchorTileUid = undefined
 		}
+	}
+
+	const workingChecked = {
+		get value() {
+			return state.working
+		},
+		set value(v: boolean) {
+			state.working = v
+			const hive = currentHive()
+			if (hive) hive.working = v
+		},
 	}
 
 	return (
@@ -183,15 +188,11 @@ const HiveProperties = (props: HivePropertiesProps) => {
 						class="hive-properties__name"
 						type="text"
 						value={state.hiveName}
-						onInput={(event) => handleNameInput((event.currentTarget as HTMLInputElement).value)}
+						update:value={handleNameInput}
 					/>
 				</PropertyGridRow>
 				<PropertyGridRow label={T.hive.commands}>
-					<WorkingIndicator
-						checked={state.working}
-						tooltip={T.hive.workingTooltip}
-						onChange={handleWorkingChange}
-					/>
+					<WorkingIndicator checked={workingChecked.value} tooltip={T.hive.workingTooltip} />
 				</PropertyGridRow>
 				<PropertyGridRow if={state.entries.length === 0} label="">
 					<span class="hive-properties__empty">{T.hive.noAds}</span>

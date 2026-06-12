@@ -81,10 +81,7 @@ export class BuildAlveolus extends TileContent {
 		this.target = target
 		this.constructionSite = normalizeConstructionSiteState(
 			constructionSite ??
-				createConstructionSiteState(
-					{ kind: 'alveolus', alveolusType: target, variant },
-					activeStep
-				)
+				createConstructionSiteState({ kind: 'alveolus', alveolusType: target, variant }, activeStep)
 		)
 		if (['planned', 'foundation'].includes(this.constructionSite.phase)) {
 			this.constructionSite.phase = 'waiting_materials'

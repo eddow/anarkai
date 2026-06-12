@@ -309,9 +309,6 @@ const LinesManagementWidget = (
 						placeholder="Filter by name..."
 						aria-label="Filter lines by name"
 						value={state.text}
-						onInput={(event) => {
-							state.text = (event.currentTarget as HTMLInputElement).value
-						}}
 					/>
 					<button
 						type="button"

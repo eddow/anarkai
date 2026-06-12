@@ -393,14 +393,16 @@ const commerceReasonText = (
 	vehicleLabel?: string
 ): string => {
 	if (reasons.length === 0) return 'ready'
-	return reasons.map((reason) => {
-		if (reason === 'vehicle_full' && vehicleCount !== undefined) {
-			if (vehicleCount > 1 && vehicleLabel) return `${vehicleLabel} full`
-			if (vehicleCount > 1) return `all ${vehicleCount} vehicles full`
-			return 'vehicle full'
-		}
-		return blockReasonLabel(reason)
-	}).join(', ')
+	return reasons
+		.map((reason) => {
+			if (reason === 'vehicle_full' && vehicleCount !== undefined) {
+				if (vehicleCount > 1 && vehicleLabel) return `${vehicleLabel} full`
+				if (vehicleCount > 1) return `all ${vehicleCount} vehicles full`
+				return 'vehicle full'
+			}
+			return blockReasonLabel(reason)
+		})
+		.join(', ')
 }
 
 const tradeStopCanImport = (game: Game, stop: FreightStop): boolean => {
@@ -566,17 +568,20 @@ const FreightStopList = (props: FreightStopListProps) => {
 				vehicleCount: 0,
 			}
 		}
-		const explanations = vehicles.map((vehicle) =>
-			({ vehicle, explanation: explainFreightStopCommerce({
+		const explanations = vehicles.map((vehicle) => ({
+			vehicle,
+			explanation: explainFreightStopCommerce({
 				game: props.game,
 				line,
 				stopIndex: index,
 				vehicle,
-			}) })
-		)
+			}),
+		}))
 		explanations.sort((a, b) => {
-			const aOpportunity = a.explanation.importOpportunityGoods.total + a.explanation.exportOpportunityGoods.total
-			const bOpportunity = b.explanation.importOpportunityGoods.total + b.explanation.exportOpportunityGoods.total
+			const aOpportunity =
+				a.explanation.importOpportunityGoods.total + a.explanation.exportOpportunityGoods.total
+			const bOpportunity =
+				b.explanation.importOpportunityGoods.total + b.explanation.exportOpportunityGoods.total
 			if (aOpportunity !== bOpportunity) return bOpportunity - aOpportunity
 			return a.explanation.blockReasons.length - b.explanation.blockReasons.length
 		})
@@ -608,7 +613,10 @@ const FreightStopList = (props: FreightStopListProps) => {
 							const expandedPolicy = () => !!expanded.byStopId[stop.id]
 							const commerce = () => commerceForStop(index)
 							const commerceExpl = () => commerce().explanation
-							const commerceCtx = () => ({ vehicleCount: commerce().vehicleCount, vehicleLabel: commerce().vehicleLabel })
+							const commerceCtx = () => ({
+								vehicleCount: commerce().vehicleCount,
+								vehicleLabel: commerce().vehicleLabel,
+							})
 							return (
 								<>
 									<tr
@@ -701,7 +709,11 @@ const FreightStopList = (props: FreightStopListProps) => {
 													surplus {formatGoodsSnapshot(commerceExpl().surplusCargoGoods)}
 												</span>
 												<span class="freight-stop-list__commerce-item freight-stop-list__commerce-reason">
-													{commerceReasonText(commerceExpl().blockReasons, commerceCtx().vehicleCount, commerceCtx().vehicleLabel)}
+													{commerceReasonText(
+														commerceExpl().blockReasons,
+														commerceCtx().vehicleCount,
+														commerceCtx().vehicleLabel
+													)}
 												</span>
 											</div>
 										</td>

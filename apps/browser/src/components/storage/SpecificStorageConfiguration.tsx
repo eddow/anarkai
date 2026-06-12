@@ -2,7 +2,6 @@ import { css } from '@app/lib/css'
 import { Stars } from '@app/ui/anarkai'
 import type { StarsValue } from '@sursaut/ui/models'
 import { goods as visualGoods } from 'engine-pixi/assets/visual-content'
-import { effect, reactive } from 'mutts'
 import type { Game } from 'ssh/game'
 import type { GoodType } from 'ssh/types/base'
 import PropertyGridRow from '../PropertyGridRow'
@@ -43,14 +42,7 @@ interface SpecificStorageConfigurationProps {
 }
 
 export default function SpecificStorageConfiguration(props: SpecificStorageConfigurationProps) {
-	// Verify action exists before accessing properties
-	if (!props.action) return null
-	const goods = Object.keys(props.action.goods) as GoodType[]
-	const draft = reactive({
-		bufferStars: {} as Partial<Record<GoodType, number>>,
-	})
-
-	const buffers = props.configuration?.buffers || {}
+	const goods = () => Object.keys(props.action?.goods ?? {}) as GoodType[]
 
 	// Calculate scale parameters: { maxStars, step }
 	const getScaleParams = (max: number) => {
@@ -66,7 +58,7 @@ export default function SpecificStorageConfiguration(props: SpecificStorageConfi
 	}
 
 	const getBufferStars = (goodType: GoodType) => {
-		const val = buffers[goodType] || 0
+		const val = props.configuration?.buffers?.[goodType] ?? 0
 		// Allow 0 value (0 stars)
 		if (val <= 0) return 0
 
@@ -79,17 +71,6 @@ export default function SpecificStorageConfiguration(props: SpecificStorageConfi
 		// val / step => number of stars
 		return Math.round(val / step)
 	}
-
-	effect`specific-storage-configuration:draft-sync`(() => {
-		for (const goodType of goods) {
-			draft.bufferStars[goodType] = getBufferStars(goodType)
-		}
-		for (const goodType of Object.keys(draft.bufferStars) as GoodType[]) {
-			if (!goods.includes(goodType)) {
-				delete draft.bufferStars[goodType]
-			}
-		}
-	})
 
 	const setBufferFromStars = (goodType: GoodType, stars: number) => {
 		if (!props.configuration) return
@@ -113,9 +94,13 @@ export default function SpecificStorageConfiguration(props: SpecificStorageConfi
 		}
 	}
 
+	const getBufferValue = (goodType: GoodType) => {
+		return props.configuration?.buffers?.[goodType] ?? 0
+	}
+
 	return (
-		<div class="specific-storage-config">
-			<for each={goods}>
+		<div if={props.action} class="specific-storage-config">
+			<for each={goods()}>
 				{(good: GoodType) => {
 					const maxQuantity = props.action.goods[good] || 0
 					const { maxStars } = getScaleParams(maxQuantity)
@@ -134,10 +119,9 @@ export default function SpecificStorageConfiguration(props: SpecificStorageConfi
 									<div class="buffer-stars-container">
 										<Stars
 											maximum={maxStars}
-											value={draft.bufferStars[good] ?? getBufferStars(good)}
+											value={getBufferStars(good)}
 											onChange={(v: StarsValue) => {
 												const nextStars = typeof v === 'number' ? v : v[1]
-												draft.bufferStars[good] = nextStars
 												setBufferFromStars(good, nextStars)
 											}}
 											size="1rem"
@@ -146,7 +130,7 @@ export default function SpecificStorageConfiguration(props: SpecificStorageConfi
 											after="■"
 										/>
 										<span class="buffer-quantity">
-											{buffers[good] || 0} / {maxQuantity}
+											{getBufferValue(good)} / {maxQuantity}
 										</span>
 									</div>
 								</div>

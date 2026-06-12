@@ -2,7 +2,6 @@ import { css } from '@app/lib/css'
 import { Stars } from '@app/ui/anarkai'
 import type { StarsValue } from '@sursaut/ui/models'
 import { goods as goodsCatalog } from 'engine-pixi/assets/visual-content'
-import { effect, reactive } from 'mutts'
 import type { Game } from 'ssh/game'
 import type { StorageAlveolus } from 'ssh/hive/storage'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
@@ -62,11 +61,6 @@ function unavailableSlotElements(count: number) {
 }
 
 export default function SlottedStorageConfiguration(props: SlottedStorageConfigurationProps) {
-	const draft = reactive({
-		generalSlots: 0,
-		ranges: {} as Partial<Record<GoodType, [number, number]>>,
-	})
-
 	const view = {
 		get content() {
 			return props.content
@@ -119,21 +113,6 @@ export default function SlottedStorageConfiguration(props: SlottedStorageConfigu
 		},
 	}
 
-	effect`slotted-storage-configuration:draft-sync`(() => {
-		draft.generalSlots = view.displayedGeneralSlots
-
-		const activeGoods = new Set(view.configuredGoods)
-		for (const goodType of view.configuredGoods) {
-			const rule = view.rule(goodType)
-			draft.ranges[goodType] = [rule.minSlots, rule.minSlots + rule.maxSlots]
-		}
-		for (const goodType of Object.keys(draft.ranges) as GoodType[]) {
-			if (!activeGoods.has(goodType)) {
-				delete draft.ranges[goodType]
-			}
-		}
-	})
-
 	const addGood = (goodType: GoodType) => {
 		view.content?.setSlottedGoodConfiguration(goodType, {
 			minSlots: 0,
@@ -152,10 +131,9 @@ export default function SlottedStorageConfiguration(props: SlottedStorageConfigu
 					<div class="slotted-storage-stars__row">
 						<Stars
 							maximum={view.remainingBudget}
-							value={draft.generalSlots}
+							value={view.displayedGeneralSlots}
 							onChange={(value: StarsValue) => {
 								const nextGeneralSlots = Math.min(starsValue(value), view.remainingBudget)
-								draft.generalSlots = nextGeneralSlots
 								view.content?.setSlottedGeneralSlots(nextGeneralSlots)
 							}}
 							size="1rem"
@@ -188,7 +166,10 @@ export default function SlottedStorageConfiguration(props: SlottedStorageConfigu
 							Math.min(rule.minSlots, maximum),
 							Math.min(rule.minSlots + rule.maxSlots, maximum),
 						]
-						const range = draft.ranges[goodType] ?? displayedRange
+						const range = [
+							view.rule(goodType).minSlots,
+							view.rule(goodType).minSlots + view.rule(goodType).maxSlots,
+						] as [number, number]
 						const unavailableSlots = Math.max(0, view.totalSlots - maximum)
 						return (
 							<div class="slotted-storage-stars">
@@ -200,7 +181,6 @@ export default function SlottedStorageConfiguration(props: SlottedStorageConfigu
 											const [rawMinSlots, rawTotalSlots] = starsRangeValue(value, range)
 											const nextMinSlots = Math.min(rawMinSlots, maximum)
 											const nextTotalSlots = Math.min(rawTotalSlots, maximum)
-											draft.ranges[goodType] = [nextMinSlots, nextTotalSlots]
 											view.content?.setSlottedGoodConfiguration(goodType, {
 												minSlots: nextMinSlots,
 												maxSlots: Math.max(0, nextTotalSlots - nextMinSlots),

@@ -10,13 +10,13 @@ import { effect, reactive } from 'mutts'
 import { tablerOutlineRepeat, tablerOutlineTrash } from 'pure-glyf/icons'
 import type { FreightLineDefinition, SyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import { normalizeFreightLineDefinition } from 'ssh/freight/freight-line'
-import { isLineFreightVehicleType } from 'ssh/freight/line-freight-vehicles'
 import {
 	type FreightLineRouteStatus,
 	type FreightLineVehicleStatus,
 	summarizeFreightLineRoute,
 } from 'ssh/freight/freight-stop-utility'
-import { type Game, type TradeTransferLogEntry } from 'ssh/game'
+import { isLineFreightVehicleType } from 'ssh/freight/line-freight-vehicles'
+import type { Game, TradeTransferLogEntry } from 'ssh/game'
 import type { VehicleEntity } from 'ssh/population/vehicle/entity'
 import { type AxialCoord, toAxialCoord } from 'ssh/utils'
 import FreightStopList from '../FreightStopList'
@@ -486,7 +486,7 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 					type="text"
 					disabled={!isAvailable()}
 					value={lineName()}
-					onInput={(event) => handleNameInput((event.currentTarget as HTMLInputElement).value)}
+					update:value={handleNameInput}
 					data-testid="freight-line-name"
 				/>
 				<button
@@ -513,24 +513,15 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 				</button>
 			</div>
 			{/* Issues — always visible, not collapsible */}
-			<ul
-				if={isAvailable() && issues().length > 0}
-				class="freight-line-properties__issues"
-			>
-				<for each={issues()}>
-					{(code: FreightDraftIssueCode) => <li>{issueMessage(code)}</li>}
-				</for>
+			<ul if={isAvailable() && issues().length > 0} class="freight-line-properties__issues">
+				<for each={issues()}>{(code: FreightDraftIssueCode) => <li>{issueMessage(code)}</li>}</for>
 			</ul>
 			{/* "Unavailable" fallback */}
 			<span if={!isAvailable()} class="freight-line-properties__uid">
 				{T.line.unavailable}
 			</span>
 			{/* Assigned vehicles */}
-			<InspectorSection
-				if={isAvailable()}
-				title={assignmentText().section}
-				collapsible
-			>
+			<InspectorSection if={isAvailable()} title={assignmentText().section} collapsible>
 				<PropertyGrid>
 					<PropertyGridRow label={assignmentText().assigned}>
 						<div class="freight-line-properties__assignment-list">
@@ -577,7 +568,7 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 			{/* Stops — collapsible */}
 			<InspectorSection
 				if={isAvailable() && currentLine() && currentGame()}
-				title={T.line.stopsEditor.section ?? 'Stops'}
+				title={T.line.stopsEditor.section}
 				collapsible
 			>
 				<FreightStopList
@@ -590,7 +581,7 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 			{/* Route status */}
 			<InspectorSection
 				if={isAvailable() && routeSummary() !== undefined}
-				title="Route status"
+				title={T.line.routeSummary.section}
 				data-testid="freight-line-route-summary"
 				collapsible
 			>
@@ -612,10 +603,7 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 								{routeSummary()!.statusExplanation}
 							</span>
 						</PropertyGridRow>
-						<PropertyGridRow
-							if={routeSummary()!.vehicles.length > 0}
-							label="Vehicles"
-						>
+						<PropertyGridRow if={routeSummary()!.vehicles.length > 0} label="Vehicles">
 							<div class="freight-line-properties__vehicle-status">
 								<for each={routeSummary()!.vehicles}>
 									{(vehicle: FreightLineVehicleStatus) => (
@@ -689,7 +677,7 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 			{/* Recent transfers */}
 			<InspectorSection
 				if={isAvailable() && tradeHistory().length > 0}
-				title="Recent transfers"
+				title={T.line.tradeHistory.section}
 				data-testid="freight-line-trade-history"
 				collapsible
 			>
@@ -705,19 +693,13 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 							return (
 								<div class="freight-line-properties__trade-row">
 									<span class="freight-line-properties__trade-stop">{stopLabel}</span>
-									<span
-										if={hasExports}
-										class="freight-line-properties__trade-export"
-									>
-										export {formatTradeGoods(entry.exported as Partial<Record<string, number>>)}
-										{' '}+{entry.creditedVp} vp
+									<span if={hasExports} class="freight-line-properties__trade-export">
+										export {formatTradeGoods(entry.exported as Partial<Record<string, number>>)}+
+										{entry.creditedVp} vp
 									</span>
-									<span
-										if={hasImports}
-										class="freight-line-properties__trade-import"
-									>
-										import {formatTradeGoods(entry.imported as Partial<Record<string, number>>)}
-										{' '}−{entry.spentVp} vp
+									<span if={hasImports} class="freight-line-properties__trade-import">
+										import {formatTradeGoods(entry.imported as Partial<Record<string, number>>)}−
+										{entry.spentVp} vp
 									</span>
 								</div>
 							)

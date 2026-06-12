@@ -156,9 +156,6 @@ export default function HardListSearchPicker(props: HardListSearchPickerProps) {
 				type="text"
 				value={state.query}
 				placeholder={props.placeholder ?? 'Filter...'}
-				onInput={(event) => {
-					state.query = (event.currentTarget as HTMLInputElement).value
-				}}
 				data-testid={props.testId ? `${props.testId}-filter` : undefined}
 			/>
 			<div class="hard-list-picker__list">

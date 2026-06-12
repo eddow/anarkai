@@ -4,9 +4,9 @@ import { mrg } from '@app/lib/globals'
 import type { SyntheticHiveObject } from '@app/lib/hive-inspector'
 import { isHoveredObject, setHoveredObject } from '@app/lib/interactive-state'
 import {
+	variantBadges,
 	alveoli as visualAlveoli,
 	characters as visualCharacters,
-	variantBadges,
 	vehicles as visualVehicles,
 } from 'engine-pixi/assets/visual-content'
 import { vehicleTextureKey } from 'engine-pixi/renderers/vehicle-visual'

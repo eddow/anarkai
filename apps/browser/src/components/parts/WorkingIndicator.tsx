@@ -104,7 +104,6 @@ interface WorkingIndicatorProps {
 	burdened?: boolean
 	tooltip?: string
 	warning?: string
-	onChange?: (checked: boolean) => void
 }
 
 const WorkingIndicator = (props: WorkingIndicatorProps) => {
@@ -112,9 +111,7 @@ const WorkingIndicator = (props: WorkingIndicatorProps) => {
 		[props.tooltip, props.burdened ? props.warning : undefined].filter(Boolean).join('\n')
 
 	const toggle = () => {
-		const checked = !props.checked
-		props.checked = checked
-		props.onChange?.(checked)
+		props.checked = !props.checked
 	}
 
 	return (

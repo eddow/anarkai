@@ -68,9 +68,7 @@ function inTransitQuantity(shell: ConstructionSiteShell, goodType: GoodType): nu
  * {@link ConstructionSiteShell.remainingNeeds} so two vehicles cannot double-load for the
  * same fixed-quantity need.
  */
-export function effectiveRemainingNeeds(
-	shell: ConstructionSiteShell
-): Record<string, number> {
+export function effectiveRemainingNeeds(shell: ConstructionSiteShell): Record<string, number> {
 	const raw = shell.remainingNeeds
 	const map = inTransitRegistry.get(shell)
 	if (!map || map.size === 0) return raw

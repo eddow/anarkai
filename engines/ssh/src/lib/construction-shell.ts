@@ -78,7 +78,11 @@ export function finalizeConstructionShell(shell: ConstructionSiteShell): void {
 			const nextIdx = currentIdx + 1
 			// Build a construction site with the correct step recipe, not the leaf
 			const nextSite = createConstructionSiteState(
-				{ kind: 'alveolus', alveolusType: target.alveolusType, variant: buildShell.targetVariantId },
+				{
+					kind: 'alveolus',
+					alveolusType: target.alveolusType,
+					variant: buildShell.targetVariantId,
+				},
 				nextIdx
 			)
 			const nextBuild = new BuildAlveolus(

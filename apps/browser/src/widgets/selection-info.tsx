@@ -30,10 +30,10 @@ import {
 	type SettlementTradeObject,
 } from 'ssh/commerce/settlement-trade'
 import {
+	createSyntheticFreightLineObject,
 	freightLineIdFromUid,
 	isFreightLineUid,
 	type SyntheticFreightLineObject,
-	createSyntheticFreightLineObject,
 } from 'ssh/freight/freight-line'
 import type { InspectorSelectableObject, InteractiveGameObject } from 'ssh/game/object'
 import { resolveSelectableHoverObject } from 'ssh/game/object'
@@ -259,9 +259,7 @@ const SelectionInfoWidget = (
 				const lineId = freightLineIdFromUid(uid)
 				const lines = game.freightLines
 				const line =
-					lineId && Array.isArray(lines)
-						? lines.find((entry) => entry.id === lineId)
-						: undefined
+					lineId && Array.isArray(lines) ? lines.find((entry) => entry.id === lineId) : undefined
 				return line ? createSyntheticFreightLineObject(game, line) : undefined
 			}
 			return game.getObject(uid)

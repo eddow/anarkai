@@ -979,18 +979,9 @@ export function summarizeFreightLineRoute(args: {
 			hasDemandToSatisfy: explanation.downstreamDemandGoods.total > 0,
 			blockReasons: explanation.blockReasons,
 		})
-		aggregateDemand = addGoodsCounts(
-			aggregateDemand,
-			explanation.downstreamDemandGoods.perGood
-		)
-		aggregateRetained = addGoodsCounts(
-			aggregateRetained,
-			explanation.retainedCargoGoods.perGood
-		)
-		aggregateSurplus = addGoodsCounts(
-			aggregateSurplus,
-			explanation.surplusCargoGoods.perGood
-		)
+		aggregateDemand = addGoodsCounts(aggregateDemand, explanation.downstreamDemandGoods.perGood)
+		aggregateRetained = addGoodsCounts(aggregateRetained, explanation.retainedCargoGoods.perGood)
+		aggregateSurplus = addGoodsCounts(aggregateSurplus, explanation.surplusCargoGoods.perGood)
 	}
 
 	const vehicleStatuses: FreightLineVehicleStatus[] = vehicles.map((vehicle) => {
@@ -1006,9 +997,7 @@ export function summarizeFreightLineRoute(args: {
 				? stops.some(
 						(s) =>
 							s.stopIndex === currentStopIndex &&
-							(s.hasImportOpportunity ||
-								s.hasExportOpportunity ||
-								s.hasSurplusToUnload)
+							(s.hasImportOpportunity || s.hasExportOpportunity || s.hasSurplusToUnload)
 					)
 				: false
 		return {
@@ -1016,9 +1005,8 @@ export function summarizeFreightLineRoute(args: {
 			vehicleType: vehicle.vehicleType,
 			vehicleTitle: vehicle.title,
 			currentStopId,
-			currentStopIndex: currentStopIndex !== undefined && currentStopIndex >= 0
-				? currentStopIndex
-				: undefined,
+			currentStopIndex:
+				currentStopIndex !== undefined && currentStopIndex >= 0 ? currentStopIndex : undefined,
 			isDocked: docked,
 			cargoSummary: vehicleCargoSummary(vehicle),
 			actionable,
@@ -1086,9 +1074,7 @@ function buildStatusExplanation(
 		return 'All cyclic stops satisfied — no remaining import or export opportunity.'
 	}
 	// 'idle' — pick most informative reason
-	const atStop = vehicleStatuses.filter(
-		(v) => v.currentStopIndex !== undefined
-	)
+	const atStop = vehicleStatuses.filter((v) => v.currentStopIndex !== undefined)
 	if (atStop.length === 0) {
 		return `Idle — ${assignedCount} vehicle(s) assigned but none currently at a stop.`
 	}
@@ -1100,16 +1086,11 @@ function buildStatusExplanation(
 		return `Idle — ${name} is at stop ${idx !== undefined ? idx + 1 : '?'} but not yet docked.`
 	}
 	// Check if any vehicle is docked at a stop with no opportunity
-	const dockedNoOpportunity = atStop.filter(
-		(v) => v.isDocked && !v.actionable
-	)
+	const dockedNoOpportunity = atStop.filter((v) => v.isDocked && !v.actionable)
 	if (dockedNoOpportunity.length > 0) {
 		const name = dockedNoOpportunity[0]!.vehicleTitle
 		const idx = dockedNoOpportunity[0]!.currentStopIndex
-		const stopBlockReasons =
-			idx !== undefined && stops[idx]
-				? stops[idx]!.blockReasons
-				: []
+		const stopBlockReasons = idx !== undefined && stops[idx] ? stops[idx]!.blockReasons : []
 		const reasonText =
 			stopBlockReasons.length > 0
 				? stopBlockReasons.map((r) => r.replace(/_/g, ' ')).join(', ')
@@ -1117,9 +1098,7 @@ function buildStatusExplanation(
 		return `Idle — ${name} docked at stop ${idx !== undefined ? idx + 1 : '?'} but ${reasonText}.`
 	}
 	// Generic idle with unclear reason
-	const totalBlockReasons = Array.from(
-		new Set(stops.flatMap((s) => s.blockReasons))
-	)
+	const totalBlockReasons = Array.from(new Set(stops.flatMap((s) => s.blockReasons)))
 	if (totalBlockReasons.length > 0) {
 		return `Idle — ${totalBlockReasons.map((r) => r.replace(/_/g, ' ')).join(', ')}.`
 	}

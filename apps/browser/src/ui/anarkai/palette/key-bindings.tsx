@@ -175,11 +175,7 @@ export function AnarkaiPaletteKeyBindingsEditor(props: AnarkaiPaletteKeyBindings
 								class="ak-palette-keybindings__command"
 								data-role="palette-keybinding-command"
 								value={row.commandId}
-								onChange={(event: Event) => {
-									const target = event.currentTarget
-									if (!(target instanceof HTMLSelectElement)) return
-									setRowCommand(row.id, target.value)
-								}}
+								update:value={(v: string) => setRowCommand(row.id, v)}
 							>
 								<for each={view.commands}>
 									{(entry: PaletteCommandBoxEntry) => (

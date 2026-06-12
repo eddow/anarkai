@@ -122,8 +122,7 @@ function isConfigNameAvailable(name: string): boolean {
 }
 
 export default function StorageConfiguration(props: StorageConfigurationProps) {
-	const draft = reactive({
-		bufferStars: {} as Partial<Record<GoodType, number>>,
+	const preset = reactive({
 		selectedPreset: SPECIFIC_PRESET,
 		presetName: '',
 	})
@@ -199,8 +198,8 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 				}
 			}
 		}
-		draft.selectedPreset = name
-		draft.presetName = name
+		preset.selectedPreset = name
+		preset.presetName = name
 	}
 
 	const loadPresetIfNamed = (value: string): boolean => {
@@ -213,46 +212,42 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 	}
 
 	const handlePresetInput = (value: string) => {
-		draft.presetName = value
+		preset.presetName = value
 		loadPresetIfNamed(value)
 	}
 
-	const handlePresetSelection = () => {
-		loadPresetIfNamed(draft.presetName)
-	}
-
 	const handlePresetCommit = () => {
-		const name = draft.presetName.trim()
+		const name = preset.presetName.trim()
 		if (!name) {
 			clearPreset()
 			return
 		}
 		if (loadPresetIfNamed(name)) return
 
-		if (draft.selectedPreset !== SPECIFIC_PRESET) {
-			if (renameConfig(draft.selectedPreset, name)) {
-				draft.selectedPreset = name
-				draft.presetName = name
+		if (preset.selectedPreset !== SPECIFIC_PRESET) {
+			if (renameConfig(preset.selectedPreset, name)) {
+				preset.selectedPreset = name
+				preset.presetName = name
 			}
 			return
 		}
 
 		saveConfig(name, currentConfigSnapshot(name))
-		draft.selectedPreset = name
-		draft.presetName = name
+		preset.selectedPreset = name
+		preset.presetName = name
 	}
 
 	const clearPreset = () => {
-		draft.selectedPreset = SPECIFIC_PRESET
-		draft.presetName = ''
+		preset.selectedPreset = SPECIFIC_PRESET
+		preset.presetName = ''
 	}
 
 	// Sync selected preset when settings change externally
 	effect`storage-configuration:preset-sync`(() => {
 		const matched = currentConfigName()
-		if (draft.selectedPreset !== SPECIFIC_PRESET && matched !== draft.selectedPreset) {
-			draft.selectedPreset = SPECIFIC_PRESET
-			draft.presetName = ''
+		if (preset.selectedPreset !== SPECIFIC_PRESET && matched !== preset.selectedPreset) {
+			preset.selectedPreset = SPECIFIC_PRESET
+			preset.presetName = ''
 		}
 	})
 
@@ -367,18 +362,6 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 		setBufferFromStars(gt, 0)
 	}
 
-	effect`storage-configuration:buffer-draft-sync`(() => {
-		for (const goodType of bufferedGoods()) {
-			draft.bufferStars[goodType] = getBufferStars(goodType)
-		}
-		const activeGoods = new Set(bufferedGoods())
-		for (const goodType of Object.keys(draft.bufferStars) as GoodType[]) {
-			if (!activeGoods.has(goodType)) {
-				delete draft.bufferStars[goodType]
-			}
-		}
-	})
-
 	return (
 		<div class="storage-config">
 			{/* Config Preset Row */}
@@ -387,9 +370,8 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 					<input
 						class="config-preset-input"
 						type="text"
-						value={draft.presetName}
+						value={preset.presetName}
 						update:value={handlePresetInput}
-						onChange={handlePresetSelection}
 						onBlur={handlePresetCommit}
 						list={presetListId}
 						placeholder={T.storage.configSpecific}
@@ -399,7 +381,7 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 						<for each={applicableConfigs()}>{(config) => <option value={config.name} />}</for>
 					</datalist>
 					<button
-						if={draft.presetName}
+						if={preset.presetName}
 						type="button"
 						class="config-preset-clear"
 						onClick={clearPreset}
@@ -462,11 +444,10 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 						renderItemExtra={(good) => (
 							<div class="buffer-stars-container">
 								<Stars
-									value={draft.bufferStars[good] ?? getBufferStars(good)}
+									value={getBufferStars(good)}
 									maximum={5}
 									onChange={(v: StarsValue) => {
 										const nextStars = typeof v === 'number' ? v : v[1]
-										draft.bufferStars[good] = nextStars
 										setBufferFromStars(good, nextStars)
 									}}
 									size="1rem"

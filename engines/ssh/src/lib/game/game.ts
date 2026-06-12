@@ -24,13 +24,13 @@ import {
 import { Tile, type TileTerrainState } from 'ssh/board/tile'
 import type { NamedZoneDefinition, Zone } from 'ssh/board/zone'
 import { createZoneObjectForUid } from 'ssh/board/zone-object'
-import { isConstructionSiteShell } from 'ssh/build-site'
+import { cleanupStaleReservationsOnAllSites, isConstructionSiteShell } from 'ssh/build-site'
 import {
 	createNpcSettlementTradeProfile,
 	createSettlementTradeObjectForUid,
 	type NpcSettlementTradeProfile,
 } from 'ssh/commerce/settlement-trade'
-import { createConstructionShell, applyConstructionConcreteTerrain } from 'ssh/construction-shell'
+import { applyConstructionConcreteTerrain, createConstructionShell } from 'ssh/construction-shell'
 import {
 	type ConstructionPhase,
 	constructionTargetFromProject,
@@ -40,10 +40,6 @@ import {
 	VARIANT_DELIMITER,
 } from 'ssh/construction-state'
 import { BayQueueRegistry } from 'ssh/freight/bay-queue-registry'
-import {
-	cancelVehicleReservationsOnSites,
-	cleanupStaleReservationsOnAllSites,
-} from 'ssh/build-site'
 import type { FreightLineDefinition, SyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import {
 	collectFreightLineBootstrapCoords,
@@ -590,9 +586,9 @@ export class Game extends Eventful<GameEvents> {
 		if (!resolved) return false
 
 		// Find nearest common ancestor between current and target variant paths
-		const currentSegments = (
-			(content as { variant?: string }).variant ?? ''
-		).split('.').filter(Boolean)
+		const currentSegments = ((content as { variant?: string }).variant ?? '')
+			.split('.')
+			.filter(Boolean)
 		const targetSegments = (variant ?? '').split('.').filter(Boolean)
 
 		let commonCount = 0
@@ -613,8 +609,7 @@ export class Game extends Eventful<GameEvents> {
 		if (stepIndex >= chain.length) {
 			// Target is the common ancestor itself (or we're clearing back to root).
 			// Just create the finished alveolus at that ancestor.
-			const ancestorVariantId =
-				targetSegments.slice(0, commonCount).join('.') || undefined
+			const ancestorVariantId = targetSegments.slice(0, commonCount).join('.') || undefined
 			const alv = createAlveolus(alveolusType, tile, ancestorVariantId)
 			if (!alv) return false
 			applyConstructionConcreteTerrain(tile)
@@ -2434,11 +2429,7 @@ export class Game extends Eventful<GameEvents> {
 			const constructionTarget = constructionTargetFromProject(entry.project)
 			if (!constructionTarget) continue
 			// Attach variant from the save if not already parsed from the project string
-			if (
-				entry.variant &&
-				constructionTarget.kind === 'alveolus' &&
-				!constructionTarget.variant
-			) {
+			if (entry.variant && constructionTarget.kind === 'alveolus' && !constructionTarget.variant) {
 				;(constructionTarget as { variant?: string }).variant = entry.variant
 			}
 			const constructionSite = createConstructionSiteState(constructionTarget)

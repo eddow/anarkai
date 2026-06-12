@@ -161,11 +161,23 @@ export const chopSaw = {
 		],
 	},
 	vehicles: [
+		// TODO: replace uids by indexes in serializations
 		{
-			// TODO: replace uids by indexes in serializations
-			uid: 'ChopSaw:wheelbarrow',
+			uid: 'ChopSaw:wheelbarrow1',
 			vehicleType: 'wheelbarrow',
 			position: { q: -1, r: 1 },
+			servedLineIds: ['ChopSaw:implicit-gather:0,0'],
+		},
+		{
+			uid: 'ChopSaw:wheelbarrow2',
+			vehicleType: 'wheelbarrow',
+			position: { q: -1, r: 2 },
+			servedLineIds: ['ChopSaw:implicit-gather:0,0'],
+		},
+		{
+			uid: 'ChopSaw:wheelbarrow3',
+			vehicleType: 'wheelbarrow',
+			position: { q: -2, r: 2 },
 			servedLineIds: ['ChopSaw:implicit-gather:0,0'],
 		},
 		{

@@ -1,15 +1,12 @@
 import { css } from '@app/lib/css'
-import { activeWorldViewPov } from '@app/lib/interactive-state'
 import { game } from '@app/lib/globals'
+import { activeWorldViewPov } from '@app/lib/interactive-state'
 import { InspectorSection } from '@app/ui/anarkai'
 import { effect, reactive } from 'mutts'
-import {
-	type SettlementPriceEntry,
-	compareSettlementPrices,
-} from 'ssh/commerce/settlement-trade'
 import type { NpcSettlementTradeProfile } from 'ssh/commerce/settlement-trade'
-import { axial } from 'ssh/utils'
+import { compareSettlementPrices, type SettlementPriceEntry } from 'ssh/commerce/settlement-trade'
 import type { AxialCoord } from 'ssh/utils'
+import { axial } from 'ssh/utils'
 
 const MAX_SETTLEMENTS = 8
 
@@ -100,11 +97,16 @@ const CommercialOverviewWidget = () => {
 		}
 		const rows: PriceRow[] = []
 		for (const good of goods) {
-			const sources = (comparison.cheapestSources as Record<string, SettlementPriceEntry[]>)[good] ?? []
+			const sources =
+				(comparison.cheapestSources as Record<string, SettlementPriceEntry[]>)[good] ?? []
 			const sinks = (comparison.bestSinks as Record<string, SettlementPriceEntry[]>)[good] ?? []
 			rows.push({ good, cheapestSource: sources[0], bestSink: sinks[0] })
 		}
-		return { rows, profileCount: profiles.length, totalCount: game.listSettlementTradeProfiles().length }
+		return {
+			rows,
+			profileCount: profiles.length,
+			totalCount: game.listSettlementTradeProfiles().length,
+		}
 	}
 
 	// Trigger settlement generation near camera when opened
@@ -143,22 +145,20 @@ const CommercialOverviewWidget = () => {
 									<tr>
 										<td>{row.good}</td>
 										<td>
-											<span
-												if={!!row.cheapestSource}
-												class="commercial-overview__price-source"
-											>
+											<span if={!!row.cheapestSource} class="commercial-overview__price-source">
 												{row.cheapestSource?.settlementName} {row.cheapestSource?.priceVp} vp
 											</span>
-											<span else class="commercial-overview__empty">—</span>
+											<span else class="commercial-overview__empty">
+												—
+											</span>
 										</td>
 										<td>
-											<span
-												if={!!row.bestSink}
-												class="commercial-overview__price-sink"
-											>
+											<span if={!!row.bestSink} class="commercial-overview__price-sink">
 												{row.bestSink?.settlementName} {row.bestSink?.priceVp} vp
 											</span>
-											<span else class="commercial-overview__empty">—</span>
+											<span else class="commercial-overview__empty">
+												—
+											</span>
 										</td>
 									</tr>
 								)}

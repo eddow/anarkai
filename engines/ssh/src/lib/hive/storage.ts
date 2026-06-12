@@ -366,11 +366,23 @@ export class StorageAlveolus extends Alveolus {
 
 				const plannedQty = (this.storage.stock[goodType] ?? 0) + this.storage.allocated(goodType)
 				const bufferQty = rule.minSlots * capacity
+				const maxAllowedQty = (rule.minSlots + rule.maxSlots) * capacity
+
+				if (plannedQty > maxAllowedQty && this.canGive(goodType, '2-use')) {
+					relations[goodType] = {
+						advertisement: 'provide',
+						priority: '2-use',
+					}
+					continue
+				}
 
 				if (plannedQty > bufferQty && this.canGive(goodType, '0-store')) {
 					relations[goodType] = {
 						advertisement: 'provide',
-						priority: '0-store',
+						// When buffer=0 the storage is configured to keep none of this good —
+						// use 1-buffer so the surplus can reach 1-buffer demanders (piles, transforms)
+						// instead of being locked to 0-store-only matching.
+						priority: bufferQty > 0 ? '0-store' : '1-buffer',
 					}
 					continue
 				}
@@ -396,7 +408,7 @@ export class StorageAlveolus extends Alveolus {
 					}
 					continue
 				}
-				if (plannedQty < maxAmount && plannedQty < bufferAmount) {
+				if (plannedQty < maxAmount && this.canTake(goodType, '1-buffer')) {
 					relations[goodType] = {
 						advertisement: 'demand',
 						priority: '1-buffer',
@@ -423,6 +435,7 @@ export class StorageAlveolus extends Alveolus {
 			generalSlots,
 			this.slottedRemainingSlotBudget(config.goods)
 		)
+		this.hive?.invalidateAdvertisement?.(this, 'alveolus.config')
 	}
 
 	setSlottedGoodConfiguration(
@@ -436,6 +449,7 @@ export class StorageAlveolus extends Alveolus {
 				config.generalSlots,
 				this.slottedRemainingSlotBudget(config.goods)
 			)
+			this.hive?.invalidateAdvertisement?.(this, 'alveolus.config')
 			return
 		}
 
@@ -451,6 +465,7 @@ export class StorageAlveolus extends Alveolus {
 			maxSlots: nextMaxSlots,
 		}
 		this.normalizeEditableSlottedConfiguration()
+		this.hive?.invalidateAdvertisement?.(this, 'alveolus.config')
 	}
 
 	removeSlottedGoodConfiguration(goodType: GoodType): void {
@@ -460,6 +475,7 @@ export class StorageAlveolus extends Alveolus {
 			config.generalSlots,
 			this.slottedRemainingSlotBudget(config.goods)
 		)
+		this.hive?.invalidateAdvertisement?.(this, 'alveolus.config')
 	}
 
 	private get slottedDefinition(): { slots: number; capacity: number } {

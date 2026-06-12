@@ -91,124 +91,130 @@ css`
 `
 
 export interface VariantOption {
-  value: string
-  label: string
-  badgeSprite?: string
+	value: string
+	label: string
+	badgeSprite?: string
 }
 
 /** Map internal variant segment keys to display names. */
 const variantNameOverrides: Record<string, string> = {
-  extra: 'Reinforced',
+	extra: 'Reinforced',
 }
 
 /** Turn a variant segment key into a display label. */
 export function variantDisplayLabel(key: string): string {
-  const override = variantNameOverrides[key]
-  if (override) return override
-  return key
-    .replace(/[._]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+	const override = variantNameOverrides[key]
+	if (override) return override
+	return key
+		.replace(/[._]+/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim()
+		.replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 
 interface VariantPickerProps {
-  options: readonly VariantOption[]
-  value: string
-  onChange: (value: string) => void
-  rootLabel?: string
-  /** Hide the root (∅) button when a variant is already active. */
-  hideRoot?: boolean
-  /** Root type key (e.g. 'engineer') for looking up the current variant badge directly. */
-  typeKey?: string
+	options: readonly VariantOption[]
+	value: string
+	onChange: (value: string) => void
+	rootLabel?: string
+	/** Hide the root (∅) button when a variant is already active. */
+	hideRoot?: boolean
+	/** Root type key (e.g. 'engineer') for looking up the current variant badge directly. */
+	typeKey?: string
 }
 
 const VariantPicker = (props: VariantPickerProps) => {
-  const selectedOption = () =>
-    props.value ? props.options.find((opt) => opt.value === props.value) : undefined
-  const selectedBadge = () =>
-    selectedOption()?.badgeSprite ??
-    (props.value && props.typeKey
-      ? variantBadges[`${props.typeKey}.${props.value}`]?.sprites?.[0]
-      : undefined)
-  const selectedTitle = () =>
-    selectedOption()?.label ??
-    (props.value ? variantDisplayLabel(props.value.split('.').pop() ?? props.value) : (props.rootLabel ?? 'Root'))
+	const selectedOption = () =>
+		props.value ? props.options.find((opt) => opt.value === props.value) : undefined
+	const selectedBadge = () =>
+		selectedOption()?.badgeSprite ??
+		(props.value && props.typeKey
+			? variantBadges[`${props.typeKey}.${props.value}`]?.sprites?.[0]
+			: undefined)
+	const selectedTitle = () =>
+		selectedOption()?.label ??
+		(props.value
+			? variantDisplayLabel(props.value.split('.').pop() ?? props.value)
+			: (props.rootLabel ?? 'Root'))
 
-  const pick = (value: string, detailsEl: HTMLDetailsElement | null) => {
-    props.onChange(value)
-    if (detailsEl) detailsEl.open = false
-  }
+	const pick = (value: string, detailsEl: HTMLDetailsElement | null) => {
+		props.onChange(value)
+		if (detailsEl) detailsEl.open = false
+	}
 
-  const syncOpen = (detailsEl: HTMLDetailsElement) => {
-    const onDocClick = (e: MouseEvent) => {
-      if (!(e.target instanceof Node)) return
-      if (!detailsEl.contains(e.target)) detailsEl.open = false
-    }
-    document.addEventListener('click', onDocClick, true)
-    return () => document.removeEventListener('click', onDocClick, true)
-  }
+	const syncOpen = (detailsEl: HTMLDetailsElement) => {
+		const onDocClick = (e: MouseEvent) => {
+			if (!(e.target instanceof Node)) return
+			if (!detailsEl.contains(e.target)) detailsEl.open = false
+		}
+		document.addEventListener('click', onDocClick, true)
+		return () => document.removeEventListener('click', onDocClick, true)
+	}
 
-  return (
-    <div class="variant-picker">
-      <details use={syncOpen}>
-        <summary title={selectedTitle()}>
-          {selectedBadge() ? (
-            <ResourceImage
-              game={game}
-              sprite={selectedBadge()!}
-              width={18}
-              height={18}
-              alt={selectedTitle()}
-            />
-          ) : (
-            <span class="variant-picker__btn--root">∅</span>
-          )}
-        </summary>
-        <div class="variant-picker__panel">
-          <button
-            if={!props.hideRoot}
-            type="button"
-            class="variant-picker__btn variant-picker__btn--root"
-            data-selected={!props.value ? 'true' : 'false'}
-            title={props.rootLabel ?? 'Root'}
-            onClick={(event) => {
-              const details = (event.currentTarget as HTMLElement).closest('details') as HTMLDetailsElement | null
-              pick('', details)
-            }}
-          >
-            ∅
-          </button>
-          <for each={props.options}>
-            {(opt) => (
-              <button
-                type="button"
-                class="variant-picker__btn"
-                data-selected={props.value === opt.value ? 'true' : 'false'}
-                title={opt.label}
-                onClick={(event) => {
-                  const details = (event.currentTarget as HTMLElement).closest('details') as HTMLDetailsElement | null
-                  pick(opt.value, details)
-                }}
-              >
-                {opt.badgeSprite ? (
-                  <ResourceImage
-                    game={game}
-                    sprite={opt.badgeSprite}
-                    width={18}
-                    height={18}
-                    alt={opt.label}
-                  />
-                ) : (
-                  <span>{opt.label.slice(0, 2)}</span>
-                )}
-              </button>
-            )}
-          </for>
-        </div>
-      </details>
-    </div>
-  )
+	return (
+		<div class="variant-picker">
+			<details use={syncOpen}>
+				<summary title={selectedTitle()}>
+					{selectedBadge() ? (
+						<ResourceImage
+							game={game}
+							sprite={selectedBadge()!}
+							width={18}
+							height={18}
+							alt={selectedTitle()}
+						/>
+					) : (
+						<span class="variant-picker__btn--root">∅</span>
+					)}
+				</summary>
+				<div class="variant-picker__panel">
+					<button
+						if={!props.hideRoot}
+						type="button"
+						class="variant-picker__btn variant-picker__btn--root"
+						data-selected={!props.value ? 'true' : 'false'}
+						title={props.rootLabel ?? 'Root'}
+						onClick={(event) => {
+							const details = (event.currentTarget as HTMLElement).closest(
+								'details'
+							) as HTMLDetailsElement | null
+							pick('', details)
+						}}
+					>
+						∅
+					</button>
+					<for each={props.options}>
+						{(opt) => (
+							<button
+								type="button"
+								class="variant-picker__btn"
+								data-selected={props.value === opt.value ? 'true' : 'false'}
+								title={opt.label}
+								onClick={(event) => {
+									const details = (event.currentTarget as HTMLElement).closest(
+										'details'
+									) as HTMLDetailsElement | null
+									pick(opt.value, details)
+								}}
+							>
+								{opt.badgeSprite ? (
+									<ResourceImage
+										game={game}
+										sprite={opt.badgeSprite}
+										width={18}
+										height={18}
+										alt={opt.label}
+									/>
+								) : (
+									<span>{opt.label.slice(0, 2)}</span>
+								)}
+							</button>
+						)}
+					</for>
+				</div>
+			</details>
+		</div>
+	)
 }
 
 export default VariantPicker

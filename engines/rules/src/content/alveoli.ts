@@ -140,7 +140,7 @@ export const alveoli = {
 				variants: {
 					extra: {
 						construction: {
-							goods: { steel: 3, planks: 5  },
+							goods: { steel: 3, planks: 5 },
 							time: 6,
 						},
 						action: { type: 'storage', kind: 'specific', goods: { planks: 48 } },

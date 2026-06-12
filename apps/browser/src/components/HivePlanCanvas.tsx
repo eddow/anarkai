@@ -1,5 +1,5 @@
 import { assetManager } from 'engine-pixi/asset-manager'
-import { alveoli as visualAlveoli, variantBadges } from 'engine-pixi/assets/visual-content'
+import { variantBadges, alveoli as visualAlveoli } from 'engine-pixi/assets/visual-content'
 import { effect } from 'mutts'
 import { Application, Container, Graphics, Sprite, Texture } from 'pixi.js'
 import type { HivePlan, HivePlanStructuralIssue } from 'ssh/hive-plan'

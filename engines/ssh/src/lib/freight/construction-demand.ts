@@ -41,7 +41,9 @@ export function freightConstructionDemandTarget(
 		return {
 			storage: content.storage,
 			remainingNeeds: content.remainingNeeds as Partial<Record<GoodType, number>>,
-			effectiveRemainingNeeds: effectiveRemainingNeeds(content) as Partial<Record<GoodType, number>>,
+			effectiveRemainingNeeds: effectiveRemainingNeeds(content) as Partial<
+				Record<GoodType, number>
+			>,
 			destroyed: content.destroyed,
 			isReady: content.isReady,
 		}

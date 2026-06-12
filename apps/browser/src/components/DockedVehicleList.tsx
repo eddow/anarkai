@@ -87,27 +87,24 @@ const DockedVehicleList = (props: DockedVehicleListProps) => {
 				{(entry) => {
 					const lineObj = lineSyntheticObject(props.game, entry)
 					return (
-					<div class="docked-vehicle-list__item" data-testid="docked-vehicle-row">
-						<div class="docked-vehicle-list__item-main">
-							<LinkedEntityControl object={entry.vehicle} />
-							<InspectorObjectLink object={entry.vehicle} />
-							<span if={props.showLineMeta} class="docked-vehicle-list__meta">
-								<InspectorObjectLink
-									if={!!lineObj}
-									object={lineObj}
-									label={lineObj?.title}
-								/>
-								{' · '}{stopLabel()} {entry.stop.id}
-							</span>
+						<div class="docked-vehicle-list__item" data-testid="docked-vehicle-row">
+							<div class="docked-vehicle-list__item-main">
+								<LinkedEntityControl object={entry.vehicle} />
+								<InspectorObjectLink object={entry.vehicle} />
+								<span if={props.showLineMeta} class="docked-vehicle-list__meta">
+									<InspectorObjectLink if={!!lineObj} object={lineObj} label={lineObj?.title} />
+									{' · '}
+									{stopLabel()} {entry.stop.id}
+								</span>
+							</div>
+							<div
+								class="docked-vehicle-list__cargo-summary"
+								data-testid="docked-vehicle-cargo-summary"
+							>
+								<span class="docked-vehicle-list__cargo-summary-label">{cargoLabel()}:</span>{' '}
+								{cargoSummary(entry)}
+							</div>
 						</div>
-						<div
-							class="docked-vehicle-list__cargo-summary"
-							data-testid="docked-vehicle-cargo-summary"
-						>
-							<span class="docked-vehicle-list__cargo-summary-label">{cargoLabel()}:</span>{' '}
-							{cargoSummary(entry)}
-						</div>
-					</div>
 					)
 				}}
 			</for>

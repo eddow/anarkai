@@ -252,12 +252,10 @@ export class InventoryFunctions {
 		}
 
 		if (totalAmount <= 0) {
-			// If we wanted to drop specific goods but couldn't (e.g. storage full or we don't have them)
-			// But wait, earlier we check `available` in transport.
-			// If we don't have the goods, `available` is 0.
-			// If destination is full, `canStore` is 0.
+			// If we wanted to drop specific goods but couldn't (e.g. storage full or we don't have them).
+			// Log a trace warning and return an idle plan so callers can recover gracefully instead of
+			// crashing the script (e.g. zone-browse provide on a tile whose storage filled mid-route).
 
-			// Check why totalAmount is 0
 			const reasons: string[] = []
 			for (const [goodType, requestedQuantity] of Object.entries(goods) as [GoodType, number][]) {
 				if (!requestedQuantity || requestedQuantity <= 0) continue
@@ -267,9 +265,15 @@ export class InventoryFunctions {
 				const canStore = content.storage?.hasRoom(goodType) || 0
 				if (canStore <= 0) reasons.push(`No room for ${goodType} in target`)
 			}
-			throw new Error(
-				`Cannot drop goods: ${reasons.join(', ') || 'Unknown reason'} (requested: ${JSON.stringify(goods)}, available: ${JSON.stringify(transport.availables)}, target-room: ${JSON.stringify(content.storage?.logInfo || 'no-storage')})`
-			)
+			traces.vehicle.warn?.('planDropStored: no transfer possible (returning idle)', {
+				reasons: reasons.join(', ') || 'Unknown reason',
+				requested: goods,
+				availables: transport.availables,
+				targetRoom: content.storage?.logInfo || 'no-storage',
+				characterUid: character.uid,
+				characterName: character.name,
+			})
+			return { type: 'idle' as const, duration: 0 }
 		}
 
 		// Return plan without allocations - they will be created when the drop is
@@ -309,7 +313,16 @@ export class InventoryFunctions {
 		}
 
 		if (totalAmount <= 0) {
-			throw new Error(`No goods to grab from ${source} (requested: ${JSON.stringify(goods)})`)
+			traces.vehicle.warn?.('planGrabStored: no transfer possible (returning idle)', {
+				requested: goods,
+				characterUid: character.uid,
+				characterName: character.name,
+				transportRoom: Object.fromEntries(
+					(Object.keys(goods) as GoodType[]).map((g) => [g, transport.hasRoom(g)])
+				),
+				sourceAvailables: content.storage?.availables,
+			})
+			return { type: 'idle' as const, duration: 0 }
 		}
 
 		// Create allocations immediately using commitment

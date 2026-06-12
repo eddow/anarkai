@@ -7,9 +7,9 @@ import { T } from '@app/lib/i18n'
 import { Badge, InspectorSection } from '@app/ui/anarkai'
 import { lazy } from '@sursaut/core'
 import {
+	variantBadges,
 	alveoli as visualAlveoli,
 	dwellings as visualDwellings,
-	variantBadges,
 } from 'engine-pixi/assets/visual-content'
 import { effect, reactive } from 'mutts'
 import * as gameContent from 'ssh/assets/game-content'
@@ -23,8 +23,7 @@ import { isConstructionSiteShell } from 'ssh/build-site'
 import { queryConstructionSiteView } from 'ssh/construction'
 import { BuildAlveolus } from 'ssh/hive/build'
 import { TransformAlveolus } from 'ssh/hive/transform'
-import type { GoodType } from 'ssh/types/base'
-import type { AlveolusType } from 'ssh/types/base'
+import type { AlveolusType, GoodType } from 'ssh/types/base'
 import { computeStyleFromTexture } from 'ssh/utils/images'
 import { toAxialCoord } from 'ssh/utils/position'
 import ConstructionProgressBar from '../ConstructionProgressBar'
@@ -334,9 +333,7 @@ const AlveolusTileHeader = (props: AlveolusTileHeaderProps) => {
 			// Filter out pure degradation: ancestors of the current variant
 			// and the current variant itself (no-op).
 			const isAncestor = (optValue: string) =>
-				optValue !== '' &&
-				(current === optValue ||
-					current.startsWith(optValue + '.'))
+				optValue !== '' && (current === optValue || current.startsWith(`${optValue}.`))
 			return all.filter((opt) => !isAncestor(opt.value))
 		},
 		get hasVariants() {
@@ -602,9 +599,14 @@ const BuildDwellingTileDetails = (props: BuildDwellingTileDetailsProps) => {
 			<PropertyGridRow if={model.dwellingConstruction.show} label={String(T.construction.section)}>
 				<div style="display:grid; gap:0.5rem; width:100%;">
 					<div style="display:flex; flex-wrap:wrap; gap:0.25rem; align-items:center;">
-						<span>{model.dwellingConstruction.phaseLabel}</span>					<span if={model.dwellingConstruction.targetDisplay.length > 0} style="color: var(--ak-accent, #8b5cf6);">
-						 · {model.dwellingConstruction.targetDisplay}
-					</span>						<for each={model.dwellingConstruction.blocking}>
+						<span>{model.dwellingConstruction.phaseLabel}</span>{' '}
+						<span
+							if={model.dwellingConstruction.targetDisplay.length > 0}
+							style="color: var(--ak-accent, #8b5cf6);"
+						>
+							· {model.dwellingConstruction.targetDisplay}
+						</span>{' '}
+						<for each={model.dwellingConstruction.blocking}>
 							{(text) => <span style="color: var(--ak-text-muted)"> · {text}</span>}
 						</for>
 					</div>

@@ -208,7 +208,7 @@ export function createConstructionRecipe(
 	if (target.kind === 'alveolus') {
 		const resolved = resolveAlveolusVariant(target.alveolusType, target.variant)
 		if (resolved) {
-			const idx = stepIndex ?? (resolved.ancestorChain.length - 1)
+			const idx = stepIndex ?? resolved.ancestorChain.length - 1
 			const recipe = resolved.ancestorChain[idx]
 			if (recipe) {
 				return {

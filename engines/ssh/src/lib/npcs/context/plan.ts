@@ -2,6 +2,12 @@
 import { type HexBoard, isTileCoord } from 'ssh/board'
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
+import {
+	type ConstructionSiteShell,
+	cancelVehicleInTransitReservations,
+	isStandaloneConstructionSiteShell,
+	reserveInTransit,
+} from 'ssh/build-site'
 import { assertVehicleOperationConsistency } from 'ssh/freight/vehicle-invariants'
 import { releaseVehicleFreightWorkOnPlanInterrupt } from 'ssh/freight/vehicle-run'
 import { allocateVehicleServiceForJob } from 'ssh/freight/vehicle-work'
@@ -388,6 +394,32 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 		Object.assign(plan, {
 			assignedWorker: character,
 		})
+
+		// Reserve in-transit delivery on construction sites so concurrent wheelbarrows on
+		// the same line cannot double-book the same demand (zone-browse provide).
+		if (
+			'zoneBrowseAction' in plan &&
+			plan.zoneBrowseAction === 'provide' &&
+			plan.goodType &&
+			'quantity' in plan &&
+			typeof plan.quantity === 'number' &&
+			plan.quantity > 0 &&
+			'targetCoord' in plan &&
+			plan.targetCoord
+		) {
+			const coord = toAxialCoord(plan.targetCoord)
+			if (coord) {
+				const tile = character.game.hex.getTile(coord)
+				if (tile && isStandaloneConstructionSiteShell(tile.content)) {
+					const shell = tile.content
+					const quantity = plan.quantity
+					// Expiry generous enough for wheelbarrow delivery: 60 s from now.
+					const expiresAt = character.game.ticker.elapsedMS + 60_000
+					reserveInTransit(shell, plan.vehicleUid, plan.goodType, quantity, expiresAt)
+					;(plan as WorkPlan & { _inTransitSite?: ConstructionSiteShell })._inTransitSite = shell
+				}
+			}
+		}
 	},
 
 	cancel(plan: WorkPlan, character: Character) {
@@ -421,6 +453,14 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 			if (character.assignedAlveolus === plan.target) {
 				character.assignedAlveolus = undefined
 			}
+		}
+		// Release in-transit reservation whether the plan completed or was cancelled.
+		// (vehicle.endService also cleans up, but plan-finalize handles earlier cancellation.)
+		const inTransitSite = (plan as WorkPlan & { _inTransitSite?: ConstructionSiteShell })
+			._inTransitSite
+		if (inTransitSite && 'vehicleUid' in plan) {
+			cancelVehicleInTransitReservations(inTransitSite, plan.vehicleUid)
+			delete (plan as WorkPlan & { _inTransitSite?: ConstructionSiteShell })._inTransitSite
 		}
 	},
 }

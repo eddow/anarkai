@@ -1161,8 +1161,6 @@ class WorkFunctions {
 		})
 	}
 
-
-
 	@contract()
 	plantTreeStep() {
 		const forester = this[subject].assignedAlveolus

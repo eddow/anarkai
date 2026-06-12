@@ -402,11 +402,11 @@ const PlanManagerWidget = (props: { title?: string }) => {
 							<input
 								value={selectedPlan()?.name ?? ''}
 								disabled={selectedPlan()?.stage !== 'draft'}
-								onInput={(event) => {
+								update:value={(v: string) => {
 									const plan = selectedPlan()
 									if (!plan) return
 									applyDraftPatch(plan, {
-										name: (event.currentTarget as HTMLInputElement).value,
+										name: v,
 									})
 								}}
 							/>
@@ -439,11 +439,11 @@ const PlanManagerWidget = (props: { title?: string }) => {
 						<input
 							value={selectedEntry()?.roleId ?? ''}
 							disabled={selectedPlan()?.stage !== 'draft'}
-							onInput={(event) => {
+							update:value={(v: string) => {
 								const entry = selectedEntry()
 								if (!entry) return
 								setEntry(entry.roleId, {
-									roleId: (event.currentTarget as HTMLInputElement).value,
+									roleId: v,
 								})
 							}}
 						/>
@@ -451,11 +451,11 @@ const PlanManagerWidget = (props: { title?: string }) => {
 						<select
 							value={selectedEntry()?.alveolusType ?? ''}
 							disabled={selectedPlan()?.stage !== 'draft'}
-							onChange={(event) => {
+							update:value={(v: string) => {
 								const entry = selectedEntry()
 								if (!entry) return
 								setEntry(entry.roleId, {
-									alveolusType: (event.currentTarget as HTMLSelectElement).value as AlveolusType,
+									alveolusType: v as AlveolusType,
 									configuration: undefined,
 									variant: undefined,
 								})
@@ -463,35 +463,30 @@ const PlanManagerWidget = (props: { title?: string }) => {
 						>
 							<for each={alveolusTypes}>{(type) => <option value={type}>{type}</option>}</for>
 						</select>
-						<label
-							if={planEntryVariantOptions(selectedEntry()?.alveolusType ?? '').length > 0}
-						>
+						<label if={planEntryVariantOptions(selectedEntry()?.alveolusType ?? '').length > 0}>
 							Variant
 						</label>
 						<select
 							if={planEntryVariantOptions(selectedEntry()?.alveolusType ?? '').length > 0}
-						disabled={selectedPlan()?.stage !== 'draft'}
-						onChange={(event) => {
-							const entry = selectedEntry()
-							if (!entry) return
-							const newValue = (event.currentTarget as HTMLSelectElement).value
-							setEntry(entry.roleId, {
-								variant: newValue || undefined,
-							})
-						}}
-					>
-						<option value="" selected={!selectedEntry()?.variant}>
-							(none)
-						</option>
-						<for each={planEntryVariantOptions(selectedEntry()?.alveolusType ?? '')}>
-							{(opt) => (
-								<option
-									value={opt.value}
-									selected={selectedEntry()?.variant === opt.value}
-								>
-									{opt.label}
-								</option>
-							)}
+							disabled={selectedPlan()?.stage !== 'draft'}
+							update:value={(v: string) => {
+								const entry = selectedEntry()
+								if (!entry) return
+								const newValue = v
+								setEntry(entry.roleId, {
+									variant: newValue || undefined,
+								})
+							}}
+						>
+							<option value="" selected={!selectedEntry()?.variant}>
+								(none)
+							</option>
+							<for each={planEntryVariantOptions(selectedEntry()?.alveolusType ?? '')}>
+								{(opt) => (
+									<option value={opt.value} selected={selectedEntry()?.variant === opt.value}>
+										{opt.label}
+									</option>
+								)}
 							</for>
 						</select>
 						<label>Configuration</label>
@@ -502,13 +497,10 @@ const PlanManagerWidget = (props: { title?: string }) => {
 									: ''
 							}
 							disabled={selectedPlan()?.stage !== 'draft'}
-							onChange={(event) => {
+							update:value={(v: string) => {
 								const entry = selectedEntry()
 								if (!entry) return
-								setEntryNamedConfiguration(
-									entry.roleId,
-									(event.currentTarget as HTMLSelectElement).value
-								)
+								setEntryNamedConfiguration(entry.roleId, v)
 							}}
 						>
 							<option value="">Hive/default config</option>
