@@ -96,14 +96,15 @@ function vehicleTransferAtCurrentTile(jobPlan)
 end function
 
 function vehicleHop(jobPlan)
-	if jobPlan.approachPath and jobPlan.approachPath.length > 0 then
+	if jobPlan.approachPath then
 		walk.until jobPlan.approachPath
-		walk.enter
-		vehicle.vehicleApproachStep jobPlan
-		if jobPlan.vehicleApproachAborted then
-			walk.pause
-			return
-		end if
+	end if
+	walk.enter
+	walk.moveTo vehicle.vehicleEffectivePosition(jobPlan)
+	vehicle.vehicleApproachStep jobPlan
+	if jobPlan.vehicleApproachAborted then
+		walk.pause
+		return
 	end if
 	if jobPlan.needsBeginService then
 		vehicle.vehicleBeginServiceStep jobPlan

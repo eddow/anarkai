@@ -6,6 +6,28 @@ import { describe, expect, it } from 'vitest'
 import { bindOperatedWheelbarrowOffload } from '../test-engine/vehicle-bind'
 
 describe('Character.stepOn hex adjacency', () => {
+	it('keeps tile occupancy stable while foot position lerps across a border', async () => {
+		const game = new Game(
+			{ terrainSeed: 9401, characterCount: 0 },
+			{
+				tiles: [
+					{ coord: [0, 0] as const, terrain: 'grass' as const },
+					{ coord: [1, 0] as const, terrain: 'grass' as const },
+				],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		const character = game.population.createCharacter('Walker', { q: 0, r: 0 })
+		character.position = { q: 0.6, r: 0 } as typeof character.position
+
+		expect(axial.key(toAxialCoord(character.tile.position)!)).toBe('0,0')
+		expect(toAxialCoord(character.position)).toMatchObject({ q: 0.6, r: 0 })
+
+		game.destroy()
+	})
+
 	it('allows stepping from a fractional axial midpoint onto a neighbor tile (walk.until pattern)', async () => {
 		const gen = { terrainSeed: 9401, characterCount: 0 }
 		const patches = {

@@ -21,7 +21,7 @@ export const traceLevels: Record<string, TraceVerb> = {
 	advertising: 'warn',
 	allocations: 'warn',
 	commitments: 'warn',
-	convey: 'log',
+	convey: 'warn',
 	residential: 'warn',
 	work: 'warn',
 	script: 'warn',

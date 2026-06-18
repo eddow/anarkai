@@ -86,6 +86,7 @@ import type { AlveolusType, DepositType, GoodType, TerrainType } from 'ssh/types
 import type { GameRenderer, InputAdapter } from 'ssh/types/engine'
 import type { AxialCoord } from 'ssh/utils'
 import { axial } from 'ssh/utils/axial'
+import { Clock } from 'ssh/utils/clock'
 import { SimulationLoop } from 'ssh/utils/loop'
 import { LCG } from 'ssh/utils/numbers'
 import { toAxialCoord } from 'ssh/utils/position'
@@ -472,6 +473,8 @@ export class Game extends Eventful<GameEvents> {
 	public readonly hex: HexBoard
 	public readonly generator: GameGenerator
 	public readonly ticker: SimulationLoop
+	/** Pure-dt event scheduler for timed simulation steps (characters, transforms, etc.). */
+	public readonly clock!: Clock
 	/** Bay queue registry — created at bootstrap, integrated into the ticker. */
 	public readonly bayQueueRegistry: BayQueueRegistry
 	private tickedObjects = new Set<{ update(deltaSeconds: number): void }>()
@@ -544,9 +547,6 @@ export class Game extends Eventful<GameEvents> {
 		this.invalidateWorkPlanning('player-account.balance.credit')
 	}
 
-	public readonly clock = reactive({
-		virtualTime: 0,
-	})
 	private readonly traceTimeSource = () => this.clock.virtualTime
 	private clearTraceTimeSource: (() => void) | undefined
 	public loaded: Promise<void>
@@ -1067,8 +1067,11 @@ export class Game extends Eventful<GameEvents> {
 		const deltaSeconds = ((gameRootSpeed * timer.elapsedMS) / 1000) * speedFactor
 		if (deltaSeconds > gameMaxTickDeltaSeconds) return // debugger / tab-freeze guard
 
-		this.clock.virtualTime += deltaSeconds
+		// Character steps & future off-clock periodic entries via clock
+		this.clock.advance(deltaSeconds)
 
+		// Legacy ticked objects (UnBuiltLand, LooseGoods, ResidentialDemandTicker, bay queue)
+		// — to be migrated to clock.setInterval later
 		for (const object of this.tickedObjects) {
 			if ('destroyed' in object && object.destroyed) continue
 			object.update(deltaSeconds)
@@ -1092,6 +1095,7 @@ export class Game extends Eventful<GameEvents> {
 		}
 		this.clearTraceTimeSource = setTraceTimeSource(this.traceTimeSource)
 		this.ticker = new SimulationLoop()
+		this.clock = new Clock()
 		this.loaded = this.load()
 		// Create rendererReady promise that will be resolved when renderer is initialized
 		this.rendererReady = new Promise((resolve) => {

@@ -45,6 +45,7 @@ import type { WorkPlan } from '.'
 import { getConveyDuration, getConveyVisualMovements, rebindConveyMovementRows } from './convey'
 import { cleanupFailedConveyMovement, type FailedConveyMovementData } from './convey-cleanup'
 import { ConveyStaleBookkeepingError } from './convey-errors'
+import { characterWalkDuration } from './walk'
 
 /**
  * Runtime snapshot for a single convey sub-movement.
@@ -262,9 +263,7 @@ function harvestGiveUp(character: Character, expectedDeposit: string): AEvolutio
 	}
 
 	const targetTile = hex.getTile(bestNeighbor)!
-	const distance = axial.distance(from, bestNeighbor)
-	const walkDuration =
-		character.tile.effectiveWalkTime * character.mobilityMultiplier * Math.max(1, distance)
+	const walkDuration = characterWalkDuration(character, character.position, targetTile.position)
 	traces.work.warn?.('work.harvestStep.giveUp.move', {
 		character: character.name,
 		characterUid: character.uid,
@@ -272,7 +271,7 @@ function harvestGiveUp(character: Character, expectedDeposit: string): AEvolutio
 		fromR: from.r,
 		toQ: bestNeighbor.q,
 		toR: bestNeighbor.r,
-		distance,
+		distance: axial.distance(from, bestNeighbor),
 		alveolusQ: alveolusCoord.q,
 		alveolusR: alveolusCoord.r,
 	})
@@ -283,10 +282,7 @@ function harvestGiveUp(character: Character, expectedDeposit: string): AEvolutio
 		'work',
 		'harvest.give-up.move',
 		{ key: 'work.harvest.wait' }
-	).onFulfilled(() => {
-		;(character as unknown as { _tile: typeof targetTile })._tile = targetTile
-		character.game.invalidateWorkPlanning('character.position')
-	})
+	)
 }
 
 class WorkFunctions {
@@ -383,21 +379,9 @@ class WorkFunctions {
 		const to = toAxialCoord(targetTile.position)
 		if (!from || !to) return
 		if (axial.key(axial.round(from)) === axial.key(axial.round(to))) return
-		const duration =
-			character.tile.effectiveWalkTime *
-			character.mobilityMultiplier *
-			Math.max(1, axial.distance(axial.round(from), axial.round(to)))
+		const duration = characterWalkDuration(character, from, to)
 		if (!Number.isFinite(duration) || duration <= epsilon) return
-		return new MoveToStep(
-			duration,
-			character,
-			targetTile.position,
-			'walk',
-			`walk.${workPlan.job}`
-		).onFulfilled(() => {
-			;(character as unknown as { _tile: typeof targetTile })._tile = targetTile
-			character.game.invalidateWorkPlanning('character.position')
-		})
+		return new MoveToStep(duration, character, targetTile.position, 'walk', `walk.${workPlan.job}`)
 	}
 
 	@contract('string?')
@@ -1146,8 +1130,7 @@ class WorkFunctions {
 		if (distance <= 0) {
 			return this.harvestStep()
 		}
-		const walkDuration =
-			character.tile.effectiveWalkTime * character.mobilityMultiplier * Math.max(1, distance)
+		const walkDuration = characterWalkDuration(character, character.position, targetTile.position)
 		return new MoveToStep(
 			walkDuration,
 			character,
@@ -1155,10 +1138,7 @@ class WorkFunctions {
 			'work',
 			`harvest.${character.assignedAlveolus!.name}.replan`,
 			{ key: 'work.harvest', params: { alveolus: character.assignedAlveolus!.name } }
-		).onFulfilled(() => {
-			;(character as unknown as { _tile: typeof targetTile })._tile = targetTile
-			character.game.invalidateWorkPlanning('character.position')
-		})
+		)
 	}
 
 	@contract()

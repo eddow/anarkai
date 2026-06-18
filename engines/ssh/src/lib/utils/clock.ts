@@ -14,6 +14,8 @@
 
 // ─── Clocked ───────────────────────────────────────────────────────────────
 
+import type { Game } from 'ssh/game/game'
+
 /**
  * A step that participates in the simulation clock.
  *
@@ -22,9 +24,12 @@
  * The clock stores them so `begin(newStep, ds)` can cancel/replace them.
  */
 export interface Clocked {
+	/** The owning game. Provides access to `game.clock` for scheduling next steps. */
+	readonly game: Game
+
 	/**
 	 * Delta-seconds until completion.
-	 * Should be computed by the clock on serialization time: TODO
+	 * Should be computed by the clock on serialization time.
 	 */
 	readonly remainingDs: number
 
@@ -63,6 +68,12 @@ interface ClockEntry {
 
 export class Clock {
 	/**
+	 * Cumulative virtual time in seconds. Updated by each {@link advance} call.
+	 * The renderer reads this for UI clock display.
+	 */
+	public virtualTime = 0
+
+	/**
 	 * Sorted list. Entry N expires at
 	 * `entries[0].relDs + entries[1].relDs + … + entries[N].relDs`
 	 * delta-seconds from now.
@@ -87,20 +98,19 @@ export class Clock {
 	 */
 	advance(ds: number): void {
 		this.serializationTimes = undefined
+		this.virtualTime += ds
 		if (ds <= 0 || this.list.length === 0) return
 
 		let remaining = ds
 		this.partiallyProgressed = { freshEntries: new WeakMap(), partialDs: 0 }
 
-		while (this.list.length && remaining > 0) {
+		while (this.list.length > 0) {
 			const head = this.list[0]!
 
-			if (!Number.isFinite(head.relDs)) {
-				// Off-clock entries at head — nothing timed to advance
-				break
-			}
+			if (!Number.isFinite(head.relDs)) break
 
 			if (head.relDs > remaining + 1e-9) {
+				if (remaining <= 0) break // nothing left to advance
 				// Head spans further than remaining ds: partial progress
 				head.relDs -= remaining
 				remaining = 0
@@ -135,12 +145,16 @@ export class Clock {
 		this.serializationTimes = undefined
 		this.remove(step)
 
-		if (ds === undefined) this.list.push({ relDs: Number.POSITIVE_INFINITY, step })
-		else if (ds <= 0) step.complete()
-		else {
+		if (ds === undefined) {
+			// Off-clock: never auto-completed
+			this.list.push({ relDs: Number.POSITIVE_INFINITY, step })
+		} else {
+			// Timed: always insert — even ds ≤ 0 goes through the normal
+			// advance() flow. Never call complete() synchronously.
+			const effDs = Math.max(0, ds)
 			if (this.partiallyProgressed)
 				this.partiallyProgressed.freshEntries.set(step, this.partiallyProgressed.partialDs)
-			this.insert(ds, step)
+			this.insert(effDs, step)
 		}
 	}
 

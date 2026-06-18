@@ -666,9 +666,7 @@ describe('edge cases', () => {
 		clock.advance(2.0)
 
 		const completeTags = calls.filter((c) => c.type === 'complete').map((c) => c.tag)
-		expect(completeTags).toEqual([
-			's9', 's1', 's5', 's3', 's7', 's0', 's4', 's8', 's2', 's6',
-		])
+		expect(completeTags).toEqual(['s9', 's1', 's5', 's3', 's7', 's0', 's4', 's8', 's2', 's6'])
 	})
 
 	it('progress ds matches the advance ds, not step duration', () => {

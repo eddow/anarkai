@@ -1,22 +1,21 @@
 function until(path)
-	didMove = false
 	for step in path
 	// TODO: What if walkability changed (building, ...)
 		if step and tile.position != step then
 			targetTile = tileAt(step)
 			if targetTile.position.q == step.q and targetTile.position.r == step.r then
-				didMove = true
 				midPoint = lerp(tile.position, step, 1/2)
 				walk.moveTo midPoint
 				walk.stepOn targetTile
 			else
-				didMove = true
 				walk.moveTo step
 			end if
 		end if
 	end for
-	// Yield once so callers that replan to a same/no-op path do not busy-spin in one tick.
-	walk.pause
+	last = path[path.length - 1]
+	if last and tile.position != last then
+		walk.moveTo last
+	end if
 end function
 
 function into(path)

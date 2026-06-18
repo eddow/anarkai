@@ -39,7 +39,7 @@ import { releaseAllHomeReservations } from 'ssh/residential/housing-reservations
 import type { Storage } from 'ssh/storage'
 import type { GoodType, Job, WorkPlan } from 'ssh/types/base'
 import { type AxialCoord, axial, type Positioned } from 'ssh/utils'
-import { type Position, toAxialCoord } from 'ssh/utils/position'
+import { type Position, toAxialCoord, xyDistance } from 'ssh/utils/position'
 import {
 	applyNeedRate,
 	characterEvolutionRates,
@@ -239,6 +239,21 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		this._operatedVehicle = vehicle
 	}
 	private _footPosition?: Position
+	/**
+	 * Reactive counter incremented every time the position setter writes a new
+	 * value. Mutts effects track this so the visual position re-reads
+	 * `_footPosition` even when the proxy is replaced (not mutated).
+	 */
+	private _positionVersion = reactive({ n: 0 })
+	/**
+	 * Snapshot of the character position *before* the current setter call.
+	 * Used by {@link set position} to assert that no teleport occurs within
+	 * a single clock advance — regardless of which step or method triggered
+	 * the position write.
+	 */
+	private _lastPositionBeforeSet?: Position
+	/** Virtual time of the last position write, from {@link Game.clock.virtualTime}. */
+	private _lastPositionTime = 0
 	private _scriptsContext?: any
 	public get scriptsContext() {
 		return (this._scriptsContext ??= aCharacterContext(this))
@@ -254,6 +269,10 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	}
 
 	get position(): Position {
+		// Touch the version counter so Mutts effects that read this.position
+		// re-run every time the setter writes a new value — even when the
+		// _footPosition proxy is replaced (not mutated in-place).
+		void this._positionVersion.n
 		return this._footPosition ?? this.operates?.effectivePosition ?? this._tile.position
 	}
 
@@ -287,7 +306,43 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		}
 	}
 
+	/**
+	 * Set the character position. **Must only be called from within an {@link ASingleStep}**
+	 * (via {@link MoveToStep.lerp} or {@link MultiMoveStep.evolve}) — never abruptly or inline.
+	 *
+	 * Abrupt position sets break the contract that visual interpolation and tile occupancy are
+	 * driven exclusively by step evolution. The setter handles three modes:
+	 * - **Foot position** (on foot): writes `_footPosition`; tile occupancy changes only via `stepOn`.
+	 * - **No operates, no foot**: recovers a foot position from a stale state.
+	 * - **Driving** (`operates` set, no `_footPosition`): delegates to the vehicle's position;
+	 *   hex changes update `_tile` from the vehicle's effective tile.
+	 */
 	set position(value: Position) {
+		// ── Global teleport assertion ──────────────────────────────────────
+		// Every position write — whether from MoveToStep.lerp, MultiMoveStep.evolve,
+		// onboard(), regainFootPosition(), or an abrupt inline assignment — must
+		// pass a per-frame velocity check.  This catches teleports that slip past
+		// step-level guards.
+		if (this._lastPositionBeforeSet) {
+			const ds = this.game.clock.virtualTime - this._lastPositionTime
+			if (ds > 0) {
+				const moved = xyDistance(this._lastPositionBeforeSet, value)
+				// 2000 px/s is ~38 hex/s at tileSize=30 — far beyond any
+				// legitimate walk speed even with 2× clock jitter margin.
+				const maxAllowed = Math.max(1, 2000 * ds * 2)
+				assert(
+					moved <= maxAllowed + 1e-3,
+					`Character.position: teleport — moved ${moved.toFixed(1)} px ` +
+						`in ${ds.toFixed(4)} s (max ${maxAllowed.toFixed(1)} px) ` +
+						`from ${axial.key(axial.round(toAxialCoord(this._lastPositionBeforeSet)!))} ` +
+						`to ${axial.key(axial.round(toAxialCoord(value)!))}`
+				)
+			}
+		}
+		this._lastPositionBeforeSet = { ...value }
+		this._lastPositionTime = this.game.clock.virtualTime
+		// ── End teleport assertion ────────────────────────────────────────
+
 		traces.position.log?.(
 			'character.position.set.before',
 			this.positionTracePayload('before', value)
@@ -296,11 +351,12 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		const nextCoord = axial.round(toAxialCoord(value)!)
 		const changedTile = axial.key(previousCoord) !== axial.key(nextCoord)
 		if (this._footPosition) {
+			// Replace the reactive proxy — Mutts effects tracking the old proxy
+			// would lose dirty notifications.  The `position` getter touches
+			// `_positionVersion`, whose increment here forces the visual effect
+			// to re-run and re-track the new proxy every frame.
 			this._footPosition = reactive(value)
-			if (changedTile) {
-				this._tile = this.game.hex.getTile(nextCoord)!
-				this.game.invalidateWorkPlanning('character.position')
-			}
+			this._positionVersion.n++
 			traces.position.log?.('character.position.set.after', this.positionTracePayload('after'))
 			return
 		}
@@ -350,11 +406,17 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 	onboard(): void {
 		const vehicle = this.operates
 		assert(vehicle, 'Character must have operates before boarding')
+		// Check the visual position (foot position when on foot) — after
+		// `walk.moveTo vehicle.vehicleEffectivePosition(jobPlan)` in vehicle.npcs,
+		// _footPosition is at the vehicle's hex. _tile may still be at the path
+		// endpoint (adjacent to the vehicle) because the position setter no longer
+		// mutates _tile during interpolation; _tile only transitions via stepOn().
 		const characterHex = axial.round(toAxialCoord(this.position)!)
 		const vehicleHex = axial.round(toAxialCoord(vehicle.effectivePosition)!)
 		assert(
 			axial.key(characterHex) === axial.key(vehicleHex),
-			`Character must be at vehicle position before boarding`
+			`Character must be at vehicle position before boarding ` +
+				`(${axial.key(characterHex)} vs ${axial.key(vehicleHex)})`
 		)
 		// While onboard, character position is fully delegated to the operated vehicle.
 		this._footPosition = undefined
@@ -367,6 +429,12 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		const previousTile = this._tile
 		this._footPosition = reactive({ ...position })
 		if (axial.key(toAxialCoord(previousTile.position)!) === axial.key(coord)) {
+			traces.position.log?.('character.tile.set.regainFootPosition.same', {
+				uid: this.uid,
+				name: this.name,
+				fromTilePos: positionDebugCoord(previousTile.position),
+				toTilePos: positionDebugCoord(tile.position),
+			})
 			this._tile = tile
 			this.game.invalidateWorkPlanning('character.position')
 			return
@@ -375,12 +443,24 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		if (queueStep) {
 			if (!this.stepExecutor) {
 				this.stepExecutor = queueStep.onFulfilled(() => {
+					traces.position.log?.('character.tile.set.regainFootPosition.queueFulfilled', {
+						uid: this.uid,
+						name: this.name,
+						fromTilePos: positionDebugCoord(previousTile.position),
+						toTilePos: positionDebugCoord(tile.position),
+					})
 					this._tile = tile
 					this.game.invalidateWorkPlanning('character.position')
 				})
 			}
 			return
 		}
+		traces.position.log?.('character.tile.set.regainFootPosition', {
+			uid: this.uid,
+			name: this.name,
+			fromTilePos: positionDebugCoord(previousTile.position),
+			toTilePos: positionDebugCoord(tile.position),
+		})
 		this._tile = tile
 		this.game.invalidateWorkPlanning('character.position')
 	}
@@ -446,10 +526,23 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		this.disengageVehicleKeepingService()
 	}
 
-	/** Attempt to step onto a tile, managing board occupancy. */
+	/**
+	 * Step onto a tile while the character's position is on the border between hexes.
+	 * No position changes — only `_tile` transitions via `game.hex.moveCharacter`.
+	 *
+	 * Callers (`.npcs` via `walk.stepOn`) must place the character at the lerp midpoint
+	 * between adjacent tile centers before invoking. The canonical pattern in walk.npcs:
+	 *
+	 * ```
+	 * midPoint = lerp(tile.position, step, 1/2)
+	 * walk.moveTo midPoint
+	 * walk.stepOn targetTile
+	 * ```
+	 *
+	 * @returns `undefined` if the step succeeded immediately, or a `QueueStep` if the
+	 *          target tile is occupied and the character must wait in queue.
+	 */
 	stepOn(tile: Tile) {
-		// Discrete hex adjacency: fractional lerp positions (e.g. `walk.until` midpoints) must not
-		// spuriously fail the old float `axialDistance > 1.1` guard on otherwise valid neighbor steps.
 		const curAx = toAxialCoord(this.position)
 		const destAx = toAxialCoord(tile.position)
 		if (!curAx || !destAx) return false
@@ -458,13 +551,23 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		if (axial.distance(here, there) > 1) return false
 		const fromPos = this.driving && this.operates ? this.position : this._tile.position
 		const queue = this.game.hex.moveCharacter(this, tile.position, fromPos)
-		if (queue)
-			return queue.onFulfilled(() => {
-				this._tile = tile
-				this.game.invalidateWorkPlanning('character.position')
+		const commit = () => {
+			traces.position.log?.('character.tile.set.stepOn', {
+				uid: this.uid,
+				name: this.name,
+				fromTilePos: positionDebugCoord(this._tile.position),
+				toTilePos: positionDebugCoord(tile.position),
+				footPosition: positionDebugCoord(this._footPosition),
 			})
-		this._tile = tile
-		this.game.invalidateWorkPlanning('character.position')
+			// Only swap tile occupancy — do NOT snap _footPosition to the tile
+			// center.  The caller (walk.until) left the character at the lerp
+			// midpoint between adjacent tiles, and the next walk.moveTo will
+			// continue smoothly from there to the following midpoint.
+			this._tile = tile
+			this.game.invalidateWorkPlanning('character.position')
+		}
+		if (queue) return queue.onFulfilled(commit)
+		commit()
 	}
 
 	get title(): string {
@@ -878,8 +981,6 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			this.fatigue = applyNeedRate(this.fatigue, -rates.fatigue, deltaSeconds)
 			this.tiredness = applyNeedRate(this.tiredness, -rates.tiredness, deltaSeconds)
 		}
-
-		super.update(deltaSeconds)
 	}
 
 	@inert

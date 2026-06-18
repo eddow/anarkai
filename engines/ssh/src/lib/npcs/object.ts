@@ -4,8 +4,9 @@ import {
 	releaseVehicleFreightWorkOnPlanInterrupt,
 	type VehicleFreightInterruptSubject,
 } from 'ssh/freight/vehicle-run'
-import type { Game, GameObject, TickedGameObject, withTicked } from 'ssh/game'
-import { assert, traces } from '../dev/debug.ts'
+import type { Game, GameObject } from 'ssh/game'
+import type { Clock, Clocked } from 'ssh/utils/clock'
+import { traces } from '../dev/debug.ts'
 import {
 	loopEntriesForNpcTrace,
 	npcSubjectSnapshot,
@@ -14,43 +15,7 @@ import {
 	summarizeScriptRunValueKind,
 } from './npc-diagnostics'
 import { getGameScript, ScriptExecution, scriptExecutionErrorDiagnostic } from './scripts'
-import {
-	ASingleStep,
-	PonderingStep,
-	stepPassesFullRemainingOnComplete,
-	type TextKey,
-} from './steps'
-
-function currentStepExecutor(target: { stepExecutor?: ASingleStep }): ASingleStep | undefined {
-	return target.stepExecutor
-}
-
-function debugStepSnapshot(step: ASingleStep | undefined) {
-	if (!step) return undefined
-	const serialized = (() => {
-		try {
-			return step.serialize()
-		} catch (error) {
-			return {
-				serializeError: error instanceof Error ? error.message : String(error),
-			}
-		}
-	})()
-	return {
-		type: step.constructor.name,
-		status:
-			step.ended === undefined
-				? 'not-begun'
-				: step.ended === false
-					? 'begun'
-					: step.ended === true
-						? 'fulfilled'
-						: 'cancelled',
-		description: step.description,
-		fullRemainingOnComplete: stepPassesFullRemainingOnComplete(step.constructor),
-		serialized,
-	}
-}
+import { AEvolutionStep, ASingleStep, PonderingStep, type TextKey } from './steps'
 
 function assertScriptExecution(value: unknown, context: string): asserts value is ScriptExecution {
 	if (value instanceof ScriptExecution) return
@@ -59,7 +24,7 @@ function assertScriptExecution(value: unknown, context: string): asserts value i
 	)
 }
 
-export function withScripted<T extends abstract new (...args: any[]) => TickedGameObject>(Base: T) {
+export function withScripted<T extends abstract new (...args: any[]) => GameObject>(Base: T) {
 	@unreactive('runningScripts')
 	abstract class ScriptedMixin extends Base {
 		constructor(...args: any[]) {
@@ -72,7 +37,7 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 					if (!firstAction) return
 					if (firstAction instanceof ASingleStep) {
 						this.stepExecutor = firstAction
-						this.nextStep()
+						this.beginStep(firstAction)
 					} else {
 						this.begin(firstAction)
 					}
@@ -145,11 +110,32 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 					runningScripts: this.runningScripts.map((script) =>
 						summarizeScriptExecutionForInfiniteFail(script)
 					),
+					stepExecutor: this.stepExecutor?.constructor.name,
+					runningScriptName: this.runningScript?.name,
+					runningScriptState: this.runningScript?.state,
 				}
 				traces.script.error?.('script.makeRun.error', diagnostic)
 				throw error
 			}
 		}
+		/**
+		 * Schedule a timed step on the game clock, or register off-clock.
+		 * Sets onComplete to trigger nextStep() when the step finishes.
+		 */
+		beginStep(step: ASingleStep): void {
+			const gameClock = (this as unknown as { game: { clock: Clock } }).game.clock
+			step.onComplete = () => {
+				this.stepExecutor = undefined
+				this.nextStep()
+				if (this.stepExecutor) this.beginStep(this.stepExecutor)
+			}
+			if (step instanceof AEvolutionStep) {
+				gameClock.begin(step as unknown as Clocked, step.duration)
+			} else {
+				gameClock.begin(step as unknown as Clocked)
+			}
+		}
+
 		nextStep() {
 			if (this.stepExecutor) throw new Error('Cannot begin a new script while another is running')
 			if (!this.runningScripts.length) {
@@ -232,105 +218,27 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 			if (loopCount.length >= 100) throw new Error('nextStep loop count limit exceeded')
 		}
 
-		update(dt: number) {
-			if (!this.stepExecutor && !this.runningScripts.length) {
-				this.nextStep()
-			}
-
-			// If we're in a long ponder/rest step but already standing on a legal wild offload tile with
-			// stock in active transport, prefer draining the buffer now — `findAction` won't run until the
-			// ponder step completes, which can stall gameplay/tests for a long time.
-			if (
-				this.stepExecutor instanceof PonderingStep ||
-				this.stepExecutor?.constructor?.name === 'PonderingStep'
-			) {
-				const subject = this as unknown as {
-					maybeTransportOffloadDrain?: () => ScriptExecution | false
-				}
-				const drain = subject.maybeTransportOffloadDrain?.()
-				if (drain) {
-					this.stepExecutor.cancel('offload-drain')
-					this.stepExecutor = undefined
-					if (drain instanceof ASingleStep) {
-						this.stepExecutor = drain
-					} else {
-						assertScriptExecution(drain, 'maybeTransportOffloadDrain result')
-						this.begin(drain)
-					}
-					return
-				}
-			}
-
-			let remaining: number | undefined = dt
-			let uselessStepExecutor: Function | undefined
-			while (remaining !== undefined && this.stepExecutor) {
-				const previousStepExecutor = this.stepExecutor
-				const previousStepBeforeTick = debugStepSnapshot(previousStepExecutor)
-				const newRemaining = previousStepExecutor.tick(remaining)
-				if (typeof newRemaining === 'number' && !Number.isFinite(newRemaining)) debugger
-				if (
-					newRemaining === remaining &&
-					previousStepExecutor &&
-					!stepPassesFullRemainingOnComplete(previousStepExecutor.constructor)
-				) {
-					uselessStepExecutor = previousStepExecutor.constructor
-				} else {
-					// Step consumed time — reset the useless-step tracker so it
-					// doesn't leak across time-consuming steps and cause false positives.
-					uselessStepExecutor = undefined
-				}
-				remaining = newRemaining
-				if (remaining !== undefined) {
-					assert(
-						previousStepExecutor.ended === true || typeof previousStepExecutor.ended === 'string',
-						'Step executor is not pending'
-					)
-					//console.log(`[update] ${this.name}: finished step ${previousStepExecutor.constructor.name}, remaining dt ${remaining}`);
-					this._lastCompletedStepType = previousStepExecutor.constructor.name
-					this.stepExecutor = undefined
-					this.nextStep()
-					const repeatedStepExecutor = currentStepExecutor(this)
-					const newType = repeatedStepExecutor?.constructor
-					if (uselessStepExecutor && repeatedStepExecutor && uselessStepExecutor === newType) {
-						console.error('Useless step executor detected:', {
-							object: (this as any).name ?? (this as any).uid ?? 'unknown',
-							dt,
-							remainingBeforeTick: remaining,
-							newRemaining,
-							stepType: newType?.name,
-							previousStepBeforeTick,
-							previousStepAfterTick: debugStepSnapshot(previousStepExecutor),
-							repeatedStep: debugStepSnapshot(repeatedStepExecutor),
-							lastCompletedStepType: this._lastCompletedStepType,
-							runningScripts: this.runningScripts.map((s) => ({
-								name: s.name,
-								state: s.state,
-							})),
-							actionDescription: this.actionDescription,
-						})
-						// Cancel the stuck step to trigger cleanup callbacks and prevent allocation leaks
-						repeatedStepExecutor.cancel('useless-step')
-						this.stepExecutor = undefined
-						throw new Error(`Useless step executor: ${newType.name}`)
-					}
-				}
-			}
-		}
 		begin(exec: ScriptExecution) {
 			if (this.stepExecutor) throw new Error('Cannot begin a new script while another is running')
 			assertScriptExecution(exec, 'begin() argument')
 			this.runningScripts.unshift(exec)
 			this.nextStep()
+			if (this.stepExecutor) this.beginStep(this.stepExecutor)
 		}
 		abandonAnd(exec: ScriptExecution | ASingleStep) {
-			if (this.stepExecutor) this.stepExecutor.cancel('abandon')
+			if (this.stepExecutor) {
+				this.stepExecutor.cancel('abandon')
+				;(this as unknown as { game: { clock: Clock } }).game.clock.remove(
+					this.stepExecutor as unknown as Clocked
+				)
+			}
 			for (const script of this.runningScripts) script.cancel(this.scriptsContext)
 			this.runningScripts.splice(0, this.runningScripts.length)
 			this.stepExecutor = undefined
 			releaseVehicleFreightWorkOnPlanInterrupt(this as unknown as VehicleFreightInterruptSubject)
 			if (exec instanceof ASingleStep) {
 				this.stepExecutor = exec
-				this.nextStep()
+				this.beginStep(exec)
 			} else {
 				assertScriptExecution(exec, 'abandonAnd() argument')
 				this.begin(exec)
@@ -353,7 +261,12 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 		}
 
 		destroy() {
-			this.stepExecutor?.cancel('destroy')
+			if (this.stepExecutor) {
+				this.stepExecutor.cancel('destroy')
+				;(this as unknown as { game: { clock: Clock } }).game.clock.remove(
+					this.stepExecutor as unknown as Clocked
+				)
+			}
 			// Cancel all running scripts to free allocations
 			for (const script of this.runningScripts) {
 				// We don't care about the state returned by cancel here, we just want to free resources
@@ -410,6 +323,4 @@ export function withScripted<T extends abstract new (...args: any[]) => TickedGa
 	return ScriptedMixin
 }
 
-export type ScriptedObject = InstanceType<
-	ReturnType<typeof withScripted<ReturnType<typeof withTicked<typeof GameObject>>>>
->
+export type ScriptedObject = InstanceType<ReturnType<typeof withScripted<typeof GameObject>>>

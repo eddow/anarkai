@@ -25,6 +25,7 @@ import { assert, traces } from '../../dev/debug.ts'
 import { subject } from '../scripts'
 import { DurationStep, MoveToStep } from '../steps'
 import type { WorkPlan } from '.'
+import { characterWalkDuration } from './walk'
 
 type VehicleHopRunEndedReason = 'zone-complete-ended-run' | 'anchor-freight-drained-ended-run'
 
@@ -130,8 +131,7 @@ function moveTowardLiveDockStep(
 	const next = path?.find((step) => axial.key(axial.round(step)) !== axial.key(from))
 	if (!next) return undefined
 	const pathLen = path?.length ?? 0
-	const distance = Math.max(1, axial.distance(from, next))
-	const duration = character.tile.effectiveWalkTime * character.mobilityMultiplier * distance
+	const duration = characterWalkDuration(character, from, next)
 	if (!Number.isFinite(duration) || duration <= 0) return undefined
 	const dockCoord = vehicle.dockTile
 		? axial.round(toAxialCoord(vehicle.dockTile.position)!)
@@ -211,7 +211,20 @@ class VehicleFunctions {
 	declare [subject]: Character
 
 	/**
-	 * Finalizes a planned approach to a vehicle.
+	 * Returns the effective position of the vehicle referenced by the job plan.
+	 * Use before vehicleApproachStep to walk to the exact vehicle position.
+	 */
+	@contract('WorkPlan')
+	vehicleEffectivePosition(jobPlan: WorkPlan): { q: number; r: number } | undefined {
+		const character = this[subject] as Character
+		if (jobPlan.type !== 'work') return undefined
+		const vehicle = character.game.vehicles.vehicle(jobPlan.vehicleUid)
+		return vehicle?.effectivePosition as { q: number; r: number } | undefined
+	}
+
+	/**
+	 * Board the vehicle referenced by the job plan.
+	 * Requires the character to be at the vehicle position (completed walk steps).
 	 *
 	 * By the time this runs the planner has already selected the vehicle job. For fresh line service,
 	 * the service is attached here, after the character has reached the vehicle but before
@@ -249,6 +262,15 @@ class VehicleFunctions {
 			)
 		}
 		if (!character.driving) {
+			const ct = (character as any)._tile
+			const vp = vehicle.effectivePosition
+			traces.vehicle.log?.('vehicleJob.approach.preOnboard', {
+				characterUid: character.uid,
+				vehicleUid: vehicle.uid,
+				tileKey: ct ? axial.key(axial.round(toAxialCoord(ct.position)!)) : undefined,
+				vehicleKey: axial.key(axial.round(toAxialCoord(vp)!)),
+				footKey: axial.key(axial.round(toAxialCoord(character.position)!)),
+			})
 			character.operates = vehicle
 			character.onboard()
 		}

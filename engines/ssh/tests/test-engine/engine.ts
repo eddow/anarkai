@@ -89,14 +89,14 @@ export class TestEngine {
 	 * accesses the private tickedObjects of the game to update them.
 	 */
 	private step(delta: number) {
-		this.game.clock.virtualTime += delta
-		// Access private tickedObjects via type assertion
+		// Advance character steps & Clocked entries via the clock
+		this.game.clock.advance(delta)
+		// Legacy ticked objects (UnBuiltLand, LooseGoods, ResidentialDemandTicker, bay queue)
+		// — still on the old update(dt) path until migrated to clock.setInterval
 		const objects = (this.game as any).tickedObjects as Set<{
 			update(dt: number): void
 		}>
-		// console.log(`Step ${delta}: ${objects.size} ticked objects`);
 		for (const object of objects) {
-			// Skip destroyed objects
 			if ('destroyed' in object && (object as any).destroyed) continue
 			object.update(delta)
 		}

@@ -7,6 +7,7 @@ import type { Character } from 'ssh/population/character'
 import type { Storage } from 'ssh/storage'
 import type { GoodType } from 'ssh/types'
 import { casing } from 'ssh/utils'
+import type { Clocked } from 'ssh/utils/clock'
 import { axialDistance, type Position, type Positioned } from 'ssh/utils/position'
 import { activityDurations, needUpdate } from '../../../assets/constants'
 import { assert } from '../dev/debug.ts'
@@ -27,12 +28,32 @@ export interface TextKey {
 
 //#region Abstracts
 
-export abstract class ASingleStep extends Commitment {
+export abstract class ASingleStep extends Commitment implements Clocked {
 	/**
 	 * When true, fulfilling successfully makes `tick(dt)` return the full `dt` (no partial consumption).
 	 * Another instance of the same kind may legitimately follow in the same frame (e.g. a new queue wait).
 	 */
 	static readonly fullRemainingOnComplete: boolean = false
+
+	/** Called after complete() + fulfill(). Wires step → character.nextStep(). */
+	onComplete?: () => void
+
+	// ── Clocked implementation ──────────────────────────────────────────
+
+	get remainingDs(): number {
+		return this.game.clock.serializeTime(this as unknown as Clocked) ?? 0
+	}
+
+	abstract progress(ds: number): void
+
+	complete(): undefined {
+		if (this.ended === true || typeof this.ended === 'string') return undefined
+		this.fulfill()
+		this.onComplete?.()
+		return undefined
+	}
+
+	// ── Existing API ────────────────────────────────────────────────────
 
 	get description(): string | false {
 		return casing(this.constructor.name).transform((terms) => {
@@ -48,11 +69,17 @@ export abstract class ASingleStep extends Commitment {
 	}
 
 	/**
-	 * Called each frame to update the step
-	 * @param dt Time since last frame
+	 * Called each frame to update the step.
+	 * @deprecated Use progress(ds) + complete() via the Clock instead.
 	 * @returns Time remaining after finishing the step, or undefined if the step is not yet finished
 	 */
-	abstract tick(dt: number): number | undefined
+	tick(dt: number): number | undefined {
+		if (dt === 0) return undefined
+		this.progress(dt)
+		// Off-clock steps (QueueStep, WaitForPredicateStep) may complete during progress.
+		if (this.ended === true || typeof this.ended === 'string') return 0
+		return undefined
+	}
 	abstract readonly type: Ssh.ActivityType
 
 	static deserialize(
@@ -151,8 +178,11 @@ export class QueueStep<Entity extends ScriptedObject> extends ASingleStep {
 		queue.push(waiter)
 		const waiting = effect`queue.wait`(() => {
 			if (queue[0] === waiter) {
-				this.fulfill()
 				this.passed = true
+				// Only fulfill — don't chain nextStep() here.
+				// Chaining happens when complete() is called externally
+				// (e.g., from clock.pause or by the caller).
+				this.fulfill()
 				waiting()
 			}
 		})
@@ -161,8 +191,22 @@ export class QueueStep<Entity extends ScriptedObject> extends ASingleStep {
 		this.passed = true
 		this.fulfill()
 	}
-	tick(dt: number): number | undefined {
-		return this.passed ? dt : undefined
+	progress(_ds: number): void {
+		// Externally resolved: if already fulfilled, trigger chain exactly once.
+		// The clock calls progress() on off-clock entries every advance(); without
+		// this guard, onComplete would re-fire on every tick, resuming the script
+		// while a later step is still evolving.
+		if ((this.ended === true || typeof this.ended === 'string') && this.onComplete) {
+			const cb = this.onComplete
+			this.onComplete = undefined
+			cb()
+		}
+	}
+	complete(): undefined {
+		if (!this.passed) this.passed = true
+		if (this.ended !== true) this.fulfill()
+		this.onComplete?.()
+		return undefined
 	}
 	serialize(): SerializedStep {
 		return {
@@ -184,6 +228,23 @@ export abstract class AEvolutionStep extends ASingleStep {
 	}
 	evolution = 0
 	evolve(_evolution: number, _dt: number): void {}
+
+	/** Advance visual state without completing. Clamps evolution to avoid overshoot. */
+	progress(ds: number): void {
+		if (ds <= 0) return
+		const newEvolution = Math.min(1, this.evolution + ds / this.duration)
+		this.evolve(newEvolution, (newEvolution - this.evolution) / this.duration)
+		this.evolution = newEvolution
+	}
+
+	/** Write definitive state and fulfill. */
+	complete(): undefined {
+		this.evolve(1, (1 - this.evolution) / this.duration)
+		this.evolution = 1
+		return super.complete()
+	}
+
+	/** @deprecated Use progress(ds) + complete() via the Clock instead. */
 	tick(dt: number): number | undefined {
 		if (dt === 0) return undefined
 		this.evolution += dt / this.duration
@@ -253,6 +314,7 @@ export class MoveToStep extends ALerpStep<Positioned> {
 		super(duration, givenDescription ?? 'move-to', who.position, to)
 	}
 	override tick(dt: number): number | undefined {
+		// @deprecated — use progress(ds) + complete() via Clock instead
 		const before = { ...this.who.position }
 		const previousEvolution = this.evolution
 		const consumedDt = Math.max(0, Math.min(dt, (1 - previousEvolution) * this.duration))
@@ -268,6 +330,21 @@ export class MoveToStep extends ALerpStep<Positioned> {
 		)
 		return remaining
 	}
+	override progress(ds: number): void {
+		// Velocity assertion removed — the clock controls ds granularity,
+		// and hex rounding makes fractional axial distances unreliable for
+		// per-pixel boundary-crossing checks.  See Character.set position
+		// for the global per-frame teleport assertion.
+		super.progress(ds)
+	}
+	/**
+	 * Set the definitive position of the moved entity.
+	 *
+	 * This is the **only** path through which a character's `position` should change during
+	 * gameplay — no abrupt/inline `position = …` assignments should exist outside of
+	 * {@link ASingleStep} subclasses. {@link Character.set position} handles hex-crossing
+	 * detection and tile updates automatically.
+	 */
 	lerp(position: Positioned): void {
 		this.who.position = 'position' in position ? position.position : position
 	}
@@ -356,6 +433,12 @@ export class MultiMoveStep extends AEvolutionStep {
 			)
 		}
 	}
+	/**
+	 * Set the definitive position of each moved entity at the current evolution fraction.
+	 *
+	 * Like {@link MoveToStep.lerp}, this is the only path for multi-entity position changes
+	 * — never set `position` abruptly outside an {@link ASingleStep}.
+	 */
 	evolve(evolution: number): void {
 		this.beforeEvolve?.()
 		if (this.ended === true || typeof this.ended === 'string') return
@@ -428,12 +511,18 @@ export class WaitForPredicateStep extends ASingleStep {
 	override get descriptionKey(): TextKey | undefined {
 		return this.descriptionTextKey ?? super.descriptionKey
 	}
-	tick(dt: number): number | undefined {
+	progress(_ds: number): void {
 		if (!this.passed && this.predicate()) {
 			this.passed = true
+			this.complete()
+		}
+	}
+	complete(): undefined {
+		if (this.ended !== true) {
 			this.fulfill()
 		}
-		return this.passed ? dt : undefined
+		this.onComplete?.()
+		return undefined
 	}
 	serialize(): SerializedStep {
 		return {
