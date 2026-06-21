@@ -142,7 +142,6 @@ function moveTowardLiveDockStep(
 		jobPlan.type === 'work' && jobPlan.job === 'vehicleHop' ? jobPlan.lineId : undefined
 	const plannedStopId =
 		jobPlan.type === 'work' && jobPlan.job === 'vehicleHop' ? jobPlan.stopId : undefined
-	;(jobPlan as WorkPlan & { vehicleHopReplanRequired?: boolean }).vehicleHopReplanRequired = true
 	const logMethod = isNearDock ? traces.vehicle.warn : traces.vehicle.log
 	const message = isNearDock
 		? 'vehicleHopDockStep: recovering stale dock tail by moving toward dock'
@@ -217,7 +216,7 @@ class VehicleFunctions {
 	@contract('WorkPlan')
 	vehicleEffectivePosition(jobPlan: WorkPlan): { q: number; r: number } | undefined {
 		const character = this[subject] as Character
-		if (jobPlan.type !== 'work') return undefined
+		if (jobPlan.type !== 'work' || !('vehicleUid' in jobPlan)) return undefined
 		const vehicle = character.game.vehicles.vehicle(jobPlan.vehicleUid)
 		return vehicle?.effectivePosition as { q: number; r: number } | undefined
 	}
@@ -807,6 +806,7 @@ class VehicleFunctions {
 			{ [jobPlan.goodType]: jobPlan.quantity },
 			character.tile
 		)
+		if (drop.type === 'idle') return
 		const result = character.scriptsContext.inventory.effectuate(drop)
 		assertVehicleOperationConsistency(vehicle, character)
 		return result
@@ -835,6 +835,7 @@ class VehicleFunctions {
 			{ [jobPlan.goodType]: jobPlan.quantity },
 			character.tile
 		)
+		if (drop.type === 'idle') return
 		const result = character.scriptsContext.inventory.effectuate(drop)
 		// `EffectuateResult.finished` runs only on successful completion, not on cancel.
 		result.onFulfilled(() => {

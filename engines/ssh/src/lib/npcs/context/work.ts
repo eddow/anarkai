@@ -282,7 +282,12 @@ function harvestGiveUp(character: Character, expectedDeposit: string): AEvolutio
 		'work',
 		'harvest.give-up.move',
 		{ key: 'work.harvest.wait' }
-	)
+	).onFulfilled(() => {
+		// MoveToStep only updates the visual foot position; `_tile` must be
+		// transitioned explicitly so the next deposit search starts from the
+		// new tile. Use `stepOn` so board occupancy is tracked.
+		character.stepOn(targetTile)
+	})
 }
 
 class WorkFunctions {
@@ -381,7 +386,20 @@ class WorkFunctions {
 		if (axial.key(axial.round(from)) === axial.key(axial.round(to))) return
 		const duration = characterWalkDuration(character, from, to)
 		if (!Number.isFinite(duration) || duration <= epsilon) return
-		return new MoveToStep(duration, character, targetTile.position, 'walk', `walk.${workPlan.job}`)
+		// MoveToStep only updates the visual foot position; `_tile` must be
+		// transitioned explicitly when the move completes. Without this,
+		// `walk.enter` and `foundationStep`/`constructionStep` still see the
+		// origin tile (e.g. the engineer alveolus) and skip with
+		// `not-project-land`. Use `stepOn` so board occupancy is tracked.
+		return new MoveToStep(
+			duration,
+			character,
+			targetTile.position,
+			'walk',
+			`walk.${workPlan.job}`
+		).onFulfilled(() => {
+			character.stepOn(targetTile)
+		})
 	}
 
 	@contract('string?')
@@ -1138,7 +1156,12 @@ class WorkFunctions {
 			'work',
 			`harvest.${character.assignedAlveolus!.name}.replan`,
 			{ key: 'work.harvest', params: { alveolus: character.assignedAlveolus!.name } }
-		)
+		).onFulfilled(() => {
+			// MoveToStep only updates the visual foot position; `_tile` must be
+			// transitioned explicitly so `harvestStep` sees the deposit tile.
+			// Use `stepOn` so board occupancy is tracked.
+			character.stepOn(targetTile)
+		})
 	}
 
 	@contract()

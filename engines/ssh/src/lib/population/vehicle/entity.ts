@@ -19,7 +19,7 @@ import type { ProposedJob, VehicleProposedJob } from 'ssh/jobs/offers'
 import type { Storage } from 'ssh/storage'
 import type { GoodType } from 'ssh/types'
 import { axial } from 'ssh/utils'
-import { type Position, toAxialCoord } from 'ssh/utils/position'
+import { type Position, toAxialCoord, xyDistance } from 'ssh/utils/position'
 import { RevisionedCache } from 'ssh/utils/revisioned-cache'
 import { assert, profile, traces } from '../../dev/debug.ts'
 import { traceProjection } from '../../dev/trace.ts'
@@ -53,7 +53,23 @@ function sameAnchorStop(left: FreightStop, right: FreightStop): boolean {
 @reactive
 export class VehicleEntity extends withInteractive(GameObject) {
 	declare readonly storage: Storage
-	public position: Position | undefined
+	/**
+	 * Backing field for {@link position}.  Vehicle world position is managed
+	 * through the getter/setter below so that every write — whether from
+	 * {@link MoveToStep.lerp} (via the driving character's position setter),
+	 * {@link dock}, {@link undock}, or an inline assignment — passes the same
+	 * per-frame teleport assertion as {@link Character.set position}.
+	 */
+	private _position?: Position
+	/**
+	 * Snapshot of the vehicle position *before* the current setter call.
+	 * Used by {@link set position} to assert that no teleport occurs within
+	 * a single clock advance — regardless of which step or method triggered
+	 * the position write.
+	 */
+	private _lastPositionBeforeSet?: Position
+	/** Virtual time of the last position write, from {@link Game.clock.virtualTime}. */
+	private _lastPositionTime = 0
 	public servedLines: FreightLineDefinition[]
 	public service?: VehicleService
 	private readonly proposedJobsCache = new RevisionedCache<readonly VehicleProposedJob[]>()
@@ -65,6 +81,53 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		return this.service?.operator
 	}
 
+	/**
+	 * World position of the vehicle, or `undefined` when the vehicle is docked
+	 * (its position is then derived from {@link dockTile}).
+	 *
+	 * The setter applies the same per-frame teleport assertion as
+	 * {@link Character.set position}: every write must respect a maximum
+	 * velocity (~2000 px/s, ~38 hex/s).  Setting the position to `undefined`
+	 * (dock) bypasses the check, as does the very first write (no previous
+	 * snapshot).  This catches the "vehicle teleports back to the bay empty"
+	 * regression where a stale dock restoration overwrites an in-flight
+	 * driving position.
+	 */
+	get position(): Position | undefined {
+		return this._position
+	}
+
+	set position(value: Position | undefined) {
+		// ── Global teleport assertion ──────────────────────────────────────
+		// Docking clears the world position (`value === undefined`); that is
+		// intentional and must not trip the velocity check.  The very first
+		// real position write (constructor / deserialize) also has no
+		// previous snapshot to compare against.
+		if (value && this._lastPositionBeforeSet) {
+			const ds = this.game.clock.virtualTime - this._lastPositionTime
+			if (ds > 0) {
+				const moved = xyDistance(this._lastPositionBeforeSet, value)
+				// 2000 px/s is ~38 hex/s at tileSize=30 — far beyond any
+				// legitimate drive speed even with 2× clock jitter margin.
+				const maxAllowed = Math.max(1, 2000 * ds * 2)
+				assert(
+					moved <= maxAllowed + 1e-3,
+					`VehicleEntity.position: teleport — moved ${moved.toFixed(1)} px ` +
+						`in ${ds.toFixed(4)} s (max ${maxAllowed.toFixed(1)} px) ` +
+						`from ${axial.key(axial.round(toAxialCoord(this._lastPositionBeforeSet)!))} ` +
+						`to ${axial.key(axial.round(toAxialCoord(value)!))} ` +
+						`(vehicle ${this.uid})`
+				)
+			}
+		}
+		if (value) {
+			this._lastPositionBeforeSet = { ...value }
+			this._lastPositionTime = this.game.clock.virtualTime
+		}
+		// ── End teleport assertion ────────────────────────────────────────
+		this._position = value ? reactive(value) : undefined
+	}
+
 	constructor(
 		game: Game,
 		uid: string,
@@ -73,7 +136,10 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		servedLines: readonly FreightLineDefinition[] = []
 	) {
 		super(game, uid)
-		this.position = reactive(position)
+		// First position write — no previous snapshot, so the teleport
+		// assertion in the setter is a no-op.  The setter wraps the value
+		// in `reactive(...)` itself.
+		this.position = position
 		this.storage = createVehicleStorage(vehicleType)
 		this.storage.setPresentationChangeNotifier(() =>
 			this.game.enqueueStoragePresentationChange(this)
@@ -211,7 +277,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		if (this.position) return
 		const tile = this.dockTile
 		assert(tile, `Vehicle ${this.uid}: cannot restore docked position without anchor tile`)
-		this.position = reactive({ ...tile.position })
+		this.position = { ...tile.position }
 		this.game.invalidateWorkPlanning('vehicle.position')
 		traces.vehicle.log?.('vehicleJob.dock.placement', {
 			vehicleUid: this.uid,
@@ -431,7 +497,7 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		if (axial.key(vehicleCoord) !== axial.key(dockCoord) && !isDockBorder) {
 			const vehicleTile = this.game.hex.getTile(vehicleCoord)
 			const serviceBorder = vehicleTile?.borderWith(dockTile)
-			if (serviceBorder) this.position = reactive({ ...serviceBorder.position })
+			if (serviceBorder) this.position = { ...serviceBorder.position }
 		}
 		const dockPosition = toAxialCoord(this.position)!
 		const dockBorder = this.game.hex.getBorder(dockPosition)

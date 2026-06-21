@@ -14,6 +14,7 @@
 
 // ─── Clocked ───────────────────────────────────────────────────────────────
 
+import { reactive } from 'mutts'
 import type { Game } from 'ssh/game/game'
 
 /**
@@ -24,8 +25,11 @@ import type { Game } from 'ssh/game/game'
  * The clock stores them so `begin(newStep, ds)` can cancel/replace them.
  */
 export interface Clocked {
-	/** The owning game. Provides access to `game.clock` for scheduling next steps. */
-	readonly game: Game
+	/**
+	 * The owning game. Provides access to `game.clock`.
+	 * Set by `beginStep()` for ASingleStep. Optional for simple entries.
+	 */
+	readonly game?: Game
 
 	/**
 	 * Delta-seconds until completion.
@@ -68,12 +72,6 @@ interface ClockEntry {
 
 export class Clock {
 	/**
-	 * Cumulative virtual time in seconds. Updated by each {@link advance} call.
-	 * The renderer reads this for UI clock display.
-	 */
-	public virtualTime = 0
-
-	/**
 	 * Sorted list. Entry N expires at
 	 * `entries[0].relDs + entries[1].relDs + … + entries[N].relDs`
 	 * delta-seconds from now.
@@ -87,6 +85,15 @@ export class Clock {
 	}
 	private serializationTimes?: WeakMap<Clocked, number>
 
+	/** Monotonically increasing elapsed virtual seconds (for interpolation, traces, etc.). */
+	virtualTime = 0
+
+	/**
+	 * Reactive version counter bumped on each advance().
+	 * UI effects can read `timeVersion.n` to re-run when virtual time changes.
+	 */
+	timeVersion = reactive({ n: 0 })
+
 	// ── Public API ──────────────────────────────────────────────────────────
 
 	/**
@@ -98,8 +105,10 @@ export class Clock {
 	 */
 	advance(ds: number): void {
 		this.serializationTimes = undefined
-		this.virtualTime += ds
 		if (ds <= 0 || this.list.length === 0) return
+
+		this.virtualTime += ds
+		this.timeVersion.n++
 
 		let remaining = ds
 		this.partiallyProgressed = { freshEntries: new WeakMap(), partialDs: 0 }

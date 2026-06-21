@@ -3,7 +3,7 @@ import { reactive, untracked, unwrap } from 'mutts'
 import { Commitment, type FailureReason } from 'ssh/commitment'
 import { assert } from 'ssh/dev/debug'
 import { traceProjection } from 'ssh/dev/trace'
-import { GameObject, withTicked } from 'ssh/game/object'
+import { GameObject } from 'ssh/game/object'
 import type { GoodType } from 'ssh/types'
 import { epsilon } from 'ssh/utils'
 import { type AxialKey, axial } from 'ssh/utils/axial'
@@ -29,7 +29,7 @@ type InternalLooseGood = LooseGood & {
 	removed: boolean
 }
 
-export class LooseGoods extends withTicked(GameObject) {
+export class LooseGoods extends GameObject {
 	public readonly uid = 'loose-goods-manager'
 	public readonly goods = reactive(new AxialKeyMap<LooseGood[]>([], () => []))
 	private notifyLooseGoodsChanged(coordKey: AxialKey): void {
@@ -215,7 +215,7 @@ export class LooseGoods extends withTicked(GameObject) {
 		return bucket.slice(0, selectedCount)
 	}
 
-	update(deltaSeconds: number): void {
+	applyDecay(deltaSeconds: number): void {
 		untracked`update`(() => {
 			// Process each coordinate's goods
 			for (const [, goodsList] of Array.from(this.goods.entries())) {

@@ -397,6 +397,9 @@ function ClockPaletteEditor(
 			state.time = '--:--'
 			return
 		}
+		// Touch reactive version counter so the effect re-runs on each advance().
+		// virtualTime itself is a plain number and not tracked by Mutts reactivity.
+		void game.clock.timeVersion.n
 		const seconds = Math.floor(game.clock.virtualTime)
 		const minutes = Math.floor(seconds / 60)
 		const displaySeconds = seconds % 60

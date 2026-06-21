@@ -7,7 +7,6 @@ import {
 	setConstructionFoundationDeliveredGoods,
 } from 'ssh/construction-state'
 import { traces } from 'ssh/dev/debug'
-import { withTicked } from 'ssh/game/object'
 import { gameIsaTypes } from 'ssh/npcs/utils'
 import { residentialBasicDwellingProject } from 'ssh/residential/constants'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
@@ -49,7 +48,7 @@ export class Deposit extends GcClassed<Ssh.DepositDefinition>() {
 }
 
 @reactive
-export class UnBuiltLand extends withTicked(TileContent) {
+export class UnBuiltLand extends TileContent {
 	/** Project identifier (e.g., "build:sawmill") indicating pending construction */
 	public project?: string
 	public constructionSite?: ConstructionSiteState
@@ -140,23 +139,32 @@ export class UnBuiltLand extends withTicked(TileContent) {
 		if (plantedTrees) this.plantedTrees = normalizePlantedTrees(plantedTrees, deposit)
 	}
 
-	update(deltaSeconds: number) {
-		if (this.plantedTrees?.ages.length) {
-			const hadMature = hasMaturePlantedTree(this)
-			const previousStages = this.plantedTrees.ages.map(plantedTreeStage)
-			this.plantedTrees.ages = normalizePlantedTreeAges(
-				this.plantedTrees.ages.map((age) => age + deltaSeconds),
-				this.deposit
-			)
-			const nextStages = this.plantedTrees.ages.map(plantedTreeStage)
-			if (!hadMature && hasMaturePlantedTree(this)) {
-				this.tile.board.game.invalidateWorkPlanning('planted-tree.mature')
-			}
-			if (nextStages.some((stage, index) => stage !== previousStages[index])) {
-				this.tile.board.game.notifyTerrainDepositsChanged(this.tile)
-			}
+	/**
+	 * Advance planted tree ages by deltaSeconds.
+	 * Fires maturity notification and terrain-deposits-changed when stages transition.
+	 */
+	advanceGrowth(deltaSeconds: number) {
+		if (!this.plantedTrees?.ages.length) return
+		const hadMature = hasMaturePlantedTree(this)
+		const previousStages = this.plantedTrees.ages.map(plantedTreeStage)
+		this.plantedTrees.ages = normalizePlantedTreeAges(
+			this.plantedTrees.ages.map((age) => age + deltaSeconds),
+			this.deposit
+		)
+		const nextStages = this.plantedTrees.ages.map(plantedTreeStage)
+		if (!hadMature && hasMaturePlantedTree(this)) {
+			this.tile.board.game.invalidateWorkPlanning('planted-tree.mature')
 		}
-		// Generate goods if this tile has a deposit with generation configuration
+		if (nextStages.some((stage, index) => stage !== previousStages[index])) {
+			this.tile.board.game.notifyTerrainDepositsChanged(this.tile)
+		}
+	}
+
+	/**
+	 * Generate loose goods from deposit generation configuration.
+	 * Uses Poisson distribution for bursty spawning.
+	 */
+	generateDepositGoods(deltaSeconds: number) {
 		if (!this.deposit) return
 
 		const generation = this.deposit.generation

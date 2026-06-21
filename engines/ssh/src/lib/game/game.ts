@@ -24,7 +24,7 @@ import {
 import { Tile, type TileTerrainState } from 'ssh/board/tile'
 import type { NamedZoneDefinition, Zone } from 'ssh/board/zone'
 import { createZoneObjectForUid } from 'ssh/board/zone-object'
-import { cleanupStaleReservationsOnAllSites, isConstructionSiteShell } from 'ssh/build-site'
+import { isConstructionSiteShell } from 'ssh/build-site'
 import {
 	createNpcSettlementTradeProfile,
 	createSettlementTradeObjectForUid,
@@ -474,7 +474,7 @@ export class Game extends Eventful<GameEvents> {
 	public readonly generator: GameGenerator
 	public readonly ticker: SimulationLoop
 	/** Pure-dt event scheduler for timed simulation steps (characters, transforms, etc.). */
-	public readonly clock!: Clock
+	public readonly clock: Clock
 	/** Bay queue registry — created at bootstrap, integrated into the ticker. */
 	public readonly bayQueueRegistry: BayQueueRegistry
 	private tickedObjects = new Set<{ update(deltaSeconds: number): void }>()
@@ -1070,7 +1070,7 @@ export class Game extends Eventful<GameEvents> {
 		// Character steps & future off-clock periodic entries via clock
 		this.clock.advance(deltaSeconds)
 
-		// Legacy ticked objects (UnBuiltLand, LooseGoods, ResidentialDemandTicker, bay queue)
+		// Constant evolutions (growth + decay) and legacy ticked objects (ResidentialDemandTicker)
 		// — to be migrated to clock.setInterval later
 		for (const object of this.tickedObjects) {
 			if ('destroyed' in object && object.destroyed) continue
@@ -1108,19 +1108,43 @@ export class Game extends Eventful<GameEvents> {
 		this.population = new Population(this)
 		this.vehicles = new Vehicles(this)
 
-		// Create bay queue registry and integrate into the ticker
+		// Create bay queue registry (admission is event-driven — no per-frame polling needed)
 		this.bayQueueRegistry = new BayQueueRegistry(this)
-		let staleReservationAccumulator = 0
-		const STALE_RESERVATION_SCAN_INTERVAL_S = 2
 		const self = this
+
+		// ── Constant evolutions: growth (tree aging + deposit generation) ──
+		// NOTE: if the number of tiles/trees grows too large, split into
+		// roughly-balanced groups with dephasing so each group still fires ~1×/s.
+		// The only purpose is that all these constant evolutions are called each second.
+		let growthAccumulator = 0
+		const GROWTH_INTERVAL_S = 1
 		this.registerTickedObject({
-			update(deltaSeconds) {
-				self.bayQueueRegistry.updateAllQueues()
-				staleReservationAccumulator += deltaSeconds
-				if (staleReservationAccumulator >= STALE_RESERVATION_SCAN_INTERVAL_S) {
-					staleReservationAccumulator -= STALE_RESERVATION_SCAN_INTERVAL_S
-					cleanupStaleReservationsOnAllSites(self.hex.tiles, self.ticker.elapsedMS)
+			update(deltaSeconds: number) {
+				growthAccumulator += deltaSeconds
+				if (growthAccumulator < GROWTH_INTERVAL_S) return
+				const dt = growthAccumulator
+				growthAccumulator = 0
+				for (const tile of self.hex.tiles) {
+					const land = tile.content
+					if (land instanceof UnBuiltLand) {
+						land.advanceGrowth(dt)
+						land.generateDepositGoods(dt)
+					}
 				}
+			},
+		})
+
+		// ── Constant evolutions: decay (loose-good perishability) ──
+		// NOTE: same grouping note as growth if goods count becomes large.
+		let decayAccumulator = 0
+		const DECAY_INTERVAL_S = 1
+		this.registerTickedObject({
+			update(deltaSeconds: number) {
+				decayAccumulator += deltaSeconds
+				if (decayAccumulator < DECAY_INTERVAL_S) return
+				const dt = decayAccumulator
+				decayAccumulator = 0
+				self.hex.looseGoods.applyDecay(dt)
 			},
 		})
 

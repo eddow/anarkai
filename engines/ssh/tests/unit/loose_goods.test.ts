@@ -64,7 +64,7 @@ describe('LooseGoods', () => {
 
 		;(game as any).random = vi.fn(() => 0.5)
 
-		game.hex.looseGoods.update(1e9)
+		game.hex.looseGoods.applyDecay(1e9)
 
 		const remainingGoods = game.hex.looseGoods.getGoodsAt(tile.position)
 

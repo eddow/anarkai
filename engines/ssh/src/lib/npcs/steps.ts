@@ -2,12 +2,12 @@ import { goods as goodsCatalog } from 'engine-rules'
 import { effect } from 'mutts'
 import type { LooseGood } from 'ssh/board/looseGoods'
 import { Commitment, type SerializedCommitment } from 'ssh/commitment'
+import type { Clocked } from 'ssh/utils/clock'
 import type { Game } from 'ssh/game/game'
 import type { Character } from 'ssh/population/character'
 import type { Storage } from 'ssh/storage'
 import type { GoodType } from 'ssh/types'
 import { casing } from 'ssh/utils'
-import type { Clocked } from 'ssh/utils/clock'
 import { axialDistance, type Position, type Positioned } from 'ssh/utils/position'
 import { activityDurations, needUpdate } from '../../../assets/constants'
 import { assert } from '../dev/debug.ts'
@@ -39,6 +39,9 @@ export abstract class ASingleStep extends Commitment implements Clocked {
 	onComplete?: () => void
 
 	// ── Clocked implementation ──────────────────────────────────────────
+
+	/** Set by beginStep() when scheduled. Provides access to game.clock. */
+	game!: Game
 
 	get remainingDs(): number {
 		return this.game.clock.serializeTime(this as unknown as Clocked) ?? 0
@@ -333,18 +336,9 @@ export class MoveToStep extends ALerpStep<Positioned> {
 	override progress(ds: number): void {
 		// Velocity assertion removed — the clock controls ds granularity,
 		// and hex rounding makes fractional axial distances unreliable for
-		// per-pixel boundary-crossing checks.  See Character.set position
-		// for the global per-frame teleport assertion.
+		// per-pixel boundary-crossing checks.
 		super.progress(ds)
 	}
-	/**
-	 * Set the definitive position of the moved entity.
-	 *
-	 * This is the **only** path through which a character's `position` should change during
-	 * gameplay — no abrupt/inline `position = …` assignments should exist outside of
-	 * {@link ASingleStep} subclasses. {@link Character.set position} handles hex-crossing
-	 * detection and tile updates automatically.
-	 */
 	lerp(position: Positioned): void {
 		this.who.position = 'position' in position ? position.position : position
 	}
@@ -433,12 +427,6 @@ export class MultiMoveStep extends AEvolutionStep {
 			)
 		}
 	}
-	/**
-	 * Set the definitive position of each moved entity at the current evolution fraction.
-	 *
-	 * Like {@link MoveToStep.lerp}, this is the only path for multi-entity position changes
-	 * — never set `position` abruptly outside an {@link ASingleStep}.
-	 */
 	evolve(evolution: number): void {
 		this.beforeEvolve?.()
 		if (this.ended === true || typeof this.ended === 'string') return

@@ -5,8 +5,8 @@ import {
 	type VehicleFreightInterruptSubject,
 } from 'ssh/freight/vehicle-run'
 import type { Game, GameObject } from 'ssh/game'
-import type { Clock, Clocked } from 'ssh/utils/clock'
-import { traces } from '../dev/debug.ts'
+import { Clock, type Clocked } from 'ssh/utils/clock'
+import { assert, traces } from '../dev/debug.ts'
 import {
 	loopEntriesForNpcTrace,
 	npcSubjectSnapshot,
@@ -15,7 +15,14 @@ import {
 	summarizeScriptRunValueKind,
 } from './npc-diagnostics'
 import { getGameScript, ScriptExecution, scriptExecutionErrorDiagnostic } from './scripts'
-import { AEvolutionStep, ASingleStep, PonderingStep, type TextKey } from './steps'
+import {
+	AEvolutionStep,
+	ASingleStep,
+	PonderingStep,
+	type TextKey,
+} from './steps'
+
+
 
 function assertScriptExecution(value: unknown, context: string): asserts value is ScriptExecution {
 	if (value instanceof ScriptExecution) return
@@ -110,9 +117,6 @@ export function withScripted<T extends abstract new (...args: any[]) => GameObje
 					runningScripts: this.runningScripts.map((script) =>
 						summarizeScriptExecutionForInfiniteFail(script)
 					),
-					stepExecutor: this.stepExecutor?.constructor.name,
-					runningScriptName: this.runningScript?.name,
-					runningScriptState: this.runningScript?.state,
 				}
 				traces.script.error?.('script.makeRun.error', diagnostic)
 				throw error
@@ -121,6 +125,8 @@ export function withScripted<T extends abstract new (...args: any[]) => GameObje
 		/**
 		 * Schedule a timed step on the game clock, or register off-clock.
 		 * Sets onComplete to trigger nextStep() when the step finishes.
+		 *
+		 * @internal — public only because TS disallows private on exported mixins.
 		 */
 		beginStep(step: ASingleStep): void {
 			const gameClock = (this as unknown as { game: { clock: Clock } }).game.clock
@@ -129,9 +135,13 @@ export function withScripted<T extends abstract new (...args: any[]) => GameObje
 				this.nextStep()
 				if (this.stepExecutor) this.beginStep(this.stepExecutor)
 			}
+			// Wire game reference so Clocked.remainingDs works
+			;(step as { game?: Game }).game = (this as unknown as { game: Game }).game
 			if (step instanceof AEvolutionStep) {
+				// Timed step: clock drives progress & completion
 				gameClock.begin(step as unknown as Clocked, step.duration)
 			} else {
+				// Off-clock step (QueueStep, WaitForPredicateStep): externally completed
 				gameClock.begin(step as unknown as Clocked)
 			}
 		}
@@ -323,4 +333,6 @@ export function withScripted<T extends abstract new (...args: any[]) => GameObje
 	return ScriptedMixin
 }
 
-export type ScriptedObject = InstanceType<ReturnType<typeof withScripted<typeof GameObject>>>
+export type ScriptedObject = InstanceType<
+	ReturnType<typeof withScripted<typeof GameObject>>
+>

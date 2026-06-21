@@ -9,7 +9,7 @@ import { assertVehicleOperationConsistency } from 'ssh/freight/vehicle-invariant
 import { releaseVehicleFreightWorkOnPlanInterrupt } from 'ssh/freight/vehicle-run'
 import { collectVehicleWorkPicks, isVehicleFreightJob } from 'ssh/freight/vehicle-work'
 import type { Game } from 'ssh/game'
-import { GameObject, withInteractive, withTicked } from 'ssh/game/object'
+import { GameObject, withInteractive } from 'ssh/game/object'
 import {
 	asAlveolusProposedJob,
 	asVehicleProposedJob,
@@ -40,6 +40,7 @@ import type { Storage } from 'ssh/storage'
 import type { GoodType, Job, WorkPlan } from 'ssh/types/base'
 import { type AxialCoord, axial, type Positioned } from 'ssh/utils'
 import { type Position, toAxialCoord, xyDistance } from 'ssh/utils/position'
+import type { Clocked } from 'ssh/utils/clock'
 import {
 	applyNeedRate,
 	characterEvolutionRates,
@@ -142,7 +143,7 @@ interface RankedWorkCandidate {
 }
 
 @reactive
-export class Character extends withInteractive(withScripted(withTicked(GameObject))) {
+export class Character extends withInteractive(withScripted(GameObject)) {
 	readonly triggerLevels = characterTriggerLevels
 
 	// Character needs levels (starting at 0, incrementing 1 per second)
@@ -373,7 +374,7 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 			traces.position.log?.('character.position.set.after', this.positionTracePayload('after'))
 			return
 		}
-		this.operates.position = reactive(value)
+		this.operates.position = value
 		// Keep _tile in sync with the vehicle's current position during driving.
 		// Without this, walk.enter() uses the stale boarding tile, moving the vehicle off the anchor.
 		if (changedTile) {
@@ -382,6 +383,12 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		}
 		traces.position.log?.('character.position.set.after', this.positionTracePayload('after'))
 	}
+
+	/** Clock-driven needs update interval in virtual seconds. */
+	private static readonly NEEDS_TICK_INTERVAL = 0.25
+
+	/** Self-rescheduling clock step that drives hunger/tiredness/fatigue decay. */
+	private readonly _needsStep: Clocked
 
 	constructor(
 		game: Game,
@@ -400,6 +407,30 @@ export class Character extends withInteractive(withScripted(withTicked(GameObjec
 		const queueStep = this.game.hex.moveCharacter(this, this._tile.position)
 		assert(!queueStep, 'Character must not be queuing on creation')
 		if (queueStep) this.stepExecutor = queueStep
+
+		// Replace withTicked: drive needs via a self-rescheduling clock step
+		const character = this
+		const interval = Character.NEEDS_TICK_INTERVAL
+		const needsStep: Clocked = {
+			game: this.game,
+			get remainingDs() {
+				return 0
+			},
+			progress(_ds: number) {},
+			complete() {
+				if (character.destroyed) return undefined
+				character.update(interval)
+				character.game.clock.begin(needsStep, interval)
+				return undefined
+			},
+		}
+		this._needsStep = needsStep
+		this.game.clock.begin(needsStep, interval)
+	}
+
+	override destroy(): void {
+		this.game.clock.remove(this._needsStep)
+		super.destroy()
 	}
 
 	/** Requires `operates` to already reference the vehicle being boarded (same tile). */
