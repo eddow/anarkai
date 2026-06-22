@@ -79,7 +79,7 @@ describe('Ranked work diagnostics', () => {
 						],
 					},
 				],
-				looseGoods: [{ goodType: 'wood', position: { q: 0, r: 1 } }],
+				looseGoods: { wood: [[0, 1]] },
 			}
 
 			engine.loadScenario(scenario)

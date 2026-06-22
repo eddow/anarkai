@@ -175,7 +175,7 @@ describe('freight-stop-utility', () => {
 				{ coord: [0, 0] as const, terrain: 'grass' as const },
 				{ coord: [2, 0] as const, terrain: 'grass' as const },
 			],
-			looseGoods: [{ goodType: 'wood' as const, position: { q: 2, r: 0 } }],
+			looseGoods: { wood: [[2, 0]] },
 		} satisfies GamePatches
 		const game = new Game({ terrainSeed: 12002, characterCount: 0 }, patches)
 		await game.loaded

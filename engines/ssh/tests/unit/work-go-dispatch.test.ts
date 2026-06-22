@@ -27,7 +27,7 @@ describe('work.npcs dispatch', () => {
 						radius: 2,
 					}),
 				],
-				looseGoods: [{ goodType: 'wood' as const, position: { q: 1, r: 0 } }],
+				looseGoods: { wood: [[1, 0]] },
 			}
 		)
 		await game.loaded

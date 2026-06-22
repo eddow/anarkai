@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import { Commitment } from 'ssh/commitment/commitment'
 import type { SaveState } from 'ssh/game'

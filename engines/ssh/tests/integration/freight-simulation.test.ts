@@ -202,11 +202,7 @@ describe('Freight simulation (gather + distribute)', () => {
 					{ coord: [1, 0] as [number, number], terrain: 'concrete' },
 					{ coord: [2, 0] as [number, number], terrain: 'grass' },
 				],
-				looseGoods: [
-					{ position: { q: 2, r: 0 }, goodType: 'wood' },
-					{ position: { q: 2, r: 0 }, goodType: 'wood' },
-					{ position: { q: 2, r: 0 }, goodType: 'wood' },
-				],
+				looseGoods: { wood: [[2, 0], [2, 0], [2, 0]] },
 				freightLines: [
 					gatherFreightLine({
 						id: 'SimGather:wood',
@@ -470,8 +466,8 @@ describe('Freight simulation (gather + distribute)', () => {
 			const pt = engine.game.hex.getTile({ q: 3, r: 0 })!
 			const ct = pt.content as any
 			const wb = engine.game.vehicles.vehicle('build-flow-wb')
-			process.stderr.write('POST-SIM: ' + JSON.stringify({
-				contentType: pt.content.constructor.name,
+		;(process as any).stderr.write('POST-SIM: ' + JSON.stringify({
+			contentType: (pt.content as any)?.constructor?.name,
 				phase: ct.constructionSite?.phase,
 				delivered: ct.constructionSite?.deliveredGoods,
 				required: ct.constructionSite?.requiredGoods,

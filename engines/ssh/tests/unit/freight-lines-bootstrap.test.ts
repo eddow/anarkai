@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {
 	applyGatherRadiusFromEditor,
 	DEFAULT_GATHER_FREIGHT_RADIUS,

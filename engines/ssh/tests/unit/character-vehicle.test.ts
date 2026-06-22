@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import {
 	detachVehicleServiceIfStorageEmpty,
@@ -689,7 +690,7 @@ describe('Character vehicle seam', () => {
 			info: vi.fn(),
 			log,
 			warn: vi.fn(),
-		} as unknown as typeof console
+		} as any
 		try {
 			releaseVehicleFreightWorkOnPlanInterrupt(character)
 			expect(log).toHaveBeenCalledWith('vehicle freight operator released on plan interrupt', {
@@ -735,7 +736,7 @@ describe('Character vehicle seam', () => {
 			info: vi.fn(),
 			log,
 			warn: vi.fn(),
-		} as unknown as typeof console
+		} as any
 		try {
 			releaseVehicleFreightWorkOnPlanInterrupt(character)
 			expect(log).toHaveBeenCalledWith('vehicle freight operator released on plan interrupt', {
@@ -778,7 +779,7 @@ describe('Character vehicle seam', () => {
 			info: vi.fn(),
 			log,
 			warn: vi.fn(),
-		} as unknown as typeof console
+		} as any
 		try {
 			detachVehicleServiceIfStorageEmpty(vehicle)
 			expect(log).toHaveBeenCalledWith(

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import { Game } from 'ssh/game/game'

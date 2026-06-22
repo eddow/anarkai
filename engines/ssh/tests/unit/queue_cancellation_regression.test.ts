@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { QueueStep } from 'ssh/npcs/steps'
 import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'

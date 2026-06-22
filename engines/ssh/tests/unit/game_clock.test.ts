@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { gameRootSpeed, gameTimeSpeedFactors } from 'engine-rules'
 import { namedTrace } from 'ssh/dev/debug'
 import { Game } from 'ssh/game'

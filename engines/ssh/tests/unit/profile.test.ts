@@ -140,7 +140,7 @@ describe('profile registry', () => {
 					},
 				],
 				freightLines: [line],
-				looseGoods: [{ goodType: 'wood' as const, position: { q: 0, r: 0 } }],
+				looseGoods: { wood: [[0, 0]] },
 			}
 		)
 		await game.loaded

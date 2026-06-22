@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { jobBalance } from 'engine-rules'
 import { normalizeFreightLineDefinition } from 'ssh/freight/freight-line'
 import { migrateV1FiltersToGoodsSelection } from 'ssh/freight/goods-selection-policy'

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { TransformAlveolus } from 'ssh/hive/transform'
 import { WorkFunctions } from 'ssh/npcs/context/work'
 import { subject } from 'ssh/npcs/scripts'

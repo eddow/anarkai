@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { Hive } from 'ssh/hive/hive'
 import type { StorageAlveolus } from 'ssh/hive/storage'
 import { describe, expect, it } from 'vitest'

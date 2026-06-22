@@ -34,6 +34,8 @@ export type OnMovementGrantFn = (
 ) => void
 
 export class BayQueueRegistry {
+	readonly game: Game
+
 	/** bayGroupUid → controller */
 	private readonly controllers = new Map<string, BayQueueController>()
 

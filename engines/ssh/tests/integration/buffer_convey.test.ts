@@ -46,14 +46,7 @@ describe('Storage Buffering', () => {
 						],
 					},
 				],
-				looseGoods: [
-					{ position: { q: 2, r: 0 }, goodType: 'wood' },
-					{ position: { q: 2, r: 0 }, goodType: 'wood' },
-					{ position: { q: 2, r: 0 }, goodType: 'wood' },
-					{ position: { q: 2, r: 0 }, goodType: 'wood' },
-					{ position: { q: 2, r: 0 }, goodType: 'wood' },
-					{ position: { q: 2, r: 0 }, goodType: 'wood' },
-				],
+				looseGoods: { wood: [[2, 0], [2, 0], [2, 0], [2, 0], [2, 0], [2, 0]] },
 				tiles: [{ coord: [2, 0] as [number, number], terrain: 'grass' }],
 				freightLines: [
 					gatherFreightLine({
@@ -112,7 +105,7 @@ describe('Storage Buffering', () => {
 						alveoli: [
 							{
 								coord: [0, 0],
-								alveolus: 'woodpile',
+								alveolus: 'pile',
 								goods: {},
 							},
 							{
@@ -123,13 +116,7 @@ describe('Storage Buffering', () => {
 						],
 					},
 				],
-				looseGoods: [
-					{ position: { q: 2, r: 0 }, goodType: 'wood' },
-					{ position: { q: 2, r: 0 }, goodType: 'wood' },
-					{ position: { q: 2, r: 0 }, goodType: 'wood' },
-					{ position: { q: 2, r: 0 }, goodType: 'wood' },
-					{ position: { q: 2, r: 0 }, goodType: 'wood' },
-				],
+				looseGoods: { wood: [[2, 0], [2, 0], [2, 0], [2, 0], [2, 0]] },
 				tiles: [{ coord: [2, 0] as [number, number], terrain: 'grass' }],
 				freightLines: [
 					gatherFreightLine({

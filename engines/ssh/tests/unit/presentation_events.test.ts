@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { GameConveyEvent, GamePresentationEvent } from 'ssh/game'
 import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine/engine'

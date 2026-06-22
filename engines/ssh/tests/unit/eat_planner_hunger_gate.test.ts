@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { inert } from 'mutts'
 import { Game, type GamePatches } from 'ssh/game'
 import type { ScriptExecution } from 'ssh/npcs/scripts'

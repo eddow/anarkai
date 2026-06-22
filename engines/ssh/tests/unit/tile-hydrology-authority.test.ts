@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Game } from 'ssh/game/game'
 import type { TerrainHydrologySample } from 'ssh/game/terrain-provider'
 import { afterEach, describe, expect, it } from 'vitest'

@@ -70,8 +70,9 @@ describe('Mixed pipeline stall regression', () => {
 				const gatherReservedWood = gatherWoodSlot?.reserved || 0
 
 				const movements = Array.from(gather.hive.movingGoods.entries()).flatMap(
-					([coord, goods]: [unknown, any[]]) =>
-						goods.map((movement) => ({
+					(entry: unknown) => {
+						const [coord, goods] = entry as [unknown, any[]]
+						return goods.map((movement: any) => ({
 							goodType: movement.goodType,
 							from: movement.from,
 							pathLength: movement.path.length,
@@ -80,6 +81,7 @@ describe('Mixed pipeline stall regression', () => {
 							demander: movement.demander?.name ?? 'unknown',
 							coord,
 						}))
+					}
 				)
 				const plankInTransit = movements.some((movement) => movement.goodType === 'planks')
 				const anyVisibleConveyJob = [gather, sawmill, storage].some(

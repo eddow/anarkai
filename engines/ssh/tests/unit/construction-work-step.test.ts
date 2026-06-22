@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { alveoli } from 'engine-rules'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'

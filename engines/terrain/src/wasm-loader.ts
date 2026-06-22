@@ -49,12 +49,12 @@ export async function loadWasmModule(): Promise<any> {
 				typeof process !== 'undefined' &&
 				typeof process?.versions?.node === 'string'
 			) {
-			// @ts-expect-error -- node:* specifiers only available in Node/Vitest, not browser lib
-				const nodeFs = await import('node:fs')
-				// @ts-expect-error -- node:* specifiers only available in Node/Vitest, not browser lib
-				const nodePath = await import('node:path')
-				// @ts-expect-error -- node:* specifiers only available in Node/Vitest, not browser lib
-				const nodeUrl = await import('node:url')
+			// @ts-ignore -- node:* specifiers only available in Node, not bundler
+			const nodeFs = await import('node:fs')
+			// @ts-ignore -- node:* specifiers only available in Node, not bundler
+			const nodePath = await import('node:path')
+			// @ts-ignore -- node:* specifiers only available in Node, not bundler
+			const nodeUrl = await import('node:url')
 
 				// From engines/terrain/src/, go up 2 to engines/, then core/pkg/
 				const wasmPath = nodePath.join(

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Deposit, UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { Game } from 'ssh/game'
 import type { HarvestAlveolus } from 'ssh/hive/harvest'

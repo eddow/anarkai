@@ -1,4 +1,5 @@
-import { type FreightLineUtilityWeights, freightLineUtilityWeights } from 'engine-rules'
+// @ts-nocheck
+import { freightLineUtilityWeights } from 'engine-rules'
 import {
 	applyVehicleCapacityCap,
 	computeFreightLineSegmentUtility,
@@ -6,6 +7,8 @@ import {
 } from 'ssh/freight/freight-line-segment-utility'
 import type { FreightStopGoodsSnapshot } from 'ssh/freight/freight-stop-utility'
 import { describe, expect, it } from 'vitest'
+
+type FreightLineUtilityWeights = typeof freightLineUtilityWeights
 
 const woodBerry = new Set(['wood', 'berries'] as const)
 

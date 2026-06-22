@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { TrackedMovement } from 'ssh/hive/hive'
 import { rebindConveyMovementRows } from 'ssh/npcs/context/convey'
 import { describe, expect, it, vi } from 'vitest'

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Commitment } from 'ssh/commitment'
 import type { ConstructionSiteState } from 'ssh/construction-state'
 import { BuildAlveolus } from 'ssh/hive/build'

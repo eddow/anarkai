@@ -46,7 +46,7 @@ describe('Job Competition Tests', () => {
 					],
 				},
 			],
-			looseGoods: [{ goodType: 'berries', position: { q: 2, r: 1 } }],
+			looseGoods: { berries: [[2, 1]] },
 		}
 
 		engine.loadScenario(scenario)

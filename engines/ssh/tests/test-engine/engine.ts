@@ -1,6 +1,9 @@
-import fs from 'node:fs'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+// @ts-ignore -- node built-in modules (runtime-only)
+import fs from 'fs'
+// @ts-ignore -- node built-in modules (runtime-only)
+import path from 'path'
+// @ts-ignore -- node built-in modules (runtime-only)
+import { fileURLToPath } from 'url'
 import { reactiveOptions, reset } from 'mutts'
 import type { Game, GameGenerationOptions, SaveState } from 'ssh/game'
 import { setupEnvironment } from './environment'

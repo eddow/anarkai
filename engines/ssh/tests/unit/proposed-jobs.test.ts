@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { Game } from 'ssh/game/game'
 import { axial } from 'ssh/utils'

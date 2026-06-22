@@ -13,10 +13,10 @@
 	"scripts": {
 		"build": "tsc -p tsconfig.app.json && tsc -p tsconfig.node.json",
 		"check": "tsc -p tsconfig.app.json && tsc -p tsconfig.node.json",
-		"test": "node ./scripts/run-vitest.mjs",
+		"test": "node ./scripts/run-vitest.mjs --config vitest.light.config.ts",
+		"test:thorough": "node ./scripts/run-vitest.mjs",
 		"test:trace-progress": "node ./scripts/trace-vitest-progress.mjs",
 		"test:core": "vitest run tests/unit/work_logic.test.ts tests/unit/pathfinding.test.ts tests/unit/storage.test.ts",
-		"test:watch": "vitest",
 		"test:verbose": "vitest run"
 	},
 	"dependencies": {

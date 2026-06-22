@@ -1,4 +1,4 @@
-import { TileBorderContent } from 'ssh/board/border/border'
+import { TileBorder, TileBorderContent } from 'ssh/board/border/border'
 import {
 	borderHasRiver,
 	canBuildRoadAcrossBorder,
@@ -10,12 +10,12 @@ import {
 } from 'ssh/board/roads'
 import { Game } from 'ssh/game/game'
 import type { Storage } from 'ssh/storage/storage'
-import { axial } from 'ssh/utils'
+import { axial, type AxialCoord } from 'ssh/utils'
 import { describe, expect, it } from 'vitest'
 
 function clearRoadBurden(
 	...tiles: Array<{
-		content?: { deposit?: unknown }
+		content?: { deposit?: unknown } | null | object
 		looseGoods?: Array<{ remove(): void }>
 		terrainHydrology?: unknown
 		terrainState?: { hydrology?: unknown }
@@ -55,8 +55,8 @@ describe('road traces', () => {
 			const start = game.hex.getTile({ q: 0, r: 0 })!
 			const end = game.hex.getTile({ q: 2, r: 0 })!
 			const trace = straightRoadTileTrace(start, end)
-			expect(trace.map((tile) => axial.key(tile.position))).toEqual(['0,0', '1,0', '2,0'])
-			expect(roadBordersForTrace(trace).map((border) => axial.key(border.position))).toEqual([
+			expect(trace.map((tile) => axial.key(tile.position as AxialCoord))).toEqual(['0,0', '1,0', '2,0'])
+			expect(roadBordersForTrace(trace).map((border) => axial.key(border.position as AxialCoord))).toEqual([
 				'0.5,0',
 				'1.5,0',
 			])
@@ -86,7 +86,7 @@ describe('road storage', () => {
 			class DummyBorderContent extends TileBorderContent {
 				readonly storage?: Storage
 				readonly debugInfo = {}
-				constructor(readonly border: typeof border) {
+				constructor(readonly border: TileBorder) {
 					super(border.game)
 				}
 			}
@@ -100,7 +100,7 @@ describe('road storage', () => {
 			const save = game.saveGameData()
 			expect(save.roads).toEqual({ path: [[0.5, 0]] })
 
-			const restored = new Game(save.generationOptions, save, save)
+			const restored = new Game(save.generationOptions, save)
 			await restored.loaded
 			restored.ticker.stop()
 			try {
@@ -154,8 +154,8 @@ describe('road storage', () => {
 			game.hex.setRoadType(start.borderWith(roaded)!.position, 'asphalt')
 
 			const roadNeighbor = game.hex
-				.getNeighbors(start.position)
-				.find((neighbor) => axial.key(neighbor.coord) === axial.key(roaded.position))
+				.getNeighbors(start.position as AxialCoord)
+				.find((neighbor) => axial.key(neighbor.coord) === axial.key(roaded.position as AxialCoord))
 			expect(roadNeighbor?.walkTime).toBe(
 				roaded.effectiveWalkTime * ROAD_WALK_TIME_MULTIPLIERS.asphalt
 			)
@@ -189,11 +189,11 @@ describe('road storage', () => {
 			game.hex.setRoadType(start.borderWith(roaded)!.position, 'path')
 
 			const roadNeighbor = game.hex
-				.getNeighbors(start.position)
-				.find((neighbor) => axial.key(neighbor.coord) === axial.key(roaded.position))
+				.getNeighbors(start.position as AxialCoord)
+				.find((neighbor) => axial.key(neighbor.coord) === axial.key(roaded.position as AxialCoord))
 			const offroadNeighbor = game.hex
-				.getNeighbors(start.position)
-				.find((neighbor) => axial.key(neighbor.coord) === axial.key(offroad.position))
+				.getNeighbors(start.position as AxialCoord)
+				.find((neighbor) => axial.key(neighbor.coord) === axial.key(offroad.position as AxialCoord))
 
 			expect(roadNeighbor?.walkTime).toBe(
 				roaded.effectiveWalkTime * ROAD_WALK_TIME_MULTIPLIERS.path
@@ -225,8 +225,8 @@ describe('road storage', () => {
 			game.hex.looseGoods.add(roaded, 'wood')
 
 			const roadNeighbor = game.hex
-				.getNeighbors(start.position)
-				.find((neighbor) => axial.key(neighbor.coord) === axial.key(roaded.position))
+				.getNeighbors(start.position as AxialCoord)
+				.find((neighbor) => axial.key(neighbor.coord) === axial.key(roaded.position as AxialCoord))
 
 			expect(roadNeighbor?.walkTime).toBe(roaded.effectiveWalkTime)
 		} finally {
@@ -332,7 +332,7 @@ describe('road build validation', () => {
 			const start = game.hex.getTile({ q: -1, r: 0 })!
 			const end = game.hex.getTile({ q: 1, r: 0 })!
 			const trace = straightRoadTileTrace(start, end)
-			expect(trace.map((tile) => axial.key(tile.position))).toEqual(['-1,0', '0,0', '1,0'])
+			expect(trace.map((tile) => axial.key(tile.position as AxialCoord))).toEqual(['-1,0', '0,0', '1,0'])
 			expect(canBuildRoadOnTrace(trace)).toBe(false)
 		} finally {
 			game.destroy()

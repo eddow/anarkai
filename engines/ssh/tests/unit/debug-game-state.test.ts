@@ -1,4 +1,4 @@
-import { safeDebugValueForDump, summarizeFreightStopForDebug } from 'ssh/debug-game-state'
+import { safeDebugValueForDump, summarizeFreightStopForDebug } from 'ssh/dev/debug-game-state'
 import { describe, expect, it } from 'vitest'
 
 describe('debug-game-state', () => {

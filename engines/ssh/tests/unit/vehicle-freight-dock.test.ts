@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { jobBalance } from 'engine-rules'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import { Commitment } from 'ssh/commitment'

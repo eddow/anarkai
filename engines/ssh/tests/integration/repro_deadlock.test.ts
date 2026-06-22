@@ -65,11 +65,11 @@ describe('Deadlock Reproduction', () => {
 						name: 'MainHive',
 						alveoli: [
 							{ coord: [0, 0], alveolus: 'storage', goods: {} },
-							{ coord: [1, 0], alveolus: 'woodpile', goods: {} },
+							{ coord: [1, 0], alveolus: 'pile', goods: {} },
 						],
 					},
 				],
-				looseGoods: [],
+				looseGoods: {},
 			}
 
 			engine.loadScenario(scenario)

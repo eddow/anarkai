@@ -90,7 +90,7 @@ describe('Gather to sawmill regression', () => {
 			expect(initialMovements).toHaveLength(1)
 			expect(gather.getJob()?.job, debugTimeline.join('\n')).toBe('convey')
 
-			const firstMovement = initialMovements[0]
+			const firstMovement = initialMovements[0] as any
 			claimMovementForTest(firstMovement)
 			firstMovement.allocations.source.fulfill()
 			firstMovement.hop()

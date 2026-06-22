@@ -212,8 +212,10 @@ describe('Vehicle zone hop semantics', () => {
 		expect(park?.maintenanceKind).toBe('park')
 
 		character.scriptsContext.plan.begin({ ...park, type: 'work' } as any)
-		expect(isVehicleMaintenanceService(vehicle.service)).toBe(true)
-		expect(vehicle.service?.kind).toBe('park')
+		const svc = vehicle.service
+		expect(isVehicleMaintenanceService(svc)).toBe(true)
+		if (!isVehicleMaintenanceService(svc)) throw new Error('Expected maintenance service')
+		expect(svc.kind).toBe('park')
 	})
 
 	it('falls back to the zone center when no downstream utility makes a loose-good target actionable', async () => {
@@ -228,7 +230,7 @@ describe('Vehicle zone hop semantics', () => {
 					alveoli: [{ coord: [0, 0] as const, alveolus: 'freight_bay', goods: {} }],
 				},
 			],
-			looseGoods: [{ goodType: 'wood' as const, position: { q: 2, r: 0 } }],
+			looseGoods: { wood: [[2, 0]] },
 			freightLines: [
 				gatherFreightLine({
 					id: 'HiveVH:implicit-gather:0,0',
@@ -311,7 +313,7 @@ describe('Vehicle zone hop semantics', () => {
 					radius: 2,
 				}),
 			],
-			looseGoods: [{ goodType: 'wood' as const, position: { q: 1, r: 0 } }],
+			looseGoods: { wood: [[1, 0] as const] },
 		}
 		game = new Game({ terrainSeed: 9404, characterCount: 0 }, patches)
 		await game.loaded
@@ -469,7 +471,7 @@ describe('Vehicle zone hop semantics', () => {
 			hives: [
 				{ name: 'H', alveoli: [{ coord: [0, 0] as const, alveolus: 'freight_bay', goods: {} }] },
 			],
-			looseGoods: [{ goodType: 'wood' as const, position: { q: 2, r: 0 } }],
+			looseGoods: { wood: [[2, 0]] },
 		} satisfies GamePatches
 		game = new Game({ terrainSeed: 9405, characterCount: 0 }, patches)
 		await game.loaded
@@ -506,10 +508,7 @@ describe('Vehicle zone hop semantics', () => {
 			projects: {
 				'build:storage': [[2, 0] as [number, number]],
 			},
-			looseGoods: [
-				{ goodType: 'wood' as const, position: { q: 2, r: 0 } },
-				{ goodType: 'wood' as const, position: { q: 1, r: 1 } },
-			],
+			looseGoods: { wood: [[2, 0], [1, 1]] },
 			freightLines: [
 				gatherFreightLine({
 					id: 'VH:joint-priority',
@@ -606,7 +605,7 @@ describe('Vehicle zone hop semantics', () => {
 				{ coord: [0, 0] as const, terrain: 'grass' as const },
 				{ coord: [1, 0] as const, terrain: 'grass' as const },
 			],
-			looseGoods: [{ goodType: 'wood' as const, position: { q: 0, r: 0 } }],
+			looseGoods: { wood: [[0, 0]] },
 			freightLines: [
 				normalizeFreightLineDefinition({
 					id: 'VH:local-exchange',
@@ -718,7 +717,7 @@ describe('Vehicle zone hop semantics', () => {
 					],
 				},
 			],
-			looseGoods: [{ goodType: 'wood' as const, position: { q: 2, r: 0 } }],
+			looseGoods: { wood: [[2, 0]] },
 			freightLines: [
 				normalizeFreightLineDefinition({
 					id: 'VH:local-before-hive',
@@ -773,7 +772,7 @@ describe('Vehicle zone hop semantics', () => {
 	it('zoneBrowse does not load local loose goods when the zone has no matching sink', async () => {
 		const patches = {
 			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
-			looseGoods: [{ goodType: 'wood' as const, position: { q: 0, r: 0 } }],
+			looseGoods: { wood: [[0, 0]] },
 			freightLines: [
 				normalizeFreightLineDefinition({
 					id: 'VH:local-no-sink',
@@ -818,7 +817,7 @@ describe('Vehicle zone hop semantics', () => {
 					alveoli: [{ coord: [0, 0] as const, alveolus: 'freight_bay', goods: {} }],
 				},
 			],
-			looseGoods: [{ goodType: 'wood' as const, position: { q: 2, r: 0 } }],
+			looseGoods: { wood: [[2, 0]] },
 			freightLines: [
 				normalizeFreightLineDefinition({
 					id: 'VH:cyclic-local',
@@ -870,7 +869,7 @@ describe('Vehicle zone hop semantics', () => {
 					alveoli: [{ coord: [0, 0] as const, alveolus: 'freight_bay', goods: {} }],
 				},
 			],
-			looseGoods: [{ goodType: 'wood' as const, position: { q: 1, r: 0 } }],
+			looseGoods: { wood: [[1, 0]] },
 			freightLines: [
 				normalizeFreightLineDefinition({
 					id: 'VH:empty-bay-keeps-zone',
@@ -1094,7 +1093,7 @@ describe('Vehicle zone hop semantics', () => {
 	it('zoneBrowse transfer dispatch uses native helpers without relying on this-bound siblings', async () => {
 		const patches = {
 			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
-			looseGoods: [{ goodType: 'wood' as const, position: { q: 0, r: 0 } }],
+			looseGoods: { wood: [[0, 0]] },
 			freightLines: [
 				gatherFreightLine({
 					id: 'VH:native-dispatch',
@@ -1149,7 +1148,7 @@ describe('Vehicle zone hop semantics', () => {
 	it('canceled zoneBrowse transfer keeps the current zone stop', async () => {
 		const patches = {
 			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
-			looseGoods: [{ goodType: 'wood' as const, position: { q: 0, r: 0 } }],
+			looseGoods: { wood: [[0, 0]] },
 			freightLines: [
 				gatherFreightLine({
 					id: 'VH:native-dispatch-cancel',
@@ -1632,8 +1631,10 @@ describe('Vehicle zone hop semantics', () => {
 		expect(park?.targetCoord).not.toEqual({ q: 0, r: 0 })
 
 		character.scriptsContext.plan.begin({ ...park, type: 'work' } as any)
-		expect(isVehicleMaintenanceService(vehicle.service)).toBe(true)
-		expect(vehicle.service?.kind).toBe('park')
+		const svc = vehicle.service
+		expect(isVehicleMaintenanceService(svc)).toBe(true)
+		if (!isVehicleMaintenanceService(svc)) throw new Error('Expected maintenance service')
+		expect(svc.kind).toBe('park')
 	})
 
 	it('unfinished maintenance service without operator is offered to another worker', async () => {

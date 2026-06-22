@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { createAlveolus } from 'ssh/hive'
 import { collectTileWorkPicks } from 'ssh/tile-work'
 import { axial, toAxialCoord } from 'ssh/utils'

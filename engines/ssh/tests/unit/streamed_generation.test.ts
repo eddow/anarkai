@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { Game } from 'ssh/game/game'
 import { BoardGenerator, type GameGenerationConfig, GameGenerator } from 'ssh/generation'

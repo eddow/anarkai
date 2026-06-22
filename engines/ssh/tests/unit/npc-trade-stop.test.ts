@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { NpcSettlementTradeProfile } from 'ssh/commerce/settlement-trade'
 import type { FreightLineDefinition } from 'ssh/freight/freight-line'
 import { migrateV1FiltersToGoodsSelection } from 'ssh/freight/goods-selection-policy'

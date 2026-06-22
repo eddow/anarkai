@@ -53,7 +53,7 @@ describe('Convey Stall Reproduction', () => {
 						],
 					},
 				],
-				looseGoods: [],
+				looseGoods: {},
 			}
 
 			engine.loadScenario(scenario)
@@ -124,13 +124,13 @@ describe('Convey Stall Reproduction', () => {
 							},
 							{
 								coord: [1, 0],
-								alveolus: 'woodpile',
+								alveolus: 'pile',
 								goods: {},
 							},
 						],
 					},
 				],
-				looseGoods: [],
+				looseGoods: {},
 			}
 
 			engine.loadScenario(scenario)

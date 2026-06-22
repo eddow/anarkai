@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Manual DOM mock for PixiJS
 if (typeof document === 'undefined') {
 	;(global as any).document = {

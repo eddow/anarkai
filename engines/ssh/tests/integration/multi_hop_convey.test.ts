@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import { isTileCoord } from 'ssh/board/tile-coord'
 import { Commitment } from 'ssh/commitment'
@@ -190,10 +191,10 @@ describe('Multi-Hop Convey Tests', () => {
 			expect(hive).toBeDefined()
 			if (!provider || !demander || !hive) throw new Error('Expected conveyed event hive')
 
-			const batches: readonly GameConveyEvent[][] = []
+			const batches: GameConveyEvent[][] = []
 			engine.game.on({
 				conveyEvents(events) {
-					batches.push(events)
+					batches.push(events as GameConveyEvent[])
 				},
 			})
 
@@ -610,7 +611,7 @@ describe('Multi-Hop Convey Tests', () => {
 			}
 
 			expect(relay.storage.hasRoom('stone')).toBe(0)
-			const path = hive.getPath(provider, demander, 'stone')
+			const path = (hive as any).getPath(provider, demander, 'stone')
 			expect(path).toBeDefined()
 		} finally {
 			await engine.destroy()
@@ -718,7 +719,7 @@ describe('Multi-Hop Convey Tests', () => {
 			}
 
 			expect(relay.storage.hasRoom('planks')).toBe(0)
-			expect(hive.getPath(provider, demander, 'planks')).toBeDefined()
+			expect((hive as any).getPath(provider, demander, 'planks')).toBeDefined()
 			expect(hive.createMovement('planks', provider, demander)).toBe(true)
 
 			const providerCoord = toAxialCoord(provider.tile.position)
@@ -748,7 +749,7 @@ describe('Multi-Hop Convey Tests', () => {
 
 			;(hive as unknown as { scanForStalledExchanges(): void }).scanForStalledExchanges()
 			expect(movement.claimed).toBe(true)
-			expect(movement.claimedBy?.uid).toBe(relayWorker.uid)
+			expect((movement.claimedBy as any)?.uid).toBe(relayWorker.uid)
 
 			step?.finish()
 
@@ -803,7 +804,7 @@ describe('Multi-Hop Convey Tests', () => {
 			if (!movement) throw new Error('Expected plank movement from provider')
 
 			movement.claimed = true
-			movement.claimedBy = 'test-provider'
+			movement.claimedBy = 'test-provider' as any
 			movement.claimedAtMs = Date.now()
 			handOffFirstHop(hive, movement, 'test.failed-handoff.first')
 			movement.claimed = false

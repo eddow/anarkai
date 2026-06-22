@@ -330,39 +330,10 @@ function terrainPatchesAsTiles(terrains: TerrainPatches | undefined): TilePatch[
 	return tiles
 }
 
-/**
- * Normalize loose goods patches to the canonical record format.
- * Accepts both the record format `{ wood: [[1, 0]] }` and the legacy array format
- * `[{ goodType: 'wood', position: { q: 0, r: 0 } }]`.
- */
-function normalizeLooseGoodsPatches(looseGoods: unknown): LooseGoodsPatches {
-	if (!looseGoods) return {}
-	if (Array.isArray(looseGoods)) {
-		// Legacy array format: [{ goodType: 'wood', position: { q: 0, r: 0 } }]
-		const result: Record<string, Array<readonly [number, number]>> = {}
-		for (const entry of looseGoods) {
-			if (entry && typeof entry === 'object' && 'goodType' in entry && 'position' in entry) {
-				const goodType = (entry as any).goodType as string
-				const pos = (entry as any).position as { q: number; r: number }
-				if (goodType && pos && typeof pos.q === 'number' && typeof pos.r === 'number') {
-					const coord: readonly [number, number] = [pos.q, pos.r]
-					if (!result[goodType]) {
-						result[goodType] = [coord]
-					} else {
-						result[goodType].push(coord)
-					}
-				}
-			}
-		}
-		return result as LooseGoodsPatches
-	}
-	return looseGoods as LooseGoodsPatches
-}
-
 function looseGoodsPatchEntries(
 	looseGoods: LooseGoodsPatches | undefined
 ): Array<[GoodType, ReadonlyArray<readonly [number, number]>]> {
-	return Object.entries(normalizeLooseGoodsPatches(looseGoods)).filter(
+	return Object.entries(looseGoods || {}).filter(
 		(entry): entry is [GoodType, ReadonlyArray<readonly [number, number]>] => {
 			const [, coords] = entry
 			return coords !== undefined && coords !== null
@@ -2005,7 +1976,7 @@ export class Game extends Eventful<GameEvents> {
 				patches: {
 					tiles: (patches.tiles ?? []).length,
 					hives: (patches.hives ?? []).length,
-					looseGoodsKinds: Object.keys(normalizeLooseGoodsPatches(patches.looseGoods)).length,
+					looseGoodsKinds: Object.keys(patches.looseGoods || {}).length,
 					vehicles: (patches.vehicles ?? []).length,
 					freightLines: (patches.freightLines ?? []).length,
 					streamedFrontier:
@@ -2802,7 +2773,7 @@ export class Game extends Eventful<GameEvents> {
 			state: {
 				tiles: (state.tiles ?? []).length,
 				hives: (state.hives ?? []).length,
-				looseGoodsKinds: Object.keys(normalizeLooseGoodsPatches(state.looseGoods)).length,
+				looseGoodsKinds: Object.keys(state.looseGoods || {}).length,
 				vehicles: (state.vehicles ?? []).length,
 				freightLines: (state.freightLines ?? []).length,
 				streamedFrontier: (state.streamedFrontier ?? []).length,

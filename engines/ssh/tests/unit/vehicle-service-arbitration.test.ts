@@ -77,10 +77,7 @@ describe('Vehicle begin-service arbitration', () => {
 				}),
 			],
 			// Both gather zones need a loose pickable good to qualify for begin-service.
-			looseGoods: [
-				{ goodType: 'wood' as const, position: { q: 0, r: 0 } },
-				{ goodType: 'wood' as const, position: { q: 8, r: 0 } },
-			],
+			looseGoods: { wood: [[0, 0], [8, 0]] },
 		} satisfies GamePatches
 		game = new Game({ terrainSeed: 9501, characterCount: 0 }, patches)
 		await game.loaded
@@ -153,7 +150,7 @@ describe('Vehicle begin-service arbitration', () => {
 				}),
 			],
 			// Loose good in-zone so the gather line qualifies for begin-service.
-			looseGoods: [{ goodType: 'wood' as const, position: { q: 1, r: 0 } }],
+			looseGoods: { wood: [[1, 0]] },
 		} satisfies GamePatches
 		game = new Game({ terrainSeed: 9502, characterCount: 0 }, patches)
 		await game.loaded
@@ -202,7 +199,7 @@ describe('Vehicle begin-service arbitration', () => {
 			info: vi.fn(),
 			log,
 			warn: vi.fn(),
-		} as unknown as typeof console
+		} as any
 		try {
 			findProvideFromVehicleJob(game, character)
 			expect(log).toHaveBeenCalledWith('vehicleJob.provideFromVehicle.skippedNoLineService', {
@@ -232,7 +229,7 @@ describe('Vehicle begin-service arbitration', () => {
 			info: vi.fn(),
 			log,
 			warn: vi.fn(),
-		} as unknown as typeof console
+		} as any
 		try {
 			traceVehicleStockWithoutService(vehicle)
 			expect(log).toHaveBeenCalledWith('vehicle has stock without active service', 'v-stock')
@@ -275,10 +272,7 @@ describe('Vehicle begin-service arbitration', () => {
 				}),
 			],
 			// Both lines need a loose good of their allowed type to qualify; affinity tie-break is the axis under test.
-			looseGoods: [
-				{ goodType: 'berries' as const, position: { q: 0, r: 0 } },
-				{ goodType: 'wood' as const, position: { q: 0, r: 0 } },
-			],
+			looseGoods: { berries: [[0, 0]], wood: [[0, 0]] },
 		} satisfies GamePatches
 		game = new Game({ terrainSeed: 9505, characterCount: 0 }, patches)
 		await game.loaded
@@ -473,7 +467,7 @@ describe('Vehicle begin-service arbitration', () => {
 			info: vi.fn(),
 			log,
 			warn: vi.fn(),
-		} as unknown as typeof console
+		} as any
 		try {
 			maybeAdvanceVehicleFromCompletedAnchorStop(game, vehicle, actor)
 			expect(vehicle.service).toBeUndefined()
@@ -593,7 +587,7 @@ describe('Vehicle begin-service arbitration', () => {
 					],
 				},
 			],
-			looseGoods: [{ goodType: 'wood' as const, position: { q: 0, r: 2 } }],
+			looseGoods: { wood: [[0, 2]] },
 			freightLines: [
 				gatherFreightLine({
 					id: 'NoGatherJobHive:gather',
@@ -796,7 +790,7 @@ describe('Vehicle begin-service arbitration', () => {
 					radius: 8,
 				}),
 			],
-			looseGoods: [{ goodType: 'wood' as const, position: { q: 6, r: 0 } }],
+			looseGoods: { wood: [[6, 0]] },
 		} satisfies GamePatches
 		game = new Game({ terrainSeed: 9521, characterCount: 0 }, patches)
 		await game.loaded
@@ -922,7 +916,7 @@ describe('Vehicle begin-service arbitration', () => {
 					],
 				},
 			],
-			looseGoods: [{ goodType: 'wood' as const, position: { q: 0, r: 2 } }],
+			looseGoods: { wood: [[0, 2]] },
 			freightLines: [
 				gatherFreightLine({
 					id: 'arb:zone-browse-score',

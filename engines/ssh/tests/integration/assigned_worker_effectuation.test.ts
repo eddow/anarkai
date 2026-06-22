@@ -26,7 +26,7 @@ describe('Assigned worker effectuation', () => {
 						],
 					},
 				],
-				looseGoods: [{ position: { q: 0, r: 1 }, goodType: 'wood' }],
+				looseGoods: { wood: [[0, 1]] },
 			}
 
 			engine.loadScenario(scenario)
@@ -60,7 +60,7 @@ describe('Assigned worker effectuation', () => {
 			expect(firstAction).toBeDefined()
 			expect(firstAction?.name).toBe('work.goWork')
 			expect(
-				worker.resolveBestJobMatch()?.targetTile?.content,
+				(worker.resolveBestJobMatch() as any)?.targetTile?.content,
 				'best job should respect assignment'
 			).toBe(gather.tile.content)
 			expect(worker.assignedAlveolus).toBe(gather)

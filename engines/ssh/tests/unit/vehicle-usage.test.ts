@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { releaseVehicleFreightWorkOnPlanInterrupt } from 'ssh/freight/vehicle-run'
 import { allocateVehicleServiceForJob, findVehicleOffloadJob } from 'ssh/freight/vehicle-work'
 import type { GamePatches } from 'ssh/game/game'

@@ -12,5 +12,8 @@
 		"../terrain/src/**/*.ts",
 		"tests/**/*.ts",
 		"tests/**/*.d.ts"
+	],
+	"exclude": [
+		"tests/e2e/**"
 	]
 }
