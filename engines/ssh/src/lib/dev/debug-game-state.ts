@@ -13,7 +13,7 @@ import {
 } from 'ssh/npcs/npc-diagnostics'
 import type { ScriptExecution } from 'ssh/npcs/scripts'
 import { Character } from 'ssh/population/character'
-import { VehicleEntity } from 'ssh/population/vehicle/entity'
+import { Vehicle } from 'ssh/population/vehicle/entity'
 import {
 	isVehicleLineService,
 	isVehicleMaintenanceService,
@@ -90,7 +90,7 @@ export function cloneValueForDebugJson(
 			memo.set(raw, stub)
 			return stub
 		}
-		if (raw instanceof VehicleEntity) {
+		if (raw instanceof Vehicle) {
 			const stub = { kind: 'VehicleEntity', uid: raw.uid, vehicleType: raw.vehicleType }
 			memo.set(raw, stub)
 			return stub
@@ -252,7 +252,7 @@ function summarizeVehicleServiceForDebug(service: VehicleService) {
 	}
 }
 
-function summarizeVehicleForDebug(vehicle: VehicleEntity, tailCount: number) {
+function summarizeVehicleForDebug(vehicle: Vehicle, tailCount: number) {
 	return {
 		kind: 'vehicle' as const,
 		uid: vehicle.uid,
@@ -345,7 +345,7 @@ function isSyntheticFreightLineObject(value: unknown): value is SyntheticFreight
 function summarizeSelectedObjectForDebug(selected: unknown, tailCount: number) {
 	if (!selected) return undefined
 	if (selected instanceof Character) return summarizeCharacterForDebug(selected, tailCount)
-	if (selected instanceof VehicleEntity) return summarizeVehicleForDebug(selected, tailCount)
+	if (selected instanceof Vehicle) return summarizeVehicleForDebug(selected, tailCount)
 	if (isSyntheticFreightLineObject(selected)) {
 		return {
 			kind: 'freight-line' as const,

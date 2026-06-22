@@ -17,7 +17,7 @@
 import type { Tile } from 'ssh/board/tile'
 import type { Game } from 'ssh/game/game'
 import type { FreightBayAlveolus } from 'ssh/hive/freight-bay'
-import type { VehicleEntity } from 'ssh/population/vehicle/entity'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import type { BayQueueController } from './bay-queue-controller'
 import type { DockRequirement } from './bay-queue-types'
 
@@ -114,7 +114,7 @@ export class BayQueueRegistry {
 	 * The controller finds the node based on the vehicle's world position.
 	 */
 	onVehicleEnterQueue(
-		vehicle: VehicleEntity,
+		vehicle: Vehicle,
 		bayGroupUid: string,
 		requirements: readonly DockRequirement[],
 		priority: number,
@@ -147,7 +147,7 @@ export class BayQueueRegistry {
 	}
 
 	/** Called when a vehicle leaves the queue graph. */
-	onVehicleLeaveQueue(vehicle: VehicleEntity): void {
+	onVehicleLeaveQueue(vehicle: Vehicle): void {
 		for (const [_groupUid, controller] of this.controllers) {
 			if (controller.getRequest(vehicle.uid)) {
 				controller.cancelRequest(vehicle)
@@ -156,7 +156,7 @@ export class BayQueueRegistry {
 	}
 
 	/** Called when a vehicle completes a movement. */
-	onVehicleMovementComplete(vehicle: VehicleEntity): void {
+	onVehicleMovementComplete(vehicle: Vehicle): void {
 		for (const [, controller] of this.controllers) {
 			const grant = controller.getGrant(vehicle.uid)
 			if (grant) {
@@ -166,7 +166,7 @@ export class BayQueueRegistry {
 	}
 
 	/** Called when a vehicle completes service at a dock. */
-	onVehicleServiceComplete(vehicle: VehicleEntity): void {
+	onVehicleServiceComplete(vehicle: Vehicle): void {
 		for (const [, controller] of this.controllers) {
 			const request = controller.getRequest(vehicle.uid)
 			if (request && request.state === 'servicing') {
@@ -203,7 +203,7 @@ export class BayQueueRegistry {
 	 */
 	private findNodeForVehicle(
 		controller: BayQueueController,
-		vehicle: VehicleEntity
+		vehicle: Vehicle
 	): NonNullable<ReturnType<typeof controller.getVehicleCurrentNode>> | undefined {
 		const vehicleTile = vehicle.worldTile
 		if (!vehicleTile) return undefined

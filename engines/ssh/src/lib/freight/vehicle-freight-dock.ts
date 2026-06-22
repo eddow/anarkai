@@ -9,7 +9,7 @@ import {
 import { isLineFreightVehicleType } from 'ssh/freight/line-freight-vehicles'
 import { scoreVehicleCandidate } from 'ssh/freight/vehicle-candidate-policy'
 import type { FreightBayAlveolus } from 'ssh/hive/freight-bay'
-import type { VehicleEntity } from 'ssh/population/vehicle/entity'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
 import type { GoodType } from 'ssh/types/base'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
@@ -22,7 +22,7 @@ export class VehicleFreightDock {
 	readonly kind = VehicleFreightDock.kind
 
 	constructor(
-		public readonly vehicle: VehicleEntity,
+		public readonly vehicle: Vehicle,
 		public readonly bay: FreightBayAlveolus
 	) {}
 
@@ -101,7 +101,7 @@ export interface DockedVehicleAdvertisementCandidate {
 	readonly score: number
 }
 
-function storageReservedGoods(vehicle: VehicleEntity, goodType: GoodType): number {
+function storageReservedGoods(vehicle: Vehicle, goodType: GoodType): number {
 	return vehicle.storage
 		.renderedGoods()
 		.slots.reduce(
@@ -161,7 +161,7 @@ function currentAdvertisedDemand(bay: FreightBayAlveolus, goodType: GoodType): n
 }
 
 function dockedVehicleFutureTransfer(
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	bay: FreightBayAlveolus
 ):
 	| {
@@ -208,7 +208,7 @@ function dockedVehicleFutureTransfer(
 	return { routeNeed, routeReservedCargo, remainingRouteNeed, surplusCargo }
 }
 
-function clearUnbackedVirtualGoods(vehicle: VehicleEntity): number {
+function clearUnbackedVirtualGoods(vehicle: Vehicle): number {
 	const storage = vehicle.storage as unknown as {
 		slots?: Array<{ reserved: number; allocated: number } | undefined>
 		_reserved?: Record<string, number | undefined>
@@ -234,7 +234,7 @@ function clearUnbackedVirtualGoods(vehicle: VehicleEntity): number {
 	return cleared
 }
 
-export function vehicleDockBlockingVirtualGoodsCount(vehicle: VehicleEntity): number {
+export function vehicleDockBlockingVirtualGoodsCount(vehicle: Vehicle): number {
 	const rendered = vehicle.storage.renderedGoods()
 	return rendered.slots.reduce((total, slot) => total + Math.max(0, slot.allocated), 0)
 }
@@ -247,7 +247,7 @@ export function vehicleDockBlockingVirtualGoodsCount(vehicle: VehicleEntity): nu
  * - remaining downstream need can be loaded from real hive providers when this anchor is a distribute pickup
  */
 export function collectDockedVehicleAdvertisementCandidates(
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	bay: FreightBayAlveolus
 ): DockedVehicleAdvertisementCandidate[] {
 	const svc = vehicle.service
@@ -369,7 +369,7 @@ export function collectDockedVehicleAdvertisementCandidates(
 
 /** Advertisements for a docked wheelbarrow at a freight bay. */
 export function dockedVehicleGoodsRelations(
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	bay: FreightBayAlveolus
 ): GoodsRelations {
 	const relations: GoodsRelations = {}
@@ -387,7 +387,7 @@ export function dockedVehicleGoodsRelations(
 }
 
 export function refreshDockedVehicleAdvertisement(
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	bay: FreightBayAlveolus
 ): DockedVehicleAdvertisementCandidate[] {
 	const dock = bay.hive.freightVehicleDockFor(vehicle.uid)

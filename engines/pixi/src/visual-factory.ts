@@ -7,7 +7,7 @@ import { Tile } from 'ssh/board/tile'
 import type { GamePresentationEvent } from 'ssh/game/game'
 import type { GameObject, InteractiveGameObject } from 'ssh/game/object'
 import { Character } from 'ssh/population/character'
-import { VehicleEntity } from 'ssh/population/vehicle/entity'
+import { Vehicle } from 'ssh/population/vehicle/entity'
 import { toAxialCoord } from 'ssh/utils/position'
 import type { PixiGameRenderer } from './renderer'
 import { BorderVisual } from './renderers/border-visual'
@@ -326,7 +326,7 @@ export class VisualFactory {
 				if (characterVisual) worldViews.push(characterVisual)
 				continue
 			}
-			if (object instanceof VehicleEntity) {
+			if (object instanceof Vehicle) {
 				const vehicleVisualResult = this.create(object, VehicleVisual)
 				const vehicleVisual = vehicleVisualResult.visual
 				if (vehicleVisualResult.reused) reusedVisualCount++

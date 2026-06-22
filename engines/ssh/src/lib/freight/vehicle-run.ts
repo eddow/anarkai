@@ -39,7 +39,7 @@ import {
 import { pickVehicleZoneBrowseSelection, zoneBrowseUrgency } from 'ssh/freight/vehicle-zone-browse'
 import type { Game } from 'ssh/game/game'
 import type { Character } from 'ssh/population/character'
-import type { VehicleEntity } from 'ssh/population/vehicle/entity'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService, isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
 import type { GoodType } from 'ssh/types/base'
 import { axial } from 'ssh/utils/axial'
@@ -51,7 +51,7 @@ import { assert, traces } from '../dev/debug.ts'
  * wheelbarrow itself. A clean `UnBuiltLand` rest tile is fine; alveoli, projects, residential, and
  * tiles with loose goods / deposits should be vacated.
  */
-export function vehicleNeedsParkingOnCurrentTile(vehicle: VehicleEntity): boolean {
+export function vehicleNeedsParkingOnCurrentTile(vehicle: Vehicle): boolean {
 	const here = vehicle.tile
 	const hereCoord = toAxialCoord(here.position)
 	if (
@@ -122,7 +122,7 @@ export function freightStopTargetPosition(game: Game, stop: FreightStop): Positi
  * {@link pickInitialVehicleServiceCandidate} when `Game` + `Character` are available.
  */
 export function previewInitialVehicleService(
-	vehicle: VehicleEntity
+	vehicle: Vehicle
 ): { line: FreightLineDefinition; stop: FreightStop } | undefined {
 	const line = vehicle.servedLines[0]
 	if (!line) return undefined
@@ -131,7 +131,7 @@ export function previewInitialVehicleService(
 	return { line, stop }
 }
 
-function vehicleLineStockAffinity(line: FreightLineDefinition, vehicle: VehicleEntity): number {
+function vehicleLineStockAffinity(line: FreightLineDefinition, vehicle: Vehicle): number {
 	let score = 0
 	const gatherSegs = findGatherRouteSegments(line)
 	const distSegs = findDistributeRouteSegments(line)
@@ -176,7 +176,7 @@ export function gatherUnloadAnchorHiveDemandsGood(
 	return content.hive.needs[good] !== undefined
 }
 
-function vehicleCapacityForGood(vehicle: VehicleEntity, goodType: GoodType): number {
+function vehicleCapacityForGood(vehicle: Vehicle, goodType: GoodType): number {
 	const room = vehicle.storage.hasRoom(goodType) ?? 0
 	const loaded = vehicle.storage.available(goodType) ?? 0
 	return Math.max(0, room + loaded)
@@ -212,7 +212,7 @@ function tradeBeginServiceUrgency(): number {
 }
 
 function goodsIntersectAvailableStock(
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	goods: Partial<Record<GoodType, number>>
 ): boolean {
 	for (const [goodType, quantity] of Object.entries(goods) as [GoodType, number][]) {
@@ -224,7 +224,7 @@ function goodsIntersectAvailableStock(
 export function stopHasPotentialVehicleTransfer(
 	game: Game,
 	character: Character | undefined,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	line: FreightLineDefinition,
 	stop: FreightStop
 ): boolean {
@@ -256,7 +256,7 @@ export function stopHasPotentialVehicleTransfer(
 
 export function nextActionableVehicleLineStop(
 	game: Game,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	line: FreightLineDefinition,
 	currentStop: FreightStop,
 	character?: Character
@@ -285,7 +285,7 @@ export function nextActionableVehicleLineStop(
 function findBeginServiceActionableWork(
 	game: Game,
 	character: Character,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	line: FreightLineDefinition
 ): BeginServiceActionableWork | undefined {
 	let best: (BeginServiceActionableWork & { score: number; distance: number }) | undefined
@@ -436,7 +436,7 @@ function findBeginServiceActionableWork(
 export function pickInitialVehicleServiceCandidate(
 	game: Game,
 	character: Character,
-	vehicle: VehicleEntity
+	vehicle: Vehicle
 ): { line: FreightLineDefinition; stop: FreightStop; urgency: number } | undefined {
 	let best:
 		| {
@@ -471,7 +471,7 @@ export function pickInitialVehicleServiceCandidate(
 export function projectedLineStopForVehicleHop(
 	game: Game,
 	character: Character,
-	vehicle: VehicleEntity
+	vehicle: Vehicle
 ): { line: FreightLineDefinition; stop: FreightStop } | undefined {
 	const svc = vehicle.service
 	if (!isVehicleLineService(svc)) return undefined
@@ -516,7 +516,7 @@ export type VehicleServiceStartCandidate = {
 
 /** Start line `service` if none; uses explicit line/stop ids when given, else {@link pickInitialVehicleServiceCandidate}. */
 export function ensureVehicleServiceStarted(
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	operator: Character,
 	game: Game,
 	character: Character,
@@ -558,7 +558,7 @@ export function ensureVehicleServiceStarted(
 function shouldAdvancePastZoneStop(
 	game: Game,
 	character: Character,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	line: FreightLineDefinition,
 	stop: FreightStop & { zone: FreightZoneDefinition },
 	startPos: Position = character.position
@@ -567,7 +567,7 @@ function shouldAdvancePastZoneStop(
 	return true
 }
 
-function vehicleStorageStockCount(vehicle: VehicleEntity): number {
+function vehicleStorageStockCount(vehicle: Vehicle): number {
 	return Object.values(vehicle.storage.stock).reduce(
 		(total, qty) => total + Math.max(0, qty ?? 0),
 		0
@@ -579,7 +579,7 @@ function isDistributeUnloadStop(line: FreightLineDefinition, stopIndex: number):
 }
 
 function advanceVehicleToNextLineStopOrEnd(
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	line: FreightLineDefinition,
 	stop: FreightStop,
 	reason: string
@@ -625,7 +625,7 @@ function advanceVehicleToNextLineStopOrEnd(
  */
 export function advanceVehicleLineServicePastEmptyStops(
 	game: Game,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	character?: Character
 ): void {
 	let lastSkippedStopId: string | undefined
@@ -802,7 +802,7 @@ export function advanceVehicleLineServicePastEmptyStops(
  */
 export function maybeAdvanceVehiclePastCompletedZoneStop(
 	game: Game,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	character: Character
 ): void {
 	const svc = vehicle.service
@@ -815,7 +815,7 @@ export function maybeAdvanceVehiclePastCompletedZoneStop(
 /** Advance a docked anchor stop once vehicle-side storage reservations/allocations are drained. */
 export function maybeAdvanceVehicleFromCompletedAnchorStop(
 	game: Game,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	character?: Character
 ): void {
 	const svc = vehicle.service
@@ -953,7 +953,7 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 }
 
 /** After docking at a **bay anchor** stop, advance to the next stop or end the run. */
-export function advanceVehicleAfterDock(vehicle: VehicleEntity): void {
+export function advanceVehicleAfterDock(vehicle: Vehicle): void {
 	const svc = vehicle.service
 	if (!isVehicleLineService(svc)) return
 	const { line, stop } = svc
@@ -979,7 +979,7 @@ export function advanceVehicleAfterDock(vehicle: VehicleEntity): void {
 
 export function executeNpcTradeStopAndAdvance(
 	game: Game,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	character?: Character
 ): boolean {
 	const svc = vehicle.service
@@ -1006,7 +1006,7 @@ export function executeNpcTradeStopAndAdvance(
  * If the vehicle has an active service but empty storage, clear service (e.g. after a canceled empty run).
  * When storage is non-empty, does nothing — stock remains meaningful without service (see roadmap §9).
  */
-export function detachVehicleServiceIfStorageEmpty(vehicle: VehicleEntity): void {
+export function detachVehicleServiceIfStorageEmpty(vehicle: Vehicle): void {
 	if (!vehicle.service) return
 	const hasStock = Object.values(vehicle.storage.stock).some((n) => (n ?? 0) > 0)
 	if (hasStock) return
@@ -1023,11 +1023,11 @@ export function offboardOperatorAfterFreightWorkComplete(character: Character): 
 }
 
 /**
- * Bay anchor docked: vehicle keeps line {@link VehicleEntity.service} without an operator.
+ * Bay anchor docked: vehicle keeps line {@link Vehicle.service} without an operator.
  */
 export function disembarkOperatorLeavingDockedVehicleInService(
 	character: Character,
-	vehicle: VehicleEntity
+	vehicle: Vehicle
 ): void {
 	assert(
 		character.operates?.uid === vehicle.uid,
@@ -1038,7 +1038,7 @@ export function disembarkOperatorLeavingDockedVehicleInService(
 
 export type VehicleFreightInterruptSubject = {
 	readonly uid: string
-	operates?: VehicleEntity
+	operates?: Vehicle
 	readonly driving?: boolean
 	offboard?: () => void
 	disengageVehicleKeepingService?: () => void
@@ -1086,7 +1086,7 @@ export function releaseVehicleFreightWorkOnPlanInterrupt(
 export function findVehicleEntityAtTile(
 	game: Game,
 	tile: { position: Position }
-): VehicleEntity | undefined {
+): Vehicle | undefined {
 	const key = toAxialCoord(tile.position)
 	if (!key) return undefined
 	const rounded = { q: Math.round(key.q), r: Math.round(key.r) }

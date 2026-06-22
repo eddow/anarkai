@@ -38,7 +38,7 @@ import {
 import type { InspectorSelectableObject, InteractiveGameObject } from 'ssh/game/object'
 import { resolveSelectableHoverObject } from 'ssh/game/object'
 import { Character } from 'ssh/population/character'
-import { VehicleEntity } from 'ssh/population/vehicle/entity'
+import { Vehicle } from 'ssh/population/vehicle/entity'
 import { toWorldCoord } from 'ssh/utils/position'
 import HiveProperties from '../components/HiveProperties'
 import CharacterProperties from '../components/properties/CharacterProperties'
@@ -150,8 +150,8 @@ const isTileObject = (object: unknown): object is Tile =>
 		object.uid.startsWith('tile:') &&
 		'board' in object)
 
-const isVehicleObject = (object: unknown): object is VehicleEntity =>
-	object instanceof VehicleEntity ||
+const isVehicleObject = (object: unknown): object is Vehicle =>
+	object instanceof Vehicle ||
 	(!!object &&
 		typeof object === 'object' &&
 		'vehicleType' in object &&
@@ -187,7 +187,7 @@ const HiveSelectionProperties = (props: { object?: unknown }) => (
 
 const VehicleSelectionProperties = (props: { object?: unknown }) => (
 	<div data-selection-properties-kind="vehicle">
-		<VehicleProperties vehicle={props.object as VehicleEntity} />
+		<VehicleProperties vehicle={props.object as Vehicle} />
 	</div>
 )
 

@@ -12,7 +12,7 @@ import { assertVehicleOperationConsistency } from 'ssh/freight/vehicle-invariant
 import { releaseVehicleFreightWorkOnPlanInterrupt } from 'ssh/freight/vehicle-run'
 import { allocateVehicleServiceForJob } from 'ssh/freight/vehicle-work'
 import type { Character } from 'ssh/population/character'
-import type { VehicleEntity } from 'ssh/population/vehicle/entity'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
 import type { Goods, GoodType } from 'ssh/types'
 import type {
@@ -31,7 +31,7 @@ import { subject } from '../scripts'
 import { DurationStep } from '../steps'
 import { PlanCommitment } from './plan-commitment'
 
-function characterSameHexAsVehicle(character: Character, vehicle: VehicleEntity): boolean {
+function characterSameHexAsVehicle(character: Character, vehicle: Vehicle): boolean {
 	const a = axial.round(toAxialCoord(character.position)!)
 	const b = axial.round(toAxialCoord(vehicle.effectivePosition)!)
 	return axial.key(a) === axial.key(b)

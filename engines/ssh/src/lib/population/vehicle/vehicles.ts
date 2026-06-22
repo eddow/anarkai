@@ -1,11 +1,11 @@
 import type { FreightLineDefinition } from 'ssh/freight/freight-line'
 import type { Game } from 'ssh/game/game'
 import { GameObject, withContainer } from 'ssh/game/object'
-import { VehicleEntity } from './entity'
+import { Vehicle } from './entity'
 import type { VehicleSerializedState, WorldVehicleType } from './vehicle'
 
 export class Vehicles extends withContainer(GameObject) {
-	private readonly items = new Map<string, VehicleEntity>()
+	private readonly items = new Map<string, Vehicle>()
 
 	constructor(public readonly game: Game) {
 		super(game)
@@ -16,9 +16,9 @@ export class Vehicles extends withContainer(GameObject) {
 		vehicleType: WorldVehicleType,
 		position: { q: number; r: number },
 		servedLines: readonly FreightLineDefinition[] = []
-	): VehicleEntity {
+	): Vehicle {
 		return this.game.withObjectRegistrationBatch(() => {
-			const vehicle = new VehicleEntity(this.game, uid, vehicleType, position, servedLines)
+			const vehicle = new Vehicle(this.game, uid, vehicleType, position, servedLines)
 			this.items.set(uid, vehicle)
 			this.add(vehicle)
 			this.game.invalidateWorkPlanning('vehicle.create')
@@ -26,7 +26,7 @@ export class Vehicles extends withContainer(GameObject) {
 		})
 	}
 
-	vehicle(uid: string): VehicleEntity | undefined {
+	vehicle(uid: string): Vehicle | undefined {
 		return this.items.get(uid)
 	}
 
@@ -48,7 +48,7 @@ export class Vehicles extends withContainer(GameObject) {
 			this.items.clear()
 			this.clear()
 			for (const vehicleData of data) {
-				const vehicle = VehicleEntity.deserialize(this.game, vehicleData)
+				const vehicle = Vehicle.deserialize(this.game, vehicleData)
 				this.items.set(vehicle.uid, vehicle)
 				this.add(vehicle)
 			}

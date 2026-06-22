@@ -1,5 +1,5 @@
 import type { Character } from 'ssh/population/character'
-import type { VehicleEntity } from 'ssh/population/vehicle/entity'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
 import { assert, registerTraceInvariants, type TraceInvariantResult, traces } from '../dev/debug.ts'
 
@@ -7,7 +7,7 @@ function isCharacter(value: unknown): value is Character {
 	return !!value && typeof value === 'object' && 'uid' in value && 'driving' in value
 }
 
-function isVehicle(value: unknown): value is VehicleEntity {
+function isVehicle(value: unknown): value is Vehicle {
 	return !!value && typeof value === 'object' && 'uid' in value && 'storage' in value
 }
 
@@ -36,7 +36,7 @@ function operatedVehiclePointsBackResult(character: Character): TraceInvariantRe
 }
 
 function vehicleOperationConsistencyResult(
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	character: Character
 ): TraceInvariantResult {
 	const op = vehicle.service?.operator
@@ -62,7 +62,7 @@ function vehicleOperationConsistencyResult(
 	}
 }
 
-function dockedSemanticsResult(vehicle: VehicleEntity): TraceInvariantResult {
+function dockedSemanticsResult(vehicle: Vehicle): TraceInvariantResult {
 	const svc = vehicle.service
 	if (!isVehicleLineService(svc) || !svc.docked) return true
 	const stop = svc.stop
@@ -146,7 +146,7 @@ export function assertDrivingVehicleSeam(character: Character): void {
 }
 
 export function assertVehicleOperationConsistency(
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	character: Character
 ): void {
 	traces.vehicle.invariant?.['operation-consistency'](vehicle, character)
@@ -159,7 +159,7 @@ export function assertVehicleOperationConsistency(
 	)
 }
 
-export function assertDockedSemantics(vehicle: VehicleEntity): void {
+export function assertDockedSemantics(vehicle: Vehicle): void {
 	traces.vehicle.invariant?.['docked-semantics'](vehicle)
 	const result = dockedSemanticsResult(vehicle)
 	vehicleTraceAssert(
@@ -168,7 +168,7 @@ export function assertDockedSemantics(vehicle: VehicleEntity): void {
 	)
 }
 
-export function traceVehicleStockWithoutService(vehicle: VehicleEntity): void {
+export function traceVehicleStockWithoutService(vehicle: Vehicle): void {
 	if (vehicle.service) return
 	const stock = vehicle.storage.stock
 	const hasStock = Object.values(stock).some((n) => (n ?? 0) > 0)

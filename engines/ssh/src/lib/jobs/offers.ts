@@ -1,7 +1,7 @@
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
 import type { Character } from 'ssh/population/character'
-import type { VehicleEntity } from 'ssh/population/vehicle/entity'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import type { Job, VehicleHopJob, VehicleOffloadJob, ZoneBrowseJob } from 'ssh/types/base'
 import { type AxialCoord, axial, toAxialCoord } from 'ssh/utils'
 
@@ -30,7 +30,7 @@ export type TileProposedJob = Job & {
 }
 
 export type VehicleProposedJob = VehiclePlannerJob & {
-	readonly source: { readonly kind: 'vehicle'; readonly vehicle: VehicleEntity }
+	readonly source: { readonly kind: 'vehicle'; readonly vehicle: Vehicle }
 	readonly targetTile: Tile
 }
 
@@ -84,7 +84,7 @@ export function asTileProposedJob(job: Job, tile: Tile, targetTile: Tile = tile)
 
 export function asVehicleProposedJob(
 	job: VehiclePlannerJob,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	targetTile: Tile = vehicle.tile
 ): VehicleProposedJob {
 	return {

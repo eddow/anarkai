@@ -1,7 +1,7 @@
 import { ensureVehicleServiceStarted } from 'ssh/freight/vehicle-run'
 import type { Game } from 'ssh/game/game'
 import type { Character } from 'ssh/population/character'
-import type { VehicleEntity } from 'ssh/population/vehicle/entity'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import type { VehicleMaintenanceServiceSpec } from 'ssh/population/vehicle/vehicle'
 import { toAxialCoord } from 'ssh/utils/position'
 
@@ -9,7 +9,7 @@ import { toAxialCoord } from 'ssh/utils/position'
 export function bindOperatedWheelbarrowLine(
 	game: Game,
 	character: Character,
-	vehicle: VehicleEntity
+	vehicle: Vehicle
 ): void {
 	if (!ensureVehicleServiceStarted(vehicle, character, game, character)) {
 		throw new Error('bindOperatedWheelbarrowLine: ensureVehicleServiceStarted failed')
@@ -24,7 +24,7 @@ export function bindOperatedWheelbarrowLine(
  */
 export function bindOperatedWheelbarrowOffload(
 	character: Character,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	spec: VehicleMaintenanceServiceSpec = {
 		kind: 'park',
 		targetCoord: toAxialCoord(vehicle.effectivePosition) ?? { q: 0, r: 0 },

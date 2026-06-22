@@ -21,7 +21,7 @@ import {
 import type { FreightAdSource } from 'ssh/freight/priority-channel'
 import type { Game } from 'ssh/game/game'
 import type { Hive } from 'ssh/hive/hive'
-import type { VehicleEntity } from 'ssh/population/vehicle/entity'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
 import type { GoodType } from 'ssh/types/base'
 import type { ExchangePriority } from 'ssh/utils/advertisement'
@@ -702,7 +702,7 @@ export function projectLoadedGoodsAgainstFurtherNeeds(
 }
 
 function vehicleAvailableGoods(
-	vehicle: VehicleEntity | undefined,
+	vehicle: Vehicle | undefined,
 	goods: Partial<Record<GoodType, number>>
 ): Partial<Record<GoodType, number>> {
 	if (!vehicle) return {}
@@ -716,7 +716,7 @@ function vehicleAvailableGoods(
 }
 
 function vehicleRoomGoods(
-	vehicle: VehicleEntity | undefined,
+	vehicle: Vehicle | undefined,
 	goods: Partial<Record<GoodType, number>>
 ): Partial<Record<GoodType, number>> {
 	if (!vehicle) return {}
@@ -791,7 +791,7 @@ export function explainFreightStopCommerce(args: {
 	readonly game: Game
 	readonly line: FreightLineDefinition
 	readonly stopIndex: number
-	readonly vehicle?: VehicleEntity
+	readonly vehicle?: Vehicle
 }): FreightStopCommerceExplanation {
 	const stop = args.line.stops[args.stopIndex]
 	if (!stop) {
@@ -937,7 +937,7 @@ export interface FreightLineRouteSummary {
 	readonly totalActionableStops: number
 }
 
-function vehicleCargoSummary(vehicle: VehicleEntity): string {
+function vehicleCargoSummary(vehicle: Vehicle): string {
 	const stock = vehicle.storage?.stock ?? {}
 	const entries = Object.entries(stock)
 		.filter(([, qty]) => (qty ?? 0) > 0)
@@ -953,7 +953,7 @@ function vehicleCargoSummary(vehicle: VehicleEntity): string {
 export function summarizeFreightLineRoute(args: {
 	readonly game: Game
 	readonly line: FreightLineDefinition
-	readonly vehicles: readonly VehicleEntity[]
+	readonly vehicles: readonly Vehicle[]
 }): FreightLineRouteSummary {
 	const { game, line, vehicles } = args
 	const stops: FreightLineStopSummary[] = []

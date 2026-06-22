@@ -2,11 +2,11 @@ import type { Alveolus } from 'ssh/board/content/alveolus'
 import { isLineFreightVehicleType } from 'ssh/freight/line-freight-vehicles'
 import { VehicleFreightDock } from 'ssh/freight/vehicle-freight-dock'
 import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
-import type { VehicleEntity } from 'ssh/population/vehicle/entity'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService, isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
 import { traces } from '../dev/debug.ts'
 
-export function freightVehicleDockBay(vehicle: VehicleEntity): FreightBayAlveolus | undefined {
+export function freightVehicleDockBay(vehicle: Vehicle): FreightBayAlveolus | undefined {
 	const svc = vehicle.service
 	if (!isVehicleLineService(svc) || !vehicle.isDocked) return undefined
 	if (!('anchor' in svc.stop)) return undefined
@@ -31,7 +31,7 @@ export function freightVehicleDockBay(vehicle: VehicleEntity): FreightBayAlveolu
 }
 
 export function ensureFreightVehicleDockRegistration(
-	vehicle: VehicleEntity
+	vehicle: Vehicle
 ): FreightBayAlveolus | undefined {
 	const bay = freightVehicleDockBay(vehicle)
 	if (!bay) return undefined
@@ -48,7 +48,7 @@ export function ensureFreightVehicleDockRegistration(
 }
 
 /** Registers or clears the hive advertisement endpoint for a docked wheelbarrow at a freight bay. */
-export function syncFreightVehicleDockRegistration(vehicle: VehicleEntity): void {
+export function syncFreightVehicleDockRegistration(vehicle: Vehicle): void {
 	const bay = freightVehicleDockBay(vehicle)
 	for (const tile of vehicle.game.hex.tiles) {
 		const content = tile.content

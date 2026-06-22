@@ -2,16 +2,16 @@ import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-lin
 import type { Game } from 'ssh/game'
 import type { Hive } from 'ssh/hive'
 import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
-import type { VehicleEntity } from 'ssh/population/vehicle/entity'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
 
 export interface DockedVehicleEntry {
-	readonly vehicle: VehicleEntity
+	readonly vehicle: Vehicle
 	readonly line: FreightLineDefinition
 	readonly stop: FreightStop
 }
 
-function dockedLineEntry(vehicle: VehicleEntity): DockedVehicleEntry | undefined {
+function dockedLineEntry(vehicle: Vehicle): DockedVehicleEntry | undefined {
 	const service = vehicle.service
 	if (!isVehicleLineService(service)) return undefined
 	if (!vehicle.isDocked) return undefined

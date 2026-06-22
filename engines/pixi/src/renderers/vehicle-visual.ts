@@ -1,7 +1,7 @@
 import { effect } from 'mutts'
 import { ColorMatrixFilter, Sprite, Texture } from 'pixi.js'
 import type { Character } from 'ssh/population/character'
-import type { VehicleEntity } from 'ssh/population/vehicle/entity'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import type { WorldVehicleType } from 'ssh/population/vehicle/vehicle'
 import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
@@ -21,14 +21,14 @@ export function vehicleTextureKey(vehicleType: WorldVehicleType): string {
 	}
 }
 
-export class VehicleVisual extends VisualObject<VehicleEntity> {
+export class VehicleVisual extends VisualObject<Vehicle> {
 	/** Drawn first (under {@link sprite}) when a driver is present; not used on the standalone character visual while driving. */
 	private operatorSprite: Sprite
 	private sprite: Sprite
 	private isHovered = false
 	private goodsRenderer: GoodsRenderer | undefined
 
-	constructor(vehicle: VehicleEntity, renderer: PixiGameRenderer) {
+	constructor(vehicle: Vehicle, renderer: PixiGameRenderer) {
 		super(vehicle, renderer)
 		const scope = `vehicle:${vehicle.uid}`
 		this.view.label = scope

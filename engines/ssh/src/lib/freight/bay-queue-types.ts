@@ -134,7 +134,7 @@ import type { TileBorder } from 'ssh/board/border/border'
 // and use `type` imports here to avoid circular deps.
 import type { Tile } from 'ssh/board/tile'
 import type { FreightBayAlveolus } from 'ssh/hive/freight-bay'
-import type { VehicleEntity } from 'ssh/population/vehicle/entity'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 
 /**
  * Runtime queue node — live simulation state.
@@ -153,9 +153,9 @@ export interface RuntimeQueueNode {
 	/** Freight bay alveolus this node represents (only for service nodes). */
 	readonly serviceBay?: FreightBayAlveolus
 	/** Vehicles currently occupying this node. */
-	readonly occupiedBy: Set<VehicleEntity>
+	readonly occupiedBy: Set<Vehicle>
 	/** Vehicles that have been granted movement into this node but haven't arrived yet. */
-	readonly reservedBy: Set<VehicleEntity>
+	readonly reservedBy: Set<Vehicle>
 	/** Authored properties carried from the serialized node. */
 	readonly capacity: number
 	readonly accepts: VehicleCapabilityFilter

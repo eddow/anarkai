@@ -8,7 +8,7 @@ import {
 	findVehicleOffloadJob,
 	isVehicleOffloadDestinationEligible,
 } from 'ssh/freight/vehicle-work'
-import { VehicleEntity } from 'ssh/population/vehicle/entity'
+import { Vehicle } from 'ssh/population/vehicle/entity'
 import { isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
 import { axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
@@ -876,11 +876,11 @@ describe('findVehicleOffloadJob', () => {
 				operatorUid: char.uid,
 			})
 
-			const restored = VehicleEntity.deserialize(game, saved)
+			const restored = Vehicle.deserialize(game, saved)
 			expect(restored.service).toBeUndefined()
 			expect(restored.storage.stock.wood).toBe(2)
 
-			const legacyRestored = VehicleEntity.deserialize(game, {
+			const legacyRestored = Vehicle.deserialize(game, {
 				uid: 'wb-legacy-offload',
 				vehicleType: 'wheelbarrow',
 				position: center,

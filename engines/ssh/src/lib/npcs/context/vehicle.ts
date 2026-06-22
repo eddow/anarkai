@@ -16,7 +16,7 @@ import {
 } from 'ssh/freight/vehicle-run'
 import { beginLoadedVehicleUnloadMaintenance } from 'ssh/freight/vehicle-work'
 import type { Character } from 'ssh/population/character'
-import type { VehicleEntity } from 'ssh/population/vehicle/entity'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService, isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
 import { contract } from 'ssh/types'
 import { type AxialCoord, axial } from 'ssh/utils'
@@ -42,7 +42,7 @@ function vehicleServiceTargetIsBlocking(character: Character, jobPlan: WorkPlan)
 	return !!character.game.hex.getTile(coord)?.isBlockingSpace
 }
 
-function vehicleCanDockAtCurrentPosition(vehicle: VehicleEntity): boolean {
+function vehicleCanDockAtCurrentPosition(vehicle: Vehicle): boolean {
 	const dockTile = vehicle.dockTile
 	const position = vehicle.position
 	if (!dockTile || !position) return false
@@ -64,7 +64,7 @@ function vehicleCanDockAtCurrentPosition(vehicle: VehicleEntity): boolean {
 
 function refreshAnchorHopPathToLiveDock(
 	character: Character,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	jobPlan: WorkPlan
 ): AxialCoord[] | undefined {
 	if (jobPlan.type !== 'work' || jobPlan.job !== 'vehicleHop') return undefined
@@ -123,7 +123,7 @@ function refreshAnchorHopPathToLiveDock(
 
 function moveTowardLiveDockStep(
 	character: Character,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	jobPlan: WorkPlan
 ): MoveToStep | undefined {
 	const path = refreshAnchorHopPathToLiveDock(character, vehicle, jobPlan)
@@ -183,7 +183,7 @@ function markVehicleHopRunEndedBeforeDock(
 	jobPlan: WorkPlan,
 	reason: VehicleHopRunEndedReason,
 	character: Character,
-	vehicle: VehicleEntity
+	vehicle: Vehicle
 ): void {
 	if (jobPlan.type !== 'work' || jobPlan.job !== 'vehicleHop') return
 	jobPlan.vehicleHopRunEnded = true
@@ -217,7 +217,7 @@ class VehicleFunctions {
 	vehicleEffectivePosition(jobPlan: WorkPlan): { q: number; r: number } | undefined {
 		const character = this[subject] as Character
 		if (jobPlan.type !== 'work' || !('vehicleUid' in jobPlan)) return undefined
-		const vehicle = character.game.vehicles.vehicle(jobPlan.vehicleUid)
+		const vehicle = jobPlan.vehicle ?? character.game.vehicles.vehicle(jobPlan.vehicleUid)
 		return vehicle?.effectivePosition as { q: number; r: number } | undefined
 	}
 
@@ -240,7 +240,7 @@ class VehicleFunctions {
 			!(jobPlan.job === 'vehicleHop' && jobPlan.approachPath && jobPlan.approachPath.length > 0)
 		)
 			return
-		const vehicle = character.game.vehicles.vehicle(jobPlan.vehicleUid)
+		const vehicle = jobPlan.vehicle ?? character.game.vehicles.vehicle(jobPlan.vehicleUid)
 		assert(vehicle, 'vehicleApproach: vehicle missing')
 		if (vehicle.operator && vehicle.operator.uid !== character.uid) {
 			jobPlan.vehicleApproachAborted = true
@@ -357,7 +357,7 @@ class VehicleFunctions {
 		const character = this[subject] as Character
 		if (jobPlan.type !== 'work' || jobPlan.job !== 'vehicleHop' || !jobPlan.needsBeginService)
 			return
-		const vehicle = character.game.vehicles.vehicle(jobPlan.vehicleUid)
+		const vehicle = jobPlan.vehicle ?? character.game.vehicles.vehicle(jobPlan.vehicleUid)
 		assert(vehicle, 'vehicleBeginService: vehicle missing')
 		assert(character.operates?.uid === vehicle.uid, 'vehicleBeginService: wrong operated vehicle')
 		assert(character.driving, 'vehicleBeginService: not driving')
@@ -399,7 +399,7 @@ class VehicleFunctions {
 		const hopPlan = jobPlan as WorkPlan & { vehicleHopReplanRequired?: boolean }
 		jobPlan.vehicleHopAnchorDockDisembarked = false
 		hopPlan.vehicleHopReplanRequired = false
-		const vehicle = character.game.vehicles.vehicle(jobPlan.vehicleUid)
+		const vehicle = jobPlan.vehicle ?? character.game.vehicles.vehicle(jobPlan.vehicleUid)
 		assert(vehicle, 'vehicleHop: vehicle missing')
 		assert(character.operates?.uid === vehicle.uid, 'vehicleHop: wrong operated vehicle')
 		assert(character.driving, 'vehicleHop: not driving')
@@ -456,7 +456,7 @@ class VehicleFunctions {
 			wasReplanRequired,
 			vehicleHopStopHandled: (jobPlan as any).vehicleHopStopHandled,
 		})
-		const vehicle = character.game.vehicles.vehicle(jobPlan.vehicleUid)
+		const vehicle = jobPlan.vehicle ?? character.game.vehicles.vehicle(jobPlan.vehicleUid)
 		assert(vehicle, 'vehicleHopDockStep: vehicle missing')
 		if (!isVehicleLineService(vehicle.service)) {
 			traces.vehicle.warn?.('vehicleHopDockStep: no active line service (unexpected tail)', {

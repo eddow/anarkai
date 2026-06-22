@@ -4,6 +4,7 @@ import type { TileContent } from 'ssh/board'
 import type { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import type { LooseGood } from 'ssh/board/looseGoods'
 import type { FreightAdSource, FreightPriorityTier } from 'ssh/freight/priority-channel'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { type AxialCoord, type Positioned, positionScope } from 'ssh/utils'
 
 /**
@@ -358,6 +359,8 @@ export interface DefragmentJob {
 
 export interface VehicleJob {
 	vehicleUid: string
+	/** Runtime reference to the world vehicle (direct object, not a map lookup). Set by the planner at construction time. */
+	vehicle?: Vehicle
 	/** Distance to claim the vehicle before doing vehicle work. */
 	approachPath?: AxialCoord[]
 }

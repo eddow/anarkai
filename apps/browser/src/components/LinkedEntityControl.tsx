@@ -17,7 +17,7 @@ import type { SyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import type { InspectorSelectableObject, InteractiveGameObject } from 'ssh/game/object'
 import { resolveSelectableHoverObject } from 'ssh/game/object'
 import { Character } from 'ssh/population/character'
-import { VehicleEntity } from 'ssh/population/vehicle/entity'
+import { Vehicle } from 'ssh/population/vehicle/entity'
 import type { WorldVehicleType } from 'ssh/population/vehicle/vehicle'
 import { computeStyleFromTexture } from 'ssh/utils/images'
 import ResourceImage from './ResourceImage'
@@ -126,7 +126,7 @@ const LinkedEntityControl = (props: LinkedEntityControlProps) => {
 	})
 	const currentObject = (): LinkedEntityTarget | undefined => props.object
 	const vehicleTypeForObject = (object: unknown): WorldVehicleType | undefined =>
-		object instanceof VehicleEntity ||
+		object instanceof Vehicle ||
 		(!!object &&
 			typeof object === 'object' &&
 			'vehicleType' in object &&

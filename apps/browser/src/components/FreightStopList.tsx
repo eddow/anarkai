@@ -40,7 +40,7 @@ import {
 import type { GoodSelectionPolicy } from 'ssh/freight/goods-selection-policy'
 import { UNRESTRICTED_GOODS_SELECTION_POLICY } from 'ssh/freight/goods-selection-policy'
 import type { Game } from 'ssh/game'
-import type { VehicleEntity } from 'ssh/population/vehicle/entity'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import GoodSelectionRulesEditor from './GoodSelectionRulesEditor'
 import InspectorObjectLink from './InspectorObjectLink'
 import LinkedEntityControl from './LinkedEntityControl'
@@ -544,11 +544,11 @@ const FreightStopList = (props: FreightStopListProps) => {
 			setFreightDraftStopMinBalanceAfterBuyVp(line, index, parseNonNegativeInteger(raw))
 		)
 	}
-	const vehiclesForLine = (): VehicleEntity[] => {
+	const vehiclesForLine = (): Vehicle[] => {
 		const draft = currentDraft()
-		const vehicles = (props.game as { vehicles?: Iterable<VehicleEntity> }).vehicles
+		const vehicles = (props.game as { vehicles?: Iterable<Vehicle> }).vehicles
 		if (!draft || !vehicles) return []
-		const out: VehicleEntity[] = []
+		const out: Vehicle[] = []
 		for (const vehicle of vehicles) {
 			if (vehicle.servedLines.some((line) => line.id === draft.id)) out.push(vehicle)
 		}

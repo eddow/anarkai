@@ -35,7 +35,7 @@ import {
 } from 'ssh/freight/vehicle-candidate-policy'
 import type { Game } from 'ssh/game/game'
 import type { Character } from 'ssh/population/character'
-import type { VehicleEntity } from 'ssh/population/vehicle/entity'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import type { GoodType } from 'ssh/types/base'
 import { type AxialCoord, axial } from 'ssh/utils'
 import { type Positioned, toAxialCoord } from 'ssh/utils/position'
@@ -97,7 +97,7 @@ function pathToTile(
 
 export function zoneBrowseUtilityContext(
 	game: Game,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	line: FreightLineDefinition,
 	stop: FreightStop
 ): ZoneBrowseUtilityContext | undefined {
@@ -146,7 +146,7 @@ function explicitZoneLoadGoods(
 function pickZoneLoadSelection(
 	game: Game,
 	character: Character,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	line: FreightLineDefinition,
 	zoneStop: FreightStop & { zone: FreightZoneDefinition },
 	startPos: Positioned,
@@ -226,7 +226,7 @@ function pickZoneLoadSelection(
 function pickZoneProvideSelection(
 	game: Game,
 	character: Character,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	line: FreightLineDefinition,
 	zoneStop: FreightStop & { zone: FreightZoneDefinition },
 	startPos: Positioned,
@@ -310,7 +310,7 @@ function pickZoneProvideSelection(
 export function pickVehicleZoneBrowseSelection(
 	game: Game,
 	character: Character,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	line: FreightLineDefinition,
 	stop: FreightStop,
 	startPos: Positioned = character.position

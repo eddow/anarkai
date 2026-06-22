@@ -17,7 +17,7 @@ import {
 } from 'ssh/freight/freight-stop-utility'
 import { isLineFreightVehicleType } from 'ssh/freight/line-freight-vehicles'
 import type { Game, TradeTransferLogEntry } from 'ssh/game'
-import type { VehicleEntity } from 'ssh/population/vehicle/entity'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { type AxialCoord, toAxialCoord } from 'ssh/utils'
 import FreightStopList from '../FreightStopList'
 import HardListSearchPicker, { type HardListSearchPickerItem } from '../HardListSearchPicker'
@@ -285,14 +285,14 @@ const lineAssignmentText = () => {
 	}
 }
 
-function vehicleCoord(vehicle: VehicleEntity): AxialCoord | undefined {
+function vehicleCoord(vehicle: Vehicle): AxialCoord | undefined {
 	const position =
-		(vehicle as VehicleEntity & { effectivePosition?: unknown; position?: unknown })
-			.effectivePosition ?? (vehicle as VehicleEntity & { position?: unknown }).position
+		(vehicle as Vehicle & { effectivePosition?: unknown; position?: unknown })
+			.effectivePosition ?? (vehicle as Vehicle & { position?: unknown }).position
 	return position ? toAxialCoord(position) : undefined
 }
 
-function vehicleStockSummary(vehicle: VehicleEntity): string {
+function vehicleStockSummary(vehicle: Vehicle): string {
 	const stock = vehicle.storage?.stock ?? {}
 	const entries = Object.entries(stock)
 		.filter(([, qty]) => (qty ?? 0) > 0)
@@ -300,7 +300,7 @@ function vehicleStockSummary(vehicle: VehicleEntity): string {
 	return entries.length > 0 ? entries.join(', ') : 'empty'
 }
 
-function assignedVehiclesForLine(game: Game | undefined, lineId: string): VehicleEntity[] {
+function assignedVehiclesForLine(game: Game | undefined, lineId: string): Vehicle[] {
 	if (!game?.vehicles) return []
 	return [...game.vehicles].filter((vehicle) =>
 		vehicle.servedLines?.some((line) => line.id === lineId)

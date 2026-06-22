@@ -51,7 +51,7 @@ function sameAnchorStop(left: FreightStop, right: FreightStop): boolean {
 }
 
 @reactive
-export class VehicleEntity extends withInteractive(GameObject) {
+export class Vehicle extends withInteractive(GameObject) {
 	declare readonly storage: Storage
 	/**
 	 * Backing field for {@link position}.  Vehicle world position is managed
@@ -663,8 +663,8 @@ export class VehicleEntity extends withInteractive(GameObject) {
 		}
 	}
 
-	static deserialize(game: Game, data: VehicleSerializedState): VehicleEntity {
-		const vehicle = new VehicleEntity(
+	static deserialize(game: Game, data: VehicleSerializedState): Vehicle {
+		const vehicle = new Vehicle(
 			game,
 			data.uid,
 			data.vehicleType,
@@ -677,14 +677,14 @@ export class VehicleEntity extends withInteractive(GameObject) {
 			vehicle.storage.addGood(goodType as GoodType, qty as number)
 		}
 		if (data.service) {
-			VehicleEntity.restoreService(game, vehicle, data.service)
+			Vehicle.restoreService(game, vehicle, data.service)
 		}
 		return vehicle
 	}
 
 	private static restoreService(
 		game: Game,
-		vehicle: VehicleEntity,
+		vehicle: Vehicle,
 		saved:
 			| VehicleServiceSerialized
 			| LegacyLineVehicleServiceSerialized

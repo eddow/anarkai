@@ -2,7 +2,7 @@ import { Tile } from 'ssh/board/tile'
 import { collectVehicleWorkPicks, type VehicleWorkPick } from 'ssh/freight/vehicle-work'
 import type { Game } from 'ssh/game'
 import type { Character } from 'ssh/population/character'
-import type { VehicleEntity } from 'ssh/population/vehicle/entity'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import type { Job } from 'ssh/types/base'
 import { type AxialCoord, axial, toAxialCoord } from 'ssh/utils'
 import { KeyedRevisionedCache } from 'ssh/utils/revisioned-cache'
@@ -18,7 +18,7 @@ export interface TileWorkPick {
 	readonly character: Character
 	readonly job: Job | VehicleWorkPick['job']
 	readonly targetTile: Tile
-	readonly vehicle?: VehicleEntity
+	readonly vehicle?: Vehicle
 	readonly pathLength: number
 	readonly urgency: number
 	readonly score: number

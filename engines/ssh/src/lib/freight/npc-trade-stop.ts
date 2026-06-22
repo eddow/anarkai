@@ -7,7 +7,7 @@ import {
 	projectLoadedGoodsAgainstFurtherNeeds,
 } from 'ssh/freight/freight-stop-utility'
 import type { Game } from 'ssh/game/game'
-import type { VehicleEntity } from 'ssh/population/vehicle/entity'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import type { GoodType } from 'ssh/types/base'
 
 export interface NpcTradeStopTransferResult {
@@ -42,7 +42,7 @@ function addCount(
 
 export function executeNpcTradeStopTransfer(args: {
 	readonly game: Game
-	readonly vehicle: VehicleEntity
+	readonly vehicle: Vehicle
 	readonly line: FreightLineDefinition
 	readonly stop: FreightStop
 }): NpcTradeStopTransferResult {

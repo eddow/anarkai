@@ -52,7 +52,7 @@ import {
 } from '../../../assets/constants'
 import { assert, traceIdleDiagnosis, traces } from '../dev/debug.ts'
 import { traceProjection } from '../dev/trace.ts'
-import type { VehicleEntity } from './vehicle/entity'
+import type { Vehicle } from './vehicle/entity'
 
 function vehicleFreightApproachPathLength(job: Job): number {
 	return isVehicleFreightJob(job) ? (job.approachPath?.length ?? 0) : 0
@@ -194,11 +194,11 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		this._assignedAlveolus = value
 		this.game.invalidateWorkPlanning('character.assignment')
 	}
-	private _operatedVehicle?: VehicleEntity
-	public get operates(): VehicleEntity | undefined {
+	private _operatedVehicle?: Vehicle
+	public get operates(): Vehicle | undefined {
 		return this._operatedVehicle
 	}
-	public set operates(value: VehicleEntity | undefined) {
+	public set operates(value: Vehicle | undefined) {
 		const current = this._operatedVehicle
 		if (value) {
 			assert(
@@ -220,7 +220,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		if (this._operatedVehicle?.uid === current.uid) this.setOperatedVehicleFromService(undefined)
 	}
 
-	setOperatedVehicleFromService(vehicle: VehicleEntity | undefined): void {
+	setOperatedVehicleFromService(vehicle: Vehicle | undefined): void {
 		const current = this._operatedVehicle
 		if (vehicle) {
 			assert(
@@ -536,7 +536,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 	}
 
 	/**
-	 * Release the operator <-> vehicle link while the vehicle keeps {@link VehicleEntity.service}.
+	 * Release the operator <-> vehicle link while the vehicle keeps {@link Vehicle.service}.
 	 * Used by both docked bay and zone browse flows.
 	 */
 	disengageVehicleKeepingService(): void {
@@ -1191,7 +1191,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		}
 	}
 	/**
-	 * **Active transport storage** while {@link driving}: the operated {@link VehicleEntity}'s
+	 * **Active transport storage** while {@link driving}: the operated {@link Vehicle}'s
 	 * `storage`. `undefined` when walking — there is no walking goods buffer. Prefer
 	 * {@link requireActiveTransportStorage} at freight/transfer call sites that must have stock.
 	 */

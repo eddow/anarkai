@@ -62,7 +62,7 @@ import {
 	type VehicleProposedJob,
 } from 'ssh/jobs/offers'
 import type { Character } from 'ssh/population/character'
-import type { VehicleEntity } from 'ssh/population/vehicle/entity'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import {
 	isVehicleLineService,
 	isVehicleMaintenanceService,
@@ -85,7 +85,7 @@ import { KeyedRevisionedCache } from 'ssh/utils/revisioned-cache'
 import { maxWalkTime } from '../../../assets/constants'
 import { assert, profile, traces } from '../dev/debug.ts'
 
-function vehicleHasStock(vehicle: VehicleEntity): boolean {
+function vehicleHasStock(vehicle: Vehicle): boolean {
 	return Object.values(vehicle.storage.stock).some((n) => (n ?? 0) > 0)
 }
 
@@ -94,19 +94,19 @@ function compareAxialCoord(a: AxialCoord, b: AxialCoord): number {
 	return a.q - b.q
 }
 
-/** True for jobs that use {@link VehicleEntity} line/offload service and `vehicleUid`. */
+/** True for jobs that use {@link Vehicle} line/offload service and `vehicleUid`. */
 export function isVehicleFreightJob(job: Job): job is Job & VehicleJob {
 	return isVehicleBoundJob(job)
 }
 
 /**
- * When a vehicle work job is selected, attach the correct {@link VehicleEntity.service} immediately
- * (line-freight vs maintenance offload) and bind {@link VehicleEntity.service.operator}.
+ * When a vehicle work job is selected, attach the correct {@link Vehicle.service} immediately
+ * (line-freight vs maintenance offload) and bind {@link Vehicle.service.operator}.
  */
 export function allocateVehicleServiceForJob(
 	game: Game,
 	character: Character,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	job: Job
 ): void {
 	switch (job.job) {
@@ -191,7 +191,7 @@ export function allocateVehicleServiceForJob(
 
 function vehicleHasNoOtherOperator(
 	game: Game,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	character: Character
 ): boolean {
 	if (vehicle.operator) return vehicle.operator.uid === character.uid
@@ -223,7 +223,7 @@ function hasActiveVehicleDockMovement(game: Game): boolean {
 	return false
 }
 
-function characterCanUseLinkedVehicleHere(character: Character, vehicle: VehicleEntity): boolean {
+function characterCanUseLinkedVehicleHere(character: Character, vehicle: Vehicle): boolean {
 	if (character.driving) return true
 	if (character.operates?.uid !== vehicle.uid) return false
 	const characterCoord = toAxialCoord(character.position)
@@ -232,7 +232,7 @@ function characterCanUseLinkedVehicleHere(character: Character, vehicle: Vehicle
 	return axial.key(axial.round(characterCoord)) === axial.key(axial.round(vehicleCoord))
 }
 
-function dockedVehicleHasPendingDockWork(vehicle: VehicleEntity): boolean {
+function dockedVehicleHasPendingDockWork(vehicle: Vehicle): boolean {
 	if (vehicle.storage.virtualGoodsCount > 0) return true
 	const bay = freightVehicleDockBay(vehicle)
 	if (!bay) return false
@@ -249,7 +249,7 @@ function dockedVehicleHasPendingDockWork(vehicle: VehicleEntity): boolean {
 	)
 }
 
-function hasActiveMovementForVehicleDock(bay: FreightBayAlveolus, vehicle: VehicleEntity): boolean {
+function hasActiveMovementForVehicleDock(bay: FreightBayAlveolus, vehicle: Vehicle): boolean {
 	const dock = bay.hive.freightVehicleDockFor(vehicle.uid)
 	if (!dock) return false
 	return bay.hive
@@ -265,7 +265,7 @@ function alveolusHasConveyableGood(alveolus: Alveolus, goodType: GoodType): bool
 
 function activeDockSourceConveyJob(
 	bay: FreightBayAlveolus,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	targetTile?: Tile
 ): ProposedJob | undefined {
 	const dock = bay.hive.freightVehicleDockFor(vehicle.uid)
@@ -286,7 +286,7 @@ function activeDockSourceConveyJob(
 
 function rerouteBayConveyToActiveDockSource(
 	bay: FreightBayAlveolus,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	job: ProposedJob
 ): ProposedJob {
 	if (job.source.kind !== 'alveolus' || job.source.alveolus !== bay) return job
@@ -307,7 +307,7 @@ function characterOwnsConveyClaim(character: Character | undefined): boolean {
 	return character.runningScripts.some((script) => script.name === 'work.convey')
 }
 
-function releaseStaleDockMovementClaims(bay: FreightBayAlveolus, vehicle: VehicleEntity): number {
+function releaseStaleDockMovementClaims(bay: FreightBayAlveolus, vehicle: Vehicle): number {
 	const dock = bay.hive.freightVehicleDockFor(vehicle.uid)
 	if (!dock) return 0
 	const now = Date.now()
@@ -343,21 +343,21 @@ function releaseStaleDockMovementClaims(bay: FreightBayAlveolus, vehicle: Vehicl
 	return released
 }
 
-function vehicleStockCount(vehicle: VehicleEntity): number {
+function vehicleStockCount(vehicle: Vehicle): number {
 	return Object.values(vehicle.storage.stock).reduce(
 		(total, qty) => total + Math.max(0, qty ?? 0),
 		0
 	)
 }
 
-function vehicleAvailableStockCount(vehicle: VehicleEntity): number {
+function vehicleAvailableStockCount(vehicle: Vehicle): number {
 	return Object.values(vehicle.storage.availables).reduce(
 		(total, qty) => total + Math.max(0, qty ?? 0),
 		0
 	)
 }
 
-function vehicleTraceSnapshot(vehicle: VehicleEntity) {
+function vehicleTraceSnapshot(vehicle: Vehicle) {
 	const service = vehicle.service
 	const lineService = isVehicleLineService(service) ? service : undefined
 	const maintenanceService = isVehicleMaintenanceService(service) ? service : undefined
@@ -388,7 +388,7 @@ function vehicleTraceSnapshot(vehicle: VehicleEntity) {
 
 function dockCandidateTargetDiagnostics(
 	bay: FreightBayAlveolus,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	candidates: readonly DockedVehicleAdvertisementCandidate[]
 ) {
 	const dock = bay.hive.freightVehicleDockFor(vehicle.uid)
@@ -458,14 +458,14 @@ function dockCandidateTargetDiagnostics(
 
 function nextLineStopAfterCurrent(
 	game: Game,
-	vehicle: VehicleEntity
+	vehicle: Vehicle
 ): { line: FreightLineDefinition; stop: FreightStop } | undefined {
 	const service = vehicle.service
 	if (!isVehicleLineService(service)) return undefined
 	return nextActionableVehicleLineStop(game, vehicle, service.line, service.stop)
 }
 
-function dockedVehicleProviderJob(game: Game, vehicle: VehicleEntity): ProposedJob | undefined {
+function dockedVehicleProviderJob(game: Game, vehicle: Vehicle): ProposedJob | undefined {
 	const service = vehicle.service
 	// Unserviced vehicle with served lines: advertise begin-service for any actionable stop.
 	// vehicle.isDocked and freightVehicleDockBay both require active line service, so check
@@ -531,6 +531,7 @@ function dockedVehicleProviderJob(game: Game, vehicle: VehicleEntity): ProposedJ
 				urgency: jobBalance.vehicleHop,
 				fatigue: 1,
 				vehicleUid: vehicle.uid,
+				vehicle,
 				lineId: service.line.id,
 				stopId: service.stop.id,
 				path: [],
@@ -632,6 +633,7 @@ function dockedVehicleProviderJob(game: Game, vehicle: VehicleEntity): ProposedJ
 				urgency: jobBalance.vehicleHop,
 				fatigue: 1,
 				vehicleUid: vehicle.uid,
+				vehicle,
 				lineId: next.line.id,
 				stopId: next.stop.id,
 				path: [],
@@ -695,7 +697,7 @@ type MaintenanceReachability = {
 
 function vehicleMaintenanceReachability(
 	game: Game,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	_character: Character
 ): MaintenanceReachability | undefined {
 	const from = toAxialCoord(vehicle.effectivePosition)
@@ -734,7 +736,7 @@ function maintenanceReachabilityCanReach(
  */
 function pickUnloadTargetForVehicle(
 	game: Game,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	canReach: (tile: Tile) => boolean = () => true
 ): { tile: Tile; urgency: number } | undefined {
 	if (!vehicleHasStock(vehicle)) return undefined
@@ -763,7 +765,7 @@ function pickUnloadTargetForVehicle(
 
 export function beginLoadedVehicleUnloadMaintenance(
 	game: Game,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	character: Character
 ): boolean {
 	const reachability = vehicleMaintenanceReachability(game, vehicle, character)
@@ -793,7 +795,7 @@ export function beginLoadedVehicleUnloadMaintenance(
  */
 function pickParkingTargetForVehicle(
 	game: Game,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	canReach: (tile: Tile) => boolean = () => true
 ): { tile: Tile; urgency: number } | undefined {
 	if (vehicleHasStock(vehicle)) return undefined
@@ -877,7 +879,7 @@ type UnloadCandidate = { kind: 'unload'; tile: Tile; urgency: number }
 type ParkCandidate = { kind: 'park'; tile: Tile; urgency: number }
 type MaintenanceCandidate = LoadCandidate | UnloadCandidate | ParkCandidate
 
-function loadedStockCanEnterServedGatherLine(game: Game, vehicle: VehicleEntity): boolean {
+function loadedStockCanEnterServedGatherLine(game: Game, vehicle: Vehicle): boolean {
 	const goods = (Object.keys(vehicle.storage.stock) as GoodType[]).filter(
 		(good) => vehicle.storage.available(good) > 0
 	)
@@ -932,7 +934,7 @@ function lineHopUrgencyForZoneSelection(
 
 function isJointLineLoadCandidate(
 	character: Character,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	candidate: LoadCandidate
 ): boolean {
 	const candidateCoord = toAxialCoord(candidate.tile.position)
@@ -1017,7 +1019,7 @@ function isJointLineLoadCandidate(
 	return false
 }
 
-function vehicleServesTradeLine(vehicle: VehicleEntity): boolean {
+function vehicleServesTradeLine(vehicle: Vehicle): boolean {
 	return vehicle.servedLines.some((line) => line.stops.some((stop) => 'trade' in stop))
 }
 
@@ -1028,7 +1030,7 @@ function vehicleServesTradeLine(vehicle: VehicleEntity): boolean {
  */
 function pickMaintenanceForVehicle(
 	game: Game,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	character: Character
 ): MaintenanceCandidate | undefined {
 	// Structural "could begin gather line from loaded cargo" must not suppress maintenance unless
@@ -1172,7 +1174,7 @@ function pickMaintenanceForVehicle(
 
 function maintenanceCandidateToJob(
 	candidate: MaintenanceCandidate,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	path: AxialCoord[]
 ): VehicleOffloadJob {
 	const tc = toAxialCoord(candidate.tile.position)!
@@ -1201,7 +1203,7 @@ function maintenanceCandidateToJob(
 
 function maintenanceServiceToJob(
 	service: VehicleMaintenanceService,
-	vehicle: VehicleEntity,
+	vehicle: Vehicle,
 	path: AxialCoord[]
 ): VehicleOffloadJob | undefined {
 	const base = {
@@ -1240,7 +1242,7 @@ function findVehicleOffloadJobApproach(
 	let best:
 		| {
 				score: number
-				vehicle: VehicleEntity
+				vehicle: Vehicle
 				candidate: MaintenanceCandidate
 				pathToVehicle: AxialCoord[]
 		  }
@@ -1798,6 +1800,7 @@ function findVehicleHopJobLineHop(game: Game, character: Character): VehicleHopJ
 			urgency: lineHopUrgencyForZoneSelection(selection),
 			fatigue: 1,
 			vehicleUid: vehicle.uid,
+			vehicle,
 			lineId: line.id,
 			stopId: stop.id,
 			path,
@@ -1830,6 +1833,7 @@ function findVehicleHopJobLineHop(game: Game, character: Character): VehicleHopJ
 				urgency: jobBalance.vehicleHop,
 				fatigue: 1,
 				vehicleUid: vehicle.uid,
+				vehicle,
 				lineId: line.id,
 				stopId: stop.id,
 				path,
@@ -1847,6 +1851,7 @@ function findVehicleHopJobLineHop(game: Game, character: Character): VehicleHopJ
 		urgency: jobBalance.vehicleHop,
 		fatigue: 1,
 		vehicleUid: vehicle.uid,
+		vehicle,
 		lineId: line.id,
 		stopId: stop.id,
 		path,
@@ -1861,7 +1866,7 @@ function findVehicleHopJobLineHop(game: Game, character: Character): VehicleHopJ
 
 /**
  * Line-hop (and merged approach / begin-service preludes). Planner-visible vehicle movement along a line;
- * walking to the wheelbarrow and attaching {@link VehicleEntity.service} are script preludes, not separate jobs.
+ * walking to the wheelbarrow and attaching {@link Vehicle.service} are script preludes, not separate jobs.
  */
 export function findVehicleHopJob(game: Game, character: Character): VehicleHopJob | undefined {
 	const end = profile.proposedJobs.begin?.('findVehicleHopJob', () => ({
@@ -1882,6 +1887,7 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 				urgency: beginLeg.urgency,
 				fatigue: 1,
 				vehicleUid: beginLeg.vehicleUid,
+				vehicle,
 				lineId: beginLeg.lineId,
 				stopId: beginLeg.stopId,
 				path: [],
@@ -1976,6 +1982,7 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 			),
 			fatigue: 1,
 			vehicleUid: approach.vehicleUid,
+			vehicle,
 			lineId: pick.line.id,
 			stopId: pick.stop.id,
 			path,
@@ -2014,7 +2021,7 @@ export function isCompleteVehicleWorkPick(pick: VehicleWorkPick): boolean {
 	return hasVehicleZoneTransferPayload(job)
 }
 
-function describeVehicleService(vehicle: VehicleEntity): Record<string, unknown> | undefined {
+function describeVehicleService(vehicle: Vehicle): Record<string, unknown> | undefined {
 	return isVehicleLineService(vehicle.service)
 		? {
 				kind: 'line' as const,
@@ -2167,7 +2174,7 @@ function collectVehicleWorkPicksUncached(game: Game, character: Character): Vehi
  */
 export function collectVehicleProposedJobs(
 	game: Game,
-	vehicle: VehicleEntity
+	vehicle: Vehicle
 ): VehicleProposedJob[] {
 	const end = profile.proposedJobs.begin?.('collectVehicleProposedJobs', () => ({
 		vehicleUid: vehicle.uid,
@@ -2237,7 +2244,7 @@ export function collectVehicleProposedJobs(
  * This does not answer "which worker can execute it"; character-scoped planners still do that
  * through collectVehicleWorkPicks when work is claimed or ranked for a character.
  */
-export function collectVehicleAdvertisedJobs(game: Game, vehicle: VehicleEntity): ProposedJob[] {
+export function collectVehicleAdvertisedJobs(game: Game, vehicle: Vehicle): ProposedJob[] {
 	const dockBay = ensureFreightVehicleDockRegistration(vehicle)
 	if (dockBay) releaseStaleDockMovementClaims(dockBay, vehicle)
 	let dockConvey = dockBay?.proposedJobs.find((job) => job.job === 'convey')

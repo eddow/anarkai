@@ -18,7 +18,7 @@ import {
 import { isLineFreightVehicleType } from 'ssh/freight/line-freight-vehicles'
 import type { ProposedJob } from 'ssh/jobs/offers'
 import type { Character } from 'ssh/population/character'
-import type { VehicleEntity } from 'ssh/population/vehicle/entity'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import {
 	isVehicleLineService,
 	isVehicleMaintenanceService,
@@ -188,7 +188,7 @@ css`
 `
 
 interface VehiclePropertiesProps {
-	vehicle: VehicleEntity
+	vehicle: Vehicle
 }
 
 interface VehicleWorkChoice {
@@ -242,7 +242,7 @@ const vehicleAssignmentText = () => {
 	}
 }
 
-function effectiveOperatorForVehicle(vehicle: VehicleEntity | undefined): Character | undefined {
+function effectiveOperatorForVehicle(vehicle: Vehicle | undefined): Character | undefined {
 	if (!vehicle) return undefined
 	const fromService = vehicle.operator
 	if (fromService) return fromService
@@ -274,7 +274,7 @@ function describeVehicleWorkTarget(job: ProposedJob): string {
 	}
 }
 
-function vehicleWorkChoices(vehicle: VehicleEntity | undefined): VehicleWorkChoice[] {
+function vehicleWorkChoices(vehicle: Vehicle | undefined): VehicleWorkChoice[] {
 	workPlanningPresentationRevision()
 	return untracked`vehicle-properties.workChoices.collect`(() => {
 		const end = profile.proposedJobs.begin?.('vehicle-properties.workChoices', () => ({
@@ -283,7 +283,7 @@ function vehicleWorkChoices(vehicle: VehicleEntity | undefined): VehicleWorkChoi
 		try {
 			if (!vehicle) return []
 			const advertisedJobs = (
-				vehicle as VehicleEntity & {
+				vehicle as Vehicle & {
 					readonly advertisedJobs?: readonly ProposedJob[]
 				}
 			).advertisedJobs
@@ -310,7 +310,7 @@ function vehicleWorkChoices(vehicle: VehicleEntity | undefined): VehicleWorkChoi
 	})
 }
 
-function stopCoord(game: VehicleEntity['game'], stop: FreightStop): AxialCoord | undefined {
+function stopCoord(game: Vehicle['game'], stop: FreightStop): AxialCoord | undefined {
 	if ('anchor' in stop) return { q: stop.anchor.coord[0], r: stop.anchor.coord[1] }
 	if ('zone' in stop && stop.zone.kind === 'radius') {
 		return { q: stop.zone.center[0], r: stop.zone.center[1] }
@@ -322,7 +322,7 @@ function stopCoord(game: VehicleEntity['game'], stop: FreightStop): AxialCoord |
 }
 
 function lineCoord(
-	game: VehicleEntity['game'],
+	game: Vehicle['game'],
 	line: FreightLineDefinition
 ): AxialCoord | undefined {
 	for (const stop of line.stops) {
@@ -332,12 +332,12 @@ function lineCoord(
 	return undefined
 }
 
-function lineHint(game: VehicleEntity['game'], line: FreightLineDefinition): string {
+function lineHint(game: Vehicle['game'], line: FreightLineDefinition): string {
 	const coord = lineCoord(game, line)
 	return coord ? `starts ${coord.q},${coord.r}` : `${line.stops.length} stops`
 }
 
-function assignableLineItems(vehicle: VehicleEntity): HardListSearchPickerItem[] {
+function assignableLineItems(vehicle: Vehicle): HardListSearchPickerItem[] {
 	if (!isLineFreightVehicleType(vehicle.vehicleType)) return []
 	const assigned = new Set((vehicle.servedLines ?? []).map((line) => line.id))
 	return (vehicle.game.freightLines ?? [])

@@ -5,7 +5,7 @@
  */
 
 import { traces } from 'ssh/dev/debug'
-import type { VehicleEntity } from 'ssh/population/vehicle/entity'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { applyMergePolicy, collectBranchLabels } from './bay-queue-merge-policy'
 import type {
 	BayGroup,
@@ -19,11 +19,11 @@ import type {
 
 // ─── Injectable callbacks ──────────────────────────────────────────────────
 
-export type VehicleCapabilityResolver = (vehicle: VehicleEntity) => ReadonlySet<VehicleCapability>
+export type VehicleCapabilityResolver = (vehicle: Vehicle) => ReadonlySet<VehicleCapability>
 export type EmitAdvanceJobFn = (grant: MovementGrant) => void
 
 export function defaultRoadCapabilityResolver(
-	_vehicle: VehicleEntity
+	_vehicle: Vehicle
 ): ReadonlySet<VehicleCapability> {
 	return new Set(['road'] as VehicleCapability[])
 }
@@ -93,7 +93,7 @@ export class BayQueueController {
 	// ─── Request lifecycle ────────────────────────────────────────────────
 
 	registerRequest(
-		vehicle: VehicleEntity,
+		vehicle: Vehicle,
 		bayGroupUid: string,
 		requirements: readonly DockRequirement[],
 		priority: number,
@@ -150,7 +150,7 @@ export class BayQueueController {
 		return request
 	}
 
-	cancelRequest(vehicle: VehicleEntity): void {
+	cancelRequest(vehicle: Vehicle): void {
 		const request = this.requests.get(vehicle.uid)
 		if (!request) return
 
@@ -181,7 +181,7 @@ export class BayQueueController {
 
 	// ─── Grant lifecycle ──────────────────────────────────────────────────
 
-	completeMovement(vehicle: VehicleEntity, grant: MovementGrant): void {
+	completeMovement(vehicle: Vehicle, grant: MovementGrant): void {
 		const active = this.grants.get(vehicle.uid)
 		if (active !== grant) {
 			grant.to.reservedBy.delete(vehicle)
@@ -215,7 +215,7 @@ export class BayQueueController {
 		}
 	}
 
-	completeService(vehicle: VehicleEntity): void {
+	completeService(vehicle: Vehicle): void {
 		const request = this.requests.get(vehicle.uid)
 		if (!request || request.state !== 'servicing') return
 
@@ -324,7 +324,7 @@ export class BayQueueController {
 	private findAvailableNextNode(
 		current: RuntimeQueueNode,
 		request: DockRequest,
-		vehicle: VehicleEntity
+		vehicle: Vehicle
 	): RuntimeQueueNode | undefined {
 		const caps = this.getCapabilities(vehicle)
 		for (const edge of current.outgoing) {
@@ -341,7 +341,7 @@ export class BayQueueController {
 
 	// ─── Internal helpers ─────────────────────────────────────────────────
 
-	private findVehicleInNode(node: RuntimeQueueNode, vehicleUid: string): VehicleEntity | undefined {
+	private findVehicleInNode(node: RuntimeQueueNode, vehicleUid: string): Vehicle | undefined {
 		for (const v of node.occupiedBy) {
 			if (v.uid === vehicleUid) return v
 		}
@@ -374,7 +374,7 @@ export class BayQueueController {
 		return false
 	}
 
-	private tryReserveNode(node: RuntimeQueueNode, vehicle: VehicleEntity): boolean {
+	private tryReserveNode(node: RuntimeQueueNode, vehicle: Vehicle): boolean {
 		if (node.occupiedBy.size + node.reservedBy.size >= node.capacity) return false
 		node.reservedBy.add(vehicle)
 		return true
