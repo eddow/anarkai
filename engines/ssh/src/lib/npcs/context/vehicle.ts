@@ -72,10 +72,9 @@ function refreshAnchorHopPathToLiveDock(
 	const { line, stop } = vehicle.service
 	if (!('anchor' in stop)) return undefined
 	if (vehicleCanDockAtCurrentPosition(vehicle)) return undefined
-	if (line.id !== jobPlan.lineId || stop.id !== jobPlan.stopId) {
+	if (jobPlan.line !== line || jobPlan.stop !== stop) {
 		traces.vehicle.warn?.('vehicleHopPrepare: stale dock tail against drifted live stop', {
 			characterUid: character.uid,
-			vehicleUid: vehicle.uid,
 			plannedLineId: jobPlan.lineId,
 			plannedStopId: jobPlan.stopId,
 			actualLineId: line.id,
@@ -97,7 +96,6 @@ function refreshAnchorHopPathToLiveDock(
 		;(jobPlan as WorkPlan & { vehicleHopReplanRequired?: boolean }).vehicleHopReplanRequired = true
 		traces.vehicle.warn?.('vehicleHopPrepare: no path to live dock anchor', {
 			characterUid: character.uid,
-			vehicleUid: vehicle.uid,
 			lineId: line.id,
 			stopId: stop.id,
 			startCoord: startPos,
@@ -108,7 +106,6 @@ function refreshAnchorHopPathToLiveDock(
 	jobPlan.path = path
 	traces.vehicle.log?.('vehicleHopPrepare: refreshed live dock path', {
 		characterUid: character.uid,
-		vehicleUid: vehicle.uid,
 		lineId: line.id,
 		stopId: stop.id,
 		plannedLineId: jobPlan.lineId,
@@ -148,7 +145,6 @@ function moveTowardLiveDockStep(
 		: 'vehicleHopDockStep: continuing approach toward dock'
 	logMethod?.(message, {
 		characterUid: character.uid,
-		vehicleUid: vehicle.uid,
 		lineId: isVehicleLineService(vehicle.service) ? vehicle.service.line.id : undefined,
 		stopId: isVehicleLineService(vehicle.service) ? vehicle.service.stop.id : undefined,
 		plannedLineId,
@@ -170,7 +166,6 @@ function moveTowardLiveDockStep(
 	).onFulfilled(() => {
 		traces.vehicle.log?.('vehicleHopDockStep: recovered stale dock tail movement completed', {
 			characterUid: character.uid,
-			vehicleUid: vehicle.uid,
 			from,
 			next,
 			vehicleCoord: vehicle.position ? axial.round(toAxialCoord(vehicle.position)!) : undefined,
@@ -190,7 +185,6 @@ function markVehicleHopRunEndedBeforeDock(
 	traces.vehicle.warn?.('vehicleHop: service ended during prepare; skipping travel and dock', {
 		reason,
 		characterUid: character.uid,
-		vehicleUid: vehicle.uid,
 	})
 }
 
@@ -216,9 +210,9 @@ class VehicleFunctions {
 	@contract('WorkPlan')
 	vehicleEffectivePosition(jobPlan: WorkPlan): { q: number; r: number } | undefined {
 		const character = this[subject] as Character
-		if (jobPlan.type !== 'work' || !('vehicleUid' in jobPlan)) return undefined
-		const vehicle = jobPlan.vehicle ?? character.game.vehicles.vehicle(jobPlan.vehicleUid)
-		return vehicle?.effectivePosition as { q: number; r: number } | undefined
+		if (jobPlan.type !== 'work' || !('vehicle' in jobPlan)) return undefined
+		const vehicle = jobPlan.vehicle!
+		return vehicle.effectivePosition as { q: number; r: number } | undefined
 	}
 
 	/**
@@ -240,13 +234,12 @@ class VehicleFunctions {
 			!(jobPlan.job === 'vehicleHop' && jobPlan.approachPath && jobPlan.approachPath.length > 0)
 		)
 			return
-		const vehicle = jobPlan.vehicle ?? character.game.vehicles.vehicle(jobPlan.vehicleUid)
+		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'vehicleApproach: vehicle missing')
 		if (vehicle.operator && vehicle.operator.uid !== character.uid) {
 			jobPlan.vehicleApproachAborted = true
 			traces.vehicle.warn?.('vehicleApproach: stale plan reached already-operated vehicle', {
 				characterUid: character.uid,
-				vehicleUid: vehicle.uid,
 				operatorUid: vehicle.operator.uid,
 			})
 			return
@@ -256,6 +249,8 @@ class VehicleFunctions {
 				ensureVehicleServiceStarted(vehicle, character, character.game, character, {
 					lineId: jobPlan.lineId,
 					stopId: jobPlan.stopId,
+					line: jobPlan.line,
+					stop: jobPlan.stop,
 				}),
 				'vehicleApproach: could not start pending line service'
 			)
@@ -265,7 +260,6 @@ class VehicleFunctions {
 			const vp = vehicle.effectivePosition
 			traces.vehicle.log?.('vehicleJob.approach.preOnboard', {
 				characterUid: character.uid,
-				vehicleUid: vehicle.uid,
 				tileKey: ct ? axial.key(axial.round(toAxialCoord(ct.position)!)) : undefined,
 				vehicleKey: axial.key(axial.round(toAxialCoord(vp)!)),
 				footKey: axial.key(axial.round(toAxialCoord(character.position)!)),
@@ -275,7 +269,6 @@ class VehicleFunctions {
 		}
 		traces.vehicle.log?.('vehicleJob.approach.onboard', {
 			characterUid: character.uid,
-			vehicleUid: vehicle.uid,
 		})
 		assertDrivingVehicleSeam(character)
 		assertVehicleOperationConsistency(vehicle, character)
@@ -310,7 +303,6 @@ class VehicleFunctions {
 			jobPlan.vehicleApproachAborted = true
 			traces.vehicle.log?.('vehicleOffload pickup: stale loose good before binding pickup plan', {
 				characterUid: character.uid,
-				vehicleUid: vehicle.uid,
 				goodType: svc.looseGood.goodType,
 				available: svc.looseGood.available,
 				removed: svc.looseGood.isRemoved,
@@ -333,7 +325,6 @@ class VehicleFunctions {
 			jobPlan.vehicleApproachAborted = true
 			traces.vehicle.log?.('vehicleOffload pickup: stale loose good while binding pickup plan', {
 				characterUid: character.uid,
-				vehicleUid: vehicle.uid,
 				goodType: svc.looseGood.goodType,
 				error: error instanceof Error ? error.message : String(error),
 			})
@@ -357,15 +348,17 @@ class VehicleFunctions {
 		const character = this[subject] as Character
 		if (jobPlan.type !== 'work' || jobPlan.job !== 'vehicleHop' || !jobPlan.needsBeginService)
 			return
-		const vehicle = jobPlan.vehicle ?? character.game.vehicles.vehicle(jobPlan.vehicleUid)
+		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'vehicleBeginService: vehicle missing')
 		assert(character.operates?.uid === vehicle.uid, 'vehicleBeginService: wrong operated vehicle')
 		assert(character.driving, 'vehicleBeginService: not driving')
-		assert('lineId' in jobPlan && 'stopId' in jobPlan, 'vehicleBeginService: missing line/stop ids')
+		assert(jobPlan.line && jobPlan.stop, 'vehicleBeginService: missing line/stop')
 		assert(
 			ensureVehicleServiceStarted(vehicle, character, character.game, character, {
 				lineId: jobPlan.lineId,
 				stopId: jobPlan.stopId,
+				line: jobPlan.line,
+				stop: jobPlan.stop,
 			}),
 			'vehicleBeginService: could not start service'
 		)
@@ -373,7 +366,6 @@ class VehicleFunctions {
 		assert(vehicle.service, 'vehicleBeginService: missing service')
 		traces.vehicle.log?.('vehicleJob.beginService', {
 			characterUid: character.uid,
-			vehicleUid: vehicle.uid,
 			lineId: jobPlan.lineId,
 			stopId: jobPlan.stopId,
 		})
@@ -399,7 +391,7 @@ class VehicleFunctions {
 		const hopPlan = jobPlan as WorkPlan & { vehicleHopReplanRequired?: boolean }
 		jobPlan.vehicleHopAnchorDockDisembarked = false
 		hopPlan.vehicleHopReplanRequired = false
-		const vehicle = jobPlan.vehicle ?? character.game.vehicles.vehicle(jobPlan.vehicleUid)
+		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'vehicleHop: vehicle missing')
 		assert(character.operates?.uid === vehicle.uid, 'vehicleHop: wrong operated vehicle')
 		assert(character.driving, 'vehicleHop: not driving')
@@ -426,7 +418,7 @@ class VehicleFunctions {
 				return
 			}
 		}
-		if (vehicle.service.line.id !== jobPlan.lineId || vehicle.service.stop.id !== jobPlan.stopId) {
+		if (vehicle.service.line !== jobPlan.line || vehicle.service.stop !== jobPlan.stop) {
 			hopPlan.vehicleHopReplanRequired = true
 			return
 		}
@@ -456,12 +448,11 @@ class VehicleFunctions {
 			wasReplanRequired,
 			vehicleHopStopHandled: (jobPlan as any).vehicleHopStopHandled,
 		})
-		const vehicle = jobPlan.vehicle ?? character.game.vehicles.vehicle(jobPlan.vehicleUid)
+		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'vehicleHopDockStep: vehicle missing')
 		if (!isVehicleLineService(vehicle.service)) {
 			traces.vehicle.warn?.('vehicleHopDockStep: no active line service (unexpected tail)', {
 				characterUid: character.uid,
-				vehicleUid: vehicle.uid,
 				vehicleHopRunEnded: jobPlan.vehicleHopRunEnded,
 			})
 			return
@@ -474,7 +465,6 @@ class VehicleFunctions {
 				'vehicleHopDockStep: live service drifted from planned stop; skipping dock',
 				{
 					characterUid: character.uid,
-					vehicleUid: vehicle.uid,
 					plannedLineId: jobPlan.lineId,
 					plannedStopId: jobPlan.stopId,
 					actualLineId: vehicle.service.line.id,
@@ -489,7 +479,6 @@ class VehicleFunctions {
 			if (!vehicleCanDockAtCurrentPosition(vehicle)) {
 				traces.vehicle.log?.('vehicleHopDockStep: cannot dock, attempting recovery', {
 					characterUid: character.uid,
-					vehicleUid: vehicle.uid,
 					lineId: vehicle.service.line.id,
 					stopId: stop.id,
 					vehicleCoord: vehicle.position ? toAxialCoord(vehicle.position) : undefined,
@@ -499,7 +488,6 @@ class VehicleFunctions {
 				if (recoveryStep) {
 					traces.vehicle.log?.('vehicleHopDockStep: returning recovery step', {
 						characterUid: character.uid,
-						vehicleUid: vehicle.uid,
 						stepType: 'MoveToStep',
 					})
 					return recoveryStep
@@ -510,7 +498,6 @@ class VehicleFunctions {
 				jobPlan.vehicleHopStopHandled = false
 				traces.vehicle.warn?.('vehicleHopDockStep: vehicle not at dock; replan required', {
 					characterUid: character.uid,
-					vehicleUid: vehicle.uid,
 					lineId: vehicle.service.line.id,
 					stopId: stop.id,
 					vehicleCoord: vehicle.position ? toAxialCoord(vehicle.position) : undefined,
@@ -518,7 +505,6 @@ class VehicleFunctions {
 				})
 				traces.vehicle.log?.('vehicleHopDockStep: returning undefined for replan', {
 					characterUid: character.uid,
-					vehicleUid: vehicle.uid,
 					vehicleHopReplanRequired: true,
 				})
 				return
@@ -527,7 +513,6 @@ class VehicleFunctions {
 			assertDockedSemantics(vehicle)
 			traces.vehicle.log?.('vehicleJob.hop.dock', {
 				characterUid: character.uid,
-				vehicleUid: vehicle.uid,
 				lineId: vehicle.service?.line.id,
 				stopId: vehicle.service?.stop.id,
 			})
@@ -542,7 +527,6 @@ class VehicleFunctions {
 			})
 			traces.vehicle.log?.('vehicleHopDockStep: returning dock DurationStep', {
 				characterUid: character.uid,
-				vehicleUid: vehicle.uid,
 			})
 			return dockStep
 		} else {
@@ -559,7 +543,6 @@ class VehicleFunctions {
 			}
 			traces.vehicle.log?.('vehicleJob.hop.zoneReach', {
 				characterUid: character.uid,
-				vehicleUid: vehicle.uid,
 				lineId: vehicle.service?.line.id,
 				stopId: vehicle.service?.stop.id,
 			})
@@ -572,7 +555,6 @@ class VehicleFunctions {
 		)
 		traces.vehicle.log?.('vehicleHopDockStep: returning zoneReach DurationStep', {
 			characterUid: character.uid,
-			vehicleUid: vehicle.uid,
 		})
 		return zoneReachStep
 	}
@@ -587,7 +569,7 @@ class VehicleFunctions {
 			jobPlan.job !== 'vehicleOffload'
 		)
 			return
-		const vehicle = character.game.vehicles.vehicle(jobPlan.vehicleUid)
+		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'vehicleStepOffKeepingControl: vehicle missing')
 		assert(
 			character.operates?.uid === vehicle.uid,
@@ -624,7 +606,7 @@ class VehicleFunctions {
 			jobPlan.job !== 'vehicleOffload'
 		)
 			return
-		const vehicle = character.game.vehicles.vehicle(jobPlan.vehicleUid)
+		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'vehicleBoardLinkedVehicle: vehicle missing')
 		if (character.operates?.uid !== vehicle.uid) return
 		if (character.driving) return
@@ -637,12 +619,11 @@ class VehicleFunctions {
 		const character = this[subject] as Character
 		if (jobPlan.type !== 'work') return
 		if (jobPlan.job !== 'vehicleHop' && jobPlan.job !== 'zoneBrowse') return
-		const vehicle = character.game.vehicles.vehicle(jobPlan.vehicleUid)
+		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'vehicleDisengageKeepingService: vehicle missing')
 		if (character.operates?.uid !== vehicle.uid) {
 			traces.vehicle.log?.('vehicleDisengageKeepingService: already released', {
 				characterUid: character.uid,
-				vehicleUid: vehicle.uid,
 				operatesUid: character.operates?.uid,
 				serviceKind: isVehicleLineService(vehicle.service)
 					? 'line'
@@ -655,7 +636,6 @@ class VehicleFunctions {
 		if (!isVehicleLineService(vehicle.service)) {
 			traces.vehicle.log?.('vehicleDisengageKeepingService: service already ended', {
 				characterUid: character.uid,
-				vehicleUid: vehicle.uid,
 			})
 			return
 		}
@@ -673,7 +653,7 @@ class VehicleFunctions {
 				jobPlan.maintenanceKind === 'loadFromBurden',
 				'vehicleLoadTransferStep: expected loadFromBurden maintenance'
 			)
-			const vehicle = character.game.vehicles.vehicle(jobPlan.vehicleUid)
+			const vehicle = jobPlan.vehicle
 			assert(vehicle, 'vehicleLoadTransferStep: vehicle missing')
 			assert(
 				character.operates?.uid === vehicle.uid,
@@ -682,7 +662,6 @@ class VehicleFunctions {
 			assert(jobPlan.offloadPickupPlan, 'vehicleLoadTransferStep: missing offload pickup plan')
 			traces.vehicle.log?.('vehicleJob.load', {
 				characterUid: character.uid,
-				vehicleUid: vehicle.uid,
 				goodType: jobPlan.offloadPickupPlan.goodType,
 			})
 			const result = character.scriptsContext.inventory.effectuate(jobPlan.offloadPickupPlan)
@@ -760,12 +739,11 @@ class VehicleFunctions {
 	loadOntoVehicleStep(jobPlan: WorkPlan) {
 		const character = this[subject] as Character
 		if (jobPlan.type !== 'work' || jobPlan.job !== 'loadOntoVehicle') return
-		const vehicle = character.game.vehicles.vehicle(jobPlan.vehicleUid)
+		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'loadOntoVehicle: vehicle missing')
 		assert(character.operates?.uid === vehicle.uid, 'loadOntoVehicle: wrong operated vehicle')
 		traces.vehicle.log?.('vehicleJob.load', {
 			characterUid: character.uid,
-			vehicleUid: vehicle.uid,
 			goodType: jobPlan.goodType,
 		})
 		const action = character.scriptsContext.inventory.planGrabLoose(
@@ -792,13 +770,12 @@ class VehicleFunctions {
 	unloadFromVehicleStep(jobPlan: WorkPlan) {
 		const character = this[subject] as Character
 		if (jobPlan.type !== 'work' || jobPlan.job !== 'unloadFromVehicle') return
-		const vehicle = character.game.vehicles.vehicle(jobPlan.vehicleUid)
+		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'unloadFromVehicle: vehicle missing')
 		assert(character.operates?.uid === vehicle.uid, 'unloadFromVehicle: wrong operated vehicle')
 		assert(character.driving, 'unloadFromVehicle: not driving')
 		traces.vehicle.log?.('vehicleJob.unload', {
 			characterUid: character.uid,
-			vehicleUid: vehicle.uid,
 			goodType: jobPlan.goodType,
 			quantity: jobPlan.quantity,
 		})
@@ -822,12 +799,11 @@ class VehicleFunctions {
 	provideFromVehicleStep(jobPlan: WorkPlan) {
 		const character = this[subject] as Character
 		if (jobPlan.type !== 'work' || jobPlan.job !== 'provideFromVehicle') return
-		const vehicle = character.game.vehicles.vehicle(jobPlan.vehicleUid)
+		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'provideFromVehicle: vehicle missing')
 		assert(character.operates?.uid === vehicle.uid, 'provideFromVehicle: wrong operated vehicle')
 		traces.vehicle.log?.('vehicleJob.provide', {
 			characterUid: character.uid,
-			vehicleUid: vehicle.uid,
 			goodType: jobPlan.goodType,
 			quantity: jobPlan.quantity,
 		})
@@ -869,7 +845,7 @@ class VehicleFunctions {
 	completeVehicleMaintenanceService(jobPlan: WorkPlan) {
 		const character = this[subject] as Character
 		if (jobPlan.type !== 'work' || jobPlan.job !== 'vehicleOffload') return
-		const vehicle = character.game.vehicles.vehicle(jobPlan.vehicleUid)
+		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'completeVehicleMaintenanceService: vehicle missing')
 		assert(
 			character.operates?.uid === vehicle.uid,
@@ -886,7 +862,6 @@ class VehicleFunctions {
 		)
 		traces.vehicle.log?.('vehicleJob.maintenance.complete', {
 			characterUid: character.uid,
-			vehicleUid: vehicle.uid,
 			maintenanceKind: svc.kind,
 		})
 		if (svc.kind === 'loadFromBurden') {
@@ -907,14 +882,13 @@ class VehicleFunctions {
 	abandonVehicleMaintenanceService(jobPlan: WorkPlan, reason: string = 'unreachable-target') {
 		const character = this[subject] as Character
 		if (jobPlan.type !== 'work' || jobPlan.job !== 'vehicleOffload') return
-		const vehicle = character.game.vehicles.vehicle(jobPlan.vehicleUid)
+		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'abandonVehicleMaintenanceService: vehicle missing')
 		if (character.operates?.uid !== vehicle.uid) return
 		const svc = vehicle.service
 		if (!isVehicleMaintenanceService(svc)) return
 		traces.vehicle.warn?.('vehicleJob.maintenance.abandon', {
 			characterUid: character.uid,
-			vehicleUid: vehicle.uid,
 			maintenanceKind: svc.kind,
 			targetCoord: svc.targetCoord,
 			reason,
@@ -940,12 +914,11 @@ class VehicleFunctions {
 		)
 		traces.vehicle.log?.('vehicleJob.park.end', {
 			characterUid: character.uid,
-			vehicleUid: vehicle.uid,
 		})
 		this.completeVehicleMaintenanceService({
 			type: 'work',
 			job: 'vehicleOffload',
-			vehicleUid: vehicle.uid,
+			vehicle,
 			target: vehicle,
 			path: [],
 			urgency: 0,

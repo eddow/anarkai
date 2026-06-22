@@ -359,7 +359,7 @@ describe('Freight simulation (gather + distribute)', () => {
 				type: 'work',
 				job: 'provideFromVehicle',
 				target: vehicle,
-				vehicleUid: vehicle.uid,
+				vehicle,
 				goodType: pj.goodType,
 				quantity: pj.quantity ?? 1,
 				path: [],

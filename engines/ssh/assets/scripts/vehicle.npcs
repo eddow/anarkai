@@ -5,7 +5,7 @@
 // begin-service, tile load/unload, and construction provide are preludes or `zoneBrowse` branches.
 
 function approachVehicle(jobPlan)
-	path = find.pathToVehicle(jobPlan.vehicleUid)
+	path = find.pathToVehicle(jobPlan.vehicle)
 	if not path then path = jobPlan.path
 	if not path then error "No path found to vehicle"
 	if path.length > 0 then

@@ -70,7 +70,6 @@ function vehicleFreightJobTracePayload(job: Job): Record<string, unknown> {
 		case 'vehicleHop':
 			return {
 				job: job.job,
-				vehicleUid: job.vehicleUid,
 				lineId: job.lineId,
 				stopId: job.stopId,
 				dockEnter: job.dockEnter,
@@ -85,7 +84,6 @@ function vehicleFreightJobTracePayload(job: Job): Record<string, unknown> {
 		case 'zoneBrowse':
 			return {
 				job: job.job,
-				vehicleUid: job.vehicleUid,
 				lineId: job.lineId,
 				stopId: job.stopId,
 				zoneBrowseAction: job.zoneBrowseAction,
@@ -98,7 +96,6 @@ function vehicleFreightJobTracePayload(job: Job): Record<string, unknown> {
 		case 'vehicleOffload':
 			return {
 				job: job.job,
-				vehicleUid: job.vehicleUid,
 				maintenanceKind: job.maintenanceKind,
 				goodType: job.maintenanceKind === 'loadFromBurden' ? job.looseGood.goodType : undefined,
 				targetCoord: job.targetCoord,
@@ -500,13 +497,11 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		const v = this.operates
 		assert(v, 'offboard requires an operated vehicle')
 		if (v.service) {
-			traces.vehicle.log?.('vehicleJob.offboard.endService', { vehicleUid: v.uid })
 			v.endService()
 		}
 		traces.vehicle.log?.('vehicleJob.offboard', {
 			character: this.name,
 			characterUid: this.uid,
-			vehicleUid: v.uid,
 		})
 		this.regainFootPosition(v.effectivePosition)
 		this.operates = undefined
@@ -524,7 +519,6 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		this.regainFootPosition(v.effectivePosition)
 		traces.vehicle.log?.('vehicleJob.offboard.keepControl', {
 			characterUid: this.uid,
-			vehicleUid: v.uid,
 		})
 		assertVehicleOperationConsistency(v, this)
 	}
@@ -545,7 +539,6 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		v.releaseOperator(this)
 		traces.vehicle.log?.('vehicleJob.offboard.keepService', {
 			characterUid: this.uid,
-			vehicleUid: v.uid,
 		})
 		this.regainFootPosition(this._footPosition ?? v.effectivePosition)
 		this.operates = undefined
@@ -614,7 +607,6 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 			role: typeof role === 'string' ? role : undefined,
 			position: this.position,
 			driving: this.driving,
-			vehicleUid: this.operates?.uid,
 		}
 	}
 
@@ -628,7 +620,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		job = executableJob(job)
 		const safePath = path.filter((step): step is AxialCoord => !!step)
 		if (isVehicleFreightJob(job)) {
-			const vehicle = this.game.vehicles.vehicle(job.vehicleUid)
+			const vehicle = job.vehicle
 			if (!vehicle) return this.scriptsContext.selfCare.wander()
 			if (this._operatedVehicle && this._operatedVehicle.uid !== vehicle.uid) {
 				return this.scriptsContext.selfCare.wander()
@@ -697,7 +689,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 				const t = job.targetCoord
 				const detail =
 					job.maintenanceKind === 'loadFromBurden' ? job.looseGood.goodType : job.maintenanceKind
-				return `vehicleOffload ${detail} @ ${t.q},${t.r} (${job.vehicleUid})`
+				return `vehicleOffload ${detail} @ ${t.q},${t.r}`
 			}
 			case 'defragment':
 				return `${job.goodType} @ ${targetName}`
@@ -757,7 +749,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 	private tailorVehicleProposedJob(proposedJob: VehicleProposedJob): TailoredJobCandidate {
 		const proposedKey = proposedVehicleJobIdentityKey(proposedJob)
 		for (const pick of collectVehicleWorkPicks(this.game, this)) {
-			if (pick.job.vehicleUid !== proposedJob.vehicleUid) continue
+			if (pick.job.vehicle !== proposedJob.source.vehicle) continue
 			if (proposedVehicleJobIdentityKey(pick.job) !== proposedKey) continue
 			const pathLength = vehicleFreightApproachPathLength(pick.job)
 			return {
@@ -798,7 +790,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 				out.push(...tile.proposedJobs)
 			}
 			for (const pick of collectVehicleWorkPicks(this.game, this)) {
-				const vehicle = this.game.vehicles.vehicle(pick.job.vehicleUid)
+				const vehicle = pick.job.vehicle
 				if (vehicle) out.push(asVehicleProposedJob(pick.job, vehicle, pick.targetTile))
 			}
 			return out
@@ -1134,7 +1126,6 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		if (!this.operates) return
 		traces.vehicle.warn?.('vehicle operator released before non-vehicle activity', {
 			characterUid: this.uid,
-			vehicleUid: this.operates.uid,
 			activityKind: kind,
 		})
 		releaseVehicleFreightWorkOnPlanInterrupt(this)
@@ -1167,7 +1158,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 							false
 						)
 				if (!path) return false
-				if (!('vehicleUid' in assignedJob)) this.releaseVehicleBeforeNonVehicleActivity(kind)
+				if (!('vehicle' in assignedJob)) this.releaseVehicleBeforeNonVehicleActivity(kind)
 				this.log('character.beginJob', assignedJob.job)
 				return this.workExecution(assignedJob, assignedTile, path)
 			}

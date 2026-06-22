@@ -43,7 +43,7 @@ describe('work.npcs dispatch', () => {
 			type: 'work' as const,
 			job: 'vehicleHop' as const,
 			target: vehicle,
-			vehicleUid: vehicle.uid,
+			vehicle,
 			lineId: line.id,
 			stopId: line.stops[0]!.id,
 			urgency: 1,

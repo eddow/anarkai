@@ -9,7 +9,7 @@ describe('vehicle work pick validation', () => {
 					job: 'zoneBrowse',
 					urgency: 1,
 					fatigue: 1,
-					vehicleUid: 'vehicle:1',
+					
 					lineId: 'line:1',
 					stopId: 'stop:1',
 					path: [],
@@ -27,7 +27,7 @@ describe('vehicle work pick validation', () => {
 					job: 'vehicleHop',
 					urgency: 1,
 					fatigue: 1,
-					vehicleUid: 'vehicle:1',
+					
 					lineId: 'line:1',
 					stopId: 'stop:1',
 					path: [],

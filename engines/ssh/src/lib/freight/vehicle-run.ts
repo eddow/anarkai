@@ -228,7 +228,7 @@ export function stopHasPotentialVehicleTransfer(
 	line: FreightLineDefinition,
 	stop: FreightStop
 ): boolean {
-	const stopIndex = line.stops.findIndex((candidate) => candidate.id === stop.id)
+	const stopIndex = line.stops.indexOf(stop)
 	if (stopIndex < 0) return false
 	if ('zone' in stop && character) {
 		return !!pickVehicleZoneBrowseSelection(game, character, vehicle, line, stop)
@@ -265,7 +265,7 @@ export function nextActionableVehicleLineStop(
 		const stop = nextFreightLineStop(line, currentStop)
 		return stop ? { line, stop } : undefined
 	}
-	const startIndex = line.stops.findIndex((stop) => stop.id === currentStop.id)
+	const startIndex = line.stops.indexOf(currentStop)
 	for (const stopIndex of freightLineStopOrder(line, startIndex).slice(1)) {
 		const stop = line.stops[stopIndex]
 		if (!stop) continue
@@ -512,6 +512,8 @@ export function projectedLineStopForVehicleHop(
 export type VehicleServiceStartCandidate = {
 	readonly lineId: string
 	readonly stopId: string
+	readonly line?: FreightLineDefinition
+	readonly stop?: FreightStop
 }
 
 /** Start line `service` if none; uses explicit line/stop ids when given, else {@link pickInitialVehicleServiceCandidate}. */
@@ -525,15 +527,15 @@ export function ensureVehicleServiceStarted(
 	const existing = vehicle.service
 	if (isVehicleLineService(existing)) {
 		if (candidate) {
-			const line = vehicle.servedLines.find((l) => l.id === candidate.lineId)
-			const stop = line?.stops.find((s) => s.id === candidate.stopId)
+			const line = candidate.line ?? vehicle.servedLines.find((l) => l.id === candidate.lineId)
+			const stop = candidate.stop ?? line?.stops.find((s) => s.id === candidate.stopId)
 			if (!line || !stop) return false
-			if (existing.line.id !== line.id) {
+			if (existing.line !== line) {
 				vehicle.endService()
 				vehicle.beginLineService(line, stop, operator)
 				return true
 			}
-			if (existing.stop.id !== stop.id) {
+			if (existing.stop !== stop) {
 				vehicle.advanceToStop(stop)
 			}
 		}
@@ -545,8 +547,8 @@ export function ensureVehicleServiceStarted(
 	}
 	let chosen: { line: FreightLineDefinition; stop: FreightStop } | undefined
 	if (candidate) {
-		const line = vehicle.servedLines.find((l) => l.id === candidate.lineId)
-		const stop = line?.stops.find((s) => s.id === candidate.stopId)
+		const line = candidate.line ?? vehicle.servedLines.find((l) => l.id === candidate.lineId)
+		const stop = candidate.stop ?? line?.stops.find((s) => s.id === candidate.stopId)
 		if (line && stop) chosen = { line, stop }
 	}
 	if (!chosen) chosen = pickInitialVehicleServiceCandidate(game, character, vehicle)
@@ -591,7 +593,6 @@ function advanceVehicleToNextLineStopOrEnd(
 		// that transitions from foundation to shell mid-route and suddenly demands the surplus).
 		if (vehicleStorageStockCount(vehicle) > 0) {
 			traces.vehicle.log?.('vehicleJob.line.emptyStop', {
-				vehicleUid: vehicle.uid,
 				lineId: line.id,
 				stopId: stop.id,
 				reason: 'line-finished-with-surplus-stock',
@@ -602,7 +603,6 @@ function advanceVehicleToNextLineStopOrEnd(
 			return true
 		}
 		traces.vehicle.log?.('vehicleJob.line.emptyStop', {
-			vehicleUid: vehicle.uid,
 			lineId: line.id,
 			stopId: stop.id,
 			reason: 'line-finished-empty',
@@ -643,7 +643,7 @@ export function advanceVehicleLineServicePastEmptyStops(
 		const svc = vehicle.service
 		if (!isVehicleLineService(svc)) return
 		const { line, stop } = svc
-		const idx = line.stops.findIndex((s) => s.id === stop.id)
+		const idx = line.stops.indexOf(stop)
 		if (idx < 0) {
 			vehicle.endService()
 			return
@@ -654,7 +654,6 @@ export function advanceVehicleLineServicePastEmptyStops(
 				if (!line.cyclic || lastSkippedStopId === undefined) return
 				if (stopHasPotentialVehicleTransfer(game, character, vehicle, line, stop)) return
 				traces.vehicle.log?.('vehicleJob.line.emptyStop', {
-					vehicleUid: vehicle.uid,
 					lineId: line.id,
 					stopId: stop.id,
 					reason: 'empty-undocked-anchor-stop',
@@ -699,7 +698,6 @@ export function advanceVehicleLineServicePastEmptyStops(
 			}
 
 			traces.vehicle.log?.('vehicleJob.line.emptyStop', {
-				vehicleUid: vehicle.uid,
 				lineId: line.id,
 				stopId: stop.id,
 				reason: 'empty-dock-load-stop',
@@ -738,7 +736,6 @@ export function advanceVehicleLineServicePastEmptyStops(
 			if (!shouldSkip) return
 
 			traces.vehicle.log?.('vehicleJob.line.emptyStop', {
-				vehicleUid: vehicle.uid,
 				lineId: line.id,
 				stopId: stop.id,
 				reason: 'empty-zone-unload-stop',
@@ -764,7 +761,6 @@ export function advanceVehicleLineServicePastEmptyStops(
 			if (stopHasPotentialVehicleTransfer(game, character, vehicle, line, stop)) return
 
 			traces.vehicle.log?.('vehicleJob.line.emptyStop', {
-				vehicleUid: vehicle.uid,
 				lineId: line.id,
 				stopId: stop.id,
 				reason: 'empty-trade-stop',
@@ -821,7 +817,6 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 	const svc = vehicle.service
 	if (!isVehicleLineService(svc)) {
 		traces.vehicle.log?.('vehicleJob.dock.check', {
-			vehicleUid: vehicle.uid,
 			outcome: 'skip',
 			reason: 'not-line-service',
 		})
@@ -830,7 +825,6 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 	const stop = svc.stop
 	if (!('anchor' in stop)) {
 		traces.vehicle.log?.('vehicleJob.dock.check', {
-			vehicleUid: vehicle.uid,
 			lineId: svc.line.id,
 			stopId: stop.id,
 			outcome: 'skip',
@@ -840,7 +834,6 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 	}
 	if (!vehicle.isDocked) {
 		traces.vehicle.log?.('vehicleJob.dock.check', {
-			vehicleUid: vehicle.uid,
 			lineId: svc.line.id,
 			stopId: stop.id,
 			outcome: 'skip',
@@ -852,7 +845,6 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 	const content = freightVehicleDockBay(vehicle)
 	if (!(content instanceof Alveolus)) {
 		traces.vehicle.log?.('vehicleJob.dock.check', {
-			vehicleUid: vehicle.uid,
 			lineId: svc.line.id,
 			stopId: stop.id,
 			outcome: 'skip',
@@ -865,7 +857,6 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 	const hive = content.hive
 	if (!hive) {
 		traces.vehicle.log?.('vehicleJob.dock.check', {
-			vehicleUid: vehicle.uid,
 			lineId: svc.line.id,
 			stopId: stop.id,
 			outcome: 'skip',
@@ -877,7 +868,6 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 	const dock = hive.freightVehicleDockFor(vehicle.uid)
 	if (!dock) {
 		traces.vehicle.log?.('vehicleJob.dock.check', {
-			vehicleUid: vehicle.uid,
 			lineId: svc.line.id,
 			stopId: stop.id,
 			outcome: 'skip',
@@ -888,7 +878,6 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 	}
 	if (hive.hasActiveFreightVehicleDockMovement(vehicle.uid)) {
 		traces.vehicle.log?.('vehicleJob.dock.check', {
-			vehicleUid: vehicle.uid,
 			lineId: svc.line.id,
 			stopId: stop.id,
 			outcome: 'wait',
@@ -905,7 +894,6 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 	const candidates = refreshDockedVehicleAdvertisement(vehicle, content)
 	if (candidates.length > 0) {
 		traces.vehicle.log?.('vehicleJob.dock.check', {
-			vehicleUid: vehicle.uid,
 			lineId: svc.line.id,
 			stopId: stop.id,
 			outcome: 'wait',
@@ -919,7 +907,6 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 	}
 	if (blockingVirtualGoodsCount > 0) {
 		traces.vehicle.log?.('vehicleJob.dock.check', {
-			vehicleUid: vehicle.uid,
 			lineId: svc.line.id,
 			stopId: stop.id,
 			outcome: 'wait',
@@ -932,12 +919,11 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 		})
 		return
 	}
-	const idx = svc.line.stops.findIndex((s) => s.id === stop.id)
+	const idx = svc.line.stops.indexOf(stop)
 	const isLastStop = idx < 0 || !nextFreightLineStop(svc.line, stop)
 	const hasStock = stockCount > 0
 	const parkNext = isLastStop && !hasStock && vehicleNeedsParkingOnCurrentTile(vehicle)
 	traces.vehicle.log?.('vehicleJob.dock.complete', {
-		vehicleUid: vehicle.uid,
 		lineId: svc.line.id,
 		stopId: stop.id,
 		outcome: isLastStop ? (parkNext ? 'park-next' : 'end-service') : 'advance',
@@ -962,7 +948,6 @@ export function advanceVehicleAfterDock(vehicle: Vehicle): void {
 		// Do not strand surplus goods by ending service at the last stop.
 		if (vehicleStorageStockCount(vehicle) > 0) {
 			traces.vehicle.log?.('vehicleJob.dock.complete', {
-				vehicleUid: vehicle.uid,
 				lineId: line.id,
 				stopId: stop.id,
 				outcome: 'skip-end-service-with-surplus-stock',
@@ -988,7 +973,6 @@ export function executeNpcTradeStopAndAdvance(
 	if (!('trade' in stop)) return false
 	const result = executeNpcTradeStopTransfer({ game, vehicle, line, stop })
 	traces.vehicle.log?.('vehicleJob.tradeStop.transfer', {
-		vehicleUid: vehicle.uid,
 		lineId: line.id,
 		stopId: stop.id,
 		result,
@@ -1058,7 +1042,6 @@ export function releaseVehicleFreightWorkOnPlanInterrupt(
 		if (subject.driving && subject.offboard) subject.offboard()
 		else subject.operates = undefined
 		traces.vehicle.log?.('vehicle freight stale operator link cleared on plan interrupt', {
-			vehicleUid: v.uid,
 			characterUid: subject.uid,
 		})
 		return
@@ -1067,7 +1050,6 @@ export function releaseVehicleFreightWorkOnPlanInterrupt(
 		if (subject.disengageVehicleKeepingService) subject.disengageVehicleKeepingService()
 		else subject.operates = undefined
 		traces.vehicle.log?.('vehicle freight stale operator mismatch cleared on plan interrupt', {
-			vehicleUid: v.uid,
 			characterUid: subject.uid,
 			operatorUid: v.operator?.uid,
 		})
@@ -1076,7 +1058,6 @@ export function releaseVehicleFreightWorkOnPlanInterrupt(
 	if (subject.disengageVehicleKeepingService) subject.disengageVehicleKeepingService()
 	else v.releaseOperator()
 	traces.vehicle.log?.('vehicle freight operator released on plan interrupt', {
-		vehicleUid: v.uid,
 		characterUid: subject.uid,
 		stillHasService: !!v.service,
 	})

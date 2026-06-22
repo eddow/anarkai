@@ -4,6 +4,7 @@ import type { TileContent } from 'ssh/board'
 import type { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import type { LooseGood } from 'ssh/board/looseGoods'
 import type { FreightAdSource, FreightPriorityTier } from 'ssh/freight/priority-channel'
+import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { type AxialCoord, type Positioned, positionScope } from 'ssh/utils'
 
@@ -134,7 +135,7 @@ export const baseGameScope = scope({
 		fatigue: 'number',
 		/** Maintenance sub-kind hint used by `allocateVehicleServiceForJob`; scripts read from `vehicle.service`. */
 		maintenanceKind: "'loadFromBurden' | 'unloadToTile' | 'park'",
-		vehicleUid: 'string',
+		'vehicleUid?': 'string',
 		targetCoord: 'Position',
 		'looseGood?': 'object',
 		'path?': 'AxialCoord[]',
@@ -151,7 +152,7 @@ export const baseGameScope = scope({
 		target: 'object',
 		urgency: 'number',
 		fatigue: 'number',
-		vehicleUid: 'string',
+		'vehicleUid?': 'string',
 		goodType: 'GoodType',
 		path: 'AxialCoord[]',
 	},
@@ -162,7 +163,7 @@ export const baseGameScope = scope({
 		target: 'object',
 		urgency: 'number',
 		fatigue: 'number',
-		vehicleUid: 'string',
+		'vehicleUid?': 'string',
 		goodType: 'GoodType',
 		quantity: 'number',
 		path: 'AxialCoord[]',
@@ -174,7 +175,7 @@ export const baseGameScope = scope({
 		target: 'object',
 		urgency: 'number',
 		fatigue: 'number',
-		vehicleUid: 'string',
+		'vehicleUid?': 'string',
 		goodType: 'GoodType',
 		quantity: 'number',
 		path: 'AxialCoord[]',
@@ -332,7 +333,8 @@ export type VehicleOffloadJob = {
 	job: 'vehicleOffload'
 	urgency: number
 	fatigue: number
-	vehicleUid: string
+	/** Direct reference to the world vehicle. Set by the planner at construction time. */
+	vehicle?: Vehicle
 	targetCoord: AxialCoord
 	/** Distance to claim the wheelbarrow; planner scoring uses this, not the internal vehicle route. */
 	approachPath?: AxialCoord[]
@@ -358,8 +360,7 @@ export interface DefragmentJob {
 }
 
 export interface VehicleJob {
-	vehicleUid: string
-	/** Runtime reference to the world vehicle (direct object, not a map lookup). Set by the planner at construction time. */
+	/** Direct reference to the world vehicle. Set by the planner at construction time. */
 	vehicle?: Vehicle
 	/** Distance to claim the vehicle before doing vehicle work. */
 	approachPath?: AxialCoord[]
@@ -410,6 +411,10 @@ export interface VehicleHopJob extends VehicleJob {
 	fatigue: number
 	lineId: string
 	stopId: string
+	/** Runtime reference to the freight line. Set by the planner at construction time. */
+	line?: FreightLineDefinition
+	/** Runtime reference to the freight stop. Set by the planner at construction time. */
+	stop?: FreightStop
 	path: AxialCoord[]
 	/** True when the hop ends at a freight bay anchor (explicit `walk.enter` to dock at tile center). */
 	dockEnter: boolean
@@ -435,6 +440,10 @@ export interface ZoneBrowseJob extends VehicleJob {
 	fatigue: number
 	lineId: string
 	stopId: string
+	/** Runtime reference to the freight line. Set by the planner at construction time. */
+	line?: FreightLineDefinition
+	/** Runtime reference to the freight stop. Set by the planner at construction time. */
+	stop?: FreightStop
 	path: AxialCoord[]
 	zoneBrowseAction: 'load' | 'provide'
 	goodType: GoodType
@@ -458,9 +467,9 @@ export type Job =
 	| VehicleHopJob
 	| ZoneBrowseJob
 
-/** True for planner jobs that are bound to a world vehicle through `vehicleUid`. */
+/** True for planner jobs that are bound to a world vehicle. */
 export function isVehicleBoundJob(job: Job): job is Job & VehicleJob {
-	return 'vehicleUid' in job
+	return 'vehicle' in job && (job as any).vehicle !== undefined
 }
 
 /**

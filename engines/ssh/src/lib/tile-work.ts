@@ -136,7 +136,7 @@ function collectTileWorkPicksUncached(
 
 		for (const pick of collectVehicleWorkPicks(game, character)) {
 			if (!sameCoord(pick.job.targetCoord, selectedCoord)) continue
-			const vehicle = game.vehicles.vehicle(pick.job.vehicleUid)
+			const vehicle = pick.job.vehicle
 			if (!vehicle) continue
 			const pathLength = vehiclePlannerPathLength(pick.job)
 			choices.push({

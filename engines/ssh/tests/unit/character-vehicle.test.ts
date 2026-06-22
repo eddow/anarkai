@@ -521,7 +521,7 @@ describe('Character vehicle seam', () => {
 			urgency: 1,
 			fatigue: 0,
 			maintenanceKind: 'loadFromBurden',
-			vehicleUid: vehicle.uid,
+			vehicle,
 			targetCoord: toAxialCoord(target.position)!,
 			path: [],
 		} as const
@@ -693,7 +693,7 @@ describe('Character vehicle seam', () => {
 		try {
 			releaseVehicleFreightWorkOnPlanInterrupt(character)
 			expect(log).toHaveBeenCalledWith('vehicle freight operator released on plan interrupt', {
-				vehicleUid: vehicle.uid,
+				vehicle,
 				characterUid: character.uid,
 				stillHasService: true,
 			})
@@ -739,7 +739,7 @@ describe('Character vehicle seam', () => {
 		try {
 			releaseVehicleFreightWorkOnPlanInterrupt(character)
 			expect(log).toHaveBeenCalledWith('vehicle freight operator released on plan interrupt', {
-				vehicleUid: vehicle.uid,
+				vehicle,
 				characterUid: character.uid,
 				stillHasService: true,
 			})

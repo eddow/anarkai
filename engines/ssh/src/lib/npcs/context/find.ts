@@ -4,6 +4,7 @@ import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
 import { buildAlveolusMarker } from 'ssh/hive/build-marker'
 import type { Character } from 'ssh/population/character'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { findDwellingReservedBy } from 'ssh/residential/housing-reservations'
 import { contract } from 'ssh/types'
 import type { GoodType, HomePlan } from 'ssh/types/base'
@@ -298,11 +299,9 @@ class FindFunctions {
 	}
 
 	/** Walk path to the vehicle's boarding hex. Matches {@link Character.onboard}. */
-	@contract('string')
-	pathToVehicle(vehicleUid: string): AxialCoord[] | undefined {
+	@contract()
+	pathToVehicle(vehicle: Vehicle): AxialCoord[] | undefined {
 		const character = this[subject]
-		const vehicle = character.game.vehicles.vehicle(vehicleUid)
-		if (!vehicle) return undefined
 		const vehicleCoord = axial.round(toAxialCoord(vehicle.effectivePosition)!)
 		return character.game.hex.findPathForCharacter(
 			character.tile.position,
@@ -314,11 +313,9 @@ class FindFunctions {
 	}
 
 	/** Whether the character's foot hex matches the vehicle hex (same predicate as boarding). */
-	@contract('string')
-	isAtVehicle(vehicleUid: string): boolean {
+	@contract()
+	isAtVehicle(vehicle: Vehicle): boolean {
 		const character = this[subject]
-		const vehicle = character.game.vehicles.vehicle(vehicleUid)
-		if (!vehicle) return false
 		const a = toAxialCoord(character.position)
 		const b = toAxialCoord(vehicle.effectivePosition)
 		if (!a || !b) return false

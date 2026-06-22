@@ -24,7 +24,6 @@ function pickupTracePayload(character: Character, goodType: GoodType, source: Po
 		characterName: character.name,
 		goodType,
 		source: toAxialCoord(source),
-		vehicleUid: character.operates?.uid,
 	}
 }
 

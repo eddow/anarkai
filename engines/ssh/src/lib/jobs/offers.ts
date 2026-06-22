@@ -104,12 +104,12 @@ export function proposedVehicleJobIdentityParts(job: VehiclePlannerJob): readonl
 			return [job.job]
 		case 'vehicleOffload': {
 			const good = job.maintenanceKind === 'loadFromBurden' ? job.looseGood.goodType : ''
-			return [job.job, job.vehicleUid, job.maintenanceKind, axial.key(job.targetCoord), good]
+			return [job.job, job.vehicle!.uid, job.maintenanceKind, axial.key(job.targetCoord), good]
 		}
 		case 'zoneBrowse':
 			return [
 				job.job,
-				job.vehicleUid,
+				job.vehicle!.uid,
 				job.lineId,
 				job.stopId,
 				job.zoneBrowseAction,
@@ -119,7 +119,7 @@ export function proposedVehicleJobIdentityParts(job: VehiclePlannerJob): readonl
 		case 'vehicleHop':
 			return [
 				job.job,
-				job.vehicleUid,
+				job.vehicle!.uid,
 				job.lineId,
 				job.stopId,
 				job.dockEnter ? 'dock' : 'move',
@@ -133,9 +133,9 @@ export function proposedVehicleJobIdentityParts(job: VehiclePlannerJob): readonl
 
 export function proposedVehicleJobIdentityKey(job: VehiclePlannerJob): string {
 	if (job.job === 'vehicleOffload' && job.maintenanceKind === 'loadFromBurden') {
-		const [name, vehicleUid, maintenanceKind, targetCoord, goodType] =
-			proposedVehicleJobIdentityParts(job)
-		return [name, vehicleUid, maintenanceKind, targetCoord, `:${goodType}`].join(':')
+	const [name, vid, maintenanceKind, targetCoord, goodType] =
+		proposedVehicleJobIdentityParts(job)
+	return [name, vid, maintenanceKind, targetCoord, `:${goodType}`].join(':')
 	}
 	return proposedVehicleJobIdentityParts(job).join(':')
 }

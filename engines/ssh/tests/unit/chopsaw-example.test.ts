@@ -169,7 +169,7 @@ describe('chopSaw example game', () => {
 		expect(picks.map((pick) => pick.job)).not.toContainEqual(
 			expect.objectContaining({
 				job: 'vehicleHop',
-				vehicleUid: 'ChopSaw:wheelbarrow1',
+				
 				lineId: 'ChopSaw:implicit-gather:0,0',
 				stopId: 'ChopSaw:ig-unload',
 				path: [],
@@ -219,7 +219,7 @@ describe('chopSaw example game', () => {
 			expect.objectContaining({
 				job: expect.objectContaining({
 					job: 'vehicleHop',
-					vehicleUid: vehicle.uid,
+					vehicle,
 					lineId: 'ChopSaw:implicit-gather:0,0',
 					stopId: 'ChopSaw:ig-load',
 				}),
@@ -534,7 +534,7 @@ describe('chopSaw example game', () => {
 				expect.objectContaining({
 					job: expect.objectContaining({
 						job: 'vehicleHop',
-						vehicleUid: vehicle.uid,
+						vehicle,
 						lineId: line.id,
 						stopId: load.id,
 						zoneBrowseAction: 'provide',
@@ -681,7 +681,7 @@ describe('chopSaw example game', () => {
 			expect.arrayContaining([
 				expect.objectContaining({
 					job: 'vehicleHop',
-					vehicleUid: 'ChopSaw:suv',
+					
 					lineId: 'ChopSaw:materials-loop:0,0:Melindbury',
 					stopId: 'ChopSaw:materials-melindbury',
 					needsBeginService: true,
@@ -718,7 +718,6 @@ describe('chopSaw example game', () => {
 		expect(projectedLineStopForVehicleHop(game, worker, pickup)?.stop.id).toBe(bayStop.id)
 		expect(findVehicleHopJob(game, worker)).toMatchObject({
 			job: 'vehicleHop',
-			vehicleUid: pickup.uid,
 			lineId: line.id,
 			stopId: bayStop.id,
 			dockEnter: true,
@@ -736,7 +735,7 @@ describe('chopSaw example game', () => {
 		pickup.position = { q: -1, r: 0 }
 		pickup.storage.addGood('concrete', 1)
 
-		expect(findVehicleOffloadJob(game, worker)?.vehicleUid).not.toBe(pickup.uid)
+		expect(findVehicleOffloadJob(game, worker)?.vehicle?.uid).not.toBe(pickup.uid)
 	})
 
 	it('keeps loaded ChopSaw wheelbarrow cargo for zone provide after a full bay dock', async () => {
@@ -767,7 +766,7 @@ describe('chopSaw example game', () => {
 		const hop = findVehicleHopJob(game, worker)
 		expect(hop).toMatchObject({
 			job: 'vehicleHop',
-			vehicleUid: vehicle.uid,
+			vehicle,
 			lineId: line.id,
 			stopId: load.id,
 			zoneBrowseAction: 'provide',
@@ -939,7 +938,6 @@ describe('chopSaw example game', () => {
 			expect.arrayContaining([
 				expect.objectContaining({
 					job: 'vehicleHop',
-					vehicleUid: pickup.uid,
 					lineId: line.id,
 					stopId: bayStop.id,
 					dockEnter: true,
@@ -949,7 +947,6 @@ describe('chopSaw example game', () => {
 		expect(findVehicleHopJob(game, worker)).toEqual(
 			expect.objectContaining({
 				job: 'vehicleHop',
-				vehicleUid: pickup.uid,
 				lineId: line.id,
 				stopId: bayStop.id,
 				dockEnter: true,
@@ -1094,7 +1091,7 @@ describe('chopSaw example game', () => {
 		expect(findVehicleOffloadJob(game, worker)).toBeUndefined()
 
 		const match = worker.resolveBestJobMatch()
-		expect(match && match.job.job === 'vehicleOffload' && match.job.vehicleUid === pickup.uid).toBe(
+		expect(match && match.job.job === 'vehicleOffload' && match.job.vehicle?.uid === pickup.uid).toBe(
 			false
 		)
 	})

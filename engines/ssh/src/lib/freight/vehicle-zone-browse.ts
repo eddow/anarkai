@@ -101,7 +101,7 @@ export function zoneBrowseUtilityContext(
 	line: FreightLineDefinition,
 	stop: FreightStop
 ): ZoneBrowseUtilityContext | undefined {
-	const stopIndex = line.stops.findIndex((candidate) => candidate.id === stop.id)
+	const stopIndex = line.stops.indexOf(stop)
 	if (stopIndex < 0) return undefined
 	const further = computeLineFurtherGoods({
 		game,
@@ -317,7 +317,6 @@ export function pickVehicleZoneBrowseSelection(
 ): VehicleZoneBrowseSelection | undefined {
 	const end = profile.proposedJobs.begin?.('pickVehicleZoneBrowseSelection', () => ({
 		characterUid: character.uid,
-		vehicleUid: vehicle.uid,
 		lineId: line.id,
 		stopId: stop.id,
 	}))

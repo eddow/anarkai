@@ -208,7 +208,6 @@ export class Vehicle extends withInteractive(GameObject) {
 				0
 			)
 			traces.vehicle.log?.('vehicleJob.dock.storageDrained', {
-				vehicleUid: this.uid,
 				lineId: current.line.id,
 				stopId: current.stop.id,
 				stockCount: currentStockCount,
@@ -280,7 +279,6 @@ export class Vehicle extends withInteractive(GameObject) {
 		this.position = { ...tile.position }
 		this.game.invalidateWorkPlanning('vehicle.position')
 		traces.vehicle.log?.('vehicleJob.dock.placement', {
-			vehicleUid: this.uid,
 			outcome: 'restore-position',
 			reason,
 			anchorCoord: toAxialCoord(tile.position),
@@ -290,7 +288,6 @@ export class Vehicle extends withInteractive(GameObject) {
 	private traceDockPlacement(outcome: string): void {
 		const tile = this.dockTile
 		traces.vehicle.log?.('vehicleJob.dock.placement', {
-			vehicleUid: this.uid,
 			outcome,
 			anchorCoord: tile ? toAxialCoord(tile.position) : undefined,
 			hasWorldPosition: !!this.position,
@@ -338,7 +335,6 @@ export class Vehicle extends withInteractive(GameObject) {
 
 	get proposedJobs(): readonly VehicleProposedJob[] {
 		const end = profile.proposedJobs.begin?.('vehicle.proposedJobs', () => ({
-			vehicleUid: this.uid,
 			vehicleType: this.vehicleType,
 		}))
 		try {
@@ -352,7 +348,6 @@ export class Vehicle extends withInteractive(GameObject) {
 
 	get advertisedJobs(): readonly ProposedJob[] {
 		const end = profile.proposedJobs.begin?.('vehicle.advertisedJobs', () => ({
-			vehicleUid: this.uid,
 			vehicleType: this.vehicleType,
 		}))
 		try {

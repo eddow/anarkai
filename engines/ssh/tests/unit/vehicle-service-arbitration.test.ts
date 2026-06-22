@@ -206,7 +206,7 @@ describe('Vehicle begin-service arbitration', () => {
 		try {
 			findProvideFromVehicleJob(game, character)
 			expect(log).toHaveBeenCalledWith('vehicleJob.provideFromVehicle.skippedNoLineService', {
-				vehicleUid: 'pv-tr',
+				
 			})
 		} finally {
 			traces.vehicle = prev
@@ -480,7 +480,7 @@ describe('Vehicle begin-service arbitration', () => {
 			expect(log).toHaveBeenCalledWith(
 				'vehicleJob.dock.complete',
 				expect.objectContaining({
-					vehicleUid: vehicle.uid,
+					vehicle,
 					lineId: line.id,
 					stopId: unloadStop.id,
 					outcome: 'park-next',
@@ -550,7 +550,7 @@ describe('Vehicle begin-service arbitration', () => {
 			type: 'work',
 			job: 'unloadFromVehicle',
 			target: vehicle,
-			vehicleUid: vehicle.uid,
+			vehicle,
 			goodType: job!.goodType,
 			quantity: job!.quantity,
 			path: [],
@@ -652,7 +652,7 @@ describe('Vehicle begin-service arbitration', () => {
 			target: vehicle,
 			urgency: 1,
 			fatigue: 1,
-			vehicleUid: vehicle.uid,
+			vehicle,
 			lineId: line.id,
 			stopId: line.stops[0]!.id,
 			path: [],
@@ -710,7 +710,7 @@ describe('Vehicle begin-service arbitration', () => {
 			target: vehicle,
 			urgency: 1,
 			fatigue: 1,
-			vehicleUid: vehicle.uid,
+			vehicle,
 			lineId: line.id,
 			stopId: unloadStop.id,
 			path: [],
@@ -808,7 +808,7 @@ describe('Vehicle begin-service arbitration', () => {
 		game.vehicles.createVehicle('arb-far-truck', 'pickup_truck', { q: 6, r: 0 }, [truckAction])
 		const character = game.population.createCharacter('Approach', { q: 0, r: 0 })
 
-		expect(findVehicleApproachJob(game, character)?.vehicleUid).toBe('arb-far-truck')
+		const result = findVehicleApproachJob(game, character); expect(result?.vehicle.uid).toBe('arb-far-truck')
 	})
 
 	it('prefers continuing a loaded line over same-tile ordinary transform work', async () => {
@@ -853,7 +853,7 @@ describe('Vehicle begin-service arbitration', () => {
 
 		if (!match || match.job.job !== 'vehicleHop') throw new Error('expected vehicleHop')
 		expect(match.job.job).toBe('vehicleHop')
-		expect(match.job.vehicleUid).toBe(vehicle.uid)
+		expect(match.job.vehicle).toBe(vehicle)
 	})
 
 	it('continues an unattended loaded gather-zone service to the bay', async () => {
@@ -900,7 +900,7 @@ describe('Vehicle begin-service arbitration', () => {
 		const hop = findVehicleHopJob(game, character)
 
 		expect(hop?.job).toBe('vehicleHop')
-		expect(hop?.vehicleUid).toBe(vehicle.uid)
+		expect(hop?.vehicle).toBe(vehicle)
 		expect(hop?.stopId).toBe(line.stops[1]!.id)
 		expect(hop?.approachPath).toHaveLength(0)
 		expect(hop?.needsBeginService).toBeUndefined()

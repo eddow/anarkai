@@ -300,21 +300,21 @@ function vehicleStockSummary(vehicle: Vehicle): string {
 	return entries.length > 0 ? entries.join(', ') : 'empty'
 }
 
-function assignedVehiclesForLine(game: Game | undefined, lineId: string): Vehicle[] {
-	if (!game?.vehicles) return []
+function assignedVehiclesForLine(game: Game | undefined, line: FreightLineDefinition | undefined): Vehicle[] {
+	if (!game?.vehicles || !line) return []
 	return [...game.vehicles].filter((vehicle) =>
-		vehicle.servedLines?.some((line) => line.id === lineId)
+		vehicle.servedLines?.includes(line)
 	)
 }
 
 function assignableVehicleItems(
 	game: Game | undefined,
-	lineId: string
+	line: FreightLineDefinition | undefined
 ): HardListSearchPickerItem[] {
-	if (!game?.vehicles) return []
+	if (!game?.vehicles || !line) return []
 	return [...game.vehicles]
 		.filter((vehicle) => isLineFreightVehicleType(vehicle.vehicleType))
-		.filter((vehicle) => !vehicle.servedLines?.some((line) => line.id === lineId))
+		.filter((vehicle) => !vehicle.servedLines?.includes(line))
 		.map((vehicle) => ({
 			id: vehicle.uid,
 			label: vehicle.title,
@@ -428,11 +428,11 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 	const assignmentText = () => lineAssignmentText()
 	const assignedVehicles = () => {
 		void local.revision
-		return assignedVehiclesForLine(currentGame(), currentLine()?.id ?? '')
+		return assignedVehiclesForLine(currentGame(), currentLine())
 	}
 	const availableVehicleItems = () => {
 		void local.revision
-		return assignableVehicleItems(currentGame(), currentLine()?.id ?? '')
+		return assignableVehicleItems(currentGame(), currentLine())
 	}
 
 	const statusLabel = (status: FreightLineRouteStatus): string => {

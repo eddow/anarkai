@@ -945,7 +945,7 @@ describe('Vehicle zone hop semantics', () => {
 		const plan = {
 			type: 'work',
 			job: 'zoneBrowse',
-			vehicleUid: vehicle.uid,
+			vehicle,
 			target: vehicle,
 			path: [],
 			lineId: line.id,
@@ -993,7 +993,7 @@ describe('Vehicle zone hop semantics', () => {
 			type: 'work',
 			job: 'vehicleOffload',
 			maintenanceKind: 'unloadToTile',
-			vehicleUid: vehicle.uid,
+			vehicle,
 			target: vehicle,
 			path: [],
 			targetCoord: { q: 1, r: 0 },
@@ -1033,7 +1033,7 @@ describe('Vehicle zone hop semantics', () => {
 			type: 'work',
 			job: 'vehicleOffload',
 			maintenanceKind: 'park',
-			vehicleUid: vehicle.uid,
+			vehicle,
 			target: vehicle,
 			path: [],
 			targetCoord: { q: 1, r: 0 },
@@ -1073,7 +1073,7 @@ describe('Vehicle zone hop semantics', () => {
 			type: 'work',
 			job: 'vehicleOffload',
 			maintenanceKind: 'unloadToTile',
-			vehicleUid: vehicle.uid,
+			vehicle,
 			target: vehicle,
 			path: [],
 			targetCoord: { q: 0, r: 0 },
@@ -1121,7 +1121,7 @@ describe('Vehicle zone hop semantics', () => {
 		const plan: WorkPlan = {
 			type: 'work',
 			job: 'zoneBrowse',
-			vehicleUid: vehicle.uid,
+			vehicle,
 			target: vehicle,
 			path: [],
 			lineId: line.id,
@@ -1176,7 +1176,7 @@ describe('Vehicle zone hop semantics', () => {
 		const plan: WorkPlan = {
 			type: 'work',
 			job: 'zoneBrowse',
-			vehicleUid: vehicle.uid,
+			vehicle,
 			target: vehicle,
 			path: [],
 			lineId: line.id,
@@ -1661,6 +1661,6 @@ describe('Vehicle zone hop semantics', () => {
 
 		expect(job?.job).toBe('vehicleOffload')
 		expect(job?.maintenanceKind).toBe('unloadToTile')
-		expect(job?.vehicleUid).toBe(vehicle.uid)
+		expect(job?.vehicle).toBe(vehicle)
 	})
 })

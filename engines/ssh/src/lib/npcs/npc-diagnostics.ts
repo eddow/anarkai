@@ -26,7 +26,6 @@ export function summarizeJobPlanForDiagnostics(
 			out[key] = v
 		}
 	}
-	copyIfPrimitive('vehicleUid', j.vehicleUid)
 	copyIfPrimitive('lineId', j.lineId)
 	copyIfPrimitive('stopId', j.stopId)
 	copyIfPrimitive('goodType', j.goodType)

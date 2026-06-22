@@ -53,7 +53,6 @@ function vehicleOperationConsistencyResult(
 				? 'vehicle.service.operator must be set to the character operating the vehicle'
 				: 'vehicle.service.operator must be the operating character',
 		payload: {
-			vehicleUid: vehicle.uid,
 			characterUid: character.uid,
 			serviceOperatorUid: op?.uid,
 			characterOperatesUid: character.operates?.uid,
@@ -74,7 +73,6 @@ function dockedSemanticsResult(vehicle: Vehicle): TraceInvariantResult {
 			? 'docked must only be set at a bay anchor stop, not a zone'
 			: 'docked vehicles must not keep a world position',
 		payload: {
-			vehicleUid: vehicle.uid,
 			lineId: svc.line.id,
 			stopId: svc.stop.id,
 			docked: svc.docked,

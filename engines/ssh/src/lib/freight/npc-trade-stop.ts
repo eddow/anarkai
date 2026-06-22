@@ -56,7 +56,7 @@ export function executeNpcTradeStopTransfer(args: {
 	if (!('trade' in stop)) return out
 	const profile = game.getSettlementTradeProfile(stop.trade.settlementId)
 	if (!profile) return out
-	const stopIndex = line.stops.findIndex((candidate) => candidate.id === stop.id)
+	const stopIndex = line.stops.indexOf(stop)
 	if (stopIndex < 0) return out
 
 	const buyOffers = new Map<GoodType, number>()

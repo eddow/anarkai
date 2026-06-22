@@ -50,7 +50,7 @@ describe('Vehicle usage invariant', () => {
 			type: 'work',
 			job: 'vehicleOffload',
 			maintenanceKind: 'unloadToTile',
-			vehicleUid: vehicle.uid,
+			vehicle,
 			target: vehicle,
 			path: [],
 			targetCoord: { q: 1, r: 0 },
@@ -152,7 +152,7 @@ describe('Vehicle usage invariant', () => {
 				target: targetTile,
 				urgency: 1,
 				fatigue: 1,
-				vehicleUid: vehicle.uid,
+				vehicle,
 				maintenanceKind: 'loadFromBurden',
 				looseGood,
 				targetCoord: { q: 1, r: 0 },
@@ -215,7 +215,7 @@ describe('Vehicle usage invariant', () => {
 		const resume = findVehicleOffloadJob(game, nextWorker)
 		expect(resume?.job).toBe('vehicleOffload')
 		expect(resume?.maintenanceKind).toBe('unloadToTile')
-		expect(resume?.vehicleUid).toBe(vehicle.uid)
+		expect(resume?.vehicle).toBe(vehicle)
 	})
 
 	it('interrupt release clears stale character links even when service operator drifted', async () => {
@@ -316,7 +316,7 @@ describe('Vehicle usage invariant', () => {
 				job: 'vehicleOffload',
 				urgency: 1,
 				fatigue: 1,
-				vehicleUid: vehicle.uid,
+				vehicle,
 				targetCoord: { q: 1, r: 0 },
 				path: [],
 				maintenanceKind: 'park',

@@ -18,7 +18,6 @@ export function freightVehicleDockBay(vehicle: Vehicle): FreightBayAlveolus | un
 	const content = tile?.content
 	if (!(content instanceof FreightBayAlveolus)) {
 		traces.vehicle.warn?.('[dock.sync] docked vehicle has no freight bay', {
-			vehicleUid: vehicle.uid,
 			lineId: svc.line.id,
 			stopId: svc.stop.id,
 			anchor: svc.stop.anchor.coord,
@@ -38,7 +37,6 @@ export function ensureFreightVehicleDockRegistration(
 	const existing = bay.hive.freightVehicleDockFor(vehicle.uid)
 	if (existing?.bay === bay) return bay
 	traces.vehicle.warn?.('[dock.sync] repairing missing dock registration', {
-		vehicleUid: vehicle.uid,
 		bay: bay.name,
 		hadRegistration: !!existing,
 		registeredBay: existing?.bay.name,
@@ -58,7 +56,6 @@ export function syncFreightVehicleDockRegistration(vehicle: Vehicle): void {
 	}
 	if (!bay) {
 		traces.vehicle.log?.('[dock.sync] no dock registration', {
-			vehicleUid: vehicle.uid,
 			isDocked: vehicle.isDocked,
 			serviceKind: isVehicleLineService(vehicle.service)
 				? 'line'
@@ -73,7 +70,6 @@ export function syncFreightVehicleDockRegistration(vehicle: Vehicle): void {
 		bay.hive.invalidateConveyPlanning('dock.lifecycle')
 		bay.hive.invalidateAdvertisements([existing, bay], 'dock.lifecycle')
 		traces.vehicle.log?.('[dock.sync] refreshed vehicle dock', {
-			vehicleUid: vehicle.uid,
 			bay: bay.name,
 			stock: { ...vehicle.storage.stock },
 			virtualGoodsCount: vehicle.storage.virtualGoodsCount,
@@ -81,7 +77,6 @@ export function syncFreightVehicleDockRegistration(vehicle: Vehicle): void {
 		return
 	}
 	traces.vehicle.log?.('[dock.sync] registered vehicle dock', {
-		vehicleUid: vehicle.uid,
 		bay: bay.name,
 		stock: { ...vehicle.storage.stock },
 		virtualGoodsCount: vehicle.storage.virtualGoodsCount,

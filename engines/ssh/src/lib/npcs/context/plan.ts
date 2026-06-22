@@ -42,10 +42,8 @@ function characterSameHexAsVehicle(character: Character, vehicle: Vehicle): bool
  * walks on foot, but it owns the vehicle usage while walking and only boards at the vehicle hex.
  */
 function beginVehicleFreightWorkPlan(plan: WorkPlan, character: Character): void {
-	if (plan.type !== 'work' || !('vehicleUid' in plan)) return
-	const uid = plan.vehicleUid
-	assert(uid, 'vehicle work plan: vehicleUid required')
-	const vehicle = character.game.vehicles.vehicle(uid)
+	if (plan.type !== 'work' || !('vehicle' in plan)) return
+	const vehicle = plan.vehicle
 	assert(vehicle, 'vehicle work plan: vehicle missing')
 	allocateVehicleServiceForJob(character.game, character, vehicle, plan as unknown as Job)
 
@@ -66,7 +64,7 @@ function beginVehicleFreightWorkPlan(plan: WorkPlan, character: Character): void
 }
 
 function releaseStaleVehicleBeforeNonVehicleWork(plan: WorkPlan, character: Character): void {
-	if (plan.type !== 'work' || 'vehicleUid' in plan) return
+	if (plan.type !== 'work' || 'vehicle' in plan) return
 	if (!character.operates) return
 	releaseVehicleFreightWorkOnPlanInterrupt(character)
 }
@@ -77,8 +75,8 @@ function releaseStaleVehicleBeforeNonVehicleWork(plan: WorkPlan, character: Char
  * cannot leave the character still operating a wheelbarrow before self-care or other work resumes.
  */
 function finalizeVehicleFreightWorkPlanOccupancy(plan: WorkPlan, character: Character): void {
-	if (plan.type !== 'work' || !('vehicleUid' in plan)) return
-	const vehicle = character.game.vehicles.vehicle(plan.vehicleUid)
+	if (plan.type !== 'work' || !('vehicle' in plan)) return
+	const vehicle = plan.vehicle
 	if (!vehicle) return
 	const controlsPlanVehicle = character.operates?.uid === vehicle.uid
 	const isPlanOperator = vehicle.operator?.uid === character.uid
@@ -98,8 +96,8 @@ function finalizeVehicleFreightWorkPlanOccupancy(plan: WorkPlan, character: Char
 }
 
 function clearVehicleOffloadPickupPlanMirror(plan: WorkPlan, character: Character): void {
-	if (!('vehicleUid' in plan) || !('offloadPickupPlan' in plan) || !plan.offloadPickupPlan) return
-	const vehicle = character.game.vehicles.vehicle(plan.vehicleUid)
+	if (!('vehicle' in plan) || !('offloadPickupPlan' in plan) || !plan.offloadPickupPlan) return
+	const vehicle = plan.vehicle
 	const svc = vehicle?.service
 	if (isVehicleMaintenanceService(svc) && svc.kind === 'loadFromBurden') {
 		if (svc.offloadPickupPlan === plan.offloadPickupPlan) delete svc.offloadPickupPlan
@@ -244,7 +242,6 @@ const pickupPlanHandler: PlanHandler<PickupPlan> = {
 					target: toAxialCoord(target),
 					characterUid: character.uid,
 					characterName: character.name,
-					vehicleUid: character.operates?.uid,
 					legacy: true,
 				})
 				commitment.trace('pickup.planHandler.legacyCommitment.created')
@@ -302,7 +299,6 @@ const pickupPlanHandler: PlanHandler<PickupPlan> = {
 					target: coord,
 					characterUid: character.uid,
 					characterName: character.name,
-					vehicleUid: character.operates?.uid,
 					replacedCommitment: existingCommitment ? 'yes' : 'no',
 				})
 				commitment.trace('pickup.planHandler.commitment.created')
@@ -358,7 +354,7 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 					pickupTile
 				)
 				assert(pickupPlan.type === 'pickup', 'vehicleOffload engagement must bind to a pickup plan')
-				const vehicle = character.game.vehicles.vehicle(plan.vehicleUid)
+				const vehicle = plan.vehicle
 				const svc = vehicle?.service
 				if (isVehicleMaintenanceService(svc) && svc.kind === 'loadFromBurden') {
 					svc.offloadPickupPlan = pickupPlan
@@ -415,7 +411,7 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 					const quantity = plan.quantity
 					// Expiry generous enough for wheelbarrow delivery: 60 s from now.
 					const expiresAt = character.game.ticker.elapsedMS + 60_000
-					reserveInTransit(shell, plan.vehicleUid, plan.goodType, quantity, expiresAt)
+					reserveInTransit(shell, plan.vehicle!.uid, plan.goodType, quantity, expiresAt)
 					;(plan as WorkPlan & { _inTransitSite?: ConstructionSiteShell })._inTransitSite = shell
 				}
 			}
@@ -430,7 +426,7 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 			}
 			clearVehicleOffloadPickupPlanMirror(plan, character)
 		}
-		if ('vehicleUid' in plan) {
+		if ('vehicle' in plan) {
 			releaseVehicleFreightWorkOnPlanInterrupt(character)
 			if (character.operates) character.operates = undefined
 		}
@@ -458,8 +454,8 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 		// (vehicle.endService also cleans up, but plan-finalize handles earlier cancellation.)
 		const inTransitSite = (plan as WorkPlan & { _inTransitSite?: ConstructionSiteShell })
 			._inTransitSite
-		if (inTransitSite && 'vehicleUid' in plan) {
-			cancelVehicleInTransitReservations(inTransitSite, plan.vehicleUid)
+		if (inTransitSite && 'vehicle' in plan) {
+			cancelVehicleInTransitReservations(inTransitSite, plan.vehicle!.uid)
 			delete (plan as WorkPlan & { _inTransitSite?: ConstructionSiteShell })._inTransitSite
 		}
 	},

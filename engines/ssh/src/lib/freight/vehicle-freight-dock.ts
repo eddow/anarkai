@@ -176,7 +176,7 @@ function dockedVehicleFutureTransfer(
 	if (!vehicle.isDocked) return undefined
 	if (bay.action.type !== 'road-fret') return undefined
 	const { line, stop } = svc
-	const stopIdx = line.stops.findIndex((s) => s.id === stop.id)
+	const stopIdx = line.stops.indexOf(stop)
 	if (stopIdx < 0 || !('anchor' in stop)) return undefined
 	const future = computeFutureFreightTransfer({
 		game: vehicle.game,
@@ -253,19 +253,16 @@ export function collectDockedVehicleAdvertisementCandidates(
 	const svc = vehicle.service
 	if (!isVehicleLineService(svc) || !isLineFreightVehicleType(vehicle.vehicleType)) {
 		traces.vehicle.log?.('[dock.candidates] skipped: not line freight vehicle', {
-			vehicleUid: vehicle.uid,
 			vehicleType: vehicle.vehicleType,
 			serviceKind: svc ? 'maintenance' : undefined,
 		})
 		return []
 	}
 	if (!vehicle.isDocked) {
-		traces.vehicle.log?.('[dock.candidates] skipped: not docked', { vehicleUid: vehicle.uid })
 		return []
 	}
 	if (bay.action.type !== 'road-fret') {
 		traces.vehicle.log?.('[dock.candidates] skipped: bay is not freight bay', {
-			vehicleUid: vehicle.uid,
 			bay: bay.name,
 			actionType: bay.action.type,
 		})
@@ -273,10 +270,9 @@ export function collectDockedVehicleAdvertisementCandidates(
 	}
 
 	const { line, stop } = svc
-	const stopIdx = line.stops.findIndex((s) => s.id === stop.id)
+	const stopIdx = line.stops.indexOf(stop)
 	if (stopIdx < 0) {
 		traces.vehicle.warn?.('[dock.candidates] skipped: stop not in line', {
-			vehicleUid: vehicle.uid,
 			lineId: line.id,
 			stopId: stop.id,
 		})
@@ -284,7 +280,6 @@ export function collectDockedVehicleAdvertisementCandidates(
 	}
 	if (!('anchor' in stop)) {
 		traces.vehicle.log?.('[dock.candidates] skipped: current stop is not an anchor', {
-			vehicleUid: vehicle.uid,
 			lineId: line.id,
 			stopId: stop.id,
 		})
@@ -353,7 +348,6 @@ export function collectDockedVehicleAdvertisementCandidates(
 	}
 
 	traces.vehicle.log?.('[dock.candidates] collected', {
-		vehicleUid: vehicle.uid,
 		bay: bay.name,
 		lineId: line.id,
 		stopId: stop.id,
@@ -401,7 +395,6 @@ export function refreshDockedVehicleAdvertisement(
 			const cleared = clearUnbackedVirtualGoods(vehicle)
 			if (cleared > 0) {
 				traces.vehicle.warn?.('[dock.candidates] cleared unbacked virtual goods', {
-					vehicleUid: vehicle.uid,
 					dock: dock.name,
 					canceled,
 					cleared,
