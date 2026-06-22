@@ -21,8 +21,8 @@ describe('resolveAlveolusVariant validation', () => {
 		expect(resolved?.ancestorChain).toHaveLength(3)
 		const [root, wood, extra] = resolved!.ancestorChain
 		expect(root).toEqual({ goods: { wood: 4 }, workSeconds: 2 })
-		expect(wood).toEqual({ goods: { wood: 10 }, workSeconds: 4 })
-		expect(extra).toEqual({ goods: { wood: 15, planks: 10 }, workSeconds: 6 })
+		expect(wood).toEqual({ goods: { wood: 8 }, workSeconds: 4 })
+		expect(extra).toEqual({ goods: { steel: 3, wood: 5 }, workSeconds: 6 })
 	})
 
 	it('falls back to the deepest existing variant segment when a child is missing', () => {
@@ -30,7 +30,7 @@ describe('resolveAlveolusVariant validation', () => {
 		expect(resolved?.variant).toBe('wood')
 		expect(resolved?.ancestorChain).toHaveLength(2)
 		const [, wood] = resolved!.ancestorChain
-		expect(wood).toEqual({ goods: { wood: 10 }, workSeconds: 4 })
+		expect(wood).toEqual({ goods: { wood: 8 }, workSeconds: 4 })
 	})
 
 	it('assigns variant and variantSpec on engineer variants', async () => {

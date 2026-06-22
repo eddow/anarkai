@@ -586,6 +586,21 @@ function advanceVehicleToNextLineStopOrEnd(
 ): boolean {
 	const next = nextFreightLineStop(line, stop)
 	if (!next) {
+		// Ending service here would strand any remaining goods on the tile. Keep the service alive
+		// so the planner can rediscover a drop target on the next pass (e.g. a construction site
+		// that transitions from foundation to shell mid-route and suddenly demands the surplus).
+		if (vehicleStorageStockCount(vehicle) > 0) {
+			traces.vehicle.log?.('vehicleJob.line.emptyStop', {
+				vehicleUid: vehicle.uid,
+				lineId: line.id,
+				stopId: stop.id,
+				reason: 'line-finished-with-surplus-stock',
+				fromReason: reason,
+				cyclic: line.cyclic ?? false,
+				stock: vehicle.storage.stock,
+			})
+			return true
+		}
 		traces.vehicle.log?.('vehicleJob.line.emptyStop', {
 			vehicleUid: vehicle.uid,
 			lineId: line.id,
@@ -658,6 +673,7 @@ export function advanceVehicleLineServicePastEmptyStops(
 					isVehicleLineService(advancedService) &&
 					lastSkippedStopId === advancedService.stop.id
 				) {
+					if (vehicleStorageStockCount(vehicle) > 0) return
 					vehicle.endService()
 					return
 				}
@@ -698,6 +714,7 @@ export function advanceVehicleLineServicePastEmptyStops(
 				isVehicleLineService(advancedService) &&
 				lastSkippedStopId === advancedService.stop.id
 			) {
+				if (vehicleStorageStockCount(vehicle) > 0) return
 				vehicle.endService()
 				return
 			}
@@ -735,6 +752,7 @@ export function advanceVehicleLineServicePastEmptyStops(
 				isVehicleLineService(advancedService) &&
 				lastSkippedStopId === advancedService.stop.id
 			) {
+				if (vehicleStorageStockCount(vehicle) > 0) return
 				vehicle.endService()
 				return
 			}
@@ -760,6 +778,7 @@ export function advanceVehicleLineServicePastEmptyStops(
 				isVehicleLineService(advancedService) &&
 				lastSkippedStopId === advancedService.stop.id
 			) {
+				if (vehicleStorageStockCount(vehicle) > 0) return
 				vehicle.endService()
 				return
 			}
@@ -769,7 +788,12 @@ export function advanceVehicleLineServicePastEmptyStops(
 
 		return
 	}
-	if (isVehicleLineService(vehicle.service) && vehicle.service.line.cyclic) vehicle.endService()
+	if (
+		isVehicleLineService(vehicle.service) &&
+		vehicle.service.line.cyclic &&
+		vehicleStorageStockCount(vehicle) <= 0
+	)
+		vehicle.endService()
 }
 
 /**
@@ -935,6 +959,18 @@ export function advanceVehicleAfterDock(vehicle: VehicleEntity): void {
 	const { line, stop } = svc
 	const next = nextFreightLineStop(line, stop)
 	if (!next) {
+		// Do not strand surplus goods by ending service at the last stop.
+		if (vehicleStorageStockCount(vehicle) > 0) {
+			traces.vehicle.log?.('vehicleJob.dock.complete', {
+				vehicleUid: vehicle.uid,
+				lineId: line.id,
+				stopId: stop.id,
+				outcome: 'skip-end-service-with-surplus-stock',
+				cyclic: line.cyclic ?? false,
+				stock: vehicle.storage.stock,
+			})
+			return
+		}
 		vehicle.endService()
 		return
 	}

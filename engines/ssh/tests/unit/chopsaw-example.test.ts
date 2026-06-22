@@ -67,7 +67,7 @@ describe('chopSaw example game', () => {
 			zone: { kind: 'radius', center: [0, 0], radius: 9 },
 		})
 
-		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		expect(vehicle?.servedLines.map((line) => line.id)).toEqual(['ChopSaw:implicit-gather:0,0'])
 
 		const materials = game.freightLines.find(
@@ -149,7 +149,7 @@ describe('chopSaw example game', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		const line = game.freightLines.find(
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
@@ -169,7 +169,7 @@ describe('chopSaw example game', () => {
 		expect(picks.map((pick) => pick.job)).not.toContainEqual(
 			expect.objectContaining({
 				job: 'vehicleHop',
-				vehicleUid: 'ChopSaw:wheelbarrow',
+				vehicleUid: 'ChopSaw:wheelbarrow1',
 				lineId: 'ChopSaw:implicit-gather:0,0',
 				stopId: 'ChopSaw:ig-unload',
 				path: [],
@@ -186,7 +186,7 @@ describe('chopSaw example game', () => {
 		const line = game.freightLines.find(
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
-		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		const bayTile = game.hex.getTile({ q: 0, r: 0 })
 		const zoneTile = game.hex.getTile({ q: -1, r: 0 })
 		if (!line || !vehicle || !bayTile || !zoneTile) throw new Error('Expected ChopSaw fixture')
@@ -235,7 +235,7 @@ describe('chopSaw example game', () => {
 		const line = game.freightLines.find(
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
-		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
 		const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
 		if (!line || !vehicle || !bay || !storage) throw new Error('Expected ChopSaw fixture')
@@ -303,7 +303,7 @@ describe('chopSaw example game', () => {
 		const line = game.freightLines.find(
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
-		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
 		const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
 		if (!line || !vehicle || !bay || !storage) throw new Error('Expected ChopSaw fixture')
@@ -360,7 +360,7 @@ describe('chopSaw example game', () => {
 			const line = game.freightLines.find(
 				(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 			)
-			const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+			const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 			const unloadStop = line?.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
 			const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
 			const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
@@ -399,7 +399,7 @@ describe('chopSaw example game', () => {
 			const line = game.freightLines.find(
 				(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 			)
-			const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+			const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 			const unloadStop = line?.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
 			const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
 			const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
@@ -452,7 +452,7 @@ describe('chopSaw example game', () => {
 		const line = game.freightLines.find(
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
-		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
 		if (!line || !vehicle || !bay) throw new Error('Expected ChopSaw fixture')
 
@@ -481,7 +481,7 @@ describe('chopSaw example game', () => {
 		const line = game.freightLines.find(
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
-		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
 		if (!line || !vehicle || !bay) throw new Error('Expected ChopSaw fixture')
 
@@ -518,7 +518,7 @@ describe('chopSaw example game', () => {
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
 		const load = line?.stops.find((stop) => stop.id === 'ChopSaw:ig-load')
-		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		if (!line || !load || !vehicle) throw new Error('Expected ChopSaw fixture')
 
 		vehicle.storage.addGood('concrete', 2)
@@ -557,7 +557,7 @@ describe('chopSaw example game', () => {
 		const unload = line.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
 		const load = line.stops.find((stop) => stop.id === 'ChopSaw:ig-load')
 		if (!unload || !load) throw new Error('expected ChopSaw load/unload stops')
-		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
 
 		vehicle.storage.addGood('concrete', 1)
@@ -586,7 +586,7 @@ describe('chopSaw example game', () => {
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
 		const unload = line.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
 		if (!unload) throw new Error('expected ChopSaw unload stop')
-		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
 		const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
 		if (!vehicle || !bay || !storage) throw new Error('expected ChopSaw dock fixture')
@@ -751,7 +751,7 @@ describe('chopSaw example game', () => {
 		const unload = line.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
 		const load = line.stops.find((stop) => stop.id === 'ChopSaw:ig-load')
 		if (!unload || !load) throw new Error('expected ChopSaw load/unload stops')
-		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
 		const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
 		const worker = game.population.createCharacter('Concrete Provider', { q: 0, r: 0 })

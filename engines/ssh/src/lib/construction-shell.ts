@@ -30,6 +30,14 @@ export function createConstructionShell(
 	constructionSite: ConstructionSiteState
 ): ConstructionSiteShell & TileContent {
 	const site = normalizeConstructionSiteState(constructionSite)
+	// `createConstructionShell` is the transition point from `UnBuiltLand` (which owns the
+	// `foundation`/`planned` phases) to an active construction shell. A shell by definition is
+	// past foundation, so those phases are stale here and must be normalized to `waiting_materials`
+	// (the entry phase for shell material demand). Callers that explicitly set `building` or
+	// `waiting_construction` before constructing the shell are preserved.
+	if (site.phase === 'foundation' || site.phase === 'planned') {
+		site.phase = 'waiting_materials'
+	}
 	if (site.target.kind === 'alveolus') {
 		return new BuildAlveolus(tile, site.target.alveolusType, site, site.target.variant)
 	}

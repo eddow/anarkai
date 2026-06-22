@@ -108,7 +108,7 @@ describe('settlement trade profiles', () => {
 		}
 	})
 
-	it('creates one city hall target at the settlement center', () => {
+	it('creates one city hall target on a zoneable tile near the settlement center', () => {
 		const profile = createNpcSettlementTradeProfile({
 			seed: 42,
 			regionSetKey: '0,0',
@@ -117,16 +117,16 @@ describe('settlement trade profiles', () => {
 			zones,
 		})
 
-		expect(profile.cityHall).toEqual({
+		expect(profile.cityHall).toMatchObject({
 			id: `${profile.id}:city-hall`,
 			kind: 'city_hall',
 			settlementId: profile.id,
 			name: `${profile.name} City Hall`,
-			position: profile.center,
+			position: { q: 2, r: -1 },
 		})
 	})
 
-	it('keeps the city hall at the settlement center even if the center terrain is blocked', () => {
+	it('keeps the city hall near the settlement center when the center terrain is blocked', () => {
 		const profile = createNpcSettlementTradeProfile({
 			seed: 42,
 			regionSetKey: '0,0',
@@ -135,7 +135,7 @@ describe('settlement trade profiles', () => {
 			zones,
 		})
 
-		expect(profile.cityHall.position).toEqual(profile.center)
+		expect(profile.cityHall.position).toMatchObject({ q: 0, r: 1 })
 	})
 
 	it('trades all basic materials with one settlement price for buy and sell', () => {

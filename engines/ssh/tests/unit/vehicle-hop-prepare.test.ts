@@ -226,7 +226,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
 		const unloadStop = line?.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
-		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		if (!line || !unloadStop || !vehicle) throw new Error('expected ChopSaw gather fixture')
 
 		vehicle.position = { q: -1, r: 0 }
@@ -244,7 +244,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			target: character.tile,
 			urgency: 1,
 			fatigue: 1,
-			vehicleUid: 'ChopSaw:wheelbarrow',
+			vehicleUid: 'ChopSaw:wheelbarrow1',
 			lineId: 'ChopSaw:implicit-gather:0,0',
 			stopId: 'ChopSaw:ig-unload',
 			path: [],
@@ -267,7 +267,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
 		const unloadStop = line?.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
-		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		if (!line || !unloadStop || !vehicle) throw new Error('expected ChopSaw gather fixture')
 
 		vehicle.position = { q: -2, r: 1 }
@@ -325,7 +325,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
 		const unloadStop = line?.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
-		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		if (!line || !unloadStop || !vehicle) throw new Error('expected ChopSaw gather fixture')
 
 		vehicle.position = { q: -2, r: 1 }
@@ -366,7 +366,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
 		const unloadStop = line?.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
-		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow')
+		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		if (!line || !unloadStop || !vehicle) throw new Error('expected ChopSaw gather fixture')
 
 		vehicle.position = { q: -2, r: 1 }

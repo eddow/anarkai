@@ -18,7 +18,7 @@ describe('variant construction queue expansion', () => {
 
 		const [root, wood, extra] = build.constructionQueue
 		expect(root).toEqual({ goods: { wood: 4 }, workSeconds: 2 })
-		expect(wood).toEqual({ goods: { wood: 10 }, workSeconds: 4 })
-		expect(extra).toEqual({ goods: { wood: 15, planks: 10 }, workSeconds: 6 })
+		expect(wood).toEqual({ goods: { wood: 8 }, workSeconds: 4 })
+		expect(extra).toEqual({ goods: { steel: 3, wood: 5 }, workSeconds: 6 })
 	})
 })

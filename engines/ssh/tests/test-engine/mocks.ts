@@ -208,7 +208,21 @@ function rulesTestOverrides() {
 				preparationTime: 1,
 				workTime: 2,
 				action: { type: 'engineer', radius: 6 },
-				construction: { goods: { wood: 1, stone: 1 }, time: 1 },
+				construction: { goods: { wood: 1, stone: 1 }, time: 4 },
+				variants: {
+					building: {
+						construction: { goods: { wood: 3, stone: 3, planks: 2 }, time: 8 },
+						spec: { kind: 'building' },
+					},
+					research: {
+						construction: { goods: { wood: 2, stone: 1, planks: 3 }, time: 10 },
+						spec: { kind: 'research' },
+					},
+					road: {
+						construction: { goods: { wood: 3, stone: 5 }, time: 8 },
+						spec: { kind: 'road' },
+					},
+				},
 			},
 			engineer_hut: {
 				preparationTime: 1,
@@ -229,6 +243,44 @@ function rulesTestOverrides() {
 				workTime: 0,
 				action: { type: 'storage', kind: 'specific', goods: { wood: 24 } },
 				construction: { goods: { wood: 10 }, time: 4 },
+			},
+			pile: {
+				preparationTime: 0,
+				action: { type: 'storage', kind: 'specific', goods: {} },
+				workTime: 0,
+				construction: { goods: { wood: 4 }, time: 2 },
+				variants: {
+					wood: {
+						construction: { goods: { wood: 8 }, time: 4 },
+						action: { type: 'storage', kind: 'specific', goods: { wood: 24 } },
+						variants: {
+							extra: {
+								construction: { goods: { steel: 3, wood: 5 }, time: 6 },
+								action: { type: 'storage', kind: 'specific', goods: { wood: 48 } },
+							},
+						},
+					},
+					planks: {
+						construction: { goods: { wood: 3, planks: 5 }, time: 4 },
+						action: { type: 'storage', kind: 'specific', goods: { planks: 24 } },
+						variants: {
+							extra: {
+								construction: { goods: { steel: 3, planks: 5 }, time: 6 },
+								action: { type: 'storage', kind: 'specific', goods: { planks: 48 } },
+							},
+						},
+					},
+					stone: {
+						construction: { goods: { wood: 3, stone: 5 }, time: 4 },
+						action: { type: 'storage', kind: 'specific', goods: { stone: 24 } },
+						variants: {
+							extra: {
+								construction: { goods: { steel: 3, stone: 5 }, time: 6 },
+								action: { type: 'storage', kind: 'specific', goods: { stone: 48 } },
+							},
+						},
+					},
+				},
 			},
 		},
 		jobBalance: {

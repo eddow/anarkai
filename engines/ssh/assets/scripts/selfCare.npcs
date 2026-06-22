@@ -34,8 +34,7 @@ end function
 
 function wander()
 	destination = find.wanderingTile()
-	if not destination.path then return selfCare.pondering()
-	walk.into destination.path
+	if destination and destination.path then walk.into destination.path
 	selfCare.pondering
 end function
 
