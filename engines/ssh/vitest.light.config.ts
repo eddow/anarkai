@@ -11,7 +11,11 @@ export default defineConfig({
 		setupFiles: ['./test-setup.ts'],
 		include: ['src/**/*.{test,spec}.{js,ts}', 'tests/**/*.{test,spec}.{js,ts}'],
 		exclude: [
-			'node_modules', 'dist', '.git', '.cache', 'tests/e2e',
+			'node_modules',
+			'dist',
+			'.git',
+			'.cache',
+			'tests/e2e',
 			// Integration tests — save for thorough suite
 			'tests/integration/**',
 			// Heavy unit files (>15s each) — save for thorough suite
@@ -42,13 +46,22 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: [
-			{ find: /^engine-terrain\/hex$/,       replacement: resolvePath(projectRootDir, '../terrain/src/hex/index.ts') },
-			{ find: /^engine-terrain$/,             replacement: resolvePath(projectRootDir, '../terrain/src/index.ts') },
-			{ find: /^ssh\/debug-game-state$/,      replacement: resolvePath(projectRootDir, 'src/lib/dev/debug-game-state.ts') },
-			{ find: /^ssh\/(.*)$/,                  replacement: `${resolvePath(projectRootDir, 'src/lib')}/$1` },
-			{ find: /^ssh$/,                        replacement: resolvePath(projectRootDir, 'src/lib') },
-			{ find: /^npc-script$/,                 replacement: resolvePath(projectRootDir, '../../../ownk/npcs/src') },
-			{ find: /^mutts$/,                      replacement: resolvePath(projectRootDir, '../../../ownk/mutts') },
+			{
+				find: /^engine-terrain\/hex$/,
+				replacement: resolvePath(projectRootDir, '../terrain/src/hex/index.ts'),
+			},
+			{
+				find: /^engine-terrain$/,
+				replacement: resolvePath(projectRootDir, '../terrain/src/index.ts'),
+			},
+			{
+				find: /^ssh\/debug-game-state$/,
+				replacement: resolvePath(projectRootDir, 'src/lib/dev/debug-game-state.ts'),
+			},
+			{ find: /^ssh\/(.*)$/, replacement: `${resolvePath(projectRootDir, 'src/lib')}/$1` },
+			{ find: /^ssh$/, replacement: resolvePath(projectRootDir, 'src/lib') },
+			{ find: /^npc-script$/, replacement: resolvePath(projectRootDir, '../../../ownk/npcs/src') },
+			{ find: /^mutts$/, replacement: resolvePath(projectRootDir, '../../../ownk/mutts') },
 		],
 	},
 })

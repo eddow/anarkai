@@ -139,7 +139,10 @@ describe('Convey hop mechanism', () => {
 			const movement = hive.movingGoods.get(toAxialCoord(providerTile.position as AxialCoord)!)![0]!
 			const firstHop = movement.prepareHop()
 			const borderStorage = hive.storageAt(firstHop)!
-			const carrier = game.population.createCharacter('Carrier', providerTile.position as AxialCoord)
+			const carrier = game.population.createCharacter(
+				'Carrier',
+				providerTile.position as AxialCoord
+			)
 			carrier.assignedAlveolus = provider
 			provider.assignedWorker = carrier
 			const work = new WorkFunctions()
@@ -203,7 +206,9 @@ describe('Convey hop mechanism', () => {
 			expect(provider.hive).toBe(demander.hive)
 			expect(provider.hive).not.toBe(originalHive)
 			const rebuiltHive = provider.hive as Hive
-			const tracked = rebuiltHive.movingGoods.get(toAxialCoord(provider.tile.position as AxialCoord)!)
+			const tracked = rebuiltHive.movingGoods.get(
+				toAxialCoord(provider.tile.position as AxialCoord)!
+			)
 			expect(tracked?.map((movement) => movement.goodType)).toEqual(['wood'])
 		} finally {
 			await engine.destroy()
@@ -269,7 +274,10 @@ describe('Convey hop mechanism', () => {
 			}) as typeof borderStorage.allocate
 
 			try {
-				const carrier = game.population.createCharacter('Carrier', providerTile.position as AxialCoord)
+				const carrier = game.population.createCharacter(
+					'Carrier',
+					providerTile.position as AxialCoord
+				)
 				carrier.assignedAlveolus = provider
 				provider.assignedWorker = carrier
 				const work = new WorkFunctions()

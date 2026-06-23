@@ -22,9 +22,7 @@ import type {
 export type VehicleCapabilityResolver = (vehicle: Vehicle) => ReadonlySet<VehicleCapability>
 export type EmitAdvanceJobFn = (grant: MovementGrant) => void
 
-export function defaultRoadCapabilityResolver(
-	_vehicle: Vehicle
-): ReadonlySet<VehicleCapability> {
+export function defaultRoadCapabilityResolver(_vehicle: Vehicle): ReadonlySet<VehicleCapability> {
 	return new Set(['road'] as VehicleCapability[])
 }
 

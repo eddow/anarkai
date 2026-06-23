@@ -51,9 +51,9 @@ describe('Convey bookkeeping resilience', () => {
 			expect(movement).toBeDefined()
 			if (!movement) throw new Error('Expected plank movement to exist')
 
-		;(movement as any).claimed = true
-		;(movement as any).allocations.target.cancel('test.invalid-target')
-		expect(() => (movement as any).hop()).toThrow(/invalid-target-allocation/)
+			;(movement as any).claimed = true
+			;(movement as any).allocations.target.cancel('test.invalid-target')
+			expect(() => (movement as any).hop()).toThrow(/invalid-target-allocation/)
 			await flushDeferred()
 		} finally {
 			await engine.destroy()
@@ -319,14 +319,14 @@ describe('Convey bookkeeping resilience', () => {
 			await flushDeferred()
 
 			const trackedEntries = Array.from(sawmill.hive.movingGoods.entries())
-			.filter((entry: unknown) => {
-				const [, goods] = entry as [any, any[]]
-				return goods.some((candidate: any) => candidate?.ref === movement.ref)
-			})
-			.map((entry: unknown) => {
-				const [coord] = entry as [any, any[]]
-				return axial.key(coord)
-			})
+				.filter((entry: unknown) => {
+					const [, goods] = entry as [any, any[]]
+					return goods.some((candidate: any) => candidate?.ref === movement.ref)
+				})
+				.map((entry: unknown) => {
+					const [coord] = entry as [any, any[]]
+					return axial.key(coord)
+				})
 			expect(trackedEntries).not.toContain(axial.key(staleCoord))
 			expect(trackedEntries.length).toBeLessThanOrEqual(1)
 			expect(
@@ -445,8 +445,8 @@ describe('Convey bookkeeping resilience', () => {
 			expect(movement).toBeDefined()
 			if (!movement) throw new Error('Expected plank movement to exist')
 
-		;(movement as any).claimed = true
-		;(movement as any).claimedAtMs = Date.now() - 10_000
+			;(movement as any).claimed = true
+			;(movement as any).claimedAtMs = Date.now() - 10_000
 			;(sawmill.hive as any).removeMovementFromCoordTracking?.(movement)
 
 			const warnings: string[] = []

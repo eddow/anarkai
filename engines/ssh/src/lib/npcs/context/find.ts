@@ -299,7 +299,7 @@ class FindFunctions {
 	}
 
 	/** Walk path to the vehicle's boarding hex. Matches {@link Character.onboard}. */
-	@contract()
+	@contract('object')
 	pathToVehicle(vehicle: Vehicle): AxialCoord[] | undefined {
 		const character = this[subject]
 		const vehicleCoord = axial.round(toAxialCoord(vehicle.effectivePosition)!)
@@ -313,7 +313,7 @@ class FindFunctions {
 	}
 
 	/** Whether the character's foot hex matches the vehicle hex (same predicate as boarding). */
-	@contract()
+	@contract('object')
 	isAtVehicle(vehicle: Vehicle): boolean {
 		const character = this[subject]
 		const a = toAxialCoord(character.position)

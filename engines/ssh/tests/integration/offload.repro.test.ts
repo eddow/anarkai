@@ -51,14 +51,17 @@ describe('Offload Silent Cancellation Reproduction', () => {
 			context.vehicle.ensureVehicleOffloadPickupPlan(firstPlan)
 			expect((firstPlan as any).offloadPickupPlan).toBeDefined()
 			expect((vehicle.service as any)?.kind).toBe('loadFromBurden')
-			if ((vehicle.service as any)?.kind !== 'loadFromBurden') throw new Error('Expected loadFromBurden')
+			if ((vehicle.service as any)?.kind !== 'loadFromBurden')
+				throw new Error('Expected loadFromBurden')
 			expect((vehicle.service as any).offloadPickupPlan?.commitment).toBe(
 				(firstPlan as any).offloadPickupPlan?.commitment
 			)
 			expect(looseGood.available).toBe(false)
 
 			expect(() => context.vehicle.ensureVehicleOffloadPickupPlan(secondPlan)).not.toThrow()
-			expect((secondPlan as any).offloadPickupPlan?.commitment).toBe((firstPlan as any).offloadPickupPlan?.commitment)
+			expect((secondPlan as any).offloadPickupPlan?.commitment).toBe(
+				(firstPlan as any).offloadPickupPlan?.commitment
+			)
 			expect(vehicle.storage.allocated('wood')).toBe(1)
 		} finally {
 			await engine.destroy()
@@ -145,7 +148,11 @@ describe('Offload Silent Cancellation Reproduction', () => {
 			const goodsAtTile = game.hex.looseGoods.getGoodsAt(targetTile!.position)
 			expect(goodsAtTile.some((g) => g.goodType === 'wood')).toBe(true)
 
-			const vehicle = game.vehicles.createVehicle('wb-offload-repro', 'wheelbarrow', toAxialCoord(char.position)!)
+			const vehicle = game.vehicles.createVehicle(
+				'wb-offload-repro',
+				'wheelbarrow',
+				toAxialCoord(char.position)!
+			)
 			bindOperatedWheelbarrowOffload(char, vehicle)
 			char.onboard()
 

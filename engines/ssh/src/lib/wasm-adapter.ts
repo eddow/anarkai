@@ -29,11 +29,11 @@ export async function initCore(): Promise<InitOutput> {
 		typeof process !== 'undefined' &&
 		typeof process?.versions?.node === 'string'
 	) {
-		// @ts-ignore -- node:* specifiers only available in Node, not bundler
+		// @ts-expect-error -- node:* specifiers only available in Node, not bundler
 		const nodeFs = await import('node:fs')
-		// @ts-ignore -- node:* specifiers only available in Node, not bundler
+		// @ts-expect-error -- node:* specifiers only available in Node, not bundler
 		const nodePath = await import('node:path')
-		// @ts-ignore -- node:* specifiers only available in Node, not bundler
+		// @ts-expect-error -- node:* specifiers only available in Node, not bundler
 		const nodeUrl = await import('node:url')
 
 		// From engines/ssh/src/lib/, go up 3 to engines/, then core/pkg/

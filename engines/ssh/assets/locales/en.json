@@ -17,7 +17,18 @@
 		"restaurant": "Restaurant",
 		"storage": "Store",
 		"building": "Building",
-		"engineer": "Engineer",
+		"engineer": {
+			"": "Engineer",
+			"building": "Engineer (building)",
+			"research": "Engineer (research)",
+			"road": "Engineer (road)"
+		},
+		"pile": {
+			"": "Pile",
+			"planks": "Planks pile",
+			"wood": "Wood pile",
+			"stone": "Stone pile"
+		},
 		"woodpile": "Woodpile",
 		"freight_bay": "Freight Bay"
 	},

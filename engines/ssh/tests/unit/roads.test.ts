@@ -1,4 +1,4 @@
-import { TileBorder, TileBorderContent } from 'ssh/board/border/border'
+import { type TileBorder, TileBorderContent } from 'ssh/board/border/border'
 import {
 	borderHasRiver,
 	canBuildRoadAcrossBorder,
@@ -10,7 +10,7 @@ import {
 } from 'ssh/board/roads'
 import { Game } from 'ssh/game/game'
 import type { Storage } from 'ssh/storage/storage'
-import { axial, type AxialCoord } from 'ssh/utils'
+import { type AxialCoord, axial } from 'ssh/utils'
 import { describe, expect, it } from 'vitest'
 
 function clearRoadBurden(
@@ -55,11 +55,14 @@ describe('road traces', () => {
 			const start = game.hex.getTile({ q: 0, r: 0 })!
 			const end = game.hex.getTile({ q: 2, r: 0 })!
 			const trace = straightRoadTileTrace(start, end)
-			expect(trace.map((tile) => axial.key(tile.position as AxialCoord))).toEqual(['0,0', '1,0', '2,0'])
-			expect(roadBordersForTrace(trace).map((border) => axial.key(border.position as AxialCoord))).toEqual([
-				'0.5,0',
-				'1.5,0',
+			expect(trace.map((tile) => axial.key(tile.position as AxialCoord))).toEqual([
+				'0,0',
+				'1,0',
+				'2,0',
 			])
+			expect(
+				roadBordersForTrace(trace).map((border) => axial.key(border.position as AxialCoord))
+			).toEqual(['0.5,0', '1.5,0'])
 		} finally {
 			game.destroy()
 		}
@@ -332,7 +335,11 @@ describe('road build validation', () => {
 			const start = game.hex.getTile({ q: -1, r: 0 })!
 			const end = game.hex.getTile({ q: 1, r: 0 })!
 			const trace = straightRoadTileTrace(start, end)
-			expect(trace.map((tile) => axial.key(tile.position as AxialCoord))).toEqual(['-1,0', '0,0', '1,0'])
+			expect(trace.map((tile) => axial.key(tile.position as AxialCoord))).toEqual([
+				'-1,0',
+				'0,0',
+				'1,0',
+			])
 			expect(canBuildRoadOnTrace(trace)).toBe(false)
 		} finally {
 			game.destroy()

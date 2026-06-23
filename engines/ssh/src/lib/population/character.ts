@@ -39,8 +39,8 @@ import { releaseAllHomeReservations } from 'ssh/residential/housing-reservations
 import type { Storage } from 'ssh/storage'
 import type { GoodType, Job, WorkPlan } from 'ssh/types/base'
 import { type AxialCoord, axial, type Positioned } from 'ssh/utils'
-import { type Position, toAxialCoord, xyDistance } from 'ssh/utils/position'
 import type { Clocked } from 'ssh/utils/clock'
+import { type Position, toAxialCoord, xyDistance } from 'ssh/utils/position'
 import {
 	applyNeedRate,
 	characterEvolutionRates,
@@ -366,7 +366,6 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 			this._footPosition = reactive(value)
 			if (changedTile) {
 				this._tile = this.game.hex.getTile(nextCoord)!
-				this.game.invalidateWorkPlanning('character.position')
 			}
 			traces.position.log?.('character.position.set.after', this.positionTracePayload('after'))
 			return
@@ -376,7 +375,6 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		// Without this, walk.enter() uses the stale boarding tile, moving the vehicle off the anchor.
 		if (changedTile) {
 			this._tile = this.operates.effectiveTile
-			this.game.invalidateWorkPlanning('character.position')
 		}
 		traces.position.log?.('character.position.set.after', this.positionTracePayload('after'))
 	}
@@ -464,7 +462,6 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 				toTilePos: positionDebugCoord(tile.position),
 			})
 			this._tile = tile
-			this.game.invalidateWorkPlanning('character.position')
 			return
 		}
 		const queueStep = this.game.hex.moveCharacter(this, tile.position, previousTile.position)
@@ -478,7 +475,6 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 						toTilePos: positionDebugCoord(tile.position),
 					})
 					this._tile = tile
-					this.game.invalidateWorkPlanning('character.position')
 				})
 			}
 			return
@@ -490,7 +486,6 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 			toTilePos: positionDebugCoord(tile.position),
 		})
 		this._tile = tile
-		this.game.invalidateWorkPlanning('character.position')
 	}
 
 	offboard(): void {
@@ -588,7 +583,6 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 			// midpoint between adjacent tiles, and the next walk.moveTo will
 			// continue smoothly from there to the following midpoint.
 			this._tile = tile
-			this.game.invalidateWorkPlanning('character.position')
 		}
 		if (queue) return queue.onFulfilled(commit)
 		commit()
@@ -1066,7 +1060,16 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		const offloadDrain = this.tryTransportOffloadDrain()
 		if (offloadDrain) return offloadDrain
 
+		// A character driving a moving vehicle (not queuing for a dock) must
+		// not abandon it for personal needs. Queuing vehicles (short-range
+		// advances within the queue graph) still allow the operator to leave.
+		const blockNonVehicle = this.driving && !this.isVehicleQueuing
+
 		for (const pick of ranked) {
+			// Block eat / home / wander when the vehicle is moving.
+			// assignedWork and bestWork are still allowed; they may be
+			// vehicle-type jobs that don't require releasing the vehicle.
+			if (blockNonVehicle && pick.kind !== 'assignedWork' && pick.kind !== 'bestWork') continue
 			const exec = this.tryScriptForActivityKind(pick.kind)
 			if (exec) {
 				this.lastPickedActivityKind = pick.kind
@@ -1081,6 +1084,10 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 				return exec
 			}
 		}
+
+		// When the vehicle is moving and no work was available, stay idle this
+		// tick rather than forcibly abandoning the vehicle for wander.
+		if (blockNonVehicle) return undefined
 
 		this.lastPlannerSnapshot = {
 			ranked: rankedSnapshot,
@@ -1122,12 +1129,32 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		return inv.offloadDropBuffer()
 	}
 
+	/**
+	 * Whether the operated vehicle is currently in a bay queue (has an active
+	 * {@link DockRequest} in any registered bay group controller).
+	 *
+	 * When queuing the vehicle is waiting or doing a short-range advance
+	 * within the queue graph, not driving between stops. Operators may
+	 * leave during queuing (with a log-level trace instead of a warn).
+	 */
+	private get isVehicleQueuing(): boolean {
+		if (!this.operates) return false
+		return this.game.bayQueueRegistry.isVehicleInAnyQueue(this.operates.uid)
+	}
+
 	private releaseVehicleBeforeNonVehicleActivity(kind: NextActivityKind): void {
 		if (!this.operates) return
-		traces.vehicle.warn?.('vehicle operator released before non-vehicle activity', {
-			characterUid: this.uid,
-			activityKind: kind,
-		})
+		if (this.isVehicleQueuing) {
+			traces.vehicle.log?.('vehicle operator released before non-vehicle activity (queuing)', {
+				characterUid: this.uid,
+				activityKind: kind,
+			})
+		} else {
+			traces.vehicle.warn?.('vehicle operator released before non-vehicle activity (moving)', {
+				characterUid: this.uid,
+				activityKind: kind,
+			})
+		}
 		releaseVehicleFreightWorkOnPlanInterrupt(this)
 	}
 

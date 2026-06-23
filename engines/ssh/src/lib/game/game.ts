@@ -9,7 +9,7 @@ import {
 	gameTimeSpeedFactors,
 } from 'engine-rules'
 import type { TerrainMacroHydrologySnapshot, TerrainSectorCoord } from 'engine-terrain'
-import { atomic, defer, Eventful, reactive, unreactive } from 'mutts'
+import { atomic, Eventful, reactive, unreactive } from 'mutts'
 import { Alveolus } from 'ssh/board'
 import { HexBoard } from 'ssh/board/board'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
@@ -969,10 +969,10 @@ export class Game extends Eventful<GameEvents> {
 	private scheduleInteractiveLifecycleFlush() {
 		if (this.interactiveRegistrationBatchDepth > 0 || this.interactiveLifecycleFlushScheduled)
 			return
-		this.interactiveLifecycleFlushScheduled = true
+		this.interactiveLifecycleFlushScheduled = true /*
 		defer(() => {
 			this.flushInteractiveLifecycleQueues()
-		})
+		})*/
 	}
 
 	private flushPresentationEvents() {

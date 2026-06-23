@@ -149,7 +149,7 @@ export const chopSaw = {
 		],
 	},
 	projects: {
-		'build:pile#planks': [[-1, 0]],
+		'build:pile.planks': [[-1, 0]],
 	},
 	roads: {
 		path: [

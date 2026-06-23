@@ -55,7 +55,13 @@ describe('Gatherer Conveying Integration', () => {
 				{ coord: [0, 1] as [number, number], terrain: 'concrete' },
 				{ coord: [1, 0] as [number, number], terrain: 'concrete' },
 			],
-			looseGoods: { berries: [[0, 1], [0, 1], [0, 1]] },
+			looseGoods: {
+				berries: [
+					[0, 1],
+					[0, 1],
+					[0, 1],
+				],
+			},
 			freightLines: [
 				gatherFreightLine({
 					id: 'GatherHive:implicit-gather:0,0',
@@ -120,7 +126,13 @@ describe('Gatherer Conveying Integration', () => {
 					{ coord: [0, 0] as [number, number], terrain: 'concrete' },
 					{ coord: [0, 1] as [number, number], terrain: 'concrete' },
 				],
-				looseGoods: { berries: [[0, 1]], wood: [[0, 1], [0, 1]] },
+				looseGoods: {
+					berries: [[0, 1]],
+					wood: [
+						[0, 1],
+						[0, 1],
+					],
+				},
 				freightLines: [
 					gatherFreightLine({
 						id: 'GatherHive:implicit-gather:0,0',

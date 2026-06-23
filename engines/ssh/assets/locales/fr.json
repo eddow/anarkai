@@ -17,7 +17,18 @@
 		"restaurant": "Restaurant",
 		"storage": "Magasin",
 		"building": "Construction",
-		"engineer": "Ingénieur",
+		"engineer": {
+			"": "Ingénieur",
+			"building": "Ingénieur (bâtiment)",
+			"research": "Ingénieur (recherche)",
+			"road": "Ingénieur (route)"
+		},
+		"pile": {
+			"": "Pile",
+			"planks": "Pile à planches",
+			"wood": "Pile à bois",
+			"stone": "Pile à pierre"
+		},
 		"woodpile": "Tas de bois",
 		"freight_bay": "Baie de fret"
 	},

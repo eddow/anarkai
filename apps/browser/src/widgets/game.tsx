@@ -55,11 +55,11 @@ export default function GameWidget(
 
 		const tile = object
 		const action = interactionMode.selectedAction
-		// Parse variant from action string: "build:pile#wood.extra" -> alveolusType="pile", variant="wood.extra"
+		// Parse variant from action string: "build:pile.wood.extra" -> alveolusType="pile", variant="wood.extra"
 		const raw = action.slice('build:'.length)
-		const hashIdx = raw.indexOf('#')
-		const alveolusType = (hashIdx >= 0 ? raw.slice(0, hashIdx) : raw) as AlveolusType
-		const variant = hashIdx >= 0 ? raw.slice(hashIdx + 1) : undefined
+		const dotIdx = raw.indexOf('.')
+		const alveolusType = (dotIdx >= 0 ? raw.slice(0, dotIdx) : raw) as AlveolusType
+		const variant = dotIdx >= 0 ? raw.slice(dotIdx + 1) : undefined
 		const success = game.applyBuildAction(tile, alveolusType, variant)
 		return Boolean(success)
 	}

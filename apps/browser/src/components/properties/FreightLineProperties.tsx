@@ -287,8 +287,8 @@ const lineAssignmentText = () => {
 
 function vehicleCoord(vehicle: Vehicle): AxialCoord | undefined {
 	const position =
-		(vehicle as Vehicle & { effectivePosition?: unknown; position?: unknown })
-			.effectivePosition ?? (vehicle as Vehicle & { position?: unknown }).position
+		(vehicle as Vehicle & { effectivePosition?: unknown; position?: unknown }).effectivePosition ??
+		(vehicle as Vehicle & { position?: unknown }).position
 	return position ? toAxialCoord(position) : undefined
 }
 
@@ -300,11 +300,12 @@ function vehicleStockSummary(vehicle: Vehicle): string {
 	return entries.length > 0 ? entries.join(', ') : 'empty'
 }
 
-function assignedVehiclesForLine(game: Game | undefined, line: FreightLineDefinition | undefined): Vehicle[] {
+function assignedVehiclesForLine(
+	game: Game | undefined,
+	line: FreightLineDefinition | undefined
+): Vehicle[] {
 	if (!game?.vehicles || !line) return []
-	return [...game.vehicles].filter((vehicle) =>
-		vehicle.servedLines?.includes(line)
-	)
+	return [...game.vehicles].filter((vehicle) => vehicle.servedLines?.includes(line))
 }
 
 function assignableVehicleItems(

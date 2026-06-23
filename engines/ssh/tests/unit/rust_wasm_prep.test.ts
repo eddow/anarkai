@@ -189,7 +189,7 @@ describe('Rust/WASM preparation seams', () => {
 		it('uses the shared vehicleUid seam instead of enumerating vehicle job names', () => {
 			const vehicleJob = {
 				job: 'vehicleHop',
-				
+
 				lineId: 'line:1',
 				stopId: 'stop:1',
 				path: [],
@@ -206,7 +206,7 @@ describe('Rust/WASM preparation seams', () => {
 		it('keeps vehicle job identity string stable while exposing pure identity parts', () => {
 			const hop = {
 				job: 'vehicleHop',
-				
+
 				lineId: 'line:1',
 				stopId: 'stop:1',
 				path: [],
@@ -219,7 +219,7 @@ describe('Rust/WASM preparation seams', () => {
 			} satisfies Job
 			const offload = {
 				job: 'vehicleOffload',
-				
+
 				maintenanceKind: 'loadFromBurden',
 				looseGood: { goodType: 'stone', position: { q: 1, r: 0 } },
 				targetCoord: { q: 1, r: 0 },

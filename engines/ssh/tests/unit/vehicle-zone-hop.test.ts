@@ -508,7 +508,12 @@ describe('Vehicle zone hop semantics', () => {
 			projects: {
 				'build:storage': [[2, 0] as [number, number]],
 			},
-			looseGoods: { wood: [[2, 0], [1, 1]] },
+			looseGoods: {
+				wood: [
+					[2, 0],
+					[1, 1],
+				],
+			},
 			freightLines: [
 				gatherFreightLine({
 					id: 'VH:joint-priority',

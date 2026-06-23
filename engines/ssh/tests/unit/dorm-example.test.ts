@@ -41,7 +41,10 @@ describe('dorm example game', () => {
 		expect(tile).toBeDefined()
 		if (!tile) return
 
-		const builder = game.population.createCharacter(`Builder ${tile.uid}`, tile.position as AxialCoord)
+		const builder = game.population.createCharacter(
+			`Builder ${tile.uid}`,
+			tile.position as AxialCoord
+		)
 		const work = new WorkFunctions()
 		Object.assign(work, { [subject]: builder })
 
@@ -142,7 +145,10 @@ describe('dorm example game', () => {
 		expect((buildTile.content as UnBuiltLand).project).toBe(residentialBasicDwellingProject)
 		stageFoundationGoods(buildTile)
 
-		const builder = game.population.createCharacter('Residential builder', buildTile.position as AxialCoord)
+		const builder = game.population.createCharacter(
+			'Residential builder',
+			buildTile.position as AxialCoord
+		)
 		const work = new WorkFunctions()
 		Object.assign(work, { [subject]: builder })
 		const foundation = work.foundationStep() as DurationStep
@@ -195,7 +201,10 @@ describe('dorm example game', () => {
 		expect(stop).toBeDefined()
 		if (!line || !stop) return
 
-		const driver = game.population.createCharacter('Dorm early dock driver', bayTile.position as AxialCoord)
+		const driver = game.population.createCharacter(
+			'Dorm early dock driver',
+			bayTile.position as AxialCoord
+		)
 		vehicle.beginLineService(line, stop, driver)
 		vehicle.dock()
 		expect(vehicle.isDocked).toBe(true)
@@ -207,7 +216,10 @@ describe('dorm example game', () => {
 		expect((buildTile.content as UnBuiltLand).project).toBe(residentialBasicDwellingProject)
 		stageFoundationGoods(buildTile)
 
-		const builder = game.population.createCharacter('Late residential builder', buildTile.position as AxialCoord)
+		const builder = game.population.createCharacter(
+			'Late residential builder',
+			buildTile.position as AxialCoord
+		)
 		const work = new WorkFunctions()
 		Object.assign(work, { [subject]: builder })
 		const foundation = work.foundationStep() as DurationStep

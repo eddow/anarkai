@@ -169,7 +169,7 @@ describe('chopSaw example game', () => {
 		expect(picks.map((pick) => pick.job)).not.toContainEqual(
 			expect.objectContaining({
 				job: 'vehicleHop',
-				
+
 				lineId: 'ChopSaw:implicit-gather:0,0',
 				stopId: 'ChopSaw:ig-unload',
 				path: [],
@@ -681,7 +681,7 @@ describe('chopSaw example game', () => {
 			expect.arrayContaining([
 				expect.objectContaining({
 					job: 'vehicleHop',
-					
+
 					lineId: 'ChopSaw:materials-loop:0,0:Melindbury',
 					stopId: 'ChopSaw:materials-melindbury',
 					needsBeginService: true,
@@ -1091,9 +1091,9 @@ describe('chopSaw example game', () => {
 		expect(findVehicleOffloadJob(game, worker)).toBeUndefined()
 
 		const match = worker.resolveBestJobMatch()
-		expect(match && match.job.job === 'vehicleOffload' && match.job.vehicle?.uid === pickup.uid).toBe(
-			false
-		)
+		expect(
+			match && match.job.job === 'vehicleOffload' && match.job.vehicle?.uid === pickup.uid
+		).toBe(false)
 	})
 
 	it('worker conveys planks from ChopSaw storage into the docked materials SUV', async () => {

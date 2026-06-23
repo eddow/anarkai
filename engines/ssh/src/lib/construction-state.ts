@@ -52,8 +52,8 @@ export interface ResolvedAlveolusVariant {
 	ancestorChain: ConstructionRecipe[]
 }
 
-/** Project string delimiter for variant encoding: `build:type#variant.path` */
-export const VARIANT_DELIMITER = '#'
+/** Project string delimiter for variant encoding: `build:type.variant.path` */
+export const VARIANT_DELIMITER = '.'
 
 /** Splits a project string into base type + optional variant */
 export function parseBuildActionProject(action: string):
@@ -146,7 +146,7 @@ export function resolveAlveolusVariant(
 }
 
 /**
- * Parse a project string like `build:pile` or `build:pile#wood.extra`
+ * Parse a project string like `build:pile` or `build:pile.wood.extra`
  * into a ConstructionTarget with optional variant.
  */
 function parseBuildProject(
@@ -232,7 +232,7 @@ export function createConstructionRecipe(
 	throw new Error('Unsupported construction target')
 }
 
-/** Reconstitute a project string from a ConstructionTarget (e.g., "build:pile#wood.extra"). */
+/** Reconstitute a project string from a ConstructionTarget (e.g., "build:pile.wood.extra"). */
 export function projectFromConstructionTarget(target: ConstructionTarget): string {
 	if (target.kind === 'dwelling') return residentialBasicDwellingProject
 	if (target.variant) {

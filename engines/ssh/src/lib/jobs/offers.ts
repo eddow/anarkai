@@ -133,9 +133,8 @@ export function proposedVehicleJobIdentityParts(job: VehiclePlannerJob): readonl
 
 export function proposedVehicleJobIdentityKey(job: VehiclePlannerJob): string {
 	if (job.job === 'vehicleOffload' && job.maintenanceKind === 'loadFromBurden') {
-	const [name, vid, maintenanceKind, targetCoord, goodType] =
-		proposedVehicleJobIdentityParts(job)
-	return [name, vid, maintenanceKind, targetCoord, `:${goodType}`].join(':')
+		const [name, vid, maintenanceKind, targetCoord, goodType] = proposedVehicleJobIdentityParts(job)
+		return [name, vid, maintenanceKind, targetCoord, `:${goodType}`].join(':')
 	}
 	return proposedVehicleJobIdentityParts(job).join(':')
 }

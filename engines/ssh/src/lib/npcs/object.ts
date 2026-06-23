@@ -5,8 +5,8 @@ import {
 	type VehicleFreightInterruptSubject,
 } from 'ssh/freight/vehicle-run'
 import type { Game, GameObject } from 'ssh/game'
-import { Clock, type Clocked } from 'ssh/utils/clock'
-import { assert, traces } from '../dev/debug.ts'
+import type { Clock, Clocked } from 'ssh/utils/clock'
+import { traces } from '../dev/debug.ts'
 import {
 	loopEntriesForNpcTrace,
 	npcSubjectSnapshot,
@@ -15,14 +15,7 @@ import {
 	summarizeScriptRunValueKind,
 } from './npc-diagnostics'
 import { getGameScript, ScriptExecution, scriptExecutionErrorDiagnostic } from './scripts'
-import {
-	AEvolutionStep,
-	ASingleStep,
-	PonderingStep,
-	type TextKey,
-} from './steps'
-
-
+import { AEvolutionStep, ASingleStep, PonderingStep, type TextKey } from './steps'
 
 function assertScriptExecution(value: unknown, context: string): asserts value is ScriptExecution {
 	if (value instanceof ScriptExecution) return
@@ -333,6 +326,4 @@ export function withScripted<T extends abstract new (...args: any[]) => GameObje
 	return ScriptedMixin
 }
 
-export type ScriptedObject = InstanceType<
-	ReturnType<typeof withScripted<typeof GameObject>>
->
+export type ScriptedObject = InstanceType<ReturnType<typeof withScripted<typeof GameObject>>>

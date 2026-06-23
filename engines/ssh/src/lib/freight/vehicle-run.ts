@@ -531,8 +531,13 @@ export function ensureVehicleServiceStarted(
 			const stop = candidate.stop ?? line?.stops.find((s) => s.id === candidate.stopId)
 			if (!line || !stop) return false
 			if (existing.line !== line) {
+				const wasDriving = operator.driving
 				vehicle.endService()
 				vehicle.beginLineService(line, stop, operator)
+				vehicle.setServiceOperator(operator)
+				// endService→releaseOperator calls regainFootPosition when the
+				// character was driving; restore the driving (footless) state.
+				if (wasDriving) operator.onboard()
 				return true
 			}
 			if (existing.stop !== stop) {

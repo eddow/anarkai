@@ -46,7 +46,16 @@ describe('Storage Buffering', () => {
 						],
 					},
 				],
-				looseGoods: { wood: [[2, 0], [2, 0], [2, 0], [2, 0], [2, 0], [2, 0]] },
+				looseGoods: {
+					wood: [
+						[2, 0],
+						[2, 0],
+						[2, 0],
+						[2, 0],
+						[2, 0],
+						[2, 0],
+					],
+				},
 				tiles: [{ coord: [2, 0] as [number, number], terrain: 'grass' }],
 				freightLines: [
 					gatherFreightLine({
@@ -116,7 +125,15 @@ describe('Storage Buffering', () => {
 						],
 					},
 				],
-				looseGoods: { wood: [[2, 0], [2, 0], [2, 0], [2, 0], [2, 0]] },
+				looseGoods: {
+					wood: [
+						[2, 0],
+						[2, 0],
+						[2, 0],
+						[2, 0],
+						[2, 0],
+					],
+				},
 				tiles: [{ coord: [2, 0] as [number, number], terrain: 'grass' }],
 				freightLines: [
 					gatherFreightLine({

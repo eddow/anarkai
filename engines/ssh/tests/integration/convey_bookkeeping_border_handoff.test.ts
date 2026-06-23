@@ -116,14 +116,14 @@ describe('Convey bookkeeping border source rebind', () => {
 			await flushDeferred()
 
 			const trackedEntries = Array.from(sawmill.hive.movingGoods.entries())
-			.filter((entry: unknown) => {
-				const [, goods] = entry as [any, any[]]
-				return goods.some((candidate) => candidate?.ref === movement.ref)
-			})
-			.map((entry: unknown) => {
-				const [coord] = entry as [any, any[]]
-				return axial.key(coord)
-			})
+				.filter((entry: unknown) => {
+					const [, goods] = entry as [any, any[]]
+					return goods.some((candidate) => candidate?.ref === movement.ref)
+				})
+				.map((entry: unknown) => {
+					const [coord] = entry as [any, any[]]
+					return axial.key(coord)
+				})
 			expect(trackedEntries).toContain(axial.key(hop))
 			expect(warnings.some((warning) => warning.includes('[WATCHDOG] Broken movement'))).toBe(false)
 		} finally {

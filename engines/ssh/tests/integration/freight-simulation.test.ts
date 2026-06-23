@@ -202,7 +202,13 @@ describe('Freight simulation (gather + distribute)', () => {
 					{ coord: [1, 0] as [number, number], terrain: 'concrete' },
 					{ coord: [2, 0] as [number, number], terrain: 'grass' },
 				],
-				looseGoods: { wood: [[2, 0], [2, 0], [2, 0]] },
+				looseGoods: {
+					wood: [
+						[2, 0],
+						[2, 0],
+						[2, 0],
+					],
+				},
 				freightLines: [
 					gatherFreightLine({
 						id: 'SimGather:wood',
@@ -425,14 +431,15 @@ describe('Freight simulation (gather + distribute)', () => {
 			}
 
 			engine.loadScenario(scenario)
-		// oxc strips `variants` from the engineer alveolus definition at build time,
-		// so the root engineer has no variant spec and provides zero jobs.
-		// Inject one directly so foundation/construct jobs are available.
-		const engTile = engine.game.hex.getTile({ q: 0, r: 1 })
-		if (engTile?.content) {
-			;(engTile.content as Record<string, unknown> & { variantSpec?: unknown })
-				.variantSpec = { kind: 'building' }
-		}
+			// oxc strips `variants` from the engineer alveolus definition at build time,
+			// so the root engineer has no variant spec and provides zero jobs.
+			// Inject one directly so foundation/construct jobs are available.
+			const engTile = engine.game.hex.getTile({ q: 0, r: 1 })
+			if (engTile?.content) {
+				;(engTile.content as Record<string, unknown> & { variantSpec?: unknown }).variantSpec = {
+					kind: 'building',
+				}
+			}
 			const line = defined(
 				engine.game.freightLines.find((candidate) => candidate.id === 'build-flow-materials'),
 				'build-flow freight line'
@@ -466,14 +473,16 @@ describe('Freight simulation (gather + distribute)', () => {
 			const pt = engine.game.hex.getTile({ q: 3, r: 0 })!
 			const ct = pt.content as any
 			const wb = engine.game.vehicles.vehicle('build-flow-wb')
-		;(process as any).stderr.write('POST-SIM: ' + JSON.stringify({
-			contentType: (pt.content as any)?.constructor?.name,
-				phase: ct.constructionSite?.phase,
-				delivered: ct.constructionSite?.deliveredGoods,
-				required: ct.constructionSite?.requiredGoods,
-				stock: ct.storage?.stock,
-				wbStock: (wb as any)?.storage?.stock,
-			}) + '\n')
+			;(process as any).stderr.write(
+				`POST-SIM: ${JSON.stringify({
+					contentType: (pt.content as any)?.constructor?.name,
+					phase: ct.constructionSite?.phase,
+					delivered: ct.constructionSite?.deliveredGoods,
+					required: ct.constructionSite?.requiredGoods,
+					stock: ct.storage?.stock,
+					wbStock: (wb as any)?.storage?.stock,
+				})}\n`
+			)
 
 			expect(projectTile.content).toBeInstanceOf(BasicDwelling)
 			expect(projectTile.baseTerrain).toBe('concrete')

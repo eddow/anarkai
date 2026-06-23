@@ -277,7 +277,6 @@ export class Vehicle extends withInteractive(GameObject) {
 		const tile = this.dockTile
 		assert(tile, `Vehicle ${this.uid}: cannot restore docked position without anchor tile`)
 		this.position = { ...tile.position }
-		this.game.invalidateWorkPlanning('vehicle.position')
 		traces.vehicle.log?.('vehicleJob.dock.placement', {
 			outcome: 'restore-position',
 			reason,
@@ -427,6 +426,7 @@ export class Vehicle extends withInteractive(GameObject) {
 		if (operator && this.service?.operator?.uid !== operator.uid) return
 		const current = this.service?.operator
 		if (!this.service) return
+		if (!current) return
 		this.service.operator = undefined
 		this.game.invalidateWorkPlanning('vehicle.operator')
 		current?.setOperatedVehicleFromService(undefined)

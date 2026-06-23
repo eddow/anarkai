@@ -71,31 +71,35 @@ function releaseStaleVehicleBeforeNonVehicleWork(plan: WorkPlan, character: Char
 
 /**
  * A vehicle work plan owns the operator/control link for its duration. Service completion is decided
- * by vehicle-specific script steps; this finalizer only guarantees that a finished/interrupted plan
- * cannot leave the character still operating a wheelbarrow before self-care or other work resumes.
+ * by vehicle-specific script steps; this finalizer only handles the edge case where the vehicle
+ * service ended unexpectedly during the plan (leaving the character in a stale driving/operating
+ * state).
+ *
+ * The operator link is intentionally NOT released here for the normal case — consecutive same-vehicle
+ * work plans reuse the operator via {@link Vehicle.setServiceOperator}'s early-return when the same
+ * character is already set.  The operator is released when the character switches to non-vehicle work
+ * (via {@link releaseStaleVehicleBeforeNonVehicleWork}) or when the plan is cancelled
+ * ({@link workPlanHandler.cancel} → {@link releaseVehicleFreightWorkOnPlanInterrupt}).
  */
 function finalizeVehicleFreightWorkPlanOccupancy(plan: WorkPlan, character: Character): void {
 	if (plan.type !== 'work' || !('vehicle' in plan)) return
 	const vehicle = plan.vehicle
 	if (!vehicle) return
 	const controlsPlanVehicle = character.operates?.uid === vehicle.uid
-	const isPlanOperator = vehicle.operator?.uid === character.uid
-	if (!controlsPlanVehicle && !isPlanOperator) return
+	if (!controlsPlanVehicle && vehicle.operator?.uid !== character.uid) return
 	if (!vehicle.service) {
 		if (controlsPlanVehicle) {
 			if (character.driving) character.offboard()
-			else character.operates = undefined
+			else character.setOperatedVehicleFromService(undefined)
 		}
 		return
 	}
-	if (controlsPlanVehicle) {
-		character.disengageVehicleKeepingService()
-		return
-	}
-	if (isPlanOperator) vehicle.releaseOperator(character)
+	// Normal case: keep the operator link intact.  The next plan's begin() will reuse it
+	// (setServiceOperator early-returns when the same character is already the operator),
+	// and releaseStaleVehicleBeforeNonVehicleWork handles the transition to non-vehicle work.
 }
 
-function clearVehicleOffloadPickupPlanMirror(plan: WorkPlan, character: Character): void {
+function clearVehicleOffloadPickupPlanMirror(plan: WorkPlan, _character: Character): void {
 	if (!('vehicle' in plan) || !('offloadPickupPlan' in plan) || !plan.offloadPickupPlan) return
 	const vehicle = plan.vehicle
 	const svc = vehicle?.service

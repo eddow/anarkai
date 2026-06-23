@@ -46,7 +46,7 @@ export function getAppShellBuildableAlveoli(): GameAlveolusEntry[] {
 
 /** A flat entry for a buildable variant leaf. */
 export interface AppShellVariantEntry {
-	/** Palette action value, e.g. "build:engineer#building" */
+	/** Palette action value, e.g. "build:engineer.building" */
 	value: string
 	/** Display label, e.g. "Build engineer (building)" */
 	label: string
@@ -59,7 +59,7 @@ export interface AppShellBuildVariantNode {
 	id: string
 	/** Human-readable label for the toolbar trigger or choice. */
 	label: string
-	/** Palette action value, e.g. "build:pile#wood.extra". */
+	/** Palette action value, e.g. "build:pile.wood.extra". */
 	value: string
 	/** Child variants, when this node opens another drawer level. */
 	children: AppShellBuildVariantNode[]
@@ -90,7 +90,7 @@ function appShellBuildVariantNodes(
 		return {
 			id,
 			label: humanizeAppShellName(key),
-			value: `build:${rootName}#${id}`,
+			value: `build:${rootName}.${id}`,
 			children: nested,
 		}
 	})

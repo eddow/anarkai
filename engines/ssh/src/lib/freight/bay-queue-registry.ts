@@ -107,6 +107,20 @@ export class BayQueueRegistry {
 		return [...this.bayGroupIds]
 	}
 
+	/**
+	 * Whether a vehicle is currently in any bay queue (has an active
+	 * {@link DockRequest} in one of the registered controllers).
+	 *
+	 * Used by {@link Character.findAction} to distinguish moving vehicles
+	 * (must stay aboard) from queuing vehicles (operator may leave).
+	 */
+	isVehicleInAnyQueue(vehicleUid: string): boolean {
+		for (const [, controller] of this.controllers) {
+			if (controller.getRequest(vehicleUid)) return true
+		}
+		return false
+	}
+
 	// ─── Vehicle lifecycle hooks ─────────────────────────────────────────
 
 	/**

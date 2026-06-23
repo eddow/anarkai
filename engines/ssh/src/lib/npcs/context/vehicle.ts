@@ -178,11 +178,11 @@ function markVehicleHopRunEndedBeforeDock(
 	jobPlan: WorkPlan,
 	reason: VehicleHopRunEndedReason,
 	character: Character,
-	vehicle: Vehicle
+	_vehicle: Vehicle
 ): void {
 	if (jobPlan.type !== 'work' || jobPlan.job !== 'vehicleHop') return
 	jobPlan.vehicleHopRunEnded = true
-	traces.vehicle.warn?.('vehicleHop: service ended during prepare; skipping travel and dock', {
+	traces.vehicle.log?.('vehicleHop: service ended during prepare; skipping travel and dock', {
 		reason,
 		characterUid: character.uid,
 	})
@@ -209,7 +209,6 @@ class VehicleFunctions {
 	 */
 	@contract('WorkPlan')
 	vehicleEffectivePosition(jobPlan: WorkPlan): { q: number; r: number } | undefined {
-		const character = this[subject] as Character
 		if (jobPlan.type !== 'work' || !('vehicle' in jobPlan)) return undefined
 		const vehicle = jobPlan.vehicle!
 		return vehicle.effectivePosition as { q: number; r: number } | undefined
@@ -229,11 +228,7 @@ class VehicleFunctions {
 	vehicleApproachStep(jobPlan: WorkPlan) {
 		const character = this[subject] as Character
 		if (jobPlan.type !== 'work') return
-		if (
-			jobPlan.job !== 'vehicleOffload' &&
-			!(jobPlan.job === 'vehicleHop' && jobPlan.approachPath && jobPlan.approachPath.length > 0)
-		)
-			return
+		if (jobPlan.job !== 'vehicleOffload' && jobPlan.job !== 'vehicleHop') return
 		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'vehicleApproach: vehicle missing')
 		if (vehicle.operator && vehicle.operator.uid !== character.uid) {

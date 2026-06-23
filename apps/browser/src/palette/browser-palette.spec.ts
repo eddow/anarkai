@@ -123,8 +123,8 @@ describe('browser palette registry & palettePanelBridge', () => {
 			values: Array<{ value: string }>
 		}
 
-		expect(selectedAction.values.some((entry) => entry.value === 'build:pile#wood')).toBe(true)
-		expect(selectedAction.values.some((entry) => entry.value === 'build:pile#wood.dry')).toBe(true)
+		expect(selectedAction.values.some((entry) => entry.value === 'build:pile.wood')).toBe(true)
+		expect(selectedAction.values.some((entry) => entry.value === 'build:pile.wood.dry')).toBe(true)
 	})
 
 	it('exposes road tools as selected actions', () => {

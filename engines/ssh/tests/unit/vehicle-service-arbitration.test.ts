@@ -77,7 +77,12 @@ describe('Vehicle begin-service arbitration', () => {
 				}),
 			],
 			// Both gather zones need a loose pickable good to qualify for begin-service.
-			looseGoods: { wood: [[0, 0], [8, 0]] },
+			looseGoods: {
+				wood: [
+					[0, 0],
+					[8, 0],
+				],
+			},
 		} satisfies GamePatches
 		game = new Game({ terrainSeed: 9501, characterCount: 0 }, patches)
 		await game.loaded
@@ -202,9 +207,7 @@ describe('Vehicle begin-service arbitration', () => {
 		} as any
 		try {
 			findProvideFromVehicleJob(game, character)
-			expect(log).toHaveBeenCalledWith('vehicleJob.provideFromVehicle.skippedNoLineService', {
-				
-			})
+			expect(log).toHaveBeenCalledWith('vehicleJob.provideFromVehicle.skippedNoLineService', {})
 		} finally {
 			traces.vehicle = prev
 		}
@@ -802,7 +805,8 @@ describe('Vehicle begin-service arbitration', () => {
 		game.vehicles.createVehicle('arb-far-truck', 'pickup_truck', { q: 6, r: 0 }, [truckAction])
 		const character = game.population.createCharacter('Approach', { q: 0, r: 0 })
 
-		const result = findVehicleApproachJob(game, character); expect(result?.vehicle.uid).toBe('arb-far-truck')
+		const result = findVehicleApproachJob(game, character)
+		expect(result?.vehicle.uid).toBe('arb-far-truck')
 	})
 
 	it('prefers continuing a loaded line over same-tile ordinary transform work', async () => {

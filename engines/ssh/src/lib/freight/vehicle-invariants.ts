@@ -143,10 +143,7 @@ export function assertDrivingVehicleSeam(character: Character): void {
 	)
 }
 
-export function assertVehicleOperationConsistency(
-	vehicle: Vehicle,
-	character: Character
-): void {
+export function assertVehicleOperationConsistency(vehicle: Vehicle, character: Character): void {
 	traces.vehicle.invariant?.['operation-consistency'](vehicle, character)
 	const result = vehicleOperationConsistencyResult(vehicle, character)
 	vehicleTraceAssert(

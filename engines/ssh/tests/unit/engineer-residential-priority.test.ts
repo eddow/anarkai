@@ -146,7 +146,11 @@ describe('EngineerAlveolus.nextJob residential construction priority', () => {
 		expect(nearLand).toBeInstanceOf(UnBuiltLand)
 		if (!(nearLand instanceof UnBuiltLand)) return
 		makeReadyResidentialFoundation(nearLand)
-		game.vehicles.createVehicle('barrow-on-foundation', 'wheelbarrow', tileNear.position as AxialCoord)
+		game.vehicles.createVehicle(
+			'barrow-on-foundation',
+			'wheelbarrow',
+			tileNear.position as AxialCoord
+		)
 		expect(tileNear.isBurdened).toBe(true)
 
 		const engineerTile = game.hex.getTile({ q: 0, r: 0 })!

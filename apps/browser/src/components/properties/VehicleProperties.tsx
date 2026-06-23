@@ -321,10 +321,7 @@ function stopCoord(game: Vehicle['game'], stop: FreightStop): AxialCoord | undef
 	return undefined
 }
 
-function lineCoord(
-	game: Vehicle['game'],
-	line: FreightLineDefinition
-): AxialCoord | undefined {
+function lineCoord(game: Vehicle['game'], line: FreightLineDefinition): AxialCoord | undefined {
 	for (const stop of line.stops) {
 		const coord = stopCoord(game, stop)
 		if (coord) return coord

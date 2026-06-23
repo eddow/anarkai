@@ -1,4 +1,3 @@
-import type { AxialCoord } from 'ssh/utils'
 import {
 	Deposit,
 	plantedTreeMatureAgeSeconds,
@@ -12,6 +11,7 @@ import type { ForesterAlveolus } from 'ssh/hive/forester'
 import type { HarvestAlveolus } from 'ssh/hive/harvest'
 import { WorkFunctions } from 'ssh/npcs/context/work'
 import { subject } from 'ssh/npcs/scripts'
+import type { AxialCoord } from 'ssh/utils'
 import { afterEach, describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine/engine'
 
@@ -56,11 +56,17 @@ describe('forester planted trees', () => {
 		const job = forester.nextJob()
 		expect(job?.job).toBe('forester')
 		expect((job as any)?.path?.at(-1)).toMatchObject({ q: 1, r: 0 })
-		expect(forester.proposedJobs[0]?.targetTile.position as AxialCoord).toMatchObject({ q: 1, r: 0 })
+		expect(forester.proposedJobs[0]?.targetTile.position as AxialCoord).toMatchObject({
+			q: 1,
+			r: 0,
+		})
 
 		const zoneTile = engine.game.hex.getTile({ q: 1, r: 0 })!
 		const outOfZoneTile = engine.game.hex.getTile({ q: 2, r: 0 })!
-		const worker = engine.game.population.createCharacter('Planter', zoneTile.position as AxialCoord)
+		const worker = engine.game.population.createCharacter(
+			'Planter',
+			zoneTile.position as AxialCoord
+		)
 		expect(forester.plantAtCurrentTile(worker)).toBe(true)
 		expect(forester.plantAtCurrentTile(worker)).toBe(true)
 		expect(forester.plantAtCurrentTile(worker)).toBe(false)
@@ -76,7 +82,10 @@ describe('forester planted trees', () => {
 	it('counts loose goods against tree planting room', async () => {
 		const { engine, forester } = await loadForesterScenario(['north-grove'])
 		const zoneTile = engine.game.hex.getTile({ q: 1, r: 0 })!
-		const worker = engine.game.population.createCharacter('Planter', zoneTile.position as AxialCoord)
+		const worker = engine.game.population.createCharacter(
+			'Planter',
+			zoneTile.position as AxialCoord
+		)
 
 		for (let i = 0; i < plantedTreeTileFootprint; i++) {
 			engine.game.hex.looseGoods.add(zoneTile, 'wood')
@@ -94,7 +103,10 @@ describe('forester planted trees', () => {
 	it('does not propose planting jobs where loose goods leave no tree room', async () => {
 		const { engine, forester } = await loadForesterScenario(['north-grove'])
 		const zoneTile = engine.game.hex.getTile({ q: 1, r: 0 })!
-		const worker = engine.game.population.createCharacter('Planter', zoneTile.position as AxialCoord)
+		const worker = engine.game.population.createCharacter(
+			'Planter',
+			zoneTile.position as AxialCoord
+		)
 
 		for (let i = 0; i < tileLooseGoodsCapacity - plantedTreeTileFootprint + 1; i++) {
 			engine.game.hex.looseGoods.add(zoneTile, 'wood')
@@ -108,7 +120,10 @@ describe('forester planted trees', () => {
 	it('advertises planting jobs at the planting tile so workers score their own distance', async () => {
 		const { engine, forester } = await loadForesterScenario(['north-grove'])
 		const zoneTile = engine.game.hex.getTile({ q: 1, r: 0 })!
-		const worker = engine.game.population.createCharacter('Planter', zoneTile.position as AxialCoord)
+		const worker = engine.game.population.createCharacter(
+			'Planter',
+			zoneTile.position as AxialCoord
+		)
 
 		const match = worker.resolveBestJobMatch()
 
@@ -129,7 +144,10 @@ describe('forester planted trees', () => {
 		const { engine, forester } = await loadForesterScenario(['north-grove'])
 		const sandTile = engine.game.hex.getTile({ q: 1, r: 0 })!
 		engine.game.hex.setTileContent(sandTile, new UnBuiltLand(sandTile, 'sand'))
-		const worker = engine.game.population.createCharacter('Planter', sandTile.position as AxialCoord)
+		const worker = engine.game.population.createCharacter(
+			'Planter',
+			sandTile.position as AxialCoord
+		)
 
 		expect(forester.plantAtCurrentTile(worker)).toBe(false)
 		expect((sandTile.content as UnBuiltLand).deposit).toBeUndefined()
@@ -139,7 +157,10 @@ describe('forester planted trees', () => {
 	it('ages planted trees until they become mature', async () => {
 		const { engine, forester } = await loadForesterScenario(['north-grove'])
 		const zoneTile = engine.game.hex.getTile({ q: 1, r: 0 })!
-		const worker = engine.game.population.createCharacter('Planter', zoneTile.position as AxialCoord)
+		const worker = engine.game.population.createCharacter(
+			'Planter',
+			zoneTile.position as AxialCoord
+		)
 		expect(forester.plantAtCurrentTile(worker)).toBe(true)
 
 		engine.tick(plantedTreeMatureAgeSeconds + 1, plantedTreeMatureAgeSeconds + 1)
@@ -242,7 +263,10 @@ describe('forester planted trees', () => {
 		const planter = engine.game.hex.getTile({ q: 0, r: 0 })?.content as ForesterAlveolus
 		const harvester = engine.game.hex.getTile({ q: 2, r: 0 })?.content as HarvestAlveolus
 		const fieldTile = engine.game.hex.getTile({ q: 1, r: 0 })!
-		const worker = engine.game.population.createCharacter('Planter', fieldTile.position as AxialCoord)
+		const worker = engine.game.population.createCharacter(
+			'Planter',
+			fieldTile.position as AxialCoord
+		)
 		worker.assignedAlveolus = planter
 
 		expect(planter.nextJob()?.job).toBe('forester')
