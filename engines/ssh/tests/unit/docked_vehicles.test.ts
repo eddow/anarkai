@@ -72,7 +72,7 @@ describe('docked vehicle collectors', () => {
 
 		expect(entries.map((entry) => entry.vehicle.uid)).toEqual(['docked'])
 		expect(entries[0]?.line.id).toBe(line.id)
-		expect(entries[0]?.stop.id).toBe(stop.id)
+		expect(entries[0]?.stop).toBe(stop)
 	})
 
 	it('collects docked vehicles physically attached to the selected hive', async () => {
@@ -113,6 +113,6 @@ describe('docked vehicle collectors', () => {
 
 		expect(entries.map((entry) => entry.vehicle.uid)).toEqual(['hive-a-docked'])
 		expect(entries[0]?.line.id).toBe(line.id)
-		expect(entries[0]?.stop.id).toBe(stopA.id)
+		expect(entries[0]?.stop).toBe(stopA)
 	})
 })

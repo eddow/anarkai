@@ -71,6 +71,8 @@ export class Vehicle extends withInteractive(GameObject) {
 	/** Virtual time of the last position write, from {@link Game.clock.virtualTime}. */
 	private _lastPositionTime = 0
 	public servedLines: FreightLineDefinition[]
+	/** Whether this vehicle currently has an active bay queue dock request. Set by the controller. */
+	public isInBayQueue = false
 	public service?: VehicleService
 	private readonly proposedJobsCache = new RevisionedCache<readonly VehicleProposedJob[]>()
 	private readonly advertisedJobsCache = new RevisionedCache<readonly ProposedJob[]>()
@@ -209,7 +211,7 @@ export class Vehicle extends withInteractive(GameObject) {
 			)
 			traces.vehicle.log?.('vehicleJob.dock.storageDrained', {
 				lineId: current.line.id,
-				stopId: current.stop.id,
+				stopIndex: current.line.stops.indexOf(current.stop),
 				stockCount: currentStockCount,
 				virtualGoodsCount: this.storage.virtualGoodsCount,
 			})
@@ -316,7 +318,7 @@ export class Vehicle extends withInteractive(GameObject) {
 					? {
 							kind: 'line' as const,
 							lineId: svc.line.id,
-							stopId: svc.stop.id,
+							stopIndex: svc.line.stops.indexOf(svc.stop),
 							docked: svc.docked,
 							operatorUid: svc.operator?.uid,
 						}
@@ -374,7 +376,7 @@ export class Vehicle extends withInteractive(GameObject) {
 					? {
 							kind: 'line' as const,
 							lineId: svc.line.id,
-							stopId: svc.stop.id,
+							stopIndex: svc.line.stops.indexOf(svc.stop),
 							docked: svc.docked,
 							operatorUid: svc.operator?.uid,
 						}
@@ -602,8 +604,9 @@ export class Vehicle extends withInteractive(GameObject) {
 		})
 		const svc = this.service
 		if (isVehicleLineService(svc) && svc.line.id === line.id) {
+			const oldStopIndex = svc.line.stops.indexOf(svc.stop)
 			svc.line = line
-			const stop = line.stops.find((entry) => entry.id === svc.stop.id)
+			const stop = oldStopIndex >= 0 ? line.stops[oldStopIndex] : undefined
 			if (stop) {
 				const wasDocked = this.isDocked
 				if (wasDocked && !sameAnchorStop(svc.stop, stop)) {
@@ -626,7 +629,7 @@ export class Vehicle extends withInteractive(GameObject) {
 			return {
 				kind: 'line',
 				lineId: svc.line.id,
-				stopId: svc.stop.id,
+				stopIndex: svc.line.stops.indexOf(svc.stop),
 				docked: svc.docked,
 				operatorUid: svc.operator?.uid,
 			}
@@ -695,7 +698,7 @@ export class Vehicle extends withInteractive(GameObject) {
 			| Extract<VehicleServiceSerialized, { kind: 'line' }>
 		const line = game.freightLines.find((l) => l.id === linePayload.lineId)
 		if (!line) return
-		const stop = line.stops.find((s) => s.id === linePayload.stopId)
+		const stop = line.stops[linePayload.stopIndex]
 		if (!stop) return
 		vehicle.service = { line, stop, docked: false, operator } as VehicleLineService
 		if (linePayload.docked) vehicle.dock()

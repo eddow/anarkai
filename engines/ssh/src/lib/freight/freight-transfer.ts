@@ -76,7 +76,7 @@ export interface FreightTransferMeta {
 	readonly offer?: FreightOfferRef
 	readonly routePromiseId?: string
 	readonly lineId?: string
-	readonly stopId?: string
+	readonly stopIndex?: number
 	readonly vehicleUid?: string
 	readonly bayUid?: string
 	readonly blocking?: boolean
@@ -90,7 +90,7 @@ export type MovementWithFreightTransfer = TrackedMovement & {
 export interface VehicleLineIntent {
 	readonly vehicleUid: string
 	readonly lineId: string
-	readonly stopId: string
+	readonly stopIndex: string
 	readonly kind: 'load' | 'unload' | 'hop' | 'park' | 'wait'
 	readonly reason:
 		| 'current-stop-unload'
@@ -176,7 +176,7 @@ function freightTransferPayload(transfer: FreightTransferMeta): Record<string, u
 		purpose: transfer.purpose,
 		reason: transfer.reason,
 		lineId: transfer.lineId,
-		stopId: transfer.stopId,
+		stopIndex: transfer.stopIndex,
 		vehicleUid: transfer.vehicleUid,
 		bayUid: transfer.bayUid,
 		blocking: transfer.blocking,

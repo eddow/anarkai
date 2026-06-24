@@ -274,14 +274,14 @@ export function collectDockedVehicleAdvertisementCandidates(
 	if (stopIdx < 0) {
 		traces.vehicle.warn?.('[dock.candidates] skipped: stop not in line', {
 			lineId: line.id,
-			stopId: stop.id,
+			stopIndex: stopIdx,
 		})
 		return []
 	}
 	if (!('anchor' in stop)) {
 		traces.vehicle.log?.('[dock.candidates] skipped: current stop is not an anchor', {
 			lineId: line.id,
-			stopId: stop.id,
+			stopIndex: stopIdx,
 		})
 		return []
 	}
@@ -350,7 +350,7 @@ export function collectDockedVehicleAdvertisementCandidates(
 	traces.vehicle.log?.('[dock.candidates] collected', {
 		bay: bay.name,
 		lineId: line.id,
-		stopId: stop.id,
+		stopIndex: stopIdx,
 		stock: { ...vehicle.storage.stock },
 		routeNeed: future.routeNeed,
 		routeReservedCargo: snapshotFromGoodsCounts(future.routeReservedCargo).perGood,

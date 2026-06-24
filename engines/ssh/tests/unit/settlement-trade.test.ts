@@ -118,9 +118,7 @@ describe('settlement trade profiles', () => {
 		})
 
 		expect(profile.cityHall).toMatchObject({
-			id: `${profile.id}:city-hall`,
 			kind: 'city_hall',
-			settlementId: profile.id,
 			name: `${profile.name} City Hall`,
 			position: { q: 2, r: -1 },
 		})
@@ -169,9 +167,9 @@ describe('settlement trade profiles', () => {
 		expect(profile).toBeDefined()
 		if (!profile) throw new Error('Expected generated settlement trade profile')
 
-		const object = game.getObject(settlementTradeObjectUid(profile.id))
+		const object = game.getObject(settlementTradeObjectUid(profile.name))
 
-		expect(object?.uid).toBe(settlementTradeObjectUid(profile.id))
+		expect(object?.uid).toBe(settlementTradeObjectUid(profile.name))
 		expect(object?.title).toBe(profile.cityHall.name)
 		expect(object?.position).toEqual(profile.cityHall.position)
 		expect(object?.hoverObject).toBe(game.hex.getTile(profile.cityHall.position))
@@ -190,7 +188,7 @@ describe('settlement trade profiles', () => {
 		await game.ensureGameplaySectors(['5,5'])
 		await game.ensureGameplaySectors(['5,5'])
 
-		const ids = game.listSettlementTradeProfiles().map((profile) => profile.id)
+		const ids = game.listSettlementTradeProfiles().map((profile) => profile.name)
 		expect(ids.length).toBeGreaterThan(0)
 		expect(ids.length).toBe(new Set(ids).size)
 	})

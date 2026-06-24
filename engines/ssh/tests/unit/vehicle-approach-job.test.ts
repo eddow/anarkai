@@ -121,7 +121,7 @@ describe('findVehicleApproachJob', () => {
 		expect(job?.approachPath).toBeDefined()
 		expect(job?.needsBeginService).toBeUndefined()
 		expect(job?.lineId).toBe(far.id)
-		expect(job?.stopId).toBe(far.stops[1]!.id)
+		expect(job?.stopIndex).toBe(far.stops[1]!.id)
 	})
 
 	it('planner snapshot counts only approach distance for vehicleHop work selection', async () => {
@@ -237,7 +237,7 @@ describe('findVehicleApproachJob', () => {
 
 		expect(isVehicleLineService(vehicle.service)).toBe(true)
 		if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
-		expect(vehicle.service.stop.id).toBe(line.stops[1]!.id)
+		expect(vehicle.service).toBe(line.stops[1]!.id)
 		expect(character.operates?.uid).toBe(vehicle.uid)
 	})
 
@@ -278,7 +278,7 @@ describe('findVehicleApproachJob', () => {
 			fatigue: 1,
 			vehicle,
 			lineId: line.id,
-			stopId: line.stops[0]!.id,
+			stopIndex: line.stops[0]!.id,
 			path: [],
 			dockEnter: false,
 			approachPath: [{ q: 0, r: 0 }],

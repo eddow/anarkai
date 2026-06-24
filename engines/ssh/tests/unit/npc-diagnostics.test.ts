@@ -38,7 +38,7 @@ describe('npc-diagnostics', () => {
 				type: 'work',
 
 				lineId: 'L',
-				stopId: 'S',
+				stopIndex: 'S',
 				dockEnter: false,
 			})
 		).toEqual({
@@ -46,7 +46,7 @@ describe('npc-diagnostics', () => {
 			type: 'work',
 
 			lineId: 'L',
-			stopId: 'S',
+			stopIndex: 'S',
 			dockEnter: false,
 		})
 	})
@@ -57,7 +57,7 @@ describe('npc-diagnostics', () => {
 				{
 					scope: {
 						variables: {
-							jobPlan: { job: 'vehicleHop', lineId: 'a', stopId: 'b' },
+							jobPlan: { job: 'vehicleHop', lineId: 'a', stopIndex: 'b' },
 							path: [
 								{ q: 0, r: 0 },
 								{ q: 1, r: 0 },
@@ -72,7 +72,7 @@ describe('npc-diagnostics', () => {
 			plans: [],
 		}
 		expect(goWorkLocalsFromExecutionState(state)).toEqual({
-			jobPlan: { job: 'vehicleHop', lineId: 'a', stopId: 'b' },
+			jobPlan: { job: 'vehicleHop', lineId: 'a', stopIndex: 'b' },
 			pathLen: 2,
 		})
 		expect(goWorkLocalsFromExecutionState(undefined)).toBeUndefined()

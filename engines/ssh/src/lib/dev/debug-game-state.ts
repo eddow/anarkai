@@ -230,7 +230,7 @@ function summarizeVehicleServiceForDebug(service: VehicleService) {
 		return {
 			kind: 'line' as const,
 			lineId: service.line.id,
-			stopId: service.stop.id,
+			stopIndex: service.line.stops.indexOf(service.stop),
 			docked: service.docked,
 			operatorUid: service.operator?.uid,
 		}
@@ -269,7 +269,6 @@ function summarizeVehicleForDebug(vehicle: Vehicle, tailCount: number) {
 
 export function summarizeFreightStopForDebug(stop: FreightStop) {
 	const base = {
-		id: stop.id,
 		loadSelection: safeDebugValueForDump(stop.loadSelection),
 		unloadSelection: safeDebugValueForDump(stop.unloadSelection),
 	}

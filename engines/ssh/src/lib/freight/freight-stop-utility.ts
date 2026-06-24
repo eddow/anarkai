@@ -154,7 +154,7 @@ function freightStopTargetTile(game: Game, stop: FreightStop): Tile | undefined 
 		return game.hex.getTile({ q: stop.anchor.coord[0], r: stop.anchor.coord[1] })
 	}
 	if ('trade' in stop) {
-		const position = game.getSettlementTradeProfile(stop.trade.settlementId)?.cityHall?.position
+		const position = game.getSettlementTradeProfile(stop.trade.settlementName)?.cityHall?.position
 		return position ? game.hex.getTile(position) : undefined
 	}
 	if (stop.zone.kind === 'radius') {
@@ -542,7 +542,7 @@ export function measureFreightStopProvidedGoods(
 	if (allowedGoods.length === 0) return snapshotFromGoodsCounts({})
 	const allowedGoodsSet = new Set(allowedGoods)
 	if ('trade' in stop) {
-		const profile = game.getSettlementTradeProfile(stop.trade.settlementId)
+		const profile = game.getSettlementTradeProfile(stop.trade.settlementName)
 		const perGood: Partial<Record<GoodType, number>> = {}
 		for (const offer of profile?.offers ?? []) {
 			if (offer.direction !== 'sell') continue
@@ -588,7 +588,7 @@ export function measureFreightStopNeededGoods(
 	if (allowedGoods.length === 0) return snapshotFromGoodsCounts({})
 	const allowedGoodsSet = new Set(allowedGoods)
 	if ('trade' in stop) {
-		const profile = game.getSettlementTradeProfile(stop.trade.settlementId)
+		const profile = game.getSettlementTradeProfile(stop.trade.settlementName)
 		const perGood: Partial<Record<GoodType, number>> = {}
 		for (const offer of profile?.offers ?? []) {
 			if (offer.direction !== 'buy') continue
@@ -737,7 +737,7 @@ function affordableImportGoods(args: {
 	readonly creditedVp?: number
 }): Partial<Record<GoodType, number>> {
 	if (!('trade' in args.stop)) return args.goods
-	const profile = args.game.getSettlementTradeProfile(args.stop.trade.settlementId)
+	const profile = args.game.getSettlementTradeProfile(args.stop.trade.settlementName)
 	if (!profile) return {}
 	const prices = new Map<GoodType, number>()
 	for (const offer of profile.offers) {
@@ -763,7 +763,7 @@ function settlementCreditForGoods(
 	goods: Partial<Record<GoodType, number>>
 ): number {
 	if (!('trade' in stop)) return 0
-	const profile = game.getSettlementTradeProfile(stop.trade.settlementId)
+	const profile = game.getSettlementTradeProfile(stop.trade.settlementName)
 	const prices = new Map<GoodType, number>()
 	for (const offer of profile?.offers ?? []) {
 		if (offer.direction === 'buy') prices.set(offer.good, offer.priceVp)
@@ -777,7 +777,7 @@ function settlementCreditForGoods(
 
 function tradeOfferCounts(game: Game, stop: FreightStop): { buy: number; sell: number } {
 	if (!('trade' in stop)) return { buy: 0, sell: 0 }
-	const profile = game.getSettlementTradeProfile(stop.trade.settlementId)
+	const profile = game.getSettlementTradeProfile(stop.trade.settlementName)
 	let buy = 0
 	let sell = 0
 	for (const offer of profile?.offers ?? []) {
@@ -917,7 +917,6 @@ export interface FreightLineVehicleStatus {
 /** Per-stop actionable summary for the route aggregate. */
 export interface FreightLineStopSummary {
 	readonly stopIndex: number
-	readonly stopId: string
 	readonly hasImportOpportunity: boolean
 	readonly hasExportOpportunity: boolean
 	readonly hasSurplusToUnload: boolean
@@ -972,7 +971,6 @@ export function summarizeFreightLineRoute(args: {
 		})
 		stops.push({
 			stopIndex: i,
-			stopId: line.stops[i]?.id ?? `stop-${i}`,
 			hasImportOpportunity: explanation.importOpportunityGoods.total > 0,
 			hasExportOpportunity: explanation.exportOpportunityGoods.total > 0,
 			hasSurplusToUnload: explanation.surplusCargoGoods.total > 0,
@@ -987,10 +985,7 @@ export function summarizeFreightLineRoute(args: {
 	const vehicleStatuses: FreightLineVehicleStatus[] = vehicles.map((vehicle) => {
 		const svc = vehicle.service
 		const lineSvc = isVehicleLineService(svc) ? svc : undefined
-		const currentStopId = lineSvc?.stop?.id
-		const currentStopIndex = currentStopId
-			? line.stops.findIndex((s) => s.id === currentStopId)
-			: undefined
+		const currentStopIndex = lineSvc ? line.stops.indexOf(lineSvc.stop) : undefined
 		const docked = vehicle.isDocked
 		const actionable =
 			docked && lineSvc
@@ -1004,7 +999,6 @@ export function summarizeFreightLineRoute(args: {
 			vehicleUid: vehicle.uid,
 			vehicleType: vehicle.vehicleType,
 			vehicleTitle: vehicle.title,
-			currentStopId,
 			currentStopIndex:
 				currentStopIndex !== undefined && currentStopIndex >= 0 ? currentStopIndex : undefined,
 			isDocked: docked,

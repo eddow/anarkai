@@ -28,12 +28,10 @@ export function gatherFreightLine(args: {
 		name: args.name,
 		stops: [
 			{
-				id: `${args.id}-zone`,
 				loadSelection,
 				zone: { kind: 'radius', center: [q, r], radius: args.radius },
 			},
 			{
-				id: `${args.id}-unload`,
 				anchor: freightBayAnchor(args.hiveName, [q, r]),
 			},
 		],

@@ -173,7 +173,7 @@ describe('Vehicle begin-service arbitration', () => {
 		character.onboard()
 
 		expect(findProvideFromVehicleJob(game, character)).toBeUndefined()
-		expect(pickInitialVehicleServiceCandidate(game, character, vehicle)?.stop.id).toBe(
+		expect(pickInitialVehicleServiceCandidate(game, character, vehicle)?.stop).toBe(
 			line.stops[1]!.id
 		)
 	})
@@ -479,7 +479,7 @@ describe('Vehicle begin-service arbitration', () => {
 				expect.objectContaining({
 					vehicle,
 					lineId: line.id,
-					stopId: unloadStop.id,
+					stopIndex: unloadStop.id,
 					outcome: 'park-next',
 					hasStock: false,
 				})
@@ -651,7 +651,7 @@ describe('Vehicle begin-service arbitration', () => {
 			fatigue: 1,
 			vehicle,
 			lineId: line.id,
-			stopId: line.stops[0]!.id,
+			stopIndex: line.stops[0]!.id,
 			path: [],
 			dockEnter: false,
 		}
@@ -662,7 +662,7 @@ describe('Vehicle begin-service arbitration', () => {
 		expect(plan.vehicleHopReplanRequired).toBe(true)
 		expect(isVehicleLineService(vehicle.service)).toBe(true)
 		if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
-		expect(vehicle.service.stop.id).toBe(line.stops[1]!.id)
+		expect(vehicle.service).toBe(line.stops[1]!.id)
 	})
 
 	it('anchor vehicleHopDockStep keeps the operator linked until the dock step finishes', async () => {
@@ -709,7 +709,7 @@ describe('Vehicle begin-service arbitration', () => {
 			fatigue: 1,
 			vehicle,
 			lineId: line.id,
-			stopId: unloadStop.id,
+			stopIndex: unloadStop.id,
 			path: [],
 			dockEnter: true,
 		}) as DurationStep
@@ -756,7 +756,7 @@ describe('Vehicle begin-service arbitration', () => {
 		vehicle.storage.addGood('berries', 1)
 
 		const proj = projectedLineStopForVehicleHop(game, character, vehicle)
-		expect(proj?.stop.id).toBe(line.stops[1]!.id)
+		expect(proj?.stop).toBe(1)
 	})
 
 	it('approach skips a closer idle assigned vehicle when it cannot start useful line service', async () => {
@@ -899,7 +899,7 @@ describe('Vehicle begin-service arbitration', () => {
 
 		expect(hop?.job).toBe('vehicleHop')
 		expect(hop?.vehicle).toBe(vehicle)
-		expect(hop?.stopId).toBe(line.stops[1]!.id)
+		expect(hop?.stopIndex).toBe(line.stops[1]!.id)
 		expect(hop?.approachPath).toHaveLength(0)
 		expect(hop?.needsBeginService).toBeUndefined()
 	})

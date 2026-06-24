@@ -8,6 +8,7 @@ import { buildRuntimeQueueGraph } from './bay-queue-graph-builder'
 import { invariantNodeCapacity, invariantSingleNodeOccupancy } from './bay-queue-invariants'
 import { applyMergePolicy, branchLabel, collectBranchLabels } from './bay-queue-merge-policy'
 import type {
+	BayGroup,
 	DockRequest,
 	MovementGrant,
 	RuntimeQueueNode,
@@ -16,12 +17,20 @@ import type {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+function makeTestBayGroup(overrides: Partial<BayGroup> = {}): BayGroup {
+	return {
+		name: overrides.name ?? 'test-group',
+		serviceNodes: overrides.serviceNodes ?? [],
+		mergePolicy: overrides.mergePolicy ?? { kind: 'priority_then_fifo' },
+	}
+}
+
 function makeRequest(
 	overrides: Partial<DockRequest> & { vehicleUid: string; arrivedAt: number }
 ): DockRequest {
 	return {
 		vehicleUid: overrides.vehicleUid,
-		bayGroupUid: 'test-group',
+		bayGroup: overrides.bayGroup ?? makeTestBayGroup(),
 		arrivedAt: overrides.arrivedAt,
 		priority: overrides.priority ?? 0,
 		requirements: [],
@@ -214,14 +223,14 @@ describe('BayQueueController regression', () => {
 		ingress.outgoing.push({ to: holding, requires: ['road'] })
 
 		const c = new BayQueueController(
-			{ uid: 't', name: 't', serviceNodes: [], mergePolicy: { kind: 'priority_then_fifo' } },
+			makeTestBayGroup({ serviceNodes: [], mergePolicy: { kind: 'priority_then_fifo' } }),
 			[ingress, holding],
 			defaultRoadCapabilityResolver,
 			() => {}
 		)
 
 		const v = makeVehicle('v1')
-		const req = c.registerRequest(v, 't', [], 0, undefined, ingress)
+		const req = c.registerRequest(v, [], 0, undefined, ingress)
 		expect(c.advanceBayQueue()).toBe(true)
 		expect(req.state).toBe('advancing')
 	})
@@ -234,14 +243,14 @@ describe('BayQueueController regression', () => {
 		mid.outgoing.push({ to: dock, requires: ['road'] })
 
 		const c = new BayQueueController(
-			{ uid: 't', name: 't', serviceNodes: [dock], mergePolicy: { kind: 'priority_then_fifo' } },
+			makeTestBayGroup({ serviceNodes: [dock], mergePolicy: { kind: 'priority_then_fifo' } }),
 			[ingress, mid, dock],
 			defaultRoadCapabilityResolver,
 			() => {}
 		)
 
 		const v = makeVehicle('v1')
-		c.registerRequest(v, 't', [], 0, undefined, ingress)
+		c.registerRequest(v, [], 0, undefined, ingress)
 		expect(c.advanceBayQueue()).toBe(true)
 		expect(c.getRequest('v1')!.state).toBe('advancing')
 		expect(c.advanceBayQueue()).toBe(false)
@@ -258,14 +267,14 @@ describe('BayQueueController regression', () => {
 		ingress.outgoing.push({ to: mid, requires: ['road'] })
 
 		const c = new BayQueueController(
-			{ uid: 't', name: 't', serviceNodes: [], mergePolicy: { kind: 'priority_then_fifo' } },
+			makeTestBayGroup({ serviceNodes: [], mergePolicy: { kind: 'priority_then_fifo' } }),
 			[ingress, mid],
 			defaultRoadCapabilityResolver,
 			() => {}
 		)
 
 		const v = makeVehicle('v1')
-		c.registerRequest(v, 't', [], 0, undefined, ingress)
+		c.registerRequest(v, [], 0, undefined, ingress)
 		c.advanceBayQueue()
 		c.cancelRequest(v)
 		expect(mid.reservedBy.size).toBe(0)
@@ -278,14 +287,14 @@ describe('BayQueueController regression', () => {
 		ingress.outgoing.push({ to: dock, requires: ['road'] })
 
 		const c = new BayQueueController(
-			{ uid: 't', name: 't', serviceNodes: [dock], mergePolicy: { kind: 'priority_then_fifo' } },
+			makeTestBayGroup({ serviceNodes: [dock], mergePolicy: { kind: 'priority_then_fifo' } }),
 			[ingress, dock],
 			defaultRoadCapabilityResolver,
 			() => {}
 		)
 
 		const v = makeVehicle('v1')
-		c.registerRequest(v, 't', [], 0, undefined, ingress)
+		c.registerRequest(v, [], 0, undefined, ingress)
 		c.advanceBayQueue()
 		const g = capturedGrant(c)!
 		c.completeMovement(v, g)
@@ -304,14 +313,14 @@ describe('BayQueueController regression', () => {
 		const ingress = makeNode({ capacity: 1, occupiedBy: new Set([makeVehicle('existing')]) })
 
 		const c = new BayQueueController(
-			{ uid: 't', name: 't', serviceNodes: [], mergePolicy: { kind: 'priority_then_fifo' } },
+			makeTestBayGroup({ serviceNodes: [], mergePolicy: { kind: 'priority_then_fifo' } }),
 			[ingress],
 			defaultRoadCapabilityResolver,
 			() => {}
 		)
 
 		const v = makeVehicle('v2')
-		expect(() => c.registerRequest(v, 't', [], 0, undefined, ingress)).toThrow(/capacity/)
+		expect(() => c.registerRequest(v, [], 0, undefined, ingress)).toThrow(/capacity/)
 	})
 
 	it('registerRequest rejects duplicate vehicle in graph', () => {
@@ -320,17 +329,15 @@ describe('BayQueueController regression', () => {
 		ingress.outgoing.push({ to: mid, requires: ['road'] })
 
 		const c = new BayQueueController(
-			{ uid: 't', name: 't', serviceNodes: [], mergePolicy: { kind: 'priority_then_fifo' } },
+			makeTestBayGroup({ serviceNodes: [], mergePolicy: { kind: 'priority_then_fifo' } }),
 			[ingress, mid],
 			defaultRoadCapabilityResolver,
 			() => {}
 		)
 
 		const v = makeVehicle('v1')
-		c.registerRequest(v, 't', [], 0, undefined, ingress)
-		expect(() => c.registerRequest(makeVehicle('v1'), 't', [], 0, undefined, mid)).toThrow(
-			/already/
-		)
+		c.registerRequest(v, [], 0, undefined, ingress)
+		expect(() => c.registerRequest(makeVehicle('v1'), [], 0, undefined, mid)).toThrow(/already/)
 	})
 
 	it('completeMovement with wrong grant cleans reservation and returns', () => {
@@ -339,14 +346,14 @@ describe('BayQueueController regression', () => {
 		ingress.outgoing.push({ to: mid, requires: ['road'] })
 
 		const c = new BayQueueController(
-			{ uid: 't', name: 't', serviceNodes: [], mergePolicy: { kind: 'priority_then_fifo' } },
+			makeTestBayGroup({ serviceNodes: [], mergePolicy: { kind: 'priority_then_fifo' } }),
 			[ingress, mid],
 			defaultRoadCapabilityResolver,
 			() => {}
 		)
 
 		const v = makeVehicle('v1')
-		c.registerRequest(v, 't', [], 0, undefined, ingress)
+		c.registerRequest(v, [], 0, undefined, ingress)
 		c.advanceBayQueue()
 
 		// Complete with a fake/stale grant
@@ -376,14 +383,14 @@ describe('BayQueueController regression', () => {
 		ingress.outgoing.push({ to: mid, requires: ['road'] })
 
 		const c = new BayQueueController(
-			{ uid: 't', name: 't', serviceNodes: [], mergePolicy: { kind: 'priority_then_fifo' } },
+			makeTestBayGroup({ serviceNodes: [], mergePolicy: { kind: 'priority_then_fifo' } }),
 			[ingress, mid],
 			defaultRoadCapabilityResolver,
 			() => {}
 		)
 
 		const v = makeVehicle('v1')
-		c.registerRequest(v, 't', [], 0, undefined, ingress)
+		c.registerRequest(v, [], 0, undefined, ingress)
 		c.advanceBayQueue()
 		expect(c.getRequest('v1')!.state).toBe('advancing')
 

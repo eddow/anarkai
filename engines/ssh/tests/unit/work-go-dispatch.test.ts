@@ -45,7 +45,7 @@ describe('work.npcs dispatch', () => {
 			target: vehicle,
 			vehicle,
 			lineId: line.id,
-			stopId: line.stops[0]!.id,
+			stopIndex: line.stops[0]!.id,
 			urgency: 1,
 			fatigue: 0,
 			path: [],

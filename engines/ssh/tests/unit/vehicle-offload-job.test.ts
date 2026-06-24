@@ -446,7 +446,7 @@ describe('findVehicleOffloadJob', () => {
 			const hop = findVehicleHopJob(game, char)
 			expect(hop?.job).toBe('vehicleHop')
 			expect(hop?.needsBeginService).toBe(true)
-			expect(hop?.stopId).toBe('unload-bay')
+			expect(hop?.stopIndex).toBe('unload-bay')
 			expect(hop?.dockEnter).toBe(true)
 		} finally {
 			await engine.destroy()

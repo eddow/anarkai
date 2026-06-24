@@ -74,7 +74,7 @@ function dockedSemanticsResult(vehicle: Vehicle): TraceInvariantResult {
 			: 'docked vehicles must not keep a world position',
 		payload: {
 			lineId: svc.line.id,
-			stopId: svc.stop.id,
+			stopIndex: svc.line.stops.indexOf(svc.stop),
 			docked: svc.docked,
 			hasAnchor: anchorOk,
 			position: vehicle.position,

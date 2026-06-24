@@ -170,7 +170,7 @@ describe('dorm example game', () => {
 		expect(exchange).toBeDefined()
 		if (!exchange || exchange.job.job !== 'vehicleHop') return
 		expect(exchange.job.dockEnter).toBe(false)
-		expect(exchange.job.stopId).toBe('Dorm:gather-zone')
+		expect(exchange.job.stopIndex).toBe('Dorm:gather-zone')
 		expect(exchange.job.zoneBrowseAction).toBe('load')
 		expect(exchange.job.goodType).toBe('wood')
 		expect(exchange.job.targetCoord).toMatchObject({ q: 3, r: 0 })

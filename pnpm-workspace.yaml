@@ -1,3 +1,7 @@
 packages:
   - 'apps/*'
   - 'engines/*'
+
+overrides:
+  vite: 8.0.10
+  '@types/node': 25.0.10

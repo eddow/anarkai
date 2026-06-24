@@ -76,9 +76,9 @@ function refreshAnchorHopPathToLiveDock(
 		traces.vehicle.warn?.('vehicleHopPrepare: stale dock tail against drifted live stop', {
 			characterUid: character.uid,
 			plannedLineId: jobPlan.lineId,
-			plannedStopId: jobPlan.stopId,
+			plannedStopId: jobPlan.stopIndex,
 			actualLineId: line.id,
-			actualStopId: stop.id,
+			actualStopId: vehicle.service.line.stops.indexOf(stop),
 			vehicleCoord: toAxialCoord(vehicle.effectivePosition),
 			dockCoord: vehicle.dockTile ? toAxialCoord(vehicle.dockTile.position) : undefined,
 		})
@@ -97,7 +97,7 @@ function refreshAnchorHopPathToLiveDock(
 		traces.vehicle.warn?.('vehicleHopPrepare: no path to live dock anchor', {
 			characterUid: character.uid,
 			lineId: line.id,
-			stopId: stop.id,
+			stopIndex: vehicle.service.line.stops.indexOf(stop),
 			startCoord: startPos,
 			targetCoord: toAxialCoord(targetPos),
 		})
@@ -107,9 +107,9 @@ function refreshAnchorHopPathToLiveDock(
 	traces.vehicle.log?.('vehicleHopPrepare: refreshed live dock path', {
 		characterUid: character.uid,
 		lineId: line.id,
-		stopId: stop.id,
+		stopIndex: vehicle.service.line.stops.indexOf(stop),
 		plannedLineId: jobPlan.lineId,
-		plannedStopId: jobPlan.stopId,
+		plannedStopId: jobPlan.stopIndex,
 		pathLen: path.length,
 		startCoord: startPos,
 		targetHex: axial.round(toAxialCoord(targetPos)!),
@@ -138,7 +138,7 @@ function moveTowardLiveDockStep(
 	const plannedLineId =
 		jobPlan.type === 'work' && jobPlan.job === 'vehicleHop' ? jobPlan.lineId : undefined
 	const plannedStopId =
-		jobPlan.type === 'work' && jobPlan.job === 'vehicleHop' ? jobPlan.stopId : undefined
+		jobPlan.type === 'work' && jobPlan.job === 'vehicleHop' ? jobPlan.stopIndex : undefined
 	const logMethod = isNearDock ? traces.vehicle.warn : traces.vehicle.log
 	const message = isNearDock
 		? 'vehicleHopDockStep: recovering stale dock tail by moving toward dock'
@@ -146,7 +146,9 @@ function moveTowardLiveDockStep(
 	logMethod?.(message, {
 		characterUid: character.uid,
 		lineId: isVehicleLineService(vehicle.service) ? vehicle.service.line.id : undefined,
-		stopId: isVehicleLineService(vehicle.service) ? vehicle.service.stop.id : undefined,
+		stopIndex: isVehicleLineService(vehicle.service)
+			? vehicle.service.line.stops.indexOf(vehicle.service.stop)
+			: undefined,
 		plannedLineId,
 		plannedStopId,
 		from,
@@ -243,7 +245,7 @@ class VehicleFunctions {
 			assert(
 				ensureVehicleServiceStarted(vehicle, character, character.game, character, {
 					lineId: jobPlan.lineId,
-					stopId: jobPlan.stopId,
+					stopIndex: jobPlan.stopIndex,
 					line: jobPlan.line,
 					stop: jobPlan.stop,
 				}),
@@ -351,7 +353,7 @@ class VehicleFunctions {
 		assert(
 			ensureVehicleServiceStarted(vehicle, character, character.game, character, {
 				lineId: jobPlan.lineId,
-				stopId: jobPlan.stopId,
+				stopIndex: jobPlan.stopIndex,
 				line: jobPlan.line,
 				stop: jobPlan.stop,
 			}),
@@ -362,7 +364,7 @@ class VehicleFunctions {
 		traces.vehicle.log?.('vehicleJob.beginService', {
 			characterUid: character.uid,
 			lineId: jobPlan.lineId,
-			stopId: jobPlan.stopId,
+			stopIndex: jobPlan.stopIndex,
 		})
 		return new DurationStep(character.freightTransferTime * 0.25, 'work', 'vehicleBeginService')
 	}
@@ -455,15 +457,18 @@ class VehicleFunctions {
 		assert(character.operates?.uid === vehicle.uid, 'vehicleHopDockStep: wrong operated vehicle')
 		const stop = vehicle.service.stop
 		assert(stop, 'vehicleHopDockStep: missing stop')
-		if (vehicle.service.line.id !== jobPlan.lineId || stop.id !== jobPlan.stopId) {
+		if (
+			vehicle.service.line.id !== jobPlan.lineId ||
+			vehicle.service.line.stops.indexOf(stop) !== jobPlan.stopIndex
+		) {
 			traces.vehicle.warn?.(
 				'vehicleHopDockStep: live service drifted from planned stop; skipping dock',
 				{
 					characterUid: character.uid,
 					plannedLineId: jobPlan.lineId,
-					plannedStopId: jobPlan.stopId,
+					plannedStopId: jobPlan.stopIndex,
 					actualLineId: vehicle.service.line.id,
-					actualStopId: stop.id,
+					actualStopId: vehicle.service.line.stops.indexOf(stop),
 				}
 			)
 			return
@@ -475,7 +480,7 @@ class VehicleFunctions {
 				traces.vehicle.log?.('vehicleHopDockStep: cannot dock, attempting recovery', {
 					characterUid: character.uid,
 					lineId: vehicle.service.line.id,
-					stopId: stop.id,
+					stopIndex: vehicle.service.line.stops.indexOf(stop),
 					vehicleCoord: vehicle.position ? toAxialCoord(vehicle.position) : undefined,
 					dockCoord: vehicle.dockTile ? toAxialCoord(vehicle.dockTile.position) : undefined,
 				})
@@ -494,7 +499,7 @@ class VehicleFunctions {
 				traces.vehicle.warn?.('vehicleHopDockStep: vehicle not at dock; replan required', {
 					characterUid: character.uid,
 					lineId: vehicle.service.line.id,
-					stopId: stop.id,
+					stopIndex: vehicle.service.line.stops.indexOf(stop),
 					vehicleCoord: vehicle.position ? toAxialCoord(vehicle.position) : undefined,
 					dockCoord: vehicle.dockTile ? toAxialCoord(vehicle.dockTile.position) : undefined,
 				})
@@ -509,7 +514,9 @@ class VehicleFunctions {
 			traces.vehicle.log?.('vehicleJob.hop.dock', {
 				characterUid: character.uid,
 				lineId: vehicle.service?.line.id,
-				stopId: vehicle.service?.stop.id,
+				stopIndex: isVehicleLineService(vehicle.service)
+					? vehicle.service.line.stops.indexOf(vehicle.service.stop)
+					: -1,
 			})
 			assertVehicleOperationConsistency(vehicle, character)
 			const dockStep = new DurationStep(
@@ -539,7 +546,9 @@ class VehicleFunctions {
 			traces.vehicle.log?.('vehicleJob.hop.zoneReach', {
 				characterUid: character.uid,
 				lineId: vehicle.service?.line.id,
-				stopId: vehicle.service?.stop.id,
+				stopIndex: isVehicleLineService(vehicle.service)
+					? vehicle.service.line.stops.indexOf(vehicle.service.stop)
+					: -1,
 			})
 		}
 		assertVehicleOperationConsistency(vehicle, character)

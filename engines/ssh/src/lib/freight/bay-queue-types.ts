@@ -189,7 +189,6 @@ export interface RuntimeQueueEdge {
  * shared across groups).
  */
 export interface BayGroup {
-	readonly uid: string
 	readonly name: string
 	/** Live references to service/dock nodes. */
 	readonly serviceNodes: RuntimeQueueNode[]
@@ -217,7 +216,7 @@ export type DockRequestState = 'waiting' | 'advancing' | 'granted' | 'servicing'
  */
 export interface DockRequest {
 	readonly vehicleUid: string
-	readonly bayGroupUid: string
+	readonly bayGroup: BayGroup
 	readonly arrivedAt: number
 	priority: number
 	readonly requirements: readonly DockRequirement[]

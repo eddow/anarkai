@@ -23,12 +23,6 @@
     "@biomejs/biome": "^2.4.6",
     "vitest": "^4.1.4"
   },
-  "pnpm": {
-    "overrides": {
-      "vite": "8.0.10",
-      "@types/node": "25.0.10"
-    }
-  },
   "workspaces": [
     "apps/*",
     "engines/*"

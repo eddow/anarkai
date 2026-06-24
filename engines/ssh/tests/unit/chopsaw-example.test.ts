@@ -102,7 +102,7 @@ describe('chopSaw example game', () => {
 				goodRules: [{ goodType: 'planks', effect: 'allow' }],
 				defaultEffect: 'deny',
 			},
-			trade: { kind: 'settlement', settlementId: 'settlement-7,19' },
+			trade: { kind: 'settlement', settlementName: 'settlement-7,19' },
 		})
 
 		const melindbury = game.getSettlementTradeProfile('settlement-7,19')
@@ -171,7 +171,7 @@ describe('chopSaw example game', () => {
 				job: 'vehicleHop',
 
 				lineId: 'ChopSaw:implicit-gather:0,0',
-				stopId: 'ChopSaw:ig-unload',
+				stopIndex: 'ChopSaw:ig-unload',
 				path: [],
 				dockEnter: true,
 			})
@@ -208,7 +208,7 @@ describe('chopSaw example game', () => {
 				expect.objectContaining({
 					job: 'vehicleHop',
 					lineId: 'ChopSaw:implicit-gather:0,0',
-					stopId: 'ChopSaw:ig-load',
+					stopIndex: 'ChopSaw:ig-load',
 				}),
 			])
 		)
@@ -221,7 +221,7 @@ describe('chopSaw example game', () => {
 					job: 'vehicleHop',
 					vehicle,
 					lineId: 'ChopSaw:implicit-gather:0,0',
-					stopId: 'ChopSaw:ig-load',
+					stopIndex: 'ChopSaw:ig-load',
 				}),
 			})
 		)
@@ -536,7 +536,7 @@ describe('chopSaw example game', () => {
 						job: 'vehicleHop',
 						vehicle,
 						lineId: line.id,
-						stopId: load.id,
+						stopIndex: load.id,
 						zoneBrowseAction: 'provide',
 						goodType: 'concrete',
 					}),
@@ -571,7 +571,7 @@ describe('chopSaw example game', () => {
 
 		maybeAdvanceVehicleFromCompletedAnchorStop(game, vehicle)
 
-		expect(isVehicleLineService(vehicle.service) && vehicle.service.stop.id).toBe(load.id)
+		expect(isVehicleLineService(vehicle.service) && vehicle.service).toBe(load.id)
 		downstreamReservation.cancel('test cleanup')
 	})
 
@@ -683,7 +683,7 @@ describe('chopSaw example game', () => {
 					job: 'vehicleHop',
 
 					lineId: 'ChopSaw:materials-loop:0,0:Melindbury',
-					stopId: 'ChopSaw:materials-melindbury',
+					stopIndex: 'ChopSaw:materials-melindbury',
 					needsBeginService: true,
 				}),
 			])
@@ -715,11 +715,11 @@ describe('chopSaw example game', () => {
 		worker.setOperatedVehicleFromService(pickup)
 		worker.onboard()
 
-		expect(projectedLineStopForVehicleHop(game, worker, pickup)?.stop.id).toBe(bayStop.id)
+		expect(projectedLineStopForVehicleHop(game, worker, pickup)?.stop).toBe(bayStop)
 		expect(findVehicleHopJob(game, worker)).toMatchObject({
 			job: 'vehicleHop',
 			lineId: line.id,
-			stopId: bayStop.id,
+			stopIndex: line.stops.indexOf(bayStop),
 			dockEnter: true,
 		})
 	})
@@ -762,13 +762,13 @@ describe('chopSaw example game', () => {
 
 		maybeAdvanceVehicleFromCompletedAnchorStop(game, vehicle, worker)
 
-		expect(isVehicleLineService(vehicle.service) && vehicle.service.stop.id).toBe(load.id)
+		expect(isVehicleLineService(vehicle.service) && vehicle.service).toBe(load.id)
 		const hop = findVehicleHopJob(game, worker)
 		expect(hop).toMatchObject({
 			job: 'vehicleHop',
 			vehicle,
 			lineId: line.id,
-			stopId: load.id,
+			stopIndex: load.id,
 			zoneBrowseAction: 'provide',
 			goodType: 'concrete',
 			targetCoord: { q: -1, r: 0 },
@@ -939,7 +939,7 @@ describe('chopSaw example game', () => {
 				expect.objectContaining({
 					job: 'vehicleHop',
 					lineId: line.id,
-					stopId: bayStop.id,
+					stopIndex: line.stops.indexOf(bayStop),
 					dockEnter: true,
 				}),
 			])
@@ -948,7 +948,7 @@ describe('chopSaw example game', () => {
 			expect.objectContaining({
 				job: 'vehicleHop',
 				lineId: line.id,
-				stopId: bayStop.id,
+				stopIndex: line.stops.indexOf(bayStop),
 				dockEnter: true,
 			})
 		)

@@ -92,7 +92,7 @@ export type VehicleServiceSerialized =
 	| {
 			readonly kind: 'line'
 			readonly lineId: string
-			readonly stopId: string
+			readonly stopIndex: number
 			readonly docked: boolean
 			readonly operatorUid?: string
 	  }
@@ -101,7 +101,7 @@ export type VehicleServiceSerialized =
 /** Save format before discriminated `kind` — always a line-freight service. */
 export type LegacyLineVehicleServiceSerialized = {
 	readonly lineId: string
-	readonly stopId: string
+	readonly stopIndex: number
 	readonly docked: boolean
 	readonly operatorUid?: string
 }

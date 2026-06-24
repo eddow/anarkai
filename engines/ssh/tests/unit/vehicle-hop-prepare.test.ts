@@ -59,7 +59,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			fatigue: 1,
 			vehicle,
 			lineId: line.id,
-			stopId: zoneStop.id,
+			stopIndex: zoneStop.id,
 			path: [],
 			dockEnter: false,
 		}
@@ -118,7 +118,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			fatigue: 1,
 			vehicle,
 			lineId: line.id,
-			stopId: zoneStop.id,
+			stopIndex: zoneStop.id,
 			path: [],
 			dockEnter: false,
 			vehicleHopAnchorDockDisembarked: true,
@@ -164,7 +164,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			fatigue: 1,
 			vehicle,
 			lineId: line.id,
-			stopId: loadStop.id,
+			stopIndex: loadStop.id,
 			path: [],
 			dockEnter: false,
 		}
@@ -246,7 +246,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			fatigue: 1,
 			vehicle,
 			lineId: 'ChopSaw:implicit-gather:0,0',
-			stopId: 'ChopSaw:ig-unload',
+			stopIndex: 'ChopSaw:ig-unload',
 			path: [],
 			dockEnter: true,
 		}
@@ -278,7 +278,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 
 		const hop = findVehicleHopJob(game, character)
 		expect(hop?.job).toBe('vehicleHop')
-		expect(hop?.stopId).toBe(unloadStop.id)
+		expect(hop?.stopIndex).toBe(unloadStop.id)
 		expect(hop?.dockEnter).toBe(true)
 		expect(hop?.path.length).toBeGreaterThan(0)
 
@@ -306,7 +306,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			fatigue: hop!.fatigue,
 			vehicle,
 			lineId: line.id,
-			stopId: unloadStop.id,
+			stopIndex: unloadStop.id,
 			path: hop!.path,
 			dockEnter: true,
 		}
@@ -344,7 +344,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			fatigue: 1,
 			vehicle,
 			lineId: line.id,
-			stopId: unloadStop.id,
+			stopIndex: unloadStop.id,
 			path: [],
 			dockEnter: true,
 		}
@@ -385,7 +385,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			fatigue: 1,
 			vehicle,
 			lineId: line.id,
-			stopId: unloadStop.id,
+			stopIndex: unloadStop.id,
 			path: [],
 			dockEnter: true,
 		}
@@ -445,7 +445,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			fatigue: 1,
 			vehicle,
 			lineId: line.id,
-			stopId: unloadStop.id,
+			stopIndex: unloadStop.id,
 			path: [],
 			dockEnter: true,
 		})
@@ -523,7 +523,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			fatigue: 1,
 			vehicle,
 			lineId: line.id,
-			stopId: unloadStop.id,
+			stopIndex: unloadStop.id,
 			path: [],
 			dockEnter: true,
 		})
@@ -572,7 +572,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			fatigue: 1,
 			vehicle,
 			lineId: line.id,
-			stopId: zoneStop.id,
+			stopIndex: zoneStop.id,
 			path: [],
 			dockEnter: false,
 			vehicleHopAnchorDockDisembarked: true,
@@ -627,7 +627,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			fatigue: 1,
 			vehicle,
 			lineId: line.id,
-			stopId: zoneStop.id,
+			stopIndex: zoneStop.id,
 			path: [],
 			dockEnter: false,
 		}

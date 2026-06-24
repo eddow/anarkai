@@ -50,7 +50,8 @@ export type FreightStopAnchor = FreightStopAnchorAlveolus
 
 export interface FreightNpcTradeStop {
 	readonly kind: 'settlement'
-	readonly settlementId: string
+	readonly settlementName: string
+	profile?: import('ssh/commerce/settlement-trade').NpcSettlementTradeProfile
 }
 
 export interface FreightZoneDefinitionRadius {
@@ -68,7 +69,6 @@ export type FreightZoneDefinition = FreightZoneDefinitionRadius | FreightZoneDef
 
 /** One route step: optional load/unload goods policies at a bay anchor, zone, or external trade point. */
 export type FreightStop = {
-	readonly id: string
 	readonly loadSelection?: GoodSelectionPolicy
 	readonly unloadSelection?: GoodSelectionPolicy
 	readonly minBalanceAfterBuyVp?: number
@@ -221,7 +221,7 @@ function normalizeFreightZone(zone: FreightZoneDefinition): FreightZoneDefinitio
 function normalizeNpcTradeStop(trade: FreightNpcTradeStop): FreightNpcTradeStop {
 	return {
 		kind: 'settlement',
-		settlementId: trade.settlementId.trim(),
+		settlementName: trade.settlementName.trim(),
 	}
 }
 
@@ -233,8 +233,7 @@ function normalizeOptionalSelectionPolicy(
 	return isUnrestrictedGoodsSelectionPolicy(normalized) ? undefined : normalized
 }
 
-function normalizeFreightStop(stop: FreightStop, index: number): FreightStop {
-	const id = stop.id?.trim().length ? stop.id : `stop-${index}`
+function normalizeFreightStop(stop: FreightStop): FreightStop {
 	const loadSelection = normalizeOptionalSelectionPolicy(stop.loadSelection)
 	const unloadSelection = normalizeOptionalSelectionPolicy(stop.unloadSelection)
 	const reserve =
@@ -243,7 +242,6 @@ function normalizeFreightStop(stop: FreightStop, index: number): FreightStop {
 			: { minBalanceAfterBuyVp: Math.max(0, Math.floor(stop.minBalanceAfterBuyVp)) }
 	if ('anchor' in stop) {
 		return {
-			id,
 			loadSelection,
 			unloadSelection,
 			...reserve,
@@ -252,7 +250,6 @@ function normalizeFreightStop(stop: FreightStop, index: number): FreightStop {
 	}
 	if ('trade' in stop) {
 		return {
-			id,
 			loadSelection,
 			unloadSelection,
 			...reserve,
@@ -260,7 +257,6 @@ function normalizeFreightStop(stop: FreightStop, index: number): FreightStop {
 		}
 	}
 	return {
-		id,
 		loadSelection,
 		unloadSelection,
 		...reserve,
@@ -344,7 +340,7 @@ export function normalizeFreightLineDefinition(line: FreightLineDefinition): Fre
 	const normalized: FreightLineDefinition = {
 		id: line.id,
 		name: line.name,
-		stops: line.stops.map((stop, index) => normalizeFreightStop(stop, index)),
+		stops: line.stops.map(normalizeFreightStop),
 	}
 	const withCyclic = line.cyclic === true ? { ...normalized, cyclic: true } : normalized
 	if (line.minBalanceAfterBuyVp === undefined) return withCyclic
@@ -367,14 +363,13 @@ export function freightLineStopOrder(line: FreightLineDefinition, startIndex: nu
 	return order
 }
 
-/** Next stop after `currentStop`, wrapping only for cyclic lines. */
+/** Next stop after stop at `currentStopIndex`, wrapping only for cyclic lines. */
 export function nextFreightLineStop(
 	line: FreightLineDefinition,
-	currentStop: FreightStop
+	currentStopIndex: number
 ): FreightStop | undefined {
-	const idx = line.stops.findIndex((stop) => stop.id === currentStop.id)
-	if (idx < 0) return undefined
-	if (idx < line.stops.length - 1) return line.stops[idx + 1]
+	if (currentStopIndex < 0 || currentStopIndex >= line.stops.length) return undefined
+	if (currentStopIndex < line.stops.length - 1) return line.stops[currentStopIndex + 1]
 	return line.cyclic ? line.stops[0] : undefined
 }
 
@@ -720,7 +715,6 @@ export function implicitGatherFreightLinesFromHivePatches(
 				name: `${displayHiveName} (${a.coord[0]}, ${a.coord[1]}) gather`,
 				stops: [
 					{
-						id: 'implicit-gather-load',
 						zone: {
 							kind: 'radius',
 							center: coord,
@@ -728,7 +722,6 @@ export function implicitGatherFreightLinesFromHivePatches(
 						},
 					},
 					{
-						id: 'implicit-gather-unload',
 						anchor,
 					},
 				],
@@ -782,7 +775,6 @@ export function createExplicitFreightLineDraftForFreightBay(
 					name,
 					stops: [
 						{
-							id: 'explicit-gather-load',
 							zone: {
 								kind: 'radius',
 								center: axialCoord,
@@ -790,7 +782,6 @@ export function createExplicitFreightLineDraftForFreightBay(
 							},
 						},
 						{
-							id: 'explicit-gather-unload',
 							anchor,
 						},
 					],
@@ -800,11 +791,9 @@ export function createExplicitFreightLineDraftForFreightBay(
 					name,
 					stops: [
 						{
-							id: 'explicit-distribute-load',
 							anchor,
 						},
 						{
-							id: 'explicit-distribute-unload',
 							anchor,
 						},
 					],
@@ -834,7 +823,6 @@ export function createExchangeFreightLineDraftForFreightBay(
 		cyclic: true,
 		stops: [
 			{
-				id: 'exchange-bay',
 				anchor,
 			},
 		],
@@ -991,13 +979,11 @@ export function applyDistributeDeliveryRadiusFromEditor(
 
 	if (radius === undefined || !Number.isFinite(radius)) {
 		nextStops[distSeg.unloadStopIndex] = {
-			id: line.stops[distSeg.unloadStopIndex]?.id ?? 'distribute-unload',
 			anchor: loadAnchor,
 		}
 	} else {
 		const r = Math.max(0, Math.floor(radius))
 		nextStops[distSeg.unloadStopIndex] = {
-			id: line.stops[distSeg.unloadStopIndex]?.id ?? 'distribute-unload',
 			zone: { kind: 'radius', center, radius: r },
 		}
 	}
@@ -1075,10 +1061,7 @@ export function collectFreightLineBootstrapCoords(line: FreightLineDefinition): 
 			const zone = stop.zone
 			out.push({ q: zone.center[0], r: zone.center[1] })
 		}
-		if ('trade' in stop && stop.trade.kind === 'settlement') {
-			const match = /^settlement-(-?\d+),(-?\d+)$/.exec(stop.trade.settlementId)
-			if (match) out.push({ q: Number(match[1]), r: Number(match[2]) })
-		}
+		// Trade stop coords come from settlement profiles (loaded separately)
 	}
 	return out
 }

@@ -410,7 +410,7 @@ export interface VehicleHopJob extends VehicleJob {
 	urgency: number
 	fatigue: number
 	lineId: string
-	stopId: string
+	stopIndex: number
 	/** Runtime reference to the freight line. Set by the planner at construction time. */
 	line?: FreightLineDefinition
 	/** Runtime reference to the freight stop. Set by the planner at construction time. */
@@ -439,7 +439,7 @@ export interface ZoneBrowseJob extends VehicleJob {
 	urgency: number
 	fatigue: number
 	lineId: string
-	stopId: string
+	stopIndex: number
 	/** Runtime reference to the freight line. Set by the planner at construction time. */
 	line?: FreightLineDefinition
 	/** Runtime reference to the freight stop. Set by the planner at construction time. */

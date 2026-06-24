@@ -24,15 +24,12 @@ export interface NpcSettlementTradeOffer {
 }
 
 export interface NpcSettlementTradeTarget {
-	readonly id: string
 	readonly kind: 'city_hall'
-	readonly settlementId: string
 	readonly name: string
 	readonly position: AxialCoord
 }
 
 export interface NpcSettlementTradeProfile {
-	readonly id: string
 	readonly regionSetKey: string
 	readonly name: string
 	readonly kind: GeneratedSettlement['kind']
@@ -154,16 +151,13 @@ export function createNpcSettlementTradeProfile(args: {
 	]
 	const cityHallPosition = selectSettlementCityHallPosition(args.settlement, args.tileData)
 	return {
-		id: args.settlement.id,
 		regionSetKey: args.regionSetKey,
 		name: args.settlement.name,
 		kind: args.settlement.kind,
 		center: { ...args.settlement.center },
 		radius: args.settlement.radius,
 		cityHall: {
-			id: `${args.settlement.id}:city-hall`,
 			kind: 'city_hall',
-			settlementId: args.settlement.id,
 			name: `${args.settlement.name} City Hall`,
 			position: cityHallPosition,
 		},
@@ -171,84 +165,15 @@ export function createNpcSettlementTradeProfile(args: {
 	}
 }
 
-/** Price entry for a single settlement's offer on a good in one direction. */
-export interface SettlementPriceEntry {
-	readonly settlementId: string
-	readonly settlementName: string
-	readonly good: GoodType
-	readonly direction: NpcTradeDirection
-	readonly priceVp: number
-}
-
-/** Comparison result: source and sink ranking per good across all known settlements. */
-export interface SettlementPriceComparison {
-	/** Cheapest source to buy from (cheapest `sell` offers), sorted by price ascending. */
-	readonly cheapestSources: Readonly<Partial<Record<GoodType, SettlementPriceEntry[]>>>
-	/** Most expensive sink to sell to (highest-price `buy` offers), sorted by price descending. */
-	readonly bestSinks: Readonly<Partial<Record<GoodType, SettlementPriceEntry[]>>>
-	/** All settlement IDs that contributed to this comparison. */
-	readonly settlementIds: readonly string[]
-}
-
-/**
- * Compare prices across all known settlement trade profiles.
- *
- * Returns the cheapest source and best sink for each good that is available from
- * at least one settlement. Only includes goods traded by at least one settlement.
- */
-export function compareSettlementPrices(
-	profiles: readonly NpcSettlementTradeProfile[]
-): SettlementPriceComparison {
-	const sourceByGood = new Map<GoodType, SettlementPriceEntry[]>()
-	const sinkByGood = new Map<GoodType, SettlementPriceEntry[]>()
-	const settlementIds: string[] = []
-
-	for (const profile of profiles) {
-		settlementIds.push(profile.id)
-		for (const offer of profile.offers) {
-			const entry: SettlementPriceEntry = {
-				settlementId: profile.id,
-				settlementName: profile.name,
-				good: offer.good,
-				direction: offer.direction,
-				priceVp: offer.priceVp,
-			}
-			if (offer.direction === 'sell') {
-				const list = sourceByGood.get(offer.good) ?? []
-				list.push(entry)
-				sourceByGood.set(offer.good, list)
-			} else {
-				const list = sinkByGood.get(offer.good) ?? []
-				list.push(entry)
-				sinkByGood.set(offer.good, list)
-			}
-		}
-	}
-
-	// Sort sources by cheapest first
-	const cheapestSources: Partial<Record<GoodType, SettlementPriceEntry[]>> = {}
-	for (const [good, entries] of sourceByGood) {
-		cheapestSources[good] = entries.sort((a, b) => a.priceVp - b.priceVp)
-	}
-
-	// Sort sinks by highest price first (best to sell to)
-	const bestSinks: Partial<Record<GoodType, SettlementPriceEntry[]>> = {}
-	for (const [good, entries] of sinkByGood) {
-		bestSinks[good] = entries.sort((a, b) => b.priceVp - a.priceVp)
-	}
-
-	return { cheapestSources, bestSinks, settlementIds }
-}
-
-export function settlementTradeObjectUid(settlementId: string): string {
-	return `${SETTLEMENT_TRADE_UID_PREFIX}${encodeURIComponent(settlementId)}`
+export function settlementTradeObjectUid(settlementName: string): string {
+	return `${SETTLEMENT_TRADE_UID_PREFIX}${encodeURIComponent(settlementName)}`
 }
 
 export function isSettlementTradeObjectUid(uid: string): boolean {
 	return uid.startsWith(SETTLEMENT_TRADE_UID_PREFIX)
 }
 
-export function settlementIdFromTradeObjectUid(uid: string): string | undefined {
+export function settlementNameFromTradeObjectUid(uid: string): string | undefined {
 	if (!isSettlementTradeObjectUid(uid)) return undefined
 	const encoded = uid.slice(SETTLEMENT_TRADE_UID_PREFIX.length)
 	return encoded ? decodeURIComponent(encoded) : undefined
@@ -261,7 +186,7 @@ export class SettlementTradeObject
 	readonly profile: NpcSettlementTradeProfile
 
 	constructor(game: Game, profile: NpcSettlementTradeProfile) {
-		super(game, settlementTradeObjectUid(profile.id))
+		super(game, settlementTradeObjectUid(profile.name))
 		this.profile = profile
 	}
 
@@ -271,9 +196,7 @@ export class SettlementTradeObject
 
 	get debugInfo(): Record<string, unknown> {
 		return {
-			id: this.profile.id,
-			targetId: this.profile.cityHall.id,
-			targetKind: this.profile.cityHall.kind,
+			name: this.profile.name,
 			kind: this.profile.kind,
 			center: this.profile.center,
 			position: this.profile.cityHall.position,
@@ -289,7 +212,7 @@ export class SettlementTradeObject
 
 	get tile(): Tile {
 		const tile = this.game.hex.getTile(this.profile.cityHall.position)
-		if (!tile) throw new Error(`Missing city hall tile for settlement ${this.profile.id}`)
+		if (!tile) throw new Error(`Missing city hall tile for settlement ${this.profile.name}`)
 		return tile
 	}
 
@@ -306,8 +229,8 @@ export function createSettlementTradeObjectForUid(
 	game: Game,
 	uid: string
 ): SettlementTradeObject | undefined {
-	const settlementId = settlementIdFromTradeObjectUid(uid)
-	if (!settlementId) return undefined
-	const profile = game.getSettlementTradeProfile(settlementId)
+	const settlementName = settlementNameFromTradeObjectUid(uid)
+	if (!settlementName) return undefined
+	const profile = game.getSettlementTradeProfile(settlementName)
 	return profile ? new SettlementTradeObject(game, profile) : undefined
 }

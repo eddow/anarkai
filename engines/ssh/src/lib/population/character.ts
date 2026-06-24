@@ -71,7 +71,7 @@ function vehicleFreightJobTracePayload(job: Job): Record<string, unknown> {
 			return {
 				job: job.job,
 				lineId: job.lineId,
-				stopId: job.stopId,
+				stopIndex: job.stopIndex,
 				dockEnter: job.dockEnter,
 				needsBeginService: job.needsBeginService,
 				approachLen: job.approachPath?.length ?? 0,
@@ -85,7 +85,7 @@ function vehicleFreightJobTracePayload(job: Job): Record<string, unknown> {
 			return {
 				job: job.job,
 				lineId: job.lineId,
-				stopId: job.stopId,
+				stopIndex: job.stopIndex,
 				zoneBrowseAction: job.zoneBrowseAction,
 				goodType: job.goodType,
 				quantity: job.quantity,
@@ -688,7 +688,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 			case 'defragment':
 				return `${job.goodType} @ ${targetName}`
 			case 'vehicleHop':
-				return `vehicleHop ${job.lineId}/${job.stopId} @ ${coord.q}, ${coord.r}`
+				return `vehicleHop ${job.lineId}/${job.stopIndex} @ ${coord.q}, ${coord.r}`
 			case 'zoneBrowse':
 				return `zoneBrowse ${job.zoneBrowseAction}:${job.goodType} @ ${job.targetCoord.q}, ${job.targetCoord.r}`
 			default:
@@ -1139,7 +1139,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 	 */
 	private get isVehicleQueuing(): boolean {
 		if (!this.operates) return false
-		return this.game.bayQueueRegistry.isVehicleInAnyQueue(this.operates.uid)
+		return this.operates.isInBayQueue
 	}
 
 	private releaseVehicleBeforeNonVehicleActivity(kind: NextActivityKind): void {

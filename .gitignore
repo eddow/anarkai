@@ -31,3 +31,4 @@ test-results
 playwright-report
 *.tsbuildinfo
 .aider*
+pure-glyf-icons.d.ts

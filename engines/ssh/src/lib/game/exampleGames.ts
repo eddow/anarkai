@@ -79,7 +79,6 @@ export const chopSaw = {
 			cyclic: true,
 			stops: [
 				{
-					id: 'ChopSaw:ig-unload',
 					loadSelection: constructionGoodsSelection,
 					unloadSelection: constructionGoodsSelection,
 					anchor: {
@@ -90,7 +89,6 @@ export const chopSaw = {
 					},
 				},
 				{
-					id: 'ChopSaw:ig-load',
 					loadSelection: constructionGoodsSelection,
 					unloadSelection: constructionGoodsSelection,
 					zone: { kind: 'radius', center: [0, 0], radius: 9 },
@@ -103,7 +101,6 @@ export const chopSaw = {
 			cyclic: true,
 			stops: [
 				{
-					id: 'ChopSaw:materials-bay',
 					loadSelection: planksOnlySelection,
 					unloadSelection: concreteOnlySelection,
 					anchor: {
@@ -114,10 +111,9 @@ export const chopSaw = {
 					},
 				},
 				{
-					id: 'ChopSaw:materials-melindbury',
 					loadSelection: concreteOnlySelection,
 					unloadSelection: planksOnlySelection,
-					trade: { kind: 'settlement', settlementId: 'settlement-7,19' },
+					trade: { kind: 'settlement', settlementName: 'settlement-7,19' },
 				},
 			],
 		},
@@ -248,7 +244,6 @@ export const demoHive = {
 			cyclic: true,
 			stops: [
 				{
-					id: 'HearthLoop:commons-bay',
 					loadSelection: constructionGoodsSelection,
 					unloadSelection: constructionGoodsSelection,
 					anchor: {
@@ -259,7 +254,6 @@ export const demoHive = {
 					},
 				},
 				{
-					id: 'HearthLoop:commons-zone',
 					loadSelection: constructionGoodsSelection,
 					unloadSelection: constructionGoodsSelection,
 					zone: { kind: 'radius', center: [0, 1], radius: 8 },
@@ -272,7 +266,6 @@ export const demoHive = {
 			cyclic: true,
 			stops: [
 				{
-					id: 'HearthLoop:melindbury-bay',
 					loadSelection: planksOnlySelection,
 					unloadSelection: concreteOnlySelection,
 					anchor: {
@@ -283,10 +276,9 @@ export const demoHive = {
 					},
 				},
 				{
-					id: 'HearthLoop:melindbury-city-hall',
 					loadSelection: concreteOnlySelection,
 					unloadSelection: planksOnlySelection,
-					trade: { kind: 'settlement', settlementId: 'settlement-7,19' },
+					trade: { kind: 'settlement', settlementName: 'settlement-7,19' },
 				},
 			],
 		},
@@ -398,7 +390,6 @@ export const dorm = {
 			cyclic: true,
 			stops: [
 				{
-					id: 'Dorm:gather-unload',
 					loadSelection: constructionGoodsSelection,
 					unloadSelection: constructionGoodsSelection,
 					anchor: {
@@ -409,7 +400,6 @@ export const dorm = {
 					},
 				},
 				{
-					id: 'Dorm:gather-zone',
 					loadSelection: constructionGoodsSelection,
 					unloadSelection: constructionGoodsSelection,
 					zone: { kind: 'radius', center: [0, 1], radius: 6 },

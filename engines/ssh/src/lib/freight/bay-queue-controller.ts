@@ -92,7 +92,6 @@ export class BayQueueController {
 
 	registerRequest(
 		vehicle: Vehicle,
-		bayGroupUid: string,
 		requirements: readonly DockRequirement[],
 		priority: number,
 		ingressBranch: string | undefined,
@@ -128,7 +127,7 @@ export class BayQueueController {
 
 		const request: DockRequest = {
 			vehicleUid: vehicle.uid,
-			bayGroupUid,
+			bayGroup: this.bayGroup,
 			arrivedAt: Date.now(),
 			priority,
 			requirements,
@@ -138,10 +137,11 @@ export class BayQueueController {
 		}
 
 		currentNode.occupiedBy.add(vehicle)
+		vehicle.isInBayQueue = true
 		this.requests.set(vehicle.uid, request)
 		traces.bay.log?.('request:registered', {
 			vehicleUid: vehicle.uid,
-			bayGroupUid,
+			bayGroupName: this.bayGroup.name,
 			branch,
 			node: currentNode,
 		})
@@ -169,6 +169,7 @@ export class BayQueueController {
 		this.grants.delete(vehicle.uid)
 		request.state = 'cancelled'
 		this.requests.delete(vehicle.uid)
+		vehicle.isInBayQueue = false
 		traces.bay.log?.('request:cancelled', { vehicleUid: vehicle.uid, hadGrant: !!grant })
 	}
 

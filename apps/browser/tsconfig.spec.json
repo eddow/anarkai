@@ -6,7 +6,7 @@
 		"jsx": "react",
 		"jsxFactory": "h",
 		"jsxFragmentFactory": "Fragment",
-		"types": ["vitest/globals", "vite/client"]
+		"types": ["vitest/globals", "vite/client", "node"]
 	},
 	"include": [
 		"src/**/*.ts",

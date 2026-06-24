@@ -19,7 +19,7 @@ export function freightVehicleDockBay(vehicle: Vehicle): FreightBayAlveolus | un
 	if (!(content instanceof FreightBayAlveolus)) {
 		traces.vehicle.warn?.('[dock.sync] docked vehicle has no freight bay', {
 			lineId: svc.line.id,
-			stopId: svc.stop.id,
+			stopIndex: svc.line.stops.indexOf(svc.stop),
 			anchor: svc.stop.anchor.coord,
 			contentType: content?.constructor?.name,
 			actionType: content instanceof FreightBayAlveolus ? content.action?.type : undefined,

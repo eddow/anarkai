@@ -39,7 +39,6 @@ import {
 	resolveAlveolusVariant,
 	VARIANT_DELIMITER,
 } from 'ssh/construction-state'
-import { BayQueueRegistry } from 'ssh/freight/bay-queue-registry'
 import type { FreightLineDefinition, SyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import {
 	collectFreightLineBootstrapCoords,
@@ -136,7 +135,7 @@ export type GamePresentationEvent =
 	| {
 			type: 'npc-trade.transferred'
 			lineId: string
-			stopId: string
+			stopIndex: number
 			settlementId: string
 			vehicleUid: string
 			exported: Partial<Record<GoodType, number>>
@@ -170,7 +169,7 @@ export type GameConveyEvent = {
 /** Accumulated trade transfer log entry, keyed by line-stop-vehicle. */
 export interface TradeTransferLogEntry {
 	readonly lineId: string
-	readonly stopId: string
+	readonly stopIndex: number
 	readonly settlementId: string
 	readonly vehicleUid: string
 	readonly exported: Partial<Record<GoodType, number>>
@@ -446,8 +445,6 @@ export class Game extends Eventful<GameEvents> {
 	public readonly ticker: SimulationLoop
 	/** Pure-dt event scheduler for timed simulation steps (characters, transforms, etc.). */
 	public readonly clock: Clock
-	/** Bay queue registry — created at bootstrap, integrated into the ticker. */
-	public readonly bayQueueRegistry: BayQueueRegistry
 	private tickedObjects = new Set<{ update(deltaSeconds: number): void }>()
 	private readonly pendingInteractiveRegistrations = new Map<string, InteractiveGameObject>()
 	private readonly pendingInteractiveChanges = new Map<string, InteractiveGameObject>()
@@ -465,12 +462,12 @@ export class Game extends Eventful<GameEvents> {
 	private readonly inFlightGameplaySectors = new Map<string, Promise<boolean>>()
 	private readonly appliedSettlementRegionSets = new Set<string>()
 	private readonly inFlightSettlementRegionSets = new Map<string, Promise<void>>()
-	private readonly settlementTradeProfiles = new Map<string, NpcSettlementTradeProfile>()
+	private readonly settlementTradeProfiles = new Set<NpcSettlementTradeProfile>()
 	private readonly settlementTradeProfilesByCityHallCoord = new Map<
 		string,
 		NpcSettlementTradeProfile
 	>()
-	/** Accumulated trade transfer events keyed by `lineId:stopId:vehicleUid` for inspector display. */
+	/** Accumulated trade transfer events keyed by `lineId:stopIndex:vehicleUid` for inspector display. */
 	private readonly tradeTransferLog = new Map<string, TradeTransferLogEntry[]>()
 	private readonly terrainProvider: TerrainProvider
 	private readonly gameplayFrontier = new GameplayFrontierController({
@@ -665,8 +662,11 @@ export class Game extends Eventful<GameEvents> {
 		return true
 	}
 
-	public getSettlementTradeProfile(id: string): NpcSettlementTradeProfile | undefined {
-		return this.settlementTradeProfiles.get(id)
+	public getSettlementTradeProfile(name: string): NpcSettlementTradeProfile | undefined {
+		for (const profile of this.settlementTradeProfiles) {
+			if (profile.name === name) return profile
+		}
+		return undefined
 	}
 
 	public getSettlementTradeProfileAtCityHall(
@@ -676,8 +676,8 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	public listSettlementTradeProfiles(): NpcSettlementTradeProfile[] {
-		return [...this.settlementTradeProfiles.values()].sort((left, right) =>
-			left.id.localeCompare(right.id)
+		return [...this.settlementTradeProfiles].sort((left, right) =>
+			left.name.localeCompare(right.name)
 		)
 	}
 
@@ -833,7 +833,7 @@ export class Game extends Eventful<GameEvents> {
 		event: Omit<Extract<GamePresentationEvent, { type: 'npc-trade.transferred' }>, 'type'>
 	): void {
 		this.pendingPresentationEvents.set(
-			`npc-trade.transferred:${event.lineId}:${event.stopId}:${event.vehicleUid}`,
+			`npc-trade.transferred:${event.lineId}:${event.stopIndex}:${event.vehicleUid}`,
 			{ type: 'npc-trade.transferred', ...event }
 		)
 		this.schedulePresentationEventsFlush()
@@ -843,7 +843,7 @@ export class Game extends Eventful<GameEvents> {
 	private accumulateTradeTransferLog(
 		event: Omit<Extract<GamePresentationEvent, { type: 'npc-trade.transferred' }>, 'type'>
 	): void {
-		const key = `${event.lineId}:${event.stopId}:${event.vehicleUid}`
+		const key = `${event.lineId}:${event.stopIndex}:${event.vehicleUid}`
 		const entries = this.tradeTransferLog.get(key) ?? []
 		const entry: TradeTransferLogEntry = {
 			...event,
@@ -1079,8 +1079,6 @@ export class Game extends Eventful<GameEvents> {
 		this.population = new Population(this)
 		this.vehicles = new Vehicles(this)
 
-		// Create bay queue registry (admission is event-driven — no per-frame polling needed)
-		this.bayQueueRegistry = new BayQueueRegistry(this)
 		const self = this
 
 		// ── Constant evolutions: growth (tree aging + deposit generation) ──
@@ -1457,7 +1455,7 @@ export class Game extends Eventful<GameEvents> {
 				tileData: boardData,
 				zones: plan.zones,
 			})
-			this.settlementTradeProfiles.set(profile.id, profile)
+			this.settlementTradeProfiles.add(profile)
 			this.settlementTradeProfilesByCityHallCoord.set(axial.key(profile.cityHall.position), profile)
 		}
 		this.applyGeneratedZonePatches(plan.zones)
@@ -2879,7 +2877,7 @@ export class Game extends Eventful<GameEvents> {
 						}
 					}
 				} else if ('trade' in stop) {
-					const profile = this.getSettlementTradeProfile(stop.trade.settlementId)
+					const profile = this.getSettlementTradeProfile(stop.trade.settlementName)
 					if (profile) coords.push(profile.center)
 				}
 			}

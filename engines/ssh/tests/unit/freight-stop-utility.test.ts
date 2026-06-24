@@ -49,7 +49,7 @@ const neighborMarketProfile = {
 	cityHall: {
 		id: 'neighbor-market:city-hall',
 		kind: 'city_hall' as const,
-		settlementId: 'neighbor-market',
+		settlementName: 'neighbor-market',
 		name: 'Neighbor market City Hall',
 		position: { q: 4, r: 0 },
 	},
@@ -75,7 +75,7 @@ function marketLoopLine(patch: Partial<FreightLineDefinition> = {}): FreightLine
 				id: 'market',
 				loadSelection: concreteOnly,
 				unloadSelection: woodOnly,
-				trade: { kind: 'settlement', settlementId: neighborMarketProfile.id },
+				trade: { kind: 'settlement', settlementName: neighborMarketProfile.id },
 			},
 			{
 				id: 'bay',

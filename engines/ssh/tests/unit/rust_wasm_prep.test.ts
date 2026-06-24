@@ -191,7 +191,7 @@ describe('Rust/WASM preparation seams', () => {
 				job: 'vehicleHop',
 
 				lineId: 'line:1',
-				stopId: 'stop:1',
+				stopIndex: 'stop:1',
 				path: [],
 				dockEnter: false,
 				urgency: 1,
@@ -208,7 +208,7 @@ describe('Rust/WASM preparation seams', () => {
 				job: 'vehicleHop',
 
 				lineId: 'line:1',
-				stopId: 'stop:1',
+				stopIndex: 'stop:1',
 				path: [],
 				dockEnter: true,
 				needsBeginService: false,

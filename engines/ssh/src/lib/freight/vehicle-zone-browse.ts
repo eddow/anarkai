@@ -318,7 +318,7 @@ export function pickVehicleZoneBrowseSelection(
 	const end = profile.proposedJobs.begin?.('pickVehicleZoneBrowseSelection', () => ({
 		characterUid: character.uid,
 		lineId: line.id,
-		stopId: stop.id,
+		stopIndex: line.stops.indexOf(stop),
 	}))
 	try {
 		if (!('zone' in stop)) return undefined

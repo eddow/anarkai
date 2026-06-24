@@ -159,7 +159,6 @@ export function buildBayGroupFromSerialized(
 		.filter((n): n is RuntimeQueueNode => n !== undefined)
 
 	return {
-		uid: serialized.bayGroupId,
 		name: serialized.bayGroupId,
 		serviceNodes,
 		mergePolicy: serialized.mergePolicy,

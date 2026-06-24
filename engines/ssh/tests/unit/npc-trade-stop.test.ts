@@ -34,7 +34,7 @@ function marketLine(patch: Partial<FreightLineDefinition> = {}): FreightLineDefi
 		stops: [
 			{
 				id: 'market',
-				trade: { kind: 'settlement', settlementId: tradeProfile.id },
+				trade: { kind: 'settlement', settlementName: tradeProfile.id },
 			},
 			{
 				id: 'bay',
@@ -139,7 +139,7 @@ describe('NPC trade freight stops', () => {
 			stops: [
 				{
 					id: 'market',
-					trade: { kind: 'settlement', settlementId: tradeProfile.id },
+					trade: { kind: 'settlement', settlementName: tradeProfile.id },
 					unloadSelection: migrateV1FiltersToGoodsSelection(['wood']),
 				},
 				marketLine().stops[1]!,

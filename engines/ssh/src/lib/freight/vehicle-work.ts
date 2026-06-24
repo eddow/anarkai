@@ -158,7 +158,7 @@ export function allocateVehicleServiceForJob(
 				assert(
 					ensureVehicleServiceStarted(vehicle, character, game, character, {
 						lineId: job.lineId,
-						stopId: job.stopId,
+						stopIndex: job.stopIndex,
 					}),
 					'vehicleHop approach: could not reserve selected line service'
 				)
@@ -168,7 +168,7 @@ export function allocateVehicleServiceForJob(
 				assert(
 					ensureVehicleServiceStarted(vehicle, character, game, character, {
 						lineId: job.lineId,
-						stopId: job.stopId,
+						stopIndex: job.stopIndex,
 					}),
 					'vehicleHop beginService: could not start line service'
 				)
@@ -369,7 +369,7 @@ function vehicleTraceSnapshot(vehicle: Vehicle) {
 		virtualGoodsCount: vehicle.storage.virtualGoodsCount,
 		serviceKind: lineService ? 'line' : maintenanceService?.kind,
 		lineId: lineService?.line.id,
-		stopId: lineService?.stop.id,
+		stopIndex: lineService ? lineService.line.stops.indexOf(lineService.stop) : -1,
 		stopKind: lineService
 			? 'anchor' in lineService.stop
 				? 'anchor'
@@ -482,7 +482,7 @@ function dockedVehicleProviderJob(game: Game, vehicle: Vehicle): ProposedJob | u
 						...vehicleTraceSnapshot(vehicle),
 						lineId: line.id,
 						line,
-						stopId: stop.id,
+						stopIndex: line.stops.indexOf(stop),
 						stop,
 					}
 				)
@@ -493,7 +493,7 @@ function dockedVehicleProviderJob(game: Game, vehicle: Vehicle): ProposedJob | u
 						fatigue: 1,
 						lineId: line.id,
 						line,
-						stopId: stop.id,
+						stopIndex: line.stops.indexOf(stop),
 						stop,
 						path: [],
 						approachPath: [],
@@ -530,7 +530,7 @@ function dockedVehicleProviderJob(game: Game, vehicle: Vehicle): ProposedJob | u
 				vehicle,
 				lineId: service.line.id,
 				line: service.line,
-				stopId: service.stop.id,
+				stopIndex: service.line.stops.indexOf(service.stop),
 				stop: service.stop,
 				path: [],
 				approachPath: [],
@@ -615,7 +615,7 @@ function dockedVehicleProviderJob(game: Game, vehicle: Vehicle): ProposedJob | u
 		traces.vehicle.log?.('[vehicle.advertisedJobs] provider next-stop hop', {
 			...vehicleTraceSnapshot(vehicle),
 			nextLineId: next.line.id,
-			nextStopId: next.stop.id,
+			nextStopId: next.line.stops.indexOf(next.stop),
 		})
 		const targetCoord: AxialCoord | undefined =
 			'anchor' in next.stop
@@ -633,7 +633,7 @@ function dockedVehicleProviderJob(game: Game, vehicle: Vehicle): ProposedJob | u
 				vehicle,
 				lineId: next.line.id,
 				line: next.line,
-				stopId: next.stop.id,
+				stopIndex: next.line.stops.indexOf(next.stop),
 				stop: next.stop,
 				path: [],
 				approachPath: [],
@@ -964,7 +964,7 @@ function isJointLineLoadCandidate(
 				traceAttempts?.push({
 					lineId: line.id,
 					line,
-					stopId: stop.id,
+					stopIndex: line.stops.indexOf(stop),
 					stop,
 					reason: selection ? 'selection_not_load' : 'no_zone_selection',
 					selectionAction: selection?.action,
@@ -977,7 +977,7 @@ function isJointLineLoadCandidate(
 				traceAttempts?.push({
 					lineId: line.id,
 					line,
-					stopId: stop.id,
+					stopIndex: line.stops.indexOf(stop),
 					stop,
 					reason: 'selection_target_mismatch',
 					selectionCoord,
@@ -990,7 +990,7 @@ function isJointLineLoadCandidate(
 				traceAttempts?.push({
 					lineId: line.id,
 					line,
-					stopId: stop.id,
+					stopIndex: line.stops.indexOf(stop),
 					stop,
 					reason: 'selection_good_mismatch',
 					selectionGoodType: selection.goodType,
@@ -1003,7 +1003,7 @@ function isJointLineLoadCandidate(
 				characterUid: character.uid,
 				lineId: line.id,
 				line,
-				stopId: stop.id,
+				stopIndex: line.stops.indexOf(stop),
 				stop,
 				goodType: selection.goodType,
 				targetCoord: candidateCoord,
@@ -1061,13 +1061,13 @@ function pickMaintenanceForVehicle(
 		!!currentLineCandidate &&
 		findDistributeRouteSegments(currentLineCandidate.line).some(
 			(segment) =>
-				currentLineCandidate.line.stops[segment.loadStopIndex]?.id === currentLineCandidate.stop.id
+				segment.loadStopIndex === currentLineCandidate.line.stops.indexOf(currentLineCandidate.stop)
 		)
 	if (currentDistributeLoadCandidate) {
 		traces.vehicle.log?.('vehicleJob.maintenance.skipForCurrentDistributeDock', {
 			characterUid: character.uid,
 			lineId: currentLineCandidate.line.id,
-			stopId: currentLineCandidate.stop.id,
+			stopIndex: currentLineCandidate.line.stops.indexOf(currentLineCandidate.stop),
 		})
 		return undefined
 	}
@@ -1152,7 +1152,7 @@ function pickMaintenanceForVehicle(
 		traces.vehicle.log?.('vehicleJob.maintenance.skipParkForLineService', {
 			characterUid: character.uid,
 			lineId: lineCandidate.line.id,
-			stopId: lineCandidate.stop.id,
+			stopIndex: lineCandidate.line.stops.indexOf(lineCandidate.stop),
 		})
 		return undefined
 	}
@@ -1503,7 +1503,7 @@ export function findVehicleBeginServiceLeg(
 ):
 	| {
 			lineId: string
-			stopId: string
+			stopIndex: number
 			line: FreightLineDefinition
 			stop: FreightStop
 			urgency: number
@@ -1519,7 +1519,7 @@ export function findVehicleBeginServiceLeg(
 	if (!pick) return undefined
 	return {
 		lineId: pick.line.id,
-		stopId: pick.stop.id,
+		stopIndex: pick.line.stops.indexOf(pick.stop),
 		line: pick.line,
 		stop: pick.stop,
 		urgency: pick.urgency,
@@ -1539,7 +1539,7 @@ export function findVehicleBeginServiceJob(
 		fatigue: 1,
 
 		lineId: leg.lineId,
-		stopId: leg.stopId,
+		stopIndex: leg.stopIndex,
 		path: [],
 		approachPath: [],
 		dockEnter: false,
@@ -1587,7 +1587,7 @@ function zoneBrowseJobFromTileLooseLoad(
 		fatigue: 1,
 		vehicle,
 		lineId: svc.line.id,
-		stopId: svc.stop.id,
+		stopIndex: svc.line.stops.indexOf(svc.stop),
 		line: svc.line,
 		stop: svc.stop,
 		path: [],
@@ -1647,7 +1647,7 @@ function zoneBrowseJobFromConstructionProvide(
 			fatigue: 1,
 			vehicle,
 			lineId: svc.line.id,
-			stopId: svc.stop.id,
+			stopIndex: svc.line.stops.indexOf(svc.stop),
 			line: svc.line,
 			stop: svc.stop,
 			path: [],
@@ -1684,7 +1684,7 @@ export function findZoneBrowseJob(game: Game, character: Character): ZoneBrowseJ
 					fatigue: 1,
 					vehicle,
 					lineId: svc.line.id,
-					stopId: svc.stop.id,
+					stopIndex: svc.line.stops.indexOf(svc.stop),
 					line: svc.line,
 					stop: svc.stop,
 					path: selection.path,
@@ -1729,7 +1729,7 @@ export function findUnloadFromVehicleJob(
 	const content = character.tile.content as Alveolus | undefined
 	if (!content || !('hive' in content) || !content.hive) return undefined
 	if (!freightStopAnchorMatchesAlveolus(stop.anchor, content)) return undefined
-	const stopIdx = line.stops.findIndex((s) => s.id === stop.id)
+	const stopIdx = line.stops.findIndex((s) => line.stops.indexOf(s) === line.stops.indexOf(stop))
 	if (stopIdx < 0) return undefined
 	const segment = findGatherRouteSegments(line).find((seg) => seg.unloadStopIndex === stopIdx)
 	if (!segment) return undefined
@@ -1790,7 +1790,8 @@ function findVehicleHopJobLineHop(game: Game, character: Character): VehicleHopJ
 	const projected = projectedLineStopForVehicleHop(game, character, vehicle)
 	if (!projected) return undefined
 	const { line, stop } = projected
-	if (stop.id === service.stop.id && 'zone' in stop) return undefined
+	if (line.stops.indexOf(stop) === service.line.stops.indexOf(service.stop) && 'zone' in stop)
+		return undefined
 	let path: AxialCoord[] = []
 	let zoneBrowseAction: VehicleHopJob['zoneBrowseAction']
 	let goodType: VehicleHopJob['goodType']
@@ -1811,7 +1812,7 @@ function findVehicleHopJobLineHop(game: Game, character: Character): VehicleHopJ
 			vehicle,
 			lineId: line.id,
 			line,
-			stopId: stop.id,
+			stopIndex: line.stops.indexOf(stop),
 			stop,
 			path,
 			approachPath: [],
@@ -1834,7 +1835,7 @@ function findVehicleHopJobLineHop(game: Game, character: Character): VehicleHopJ
 				characterUid: character.uid,
 				lineId: line.id,
 				line,
-				stopId: stop.id,
+				stopIndex: line.stops.indexOf(stop),
 				stop,
 				startCoord: startPos,
 				targetCoord: axial.round(toAxialCoord(targetPos)!),
@@ -1846,7 +1847,7 @@ function findVehicleHopJobLineHop(game: Game, character: Character): VehicleHopJ
 				vehicle,
 				lineId: line.id,
 				line,
-				stopId: stop.id,
+				stopIndex: line.stops.indexOf(stop),
 				stop,
 				path,
 				approachPath: [],
@@ -1865,7 +1866,7 @@ function findVehicleHopJobLineHop(game: Game, character: Character): VehicleHopJ
 		vehicle,
 		lineId: line.id,
 		line,
-		stopId: stop.id,
+		stopIndex: line.stops.indexOf(stop),
 		stop,
 		path,
 		approachPath: [],
@@ -1900,7 +1901,7 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 				fatigue: 1,
 				vehicle,
 				lineId: beginLeg.lineId,
-				stopId: beginLeg.stopId,
+				stopIndex: beginLeg.stopIndex,
 				line: beginLeg.line,
 				stop: beginLeg.stop,
 				path: [],
@@ -1973,7 +1974,7 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 					traces.vehicle.log?.('vehicleJob.tradeStop.virtualPath', {
 						characterUid: character.uid,
 						lineId: pick.line.id,
-						stopId: pick.stop.id,
+						stopIndex: pick.line.stops.indexOf(pick.stop),
 						startCoord: startPos,
 						targetCoord: targetHex,
 					})
@@ -1996,7 +1997,7 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 
 			vehicle,
 			lineId: pick.line.id,
-			stopId: pick.stop.id,
+			stopIndex: pick.line.stops.indexOf(pick.stop),
 			line: pick.line,
 			stop: pick.stop,
 			path,
@@ -2040,7 +2041,7 @@ function describeVehicleService(vehicle: Vehicle): Record<string, unknown> | und
 		? {
 				kind: 'line' as const,
 				lineId: vehicle.service.line.id,
-				stopId: vehicle.service.stop.id,
+				stopIndex: vehicle.service.line.stops.indexOf(vehicle.service.stop),
 				docked: vehicle.service.docked,
 			}
 		: isVehicleMaintenanceService(vehicle.service)
@@ -2160,7 +2161,7 @@ function collectVehicleWorkPicksUncached(game: Game, character: Character): Vehi
 				job: pick.job.job,
 
 				lineId: 'lineId' in pick.job ? pick.job.lineId : undefined,
-				stopId: 'stopId' in pick.job ? pick.job.stopId : undefined,
+				stopIndex: 'stopIndex' in pick.job ? pick.job.stopIndex : undefined,
 				zoneBrowseAction: 'zoneBrowseAction' in pick.job ? pick.job.zoneBrowseAction : undefined,
 				goodType: 'goodType' in pick.job ? pick.job.goodType : undefined,
 				targetCoord: 'targetCoord' in pick.job ? pick.job.targetCoord : undefined,

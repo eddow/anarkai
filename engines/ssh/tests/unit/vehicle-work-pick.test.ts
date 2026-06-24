@@ -11,7 +11,7 @@ describe('vehicle work pick validation', () => {
 					fatigue: 1,
 
 					lineId: 'line:1',
-					stopId: 'stop:1',
+					stopIndex: 'stop:1',
 					path: [],
 					approachPath: [],
 				} as any,
@@ -29,7 +29,7 @@ describe('vehicle work pick validation', () => {
 					fatigue: 1,
 
 					lineId: 'line:1',
-					stopId: 'stop:1',
+					stopIndex: 'stop:1',
 					path: [],
 					approachPath: [],
 					dockEnter: true,

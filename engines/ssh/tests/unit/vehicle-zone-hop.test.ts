@@ -294,7 +294,7 @@ describe('Vehicle zone hop semantics', () => {
 		vehicle.servedLines = [game.freightLines[0]!]
 		const preview = previewInitialVehicleService(vehicle)
 		expect(preview?.line.id).toBe(game.freightLines[0]!.id)
-		expect(preview?.stop.id).toBeDefined()
+		expect(preview?.stop).toBeDefined()
 	})
 
 	it('does not begin a line while an unfinished maintenance service is bound', async () => {
@@ -374,7 +374,7 @@ describe('Vehicle zone hop semantics', () => {
 		const hop = findVehicleHopJob(game, character)
 		expect(hop?.job).toBe('vehicleHop')
 		expect(hop?.needsBeginService).toBe(true)
-		expect(hop?.stopId).toBe(line.stops[1]!.id)
+		expect(hop?.stopIndex).toBe(line.stops[1]!.id)
 	})
 
 	it('does not begin gather service for loaded goods the serving hive does not demand', async () => {
@@ -859,7 +859,7 @@ describe('Vehicle zone hop semantics', () => {
 
 		const pick = pickInitialVehicleServiceCandidate(game, character, vehicle)
 		expect(pick?.line.id).toBe(line.id)
-		expect(pick?.stop.id).toBe('zone')
+		expect(pick?.stop).toBe('zone')
 	})
 
 	it('does not skip a cyclic zone halt that can still load after an empty bay halt', async () => {
@@ -918,7 +918,7 @@ describe('Vehicle zone hop semantics', () => {
 
 		maybeAdvanceVehicleFromCompletedAnchorStop(game, vehicle)
 
-		expect(isVehicleLineService(vehicle.service) && vehicle.service.stop.id).toBe('zone')
+		expect(isVehicleLineService(vehicle.service) && vehicle.service).toBe('zone')
 	})
 
 	it('work-plan finalizer releases a line operator while preserving unfinished service', async () => {
@@ -953,7 +953,7 @@ describe('Vehicle zone hop semantics', () => {
 			target: vehicle,
 			path: [],
 			lineId: line.id,
-			stopId: stop.id,
+			stopIndex: stop.id,
 			zoneBrowseAction: 'load',
 			goodType: 'wood',
 			quantity: 1,
@@ -976,7 +976,7 @@ describe('Vehicle zone hop semantics', () => {
 		const serviceAfterRelease = vehicle.service
 		expect(isVehicleLineService(serviceAfterRelease)).toBe(true)
 		if (!isVehicleLineService(serviceAfterRelease)) throw new Error('Expected line service')
-		expect(serviceAfterRelease.stop.id).toBe(stop.id)
+		expect(serviceAfterRelease).toBe(stop.id)
 	})
 
 	it('work-plan finalizer preserves unfinished maintenance service for another operator', async () => {
@@ -1129,7 +1129,7 @@ describe('Vehicle zone hop semantics', () => {
 			target: vehicle,
 			path: [],
 			lineId: line.id,
-			stopId: stop.id,
+			stopIndex: stop.id,
 			zoneBrowseAction: 'load',
 			goodType: 'wood',
 			quantity: 1,
@@ -1146,7 +1146,7 @@ describe('Vehicle zone hop semantics', () => {
 		step?.finish()
 		expect(isVehicleLineService(vehicle.service)).toBe(true)
 		if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
-		expect(vehicle.service.stop.id).toBe(line.stops[1]!.id)
+		expect(vehicle.service).toBe(line.stops[1]!.id)
 		expect(vehicle.storage.available('wood')).toBe(1)
 	})
 
@@ -1184,7 +1184,7 @@ describe('Vehicle zone hop semantics', () => {
 			target: vehicle,
 			path: [],
 			lineId: line.id,
-			stopId: stop.id,
+			stopIndex: stop.id,
 			zoneBrowseAction: 'load',
 			goodType: 'wood',
 			quantity: 1,
@@ -1203,7 +1203,7 @@ describe('Vehicle zone hop semantics', () => {
 		expect(vehicle.operator?.uid).toBe(character.uid)
 		expect(isVehicleLineService(vehicle.service)).toBe(true)
 		if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
-		expect(vehicle.service.stop.id).toBe(stop.id)
+		expect(vehicle.service).toBe(stop.id)
 	})
 
 	it('non-vehicle work plan releases stale vehicle usage before preparing work', async () => {
@@ -1335,7 +1335,7 @@ describe('Vehicle zone hop semantics', () => {
 		const hop = findVehicleHopJob(game, character)
 		expect(hop?.job).toBe('vehicleHop')
 		expect(hop?.lineId).toBe(line.id)
-		expect(hop?.stopId).toBe(unload.id)
+		expect(hop?.stopIndex).toBe(unload.id)
 		expect(hop?.dockEnter).toBe(true)
 	})
 
@@ -1374,10 +1374,10 @@ describe('Vehicle zone hop semantics', () => {
 		const character = game.population.createCharacter('NoZoneTarget', { q: 2, r: 0 })
 
 		const projected = projectedLineStopForVehicleHop(game, character, vehicle)
-		expect(projected?.stop.id).toBe(line.stops[1]!.id)
+		expect(projected?.stop).toBe(1)
 		const hop = findVehicleHopJob(game, character)
 		expect(hop?.job).toBe('vehicleHop')
-		expect(hop?.stopId).toBe(line.stops[1]!.id)
+		expect(hop?.stopIndex).toBe(line.stops[1]!.id)
 		expect(hop?.dockEnter).toBe(true)
 	})
 
@@ -1402,7 +1402,7 @@ describe('Vehicle zone hop semantics', () => {
 
 		const hop = findVehicleHopJob(game, character)
 		expect(hop?.job).toBe('vehicleHop')
-		expect(hop?.stopId).toBe(unload.id)
+		expect(hop?.stopIndex).toBe(unload.id)
 		expect(hop?.dockEnter).toBe(true)
 		expect(hop?.path.length).toBeGreaterThan(0)
 	})
@@ -1437,10 +1437,10 @@ describe('Vehicle zone hop semantics', () => {
 		vehicle.storage.addGood('wood', 1)
 		maybeAdvanceVehiclePastCompletedZoneStop(game, vehicle, character)
 
-		expect(isVehicleLineService(vehicle.service) && vehicle.service.stop.id).toBe(unload.id)
+		expect(isVehicleLineService(vehicle.service) && vehicle.service).toBe(unload.id)
 		const hop = findVehicleHopJob(game, character)
 		expect(hop?.job).toBe('vehicleHop')
-		expect(hop?.stopId).toBe(unload.id)
+		expect(hop?.stopIndex).toBe(unload.id)
 		expect(hop?.dockEnter).toBe(true)
 	})
 
@@ -1469,10 +1469,10 @@ describe('Vehicle zone hop semantics', () => {
 		maybeAdvanceVehiclePastCompletedZoneStop(game, vehicle, character)
 		character.stepOffVehicleKeepingControl()
 
-		expect(isVehicleLineService(vehicle.service) && vehicle.service.stop.id).toBe(load.id)
+		expect(isVehicleLineService(vehicle.service) && vehicle.service).toBe(load.id)
 		const browse = findZoneBrowseJob(game, character)
 		expect(browse?.job).toBe('zoneBrowse')
-		expect(browse?.stopId).toBe(load.id)
+		expect(browse?.stopIndex).toBe(load.id)
 		expect(browse?.zoneBrowseAction).toBe('load')
 		expect(browse?.goodType).toBe('wood')
 		expect(browse?.targetCoord).toMatchObject({ q: -4, r: 1 })
@@ -1519,7 +1519,7 @@ describe('Vehicle zone hop semantics', () => {
 		vehicle.beginLineService(line, unload, character)
 		character.operates = vehicle
 
-		expect(isVehicleLineService(vehicle.service) && vehicle.service.stop.id).toBe(unload.id)
+		expect(isVehicleLineService(vehicle.service) && vehicle.service).toBe(unload.id)
 		expect('zone' in unload).toBe(true)
 		maybeAdvanceVehiclePastCompletedZoneStop(game, vehicle, character)
 
@@ -1540,7 +1540,7 @@ describe('Vehicle zone hop semantics', () => {
 
 		const hop = findVehicleHopJob(game, character)
 		expect(hop?.job).toBe('vehicleHop')
-		expect(hop?.stopId).toBe('ChopSaw:ig-load')
+		expect(hop?.stopIndex).toBe('ChopSaw:ig-load')
 		expect(hop?.zoneBrowseAction).toBe('load')
 		expect(hop?.targetCoord).toMatchObject({ q: 9, r: -7 })
 		expect(hop?.goodType).toBe('wood')
@@ -1578,7 +1578,7 @@ describe('Vehicle zone hop semantics', () => {
 
 		const hop = findVehicleHopJob(game, character)
 		expect(hop?.job).toBe('vehicleHop')
-		expect(hop?.stopId).toBe(unload.id)
+		expect(hop?.stopIndex).toBe(unload.id)
 		expect(hop?.dockEnter).toBe(true)
 	})
 
