@@ -43,12 +43,7 @@ describe('Assigned worker effectuation', () => {
 			worker.role = 'worker'
 			void worker.scriptsContext
 
-			const vehicle = engine.game.vehicles.createVehicle(
-				'assigned-wb',
-				'wheelbarrow',
-				{ q: 0, r: 0 },
-				[line]
-			)
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			vehicle.beginService(line, line.stops[0]!, worker)
 			worker.operates = vehicle
 			worker.onboard()

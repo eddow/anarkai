@@ -54,25 +54,31 @@ const ZoneAnchorButton = (props: ZoneAnchorButtonProps) => {
 		event.stopPropagation()
 		const target = hoverTarget()
 		if (target) setHoveredObject(target)
-		const zoneId = currentTile()?.zone
-		if (zoneId) zoneOverlayState.hoveredZoneId = zoneId
+		const tile = currentTile()
+		if (tile?.zone) {
+			zoneOverlayState.hoveredZone = tile.zone
+		}
 	}
 
 	const clearHover = (event: MouseEvent) => {
 		event.stopPropagation()
 		const target = hoverTarget()
 		if (target && isHoveredObject(target)) mrg.hoveredObject = undefined
-		const zoneId = currentTile()?.zone
-		if (zoneId && zoneOverlayState.hoveredZoneId === zoneId)
-			zoneOverlayState.hoveredZoneId = undefined
+		const tile = currentTile()
+		if (tile?.zone && zoneOverlayState.hoveredZone === tile.zone)
+			zoneOverlayState.hoveredZone = undefined
 	}
 
 	const handleClick = (event: MouseEvent) => {
 		event.preventDefault()
 		event.stopPropagation()
-		const zoneId = currentTile()?.zone
-		if (zoneId) {
-			void import('@app/lib/zone-selection').then(({ showZoneObject }) => showZoneObject(zoneId))
+		const zone = currentTile()?.zone
+		const game = currentTile()?.game
+		if (zone && game) {
+			const idx = game.hex.zoneManager.definitions.indexOf(zone)
+			if (idx >= 0) {
+				void import('@app/lib/zone-selection').then(({ showZoneObject }) => showZoneObject(idx))
+			}
 		}
 	}
 

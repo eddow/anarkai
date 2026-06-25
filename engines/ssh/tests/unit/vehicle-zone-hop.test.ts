@@ -60,7 +60,6 @@ describe('Vehicle zone hop semantics', () => {
 			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
 			freightLines: [
 				gatherFreightLine({
-					id: 'VH:test-gather',
 					name: 'Test gather',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -74,7 +73,7 @@ describe('Vehicle zone hop semantics', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle('v1', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('Test', { q: 0, r: 0 })
 		bindOperatedWheelbarrowOffload(character, vehicle)
 		character.onboard()
@@ -97,7 +96,6 @@ describe('Vehicle zone hop semantics', () => {
 			],
 			freightLines: [
 				distributeFreightLine({
-					id: 'BorderDock:line',
 					name: 'Border dock',
 					hiveName: 'BorderDock',
 					coord: [1, 0],
@@ -110,9 +108,7 @@ describe('Vehicle zone hop semantics', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines.find((candidate) => candidate.id === 'BorderDock:line')!
-		const vehicle = game.vehicles.createVehicle('v-border-dock', 'wheelbarrow', { q: 0.5, r: 0 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0.5, r: 0 }, [line])
 		const character = game.population.createCharacter('BorderDockWorker', { q: 0, r: 0 })
 		vehicle.beginLineService(line, line.stops[0]!, character)
 		character.operates = vehicle
@@ -138,7 +134,6 @@ describe('Vehicle zone hop semantics', () => {
 			],
 			freightLines: [
 				distributeFreightLine({
-					id: 'AdjacentDock:line',
 					name: 'Adjacent dock',
 					hiveName: 'AdjacentDock',
 					coord: [1, 0],
@@ -151,9 +146,7 @@ describe('Vehicle zone hop semantics', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines.find((candidate) => candidate.id === 'AdjacentDock:line')!
-		const vehicle = game.vehicles.createVehicle('v-adjacent-dock', 'wheelbarrow', { q: 0, r: 0 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('AdjacentDockWorker', { q: 0, r: 0 })
 		vehicle.beginLineService(line, line.stops[0]!, character)
 		character.operates = vehicle
@@ -179,12 +172,10 @@ describe('Vehicle zone hop semantics', () => {
 			],
 			freightLines: [
 				normalizeFreightLineDefinition({
-					id: 'CompletedDock:line',
 					name: 'Completed dock line',
 					cyclic: false,
 					stops: [
 						{
-							id: 'CompletedDock:unload',
 							unloadSelection: woodOnly,
 							anchor: freightBayAnchor('CompletedDock', [0, 0]),
 						},
@@ -198,9 +189,7 @@ describe('Vehicle zone hop semantics', () => {
 
 		const line = game.freightLines.find((candidate) => candidate.id === 'CompletedDock:line')!
 		const stop = line.stops[0]!
-		const vehicle = game.vehicles.createVehicle('v-completed-dock', 'wheelbarrow', { q: 0, r: 0 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('CompletedDockWorker', { q: 0, r: 0 })
 		vehicle.beginLineService(line, stop)
 		vehicle.dock()
@@ -233,7 +222,6 @@ describe('Vehicle zone hop semantics', () => {
 			looseGoods: { wood: [[2, 0]] },
 			freightLines: [
 				gatherFreightLine({
-					id: 'HiveVH:implicit-gather:0,0',
 					name: 'Gather',
 					hiveName: 'HiveVH',
 					coord: [0, 0],
@@ -262,7 +250,7 @@ describe('Vehicle zone hop semantics', () => {
 		expect(destKey).toBe(axial.key({ q: 2, r: 0 }))
 
 		const character = game.population.createCharacter('Hop', { q: 0, r: 0 })
-		const vehicle = game.vehicles.createVehicle('vh-wheel', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		bindOperatedWheelbarrowOffload(character, vehicle)
 		character.onboard()
 
@@ -277,7 +265,6 @@ describe('Vehicle zone hop semantics', () => {
 			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
 			freightLines: [
 				gatherFreightLine({
-					id: 'VH:preview',
 					name: 'Preview',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -290,7 +277,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('pv', 'wheelbarrow', { q: 0, r: 0 })
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
 		vehicle.servedLines = [game.freightLines[0]!]
 		const preview = previewInitialVehicleService(vehicle)
 		expect(preview?.line.id).toBe(game.freightLines[0]!.id)
@@ -305,7 +292,6 @@ describe('Vehicle zone hop semantics', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					id: 'VH:begin',
 					name: 'Begin',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -320,7 +306,7 @@ describe('Vehicle zone hop semantics', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle('vb', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('Begin', { q: 0, r: 0 })
 		bindOperatedWheelbarrowOffload(character, vehicle)
 		character.onboard()
@@ -347,7 +333,6 @@ describe('Vehicle zone hop semantics', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					id: 'VH:loaded-compatible',
 					name: 'Loaded compatible',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -361,12 +346,7 @@ describe('Vehicle zone hop semantics', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle(
-			'vloaded-compatible',
-			'wheelbarrow',
-			{ q: 1, r: 0 },
-			[line]
-		)
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [line])
 		vehicle.storage.addGood('wood', 1)
 		const character = game.population.createCharacter('LoadedCompatible', { q: 2, r: 0 })
 
@@ -374,7 +354,7 @@ describe('Vehicle zone hop semantics', () => {
 		const hop = findVehicleHopJob(game, character)
 		expect(hop?.job).toBe('vehicleHop')
 		expect(hop?.needsBeginService).toBe(true)
-		expect(hop?.stopIndex).toBe(line.stops[1]!.id)
+		expect(hop?.stopIndex).toBe(1)
 	})
 
 	it('does not begin gather service for loaded goods the serving hive does not demand', async () => {
@@ -385,7 +365,6 @@ describe('Vehicle zone hop semantics', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					id: 'VH:mush-no-demand',
 					name: 'Mushroom gather',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -399,9 +378,7 @@ describe('Vehicle zone hop semantics', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle('vmush-nodemand', 'wheelbarrow', { q: 0, r: 0 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		vehicle.storage.addGood('mushrooms', 1)
 		const character = game.population.createCharacter('MushNoDemand', { q: 0, r: 0 })
 		bindOperatedWheelbarrowOffload(character, vehicle)
@@ -425,7 +402,6 @@ describe('Vehicle zone hop semantics', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					id: 'VH:loaded-outside-zone',
 					name: 'Loaded outside zone',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -439,12 +415,7 @@ describe('Vehicle zone hop semantics', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle(
-			'vloaded-outside-zone',
-			'wheelbarrow',
-			{ q: 4, r: 0 },
-			[line]
-		)
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 4, r: 0 }, [line])
 		vehicle.storage.addGood('wood', 1)
 		const character = game.population.createCharacter('LoadedOutsideZone', { q: 4, r: 1 })
 
@@ -460,7 +431,6 @@ describe('Vehicle zone hop semantics', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					id: 'VH:zone-browse',
 					name: 'Zone browse',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -479,7 +449,7 @@ describe('Vehicle zone hop semantics', () => {
 
 		const line = game.freightLines[0]!
 		const zoneStop = line.stops[0]!
-		const vehicle = game.vehicles.createVehicle('vz', 'wheelbarrow', { q: 1, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [line])
 		const character = game.population.createCharacter('Browse', { q: 1, r: 0 })
 		vehicle.beginLineService(line, zoneStop, character)
 		character.operates = vehicle
@@ -516,7 +486,6 @@ describe('Vehicle zone hop semantics', () => {
 			},
 			freightLines: [
 				gatherFreightLine({
-					id: 'VH:joint-priority',
 					name: 'Joint priority',
 					hiveName: 'JointPriority',
 					coord: [0, 0],
@@ -531,7 +500,7 @@ describe('Vehicle zone hop semantics', () => {
 
 		const line = game.freightLines[0]!
 		const zoneStop = line.stops[0]!
-		const vehicle = game.vehicles.createVehicle('joint-zone', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('JointBrowse', { q: 0, r: 0 })
 		vehicle.beginLineService(line, zoneStop, character)
 		character.operates = vehicle
@@ -559,25 +528,20 @@ describe('Vehicle zone hop semantics', () => {
 			],
 			freightLines: [
 				normalizeFreightLineDefinition({
-					id: 'VH:dist-zone',
 					name: 'Distribute zone',
 					stops: [
 						{
-							id: 'load-a',
 							loadSelection: woodOnly,
 							anchor: freightBayAnchor('A', [0, 0]),
 						},
 						{
-							id: 'current-zone',
 							zone: { kind: 'radius', center: [1, 0] as const, radius: 1 },
 						},
 						{
-							id: 'load-b',
 							loadSelection: woodOnly,
 							anchor: freightBayAnchor('B', [2, 0]),
 						},
 						{
-							id: 'future-zone',
 							zone: { kind: 'radius', center: [3, 0] as const, radius: 1 },
 						},
 					],
@@ -594,7 +558,7 @@ describe('Vehicle zone hop semantics', () => {
 		futureSiteTile.content = new BuildDwelling(futureSiteTile, 'basic_dwelling')
 
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle('vd', 'wheelbarrow', { q: 1, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [line])
 		const character = game.population.createCharacter('Distribute', { q: 1, r: 0 })
 		vehicle.beginLineService(line, line.stops[1]!, character)
 		character.operates = vehicle
@@ -613,11 +577,9 @@ describe('Vehicle zone hop semantics', () => {
 			looseGoods: { wood: [[0, 0]] },
 			freightLines: [
 				normalizeFreightLineDefinition({
-					id: 'VH:local-exchange',
 					name: 'Local exchange',
 					stops: [
 						{
-							id: 'zone',
 							loadSelection: woodOnly,
 							unloadSelection: woodOnly,
 							zone: { kind: 'radius', center: [0, 0] as const, radius: 1 },
@@ -636,9 +598,7 @@ describe('Vehicle zone hop semantics', () => {
 
 		const line = game.freightLines[0]!
 		const stop = line.stops[0]!
-		const vehicle = game.vehicles.createVehicle('v-local-exchange', 'wheelbarrow', { q: 0, r: 0 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('LocalExchange', { q: 0, r: 0 })
 		vehicle.beginLineService(line, stop, character)
 		character.operates = vehicle
@@ -672,7 +632,6 @@ describe('Vehicle zone hop semantics', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					id: 'gather-load-only',
 					name: 'Gather load only',
 					hiveName: 'GatherBay',
 					coord: [0, 0],
@@ -689,12 +648,7 @@ describe('Vehicle zone hop semantics', () => {
 
 		const line = game.freightLines[0]!
 		const stop = line.stops[0]!
-		const vehicle = game.vehicles.createVehicle(
-			'v-gather-load-zone',
-			'wheelbarrow',
-			{ q: 1, r: 0 },
-			[line]
-		)
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [line])
 		vehicle.storage.addGood('wood', 1)
 		const character = game.population.createCharacter('GatherLoadZone', { q: 1, r: 0 })
 		vehicle.beginLineService(line, stop, character)
@@ -725,17 +679,14 @@ describe('Vehicle zone hop semantics', () => {
 			looseGoods: { wood: [[2, 0]] },
 			freightLines: [
 				normalizeFreightLineDefinition({
-					id: 'VH:local-before-hive',
 					name: 'Local before hive',
 					stops: [
 						{
-							id: 'zone',
 							loadSelection: woodOnly,
 							unloadSelection: woodOnly,
 							zone: { kind: 'radius', center: [1, 0] as const, radius: 1 },
 						},
 						{
-							id: 'bay',
 							unloadSelection: woodOnly,
 							anchor: freightBayAnchor('LaterDemand', [3, 0]),
 						},
@@ -755,12 +706,7 @@ describe('Vehicle zone hop semantics', () => {
 		expect((bayHive?.needs as { wood?: unknown } | undefined)?.wood).toBeDefined()
 
 		const line = game.freightLines.find((candidate) => candidate.id === 'VH:local-before-hive')!
-		const vehicle = game.vehicles.createVehicle(
-			'v-local-before-hive',
-			'wheelbarrow',
-			{ q: 1, r: 0 },
-			[line]
-		)
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [line])
 		const character = game.population.createCharacter('LocalBeforeHive', { q: 1, r: 0 })
 		vehicle.beginLineService(line, line.stops[0]!, character)
 		character.operates = vehicle
@@ -780,11 +726,9 @@ describe('Vehicle zone hop semantics', () => {
 			looseGoods: { wood: [[0, 0]] },
 			freightLines: [
 				normalizeFreightLineDefinition({
-					id: 'VH:local-no-sink',
 					name: 'Local no sink',
 					stops: [
 						{
-							id: 'zone',
 							loadSelection: woodOnly,
 							unloadSelection: woodOnly,
 							zone: { kind: 'radius', center: [0, 0] as const, radius: 1 },
@@ -798,9 +742,7 @@ describe('Vehicle zone hop semantics', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle('v-local-no-sink', 'wheelbarrow', { q: 0, r: 0 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('LocalNoSink', { q: 0, r: 0 })
 		vehicle.beginLineService(line, line.stops[0]!, character)
 		character.operates = vehicle
@@ -825,16 +767,13 @@ describe('Vehicle zone hop semantics', () => {
 			looseGoods: { wood: [[2, 0]] },
 			freightLines: [
 				normalizeFreightLineDefinition({
-					id: 'VH:cyclic-local',
 					name: 'Cyclic local',
 					cyclic: true,
 					stops: [
 						{
-							id: 'bay',
 							anchor: freightBayAnchor('CyclicLocal', [0, 0]),
 						},
 						{
-							id: 'zone',
 							loadSelection: woodOnly,
 							unloadSelection: woodOnly,
 							zone: { kind: 'radius', center: [2, 0] as const, radius: 1 },
@@ -852,9 +791,7 @@ describe('Vehicle zone hop semantics', () => {
 		)
 
 		const line = game.freightLines.find((candidate) => candidate.id === 'VH:cyclic-local')!
-		const vehicle = game.vehicles.createVehicle('v-cyclic-local', 'wheelbarrow', { q: 2, r: 0 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 2, r: 0 }, [line])
 		const character = game.population.createCharacter('CyclicLocal', { q: 2, r: 0 })
 
 		const pick = pickInitialVehicleServiceCandidate(game, character, vehicle)
@@ -877,18 +814,15 @@ describe('Vehicle zone hop semantics', () => {
 			looseGoods: { wood: [[1, 0]] },
 			freightLines: [
 				normalizeFreightLineDefinition({
-					id: 'VH:empty-bay-keeps-zone',
 					name: 'Empty bay keeps zone',
 					cyclic: true,
 					stops: [
 						{
-							id: 'bay',
 							loadSelection: woodOnly,
 							unloadSelection: woodOnly,
 							anchor: freightBayAnchor('CyclicEmptyBay', [0, 0]),
 						},
 						{
-							id: 'zone',
 							loadSelection: woodOnly,
 							unloadSelection: woodOnly,
 							zone: { kind: 'radius', center: [0, 0] as const, radius: 1 },
@@ -906,12 +840,7 @@ describe('Vehicle zone hop semantics', () => {
 		)
 
 		const line = game.freightLines.find((candidate) => candidate.id === 'VH:empty-bay-keeps-zone')!
-		const vehicle = game.vehicles.createVehicle(
-			'v-empty-bay-keeps-zone',
-			'wheelbarrow',
-			{ q: 0, r: 0 },
-			[line]
-		)
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('EmptyBayKeepsZone', { q: 0, r: 0 })
 		vehicle.beginLineService(line, line.stops[0]!, character)
 		vehicle.dock()
@@ -929,7 +858,6 @@ describe('Vehicle zone hop semantics', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					id: 'VH:lifecycle-line',
 					name: 'Lifecycle line',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -944,7 +872,7 @@ describe('Vehicle zone hop semantics', () => {
 
 		const line = game.freightLines[0]!
 		const stop = line.stops[0]!
-		const vehicle = game.vehicles.createVehicle('vlifecycle', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('Lifecycle', { q: 0, r: 0 })
 		const plan = {
 			type: 'work',
@@ -953,7 +881,7 @@ describe('Vehicle zone hop semantics', () => {
 			target: vehicle,
 			path: [],
 			lineId: line.id,
-			stopIndex: stop.id,
+			stopIndex: 0,
 			zoneBrowseAction: 'load',
 			goodType: 'wood',
 			quantity: 1,
@@ -976,7 +904,7 @@ describe('Vehicle zone hop semantics', () => {
 		const serviceAfterRelease = vehicle.service
 		expect(isVehicleLineService(serviceAfterRelease)).toBe(true)
 		if (!isVehicleLineService(serviceAfterRelease)) throw new Error('Expected line service')
-		expect(serviceAfterRelease).toBe(stop.id)
+		expect(serviceAfterRelease).toBe(stop)
 	})
 
 	it('work-plan finalizer preserves unfinished maintenance service for another operator', async () => {
@@ -990,7 +918,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('vmaint', 'wheelbarrow', { q: 0, r: 0 }, [])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [])
 		vehicle.storage.addGood('wood', 1)
 		const character = game.population.createCharacter('Maintenance', { q: 0, r: 0 })
 		const plan = {
@@ -1031,7 +959,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('vcomplete', 'wheelbarrow', { q: 0, r: 0 }, [])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [])
 		const character = game.population.createCharacter('Complete', { q: 0, r: 0 })
 		const plan = {
 			type: 'work',
@@ -1065,12 +993,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle(
-			'vunload-lifecycle',
-			'wheelbarrow',
-			{ q: 0, r: 0 },
-			[]
-		)
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [])
 		vehicle.storage.addGood('wood', 1)
 		const character = game.population.createCharacter('UnloadLifecycle', { q: 0, r: 0 })
 		const plan: WorkPlan = {
@@ -1101,7 +1024,6 @@ describe('Vehicle zone hop semantics', () => {
 			looseGoods: { wood: [[0, 0]] },
 			freightLines: [
 				gatherFreightLine({
-					id: 'VH:native-dispatch',
 					name: 'Native dispatch',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -1116,9 +1038,7 @@ describe('Vehicle zone hop semantics', () => {
 
 		const line = game.freightLines[0]!
 		const stop = line.stops[0]!
-		const vehicle = game.vehicles.createVehicle('vnative-dispatch', 'wheelbarrow', { q: 0, r: 0 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('NativeDispatch', { q: 0, r: 0 })
 		vehicle.beginLineService(line, stop, character)
 		character.operates = vehicle
@@ -1129,7 +1049,7 @@ describe('Vehicle zone hop semantics', () => {
 			target: vehicle,
 			path: [],
 			lineId: line.id,
-			stopIndex: stop.id,
+			stopIndex: 0,
 			zoneBrowseAction: 'load',
 			goodType: 'wood',
 			quantity: 1,
@@ -1146,7 +1066,7 @@ describe('Vehicle zone hop semantics', () => {
 		step?.finish()
 		expect(isVehicleLineService(vehicle.service)).toBe(true)
 		if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
-		expect(vehicle.service).toBe(line.stops[1]!.id)
+		expect(vehicle.service?.line?.stops[1]).toBe(line.stops[1])
 		expect(vehicle.storage.available('wood')).toBe(1)
 	})
 
@@ -1156,7 +1076,6 @@ describe('Vehicle zone hop semantics', () => {
 			looseGoods: { wood: [[0, 0]] },
 			freightLines: [
 				gatherFreightLine({
-					id: 'VH:native-dispatch-cancel',
 					name: 'Native dispatch cancel',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -1171,9 +1090,7 @@ describe('Vehicle zone hop semantics', () => {
 
 		const line = game.freightLines[0]!
 		const stop = line.stops[0]!
-		const vehicle = game.vehicles.createVehicle('vnative-cancel', 'wheelbarrow', { q: 0, r: 0 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('NativeCancel', { q: 0, r: 0 })
 		vehicle.beginLineService(line, stop, character)
 		character.operates = vehicle
@@ -1184,7 +1101,7 @@ describe('Vehicle zone hop semantics', () => {
 			target: vehicle,
 			path: [],
 			lineId: line.id,
-			stopIndex: stop.id,
+			stopIndex: 0,
 			zoneBrowseAction: 'load',
 			goodType: 'wood',
 			quantity: 1,
@@ -1203,7 +1120,7 @@ describe('Vehicle zone hop semantics', () => {
 		expect(vehicle.operator?.uid).toBe(character.uid)
 		expect(isVehicleLineService(vehicle.service)).toBe(true)
 		if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
-		expect(vehicle.service).toBe(stop.id)
+		expect(vehicle.service).toBe(stop)
 	})
 
 	it('non-vehicle work plan releases stale vehicle usage before preparing work', async () => {
@@ -1214,12 +1131,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle(
-			'vnon-vehicle-plan',
-			'wheelbarrow',
-			{ q: 0, r: 0 },
-			[]
-		)
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [])
 		const character = game.population.createCharacter('NonVehiclePlan', { q: 0, r: 0 })
 		bindOperatedWheelbarrowOffload(character, vehicle)
 		character.onboard()
@@ -1248,7 +1160,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('vself-care', 'wheelbarrow', { q: 0, r: 0 }, [])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [])
 		const character = game.population.createCharacter('SelfCare', { q: 0, r: 0 })
 		bindOperatedWheelbarrowOffload(character, vehicle)
 		character.onboard()
@@ -1273,7 +1185,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('vfoot-sync', 'wheelbarrow', { q: 0, r: 0 }, [])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [])
 		const character = game.population.createCharacter('FootSync', { q: 0, r: 0 })
 		bindOperatedWheelbarrowOffload(character, vehicle)
 		character.onboard()
@@ -1300,7 +1212,6 @@ describe('Vehicle zone hop semantics', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					id: 'SubHexH:implicit-gather:0,0',
 					name: 'Sub-hex test',
 					hiveName: 'SubHexH',
 					coord: [0, 0],
@@ -1315,7 +1226,7 @@ describe('Vehicle zone hop semantics', () => {
 
 		const line = game.freightLines[0]!
 		const unload = line.stops[1]!
-		const vehicle = game.vehicles.createVehicle('v-subhex', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		vehicle.storage.addGood('wood', 1)
 		const character = game.population.createCharacter('SubHex', { q: 0, r: 0 })
 		vehicle.beginLineService(line, unload, character)
@@ -1335,7 +1246,7 @@ describe('Vehicle zone hop semantics', () => {
 		const hop = findVehicleHopJob(game, character)
 		expect(hop?.job).toBe('vehicleHop')
 		expect(hop?.lineId).toBe(line.id)
-		expect(hop?.stopIndex).toBe(unload.id)
+		expect(hop?.stopIndex).toBe(unload)
 		expect(hop?.dockEnter).toBe(true)
 	})
 
@@ -1353,7 +1264,6 @@ describe('Vehicle zone hop semantics', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					id: 'NoZoneTargetH:implicit-gather:0,0',
 					name: 'No zone target',
 					hiveName: 'NoZoneTargetH',
 					coord: [0, 0],
@@ -1367,9 +1277,7 @@ describe('Vehicle zone hop semantics', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle('v-no-zone-target', 'wheelbarrow', { q: 0, r: 0 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		vehicle.beginLineService(line, line.stops[0]!)
 		const character = game.population.createCharacter('NoZoneTarget', { q: 2, r: 0 })
 
@@ -1377,7 +1285,7 @@ describe('Vehicle zone hop semantics', () => {
 		expect(projected?.stop).toBe(1)
 		const hop = findVehicleHopJob(game, character)
 		expect(hop?.job).toBe('vehicleHop')
-		expect(hop?.stopIndex).toBe(line.stops[1]!.id)
+		expect(hop?.stopIndex).toBe(1)
 		expect(hop?.dockEnter).toBe(true)
 	})
 
@@ -1390,7 +1298,7 @@ describe('Vehicle zone hop semantics', () => {
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
-		const unload = line.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
+		const unload = line.stops[1]
 		if (!unload) throw new Error('expected ChopSaw unload stop')
 		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
@@ -1402,7 +1310,7 @@ describe('Vehicle zone hop semantics', () => {
 
 		const hop = findVehicleHopJob(game, character)
 		expect(hop?.job).toBe('vehicleHop')
-		expect(hop?.stopIndex).toBe(unload.id)
+		expect(hop?.stopIndex).toBe(unload)
 		expect(hop?.dockEnter).toBe(true)
 		expect(hop?.path.length).toBeGreaterThan(0)
 	})
@@ -1416,8 +1324,8 @@ describe('Vehicle zone hop semantics', () => {
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
-		const load = line.stops.find((stop) => stop.id === 'ChopSaw:ig-load')
-		const unload = line.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
+		const load = line.stops[0]
+		const unload = line.stops[1]
 		if (!load || !unload) throw new Error('expected ChopSaw load/unload stops')
 		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
@@ -1437,10 +1345,10 @@ describe('Vehicle zone hop semantics', () => {
 		vehicle.storage.addGood('wood', 1)
 		maybeAdvanceVehiclePastCompletedZoneStop(game, vehicle, character)
 
-		expect(isVehicleLineService(vehicle.service) && vehicle.service).toBe(unload.id)
+		expect(isVehicleLineService(vehicle.service) && vehicle.service).toBe(unload)
 		const hop = findVehicleHopJob(game, character)
 		expect(hop?.job).toBe('vehicleHop')
-		expect(hop?.stopIndex).toBe(unload.id)
+		expect(hop?.stopIndex).toBe(unload)
 		expect(hop?.dockEnter).toBe(true)
 	})
 
@@ -1453,7 +1361,7 @@ describe('Vehicle zone hop semantics', () => {
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
-		const load = line.stops.find((stop) => stop.id === 'ChopSaw:ig-load')
+		const load = line.stops[0]
 		if (!load) throw new Error('expected ChopSaw load stop')
 		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
@@ -1469,10 +1377,10 @@ describe('Vehicle zone hop semantics', () => {
 		maybeAdvanceVehiclePastCompletedZoneStop(game, vehicle, character)
 		character.stepOffVehicleKeepingControl()
 
-		expect(isVehicleLineService(vehicle.service) && vehicle.service).toBe(load.id)
+		expect(isVehicleLineService(vehicle.service) && vehicle.service).toBe(load)
 		const browse = findZoneBrowseJob(game, character)
 		expect(browse?.job).toBe('zoneBrowse')
-		expect(browse?.stopIndex).toBe(load.id)
+		expect(browse?.stopIndex).toBe(load)
 		expect(browse?.zoneBrowseAction).toBe('load')
 		expect(browse?.goodType).toBe('wood')
 		expect(browse?.targetCoord).toMatchObject({ q: -4, r: 1 })
@@ -1493,7 +1401,6 @@ describe('Vehicle zone hop semantics', () => {
 			],
 			freightLines: [
 				distributeFreightLine({
-					id: 'ZoneEmptyUnloadH:distribute',
 					name: 'Zone empty unload',
 					hiveName: 'ZoneEmptyUnloadH',
 					coord: [0, 0],
@@ -1512,14 +1419,12 @@ describe('Vehicle zone hop semantics', () => {
 			(candidate) => candidate.id === 'ZoneEmptyUnloadH:distribute'
 		)!
 		const unload = line.stops[1]!
-		const vehicle = game.vehicles.createVehicle('v-empty-unload', 'wheelbarrow', { q: 0, r: -1 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: -1 }, [line])
 		const character = game.population.createCharacter('EmptyUnload', { q: 0, r: -1 })
 		vehicle.beginLineService(line, unload, character)
 		character.operates = vehicle
 
-		expect(isVehicleLineService(vehicle.service) && vehicle.service).toBe(unload.id)
+		expect(isVehicleLineService(vehicle.service) && vehicle.service).toBe(unload)
 		expect('zone' in unload).toBe(true)
 		maybeAdvanceVehiclePastCompletedZoneStop(game, vehicle, character)
 
@@ -1560,8 +1465,8 @@ describe('Vehicle zone hop semantics', () => {
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
-		const load = line.stops.find((stop) => stop.id === 'ChopSaw:ig-load')
-		const unload = line.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
+		const load = line.stops[0]
+		const unload = line.stops[1]
 		if (!load || !unload) throw new Error('expected ChopSaw load/unload stops')
 		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
@@ -1578,7 +1483,7 @@ describe('Vehicle zone hop semantics', () => {
 
 		const hop = findVehicleHopJob(game, character)
 		expect(hop?.job).toBe('vehicleHop')
-		expect(hop?.stopIndex).toBe(unload.id)
+		expect(hop?.stopIndex).toBe(unload)
 		expect(hop?.dockEnter).toBe(true)
 	})
 
@@ -1596,18 +1501,15 @@ describe('Vehicle zone hop semantics', () => {
 			],
 			freightLines: [
 				normalizeFreightLineDefinition({
-					id: 'EndRouteH:exchange',
 					name: 'Exchange',
 					cyclic: true,
 					stops: [
 						{
-							id: 'EndRouteH:bay',
 							loadSelection: woodOnly,
 							unloadSelection: woodOnly,
 							anchor: freightBayAnchor('EndRouteH', [0, 0]),
 						},
 						{
-							id: 'EndRouteH:zone',
 							loadSelection: woodOnly,
 							unloadSelection: woodOnly,
 							zone: { kind: 'radius' as const, center: [0, 0] as const, radius: 2 },
@@ -1622,9 +1524,7 @@ describe('Vehicle zone hop semantics', () => {
 
 		const line = game.freightLines.find((candidate) => candidate.id === 'EndRouteH:exchange')!
 		const zone = line.stops[1]!
-		const vehicle = game.vehicles.createVehicle('v-end-route', 'wheelbarrow', { q: 0, r: 0 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		vehicle.beginLineService(line, zone)
 		const character = game.population.createCharacter('EndRouteWorker', { q: 0, r: 0 })
 
@@ -1653,12 +1553,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle(
-			'vresume-maintenance',
-			'wheelbarrow',
-			{ q: 0, r: 0 },
-			[]
-		)
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [])
 		vehicle.storage.addGood('wood', 1)
 		vehicle.beginMaintenanceService({ kind: 'unloadToTile', targetCoord: { q: 1, r: 0 } })
 		const character = game.population.createCharacter('ResumeMaintenance', { q: 1, r: 0 })

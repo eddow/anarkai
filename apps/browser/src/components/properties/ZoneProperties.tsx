@@ -109,9 +109,9 @@ const formatArea = (tileCount: number) => {
 }
 
 const ZoneProperties = (props: ZonePropertiesProps) => {
-	const zoneId = () => props.zoneObject.zoneId
-	const definition = () => game.hex.zoneManager.getZoneDefinition(zoneId())
-	const coords = () => game.hex.zoneManager.coordsForZone(zoneId())
+	const zoneIndex = () => props.zoneObject.zoneIndex
+	const definition = () => game.hex.zoneManager.zoneByIndex(zoneIndex())
+	const coords = () => (definition() ? game.hex.zoneManager.coordsForZone(definition()!) : [])
 	const goodsCounts = () => {
 		const counts: Record<string, number> = {}
 		for (const coord of coords()) {
@@ -144,11 +144,12 @@ const ZoneProperties = (props: ZonePropertiesProps) => {
 
 	effect`zone-properties:overlay`(() => {
 		return () => {
-			const owned = unnamedZoneOwnership.zoneId
-			const ownedDefinition = owned ? game.hex.zoneManager.getZoneDefinition(owned) : undefined
-			if (owned === zoneId() && ownedDefinition && !ownedDefinition.name.trim()) {
-				game.hex.zoneManager.removeNamedZone(owned)
-				unnamedZoneOwnership.zoneId = undefined
+			const owned = unnamedZoneOwnership.zoneIndex
+			const ownedDefinition =
+				owned !== undefined ? game.hex.zoneManager.zoneByIndex(owned) : undefined
+			if (owned === zoneIndex() && ownedDefinition && !ownedDefinition.name?.trim()) {
+				game.hex.zoneManager.removeZoneByIndex(owned)
+				unnamedZoneOwnership.zoneIndex = undefined
 				unnamedZoneOwnership.panelId = undefined
 				bumpSelectionTitleVersion()
 			}
@@ -158,36 +159,31 @@ const ZoneProperties = (props: ZonePropertiesProps) => {
 	const updateZone = (patch: { name?: string; color?: string }) => {
 		const existing = definition()
 		if (!existing) return
-		game.hex.zoneManager.defineZone({
-			id: existing.id,
-			name: patch.name ?? existing.name,
-			color: patch.color ?? existing.color,
-			builtIn: existing.builtIn,
-		})
+		if (patch.name !== undefined) (existing as { name?: string }).name = patch.name
+		if (patch.color !== undefined) (existing as { color?: string }).color = patch.color
 		if (patch.name?.trim()) {
-			unnamedZoneOwnership.zoneId = undefined
+			unnamedZoneOwnership.zoneIndex = undefined
 			unnamedZoneOwnership.panelId = undefined
 		}
 		bumpSelectionTitleVersion()
 	}
 	const deleteZone = () => {
-		const existing = definition()
-		if (!existing || existing.builtIn) return
-		game.hex.zoneManager.removeNamedZone(existing.id)
-		if (interactionMode.selectedAction === `zone:${existing.id}`)
-			interactionMode.selectedAction = ''
+		const idx = zoneIndex()
+		if (idx === undefined) return
+		game.hex.zoneManager.removeZoneByIndex(idx)
+		if (interactionMode.selectedAction === `zone:${idx}`) interactionMode.selectedAction = ''
 		bumpSelectionTitleVersion()
 		props.onClose?.()
 	}
-	const painting = () => interactionMode.selectedAction === `zone:${zoneId()}`
+	const painting = () => interactionMode.selectedAction === `zone:${zoneIndex()}`
 	const togglePaint = () => {
-		interactionMode.selectedAction = painting() ? '' : `zone:${zoneId()}`
+		interactionMode.selectedAction = painting() ? '' : `zone:${zoneIndex()}`
 	}
 	const applyHover = () => {
-		zoneOverlayState.hoveredZoneId = zoneId()
+		zoneOverlayState.hoveredZone = definition()
 	}
 	const clearHover = () => {
-		if (zoneOverlayState.hoveredZoneId === zoneId()) zoneOverlayState.hoveredZoneId = undefined
+		if (zoneOverlayState.hoveredZone === definition()) zoneOverlayState.hoveredZone = undefined
 	}
 
 	return (
@@ -288,7 +284,7 @@ const ZoneProperties = (props: ZonePropertiesProps) => {
 							class="zone-properties__button danger"
 							title="Delete zone"
 							aria-label="Delete zone"
-							disabled={!!definition()?.builtIn}
+							disabled={false}
 							onClick={deleteZone}
 							data-testid="zone-delete"
 						>

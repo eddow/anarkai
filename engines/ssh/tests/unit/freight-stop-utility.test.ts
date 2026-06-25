@@ -78,7 +78,6 @@ function marketLoopLine(patch: Partial<FreightLineDefinition> = {}): FreightLine
 				trade: { kind: 'settlement', settlementName: neighborMarketProfile.id },
 			},
 			{
-				id: 'bay',
 				unloadSelection: concreteOnly,
 				anchor: freightBayAnchor('Engineers', [0, 0]),
 			},
@@ -90,9 +89,9 @@ function marketLoopLine(patch: Partial<FreightLineDefinition> = {}): FreightLine
 describe('freight-stop-utility', () => {
 	it('freightLineStopOrder returns suffixes for non-cyclic lines and wrapped orders for cyclic lines', () => {
 		const stops = [
-			{ id: 'a', zone: { kind: 'radius' as const, center: [0, 0] as const, radius: 1 } },
-			{ id: 'b', zone: { kind: 'radius' as const, center: [1, 0] as const, radius: 1 } },
-			{ id: 'c', zone: { kind: 'radius' as const, center: [2, 0] as const, radius: 1 } },
+			{ zone: { kind: 'radius' as const, center: [0, 0] as const, radius: 1 } },
+			{ zone: { kind: 'radius' as const, center: [1, 0] as const, radius: 1 } },
+			{ zone: { kind: 'radius' as const, center: [2, 0] as const, radius: 1 } },
 		]
 		const line: FreightLineDefinition = { id: 'u:abc', name: 'ABC', stops }
 		const cyclicLine: FreightLineDefinition = { ...line, cyclic: true }
@@ -105,20 +104,20 @@ describe('freight-stop-utility', () => {
 
 	it('nextFreightLineStop wraps only for cyclic lines', () => {
 		const stops = [
-			{ id: 'a', zone: { kind: 'radius' as const, center: [0, 0] as const, radius: 1 } },
-			{ id: 'b', zone: { kind: 'radius' as const, center: [1, 0] as const, radius: 1 } },
-			{ id: 'c', zone: { kind: 'radius' as const, center: [2, 0] as const, radius: 1 } },
+			{ zone: { kind: 'radius' as const, center: [0, 0] as const, radius: 1 } },
+			{ zone: { kind: 'radius' as const, center: [1, 0] as const, radius: 1 } },
+			{ zone: { kind: 'radius' as const, center: [2, 0] as const, radius: 1 } },
 		]
 		const line: FreightLineDefinition = { id: 'u:abc', name: 'ABC', stops }
 		const cyclicLine: FreightLineDefinition = { ...line, cyclic: true }
 
-		expect(nextFreightLineStop(line, stops[1]!)).toBe(stops[2])
-		expect(nextFreightLineStop(line, stops[2]!)).toBeUndefined()
-		expect(nextFreightLineStop(cyclicLine, stops[2]!)).toBe(stops[0])
+		expect(nextFreightLineStop(line, 1)).toBe(2)
+		expect(nextFreightLineStop(line, 2)).toBeUndefined()
+		expect(nextFreightLineStop(cyclicLine, 2)).toBe(0)
 	})
 
 	it('normalizeFreightLineDefinition preserves true cyclic and omits false/default', () => {
-		const stop = { id: 'a', zone: { kind: 'radius' as const, center: [0, 0] as const, radius: 1 } }
+		const stop = { zone: { kind: 'radius' as const, center: [0, 0] as const, radius: 1 } }
 		expect(
 			normalizeFreightLineDefinition({ id: 'u:false', name: 'False', cyclic: false, stops: [stop] })
 		).not.toHaveProperty('cyclic')
@@ -287,10 +286,10 @@ describe('freight-stop-utility', () => {
 				id: 'u:future-need',
 				name: 'Future need',
 				stops: [
-					{ id: 'load-a', loadSelection: woodOnly, anchor: freightBayAnchor('A', [0, 0]) },
-					{ id: 'need-a', zone: { kind: 'radius', center: [1, 0], radius: 1 } },
-					{ id: 'load-b', loadSelection: woodOnly, anchor: freightBayAnchor('B', [2, 0]) },
-					{ id: 'need-b', zone: { kind: 'radius', center: [3, 0], radius: 1 } },
+					{ loadSelection: woodOnly, anchor: freightBayAnchor('A', [0, 0]) },
+					{ zone: { kind: 'radius', center: [1, 0], radius: 1 } },
+					{ loadSelection: woodOnly, anchor: freightBayAnchor('B', [2, 0]) },
+					{ zone: { kind: 'radius', center: [3, 0], radius: 1 } },
 				],
 			})
 			engine.loadScenario({
@@ -331,9 +330,9 @@ describe('freight-stop-utility', () => {
 				id: 'u:future-netting',
 				name: 'Future netting',
 				stops: [
-					{ id: 'current-load', loadSelection: woodOnly, anchor: freightBayAnchor('A', [0, 0]) },
-					{ id: 'future-load', loadSelection: woodOnly, anchor: freightBayAnchor('B', [2, 0]) },
-					{ id: 'future-need', zone: { kind: 'radius', center: [4, 0], radius: 1 } },
+					{ loadSelection: woodOnly, anchor: freightBayAnchor('A', [0, 0]) },
+					{ loadSelection: woodOnly, anchor: freightBayAnchor('B', [2, 0]) },
+					{ zone: { kind: 'radius', center: [4, 0], radius: 1 } },
 				],
 			})
 			engine.loadScenario({
@@ -396,12 +395,7 @@ describe('freight-stop-utility', () => {
 			installNeighborMarket(engine.game)
 			engine.game.setPlayerAccountBalance(100)
 			const line = marketLoopLine()
-			const vehicle = engine.game.vehicles.createVehicle(
-				'market-cart',
-				'wheelbarrow',
-				{ q: 4, r: 0 },
-				[line]
-			)
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 4, r: 0 }, [line])
 
 			const explanation = explainFreightStopCommerce({
 				game: engine.game,
@@ -436,7 +430,7 @@ describe('freight-stop-utility', () => {
 			const line = normalizeFreightLineDefinition({
 				id: 'dock-line',
 				name: 'Dock line',
-				stops: [{ id: 'bay', anchor: freightBayAnchor('Dockers', [0, 0]) }],
+				stops: [{ anchor: freightBayAnchor('Dockers', [0, 0]) }],
 			})
 
 			const explanation = explainFreightStopCommerce({
@@ -482,12 +476,7 @@ describe('freight-stop-utility', () => {
 			const storage = engine.game.hex.getTile({ q: 1, r: 0 })!.content as StorageAlveolus
 			storage.storage.addGood('concrete', 12)
 			const line = marketLoopLine()
-			const vehicle = engine.game.vehicles.createVehicle(
-				'market-cart',
-				'wheelbarrow',
-				{ q: 4, r: 0 },
-				[line]
-			)
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 4, r: 0 }, [line])
 
 			const explanation = explainFreightStopCommerce({
 				game: engine.game,
@@ -538,12 +527,7 @@ describe('freight-stop-utility', () => {
 					marketLoopLine().stops[1]!,
 				],
 			})
-			const vehicle = engine.game.vehicles.createVehicle(
-				'market-cart',
-				'wheelbarrow',
-				{ q: 4, r: 0 },
-				[line]
-			)
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 4, r: 0 }, [line])
 			vehicle.storage.addGood('wood', 1)
 
 			const explanation = explainFreightStopCommerce({

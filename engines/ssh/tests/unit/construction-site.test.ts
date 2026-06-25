@@ -59,7 +59,7 @@ describe('queryConstructionSiteView', () => {
 		expect(land).toBeInstanceOf(UnBuiltLand)
 		if (!(land instanceof UnBuiltLand)) return
 		land.setProject('build:sawmill')
-		game.vehicles.createVehicle('barrow-on-project', 'wheelbarrow', tile.position as AxialCoord)
+		game.vehicles.createVehicle('wheelbarrow', tile.position as AxialCoord)
 
 		const view = queryConstructionSiteView(game, tile)
 		expect(view?.phase).toBe('planned')

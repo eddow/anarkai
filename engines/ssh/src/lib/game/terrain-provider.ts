@@ -52,8 +52,8 @@ export interface TerrainSample {
 	height?: number
 	hydrology?: TerrainHydrologySample
 	zone?: {
-		id: string
-		name: string
+		name?: string
+		type: import('ssh/board/zone').ZoneType
 		color?: string
 		generated: boolean
 	}

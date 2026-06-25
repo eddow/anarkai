@@ -1,4 +1,12 @@
+import { createSyntheticHiveObjectForUid, isHiveUid } from '@app/lib/hive-inspector'
+import { isZoneObjectUid, isZonesUid } from '@app/lib/zone-selection'
 import type { DockviewWidgetScope } from '@sursaut/ui/dockview'
+import { createZoneObjectForUid } from 'ssh/board/zone-object'
+import {
+	createSyntheticFreightLineObject,
+	freightLineIdFromUid,
+	isFreightLineUid,
+} from 'ssh/freight/freight-line'
 import type { InspectorSelectableObject } from 'ssh/game/object'
 import { toAxialCoord } from 'ssh/utils/position'
 import { game, selectionState, unreactiveInfo, validateStoredSelectionState } from './globals'
@@ -14,7 +22,7 @@ type SelectableObject = Pick<InspectorSelectableObject, 'uid' | 'title'>
 const pinnedInspectorPanelIdsByUid = new Map<string, string>()
 
 function ensureGeneratedTileContent(object: SelectableObject): void {
-	if (!object.uid.startsWith('tile:')) return
+	if (!('uid' in object) || !object.uid?.startsWith('tile:')) return
 	const position = (object as Partial<InspectorSelectableObject>).position
 	const coord = position ? toAxialCoord(position) : undefined
 	if (!coord) return
@@ -95,7 +103,25 @@ function resolveSelectionPanelTitle(initialTitle?: string) {
 	const selectedUid = selectionState.selectedUid
 	if (!selectedUid) return 'Selection'
 
-	return game.getObject(selectedUid)?.title ?? 'Selection'
+	// Try registered objects first
+	for (const obj of game.objects) {
+		if (obj.uid === selectedUid) return obj.title ?? 'Selection'
+	}
+
+	// Synthetic objects
+	if (isHiveUid(selectedUid)) {
+		return createSyntheticHiveObjectForUid(game, selectedUid)?.title ?? 'Selection'
+	}
+	if (isFreightLineUid(selectedUid)) {
+		const lineId = freightLineIdFromUid(selectedUid)
+		const line = lineId ? game.freightLines.find((l) => l.id === lineId) : undefined
+		if (line) return createSyntheticFreightLineObject(game, line).title ?? 'Selection'
+	}
+	if (isZoneObjectUid(selectedUid) || isZonesUid(selectedUid)) {
+		return createZoneObjectForUid(game, selectedUid)?.title ?? 'Selection'
+	}
+
+	return 'Selection'
 }
 
 function addFollowSelectionPanel(
@@ -170,14 +196,15 @@ export function showProps(
 	if (dockviewApi) {
 		validateStoredSelectionState(dockviewApi)
 
-		const pinnedPanel = getRegisteredInspectorPanel(object.uid, dockviewApi)
+		const uid = 'uid' in object ? object.uid : undefined
+		const pinnedPanel = uid ? getRegisteredInspectorPanel(uid, dockviewApi) : undefined
 		if (pinnedPanel) {
 			focusPanel(pinnedPanel)
 			return pinnedPanel
 		}
 	}
 
-	selectionState.selectedUid = object.uid
+	if ('uid' in object) selectionState.selectedUid = object.uid
 	if (!dockviewApi) return undefined
 	return ensureFollowSelectionPanel(
 		dockviewApi,

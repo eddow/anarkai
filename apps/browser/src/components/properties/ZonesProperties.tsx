@@ -5,7 +5,7 @@ import { getZoneObject, unnamedZoneOwnership, zoneObjectUid } from '@app/lib/zon
 import { InspectorSection } from '@app/ui/anarkai'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
 import { tablerOutlinePencil, tablerOutlinePlus, tablerOutlineTrash } from 'pure-glyf/icons'
-import type { NamedZoneDefinition } from 'ssh/board/zone'
+import type { ZoneDefinition } from 'ssh/board/zone'
 import type { ZonesCollectionObject } from 'ssh/board/zone-object'
 
 css`
@@ -101,33 +101,33 @@ interface ZonesPropertiesProps {
 
 const icon = (source: string) => renderAnarkaiIcon(source, { size: 15 })
 
-const zoneLabel = (zone: NamedZoneDefinition) => zone.name?.trim() || '(unnamed zone)'
+const zoneLabel = (zone: ZoneDefinition) => zone.name?.trim() || zone.type
 
 const ZonesProperties = (_props: ZonesPropertiesProps) => {
-	const zones = () => game.hex.zoneManager.listCustomZoneDefinitions()
-	const memberCount = (zone: NamedZoneDefinition) =>
-		game.hex.zoneManager.coordsForZone(zone.id).length
+	const zones = () => game.hex.zoneManager.definitions
+	const memberCount = (zone: ZoneDefinition) => game.hex.zoneManager.coordsForZone(zone).length
 	const createZone = () => {
 		const base = `zone-${Date.now().toString(36)}`
-		const zone = game.hex.zoneManager.defineZone({
-			id: base,
-			name: '',
+		game.hex.zoneManager.defineZone({
+			name: base,
+			type: 'passive',
 			color: '#4f8cff',
 		})
-		unnamedZoneOwnership.zoneId = zone.id
-		unnamedZoneOwnership.panelId = zoneObjectUid(zone.id)
-		interactionMode.selectedAction = `zone:${zone.id}`
+		const index = game.hex.zoneManager.definitions.length - 1
+		unnamedZoneOwnership.zoneIndex = index
+		unnamedZoneOwnership.panelId = zoneObjectUid(index)
+		interactionMode.selectedAction = `zone:${base}`
 		bumpSelectionTitleVersion()
-		const object = getZoneObject(zone.id)
+		const object = getZoneObject(index)
 		if (object) showProps(object)
 	}
-	const openZone = (zone: NamedZoneDefinition) => {
-		const object = getZoneObject(zone.id)
+	const openZone = (_zone: ZoneDefinition, index: number) => {
+		const object = getZoneObject(index)
 		if (object) showProps(object)
 	}
-	const deleteUnusedZone = (zone: NamedZoneDefinition) => {
-		if (zone.builtIn || memberCount(zone) > 0) return
-		game.hex.zoneManager.removeNamedZone(zone.id)
+	const deleteUnusedZone = (_zone: ZoneDefinition, index: number) => {
+		if (memberCount(_zone) > 0) return
+		game.hex.zoneManager.removeZoneByIndex(index)
 		bumpSelectionTitleVersion()
 	}
 
@@ -155,43 +155,41 @@ const ZonesProperties = (_props: ZonesPropertiesProps) => {
 						</tr>
 					</thead>
 					<tbody>
-						<for each={zones()}>
-							{(zone) => (
-								<tr data-testid={`zones-row-${zone.id}`}>
-									<td>
-										<span
-											class="zones-properties__swatch"
-											style={{ background: zone.color ?? '#4f8cff' }}
-										/>
-									</td>
-									<td class="zones-properties__name">{zoneLabel(zone)}</td>
-									<td>{memberCount(zone)}</td>
-									<td>
-										<div class="zones-properties__row-actions">
-											<button
-												type="button"
-												class="zones-properties__icon-button"
-												title="Open zone"
-												onClick={() => openZone(zone)}
-												data-testid={`zones-open-${zone.id}`}
-											>
-												{icon(tablerOutlinePencil)}
-											</button>
-											<button
-												type="button"
-												class="zones-properties__icon-button"
-												title="Delete unused zone"
-												disabled={zone.builtIn || memberCount(zone) > 0}
-												onClick={() => deleteUnusedZone(zone)}
-												data-testid={`zones-delete-${zone.id}`}
-											>
-												{icon(tablerOutlineTrash)}
-											</button>
-										</div>
-									</td>
-								</tr>
-							)}
-						</for>
+						{zones().map((zone, i) => (
+							<tr data-testid={`zones-row-${i}`}>
+								<td>
+									<span
+										class="zones-properties__swatch"
+										style={{ background: zone.color ?? '#4f8cff' }}
+									/>
+								</td>
+								<td class="zones-properties__name">{zoneLabel(zone)}</td>
+								<td>{memberCount(zone)}</td>
+								<td>
+									<div class="zones-properties__row-actions">
+										<button
+											type="button"
+											class="zones-properties__icon-button"
+											title="Open zone"
+											onClick={() => openZone(zone, i)}
+											data-testid={`zones-open-${i}`}
+										>
+											{icon(tablerOutlinePencil)}
+										</button>
+										<button
+											type="button"
+											class="zones-properties__icon-button"
+											title="Delete unused zone"
+											disabled={memberCount(zone) > 0}
+											onClick={() => deleteUnusedZone(zone, i)}
+											data-testid={`zones-delete-${i}`}
+										>
+											{icon(tablerOutlineTrash)}
+										</button>
+									</div>
+								</td>
+							</tr>
+						))}
 					</tbody>
 				</table>
 			</div>

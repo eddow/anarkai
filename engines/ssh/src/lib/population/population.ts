@@ -1,12 +1,10 @@
 import type { Game } from 'ssh/game/game'
 import { GameObject, withContainer, withHittable } from 'ssh/game/object'
 import { type AxialCoord, toAxialCoord } from 'ssh/utils'
-import { type RandGenerator, uuid } from 'ssh/utils/numbers'
+import type { RandGenerator } from 'ssh/utils/numbers'
 import { Character } from './character'
 
 export class Population extends withContainer(withHittable(GameObject)) {
-	private characters: Map<string, Character> = new Map()
-
 	public characterGen: RandGenerator
 	constructor(public readonly game: Game) {
 		super(game)
@@ -17,67 +15,73 @@ export class Population extends withContainer(withHittable(GameObject)) {
 	hitTest(worldX: number, worldY: number, selectedAction?: string): any {
 		if (selectedAction && selectedAction !== 'select') return false
 		const coord = toAxialCoord({ x: worldX, y: worldY })
-		// Check if any character is hit
-		for (const character of this.characters.values()) {
-			if (character.hitTest(coord, selectedAction)) return character
+		for (const character of this.children) {
+			if (character instanceof Character && character.hitTest(coord, selectedAction))
+				return character
 		}
 		return false
 	}
 
-	// Create a new character
 	createCharacter(name: string, coord: AxialCoord): Character {
 		return this.game.withObjectRegistrationBatch(() => {
-			const characterUid = uuid(this.characterGen)
-			const character = new Character(this.game, characterUid, name, coord)
-			this.characters.set(characterUid, character)
+			const character = new Character(this.game, name, coord)
 			this.add(character)
 			this.game.invalidateWorkPlanning('population.create')
 			return character
 		})
 	}
+
 	character(uid: string): Character {
-		const character = this.characters.get(uid)
-		if (!character) throw new Error(`Character ${uid} not found`)
-		return character
+		for (const c of this.children) {
+			if (c instanceof Character && c.uid === uid) return c
+		}
+		throw new Error(`Character ${uid} not found`)
 	}
 
-	// Remove a character
 	removeCharacter(uid: string): boolean {
-		const character = this.characters.get(uid)
+		const character = this.character(uid)
 		if (character) {
-			this.characters.delete(uid)
 			this.delete(character)
 			this.game.invalidateWorkPlanning('population.remove')
 			return true
 		}
 		return false
 	}
+
 	get nbrFree(): number {
-		return Array.from(this.characters.values()).reduce(
-			(acc, character) => (character.assignedAlveolus === undefined ? acc + 1 : acc),
-			0
-		)
+		let count = 0
+		for (const c of this.children) {
+			if (c instanceof Character && c.assignedAlveolus === undefined) count++
+		}
+		return count
 	}
 
 	serialize() {
-		return Array.from(this.characters.values()).map((c) => c.serialize())
+		const out: any[] = []
+		for (const c of this.children) {
+			if (c instanceof Character) out.push(c.serialize())
+		}
+		return out
 	}
 
 	deserialize(data: any[]) {
 		this.game.withObjectRegistrationBatch(() => {
-			this.characters.clear()
-			// Clear existing from container
-			this.clear() // Ensure visual cleanup
-
+			this.clear()
 			for (const charData of data) {
 				const char = Character.deserialize(this.game, charData)
-				this.characters.set(char.uid, char)
 				this.add(char)
 			}
 		})
 	}
 
 	[Symbol.iterator]() {
-		return this.characters.values()
+		const children = this.children
+		return iterateChildCharacters(children)
+	}
+}
+
+function* iterateChildCharacters(children: Set<GameObject>): Generator<Character> {
+	for (const child of children) {
+		if (child instanceof Character) yield child
 	}
 }

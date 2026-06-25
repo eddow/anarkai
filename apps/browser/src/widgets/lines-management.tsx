@@ -162,7 +162,7 @@ function lineHasBay(line: FreightLineDefinition): boolean {
 function stopCoord(stop: FreightStop): AxialCoord | undefined {
 	if ('anchor' in stop) return { q: stop.anchor.coord[0], r: stop.anchor.coord[1] }
 	if ('trade' in stop) {
-		const position = game.getSettlementTradeProfile(stop.trade.settlementId)?.cityHall.position
+		const position = stop.trade.profile.cityHall.position
 		if (!position) return undefined
 		try {
 			return toAxialCoord(position)
@@ -276,9 +276,9 @@ const LinesManagementWidget = (
 	const openLine = (line: FreightLineDefinition) => {
 		selectInspectorObject(createSyntheticFreightLineObject(game, line), scope.dockviewApi)
 	}
-	const showLine = (lineId: string | undefined) => {
-		state.hoveredLineId = lineId
-		showFreightLineOverlay(lineId)
+	const showLine = (line: FreightLineDefinition | undefined) => {
+		state.hoveredLineId = line?.id
+		showFreightLineOverlay(line)
 	}
 
 	effect`lines-management:viewport-refresh`(() => {
@@ -296,7 +296,7 @@ const LinesManagementWidget = (
 		const hoveredLineId = state.hoveredLineId
 		if (!hoveredLineId) return
 		if (filteredLines().some((line) => line.id === hoveredLineId)) return
-		showLine(undefined)
+		showFreightLineOverlay(undefined)
 	})
 
 	return (
@@ -359,9 +359,9 @@ const LinesManagementWidget = (
 								data-testid="line-management-row"
 								data-line-id={line.id}
 								title={line.name}
-								onMouseenter={() => showLine(line.id)}
+								onMouseenter={() => showLine(line)}
 								onMouseleave={() => showLine(undefined)}
-								onFocus={() => showLine(line.id)}
+								onFocus={() => showLine(line)}
 								onBlur={() => showLine(undefined)}
 								onClick={() => openLine(line)}
 							>

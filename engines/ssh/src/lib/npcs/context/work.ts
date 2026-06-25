@@ -107,46 +107,6 @@ function commitmentTrace(commitment: Commitment | undefined) {
 	}
 }
 
-/**
- * Publish tile-endpoint notifications for a hop that has already committed.
- *
- * Convey can travel through border storage, but the first consumer for this event
- * is vehicle/tile presentation. Border endpoints are skipped here so v1 consumers
- * only receive owners they can resolve through the normal tile visual/entity maps.
- * The function is called after the source/target storage bookkeeping has succeeded;
- * failed or cancelled hops must stay silent.
- */
-function enqueueConveyedHopEvents(
-	character: Character,
-	movement: TrackedMovement,
-	from: AxialCoord,
-	hop: AxialCoord
-) {
-	const sourceTile = isTileCoord(from) ? character.game.hex.getTile(from) : undefined
-	const targetTile = isTileCoord(hop) ? character.game.hex.getTile(hop) : undefined
-	const base = {
-		goodType: movement.goodType,
-		movementRef: movementRefId(movement.ref),
-		characterUid: character.uid,
-		from,
-		to: hop,
-	}
-	if (sourceTile) {
-		character.game.enqueueConveyEvent({
-			...base,
-			ownerUid: sourceTile.uid,
-			endpoint: 'source',
-		})
-	}
-	if (targetTile) {
-		character.game.enqueueConveyEvent({
-			...base,
-			ownerUid: targetTile.uid,
-			endpoint: 'target',
-		})
-	}
-}
-
 function enqueueBorderStoragePresentationChange(character: Character, coord: AxialCoord): void {
 	if (isTileCoord(coord)) return
 	const border = character.game.hex.getBorder(coord)
@@ -907,7 +867,6 @@ class WorkFunctions {
 									at: axial.key(hop),
 								}
 							)
-							enqueueConveyedHopEvents(character, movement, row.from, hop)
 						} else {
 							assert(nextStorage, 'nextStorage must be defined for intermediate hop')
 							movementHive.noteMovementStorageCheckpoint(
@@ -999,7 +958,6 @@ class WorkFunctions {
 								requireTargetValid: true,
 							})
 							currentHive(movement).wakeWanderingWorkersNear(movement.provider, movement.demander)
-							enqueueConveyedHopEvents(character, movement, row.from, hop)
 						}
 					}
 					for (const { movement } of movementData) {

@@ -20,7 +20,7 @@ import {
 import { T } from '@app/lib/i18n'
 import { getZoneObject } from '@app/lib/zone-selection'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
-import { memoize, reactive } from 'mutts'
+import { memoize } from 'mutts'
 import {
 	tablerOutlineCheck,
 	tablerOutlinePencil,
@@ -29,7 +29,7 @@ import {
 	tablerOutlineTrash,
 	tablerOutlineX,
 } from 'pure-glyf/icons'
-import { settlementTradeObjectUid } from 'ssh/commerce/settlement-trade'
+import { SettlementTradeObject } from 'ssh/commerce/settlement-trade'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
 import { freightLineStationLabel } from 'ssh/freight/freight-line'
 import {
@@ -313,23 +313,26 @@ const stationTileForStop = (game: Game, stop: FreightStop) => {
 	return game.hex.getTile({ q: anchor.coord[0], r: anchor.coord[1] })
 }
 
-const zoneObjectForStop = (stop: FreightStop) => {
+const zoneObjectForStop = (stop: FreightStop, game: Game) => {
 	if (!('zone' in stop) || stop.zone.kind !== 'named') return undefined
-	return getZoneObject(stop.zone.zoneId)
-}
-
-const tradeObjectForStop = (game: Game, stop: FreightStop) => {
-	if (!('trade' in stop)) return undefined
-	return game.getObject(settlementTradeObjectUid(stop.trade.settlementId))
+	if (!stop.zone.zoneId) return undefined
+	const idx = game.hex.zoneManager.findZoneIndexByName(stop.zone.zoneId)
+	return idx >= 0 ? getZoneObject(idx) : undefined
 }
 
 const stopLabel = (game: Game, stop: FreightStop): string => {
 	if ('anchor' in stop) return freightLineStationLabel(stop.anchor)
-	if ('trade' in stop) {
-		return game.getSettlementTradeProfile(stop.trade.settlementId)?.name ?? stop.trade.settlementId
-	}
+	if ('trade' in stop) return stop.trade.profile.name
 	if (stop.zone.kind === 'named') {
-		return game.hex.zoneManager.getZoneDefinition(stop.zone.zoneId)?.name ?? stop.zone.zoneId
+		const label =
+			stop.zone.definition?.name ??
+			('zoneId' in stop.zone && stop.zone.zoneId
+				? game.hex.zoneManager.zoneByIndex(
+						game.hex.zoneManager.findZoneIndexByName(stop.zone.zoneId)
+					)?.name
+				: undefined) ??
+			stop.zone.zoneId
+		return label ?? '(unnamed zone)'
 	}
 	return `(${stop.zone.center[0]}, ${stop.zone.center[1]}) r<=${stop.zone.radius}`
 }
@@ -405,13 +408,9 @@ const commerceReasonText = (
 		.join(', ')
 }
 
-const tradeStopCanImport = (game: Game, stop: FreightStop): boolean => {
+const tradeStopCanImport = (_game: Game, stop: FreightStop): boolean => {
 	if (!('trade' in stop)) return false
-	return (
-		game
-			.getSettlementTradeProfile(stop.trade.settlementId)
-			?.offers?.some((offer) => offer.direction === 'sell') ?? false
-	)
+	return stop.trade.profile.offers.some((offer) => offer.direction === 'sell')
 }
 
 const PolicySummary = (props: { policy: GoodSelectionPolicy | undefined; label: string }) => {
@@ -481,9 +480,12 @@ const PolicySummary = (props: { policy: GoodSelectionPolicy | undefined; label: 
 }
 
 const FreightStopList = (props: FreightStopListProps) => {
-	const expanded = reactive({
-		byStopId: {} as Record<string, boolean>,
-	})
+	const expandedStops = new Set<FreightStop>()
+	const toggleExpanded = (stop: FreightStop) => {
+		if (expandedStops.has(stop)) expandedStops.delete(stop)
+		else expandedStops.add(stop)
+		apply((line) => ({ ...line }))
+	}
 	let dragFrom: number | undefined
 	const t = () => T.line.stopsEditor
 	const goods = () => T.goods
@@ -527,10 +529,6 @@ const FreightStopList = (props: FreightStopListProps) => {
 				props.onChange(addFreightDraftStop(line, line.stops.length, stop))
 			},
 		})
-	}
-	const toggleExpanded = (stopId: string) => {
-		expanded.byStopId[stopId] = !expanded.byStopId[stopId]
-		apply((line) => ({ ...line }))
 	}
 	const onDrop = (to: number) => {
 		if (props.readOnly || dragFrom === undefined) return
@@ -608,9 +606,12 @@ const FreightStopList = (props: FreightStopListProps) => {
 					<for each={stopsIndexed()}>
 						{({ stop, index }: { stop: FreightStop; index: number }) => {
 							const tile = () => stationTileForStop(props.game, stop)
-							const zoneObj = () => zoneObjectForStop(stop)
-							const tradeObj = () => tradeObjectForStop(props.game, stop)
-							const expandedPolicy = () => !!expanded.byStopId[stop.id]
+							const zoneObj = () => zoneObjectForStop(stop, props.game)
+							const tradeObj = () =>
+								'trade' in stop
+									? new SettlementTradeObject(props.game, stop.trade.profile)
+									: undefined
+							const expandedPolicy = () => expandedStops.has(stop)
 							const commerce = () => commerceForStop(index)
 							const commerceExpl = () => commerce().explanation
 							const commerceCtx = () => ({
@@ -624,7 +625,7 @@ const FreightStopList = (props: FreightStopListProps) => {
 										data-testid={`freight-stop-row-${index}`}
 										onDragOver={(event) => event.preventDefault()}
 										onDrop={() => onDrop(index)}
-										onMouseenter={() => hoverFreightLineStop(stop.id)}
+										onMouseenter={() => hoverFreightLineStop(stop)}
 										onMouseleave={() => hoverFreightLineStop(undefined)}
 									>
 										<td class="freight-stop-list__index">
@@ -744,7 +745,7 @@ const FreightStopList = (props: FreightStopListProps) => {
 													type="button"
 													class="freight-stop-list__icon-btn"
 													title="Configure policies"
-													onClick={() => toggleExpanded(stop.id)}
+													onClick={() => toggleExpanded(stop)}
 												>
 													{icon(expandedPolicy() ? tablerOutlinePencil : tablerOutlineSettings)}
 												</button>

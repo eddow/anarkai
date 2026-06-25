@@ -22,12 +22,9 @@ import {
 	roadBordersForTrace,
 } from 'ssh/board/roads'
 import { Tile, type TileTerrainState } from 'ssh/board/tile'
-import type { NamedZoneDefinition, Zone } from 'ssh/board/zone'
-import { createZoneObjectForUid } from 'ssh/board/zone-object'
 import { isConstructionSiteShell } from 'ssh/build-site'
 import {
 	createNpcSettlementTradeProfile,
-	createSettlementTradeObjectForUid,
 	type NpcSettlementTradeProfile,
 } from 'ssh/commerce/settlement-trade'
 import { applyConstructionConcreteTerrain, createConstructionShell } from 'ssh/construction-shell'
@@ -39,17 +36,14 @@ import {
 	resolveAlveolusVariant,
 	VARIANT_DELIMITER,
 } from 'ssh/construction-state'
-import type { FreightLineDefinition, SyntheticFreightLineObject } from 'ssh/freight/freight-line'
+import type { FreightLineDefinition } from 'ssh/freight/freight-line'
 import {
 	collectFreightLineBootstrapCoords,
-	createSyntheticFreightLineObject,
-	findFreightLineByUid,
+	hydrateFreightLineTradeProfiles,
 	implicitGatherFreightLinesFromHivePatches,
-	isFreightLineUid,
 	isImplicitGatherFreightLineId,
 	normalizeFreightLineDefinition,
 } from 'ssh/freight/freight-line'
-import { maybeAdvanceVehicleFromCompletedAnchorStop } from 'ssh/freight/vehicle-run'
 import {
 	GameGenerator,
 	type GeneratedCharacterData,
@@ -78,8 +72,21 @@ import {
 	previewHivePlanPlacement,
 	type SerializedHivePlan,
 } from 'ssh/hive-plan'
+import {
+	type Character,
+	deserializeCharacters,
+	type SerializedCharacter,
+	serializeCharacters,
+} from 'ssh/population/character'
 import { Population } from 'ssh/population/population'
-import { type VehicleSerializedState, Vehicles } from 'ssh/population/vehicle'
+import {
+	deserializeVehicles,
+	type SerializedVehicle,
+	serializeVehicles,
+	type VehicleSerializedState,
+	Vehicles,
+} from 'ssh/population/vehicle'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { ResidentialDemandTicker } from 'ssh/residential/demand'
 import type { AlveolusType, DepositType, GoodType, TerrainType } from 'ssh/types'
 import type { GameRenderer, InputAdapter } from 'ssh/types/engine'
@@ -92,7 +99,12 @@ import { toAxialCoord } from 'ssh/utils/position'
 import * as gameContent from '../../../assets/game-content'
 import { assert, setTraceTimeSource } from '../dev/debug.ts'
 import { GameplayFrontierController } from './gameplay-frontier'
-import type { HittableGameObject, InteractiveGameObject } from './object'
+import type {
+	GameObject,
+	HittableGameObject,
+	InspectorSelectableObject,
+	InteractiveGameObject,
+} from './object'
 import {
 	TerrainProvider,
 	type TerrainProviderDiagnostics,
@@ -112,7 +124,6 @@ const SETTLEMENT_REGION_SET_SECTOR_SPAN = 4
 export type GameEvents = {
 	gameStart(): void
 	presentationEvents(events: readonly GamePresentationEvent[]): void
-	conveyEvents(events: readonly GameConveyEvent[]): void
 	objectsAdded(objects: InteractiveGameObject[]): void
 	objectsChanged(objects: InteractiveGameObject[]): void
 	objectsRemoved(objects: InteractiveGameObject[]): void
@@ -129,14 +140,14 @@ export type GameEvents = {
 	roadsChanged(coords: AxialCoord[]): void
 }
 export type GamePresentationEvent =
-	| { type: 'storage.changed'; ownerUid: string }
-	| { type: 'vehicle.dock.changed'; ownerUid: string; vehicleUid: string }
+	| { type: 'storage.changed'; owner: GameObject }
+	| { type: 'vehicle.dock.changed'; owner: GameObject; vehicle: GameObject }
 	| { type: 'work-planning.changed'; revision: number }
 	| {
 			type: 'npc-trade.transferred'
 			lineId: string
 			stopIndex: number
-			settlementId: string
+			settlementName: string
 			vehicleUid: string
 			exported: Partial<Record<GoodType, number>>
 			imported: Partial<Record<GoodType, number>>
@@ -144,33 +155,11 @@ export type GamePresentationEvent =
 			spentVp: number
 	  }
 
-/**
- * Gameplay-facing notification that a convey hop has committed.
- *
- * This is intentionally a dirty event, not duplicated state. Consumers that need
- * current storage, vehicle, or tile details should use `ownerUid` to find the live
- * object and pull a fresh snapshot after the batch flush.
- */
-export type GameConveyEvent = {
-	type: 'conveyed'
-	/** UID of the tile-like object affected by this endpoint. Borders are omitted in v1. */
-	ownerUid: string
-	/** Which end of the completed hop this event describes. */
-	endpoint: 'source' | 'target'
-	goodType: GoodType
-	movementRef: number
-	characterUid?: string
-	/** Hop origin captured before the movement mutates its `from` coordinate. */
-	from: AxialCoord
-	/** Hop destination reached by the completed step. */
-	to: AxialCoord
-}
-
 /** Accumulated trade transfer log entry, keyed by line-stop-vehicle. */
 export interface TradeTransferLogEntry {
 	readonly lineId: string
 	readonly stopIndex: number
-	readonly settlementId: string
+	readonly settlementName: string
 	readonly vehicleUid: string
 	readonly exported: Partial<Record<GoodType, number>>
 	readonly imported: Partial<Record<GoodType, number>>
@@ -218,7 +207,7 @@ export interface AlveolusPatch {
 		ref: Ssh.ConfigurationReference
 		individual?: Ssh.AlveolusConfiguration
 	}
-	assignedZoneIds?: readonly string[]
+	assignedZoneIndices?: readonly number[]
 }
 
 export interface DwellingPatch {
@@ -274,9 +263,7 @@ type CoordPatchMap<T extends string> = Partial<Record<T, ReadonlyArray<readonly 
 type TerrainPatches = CoordPatchMap<TerrainType>
 type LooseGoodsPatches = CoordPatchMap<GoodType>
 
-export interface NamedZonePatch extends Omit<NamedZoneDefinition, 'builtIn'> {
-	readonly coords: ReadonlyArray<readonly [number, number]>
-}
+export type { ZoneDefinitionPatch } from 'ssh/board/zone'
 
 export interface GamePatches {
 	seed?: number
@@ -290,12 +277,7 @@ export interface GamePatches {
 	/** Explicit freight lines; implicit gather routes are merged from hive patches unless overridden by id. */
 	freightLines?: ReadonlyArray<FreightLineDefinition>
 	looseGoods?: LooseGoodsPatches
-	zones?: {
-		harvest?: ReadonlyArray<readonly [number, number]>
-		residential?: ReadonlyArray<readonly [number, number]>
-		commercial?: ReadonlyArray<readonly [number, number]>
-		named?: ReadonlyArray<NamedZonePatch>
-	}
+	zones?: ReadonlyArray<import('ssh/board/zone').ZoneDefinitionPatch>
 	projects?: Record<string, ReadonlyArray<readonly [number, number]>>
 	projectSites?: ReadonlyArray<ProjectSitePatch>
 	dwellings?: ReadonlyArray<DwellingPatch>
@@ -307,7 +289,12 @@ export interface GamePatches {
 export interface SaveState extends GamePatches {
 	/** In-flight convey movements; array index is the serialization identity for resume. */
 	conveyMovements?: ReadonlyArray<SerializedConveyMovement>
+	/** @deprecated Use `characters`. */
 	population: any[]
+	/** Index-based character array — array order IS identity. */
+	characters?: readonly SerializedCharacter[]
+	/** Index-based vehicle array — array order IS identity. Cross-references use indexes into `characters` and `freightLines`. */
+	serializedVehicles?: readonly SerializedVehicle[]
 	generationOptions: GameGenerationOptions
 	streamedFrontier?: Array<[number, number]>
 	/** Global named configurations */
@@ -438,7 +425,7 @@ export class Game extends Eventful<GameEvents> {
 	// Dynamically loaded usage of Hive class
 	private HiveClass?: typeof Hive
 
-	public readonly objects = reactive(new Map<string, InteractiveGameObject>())
+	public readonly objects = reactive(new Set<InteractiveGameObject>())
 	public readonly hittableObjects = new Set<HittableGameObject>()
 	public readonly hex: HexBoard
 	public readonly generator: GameGenerator
@@ -446,15 +433,13 @@ export class Game extends Eventful<GameEvents> {
 	/** Pure-dt event scheduler for timed simulation steps (characters, transforms, etc.). */
 	public readonly clock: Clock
 	private tickedObjects = new Set<{ update(deltaSeconds: number): void }>()
-	private readonly pendingInteractiveRegistrations = new Map<string, InteractiveGameObject>()
-	private readonly pendingInteractiveChanges = new Map<string, InteractiveGameObject>()
-	private readonly pendingInteractiveUnregistrations = new Map<string, InteractiveGameObject>()
+	private readonly pendingInteractiveRegistrations = new Set<InteractiveGameObject>()
+	private readonly pendingInteractiveChanges = new Set<InteractiveGameObject>()
+	private readonly pendingInteractiveUnregistrations = new Set<InteractiveGameObject>()
 	private readonly pendingPresentationEvents = new Map<string, GamePresentationEvent>()
-	private readonly pendingConveyEvents: GameConveyEvent[] = []
 	private interactiveRegistrationBatchDepth = 0
 	private interactiveLifecycleFlushScheduled = false
 	private presentationEventsFlushScheduled = false
-	private conveyEventsFlushScheduled = false
 	private _workPlanningRevision = 0
 	private terrainTerraforming: TerrainTerraformPatch[] = []
 	private readonly bootstrapGameplayCoords = new Set<string>()
@@ -525,13 +510,11 @@ export class Game extends Eventful<GameEvents> {
 		this.ticker.start()
 	}
 
-	getObject(uid: string) {
-		return (
-			this.objects.get(uid) ??
-			this.getSyntheticFreightLineObject(uid) ??
-			createSettlementTradeObjectForUid(this, uid) ??
-			createZoneObjectForUid(this, uid)
-		)
+	getObject(uid: string): InspectorSelectableObject | InteractiveGameObject | undefined {
+		for (const obj of this.objects) {
+			if (obj.uid === uid) return obj
+		}
+		return undefined
 	}
 
 	public applyBuildAction(tile: Tile, alveolusType: AlveolusType, variant?: string): boolean {
@@ -644,12 +627,18 @@ export class Game extends Eventful<GameEvents> {
 
 	public applyZoneAction(tile: Tile, zoneType: string): boolean {
 		if (!tile.canInteract(`zone:${zoneType}`)) return false
-		if (zoneType === 'none') tile.zone = undefined
-		else {
-			if (!this.hex.zoneManager.getZoneDefinition(zoneType)) {
-				this.hex.zoneManager.defineZone({ id: zoneType, name: zoneType })
-			}
-			tile.zone = zoneType as Zone
+		if (zoneType === 'none') {
+			tile.zone = undefined
+		} else {
+			const idx = this.hex.zoneManager.findZoneIndexByName(zoneType)
+			const def =
+				idx >= 0
+					? this.hex.zoneManager.zoneByIndex(idx)
+					: this.hex.zoneManager.defineZone({
+							name: zoneType,
+							type: 'passive',
+						})
+			if (def) tile.zone = def
 		}
 		return true
 	}
@@ -718,12 +707,6 @@ export class Game extends Eventful<GameEvents> {
 		return current()
 	}
 
-	getSyntheticFreightLineObject(uid: string): SyntheticFreightLineObject | undefined {
-		if (!isFreightLineUid(uid)) return undefined
-		const line = findFreightLineByUid(this.freightLines, uid)
-		return line ? createSyntheticFreightLineObject(this, line) : undefined
-	}
-
 	replaceFreightLine(line: FreightLineDefinition): void {
 		const normalized = normalizeFreightLineDefinition(line)
 		const index = this.freightLines.findIndex((entry) => entry.id === line.id)
@@ -781,51 +764,46 @@ export class Game extends Eventful<GameEvents> {
 		return this.renderer?.getTexture(spec)
 	}
 
-	register(object: InteractiveGameObject, uid?: string) {
-		this.objects.set(uid ?? crypto.randomUUID(), object)
+	register(object: InteractiveGameObject) {
+		this.objects.add(object)
 	}
 
 	unregister(object: InteractiveGameObject) {
-		this.objects.delete(object.uid)
+		this.objects.delete(object)
 	}
 
-	public enqueueInteractiveRegistration(object: InteractiveGameObject, uid?: string) {
-		const key = uid ?? object.uid
-		this.pendingInteractiveUnregistrations.delete(key)
-		this.pendingInteractiveChanges.delete(key)
-		this.pendingInteractiveRegistrations.set(key, object)
+	public enqueueInteractiveRegistration(object: InteractiveGameObject) {
+		this.pendingInteractiveUnregistrations.delete(object)
+		this.pendingInteractiveChanges.delete(object)
+		this.pendingInteractiveRegistrations.add(object)
 		this.scheduleInteractiveLifecycleFlush()
 	}
 
 	public enqueueInteractiveChange(object: InteractiveGameObject) {
-		const key = object.uid
 		if (
-			this.pendingInteractiveRegistrations.has(key) ||
-			this.pendingInteractiveUnregistrations.has(key)
+			this.pendingInteractiveRegistrations.has(object) ||
+			this.pendingInteractiveUnregistrations.has(object)
 		) {
 			return
 		}
-		if (!this.objects.has(key)) return
-		this.pendingInteractiveChanges.set(key, object)
+		if (!this.objects.has(object)) return
+		this.pendingInteractiveChanges.add(object)
 		this.scheduleInteractiveLifecycleFlush()
 	}
 
-	public enqueueStoragePresentationChange(owner: { uid: string }): void {
-		const event: GamePresentationEvent = { type: 'storage.changed', ownerUid: owner.uid }
-		this.pendingPresentationEvents.set(`${event.type}:${event.ownerUid}`, event)
+	public enqueueStoragePresentationChange(owner: GameObject): void {
+		const event: GamePresentationEvent = { type: 'storage.changed', owner }
+		this.pendingPresentationEvents.set(`${event.type}:${owner.uid}`, event)
 		this.schedulePresentationEventsFlush()
 	}
 
-	public enqueueVehicleDockPresentationChange(
-		owner: { uid: string },
-		vehicle: { uid: string }
-	): void {
+	public enqueueVehicleDockPresentationChange(owner: GameObject, vehicle: GameObject): void {
 		const event: GamePresentationEvent = {
 			type: 'vehicle.dock.changed',
-			ownerUid: owner.uid,
-			vehicleUid: vehicle.uid,
+			owner,
+			vehicle,
 		}
-		this.pendingPresentationEvents.set(`${event.type}:${event.ownerUid}:${event.vehicleUid}`, event)
+		this.pendingPresentationEvents.set(`${event.type}:${owner.uid}:${vehicle.uid}`, event)
 		this.schedulePresentationEventsFlush()
 	}
 
@@ -864,18 +842,6 @@ export class Game extends Eventful<GameEvents> {
 		return out.sort((a, b) => b.tick - a.tick)
 	}
 
-	/**
-	 * Queue a convey completion event for the current mutation turn.
-	 *
-	 * Unlike storage presentation events, convey endpoint events are not deduped:
-	 * a batch may legitimately contain source and target events for the same
-	 * movement, or multiple movements landing on the same owner.
-	 */
-	public enqueueConveyEvent(event: Omit<GameConveyEvent, 'type'>): void {
-		this.pendingConveyEvents.push({ type: 'conveyed', ...event })
-		this.scheduleConveyEventsFlush()
-	}
-
 	get workPlanningRevision(): number {
 		return this._workPlanningRevision
 	}
@@ -905,37 +871,35 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	public enqueueInteractiveUnregistration(object: InteractiveGameObject) {
-		const key = object.uid
-		if (this.pendingInteractiveRegistrations.get(key) === object) {
-			this.pendingInteractiveRegistrations.delete(key)
+		if (this.pendingInteractiveRegistrations.has(object)) {
+			this.pendingInteractiveRegistrations.delete(object)
 			return
 		}
-		this.pendingInteractiveRegistrations.delete(key)
-		this.pendingInteractiveChanges.delete(key)
-		if (this.objects.has(key)) {
-			this.pendingInteractiveUnregistrations.set(key, object)
+		this.pendingInteractiveRegistrations.delete(object)
+		this.pendingInteractiveChanges.delete(object)
+		if (this.objects.has(object)) {
+			this.pendingInteractiveUnregistrations.add(object)
 		}
 		this.scheduleInteractiveLifecycleFlush()
 	}
 
 	public flushInteractiveChanges(): InteractiveGameObject[] {
 		if (this.pendingInteractiveChanges.size === 0) return []
-		const changed = [...this.pendingInteractiveChanges.values()]
+		const changed = [...this.pendingInteractiveChanges]
 		this.pendingInteractiveChanges.clear()
-		return changed.filter((object) => this.objects.get(object.uid) === object)
+		return changed.filter((object) => this.objects.has(object))
 	}
 
 	public flushInteractiveUnregistrations(): InteractiveGameObject[] {
 		if (this.pendingInteractiveUnregistrations.size === 0) return []
-		const pending = [...this.pendingInteractiveUnregistrations.entries()]
+		const pending = [...this.pendingInteractiveUnregistrations]
 		this.pendingInteractiveUnregistrations.clear()
 		const removed: InteractiveGameObject[] = []
 		atomic(() => {
-			for (const [key, object] of pending) {
-				const existing = this.objects.get(key)
-				if (!existing || existing !== object) continue
-				this.objects.delete(key)
-				removed.push(existing)
+			for (const object of pending) {
+				if (!this.objects.has(object)) continue
+				this.objects.delete(object)
+				removed.push(object)
 			}
 		})()
 		return removed
@@ -943,13 +907,13 @@ export class Game extends Eventful<GameEvents> {
 
 	public flushInteractiveRegistrations(): InteractiveGameObject[] {
 		if (this.pendingInteractiveRegistrations.size === 0) return []
-		const pending = [...this.pendingInteractiveRegistrations.entries()]
+		const pending = [...this.pendingInteractiveRegistrations]
 		this.pendingInteractiveRegistrations.clear()
 		const added: InteractiveGameObject[] = []
 		atomic(() => {
-			for (const [key, object] of pending) {
-				if (this.objects.get(key) === object) continue
-				this.objects.set(key, object)
+			for (const object of pending) {
+				if (this.objects.has(object)) continue
+				this.objects.add(object)
 				added.push(object)
 			}
 		})()
@@ -988,24 +952,6 @@ export class Game extends Eventful<GameEvents> {
 		this.presentationEventsFlushScheduled = true
 		queueMicrotask(() => {
 			this.flushPresentationEvents()
-		})
-	}
-
-	private flushConveyEvents() {
-		this.conveyEventsFlushScheduled = false
-		if (this.pendingConveyEvents.length === 0) return
-		const events = this.pendingConveyEvents.splice(0)
-		this.emit('conveyEvents', events)
-		for (const vehicle of this.vehicles) {
-			maybeAdvanceVehicleFromCompletedAnchorStop(this, vehicle)
-		}
-	}
-
-	private scheduleConveyEventsFlush() {
-		if (this.conveyEventsFlushScheduled) return
-		this.conveyEventsFlushScheduled = true
-		queueMicrotask(() => {
-			this.flushConveyEvents()
 		})
 	}
 
@@ -1184,9 +1130,7 @@ export class Game extends Eventful<GameEvents> {
 			for (const alveolus of hive.alveoli)
 				coords.push({ q: alveolus.coord[0], r: alveolus.coord[1] })
 		}
-		for (const coord of patches.zones?.harvest ?? []) coords.push({ q: coord[0], r: coord[1] })
-		for (const coord of patches.zones?.residential ?? []) coords.push({ q: coord[0], r: coord[1] })
-		for (const zone of patches.zones?.named ?? []) {
+		for (const zone of patches.zones ?? []) {
 			for (const coord of zone.coords) coords.push({ q: coord[0], r: coord[1] })
 		}
 		for (const coordsForProject of Object.values(patches.projects ?? {})) {
@@ -1235,9 +1179,7 @@ export class Game extends Eventful<GameEvents> {
 		for (const hive of patches.hives ?? []) {
 			for (const alveolus of hive.alveoli) addPatchCoord(alveolus.coord)
 		}
-		for (const coord of patches.zones?.harvest ?? []) addPatchCoord(coord)
-		for (const coord of patches.zones?.residential ?? []) addPatchCoord(coord)
-		for (const zone of patches.zones?.named ?? []) {
+		for (const zone of patches.zones ?? []) {
 			for (const coord of zone.coords) addPatchCoord(coord)
 		}
 		for (const coordsForProject of Object.values(patches.projects ?? {})) {
@@ -1618,13 +1560,12 @@ export class Game extends Eventful<GameEvents> {
 		const generatedZone = this.hex.zoneManager.getGeneratedZone(coord)
 		const zone = explicitZone ?? generatedZone
 		if (!zone) return sample
-		const definition = this.hex.zoneManager.getZoneDefinition(zone)
 		return {
 			...sample,
 			zone: {
-				id: String(zone),
-				name: definition?.name ?? String(zone),
-				color: definition?.color,
+				name: zone.name ?? zone.type,
+				type: zone.type,
+				color: zone.color,
 				generated: explicitZone === undefined && generatedZone !== undefined,
 			},
 		}
@@ -1781,7 +1722,7 @@ export class Game extends Eventful<GameEvents> {
 
 	private isGeneratedInfrastructureZone(coord: AxialCoord): boolean {
 		const zone = this.hex.zoneManager.getGeneratedZone(coord)
-		return zone !== undefined && zone !== 'harvest'
+		return zone !== undefined && zone.type !== 'harvest'
 	}
 
 	private shouldSuppressGeneratedBurden(tileInfo: GeneratedTileData): boolean {
@@ -2116,6 +2057,7 @@ export class Game extends Eventful<GameEvents> {
 		for (const line of patches.freightLines ?? [])
 			merged.set(line.id, normalizeFreightLineDefinition(line))
 		this.freightLines = [...merged.values()]
+		hydrateFreightLineTradeProfiles(this.freightLines, this)
 	}
 
 	private applyTilePatches(patches: NonNullable<GamePatches['tiles']>) {
@@ -2329,7 +2271,7 @@ export class Game extends Eventful<GameEvents> {
 						}
 					}
 				}
-				if (a.assignedZoneIds) alv.setAssignedZoneIds(a.assignedZoneIds)
+				if (a.assignedZoneIndices) alv.setAssignedZoneIndices(a.assignedZoneIndices)
 				if (!alv.hive && this.HiveClass) {
 					const h = this.HiveClass.for(tile)
 					if (hive.name !== undefined) h.name = hive.name
@@ -2353,51 +2295,32 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	private applyZonePatches(zones: NonNullable<GamePatches['zones']>) {
-		for (const zone of zones.named ?? []) {
-			this.hex.zoneManager.defineZone(zone)
-		}
-		const applyCoords = (
-			zone: Zone,
-			coords: ReadonlyArray<readonly [number, number]> | undefined
-		) => {
-			for (const coord of coords ?? []) {
+		for (const patch of zones) {
+			const def = this.hex.zoneManager.defineZone({
+				name: patch.name,
+				color: patch.color,
+				type: patch.type,
+			})
+			for (const coord of patch.coords) {
 				const coordObj = { q: coord[0], r: coord[1] }
 				const tile = this.hex.getTile(coordObj)
 				if (!tile) continue
-				tile.zone = zone
-			}
-		}
-		applyCoords('harvest', zones.harvest)
-		applyCoords('residential', zones.residential)
-		applyCoords('commercial', zones.commercial)
-		for (const zone of zones.named ?? []) {
-			for (const coord of zone.coords) {
-				const coordObj = { q: coord[0], r: coord[1] }
-				const tile = this.hex.getTile(coordObj)
-				if (!tile) continue
-				tile.zone = zone.id
+				tile.zone = def
 			}
 		}
 	}
 
 	private applyGeneratedZonePatches(zones: NonNullable<GamePatches['zones']>) {
-		for (const zone of zones.named ?? []) {
-			this.hex.zoneManager.defineZone({ ...zone, generated: true, readonly: true })
-		}
-		const applyCoords = (
-			zone: Zone,
-			coords: ReadonlyArray<readonly [number, number]> | undefined
-		) => {
-			for (const coord of coords ?? []) {
-				this.hex.zoneManager.setGeneratedZone({ q: coord[0], r: coord[1] }, zone)
-			}
-		}
-		applyCoords('harvest', zones.harvest)
-		applyCoords('residential', zones.residential)
-		applyCoords('commercial', zones.commercial)
-		for (const zone of zones.named ?? []) {
-			for (const coord of zone.coords) {
-				this.hex.zoneManager.setGeneratedZone({ q: coord[0], r: coord[1] }, zone.id)
+		for (const patch of zones) {
+			const def = this.hex.zoneManager.defineZone({
+				name: patch.name,
+				color: patch.color,
+				type: patch.type,
+				generated: true,
+				readonly: true,
+			})
+			for (const coord of patch.coords) {
+				this.hex.zoneManager.setGeneratedZone({ q: coord[0], r: coord[1] }, def)
 			}
 		}
 	}
@@ -2528,18 +2451,8 @@ export class Game extends Eventful<GameEvents> {
 			.filter((coord) => !this.bootstrapGameplayCoords.has(axial.key(coord)))
 			.filter((coord) => this.hex.getTile(coord)?.asGenerated)
 			.map((coord) => [coord.q, coord.r] as [number, number])
-		const zones: {
-			harvest: Array<[number, number]>
-			residential: Array<[number, number]>
-			commercial: Array<[number, number]>
-			named: NamedZonePatch[]
-		} = {
-			harvest: [],
-			residential: [],
-			commercial: [],
-			named: [],
-		}
-		const namedZoneCoords = new Map<string, Array<[number, number]>>()
+		const zoneTypePatches: import('ssh/board/zone').ZoneDefinitionPatch[] = []
+		const zoneCoordMap = new Map<import('ssh/board/zone').ZoneDefinition, Array<[number, number]>>()
 		const projects: Record<string, Array<[number, number]>> = {}
 		const projectSites: ProjectSitePatch[] = []
 		const dwellings: DwellingPatch[] = []
@@ -2556,16 +2469,10 @@ export class Game extends Eventful<GameEvents> {
 			if (!coord) continue
 			const { q, r } = coord
 			const zone = this.hex.zoneManager.getZone(coord)
-			if (zone === 'harvest') {
-				zones.harvest!.push([q, r])
-			} else if (zone === 'residential') {
-				zones.residential!.push([q, r])
-			} else if (zone === 'commercial') {
-				zones.commercial!.push([q, r])
-			} else if (zone) {
-				const coords = namedZoneCoords.get(zone) ?? []
+			if (zone) {
+				const coords = zoneCoordMap.get(zone) ?? []
 				coords.push([q, r])
-				namedZoneCoords.set(zone, coords)
+				zoneCoordMap.set(zone, coords)
 			}
 			if (tile.asGenerated) continue
 			const terrainState = tile.terrainState
@@ -2676,8 +2583,8 @@ export class Game extends Eventful<GameEvents> {
 						individual: content.individualConfiguration,
 					}
 				}
-				if (content.assignedZoneIds.length > 0) {
-					patch.assignedZoneIds = [...content.assignedZoneIds]
+				if (content.assignedZoneIndices.length > 0) {
+					patch.assignedZoneIndices = [...content.assignedZoneIndices]
 				}
 				hives.get(content.hive)!.push(patch)
 			}
@@ -2721,17 +2628,30 @@ export class Game extends Eventful<GameEvents> {
 		}
 
 		for (const definition of this.hex.zoneManager.listCustomZoneDefinitions()) {
-			zones.named.push({
-				id: definition.id,
+			zoneTypePatches.push({
 				name: definition.name,
 				color: definition.color,
-				harvestable: definition.harvestable,
-				coords: namedZoneCoords.get(definition.id) ?? [],
+				type: definition.type,
+				coords: zoneCoordMap.get(definition) ?? [],
 			})
 		}
 
 		const { rows: conveyMovements, indexByRef } = collectSerializedConveyMovementsWithIndex(this)
 		this.conveySaveIndexByRef = indexByRef
+
+		// Build index maps for index-based serialization
+		const allVehicles: Vehicle[] = []
+		const allCharacters: Character[] = []
+		for (const v of this.vehicles) allVehicles.push(v)
+		for (const c of this.population) allCharacters.push(c)
+
+		const lineIndex = new Map<FreightLineDefinition, number>()
+		for (let i = 0; i < this.freightLines.length; i++) lineIndex.set(this.freightLines[i]!, i)
+		const characterIndex = new Map<Character, number>()
+		for (let i = 0; i < allCharacters.length; i++) characterIndex.set(allCharacters[i]!, i)
+		const vehicleIndex = new Map<Vehicle, number>()
+		for (let i = 0; i < allVehicles.length; i++) vehicleIndex.set(allVehicles[i]!, i)
+
 		try {
 			return {
 				tiles,
@@ -2743,7 +2663,7 @@ export class Game extends Eventful<GameEvents> {
 				freightLines: [...this.freightLines],
 				looseGoods: looseGoodsPatches,
 				streamedFrontier,
-				zones,
+				zones: zoneTypePatches,
 				projects,
 				projectSites,
 				dwellings,
@@ -2752,6 +2672,9 @@ export class Game extends Eventful<GameEvents> {
 				roads,
 				conveyMovements,
 				population: this.population.serialize(),
+				// Index-based format (new) — vehicle/character references use array indexes
+				serializedVehicles: serializeVehicles(allVehicles, lineIndex, characterIndex),
+				characters: serializeCharacters(allCharacters, vehicleIndex),
 				generationOptions: this.generationOptions,
 				namedConfigurations: this.configurationManager.serialize(),
 				hiveConfigurations,
@@ -2810,9 +2733,36 @@ export class Game extends Eventful<GameEvents> {
 
 		this.conveyRestoredAtLoad = restoreSerializedConveyMovements(this, state.conveyMovements)
 
-		// 4. Load Population (after board is ready)
-		if (state.population) {
-			this.population.deserialize(state.population)
+		// 4. Restore vehicles + characters (index-based format)
+		// Pass 1: create characters (no vehicle refs yet) and vehicles (operators wired from character array)
+		// Pass 2: wire character→vehicle cross-references
+		if (state.serializedVehicles && state.characters) {
+			const characters = deserializeCharacters(this, state.characters, [])
+			const vehicles = deserializeVehicles(
+				this,
+				state.serializedVehicles,
+				characters,
+				this.freightLines
+			)
+
+			// Wire character→vehicle references (characters' operatedVehicleIndex → actual Vehicle)
+			for (let i = 0; i < state.characters.length; i++) {
+				const row = state.characters[i]
+				const character = characters[i]
+				if (!character || row.operatedVehicleIndex === undefined) continue
+				const vehicle = vehicles[row.operatedVehicleIndex]
+				if (!vehicle) continue
+				character.operates = vehicle
+				if (row.driving) character.onboard()
+			}
+
+			for (const vehicle of vehicles) this.vehicles.add(vehicle)
+			for (const character of characters) this.population.add(character)
+		} else {
+			// Legacy fallback
+			if (state.population) {
+				this.population.deserialize(state.population)
+			}
 		}
 		console.info('[save-load][loadGameData] completed', {
 			population: state.population?.length ?? 0,
@@ -2870,22 +2820,22 @@ export class Game extends Eventful<GameEvents> {
 							coords.push(offset)
 						}
 					} else if (zoneDef.kind === 'named') {
-						// Get coords for named zone
-						const zoneCoords = this.hex.zoneManager.coordsForZone(zoneDef.zoneId)
-						for (const coord of zoneCoords) {
-							coords.push(coord)
+						if (zoneDef.definition) {
+							const zoneCoords = this.hex.zoneManager.coordsForZone(zoneDef.definition)
+							for (const coord of zoneCoords) {
+								coords.push(coord)
+							}
 						}
 					}
 				} else if ('trade' in stop) {
-					const profile = this.getSettlementTradeProfile(stop.trade.settlementName)
+					const profile = stop.trade.profile
 					if (profile) coords.push(profile.center)
 				}
 			}
 		}
 
-		// Add named zone coordinates
 		for (const zoneDef of this.hex.zoneManager.listCustomZoneDefinitions()) {
-			const zoneCoords = this.hex.zoneManager.coordsForZone(zoneDef.id)
+			const zoneCoords = this.hex.zoneManager.coordsForZone(zoneDef)
 			for (const coord of zoneCoords) {
 				coords.push(coord)
 			}
@@ -2968,11 +2918,9 @@ export class Game extends Eventful<GameEvents> {
 		this.pendingInteractiveChanges.clear()
 		this.pendingInteractiveUnregistrations.clear()
 		this.pendingPresentationEvents.clear()
-		this.pendingConveyEvents.splice(0)
 		this.objects.clear()
 		this.interactiveLifecycleFlushScheduled = false
 		this.presentationEventsFlushScheduled = false
-		this.conveyEventsFlushScheduled = false
 		this._workPlanningRevision = 0
 	}
 }

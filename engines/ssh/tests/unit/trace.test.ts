@@ -58,9 +58,7 @@ describe('safe trace serialization', () => {
 
 		const tile = game.hex.getTile({ q: 0, r: 0 })
 		if (!tile) throw new Error('expected trace tile')
-		const vehicle = game.vehicles.createVehicle('trace-vehicle', 'wheelbarrow', { q: 0, r: 0 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		vehicle.storage.addGood('wood', 2)
 		const character = game.population.createCharacter('TraceCharacter', { q: 0, r: 0 })
 		vehicle.beginService(line, line.stops[0]!, character)

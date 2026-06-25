@@ -17,7 +17,7 @@ import { Alveolus } from './content/alveolus'
 import type { TileContent } from './content/content'
 import { UnBuiltLand } from './content/unbuilt-land'
 import type { LooseGood } from './looseGoods'
-import type { Zone } from './zone'
+import type { ZoneDefinition } from './zone'
 
 export interface TileTerrainState {
 	terrain?: TerrainType
@@ -72,7 +72,7 @@ export class Tile extends withInteractive(GameObject) {
 		public readonly board: HexBoard,
 		coord: AxialCoord
 	) {
-		super(board.game, `tile:${coord.q},${coord.r}`)
+		super(board.game)
 		this.position = coord
 		// Set tile reference on content
 	}
@@ -144,23 +144,24 @@ export class Tile extends withInteractive(GameObject) {
 	}
 
 	// Zone getter/setter
-	get zone(): Zone | undefined {
+	get zone(): ZoneDefinition | undefined {
 		return this.board.zoneManager.getZone(toAxialCoord(this.position))
 	}
 
-	get generatedZone(): Zone | undefined {
+	get generatedZone(): ZoneDefinition | undefined {
 		return this.board.zoneManager.getGeneratedZone(toAxialCoord(this.position))
 	}
 
-	get effectiveZone(): Zone | undefined {
+	get effectiveZone(): ZoneDefinition | undefined {
 		return this.board.zoneManager.getEffectiveZone(toAxialCoord(this.position))
 	}
 
-	set zone(zone: Zone | undefined) {
+	set zone(zone: ZoneDefinition | undefined) {
+		const coord = toAxialCoord(this.position)
 		if (zone === undefined) {
-			this.board.zoneManager.removeZone(toAxialCoord(this.position))
+			this.board.zoneManager.removeZone(coord)
 		} else {
-			this.board.zoneManager.setZone(toAxialCoord(this.position), zone)
+			this.board.zoneManager.setZone(coord, zone)
 		}
 		this.asGenerated = false
 		this.board.game.enqueueInteractiveChange(this)
@@ -168,7 +169,7 @@ export class Tile extends withInteractive(GameObject) {
 
 	get clearing(): boolean {
 		return (
-			this.zone === 'residential' ||
+			this.zone?.type === 'residential' ||
 			(!!this.content &&
 				(('project' in this.content && !!this.content.project) || this.content instanceof Alveolus))
 		)

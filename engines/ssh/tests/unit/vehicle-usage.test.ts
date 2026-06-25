@@ -44,7 +44,7 @@ describe('Vehicle usage invariant', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('vu-begin', 'wheelbarrow', { q: 0, r: 0 }, [])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [])
 		vehicle.storage.addGood('wood', 1)
 		const character = game.population.createCharacter('UsageBegin', { q: 0, r: 0 })
 		const plan: WorkPlan = {
@@ -88,7 +88,7 @@ describe('Vehicle usage invariant', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('vu-walk-link', 'wheelbarrow', { q: 1, r: 0 }, [])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [])
 		const character = game.population.createCharacter('UsageWalk', { q: 0, r: 0 })
 		const job = findVehicleOffloadJob(game, character)
 		expect(job?.job).toBe('vehicleOffload')
@@ -126,12 +126,7 @@ describe('Vehicle usage invariant', () => {
 		if (!targetTile) throw new Error('expected target tile')
 		const looseGood = targetTile.looseGoods.find((good) => good.goodType === 'mushrooms')
 		if (!looseGood) throw new Error('expected loose mushrooms')
-		const vehicle = game.vehicles.createVehicle(
-			'vu-stale-pickup',
-			'pickup_truck',
-			{ q: 0, r: 0 },
-			[]
-		)
+		const vehicle = game.vehicles.createVehicle('pickup_truck', { q: 0, r: 0 }, [])
 		const character = game.population.createCharacter('StalePickup', { q: 0, r: 0 })
 		vehicle.beginMaintenanceService(
 			{ kind: 'loadFromBurden', looseGood, targetCoord: { q: 1, r: 0 } },
@@ -189,7 +184,7 @@ describe('Vehicle usage invariant', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('vu-release', 'wheelbarrow', { q: 0, r: 0 }, [])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [])
 		vehicle.storage.addGood('wood', 1)
 		const character = game.population.createCharacter('UsageRelease', { q: 0, r: 0 })
 		bindOperatedWheelbarrowOffload(character, vehicle, {
@@ -243,7 +238,7 @@ describe('Vehicle usage invariant', () => {
 
 		const line = game.freightLines[0]!
 		const stop = line.stops[0]!
-		const vehicle = game.vehicles.createVehicle('vu-drift', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const first = game.population.createCharacter('UsageFirst', { q: 0, r: 0 })
 		const second = game.population.createCharacter('UsageSecond', { q: 1, r: 0 })
 		vehicle.beginLineService(line, stop, first)
@@ -269,7 +264,7 @@ describe('Vehicle usage invariant', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('vu-foot', 'wheelbarrow', { q: 0, r: 0 }, [])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [])
 		const character = game.population.createCharacter('UsageFoot', { q: 0, r: 0 })
 		bindOperatedWheelbarrowOffload(character, vehicle)
 		character.onboard()
@@ -306,9 +301,7 @@ describe('Vehicle usage invariant', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle('vu-line-lock', 'wheelbarrow', { q: 0, r: 0 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('UsageLock', { q: 0, r: 0 })
 		vehicle.beginLineService(line, line.stops[0]!, character)
 
@@ -337,7 +330,7 @@ describe('Vehicle usage invariant', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('vu-wander-away', 'wheelbarrow', { q: 0, r: 0 }, [])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [])
 		const character = game.population.createCharacter('UsageWanderAway', { q: 0, r: 0 })
 		bindOperatedWheelbarrowOffload(character, vehicle)
 		character.onboard()
@@ -364,7 +357,7 @@ describe('Vehicle usage invariant', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('vu-work-away', 'wheelbarrow', { q: 0, r: 0 }, [])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [])
 		const character = game.population.createCharacter('UsageWorkAway', { q: 0, r: 0 })
 		bindOperatedWheelbarrowOffload(character, vehicle)
 		character.onboard()

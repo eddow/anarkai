@@ -297,7 +297,7 @@ export function summarizeFreightStopForDebug(stop: FreightStop) {
 			stop.zone.kind === 'named'
 				? {
 						kind: stop.zone.kind,
-						zoneId: stop.zone.zoneId,
+						zoneDef: stop.zone.definition?.name ?? stop.zone.zoneId,
 					}
 				: {
 						kind: stop.zone.kind,
@@ -380,7 +380,9 @@ function summarizeSelectedObjectForDebug(selected: unknown, tailCount: number) {
 
 export function buildGameDebugDump(game: Game, options: BuildGameDebugDumpOptions = {}) {
 	const logsCount = options.logsTail ?? 12
-	const selected = options.selectedUid ? game.getObject(options.selectedUid) : undefined
+	const selected = options.selectedUid
+		? [...game.objects].find((obj) => obj.uid === options.selectedUid)
+		: undefined
 	return {
 		clock: { virtualTime: game.clock.virtualTime },
 		generationOptions: safeDebugValueForDump(game.generationOptions),

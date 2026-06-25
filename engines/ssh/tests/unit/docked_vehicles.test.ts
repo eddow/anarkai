@@ -24,9 +24,8 @@ describe('docked vehicle collectors', () => {
 	}
 
 	/** Stops are passed straight to `beginLineService` (no resolver); `hiveName` is unused here. */
-	function stopAt(id: string, q: number, r: number): FreightStop {
+	function stopAt(q: number, r: number): FreightStop {
 		return {
-			id,
 			anchor: {
 				kind: 'alveolus',
 				hiveName: '',
@@ -50,18 +49,18 @@ describe('docked vehicle collectors', () => {
 		tileB.content = bayB
 		if (!(bayA instanceof FreightBayAlveolus)) throw new Error('freight bay must be freight bay')
 
-		const stop = stopAt('bay-a', 0, 0)
-		const otherStop = stopAt('bay-b', 6, 0)
+		const stop = stopAt(0, 0)
+		const otherStop = stopAt(6, 0)
 		const line: FreightLineDefinition = { id: 'line-1', name: 'Line 1', stops: [stop, otherStop] }
 
-		const docked = game.vehicles.createVehicle('docked', 'wheelbarrow', { q: 0, r: 0 })
+		const docked = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
 		docked.beginLineService(line, stop)
 		docked.dock()
 
-		const underway = game.vehicles.createVehicle('underway', 'wheelbarrow', { q: 0, r: 0 })
+		const underway = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
 		underway.beginLineService(line, stop)
 
-		const otherBayDocked = game.vehicles.createVehicle('other-bay', 'wheelbarrow', {
+		const otherBayDocked = game.vehicles.createVehicle('wheelbarrow', {
 			q: 6,
 			r: 0,
 		})
@@ -88,21 +87,21 @@ describe('docked vehicle collectors', () => {
 		tileA.content = bayA
 		tileB.content = bayB
 
-		const stopA = stopAt('bay-a', 0, 0)
-		const stopB = stopAt('bay-b', 6, 0)
+		const stopA = stopAt(0, 0)
+		const stopB = stopAt(6, 0)
 		const line: FreightLineDefinition = { id: 'line-1', name: 'Line 1', stops: [stopA, stopB] }
 
-		const dockedInHive = game.vehicles.createVehicle('hive-a-docked', 'wheelbarrow', { q: 0, r: 0 })
+		const dockedInHive = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
 		dockedInHive.beginLineService(line, stopA)
 		dockedInHive.dock()
 
-		const underwayInHive = game.vehicles.createVehicle('hive-a-underway', 'wheelbarrow', {
+		const underwayInHive = game.vehicles.createVehicle('wheelbarrow', {
 			q: 0,
 			r: 0,
 		})
 		underwayInHive.beginLineService(line, stopA)
 
-		const dockedElsewhere = game.vehicles.createVehicle('hive-b-docked', 'wheelbarrow', {
+		const dockedElsewhere = game.vehicles.createVehicle('wheelbarrow', {
 			q: 6,
 			r: 0,
 		})

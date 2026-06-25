@@ -5,23 +5,22 @@ import { reactive } from 'mutts'
 import {
 	isZoneObjectUid,
 	ZONES_OBJECT_UID,
-	type Zone,
-	zoneIdFromObjectUid,
+	zoneIndexFromObjectUid,
 	zoneObjectUid,
 } from 'ssh/board/zone'
-import type { ZoneObject, ZonesCollectionObject } from 'ssh/board/zone-object'
+import { ZoneObject, ZonesCollectionObject } from 'ssh/board/zone-object'
 
 export const unnamedZoneOwnership = reactive({
-	zoneId: undefined as string | undefined,
+	zoneIndex: undefined as number | undefined,
 	panelId: undefined as string | undefined,
 })
 
 export function getZonesObject(): ZonesCollectionObject | undefined {
-	return game.getObject(ZONES_OBJECT_UID) as ZonesCollectionObject | undefined
+	return new ZonesCollectionObject(game)
 }
 
-export function getZoneObject(zoneId: Zone | string): ZoneObject | undefined {
-	return game.getObject(zoneObjectUid(zoneId)) as ZoneObject | undefined
+export function getZoneObject(index: number): ZoneObject | undefined {
+	return new ZoneObject(game, index)
 }
 
 export function showZonesObject(): void {
@@ -29,8 +28,8 @@ export function showZonesObject(): void {
 	if (object) showProps(object)
 }
 
-export function showZoneObject(zoneId: Zone | string): void {
-	const object = getZoneObject(zoneId)
+export function showZoneObject(index: number): void {
+	const object = getZoneObject(index)
 	if (object) showProps(object)
 }
 
@@ -38,5 +37,5 @@ export function isZonesUid(uid: string): boolean {
 	return uid === ZONES_OBJECT_UID
 }
 
-export { ZONES_OBJECT_UID, isZoneObjectUid, zoneIdFromObjectUid, zoneObjectUid }
+export { ZONES_OBJECT_UID, isZoneObjectUid, zoneIndexFromObjectUid, zoneObjectUid }
 export { zoneOverlayState }

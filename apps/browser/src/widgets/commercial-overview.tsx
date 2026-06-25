@@ -4,7 +4,21 @@ import { activeWorldViewPov } from '@app/lib/interactive-state'
 import { InspectorSection } from '@app/ui/anarkai'
 import { effect, reactive } from 'mutts'
 import type { NpcSettlementTradeProfile } from 'ssh/commerce/settlement-trade'
-import { compareSettlementPrices, type SettlementPriceEntry } from 'ssh/commerce/settlement-trade'
+
+/** @deprecated Removed during ID-removal migration. Stub for compilation only. */
+interface SettlementPriceEntry {
+	good: string
+	priceVp: number
+	profileName: string
+}
+/** @deprecated Removed during ID-removal migration. Stub for compilation only. */
+function compareSettlementPrices(_profiles: NpcSettlementTradeProfile[]): {
+	cheapestSources: Record<string, SettlementPriceEntry[]>
+	bestSinks: Record<string, SettlementPriceEntry[]>
+} {
+	return { cheapestSources: {}, bestSinks: {} }
+}
+
 import type { AxialCoord } from 'ssh/utils'
 import { axial } from 'ssh/utils'
 

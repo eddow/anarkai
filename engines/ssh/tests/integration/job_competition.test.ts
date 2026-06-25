@@ -152,9 +152,7 @@ describe('Job Competition Tests', () => {
 					deposit: { type: 'tree', amount: 10 },
 				},
 			],
-			zones: {
-				harvest: [[1, 1]],
-			},
+			zones: [{ type: 'harvest', coords: [[1, 1]] }],
 		}
 
 		engine.loadScenario(scenario)

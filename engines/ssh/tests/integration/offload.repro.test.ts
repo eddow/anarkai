@@ -20,11 +20,7 @@ describe('Offload Silent Cancellation Reproduction', () => {
 			const looseGood = game.hex.looseGoods.add(targetTile, 'wood', {
 				position: targetTile!.position,
 			})
-			const vehicle = game.vehicles.createVehicle(
-				'wb-offload-reuse-repro',
-				'wheelbarrow',
-				char.position
-			)
+			const vehicle = game.vehicles.createVehicle('wheelbarrow', char.position)
 			bindOperatedWheelbarrowOffload(char, vehicle, {
 				kind: 'loadFromBurden',
 				looseGood,
@@ -84,11 +80,7 @@ describe('Offload Silent Cancellation Reproduction', () => {
 			const competing = new Commitment('test.competing-pickup')
 			expect(looseGood.allocate(competing)).toBeUndefined()
 
-			const vehicle = game.vehicles.createVehicle(
-				'wb-offload-allocated-repro',
-				'wheelbarrow',
-				char.position
-			)
+			const vehicle = game.vehicles.createVehicle('wheelbarrow', char.position)
 			bindOperatedWheelbarrowOffload(char, vehicle, {
 				kind: 'loadFromBurden',
 				looseGood,
@@ -148,11 +140,7 @@ describe('Offload Silent Cancellation Reproduction', () => {
 			const goodsAtTile = game.hex.looseGoods.getGoodsAt(targetTile!.position)
 			expect(goodsAtTile.some((g) => g.goodType === 'wood')).toBe(true)
 
-			const vehicle = game.vehicles.createVehicle(
-				'wb-offload-repro',
-				'wheelbarrow',
-				toAxialCoord(char.position)!
-			)
+			const vehicle = game.vehicles.createVehicle('wheelbarrow', toAxialCoord(char.position)!)
 			bindOperatedWheelbarrowOffload(char, vehicle)
 			char.onboard()
 

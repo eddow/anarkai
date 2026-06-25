@@ -2,10 +2,9 @@ import { freightLineOverlay, zoneOverlayState } from '@app/lib/freight-line-over
 import { effect } from 'mutts'
 import { Container, Graphics, Point } from 'pixi.js'
 import { Alveolus } from 'ssh/board/content/alveolus'
-import { Tile } from 'ssh/board/tile'
+import type { Tile } from 'ssh/board/tile'
 import {
 	type FreightStop,
-	findFreightLineById,
 	freightZoneFallbackPosition,
 	freightZoneTiles,
 } from 'ssh/freight/freight-line'
@@ -58,8 +57,7 @@ export class FreightLineOverlay {
 			return world ?? undefined
 		}
 		if ('trade' in stop) {
-			const coord = this.renderer.game.getSettlementTradeProfile(stop.trade.settlementId)?.cityHall
-				.position
+			const coord = stop.trade.profile.cityHall.position
 			return coord ? (toWorldCoord(coord) ?? undefined) : undefined
 		}
 		if (stop.zone.kind === 'radius') {
@@ -80,7 +78,12 @@ export class FreightLineOverlay {
 				const zoneColor = emphasized
 					? color
 					: parseColor(
-							this.renderer.game.hex.zoneManager.getZoneDefinition(stop.zone.zoneId)?.color,
+							('definition' in stop.zone ? stop.zone.definition?.color : undefined) ??
+								('zoneId' in stop.zone && stop.zone.zoneId
+									? this.renderer.game.hex.zoneManager.zoneByIndex(
+											this.renderer.game.hex.zoneManager.findZoneIndexByName(stop.zone.zoneId)
+										)?.color
+									: undefined),
 							color
 						)
 				const points = hexPoints(world.x, world.y, emphasized ? 0 : 2)
@@ -102,12 +105,18 @@ export class FreightLineOverlay {
 		this.graphics.poly(points).stroke({ width: strokeWidth, color, alpha: 0.95 })
 	}
 
-	private drawNamedZone(zoneId: string, emphasized: boolean): void {
-		const definition = this.renderer.game.hex.zoneManager.getZoneDefinition(zoneId)
-		if (!definition) return
+	private drawNamedZone(
+		definition: { name?: string; type: string; color?: string },
+		emphasized: boolean
+	): void {
 		const color = parseColor(definition.color, 0x4f8cff)
 		const alpha = emphasized ? 0.28 : 0.14
-		for (const coord of this.renderer.game.hex.zoneManager.coordsForZone(zoneId)) {
+		const idx = this.renderer.game.hex.zoneManager.findZoneIndexByName(
+			definition.name ?? definition.type
+		)
+		const def = idx >= 0 ? this.renderer.game.hex.zoneManager.zoneByIndex(idx) : undefined
+		const coords = def ? this.renderer.game.hex.zoneManager.coordsForZone(def) : []
+		for (const coord of coords) {
 			const world = toWorldCoord(coord)
 			if (!world) continue
 			const points = hexPoints(world.x, world.y, emphasized ? 0 : 2)
@@ -120,9 +129,9 @@ export class FreightLineOverlay {
 		}
 	}
 
-	private drawHive(anchorTileUid: string): void {
-		const tile = this.renderer.game.objects.get(anchorTileUid)
-		if (!(tile instanceof Tile) || !(tile.content instanceof Alveolus)) return
+	private drawHive(anchorTile: Tile): void {
+		const tile = anchorTile
+		if (!(tile.content instanceof Alveolus)) return
 		const hive = tile.content.hive
 		const color = 0xffd84d
 		for (const candidate of this.renderer.game.hex.tiles) {
@@ -137,21 +146,13 @@ export class FreightLineOverlay {
 
 	private render(): void {
 		this.graphics.clear()
-		if (zoneOverlayState.hoveredHiveAnchorTileUid) {
-			this.drawHive(zoneOverlayState.hoveredHiveAnchorTileUid)
+		if (zoneOverlayState.hoveredHiveAnchorTile) {
+			this.drawHive(zoneOverlayState.hoveredHiveAnchorTile)
 		}
-		if (zoneOverlayState.selectedZoneId) {
-			this.drawNamedZone(zoneOverlayState.selectedZoneId, true)
+		if (zoneOverlayState.hoveredZone) {
+			this.drawNamedZone(zoneOverlayState.hoveredZone, true)
 		}
-		if (
-			zoneOverlayState.hoveredZoneId &&
-			zoneOverlayState.hoveredZoneId !== zoneOverlayState.selectedZoneId
-		) {
-			this.drawNamedZone(zoneOverlayState.hoveredZoneId, true)
-		}
-		const lineId = freightLineOverlay.lineId
-		if (!lineId) return
-		const line = findFreightLineById(this.renderer.game.freightLines, lineId)
+		const line = freightLineOverlay.line
 		if (!line) return
 		const color = 0x4f8cff
 		const reps = line.stops.map((stop) => this.stopRepresentative(stop)).filter(Boolean) as Array<{
@@ -167,7 +168,7 @@ export class FreightLineOverlay {
 			this.graphics.stroke({ width: 1.5, color: 0xffffff, alpha: 0.76 })
 		}
 		for (const stop of line.stops) {
-			this.drawStop(stop, color, stop.id === freightLineOverlay.hoveredStopId)
+			this.drawStop(stop, color, stop === freightLineOverlay.hoveredStop)
 		}
 	}
 

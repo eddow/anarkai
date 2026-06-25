@@ -71,7 +71,7 @@ export function vehicleNeedsParkingOnCurrentTile(vehicle: Vehicle): boolean {
 	}
 	if (!(here.content instanceof UnBuiltLand)) return true
 	if (here.content.project) return true
-	if (here.zone === 'residential') return true
+	if (here.zone?.type === 'residential') return true
 	if (!here.isClear) return true
 	return false
 }
@@ -96,7 +96,7 @@ export function freightStopMovementTarget(
 		return freightZoneFallbackPosition(game, stop.zone)
 	}
 	if ('trade' in stop) {
-		return game.getSettlementTradeProfile(stop.trade.settlementName)?.cityHall.position
+		return stop.trade.profile.cityHall.position
 	}
 	return undefined
 }
@@ -112,8 +112,7 @@ export function freightStopTargetPosition(game: Game, stop: FreightStop): Positi
 	}
 	if ('zone' in stop && stop.zone.kind === 'named')
 		return freightZoneFallbackPosition(game, stop.zone)
-	if ('trade' in stop)
-		return game.getSettlementTradeProfile(stop.trade.settlementName)?.cityHall.position
+	if ('trade' in stop) return stop.trade.profile.cityHall.position
 	return undefined
 }
 

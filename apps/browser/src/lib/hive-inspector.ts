@@ -1,9 +1,17 @@
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { Tile } from 'ssh/board/tile'
 import type { Game } from 'ssh/game'
-import type { InspectorSelectableObject } from 'ssh/game/object'
+import type { InspectorSelectableObject, InteractiveGameObject } from 'ssh/game/object'
 import type { Hive } from 'ssh/hive'
 import { axial } from 'ssh/utils'
+
+function findObjectByUid(game: Game, uid: string): InteractiveGameObject | undefined {
+	for (const obj of game.objects) {
+		if (obj.uid === uid) return obj
+	}
+	return undefined
+}
+
 import { toAxialCoord } from 'ssh/utils/position'
 
 export const HIVE_UID_PREFIX = 'hive:'
@@ -35,7 +43,7 @@ export function hiveInspectorTitle(hive: Hive | undefined): string {
 }
 
 export function resolveHiveFromAnchorTile(game: Game, anchorTileUid: string): Hive | undefined {
-	const tile = game.objects.get(anchorTileUid)
+	const tile = findObjectByUid(game, anchorTileUid)
 	if (!(tile instanceof Tile)) return undefined
 	const content = tile.content
 	return content instanceof Alveolus ? content.hive : undefined
@@ -79,6 +87,6 @@ export function createSyntheticHiveObjectForUid(
 ): SyntheticHiveObject | undefined {
 	const anchorTileUid = anchorTileUidFromHiveUid(uid)
 	if (!anchorTileUid) return undefined
-	const tile = game.objects.get(anchorTileUid)
+	const tile = findObjectByUid(game, anchorTileUid)
 	return tile instanceof Tile ? createSyntheticHiveObject(game, tile) : undefined
 }

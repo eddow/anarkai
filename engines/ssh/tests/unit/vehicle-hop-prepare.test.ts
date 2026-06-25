@@ -22,11 +22,9 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 
 	it('marks vehicleHopRunEnded and skips dock when last zone stop completes and ends the run', async () => {
 		const zoneOnlyLine = normalizeFreightLineDefinition({
-			id: 'hop:zone-only',
 			name: 'Zone only',
 			stops: [
 				{
-					id: 'only-zone',
 					loadSelection: migrateV1FiltersToGoodsSelection(['wood']),
 					zone: { kind: 'radius', center: [0, 0] as const, radius: 2 },
 				},
@@ -42,7 +40,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 
 		const line = game.freightLines[0]!
 		const zoneStop = line.stops[0]!
-		const vehicle = game.vehicles.createVehicle('hop-z', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('HopPrep', { q: 0, r: 0 })
 		vehicle.beginService(line, zoneStop, character)
 		character.operates = vehicle
@@ -59,7 +57,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			fatigue: 1,
 			vehicle,
 			lineId: line.id,
-			stopIndex: zoneStop.id,
+			stopIndex: 1,
 			path: [],
 			dockEnter: false,
 		}
@@ -81,11 +79,9 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 
 	it('vehicleHopPrepare clears stale vehicleHopAnchorDockDisembarked', async () => {
 		const zoneOnlyLine = normalizeFreightLineDefinition({
-			id: 'hop:anchor-flag-reset',
 			name: 'Zone only',
 			stops: [
 				{
-					id: 'only-zone',
 					loadSelection: migrateV1FiltersToGoodsSelection(['wood']),
 					zone: { kind: 'radius', center: [0, 0] as const, radius: 2 },
 				},
@@ -101,7 +97,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 
 		const line = game.freightLines[0]!
 		const zoneStop = line.stops[0]!
-		const vehicle = game.vehicles.createVehicle('hop-flag', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('HopFlag', { q: 0, r: 0 })
 		vehicle.beginService(line, zoneStop, character)
 		character.operates = vehicle
@@ -118,7 +114,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			fatigue: 1,
 			vehicle,
 			lineId: line.id,
-			stopIndex: zoneStop.id,
+			stopIndex: 1,
 			path: [],
 			dockEnter: false,
 			vehicleHopAnchorDockDisembarked: true,
@@ -133,7 +129,6 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
 			freightLines: [
 				distributeFreightLine({
-					id: 'hop:anchor-dock-flag',
 					name: 'Distribute',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -147,7 +142,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 
 		const line = game.freightLines[0]!
 		const loadStop = line.stops[0]!
-		const vehicle = game.vehicles.createVehicle('hop-adock', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('AnchorDock', { q: 0, r: 0 })
 		vehicle.beginLineService(line, loadStop, character)
 		character.operates = vehicle
@@ -164,7 +159,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			fatigue: 1,
 			vehicle,
 			lineId: line.id,
-			stopIndex: loadStop.id,
+			stopIndex: 0,
 			path: [],
 			dockEnter: false,
 		}
@@ -189,7 +184,6 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			],
 			freightLines: [
 				distributeFreightLine({
-					id: 'hop:anchor-dock-position',
 					name: 'Distribute',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -203,12 +197,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 
 		const line = game.freightLines[0]!
 		const loadStop = line.stops[0]!
-		const vehicle = game.vehicles.createVehicle(
-			'hop-dock-position',
-			'wheelbarrow',
-			{ q: 2, r: 0 },
-			[line]
-		)
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 2, r: 0 }, [line])
 		const character = game.population.createCharacter('AnchorDockPosition', { q: 2, r: 0 })
 		vehicle.beginLineService(line, loadStop, character)
 
@@ -225,7 +214,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		const line = game.freightLines.find(
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
-		const unloadStop = line?.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
+		const unloadStop = line?.stops[1]
 		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		if (!line || !unloadStop || !vehicle) throw new Error('expected ChopSaw gather fixture')
 
@@ -266,7 +255,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		const line = game.freightLines.find(
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
-		const unloadStop = line?.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
+		const unloadStop = line?.stops[1]
 		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		if (!line || !unloadStop || !vehicle) throw new Error('expected ChopSaw gather fixture')
 
@@ -278,7 +267,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 
 		const hop = findVehicleHopJob(game, character)
 		expect(hop?.job).toBe('vehicleHop')
-		expect(hop?.stopIndex).toBe(unloadStop.id)
+		expect(hop?.stopIndex).toBe(unloadStop)
 		expect(hop?.dockEnter).toBe(true)
 		expect(hop?.path.length).toBeGreaterThan(0)
 
@@ -306,7 +295,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			fatigue: hop!.fatigue,
 			vehicle,
 			lineId: line.id,
-			stopIndex: unloadStop.id,
+			stopIndex: 1,
 			path: hop!.path,
 			dockEnter: true,
 		}
@@ -324,7 +313,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		const line = game.freightLines.find(
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
-		const unloadStop = line?.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
+		const unloadStop = line?.stops[1]
 		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		if (!line || !unloadStop || !vehicle) throw new Error('expected ChopSaw gather fixture')
 
@@ -344,7 +333,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			fatigue: 1,
 			vehicle,
 			lineId: line.id,
-			stopIndex: unloadStop.id,
+			stopIndex: 1,
 			path: [],
 			dockEnter: true,
 		}
@@ -365,7 +354,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		const line = game.freightLines.find(
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
-		const unloadStop = line?.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
+		const unloadStop = line?.stops[1]
 		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		if (!line || !unloadStop || !vehicle) throw new Error('expected ChopSaw gather fixture')
 
@@ -385,7 +374,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			fatigue: 1,
 			vehicle,
 			lineId: line.id,
-			stopIndex: unloadStop.id,
+			stopIndex: 1,
 			path: [],
 			dockEnter: true,
 		}
@@ -411,7 +400,6 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					id: 'hop:dock-after-ads',
 					name: 'Dock after ads',
 					hiveName: 'DockAfterAds',
 					coord: [0, 0],
@@ -426,9 +414,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 
 		const line = game.freightLines[0]!
 		const unloadStop = line.stops[1]!
-		const vehicle = game.vehicles.createVehicle('hop-empty-dock', 'wheelbarrow', { q: 0, r: 0 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('EmptyDock', { q: 0, r: 0 })
 		vehicle.beginLineService(line, unloadStop, character)
 		character.operates = vehicle
@@ -445,7 +431,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			fatigue: 1,
 			vehicle,
 			lineId: line.id,
-			stopIndex: unloadStop.id,
+			stopIndex: 1,
 			path: [],
 			dockEnter: true,
 		})
@@ -488,7 +474,6 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					id: 'hop:dock-stock-after-ads',
 					name: 'Dock stock after ads',
 					hiveName: 'DockStockAfterAds',
 					coord: [0, 0],
@@ -503,9 +488,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 
 		const line = game.freightLines[0]!
 		const unloadStop = line.stops[1]!
-		const vehicle = game.vehicles.createVehicle('hop-stock-dock', 'wheelbarrow', { q: 0, r: 0 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		vehicle.storage.addGood('wood', 1)
 		const character = game.population.createCharacter('StockDock', { q: 0, r: 0 })
 		vehicle.beginLineService(line, unloadStop, character)
@@ -523,7 +506,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			fatigue: 1,
 			vehicle,
 			lineId: line.id,
-			stopIndex: unloadStop.id,
+			stopIndex: 1,
 			path: [],
 			dockEnter: true,
 		})
@@ -540,7 +523,6 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
 			freightLines: [
 				gatherFreightLine({
-					id: 'hop:zone-dock-flag',
 					name: 'Gather',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -555,7 +537,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 
 		const line = game.freightLines[0]!
 		const zoneStop = line.stops[0]!
-		const vehicle = game.vehicles.createVehicle('hop-zdock', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('ZoneDock', { q: 0, r: 0 })
 		vehicle.beginLineService(line, zoneStop, character)
 		character.operates = vehicle
@@ -572,7 +554,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			fatigue: 1,
 			vehicle,
 			lineId: line.id,
-			stopIndex: zoneStop.id,
+			stopIndex: 1,
 			path: [],
 			dockEnter: false,
 			vehicleHopAnchorDockDisembarked: true,
@@ -593,7 +575,6 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
 			freightLines: [
 				gatherFreightLine({
-					id: 'hop:drift-guard',
 					name: 'Gather',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -607,9 +588,9 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines[0]!
-		const zoneStop = line.stops[0]!
+		const _zoneStop = line.stops[0]!
 		const anchorStop = line.stops[1]!
-		const vehicle = game.vehicles.createVehicle('hop-drift', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('Drift', { q: 0, r: 0 })
 		// Live service is on the anchor stop, but the (stale) plan still targets the zone stop.
 		vehicle.beginLineService(line, anchorStop, character)
@@ -627,7 +608,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			fatigue: 1,
 			vehicle,
 			lineId: line.id,
-			stopIndex: zoneStop.id,
+			stopIndex: 1,
 			path: [],
 			dockEnter: false,
 		}

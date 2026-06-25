@@ -42,7 +42,6 @@ describe('chopSaw example game', () => {
 		const exchange = game.freightLines.find((line) => line.id === 'ChopSaw:implicit-gather:0,0')
 		expect(exchange?.cyclic).toBe(true)
 		expect(exchange?.stops[0]).toMatchObject({
-			id: 'ChopSaw:ig-unload',
 			loadSelection: {
 				goodRules: expect.arrayContaining([{ goodType: 'concrete', effect: 'allow' }]),
 			},
@@ -57,7 +56,6 @@ describe('chopSaw example game', () => {
 			},
 		})
 		expect(exchange?.stops[1]).toMatchObject({
-			id: 'ChopSaw:ig-load',
 			loadSelection: {
 				goodRules: expect.arrayContaining([{ goodType: 'concrete', effect: 'allow' }]),
 			},
@@ -76,7 +74,6 @@ describe('chopSaw example game', () => {
 		expect(materials?.cyclic).toBe(true)
 		expect(materials?.stops).toHaveLength(2)
 		expect(materials?.stops[0]).toMatchObject({
-			id: 'ChopSaw:materials-bay',
 			loadSelection: {
 				goodRules: [{ goodType: 'planks', effect: 'allow' }],
 				defaultEffect: 'deny',
@@ -93,7 +90,6 @@ describe('chopSaw example game', () => {
 			},
 		})
 		expect(materials?.stops[1]).toMatchObject({
-			id: 'ChopSaw:materials-melindbury',
 			loadSelection: {
 				goodRules: [{ goodType: 'concrete', effect: 'allow' }],
 				defaultEffect: 'deny',
@@ -155,7 +151,7 @@ describe('chopSaw example game', () => {
 		)
 		if (!vehicle || !line) throw new Error('Expected ChopSaw fixture')
 
-		const unloadStop = line.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
+		const unloadStop = line.stops[1]
 		if (!unloadStop) throw new Error('Expected gather unload stop')
 
 		vehicle.position = { q: -2, r: 1 }
@@ -361,7 +357,7 @@ describe('chopSaw example game', () => {
 				(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 			)
 			const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
-			const unloadStop = line?.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
+			const unloadStop = line?.stops[1]
 			const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
 			const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
 			if (!line || !vehicle || !unloadStop || !bay || !storage)
@@ -400,7 +396,7 @@ describe('chopSaw example game', () => {
 				(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 			)
 			const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
-			const unloadStop = line?.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
+			const unloadStop = line?.stops[1]
 			const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
 			const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
 			if (!line || !vehicle || !unloadStop || !bay || !storage)
@@ -417,7 +413,7 @@ describe('chopSaw example game', () => {
 				})
 				const dockOnlyLine = {
 					...line,
-					id: 'ChopSaw:test-dock-only',
+
 					cyclic: false,
 					stops: [unloadStop],
 				}
@@ -456,7 +452,7 @@ describe('chopSaw example game', () => {
 		const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
 		if (!line || !vehicle || !bay) throw new Error('Expected ChopSaw fixture')
 
-		const unloadStop = line.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
+		const unloadStop = line.stops[1]
 		if (!unloadStop) throw new Error('Expected gather unload stop')
 
 		vehicle.position = { q: 0, r: 0 }
@@ -485,7 +481,7 @@ describe('chopSaw example game', () => {
 		const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
 		if (!line || !vehicle || !bay) throw new Error('Expected ChopSaw fixture')
 
-		const unloadStop = line.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
+		const unloadStop = line.stops[1]
 		if (!unloadStop) throw new Error('Expected gather unload stop')
 
 		vehicle.position = { q: 0, r: 0 }
@@ -517,7 +513,7 @@ describe('chopSaw example game', () => {
 		const line = game.freightLines.find(
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
-		const load = line?.stops.find((stop) => stop.id === 'ChopSaw:ig-load')
+		const load = line?.stops[0]
 		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		if (!line || !load || !vehicle) throw new Error('Expected ChopSaw fixture')
 
@@ -536,7 +532,7 @@ describe('chopSaw example game', () => {
 						job: 'vehicleHop',
 						vehicle,
 						lineId: line.id,
-						stopIndex: load.id,
+						stopIndex: 0,
 						zoneBrowseAction: 'provide',
 						goodType: 'concrete',
 					}),
@@ -554,8 +550,8 @@ describe('chopSaw example game', () => {
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
-		const unload = line.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
-		const load = line.stops.find((stop) => stop.id === 'ChopSaw:ig-load')
+		const unload = line.stops[1]
+		const load = line.stops[0]
 		if (!unload || !load) throw new Error('expected ChopSaw load/unload stops')
 		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
@@ -571,7 +567,7 @@ describe('chopSaw example game', () => {
 
 		maybeAdvanceVehicleFromCompletedAnchorStop(game, vehicle)
 
-		expect(isVehicleLineService(vehicle.service) && vehicle.service).toBe(load.id)
+		expect(isVehicleLineService(vehicle.service) && vehicle.service).toBe(load)
 		downstreamReservation.cancel('test cleanup')
 	})
 
@@ -584,7 +580,7 @@ describe('chopSaw example game', () => {
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
-		const unload = line.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
+		const unload = line.stops[1]
 		if (!unload) throw new Error('expected ChopSaw unload stop')
 		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
@@ -699,9 +695,9 @@ describe('chopSaw example game', () => {
 			(candidate) => candidate.id === 'ChopSaw:materials-loop:0,0:Melindbury'
 		)
 		if (!line) throw new Error('Expected Chopsaw materials loop')
-		const marketStop = line.stops.find((stop) => stop.id === 'ChopSaw:materials-melindbury')
+		const marketStop = line.stops[1]
 		if (!marketStop) throw new Error('Expected Melindbury trade stop')
-		const bayStop = line.stops.find((stop) => stop.id === 'ChopSaw:materials-bay')
+		const bayStop = line.stops[0]
 		if (!bayStop) throw new Error('Expected Chopsaw materials bay stop')
 		const pickup = game.vehicles.vehicle('ChopSaw:suv')
 		if (!pickup) throw new Error('Expected Chopsaw SUV')
@@ -747,8 +743,8 @@ describe('chopSaw example game', () => {
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
-		const unload = line.stops.find((stop) => stop.id === 'ChopSaw:ig-unload')
-		const load = line.stops.find((stop) => stop.id === 'ChopSaw:ig-load')
+		const unload = line.stops[1]
+		const load = line.stops[0]
 		if (!unload || !load) throw new Error('expected ChopSaw load/unload stops')
 		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
 		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
@@ -762,13 +758,13 @@ describe('chopSaw example game', () => {
 
 		maybeAdvanceVehicleFromCompletedAnchorStop(game, vehicle, worker)
 
-		expect(isVehicleLineService(vehicle.service) && vehicle.service).toBe(load.id)
+		expect(isVehicleLineService(vehicle.service) && vehicle.service).toBe(load)
 		const hop = findVehicleHopJob(game, worker)
 		expect(hop).toMatchObject({
 			job: 'vehicleHop',
 			vehicle,
 			lineId: line.id,
-			stopIndex: load.id,
+			stopIndex: 0,
 			zoneBrowseAction: 'provide',
 			goodType: 'concrete',
 			targetCoord: { q: -1, r: 0 },
@@ -810,7 +806,7 @@ describe('chopSaw example game', () => {
 			(candidate) => candidate.id === 'ChopSaw:materials-loop:0,0:Melindbury'
 		)
 		if (!line) throw new Error('Expected Chopsaw materials loop')
-		const bayStop = line.stops.find((stop) => stop.id === 'ChopSaw:materials-bay')
+		const bayStop = line.stops[0]
 		if (!bayStop) throw new Error('Expected Chopsaw materials bay stop')
 		const pickup = game.vehicles.vehicle('ChopSaw:suv')
 		if (!pickup) throw new Error('Expected Chopsaw SUV')
@@ -847,7 +843,7 @@ describe('chopSaw example game', () => {
 			(candidate) => candidate.id === 'ChopSaw:materials-loop:0,0:Melindbury'
 		)
 		if (!line) throw new Error('Expected Chopsaw materials loop')
-		const bayStop = line.stops.find((stop) => stop.id === 'ChopSaw:materials-bay')
+		const bayStop = line.stops[0]
 		if (!bayStop) throw new Error('Expected Chopsaw materials bay stop')
 		const pickup = game.vehicles.vehicle('ChopSaw:suv')
 		if (!pickup) throw new Error('Expected Chopsaw SUV')
@@ -897,7 +893,7 @@ describe('chopSaw example game', () => {
 			(candidate) => candidate.id === 'ChopSaw:materials-loop:0,0:Melindbury'
 		)
 		if (!line) throw new Error('Expected Chopsaw materials loop')
-		const bayStop = line.stops.find((stop) => stop.id === 'ChopSaw:materials-bay')
+		const bayStop = line.stops[0]
 		if (!bayStop) throw new Error('Expected Chopsaw materials bay stop')
 		const pickup = game.vehicles.vehicle('ChopSaw:suv')
 		if (!pickup) throw new Error('Expected Chopsaw SUV')
@@ -924,7 +920,7 @@ describe('chopSaw example game', () => {
 			(candidate) => candidate.id === 'ChopSaw:materials-loop:0,0:Melindbury'
 		)
 		if (!line) throw new Error('Expected Chopsaw materials loop')
-		const bayStop = line.stops.find((stop) => stop.id === 'ChopSaw:materials-bay')
+		const bayStop = line.stops[0]
 		if (!bayStop) throw new Error('Expected Chopsaw materials bay stop')
 		const pickup = game.vehicles.vehicle('ChopSaw:suv')
 		if (!pickup) throw new Error('Expected Chopsaw SUV')
@@ -976,12 +972,10 @@ describe('chopSaw example game', () => {
 				],
 				freightLines: [
 					{
-						id: 'GatherStore:gather-wood',
 						name: 'GatherStore wood',
 						cyclic: true,
 						stops: [
 							{
-								id: 'GatherStore:gather-wood-zone',
 								loadSelection: {
 									goodRules: [{ goodType: 'wood', effect: 'allow' }],
 									tagRules: [],
@@ -990,7 +984,6 @@ describe('chopSaw example game', () => {
 								zone: { kind: 'radius', center: [0, 0], radius: 2 },
 							},
 							{
-								id: 'GatherStore:gather-wood-bay',
 								anchor: {
 									kind: 'alveolus',
 									hiveName: 'GatherStore',
@@ -1024,7 +1017,7 @@ describe('chopSaw example game', () => {
 			(candidate) => candidate.id === 'ChopSaw:materials-loop:0,0:Melindbury'
 		)
 		if (!line) throw new Error('Expected Chopsaw materials loop')
-		const bayStop = line.stops.find((stop) => stop.id === 'ChopSaw:materials-bay')
+		const bayStop = line.stops[0]
 		if (!bayStop) throw new Error('Expected Chopsaw materials bay stop')
 		const pickup = game.vehicles.vehicle('ChopSaw:suv')
 		if (!pickup) throw new Error('Expected Chopsaw SUV')
@@ -1072,7 +1065,7 @@ describe('chopSaw example game', () => {
 			(candidate) => candidate.id === 'ChopSaw:materials-loop:0,0:Melindbury'
 		)
 		if (!line) throw new Error('Expected Chopsaw materials loop')
-		const bayStop = line.stops.find((stop) => stop.id === 'ChopSaw:materials-bay')
+		const bayStop = line.stops[0]
 		if (!bayStop) throw new Error('Expected Chopsaw materials bay stop')
 		const pickup = game.vehicles.vehicle('ChopSaw:suv')
 		if (!pickup) throw new Error('Expected Chopsaw SUV')
@@ -1105,7 +1098,7 @@ describe('chopSaw example game', () => {
 			(candidate) => candidate.id === 'ChopSaw:materials-loop:0,0:Melindbury'
 		)
 		if (!line) throw new Error('Expected Chopsaw materials loop')
-		const bayStop = line.stops.find((stop) => stop.id === 'ChopSaw:materials-bay')
+		const bayStop = line.stops[0]
 		if (!bayStop) throw new Error('Expected Chopsaw materials bay stop')
 		const pickup = game.vehicles.vehicle('ChopSaw:suv')
 		if (!pickup) throw new Error('Expected Chopsaw SUV')

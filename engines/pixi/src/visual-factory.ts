@@ -1,4 +1,4 @@
-import { getHoveredUid } from '@app/lib/interactive-state'
+import { getHoveredObject } from '@app/lib/interactive-state'
 import { effect } from 'mutts'
 import { TileBorder } from 'ssh/board/border/border'
 import { Alveolus } from 'ssh/board/content/alveolus'
@@ -85,7 +85,7 @@ function canRefreshDockedVehicles(value: unknown): value is DockedVehiclesRefres
 
 export class VisualFactory {
 	private cleanups: (() => void)[] = []
-	private hoveredVisualUid?: string
+	private hoveredVisualObject?: GameObject
 	private diagnostics: VisualFactoryDiagnostics = {
 		recentBatches: [],
 		totals: {
@@ -130,10 +130,10 @@ export class VisualFactory {
 		}
 		const onObjectsRemoved = (objects: InteractiveGameObject[]) => {
 			for (const object of objects) {
-				const visual = this.renderer.visuals.get(object.uid)
+				const visual = this.renderer.visuals.get(object)
 				if (!visual) continue
 				visual.dispose()
-				this.renderer.visuals.delete(object.uid)
+				this.renderer.visuals.delete(object)
 			}
 		}
 		const onPresentationEvents = (events: readonly GamePresentationEvent[]) => {
@@ -155,7 +155,7 @@ export class VisualFactory {
 		})
 		this.cleanups.push(
 			effect`visual-factory:hover-sync`(() => {
-				this.syncHoveredVisual(getHoveredUid())
+				this.syncHoveredVisual(getHoveredObject())
 			})
 		)
 	}
@@ -213,9 +213,9 @@ export class VisualFactory {
 		VisualClass: new (obj: T, renderer: PixiGameRenderer) => VisualObject<T>
 	): { visual: VisualObject<T> | undefined; reused: boolean } {
 		if (!this.renderer?.app) return { visual: undefined, reused: false }
-		if (this.renderer.visuals.has(object.uid)) {
+		if (this.renderer.visuals.has(object)) {
 			return {
-				visual: this.renderer.visuals.get(object.uid) as VisualObject<T>,
+				visual: this.renderer.visuals.get(object) as VisualObject<T>,
 				reused: true,
 			}
 		}
@@ -225,23 +225,14 @@ export class VisualFactory {
 		try {
 			visual = new VisualClass(object, this.renderer)
 			visual.bind()
-			this.renderer.visuals.set(object.uid, visual)
-			this.setVisualHoverState(visual, object.uid === this.hoveredVisualUid)
+			this.renderer.visuals.set(object, visual)
+			this.setVisualHoverState(visual, (object as GameObject) === this.hoveredVisualObject)
 		} catch (e) {
 			console.error('[VisualFactory] Error creating visual:', e)
 			return { visual: undefined, reused: false }
 		}
 
 		return { visual, reused: false }
-	}
-
-	private borderFromUid(uid: string): TileBorder | undefined {
-		const match = /^border:([^,]+),([^,]+)$/.exec(uid)
-		if (!match) return undefined
-		const q = Number(match[1])
-		const r = Number(match[2])
-		if (!Number.isFinite(q) || !Number.isFinite(r)) return undefined
-		return this.renderer.game.hex.getBorder({ q, r })
 	}
 
 	private ensureBorderVisual(border: TileBorder): VisualObject<TileBorder> | undefined {
@@ -382,14 +373,14 @@ export class VisualFactory {
 		}
 	}
 
-	private syncHoveredVisual(nextUid: string | undefined) {
-		if (this.hoveredVisualUid === nextUid) return
-		if (this.hoveredVisualUid) {
-			this.setVisualHoverState(this.renderer.visuals.get(this.hoveredVisualUid), false)
+	private syncHoveredVisual(nextObject: InteractiveGameObject | undefined) {
+		if (this.hoveredVisualObject === nextObject) return
+		if (this.hoveredVisualObject !== undefined) {
+			this.setVisualHoverState(this.renderer.visuals.get(this.hoveredVisualObject), false)
 		}
-		this.hoveredVisualUid = nextUid
-		if (nextUid) {
-			this.setVisualHoverState(this.renderer.visuals.get(nextUid), true)
+		this.hoveredVisualObject = nextObject
+		if (nextObject !== undefined) {
+			this.setVisualHoverState(this.renderer.visuals.get(nextObject), true)
 		}
 	}
 
@@ -404,17 +395,17 @@ export class VisualFactory {
 		const changedForCreation: InteractiveGameObject[] = []
 		for (const object of objects) {
 			if (object instanceof Tile) {
-				const existing = this.renderer.visuals.get(object.uid)
+				const existing = this.renderer.visuals.get(object)
 				if (this.shouldCreateTileVisual(object)) {
 					if (!existing) changedForCreation.push(object)
 					else this.ensureTileBorderVisuals(object)
 				} else if (existing) {
 					existing.dispose()
-					this.renderer.visuals.delete(object.uid)
+					this.renderer.visuals.delete(object)
 				}
 				continue
 			}
-			if (!this.renderer.visuals.has(object.uid)) changedForCreation.push(object)
+			if (!this.renderer.visuals.has(object)) changedForCreation.push(object)
 		}
 		if (changedForCreation.length > 0) {
 			this.createBatch(changedForCreation, 'objectsChanged')
@@ -424,25 +415,21 @@ export class VisualFactory {
 	}
 
 	private syncPresentationEvents(events: readonly GamePresentationEvent[]) {
-		const refreshedStorage = new Set<string>()
-		const refreshedDocks = new Set<string>()
+		const refreshedStorage = new Set<GameObject>()
+		const refreshedDocks = new Set<GameObject>()
 		for (const event of events) {
 			if (event.type === 'storage.changed') {
-				if (refreshedStorage.has(event.ownerUid)) continue
-				refreshedStorage.add(event.ownerUid)
-				let visual = this.renderer.visuals.get(event.ownerUid)
-				if (!visual) {
-					const border = this.borderFromUid(event.ownerUid)
-					if (border) visual = this.ensureBorderVisual(border)
-				}
+				if (refreshedStorage.has(event.owner)) continue
+				refreshedStorage.add(event.owner)
+				const visual = this.renderer.visuals.get(event.owner)
 				if (!canRefreshStoredGoods(visual)) continue
 				visual.refreshStoredGoods()
 				continue
 			}
 			if (event.type === 'vehicle.dock.changed') {
-				if (refreshedDocks.has(event.ownerUid)) continue
-				refreshedDocks.add(event.ownerUid)
-				const visual = this.renderer.visuals.get(event.ownerUid)
+				if (refreshedDocks.has(event.owner)) continue
+				refreshedDocks.add(event.owner)
+				const visual = this.renderer.visuals.get(event.owner)
 				if (!canRefreshDockedVehicles(visual)) continue
 				visual.refreshDockedVehicles()
 			}

@@ -115,7 +115,7 @@ export function canBuildRoadAcrossBorder(border: TileBorder): boolean {
 /** Whether a road trace may pass through this tile while being authored. */
 export function canBuildRoadThroughTile(tile: Tile): boolean {
 	if (!isRoadCompatibleTerrain(tile)) return false
-	if (tile.zone === 'residential') return false
+	if (tile.zone?.type === 'residential') return false
 	const content = tile.content
 	if (!content) return true
 	if (content instanceof Alveolus && content.action.type === 'road-fret') return true

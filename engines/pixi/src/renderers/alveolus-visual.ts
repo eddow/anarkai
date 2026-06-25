@@ -8,7 +8,7 @@ import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
 import { alveoli, variantBadges } from '../../assets/visual-content'
 import { scopedPixiName, setPixiName } from '../debug-names'
-import type { PixiGameRenderer } from '../renderer'
+import { nextVisualKey, type PixiGameRenderer } from '../renderer'
 import { createGoodsRenderer, type GoodsRenderer } from './goods-renderer'
 import { vehicleTextureKey } from './vehicle-visual'
 import { VisualObject } from './visual-object'
@@ -47,7 +47,7 @@ export class AlveolusVisual extends VisualObject<any> {
 	constructor(alveolus: Alveolus, renderer: PixiGameRenderer) {
 		super(alveolus, renderer)
 		alveolusVisualInstanceCounter += 1
-		this.scope = `alveolus:${alveolus.uid}:instance:${alveolusVisualInstanceCounter}`
+		this.scope = `alveolus:${nextVisualKey()}:instance:${alveolusVisualInstanceCounter}`
 		this.view.label = this.scope
 		// Ensure the building visual does not block mouse events (Tile handles selection)
 		this.view.eventMode = 'none'
@@ -207,7 +207,7 @@ export class AlveolusVisual extends VisualObject<any> {
 			if (!hasUsableTexture(tex)) continue
 			const sprite = setPixiName(
 				new Sprite(tex),
-				scopedPixiName(this.scope, `docked-vehicle:${entry.vehicle.uid}`)
+				scopedPixiName(this.scope, `docked-vehicle:${entry.vehicle.vehicleType}`)
 			)
 			sprite.anchor.set(0.5)
 			sprite.width = 24

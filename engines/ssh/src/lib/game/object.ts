@@ -50,6 +50,8 @@ function unregisterInteractiveLogObject(object: InteractiveLogObject): void {
 
 // Mixin functions for composition
 
+let _interactiveUidCounter = 0
+
 export function withInteractive<T extends abstract new (...args: any[]) => GameObject>(Base: T) {
 	abstract class InteractiveMixin extends Base {
 		public readonly uid: string
@@ -60,15 +62,12 @@ export function withInteractive<T extends abstract new (...args: any[]) => GameO
 		public readonly logs: string[] = reactive([])
 
 		constructor(...args: any[]) {
-			const [game, uid] = args
+			const game = args[0] as Game
+			const uid = typeof args[1] === 'string' ? args[1] : `_${++_interactiveUidCounter}`
 			super(...args)
 			this.uid = uid
 			registerInteractiveLogObject(this)
-			// Interactive objects should not become externally visible while subclass construction
-			// is still running. We still defer publication until after the current construction/
-			// reactive batch, but we do it through the game's batch-aware lifecycle queue rather
-			// than a raw platform microtask, which is not coordinated with Mutts batching.
-			game.enqueueInteractiveRegistration(this, uid)
+			game.enqueueInteractiveRegistration(this)
 		}
 
 		lastTopic: any | undefined = undefined
@@ -198,7 +197,7 @@ export type InteractiveGameObject = InstanceType<
 export type TickedGameObject = InstanceType<ReturnType<typeof withTicked<typeof GameObject>>>
 
 export interface InspectorSelectableObject {
-	readonly uid: string
+	readonly uid?: string
 	readonly title: string
 	readonly game: Game
 	readonly logs: readonly string[]

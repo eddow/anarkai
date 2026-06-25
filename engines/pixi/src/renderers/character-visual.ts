@@ -5,7 +5,7 @@ import { debugObjectId, debugRawObjectId } from 'ssh/dev/debug-object-id'
 import type { Character } from 'ssh/population/character'
 import { toWorldCoord } from 'ssh/utils/position'
 import { scopedPixiName, setPixiName } from '../debug-names'
-import type { PixiGameRenderer } from '../renderer'
+import { nextVisualKey, type PixiGameRenderer } from '../renderer'
 import { VisualObject } from './visual-object'
 
 export class CharacterVisual extends VisualObject<Character> {
@@ -14,7 +14,7 @@ export class CharacterVisual extends VisualObject<Character> {
 
 	constructor(character: Character, renderer: PixiGameRenderer) {
 		super(character, renderer)
-		const scope = `character:${character.uid}`
+		const scope = `character:${nextVisualKey()}`
 		this.view.label = scope
 
 		const charTex = renderer.getTexture('characters.default')
@@ -35,17 +35,17 @@ export class CharacterVisual extends VisualObject<Character> {
 		this.renderer.attachToLayer(this.renderer.layers.characters, this.view)
 
 		this.register(
-			effect`character.world:${this.object.uid}`(() => {
+			effect`character.world:${nextVisualKey()}`(() => {
 				const before = { x: this.view.position.x, y: this.view.position.y }
 				const position = this.object.position
 				if (this.object.driving) {
 					this.view.visible = false
 					traces.position.log?.('character.visual.effect', {
 						event: 'driving-hidden',
-						uid: this.object.uid,
+						uid: nextVisualKey(),
 						name: this.object.name,
 						driving: true,
-						operatesUid: this.object.operates?.uid,
+						operatesUid: this.object.operates ? nextVisualKey() : 0,
 						positionId: debugObjectId(position),
 						rawPositionId: debugRawObjectId(position),
 						visualBefore: before,
@@ -61,10 +61,10 @@ export class CharacterVisual extends VisualObject<Character> {
 				this.view.zIndex = world.y
 				traces.position.log?.('character.visual.effect', {
 					event: 'position-sync',
-					uid: this.object.uid,
+					uid: nextVisualKey(),
 					name: this.object.name,
 					driving: false,
-					operatesUid: this.object.operates?.uid,
+					operatesUid: this.object.operates ? nextVisualKey() : 0,
 					positionId: debugObjectId(position),
 					rawPositionId: debugRawObjectId(position),
 					world: { x: world.x, y: world.y },
@@ -77,7 +77,7 @@ export class CharacterVisual extends VisualObject<Character> {
 
 		const brightnessFilter = new ColorMatrixFilter()
 		this.register(
-			effect`character.${this.object.uid}.mouseover`(() => {
+			effect`character.${nextVisualKey()}.mouseover`(() => {
 				this.renderHover(brightnessFilter)
 			})
 		)

@@ -48,7 +48,7 @@ export const chopSaw = {
 			alveoli: [
 				{ alveolus: 'stonecutter', coord: [-1, -1] },
 				{ alveolus: 'tree_chopper', coord: [2, 0] },
-				{ alveolus: 'forester', coord: [2, -1], assignedZoneIds: ['north-grove'] },
+				{ alveolus: 'forester', coord: [2, -1], assignedZoneIndices: [2] },
 				{
 					alveolus: 'storage',
 					coord: [0, -1],
@@ -113,37 +113,40 @@ export const chopSaw = {
 				{
 					loadSelection: concreteOnlySelection,
 					unloadSelection: planksOnlySelection,
-					trade: { kind: 'settlement', settlementName: 'settlement-7,19' },
+					trade: { kind: 'settlement', settlementName: 'settlement-7,19', profile: undefined! },
 				},
 			],
 		},
 	],
-	zones: {
-		harvest: [
-			[4, 1],
-			[3, 2],
-			[3, 3],
-			[-4, 2],
-			[-5, 2],
-		],
-		residential: [
-			[-4, 1],
-			[-4, 0],
-		],
-		named: [
-			{
-				id: 'north-grove',
-				name: 'North Grove',
-				color: '#3f9f6b',
-				harvestable: true,
-				coords: [
-					[3, 0],
-					[4, 0],
-					[5, 0],
-				],
-			},
-		],
-	},
+	zones: [
+		{
+			type: 'harvest',
+			coords: [
+				[4, 1],
+				[3, 2],
+				[3, 3],
+				[-4, 2],
+				[-5, 2],
+			],
+		},
+		{
+			type: 'residential',
+			coords: [
+				[-4, 1],
+				[-4, 0],
+			],
+		},
+		{
+			name: 'North Grove',
+			color: '#3f9f6b',
+			type: 'harvest',
+			coords: [
+				[3, 0],
+				[4, 0],
+				[5, 0],
+			],
+		},
+	],
 	projects: {
 		'build:pile.planks': [[-1, 0]],
 	},
@@ -232,7 +235,7 @@ export const demoHive = {
 				{ alveolus: 'engineer', coord: [1, -1] },
 				{ alveolus: 'sawmill', coord: [1, 0] },
 				{ alveolus: 'tree_chopper', coord: [2, 0] },
-				{ alveolus: 'forester', coord: [2, -1], assignedZoneIds: ['green-ring'] },
+				{ alveolus: 'forester', coord: [2, -1], assignedZoneIndices: [2] },
 				{ alveolus: 'stonecutter', coord: [-1, 0] },
 			],
 		},
@@ -278,42 +281,48 @@ export const demoHive = {
 				{
 					loadSelection: concreteOnlySelection,
 					unloadSelection: planksOnlySelection,
-					trade: { kind: 'settlement', settlementName: 'settlement-7,19' },
+					trade: { kind: 'settlement', settlementName: 'settlement-7,19', profile: undefined! },
 				},
 			],
 		},
 	],
-	zones: {
-		harvest: [
-			[3, -1],
-			[4, -1],
-			[4, 0],
-		],
-		residential: [
-			[-4, 1],
-			[-3, 1],
-			[-4, 2],
-			[-3, 2],
-		],
-		commercial: [
-			[-5, 1],
-			[-5, 2],
-		],
-		named: [
-			{
-				id: 'green-ring',
-				name: 'Green Ring',
-				color: '#3f9f6b',
-				harvestable: true,
-				coords: [
-					[3, -1],
-					[4, -1],
-					[4, 0],
-					[5, -1],
-				],
-			},
-		],
-	},
+	zones: [
+		{
+			type: 'harvest',
+			coords: [
+				[3, -1],
+				[4, -1],
+				[4, 0],
+			],
+		},
+		{
+			type: 'residential',
+			coords: [
+				[-4, 1],
+				[-3, 1],
+				[-4, 2],
+				[-3, 2],
+			],
+		},
+		{
+			type: 'commercial',
+			coords: [
+				[-5, 1],
+				[-5, 2],
+			],
+		},
+		{
+			name: 'Green Ring',
+			color: '#3f9f6b',
+			type: 'harvest',
+			coords: [
+				[3, -1],
+				[4, -1],
+				[4, 0],
+				[5, -1],
+			],
+		},
+	],
 	dwellings: [{ coord: [-4, 1], tier: 'basic_dwelling' }],
 	projectSites: [
 		{
@@ -407,12 +416,15 @@ export const dorm = {
 			],
 		},
 	],
-	zones: {
-		residential: [
-			[3, 0],
-			[4, 0],
-		],
-	},
+	zones: [
+		{
+			type: 'residential',
+			coords: [
+				[3, 0],
+				[4, 0],
+			],
+		},
+	],
 	projectSites: [
 		{
 			coord: [0, -1],
@@ -454,9 +466,7 @@ export const saw = {
 			],
 		},
 	],
-	zones: {
-		residential: [[16, -6]],
-	},
+	zones: [{ type: 'residential', coords: [[16, -6]] }],
 	looseGoods: {
 		berries: [
 			[15, -7],

@@ -45,7 +45,7 @@ describe('Drop plan reservations', () => {
 		if (!gate) throw new Error('Expected adjacent alveoli to share a gate')
 
 		const worker = engine.spawnCharacter('Carrier', { q: 0, r: 0 })
-		const vehicle = engine.game.vehicles.createVehicle('wb-drop-res', 'wheelbarrow', { q: 0, r: 0 })
+		const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
 		bindOperatedWheelbarrowOffload(worker, vehicle)
 		worker.onboard()
 		const transport = worker.requireActiveTransportStorage()

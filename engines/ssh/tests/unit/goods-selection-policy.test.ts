@@ -57,12 +57,10 @@ describe('goods selection policy', () => {
 			name: 'Line',
 			stops: [
 				{
-					id: 'z',
 					loadSelection: migrateV1FiltersToGoodsSelection(['wood', 'wood', 'berries']),
 					zone: { kind: 'radius', center: [0, 0], radius: 2 },
 				},
 				{
-					id: 'b',
 					anchor: {
 						kind: 'alveolus',
 						hiveName: 'H',

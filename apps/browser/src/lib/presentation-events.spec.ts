@@ -12,25 +12,35 @@ describe('browser presentation event revisions', () => {
 	})
 
 	it('increments owner revisions from storage presentation events', () => {
-		expect(presentationRevisionFor('tile:1,1')).toBe(0)
+		const tileA: any = {}
+		const tileB: any = {}
+		const vehicle: any = {}
+
+		expect(presentationRevisionFor(tileA)).toBe(0)
 
 		consumePresentationEvents([
-			{ type: 'storage.changed', ownerUid: 'tile:1,1' },
-			{ type: 'storage.changed', ownerUid: 'tile:1,1' },
-			{ type: 'storage.changed', ownerUid: 'vehicle:1' },
+			{ type: 'storage.changed', owner: tileA },
+			{ type: 'storage.changed', owner: tileA },
+			{ type: 'storage.changed', owner: vehicle },
 		])
 
-		expect(presentationRevisionFor('tile:1,1')).toBe(2)
-		expect(presentationRevisionFor('vehicle:1')).toBe(1)
-		expect(presentationRevisionFor('tile:2,2')).toBe(0)
+		expect(presentationRevisionFor(tileA)).toBe(2)
+		expect(presentationRevisionFor(vehicle)).toBe(1)
+		expect(presentationRevisionFor(tileB)).toBe(0)
 	})
 
 	it('increments owner revisions from dock presentation events', () => {
+		const dockTile: any = {}
+
 		consumePresentationEvents([
-			{ type: 'vehicle.dock.changed', ownerUid: 'tile:dock', vehicleUid: 'vehicle:1' },
+			{
+				type: 'vehicle.dock.changed',
+				owner: dockTile,
+				vehicle: {} as any,
+			},
 		])
 
-		expect(presentationRevisionFor('tile:dock')).toBe(1)
+		expect(presentationRevisionFor(dockTile)).toBe(1)
 	})
 
 	it('tracks work-planning presentation revisions', () => {

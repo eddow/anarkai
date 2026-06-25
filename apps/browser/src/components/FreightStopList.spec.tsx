@@ -21,11 +21,9 @@ vi.mock('@app/lib/freight-line-draft', () => ({
 	defaultZoneCenterFromAnchorSwitch: vi.fn(() => [0, 0]),
 	defaultZoneRadiusForNewZone: vi.fn(() => 6),
 	moveFreightDraftStop: vi.fn((line) => line),
-	newFreightStopId: vi.fn(() => 'new-stop'),
 	removeFreightDraftStop: vi.fn((line) => line),
 	setFreightDraftStopKindAnchor: vi.fn((line) => line),
 	setFreightDraftStopKindNamedZone: vi.fn((line) => line),
-	setFreightDraftStopKindTrade: vi.fn((line) => line),
 	setFreightDraftStopKindZone: vi.fn((line) => line),
 	setFreightDraftStopLoadSelection: vi.fn((line) => line),
 	setFreightDraftStopMinBalanceAfterBuyVp: vi.fn((line, index, value) => ({
@@ -34,8 +32,7 @@ vi.mock('@app/lib/freight-line-draft', () => ({
 			i === index ? { ...(stop as object), minBalanceAfterBuyVp: value } : stop
 		),
 	})),
-	setFreightDraftStopNamedZoneId: vi.fn((line) => line),
-	setFreightDraftStopTradeSettlementId: vi.fn((line) => line),
+
 	setFreightDraftStopUnloadSelection: vi.fn((line) => line),
 	setFreightDraftStopZoneRadius: vi.fn((line) => line),
 }))

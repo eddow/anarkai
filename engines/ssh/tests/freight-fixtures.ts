@@ -51,15 +51,13 @@ export function distributeFreightLine(args: {
 	const loadSelection = migrateV1FiltersToGoodsSelection([...args.filters])
 	const anchor = freightBayAnchor(args.hiveName, [q, r])
 	const load: FreightStop = {
-		id: `${args.id}-load`,
 		loadSelection,
 		anchor,
 	}
 	const unload: FreightStop =
 		args.unloadRadius === undefined
-			? { id: `${args.id}-unload`, anchor }
+			? { anchor }
 			: {
-					id: `${args.id}-unload`,
 					zone: { kind: 'radius', center: [q, r], radius: args.unloadRadius },
 				}
 	return normalizeFreightLineDefinition({

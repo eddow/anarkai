@@ -25,10 +25,8 @@ import { latch } from '@sursaut/core'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
 import { effect, reactive, untracked } from 'mutts'
 import { Tile } from 'ssh/board/tile'
-import {
-	isSettlementTradeObjectUid,
-	type SettlementTradeObject,
-} from 'ssh/commerce/settlement-trade'
+import { createZoneObjectForUid } from 'ssh/board/zone-object'
+import { SettlementTradeObject } from 'ssh/commerce/settlement-trade'
 import {
 	createSyntheticFreightLineObject,
 	freightLineIdFromUid,
@@ -231,7 +229,7 @@ const renderPropertiesForObject = (
 	if (object.uid && isZoneObjectUid(object.uid)) {
 		return <ZoneSelectionProperties object={object} onClose={options.onClose} />
 	}
-	if (object.uid && isSettlementTradeObjectUid(object.uid)) {
+	if (object instanceof SettlementTradeObject) {
 		return <SettlementSelectionProperties object={object} />
 	}
 	if (isVehicleObject(object)) return <VehicleSelectionProperties object={object} />
@@ -262,6 +260,9 @@ const SelectionInfoWidget = (
 					lineId && Array.isArray(lines) ? lines.find((entry) => entry.id === lineId) : undefined
 				return line ? createSyntheticFreightLineObject(game, line) : undefined
 			}
+			if (isZoneObjectUid(uid) || isZonesUid(uid)) {
+				return createZoneObjectForUid(game, uid)
+			}
 			return game.getObject(uid)
 		},
 		get logs() {
@@ -290,12 +291,7 @@ const SelectionInfoWidget = (
 			}
 		}
 
-		if (
-			isHiveUid(uid) &&
-			'anchorTileUid' in object &&
-			game.objects &&
-			typeof game.objects.get === 'function'
-		) {
+		if (isHiveUid(uid) && 'anchorTileUid' in object) {
 			const hive = resolveHiveFromAnchorTile(game, object.anchorTileUid)
 			return hiveInspectorTitle(hive)
 		}

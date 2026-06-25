@@ -6,7 +6,7 @@ export type { Configuration } from 'ssh/globals'
 export { configuration, debugInfo, game, games } from 'ssh/globals'
 export {
 	activeWorldViewPov,
-	getHoveredUid,
+	getHoveredObject,
 	hivePlanPlacementState,
 	interactionMode,
 	isHoveredObject,

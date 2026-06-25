@@ -16,7 +16,7 @@ describe('trySpawnResidentialProject', () => {
 			{ terrainSeed: 77, characterCount: 0 },
 			{
 				tiles: [{ coord: [0, 0], terrain: 'grass' }],
-				zones: { residential: [[0, 0]] },
+				zones: [{ type: 'residential', coords: [[0, 0]] }],
 			}
 		)
 		await game.loaded
@@ -38,12 +38,15 @@ describe('trySpawnResidentialProject', () => {
 					{ coord: [0, 0], terrain: 'grass' },
 					{ coord: [1, 0], terrain: 'grass' },
 				],
-				zones: {
-					residential: [
-						[0, 0],
-						[1, 0],
-					],
-				},
+				zones: [
+					{
+						type: 'residential',
+						coords: [
+							[0, 0],
+							[1, 0],
+						],
+					},
+				],
 			}
 		)
 		await game.loaded

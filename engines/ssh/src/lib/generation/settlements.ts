@@ -1,6 +1,6 @@
 import { settlementZones } from 'engine-rules'
 import type { RoadPatches } from 'ssh/board/roads'
-import type { NamedZonePatch } from 'ssh/game/game'
+import type { ZoneDefinitionPatch } from 'ssh/board/zone'
 import type { AxialCoord } from 'ssh/utils'
 import { axial, hexSides } from 'ssh/utils'
 import type { GeneratedTileData } from './board'
@@ -19,12 +19,7 @@ export interface GeneratedSettlement {
 
 export interface SettlementZonePlan {
 	settlements: GeneratedSettlement[]
-	zones: {
-		harvest: Array<[number, number]>
-		residential: Array<[number, number]>
-		commercial: Array<[number, number]>
-		named: NamedZonePatch[]
-	}
+	zones: ZoneDefinitionPatch[]
 	roads: RoadPatches
 }
 
@@ -56,10 +51,10 @@ type ZoneBucket = 'residential' | 'commercial' | 'civic' | 'industrial'
 
 const ZONE_DEFINITIONS: Record<
 	Exclude<ZoneBucket, 'residential' | 'commercial'>,
-	Omit<NamedZonePatch, 'coords'>
+	Omit<ZoneDefinitionPatch, 'coords'>
 > = {
-	civic: { id: 'civic', name: 'Civic', color: '#6f8fd6' },
-	industrial: { id: 'industrial', name: 'Industrial', color: '#8f7a66' },
+	civic: { name: 'Civic', color: '#6f8fd6', type: 'passive' as const },
+	industrial: { name: 'Industrial', color: '#8f7a66', type: 'passive' as const },
 }
 
 const LAND_TERRAINS = new Set(['grass', 'forest', 'sand', 'rocky', 'concrete'])
@@ -759,15 +754,15 @@ export async function generateZonePlanForSettlements(
 
 	return {
 		settlements,
-		zones: {
-			harvest: [],
-			residential: zoneCoords.residential,
-			commercial: zoneCoords.commercial,
-			named: Object.entries(ZONE_DEFINITIONS).map(([zone, definition]) => ({
+		zones: [
+			{ type: 'harvest', coords: [] },
+			{ type: 'residential', coords: zoneCoords.residential },
+			{ type: 'commercial', coords: zoneCoords.commercial },
+			...Object.entries(ZONE_DEFINITIONS).map(([zone, definition]) => ({
 				...definition,
 				coords: zoneCoords[zone as keyof typeof ZONE_DEFINITIONS],
 			})),
-		},
+		],
 		roads: {
 			asphalt: sortedCoordTuples([...asphaltKeys].map(coordFromDoubledBorderKey)),
 			path: sortedCoordTuples([...pathKeys].map(coordFromDoubledBorderKey)),

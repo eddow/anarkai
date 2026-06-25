@@ -147,12 +147,7 @@ describe('profile registry', () => {
 		game.ticker.stop()
 
 		try {
-			const vehicle = game.vehicles.createVehicle(
-				'profile-vehicle',
-				'wheelbarrow',
-				{ q: 1, r: 0 },
-				[line]
-			)
+			const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [line])
 			game.population.createCharacter('Worker', { q: 1, r: 0 })
 
 			void vehicle.proposedJobs
@@ -196,12 +191,7 @@ describe('profile registry', () => {
 		game.ticker.stop()
 
 		try {
-			const vehicle = game.vehicles.createVehicle(
-				'profile-advertised-vehicle',
-				'wheelbarrow',
-				{ q: 1, r: 0 },
-				[line]
-			)
+			const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [line])
 			game.population.createCharacter('Worker', { q: 1, r: 0 })
 			vehicle.beginLineService(line, line.stops[1]!)
 			vehicle.dock()

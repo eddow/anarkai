@@ -1,7 +1,4 @@
-import {
-	createNpcSettlementTradeProfile,
-	settlementTradeObjectUid,
-} from 'ssh/commerce/settlement-trade'
+import { createNpcSettlementTradeProfile } from 'ssh/commerce/settlement-trade'
 import { Game } from 'ssh/game/game'
 import type { GeneratedSettlement, GeneratedTileData, SettlementZonePlan } from 'ssh/generation'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -36,12 +33,12 @@ const tiles: GeneratedTileData[] = [
 	tile(4, -1, { terrain: 'rocky', deposit: { type: 'rock', amount: 10 } }),
 ]
 
-const zones: SettlementZonePlan['zones'] = {
-	harvest: [[1, 0]],
-	residential: [],
-	commercial: [],
-	named: [{ id: 'industrial', name: 'Industrial', coords: [[4, -1]] }],
-}
+const zones: SettlementZonePlan['zones'] = [
+	{ type: 'harvest', coords: [[1, 0]] },
+	{ type: 'residential', coords: [] },
+	{ type: 'commercial', coords: [] },
+	{ name: 'Industrial', type: 'passive', coords: [[4, -1]] },
+]
 
 describe('settlement trade profiles', () => {
 	const games = new Set<Game>()
@@ -167,12 +164,11 @@ describe('settlement trade profiles', () => {
 		expect(profile).toBeDefined()
 		if (!profile) throw new Error('Expected generated settlement trade profile')
 
-		const object = game.getObject(settlementTradeObjectUid(profile.name))
+		const object = new SettlementTradeObject(game, profile)
 
-		expect(object?.uid).toBe(settlementTradeObjectUid(profile.name))
-		expect(object?.title).toBe(profile.cityHall.name)
-		expect(object?.position).toEqual(profile.cityHall.position)
-		expect(object?.hoverObject).toBe(game.hex.getTile(profile.cityHall.position))
+		expect(object.title).toBe(profile.cityHall.name)
+		expect(object.position).toEqual(profile.cityHall.position)
+		expect(object.hoverObject).toBe(game.hex.getTile(profile.cityHall.position))
 		expect(game.getSettlementTradeProfileAtCityHall(profile.cityHall.position)).toBe(profile)
 	})
 

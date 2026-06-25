@@ -17,7 +17,7 @@ describe('vehicleHop execution paths', () => {
 		const line = game.freightLines.find(
 			(candidate) => candidate.id === 'ChopSaw:materials-loop:0,0:Melindbury'
 		)
-		const bayStop = line?.stops.find((stop) => stop.id === 'ChopSaw:materials-bay')
+		const bayStop = line?.stops[0]
 		const pickup = game.vehicles.vehicle('ChopSaw:suv')
 		if (!line || !bayStop || !pickup) throw new Error('expected ChopSaw materials fixture')
 

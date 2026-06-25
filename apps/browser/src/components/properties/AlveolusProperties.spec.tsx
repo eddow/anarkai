@@ -478,10 +478,6 @@ describe('AlveolusProperties', () => {
 		const game = {
 			freightLines: [],
 			vehicles: [],
-			getObject: (uid: string) => ({
-				uid,
-				title: uid.includes('north-grove') ? 'North Grove' : 'Zone',
-			}),
 			hex: {
 				zoneManager: {
 					listCustomZoneDefinitions: () => [
@@ -568,7 +564,7 @@ describe('AlveolusProperties', () => {
 		await new Promise((resolve) => setTimeout(resolve, 0))
 		expect(woodLabel()).toContain('40%')
 
-		consumePresentationEvents([{ type: 'storage.changed', ownerUid: 'tile:transform' }])
+		consumePresentationEvents([{ type: 'storage.changed', owner: {} as any }])
 		await new Promise((resolve) => setTimeout(resolve, 0))
 
 		expect(woodLabel()).toContain('80%')

@@ -57,7 +57,7 @@ export function trySpawnResidentialProject(game: Game): void {
 	const candidates: { pressure: number; q: number; r: number }[] = []
 
 	for (const tile of game.hex.tiles) {
-		if (tile.zone !== 'residential') continue
+		if (tile.zone?.type !== 'residential') continue
 		const content = tile.content
 		if (!(content instanceof UnBuiltLand)) continue
 		if (content.project) continue

@@ -154,7 +154,7 @@ function freightStopTargetTile(game: Game, stop: FreightStop): Tile | undefined 
 		return game.hex.getTile({ q: stop.anchor.coord[0], r: stop.anchor.coord[1] })
 	}
 	if ('trade' in stop) {
-		const position = game.getSettlementTradeProfile(stop.trade.settlementName)?.cityHall?.position
+		const position = stop.trade.profile.cityHall.position
 		return position ? game.hex.getTile(position) : undefined
 	}
 	if (stop.zone.kind === 'radius') {
@@ -542,7 +542,7 @@ export function measureFreightStopProvidedGoods(
 	if (allowedGoods.length === 0) return snapshotFromGoodsCounts({})
 	const allowedGoodsSet = new Set(allowedGoods)
 	if ('trade' in stop) {
-		const profile = game.getSettlementTradeProfile(stop.trade.settlementName)
+		const profile = stop.trade.profile
 		const perGood: Partial<Record<GoodType, number>> = {}
 		for (const offer of profile?.offers ?? []) {
 			if (offer.direction !== 'sell') continue
@@ -588,7 +588,7 @@ export function measureFreightStopNeededGoods(
 	if (allowedGoods.length === 0) return snapshotFromGoodsCounts({})
 	const allowedGoodsSet = new Set(allowedGoods)
 	if ('trade' in stop) {
-		const profile = game.getSettlementTradeProfile(stop.trade.settlementName)
+		const profile = stop.trade.profile
 		const perGood: Partial<Record<GoodType, number>> = {}
 		for (const offer of profile?.offers ?? []) {
 			if (offer.direction !== 'buy') continue
@@ -737,7 +737,7 @@ function affordableImportGoods(args: {
 	readonly creditedVp?: number
 }): Partial<Record<GoodType, number>> {
 	if (!('trade' in args.stop)) return args.goods
-	const profile = args.game.getSettlementTradeProfile(args.stop.trade.settlementName)
+	const profile = args.stop.trade.profile
 	if (!profile) return {}
 	const prices = new Map<GoodType, number>()
 	for (const offer of profile.offers) {
@@ -758,12 +758,11 @@ function affordableImportGoods(args: {
 }
 
 function settlementCreditForGoods(
-	game: Game,
 	stop: FreightStop,
 	goods: Partial<Record<GoodType, number>>
 ): number {
 	if (!('trade' in stop)) return 0
-	const profile = game.getSettlementTradeProfile(stop.trade.settlementName)
+	const profile = stop.trade.profile
 	const prices = new Map<GoodType, number>()
 	for (const offer of profile?.offers ?? []) {
 		if (offer.direction === 'buy') prices.set(offer.good, offer.priceVp)
@@ -775,9 +774,9 @@ function settlementCreditForGoods(
 	return total
 }
 
-function tradeOfferCounts(game: Game, stop: FreightStop): { buy: number; sell: number } {
+function tradeOfferCounts(stop: FreightStop): { buy: number; sell: number } {
 	if (!('trade' in stop)) return { buy: 0, sell: 0 }
-	const profile = game.getSettlementTradeProfile(stop.trade.settlementName)
+	const profile = stop.trade.profile
 	let buy = 0
 	let sell = 0
 	for (const offer of profile?.offers ?? []) {
@@ -827,11 +826,7 @@ export function explainFreightStopCommerce(args: {
 	const exportOpportunityGoods = snapshotFromGoodsCounts(
 		vehicleAvailableGoods(args.vehicle, finiteGoodsCounts(localNeededGoods.perGood))
 	)
-	const projectedExportCreditVp = settlementCreditForGoods(
-		args.game,
-		stop,
-		exportOpportunityGoods.perGood
-	)
+	const projectedExportCreditVp = settlementCreditForGoods(stop, exportOpportunityGoods.perGood)
 	const neededProvidedIntersection = intersectGoodsCounts(
 		projected.remainingNeededGoods.perGood,
 		finiteGoodsCounts(localProvidedGoods.perGood)
@@ -860,7 +855,7 @@ export function explainFreightStopCommerce(args: {
 		addBlockReason(blockReasons, 'vehicle_full')
 	}
 	if ('trade' in stop) {
-		const offerCounts = tradeOfferCounts(args.game, stop)
+		const offerCounts = tradeOfferCounts(stop)
 		if (offerCounts.sell <= 0 && projected.remainingNeededGoods.total > 0) {
 			addBlockReason(blockReasons, 'no_matching_settlement_offer')
 		}

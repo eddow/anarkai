@@ -113,7 +113,7 @@ describe('StoredGoodsRow presentation refresh', () => {
 		await flush()
 		expect(container.querySelector('[data-testid="badge-wood"]')?.textContent).toBe('×1')
 
-		consumePresentationEvents([{ type: 'storage.changed', ownerUid: 'tile:stored-goods' }])
+		consumePresentationEvents([{ type: 'storage.changed', owner: {} as any }])
 		await flush()
 
 		expect(container.querySelector('[data-testid="badge-wood"]')?.textContent).toBe('×2')

@@ -6,7 +6,7 @@ import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
 import { dwellings } from '../../assets/visual-content'
 import { scopedPixiName, setPixiName } from '../debug-names'
-import type { PixiGameRenderer } from '../renderer'
+import { nextVisualKey, type PixiGameRenderer } from '../renderer'
 import { createGoodsRenderer, type GoodsRenderer } from './goods-renderer'
 import { VisualObject } from './visual-object'
 
@@ -37,7 +37,7 @@ export class DwellingVisual extends VisualObject<BasicDwelling | BuildDwelling> 
 	constructor(dwelling: BasicDwelling | BuildDwelling, renderer: PixiGameRenderer) {
 		super(dwelling, renderer)
 		dwellingVisualInstanceCounter += 1
-		this.scope = `dwelling:${dwelling.uid}:instance:${dwellingVisualInstanceCounter}`
+		this.scope = `dwelling:${nextVisualKey()}:instance:${dwellingVisualInstanceCounter}`
 		this.view.label = this.scope
 		this.view.eventMode = 'none'
 		this.goodsContainer = setPixiName(new Container(), scopedPixiName(this.scope, 'goods'))

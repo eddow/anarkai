@@ -266,7 +266,7 @@ function describeVehicleWorkTarget(job: ProposedJob): string {
 			return `vehicleOffload ${detail} @ ${job.targetCoord.q},${job.targetCoord.r}`
 		}
 		case 'vehicleHop':
-			return `vehicleHop ${job.lineId}/${job.stopId} @ ${targetLabel}`
+			return `vehicleHop ${job.lineId}/${job.stopIndex} @ ${targetLabel}`
 		case 'zoneBrowse':
 			return `zoneBrowse ${job.zoneBrowseAction}:${job.goodType} @ ${job.targetCoord.q},${job.targetCoord.r}`
 		default:
@@ -310,13 +310,13 @@ function vehicleWorkChoices(vehicle: Vehicle | undefined): VehicleWorkChoice[] {
 	})
 }
 
-function stopCoord(game: Vehicle['game'], stop: FreightStop): AxialCoord | undefined {
+function stopCoord(_game: Vehicle['game'], stop: FreightStop): AxialCoord | undefined {
 	if ('anchor' in stop) return { q: stop.anchor.coord[0], r: stop.anchor.coord[1] }
 	if ('zone' in stop && stop.zone.kind === 'radius') {
 		return { q: stop.zone.center[0], r: stop.zone.center[1] }
 	}
 	if ('trade' in stop) {
-		return game.getSettlementTradeProfile?.(stop.trade.settlementId)?.cityHall.position
+		return stop.trade.profile.cityHall.position
 	}
 	return undefined
 }
@@ -357,7 +357,7 @@ const VehicleProperties = (
 	})
 	const computed = {
 		get stock() {
-			presentationRevisionFor(props.vehicle?.uid)
+			presentationRevisionFor(props.vehicle)
 			return props.vehicle?.storage?.stock ?? {}
 		},
 		get operator() {
@@ -386,7 +386,7 @@ const VehicleProperties = (
 			if (isVehicleLineService(svc)) {
 				const docked = svc.docked ? T.vehicle.docked : T.vehicle.underway
 				const stopLabel = T.line.stop
-				return `${svc.line.name} · ${stopLabel} ${svc.stop.id} · ${docked}`
+				return `${svc.line.name} · ${stopLabel} ${svc.line.stops.indexOf(svc.stop)} · ${docked}`
 			}
 			if (isVehicleMaintenanceService(svc)) {
 				return T.vehicle.offloadService

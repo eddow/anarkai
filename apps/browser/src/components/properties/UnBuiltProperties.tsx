@@ -108,11 +108,10 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 
 	effect`unbuilt-properties:zone`(() => {
 		const tile = props.content?.tile
-		const zoneId = tile?.effectiveZone
-		const definition = tile?.board?.game?.hex?.zoneManager?.getZoneDefinition(zoneId)
-		state.zoneId = zoneId ? String(zoneId) : ''
-		state.zoneName = definition?.name?.trim() || state.zoneId
-		state.zoneColor = definition?.color?.trim() || '#4f8cff'
+		const zone = tile?.effectiveZone
+		state.zoneId = zone?.type ?? ''
+		state.zoneName = zone?.name?.trim() || zone?.type || ''
+		state.zoneColor = zone?.color?.trim() || '#4f8cff'
 		state.zoneIcon = iconForZone(state.zoneId)
 		state.showZone = state.zoneId.length > 0
 	})
@@ -147,7 +146,7 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 	effect`unbuilt-properties:construction`(() => {
 		const game = props.content?.tile?.board?.game
 		const tile = props.content?.tile
-		presentationRevisionFor(tile?.uid)
+		presentationRevisionFor(tile)
 		if (!game || !tile || !props.content?.constructionSite) {
 			state.showConstruction = false
 			state.constructionPhase = ''

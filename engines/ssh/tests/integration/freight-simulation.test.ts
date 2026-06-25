@@ -236,12 +236,7 @@ describe('Freight simulation (gather + distribute)', () => {
 			void worker.scriptsContext
 
 			const line = engine.game.freightLines[0]!
-			const vehicle = engine.game.vehicles.createVehicle(
-				'sim-gather-wb',
-				'wheelbarrow',
-				{ q: 2, r: 0 },
-				[line]
-			)
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 2, r: 0 }, [line])
 			vehicle.beginService(line, line.stops[0]!, worker)
 			worker.operates = vehicle
 			worker.onboard()
@@ -323,7 +318,9 @@ describe('Freight simulation (gather + distribute)', () => {
 			engine.loadScenario(scenario)
 
 			const siteTile = engine.game.hex.getTile({ q: 0, r: 0 })!
-			siteTile.zone = 'residential'
+			siteTile.zone = engine.game.hex.zoneManager.zoneByIndex(
+				engine.game.hex.zoneManager.findZoneIndexByName('residential')
+			)!
 			siteTile.content = new BuildDwelling(siteTile, 'basic_dwelling')
 			const site = siteTile.content as BuildDwelling
 			site.storage.addGood('planks', 1)
@@ -334,12 +331,9 @@ describe('Freight simulation (gather + distribute)', () => {
 			expect(engine.game.freightLines.some((l) => l.id === 'sim-dist-wood')).toBe(true)
 
 			const distLine = engine.game.freightLines.find((l) => l.id === 'sim-dist-wood')!
-			const vehicle = engine.game.vehicles.createVehicle(
-				'sim-dist-wb',
-				lineFreightVehicleType(),
-				{ q: 0, r: 0 },
-				[distLine]
-			)
+			const vehicle = engine.game.vehicles.createVehicle(lineFreightVehicleType(), { q: 0, r: 0 }, [
+				distLine,
+			])
 
 			const worker = engine.spawnCharacter('Hauler', { q: 0, r: 0 })
 			worker.role = 'worker'
@@ -444,12 +438,7 @@ describe('Freight simulation (gather + distribute)', () => {
 				engine.game.freightLines.find((candidate) => candidate.id === 'build-flow-materials'),
 				'build-flow freight line'
 			)
-			engine.game.vehicles.createVehicle(
-				'build-flow-wb',
-				lineFreightVehicleType(),
-				{ q: 1, r: 0 },
-				[line]
-			)
+			engine.game.vehicles.createVehicle(lineFreightVehicleType(), { q: 1, r: 0 }, [line])
 			const workers = [
 				engine.spawnCharacter('Builder One', { q: 1, r: 0 }),
 				engine.spawnCharacter('Builder Two', { q: 0, r: 1 }),

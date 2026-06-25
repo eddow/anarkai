@@ -28,9 +28,7 @@ describe('Idle diagnosis: lastPlannerSnapshot', () => {
 					alveoli: [{ coord: [1, 2], alveolus: 'tree_chopper', goods: {} }],
 				},
 			],
-			zones: {
-				harvest: [[1, 0]],
-			},
+			zones: [{ type: 'harvest', coords: [[1, 0]] }],
 		}
 		engine.loadScenario(scenario)
 		const worker = engine.spawnCharacter('Worker', { q: 2, r: 2 })

@@ -1,6 +1,5 @@
 import type {
 	FreightLineDefinition,
-	FreightNpcTradeStop,
 	FreightStop,
 	FreightStopAnchorAlveolus,
 } from 'ssh/freight/freight-line'
@@ -41,7 +40,6 @@ export function freightDraftSignature(line: FreightLineDefinition): string {
 
 export function cloneFreightStop(stop: FreightStop): FreightStop {
 	const base = {
-		id: stop.id,
 		loadSelection: stop.loadSelection,
 		unloadSelection: stop.unloadSelection,
 		...(stop.minBalanceAfterBuyVp !== undefined
@@ -65,7 +63,8 @@ export function cloneFreightStop(stop: FreightStop): FreightStop {
 			...base,
 			trade: {
 				kind: 'settlement',
-				settlementId: stop.trade.settlementId,
+				settlementName: stop.trade.settlementName,
+				profile: stop.trade.profile,
 			},
 		}
 	}
@@ -101,13 +100,8 @@ export function cloneFreightLineDraft(line: FreightLineDefinition): FreightLineD
 	}
 }
 
-export function newFreightStopId(): string {
-	return `stop-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
-}
-
 function freightStopDraftBase(stop: FreightStop) {
 	return {
-		id: stop.id,
 		loadSelection: stop.loadSelection,
 		unloadSelection: stop.unloadSelection,
 		...(stop.minBalanceAfterBuyVp !== undefined
@@ -129,7 +123,6 @@ export function addFreightDraftStop(
 		coord: [0, 0] as const,
 	}
 	const fresh: FreightStop = {
-		id: newFreightStopId(),
 		anchor: placeholderAnchor,
 	}
 	stops.splice(insertIndex, 0, stop ?? fresh)
@@ -208,60 +201,6 @@ export function setFreightDraftStopKindNamedZone(
 		const base = freightStopDraftBase(s)
 		return {
 			...base,
-			zone: {
-				kind: 'named' as const,
-				zoneId,
-			},
-		}
-	})
-	return { ...line, stops }
-}
-
-export function setFreightDraftStopKindTrade(
-	line: FreightLineDefinition,
-	index: number,
-	trade: FreightNpcTradeStop
-): FreightLineDefinition {
-	const stops = line.stops.map((s, i) => {
-		if (i !== index) return s
-		const base = freightStopDraftBase(s)
-		return {
-			...base,
-			trade,
-		}
-	})
-	return { ...line, stops }
-}
-
-export function setFreightDraftStopTradeSettlementId(
-	line: FreightLineDefinition,
-	index: number,
-	settlementId: string
-): FreightLineDefinition {
-	const stops = line.stops.map((s, i) => {
-		if (i !== index) return s
-		if (!('trade' in s)) return s
-		return {
-			...s,
-			trade: {
-				kind: 'settlement' as const,
-				settlementId,
-			},
-		}
-	})
-	return { ...line, stops }
-}
-
-export function setFreightDraftStopNamedZoneId(
-	line: FreightLineDefinition,
-	index: number,
-	zoneId: string
-): FreightLineDefinition {
-	const stops = line.stops.map((s, i) => {
-		if (i !== index) return s
-		if (!('zone' in s) || s.zone.kind !== 'named') return s
-		return {
-			...s,
 			zone: {
 				kind: 'named' as const,
 				zoneId,

@@ -18,7 +18,6 @@ import { KeyedRevisionedCache, RevisionedCache } from 'ssh/utils/revisioned-cach
 import { assert } from '../../dev/debug.ts'
 import { AlveolusGate } from '../border/alveolus-gate'
 import type { Tile } from '../tile'
-import { normalizeZoneId, type Zone } from '../zone'
 import { TileContent } from './content'
 import { UnBuiltLand } from './unbuilt-land'
 import { GcClassed } from './utils'
@@ -46,7 +45,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	public tile: Tile
 	public declare hive: Hive
 	public storage: Storage
-	public assignedZoneIds: Zone[] = []
+	public assignedZoneIndices: readonly number[] = []
 	private readonly conveyNearbyCache = new RevisionedCache<boolean>()
 	private readonly incomingGoodsCache = new RevisionedCache<boolean>()
 	private readonly goodMovementCache = new RevisionedCache<MovementSelection[] | undefined>()
@@ -241,27 +240,15 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		return this.working
 	}
 
-	setAssignedZoneIds(zoneIds: readonly string[]): void {
-		const next = [...new Set(zoneIds.map((zoneId) => normalizeZoneId(zoneId)).filter(Boolean))]
-		const current = this.assignedZoneIds
-		if (
-			current.length === next.length &&
-			current.every((zoneId, index) => zoneId === next[index])
-		) {
+	setAssignedZoneIndices(indices: readonly number[]): void {
+		const next = [...new Set(indices)]
+		const current = this.assignedZoneIndices
+		if (current.length === next.length && current.every((idx, i) => idx === next[i])) {
 			return
 		}
-		this.assignedZoneIds = next
+		this.assignedZoneIndices = next
 		this.game.invalidateWorkPlanning('alveolus.assigned-zones')
 		this.game.enqueueInteractiveChange(this.tile)
-	}
-
-	addAssignedZoneId(zoneId: string): void {
-		this.setAssignedZoneIds([...this.assignedZoneIds, zoneId])
-	}
-
-	removeAssignedZoneId(zoneId: string): void {
-		const normalized = normalizeZoneId(zoneId)
-		this.setAssignedZoneIds(this.assignedZoneIds.filter((id) => id !== normalized))
 	}
 
 	get proposedJobs(): readonly AlveolusProposedJob[] {

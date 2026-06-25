@@ -255,21 +255,20 @@ const TileContentHeader = (props: TileContentHeaderProps) => (
 		/>
 		<TileZoneHeaderFallback
 			else
-			if={!!customZoneTitle(props.tile, props.game)}
+			if={!!customZoneTitle(props.tile)}
 			game={props.game}
 			tile={props.tile}
 		/>
 	</>
 )
 
-function customZoneTitle(tile: Tile, game?: TileGame): string | undefined {
+function customZoneTitle(tile: Tile): string | undefined {
 	const zone = tile.zone
-	const definition = zone ? game?.hex.zoneManager.getZoneDefinition(zone) : undefined
-	return definition && !definition.builtIn ? definition.name || String(definition.id) : undefined
+	return zone ? zone.name?.trim() || undefined : undefined
 }
 
 const TileZoneHeaderFallback = (props: { game?: TileGame; tile: Tile }) => {
-	const title = () => customZoneTitle(props.tile, props.game)
+	const title = () => customZoneTitle(props.tile)
 	return (
 		<div class="tile-properties__header">
 			<div class="tile-properties__identity" />
@@ -348,7 +347,7 @@ const AlveolusTileHeader = (props: AlveolusTileHeaderProps) => {
 			return this.contentCase?.content.hive?.name?.trim() || 'Hive'
 		},
 		get zoneTitle() {
-			return customZoneTitle(props.tile, props.game)
+			return customZoneTitle(props.tile)
 		},
 		get workingWarning() {
 			return workingWarning(props.tile, this.contentCase)
@@ -413,7 +412,7 @@ const BasicDwellingTileHeader = (props: BasicDwellingTileHeaderProps) => {
 			return this.visual?.sprites?.[0]
 		},
 		get zoneTitle() {
-			return customZoneTitle(props.tile, props.game)
+			return customZoneTitle(props.tile)
 		},
 	}
 
@@ -441,18 +440,12 @@ interface ZoneRowProps {
 const ZoneRow = (props: ZoneRowProps) => {
 	const model = {
 		get tone() {
-			return props.tile.zone === 'residential' ? 'green' : 'yellow'
+			return props.tile.zone?.type === 'residential' ? 'green' : 'yellow'
 		},
 		get label() {
 			const zone = props.tile.zone
 			if (!zone) return ''
-			const definition = props.tile.board.game.hex.zoneManager.getZoneDefinition(zone)
-			if (definition) return definition.name?.trim() || String(definition.id)
-			return zone === 'residential'
-				? T.tile.zoneResidential
-				: zone === 'harvest'
-					? T.tile.zoneHarvest
-					: zone
+			return zone.name?.trim() || null
 		},
 	}
 

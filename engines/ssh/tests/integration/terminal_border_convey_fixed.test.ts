@@ -34,12 +34,7 @@ describe('terminal border convey (fixed)', () => {
 			} satisfies Partial<SaveState>)
 
 			// Add vehicle with wood at adjacent tile
-			const vehicle = engine.game.vehicles.createVehicle(
-				'wheelbarrow-v',
-				'wheelbarrow',
-				{ q: 0, r: 0 },
-				[line]
-			)
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			vehicle.storage.addGood('wood', 1)
 			vehicle.beginLineService(line, line.stops[1]!)
 			vehicle.dock()
@@ -117,16 +112,12 @@ describe('terminal border convey (fixed)', () => {
 			} satisfies Partial<SaveState>)
 
 			// Add two vehicles with wood
-			const vehicle1 = engine.game.vehicles.createVehicle('v1', 'wheelbarrow', { q: 1, r: 0 }, [
-				line,
-			])
+			const vehicle1 = engine.game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [line])
 			vehicle1.storage.addGood('wood', 1)
 			vehicle1.beginLineService(line, line.stops[1]!)
 			vehicle1.dock()
 
-			const vehicle2 = engine.game.vehicles.createVehicle('v2', 'wheelbarrow', { q: 2, r: 0 }, [
-				line,
-			])
+			const vehicle2 = engine.game.vehicles.createVehicle('wheelbarrow', { q: 2, r: 0 }, [line])
 			vehicle2.storage.addGood('wood', 1)
 			vehicle2.beginLineService(line, line.stops[1]!)
 			vehicle2.dock()

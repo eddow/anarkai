@@ -50,8 +50,10 @@ export type FreightStopAnchor = FreightStopAnchorAlveolus
 
 export interface FreightNpcTradeStop {
 	readonly kind: 'settlement'
+	/** Persistence identity — survives serialization. Runtime code reads `profile` instead. */
 	readonly settlementName: string
-	profile?: import('ssh/commerce/settlement-trade').NpcSettlementTradeProfile
+	/** Resolved at line hydration time. Never null at runtime. */
+	profile: import('ssh/commerce/settlement-trade').NpcSettlementTradeProfile
 }
 
 export interface FreightZoneDefinitionRadius {
@@ -62,7 +64,10 @@ export interface FreightZoneDefinitionRadius {
 
 export interface FreightZoneDefinitionNamed {
 	readonly kind: 'named'
-	readonly zoneId: string
+	/** Persistence / load-time identity. Populated during normalization, consumed during hydration. */
+	readonly zoneId?: string
+	/** Runtime reference — always set after hydration. */
+	definition?: import('ssh/board/zone').ZoneDefinition
 }
 
 export type FreightZoneDefinition = FreightZoneDefinitionRadius | FreightZoneDefinitionNamed
@@ -117,10 +122,6 @@ export interface SyntheticFreightLineObject extends InspectorSelectableObject {
 	readonly tile?: Tile
 }
 
-export function freightLineUid(id: string): string {
-	return `${FREIGHT_LINE_UID_PREFIX}${encodeURIComponent(id)}`
-}
-
 export function isFreightLineUid(uid: string): boolean {
 	return uid.startsWith(FREIGHT_LINE_UID_PREFIX)
 }
@@ -173,24 +174,6 @@ export function freightLineMatchesStop(
 	})
 }
 
-export function findFreightLineById(
-	lines: Iterable<FreightLineDefinition>,
-	id: string
-): FreightLineDefinition | undefined {
-	for (const line of lines) {
-		if (line.id === id) return normalizeFreightLineDefinition(line)
-	}
-	return undefined
-}
-
-export function findFreightLineByUid(
-	lines: Iterable<FreightLineDefinition>,
-	uid: string
-): FreightLineDefinition | undefined {
-	const id = freightLineIdFromUid(uid)
-	return id ? findFreightLineById(lines, id) : undefined
-}
-
 function normalizeBayAnchor(anchor: FreightBayAnchor): FreightBayAnchor {
 	return {
 		kind: 'alveolus',
@@ -210,10 +193,8 @@ function normalizeRadiusZone(zone: FreightZoneDefinitionRadius): FreightZoneDefi
 
 function normalizeFreightZone(zone: FreightZoneDefinition): FreightZoneDefinition {
 	if (zone.kind === 'named') {
-		return {
-			kind: 'named',
-			zoneId: zone.zoneId.trim().replace(/\s+/g, '-').toLowerCase(),
-		}
+		const zoneId = zone.zoneId?.trim().replace(/\s+/g, '-').toLowerCase() ?? ''
+		return { kind: 'named', zoneId } as FreightZoneDefinitionNamed
 	}
 	return normalizeRadiusZone(zone)
 }
@@ -222,6 +203,34 @@ function normalizeNpcTradeStop(trade: FreightNpcTradeStop): FreightNpcTradeStop 
 	return {
 		kind: 'settlement',
 		settlementName: trade.settlementName.trim(),
+		profile: trade.profile,
+	}
+}
+
+/**
+ * Resolves `FreightNpcTradeStop.profile` for every trade stop on every freight line.
+ * Call after `bootstrapFreightLines` so all lines and settlement profiles are loaded.
+ */
+export function hydrateFreightLineTradeProfiles(lines: FreightLineDefinition[], game: Game): void {
+	for (const line of lines) {
+		for (const stop of line.stops) {
+			if (!('trade' in stop)) continue
+			if (stop.trade.profile) continue // already hydrated
+			const profile = game.getSettlementTradeProfile(stop.trade.settlementName)
+			if (profile) {
+				;(stop.trade as { profile: FreightNpcTradeStop['profile'] }).profile = profile
+			}
+		}
+		for (const stop of line.stops) {
+			if (!('zone' in stop) || stop.zone.kind !== 'named') continue
+			if (stop.zone.definition) continue
+			if (!stop.zone.zoneId) continue
+			const idx = game.hex.zoneManager.findZoneIndexByName(stop.zone.zoneId)
+			if (idx >= 0) {
+				;(stop.zone as { definition: FreightZoneDefinitionNamed['definition'] }).definition =
+					game.hex.zoneManager.zoneByIndex(idx)
+			}
+		}
 	}
 }
 
@@ -622,7 +631,7 @@ function axialDistance(a: AxialCoord, b: AxialCoord): number {
 
 export function freightZoneTiles(game: Game, zone: FreightZoneDefinition): Tile[] {
 	if (zone.kind === 'named') {
-		return game.hex.tiles.filter((tile) => tile.zone === zone.zoneId)
+		return game.hex.tiles.filter((tile) => tile.zone === zone.definition)
 	}
 	return [...game.hex.tilesAround({ q: zone.center[0], r: zone.center[1] }, zone.radius)]
 }
@@ -635,7 +644,7 @@ export function freightZoneContainsPosition(
 	const coord = toAxialCoord(position)
 	if (!coord) return false
 	if (zone.kind === 'named') {
-		return game.hex.getTile(coord)?.zone === zone.zoneId
+		return game.hex.getTile(coord)?.zone === zone.definition
 	}
 	return axialDistance(coord, { q: zone.center[0], r: zone.center[1] }) <= zone.radius
 }
@@ -645,7 +654,8 @@ export function freightZoneFallbackPosition(
 	zone: FreightZoneDefinition
 ): Position | undefined {
 	if (zone.kind === 'radius') return { q: zone.center[0], r: zone.center[1] }
-	const coord = game.hex.zoneManager.centralCoordForZone(zone.zoneId)
+	const def = zone.definition
+	const coord = def ? game.hex.zoneManager.centralCoordForZone(def) : undefined
 	return coord ? { q: coord.q, r: coord.r } : undefined
 }
 
@@ -878,7 +888,6 @@ export function createSyntheticFreightLineObject(
 	const tile = getFreightLinePrimaryTile(game, line)
 	return {
 		kind: 'freight-line',
-		uid: freightLineUid(line.id),
 		title: line.name,
 		game,
 		line,

@@ -235,9 +235,7 @@ describe('NPC Behaviors Integration', () => {
 
 		const line = game.freightLines.find((l) => l.id === 'gatherers:gather:mushrooms-only')!
 		expect(line).toBeDefined()
-		const vehicle = game.vehicles.createVehicle('npc-gather-wb', 'wheelbarrow', { q: 2, r: 1 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 2, r: 1 }, [line])
 		vehicle.beginService(line, line.stops[0]!, gatherer)
 		gatherer.operates = vehicle
 		gatherer.onboard()

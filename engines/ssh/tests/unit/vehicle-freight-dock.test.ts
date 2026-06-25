@@ -74,9 +74,7 @@ describe('vehicle-freight-dock', () => {
 			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
 			expect(bay).toBeDefined()
 
-			const vehicle = engine.game.vehicles.createVehicle('dock-v', 'wheelbarrow', { q: 0, r: 0 }, [
-				line,
-			])
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			vehicle.storage.addGood('berries', 1)
 			vehicle.beginLineService(line, line.stops[0]!)
 			if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
@@ -135,12 +133,7 @@ describe('vehicle-freight-dock', () => {
 			const demandTile = engine.game.hex.getTile({ q: 2, r: 0 })!
 			demandTile.content = new BuildDwelling(demandTile, 'basic_dwelling')
 			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus
-			const vehicle = engine.game.vehicles.createVehicle(
-				'dock-retained-v',
-				'wheelbarrow',
-				{ q: 0, r: 0 },
-				[line]
-			)
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			vehicle.storage.addGood('wood', 2)
 			vehicle.beginLineService(line, line.stops[0]!)
 			if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
@@ -190,12 +183,7 @@ describe('vehicle-freight-dock', () => {
 			expect(bay).toBeDefined()
 			expect(bay?.canTake('wood', '2-use')).toBe(false)
 
-			const vehicle = engine.game.vehicles.createVehicle(
-				'dock-gather-v',
-				'wheelbarrow',
-				{ q: 0, r: 0 },
-				[line]
-			)
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			vehicle.storage.addGood('wood', 1)
 			vehicle.beginLineService(line, line.stops[1]!)
 			if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
@@ -240,12 +228,7 @@ describe('vehicle-freight-dock', () => {
 			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
 			expect(bay).toBeDefined()
 			const _storage = engine.game.hex.getTile({ q: 1, r: 0 })?.content
-			const vehicle = engine.game.vehicles.createVehicle(
-				'dock-forty-v',
-				'wheelbarrow',
-				{ q: 0, r: 0 },
-				[line]
-			)
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			vehicle.storage.addGood('wood', 1)
 			vehicle.beginLineService(line, line.stops[1]!)
 			vehicle.dock()
@@ -332,12 +315,7 @@ describe('vehicle-freight-dock', () => {
 			expect(bay.storage.hasRoom('wood')).toBe(0)
 			expect(storage.canTake('wood', '0-store')).toBe(true)
 
-			const vehicle = engine.game.vehicles.createVehicle(
-				'dock-full-bay-v',
-				'wheelbarrow',
-				{ q: 0, r: 0 },
-				[line]
-			)
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			vehicle.storage.addGood('wood', 1)
 			vehicle.beginLineService(line, line.stops[1]!)
 			if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
@@ -397,12 +375,7 @@ describe('vehicle-freight-dock', () => {
 			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
 			expect(bay).toBeDefined()
 			if (!bay) throw new Error('Expected freight bay')
-			const vehicle = engine.game.vehicles.createVehicle(
-				'dock-assigned-convey-v',
-				'wheelbarrow',
-				{ q: 0, r: 0 },
-				[line]
-			)
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			vehicle.storage.addGood('wood', 1)
 			vehicle.beginLineService(line, line.stops[1]!)
 			vehicle.dock()
@@ -455,12 +428,7 @@ describe('vehicle-freight-dock', () => {
 				freightLines: [line],
 			} satisfies Partial<SaveState>)
 
-			const vehicle = engine.game.vehicles.createVehicle(
-				'dock-empty-proposal-v',
-				'wheelbarrow',
-				{ q: 0, r: 0 },
-				[line]
-			)
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			vehicle.beginLineService(line, line.stops[1]!)
 			vehicle.dock()
 
@@ -515,12 +483,7 @@ describe('vehicle-freight-dock', () => {
 			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
 			expect(bay).toBeDefined()
 			const _storage = engine.game.hex.getTile({ q: 1, r: 0 })?.content
-			const vehicle = engine.game.vehicles.createVehicle(
-				'dock-finished-v',
-				'wheelbarrow',
-				{ q: 0, r: 0 },
-				[line]
-			)
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			const previousVehicleTrace = traces.vehicle
 			const vehicleTrace = namedTrace('vehicle', { silent: true })
 			traces.vehicle = vehicleTrace
@@ -584,12 +547,7 @@ describe('vehicle-freight-dock', () => {
 
 			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
 			expect(bay).toBeDefined()
-			const vehicle = engine.game.vehicles.createVehicle(
-				'dock-broken-pending-v',
-				'wheelbarrow',
-				{ q: 0, r: 0 },
-				[line]
-			)
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			vehicle.storage.addGood('wood', 1)
 			vehicle.beginLineService(line, line.stops[1]!)
 			vehicle.dock()
@@ -653,12 +611,7 @@ describe('vehicle-freight-dock', () => {
 
 			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
 			expect(bay).toBeDefined()
-			const vehicle = engine.game.vehicles.createVehicle(
-				'dock-continue-v',
-				'wheelbarrow',
-				{ q: 0, r: 0 },
-				[line]
-			)
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			vehicle.beginLineService(line, line.stops[0]!)
 			vehicle.dock()
 			expect(vehicle.position).toBeUndefined()
@@ -712,12 +665,7 @@ describe('vehicle-freight-dock', () => {
 
 			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
 			expect(bay).toBeDefined()
-			const vehicle = engine.game.vehicles.createVehicle(
-				'dock-distribute-load-v',
-				'wheelbarrow',
-				{ q: 0, r: 0 },
-				[line]
-			)
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			vehicle.beginLineService(line, line.stops[0]!)
 			vehicle.dock()
 			const dock = bay?.hive.freightVehicleDockFor(vehicle.uid)
@@ -766,12 +714,7 @@ describe('vehicle-freight-dock', () => {
 
 			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
 			expect(bay).toBeDefined()
-			const vehicle = engine.game.vehicles.createVehicle(
-				'dock-distribute-advertise-v',
-				'wheelbarrow',
-				{ q: 0, r: 0 },
-				[line]
-			)
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			vehicle.beginLineService(line, line.stops[0]!)
 			vehicle.dock()
 
@@ -825,12 +768,7 @@ describe('vehicle-freight-dock', () => {
 			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
 			expect(bay).toBeDefined()
 			const storage = engine.game.hex.getTile({ q: 1, r: 0 })?.content
-			const vehicle = engine.game.vehicles.createVehicle(
-				'dock-distribute-pending-concrete-load-v',
-				'pickup_truck',
-				{ q: 0, r: 0 },
-				[line]
-			)
+			const vehicle = engine.game.vehicles.createVehicle('pickup_truck', { q: 0, r: 0 }, [line])
 			vehicle.beginLineService(line, line.stops[0]!)
 			vehicle.dock()
 
@@ -889,12 +827,7 @@ describe('vehicle-freight-dock', () => {
 			expect(storage).toBeDefined()
 
 			const worker = engine.game.population.createCharacter('BufferConsumedWorker', { q: 0, r: 0 })
-			const vehicle = engine.game.vehicles.createVehicle(
-				'dock-distribute-buffer-consumed-v',
-				'wheelbarrow',
-				{ q: 0, r: 0 },
-				[line]
-			)
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			storage?.setBuffers({ wood: 1 })
 			storage?.storage.addGood('wood', 1)
 			expect(pickInitialVehicleServiceCandidate(engine.game, worker, vehicle)).toMatchObject({
@@ -947,12 +880,7 @@ describe('vehicle-freight-dock', () => {
 			constructionTile.content = new BuildDwelling(constructionTile, 'basic_dwelling')
 
 			const worker = engine.game.population.createCharacter('NoStockWorker', { q: 0, r: 0 })
-			const vehicle = engine.game.vehicles.createVehicle(
-				'dock-distribute-empty-v',
-				'wheelbarrow',
-				{ q: 0, r: 0 },
-				[line]
-			)
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 
 			const storage = engine.game.hex.getTile({ q: 1, r: 0 })?.content as
 				| StorageAlveolus
@@ -1010,12 +938,7 @@ describe('vehicle-freight-dock', () => {
 			projectTile.build('storage')
 
 			const worker = engine.game.population.createCharacter('ConcreteWorker', { q: 0, r: 0 })
-			const vehicle = engine.game.vehicles.createVehicle(
-				'dock-distribute-foundation-concrete-v',
-				'wheelbarrow',
-				{ q: 0, r: 0 },
-				[line]
-			)
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 
 			const storage = engine.game.hex.getTile({ q: 1, r: 0 })?.content as
 				| StorageAlveolus

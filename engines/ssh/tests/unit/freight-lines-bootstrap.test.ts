@@ -8,7 +8,6 @@ import {
 	findGatherRouteSegments,
 	freightLineEditorGatherRadius,
 	freightLineStationLabel,
-	freightLineUid,
 	normalizeFreightLineDefinition,
 } from 'ssh/freight/freight-line'
 import { measureFreightStopProvidedGoods } from 'ssh/freight/freight-stop-utility'
@@ -68,25 +67,6 @@ describe('Freight line bootstrap', () => {
 			})
 			expect(engine.game.hex.getTile({ q: 0, r: 0 })?.content?.name).not.toBe('freight_bay')
 			expect(engine.game.freightLines).toEqual([])
-		} finally {
-			await engine.destroy()
-		}
-	})
-
-	it('resolves a synthetic inspector object for a freight line uid', async () => {
-		const engine = new TestEngine({ terrainSeed: 1, characterCount: 0 })
-		await engine.init()
-		try {
-			const scenario: Partial<SaveState> = {
-				hives: [{ name: 'H', alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }] }],
-			}
-			engine.loadScenario(scenario)
-			const line = engine.game.freightLines[0]
-			expect(line).toBeDefined()
-			const synthetic = line ? engine.game.getObject(freightLineUid(line.id)) : undefined
-			expect(synthetic).toBeDefined()
-			expect(synthetic?.uid).toBe(line ? freightLineUid(line.id) : '')
-			expect(synthetic?.position).toEqual(engine.game.hex.getTile({ q: 0, r: 0 })?.position)
 		} finally {
 			await engine.destroy()
 		}

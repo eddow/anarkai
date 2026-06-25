@@ -24,9 +24,7 @@ function minimalSelfCareHiveSetup(
 					],
 				},
 			],
-			zones: {
-				residential: [[0, 1]],
-			},
+			zones: [{ type: 'residential', coords: [[0, 1]] }],
 		},
 		afterLoad,
 	}

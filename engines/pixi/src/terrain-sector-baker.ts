@@ -486,20 +486,13 @@ function buildMaterialTerrainOverlay(input: SectorTerrainBakeInput): Graphics | 
 	return undefined
 }
 
-function fallbackZoneColor(zoneId: string): number {
-	let hash = 2166136261
-	for (let i = 0; i < zoneId.length; i++) {
-		hash ^= zoneId.charCodeAt(i)
-		hash = Math.imul(hash, 16777619)
-	}
-	return 0x555555 ^ (hash & 0x2f2f2f)
-}
+const FALLBACK_ZONE_COLOR = 0x4f8cff
 
-function parseZoneColor(color: string | undefined, zoneId: string): number {
-	if (!color) return fallbackZoneColor(zoneId)
+function parseZoneColor(color: string | undefined): number {
+	if (!color) return FALLBACK_ZONE_COLOR
 	const trimmed = color.trim()
 	const hex = trimmed.startsWith('#') ? trimmed.slice(1) : trimmed
-	if (!/^[0-9a-fA-F]{6}$/.test(hex)) return fallbackZoneColor(zoneId)
+	if (!/^[0-9a-fA-F]{6}$/.test(hex)) return FALLBACK_ZONE_COLOR
 	return Number.parseInt(hex, 16)
 }
 
@@ -524,7 +517,7 @@ function buildGeneratedZoneOverlay(input: SectorTerrainBakeInput): Graphics | un
 		if (!tile?.zone?.generated) continue
 		graphics
 			.poly(hexPolygonLocal(coord, input.displayBounds))
-			.fill({ color: parseZoneColor(tile.zone.color, tile.zone.id), alpha: 0.26 })
+			.fill({ color: parseZoneColor(tile.zone.color), alpha: 0.26 })
 		drew = true
 	}
 	if (drew) return graphics

@@ -12,7 +12,13 @@ import {
 	setActiveWorldViewPov,
 	setHoveredObject,
 } from '@app/lib/interactive-state'
-import type { Application, Container, FederatedPointerEvent, FederatedWheelEvent } from 'pixi.js'
+import type {
+	Application,
+	Container,
+	FederatedPointerEvent,
+	FederatedWheelEvent,
+	Rectangle,
+} from 'pixi.js'
 import type { RoadType } from 'ssh/board/roads'
 import { canBuildRoadOnTrace, isRoadType, straightRoadTileTrace } from 'ssh/board/roads'
 import { Tile } from 'ssh/board/tile'
@@ -20,8 +26,8 @@ import type { Game } from 'ssh/game/game'
 import type { InteractiveGameObject } from 'ssh/game/object'
 import { axial, fromCartesian, tileSize } from 'ssh/utils'
 
-function appScreen(app: Application): { width: number; height: number } | undefined {
-	return (app as { renderer?: { screen?: { width: number; height: number } } }).renderer?.screen
+function appScreen(app: Application): Rectangle | undefined {
+	return (app as unknown as { renderer?: { screen: Rectangle } }).renderer?.screen
 }
 
 /**

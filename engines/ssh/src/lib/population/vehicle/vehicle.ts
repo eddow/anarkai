@@ -128,6 +128,32 @@ export interface VehicleSerializedState {
 		| LegacyOffloadVehicleServiceSerialized
 }
 
+/**
+ * Index-based save format — replaces {@link VehicleSerializedState}.
+ *
+ * Array order IS identity: `vehicles[i]` is the `i`-th vehicle. All cross-references
+ * are indexes into their respective arrays (freight lines, characters) — no string uids.
+ */
+export interface SerializedVehicle {
+	readonly vehicleType: WorldVehicleType
+	readonly position: { q: number; r: number }
+	readonly goods?: Partial<Record<GoodType, number>>
+	/** Indexes into the freight lines array (position in `game.freightLines`). */
+	readonly servedLineIndexes: readonly number[]
+	readonly service?: SerializedVehicleService
+}
+
+export type SerializedVehicleService = {
+	readonly kind: 'line'
+	/** Index into the freight lines array. */
+	readonly lineIndex: number
+	/** Index into `line.stops[]`. */
+	readonly stopIndex: number
+	readonly docked: boolean
+	/** Index into the characters array. */
+	readonly operatorIndex?: number
+}
+
 export function createVehicleStorage(vehicleType: VehicleType): Storage {
 	const vehicleDefinition = vehicles[vehicleType] as Ssh.VehicleDefinition
 	const storageSpec = vehicleDefinition.storage

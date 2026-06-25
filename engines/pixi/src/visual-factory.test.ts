@@ -85,7 +85,9 @@ describe('VisualFactory batched lifecycle sync', () => {
 
 			const tile = engine.game.hex.getTile({ q: 0, r: 0 })
 			if (!tile) throw new Error('Expected tile to exist')
-			tile.zone = 'harvest'
+			tile.zone = engine.game.hex.zoneManager.zoneByIndex(
+				engine.game.hex.zoneManager.findZoneIndexByName('harvest')
+			)!
 			await new Promise((resolve) => setTimeout(resolve, 0))
 
 			expect(renderer.visuals.has('tile:0,0')).toBe(true)
@@ -115,7 +117,9 @@ describe('VisualFactory batched lifecycle sync', () => {
 
 			const tile = engine.game.hex.getTile({ q: 0, r: 0 })
 			if (!tile) throw new Error('Expected tile to exist')
-			tile.zone = 'harvest'
+			tile.zone = engine.game.hex.zoneManager.zoneByIndex(
+				engine.game.hex.zoneManager.findZoneIndexByName('harvest')
+			)!
 			await new Promise((resolve) => setTimeout(resolve, 0))
 			expect(renderer.visuals.has('tile:0,0')).toBe(true)
 			engine.game.hex.reset()
@@ -150,9 +154,9 @@ describe('VisualFactory batched lifecycle sync', () => {
 			})
 
 			engine.game.emit('presentationEvents', [
-				{ type: 'storage.changed', ownerUid: 'tile:0,0' },
-				{ type: 'storage.changed', ownerUid: 'tile:0,0' },
-				{ type: 'storage.changed', ownerUid: 'missing' },
+				{ type: 'storage.changed', owner: {} as any },
+				{ type: 'storage.changed', owner: {} as any },
+				{ type: 'storage.changed', owner: {} as any },
 			])
 
 			expect(refreshes).toBe(1)
@@ -187,13 +191,13 @@ describe('VisualFactory batched lifecycle sync', () => {
 
 			const border = engine.game.hex.getBorder({ q: 0.5, r: 0 })
 			if (!border) throw new Error('Expected border to exist')
-			renderer.visuals.get(border.uid)?.dispose()
-			renderer.visuals.delete(border.uid)
-			expect(renderer.visuals.has(border.uid)).toBe(false)
+			renderer.visuals.get(border)?.dispose()
+			renderer.visuals.delete(border)
+			expect(renderer.visuals.has(border)).toBe(false)
 
-			engine.game.emit('presentationEvents', [{ type: 'storage.changed', ownerUid: border.uid }])
+			engine.game.emit('presentationEvents', [{ type: 'storage.changed', owner: border }])
 
-			expect(renderer.visuals.has(border.uid)).toBe(true)
+			expect(renderer.visuals.has(border)).toBe(true)
 
 			factory.destroy()
 		} finally {
@@ -216,7 +220,8 @@ describe('VisualFactory batched lifecycle sync', () => {
 			factory.bind()
 
 			let refreshes = 0
-			renderer.visuals.set('tile:0,0', {
+			const dockOwner = {} as any
+			renderer.visuals.set(dockOwner, {
 				refreshDockedVehicles() {
 					refreshes++
 				},
@@ -224,9 +229,9 @@ describe('VisualFactory batched lifecycle sync', () => {
 			})
 
 			engine.game.emit('presentationEvents', [
-				{ type: 'vehicle.dock.changed', ownerUid: 'tile:0,0', vehicleUid: 'vehicle:1' },
-				{ type: 'vehicle.dock.changed', ownerUid: 'tile:0,0', vehicleUid: 'vehicle:2' },
-				{ type: 'vehicle.dock.changed', ownerUid: 'missing', vehicleUid: 'vehicle:3' },
+				{ type: 'vehicle.dock.changed', owner: dockOwner, vehicle: {} as any },
+				{ type: 'vehicle.dock.changed', owner: dockOwner, vehicle: {} as any },
+				{ type: 'vehicle.dock.changed', owner: dockOwner, vehicle: {} as any },
 			])
 
 			expect(refreshes).toBe(1)

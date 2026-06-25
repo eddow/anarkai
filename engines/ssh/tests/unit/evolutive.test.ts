@@ -222,7 +222,7 @@ describe('Evolutive & Determinism Tests', () => {
 			await game.generate(config, patches)
 
 			const worker = game.population.createCharacter('Worker1', { q: 0, r: 0 })
-			const vehicle = game.vehicles.createVehicle('evolutive-wb', 'wheelbarrow', { q: 0, r: 0 })
+			const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
 			vehicle.beginOffloadService(worker)
 			worker.operates = vehicle
 			worker.onboard()

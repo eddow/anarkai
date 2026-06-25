@@ -33,7 +33,7 @@ describe('findVehicleOffloadJob', () => {
 					},
 				],
 			} as any)
-			game.vehicles.createVehicle('wb-unit', 'wheelbarrow', center, [])
+			game.vehicles.createVehicle('wheelbarrow', center, [])
 			const char = engine.spawnCharacter('Worker', center)
 			void char.scriptsContext
 			const job = findVehicleOffloadJob(game, char)
@@ -66,12 +66,7 @@ describe('findVehicleOffloadJob', () => {
 					},
 				],
 			} as any)
-			const vehicle = game.vehicles.createVehicle(
-				'wb-border',
-				'wheelbarrow',
-				{ q: 0.5, r: -0.5 },
-				[]
-			)
+			const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0.5, r: -0.5 }, [])
 			const char = engine.spawnCharacter('Worker', { q: 1, r: -1 })
 			void char.scriptsContext
 
@@ -106,7 +101,7 @@ describe('findVehicleOffloadJob', () => {
 					},
 				],
 			} as any)
-			game.vehicles.createVehicle('wb-sawmill-need', 'wheelbarrow', { q: 0, r: 0 }, [])
+			game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [])
 			const char = engine.spawnCharacter('Worker', { q: 0, r: 0 })
 			void char.scriptsContext
 
@@ -158,7 +153,7 @@ describe('findVehicleOffloadJob', () => {
 					},
 				],
 			} as any)
-			const vehicle = game.vehicles.createVehicle('wb-unit', 'wheelbarrow', center, [])
+			const vehicle = game.vehicles.createVehicle('wheelbarrow', center, [])
 			const char = engine.spawnCharacter('Worker', center)
 			void char.scriptsContext
 
@@ -191,9 +186,7 @@ describe('findVehicleOffloadJob', () => {
 					},
 				],
 			} as any)
-			game.vehicles
-				.createVehicle('wb-priority', 'wheelbarrow', center, [])
-				.storage.addGood('stone', 1)
+			game.vehicles.createVehicle('wheelbarrow', center, []).storage.addGood('stone', 1)
 			const char = engine.spawnCharacter('Worker', center)
 			void char.scriptsContext
 
@@ -219,7 +212,7 @@ describe('findVehicleOffloadJob', () => {
 					{ coord: [3, 2], terrain: 'grass' },
 				],
 			} as any)
-			const vehicle = game.vehicles.createVehicle('wb-unload', 'wheelbarrow', center, [])
+			const vehicle = game.vehicles.createVehicle('wheelbarrow', center, [])
 			vehicle.storage.addGood('stone', 1)
 			const char = engine.spawnCharacter('Worker', center)
 			void char.scriptsContext
@@ -249,7 +242,7 @@ describe('findVehicleOffloadJob', () => {
 					{ coord: [2, 1], terrain: 'grass' },
 				],
 			} as any)
-			const vehicle = game.vehicles.createVehicle('wb-reachability-map', 'wheelbarrow', center, [])
+			const vehicle = game.vehicles.createVehicle('wheelbarrow', center, [])
 			vehicle.storage.addGood('stone', 1)
 			const char = engine.spawnCharacter('Worker', center)
 			void char.scriptsContext
@@ -284,7 +277,7 @@ describe('findVehicleOffloadJob', () => {
 			const centerTile = game.hex.getTile(center)!
 			const roadTile = game.hex.getTile(roadTarget)!
 			game.hex.setRoadType(centerTile.borderWith(roadTile)!.position, 'path')
-			const vehicle = game.vehicles.createVehicle('wb-unload-road', 'wheelbarrow', center, [])
+			const vehicle = game.vehicles.createVehicle('wheelbarrow', center, [])
 			vehicle.storage.addGood('stone', 1)
 			const char = engine.spawnCharacter('Worker', center)
 			void char.scriptsContext
@@ -318,7 +311,7 @@ describe('findVehicleOffloadJob', () => {
 					},
 				],
 			} as any)
-			const vehicle = game.vehicles.createVehicle('wb-same-hex-unload', 'wheelbarrow', center, [])
+			const vehicle = game.vehicles.createVehicle('wheelbarrow', center, [])
 			vehicle.storage.addGood('mushrooms', 1)
 			const char = engine.spawnCharacter('Worker', center)
 			void char.scriptsContext
@@ -372,7 +365,7 @@ describe('findVehicleOffloadJob', () => {
 				freightLines: [lineDef],
 			} as any)
 			const line = game.freightLines.find((l) => l.id === 'orphan-gather')!
-			const vehicle = game.vehicles.createVehicle('wb-orphan-unload', 'wheelbarrow', center, [line])
+			const vehicle = game.vehicles.createVehicle('wheelbarrow', center, [line])
 			vehicle.storage.addGood('mushrooms', 1)
 			const char = engine.spawnCharacter('Worker', center)
 			void char.scriptsContext
@@ -432,12 +425,7 @@ describe('findVehicleOffloadJob', () => {
 				],
 			} as any)
 			const line = game.freightLines.find((entry) => entry.id === 'loaded-gather')!
-			const vehicle = game.vehicles.createVehicle(
-				'wb-loaded-gather',
-				'wheelbarrow',
-				{ q: 3, r: 0 },
-				[line]
-			)
+			const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 3, r: 0 }, [line])
 			vehicle.storage.addGood('wood', 1)
 			const char = engine.spawnCharacter('Worker', { q: 3, r: 0 })
 			void char.scriptsContext
@@ -474,12 +462,7 @@ describe('findVehicleOffloadJob', () => {
 				],
 				looseGoods: [{ goodType: 'stone', position: { q: 6, r: 0 } }],
 			} as any)
-			const vehicle = game.vehicles.createVehicle(
-				'wb-near-unload',
-				'wheelbarrow',
-				{ q: 0, r: 0 },
-				[]
-			)
+			const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [])
 			vehicle.storage.addGood('stone', 1)
 			const char = engine.spawnCharacter('Worker', { q: 0, r: 0 })
 			void char.scriptsContext
@@ -535,12 +518,7 @@ describe('findVehicleOffloadJob', () => {
 			]) {
 				game.hex.setTileContent(coord, undefined)
 			}
-			const vehicle = game.vehicles.createVehicle(
-				'wb-disconnected',
-				'wheelbarrow',
-				{ q: 0, r: 0 },
-				[]
-			)
+			const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [])
 			vehicle.storage.addGood('stone', 1)
 			const char = engine.spawnCharacter('Worker', { q: 0, r: 0 })
 			void char.scriptsContext
@@ -605,7 +583,7 @@ describe('findVehicleOffloadJob', () => {
 				],
 			} as any)
 			const line = game.freightLines[0]!
-			game.vehicles.createVehicle('wb-joint', 'wheelbarrow', { q: 0, r: 0 }, [line])
+			game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			const char = engine.spawnCharacter('Worker', { q: 0, r: 1 })
 			void char.scriptsContext
 
@@ -665,7 +643,7 @@ describe('findVehicleOffloadJob', () => {
 				],
 			} as any)
 			const line = game.freightLines[0]!
-			game.vehicles.createVehicle('wb-no-need', 'wheelbarrow', { q: 0, r: 0 }, [line])
+			game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			const char = engine.spawnCharacter('Worker', { q: 0, r: 1 })
 			void char.scriptsContext
 
@@ -731,7 +709,7 @@ describe('findVehicleOffloadJob', () => {
 				freightLines: [lineDef],
 			})
 			const line = game.freightLines[0]!
-			game.vehicles.createVehicle('wb-served-only', 'wheelbarrow', { q: 0, r: 0 }, [line])
+			game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			const char = engine.spawnCharacter('Worker', { q: 0, r: 1 })
 			void char.scriptsContext
 
@@ -759,7 +737,7 @@ describe('findVehicleOffloadJob', () => {
 					},
 				],
 			} as any)
-			game.vehicles.createVehicle('wb-park', 'wheelbarrow', center, [])
+			game.vehicles.createVehicle('wheelbarrow', center, [])
 			const char = engine.spawnCharacter('Worker', center)
 			void char.scriptsContext
 
@@ -814,7 +792,7 @@ describe('findVehicleOffloadJob', () => {
 				generationOptions: { terrainSeed: 1234, characterCount: 0 },
 				tiles: [{ coord: [2, 2], terrain: 'grass' }],
 			} as any)
-			const vehicle = game.vehicles.createVehicle('wb-hint', 'wheelbarrow', center, [])
+			const vehicle = game.vehicles.createVehicle('wheelbarrow', center, [])
 			const char = engine.spawnCharacter('Worker', center)
 			void char.scriptsContext
 
@@ -863,7 +841,7 @@ describe('findVehicleOffloadJob', () => {
 				generationOptions: { terrainSeed: 1234, characterCount: 0 },
 				tiles: [{ coord: [2, 2], terrain: 'grass' }],
 			} as any)
-			const vehicle = game.vehicles.createVehicle('wb-save', 'wheelbarrow', center, [])
+			const vehicle = game.vehicles.createVehicle('wheelbarrow', center, [])
 			vehicle.storage.addGood('wood', 2)
 			const char = engine.spawnCharacter('Worker', center)
 			void char.scriptsContext

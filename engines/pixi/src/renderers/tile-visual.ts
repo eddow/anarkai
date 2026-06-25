@@ -17,7 +17,7 @@ import type { RenderedGoodSlots } from 'ssh/storage/types'
 import { toAxialCoord, toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
 import { scopedPixiName, setPixiName } from '../debug-names'
-import type { PixiGameRenderer } from '../renderer'
+import { nextVisualKey, type PixiGameRenderer } from '../renderer'
 import { AlveolusVisual } from './alveolus-visual'
 import { DwellingVisual } from './dwelling-visual'
 import { createGoodsRenderer, type GoodsRenderer } from './goods-renderer'
@@ -42,7 +42,7 @@ export class TileVisual extends VisualObject<Tile> {
 
 	constructor(tile: Tile, renderer: PixiGameRenderer) {
 		super(tile, renderer)
-		const scope = `tile:${tile.uid}`
+		const scope = `tile:${nextVisualKey()}`
 
 		this.view.label = scope
 		this.tileContainer = setPixiName(new Container(), scopedPixiName(scope, 'container'))
@@ -89,7 +89,7 @@ export class TileVisual extends VisualObject<Tile> {
 
 		// React to content changes and specific interactions
 		this.register(
-			effect`tile.${this.object.uid}.render`(() => {
+			effect`tile.${nextVisualKey()}.render`(() => {
 				const content = this.object.content
 
 				// Manage Content Visual
@@ -130,7 +130,7 @@ export class TileVisual extends VisualObject<Tile> {
 		)
 
 		this.register(
-			effect`tile.${this.object.uid}.interaction`(() => {
+			effect`tile.${nextVisualKey()}.interaction`(() => {
 				this.renderInteraction(brightnessFilter)
 			})
 		)
@@ -160,7 +160,7 @@ export class TileVisual extends VisualObject<Tile> {
 		if (!this.cityHallSprite) {
 			this.cityHallSprite = setPixiName(
 				new Sprite(texture),
-				scopedPixiName(`tile:${this.object.uid}`, 'cityHall')
+				scopedPixiName(`tile:${nextVisualKey()}`, 'cityHall')
 			)
 			this.cityHallSprite.anchor.set(0.5, 0.62)
 			this.tileContainer.addChild(this.cityHallSprite)
@@ -244,7 +244,7 @@ export class TileVisual extends VisualObject<Tile> {
 						: { slots: [] }
 				},
 				{ x: 0, y: 0 },
-				`tile:${this.object.uid}.goods`
+				`tile:${nextVisualKey()}.goods`
 			)
 		}
 		this.genericGoodsRenderer.render()
@@ -275,7 +275,9 @@ export class TileVisual extends VisualObject<Tile> {
 			if (action && canInteract) {
 				if (action.startsWith('zone:')) {
 					const zoneType = action.replace('zone:', '')
-					const custom = this.object.board.zoneManager.getZoneDefinition(zoneType)?.color
+					const idx = this.object.board.zoneManager.findZoneIndexByName(zoneType)
+					const custom =
+						idx >= 0 ? this.object.board.zoneManager.zoneByIndex(idx)?.color : undefined
 					tint = custom
 						? Number.parseInt(custom.replace(/^#/, ''), 16)
 						: zoneType === 'residential'
@@ -305,10 +307,10 @@ export class TileVisual extends VisualObject<Tile> {
 
 		if (!borderColor) {
 			const zone = this.object.effectiveZone
-			if (zone === 'residential') borderColor = 0x44dd44
-			else if (zone === 'harvest') borderColor = 0xaa7744
+			if (zone?.type === 'residential') borderColor = 0x44dd44
+			else if (zone?.type === 'harvest') borderColor = 0xaa7744
 			else if (zone) {
-				const color = this.object.board.zoneManager.getZoneDefinition(zone)?.color
+				const color = zone.color
 				if (color) borderColor = Number.parseInt(color.replace(/^#/, ''), 16)
 			}
 		}

@@ -5,7 +5,6 @@ describe('debug-game-state', () => {
 	it('summarizes anchor and zone freight stops into plain data', () => {
 		expect(
 			summarizeFreightStopForDebug({
-				id: 'anchor-stop',
 				anchor: {
 					kind: 'alveolus',
 					hiveName: 'Hive A',
@@ -14,7 +13,6 @@ describe('debug-game-state', () => {
 				},
 			})
 		).toEqual({
-			id: 'anchor-stop',
 			loadSelection: undefined,
 			unloadSelection: undefined,
 			kind: 'anchor',
@@ -27,7 +25,6 @@ describe('debug-game-state', () => {
 
 		expect(
 			summarizeFreightStopForDebug({
-				id: 'zone-stop',
 				zone: {
 					kind: 'radius',
 					center: [11, -7],
@@ -35,7 +32,6 @@ describe('debug-game-state', () => {
 				},
 			})
 		).toEqual({
-			id: 'zone-stop',
 			loadSelection: undefined,
 			unloadSelection: undefined,
 			kind: 'zone',

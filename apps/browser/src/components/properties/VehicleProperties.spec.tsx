@@ -232,7 +232,7 @@ describe('VehicleProperties', () => {
 		await new Promise((resolve) => setTimeout(resolve, 0))
 		expect(container.querySelector('[data-testid="vehicle-good-berries"]')?.textContent).toBe('3')
 
-		consumePresentationEvents([{ type: 'storage.changed', ownerUid: 'veh-refresh' }])
+		consumePresentationEvents([{ type: 'storage.changed', owner: {} as any }])
 		await new Promise((resolve) => setTimeout(resolve, 0))
 
 		expect(container.querySelector('[data-testid="vehicle-good-berries"]')?.textContent).toBe('4')

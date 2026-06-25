@@ -70,7 +70,7 @@ describe('tile work picks', () => {
 		if (!sawmill) throw new Error('sawmill alveolus missing')
 		tile.content = sawmill
 		sawmill.storage.addGood('wood', 1)
-		game.vehicles.createVehicle('barrow-on-sawmill', 'wheelbarrow', tile.position)
+		game.vehicles.createVehicle('wheelbarrow', tile.position)
 
 		expect(tile.isBurdened).toBe(true)
 		expect(tile.getJob()).toBeUndefined()
@@ -133,9 +133,9 @@ describe('tile work picks', () => {
 		const targetTile = game.hex.getTile({ q: 1, r: 0 })
 		if (!targetTile) throw new Error('test setup missing target tile')
 		const worker = game.population.createCharacter('Worker', { q: 1, r: 0 })
-		const vehicle = game.vehicles.createVehicle('barrow-1', 'wheelbarrow', { q: 1, r: 0 })
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 })
 
-		targetTile.zone = 'residential'
+		targetTile.zone = game.hex.zoneManager.resolveZone('residential')!
 		const looseGood = game.hex.looseGoods.add(targetTile, 'stone', {
 			position: targetTile.position,
 		})
@@ -165,9 +165,9 @@ describe('tile work picks', () => {
 		const otherTile = game.hex.getTile({ q: 0, r: 0 })
 		if (!targetTile || !otherTile) throw new Error('test setup missing target tiles')
 		game.population.createCharacter('Worker', { q: 1, r: 0 })
-		const vehicle = game.vehicles.createVehicle('barrow-1', 'wheelbarrow', { q: 1, r: 0 })
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 })
 
-		targetTile.zone = 'residential'
+		targetTile.zone = game.hex.zoneManager.resolveZone('residential')!
 		const looseGood = game.hex.looseGoods.add(targetTile, 'stone', {
 			position: targetTile.position,
 		})

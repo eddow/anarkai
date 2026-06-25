@@ -34,12 +34,7 @@ describe('terminal border convey', () => {
 			} satisfies Partial<SaveState>)
 
 			// Add vehicle with wood at the freight bay.
-			const vehicle = engine.game.vehicles.createVehicle(
-				'wheelbarrow-v',
-				'wheelbarrow',
-				{ q: 0, r: 0 },
-				[line]
-			)
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			vehicle.storage.addGood('wood', 1)
 			// Use the anchor stop (second stop) for vehicle service
 			const anchorStop = line.stops.find((stop) => 'anchor' in stop)

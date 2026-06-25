@@ -16,7 +16,7 @@ describe('Eating (no carried-food buffer)', () => {
 
 		await game.loaded
 
-		const char = new Character(game, 'test-char', 'Tester', { x: 0, y: 0 })
+		const char = new Character(game, 'Tester', { x: 0, y: 0 })
 		expect(Object.getOwnPropertyDescriptor(Character.prototype, 'carriedFood')).toBeUndefined()
 		expect(Object.getOwnPropertyNames(Object.getPrototypeOf(char))).not.toContain('carriedFood')
 	})

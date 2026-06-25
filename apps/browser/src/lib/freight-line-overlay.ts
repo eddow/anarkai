@@ -1,20 +1,22 @@
 import { reactive } from 'mutts'
+import type { Tile } from 'ssh/board/tile'
+import type { ZoneDefinition } from 'ssh/board/zone'
+import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
 
 export const freightLineOverlay = reactive({
-	lineId: undefined as string | undefined,
-	hoveredStopId: undefined as string | undefined,
+	line: undefined as FreightLineDefinition | undefined,
+	hoveredStop: undefined as FreightStop | undefined,
 })
 
 export const zoneOverlayState = reactive({
-	selectedZoneId: undefined as string | undefined,
-	hoveredZoneId: undefined as string | undefined,
-	hoveredHiveAnchorTileUid: undefined as string | undefined,
+	hoveredZone: undefined as ZoneDefinition | undefined,
+	hoveredHiveAnchorTile: undefined as Tile | undefined,
 })
 
-export function showFreightLineOverlay(lineId: string | undefined): void {
-	freightLineOverlay.lineId = lineId
+export function showFreightLineOverlay(line: FreightLineDefinition | undefined): void {
+	freightLineOverlay.line = line
 }
 
-export function hoverFreightLineStop(stopId: string | undefined): void {
-	freightLineOverlay.hoveredStopId = stopId
+export function hoverFreightLineStop(stop: FreightStop | undefined): void {
+	freightLineOverlay.hoveredStop = stop
 }

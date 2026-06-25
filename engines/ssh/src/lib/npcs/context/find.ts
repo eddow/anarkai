@@ -278,7 +278,7 @@ class FindFunctions {
 				if (!tile || !tile.content) return false
 				if (!(tile.content instanceof UnBuiltLand)) return false
 				if (tile.content.project) return false
-				if (tile.zone === 'residential') return false
+				if (tile.zone?.type === 'residential') return false
 
 				const looseCount = hex.looseGoods.getGoodsAt(coord).length
 				let score = 1 / (looseCount + 1)

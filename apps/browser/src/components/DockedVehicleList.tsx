@@ -92,9 +92,13 @@ const DockedVehicleList = (props: DockedVehicleListProps) => {
 								<LinkedEntityControl object={entry.vehicle} />
 								<InspectorObjectLink object={entry.vehicle} />
 								<span if={props.showLineMeta} class="docked-vehicle-list__meta">
-									<InspectorObjectLink if={!!lineObj} object={lineObj} label={lineObj?.title} />
+									<InspectorObjectLink
+										if={!!lineObj}
+										object={lineObj as any}
+										label={lineObj?.title}
+									/>
 									{' · '}
-									{stopLabel()} {entry.stop.id}
+									{stopLabel()} {entry.line.stops.indexOf(entry.stop)}
 								</span>
 							</div>
 							<div

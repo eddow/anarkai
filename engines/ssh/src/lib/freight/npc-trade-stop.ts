@@ -54,7 +54,7 @@ export function executeNpcTradeStopTransfer(args: {
 		spentVp: 0,
 	}
 	if (!('trade' in stop)) return out
-	const profile = game.getSettlementTradeProfile(stop.trade.settlementName)
+	const profile = stop.trade.profile
 	if (!profile) return out
 	const stopIndex = line.stops.indexOf(stop)
 	if (stopIndex < 0) return out
@@ -111,7 +111,7 @@ export function executeNpcTradeStopTransfer(args: {
 		game.enqueueNpcTradePresentationChange({
 			lineId: line.id,
 			stopIndex: line.stops.indexOf(stop),
-			settlementId: stop.trade.settlementName,
+			settlementName: stop.trade.settlementName,
 			vehicleUid: vehicle.uid,
 			exported: out.exported,
 			imported: out.imported,

@@ -6,7 +6,7 @@ import type { GoodType } from 'ssh/types'
 import { toAxialCoord, toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
 import { scopedPixiName, setPixiName } from '../debug-names'
-import type { PixiGameRenderer } from '../renderer'
+import { nextVisualKey, type PixiGameRenderer } from '../renderer'
 import { createGoodsRenderer, type GoodsRenderer } from './goods-renderer'
 import { VisualObject } from './visual-object'
 
@@ -51,7 +51,7 @@ export class BorderVisual extends VisualObject<TileBorder> {
 
 	constructor(border: TileBorder, renderer: PixiGameRenderer) {
 		super(border, renderer)
-		this.scope = `border:${border.uid}`
+		this.scope = `border:${nextVisualKey()}`
 		this.view.label = this.scope
 		this.view.eventMode = 'none'
 		this.goodsContainer = setPixiName(new Container(), scopedPixiName(this.scope, 'goods'))

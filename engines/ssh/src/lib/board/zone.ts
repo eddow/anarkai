@@ -2,45 +2,41 @@ import { reactive } from 'mutts'
 import type { AxialCoord } from 'ssh/utils'
 import { AxialKeyMap } from 'ssh/utils/mem'
 
-export type BuiltInZone = 'residential' | 'harvest' | 'commercial'
-export type Zone = BuiltInZone | string
+export type ZoneType = 'passive' | 'harvest' | 'residential' | 'commercial'
 
-export interface NamedZoneDefinition {
-	readonly id: Zone
-	readonly name: string
+export interface ZoneDefinition {
+	readonly name?: string
 	readonly color?: string
-	readonly harvestable?: boolean
-	readonly builtIn?: boolean
+	readonly type: ZoneType
 	readonly generated?: boolean
 	readonly readonly?: boolean
 }
 
+/** Patch shape in GamePatches — includes coords for serialization. */
+export interface ZoneDefinitionPatch extends Omit<ZoneDefinition, 'generated' | 'readonly'> {
+	readonly coords: ReadonlyArray<readonly [number, number]>
+}
+
+// ── Inspector UID helpers (Priority 4) ───────────────────────────
+
 export const ZONES_OBJECT_UID = 'zones'
 export const ZONE_UID_PREFIX = 'zone:'
 
-const BUILT_IN_ZONES: NamedZoneDefinition[] = [
-	{ id: 'residential', name: 'Residential', color: '#44dd44', builtIn: true },
-	{ id: 'harvest', name: 'Harvest', color: '#aa7744', builtIn: true },
-	{ id: 'commercial', name: 'Commercial', color: '#4f9cff', builtIn: true },
-]
-
-export function normalizeZoneId(id: string): Zone {
-	return id.trim().replace(/\s+/g, '-').toLowerCase()
-}
-
-export function zoneObjectUid(zoneId: string): string {
-	return `${ZONE_UID_PREFIX}${encodeURIComponent(normalizeZoneId(zoneId))}`
+export function zoneObjectUid(index: number): string {
+	return `${ZONE_UID_PREFIX}${index}`
 }
 
 export function isZoneObjectUid(uid: string): boolean {
 	return uid.startsWith(ZONE_UID_PREFIX)
 }
 
-export function zoneIdFromObjectUid(uid: string): Zone | undefined {
+export function zoneIndexFromObjectUid(uid: string): number | undefined {
 	if (!isZoneObjectUid(uid)) return undefined
-	const encoded = uid.slice(ZONE_UID_PREFIX.length)
-	return encoded ? normalizeZoneId(decodeURIComponent(encoded)) : undefined
+	const index = Number(uid.slice(ZONE_UID_PREFIX.length))
+	return Number.isFinite(index) ? index : undefined
 }
+
+// ── Internal helpers ───────────────────────────────────────────────
 
 function centralCoordFrom(coords: AxialCoord[]): AxialCoord | undefined {
 	if (coords.length === 0) return undefined
@@ -66,71 +62,78 @@ function centralCoordFrom(coords: AxialCoord[]): AxialCoord | undefined {
 	})[0]
 }
 
+// ── ZoneManager ────────────────────────────────────────────────────
+
 export class ZoneManager {
-	private readonly zones = reactive(new AxialKeyMap<Zone>())
-	private readonly generatedZones = reactive(new AxialKeyMap<Zone>())
-	private readonly definitions = reactive(new Map<Zone, NamedZoneDefinition>())
+	private readonly zones = reactive(new AxialKeyMap<ZoneDefinition>())
+	private readonly generatedZones = reactive(new AxialKeyMap<ZoneDefinition>())
 	private readonly reservationOwners = reactive(new AxialKeyMap<object>())
 	private readonly ownerToCoord = new Map<object, AxialCoord>()
 	readonly residentialCoords: AxialCoord[] = []
 
-	constructor() {
-		this.resetDefinitions()
+	/** Ordered list of zone definitions. Array index is the zone identity. */
+	definitions: ZoneDefinition[] = []
+
+	// ── definition registry ──────────────────────────────────────
+
+	/** Resolve a zone by array index. */
+	zoneByIndex(index: number): ZoneDefinition | undefined {
+		return this.definitions[index]
 	}
 
-	private resetDefinitions(): void {
-		this.definitions.clear()
-		for (const zone of BUILT_IN_ZONES) this.definitions.set(zone.id, zone)
-	}
-
-	defineZone(definition: Omit<NamedZoneDefinition, 'id'> & { id: string }): NamedZoneDefinition {
-		const id = normalizeZoneId(definition.id)
-		const existing = this.definitions.get(id)
-		const trimmedName = definition.name.trim()
-		const next: NamedZoneDefinition = {
-			id,
-			name: trimmedName || (existing?.builtIn || definition.builtIn ? existing?.name || id : ''),
-			color: definition.color?.trim() || existing?.color,
-			harvestable: definition.harvestable ?? existing?.harvestable,
-			builtIn: existing?.builtIn || definition.builtIn,
-			generated: existing?.generated || definition.generated,
-			readonly: existing?.readonly || definition.readonly,
-		}
-		this.definitions.set(id, next)
-		return next
-	}
-
-	getZoneDefinition(id: string | undefined): NamedZoneDefinition | undefined {
-		return id ? this.definitions.get(normalizeZoneId(id)) : undefined
-	}
-
-	listZoneDefinitions(): NamedZoneDefinition[] {
-		return [...this.definitions.values()]
-	}
-
-	listCustomZoneDefinitions(): NamedZoneDefinition[] {
-		return this.listZoneDefinitions().filter(
-			(zone) => !zone.builtIn && !zone.generated && !zone.readonly
+	/** Find a named zone by name (case-insensitive, whitespace-normalized). */
+	findZoneIndexByName(name: string): number {
+		const needle = name.trim().replace(/\s+/g, '-').toLowerCase()
+		return this.definitions.findIndex(
+			(def) => (def.name ?? '').trim().replace(/\s+/g, '-').toLowerCase() === needle
 		)
 	}
 
-	removeNamedZone(id: string): boolean {
-		const zoneId = normalizeZoneId(id)
-		const definition = this.definitions.get(zoneId)
-		if (!definition || definition.builtIn) return false
-		for (const coord of [...this.zones.coords()]) {
-			if (this.zones.get(coord) === zoneId) this.zones.delete(coord)
+	/** Register a zone definition and return the object for spatial assignment. */
+	defineZone(definition: ZoneDefinition): ZoneDefinition {
+		const trimmedName = (definition.name ?? '').trim()
+		const next: ZoneDefinition = {
+			name: trimmedName || undefined,
+			color: definition.color?.trim() || undefined,
+			type: definition.type,
+			generated: definition.generated,
+			readonly: definition.readonly,
 		}
-		return this.definitions.delete(zoneId)
+		this.definitions.push(next)
+		return next
 	}
 
-	setZone(coord: AxialCoord, zone: Zone): void {
-		const zoneId = normalizeZoneId(zone)
-		if (!this.definitions.has(zoneId)) {
-			this.defineZone({ id: zoneId, name: zoneId })
+	listZoneDefinitions(): ZoneDefinition[] {
+		return [...this.definitions]
+	}
+
+	listCustomZoneDefinitions(): ZoneDefinition[] {
+		return this.definitions.filter((zone) => !zone.generated && !zone.readonly)
+	}
+
+	/** Remove a named zone by index and clean up its spatial assignments. */
+	removeZoneByIndex(index: number): boolean {
+		const definition = this.definitions[index]
+		if (!definition || definition.readonly) return false
+		for (const coord of [...this.zones.coords()]) {
+			if (this.zones.get(coord) === definition) this.zones.delete(coord)
 		}
-		this.zones.set(coord, zoneId)
-		if (zoneId === 'residential') {
+		this.definitions.splice(index, 1)
+		return true
+	}
+
+	// ── spatial map ───────────────────────────────────────────────
+
+	setZone(coord: AxialCoord, zone: ZoneDefinition | undefined): void {
+		if (!zone) {
+			this.removeZone(coord)
+			return
+		}
+		if (!this.definitions.includes(zone)) {
+			this.defineZone(zone)
+		}
+		this.zones.set(coord, zone)
+		if (zone.type === 'residential') {
 			const dup = this.residentialCoords.some((c) => c.q === coord.q && c.r === coord.r)
 			if (!dup) this.residentialCoords.push({ ...coord })
 		} else {
@@ -146,45 +149,18 @@ export class ZoneManager {
 		}
 	}
 
-	getZone(coord: AxialCoord): Zone | undefined {
+	getZone(coord: AxialCoord): ZoneDefinition | undefined {
 		return this.zones.get(coord)
 	}
 
-	isHarvestableZone(zone: Zone | undefined): boolean {
+	isHarvestableZone(zone: ZoneDefinition | undefined): boolean {
 		if (!zone) return false
-		const zoneId = normalizeZoneId(zone)
-		return zoneId === 'harvest' || this.definitions.get(zoneId)?.harvestable === true
-	}
-
-	setGeneratedZone(coord: AxialCoord, zone: Zone): void {
-		if (this.generatedZones.has(coord)) return
-		const zoneId = normalizeZoneId(zone)
-		if (!this.definitions.has(zoneId)) {
-			this.defineZone({ id: zoneId, name: zoneId, generated: true, readonly: true })
-		}
-		this.generatedZones.set(coord, zoneId)
-	}
-
-	getGeneratedZone(coord: AxialCoord): Zone | undefined {
-		return this.generatedZones.get(coord)
-	}
-
-	getEffectiveZone(coord: AxialCoord): Zone | undefined {
-		return this.getZone(coord) ?? this.getGeneratedZone(coord)
-	}
-
-	clear(): void {
-		this.zones.clear()
-		this.generatedZones.clear()
-		this.resetDefinitions()
-		this.reservationOwners.clear()
-		this.ownerToCoord.clear()
-		this.residentialCoords.length = 0
+		return zone.type !== 'passive'
 	}
 
 	removeZone(coord: AxialCoord): boolean {
 		const zone = this.zones.get(coord)
-		if (zone === 'residential') {
+		if (zone?.type === 'residential') {
 			const idx = this.residentialCoords.findIndex((c) => c.q === coord.q && c.r === coord.r)
 			if (idx >= 0) this.residentialCoords.splice(idx, 1)
 			this.reservationOwners.delete(coord)
@@ -202,43 +178,69 @@ export class ZoneManager {
 		return this.zones.has(coord)
 	}
 
+	// ── generated (settlement-plan) zones ─────────────────────────
+
+	setGeneratedZone(coord: AxialCoord, zone: ZoneDefinition): void {
+		if (this.generatedZones.has(coord)) return
+		if (!this.definitions.includes(zone)) {
+			this.defineZone({ ...zone, generated: true, readonly: true })
+		}
+		this.generatedZones.set(coord, zone)
+	}
+
+	getGeneratedZone(coord: AxialCoord): ZoneDefinition | undefined {
+		return this.generatedZones.get(coord)
+	}
+
+	getEffectiveZone(coord: AxialCoord): ZoneDefinition | undefined {
+		return this.getZone(coord) ?? this.getGeneratedZone(coord)
+	}
+
 	hasEffectiveZone(coord: AxialCoord): boolean {
 		return this.zones.has(coord) || this.generatedZones.has(coord)
 	}
 
-	coordsForZone(zone: Zone): AxialCoord[] {
-		const zoneId = normalizeZoneId(zone)
+	// ── query ─────────────────────────────────────────────────────
+
+	coordsForZone(zone: ZoneDefinition): AxialCoord[] {
 		const out: AxialCoord[] = []
 		for (const coord of this.zones.coords()) {
-			if (this.zones.get(coord) === zoneId) out.push({ q: coord.q, r: coord.r })
+			if (this.zones.get(coord) === zone) out.push({ q: coord.q, r: coord.r })
 		}
 		return out
 	}
 
-	coordsForGeneratedZone(zone: Zone): AxialCoord[] {
-		const zoneId = normalizeZoneId(zone)
+	coordsForGeneratedZone(zone: ZoneDefinition): AxialCoord[] {
 		const out: AxialCoord[] = []
 		for (const coord of this.generatedZones.coords()) {
-			if (this.generatedZones.get(coord) === zoneId) out.push({ q: coord.q, r: coord.r })
+			if (this.generatedZones.get(coord) === zone) out.push({ q: coord.q, r: coord.r })
 		}
 		return out
 	}
 
-	centralCoordForZone(zone: Zone): AxialCoord | undefined {
+	centralCoordForZone(zone: ZoneDefinition): AxialCoord | undefined {
 		return centralCoordFrom(this.coordsForZone(zone))
 	}
 
-	/** Residential tiles nobody has reserved yet (stable list order). */
+	// ── lifecycle ─────────────────────────────────────────────────
+
+	clear(): void {
+		this.zones.clear()
+		this.generatedZones.clear()
+		this.definitions.length = 0
+		this.reservationOwners.clear()
+		this.ownerToCoord.clear()
+		this.residentialCoords.length = 0
+	}
+
+	// ── residential reservations ──────────────────────────────────
+
 	listUnreservedResidentialCoords(): AxialCoord[] {
 		return this.residentialCoords.filter((c) => !this.reservationOwners.has(c))
 	}
 
-	/**
-	 * Reserve a specific residential tile if it is free or already held by `owner`.
-	 * Returns false if the tile is not residential or held by someone else.
-	 */
 	tryReserveResidentialAt(owner: object, coord: AxialCoord): boolean {
-		if (this.zones.get(coord) !== 'residential') return false
+		if (this.zones.get(coord)?.type !== 'residential') return false
 		const mine = this.ownerToCoord.get(owner)
 		if (mine && mine.q === coord.q && mine.r === coord.r) return true
 		const existingAtCoord = this.reservationOwners.get(coord)
@@ -252,7 +254,6 @@ export class ZoneManager {
 		return true
 	}
 
-	/** First free residential tile in registration order (legacy). */
 	reserveResidential(owner: object): AxialCoord | false {
 		for (const coord of this.residentialCoords) {
 			if (!this.reservationOwners.has(coord)) {
@@ -264,7 +265,6 @@ export class ZoneManager {
 		return false
 	}
 
-	/** Release a reservation held by `owner`. */
 	releaseReservation(owner: object): void {
 		const coord = this.ownerToCoord.get(owner)
 		if (coord) {
@@ -273,7 +273,6 @@ export class ZoneManager {
 		}
 	}
 
-	/** Get the coord reserved by `owner`, if any. */
 	getReservation(owner: object): AxialCoord | undefined {
 		return this.ownerToCoord.get(owner)
 	}

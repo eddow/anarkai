@@ -114,9 +114,7 @@ describe('proposed jobs', () => {
 		game.ticker.stop()
 
 		try {
-			const vehicle = game.vehicles.createVehicle('pj-vehicle', 'wheelbarrow', { q: 1, r: 0 }, [
-				line,
-			])
+			const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [line])
 			const near = game.population.createCharacter('Near', { q: 1, r: 0 })
 			const far = game.population.createCharacter('Far', { q: 3, r: 0 })
 
@@ -171,7 +169,6 @@ describe('proposed jobs', () => {
 
 		try {
 			const vehicle = game.vehicles.createVehicle(
-				'planner-direct-vehicle',
 				'wheelbarrow',
 				{
 					q: 1,

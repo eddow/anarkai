@@ -5,7 +5,7 @@ import { toWorldCoord } from 'ssh/utils/position' // Verify import
 import { tileSize } from 'ssh/utils/varied'
 import { goods as goodsCatalog } from '../../assets/visual-content'
 import { scopedPixiName, setPixiName } from '../debug-names'
-import type { PixiGameRenderer } from '../renderer'
+import { nextVisualKey, type PixiGameRenderer } from '../renderer'
 import { VisualObject } from './visual-object'
 
 export class LooseGoodsVisual extends VisualObject<LooseGoods> {
@@ -15,7 +15,7 @@ export class LooseGoodsVisual extends VisualObject<LooseGoods> {
 
 	constructor(looseGoods: LooseGoods, renderer: PixiGameRenderer) {
 		super(looseGoods, renderer)
-		const scope = `looseGoods:${looseGoods.uid}`
+		const scope = `looseGoods:${nextVisualKey()}`
 		this.view.label = scope
 		this.container = setPixiName(new Container(), scopedPixiName(scope, 'container'))
 		// Ensure this container (and its children) does not block mouse events

@@ -111,13 +111,19 @@ function settlement(overrides: Partial<GeneratedSettlement> = {}): GeneratedSett
 	}
 }
 
+function zoneCoords(
+	plan: Awaited<ReturnType<typeof generateZonePlanForSettlements>>,
+	type: string
+) {
+	return plan.zones.find((z) => z.type === type)?.coords ?? []
+}
+
+function zoneNamed(plan: Awaited<ReturnType<typeof generateZonePlanForSettlements>>, name: string) {
+	return plan.zones.find((z) => z.name === name)?.coords ?? []
+}
+
 function allZonedCoords(plan: Awaited<ReturnType<typeof generateZonePlanForSettlements>>) {
-	return [
-		...plan.zones.harvest,
-		...plan.zones.residential,
-		...plan.zones.commercial,
-		...plan.zones.named.flatMap((zone) => zone.coords),
-	]
+	return plan.zones.flatMap((z) => z.coords)
 }
 
 function roadKey(coord: readonly [number, number]): string {
@@ -239,11 +245,11 @@ describe('settlement zoning generation', () => {
 		expect(first.settlements.length).toBeGreaterThan(0)
 		expect(first.settlements.every((settlement) => !settlement.name.includes('('))).toBe(true)
 		expect(first.settlements.every((settlement) => !settlement.name.includes(','))).toBe(true)
-		expect(first.zones.residential.length).toBeGreaterThan(0)
-		expect(first.zones.commercial.length).toBeGreaterThan(0)
-		expect(first.zones.harvest).toEqual([])
-		expect(first.zones.named.map((zone) => zone.id)).toContain('industrial')
-		expect(first.zones.named.map((zone) => zone.id)).not.toContain('market')
+		expect(zoneCoords(first, 'residential').length).toBeGreaterThan(0)
+		expect(zoneCoords(first, 'commercial').length).toBeGreaterThan(0)
+		expect(zoneCoords(first, 'harvest')).toEqual([])
+		expect(first.zones.map((zone) => zone.name)).toContain('industrial')
+		expect(first.zones.map((zone) => zone.name)).not.toContain('market')
 		expect(first.roads.path?.length).toBeGreaterThan(0)
 	})
 
@@ -413,8 +419,7 @@ describe('settlement zoning generation', () => {
 		expect(depositTile).toBeDefined()
 		if (depositTile) {
 			const depositKey = axial.key(depositTile.coord)
-			const industrialCoords =
-				plan.zones.named.find((zone) => zone.id === 'industrial')?.coords ?? []
+			const industrialCoords = zoneNamed(plan, 'industrial')
 			expect(industrialCoords.some(([q, r]) => `${q},${r}` === depositKey)).toBe(true)
 		}
 	})
@@ -436,10 +441,10 @@ describe('settlement zoning generation', () => {
 			hasRiver
 		)
 
-		const industrialCoords = plan.zones.named.find((zone) => zone.id === 'industrial')?.coords ?? []
+		const industrialCoords = zoneNamed(plan, 'industrial')
 		expect(industrialCoords.some(([q, r]) => q === 2 && r === -1)).toBe(false)
-		const residentialCoords = new Set(plan.zones.residential.map(([q, r]) => `${q},${r}`))
-		const commercialCoords = new Set(plan.zones.commercial.map(([q, r]) => `${q},${r}`))
+		const residentialCoords = new Set(zoneCoords(plan, 'residential').map(([q, r]) => `${q},${r}`))
+		const commercialCoords = new Set(zoneCoords(plan, 'commercial').map(([q, r]) => `${q},${r}`))
 		expect(residentialCoords.has('2,-1') || commercialCoords.has('2,-1')).toBe(true)
 	})
 
@@ -456,7 +461,7 @@ describe('settlement zoning generation', () => {
 			hasRiver
 		)
 
-		const civicCoords = plan.zones.named.find((zone) => zone.id === 'civic')?.coords ?? []
+		const civicCoords = zoneNamed(plan, 'civic')
 		expect(civicCoords.length).toBeGreaterThan(0)
 		const settlementCenter = plan.settlements[0]?.center
 		expect(settlementCenter).toBeDefined()
@@ -484,9 +489,9 @@ describe('settlement zoning generation', () => {
 			hasRiver
 		)
 
-		const marketCoords = plan.zones.named.find((zone) => zone.id === 'market')?.coords ?? []
+		const marketCoords = zoneNamed(plan, 'market')
 		expect(marketCoords).toEqual([])
-		expect(plan.zones.commercial.length).toBeGreaterThanOrEqual(plan.settlements.length)
+		expect(zoneCoords(plan, 'commercial').length).toBeGreaterThanOrEqual(plan.settlements.length)
 	})
 
 	it('does not add harvest zones to generated settlement footprints', async () => {
@@ -506,7 +511,7 @@ describe('settlement zoning generation', () => {
 			hasRiver
 		)
 
-		expect(plan.zones.harvest).toEqual([])
+		expect(zoneCoords(plan, 'harvest')).toEqual([])
 		const settlement = plan.settlements[0]
 		expect(settlement).toBeDefined()
 		if (settlement) {
@@ -535,18 +540,10 @@ describe('settlement zoning generation', () => {
 			terrainKinds,
 			hasRiver
 		)
-		const civic = new Set(
-			(plan.zones.named.find((zone) => zone.id === 'civic')?.coords ?? []).map(
-				([q, r]) => `${q},${r}`
-			)
-		)
-		const residential = new Set(plan.zones.residential.map(([q, r]) => `${q},${r}`))
-		const commercial = new Set(plan.zones.commercial.map(([q, r]) => `${q},${r}`))
-		const industrial = new Set(
-			(plan.zones.named.find((zone) => zone.id === 'industrial')?.coords ?? []).map(
-				([q, r]) => `${q},${r}`
-			)
-		)
+		const civic = new Set(zoneNamed(plan, 'civic').map(([q, r]) => `${q},${r}`))
+		const residential = new Set(zoneCoords(plan, 'residential').map(([q, r]) => `${q},${r}`))
+		const commercial = new Set(zoneCoords(plan, 'commercial').map(([q, r]) => `${q},${r}`))
+		const industrial = new Set(zoneNamed(plan, 'industrial').map(([q, r]) => `${q},${r}`))
 
 		for (const settlement of plan.settlements) {
 			const cityHall = selectSettlementCityHallPosition(settlement, tiles)
@@ -575,11 +572,13 @@ describe('settlement zoning generation', () => {
 			hasRiver
 		)
 
-		expect(plan.zones.residential.length).toBeGreaterThan(0)
+		expect(zoneCoords(plan, 'residential').length).toBeGreaterThan(0)
 		const settlement = plan.settlements[0]
 		expect(settlement).toBeDefined()
 		if (settlement) {
-			const residentialCoords = new Set(plan.zones.residential.map(([q, r]) => `${q},${r}`))
+			const residentialCoords = new Set(
+				zoneCoords(plan, 'residential').map(([q, r]) => `${q},${r}`)
+			)
 			expect(residentialCoords.size).toBeGreaterThan(0)
 			// Harvest zones may be empty when settlement radius is small,
 			// but residential should always exist

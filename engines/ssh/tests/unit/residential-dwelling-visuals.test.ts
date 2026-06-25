@@ -15,7 +15,7 @@ describe('residential dwelling visuals', () => {
 			{ terrainSeed: 92, characterCount: 0 },
 			{
 				tiles: [{ coord: [0, 0], terrain: 'grass' }],
-				zones: { residential: [[0, 0]] },
+				zones: [{ type: 'residential', coords: [[0, 0]] }],
 			}
 		)
 		await game.loaded

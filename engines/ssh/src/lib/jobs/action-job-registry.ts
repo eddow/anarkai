@@ -218,15 +218,16 @@ registerActionJobProvider('transform', (alveolus) => {
 
 registerActionJobProvider('plant', (alveolus) => {
 	const action = alveolus.action as Ssh.PlantingAction
-	const assignedZoneIds = alveolus.assignedZoneIds as readonly string[]
+	const assignedZoneIndices = alveolus.assignedZoneIndices
 
 	const findBestPath = (characterPosition: Positioned | undefined): Positioned[] | undefined => {
-		if (assignedZoneIds.length === 0) return undefined
+		if (assignedZoneIndices.length === 0) return undefined
 		const startPos = toAxialCoord(characterPosition ?? alveolus.tile.position)
 		const hex = alveolus.tile.game.hex
-		const candidateCoords = assignedZoneIds.flatMap((zoneId) =>
-			hex.zoneManager.coordsForZone(zoneId)
-		)
+		const candidateCoords = assignedZoneIndices.flatMap((index) => {
+			const def = hex.zoneManager.zoneByIndex(index)
+			return def ? hex.zoneManager.coordsForZone(def) : []
+		})
 		let bestPath: Positioned[] | undefined
 
 		for (const coord of candidateCoords) {
@@ -252,7 +253,7 @@ registerActionJobProvider('plant', (alveolus) => {
 
 	return {
 		proposedJobs:
-			assignedZoneIds.length > 0
+			assignedZoneIndices.length > 0
 				? [
 						{
 							job: {

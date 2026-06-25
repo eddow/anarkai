@@ -73,7 +73,8 @@ export function zoneBrowseUrgency(
 
 export function inferZoneLoadAdSource(targetTile: Tile): FreightAdSource {
 	if (targetTile.content instanceof UnBuiltLand && targetTile.content.project) return 'project'
-	if (targetTile.content instanceof Alveolus || targetTile.zone === 'residential') return 'hive'
+	if (targetTile.content instanceof Alveolus || targetTile.zone?.type === 'residential')
+		return 'hive'
 	return 'vehicle-station'
 }
 

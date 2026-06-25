@@ -12,8 +12,8 @@ import { type NamedTrace, namedTrace, traces } from '../../src/lib/dev/debug.ts'
 import { gatherFreightLine } from '../freight-fixtures'
 import { TestEngine } from '../test-engine'
 
-function createOffloadWheelbarrow(game: Game, coord: { q: number; r: number }, uid: string) {
-	return game.vehicles.createVehicle(uid, 'wheelbarrow', coord, [])
+function createOffloadWheelbarrow(game: Game, coord: { q: number; r: number }) {
+	return game.vehicles.createVehicle('wheelbarrow', coord, [])
 }
 
 function rocksInTransport(char: Character): number {
@@ -127,7 +127,7 @@ describe('Hive Offload Scenario', () => {
 				],
 			} as any)
 
-			createOffloadWheelbarrow(game, { q: 3, r: 3 }, 'wb-rock')
+			createOffloadWheelbarrow(game, { q: 3, r: 3 })
 
 			const char = engine.spawnCharacter('Worker', { q: 3, r: 2 })
 			char.role = 'worker'
@@ -180,7 +180,7 @@ describe('Hive Offload Scenario', () => {
 				],
 			} as any)
 
-			const vehicle = createOffloadWheelbarrow(game, { q: 3, r: 3 }, 'wb-load-only')
+			const vehicle = createOffloadWheelbarrow(game, { q: 3, r: 3 })
 			const worker = engine.spawnCharacter('Worker', { q: 3, r: 2 })
 			worker.role = 'worker'
 			void worker.scriptsContext
@@ -230,7 +230,7 @@ describe('Hive Offload Scenario', () => {
 				],
 			} as any)
 
-			const vehicle = createOffloadWheelbarrow(game, center, 'wb-unload-scenario')
+			const vehicle = createOffloadWheelbarrow(game, center)
 			vehicle.storage.addGood('stone', 1)
 
 			const worker = engine.spawnCharacter('Worker', center)
@@ -291,7 +291,7 @@ describe('Hive Offload Scenario', () => {
 				],
 			} as any)
 
-			const vehicle = createOffloadWheelbarrow(game, center, 'wb-park-scenario')
+			const vehicle = createOffloadWheelbarrow(game, center)
 			const worker = engine.spawnCharacter('Worker', center)
 			worker.role = 'worker'
 			void worker.scriptsContext
@@ -355,9 +355,7 @@ describe('Hive Offload Scenario', () => {
 
 			const line = game.freightLines[0]!
 			const unloadStop = line.stops[1]!
-			const vehicle = game.vehicles.createVehicle('wb-dock-park', 'wheelbarrow', { q: 0, r: 0 }, [
-				line,
-			])
+			const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			const dockActor = engine.spawnCharacter('DockActor', { q: 0, r: 0 })
 			vehicle.beginService(line, unloadStop, dockActor)
 			vehicle.dock()
@@ -426,7 +424,7 @@ describe('Hive Offload Scenario', () => {
 			void worker.scriptsContext
 
 			const line = game.freightLines[0]!
-			game.vehicles.createVehicle('wb-joint-priority', 'wheelbarrow', { q: 0, r: 0 }, [line])
+			game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 
 			expect(availableLooseWoodCount(game, { q: 2, r: 0 })).toBe(1)
 			expect(availableLooseWoodCount(game, { q: 1, r: 1 })).toBe(1)
@@ -487,7 +485,7 @@ describe('Hive Offload Scenario', () => {
 				],
 			} as any)
 
-			createOffloadWheelbarrow(game, { q: 3, r: 3 }, 'wb-two-loose')
+			createOffloadWheelbarrow(game, { q: 3, r: 3 })
 
 			const char = engine.spawnCharacter('Worker', { q: 3, r: 2 })
 			char.role = 'worker'
@@ -594,7 +592,7 @@ describe('Hive Offload Scenario', () => {
 				],
 			} as any)
 
-			createOffloadWheelbarrow(game, target, 'wb-lifecycle')
+			createOffloadWheelbarrow(game, target)
 
 			const char = engine.spawnCharacter('Worker', target)
 			void char.scriptsContext
@@ -689,7 +687,7 @@ describe('Hive Offload Scenario', () => {
 				],
 			} as any)
 
-			createOffloadWheelbarrow(game, center, 'wb-leak')
+			createOffloadWheelbarrow(game, center)
 
 			const worker = engine.spawnCharacter('Worker', center)
 			worker.role = 'worker'
@@ -760,7 +758,7 @@ describe('Hive Offload Scenario', () => {
 
 			engine.loadScenario(scenario as any)
 
-			createOffloadWheelbarrow(game, center, 'wb-alveoli-block')
+			createOffloadWheelbarrow(game, center)
 
 			const char = engine.spawnCharacter('Worker', center)
 			void char.scriptsContext
@@ -826,8 +824,8 @@ describe('Hive Offload Scenario', () => {
 
 			engine.loadScenario(scenario as any)
 
-			createOffloadWheelbarrow(game, { q: 3, r: 4 }, 'wb-contest-a')
-			createOffloadWheelbarrow(game, { q: 5, r: 4 }, 'wb-contest-b')
+			createOffloadWheelbarrow(game, { q: 3, r: 4 })
+			createOffloadWheelbarrow(game, { q: 5, r: 4 })
 
 			const workerA = engine.spawnCharacter('Worker', { q: 3, r: 4 })
 			const workerB = engine.spawnCharacter('Worker', { q: 5, r: 4 })
@@ -915,7 +913,7 @@ describe('Hive Offload Scenario', () => {
 				],
 			} as any)
 
-			createOffloadWheelbarrow(game, { q: 3, r: 4 }, 'wb-removed')
+			createOffloadWheelbarrow(game, { q: 3, r: 4 })
 
 			const previousVehicleTrace = traces.vehicle
 			const vehicleTrace = namedTrace('vehicle', { silent: true })
@@ -989,7 +987,7 @@ describe('Hive Offload Scenario', () => {
 				},
 			} as any)
 
-			createOffloadWheelbarrow(game, center, 'wb-residential')
+			createOffloadWheelbarrow(game, center)
 
 			const worker = engine.spawnCharacter('Worker', center)
 			worker.role = 'worker'
@@ -1080,7 +1078,7 @@ describe('Hive Offload Scenario', () => {
 				},
 			} as any)
 
-			createOffloadWheelbarrow(game, center, 'wb-stabilize')
+			createOffloadWheelbarrow(game, center)
 
 			const worker = engine.spawnCharacter('Worker', center)
 			worker.role = 'worker'

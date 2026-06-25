@@ -37,7 +37,7 @@ describe('findVehicleApproachJob', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('v-approach', 'wheelbarrow', { q: 1, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [line])
 		const character = game.population.createCharacter('Eve', { q: 0, r: 0 })
 
 		const job = findVehicleApproachJob(game, character)
@@ -67,7 +67,7 @@ describe('findVehicleApproachJob', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		game.vehicles.createVehicle('v-same', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('Eve', { q: 0, r: 0 })
 
 		const job = findVehicleApproachJob(game, character)
@@ -106,10 +106,7 @@ describe('findVehicleApproachJob', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('v-service', 'wheelbarrow', { q: 0, r: 0 }, [
-			far,
-			near,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [far, near])
 		vehicle.beginLineService(far, far.stops[1]!)
 		expect(isVehicleLineService(vehicle.service)).toBe(true)
 		vehicle.releaseOperator()
@@ -121,7 +118,7 @@ describe('findVehicleApproachJob', () => {
 		expect(job?.approachPath).toBeDefined()
 		expect(job?.needsBeginService).toBeUndefined()
 		expect(job?.lineId).toBe(far.id)
-		expect(job?.stopIndex).toBe(far.stops[1]!.id)
+		expect(job?.stopIndex).toBe(1)
 	})
 
 	it('planner snapshot counts only approach distance for vehicleHop work selection', async () => {
@@ -153,7 +150,7 @@ describe('findVehicleApproachJob', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		game.vehicles.createVehicle('v-snapshot', 'wheelbarrow', { q: 1, r: 0 }, [line])
+		game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [line])
 		const character = game.population.createCharacter('Eve', { q: 0, r: 0 })
 
 		const hopJob = findVehicleHopJob(game, character)
@@ -186,7 +183,7 @@ describe('findVehicleApproachJob', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('v-docked', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		vehicle.beginLineService(line, line.stops[1]!)
 		vehicle.dock()
 		vehicle.releaseOperator()
@@ -225,9 +222,7 @@ describe('findVehicleApproachJob', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('v-empty-gather', 'wheelbarrow', { q: 0, r: 0 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('Eve', { q: 0, r: 0 })
 		vehicle.beginLineService(line, line.stops[0]!, character)
 		character.operates = vehicle
@@ -237,7 +232,7 @@ describe('findVehicleApproachJob', () => {
 
 		expect(isVehicleLineService(vehicle.service)).toBe(true)
 		if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
-		expect(vehicle.service).toBe(line.stops[1]!.id)
+		expect(vehicle.service?.line?.stops[1]).toBe(line.stops[1])
 		expect(character.operates?.uid).toBe(vehicle.uid)
 	})
 
@@ -263,9 +258,7 @@ describe('findVehicleApproachJob', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('v-stale-approach', 'wheelbarrow', { q: 0, r: 0 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const operator = game.population.createCharacter('Op', { q: 0, r: 0 })
 		const stale = game.population.createCharacter('Stale', { q: 1, r: 0 })
 		vehicle.beginLineService(line, line.stops[0]!, operator)
@@ -278,7 +271,7 @@ describe('findVehicleApproachJob', () => {
 			fatigue: 1,
 			vehicle,
 			lineId: line.id,
-			stopIndex: line.stops[0]!.id,
+			stopIndex: 0,
 			path: [],
 			dockEnter: false,
 			approachPath: [{ q: 0, r: 0 }],

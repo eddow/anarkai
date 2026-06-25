@@ -12,7 +12,6 @@ import type { InteractiveGameObject } from 'ssh/game/object'
 import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import { axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
-import { newFreightStopId } from './freight-line-draft'
 import { interactionMode } from './interactive-state'
 
 export type FreightMapPickApplyResult =
@@ -114,11 +113,9 @@ function freightBayAnchorForTile(tile: Tile): FreightStopAnchorAlveolus | undefi
 function customZoneIdForTile(game: Game, tile: Tile): string | undefined {
 	const coord = toAxialCoord(tile.position)
 	if (!coord) return undefined
-	const zoneId = game.hex.zoneManager.getZone(coord)
-	const definition = game.hex.zoneManager.getZoneDefinition(zoneId)
-	if (!definition || definition.builtIn || definition.generated || definition.readonly)
-		return undefined
-	return String(definition.id)
+	const zone = game.hex.zoneManager.getZone(coord)
+	if (!zone || zone.generated || zone.readonly) return undefined
+	return zone.name ?? zone.type
 }
 
 function settlementTradeStopForTile(game: Game, tile: Tile): FreightStop | undefined {
@@ -127,10 +124,10 @@ function settlementTradeStopForTile(game: Game, tile: Tile): FreightStop | undef
 	const profile = game.getSettlementTradeProfileAtCityHall?.(coord)
 	if (!profile) return undefined
 	return {
-		id: newFreightStopId(),
 		trade: {
 			kind: 'settlement',
-			settlementId: profile.id,
+			settlementName: profile.name,
+			profile,
 		},
 	}
 }
@@ -138,10 +135,10 @@ function settlementTradeStopForTile(game: Game, tile: Tile): FreightStop | undef
 function stopForPickedObject(game: Game, object: InteractiveGameObject): FreightStop | undefined {
 	if (object instanceof SettlementTradeObject) {
 		return {
-			id: newFreightStopId(),
 			trade: {
 				kind: 'settlement',
-				settlementId: object.profile.id,
+				settlementName: object.profile.name,
+				profile: object.profile,
 			},
 		}
 	}
@@ -151,14 +148,12 @@ function stopForPickedObject(game: Game, object: InteractiveGameObject): Freight
 	const anchor = freightBayAnchorForTile(object)
 	if (anchor) {
 		return {
-			id: newFreightStopId(),
 			anchor,
 		}
 	}
 	const zoneId = customZoneIdForTile(game, object)
 	if (zoneId) {
 		return {
-			id: newFreightStopId(),
 			zone: {
 				kind: 'named',
 				zoneId,
@@ -260,7 +255,6 @@ export function tryConsumeFreightMapPickRadiusDrag(args: {
 	if (!start || !end) return true
 	const radius = axial.distance(start, end)
 	pending.apply({
-		id: newFreightStopId(),
 		zone: {
 			kind: 'radius',
 			center: [start.q, start.r] as const,

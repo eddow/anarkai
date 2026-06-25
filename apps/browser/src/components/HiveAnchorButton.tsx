@@ -59,7 +59,7 @@ const HiveAnchorButton = (props: HiveAnchorButtonProps) => {
 		const target = hoverTarget()
 		if (target) setHoveredObject(target)
 		const tile = currentTile()
-		if (tile) zoneOverlayState.hoveredHiveAnchorTileUid = tile.uid
+		if (tile) zoneOverlayState.hoveredHiveAnchorTile = tile
 	}
 
 	const clearHover = (event: MouseEvent) => {
@@ -69,8 +69,8 @@ const HiveAnchorButton = (props: HiveAnchorButtonProps) => {
 			mrg.hoveredObject = undefined
 		}
 		const tile = currentTile()
-		if (tile && zoneOverlayState.hoveredHiveAnchorTileUid === tile.uid) {
-			zoneOverlayState.hoveredHiveAnchorTileUid = undefined
+		if (tile && zoneOverlayState.hoveredHiveAnchorTile === tile) {
+			zoneOverlayState.hoveredHiveAnchorTile = undefined
 		}
 	}
 

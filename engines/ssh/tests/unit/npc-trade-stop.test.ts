@@ -92,9 +92,7 @@ describe('NPC trade freight stops', () => {
 
 	it('imports only goods with downstream hive demand', () => {
 		const line = marketLine()
-		const vehicle = engine.game.vehicles.createVehicle('cart', 'wheelbarrow', { q: 4, r: 0 }, [
-			line,
-		])
+		const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 4, r: 0 }, [line])
 		const result = executeNpcTradeStopTransfer({
 			game: engine.game,
 			vehicle,
@@ -117,9 +115,7 @@ describe('NPC trade freight stops', () => {
 		expect(storage.storage.addGood('concrete', 12)).toBe(12)
 		expect(storage.storage.stock.concrete).toBe(12)
 		const line = marketLine()
-		const vehicle = engine.game.vehicles.createVehicle('cart', 'wheelbarrow', { q: 4, r: 0 }, [
-			line,
-		])
+		const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 4, r: 0 }, [line])
 
 		const result = executeNpcTradeStopTransfer({
 			game: engine.game,
@@ -145,9 +141,7 @@ describe('NPC trade freight stops', () => {
 				marketLine().stops[1]!,
 			],
 		})
-		const vehicle = engine.game.vehicles.createVehicle('cart', 'wheelbarrow', { q: 4, r: 0 }, [
-			line,
-		])
+		const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 4, r: 0 }, [line])
 		vehicle.storage.addGood('wood', 1)
 
 		const result = executeNpcTradeStopTransfer({

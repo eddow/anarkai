@@ -40,7 +40,7 @@ describe('Character.stepOn hex adjacency', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('v-step', 'wheelbarrow', { q: 0, r: 0 })
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
 		const character = game.population.createCharacter('Stepper', { q: 0, r: 0 })
 		bindOperatedWheelbarrowOffload(character, vehicle)
 		character.onboard()

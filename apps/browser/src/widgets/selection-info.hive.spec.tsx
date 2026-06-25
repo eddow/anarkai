@@ -134,7 +134,11 @@ vi.mock('../components/parts/WorkingIndicator', () => ({
 
 vi.mock('@app/lib/hive-inspector', () => ({
 	isHiveUid: (uid: string) => uid.startsWith('hive:'),
-	createSyntheticHiveObjectForUid: vi.fn((_game: unknown, uid: string) => game.getObject(uid)),
+	createSyntheticHiveObjectForUid: vi.fn((_game: unknown, uid: string) => ({
+		uid,
+		title: 'Hive',
+		logs: [],
+	})),
 	resolveHiveFromAnchorTile: vi.fn(() => hive),
 	hiveInspectorTitle: (currentHive: { name?: string } | undefined) => currentHive?.name ?? 'Hive',
 }))

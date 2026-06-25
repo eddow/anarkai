@@ -61,12 +61,7 @@ export function gameHandleResolver(game: Game): HandleResolver {
 		},
 		bayDock(bayUid, _dockIndex) {
 			// Look up the bay alveolus by uid via the game's object registry.
-			// `game.objects` is a Map<string, InteractiveGameObject>.
-			const obj = game.objects.get(bayUid)
-			if (obj && obj instanceof FreightBayAlveolus) return obj
-			// Also check by uid prefix — freight bays may be registered under
-			// a different key (e.g. the alveolus uid, not the bay uid).
-			for (const o of game.objects.values()) {
+			for (const o of game.objects) {
 				if (o instanceof FreightBayAlveolus && o.uid === bayUid) return o
 			}
 			return undefined

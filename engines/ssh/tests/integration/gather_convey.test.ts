@@ -99,7 +99,7 @@ describe('Gatherer Conveying Integration', () => {
 		bay.assignedWorker = worker
 
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle('gc-wb', 'wheelbarrow', { q: 0, r: 1 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 1 }, [line])
 		vehicle.beginService(line, line.stops[0]!, worker)
 		worker.operates = vehicle
 		worker.onboard()
@@ -148,7 +148,7 @@ describe('Gatherer Conveying Integration', () => {
 			const gatherer = game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus
 			const worker = spawnWorker({ q: 0, r: 1 })
 			worker.role = 'worker'
-			const vehicle = game.vehicles.createVehicle('wb-gather-filter', 'wheelbarrow', { q: 0, r: 1 })
+			const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 1 })
 			bindOperatedWheelbarrowOffload(worker, vehicle)
 			worker.onboard()
 			vehicle.storage.addGood('wood', 1)

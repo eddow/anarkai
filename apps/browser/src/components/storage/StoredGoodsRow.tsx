@@ -164,13 +164,13 @@ interface StoredGoodsRowProps {
 }
 
 export default function StoredGoodsRow(props: StoredGoodsRowProps) {
-	const ownerUid = () => props.content.tile?.uid
+	const owner = () => props.content.tile
 	const stock = () => {
-		presentationRevisionFor(ownerUid())
+		presentationRevisionFor(owner())
 		return props.content.storage?.stock || {}
 	}
 	const relations = () => {
-		presentationRevisionFor(ownerUid())
+		presentationRevisionFor(owner())
 		return props.content.goodsRelations ?? {}
 	}
 

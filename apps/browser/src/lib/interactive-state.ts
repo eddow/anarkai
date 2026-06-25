@@ -35,9 +35,9 @@ export function setActiveWorldViewPov(pov: ActiveWorldViewPov): void {
 	activeWorldViewPov.center = pov.center
 }
 
-export function getHoveredUid(): string | undefined {
+export function getHoveredObject(): InteractiveGameObject | undefined {
 	const hoveredObject = mrg.hoveredObject
-	return hoveredObject ? unwrap(hoveredObject).uid : undefined
+	return hoveredObject ? (unwrap(hoveredObject) as InteractiveGameObject) : undefined
 }
 
 export function isHoveredObject(object: InteractiveGameObject | undefined): boolean {

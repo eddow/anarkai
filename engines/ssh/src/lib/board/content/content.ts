@@ -33,9 +33,9 @@ export abstract class TileContent extends GameObject {
 	 */
 	colorCode(): { tint: number; borderColor?: number } {
 		// Base colors based on zone
-		if (this.tile.zone === 'residential') {
+		if (this.tile.zone?.type === 'residential') {
 			return { tint: 0xaaffaa, borderColor: 0x44dd44 } // greenish tint, strong green border
-		} else if (this.tile.zone === 'harvest') {
+		} else if (this.tile.zone?.type === 'harvest') {
 			return { tint: 0xccaa88, borderColor: 0xaa7744 } // brownish tint, strong brown border
 		}
 		return { tint: 0xffffff } // default white (no tint)

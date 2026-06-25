@@ -125,7 +125,7 @@ describe('Harvest Zones Restriction', () => {
 		expect(find.deposit('tree')).toBe(false)
 
 		// 2. Set (1,0) as harvest zone
-		farTile.zone = 'harvest'
+		farTile.zone = game.hex.zoneManager.resolveZone('harvest')!
 		const pathInZone = find.deposit('tree')
 		expect(pathInZone).not.toBe(false)
 		expect(toAxialCoord(pathInZone[pathInZone.length - 1])).toMatchObject({
@@ -134,7 +134,7 @@ describe('Harvest Zones Restriction', () => {
 		})
 
 		// 3. Remove zone but make it a residential zone (which is "clearing")
-		farTile.zone = 'residential'
+		farTile.zone = game.hex.zoneManager.resolveZone('residential')!
 		const pathInClearing = find.deposit('tree')
 		expect(pathInClearing).not.toBe(false)
 		expect(toAxialCoord(pathInClearing[pathInClearing.length - 1])).toMatchObject({ q: 1, r: 0 })

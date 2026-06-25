@@ -156,11 +156,11 @@ const HiveProperties = (props: HivePropertiesProps) => {
 	}
 
 	const applyHover = () => {
-		zoneOverlayState.hoveredHiveAnchorTileUid = props.hiveObject.anchorTileUid
+		zoneOverlayState.hoveredHiveAnchorTile = props.hiveObject.tile
 	}
 	const clearHover = () => {
-		if (zoneOverlayState.hoveredHiveAnchorTileUid === props.hiveObject.anchorTileUid) {
-			zoneOverlayState.hoveredHiveAnchorTileUid = undefined
+		if (zoneOverlayState.hoveredHiveAnchorTile === props.hiveObject.tile) {
+			zoneOverlayState.hoveredHiveAnchorTile = undefined
 		}
 	}
 

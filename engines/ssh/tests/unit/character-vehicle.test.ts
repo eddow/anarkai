@@ -33,7 +33,7 @@ describe('Character vehicle seam', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('v-test', 'wheelbarrow', { q: 0, r: 0 })
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
 		const character = game.population.createCharacter('Ada', { q: 0, r: 0 })
 
 		expect(character.driving).toBe(false)
@@ -62,7 +62,7 @@ describe('Character vehicle seam', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('v-frac', 'wheelbarrow', { q: 0, r: 0 })
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
 		const character = game.population.createCharacter('Frac', { q: 0, r: 0 })
 		// Same situation as walk-lerp / pixel jitter: still one hex, but raw `toAxialCoord` keys can differ.
 		vehicle.position = { q: 0.004, r: -0.003 }
@@ -86,7 +86,7 @@ describe('Character vehicle seam', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('v-sync', 'wheelbarrow', { q: 0, r: 0 })
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
 		const first = game.population.createCharacter('First', { q: 0, r: 0 })
 		const second = game.population.createCharacter('Second', { q: 1, r: 0 })
 
@@ -110,7 +110,7 @@ describe('Character vehicle seam', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('v-no-service', 'wheelbarrow', { q: 0, r: 0 })
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
 		const character = game.population.createCharacter('NoSvc', { q: 0, r: 0 })
 
 		expect(() => {
@@ -126,7 +126,7 @@ describe('Character vehicle seam', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('v-bind-helper', 'wheelbarrow', { q: 0, r: 0 })
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
 		const character = game.population.createCharacter('Helper', { q: 0, r: 0 })
 
 		vehicle.beginOffloadService()
@@ -145,7 +145,7 @@ describe('Character vehicle seam', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('v-rebind-same', 'wheelbarrow', { q: 0, r: 0 })
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
 		const character = game.population.createCharacter('Rebind', { q: 0, r: 0 })
 
 		vehicle.beginOffloadService()
@@ -178,7 +178,7 @@ describe('Character vehicle seam', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('v-release-onboard', 'wheelbarrow', { q: 0, r: 0 })
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
 		const character = game.population.createCharacter('ReleaseOnboard', { q: 0, r: 0 })
 		vehicle.beginOffloadService()
 		character.operates = vehicle
@@ -226,7 +226,7 @@ describe('Character vehicle seam', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('v-claimed', 'wheelbarrow', { q: 0, r: 0 }, [
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [
 			game.freightLines[0]!,
 		])
 		const first = game.population.createCharacter('First', { q: 0, r: 0 })
@@ -272,7 +272,7 @@ describe('Character vehicle seam', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		game.vehicles.createVehicle('v-select', 'wheelbarrow', { q: 0, r: 0 }, [game.freightLines[0]!])
+		game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [game.freightLines[0]!])
 		const first = game.population.createCharacter('First', { q: 1, r: 0 })
 		const second = game.population.createCharacter('Second', { q: 0, r: 0 })
 
@@ -306,7 +306,7 @@ describe('Character vehicle seam', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		game.vehicles.createVehicle('v-far', 'wheelbarrow', { q: 1, r: 0 })
+		game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 })
 		const vehicle = game.vehicles.vehicle('v-far')!
 		const character = game.population.createCharacter('Cyd', { q: 0, r: 0 })
 		vehicle.beginOffloadService(character)
@@ -366,7 +366,7 @@ describe('Character vehicle seam', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('v-off-empty', 'wheelbarrow', { q: 0, r: 0 })
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
 		const character = game.population.createCharacter('OffEmpty', { q: 0, r: 0 })
 		vehicle.beginOffloadService(character)
 		character.operates = vehicle
@@ -386,7 +386,7 @@ describe('Character vehicle seam', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('v-off-drain', 'wheelbarrow', { q: 0, r: 0 })
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
 		vehicle.storage.addGood('wood', 1)
 		const character = game.population.createCharacter('OffDrain', { q: 0, r: 0 })
 		vehicle.beginMaintenanceService(
@@ -426,9 +426,7 @@ describe('Character vehicle seam', () => {
 
 		const line = game.freightLines[0]!
 		const anchorStop = line.stops[1]!
-		const vehicle = game.vehicles.createVehicle('v-dock-keep', 'wheelbarrow', { q: 0, r: 0 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('Dock', { q: 0, r: 0 })
 		vehicle.beginLineService(line, anchorStop, character)
 		character.operates = vehicle
@@ -462,9 +460,7 @@ describe('Character vehicle seam', () => {
 
 		const line = game.freightLines[0]!
 		const zoneStop = line.stops[0]!
-		const vehicle = game.vehicles.createVehicle('v-zone-control', 'wheelbarrow', { q: 0, r: 0 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		vehicle.storage.addGood('wood', 1)
 		const character = game.population.createCharacter('Zoney', { q: 0, r: 0 })
 		vehicle.beginLineService(line, zoneStop, character)
@@ -504,11 +500,7 @@ describe('Character vehicle seam', () => {
 		const target = game.hex.getTile({ q: 1, r: 0 })!
 		target.content = new BasicDwelling(target)
 		const serviceSide = game.hex.getTile({ q: 0, r: 0 })!
-		const vehicle = game.vehicles.createVehicle(
-			'v-border-service',
-			'wheelbarrow',
-			serviceSide.position
-		)
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', serviceSide.position)
 		const character = game.population.createCharacter('Borderer', serviceSide.position)
 		vehicle.beginOffloadService(character)
 		character.operates = vehicle
@@ -564,7 +556,7 @@ describe('Character vehicle seam', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle('v-off', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('Dee', { q: 0, r: 0 })
 		const stop = line.stops[0]!
 		vehicle.beginService(line, stop, character)
@@ -597,7 +589,7 @@ describe('Character vehicle seam', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle('v-int', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('Eve', { q: 0, r: 0 })
 		vehicle.beginService(line, line.stops[0]!, character)
 		character.operates = vehicle
@@ -627,7 +619,7 @@ describe('Character vehicle seam', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle('v-stk', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('Flo', { q: 0, r: 0 })
 		vehicle.beginService(line, line.stops[0]!, character)
 		vehicle.storage.addGood('wood', 1)
@@ -646,7 +638,7 @@ describe('Character vehicle seam', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('v-pre-service', 'wheelbarrow', { q: 0, r: 0 })
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
 		const character = game.population.createCharacter('Pre', { q: 0, r: 0 })
 		vehicle.beginOffloadService(character)
 		character.operates = vehicle
@@ -677,7 +669,7 @@ describe('Character vehicle seam', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle('v-tr-empty', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('TraceE', { q: 0, r: 0 })
 		vehicle.beginService(line, line.stops[0]!, character)
 		character.operates = vehicle
@@ -722,7 +714,7 @@ describe('Character vehicle seam', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle('v-tr-stk', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('TraceS', { q: 0, r: 0 })
 		vehicle.beginService(line, line.stops[0]!, character)
 		vehicle.storage.addGood('wood', 1)
@@ -767,7 +759,7 @@ describe('Character vehicle seam', () => {
 		await game.loaded
 		game.ticker.stop()
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle('v-det', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const op = game.population.createCharacter('Detach', { q: 0, r: 0 })
 		vehicle.beginService(line, line.stops[0]!, op)
 

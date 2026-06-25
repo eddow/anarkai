@@ -298,7 +298,7 @@ describe('road build validation', () => {
 					{ coord: [1, 0], terrain: 'grass' },
 					{ coord: [2, 0], terrain: 'grass' },
 				],
-				zones: { residential: [[0, 0]] },
+				zones: [{ type: 'residential', coords: [[0, 0]] }],
 				projects: { 'build:sawmill': [[2, 0]] },
 			}
 		)
@@ -325,7 +325,7 @@ describe('road build validation', () => {
 					{ coord: [0, 0], terrain: 'grass' },
 					{ coord: [1, 0], terrain: 'grass' },
 				],
-				zones: { residential: [[0, 0]] },
+				zones: [{ type: 'residential', coords: [[0, 0]] }],
 			}
 		)
 		await game.loaded

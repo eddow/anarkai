@@ -6,7 +6,7 @@ import type { WorldVehicleType } from 'ssh/population/vehicle/vehicle'
 import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
 import { scopedPixiName, setPixiName } from '../debug-names'
-import type { PixiGameRenderer } from '../renderer'
+import { nextVisualKey, type PixiGameRenderer } from '../renderer'
 import { createGoodsRenderer, type GoodsRenderer } from './goods-renderer'
 import { VisualObject } from './visual-object'
 
@@ -30,7 +30,7 @@ export class VehicleVisual extends VisualObject<Vehicle> {
 
 	constructor(vehicle: Vehicle, renderer: PixiGameRenderer) {
 		super(vehicle, renderer)
-		const scope = `vehicle:${vehicle.uid}`
+		const scope = `vehicle:${nextVisualKey()}`
 		this.view.label = scope
 		const charTex = renderer.getTexture('characters.default')
 		const charUsable =
@@ -62,7 +62,7 @@ export class VehicleVisual extends VisualObject<Vehicle> {
 		this.renderer.attachToLayer(this.renderer.layers.vehicles, this.view)
 
 		this.register(
-			effect`vehicle.position:${this.object.uid}`(() => {
+			effect`vehicle.position:${nextVisualKey()}`(() => {
 				const position = this.object.position
 				this.view.visible = !!position
 				if (!position) return
@@ -75,10 +75,10 @@ export class VehicleVisual extends VisualObject<Vehicle> {
 		)
 
 		this.register(
-			effect`vehicle.operator-sprite:${this.object.uid}`(() => {
+			effect`vehicle.operator-sprite:${nextVisualKey()}`(() => {
 				let driver: Character | undefined
 				for (const character of this.renderer.game.population) {
-					if (character.driving && character.operates?.uid === this.object.uid) {
+					if (character.driving && character.operates === this.object) {
 						driver = character
 						break
 					}
@@ -96,13 +96,13 @@ export class VehicleVisual extends VisualObject<Vehicle> {
 				return { slots: goods.slots, assumedMaxSlots: goods.assumedMaxSlots }
 			},
 			{ x: 0, y: 0 },
-			`vehicle.${this.object.uid}.goods`
+			`vehicle.${nextVisualKey()}.goods`
 		)
 		this.goodsRenderer.render()
 
 		const brightnessFilter = new ColorMatrixFilter()
 		this.register(
-			effect`vehicle.${this.object.uid}.mouseover`(() => {
+			effect`vehicle.${nextVisualKey()}.mouseover`(() => {
 				this.renderHover(brightnessFilter)
 			})
 		)

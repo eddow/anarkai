@@ -138,7 +138,7 @@ export class InventoryFunctions {
 		const content = tile.content
 		if (!(content instanceof UnBuiltLand)) return false
 		if (content.project) return false
-		if (tile.zone === 'residential') return false
+		if (tile.zone?.type === 'residential') return false
 		if (!tile.isBurdened) return true
 		// Maintenance unload still needs one legal state while the operator is actively driving the
 		// wheelbarrow: the current tile may be marked burdened solely by that operated vehicle. Keep

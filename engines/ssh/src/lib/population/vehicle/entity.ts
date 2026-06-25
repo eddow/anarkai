@@ -132,12 +132,11 @@ export class Vehicle extends withInteractive(GameObject) {
 
 	constructor(
 		game: Game,
-		uid: string,
 		public readonly vehicleType: WorldVehicleType,
 		position: Position,
 		servedLines: readonly FreightLineDefinition[] = []
 	) {
-		super(game, uid)
+		super(game)
 		// First position write — no previous snapshot, so the teleport
 		// assertion in the setter is a no-op.  The setter wraps the value
 		// in `reactive(...)` itself.
@@ -664,7 +663,6 @@ export class Vehicle extends withInteractive(GameObject) {
 	static deserialize(game: Game, data: VehicleSerializedState): Vehicle {
 		const vehicle = new Vehicle(
 			game,
-			data.uid,
 			data.vehicleType,
 			data.position,
 			data.servedLineIds

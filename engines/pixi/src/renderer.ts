@@ -1,6 +1,14 @@
 import { root } from 'mutts'
-import { Application, Container, type ContainerChild, RenderLayer, type Texture } from 'pixi.js'
+import {
+	Application,
+	Container,
+	type ContainerChild,
+	type Rectangle,
+	RenderLayer,
+	type Texture,
+} from 'pixi.js'
 import type { Game } from 'ssh/game/game'
+import type { GameObject } from 'ssh/game/object'
 import type { GameRenderer } from 'ssh/types/engine'
 import type { AxialCoord } from 'ssh/utils'
 import { cartesian, tileSize } from 'ssh/utils'
@@ -19,9 +27,14 @@ import { FreightLineOverlay } from './renderers/freight-line-overlay'
 import type { VisualFactoryDiagnostics } from './visual-factory'
 import { VisualFactory } from './visual-factory'
 
-function appScreen(app: Application | undefined): { width: number; height: number } | undefined {
-	return (app as { renderer?: { screen?: { width: number; height: number } } } | undefined)
-		?.renderer?.screen
+/** Pixi-internal monotonic key for unique effect scope strings. */
+let _nextKey = 0
+export function nextVisualKey(): number {
+	return ++_nextKey
+}
+
+function appScreen(app: Application | undefined): Rectangle | undefined {
+	return (app as unknown as { renderer?: { screen: Rectangle } } | undefined)?.renderer?.screen
 }
 
 export class PixiGameRenderer implements GameRenderer {
@@ -143,8 +156,8 @@ export class PixiGameRenderer implements GameRenderer {
 		ui: Container // in-game ui overlays
 	}
 
-	// Map Logic Object UID -> Visual Object
-	public visuals = new Map<string, any>()
+	// Map SSH game object -> Visual Object (keyed by object identity)
+	public visuals = new Map<GameObject, any>()
 	public missingTextures: string[] = []
 
 	public world!: Container

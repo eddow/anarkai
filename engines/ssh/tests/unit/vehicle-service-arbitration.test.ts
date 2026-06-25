@@ -60,7 +60,6 @@ describe('Vehicle begin-service arbitration', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					id: 'arb:far',
 					name: 'Far gather',
 					hiveName: 'H',
 					coord: [8, 0],
@@ -68,7 +67,6 @@ describe('Vehicle begin-service arbitration', () => {
 					radius: 2,
 				}),
 				gatherFreightLine({
-					id: 'arb:near',
 					name: 'Near gather',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -90,7 +88,7 @@ describe('Vehicle begin-service arbitration', () => {
 
 		const far = game.freightLines.find((l) => l.id === 'arb:far')!
 		const near = game.freightLines.find((l) => l.id === 'arb:near')!
-		const vehicle = game.vehicles.createVehicle('arb-v', 'wheelbarrow', { q: 0, r: 0 }, [far, near])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [far, near])
 		const character = game.population.createCharacter('Arb', { q: 0, r: 0 })
 		bindOperatedWheelbarrowOffload(character, vehicle)
 		character.onboard()
@@ -104,7 +102,6 @@ describe('Vehicle begin-service arbitration', () => {
 			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
 			freightLines: [
 				gatherFreightLine({
-					id: 'arb:empty-gather',
 					name: 'Empty gather',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -118,7 +115,7 @@ describe('Vehicle begin-service arbitration', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle('arb-empty', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('Empty', { q: 0, r: 0 })
 		bindOperatedWheelbarrowOffload(character, vehicle)
 		character.onboard()
@@ -146,7 +143,6 @@ describe('Vehicle begin-service arbitration', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					id: 'pv:gather',
 					name: 'Pv gather',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -165,7 +161,7 @@ describe('Vehicle begin-service arbitration', () => {
 		siteTile.content = new BuildDwelling(siteTile, 'basic_dwelling')
 
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle('pv', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		vehicle.storage.addGood('wood', 1)
 
 		const character = game.population.createCharacter('Prov', { q: 0, r: 0 })
@@ -173,9 +169,7 @@ describe('Vehicle begin-service arbitration', () => {
 		character.onboard()
 
 		expect(findProvideFromVehicleJob(game, character)).toBeUndefined()
-		expect(pickInitialVehicleServiceCandidate(game, character, vehicle)?.stop).toBe(
-			line.stops[1]!.id
-		)
+		expect(pickInitialVehicleServiceCandidate(game, character, vehicle)?.stop).toBe(line.stops[1])
 	})
 
 	it('traces.vehicle debug when provideFromVehicle applies without line service (offload-only)', async () => {
@@ -189,7 +183,7 @@ describe('Vehicle begin-service arbitration', () => {
 		const siteTile = game.hex.getTile({ q: 0, r: 0 })!
 		siteTile.content = new BuildDwelling(siteTile, 'basic_dwelling')
 
-		const vehicle = game.vehicles.createVehicle('pv-tr', 'wheelbarrow', { q: 0, r: 0 })
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
 		vehicle.storage.addGood('wood', 2)
 
 		const character = game.population.createCharacter('Trace', { q: 0, r: 0 })
@@ -221,7 +215,7 @@ describe('Vehicle begin-service arbitration', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('v-stock', 'wheelbarrow', { q: 0, r: 0 })
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
 		vehicle.storage.addGood('wood', 1)
 
 		const log = vi.fn()
@@ -258,7 +252,6 @@ describe('Vehicle begin-service arbitration', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					id: 'arb:berries',
 					name: 'Berries gather',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -266,7 +259,6 @@ describe('Vehicle begin-service arbitration', () => {
 					radius: 2,
 				}),
 				gatherFreightLine({
-					id: 'arb:wood',
 					name: 'Wood gather',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -283,10 +275,7 @@ describe('Vehicle begin-service arbitration', () => {
 
 		const berries = game.freightLines.find((l) => l.id === 'arb:berries')!
 		const wood = game.freightLines.find((l) => l.id === 'arb:wood')!
-		const vehicle = game.vehicles.createVehicle('arb-tie', 'wheelbarrow', { q: 0, r: 0 }, [
-			berries,
-			wood,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [berries, wood])
 		vehicle.storage.addGood('wood', 1)
 		const character = game.population.createCharacter('Tie', { q: 0, r: 0 })
 		bindOperatedWheelbarrowOffload(character, vehicle)
@@ -301,7 +290,6 @@ describe('Vehicle begin-service arbitration', () => {
 			tiles: [{ coord: [0, 0] as const, terrain: 'concrete' as const }],
 			freightLines: [
 				distributeFreightLine({
-					id: 'arb:dist-only',
 					name: 'Distribute only',
 					hiveName: 'Solo',
 					coord: [0, 0],
@@ -315,7 +303,7 @@ describe('Vehicle begin-service arbitration', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle('arb-dist', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('NoSite', { q: 0, r: 0 })
 		bindOperatedWheelbarrowOffload(character, vehicle)
 		character.onboard()
@@ -328,7 +316,6 @@ describe('Vehicle begin-service arbitration', () => {
 			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
 			freightLines: [
 				gatherFreightLine({
-					id: 'arb:loaded-idle',
 					name: 'Loaded idle',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -342,9 +329,7 @@ describe('Vehicle begin-service arbitration', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle('arb-loaded-idle', 'wheelbarrow', { q: 0, r: 0 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		vehicle.storage.addGood('wood', 1)
 		const character = game.population.createCharacter('LoadedIdle', { q: 0, r: 0 })
 		bindOperatedWheelbarrowOffload(character, vehicle)
@@ -367,7 +352,6 @@ describe('Vehicle begin-service arbitration', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					id: 'arb:docked',
 					name: 'Docked line',
 					hiveName: 'BurdenBay',
 					coord: [1, 0],
@@ -386,15 +370,10 @@ describe('Vehicle begin-service arbitration', () => {
 		const line = game.freightLines[0]!
 		const unloadStop = line.stops[1]!
 
-		game.vehicles.createVehicle('arb-idle-burden', 'wheelbarrow', { q: 0, r: 0 })
+		game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
 		expect(idleTile.isBurdened).toBe(true)
 
-		const dockedVehicle = game.vehicles.createVehicle(
-			'arb-docked-burden',
-			'wheelbarrow',
-			{ q: 1, r: 0 },
-			[line]
-		)
+		const dockedVehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [line])
 		const character = game.population.createCharacter('Docked', { q: 1, r: 0 })
 		dockedVehicle.beginService(line, unloadStop, character)
 		dockedVehicle.dock()
@@ -416,7 +395,7 @@ describe('Vehicle begin-service arbitration', () => {
 
 		expect(inv.canDropLooseHere()).toBe(true)
 
-		const ownVehicle = game.vehicles.createVehicle('arb-own-drop', 'wheelbarrow', { q: 0, r: 0 })
+		const ownVehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
 		bindOperatedWheelbarrowOffload(character, ownVehicle)
 		character.onboard()
 		expect(tile.isBurdened).toBe(true)
@@ -437,7 +416,6 @@ describe('Vehicle begin-service arbitration', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					id: 'arb:park-after-dock',
 					name: 'Park after dock',
 					hiveName: 'ParkAfterDock',
 					coord: [0, 0],
@@ -452,12 +430,7 @@ describe('Vehicle begin-service arbitration', () => {
 
 		const line = game.freightLines[0]!
 		const unloadStop = line.stops[1]!
-		const vehicle = game.vehicles.createVehicle(
-			'arb-park-after-dock',
-			'wheelbarrow',
-			{ q: 0, r: 0 },
-			[line]
-		)
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const actor = game.population.createCharacter('DockActor', { q: 0, r: 0 })
 		vehicle.beginService(line, unloadStop, actor)
 		vehicle.dock()
@@ -479,7 +452,7 @@ describe('Vehicle begin-service arbitration', () => {
 				expect.objectContaining({
 					vehicle,
 					lineId: line.id,
-					stopIndex: unloadStop.id,
+					stopIndex: 1,
 					outcome: 'park-next',
 					hasStock: false,
 				})
@@ -504,12 +477,10 @@ describe('Vehicle begin-service arbitration', () => {
 			],
 			freightLines: [
 				{
-					id: 'arb:unload',
 					name: 'Unload gather',
 					stops: [
-						{ id: 'arb:unload-load', zone: { kind: 'radius', center: [0, 0], radius: 2 } },
+						{ zone: { kind: 'radius', center: [0, 0], radius: 2 } },
 						{
-							id: 'arb:unload-anchor',
 							anchor: {
 								kind: 'alveolus',
 								hiveName: 'UnloadHive',
@@ -527,7 +498,7 @@ describe('Vehicle begin-service arbitration', () => {
 
 		const line = game.freightLines[0]!
 		const unloadStop = line.stops[1]!
-		const vehicle = game.vehicles.createVehicle('arb-ul', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('Unload', { q: 0, r: 0 })
 		vehicle.beginService(line, unloadStop, character)
 		vehicle.storage.addGood('wood', 2)
@@ -593,7 +564,6 @@ describe('Vehicle begin-service arbitration', () => {
 			looseGoods: { wood: [[0, 2]] },
 			freightLines: [
 				gatherFreightLine({
-					id: 'NoGatherJobHive:gather',
 					name: 'Gather wood',
 					hiveName: 'NoGatherJobHive',
 					coord: [0, 0],
@@ -616,7 +586,6 @@ describe('Vehicle begin-service arbitration', () => {
 			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
 			freightLines: [
 				gatherFreightLine({
-					id: 'arb:prepare-replan',
 					name: 'Prepare replan',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -630,7 +599,7 @@ describe('Vehicle begin-service arbitration', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle('arb-replan', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const actor = game.population.createCharacter('Replan', { q: 0, r: 0 })
 		vehicle.beginService(line, line.stops[0]!, actor)
 		actor.operates = vehicle
@@ -651,7 +620,7 @@ describe('Vehicle begin-service arbitration', () => {
 			fatigue: 1,
 			vehicle,
 			lineId: line.id,
-			stopIndex: line.stops[0]!.id,
+			stopIndex: 0,
 			path: [],
 			dockEnter: false,
 		}
@@ -662,7 +631,7 @@ describe('Vehicle begin-service arbitration', () => {
 		expect(plan.vehicleHopReplanRequired).toBe(true)
 		expect(isVehicleLineService(vehicle.service)).toBe(true)
 		if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
-		expect(vehicle.service).toBe(line.stops[1]!.id)
+		expect(vehicle.service?.line?.stops[1]).toBe(line.stops[1])
 	})
 
 	it('anchor vehicleHopDockStep keeps the operator linked until the dock step finishes', async () => {
@@ -676,7 +645,6 @@ describe('Vehicle begin-service arbitration', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					id: 'arb:dock-step',
 					name: 'Dock step',
 					hiveName: 'DockStepHive',
 					coord: [0, 0],
@@ -691,9 +659,7 @@ describe('Vehicle begin-service arbitration', () => {
 
 		const line = game.freightLines[0]!
 		const unloadStop = line.stops[1]!
-		const vehicle = game.vehicles.createVehicle('arb-dock-step', 'wheelbarrow', { q: 0, r: 0 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const actor = game.population.createCharacter('DockStepActor', { q: 0, r: 0 })
 		vehicle.beginService(line, unloadStop, actor)
 		actor.operates = vehicle
@@ -709,7 +675,7 @@ describe('Vehicle begin-service arbitration', () => {
 			fatigue: 1,
 			vehicle,
 			lineId: line.id,
-			stopIndex: unloadStop.id,
+			stopIndex: 1,
 			path: [],
 			dockEnter: true,
 		}) as DurationStep
@@ -733,7 +699,6 @@ describe('Vehicle begin-service arbitration', () => {
 			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
 			freightLines: [
 				gatherFreightLine({
-					id: 'arb:zone-full',
 					name: 'Zone full',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -747,7 +712,7 @@ describe('Vehicle begin-service arbitration', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle('arb-zf', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('ZoneFull', { q: 0, r: 0 })
 		vehicle.beginService(line, line.stops[0]!, character)
 		character.operates = vehicle
@@ -777,7 +742,6 @@ describe('Vehicle begin-service arbitration', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					id: 'arb:no-action',
 					name: 'No action',
 					hiveName: 'ApproachHive',
 					coord: [0, 0],
@@ -785,7 +749,6 @@ describe('Vehicle begin-service arbitration', () => {
 					radius: 1,
 				}),
 				gatherFreightLine({
-					id: 'arb:truck-action',
 					name: 'Truck action',
 					hiveName: 'ApproachHive',
 					coord: [0, 0],
@@ -801,8 +764,8 @@ describe('Vehicle begin-service arbitration', () => {
 
 		const noAction = game.freightLines.find((line) => line.id === 'arb:no-action')!
 		const truckAction = game.freightLines.find((line) => line.id === 'arb:truck-action')!
-		game.vehicles.createVehicle('arb-near-idle', 'wheelbarrow', { q: 0, r: 0 }, [noAction])
-		game.vehicles.createVehicle('arb-far-truck', 'pickup_truck', { q: 6, r: 0 }, [truckAction])
+		game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [noAction])
+		game.vehicles.createVehicle('pickup_truck', { q: 6, r: 0 }, [truckAction])
 		const character = game.population.createCharacter('Approach', { q: 0, r: 0 })
 
 		const result = findVehicleApproachJob(game, character)
@@ -826,7 +789,6 @@ describe('Vehicle begin-service arbitration', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					id: 'arb:line-work-priority',
 					name: 'Line work priority',
 					hiveName: 'LineWorkHive',
 					coord: [0, 0],
@@ -840,9 +802,7 @@ describe('Vehicle begin-service arbitration', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle('arb-line-work', 'wheelbarrow', { q: 1, r: 0 }, [
-			line,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [line])
 		vehicle.storage.addGood('wood', 1)
 		vehicle.beginLineService(line, line.stops[0]!)
 		const character = game.population.createCharacter('LineWork', { q: 1, r: 0 })
@@ -871,7 +831,6 @@ describe('Vehicle begin-service arbitration', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					id: 'arb:unattended-loaded-zone',
 					name: 'Unattended loaded zone',
 					hiveName: 'UnattendedLoadedHive',
 					coord: [0, 0],
@@ -885,12 +844,7 @@ describe('Vehicle begin-service arbitration', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle(
-			'arb-unattended-loaded',
-			'wheelbarrow',
-			{ q: 1, r: 0 },
-			[line]
-		)
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [line])
 		vehicle.beginLineService(line, line.stops[0]!)
 		vehicle.storage.addGood('wood', 1)
 		const character = game.population.createCharacter('UnattendedLoaded', { q: 1, r: 0 })
@@ -899,7 +853,7 @@ describe('Vehicle begin-service arbitration', () => {
 
 		expect(hop?.job).toBe('vehicleHop')
 		expect(hop?.vehicle).toBe(vehicle)
-		expect(hop?.stopIndex).toBe(line.stops[1]!.id)
+		expect(hop?.stopIndex).toBe(line.stops[1])
 		expect(hop?.approachPath).toHaveLength(0)
 		expect(hop?.needsBeginService).toBeUndefined()
 	})
@@ -923,7 +877,6 @@ describe('Vehicle begin-service arbitration', () => {
 			looseGoods: { wood: [[0, 2]] },
 			freightLines: [
 				gatherFreightLine({
-					id: 'arb:zone-browse-score',
 					name: 'Zone browse score',
 					hiveName: 'ZoneBrowseScoreHive',
 					coord: [0, 0],
@@ -937,12 +890,7 @@ describe('Vehicle begin-service arbitration', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle(
-			'arb-zone-browse-score',
-			'wheelbarrow',
-			{ q: 0, r: 0 },
-			[line]
-		)
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('ZoneBrowseScore', { q: 0, r: 0 })
 		vehicle.beginService(line, line.stops[0]!, character)
 		character.operates = vehicle

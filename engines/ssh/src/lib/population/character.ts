@@ -139,6 +139,24 @@ interface RankedWorkCandidate {
 	score: number
 }
 
+/**
+ * Index-based character save format — replaces the legacy `{ uid, operatedVehicleUid }` shape.
+ *
+ * Array order IS identity: `characters[i]` is the `i`-th character. Cross-references
+ * use array indexes (not string uids).
+ */
+export interface SerializedCharacter {
+	readonly name: string
+	readonly position: Position
+	readonly stats: { readonly hunger: number; readonly fatigue: number; readonly tiredness: number }
+	readonly personalInventory?: Partial<Record<GoodType, number>>
+	readonly assignedAlveolus?: { readonly q: number; readonly r: number }
+	/** Index into the vehicles array. */
+	readonly operatedVehicleIndex?: number
+	readonly driving: boolean
+	readonly scripts: any
+}
+
 @reactive
 export class Character extends withInteractive(withScripted(GameObject)) {
 	readonly triggerLevels = characterTriggerLevels
@@ -387,11 +405,10 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 
 	constructor(
 		game: Game,
-		uid: string,
 		public name: string,
 		position: Position
 	) {
-		super(game, uid)
+		super(game)
 		this._footPosition = reactive(position)
 		const ax = toAxialCoord(this.position)
 		this._tile = game.hex.getTile({
@@ -1323,7 +1340,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 
 	static deserialize(game: Game, data: any): Character {
 		// Character creation logic similar to constructor but setting UID
-		const char = new Character(game, data.uid, data.name, data.position)
+		const char = new Character(game, data.name, data.position)
 
 		// Restore Stats
 		char.hunger = data.stats.hunger
@@ -1367,6 +1384,97 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 
 		return char
 	}
+}
+
+/**
+ * Serialize characters to the index-based format.
+ *
+ * @param characters    Ordered array of all characters (array position = identity).
+ * @param vehicleIndex  Map from {@link Vehicle} → array index.
+ */
+export function serializeCharacters(
+	characters: readonly Character[],
+	vehicleIndex: ReadonlyMap<Vehicle, number>
+): SerializedCharacter[] {
+	return characters.map((character) => ({
+		name: character.name,
+		position: character.position,
+		stats: {
+			hunger: character.hunger,
+			fatigue: character.fatigue,
+			tiredness: character.tiredness,
+		},
+		personalInventory: { ...character.personalInventory },
+		assignedAlveolus: character.assignedAlveolus
+			? {
+					q: (character.assignedAlveolus.tile.position as any).q,
+					r: (character.assignedAlveolus.tile.position as any).r,
+				}
+			: undefined,
+		operatedVehicleIndex:
+			character.operates && vehicleIndex.has(character.operates)
+				? vehicleIndex.get(character.operates)
+				: undefined,
+		driving: character.driving,
+		scripts: (character as any).getScriptState(),
+	}))
+}
+
+/**
+ * Deserialize characters from the index-based format.
+ *
+ * Creates all characters first, then wires cross-references (operated vehicles) in a second pass.
+ * {@link vehicles} must already exist in the same order they were serialized.
+ */
+export function deserializeCharacters(
+	game: Game,
+	rows: readonly SerializedCharacter[],
+	vehicles: readonly Vehicle[]
+): Character[] {
+	const characters = game.withObjectRegistrationBatch(() =>
+		rows.map((row) => {
+			const coord = toAxialCoord(row.position)
+			const char = new Character(game, row.name, coord ?? { q: 0, r: 0 })
+			char.hunger = row.stats.hunger
+			char.fatigue = row.stats.fatigue
+			char.tiredness = row.stats.tiredness
+			const personalInventory = row.personalInventory
+			if (personalInventory && typeof personalInventory === 'object') {
+				for (const [goodType, quantity] of Object.entries(personalInventory) as [
+					GoodType,
+					number,
+				][]) {
+					if (!(goodType in goodsCatalog) || typeof quantity !== 'number' || quantity <= 0) continue
+					char.personalInventory[goodType] = quantity
+				}
+			}
+			if (row.assignedAlveolus) {
+				const tile = game.hex.getTile(row.assignedAlveolus)
+				if (tile?.content && 'hive' in tile.content) {
+					char.assignedAlveolus = tile.content as Alveolus
+				}
+			}
+			if (row.scripts) {
+				;(char as any).restoreScriptState(row.scripts)
+			}
+			return char
+		})
+	)
+
+	// Second pass: wire operated vehicles
+	for (let i = 0; i < rows.length; i++) {
+		const row = rows[i]
+		const character = characters[i]
+		if (row.operatedVehicleIndex !== undefined) {
+			const vehicle = vehicles[row.operatedVehicleIndex]
+			if (vehicle) {
+				character.operates = vehicle
+				if (row.driving) character.onboard()
+			}
+		}
+	}
+
+	return characters
 }
 
 gameIsaTypes.character = (value: any) => {

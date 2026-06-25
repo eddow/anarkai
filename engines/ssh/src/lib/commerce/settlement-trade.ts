@@ -39,8 +39,6 @@ export interface NpcSettlementTradeProfile {
 	readonly offers: readonly NpcSettlementTradeOffer[]
 }
 
-export const SETTLEMENT_TRADE_UID_PREFIX = 'settlement:'
-
 const TRADE_GOODS = settlementTrade.goods as readonly GoodType[]
 const CONSTRUCTION_GOODS = new Set<GoodType>(
 	settlementTrade.constructionGoods as readonly GoodType[]
@@ -69,10 +67,8 @@ function rankGoods(args: {
 }): GoodType[] {
 	const rnd = LCG('settlement-trade', args.seed, args.settlement.id, args.direction)
 	const weights = settlementTrade.scoreWeights
-	const harvest = zoneCoordSet(args.zones?.harvest)
-	const industrial = zoneCoordSet(
-		args.zones?.named.find((zone) => zone.id === 'industrial')?.coords
-	)
+	const harvest = zoneCoordSet(args.zones?.find((z) => z.type === 'harvest')?.coords)
+	const industrial = zoneCoordSet(args.zones?.find((zone) => zone.name === 'Industrial')?.coords)
 	const scores = new Map<GoodType, number>()
 	for (const good of TRADE_GOODS) scores.set(good, weights.initialBase + rnd(weights.initialJitter))
 
@@ -165,20 +161,6 @@ export function createNpcSettlementTradeProfile(args: {
 	}
 }
 
-export function settlementTradeObjectUid(settlementName: string): string {
-	return `${SETTLEMENT_TRADE_UID_PREFIX}${encodeURIComponent(settlementName)}`
-}
-
-export function isSettlementTradeObjectUid(uid: string): boolean {
-	return uid.startsWith(SETTLEMENT_TRADE_UID_PREFIX)
-}
-
-export function settlementNameFromTradeObjectUid(uid: string): string | undefined {
-	if (!isSettlementTradeObjectUid(uid)) return undefined
-	const encoded = uid.slice(SETTLEMENT_TRADE_UID_PREFIX.length)
-	return encoded ? decodeURIComponent(encoded) : undefined
-}
-
 export class SettlementTradeObject
 	extends withInteractive(GameObject)
 	implements InspectorSelectableObject
@@ -186,7 +168,7 @@ export class SettlementTradeObject
 	readonly profile: NpcSettlementTradeProfile
 
 	constructor(game: Game, profile: NpcSettlementTradeProfile) {
-		super(game, settlementTradeObjectUid(profile.name))
+		super(game)
 		this.profile = profile
 	}
 
@@ -223,14 +205,4 @@ export class SettlementTradeObject
 	canInteract(_action: string): boolean {
 		return true
 	}
-}
-
-export function createSettlementTradeObjectForUid(
-	game: Game,
-	uid: string
-): SettlementTradeObject | undefined {
-	const settlementName = settlementNameFromTradeObjectUid(uid)
-	if (!settlementName) return undefined
-	const profile = game.getSettlementTradeProfile(settlementName)
-	return profile ? new SettlementTradeObject(game, profile) : undefined
 }

@@ -34,7 +34,7 @@ describe('work.npcs dispatch', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines[0]!
-		const vehicle = game.vehicles.createVehicle('v-dispatch', 'wheelbarrow', { q: 0, r: 0 }, [line])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('Dispatch', { q: 0, r: 0 })
 		void character.scriptsContext
 		vi.spyOn(character.scriptsContext.find, 'pathToVehicle').mockReturnValue([{ q: 0, r: 0 }])
@@ -45,7 +45,7 @@ describe('work.npcs dispatch', () => {
 			target: vehicle,
 			vehicle,
 			lineId: line.id,
-			stopIndex: line.stops[0]!.id,
+			stopIndex: 0,
 			urgency: 1,
 			fatigue: 0,
 			path: [],

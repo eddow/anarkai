@@ -100,8 +100,8 @@ function describeJobDetail(job: ProposedJob): string {
 		}
 		case 'vehicleHop':
 			return job.targetCoord
-				? `${job.lineId}/${job.stopId} @ ${job.targetCoord.q},${job.targetCoord.r}`
-				: `${job.lineId}/${job.stopId}`
+				? `${job.lineId}/${job.stopIndex} @ ${job.targetCoord.q},${job.targetCoord.r}`
+				: `${job.lineId}/${job.stopIndex}`
 		case 'zoneBrowse':
 			return `${job.zoneBrowseAction}:${job.goodType} @ ${job.targetCoord.q},${job.targetCoord.r}`
 		case 'defragment':

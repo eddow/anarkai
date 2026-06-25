@@ -21,9 +21,7 @@ const patches = {
 			],
 		},
 	],
-	zones: {
-		residential: [[0, 1]],
-	},
+	zones: [{ type: 'residential', coords: [[0, 0]] }],
 } as const
 
 describe('Home planning vs keepWorking (avoid everyone goHome when jobs matter)', () => {

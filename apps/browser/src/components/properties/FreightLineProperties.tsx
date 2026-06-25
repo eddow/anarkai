@@ -346,8 +346,7 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 	})
 
 	const handleMouseEnter = () => {
-		const lineId = props.lineObject?.lineId
-		showFreightLineOverlay(lineId)
+		showFreightLineOverlay(props.lineObject?.line)
 	}
 
 	const handleMouseLeave = () => {
@@ -685,10 +684,10 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 				<div class="freight-line-properties__trade-history">
 					<for each={tradeHistory().slice(0, 5)}>
 						{(entry: TradeTransferLogEntry) => {
-							const stop = currentLine()?.stops.find((s) => s.id === entry.stopId)
+							const stop = currentLine()?.stops[entry.stopIndex]
 							const stopLabel = stop
 								? `Stop ${currentLine()!.stops.indexOf(stop) + 1}`
-								: entry.stopId
+								: `${entry.stopIndex}`
 							const hasExports = Object.values(entry.exported).some((q) => (q ?? 0) > 0)
 							const hasImports = Object.values(entry.imported).some((q) => (q ?? 0) > 0)
 							return (

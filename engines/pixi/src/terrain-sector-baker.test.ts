@@ -13,7 +13,7 @@ describe('SectorTerrainBaker', () => {
 					terrain: 'grass',
 					height: 0,
 					zone: {
-						id: 'market',
+						type: 'passive',
 						name: 'Market',
 						color: '#d6a34c',
 						generated: true,
@@ -50,7 +50,7 @@ describe('SectorTerrainBaker', () => {
 					terrain: 'grass',
 					height: 0,
 					zone: {
-						id: 'market',
+						type: 'passive',
 						name: 'Market',
 						color: '#d6a34c',
 						generated: true,

@@ -73,7 +73,7 @@ describe('Game freight line lifecycle', () => {
 				'distribute'
 			)!
 			engine.game.replaceFreightLine(line)
-			const vehicle = engine.game.vehicles.createVehicle('assign-wb', 'wheelbarrow', { q: 2, r: 0 })
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 2, r: 0 })
 
 			expect(engine.game.assignVehicleToFreightLine(vehicle.uid, line.id)).toBe(true)
 			expect(engine.game.assignVehicleToFreightLine(vehicle.uid, line.id)).toBe(false)
@@ -123,7 +123,7 @@ describe('Game freight line lifecycle', () => {
 			}
 			engine.game.replaceFreightLine(line)
 			const activeLine = engine.game.freightLines.find((entry) => entry.id === line.id)!
-			const vehicle = engine.game.vehicles.createVehicle('refresh-docked-wb', 'wheelbarrow', {
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', {
 				q: 0,
 				r: 0,
 			})
@@ -169,7 +169,7 @@ describe('Game freight line lifecycle', () => {
 				'distribute'
 			)!
 			engine.game.replaceFreightLine(line)
-			const vehicle = engine.game.vehicles.createVehicle('remove-wb', 'wheelbarrow', { q: 2, r: 0 })
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 2, r: 0 })
 			engine.game.assignVehicleToFreightLine(vehicle.uid, line.id)
 
 			expect(engine.game.removeFreightLineById(line.id)).toBe(true)

@@ -67,7 +67,7 @@ describe('DwellingVisual', () => {
 			engine.loadScenario({
 				tiles: [{ coord: [0, 0], terrain: 'grass' }],
 				population: [],
-				zones: { residential: [[0, 0]] },
+				zones: [{ type: 'residential', coords: [[0, 0]] }],
 			})
 
 			const tile = engine.game.hex.getTile({ q: 0, r: 0 })
