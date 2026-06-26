@@ -2,6 +2,7 @@
 import EventEmitter from 'eventemitter3'
 import { ReactiveBase, reactive, unreactive, unwrap } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { Position } from 'ssh/utils/position'
 import type { Game } from './game'
 
@@ -27,7 +28,6 @@ export abstract class GameObject extends ReactiveBase {
 }
 
 export interface InteractiveLogObject {
-	readonly uid: string
 	readonly logs: string[]
 	logAbout(topic: unknown, ...args: unknown[]): void
 }
@@ -39,23 +39,20 @@ export function interactiveLogObject(uid: string): InteractiveLogObject | undefi
 }
 
 function registerInteractiveLogObject(object: InteractiveLogObject): void {
-	interactiveLogObjectsByUid.set(object.uid, object)
+	interactiveLogObjectsByUid.set(debugObjectId(object) ?? '', object)
 }
 
 function unregisterInteractiveLogObject(object: InteractiveLogObject): void {
-	if (interactiveLogObjectsByUid.get(object.uid) === object) {
-		interactiveLogObjectsByUid.delete(object.uid)
+	const key = debugObjectId(object) ?? ''
+	if (interactiveLogObjectsByUid.get(key) === object) {
+		interactiveLogObjectsByUid.delete(key)
 	}
 }
 
 // Mixin functions for composition
 
-let _interactiveUidCounter = 0
-
 export function withInteractive<T extends abstract new (...args: any[]) => GameObject>(Base: T) {
 	abstract class InteractiveMixin extends Base {
-		public readonly uid: string
-
 		/**
 		 * Log messages associated with the object. Intended for UI display.
 		 */
@@ -63,9 +60,7 @@ export function withInteractive<T extends abstract new (...args: any[]) => GameO
 
 		constructor(...args: any[]) {
 			const game = args[0] as Game
-			const uid = typeof args[1] === 'string' ? args[1] : `_${++_interactiveUidCounter}`
 			super(...args)
-			this.uid = uid
 			registerInteractiveLogObject(this)
 			game.enqueueInteractiveRegistration(this)
 		}
@@ -197,7 +192,6 @@ export type InteractiveGameObject = InstanceType<
 export type TickedGameObject = InstanceType<ReturnType<typeof withTicked<typeof GameObject>>>
 
 export interface InspectorSelectableObject {
-	readonly uid?: string
 	readonly title: string
 	readonly game: Game
 	readonly logs: readonly string[]

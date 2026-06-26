@@ -28,7 +28,6 @@ const hive = {
 			storage: { stock: { wood: 1 } },
 		},
 		Object.assign(new MockBuildAlveolus(), {
-			uid: 'build:1',
 			name: 'build.storage',
 			target: 'storage',
 			tile: { uid: 'tile:1,0' },
@@ -169,7 +168,6 @@ describe('HiveProperties', () => {
 			container,
 			<HiveProperties
 				hiveObject={{
-					uid: 'hive:tile%3A0%2C0',
 					kind: 'hive',
 					title: 'North Hive',
 					game: { vehicles: [] } as never,

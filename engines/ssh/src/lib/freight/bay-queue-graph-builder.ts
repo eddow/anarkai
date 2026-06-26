@@ -24,9 +24,9 @@
 
 import type { TileBorder } from 'ssh/board/border/border'
 import type { Tile } from 'ssh/board/tile'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { Game } from 'ssh/game/game'
 import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
-
 import type {
 	BayGroup,
 	RuntimeQueueEdge,
@@ -62,7 +62,7 @@ export function gameHandleResolver(game: Game): HandleResolver {
 		bayDock(bayUid, _dockIndex) {
 			// Look up the bay alveolus by uid via the game's object registry.
 			for (const o of game.objects) {
-				if (o instanceof FreightBayAlveolus && o.uid === bayUid) return o
+				if (o instanceof FreightBayAlveolus && debugObjectId(o) === bayUid) return o
 			}
 			return undefined
 		},

@@ -25,6 +25,7 @@ import {
 	setConstructionFoundationDeliveredGoods,
 } from 'ssh/construction-state'
 import { assert, traces } from 'ssh/dev/debug'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { ForesterAlveolus } from 'ssh/hive/forester'
 import { commitmentValid, type TrackedMovement } from 'ssh/hive/hive'
 import { movementRefId } from 'ssh/hive/movement-ref'
@@ -186,7 +187,7 @@ function harvestGiveUp(character: Character, expectedDeposit: string): AEvolutio
 	const alveolus = character.assignedAlveolus
 	traces.work.warn?.('work.harvestStep.giveUp', {
 		character: character.name,
-		characterUid: character.uid,
+		characterUid: debugObjectId(character),
 		reason: 'fallback-exhausted',
 		expectedDeposit,
 		tileQ: tileCoord?.q,
@@ -226,7 +227,7 @@ function harvestGiveUp(character: Character, expectedDeposit: string): AEvolutio
 	const walkDuration = characterWalkDuration(character, character.position, targetTile.position)
 	traces.work.warn?.('work.harvestStep.giveUp.move', {
 		character: character.name,
-		characterUid: character.uid,
+		characterUid: debugObjectId(character),
 		fromQ: from.q,
 		fromR: from.r,
 		toQ: bestNeighbor.q,
@@ -258,7 +259,7 @@ class WorkFunctions {
 		const targetCoord = toAxialCoord(workPlan.target?.tile?.position)
 		traces.work.log?.('work.prepare.begin', {
 			character: character.name,
-			characterUid: character.uid,
+			characterUid: debugObjectId(character),
 			job: workPlan.job,
 			target: workPlan.target?.name,
 			targetQ: targetCoord?.q,
@@ -269,7 +270,7 @@ class WorkFunctions {
 		if (['convey', 'vehicleOffload', 'transform'].includes(workPlan.job)) {
 			traces.work.log?.('work.prepare.skip', {
 				character: character.name,
-				characterUid: character.uid,
+				characterUid: debugObjectId(character),
 				job: workPlan.job,
 				reason: 'instant-job',
 			})
@@ -310,7 +311,7 @@ class WorkFunctions {
 		}
 		traces.work.log?.('work.myNextJob', {
 			character: this[subject].name,
-			characterUid: this[subject].uid,
+			characterUid: debugObjectId(this[subject]) ?? '',
 			requestedJob: workPlan?.job,
 			alveolus: alveolus.name,
 			alveolusQ: targetCoord?.q,
@@ -414,12 +415,15 @@ class WorkFunctions {
 			movement.claimedBy = character
 			movement.claimedAtMs = Date.now()
 			movement._state = transitionMovement(movement._state, MovementState.claimed)
-			movement.provider.hive.noteMovementLifecycle(movement, `movement.claimed.by:${character.uid}`)
+			movement.provider.hive.noteMovementLifecycle(
+				movement,
+				`movement.claimed.by:${debugObjectId(character)}`
+			)
 			movement.provider.hive.invalidateConveyPlanning('movement.claim')
 			traces.convey.log?.(
-				`[conveyStep] claimed ${movement.goodType} ref#${movementRefId(movement.ref)} by=${character.uid}`,
+				`[conveyStep] claimed ${movement.goodType} ref#${movementRefId(movement.ref)} by=${debugObjectId(character)}`,
 				{
-					character: character.uid,
+					character: debugObjectId(character),
 					alveolus: character.assignedAlveolus?.name,
 					goodType: movement.goodType,
 					movementRef: movementRefId(movement.ref),
@@ -435,8 +439,8 @@ class WorkFunctions {
 				`releaseMovementClaim: movement not claimed ref#${movementRefId(movement.ref)}`
 			)
 			assert(
-				movement.claimedBy?.uid === character.uid,
-				`releaseMovementClaim: movement claimed by ${movement.claimedBy?.uid ?? 'nobody'} not ${character.uid}`
+				debugObjectId(movement.claimedBy) === debugObjectId(character),
+				`releaseMovementClaim: movement claimed by ${debugObjectId(movement.claimedBy) ?? 'nobody'} not ${debugObjectId(character)}`
 			)
 			assert(
 				!!movement.claimedAtMs,
@@ -444,7 +448,7 @@ class WorkFunctions {
 			)
 			movement.provider.hive.noteMovementLifecycle(
 				movement,
-				`movement.unclaimed.by:${character.uid}`
+				`movement.unclaimed.by:${debugObjectId(character)}`
 			)
 			movement._state = transitionMovement(movement._state, MovementState.tracked)
 			movement.claimed = false
@@ -452,9 +456,9 @@ class WorkFunctions {
 			delete movement.claimedAtMs
 			movement.provider.hive.invalidateConveyPlanning('movement.unclaim')
 			traces.convey.log?.(
-				`[conveyStep] released ${movement.goodType} ref#${movementRefId(movement.ref)} by=${character.uid}`,
+				`[conveyStep] released ${movement.goodType} ref#${movementRefId(movement.ref)} by=${debugObjectId(character)}`,
 				{
-					character: character.uid,
+					character: debugObjectId(character),
 					alveolus: character.assignedAlveolus?.name,
 					goodType: movement.goodType,
 					movementRef: movementRefId(movement.ref),
@@ -466,7 +470,7 @@ class WorkFunctions {
 		const alveolus = character.assignedAlveolus
 		if (!alveolus) {
 			traces.convey.warn?.('[conveyStep] skipped: assignedAlveolus missing', {
-				character: character.uid,
+				character: debugObjectId(character),
 				tile: toAxialCoord(character.tile.position),
 				actionDescription: character.actionDescription,
 			})
@@ -477,7 +481,7 @@ class WorkFunctions {
 		const onAssignedTile = axial.key(characterCoord) === axial.key(assignedCoord)
 		if (!onAssignedTile) {
 			traces.convey.warn?.('[conveyStep] skipped: character is off assigned alveolus tile', {
-				character: character.uid,
+				character: debugObjectId(character),
 				characterTile: characterCoord ? axial.key(characterCoord) : undefined,
 				assignedTile: assignedCoord ? axial.key(assignedCoord) : undefined,
 				alveolus: alveolus.name,
@@ -489,7 +493,7 @@ class WorkFunctions {
 		const movements = alveolus.aGoodMovement
 		if (!movements || movements.length === 0) {
 			traces.convey.log?.(`[conveyStep] no movement for ${alveolus.name}`, {
-				character: character.uid,
+				character: debugObjectId(character),
 				alveolus: alveolus.name,
 				incomingGoods: alveolus.incomingGoods,
 			})
@@ -500,7 +504,7 @@ class WorkFunctions {
 		const hive = alveolus.hive
 		const movementData: MovementData[] = []
 		traces.convey.log?.(`[conveyStep] start ${movements.length} movement(s) at ${alveolus.name}`, {
-			character: character.uid,
+			character: debugObjectId(character),
 			alveolus: alveolus.name,
 			movements: movements.map(({ movement, fromSnapshot }) => ({
 				goodType: movement.goodType,
@@ -608,7 +612,7 @@ class WorkFunctions {
 				traces.convey.log?.(
 					`[conveyStep] hop prepared ${movement.goodType} ref#${movementRefId(movement.ref)} ${axial.key(from)} -> ${axial.key(hop)} remaining=${movement.path.length}`,
 					{
-						character: character.uid,
+						character: debugObjectId(character),
 						goodType: movement.goodType,
 						movementRef: movementRefId(movement.ref),
 						from: axial.key(from),
@@ -624,7 +628,7 @@ class WorkFunctions {
 				traces.convey.log?.(
 					`[conveyStep] visual good ${movement.goodType} ref#${movementRefId(movement.ref)} from=${axial.key(from)} to=${axial.key(hop)}`,
 					{
-						character: character.uid,
+						character: debugObjectId(character),
 						goodType: movement.goodType,
 						movementRef: movementRefId(movement.ref),
 						from: axial.key(from),
@@ -652,7 +656,7 @@ class WorkFunctions {
 		}
 		if (movementData.length === 0) {
 			traces.convey.log?.(`[conveyStep] no valid movement data for ${alveolus.name}`, {
-				character: character.uid,
+				character: debugObjectId(character),
 				alveolus: alveolus.name,
 			})
 			return waitStep()
@@ -675,7 +679,7 @@ class WorkFunctions {
 
 		const totalTime = getConveyDuration(character.freightTransferTime, movementData)
 		traces.convey.log?.(`[conveyStep] animate ${movementData.length} movement(s)`, {
-			character: character.uid,
+			character: debugObjectId(character),
 			totalTime,
 			deferFirstTick: true,
 			movements: movementData.map(({ movement, from, hop }) => ({
@@ -718,7 +722,7 @@ class WorkFunctions {
 			true,
 			descriptionKey
 		).addTraceInfo({
-			characterUid: character.uid,
+			characterUid: debugObjectId(character),
 			characterName: character.name,
 			alveolus: alveolus.name,
 			movements: movementData.map(({ movement, from, hop }) => ({
@@ -745,7 +749,7 @@ class WorkFunctions {
 				traces.convey.warn?.(
 					`[conveyStep] hop allocation refused ${movement.goodType} ref#${movementRefId(movement.ref)} at=${axial.key(hop)} reason=${hopResult}`,
 					{
-						character: character.uid,
+						character: debugObjectId(character),
 						goodType: movement.goodType,
 						movementRef: movementRefId(movement.ref),
 						hop: axial.key(hop),
@@ -789,7 +793,7 @@ class WorkFunctions {
 						}
 					}
 					traces.convey.log?.(`[conveyStep] fulfilled animation`, {
-						character: character.uid,
+						character: debugObjectId(character),
 						movements: movementData.map(({ movement, hop }) => ({
 							goodType: movement.goodType,
 							movementRef: movementRefId(movement.ref),
@@ -826,7 +830,7 @@ class WorkFunctions {
 							}
 							const demanderStorage = movement.demander.storage
 							traces.convey.log?.('[conveyStep.terminal.after-source-fulfill]', {
-								character: character.uid,
+								character: debugObjectId(character),
 								goodType: movement.goodType,
 								movementRef: movementRefId(movement.ref),
 								at: axial.key(hop),
@@ -838,7 +842,7 @@ class WorkFunctions {
 							releaseMovementClaim(movement)
 							movementHive.noteMovementLifecycle(movement, 'conveyStep.finished.terminal')
 							traces.convey.log?.('[conveyStep.terminal.before-finish]', {
-								character: character.uid,
+								character: debugObjectId(character),
 								goodType: movement.goodType,
 								movementRef: movementRefId(movement.ref),
 								at: axial.key(hop),
@@ -849,7 +853,7 @@ class WorkFunctions {
 							})
 							movement.finish()
 							traces.convey.log?.('[conveyStep.terminal.after-finish]', {
-								character: character.uid,
+								character: debugObjectId(character),
 								goodType: movement.goodType,
 								movementRef: movementRefId(movement.ref),
 								at: axial.key(hop),
@@ -861,7 +865,7 @@ class WorkFunctions {
 							traces.convey.log?.(
 								`[conveyStep] terminal finished ${movement.goodType} ref#${movementRefId(movement.ref)} at=${axial.key(hop)}`,
 								{
-									character: character.uid,
+									character: debugObjectId(character),
 									goodType: movement.goodType,
 									movementRef: movementRefId(movement.ref),
 									at: axial.key(hop),
@@ -905,7 +909,7 @@ class WorkFunctions {
 							traces.convey.log?.(
 								`[conveyStep] placed intermediate ${movement.goodType} ref#${movementRefId(movement.ref)} at=${axial.key(hop)}`,
 								{
-									character: character.uid,
+									character: debugObjectId(character),
 									goodType: movement.goodType,
 									movementRef: movementRefId(movement.ref),
 									at: axial.key(hop),
@@ -923,7 +927,7 @@ class WorkFunctions {
 							traces.convey.log?.(
 								`[conveyStep] rebound source ${movement.goodType} ref#${movementRefId(movement.ref)} at=${axial.key(hop)} remaining=${movement.path.length}`,
 								{
-									character: character.uid,
+									character: debugObjectId(character),
 									goodType: movement.goodType,
 									movementRef: movementRefId(movement.ref),
 									at: axial.key(hop),
@@ -1007,7 +1011,7 @@ class WorkFunctions {
 			const tileCoord = toAxialCoord(this[subject].tile.position)
 			traces.work.warn?.('work.harvestStep.skip', {
 				character: this[subject].name,
-				characterUid: this[subject].uid,
+				characterUid: debugObjectId(this[subject]) ?? '',
 				reason: 'deposit-mismatch',
 				assignedAlveolus: this[subject].assignedAlveolus?.name,
 				expectedDeposit: action.deposit,
@@ -1022,7 +1026,7 @@ class WorkFunctions {
 			if (fallback && fallback.job === 'harvest' && fallback.path?.length) {
 				traces.work.warn?.('work.harvestStep.replanned', {
 					character: this[subject].name,
-					characterUid: this[subject].uid,
+					characterUid: debugObjectId(this[subject]) ?? '',
 					reason: 'deposit-mismatch-fallback',
 					assignedAlveolus: this[subject].assignedAlveolus?.name,
 					expectedDeposit: action.deposit,
@@ -1238,7 +1242,7 @@ class WorkFunctions {
 		if (!(content instanceof UnBuiltLand) || !content.project) {
 			traces.work.warn?.('work.foundationStep.skip', {
 				character: character.name,
-				characterUid: character.uid,
+				characterUid: debugObjectId(character),
 				reason: 'not-project-land',
 				tileQ: tileCoord?.q,
 				tileR: tileCoord?.r,
@@ -1249,7 +1253,7 @@ class WorkFunctions {
 		if (content.tile.isBurdened) {
 			traces.work.warn?.('work.foundationStep.skip', {
 				character: character.name,
-				characterUid: character.uid,
+				characterUid: debugObjectId(character),
 				reason: 'tile-burdened',
 				tileQ: tileCoord?.q,
 				tileR: tileCoord?.r,
@@ -1275,7 +1279,7 @@ class WorkFunctions {
 		if (!foundationGoodsComplete(constructionSite)) {
 			traces.work.warn?.('work.foundationStep.skip', {
 				character: character.name,
-				characterUid: character.uid,
+				characterUid: debugObjectId(character),
 				reason: 'missing-foundation-goods',
 				tileQ: tileCoord?.q,
 				tileR: tileCoord?.r,
@@ -1287,7 +1291,7 @@ class WorkFunctions {
 		constructionSite.phase = 'foundation'
 		traces.work.log?.('work.foundationStep.start', {
 			character: character.name,
-			characterUid: character.uid,
+			characterUid: debugObjectId(character),
 			project,
 			tileQ: tileCoord?.q,
 			tileR: tileCoord?.r,

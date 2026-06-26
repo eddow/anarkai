@@ -5,6 +5,7 @@
  */
 
 import { traces } from 'ssh/dev/debug'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { applyMergePolicy, collectBranchLabels } from './bay-queue-merge-policy'
 import type {
@@ -98,28 +99,34 @@ export class BayQueueController {
 		currentNode: RuntimeQueueNode
 	): DockRequest {
 		if (this.requests.has(vehicle)) {
-			throw new Error(`Vehicle ${vehicle.uid} already has an active dock request`)
+			throw new Error(`Vehicle ${debugObjectId(vehicle)} already has an active dock request`)
 		}
 		if (!this.nodes.includes(currentNode)) {
-			throw new Error(`Current node for vehicle ${vehicle.uid} is not part of this queue graph`)
+			throw new Error(
+				`Current node for vehicle ${debugObjectId(vehicle)} is not part of this queue graph`
+			)
 		}
 
 		for (const node of this.nodes) {
 			for (const v of node.occupiedBy) {
 				if (v === vehicle) {
-					throw new Error(`Vehicle ${vehicle.uid} is already occupying node in this graph`)
+					throw new Error(
+						`Vehicle ${debugObjectId(vehicle)} is already occupying node in this graph`
+					)
 				}
 			}
 			for (const v of node.reservedBy) {
 				if (v === vehicle) {
-					throw new Error(`Vehicle ${vehicle.uid} is already reserved on node in this graph`)
+					throw new Error(
+						`Vehicle ${debugObjectId(vehicle)} is already reserved on node in this graph`
+					)
 				}
 			}
 		}
 
 		if (currentNode.occupiedBy.size + currentNode.reservedBy.size >= currentNode.capacity) {
 			throw new Error(
-				`Node at capacity (${currentNode.capacity}) — vehicle ${vehicle.uid} cannot enter`
+				`Node at capacity (${currentNode.capacity}) — vehicle ${debugObjectId(vehicle)} cannot enter`
 			)
 		}
 
@@ -249,7 +256,6 @@ export class BayQueueController {
 			const current = request.currentNode
 			if (!current) continue
 			const vehicle = request.vehicle
-			if (!vehicle) continue
 
 			const next = this.findAvailableNextNode(current, request, vehicle)
 			if (!next) {
@@ -301,12 +307,7 @@ export class BayQueueController {
 		const now = Date.now()
 		for (const [vehicle, grant] of this.grants) {
 			if (grant.expiresAt !== undefined && now >= grant.expiresAt) {
-				for (const v of grant.to.reservedBy) {
-					if (v === vehicle) {
-						grant.to.reservedBy.delete(v)
-						break
-					}
-				}
+				grant.to.reservedBy.delete(vehicle)
 				const request = this.requests.get(vehicle)
 				if (request) {
 					request.state = 'waiting'
@@ -339,16 +340,6 @@ export class BayQueueController {
 	}
 
 	// ─── Internal helpers ─────────────────────────────────────────────────
-
-	private findVehicleInNode(node: RuntimeQueueNode, vehicleUid: string): Vehicle | undefined {
-		for (const v of node.occupiedBy) {
-			if (v.uid === vehicleUid) return v
-		}
-		for (const v of node.reservedBy) {
-			if (v.uid === vehicleUid) return v
-		}
-		return undefined
-	}
 
 	private capabilitiesMatch(
 		vehicleCaps: ReadonlySet<VehicleCapability>,

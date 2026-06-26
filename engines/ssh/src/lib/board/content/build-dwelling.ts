@@ -11,10 +11,10 @@ import {
 	type DwellingTier,
 	normalizeConstructionSiteState,
 } from 'ssh/construction-state'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { buildAlveolusMarker } from 'ssh/hive/build-marker'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { GoodType } from 'ssh/types/base'
-import { toAxialCoord } from 'ssh/utils/position'
 import { TileContent } from './content'
 
 @reactive
@@ -35,8 +35,7 @@ export class BuildDwelling extends TileContent {
 		tier: DwellingTier,
 		constructionSite?: ConstructionSiteState
 	) {
-		const coord = toAxialCoord(tile.position)!
-		super(tile.board.game, `build-dwelling:${coord.q},${coord.r}`)
+		super(tile.board.game)
 		this.targetTier = tier
 		this.constructionSite = normalizeConstructionSiteState(
 			constructionSite ?? createConstructionSiteState({ kind: 'dwelling', tier })
@@ -50,7 +49,7 @@ export class BuildDwelling extends TileContent {
 		if (['planned', 'foundation'].includes(this.constructionSite.phase)) {
 			this.constructionSite.phase = 'waiting_materials'
 		}
-		registerConstructionMaterialPhaseEffect(`build-dwelling:${this.uid}`, this)
+		registerConstructionMaterialPhaseEffect(`build-dwelling:${debugObjectId(this)}`, this)
 	}
 
 	override get name(): string {

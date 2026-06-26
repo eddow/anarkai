@@ -8,6 +8,7 @@ import {
 	isStandaloneConstructionSiteShell,
 	reserveInTransit,
 } from 'ssh/build-site'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { assertVehicleOperationConsistency } from 'ssh/freight/vehicle-invariants'
 import { releaseVehicleFreightWorkOnPlanInterrupt } from 'ssh/freight/vehicle-run'
 import { allocateVehicleServiceForJob } from 'ssh/freight/vehicle-work'
@@ -85,8 +86,8 @@ function finalizeVehicleFreightWorkPlanOccupancy(plan: WorkPlan, character: Char
 	if (plan.type !== 'work' || !('vehicle' in plan)) return
 	const vehicle = plan.vehicle
 	if (!vehicle) return
-	const controlsPlanVehicle = character.operates?.uid === vehicle.uid
-	if (!controlsPlanVehicle && vehicle.operator?.uid !== character.uid) return
+	const controlsPlanVehicle = character.operates === vehicle
+	if (!controlsPlanVehicle && vehicle.operator !== character) return
 	if (!vehicle.service) {
 		if (controlsPlanVehicle) {
 			if (character.driving) character.offboard()
@@ -230,7 +231,7 @@ const pickupPlanHandler: PlanHandler<PickupPlan> = {
 			existingCommitment.trace('pickup.planHandler.begin.enter', {
 				goodType,
 				target: toAxialCoord(target),
-				characterUid: character.uid,
+				characterUid: debugObjectId(character) ?? '',
 				characterName: character.name,
 				hasLegacyAllocation: Boolean(plan.vehicleAllocation && plan.allocation),
 			})
@@ -244,7 +245,7 @@ const pickupPlanHandler: PlanHandler<PickupPlan> = {
 					kind: 'pickup-plan-handler',
 					goodType,
 					target: toAxialCoord(target),
-					characterUid: character.uid,
+					characterUid: debugObjectId(character) ?? '',
 					characterName: character.name,
 					legacy: true,
 				})
@@ -301,7 +302,7 @@ const pickupPlanHandler: PlanHandler<PickupPlan> = {
 					kind: 'pickup-plan-handler',
 					goodType,
 					target: coord,
-					characterUid: character.uid,
+					characterUid: debugObjectId(character) ?? '',
 					characterName: character.name,
 					replacedCommitment: existingCommitment ? 'yes' : 'no',
 				})
@@ -415,7 +416,13 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 					const quantity = plan.quantity
 					// Expiry generous enough for wheelbarrow delivery: 60 s from now.
 					const expiresAt = character.game.ticker.elapsedMS + 60_000
-					reserveInTransit(shell, plan.vehicle!.uid, plan.goodType, quantity, expiresAt)
+					reserveInTransit(
+						shell,
+						debugObjectId(plan.vehicle!) ?? '',
+						plan.goodType,
+						quantity,
+						expiresAt
+					)
 					;(plan as WorkPlan & { _inTransitSite?: ConstructionSiteShell })._inTransitSite = shell
 				}
 			}
@@ -459,7 +466,7 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 		const inTransitSite = (plan as WorkPlan & { _inTransitSite?: ConstructionSiteShell })
 			._inTransitSite
 		if (inTransitSite && 'vehicle' in plan) {
-			cancelVehicleInTransitReservations(inTransitSite, plan.vehicle!.uid)
+			cancelVehicleInTransitReservations(inTransitSite, debugObjectId(plan.vehicle!) ?? '')
 			delete (plan as WorkPlan & { _inTransitSite?: ConstructionSiteShell })._inTransitSite
 		}
 	},

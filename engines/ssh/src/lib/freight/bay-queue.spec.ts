@@ -26,10 +26,11 @@ function makeTestBayGroup(overrides: Partial<BayGroup> = {}): BayGroup {
 }
 
 function makeRequest(
-	overrides: Partial<DockRequest> & { vehicleUid: string; arrivedAt: number }
+	// TODO: make a proper type
+	overrides: Partial<DockRequest> & { vehicle: any; arrivedAt: number }
 ): DockRequest {
 	return {
-		vehicleUid: overrides.vehicleUid,
+		vehicle: (overrides as any).vehicle,
 		bayGroup: overrides.bayGroup ?? makeTestBayGroup(),
 		arrivedAt: overrides.arrivedAt,
 		priority: overrides.priority ?? 0,
@@ -67,27 +68,27 @@ function capturedGrant(controller: BayQueueController): MovementGrant | undefine
 
 describe('merge policies', () => {
 	it('priorityThenFifo orders by priority then arrival', () => {
-		const a = makeRequest({ vehicleUid: 'A', arrivedAt: 100, priority: 1 })
-		const b = makeRequest({ vehicleUid: 'B', arrivedAt: 50, priority: 2 })
-		const c = makeRequest({ vehicleUid: 'C', arrivedAt: 200, priority: 1 })
+		const a = makeRequest({ vehicle: makeVehicle('A'), arrivedAt: 100, priority: 1 })
+		const b = makeRequest({ vehicle: makeVehicle('B'), arrivedAt: 50, priority: 2 })
+		const c = makeRequest({ vehicle: makeVehicle('C'), arrivedAt: 200, priority: 1 })
 
 		const result = applyMergePolicy([a, b, c], { kind: 'priority_then_fifo' })
-		expect(result.ordered.map((r) => r.vehicleUid)).toEqual(['B', 'A', 'C'])
+		expect(result.ordered.map((r) => r.vehicle.uid)).toEqual(['B', 'A', 'C'])
 	})
 
 	it('globalFifo orders by arrival time only', () => {
-		const a = makeRequest({ vehicleUid: 'A', arrivedAt: 100, priority: 99 })
-		const b = makeRequest({ vehicleUid: 'B', arrivedAt: 50, priority: 1 })
-		const c = makeRequest({ vehicleUid: 'C', arrivedAt: 200, priority: 50 })
+		const a = makeRequest({ vehicle: makeVehicle('A'), arrivedAt: 100, priority: 99 })
+		const b = makeRequest({ vehicle: makeVehicle('B'), arrivedAt: 50, priority: 1 })
+		const c = makeRequest({ vehicle: makeVehicle('C'), arrivedAt: 200, priority: 50 })
 
 		const result = applyMergePolicy([a, b, c], { kind: 'global_fifo' })
-		expect(result.ordered.map((r) => r.vehicleUid)).toEqual(['B', 'A', 'C'])
+		expect(result.ordered.map((r) => r.vehicle.uid)).toEqual(['B', 'A', 'C'])
 	})
 
 	it('roundRobinByBranch alternates between branches', () => {
-		const a = makeRequest({ vehicleUid: 'A', arrivedAt: 100, ingressBranch: 'north' })
-		const b = makeRequest({ vehicleUid: 'B', arrivedAt: 50, ingressBranch: 'south' })
-		const c = makeRequest({ vehicleUid: 'C', arrivedAt: 200, ingressBranch: 'north' })
+		const a = makeRequest({ vehicle: makeVehicle('A'), arrivedAt: 100, ingressBranch: 'north' })
+		const b = makeRequest({ vehicle: makeVehicle('B'), arrivedAt: 50, ingressBranch: 'south' })
+		const c = makeRequest({ vehicle: makeVehicle('C'), arrivedAt: 200, ingressBranch: 'north' })
 
 		const branchList = ['north', 'south']
 		const r0 = applyMergePolicy(
@@ -96,7 +97,7 @@ describe('merge policies', () => {
 			{ branchList, branchIndex: 0 }
 		)
 		expect(r0.selectedBranch).toBe('north')
-		expect(r0.ordered[0].vehicleUid).toBe('A')
+		expect(r0.ordered[0].vehicle.uid).toBe('A')
 
 		const r1 = applyMergePolicy(
 			[a, b, c],
@@ -104,19 +105,19 @@ describe('merge policies', () => {
 			{ branchList, branchIndex: 1 }
 		)
 		expect(r1.selectedBranch).toBe('south')
-		expect(r1.ordered[0].vehicleUid).toBe('B')
+		expect(r1.ordered[0].vehicle.uid).toBe('B')
 	})
 
 	it('branchLabel uses ingressBranch over node.branch', () => {
 		const node = makeNode({ branch: 'node-branch' })
 		const req = makeRequest({
-			vehicleUid: 'A',
+			vehicle: makeVehicle('A'),
 			arrivedAt: 100,
 			ingressBranch: 'ingress-branch',
 			currentNode: node,
 		})
 		expect(branchLabel(req)).toBe('ingress-branch')
-		const req2 = makeRequest({ vehicleUid: 'B', arrivedAt: 100, currentNode: node })
+		const req2 = makeRequest({ vehicle: makeVehicle('B'), arrivedAt: 100, currentNode: node })
 		expect(branchLabel(req2)).toBe('node-branch')
 	})
 
@@ -252,13 +253,13 @@ describe('BayQueueController regression', () => {
 		const v = makeVehicle('v1')
 		c.registerRequest(v, [], 0, undefined, ingress)
 		expect(c.advanceBayQueue()).toBe(true)
-		expect(c.getRequest('v1')!.state).toBe('advancing')
+		expect(c.getRequest(v)!.state).toBe('advancing')
 		expect(c.advanceBayQueue()).toBe(false)
 		const g = capturedGrant(c)!
 		c.completeMovement(v, g)
-		expect(c.getRequest('v1')!.state).toBe('waiting')
+		expect(c.getRequest(v)!.state).toBe('waiting')
 		expect(c.advanceBayQueue()).toBe(true)
-		expect(c.getRequest('v1')!.state).toBe('granted')
+		expect(c.getRequest(v)!.state).toBe('granted')
 	})
 
 	it('cancelRequest releases grant target reservation', () => {
@@ -298,10 +299,10 @@ describe('BayQueueController regression', () => {
 		c.advanceBayQueue()
 		const g = capturedGrant(c)!
 		c.completeMovement(v, g)
-		expect(c.getRequest('v1')!.state).toBe('servicing')
+		expect(c.getRequest(v)!.state).toBe('servicing')
 		c.completeService(v)
 		// Vehicle stays on service node in waiting state for exit grant
-		const req = c.getRequest('v1')
+		const req = c.getRequest(v)
 		expect(req).toBeDefined()
 		expect(req!.state).toBe('waiting')
 		expect(req!.currentNode).toBe(dock)
@@ -337,7 +338,7 @@ describe('BayQueueController regression', () => {
 
 		const v = makeVehicle('v1')
 		c.registerRequest(v, [], 0, undefined, ingress)
-		expect(() => c.registerRequest(makeVehicle('v1'), [], 0, undefined, mid)).toThrow(/already/)
+		expect(() => c.registerRequest(v, [], 0, undefined, mid)).toThrow(/already/)
 	})
 
 	it('completeMovement with wrong grant cleans reservation and returns', () => {
@@ -359,7 +360,7 @@ describe('BayQueueController regression', () => {
 		// Complete with a fake/stale grant
 		const fakeTarget = makeNode()
 		const fakeGrant: MovementGrant = {
-			vehicleUid: 'v1',
+			vehicle: v,
 			from: ingress,
 			to: fakeTarget,
 			expiresAt: 0,
@@ -368,11 +369,7 @@ describe('BayQueueController regression', () => {
 
 		c.completeMovement(v, fakeGrant)
 		// Should clean the reservation on the fake grant target
-		let found = false
-		for (const rv of fakeTarget.reservedBy) {
-			if (rv.uid === 'v1') found = true
-		}
-		expect(found).toBe(false)
+		expect(fakeTarget.reservedBy.has(v)).toBe(false)
 		// Active grant should still exist
 		expect([...c.allGrants]).toHaveLength(1)
 	})
@@ -392,7 +389,7 @@ describe('BayQueueController regression', () => {
 		const v = makeVehicle('v1')
 		c.registerRequest(v, [], 0, undefined, ingress)
 		c.advanceBayQueue()
-		expect(c.getRequest('v1')!.state).toBe('advancing')
+		expect(c.getRequest(v)!.state).toBe('advancing')
 
 		// Manually expire the grant
 		for (const g of c.allGrants) {
@@ -401,7 +398,7 @@ describe('BayQueueController regression', () => {
 
 		// Next advance should clean expired grant and try again
 		c.advanceBayQueue()
-		expect(c.getRequest('v1')!.state).toBe('advancing') // re-granted
+		expect(c.getRequest(v)!.state).toBe('advancing') // re-granted
 	})
 })
 

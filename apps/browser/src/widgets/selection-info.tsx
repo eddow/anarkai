@@ -25,6 +25,7 @@ import { effect, reactive, untracked } from 'mutts'
 import { Tile } from 'ssh/board/tile'
 import { ZoneObject, ZonesCollectionObject } from 'ssh/board/zone-object'
 import { SettlementTradeObject } from 'ssh/commerce/settlement-trade'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import {
 	createSyntheticFreightLineObject,
 	type SyntheticFreightLineObject,
@@ -243,7 +244,7 @@ const SelectionInfoWidget = (
 			if (!uid) return undefined
 			if (uid.startsWith('hive:')) {
 				const anchorUid = decodeURIComponent(uid.slice('hive:'.length))
-				const tile = game.getObject(anchorUid)
+				const tile = [...game.objects].find((o: any) => debugObjectId(o) === anchorUid)
 				return tile instanceof Tile ? createSyntheticHiveObject(game, tile) : undefined
 			}
 			if (uid.startsWith('freight-line:')) {
@@ -256,7 +257,7 @@ const SelectionInfoWidget = (
 				return Number.isFinite(index) ? new ZoneObject(game, index) : undefined
 			}
 			if (uid === 'zones') return new ZonesCollectionObject(game)
-			return game.getObject(uid)
+			return [...game.objects].find((o: any) => debugObjectId(o) === uid)
 		},
 		get logs() {
 			return this.object?.logs ?? []

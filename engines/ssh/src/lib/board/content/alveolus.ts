@@ -2,6 +2,7 @@ import { configurations, harvestFatiguePremium, jobBalance } from 'engine-rules'
 import { inert, reactive, unreactive, unwrap } from 'mutts'
 import { isTileCoord } from 'ssh/board/tile-coord'
 import { traces } from 'ssh/dev/debug'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { isVehicleFreightDock } from 'ssh/freight/vehicle-freight-dock'
 import type { Hive, MovementSelection, TrackedMovement } from 'ssh/hive/hive'
 import { movementRefId } from 'ssh/hive/movement-ref'
@@ -302,9 +303,9 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		const characterCoord = characterPosition ? toAxialCoord(characterPosition) : undefined
 		const key = [
 			this.game.workPlanningRevision,
-			currentCharacter?.uid ?? '',
+			debugObjectId(currentCharacter) ?? '',
 			characterCoord ? `${characterCoord.q},${characterCoord.r}` : '',
-			assignedWorker?.uid ?? '',
+			debugObjectId(assignedWorker) ?? '',
 			this.tile.isBurdened ? 'burdened' : 'free',
 			this.working ? 'working' : 'stopped',
 		].join('|')
@@ -317,12 +318,12 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		currentCharacter: Character | undefined,
 		assignedWorker: Character | undefined
 	): Job | undefined {
-		if (assignedWorker && assignedWorker.uid !== currentCharacter?.uid) {
+		if (assignedWorker && assignedWorker !== currentCharacter) {
 			if (this.hasConveyNearby) {
 				traces.convey.log?.(`[getJob] skip assigned-worker ${this.name}`, {
 					alveolus: this.name,
-					assignedWorker: assignedWorker.uid,
-					character: currentCharacter?.uid,
+					assignedWorker: assignedWorker,
+					character: currentCharacter,
 				})
 			}
 			return undefined
@@ -331,7 +332,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		if (carry) {
 			traces.convey.log?.(`[getJob] convey ${this.name}`, {
 				alveolus: this.name,
-				character: currentCharacter?.uid,
+				character: debugObjectId(currentCharacter),
 				urgency: carry.urgency,
 			})
 			return carry
@@ -343,7 +344,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			if (this.hasConveyNearby) {
 				traces.convey.log?.(`[getJob] skip burdened ${this.name}`, {
 					alveolus: this.name,
-					character: currentCharacter?.uid,
+					character: debugObjectId(currentCharacter),
 				})
 			}
 			return undefined
@@ -352,7 +353,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			if (this.hasConveyNearby) {
 				traces.convey.log?.(`[getJob] skip not-working ${this.name}`, {
 					alveolus: this.name,
-					character: currentCharacter?.uid,
+					character: debugObjectId(currentCharacter),
 				})
 			}
 			return undefined
@@ -365,7 +366,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			if (this.hasConveyNearby) {
 				traces.convey.log?.(`[getJob] ${job ? 'work' : 'none'} ${this.name}`, {
 					alveolus: this.name,
-					character: currentCharacter?.uid,
+					character: debugObjectId(currentCharacter),
 					urgency: job?.urgency,
 				})
 			}

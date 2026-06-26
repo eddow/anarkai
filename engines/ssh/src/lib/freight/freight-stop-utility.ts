@@ -1,6 +1,7 @@
 import { commerce, freightLineHiveNeedPriorityWeight } from 'engine-rules'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import {
 	distributeSegmentAllowsGoodTypeForSegment,
 	type FreightDistributeRouteSegment,
@@ -991,7 +992,7 @@ export function summarizeFreightLineRoute(args: {
 					)
 				: false
 		return {
-			vehicleUid: vehicle.uid,
+			vehicleUid: debugObjectId(vehicle) ?? '',
 			vehicleType: vehicle.vehicleType,
 			vehicleTitle: vehicle.title,
 			currentStopIndex:

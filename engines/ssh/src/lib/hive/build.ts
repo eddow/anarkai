@@ -13,6 +13,7 @@ import {
 	normalizeConstructionSiteState,
 	resolveAlveolusVariant,
 } from 'ssh/construction-state'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { AlveolusType, GoodType } from 'ssh/types/base'
 import { toAxialCoord } from 'ssh/utils/position'
@@ -86,7 +87,7 @@ export class BuildAlveolus extends TileContent {
 		if (['planned', 'foundation'].includes(this.constructionSite.phase)) {
 			this.constructionSite.phase = 'waiting_materials'
 		}
-		registerConstructionMaterialPhaseEffect(`build-alveolus:${this.uid}`, this)
+		registerConstructionMaterialPhaseEffect(`build-alveolus:${debugObjectId(this)}`, this)
 	}
 
 	/** Next variant after the current step completes (intermediate segment). */

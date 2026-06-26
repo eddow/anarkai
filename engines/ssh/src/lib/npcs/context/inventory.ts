@@ -10,6 +10,7 @@ import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { LooseGood } from 'ssh/board/looseGoods'
 import type { Tile } from 'ssh/board/tile'
 import { Commitment } from 'ssh/commitment'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { Character } from 'ssh/population/character'
 import { contract, type Goods, type GoodType } from 'ssh/types'
 import type { IdlePlan, PickupPlan, TransferPlan } from 'ssh/types/base'
@@ -20,7 +21,7 @@ import { type ASingleStep, DurationStep } from '../steps'
 
 function pickupTracePayload(character: Character, goodType: GoodType, source: Positioned) {
 	return {
-		characterUid: character.uid,
+		characterUid: debugObjectId(character) ?? '',
 		characterName: character.name,
 		goodType,
 		source: toAxialCoord(source),
@@ -152,7 +153,7 @@ export class InventoryFunctions {
 			return false
 		}
 		for (const other of character.game.vehicles) {
-			if (other.uid === vehicle.uid) continue
+			if (other === vehicle) continue
 			if (!other.position) continue
 			const otherCoord = toAxialCoord(other.position)
 			if (Math.round(otherCoord.q) === tileCoord.q && Math.round(otherCoord.r) === tileCoord.r) {
@@ -269,7 +270,7 @@ export class InventoryFunctions {
 				requested: goods,
 				availables: transport.availables,
 				targetRoom: content.storage?.logInfo || 'no-storage',
-				characterUid: character.uid,
+				characterUid: debugObjectId(character) ?? '',
 				characterName: character.name,
 			})
 			return { type: 'idle' as const, duration: 0 }
@@ -314,7 +315,7 @@ export class InventoryFunctions {
 		if (totalAmount <= 0) {
 			traces.vehicle.warn?.('planGrabStored: no transfer possible (returning idle)', {
 				requested: goods,
-				characterUid: character.uid,
+				characterUid: debugObjectId(character) ?? '',
 				characterName: character.name,
 				transportRoom: Object.fromEntries(
 					(Object.keys(goods) as GoodType[]).map((g) => [g, transport.hasRoom(g)])
@@ -427,7 +428,7 @@ export class InventoryFunctions {
 				type: action.type,
 				description,
 				totalAmount,
-				characterUid: character.uid,
+				characterUid: debugObjectId(character) ?? '',
 				characterName: character.name,
 			})
 		}

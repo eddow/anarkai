@@ -1,5 +1,6 @@
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { Character } from 'ssh/population/character'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
 import type { Job, VehicleHopJob, VehicleOffloadJob, ZoneBrowseJob } from 'ssh/types/base'
@@ -104,12 +105,18 @@ export function proposedVehicleJobIdentityParts(job: VehiclePlannerJob): readonl
 			return [job.job]
 		case 'vehicleOffload': {
 			const good = job.maintenanceKind === 'loadFromBurden' ? job.looseGood.goodType : ''
-			return [job.job, job.vehicle!.uid, job.maintenanceKind, axial.key(job.targetCoord), good]
+			return [
+				job.job,
+				debugObjectId(job.vehicle!) ?? '',
+				job.maintenanceKind,
+				axial.key(job.targetCoord),
+				good,
+			]
 		}
 		case 'zoneBrowse':
 			return [
 				job.job,
-				job.vehicle!.uid,
+				debugObjectId(job.vehicle!) ?? '',
 				job.lineId,
 				String(job.stopIndex),
 				job.zoneBrowseAction,
@@ -119,7 +126,7 @@ export function proposedVehicleJobIdentityParts(job: VehiclePlannerJob): readonl
 		case 'vehicleHop':
 			return [
 				job.job,
-				job.vehicle!.uid,
+				debugObjectId(job.vehicle!) ?? '',
 				job.lineId,
 				String(job.stopIndex),
 				job.dockEnter ? 'dock' : 'move',

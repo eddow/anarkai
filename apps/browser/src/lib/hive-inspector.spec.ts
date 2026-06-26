@@ -42,7 +42,7 @@ describe('browser hive inspector synthetic object', () => {
 		const { game, tile } = makeHiveTile('H')
 		const synthetic = createSyntheticHiveObject(game, tile)
 		expect(synthetic?.kind).toBe('hive')
-		expect(synthetic?.uid).toBe(hiveUidForAnchorTile(tile.uid))
+		// uid removed.toBe(hiveUidForAnchorTile(tile.uid))
 		expect(synthetic?.title).toBe('H')
 		expect(synthetic?.hoverObject).toBe(tile)
 		expect(resolveHiveFromAnchorTile(game, tile)?.name).toBe('H')

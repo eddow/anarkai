@@ -1,6 +1,7 @@
 import { jobBalance } from 'engine-rules'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { freightConstructionDemandTarget } from 'ssh/freight/construction-demand'
 import type {
 	FreightLineDefinition,
@@ -999,7 +1000,10 @@ export function detachVehicleServiceIfStorageEmpty(vehicle: Vehicle): void {
 	const hasStock = Object.values(vehicle.storage.stock).some((n) => (n ?? 0) > 0)
 	if (hasStock) return
 	vehicle.endService()
-	traces.vehicle.log?.('vehicle freight service detached (empty storage)', vehicle.uid)
+	traces.vehicle.log?.(
+		'vehicle freight service detached (empty storage)',
+		debugObjectId(vehicle) ?? ''
+	)
 }
 
 /**
@@ -1018,14 +1022,13 @@ export function disembarkOperatorLeavingDockedVehicleInService(
 	vehicle: Vehicle
 ): void {
 	assert(
-		character.operates?.uid === vehicle.uid,
-		`disembark dock: operated vehicle mismatch (expected ${vehicle.uid}, was ${character.operates?.uid})`
+		character.operates === vehicle,
+		`disembark dock: operated vehicle mismatch (expected ${debugObjectId(vehicle) ?? ''}, was ${debugObjectId(character.operates) ?? ''})`
 	)
 	character.disembarkVehicleKeepingService()
 }
 
 export type VehicleFreightInterruptSubject = {
-	readonly uid: string
 	operates?: Vehicle
 	readonly driving?: boolean
 	offboard?: () => void
@@ -1046,15 +1049,15 @@ export function releaseVehicleFreightWorkOnPlanInterrupt(
 		if (subject.driving && subject.offboard) subject.offboard()
 		else subject.operates = undefined
 		traces.vehicle.log?.('vehicle freight stale operator link cleared on plan interrupt', {
-			characterUid: subject.uid,
+			characterUid: debugObjectId(subject) ?? '',
 		})
 		return
 	}
-	if (v.operator?.uid !== subject.uid) {
+	if (v.operator !== subject) {
 		if (subject.disengageVehicleKeepingService) subject.disengageVehicleKeepingService()
 		else subject.operates = undefined
 		traces.vehicle.log?.('vehicle freight stale operator mismatch cleared on plan interrupt', {
-			characterUid: subject.uid,
+			characterUid: debugObjectId(subject) ?? '',
 			operatorUid: v.operator?.uid,
 		})
 		return
@@ -1062,7 +1065,7 @@ export function releaseVehicleFreightWorkOnPlanInterrupt(
 	if (subject.disengageVehicleKeepingService) subject.disengageVehicleKeepingService()
 	else v.releaseOperator()
 	traces.vehicle.log?.('vehicle freight operator released on plan interrupt', {
-		characterUid: subject.uid,
+		characterUid: debugObjectId(subject) ?? '',
 		stillHasService: !!v.service,
 	})
 }

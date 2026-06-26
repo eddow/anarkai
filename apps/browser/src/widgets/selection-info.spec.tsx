@@ -25,27 +25,23 @@ const gameObject = {
 const tileUid = 'tile-1'
 const TileForTest = Tile as unknown as new () => Record<string, unknown>
 const tileObject = Object.assign(new TileForTest(), {
-	uid: tileUid,
 	title: 'tile tile-1',
 	logs: [] as string[],
 }) as InstanceType<typeof Tile>
 const characterUid = 'character-1'
 const CharacterForTest = Character as unknown as new () => Record<string, unknown>
 const characterObject = Object.assign(new CharacterForTest(), {
-	uid: characterUid,
 	title: 'character character-1',
 	logs: [] as string[],
 }) as InstanceType<typeof Character>
 const secondCharacterUid = 'character-2'
 const secondCharacterObject = Object.assign(new CharacterForTest(), {
-	uid: secondCharacterUid,
 	title: 'character character-2',
 	logs: [] as string[],
 }) as InstanceType<typeof Character>
 
 const hiveSyntheticUid = hiveUidForAnchorTile('tile:0,0')
 const hiveSyntheticObject = {
-	uid: hiveSyntheticUid,
 	kind: 'hive' as const,
 	title: 'Test Hive',
 	logs: [] as const,
@@ -55,13 +51,11 @@ const hiveSyntheticObject = {
 const vehicleUid = 'vehicle-1'
 const VehicleForTest = VehicleEntity as unknown as new () => Record<string, unknown>
 const vehicleObject = Object.assign(new VehicleForTest(), {
-	uid: vehicleUid,
 	title: 'wheelbarrow vehicle-1',
 	logs: [] as string[],
 }) as InstanceType<typeof VehicleEntity>
 const secondVehicleUid = 'vehicle-2'
 const secondVehicleObject = Object.assign(new VehicleForTest(), {
-	uid: secondVehicleUid,
 	title: 'wheelbarrow vehicle-2',
 	logs: [] as string[],
 }) as InstanceType<typeof VehicleEntity>

@@ -8,6 +8,8 @@
  * test assertions.
  */
 
+import { debugObjectId } from 'ssh/dev/debug-object-id'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import type { BayQueueController } from './bay-queue-controller'
 import type { RuntimeQueueNode } from './bay-queue-types'
 
@@ -35,30 +37,34 @@ export interface QueueInvariantResult {
  * multiple nodes without also being occupied somewhere.
  */
 export function invariantSingleNodeOccupancy(nodes: RuntimeQueueNode[]): QueueInvariantResult {
-	const occupiedCount = new Map<string, number>()
-	const reservedCount = new Map<string, number>()
+	const occupiedCount = new Map<Vehicle, number>()
+	const reservedCount = new Map<Vehicle, number>()
 
 	for (const node of nodes) {
 		for (const v of node.occupiedBy) {
-			occupiedCount.set(v.uid, (occupiedCount.get(v.uid) ?? 0) + 1)
+			occupiedCount.set(v, (occupiedCount.get(v) ?? 0) + 1)
 		}
 		for (const v of node.reservedBy) {
-			reservedCount.set(v.uid, (reservedCount.get(v.uid) ?? 0) + 1)
+			reservedCount.set(v, (reservedCount.get(v) ?? 0) + 1)
 		}
 	}
 
 	const violations: Array<{ vehicleUid: string; reason: string }> = []
 
-	for (const [uid, count] of occupiedCount) {
+	for (const [vehicle, count] of occupiedCount) {
 		if (count > 1) {
-			violations.push({ vehicleUid: uid, reason: `occupied on ${count} nodes` })
+			violations.push({
+				vehicleUid: debugObjectId(vehicle) ?? 'unknown',
+				reason: `occupied on ${count} nodes`,
+			})
 		}
 	}
-	for (const [uid, count] of reservedCount) {
-		// A single reservation alongside a single occupancy is valid (in-flight).
-		// Multiple reservations indicate a bug.
+	for (const [vehicle, count] of reservedCount) {
 		if (count > 1) {
-			violations.push({ vehicleUid: uid, reason: `reserved on ${count} nodes` })
+			violations.push({
+				vehicleUid: debugObjectId(vehicle) ?? 'unknown',
+				reason: `reserved on ${count} nodes`,
+			})
 		}
 	}
 
@@ -103,10 +109,10 @@ export function invariantNodeCapacity(nodes: RuntimeQueueNode[]): QueueInvariant
 export function invariantServiceReservationInGraph(
 	nodes: RuntimeQueueNode[]
 ): QueueInvariantResult {
-	const allOccupied = new Set<string>()
+	const allOccupied = new Set<Vehicle>()
 	for (const node of nodes) {
 		for (const v of node.occupiedBy) {
-			allOccupied.add(v.uid)
+			allOccupied.add(v)
 		}
 	}
 
@@ -114,8 +120,8 @@ export function invariantServiceReservationInGraph(
 	for (const node of nodes) {
 		if (!node.canService) continue
 		for (const v of node.reservedBy) {
-			if (!allOccupied.has(v.uid)) {
-				violations.push(v.uid)
+			if (!allOccupied.has(v)) {
+				violations.push(debugObjectId(v) ?? 'unknown')
 			}
 		}
 	}
@@ -137,15 +143,14 @@ export function invariantGrantTargetReserved(controller: BayQueueController): Qu
 	const violations: string[] = []
 
 	for (const grant of controller.allGrants) {
-		// Always check: does reservedBy contain the grant's vehicle?
 		let found = false
 		for (const v of grant.to.reservedBy) {
-			if (v.uid === grant.vehicleUid) {
+			if (v === grant.vehicle) {
 				found = true
 				break
 			}
 		}
-		if (!found) violations.push(grant.vehicleUid)
+		if (!found) violations.push(debugObjectId(grant.vehicle) ?? 'unknown')
 	}
 
 	return {

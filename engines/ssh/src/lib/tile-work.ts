@@ -1,4 +1,5 @@
 import { Tile } from 'ssh/board/tile'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { collectVehicleWorkPicks, type VehicleWorkPick } from 'ssh/freight/vehicle-work'
 import type { Game } from 'ssh/game'
 import type { Character } from 'ssh/population/character'
@@ -68,12 +69,12 @@ function gameCacheId(game: Game): number {
 }
 
 function populationKey(game: Game): string {
-	return Array.from(game.population, (character) => character.uid).join(',')
+	return Array.from(game.population, (character) => debugObjectId(character)).join(',')
 }
 
 function cachedPathToTile(character: Character, tile: Tile): AxialCoord[] | undefined {
 	const start = axial.round(toAxialCoord(character.position)!)
-	const key = `${gameCacheId(character.game)}:${character.uid}:${tile.uid}:${axial.key(start)}`
+	const key = `${gameCacheId(character.game)}:${debugObjectId(character)}:${debugObjectId(tile)}:${axial.key(start)}`
 	return pathToTileCache.get(key, character.game.workPlanningRevision, () =>
 		pathToTile(character, tile)
 	)
@@ -87,8 +88,8 @@ function compareTileWorkPicks(a: TileWorkPick, b: TileWorkPick): number {
 	if (b.score !== a.score) return b.score - a.score
 	if (b.urgency !== a.urgency) return b.urgency - a.urgency
 	if (a.pathLength !== b.pathLength) return a.pathLength - b.pathLength
-	const aVehicle = a.vehicle?.uid ?? ''
-	const bVehicle = b.vehicle?.uid ?? ''
+	const aVehicle = debugObjectId(a.vehicle) ?? ''
+	const bVehicle = debugObjectId(b.vehicle) ?? ''
 	if (aVehicle !== bVehicle) return aVehicle.localeCompare(bVehicle)
 	return (a.character.title ?? a.character.name).localeCompare(
 		b.character.title ?? b.character.name
@@ -103,7 +104,7 @@ export function collectTileWorkPicks(
 	if (!(tile instanceof Tile)) return []
 	const selectedCoord = toAxialCoord(tile.position)
 	if (!selectedCoord) return []
-	const key = `${gameCacheId(game)}:${tile.uid}:${limit}:${populationKey(game)}`
+	const key = `${gameCacheId(game)}:${debugObjectId(tile)}:${limit}:${populationKey(game)}`
 	return tileWorkPicksCache.get(key, game.workPlanningRevision, () =>
 		collectTileWorkPicksUncached(game, tile, limit, selectedCoord)
 	)

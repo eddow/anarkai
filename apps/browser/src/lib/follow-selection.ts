@@ -14,7 +14,7 @@ type DockviewApi = NonNullable<DockviewApiLike>
 type InspectorPanel = NonNullable<ReturnType<DockviewApi['getPanel']>>
 type DockviewWindow = Window & { dockviewApi?: DockviewApiLike }
 
-type SelectableObject = Pick<InspectorSelectableObject, 'uid' | 'title'>
+type SelectableObject = Pick<InspectorSelectableObject, 'title'> & { readonly uid?: string }
 const pinnedInspectorPanelIdsByUid = new Map<string, string>()
 
 function ensureGeneratedTileContent(object: SelectableObject): void {

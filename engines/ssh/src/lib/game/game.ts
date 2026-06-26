@@ -98,12 +98,7 @@ import { toAxialCoord } from 'ssh/utils/position'
 import * as gameContent from '../../../assets/game-content'
 import { assert, setTraceTimeSource } from '../dev/debug.ts'
 import { GameplayFrontierController } from './gameplay-frontier'
-import type {
-	GameObject,
-	HittableGameObject,
-	InspectorSelectableObject,
-	InteractiveGameObject,
-} from './object'
+import type { GameObject, HittableGameObject, InteractiveGameObject } from './object'
 import {
 	TerrainProvider,
 	type TerrainProviderDiagnostics,
@@ -263,6 +258,8 @@ type TerrainPatches = CoordPatchMap<TerrainType>
 type LooseGoodsPatches = CoordPatchMap<GoodType>
 
 export type { ZoneDefinitionPatch } from 'ssh/board/zone'
+
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 
 export interface GamePatches {
 	seed?: number
@@ -509,12 +506,7 @@ export class Game extends Eventful<GameEvents> {
 		this.ticker.start()
 	}
 
-	getObject(uid: string): InspectorSelectableObject | InteractiveGameObject | undefined {
-		for (const obj of this.objects) {
-			if (obj.uid === uid) return obj
-		}
-		return undefined
-	}
+	// getObject removed — identity is object reference, not string lookup
 
 	public applyBuildAction(tile: Tile, alveolusType: AlveolusType, variant?: string): boolean {
 		return tile.build(alveolusType, variant)
@@ -779,7 +771,7 @@ export class Game extends Eventful<GameEvents> {
 
 	public enqueueStoragePresentationChange(owner: GameObject): void {
 		const event: GamePresentationEvent = { type: 'storage.changed', owner }
-		this.pendingPresentationEvents.set(`${event.type}:${owner.uid}`, event)
+		this.pendingPresentationEvents.set(`${event.type}:${debugObjectId(owner)}`, event)
 		this.schedulePresentationEventsFlush()
 	}
 
@@ -789,7 +781,10 @@ export class Game extends Eventful<GameEvents> {
 			owner,
 			vehicle,
 		}
-		this.pendingPresentationEvents.set(`${event.type}:${owner.uid}:${vehicle.uid}`, event)
+		this.pendingPresentationEvents.set(
+			`${event.type}:${debugObjectId(owner)}:${debugObjectId(vehicle)}`,
+			event
+		)
 		this.schedulePresentationEventsFlush()
 	}
 
@@ -797,7 +792,7 @@ export class Game extends Eventful<GameEvents> {
 		event: Omit<Extract<GamePresentationEvent, { type: 'npc-trade.transferred' }>, 'type'>
 	): void {
 		this.pendingPresentationEvents.set(
-			`npc-trade.transferred:${event.line}:${event.stopIndex}:${event.vehicle.uid}`,
+			`npc-trade.transferred:${event.line}:${event.stopIndex}:${debugObjectId(event.vehicle)}`,
 			{ type: 'npc-trade.transferred', ...event }
 		)
 		this.schedulePresentationEventsFlush()
@@ -807,7 +802,7 @@ export class Game extends Eventful<GameEvents> {
 	private accumulateTradeTransferLog(
 		event: Omit<Extract<GamePresentationEvent, { type: 'npc-trade.transferred' }>, 'type'>
 	): void {
-		const key = `${event.line}:${event.stopIndex}:${event.vehicle.uid}`
+		const key = `${event.line}:${event.stopIndex}:${debugObjectId(event.vehicle)}`
 		const entries = this.tradeTransferLog.get(key) ?? []
 		const entry: TradeTransferLogEntry = {
 			...event,

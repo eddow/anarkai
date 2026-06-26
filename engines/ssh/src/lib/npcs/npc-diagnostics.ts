@@ -1,4 +1,5 @@
 import type { ExecutionState } from 'npc-script'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { ScriptExecution } from './scripts'
 
 /** Human-readable kind for the value returned from `ScriptExecution.run` (npc-script executor). */
@@ -82,7 +83,7 @@ export function npcSubjectSnapshot(subject: object): NpcSubjectSnapshot {
 		tile?: { position: { q: number; r: number } }
 	}
 	const name = typeof o.name === 'string' ? o.name : undefined
-	const uid = typeof o.uid === 'string' ? o.uid : undefined
+	const uid = typeof (debugObjectId(o) ?? '') === 'string' ? (debugObjectId(o) ?? '') : undefined
 	const p = o.tile?.position
 	const tile =
 		p && typeof p.q === 'number' && typeof p.r === 'number' ? { q: p.q, r: p.r } : undefined

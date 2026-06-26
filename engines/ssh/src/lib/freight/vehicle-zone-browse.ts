@@ -3,6 +3,7 @@ import { Alveolus } from 'ssh/board/content/alveolus'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
 import { profile } from 'ssh/dev/debug'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import {
 	CONSTRUCTION_DEMAND_AD_SOURCE,
 	freightConstructionDemandTarget,
@@ -317,7 +318,7 @@ export function pickVehicleZoneBrowseSelection(
 	startPos: Positioned = character.position
 ): VehicleZoneBrowseSelection | undefined {
 	const end = profile.proposedJobs.begin?.('pickVehicleZoneBrowseSelection', () => ({
-		characterUid: character.uid,
+		characterUid: debugObjectId(character) ?? '',
 		lineId: line.id,
 		stopIndex: line.stops.indexOf(stop),
 	}))

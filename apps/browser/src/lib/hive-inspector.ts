@@ -53,7 +53,6 @@ export function createSyntheticHiveObject(
 	const canonicalTile = canonicalTileForHive(hive) ?? anchorTile
 	return {
 		kind: 'hive',
-		uid: hiveUidForAnchorTile(canonicalTile.uid),
 		title: hiveInspectorTitle(hive),
 		game,
 		logs: [],

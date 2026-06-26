@@ -1,3 +1,4 @@
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { FreightMovementParty } from 'ssh/freight/vehicle-freight-dock'
 import type { TrackedMovement } from 'ssh/hive/hive'
 import type { Character } from 'ssh/population/character'
@@ -200,7 +201,7 @@ export const freightTransferInvariantChecks = {
 			payload: {
 				...freightTransferPayload(transfer),
 				hasExecutableJob,
-				claimOwnerUid: claimOwner?.uid,
+				claimOwnerUid: debugObjectId(claimOwner),
 			},
 		}
 	},
@@ -214,7 +215,7 @@ export const freightTransferInvariantChecks = {
 			message: 'claimed freight transfer must be owned by a live convey executor',
 			payload: {
 				...freightTransferPayload(transfer),
-				claimOwnerUid: claimOwner?.uid,
+				claimOwnerUid: debugObjectId(claimOwner),
 				claimedByUid: transfer.claim?.characterUid,
 				claimedAtMs: transfer.claim?.claimedAtMs,
 			},

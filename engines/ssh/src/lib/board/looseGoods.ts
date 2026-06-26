@@ -30,7 +30,6 @@ type InternalLooseGood = LooseGood & {
 }
 
 export class LooseGoods extends GameObject {
-	public readonly uid = 'loose-goods-manager'
 	public readonly goods = reactive(new AxialKeyMap<LooseGood[]>([], () => []))
 	private notifyLooseGoodsChanged(coordKey: AxialKey): void {
 		const tile = this.game.hex.getTile(axial.coord(coordKey))

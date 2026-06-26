@@ -27,6 +27,7 @@ import { AlveolusGate } from 'ssh/board/border/alveolus-gate'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
 import { Commitment } from 'ssh/commitment'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import {
 	dockedVehicleGoodsRelations,
 	type FreightMovementParty,
@@ -37,6 +38,7 @@ import {
 import { defaultNameTheme, generateName } from 'ssh/generation/names'
 import { options } from 'ssh/globals'
 import type { Character } from 'ssh/population/character'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { findLiveAllocations, trackAllocation, untrackAllocation } from 'ssh/storage/guard'
 import { NoStorage } from 'ssh/storage/no-storage'
 import type { Storage } from 'ssh/storage/storage'
@@ -354,7 +356,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 	private pendingMovementTargetQuantities = new Map<string, number>()
 	private activeMovements = new Set<TrackedMovement>()
 	private _conveyPlanningRevision = 0
-	private readonly freightVehicleDocks = new Map<string, VehicleFreightDock>()
+	private readonly freightVehicleDocks = new Map<Vehicle, VehicleFreightDock>()
 	// Path cache for complete paths between alveoli
 	private pathCache = new Map<string, AxialCoord[]>()
 	private exchangeWatchdogTimer: ReturnType<typeof setInterval> | undefined
@@ -531,35 +533,43 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 
 	/** Registers a docked wheelbarrow endpoint for bay↔vehicle convey matching. */
 	registerFreightVehicleDock(dock: VehicleFreightDock): void {
-		this.freightVehicleDocks.set(dock.vehicle.uid, dock)
+		this.freightVehicleDocks.set(dock.vehicle, dock)
 		this.invalidateConveyPlanning('dock.lifecycle')
 		this.invalidateAdvertisements([dock, dock.bay], 'dock.lifecycle')
 	}
 
 	@inert
-	unregisterFreightVehicleDock(vehicleUid: string): void {
-		const dock = this.freightVehicleDocks.get(vehicleUid)
+	unregisterFreightVehicleDock(vehicle: Vehicle): void {
+		const dock = this.freightVehicleDocks.get(vehicle)
 		if (!dock) return
-		this.freightVehicleDocks.delete(vehicleUid)
+		this.freightVehicleDocks.delete(vehicle)
 		this.pendingAdvertisementReasons.delete(dock)
 		this.advertise(dock, {})
 		this.invalidateConveyPlanning('dock.lifecycle')
 		this.invalidateAdvertisement(dock.bay, 'dock.lifecycle')
 	}
 
-	freightVehicleDockFor(vehicleUid: string): VehicleFreightDock | undefined {
-		return this.freightVehicleDocks.get(vehicleUid)
+	freightVehicleDockFor(vehicle: Vehicle): VehicleFreightDock | undefined {
+		return this.freightVehicleDocks.get(vehicle)
 	}
 
-	hasActiveFreightVehicleDockMovement(vehicleUid: string): boolean {
+	hasActiveFreightVehicleDockMovement(vehicle: Vehicle): boolean {
 		for (const movement of this.activeMovements) {
 			const providerDock = isVehicleFreightDock(movement.provider) ? movement.provider : undefined
 			const demanderDock = isVehicleFreightDock(movement.demander) ? movement.demander : undefined
-			if (providerDock?.vehicle.uid === vehicleUid || demanderDock?.vehicle.uid === vehicleUid) {
+			if (providerDock?.vehicle === vehicle || demanderDock?.vehicle === vehicle) {
 				return true
 			}
 		}
 		return false
+	}
+
+	/** Temporary bridge for serialization restore — delete in Phase A5. */
+	freightVehicleDockByUid(vehicleUid: string): VehicleFreightDock | undefined {
+		for (const [vehicle, dock] of this.freightVehicleDocks) {
+			if (debugObjectId(vehicle) ?? '' === vehicleUid) return dock
+		}
+		return undefined
 	}
 
 	public attach(alveolus: Alveolus) {
@@ -976,7 +986,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		if (isVehicleFreightDock(party)) {
 			return (
 				this.freightPartyUnavailableForMovement(party.bay) ||
-				this.freightVehicleDocks.get(party.vehicle.uid) !== party
+				this.freightVehicleDocks.get(party.vehicle) !== party
 			)
 		}
 		return !this.alveoli.has(party as Alveolus)
@@ -2628,7 +2638,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				movement,
 				wasTracked: !!trackedCoord,
 				claimed: movement.claimed,
-				claimedByUid: movement.claimedBy?.uid,
+				claimedByUid: debugObjectId(movement.claimedBy),
 				claimedAtMs: movement.claimedAtMs,
 				onBorder: !isTileCoord(currentCoord),
 			})
@@ -3589,7 +3599,9 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			refreshState: 'steady',
 			claimed: row.claimed,
 			claimedBy: row.claimedByUid
-				? Array.from(this.board.game.population).find((w) => w.uid === row.claimedByUid)
+				? Array.from(this.board.game.population).find(
+						(w) => (debugObjectId(w) ?? '') === row.claimedByUid
+					)
 				: undefined,
 			claimedAtMs: row.claimedAtMs,
 			allocations: {

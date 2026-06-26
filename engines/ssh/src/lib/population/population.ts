@@ -1,3 +1,4 @@
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { Game } from 'ssh/game/game'
 import { GameObject, withContainer, withHittable } from 'ssh/game/object'
 import { type AxialCoord, toAxialCoord } from 'ssh/utils'
@@ -33,7 +34,7 @@ export class Population extends withContainer(withHittable(GameObject)) {
 
 	character(uid: string): Character {
 		for (const c of this.children) {
-			if (c instanceof Character && c.uid === uid) return c
+			if (c instanceof Character && (debugObjectId(c) ?? '') === uid) return c
 		}
 		throw new Error(`Character ${uid} not found`)
 	}

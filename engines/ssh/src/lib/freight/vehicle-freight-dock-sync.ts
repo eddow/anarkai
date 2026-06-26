@@ -34,7 +34,7 @@ export function ensureFreightVehicleDockRegistration(
 ): FreightBayAlveolus | undefined {
 	const bay = freightVehicleDockBay(vehicle)
 	if (!bay) return undefined
-	const existing = bay.hive.freightVehicleDockFor(vehicle.uid)
+	const existing = bay.hive.freightVehicleDockFor(vehicle)
 	if (existing?.bay === bay) return bay
 	traces.vehicle.warn?.('[dock.sync] repairing missing dock registration', {
 		bay: bay.name,
@@ -52,7 +52,7 @@ export function syncFreightVehicleDockRegistration(vehicle: Vehicle): void {
 		const content = tile.content
 		const hive = content && 'hive' in content ? (content as Alveolus).hive : undefined
 		if (bay && hive === bay.hive) continue
-		hive?.unregisterFreightVehicleDock(vehicle.uid)
+		hive?.unregisterFreightVehicleDock(vehicle)
 	}
 	if (!bay) {
 		traces.vehicle.log?.('[dock.sync] no dock registration', {
@@ -65,7 +65,7 @@ export function syncFreightVehicleDockRegistration(vehicle: Vehicle): void {
 		})
 		return
 	}
-	const existing = bay.hive.freightVehicleDockFor(vehicle.uid)
+	const existing = bay.hive.freightVehicleDockFor(vehicle)
 	if (existing?.bay === bay) {
 		bay.hive.invalidateConveyPlanning('dock.lifecycle')
 		bay.hive.invalidateAdvertisements([existing, bay], 'dock.lifecycle')

@@ -215,7 +215,7 @@ export type DockRequestState = 'waiting' | 'advancing' | 'granted' | 'servicing'
  * remotely locking docks.
  */
 export interface DockRequest {
-	readonly vehicleUid: string
+	readonly vehicle: Vehicle
 	readonly bayGroup: BayGroup
 	readonly arrivedAt: number
 	priority: number
@@ -243,7 +243,7 @@ export interface DockRequest {
  * reservation is just a movement grant whose target is a service node.
  */
 export interface MovementGrant {
-	readonly vehicleUid: string
+	readonly vehicle: Vehicle
 	readonly from: RuntimeQueueNode
 	readonly to: RuntimeQueueNode
 	readonly expiresAt?: number

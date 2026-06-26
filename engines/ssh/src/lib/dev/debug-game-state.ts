@@ -1,5 +1,6 @@
 import { unwrap } from 'mutts'
 import type { ExecutionState } from 'npc-script'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type {
 	FreightLineDefinition,
 	FreightStop,
@@ -86,12 +87,16 @@ export function cloneValueForDebugJson(
 		if (raw instanceof Date) return raw.toISOString()
 
 		if (raw instanceof Character) {
-			const stub = { kind: 'Character', uid: raw.uid, name: raw.name }
+			const stub = { kind: 'Character', uid: debugObjectId(raw) ?? '', name: raw.name }
 			memo.set(raw, stub)
 			return stub
 		}
 		if (raw instanceof Vehicle) {
-			const stub = { kind: 'VehicleEntity', uid: raw.uid, vehicleType: raw.vehicleType }
+			const stub = {
+				kind: 'VehicleEntity',
+				uid: debugObjectId(raw) ?? '',
+				vehicleType: raw.vehicleType,
+			}
 			memo.set(raw, stub)
 			return stub
 		}
@@ -206,7 +211,7 @@ function logsTail(logs: readonly string[], count: number): string[] {
 function summarizeCharacterForDebug(character: Character, tailCount: number) {
 	return {
 		kind: 'character' as const,
-		uid: character.uid,
+		uid: debugObjectId(character) ?? '',
 		name: character.name,
 		position: coordSnapshot(character.position),
 		tile: coordSnapshot(character.tile.position),
@@ -255,7 +260,7 @@ function summarizeVehicleServiceForDebug(service: VehicleService) {
 function summarizeVehicleForDebug(vehicle: Vehicle, tailCount: number) {
 	return {
 		kind: 'vehicle' as const,
-		uid: vehicle.uid,
+		uid: debugObjectId(vehicle) ?? '',
 		vehicleType: vehicle.vehicleType,
 		position: coordSnapshot(vehicle.position),
 		effectivePosition: coordSnapshot(vehicle.effectivePosition),
@@ -348,7 +353,7 @@ function summarizeSelectedObjectForDebug(selected: unknown, tailCount: number) {
 	if (isSyntheticFreightLineObject(selected)) {
 		return {
 			kind: 'freight-line' as const,
-			uid: selected.uid,
+			uid: debugObjectId(selected) ?? '',
 			title: selected.title,
 			lineId: selected.lineId,
 			line: summarizeFreightLineForDebug(selected.line),
@@ -358,7 +363,7 @@ function summarizeSelectedObjectForDebug(selected: unknown, tailCount: number) {
 	if (isInteractiveGameObject(selected)) {
 		return {
 			kind: selected.constructor.name,
-			uid: selected.uid,
+			uid: debugObjectId(selected) ?? '',
 			title: selected.title,
 			position: coordSnapshot(selected.position),
 			tile: coordSnapshot(selected.tile.position),
@@ -369,7 +374,7 @@ function summarizeSelectedObjectForDebug(selected: unknown, tailCount: number) {
 	if (isInspectorSelectableObject(selected)) {
 		return {
 			kind: 'selectable' as const,
-			uid: selected.uid,
+			uid: debugObjectId(selected) ?? '',
 			title: selected.title,
 			position: coordSnapshot(selected.position),
 			logs: logsTail(selected.logs, tailCount),
@@ -381,7 +386,7 @@ function summarizeSelectedObjectForDebug(selected: unknown, tailCount: number) {
 export function buildGameDebugDump(game: Game, options: BuildGameDebugDumpOptions = {}) {
 	const logsCount = options.logsTail ?? 12
 	const selected = options.selectedUid
-		? [...game.objects].find((obj) => obj.uid === options.selectedUid)
+		? [...game.objects].find((obj) => debugObjectId(obj) ?? '' === options.selectedUid)
 		: undefined
 	return {
 		clock: { virtualTime: game.clock.virtualTime },

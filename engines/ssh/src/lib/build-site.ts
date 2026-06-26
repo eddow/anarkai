@@ -5,6 +5,7 @@ import {
 	normalizeConstructionSiteState,
 	setConstructionDeliveredGoods,
 } from 'ssh/construction-state'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { Storage } from 'ssh/storage/storage'
 import type { GoodType } from 'ssh/types/base'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
@@ -164,7 +165,7 @@ export function cleanupStaleInTransitReservations(
 	for (const res of stale) {
 		map.delete(reservationKey(res.vehicleUid, res.goodType))
 		traces.vehicle.warn?.('inTransit.stale', {
-			siteUid: (shell as { uid?: string }).uid,
+			siteUid: debugObjectId(shell) ?? '',
 			vehicleUid: res.vehicleUid,
 			goodType: res.goodType,
 			quantity: res.quantity,

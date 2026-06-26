@@ -1,5 +1,6 @@
 import { jobBalance } from 'engine-rules'
 import type { Alveolus } from 'ssh/board/content/alveolus'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { type FreightLineDefinition, findDistributeRouteSegments } from 'ssh/freight/freight-line'
 import {
 	computeFutureFreightTransfer,
@@ -27,7 +28,7 @@ export class VehicleFreightDock {
 	) {}
 
 	get name(): string {
-		return `vehicle-dock:${this.vehicle.uid}`
+		return `vehicle-dock:${debugObjectId(this.vehicle) ?? ''}`
 	}
 
 	get hive() {
@@ -384,11 +385,11 @@ export function refreshDockedVehicleAdvertisement(
 	vehicle: Vehicle,
 	bay: FreightBayAlveolus
 ): DockedVehicleAdvertisementCandidate[] {
-	const dock = bay.hive.freightVehicleDockFor(vehicle.uid)
+	const dock = bay.hive.freightVehicleDockFor(vehicle)
 	if (!dock) return collectDockedVehicleAdvertisementCandidates(vehicle, bay)
 	if (
 		vehicle.storage.virtualGoodsCount > 0 &&
-		!bay.hive.hasActiveFreightVehicleDockMovement(vehicle.uid)
+		!bay.hive.hasActiveFreightVehicleDockMovement(vehicle)
 	) {
 		const canceled = bay.hive.cancelOrphanedFreightVehicleDockAllocations(dock)
 		if (canceled > 0 && vehicle.storage.virtualGoodsCount > 0) {

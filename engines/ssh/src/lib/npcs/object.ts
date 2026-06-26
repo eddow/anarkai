@@ -81,7 +81,7 @@ export function withScripted<T extends abstract new (...args: any[]) => GameObje
 				// Validate scriptsContext before running
 				if (!this.scriptsContext) {
 					console.error('[makeRun] scriptsContext is undefined!', {
-						character: (this as any).name ?? (this as any).uid,
+						character: (this as any).name ?? 'unknown',
 						runningScript: this.runningScript.name,
 					})
 					throw new Error('scriptsContext is undefined')
@@ -91,7 +91,7 @@ export function withScripted<T extends abstract new (...args: any[]) => GameObje
 				for (const ns of criticalNamespaces) {
 					if (!(ns in this.scriptsContext)) {
 						console.error(`[makeRun] scriptsContext missing namespace: ${ns}`, {
-							character: (this as any).name ?? (this as any).uid,
+							character: (this as any).name ?? 'unknown',
 							runningScript: this.runningScript.name,
 							availableKeys: Object.keys(this.scriptsContext),
 						})

@@ -1,3 +1,4 @@
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { Character } from 'ssh/population/character'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
@@ -16,7 +17,7 @@ function drivingVehicleSeamResult(character: Character): TraceInvariantResult {
 		ok: !character.driving || !!character.operates,
 		message: 'driving implies operates',
 		payload: {
-			characterUid: character.uid,
+			characterUid: debugObjectId(character) ?? '',
 			operatesUid: character.operates?.uid,
 			driving: character.driving,
 		},
@@ -25,12 +26,12 @@ function drivingVehicleSeamResult(character: Character): TraceInvariantResult {
 
 function operatedVehiclePointsBackResult(character: Character): TraceInvariantResult {
 	return {
-		ok: !character.operates || character.operates.operator?.uid === character.uid,
+		ok: !character.operates || character.operates.operator === character,
 		message: 'character.operates must point back to the same vehicle operator',
 		payload: {
-			characterUid: character.uid,
-			operatesUid: character.operates?.uid,
-			operatorUid: character.operates?.operator?.uid,
+			characterUid: debugObjectId(character) ?? '',
+			operatesUid: debugObjectId(character.operates),
+			operatorUid: debugObjectId(character.operates?.operator),
 		},
 	}
 }
@@ -41,22 +42,20 @@ function vehicleOperationConsistencyResult(
 ): TraceInvariantResult {
 	const op = vehicle.service?.operator
 	const ok =
-		op?.uid !== character.uid
-			? character.operates?.uid !== vehicle.uid
-			: op.uid === character.uid &&
-				character.operates?.uid === vehicle.uid &&
-				vehicle.operator?.uid === character.uid
+		op !== character
+			? character.operates !== vehicle
+			: op === character && character.operates === vehicle && vehicle.operator === character
 	return {
 		ok,
 		message:
-			op?.uid !== character.uid
+			op !== character
 				? 'vehicle.service.operator must be set to the character operating the vehicle'
 				: 'vehicle.service.operator must be the operating character',
 		payload: {
-			characterUid: character.uid,
-			serviceOperatorUid: op?.uid,
-			characterOperatesUid: character.operates?.uid,
-			vehicleOperatorUid: vehicle.operator?.uid,
+			characterUid: debugObjectId(character) ?? '',
+			serviceOperatorUid: debugObjectId(op),
+			characterOperatesUid: debugObjectId(character.operates),
+			vehicleOperatorUid: debugObjectId(vehicle.operator),
 		},
 	}
 }
@@ -167,5 +166,6 @@ export function traceVehicleStockWithoutService(vehicle: Vehicle): void {
 	if (vehicle.service) return
 	const stock = vehicle.storage.stock
 	const hasStock = Object.values(stock).some((n) => (n ?? 0) > 0)
-	if (hasStock) traces.vehicle.log?.('vehicle has stock without active service', vehicle.uid)
+	if (hasStock)
+		traces.vehicle.log?.('vehicle has stock without active service', debugObjectId(vehicle) ?? '')
 }

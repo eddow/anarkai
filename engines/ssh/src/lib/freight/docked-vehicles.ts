@@ -26,11 +26,11 @@ export function collectDockedVehiclesForBay(
 	for (const vehicle of game.vehicles) {
 		const content = vehicle.tile.content
 		if (!(content instanceof FreightBayAlveolus)) continue
-		if (content.tile.uid !== bay.tile.uid) continue
+		if (content.tile !== bay.tile) continue
 		const entry = dockedLineEntry(vehicle)
 		if (entry) entries.push(entry)
 	}
-	return entries.sort((a, b) => a.vehicle.uid.localeCompare(b.vehicle.uid))
+	return entries
 }
 
 export function collectDockedVehiclesForHive(game: Game, hive: Hive): DockedVehicleEntry[] {
@@ -43,5 +43,5 @@ export function collectDockedVehiclesForHive(game: Game, hive: Hive): DockedVehi
 		const entry = dockedLineEntry(vehicle)
 		if (entry) entries.push(entry)
 	}
-	return entries.sort((a, b) => a.vehicle.uid.localeCompare(b.vehicle.uid))
+	return entries
 }

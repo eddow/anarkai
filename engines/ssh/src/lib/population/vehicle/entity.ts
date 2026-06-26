@@ -2,6 +2,7 @@ import { effect, reactive } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
 import { isTileCoord } from 'ssh/board/tile-coord'
 import { cancelVehicleReservationsOnSites } from 'ssh/build-site'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
 import {
 	refreshDockedVehicleAdvertisement,
@@ -118,7 +119,7 @@ export class Vehicle extends withInteractive(GameObject) {
 						`in ${ds.toFixed(4)} s (max ${maxAllowed.toFixed(1)} px) ` +
 						`from ${axial.key(axial.round(toAxialCoord(this._lastPositionBeforeSet)!))} ` +
 						`to ${axial.key(axial.round(toAxialCoord(value)!))} ` +
-						`(vehicle ${this.uid})`
+						`(vehicle ${debugObjectId(this) ?? ''})`
 				)
 			}
 		}
@@ -223,7 +224,7 @@ export class Vehicle extends withInteractive(GameObject) {
 	}
 
 	get title(): string {
-		return `${this.vehicleType} ${this.uid}`
+		return `${this.vehicleType} ${debugObjectId(this) ?? ''}`
 	}
 
 	get tile(): Tile {
@@ -233,7 +234,7 @@ export class Vehicle extends withInteractive(GameObject) {
 	get effectivePosition(): Position {
 		if (this.position) return this.position
 		const tile = this.dockTile
-		assert(tile, `Vehicle ${this.uid}: docked vehicle has no anchor tile`)
+		assert(tile, `Vehicle ${debugObjectId(this) ?? ''}: docked vehicle has no anchor tile`)
 		return tile.position
 	}
 
@@ -242,7 +243,7 @@ export class Vehicle extends withInteractive(GameObject) {
 			return this.tileForWorldPosition(this.position)
 		}
 		const tile = this.dockTile
-		assert(tile, `Vehicle ${this.uid}: unpositioned vehicle has no dock tile`)
+		assert(tile, `Vehicle ${debugObjectId(this) ?? ''}: unpositioned vehicle has no dock tile`)
 		return tile
 	}
 
@@ -276,7 +277,10 @@ export class Vehicle extends withInteractive(GameObject) {
 	private restoreWorldPositionFromDock(reason: string): void {
 		if (this.position) return
 		const tile = this.dockTile
-		assert(tile, `Vehicle ${this.uid}: cannot restore docked position without anchor tile`)
+		assert(
+			tile,
+			`Vehicle ${debugObjectId(this) ?? ''}: cannot restore docked position without anchor tile`
+		)
 		this.position = { ...tile.position }
 		traces.vehicle.log?.('vehicleJob.dock.placement', {
 			outcome: 'restore-position',
@@ -365,7 +369,7 @@ export class Vehicle extends withInteractive(GameObject) {
 		const svc = this.service
 		return {
 			$type: 'Vehicle',
-			uid: this.uid,
+			uid: debugObjectId(this) ?? '',
 			vehicleType: this.vehicleType,
 			position: this.position,
 			effectivePosition: this.effectivePosition,
@@ -401,13 +405,16 @@ export class Vehicle extends withInteractive(GameObject) {
 	 * (line or maintenance); use {@link beginLineService} / {@link beginMaintenanceService} first.
 	 */
 	setServiceOperator(operator: Character | undefined): void {
-		assert(this.service, `Vehicle ${this.uid}: setServiceOperator requires an active service`)
 		assert(
-			!operator || !this.service.operator || this.service.operator.uid === operator.uid,
-			`Vehicle ${this.uid} already operated by ${this.service.operator?.uid}`
+			this.service,
+			`Vehicle ${debugObjectId(this) ?? ''}: setServiceOperator requires an active service`
+		)
+		assert(
+			!operator || !this.service.operator || this.service.operator === operator,
+			`Vehicle ${debugObjectId(this) ?? ''} already operated by ${debugObjectId(this.service.operator)}`
 		)
 		const previous = this.service.operator
-		if (previous?.uid === operator?.uid) {
+		if (previous === operator) {
 			if (operator) operator.setOperatedVehicleFromService(this)
 			return
 		}
@@ -416,7 +423,7 @@ export class Vehicle extends withInteractive(GameObject) {
 		this.game.invalidateWorkPlanning('vehicle.operator')
 		if (operator) {
 			const currentVehicle = operator.operates
-			if (currentVehicle && currentVehicle.uid !== this.uid) {
+			if (currentVehicle && currentVehicle !== this) {
 				currentVehicle.releaseOperator(operator)
 			}
 			operator.setOperatedVehicleFromService(this)
@@ -424,7 +431,7 @@ export class Vehicle extends withInteractive(GameObject) {
 	}
 
 	releaseOperator(operator?: Character): void {
-		if (operator && this.service?.operator?.uid !== operator.uid) return
+		if (operator && this.service?.operator !== operator) return
 		const current = this.service?.operator
 		if (!this.service) return
 		if (!current) return
@@ -477,11 +484,17 @@ export class Vehicle extends withInteractive(GameObject) {
 	dock(): void {
 		const svc = this.service
 		if (!isVehicleLineService(svc)) return
-		assert('anchor' in svc.stop, `Vehicle ${this.uid}: dock requires an anchor stop`)
+		assert(
+			'anchor' in svc.stop,
+			`Vehicle ${debugObjectId(this) ?? ''}: dock requires an anchor stop`
+		)
 		if (svc.docked && !this.position) return
 		const dockTile = this.dockTile
-		assert(dockTile, `Vehicle ${this.uid}: dock requires an anchor tile`)
-		assert(this.position, `Vehicle ${this.uid}: dock requires a world position on the anchor tile`)
+		assert(dockTile, `Vehicle ${debugObjectId(this) ?? ''}: dock requires an anchor tile`)
+		assert(
+			this.position,
+			`Vehicle ${debugObjectId(this) ?? ''}: dock requires a world position on the anchor tile`
+		)
 		const rawVehicleCoord = toAxialCoord(this.position)!
 		const vehicleCoord = axial.round(rawVehicleCoord)
 		const dockCoord = axial.round(toAxialCoord(dockTile.position)!)
@@ -503,7 +516,7 @@ export class Vehicle extends withInteractive(GameObject) {
 				axial.key(toAxialCoord(dockBorder.tile.b.position)!) === axial.key(dockCoord))
 		assert(
 			axial.key(axial.round(dockPosition)) === axial.key(dockCoord) || isAtDockBorder,
-			`Vehicle ${this.uid}: dock requires vehicle to be on the anchor tile or its border`
+			`Vehicle ${debugObjectId(this) ?? ''}: dock requires vehicle to be on the anchor tile or its border`
 		)
 		svc.docked = true
 		this.position = undefined
@@ -551,7 +564,7 @@ export class Vehicle extends withInteractive(GameObject) {
 			this.service.docked = false
 		}
 		// Release any in-transit reservations this vehicle holds on construction sites.
-		cancelVehicleReservationsOnSites(this.game.hex.tiles, this.uid)
+		cancelVehicleReservationsOnSites(this.game.hex.tiles, debugObjectId(this) ?? '')
 		syncFreightVehicleDockRegistration(this)
 		this.service = undefined
 		this.game.invalidateWorkPlanning('vehicle.service')
@@ -651,7 +664,7 @@ export class Vehicle extends withInteractive(GameObject) {
 	serialize(): VehicleSerializedState {
 		const coord = axial.round(toAxialCoord(this.effectivePosition)!)
 		return {
-			uid: this.uid,
+			uid: debugObjectId(this) ?? '',
 			vehicleType: this.vehicleType,
 			position: { q: coord.q, r: coord.r },
 			goods: this.storage.stock,

@@ -1,4 +1,5 @@
 import { inert, reactive } from 'mutts'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { GameObject, withInteractive } from 'ssh/game/object'
 import type { TerrainHydrologySample } from 'ssh/game/terrain-provider'
 import { Hive } from 'ssh/hive/hive'
@@ -99,7 +100,7 @@ export class Tile extends withInteractive(GameObject) {
 	get [traceProjection]() {
 		return {
 			$type: 'Tile',
-			uid: this.uid,
+			uid: debugObjectId(this),
 			position: this.position,
 			zone: this.zone,
 		}

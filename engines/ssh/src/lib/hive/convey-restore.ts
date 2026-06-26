@@ -1,4 +1,5 @@
 import { Alveolus } from 'ssh/board/content/alveolus'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { FreightMovementParty } from 'ssh/freight/vehicle-freight-dock'
 import type { Game } from 'ssh/game/game'
 import type { SerializedConveyMovement } from 'ssh/hive/convey-serialize'
@@ -18,7 +19,7 @@ export function resolveSerializedFreightParty(
 	const bayTile = game.hex.getTile({ q: ref.bayCoord[0], r: ref.bayCoord[1] })
 	const bay = bayTile?.content
 	if (!(bay instanceof Alveolus)) return undefined
-	return bay.hive.freightVehicleDockFor(ref.vehicleUid)
+	return bay.hive.freightVehicleDockByUid(ref.vehicleUid)
 }
 
 function collectDistinctHives(game: Game): Hive[] {
@@ -47,7 +48,7 @@ export function collectSerializedConveyMovementsWithIndex(game: Game): {
 		provider: serializeFreightParty(movement.provider),
 		demander: serializeFreightParty(movement.demander),
 		claimed: movement.claimed,
-		claimedByUid: movement.claimedBy?.uid,
+		claimedByUid: debugObjectId(movement.claimedBy),
 		claimedAtMs: movement.claimedAtMs,
 	}))
 	return { rows, indexByRef }

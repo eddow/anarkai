@@ -218,9 +218,9 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		if (value) {
 			assert(
 				value.service,
-				`Vehicle ${value.uid} must have an active service before operates assignment`
+				`Vehicle ${debugObjectId(value)} must have an active service before operates assignment`
 			)
-			if (current?.uid === value.uid) {
+			if (debugObjectId(current) === debugObjectId(value)) {
 				value.setServiceOperator(this)
 				assertVehicleOperationConsistency(value, this)
 				return
@@ -232,7 +232,8 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		current.releaseOperator(this)
 		// A stale operates link can outlive service in interrupted/error paths; clear the
 		// character side even when the vehicle has no service left to release.
-		if (this._operatedVehicle?.uid === current.uid) this.setOperatedVehicleFromService(undefined)
+		if (debugObjectId(this._operatedVehicle) === debugObjectId(current))
+			this.setOperatedVehicleFromService(undefined)
 	}
 
 	setOperatedVehicleFromService(vehicle: Vehicle | undefined): void {
@@ -240,15 +241,15 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		if (vehicle) {
 			assert(
 				vehicle.service,
-				`Vehicle ${vehicle.uid} must have an active service before operated back-link assignment`
+				`Vehicle ${debugObjectId(vehicle)} must have an active service before operated back-link assignment`
 			)
 			assert(
-				!vehicle.service.operator || vehicle.service.operator.uid === this.uid,
-				`Vehicle ${vehicle.uid} already operated by ${vehicle.service.operator?.uid}`
+				!vehicle.service.operator || vehicle.service.operator === this,
+				`Vehicle ${debugObjectId(vehicle)} already operated by ${debugObjectId(vehicle.service.operator)}`
 			)
 			if (!vehicle.service.operator) vehicle.service.operator = this
 		}
-		if (current?.uid === vehicle?.uid) return
+		if (debugObjectId(current) === debugObjectId(vehicle)) return
 		if (!vehicle && current && !this._footPosition) {
 			this.regainFootPosition(current.effectivePosition)
 		}
@@ -299,10 +300,10 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		const tilePosition = this._tile?.position
 		return {
 			event,
-			uid: this.uid,
+			uid: debugObjectId(this),
 			name: this.name,
 			driving: this.driving,
-			operatesUid: this.operates?.uid,
+			operatesUid: debugObjectId(this.operates),
 			stepType: this.stepExecutor?.constructor.name,
 			position: positionDebugCoord(position),
 			positionId: debugObjectId(position),
@@ -313,7 +314,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 			vehiclePositionId: debugObjectId(vehiclePosition),
 			vehicleEffectivePosition: positionDebugCoord(vehicleEffectivePosition),
 			vehicleEffectivePositionId: debugObjectId(vehicleEffectivePosition),
-			tileUid: this._tile?.uid,
+			tileUid: debugObjectId(this._tile),
 			tilePosition: positionDebugCoord(tilePosition),
 			tilePositionId: debugObjectId(tilePosition),
 			nextPosition: positionDebugCoord(nextPosition),
@@ -473,7 +474,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		this._footPosition = reactive({ ...position })
 		if (axial.key(toAxialCoord(previousTile.position)!) === axial.key(coord)) {
 			traces.position.log?.('character.tile.set.regainFootPosition.same', {
-				uid: this.uid,
+				uid: debugObjectId(this),
 				name: this.name,
 				fromTilePos: positionDebugCoord(previousTile.position),
 				toTilePos: positionDebugCoord(tile.position),
@@ -486,7 +487,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 			if (!this.stepExecutor) {
 				this.stepExecutor = queueStep.onFulfilled(() => {
 					traces.position.log?.('character.tile.set.regainFootPosition.queueFulfilled', {
-						uid: this.uid,
+						uid: debugObjectId(this),
 						name: this.name,
 						fromTilePos: positionDebugCoord(previousTile.position),
 						toTilePos: positionDebugCoord(tile.position),
@@ -497,7 +498,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 			return
 		}
 		traces.position.log?.('character.tile.set.regainFootPosition', {
-			uid: this.uid,
+			uid: debugObjectId(this),
 			name: this.name,
 			fromTilePos: positionDebugCoord(previousTile.position),
 			toTilePos: positionDebugCoord(tile.position),
@@ -513,7 +514,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		}
 		traces.vehicle.log?.('vehicleJob.offboard', {
 			character: this.name,
-			characterUid: this.uid,
+			characterUid: debugObjectId(this),
 		})
 		this.regainFootPosition(v.effectivePosition)
 		this.operates = undefined
@@ -530,7 +531,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		assert(v, 'stepOffVehicleKeepingControl requires an operated vehicle')
 		this.regainFootPosition(v.effectivePosition)
 		traces.vehicle.log?.('vehicleJob.offboard.keepControl', {
-			characterUid: this.uid,
+			characterUid: debugObjectId(this),
 		})
 		assertVehicleOperationConsistency(v, this)
 	}
@@ -550,7 +551,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		assert(v, 'disengageVehicleKeepingService requires an operated vehicle')
 		v.releaseOperator(this)
 		traces.vehicle.log?.('vehicleJob.offboard.keepService', {
-			characterUid: this.uid,
+			characterUid: debugObjectId(this),
 		})
 		this.regainFootPosition(this._footPosition ?? v.effectivePosition)
 		this.operates = undefined
@@ -589,7 +590,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		const queue = this.game.hex.moveCharacter(this, tile.position, fromPos)
 		const commit = () => {
 			traces.position.log?.('character.tile.set.stepOn', {
-				uid: this.uid,
+				uid: debugObjectId(this),
 				name: this.name,
 				fromTilePos: positionDebugCoord(this._tile.position),
 				toTilePos: positionDebugCoord(tile.position),
@@ -613,7 +614,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		const role = (this as { role?: unknown }).role
 		return {
 			$type: 'Character',
-			uid: this.uid,
+			uid: debugObjectId(this),
 			name: this.name,
 			role: typeof role === 'string' ? role : undefined,
 			position: this.position,
@@ -633,7 +634,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		if (isVehicleFreightJob(job)) {
 			const vehicle = job.vehicle
 			if (!vehicle) return this.scriptsContext.selfCare.wander()
-			if (this._operatedVehicle && this._operatedVehicle.uid !== vehicle.uid) {
+			if (this._operatedVehicle && this._operatedVehicle !== vehicle) {
 				return this.scriptsContext.selfCare.wander()
 			}
 			const vehicleJobPath =
@@ -722,7 +723,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 			const assignedWorker = proposedJob.source.alveolus.assignedWorker
 				? unwrap(proposedJob.source.alveolus.assignedWorker)
 				: undefined
-			if (proposedJob.job !== 'convey' && assignedWorker && assignedWorker.uid !== this.uid) {
+			if (proposedJob.job !== 'convey' && assignedWorker && assignedWorker !== this) {
 				return {
 					available: false,
 					proposedJob,
@@ -786,9 +787,9 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 
 	private proposedWorkJobs(): ProposedJob[] {
 		const end = profile.proposedJobs.begin?.('character-planner.work', () => ({
-			characterUid: this.uid,
+			characterUid: debugObjectId(this),
 			driving: this.driving,
-			operatesUid: this.operates?.uid,
+			operatesUid: debugObjectId(this.operates),
 		}))
 		try {
 			const out: ProposedJob[] = []
@@ -907,7 +908,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 			const pos = toAxialCoord(this.position)
 			traces.vehicle.log?.('vehicleJob.selected', {
 				character: this.name,
-				characterUid: this.uid,
+				characterUid: debugObjectId(this),
 				...vehicleFreightJobTracePayload(match.job),
 				selectedPathLen: match.path.length,
 				characterAxial: pos ? axial.key(pos) : undefined,
@@ -917,7 +918,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 			const target = toAxialCoord(match.targetTile.position)
 			traces.work.log?.('work.selected', {
 				character: this.name,
-				characterUid: this.uid,
+				characterUid: debugObjectId(this),
 				job: match.job.job,
 				targetAlveolus: match.targetTile.content?.name,
 				targetQ: target?.q,
@@ -964,7 +965,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 			lastPlannerSnapshot: this.lastPlannerSnapshot,
 			lastWorkPlannerSnapshot: this.lastWorkPlannerSnapshot,
 			vehicle: {
-				operatedVehicleUid: this.operates?.uid,
+				operatedVehicleUid: debugObjectId(this.operates),
 				driving: this.driving,
 				activeTransportStorage: this.carry,
 			},
@@ -1163,12 +1164,12 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		if (!this.operates) return
 		if (this.isVehicleQueuing) {
 			traces.vehicle.log?.('vehicle operator released before non-vehicle activity (queuing)', {
-				characterUid: this.uid,
+				characterUid: debugObjectId(this),
 				activityKind: kind,
 			})
 		} else {
 			traces.vehicle.warn?.('vehicle operator released before non-vehicle activity (moving)', {
-				characterUid: this.uid,
+				characterUid: debugObjectId(this),
 				activityKind: kind,
 			})
 		}
@@ -1317,7 +1318,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 
 	serialize() {
 		return {
-			uid: this.uid,
+			uid: debugObjectId(this),
 			name: this.name,
 			position: this.position,
 			stats: {
@@ -1332,7 +1333,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 						r: (this.assignedAlveolus.tile.position as any).r,
 					} // Save coordinate of alveolus
 				: undefined,
-			operatedVehicleUid: this.operates?.uid,
+			operatedVehicleUid: debugObjectId(this.operates),
 			driving: this.driving,
 			scripts: (this as any).getScriptState(), // Access mixin method
 		}

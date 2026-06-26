@@ -211,7 +211,6 @@ describe('FreightLineProperties', () => {
 		removeFreightLine = vi.fn()
 		vehicleRecords = [
 			{
-				uid: 'veh-1',
 				title: 'wheelbarrow veh-1',
 				vehicleType: 'wheelbarrow',
 				position: { q: 1, r: 0 },
@@ -279,7 +278,6 @@ describe('FreightLineProperties', () => {
 			container,
 			<FreightLineProperties
 				lineObject={{
-					uid: 'freight-line:line-1',
 					kind: 'freight-line',
 					title: 'Line 1 (Exchange)',
 					game: game as never,
@@ -305,7 +303,6 @@ describe('FreightLineProperties', () => {
 			container,
 			<FreightLineProperties
 				lineObject={{
-					uid: 'freight-line:line-1',
 					kind: 'freight-line',
 					title: 'Line 1 (Exchange)',
 					game: game as never,
@@ -329,7 +326,6 @@ describe('FreightLineProperties', () => {
 			container,
 			<FreightLineProperties
 				lineObject={{
-					uid: 'freight-line:line-1',
 					kind: 'freight-line',
 					title: 'Line 1 (Exchange)',
 					game: game as never,
@@ -358,7 +354,6 @@ describe('FreightLineProperties', () => {
 			container,
 			<FreightLineProperties
 				lineObject={{
-					uid: 'freight-line:line-1',
 					kind: 'freight-line',
 					title: 'Line 1 (Exchange)',
 					game: game as never,
@@ -385,7 +380,6 @@ describe('FreightLineProperties', () => {
 			container,
 			<FreightLineProperties
 				lineObject={{
-					uid: 'freight-line:line-1',
 					kind: 'freight-line',
 					title: 'Line 1 (Exchange)',
 					game: game as never,
@@ -411,7 +405,6 @@ describe('FreightLineProperties', () => {
 			container,
 			<FreightLineProperties
 				lineObject={{
-					uid: 'freight-line:Hive%3Aimplicit-gather%3A0%2C0',
 					kind: 'freight-line',
 					title: 'Line 1 (Exchange)',
 					game: game as never,
@@ -478,7 +471,6 @@ describe('FreightLineProperties', () => {
 			container,
 			<FreightLineProperties
 				lineObject={{
-					uid: 'freight-line:line-1',
 					kind: 'freight-line',
 					title: 'Line 1 (Exchange)',
 					game: game as never,
@@ -542,7 +534,6 @@ describe('FreightLineProperties', () => {
 			container,
 			<FreightLineProperties
 				lineObject={{
-					uid: 'freight-line:line-1',
 					kind: 'freight-line',
 					title: 'Line 1 (Exchange)',
 					game: game as never,

@@ -142,14 +142,14 @@ const LinkedEntityControl = (props: LinkedEntityControlProps) => {
 
 	effect`linked-entity:object-meta`(() => {
 		const object = currentObject()
-		state.visualObjectUid = object?.uid ?? ''
+		state.visualObjectUid = object && 'uid' in object ? (object as any).uid : ''
 		state.objectTitle = object?.title ?? ''
 		state.objectGame = object?.game
 	})
 
 	effect`linked-entity:visual-object`(() => {
 		const object = currentObject()
-		const nextUid = object?.uid ?? ''
+		const nextUid = object && 'uid' in object ? (object as any).uid : ''
 		if (state.visualObjectUid === nextUid) return
 		state.visualObjectUid = nextUid
 		state.sprite = undefined

@@ -1,4 +1,5 @@
 import { unreactive, untracked } from 'mutts'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { TraceVerb } from './debug'
 
 export type TraceLevel = 'log' | 'warn' | 'error' | 'debug' | 'info' | 'trace' | 'assert failure'
@@ -270,9 +271,7 @@ function projectTrackedMovement(record: UnknownRecord, ctx: ProjectionContext): 
 			from: traceCoord(record.from),
 			path: pathSummary(record.path),
 			claimed: booleanValue(record.claimed),
-			claimedByUid: isObject(record.claimedBy)
-				? stringValue((record.claimedBy as UnknownRecord).uid)
-				: undefined,
+			claimedByUid: isObject(record.claimedBy) ? debugObjectId(record.claimedBy) : undefined,
 			provider: partySummary(record.provider),
 			demander: partySummary(record.demander),
 		},
@@ -380,12 +379,12 @@ function formatScalar(value: TraceScalar): string {
 
 function traceRefFromBody(body: UnknownRecord): string | undefined {
 	const type = stringValue(body.$type) ?? stringValue(body.type)
-	const uid = stringValue(body.uid) ?? stringValue(body.id)
+	const uid = stringValue(debugObjectId(body) ?? '') ?? stringValue(body.id)
 	return type && uid ? `${type}:${uid}` : undefined
 }
 
 function generatedRef(type: string, raw: object, ctx: ProjectionContext): string {
-	const uid = stringValue((raw as UnknownRecord).uid) ?? stringValue((raw as UnknownRecord).id)
+	const uid = debugObjectId(raw) ?? stringValue((raw as UnknownRecord).id)
 	return uid ? `${type}:${uid}` : `${type}:${ctx.nextGeneratedRef++}`
 }
 
@@ -459,7 +458,7 @@ function partySummary(value: unknown): TraceValue {
 	const record = value as UnknownRecord
 	return {
 		$type: constructorName(record),
-		uid: stringValue(record.uid),
+		uid: stringValue(debugObjectId(record) ?? ''),
 		name: stringValue(record.name),
 		coord: traceCoord(record.position),
 	}
