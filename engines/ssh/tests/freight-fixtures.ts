@@ -14,7 +14,7 @@ function freightBayAnchor(hiveName: string, coord: readonly [number, number]): F
 
 /** Gather: zone (load policy) → bay anchor at same tile. */
 export function gatherFreightLine(args: {
-	readonly id: string
+	readonly id?: string
 	readonly name: string
 	readonly hiveName: string
 	readonly coord: readonly [number, number]
@@ -24,7 +24,7 @@ export function gatherFreightLine(args: {
 	const [q, r] = args.coord
 	const loadSelection = migrateV1FiltersToGoodsSelection([...args.filters])
 	return normalizeFreightLineDefinition({
-		id: args.id,
+		id: args.id ?? args.name,
 		name: args.name,
 		stops: [
 			{
@@ -40,7 +40,7 @@ export function gatherFreightLine(args: {
 
 /** Distribute: bay load → bay unload (optional radius zone on unload). */
 export function distributeFreightLine(args: {
-	readonly id: string
+	readonly id?: string
 	readonly name: string
 	readonly hiveName: string
 	readonly coord: readonly [number, number]
@@ -61,7 +61,7 @@ export function distributeFreightLine(args: {
 					zone: { kind: 'radius', center: [q, r], radius: args.unloadRadius },
 				}
 	return normalizeFreightLineDefinition({
-		id: args.id,
+		id: args.id ?? args.name,
 		name: args.name,
 		stops: [load, unload],
 	})

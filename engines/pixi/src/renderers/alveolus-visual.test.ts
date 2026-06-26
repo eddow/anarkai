@@ -323,7 +323,7 @@ describe('TileVisual storage goods layering', () => {
 			if (!tile) throw new Error('Expected freight bay tile to exist')
 			const stop = line.stops.find((candidate) => 'anchor' in candidate)
 			if (!stop) throw new Error('Expected anchor stop')
-			const vehicle = engine.game.vehicles.createVehicle('dock-visual-wb', 'wheelbarrow', {
+			const vehicle = (engine.game.vehicles as any).createVehicle('wheelbarrow', {
 				q: 0,
 				r: 0,
 			})

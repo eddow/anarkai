@@ -34,10 +34,14 @@ describe('demoHive example game', () => {
 			expect.arrayContaining(['HearthLoop:commons-exchange', 'HearthLoop:melindbury-comfort-loop'])
 		)
 		expect(
-			game.vehicles.vehicle('HearthLoop:wheelbarrow')?.servedLines.map((line) => line.id)
+			[...game.vehicles]
+				.find((v: any) => v.uid === 'HearthLoop:wheelbarrow')
+				?.servedLines.map((line) => line.id)
 		).toEqual(['HearthLoop:commons-exchange'])
 		expect(
-			game.vehicles.vehicle('HearthLoop:pickup-truck')?.servedLines.map((line) => line.id)
+			[...game.vehicles]
+				.find((v: any) => v.uid === 'HearthLoop:pickup-truck')
+				?.servedLines.map((line) => line.id)
 		).toEqual(['HearthLoop:melindbury-comfort-loop'])
 
 		const melindbury = game.getSettlementTradeProfile('settlement-7,19')

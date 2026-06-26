@@ -22,6 +22,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 
 	it('marks vehicleHopRunEnded and skips dock when last zone stop completes and ends the run', async () => {
 		const zoneOnlyLine = normalizeFreightLineDefinition({
+			id: 'zone-only',
 			name: 'Zone only',
 			stops: [
 				{
@@ -79,6 +80,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 
 	it('vehicleHopPrepare clears stale vehicleHopAnchorDockDisembarked', async () => {
 		const zoneOnlyLine = normalizeFreightLineDefinition({
+			id: 'zone-only-2',
 			name: 'Zone only',
 			stops: [
 				{
@@ -215,7 +217,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
 		const unloadStop = line?.stops[1]
-		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
+		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!
 		if (!line || !unloadStop || !vehicle) throw new Error('expected ChopSaw gather fixture')
 
 		vehicle.position = { q: -1, r: 0 }
@@ -256,7 +258,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
 		const unloadStop = line?.stops[1]
-		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
+		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!
 		if (!line || !unloadStop || !vehicle) throw new Error('expected ChopSaw gather fixture')
 
 		vehicle.position = { q: -2, r: 1 }
@@ -314,7 +316,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
 		const unloadStop = line?.stops[1]
-		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
+		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!
 		if (!line || !unloadStop || !vehicle) throw new Error('expected ChopSaw gather fixture')
 
 		vehicle.position = { q: -2, r: 1 }
@@ -355,7 +357,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			(candidate) => candidate.id === 'ChopSaw:implicit-gather:0,0'
 		)
 		const unloadStop = line?.stops[1]
-		const vehicle = game.vehicles.vehicle('ChopSaw:wheelbarrow1')
+		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!
 		if (!line || !unloadStop || !vehicle) throw new Error('expected ChopSaw gather fixture')
 
 		vehicle.position = { q: -2, r: 1 }

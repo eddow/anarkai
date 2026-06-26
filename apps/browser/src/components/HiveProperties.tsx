@@ -110,8 +110,7 @@ const HiveProperties = (props: HivePropertiesProps) => {
 		entries: [] as ReturnType<typeof summarizeHiveGoodsRelations>,
 		dockedVehicles: [] as DockedVehicleEntry[],
 	})
-	const currentHive = () =>
-		resolveHiveFromAnchorTile(props.hiveObject.game, props.hiveObject.anchorTileUid)
+	const currentHive = () => resolveHiveFromAnchorTile(props.hiveObject.game, props.hiveObject.tile)
 
 	effect`hive-properties:ads`(() => {
 		const hive = currentHive()

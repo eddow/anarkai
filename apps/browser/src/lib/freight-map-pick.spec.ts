@@ -43,14 +43,8 @@ const makeGame = (
 		hex: {
 			getTile: (coord: { q: number; r: number }) => makeTile(coord),
 			zoneManager: {
-				getZone: () => zoneId,
-				getZoneDefinition: (id: string | undefined) =>
-					id
-						? {
-								id,
-								name: 'Custom zone',
-							}
-						: undefined,
+				getZone: () =>
+					zoneId ? { name: zoneId, type: 'passive', generated: false, readonly: false } : undefined,
 			},
 		},
 		getSettlementTradeProfileAtCityHall: (coord: { q: number; r: number }) =>

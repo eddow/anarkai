@@ -673,7 +673,7 @@ function DrawerEditor(
 	const iconEl = () => controlIcon(meta.icon)
 	return (
 		<button
-			this={trigger}
+			{...({ this: trigger } as any)}
 			type="button"
 			class="ak-palette-drawer__trigger"
 			style:width="auto"

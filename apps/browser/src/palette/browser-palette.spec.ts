@@ -1,6 +1,7 @@
 import { gameTimeSpeedFactors } from 'engine-rules'
 import { reactive } from 'mutts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { AnarkaiPaletteToolbarItem } from '../ui/anarkai/palette/types'
 import defaultPalette from './palette.default.json'
 
 vi.mock('@app/lib/globals', () => ({
@@ -171,11 +172,11 @@ describe('browser palette registry & palettePanelBridge', () => {
 	})
 
 	it('exposes build, zone, and road tools in the top toolbar', () => {
-		const acceptedKeywords = defaultPalette.top
+		const acceptedKeywords = (defaultPalette.top as any)
 			.flat(2)
-			.flatMap((entry) => entry.toolbar)
-			.filter((entry) => entry.tool === 'selectedAction')
-			.flatMap((entry) => entry.config.acceptedKeywords ?? [])
+			.flatMap((entry: any) => entry.toolbar)
+			.filter((entry: any) => entry.tool === 'selectedAction')
+			.flatMap((entry: any) => entry.config.acceptedKeywords ?? [])
 
 		expect(acceptedKeywords).toContain('select')
 		expect(acceptedKeywords).toContain('build')
@@ -185,9 +186,11 @@ describe('browser palette registry & palettePanelBridge', () => {
 	})
 
 	it('replaces the static build segment with generated building drawer items', () => {
-		const topItems = browserPaletteIdeConfig.top.flat(2).flatMap((entry) => entry.toolbar)
+		const topItems = (browserPaletteIdeConfig.top as any)
+			.flat(2)
+			.flatMap((entry: any) => entry.toolbar)
 		const pileDrawer = topItems.find(
-			(item) => item.editor === 'drawer' && item.config?.hint === 'Pile variants'
+			(item: any) => item.editor === 'drawer' && item.config?.hint === 'Pile variants'
 		) as (AnarkaiPaletteToolbarItem & { toolbar?: AnarkaiPaletteToolbarItem[] }) | undefined
 
 		expect(pileDrawer).toBeTruthy()
@@ -217,19 +220,19 @@ describe('browser palette registry & palettePanelBridge', () => {
 	})
 
 	it('keeps the account balance visible in the top toolbar preset', () => {
-		const accountItem = defaultPalette.top
+		const accountItem = (defaultPalette.top as any)
 			.flat(2)
-			.flatMap((entry) => entry.toolbar)
-			.find((entry) => entry.editor === 'account')
+			.flatMap((entry: any) => entry.toolbar)
+			.find((entry: any) => entry.editor === 'account')
 
 		expect(accountItem?.config?.label).toBe('Account')
 	})
 
 	it('keeps the lines panel in the top toolbar preset', () => {
-		const linesItem = defaultPalette.top
+		const linesItem = (defaultPalette.top as any)
 			.flat(2)
-			.flatMap((entry) => entry.toolbar)
-			.find((entry) => entry.tool === 'openLines')
+			.flatMap((entry: any) => entry.toolbar)
+			.find((entry: any) => entry.tool === 'openLines')
 
 		expect(linesItem?.config?.label).toBe('Lines')
 	})

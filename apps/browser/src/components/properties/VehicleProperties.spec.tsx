@@ -304,7 +304,7 @@ describe('VehicleProperties', () => {
 			title: 'wheelbarrow lines',
 			vehicleType: 'wheelbarrow',
 			storage: { stock: {} },
-			servedLines: [lineA],
+			servedLines: [lineA] as any[],
 			service: {
 				line: lineA,
 				stop: lineA.stops[0],

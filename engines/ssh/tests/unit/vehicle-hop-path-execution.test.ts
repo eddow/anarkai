@@ -18,7 +18,7 @@ describe('vehicleHop execution paths', () => {
 			(candidate) => candidate.id === 'ChopSaw:materials-loop:0,0:Melindbury'
 		)
 		const bayStop = line?.stops[0]
-		const pickup = game.vehicles.vehicle('ChopSaw:suv')
+		const pickup = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:suv')!
 		if (!line || !bayStop || !pickup) throw new Error('expected ChopSaw materials fixture')
 
 		const character = game.population.createCharacter('Cresen', { q: -6, r: 2 })

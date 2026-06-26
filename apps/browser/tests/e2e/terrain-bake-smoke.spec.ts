@@ -10,7 +10,7 @@ test('pixi terrain baker initializes and survives terrain invalidation', async (
 	})
 	page.on('console', (msg) => {
 		if (msg.type() === 'error') consoleErrors.push(msg.text())
-		if (msg.type() === 'warning' || msg.type() === 'warn') consoleWarnings.push(msg.text())
+		if (msg.type() === 'warning') consoleWarnings.push(msg.text())
 	})
 
 	await page.goto('/')

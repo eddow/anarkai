@@ -11,26 +11,22 @@ import {
 } from '@app/lib/freight-map-pick'
 import { game, mrg, selectionState } from '@app/lib/globals'
 import {
-	createSyntheticHiveObjectForUid,
+	createSyntheticHiveObject,
 	hiveInspectorTitle,
-	isHiveUid,
 	resolveHiveFromAnchorTile,
 	type SyntheticHiveObject,
 } from '@app/lib/hive-inspector'
 import { T } from '@app/lib/i18n'
 import { isHoveredObject, setHoveredObject } from '@app/lib/interactive-state'
-import { isZoneObjectUid, isZonesUid } from '@app/lib/zone-selection'
 import { InspectorSection, Panel } from '@app/ui/anarkai'
 import { latch } from '@sursaut/core'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
 import { effect, reactive, untracked } from 'mutts'
 import { Tile } from 'ssh/board/tile'
-import { createZoneObjectForUid } from 'ssh/board/zone-object'
+import { ZoneObject, ZonesCollectionObject } from 'ssh/board/zone-object'
 import { SettlementTradeObject } from 'ssh/commerce/settlement-trade'
 import {
 	createSyntheticFreightLineObject,
-	freightLineIdFromUid,
-	isFreightLineUid,
 	type SyntheticFreightLineObject,
 } from 'ssh/freight/freight-line'
 import type { InspectorSelectableObject, InteractiveGameObject } from 'ssh/game/object'
@@ -139,22 +135,18 @@ const isCharacterObject = (object: unknown): object is Character =>
 		'tiredness' in object &&
 		'fatigue' in object)
 
-const isTileObject = (object: unknown): object is Tile =>
-	object instanceof Tile ||
-	(!!object &&
-		typeof object === 'object' &&
-		'uid' in object &&
-		typeof object.uid === 'string' &&
-		object.uid.startsWith('tile:') &&
-		'board' in object)
+const isTileObject = (object: unknown): object is Tile => object instanceof Tile
 
-const isVehicleObject = (object: unknown): object is Vehicle =>
-	object instanceof Vehicle ||
-	(!!object &&
-		typeof object === 'object' &&
-		'vehicleType' in object &&
-		'storage' in object &&
-		'servedLines' in object)
+const isVehicleObject = (object: unknown): object is Vehicle => object instanceof Vehicle
+
+const isFreightLineObject = (object: unknown): object is SyntheticFreightLineObject =>
+	!!object &&
+	typeof object === 'object' &&
+	'kind' in object &&
+	(object as any).kind === 'freight-line'
+
+const isHiveObject = (object: unknown): object is SyntheticHiveObject =>
+	!!object && typeof object === 'object' && 'kind' in object && (object as any).kind === 'hive'
 
 const CharacterSelectionProperties = (props: { object?: unknown }) => (
 	<div data-selection-properties-kind="character">
@@ -221,17 +213,14 @@ const renderPropertiesForObject = (
 ) => {
 	if (isCharacterObject(object)) return <CharacterSelectionProperties object={object} />
 	if (isTileObject(object)) return <TileSelectionProperties object={object} />
-	if (object.uid && isFreightLineUid(object.uid)) {
+	if (isFreightLineObject(object))
 		return <FreightLineSelectionProperties object={object} onClose={options.onClose} />
-	}
-	if (object.uid && isHiveUid(object.uid)) return <HiveSelectionProperties object={object} />
-	if (object.uid && isZonesUid(object.uid)) return <ZonesSelectionProperties object={object} />
-	if (object.uid && isZoneObjectUid(object.uid)) {
+	if (isHiveObject(object)) return <HiveSelectionProperties object={object} />
+	if (object instanceof ZonesCollectionObject) return <ZonesSelectionProperties object={object} />
+	if (object instanceof ZoneObject)
 		return <ZoneSelectionProperties object={object} onClose={options.onClose} />
-	}
-	if (object instanceof SettlementTradeObject) {
+	if (object instanceof SettlementTradeObject)
 		return <SettlementSelectionProperties object={object} />
-	}
 	if (isVehicleObject(object)) return <VehicleSelectionProperties object={object} />
 	return <ObjectSummaryProperties object={object} />
 }
@@ -252,17 +241,21 @@ const SelectionInfoWidget = (
 		get object() {
 			const uid = this.uid
 			if (!uid) return undefined
-			if (isHiveUid(uid)) return createSyntheticHiveObjectForUid(game, uid)
-			if (isFreightLineUid(uid)) {
-				const lineId = freightLineIdFromUid(uid)
-				const lines = game.freightLines
-				const line =
-					lineId && Array.isArray(lines) ? lines.find((entry) => entry.id === lineId) : undefined
+			if (uid.startsWith('hive:')) {
+				const anchorUid = decodeURIComponent(uid.slice('hive:'.length))
+				const tile = game.getObject(anchorUid)
+				return tile instanceof Tile ? createSyntheticHiveObject(game, tile) : undefined
+			}
+			if (uid.startsWith('freight-line:')) {
+				const id = decodeURIComponent(uid.slice('freight-line:'.length))
+				const line = game.freightLines.find((entry: any) => entry.id === id)
 				return line ? createSyntheticFreightLineObject(game, line) : undefined
 			}
-			if (isZoneObjectUid(uid) || isZonesUid(uid)) {
-				return createZoneObjectForUid(game, uid)
+			if (uid.startsWith('zone:')) {
+				const index = Number(uid.slice('zone:'.length))
+				return Number.isFinite(index) ? new ZoneObject(game, index) : undefined
 			}
+			if (uid === 'zones') return new ZonesCollectionObject(game)
 			return game.getObject(uid)
 		},
 		get logs() {
@@ -278,24 +271,11 @@ const SelectionInfoWidget = (
 	const resolvePanelTitle = () => {
 		const object = current.object
 		if (!object) return 'Object'
-		const uid = current.uid
-		if (!uid) return object.title ?? 'Object'
-
-		if (isFreightLineUid(uid)) {
-			const lineId = freightLineIdFromUid(uid)
-			const lines = game.freightLines
-			const line =
-				lineId && Array.isArray(lines) ? lines.find((entry) => entry.id === lineId) : undefined
-			if (line) {
-				return line.name
-			}
-		}
-
-		if (isHiveUid(uid) && 'anchorTileUid' in object) {
-			const hive = resolveHiveFromAnchorTile(game, object.anchorTileUid)
+		if (isFreightLineObject(object)) return object.line.name
+		if (isHiveObject(object)) {
+			const hive = resolveHiveFromAnchorTile(game, object.tile)
 			return hiveInspectorTitle(hive)
 		}
-
 		return object.title ?? 'Object'
 	}
 	const pin = () => {
@@ -389,7 +369,9 @@ const SelectionInfoWidget = (
 		const disposable = scope.dockviewApi!.onDidRemovePanel((panel) => {
 			if (panel.id === api.id) {
 				const uid = props.params.uid ?? selectionState.selectedUid
-				const lineId = uid && isFreightLineUid(uid) ? freightLineIdFromUid(uid) : undefined
+				const lineId = uid?.startsWith('freight-line:')
+					? decodeURIComponent(uid.slice('freight-line:'.length))
+					: undefined
 				if (lineId) clearFreightMapPickForLine(lineId)
 				unregisterPinnedInspectorPanel(api.id, props.params.uid)
 				// If this panel was the one tracking active selection (not pinned)
@@ -445,7 +427,7 @@ const SelectionInfoWidget = (
 		stopProperties = untracked`selection-info:properties-latch`(() =>
 			latch(
 				host,
-				renderPropertiesForObject(object, {
+				renderPropertiesForObject(object as any, {
 					onClose: () => api.close?.(),
 				}),
 				scope as never
@@ -464,7 +446,7 @@ const SelectionInfoWidget = (
 		<div
 			class="selection-info-panel"
 			use={attachHoverTracking}
-			data-test-object-uid={current.object?.uid}
+			data-test-object-uid={(current.object as any)?.uid}
 		>
 			<div if={current.object} class="selection-info-panel__content-wrapper">
 				<div
@@ -492,7 +474,7 @@ const SelectionInfoWidget = (
 					<Panel
 						class="selection-info-panel__logs"
 						el:role="log"
-						el:data-test-owner-uid={current.object?.uid}
+						el:data-test-owner-uid={(current.object as any)?.uid}
 					>
 						<div class="selection-info-panel__logs-list">
 							<for each={current.logs}>

@@ -307,7 +307,7 @@ describe('Character vehicle seam', () => {
 		game.ticker.stop()
 
 		game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 })
-		const vehicle = game.vehicles.vehicle('v-far')!
+		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'v-far')!
 		const character = game.population.createCharacter('Cyd', { q: 0, r: 0 })
 		vehicle.beginOffloadService(character)
 		character.operates = vehicle

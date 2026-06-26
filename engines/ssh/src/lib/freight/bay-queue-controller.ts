@@ -67,8 +67,8 @@ export class BayQueueController {
 	readonly bayGroup: BayGroup
 	readonly nodes: RuntimeQueueNode[]
 
-	private readonly requests = new Map<string, DockRequest>()
-	private readonly grants = new Map<string, MovementGrant>()
+	private readonly requests = new Map<Vehicle, DockRequest>()
+	private readonly grants = new Map<Vehicle, MovementGrant>()
 	private readonly branchList: string[]
 	private readonly rrState: RoundRobinState
 	private readonly getCapabilities: VehicleCapabilityResolver
@@ -97,7 +97,7 @@ export class BayQueueController {
 		ingressBranch: string | undefined,
 		currentNode: RuntimeQueueNode
 	): DockRequest {
-		if (this.requests.has(vehicle.uid)) {
+		if (this.requests.has(vehicle)) {
 			throw new Error(`Vehicle ${vehicle.uid} already has an active dock request`)
 		}
 		if (!this.nodes.includes(currentNode)) {
@@ -106,12 +106,12 @@ export class BayQueueController {
 
 		for (const node of this.nodes) {
 			for (const v of node.occupiedBy) {
-				if (v.uid === vehicle.uid) {
+				if (v === vehicle) {
 					throw new Error(`Vehicle ${vehicle.uid} is already occupying node in this graph`)
 				}
 			}
 			for (const v of node.reservedBy) {
-				if (v.uid === vehicle.uid) {
+				if (v === vehicle) {
 					throw new Error(`Vehicle ${vehicle.uid} is already reserved on node in this graph`)
 				}
 			}
@@ -126,7 +126,7 @@ export class BayQueueController {
 		const branch: string | undefined = ingressBranch ?? currentNode.branch
 
 		const request: DockRequest = {
-			vehicleUid: vehicle.uid,
+			vehicle,
 			bayGroup: this.bayGroup,
 			arrivedAt: Date.now(),
 			priority,
@@ -138,9 +138,9 @@ export class BayQueueController {
 
 		currentNode.occupiedBy.add(vehicle)
 		vehicle.isInBayQueue = true
-		this.requests.set(vehicle.uid, request)
+		this.requests.set(vehicle, request)
 		traces.bay.log?.('request:registered', {
-			vehicleUid: vehicle.uid,
+			vehicle: vehicle,
 			bayGroupName: this.bayGroup.name,
 			branch,
 			node: currentNode,
@@ -149,7 +149,7 @@ export class BayQueueController {
 	}
 
 	cancelRequest(vehicle: Vehicle): void {
-		const request = this.requests.get(vehicle.uid)
+		const request = this.requests.get(vehicle)
 		if (!request) return
 
 		if (request.currentNode) {
@@ -160,39 +160,39 @@ export class BayQueueController {
 			request.grantedServiceNode.occupiedBy.delete(vehicle)
 			request.grantedServiceNode.reservedBy.delete(vehicle)
 		}
-		const grant = this.grants.get(vehicle.uid)
+		const grant = this.grants.get(vehicle)
 		if (grant) {
 			grant.to.reservedBy.delete(vehicle)
 			grant.to.occupiedBy.delete(vehicle)
 		}
 
-		this.grants.delete(vehicle.uid)
+		this.grants.delete(vehicle)
 		request.state = 'cancelled'
-		this.requests.delete(vehicle.uid)
+		this.requests.delete(vehicle)
 		vehicle.isInBayQueue = false
-		traces.bay.log?.('request:cancelled', { vehicleUid: vehicle.uid, hadGrant: !!grant })
+		traces.bay.log?.('request:cancelled', { vehicle: vehicle, hadGrant: !!grant })
 	}
 
-	updatePriority(vehicleUid: string, priority: number): void {
-		const request = this.requests.get(vehicleUid)
+	updatePriority(vehicle: Vehicle, priority: number): void {
+		const request = this.requests.get(vehicle)
 		if (request) request.priority = priority
 	}
 
 	// ─── Grant lifecycle ──────────────────────────────────────────────────
 
 	completeMovement(vehicle: Vehicle, grant: MovementGrant): void {
-		const active = this.grants.get(vehicle.uid)
+		const active = this.grants.get(vehicle)
 		if (active !== grant) {
 			grant.to.reservedBy.delete(vehicle)
-			traces.bay.warn?.('movement:stale', { vehicleUid: vehicle.uid, grantActive: !!active })
+			traces.bay.warn?.('movement:stale', { vehicle: vehicle, grantActive: !!active })
 			return
 		}
 
-		const request = this.requests.get(vehicle.uid)
+		const request = this.requests.get(vehicle)
 		if (!request) {
 			grant.to.reservedBy.delete(vehicle)
-			this.grants.delete(vehicle.uid)
-			traces.bay.warn?.('movement:orphan', { vehicleUid: vehicle.uid })
+			this.grants.delete(vehicle)
+			traces.bay.warn?.('movement:orphan', { vehicle: vehicle })
 			return
 		}
 
@@ -202,31 +202,31 @@ export class BayQueueController {
 		grant.to.occupiedBy.add(vehicle)
 
 		request.currentNode = grant.to
-		this.grants.delete(vehicle.uid)
+		this.grants.delete(vehicle)
 
 		if (grant.to.canService && request.state === 'granted') {
 			request.state = 'servicing'
-			traces.bay.log?.('movement:completed->servicing', { vehicleUid: vehicle.uid, node: grant.to })
+			traces.bay.log?.('movement:completed->servicing', { vehicle: vehicle, node: grant.to })
 		} else {
 			request.state = 'waiting'
 			request.grantedServiceNode = undefined
-			traces.bay.log?.('movement:completed->waiting', { vehicleUid: vehicle.uid, node: grant.to })
+			traces.bay.log?.('movement:completed->waiting', { vehicle: vehicle, node: grant.to })
 		}
 	}
 
 	completeService(vehicle: Vehicle): void {
-		const request = this.requests.get(vehicle.uid)
+		const request = this.requests.get(vehicle)
 		if (!request || request.state !== 'servicing') return
 
-		const grant = this.grants.get(vehicle.uid)
+		const grant = this.grants.get(vehicle)
 		if (grant) {
 			grant.to.reservedBy.delete(vehicle)
-			this.grants.delete(vehicle.uid)
+			this.grants.delete(vehicle)
 		}
 
 		request.state = 'waiting'
 		request.grantedServiceNode = undefined
-		traces.bay.log?.('service:completed', { vehicleUid: vehicle.uid, node: request.currentNode })
+		traces.bay.log?.('service:completed', { vehicle: vehicle, node: request.currentNode })
 	}
 
 	// ─── Admission loop ───────────────────────────────────────────────────
@@ -248,7 +248,7 @@ export class BayQueueController {
 			if (request.state !== 'waiting') continue
 			const current = request.currentNode
 			if (!current) continue
-			const vehicle = this.findVehicleInNode(current, request.vehicleUid)
+			const vehicle = request.vehicle
 			if (!vehicle) continue
 
 			const next = this.findAvailableNextNode(current, request, vehicle)
@@ -263,26 +263,26 @@ export class BayQueueController {
 			}
 
 			const grant: MovementGrant = {
-				vehicleUid: request.vehicleUid,
+				vehicle: request.vehicle,
 				from: current,
 				to: next,
 				expiresAt: Date.now() + 30_000,
 			}
 
-			this.grants.set(request.vehicleUid, grant)
+			this.grants.set(request.vehicle, grant)
 
 			if (next.canService) {
 				request.state = 'granted'
 				request.grantedServiceNode = next
 				traces.bay.log?.('grant:issued->service', {
-					vehicleUid: request.vehicleUid,
+					vehicle: request.vehicle,
 					from: current,
 					to: next,
 				})
 			} else {
 				request.state = 'advancing'
 				traces.bay.log?.('grant:issued->hop', {
-					vehicleUid: request.vehicleUid,
+					vehicle: request.vehicle,
 					from: current,
 					to: next,
 				})
@@ -299,21 +299,21 @@ export class BayQueueController {
 
 	private removeExpiredGrants(): void {
 		const now = Date.now()
-		for (const [uid, grant] of this.grants) {
+		for (const [vehicle, grant] of this.grants) {
 			if (grant.expiresAt !== undefined && now >= grant.expiresAt) {
 				for (const v of grant.to.reservedBy) {
-					if (v.uid === uid) {
+					if (v === vehicle) {
 						grant.to.reservedBy.delete(v)
 						break
 					}
 				}
-				const request = this.requests.get(uid)
+				const request = this.requests.get(vehicle)
 				if (request) {
 					request.state = 'waiting'
 					request.grantedServiceNode = undefined
 				}
-				this.grants.delete(uid)
-				traces.bay.warn?.('grant:expired', { vehicleUid: uid })
+				this.grants.delete(vehicle)
+				traces.bay.warn?.('grant:expired', { vehicle: vehicle })
 			}
 		}
 	}
@@ -332,7 +332,7 @@ export class BayQueueController {
 			if (!this.capabilitiesMatch(caps, target.accepts)) continue
 			if (target.occupiedBy.size + target.reservedBy.size >= target.capacity) continue
 			if (target.canService && !this.isCompatibleServiceNode(target, request, caps)) continue
-			if (this.isReservedByAnother(target, request.vehicleUid)) continue
+			if (this.isReservedByAnother(target, request.vehicle)) continue
 			return target
 		}
 		return undefined
@@ -379,9 +379,9 @@ export class BayQueueController {
 		return true
 	}
 
-	private isReservedByAnother(node: RuntimeQueueNode, vehicleUid: string): boolean {
-		for (const [uid, grant] of this.grants) {
-			if (uid !== vehicleUid && grant.to === node) return true
+	private isReservedByAnother(node: RuntimeQueueNode, otherVehicle: Vehicle): boolean {
+		for (const [vehicle, grant] of this.grants) {
+			if (vehicle !== otherVehicle && grant.to === node) return true
 		}
 		return false
 	}
@@ -408,11 +408,11 @@ export class BayQueueController {
 		return [...this.requests.values()].filter((r) => r.state === 'waiting')
 	}
 
-	getRequest(vehicleUid: string): DockRequest | undefined {
-		return this.requests.get(vehicleUid)
+	getRequest(vehicle: Vehicle): DockRequest | undefined {
+		return this.requests.get(vehicle)
 	}
-	getGrant(vehicleUid: string): MovementGrant | undefined {
-		return this.grants.get(vehicleUid)
+	getGrant(vehicle: Vehicle): MovementGrant | undefined {
+		return this.grants.get(vehicle)
 	}
 	get allRequests(): readonly DockRequest[] {
 		return [...this.requests.values()]
@@ -420,8 +420,8 @@ export class BayQueueController {
 	get allGrants(): readonly MovementGrant[] {
 		return [...this.grants.values()]
 	}
-	getVehicleCurrentNode(vehicleUid: string): RuntimeQueueNode | undefined {
-		return this.requests.get(vehicleUid)?.currentNode
+	getVehicleCurrentNode(vehicle: Vehicle): RuntimeQueueNode | undefined {
+		return this.requests.get(vehicle)?.currentNode
 	}
 }
 

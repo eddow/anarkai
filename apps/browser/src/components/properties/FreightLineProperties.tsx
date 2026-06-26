@@ -2,7 +2,7 @@ import { css } from '@app/lib/css'
 import { type FreightDraftIssueCode, freightDraftIssueCodes } from '@app/lib/freight-line-draft'
 import { showFreightLineOverlay } from '@app/lib/freight-line-overlay'
 import { clearFreightMapPickForLine } from '@app/lib/freight-map-pick'
-import { bumpSelectionTitleVersion, selectionState } from '@app/lib/globals'
+import { bumpSelectionTitleVersion } from '@app/lib/globals'
 import { T } from '@app/lib/i18n'
 import { InspectorSection } from '@app/ui/anarkai'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
@@ -384,11 +384,10 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 	}
 
 	const handleDeleteLine = () => {
-		const lineId = props.lineObject?.lineId
+		const line = currentLine()
 		const g = currentGame()
-		if (!lineId || !g) return
-		g.removeFreightLineById(lineId)
-		if (selectionState.selectedUid === props.lineObject.uid) selectionState.selectedUid = undefined
+		if (!line || !g) return
+		g.removeFreightLine(line)
 		props.onClose?.()
 		local.revision++
 		bumpSelectionTitleVersion()
@@ -398,11 +397,10 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 		const line = currentLine()
 		const g = currentGame()
 		if (!line || !g) return
-		if ('assignVehicleToFreightLine' in g && typeof g.assignVehicleToFreightLine === 'function') {
-			g.assignVehicleToFreightLine(vehicleUid, line.id)
-		} else {
-			const vehicle = g.vehicles?.vehicle?.(vehicleUid)
-			vehicle?.assignFreightLine?.(line)
+		const vehicle = [...g.vehicles].find((v) => v.uid === vehicleUid)
+		if (vehicle) {
+			if (g.assignVehicleToFreightLine) g.assignVehicleToFreightLine(vehicle, line)
+			else vehicle.assignFreightLine?.(line)
 		}
 		local.revision++
 		bumpSelectionTitleVersion()
@@ -412,13 +410,10 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 		const line = currentLine()
 		const g = currentGame()
 		if (!line || !g) return
-		if (
-			'unassignVehicleFromFreightLine' in g &&
-			typeof g.unassignVehicleFromFreightLine === 'function'
-		) {
-			g.unassignVehicleFromFreightLine(vehicleUid, line.id)
-		} else {
-			g.vehicles?.vehicle?.(vehicleUid)?.unassignFreightLine?.(line.id)
+		const vehicle = [...g.vehicles].find((v) => v.uid === vehicleUid)
+		if (vehicle) {
+			if (g.unassignVehicleFromFreightLine) g.unassignVehicleFromFreightLine(vehicle, line)
+			else vehicle.unassignFreightLine?.(line)
 		}
 		local.revision++
 		bumpSelectionTitleVersion()
@@ -471,7 +466,7 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 		const g = currentGame()
 		const line = currentLine()
 		if (!g || !line) return []
-		return g.getFreightLineTradeHistory(line.id)
+		return g.getFreightLineTradeHistory(line)
 	}
 
 	return (

@@ -82,8 +82,8 @@ const { MockForesterAlveolus, MockFreightBayAlveolus, MockStorageAlveolus, MockT
 				return this.processBuffers[goodType]
 			}
 			setProductRatioConfiguration(config: {
-				inputGood?: string
-				outputGood?: string
+				inputGood: string
+				outputGood: string
 				maxProductRatio: number
 			}) {
 				this.transformConfiguration.productRatio = config
@@ -228,7 +228,7 @@ vi.mock('../storage/StoredGoodsRow', () => ({
 			<tr data-testid={`stored-goods-row-${props.label ?? 'unknown'}`}>
 				<td>
 					{Object.entries(props.content?.requiredGoods ?? {}).map(([good, qty]) => (
-						<span data-testid={`construction-material-${good}`} key={good}>
+						<span data-testid={`construction-material-${good}`}>
 							{good} {props.content?.storage?.stock?.[good] ?? 0}/{qty}
 						</span>
 					))}

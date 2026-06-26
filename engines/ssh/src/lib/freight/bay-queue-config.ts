@@ -66,7 +66,7 @@ export function generateSimpleQueueGraph(
 	const nodes: SerializedQueueNode[] = []
 
 	// Service node (dock)
-	const _serviceNodeIndex = nodes.length
+	nodes.length // capture index for clarity
 	nodes.push({
 		handle: serviceDockHandle,
 		capacity: 1,
@@ -84,7 +84,7 @@ export function generateSimpleQueueGraph(
 			coord: { q: coord.q, r: coord.r },
 		}
 
-		const _index = nodes.length
+		nodes.length // capture index for clarity
 		const coordKey = `${coord.q},${coord.r}`
 		const branch = options.branchLabels?.get(coordKey)
 

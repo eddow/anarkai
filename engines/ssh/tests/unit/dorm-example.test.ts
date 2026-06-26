@@ -134,7 +134,7 @@ describe('dorm example game', () => {
 
 		const bayTile = game.hex.getTile({ q: 0, r: 1 })!
 		const buildTile = game.hex.getTile({ q: 4, r: 0 })!
-		const vehicle = game.vehicles.vehicle('Dorm:wheelbarrow')
+		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'Dorm:wheelbarrow')!
 		expect(vehicle).toBeDefined()
 		expect(bayTile.content).toBeInstanceOf(FreightBayAlveolus)
 		expect(bayTile.isBurdened).toBe(true)
@@ -185,7 +185,7 @@ describe('dorm example game', () => {
 		const bay = bayTile.content as FreightBayAlveolus
 		const buildTile = game.hex.getTile({ q: 4, r: 0 })!
 		const chopperSite = game.hex.getTile({ q: 0, r: -1 })?.content
-		const vehicle = game.vehicles.vehicle('Dorm:wheelbarrow')
+		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'Dorm:wheelbarrow')!
 		expect(vehicle).toBeDefined()
 		expect(bay).toBeInstanceOf(FreightBayAlveolus)
 		if (!vehicle) return

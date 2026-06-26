@@ -109,10 +109,10 @@ export function executeNpcTradeStopTransfer(args: {
 
 	if (npcTradeStopHasTransfer(out)) {
 		game.enqueueNpcTradePresentationChange({
-			lineId: line.id,
+			line,
 			stopIndex: line.stops.indexOf(stop),
 			settlementName: stop.trade.settlementName,
-			vehicleUid: vehicle.uid,
+			vehicle,
 			exported: out.exported,
 			imported: out.imported,
 			creditedVp: out.creditedVp,

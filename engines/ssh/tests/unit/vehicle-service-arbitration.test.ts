@@ -477,6 +477,7 @@ describe('Vehicle begin-service arbitration', () => {
 			],
 			freightLines: [
 				{
+					id: 'Unload gather',
 					name: 'Unload gather',
 					stops: [
 						{ zone: { kind: 'radius', center: [0, 0], radius: 2 } },

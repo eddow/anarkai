@@ -1,8 +1,5 @@
-// @ts-expect-error -- node built-in modules (runtime-only)
 import fs from 'node:fs'
-// @ts-expect-error -- node built-in modules (runtime-only)
 import path from 'node:path'
-// @ts-expect-error -- node built-in modules (runtime-only)
 import { fileURLToPath } from 'node:url'
 import { reactiveOptions, reset } from 'mutts'
 import type { Game, GameGenerationOptions, SaveState } from 'ssh/game'

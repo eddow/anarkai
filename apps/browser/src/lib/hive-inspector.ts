@@ -1,24 +1,15 @@
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { Tile } from 'ssh/board/tile'
 import type { Game } from 'ssh/game'
-import type { InspectorSelectableObject, InteractiveGameObject } from 'ssh/game/object'
+import type { InspectorSelectableObject } from 'ssh/game/object'
 import type { Hive } from 'ssh/hive'
 import { axial } from 'ssh/utils'
-
-function findObjectByUid(game: Game, uid: string): InteractiveGameObject | undefined {
-	for (const obj of game.objects) {
-		if (obj.uid === uid) return obj
-	}
-	return undefined
-}
-
 import { toAxialCoord } from 'ssh/utils/position'
 
 export const HIVE_UID_PREFIX = 'hive:'
 
 export interface SyntheticHiveObject extends InspectorSelectableObject {
 	readonly kind: 'hive'
-	readonly anchorTileUid: string
 	readonly tile: Tile
 }
 
@@ -30,22 +21,14 @@ export function isHiveUid(uid: string): boolean {
 	return uid.startsWith(HIVE_UID_PREFIX)
 }
 
-export function anchorTileUidFromHiveUid(uid: string): string | undefined {
-	if (!isHiveUid(uid)) return undefined
-	const encoded = uid.slice(HIVE_UID_PREFIX.length)
-	return encoded ? decodeURIComponent(encoded) : undefined
-}
-
 export function hiveInspectorTitle(hive: Hive | undefined): string {
 	if (!hive) return 'Hive'
 	const name = hive.name?.trim()
 	return name ? name : 'Hive'
 }
 
-export function resolveHiveFromAnchorTile(game: Game, anchorTileUid: string): Hive | undefined {
-	const tile = findObjectByUid(game, anchorTileUid)
-	if (!(tile instanceof Tile)) return undefined
-	const content = tile.content
+export function resolveHiveFromAnchorTile(_game: Game, anchorTile: Tile): Hive | undefined {
+	const content = anchorTile.content
 	return content instanceof Alveolus ? content.hive : undefined
 }
 
@@ -76,17 +59,6 @@ export function createSyntheticHiveObject(
 		logs: [],
 		position: canonicalTile.position,
 		hoverObject: canonicalTile,
-		anchorTileUid: canonicalTile.uid,
 		tile: canonicalTile,
 	}
-}
-
-export function createSyntheticHiveObjectForUid(
-	game: Game,
-	uid: string
-): SyntheticHiveObject | undefined {
-	const anchorTileUid = anchorTileUidFromHiveUid(uid)
-	if (!anchorTileUid) return undefined
-	const tile = findObjectByUid(game, anchorTileUid)
-	return tile instanceof Tile ? createSyntheticHiveObject(game, tile) : undefined
 }

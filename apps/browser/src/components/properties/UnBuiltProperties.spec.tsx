@@ -249,18 +249,12 @@ describe('UnBuiltProperties', () => {
 		const content = {
 			project: undefined,
 			tile: {
-				effectiveZone: 'orchard',
+				effectiveZone: { type: 'passive', name: 'Orchard', color: '#12ab34' },
 				isClear: true,
 				board: {
 					game: {
 						hex: {
-							zoneManager: {
-								getZoneDefinition: vi.fn(() => ({
-									id: 'orchard',
-									name: 'Orchard',
-									color: '#12ab34',
-								})),
-							},
+							zoneManager: {},
 						},
 					},
 				},

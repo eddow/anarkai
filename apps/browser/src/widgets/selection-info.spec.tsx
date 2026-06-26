@@ -5,7 +5,7 @@ import type { DockviewWidgetProps } from '@sursaut/ui/dockview'
 import { reactive } from 'mutts'
 import { Tile } from 'ssh/board/tile'
 import { Character } from 'ssh/population/character'
-import { VehicleEntity } from 'ssh/population/vehicle/entity'
+import { Vehicle as VehicleEntity } from 'ssh/population/vehicle/entity'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SelectionInfoContext, SelectionInfoTool } from './selection-info-tab'
 
@@ -140,7 +140,7 @@ vi.mock('ssh/population/character', () => ({
 }))
 
 vi.mock('ssh/population/vehicle/entity', () => ({
-	VehicleEntity: class VehicleEntity {},
+	Vehicle: class Vehicle {},
 }))
 
 vi.mock('ssh/board/tile', () => ({

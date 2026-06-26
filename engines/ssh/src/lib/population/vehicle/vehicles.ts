@@ -26,16 +26,8 @@ export class Vehicles extends withContainer(GameObject) {
 		})
 	}
 
-	vehicle(uid: string): Vehicle | undefined {
-		for (const v of this.children) {
-			if (v instanceof Vehicle && v.uid === uid) return v
-		}
-		return undefined
-	}
-
-	removeVehicle(uid: string): boolean {
-		const vehicle = this.vehicle(uid)
-		if (!vehicle) return false
+	removeVehicle(vehicle: Vehicle): boolean {
+		if (!this.children.has(vehicle)) return false
 		this.delete(vehicle)
 		this.game.invalidateWorkPlanning('vehicle.remove')
 		return true

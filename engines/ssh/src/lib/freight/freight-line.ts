@@ -92,8 +92,6 @@ export interface FreightLineDefinition {
 }
 
 export const DEFAULT_GATHER_FREIGHT_RADIUS = defaultGatherFreightRadius
-export const FREIGHT_LINE_UID_PREFIX = 'freight-line:'
-
 export function freightLineStopHiveName(hiveName?: string): string {
 	return hiveName ?? ''
 }
@@ -120,16 +118,6 @@ export interface SyntheticFreightLineObject extends InspectorSelectableObject {
 	readonly line: FreightLineDefinition
 	readonly lineId: string
 	readonly tile?: Tile
-}
-
-export function isFreightLineUid(uid: string): boolean {
-	return uid.startsWith(FREIGHT_LINE_UID_PREFIX)
-}
-
-export function freightLineIdFromUid(uid: string): string | undefined {
-	if (!isFreightLineUid(uid)) return undefined
-	const encoded = uid.slice(FREIGHT_LINE_UID_PREFIX.length)
-	return encoded ? decodeURIComponent(encoded) : undefined
 }
 
 export function freightStopAnchorMatchesAlveolus(

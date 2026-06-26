@@ -2,12 +2,7 @@ import { showProps } from '@app/lib/follow-selection'
 import { zoneOverlayState } from '@app/lib/freight-line-overlay'
 import { game } from '@app/lib/globals'
 import { reactive } from 'mutts'
-import {
-	isZoneObjectUid,
-	ZONES_OBJECT_UID,
-	zoneIndexFromObjectUid,
-	zoneObjectUid,
-} from 'ssh/board/zone'
+import { zoneObjectUid } from 'ssh/board/zone'
 import { ZoneObject, ZonesCollectionObject } from 'ssh/board/zone-object'
 
 export const unnamedZoneOwnership = reactive({
@@ -33,9 +28,5 @@ export function showZoneObject(index: number): void {
 	if (object) showProps(object)
 }
 
-export function isZonesUid(uid: string): boolean {
-	return uid === ZONES_OBJECT_UID
-}
-
-export { ZONES_OBJECT_UID, isZoneObjectUid, zoneIndexFromObjectUid, zoneObjectUid }
+export { zoneObjectUid }
 export { zoneOverlayState }

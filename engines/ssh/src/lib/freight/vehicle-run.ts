@@ -687,8 +687,8 @@ export function advanceVehicleLineServicePastEmptyStops(
 			if (!(content instanceof Alveolus)) return
 			const hive = content.hive
 			if (!hive) return
-			if (!hive.freightVehicleDockFor(vehicle.uid)) return
-			if (hive.hasActiveFreightVehicleDockMovement(vehicle.uid)) return
+			if (!hive.freightVehicleDockFor(vehicle)) return
+			if (hive.hasActiveFreightVehicleDockMovement(vehicle)) return
 			const candidates = refreshDockedVehicleAdvertisement(vehicle, content)
 			if (vehicle.storage.virtualGoodsCount > 0) return
 			if (candidates.length > 0) return
@@ -869,7 +869,7 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 		})
 		return
 	}
-	const dock = hive.freightVehicleDockFor(vehicle.uid)
+	const dock = hive.freightVehicleDockFor(vehicle)
 	if (!dock) {
 		traces.vehicle.log?.('vehicleJob.dock.check', {
 			lineId: svc.line.id,
@@ -880,7 +880,7 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 		})
 		return
 	}
-	if (hive.hasActiveFreightVehicleDockMovement(vehicle.uid)) {
+	if (hive.hasActiveFreightVehicleDockMovement(vehicle)) {
 		traces.vehicle.log?.('vehicleJob.dock.check', {
 			lineId: svc.line.id,
 			stopIndex: svc.line.stops.indexOf(stop),

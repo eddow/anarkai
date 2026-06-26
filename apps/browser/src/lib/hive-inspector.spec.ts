@@ -5,9 +5,7 @@ import type { Game } from 'ssh/game'
 import type { Hive } from 'ssh/hive'
 import { describe, expect, it } from 'vitest'
 import {
-	anchorTileUidFromHiveUid,
 	createSyntheticHiveObject,
-	createSyntheticHiveObjectForUid,
 	hiveInspectorTitle,
 	hiveUidForAnchorTile,
 	isHiveUid,
@@ -28,16 +26,16 @@ function makeHiveTile(name: string): { game: Game; tile: Tile; hive: Hive } {
 		setTileContent: () => undefined,
 	} as unknown as HexBoard
 	const tile = new Tile(board, { q: 0, r: 0 })
-	game.objects.set(tile.uid, tile)
+	;(game as any).objects.set(tile.uid, tile)
 	return { game, tile, hive }
 }
 
 describe('browser hive inspector synthetic object', () => {
-	it('encodes and decodes hive uids from anchor tile uid', () => {
+	it('encodes hive uids from anchor tile uid', () => {
 		const anchor = 'tile:0,0'
 		const uid = hiveUidForAnchorTile(anchor)
 		expect(isHiveUid(uid)).toBe(true)
-		expect(anchorTileUidFromHiveUid(uid)).toBe(anchor)
+		expect(uid).toBe('hive:tile%3A0%2C0')
 	})
 
 	it('creates a browser-owned synthetic hive object for inspector panels', () => {
@@ -47,16 +45,15 @@ describe('browser hive inspector synthetic object', () => {
 		expect(synthetic?.uid).toBe(hiveUidForAnchorTile(tile.uid))
 		expect(synthetic?.title).toBe('H')
 		expect(synthetic?.hoverObject).toBe(tile)
-		expect(resolveHiveFromAnchorTile(game, tile.uid)?.name).toBe('H')
+		expect(resolveHiveFromAnchorTile(game, tile)?.name).toBe('H')
 	})
 
 	it('retargets hive titles through the current anchor tile content', () => {
 		const { game, tile, hive } = makeHiveTile('HiveA')
-		const uid = hiveUidForAnchorTile(tile.uid)
-		expect(createSyntheticHiveObjectForUid(game, uid)?.title).toBe('HiveA')
+		expect(createSyntheticHiveObject(game, tile)?.title).toBe('HiveA')
 
 		hive.name = 'HiveB'
-		expect(createSyntheticHiveObjectForUid(game, uid)?.title).toBe('HiveB')
+		expect(createSyntheticHiveObject(game, tile)?.title).toBe('HiveB')
 		expect(hiveInspectorTitle({ name: '  ' } as Hive)).toBe('Hive')
 	})
 })

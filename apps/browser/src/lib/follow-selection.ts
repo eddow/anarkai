@@ -1,12 +1,8 @@
-import { createSyntheticHiveObjectForUid, isHiveUid } from '@app/lib/hive-inspector'
-import { isZoneObjectUid, isZonesUid } from '@app/lib/zone-selection'
+import { createSyntheticHiveObject } from '@app/lib/hive-inspector'
 import type { DockviewWidgetScope } from '@sursaut/ui/dockview'
-import { createZoneObjectForUid } from 'ssh/board/zone-object'
-import {
-	createSyntheticFreightLineObject,
-	freightLineIdFromUid,
-	isFreightLineUid,
-} from 'ssh/freight/freight-line'
+import { Tile } from 'ssh/board/tile'
+import { ZoneObject, ZonesCollectionObject } from 'ssh/board/zone-object'
+import { createSyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import type { InspectorSelectableObject } from 'ssh/game/object'
 import { toAxialCoord } from 'ssh/utils/position'
 import { game, selectionState, unreactiveInfo, validateStoredSelectionState } from './globals'
@@ -22,8 +18,8 @@ type SelectableObject = Pick<InspectorSelectableObject, 'uid' | 'title'>
 const pinnedInspectorPanelIdsByUid = new Map<string, string>()
 
 function ensureGeneratedTileContent(object: SelectableObject): void {
-	if (!('uid' in object) || !object.uid?.startsWith('tile:')) return
-	const position = (object as Partial<InspectorSelectableObject>).position
+	if (!(object instanceof Tile)) return
+	const position = (object as Tile).position
 	const coord = position ? toAxialCoord(position) : undefined
 	if (!coord) return
 	const sectorKey = `${Math.floor(coord.q / GAMEPLAY_SECTOR_STEP)},${Math.floor(coord.r / GAMEPLAY_SECTOR_STEP)}`
@@ -108,18 +104,24 @@ function resolveSelectionPanelTitle(initialTitle?: string) {
 		if (obj.uid === selectedUid) return obj.title ?? 'Selection'
 	}
 
-	// Synthetic objects
-	if (isHiveUid(selectedUid)) {
-		return createSyntheticHiveObjectForUid(game, selectedUid)?.title ?? 'Selection'
+	// Synthetic objects — resolved inline without UID factories
+	if (selectedUid.startsWith('hive:')) {
+		const anchorUid = decodeURIComponent(selectedUid.slice('hive:'.length))
+		const tile = [...game.objects].find((o: any) => o.uid === anchorUid)
+		if (tile instanceof Tile) {
+			return createSyntheticHiveObject(game, tile)?.title ?? 'Selection'
+		}
 	}
-	if (isFreightLineUid(selectedUid)) {
-		const lineId = freightLineIdFromUid(selectedUid)
-		const line = lineId ? game.freightLines.find((l) => l.id === lineId) : undefined
+	if (selectedUid.startsWith('freight-line:')) {
+		const id = decodeURIComponent(selectedUid.slice('freight-line:'.length))
+		const line = game.freightLines.find((l: any) => l.id === id)
 		if (line) return createSyntheticFreightLineObject(game, line).title ?? 'Selection'
 	}
-	if (isZoneObjectUid(selectedUid) || isZonesUid(selectedUid)) {
-		return createZoneObjectForUid(game, selectedUid)?.title ?? 'Selection'
+	if (selectedUid.startsWith('zone:')) {
+		const index = Number(selectedUid.slice('zone:'.length))
+		if (Number.isFinite(index)) return new ZoneObject(game, index).title ?? 'Selection'
 	}
+	if (selectedUid === 'zones') return new ZonesCollectionObject(game).title ?? 'Selection'
 
 	return 'Selection'
 }

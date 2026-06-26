@@ -53,7 +53,7 @@ describe('VisualFactory batched lifecycle sync', () => {
 			factory.bind()
 
 			const initialTileVisuals = factory.getDiagnostics().current.tileVisuals
-			expect(renderer.visuals.has('tile:0,0')).toBe(false)
+			expect((renderer.visuals as any).has('tile:0,0')).toBe(false)
 			const diagnostics = factory.getDiagnostics()
 			expect(diagnostics.recentBatches[0]?.reason).toBe('bootstrap')
 			expect(diagnostics.recentBatches[0]?.tileCount).toBeGreaterThanOrEqual(1)
@@ -80,8 +80,9 @@ describe('VisualFactory batched lifecycle sync', () => {
 			const factory = new VisualFactory(renderer)
 			factory.bind()
 
+			const visuals = renderer.visuals as any
 			const initialTileVisuals = factory.getDiagnostics().current.tileVisuals
-			expect(renderer.visuals.has('tile:0,0')).toBe(false)
+			expect(visuals.has('tile:0,0')).toBe(false)
 
 			const tile = engine.game.hex.getTile({ q: 0, r: 0 })
 			if (!tile) throw new Error('Expected tile to exist')
@@ -90,7 +91,7 @@ describe('VisualFactory batched lifecycle sync', () => {
 			)!
 			await new Promise((resolve) => setTimeout(resolve, 0))
 
-			expect(renderer.visuals.has('tile:0,0')).toBe(true)
+			expect((renderer.visuals as any).has('tile:0,0')).toBe(true)
 			const diagnostics = factory.getDiagnostics()
 			expect(['objectsChanged', 'objectsAdded']).toContain(diagnostics.recentBatches[0]?.reason)
 			expect(diagnostics.current.tileVisuals).toBeGreaterThan(initialTileVisuals)
@@ -121,9 +122,9 @@ describe('VisualFactory batched lifecycle sync', () => {
 				engine.game.hex.zoneManager.findZoneIndexByName('harvest')
 			)!
 			await new Promise((resolve) => setTimeout(resolve, 0))
-			expect(renderer.visuals.has('tile:0,0')).toBe(true)
+			expect((renderer.visuals as any).has('tile:0,0')).toBe(true)
 			engine.game.hex.reset()
-			expect(renderer.visuals.has('tile:0,0')).toBe(false)
+			expect((renderer.visuals as any).has('tile:0,0')).toBe(false)
 
 			factory.destroy()
 		} finally {
@@ -145,8 +146,9 @@ describe('VisualFactory batched lifecycle sync', () => {
 			const factory = new VisualFactory(renderer)
 			factory.bind()
 
+			const visuals = renderer.visuals as any
 			let refreshes = 0
-			renderer.visuals.set('tile:0,0', {
+			visuals.set('tile:0,0', {
 				refreshStoredGoods() {
 					refreshes++
 				},

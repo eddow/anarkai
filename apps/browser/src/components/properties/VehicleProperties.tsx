@@ -412,14 +412,11 @@ const VehicleProperties = (
 		const vehicle = props.vehicle
 		if (!vehicle) return
 		if (!isLineFreightVehicleType(vehicle.vehicleType)) return
-		if (
-			'assignVehicleToFreightLine' in vehicle.game &&
-			typeof vehicle.game.assignVehicleToFreightLine === 'function'
-		) {
-			vehicle.game.assignVehicleToFreightLine(vehicle.uid, lineId)
-		} else {
-			const line = vehicle.game.freightLines?.find((entry) => entry.id === lineId)
-			if (line) vehicle.assignFreightLine?.(line)
+		const line = vehicle.game.freightLines.find((entry: any) => entry.id === lineId)
+		if (line) {
+			if (vehicle.game.assignVehicleToFreightLine)
+				vehicle.game.assignVehicleToFreightLine(vehicle, line)
+			else vehicle.assignFreightLine?.(line)
 		}
 		state.revision++
 	}
@@ -427,13 +424,11 @@ const VehicleProperties = (
 	const unassignLine = (lineId: string) => {
 		const vehicle = props.vehicle
 		if (!vehicle) return
-		if (
-			'unassignVehicleFromFreightLine' in vehicle.game &&
-			typeof vehicle.game.unassignVehicleFromFreightLine === 'function'
-		) {
-			vehicle.game.unassignVehicleFromFreightLine(vehicle.uid, lineId)
-		} else {
-			vehicle.unassignFreightLine?.(lineId)
+		const line = vehicle.game.freightLines.find((entry: any) => entry.id === lineId)
+		if (line) {
+			if (vehicle.game.unassignVehicleFromFreightLine)
+				vehicle.game.unassignVehicleFromFreightLine(vehicle, line)
+			else vehicle.unassignFreightLine?.(line)
 		}
 		state.revision++
 	}

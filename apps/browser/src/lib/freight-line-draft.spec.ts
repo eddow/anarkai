@@ -15,18 +15,16 @@ describe('freight-line-draft', () => {
 		name: 'Line 1',
 		stops: [
 			{
-				id: 'z1',
 				zone: { kind: 'radius', center: [1, 2], radius: 3 },
-			},
+			} as any,
 			{
-				id: 'b1',
 				anchor: {
 					kind: 'alveolus',
 					hiveName: 'H',
 					alveolusType: 'freight_bay',
 					coord: [1, 2],
 				},
-			},
+			} as any,
 		],
 	})
 
@@ -48,9 +46,8 @@ describe('freight-line-draft', () => {
 					name: 'X',
 					stops: [
 						{
-							id: 'only-zone',
 							zone: { kind: 'radius', center: [0, 0], radius: 1 },
-						},
+						} as any,
 					],
 				})
 			)
@@ -67,7 +64,7 @@ describe('freight-line-draft', () => {
 		expect(removed.stops.length).toBe(withExtra.stops.length - 1)
 
 		const moved = moveFreightDraftStop(removed, 0, 1)
-		expect(moved.stops[1]?.id).toBe(removed.stops[0]?.id)
+		expect((moved.stops[1] as any)?.id).toBe((removed.stops[0] as any)?.id)
 	})
 
 	it('preserves the cyclic flag when cloning a draft', () => {

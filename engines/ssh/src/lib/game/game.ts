@@ -41,7 +41,6 @@ import {
 	collectFreightLineBootstrapCoords,
 	hydrateFreightLineTradeProfiles,
 	implicitGatherFreightLinesFromHivePatches,
-	isImplicitGatherFreightLineId,
 	normalizeFreightLineDefinition,
 } from 'ssh/freight/freight-line'
 import {
@@ -145,10 +144,10 @@ export type GamePresentationEvent =
 	| { type: 'work-planning.changed'; revision: number }
 	| {
 			type: 'npc-trade.transferred'
-			lineId: string
+			line: FreightLineDefinition
 			stopIndex: number
 			settlementName: string
-			vehicleUid: string
+			vehicle: Vehicle
 			exported: Partial<Record<GoodType, number>>
 			imported: Partial<Record<GoodType, number>>
 			creditedVp: number
@@ -157,10 +156,10 @@ export type GamePresentationEvent =
 
 /** Accumulated trade transfer log entry, keyed by line-stop-vehicle. */
 export interface TradeTransferLogEntry {
-	readonly lineId: string
+	readonly line: FreightLineDefinition
 	readonly stopIndex: number
 	readonly settlementName: string
-	readonly vehicleUid: string
+	readonly vehicle: Vehicle
 	readonly exported: Partial<Record<GoodType, number>>
 	readonly imported: Partial<Record<GoodType, number>>
 	readonly creditedVp: number
@@ -720,36 +719,23 @@ export class Game extends Eventful<GameEvents> {
 		for (const vehicle of this.vehicles) vehicle.refreshFreightLineReference(normalized)
 	}
 
-	assignVehicleToFreightLine(vehicleUid: string, lineId: string): boolean {
-		const vehicle = this.vehicles.vehicle(vehicleUid)
-		const line = this.freightLines.find((entry) => entry.id === lineId)
-		if (!vehicle || !line) return false
+	assignVehicleToFreightLine(vehicle: Vehicle, line: FreightLineDefinition): boolean {
 		return vehicle.assignFreightLine(line)
 	}
 
-	unassignVehicleFromFreightLine(vehicleUid: string, lineId: string): boolean {
-		const vehicle = this.vehicles.vehicle(vehicleUid)
-		if (!vehicle) return false
-		return vehicle.unassignFreightLine(lineId)
-	}
-
-	setVehicleFreightLineIds(vehicleUid: string, lineIds: readonly string[]): boolean {
-		const vehicle = this.vehicles.vehicle(vehicleUid)
-		if (!vehicle) return false
-		vehicle.setServedLineIds(lineIds, 'vehicle.set-lines')
-		return true
+	unassignVehicleFromFreightLine(vehicle: Vehicle, line: FreightLineDefinition): boolean {
+		return vehicle.unassignFreightLine(line)
 	}
 
 	/**
 	 * Removes an explicit freight line by id. Implicit hive gather lines cannot be removed
 	 * (they are re-derived from hive patches on bootstrap).
 	 */
-	removeFreightLineById(lineId: string): boolean {
-		if (isImplicitGatherFreightLineId(lineId)) return false
-		const next = this.freightLines.filter((entry) => entry.id !== lineId)
+	removeFreightLine(line: FreightLineDefinition): boolean {
+		const next = this.freightLines.filter((entry) => entry !== line)
 		if (next.length === this.freightLines.length) return false
 		this.freightLines = next
-		for (const vehicle of this.vehicles) vehicle.unassignFreightLine(lineId)
+		for (const vehicle of this.vehicles) vehicle.unassignFreightLine(line)
 		return true
 	}
 
@@ -811,7 +797,7 @@ export class Game extends Eventful<GameEvents> {
 		event: Omit<Extract<GamePresentationEvent, { type: 'npc-trade.transferred' }>, 'type'>
 	): void {
 		this.pendingPresentationEvents.set(
-			`npc-trade.transferred:${event.lineId}:${event.stopIndex}:${event.vehicleUid}`,
+			`npc-trade.transferred:${event.line}:${event.stopIndex}:${event.vehicle.uid}`,
 			{ type: 'npc-trade.transferred', ...event }
 		)
 		this.schedulePresentationEventsFlush()
@@ -821,23 +807,22 @@ export class Game extends Eventful<GameEvents> {
 	private accumulateTradeTransferLog(
 		event: Omit<Extract<GamePresentationEvent, { type: 'npc-trade.transferred' }>, 'type'>
 	): void {
-		const key = `${event.lineId}:${event.stopIndex}:${event.vehicleUid}`
+		const key = `${event.line}:${event.stopIndex}:${event.vehicle.uid}`
 		const entries = this.tradeTransferLog.get(key) ?? []
 		const entry: TradeTransferLogEntry = {
 			...event,
 			tick: this.ticker.elapsedMS,
 		}
 		entries.push(entry)
-		// Keep at most 10 recent entries per key
 		if (entries.length > 10) entries.splice(0, entries.length - 10)
 		this.tradeTransferLog.set(key, entries)
 	}
 
 	/** Returns trade transfer history for a freight line, most recent first. */
-	public getFreightLineTradeHistory(lineId: string): TradeTransferLogEntry[] {
+	public getFreightLineTradeHistory(line: FreightLineDefinition): TradeTransferLogEntry[] {
 		const out: TradeTransferLogEntry[] = []
 		for (const [key, entries] of this.tradeTransferLog) {
-			if (key.startsWith(`${lineId}:`)) out.push(...entries)
+			if (key.startsWith(`${line}:`)) out.push(...entries)
 		}
 		return out.sort((a, b) => b.tick - a.tick)
 	}

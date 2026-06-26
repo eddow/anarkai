@@ -2,8 +2,6 @@ import type { Game } from 'ssh/game/game'
 import type { InspectorSelectableObject } from 'ssh/game/object'
 import type { Position } from 'ssh/utils/position'
 import type { Tile } from './tile'
-import { isZoneObjectUid, ZONES_OBJECT_UID, zoneIndexFromObjectUid } from './zone'
-
 export class ZonesCollectionObject implements InspectorSelectableObject {
 	readonly logs: string[] = []
 
@@ -64,14 +62,4 @@ export class ZoneObject implements InspectorSelectableObject {
 	get hoverObject(): Tile | undefined {
 		return this.position ? this.tile : undefined
 	}
-}
-
-export function createZoneObjectForUid(game: Game, uid: string) {
-	if (uid === ZONES_OBJECT_UID) return new ZonesCollectionObject(game)
-	if (!isZoneObjectUid(uid)) return undefined
-	const index = zoneIndexFromObjectUid(uid)
-	if (index === undefined) return undefined
-	const definition = game.hex.zoneManager.zoneByIndex(index)
-	if (!definition) return undefined
-	return new ZoneObject(game, index)
 }

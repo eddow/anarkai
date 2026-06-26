@@ -1,4 +1,7 @@
-import { createNpcSettlementTradeProfile } from 'ssh/commerce/settlement-trade'
+import {
+	createNpcSettlementTradeProfile,
+	SettlementTradeObject,
+} from 'ssh/commerce/settlement-trade'
 import { Game } from 'ssh/game/game'
 import type { GeneratedSettlement, GeneratedTileData, SettlementZonePlan } from 'ssh/generation'
 import { afterEach, describe, expect, it } from 'vitest'

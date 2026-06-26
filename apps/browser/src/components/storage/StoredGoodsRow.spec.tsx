@@ -121,7 +121,7 @@ describe('StoredGoodsRow presentation refresh', () => {
 
 	it('shows empty construction goods even when inbound allocation hides the demand relation', async () => {
 		const { BuildAlveolus } = await import('ssh/hive/build')
-		const site = new BuildAlveolus()
+		const site = new (BuildAlveolus as any)()
 
 		stop = latch(
 			container,
@@ -133,7 +133,7 @@ describe('StoredGoodsRow presentation refresh', () => {
 
 	it('does not render direct purchase buttons for construction shells', async () => {
 		const { BuildAlveolus } = await import('ssh/hive/build')
-		const site = new BuildAlveolus()
+		const site = new (BuildAlveolus as any)()
 
 		stop = latch(
 			container,
@@ -146,7 +146,7 @@ describe('StoredGoodsRow presentation refresh', () => {
 
 	it('tolerates transient construction shells before required goods are populated', async () => {
 		const { BuildAlveolus } = await import('ssh/hive/build')
-		const site = new BuildAlveolus()
+		const site = new (BuildAlveolus as any)()
 		site.requiredGoods = undefined as never
 
 		stop = latch(

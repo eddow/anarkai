@@ -167,10 +167,19 @@ let FreightLineProperties: typeof import('./FreightLineProperties').default
 describe('FreightLineProperties', () => {
 	let container: HTMLElement
 	let stop: (() => void) | undefined
-	let removeFreightLineById: ReturnType<typeof vi.fn>
+	let removeFreightLine: ReturnType<typeof vi.fn>
+	let vehicleRecords: {
+		uid: string
+		title: string
+		vehicleType: string
+		position: { q: number; r: number }
+		storage: { stock: Record<string, number> }
+		servedLines: { id: string }[]
+	}[]
 	let game: {
 		freightLines: ReturnType<typeof normalizeFreightLineDefinition>[]
 		replaceFreightLine: ReturnType<typeof vi.fn>
+		removeFreightLine: ReturnType<typeof vi.fn>
 		removeFreightLineById: ReturnType<typeof vi.fn>
 		assignVehicleToFreightLine: ReturnType<typeof vi.fn>
 		unassignVehicleFromFreightLine: ReturnType<typeof vi.fn>
@@ -199,8 +208,8 @@ describe('FreightLineProperties', () => {
 		showFreightLineOverlay.mockClear()
 		mockSummarizeFreightLineRoute.mockReset()
 		mockSummarizeFreightLineRoute.mockReturnValue(undefined)
-		removeFreightLineById = vi.fn()
-		const vehicleRecords = [
+		removeFreightLine = vi.fn()
+		vehicleRecords = [
 			{
 				uid: 'veh-1',
 				title: 'wheelbarrow veh-1',
@@ -208,7 +217,10 @@ describe('FreightLineProperties', () => {
 				position: { q: 1, r: 0 },
 				storage: { stock: {} },
 				servedLines: [] as { id: string }[],
-			},
+				unassignFreightLine: vi.fn((_lineId: string) => {
+					vehicleRecords[0]!.servedLines = []
+				}),
+			} as any,
 		]
 		game = {
 			freightLines: [
@@ -217,11 +229,9 @@ describe('FreightLineProperties', () => {
 					name: 'Line 1',
 					stops: [
 						{
-							id: 'line-1-z',
 							zone: { kind: 'radius', center: [0, 0], radius: 3 },
-						},
+						} as any,
 						{
-							id: 'line-1-b',
 							anchor: {
 								kind: 'alveolus',
 								hiveName: 'H',
@@ -235,15 +245,14 @@ describe('FreightLineProperties', () => {
 			replaceFreightLine: vi.fn((next) => {
 				game.freightLines = [next]
 			}),
-			removeFreightLineById,
-			assignVehicleToFreightLine: vi.fn((vehicleUid, lineId) => {
+			removeFreightLine,
+			removeFreightLineById: removeFreightLine,
+			assignVehicleToFreightLine: vi.fn((vehicleUid: string, lineId: string) => {
 				const vehicle = vehicleRecords.find((entry) => entry.uid === vehicleUid)
-				const line = game.freightLines.find((entry) => entry.id === lineId)
-				if (vehicle && line) vehicle.servedLines = [line]
+				if (vehicle) vehicle.servedLines = [game.freightLines.find((l) => l.id === lineId)!]
 			}),
-			unassignVehicleFromFreightLine: vi.fn((vehicleUid, lineId) => {
-				const vehicle = vehicleRecords.find((entry) => entry.uid === vehicleUid)
-				if (vehicle) vehicle.servedLines = vehicle.servedLines.filter((line) => line.id !== lineId)
+			unassignVehicleFromFreightLine: vi.fn((vehicle: any, line: any) => {
+				if (vehicle) vehicle.servedLines = vehicle.servedLines.filter((l: any) => l !== line)
 			}),
 			vehicles: Object.assign(vehicleRecords, {
 				vehicle: vi.fn((uid: string) => vehicleRecords.find((entry) => entry.uid === uid)),
@@ -287,8 +296,8 @@ describe('FreightLineProperties', () => {
 		expect(deleteBtn?.disabled).toBe(false)
 		deleteBtn?.click()
 
-		expect(removeFreightLineById).toHaveBeenCalledTimes(1)
-		expect(removeFreightLineById.mock.calls[0]?.[0]).toBe('line-1')
+		expect(removeFreightLine).toHaveBeenCalledTimes(1)
+		expect(removeFreightLine.mock.calls[0]?.[0]).toBe(game.freightLines[0])
 	})
 
 	it('shows the board route only while the line widget is hovered', () => {
@@ -310,7 +319,7 @@ describe('FreightLineProperties', () => {
 		expect(showFreightLineOverlay).not.toHaveBeenCalled()
 		const section = container.querySelector('[data-testid="inspector-section"]') as HTMLElement
 		section.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }))
-		expect(showFreightLineOverlay).toHaveBeenLastCalledWith('line-1')
+		expect(showFreightLineOverlay).toHaveBeenLastCalledWith(game.freightLines[0])
 		section.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }))
 		expect(showFreightLineOverlay).toHaveBeenLastCalledWith(undefined)
 	})
@@ -341,7 +350,7 @@ describe('FreightLineProperties', () => {
 			'[data-testid="line-unassign-vehicle"]'
 		) as HTMLButtonElement
 		remove.click()
-		expect(game.unassignVehicleFromFreightLine).toHaveBeenCalledWith('veh-1', 'line-1')
+		expect(vehicleRecords[0]!.servedLines).toEqual([])
 	})
 
 	it('keeps Save disabled until the draft is dirty, then persists on Save', () => {
@@ -444,7 +453,6 @@ describe('FreightLineProperties', () => {
 			stops: [
 				{
 					stopIndex: 0,
-					stopId: 'line-1-z',
 					hasImportOpportunity: false,
 					hasExportOpportunity: false,
 					hasSurplusToUnload: false,
@@ -453,7 +461,6 @@ describe('FreightLineProperties', () => {
 				},
 				{
 					stopIndex: 1,
-					stopId: 'line-1-b',
 					hasImportOpportunity: false,
 					hasExportOpportunity: false,
 					hasSurplusToUnload: false,
@@ -510,7 +517,6 @@ describe('FreightLineProperties', () => {
 			stops: [
 				{
 					stopIndex: 0,
-					stopId: 'line-1-z',
 					hasImportOpportunity: true,
 					hasExportOpportunity: false,
 					hasSurplusToUnload: false,
@@ -519,7 +525,6 @@ describe('FreightLineProperties', () => {
 				},
 				{
 					stopIndex: 1,
-					stopId: 'line-1-b',
 					hasImportOpportunity: false,
 					hasExportOpportunity: false,
 					hasSurplusToUnload: false,

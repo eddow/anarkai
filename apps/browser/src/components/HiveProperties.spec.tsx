@@ -174,7 +174,7 @@ describe('HiveProperties', () => {
 					title: 'North Hive',
 					game: { vehicles: [] } as never,
 					logs: [],
-					anchorTileUid: 'tile:0,0',
+
 					tile: {} as never,
 				}}
 			/>

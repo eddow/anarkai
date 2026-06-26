@@ -48,14 +48,6 @@ export interface BlockingTileValidationResult {
 }
 
 /**
- * Check if a tile is blocking space
- * A tile is blocking if it has content other than UnBuiltLand
- */
-function _isBlockingTile(tile: Tile | undefined): boolean {
-	return tile?.isBlockingSpace ?? false
-}
-
-/**
  * Check if a blocking tile is landlocked
  * A tile is landlocked if all its neighbors are also blocking tiles
  */

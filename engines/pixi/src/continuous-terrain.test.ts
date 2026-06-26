@@ -661,7 +661,7 @@ describe('continuous terrain helpers', () => {
 			{ key: '0,0', sectorQ: 0, sectorR: 0, distanceToCenter: 0 },
 		])
 
-		expect(ensureGameplaySectors.mock.calls[0]![1]).toEqual({
+		expect((ensureGameplaySectors.mock.calls as any)[0][1]).toEqual({
 			includeHydrology: false,
 			populateInitialGoods: false,
 		})
@@ -828,7 +828,7 @@ describe('continuous terrain helpers', () => {
 	})
 
 	it('renders generated NPC zones in macro overview', () => {
-		const getRenderableTerrainAt = vi.fn((coord: { q: number; r: number }) => ({
+		const getRenderableTerrainAt = vi.fn((coord: { q: number; r: number }): any => ({
 			terrain: 'grass' as const,
 			height: 0,
 			zone:

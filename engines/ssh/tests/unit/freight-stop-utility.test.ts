@@ -72,10 +72,13 @@ function marketLoopLine(patch: Partial<FreightLineDefinition> = {}): FreightLine
 		cyclic: true,
 		stops: [
 			{
-				id: 'market',
 				loadSelection: concreteOnly,
 				unloadSelection: woodOnly,
-				trade: { kind: 'settlement', settlementName: neighborMarketProfile.id },
+				trade: {
+					kind: 'settlement' as const,
+					settlementName: neighborMarketProfile.id,
+					profile: undefined as any,
+				},
 			},
 			{
 				unloadSelection: concreteOnly,

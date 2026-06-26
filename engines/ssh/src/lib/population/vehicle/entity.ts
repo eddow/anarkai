@@ -580,29 +580,29 @@ export class Vehicle extends withInteractive(GameObject) {
 	}
 
 	assignFreightLine(line: FreightLineDefinition): boolean {
-		if (this.servedLines.some((entry) => entry.id === line.id)) return false
+		if (this.servedLines.some((entry) => entry === line)) return false
 		this.setServedLines([...this.servedLines, line], 'vehicle.assign-line')
 		return true
 	}
 
-	unassignFreightLine(lineId: string): boolean {
-		const next = this.servedLines.filter((line) => line.id !== lineId)
+	unassignFreightLine(line: FreightLineDefinition): boolean {
+		const next = this.servedLines.filter((entry) => entry !== line)
 		if (next.length === this.servedLines.length) return false
 		this.setServedLines(next, 'vehicle.unassign-line')
 		const svc = this.service
-		if (isVehicleLineService(svc) && svc.line.id === lineId) this.endService()
+		if (isVehicleLineService(svc) && svc.line === line) this.endService()
 		return true
 	}
 
 	refreshFreightLineReference(line: FreightLineDefinition): void {
 		let changed = false
 		const next = this.servedLines.map((entry) => {
-			if (entry.id !== line.id) return entry
-			changed = changed || entry !== line
+			if (entry !== line) return entry
+			changed = true
 			return line
 		})
 		const svc = this.service
-		if (isVehicleLineService(svc) && svc.line.id === line.id) {
+		if (isVehicleLineService(svc) && svc.line === line) {
 			const oldStopIndex = svc.line.stops.indexOf(svc.stop)
 			svc.line = line
 			const stop = oldStopIndex >= 0 ? line.stops[oldStopIndex] : undefined

@@ -214,7 +214,7 @@ vi.mock('../storage/StoredGoodsRow', () => ({
 		props.if === false ? null : (
 			<div data-testid={`stored-goods-${props.label ?? 'unknown'}`}>
 				{Object.entries(props.content?.requiredGoods ?? {}).map(([good, qty]) => (
-					<span data-testid={`tile-construction-material-${good}`} key={good}>
+					<span data-testid={`tile-construction-material-${good}`}>
 						{good} {props.content?.storage?.stock?.[good] ?? 0}/{qty}
 					</span>
 				))}
@@ -395,7 +395,7 @@ describe('TileProperties', () => {
 			blockingReasons: ['missing_goods'],
 			constructionWorkSecondsApplied: 0,
 			constructionTotalSeconds: 4,
-		})
+		} as any)
 		const tile = reactive({
 			content: new MockBuildAlveolus(),
 			isBurdened: false,
@@ -434,7 +434,7 @@ describe('TileProperties', () => {
 		expect(container.querySelector('[data-testid="entity-badge"]')).not.toBeNull()
 
 		expect(() => {
-			tile.content = new MockUnBuiltLand()
+			tile.content = new MockUnBuiltLand() as any
 		}).not.toThrow()
 
 		expect(container.querySelector('[data-testid="entity-badge"]')).toBeNull()
