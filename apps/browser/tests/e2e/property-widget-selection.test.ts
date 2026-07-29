@@ -35,7 +35,6 @@ test.describe('Property Widget Selection', () => {
 
 				// Open panel for this character
 				api.addPanel({
-					id: 'selection-info',
 					component: 'selection-info',
 					title: 'Selection Info',
 					params: { uid: char.uid },

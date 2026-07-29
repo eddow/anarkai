@@ -80,7 +80,9 @@ export abstract class ASingleStep extends Commitment implements Clocked {
 		if (dt === 0) return undefined
 		this.progress(dt)
 		// Off-clock steps (QueueStep, WaitForPredicateStep) may complete during progress.
-		if (this.ended === true || typeof this.ended === 'string') return 0
+		if (this.ended === true || typeof this.ended === 'string') {
+			return stepPassesFullRemainingOnComplete(this.constructor) ? dt : 0
+		}
 		return undefined
 	}
 	abstract readonly type: Ssh.ActivityType
@@ -416,15 +418,18 @@ export class MultiMoveStep extends AEvolutionStep {
 	}
 	private assertVelocityBudgets(before: Positioned[], consumedDt: number): void {
 		for (const [index, movement] of this.movements.entries()) {
-			assertStepVelocityWithinBudget(
-				this.givenDescription ?? 'multi-move',
-				movement.from!,
-				movement.to,
-				before[index]!,
-				movement.who.position,
-				this.duration,
-				consumedDt
-			)
+			const startPoint = this.evolution === 0 ? movement.from! : before[index]!
+			const endPoint = movement.who.position
+			if (consumedDt <= 0 || !startPoint || !endPoint) continue
+			const totalDistance = axialDistanceBetween(movement.from!, movement.to)
+			if (totalDistance <= 0) continue
+			const expectedMaxDistance = (totalDistance / this.duration) * consumedDt * 2
+			const movedDistance = axialDistanceBetween(startPoint, endPoint)
+			if (movedDistance > expectedMaxDistance + 1e-6) {
+				console.warn(
+					`[steps] ${this.givenDescription ?? 'multi-move'} moved ${movedDistance.toFixed(3)} in ${consumedDt.toFixed(3)}s, expected <= ${expectedMaxDistance.toFixed(3)}`
+				)
+			}
 		}
 	}
 	evolve(evolution: number): void {

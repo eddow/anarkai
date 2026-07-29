@@ -59,7 +59,6 @@ describe('Storage Buffering', () => {
 				tiles: [{ coord: [2, 0] as [number, number], terrain: 'grass' }],
 				freightLines: [
 					gatherFreightLine({
-						id: 'GatherHive:bay-gather',
 						name: 'Wood gather',
 						hiveName: 'GatherHive',
 						coord: [1, 0],
@@ -137,7 +136,6 @@ describe('Storage Buffering', () => {
 				tiles: [{ coord: [2, 0] as [number, number], terrain: 'grass' }],
 				freightLines: [
 					gatherFreightLine({
-						id: 'WoodpileHive:bay-gather',
 						name: 'Wood gather',
 						hiveName: 'WoodpileHive',
 						coord: [1, 0],

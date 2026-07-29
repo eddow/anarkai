@@ -39,11 +39,9 @@ const entry = (uid: string, stock: Record<string, number>) => ({
 		storage: { stock },
 	},
 	line: {
-		id: 'line-1',
 		name: 'Line 1',
 	},
 	stop: {
-		id: 'stop-1',
 	},
 })
 

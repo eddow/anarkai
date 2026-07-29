@@ -301,7 +301,6 @@ describe('TileVisual storage goods layering', () => {
 
 		try {
 			const line = gatherFreightLine({
-				id: 'dock-visual',
 				name: 'Dock visual',
 				hiveName: 'dock-visual-hive',
 				coord: [0, 0],

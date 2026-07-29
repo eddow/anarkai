@@ -319,7 +319,7 @@ export function pickVehicleZoneBrowseSelection(
 ): VehicleZoneBrowseSelection | undefined {
 	const end = profile.proposedJobs.begin?.('pickVehicleZoneBrowseSelection', () => ({
 		characterUid: debugObjectId(character) ?? '',
-		lineId: line.id,
+		lineId: debugObjectId(line),
 		stopIndex: line.stops.indexOf(stop),
 	}))
 	try {

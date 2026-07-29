@@ -35,7 +35,6 @@ test.describe('Linked Entity Navigation', () => {
 			}
 
 			;(window as any).dockviewApi.addPanel({
-				id: 'selection-info-pinned',
 				component: 'selection-info',
 				title: 'Selection',
 				params: { uid: char.uid },

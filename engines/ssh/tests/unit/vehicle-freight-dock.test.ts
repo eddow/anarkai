@@ -41,7 +41,6 @@ describe('vehicle-freight-dock', () => {
 		await engine.init()
 		try {
 			const line: FreightLineDefinition = normalizeFreightLineDefinition({
-				id: 'dock:mixed',
 				name: 'Dock mixed',
 				stops: [
 					{ id: 'current', loadSelection: woodOnly, anchor: freightBayAnchor('A', [0, 0]) },
@@ -110,7 +109,6 @@ describe('vehicle-freight-dock', () => {
 		await engine.init()
 		try {
 			const line = distributeFreightLine({
-				id: 'dock:retained-cargo',
 				name: 'Dock retained cargo',
 				hiveName: 'DockRetain',
 				coord: [0, 0],
@@ -159,7 +157,6 @@ describe('vehicle-freight-dock', () => {
 		await engine.init()
 		try {
 			const line = gatherFreightLine({
-				id: 'dock:gather-unload',
 				name: 'Dock gather unload',
 				hiveName: 'DockGather',
 				coord: [0, 0],
@@ -205,7 +202,6 @@ describe('vehicle-freight-dock', () => {
 		await engine.init()
 		try {
 			const line = gatherFreightLine({
-				id: 'dock:gather-forty-minutes',
 				name: 'Dock gather forty minutes',
 				hiveName: 'DockForty',
 				coord: [0, 0],
@@ -272,7 +268,6 @@ describe('vehicle-freight-dock', () => {
 		await engine.init()
 		try {
 			const line = gatherFreightLine({
-				id: 'dock:full-bay-surplus',
 				name: 'Dock full bay surplus',
 				hiveName: 'DockFullBay',
 				coord: [0, 0],
@@ -352,7 +347,6 @@ describe('vehicle-freight-dock', () => {
 		await engine.init()
 		try {
 			const line = gatherFreightLine({
-				id: 'dock:gather-assigned-convey',
 				name: 'Dock gather assigned convey',
 				hiveName: 'DockAssignedConvey',
 				coord: [0, 0],
@@ -411,7 +405,6 @@ describe('vehicle-freight-dock', () => {
 		await engine.init()
 		try {
 			const line = gatherFreightLine({
-				id: 'dock:empty-proposal',
 				name: 'Dock empty proposal',
 				hiveName: 'DockEmptyProposal',
 				coord: [0, 0],
@@ -459,7 +452,6 @@ describe('vehicle-freight-dock', () => {
 		await engine.init()
 		try {
 			const line = gatherFreightLine({
-				id: 'dock:gather-finished',
 				name: 'Dock gather finished',
 				hiveName: 'DockDone',
 				coord: [0, 0],
@@ -521,7 +513,6 @@ describe('vehicle-freight-dock', () => {
 		await engine.init()
 		try {
 			const line = gatherFreightLine({
-				id: 'dock:gather-broken-pending',
 				name: 'Dock gather broken pending',
 				hiveName: 'DockBrokenPending',
 				coord: [0, 0],
@@ -584,7 +575,6 @@ describe('vehicle-freight-dock', () => {
 		await engine.init()
 		try {
 			const line: FreightLineDefinition = normalizeFreightLineDefinition({
-				id: 'dock:continue',
 				name: 'Dock continue',
 				stops: [
 					{ id: 'current', anchor: freightBayAnchor('DockContinueA', [0, 0]) },
@@ -640,7 +630,6 @@ describe('vehicle-freight-dock', () => {
 		await engine.init()
 		try {
 			const line = distributeFreightLine({
-				id: 'dock:distribute-load',
 				name: 'Dock distribute load',
 				hiveName: 'DockDistributeLoad',
 				coord: [0, 0],
@@ -689,7 +678,6 @@ describe('vehicle-freight-dock', () => {
 		await engine.init()
 		try {
 			const line = distributeFreightLine({
-				id: 'dock:distribute-advertise',
 				name: 'Dock distribute advertise',
 				hiveName: 'DockDistributeAdvertise',
 				coord: [0, 0],
@@ -742,7 +730,6 @@ describe('vehicle-freight-dock', () => {
 		await engine.init()
 		try {
 			const line = distributeFreightLine({
-				id: 'dock:distribute-pending-concrete-load',
 				name: 'Dock distribute pending concrete load',
 				hiveName: 'DockDistributePendingConcreteLoad',
 				coord: [0, 0],
@@ -797,7 +784,6 @@ describe('vehicle-freight-dock', () => {
 		await engine.init()
 		try {
 			const line = distributeFreightLine({
-				id: 'dock:distribute-buffer-consumed',
 				name: 'Dock distribute buffer consumed',
 				hiveName: 'DockDistributeBufferConsumed',
 				coord: [0, 0],
@@ -856,7 +842,6 @@ describe('vehicle-freight-dock', () => {
 		await engine.init()
 		try {
 			const line = distributeFreightLine({
-				id: 'dock:distribute-empty',
 				name: 'Dock distribute empty',
 				hiveName: 'DockDistributeEmpty',
 				coord: [0, 0],
@@ -914,7 +899,6 @@ describe('vehicle-freight-dock', () => {
 		await engine.init()
 		try {
 			const line = distributeFreightLine({
-				id: 'dock:distribute-foundation-concrete',
 				name: 'Dock distribute foundation concrete',
 				hiveName: 'DockFoundationConcrete',
 				coord: [0, 0],

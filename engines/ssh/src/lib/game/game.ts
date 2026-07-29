@@ -40,7 +40,6 @@ import type { FreightLineDefinition } from 'ssh/freight/freight-line'
 import {
 	collectFreightLineBootstrapCoords,
 	hydrateFreightLineTradeProfiles,
-	implicitGatherFreightLinesFromHivePatches,
 	normalizeFreightLineDefinition,
 } from 'ssh/freight/freight-line'
 import {
@@ -698,9 +697,18 @@ export class Game extends Eventful<GameEvents> {
 		return current()
 	}
 
-	replaceFreightLine(line: FreightLineDefinition): void {
-		const normalized = normalizeFreightLineDefinition(line)
-		const index = this.freightLines.findIndex((entry) => entry.id === line.id)
+	/** Registers or updates a freight line in the game's line registry.
+	 *
+	 * Identifies the existing line by object reference (`===`). If the line is new
+	 * (not found in `freightLines`), it's appended. If it replaces an existing entry,
+	 * all vehicles serving the old line reference are refreshed to point to the new one.
+	 *
+	 * @param original The line currently in `game.freightLines` (used for identity lookup).
+	 * @param updated  The replacement definition (will be normalized before storage).
+	 */
+	replaceFreightLine(original: FreightLineDefinition, updated: FreightLineDefinition): void {
+		const normalized = normalizeFreightLineDefinition(updated)
+		const index = this.freightLines.indexOf(original)
 		if (index < 0) {
 			this.freightLines = [...this.freightLines, normalized]
 			return
@@ -720,8 +728,8 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	/**
-	 * Removes an explicit freight line by id. Implicit hive gather lines cannot be removed
-	 * (they are re-derived from hive patches on bootstrap).
+	 * Removes a freight line from the game. The line is unassigned from all vehicles
+	 * that were serving it.
 	 */
 	removeFreightLine(line: FreightLineDefinition): boolean {
 		const next = this.freightLines.filter((entry) => entry !== line)
@@ -2028,15 +2036,18 @@ export class Game extends Eventful<GameEvents> {
 		})
 	}
 
+	/**
+	 * Initializes or restores freight lines from game patches (new game or save load).
+	 *
+	 * Called during `generate()` / `generateAsync()` after hive, tile, zone, project,
+	 * and dwelling patches have been applied, but before vehicle and road patches.
+	 * Normalizes every explicit line and wires up trade-stop profiles and named zone
+	 * references against the live game state.
+	 *
+	 * No lines are auto-generated — freight bays do not come with predefined lines.
+	 */
 	private bootstrapFreightLines(patches: GamePatches | SaveState): void {
-		const merged = new Map<string, FreightLineDefinition>()
-		const implicit = patches.hives?.length
-			? implicitGatherFreightLinesFromHivePatches(patches.hives)
-			: []
-		for (const line of implicit) merged.set(line.id, normalizeFreightLineDefinition(line))
-		for (const line of patches.freightLines ?? [])
-			merged.set(line.id, normalizeFreightLineDefinition(line))
-		this.freightLines = [...merged.values()]
+		this.freightLines = (patches.freightLines ?? []).map(normalizeFreightLineDefinition)
 		hydrateFreightLineTradeProfiles(this.freightLines, this)
 	}
 

@@ -91,7 +91,7 @@ export type VehicleMaintenanceServiceSerialized = {
 export type VehicleServiceSerialized =
 	| {
 			readonly kind: 'line'
-			readonly lineId: string
+			readonly lineIndex: number
 			readonly stopIndex: number
 			readonly docked: boolean
 			readonly operatorUid?: string
@@ -100,7 +100,7 @@ export type VehicleServiceSerialized =
 
 /** Save format before discriminated `kind` — always a line-freight service. */
 export type LegacyLineVehicleServiceSerialized = {
-	readonly lineId: string
+	readonly lineIndex: number
 	readonly stopIndex: number
 	readonly docked: boolean
 	readonly operatorUid?: string
@@ -120,7 +120,7 @@ export interface VehicleSerializedState {
 	readonly vehicleType: WorldVehicleType
 	readonly position: { q: number; r: number }
 	readonly goods?: Partial<Record<GoodType, number>>
-	readonly servedLineIds: readonly string[]
+	readonly servedLineIndices: readonly number[]
 	/** New saves use discriminated `kind`; legacy saves are line-only without `kind`, or pre-maintenance offload. */
 	readonly service?:
 		| VehicleServiceSerialized

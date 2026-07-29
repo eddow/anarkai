@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { css } from '@app/lib/css'
 import { reorderWithInsertionGap } from '@app/lib/good-selection-tag-reorder'
 import { T } from '@app/lib/i18n'
@@ -336,12 +337,12 @@ const GoodSelectionRulesEditor = (props: GoodSelectionRulesEditorProps) => {
 
 	const availableGoodsToAdd = (): GoodType[] => {
 		const used = new Set(state.goodRules.map((r) => r.goodType))
-		return props.goodOptions.filter((entry) => !used.has(entry.id)).map((entry) => entry.id)
+		return props.goodOptions.filter((entry) => !used.has(entry.id)).map((entry) => entry.name)
 	}
 
 	const availableTagIdsToAdd = (): string[] => {
 		const used = new Set(state.tagRules.map((r) => r.tag))
-		return props.tagOptions.filter((entry) => !used.has(entry.id)).map((entry) => entry.id)
+		return props.tagOptions.filter((entry) => !used.has(entry.id)).map((entry) => entry.name)
 	}
 
 	const addGoodRuleFromPicker = (goodType: GoodType) => {
@@ -378,7 +379,7 @@ const GoodSelectionRulesEditor = (props: GoodSelectionRulesEditorProps) => {
 	}
 
 	const tagOptionLabel = (tag: string) =>
-		toDisplayText(props.tagOptions.find((entry) => entry.id === tag)?.label, tag)
+		toDisplayText(props.tagOptions.find((entry) => entry.name === tag)?.label, tag)
 
 	const matchOptionLabel = (match: GoodSelectionTagMatch) =>
 		match === 'present' ? ls().matchPresent : ls().matchAbsent

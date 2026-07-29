@@ -119,7 +119,6 @@ describe('profile registry', () => {
 		const previousLevel = undefined as ProfileLevel | undefined
 		setProfileLevel('proposedJobs', 'summary')
 		const line = gatherFreightLine({
-			id: 'PROFILE:vehicle',
 			name: 'Profile vehicle',
 			hiveName: 'H',
 			coord: [1, 0],
@@ -164,7 +163,6 @@ describe('profile registry', () => {
 	it('profiles advertised vehicle jobs without character work-pick discovery', async () => {
 		setProfileLevel('proposedJobs', 'summary')
 		const line = gatherFreightLine({
-			id: 'PROFILE:advertised-vehicle',
 			name: 'Profile advertised vehicle',
 			hiveName: 'H',
 			coord: [1, 0],

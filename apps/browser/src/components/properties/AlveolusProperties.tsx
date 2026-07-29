@@ -255,9 +255,9 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 		if (!game || !(content instanceof FreightBayAlveolus)) return
 		const draft = createExchangeFreightLineDraftForFreightBay(content)
 		if (!draft) return
-		game.replaceFreightLine(draft)
+		game.replaceFreightLine(draft, draft)
 		const merged =
-			game.freightLines.find((line) => line.id === draft.id) ??
+			game.freightLines.find((line) => line === draft) ??
 			normalizeFreightLineDefinition(draft)
 		selectInspectorObject(createSyntheticFreightLineObject(game, merged))
 	}

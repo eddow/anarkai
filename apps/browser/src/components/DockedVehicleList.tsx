@@ -62,9 +62,9 @@ const lineSyntheticObject = (
 	entry: DockedVehicleEntry
 ): { uid: string; title: string } | undefined => {
 	if (!game) return undefined
-	const lineDef = game.freightLines?.find((l) => l.id === entry.line.id)
+	const lineDef = entry.line
 	if (!lineDef) return undefined
-	const uid = `freight-line:${encodeURIComponent(lineDef.id)}` as const
+	const uid = `freight-line:${game.freightLines.indexOf(lineDef)}` as const
 	return { uid, title: lineDef.name }
 }
 

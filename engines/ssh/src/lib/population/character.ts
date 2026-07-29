@@ -70,7 +70,7 @@ function vehicleFreightJobTracePayload(job: Job): Record<string, unknown> {
 		case 'vehicleHop':
 			return {
 				job: job.job,
-				lineId: job.lineId,
+				lineId: debugObjectId(job.line),
 				stopIndex: job.stopIndex,
 				dockEnter: job.dockEnter,
 				needsBeginService: job.needsBeginService,
@@ -84,7 +84,7 @@ function vehicleFreightJobTracePayload(job: Job): Record<string, unknown> {
 		case 'zoneBrowse':
 			return {
 				job: job.job,
-				lineId: job.lineId,
+				lineId: debugObjectId(job.line),
 				stopIndex: job.stopIndex,
 				zoneBrowseAction: job.zoneBrowseAction,
 				goodType: job.goodType,
@@ -706,7 +706,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 			case 'defragment':
 				return `${job.goodType} @ ${targetName}`
 			case 'vehicleHop':
-				return `vehicleHop ${job.lineId}/${job.stopIndex} @ ${coord.q}, ${coord.r}`
+				return `vehicleHop ${debugObjectId(job.line)}/${job.stopIndex} @ ${coord.q}, ${coord.r}`
 			case 'zoneBrowse':
 				return `zoneBrowse ${job.zoneBrowseAction}:${job.goodType} @ ${job.targetCoord.q}, ${job.targetCoord.r}`
 			default:

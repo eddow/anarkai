@@ -117,7 +117,7 @@ export function proposedVehicleJobIdentityParts(job: VehiclePlannerJob): readonl
 			return [
 				job.job,
 				debugObjectId(job.vehicle!) ?? '',
-				job.lineId,
+				debugObjectId(job.line) ?? '',
 				String(job.stopIndex),
 				job.zoneBrowseAction,
 				job.goodType,
@@ -127,7 +127,7 @@ export function proposedVehicleJobIdentityParts(job: VehiclePlannerJob): readonl
 			return [
 				job.job,
 				debugObjectId(job.vehicle!) ?? '',
-				job.lineId,
+				debugObjectId(job.line) ?? '',
 				String(job.stopIndex),
 				job.dockEnter ? 'dock' : 'move',
 				job.needsBeginService ? 'begin' : 'continue',

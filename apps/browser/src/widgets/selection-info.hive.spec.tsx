@@ -220,7 +220,6 @@ const createProps = (): DockviewWidgetProps<SelectionInfoParams, SelectionInfoCo
 
 const createScope = () => ({
 	panelApi: {
-		id: 'panel-1',
 		updateParameters,
 	},
 	dockviewApi: {

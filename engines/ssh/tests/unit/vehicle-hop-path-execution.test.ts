@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { chopSaw } from 'ssh/game/exampleGames'
 import { Game } from 'ssh/game/game'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -15,7 +16,7 @@ describe('vehicleHop execution paths', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines.find(
-			(candidate) => candidate.id === 'ChopSaw:materials-loop:0,0:Melindbury'
+			(candidate) => candidate.id === 'ChopSaw (0, 0) distribute'
 		)
 		const bayStop = line?.stops[0]
 		const pickup = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:suv')!

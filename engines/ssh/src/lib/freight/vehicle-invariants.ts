@@ -18,7 +18,7 @@ function drivingVehicleSeamResult(character: Character): TraceInvariantResult {
 		message: 'driving implies operates',
 		payload: {
 			characterUid: debugObjectId(character) ?? '',
-			operatesUid: character.operates?.uid,
+		operatesUid: debugObjectId(character.operates),
 			driving: character.driving,
 		},
 	}
@@ -72,7 +72,7 @@ function dockedSemanticsResult(vehicle: Vehicle): TraceInvariantResult {
 			? 'docked must only be set at a bay anchor stop, not a zone'
 			: 'docked vehicles must not keep a world position',
 		payload: {
-			lineId: svc.line.id,
+			lineId: debugObjectId(svc.line),
 			stopIndex: svc.line.stops.indexOf(svc.stop),
 			docked: svc.docked,
 			hasAnchor: anchorOk,

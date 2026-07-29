@@ -44,7 +44,6 @@ describe('Vehicle dock tile synchronization', () => {
 				],
 				freightLines: [
 					gatherFreightLine({
-						id: 'TestHive:implicit-gather:1,0',
 						name: 'Test gather',
 						hiveName: 'TestHive',
 						coord: [1, 0],
@@ -105,7 +104,6 @@ describe('Vehicle dock tile synchronization', () => {
 				],
 				freightLines: [
 					gatherFreightLine({
-						id: 'TestHive:implicit-gather:1,0',
 						name: 'Test gather',
 						hiveName: 'TestHive',
 						coord: [1, 0],
@@ -158,7 +156,6 @@ describe('Vehicle dock tile synchronization', () => {
 				],
 				freightLines: [
 					gatherFreightLine({
-						id: 'TestHive:implicit-gather:2,0',
 						name: 'Test gather',
 						hiveName: 'TestHive',
 						coord: [2, 0],

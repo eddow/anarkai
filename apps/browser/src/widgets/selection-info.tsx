@@ -6,7 +6,6 @@ import {
 } from '@app/lib/follow-selection'
 import {
 	cancelFreightMapPick,
-	clearFreightMapPickForLine,
 	freightMapPick,
 } from '@app/lib/freight-map-pick'
 import { game, mrg, selectionState } from '@app/lib/globals'
@@ -203,7 +202,7 @@ const SettlementSelectionProperties = (props: { object?: unknown }) => (
 const ObjectSummaryProperties = (props: { object?: { uid?: string; title?: string } }) => (
 	<div data-selection-properties-kind="summary">
 		<InspectorSection class="selection-info-panel__summary" title={props.object?.title ?? 'Object'}>
-			<p>ID: {props.object?.uid}</p>
+			<p>ID: {props.object?.uid ?? debugObjectId(props.object)}</p>
 		</InspectorSection>
 	</div>
 )
@@ -369,11 +368,6 @@ const SelectionInfoWidget = (
 	effect`selection-info:panel-cleanup`(() => {
 		const disposable = scope.dockviewApi!.onDidRemovePanel((panel) => {
 			if (panel.id === api.id) {
-				const uid = props.params.uid ?? selectionState.selectedUid
-				const lineId = uid?.startsWith('freight-line:')
-					? decodeURIComponent(uid.slice('freight-line:'.length))
-					: undefined
-				if (lineId) clearFreightMapPickForLine(lineId)
 				unregisterPinnedInspectorPanel(api.id, props.params.uid)
 				// If this panel was the one tracking active selection (not pinned)
 				// Reset the flag so selection in game can re-open it.
@@ -447,7 +441,7 @@ const SelectionInfoWidget = (
 		<div
 			class="selection-info-panel"
 			use={attachHoverTracking}
-			data-test-object-uid={(current.object as any)?.uid}
+			data-test-object-uid={debugObjectId(current.object)}
 		>
 			<div if={current.object} class="selection-info-panel__content-wrapper">
 				<div
@@ -475,7 +469,7 @@ const SelectionInfoWidget = (
 					<Panel
 						class="selection-info-panel__logs"
 						el:role="log"
-						el:data-test-owner-uid={(current.object as any)?.uid}
+						el:data-test-owner-uid={debugObjectId(current.object)}
 					>
 						<div class="selection-info-panel__logs-list">
 							<for each={current.logs}>

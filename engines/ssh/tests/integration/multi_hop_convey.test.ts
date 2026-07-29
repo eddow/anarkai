@@ -564,7 +564,7 @@ describe('Multi-Hop Convey Tests', () => {
 			const step = worker.scriptsContext.work.conveyStep()
 			expect(step).toBeDefined()
 			expect(movement.claimed).toBe(true)
-			expect(movement.claimedBy?.uid).toBe(worker.uid)
+			expect(movement.claimedBy).toBe(worker)
 			expect(commitmentValid(movement.allocations.source)).toBe(true)
 			expect(
 				(movement.allocations.source as unknown as { reason?: { type?: string } }).reason?.type
@@ -656,7 +656,7 @@ describe('Multi-Hop Convey Tests', () => {
 
 			;(hive as unknown as { scanForStalledExchanges(): void }).scanForStalledExchanges()
 			expect(movement.claimed).toBe(true)
-			expect((movement.claimedBy as any)?.uid).toBe(relayWorker.uid)
+			expect(movement.claimedBy).toBe(relayWorker)
 
 			step?.finish()
 

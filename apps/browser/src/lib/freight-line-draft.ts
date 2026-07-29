@@ -90,7 +90,6 @@ export function cloneFreightStop(stop: FreightStop): FreightStop {
 
 export function cloneFreightLineDraft(line: FreightLineDefinition): FreightLineDefinition {
 	return {
-		id: line.id,
 		name: line.name,
 		...(line.cyclic === true ? { cyclic: true } : {}),
 		...(line.minBalanceAfterBuyVp !== undefined

@@ -1,4 +1,5 @@
 import { debugObjectId } from 'ssh/dev/debug-object-id'
+import type { FreightLineDefinition } from 'ssh/freight/freight-line'
 import type { FreightMovementParty } from 'ssh/freight/vehicle-freight-dock'
 import type { TrackedMovement } from 'ssh/hive/hive'
 import type { Character } from 'ssh/population/character'
@@ -76,7 +77,7 @@ export interface FreightTransferMeta {
 	readonly demand?: FreightDemandRef
 	readonly offer?: FreightOfferRef
 	readonly routePromiseId?: string
-	readonly lineId?: string
+	readonly line?: FreightLineDefinition
 	readonly stopIndex?: number
 	readonly vehicleUid?: string
 	readonly bayUid?: string
@@ -90,7 +91,7 @@ export type MovementWithFreightTransfer = TrackedMovement & {
 
 export interface VehicleLineIntent {
 	readonly vehicleUid: string
-	readonly lineId: string
+	readonly line?: FreightLineDefinition
 	readonly stopIndex: string
 	readonly kind: 'load' | 'unload' | 'hop' | 'park' | 'wait'
 	readonly reason:
@@ -176,7 +177,7 @@ function freightTransferPayload(transfer: FreightTransferMeta): Record<string, u
 		phase: transfer.phase,
 		purpose: transfer.purpose,
 		reason: transfer.reason,
-		lineId: transfer.lineId,
+		lineId: debugObjectId(transfer.line),
 		stopIndex: transfer.stopIndex,
 		vehicleUid: transfer.vehicleUid,
 		bayUid: transfer.bayUid,

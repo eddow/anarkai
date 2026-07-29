@@ -209,7 +209,7 @@ describe('Settlement Placement Integration Tests', () => {
 			const config = { settlementCount: 5, minSpacing: 2 }
 			const { settlements } = await generator.placeSettlements(seed, tiles, config)
 
-			const ids = settlements.map((s) => s.id)
+			const ids = settlements.map((s) => s.name)
 			const uniqueIds = new Set(ids)
 			expect(uniqueIds.size).toBe(settlements.length)
 		})

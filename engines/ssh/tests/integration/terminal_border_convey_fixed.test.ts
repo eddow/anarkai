@@ -13,7 +13,6 @@ describe('terminal border convey (fixed)', () => {
 		try {
 			// Setup: freight bay dock at (0,0), adjacent storage buffering wood.
 			const line = gatherFreightLine({
-				id: 'terminal-border-convey-fixed',
 				name: 'Vehicle to Bay',
 				hiveName: 'ChopSaw',
 				coord: [0, 0],
@@ -91,7 +90,6 @@ describe('terminal border convey (fixed)', () => {
 		try {
 			// Setup: freight bay dock with adjacent storage.
 			const line = gatherFreightLine({
-				id: 'multi-terminal-fixed',
 				name: 'Multi Terminal',
 				hiveName: 'ChopSaw',
 				coord: [0, 0],

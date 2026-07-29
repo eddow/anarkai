@@ -346,7 +346,7 @@ function makePlanId(name: string, existing: readonly HivePlan[]): string {
 			.replace(/^-+|-+$/g, '') || 'hive-plan'
 	let id = base
 	let n = 2
-	const ids = new Set(existing.map((plan) => plan.id))
+	const ids = new Set(existing.map((plan) => plan.name))
 	while (ids.has(id)) id = `${base}-${n++}`
 	return id
 }
@@ -374,7 +374,7 @@ export class HivePlanCollection {
 	}
 
 	find(id: string | undefined): HivePlan | undefined {
-		return id ? this.plans.find((plan) => plan.id === id) : undefined
+		return id ? this.plans.find((plan) => plan.name === id) : undefined
 	}
 
 	findDuplicate(entries: readonly HivePlanEntry[], exceptId?: string): HivePlan | undefined {

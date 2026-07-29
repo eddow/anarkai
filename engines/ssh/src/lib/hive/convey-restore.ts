@@ -1,11 +1,15 @@
 import { Alveolus } from 'ssh/board/content/alveolus'
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { FreightMovementParty } from 'ssh/freight/vehicle-freight-dock'
 import type { Game } from 'ssh/game/game'
 import type { SerializedConveyMovement } from 'ssh/hive/convey-serialize'
 import { serializeFreightParty } from 'ssh/hive/convey-serialize'
 import type { Hive, TrackedMovement } from 'ssh/hive/hive'
 import { type MovementRef, movementRefId } from 'ssh/hive/movement-ref'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
+
+function isAlveolusLike(value: unknown): value is Alveolus {
+	return !!value && typeof value === 'object' && 'hive' in value && !!(value as { hive?: unknown }).hive
+}
 
 export function resolveSerializedFreightParty(
 	game: Game,
@@ -14,12 +18,16 @@ export function resolveSerializedFreightParty(
 	if (ref.kind === 'alveolus') {
 		const tile = game.hex.getTile({ q: ref.coord[0], r: ref.coord[1] })
 		const c = tile?.content
-		return c instanceof Alveolus ? c : undefined
+		return isAlveolusLike(c) ? (c as Alveolus) : undefined
 	}
 	const bayTile = game.hex.getTile({ q: ref.bayCoord[0], r: ref.bayCoord[1] })
 	const bay = bayTile?.content
-	if (!(bay instanceof Alveolus)) return undefined
-	return bay.hive.freightVehicleDockByUid(ref.vehicleUid)
+	if (!isAlveolusLike(bay)) return undefined
+	if (ref.vehicleIndex < 0) return undefined
+	const vehicles = [...(game.vehicles as Iterable<Vehicle>)]
+	const vehicle = vehicles[ref.vehicleIndex]
+	if (!vehicle) return undefined
+	return bay.hive.freightVehicleDockFor(vehicle)
 }
 
 function collectDistinctHives(game: Game): Hive[] {
@@ -41,14 +49,23 @@ export function collectSerializedConveyMovementsWithIndex(game: Game): {
 	}
 	movements.sort((a, b) => movementRefId(a.ref) - movementRefId(b.ref))
 	const indexByRef = new Map(movements.map((m, i) => [m.ref, i]))
+	const vehicleIndexByVehicle = new Map<Vehicle, number>(
+		[...(game.vehicles as Iterable<Vehicle>)].map((vehicle, index) => [vehicle, index])
+	)
+	const characterIndexByCharacter = new Map(
+		[...(game.population as Iterable<unknown>)].map((character, index) => [character, index])
+	)
 	const rows = movements.map((movement) => ({
 		goodType: movement.goodType,
 		path: [...movement.path],
 		from: { ...movement.from },
-		provider: serializeFreightParty(movement.provider),
-		demander: serializeFreightParty(movement.demander),
+		provider: serializeFreightParty(movement.provider, vehicleIndexByVehicle),
+		demander: serializeFreightParty(movement.demander, vehicleIndexByVehicle),
 		claimed: movement.claimed,
-		claimedByUid: debugObjectId(movement.claimedBy),
+		/** Save/load uses an array index because serialized data cannot carry a live object reference. */
+		claimedByCharacterIndex: movement.claimedBy
+			? characterIndexByCharacter.get(movement.claimedBy)
+			: undefined,
 		claimedAtMs: movement.claimedAtMs,
 	}))
 	return { rows, indexByRef }

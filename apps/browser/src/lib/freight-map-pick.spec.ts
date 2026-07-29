@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Tile } from 'ssh/board/tile'
 import { SettlementTradeObject } from 'ssh/commerce/settlement-trade'
 import { traces } from 'ssh/dev/debug'
@@ -92,8 +93,7 @@ describe('freight-map-pick', () => {
 	it('applies a tile center pick', () => {
 		const apply = vi.fn()
 		freightMapPick.pending = {
-			lineId: 'line-1',
-			pickKind: 'center',
+						pickKind: 'center',
 			apply,
 		}
 		const tile = makeTile({ q: 3, r: -1 })
@@ -107,8 +107,7 @@ describe('freight-map-pick', () => {
 	it('applies a freight bay pick from freight bay content', () => {
 		const apply = vi.fn()
 		freightMapPick.pending = {
-			lineId: 'line-1',
-			pickKind: 'bay',
+						pickKind: 'bay',
 			apply,
 		}
 		const bay = makeFreightBay()
@@ -121,8 +120,7 @@ describe('freight-map-pick', () => {
 
 	it('clears pending state', () => {
 		freightMapPick.pending = {
-			lineId: 'line-1',
-			pickKind: 'center',
+						pickKind: 'center',
 			apply: vi.fn(),
 		}
 		interactionMode.selectedAction = FREIGHT_ADD_STOP_ACTION

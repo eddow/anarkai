@@ -11,7 +11,6 @@ import {
 
 describe('freight-line-draft', () => {
 	const sample = normalizeFreightLineDefinition({
-		id: 'line-1',
 		name: 'Line 1',
 		stops: [
 			{
@@ -33,7 +32,6 @@ describe('freight-line-draft', () => {
 		expect(
 			freightDraftIssueCodes(
 				normalizeFreightLineDefinition({
-					id: 'x',
 					name: 'X',
 					stops: [],
 				})
@@ -42,7 +40,6 @@ describe('freight-line-draft', () => {
 		expect(
 			freightDraftIssueCodes(
 				normalizeFreightLineDefinition({
-					id: 'x',
 					name: 'X',
 					stops: [
 						{

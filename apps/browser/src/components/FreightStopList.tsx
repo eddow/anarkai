@@ -510,7 +510,7 @@ const FreightStopList = (props: FreightStopListProps) => {
 		const draft = currentDraft()
 		return (
 			!!draft &&
-			freightMapPick.pending?.lineId === draft.id &&
+			freightMapPick.pending?.line === draft &&
 			freightMapPick.pending.pickKind === 'add-stop'
 		)
 	}
@@ -522,7 +522,7 @@ const FreightStopList = (props: FreightStopListProps) => {
 			return
 		}
 		activateFreightAddStopPick({
-			lineId: draft.id,
+			line: draft,
 			apply: (stop) => {
 				const line = currentDraft()
 				if (!line) return
@@ -548,7 +548,7 @@ const FreightStopList = (props: FreightStopListProps) => {
 		if (!draft || !vehicles) return []
 		const out: Vehicle[] = []
 		for (const vehicle of vehicles) {
-			if (vehicle.servedLines.some((line) => line.id === draft.id)) out.push(vehicle)
+			if (vehicle.servedLines.some((line) => line === draft)) out.push(vehicle)
 		}
 		return out
 	}

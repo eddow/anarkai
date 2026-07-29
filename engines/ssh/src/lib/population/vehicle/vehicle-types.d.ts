@@ -1,6 +1,7 @@
 import type { FreightLineDefinition } from '../../freight/freight-line'
 import type { GoodType } from '../../types'
 import type { VehicleMaintenanceServiceSerialized, WorldVehicleType } from './vehicle'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 
 // ── Service serialization ────────────────────────────────────────────────
 

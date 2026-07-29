@@ -343,7 +343,6 @@ describe('Hive Offload Scenario', () => {
 				],
 				freightLines: [
 					gatherFreightLine({
-						id: 'dock-park',
 						name: 'Dock Park',
 						hiveName: 'DockParkHive',
 						coord: [0, 0],
@@ -409,7 +408,6 @@ describe('Hive Offload Scenario', () => {
 				],
 				freightLines: [
 					gatherFreightLine({
-						id: 'joint-priority-line',
 						name: 'Joint priority line',
 						hiveName: 'JointPriorityHive',
 						coord: [0, 0],

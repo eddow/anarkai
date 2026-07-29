@@ -25,7 +25,6 @@ test.describe('Property Widget Switching', () => {
 		await page.evaluate(() => {
 			const api = (window as any).dockviewApi
 			api.addPanel({
-				id: 'selection-info',
 				component: 'selection-info',
 				title: 'Selection Info',
 				params: {}, // Empty params to rely on selectionState

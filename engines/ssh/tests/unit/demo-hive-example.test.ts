@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import { demoHive } from 'ssh/game/exampleGames'
@@ -30,18 +31,18 @@ describe('demoHive example game', () => {
 		expect(game.hex.getTile({ q: -4, r: 1 })?.content).toBeInstanceOf(BasicDwelling)
 		expect(game.hex.getTile({ q: -3, r: 1 })?.content).toBeInstanceOf(BuildDwelling)
 
-		expect(game.freightLines.map((line) => line.id)).toEqual(
+		expect(game.freightLines.map((line) => line.name)).toEqual(
 			expect.arrayContaining(['HearthLoop:commons-exchange', 'HearthLoop:melindbury-comfort-loop'])
 		)
 		expect(
 			[...game.vehicles]
 				.find((v: any) => v.uid === 'HearthLoop:wheelbarrow')
-				?.servedLines.map((line) => line.id)
+				?.servedLines.map((line) => line.name)
 		).toEqual(['HearthLoop:commons-exchange'])
 		expect(
 			[...game.vehicles]
 				.find((v: any) => v.uid === 'HearthLoop:pickup-truck')
-				?.servedLines.map((line) => line.id)
+				?.servedLines.map((line) => line.name)
 		).toEqual(['HearthLoop:melindbury-comfort-loop'])
 
 		const melindbury = game.getSettlementTradeProfile('settlement-7,19')

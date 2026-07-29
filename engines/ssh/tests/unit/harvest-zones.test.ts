@@ -165,7 +165,6 @@ describe('Harvest Zones Restriction', () => {
 			zones: {
 				named: [
 					{
-						id: 'north-grove',
 						name: 'North Grove',
 						coords: [[3, 0] as [number, number]],
 					},
@@ -179,7 +178,6 @@ describe('Harvest Zones Restriction', () => {
 		expect(alveolus?.nextJob(char)).toBeUndefined()
 
 		game.hex.zoneManager.defineZone({
-			id: 'north-grove',
 			name: 'North Grove',
 			harvestable: true,
 		})

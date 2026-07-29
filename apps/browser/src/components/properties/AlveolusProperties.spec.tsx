@@ -5,6 +5,7 @@ import {
 import { document, latch } from '@sursaut/core'
 import { reactive } from 'mutts'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 
 const { selectInspectorObject } = vi.hoisted(() => ({
 	selectInspectorObject: vi.fn(),
@@ -13,10 +14,9 @@ const { selectInspectorObject } = vi.hoisted(() => ({
 const findFreightLinesForStop = vi.fn(() => [])
 const createSyntheticFreightLineObject = vi.fn((_game: unknown, line: { id: string }) => ({
 	uid: `syn:${line.id}`,
-	lineId: line.id,
+	lineId: debugObjectId(line),
 }))
 const createExchangeFreightLineDraftForFreightBay = vi.fn(() => ({
-	id: 'new-explicit-line',
 	name: 'New line',
 	stops: [],
 }))

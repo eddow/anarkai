@@ -301,7 +301,6 @@ describe('TileProperties', () => {
 					loaded: Promise.resolve(),
 					getTexture: vi.fn(() => undefined),
 					getSettlementTradeProfileAtCityHall: vi.fn(() => ({
-						id: 'settlement-2,3',
 						name: 'Town Market',
 						kind: 'town',
 						center: { q: 2, r: 3 },

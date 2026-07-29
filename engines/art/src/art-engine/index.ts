@@ -12,3 +12,4 @@ export type {
 	ArtProvider,
 	ArtProviderContext,
 } from './types'
+import { debugObjectId } from 'ssh/dev/debug-object-id'

@@ -64,7 +64,6 @@ describe('Gatherer Conveying Integration', () => {
 			},
 			freightLines: [
 				gatherFreightLine({
-					id: 'GatherHive:implicit-gather:0,0',
 					name: 'Berries gather',
 					hiveName: 'GatherHive',
 					coord: [0, 0],
@@ -135,7 +134,6 @@ describe('Gatherer Conveying Integration', () => {
 				},
 				freightLines: [
 					gatherFreightLine({
-						id: 'GatherHive:implicit-gather:0,0',
 						name: 'Filtered gather',
 						hiveName: 'GatherHive',
 						coord: [0, 0],

@@ -5,6 +5,7 @@ import { traces } from 'ssh/dev/debug'
 import {
 	type FreightStop,
 	type FreightStopAnchorAlveolus,
+	type FreightLineDefinition,
 	freightLineStopHiveName,
 } from 'ssh/freight/freight-line'
 import type { Game } from 'ssh/game'
@@ -20,12 +21,12 @@ export type FreightMapPickApplyResult =
 
 export type FreightMapPickPending =
 	| {
-			readonly lineId: string
+			readonly line: FreightLineDefinition
 			readonly pickKind: 'bay' | 'center'
 			readonly apply: (result: FreightMapPickApplyResult) => void
 	  }
 	| {
-			readonly lineId: string
+			readonly line: FreightLineDefinition
 			readonly pickKind: 'add-stop'
 			readonly apply: (stop: FreightStop) => void
 	  }
@@ -45,12 +46,12 @@ function clearFreightToolAction(): void {
 }
 
 export function activateFreightAddStopPick(args: {
-	readonly lineId: string
+	readonly line: FreightLineDefinition
 	readonly apply: (stop: FreightStop) => void
 }): void {
 	traces.ui.assert?.(
-		typeof args.lineId === 'string' && args.lineId.length > 0,
-		'freight.add-stop.activate: lineId is required',
+		args.line !== undefined,
+		'freight.add-stop.activate: line is required',
 		args
 	)
 	traces.ui.assert?.(
@@ -59,7 +60,7 @@ export function activateFreightAddStopPick(args: {
 		args
 	)
 	freightMapPick.pending = {
-		lineId: args.lineId,
+		line: args.line,
 		pickKind: 'add-stop',
 		apply: args.apply,
 	}
@@ -67,7 +68,7 @@ export function activateFreightAddStopPick(args: {
 	traces.ui.assert?.(
 		isFreightAddStopAction(),
 		'freight.add-stop.activate: selectedAction did not enter freight add-stop mode',
-		{ selectedAction: interactionMode.selectedAction, lineId: args.lineId }
+		{ selectedAction: interactionMode.selectedAction, line: args.line }
 	)
 }
 
@@ -76,8 +77,8 @@ export function cancelFreightMapPick(): void {
 	clearFreightToolAction()
 }
 
-export function clearFreightMapPickForLine(lineId: string): void {
-	if (freightMapPick.pending?.lineId !== lineId) return
+export function clearFreightMapPickForLine(line: FreightLineDefinition): void {
+	if (freightMapPick.pending?.line !== line) return
 	freightMapPick.pending = undefined
 	clearFreightToolAction()
 }
@@ -176,7 +177,7 @@ export function tryConsumeFreightMapPick(
 			traces.ui.assert?.(
 				false,
 				'freight.add-stop.consume: pending picker without matching selectedAction',
-				{ selectedAction: interactionMode.selectedAction, lineId: pending.lineId }
+				{ selectedAction: interactionMode.selectedAction, line: pending.line }
 			)
 			freightMapPick.pending = undefined
 			return false
@@ -215,7 +216,7 @@ export function freightMapPickCanConsumeObject(game: Game, object: InteractiveGa
 		traces.ui.assert?.(
 			false,
 			'freight.add-stop.can-consume: pending picker without matching selectedAction',
-			{ selectedAction: interactionMode.selectedAction, lineId: pending.lineId }
+			{ selectedAction: interactionMode.selectedAction, line: pending.line }
 		)
 		freightMapPick.pending = undefined
 		return false
@@ -245,7 +246,7 @@ export function tryConsumeFreightMapPickRadiusDrag(args: {
 		traces.ui.assert?.(
 			false,
 			'freight.add-stop.radius-drag: pending picker without matching selectedAction',
-			{ selectedAction: interactionMode.selectedAction, lineId: pending.lineId }
+			{ selectedAction: interactionMode.selectedAction, line: pending.line }
 		)
 		freightMapPick.pending = undefined
 		return false

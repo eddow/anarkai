@@ -241,7 +241,7 @@ function lineHasVisibleServingVehicle(line: FreightLineDefinition): boolean {
 		const service = vehicle.service
 		return (
 			isVehicleLineService(service) &&
-			service.line.id === line.id &&
+			service.line === line &&
 			coordInViewport(vehicleCoord(vehicle))
 		)
 	})
@@ -261,7 +261,7 @@ const LinesManagementWidget = (
 		visibleOnly: false,
 		noBayOnly: false,
 		viewportTick: 0,
-		hoveredLineId: undefined as string | undefined,
+		hoveredLine: undefined as FreightLineDefinition | undefined,
 	})
 	const filteredLines = () => {
 		void state.viewportTick
@@ -277,7 +277,7 @@ const LinesManagementWidget = (
 		selectInspectorObject(createSyntheticFreightLineObject(game, line), scope.dockviewApi)
 	}
 	const showLine = (line: FreightLineDefinition | undefined) => {
-		state.hoveredLineId = line?.id
+		state.hoveredLine = line
 		showFreightLineOverlay(line)
 	}
 
@@ -293,9 +293,9 @@ const LinesManagementWidget = (
 		return () => showFreightLineOverlay(undefined)
 	})
 	effect`lines-management:clear-filtered-hover`(() => {
-		const hoveredLineId = state.hoveredLineId
-		if (!hoveredLineId) return
-		if (filteredLines().some((line) => line.id === hoveredLineId)) return
+		const hovered = state.hoveredLine
+		if (!hovered) return
+		if (filteredLines().some((line) => line === hovered)) return
 		showFreightLineOverlay(undefined)
 	})
 

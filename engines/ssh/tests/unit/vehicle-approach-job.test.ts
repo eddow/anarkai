@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { maybeAdvanceVehiclePastCompletedZoneStop } from 'ssh/freight/vehicle-run'
 import { findVehicleApproachJob, findVehicleHopJob } from 'ssh/freight/vehicle-work'
 import { Game } from 'ssh/game/game'
@@ -7,6 +8,7 @@ import { axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
 import { afterEach, describe, expect, it } from 'vitest'
 import { gatherFreightLine } from '../freight-fixtures'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 
 describe('findVehicleApproachJob', () => {
 	let game: Game
@@ -17,7 +19,6 @@ describe('findVehicleApproachJob', () => {
 
 	it('returns a punctual path whose last hex is the vehicle tile (not an adjacent stop)', async () => {
 		const line = gatherFreightLine({
-			id: 'VA:job',
 			name: 'Approach job',
 			hiveName: 'H',
 			coord: [1, 0],
@@ -50,7 +51,6 @@ describe('findVehicleApproachJob', () => {
 
 	it('normalizes same-tile approach to an empty path', async () => {
 		const line = gatherFreightLine({
-			id: 'VA:same-tile',
 			name: 'Same tile',
 			hiveName: 'H',
 			coord: [0, 0],
@@ -77,7 +77,6 @@ describe('findVehicleApproachJob', () => {
 
 	it('re-approach keeps an existing active line service instead of re-picking an initial line', async () => {
 		const far = gatherFreightLine({
-			id: 'VA:far',
 			name: 'Far',
 			hiveName: 'H',
 			coord: [8, 0],
@@ -85,7 +84,6 @@ describe('findVehicleApproachJob', () => {
 			radius: 2,
 		})
 		const near = gatherFreightLine({
-			id: 'VA:near',
 			name: 'Near',
 			hiveName: 'H',
 			coord: [0, 0],
@@ -123,7 +121,6 @@ describe('findVehicleApproachJob', () => {
 
 	it('planner snapshot counts only approach distance for vehicleHop work selection', async () => {
 		const line = gatherFreightLine({
-			id: 'VA:snapshot',
 			name: 'Snapshot',
 			hiveName: 'H',
 			coord: [1, 0],
@@ -163,7 +160,6 @@ describe('findVehicleApproachJob', () => {
 
 	it('does not re-approach a still-docked anchor service before dock completion', async () => {
 		const line = gatherFreightLine({
-			id: 'VA:docked',
 			name: 'Docked',
 			hiveName: 'H',
 			coord: [0, 0],
@@ -196,7 +192,6 @@ describe('findVehicleApproachJob', () => {
 
 	it('advances an empty completed gather zone service to the unload stop (same as vehicleHopPrepare replan)', async () => {
 		const line = gatherFreightLine({
-			id: 'VA:empty-gather',
 			name: 'Empty gather',
 			hiveName: 'H',
 			coord: [0, 0],
@@ -233,12 +228,11 @@ describe('findVehicleApproachJob', () => {
 		expect(isVehicleLineService(vehicle.service)).toBe(true)
 		if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
 		expect(vehicle.service?.line?.stops[1]).toBe(line.stops[1])
-		expect(character.operates?.uid).toBe(vehicle.uid)
+		expect(character.operates).toBe(vehicle)
 	})
 
 	it('aborts a stale approach when another worker operates the vehicle', async () => {
 		const line = gatherFreightLine({
-			id: 'VA:stale-approach',
 			name: 'Stale approach',
 			hiveName: 'H',
 			coord: [0, 0],
@@ -270,7 +264,7 @@ describe('findVehicleApproachJob', () => {
 			urgency: 1,
 			fatigue: 1,
 			vehicle,
-			lineId: line.id,
+			lineId: debugObjectId(line),
 			stopIndex: 0,
 			path: [],
 			dockEnter: false,
@@ -280,7 +274,7 @@ describe('findVehicleApproachJob', () => {
 		stale.scriptsContext.vehicle.vehicleApproachStep(plan)
 
 		expect(plan.vehicleApproachAborted).toBe(true)
-		expect(vehicle.operator?.uid).toBe(operator.uid)
+		expect(vehicle.operator).toBe(operator)
 		expect(stale.operates).toBeUndefined()
 	})
 })

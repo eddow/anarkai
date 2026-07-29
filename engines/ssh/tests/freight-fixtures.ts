@@ -24,7 +24,6 @@ export function gatherFreightLine(args: {
 	const [q, r] = args.coord
 	const loadSelection = migrateV1FiltersToGoodsSelection([...args.filters])
 	return normalizeFreightLineDefinition({
-		id: args.id ?? args.name,
 		name: args.name,
 		stops: [
 			{
@@ -61,7 +60,6 @@ export function distributeFreightLine(args: {
 					zone: { kind: 'radius', center: [q, r], radius: args.unloadRadius },
 				}
 	return normalizeFreightLineDefinition({
-		id: args.id ?? args.name,
 		name: args.name,
 		stops: [load, unload],
 	})

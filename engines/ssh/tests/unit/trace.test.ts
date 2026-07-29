@@ -38,7 +38,6 @@ describe('safe trace serialization', () => {
 
 	it('captures known runtime objects as bounded snapshots with stable refs', async () => {
 		const line = gatherFreightLine({
-			id: 'trace-line',
 			name: 'Trace line',
 			hiveName: 'TraceHive',
 			coord: [0, 0],

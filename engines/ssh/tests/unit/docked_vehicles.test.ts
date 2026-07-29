@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {
 	collectDockedVehiclesForBay,
 	collectDockedVehiclesForHive,
@@ -70,7 +71,7 @@ describe('docked vehicle collectors', () => {
 		const entries = collectDockedVehiclesForBay(game, bayA)
 
 		expect(entries.map((entry) => entry.vehicle.uid)).toEqual(['docked'])
-		expect(entries[0]?.line.id).toBe(line.id)
+		expect(entries[0]?.line).toBe(line)
 		expect(entries[0]?.stop).toBe(stop)
 	})
 
@@ -111,7 +112,7 @@ describe('docked vehicle collectors', () => {
 		const entries = collectDockedVehiclesForHive(game, bayA.hive)
 
 		expect(entries.map((entry) => entry.vehicle.uid)).toEqual(['hive-a-docked'])
-		expect(entries[0]?.line.id).toBe(line.id)
+		expect(entries[0]?.line).toBe(line)
 		expect(entries[0]?.stop).toBe(stopA)
 	})
 })

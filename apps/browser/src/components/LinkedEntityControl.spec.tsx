@@ -225,7 +225,6 @@ describe('LinkedEntityControl', () => {
 		const { registerPinnedInspectorPanel } = await import('@app/lib/follow-selection')
 		const tile = new MockTile({ q: 3, r: 4 })
 		const existingPanel = {
-			id: 'panel-existing-tile',
 			focus,
 		}
 		getPanel.mockImplementation((panelId?: string) =>

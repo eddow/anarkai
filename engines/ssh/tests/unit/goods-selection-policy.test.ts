@@ -53,7 +53,6 @@ describe('goods selection policy', () => {
 
 	it('normalizes freight line stops (anchors, zones, selection policies)', () => {
 		const normalized = normalizeFreightLineDefinition({
-			id: 'L',
 			name: 'Line',
 			stops: [
 				{

@@ -18,7 +18,6 @@ test.describe('Pin Mechanism', () => {
 			const dock = (window as any).dockviewApi
 			if (!dock.getPanel('selection-info')) {
 				dock.addPanel({
-					id: 'selection-info',
 					component: 'selection-info',
 					params: {}, // Empty params for dynamic
 					title: 'Selection',

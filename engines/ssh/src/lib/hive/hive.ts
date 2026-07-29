@@ -304,7 +304,6 @@ export interface PersistentMovementSnapshot {
 	wasTracked: boolean
 	/** Whether a worker had currently claimed the movement. */
 	claimed: boolean
-	claimedByUid?: string
 	claimedAtMs?: number
 	/** Whether `currentCoord` is a border coord instead of a tile coord. */
 	onBorder: boolean
@@ -562,14 +561,6 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			}
 		}
 		return false
-	}
-
-	/** Temporary bridge for serialization restore — delete in Phase A5. */
-	freightVehicleDockByUid(vehicleUid: string): VehicleFreightDock | undefined {
-		for (const [vehicle, dock] of this.freightVehicleDocks) {
-			if (debugObjectId(vehicle) ?? '' === vehicleUid) return dock
-		}
-		return undefined
 	}
 
 	public attach(alveolus: Alveolus) {
@@ -2638,7 +2629,6 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				movement,
 				wasTracked: !!trackedCoord,
 				claimed: movement.claimed,
-				claimedByUid: debugObjectId(movement.claimedBy),
 				claimedAtMs: movement.claimedAtMs,
 				onBorder: !isTileCoord(currentCoord),
 			})
@@ -3598,11 +3588,10 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			_state: row.claimed ? MovementState.claimed : MovementState.tracked,
 			refreshState: 'steady',
 			claimed: row.claimed,
-			claimedBy: row.claimedByUid
-				? Array.from(this.board.game.population).find(
-						(w) => (debugObjectId(w) ?? '') === row.claimedByUid
-					)
-				: undefined,
+			claimedBy:
+				row.claimedByCharacterIndex !== undefined
+					? Array.from(this.board.game.population)[row.claimedByCharacterIndex]
+					: undefined,
 			claimedAtMs: row.claimedAtMs,
 			allocations: {
 				source: row.claimed ? undefined : sourceCommitment,

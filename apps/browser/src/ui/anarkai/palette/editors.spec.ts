@@ -253,7 +253,6 @@ describe('createAnarkaiPaletteEditors enum editors', () => {
 			config: { label: 'Pile', hint: 'Pile variants' },
 		} satisfies AnarkaiPaletteToolbarItem & { toolbar: AnarkaiPaletteToolbarItem[] }
 		const mockPalette = {
-			id: 'mock-palette',
 			editing: false,
 			tool(_spec: string) {
 				return { run: () => {} }

@@ -1,4 +1,5 @@
 import { css } from '@app/lib/css'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { type FreightDraftIssueCode, freightDraftIssueCodes } from '@app/lib/freight-line-draft'
 import { showFreightLineOverlay } from '@app/lib/freight-line-overlay'
 import { clearFreightMapPickForLine } from '@app/lib/freight-map-pick'
@@ -317,7 +318,7 @@ function assignableVehicleItems(
 		.filter((vehicle) => isLineFreightVehicleType(vehicle.vehicleType))
 		.filter((vehicle) => !vehicle.servedLines?.includes(line))
 		.map((vehicle) => ({
-			id: vehicle.uid,
+			id: debugObjectId(vehicle) ?? '',
 			label: vehicle.title,
 			hint: `${vehicle.vehicleType} · ${vehicleStockSummary(vehicle)}`,
 			coord: vehicleCoord(vehicle),
@@ -330,18 +331,22 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 	const currentLine = () => {
 		void local.revision
 		const fallback = props.lineObject?.line
-		const lineId = props.lineObject?.lineId
+		if (!fallback) return fallback
 		const g = currentGame()
-		if (!fallback || !g || !lineId) return fallback
-		return g.freightLines.find((line) => line.id === lineId) ?? fallback
+		if (!g) return fallback
+		// The line reference in `freightLines` might be a newer normalized version;
+		// return the live reference if the title still matches, otherwise the fallback.
+		const idx = g.freightLines.indexOf(fallback)
+		if (idx >= 0) return g.freightLines[idx]!
+		return fallback
 	}
 	const isAvailable = () => !!props.lineObject && !!currentLine()
 	const readOnly = () => !isAvailable()
 
 	effect`freight-line-properties:pick-cleanup`(() => {
-		const lineId = props.lineObject?.lineId
+		const line = props.lineObject?.line
 		return () => {
-			if (lineId) clearFreightMapPickForLine(lineId)
+			if (line) clearFreightMapPickForLine(line)
 		}
 	})
 
@@ -360,8 +365,9 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 
 	const replaceLine = (next: FreightLineDefinition) => {
 		const g = currentGame()
-		if (!g) return
-		g.replaceFreightLine(normalizeFreightLineDefinition(next))
+		const current = currentLine()
+		if (!g || !current) return
+		g.replaceFreightLine(current, normalizeFreightLineDefinition(next))
 		local.revision++
 		bumpSelectionTitleVersion()
 	}
@@ -397,7 +403,7 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 		const line = currentLine()
 		const g = currentGame()
 		if (!line || !g) return
-		const vehicle = [...g.vehicles].find((v) => v.uid === vehicleUid)
+		const vehicle = [...g.vehicles].find((v) => debugObjectId(v) === vehicleUid)
 		if (vehicle) {
 			if (g.assignVehicleToFreightLine) g.assignVehicleToFreightLine(vehicle, line)
 			else vehicle.assignFreightLine?.(line)
@@ -410,7 +416,7 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 		const line = currentLine()
 		const g = currentGame()
 		if (!line || !g) return
-		const vehicle = [...g.vehicles].find((v) => v.uid === vehicleUid)
+		const vehicle = [...g.vehicles].find((v) => debugObjectId(v) === vehicleUid)
 		if (vehicle) {
 			if (g.unassignVehicleFromFreightLine) g.unassignVehicleFromFreightLine(vehicle, line)
 			else vehicle.unassignFreightLine?.(line)
@@ -533,7 +539,7 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 											class="freight-line-properties__assignment-remove"
 											title={assignmentText().remove}
 											aria-label={assignmentText().remove}
-											onClick={() => handleUnassignVehicle(vehicle.uid)}
+											onClick={() => handleUnassignVehicle(debugObjectId(vehicle) ?? '')}
 											data-testid="line-unassign-vehicle"
 										>
 											×

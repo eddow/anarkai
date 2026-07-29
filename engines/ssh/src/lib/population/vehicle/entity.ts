@@ -210,7 +210,7 @@ export class Vehicle extends withInteractive(GameObject) {
 				0
 			)
 			traces.vehicle.log?.('vehicleJob.dock.storageDrained', {
-				lineId: current.line.id,
+				lineId: debugObjectId(current.line),
 				stopIndex: current.line.stops.indexOf(current.stop),
 				stockCount: currentStockCount,
 				virtualGoodsCount: this.storage.virtualGoodsCount,
@@ -314,23 +314,23 @@ export class Vehicle extends withInteractive(GameObject) {
 			vehicleType: this.vehicleType,
 			position: this.position,
 			effectivePosition: this.effectivePosition,
-			servedLineIds: this.servedLines.map((line) => line.id),
-			operatorUid: this.operator?.uid,
+			servedLineIndices: this.servedLines.map((line) => this.game.freightLines.indexOf(line)),
+			operatorUid: debugObjectId(this.operator),
 			service:
 				svc && isVehicleLineService(svc)
 					? {
 							kind: 'line' as const,
-							lineId: svc.line.id,
+							lineId: debugObjectId(svc.line),
 							stopIndex: svc.line.stops.indexOf(svc.stop),
 							docked: svc.docked,
-							operatorUid: svc.operator?.uid,
+							operatorUid: debugObjectId(svc.operator),
 						}
 					: svc && isVehicleMaintenanceService(svc)
 						? {
 								kind: 'maintenance' as const,
 								maintenanceKind: svc.kind,
 								targetCoord: svc.targetCoord,
-								operatorUid: svc.operator?.uid,
+								operatorUid: debugObjectId(svc.operator),
 							}
 						: undefined,
 			storage: this.storage.stock,
@@ -373,25 +373,25 @@ export class Vehicle extends withInteractive(GameObject) {
 			vehicleType: this.vehicleType,
 			position: this.position,
 			effectivePosition: this.effectivePosition,
-			operatorUid: this.operator?.uid,
-			service:
-				svc && isVehicleLineService(svc)
+operatorUid: debugObjectId(this.operator),
+		service:
+			svc && isVehicleLineService(svc)
+				? {
+						kind: 'line' as const,
+						lineId: debugObjectId(svc.line),
+						stopIndex: svc.line.stops.indexOf(svc.stop),
+						docked: svc.docked,
+						operatorUid: debugObjectId(svc.operator),
+					}
+				: svc && isVehicleMaintenanceService(svc)
 					? {
-							kind: 'line' as const,
-							lineId: svc.line.id,
-							stopIndex: svc.line.stops.indexOf(svc.stop),
-							docked: svc.docked,
-							operatorUid: svc.operator?.uid,
-						}
-					: svc && isVehicleMaintenanceService(svc)
-						? {
-								kind: 'maintenance' as const,
-								maintenanceKind: svc.kind,
-								targetCoord: svc.targetCoord,
-								operatorUid: svc.operator?.uid,
+							kind: 'maintenance' as const,
+							maintenanceKind: svc.kind,
+							targetCoord: svc.targetCoord,
+							operatorUid: debugObjectId(svc.operator),
 							}
 						: undefined,
-			servedLineIds: this.servedLines.map((line) => line.id),
+			servedLineIndices: this.servedLines.map((line) => this.game.freightLines.indexOf(line)),
 			stock: this.storage.stock,
 		}
 	}
@@ -572,24 +572,18 @@ export class Vehicle extends withInteractive(GameObject) {
 	}
 
 	setServedLines(lines: readonly FreightLineDefinition[], reason = 'vehicle.served-lines'): void {
-		const unique = new Map<string, FreightLineDefinition>()
-		for (const line of lines) unique.set(line.id, line)
-		const next = [...unique.values()]
-		const currentIds = this.servedLines.map((line) => line.id).join('\n')
-		const nextIds = next.map((line) => line.id).join('\n')
+		const seen = new Set<FreightLineDefinition>()
+		const next = lines.filter((line) => {
+			if (seen.has(line)) return false
+			seen.add(line)
+			return true
+		})
 		const sameReferences =
 			this.servedLines.length === next.length &&
 			this.servedLines.every((line, index) => line === next[index])
-		if (currentIds === nextIds && sameReferences) return
+		if (sameReferences) return
 		this.servedLines = reactive(next)
 		this.game.invalidateWorkPlanning(reason)
-	}
-
-	setServedLineIds(lineIds: readonly string[], reason = 'vehicle.served-lines'): void {
-		const lines = lineIds
-			.map((lineId) => this.game.freightLines.find((line) => line.id === lineId))
-			.filter((line): line is FreightLineDefinition => !!line)
-		this.setServedLines(lines, reason)
 	}
 
 	assignFreightLine(line: FreightLineDefinition): boolean {
@@ -640,10 +634,10 @@ export class Vehicle extends withInteractive(GameObject) {
 		if (isVehicleLineService(svc)) {
 			return {
 				kind: 'line',
-				lineId: svc.line.id,
+				lineIndex: this.game.freightLines.indexOf(svc.line),
 				stopIndex: svc.line.stops.indexOf(svc.stop),
 				docked: svc.docked,
-				operatorUid: svc.operator?.uid,
+				operatorUid: debugObjectId(svc.operator),
 			}
 		}
 		if (!isVehicleMaintenanceService(svc)) return undefined
@@ -651,7 +645,7 @@ export class Vehicle extends withInteractive(GameObject) {
 			kind: 'maintenance',
 			maintenanceKind: svc.kind,
 			targetCoord: { q: svc.targetCoord.q, r: svc.targetCoord.r },
-			operatorUid: svc.operator?.uid,
+			operatorUid: debugObjectId(svc.operator),
 		}
 	}
 
@@ -668,7 +662,9 @@ export class Vehicle extends withInteractive(GameObject) {
 			vehicleType: this.vehicleType,
 			position: { q: coord.q, r: coord.r },
 			goods: this.storage.stock,
-			servedLineIds: this.servedLines.map((line) => line.id),
+			servedLineIndices: this.servedLines.map((line) =>
+				this.game.freightLines.indexOf(line)
+			),
 			service: this.serializeService(),
 		}
 	}
@@ -678,8 +674,8 @@ export class Vehicle extends withInteractive(GameObject) {
 			game,
 			data.vehicleType,
 			data.position,
-			data.servedLineIds
-				.map((lineId) => game.freightLines.find((line) => line.id === lineId))
+			(data.servedLineIndices ?? [])
+				.map((idx) => game.freightLines[idx])
 				.filter((line): line is FreightLineDefinition => !!line)
 		)
 		for (const [goodType, qty] of Object.entries(data.goods ?? {})) {
@@ -707,7 +703,7 @@ export class Vehicle extends withInteractive(GameObject) {
 		const linePayload = saved as
 			| LegacyLineVehicleServiceSerialized
 			| Extract<VehicleServiceSerialized, { kind: 'line' }>
-		const line = game.freightLines.find((l) => l.id === linePayload.lineId)
+		const line = game.freightLines[linePayload.lineIndex]
 		if (!line) return
 		const stop = line.stops[linePayload.stopIndex]
 		if (!stop) return

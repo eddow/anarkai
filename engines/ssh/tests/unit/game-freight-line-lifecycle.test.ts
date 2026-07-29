@@ -21,7 +21,7 @@ describe('Game freight line lifecycle', () => {
 			const implicit = engine.game.freightLines.find((l) => isImplicitGatherFreightLineId(l.id))
 			expect(implicit).toBeDefined()
 			expect(engine.game.removeFreightLineById(implicit!.id)).toBe(false)
-			expect(engine.game.freightLines.some((l) => l.id === implicit!.id)).toBe(true)
+			expect(engine.game.freightLines.some((l) => l.name === implicit!.id)).toBe(true)
 		} finally {
 			await engine.destroy()
 		}
@@ -53,7 +53,7 @@ describe('Game freight line lifecycle', () => {
 			const before = engine.game.freightLines.length
 			expect(engine.game.removeFreightLineById(draft!.id)).toBe(true)
 			expect(engine.game.freightLines.length).toBe(before - 1)
-			expect(engine.game.freightLines.some((l) => l.id === draft!.id)).toBe(false)
+			expect(engine.game.freightLines.some((l) => l.name === draft!.id)).toBe(false)
 			expect(engine.game.freightLines.some((l) => isImplicitGatherFreightLineId(l.id))).toBe(true)
 		} finally {
 			await engine.destroy()
@@ -77,8 +77,8 @@ describe('Game freight line lifecycle', () => {
 
 			expect(engine.game.assignVehicleToFreightLine(vehicle.uid, line.id)).toBe(true)
 			expect(engine.game.assignVehicleToFreightLine(vehicle.uid, line.id)).toBe(false)
-			expect(vehicle.servedLines.map((entry) => entry.id)).toEqual([line.id])
-			expect(vehicle.serialize().servedLineIds).toEqual([line.id])
+			expect(vehicle.servedLines.map((entry) => entry.name)).toEqual([line.id])
+			expect(vehicle.serialize().servedLineIndices).toEqual([line.id])
 
 			const renamed = { ...line, name: 'Renamed material line' }
 			engine.game.replaceFreightLine(renamed)
@@ -107,11 +107,9 @@ describe('Game freight line lifecycle', () => {
 				],
 			})
 			const line = {
-				id: 'editable-line',
 				name: 'Editable line',
 				stops: [
 					{
-						id: 'bay-stop',
 						anchor: {
 							kind: 'alveolus' as const,
 							hiveName: 'H',
@@ -122,7 +120,7 @@ describe('Game freight line lifecycle', () => {
 				],
 			}
 			engine.game.replaceFreightLine(line)
-			const activeLine = engine.game.freightLines.find((entry) => entry.id === line.id)!
+			const activeLine = engine.game.freightLines.find((entry) => entry.name === line.id)!
 			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', {
 				q: 0,
 				r: 0,
@@ -135,7 +133,6 @@ describe('Game freight line lifecycle', () => {
 				...activeLine,
 				stops: [
 					{
-						id: 'bay-stop',
 						anchor: {
 							kind: 'alveolus' as const,
 							hiveName: 'H',

@@ -147,11 +147,9 @@ describe('FreightStopList', () => {
 
 	it('opens policy controls from the configure button and uses the order number as drag handle', () => {
 		const draft = {
-			id: 'line-1',
 			name: 'Line 1',
 			stops: [
 				{
-					id: 'stop-1',
 					anchor: {
 						kind: 'alveolus',
 						coord: [0, 0],
@@ -197,11 +195,9 @@ describe('FreightStopList', () => {
 
 	it('renders reserve only for NPC trade stops that can import goods', () => {
 		const draft = {
-			id: 'line-1',
 			name: 'Line 1',
 			stops: [
 				{
-					id: 'stop-1',
 					trade: {
 						kind: 'settlement',
 						settlementId: 'settlement-1',
@@ -218,13 +214,11 @@ describe('FreightStopList', () => {
 			},
 			listSettlementTradeProfiles: () => [
 				{
-					id: 'settlement-1',
 					name: 'Settlement One',
 					offers: [{ direction: 'sell', good: 'concrete', priceVp: 5 }],
 				},
 			],
 			getSettlementTradeProfile: () => ({
-				id: 'settlement-1',
 				name: 'Settlement One',
 				offers: [{ direction: 'sell', good: 'concrete', priceVp: 5 }],
 			}),
@@ -256,11 +250,9 @@ describe('FreightStopList', () => {
 
 	it('hides reserve for export-only NPC trade stops', () => {
 		const draft = {
-			id: 'line-1',
 			name: 'Line 1',
 			stops: [
 				{
-					id: 'stop-1',
 					trade: {
 						kind: 'settlement',
 						settlementId: 'settlement-1',
@@ -277,13 +269,11 @@ describe('FreightStopList', () => {
 			},
 			listSettlementTradeProfiles: () => [
 				{
-					id: 'settlement-1',
 					name: 'Settlement One',
 					offers: [{ direction: 'buy', good: 'planks', priceVp: 3 }],
 				},
 			],
 			getSettlementTradeProfile: () => ({
-				id: 'settlement-1',
 				name: 'Settlement One',
 				offers: [{ direction: 'buy', good: 'planks', priceVp: 3 }],
 			}),
@@ -306,11 +296,9 @@ describe('FreightStopList', () => {
 	it('activates add-stop board picking and appends the picked halt', () => {
 		const onChange = vi.fn()
 		const draft = {
-			id: 'line-1',
 			name: 'Line 1',
 			stops: [
 				{
-					id: 'stop-1',
 					anchor: {
 						kind: 'alveolus',
 						coord: [0, 0],
@@ -330,13 +318,11 @@ describe('FreightStopList', () => {
 			},
 			listSettlementTradeProfiles: () => [
 				{
-					id: 'settlement-1',
 					name: 'Settlement One',
 					offers: [{ direction: 'sell', good: 'concrete', priceVp: 5 }],
 				},
 			],
 			getSettlementTradeProfile: () => ({
-				id: 'settlement-1',
 				name: 'Settlement One',
 				offers: [{ direction: 'sell', good: 'concrete', priceVp: 5 }],
 			}),
@@ -357,7 +343,6 @@ describe('FreightStopList', () => {
 		expect(container.querySelector('[data-testid="freight-stop-add-kind"]')).toBeNull()
 		expect(freightMapPickMock.pending?.pickKind).toBe('add-stop')
 		freightMapPickMock.pending?.apply({
-			id: 'picked-trade',
 			trade: { kind: 'settlement', settlementId: 'settlement-1' },
 		})
 

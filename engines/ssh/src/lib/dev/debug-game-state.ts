@@ -216,7 +216,7 @@ function summarizeCharacterForDebug(character: Character, tailCount: number) {
 		position: coordSnapshot(character.position),
 		tile: coordSnapshot(character.tile.position),
 		driving: character.driving,
-		operatedVehicleUid: character.operates?.uid,
+		operatedVehicleUid: debugObjectId(character.operates),
 		assignedAlveolusCoord: coordSnapshot(character.assignedAlveolus?.tile.position),
 		activeTransportStock: safeDebugValueForDump(character.carry?.stock ?? {}),
 		actionDescription: [...character.actionDescription],
@@ -234,10 +234,10 @@ function summarizeVehicleServiceForDebug(service: VehicleService) {
 	if (isVehicleLineService(service)) {
 		return {
 			kind: 'line' as const,
-			lineId: service.line.id,
+			lineId: debugObjectId(service.line),
 			stopIndex: service.line.stops.indexOf(service.stop),
 			docked: service.docked,
-			operatorUid: service.operator?.uid,
+			operatorUid: debugObjectId(service.operator),
 		}
 	}
 	if (isVehicleMaintenanceService(service)) {
@@ -245,7 +245,7 @@ function summarizeVehicleServiceForDebug(service: VehicleService) {
 			kind: 'maintenance' as const,
 			maintenanceKind: service.kind,
 			target: coordSnapshot(service.targetCoord),
-			operatorUid: service.operator?.uid,
+			operatorUid: debugObjectId(service.operator),
 			...(service.kind === 'loadFromBurden'
 				? { looseGood: safeDebugValueForDump(service.looseGood) }
 				: {}),
@@ -253,7 +253,7 @@ function summarizeVehicleServiceForDebug(service: VehicleService) {
 	}
 	return {
 		kind: 'bare' as const,
-		operatorUid: service.operator?.uid,
+		operatorUid: debugObjectId(service.operator),
 	}
 }
 
@@ -265,7 +265,9 @@ function summarizeVehicleForDebug(vehicle: Vehicle, tailCount: number) {
 		position: coordSnapshot(vehicle.position),
 		effectivePosition: coordSnapshot(vehicle.effectivePosition),
 		tile: coordSnapshot(vehicle.effectiveTile.position),
-		servedLineIds: vehicle.servedLines.map((line) => line.id),
+		servedLineIndices: vehicle.servedLines.map((line) =>
+			vehicle.game.freightLines.indexOf(line)
+		),
 		service: vehicle.service ? summarizeVehicleServiceForDebug(vehicle.service) : undefined,
 		storage: safeDebugValueForDump(vehicle.storage.stock),
 		logs: logsTail(vehicle.logs, tailCount),
@@ -314,7 +316,7 @@ export function summarizeFreightStopForDebug(stop: FreightStop) {
 
 function summarizeFreightLineForDebug(line: FreightLineDefinition) {
 	return {
-		id: line.id,
+		debugId: debugObjectId(line),
 		name: line.name,
 		stops: line.stops.map(summarizeFreightStopForDebug),
 	}
@@ -355,7 +357,7 @@ function summarizeSelectedObjectForDebug(selected: unknown, tailCount: number) {
 			kind: 'freight-line' as const,
 			uid: debugObjectId(selected) ?? '',
 			title: selected.title,
-			lineId: selected.lineId,
+			lineId: debugObjectId(selected.line),
 			line: summarizeFreightLineForDebug(selected.line),
 			logs: logsTail(selected.logs, tailCount),
 		}

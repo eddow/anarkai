@@ -3,6 +3,7 @@ import {
 	isVehicleFreightDock,
 	type VehicleFreightDock,
 } from 'ssh/freight/vehicle-freight-dock'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import type { GoodType } from 'ssh/types'
 import type { AxialCoord } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
@@ -10,7 +11,7 @@ import { toAxialCoord } from 'ssh/utils/position'
 /** Serialized freight endpoint for save/load (no runtime object refs). */
 export type SerializedFreightPartyRef =
 	| { kind: 'alveolus'; coord: readonly [number, number] }
-	| { kind: 'vehicleDock'; vehicleUid: string; bayCoord: readonly [number, number] }
+	| { kind: 'vehicleDock'; vehicleIndex: number; bayCoord: readonly [number, number] }
 
 /**
  * One active movement row in save order; array index is the serialization identity.
@@ -23,16 +24,24 @@ export interface SerializedConveyMovement {
 	readonly provider: SerializedFreightPartyRef
 	readonly demander: SerializedFreightPartyRef
 	readonly claimed: boolean
-	readonly claimedByUid?: string
+	/** Save/load-only reference. Runtime uses the live object reference on `TrackedMovement.claimedBy`. */
+	readonly claimedByCharacterIndex?: number
 	readonly claimedAtMs?: number
 }
 
-export function serializeFreightParty(party: FreightMovementParty): SerializedFreightPartyRef {
+export function serializeFreightParty(
+	party: FreightMovementParty,
+	vehicleIndexByVehicle?: ReadonlyMap<Vehicle, number>
+): SerializedFreightPartyRef {
 	const { q, r } = toAxialCoord(party.tile.position)
 	const coord = [q, r] as const
 	if (isVehicleFreightDock(party)) {
 		const dock = party as VehicleFreightDock
-		return { kind: 'vehicleDock', vehicleUid: dock.vehicle.uid, bayCoord: coord }
+		return {
+			kind: 'vehicleDock',
+			vehicleIndex: vehicleIndexByVehicle?.get(dock.vehicle) ?? -1,
+			bayCoord: coord,
+		}
 	}
 	return { kind: 'alveolus', coord }
 }

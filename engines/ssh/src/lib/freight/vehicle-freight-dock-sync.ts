@@ -5,6 +5,7 @@ import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService, isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
 import { traces } from '../dev/debug.ts'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 
 export function freightVehicleDockBay(vehicle: Vehicle): FreightBayAlveolus | undefined {
 	const svc = vehicle.service
@@ -18,7 +19,7 @@ export function freightVehicleDockBay(vehicle: Vehicle): FreightBayAlveolus | un
 	const content = tile?.content
 	if (!(content instanceof FreightBayAlveolus)) {
 		traces.vehicle.warn?.('[dock.sync] docked vehicle has no freight bay', {
-			lineId: svc.line.id,
+			lineId: debugObjectId(svc.line),
 			stopIndex: svc.line.stops.indexOf(svc.stop),
 			anchor: svc.stop.anchor.coord,
 			contentType: content?.constructor?.name,

@@ -85,7 +85,6 @@ describe('proposed jobs', () => {
 
 	it('dedupes vehicle proposed jobs while character tailoring keeps per-character paths', async () => {
 		const line = gatherFreightLine({
-			id: 'PJ:vehicle',
 			name: 'Proposed vehicle',
 			hiveName: 'H',
 			coord: [1, 0],
@@ -140,7 +139,6 @@ describe('proposed jobs', () => {
 
 	it('does not route a character planner pass through vehicle provider proposed jobs', async () => {
 		const line = gatherFreightLine({
-			id: 'PJ:planner-direct',
 			name: 'Planner direct vehicle',
 			hiveName: 'H',
 			coord: [1, 0],

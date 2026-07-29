@@ -8,7 +8,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
 
 const tradeProfile: NpcSettlementTradeProfile = {
-	id: 'neighbor-market',
 	regionSetKey: '0,0',
 	name: 'Neighbor market',
 	kind: 'village',
@@ -28,16 +27,13 @@ function installTradeProfile(game: Game): void {
 
 function marketLine(patch: Partial<FreightLineDefinition> = {}): FreightLineDefinition {
 	return {
-		id: 'market-loop',
 		name: 'Market loop',
 		cyclic: true,
 		stops: [
 			{
-				id: 'market',
 				trade: { kind: 'settlement', settlementName: tradeProfile.id },
 			},
 			{
-				id: 'bay',
 				anchor: {
 					kind: 'alveolus',
 					hiveName: 'Engineers',
@@ -134,7 +130,6 @@ describe('NPC trade freight stops', () => {
 			minBalanceAfterBuyVp: 95,
 			stops: [
 				{
-					id: 'market',
 					trade: { kind: 'settlement', settlementName: tradeProfile.id },
 					unloadSelection: migrateV1FiltersToGoodsSelection(['wood']),
 				},

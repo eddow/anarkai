@@ -97,9 +97,9 @@ describe('dorm example game', () => {
 		expect(freightConstructionDemandTarget(chopperSite)?.remainingNeeds.stone).toBe(
 			chopperSite.requiredGoods.stone
 		)
-		expect(game.freightLines.map((line) => line.id)).toContain('Dorm:implicit-gather:0,1')
-		expect(game.freightLines.map((line) => line.id)).not.toContain('Dorm:distribute:0,1')
-		expect(game.freightLines.find((line) => line.id === 'Dorm:implicit-gather:0,1')?.cyclic).toBe(
+		expect(game.freightLines.map((line) => line.name)).toContain('Dorm:implicit-gather:0,1')
+		expect(game.freightLines.map((line) => line.name)).not.toContain('Dorm:distribute:0,1')
+		expect(game.freightLines.find((line) => line.name === 'Dorm:implicit-gather:0,1')?.cyclic).toBe(
 			true
 		)
 
@@ -195,8 +195,8 @@ describe('dorm example game', () => {
 			}
 		}
 
-		const line = game.freightLines.find((candidate) => candidate.id === 'Dorm:implicit-gather:0,1')
-		const stop = line?.stops.find((candidate) => candidate.id === 'Dorm:gather-unload')
+		const line = game.freightLines.find((candidate) => candidate.name === 'Dorm:implicit-gather:0,1')
+		const stop = line?.stops.find((candidate) => candidate.name === 'Dorm:gather-unload')
 		expect(line).toBeDefined()
 		expect(stop).toBeDefined()
 		if (!line || !stop) return

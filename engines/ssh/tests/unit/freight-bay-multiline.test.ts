@@ -36,7 +36,6 @@ describe('Freight bay multi-line', () => {
 		}
 		const lines = [
 			gatherFreightLine({
-				id: 'H:gather-a',
 				name: 'Gather A',
 				hiveName: 'H',
 				coord: [0, 0],
@@ -44,7 +43,6 @@ describe('Freight bay multi-line', () => {
 				radius: 2,
 			}),
 			gatherFreightLine({
-				id: 'H:gather-b',
 				name: 'Gather B',
 				hiveName: 'H',
 				coord: [0, 0],
@@ -52,14 +50,12 @@ describe('Freight bay multi-line', () => {
 				radius: 3,
 			}),
 			distributeFreightLine({
-				id: 'H:dist-a',
 				name: 'Distribute A',
 				hiveName: 'H',
 				coord: [0, 0],
 				filters: ['wood'],
 			}),
 			distributeFreightLine({
-				id: 'H:dist-b',
 				name: 'Distribute B',
 				hiveName: 'H',
 				coord: [0, 0],
@@ -68,12 +64,12 @@ describe('Freight bay multi-line', () => {
 		]
 		expect(
 			findGatherFreightLines(lines, stop)
-				.map((l) => l.id)
+				.map((l) => l.name)
 				.sort()
 		).toEqual(['H:gather-a', 'H:gather-b'])
 		expect(
 			findDistributeFreightLines(lines, stop)
-				.map((l) => l.id)
+				.map((l) => l.name)
 				.sort()
 		).toEqual(['H:dist-a', 'H:dist-b'])
 		expect(findGatherFreightLine(lines, stop)?.id).toBe('H:gather-a')
@@ -92,7 +88,6 @@ describe('Freight bay multi-line', () => {
 				],
 				freightLines: [
 					gatherFreightLine({
-						id: 'Multi:gather-wood',
 						name: 'Gather wood',
 						hiveName: 'MultiBayHive',
 						coord: [0, 0],
@@ -100,7 +95,6 @@ describe('Freight bay multi-line', () => {
 						radius: 2,
 					}),
 					gatherFreightLine({
-						id: 'Multi:gather-berries',
 						name: 'Gather berries',
 						hiveName: 'MultiBayHive',
 						coord: [0, 0],
@@ -108,14 +102,12 @@ describe('Freight bay multi-line', () => {
 						radius: 2,
 					}),
 					distributeFreightLine({
-						id: 'Multi:dist-wood',
 						name: 'Distribute wood',
 						hiveName: 'MultiBayHive',
 						coord: [0, 0],
 						filters: ['wood'],
 					}),
 					distributeFreightLine({
-						id: 'Multi:dist-berries',
 						name: 'Distribute berries',
 						hiveName: 'MultiBayHive',
 						coord: [0, 0],
@@ -151,7 +143,6 @@ describe('Freight bay multi-line', () => {
 				looseGoods: [{ goodType: 'wood', position: { q: 0, r: 2 } }],
 				freightLines: [
 					gatherFreightLine({
-						id: 'PickHive:gather-wood',
 						name: 'Gather wood',
 						hiveName: 'PickHive',
 						coord: [0, 0],
@@ -159,7 +150,6 @@ describe('Freight bay multi-line', () => {
 						radius: 4,
 					}),
 					gatherFreightLine({
-						id: 'PickHive:gather-berries',
 						name: 'Gather berries',
 						hiveName: 'PickHive',
 						coord: [0, 0],
@@ -191,11 +181,9 @@ describe('Freight bay multi-line', () => {
 			defaultEffect: 'deny' as const,
 		}
 		const line: FreightLineDefinition = normalizeFreightLineDefinition({
-			id: 'mixed',
 			name: 'Mixed line',
 			stops: [
 				{
-					id: 'gather-load',
 					loadSelection: woodPolicy,
 					zone: { kind: 'radius', center: [0, 0], radius: 3 },
 				},
@@ -226,25 +214,20 @@ describe('Freight bay multi-line', () => {
 			defaultEffect: 'deny' as const,
 		}
 		const line: FreightLineDefinition = normalizeFreightLineDefinition({
-			id: 'two-dist',
 			name: 'Two distributes',
 			stops: [
 				{
-					id: 'dist-a-load',
 					loadSelection: woodPol,
 					anchor: { kind: 'alveolus', hiveName: 'H', alveolusType: 'freight_bay', coord: [0, 0] },
 				},
 				{
-					id: 'dist-a-unload',
 					zone: { kind: 'radius', center: [1, 0], radius: 4 },
 				},
 				{
-					id: 'dist-b-load',
 					loadSelection: planksPol,
 					anchor: { kind: 'alveolus', hiveName: 'H', alveolusType: 'freight_bay', coord: [2, 0] },
 				},
 				{
-					id: 'dist-b-unload',
 					zone: { kind: 'radius', center: [3, 0], radius: 2 },
 				},
 			],
@@ -281,25 +264,20 @@ describe('Freight bay multi-line', () => {
 			defaultEffect: 'deny' as const,
 		}
 		const line: FreightLineDefinition = normalizeFreightLineDefinition({
-			id: 'two-gather',
 			name: 'Two gathers',
 			stops: [
 				{
-					id: 'g-a-load',
 					loadSelection: woodPol,
 					zone: { kind: 'radius', center: [0, 0], radius: 5 },
 				},
 				{
-					id: 'g-a-unload',
 					anchor: { kind: 'alveolus', hiveName: 'H', alveolusType: 'freight_bay', coord: [0, 0] },
 				},
 				{
-					id: 'g-b-load',
 					loadSelection: berriesPol,
 					zone: { kind: 'radius', center: [1, 0], radius: 3 },
 				},
 				{
-					id: 'g-b-unload',
 					anchor: { kind: 'alveolus', hiveName: 'H', alveolusType: 'freight_bay', coord: [1, 0] },
 				},
 			],
@@ -321,16 +299,13 @@ describe('Freight bay multi-line', () => {
 			defaultEffect: 'deny' as const,
 		}
 		const line: FreightLineDefinition = normalizeFreightLineDefinition({
-			id: 'wrapped-gather',
 			name: 'Wrapped gather',
 			cyclic: true,
 			stops: [
 				{
-					id: 'gather-unload',
 					anchor: { kind: 'alveolus', hiveName: 'H', alveolusType: 'freight_bay', coord: [0, 0] },
 				},
 				{
-					id: 'gather-load',
 					loadSelection: woodPol,
 					zone: { kind: 'radius', center: [0, 0], radius: 5 },
 				},
@@ -355,7 +330,6 @@ describe('Freight bay multi-line', () => {
 				],
 				freightLines: [
 					gatherFreightLine({
-						id: 'TakeHive:gather',
 						name: 'Gather',
 						hiveName: 'TakeHive',
 						coord: [0, 0],
@@ -363,7 +337,6 @@ describe('Freight bay multi-line', () => {
 						radius: 2,
 					}),
 					distributeFreightLine({
-						id: 'TakeHive:distribute',
 						name: 'Distribute',
 						hiveName: 'TakeHive',
 						coord: [0, 0],

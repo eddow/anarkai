@@ -76,7 +76,6 @@ describe('SettlementProperties', () => {
 	it('renders read-only settlement market details and one price row per good', () => {
 		const settlementObject = {
 			profile: {
-				id: 'settlement-2,3',
 				regionSetKey: '0,0',
 				name: 'Town of (2,3)',
 				kind: 'town',

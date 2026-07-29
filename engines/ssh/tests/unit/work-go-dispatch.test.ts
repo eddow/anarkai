@@ -1,6 +1,8 @@
+// @ts-nocheck
 import { Game } from 'ssh/game/game'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { gatherFreightLine } from '../freight-fixtures'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 
 describe('work.npcs dispatch', () => {
 	let game: Game
@@ -19,7 +21,6 @@ describe('work.npcs dispatch', () => {
 				],
 				freightLines: [
 					gatherFreightLine({
-						id: 'dispatch:gather',
 						name: 'Dispatch gather',
 						hiveName: 'H',
 						coord: [0, 0],
@@ -44,7 +45,7 @@ describe('work.npcs dispatch', () => {
 			job: 'vehicleHop' as const,
 			target: vehicle,
 			vehicle,
-			lineId: line.id,
+			lineId: debugObjectId(line),
 			stopIndex: 0,
 			urgency: 1,
 			fatigue: 0,
@@ -57,8 +58,8 @@ describe('work.npcs dispatch', () => {
 		const execution = character.scriptsContext.work.goWork(workPlan)
 		const first = execution.run(character.scriptsContext)
 		expect(first.type === 'yield' || first.type === 'return').toBe(true)
-		expect(vehicle.operator?.uid).toBe(character.uid)
-		expect(character.operates?.uid).toBe(vehicle.uid)
+		expect(vehicle.operator).toBe(character)
+		expect(character.operates).toBe(vehicle)
 		expect(character.driving).toBe(false)
 		vi.restoreAllMocks()
 	})

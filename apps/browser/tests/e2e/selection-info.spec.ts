@@ -18,7 +18,6 @@ test('selection info title update', async ({ page }) => {
 		if (!api) return false
 
 		api.addPanel({
-			id: 'test-selection-panel',
 			component: 'selection-info',
 			title: 'Initial Title',
 			params: { uid: 'dummy-uid' }, // Pass dummy UID to satisfy props

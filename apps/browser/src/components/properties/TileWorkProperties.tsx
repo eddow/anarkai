@@ -4,6 +4,7 @@ import { workPlanningPresentationRevision } from '@app/lib/presentation-events'
 import { InspectorSection } from '@app/ui/anarkai'
 import { effect, reactive, untracked } from 'mutts'
 import { Tile } from 'ssh/board/tile'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { profile } from 'ssh/dev/debug'
 import type { ProposedJob } from 'ssh/jobs/offers'
 import type { JobType } from 'ssh/types/base'
@@ -100,8 +101,8 @@ function describeJobDetail(job: ProposedJob): string {
 		}
 		case 'vehicleHop':
 			return job.targetCoord
-				? `${job.lineId}/${job.stopIndex} @ ${job.targetCoord.q},${job.targetCoord.r}`
-				: `${job.lineId}/${job.stopIndex}`
+			? `${job.line.name}/${job.stopIndex} @ ${job.targetCoord.q},${job.targetCoord.r}`
+			: `${job.line.name}/${job.stopIndex}`
 		case 'zoneBrowse':
 			return `${job.zoneBrowseAction}:${job.goodType} @ ${job.targetCoord.q},${job.targetCoord.r}`
 		case 'defragment':
@@ -115,7 +116,7 @@ function tileWorkChoices(tile: Tile | undefined) {
 	workPlanningPresentationRevision()
 	return untracked`tile-properties.proposedJobs.collect`(() => {
 		const end = profile.proposedJobs.begin?.('tile-properties.proposedJobs', () => ({
-			tileUid: tile?.uid,
+			tileUid: debugObjectId(tile) ?? '',
 		}))
 		try {
 			if (!(tile instanceof Tile)) return []

@@ -1,4 +1,5 @@
 import type { ArtGenerationRequest, ArtProvider, ArtProviderContext } from './types'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 
 const DEFAULT_BASE_URL = 'https://gen.pollinations.ai'
 const DEFAULT_MODEL = 'flux'
@@ -12,7 +13,6 @@ export function createPollinationsProvider(options: PollinationsProviderOptions 
 	const baseUrl = options.baseUrl ?? DEFAULT_BASE_URL
 
 	return {
-		id: 'pollinations',
 		label: 'Pollinations',
 		generateUrl(request: ArtGenerationRequest, context?: ArtProviderContext) {
 			const url = new URL(`/image/${encodeURIComponent(request.prompt)}`, baseUrl)

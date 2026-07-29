@@ -92,7 +92,7 @@ describe('Character vehicle seam', () => {
 
 		vehicle.beginOffloadService(first)
 		first.operates = vehicle
-		expect(vehicle.operator?.uid).toBe(first.uid)
+		expect(vehicle.operator).toBe(first)
 
 		expect(() => {
 			second.operates = vehicle
@@ -132,8 +132,8 @@ describe('Character vehicle seam', () => {
 		vehicle.beginOffloadService()
 		vehicle.setServiceOperator(character)
 
-		expect(vehicle.operator?.uid).toBe(character.uid)
-		expect(character.operates?.uid).toBe(vehicle.uid)
+		expect(vehicle.operator).toBe(character)
+		expect(character.operates).toBe(vehicle)
 		expect(character.driving).toBe(false)
 	})
 
@@ -150,19 +150,19 @@ describe('Character vehicle seam', () => {
 
 		vehicle.beginOffloadService()
 		character.operates = vehicle
-		expect(vehicle.operator?.uid).toBe(character.uid)
+		expect(vehicle.operator).toBe(character)
 
 		vehicle.releaseOperator(character)
 		character.setOperatedVehicleFromService(vehicle)
-		expect(character.operates?.uid).toBe(vehicle.uid)
-		expect(vehicle.operator?.uid).toBe(character.uid)
+		expect(character.operates).toBe(vehicle)
+		expect(vehicle.operator).toBe(character)
 
 		vehicle.releaseOperator(character)
 		character.setOperatedVehicleFromService(vehicle)
 		character.operates = vehicle
 
-		expect(character.operates?.uid).toBe(vehicle.uid)
-		expect(vehicle.operator?.uid).toBe(character.uid)
+		expect(character.operates).toBe(vehicle)
+		expect(vehicle.operator).toBe(character)
 	})
 
 	it('restores foot position when an onboard operator is released through vehicle service', async () => {
@@ -212,7 +212,6 @@ describe('Character vehicle seam', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					id: 'CV:claimed-before-service',
 					name: 'Claimed before service',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -237,7 +236,7 @@ describe('Character vehicle seam', () => {
 		first.onboard()
 
 		expect(isVehicleLineService(vehicle.service)).toBe(true)
-		expect(vehicle.operator?.uid).toBe(first.uid)
+		expect(vehicle.operator).toBe(first)
 		expect(findVehicleApproachJob(game, second)).toBeUndefined()
 	})
 
@@ -258,7 +257,6 @@ describe('Character vehicle seam', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					id: 'CV:claim-on-select',
 					name: 'Claim on select',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -401,7 +399,7 @@ describe('Character vehicle seam', () => {
 		step?.finish()
 
 		expect(character.driving).toBe(true)
-		expect(character.operates?.uid).toBe(vehicle.uid)
+		expect(character.operates).toBe(vehicle)
 		expect(isVehicleMaintenanceService(vehicle.service)).toBe(true)
 		expect(vehicle.storage.available('wood')).toBe(0)
 	})
@@ -411,7 +409,6 @@ describe('Character vehicle seam', () => {
 			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
 			freightLines: [
 				gatherFreightLine({
-					id: 'CV:disembark-dock',
 					name: 'Disembark dock',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -445,7 +442,6 @@ describe('Character vehicle seam', () => {
 			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
 			freightLines: [
 				gatherFreightLine({
-					id: 'CV:zone-control',
 					name: 'Zone control',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -469,9 +465,9 @@ describe('Character vehicle seam', () => {
 
 		character.stepOffVehicleKeepingControl()
 		expect(character.driving).toBe(false)
-		expect(character.operates?.uid).toBe(vehicle.uid)
+		expect(character.operates).toBe(vehicle)
 		expect(character.transportStorage).toBe(vehicle.storage)
-		expect(vehicle.operator?.uid).toBe(character.uid)
+		expect(vehicle.operator).toBe(character)
 
 		character.boardLinkedVehicle()
 		expect(character.driving).toBe(true)
@@ -522,8 +518,8 @@ describe('Character vehicle seam', () => {
 		expect(character.scriptsContext.vehicle.serviceTargetIsBlocking(jobPlan as any)).toBe(true)
 		character.scriptsContext.vehicle.vehicleStepOffKeepingControl(jobPlan as any)
 		expect(character.driving).toBe(false)
-		expect(character.operates?.uid).toBe(vehicle.uid)
-		expect(vehicle.operator?.uid).toBe(character.uid)
+		expect(character.operates).toBe(vehicle)
+		expect(vehicle.operator).toBe(character)
 
 		character.position = target.position
 		const returnPath = character.scriptsContext.vehicle.pathToOperatedVehicle()
@@ -532,9 +528,9 @@ describe('Character vehicle seam', () => {
 		character.position = returnPath[0]!
 		character.scriptsContext.vehicle.vehicleBoardLinkedVehicle(jobPlan as any)
 		expect(character.driving).toBe(true)
-		expect(character.operates?.uid).toBe(vehicle.uid)
+		expect(character.operates).toBe(vehicle)
 		expect(character.tile).toBe(serviceSide)
-		expect(vehicle.operator?.uid).toBe(character.uid)
+		expect(vehicle.operator).toBe(character)
 	})
 
 	it('offboard clears freight service but keeps vehicle stock', async () => {
@@ -542,7 +538,6 @@ describe('Character vehicle seam', () => {
 			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
 			freightLines: [
 				gatherFreightLine({
-					id: 'CV:offboard',
 					name: 'Offboard',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -575,7 +570,6 @@ describe('Character vehicle seam', () => {
 			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
 			freightLines: [
 				gatherFreightLine({
-					id: 'CV:interrupt-empty',
 					name: 'Interrupt',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -605,7 +599,6 @@ describe('Character vehicle seam', () => {
 			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
 			freightLines: [
 				gatherFreightLine({
-					id: 'CV:interrupt-stock',
 					name: 'Interrupt stock',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -655,7 +648,6 @@ describe('Character vehicle seam', () => {
 			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
 			freightLines: [
 				gatherFreightLine({
-					id: 'CV:trace-empty',
 					name: 'Trace empty',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -700,7 +692,6 @@ describe('Character vehicle seam', () => {
 			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
 			freightLines: [
 				gatherFreightLine({
-					id: 'CV:trace-stock',
 					name: 'Trace stock',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -746,7 +737,6 @@ describe('Character vehicle seam', () => {
 			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
 			freightLines: [
 				gatherFreightLine({
-					id: 'CV:detach-tr',
 					name: 'Detach trace',
 					hiveName: 'H',
 					coord: [0, 0],

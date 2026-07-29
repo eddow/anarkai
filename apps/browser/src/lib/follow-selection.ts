@@ -2,6 +2,7 @@ import { createSyntheticHiveObject } from '@app/lib/hive-inspector'
 import type { DockviewWidgetScope } from '@sursaut/ui/dockview'
 import { Tile } from 'ssh/board/tile'
 import { ZoneObject, ZonesCollectionObject } from 'ssh/board/zone-object'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { createSyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import type { InspectorSelectableObject } from 'ssh/game/object'
 import { toAxialCoord } from 'ssh/utils/position'
@@ -14,7 +15,7 @@ type DockviewApi = NonNullable<DockviewApiLike>
 type InspectorPanel = NonNullable<ReturnType<DockviewApi['getPanel']>>
 type DockviewWindow = Window & { dockviewApi?: DockviewApiLike }
 
-type SelectableObject = Pick<InspectorSelectableObject, 'title'> & { readonly uid?: string }
+type SelectableObject = Pick<InspectorSelectableObject, 'title'>
 const pinnedInspectorPanelIdsByUid = new Map<string, string>()
 
 function ensureGeneratedTileContent(object: SelectableObject): void {
@@ -101,13 +102,13 @@ function resolveSelectionPanelTitle(initialTitle?: string) {
 
 	// Try registered objects first
 	for (const obj of game.objects) {
-		if (obj.uid === selectedUid) return obj.title ?? 'Selection'
+		if (debugObjectId(obj) === selectedUid) return obj.title ?? 'Selection'
 	}
 
 	// Synthetic objects — resolved inline without UID factories
 	if (selectedUid.startsWith('hive:')) {
 		const anchorUid = decodeURIComponent(selectedUid.slice('hive:'.length))
-		const tile = [...game.objects].find((o: any) => o.uid === anchorUid)
+		const tile = [...game.objects].find((o: any) => debugObjectId(o) === anchorUid)
 		if (tile instanceof Tile) {
 			return createSyntheticHiveObject(game, tile)?.title ?? 'Selection'
 		}
@@ -198,7 +199,7 @@ export function showProps(
 	if (dockviewApi) {
 		validateStoredSelectionState(dockviewApi)
 
-		const uid = 'uid' in object ? object.uid : undefined
+		const uid = debugObjectId(object)
 		const pinnedPanel = uid ? getRegisteredInspectorPanel(uid, dockviewApi) : undefined
 		if (pinnedPanel) {
 			focusPanel(pinnedPanel)
@@ -206,7 +207,8 @@ export function showProps(
 		}
 	}
 
-	if ('uid' in object) selectionState.selectedUid = object.uid
+	const uid = debugObjectId(object)
+	if (uid) selectionState.selectedUid = uid
 	if (!dockviewApi) return undefined
 	return ensureFollowSelectionPanel(
 		dockviewApi,

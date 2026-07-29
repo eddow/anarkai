@@ -299,7 +299,6 @@ describe('App shell', () => {
 		stop = latch(container, <App />)
 
 		expect(addPanel).toHaveBeenCalledWith({
-			id: 'game-view',
 			component: 'game',
 			params: undefined,
 			floating: undefined,
@@ -351,7 +350,6 @@ describe('Palette IDE shell', () => {
 
 		openConfiguration.run()
 		expect(addPanel).toHaveBeenCalledWith({
-			id: 'system.configuration',
 			component: 'configuration',
 			params: undefined,
 			floating: { width: 400, height: 600 },
@@ -360,7 +358,6 @@ describe('Palette IDE shell', () => {
 		addPanel.mockClear()
 		openGame.run()
 		expect(addPanel).toHaveBeenCalledWith({
-			id: 'game-view',
 			component: 'game',
 			params: undefined,
 			floating: undefined,
@@ -369,7 +366,6 @@ describe('Palette IDE shell', () => {
 		addPanel.mockClear()
 		openLines.run()
 		expect(addPanel).toHaveBeenCalledWith({
-			id: 'freight-lines',
 			component: 'linesManagement',
 			params: undefined,
 			floating: { width: 400, height: 600 },

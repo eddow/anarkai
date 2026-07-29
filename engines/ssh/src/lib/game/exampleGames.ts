@@ -74,7 +74,6 @@ export const chopSaw = {
 	],
 	freightLines: [
 		{
-			id: 'ChopSaw:implicit-gather:0,0',
 			name: 'ChopSaw (0, 0) exchange',
 			cyclic: true,
 			stops: [
@@ -96,7 +95,6 @@ export const chopSaw = {
 			],
 		},
 		{
-			id: 'ChopSaw:materials-loop:0,0:Melindbury',
 			name: 'ChopSaw - Melindbury materials',
 			cyclic: true,
 			stops: [
@@ -165,25 +163,25 @@ export const chopSaw = {
 			uid: 'ChopSaw:wheelbarrow1',
 			vehicleType: 'wheelbarrow',
 			position: { q: -1, r: 1 },
-			servedLineIds: ['ChopSaw:implicit-gather:0,0'],
+			servedLineIndices: [],
 		},
 		{
 			uid: 'ChopSaw:wheelbarrow2',
 			vehicleType: 'wheelbarrow',
 			position: { q: -1, r: 2 },
-			servedLineIds: ['ChopSaw:implicit-gather:0,0'],
+			servedLineIndices: [],
 		},
 		{
 			uid: 'ChopSaw:wheelbarrow3',
 			vehicleType: 'wheelbarrow',
 			position: { q: -2, r: 2 },
-			servedLineIds: ['ChopSaw:implicit-gather:0,0'],
+			servedLineIndices: [],
 		},
 		{
 			uid: 'ChopSaw:suv',
 			vehicleType: 'suv',
 			position: { q: 0, r: 0 },
-			servedLineIds: ['ChopSaw:materials-loop:0,0:Melindbury'],
+			servedLineIndices: [],
 		},
 	],
 } satisfies GamePatches
@@ -242,7 +240,6 @@ export const demoHive = {
 	],
 	freightLines: [
 		{
-			id: 'HearthLoop:commons-exchange',
 			name: 'HearthLoop commons exchange',
 			cyclic: true,
 			stops: [
@@ -264,7 +261,6 @@ export const demoHive = {
 			],
 		},
 		{
-			id: 'HearthLoop:melindbury-comfort-loop',
 			name: 'HearthLoop - Melindbury comfort loop',
 			cyclic: true,
 			stops: [
@@ -357,13 +353,13 @@ export const demoHive = {
 			uid: 'HearthLoop:wheelbarrow',
 			vehicleType: 'wheelbarrow',
 			position: { q: 0, r: 1 },
-			servedLineIds: ['HearthLoop:commons-exchange'],
+			servedLineIndices: [],
 		},
 		{
 			uid: 'HearthLoop:pickup-truck',
 			vehicleType: 'pickup_truck',
 			position: { q: 0, r: 1 },
-			servedLineIds: ['HearthLoop:melindbury-comfort-loop'],
+			servedLineIndices: [],
 		},
 	],
 } satisfies GamePatches
@@ -394,7 +390,6 @@ export const dorm = {
 	],
 	freightLines: [
 		{
-			id: 'Dorm:implicit-gather:0,1',
 			name: 'Dorm (0, 1) exchange',
 			cyclic: true,
 			stops: [
@@ -441,7 +436,7 @@ export const dorm = {
 			uid: 'Dorm:wheelbarrow',
 			vehicleType: 'wheelbarrow',
 			position: { q: 0, r: 1 },
-			servedLineIds: ['Dorm:implicit-gather:0,1'],
+			servedLineIndices: [],
 		},
 	],
 } satisfies GamePatches

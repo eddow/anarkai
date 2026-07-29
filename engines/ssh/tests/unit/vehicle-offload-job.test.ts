@@ -163,8 +163,8 @@ describe('findVehicleOffloadJob', () => {
 			char.begin(action)
 
 			expect(isVehicleMaintenanceService(vehicle.service)).toBe(true)
-			expect(vehicle.operator?.uid).toBe(char.uid)
-			expect(char.operates?.uid).toBe(vehicle.uid)
+			expect(vehicle.operator).toBe(char)
+			expect(char.operates).toBe(vehicle)
 		} finally {
 			await engine.destroy()
 		}
@@ -336,16 +336,13 @@ describe('findVehicleOffloadJob', () => {
 		try {
 			const center = { q: 2, r: 2 }
 			const lineDef = normalizeFreightLineDefinition({
-				id: 'orphan-gather',
 				name: 'Orphan gather',
 				stops: [
 					{
-						id: 'orphan-gather-zone',
 						loadSelection: migrateV1FiltersToGoodsSelection(['mushrooms']),
 						zone: { kind: 'radius', center: [2, 2], radius: 2 },
 					},
 					{
-						id: 'orphan-gather-unload',
 						anchor: {
 							kind: 'alveolus',
 							hiveName: 'MissingHive',
@@ -364,7 +361,7 @@ describe('findVehicleOffloadJob', () => {
 				],
 				freightLines: [lineDef],
 			} as any)
-			const line = game.freightLines.find((l) => l.id === 'orphan-gather')!
+			const line = game.freightLines.find((l) => l.name === 'orphan-gather')!
 			const vehicle = game.vehicles.createVehicle('wheelbarrow', center, [line])
 			vehicle.storage.addGood('mushrooms', 1)
 			const char = engine.spawnCharacter('Worker', center)
@@ -403,16 +400,13 @@ describe('findVehicleOffloadJob', () => {
 				],
 				freightLines: [
 					{
-						id: 'loaded-gather',
 						name: 'Loaded gather',
 						stops: [
 							{
-								id: 'load-zone',
 								loadSelection: migrateV1FiltersToGoodsSelection(['wood']),
 								zone: { kind: 'radius', center: [0, 0], radius: 1 },
 							},
 							{
-								id: 'unload-bay',
 								anchor: {
 									kind: 'alveolus',
 									hiveName: 'LoadedGatherHive',
@@ -424,7 +418,7 @@ describe('findVehicleOffloadJob', () => {
 					},
 				],
 			} as any)
-			const line = game.freightLines.find((entry) => entry.id === 'loaded-gather')!
+			const line = game.freightLines.find((entry) => entry.name === 'loaded-gather')!
 			const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 3, r: 0 }, [line])
 			vehicle.storage.addGood('wood', 1)
 			const char = engine.spawnCharacter('Worker', { q: 3, r: 0 })
@@ -564,12 +558,10 @@ describe('findVehicleOffloadJob', () => {
 				],
 				freightLines: [
 					{
-						id: 'joint-priority-line',
 						name: 'Joint priority line',
 						stops: [
 							{ id: 'load', zone: { kind: 'radius', center: [0, 0], radius: 3 } },
 							{
-								id: 'unload',
 								anchor: {
 									kind: 'alveolus',
 									hiveName: 'JointPriorityHive',
@@ -624,12 +616,10 @@ describe('findVehicleOffloadJob', () => {
 				looseGoods: [{ goodType: 'wood', position: { q: 1, r: 0 } }],
 				freightLines: [
 					{
-						id: 'no-need-line',
 						name: 'No need line',
 						stops: [
 							{ id: 'load', zone: { kind: 'radius', center: [0, 0], radius: 2 } },
 							{
-								id: 'unload',
 								anchor: {
 									kind: 'alveolus',
 									hiveName: 'NoNeedHive',
@@ -662,16 +652,13 @@ describe('findVehicleOffloadJob', () => {
 		const { game } = engine
 		try {
 			const lineDef = normalizeFreightLineDefinition({
-				id: 'served-only-line',
 				name: 'Served only line',
 				stops: [
 					{
-						id: 'load',
 						loadSelection: migrateV1FiltersToGoodsSelection(['wood']),
 						zone: { kind: 'radius', center: [0, 0], radius: 2 },
 					},
 					{
-						id: 'unload',
 						anchor: {
 							kind: 'alveolus',
 							hiveName: 'ServedHive',
@@ -863,7 +850,7 @@ describe('findVehicleOffloadJob', () => {
 				uid: 'wb-legacy-offload',
 				vehicleType: 'wheelbarrow',
 				position: center,
-				servedLineIds: [],
+				servedLineIndices: [],
 				service: { kind: 'offload', operatorUid: char.uid },
 			})
 			expect(legacyRestored.service).toBeUndefined()

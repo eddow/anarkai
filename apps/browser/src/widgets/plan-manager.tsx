@@ -237,7 +237,7 @@ const PlanManagerWidget = (props: { title?: string }) => {
 	const setFilter = (filter: StageFilter) => {
 		state.filter = filter !== 'all' && state.filter === filter ? 'all' : filter
 		const list = plansForFilter()
-		if (!list.some((plan) => plan.id === state.selectedId)) {
+		if (!list.some((plan) => plan.name === state.selectedId)) {
 			state.selectedId = list[0]?.id ?? ''
 			state.selectedRoleId = ''
 		}

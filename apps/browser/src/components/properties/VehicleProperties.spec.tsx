@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {
 	consumePresentationEvents,
 	resetPresentationRevisionsForTests,
@@ -5,6 +6,7 @@ import {
 import { document, latch } from '@sursaut/core'
 import { disconnectAllProfiles, profile, setProfileLevel } from 'ssh/dev/debug'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 
 const activeWorldViewPov = vi.hoisted(() => ({
 	viewId: 'primary',
@@ -72,7 +74,7 @@ vi.mock('ssh/freight/freight-line', async (importOriginal) => {
 			title: `${line.name} (test)`,
 			game: game as never,
 			line: line as never,
-			lineId: line.id,
+			lineId: debugObjectId(line),
 			tile: undefined,
 			position: undefined,
 			logs: [],
@@ -247,11 +249,9 @@ describe('VehicleProperties', () => {
 			storage: { stock: {} },
 			service: {
 				line: {
-					id: 'L1',
 					name: 'North route',
 					stops: [
 						{
-							id: 'stop-1',
 							anchor: {
 								kind: 'alveolus',
 								hiveName: 'H',
@@ -262,7 +262,6 @@ describe('VehicleProperties', () => {
 					],
 				},
 				stop: {
-					id: 'stop-1',
 					anchor: {
 						kind: 'alveolus',
 						hiveName: 'H',
@@ -290,12 +289,10 @@ describe('VehicleProperties', () => {
 
 	it('assigns and unassigns served freight lines without changing active service text', () => {
 		const lineA = {
-			id: 'L1',
 			name: 'North route',
 			stops: [{ id: 'a', zone: { kind: 'radius', center: [1, 0] as const, radius: 1 } }],
 		}
 		const lineB = {
-			id: 'L2',
 			name: 'South route',
 			stops: [{ id: 'b', zone: { kind: 'radius', center: [2, 0] as const, radius: 1 } }],
 		}

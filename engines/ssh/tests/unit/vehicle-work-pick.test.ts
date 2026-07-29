@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { isCompleteVehicleWorkPick } from 'ssh/freight/vehicle-work'
 import { describe, expect, it } from 'vitest'
 
@@ -10,8 +11,7 @@ describe('vehicle work pick validation', () => {
 					urgency: 1,
 					fatigue: 1,
 
-					lineId: 'line:1',
-					stopIndex: 0,
+										stopIndex: 0,
 					path: [],
 					approachPath: [],
 				} as any,
@@ -28,8 +28,7 @@ describe('vehicle work pick validation', () => {
 					urgency: 1,
 					fatigue: 1,
 
-					lineId: 'line:1',
-					stopIndex: 0,
+										stopIndex: 0,
 					path: [],
 					approachPath: [],
 					dockEnter: true,

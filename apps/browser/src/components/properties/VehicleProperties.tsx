@@ -9,6 +9,7 @@ import { vehicles as vehicleVisuals } from 'engine-pixi/assets/visual-content'
 import { vehicleTextureKey } from 'engine-pixi/renderers/vehicle-visual'
 import { effect, reactive, untracked } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { profile } from 'ssh/dev/debug'
 import {
 	createSyntheticFreightLineObject,
@@ -249,7 +250,7 @@ function effectiveOperatorForVehicle(vehicle: Vehicle | undefined): Character | 
 	const population = vehicle.game.population as Iterable<Character> | undefined
 	if (!population?.[Symbol.iterator]) return undefined
 	for (const character of population) {
-		if (character.operates?.uid === vehicle.uid) return character
+		if (character.operates === vehicle) return character
 	}
 	return undefined
 }
@@ -266,7 +267,7 @@ function describeVehicleWorkTarget(job: ProposedJob): string {
 			return `vehicleOffload ${detail} @ ${job.targetCoord.q},${job.targetCoord.r}`
 		}
 		case 'vehicleHop':
-			return `vehicleHop ${job.lineId}/${job.stopIndex} @ ${targetLabel}`
+			return `vehicleHop ${job.line.name}/${job.stopIndex} @ ${targetLabel}`
 		case 'zoneBrowse':
 			return `zoneBrowse ${job.zoneBrowseAction}:${job.goodType} @ ${job.targetCoord.q},${job.targetCoord.r}`
 		default:
@@ -278,7 +279,7 @@ function vehicleWorkChoices(vehicle: Vehicle | undefined): VehicleWorkChoice[] {
 	workPlanningPresentationRevision()
 	return untracked`vehicle-properties.workChoices.collect`(() => {
 		const end = profile.proposedJobs.begin?.('vehicle-properties.workChoices', () => ({
-			vehicleUid: vehicle?.uid,
+			vehicleUid: debugObjectId(vehicle) ?? '',
 		}))
 		try {
 			if (!vehicle) return []
@@ -336,11 +337,11 @@ function lineHint(game: Vehicle['game'], line: FreightLineDefinition): string {
 
 function assignableLineItems(vehicle: Vehicle): HardListSearchPickerItem[] {
 	if (!isLineFreightVehicleType(vehicle.vehicleType)) return []
-	const assigned = new Set((vehicle.servedLines ?? []).map((line) => line.id))
+	const assigned = new Set((vehicle.servedLines ?? []).map((line) => line.name))
 	return (vehicle.game.freightLines ?? [])
-		.filter((line) => !assigned.has(line.id))
+		.filter((line) => !assigned.has(line.name))
 		.map((line) => ({
-			id: line.id,
+			id: debugObjectId(line) ?? '',
 			label: line.name,
 			hint: lineHint(vehicle.game, line),
 			coord: lineCoord(vehicle.game, line),
@@ -412,7 +413,7 @@ const VehicleProperties = (
 		const vehicle = props.vehicle
 		if (!vehicle) return
 		if (!isLineFreightVehicleType(vehicle.vehicleType)) return
-		const line = vehicle.game.freightLines.find((entry: any) => entry.id === lineId)
+		const line = vehicle.game.freightLines.find((entry) => debugObjectId(entry) === lineId)
 		if (line) {
 			if (vehicle.game.assignVehicleToFreightLine)
 				vehicle.game.assignVehicleToFreightLine(vehicle, line)
@@ -424,7 +425,7 @@ const VehicleProperties = (
 	const unassignLine = (lineId: string) => {
 		const vehicle = props.vehicle
 		if (!vehicle) return
-		const line = vehicle.game.freightLines.find((entry: any) => entry.id === lineId)
+		const line = vehicle.game.freightLines.find((entry) => debugObjectId(entry) === lineId)
 		if (line) {
 			if (vehicle.game.unassignVehicleFromFreightLine)
 				vehicle.game.unassignVehicleFromFreightLine(vehicle, line)
@@ -501,7 +502,7 @@ const VehicleProperties = (
 												class="vehicle-line-assignment__remove"
 												title={assignmentText().remove}
 												aria-label={assignmentText().remove}
-												onClick={() => unassignLine(lineObject.lineId)}
+												onClick={() => unassignLine(debugObjectId(lineObject.line) ?? '')}
 												data-testid="vehicle-unassign-line"
 											>
 												×

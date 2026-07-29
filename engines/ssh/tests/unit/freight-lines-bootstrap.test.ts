@@ -89,7 +89,6 @@ describe('Freight line bootstrap', () => {
 				looseGoods: [{ goodType: 'wood', position: { q: 0, r: 2 } }],
 				freightLines: [
 					gatherFreightLine({
-						id: 'GatherRadiusHive:implicit-gather:0,0',
 						name: 'Gather radius',
 						hiveName: 'GatherRadiusHive',
 						coord: [0, 0],
@@ -120,14 +119,12 @@ describe('Freight line bootstrap', () => {
 		}
 		const lines = [
 			distributeFreightLine({
-				id: 'H:distribute',
 				name: 'Distribute first',
 				hiveName: 'H',
 				coord: [0, 0],
 				filters: ['wood'],
 			}),
 			gatherFreightLine({
-				id: 'H:gather',
 				name: 'Gather second',
 				hiveName: 'H',
 				coord: [0, 0],
@@ -214,7 +211,7 @@ describe('Freight line bootstrap', () => {
 			expect(reloaded.game.freightLines).toHaveLength(1)
 			const reloadedLine = reloaded.game.freightLines[0]!
 			const loadStop = reloadedLine.stops[0]
-			expect(reloadedLine.id).toBe(initial!.id)
+			expect(reloadedLine.name).toBe(initial!.id)
 			expect(reloadedLine.name).toBe('Edited gather line')
 			expect(loadStop?.loadSelection).toEqual({
 				goodRules: [
@@ -239,7 +236,6 @@ describe('Freight line bootstrap', () => {
 				hives: [{ name: 'H', alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }] }],
 				freightLines: [
 					distributeFreightLine({
-						id: 'H:line',
 						name: 'Distribute with radius',
 						hiveName: 'H',
 						coord: [0, 0],
@@ -249,7 +245,7 @@ describe('Freight line bootstrap', () => {
 				],
 			})
 
-			const line = engine.game.freightLines.find((l) => l.id === 'H:line')
+			const line = engine.game.freightLines.find((l) => l.name === 'H:line')
 			expect(line).toBeDefined()
 			expect(line?.stops).toHaveLength(2)
 			expect(line?.stops[0]?.loadSelection).toEqual({
@@ -288,12 +284,10 @@ describe('Freight line bootstrap', () => {
 				},
 				freightLines: [
 					{
-						id: 'H:named-gather',
 						name: 'Named gather',
 						stops: [
 							{ id: 'named-load', zone: { kind: 'named', zoneId: 'north-grove' } },
 							{
-								id: 'bay-unload',
 								anchor: {
 									kind: 'alveolus',
 									hiveName: 'H',
@@ -306,7 +300,7 @@ describe('Freight line bootstrap', () => {
 				],
 			})
 
-			const line = engine.game.freightLines.find((entry) => entry.id === 'H:named-gather')!
+			const line = engine.game.freightLines.find((entry) => entry.name === 'H:named-gather')!
 			expect(findGatherRouteSegments(line)).toEqual([{ loadStopIndex: 0, unloadStopIndex: 1 }])
 			expect(findDistributeRouteSegments(line)).toEqual([])
 			expect(measureFreightStopProvidedGoods(engine.game, line, 0).perGood).toEqual({ wood: 1 })

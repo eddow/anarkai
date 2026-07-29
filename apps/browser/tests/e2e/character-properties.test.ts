@@ -19,7 +19,6 @@ test.describe('Character Properties Display', () => {
 			// Explicitly add panel if not present
 			if (!(window as any).dockviewApi.getPanel('selection-info')) {
 				;(window as any).dockviewApi.addPanel({
-					id: 'selection-info',
 					component: 'selection-info',
 					title: 'Selection',
 					params: { uid: char.uid },

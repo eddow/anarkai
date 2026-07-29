@@ -61,8 +61,8 @@ describe('Vehicle usage invariant', () => {
 
 		character.scriptsContext.plan.begin(plan)
 
-		expect(character.operates?.uid).toBe(vehicle.uid)
-		expect(vehicle.operator?.uid).toBe(character.uid)
+		expect(character.operates).toBe(vehicle)
+		expect(vehicle.operator).toBe(character)
 		const service = vehicle.service
 		expect(isVehicleMaintenanceService(service)).toBe(true)
 		if (!isVehicleMaintenanceService(service)) throw new Error('expected maintenance service')
@@ -100,8 +100,8 @@ describe('Vehicle usage invariant', () => {
 		character.begin(action)
 
 		expect(character.driving).toBe(false)
-		expect(character.operates?.uid).toBe(vehicle.uid)
-		expect(vehicle.operator?.uid).toBe(character.uid)
+		expect(character.operates).toBe(vehicle)
+		expect(vehicle.operator).toBe(character)
 		expect(isVehicleMaintenanceService(vehicle.service)).toBe(true)
 		if (!isVehicleMaintenanceService(vehicle.service))
 			throw new Error('expected maintenance service')
@@ -222,7 +222,6 @@ describe('Vehicle usage invariant', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					id: 'VU:operator-drift',
 					name: 'Operator drift',
 					hiveName: 'H',
 					coord: [0, 0],
@@ -249,7 +248,7 @@ describe('Vehicle usage invariant', () => {
 		releaseVehicleFreightWorkOnPlanInterrupt(first)
 
 		expect(first.operates).toBeUndefined()
-		expect(vehicle.operator?.uid).toBe(second.uid)
+		expect(vehicle.operator).toBe(second)
 		expect(isVehicleLineService(vehicle.service)).toBe(true)
 	})
 
@@ -286,7 +285,6 @@ describe('Vehicle usage invariant', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					id: 'VU:line-lock',
 					name: 'Line lock',
 					hiveName: 'H',
 					coord: [0, 0],

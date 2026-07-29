@@ -84,7 +84,6 @@ export type FreightStop = {
 )
 
 export interface FreightLineDefinition {
-	readonly id: string
 	readonly name: string
 	readonly stops: ReadonlyArray<FreightStop>
 	readonly cyclic?: boolean
@@ -116,7 +115,6 @@ export function canonicalFreightLineStopAlveolusType(
 export interface SyntheticFreightLineObject extends InspectorSelectableObject {
 	readonly kind: 'freight-line'
 	readonly line: FreightLineDefinition
-	readonly lineId: string
 	readonly tile?: Tile
 }
 
@@ -332,10 +330,9 @@ export function findDistributeRouteSegments(
 	return out
 }
 
-/** Normalizes ids, anchors, zones, and goods policies. Call when persisting or replacing a line. */
+/** Normalizes anchors, zones, and goods policies. Call when persisting or replacing a line. */
 export function normalizeFreightLineDefinition(line: FreightLineDefinition): FreightLineDefinition {
 	const normalized: FreightLineDefinition = {
-		id: line.id,
 		name: line.name,
 		stops: line.stops.map(normalizeFreightStop),
 	}
@@ -688,51 +685,6 @@ export function gatherLoadRadiusForLineAtStop(
 	return undefined
 }
 
-export function implicitGatherFreightLinesFromHivePatches(
-	hives: ReadonlyArray<{
-		name?: string
-		alveoli: ReadonlyArray<{ coord: readonly [number, number]; alveolus: string }>
-	}>
-): FreightLineDefinition[] {
-	const out: FreightLineDefinition[] = []
-	for (const hive of hives) {
-		const hiveName = freightLineStopHiveName(hive.name)
-		const displayHiveName = freightLineDisplayHiveName(hive.name)
-		for (const a of hive.alveoli) {
-			if (a.alveolus !== 'freight_bay') continue
-			const id = `${displayHiveName}:implicit-gather:${a.coord[0]},${a.coord[1]}`
-			const coord = [Math.floor(a.coord[0]), Math.floor(a.coord[1])] as const
-			const anchor: FreightStopAnchorAlveolus = {
-				kind: 'alveolus',
-				hiveName,
-				alveolusType: 'freight_bay',
-				coord,
-			}
-			out.push({
-				id,
-				name: `${displayHiveName} (${a.coord[0]}, ${a.coord[1]}) gather`,
-				stops: [
-					{
-						zone: {
-							kind: 'radius',
-							center: coord,
-							radius: DEFAULT_GATHER_FREIGHT_RADIUS,
-						},
-					},
-					{
-						anchor,
-					},
-				],
-			})
-		}
-	}
-	return out
-}
-
-export function isImplicitGatherFreightLineId(lineId: string): boolean {
-	return lineId.includes(':implicit-gather:')
-}
-
 export type FreightBayStopAlveolus = {
 	readonly hive: { name?: string }
 	readonly name: string
@@ -753,8 +705,6 @@ export function createExplicitFreightLineDraftForFreightBay(
 	if (!coord) return undefined
 	const hiveName = freightLineStopHiveName(alveolus.hive.name)
 	const displayName = freightLineDisplayHiveName(alveolus.hive.name)
-	const unique = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`
-	const id = `${displayName}:explicit:${coord.q},${coord.r}:${mode}:${unique}`
 	const axialCoord = [coord.q, coord.r] as const
 	const anchor: FreightStopAnchorAlveolus = {
 		kind: 'alveolus',
@@ -769,7 +719,6 @@ export function createExplicitFreightLineDraftForFreightBay(
 	const draft: FreightLineDefinition =
 		mode === 'gather'
 			? {
-					id,
 					name,
 					stops: [
 						{
@@ -785,7 +734,6 @@ export function createExplicitFreightLineDraftForFreightBay(
 					],
 				}
 			: {
-					id,
 					name,
 					stops: [
 						{
@@ -807,7 +755,6 @@ export function createExchangeFreightLineDraftForFreightBay(
 	if (!coord) return undefined
 	const hiveName = freightLineStopHiveName(alveolus.hive.name)
 	const displayName = freightLineDisplayHiveName(alveolus.hive.name)
-	const unique = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`
 	const axialCoord = [coord.q, coord.r] as const
 	const anchor: FreightStopAnchorAlveolus = {
 		kind: 'alveolus',
@@ -816,7 +763,6 @@ export function createExchangeFreightLineDraftForFreightBay(
 		coord: axialCoord,
 	}
 	return normalizeFreightLineDefinition({
-		id: `${displayName}:explicit:${coord.q},${coord.r}:exchange:${unique}`,
 		name: `${displayName} (${coord.q}, ${coord.r}) exchange`,
 		cyclic: true,
 		stops: [
@@ -879,7 +825,6 @@ export function createSyntheticFreightLineObject(
 		title: line.name,
 		game,
 		line,
-		lineId: line.id,
 		tile,
 		position: tile?.position,
 		logs: [],
@@ -1006,7 +951,6 @@ export function rebuildFreightLineRoutePreset(
 	if (!draft) return normalizeFreightLineDefinition(line)
 	const merged: FreightLineDefinition = {
 		...draft,
-		id: line.id,
 		name: line.name,
 		stops: draft.stops.map((stop) => {
 			const isGatherLoad = mode === 'gather' && 'zone' in stop
