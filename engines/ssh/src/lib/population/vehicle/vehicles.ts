@@ -33,24 +33,6 @@ export class Vehicles extends withContainer(GameObject) {
 		return true
 	}
 
-	serialize(): VehicleSerializedState[] {
-		const out: VehicleSerializedState[] = []
-		for (const v of this.children) {
-			if (v instanceof Vehicle) out.push(v.serialize())
-		}
-		return out
-	}
-
-	deserialize(data: VehicleSerializedState[]): void {
-		this.game.withObjectRegistrationBatch(() => {
-			this.clear()
-			for (const vehicleData of data) {
-				const vehicle = Vehicle.deserialize(this.game, vehicleData)
-				this.add(vehicle)
-			}
-		})
-	}
-
 	[Symbol.iterator]() {
 		const children = this.children
 		return iterateChildVehicles(children)

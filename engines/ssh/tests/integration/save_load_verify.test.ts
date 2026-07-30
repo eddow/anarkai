@@ -1,3 +1,4 @@
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 // @ts-nocheck
 // Manual DOM mock for PixiJS
 if (typeof document === 'undefined') {
@@ -181,7 +182,7 @@ describe('Save/Load Determinism', () => {
 		games.add(game2)
 		await game2.loaded
 		await game2.loadGameData(saveState)
-		const char2 = game2.population.character(char1.uid)
+		const char2 = Array.from(game2.population).find(c => debugObjectId(c) === debugObjectId(char1))
 
 		for (let i = 0; i < 20; i++) char2.update(dt)
 
@@ -212,7 +213,7 @@ describe('Save/Load Determinism', () => {
 		games.add(game2)
 		await game2.loaded
 		await game2.loadGameData(saveState)
-		const char2 = game2.population.character(char.uid)
+		const char2 = Array.from(game2.population).find(c => debugObjectId(c) === debugObjectId(char))
 
 		expect(char2.carry?.available('wood') ?? 0).toBe(0)
 		expect(char2.carry?.available('stone') ?? 0).toBe(0)
@@ -244,7 +245,7 @@ describe('Save/Load Determinism', () => {
 		games.add(game2)
 		await game2.loaded
 		await game2.loadGameData(saveState)
-		const char2 = game2.population.character(char.uid)
+		const char2 = Array.from(game2.population).find(c => debugObjectId(c) === debugObjectId(char))
 
 		expect(char2.stepExecutor).toBeDefined()
 		expect(char2.stepExecutor!.constructor.name).toBe('DurationStep')
@@ -451,7 +452,7 @@ describe('Save/Load Determinism', () => {
 		games.add(game2)
 		await game2.loaded
 		await game2.loadGameData(saveState)
-		const char2 = game2.population.character(char.uid)
+		const char2 = Array.from(game2.population).find(c => debugObjectId(c) === debugObjectId(char))
 
 		expect(char2.stepExecutor!.constructor.name).toBe('MultiMoveStep')
 		expect((char2.stepExecutor as MultiMoveStep).evolution).toBeCloseTo(0.5, 2)

@@ -1,3 +1,4 @@
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 // @ts-nocheck
 import { jobBalance } from 'engine-rules'
 import { normalizeFreightLineDefinition } from 'ssh/freight/freight-line'
@@ -796,7 +797,7 @@ describe('findVehicleOffloadJob', () => {
 				throw new Error('expected maintenance service')
 			expect(vehicle.service.kind).toBe('unloadToTile')
 			expect(vehicle.service.targetCoord).toEqual({ q: 3, r: 2 })
-			expect(vehicle.service.operator?.uid).toBe(char.uid)
+			expect(vehicle.service.operator?.uid).toBe(debugObjectId(char))
 
 			allocateVehicleServiceForJob(game, char, vehicle, {
 				job: 'vehicleOffload',
@@ -812,48 +813,7 @@ describe('findVehicleOffloadJob', () => {
 			if (!isVehicleMaintenanceService(vehicle.service))
 				throw new Error('expected maintenance service')
 			expect(vehicle.service.targetCoord).toEqual({ q: 1, r: 2 })
-			expect(vehicle.service.operator?.uid).toBe(char.uid)
-		} finally {
-			await engine.destroy()
-		}
-	})
-
-	it('serializes maintenance services explicitly and drops them on deserialize', async () => {
-		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
-		await engine.init()
-		const { game } = engine
-		try {
-			const center = { q: 2, r: 2 }
-			engine.loadScenario({
-				generationOptions: { terrainSeed: 1234, characterCount: 0 },
-				tiles: [{ coord: [2, 2], terrain: 'grass' }],
-			} as any)
-			const vehicle = game.vehicles.createVehicle('wheelbarrow', center, [])
-			vehicle.storage.addGood('wood', 2)
-			const char = engine.spawnCharacter('Worker', center)
-			void char.scriptsContext
-
-			vehicle.beginMaintenanceService({ kind: 'unloadToTile', targetCoord: { q: 3, r: 2 } }, char)
-			const saved = vehicle.serialize()
-			expect(saved.service).toEqual({
-				kind: 'maintenance',
-				maintenanceKind: 'unloadToTile',
-				targetCoord: { q: 3, r: 2 },
-				operatorUid: char.uid,
-			})
-
-			const restored = Vehicle.deserialize(game, saved)
-			expect(restored.service).toBeUndefined()
-			expect(restored.storage.stock.wood).toBe(2)
-
-			const legacyRestored = Vehicle.deserialize(game, {
-				uid: 'wb-legacy-offload',
-				vehicleType: 'wheelbarrow',
-				position: center,
-				servedLineIndices: [],
-				service: { kind: 'offload', operatorUid: char.uid },
-			})
-			expect(legacyRestored.service).toBeUndefined()
+			expect(vehicle.service.operator?.uid).toBe(debugObjectId(char))
 		} finally {
 			await engine.destroy()
 		}

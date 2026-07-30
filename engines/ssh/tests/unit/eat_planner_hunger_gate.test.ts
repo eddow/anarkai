@@ -3,6 +3,7 @@ import { inert } from 'mutts'
 import { Game, type GamePatches } from 'ssh/game'
 import type { ScriptExecution } from 'ssh/npcs/scripts'
 import { PonderingStep } from 'ssh/npcs/steps'
+import { deserializeCharacters, serializeCharacters } from 'ssh/population/character'
 import type { Character } from 'ssh/population/character'
 import { computeActivityScores } from 'ssh/population/findNextActivity'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -219,11 +220,10 @@ describe('Eat planning vs hunger (no goEat when sated)', () => {
 		try {
 			const c = game.population.createCharacter('Keeper', { q: 0, r: -1 })
 			c.addPersonalGood('sandwich', 2)
-			const saved = c.serialize()
+			const saved = serializeCharacters([c], new Map())
 			const restoredGame = await loadMiniGame({ hives: [] })
 			try {
-				restoredGame.population.deserialize([saved])
-				const restored = restoredGame.population.characters.get(c.uid)
+				const restored = deserializeCharacters(restoredGame, saved, [])[0]
 				if (!restored) throw new Error('expected restored character')
 				expect(restored.personalGoodAvailable('sandwich')).toBe(2)
 			} finally {

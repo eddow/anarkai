@@ -83,8 +83,6 @@ describe('Work Logic / Inventory Race Conditions', () => {
 
 		// Spawn character
 		char = new Character(game, 'Worker', { q: 0, r: 0 })
-		// Accessing private characters map via any cast for test setup
-		;(game.population as any).characters.set(char.uid, char)
 
 		// Initialize InventoryContext bound to character
 		inventoryFunctions = new InventoryFunctions()

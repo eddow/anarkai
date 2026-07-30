@@ -628,87 +628,9 @@ operatorUid: debugObjectId(this.operator),
 		if (changed) this.game.invalidateWorkPlanning('vehicle.refresh-line')
 	}
 
-	private serializeService(): VehicleServiceSerialized | undefined {
-		const svc = this.service
-		if (!svc) return undefined
-		if (isVehicleLineService(svc)) {
-			return {
-				kind: 'line',
-				lineIndex: this.game.freightLines.indexOf(svc.line),
-				stopIndex: svc.line.stops.indexOf(svc.stop),
-				docked: svc.docked,
-				operatorUid: debugObjectId(svc.operator),
-			}
-		}
-		if (!isVehicleMaintenanceService(svc)) return undefined
-		return {
-			kind: 'maintenance',
-			maintenanceKind: svc.kind,
-			targetCoord: { q: svc.targetCoord.q, r: svc.targetCoord.r },
-			operatorUid: debugObjectId(svc.operator),
-		}
-	}
-
 	override destroy(): void {
 		this.dockStorageCompletionEffect?.()
 		this.dockStorageCompletionEffect = undefined
 		super.destroy()
-	}
-
-	serialize(): VehicleSerializedState {
-		const coord = axial.round(toAxialCoord(this.effectivePosition)!)
-		return {
-			uid: debugObjectId(this) ?? '',
-			vehicleType: this.vehicleType,
-			position: { q: coord.q, r: coord.r },
-			goods: this.storage.stock,
-			servedLineIndices: this.servedLines.map((line) =>
-				this.game.freightLines.indexOf(line)
-			),
-			service: this.serializeService(),
-		}
-	}
-
-	static deserialize(game: Game, data: VehicleSerializedState): Vehicle {
-		const vehicle = new Vehicle(
-			game,
-			data.vehicleType,
-			data.position,
-			(data.servedLineIndices ?? [])
-				.map((idx) => game.freightLines[idx])
-				.filter((line): line is FreightLineDefinition => !!line)
-		)
-		for (const [goodType, qty] of Object.entries(data.goods ?? {})) {
-			vehicle.storage.addGood(goodType as GoodType, qty as number)
-		}
-		if (data.service) {
-			Vehicle.restoreService(game, vehicle, data.service)
-		}
-		return vehicle
-	}
-
-	private static restoreService(
-		game: Game,
-		vehicle: Vehicle,
-		saved:
-			| VehicleServiceSerialized
-			| LegacyLineVehicleServiceSerialized
-			| LegacyOffloadVehicleServiceSerialized
-	): void {
-		const operator = saved.operatorUid ? game.population.character(saved.operatorUid) : undefined
-		// Pre-discriminator legacy offload save: the planner re-discovers maintenance work.
-		if ('kind' in saved && saved.kind === 'offload') return
-		// New maintenance save: also transient — planner re-validates targets against current world.
-		if ('kind' in saved && saved.kind === 'maintenance') return
-		const linePayload = saved as
-			| LegacyLineVehicleServiceSerialized
-			| Extract<VehicleServiceSerialized, { kind: 'line' }>
-		const line = game.freightLines[linePayload.lineIndex]
-		if (!line) return
-		const stop = line.stops[linePayload.stopIndex]
-		if (!stop) return
-		vehicle.service = { line, stop, docked: false, operator } as VehicleLineService
-		if (linePayload.docked) vehicle.dock()
-		else syncFreightVehicleDockRegistration(vehicle)
 	}
 }

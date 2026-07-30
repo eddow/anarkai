@@ -42,16 +42,16 @@ describe('Viability: self-care + minimal hive', () => {
 	})
 
 	it('sated (-1 hunger): no Action infinite fail (must not plan goEat)', async () => {
-		let workerUid = ''
+		let worker: any = null
 		await runViabilityScenario(
 			minimalSelfCareHiveSetup(({ game }) => {
 				const w = game.population.createCharacter('Sated', { q: 0, r: -1 })
-				workerUid = w.uid
+				worker = w
 				w.hunger = -1
 			}),
 			({ game, errors, virtualTime }) => {
 				expect(virtualTime).toBeGreaterThanOrEqual(44)
-				game.population.character(workerUid)
+				expect(Array.from(game.population).includes(worker)).toBe(true)
 				expect(errors.join('\n')).not.toMatch(/Action infinite fail/)
 			},
 			{ virtualSeconds: 45, tickElapsedMs: 250 }
@@ -59,16 +59,16 @@ describe('Viability: self-care + minimal hive', () => {
 	}, 30_000)
 
 	it('quick: no goEat / self-care deadlock over ~1 simulated minute (60 virtual seconds)', async () => {
-		let workerUid = ''
+		let worker: any = null
 		await runViabilityScenario(
 			minimalSelfCareHiveSetup(({ game }) => {
 				const w = game.population.createCharacter('Solo', { q: 0, r: -1 })
-				workerUid = w.uid
+				worker = w
 				w.hunger = 0.92
 			}),
 			({ game, errors, virtualTime }) => {
 				expect(virtualTime).toBeGreaterThanOrEqual(59)
-				game.population.character(workerUid)
+				expect(Array.from(game.population).includes(worker)).toBe(true)
 				expect(errors.join('\n')).not.toMatch(/Action infinite fail/)
 			},
 			{ virtualSeconds: 60, tickElapsedMs: 250 }
@@ -76,16 +76,16 @@ describe('Viability: self-care + minimal hive', () => {
 	}, 30_000)
 
 	it('one worker, one storage with food, residential tile: no goEat deadlock over five simulated minutes', async () => {
-		let workerUid = ''
+		let worker: any = null
 		await runViabilityScenario(
 			minimalSelfCareHiveSetup(({ game }) => {
 				const w = game.population.createCharacter('Solo', { q: 0, r: -1 })
-				workerUid = w.uid
+				worker = w
 				w.hunger = 0.92
 			}),
 			({ game, errors, virtualTime }) => {
 				expect(virtualTime).toBeGreaterThanOrEqual(299)
-				game.population.character(workerUid)
+				expect(Array.from(game.population).includes(worker)).toBe(true)
 				expect(errors.join('\n')).not.toMatch(/Action infinite fail/)
 			},
 			{ virtualSeconds: 300, tickElapsedMs: 250 }

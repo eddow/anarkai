@@ -187,7 +187,7 @@ describe('vehicle-freight-dock', () => {
 			vehicle.dock()
 			expect(vehicle.position).toBeUndefined()
 			expect(vehicle.effectiveTile.uid).toBe(bay?.tile.uid)
-			expect(bay?.hive.freightVehicleDockFor(vehicle.uid)).toBeDefined()
+			expect(bay?.hive.freightVehicleDockFor(vehicle)).toBeDefined()
 			await new Promise((resolve) => setTimeout(resolve, 10))
 
 			const worker = engine.game.population.createCharacter('DockConvey', { q: 0, r: 0 })
@@ -484,7 +484,7 @@ describe('vehicle-freight-dock', () => {
 				vehicle.dock()
 				expect(vehicle.position).toBeUndefined()
 				expect(vehicle.effectiveTile.uid).toBe(bay?.tile.uid)
-				expect(bay?.hive.freightVehicleDockFor(vehicle.uid)).toBeDefined()
+				expect(bay?.hive.freightVehicleDockFor(vehicle)).toBeDefined()
 				await new Promise((resolve) => setTimeout(resolve, 10))
 			} finally {
 				traces.vehicle = previousVehicleTrace
@@ -496,7 +496,7 @@ describe('vehicle-freight-dock', () => {
 				q: 0,
 				r: 0,
 			})
-			expect(bay?.hive.freightVehicleDockFor(vehicle.uid)).toBeUndefined()
+			expect(bay?.hive.freightVehicleDockFor(vehicle)).toBeUndefined()
 			const traceDump = vehicleTrace.read()
 			expect(traceDump).toContain('vehicleJob.dock.complete')
 			expect(traceDump).not.toContain('not-alveolus-tile')
@@ -543,7 +543,7 @@ describe('vehicle-freight-dock', () => {
 			vehicle.beginLineService(line, line.stops[1]!)
 			vehicle.dock()
 
-			const dock = bay?.hive.freightVehicleDockFor(vehicle.uid)
+			const dock = bay?.hive.freightVehicleDockFor(vehicle)
 			expect(dock).toBeDefined()
 			await new Promise((resolve) => setTimeout(resolve, 10))
 			const activeMovements = (bay?.hive as unknown as { activeMovements: Set<TrackedMovement> })
@@ -564,7 +564,7 @@ describe('vehicle-freight-dock', () => {
 			maybeAdvanceVehicleFromCompletedAnchorStop(engine.game, vehicle, worker)
 
 			expect(isVehicleLineService(vehicle.service)).toBe(true)
-			expect(bay?.hive.freightVehicleDockFor(vehicle.uid)).toBeDefined()
+			expect(bay?.hive.freightVehicleDockFor(vehicle)).toBeDefined()
 		} finally {
 			await engine.destroy()
 		}
@@ -657,7 +657,7 @@ describe('vehicle-freight-dock', () => {
 			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			vehicle.beginLineService(line, line.stops[0]!)
 			vehicle.dock()
-			const dock = bay?.hive.freightVehicleDockFor(vehicle.uid)
+			const dock = bay?.hive.freightVehicleDockFor(vehicle)
 			expect(dock).toBeDefined()
 
 			const worker = engine.game.population.createCharacter('DockDistributeLoadWorker', {
@@ -824,14 +824,14 @@ describe('vehicle-freight-dock', () => {
 			vehicle.beginLineService(line, line.stops[0]!)
 			expect(storage?.storage.removeGood('wood', 1)).toBe(1)
 			vehicle.dock()
-			expect(bay?.hive.freightVehicleDockFor(vehicle.uid)).toBeDefined()
+			expect(bay?.hive.freightVehicleDockFor(vehicle)).toBeDefined()
 			expect(collectDockedVehicleAdvertisementCandidates(vehicle, bay!)).toHaveLength(0)
 
 			maybeAdvanceVehicleFromCompletedAnchorStop(engine.game, vehicle)
 
 			expect(isVehicleLineService(vehicle.service)).toBe(false)
 			expect(vehicle.service).toBeUndefined()
-			expect(bay?.hive.freightVehicleDockFor(vehicle.uid)).toBeUndefined()
+			expect(bay?.hive.freightVehicleDockFor(vehicle)).toBeUndefined()
 		} finally {
 			await engine.destroy()
 		}

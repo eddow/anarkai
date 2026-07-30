@@ -60,10 +60,10 @@ export class TestEngine {
 			this.game.configurationManager.deserialize(fullScenario.namedConfigurations)
 		}
 		this.game.hex.reset()
-		this.game.population.deserialize([])
+		this.game.population.clear()
 		this.game.generate(fullScenario.generationOptions, fullScenario, fullScenario)
 		if (fullScenario.population) {
-			this.game.population.deserialize(fullScenario.population)
+			
 		}
 	}
 
@@ -129,7 +129,7 @@ export class TestEngine {
 		}
 		await flushTeardown()
 		try {
-			this.game.population.deserialize([])
+			this.game.population.clear()
 			this.game.hex.reset()
 			this.game.destroy()
 		} catch (error) {

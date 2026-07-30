@@ -227,11 +227,11 @@ describe('dorm example game', () => {
 		foundation.tick(foundation.duration)
 		expect(buildTile.content).toBeInstanceOf(BuildDwelling)
 
-		const dock = bay.hive.freightVehicleDockFor(vehicle.uid)
+		const dock = bay.hive.freightVehicleDockFor(vehicle)
 		expect(dock).toBeDefined()
 		if (!dock) return
-		bay.hive.unregisterFreightVehicleDock(vehicle.uid)
-		expect(bay.hive.freightVehicleDockFor(vehicle.uid)).toBeUndefined()
+		bay.hive.unregisterFreightVehicleDock(vehicle)
+		expect(bay.hive.freightVehicleDockFor(vehicle)).toBeUndefined()
 		const activeMovements = (bay.hive as unknown as { activeMovements: Set<TrackedMovement> })
 			.activeMovements
 		expect(
@@ -250,7 +250,7 @@ describe('dorm example game', () => {
 		if (providerConvey?.source.kind === 'alveolus') {
 			expect(providerConvey.source.alveolus).toBe(game.hex.getTile({ q: 0, r: 0 })?.content)
 		}
-		const repairedDock = bay.hive.freightVehicleDockFor(vehicle.uid)
+		const repairedDock = bay.hive.freightVehicleDockFor(vehicle)
 		expect(repairedDock).toBeDefined()
 		expect(Array.from(activeMovements).some((movement) => movement.demander === repairedDock)).toBe(
 			true

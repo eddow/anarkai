@@ -1,3 +1,4 @@
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 // @ts-nocheck
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { Game } from 'ssh/game/game'
@@ -261,7 +262,7 @@ describe('streamed region generation', () => {
 		const batches: string[][] = []
 		game.on({
 			objectsAdded: (objects) => {
-				batches.push(objects.map((object) => object.uid).sort())
+				batches.push(objects.map((object) => debugObjectId(object)).sort())
 			},
 		})
 
@@ -483,7 +484,7 @@ describe('streamed region generation', () => {
 		const removedBatches: string[][] = []
 		game.on({
 			objectsRemoved: (objects) => {
-				removedBatches.push(objects.map((object) => object.uid).sort())
+				removedBatches.push(objects.map((object) => debugObjectId(object)).sort())
 			},
 		})
 

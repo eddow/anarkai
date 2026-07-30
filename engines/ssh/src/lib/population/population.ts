@@ -32,47 +32,12 @@ export class Population extends withContainer(withHittable(GameObject)) {
 		})
 	}
 
-	character(uid: string): Character {
-		for (const c of this.children) {
-			if (c instanceof Character && (debugObjectId(c) ?? '') === uid) return c
-		}
-		throw new Error(`Character ${uid} not found`)
-	}
-
-	removeCharacter(uid: string): boolean {
-		const character = this.character(uid)
-		if (character) {
-			this.delete(character)
-			this.game.invalidateWorkPlanning('population.remove')
-			return true
-		}
-		return false
-	}
-
 	get nbrFree(): number {
 		let count = 0
 		for (const c of this.children) {
 			if (c instanceof Character && c.assignedAlveolus === undefined) count++
 		}
 		return count
-	}
-
-	serialize() {
-		const out: any[] = []
-		for (const c of this.children) {
-			if (c instanceof Character) out.push(c.serialize())
-		}
-		return out
-	}
-
-	deserialize(data: any[]) {
-		this.game.withObjectRegistrationBatch(() => {
-			this.clear()
-			for (const charData of data) {
-				const char = Character.deserialize(this.game, charData)
-				this.add(char)
-			}
-		})
 	}
 
 	[Symbol.iterator]() {

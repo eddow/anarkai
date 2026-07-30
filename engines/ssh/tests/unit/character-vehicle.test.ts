@@ -1,3 +1,4 @@
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 // @ts-nocheck
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import {
@@ -305,7 +306,7 @@ describe('Character vehicle seam', () => {
 		game.ticker.stop()
 
 		game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 })
-		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'v-far')!
+		const vehicle = [...game.vehicles].find((v: any) => debugObjectId(v) === 'v-far')!
 		const character = game.population.createCharacter('Cyd', { q: 0, r: 0 })
 		vehicle.beginOffloadService(character)
 		character.operates = vehicle
@@ -679,7 +680,7 @@ describe('Character vehicle seam', () => {
 			releaseVehicleFreightWorkOnPlanInterrupt(character)
 			expect(log).toHaveBeenCalledWith('vehicle freight operator released on plan interrupt', {
 				vehicle,
-				characterUid: character.uid,
+				characterUid: debugObjectId(character),
 				stillHasService: true,
 			})
 		} finally {
@@ -724,7 +725,7 @@ describe('Character vehicle seam', () => {
 			releaseVehicleFreightWorkOnPlanInterrupt(character)
 			expect(log).toHaveBeenCalledWith('vehicle freight operator released on plan interrupt', {
 				vehicle,
-				characterUid: character.uid,
+				characterUid: debugObjectId(character),
 				stillHasService: true,
 			})
 		} finally {
@@ -766,7 +767,7 @@ describe('Character vehicle seam', () => {
 			detachVehicleServiceIfStorageEmpty(vehicle)
 			expect(log).toHaveBeenCalledWith(
 				'vehicle freight service detached (empty storage)',
-				vehicle.uid
+				debugObjectId(vehicle)
 			)
 		} finally {
 			traces.vehicle = prev

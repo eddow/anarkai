@@ -1,3 +1,4 @@
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { chopSaw } from 'ssh/game/exampleGames'
 import { describe, expect, it } from 'vitest'
 import { runViabilityScenario } from '../test-engine/viability'
@@ -44,7 +45,7 @@ describe('ChopSaw viability', () => {
 				},
 			},
 			({ game, virtualTime }) => {
-				const pickup = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:suv')!
+				const pickup = [...game.vehicles].find((v: any) => debugObjectId(v) === 'ChopSaw:suv')!
 				const storage = game.hex.getTile({ q: 0, r: -1 })?.content as
 					| { storage?: { stock: Partial<Record<string, number>> } }
 					| undefined

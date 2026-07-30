@@ -214,7 +214,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines.find(
-			(candidate) => candidate.id === 'ChopSaw (0, 0) gather'
+			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
 		const unloadStop = line?.stops[1]
 		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!
@@ -254,7 +254,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines.find(
-			(candidate) => candidate.id === 'ChopSaw (0, 0) gather'
+			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
 		const unloadStop = line?.stops[1]
 		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!
@@ -312,7 +312,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines.find(
-			(candidate) => candidate.id === 'ChopSaw (0, 0) gather'
+			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
 		const unloadStop = line?.stops[1]
 		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!
@@ -353,7 +353,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines.find(
-			(candidate) => candidate.id === 'ChopSaw (0, 0) gather'
+			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
 		const unloadStop = line?.stops[1]
 		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!

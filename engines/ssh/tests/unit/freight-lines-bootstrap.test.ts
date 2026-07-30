@@ -101,7 +101,7 @@ describe('Freight line bootstrap', () => {
 			const gather = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus
 			expect(gather.hasLooseGoodsToGather).toBe(false)
 			const line = engine.game.freightLines.find(
-				(l) => l.id === 'GatherRadiusHive:implicit-gather:0,0'
+				(l) => l.name === 'GatherRadiusHive:implicit-gather:0,0'
 			)
 			expect(line).toBeDefined()
 			engine.game.replaceFreightLine(applyGatherRadiusFromEditor(line!, 2))

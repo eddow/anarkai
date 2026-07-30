@@ -284,8 +284,6 @@ export interface GamePatches {
 export interface SaveState extends GamePatches {
 	/** In-flight convey movements; array index is the serialization identity for resume. */
 	conveyMovements?: ReadonlyArray<SerializedConveyMovement>
-	/** @deprecated Use `characters`. */
-	population: any[]
 	/** Index-based character array — array order IS identity. */
 	characters?: readonly SerializedCharacter[]
 	/** Index-based vehicle array — array order IS identity. Cross-references use indexes into `characters` and `freightLines`. */
@@ -1093,11 +1091,6 @@ export class Game extends Eventful<GameEvents> {
 		for (const coord of streamedFrontier ?? []) {
 			coords.push({ q: coord[0], r: coord[1] })
 		}
-		const population = 'population' in patches ? patches.population : undefined
-		for (const character of population ?? []) {
-			const coord = toAxialCoord(character.position)
-			if (coord) coords.push(axial.round(coord))
-		}
 		for (const vehicle of patches.vehicles ?? []) {
 			coords.push({ q: vehicle.position.q, r: vehicle.position.r })
 		}
@@ -1188,11 +1181,6 @@ export class Game extends Eventful<GameEvents> {
 		}
 		const streamedFrontier = 'streamedFrontier' in patches ? patches.streamedFrontier : undefined
 		for (const coord of streamedFrontier ?? []) addPatchCoord(coord)
-		const population = 'population' in patches ? patches.population : undefined
-		for (const character of population ?? []) {
-			const coord = toAxialCoord(character.position)
-			if (coord) addCoord(axial.round(coord))
-		}
 
 		const spawnRadius = Math.max(
 			gameplayBootstrapMinRadius,
@@ -1869,7 +1857,7 @@ export class Game extends Eventful<GameEvents> {
 			this.setPlayerAccountBalance(
 				patches.playerAccount?.balanceVp ?? commerce.startingAccountBalanceVp
 			)
-			this.vehicles.deserialize([])
+			this.vehicles.clear()
 
 			const populationLoad = this.generateInitialWorld(config, patches)
 			// Apply patches if any
@@ -1910,10 +1898,6 @@ export class Game extends Eventful<GameEvents> {
 						'streamedFrontier' in (patches as SaveState)
 							? (((patches as SaveState).streamedFrontier ?? []).length as number)
 							: 0,
-					population:
-						'population' in (patches as SaveState)
-							? (((patches as SaveState).population ?? []).length as number)
-							: 0,
 				},
 				hasSaveState: !!saveState,
 			})
@@ -1944,7 +1928,7 @@ export class Game extends Eventful<GameEvents> {
 			this.setPlayerAccountBalance(
 				patches.playerAccount?.balanceVp ?? commerce.startingAccountBalanceVp
 			)
-			this.vehicles.deserialize([])
+			this.vehicles.clear()
 
 			if (options.restoreMode && saveState) {
 				console.info(
@@ -2412,7 +2396,6 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	private applyVehiclePatches(vehicles: NonNullable<GamePatches['vehicles']>) {
-		this.vehicles.deserialize(vehicles.map((entry) => ({ ...entry })))
 	}
 
 	private applyRoadPatches(roads: NonNullable<GamePatches['roads']>) {
@@ -2659,11 +2642,9 @@ export class Game extends Eventful<GameEvents> {
 				projectSites,
 				dwellings,
 				playerAccount: { balanceVp: this.playerAccount.balanceVp },
-				vehicles: this.vehicles.serialize(),
 				roads,
 				conveyMovements,
-				population: this.population.serialize(),
-				// Index-based format (new) — vehicle/character references use array indexes
+				// Index-based vehicle/character references
 				serializedVehicles: serializeVehicles(allVehicles, lineIndex, characterIndex),
 				characters: serializeCharacters(allCharacters, vehicleIndex),
 				generationOptions: this.generationOptions,
@@ -2689,7 +2670,6 @@ export class Game extends Eventful<GameEvents> {
 				vehicles: (state.vehicles ?? []).length,
 				freightLines: (state.freightLines ?? []).length,
 				streamedFrontier: (state.streamedFrontier ?? []).length,
-				population: (state.population ?? []).length,
 			},
 		})
 		// 1. Restore named configurations first (before alveoli are created)
@@ -2708,8 +2688,6 @@ export class Game extends Eventful<GameEvents> {
 		this.hex.reset()
 		this.bootstrapGameplayCoords.clear()
 		this.materializedGameplayCoords.clear()
-		this.vehicles.deserialize([])
-		this.population.deserialize([])
 
 		// 3. Generate and apply patches (passes hive configs for restoration)
 		await this.generateAsync(state.generationOptions, state, state, { restoreMode: true })
@@ -2725,8 +2703,6 @@ export class Game extends Eventful<GameEvents> {
 		this.conveyRestoredAtLoad = restoreSerializedConveyMovements(this, state.conveyMovements)
 
 		// 4. Restore vehicles + characters (index-based format)
-		// Pass 1: create characters (no vehicle refs yet) and vehicles (operators wired from character array)
-		// Pass 2: wire character→vehicle cross-references
 		if (state.serializedVehicles && state.characters) {
 			const characters = deserializeCharacters(this, state.characters, [])
 			const vehicles = deserializeVehicles(
@@ -2749,14 +2725,8 @@ export class Game extends Eventful<GameEvents> {
 
 			for (const vehicle of vehicles) this.vehicles.add(vehicle)
 			for (const character of characters) this.population.add(character)
-		} else {
-			// Legacy fallback
-			if (state.population) {
-				this.population.deserialize(state.population)
-			}
 		}
 		console.info('[save-load][loadGameData] completed', {
-			population: state.population?.length ?? 0,
 			conveyRestored: this.conveyRestoredAtLoad.length,
 		})
 	}
@@ -2895,10 +2865,10 @@ export class Game extends Eventful<GameEvents> {
 		this.residentialDemandTicker?.destroy()
 		this.residentialDemandTicker = undefined
 		try {
-			this.vehicles.deserialize([])
+			this.vehicles.clear()
 		} catch {}
 		try {
-			this.population.deserialize([])
+			this.population.clear()
 		} catch {}
 		try {
 			this.hex.reset()

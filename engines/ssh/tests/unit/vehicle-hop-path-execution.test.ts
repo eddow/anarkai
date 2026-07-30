@@ -16,7 +16,7 @@ describe('vehicleHop execution paths', () => {
 		game.ticker.stop()
 
 		const line = game.freightLines.find(
-			(candidate) => candidate.id === 'ChopSaw (0, 0) distribute'
+			(candidate) => candidate.name === 'ChopSaw (0, 0) distribute'
 		)
 		const bayStop = line?.stops[0]
 		const pickup = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:suv')!

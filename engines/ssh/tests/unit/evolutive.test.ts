@@ -1,3 +1,4 @@
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 // Manual DOM mock for PixiJS and test environment
 if (typeof document === 'undefined') {
 	;(global as any).document = {
@@ -184,7 +185,7 @@ describe('Evolutive & Determinism Tests', () => {
 			expect(looseGoodsAt(game2, { q: 1, r: 1 })).toContain('stone')
 
 			chars1.forEach((c1, _idx) => {
-				const c2 = chars2.find((c) => c.uid === c1.uid)
+				const c2 = chars2.find((c) => debugObjectId(c) === c1.uid)
 				expect(c2).toBeDefined()
 
 				const p1 = toAxialCoord(c1.position)

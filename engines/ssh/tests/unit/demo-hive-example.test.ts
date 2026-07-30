@@ -1,3 +1,4 @@
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 // @ts-nocheck
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
@@ -36,12 +37,12 @@ describe('demoHive example game', () => {
 		)
 		expect(
 			[...game.vehicles]
-				.find((v: any) => v.uid === 'HearthLoop:wheelbarrow')
+				.find((v: any) => debugObjectId(v) === 'HearthLoop:wheelbarrow')
 				?.servedLines.map((line) => line.name)
 		).toEqual(['HearthLoop:commons-exchange'])
 		expect(
 			[...game.vehicles]
-				.find((v: any) => v.uid === 'HearthLoop:pickup-truck')
+				.find((v: any) => debugObjectId(v) === 'HearthLoop:pickup-truck')
 				?.servedLines.map((line) => line.name)
 		).toEqual(['HearthLoop:melindbury-comfort-loop'])
 

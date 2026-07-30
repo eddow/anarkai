@@ -1,4 +1,5 @@
 import ResourceImage from '@app/components/ResourceImage'
+import { css } from '@app/lib/css'
 import { game, interactionMode } from '@app/lib/globals'
 import { Button, ButtonGroup, CheckButton, RadioButton } from '@app/ui/anarkai'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons'
@@ -14,6 +15,31 @@ import { Toolbar as PaletteToolbarView, paletteToolFamily } from '@sursaut/ui/pa
 import { variantBadges } from 'engine-pixi/assets/visual-content'
 import { effect, reactive } from 'mutts'
 import { Stars } from '../components/Stars'
+
+css`
+.ak-palette-drawer__trigger {
+	width: auto;
+	min-width: 0;
+	padding-inline: 0.35rem;
+	display: inline-flex;
+	align-items: center;
+	justify-content: flex-start;
+	gap: 0.2rem;
+	flex-shrink: 0;
+	border: 1px solid var(--ak-border);
+	border-radius: var(--ak-radius-sm);
+	background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(15,23,42,0.06));
+	box-shadow: inset 0 1px 0 rgba(255,255,255,0.2);
+	color: var(--ak-text);
+	line-height: 1;
+	cursor: pointer;
+	font-family: inherit;
+	font-size: 0.8rem;
+	height: var(--ak-control-height-compact);
+	box-sizing: border-box;
+	white-space: nowrap;
+}
+`
 import { AnarkaiCommandBoxEditor } from './command-box'
 import type {
 	AnarkaiPaletteChoiceDisplay,
@@ -673,29 +699,9 @@ function DrawerEditor(
 	const iconEl = () => controlIcon(meta.icon)
 	return (
 		<button
-			{...({ this: trigger } as any)}
+			this={trigger}
 			type="button"
 			class="ak-palette-drawer__trigger"
-			style:width="auto"
-			style:min-width="0"
-			style:padding-inline="0.35rem"
-			style:display="inline-flex"
-			style:align-items="center"
-			style:justify-content="flex-start"
-			style:gap="0.2rem"
-			style:flex-shrink="0"
-			style:border="1px solid var(--ak-border)"
-			style:border-radius="var(--ak-radius-sm)"
-			style:background="linear-gradient(180deg, rgba(255,255,255,0.08), rgba(15,23,42,0.06))"
-			style:box-shadow="inset 0 1px 0 rgba(255,255,255,0.2)"
-			style:color="var(--ak-text)"
-			style:line-height="1"
-			style:cursor="pointer"
-			style:font-family="inherit"
-			style:font-size="0.8rem"
-			style:height="var(--ak-control-height-compact)"
-			style:box-sizing="border-box"
-			style:white-space="nowrap"
 			aria-label={meta.label || title}
 			aria-expanded={ui.open ? 'true' : 'false'}
 			title={title}

@@ -1,3 +1,4 @@
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 // @ts-nocheck
 import { createAlveolus } from 'ssh/hive'
 import { collectTileWorkPicks } from 'ssh/tile-work'
@@ -37,7 +38,7 @@ describe('tile work picks', () => {
 
 		expect(transform).toBeDefined()
 		expect(transform?.source).toBe('tile')
-		expect(transform?.character.uid).toBe(worker.uid)
+		expect(transform?.character.uid).toBe(debugObjectId(worker))
 		expect(transform?.targetTile).toBe(tile)
 	})
 
@@ -97,7 +98,7 @@ describe('tile work picks', () => {
 
 		expect(transform).toBeDefined()
 		expect(transform?.source).toBe('tile')
-		expect(transform?.character.uid).toBe(worker.uid)
+		expect(transform?.character.uid).toBe(debugObjectId(worker))
 	})
 
 	it('reuses cached tile work choices and pathfinding until work planning changes', async () => {
@@ -151,8 +152,8 @@ describe('tile work picks', () => {
 		)
 
 		expect(offload).toBeDefined()
-		expect(offload?.character.uid).toBe(worker.uid)
-		expect(offload?.vehicle?.uid).toBe(vehicle.uid)
+		expect(offload?.character.uid).toBe(debugObjectId(worker))
+		expect(offload?.vehicle?.uid).toBe(debugObjectId(vehicle))
 		if (offload?.job.job !== 'vehicleOffload') throw new Error('expected vehicleOffload pick')
 		expect(offload.job.maintenanceKind).toBe('loadFromBurden')
 		expect(offload.job.targetCoord).toEqual({ q: 1, r: 0 })
