@@ -67,7 +67,7 @@ describe('chopSaw example game', () => {
 			zone: { kind: 'radius', center: [0, 0], radius: 9 },
 		})
 
-		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!
+		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		expect(vehicle?.servedLines.map((line) => line.name)).toEqual(['ChopSaw (0, 0) gather'])
 
 		const materials = game.freightLines.find(
@@ -113,8 +113,8 @@ describe('chopSaw example game', () => {
 			])
 		)
 
-		const pickup = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:suv')!
-		expect([...game.vehicles].map((vehicle) => vehicle.uid)).toEqual(
+		const pickup = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:suv')!
+		expect([...game.vehicles].map((vehicle) => vehicle.name)).toEqual(
 			expect.arrayContaining(['ChopSaw:suv'])
 		)
 		expect(pickup?.vehicleType).toBe('suv')
@@ -147,7 +147,7 @@ describe('chopSaw example game', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!
+		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		const line = game.freightLines.find(
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
@@ -183,7 +183,7 @@ describe('chopSaw example game', () => {
 		const line = game.freightLines.find(
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
-		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!
+		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		const bayTile = game.hex.getTile({ q: 0, r: 0 })
 		const zoneTile = game.hex.getTile({ q: -1, r: 0 })
 		if (!line || !vehicle || !bayTile || !zoneTile) throw new Error('Expected ChopSaw fixture')
@@ -194,7 +194,7 @@ describe('chopSaw example game', () => {
 		vehicle.beginLineService(line, line.stops[0]!)
 		vehicle.dock()
 		for (const other of [...game.vehicles]) {
-			if (other.uid !== vehicle.uid) game.vehicles.removeVehicle(other)
+			if (other !== vehicle) game.vehicles.removeVehicle(other)
 		}
 		const worker = game.population.createCharacter('Sonden', { q: -4, r: 0 })
 		worker.role = 'worker'
@@ -230,7 +230,7 @@ describe('chopSaw example game', () => {
 		const line = game.freightLines.find(
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
-		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!
+		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
 		const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
 		if (!line || !vehicle || !bay || !storage) throw new Error('Expected ChopSaw fixture')
@@ -247,7 +247,7 @@ describe('chopSaw example game', () => {
 				.some(
 					(movement: any) =>
 						movement.goodType === 'concrete' &&
-						movement.demander?.vehicle?.uid === vehicle.uid &&
+						movement.demander?.vehicle === vehicle &&
 						movement.provider === storage
 				)
 		).toBe(true)
@@ -298,7 +298,7 @@ describe('chopSaw example game', () => {
 		const line = game.freightLines.find(
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
-		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!
+		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
 		const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
 		if (!line || !vehicle || !bay || !storage) throw new Error('Expected ChopSaw fixture')
@@ -355,7 +355,7 @@ describe('chopSaw example game', () => {
 			const line = game.freightLines.find(
 				(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 			)
-			const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!
+			const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 			const unloadStop = line?.stops[1]
 			const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
 			const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
@@ -394,7 +394,7 @@ describe('chopSaw example game', () => {
 			const line = game.freightLines.find(
 				(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 			)
-			const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!
+			const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 			const unloadStop = line?.stops[1]
 			const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
 			const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
@@ -447,7 +447,7 @@ describe('chopSaw example game', () => {
 		const line = game.freightLines.find(
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
-		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!
+		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
 		if (!line || !vehicle || !bay) throw new Error('Expected ChopSaw fixture')
 
@@ -476,7 +476,7 @@ describe('chopSaw example game', () => {
 		const line = game.freightLines.find(
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
-		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!
+		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
 		if (!line || !vehicle || !bay) throw new Error('Expected ChopSaw fixture')
 
@@ -513,7 +513,7 @@ describe('chopSaw example game', () => {
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
 		const load = line?.stops[0]
-		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!
+		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		if (!line || !load || !vehicle) throw new Error('Expected ChopSaw fixture')
 
 		vehicle.storage.addGood('concrete', 2)
@@ -552,7 +552,7 @@ describe('chopSaw example game', () => {
 		const unload = line.stops[1]
 		const load = line.stops[0]
 		if (!unload || !load) throw new Error('expected ChopSaw load/unload stops')
-		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!
+		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
 
 		vehicle.storage.addGood('concrete', 1)
@@ -581,7 +581,7 @@ describe('chopSaw example game', () => {
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
 		const unload = line.stops[1]
 		if (!unload) throw new Error('expected ChopSaw unload stop')
-		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!
+		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
 		const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
 		if (!vehicle || !bay || !storage) throw new Error('expected ChopSaw dock fixture')
@@ -632,7 +632,7 @@ describe('chopSaw example game', () => {
 		if (!line) throw new Error('Expected Chopsaw materials loop')
 		const marketStop = line.stops.find((stop) => 'trade' in stop)
 		if (!marketStop) throw new Error('Expected Melindbury trade stop')
-		const pickup = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:suv')!
+		const pickup = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:suv')!
 		if (!pickup) throw new Error('Expected Chopsaw SUV')
 		pickup.storage.addGood('planks', 1)
 
@@ -657,7 +657,7 @@ describe('chopSaw example game', () => {
 		game.ticker.stop()
 		game.setPlayerAccountBalance(1000)
 
-		const pickup = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:suv')!
+		const pickup = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:suv')!
 		if (!pickup) throw new Error('Expected Chopsaw SUV')
 		const melindbury = game.getSettlementTradeProfile('settlement-7,19')
 		if (!melindbury) throw new Error('Expected Melindbury trade profile')
@@ -697,7 +697,7 @@ describe('chopSaw example game', () => {
 		if (!marketStop) throw new Error('Expected Melindbury trade stop')
 		const bayStop = line.stops[0]
 		if (!bayStop) throw new Error('Expected Chopsaw materials bay stop')
-		const pickup = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:suv')!
+		const pickup = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:suv')!
 		if (!pickup) throw new Error('Expected Chopsaw SUV')
 		const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
 		const worker = game.population.createCharacter('Materials Driver', { q: -1, r: 0 })
@@ -723,13 +723,13 @@ describe('chopSaw example game', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const pickup = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:suv')!
+		const pickup = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:suv')!
 		if (!pickup) throw new Error('Expected Chopsaw SUV')
 		const worker = game.population.createCharacter('Materials Offload Probe', { q: -1, r: 0 })
 		pickup.position = { q: -1, r: 0 }
 		pickup.storage.addGood('concrete', 1)
 
-		expect(findVehicleOffloadJob(game, worker)?.vehicle?.uid).not.toBe(pickup.uid)
+		expect(findVehicleOffloadJob(game, worker)?.vehicle).not.toBe(pickup)
 	})
 
 	it('keeps loaded ChopSaw wheelbarrow cargo for zone provide after a full bay dock', async () => {
@@ -744,7 +744,7 @@ describe('chopSaw example game', () => {
 		const unload = line.stops[1]
 		const load = line.stops[0]
 		if (!unload || !load) throw new Error('expected ChopSaw load/unload stops')
-		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!
+		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
 		const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
 		const worker = game.population.createCharacter('Concrete Provider', { q: 0, r: 0 })
@@ -781,7 +781,7 @@ describe('chopSaw example game', () => {
 		if (!line) throw new Error('Expected Chopsaw materials loop')
 		const marketStop = line.stops.find((stop) => 'trade' in stop)
 		if (!marketStop) throw new Error('Expected Melindbury trade stop')
-		const pickup = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:suv')!
+		const pickup = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:suv')!
 		if (!pickup) throw new Error('Expected Chopsaw SUV')
 
 		const result = executeNpcTradeStopTransfer({
@@ -806,7 +806,7 @@ describe('chopSaw example game', () => {
 		if (!line) throw new Error('Expected Chopsaw materials loop')
 		const bayStop = line.stops[0]
 		if (!bayStop) throw new Error('Expected Chopsaw materials bay stop')
-		const pickup = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:suv')!
+		const pickup = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:suv')!
 		if (!pickup) throw new Error('Expected Chopsaw SUV')
 		const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
 		const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
@@ -843,7 +843,7 @@ describe('chopSaw example game', () => {
 		if (!line) throw new Error('Expected Chopsaw materials loop')
 		const bayStop = line.stops[0]
 		if (!bayStop) throw new Error('Expected Chopsaw materials bay stop')
-		const pickup = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:suv')!
+		const pickup = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:suv')!
 		if (!pickup) throw new Error('Expected Chopsaw SUV')
 		const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
 		const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
@@ -865,7 +865,7 @@ describe('chopSaw example game', () => {
 				.some(
 					(movement: any) =>
 						movement.goodType === 'concrete' &&
-						movement.provider?.vehicle?.uid === pickup.uid &&
+						movement.provider?.vehicle === pickup &&
 						!movement.claimed
 				)
 		).toBe(false)
@@ -893,7 +893,7 @@ describe('chopSaw example game', () => {
 		if (!line) throw new Error('Expected Chopsaw materials loop')
 		const bayStop = line.stops[0]
 		if (!bayStop) throw new Error('Expected Chopsaw materials bay stop')
-		const pickup = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:suv')!
+		const pickup = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:suv')!
 		if (!pickup) throw new Error('Expected Chopsaw SUV')
 		const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
 		const worker = game.population.createCharacter('BayCloser', { q: 0, r: 0 })
@@ -920,7 +920,7 @@ describe('chopSaw example game', () => {
 		if (!line) throw new Error('Expected Chopsaw materials loop')
 		const bayStop = line.stops[0]
 		if (!bayStop) throw new Error('Expected Chopsaw materials bay stop')
-		const pickup = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:suv')!
+		const pickup = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:suv')!
 		if (!pickup) throw new Error('Expected Chopsaw SUV')
 		const worker = game.population.createCharacter('Docking Driver', { q: 0, r: 0 })
 
@@ -1017,7 +1017,7 @@ describe('chopSaw example game', () => {
 		if (!line) throw new Error('Expected Chopsaw materials loop')
 		const bayStop = line.stops[0]
 		if (!bayStop) throw new Error('Expected Chopsaw materials bay stop')
-		const pickup = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:suv')!
+		const pickup = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:suv')!
 		if (!pickup) throw new Error('Expected Chopsaw SUV')
 		const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
 		const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
@@ -1045,7 +1045,7 @@ describe('chopSaw example game', () => {
 			expect.arrayContaining([
 				expect.objectContaining({
 					goodType: 'planks',
-					demander: `vehicle-dock:${pickup.uid}`,
+					demander: 'vehicle-dock-chopsaw',
 				}),
 			])
 		)
@@ -1065,10 +1065,10 @@ describe('chopSaw example game', () => {
 		if (!line) throw new Error('Expected Chopsaw materials loop')
 		const bayStop = line.stops[0]
 		if (!bayStop) throw new Error('Expected Chopsaw materials bay stop')
-		const pickup = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:suv')!
+		const pickup = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:suv')!
 		if (!pickup) throw new Error('Expected Chopsaw SUV')
 		for (const vehicle of [...game.vehicles]) {
-			if (vehicle.uid !== pickup.uid) game.vehicles.removeVehicle(vehicle)
+			if (vehicle !== pickup) game.vehicles.removeVehicle(vehicle)
 		}
 		const worker = game.population.createCharacter('Heaget', { q: 0, r: 0 })
 		worker.role = 'worker'
@@ -1083,7 +1083,7 @@ describe('chopSaw example game', () => {
 
 		const match = worker.resolveBestJobMatch()
 		expect(
-			match && match.job.job === 'vehicleOffload' && match.job.vehicle?.uid === pickup.uid
+			match && match.job.job === 'vehicleOffload' && match.job.vehicle === pickup
 		).toBe(false)
 	})
 
@@ -1098,7 +1098,7 @@ describe('chopSaw example game', () => {
 		if (!line) throw new Error('Expected Chopsaw materials loop')
 		const bayStop = line.stops[0]
 		if (!bayStop) throw new Error('Expected Chopsaw materials bay stop')
-		const pickup = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:suv')!
+		const pickup = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:suv')!
 		if (!pickup) throw new Error('Expected Chopsaw SUV')
 		const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
 		storage.storage.addGood('planks', 2)

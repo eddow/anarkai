@@ -771,7 +771,7 @@ describe('Vehicle begin-service arbitration', () => {
 		const character = game.population.createCharacter('Approach', { q: 0, r: 0 })
 
 		const result = findVehicleApproachJob(game, character)
-		expect(result?.vehicle.uid).toBe('arb-far-truck')
+		expect(result?.vehicle.name).toBe('arb-far-truck')
 	})
 
 	it('prefers continuing a loaded line over same-tile ordinary transform work', async () => {

@@ -186,7 +186,7 @@ describe('vehicle-freight-dock', () => {
 			if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
 			vehicle.dock()
 			expect(vehicle.position).toBeUndefined()
-			expect(vehicle.effectiveTile.uid).toBe(bay?.tile.uid)
+			expect(vehicle.effectiveTile.name).toBe(bay?.tile.name)
 			expect(bay?.hive.freightVehicleDockFor(vehicle)).toBeDefined()
 			await new Promise((resolve) => setTimeout(resolve, 10))
 
@@ -483,7 +483,7 @@ describe('vehicle-freight-dock', () => {
 				vehicle.beginLineService(line, line.stops[1]!)
 				vehicle.dock()
 				expect(vehicle.position).toBeUndefined()
-				expect(vehicle.effectiveTile.uid).toBe(bay?.tile.uid)
+				expect(vehicle.effectiveTile.name).toBe(bay?.tile.name)
 				expect(bay?.hive.freightVehicleDockFor(vehicle)).toBeDefined()
 				await new Promise((resolve) => setTimeout(resolve, 10))
 			} finally {

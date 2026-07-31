@@ -1302,7 +1302,7 @@ describe('Vehicle zone hop semantics', () => {
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
 		const unload = line.stops[1]
 		if (!unload) throw new Error('expected ChopSaw unload stop')
-		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!
+		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
 		// Sub-hex coords from a live ChopSaw play session (wheelbarrow mid-hex after walk.enter).
 		vehicle.position = { q: -0.9, r: -0.9 }
@@ -1329,7 +1329,7 @@ describe('Vehicle zone hop semantics', () => {
 		const load = line.stops[0]
 		const unload = line.stops[1]
 		if (!load || !unload) throw new Error('expected ChopSaw load/unload stops')
-		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!
+		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
 		const character = game.population.createCharacter('ChopSawLoader', { q: -1, r: -1 })
 		character.position = { q: -1, r: -1 }
@@ -1365,7 +1365,7 @@ describe('Vehicle zone hop semantics', () => {
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
 		const load = line.stops[0]
 		if (!load) throw new Error('expected ChopSaw load stop')
-		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!
+		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
 		const character = game.population.createCharacter('ChopSawSecondLoad', { q: -5, r: 1 })
 		character.position = { q: -5, r: 1 }
@@ -1439,7 +1439,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!
+		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
 		const character = game.population.createCharacter('ChopSawLineLoader', { q: 9, r: -7 })
 		vehicle.position = { q: 9, r: -7 }
@@ -1470,7 +1470,7 @@ describe('Vehicle zone hop semantics', () => {
 		const load = line.stops[0]
 		const unload = line.stops[1]
 		if (!load || !unload) throw new Error('expected ChopSaw load/unload stops')
-		const vehicle = [...game.vehicles].find((v: any) => v.uid === 'ChopSaw:wheelbarrow1')!
+		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
 		const character = game.population.createCharacter('ChopSawSteppedOff', { q: -1, r: -1 })
 		vehicle.position = { q: -1, r: -1 }

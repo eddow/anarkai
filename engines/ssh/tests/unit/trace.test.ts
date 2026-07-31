@@ -21,7 +21,7 @@ class CustomTraceThing {
 	toTrace() {
 		return {
 			$type: 'CustomTraceThing',
-			uid: this.uid,
+			uid: 'custom-1',
 			value: 42,
 			game: { uid: 'must-not-expand' },
 		}

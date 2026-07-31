@@ -185,7 +185,7 @@ describe('Evolutive & Determinism Tests', () => {
 			expect(looseGoodsAt(game2, { q: 1, r: 1 })).toContain('stone')
 
 			chars1.forEach((c1, _idx) => {
-				const c2 = chars2.find((c) => debugObjectId(c) === c1.uid)
+				const c2 = chars2.find((c) => debugObjectId(c) === debugObjectId(c1))
 				expect(c2).toBeDefined()
 
 				const p1 = toAxialCoord(c1.position)
@@ -269,7 +269,7 @@ describe('Evolutive & Determinism Tests', () => {
 				configurable: true,
 			})
 			Object.defineProperty(fakeTile, 'position', { value: sourceTile.position })
-			Object.defineProperty(fakeTile, 'uid', { value: sourceTile.uid })
+			Object.defineProperty(fakeTile, 'uid', { value: debugObjectId(sourceTile) })
 
 			const grabGoods = { wood: 1 }
 			const grabCommitment = new Commitment('planGrabStored')

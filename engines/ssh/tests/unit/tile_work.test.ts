@@ -185,7 +185,7 @@ describe('tile work picks', () => {
 				(choice) =>
 					choice.source === 'vehicle' &&
 					choice.job.job === 'vehicleOffload' &&
-					choice.vehicle?.uid === vehicle.uid
+					choice.vehicle === vehicle
 			)
 		).toBe(false)
 	})
