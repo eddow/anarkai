@@ -1,6 +1,6 @@
 import { defer, reactive } from 'mutts'
 import type { Game } from 'ssh/game'
-import { GameObject, withContainer, withHittable } from 'ssh/game/object'
+import { GameObject } from 'ssh/game/object'
 import type { Hive } from 'ssh/hive/hive'
 import { QueueStep } from 'ssh/npcs'
 import type { Character } from 'ssh/population'
@@ -37,7 +37,7 @@ import { ZoneManager } from './zone'
 export { isTileCoord } from './tile-coord'
 
 @reactive
-export class HexBoard extends withContainer(withHittable(GameObject)) {
+export class HexBoard extends GameObject {
 	private readonly contents = new AxialKeyMap<TileContent | TileBorderContent>()
 	private readonly tileCache = new AxialKeyMap<Tile>()
 	private readonly borderCache = new AxialKeyMap<TileBorder>()
@@ -74,7 +74,6 @@ export class HexBoard extends withContainer(withHittable(GameObject)) {
 		super(game)
 		this.looseGoods = new LooseGoods(game)
 		this.zoneManager = new ZoneManager()
-		this.zIndex = -1
 	}
 
 	hitTest(worldX: number, worldY: number, selectedAction?: string): any {

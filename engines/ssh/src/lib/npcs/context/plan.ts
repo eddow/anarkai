@@ -152,57 +152,37 @@ const transferPlanHandler: PlanHandler<TransferPlan> = {
 		// Create allocations based on plan type
 		let commitment: PlanCommitment | undefined
 		try {
-			if (plan.vehicleAllocation && plan.allocation) {
-				// Legacy path — allocations already created (e.g. from inventory.ts)
-				commitment = new PlanCommitment(`transfer.${plan.description}`)
-				// Mirror allocations on the commitment so auto-cancel cascades
-				;(commitment as any).allocation = plan.allocation
-				;(commitment as any).vehicleAllocation = plan.vehicleAllocation
+			if (description === 'drop') {
+				// Drop plans reserve destination storage only when the worker is
+				// actually performing the transfer, otherwise border slots can be
+				// "incoming" long before any good physically reaches them.
+			} else if (description === 'grab') {
+				// Grab plan: allocate vehicle space and reserve source storage
+				assert(transport, 'grab requires active transport (driving)')
+				assert(target, 'target must be set for storage grab')
+				const content = getContentFromPosition(hex, target)
+				assert(content, 'target content must be set')
+				assert(
+					'storage' in content,
+					'planGrabStored only works with TileContent that has storage'
+				)
+				const goods = computeGrabGoods(plan, character, target)
+				if (Object.keys(goods).length === 0) throw new Error('No goods to grab at execution time')
+				plan.resolvedGoods = goods
 
-				commitment.onFulfilled(() => {
-					;(plan.allocation as any)?.fulfill()
-					;(plan.vehicleAllocation as any)?.fulfill()
-					delete plan.resolvedGoods
-				})
+				commitment = new PlanCommitment(`transfer.grab.${plan.description}`)
+
+				// Storage calls register their lifecycle callbacks on the commitment
+				const allocResult = transport.allocate(goods, commitment)
+				if (allocResult !== undefined) throw new Error(allocResult)
+				const reserveResult = content.storage?.reserve(goods, commitment)
+				if (reserveResult !== undefined) throw new Error(reserveResult)
 
 				commitment.onFinal(() => {
-					delete plan.vehicleAllocation
-					delete plan.allocation
 					delete plan.resolvedGoods
 				})
-			} else {
-				if (description === 'drop') {
-					// Drop plans reserve destination storage only when the worker is
-					// actually performing the transfer, otherwise border slots can be
-					// "incoming" long before any good physically reaches them.
-				} else if (description === 'grab') {
-					// Grab plan: allocate vehicle space and reserve source storage
-					assert(transport, 'grab requires active transport (driving)')
-					assert(target, 'target must be set for storage grab')
-					const content = getContentFromPosition(hex, target)
-					assert(content, 'target content must be set')
-					assert(
-						'storage' in content,
-						'planGrabStored only works with TileContent that has storage'
-					)
-					const goods = computeGrabGoods(plan, character, target)
-					if (Object.keys(goods).length === 0) throw new Error('No goods to grab at execution time')
-					plan.resolvedGoods = goods
-
-					commitment = new PlanCommitment(`transfer.grab.${plan.description}`)
-
-					// Storage calls register their lifecycle callbacks on the commitment
-					const allocResult = transport.allocate(goods, commitment)
-					if (allocResult !== undefined) throw new Error(allocResult)
-					const reserveResult = content.storage?.reserve(goods, commitment)
-					if (reserveResult !== undefined) throw new Error(reserveResult)
-
-					commitment.onFinal(() => {
-						delete plan.resolvedGoods
-					})
-				} else if (description === 'idle') {
-					// Idle plan: do nothing (safe fallback)
-				}
+			} else if (description === 'idle') {
+				// Idle plan: do nothing (safe fallback)
 			}
 		} catch (error) {
 			commitment?.cancel('begin-error')
@@ -234,95 +214,69 @@ const pickupPlanHandler: PlanHandler<PickupPlan> = {
 				target: toAxialCoord(target),
 				characterUid: debugObjectId(character) ?? '',
 				characterName: character.name,
-				hasLegacyAllocation: Boolean(plan.vehicleAllocation && plan.allocation),
 			})
 		}
 
 		let commitment: PlanCommitment | undefined
 		try {
-			if (plan.vehicleAllocation && plan.allocation) {
-				// Legacy path — allocations already created (e.g. from inventory.ts)
-				commitment = new PlanCommitment(`pickup.${plan.goodType}`).addTraceInfo({
-					kind: 'pickup-plan-handler',
-					goodType,
-					target: toAxialCoord(target),
-					characterUid: debugObjectId(character) ?? '',
-					characterName: character.name,
-					legacy: true,
-				})
-				commitment.trace('pickup.planHandler.legacyCommitment.created')
-				;(commitment as any).allocation = plan.allocation
-				;(commitment as any).vehicleAllocation = plan.vehicleAllocation
+			assert(transport, 'loose pickup requires active transport (driving)')
+			// Find and allocate the loose good
+			const coord = toAxialCoord(target)
+			const looseGoods = character.game.hex.looseGoods.getGoodsAt(coord)
+			const matchingLooseGoods = looseGoods.filter(
+				(good) => good.goodType === goodType && good.available
+			)
 
-				commitment.onFulfilled(() => {
-					;(plan.allocation as any)?.fulfill()
-					;(plan.vehicleAllocation as any)?.fulfill()
-				})
-
-				commitment.onFinal(() => {
-					delete plan.vehicleAllocation
-					delete plan.allocation
-				})
-			} else {
-				assert(transport, 'loose pickup requires active transport (driving)')
-				// Find and allocate the loose good
-				const coord = toAxialCoord(target)
-				const looseGoods = character.game.hex.looseGoods.getGoodsAt(coord)
-				const matchingLooseGoods = looseGoods.filter(
-					(good) => good.goodType === goodType && good.available
-				)
-
-				if (matchingLooseGoods.length === 0) {
-					if (
-						existingCommitment &&
-						'trace' in existingCommitment &&
-						typeof existingCommitment.trace === 'function'
-					) {
-						existingCommitment.trace('pickup.planHandler.noMatchingLooseGoods', {
-							goodType,
-							target: coord,
-						})
-					}
-					console.warn(`No LooseGoods to grab for ${goodType}`)
-					return
-				}
-
-				const looseGoodToGrab = matchingLooseGoods[0]
-
+			if (matchingLooseGoods.length === 0) {
 				if (
 					existingCommitment &&
 					'trace' in existingCommitment &&
 					typeof existingCommitment.trace === 'function'
 				) {
-					existingCommitment.trace('pickup.planHandler.replacingExistingCommitment', {
-						replacementLabel: `pickup.${plan.goodType}`,
+					existingCommitment.trace('pickup.planHandler.noMatchingLooseGoods', {
+						goodType,
+						target: coord,
 					})
 				}
-
-				commitment = new PlanCommitment(`pickup.${plan.goodType}`).addTraceInfo({
-					kind: 'pickup-plan-handler',
-					goodType,
-					target: coord,
-					characterUid: debugObjectId(character) ?? '',
-					characterName: character.name,
-					replacedCommitment: existingCommitment ? 'yes' : 'no',
-				})
-				commitment.trace('pickup.planHandler.commitment.created')
-
-				// Allocate loose good FIRST (no reactive side-effects) so active-transport `allocate`
-				// cannot fire effects that remove the good before it is secured.
-				const looseResult = looseGoodToGrab.allocate(commitment)
-				if (looseResult !== undefined) throw new Error(looseResult)
-				commitment.trace('pickup.planHandler.looseAllocated')
-
-				const vehicleResult = transport.allocate({ [goodType]: 1 }, commitment)
-				if (vehicleResult !== undefined) throw new Error(vehicleResult)
-				commitment.trace('pickup.planHandler.transportAllocated')
-
-				// NOTE: A prior `effect` on `looseGoodToGrab.isRemoved` called `cancelPlan` on removal.
-				// Successful pickup removes the loose good after the vehicle allocation is fulfilled, which
-				// aborted offload before `inventory.offloadDropBuffer()` could run.
+				console.warn(`No LooseGoods to grab for ${goodType}`)
+				return
 			}
+
+			const looseGoodToGrab = matchingLooseGoods[0]
+
+			if (
+				existingCommitment &&
+				'trace' in existingCommitment &&
+				typeof existingCommitment.trace === 'function'
+			) {
+				existingCommitment.trace('pickup.planHandler.replacingExistingCommitment', {
+					replacementLabel: `pickup.${plan.goodType}`,
+				})
+			}
+
+			commitment = new PlanCommitment(`pickup.${plan.goodType}`).addTraceInfo({
+				kind: 'pickup-plan-handler',
+				goodType,
+				target: coord,
+				characterUid: debugObjectId(character) ?? '',
+				characterName: character.name,
+				replacedCommitment: existingCommitment ? 'yes' : 'no',
+			})
+			commitment.trace('pickup.planHandler.commitment.created')
+
+			// Allocate loose good FIRST (no reactive side-effects) so active-transport `allocate`
+			// cannot fire effects that remove the good before it is secured.
+			const looseResult = looseGoodToGrab.allocate(commitment)
+			if (looseResult !== undefined) throw new Error(looseResult)
+			commitment.trace('pickup.planHandler.looseAllocated')
+
+			const vehicleResult = transport.allocate({ [goodType]: 1 }, commitment)
+			if (vehicleResult !== undefined) throw new Error(vehicleResult)
+			commitment.trace('pickup.planHandler.transportAllocated')
+
+			// NOTE: A prior `effect` on `looseGoodToGrab.isRemoved` called `cancelPlan` on removal.
+			// Successful pickup removes the loose good after the vehicle allocation is fulfilled, which
+			// aborted offload before `inventory.offloadDropBuffer()` could run.
 		} catch (error) {
 			commitment?.cancel('begin-error')
 			throw error

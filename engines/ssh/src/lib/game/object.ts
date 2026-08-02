@@ -104,53 +104,6 @@ export function withInteractive<T extends abstract new (...args: any[]) => GameO
 	return InteractiveMixin
 }
 
-export function withHittable<T extends abstract new (...args: any[]) => GameObject>(Base: T) {
-	abstract class HittableMixin extends Base {
-		/**
-		 * Z-index for hit testing priority. Higher values are tested first.
-		 * Default is 0. Objects with higher zIndex will be hit-tested first.
-		 */
-		public zIndex: number = 0
-
-		constructor(...args: any[]) {
-			super(...args)
-			this.game.registerHittable(this)
-		}
-
-		destroy(): void {
-			this.game.unregisterHittable(this)
-			super.destroy()
-		}
-
-		/**
-		 * Test if a world point is inside this interactive object
-		 * @param worldX - World X coordinate
-		 * @param worldY - World Y coordinate
-		 * @param selectedAction - Currently selected action (optional)
-		 * @returns true if the point is inside the object
-		 */
-		abstract hitTest(worldX: number, worldY: number, selectedAction?: string): any
-	}
-	return HittableMixin
-}
-
-export function withTicked<T extends abstract new (...args: any[]) => any>(Base: T) {
-	abstract class TickedMixin extends Base {
-		constructor(...args: any[]) {
-			super(...args)
-			this.game.registerTickedObject(this)
-		}
-
-		abstract update(deltaSeconds: number): void
-
-		destroy(): void {
-			this.game.unregisterTickedObject(this)
-			super.destroy()
-		}
-	}
-	return TickedMixin
-}
-
 export function withContainer<T extends abstract new (...args: any[]) => GameObject>(Base: T) {
 	abstract class ContainerMixin extends Base {
 		children = new Set<GameObject>()
@@ -182,14 +135,9 @@ export function withContainer<T extends abstract new (...args: any[]) => GameObj
 	return ContainerMixin
 }
 
-// Type aliases for backward compatibility
-
-export type RenderableContainer = InstanceType<ReturnType<typeof withContainer<typeof GameObject>>>
-export type HittableGameObject = InstanceType<ReturnType<typeof withHittable<typeof GameObject>>>
 export type InteractiveGameObject = InstanceType<
 	ReturnType<typeof withInteractive<typeof GameObject>>
 >
-export type TickedGameObject = InstanceType<ReturnType<typeof withTicked<typeof GameObject>>>
 
 export interface InspectorSelectableObject {
 	readonly title: string

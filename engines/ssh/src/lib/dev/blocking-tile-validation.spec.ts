@@ -1,5 +1,6 @@
 import type { HexBoard } from 'ssh/board/board'
 import { Tile } from 'ssh/board/tile'
+import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import {
 	findNearestServicePoint,
 	isServicePositionReachable,
@@ -9,6 +10,34 @@ import {
 import type { AxialCoord } from 'ssh/utils'
 import { axial, toAxialCoord } from 'ssh/utils'
 import { describe, expect, it, vi } from 'vitest'
+
+/**
+ * Minimal board stub that satisfies the interactive `Tile` machinery:
+ * - `game` provides the interactive-registration API the `withInteractive` mixin constructor calls.
+ * - `setTileContent`/`getTileContent` form a content store so `tile.content`
+ *   writes are visible to `tile.isBlockingSpace` reads.
+ * - `getTile` resolves neighbors (overridden per-test by `setupNeighbors`).
+ */
+function createMockBoard(): HexBoard {
+	const contents = new Map<string, any>()
+	return {
+		game: {
+			enqueueInteractiveRegistration: vi.fn(),
+			enqueueInteractiveChange: vi.fn(),
+			enqueueStoragePresentationChange: vi.fn(),
+			invalidateWorkPlanning: vi.fn(),
+		},
+		getTile: vi.fn(),
+		setTileContent: vi.fn((ref: unknown, content: any) => {
+			const coord = toAxialCoord(ref as never)
+			if (coord) contents.set(axial.key(coord), content)
+		}),
+		getTileContent: vi.fn((ref: unknown) => {
+			const coord = toAxialCoord(ref as never)
+			return coord ? contents.get(axial.key(coord)) : undefined
+		}),
+	} as unknown as HexBoard
+}
 
 // Mock tile creation helper
 function createMockTile(board: HexBoard, q: number, r: number, isBlocking: boolean): Tile {
@@ -24,15 +53,9 @@ function createMockTile(board: HexBoard, q: number, r: number, isBlocking: boole
 		} as any
 		tile.content = mockContent
 	} else {
-		// Create a mock UnBuiltLand content
-		const mockContent = {
-			tile,
-			name: 'UnBuiltLand',
-			debugInfo: { type: 'unbuilt' },
-			walkTime: 1,
-			background: '#ffffff',
-		} as any
-		tile.content = mockContent
+		// Real UnBuiltLand — `isBlockingSpace` is `!content instanceof UnBuiltLand`,
+		// so a plain-object mock would read as blocking for every tile.
+		tile.content = new UnBuiltLand(tile, 'grass')
 	}
 	return tile
 }
@@ -65,15 +88,16 @@ function setupNeighbors(tiles: Tile[], neighborMap: Map<string, string[]>): void
 	}
 }
 
+/** `toAxialCoord` mutates coord objects in place (adds `key`); compare plain q/r. */
+function plainCoord(coord: { q: number; r: number } | undefined): { q: number; r: number } | undefined {
+	return coord ? { q: coord.q, r: coord.r } : undefined
+}
+
 describe('Blocking Tile Validation', () => {
 	describe('validateBlockingTiles', () => {
 		it('should identify no blocking tiles when all tiles are unbuilt', () => {
 			// Create mock board
-			const mockBoard = {
-				game: {},
-				getTile: vi.fn(),
-				getTileContent: vi.fn(),
-			} as any
+			const mockBoard = createMockBoard()
 
 			// Create 3x3 grid of non-blocking tiles
 			const tiles: Tile[] = []
@@ -92,11 +116,7 @@ describe('Blocking Tile Validation', () => {
 		})
 
 		it('should identify a single blocking tile with passable neighbors', () => {
-			const mockBoard = {
-				game: {},
-				getTile: vi.fn(),
-				getTileContent: vi.fn(),
-			} as any
+			const mockBoard = createMockBoard()
 
 			// Create center blocking tile surrounded by passable tiles
 			const tiles: Tile[] = []
@@ -116,17 +136,13 @@ describe('Blocking Tile Validation', () => {
 			const result = validateBlockingTiles(tiles)
 
 			expect(result.allBlockingTiles).toHaveLength(1)
-			expect(result.allBlockingTiles[0]).toEqual({ q: 0, r: 0 })
+			expect(plainCoord(result.allBlockingTiles[0])).toEqual({ q: 0, r: 0 })
 			expect(result.landlockedTiles).toHaveLength(0) // Not landlocked - has passable neighbors
 			expect(result.borderServicePositions.length).toBeGreaterThan(0) // Should have service positions
 		})
 
 		it('should identify landlocked tiles correctly', () => {
-			const mockBoard = {
-				game: {},
-				getTile: vi.fn(),
-				getTileContent: vi.fn(),
-			} as any
+			const mockBoard = createMockBoard()
 
 			// Create center blocking tile surrounded by blocking tiles
 			const tiles: Tile[] = []
@@ -147,17 +163,13 @@ describe('Blocking Tile Validation', () => {
 
 			expect(result.allBlockingTiles.length).toBeGreaterThan(0)
 			expect(result.landlockedTiles).toHaveLength(1)
-			expect(result.landlockedTiles[0].coord).toEqual({ q: 0, r: 0 })
+			expect(plainCoord(result.landlockedTiles[0].coord)).toEqual({ q: 0, r: 0 })
 			expect(result.landlockedTiles[0].issueType).toBe('landlocked')
 			expect(result.borderServicePositions).toHaveLength(0) // No service positions - all blocking
 		})
 
 		it('should identify border service positions correctly', () => {
-			const mockBoard = {
-				game: {},
-				getTile: vi.fn(),
-				getTileContent: vi.fn(),
-			} as any
+			const mockBoard = createMockBoard()
 
 			// Create a blocking tile with one passable neighbor
 			const tiles: Tile[] = []
@@ -178,8 +190,8 @@ describe('Blocking Tile Validation', () => {
 
 			expect(result.borderServicePositions.length).toBeGreaterThan(0)
 			const servicePos = result.borderServicePositions[0]
-			expect(servicePos.blockingTile).toEqual({ q: 0, r: 0 })
-			expect(servicePos.passableTile).toEqual({ q: 1, r: 0 })
+			expect(plainCoord(servicePos.blockingTile)).toEqual({ q: 0, r: 0 })
+			expect(plainCoord(servicePos.passableTile)).toEqual({ q: 1, r: 0 })
 			expect(servicePos.borderPosition.q).toBeCloseTo(0.5)
 			expect(servicePos.borderPosition.r).toBeCloseTo(0)
 		})
@@ -187,11 +199,7 @@ describe('Blocking Tile Validation', () => {
 
 	describe('wouldBecomeLandlocked', () => {
 		it('should return false for tiles with non-blocking neighbors', () => {
-			const mockBoard = {
-				game: {},
-				getTile: vi.fn(),
-				getTileContent: vi.fn(),
-			} as any
+			const mockBoard = createMockBoard()
 
 			const tiles: Tile[] = []
 			tiles.push(createMockTile(mockBoard, 0, 0, false)) // Target (non-blocking)
@@ -209,11 +217,7 @@ describe('Blocking Tile Validation', () => {
 		})
 
 		it('should return true for tiles surrounded by blocking tiles', () => {
-			const mockBoard = {
-				game: {},
-				getTile: vi.fn(),
-				getTileContent: vi.fn(),
-			} as any
+			const mockBoard = createMockBoard()
 
 			const tiles: Tile[] = []
 			tiles.push(createMockTile(mockBoard, 0, 0, false)) // Target (non-blocking)
@@ -232,15 +236,11 @@ describe('Blocking Tile Validation', () => {
 			const result = wouldBecomeLandlocked(tiles, { q: 0, r: 0 })
 
 			expect(result.wouldBeLandlocked).toBe(true)
-			expect(result.affectedTiles).toContainEqual({ q: 0, r: 0 })
+			expect(result.affectedTiles.map(plainCoord)).toContainEqual({ q: 0, r: 0 })
 		})
 
 		it('should identify adjacent blocking tiles that would become landlocked', () => {
-			const mockBoard = {
-				game: {},
-				getTile: vi.fn(),
-				getTileContent: vi.fn(),
-			} as any
+			const mockBoard = createMockBoard()
 
 			const tiles: Tile[] = []
 			tiles.push(createMockTile(mockBoard, 0, 0, false)) // Target (non-blocking)
@@ -261,16 +261,12 @@ describe('Blocking Tile Validation', () => {
 			const result = wouldBecomeLandlocked(tiles, { q: 0, r: 0 })
 
 			expect(result.wouldBeLandlocked).toBe(true)
-			expect(result.affectedTiles).toContainEqual({ q: 1, r: 0 })
+			expect(result.affectedTiles.map(plainCoord)).toContainEqual({ q: 1, r: 0 })
 			expect(result.details).toContain('Adjacent blocking tile')
 		})
 
 		it('should not flag adjacent blocking tiles that have other passable neighbors', () => {
-			const mockBoard = {
-				game: {},
-				getTile: vi.fn(),
-				getTileContent: vi.fn(),
-			} as any
+			const mockBoard = createMockBoard()
 
 			const tiles: Tile[] = []
 			tiles.push(createMockTile(mockBoard, 0, 0, false)) // Target (non-blocking)
@@ -291,24 +287,21 @@ describe('Blocking Tile Validation', () => {
 
 	describe('findNearestServicePoint', () => {
 		it('should find the nearest border service position', () => {
-			const mockBoard = {
-				game: {},
-				getTile: vi.fn(),
-				getTileContent: vi.fn(),
-			} as any
+			const mockBoard = createMockBoard()
 
 			const tiles: Tile[] = []
-			// Create a passable start tile
+			// Passable start tile, one hex before the blocking tile
 			tiles.push(createMockTile(mockBoard, 0, 0, false))
-			// Create a blocking tile with passable neighbor
-			tiles.push(createMockTile(mockBoard, 1, 0, true))
-			tiles.push(createMockTile(mockBoard, 2, 0, false))
+			tiles.push(createMockTile(mockBoard, 1, 0, false))
+			tiles.push(createMockTile(mockBoard, 2, 0, true)) // Blocking tile
+			tiles.push(createMockTile(mockBoard, 3, 0, false))
 
 			// Setup neighbors
 			const neighborMap = new Map<string, string[]>()
 			neighborMap.set('0,0', ['1,0'])
 			neighborMap.set('1,0', ['0,0', '2,0'])
-			neighborMap.set('2,0', ['1,0'])
+			neighborMap.set('2,0', ['1,0', '3,0'])
+			neighborMap.set('3,0', ['2,0'])
 			setupNeighbors(tiles, neighborMap)
 
 			// Mock getNeighbors function that respects walkability
@@ -335,16 +328,12 @@ describe('Blocking Tile Validation', () => {
 			const result = findNearestServicePoint(tiles, getNeighbors, { q: 0, r: 0 }, 10)
 
 			expect(result).not.toBeNull()
-			expect(result?.blockingTile).toEqual({ q: 1, r: 0 })
-			expect(result?.passableTile).toEqual({ q: 2, r: 0 })
+			expect(plainCoord(result?.blockingTile)).toEqual({ q: 2, r: 0 })
+			expect(plainCoord(result?.passableTile)).toEqual({ q: 1, r: 0 })
 		})
 
 		it('should return null when no service point found within maxDistance', () => {
-			const mockBoard = {
-				game: {},
-				getTile: vi.fn(),
-				getTileContent: vi.fn(),
-			} as any
+			const mockBoard = createMockBoard()
 
 			const tiles: Tile[] = []
 			tiles.push(createMockTile(mockBoard, 0, 0, false))
@@ -358,22 +347,24 @@ describe('Blocking Tile Validation', () => {
 		})
 
 		it('should respect maxDistance parameter', () => {
-			const mockBoard = {
-				game: {},
-				getTile: vi.fn(),
-				getTileContent: vi.fn(),
-			} as any
+			const mockBoard = createMockBoard()
 
+			// Chain: start (0,0) -> (1,0) -> (2,0) -> blocking (3,0) -> passable (4,0)
+			// Nearest border is at (2,0), distance 2 from start.
 			const tiles: Tile[] = []
 			tiles.push(createMockTile(mockBoard, 0, 0, false))
-			// Service point is at distance 5
-			tiles.push(createMockTile(mockBoard, 5, 0, true))
-			tiles.push(createMockTile(mockBoard, 6, 0, false))
+			tiles.push(createMockTile(mockBoard, 1, 0, false))
+			tiles.push(createMockTile(mockBoard, 2, 0, false))
+			tiles.push(createMockTile(mockBoard, 3, 0, true))
+			tiles.push(createMockTile(mockBoard, 4, 0, false))
 
 			// Setup neighbors
 			const neighborMap = new Map<string, string[]>()
-			neighborMap.set('5,0', ['6,0'])
-			neighborMap.set('6,0', ['5,0'])
+			neighborMap.set('0,0', ['1,0'])
+			neighborMap.set('1,0', ['0,0', '2,0'])
+			neighborMap.set('2,0', ['1,0', '3,0'])
+			neighborMap.set('3,0', ['2,0', '4,0'])
+			neighborMap.set('4,0', ['3,0'])
 			setupNeighbors(tiles, neighborMap)
 
 			const getNeighbors = vi.fn((coord: AxialCoord) => {
@@ -395,27 +386,75 @@ describe('Blocking Tile Validation', () => {
 					})
 			})
 
-			// With maxDistance 3, should not find it
-			const result1 = findNearestServicePoint(tiles, getNeighbors, { q: 0, r: 0 }, 3)
+			// With maxDistance 1, the border at (2,0) is out of reach
+			const result1 = findNearestServicePoint(tiles, getNeighbors, { q: 0, r: 0 }, 1)
 			expect(result1).toBeNull()
 
-			// With maxDistance 10, should find it
+			// With maxDistance 10, it is found
 			const result2 = findNearestServicePoint(tiles, getNeighbors, { q: 0, r: 0 }, 10)
 			expect(result2).not.toBeNull()
+			expect(plainCoord(result2?.passableTile)).toEqual({ q: 2, r: 0 })
 		})
 
 		it('should not search through blocking tiles', () => {
-			const mockBoard = {
-				game: {},
-				getTile: vi.fn(),
-				getTileContent: vi.fn(),
-			} as any
+			const mockBoard = createMockBoard()
 
+			// Start (0,0) is passable and adjacent to blocking (1,0), which also
+			// has a passable neighbor (2,0) on the far side. Both are service
+			// borders, but BFS must stop at the nearest reachable one — it must
+			// not step through the blocking tile to reach (2,0).
 			const tiles: Tile[] = []
 			tiles.push(createMockTile(mockBoard, 0, 0, false))
-			tiles.push(createMockTile(mockBoard, 1, 0, true)) // Blocking - should not pass through
-			tiles.push(createMockTile(mockBoard, 2, 0, true)) // Blocking with service point
-			tiles.push(createMockTile(mockBoard, 3, 0, false))
+			tiles.push(createMockTile(mockBoard, 1, 0, true)) // Blocking wall
+			tiles.push(createMockTile(mockBoard, 2, 0, false))
+
+			// Setup neighbors
+			const neighborMap = new Map<string, string[]>()
+			neighborMap.set('0,0', ['1,0'])
+			neighborMap.set('1,0', ['0,0', '2,0'])
+			neighborMap.set('2,0', ['1,0'])
+			setupNeighbors(tiles, neighborMap)
+
+			const getNeighbors = vi.fn((coord: AxialCoord) => {
+				const tile = tiles.find((t) => {
+					const tc = toAxialCoord(t.position)
+					return tc && axial.key(tc) === axial.key(coord)
+				})
+				if (!tile) return []
+
+				const neighbors = tile.neighborTiles
+				return neighbors
+					.filter((n) => !n.isBlockingSpace)
+					.map((n) => {
+						const nc = toAxialCoord(n.position)
+						return {
+							coord: nc ?? { q: 0, r: 0 },
+							walkTime: 1,
+						}
+					})
+			})
+
+			const result = findNearestServicePoint(tiles, getNeighbors, { q: 0, r: 0 }, 10)
+
+			// Nearest border is the near side (0,0) — the far side (2,0) is
+			// only reachable through the blocking tile and must not be found.
+			expect(result).not.toBeNull()
+			expect(plainCoord(result?.blockingTile)).toEqual({ q: 1, r: 0 })
+			expect(plainCoord(result?.passableTile)).toEqual({ q: 0, r: 0 })
+		})
+	})
+
+	describe('isServicePositionReachable', () => {
+		it('should return true when service position is reachable', () => {
+			const mockBoard = createMockBoard()
+
+			// Passable path 0,0 -> 1,0 -> 2,0; blocking tile at 3,0 whose
+			// passable neighbor (2,0) is the target side of the service border.
+			const tiles: Tile[] = []
+			tiles.push(createMockTile(mockBoard, 0, 0, false))
+			tiles.push(createMockTile(mockBoard, 1, 0, false))
+			tiles.push(createMockTile(mockBoard, 2, 0, false))
+			tiles.push(createMockTile(mockBoard, 3, 0, true))
 
 			// Setup neighbors
 			const neighborMap = new Map<string, string[]>()
@@ -444,56 +483,10 @@ describe('Blocking Tile Validation', () => {
 					})
 			})
 
-			const result = findNearestServicePoint(tiles, getNeighbors, { q: 0, r: 0 }, 10)
-
-			// Should not find service point because it's behind blocking tiles
-			expect(result).toBeNull()
-		})
-	})
-
-	describe('isServicePositionReachable', () => {
-		it('should return true when service position is reachable', () => {
-			const mockBoard = {
-				game: {},
-				getTile: vi.fn(),
-				getTileContent: vi.fn(),
-			} as any
-
-			const tiles: Tile[] = []
-			tiles.push(createMockTile(mockBoard, 0, 0, false))
-			tiles.push(createMockTile(mockBoard, 1, 0, true))
-			tiles.push(createMockTile(mockBoard, 2, 0, false))
-
-			// Setup neighbors
-			const neighborMap = new Map<string, string[]>()
-			neighborMap.set('0,0', ['1,0'])
-			neighborMap.set('1,0', ['0,0', '2,0'])
-			neighborMap.set('2,0', ['1,0'])
-			setupNeighbors(tiles, neighborMap)
-
-			const getNeighbors = vi.fn((coord: AxialCoord) => {
-				const tile = tiles.find((t) => {
-					const tc = toAxialCoord(t.position)
-					return tc && axial.key(tc) === axial.key(coord)
-				})
-				if (!tile) return []
-
-				const neighbors = tile.neighborTiles
-				return neighbors
-					.filter((n) => !n.isBlockingSpace)
-					.map((n) => {
-						const nc = toAxialCoord(n.position)
-						return {
-							coord: nc ?? { q: 0, r: 0 },
-							walkTime: 1,
-						}
-					})
-			})
-
 			const servicePosition = {
-				blockingTile: { q: 1, r: 0 },
+				blockingTile: { q: 3, r: 0 },
 				passableTile: { q: 2, r: 0 },
-				borderPosition: axial.linear([0.5, { q: 1, r: 0 }], [0.5, { q: 2, r: 0 }]),
+				borderPosition: axial.linear([0.5, { q: 3, r: 0 }], [0.5, { q: 2, r: 0 }]),
 			}
 
 			const result = isServicePositionReachable(
@@ -508,11 +501,7 @@ describe('Blocking Tile Validation', () => {
 		})
 
 		it('should return false when service position is not reachable', () => {
-			const mockBoard = {
-				game: {},
-				getTile: vi.fn(),
-				getTileContent: vi.fn(),
-			} as any
+			const mockBoard = createMockBoard()
 
 			const tiles: Tile[] = []
 			tiles.push(createMockTile(mockBoard, 0, 0, false))

@@ -23,7 +23,6 @@ function getDefaultConfiguration(): Configuration {
 }
 
 export const configuration = reactive<Configuration>(getDefaultConfiguration())
-export const debugInfo = reactive<Record<string, unknown>>({})
 export const options = {
 	stalledMovementScanIntervalMs: 1000 as number | false,
 	stalledMovementSettleMs: 1000,
@@ -74,14 +73,3 @@ export const game: Game = new Proxy({} as Game, {
 		return Reflect.getOwnPropertyDescriptor(ensureGame(), prop)
 	},
 })
-
-/**
- * Legacy shape for callers that used `games.game(name)`. The name is ignored; returns {@link game}.
- * Prefer importing `game` directly.
- */
-export const games = {
-	game(_name?: string) {
-		void _name
-		return ensureGame()
-	},
-}

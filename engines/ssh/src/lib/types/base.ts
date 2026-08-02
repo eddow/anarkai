@@ -237,16 +237,12 @@ export type Needs = typeof Needs.infer
 export interface TransferPlan {
 	readonly type: 'transfer'
 	readonly description: 'grab' | 'drop'
-	/** @deprecated Phase 3 legacy — use `commitment` instead. */
-	vehicleAllocation?: { fulfill(): void; cancel(): void }
-	/** @deprecated Phase 3 legacy — use `commitment` instead. */
-	allocation?: { fulfill(): void; cancel(): void }
 	resolvedGoods?: Goods // Runtime-only field
 	readonly goods: Goods
 	readonly target?: Positioned
 	readonly sourceTile?: Positioned
 	invariant?: () => boolean
-	/** Commitment managing allocation lifecycle (Phase 4). */
+	/** Commitment managing allocation lifecycle. */
 	commitment?: {
 		fulfill(): void
 		cancel(reason: string): void
@@ -258,15 +254,11 @@ export interface TransferPlan {
 
 export interface PickupPlan {
 	readonly type: 'pickup'
-	/** @deprecated Phase 3 legacy — use `commitment` instead. */
-	vehicleAllocation?: { fulfill(): void; cancel(): void }
-	/** @deprecated Phase 3 legacy — use `commitment` instead. */
-	allocation?: { fulfill(): void; cancel(): void }
 	readonly goodType: GoodType
 	readonly target: Positioned
 	releaseStopper?: () => void // Runtime-only field
 	invariant?: () => boolean
-	/** Commitment managing allocation lifecycle (Phase 4). */
+	/** Commitment managing allocation lifecycle. */
 	commitment?: {
 		fulfill(): void
 		cancel(reason: string): void

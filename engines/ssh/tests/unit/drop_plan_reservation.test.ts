@@ -57,13 +57,12 @@ describe('Drop plan reservations', () => {
 		) as TransferPlan
 
 		worker.scriptsContext.plan.begin(plan)
-		expect(plan.vehicleAllocation).toBeUndefined()
-		expect(plan.allocation).toBeUndefined()
+		expect(plan.commitment).toBeUndefined()
 		expect(gate.storage.allocatedSlots).toBe(false)
 
 		const step = worker.scriptsContext.inventory.effectuate(plan)
-		expect(plan.vehicleAllocation).toBeDefined()
-		expect(plan.allocation).toBeDefined()
+		expect(plan.commitment).toBeDefined()
+		expect(plan.resolvedGoods).toEqual({ wood: 1 })
 		expect(gate.storage.allocatedSlots).toBe(true)
 
 		step.finish()

@@ -88,7 +88,7 @@ function hasStorageContent(target: Positioned): target is Positioned & StorageTa
 }
 
 function ensureDropPlanAllocations(action: TransferPlan, character: Character) {
-	if (action.vehicleAllocation && action.allocation) return
+	if (action.commitment) return
 	assert(action.description === 'drop', 'drop allocations can only be created for drop plans')
 	assert(action.target, 'drop target must be set')
 	const transport = character.requireTransportStorage()
@@ -99,23 +99,15 @@ function ensureDropPlanAllocations(action: TransferPlan, character: Character) {
 	assert('storage' in content, 'planDropStored only works with TileContent that has storage')
 
 	const commitment = new Commitment('plan.drop')
-	const legacyHandle = {
-		fulfill: () => commitment.fulfill(),
-		cancel: () => commitment.cancel('plan.drop-legacy-cancel'),
-	}
 
 	try {
 		const reserveResult = transport.reserve(action.goods, commitment)
 		if (reserveResult !== undefined) throw new Error(reserveResult)
 		const allocResult = content.storage!.allocate(action.goods, commitment)
 		if (allocResult !== undefined) throw new Error(allocResult)
-		action.vehicleAllocation = legacyHandle
-		action.allocation = legacyHandle
 		action.resolvedGoods = action.goods
 		action.commitment = commitment
 		commitment.onFinal(() => {
-			delete action.vehicleAllocation
-			delete action.allocation
 			delete action.resolvedGoods
 			delete action.commitment
 		})

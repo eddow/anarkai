@@ -1,25 +1,14 @@
 import type { Game } from 'ssh/game/game'
-import { GameObject, withContainer, withHittable } from 'ssh/game/object'
-import { type AxialCoord, toAxialCoord } from 'ssh/utils'
+import { GameObject, withContainer } from 'ssh/game/object'
+import { type AxialCoord } from 'ssh/utils'
 import type { RandGenerator } from 'ssh/utils/numbers'
 import { Character } from './character'
 
-export class Population extends withContainer(withHittable(GameObject)) {
+export class Population extends withContainer(GameObject) {
 	public characterGen: RandGenerator
 	constructor(public readonly game: Game) {
 		super(game)
 		this.characterGen = game.lcg('characterGen')
-		this.zIndex = 1 // Foreground layer - characters should be hit-tested first
-	}
-
-	hitTest(worldX: number, worldY: number, selectedAction?: string): any {
-		if (selectedAction && selectedAction !== 'select') return false
-		const coord = toAxialCoord({ x: worldX, y: worldY })
-		for (const character of this.children) {
-			if (character instanceof Character && character.hitTest(coord, selectedAction))
-				return character
-		}
-		return false
 	}
 
 	createCharacter(name: string, coord: AxialCoord): Character {

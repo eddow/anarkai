@@ -99,7 +99,7 @@ import { toAxialCoord } from 'ssh/utils/position'
 import * as gameContent from '../../../assets/game-content'
 import { assert, setTraceTimeSource } from '../dev/debug.ts'
 import { GameplayFrontierController } from './gameplay-frontier'
-import type { GameObject, HittableGameObject, InteractiveGameObject } from './object'
+import type { GameObject, InteractiveGameObject } from './object'
 import {
 	TerrainProvider,
 	type TerrainProviderDiagnostics,
@@ -506,7 +506,6 @@ export class Game extends Eventful<GameEvents> {
 	private HiveClass?: typeof Hive
 
 	public readonly objects = reactive(new Set<InteractiveGameObject>())
-	public readonly hittableObjects = new Set<HittableGameObject>()
 	public readonly hex: HexBoard
 	public readonly generator: GameGenerator
 	public readonly ticker: SimulationLoop
@@ -837,13 +836,6 @@ public getSettlementTradeProfile(id: string): NpcSettlementTradeProfile | undefi
 		this.freightLines = next
 		for (const vehicle of this.vehicles) vehicle.unassignFreightLine(line)
 		return true
-	}
-
-	registerHittable(object: HittableGameObject) {
-		this.hittableObjects.add(object)
-	}
-	unregisterHittable(object: HittableGameObject) {
-		this.hittableObjects.delete(object)
 	}
 
 	public getTexture(spec: string) {
@@ -3019,7 +3011,6 @@ public getSettlementTradeProfile(id: string): NpcSettlementTradeProfile | undefi
 			this.hex.reset()
 		} catch {}
 		this.tickedObjects.clear()
-		this.hittableObjects.clear()
 		this.pendingInteractiveRegistrations.clear()
 		this.pendingInteractiveChanges.clear()
 		this.pendingInteractiveUnregistrations.clear()
