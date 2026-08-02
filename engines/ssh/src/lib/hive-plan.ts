@@ -30,16 +30,17 @@ export interface HivePlanValidationProgress {
 }
 
 export interface HivePlan {
-	id: string
 	name: string
 	version: number
 	stage: HivePlanStage
 	entries: HivePlanEntry[]
-	createdFromPlanIds: string[]
+	/** Register indexes of plans this one was derived from (provenance only). */
+	createdFromPlanIndexes: number[]
 	validationProgress: HivePlanValidationProgress
 	knownnessFingerprint: string
 	archiveReason?: HivePlanArchiveReason
-	replacedByPlanId?: string
+	/** Register index of the plan that replaced this archived plan (provenance only). */
+	replacedByPlanIndex?: number
 }
 
 export interface SerializedHivePlan extends HivePlan {}
@@ -337,20 +338,6 @@ export function validateHivePlanStructure(
 	return issues
 }
 
-function makePlanId(name: string, existing: readonly HivePlan[]): string {
-	const base =
-		name
-			.trim()
-			.toLowerCase()
-			.replace(/[^a-z0-9]+/g, '-')
-			.replace(/^-+|-+$/g, '') || 'hive-plan'
-	let id = base
-	let n = 2
-	const ids = new Set(existing.map((plan) => plan.name))
-	while (ids.has(id)) id = `${base}-${n++}`
-	return id
-}
-
 @reactive
 export class HivePlanCollection {
 	public plans: HivePlan[] = []
@@ -373,15 +360,26 @@ export class HivePlanCollection {
 		return this.plans.filter((plan) => plan.stage === 'draft')
 	}
 
-	find(id: string | undefined): HivePlan | undefined {
-		return id ? this.plans.find((plan) => plan.name === id) : undefined
+	/** Register index of a plan; -1 when the plan is not in this collection. */
+	indexOf(plan: HivePlan): number {
+		return this.plans.indexOf(plan)
 	}
 
-	findDuplicate(entries: readonly HivePlanEntry[], exceptId?: string): HivePlan | undefined {
+	/**
+	 * Resolve a plan by its position in the register. The array is the single
+	 * source of truth for cross-boundary references (UI interaction tokens,
+	 * save/load shell provenance); it is append-only, so indexes are stable
+	 * within a session and across save/load (serialized in order).
+	 */
+	byIndex(index: number): HivePlan | undefined {
+		return this.plans[index]
+	}
+
+	findDuplicate(entries: readonly HivePlanEntry[], exceptIndex?: number): HivePlan | undefined {
 		if (entries.length === 0) return undefined
 		const fingerprint = hivePlanFingerprint(entries)
 		return this.plans.find(
-			(plan) => plan.id !== exceptId && plan.knownnessFingerprint === fingerprint
+			(plan, index) => index !== exceptIndex && plan.knownnessFingerprint === fingerprint
 		)
 	}
 
@@ -389,12 +387,11 @@ export class HivePlanCollection {
 		const existing = this.findDuplicate(entries)
 		if (existing) return existing
 		const plan = reactive({
-			id: makePlanId(name, this.plans),
 			name,
 			version: 1,
 			stage: 'draft' as HivePlanStage,
 			entries: entries.map((entry) => ({ ...entry })),
-			createdFromPlanIds: [],
+			createdFromPlanIndexes: [],
 			validationProgress: hivePlanValidationRequirements(entries, this.plans),
 			knownnessFingerprint: hivePlanFingerprint(entries),
 		}) as HivePlan
@@ -402,33 +399,36 @@ export class HivePlanCollection {
 		return plan
 	}
 
-	updateDraft(id: string, patch: { name?: string; entries?: readonly HivePlanEntry[] }): HivePlan {
-		const plan = this.find(id)
-		if (!plan) throw new Error(`Unknown hive plan "${id}"`)
+	updateDraft(
+		index: number,
+		patch: { name?: string; entries?: readonly HivePlanEntry[] }
+	): HivePlan {
+		const plan = this.byIndex(index)
+		if (!plan) throw new Error(`Unknown hive plan at index ${index}`)
 		if (plan.stage !== 'draft') throw new Error('Only draft plans can be edited')
 		const entries = patch.entries ?? plan.entries
-		const duplicate = this.findDuplicate(entries, id)
+		const duplicate = this.findDuplicate(entries, index)
 		if (duplicate) return duplicate
 		if (patch.name !== undefined) plan.name = patch.name
 		if (patch.entries) plan.entries = patch.entries.map((entry) => ({ ...entry }))
 		plan.knownnessFingerprint = hivePlanFingerprint(plan.entries)
 		plan.validationProgress = hivePlanValidationRequirements(
 			plan.entries,
-			this.plans.filter((candidate) => candidate.id !== plan.id)
+			this.plans.filter((candidate) => candidate !== plan)
 		)
 		return plan
 	}
 
 	sendToValidation(
-		id: string
+		index: number
 	): { ok: true; plan: HivePlan } | { ok: false; issues: HivePlanStructuralIssue[] } {
-		const plan = this.find(id)
+		const plan = this.byIndex(index)
 		if (!plan) return { ok: false, issues: [{ code: 'empty', message: 'Unknown plan.' }] }
 		const issues = validateHivePlanStructure(this.game, plan.entries)
 		if (issues.length > 0) return { ok: false, issues }
 		plan.validationProgress = hivePlanValidationRequirements(
 			plan.entries,
-			this.plans.filter((candidate) => candidate.id !== plan.id)
+			this.plans.filter((candidate) => candidate !== plan)
 		)
 		plan.stage = 'validating'
 		this.game.invalidateWorkPlanning('hive-plan.validation')
@@ -436,25 +436,25 @@ export class HivePlanCollection {
 	}
 
 	archive(
-		id: string,
+		index: number,
 		reason: HivePlanArchiveReason = 'manual',
-		replacedByPlanId?: string
+		replacedByPlanIndex?: number
 	): boolean {
-		const plan = this.find(id)
+		const plan = this.byIndex(index)
 		if (!plan) return false
 		plan.stage = 'archived'
 		plan.archiveReason = reason
-		plan.replacedByPlanId = replacedByPlanId
+		plan.replacedByPlanIndex = replacedByPlanIndex
 		this.game.invalidateWorkPlanning('hive-plan.archive')
 		return true
 	}
 
-	unarchive(id: string): boolean {
-		const plan = this.find(id)
+	unarchive(index: number): boolean {
+		const plan = this.byIndex(index)
 		if (!plan) return false
 		plan.stage = 'draft'
 		plan.archiveReason = undefined
-		plan.replacedByPlanId = undefined
+		plan.replacedByPlanIndex = undefined
 		return true
 	}
 
@@ -474,7 +474,7 @@ export class HivePlanCollection {
 		return this.plans.map((plan) => ({
 			...plan,
 			entries: plan.entries.map((entry) => ({ ...entry })),
-			createdFromPlanIds: [...plan.createdFromPlanIds],
+			createdFromPlanIndexes: [...plan.createdFromPlanIndexes],
 			validationProgress: {
 				...plan.validationProgress,
 				requiredGoods: { ...plan.validationProgress.requiredGoods },
@@ -488,6 +488,7 @@ export class HivePlanCollection {
 			reactive({
 				...plan,
 				entries: plan.entries.map((entry) => ({ ...entry })),
+				createdFromPlanIndexes: plan.createdFromPlanIndexes ?? [],
 				knownnessFingerprint: plan.knownnessFingerprint || hivePlanFingerprint(plan.entries),
 				validationProgress: {
 					...plan.validationProgress,
@@ -548,7 +549,8 @@ export function previewHivePlanPlacement(
 export function createConstructionSiteForHivePlanEntry(
 	tile: Tile,
 	plan: HivePlan,
-	entry: HivePlanEntry
+	entry: HivePlanEntry,
+	planIndex: number
 ) {
 	const constructionSite: ConstructionSiteState = createConstructionSiteState({
 		kind: 'alveolus',
@@ -558,7 +560,7 @@ export function createConstructionSiteForHivePlanEntry(
 	constructionSite.phase = 'waiting_materials'
 	const shell = createConstructionShell(tile, constructionSite)
 	Object.assign(shell, {
-		hivePlanId: plan.id,
+		hivePlanIndex: planIndex,
 		hivePlanVersion: plan.version,
 		planRoleId: entry.roleId,
 		planConfiguration: entry.configuration ? { ...entry.configuration } : undefined,

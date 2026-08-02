@@ -63,7 +63,7 @@ export function cloneFreightStop(stop: FreightStop): FreightStop {
 			...base,
 			trade: {
 				kind: 'settlement',
-				settlementName: stop.trade.settlementName,
+				settlementId: stop.trade.settlementId,
 				profile: stop.trade.profile,
 			},
 		}

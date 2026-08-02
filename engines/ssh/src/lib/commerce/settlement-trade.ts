@@ -31,6 +31,9 @@ export interface NpcSettlementTradeTarget {
 
 export interface NpcSettlementTradeProfile {
 	readonly regionSetKey: string
+	/** Stable generator id (e.g. `settlement-7,19`). Used by freight trade stops. */
+	readonly id: string
+	/** Display name (e.g. `Melindbury`). */
 	readonly name: string
 	readonly kind: GeneratedSettlement['kind']
 	readonly center: AxialCoord
@@ -148,6 +151,7 @@ export function createNpcSettlementTradeProfile(args: {
 	const cityHallPosition = selectSettlementCityHallPosition(args.settlement, args.tileData)
 	return {
 		regionSetKey: args.regionSetKey,
+		id: args.settlement.id,
 		name: args.settlement.name,
 		kind: args.settlement.kind,
 		center: { ...args.settlement.center },

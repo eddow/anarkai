@@ -75,7 +75,7 @@ export function finalizeConstructionShell(shell: ConstructionSiteShell): void {
 			variant?: string
 			targetVariantId?: string
 			planConfiguration?: any
-			hivePlanId?: string
+			hivePlanIndex?: number
 			hivePlanVersion?: number
 			planRoleId?: string
 		}
@@ -104,7 +104,7 @@ export function finalizeConstructionShell(shell: ConstructionSiteShell): void {
 			nextBuild.assignedWorker = assignedWorker
 			if (assignedWorker) assignedWorker.assignedAlveolus = nextBuild
 			Object.assign(nextBuild, {
-				hivePlanId: (shell as { hivePlanId?: string }).hivePlanId,
+				hivePlanIndex: (shell as { hivePlanIndex?: number }).hivePlanIndex,
 				hivePlanVersion: (shell as { hivePlanVersion?: number }).hivePlanVersion,
 				planRoleId: (shell as { planRoleId?: string }).planRoleId,
 				planConfiguration: (shell as { planConfiguration?: any }).planConfiguration,

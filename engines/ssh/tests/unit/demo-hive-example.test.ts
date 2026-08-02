@@ -26,25 +26,28 @@ describe('demoHive example game', () => {
 		expect(game.hex.getTile({ q: 2, r: 0 })?.content?.name).toBe('tree_chopper')
 		expect(game.hex.getTile({ q: 2, r: -1 })?.content?.name).toBe('forester')
 
-		expect(game.hex.zoneManager.getZone({ q: 3, r: -1 })).toBe('green-ring')
-		expect(game.hex.zoneManager.getZone({ q: -4, r: 1 })).toBe('residential')
-		expect(game.hex.zoneManager.getZone({ q: -5, r: 1 })).toBe('commercial')
+		expect(game.hex.zoneManager.getZone({ q: 3, r: -1 })?.name).toBe('green-ring')
+		expect(game.hex.zoneManager.getZone({ q: -4, r: 1 })?.type).toBe('residential')
+		expect(game.hex.zoneManager.getZone({ q: -5, r: 1 })?.type).toBe('commercial')
 		expect(game.hex.getTile({ q: -4, r: 1 })?.content).toBeInstanceOf(BasicDwelling)
 		expect(game.hex.getTile({ q: -3, r: 1 })?.content).toBeInstanceOf(BuildDwelling)
 
 		expect(game.freightLines.map((line) => line.name)).toEqual(
-			expect.arrayContaining(['HearthLoop:commons-exchange', 'HearthLoop:melindbury-comfort-loop'])
+			expect.arrayContaining([
+				'HearthLoop commons exchange',
+				'HearthLoop - Melindbury comfort loop',
+			])
 		)
 		expect(
 			[...game.vehicles]
-				.find((v: any) => debugObjectId(v) === 'HearthLoop:wheelbarrow')
+				.find((v: any) => v.name === 'HearthLoop:wheelbarrow')
 				?.servedLines.map((line) => line.name)
-		).toEqual(['HearthLoop:commons-exchange'])
+		).toEqual(['HearthLoop commons exchange'])
 		expect(
 			[...game.vehicles]
-				.find((v: any) => debugObjectId(v) === 'HearthLoop:pickup-truck')
+				.find((v: any) => v.name === 'HearthLoop:pickup-truck')
 				?.servedLines.map((line) => line.name)
-		).toEqual(['HearthLoop:melindbury-comfort-loop'])
+		).toEqual(['HearthLoop - Melindbury comfort loop'])
 
 		const melindbury = game.getSettlementTradeProfile('settlement-7,19')
 		expect(melindbury?.name).toBe('Melindbury')

@@ -86,10 +86,10 @@ export default function GameWidget(
 
 	const handleHivePlanPlacement = (_event: MouseEvent, object: InteractiveGameObject) => {
 		if (!(object instanceof Tile)) return false
-		const planId = interactionMode.selectedAction.slice('hive-plan:'.length)
+		const planIndex = Number(interactionMode.selectedAction.slice('hive-plan:'.length))
 		const anchor = toAxialCoord(object.position)
 		if (!anchor) return false
-		const preview = game.previewHivePlanPlacement(planId, anchor, hivePlanPlacementState.rotation)
+		const preview = game.previewHivePlanPlacement(planIndex, anchor, hivePlanPlacementState.rotation)
 		if (!preview) {
 			hivePlanPlacementState.lastMessage = 'Plan is not available.'
 			return false
@@ -99,7 +99,7 @@ export default function GameWidget(
 			hivePlanPlacementState.lastMessage = blocked?.reason ?? 'Plan does not fit here.'
 			return false
 		}
-		const success = game.applyHivePlanPlacement(planId, anchor, hivePlanPlacementState.rotation)
+		const success = game.applyHivePlanPlacement(planIndex, anchor, hivePlanPlacementState.rotation)
 		hivePlanPlacementState.lastMessage = success ? 'Plan placed.' : 'Plan does not fit here.'
 		return success
 	}
@@ -192,8 +192,8 @@ export default function GameWidget(
 			game.emit('dragPreviewClear')
 			return
 		}
-		const planId = action.slice('hive-plan:'.length)
-		const preview = game.previewHivePlanPlacement(planId, anchor, hivePlanPlacementState.rotation)
+		const planIndex = Number(action.slice('hive-plan:'.length))
+		const preview = game.previewHivePlanPlacement(planIndex, anchor, hivePlanPlacementState.rotation)
 		if (!preview) {
 			game.emit('dragPreviewClear')
 			return

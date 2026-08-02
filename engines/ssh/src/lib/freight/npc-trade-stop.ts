@@ -1,5 +1,6 @@
 import { commerce } from 'engine-rules'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
+import { resolveFreightNpcTradeProfile } from 'ssh/freight/freight-trade-profile'
 import {
 	computeLineFurtherGoods,
 	measureFreightStopNeededGoods,
@@ -54,7 +55,7 @@ export function executeNpcTradeStopTransfer(args: {
 		spentVp: 0,
 	}
 	if (!('trade' in stop)) return out
-	const profile = stop.trade.profile
+	const profile = resolveFreightNpcTradeProfile(game, stop.trade)
 	if (!profile) return out
 	const stopIndex = line.stops.indexOf(stop)
 	if (stopIndex < 0) return out
@@ -111,7 +112,7 @@ export function executeNpcTradeStopTransfer(args: {
 		game.enqueueNpcTradePresentationChange({
 			line,
 			stopIndex: line.stops.indexOf(stop),
-			settlementName: stop.trade.settlementName,
+			settlementName: stop.trade.profile?.name ?? '',
 			vehicle,
 			exported: out.exported,
 			imported: out.imported,

@@ -155,6 +155,11 @@ function pickZoneLoadSelection(
 	utility: ZoneBrowseUtilityContext
 ): VehicleZoneBrowseSelection | undefined {
 	const neededGoods = new Set(Object.keys(utility.remainingNeededGoods) as GoodType[])
+	// Implicit gather zones have no loadSelection; still treat standalone construction /
+	// local halt need as selectable so begin-service and zone-load can see loose goods.
+	for (const goodType of Object.keys(utility.localNeededGoods) as GoodType[]) {
+		neededGoods.add(goodType)
+	}
 	for (const goodType of explicitZoneLoadGoods(zoneStop, utility)) neededGoods.add(goodType)
 	const stopIndex = utility.stopIndex
 	for (const segment of findGatherRouteSegments(line)) {
@@ -191,11 +196,18 @@ function pickZoneLoadSelection(
 			const tileAvailable = tile.availableGoods.filter(
 				(g) => g.goodType === goodType && g.available && !g.isRemoved
 			).length
+			// Single-stop / last-stop local exchange has no further-stop need projection, but the
+			// current halt can still sink goods (construction / hive room). Count both.
+			// Gather load also seeds neededGoods from hive.needs keys; when the unload hive has
+			// room that did not project into remainingNeededGoods (e.g. empty allowed set at the
+			// zone stop historically), still allow at least one unit so begin-service can start.
 			const downstreamNeed = utility.remainingNeededGoods[goodType] ?? 0
+			const localNeedQty = utility.localNeededGoods[goodType] ?? 0
+			const need = Math.max(downstreamNeed, localNeedQty, neededGoods.has(goodType) ? 1 : 0)
 			const vehicleRoom = vehicle.storage.hasRoom(goodType) ?? 0
-			const quantity = Math.min(tileAvailable, downstreamNeed, vehicleRoom)
+			const quantity = Math.min(tileAvailable, need, vehicleRoom)
 			if (quantity <= 0) continue
-			const localNeed = (utility.localNeededGoods[goodType] ?? 0) > 0
+			const localNeed = localNeedQty > 0
 			const adSource = localNeed ? CONSTRUCTION_DEMAND_AD_SOURCE : tileAdSource
 			const priorityTier: FreightPriorityTier = localNeed
 				? 'lineAndOffloadJoint'

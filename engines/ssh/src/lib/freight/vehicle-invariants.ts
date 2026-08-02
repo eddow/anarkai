@@ -2,14 +2,15 @@ import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { Character } from 'ssh/population/character'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
+import { sameRef } from 'ssh/utils/identity'
 import { assert, registerTraceInvariants, type TraceInvariantResult, traces } from '../dev/debug.ts'
 
 function isCharacter(value: unknown): value is Character {
-	return !!value && typeof value === 'object' && 'uid' in value && 'driving' in value
+	return !!value && typeof value === 'object' && 'driving' in value && 'operates' in value
 }
 
 function isVehicle(value: unknown): value is Vehicle {
-	return !!value && typeof value === 'object' && 'uid' in value && 'storage' in value
+	return !!value && typeof value === 'object' && 'vehicleType' in value && 'storage' in value
 }
 
 function drivingVehicleSeamResult(character: Character): TraceInvariantResult {
@@ -26,7 +27,7 @@ function drivingVehicleSeamResult(character: Character): TraceInvariantResult {
 
 function operatedVehiclePointsBackResult(character: Character): TraceInvariantResult {
 	return {
-		ok: !character.operates || character.operates.operator === character,
+		ok: !character.operates || sameRef(character.operates.operator, character),
 		message: 'character.operates must point back to the same vehicle operator',
 		payload: {
 			characterUid: debugObjectId(character) ?? '',
@@ -41,16 +42,15 @@ function vehicleOperationConsistencyResult(
 	character: Character
 ): TraceInvariantResult {
 	const op = vehicle.service?.operator
-	const ok =
-		op !== character
-			? character.operates !== vehicle
-			: op === character && character.operates === vehicle && vehicle.operator === character
+	const characterIsOperator = sameRef(op, character)
+	const ok = characterIsOperator
+		? sameRef(character.operates, vehicle) && sameRef(vehicle.operator, character)
+		: !sameRef(character.operates, vehicle)
 	return {
 		ok,
-		message:
-			op !== character
-				? 'vehicle.service.operator must be set to the character operating the vehicle'
-				: 'vehicle.service.operator must be the operating character',
+		message: characterIsOperator
+			? 'vehicle.service.operator must be the operating character'
+			: 'vehicle.service.operator must be set to the character operating the vehicle',
 		payload: {
 			characterUid: debugObjectId(character) ?? '',
 			serviceOperatorUid: debugObjectId(op),

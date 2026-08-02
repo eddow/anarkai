@@ -1,4 +1,5 @@
 export * from './axial'
+export * from './identity'
 export * from './mem'
 export * from './numbers'
 export * from './pathfinding'

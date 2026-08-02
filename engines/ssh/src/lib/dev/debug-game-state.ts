@@ -326,7 +326,6 @@ function isInteractiveGameObject(value: unknown): value is InteractiveGameObject
 	return (
 		!!value &&
 		typeof value === 'object' &&
-		'uid' in value &&
 		'title' in value &&
 		'logs' in value &&
 		'canInteract' in value
@@ -337,7 +336,6 @@ function isInspectorSelectableObject(value: unknown): value is InspectorSelectab
 	return (
 		!!value &&
 		typeof value === 'object' &&
-		'uid' in value &&
 		'title' in value &&
 		'logs' in value &&
 		'game' in value

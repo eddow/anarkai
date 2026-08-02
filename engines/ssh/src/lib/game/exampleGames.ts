@@ -74,7 +74,7 @@ export const chopSaw = {
 	],
 	freightLines: [
 		{
-			name: 'ChopSaw (0, 0) exchange',
+			name: 'ChopSaw (0, 0) gather',
 			cyclic: true,
 			stops: [
 				{
@@ -95,7 +95,7 @@ export const chopSaw = {
 			],
 		},
 		{
-			name: 'ChopSaw - Melindbury materials',
+			name: 'ChopSaw (0, 0) distribute',
 			cyclic: true,
 			stops: [
 				{
@@ -111,7 +111,7 @@ export const chopSaw = {
 				{
 					loadSelection: concreteOnlySelection,
 					unloadSelection: planksOnlySelection,
-					trade: { kind: 'settlement', settlementName: 'settlement-7,19', profile: undefined! },
+					trade: { kind: 'settlement', settlementId: 'settlement-7,19', profile: undefined! },
 				},
 			],
 		},
@@ -158,30 +158,30 @@ export const chopSaw = {
 		],
 	},
 	vehicles: [
-		// TODO: replace uids by indexes in serializations
 		{
-			uid: 'ChopSaw:wheelbarrow1',
+			name: 'ChopSaw:wheelbarrow1',
 			vehicleType: 'wheelbarrow',
 			position: { q: -1, r: 1 },
-			servedLineIndices: [],
+			// Bootstrap order: implicit gather, then explicit gather, then distribute.
+			servedLineIndices: [1],
 		},
 		{
-			uid: 'ChopSaw:wheelbarrow2',
+			name: 'ChopSaw:wheelbarrow2',
 			vehicleType: 'wheelbarrow',
 			position: { q: -1, r: 2 },
-			servedLineIndices: [],
+			servedLineIndices: [1],
 		},
 		{
-			uid: 'ChopSaw:wheelbarrow3',
+			name: 'ChopSaw:wheelbarrow3',
 			vehicleType: 'wheelbarrow',
 			position: { q: -2, r: 2 },
-			servedLineIndices: [],
+			servedLineIndices: [1],
 		},
 		{
-			uid: 'ChopSaw:suv',
+			name: 'ChopSaw:suv',
 			vehicleType: 'suv',
 			position: { q: 0, r: 0 },
-			servedLineIndices: [],
+			servedLineIndices: [2],
 		},
 	],
 } satisfies GamePatches
@@ -277,7 +277,7 @@ export const demoHive = {
 				{
 					loadSelection: concreteOnlySelection,
 					unloadSelection: planksOnlySelection,
-					trade: { kind: 'settlement', settlementName: 'settlement-7,19', profile: undefined! },
+					trade: { kind: 'settlement', settlementId: 'settlement-7,19', profile: undefined! },
 				},
 			],
 		},
@@ -350,16 +350,17 @@ export const demoHive = {
 	playerAccount: { balanceVp: 120 },
 	vehicles: [
 		{
-			uid: 'HearthLoop:wheelbarrow',
+			name: 'HearthLoop:wheelbarrow',
 			vehicleType: 'wheelbarrow',
 			position: { q: 0, r: 1 },
-			servedLineIndices: [],
+			// Bootstrap order: implicit gather, commons exchange, comfort loop.
+			servedLineIndices: [1],
 		},
 		{
-			uid: 'HearthLoop:pickup-truck',
+			name: 'HearthLoop:pickup-truck',
 			vehicleType: 'pickup_truck',
 			position: { q: 0, r: 1 },
-			servedLineIndices: [],
+			servedLineIndices: [2],
 		},
 	],
 } satisfies GamePatches
@@ -433,10 +434,11 @@ export const dorm = {
 	},
 	vehicles: [
 		{
-			uid: 'Dorm:wheelbarrow',
+			name: 'Dorm:wheelbarrow',
 			vehicleType: 'wheelbarrow',
 			position: { q: 0, r: 1 },
-			servedLineIndices: [],
+			// Bootstrap order: implicit gather first, then explicit exchange.
+			servedLineIndices: [0],
 		},
 	],
 } satisfies GamePatches

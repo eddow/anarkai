@@ -44,7 +44,7 @@ export class BuildAlveolus extends TileContent {
 	public working = true
 	public destroyed = false
 	public assignedWorker: unknown
-	public hivePlanId?: string
+	public hivePlanIndex?: number
 	public hivePlanVersion?: number
 	public planRoleId?: string
 	public planConfiguration?: {

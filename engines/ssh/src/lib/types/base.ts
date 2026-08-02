@@ -309,7 +309,8 @@ export interface ValidateHivePlanJob {
 	job: 'validateHivePlan'
 	urgency: number
 	fatigue: number
-	planId: string
+	/** Register index of the plan to validate (see HivePlanCollection.byIndex). */
+	planIndex: number
 	path?: Positioned[]
 }
 

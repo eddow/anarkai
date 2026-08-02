@@ -67,9 +67,9 @@ describe('Harvest Zones Restriction', () => {
 					alveoli: [{ coord: [0, 0] as [number, number], alveolus: 'tree_chopper' }],
 				},
 			],
-			zones: {
-				harvest: [[1, 0] as [number, number]],
-			},
+			zones: [
+				{ type: 'harvest', coords: [[1, 0] as [number, number]] },
+			],
 			projects: {
 				'build:storage': [[0, 1] as [number, number]],
 			},
@@ -116,9 +116,7 @@ describe('Harvest Zones Restriction', () => {
 
 		// 1. Place a tree at (1,0) with NO zone
 		const farTile = game.hex.getTile({ q: 1, r: 0 })!
-		farTile.content = new UnBuiltLand(farTile, 'grass', new Deposit(100))
-		// Manually set name because Deposit.class mock might not set it
-		Object.defineProperty(farTile.content.deposit, 'name', { value: 'tree' })
+		farTile.content = new UnBuiltLand(farTile, 'grass', Deposit.create('tree', 100))
 		farTile.zone = undefined
 
 		// Verify find.deposit returns false even though a tree exists
@@ -162,14 +160,13 @@ describe('Harvest Zones Restriction', () => {
 					alveoli: [{ coord: [0, 0] as [number, number], alveolus: 'tree_chopper' }],
 				},
 			],
-			zones: {
-				named: [
-					{
-						name: 'North Grove',
-						coords: [[3, 0] as [number, number]],
-					},
-				],
-			},
+			zones: [
+				{
+					name: 'North Grove',
+					type: 'passive',
+					coords: [[3, 0] as [number, number]],
+				},
+			],
 		} as any)
 
 		const char = game.population.createCharacter('Worker', { q: 0, r: 0 })
@@ -177,10 +174,11 @@ describe('Harvest Zones Restriction', () => {
 		expect(char.scriptsContext.find.deposit('tree')).toBe(false)
 		expect(alveolus?.nextJob(char)).toBeUndefined()
 
-		game.hex.zoneManager.defineZone({
+		const harvestable = game.hex.zoneManager.defineZone({
 			name: 'North Grove',
-			harvestable: true,
+			type: 'harvest',
 		})
+		game.hex.getTile({ q: 3, r: 0 })!.zone = harvestable
 
 		const path = char.scriptsContext.find.deposit('tree')
 		expect(path).not.toBe(false)
@@ -215,9 +213,9 @@ describe('Harvest Zones Restriction', () => {
 					alveoli: [{ coord: [0, 0] as [number, number], alveolus: 'tree_chopper' }],
 				},
 			],
-			zones: {
-				harvest: [[1, 0] as [number, number]],
-			},
+			zones: [
+				{ type: 'harvest', coords: [[1, 0] as [number, number]] },
+			],
 		} as any)
 
 		const harvestTile = game.hex.getTile({ q: 0, r: 0 })

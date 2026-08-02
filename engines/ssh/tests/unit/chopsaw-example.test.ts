@@ -13,6 +13,7 @@ import {
 	collectVehicleWorkPicks,
 	findVehicleHopJob,
 	findVehicleOffloadJob,
+	findZoneBrowseJob,
 } from 'ssh/freight/vehicle-work'
 import { chopSaw } from 'ssh/game/exampleGames'
 import { Game } from 'ssh/game/game'
@@ -100,12 +101,12 @@ describe('chopSaw example game', () => {
 				goodRules: [{ goodType: 'planks', effect: 'allow' }],
 				defaultEffect: 'deny',
 			},
-			trade: { kind: 'settlement', settlementName: 'settlement-7,19' },
+			trade: { kind: 'settlement', settlementId: 'settlement-7,19' },
 		})
 
 		const melindbury = game.getSettlementTradeProfile('settlement-7,19')
 		expect(melindbury?.name).toBe('Melindbury')
-		expect(melindbury?.cityHall.position).toMatchObject({ q: 7, r: 19 })
+		expect(melindbury?.cityHall.position).toMatchObject({ q: 6, r: 18 })
 		expect(melindbury?.offers).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ good: 'concrete', direction: 'sell' }),
@@ -138,8 +139,8 @@ describe('chopSaw example game', () => {
 		game.ticker.stop()
 
 		expect(game.hex.getTile({ q: 1, r: -1 })?.content?.name).toBe('engineer')
-		expect(game.hex.zoneManager.getZone({ q: 3, r: 0 })).toBe('north-grove')
-		expect(game.hex.zoneManager.getZone({ q: -4, r: 1 })).toBe('residential')
+		expect(game.hex.zoneManager.getZone({ q: 3, r: 0 })?.name).toBe('north-grove')
+		expect(game.hex.zoneManager.getZone({ q: -4, r: 1 })?.type).toBe('residential')
 	})
 
 	it('does not reclaim a loaded gather wheelbarrow with an empty bay-hop path while it is away from the bay', async () => {
@@ -168,7 +169,7 @@ describe('chopSaw example game', () => {
 			expect.objectContaining({
 				job: 'vehicleHop',
 
-								stopIndex: 'ChopSaw:ig-unload',
+								stopIndex: 1,
 				path: [],
 				dockEnter: true,
 			})
@@ -204,7 +205,7 @@ describe('chopSaw example game', () => {
 			expect.arrayContaining([
 				expect.objectContaining({
 					job: 'vehicleHop',
-										stopIndex: 'ChopSaw:ig-load',
+					stopIndex: 1,
 				}),
 			])
 		)
@@ -216,7 +217,7 @@ describe('chopSaw example game', () => {
 				job: expect.objectContaining({
 					job: 'vehicleHop',
 					vehicle,
-										stopIndex: 'ChopSaw:ig-load',
+					stopIndex: 1,
 				}),
 			})
 		)
@@ -356,7 +357,7 @@ describe('chopSaw example game', () => {
 				(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 			)
 			const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
-			const unloadStop = line?.stops[1]
+			const unloadStop = line?.stops[0]
 			const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
 			const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
 			if (!line || !vehicle || !unloadStop || !bay || !storage)
@@ -395,7 +396,7 @@ describe('chopSaw example game', () => {
 				(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 			)
 			const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
-			const unloadStop = line?.stops[1]
+			const unloadStop = line?.stops[0]
 			const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
 			const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
 			if (!line || !vehicle || !unloadStop || !bay || !storage)
@@ -451,7 +452,7 @@ describe('chopSaw example game', () => {
 		const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
 		if (!line || !vehicle || !bay) throw new Error('Expected ChopSaw fixture')
 
-		const unloadStop = line.stops[1]
+		const unloadStop = line.stops[0]
 		if (!unloadStop) throw new Error('Expected gather unload stop')
 
 		vehicle.position = { q: 0, r: 0 }
@@ -480,7 +481,7 @@ describe('chopSaw example game', () => {
 		const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
 		if (!line || !vehicle || !bay) throw new Error('Expected ChopSaw fixture')
 
-		const unloadStop = line.stops[1]
+		const unloadStop = line.stops[0]
 		if (!unloadStop) throw new Error('Expected gather unload stop')
 
 		vehicle.position = { q: 0, r: 0 }
@@ -512,14 +513,15 @@ describe('chopSaw example game', () => {
 		const line = game.freightLines.find(
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
-		const load = line?.stops[0]
+		// Gather is [anchor unload=0, zone load=1]; provider hop is advertised from the zone stop.
+		const zoneStop = line?.stops[1]
 		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
-		if (!line || !load || !vehicle) throw new Error('Expected ChopSaw fixture')
+		if (!line || !zoneStop || !vehicle) throw new Error('Expected ChopSaw fixture')
 
 		vehicle.storage.addGood('concrete', 2)
 		vehicle.position = { q: 0, r: 0 }
-		vehicle.beginLineService(line, load)
-
+		vehicle.beginLineService(line, zoneStop)
+		// No operator required: active line vehicle advertises the provide hop.
 		const worker = game.population.createCharacter('ConcreteRunner', { q: -4, r: -1 })
 		worker.role = 'worker'
 		void worker.scriptsContext
@@ -530,8 +532,8 @@ describe('chopSaw example game', () => {
 					job: expect.objectContaining({
 						job: 'vehicleHop',
 						vehicle,
-						lineId: debugObjectId(line),
-						stopIndex: 0,
+						line,
+						stopIndex: 1,
 						zoneBrowseAction: 'provide',
 						goodType: 'concrete',
 					}),
@@ -539,7 +541,6 @@ describe('chopSaw example game', () => {
 			])
 		)
 	})
-
 	it('advances a docked gather wheelbarrow with only downstream-reserved cargo', async () => {
 		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
 		await game.loaded
@@ -549,25 +550,30 @@ describe('chopSaw example game', () => {
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
-		const unload = line.stops[1]
-		const load = line.stops[0]
+		const unload = line.stops[0]
+		const load = line.stops[1]
 		if (!unload || !load) throw new Error('expected ChopSaw load/unload stops')
 		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
 
 		vehicle.storage.addGood('concrete', 1)
 		const downstreamReservation = new Commitment('test.downstream-reserved-concrete')
-		expect(vehicle.storage.reserve({ concrete: 1 }, downstreamReservation)).toBeUndefined()
-		expect(vehicle.storage.virtualGoodsCount).toBe(1)
+		try {
+			expect(vehicle.storage.reserve({ concrete: 1 }, downstreamReservation)).toBeUndefined()
+			expect(vehicle.storage.virtualGoodsCount).toBe(1)
 
-		vehicle.position = { q: 0, r: 0 }
-		vehicle.beginLineService(line, unload)
-		vehicle.dock()
+			vehicle.position = { q: 0, r: 0 }
+			vehicle.beginLineService(line, unload)
+			vehicle.dock()
 
-		maybeAdvanceVehicleFromCompletedAnchorStop(game, vehicle)
+			maybeAdvanceVehicleFromCompletedAnchorStop(game, vehicle)
 
-		expect(isVehicleLineService(vehicle.service) && vehicle.service).toBe(load)
-		downstreamReservation.cancel('test cleanup')
+			expect(isVehicleLineService(vehicle.service)).toBe(true)
+			if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
+			expect(vehicle.service.stop).toBe(load)
+		} finally {
+			downstreamReservation.cancel('test cleanup')
+		}
 	})
 
 	it('lets a worker pick the storage convey when a docked wheelbarrow has reserved concrete', async () => {
@@ -579,7 +585,7 @@ describe('chopSaw example game', () => {
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
-		const unload = line.stops[1]
+		const unload = line.stops[0]
 		if (!unload) throw new Error('expected ChopSaw unload stop')
 		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		const bay = game.hex.getTile({ q: 0, r: 0 })?.content as any
@@ -677,7 +683,7 @@ describe('chopSaw example game', () => {
 				expect.objectContaining({
 					job: 'vehicleHop',
 
-										stopIndex: 'ChopSaw:materials-melindbury',
+										stopIndex: 1,
 					needsBeginService: true,
 				}),
 			])
@@ -712,7 +718,7 @@ describe('chopSaw example game', () => {
 		expect(projectedLineStopForVehicleHop(game, worker, pickup)?.stop).toBe(bayStop)
 		expect(findVehicleHopJob(game, worker)).toMatchObject({
 			job: 'vehicleHop',
-			lineId: debugObjectId(line),
+			line: line,
 			stopIndex: line.stops.indexOf(bayStop),
 			dockEnter: true,
 		})
@@ -741,34 +747,43 @@ describe('chopSaw example game', () => {
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
-		const unload = line.stops[1]
-		const load = line.stops[0]
+		const unload = line.stops[0]
+		const load = line.stops[1]
 		if (!unload || !load) throw new Error('expected ChopSaw load/unload stops')
 		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
 		const storage = game.hex.getTile({ q: 0, r: -1 })?.content as any
+		// Fixture wheelbarrow starts at (-1,1); colocate worker before boarding.
+		vehicle.position = { q: 0, r: 0 }
 		const worker = game.population.createCharacter('Concrete Provider', { q: 0, r: 0 })
 
 		storage.storage.addGood('concrete', 12)
 		vehicle.storage.addGood('concrete', 1)
+		// beginLineService links operator via setServiceOperator when provided.
 		vehicle.beginLineService(line, unload, worker)
+		worker.onboard()
 		vehicle.dock()
 
 		maybeAdvanceVehicleFromCompletedAnchorStop(game, vehicle, worker)
 
-		expect(isVehicleLineService(vehicle.service) && vehicle.service).toBe(load)
-		const hop = findVehicleHopJob(game, worker)
-		expect(hop).toMatchObject({
-			job: 'vehicleHop',
-			vehicle,
-			lineId: debugObjectId(line),
-			stopIndex: 0,
-			zoneBrowseAction: 'provide',
-			goodType: 'concrete',
-			targetCoord: { q: -1, r: 0 },
-		})
+		expect(isVehicleLineService(vehicle.service)).toBe(true)
+		if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
+		expect(vehicle.service.stop).toBe(load)
+		// Cargo is preserved after a full bay dock — the vehicle keeps its load for
+		// eventual zone provide.
+		expect(vehicle.storage.available('concrete')).toBe(1)
+		// At the zone stop the operator cannot hop to the same stop.
+		expect(findVehicleHopJob(game, worker)).toBeUndefined()
+		// Zone browse surfaces the construction provide from the current tile.
+		const browse = findZoneBrowseJob(game, worker)
+		expect(browse).toBeDefined()
+		expect(browse!.job).toBe('zoneBrowse')
+		expect(browse!.vehicle).toBe(vehicle)
+		expect(browse!.line).toBe(line)
+		expect(browse!.stopIndex).toBe(1)
+		expect(browse!.zoneBrowseAction).toBe('provide')
+		expect(browse!.goodType).toBe('concrete')
 	})
-
 	it('imports only buffered concrete demand, not extra storage room', async () => {
 		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
 		await game.loaded
@@ -932,7 +947,7 @@ describe('chopSaw example game', () => {
 			expect.arrayContaining([
 				expect.objectContaining({
 					job: 'vehicleHop',
-					lineId: debugObjectId(line),
+					line: line,
 					stopIndex: line.stops.indexOf(bayStop),
 					dockEnter: true,
 				}),
@@ -941,7 +956,7 @@ describe('chopSaw example game', () => {
 		expect(findVehicleHopJob(game, worker)).toEqual(
 			expect.objectContaining({
 				job: 'vehicleHop',
-				lineId: debugObjectId(line),
+				line: line,
 				stopIndex: line.stops.indexOf(bayStop),
 				dockEnter: true,
 			})
@@ -1045,7 +1060,7 @@ describe('chopSaw example game', () => {
 			expect.arrayContaining([
 				expect.objectContaining({
 					goodType: 'planks',
-					demander: 'vehicle-dock-chopsaw',
+					demander: expect.stringMatching(/^vehicle-dock/),
 				}),
 			])
 		)
@@ -1070,7 +1085,7 @@ describe('chopSaw example game', () => {
 		for (const vehicle of [...game.vehicles]) {
 			if (vehicle !== pickup) game.vehicles.removeVehicle(vehicle)
 		}
-		const worker = game.population.createCharacter('Heaget', { q: 0, r: 0 })
+		const worker = game.population.createCharacter('Hangar', { q: 0, r: 0 })
 		worker.role = 'worker'
 		void worker.scriptsContext
 
@@ -1105,6 +1120,13 @@ describe('chopSaw example game', () => {
 		const worker = game.population.createCharacter('PlankLoader', { q: 0, r: -1 })
 		worker.role = 'worker'
 		void worker.scriptsContext
+		worker.hunger = 0
+		worker.fatigue = 0
+		worker.tiredness = 0
+		if (storage.assignedWorker) storage.assignedWorker.assignedAlveolus = undefined
+		storage.assignedWorker = undefined
+		worker.assignedAlveolus = storage
+		storage.assignedWorker = worker
 
 		pickup.position = { q: 0, r: 0 }
 		pickup.beginLineService(line, bayStop)
@@ -1112,8 +1134,11 @@ describe('chopSaw example game', () => {
 
 		const timeline: string[] = []
 		for (let i = 0; i < 200 && (pickup.storage.stock.planks ?? 0) <= 0; i++) {
-			game.ticker.update(250)
-			if (i % 10 === 0) await new Promise((resolve) => setTimeout(resolve, 0))
+			if (!worker.stepExecutor || worker.stepExecutor.ended) {
+				const action = worker.findAction()
+				if (action) worker.begin(action)
+			}
+			game.clock.advance(0.25)
 			if (i % 20 === 0) {
 				timeline.push(
 					[
@@ -1121,22 +1146,7 @@ describe('chopSaw example game', () => {
 						`pickup=${pickup.storage.stock.planks ?? 0}`,
 						`storage=${storage.storage.stock.planks ?? 0}`,
 						`action=${worker.actionDescription.join('/') || 'none'}`,
-						`storageJobs=${storage.proposedJobs.map((job: any) => job.job).join(',') || 'none'}`,
-						`bayJobs=${
-							game.hex
-								.getTile({ q: 0, r: 0 })
-								?.content?.proposedJobs?.map((job: any) => job.job)
-								.join(',') || 'none'
-						}`,
-						`movements=${
-							storage.hive
-								.collectActiveMovements()
-								.map(
-									(movement: any) =>
-										`${movement.goodType}:${movement.provider?.name}->${movement.demander?.name}:claimed=${movement.claimed}:path=${movement.path.length}`
-								)
-								.join('|') || 'none'
-						}`,
+						`step=${worker.stepExecutor?.description ?? 'none'}`,
 					].join(' ')
 				)
 			}

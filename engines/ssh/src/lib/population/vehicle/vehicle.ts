@@ -116,11 +116,12 @@ export type LegacyOffloadVehicleServiceSerialized = {
 }
 
 export interface VehicleSerializedState {
-	readonly uid: string
+	/** Stable fixture/debug label. Not runtime identity. */
+	readonly name?: string
 	readonly vehicleType: WorldVehicleType
 	readonly position: { q: number; r: number }
 	readonly goods?: Partial<Record<GoodType, number>>
-	readonly servedLineIndices: readonly number[]
+	readonly servedLineIndices?: readonly number[]
 	/** New saves use discriminated `kind`; legacy saves are line-only without `kind`, or pre-maintenance offload. */
 	readonly service?:
 		| VehicleServiceSerialized

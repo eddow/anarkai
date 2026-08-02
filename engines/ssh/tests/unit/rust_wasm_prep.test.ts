@@ -2,6 +2,7 @@
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import { Commitment } from 'ssh/commitment'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { Game } from 'ssh/game/game'
 import {
 	proposedVehicleJobIdentityKey,
@@ -189,8 +190,8 @@ describe('Rust/WASM preparation seams', () => {
 		it('uses the shared vehicleUid seam instead of enumerating vehicle job names', () => {
 			const vehicleJob = {
 				job: 'vehicleHop',
-
-								stopIndex: 'stop:1',
+				vehicle: {},
+				stopIndex: 1,
 				path: [],
 				dockEnter: false,
 				urgency: 1,
@@ -203,10 +204,13 @@ describe('Rust/WASM preparation seams', () => {
 		})
 
 		it('keeps vehicle job identity string stable while exposing pure identity parts', () => {
+			const vehicle = { vehicleType: 'wheelbarrow' }
+			const line = { name: 'Line 1', stops: [] }
 			const hop = {
 				job: 'vehicleHop',
-
-								stopIndex: 'stop:1',
+				vehicle,
+				line,
+				stopIndex: 1,
 				path: [],
 				dockEnter: true,
 				needsBeginService: false,
@@ -215,9 +219,10 @@ describe('Rust/WASM preparation seams', () => {
 				urgency: 1,
 				fatigue: 0,
 			} satisfies Job
+			const offloadVehicle = { vehicleType: 'wheelbarrow' }
 			const offload = {
 				job: 'vehicleOffload',
-
+				vehicle: offloadVehicle,
 				maintenanceKind: 'loadFromBurden',
 				looseGood: { goodType: 'stone', position: { q: 1, r: 0 } },
 				targetCoord: { q: 1, r: 0 },
@@ -228,9 +233,9 @@ describe('Rust/WASM preparation seams', () => {
 
 			expect(proposedVehicleJobIdentityParts(hop)).toEqual([
 				'vehicleHop',
-				'vehicle:1',
-				'line:1',
-				'stop:1',
+				debugObjectId(vehicle) ?? '',
+				debugObjectId(line) ?? '',
+				'1',
 				'dock',
 				'continue',
 				'',
@@ -239,9 +244,9 @@ describe('Rust/WASM preparation seams', () => {
 			])
 			expect(proposedVehicleJobMatchParts(hop)).toEqual([
 				'vehicleHop',
-				'vehicle:1',
-				'line:1',
-				'stop:1',
+				debugObjectId(vehicle) ?? '',
+				debugObjectId(line) ?? '',
+				'1',
 				'dock',
 				'continue',
 				'',
@@ -250,7 +255,13 @@ describe('Rust/WASM preparation seams', () => {
 				'1',
 			])
 			expect(proposedVehicleJobIdentityKey(offload)).toBe(
-				'vehicleOffload:vehicle:1:loadFromBurden:1,0::stone'
+				[
+					'vehicleOffload',
+					debugObjectId(offloadVehicle) ?? '',
+					'loadFromBurden',
+					'1,0',
+					':stone',
+				].join(':')
 			)
 		})
 	})

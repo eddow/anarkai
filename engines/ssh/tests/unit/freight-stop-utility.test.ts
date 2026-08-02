@@ -42,6 +42,7 @@ function freightBayAnchor(hiveName: string, coord: readonly [number, number]) {
 
 const neighborMarketProfile = {
 	regionSetKey: '0,0',
+	id: 'settlement-4,0',
 	name: 'Neighbor market',
 	kind: 'village' as const,
 	center: { q: 4, r: 0 },
@@ -59,9 +60,7 @@ const neighborMarketProfile = {
 }
 
 function installNeighborMarket(game: Game): void {
-	;(
-		game as unknown as { settlementTradeProfiles: Map<string, typeof neighborMarketProfile> }
-	).settlementTradeProfiles.set(neighborMarketProfile.id, neighborMarketProfile)
+	game.registerSettlementTradeProfile(neighborMarketProfile as any)
 }
 
 function marketLoopLine(patch: Partial<FreightLineDefinition> = {}): FreightLineDefinition {
@@ -74,7 +73,7 @@ function marketLoopLine(patch: Partial<FreightLineDefinition> = {}): FreightLine
 				unloadSelection: woodOnly,
 				trade: {
 					kind: 'settlement' as const,
-					settlementName: neighborMarketProfile.id,
+					settlementId: neighborMarketProfile.id,
 					profile: undefined as any,
 				},
 			},
@@ -94,7 +93,7 @@ describe('freight-stop-utility', () => {
 			{ zone: { kind: 'radius' as const, center: [1, 0] as const, radius: 1 } },
 			{ zone: { kind: 'radius' as const, center: [2, 0] as const, radius: 1 } },
 		]
-		const line: FreightLineDefinition = { id: 'u:abc', name: 'ABC', stops }
+		const line: FreightLineDefinition = { name: 'ABC', stops }
 		const cyclicLine: FreightLineDefinition = { ...line, cyclic: true }
 
 		expect(freightLineStopOrder(line, 1)).toEqual([1, 2])
@@ -109,21 +108,21 @@ describe('freight-stop-utility', () => {
 			{ zone: { kind: 'radius' as const, center: [1, 0] as const, radius: 1 } },
 			{ zone: { kind: 'radius' as const, center: [2, 0] as const, radius: 1 } },
 		]
-		const line: FreightLineDefinition = { id: 'u:abc', name: 'ABC', stops }
+		const line: FreightLineDefinition = { name: 'ABC', stops }
 		const cyclicLine: FreightLineDefinition = { ...line, cyclic: true }
 
-		expect(nextFreightLineStop(line, 1)).toBe(2)
+		expect(nextFreightLineStop(line, 1)).toBe(stops[2])
 		expect(nextFreightLineStop(line, 2)).toBeUndefined()
-		expect(nextFreightLineStop(cyclicLine, 2)).toBe(0)
+		expect(nextFreightLineStop(cyclicLine, 2)).toBe(stops[0])
 	})
 
 	it('normalizeFreightLineDefinition preserves true cyclic and omits false/default', () => {
 		const stop = { zone: { kind: 'radius' as const, center: [0, 0] as const, radius: 1 } }
 		expect(
-			normalizeFreightLineDefinition({ id: 'u:false', name: 'False', cyclic: false, stops: [stop] })
+			normalizeFreightLineDefinition({ name: 'False', cyclic: false, stops: [stop] })
 		).not.toHaveProperty('cyclic')
 		expect(
-			normalizeFreightLineDefinition({ id: 'u:true', name: 'True', cyclic: true, stops: [stop] })
+			normalizeFreightLineDefinition({ name: 'True', cyclic: true, stops: [stop] })
 		).toHaveProperty('cyclic', true)
 	})
 

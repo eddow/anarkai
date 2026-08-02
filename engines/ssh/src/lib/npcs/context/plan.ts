@@ -27,6 +27,7 @@ import type {
 } from 'ssh/types/base'
 import { gameObjectsModule } from 'ssh/types/game-objects'
 import { axial, type Positioned, toAxialCoord } from 'ssh/utils'
+import { sameRef } from 'ssh/utils/identity'
 import { assert } from '../../dev/debug.ts'
 import { subject } from '../scripts'
 import { DurationStep } from '../steps'
@@ -86,8 +87,8 @@ function finalizeVehicleFreightWorkPlanOccupancy(plan: WorkPlan, character: Char
 	if (plan.type !== 'work' || !('vehicle' in plan)) return
 	const vehicle = plan.vehicle
 	if (!vehicle) return
-	const controlsPlanVehicle = character.operates === vehicle
-	if (!controlsPlanVehicle && vehicle.operator !== character) return
+	const controlsPlanVehicle = sameRef(character.operates, vehicle)
+	if (!controlsPlanVehicle && !sameRef(vehicle.operator, character)) return
 	if (!vehicle.service) {
 		if (controlsPlanVehicle) {
 			if (character.driving) character.offboard()

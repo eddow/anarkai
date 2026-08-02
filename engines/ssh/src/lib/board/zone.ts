@@ -1,4 +1,4 @@
-import { reactive } from 'mutts'
+import { markRaw, reactive, toRaw } from 'mutts'
 import type { AxialCoord } from 'ssh/utils'
 import { AxialKeyMap } from 'ssh/utils/mem'
 
@@ -37,6 +37,11 @@ export function zoneIndexFromObjectUid(uid: string): number | undefined {
 }
 
 // ── Internal helpers ───────────────────────────────────────────────
+
+function slugifyZoneName(name: string | undefined): string | undefined {
+	const trimmedName = (name ?? '').trim()
+	return trimmedName ? trimmedName.replace(/\s+/g, '-').toLowerCase() : undefined
+}
 
 function centralCoordFrom(coords: AxialCoord[]): AxialCoord | undefined {
 	if (coords.length === 0) return undefined
@@ -83,24 +88,56 @@ export class ZoneManager {
 
 	/** Find a named zone by name (case-insensitive, whitespace-normalized). */
 	findZoneIndexByName(name: string): number {
-		const needle = name.trim().replace(/\s+/g, '-').toLowerCase()
-		return this.definitions.findIndex(
-			(def) => (def.name ?? '').trim().replace(/\s+/g, '-').toLowerCase() === needle
-		)
+		const needle = slugifyZoneName(name) ?? ''
+		return this.definitions.findIndex((def) => (def.name ?? '') === needle)
 	}
 
 	/** Register a zone definition and return the object for spatial assignment. */
 	defineZone(definition: ZoneDefinition): ZoneDefinition {
-		const trimmedName = (definition.name ?? '').trim()
-		const next: ZoneDefinition = {
-			name: trimmedName || undefined,
+		// Zone definitions are identity-bearing registry objects. Keep them raw so
+		// reactive map storage/retrieval never breaks `===` comparisons.
+		const next = markRaw({
+			name: slugifyZoneName(definition.name),
 			color: definition.color?.trim() || undefined,
 			type: definition.type,
 			generated: definition.generated,
 			readonly: definition.readonly,
-		}
+		} satisfies ZoneDefinition)
 		this.definitions.push(next)
 		return next
+	}
+
+	/** Prefer an already-registered definition object; otherwise register a raw copy. */
+	private ensureRegisteredZone(zone: ZoneDefinition): ZoneDefinition {
+		const raw = toRaw(zone) as ZoneDefinition
+		const existing = this.definitions.find((def) => toRaw(def) === raw)
+		if (existing) return existing
+		return this.defineZone(raw)
+	}
+
+	/** Mark a registered definition as generated/readonly, preserving object identity. */
+	private markGenerated(zone: ZoneDefinition): ZoneDefinition {
+		const registered = this.ensureRegisteredZone(zone)
+		if (!registered.generated) (registered as { generated?: boolean }).generated = true
+		if (!registered.readonly) (registered as { readonly?: boolean }).readonly = true
+		return registered
+	}
+
+	/**
+	 * Find an existing zone definition by type or name, or create a simple typed zone.
+	 * Used by tests and harvest assignment helpers.
+	 */
+	resolveZone(typeOrName: ZoneType | string): ZoneDefinition {
+		const needle = String(typeOrName).trim().replace(/\s+/g, '-').toLowerCase()
+		const byName = this.definitions.find((def) => (def.name ?? '') === needle)
+		if (byName) return byName
+		const zoneTypes: ZoneType[] = ['passive', 'harvest', 'residential', 'commercial']
+		if ((zoneTypes as string[]).includes(needle)) {
+			const byType = this.definitions.find((def) => def.type === needle && !def.name)
+			if (byType) return byType
+			return this.defineZone({ type: needle as ZoneType })
+		}
+		return this.defineZone({ name: needle, type: 'passive' })
 	}
 
 	listZoneDefinitions(): ZoneDefinition[] {
@@ -115,8 +152,10 @@ export class ZoneManager {
 	removeZoneByIndex(index: number): boolean {
 		const definition = this.definitions[index]
 		if (!definition || definition.readonly) return false
+		const target = toRaw(definition)
 		for (const coord of [...this.zones.coords()]) {
-			if (this.zones.get(coord) === definition) this.zones.delete(coord)
+			const current = this.zones.get(coord)
+			if (current && toRaw(current) === target) this.zones.delete(coord)
 		}
 		this.definitions.splice(index, 1)
 		return true
@@ -129,11 +168,9 @@ export class ZoneManager {
 			this.removeZone(coord)
 			return
 		}
-		if (!this.definitions.includes(zone)) {
-			this.defineZone(zone)
-		}
-		this.zones.set(coord, zone)
-		if (zone.type === 'residential') {
+		const registered = this.ensureRegisteredZone(zone)
+		this.zones.set(coord, registered)
+		if (registered.type === 'residential') {
 			const dup = this.residentialCoords.some((c) => c.q === coord.q && c.r === coord.r)
 			if (!dup) this.residentialCoords.push({ ...coord })
 		} else {
@@ -150,7 +187,8 @@ export class ZoneManager {
 	}
 
 	getZone(coord: AxialCoord): ZoneDefinition | undefined {
-		return this.zones.get(coord)
+		const zone = this.zones.get(coord)
+		return zone ? (toRaw(zone) as ZoneDefinition) : undefined
 	}
 
 	isHarvestableZone(zone: ZoneDefinition | undefined): boolean {
@@ -182,14 +220,13 @@ export class ZoneManager {
 
 	setGeneratedZone(coord: AxialCoord, zone: ZoneDefinition): void {
 		if (this.generatedZones.has(coord)) return
-		if (!this.definitions.includes(zone)) {
-			this.defineZone({ ...zone, generated: true, readonly: true })
-		}
-		this.generatedZones.set(coord, zone)
+		const registered = this.markGenerated(zone)
+		this.generatedZones.set(coord, registered)
 	}
 
 	getGeneratedZone(coord: AxialCoord): ZoneDefinition | undefined {
-		return this.generatedZones.get(coord)
+		const zone = this.generatedZones.get(coord)
+		return zone ? (toRaw(zone) as ZoneDefinition) : undefined
 	}
 
 	getEffectiveZone(coord: AxialCoord): ZoneDefinition | undefined {
@@ -203,17 +240,21 @@ export class ZoneManager {
 	// ── query ─────────────────────────────────────────────────────
 
 	coordsForZone(zone: ZoneDefinition): AxialCoord[] {
+		const target = toRaw(zone)
 		const out: AxialCoord[] = []
 		for (const coord of this.zones.coords()) {
-			if (this.zones.get(coord) === zone) out.push({ q: coord.q, r: coord.r })
+			const current = this.zones.get(coord)
+			if (current && toRaw(current) === target) out.push({ q: coord.q, r: coord.r })
 		}
 		return out
 	}
 
 	coordsForGeneratedZone(zone: ZoneDefinition): AxialCoord[] {
+		const target = toRaw(zone)
 		const out: AxialCoord[] = []
 		for (const coord of this.generatedZones.coords()) {
-			if (this.generatedZones.get(coord) === zone) out.push({ q: coord.q, r: coord.r })
+			const current = this.generatedZones.get(coord)
+			if (current && toRaw(current) === target) out.push({ q: coord.q, r: coord.r })
 		}
 		return out
 	}

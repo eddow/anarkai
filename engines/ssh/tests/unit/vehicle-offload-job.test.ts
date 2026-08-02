@@ -362,7 +362,7 @@ describe('findVehicleOffloadJob', () => {
 				],
 				freightLines: [lineDef],
 			} as any)
-			const line = game.freightLines.find((l) => l.name === 'orphan-gather')!
+			const line = game.freightLines.find((l) => l.name === 'Orphan gather')!
 			const vehicle = game.vehicles.createVehicle('wheelbarrow', center, [line])
 			vehicle.storage.addGood('mushrooms', 1)
 			const char = engine.spawnCharacter('Worker', center)
@@ -419,7 +419,7 @@ describe('findVehicleOffloadJob', () => {
 					},
 				],
 			} as any)
-			const line = game.freightLines.find((entry) => entry.name === 'loaded-gather')!
+			const line = game.freightLines.find((entry) => entry.name === 'Loaded gather')!
 			const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 3, r: 0 }, [line])
 			vehicle.storage.addGood('wood', 1)
 			const char = engine.spawnCharacter('Worker', { q: 3, r: 0 })
@@ -429,7 +429,8 @@ describe('findVehicleOffloadJob', () => {
 			const hop = findVehicleHopJob(game, char)
 			expect(hop?.job).toBe('vehicleHop')
 			expect(hop?.needsBeginService).toBe(true)
-			expect(hop?.stopIndex).toBe('unload-bay')
+			// Gather unload bay is stop index 1 (zone load at 0, bay unload at 1).
+			expect(hop?.stopIndex).toBe(1)
 			expect(hop?.dockEnter).toBe(true)
 		} finally {
 			await engine.destroy()
@@ -797,7 +798,7 @@ describe('findVehicleOffloadJob', () => {
 				throw new Error('expected maintenance service')
 			expect(vehicle.service.kind).toBe('unloadToTile')
 			expect(vehicle.service.targetCoord).toEqual({ q: 3, r: 2 })
-			expect(vehicle.service.operator?.uid).toBe(debugObjectId(char))
+			expect(vehicle.service.operator).toBe(char)
 
 			allocateVehicleServiceForJob(game, char, vehicle, {
 				job: 'vehicleOffload',
@@ -813,7 +814,7 @@ describe('findVehicleOffloadJob', () => {
 			if (!isVehicleMaintenanceService(vehicle.service))
 				throw new Error('expected maintenance service')
 			expect(vehicle.service.targetCoord).toEqual({ q: 1, r: 2 })
-			expect(vehicle.service.operator?.uid).toBe(debugObjectId(char))
+			expect(vehicle.service.operator).toBe(char)
 		} finally {
 			await engine.destroy()
 		}

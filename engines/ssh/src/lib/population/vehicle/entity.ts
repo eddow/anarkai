@@ -4,6 +4,7 @@ import { isTileCoord } from 'ssh/board/tile-coord'
 import { cancelVehicleReservationsOnSites } from 'ssh/build-site'
 import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
+import { publicRef, sameRef } from 'ssh/utils/identity'
 import {
 	refreshDockedVehicleAdvertisement,
 	vehicleDockBlockingVirtualGoodsCount,
@@ -18,7 +19,6 @@ import type { Game } from 'ssh/game/game'
 import { GameObject, withInteractive } from 'ssh/game/object'
 import type { ProposedJob, VehicleProposedJob } from 'ssh/jobs/offers'
 import type { Storage } from 'ssh/storage'
-import type { GoodType } from 'ssh/types'
 import { axial } from 'ssh/utils'
 import { type Position, toAxialCoord, xyDistance } from 'ssh/utils/position'
 import { RevisionedCache } from 'ssh/utils/revisioned-cache'
@@ -29,14 +29,10 @@ import {
 	createVehicleStorage,
 	isVehicleLineService,
 	isVehicleMaintenanceService,
-	type LegacyLineVehicleServiceSerialized,
-	type LegacyOffloadVehicleServiceSerialized,
 	type VehicleLineService,
 	type VehicleMaintenanceService,
 	type VehicleMaintenanceServiceSpec,
-	type VehicleSerializedState,
 	type VehicleService,
-	type VehicleServiceSerialized,
 	type WorldVehicleType,
 } from './vehicle'
 
@@ -72,6 +68,8 @@ export class Vehicle extends withInteractive(GameObject) {
 	/** Virtual time of the last position write, from {@link Game.clock.virtualTime}. */
 	private _lastPositionTime = 0
 	public servedLines: FreightLineDefinition[]
+	/** Optional stable fixture/debug label. Not used as runtime identity. */
+	public readonly name?: string
 	/** Whether this vehicle currently has an active bay queue dock request. Set by the controller. */
 	public isInBayQueue = false
 	public service?: VehicleService
@@ -135,7 +133,8 @@ export class Vehicle extends withInteractive(GameObject) {
 		game: Game,
 		public readonly vehicleType: WorldVehicleType,
 		position: Position,
-		servedLines: readonly FreightLineDefinition[] = []
+		servedLines: readonly FreightLineDefinition[] = [],
+		name?: string
 	) {
 		super(game)
 		// First position write — no previous snapshot, so the teleport
@@ -147,6 +146,8 @@ export class Vehicle extends withInteractive(GameObject) {
 			this.game.enqueueStoragePresentationChange(this)
 		)
 		this.servedLines = reactive([...servedLines])
+		const trimmedName = name?.trim()
+		this.name = trimmedName || undefined
 		this.installStorageChangeHooks()
 		this.installDockStorageCompletionEffect()
 	}
@@ -224,7 +225,7 @@ export class Vehicle extends withInteractive(GameObject) {
 	}
 
 	get title(): string {
-		return `${this.vehicleType} ${debugObjectId(this) ?? ''}`
+		return this.name?.trim() || `${this.vehicleType} ${debugObjectId(this) ?? ''}`
 	}
 
 	get tile(): Tile {
@@ -409,29 +410,35 @@ operatorUid: debugObjectId(this.operator),
 			this.service,
 			`Vehicle ${debugObjectId(this) ?? ''}: setServiceOperator requires an active service`
 		)
+		const nextOperator = operator ? publicRef(operator) : undefined
+		const self = publicRef(this)
 		assert(
-			!operator || !this.service.operator || this.service.operator === operator,
+			!nextOperator || !this.service.operator || sameRef(this.service.operator, nextOperator),
 			`Vehicle ${debugObjectId(this) ?? ''} already operated by ${debugObjectId(this.service.operator)}`
 		)
 		const previous = this.service.operator
-		if (previous === operator) {
-			if (operator) operator.setOperatedVehicleFromService(this)
+		if (sameRef(previous, nextOperator)) {
+			// Normalize stored refs to public proxies and refresh the character back-link.
+			if (nextOperator) {
+				this.service.operator = nextOperator
+				nextOperator.setOperatedVehicleFromService(self)
+			}
 			return
 		}
 		if (previous) previous.setOperatedVehicleFromService(undefined)
-		this.service.operator = operator
+		this.service.operator = nextOperator
 		this.game.invalidateWorkPlanning('vehicle.operator')
-		if (operator) {
-			const currentVehicle = operator.operates
-			if (currentVehicle && currentVehicle !== this) {
-				currentVehicle.releaseOperator(operator)
+		if (nextOperator) {
+			const currentVehicle = nextOperator.operates
+			if (currentVehicle && !sameRef(currentVehicle, self)) {
+				currentVehicle.releaseOperator(nextOperator)
 			}
-			operator.setOperatedVehicleFromService(this)
+			nextOperator.setOperatedVehicleFromService(self)
 		}
 	}
 
 	releaseOperator(operator?: Character): void {
-		if (operator && this.service?.operator !== operator) return
+		if (operator && this.service?.operator && !sameRef(this.service.operator, operator)) return
 		const current = this.service?.operator
 		if (!this.service) return
 		if (!current) return
@@ -442,11 +449,14 @@ operatorUid: debugObjectId(this.operator),
 	}
 
 	beginLineService(line: FreightLineDefinition, stop: FreightStop, operator?: Character): void {
-		const next: VehicleLineService = { line, stop, docked: false, operator }
+		// Attach service first without operator, then link via setServiceOperator so
+		// character.operates / service.operator stay consistent (onboard requires operates).
+		const next: VehicleLineService = { line, stop, docked: false, operator: undefined }
 		this.service = next
 		this.game.invalidateWorkPlanning('vehicle.service')
 		syncFreightVehicleDockRegistration(this)
 		this.pokeDockStorageCompletionLifecycle()
+		if (operator) this.setServiceOperator(operator)
 	}
 
 	/**
@@ -455,12 +465,14 @@ operatorUid: debugObjectId(this.operator),
 	 * read intent from `vehicle.service` rather than the transient job payload.
 	 */
 	beginMaintenanceService(spec: VehicleMaintenanceServiceSpec, operator?: Character): void {
-		// Distribute over the discriminated union via the spec helper so each kind keeps its fields.
-		const next = { ...spec, operator } as VehicleMaintenanceService
+		// Attach service first without operator, then link via setServiceOperator so
+		// character.operates / service.operator stay consistent (same as beginLineService).
+		const next = { ...spec, operator: undefined } as VehicleMaintenanceService
 		this.service = next
 		this.game.invalidateWorkPlanning('vehicle.service')
 		syncFreightVehicleDockRegistration(this)
 		this.pokeDockStorageCompletionLifecycle()
+		if (operator) this.setServiceOperator(operator)
 	}
 
 	/**
@@ -601,18 +613,26 @@ operatorUid: debugObjectId(this.operator),
 		return true
 	}
 
-	refreshFreightLineReference(line: FreightLineDefinition): void {
+	/**
+	 * Rebind served-line / active-service references after a registry replace.
+	 * `original` is the previous object identity still held by vehicles; `updated` is the
+	 * normalized replacement now stored in `game.freightLines`.
+	 */
+	refreshFreightLineReference(
+		original: FreightLineDefinition,
+		updated: FreightLineDefinition = original
+	): void {
 		let changed = false
 		const next = this.servedLines.map((entry) => {
-			if (entry !== line) return entry
+			if (entry !== original && entry !== updated) return entry
 			changed = true
-			return line
+			return updated
 		})
 		const svc = this.service
-		if (isVehicleLineService(svc) && svc.line === line) {
+		if (isVehicleLineService(svc) && (svc.line === original || svc.line === updated)) {
 			const oldStopIndex = svc.line.stops.indexOf(svc.stop)
-			svc.line = line
-			const stop = oldStopIndex >= 0 ? line.stops[oldStopIndex] : undefined
+			svc.line = updated
+			const stop = oldStopIndex >= 0 ? updated.stops[oldStopIndex] : undefined
 			if (stop) {
 				const wasDocked = this.isDocked
 				if (wasDocked && !sameAnchorStop(svc.stop, stop)) {

@@ -18,16 +18,18 @@ describe('Game presentation events', () => {
 				},
 			})
 
-			engine.game.enqueueStoragePresentationChange({ uid: 'tile:1,1' })
-			engine.game.enqueueStoragePresentationChange({ uid: 'tile:1,1' })
-			engine.game.enqueueStoragePresentationChange({ uid: 'tile:2,2' })
+			const ownerA = { uid: 'tile:1,1' }
+			const ownerB = { uid: 'tile:2,2' }
+			engine.game.enqueueStoragePresentationChange(ownerA)
+			engine.game.enqueueStoragePresentationChange(ownerA)
+			engine.game.enqueueStoragePresentationChange(ownerB)
 
 			await flushDeferredEvents()
 
 			expect(batches).toHaveLength(1)
 			expect(batches[0]).toEqual([
-				{ type: 'storage.changed', ownerUid: 'tile:1,1' },
-				{ type: 'storage.changed', ownerUid: 'tile:2,2' },
+				{ type: 'storage.changed', owner: ownerA },
+				{ type: 'storage.changed', owner: ownerB },
 			])
 		} finally {
 			await engine.destroy()
@@ -46,16 +48,19 @@ describe('Game presentation events', () => {
 				},
 			})
 
-			engine.game.enqueueVehicleDockPresentationChange({ uid: 'tile:1,1' }, { uid: 'vehicle:1' })
-			engine.game.enqueueVehicleDockPresentationChange({ uid: 'tile:1,1' }, { uid: 'vehicle:1' })
-			engine.game.enqueueVehicleDockPresentationChange({ uid: 'tile:1,1' }, { uid: 'vehicle:2' })
+			const bay = { uid: 'tile:1,1' }
+			const vehicleA = { uid: 'vehicle:1' }
+			const vehicleB = { uid: 'vehicle:2' }
+			engine.game.enqueueVehicleDockPresentationChange(bay, vehicleA)
+			engine.game.enqueueVehicleDockPresentationChange(bay, vehicleA)
+			engine.game.enqueueVehicleDockPresentationChange(bay, vehicleB)
 
 			await flushDeferredEvents()
 
 			expect(batches).toHaveLength(1)
 			expect(batches[0]).toEqual([
-				{ type: 'vehicle.dock.changed', ownerUid: 'tile:1,1', vehicleUid: 'vehicle:1' },
-				{ type: 'vehicle.dock.changed', ownerUid: 'tile:1,1', vehicleUid: 'vehicle:2' },
+				{ type: 'vehicle.dock.changed', owner: bay, vehicle: vehicleA },
+				{ type: 'vehicle.dock.changed', owner: bay, vehicle: vehicleB },
 			])
 		} finally {
 			await engine.destroy()

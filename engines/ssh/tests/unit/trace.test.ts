@@ -108,8 +108,11 @@ describe('safe trace serialization', () => {
 
 		const text = sink.read(1)
 		expect(text).toContain('log vehicleJob.selected @t=12.5')
-		expect(text).toContain('vehicle: &Vehicle:trace-vehicle')
-		expect(text).toContain('again: *Vehicle:trace-vehicle')
+		// Runtime objects are anchored by type + ephemeral debug id; the same
+		// object referenced twice must reuse one stable ref.
+		const vehicleAnchor = text.match(/vehicle: &(Vehicle:[A-Za-z0-9:_-]+)/)?.[1]
+		expect(vehicleAnchor).toBeDefined()
+		expect(text).toContain(`again: *${vehicleAnchor}`)
 		expect(text).toContain('character: &Character:')
 		expect(text).toContain('path:')
 		expect(text).toContain('length: 2')

@@ -438,7 +438,7 @@ registerActionJobProvider('engineer', (alveolus) => {
 					tile: alveolus.tile,
 					job: {
 						job: 'validateHivePlan' as const,
-						planId: plan.id,
+						planIndex: alveolus.tile.game.hivePlans.indexOf(plan),
 						urgency: jobBalance.engineer.construct * 0.8,
 						fatigue: alveolus.getFatigueCost(),
 					},

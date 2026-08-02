@@ -232,6 +232,7 @@ describe('Convey hop mechanism', () => {
 	})
 
 	it('cancels the created convey step when hop storage allocation is refused', async () => {
+		;(globalThis as any).allowExpectedDiagnostics(/hop allocation refused/)
 		const engine = new TestEngine({
 			terrainSeed: 1234,
 			characterCount: 0,

@@ -5,7 +5,7 @@ import type { Character } from 'ssh/population/character'
 import { axial } from 'ssh/utils/axial'
 import { toAxialCoord } from 'ssh/utils/position'
 import { Vehicle } from './entity'
-import type { SerializedVehicle, VehicleSerializedState, WorldVehicleType } from './vehicle'
+import type { SerializedVehicle, WorldVehicleType } from './vehicle'
 import { isVehicleLineService } from './vehicle'
 
 export class Vehicles extends withContainer(GameObject) {
@@ -16,10 +16,11 @@ export class Vehicles extends withContainer(GameObject) {
 	createVehicle(
 		vehicleType: WorldVehicleType,
 		position: { q: number; r: number },
-		servedLines: readonly FreightLineDefinition[] = []
+		servedLines: readonly FreightLineDefinition[] = [],
+		name?: string
 	): Vehicle {
 		return this.game.withObjectRegistrationBatch(() => {
-			const vehicle = new Vehicle(this.game, vehicleType, position, servedLines)
+			const vehicle = new Vehicle(this.game, vehicleType, position, servedLines, name)
 			this.add(vehicle)
 			this.game.invalidateWorkPlanning('vehicle.create')
 			return vehicle

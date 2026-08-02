@@ -7,9 +7,14 @@ import { profile } from 'ssh/dev/debug'
 import { debugObjectId, debugRawObjectId } from 'ssh/dev/debug-object-id'
 import { assertVehicleOperationConsistency } from 'ssh/freight/vehicle-invariants'
 import { releaseVehicleFreightWorkOnPlanInterrupt } from 'ssh/freight/vehicle-run'
-import { collectVehicleWorkPicks, isVehicleFreightJob } from 'ssh/freight/vehicle-work'
+import {
+	allocateVehicleServiceForJob,
+	collectVehicleWorkPicks,
+	isVehicleFreightJob,
+} from 'ssh/freight/vehicle-work'
 import type { Game } from 'ssh/game'
 import { GameObject, withInteractive } from 'ssh/game/object'
+import { publicRef, sameRef } from 'ssh/utils/identity'
 import {
 	asAlveolusProposedJob,
 	asVehicleProposedJob,
@@ -216,44 +221,51 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 	public set operates(value: Vehicle | undefined) {
 		const current = this._operatedVehicle
 		if (value) {
+			const vehicle = publicRef(value)
 			assert(
-				value.service,
-				`Vehicle ${debugObjectId(value)} must have an active service before operates assignment`
+				vehicle.service,
+				`Vehicle ${debugObjectId(vehicle)} must have an active service before operates assignment`
 			)
-			if (debugObjectId(current) === debugObjectId(value)) {
-				value.setServiceOperator(this)
-				assertVehicleOperationConsistency(value, this)
+			if (sameRef(current, vehicle)) {
+				vehicle.setServiceOperator(publicRef(this))
+				assertVehicleOperationConsistency(vehicle, publicRef(this))
 				return
 			}
-			value.setServiceOperator(this)
+			vehicle.setServiceOperator(publicRef(this))
 			return
 		}
 		if (!current) return
-		current.releaseOperator(this)
+		current.releaseOperator(publicRef(this))
 		// A stale operates link can outlive service in interrupted/error paths; clear the
 		// character side even when the vehicle has no service left to release.
-		if (debugObjectId(this._operatedVehicle) === debugObjectId(current))
-			this.setOperatedVehicleFromService(undefined)
+		if (sameRef(this._operatedVehicle, current)) this.setOperatedVehicleFromService(undefined)
 	}
 
 	setOperatedVehicleFromService(vehicle: Vehicle | undefined): void {
 		const current = this._operatedVehicle
-		if (vehicle) {
+		const next = vehicle ? publicRef(vehicle) : undefined
+		const self = publicRef(this)
+		if (next) {
 			assert(
-				vehicle.service,
-				`Vehicle ${debugObjectId(vehicle)} must have an active service before operated back-link assignment`
+				next.service,
+				`Vehicle ${debugObjectId(next)} must have an active service before operated back-link assignment`
 			)
 			assert(
-				!vehicle.service.operator || vehicle.service.operator === this,
-				`Vehicle ${debugObjectId(vehicle)} already operated by ${debugObjectId(vehicle.service.operator)}`
+				!next.service.operator || sameRef(next.service.operator, self),
+				`Vehicle ${debugObjectId(next)} already operated by ${debugObjectId(next.service.operator)}`
 			)
-			if (!vehicle.service.operator) vehicle.service.operator = this
+			// Always store the public proxy identity on the service operator slot.
+			next.service.operator = self
 		}
-		if (debugObjectId(current) === debugObjectId(vehicle)) return
-		if (!vehicle && current && !this._footPosition) {
+		if (sameRef(current, next)) {
+			// Prefer the public proxy even when a method body passed the raw target.
+			if (next) this._operatedVehicle = next
+			return
+		}
+		if (!next && current && !this._footPosition) {
 			this.regainFootPosition(current.effectivePosition)
 		}
-		this._operatedVehicle = vehicle
+		this._operatedVehicle = next
 	}
 	private _footPosition?: Position
 	/**
@@ -634,7 +646,19 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		if (isVehicleFreightJob(job)) {
 			const vehicle = job.vehicle
 			if (!vehicle) return this.scriptsContext.selfCare.wander()
-			if (this._operatedVehicle && this._operatedVehicle !== vehicle) {
+			if (this._operatedVehicle && !sameRef(this._operatedVehicle, vehicle)) {
+				return this.scriptsContext.selfCare.wander()
+			}
+			// Claim service/operator synchronously at selection time. Plan.begin runs later when the
+			// script evolves, so without this two characters can both select a free vehicle in the
+			// same planner pass and then assert in setServiceOperator.
+			try {
+				allocateVehicleServiceForJob(this.game, this, vehicle, job)
+				if (vehicle.operator && !sameRef(vehicle.operator, this)) {
+					return this.scriptsContext.selfCare.wander()
+				}
+				this.operates = vehicle
+			} catch {
 				return this.scriptsContext.selfCare.wander()
 			}
 			const vehicleJobPath =
@@ -723,7 +747,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 			const assignedWorker = proposedJob.source.alveolus.assignedWorker
 				? unwrap(proposedJob.source.alveolus.assignedWorker)
 				: undefined
-			if (proposedJob.job !== 'convey' && assignedWorker && assignedWorker !== this) {
+			if (proposedJob.job !== 'convey' && assignedWorker && !sameRef(assignedWorker, this)) {
 				return {
 					available: false,
 					proposedJob,

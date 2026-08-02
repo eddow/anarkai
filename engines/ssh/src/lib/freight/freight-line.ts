@@ -1,4 +1,5 @@
 import { defaultGatherFreightRadius } from 'engine-rules'
+import { markRaw } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
 import type { Game } from 'ssh/game'
 import type { InspectorSelectableObject } from 'ssh/game/object'
@@ -51,7 +52,7 @@ export type FreightStopAnchor = FreightStopAnchorAlveolus
 export interface FreightNpcTradeStop {
 	readonly kind: 'settlement'
 	/** Persistence identity — survives serialization. Runtime code reads `profile` instead. */
-	readonly settlementName: string
+	readonly settlementId: string
 	/** Resolved at line hydration time. Never null at runtime. */
 	profile: import('ssh/commerce/settlement-trade').NpcSettlementTradeProfile
 }
@@ -188,10 +189,13 @@ function normalizeFreightZone(zone: FreightZoneDefinition): FreightZoneDefinitio
 function normalizeNpcTradeStop(trade: FreightNpcTradeStop): FreightNpcTradeStop {
 	return {
 		kind: 'settlement',
-		settlementName: trade.settlementName.trim(),
+		settlementId: trade.settlementId.trim(),
 		profile: trade.profile,
 	}
 }
+
+export { resolveFreightNpcTradeProfile } from 'ssh/freight/freight-trade-profile'
+import { resolveFreightNpcTradeProfile } from 'ssh/freight/freight-trade-profile'
 
 /**
  * Resolves `FreightNpcTradeStop.profile` for every trade stop on every freight line.
@@ -201,11 +205,7 @@ export function hydrateFreightLineTradeProfiles(lines: FreightLineDefinition[], 
 	for (const line of lines) {
 		for (const stop of line.stops) {
 			if (!('trade' in stop)) continue
-			if (stop.trade.profile) continue // already hydrated
-			const profile = game.getSettlementTradeProfile(stop.trade.settlementName)
-			if (profile) {
-				;(stop.trade as { profile: FreightNpcTradeStop['profile'] }).profile = profile
-			}
+			resolveFreightNpcTradeProfile(game, stop.trade)
 		}
 		for (const stop of line.stops) {
 			if (!('zone' in stop) || stop.zone.kind !== 'named') continue
@@ -235,28 +235,30 @@ function normalizeFreightStop(stop: FreightStop): FreightStop {
 		stop.minBalanceAfterBuyVp === undefined
 			? {}
 			: { minBalanceAfterBuyVp: Math.max(0, Math.floor(stop.minBalanceAfterBuyVp)) }
+	// Stops are identity-bearing route nodes. Keep them (and nested anchor/zone/trade
+	// objects) raw so reactive vehicle.service / servedLines storage never breaks `===`.
 	if ('anchor' in stop) {
-		return {
+		return markRaw({
 			loadSelection,
 			unloadSelection,
 			...reserve,
-			anchor: normalizeBayAnchor(stop.anchor),
-		}
+			anchor: markRaw(normalizeBayAnchor(stop.anchor)),
+		})
 	}
 	if ('trade' in stop) {
-		return {
+		return markRaw({
 			loadSelection,
 			unloadSelection,
 			...reserve,
-			trade: normalizeNpcTradeStop(stop.trade),
-		}
+			trade: markRaw(normalizeNpcTradeStop(stop.trade)),
+		})
 	}
-	return {
+	return markRaw({
 		loadSelection,
 		unloadSelection,
 		...reserve,
-		zone: normalizeFreightZone(stop.zone),
-	}
+		zone: markRaw(normalizeFreightZone(stop.zone)),
+	})
 }
 
 /** Indices into {@link FreightLineDefinition.stops} for one gather segment: zone `load` then bay `unload`. */
@@ -332,16 +334,18 @@ export function findDistributeRouteSegments(
 
 /** Normalizes anchors, zones, and goods policies. Call when persisting or replacing a line. */
 export function normalizeFreightLineDefinition(line: FreightLineDefinition): FreightLineDefinition {
-	const normalized: FreightLineDefinition = {
+	// Freight lines are identity-bearing registry objects (servedLines, vehicle.service.line,
+	// hop job plans). Keep the line, stops array, and each stop raw so mutts reactive proxies
+	// on Vehicle/Game never wrap them and break Object.is equality.
+	const normalized = markRaw({
 		name: line.name,
-		stops: line.stops.map(normalizeFreightStop),
-	}
-	const withCyclic = line.cyclic === true ? { ...normalized, cyclic: true } : normalized
-	if (line.minBalanceAfterBuyVp === undefined) return withCyclic
-	return {
-		...withCyclic,
-		minBalanceAfterBuyVp: Math.max(0, Math.floor(line.minBalanceAfterBuyVp)),
-	}
+		stops: markRaw(line.stops.map(normalizeFreightStop)),
+		...(line.cyclic === true ? { cyclic: true as const } : {}),
+		...(line.minBalanceAfterBuyVp === undefined
+			? {}
+			: { minBalanceAfterBuyVp: Math.max(0, Math.floor(line.minBalanceAfterBuyVp)) }),
+	}) satisfies FreightLineDefinition
+	return normalized
 }
 
 /** Stop indices to inspect when a service starts/continues from `startIndex`. */
@@ -683,6 +687,54 @@ export function gatherLoadRadiusForLineAtStop(
 		if (zone.kind === 'radius') return zone.radius
 	}
 	return undefined
+}
+
+/**
+ * Bootstrap helper: one gather line per freight bay in hive patches.
+ * Name uses the stable `Hive:implicit-gather:q,r` form so fixtures and tests can find it.
+ */
+export function implicitGatherFreightLinesFromHivePatches(
+	hives: ReadonlyArray<{
+		name?: string
+		alveoli: ReadonlyArray<{ coord: readonly [number, number]; alveolus: string }>
+	}>
+): FreightLineDefinition[] {
+	const out: FreightLineDefinition[] = []
+	for (const hive of hives) {
+		const hiveName = freightLineStopHiveName(hive.name)
+		const displayHiveName = freightLineDisplayHiveName(hive.name)
+		for (const a of hive.alveoli) {
+			if (a.alveolus !== 'freight_bay') continue
+			const coord = [Math.floor(a.coord[0]), Math.floor(a.coord[1])] as const
+			const anchor: FreightStopAnchorAlveolus = {
+				kind: 'alveolus',
+				hiveName,
+				alveolusType: 'freight_bay',
+				coord,
+			}
+			out.push({
+				name: `${displayHiveName}:implicit-gather:${coord[0]},${coord[1]}`,
+				cyclic: true,
+				stops: [
+					{
+						zone: {
+							kind: 'radius',
+							center: coord,
+							radius: DEFAULT_GATHER_FREIGHT_RADIUS,
+						},
+					},
+					{
+						anchor,
+					},
+				],
+			})
+		}
+	}
+	return out
+}
+
+export function isImplicitGatherFreightLineName(lineName: string): boolean {
+	return lineName.includes(':implicit-gather:')
 }
 
 export type FreightBayStopAlveolus = {

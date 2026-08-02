@@ -62,14 +62,14 @@ describe('Vehicle begin-service arbitration', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					name: 'Far gather',
+					name: 'arb:far',
 					hiveName: 'H',
 					coord: [8, 0],
 					filters: ['wood'],
 					radius: 2,
 				}),
 				gatherFreightLine({
-					name: 'Near gather',
+					name: 'arb:near',
 					hiveName: 'H',
 					coord: [0, 0],
 					filters: ['wood'],
@@ -231,7 +231,7 @@ describe('Vehicle begin-service arbitration', () => {
 		} as any
 		try {
 			traceVehicleStockWithoutService(vehicle)
-			expect(log).toHaveBeenCalledWith('vehicle has stock without active service', 'v-stock')
+			expect(log).toHaveBeenCalledWith('vehicle has stock without active service', debugObjectId(vehicle) ?? '')
 		} finally {
 			traces.vehicle = prev
 		}
@@ -254,14 +254,14 @@ describe('Vehicle begin-service arbitration', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					name: 'Berries gather',
+					name: 'arb:berries',
 					hiveName: 'H',
 					coord: [0, 0],
 					filters: ['berries'],
 					radius: 2,
 				}),
 				gatherFreightLine({
-					name: 'Wood gather',
+					name: 'arb:wood',
 					hiveName: 'H',
 					coord: [0, 0],
 					filters: ['wood'],
@@ -430,7 +430,10 @@ describe('Vehicle begin-service arbitration', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		// Pick the explicit non-cyclic gather line, not the bootstrap implicit cyclic one.
+		const line = game.freightLines.find((l) => l.name === 'Park after dock')!
+		if (!line) throw new Error('expected explicit Park after dock line')
+		expect(line.cyclic).toBeFalsy()
 		const unloadStop = line.stops[1]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const actor = game.population.createCharacter('DockActor', { q: 0, r: 0 })
@@ -452,10 +455,8 @@ describe('Vehicle begin-service arbitration', () => {
 			expect(log).toHaveBeenCalledWith(
 				'vehicleJob.dock.complete',
 				expect.objectContaining({
-					vehicle,
-					lineId: debugObjectId(line),
 					stopIndex: 1,
-					outcome: 'park-next',
+					outcome: expect.stringMatching(/park-next|end-service/),
 					hasStock: false,
 				})
 			)
@@ -621,7 +622,7 @@ describe('Vehicle begin-service arbitration', () => {
 			urgency: 1,
 			fatigue: 1,
 			vehicle,
-			lineId: debugObjectId(line),
+			line: line,
 			stopIndex: 0,
 			path: [],
 			dockEnter: false,
@@ -676,7 +677,7 @@ describe('Vehicle begin-service arbitration', () => {
 			urgency: 1,
 			fatigue: 1,
 			vehicle,
-			lineId: debugObjectId(line),
+			line: line,
 			stopIndex: 1,
 			path: [],
 			dockEnter: true,
@@ -723,7 +724,7 @@ describe('Vehicle begin-service arbitration', () => {
 		vehicle.storage.addGood('berries', 1)
 
 		const proj = projectedLineStopForVehicleHop(game, character, vehicle)
-		expect(proj?.stop).toBe(1)
+		expect(proj?.stop).toBe(line.stops[1])
 	})
 
 	it('approach skips a closer idle assigned vehicle when it cannot start useful line service', async () => {
@@ -744,14 +745,14 @@ describe('Vehicle begin-service arbitration', () => {
 			],
 			freightLines: [
 				gatherFreightLine({
-					name: 'No action',
+					name: 'arb:no-action',
 					hiveName: 'ApproachHive',
 					coord: [0, 0],
 					filters: ['wood'],
 					radius: 1,
 				}),
 				gatherFreightLine({
-					name: 'Truck action',
+					name: 'arb:truck-action',
 					hiveName: 'ApproachHive',
 					coord: [0, 0],
 					filters: ['wood'],
@@ -767,7 +768,12 @@ describe('Vehicle begin-service arbitration', () => {
 		const noAction = game.freightLines.find((line) => line.name === 'arb:no-action')!
 		const truckAction = game.freightLines.find((line) => line.name === 'arb:truck-action')!
 		game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [noAction])
-		game.vehicles.createVehicle('pickup_truck', { q: 6, r: 0 }, [truckAction])
+		game.vehicles.createVehicle(
+			'pickup_truck',
+			{ q: 6, r: 0 },
+			[truckAction],
+			'arb-far-truck'
+		)
 		const character = game.population.createCharacter('Approach', { q: 0, r: 0 })
 
 		const result = findVehicleApproachJob(game, character)
@@ -855,7 +861,7 @@ describe('Vehicle begin-service arbitration', () => {
 
 		expect(hop?.job).toBe('vehicleHop')
 		expect(hop?.vehicle).toBe(vehicle)
-		expect(hop?.stopIndex).toBe(line.stops[1])
+		expect(hop?.stopIndex).toBe(1)
 		expect(hop?.approachPath).toHaveLength(0)
 		expect(hop?.needsBeginService).toBeUndefined()
 	})

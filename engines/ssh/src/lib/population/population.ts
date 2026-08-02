@@ -1,4 +1,3 @@
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { Game } from 'ssh/game/game'
 import { GameObject, withContainer, withHittable } from 'ssh/game/object'
 import { type AxialCoord, toAxialCoord } from 'ssh/utils'

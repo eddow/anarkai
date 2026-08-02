@@ -40,8 +40,10 @@ import type { FreightLineDefinition } from 'ssh/freight/freight-line'
 import {
 	collectFreightLineBootstrapCoords,
 	hydrateFreightLineTradeProfiles,
+	implicitGatherFreightLinesFromHivePatches,
 	normalizeFreightLineDefinition,
 } from 'ssh/freight/freight-line'
+import { resolveFreightNpcTradeProfile } from 'ssh/freight/freight-trade-profile'
 import {
 	GameGenerator,
 	type GeneratedCharacterData,
@@ -192,7 +194,7 @@ export interface AlveolusPatch {
 	/** Persisted construction work seconds on the build shell. */
 	constructionWorkSecondsApplied?: number
 	constructionPhase?: ConstructionPhase
-	hivePlanId?: string
+	hivePlanIndex?: number
 	hivePlanVersion?: number
 	planRoleId?: string
 	/** Configuration reference and individual config for this alveolus */
@@ -223,7 +225,7 @@ export interface ProjectSitePatch {
 	foundationConsumedGoods?: Partial<Record<GoodType, number>>
 	constructionGoods?: Partial<Record<GoodType, number>>
 	constructionWorkSecondsApplied?: number
-	hivePlanId?: string
+	hivePlanIndex?: number
 	hivePlanVersion?: number
 	planRoleId?: string
 }
@@ -254,7 +256,28 @@ export interface VehiclePatch extends VehicleSerializedState {}
 
 type CoordPatchMap<T extends string> = Partial<Record<T, ReadonlyArray<readonly [number, number]>>>
 type TerrainPatches = CoordPatchMap<TerrainType>
-type LooseGoodsPatches = CoordPatchMap<GoodType>
+/** Canonical map form: `{ wood: [[q,r], ...], ... }`. */
+type LooseGoodsMapPatches = CoordPatchMap<GoodType>
+/** Convenience array form used by many scenarios/tests: `[{ goodType, position }]`. */
+type LooseGoodsArrayPatch = {
+	goodType: GoodType
+	position: { q: number; r: number } | readonly [number, number]
+}
+type LooseGoodsPatches = LooseGoodsMapPatches | ReadonlyArray<LooseGoodsArrayPatch>
+/** Canonical array form used by save/load. */
+type ZoneArrayPatches = ReadonlyArray<import('ssh/board/zone').ZoneDefinitionPatch>
+/** Convenience map form used by many scenarios/tests. */
+type ZoneMapPatches = Partial<
+	Record<import('ssh/board/zone').ZoneType, ReadonlyArray<readonly [number, number]>>
+> & {
+	named?: ReadonlyArray<{
+		id?: string
+		name?: string
+		color?: string
+		coords: ReadonlyArray<readonly [number, number]>
+	}>
+}
+type ZonesPatches = ZoneArrayPatches | ZoneMapPatches
 
 export type { ZoneDefinitionPatch } from 'ssh/board/zone'
 
@@ -272,7 +295,7 @@ export interface GamePatches {
 	/** Explicit freight lines; implicit gather routes are merged from hive patches unless overridden by id. */
 	freightLines?: ReadonlyArray<FreightLineDefinition>
 	looseGoods?: LooseGoodsPatches
-	zones?: ReadonlyArray<import('ssh/board/zone').ZoneDefinitionPatch>
+	zones?: ZonesPatches
 	projects?: Record<string, ReadonlyArray<readonly [number, number]>>
 	projectSites?: ReadonlyArray<ProjectSitePatch>
 	dwellings?: ReadonlyArray<DwellingPatch>
@@ -312,12 +335,76 @@ function terrainPatchesAsTiles(terrains: TerrainPatches | undefined): TilePatch[
 function looseGoodsPatchEntries(
 	looseGoods: LooseGoodsPatches | undefined
 ): Array<[GoodType, ReadonlyArray<readonly [number, number]>]> {
-	return Object.entries(looseGoods || {}).filter(
+	if (!looseGoods) return []
+	// Array form: [{ goodType, position: {q,r} | [q,r] }, ...]
+	if (Array.isArray(looseGoods)) {
+		const byType = new Map<GoodType, Array<readonly [number, number]>>()
+		for (const entry of looseGoods) {
+			if (!entry || typeof entry !== 'object' || !('goodType' in entry)) continue
+			const goodType = entry.goodType as GoodType
+			const pos = entry.position as LooseGoodsArrayPatch['position'] | undefined
+			let coord: readonly [number, number] | undefined
+			if (Array.isArray(pos) && pos.length >= 2) {
+				coord = [Number(pos[0]), Number(pos[1])] as const
+			} else if (pos && typeof pos === 'object' && 'q' in pos && 'r' in pos) {
+				coord = [Number(pos.q), Number(pos.r)] as const
+			}
+			if (!coord || !Number.isFinite(coord[0]) || !Number.isFinite(coord[1])) continue
+			const list = byType.get(goodType) ?? []
+			list.push(coord)
+			byType.set(goodType, list)
+		}
+		return [...byType.entries()]
+	}
+	// Map form: { wood: [[q,r], ...], ... }
+	return Object.entries(looseGoods).filter(
 		(entry): entry is [GoodType, ReadonlyArray<readonly [number, number]>] => {
 			const [, coords] = entry
-			return coords !== undefined && coords !== null
+			return Array.isArray(coords)
 		}
 	)
+}
+
+function looseGoodsPatchKindCount(looseGoods: LooseGoodsPatches | undefined): number {
+	return looseGoodsPatchEntries(looseGoods).length
+}
+
+const ZONE_TYPES = new Set(['passive', 'harvest', 'residential', 'commercial'] as const)
+
+function zonePatchEntries(
+	zones: ZonesPatches | undefined
+): import('ssh/board/zone').ZoneDefinitionPatch[] {
+	if (!zones) return []
+	// Array form: [{ type, name?, color?, coords }, ...]
+	if (Array.isArray(zones)) return [...zones]
+	// Map form: { residential: [[q,r], ...], named: [{ id, name, coords }], ... }
+	const out: import('ssh/board/zone').ZoneDefinitionPatch[] = []
+	const map = zones as ZoneMapPatches
+	for (const [key, value] of Object.entries(map)) {
+		if (key === 'named') {
+			for (const entry of map.named ?? []) {
+				if (!entry?.coords?.length) continue
+				out.push({
+					type: 'passive',
+					name: entry.name ?? entry.id,
+					color: entry.color,
+					coords: entry.coords,
+				})
+			}
+			continue
+		}
+		if (!ZONE_TYPES.has(key as import('ssh/board/zone').ZoneType)) continue
+		if (!Array.isArray(value) || value.length === 0) continue
+		// named entries are objects; type maps are coord tuples
+		if (typeof value[0] === 'object' && value[0] !== null && 'coords' in (value[0] as object)) {
+			continue
+		}
+		out.push({
+			type: key as import('ssh/board/zone').ZoneType,
+			coords: value as ReadonlyArray<readonly [number, number]>,
+		})
+	}
+	return out
 }
 
 function terrainOverrideNeedsBroadSampleInvalidation(
@@ -580,17 +667,17 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	public previewHivePlanPlacement(
-		planId: string,
+		planIndex: number,
 		anchor: AxialCoord,
 		rotation: number
 	): HivePlanPlacementPreview | undefined {
-		const plan = this.hivePlans.find(planId)
+		const plan = this.hivePlans.byIndex(planIndex)
 		if (!plan || plan.stage !== 'working') return undefined
 		return previewHivePlanPlacement(this, plan, anchor, rotation)
 	}
 
-	public applyHivePlanPlacement(planId: string, anchor: AxialCoord, rotation: number): boolean {
-		const plan = this.hivePlans.find(planId)
+	public applyHivePlanPlacement(planIndex: number, anchor: AxialCoord, rotation: number): boolean {
+		const plan = this.hivePlans.byIndex(planIndex)
 		if (!plan || plan.stage !== 'working') return false
 		const preview = previewHivePlanPlacement(this, plan, anchor, rotation)
 		if (!preview.valid) return false
@@ -605,7 +692,7 @@ export class Game extends Eventful<GameEvents> {
 				terrain: 'concrete',
 			}
 			this.upsertTerrainOverride(cell.coord, { terrain: 'concrete' })
-			const shell = createConstructionSiteForHivePlanEntry(tile, plan, cell.entry)
+			const shell = createConstructionSiteForHivePlanEntry(tile, plan, cell.entry, planIndex)
 			this.hex.setTileContent(tile, shell)
 			tile.asGenerated = false
 		}
@@ -639,9 +726,13 @@ export class Game extends Eventful<GameEvents> {
 		return true
 	}
 
-	public getSettlementTradeProfile(name: string): NpcSettlementTradeProfile | undefined {
-		for (const profile of this.settlementTradeProfiles) {
-			if (profile.name === name) return profile
+public getSettlementTradeProfile(id: string): NpcSettlementTradeProfile | undefined {
+                const needle = id.trim()
+                if (!needle) return undefined
+                for (const profile of this.settlementTradeProfiles) {
+                        // Freight stops persist generator ids (`settlement-q,r`);
+                        // the id is the stable cross-save identity — never match by display name.
+                        if (profile.id === needle) return profile
 		}
 		return undefined
 	}
@@ -655,6 +746,17 @@ export class Game extends Eventful<GameEvents> {
 	public listSettlementTradeProfiles(): NpcSettlementTradeProfile[] {
 		return [...this.settlementTradeProfiles].sort((left, right) =>
 			left.name.localeCompare(right.name)
+		)
+	}
+
+	/** Test/bootstrap seam: register a settlement trade profile by id. */
+	public registerSettlementTradeProfile(profile: NpcSettlementTradeProfile): void {
+		const existing = this.getSettlementTradeProfile(profile.id)
+		if (existing) this.settlementTradeProfiles.delete(existing)
+		this.settlementTradeProfiles.add(profile)
+		this.settlementTradeProfilesByCityHallCoord.set(
+			axial.key(profile.cityHall.position),
+			profile
 		)
 	}
 
@@ -714,7 +816,7 @@ export class Game extends Eventful<GameEvents> {
 		const next = [...this.freightLines]
 		next[index] = normalized
 		this.freightLines = next
-		for (const vehicle of this.vehicles) vehicle.refreshFreightLineReference(normalized)
+		for (const vehicle of this.vehicles) vehicle.refreshFreightLineReference(original, normalized)
 	}
 
 	assignVehicleToFreightLine(vehicle: Vehicle, line: FreightLineDefinition): boolean {
@@ -1111,7 +1213,7 @@ export class Game extends Eventful<GameEvents> {
 			for (const alveolus of hive.alveoli)
 				coords.push({ q: alveolus.coord[0], r: alveolus.coord[1] })
 		}
-		for (const zone of patches.zones ?? []) {
+		for (const zone of zonePatchEntries(patches.zones)) {
 			for (const coord of zone.coords) coords.push({ q: coord[0], r: coord[1] })
 		}
 		for (const coordsForProject of Object.values(patches.projects ?? {})) {
@@ -1160,7 +1262,7 @@ export class Game extends Eventful<GameEvents> {
 		for (const hive of patches.hives ?? []) {
 			for (const alveolus of hive.alveoli) addPatchCoord(alveolus.coord)
 		}
-		for (const zone of patches.zones ?? []) {
+		for (const zone of zonePatchEntries(patches.zones)) {
 			for (const coord of zone.coords) addPatchCoord(coord)
 		}
 		for (const coordsForProject of Object.values(patches.projects ?? {})) {
@@ -1891,7 +1993,7 @@ export class Game extends Eventful<GameEvents> {
 				patches: {
 					tiles: (patches.tiles ?? []).length,
 					hives: (patches.hives ?? []).length,
-					looseGoodsKinds: Object.keys(patches.looseGoods || {}).length,
+					looseGoodsKinds: looseGoodsPatchKindCount(patches.looseGoods),
 					vehicles: (patches.vehicles ?? []).length,
 					freightLines: (patches.freightLines ?? []).length,
 					streamedFrontier:
@@ -2025,13 +2127,18 @@ export class Game extends Eventful<GameEvents> {
 	 *
 	 * Called during `generate()` / `generateAsync()` after hive, tile, zone, project,
 	 * and dwelling patches have been applied, but before vehicle and road patches.
-	 * Normalizes every explicit line and wires up trade-stop profiles and named zone
-	 * references against the live game state.
-	 *
-	 * No lines are auto-generated — freight bays do not come with predefined lines.
+	 * Merges implicit gather lines from freight bays with explicit patch lines (by name),
+	 * then hydrates trade-stop profiles and named zone references against live game state.
 	 */
 	private bootstrapFreightLines(patches: GamePatches | SaveState): void {
-		this.freightLines = (patches.freightLines ?? []).map(normalizeFreightLineDefinition)
+		const merged = new Map<string, FreightLineDefinition>()
+		const implicit = patches.hives?.length
+			? implicitGatherFreightLinesFromHivePatches(patches.hives)
+			: []
+		for (const line of implicit) merged.set(line.name, normalizeFreightLineDefinition(line))
+		for (const line of patches.freightLines ?? [])
+			merged.set(line.name, normalizeFreightLineDefinition(line))
+		this.freightLines = [...merged.values()]
 		hydrateFreightLineTradeProfiles(this.freightLines, this)
 	}
 
@@ -2190,7 +2297,7 @@ export class Game extends Eventful<GameEvents> {
 					const build = createConstructionShell(tile, constructionSite)
 					build.constructionWorkSecondsApplied = a.constructionWorkSecondsApplied ?? 0
 					Object.assign(build, {
-						hivePlanId: a.hivePlanId,
+						hivePlanIndex: a.hivePlanIndex,
 						hivePlanVersion: a.hivePlanVersion,
 						planRoleId: a.planRoleId,
 						planConfiguration: a.configuration,
@@ -2270,7 +2377,7 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	private applyZonePatches(zones: NonNullable<GamePatches['zones']>) {
-		for (const patch of zones) {
+		for (const patch of zonePatchEntries(zones)) {
 			const def = this.hex.zoneManager.defineZone({
 				name: patch.name,
 				color: patch.color,
@@ -2286,7 +2393,7 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	private applyGeneratedZonePatches(zones: NonNullable<GamePatches['zones']>) {
-		for (const patch of zones) {
+		for (const patch of zonePatchEntries(zones)) {
 			const def = this.hex.zoneManager.defineZone({
 				name: patch.name,
 				color: patch.color,
@@ -2340,11 +2447,11 @@ export class Game extends Eventful<GameEvents> {
 				const build = createConstructionShell(tile, constructionSite)
 				build.constructionWorkSecondsApplied = entry.constructionWorkSecondsApplied ?? 0
 				Object.assign(build, {
-					hivePlanId: entry.hivePlanId,
+					hivePlanIndex: entry.hivePlanIndex,
 					hivePlanVersion: entry.hivePlanVersion,
 					planRoleId: entry.planRoleId,
 					planConfiguration: this.hivePlans
-						.find(entry.hivePlanId)
+						.byIndex(entry.hivePlanIndex ?? -1)
 						?.entries.find((planEntry) => planEntry.roleId === entry.planRoleId)?.configuration,
 				})
 				this.hex.setTileContent(tile, build)
@@ -2396,6 +2503,43 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	private applyVehiclePatches(vehicles: NonNullable<GamePatches['vehicles']>) {
+		this.withObjectRegistrationBatch(() => {
+			for (const entry of vehicles) {
+				const servedLines = (entry.servedLineIndices ?? [])
+					.map((idx) => this.freightLines[idx])
+					.filter((line): line is FreightLineDefinition => !!line)
+				const vehicle = this.vehicles.createVehicle(
+					entry.vehicleType,
+					entry.position,
+					servedLines,
+					entry.name
+				)
+				for (const [goodType, qty] of Object.entries(entry.goods ?? {})) {
+					vehicle.storage.addGood(goodType as GoodType, qty as number)
+				}
+				const saved = entry.service
+				if (!saved) continue
+				// Maintenance / legacy offload services are transient — planner rediscovers.
+				if ('kind' in saved && (saved.kind === 'offload' || saved.kind === 'maintenance')) {
+					continue
+				}
+				const linePayload = saved as {
+					kind?: 'line'
+					lineIndex?: number
+					stopIndex: number
+					docked: boolean
+				}
+				const line =
+					typeof linePayload.lineIndex === 'number'
+						? this.freightLines[linePayload.lineIndex]
+						: undefined
+				if (!line) continue
+				const stop = line.stops[linePayload.stopIndex]
+				if (!stop) continue
+				vehicle.beginLineService(line, stop)
+				if (linePayload.docked) vehicle.dock()
+			}
+		})
 	}
 
 	private applyRoadPatches(roads: NonNullable<GamePatches['roads']>) {
@@ -2517,7 +2661,7 @@ export class Game extends Eventful<GameEvents> {
 					foundationConsumedGoods: content.constructionSite.foundationConsumedGoods ?? {},
 					constructionGoods: content.storage?.stock ?? {},
 					constructionWorkSecondsApplied: content.constructionWorkSecondsApplied,
-					hivePlanId: (content as { hivePlanId?: string }).hivePlanId,
+					hivePlanIndex: (content as { hivePlanIndex?: number }).hivePlanIndex,
 					hivePlanVersion: (content as { hivePlanVersion?: number }).hivePlanVersion,
 					planRoleId: (content as { planRoleId?: string }).planRoleId,
 				})
@@ -2537,7 +2681,8 @@ export class Game extends Eventful<GameEvents> {
 								constructionWorkSecondsApplied: constructionShell.constructionWorkSecondsApplied,
 								constructionPhase: constructionShell.constructionSite.phase,
 								goods: constructionShell.storage?.stock || {},
-								hivePlanId: (constructionShell as { hivePlanId?: string }).hivePlanId,
+								hivePlanIndex: (constructionShell as { hivePlanIndex?: number })
+									.hivePlanIndex,
 								hivePlanVersion: (constructionShell as { hivePlanVersion?: number })
 									.hivePlanVersion,
 								planRoleId: (constructionShell as { planRoleId?: string }).planRoleId,
@@ -2666,7 +2811,7 @@ export class Game extends Eventful<GameEvents> {
 			state: {
 				tiles: (state.tiles ?? []).length,
 				hives: (state.hives ?? []).length,
-				looseGoodsKinds: Object.keys(state.looseGoods || {}).length,
+				looseGoodsKinds: looseGoodsPatchKindCount(state.looseGoods),
 				vehicles: (state.vehicles ?? []).length,
 				freightLines: (state.freightLines ?? []).length,
 				streamedFrontier: (state.streamedFrontier ?? []).length,
@@ -2789,7 +2934,7 @@ export class Game extends Eventful<GameEvents> {
 						}
 					}
 				} else if ('trade' in stop) {
-					const profile = stop.trade.profile
+					const profile = resolveFreightNpcTradeProfile(this, stop.trade)
 					if (profile) coords.push(profile.center)
 				}
 			}

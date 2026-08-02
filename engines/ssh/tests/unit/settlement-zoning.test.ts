@@ -248,7 +248,7 @@ describe('settlement zoning generation', () => {
 		expect(zoneCoords(first, 'residential').length).toBeGreaterThan(0)
 		expect(zoneCoords(first, 'commercial').length).toBeGreaterThan(0)
 		expect(zoneCoords(first, 'harvest')).toEqual([])
-		expect(first.zones.map((zone) => zone.name)).toContain('industrial')
+		expect(first.zones.map((zone) => zone.name)).toContain('Industrial')
 		expect(first.zones.map((zone) => zone.name)).not.toContain('market')
 		expect(first.roads.path?.length).toBeGreaterThan(0)
 	})
@@ -419,7 +419,7 @@ describe('settlement zoning generation', () => {
 		expect(depositTile).toBeDefined()
 		if (depositTile) {
 			const depositKey = axial.key(depositTile.coord)
-			const industrialCoords = zoneNamed(plan, 'industrial')
+			const industrialCoords = zoneNamed(plan, 'Industrial')
 			expect(industrialCoords.some(([q, r]) => `${q},${r}` === depositKey)).toBe(true)
 		}
 	})
@@ -441,7 +441,7 @@ describe('settlement zoning generation', () => {
 			hasRiver
 		)
 
-		const industrialCoords = zoneNamed(plan, 'industrial')
+		const industrialCoords = zoneNamed(plan, 'Industrial')
 		expect(industrialCoords.some(([q, r]) => q === 2 && r === -1)).toBe(false)
 		const residentialCoords = new Set(zoneCoords(plan, 'residential').map(([q, r]) => `${q},${r}`))
 		const commercialCoords = new Set(zoneCoords(plan, 'commercial').map(([q, r]) => `${q},${r}`))
@@ -461,7 +461,7 @@ describe('settlement zoning generation', () => {
 			hasRiver
 		)
 
-		const civicCoords = zoneNamed(plan, 'civic')
+		const civicCoords = zoneNamed(plan, 'Civic')
 		expect(civicCoords.length).toBeGreaterThan(0)
 		const settlementCenter = plan.settlements[0]?.center
 		expect(settlementCenter).toBeDefined()
@@ -540,10 +540,10 @@ describe('settlement zoning generation', () => {
 			terrainKinds,
 			hasRiver
 		)
-		const civic = new Set(zoneNamed(plan, 'civic').map(([q, r]) => `${q},${r}`))
+		const civic = new Set(zoneNamed(plan, 'Civic').map(([q, r]) => `${q},${r}`))
 		const residential = new Set(zoneCoords(plan, 'residential').map(([q, r]) => `${q},${r}`))
 		const commercial = new Set(zoneCoords(plan, 'commercial').map(([q, r]) => `${q},${r}`))
-		const industrial = new Set(zoneNamed(plan, 'industrial').map(([q, r]) => `${q},${r}`))
+		const industrial = new Set(zoneNamed(plan, 'Industrial').map(([q, r]) => `${q},${r}`))
 
 		for (const settlement of plan.settlements) {
 			const cityHall = selectSettlementCityHallPosition(settlement, tiles)

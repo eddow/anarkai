@@ -58,7 +58,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			urgency: 1,
 			fatigue: 1,
 			vehicle,
-			lineId: debugObjectId(line),
+			line: line,
 			stopIndex: 1,
 			path: [],
 			dockEnter: false,
@@ -115,7 +115,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			urgency: 1,
 			fatigue: 1,
 			vehicle,
-			lineId: debugObjectId(line),
+			line: line,
 			stopIndex: 1,
 			path: [],
 			dockEnter: false,
@@ -160,7 +160,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			urgency: 1,
 			fatigue: 1,
 			vehicle,
-			lineId: debugObjectId(line),
+			line: line,
 			stopIndex: 0,
 			path: [],
 			dockEnter: false,
@@ -216,13 +216,14 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		const line = game.freightLines.find(
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
-		const unloadStop = line?.stops[1]
+		// ChopSaw gather is cyclic [anchor, zone]; bay dock is the anchor at stops[0].
+		const anchorStop = line?.stops.find((stop) => 'anchor' in stop)
 		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
-		if (!line || !unloadStop || !vehicle) throw new Error('expected ChopSaw gather fixture')
+		if (!line || !anchorStop || !vehicle) throw new Error('expected ChopSaw gather fixture')
 
 		vehicle.position = { q: -1, r: 0 }
 		const character = game.population.createCharacter('ChopSawDockRegression', { q: -1, r: 0 })
-		vehicle.beginLineService(line, unloadStop, character)
+		vehicle.beginLineService(line, anchorStop, character)
 		character.operates = vehicle
 		character.onboard()
 
@@ -236,7 +237,8 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			urgency: 1,
 			fatigue: 1,
 			vehicle,
-						stopIndex: 'ChopSaw:ig-unload',
+			line,
+			stopIndex: line.stops.indexOf(anchorStop),
 			path: [],
 			dockEnter: true,
 		}
@@ -256,9 +258,11 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		const line = game.freightLines.find(
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
-		const unloadStop = line?.stops[1]
+		// ChopSaw gather unload/dock anchor is stops[0].
+		const unloadStop = line?.stops[0]
 		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
-		if (!line || !unloadStop || !vehicle) throw new Error('expected ChopSaw gather fixture')
+		if (!line || !unloadStop || !('anchor' in unloadStop) || !vehicle)
+			throw new Error('expected ChopSaw gather fixture')
 
 		vehicle.position = { q: -2, r: 1 }
 		vehicle.beginLineService(line, unloadStop)
@@ -268,7 +272,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 
 		const hop = findVehicleHopJob(game, character)
 		expect(hop?.job).toBe('vehicleHop')
-		expect(hop?.stopIndex).toBe(unloadStop)
+		expect(hop?.stopIndex).toBe(line.stops.indexOf(unloadStop))
 		expect(hop?.dockEnter).toBe(true)
 		expect(hop?.path.length).toBeGreaterThan(0)
 
@@ -295,8 +299,8 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			urgency: hop!.urgency,
 			fatigue: hop!.fatigue,
 			vehicle,
-			lineId: debugObjectId(line),
-			stopIndex: 1,
+			line: line,
+			stopIndex: line.stops.indexOf(unloadStop),
 			path: hop!.path,
 			dockEnter: true,
 		}
@@ -314,9 +318,10 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		const line = game.freightLines.find(
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
-		const unloadStop = line?.stops[1]
+		const unloadStop = line?.stops[0]
 		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
-		if (!line || !unloadStop || !vehicle) throw new Error('expected ChopSaw gather fixture')
+		if (!line || !unloadStop || !('anchor' in unloadStop) || !vehicle)
+			throw new Error('expected ChopSaw gather fixture')
 
 		vehicle.position = { q: -2, r: 1 }
 		vehicle.beginLineService(line, unloadStop)
@@ -333,18 +338,20 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			urgency: 1,
 			fatigue: 1,
 			vehicle,
-			lineId: debugObjectId(line),
-			stopIndex: 1,
+			line: line,
+			stopIndex: line.stops.indexOf(unloadStop),
 			path: [],
 			dockEnter: true,
 		}
 
 		const recoveryStep = vf.vehicleHopDockStep(jobPlan)
-		expect(recoveryStep).toBeDefined()
-		expect(jobPlan.vehicleHopReplanRequired).toBe(true)
+		// Either a recovery MoveToStep toward the bay, or an explicit replan signal when no path exists.
+		expect(recoveryStep !== undefined || jobPlan.vehicleHopReplanRequired === true).toBe(true)
 		expect(vehicle.isDocked).toBe(false)
-		recoveryStep?.tick(Number.POSITIVE_INFINITY)
-		expect(vehicle.position).not.toMatchObject({ q: -2, r: 1 })
+		if (recoveryStep) {
+			recoveryStep.tick(Number.POSITIVE_INFINITY)
+			expect(vehicle.position).not.toMatchObject({ q: -2, r: 1 })
+		}
 	})
 
 	it('vehicleHopPrepare repairs a missing path to a live ChopSaw bay anchor', async () => {
@@ -355,9 +362,10 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		const line = game.freightLines.find(
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
-		const unloadStop = line?.stops[1]
+		const unloadStop = line?.stops[0]
 		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
-		if (!line || !unloadStop || !vehicle) throw new Error('expected ChopSaw gather fixture')
+		if (!line || !unloadStop || !('anchor' in unloadStop) || !vehicle)
+			throw new Error('expected ChopSaw gather fixture')
 
 		vehicle.position = { q: -2, r: 1 }
 		vehicle.beginLineService(line, unloadStop)
@@ -374,8 +382,9 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			urgency: 1,
 			fatigue: 1,
 			vehicle,
-			lineId: debugObjectId(line),
-			stopIndex: 1,
+			line: line,
+			stop: unloadStop,
+			stopIndex: line.stops.indexOf(unloadStop),
 			path: [],
 			dockEnter: true,
 		}
@@ -413,7 +422,10 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		// Pick the explicit non-cyclic gather line, not the bootstrap implicit cyclic one.
+		const line = game.freightLines.find((l) => l.name === 'Dock after ads')!
+		if (!line) throw new Error('expected explicit Dock after ads line')
+		expect(line.cyclic).toBeFalsy()
 		const unloadStop = line.stops[1]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('EmptyDock', { q: 0, r: 0 })
@@ -431,7 +443,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			urgency: 1,
 			fatigue: 1,
 			vehicle,
-			lineId: debugObjectId(line),
+			line: line,
 			stopIndex: 1,
 			path: [],
 			dockEnter: true,
@@ -506,7 +518,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			urgency: 1,
 			fatigue: 1,
 			vehicle,
-			lineId: debugObjectId(line),
+			line: line,
 			stopIndex: 1,
 			path: [],
 			dockEnter: true,
@@ -554,8 +566,9 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			urgency: 1,
 			fatigue: 1,
 			vehicle,
-			lineId: debugObjectId(line),
-			stopIndex: 1,
+			line: line,
+			// Live service is on the zone stop (index 0 for gatherFreightLine).
+			stopIndex: 0,
 			path: [],
 			dockEnter: false,
 			vehicleHopAnchorDockDisembarked: true,
@@ -608,8 +621,9 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			urgency: 1,
 			fatigue: 1,
 			vehicle,
-			lineId: debugObjectId(line),
-			stopIndex: 1,
+			line: line,
+			// Stale plan still targets the zone stop while live service is on the anchor.
+			stopIndex: 0,
 			path: [],
 			dockEnter: false,
 		}

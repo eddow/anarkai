@@ -45,7 +45,7 @@ describe('Planner loop diagnostic', () => {
 					name: 'TestHive',
 					alveoli: [
 						{ coord: [0, 0], alveolus: 'storage', goods: {} },
-						{ coord: [1, 0], alveolus: 'pile', goods: {} },
+						{ coord: [1, 0], alveolus: 'pile', variant: 'wood', goods: {} },
 					],
 				},
 			],
@@ -295,7 +295,7 @@ describe('Planner loop diagnostic', () => {
 						name: 'TestHive',
 						alveoli: [
 							{ coord: [0, 0], alveolus: 'storage', goods: {} },
-							{ coord: [1, 0], alveolus: 'pile', goods: {} },
+							{ coord: [1, 0], alveolus: 'pile', variant: 'wood', goods: {} },
 						],
 					},
 				],

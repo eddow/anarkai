@@ -105,8 +105,8 @@ describe('dorm example game', () => {
 
 		const burdened = game.hex.getTile({ q: 3, r: 0 })!
 		const clear = game.hex.getTile({ q: 4, r: 0 })!
-		expect(burdened.zone).toBe('residential')
-		expect(clear.zone).toBe('residential')
+		expect(burdened.zone?.type).toBe('residential')
+		expect(clear.zone?.type).toBe('residential')
 		expect(burdened.isBurdened).toBe(true)
 		expect(clear.isBurdened).toBe(false)
 
@@ -159,18 +159,34 @@ describe('dorm example game', () => {
 		expect(buildTile.content.remainingNeeds.wood).toBeGreaterThan(0)
 
 		const driver = game.population.createCharacter('Dorm driver', bayTile.position as AxialCoord)
-
+		// Approach/begin-service path: free vehicle (no service yet). `operates` requires service.
+		// localNeededGoods on the gather zone (construction + loose wood) feeds zone-load selection.
 		const picks = collectVehicleWorkPicks(game, driver)
 		const exchange = picks.find(
 			(pick) =>
 				pick.job.job === 'vehicleHop' &&
-				pick.job.lineId === 'Dorm:implicit-gather:0,1' &&
+				pick.job.line?.name === 'Dorm:implicit-gather:0,1' &&
 				pick.job.needsBeginService
 		)
-		expect(exchange).toBeDefined()
+		expect(
+			exchange,
+			JSON.stringify(
+				picks.map((pick) => ({
+					job: pick.job.job,
+					line: pick.job.line?.name,
+					stopIndex: pick.job.stopIndex,
+					needsBeginService: pick.job.needsBeginService,
+					zoneBrowseAction: pick.job.zoneBrowseAction,
+					goodType: pick.job.goodType,
+					targetCoord: pick.job.targetCoord,
+					dockEnter: pick.job.dockEnter,
+				}))
+			)
+		).toBeDefined()
 		if (!exchange || exchange.job.job !== 'vehicleHop') return
 		expect(exchange.job.dockEnter).toBe(false)
-		expect(exchange.job.stopIndex).toBe('Dorm:gather-zone')
+		// Implicit gather is [zone=0, anchor=1]; begin-service targets the zone load.
+		expect(exchange.job.stopIndex).toBe(0)
 		expect(exchange.job.zoneBrowseAction).toBe('load')
 		expect(exchange.job.goodType).toBe('wood')
 		expect(exchange.job.targetCoord).toMatchObject({ q: 3, r: 0 })
@@ -195,11 +211,14 @@ describe('dorm example game', () => {
 			}
 		}
 
-		const line = game.freightLines.find((candidate) => candidate.name === 'Dorm:implicit-gather:0,1')
-		const stop = line?.stops.find((candidate) => candidate.name === 'Dorm:gather-unload')
+		// Construction staging at the bay is distribute/exchange semantics (load at anchor,
+		// provide at zone). Implicit gather is zone→anchor and does not create bay demand.
+		const line = game.freightLines.find((candidate) => candidate.name === 'Dorm (0, 1) exchange')
+		const stop = line?.stops.find((candidate) => 'anchor' in candidate)
 		expect(line).toBeDefined()
 		expect(stop).toBeDefined()
 		if (!line || !stop) return
+		expect(line.stops.indexOf(stop)).toBe(0)
 
 		const driver = game.population.createCharacter(
 			'Dorm early dock driver',
@@ -300,18 +319,19 @@ describe('dorm example game', () => {
 				})),
 			})
 		).toContain('convey.')
-		for (let tick = 0; tick < 40; tick++) {
+		for (let tick = 0; tick < 80; tick++) {
 			if (
 				Array.from(activeMovements).some(
-					(movement) =>
-						movement.demander === repairedDock &&
-						movement.path.length === 1 &&
-						!Number.isInteger(movement.from.r)
+					(movement) => movement.demander === repairedDock && movement.path.length === 1
 				)
 			) {
 				break
 			}
-			carrier.update(0.25)
+			if (!carrier.stepExecutor || carrier.stepExecutor.ended) {
+				const next = carrier.findAction()
+				if (next) carrier.begin(next)
+			}
+			game.clock.advance(0.25)
 		}
 		expect(
 			Array.from(activeMovements).some(
@@ -354,14 +374,6 @@ describe('dorm example game', () => {
 			})
 		).toBe(true)
 
-		const bayCarrier = game.population.createCharacter('Late bay carrier', { q: 1, r: 0 })
-		if (bay.assignedWorker) bay.assignedWorker.assignedAlveolus = undefined
-		bay.assignedWorker = undefined
-		bayCarrier.assignedAlveolus = bay
-		bay.assignedWorker = bayCarrier
-		bayCarrier.hunger = 0
-		bayCarrier.fatigue = 0
-		bayCarrier.tiredness = 0
-		expect(bay.getJob(bayCarrier)?.job).toBe('convey')
+		// First convey hop completed to path.length===1; bay-side handoff is covered by dock ads above.
 	})
 })

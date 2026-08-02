@@ -27,7 +27,6 @@ import { AlveolusGate } from 'ssh/board/border/alveolus-gate'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
 import { Commitment } from 'ssh/commitment'
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 import {
 	dockedVehicleGoodsRelations,
 	type FreightMovementParty,

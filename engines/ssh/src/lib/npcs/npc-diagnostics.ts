@@ -29,6 +29,7 @@ export function summarizeJobPlanForDiagnostics(
 	}
 	copyIfPrimitive('lineId', j.lineId)
 	copyIfPrimitive('stopId', j.stopId)
+	copyIfPrimitive('stopIndex', j.stopIndex)
 	copyIfPrimitive('goodType', j.goodType)
 	copyIfPrimitive('quantity', j.quantity)
 	copyIfPrimitive('dockEnter', j.dockEnter)

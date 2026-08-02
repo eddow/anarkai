@@ -53,7 +53,7 @@ describe('docked vehicle collectors', () => {
 
 		const stop = stopAt(0, 0)
 		const otherStop = stopAt(6, 0)
-		const line: FreightLineDefinition = { id: 'line-1', name: 'Line 1', stops: [stop, otherStop] }
+		const line: FreightLineDefinition = { name: 'Line 1', stops: [stop, otherStop] }
 
 		const docked = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
 		docked.beginLineService(line, stop)
@@ -71,9 +71,9 @@ describe('docked vehicle collectors', () => {
 
 		const entries = collectDockedVehiclesForBay(game, bayA)
 
-		expect(entries.map((entry) => debugObjectId(entry.vehicle))).toEqual(['docked'])
-		expect(entries[0]?.line).toBe(line)
-		expect(entries[0]?.stop).toBe(stop)
+		expect(entries.map((entry) => debugObjectId(entry.vehicle))).toEqual([debugObjectId(docked)])
+		expect(entries[0]?.line).toEqual(line)
+		expect(entries[0]?.stop).toEqual(stop)
 	})
 
 	it('collects docked vehicles physically attached to the selected hive', async () => {
@@ -91,7 +91,7 @@ describe('docked vehicle collectors', () => {
 
 		const stopA = stopAt(0, 0)
 		const stopB = stopAt(6, 0)
-		const line: FreightLineDefinition = { id: 'line-1', name: 'Line 1', stops: [stopA, stopB] }
+		const line: FreightLineDefinition = { name: 'Line 1', stops: [stopA, stopB] }
 
 		const dockedInHive = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
 		dockedInHive.beginLineService(line, stopA)
@@ -112,8 +112,10 @@ describe('docked vehicle collectors', () => {
 
 		const entries = collectDockedVehiclesForHive(game, bayA.hive)
 
-		expect(entries.map((entry) => debugObjectId(entry.vehicle))).toEqual(['hive-a-docked'])
-		expect(entries[0]?.line).toBe(line)
-		expect(entries[0]?.stop).toBe(stopA)
+		expect(entries.map((entry) => debugObjectId(entry.vehicle))).toEqual([
+			debugObjectId(dockedInHive),
+		])
+		expect(entries[0]?.line).toEqual(line)
+		expect(entries[0]?.stop).toEqual(stopA)
 	})
 })

@@ -305,8 +305,7 @@ describe('Character vehicle seam', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 })
-		const vehicle = [...game.vehicles].find((v: any) => debugObjectId(v) === 'v-far')!
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [], 'v-far')
 		const character = game.population.createCharacter('Cyd', { q: 0, r: 0 })
 		vehicle.beginOffloadService(character)
 		character.operates = vehicle
@@ -678,8 +677,10 @@ describe('Character vehicle seam', () => {
 		} as any
 		try {
 			releaseVehicleFreightWorkOnPlanInterrupt(character)
+			expect(log).toHaveBeenCalledWith('vehicleJob.offboard.keepService', {
+				characterUid: debugObjectId(character),
+			})
 			expect(log).toHaveBeenCalledWith('vehicle freight operator released on plan interrupt', {
-				vehicle,
 				characterUid: debugObjectId(character),
 				stillHasService: true,
 			})
@@ -723,8 +724,10 @@ describe('Character vehicle seam', () => {
 		} as any
 		try {
 			releaseVehicleFreightWorkOnPlanInterrupt(character)
+			expect(log).toHaveBeenCalledWith('vehicleJob.offboard.keepService', {
+				characterUid: debugObjectId(character),
+			})
 			expect(log).toHaveBeenCalledWith('vehicle freight operator released on plan interrupt', {
-				vehicle,
 				characterUid: debugObjectId(character),
 				stillHasService: true,
 			})

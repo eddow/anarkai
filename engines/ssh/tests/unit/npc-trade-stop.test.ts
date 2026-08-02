@@ -9,10 +9,16 @@ import { TestEngine } from '../test-engine'
 
 const tradeProfile: NpcSettlementTradeProfile = {
 	regionSetKey: '0,0',
+	id: 'settlement-4,0',
 	name: 'Neighbor market',
 	kind: 'village',
 	center: { q: 4, r: 0 },
 	radius: 2,
+	cityHall: {
+		kind: 'city_hall',
+		name: 'Neighbor market City Hall',
+		position: { q: 4, r: 0 },
+	},
 	offers: [
 		{ good: 'concrete', direction: 'sell', priceVp: 10 },
 		{ good: 'wood', direction: 'buy', priceVp: 3 },
@@ -20,9 +26,7 @@ const tradeProfile: NpcSettlementTradeProfile = {
 }
 
 function installTradeProfile(game: Game): void {
-	;(
-		game as unknown as { settlementTradeProfiles: Map<string, NpcSettlementTradeProfile> }
-	).settlementTradeProfiles.set(tradeProfile.id, tradeProfile)
+	game.registerSettlementTradeProfile(tradeProfile)
 }
 
 function marketLine(patch: Partial<FreightLineDefinition> = {}): FreightLineDefinition {
@@ -31,7 +35,7 @@ function marketLine(patch: Partial<FreightLineDefinition> = {}): FreightLineDefi
 		cyclic: true,
 		stops: [
 			{
-				trade: { kind: 'settlement', settlementName: tradeProfile.id },
+				trade: { kind: 'settlement', settlementId: tradeProfile.id, profile: undefined! },
 			},
 			{
 				anchor: {
@@ -130,7 +134,7 @@ describe('NPC trade freight stops', () => {
 			minBalanceAfterBuyVp: 95,
 			stops: [
 				{
-					trade: { kind: 'settlement', settlementName: tradeProfile.id },
+					trade: { kind: 'settlement', settlementId: tradeProfile.id, profile: undefined! },
 					unloadSelection: migrateV1FiltersToGoodsSelection(['wood']),
 				},
 				marketLine().stops[1]!,

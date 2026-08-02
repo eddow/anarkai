@@ -45,7 +45,7 @@ describe('work.npcs dispatch', () => {
 			job: 'vehicleHop' as const,
 			target: vehicle,
 			vehicle,
-			lineId: debugObjectId(line),
+			line: line,
 			stopIndex: 0,
 			urgency: 1,
 			fatigue: 0,

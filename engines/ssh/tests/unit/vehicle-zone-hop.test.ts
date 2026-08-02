@@ -109,7 +109,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find((candidate) => candidate.name === 'BorderDock:line')!
+		const line = game.freightLines.find((candidate) => candidate.name === 'Border dock')!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0.5, r: 0 }, [line])
 		const character = game.population.createCharacter('BorderDockWorker', { q: 0, r: 0 })
 		vehicle.beginLineService(line, line.stops[0]!, character)
@@ -147,7 +147,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find((candidate) => candidate.name === 'AdjacentDock:line')!
+		const line = game.freightLines.find((candidate) => candidate.name === 'Adjacent dock')!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('AdjacentDockWorker', { q: 0, r: 0 })
 		vehicle.beginLineService(line, line.stops[0]!, character)
@@ -189,7 +189,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find((candidate) => candidate.name === 'CompletedDock:line')!
+		const line = game.freightLines.find((candidate) => candidate.name === 'Completed dock line')!
 		const stop = line.stops[0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('CompletedDockWorker', { q: 0, r: 0 })
@@ -237,7 +237,7 @@ describe('Vehicle zone hop semantics', () => {
 		game.ticker.stop()
 
 		const gather = game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus
-		const line = game.freightLines.find((l) => l.name === 'HiveVH (0, 0) gather')!
+		const line = game.freightLines.find((l) => l.name === 'Gather')!
 		const zoneStop = gatherZoneLoadStopForBay(line, gather)
 		expect(zoneStop).toBeDefined()
 
@@ -707,7 +707,7 @@ describe('Vehicle zone hop semantics', () => {
 			.hive
 		expect((bayHive?.needs as { wood?: unknown } | undefined)?.wood).toBeDefined()
 
-		const line = game.freightLines.find((candidate) => candidate.name === 'VH:local-before-hive')!
+		const line = game.freightLines.find((candidate) => candidate.name === 'Local before hive')!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [line])
 		const character = game.population.createCharacter('LocalBeforeHive', { q: 1, r: 0 })
 		vehicle.beginLineService(line, line.stops[0]!, character)
@@ -792,13 +792,14 @@ describe('Vehicle zone hop semantics', () => {
 			'basic_dwelling'
 		)
 
-		const line = game.freightLines.find((candidate) => candidate.name === 'VH:cyclic-local')!
+		const line = game.freightLines.find((candidate) => candidate.name === 'Cyclic local')!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 2, r: 0 }, [line])
 		const character = game.population.createCharacter('CyclicLocal', { q: 2, r: 0 })
 
 		const pick = pickInitialVehicleServiceCandidate(game, character, vehicle)
 		expect(pick?.line).toBe(line)
-		expect(pick?.stop).toBe('zone')
+		expect(pick?.stop).toBe(line.stops[1]!)
+		expect(pick?.stop && 'zone' in pick.stop).toBe(true)
 	})
 
 	it('does not skip a cyclic zone halt that can still load after an empty bay halt', async () => {
@@ -841,7 +842,7 @@ describe('Vehicle zone hop semantics', () => {
 			'basic_dwelling'
 		)
 
-		const line = game.freightLines.find((candidate) => candidate.name === 'VH:empty-bay-keeps-zone')!
+		const line = game.freightLines.find((candidate) => candidate.name === 'Empty bay keeps zone')!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('EmptyBayKeepsZone', { q: 0, r: 0 })
 		vehicle.beginLineService(line, line.stops[0]!, character)
@@ -849,7 +850,10 @@ describe('Vehicle zone hop semantics', () => {
 
 		maybeAdvanceVehicleFromCompletedAnchorStop(game, vehicle)
 
-		expect(isVehicleLineService(vehicle.service) && vehicle.service).toBe('zone')
+		expect(isVehicleLineService(vehicle.service)).toBe(true)
+		if (!isVehicleLineService(vehicle.service)) throw new Error('Expected line service')
+		expect(vehicle.service.stop).toBe(line.stops[1]!)
+		expect('zone' in vehicle.service.stop).toBe(true)
 	})
 
 	it('work-plan finalizer releases a line operator while preserving unfinished service', async () => {
@@ -882,7 +886,7 @@ describe('Vehicle zone hop semantics', () => {
 			vehicle,
 			target: vehicle,
 			path: [],
-			lineId: debugObjectId(line),
+			line: line,
 			stopIndex: 0,
 			zoneBrowseAction: 'load',
 			goodType: 'wood',
@@ -901,12 +905,13 @@ describe('Vehicle zone hop semantics', () => {
 
 		character.scriptsContext.plan.finally(plan as any)
 
-		expect(character.operates).toBeUndefined()
-		expect(vehicle.operator).toBeUndefined()
+		// Normal vehicle work plans keep the operator link so consecutive same-vehicle plans reuse it.
+		expect(character.operates).toBe(vehicle)
+		expect(vehicle.operator).toBe(character)
 		const serviceAfterRelease = vehicle.service
 		expect(isVehicleLineService(serviceAfterRelease)).toBe(true)
 		if (!isVehicleLineService(serviceAfterRelease)) throw new Error('Expected line service')
-		expect(serviceAfterRelease).toBe(stop)
+		expect(serviceAfterRelease.stop).toBe(stop)
 	})
 
 	it('work-plan finalizer preserves unfinished maintenance service for another operator', async () => {
@@ -941,8 +946,9 @@ describe('Vehicle zone hop semantics', () => {
 
 		character.scriptsContext.plan.finally(plan as any)
 
-		expect(character.operates).toBeUndefined()
-		expect(vehicle.operator).toBeUndefined()
+		// Normal vehicle work plans keep the operator link; unfinished maintenance stays attached.
+		expect(character.operates).toBe(vehicle)
+		expect(vehicle.operator).toBe(character)
 		const serviceAfterRelease = vehicle.service
 		expect(isVehicleMaintenanceService(serviceAfterRelease)).toBe(true)
 		if (!isVehicleMaintenanceService(serviceAfterRelease))
@@ -1050,7 +1056,7 @@ describe('Vehicle zone hop semantics', () => {
 			vehicle,
 			target: vehicle,
 			path: [],
-			lineId: debugObjectId(line),
+			line: line,
 			stopIndex: 0,
 			zoneBrowseAction: 'load',
 			goodType: 'wood',
@@ -1102,7 +1108,7 @@ describe('Vehicle zone hop semantics', () => {
 			vehicle,
 			target: vehicle,
 			path: [],
-			lineId: debugObjectId(line),
+			line: line,
 			stopIndex: 0,
 			zoneBrowseAction: 'load',
 			goodType: 'wood',
@@ -1122,7 +1128,7 @@ describe('Vehicle zone hop semantics', () => {
 		expect(vehicle.operator).toBe(character)
 		expect(isVehicleLineService(vehicle.service)).toBe(true)
 		if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
-		expect(vehicle.service).toBe(stop)
+		expect(vehicle.service.stop).toBe(stop)
 	})
 
 	it('non-vehicle work plan releases stale vehicle usage before preparing work', async () => {
@@ -1165,7 +1171,7 @@ describe('Vehicle zone hop semantics', () => {
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [])
 		const character = game.population.createCharacter('SelfCare', { q: 0, r: 0 })
 		bindOperatedWheelbarrowOffload(character, vehicle)
-		character.onboard()
+		// Linked operator but not driving: moving vehicles block eat/home/wander selection.
 		character.hunger = character.triggerLevels.hunger.critical + 1
 
 		const action = character.findAction()
@@ -1247,8 +1253,8 @@ describe('Vehicle zone hop semantics', () => {
 
 		const hop = findVehicleHopJob(game, character)
 		expect(hop?.job).toBe('vehicleHop')
-		expect(hop?.lineId).toBe(line.id)
-		expect(hop?.stopIndex).toBe(unload)
+		expect(hop?.line).toBe(line)
+		expect(hop?.stopIndex).toBe(line.stops.indexOf(unload))
 		expect(hop?.dockEnter).toBe(true)
 	})
 
@@ -1278,13 +1284,17 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		// Pick the explicit non-cyclic gather line, not the bootstrap implicit cyclic one.
+		const line = game.freightLines.find((l) => l.name === 'No zone target')!
+		if (!line) throw new Error('expected explicit No zone target line')
+		expect(line.cyclic).toBeFalsy()
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		vehicle.beginLineService(line, line.stops[0]!)
 		const character = game.population.createCharacter('NoZoneTarget', { q: 2, r: 0 })
 
 		const projected = projectedLineStopForVehicleHop(game, character, vehicle)
-		expect(projected?.stop).toBe(1)
+		expect(projected?.stop).toBe(line.stops[1]!)
+		expect(projected?.line.stops.indexOf(projected.stop)).toBe(1)
 		const hop = findVehicleHopJob(game, character)
 		expect(hop?.job).toBe('vehicleHop')
 		expect(hop?.stopIndex).toBe(1)
@@ -1300,8 +1310,9 @@ describe('Vehicle zone hop semantics', () => {
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
-		const unload = line.stops[1]
-		if (!unload) throw new Error('expected ChopSaw unload stop')
+		// ChopSaw gather is cyclic [anchor=0, zone=1]; unload/dock is the bay anchor.
+		const unload = line.stops[0]
+		if (!unload || !('anchor' in unload)) throw new Error('expected ChopSaw unload anchor stop')
 		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
 		// Sub-hex coords from a live ChopSaw play session (wheelbarrow mid-hex after walk.enter).
@@ -1312,7 +1323,7 @@ describe('Vehicle zone hop semantics', () => {
 
 		const hop = findVehicleHopJob(game, character)
 		expect(hop?.job).toBe('vehicleHop')
-		expect(hop?.stopIndex).toBe(unload)
+		expect(hop?.stopIndex).toBe(line.stops.indexOf(unload))
 		expect(hop?.dockEnter).toBe(true)
 		expect(hop?.path.length).toBeGreaterThan(0)
 	})
@@ -1326,8 +1337,9 @@ describe('Vehicle zone hop semantics', () => {
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
-		const load = line.stops[0]
-		const unload = line.stops[1]
+		// ChopSaw gather: load zone = stops[1], unload anchor = stops[0].
+		const unload = line.stops[0]
+		const load = line.stops[1]
 		if (!load || !unload) throw new Error('expected ChopSaw load/unload stops')
 		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
@@ -1347,10 +1359,12 @@ describe('Vehicle zone hop semantics', () => {
 		vehicle.storage.addGood('wood', 1)
 		maybeAdvanceVehiclePastCompletedZoneStop(game, vehicle, character)
 
-		expect(isVehicleLineService(vehicle.service) && vehicle.service).toBe(unload)
+		expect(isVehicleLineService(vehicle.service)).toBe(true)
+		if (!isVehicleLineService(vehicle.service)) throw new Error('Expected line service')
+		expect(vehicle.service.stop).toBe(unload)
 		const hop = findVehicleHopJob(game, character)
 		expect(hop?.job).toBe('vehicleHop')
-		expect(hop?.stopIndex).toBe(unload)
+		expect(hop?.stopIndex).toBe(line.stops.indexOf(unload))
 		expect(hop?.dockEnter).toBe(true)
 	})
 
@@ -1363,8 +1377,8 @@ describe('Vehicle zone hop semantics', () => {
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
-		const load = line.stops[0]
-		if (!load) throw new Error('expected ChopSaw load stop')
+		const load = line.stops[1]
+		if (!load || !('zone' in load)) throw new Error('expected ChopSaw load zone stop')
 		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
 		const character = game.population.createCharacter('ChopSawSecondLoad', { q: -5, r: 1 })
@@ -1379,10 +1393,12 @@ describe('Vehicle zone hop semantics', () => {
 		maybeAdvanceVehiclePastCompletedZoneStop(game, vehicle, character)
 		character.stepOffVehicleKeepingControl()
 
-		expect(isVehicleLineService(vehicle.service) && vehicle.service).toBe(load)
+		expect(isVehicleLineService(vehicle.service)).toBe(true)
+		if (!isVehicleLineService(vehicle.service)) throw new Error('Expected line service')
+		expect(vehicle.service.stop).toBe(load)
 		const browse = findZoneBrowseJob(game, character)
 		expect(browse?.job).toBe('zoneBrowse')
-		expect(browse?.stopIndex).toBe(load)
+		expect(browse?.stopIndex).toBe(line.stops.indexOf(load))
 		expect(browse?.zoneBrowseAction).toBe('load')
 		expect(browse?.goodType).toBe('wood')
 		expect(browse?.targetCoord).toMatchObject({ q: -4, r: 1 })
@@ -1418,7 +1434,7 @@ describe('Vehicle zone hop semantics', () => {
 		const constructionTile = game.hex.getTile({ q: 0, r: -1 })!
 		constructionTile.content = new BuildDwelling(constructionTile, 'basic_dwelling')
 		const line = game.freightLines.find(
-			(candidate) => candidate.name === 'ZoneEmptyUnloadH:distribute'
+			(candidate) => candidate.name === 'Zone empty unload'
 		)!
 		const unload = line.stops[1]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: -1 }, [line])
@@ -1426,7 +1442,9 @@ describe('Vehicle zone hop semantics', () => {
 		vehicle.beginLineService(line, unload, character)
 		character.operates = vehicle
 
-		expect(isVehicleLineService(vehicle.service) && vehicle.service).toBe(unload)
+		expect(isVehicleLineService(vehicle.service)).toBe(true)
+		if (!isVehicleLineService(vehicle.service)) throw new Error('Expected line service')
+		expect(vehicle.service.stop).toBe(unload)
 		expect('zone' in unload).toBe(true)
 		maybeAdvanceVehiclePastCompletedZoneStop(game, vehicle, character)
 
@@ -1447,7 +1465,8 @@ describe('Vehicle zone hop semantics', () => {
 
 		const hop = findVehicleHopJob(game, character)
 		expect(hop?.job).toBe('vehicleHop')
-		expect(hop?.stopIndex).toBe('ChopSaw:ig-load')
+		// Begin-service hop targets the gather zone stop (index 1 on ChopSaw gather).
+		expect(hop?.stopIndex).toBe(1)
 		expect(hop?.zoneBrowseAction).toBe('load')
 		expect(hop?.targetCoord).toMatchObject({ q: 9, r: -7 })
 		expect(hop?.goodType).toBe('wood')
@@ -1467,8 +1486,8 @@ describe('Vehicle zone hop semantics', () => {
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
-		const load = line.stops[0]
-		const unload = line.stops[1]
+		const unload = line.stops[0]
+		const load = line.stops[1]
 		if (!load || !unload) throw new Error('expected ChopSaw load/unload stops')
 		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		if (!vehicle) throw new Error('expected ChopSaw wheelbarrow')
@@ -1485,7 +1504,7 @@ describe('Vehicle zone hop semantics', () => {
 
 		const hop = findVehicleHopJob(game, character)
 		expect(hop?.job).toBe('vehicleHop')
-		expect(hop?.stopIndex).toBe(unload)
+		expect(hop?.stopIndex).toBe(line.stops.indexOf(unload))
 		expect(hop?.dockEnter).toBe(true)
 	})
 
@@ -1524,7 +1543,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find((candidate) => candidate.name === 'EndRouteH:exchange')!
+		const line = game.freightLines.find((candidate) => candidate.name === 'Exchange')!
 		const zone = line.stops[1]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		vehicle.beginLineService(line, zone)

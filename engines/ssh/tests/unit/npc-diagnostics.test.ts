@@ -37,14 +37,14 @@ describe('npc-diagnostics', () => {
 				job: 'vehicleHop',
 				type: 'work',
 
-								stopIndex: 'S',
+								stopIndex: 0,
 				dockEnter: false,
 			})
 		).toEqual({
 			job: 'vehicleHop',
 			type: 'work',
 
-						stopIndex: 'S',
+						stopIndex: 0,
 			dockEnter: false,
 		})
 	})

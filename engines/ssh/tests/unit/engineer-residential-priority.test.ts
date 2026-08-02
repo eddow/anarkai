@@ -41,7 +41,7 @@ describe('EngineerAlveolus.nextJob residential construction priority', () => {
 				hives: [
 					{
 						name: 'EngHive',
-						alveoli: [{ coord: [0, 0], alveolus: 'engineer' }],
+						alveoli: [{ coord: [0, 0], alveolus: 'engineer', variant: 'building' }],
 					},
 				],
 			}
@@ -239,12 +239,12 @@ describe('EngineerAlveolus.nextJob residential construction priority', () => {
 		character.begin(action as ScriptExecution)
 
 		expect(character.stepExecutor?.description).toBe('prepare.foundation')
-		character.update(1)
+		game.clock.advance(1)
 
 		expect(character.stepExecutor?.description).not.toBe('prepare.foundation')
 		expect(tileNear.content).toBe(land)
 		for (let i = 0; i < 80 && !(tileNear.content instanceof BuildDwelling); i++) {
-			character.update(0.25)
+			game.clock.advance(0.25)
 		}
 
 		expect(tileNear.content).toBeInstanceOf(BuildDwelling)

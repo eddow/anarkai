@@ -38,7 +38,7 @@ describe('tile work picks', () => {
 
 		expect(transform).toBeDefined()
 		expect(transform?.source).toBe('tile')
-		expect(transform?.character.uid).toBe(debugObjectId(worker))
+		expect(transform?.character).toBe(worker)
 		expect(transform?.targetTile).toBe(tile)
 	})
 
@@ -98,7 +98,7 @@ describe('tile work picks', () => {
 
 		expect(transform).toBeDefined()
 		expect(transform?.source).toBe('tile')
-		expect(transform?.character.uid).toBe(debugObjectId(worker))
+		expect(transform?.character).toBe(worker)
 	})
 
 	it('reuses cached tile work choices and pathfinding until work planning changes', async () => {
@@ -152,8 +152,8 @@ describe('tile work picks', () => {
 		)
 
 		expect(offload).toBeDefined()
-		expect(offload?.character.uid).toBe(debugObjectId(worker))
-		expect(offload?.vehicle?.uid).toBe(debugObjectId(vehicle))
+		expect(offload?.character).toBe(worker)
+		expect(offload?.vehicle).toBe(vehicle)
 		if (offload?.job.job !== 'vehicleOffload') throw new Error('expected vehicleOffload pick')
 		expect(offload.job.maintenanceKind).toBe('loadFromBurden')
 		expect(offload.job.targetCoord).toEqual({ q: 1, r: 0 })

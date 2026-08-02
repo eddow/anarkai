@@ -31,8 +31,20 @@ describe('findVehicleApproachJob', () => {
 				tiles: [
 					{ coord: [0, 0] as const, terrain: 'grass' as const },
 					{ coord: [1, 0] as const, terrain: 'grass' as const },
+					{ coord: [2, 0] as const, terrain: 'grass' as const },
+				],
+				hives: [
+					{
+						name: 'H',
+						alveoli: [
+							{ coord: [1, 0] as const, alveolus: 'freight_bay' as const, goods: {} },
+							// Transform demand gives unload sink room so zone-load begin-service is actionable.
+							{ coord: [2, 0] as const, alveolus: 'sawmill' as const, goods: {} },
+						],
+					},
 				],
 				freightLines: [line],
+				looseGoods: { wood: [[0, 0]] },
 			}
 		)
 		await game.loaded
@@ -60,8 +72,23 @@ describe('findVehicleApproachJob', () => {
 		game = new Game(
 			{ terrainSeed: 9401, characterCount: 0 },
 			{
-				tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
+				tiles: [
+					{ coord: [0, 0] as const, terrain: 'grass' as const },
+					{ coord: [1, 0] as const, terrain: 'grass' as const },
+					{ coord: [0, 1] as const, terrain: 'grass' as const },
+				],
+				hives: [
+					{
+						name: 'H',
+						alveoli: [
+							{ coord: [0, 0] as const, alveolus: 'freight_bay' as const, goods: {} },
+							{ coord: [1, 0] as const, alveolus: 'sawmill' as const, goods: {} },
+						],
+					},
+				],
 				freightLines: [line],
+				// Loose wood on a free tile inside radius (not under the sawmill).
+				looseGoods: { wood: [[0, 1]] },
 			}
 		)
 		await game.loaded
@@ -90,13 +117,23 @@ describe('findVehicleApproachJob', () => {
 			filters: ['wood'],
 			radius: 2,
 		})
+		const corridor = Array.from({ length: 9 }, (_, q) => ({
+			coord: [q, 0] as const,
+			terrain: 'grass' as const,
+		}))
 		game = new Game(
 			{ terrainSeed: 9402, characterCount: 0 },
 			{
-				tiles: [
-					{ coord: [0, 0] as const, terrain: 'grass' as const },
-					{ coord: [1, 0] as const, terrain: 'grass' as const },
-					{ coord: [8, 0] as const, terrain: 'grass' as const },
+				tiles: corridor,
+				hives: [
+					{
+						name: 'H',
+						alveoli: [
+							{ coord: [0, 0] as const, alveolus: 'freight_bay' as const, goods: {} },
+							{ coord: [8, 0] as const, alveolus: 'freight_bay' as const, goods: {} },
+							{ coord: [1, 0] as const, alveolus: 'sawmill' as const, goods: {} },
+						],
+					},
 				],
 				freightLines: [far, near],
 			}
@@ -104,8 +141,17 @@ describe('findVehicleApproachJob', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [far, near])
-		vehicle.beginLineService(far, far.stops[1]!)
+		const farLine = game.freightLines.find((l) => l.name === 'Far')!
+		const nearLine = game.freightLines.find((l) => l.name === 'Near')!
+		expect(farLine).toBeDefined()
+		expect(nearLine).toBeDefined()
+
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [
+			farLine,
+			nearLine,
+		])
+		// Active service already on far unload anchor — re-approach must keep that line.
+		vehicle.beginLineService(farLine, farLine.stops[1]!)
 		expect(isVehicleLineService(vehicle.service)).toBe(true)
 		vehicle.releaseOperator()
 
@@ -115,7 +161,10 @@ describe('findVehicleApproachJob', () => {
 		expect(job?.job).toBe('vehicleHop')
 		expect(job?.approachPath).toBeDefined()
 		expect(job?.needsBeginService).toBeUndefined()
-		expect(job?.lineId).toBe(far.id)
+		// Keep Far (active service), not Near — compare by name because hop planning may
+		// surface a normalized line object rather than the exact servedLines reference.
+		expect(job?.line?.name).toBe('Far')
+		expect(job?.line?.name).not.toBe('Near')
 		expect(job?.stopIndex).toBe(1)
 	})
 
@@ -133,11 +182,15 @@ describe('findVehicleApproachJob', () => {
 				tiles: [
 					{ coord: [0, 0] as const, terrain: 'grass' as const },
 					{ coord: [1, 0] as const, terrain: 'grass' as const },
+					{ coord: [2, 0] as const, terrain: 'grass' as const },
 				],
 				hives: [
 					{
 						name: 'H',
-						alveoli: [{ coord: [1, 0] as const, alveolus: 'sawmill' as const, goods: {} }],
+						alveoli: [
+							{ coord: [1, 0] as const, alveolus: 'freight_bay' as const, goods: {} },
+							{ coord: [2, 0] as const, alveolus: 'sawmill' as const, goods: {} },
+						],
 					},
 				],
 				freightLines: [line],
@@ -227,7 +280,10 @@ describe('findVehicleApproachJob', () => {
 
 		expect(isVehicleLineService(vehicle.service)).toBe(true)
 		if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
-		expect(vehicle.service?.line?.stops[1]).toBe(line.stops[1])
+		// Compare against the service line's own stop list (fixture line may be a distinct object
+		// after bootstrap normalize / vehicle servedLines copy).
+		expect(vehicle.service.line.stops.indexOf(vehicle.service.stop)).toBe(1)
+		expect(vehicle.service.stop).toEqual(vehicle.service.line.stops[1])
 		expect(character.operates).toBe(vehicle)
 	})
 
@@ -246,7 +302,14 @@ describe('findVehicleApproachJob', () => {
 					{ coord: [0, 0] as const, terrain: 'grass' as const },
 					{ coord: [1, 0] as const, terrain: 'grass' as const },
 				],
+				hives: [
+					{
+						name: 'H',
+						alveoli: [{ coord: [0, 0] as const, alveolus: 'freight_bay' as const, goods: {} }],
+					},
+				],
 				freightLines: [line],
+				looseGoods: { wood: [[1, 0]] },
 			}
 		)
 		await game.loaded
@@ -264,7 +327,7 @@ describe('findVehicleApproachJob', () => {
 			urgency: 1,
 			fatigue: 1,
 			vehicle,
-			lineId: debugObjectId(line),
+			line: line,
 			stopIndex: 0,
 			path: [],
 			dockEnter: false,

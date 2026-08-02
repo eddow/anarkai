@@ -55,8 +55,8 @@ function makeNode(overrides: Partial<RuntimeQueueNode> = {}): RuntimeQueueNode {
 	} as RuntimeQueueNode
 }
 
-function makeVehicle(uid: string) {
-	return { uid, vehicleType: 'wheelbarrow' } as any
+function makeVehicle(label: string) {
+        return { label, vehicleType: 'wheelbarrow' } as any
 }
 
 function capturedGrant(controller: BayQueueController): MovementGrant | undefined {
@@ -73,7 +73,7 @@ describe('merge policies', () => {
 		const c = makeRequest({ vehicle: makeVehicle('C'), arrivedAt: 200, priority: 1 })
 
 		const result = applyMergePolicy([a, b, c], { kind: 'priority_then_fifo' })
-		expect(result.ordered.map((r) => r.vehicle.uid)).toEqual(['B', 'A', 'C'])
+		expect(result.ordered.map((r) => r.vehicle.label)).toEqual(['B', 'A', 'C'])
 	})
 
 	it('globalFifo orders by arrival time only', () => {
@@ -82,7 +82,7 @@ describe('merge policies', () => {
 		const c = makeRequest({ vehicle: makeVehicle('C'), arrivedAt: 200, priority: 50 })
 
 		const result = applyMergePolicy([a, b, c], { kind: 'global_fifo' })
-		expect(result.ordered.map((r) => r.vehicle.uid)).toEqual(['B', 'A', 'C'])
+		expect(result.ordered.map((r) => r.vehicle.label)).toEqual(['B', 'A', 'C'])
 	})
 
 	it('roundRobinByBranch alternates between branches', () => {
@@ -97,15 +97,14 @@ describe('merge policies', () => {
 			{ branchList, branchIndex: 0 }
 		)
 		expect(r0.selectedBranch).toBe('north')
-		expect(r0.ordered[0].vehicle.uid).toBe('A')
-
+                expect(r0.ordered[0].vehicle.label).toBe('A')
 		const r1 = applyMergePolicy(
 			[a, b, c],
 			{ kind: 'round_robin_by_branch' },
 			{ branchList, branchIndex: 1 }
 		)
 		expect(r1.selectedBranch).toBe('south')
-		expect(r1.ordered[0].vehicle.uid).toBe('B')
+		expect(r1.ordered[0].vehicle.label).toBe('B')
 	})
 
 	it('branchLabel uses ingressBranch over node.branch', () => {

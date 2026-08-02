@@ -66,13 +66,13 @@ describe('Freight bay multi-line', () => {
 			findGatherFreightLines(lines, stop)
 				.map((l) => l.name)
 				.sort()
-		).toEqual(['H:gather-a', 'H:gather-b'])
+		).toEqual(['Gather A', 'Gather B'])
 		expect(
 			findDistributeFreightLines(lines, stop)
 				.map((l) => l.name)
 				.sort()
-		).toEqual(['H:dist-a', 'H:dist-b'])
-		expect(findGatherFreightLine(lines, stop)?.id).toBe('H:gather-a')
+		).toEqual(['Distribute A', 'Distribute B'])
+		expect(findGatherFreightLine(lines, stop)?.name).toBe('Gather A')
 	})
 
 	it('does not store or advertise bay stock from save goods', async () => {

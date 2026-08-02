@@ -14,15 +14,15 @@ import { gatherFreightLine } from '../freight-fixtures'
 import { bindOperatedWheelbarrowOffload } from '../test-engine/vehicle-bind'
 
 function tickUntilAwayFrom(
+	game: Game,
 	character: {
-		update(dt: number): void
 		position: { q: number; r: number } | { x: number; y: number }
 	},
 	origin: { q: number; r: number } | { x: number; y: number }
 ): void {
 	for (let i = 0; i < 80; i++) {
 		if (axialDistance(character.position, origin) > 0.05) return
-		character.update(0.05)
+		game.clock.advance(0.05)
 	}
 }
 
@@ -337,7 +337,7 @@ describe('Vehicle usage invariant', () => {
 		const vehiclePosition = { ...vehicle.position }
 
 		character.begin(character.scriptsContext.selfCare.wander())
-		tickUntilAwayFrom(character, vehiclePosition)
+		tickUntilAwayFrom(game, character, vehiclePosition)
 
 		expect(character.operates).toBeUndefined()
 		expect(axialDistance(character.position, vehiclePosition)).toBeGreaterThan(0.05)
@@ -379,7 +379,7 @@ describe('Vehicle usage invariant', () => {
 		} as const
 
 		character.begin(character.scriptsContext.work.goWork(plan as unknown as WorkPlan))
-		tickUntilAwayFrom(character, vehiclePosition)
+		tickUntilAwayFrom(game, character, vehiclePosition)
 
 		expect(character.operates).toBeUndefined()
 		expect(vehicle.operator).toBeUndefined()

@@ -292,13 +292,17 @@ export function collectDockedVehicleAdvertisementCandidates(
 	if (!future) return []
 	const distLoad = distributeLoadSegmentForAnchor(line, stopIdx)
 	const currentNeeded = measureFreightStopNeededGoods(vehicle.game, line, stopIdx).perGood
+	// Bay may still stage cargo for downstream zone/construction need on cyclic lines
+	// even when this anchor is not a formal distribute pickup (e.g. exchange / gather wrap).
+	const mayLoadForRouteNeed =
+		!!distLoad || Object.keys(future.remainingRouteNeed).length > 0
 	const goods = new Set<GoodType>([
 		...(Object.keys(future.remainingRouteNeed) as GoodType[]),
 		...(Object.keys(future.surplusCargo) as GoodType[]),
 		...(Object.keys(currentNeeded) as GoodType[]),
 	])
 	for (const goodType of goods) {
-		const currentSupply = distLoad ? currentAdvertisedSupply(bay, goodType) : 0
+		const currentSupply = mayLoadForRouteNeed ? currentAdvertisedSupply(bay, goodType) : 0
 		const currentDemand = Math.max(
 			currentAdvertisedDemand(bay, goodType),
 			currentNeeded[goodType] ?? 0
@@ -392,6 +396,10 @@ export function refreshDockedVehicleAdvertisement(
 		!bay.hive.hasActiveFreightVehicleDockMovement(vehicle)
 	) {
 		const canceled = bay.hive.cancelOrphanedFreightVehicleDockAllocations(dock)
+		// Only wipe vehicle virtual goods after we actually canceled orphaned dock
+		// commitments. Reserved cargo for downstream stops must survive a no-movement
+		// refresh; allocated room without a live movement is cleaned only when those
+		// commitments were the backing store.
 		if (canceled > 0 && vehicle.storage.virtualGoodsCount > 0) {
 			const cleared = clearUnbackedVirtualGoods(vehicle)
 			if (cleared > 0) {

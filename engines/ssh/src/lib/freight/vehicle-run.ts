@@ -2,6 +2,7 @@ import { jobBalance } from 'engine-rules'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { debugObjectId } from 'ssh/dev/debug-object-id'
+import { sameRef } from 'ssh/utils/identity'
 import { freightConstructionDemandTarget } from 'ssh/freight/construction-demand'
 import type {
 	FreightLineDefinition,
@@ -22,6 +23,7 @@ import {
 	gatherSegmentAllowsGoodTypeForSegment,
 	nextFreightLineStop,
 } from 'ssh/freight/freight-line'
+import { resolveFreightNpcTradeProfile } from 'ssh/freight/freight-trade-profile'
 import {
 	computeLineFurtherGoods,
 	measureFreightStopNeededGoods,
@@ -55,18 +57,16 @@ import { assert, traces } from '../dev/debug.ts'
 export function vehicleNeedsParkingOnCurrentTile(vehicle: Vehicle): boolean {
 	const here = vehicle.tile
 	const hereCoord = toAxialCoord(here.position)
+	// Only suppress parking while the *current* service stop is this undocked bay anchor.
+	// Being near some other served-line anchor (or finished with an empty cyclic pass while the
+	// live stop is a zone) must still allow park maintenance so the bay tile can clear.
 	if (
 		hereCoord &&
 		!vehicle.isDocked &&
 		isVehicleLineService(vehicle.service) &&
-		vehicle.servedLines.some((line) =>
-			line.stops.some(
-				(stop) =>
-					'anchor' in stop &&
-					stop.anchor.coord[0] === hereCoord.q &&
-					stop.anchor.coord[1] === hereCoord.r
-			)
-		)
+		'anchor' in vehicle.service.stop &&
+		vehicle.service.stop.anchor.coord[0] === hereCoord.q &&
+		vehicle.service.stop.anchor.coord[1] === hereCoord.r
 	) {
 		return false
 	}
@@ -97,7 +97,7 @@ export function freightStopMovementTarget(
 		return freightZoneFallbackPosition(game, stop.zone)
 	}
 	if ('trade' in stop) {
-		return stop.trade.profile.cityHall.position
+		return resolveFreightNpcTradeProfile(game, stop.trade)?.cityHall.position
 	}
 	return undefined
 }
@@ -113,7 +113,7 @@ export function freightStopTargetPosition(game: Game, stop: FreightStop): Positi
 	}
 	if ('zone' in stop && stop.zone.kind === 'named')
 		return freightZoneFallbackPosition(game, stop.zone)
-	if ('trade' in stop) return stop.trade.profile.cityHall.position
+	if ('trade' in stop) return resolveFreightNpcTradeProfile(game, stop.trade)?.cityHall.position
 	return undefined
 }
 
@@ -532,8 +532,8 @@ export function ensureVehicleServiceStarted(
 			if (existing.line !== line) {
 				const wasDriving = operator.driving
 				vehicle.endService()
+				// beginLineService already binds operator via setServiceOperator.
 				vehicle.beginLineService(line, stop, operator)
-				vehicle.setServiceOperator(operator)
 				// endService→releaseOperator calls regainFootPosition when the
 				// character was driving; restore the driving (footless) state.
 				if (wasDriving) operator.onboard()
@@ -1021,7 +1021,7 @@ export function disembarkOperatorLeavingDockedVehicleInService(
 	vehicle: Vehicle
 ): void {
 	assert(
-		character.operates === vehicle,
+		sameRef(character.operates, vehicle),
 		`disembark dock: operated vehicle mismatch (expected ${debugObjectId(vehicle) ?? ''}, was ${debugObjectId(character.operates) ?? ''})`
 	)
 	character.disembarkVehicleKeepingService()
@@ -1052,7 +1052,7 @@ export function releaseVehicleFreightWorkOnPlanInterrupt(
 		})
 		return
 	}
-	if (v.operator !== subject) {
+	if (!sameRef(v.operator, subject)) {
 		if (subject.disengageVehicleKeepingService) subject.disengageVehicleKeepingService()
 		else subject.operates = undefined
 		traces.vehicle.log?.('vehicle freight stale operator mismatch cleared on plan interrupt', {

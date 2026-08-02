@@ -20,11 +20,11 @@ describe('AEvolutionStep zero delta', () => {
 		expect(step.tick(0)).toBeUndefined()
 		expect(step.evolution).toBe(0)
 		expect(writes).toBe(0)
-		expect(position).toEqual({ q: 0, r: 0 })
+		expect(position).toMatchObject({ q: 0, r: 0 })
 
 		expect(step.tick(0.5)).toBeUndefined()
 		expect(step.evolution).toBe(0.5)
 		expect(writes).toBe(1)
-		expect(position).toEqual({ q: 0.5, r: 0 })
+		expect(position).toMatchObject({ q: 0.5, r: 0 })
 	})
 })

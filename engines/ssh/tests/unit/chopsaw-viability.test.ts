@@ -45,7 +45,7 @@ describe('ChopSaw viability', () => {
 				},
 			},
 			({ game, virtualTime }) => {
-				const pickup = [...game.vehicles].find((v: any) => debugObjectId(v) === 'ChopSaw:suv')!
+				const pickup = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:suv')!
 				const storage = game.hex.getTile({ q: 0, r: -1 })?.content as
 					| { storage?: { stock: Partial<Record<string, number>> } }
 					| undefined

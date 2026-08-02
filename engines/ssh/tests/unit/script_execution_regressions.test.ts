@@ -92,7 +92,7 @@ describe('Script execution regressions', () => {
 		try {
 			const worker = engine.spawnCharacter('Sleeper', { q: 0, r: 0 })
 			const target = { q: 0, r: 0 }
-			engine.game.hex.zoneManager.setZone(target, 'residential')
+			engine.game.hex.zoneManager.setZone(target, { type: 'residential' })
 			const homePlan: HomePlan = {
 				type: 'home',
 				kind: 'residential',

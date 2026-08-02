@@ -178,15 +178,16 @@ describe('Vehicle dock tile synchronization', () => {
 			character.operates = vehicle
 			character.onboard()
 
-			// Drive to (1,0) — NOT the anchor (2,0)
-			character.position = reactive({ q: 1, r: 0 })
+			// Drive to (0,0) — two tiles away from the anchor (2,0), so no
+			// adjacent-border snap can rescue the dock
+			character.position = reactive({ q: 0, r: 0 })
 
 			// Verify dockTile is at (2,0) — the anchor
 			expect(vehicle.dockTile).toBeDefined()
 			expect(qr(vehicle.dockTile!.position)).toEqual({ q: 2, r: 0 })
 
-			// Verify vehicle is at (1,0) — NOT on the anchor
-			expect(qr(vehicle.position!)).toEqual({ q: 1, r: 0 })
+			// Verify vehicle is at (0,0) — NOT on the anchor
+			expect(qr(vehicle.position!)).toEqual({ q: 0, r: 0 })
 
 			// Dock should throw — vehicle is NOT on the anchor tile
 			expect(() => vehicle.dock()).toThrow(/dock requires vehicle to be on the anchor tile/)

@@ -185,7 +185,7 @@ describe('Evolutive & Determinism Tests', () => {
 			expect(looseGoodsAt(game2, { q: 1, r: 1 })).toContain('stone')
 
 			chars1.forEach((c1, _idx) => {
-				const c2 = chars2.find((c) => debugObjectId(c) === debugObjectId(c1))
+				const c2 = chars2.find((c) => c.name === c1.name)
 				expect(c2).toBeDefined()
 
 				const p1 = toAxialCoord(c1.position)

@@ -77,7 +77,21 @@ describe('BuildAlveolus save/load', () => {
 
 	it('loads and saves pile variant configuration from patches', async () => {
 		const gen = { terrainSeed: 549, characterCount: 0 }
-		game = new Game(gen, chopSaw)
+		const patches = {
+			tiles: [
+				{ coord: [0, 0] as const, terrain: 'concrete' as const },
+				{ coord: [0, -1] as const, terrain: 'concrete' as const },
+			],
+			hives: [
+				{
+					name: 'PileHive',
+					alveoli: [
+						{ coord: [0, -1] as const, alveolus: 'pile' as const, variant: 'planks' as const },
+					],
+				},
+			],
+		}
+		game = new Game(gen, patches)
 		await game.loaded
 		game.ticker.stop()
 
@@ -85,13 +99,13 @@ describe('BuildAlveolus save/load', () => {
 		const pile = game.hex.getTile(pileCoord)?.content
 		expect(pile).toBeInstanceOf(StorageAlveolus)
 		if (!(pile instanceof StorageAlveolus)) return
-		expect(pile.alveolusType).toBe('pile')
+		expect(pile.resourceName).toBe('pile')
 		expect(pile.variant).toBe('planks')
 		expect(pile.storage).toBeInstanceOf(SpecificStorage)
 		expect(pile.storage.maxAmounts.planks).toBe(24)
 
 		const state = game.saveGameData()
-		const hiveEntry = state.hives?.find((h) => h.name === 'ChopSaw')
+		const hiveEntry = state.hives?.find((h) => h.name === 'PileHive')
 		const pilePatch = hiveEntry?.alveoli.find(
 			(a) => a.coord[0] === pileCoord.q && a.coord[1] === pileCoord.r
 		)
@@ -108,7 +122,7 @@ describe('BuildAlveolus save/load', () => {
 		const restored = game.hex.getTile(pileCoord)?.content
 		expect(restored).toBeInstanceOf(StorageAlveolus)
 		if (!(restored instanceof StorageAlveolus)) return
-		expect(restored.alveolusType).toBe('pile')
+		expect(restored.resourceName).toBe('pile')
 		expect(restored.variant).toBe('planks')
 		expect(restored.storage).toBeInstanceOf(SpecificStorage)
 		expect(restored.storage.maxAmounts.planks).toBe(24)

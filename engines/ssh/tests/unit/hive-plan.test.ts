@@ -70,12 +70,12 @@ describe('hive plans', () => {
 		const original = collection.createDraft('A', [entry('a', 1, 0), entry('b', 0, 0)])
 		const draft = collection.createDraft('Draft', [])
 
-		const result = collection.updateDraft(draft.id, {
+		const result = collection.updateDraft(collection.indexOf(draft), {
 			entries: [entry('a', 0, 1), entry('b', 0, 0)],
 		})
 
 		expect(result).toBe(original)
-		expect(collection.find(draft.id)?.entries).toHaveLength(0)
+		expect(collection.byIndex(collection.indexOf(draft))?.entries).toHaveLength(0)
 	})
 
 	it('creates empty drafts immediately without treating them as duplicates', () => {
@@ -121,7 +121,7 @@ describe('hive plans', () => {
 	it('uses archived plans as known memory for novelty', () => {
 		const collection = new HivePlanCollection(mockGame())
 		const archived = collection.createDraft('Known', [entry('a', 0, 0), entry('b', 1, 0)])
-		collection.archive(archived.id)
+		collection.archive(collection.indexOf(archived))
 
 		const novelWithoutMemory = hivePlanNoveltyCost([entry('a', 0, 0), entry('b', 1, 0)], [])
 		const novelWithMemory = hivePlanNoveltyCost(
@@ -150,22 +150,22 @@ describe('hive plans', () => {
 			const plan = game.hivePlans.createDraft('Storage Pair', [entry('a', 0, 0), entry('b', 1, 0)])
 			plan.stage = 'working'
 
-			expect(game.applyHivePlanPlacement(plan.id, { q: 0, r: 0 }, 0)).toBe(true)
+			expect(game.applyHivePlanPlacement(game.hivePlans.indexOf(plan), { q: 0, r: 0 }, 0)).toBe(true)
 
 			const content = game.hex.getTile({ q: 0, r: 0 })?.content
 			expect(isConstructionSiteShell(content)).toBe(true)
-			expect((content as { hivePlanId?: string }).hivePlanId).toBe(plan.id)
+			expect((content as { hivePlanIndex?: number }).hivePlanIndex).toBe(game.hivePlans.indexOf(plan))
 
 			const saved = game.saveGameData()
 			expect(saved.projectSites).toEqual(
 				expect.arrayContaining([
 					expect.objectContaining({
-						hivePlanId: plan.id,
+						hivePlanIndex: game.hivePlans.indexOf(plan),
 						planRoleId: 'a',
 					}),
 				])
 			)
-			expect(saved.hivePlans?.[0]).toMatchObject({ id: plan.id, stage: 'working' })
+			expect(saved.hivePlans?.[0]).toMatchObject({ name: plan.name, stage: 'working' })
 		} finally {
 			game.destroy()
 		}

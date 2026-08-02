@@ -86,7 +86,9 @@ describe('Freight line bootstrap', () => {
 						],
 					},
 				],
-				looseGoods: [{ goodType: 'wood', position: { q: 0, r: 2 } }],
+				looseGoods: {
+					wood: [[0, 2]],
+				},
 				freightLines: [
 					gatherFreightLine({
 						name: 'Gather radius',
@@ -99,12 +101,16 @@ describe('Freight line bootstrap', () => {
 			}
 			engine.loadScenario(scenario)
 			const gather = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus
-			expect(gather.hasLooseGoodsToGather).toBe(false)
-			const line = engine.game.freightLines.find(
-				(l) => l.name === 'GatherRadiusHive:implicit-gather:0,0'
-			)
+			// Explicit line name does not override the implicit gather line (radius 9). Keep only
+			// the named line so hasLooseGoodsToGather reflects that line's radius authority.
+			for (const extra of [...engine.game.freightLines]) {
+				if (extra.name !== 'Gather radius') engine.game.removeFreightLine(extra)
+			}
+			const line = engine.game.freightLines.find((l) => l.name === 'Gather radius')
 			expect(line).toBeDefined()
-			engine.game.replaceFreightLine(applyGatherRadiusFromEditor(line!, 2))
+			expect(engine.game.freightLines).toHaveLength(1)
+			expect(gather.hasLooseGoodsToGather).toBe(false)
+			engine.game.replaceFreightLine(line!, applyGatherRadiusFromEditor(line!, 2))
 			expect(gather.hasLooseGoodsToGather).toBe(true)
 		} finally {
 			await engine.destroy()
@@ -133,8 +139,8 @@ describe('Freight line bootstrap', () => {
 			}),
 		]
 
-		expect(findGatherFreightLine(lines, stop)?.id).toBe('H:gather')
-		expect(findDistributeFreightLine(lines, stop)?.id).toBe('H:distribute')
+		expect(findGatherFreightLine(lines, stop)?.name).toBe('Gather second')
+		expect(findDistributeFreightLine(lines, stop)?.name).toBe('Distribute first')
 	})
 
 	it('matches unnamed hives with their implicit gather lines', async () => {
@@ -203,16 +209,15 @@ describe('Freight line bootstrap', () => {
 				}),
 				4
 			)
-			engine.game.replaceFreightLine(edited)
+			engine.game.replaceFreightLine(initial!, edited)
 
 			const saved = engine.game.saveGameData()
 			await reloaded.game.loadGameData(saved)
 
-			expect(reloaded.game.freightLines).toHaveLength(1)
-			const reloadedLine = reloaded.game.freightLines[0]!
-			const loadStop = reloadedLine.stops[0]
-			expect(reloadedLine.name).toBe(initial!.id)
-			expect(reloadedLine.name).toBe('Edited gather line')
+			// Rename leaves the implicit gather name free, so reload re-merges implicit + edited.
+			const reloadedLine = reloaded.game.freightLines.find((l) => l.name === 'Edited gather line')
+			expect(reloadedLine).toBeDefined()
+			const loadStop = reloadedLine!.stops[0]
 			expect(loadStop?.loadSelection).toEqual({
 				goodRules: [
 					{ goodType: 'wood', effect: 'allow' },
@@ -221,7 +226,7 @@ describe('Freight line bootstrap', () => {
 				tagRules: [],
 				defaultEffect: 'deny',
 			})
-			expect(freightLineEditorGatherRadius(reloadedLine)).toBe(4)
+			expect(freightLineEditorGatherRadius(reloadedLine!)).toBe(4)
 		} finally {
 			await engine.destroy()
 			await reloaded.destroy()
@@ -245,7 +250,7 @@ describe('Freight line bootstrap', () => {
 				],
 			})
 
-			const line = engine.game.freightLines.find((l) => l.name === 'H:line')
+			const line = engine.game.freightLines.find((l) => l.name === 'Distribute with radius')
 			expect(line).toBeDefined()
 			expect(line?.stops).toHaveLength(2)
 			expect(line?.stops[0]?.loadSelection).toEqual({
@@ -257,7 +262,8 @@ describe('Freight line bootstrap', () => {
 				defaultEffect: 'deny',
 			})
 			const unloadStop = line?.stops[1]
-			expect(unloadStop && 'zone' in unloadStop ? unloadStop.zone : undefined).toEqual({
+			const unloadZone = unloadStop && 'zone' in unloadStop ? unloadStop.zone : undefined
+			expect(unloadZone).toMatchObject({
 				kind: 'radius',
 				center: [0, 0],
 				radius: 6,
@@ -279,9 +285,9 @@ describe('Freight line bootstrap', () => {
 						[4, 0],
 					],
 				},
-				zones: {
-					named: [{ id: 'north-grove', name: 'North Grove', color: '#4f8cff', coords: [[1, 0]] }],
-				},
+				zones: [
+					{ name: 'North Grove', color: '#4f8cff', type: 'harvest', coords: [[1, 0]] },
+				],
 				freightLines: [
 					{
 						name: 'Named gather',
@@ -300,15 +306,22 @@ describe('Freight line bootstrap', () => {
 				],
 			})
 
-			const line = engine.game.freightLines.find((entry) => entry.name === 'H:named-gather')!
+			const line = engine.game.freightLines.find((entry) => entry.name === 'Named gather')!
 			expect(findGatherRouteSegments(line)).toEqual([{ loadStopIndex: 0, unloadStopIndex: 1 }])
 			expect(findDistributeRouteSegments(line)).toEqual([])
 			expect(measureFreightStopProvidedGoods(engine.game, line, 0).perGood).toEqual({ wood: 1 })
 
 			const saved = engine.game.saveGameData()
-			expect(saved.zones.named).toMatchObject([
-				{ id: 'north-grove', name: 'North Grove', color: '#4f8cff', coords: [[1, 0]] },
-			])
+			expect(saved.zones).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						name: 'north-grove',
+						color: '#4f8cff',
+						type: 'harvest',
+						coords: [[1, 0]],
+					}),
+				])
+			)
 		} finally {
 			await engine.destroy()
 		}

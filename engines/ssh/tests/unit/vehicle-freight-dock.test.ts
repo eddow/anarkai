@@ -611,7 +611,7 @@ describe('vehicle-freight-dock', () => {
 
 			expect(isVehicleLineService(vehicle.service)).toBe(true)
 			if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
-			expect(vehicle.service).toBe('next')
+			expect(vehicle.service.stop).toBe(line.stops[1])
 			expect(vehicle.service.docked).toBe(false)
 			expect(vehicle.position && { q: vehicle.position.q, r: vehicle.position.r }).toEqual({
 				q: 0,
@@ -619,7 +619,7 @@ describe('vehicle-freight-dock', () => {
 			})
 			const hop = findVehicleHopJob(engine.game, worker)
 			expect(hop?.job).toBe('vehicleHop')
-			expect(hop?.stopIndex).toBe('next')
+			expect(hop?.stopIndex).toBe(1)
 		} finally {
 			await engine.destroy()
 		}
@@ -667,7 +667,8 @@ describe('vehicle-freight-dock', () => {
 			maybeAdvanceVehicleFromCompletedAnchorStop(engine.game, vehicle, worker)
 			expect(isVehicleLineService(vehicle.service)).toBe(true)
 			if (!isVehicleLineService(vehicle.service)) throw new Error('expected line service')
-			expect(vehicle.service).toBe(line.stops[0]!.id)
+			expect(vehicle.service.stop).toBe(line.stops[0])
+			expect(vehicle.service.docked).toBe(true)
 		} finally {
 			await engine.destroy()
 		}

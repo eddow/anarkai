@@ -448,22 +448,29 @@ export function registerConstructionMaterialPhaseEffect(
 	shell: ConstructionMaterialShell
 ): void {
 	effect`build-site:${debugLabel}`(() => {
-		const constructionSite = normalizeConstructionSiteState(shell.constructionSite)
-		const deliveredGoods = (shell.storage?.stock ?? {}) as Partial<Record<GoodType, number>>
-		setConstructionDeliveredGoods(constructionSite, deliveredGoods)
 		if (shell.destroyed) {
+			const constructionSite = normalizeConstructionSiteState(shell.constructionSite)
 			if (constructionSite.workSecondsApplied < constructionSite.recipe.workSeconds) {
-				constructionSite.phase = 'failed'
+				if (constructionSite.phase !== 'failed') constructionSite.phase = 'failed'
 			}
 			return
 		}
+		const constructionSite = normalizeConstructionSiteState(shell.constructionSite)
+		const deliveredGoods = (shell.storage?.stock ?? {}) as Partial<Record<GoodType, number>>
+		setConstructionDeliveredGoods(constructionSite, deliveredGoods)
 		if (!materialsComplete(shell)) {
-			if (constructionSite.phase !== 'building') {
+			if (
+				constructionSite.phase !== 'building' &&
+				constructionSite.phase !== 'waiting_materials'
+			) {
 				constructionSite.phase = 'waiting_materials'
 			}
 			return
 		}
-		if (constructionSite.phase !== 'building') {
+		if (
+			constructionSite.phase !== 'building' &&
+			constructionSite.phase !== 'waiting_construction'
+		) {
 			constructionSite.phase = 'waiting_construction'
 		}
 	})

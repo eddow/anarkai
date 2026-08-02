@@ -14,6 +14,7 @@ import {
 	freightZoneTiles,
 	gatherSegmentAllowsGoodTypeForSegment,
 } from 'ssh/freight/freight-line'
+import { resolveFreightNpcTradeProfile } from 'ssh/freight/freight-trade-profile'
 import {
 	FREIGHT_LINE_ALL_GOOD_TYPES,
 	type GoodSelectionPolicy,
@@ -155,7 +156,8 @@ function freightStopTargetTile(game: Game, stop: FreightStop): Tile | undefined 
 		return game.hex.getTile({ q: stop.anchor.coord[0], r: stop.anchor.coord[1] })
 	}
 	if ('trade' in stop) {
-		const position = stop.trade.profile.cityHall.position
+		const profile = resolveFreightNpcTradeProfile(game, stop.trade)
+		const position = profile?.cityHall.position
 		return position ? game.hex.getTile(position) : undefined
 	}
 	if (stop.zone.kind === 'radius') {
@@ -346,20 +348,33 @@ function allowedGoodsNeededAtStop(
 		return listGoodTypesMatchingSelectionPolicy(stop.unloadSelection, FREIGHT_LINE_ALL_GOOD_TYPES)
 	}
 	if ('trade' in stop) return [...FREIGHT_LINE_ALL_GOOD_TYPES]
-	const gatherSegment = gatherUnloadSegmentForStop(line, stopIndex)
-	if (gatherSegment) {
+	// Unload-side segment stops (gather bay / distribute zone).
+	const gatherUnload = gatherUnloadSegmentForStop(line, stopIndex)
+	if (gatherUnload) {
 		return filterAllowedGoods(
-			listGoodsAllowedOnGatherSegment(line, gatherSegment),
+			listGoodsAllowedOnGatherSegment(line, gatherUnload),
 			stop.unloadSelection
 		)
 	}
-	const distributeSegment = distributeUnloadSegmentForStop(line, stopIndex)
-	if (distributeSegment) {
+	const distributeUnload = distributeUnloadSegmentForStop(line, stopIndex)
+	if (distributeUnload) {
 		return filterAllowedGoods(
-			listGoodsAllowedOnDistributeSegment(line, distributeSegment),
+			listGoodsAllowedOnDistributeSegment(line, distributeUnload),
 			stop.unloadSelection
 		)
 	}
+	// Load-side zone stops still measure local construction sinks (exchange / gather zone
+	// with standalone shells). Without this, measureFreightStopNeededGoods returns empty
+	// for implicit gather zone load and begin-service cannot see loose goods as useful.
+	const gatherLoad = gatherLoadSegmentForStop(line, stopIndex)
+	if (gatherLoad) {
+		return listGoodsAllowedOnGatherSegment(line, gatherLoad)
+	}
+	const distributeLoad = distributeLoadSegmentForStop(line, stopIndex)
+	if (distributeLoad && 'zone' in stop) {
+		return listGoodsAllowedOnDistributeSegment(line, distributeLoad)
+	}
+	if ('zone' in stop) return [...FREIGHT_LINE_ALL_GOOD_TYPES]
 	if ('anchor' in stop) return [...FREIGHT_LINE_ALL_GOOD_TYPES]
 	return []
 }
@@ -458,29 +473,46 @@ export function measureHiveStoredGoodsSource(
 	return snapshotFromGoodsCounts(perGood, 'hive')
 }
 
+function roomForDemandedGood(alv: Alveolus, goodType: GoodType): number {
+	const relation = alv.workingGoodsRelations[goodType]
+	if (relation?.advertisement !== 'demand') return 0
+	if (relation.priority !== '1-buffer' && relation.priority !== '2-use') return 0
+	const acceptedRoomFor = (
+		alv as {
+			acceptedRoomFor?: (goodType: GoodType, priority: ExchangePriority) => number
+		}
+	).acceptedRoomFor
+	let room = acceptedRoomFor
+		? acceptedRoomFor.call(alv, goodType, relation.priority)
+		: (alv.storage.hasRoom(goodType) ?? 0)
+	if (relation.priority === '1-buffer') {
+		const buffer = (alv as { storageBuffers?: Partial<Record<GoodType, number>> })
+			.storageBuffers?.[goodType]
+		if (buffer !== undefined) {
+			const planned = (alv.storage.stock[goodType] ?? 0) + alv.storage.allocated(goodType)
+			room = Math.min(room, Math.max(0, buffer - planned))
+		}
+	}
+	return room > 0 ? room : 0
+}
+
+/**
+ * Sum demand room for a good across hive logistics storages **and** transform input buffers.
+ * `generalStorages` intentionally excludes transforms; gather unload economics still need
+ * transform advertised demand (e.g. sawmill wood) so zone-load selection gets non-zero
+ * `remainingNeededGoods`.
+ */
 function sumHiveStorageHasRoomForGood(hive: Hive, goodType: GoodType): number {
 	let sum = 0
+	const seen = new Set<Alveolus>()
 	for (const alv of hive.generalStorages) {
-		const relation = alv.workingGoodsRelations[goodType]
-		if (relation?.advertisement !== 'demand') continue
-		if (relation.priority !== '1-buffer' && relation.priority !== '2-use') continue
-		const acceptedRoomFor = (
-			alv as {
-				acceptedRoomFor?: (goodType: GoodType, priority: ExchangePriority) => number
-			}
-		).acceptedRoomFor
-		let room = acceptedRoomFor
-			? acceptedRoomFor.call(alv, goodType, relation.priority)
-			: (alv.storage.hasRoom(goodType) ?? 0)
-		if (relation.priority === '1-buffer') {
-			const buffer = (alv as { storageBuffers?: Partial<Record<GoodType, number>> })
-				.storageBuffers?.[goodType]
-			if (buffer !== undefined) {
-				const planned = (alv.storage.stock[goodType] ?? 0) + alv.storage.allocated(goodType)
-				room = Math.min(room, Math.max(0, buffer - planned))
-			}
-		}
-		if (room > 0) sum += room
+		seen.add(alv)
+		sum += roomForDemandedGood(alv, goodType)
+	}
+	// Transform (and any other non-general) alveoli that advertise demand with storage room.
+	for (const alv of hive.alveoli) {
+		if (seen.has(alv)) continue
+		sum += roomForDemandedGood(alv, goodType)
 	}
 	return sum
 }
@@ -543,7 +575,7 @@ export function measureFreightStopProvidedGoods(
 	if (allowedGoods.length === 0) return snapshotFromGoodsCounts({})
 	const allowedGoodsSet = new Set(allowedGoods)
 	if ('trade' in stop) {
-		const profile = stop.trade.profile
+		const profile = resolveFreightNpcTradeProfile(game, stop.trade)
 		const perGood: Partial<Record<GoodType, number>> = {}
 		for (const offer of profile?.offers ?? []) {
 			if (offer.direction !== 'sell') continue
@@ -589,7 +621,7 @@ export function measureFreightStopNeededGoods(
 	if (allowedGoods.length === 0) return snapshotFromGoodsCounts({})
 	const allowedGoodsSet = new Set(allowedGoods)
 	if ('trade' in stop) {
-		const profile = stop.trade.profile
+		const profile = resolveFreightNpcTradeProfile(game, stop.trade)
 		const perGood: Partial<Record<GoodType, number>> = {}
 		for (const offer of profile?.offers ?? []) {
 			if (offer.direction !== 'buy') continue
@@ -738,7 +770,7 @@ function affordableImportGoods(args: {
 	readonly creditedVp?: number
 }): Partial<Record<GoodType, number>> {
 	if (!('trade' in args.stop)) return args.goods
-	const profile = args.stop.trade.profile
+	const profile = resolveFreightNpcTradeProfile(args.game, args.stop.trade)
 	if (!profile) return {}
 	const prices = new Map<GoodType, number>()
 	for (const offer of profile.offers) {
@@ -759,11 +791,12 @@ function affordableImportGoods(args: {
 }
 
 function settlementCreditForGoods(
+	game: Game,
 	stop: FreightStop,
 	goods: Partial<Record<GoodType, number>>
 ): number {
 	if (!('trade' in stop)) return 0
-	const profile = stop.trade.profile
+	const profile = resolveFreightNpcTradeProfile(game, stop.trade)
 	const prices = new Map<GoodType, number>()
 	for (const offer of profile?.offers ?? []) {
 		if (offer.direction === 'buy') prices.set(offer.good, offer.priceVp)
@@ -775,9 +808,9 @@ function settlementCreditForGoods(
 	return total
 }
 
-function tradeOfferCounts(stop: FreightStop): { buy: number; sell: number } {
+function tradeOfferCounts(game: Game, stop: FreightStop): { buy: number; sell: number } {
 	if (!('trade' in stop)) return { buy: 0, sell: 0 }
-	const profile = stop.trade.profile
+	const profile = resolveFreightNpcTradeProfile(game, stop.trade)
 	let buy = 0
 	let sell = 0
 	for (const offer of profile?.offers ?? []) {
@@ -827,7 +860,11 @@ export function explainFreightStopCommerce(args: {
 	const exportOpportunityGoods = snapshotFromGoodsCounts(
 		vehicleAvailableGoods(args.vehicle, finiteGoodsCounts(localNeededGoods.perGood))
 	)
-	const projectedExportCreditVp = settlementCreditForGoods(stop, exportOpportunityGoods.perGood)
+	const projectedExportCreditVp = settlementCreditForGoods(
+		args.game,
+		stop,
+		exportOpportunityGoods.perGood
+	)
 	const neededProvidedIntersection = intersectGoodsCounts(
 		projected.remainingNeededGoods.perGood,
 		finiteGoodsCounts(localProvidedGoods.perGood)
@@ -856,7 +893,7 @@ export function explainFreightStopCommerce(args: {
 		addBlockReason(blockReasons, 'vehicle_full')
 	}
 	if ('trade' in stop) {
-		const offerCounts = tradeOfferCounts(stop)
+		const offerCounts = tradeOfferCounts(args.game, stop)
 		if (offerCounts.sell <= 0 && projected.remainingNeededGoods.total > 0) {
 			addBlockReason(blockReasons, 'no_matching_settlement_offer')
 		}

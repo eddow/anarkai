@@ -25,7 +25,7 @@ import {
 	setConstructionFoundationDeliveredGoods,
 } from 'ssh/construction-state'
 import { assert, traces } from 'ssh/dev/debug'
-import { debugObjectId } from 'ssh/dev/debug-object-id'
+import { debugObjectId, debugRawObjectId } from 'ssh/dev/debug-object-id'
 import { ForesterAlveolus } from 'ssh/hive/forester'
 import { commitmentValid, type TrackedMovement } from 'ssh/hive/hive'
 import { movementRefId } from 'ssh/hive/movement-ref'
@@ -438,9 +438,11 @@ class WorkFunctions {
 				movement.claimed,
 				`releaseMovementClaim: movement not claimed ref#${movementRefId(movement.ref)}`
 			)
+			// Characters are @reactive proxies; claim ownership must compare raw identity.
+			// debugObjectId(proxy) !== debugObjectId(raw) even for the same character.
 			assert(
-				debugObjectId(movement.claimedBy) === debugObjectId(character),
-				`releaseMovementClaim: movement claimed by ${debugObjectId(movement.claimedBy) ?? 'nobody'} not ${debugObjectId(character)}`
+				debugRawObjectId(movement.claimedBy) === debugRawObjectId(character),
+				`releaseMovementClaim: movement claimed by ${debugRawObjectId(movement.claimedBy) ?? debugObjectId(movement.claimedBy) ?? 'nobody'} not ${debugRawObjectId(character) ?? debugObjectId(character)}`
 			)
 			assert(
 				!!movement.claimedAtMs,
@@ -1365,8 +1367,8 @@ class WorkFunctions {
 	@contract('WorkPlan')
 	validateHivePlanStep(workPlan: WorkPlan) {
 		const character = this[subject]
-		const planId = workPlan.job === 'validateHivePlan' ? workPlan.planId : undefined
-		const plan = character.game.hivePlans.find(planId)
+		const planIndex = workPlan.job === 'validateHivePlan' ? workPlan.planIndex : undefined
+		const plan = character.game.hivePlans.byIndex(planIndex ?? -1)
 		assert(plan && plan.stage === 'validating', 'A validating hive plan is required')
 		const engineer = character.assignedAlveolus
 		assert(engineer, 'An engineer alveolus must be assigned for hive-plan validation')

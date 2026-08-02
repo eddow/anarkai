@@ -397,7 +397,6 @@ export class StorageAlveolus extends Alveolus {
 		} else if (this.storage instanceof SpecificStorage) {
 			const { buffers } = this
 			for (const goodType of Object.keys(this.storage.maxAmounts) as GoodType[]) {
-				const maxAmount = this.storage.maxAmounts[goodType] ?? 0
 				const stockQty = this.storage.stock[goodType] ?? 0
 				const plannedQty = stockQty + this.storage.allocated(goodType)
 				const bufferAmount = buffers.get(goodType) || 0
@@ -408,7 +407,10 @@ export class StorageAlveolus extends Alveolus {
 					}
 					continue
 				}
-				if (plannedQty < maxAmount && this.canTake(goodType, '1-buffer')) {
+				// Like the slotted layout, only advertise explicit buffer
+				// shortages — not generic "fill toward max" demand, which
+				// creates self-sustaining demand/provide churn.
+				if (bufferAmount > 0 && plannedQty < bufferAmount && this.canTake(goodType, '1-buffer')) {
 					relations[goodType] = {
 						advertisement: 'demand',
 						priority: '1-buffer',

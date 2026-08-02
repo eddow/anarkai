@@ -54,6 +54,8 @@ export class UnBuiltLand extends TileContent {
 	public constructionSite?: ConstructionSiteState
 	public foundationStorage?: SpecificStorage
 	public plantedTrees?: PlantedTreesState
+	/** Dispose handle for the foundation-phase effect; cleared when content is replaced. */
+	private stopConstructionPhaseEffect?: () => void
 
 	/**
 	 * Set a project and clear any existing zone
@@ -89,9 +91,16 @@ export class UnBuiltLand extends TileContent {
 			availableLooseGoods: this.tile.availableGoods.length,
 			deposit: this.deposit?.name,
 		})
+		this.stopConstructionPhaseEffect?.()
+		this.stopConstructionPhaseEffect = undefined
 		if (this.constructionSite) {
-			effect`unbuilt-land:construction-phase`(() => {
-				if (!this.project || !this.constructionSite) return
+			// Own only foundation/planned phases. Once foundation work promotes the shared
+			// constructionSite onto BuildDwelling/BuildAlveolus, this content is destroyed and the
+			// effect must stop — otherwise it fights the shell phase effect over `phase`.
+			this.stopConstructionPhaseEffect = effect`unbuilt-land:construction-phase`(() => {
+				if (this.destroyed || !this.project || !this.constructionSite) return
+				const currentPhase = this.constructionSite.phase
+				if (currentPhase !== 'planned' && currentPhase !== 'foundation') return
 				setConstructionFoundationDeliveredGoods(
 					this.constructionSite,
 					this.foundationStorage?.stock ?? {}
@@ -119,6 +128,12 @@ export class UnBuiltLand extends TileContent {
 			this.tile.zone = undefined
 		}
 		this.game.enqueueInteractiveChange(this.tile)
+	}
+
+	override destroy(): void {
+		this.stopConstructionPhaseEffect?.()
+		this.stopConstructionPhaseEffect = undefined
+		super.destroy()
 	}
 
 	get name() {

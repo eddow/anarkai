@@ -262,7 +262,7 @@ describe('streamed region generation', () => {
 		const batches: string[][] = []
 		game.on({
 			objectsAdded: (objects) => {
-				batches.push(objects.map((object) => debugObjectId(object)).sort())
+				batches.push(objects.map((object) => debugObjectId(object) ?? '').sort())
 			},
 		})
 
@@ -285,7 +285,9 @@ describe('streamed region generation', () => {
 		expect(batches).toHaveLength(1)
 		expect(batches[0]).toHaveLength(7)
 		expect(game.objects.size).toBe(7)
-		expect(game.getObject('tile:4,-1')).toBeDefined()
+		const streamedTile = game.hex.getTile({ q: 4, r: -1 })
+		expect(streamedTile).toBeDefined()
+		expect(game.objects.has(streamedTile!)).toBe(true)
 	})
 
 	it('does not rematerialize already generated gameplay frontier tiles', async () => {
@@ -480,18 +482,23 @@ describe('streamed region generation', () => {
 		game.hex.getTile({ q: 1, r: 0 })
 		game.hex.getTile({ q: 0, r: 1 })
 		expect(game.objects.size).toBe(3)
+		const tilesBefore = [
+			game.hex.getTile({ q: 0, r: 0 }),
+			game.hex.getTile({ q: 1, r: 0 }),
+			game.hex.getTile({ q: 0, r: 1 }),
+		]
 
 		const removedBatches: string[][] = []
 		game.on({
 			objectsRemoved: (objects) => {
-				removedBatches.push(objects.map((object) => debugObjectId(object)).sort())
+				removedBatches.push(objects.map((object) => debugObjectId(object) ?? '').sort())
 			},
 		})
 
 		game.hex.reset()
 
 		expect(removedBatches).toHaveLength(1)
-		expect(removedBatches[0]).toEqual(['tile:0,0', 'tile:0,1', 'tile:1,0'])
+		expect(removedBatches[0]).toEqual(tilesBefore.map((tile) => debugObjectId(tile) ?? '').sort())
 		expect(game.objects.size).toBe(0)
 	})
 })

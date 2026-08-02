@@ -21,6 +21,7 @@ import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService, isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
 import { contract } from 'ssh/types'
 import { type AxialCoord, axial } from 'ssh/utils'
+import { sameRef } from 'ssh/utils/identity'
 import { positionRoughlyEquals, toAxialCoord } from 'ssh/utils/position'
 import { assert, traces } from '../../dev/debug.ts'
 import { subject } from '../scripts'
@@ -234,7 +235,7 @@ class VehicleFunctions {
 		if (jobPlan.job !== 'vehicleOffload' && jobPlan.job !== 'vehicleHop') return
 		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'vehicleApproach: vehicle missing')
-		if (vehicle.operator && vehicle.operator !== character) {
+		if (vehicle.operator && !sameRef(vehicle.operator, character)) {
 			jobPlan.vehicleApproachAborted = true
 			traces.vehicle.warn?.('vehicleApproach: stale plan reached already-operated vehicle', {
 				characterUid: debugObjectId(character) ?? '',
@@ -347,7 +348,7 @@ class VehicleFunctions {
 			return
 		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'vehicleBeginService: vehicle missing')
-		assert(character.operates === vehicle, 'vehicleBeginService: wrong operated vehicle')
+		assert(sameRef(character.operates, vehicle), 'vehicleBeginService: wrong operated vehicle')
 		assert(character.driving, 'vehicleBeginService: not driving')
 		assert(jobPlan.line && jobPlan.stop, 'vehicleBeginService: missing line/stop')
 		assert(
@@ -389,7 +390,7 @@ class VehicleFunctions {
 		hopPlan.vehicleHopReplanRequired = false
 		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'vehicleHop: vehicle missing')
-		assert(character.operates === vehicle, 'vehicleHop: wrong operated vehicle')
+		assert(sameRef(character.operates, vehicle), 'vehicleHop: wrong operated vehicle')
 		assert(character.driving, 'vehicleHop: not driving')
 		jobPlan.vehicleHopStopHandled = false
 		vehicleTraceAssert(
@@ -453,7 +454,7 @@ class VehicleFunctions {
 			})
 			return
 		}
-		assert(character.operates === vehicle, 'vehicleHopDockStep: wrong operated vehicle')
+		assert(sameRef(character.operates, vehicle), 'vehicleHopDockStep: wrong operated vehicle')
 		const stop = vehicle.service.stop
 		assert(stop, 'vehicleHopDockStep: missing stop')
 		if (
@@ -538,7 +539,7 @@ class VehicleFunctions {
 				jobPlan.vehicleHopStopHandled = true
 				if (character.driving) character.stepOffVehicleKeepingControl()
 				executeNpcTradeStopAndAdvance(character.game, vehicle, character)
-				if (character.operates === vehicle && isVehicleLineService(vehicle.service)) {
+				if (sameRef(character.operates, vehicle) && isVehicleLineService(vehicle.service)) {
 					character.disengageVehicleKeepingService()
 				}
 			}
@@ -574,7 +575,7 @@ class VehicleFunctions {
 			return
 		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'vehicleStepOffKeepingControl: vehicle missing')
-		assert(character.operates === vehicle, 'vehicleStepOffKeepingControl: wrong operated vehicle')
+		assert(sameRef(character.operates, vehicle), 'vehicleStepOffKeepingControl: wrong operated vehicle')
 		assert(character.driving, 'vehicleStepOffKeepingControl: not driving')
 		character.stepOffVehicleKeepingControl()
 		assertVehicleOperationConsistency(vehicle, character)
@@ -608,7 +609,7 @@ class VehicleFunctions {
 			return
 		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'vehicleBoardLinkedVehicle: vehicle missing')
-		if (character.operates !== vehicle) return
+		if (!sameRef(character.operates, vehicle)) return
 		if (character.driving) return
 		character.boardLinkedVehicle()
 		assertVehicleOperationConsistency(vehicle, character)
@@ -621,7 +622,7 @@ class VehicleFunctions {
 		if (jobPlan.job !== 'vehicleHop' && jobPlan.job !== 'zoneBrowse') return
 		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'vehicleDisengageKeepingService: vehicle missing')
-		if (character.operates !== vehicle) {
+		if (!sameRef(character.operates, vehicle)) {
 			traces.vehicle.log?.('vehicleDisengageKeepingService: already released', {
 				characterUid: debugObjectId(character) ?? '',
 		operatesUid: debugObjectId(character.operates),
@@ -655,7 +656,7 @@ class VehicleFunctions {
 			)
 			const vehicle = jobPlan.vehicle
 			assert(vehicle, 'vehicleLoadTransferStep: vehicle missing')
-			assert(character.operates === vehicle, 'vehicleLoadTransferStep: wrong operated vehicle')
+			assert(sameRef(character.operates, vehicle), 'vehicleLoadTransferStep: wrong operated vehicle')
 			assert(jobPlan.offloadPickupPlan, 'vehicleLoadTransferStep: missing offload pickup plan')
 			traces.vehicle.log?.('vehicleJob.load', {
 				characterUid: debugObjectId(character) ?? '',
@@ -738,7 +739,7 @@ class VehicleFunctions {
 		if (jobPlan.type !== 'work' || jobPlan.job !== 'loadOntoVehicle') return
 		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'loadOntoVehicle: vehicle missing')
-		assert(character.operates === vehicle, 'loadOntoVehicle: wrong operated vehicle')
+		assert(sameRef(character.operates, vehicle), 'loadOntoVehicle: wrong operated vehicle')
 		traces.vehicle.log?.('vehicleJob.load', {
 			characterUid: debugObjectId(character) ?? '',
 			goodType: jobPlan.goodType,
@@ -769,7 +770,7 @@ class VehicleFunctions {
 		if (jobPlan.type !== 'work' || jobPlan.job !== 'unloadFromVehicle') return
 		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'unloadFromVehicle: vehicle missing')
-		assert(character.operates === vehicle, 'unloadFromVehicle: wrong operated vehicle')
+		assert(sameRef(character.operates, vehicle), 'unloadFromVehicle: wrong operated vehicle')
 		assert(character.driving, 'unloadFromVehicle: not driving')
 		traces.vehicle.log?.('vehicleJob.unload', {
 			characterUid: debugObjectId(character) ?? '',
@@ -798,7 +799,7 @@ class VehicleFunctions {
 		if (jobPlan.type !== 'work' || jobPlan.job !== 'provideFromVehicle') return
 		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'provideFromVehicle: vehicle missing')
-		assert(character.operates === vehicle, 'provideFromVehicle: wrong operated vehicle')
+		assert(sameRef(character.operates, vehicle), 'provideFromVehicle: wrong operated vehicle')
 		traces.vehicle.log?.('vehicleJob.provide', {
 			characterUid: debugObjectId(character) ?? '',
 			goodType: jobPlan.goodType,
@@ -845,7 +846,7 @@ class VehicleFunctions {
 		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'completeVehicleMaintenanceService: vehicle missing')
 		assert(
-			character.operates === vehicle,
+			sameRef(character.operates, vehicle),
 			'completeVehicleMaintenanceService: wrong operated vehicle'
 		)
 		const svc = vehicle.service
@@ -881,7 +882,7 @@ class VehicleFunctions {
 		if (jobPlan.type !== 'work' || jobPlan.job !== 'vehicleOffload') return
 		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'abandonVehicleMaintenanceService: vehicle missing')
-		if (character.operates !== vehicle) return
+		if (!sameRef(character.operates, vehicle)) return
 		const svc = vehicle.service
 		if (!isVehicleMaintenanceService(svc)) return
 		traces.vehicle.warn?.('vehicleJob.maintenance.abandon', {

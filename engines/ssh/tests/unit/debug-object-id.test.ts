@@ -23,7 +23,7 @@ describe('debugObjectId', () => {
 
 		expect(debugObjectId(raw)).toBe('obj:1')
 		expect(debugRawObjectId(raw)).toBe('obj:1')
-		expect(debugObjectId(proxy)).toBe('obj:2')
+		expect(debugObjectId(proxy)).toBe('obj:1')
 		expect(debugRawObjectId(proxy)).toBe('obj:1')
 	})
 

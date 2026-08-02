@@ -80,6 +80,7 @@ import type {
 } from 'ssh/types/base'
 import { isVehicleBoundJob } from 'ssh/types/base'
 import { type AxialCoord, type AxialKeyMap, axial } from 'ssh/utils'
+import { sameRef } from 'ssh/utils/identity'
 import { toAxialCoord } from 'ssh/utils/position'
 import { KeyedRevisionedCache } from 'ssh/utils/revisioned-cache'
 import { maxWalkTime } from '../../../assets/constants'
@@ -190,10 +191,10 @@ export function allocateVehicleServiceForJob(
 }
 
 function vehicleHasNoOtherOperator(game: Game, vehicle: Vehicle, character: Character): boolean {
-	if (vehicle.operator) return vehicle.operator === character
+	if (vehicle.operator) return sameRef(vehicle.operator, character)
 	for (const c of game.population) {
-		if (c === character) continue
-		if (c.operates === vehicle) return false
+		if (sameRef(c, character)) continue
+		if (sameRef(c.operates, vehicle)) return false
 	}
 	return true
 }
@@ -221,7 +222,7 @@ function hasActiveVehicleDockMovement(game: Game): boolean {
 
 function characterCanUseLinkedVehicleHere(character: Character, vehicle: Vehicle): boolean {
 	if (character.driving) return true
-	if (character.operates !== vehicle) return false
+	if (!sameRef(character.operates, vehicle)) return false
 	const characterCoord = toAxialCoord(character.position)
 	const vehicleCoord = toAxialCoord(vehicle.effectivePosition)
 	if (!characterCoord || !vehicleCoord) return false
@@ -2058,7 +2059,7 @@ function traceNoVehicleWorkPicks(game: Game, character: Character): void {
 			tileCoord: toAxialCoord(vehicle.tile.position),
 			isDocked: vehicle.isDocked,
 			operatorUid: debugObjectId(vehicle.operator),
-			operatedByCharacter: character.operates === vehicle,
+			operatedByCharacter: sameRef(character.operates, vehicle),
 			vehicleHasNoOtherOperator: vehicleHasNoOtherOperator(game, vehicle, character),
 			stock: vehicle.storage.stock,
 			virtualGoodsCount: vehicle.storage.virtualGoodsCount,
@@ -2287,12 +2288,10 @@ export function collectVehicleAdvertisedJobs(game: Game, vehicle: Vehicle): Prop
 	}
 	const dockedJob = dockedVehicleProviderJob(game, vehicle)
 	if (dockedJob) return [dockedJob]
-	if (
-		dockBay &&
-		dockCandidates.length > 0 &&
-		(vehicle.storage.virtualGoodsCount <= 0 ||
-			dockBay.hive.hasActiveFreightVehicleDockMovement(vehicle))
-	) {
+	// Demand candidates mean the dock still wants a load. Vehicle-side allocated/reserved room
+	// (virtual goods) is often exactly that pending load — do not wait for a live movement before
+	// advertising the storage→dock convey workers need to execute.
+	if (dockBay && dockCandidates.length > 0) {
 		const demand = dockCandidates.find((candidate) => candidate.advertisement === 'demand')
 		const source = demand
 			? ([dockBay, ...dockBay.hive.generalStorages] as Alveolus[]).find((alveolus) =>

@@ -172,10 +172,14 @@ describe('Eat planning vs hunger (no goEat when sated)', () => {
 			const first = game.population.createCharacter('First', { q: 0, r: -1 })
 			const second = game.population.createCharacter('Second', { q: 1, r: -1 })
 
-			first.scriptsContext.selfCare.eatFromWorld('berries', tile)
+			const firstStep = first.scriptsContext.selfCare.eatFromWorld('berries', tile)
 			const stale = second.scriptsContext.selfCare.eatFromWorld('berries', tile)
 
 			expect(stale).toBeInstanceOf(PonderingStep)
+			// Steps are ASingleStep (Commitment) instances — complete them so
+			// the step commitments resolve instead of leaking.
+			firstStep?.complete?.()
+			;(stale as { complete?(): void }).complete?.()
 		} finally {
 			game.destroy()
 		}
