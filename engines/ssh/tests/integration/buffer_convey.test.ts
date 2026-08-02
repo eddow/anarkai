@@ -114,6 +114,7 @@ describe('Storage Buffering', () => {
 							{
 								coord: [0, 0],
 								alveolus: 'pile',
+								variant: 'wood',
 								goods: {},
 							},
 							{

@@ -15,7 +15,7 @@ test.describe('Property Widget Switching', () => {
 		const [charA, charB] = await page.evaluate(() => {
 			const game = (window as any).game
 			const chars = [...game.population]
-			return [chars[0].uid, chars[1].uid]
+			return [(window as any).debugObjectId(chars[0]), (window as any).debugObjectId(chars[1])]
 		})
 		expect(charA).toBeTruthy()
 		expect(charB).toBeTruthy()

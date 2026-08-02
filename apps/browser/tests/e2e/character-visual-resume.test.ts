@@ -21,11 +21,13 @@ async function snapshotSelectedCharacter(page: Page) {
 	return page.evaluate((): VisualSnapshot => {
 		const game = (window as any).game
 		const selectedUid = (window as any).selectionState.selectedUid
-		const visual = game.renderer?.visuals?.get(selectedUid)
+		const visual = [...(game.renderer?.visuals?.values?.() ?? [])].find(
+			(v: any) => (window as any).debugObjectId(v?.object) === selectedUid
+		)
 		const char = visual?.object
 		if (!visual || !char) throw new Error(`Missing Pixi visual for ${selectedUid}`)
 		return {
-			charUid: char.uid,
+			charUid: (window as any).debugObjectId(char),
 			charPosition: { ...char.position },
 			visualPosition: {
 				x: visual.view.position.x,
@@ -66,7 +68,7 @@ test.describe('Character board visual after inspector resume', () => {
 			if (!char) throw new Error('Missing rendered character')
 			;(window as any).configuration.timeControl = 0
 			game.simulateObjectClick(char, { button: 0 })
-			return { uid: char.uid }
+			return { uid: (window as any).debugObjectId(char) }
 		})
 
 		const panel = page.locator(`.selection-info-panel[data-test-object-uid="${selected.uid}"]`)
@@ -76,7 +78,10 @@ test.describe('Character board visual after inspector resume', () => {
 		const before = await snapshotSelectedCharacter(page)
 		await page.evaluate((nextPosition) => {
 			const game = (window as any).game
-			const char = game.getObject((window as any).selectionState.selectedUid)
+			const selectedUid = (window as any).selectionState.selectedUid
+			const char = [...game.objects].find(
+				(o: any) => (window as any).debugObjectId(o) === selectedUid
+			)
 			const step = char.scriptsContext.walk.moveTo(nextPosition)
 			if (!step) throw new Error('Expected a movement step')
 			char.stepExecutor?.cancel()

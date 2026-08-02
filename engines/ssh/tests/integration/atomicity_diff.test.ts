@@ -80,8 +80,8 @@ describe('Atomicity & Environment Investigation', () => {
 				looseBerries += list.filter((fg) => fg.goodType === 'berries').length
 			}
 
-			const workerBerries = Array.from((game.population as any).characters.values()).reduce(
-				(acc: number, char: any) => acc + (char.inventory?.stock?.berries || 0),
+			const workerBerries = Array.from(game.population).reduce(
+				(acc: number, char: any) => acc + (char.personalInventory?.berries || 0),
 				0
 			)
 

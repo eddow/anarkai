@@ -21,11 +21,13 @@ describe('Buffering Logic', () => {
 							{
 								coord: [0, 0],
 								alveolus: 'pile', // Should map to StorageAlveolus now
+								variant: 'wood',
 								goods: { wood: 24 },
 							},
 							{
 								coord: [1, 0],
 								alveolus: 'pile',
+								variant: 'wood',
 								goods: {},
 							},
 						],

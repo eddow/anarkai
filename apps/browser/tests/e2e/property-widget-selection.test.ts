@@ -37,11 +37,11 @@ test.describe('Property Widget Selection', () => {
 				api.addPanel({
 					component: 'selection-info',
 					title: 'Selection Info',
-					params: { uid: char.uid },
+					params: { uid: (window as any).debugObjectId(char) },
 					floating: { width: 300, height: 500 },
 				})
 
-				return char.uid
+				return (window as any).debugObjectId(char)
 			}
 			return null
 		})

@@ -37,12 +37,12 @@ test.describe('Linked Entity Navigation', () => {
 			;(window as any).dockviewApi.addPanel({
 				component: 'selection-info',
 				title: 'Selection',
-				params: { uid: char.uid },
+				params: { uid: (window as any).debugObjectId(char) },
 			})
 
 			return {
-				charUid: char.uid,
-				tileUid: targetTile.uid,
+				charUid: (window as any).debugObjectId(char),
+				tileUid: (window as any).debugObjectId(targetTile),
 			}
 		})
 
@@ -56,7 +56,10 @@ test.describe('Linked Entity Navigation', () => {
 
 		await link.hover()
 		await expect
-			.poll(async () => page.evaluate(() => (window as any).mrg.hoveredObject?.uid))
+			.poll(async () => {
+				const hovered = await page.evaluate(() => (window as any).mrg.hoveredObject)
+				return hovered ? (window as any).debugObjectId(hovered) : undefined
+			})
 			.toBe(context.tileUid)
 
 		await link.click()

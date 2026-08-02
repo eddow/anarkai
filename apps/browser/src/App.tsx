@@ -27,6 +27,7 @@ import {
 	buildGameDebugDump,
 	stringifyDebugValue,
 } from '../../../engines/ssh/src/lib/dev/debug-game-state.ts'
+import { debugObjectId } from '../../../engines/ssh/src/lib/dev/debug-object-id'
 import widgetsImport from './widgets'
 import SelectionInfoTab from './widgets/selection-info-tab'
 
@@ -43,6 +44,7 @@ if (typeof window !== 'undefined') {
 			configuration?: typeof configuration
 			game?: typeof game
 			selectionState?: typeof selectionState
+			debugObjectId?: (value: unknown) => string | undefined
 			dumpSshDebugState?: (
 				options?: BuildGameDebugDumpOptions
 			) => ReturnType<typeof buildGameDebugDump>
@@ -52,6 +54,9 @@ if (typeof window !== 'undefined') {
 	debugWindow.configuration = configuration
 	debugWindow.game = game
 	debugWindow.selectionState = selectionState
+	// Stable per-instance debug label for Playwright identity assertions.
+	// Runtime identity is object reference; this is the serializable test key.
+	debugWindow.debugObjectId = debugObjectId
 	debugWindow.dumpSshDebugState = (options = {}) =>
 		buildGameDebugDump(game, {
 			...options,

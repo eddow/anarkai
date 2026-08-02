@@ -19,9 +19,9 @@ test.describe('Property Widget Selection Switching Repro', () => {
 			// Search for a tile
 			const tile = game.hex.getTile({ q: -11, r: 0 })
 			return {
-				charA: { uid: characters[0].uid },
-				charB: { uid: characters[1].uid },
-				tileId: tile.uid,
+				charA: { uid: (window as any).debugObjectId(characters[0]) },
+				charB: { uid: (window as any).debugObjectId(characters[1]) },
+				tileId: (window as any).debugObjectId(tile),
 			}
 		})
 
@@ -35,7 +35,7 @@ test.describe('Property Widget Selection Switching Repro', () => {
 			// Trigger selection via game.clickObject
 			await page.evaluate((uid) => {
 				const game = (window as any).game
-				const obj = game.getObject(uid)
+				const obj = [...game.objects].find((o: any) => (window as any).debugObjectId(o) === uid)
 				game.clickObject({ button: 0 }, obj)
 			}, id)
 
@@ -93,16 +93,16 @@ test.describe('Property Widget Selection Switching Repro', () => {
 			const vehicle = [...game.vehicles][0]
 			const tile = game.hex.getTile({ q: -11, r: 0 }) || game.hex.getTile({ q: 0, r: 0 })
 			return {
-				characterUid: character.uid,
-				vehicleUid: vehicle.uid,
-				tileUid: tile.uid,
+				characterUid: (window as any).debugObjectId(character),
+				vehicleUid: (window as any).debugObjectId(vehicle),
+				tileUid: (window as any).debugObjectId(tile),
 			}
 		})
 
 		const select = async (uid: string) => {
 			await page.evaluate((nextUid) => {
 				const game = (window as any).game
-				game.clickObject({ button: 0 }, game.getObject(nextUid))
+				game.clickObject({ button: 0 }, [...game.objects].find((o: any) => (window as any).debugObjectId(o) === nextUid))
 			}, uid)
 			await expect(page.locator('.selection-info-panel')).toHaveAttribute(
 				'data-test-object-uid',

@@ -2563,7 +2563,6 @@ public getSettlementTradeProfile(id: string): NpcSettlementTradeProfile | undefi
 			.map((coord) => [coord.q, coord.r] as [number, number])
 		const zoneTypePatches: import('ssh/board/zone').ZoneDefinitionPatch[] = []
 		const zoneCoordMap = new Map<import('ssh/board/zone').ZoneDefinition, Array<[number, number]>>()
-		const projects: Record<string, Array<[number, number]>> = {}
 		const projectSites: ProjectSitePatch[] = []
 		const dwellings: DwellingPatch[] = []
 		const roads: RoadPatches = {}
@@ -2607,12 +2606,12 @@ public getSettlementTradeProfile(id: string): NpcSettlementTradeProfile | undefi
 					plantedTrees: content.plantedTrees ? { ages: [...content.plantedTrees.ages] } : undefined,
 				})
 
-				// Save project information
+				// Save project information — `projectSites` is the single
+				// representation (carries phase, foundation stock, variant).
+				// The legacy `projects` map (project → coords) is intentionally
+				// NOT emitted: emitting both made load apply `setProject` twice
+				// on the same tile (two competing construction-phase effects).
 				if (content.project) {
-					if (!projects[content.project]) {
-						projects[content.project] = []
-					}
-					projects[content.project].push([q, r])
 					projectSites.push({
 						coord: [q, r],
 						project: content.project,
@@ -2775,7 +2774,6 @@ public getSettlementTradeProfile(id: string): NpcSettlementTradeProfile | undefi
 				looseGoods: looseGoodsPatches,
 				streamedFrontier,
 				zones: zoneTypePatches,
-				projects,
 				projectSites,
 				dwellings,
 				playerAccount: { balanceVp: this.playerAccount.balanceVp },

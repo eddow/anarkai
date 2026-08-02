@@ -13,6 +13,7 @@ import { vehicleTextureKey } from 'engine-pixi/renderers/vehicle-visual'
 import { effect, reactive } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { Tile } from 'ssh/board/tile'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { SyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import type { InspectorSelectableObject, InteractiveGameObject } from 'ssh/game/object'
 import { resolveSelectableHoverObject } from 'ssh/game/object'
@@ -142,14 +143,16 @@ const LinkedEntityControl = (props: LinkedEntityControlProps) => {
 
 	effect`linked-entity:object-meta`(() => {
 		const object = currentObject()
-		state.visualObjectUid = object && 'uid' in object ? (object as any).uid : ''
+		// Stable per-instance debug label used purely as a change-detection key
+		// for visual sync. Runtime identity is the object reference itself.
+		state.visualObjectUid = object ? debugObjectId(object) ?? '' : ''
 		state.objectTitle = object?.title ?? ''
 		state.objectGame = object?.game
 	})
 
 	effect`linked-entity:visual-object`(() => {
 		const object = currentObject()
-		const nextUid = object && 'uid' in object ? (object as any).uid : ''
+		const nextUid = object ? debugObjectId(object) ?? '' : ''
 		if (state.visualObjectUid === nextUid) return
 		state.visualObjectUid = nextUid
 		state.sprite = undefined

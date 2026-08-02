@@ -12,7 +12,7 @@ test.describe('Pin Mechanism', () => {
 			const game = (window as any).game
 			const chars = [...game.population]
 			const char = chars[0]
-			;(window as any).selectionState.selectedUid = char.uid
+			;(window as any).selectionState.selectedUid = (window as any).debugObjectId(char)
 
 			// Open dynamic panel if not open (mimic GameWidget behavior)
 			const dock = (window as any).dockviewApi
@@ -24,7 +24,7 @@ test.describe('Pin Mechanism', () => {
 				})
 			}
 
-			return { uid: char.uid, name: char.title || char.name }
+			return { uid: (window as any).debugObjectId(char), name: char.title || char.name }
 		})
 
 		// Wait for panel
@@ -43,8 +43,8 @@ test.describe('Pin Mechanism', () => {
 			const game = (window as any).game
 			const chars = [...game.population]
 			const char = chars[1]
-			;(window as any).selectionState.selectedUid = char.uid
-			return { uid: char.uid, name: char.title || char.name }
+			;(window as any).selectionState.selectedUid = (window as any).debugObjectId(char)
+			return { uid: (window as any).debugObjectId(char), name: char.title || char.name }
 		})
 
 		// 4. Verify Panel still shows Char A (Pin should lock it)
@@ -67,14 +67,14 @@ test.describe('Pin Mechanism', () => {
 		const charA = await page.evaluate(() => {
 			const game = (window as any).game
 			const char = [...game.population][0]
-			;(window as any).selectionState.selectedUid = char.uid
-			return char.uid
+			;(window as any).selectionState.selectedUid = (window as any).debugObjectId(char)
+			return (window as any).debugObjectId(char)
 		})
 
 		// Hover Char A in game (simulate via mrg)
 		await page.evaluate((uid) => {
 			const game = (window as any).game
-			const char = game.getObject(uid)
+			const char = [...game.objects].find((o: any) => (window as any).debugObjectId(o) === uid)
 			;(window as any).mrg.hoveredObject = char
 		}, charA)
 
@@ -82,7 +82,7 @@ test.describe('Pin Mechanism', () => {
 		await page.waitForTimeout(100)
 
 		// Check if still hovered
-		const hoveredUid = await page.evaluate(() => (window as any).mrg.hoveredObject?.uid)
+		const hoveredUid = await page.evaluate(() => (window as any).mrg.hoveredObject ? (window as any).debugObjectId((window as any).mrg.hoveredObject) : undefined)
 
 		// If bug exists, hoveredUid will be undefined
 		expect(hoveredUid).toBe(charA)

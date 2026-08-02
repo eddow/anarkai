@@ -17,8 +17,8 @@ test.describe('Property Widget Switching Direct', () => {
 			const game = (window as any).game
 			const characters = [...game.population]
 			return {
-				charA: { uid: characters[0].uid },
-				charB: { uid: characters[1].uid },
+				charA: { uid: (window as any).debugObjectId(characters[0]) },
+				charB: { uid: (window as any).debugObjectId(characters[1]) },
 			}
 		})
 
@@ -28,7 +28,7 @@ test.describe('Property Widget Switching Direct', () => {
 			// Trigger selection via game.clickObject
 			await page.evaluate((uid) => {
 				const game = (window as any).game
-				const obj = game.getObject(uid)
+				const obj = [...game.objects].find((o: any) => (window as any).debugObjectId(o) === uid)
 				game.clickObject({ button: 0 }, obj)
 			}, id)
 

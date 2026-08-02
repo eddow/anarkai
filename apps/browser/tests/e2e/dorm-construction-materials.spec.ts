@@ -22,7 +22,7 @@ test('dorm woodchopper construction site shows its needed material count', async
 		game.simulateObjectClick(tile, { button: 0 })
 
 		return {
-			tileUid: tile.uid,
+			tileUid: (window as any).debugObjectId(tile),
 			requiredGoods,
 		}
 	})

@@ -125,6 +125,7 @@ describe('Convey Stall Reproduction', () => {
 							{
 								coord: [1, 0],
 								alveolus: 'pile',
+								variant: 'wood',
 								goods: {},
 							},
 						],

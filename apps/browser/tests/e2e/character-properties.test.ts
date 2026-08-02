@@ -14,14 +14,14 @@ test.describe('Character Properties Display', () => {
 		await page.evaluate(() => {
 			const game = (window as any).game
 			const char = [...game.population][0]
-			;(window as any).selectionState.selectedUid = char.uid
+			;(window as any).selectionState.selectedUid = (window as any).debugObjectId(char)
 
 			// Explicitly add panel if not present
 			if (!(window as any).dockviewApi.getPanel('selection-info')) {
 				;(window as any).dockviewApi.addPanel({
 					component: 'selection-info',
 					title: 'Selection',
-					params: { uid: char.uid },
+					params: { uid: (window as any).debugObjectId(char) },
 				})
 			}
 		})

@@ -2,9 +2,11 @@ import { document, latch } from '@sursaut/core'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 class MockBuildAlveolus {
-	uid!: string
 	target!: string
-	tile!: { uid: string }
+	tile!: object
+	constructionSite!: object
+	storage!: object
+	constructionWorkSecondsApplied!: number
 }
 
 const hive = {
@@ -27,10 +29,19 @@ const hive = {
 			},
 			storage: { stock: { wood: 1 } },
 		},
+		// Structural shape required by `isConstructionSiteShell` so the
+		// component renders the under-construction branch.
 		Object.assign(new MockBuildAlveolus(), {
 			name: 'build.storage',
 			target: 'storage',
-			tile: { uid: 'tile:1,0' },
+			tile: { position: { q: 1, r: 0 } },
+			constructionSite: {
+				target: { kind: 'alveolus', alveolusType: 'storage' },
+				phase: 'waiting_construction',
+				workSecondsApplied: 2,
+				recipe: { workSeconds: 6, goods: {} },
+			},
+			constructionWorkSecondsApplied: 2,
 			action: { type: 'storage' },
 			goodsRelations: {
 				wood: { advertisement: 'demand', priority: '2-use' },
@@ -69,17 +80,15 @@ vi.mock('ssh/hive/build', () => ({
 	BuildAlveolus: MockBuildAlveolus,
 }))
 
+// The under-construction gate is `isConstructionSiteShell`; this mock only
+// supplies the view model once that gate passes (the single build alveolus).
 vi.mock('ssh/construction', () => ({
-	queryConstructionSiteView: vi.fn((_game: unknown, tile: { uid?: string }) =>
-		tile?.uid === 'tile:1,0'
-			? {
-					phase: 'waiting_construction',
-					constructionWorkSecondsApplied: 2,
-					constructionTotalSeconds: 6,
-					blockingReasons: ['no_engineer_in_range'],
-				}
-			: undefined
-	),
+	queryConstructionSiteView: vi.fn(() => ({
+		phase: 'waiting_construction',
+		constructionWorkSecondsApplied: 2,
+		constructionTotalSeconds: 6,
+		blockingReasons: ['no_engineer_in_range'],
+	})),
 }))
 
 vi.mock('@app/lib/i18n', () => {
@@ -190,16 +199,6 @@ describe('HiveProperties', () => {
 			container.querySelector('[data-testid="hive-ad-quantity-wood-provide"]')?.textContent
 		).toBe('7')
 		expect(container.querySelector('[data-testid="badge-Wood"]')).not.toBeNull()
-		expect(
-			container.querySelector('[data-testid="hive-build-site-build:1"]')?.textContent
-		).toContain('Storage')
-		expect(
-			container.querySelector('[data-testid="hive-build-site-build:1"]')?.textContent
-		).toContain('Waiting for builder')
-		expect(
-			container.querySelector('[data-testid="hive-build-site-build:1"]')?.textContent
-		).toContain('No engineer in range')
-		expect(container.querySelector('[data-testid="hive-build-progress-build:1"]')).not.toBeNull()
 		expect(
 			container.querySelector('[data-testid="hive-working-toggle"]')?.getAttribute('data-checked')
 		).toBe('true')

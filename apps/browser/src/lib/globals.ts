@@ -3,7 +3,7 @@ import type { DockviewWidgetScope } from '@sursaut/ui/dockview'
 
 export type { Configuration } from 'ssh/globals'
 // Re-export all game-related globals from ssh engine
-export { configuration, debugInfo, game, games } from 'ssh/globals'
+export { configuration, game } from 'ssh/globals'
 export {
 	activeWorldViewPov,
 	getHoveredObject,

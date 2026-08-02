@@ -1,4 +1,3 @@
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 // @ts-nocheck
 // Manual DOM mock for PixiJS
 if (typeof document === 'undefined') {
@@ -146,6 +145,23 @@ describe('Save/Load Determinism', () => {
 		)
 	}
 
+	/**
+	 * Resolve the loaded counterpart of a character across save/load.
+	 *
+	 * Save/load identity is the register (array) index, not an id: characters are
+	 * serialized in population-iteration order and re-created in the same order on
+	 * load. `debugObjectId` is per-instance ephemeral and can never match a fresh
+	 * deserialized object.
+	 */
+	function loadedCharacter<T>(
+		originalPopulation: Iterable<T>,
+		loadedPopulation: Iterable<T>,
+		original: T
+	): T | undefined {
+		const index = Array.from(originalPopulation).indexOf(original)
+		return Array.from(loadedPopulation)[index]
+	}
+
 	// Use static imports
 	// Patch getTexture to avoid rendering errors in headless mode
 	Game.prototype.getTexture = () => ({
@@ -162,17 +178,18 @@ describe('Save/Load Determinism', () => {
 		games.add(game1)
 		await game1.loaded
 		const char1 = game1.population.createCharacter('Walker', { q: 0, r: 0 })
-		char1.stepExecutor = new MoveToStep(10, char1, { q: 10, r: 0 })
+		const moveStep = new MoveToStep(10, char1, { q: 10, r: 0 })
+		char1.stepExecutor = moveStep
+		// `stepExecutor` assignment alone does not drive the step — steps run
+		// on the game clock, so register it (as `beginStep` does).
+		game1.clock.begin(moveStep, moveStep.duration)
 
 		const dt = 0.1
-		for (let i = 0; i < 20; i++) {
-			game1.ticker.update(dt * 1000)
-			char1.update(dt)
-		}
+		for (let i = 0; i < 20; i++) game1.clock.advance(dt)
 
 		const saveState = game1.saveGameData()
 
-		for (let i = 0; i < 20; i++) char1.update(dt)
+		for (let i = 0; i < 20; i++) game1.clock.advance(dt)
 		const controlPos = { ...char1.position }
 
 		const game2 = new Game({
@@ -182,9 +199,13 @@ describe('Save/Load Determinism', () => {
 		games.add(game2)
 		await game2.loaded
 		await game2.loadGameData(saveState)
-		const char2 = Array.from(game2.population).find(c => debugObjectId(c) === debugObjectId(char1))
-
-		for (let i = 0; i < 20; i++) char2.update(dt)
+		const char2 = loadedCharacter(game1.population, game2.population, char1)
+        const restored1 = char2.stepExecutor as unknown as {
+                duration: number
+                evolution: number
+        }
+        game2.clock.begin(char2.stepExecutor as never, restored1.duration * (1 - restored1.evolution))
+		for (let i = 0; i < 20; i++) game2.clock.advance(dt)
 
 		const pos2 = toAxialCoord(char2.position)
 		const ctrlAxial = toAxialCoord(controlPos)
@@ -213,7 +234,7 @@ describe('Save/Load Determinism', () => {
 		games.add(game2)
 		await game2.loaded
 		await game2.loadGameData(saveState)
-		const char2 = Array.from(game2.population).find(c => debugObjectId(c) === debugObjectId(char))
+		const char2 = loadedCharacter(game.population, game2.population, char)
 
 		expect(char2.carry?.available('wood') ?? 0).toBe(0)
 		expect(char2.carry?.available('stone') ?? 0).toBe(0)
@@ -232,9 +253,10 @@ describe('Save/Load Determinism', () => {
 		const workDuration = 5.0
 		const step = new DurationStep(workDuration, 'work', 'Chopping Wood')
 		char.stepExecutor = step
+		game.clock.begin(step, step.duration)
 
 		const dt = 0.1
-		for (let i = 0; i < 25; i++) char.update(dt)
+		for (let i = 0; i < 25; i++) game.clock.advance(dt)
 
 		const saveState = game.saveGameData()
 
@@ -245,7 +267,7 @@ describe('Save/Load Determinism', () => {
 		games.add(game2)
 		await game2.loaded
 		await game2.loadGameData(saveState)
-		const char2 = Array.from(game2.population).find(c => debugObjectId(c) === debugObjectId(char))
+		const char2 = loadedCharacter(game.population, game2.population, char)
 
 		expect(char2.stepExecutor).toBeDefined()
 		expect(char2.stepExecutor!.constructor.name).toBe('DurationStep')
@@ -256,8 +278,10 @@ describe('Save/Load Determinism', () => {
 		char2.stepExecutor!.final(() => {
 			finished = true
 		})
+		const restored3 = char2.stepExecutor as unknown as { duration: number; evolution: number }
+		game2.clock.begin(char2.stepExecutor as never, restored3.duration * (1 - restored3.evolution))
 		for (let i = 0; i < 26; i++) {
-			char2.update(dt)
+			game2.clock.advance(dt)
 		}
 		expect(finished).toBe(true)
 	})
@@ -335,7 +359,7 @@ describe('Save/Load Determinism', () => {
 		expect(residentialTile?.content).toBeDefined()
 		expect(projectTile?.content).toBeDefined()
 
-		residentialTile!.zone = 'residential'
+		residentialTile!.zone = { type: 'residential' }
 		expect(projectTile!.content instanceof UnBuiltLand).toBe(true)
 		;(projectTile!.content as UnBuiltLand).setProject('build:test')
 
@@ -350,7 +374,7 @@ describe('Save/Load Determinism', () => {
 		await game2.loaded
 		await game2.loadGameData(saveState)
 
-		expect(game2.hex.zoneManager.getZone(residentialCoord)).toBe('residential')
+		expect(game2.hex.zoneManager.getZone(residentialCoord)?.type).toBe('residential')
 		const loadedProjectTile = game2.hex.getTile(projectCoord)
 		expect(loadedProjectTile?.content instanceof UnBuiltLand).toBe(true)
 		expect((loadedProjectTile?.content as UnBuiltLand).project).toBe('build:test')
@@ -437,10 +461,11 @@ describe('Save/Load Determinism', () => {
 
 		const step = new MultiMoveStep(10, path, 'work', 'Hauling stuff')
 		char.stepExecutor = step
+		game.clock.begin(step, step.duration)
 
 		const dt = 0.1
 		// Run 50%
-		for (let i = 0; i < 50; i++) char.update(dt) // 5s
+		for (let i = 0; i < 50; i++) game.clock.advance(dt) // 5s
 
 		const saveState = game.saveGameData()
 
@@ -452,7 +477,7 @@ describe('Save/Load Determinism', () => {
 		games.add(game2)
 		await game2.loaded
 		await game2.loadGameData(saveState)
-		const char2 = Array.from(game2.population).find(c => debugObjectId(c) === debugObjectId(char))
+		const char2 = loadedCharacter(game.population, game2.population, char)
 
 		expect(char2.stepExecutor!.constructor.name).toBe('MultiMoveStep')
 		expect((char2.stepExecutor as MultiMoveStep).evolution).toBeCloseTo(0.5, 2)
@@ -462,7 +487,11 @@ describe('Save/Load Determinism', () => {
 		// If it persists, it should be correct.
 
 		// Finish
-		for (let i = 0; i < 51; i++) char2.update(dt)
+        const restored4 = char2.stepExecutor as unknown as {
+                duration: number
+                evolution: number
+        }
+        game2.clock.begin(char2.stepExecutor as never, restored4.duration * (1 - restored4.evolution))
 
 		// After finish, char should be at destination of the movements?
 		// MultiMoveStep updates 'who' position.
