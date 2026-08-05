@@ -18,7 +18,9 @@ import {
 	tileSize,
 	toAxialCoord,
 } from 'ssh/utils'
+import { isConstructionSiteShell } from 'ssh/build-site'
 import { AxialKeyMap } from 'ssh/utils/mem'
+import { AlveolusGate } from './border/alveolus-gate'
 import { TileBorder, type TileBorderContent } from './border/border'
 import { Alveolus } from './content/alveolus'
 import type { TileContent } from './content/content'
@@ -114,6 +116,12 @@ export class HexBoard extends GameObject {
 			}
 			oldContent.destroy()
 		}
+		// Construction shells (BuildAlveolus/BuildDwelling) are convey endpoints even
+		// though they are not `Alveolus` (and therefore never run the hive attach path).
+		// Wire gates to neighboring alveoli so hive convey can route to/from the shell.
+		if (content && isConstructionSiteShell(content)) {
+			this.wireConstructionSiteGates(content.tile)
+		}
 		// If a tile content is set programmatically post-generation, mark tile dirty
 		const tile = content?.tile ?? (coord ? this.getTile(coord) : undefined)
 		if (tile && oldContent !== content) tile.notifyContentChanged()
@@ -121,6 +129,14 @@ export class HexBoard extends GameObject {
 		if (tile) this.game.enqueueInteractiveChange(tile)
 		if (changedGroundSemantics) {
 			this.game.notifyGroundSemanticsChanged(coord)
+		}
+	}
+
+	private wireConstructionSiteGates(tile: Tile) {
+		for (const surrounding of tile.surroundings) {
+			if (!(surrounding.tile instanceof Alveolus)) continue
+			if (surrounding.border.content instanceof AlveolusGate) continue
+			surrounding.border.content = new AlveolusGate(surrounding.border)
 		}
 	}
 

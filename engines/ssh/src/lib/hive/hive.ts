@@ -513,6 +513,15 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 				})
 				this.advertise(advertiser, unwrap(relations) ?? {})
 			}
+			// Docked vehicle endpoints derive their provide/demand from CURRENT hive demand
+			// (`dockedVehicleGoodsRelations` gates provide on `currentAdvertisedDemand`). A demand
+			// change (e.g. storage buffers configured after the vehicle docked) must re-evaluate the
+			// dock so surplus cargo pairs with the new demand without waiting for the next vehicle
+			// work pass. This is a direct `advertise`, so it cannot reschedule this flush.
+			for (const dock of this.freightVehicleDocks.values()) {
+				const relations = dockedVehicleGoodsRelations(dock.vehicle, dock.bay)
+				this.advertise(dock, Object.keys(relations).length > 0 ? relations : {})
+			}
 		})
 	}
 
@@ -3059,18 +3068,22 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			} else if (!this.isRelayTransitTile(tileCoord, goodType, undefined, undefined)) {
 				continue
 			}
+			// Source/destination tiles are always traversable — even when their
+			// content is a construction shell (BuildAlveolus/BuildDwelling) rather
+			// than a finished Alveolus. `isRelayTransitTile` already treats them
+			// as reachable, so push them before the Alveolus-only gate below.
+			if (destination && axial.key(tileCoord) === axial.key(destination)) {
+				push(toAxialCoord(destination))
+			}
+			if (source && axial.key(tileCoord) === axial.key(source)) {
+				push(toAxialCoord(source))
+			}
 			const content = tile.content
 			if (!(content instanceof Alveolus)) continue
 			for (const gate of content.gates) {
 				const b = toAxialCoord(gate.border.position)
 				if (axial.key(b) === hereKey) continue
 				push(b)
-			}
-			if (destination && axial.key(tileCoord) === axial.key(destination)) {
-				push(toAxialCoord(destination))
-			}
-			if (source && axial.key(tileCoord) === axial.key(source)) {
-				push(toAxialCoord(source))
 			}
 		}
 		return out

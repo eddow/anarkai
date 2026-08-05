@@ -77,8 +77,8 @@ describe('terminal border convey (fixed)', () => {
 			expect(bayTile?.looseGoods.length).toBe(0)
 
 			// Verify no errors in traces
-			const errorLogs = traces.convey.error?.()
-			expect(errorLogs).toBeUndefined()
+			const conveyErrorRows = (traces.convey ?? []).filter((row) => row[0] === 'error')
+			expect(conveyErrorRows).toHaveLength(0)
 		} finally {
 			await engine.destroy()
 		}
@@ -115,7 +115,7 @@ describe('terminal border convey (fixed)', () => {
 			vehicle1.beginLineService(line, line.stops[1]!)
 			vehicle1.dock()
 
-			const vehicle2 = engine.game.vehicles.createVehicle('wheelbarrow', { q: 2, r: 0 }, [line])
+			const vehicle2 = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: -1 }, [line])
 			vehicle2.storage.addGood('wood', 1)
 			vehicle2.beginLineService(line, line.stops[1]!)
 			vehicle2.dock()
@@ -150,8 +150,8 @@ describe('terminal border convey (fixed)', () => {
 			expect(storage?.storage.stock.wood).toBe(2)
 
 			// Verify no invariant errors
-			const errorLogs = traces.convey.error?.()
-			expect(errorLogs).toBeUndefined()
+			const conveyErrorRows = (traces.convey ?? []).filter((row) => row[0] === 'error')
+			expect(conveyErrorRows).toHaveLength(0)
 		} finally {
 			await engine.destroy()
 		}

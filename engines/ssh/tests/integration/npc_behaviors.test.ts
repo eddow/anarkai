@@ -233,7 +233,7 @@ describe('NPC Behaviors Integration', () => {
 		const planned = gatherAlveolus?.nextJob?.(gatherer)
 		expect(planned).toBeUndefined()
 
-		const line = game.freightLines.find((l) => l.name === 'gatherers:gather:mushrooms-only')!
+		const line = game.freightLines.find((l) => l.name === 'Gatherers mushroom shuttle')!
 		expect(line).toBeDefined()
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 2, r: 1 }, [line])
 		vehicle.beginService(line, line.stops[0]!, gatherer)

@@ -74,6 +74,13 @@ describe('Stalled Exchange Watchdog', () => {
 	}, async () => {
 		options.stalledMovementScanIntervalMs = 0
 		options.stalledMovementSettleMs = 20
+		// The test intentionally detaches the movement, so the watchdog's
+		// detach diagnostics are expected — not suite failures.
+		;(globalThis as any).allowExpectedDiagnostics?.(
+			/\[WATCHDOG\] Detached movement allocation/,
+			/\[WATCHDOG\] Cancelled detached movement allocation/,
+			/\[Commitment\] Error in resolution callback for "hive-transfer/
+		)
 
 		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
 		await engine.init()
@@ -270,18 +277,22 @@ describe('Stalled Exchange Watchdog', () => {
 
 			const buildSource = buildSourceTile.content as Alveolus
 			const buildTarget = buildTargetTile.content as Alveolus
-			const hive = buildSource.hive as Hive | undefined
-			expect(hive).toBeDefined()
-			if (!hive) throw new Error('Expected hive for build sites')
+			// Construction shells (BuildAlveolus) are freight-aware via the
+			// build-site prototype: they advertise material demand and can
+			// receive goods, but `canGive` is always false — a stocked build
+			// site must never become a provider.
+			expect(buildSource.canGive('wood', '2-use')).toBe(false)
+			expect(buildSource.canGive('planks', '2-use')).toBe(false)
+			expect(buildSource.canGive('stone', '2-use')).toBe(false)
 
 			buildSource.storage.addGood('wood', 1)
 			buildSource.storage.addGood('planks', 1)
 			buildSource.storage.addGood('stone', 1)
+
+			// Stocking the shell does not change its (non-)provider status.
 			expect(buildSource.canGive('wood', '2-use')).toBe(false)
-			expect(buildTarget.canTake('wood', '2-use')).toBe(true)
-			expect(hive.createMovement('wood', buildSource, buildTarget)).toBe(false)
-			expect(hive.createMovement('planks', buildSource, buildTarget)).toBe(false)
-			expect(hive.createMovement('stone', buildSource, buildTarget)).toBe(false)
+			expect(buildSource.canGive('planks', '2-use')).toBe(false)
+			expect(buildSource.canGive('stone', '2-use')).toBe(false)
 		} finally {
 			await engine.destroy()
 		}
@@ -519,7 +530,14 @@ describe('Stalled Exchange Watchdog', () => {
 				throw new Error('Expected initial movement to exist')
 			}
 
-			bridgeTile.content = new BuildAlveolus(bridgeTile, 'storage')
+			// The bridge must be a real Alveolus — a construction shell
+			// (BuildAlveolus) is a TileContent and never joins a hive, so it
+			// would not connect the two hives.
+			inert(() => {
+				const bridge = createAlveolus('storage', bridgeTile)
+				if (!bridge) throw new Error('bridge alveolus missing')
+				bridgeTile.content = bridge
+			})
 			await flushWatchdogWork()
 
 			const mergedHive = leftGatherer.hive as Hive

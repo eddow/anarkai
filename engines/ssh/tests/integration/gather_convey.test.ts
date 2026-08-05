@@ -151,7 +151,7 @@ describe('Gatherer Conveying Integration', () => {
 			worker.onboard()
 			vehicle.storage.addGood('wood', 1)
 
-			const line = game.freightLines[0]!
+			const line = game.freightLines.find((l) => l.name === 'Filtered gather')!
 			const zoneStop = gatherZoneLoadStopForBay(line, gatherer)
 			expect(zoneStop).toBeDefined()
 			const hiveNeeds = aggregateHiveNeedTypes(game)

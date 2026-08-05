@@ -7,6 +7,7 @@ import { BuildAlveolus } from 'ssh/hive/build'
 import { commitmentValid, type Hive, type TrackedMovement } from 'ssh/hive/hive'
 import type { StorageAlveolus } from 'ssh/hive/storage'
 import { trackAllocation } from 'ssh/storage/guard'
+import { sameRef } from 'ssh/utils/identity'
 import { axial } from 'ssh/utils/axial'
 import { toAxialCoord } from 'ssh/utils/position'
 import { describe, expect, it } from 'vitest'
@@ -146,11 +147,14 @@ describe('Multi-Hop Convey Tests', () => {
 			expect(provider.storage.available('wood')).toBe(0)
 
 			movement.allocations.target.cancel('test.offer-missing-target')
+			// The invalid movement is expected to be skipped by aGoodMovement
+			// (warn) and later rejected by the pair reconciliation (warn).
+			;(globalThis as any).allowExpectedDiagnostics?.(
+				/\[WATCHDOG\] Movement source reservation without target allocation/,
+				/\[aGoodMovement\] Invalid tile movement/
+			)
 			expect(() => provider.aGoodMovement).not.toThrow()
 			expect(provider.aGoodMovement).toBeUndefined()
-			;(globalThis as any).allowExpectedDiagnostics?.(
-				/\[WATCHDOG\] Movement source reservation without target allocation/
-			)
 			expect(() =>
 				provider.hive.reconcileMovementAllocationPairs('test.offer-missing-target')
 			).toThrow(/source-without-target-allocation/)
@@ -252,7 +256,7 @@ describe('Multi-Hop Convey Tests', () => {
 			expect(borderStorage.available('wood')).toBe(1)
 
 			;(globalThis as any).allowExpectedDiagnostics?.(
-				/\[WATCHDOG\] Offloaded orphan border transit stock/
+				/Offloaded orphan border transit stock/
 			)
 			expect(() => (hive as any).scanBorderTransitStorageInvariant()).not.toThrow()
 			expect(() => provider.aGoodMovement).not.toThrow()
@@ -564,7 +568,7 @@ describe('Multi-Hop Convey Tests', () => {
 			const step = worker.scriptsContext.work.conveyStep()
 			expect(step).toBeDefined()
 			expect(movement.claimed).toBe(true)
-			expect(movement.claimedBy).toBe(worker)
+			expect(sameRef(movement.claimedBy, worker)).toBe(true)
 			expect(commitmentValid(movement.allocations.source)).toBe(true)
 			expect(
 				(movement.allocations.source as unknown as { reason?: { type?: string } }).reason?.type
@@ -576,7 +580,8 @@ describe('Multi-Hop Convey Tests', () => {
 			delete movement.claimedAtMs
 			;(globalThis as any).allowExpectedDiagnostics?.(
 				/\[conveyStep\] Error in finished callback/,
-				/movement\.hop\.before: expected claimed=true/
+				/movement\.hop\.before: expected claimed=true/,
+				/\[Commitment\] Error in resolution callback for "convey\.wood"/
 			)
 			expect(() => step?.finish()).not.toThrow()
 			expect(provider.storage.stock.wood ?? 0).toBe(0)
@@ -656,7 +661,7 @@ describe('Multi-Hop Convey Tests', () => {
 
 			;(hive as unknown as { scanForStalledExchanges(): void }).scanForStalledExchanges()
 			expect(movement.claimed).toBe(true)
-			expect(movement.claimedBy).toBe(relayWorker)
+			expect(sameRef(movement.claimedBy, relayWorker)).toBe(true)
 
 			step?.finish()
 
@@ -727,7 +732,8 @@ describe('Multi-Hop Convey Tests', () => {
 			movement.allocations.target.cancel('test.failed-handoff.invalid-target')
 			;(globalThis as any).allowExpectedDiagnostics?.(
 				/\[conveyStep\] Error in finished callback/,
-				/invalid-target-allocation/
+				/invalid-target-allocation/,
+				/\[Commitment\] Error in resolution callback for "convey\.planks"/
 			)
 			step?.finish()
 

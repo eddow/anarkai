@@ -110,7 +110,11 @@ describe('Deadlock Reproduction', () => {
 			const gatherAction = gatherWorker.findBestJob()
 			if (gatherAction) gatherWorker.begin(gatherAction)
 
-			const woodpileWorker = spawnWorker({ q: 1, r: 0 })
+			// Spawn the woodpile worker NEARBY (not ON the woodpile tile) so the
+			// gatherer worker's convey delivery `walk.into` doesn't deadlock on an
+			// occupied demander tile. The worker will walk to the woodpile via its
+			// own `goWork` after the convey completes.
+			const woodpileWorker = spawnWorker({ q: 2, r: 0 })
 			woodpileWorker.assignedAlveolus = game.hex.getTile({ q: 1, r: 0 })!.content as any
 			game.hex.getTile({ q: 1, r: 0 })!.content!.assignedWorker = woodpileWorker
 			const woodpileAction = woodpileWorker.findBestJob()

@@ -81,8 +81,8 @@ describe('terminal border convey', () => {
 			expect(storageTile?.looseGoods.length).toBe(0)
 
 			// Verify no errors in traces
-			const errorLogs = traces.convey.error?.()
-			expect(errorLogs).toBeUndefined()
+			const conveyErrorRows = (traces.convey ?? []).filter((row) => row[0] === 'error')
+			expect(conveyErrorRows).toHaveLength(0)
 		} finally {
 			await engine.destroy()
 		}

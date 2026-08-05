@@ -1,8 +1,7 @@
 // @ts-nocheck
 import { traces } from 'ssh/dev/debug'
 import type { SaveState } from 'ssh/game'
-import { Hive } from 'ssh/hive'
-import { BuildAlveolus } from 'ssh/hive/build'
+import { createAlveolus } from 'ssh/hive'
 import { axial } from 'ssh/utils'
 import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
@@ -196,9 +195,13 @@ describe('Convey bookkeeping resilience', () => {
 			const buildTile = engine.game.hex.getTile({ q: 1, r: 0 })
 			expect(buildTile).toBeDefined()
 			if (!buildTile) throw new Error('Expected build tile to exist')
-			const buildStorageAlv = new BuildAlveolus(buildTile, 'storage')
-			engine.game.hex.setTileContent(buildTile, buildStorageAlv as any)
-			if (!buildStorageAlv.hive) Hive.for(buildTile).attach(buildStorageAlv)
+			// Use the canonical attach path: `tile.content = …` runs Hive.attach,
+			// which creates the surrounding AlveolusGates that `alveolus.gates`
+			// reads. Constructing a bare BuildAlveolus + hex.setTileContent +
+			// manual Hive.for(...).attach bypasses gate creation and crashes.
+			const buildStorageAlv = createAlveolus('storage', buildTile)
+			if (!buildStorageAlv) throw new Error('storage alveolus missing')
+			buildTile.content = buildStorageAlv
 			await flushDeferred()
 
 			const sawmill = engine.game.hex.getTile({ q: 0, r: 0 })?.content as any

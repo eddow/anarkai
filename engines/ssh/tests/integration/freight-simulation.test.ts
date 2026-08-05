@@ -1,4 +1,3 @@
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 // @ts-nocheck
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
@@ -328,9 +327,9 @@ describe('Freight simulation (gather + distribute)', () => {
 			const woodNeedBefore = site.remainingNeeds.wood ?? 0
 			expect(woodNeedBefore).toBeGreaterThan(0)
 
-			expect(engine.game.freightLines.some((l) => l.name === 'sim-dist-wood')).toBe(true)
+			expect(engine.game.freightLines.some((l) => l.name === 'Wood distribute')).toBe(true)
 
-			const distLine = engine.game.freightLines.find((l) => l.name === 'sim-dist-wood')!
+			const distLine = engine.game.freightLines.find((l) => l.name === 'Wood distribute')!
 			const vehicle = engine.game.vehicles.createVehicle(lineFreightVehicleType(), { q: 0, r: 0 }, [
 				distLine,
 			])
@@ -434,7 +433,7 @@ describe('Freight simulation (gather + distribute)', () => {
 				}
 			}
 			const line = defined(
-				engine.game.freightLines.find((candidate) => candidate.name === 'build-flow-materials'),
+				engine.game.freightLines.find((candidate) => candidate.name === 'Build flow materials'),
 				'build-flow freight line'
 			)
 			engine.game.vehicles.createVehicle(lineFreightVehicleType(), { q: 1, r: 0 }, [line])
@@ -460,7 +459,9 @@ describe('Freight simulation (gather + distribute)', () => {
 
 			const pt = engine.game.hex.getTile({ q: 3, r: 0 })!
 			const ct = pt.content as any
-			const wb = [...engine.game.vehicles].find((v: any) => debugObjectId(v) === 'build-flow-wb')!
+			const wb = [...engine.game.vehicles].find(
+				(v: any) => v.service?.line === line
+			) as any
 			;(process as any).stderr.write(
 				`POST-SIM: ${JSON.stringify({
 					contentType: (pt.content as any)?.constructor?.name,
