@@ -9,7 +9,7 @@ import {
 	gameTimeSpeedFactors,
 } from 'engine-rules'
 import type { TerrainMacroHydrologySnapshot, TerrainSectorCoord } from 'engine-terrain'
-import { atomic, Eventful, reactive, unreactive } from 'mutts'
+import { atomic, defer, Eventful, reactive, unreactive } from 'mutts'
 import { Alveolus } from 'ssh/board'
 import { HexBoard } from 'ssh/board/board'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
@@ -435,7 +435,7 @@ export class Game extends Eventful<GameEvents> {
 	private scheduleTerrainInvalidationCoalescingFlush(): void {
 		if (this.terrainInvalidationFlushScheduled) return
 		this.terrainInvalidationFlushScheduled = true
-		queueMicrotask(() => {
+		defer(() => {
 			this.terrainInvalidationFlushScheduled = false
 			this.pendingCoordTerrainInvalidations.clear()
 		})
@@ -1013,10 +1013,11 @@ public getSettlementTradeProfile(id: string): NpcSettlementTradeProfile | undefi
 	private scheduleInteractiveLifecycleFlush() {
 		if (this.interactiveRegistrationBatchDepth > 0 || this.interactiveLifecycleFlushScheduled)
 			return
-		this.interactiveLifecycleFlushScheduled = true /*
+		this.interactiveLifecycleFlushScheduled = true
 		defer(() => {
+			this.interactiveLifecycleFlushScheduled = false
 			this.flushInteractiveLifecycleQueues()
-		})*/
+		})
 	}
 
 	private flushPresentationEvents() {
@@ -1030,7 +1031,7 @@ public getSettlementTradeProfile(id: string): NpcSettlementTradeProfile | undefi
 	private schedulePresentationEventsFlush() {
 		if (this.presentationEventsFlushScheduled) return
 		this.presentationEventsFlushScheduled = true
-		queueMicrotask(() => {
+		defer(() => {
 			this.flushPresentationEvents()
 		})
 	}

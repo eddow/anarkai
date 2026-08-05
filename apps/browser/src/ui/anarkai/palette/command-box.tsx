@@ -16,7 +16,7 @@ import {
 	serializePaletteCatalogDragPayload,
 	setPaletteCommandBoxInput,
 } from '@sursaut/ui/palette'
-import { reactive, unwrap } from 'mutts'
+import { defer, reactive, unwrap } from 'mutts'
 import type { AnarkaiPaletteSchema } from './types'
 
 type AnarkaiPaletteCommandBoxPalette = object
@@ -239,7 +239,7 @@ export function AnarkaiPaletteCommandBox(props: AnarkaiPaletteCommandBoxProps) {
 									'position:fixed;left:-9999px;top:0;pointer-events:none;opacity:0.92;max-width:min(90vw,22rem);'
 								document.body.appendChild(ghost)
 								event.dataTransfer.setDragImage(ghost, event.offsetX, event.offsetY)
-								queueMicrotask(() => ghost.remove())
+								defer(() => ghost.remove())
 							}
 						}
 						const attachCatalogDrag = (node: Node | readonly Node[]) => {

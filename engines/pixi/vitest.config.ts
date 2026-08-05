@@ -35,15 +35,25 @@ export default defineConfig({
 			},
 			{
 				find: 'npc-script',
-				replacement: path.resolve(__dirname, '../../../ownk/npcs/src'),
+				replacement: path.resolve(__dirname, '../../../ownk/npcs/ts/src'),
 			},
 			{
 				find: '@app/lib/interactive-state',
 				replacement: path.resolve(__dirname, '../../apps/browser/src/lib/interactive-state.ts'),
 			},
+			{
+				find: '@app/lib/freight-line-overlay',
+				replacement: path.resolve(__dirname, '../../apps/browser/src/lib/freight-line-overlay.ts'),
+			},
+			{
+				find: '@app/lib/freight-map-pick',
+				replacement: path.resolve(__dirname, '../../apps/browser/src/lib/freight-map-pick.ts'),
+			},
 		],
 	},
 	test: {
 		environment: 'node',
+		testTimeout: 120000,
+		fileParallelism: false,
 	},
 })

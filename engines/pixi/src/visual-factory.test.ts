@@ -52,8 +52,11 @@ describe('VisualFactory batched lifecycle sync', () => {
 			const factory = new VisualFactory(renderer)
 			factory.bind()
 
+			const tile = engine.game.hex.getTile({ q: 0, r: 0 })
+			if (!tile) throw new Error('Expected tile to exist')
+
 			const initialTileVisuals = factory.getDiagnostics().current.tileVisuals
-			expect((renderer.visuals as any).has('tile:0,0')).toBe(false)
+			expect(renderer.visuals.has(tile)).toBe(false)
 			const diagnostics = factory.getDiagnostics()
 			expect(diagnostics.recentBatches[0]?.reason).toBe('bootstrap')
 			expect(diagnostics.recentBatches[0]?.tileCount).toBeGreaterThanOrEqual(1)
@@ -80,18 +83,17 @@ describe('VisualFactory batched lifecycle sync', () => {
 			const factory = new VisualFactory(renderer)
 			factory.bind()
 
-			const visuals = renderer.visuals as any
-			const initialTileVisuals = factory.getDiagnostics().current.tileVisuals
-			expect(visuals.has('tile:0,0')).toBe(false)
-
 			const tile = engine.game.hex.getTile({ q: 0, r: 0 })
 			if (!tile) throw new Error('Expected tile to exist')
-			tile.zone = engine.game.hex.zoneManager.zoneByIndex(
-				engine.game.hex.zoneManager.findZoneIndexByName('harvest')
-			)!
+
+			const initialTileVisuals = factory.getDiagnostics().current.tileVisuals
+			expect(renderer.visuals.has(tile)).toBe(false)
+
+			const harvestZone = engine.game.hex.zoneManager.defineZone({ name: 'harvest', type: 'harvest' })
+			tile.zone = harvestZone
 			await new Promise((resolve) => setTimeout(resolve, 0))
 
-			expect((renderer.visuals as any).has('tile:0,0')).toBe(true)
+			expect(renderer.visuals.has(tile)).toBe(true)
 			const diagnostics = factory.getDiagnostics()
 			expect(['objectsChanged', 'objectsAdded']).toContain(diagnostics.recentBatches[0]?.reason)
 			expect(diagnostics.current.tileVisuals).toBeGreaterThan(initialTileVisuals)
@@ -118,13 +120,12 @@ describe('VisualFactory batched lifecycle sync', () => {
 
 			const tile = engine.game.hex.getTile({ q: 0, r: 0 })
 			if (!tile) throw new Error('Expected tile to exist')
-			tile.zone = engine.game.hex.zoneManager.zoneByIndex(
-				engine.game.hex.zoneManager.findZoneIndexByName('harvest')
-			)!
+			const harvestZone = engine.game.hex.zoneManager.defineZone({ name: 'harvest', type: 'harvest' })
+			tile.zone = harvestZone
 			await new Promise((resolve) => setTimeout(resolve, 0))
-			expect((renderer.visuals as any).has('tile:0,0')).toBe(true)
+			expect(renderer.visuals.has(tile)).toBe(true)
 			engine.game.hex.reset()
-			expect((renderer.visuals as any).has('tile:0,0')).toBe(false)
+			expect(renderer.visuals.has(tile)).toBe(false)
 
 			factory.destroy()
 		} finally {
@@ -146,9 +147,16 @@ describe('VisualFactory batched lifecycle sync', () => {
 			const factory = new VisualFactory(renderer)
 			factory.bind()
 
-			const visuals = renderer.visuals as any
 			let refreshes = 0
-			visuals.set('tile:0,0', {
+			const ownerA = {} as any
+			const ownerB = {} as any
+			renderer.visuals.set(ownerA, {
+				refreshStoredGoods() {
+					refreshes++
+				},
+				dispose() {},
+			})
+			renderer.visuals.set(ownerB, {
 				refreshStoredGoods() {
 					refreshes++
 				},
@@ -156,12 +164,12 @@ describe('VisualFactory batched lifecycle sync', () => {
 			})
 
 			engine.game.emit('presentationEvents', [
-				{ type: 'storage.changed', owner: {} as any },
-				{ type: 'storage.changed', owner: {} as any },
-				{ type: 'storage.changed', owner: {} as any },
+				{ type: 'storage.changed', owner: ownerA },
+				{ type: 'storage.changed', owner: ownerA },
+				{ type: 'storage.changed', owner: ownerB },
 			])
 
-			expect(refreshes).toBe(1)
+			expect(refreshes).toBe(2)
 
 			factory.destroy()
 		} finally {
@@ -193,13 +201,23 @@ describe('VisualFactory batched lifecycle sync', () => {
 
 			const border = engine.game.hex.getBorder({ q: 0.5, r: 0 })
 			if (!border) throw new Error('Expected border to exist')
-			renderer.visuals.get(border)?.dispose()
-			renderer.visuals.delete(border)
-			expect(renderer.visuals.has(border)).toBe(false)
+
+			// Border visuals for hive storage borders are created during bootstrap
+			expect(renderer.visuals.has(border)).toBe(true)
+
+			let refreshes = 0
+			const borderVisual = renderer.visuals.get(border) as any
+			if (borderVisual && typeof borderVisual.refreshStoredGoods === 'function') {
+				const origRefresh = borderVisual.refreshStoredGoods.bind(borderVisual)
+				borderVisual.refreshStoredGoods = () => {
+					refreshes++
+					origRefresh()
+				}
+			}
 
 			engine.game.emit('presentationEvents', [{ type: 'storage.changed', owner: border }])
 
-			expect(renderer.visuals.has(border)).toBe(true)
+			expect(refreshes).toBeGreaterThanOrEqual(1)
 
 			factory.destroy()
 		} finally {
