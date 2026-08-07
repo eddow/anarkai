@@ -190,6 +190,6 @@ describe('LinesManagementWidget', () => {
 		expect(selectInspectorObject).toHaveBeenCalledTimes(1)
 		expect(selectInspectorObject.mock.calls[0]?.[0]).toMatchObject({
 			kind: 'freight-line',
-					})
+		})
 	})
 })

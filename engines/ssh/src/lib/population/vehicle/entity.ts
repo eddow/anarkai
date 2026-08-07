@@ -4,7 +4,6 @@ import { isTileCoord } from 'ssh/board/tile-coord'
 import { cancelVehicleReservationsOnSites } from 'ssh/build-site'
 import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
-import { publicRef, sameRef } from 'ssh/utils/identity'
 import {
 	refreshDockedVehicleAdvertisement,
 	vehicleDockBlockingVirtualGoodsCount,
@@ -20,6 +19,7 @@ import { GameObject, withInteractive } from 'ssh/game/object'
 import type { ProposedJob, VehicleProposedJob } from 'ssh/jobs/offers'
 import type { Storage } from 'ssh/storage'
 import { axial } from 'ssh/utils'
+import { publicRef, sameRef } from 'ssh/utils/identity'
 import { type Position, toAxialCoord, xyDistance } from 'ssh/utils/position'
 import { RevisionedCache } from 'ssh/utils/revisioned-cache'
 import { assert, profile, traces } from '../../dev/debug.ts'
@@ -374,22 +374,22 @@ export class Vehicle extends withInteractive(GameObject) {
 			vehicleType: this.vehicleType,
 			position: this.position,
 			effectivePosition: this.effectivePosition,
-operatorUid: debugObjectId(this.operator),
-		service:
-			svc && isVehicleLineService(svc)
-				? {
-						kind: 'line' as const,
-						lineId: debugObjectId(svc.line),
-						stopIndex: svc.line.stops.indexOf(svc.stop),
-						docked: svc.docked,
-						operatorUid: debugObjectId(svc.operator),
-					}
-				: svc && isVehicleMaintenanceService(svc)
+			operatorUid: debugObjectId(this.operator),
+			service:
+				svc && isVehicleLineService(svc)
 					? {
-							kind: 'maintenance' as const,
-							maintenanceKind: svc.kind,
-							targetCoord: svc.targetCoord,
+							kind: 'line' as const,
+							lineId: debugObjectId(svc.line),
+							stopIndex: svc.line.stops.indexOf(svc.stop),
+							docked: svc.docked,
 							operatorUid: debugObjectId(svc.operator),
+						}
+					: svc && isVehicleMaintenanceService(svc)
+						? {
+								kind: 'maintenance' as const,
+								maintenanceKind: svc.kind,
+								targetCoord: svc.targetCoord,
+								operatorUid: debugObjectId(svc.operator),
 							}
 						: undefined,
 			servedLineIndices: this.servedLines.map((line) => this.game.freightLines.indexOf(line)),

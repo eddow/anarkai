@@ -418,7 +418,7 @@ describe('SelectionInfoWidget', () => {
 		globals.selectionState.selectedUid = 'object-1'
 		globals.selectionState.selectedObject = gameObject as any
 		freightMapPick.pending = {
-						pickKind: 'add-stop',
+			pickKind: 'add-stop',
 			apply: vi.fn(),
 		}
 		const props = createProps()

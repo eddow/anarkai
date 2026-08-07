@@ -1,4 +1,4 @@
-import { Alveolus } from 'ssh/board/content/alveolus'
+import type { Alveolus } from 'ssh/board/content/alveolus'
 import type { FreightMovementParty } from 'ssh/freight/vehicle-freight-dock'
 import type { Game } from 'ssh/game/game'
 import type { SerializedConveyMovement } from 'ssh/hive/convey-serialize'
@@ -8,7 +8,9 @@ import { type MovementRef, movementRefId } from 'ssh/hive/movement-ref'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
 
 function isAlveolusLike(value: unknown): value is Alveolus {
-	return !!value && typeof value === 'object' && 'hive' in value && !!(value as { hive?: unknown }).hive
+	return (
+		!!value && typeof value === 'object' && 'hive' in value && !!(value as { hive?: unknown }).hive
+	)
 }
 
 export function resolveSerializedFreightParty(

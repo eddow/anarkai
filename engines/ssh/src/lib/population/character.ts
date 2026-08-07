@@ -14,7 +14,6 @@ import {
 } from 'ssh/freight/vehicle-work'
 import type { Game } from 'ssh/game'
 import { GameObject, withInteractive } from 'ssh/game/object'
-import { publicRef, sameRef } from 'ssh/utils/identity'
 import {
 	asAlveolusProposedJob,
 	asVehicleProposedJob,
@@ -45,6 +44,7 @@ import type { Storage } from 'ssh/storage'
 import type { GoodType, Job, WorkPlan } from 'ssh/types/base'
 import { type AxialCoord, axial, type Positioned } from 'ssh/utils'
 import type { Clocked } from 'ssh/utils/clock'
+import { publicRef, sameRef } from 'ssh/utils/identity'
 import { type Position, toAxialCoord, xyDistance } from 'ssh/utils/position'
 import {
 	applyNeedRate,
@@ -1339,7 +1339,6 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		if (!this.driving || !this.operates) return 1
 		return vehicleRules[this.operates.vehicleType as keyof typeof vehicleRules].walkTime
 	}
-
 }
 
 /**

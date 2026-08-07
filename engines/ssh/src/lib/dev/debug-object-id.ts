@@ -17,9 +17,7 @@ export function debugObjectId(value: unknown): string | undefined {
 	// ReactiveBase methods run with the raw target as `this` while callers hold the proxy.
 	// Always key by the unwrapped object so both sides share one stable debug id.
 	const raw = unwrap(value)
-	return objectIdFor(
-		raw && (typeof raw === 'object' || typeof raw === 'function') ? raw : value
-	)
+	return objectIdFor(raw && (typeof raw === 'object' || typeof raw === 'function') ? raw : value)
 }
 
 export function debugRawObjectId(value: unknown): string | undefined {

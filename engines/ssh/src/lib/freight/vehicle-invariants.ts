@@ -19,7 +19,7 @@ function drivingVehicleSeamResult(character: Character): TraceInvariantResult {
 		message: 'driving implies operates',
 		payload: {
 			characterUid: debugObjectId(character) ?? '',
-		operatesUid: debugObjectId(character.operates),
+			operatesUid: debugObjectId(character.operates),
 			driving: character.driving,
 		},
 	}

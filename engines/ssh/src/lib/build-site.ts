@@ -458,10 +458,7 @@ export function registerConstructionMaterialPhaseEffect(
 		const deliveredGoods = (shell.storage?.stock ?? {}) as Partial<Record<GoodType, number>>
 		setConstructionDeliveredGoods(constructionSite, deliveredGoods)
 		if (!materialsComplete(shell)) {
-			if (
-				constructionSite.phase !== 'building' &&
-				constructionSite.phase !== 'waiting_materials'
-			) {
+			if (constructionSite.phase !== 'building' && constructionSite.phase !== 'waiting_materials') {
 				constructionSite.phase = 'waiting_materials'
 			}
 			return

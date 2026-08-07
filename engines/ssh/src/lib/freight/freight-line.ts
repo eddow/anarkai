@@ -195,6 +195,7 @@ function normalizeNpcTradeStop(trade: FreightNpcTradeStop): FreightNpcTradeStop 
 }
 
 export { resolveFreightNpcTradeProfile } from 'ssh/freight/freight-trade-profile'
+
 import { resolveFreightNpcTradeProfile } from 'ssh/freight/freight-trade-profile'
 
 /**

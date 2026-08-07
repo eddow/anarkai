@@ -1,6 +1,6 @@
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 // @ts-nocheck
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { Game } from 'ssh/game/game'
 import { BoardGenerator, type GameGenerationConfig, GameGenerator } from 'ssh/generation'
 import { axial } from 'ssh/utils'

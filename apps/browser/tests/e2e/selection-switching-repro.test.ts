@@ -102,7 +102,10 @@ test.describe('Property Widget Selection Switching Repro', () => {
 		const select = async (uid: string) => {
 			await page.evaluate((nextUid) => {
 				const game = (window as any).game
-				game.clickObject({ button: 0 }, [...game.objects].find((o: any) => (window as any).debugObjectId(o) === nextUid))
+				game.clickObject(
+					{ button: 0 },
+					[...game.objects].find((o: any) => (window as any).debugObjectId(o) === nextUid)
+				)
 			}, uid)
 			await expect(page.locator('.selection-info-panel')).toHaveAttribute(
 				'data-test-object-uid',

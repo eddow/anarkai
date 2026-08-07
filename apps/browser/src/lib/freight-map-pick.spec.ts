@@ -93,7 +93,7 @@ describe('freight-map-pick', () => {
 	it('applies a tile center pick', () => {
 		const apply = vi.fn()
 		freightMapPick.pending = {
-						pickKind: 'center',
+			pickKind: 'center',
 			apply,
 		}
 		const tile = makeTile({ q: 3, r: -1 })
@@ -107,7 +107,7 @@ describe('freight-map-pick', () => {
 	it('applies a freight bay pick from freight bay content', () => {
 		const apply = vi.fn()
 		freightMapPick.pending = {
-						pickKind: 'bay',
+			pickKind: 'bay',
 			apply,
 		}
 		const bay = makeFreightBay()
@@ -120,7 +120,7 @@ describe('freight-map-pick', () => {
 
 	it('clears pending state', () => {
 		freightMapPick.pending = {
-						pickKind: 'center',
+			pickKind: 'center',
 			apply: vi.fn(),
 		}
 		interactionMode.selectedAction = FREIGHT_ADD_STOP_ACTION

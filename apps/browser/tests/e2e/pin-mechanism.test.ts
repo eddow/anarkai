@@ -82,7 +82,11 @@ test.describe('Pin Mechanism', () => {
 		await page.waitForTimeout(100)
 
 		// Check if still hovered
-		const hoveredUid = await page.evaluate(() => (window as any).mrg.hoveredObject ? (window as any).debugObjectId((window as any).mrg.hoveredObject) : undefined)
+		const hoveredUid = await page.evaluate(() =>
+			(window as any).mrg.hoveredObject
+				? (window as any).debugObjectId((window as any).mrg.hoveredObject)
+				: undefined
+		)
 
 		// If bug exists, hoveredUid will be undefined
 		expect(hoveredUid).toBe(charA)

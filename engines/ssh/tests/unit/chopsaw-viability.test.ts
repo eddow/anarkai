@@ -1,4 +1,3 @@
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { chopSaw } from 'ssh/game/exampleGames'
 import { describe, expect, it } from 'vitest'
 import { runViabilityScenario } from '../test-engine/viability'

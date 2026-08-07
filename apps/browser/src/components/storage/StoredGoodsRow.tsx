@@ -164,14 +164,18 @@ interface StoredGoodsRowProps {
 }
 
 export default function StoredGoodsRow(props: StoredGoodsRowProps) {
-	const owner = () => props.content.tile
-	const stock = () => {
-		presentationRevisionFor(owner())
-		return props.content.storage?.stock || {}
-	}
-	const relations = () => {
-		presentationRevisionFor(owner())
-		return props.content.goodsRelations ?? {}
+	const view = {
+		get owner() {
+			return props.content.tile
+		},
+		get stock() {
+			void presentationRevisionFor(this.owner)
+			return props.content.storage?.stock ?? {}
+		},
+		get relations() {
+			void presentationRevisionFor(this.owner)
+			return props.content.goodsRelations ?? {}
+		},
 	}
 
 	const getExpectedQty = (good: GoodType, relation?: GoodsRelation) => {
@@ -194,8 +198,8 @@ export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 	}
 
 	const entries = (): StoredGoodEntry[] => {
-		const currentStock = stock()
-		const currentRelations = relations()
+		const currentStock = view.stock
+		const currentRelations = view.relations
 		const constructionGoods = isConstructionSiteShell(props.content)
 			? (Object.keys(props.content.requiredGoods ?? {}) as GoodType[])
 			: []

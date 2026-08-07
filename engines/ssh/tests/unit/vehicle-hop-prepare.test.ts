@@ -1,4 +1,5 @@
 // @ts-nocheck
+
 import { normalizeFreightLineDefinition } from 'ssh/freight/freight-line'
 import { migrateV1FiltersToGoodsSelection } from 'ssh/freight/goods-selection-policy'
 import { findVehicleHopJob, findVehicleOffloadJob } from 'ssh/freight/vehicle-work'
@@ -13,7 +14,6 @@ import { axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
 import { afterEach, describe, expect, it } from 'vitest'
 import { distributeFreightLine, gatherFreightLine } from '../freight-fixtures'
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 
 describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 	let game: Game
@@ -213,9 +213,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find(
-			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
-		)
+		const line = game.freightLines.find((candidate) => candidate.name === 'ChopSaw (0, 0) gather')
 		// ChopSaw gather is cyclic [anchor, zone]; bay dock is the anchor at stops[0].
 		const anchorStop = line?.stops.find((stop) => 'anchor' in stop)
 		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
@@ -255,9 +253,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find(
-			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
-		)
+		const line = game.freightLines.find((candidate) => candidate.name === 'ChopSaw (0, 0) gather')
 		// ChopSaw gather unload/dock anchor is stops[0].
 		const unloadStop = line?.stops[0]
 		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
@@ -315,9 +311,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find(
-			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
-		)
+		const line = game.freightLines.find((candidate) => candidate.name === 'ChopSaw (0, 0) gather')
 		const unloadStop = line?.stops[0]
 		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		if (!line || !unloadStop || !('anchor' in unloadStop) || !vehicle)
@@ -359,9 +353,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find(
-			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
-		)
+		const line = game.freightLines.find((candidate) => candidate.name === 'ChopSaw (0, 0) gather')
 		const unloadStop = line?.stops[0]
 		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		if (!line || !unloadStop || !('anchor' in unloadStop) || !vehicle)

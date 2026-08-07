@@ -1,6 +1,6 @@
 import type { HexBoard } from 'ssh/board/board'
-import { Tile } from 'ssh/board/tile'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import { Tile } from 'ssh/board/tile'
 import {
 	findNearestServicePoint,
 	isServicePositionReachable,
@@ -89,7 +89,9 @@ function setupNeighbors(tiles: Tile[], neighborMap: Map<string, string[]>): void
 }
 
 /** `toAxialCoord` mutates coord objects in place (adds `key`); compare plain q/r. */
-function plainCoord(coord: { q: number; r: number } | undefined): { q: number; r: number } | undefined {
+function plainCoord(
+	coord: { q: number; r: number } | undefined
+): { q: number; r: number } | undefined {
 	return coord ? { q: coord.q, r: coord.r } : undefined
 }
 

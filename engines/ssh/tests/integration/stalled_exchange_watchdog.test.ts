@@ -276,7 +276,6 @@ describe('Stalled Exchange Watchdog', () => {
 			buildTargetTile.content = new BuildAlveolus(buildTargetTile, 'storage')
 
 			const buildSource = buildSourceTile.content as Alveolus
-			const buildTarget = buildTargetTile.content as Alveolus
 			// Construction shells (BuildAlveolus) are freight-aware via the
 			// build-site prototype: they advertise material demand and can
 			// receive goods, but `canGive` is always false — a stocked build

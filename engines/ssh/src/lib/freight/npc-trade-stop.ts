@@ -1,12 +1,12 @@
 import { commerce } from 'engine-rules'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
-import { resolveFreightNpcTradeProfile } from 'ssh/freight/freight-trade-profile'
 import {
 	computeLineFurtherGoods,
 	measureFreightStopNeededGoods,
 	measureFreightStopProvidedGoods,
 	projectLoadedGoodsAgainstFurtherNeeds,
 } from 'ssh/freight/freight-stop-utility'
+import { resolveFreightNpcTradeProfile } from 'ssh/freight/freight-trade-profile'
 import type { Game } from 'ssh/game/game'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
 import type { GoodType } from 'ssh/types/base'

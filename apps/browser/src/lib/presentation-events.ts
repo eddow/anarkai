@@ -1,13 +1,16 @@
 import { reactive } from 'mutts'
 import type { GameObject, GamePresentationEvent } from 'ssh/game'
 
+// TODO: `tick` is a hack, let's have something standardized, perhaps even in sursaut
 const presentationRevisions = reactive({
 	byOwner: new Map<GameObject, number>(),
+	tick: 0,
 	workPlanning: 0,
 })
 
 export function presentationRevisionFor(owner: GameObject | undefined): number {
 	if (!owner) return 0
+	void presentationRevisions.tick
 	return presentationRevisions.byOwner.get(owner) ?? 0
 }
 
@@ -33,9 +36,11 @@ export function consumePresentationEvents(events: readonly GamePresentationEvent
 				break
 		}
 	}
+	presentationRevisions.tick++
 }
 
 export function resetPresentationRevisionsForTests(): void {
 	presentationRevisions.byOwner = new Map()
+	presentationRevisions.tick = 0
 	presentationRevisions.workPlanning = 0
 }

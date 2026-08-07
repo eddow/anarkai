@@ -1,6 +1,5 @@
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { Tile } from 'ssh/board/tile'
-import { registerPinnedInspectorPanel, showProps, ensureFollowSelectionPanel, selectInspectorObject, unregisterPinnedInspectorPanel } from'./follow-selection'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 // @ts-nocheck
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -30,7 +29,6 @@ const globals = {
 }
 
 vi.mock('./globals', () => globals)
-
 
 vi.mock('ssh/board/tile', () => ({
 	Tile: class Tile {
@@ -63,6 +61,7 @@ describe('follow-selection', () => {
 	})
 
 	it('seeds a new follow-selection panel with the clicked object title', async () => {
+		const { selectInspectorObject } = await import('./follow-selection')
 		;(window as DockviewTestWindow).dockviewApi = {
 			addPanel,
 			getPanel,
@@ -86,6 +85,7 @@ describe('follow-selection', () => {
 	})
 
 	it('materializes tile content before showing tile properties', async () => {
+		const { selectInspectorObject } = await import('./follow-selection')
 		const tile = new Tile({ q: 12, r: -3 })
 		Object.assign(tile, {
 			title: 'Tile 12, -3',
@@ -100,6 +100,7 @@ describe('follow-selection', () => {
 	})
 
 	it('falls back to the resolved selected object title when no title is passed', async () => {
+		const { ensureFollowSelectionPanel } = await import('./follow-selection')
 		;(window as DockviewTestWindow).dockviewApi = {
 			addPanel,
 			getPanel,
@@ -118,6 +119,8 @@ describe('follow-selection', () => {
 	})
 
 	it('opens the follow-selection panel after the active pinned inspector', async () => {
+		const { registerPinnedInspectorPanel, unregisterPinnedInspectorPanel, showProps } =
+			await import('./follow-selection')
 		const group = {
 			panels: [] as Array<{ id: string }>,
 		}
@@ -161,8 +164,8 @@ describe('follow-selection', () => {
 			},
 		})
 	})
-
 	it('focuses an existing pinned inspector instead of opening a duplicate panel', async () => {
+		const { registerPinnedInspectorPanel, showProps } = await import('./follow-selection')
 		const existingPanel = {
 			focus,
 		}

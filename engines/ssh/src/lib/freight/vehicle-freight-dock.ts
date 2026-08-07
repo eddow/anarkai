@@ -294,8 +294,7 @@ export function collectDockedVehicleAdvertisementCandidates(
 	const currentNeeded = measureFreightStopNeededGoods(vehicle.game, line, stopIdx).perGood
 	// Bay may still stage cargo for downstream zone/construction need on cyclic lines
 	// even when this anchor is not a formal distribute pickup (e.g. exchange / gather wrap).
-	const mayLoadForRouteNeed =
-		!!distLoad || Object.keys(future.remainingRouteNeed).length > 0
+	const mayLoadForRouteNeed = !!distLoad || Object.keys(future.remainingRouteNeed).length > 0
 	const goods = new Set<GoodType>([
 		...(Object.keys(future.remainingRouteNeed) as GoodType[]),
 		...(Object.keys(future.surplusCargo) as GoodType[]),

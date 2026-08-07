@@ -1,11 +1,11 @@
 import type { Alveolus } from 'ssh/board/content/alveolus'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { isLineFreightVehicleType } from 'ssh/freight/line-freight-vehicles'
 import { VehicleFreightDock } from 'ssh/freight/vehicle-freight-dock'
 import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService, isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
 import { traces } from '../dev/debug.ts'
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 
 export function freightVehicleDockBay(vehicle: Vehicle): FreightBayAlveolus | undefined {
 	const svc = vehicle.service

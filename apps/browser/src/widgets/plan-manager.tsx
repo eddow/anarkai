@@ -374,7 +374,9 @@ const PlanManagerWidget = (props: { title?: string }) => {
 							<button
 								type="button"
 								class="plan-manager__plan"
-								data-selected={state.selectedId === String(game.hivePlans.indexOf(plan)) ? 'true' : 'false'}
+								data-selected={
+									state.selectedId === String(game.hivePlans.indexOf(plan)) ? 'true' : 'false'
+								}
 								onClick={() => {
 									state.selectedId = String(game.hivePlans.indexOf(plan))
 									state.selectedRoleId = ''

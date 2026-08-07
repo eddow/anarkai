@@ -3,9 +3,9 @@ import { Tile } from 'ssh/board/tile'
 import { SettlementTradeObject } from 'ssh/commerce/settlement-trade'
 import { traces } from 'ssh/dev/debug'
 import {
+	type FreightLineDefinition,
 	type FreightStop,
 	type FreightStopAnchorAlveolus,
-	type FreightLineDefinition,
 	freightLineStopHiveName,
 } from 'ssh/freight/freight-line'
 import type { Game } from 'ssh/game'
@@ -49,11 +49,7 @@ export function activateFreightAddStopPick(args: {
 	readonly line: FreightLineDefinition
 	readonly apply: (stop: FreightStop) => void
 }): void {
-	traces.ui.assert?.(
-		args.line !== undefined,
-		'freight.add-stop.activate: line is required',
-		args
-	)
+	traces.ui.assert?.(args.line !== undefined, 'freight.add-stop.activate: line is required', args)
 	traces.ui.assert?.(
 		typeof args.apply === 'function',
 		'freight.add-stop.activate: apply callback is required',

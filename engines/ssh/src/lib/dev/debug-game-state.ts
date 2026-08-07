@@ -265,9 +265,7 @@ function summarizeVehicleForDebug(vehicle: Vehicle, tailCount: number) {
 		position: coordSnapshot(vehicle.position),
 		effectivePosition: coordSnapshot(vehicle.effectivePosition),
 		tile: coordSnapshot(vehicle.effectiveTile.position),
-		servedLineIndices: vehicle.servedLines.map((line) =>
-			vehicle.game.freightLines.indexOf(line)
-		),
+		servedLineIndices: vehicle.servedLines.map((line) => vehicle.game.freightLines.indexOf(line)),
 		service: vehicle.service ? summarizeVehicleServiceForDebug(vehicle.service) : undefined,
 		storage: safeDebugValueForDump(vehicle.storage.stock),
 		logs: logsTail(vehicle.logs, tailCount),
@@ -334,11 +332,7 @@ function isInteractiveGameObject(value: unknown): value is InteractiveGameObject
 
 function isInspectorSelectableObject(value: unknown): value is InspectorSelectableObject {
 	return (
-		!!value &&
-		typeof value === 'object' &&
-		'title' in value &&
-		'logs' in value &&
-		'game' in value
+		!!value && typeof value === 'object' && 'title' in value && 'logs' in value && 'game' in value
 	)
 }
 

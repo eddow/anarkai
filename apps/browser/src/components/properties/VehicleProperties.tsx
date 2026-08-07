@@ -9,8 +9,8 @@ import { vehicles as vehicleVisuals } from 'engine-pixi/assets/visual-content'
 import { vehicleTextureKey } from 'engine-pixi/renderers/vehicle-visual'
 import { effect, reactive, untracked } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { profile } from 'ssh/dev/debug'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import {
 	createSyntheticFreightLineObject,
 	type FreightLineDefinition,
@@ -335,7 +335,9 @@ function lineHint(game: Vehicle['game'], line: FreightLineDefinition): string {
 	return coord ? `starts ${coord.q},${coord.r}` : `${line.stops.length} stops`
 }
 
-function assignableLineItems(vehicle: Vehicle): (HardListSearchPickerItem & { item: FreightLineDefinition })[] {
+function assignableLineItems(
+	vehicle: Vehicle
+): (HardListSearchPickerItem & { item: FreightLineDefinition })[] {
 	if (!isLineFreightVehicleType(vehicle.vehicleType)) return []
 	const assigned = new Set((vehicle.servedLines ?? []).map((line) => line.name))
 	return (vehicle.game.freightLines ?? [])
@@ -356,12 +358,14 @@ const VehicleProperties = (
 	const state = reactive({
 		workChoices: [] as VehicleWorkChoice[],
 		revision: 0,
+		stock: {} as Record<string, number>,
+		stockRevision: 0,
+	})
+	effect`vehicle-stock-sync`(() => {
+		void presentationRevisionFor(props.vehicle)
+		state.stock = props.vehicle?.storage?.stock ?? {}
 	})
 	const computed = {
-		get stock() {
-			presentationRevisionFor(props.vehicle)
-			return props.vehicle?.storage?.stock ?? {}
-		},
 		get operator() {
 			return effectiveOperatorForVehicle(props.vehicle)
 		},
@@ -472,9 +476,9 @@ const VehicleProperties = (
 						</PropertyGridRow>
 						<PropertyGridRow label={T.goods}>
 							<GoodsList
-								goods={Object.keys(computed.stock) as GoodType[]}
+								goods={[...Object.keys(state.stock)] as GoodType[]}
 								game={props.vehicle.game}
-								getBadgeProps={(g) => ({ qty: computed.stock[g] })}
+								getBadgeProps={(g) => ({ qty: state.stock[g] })}
 							/>
 						</PropertyGridRow>
 						<PropertyGridRow label={T.vehicle.service}>

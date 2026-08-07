@@ -1,5 +1,4 @@
 import type { ArtGeneration } from './types'
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 
 export async function downloadGeneration(generation: ArtGeneration): Promise<void> {
 	const response = await fetch(generation.imageUrl, { mode: 'cors' })

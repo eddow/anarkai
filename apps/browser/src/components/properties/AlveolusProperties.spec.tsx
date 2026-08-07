@@ -4,8 +4,8 @@ import {
 } from '@app/lib/presentation-events'
 import { document, latch } from '@sursaut/core'
 import { reactive } from 'mutts'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { debugObjectId } from 'ssh/dev/debug-object-id'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { selectInspectorObject } = vi.hoisted(() => ({
 	selectInspectorObject: vi.fn(),
@@ -92,7 +92,7 @@ const { MockForesterAlveolus, MockFreightBayAlveolus, MockStorageAlveolus, MockT
 	}))
 
 class MockBuildAlveolus {
-	tile = { }
+	tile = {}
 	constructionSite = { target: { kind: 'alveolus', alveolusType: 'tree_chopper' } }
 	requiredGoods = { wood: 2 }
 	game = { freightLines: [] }

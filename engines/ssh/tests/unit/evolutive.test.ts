@@ -1,4 +1,5 @@
 import { debugObjectId } from 'ssh/dev/debug-object-id'
+
 // Manual DOM mock for PixiJS and test environment
 if (typeof document === 'undefined') {
 	;(global as any).document = {

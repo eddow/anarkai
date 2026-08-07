@@ -4,13 +4,9 @@ import {
 	registerPinnedInspectorPanel,
 	unregisterPinnedInspectorPanel,
 } from '@app/lib/follow-selection'
-import {
-	cancelFreightMapPick,
-	freightMapPick,
-} from '@app/lib/freight-map-pick'
+import { cancelFreightMapPick, freightMapPick } from '@app/lib/freight-map-pick'
 import { game, mrg, selectionState } from '@app/lib/globals'
 import {
-	createSyntheticHiveObject,
 	hiveInspectorTitle,
 	resolveHiveFromAnchorTile,
 	type SyntheticHiveObject,
@@ -25,10 +21,7 @@ import { Tile } from 'ssh/board/tile'
 import { ZoneObject, ZonesCollectionObject } from 'ssh/board/zone-object'
 import { SettlementTradeObject } from 'ssh/commerce/settlement-trade'
 import { debugObjectId } from 'ssh/dev/debug-object-id'
-import {
-	createSyntheticFreightLineObject,
-	type SyntheticFreightLineObject,
-} from 'ssh/freight/freight-line'
+import type { SyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import type { InspectorSelectableObject, InteractiveGameObject } from 'ssh/game/object'
 import { resolveSelectableHoverObject } from 'ssh/game/object'
 import { Character } from 'ssh/population/character'

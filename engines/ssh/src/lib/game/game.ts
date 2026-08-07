@@ -726,13 +726,13 @@ export class Game extends Eventful<GameEvents> {
 		return true
 	}
 
-public getSettlementTradeProfile(id: string): NpcSettlementTradeProfile | undefined {
-                const needle = id.trim()
-                if (!needle) return undefined
-                for (const profile of this.settlementTradeProfiles) {
-                        // Freight stops persist generator ids (`settlement-q,r`);
-                        // the id is the stable cross-save identity — never match by display name.
-                        if (profile.id === needle) return profile
+	public getSettlementTradeProfile(id: string): NpcSettlementTradeProfile | undefined {
+		const needle = id.trim()
+		if (!needle) return undefined
+		for (const profile of this.settlementTradeProfiles) {
+			// Freight stops persist generator ids (`settlement-q,r`);
+			// the id is the stable cross-save identity — never match by display name.
+			if (profile.id === needle) return profile
 		}
 		return undefined
 	}
@@ -754,10 +754,7 @@ public getSettlementTradeProfile(id: string): NpcSettlementTradeProfile | undefi
 		const existing = this.getSettlementTradeProfile(profile.id)
 		if (existing) this.settlementTradeProfiles.delete(existing)
 		this.settlementTradeProfiles.add(profile)
-		this.settlementTradeProfilesByCityHallCoord.set(
-			axial.key(profile.cityHall.position),
-			profile
-		)
+		this.settlementTradeProfilesByCityHallCoord.set(axial.key(profile.cityHall.position), profile)
 	}
 
 	/**
@@ -2674,8 +2671,7 @@ public getSettlementTradeProfile(id: string): NpcSettlementTradeProfile | undefi
 								constructionWorkSecondsApplied: constructionShell.constructionWorkSecondsApplied,
 								constructionPhase: constructionShell.constructionSite.phase,
 								goods: constructionShell.storage?.stock || {},
-								hivePlanIndex: (constructionShell as { hivePlanIndex?: number })
-									.hivePlanIndex,
+								hivePlanIndex: (constructionShell as { hivePlanIndex?: number }).hivePlanIndex,
 								hivePlanVersion: (constructionShell as { hivePlanVersion?: number })
 									.hivePlanVersion,
 								planRoleId: (constructionShell as { planRoleId?: string }).planRoleId,

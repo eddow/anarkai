@@ -106,7 +106,7 @@ vi.mock('../LinkedEntityControl', () => ({
 }))
 
 vi.mock('../InspectorObjectLink', () => ({
-	default: (props: { object?: { title?: string } }) => (
+	default: (_props: { object?: { title?: string } }) => (
 		<span data-testid="inspector-object-link" />
 	),
 }))

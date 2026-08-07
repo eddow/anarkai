@@ -40,6 +40,7 @@ css`
 	white-space: nowrap;
 }
 `
+
 import { AnarkaiCommandBoxEditor } from './command-box'
 import type {
 	AnarkaiPaletteChoiceDisplay,

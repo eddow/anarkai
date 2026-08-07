@@ -1,6 +1,6 @@
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 // @ts-nocheck
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import {
 	detachVehicleServiceIfStorageEmpty,
 	disembarkOperatorLeavingDockedVehicleInService,

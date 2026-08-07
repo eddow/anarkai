@@ -150,11 +150,15 @@ describe('hive plans', () => {
 			const plan = game.hivePlans.createDraft('Storage Pair', [entry('a', 0, 0), entry('b', 1, 0)])
 			plan.stage = 'working'
 
-			expect(game.applyHivePlanPlacement(game.hivePlans.indexOf(plan), { q: 0, r: 0 }, 0)).toBe(true)
+			expect(game.applyHivePlanPlacement(game.hivePlans.indexOf(plan), { q: 0, r: 0 }, 0)).toBe(
+				true
+			)
 
 			const content = game.hex.getTile({ q: 0, r: 0 })?.content
 			expect(isConstructionSiteShell(content)).toBe(true)
-			expect((content as { hivePlanIndex?: number }).hivePlanIndex).toBe(game.hivePlans.indexOf(plan))
+			expect((content as { hivePlanIndex?: number }).hivePlanIndex).toBe(
+				game.hivePlans.indexOf(plan)
+			)
 
 			const saved = game.saveGameData()
 			expect(saved.projectSites).toEqual(

@@ -67,9 +67,7 @@ describe('Harvest Zones Restriction', () => {
 					alveoli: [{ coord: [0, 0] as [number, number], alveolus: 'tree_chopper' }],
 				},
 			],
-			zones: [
-				{ type: 'harvest', coords: [[1, 0] as [number, number]] },
-			],
+			zones: [{ type: 'harvest', coords: [[1, 0] as [number, number]] }],
 			projects: {
 				'build:storage': [[0, 1] as [number, number]],
 			},
@@ -213,9 +211,7 @@ describe('Harvest Zones Restriction', () => {
 					alveoli: [{ coord: [0, 0] as [number, number], alveolus: 'tree_chopper' }],
 				},
 			],
-			zones: [
-				{ type: 'harvest', coords: [[1, 0] as [number, number]] },
-			],
+			zones: [{ type: 'harvest', coords: [[1, 0] as [number, number]] }],
 		} as any)
 
 		const harvestTile = game.hex.getTile({ q: 0, r: 0 })

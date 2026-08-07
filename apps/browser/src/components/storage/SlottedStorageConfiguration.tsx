@@ -60,6 +60,65 @@ function unavailableSlotElements(count: number) {
 	return Array.from({ length: Math.max(0, count) })
 }
 
+function GoodStarsEditor(props: {
+	content: StorageAlveolus
+	goodType: GoodType
+	capacity: number
+	totalSlots: number
+}) {
+	const view = {
+		get configuration() {
+			return props.content?.slottedStorageConfiguration
+		},
+		get rule() {
+			return this.configuration?.goods[props.goodType] ?? { minSlots: 0, maxSlots: 0 }
+		},
+		get maximum() {
+			const otherBuffered = (Object.keys(this.configuration?.goods ?? {}) as GoodType[])
+				.filter((c) => c !== props.goodType)
+				.reduce((t, c) => t + (this.configuration?.goods[c]?.minSlots ?? 0), 0)
+			return Math.max(0, props.totalSlots - otherBuffered)
+		},
+	}
+	const range = [view.rule.minSlots, view.rule.minSlots + view.rule.maxSlots] as [number, number]
+	const displayedRange: [number, number] = [
+		Math.min(view.rule.minSlots, view.maximum),
+		Math.min(view.rule.minSlots + view.rule.maxSlots, view.maximum),
+	]
+	const unavailableSlots = Math.max(0, props.totalSlots - view.maximum)
+
+	return (
+		<div class="slotted-storage-stars">
+			<div class="slotted-storage-stars__row">
+				<Stars
+					maximum={view.maximum}
+					value={range}
+					onChange={(value: StarsValue) => {
+						const [rawMinSlots, rawTotalSlots] = starsRangeValue(value, range)
+						const nextMinSlots = Math.min(rawMinSlots, view.maximum)
+						const nextTotalSlots = Math.min(rawTotalSlots, view.maximum)
+						props.content?.setSlottedGoodConfiguration(props.goodType, {
+							minSlots: nextMinSlots,
+							maxSlots: Math.max(0, nextTotalSlots - nextMinSlots),
+						})
+					}}
+					size="1rem"
+					zeroElement="□"
+					before="■"
+					after="■"
+				/>
+				<for each={unavailableSlotElements(unavailableSlots)}>
+					{() => <span class="slotted-storage-stars__unavailable">■</span>}
+				</for>
+			</div>
+			<span class="slotted-storage-summary">
+				buffer {displayedRange[0] * props.capacity}, total {displayedRange[1] * props.capacity} /{' '}
+				{view.maximum * props.capacity}
+			</span>
+		</div>
+	)
+}
+
 export default function SlottedStorageConfiguration(props: SlottedStorageConfigurationProps) {
 	const view = {
 		get content() {
@@ -101,15 +160,6 @@ export default function SlottedStorageConfiguration(props: SlottedStorageConfigu
 		},
 		get displayedGeneralSlots() {
 			return Math.min(this.configuration?.generalSlots ?? 0, this.remainingBudget)
-		},
-		rule(goodType: GoodType) {
-			return this.configuration?.goods[goodType] ?? { minSlots: 0, maxSlots: 0 }
-		},
-		specificGoodMaximum(goodType: GoodType) {
-			const otherBufferedSlots = this.configuredGoods
-				.filter((candidate) => candidate !== goodType)
-				.reduce((total, candidate) => total + (this.rule(candidate).minSlots ?? 0), 0)
-			return Math.max(0, this.totalSlots - otherBufferedSlots)
 		},
 	}
 
@@ -159,49 +209,14 @@ export default function SlottedStorageConfiguration(props: SlottedStorageConfigu
 					addTitle="Add specific good"
 					onAdd={addGood}
 					onRemove={removeGood}
-					renderItemExtra={(goodType) => {
-						const rule = view.rule(goodType)
-						const maximum = view.specificGoodMaximum(goodType)
-						const displayedRange: [number, number] = [
-							Math.min(rule.minSlots, maximum),
-							Math.min(rule.minSlots + rule.maxSlots, maximum),
-						]
-						const range = [
-							view.rule(goodType).minSlots,
-							view.rule(goodType).minSlots + view.rule(goodType).maxSlots,
-						] as [number, number]
-						const unavailableSlots = Math.max(0, view.totalSlots - maximum)
-						return (
-							<div class="slotted-storage-stars">
-								<div class="slotted-storage-stars__row">
-									<Stars
-										maximum={maximum}
-										value={range}
-										onChange={(value: StarsValue) => {
-											const [rawMinSlots, rawTotalSlots] = starsRangeValue(value, range)
-											const nextMinSlots = Math.min(rawMinSlots, maximum)
-											const nextTotalSlots = Math.min(rawTotalSlots, maximum)
-											view.content?.setSlottedGoodConfiguration(goodType, {
-												minSlots: nextMinSlots,
-												maxSlots: Math.max(0, nextTotalSlots - nextMinSlots),
-											})
-										}}
-										size="1rem"
-										zeroElement="□"
-										before="■"
-										after="■"
-									/>
-									<for each={unavailableSlotElements(unavailableSlots)}>
-										{() => <span class="slotted-storage-stars__unavailable">■</span>}
-									</for>
-								</div>
-								<span class="slotted-storage-summary">
-									buffer {displayedRange[0] * view.capacity}, total{' '}
-									{displayedRange[1] * view.capacity} / {maximum * view.capacity}
-								</span>
-							</div>
-						)
-					}}
+					renderItemExtra={(goodType) => (
+						<GoodStarsEditor
+							content={view.content}
+							goodType={goodType}
+							capacity={view.capacity}
+							totalSlots={view.totalSlots}
+						/>
+					)}
 				>
 					No specific slot rules
 				</GoodMultiSelect>

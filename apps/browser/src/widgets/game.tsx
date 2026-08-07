@@ -89,7 +89,11 @@ export default function GameWidget(
 		const planIndex = Number(interactionMode.selectedAction.slice('hive-plan:'.length))
 		const anchor = toAxialCoord(object.position)
 		if (!anchor) return false
-		const preview = game.previewHivePlanPlacement(planIndex, anchor, hivePlanPlacementState.rotation)
+		const preview = game.previewHivePlanPlacement(
+			planIndex,
+			anchor,
+			hivePlanPlacementState.rotation
+		)
 		if (!preview) {
 			hivePlanPlacementState.lastMessage = 'Plan is not available.'
 			return false
@@ -193,7 +197,11 @@ export default function GameWidget(
 			return
 		}
 		const planIndex = Number(action.slice('hive-plan:'.length))
-		const preview = game.previewHivePlanPlacement(planIndex, anchor, hivePlanPlacementState.rotation)
+		const preview = game.previewHivePlanPlacement(
+			planIndex,
+			anchor,
+			hivePlanPlacementState.rotation
+		)
 		if (!preview) {
 			game.emit('dragPreviewClear')
 			return

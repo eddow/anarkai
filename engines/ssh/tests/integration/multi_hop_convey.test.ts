@@ -7,8 +7,8 @@ import { BuildAlveolus } from 'ssh/hive/build'
 import { commitmentValid, type Hive, type TrackedMovement } from 'ssh/hive/hive'
 import type { StorageAlveolus } from 'ssh/hive/storage'
 import { trackAllocation } from 'ssh/storage/guard'
-import { sameRef } from 'ssh/utils/identity'
 import { axial } from 'ssh/utils/axial'
+import { sameRef } from 'ssh/utils/identity'
 import { toAxialCoord } from 'ssh/utils/position'
 import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
@@ -255,9 +255,7 @@ describe('Multi-Hop Convey Tests', () => {
 			expect(borderStorage.addGood('wood', 1)).toBe(1)
 			expect(borderStorage.available('wood')).toBe(1)
 
-			;(globalThis as any).allowExpectedDiagnostics?.(
-				/Offloaded orphan border transit stock/
-			)
+			;(globalThis as any).allowExpectedDiagnostics?.(/Offloaded orphan border transit stock/)
 			expect(() => (hive as any).scanBorderTransitStorageInvariant()).not.toThrow()
 			expect(() => provider.aGoodMovement).not.toThrow()
 			expect(borderStorage.stock.wood ?? 0).toBe(0)

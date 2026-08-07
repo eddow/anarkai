@@ -162,10 +162,7 @@ const transferPlanHandler: PlanHandler<TransferPlan> = {
 				assert(target, 'target must be set for storage grab')
 				const content = getContentFromPosition(hex, target)
 				assert(content, 'target content must be set')
-				assert(
-					'storage' in content,
-					'planGrabStored only works with TileContent that has storage'
-				)
+				assert('storage' in content, 'planGrabStored only works with TileContent that has storage')
 				const goods = computeGrabGoods(plan, character, target)
 				if (Object.keys(goods).length === 0) throw new Error('No goods to grab at execution time')
 				plan.resolvedGoods = goods

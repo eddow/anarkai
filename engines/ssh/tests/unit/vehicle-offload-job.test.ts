@@ -1,4 +1,3 @@
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 // @ts-nocheck
 import { jobBalance } from 'engine-rules'
 import { normalizeFreightLineDefinition } from 'ssh/freight/freight-line'
@@ -10,7 +9,6 @@ import {
 	findVehicleOffloadJob,
 	isVehicleOffloadDestinationEligible,
 } from 'ssh/freight/vehicle-work'
-import { Vehicle } from 'ssh/population/vehicle/entity'
 import { isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
 import { axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'

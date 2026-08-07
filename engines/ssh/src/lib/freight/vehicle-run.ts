@@ -2,7 +2,6 @@ import { jobBalance } from 'engine-rules'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { debugObjectId } from 'ssh/dev/debug-object-id'
-import { sameRef } from 'ssh/utils/identity'
 import { freightConstructionDemandTarget } from 'ssh/freight/construction-demand'
 import type {
 	FreightLineDefinition,
@@ -23,12 +22,12 @@ import {
 	gatherSegmentAllowsGoodTypeForSegment,
 	nextFreightLineStop,
 } from 'ssh/freight/freight-line'
-import { resolveFreightNpcTradeProfile } from 'ssh/freight/freight-trade-profile'
 import {
 	computeLineFurtherGoods,
 	measureFreightStopNeededGoods,
 	measureFreightStopProvidedGoods,
 } from 'ssh/freight/freight-stop-utility'
+import { resolveFreightNpcTradeProfile } from 'ssh/freight/freight-trade-profile'
 import { executeNpcTradeStopTransfer, npcTradeStopHasTransfer } from 'ssh/freight/npc-trade-stop'
 import { scoreVehicleCandidate } from 'ssh/freight/vehicle-candidate-policy'
 import {
@@ -46,6 +45,7 @@ import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService, isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
 import type { GoodType } from 'ssh/types/base'
 import { axial } from 'ssh/utils/axial'
+import { sameRef } from 'ssh/utils/identity'
 import { axialDistance, type Position, toAxialCoord } from 'ssh/utils/position'
 import { assert, traces } from '../dev/debug.ts'
 

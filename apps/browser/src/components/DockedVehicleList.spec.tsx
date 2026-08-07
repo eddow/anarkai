@@ -41,8 +41,7 @@ const entry = (uid: string, stock: Record<string, number>) => ({
 	line: {
 		name: 'Line 1',
 	},
-	stop: {
-	},
+	stop: {},
 })
 
 describe('DockedVehicleList', () => {

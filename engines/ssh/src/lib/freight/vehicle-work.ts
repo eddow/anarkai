@@ -1885,7 +1885,7 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 	const end = profile.proposedJobs.begin?.('findVehicleHopJob', () => ({
 		characterUid: debugObjectId(character) ?? '',
 		driving: character.driving,
-operatesUid: debugObjectId(character.operates),
+		operatesUid: debugObjectId(character.operates),
 	}))
 	try {
 		const lineHop = findVehicleHopJobLineHop(game, character)

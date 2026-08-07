@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import {
 	assertDockedSemantics,
 	assertVehicleOperationConsistency,
@@ -35,7 +36,6 @@ import {
 	bindOperatedWheelbarrowLine,
 	bindOperatedWheelbarrowOffload,
 } from '../test-engine/vehicle-bind'
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 
 describe('Vehicle begin-service arbitration', () => {
 	let game: Game
@@ -231,7 +231,10 @@ describe('Vehicle begin-service arbitration', () => {
 		} as any
 		try {
 			traceVehicleStockWithoutService(vehicle)
-			expect(log).toHaveBeenCalledWith('vehicle has stock without active service', debugObjectId(vehicle) ?? '')
+			expect(log).toHaveBeenCalledWith(
+				'vehicle has stock without active service',
+				debugObjectId(vehicle) ?? ''
+			)
 		} finally {
 			traces.vehicle = prev
 		}
@@ -768,12 +771,7 @@ describe('Vehicle begin-service arbitration', () => {
 		const noAction = game.freightLines.find((line) => line.name === 'arb:no-action')!
 		const truckAction = game.freightLines.find((line) => line.name === 'arb:truck-action')!
 		game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [noAction])
-		game.vehicles.createVehicle(
-			'pickup_truck',
-			{ q: 6, r: 0 },
-			[truckAction],
-			'arb-far-truck'
-		)
+		game.vehicles.createVehicle('pickup_truck', { q: 6, r: 0 }, [truckAction], 'arb-far-truck')
 		const character = game.population.createCharacter('Approach', { q: 0, r: 0 })
 
 		const result = findVehicleApproachJob(game, character)

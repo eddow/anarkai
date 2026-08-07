@@ -200,11 +200,11 @@ describe('Save/Load Determinism', () => {
 		await game2.loaded
 		await game2.loadGameData(saveState)
 		const char2 = loadedCharacter(game1.population, game2.population, char1)
-        const restored1 = char2.stepExecutor as unknown as {
-                duration: number
-                evolution: number
-        }
-        game2.clock.begin(char2.stepExecutor as never, restored1.duration * (1 - restored1.evolution))
+		const restored1 = char2.stepExecutor as unknown as {
+			duration: number
+			evolution: number
+		}
+		game2.clock.begin(char2.stepExecutor as never, restored1.duration * (1 - restored1.evolution))
 		for (let i = 0; i < 20; i++) game2.clock.advance(dt)
 
 		const pos2 = toAxialCoord(char2.position)
@@ -487,11 +487,11 @@ describe('Save/Load Determinism', () => {
 		// If it persists, it should be correct.
 
 		// Finish
-        const restored4 = char2.stepExecutor as unknown as {
-                duration: number
-                evolution: number
-        }
-        game2.clock.begin(char2.stepExecutor as never, restored4.duration * (1 - restored4.evolution))
+		const restored4 = char2.stepExecutor as unknown as {
+			duration: number
+			evolution: number
+		}
+		game2.clock.begin(char2.stepExecutor as never, restored4.duration * (1 - restored4.evolution))
 
 		// After finish, char should be at destination of the movements?
 		// MultiMoveStep updates 'who' position.

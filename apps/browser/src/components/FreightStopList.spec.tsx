@@ -1,5 +1,5 @@
-import { document, latch } from '@sursaut/core'
 import type { FreightMapPickPending } from '@app/lib/freight-map-pick'
+import { document, latch } from '@sursaut/core'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -47,13 +47,18 @@ vi.mock('@app/lib/freight-line-overlay', () => ({
 }))
 
 vi.mock('@app/lib/freight-map-pick', () => ({
-	activateFreightAddStopPick: vi.fn((args: { readonly line: FreightLineDefinition; readonly apply: (stop: FreightStop) => void }) => {
-		freightMapPickMock.pending = {
-			line: args.line,
-			pickKind: 'add-stop',
-			apply: args.apply,
+	activateFreightAddStopPick: vi.fn(
+		(args: {
+			readonly line: FreightLineDefinition
+			readonly apply: (stop: FreightStop) => void
+		}) => {
+			freightMapPickMock.pending = {
+				line: args.line,
+				pickKind: 'add-stop',
+				apply: args.apply,
+			}
 		}
-	}),
+	),
 	cancelFreightMapPick: vi.fn(() => {
 		freightMapPickMock.pending = undefined
 	}),
@@ -167,7 +172,11 @@ describe('FreightStopList', () => {
 				},
 			},
 			listSettlementTradeProfiles: () => [{ id: 'settlement-1', name: 'Settlement One' }],
-			getSettlementTradeProfile: () => ({ id: 'settlement-1', name: 'Settlement One', cityHall: { position: { q: 5, r: 0 } } }),
+			getSettlementTradeProfile: () => ({
+				id: 'settlement-1',
+				name: 'Settlement One',
+				cityHall: { position: { q: 5, r: 0 } },
+			}),
 			getObject: () => undefined,
 		}
 
@@ -219,7 +228,8 @@ describe('FreightStopList', () => {
 					offers: [{ direction: 'sell', good: 'concrete', priceVp: 5 }],
 				},
 			],
-			getSettlementTradeProfile: () => ({ cityHall: { position: { q: 5, r: 0 } }, 
+			getSettlementTradeProfile: () => ({
+				cityHall: { position: { q: 5, r: 0 } },
 				name: 'Settlement One',
 				offers: [{ direction: 'sell', good: 'concrete', priceVp: 5 }],
 			}),
@@ -273,7 +283,8 @@ describe('FreightStopList', () => {
 					offers: [{ direction: 'buy', good: 'planks', priceVp: 3 }],
 				},
 			],
-			getSettlementTradeProfile: () => ({ cityHall: { position: { q: 5, r: 0 } }, 
+			getSettlementTradeProfile: () => ({
+				cityHall: { position: { q: 5, r: 0 } },
 				name: 'Settlement One',
 				offers: [{ direction: 'buy', good: 'planks', priceVp: 3 }],
 			}),
@@ -322,7 +333,8 @@ describe('FreightStopList', () => {
 					offers: [{ direction: 'sell', good: 'concrete', priceVp: 5 }],
 				},
 			],
-			getSettlementTradeProfile: () => ({ cityHall: { position: { q: 5, r: 0 } }, 
+			getSettlementTradeProfile: () => ({
+				cityHall: { position: { q: 5, r: 0 } },
 				name: 'Settlement One',
 				offers: [{ direction: 'sell', good: 'concrete', priceVp: 5 }],
 			}),

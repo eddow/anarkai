@@ -1,4 +1,5 @@
 // @ts-nocheck
+
 import { maybeAdvanceVehiclePastCompletedZoneStop } from 'ssh/freight/vehicle-run'
 import { findVehicleApproachJob, findVehicleHopJob } from 'ssh/freight/vehicle-work'
 import { Game } from 'ssh/game/game'
@@ -8,7 +9,6 @@ import { axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
 import { afterEach, describe, expect, it } from 'vitest'
 import { gatherFreightLine } from '../freight-fixtures'
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 
 describe('findVehicleApproachJob', () => {
 	let game: Game
@@ -146,10 +146,7 @@ describe('findVehicleApproachJob', () => {
 		expect(farLine).toBeDefined()
 		expect(nearLine).toBeDefined()
 
-		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [
-			farLine,
-			nearLine,
-		])
+		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [farLine, nearLine])
 		// Active service already on far unload anchor — re-approach must keep that line.
 		vehicle.beginLineService(farLine, farLine.stops[1]!)
 		expect(isVehicleLineService(vehicle.service)).toBe(true)

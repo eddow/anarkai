@@ -6,7 +6,6 @@ import {
 import { document, latch } from '@sursaut/core'
 import { disconnectAllProfiles, profile, setProfileLevel } from 'ssh/dev/debug'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 
 const activeWorldViewPov = vi.hoisted(() => ({
 	viewId: 'primary',
@@ -110,9 +109,7 @@ vi.mock('../InspectorObjectLink', () => ({
 
 vi.mock('../LinkedEntityControl', () => ({
 	default: (props: { object?: { title?: string } }) => (
-		<div data-testid="linked-entity-control">
-			{props.object?.title ?? 'linked'}
-		</div>
+		<div data-testid="linked-entity-control">{props.object?.title ?? 'linked'}</div>
 	),
 }))
 
@@ -251,6 +248,7 @@ describe('VehicleProperties', () => {
 
 		consumePresentationEvents([{ type: 'storage.changed', owner: vehicle as any }])
 		await new Promise((resolve) => setTimeout(resolve, 0))
+		await new Promise((resolve) => setTimeout(resolve, 0))
 
 		expect(container.querySelector('[data-testid="vehicle-good-berries"]')?.textContent).toBe('4')
 	})
@@ -334,17 +332,18 @@ describe('VehicleProperties', () => {
 
 		expect(container.textContent).toContain('North route · Stop 0 · Underway')
 		expect(
-			container
-				.querySelector(
-					'[data-testid="vehicle-assigned-line"] [data-testid="inspector-object-link"]'
-				)
-				?.textContent
+			container.querySelector(
+				'[data-testid="vehicle-assigned-line"] [data-testid="inspector-object-link"]'
+			)?.textContent
 		).toContain('North route')
 
 		;(
 			container.querySelector('[data-testid="vehicle-line-picker-item"]') as HTMLButtonElement
 		).click()
-		expect(vehicle.game.assignVehicleToFreightLine).toHaveBeenCalledWith(expect.objectContaining({ title: 'wheelbarrow lines' }), lineB)
+		expect(vehicle.game.assignVehicleToFreightLine).toHaveBeenCalledWith(
+			expect.objectContaining({ title: 'wheelbarrow lines' }),
+			lineB
+		)
 		await new Promise((r) => setTimeout(r, 0))
 
 		expect(container.querySelector('[data-testid="vehicle-unassign-line"]')).not.toBeNull()

@@ -92,29 +92,28 @@ const TRACE_VERB_RANK: Record<TraceVerb, number> = {
 	error: 3,
 }
 
-
-function collectTraceLogObjects(value: unknown, out: Set<InteractiveLogObject>): void {
+function collectTraceLogObjects(
+	value: unknown,
+	out: Set<InteractiveLogObject>,
+	seen?: Set<object>
+): void {
+	if (!seen) seen = new Set()
 	if (isInteractiveLogObject(value)) {
 		out.add(value)
 		return
 	}
 	if (Array.isArray(value)) {
-		for (const item of value) collectTraceLogObjects(item, out)
+		for (const item of value) collectTraceLogObjects(item, out, seen)
 		return
 	}
 	if (!value || typeof value !== 'object') return
+	if (seen.has(value as object)) return
+	seen.add(value as object)
 	const record = value as Record<string, unknown>
 	for (const entry of Object.values(record)) {
-		collectTraceLogObjects(entry, out)
+		collectTraceLogObjects(entry, out, seen)
 	}
 }
-
-function traceLogTargets(row: TraceRow): InteractiveLogObject[] {
-	const objects = new Set<InteractiveLogObject>()
-	for (const value of row.slice(1)) collectTraceLogObjects(value, objects)
-	return [...objects]
-}
-
 /**
  * Clears all trace hooks. Used by Vitest setup so tests start with fresh `traces.*` sinks.
  * Dev: configure `traceLevels`, call `traces.channel?.setLevel(...)`, or assign a custom sink locally.
@@ -329,7 +328,10 @@ class NamedTraceList extends Array<TraceRow> implements TraceSink {
 				text: readTraceConsoleRow(row),
 			})
 		}
-		for (const object of traceLogTargets(row)) {
+		// Collect log targets from raw args before they are projected
+		const logObjects = new Set<InteractiveLogObject>()
+		for (const arg of args) collectTraceLogObjects(arg, logObjects)
+		for (const object of logObjects) {
 			object.logAbout(row, readTraceConsoleRow(row))
 		}
 		if (!this.options.silent) this.writeConsole(consoleMethod, row)

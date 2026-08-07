@@ -34,7 +34,11 @@ export interface InteractiveLogObject {
 const interactiveLogObjects = new WeakSet<InteractiveLogObject>()
 
 export function isInteractiveLogObject(value: unknown): value is InteractiveLogObject {
-	return typeof value === 'object' && value !== null && interactiveLogObjects.has(value as InteractiveLogObject)
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		interactiveLogObjects.has(value as InteractiveLogObject)
+	)
 }
 
 function registerInteractiveLogObject(object: InteractiveLogObject): void {

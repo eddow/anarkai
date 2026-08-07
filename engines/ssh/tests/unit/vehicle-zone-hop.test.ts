@@ -37,7 +37,6 @@ import { toAxialCoord } from 'ssh/utils/position'
 import { afterEach, describe, expect, it } from 'vitest'
 import { distributeFreightLine, gatherFreightLine } from '../freight-fixtures'
 import { bindOperatedWheelbarrowOffload } from '../test-engine/vehicle-bind'
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 
 const woodOnly = migrateV1FiltersToGoodsSelection(['wood'])
 
@@ -1306,9 +1305,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find(
-			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
-		)
+		const line = game.freightLines.find((candidate) => candidate.name === 'ChopSaw (0, 0) gather')
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
 		// ChopSaw gather is cyclic [anchor=0, zone=1]; unload/dock is the bay anchor.
 		const unload = line.stops[0]
@@ -1333,9 +1330,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find(
-			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
-		)
+		const line = game.freightLines.find((candidate) => candidate.name === 'ChopSaw (0, 0) gather')
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
 		// ChopSaw gather: load zone = stops[1], unload anchor = stops[0].
 		const unload = line.stops[0]
@@ -1373,9 +1368,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find(
-			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
-		)
+		const line = game.freightLines.find((candidate) => candidate.name === 'ChopSaw (0, 0) gather')
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
 		const load = line.stops[1]
 		if (!load || !('zone' in load)) throw new Error('expected ChopSaw load zone stop')
@@ -1433,9 +1426,7 @@ describe('Vehicle zone hop semantics', () => {
 
 		const constructionTile = game.hex.getTile({ q: 0, r: -1 })!
 		constructionTile.content = new BuildDwelling(constructionTile, 'basic_dwelling')
-		const line = game.freightLines.find(
-			(candidate) => candidate.name === 'Zone empty unload'
-		)!
+		const line = game.freightLines.find((candidate) => candidate.name === 'Zone empty unload')!
 		const unload = line.stops[1]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: -1 }, [line])
 		const character = game.population.createCharacter('EmptyUnload', { q: 0, r: -1 })
@@ -1482,9 +1473,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find(
-			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
-		)
+		const line = game.freightLines.find((candidate) => candidate.name === 'ChopSaw (0, 0) gather')
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
 		const unload = line.stops[0]
 		const load = line.stops[1]

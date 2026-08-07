@@ -138,7 +138,9 @@ function moveTowardLiveDockStep(
 	const distanceToDock = dockCoord ? axial.distance(from, dockCoord) : Number.POSITIVE_INFINITY
 	const isNearDock = distanceToDock <= 1
 	const plannedLineRef =
-		jobPlan.type === 'work' && jobPlan.job === 'vehicleHop' ? debugObjectId(jobPlan.line) : undefined
+		jobPlan.type === 'work' && jobPlan.job === 'vehicleHop'
+			? debugObjectId(jobPlan.line)
+			: undefined
 	const plannedStopId =
 		jobPlan.type === 'work' && jobPlan.job === 'vehicleHop' ? jobPlan.stopIndex : undefined
 	const logMethod = isNearDock ? traces.vehicle.warn : traces.vehicle.log
@@ -479,7 +481,7 @@ class VehicleFunctions {
 			if (!vehicleCanDockAtCurrentPosition(vehicle)) {
 				traces.vehicle.log?.('vehicleHopDockStep: cannot dock, attempting recovery', {
 					characterUid: debugObjectId(character) ?? '',
-				lineId: debugObjectId(vehicle.service.line),
+					lineId: debugObjectId(vehicle.service.line),
 					stopIndex: vehicle.service.line.stops.indexOf(stop),
 					vehicleCoord: vehicle.position ? toAxialCoord(vehicle.position) : undefined,
 					dockCoord: vehicle.dockTile ? toAxialCoord(vehicle.dockTile.position) : undefined,
@@ -498,7 +500,7 @@ class VehicleFunctions {
 				jobPlan.vehicleHopStopHandled = false
 				traces.vehicle.warn?.('vehicleHopDockStep: vehicle not at dock; replan required', {
 					characterUid: debugObjectId(character) ?? '',
-				lineId: debugObjectId(vehicle.service.line),
+					lineId: debugObjectId(vehicle.service.line),
 					stopIndex: vehicle.service.line.stops.indexOf(stop),
 					vehicleCoord: vehicle.position ? toAxialCoord(vehicle.position) : undefined,
 					dockCoord: vehicle.dockTile ? toAxialCoord(vehicle.dockTile.position) : undefined,
@@ -575,7 +577,10 @@ class VehicleFunctions {
 			return
 		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'vehicleStepOffKeepingControl: vehicle missing')
-		assert(sameRef(character.operates, vehicle), 'vehicleStepOffKeepingControl: wrong operated vehicle')
+		assert(
+			sameRef(character.operates, vehicle),
+			'vehicleStepOffKeepingControl: wrong operated vehicle'
+		)
 		assert(character.driving, 'vehicleStepOffKeepingControl: not driving')
 		character.stepOffVehicleKeepingControl()
 		assertVehicleOperationConsistency(vehicle, character)
@@ -625,7 +630,7 @@ class VehicleFunctions {
 		if (!sameRef(character.operates, vehicle)) {
 			traces.vehicle.log?.('vehicleDisengageKeepingService: already released', {
 				characterUid: debugObjectId(character) ?? '',
-		operatesUid: debugObjectId(character.operates),
+				operatesUid: debugObjectId(character.operates),
 				serviceKind: isVehicleLineService(vehicle.service)
 					? 'line'
 					: isVehicleMaintenanceService(vehicle.service)
@@ -656,7 +661,10 @@ class VehicleFunctions {
 			)
 			const vehicle = jobPlan.vehicle
 			assert(vehicle, 'vehicleLoadTransferStep: vehicle missing')
-			assert(sameRef(character.operates, vehicle), 'vehicleLoadTransferStep: wrong operated vehicle')
+			assert(
+				sameRef(character.operates, vehicle),
+				'vehicleLoadTransferStep: wrong operated vehicle'
+			)
 			assert(jobPlan.offloadPickupPlan, 'vehicleLoadTransferStep: missing offload pickup plan')
 			traces.vehicle.log?.('vehicleJob.load', {
 				characterUid: debugObjectId(character) ?? '',

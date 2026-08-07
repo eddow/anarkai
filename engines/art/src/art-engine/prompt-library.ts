@@ -1,5 +1,4 @@
 import type { ArtPromptProposal } from './types'
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 
 const PROMPTS: ArtPromptProposal[] = [
 	{

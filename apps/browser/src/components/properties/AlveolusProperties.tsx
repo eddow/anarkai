@@ -156,6 +156,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 		constructionTotal: 0,
 		constructionTarget: '',
 		showConstruction: false,
+		processBufferRevision: 0,
 	})
 
 	effect`alveolus-properties:storage-check`(() => {
@@ -209,14 +210,18 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 		state.constructionTotal = model.total
 		state.constructionWorkLine = model.workLine
 		state.constructionTarget = model.targetDisplay
+		if (state.transformContent?.tile) {
+			void presentationRevisionFor(state.transformContent.tile)
+		}
+		state.processBufferRevision++
 	})
 
 	const bayTranslator = () => T.bay
 
 	const processBufferEntries = () => {
+		void state.processBufferRevision
 		const transform = state.transformContent
 		if (!transform) return []
-		presentationRevisionFor(transform.tile)
 		return transform.rateEntries.map(([goodType, rate]) => ({
 			goodType,
 			rate,
@@ -257,8 +262,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 		if (!draft) return
 		game.replaceFreightLine(draft, draft)
 		const merged =
-			game.freightLines.find((line) => line === draft) ??
-			normalizeFreightLineDefinition(draft)
+			game.freightLines.find((line) => line === draft) ?? normalizeFreightLineDefinition(draft)
 		selectInspectorObject(createSyntheticFreightLineObject(game, merged))
 	}
 

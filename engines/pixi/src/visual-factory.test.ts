@@ -89,7 +89,10 @@ describe('VisualFactory batched lifecycle sync', () => {
 			const initialTileVisuals = factory.getDiagnostics().current.tileVisuals
 			expect(renderer.visuals.has(tile)).toBe(false)
 
-			const harvestZone = engine.game.hex.zoneManager.defineZone({ name: 'harvest', type: 'harvest' })
+			const harvestZone = engine.game.hex.zoneManager.defineZone({
+				name: 'harvest',
+				type: 'harvest',
+			})
 			tile.zone = harvestZone
 			await new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -120,7 +123,10 @@ describe('VisualFactory batched lifecycle sync', () => {
 
 			const tile = engine.game.hex.getTile({ q: 0, r: 0 })
 			if (!tile) throw new Error('Expected tile to exist')
-			const harvestZone = engine.game.hex.zoneManager.defineZone({ name: 'harvest', type: 'harvest' })
+			const harvestZone = engine.game.hex.zoneManager.defineZone({
+				name: 'harvest',
+				type: 'harvest',
+			})
 			tile.zone = harvestZone
 			await new Promise((resolve) => setTimeout(resolve, 0))
 			expect(renderer.visuals.has(tile)).toBe(true)

@@ -145,14 +145,14 @@ const LinkedEntityControl = (props: LinkedEntityControlProps) => {
 		const object = currentObject()
 		// Stable per-instance debug label used purely as a change-detection key
 		// for visual sync. Runtime identity is the object reference itself.
-		state.visualObjectUid = object ? debugObjectId(object) ?? '' : ''
+		state.visualObjectUid = object ? (debugObjectId(object) ?? '') : ''
 		state.objectTitle = object?.title ?? ''
 		state.objectGame = object?.game
 	})
 
 	effect`linked-entity:visual-object`(() => {
 		const object = currentObject()
-		const nextUid = object ? debugObjectId(object) ?? '' : ''
+		const nextUid = object ? (debugObjectId(object) ?? '') : ''
 		if (state.visualObjectUid === nextUid) return
 		state.visualObjectUid = nextUid
 		state.sprite = undefined

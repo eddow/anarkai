@@ -459,9 +459,7 @@ describe('Freight simulation (gather + distribute)', () => {
 
 			const pt = engine.game.hex.getTile({ q: 3, r: 0 })!
 			const ct = pt.content as any
-			const wb = [...engine.game.vehicles].find(
-				(v: any) => v.service?.line === line
-			) as any
+			const wb = [...engine.game.vehicles].find((v: any) => v.service?.line === line) as any
 			;(process as any).stderr.write(
 				`POST-SIM: ${JSON.stringify({
 					contentType: (pt.content as any)?.constructor?.name,

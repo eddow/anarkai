@@ -1,5 +1,4 @@
 import { css } from '@app/lib/css'
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { type FreightDraftIssueCode, freightDraftIssueCodes } from '@app/lib/freight-line-draft'
 import { showFreightLineOverlay } from '@app/lib/freight-line-overlay'
 import { clearFreightMapPickForLine } from '@app/lib/freight-map-pick'
@@ -9,6 +8,7 @@ import { InspectorSection } from '@app/ui/anarkai'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
 import { effect, reactive } from 'mutts'
 import { tablerOutlineRepeat, tablerOutlineTrash } from 'pure-glyf/icons'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { FreightLineDefinition, SyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import { normalizeFreightLineDefinition } from 'ssh/freight/freight-line'
 import {

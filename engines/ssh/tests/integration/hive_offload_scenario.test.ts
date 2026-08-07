@@ -434,7 +434,12 @@ describe('Hive Offload Scenario', () => {
 			expect(availableLooseWoodCount(game, { q: 1, r: 1 })).toBe(1)
 
 			let time = 0
-			while (time < 80 && availableLooseWoodCount(game, { q: 1, r: 1 }) + availableLooseWoodCount(game, { q: 2, r: 0 }) > 0) {
+			while (
+				time < 80 &&
+				availableLooseWoodCount(game, { q: 1, r: 1 }) +
+					availableLooseWoodCount(game, { q: 2, r: 0 }) >
+					0
+			) {
 				if (!worker.stepExecutor) {
 					const action = worker.findBestJob()
 					if (action) worker.begin(action)
@@ -444,7 +449,10 @@ describe('Hive Offload Scenario', () => {
 			}
 
 			// The gather line should collect at least one of the two woods.
-			const gathered = (1 - availableLooseWoodCount(game, { q: 2, r: 0 })) + (1 - availableLooseWoodCount(game, { q: 1, r: 1 }))
+			const gathered =
+				1 -
+				availableLooseWoodCount(game, { q: 2, r: 0 }) +
+				(1 - availableLooseWoodCount(game, { q: 1, r: 1 }))
 			expect(gathered).toBeGreaterThan(0)
 		} finally {
 			await engine.destroy()

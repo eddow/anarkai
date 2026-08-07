@@ -12,7 +12,6 @@ describe('convey restore', () => {
 				restoreSerializedConveyRow: vi.fn(() => ({ ref: 'movement' })),
 			},
 		} as any
-		const demander = { hive: bay.hive, name: 'demander' }
 		const game = {
 			hex: {
 				getTile: vi.fn(() => ({ content: bay })),

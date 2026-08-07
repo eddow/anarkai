@@ -1,6 +1,6 @@
 import type { Game } from 'ssh/game/game'
 import { GameObject, withContainer } from 'ssh/game/object'
-import { type AxialCoord } from 'ssh/utils'
+import type { AxialCoord } from 'ssh/utils'
 import type { RandGenerator } from 'ssh/utils/numbers'
 import { Character } from './character'
 

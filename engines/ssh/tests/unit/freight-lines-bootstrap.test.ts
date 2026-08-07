@@ -285,9 +285,7 @@ describe('Freight line bootstrap', () => {
 						[4, 0],
 					],
 				},
-				zones: [
-					{ name: 'North Grove', color: '#4f8cff', type: 'harvest', coords: [[1, 0]] },
-				],
+				zones: [{ name: 'North Grove', color: '#4f8cff', type: 'harvest', coords: [[1, 0]] }],
 				freightLines: [
 					{
 						name: 'Named gather',

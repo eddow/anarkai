@@ -66,7 +66,6 @@ describe('VehicleVisual cargo', () => {
 				characters: [],
 				vehicles: [
 					{
-
 						vehicleType: 'wheelbarrow',
 						position: { q: 0, r: 0 },
 						servedLineIndices: [],

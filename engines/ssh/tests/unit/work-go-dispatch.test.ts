@@ -1,8 +1,8 @@
 // @ts-nocheck
+
 import { Game } from 'ssh/game/game'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { gatherFreightLine } from '../freight-fixtures'
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 
 describe('work.npcs dispatch', () => {
 	let game: Game

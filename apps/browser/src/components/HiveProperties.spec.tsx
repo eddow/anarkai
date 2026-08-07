@@ -206,7 +206,7 @@ describe('HiveProperties', () => {
 		).toBe('true')
 
 		nameInput.value = 'Workshop Ring'
-		nameInput.dispatchEvent(new Event('change', { bubbles: true }))
+		nameInput.dispatchEvent(new Event('input', { bubbles: true }))
 
 		expect(hive.name).toBe('Workshop Ring')
 		expect(nameInput.value).toBe('Workshop Ring')

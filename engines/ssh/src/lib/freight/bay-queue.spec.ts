@@ -56,7 +56,7 @@ function makeNode(overrides: Partial<RuntimeQueueNode> = {}): RuntimeQueueNode {
 }
 
 function makeVehicle(label: string) {
-        return { label, vehicleType: 'wheelbarrow' } as any
+	return { label, vehicleType: 'wheelbarrow' } as any
 }
 
 function capturedGrant(controller: BayQueueController): MovementGrant | undefined {
@@ -97,7 +97,7 @@ describe('merge policies', () => {
 			{ branchList, branchIndex: 0 }
 		)
 		expect(r0.selectedBranch).toBe('north')
-                expect(r0.ordered[0].vehicle.label).toBe('A')
+		expect(r0.ordered[0].vehicle.label).toBe('A')
 		const r1 = applyMergePolicy(
 			[a, b, c],
 			{ kind: 'round_robin_by_branch' },
@@ -406,8 +406,8 @@ describe('BayQueueController regression', () => {
 describe('bay queue invariants', () => {
 	it('single occupancy passes', () => {
 		const n = [
-			makeNode({ occupiedBy: new Set([{ label: "v1" } as any]) }),
-			makeNode({ occupiedBy: new Set([{ label: "v2" } as any]) }),
+			makeNode({ occupiedBy: new Set([{ label: 'v1' } as any]) }),
+			makeNode({ occupiedBy: new Set([{ label: 'v2' } as any]) }),
 		]
 		expect(invariantSingleNodeOccupancy(n).ok).toBe(true)
 	})
@@ -425,9 +425,7 @@ describe('bay queue invariants', () => {
 	})
 
 	it('capacity fails when over', () => {
-		const n = [
-			makeNode({ occupiedBy: new Set([makeVehicle('a'), makeVehicle('b')]), capacity: 1 }),
-		]
+		const n = [makeNode({ occupiedBy: new Set([makeVehicle('a'), makeVehicle('b')]), capacity: 1 })]
 		expect(invariantNodeCapacity(n).ok).toBe(false)
 	})
 

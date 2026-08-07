@@ -1,4 +1,5 @@
 import { defer, reactive } from 'mutts'
+import { isConstructionSiteShell } from 'ssh/build-site'
 import type { Game } from 'ssh/game'
 import { GameObject } from 'ssh/game/object'
 import type { Hive } from 'ssh/hive/hive'
@@ -18,7 +19,6 @@ import {
 	tileSize,
 	toAxialCoord,
 } from 'ssh/utils'
-import { isConstructionSiteShell } from 'ssh/build-site'
 import { AxialKeyMap } from 'ssh/utils/mem'
 import { AlveolusGate } from './border/alveolus-gate'
 import { TileBorder, type TileBorderContent } from './border/border'

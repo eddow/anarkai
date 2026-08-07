@@ -486,8 +486,9 @@ function roomForDemandedGood(alv: Alveolus, goodType: GoodType): number {
 		? acceptedRoomFor.call(alv, goodType, relation.priority)
 		: (alv.storage.hasRoom(goodType) ?? 0)
 	if (relation.priority === '1-buffer') {
-		const buffer = (alv as { storageBuffers?: Partial<Record<GoodType, number>> })
-			.storageBuffers?.[goodType]
+		const buffer = (alv as { storageBuffers?: Partial<Record<GoodType, number>> }).storageBuffers?.[
+			goodType
+		]
 		if (buffer !== undefined) {
 			const planned = (alv.storage.stock[goodType] ?? 0) + alv.storage.allocated(goodType)
 			room = Math.min(room, Math.max(0, buffer - planned))

@@ -286,7 +286,7 @@ describe('FreightLineProperties', () => {
 					title: 'Line 1 (Exchange)',
 					game: game as never,
 					line: game.freightLines[0],
-										logs: [],
+					logs: [],
 				}}
 			/>
 		)
@@ -310,7 +310,7 @@ describe('FreightLineProperties', () => {
 					title: 'Line 1 (Exchange)',
 					game: game as never,
 					line: game.freightLines[0],
-										logs: [],
+					logs: [],
 				}}
 			/>
 		)
@@ -332,7 +332,7 @@ describe('FreightLineProperties', () => {
 					title: 'Line 1 (Exchange)',
 					game: game as never,
 					line: game.freightLines[0],
-										logs: [],
+					logs: [],
 				}}
 			/>
 		)
@@ -360,7 +360,7 @@ describe('FreightLineProperties', () => {
 					title: 'Line 1 (Exchange)',
 					game: game as never,
 					line: game.freightLines[0],
-										logs: [],
+					logs: [],
 				}}
 			/>
 		)
@@ -383,7 +383,7 @@ describe('FreightLineProperties', () => {
 					title: 'Line 1 (Exchange)',
 					game: game as never,
 					line: game.freightLines[0],
-										logs: [],
+					logs: [],
 				}}
 			/>
 		)
@@ -409,7 +409,7 @@ describe('FreightLineProperties', () => {
 					title: 'Line 1 (Exchange)',
 					game: game as never,
 					line: game.freightLines[0],
-										logs: [],
+					logs: [],
 				}}
 			/>
 		)
@@ -474,7 +474,7 @@ describe('FreightLineProperties', () => {
 					title: 'Line 1 (Exchange)',
 					game: game as never,
 					line: game.freightLines[0],
-										logs: [],
+					logs: [],
 				}}
 			/>
 		)
@@ -536,7 +536,7 @@ describe('FreightLineProperties', () => {
 					title: 'Line 1 (Exchange)',
 					game: game as never,
 					line: game.freightLines[0],
-										logs: [],
+					logs: [],
 				}}
 			/>
 		)

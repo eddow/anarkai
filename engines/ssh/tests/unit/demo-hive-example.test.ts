@@ -1,4 +1,3 @@
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 // @ts-nocheck
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
