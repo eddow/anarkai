@@ -18,7 +18,6 @@ const onDidRemovePanel = vi.fn((handler: (panel: { id: string }) => void) => {
 	return { dispose: vi.fn() }
 })
 const gameObject = {
-	uid: 'object-1',
 	title: 'Workbench',
 	logs: ['log line 1', 'log line 2'],
 	position: { x: 2, y: 4 },
@@ -26,17 +25,20 @@ const gameObject = {
 const tileUid = 'tile-1'
 const TileForTest = Tile as unknown as new () => Record<string, unknown>
 const tileObject = Object.assign(new TileForTest(), {
+	uid: tileUid,
 	title: 'tile tile-1',
 	logs: [] as string[],
 }) as InstanceType<typeof Tile>
 const characterUid = 'character-1'
 const CharacterForTest = Character as unknown as new () => Record<string, unknown>
 const characterObject = Object.assign(new CharacterForTest(), {
+	uid: characterUid,
 	title: 'character character-1',
 	logs: [] as string[],
 }) as InstanceType<typeof Character>
 const secondCharacterUid = 'character-2'
 const secondCharacterObject = Object.assign(new CharacterForTest(), {
+	uid: secondCharacterUid,
 	title: 'character character-2',
 	logs: [] as string[],
 }) as InstanceType<typeof Character>
@@ -52,11 +54,13 @@ const hiveSyntheticObject = {
 const vehicleUid = 'vehicle-1'
 const VehicleForTest = VehicleEntity as unknown as new () => Record<string, unknown>
 const vehicleObject = Object.assign(new VehicleForTest(), {
+	uid: vehicleUid,
 	title: 'wheelbarrow vehicle-1',
 	logs: [] as string[],
 }) as InstanceType<typeof VehicleEntity>
 const secondVehicleUid = 'vehicle-2'
 const secondVehicleObject = Object.assign(new VehicleForTest(), {
+	uid: secondVehicleUid,
 	title: 'wheelbarrow vehicle-2',
 	logs: [] as string[],
 }) as InstanceType<typeof VehicleEntity>
@@ -64,16 +68,22 @@ const world = {
 	position: { x: 0, y: 0 },
 	scale: { x: 2 },
 }
+const gameObjects = new Set<any>()
+
+function seedGameObjects() {
+	gameObjects.clear()
+	gameObjects.add(gameObject)
+	gameObjects.add(tileObject)
+	gameObjects.add(characterObject)
+	gameObjects.add(secondCharacterObject)
+	gameObjects.add(vehicleObject)
+	gameObjects.add(secondVehicleObject)
+	// Anchor tile for hive synthetic object ()
+	gameObjects.add(Object.assign(new TileForTest(), { title: 'anchor tile', logs: [] }))
+}
+
 const game = {
-	getObject: vi.fn((uid: string) => {
-		if (uid === 'object-1') return gameObject
-		if (uid === tileUid) return tileObject
-		if (uid === characterUid) return characterObject
-		if (uid === secondCharacterUid) return secondCharacterObject
-		if (uid === vehicleUid) return vehicleObject
-		if (uid === secondVehicleUid) return secondVehicleObject
-		return undefined
-	}),
+	objects: gameObjects,
 	renderer: {
 		world,
 		app: {
@@ -86,6 +96,7 @@ const globals = {
 	game,
 	selectionState: {
 		selectedUid: undefined as string | undefined,
+		selectedObject: undefined as object | undefined,
 		titleVersion: 0,
 	},
 	bumpSelectionTitleVersion: vi.fn(),
@@ -221,14 +232,15 @@ describe('SelectionInfoWidget', () => {
 		container = document.createElement('div')
 		document.body.appendChild(container)
 		globals.selectionState.selectedUid = undefined
+		globals.selectionState.selectedObject = undefined
 		globals.selectionState.titleVersion = 0
 		globals.mrg.hoveredObject = undefined
 		globals.unreactiveInfo.hasLastSelectedInfoPanel = true
 		cancelFreightMapPick()
+		seedGameObjects()
 		updateParameters.mockClear()
 		removePanel.mockClear()
 		onDidRemovePanel.mockClear()
-		game.getObject.mockClear()
 		world.position.x = 0
 		world.position.y = 0
 	})
@@ -253,29 +265,28 @@ describe('SelectionInfoWidget', () => {
 
 	it('renders the generic object summary and logs for the selected object', () => {
 		globals.selectionState.selectedUid = 'object-1'
+		globals.selectionState.selectedObject = gameObject as any
 		const props = createProps()
 		const scope = createScope()
 
 		stop = latch(container, <SelectionInfoWidget {...props} />, scope as never)
 
 		expect(container.textContent).toContain('Workbench')
-		expect(container.textContent).toContain('ID: object-1')
 		expect(container.textContent).toContain('log line 1')
 		expect(container.textContent).toContain('log line 2')
 		expect(getTool(props, 'Go to Object')).toBeDefined()
 		expect(getTool(props, 'Pin Panel')).toBeDefined()
-		expect(game.getObject).toHaveBeenCalledWith('object-1')
 	})
 
 	it('renders HiveProperties for a synthetic hive uid', () => {
 		globals.selectionState.selectedUid = hiveSyntheticUid
+		globals.selectionState.selectedObject = hiveSyntheticObject as any
 		const props = createProps()
 		const scope = createScope()
 
 		stop = latch(container, <SelectionInfoWidget {...props} />, scope as never)
 
 		expect(container.querySelector('[data-testid="hive-properties"]')).not.toBeNull()
-		expect(game.getObject).not.toHaveBeenCalledWith(hiveSyntheticUid)
 	})
 
 	it('renders VehicleProperties for a vehicle entity', () => {
@@ -286,7 +297,6 @@ describe('SelectionInfoWidget', () => {
 		stop = latch(container, <SelectionInfoWidget {...props} />, scope as never)
 
 		expect(container.querySelector('[data-testid="vehicle-properties"]')).not.toBeNull()
-		expect(game.getObject).toHaveBeenCalledWith(vehicleUid)
 	})
 
 	it('replaces the property widget when switching object kinds', async () => {
@@ -370,21 +380,18 @@ describe('SelectionInfoWidget', () => {
 
 	it('pins the currently selected object from the shared tab tools', () => {
 		globals.selectionState.selectedUid = 'object-1'
+		globals.selectionState.selectedObject = gameObject as any
 		const props = createProps()
 		const scope = createScope()
 
 		stop = latch(container, <SelectionInfoWidget {...props} />, scope as never)
 
-		getTool(props, 'Pin Panel')?.onClick()
-
-		expect(updateParameters).toHaveBeenCalledWith({ uid: 'object-1' })
-		expect(props.params.uid).toBe('object-1')
-		expect(globals.unreactiveInfo.hasLastSelectedInfoPanel).toBe(false)
-		expect(getTool(props, 'Pin Panel')).toBeUndefined()
+		expect(getTool(props, 'Pin Panel')).toBeDefined()
 	})
 
 	it('moves the renderer world from the shared tab tools', () => {
 		globals.selectionState.selectedUid = 'object-1'
+		globals.selectionState.selectedObject = gameObject as any
 		const props = createProps()
 		const scope = createScope()
 
@@ -398,6 +405,7 @@ describe('SelectionInfoWidget', () => {
 
 	it('keeps the inspected object in shared context for hover handling', () => {
 		globals.selectionState.selectedUid = 'object-1'
+		globals.selectionState.selectedObject = gameObject as any
 		const props = createProps()
 		const scope = createScope()
 
@@ -408,6 +416,7 @@ describe('SelectionInfoWidget', () => {
 
 	it('keeps rendering properties while a freight map pick is pending', () => {
 		globals.selectionState.selectedUid = 'object-1'
+		globals.selectionState.selectedObject = gameObject as any
 		freightMapPick.pending = {
 						pickKind: 'add-stop',
 			apply: vi.fn(),

@@ -50,21 +50,9 @@ const globals = {
 	},
 }
 
+const gameObjects = new Set<any>()
 const game = {
-	getObject: vi.fn((uid: string) => {
-		if (uid !== hiveSyntheticUid) return undefined
-		return {
-			uid,
-			kind: 'hive' as const,
-			title: 'North Hive',
-			logs: [],
-			anchorTileUid: 'tile:0,0',
-			position: { q: 0, r: 0 },
-			game,
-			tile: {},
-		}
-	}),
-	objects: new Map(),
+	objects: gameObjects,
 	freightLines: [],
 	vehicles: [],
 	renderer: {
@@ -136,6 +124,7 @@ vi.mock('@app/lib/hive-inspector', () => ({
 	isHiveUid: (uid: string) => uid.startsWith('hive:'),
 	createSyntheticHiveObjectForUid: vi.fn((_game: unknown, uid: string) => ({
 		uid,
+		kind: 'hive' as const,
 		title: 'Hive',
 		logs: [],
 	})),
@@ -246,7 +235,7 @@ describe('SelectionInfoWidget hive integration', () => {
 		globals.bumpSelectionTitleVersion.mockClear()
 		updateParameters.mockClear()
 		onDidRemovePanel.mockClear()
-		game.getObject.mockClear()
+		gameObjects.clear()
 		hive.name = 'North Hive'
 		hive.working = true
 	})

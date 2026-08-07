@@ -314,7 +314,7 @@ describe('StorageConfiguration', () => {
 
 		input.value = 'Depot renamed'
 		input.dispatchEvent(new Event('input', { bubbles: true }))
-		input.dispatchEvent(new Event('change', { bubbles: true }))
+		input.dispatchEvent(new Event('blur', { bubbles: true }))
 
 		expect(content.storageMode).toBe('all-but')
 		expect(content.storageExceptions).toEqual(['wood'])
@@ -323,7 +323,7 @@ describe('StorageConfiguration', () => {
 
 		input.value = 'Other preset'
 		input.dispatchEvent(new Event('input', { bubbles: true }))
-		input.dispatchEvent(new Event('change', { bubbles: true }))
+		input.dispatchEvent(new Event('blur', { bubbles: true }))
 
 		expect(content.storageMode).toBe('only')
 		expect(content.storageExceptions).toEqual(['stone'])

@@ -15,7 +15,6 @@ const { game, selectInspectorObject, showFreightLineOverlay } = vi.hoisted(() =>
 		},
 		hex: {
 			getTile: vi.fn((coord: { q: number; r: number }) => ({
-				uid: `tile:${coord.q},${coord.r}`,
 				position: coord,
 			})),
 		},
@@ -181,7 +180,7 @@ describe('LinesManagementWidget', () => {
 
 		const first = rows(container)[0] as HTMLButtonElement
 		first.dispatchEvent(new MouseEvent('mouseenter'))
-		expect(showFreightLineOverlay).toHaveBeenLastCalledWith('bay-line')
+		expect(showFreightLineOverlay).toHaveBeenLastCalledWith(game.freightLines[0])
 
 		first.dispatchEvent(new MouseEvent('mouseleave'))
 		expect(showFreightLineOverlay).toHaveBeenLastCalledWith(undefined)

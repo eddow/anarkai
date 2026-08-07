@@ -6,6 +6,24 @@ import { mountHeadContent, setPlatform } from '@sursaut/kit'
 import { reactive } from 'mutts'
 import { vi } from 'vitest'
 
+// Mock debugObjectId to prefer object.uid over the real obj:N format.
+// Tests that need the real obj:N format can override this mock.
+vi.mock('ssh/dev/debug-object-id', () => ({
+	debugObjectId: (obj: unknown) => {
+		if (obj && typeof obj === 'object' && 'uid' in obj && typeof (obj as any).uid === 'string') {
+			return (obj as any).uid
+		}
+		return undefined
+	},
+	debugRawObjectId: (obj: unknown) => {
+		if (obj && typeof obj === 'object' && 'uid' in obj && typeof (obj as any).uid === 'string') {
+			return (obj as any).uid
+		}
+		return undefined
+	},
+	resetDebugObjectIds: vi.fn(),
+}))
+
 const url = new URL('http://localhost/')
 
 setPlatform({

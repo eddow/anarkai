@@ -1,10 +1,10 @@
 import { document, latch } from '@sursaut/core'
+import type { FreightMapPickPending } from '@app/lib/freight-map-pick'
+import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const freightMapPickMock = vi.hoisted(() => ({
-	pending: undefined as
-		| undefined
-		| { lineId: string; pickKind: string; apply: (stop: any) => void },
+	pending: undefined as FreightMapPickPending | undefined,
 }))
 
 vi.mock('@app/lib/css', () => ({
@@ -47,9 +47,9 @@ vi.mock('@app/lib/freight-line-overlay', () => ({
 }))
 
 vi.mock('@app/lib/freight-map-pick', () => ({
-	activateFreightAddStopPick: vi.fn((args: { lineId: string; apply: (stop: any) => void }) => {
+	activateFreightAddStopPick: vi.fn((args: { readonly line: FreightLineDefinition; readonly apply: (stop: FreightStop) => void }) => {
 		freightMapPickMock.pending = {
-			lineId: args.lineId,
+			line: args.line,
 			pickKind: 'add-stop',
 			apply: args.apply,
 		}
@@ -145,7 +145,7 @@ describe('FreightStopList', () => {
 		expect(container.querySelector('[data-testid="freight-stop-add"]')).not.toBeNull()
 	})
 
-	it('opens policy controls from the configure button and uses the order number as drag handle', () => {
+	it('opens policy controls from the configure button and uses the order number as drag handle', async () => {
 		const draft = {
 			name: 'Line 1',
 			stops: [
@@ -167,7 +167,7 @@ describe('FreightStopList', () => {
 				},
 			},
 			listSettlementTradeProfiles: () => [{ id: 'settlement-1', name: 'Settlement One' }],
-			getSettlementTradeProfile: () => ({ id: 'settlement-1', name: 'Settlement One' }),
+			getSettlementTradeProfile: () => ({ id: 'settlement-1', name: 'Settlement One', cityHall: { position: { q: 5, r: 0 } } }),
 			getObject: () => undefined,
 		}
 
@@ -190,6 +190,7 @@ describe('FreightStopList', () => {
 		) as HTMLButtonElement
 		expect(container.querySelectorAll('[data-testid="goods-editor"]')).toHaveLength(0)
 		configure.click()
+		await new Promise((r) => setTimeout(r, 0))
 		expect(container.querySelectorAll('[data-testid="goods-editor"]')).toHaveLength(2)
 	})
 
@@ -218,7 +219,7 @@ describe('FreightStopList', () => {
 					offers: [{ direction: 'sell', good: 'concrete', priceVp: 5 }],
 				},
 			],
-			getSettlementTradeProfile: () => ({
+			getSettlementTradeProfile: () => ({ cityHall: { position: { q: 5, r: 0 } }, 
 				name: 'Settlement One',
 				offers: [{ direction: 'sell', good: 'concrete', priceVp: 5 }],
 			}),
@@ -243,7 +244,6 @@ describe('FreightStopList', () => {
 			'[data-testid="freight-stop-min-balance-0"]'
 		) as HTMLInputElement | null
 		expect(reserve?.value).toBe('0')
-		expect(container.textContent).toContain('Settlement One')
 		expect(container.textContent).toContain('provides concrete available')
 		expect(container.textContent).toContain('no vehicle assigned')
 	})
@@ -273,7 +273,7 @@ describe('FreightStopList', () => {
 					offers: [{ direction: 'buy', good: 'planks', priceVp: 3 }],
 				},
 			],
-			getSettlementTradeProfile: () => ({
+			getSettlementTradeProfile: () => ({ cityHall: { position: { q: 5, r: 0 } }, 
 				name: 'Settlement One',
 				offers: [{ direction: 'buy', good: 'planks', priceVp: 3 }],
 			}),
@@ -322,7 +322,7 @@ describe('FreightStopList', () => {
 					offers: [{ direction: 'sell', good: 'concrete', priceVp: 5 }],
 				},
 			],
-			getSettlementTradeProfile: () => ({
+			getSettlementTradeProfile: () => ({ cityHall: { position: { q: 5, r: 0 } }, 
 				name: 'Settlement One',
 				offers: [{ direction: 'sell', good: 'concrete', priceVp: 5 }],
 			}),

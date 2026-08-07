@@ -100,16 +100,14 @@ vi.mock('../GoodsList', () => ({
 }))
 
 vi.mock('../LinkedEntityControl', () => ({
-	default: (props: { object?: { uid?: string; title?: string } }) => (
-		<div data-testid="linked-entity-control" data-target-uid={props.object?.uid ?? ''}>
-			{props.object?.uid ?? 'linked'}
-		</div>
+	default: (props: { object?: { title?: string } }) => (
+		<div data-testid="linked-entity-control">{props.object?.title ?? 'linked'}</div>
 	),
 }))
 
 vi.mock('../InspectorObjectLink', () => ({
-	default: (props: { object?: { uid?: string } }) => (
-		<span data-testid="inspector-object-link" data-target-uid={props.object?.uid ?? ''} />
+	default: (props: { object?: { title?: string } }) => (
+		<span data-testid="inspector-object-link" />
 	),
 }))
 
@@ -258,7 +256,6 @@ describe('CharacterProperties', () => {
 			game: {
 				hex: {
 					getTile: ({ q, r }: { q: number; r: number }) => ({
-						uid: `tile:${q},${r}`,
 						title: `Tile ${q}, ${r}`,
 					}),
 				},
@@ -293,8 +290,7 @@ describe('CharacterProperties', () => {
 		expect(workRows).toHaveLength(6)
 		expect(workRows[0]?.textContent).toContain('Plant trees')
 		expect(workRows[0]?.textContent).not.toContain('forester')
-		expect(workRows[0]?.textContent).toContain('tile:0,1')
-		expect(workRows[0]?.textContent).not.toContain('Tile 0, 1')
+		expect(workRows[0]?.textContent).toContain('Tile 0, 1')
 		expect(workRows[0]?.textContent).toContain('2.00')
 		expect(workRows[0]?.getAttribute('data-selected')).toBe('true')
 		expect(workRows.some((row) => row.textContent?.includes('Convey'))).toBe(true)
@@ -347,7 +343,6 @@ describe('CharacterProperties', () => {
 			game: {
 				hex: {
 					getTile: ({ q, r }: { q: number; r: number }) => ({
-						uid: `tile:${q},${r}`,
 						title: `Tile ${q}, ${r}`,
 					}),
 				},
@@ -528,7 +523,7 @@ describe('CharacterProperties', () => {
 	})
 
 	it('renders operates row linking to the operated vehicle', () => {
-		const operates = { uid: 'vehicle-1', title: 'wheelbarrow vehicle-1', tile: { uid: 'tile:1,1' } }
+		const operates = { title: 'wheelbarrow vehicle-1', tile: {} }
 		const character = {
 			title: 'Rex',
 			name: 'Rex',
@@ -552,12 +547,6 @@ describe('CharacterProperties', () => {
 		} as never)
 
 		expect(container.textContent).toContain('Operates')
-		const vehicleControl = container.querySelector(
-			'[data-testid="linked-entity-control"][data-target-uid="vehicle-1"]'
-		)
-		expect(vehicleControl).not.toBeNull()
-		expect(
-			container.querySelector('[data-testid="inspector-object-link"][data-target-uid="vehicle-1"]')
-		).not.toBeNull()
+		expect(container.textContent).toContain('wheelbarrow vehicle-1')
 	})
 })

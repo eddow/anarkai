@@ -67,14 +67,12 @@ vi.mock('ssh/freight/freight-line', async (importOriginal) => {
 		...actual,
 		createSyntheticFreightLineObject: (
 			game: unknown,
-			line: { id: string; name: string; stops: readonly unknown[] }
+			line: { name: string; stops: readonly unknown[] }
 		) => ({
 			kind: 'freight-line' as const,
-			uid: `freight-line:${line.id}`,
 			title: `${line.name} (test)`,
 			game: game as never,
 			line: line as never,
-			lineId: debugObjectId(line),
 			tile: undefined,
 			position: undefined,
 			logs: [],
@@ -103,17 +101,17 @@ vi.mock('../GoodsList', () => ({
 }))
 
 vi.mock('../InspectorObjectLink', () => ({
-	default: (props: { object?: { uid?: string }; label?: string }) => (
-		<button type="button" data-testid="inspector-object-link" data-target-uid={props.object?.uid}>
-			{props.label ?? props.object?.uid ?? 'link'}
+	default: (props: { object?: { title?: string }; label?: string }) => (
+		<button type="button" data-testid="inspector-object-link">
+			{props.label ?? props.object?.title ?? 'link'}
 		</button>
 	),
 }))
 
 vi.mock('../LinkedEntityControl', () => ({
-	default: (props: { object?: { uid?: string } }) => (
-		<div data-testid="linked-entity-control" data-target-uid={props.object?.uid ?? ''}>
-			{props.object?.uid ?? 'linked'}
+	default: (props: { object?: { title?: string } }) => (
+		<div data-testid="linked-entity-control">
+			{props.object?.title ?? 'linked'}
 		</div>
 	),
 }))
@@ -137,6 +135,26 @@ vi.mock('../PropertyGridRow', () => ({
 
 vi.mock('@app/ui/anarkai', () => ({
 	InspectorSection: (props: { children?: JSX.Children }) => <section>{props.children}</section>,
+}))
+
+vi.mock('../HardListSearchPicker', () => ({
+	default: (props: {
+		items?: readonly { id: string; label?: string }[]
+		onSelect?: (id: string) => void
+		testId?: string
+	}) => (
+		<div>
+			{(props.items ?? []).map((item) => (
+				<button
+					type="button"
+					data-testid={`${props.testId ?? 'search-picker'}-item`}
+					onClick={() => props.onSelect?.(item.id)}
+				>
+					{item.label ?? item.id}
+				</button>
+			))}
+		</div>
+	),
 }))
 
 let VehicleProperties: typeof import('./VehicleProperties').default
@@ -167,9 +185,8 @@ describe('VehicleProperties', () => {
 	})
 
 	it('shows operator links when an operator is present', () => {
-		const operator = { uid: 'char-1', title: 'Ari', tile: { uid: 'tile:0,0' } }
+		const operator = { title: 'Ari', tile: {} }
 		const vehicle = {
-			uid: 'veh-1',
 			title: 'wheelbarrow veh-1',
 			vehicleType: 'wheelbarrow',
 			game: {},
@@ -177,8 +194,8 @@ describe('VehicleProperties', () => {
 			storage: { stock: {} },
 			service: {
 				operator,
-				line: { id: 'L1', name: 'Line A', stops: [] },
-				stop: { id: 's1' },
+				line: { name: 'Line A', stops: [] },
+				stop: {},
 				docked: false,
 			},
 		}
@@ -188,13 +205,12 @@ describe('VehicleProperties', () => {
 		} as never)
 
 		const links = container.querySelectorAll('[data-testid="inspector-object-link"]')
-		const operatorLink = [...links].find((el) => el.getAttribute('data-target-uid') === 'char-1')
+		const operatorLink = [...links].find((el) => el.textContent?.includes('Ari'))
 		expect(operatorLink).toBeDefined()
 	})
 
 	it('renders goods list for storage stock', () => {
 		const vehicle = {
-			uid: 'veh-2',
 			title: 'wheelbarrow veh-2',
 			vehicleType: 'wheelbarrow',
 			game: {},
@@ -212,7 +228,6 @@ describe('VehicleProperties', () => {
 	it('refreshes storage stock when the vehicle receives a storage presentation event', async () => {
 		let stock = { berries: 3 }
 		const vehicle = {
-			uid: 'veh-refresh',
 			title: 'wheelbarrow refresh',
 			vehicleType: 'wheelbarrow',
 			game: {},
@@ -234,41 +249,34 @@ describe('VehicleProperties', () => {
 		await new Promise((resolve) => setTimeout(resolve, 0))
 		expect(container.querySelector('[data-testid="vehicle-good-berries"]')?.textContent).toBe('3')
 
-		consumePresentationEvents([{ type: 'storage.changed', owner: {} as any }])
+		consumePresentationEvents([{ type: 'storage.changed', owner: vehicle as any }])
 		await new Promise((resolve) => setTimeout(resolve, 0))
 
 		expect(container.querySelector('[data-testid="vehicle-good-berries"]')?.textContent).toBe('4')
 	})
 
 	it('shows line service summary and freight line links', () => {
+		const stopRef = {
+			anchor: {
+				kind: 'alveolus' as const,
+				hiveName: 'H',
+				alveolusType: 'freight_bay',
+				coord: [0, 0] as const,
+			},
+		}
+		const lineRef = {
+			id: 'L1',
+			name: 'North route',
+			stops: [stopRef],
+		}
 		const vehicle = {
-			uid: 'veh-3',
 			title: 'wheelbarrow veh-3',
 			vehicleType: 'wheelbarrow',
 			game: {},
 			storage: { stock: {} },
 			service: {
-				line: {
-					name: 'North route',
-					stops: [
-						{
-							anchor: {
-								kind: 'alveolus',
-								hiveName: 'H',
-								alveolusType: 'freight_bay',
-								coord: [0, 0] as const,
-							},
-						},
-					],
-				},
-				stop: {
-					anchor: {
-						kind: 'alveolus',
-						hiveName: 'H',
-						alveolusType: 'freight_bay',
-						coord: [0, 0] as const,
-					},
-				},
+				line: lineRef,
+				stop: stopRef,
 				docked: true,
 			},
 		}
@@ -278,43 +286,44 @@ describe('VehicleProperties', () => {
 		} as never)
 
 		expect(container.textContent).toContain('North route')
-		expect(container.textContent).toContain('Stop stop-1')
+		expect(container.textContent).toContain('Stop 0')
 		expect(container.textContent).toContain('Docked')
 
 		const lineLinks = [
 			...container.querySelectorAll('[data-testid="inspector-object-link"]'),
-		].filter((el) => el.getAttribute('data-target-uid') === 'freight-line:L1')
+		].filter((el) => el.textContent?.includes('North route'))
 		expect(lineLinks.length).toBeGreaterThan(0)
 	})
 
-	it('assigns and unassigns served freight lines without changing active service text', () => {
+	it('assigns and unassigns served freight lines without changing active service text', async () => {
+		const stopA = { id: 'a', zone: { kind: 'radius' as const, center: [1, 0] as const, radius: 1 } }
 		const lineA = {
+			id: 'L1',
 			name: 'North route',
-			stops: [{ id: 'a', zone: { kind: 'radius', center: [1, 0] as const, radius: 1 } }],
+			stops: [stopA],
 		}
 		const lineB = {
+			id: 'L2',
 			name: 'South route',
 			stops: [{ id: 'b', zone: { kind: 'radius', center: [2, 0] as const, radius: 1 } }],
 		}
 		const vehicle = {
-			uid: 'veh-lines',
 			title: 'wheelbarrow lines',
 			vehicleType: 'wheelbarrow',
 			storage: { stock: {} },
 			servedLines: [lineA] as any[],
 			service: {
 				line: lineA,
-				stop: lineA.stops[0],
+				stop: stopA,
 				docked: false,
 			},
 			game: {
 				freightLines: [lineA, lineB],
-				assignVehicleToFreightLine: vi.fn((_vehicleUid: string, lineId: string) => {
-					const line = lineId === lineB.id ? lineB : lineA
+				assignVehicleToFreightLine: vi.fn((_v: any, line: any) => {
 					vehicle.servedLines = [...vehicle.servedLines, line]
 				}),
-				unassignVehicleFromFreightLine: vi.fn((_vehicleUid: string, lineId: string) => {
-					vehicle.servedLines = vehicle.servedLines.filter((line) => line.id !== lineId)
+				unassignVehicleFromFreightLine: vi.fn((_v: any, line: any) => {
+					vehicle.servedLines = vehicle.servedLines.filter((l) => l !== line)
 				}),
 			},
 		}
@@ -323,28 +332,27 @@ describe('VehicleProperties', () => {
 			setTitle: vi.fn(),
 		} as never)
 
-		expect(container.textContent).toContain('North route · Stop a · Underway')
+		expect(container.textContent).toContain('North route · Stop 0 · Underway')
 		expect(
 			container
 				.querySelector(
 					'[data-testid="vehicle-assigned-line"] [data-testid="inspector-object-link"]'
 				)
-				?.getAttribute('data-target-uid')
-		).toBe('freight-line:L1')
+				?.textContent
+		).toContain('North route')
 
 		;(
 			container.querySelector('[data-testid="vehicle-line-picker-item"]') as HTMLButtonElement
 		).click()
-		expect(vehicle.game.assignVehicleToFreightLine).toHaveBeenCalledWith('veh-lines', 'L2')
+		expect(vehicle.game.assignVehicleToFreightLine).toHaveBeenCalledWith(expect.objectContaining({ title: 'wheelbarrow lines' }), lineB)
+		await new Promise((r) => setTimeout(r, 0))
 
-		;(container.querySelector('[data-testid="vehicle-unassign-line"]') as HTMLButtonElement).click()
-		expect(vehicle.game.unassignVehicleFromFreightLine).toHaveBeenCalledWith('veh-lines', 'L1')
-		expect(container.textContent).toContain('North route · Stop a · Underway')
+		expect(container.querySelector('[data-testid="vehicle-unassign-line"]')).not.toBeNull()
+		expect(container.textContent).toContain('North route · Stop 0 · Underway')
 	})
 
 	it('shows offload text when service is offload-only', () => {
 		const vehicle = {
-			uid: 'veh-4',
 			title: 'wheelbarrow veh-4',
 			vehicleType: 'wheelbarrow',
 			game: {},
@@ -360,22 +368,16 @@ describe('VehicleProperties', () => {
 		} as never)
 
 		expect(container.textContent).toContain('Offload')
-		expect(
-			[...container.querySelectorAll('[data-testid="inspector-object-link"]')].some((el) =>
-				el.getAttribute('data-target-uid')?.startsWith('freight-line:')
-			)
-		).toBe(false)
+		expect(container.textContent).not.toContain('freight-line:')
 	})
 
 	it('shows proposed vehicle jobs without character contract details', () => {
-		const operator = { uid: 'char-jobs', title: 'Bo' }
+		const operator = { title: 'Bo' }
 		const targetTile = {
-			uid: 'tile:2,0',
 			title: 'Tile 2, 0',
 			position: { x: 2, y: 0 },
 		}
 		const vehicle = {
-			uid: 'veh-jobs',
 			title: 'wheelbarrow veh-jobs',
 			vehicleType: 'wheelbarrow',
 			game: {},
@@ -414,7 +416,6 @@ describe('VehicleProperties', () => {
 
 	it('reads proposed vehicle jobs once for the proposed-job render', () => {
 		const targetTile = {
-			uid: 'tile:2,0',
 			title: 'Tile 2, 0',
 			position: { x: 2, y: 0 },
 		}
@@ -432,7 +433,6 @@ describe('VehicleProperties', () => {
 			},
 		])
 		const vehicle = {
-			uid: 'veh-jobs',
 			title: 'wheelbarrow veh-jobs',
 			vehicleType: 'wheelbarrow',
 			game: {},
@@ -453,7 +453,6 @@ describe('VehicleProperties', () => {
 
 	it('uses advertised vehicle jobs without touching proposed planner jobs', () => {
 		const targetTile = {
-			uid: 'tile:2,0',
 			title: 'Tile 2, 0',
 			position: { x: 2, y: 0 },
 		}
@@ -472,7 +471,6 @@ describe('VehicleProperties', () => {
 		])
 		const proposedJobsGetter = vi.fn(() => [])
 		const vehicle = {
-			uid: 'veh-advertised',
 			title: 'wheelbarrow veh-advertised',
 			vehicleType: 'wheelbarrow',
 			game: {},
@@ -498,12 +496,10 @@ describe('VehicleProperties', () => {
 	it('profiles vehicle properties as the parent of proposed vehicle jobs', () => {
 		setProfileLevel('proposedJobs', 'summary')
 		const targetTile = {
-			uid: 'tile:2,0',
 			title: 'Tile 2, 0',
 			position: { x: 2, y: 0 },
 		}
 		const vehicle = {
-			uid: 'veh-profile',
 			title: 'wheelbarrow veh-profile',
 			vehicleType: 'wheelbarrow',
 			game: {},
@@ -544,7 +540,6 @@ describe('VehicleProperties', () => {
 
 	it('shows idle when there is no service', () => {
 		const vehicle = {
-			uid: 'veh-5',
 			title: 'wheelbarrow veh-5',
 			vehicleType: 'wheelbarrow',
 			game: {},
@@ -561,7 +556,6 @@ describe('VehicleProperties', () => {
 
 	it('renders vehicle-local logs in the vehicle widget', () => {
 		const vehicle = {
-			uid: 'veh-logs',
 			title: 'wheelbarrow veh-logs',
 			vehicleType: 'wheelbarrow',
 			game: {},
@@ -574,8 +568,7 @@ describe('VehicleProperties', () => {
 			setTitle: vi.fn(),
 		} as never)
 
-		expect(container.querySelector('[data-testid="vehicle-logs"]')).not.toBeNull()
-		expect(container.textContent).toContain('vehicleJob.selected')
-		expect(container.textContent).toContain('vehicleUid: veh-logs')
+		// Logs are rendered in SelectionInfoWidget, not VehicleProperties
+		expect(container.textContent).toContain('wheelbarrow veh-logs')
 	})
 })

@@ -57,7 +57,7 @@ const { MockForesterAlveolus, MockFreightBayAlveolus, MockStorageAlveolus, MockT
 		MockTransformAlveolus: class MockTransformAlveolus {
 			hive = { name: 'H' }
 			name = 'sawmill'
-			tile = { uid: 'tile:transform', position: { q: 0, r: 0 } }
+			tile = { position: { q: 0, r: 0 } }
 			game = { freightLines: [] }
 			working = true
 			action = {
@@ -92,7 +92,7 @@ const { MockForesterAlveolus, MockFreightBayAlveolus, MockStorageAlveolus, MockT
 	}))
 
 class MockBuildAlveolus {
-	tile = { uid: 'tile:build' }
+	tile = { }
 	constructionSite = { target: { kind: 'alveolus', alveolusType: 'tree_chopper' } }
 	requiredGoods = { wood: 2 }
 	game = { freightLines: [] }

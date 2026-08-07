@@ -63,10 +63,10 @@ describe('VehicleVisual cargo', () => {
 		try {
 			engine.loadScenario({
 				tiles: [{ coord: [0, 0], terrain: 'grass' }],
-				population: [],
+				characters: [],
 				vehicles: [
 					{
-						name: 'wb-idle',
+
 						vehicleType: 'wheelbarrow',
 						position: { q: 0, r: 0 },
 						servedLineIndices: [],
@@ -75,7 +75,7 @@ describe('VehicleVisual cargo', () => {
 				],
 			})
 
-			const vehicle = [...engine.game.vehicles].find((v) => v.name === 'wb-idle')
+			const vehicle = [...engine.game.vehicles][0]
 			if (!vehicle) throw new Error('expected vehicle')
 
 			const renderer = createRendererStub(engine.game)
@@ -103,10 +103,9 @@ describe('VehicleVisual cargo', () => {
 		try {
 			engine.loadScenario({
 				tiles: [{ coord: [0, 0], terrain: 'grass' }],
-				population: [],
+				characters: [],
 				vehicles: [
 					{
-						name: 'wb-drive',
 						vehicleType: 'wheelbarrow',
 						position: { q: 0, r: 0 },
 						servedLineIndices: [],
@@ -115,7 +114,7 @@ describe('VehicleVisual cargo', () => {
 				],
 			})
 
-			const vehicle = [...engine.game.vehicles].find((v) => v.name === 'wb-drive')
+			const vehicle = [...engine.game.vehicles][0]
 			if (!vehicle) throw new Error('expected vehicle')
 			vehicle.beginOffloadService()
 
@@ -150,10 +149,9 @@ describe('VehicleVisual cargo', () => {
 		try {
 			engine.loadScenario({
 				tiles: [{ coord: [0, 0], terrain: 'grass' }],
-				population: [],
+				characters: [],
 				vehicles: [
 					{
-						name: 'wb-off',
 						vehicleType: 'wheelbarrow',
 						position: { q: 0, r: 0 },
 						servedLineIndices: [],
@@ -161,7 +159,7 @@ describe('VehicleVisual cargo', () => {
 				],
 			})
 
-			const vehicle = [...engine.game.vehicles].find((v) => v.name === 'wb-off')
+			const vehicle = [...engine.game.vehicles][0]
 			if (!vehicle) throw new Error('expected vehicle')
 			vehicle.beginOffloadService()
 

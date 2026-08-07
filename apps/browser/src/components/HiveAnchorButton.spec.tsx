@@ -70,7 +70,6 @@ describe('HiveAnchorButton', () => {
 		setHoveredObject.mockClear()
 		isHoveredObject.mockClear()
 		tile = {
-			uid: 'tile:0,0',
 			title: 'Tile 0, 0',
 			content: new MockAlveolus(),
 			board: { game: {} },
@@ -86,7 +85,6 @@ describe('HiveAnchorButton', () => {
 
 	it('opens the synthetic hive inspector and mirrors hover state', () => {
 		createSyntheticHiveObject.mockReturnValue({
-			uid: 'hive:tile%3A0%2C0',
 			title: 'Hive',
 		})
 
@@ -103,7 +101,6 @@ describe('HiveAnchorButton', () => {
 		button.click()
 		expect(createSyntheticHiveObject).toHaveBeenCalledWith(tile.board.game, tile)
 		expect(showProps).toHaveBeenCalledWith({
-			uid: 'hive:tile%3A0%2C0',
 			title: 'Hive',
 		})
 

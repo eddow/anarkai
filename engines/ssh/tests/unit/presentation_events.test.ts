@@ -1,9 +1,8 @@
 // @ts-nocheck
+import { atomic } from 'mutts'
 import type { GamePresentationEvent } from 'ssh/game'
 import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine/engine'
-
-const flushDeferredEvents = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 describe('Game presentation events', () => {
 	it('batches and dedupes storage presentation changes by owner', async () => {
@@ -20,11 +19,11 @@ describe('Game presentation events', () => {
 
 			const ownerA = { uid: 'tile:1,1' }
 			const ownerB = { uid: 'tile:2,2' }
-			engine.game.enqueueStoragePresentationChange(ownerA)
-			engine.game.enqueueStoragePresentationChange(ownerA)
-			engine.game.enqueueStoragePresentationChange(ownerB)
-
-			await flushDeferredEvents()
+			atomic(() => {
+				engine.game.enqueueStoragePresentationChange(ownerA)
+				engine.game.enqueueStoragePresentationChange(ownerA)
+				engine.game.enqueueStoragePresentationChange(ownerB)
+			})()
 
 			expect(batches).toHaveLength(1)
 			expect(batches[0]).toEqual([
@@ -51,11 +50,11 @@ describe('Game presentation events', () => {
 			const bay = { uid: 'tile:1,1' }
 			const vehicleA = { uid: 'vehicle:1' }
 			const vehicleB = { uid: 'vehicle:2' }
-			engine.game.enqueueVehicleDockPresentationChange(bay, vehicleA)
-			engine.game.enqueueVehicleDockPresentationChange(bay, vehicleA)
-			engine.game.enqueueVehicleDockPresentationChange(bay, vehicleB)
-
-			await flushDeferredEvents()
+			atomic(() => {
+				engine.game.enqueueVehicleDockPresentationChange(bay, vehicleA)
+				engine.game.enqueueVehicleDockPresentationChange(bay, vehicleA)
+				engine.game.enqueueVehicleDockPresentationChange(bay, vehicleB)
+			})()
 
 			expect(batches).toHaveLength(1)
 			expect(batches[0]).toEqual([

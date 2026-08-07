@@ -335,13 +335,14 @@ function lineHint(game: Vehicle['game'], line: FreightLineDefinition): string {
 	return coord ? `starts ${coord.q},${coord.r}` : `${line.stops.length} stops`
 }
 
-function assignableLineItems(vehicle: Vehicle): HardListSearchPickerItem[] {
+function assignableLineItems(vehicle: Vehicle): (HardListSearchPickerItem & { item: FreightLineDefinition })[] {
 	if (!isLineFreightVehicleType(vehicle.vehicleType)) return []
 	const assigned = new Set((vehicle.servedLines ?? []).map((line) => line.name))
 	return (vehicle.game.freightLines ?? [])
 		.filter((line) => !assigned.has(line.name))
 		.map((line) => ({
 			id: debugObjectId(line) ?? '',
+			item: line,
 			label: line.name,
 			hint: lineHint(vehicle.game, line),
 			coord: lineCoord(vehicle.game, line),
@@ -413,7 +414,7 @@ const VehicleProperties = (
 		const vehicle = props.vehicle
 		if (!vehicle) return
 		if (!isLineFreightVehicleType(vehicle.vehicleType)) return
-		const line = vehicle.game.freightLines.find((entry) => debugObjectId(entry) === lineId)
+		const line = assignableLineItems(vehicle).find((entry) => entry.id === lineId)?.item
 		if (line) {
 			if (vehicle.game.assignVehicleToFreightLine)
 				vehicle.game.assignVehicleToFreightLine(vehicle, line)
@@ -425,7 +426,7 @@ const VehicleProperties = (
 	const unassignLine = (lineId: string) => {
 		const vehicle = props.vehicle
 		if (!vehicle) return
-		const line = vehicle.game.freightLines.find((entry) => debugObjectId(entry) === lineId)
+		const line = assignableLineItems(vehicle).find((entry) => entry.id === lineId)?.item
 		if (line) {
 			if (vehicle.game.unassignVehicleFromFreightLine)
 				vehicle.game.unassignVehicleFromFreightLine(vehicle, line)

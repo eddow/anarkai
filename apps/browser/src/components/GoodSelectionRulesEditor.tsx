@@ -337,12 +337,12 @@ const GoodSelectionRulesEditor = (props: GoodSelectionRulesEditorProps) => {
 
 	const availableGoodsToAdd = (): GoodType[] => {
 		const used = new Set(state.goodRules.map((r) => r.goodType))
-		return props.goodOptions.filter((entry) => !used.has(entry.id)).map((entry) => entry.name)
+		return props.goodOptions.filter((entry) => !used.has(entry.id)).map((entry) => entry.id)
 	}
 
 	const availableTagIdsToAdd = (): string[] => {
 		const used = new Set(state.tagRules.map((r) => r.tag))
-		return props.tagOptions.filter((entry) => !used.has(entry.id)).map((entry) => entry.name)
+		return props.tagOptions.filter((entry) => !used.has(entry.id)).map((entry) => entry.id)
 	}
 
 	const addGoodRuleFromPicker = (goodType: GoodType) => {
@@ -379,7 +379,7 @@ const GoodSelectionRulesEditor = (props: GoodSelectionRulesEditorProps) => {
 	}
 
 	const tagOptionLabel = (tag: string) =>
-		toDisplayText(props.tagOptions.find((entry) => entry.name === tag)?.label, tag)
+		toDisplayText(props.tagOptions.find((entry) => entry.id === tag)?.label, tag)
 
 	const matchOptionLabel = (match: GoodSelectionTagMatch) =>
 		match === 'present' ? ls().matchPresent : ls().matchAbsent

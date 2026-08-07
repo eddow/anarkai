@@ -62,7 +62,7 @@ export function withInteractive<T extends abstract new (...args: any[]) => GameO
 			const game = args[0] as Game
 			super(...args)
 			registerInteractiveLogObject(this)
-			game.enqueueInteractiveRegistration(this)
+			game.enqueueInteractiveRegistration?.(this)
 		}
 
 		lastTopic: any | undefined = undefined
@@ -97,7 +97,7 @@ export function withInteractive<T extends abstract new (...args: any[]) => GameO
 
 		destroy(): void {
 			unregisterInteractiveLogObject(this)
-			this.game.enqueueInteractiveUnregistration(this)
+			this.game.enqueueInteractiveUnregistration?.(this)
 			super.destroy()
 		}
 	}

@@ -57,17 +57,6 @@ interface DockedVehicleListProps {
 	game?: Game
 }
 
-const lineSyntheticObject = (
-	game: Game | undefined,
-	entry: DockedVehicleEntry
-): { uid: string; title: string } | undefined => {
-	if (!game) return undefined
-	const lineDef = entry.line
-	if (!lineDef) return undefined
-	const uid = `freight-line:${game.freightLines.indexOf(lineDef)}` as const
-	return { uid, title: lineDef.name }
-}
-
 const DockedVehicleList = (props: DockedVehicleListProps) => {
 	const stopLabel = () => T.line.stop
 	const cargoLabel = () => (T.vehicle as typeof T.vehicle & { cargo?: string }).cargo ?? 'Cargo'
@@ -84,19 +73,14 @@ const DockedVehicleList = (props: DockedVehicleListProps) => {
 	return (
 		<div class="docked-vehicle-list">
 			<for each={props.entries}>
-				{(entry) => {
-					const lineObj = lineSyntheticObject(props.game, entry)
+				{(entry: DockedVehicleEntry) => {
 					return (
 						<div class="docked-vehicle-list__item" data-testid="docked-vehicle-row">
 							<div class="docked-vehicle-list__item-main">
 								<LinkedEntityControl object={entry.vehicle} />
 								<InspectorObjectLink object={entry.vehicle} />
 								<span if={props.showLineMeta} class="docked-vehicle-list__meta">
-									<InspectorObjectLink
-										if={!!lineObj}
-										object={lineObj as any}
-										label={lineObj?.title}
-									/>
+									<span if={!!entry.line}>{entry.line?.name}</span>
 									{' · '}
 									{stopLabel()} {entry.line.stops.indexOf(entry.stop)}
 								</span>

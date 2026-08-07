@@ -84,9 +84,9 @@ describe('freight-map-pick', () => {
 
 	it('activates add-stop as a board tool', () => {
 		const apply = vi.fn()
-		activateFreightAddStopPick({ lineId: 'line-1', apply })
+		activateFreightAddStopPick({ line: { id: 'line-1', name: 'Line 1', stops: [] }, apply })
 
-		expect(freightMapPick.pending).toMatchObject({ lineId: 'line-1', pickKind: 'add-stop' })
+		expect(freightMapPick.pending).toMatchObject({ pickKind: 'add-stop' })
 		expect(interactionMode.selectedAction).toBe(FREIGHT_ADD_STOP_ACTION)
 	})
 
@@ -131,7 +131,7 @@ describe('freight-map-pick', () => {
 
 	it('adds a trade halt from a city hall tile pick', () => {
 		const apply = vi.fn()
-		activateFreightAddStopPick({ lineId: 'line-1', apply })
+		activateFreightAddStopPick({ line: { id: 'line-1', name: 'Line 1', stops: [] }, apply })
 
 		const ok = tryConsumeFreightMapPick(
 			makeGame(undefined, { coord: { q: 5, r: 0 }, id: 'settlement-1' }),
@@ -146,7 +146,7 @@ describe('freight-map-pick', () => {
 
 	it('clears the add-stop board tool after a successful add', () => {
 		const apply = vi.fn()
-		activateFreightAddStopPick({ lineId: 'line-1', apply })
+		activateFreightAddStopPick({ line: { id: 'line-1', name: 'Line 1', stops: [] }, apply })
 
 		const ok = tryConsumeFreightMapPick(
 			makeGame(undefined, { coord: { q: 5, r: 0 }, id: 'settlement-1' }),
@@ -160,7 +160,7 @@ describe('freight-map-pick', () => {
 
 	it('keeps the add-stop board tool after a shift add', () => {
 		const apply = vi.fn()
-		activateFreightAddStopPick({ lineId: 'line-1', apply })
+		activateFreightAddStopPick({ line: { id: 'line-1', name: 'Line 1', stops: [] }, apply })
 
 		const ok = tryConsumeFreightMapPick(
 			makeGame(undefined, { coord: { q: 5, r: 0 }, id: 'settlement-1' }),
@@ -175,7 +175,7 @@ describe('freight-map-pick', () => {
 
 	it('does not consume clicks when the add-stop board tool is no longer selected', () => {
 		const apply = vi.fn()
-		activateFreightAddStopPick({ lineId: 'line-1', apply })
+		activateFreightAddStopPick({ line: { id: 'line-1', name: 'Line 1', stops: [] }, apply })
 		interactionMode.selectedAction = 'build:storage'
 
 		const ok = tryConsumeFreightMapPick(
@@ -191,7 +191,7 @@ describe('freight-map-pick', () => {
 
 	it('keeps synthetic settlement object trade halt compatibility', () => {
 		const apply = vi.fn()
-		activateFreightAddStopPick({ lineId: 'line-1', apply })
+		activateFreightAddStopPick({ line: { id: 'line-1', name: 'Line 1', stops: [] }, apply })
 
 		const ok = tryConsumeFreightMapPick(makeGame(), makeSettlement())
 		expect(ok).toBe(true)
@@ -203,7 +203,7 @@ describe('freight-map-pick', () => {
 
 	it('adds a named-zone halt from a custom-zone tile pick', () => {
 		const apply = vi.fn()
-		activateFreightAddStopPick({ lineId: 'line-1', apply })
+		activateFreightAddStopPick({ line: { id: 'line-1', name: 'Line 1', stops: [] }, apply })
 
 		const ok = tryConsumeFreightMapPick(makeGame('orchard'), makeTile({ q: 1, r: 2 }))
 		expect(ok).toBe(true)
@@ -215,7 +215,7 @@ describe('freight-map-pick', () => {
 
 	it('ordinary add-stop tile clicks are consumed but keep the pick pending', () => {
 		const apply = vi.fn()
-		activateFreightAddStopPick({ lineId: 'line-1', apply })
+		activateFreightAddStopPick({ line: { id: 'line-1', name: 'Line 1', stops: [] }, apply })
 
 		const ok = tryConsumeFreightMapPick(makeGame(), makeTile({ q: 1, r: 2 }))
 		expect(ok).toBe(true)
@@ -225,7 +225,7 @@ describe('freight-map-pick', () => {
 
 	it('adds a radius halt from an add-stop tile drag', () => {
 		const apply = vi.fn()
-		activateFreightAddStopPick({ lineId: 'line-1', apply })
+		activateFreightAddStopPick({ line: { id: 'line-1', name: 'Line 1', stops: [] }, apply })
 
 		const ok = tryConsumeFreightMapPickRadiusDrag({
 			game: makeGame(),

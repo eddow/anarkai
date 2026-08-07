@@ -7,7 +7,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 
 const classMocks = vi.hoisted(() => {
 	class MockBuildAlveolus {
-		tile = { uid: 'tile:build-site', position: { q: 0, r: 0 } }
+		tile = { position: { q: 0, r: 0 } }
 		constructionSite = { target: { kind: 'alveolus', alveolusType: 'tree_chopper' } }
 		requiredGoods = { stone: 1 }
 		storage = { stock: {} }
@@ -92,7 +92,7 @@ describe('StoredGoodsRow presentation refresh', () => {
 	it('refreshes stock display when the owning tile receives a storage presentation event', async () => {
 		let stock = { wood: 1 }
 		const content = {
-			tile: { uid: 'tile:stored-goods' },
+			tile: {},
 			game: {},
 			storage: {
 				get stock() {
@@ -113,7 +113,7 @@ describe('StoredGoodsRow presentation refresh', () => {
 		await flush()
 		expect(container.querySelector('[data-testid="badge-wood"]')?.textContent).toBe('×1')
 
-		consumePresentationEvents([{ type: 'storage.changed', owner: {} as any }])
+		consumePresentationEvents([{ type: 'storage.changed', owner: content.tile as any }])
 		await flush()
 
 		expect(container.querySelector('[data-testid="badge-wood"]')?.textContent).toBe('×2')

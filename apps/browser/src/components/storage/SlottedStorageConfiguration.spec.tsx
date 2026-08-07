@@ -208,7 +208,7 @@ describe('SlottedStorageConfiguration', () => {
 		expect(configuration.goods.wood).toBeUndefined()
 	})
 
-	it('recomputes remaining slot budget when buffer slots change', () => {
+	it('recomputes remaining slot budget when buffer slots change', async () => {
 		const { content } = createContent()
 
 		stop = latch(
@@ -229,6 +229,7 @@ describe('SlottedStorageConfiguration', () => {
 		expect(container.querySelectorAll('.slotted-storage-stars__unavailable')).toHaveLength(1)
 
 		initialStars[1].click()
+		await new Promise((r) => setTimeout(r, 0))
 
 		const updatedStars = Array.from(
 			container.querySelectorAll('[data-testid="stars"]')

@@ -435,7 +435,8 @@ export class Game extends Eventful<GameEvents> {
 	private scheduleTerrainInvalidationCoalescingFlush(): void {
 		if (this.terrainInvalidationFlushScheduled) return
 		this.terrainInvalidationFlushScheduled = true
-		defer(() => {
+		// `defer` does not do the job. TODO: Investigate why `defer` is not working as expected in this context, avoid `queueMicrotask` as much as possible.
+		queueMicrotask(() => {
 			this.terrainInvalidationFlushScheduled = false
 			this.pendingCoordTerrainInvalidations.clear()
 		})

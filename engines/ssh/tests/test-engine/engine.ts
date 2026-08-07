@@ -62,9 +62,6 @@ export class TestEngine {
 		this.game.hex.reset()
 		this.game.population.clear()
 		this.game.generate(fullScenario.generationOptions, fullScenario, fullScenario)
-		if (fullScenario.population) {
-			
-		}
 	}
 
 	/**

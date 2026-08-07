@@ -109,7 +109,7 @@ vi.mock('ssh/board/tile', () => ({
 }))
 
 vi.mock('ssh/population/vehicle/entity', () => ({
-	VehicleEntity: MockVehicleEntity,
+	Vehicle: MockVehicleEntity,
 }))
 
 vi.mock('ssh/population/character', () => ({

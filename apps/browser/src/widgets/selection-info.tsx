@@ -239,24 +239,14 @@ const SelectionInfoWidget = (
 			return props.params.uid ?? selectionState.selectedUid
 		},
 		get object() {
+			// Direct object reference — preferred path (set by showProps)
+			const direct = selectionState.selectedObject as object | undefined
+			if (direct) return direct
+
+			// Fallback: uid-based dispatch for widget params / localStorage restore
 			const uid = this.uid
 			if (!uid) return undefined
-			if (uid.startsWith('hive:')) {
-				const anchorUid = decodeURIComponent(uid.slice('hive:'.length))
-				const tile = [...game.objects].find((o: any) => debugObjectId(o) === anchorUid)
-				return tile instanceof Tile ? createSyntheticHiveObject(game, tile) : undefined
-			}
-			if (uid.startsWith('freight-line:')) {
-				const id = decodeURIComponent(uid.slice('freight-line:'.length))
-				const line = game.freightLines.find((entry: any) => entry.id === id)
-				return line ? createSyntheticFreightLineObject(game, line) : undefined
-			}
-			if (uid.startsWith('zone:')) {
-				const index = Number(uid.slice('zone:'.length))
-				return Number.isFinite(index) ? new ZoneObject(game, index) : undefined
-			}
-			if (uid === 'zones') return new ZonesCollectionObject(game)
-			return [...game.objects].find((o: any) => debugObjectId(o) === uid)
+			return [...game.objects].find((o: any) => debugObjectId(o) === uid) ?? undefined
 		},
 		get logs() {
 			return this.object?.logs ?? []

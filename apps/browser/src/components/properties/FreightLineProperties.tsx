@@ -312,13 +312,14 @@ function assignedVehiclesForLine(
 function assignableVehicleItems(
 	game: Game | undefined,
 	line: FreightLineDefinition | undefined
-): HardListSearchPickerItem[] {
+): (HardListSearchPickerItem & { item: Vehicle })[] {
 	if (!game?.vehicles || !line) return []
 	return [...game.vehicles]
 		.filter((vehicle) => isLineFreightVehicleType(vehicle.vehicleType))
 		.filter((vehicle) => !vehicle.servedLines?.includes(line))
 		.map((vehicle) => ({
 			id: debugObjectId(vehicle) ?? '',
+			item: vehicle,
 			label: vehicle.title,
 			hint: `${vehicle.vehicleType} · ${vehicleStockSummary(vehicle)}`,
 			coord: vehicleCoord(vehicle),
@@ -403,7 +404,7 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 		const line = currentLine()
 		const g = currentGame()
 		if (!line || !g) return
-		const vehicle = [...g.vehicles].find((v) => debugObjectId(v) === vehicleUid)
+		const vehicle = assignableVehicleItems(g, line).find((item) => item.id === vehicleUid)?.item
 		if (vehicle) {
 			if (g.assignVehicleToFreightLine) g.assignVehicleToFreightLine(vehicle, line)
 			else vehicle.assignFreightLine?.(line)

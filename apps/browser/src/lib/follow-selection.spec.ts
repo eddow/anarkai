@@ -6,9 +6,11 @@ const getPanel = vi.fn()
 const focus = vi.fn()
 type DockviewTestWindow = Window & { dockviewApi?: unknown }
 
+const gameObjects = new Set<any>()
 const globals = {
 	game: {
-		getObject: vi.fn(),
+		objects: gameObjects,
+		freightLines: [],
 		ensureGameplaySectors: vi.fn(),
 		ensureGeneratedTiles: vi.fn(),
 	},
@@ -26,13 +28,24 @@ const globals = {
 
 vi.mock('./globals', () => globals)
 
+
+vi.mock('ssh/board/tile', () => ({
+	Tile: class Tile {
+		position: any
+		constructor(coords?: { q: number; r: number }) {
+			this.position = coords ?? { q: 0, r: 0 }
+		}
+	},
+}))
+
 describe('follow-selection', () => {
 	beforeEach(() => {
-		globals.game.getObject.mockClear()
+		gameObjects.clear()
 		globals.game.ensureGameplaySectors.mockClear()
 		globals.game.ensureGeneratedTiles.mockClear()
 		globals.selectionState.panelId = undefined
 		globals.selectionState.selectedUid = undefined
+		globals.selectionState.selectedObject = undefined
 		globals.selectionState.titleVersion = 0
 		globals.unreactiveInfo.hasLastSelectedInfoPanel = false
 		globals.validateStoredSelectionState.mockClear()
@@ -54,7 +67,6 @@ describe('follow-selection', () => {
 		}
 
 		selectInspectorObject({
-			uid: 'tile:0,1',
 			title: 'Tile 0, 1',
 		})
 
@@ -73,12 +85,14 @@ describe('follow-selection', () => {
 
 	it('materializes tile content before showing tile properties', async () => {
 		const { selectInspectorObject } = await import('./follow-selection')
+		const { Tile } = await import('ssh/board/tile')
 
-		selectInspectorObject({
-			uid: 'tile:12,-3',
+		const tile = new Tile({ q: 12, r: -3 })
+		Object.assign(tile, {
 			title: 'Tile 12, -3',
-			position: { q: 12, r: -3 },
-		} as never)
+		})
+
+		selectInspectorObject(tile as never)
 
 		expect(globals.game.ensureGameplaySectors).toHaveBeenCalledWith(['0,-1'])
 		expect(globals.game.ensureGeneratedTiles).not.toHaveBeenCalled()
@@ -92,13 +106,10 @@ describe('follow-selection', () => {
 			getPanel,
 		}
 		globals.selectionState.selectedUid = 'character-1'
-		globals.game.getObject.mockReturnValue({
-			title: 'Character Ada',
-		})
+		gameObjects.add({ uid: 'character-1', title: 'Character Ada' })
 
 		ensureFollowSelectionPanel()
 
-		expect(globals.game.getObject).toHaveBeenCalledWith('character-1')
 		expect(addPanel).toHaveBeenCalledWith(
 			expect.objectContaining({
 				title: 'Character Ada',
@@ -113,6 +124,7 @@ describe('follow-selection', () => {
 			panels: [] as Array<{ id: string }>,
 		}
 		const pinnedSourcePanel = {
+			id: 'panel-pinned-vehicle',
 			group,
 			focus,
 			api: {
@@ -168,7 +180,6 @@ describe('follow-selection', () => {
 		globals.selectionState.selectedUid = 'character-1'
 
 		showProps({
-			uid: 'tile:9,9',
 			title: 'Tile 9, 9',
 		})
 

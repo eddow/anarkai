@@ -1,9 +1,6 @@
-import { createSyntheticHiveObject } from '@app/lib/hive-inspector'
 import type { DockviewWidgetScope } from '@sursaut/ui/dockview'
 import { Tile } from 'ssh/board/tile'
-import { ZoneObject, ZonesCollectionObject } from 'ssh/board/zone-object'
 import { debugObjectId } from 'ssh/dev/debug-object-id'
-import { createSyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import type { InspectorSelectableObject } from 'ssh/game/object'
 import { toAxialCoord } from 'ssh/utils/position'
 import { game, selectionState, unreactiveInfo, validateStoredSelectionState } from './globals'
@@ -97,32 +94,17 @@ export function unregisterPinnedInspectorPanel(panelId: string, uid?: string) {
 function resolveSelectionPanelTitle(initialTitle?: string) {
 	if (initialTitle) return initialTitle
 
+	// Direct object reference — preferred path
+	const direct = selectionState.selectedObject as { title?: string } | undefined
+	if (direct?.title) return direct.title
+
+	// Fallback: uid-based lookup for localStorage restore
 	const selectedUid = selectionState.selectedUid
 	if (!selectedUid) return 'Selection'
 
-	// Try registered objects first
 	for (const obj of game.objects) {
-		if (debugObjectId(obj) === selectedUid) return obj.title ?? 'Selection'
+		if (debugObjectId(obj) === selectedUid) return (obj as { title?: string }).title ?? 'Selection'
 	}
-
-	// Synthetic objects — resolved inline without UID factories
-	if (selectedUid.startsWith('hive:')) {
-		const anchorUid = decodeURIComponent(selectedUid.slice('hive:'.length))
-		const tile = [...game.objects].find((o: any) => debugObjectId(o) === anchorUid)
-		if (tile instanceof Tile) {
-			return createSyntheticHiveObject(game, tile)?.title ?? 'Selection'
-		}
-	}
-	if (selectedUid.startsWith('freight-line:')) {
-		const id = decodeURIComponent(selectedUid.slice('freight-line:'.length))
-		const line = game.freightLines.find((l: any) => l.id === id)
-		if (line) return createSyntheticFreightLineObject(game, line).title ?? 'Selection'
-	}
-	if (selectedUid.startsWith('zone:')) {
-		const index = Number(selectedUid.slice('zone:'.length))
-		if (Number.isFinite(index)) return new ZoneObject(game, index).title ?? 'Selection'
-	}
-	if (selectedUid === 'zones') return new ZonesCollectionObject(game).title ?? 'Selection'
 
 	return 'Selection'
 }
@@ -208,7 +190,10 @@ export function showProps(
 	}
 
 	const uid = debugObjectId(object)
-	if (uid) selectionState.selectedUid = uid
+	if (uid) {
+		selectionState.selectedUid = uid
+		selectionState.selectedObject = object as object
+	}
 	if (!dockviewApi) return undefined
 	return ensureFollowSelectionPanel(
 		dockviewApi,

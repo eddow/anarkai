@@ -21,12 +21,15 @@ export const unreactiveInfo = {
 export interface SelectionState {
 	panelId?: string
 	selectedUid?: string
+	/** Object reference (set by showProps, read by selection-info). Not persisted — computed at runtime. */
+	selectedObject?: object
 	titleVersion: number
 }
 
 export const selectionState = stored<SelectionState>({
 	panelId: undefined,
 	selectedUid: undefined,
+	selectedObject: undefined,
 	titleVersion: 0,
 })
 
