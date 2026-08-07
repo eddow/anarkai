@@ -2,27 +2,55 @@
 // This file is required by vitest.config.ts
 
 import { sursautOptions } from '@sursaut/core'
+
+// Restore EventTarget now that @sursaut/core has loaded (test-pre-setup.ts hid it)
+if ((globalThis as any).__sursautEventTarget) {
+	;(globalThis as any).EventTarget = (globalThis as any).__sursautEventTarget
+	delete (globalThis as any).__sursautEventTarget
+}
+
 import { mountHeadContent, setPlatform } from '@sursaut/kit'
 import { reactive } from 'mutts'
 import { vi } from 'vitest'
 
-// Mock debugObjectId to prefer object.uid over the real obj:N format.
-// Tests that need the real obj:N format can override this mock.
-vi.mock('ssh/dev/debug-object-id', () => ({
-	debugObjectId: (obj: unknown) => {
-		if (obj && typeof obj === 'object' && 'uid' in obj && typeof (obj as any).uid === 'string') {
-			return (obj as any).uid
+// Mock debugObjectId with stable obj:N IDs.
+// Objects may carry a .uid property used for game object identity lookup
+// (e.g. game.objects lookup by uid in follow-selection, LinkedEntityControl).
+// This mock prefers .uid when present to let tests control identity,
+// then falls back to auto-generated obj:N for objects without .uid.
+let _debugObjectIdCounter = 1
+vi.mock('ssh/dev/debug-object-id', () => {
+	const _debugObjectIds = new WeakMap<object, string>()
+	function _objectIdFor(value: object): string {
+		let id = _debugObjectIds.get(value)
+		if (!id) {
+			id = `obj:${_debugObjectIdCounter++}`
+			_debugObjectIds.set(value, id)
 		}
-		return undefined
-	},
-	debugRawObjectId: (obj: unknown) => {
-		if (obj && typeof obj === 'object' && 'uid' in obj && typeof (obj as any).uid === 'string') {
-			return (obj as any).uid
-		}
-		return undefined
-	},
-	resetDebugObjectIds: vi.fn(),
-}))
+		return id
+	}
+	return {
+		debugObjectId: (obj: unknown) => {
+			if (obj && typeof obj === 'object' && 'uid' in obj && typeof (obj as any).uid === 'string') {
+				return (obj as any).uid
+			}
+			if (obj && (typeof obj === 'object' || typeof obj === 'function')) {
+				return _objectIdFor(obj)
+			}
+			return undefined
+		},
+		debugRawObjectId: (obj: unknown) => {
+			if (obj && typeof obj === 'object' && 'uid' in obj && typeof (obj as any).uid === 'string') {
+				return (obj as any).uid
+			}
+			if (obj && (typeof obj === 'object' || typeof obj === 'function')) {
+				return _objectIdFor(obj)
+			}
+			return undefined
+		},
+		resetDebugObjectIds: vi.fn(),
+	}
+})
 
 const url = new URL('http://localhost/')
 

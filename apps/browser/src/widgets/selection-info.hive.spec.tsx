@@ -247,11 +247,13 @@ describe('SelectionInfoWidget hive integration', () => {
 		document.body.innerHTML = ''
 	})
 
-	it('mounts the real hive widget inside the selection panel', () => {
+	it('mounts the real hive widget inside the selection panel', async () => {
 		const props = createProps()
 		const scope = createScope()
 
 		stop = latch(container, <SelectionInfoWidget {...props} />, scope as never)
+
+		await new Promise((r) => setTimeout(r, 0))
 
 		const nameInput = container.querySelector('input') as HTMLInputElement
 		expect(nameInput.value).toBe('North Hive')

@@ -22,18 +22,9 @@ export interface ZoneDefinitionPatch extends Omit<ZoneDefinition, 'generated' | 
 export const ZONES_OBJECT_UID = 'zones'
 export const ZONE_UID_PREFIX = 'zone:'
 
+/** Generate a synthetic inspector UID from the zone's array index. */
 export function zoneObjectUid(index: number): string {
 	return `${ZONE_UID_PREFIX}${index}`
-}
-
-export function isZoneObjectUid(uid: string): boolean {
-	return uid.startsWith(ZONE_UID_PREFIX)
-}
-
-export function zoneIndexFromObjectUid(uid: string): number | undefined {
-	if (!isZoneObjectUid(uid)) return undefined
-	const index = Number(uid.slice(ZONE_UID_PREFIX.length))
-	return Number.isFinite(index) ? index : undefined
 }
 
 // ── Internal helpers ───────────────────────────────────────────────

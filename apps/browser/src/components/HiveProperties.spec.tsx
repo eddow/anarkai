@@ -172,7 +172,7 @@ describe('HiveProperties', () => {
 		document.body.innerHTML = ''
 	})
 
-	it('renders ads and allows editing hive metadata', () => {
+	it('renders ads and allows editing hive metadata', async () => {
 		stop = latch(
 			container,
 			<HiveProperties
@@ -186,6 +186,8 @@ describe('HiveProperties', () => {
 				}}
 			/>
 		)
+
+		await new Promise((r) => setTimeout(r, 0))
 
 		const nameInput = container.querySelector('input') as HTMLInputElement
 		expect(nameInput).not.toBeNull()
@@ -204,7 +206,7 @@ describe('HiveProperties', () => {
 		).toBe('true')
 
 		nameInput.value = 'Workshop Ring'
-		nameInput.dispatchEvent(new Event('input', { bubbles: true }))
+		nameInput.dispatchEvent(new Event('change', { bubbles: true }))
 
 		expect(hive.name).toBe('Workshop Ring')
 		expect(nameInput.value).toBe('Workshop Ring')

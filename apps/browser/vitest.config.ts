@@ -7,7 +7,7 @@ export default mergeConfig(
 		test: {
 			environment: 'jsdom',
 			globals: true,
-			setupFiles: ['./test-setup.ts'],
+			setupFiles: ['./test-pre-setup.ts', './test-setup.ts'],
 			include: ['src/**/*.{test,spec}.{js,ts,tsx}'],
 			exclude: ['node_modules', 'dist', '.git', '.cache'],
 			watch: false,

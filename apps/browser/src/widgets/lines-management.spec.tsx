@@ -175,8 +175,9 @@ describe('LinesManagementWidget', () => {
 		expect(rowIds(container)).toEqual(['visible-stop', 'served-visible'])
 	})
 
-	it('hovers and clicks rows through the freight overlay and inspector path', () => {
+	it('hovers and clicks rows through the freight overlay and inspector path', async () => {
 		stop = latch(container, <LinesManagementWidget {...props()} />, scope())
+		await new Promise((r) => setTimeout(r, 0))
 
 		const first = rows(container)[0] as HTMLButtonElement
 		first.dispatchEvent(new MouseEvent('mouseenter'))

@@ -1,3 +1,6 @@
+import { debugObjectId } from 'ssh/dev/debug-object-id'
+import { Tile } from 'ssh/board/tile'
+import { registerPinnedInspectorPanel, showProps, ensureFollowSelectionPanel, selectInspectorObject, unregisterPinnedInspectorPanel } from'./follow-selection'
 // @ts-nocheck
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -60,7 +63,6 @@ describe('follow-selection', () => {
 	})
 
 	it('seeds a new follow-selection panel with the clicked object title', async () => {
-		const { selectInspectorObject } = await import('./follow-selection')
 		;(window as DockviewTestWindow).dockviewApi = {
 			addPanel,
 			getPanel,
@@ -84,29 +86,27 @@ describe('follow-selection', () => {
 	})
 
 	it('materializes tile content before showing tile properties', async () => {
-		const { selectInspectorObject } = await import('./follow-selection')
-		const { Tile } = await import('ssh/board/tile')
-
 		const tile = new Tile({ q: 12, r: -3 })
 		Object.assign(tile, {
 			title: 'Tile 12, -3',
 		})
+		const tileUid = debugObjectId(tile)
 
 		selectInspectorObject(tile as never)
 
 		expect(globals.game.ensureGameplaySectors).toHaveBeenCalledWith(['0,-1'])
 		expect(globals.game.ensureGeneratedTiles).not.toHaveBeenCalled()
-		expect(globals.selectionState.selectedUid).toBe('tile:12,-3')
+		expect(globals.selectionState.selectedUid).toBe(tileUid)
 	})
 
 	it('falls back to the resolved selected object title when no title is passed', async () => {
-		const { ensureFollowSelectionPanel } = await import('./follow-selection')
 		;(window as DockviewTestWindow).dockviewApi = {
 			addPanel,
 			getPanel,
 		}
-		globals.selectionState.selectedUid = 'character-1'
-		gameObjects.add({ uid: 'character-1', title: 'Character Ada' })
+		const charObject = { title: 'Character Ada' }
+		gameObjects.add(charObject)
+		globals.selectionState.selectedUid = debugObjectId(charObject)
 
 		ensureFollowSelectionPanel()
 
@@ -118,8 +118,6 @@ describe('follow-selection', () => {
 	})
 
 	it('opens the follow-selection panel after the active pinned inspector', async () => {
-		const { registerPinnedInspectorPanel, unregisterPinnedInspectorPanel, showProps } =
-			await import('./follow-selection')
 		const group = {
 			panels: [] as Array<{ id: string }>,
 		}
@@ -139,16 +137,16 @@ describe('follow-selection', () => {
 		}
 		registerPinnedInspectorPanel('panel-pinned-vehicle', 'vehicle-1')
 
+		const operatorObject = { title: 'Operator Ada' }
+		const operatorUid = debugObjectId(operatorObject)
+
 		try {
-			showProps({
-				uid: 'operator-1',
-				title: 'Operator Ada',
-			})
+			showProps(operatorObject as never)
 		} finally {
 			unregisterPinnedInspectorPanel('panel-pinned-vehicle', 'vehicle-1')
 		}
 
-		expect(globals.selectionState.selectedUid).toBe('operator-1')
+		expect(globals.selectionState.selectedUid).toBe(operatorUid)
 		expect(addPanel).toHaveBeenCalledWith({
 			id: expect.stringMatching(/^selection-info-/),
 			component: 'selection-info',
@@ -165,7 +163,6 @@ describe('follow-selection', () => {
 	})
 
 	it('focuses an existing pinned inspector instead of opening a duplicate panel', async () => {
-		const { registerPinnedInspectorPanel, showProps } = await import('./follow-selection')
 		const existingPanel = {
 			focus,
 		}
@@ -176,12 +173,12 @@ describe('follow-selection', () => {
 		getPanel.mockImplementation((panelId?: string) =>
 			panelId === 'panel-existing-tile' ? existingPanel : undefined
 		)
-		registerPinnedInspectorPanel('panel-existing-tile', 'tile:9,9')
+		const tileObject = { title: 'Tile 9, 9' }
+		const tileUid = debugObjectId(tileObject)
+		registerPinnedInspectorPanel('panel-existing-tile', tileUid)
 		globals.selectionState.selectedUid = 'character-1'
 
-		showProps({
-			title: 'Tile 9, 9',
-		})
+		showProps(tileObject as never)
 
 		expect(globals.selectionState.selectedUid).toBe('character-1')
 		expect(addPanel).not.toHaveBeenCalled()

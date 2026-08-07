@@ -144,13 +144,13 @@ describe('merge policies', () => {
 describe('queue graph builder', () => {
 	const mockResolver = {
 		tile(coord: { q: number; r: number }) {
-			return { uid: `tile:${coord.q},${coord.r}`, position: { q: coord.q, r: coord.r } } as any
+			return { position: { q: coord.q, r: coord.r } } as any
 		},
 		border(coord: { q: number; r: number }) {
-			return { uid: `border:${coord.q},${coord.r}`, position: { q: coord.q, r: coord.r } } as any
+			return { position: { q: coord.q, r: coord.r } } as any
 		},
 		bayDock() {
-			return { uid: 'bay-1', hive: {} } as any
+			return { hive: {} } as any
 		},
 	}
 
@@ -406,33 +406,33 @@ describe('BayQueueController regression', () => {
 describe('bay queue invariants', () => {
 	it('single occupancy passes', () => {
 		const n = [
-			makeNode({ occupiedBy: new Set([{ uid: 'v1' } as any]) }),
-			makeNode({ occupiedBy: new Set([{ uid: 'v2' } as any]) }),
+			makeNode({ occupiedBy: new Set([{ label: "v1" } as any]) }),
+			makeNode({ occupiedBy: new Set([{ label: "v2" } as any]) }),
 		]
 		expect(invariantSingleNodeOccupancy(n).ok).toBe(true)
 	})
 
 	it('single occupancy passes for in-flight (occupied + reserved on different nodes)', () => {
-		const v1 = { uid: 'v1' } as any
+		const v1 = makeVehicle('v1')
 		const n = [makeNode({ occupiedBy: new Set([v1]) }), makeNode({ reservedBy: new Set([v1]) })]
 		expect(invariantSingleNodeOccupancy(n).ok).toBe(true)
 	})
 
 	it('single occupancy fails with duplicate occupied', () => {
-		const v1 = { uid: 'v1' } as any
+		const v1 = makeVehicle('v1')
 		const n = [makeNode({ occupiedBy: new Set([v1]) }), makeNode({ occupiedBy: new Set([v1]) })]
 		expect(invariantSingleNodeOccupancy(n).ok).toBe(false)
 	})
 
 	it('capacity fails when over', () => {
 		const n = [
-			makeNode({ occupiedBy: new Set([{ uid: 'a' } as any, { uid: 'b' } as any]), capacity: 1 }),
+			makeNode({ occupiedBy: new Set([makeVehicle('a'), makeVehicle('b')]), capacity: 1 }),
 		]
 		expect(invariantNodeCapacity(n).ok).toBe(false)
 	})
 
 	it('capacity passes when at limit', () => {
-		const n = [makeNode({ occupiedBy: new Set([{ uid: 'a' } as any]), capacity: 2 })]
+		const n = [makeNode({ occupiedBy: new Set([makeVehicle('a')]), capacity: 2 })]
 		expect(invariantNodeCapacity(n).ok).toBe(true)
 	})
 })

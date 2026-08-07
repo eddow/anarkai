@@ -1,5 +1,5 @@
 import { devPreset, reactiveOptions } from 'mutts'
-import { type InteractiveLogObject, interactiveLogObject } from 'ssh/game/object'
+import { type InteractiveLogObject, isInteractiveLogObject } from 'ssh/game/object'
 import type { PlannerFindActionSnapshot } from 'ssh/population/findNextActivity'
 import { debugActiveAllocations, getAllocationStats } from 'ssh/storage/guard'
 import { namedProfile, type ProfileLevel, type ProfileSink } from './profile.ts'
@@ -92,39 +92,27 @@ const TRACE_VERB_RANK: Record<TraceVerb, number> = {
 	error: 3,
 }
 
-const UID_TRACE_KEYS = new Set([
-	'uid',
-	'vehicleUid',
-	'characterUid',
-	'operatorUid',
-	'ownerUid',
-	'targetUid',
-	'sourceUid',
-	'claimedByUid',
-])
 
-function collectTraceLogUids(value: unknown, out: Set<string>): void {
+function collectTraceLogObjects(value: unknown, out: Set<InteractiveLogObject>): void {
+	if (isInteractiveLogObject(value)) {
+		out.add(value)
+		return
+	}
 	if (Array.isArray(value)) {
-		for (const item of value) collectTraceLogUids(item, out)
+		for (const item of value) collectTraceLogObjects(item, out)
 		return
 	}
 	if (!value || typeof value !== 'object') return
 	const record = value as Record<string, unknown>
-	for (const [key, entry] of Object.entries(record)) {
-		if (typeof entry === 'string' && UID_TRACE_KEYS.has(key)) {
-			out.add(entry)
-			continue
-		}
-		collectTraceLogUids(entry, out)
+	for (const entry of Object.values(record)) {
+		collectTraceLogObjects(entry, out)
 	}
 }
 
 function traceLogTargets(row: TraceRow): InteractiveLogObject[] {
-	const uids = new Set<string>()
-	for (const value of row.slice(1)) collectTraceLogUids(value, uids)
-	return [...uids]
-		.map((uid) => interactiveLogObject(uid))
-		.filter((object): object is InteractiveLogObject => !!object)
+	const objects = new Set<InteractiveLogObject>()
+	for (const value of row.slice(1)) collectTraceLogObjects(value, objects)
+	return [...objects]
 }
 
 /**

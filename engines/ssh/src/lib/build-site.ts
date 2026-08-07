@@ -234,7 +234,6 @@ export interface ConstructionMaterialShell {
 	readonly constructionSite: ConstructionSiteState
 	readonly storage: Storage
 	readonly destroyed: boolean
-	readonly uid?: string
 }
 
 /**

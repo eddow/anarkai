@@ -2,7 +2,6 @@
 import EventEmitter from 'eventemitter3'
 import { ReactiveBase, reactive, unreactive, unwrap } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { Position } from 'ssh/utils/position'
 import type { Game } from './game'
 
@@ -32,21 +31,18 @@ export interface InteractiveLogObject {
 	logAbout(topic: unknown, ...args: unknown[]): void
 }
 
-const interactiveLogObjectsByUid = new Map<string, InteractiveLogObject>()
+const interactiveLogObjects = new WeakSet<InteractiveLogObject>()
 
-export function interactiveLogObject(uid: string): InteractiveLogObject | undefined {
-	return interactiveLogObjectsByUid.get(uid)
+export function isInteractiveLogObject(value: unknown): value is InteractiveLogObject {
+	return typeof value === 'object' && value !== null && interactiveLogObjects.has(value as InteractiveLogObject)
 }
 
 function registerInteractiveLogObject(object: InteractiveLogObject): void {
-	interactiveLogObjectsByUid.set(debugObjectId(object) ?? '', object)
+	interactiveLogObjects.add(object)
 }
 
 function unregisterInteractiveLogObject(object: InteractiveLogObject): void {
-	const key = debugObjectId(object) ?? ''
-	if (interactiveLogObjectsByUid.get(key) === object) {
-		interactiveLogObjectsByUid.delete(key)
-	}
+	interactiveLogObjects.delete(object)
 }
 
 // Mixin functions for composition
