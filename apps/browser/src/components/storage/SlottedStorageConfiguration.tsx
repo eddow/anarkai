@@ -1,6 +1,7 @@
 import { css } from '@app/lib/css'
 import { Stars } from '@app/ui/anarkai'
 import type { StarsValue } from '@sursaut/ui/models'
+import { effect, reactive } from 'mutts'
 import { goods as goodsCatalog } from 'engine-pixi/assets/visual-content'
 import type { Game } from 'ssh/game'
 import type { StorageAlveolus } from 'ssh/hive/storage'
@@ -66,37 +67,39 @@ function GoodStarsEditor(props: {
 	capacity: number
 	totalSlots: number
 }) {
-	const view = {
-		get configuration() {
-			return props.content?.slottedStorageConfiguration
-		},
-		get rule() {
-			return this.configuration?.goods[props.goodType] ?? { minSlots: 0, maxSlots: 0 }
-		},
-		get maximum() {
-			const otherBuffered = (Object.keys(this.configuration?.goods ?? {}) as GoodType[])
-				.filter((c) => c !== props.goodType)
-				.reduce((t, c) => t + (this.configuration?.goods[c]?.minSlots ?? 0), 0)
-			return Math.max(0, props.totalSlots - otherBuffered)
-		},
-	}
-	const range = [view.rule.minSlots, view.rule.minSlots + view.rule.maxSlots] as [number, number]
-	const displayedRange: [number, number] = [
-		Math.min(view.rule.minSlots, view.maximum),
-		Math.min(view.rule.minSlots + view.rule.maxSlots, view.maximum),
-	]
-	const unavailableSlots = Math.max(0, props.totalSlots - view.maximum)
+	const state = reactive({
+		rule: { minSlots: 0, maxSlots: 0 },
+		maximum: 0,
+		range: [0, 0] as [number, number],
+		displayedRange: [0, 0] as [number, number],
+		unavailableSlots: 0,
+	})
+	effect`good-stars-sync`(() => {
+		const config = props.content?.slottedStorageConfiguration
+		const rule = config?.goods[props.goodType] ?? { minSlots: 0, maxSlots: 0 }
+		const otherBuffered = (Object.keys(config?.goods ?? {}) as GoodType[])
+			.filter((c) => c !== props.goodType)
+			.reduce((t, c) => t + (config?.goods[c]?.minSlots ?? 0), 0)
+		state.rule = { minSlots: rule.minSlots, maxSlots: rule.maxSlots }
+		state.maximum = Math.max(0, props.totalSlots - otherBuffered)
+		state.range = [state.rule.minSlots, state.rule.minSlots + state.rule.maxSlots]
+		state.displayedRange = [
+			Math.min(state.rule.minSlots, state.maximum),
+			Math.min(state.rule.minSlots + state.rule.maxSlots, state.maximum),
+		]
+		state.unavailableSlots = Math.max(0, props.totalSlots - state.maximum)
+	})
 
 	return (
 		<div class="slotted-storage-stars">
 			<div class="slotted-storage-stars__row">
 				<Stars
-					maximum={view.maximum}
-					value={range}
+					maximum={state.maximum}
+					value={state.range}
 					onChange={(value: StarsValue) => {
-						const [rawMinSlots, rawTotalSlots] = starsRangeValue(value, range)
-						const nextMinSlots = Math.min(rawMinSlots, view.maximum)
-						const nextTotalSlots = Math.min(rawTotalSlots, view.maximum)
+						const [rawMinSlots, rawTotalSlots] = starsRangeValue(value, state.range)
+						const nextMinSlots = Math.min(rawMinSlots, state.maximum)
+						const nextTotalSlots = Math.min(rawTotalSlots, state.maximum)
 						props.content?.setSlottedGoodConfiguration(props.goodType, {
 							minSlots: nextMinSlots,
 							maxSlots: Math.max(0, nextTotalSlots - nextMinSlots),
@@ -107,13 +110,63 @@ function GoodStarsEditor(props: {
 					before="■"
 					after="■"
 				/>
-				<for each={unavailableSlotElements(unavailableSlots)}>
+				<for each={unavailableSlotElements(state.unavailableSlots)}>
 					{() => <span class="slotted-storage-stars__unavailable">■</span>}
 				</for>
 			</div>
 			<span class="slotted-storage-summary">
-				buffer {displayedRange[0] * props.capacity}, total {displayedRange[1] * props.capacity} /{' '}
-				{view.maximum * props.capacity}
+				buffer {state.displayedRange[0] * props.capacity}, total{' '}
+				{state.displayedRange[1] * props.capacity} / {state.maximum * props.capacity}
+			</span>
+		</div>
+	)
+}
+
+function GeneralStarsEditor(props: {
+	content: StorageAlveolus
+}) {
+	const state = reactive({
+		remainingBudget: 0,
+		displayedGeneralSlots: 0,
+		bufferedSlots: 0,
+		totalSlots: 0,
+	})
+	effect`general-stars-sync`(() => {
+		const storage = props.content?.storage
+		if (!(storage instanceof SlottedStorage)) return
+		const config = props.content?.slottedStorageConfiguration
+		state.totalSlots = storage.slots.length
+		const buffered = (Object.keys(config?.goods ?? {}) as GoodType[]).reduce(
+			(total, goodType) => total + (config?.goods[goodType]?.minSlots ?? 0),
+			0
+		)
+		const remaining = Math.max(0, state.totalSlots - buffered)
+		state.bufferedSlots = buffered
+		state.remainingBudget = remaining
+		state.displayedGeneralSlots = Math.min(config?.generalSlots ?? 0, remaining)
+	})
+
+	return (
+		<div class="slotted-storage-stars">
+			<div class="slotted-storage-stars__row">
+				<Stars
+					maximum={state.remainingBudget}
+					value={state.displayedGeneralSlots}
+					onChange={(value: StarsValue) => {
+						const nextGeneralSlots = Math.min(starsValue(value), state.remainingBudget)
+						props.content?.setSlottedGeneralSlots(nextGeneralSlots)
+					}}
+					size="1rem"
+					zeroElement="□"
+					before="■"
+					after="■"
+				/>
+				<for each={unavailableSlotElements(state.bufferedSlots)}>
+					{() => <span class="slotted-storage-stars__unavailable">■</span>}
+				</for>
+			</div>
+			<span class="slotted-storage-summary">
+				{state.displayedGeneralSlots} / {state.totalSlots} slots
 			</span>
 		</div>
 	)
@@ -147,26 +200,12 @@ export default function SlottedStorageConfiguration(props: SlottedStorageConfigu
 			const selected = new Set(this.configuredGoods)
 			return (Object.keys(goodsCatalog) as GoodType[]).filter((goodType) => !selected.has(goodType))
 		},
-		get bufferedSlots() {
-			const config = this.configuration
-			if (!config) return 0
-			return this.configuredGoods.reduce(
-				(total, goodType) => total + (config.goods[goodType]?.minSlots ?? 0),
-				0
-			)
-		},
-		get remainingBudget() {
-			return Math.max(0, this.totalSlots - this.bufferedSlots)
-		},
-		get displayedGeneralSlots() {
-			return Math.min(this.configuration?.generalSlots ?? 0, this.remainingBudget)
-		},
 	}
 
 	const addGood = (goodType: GoodType) => {
 		view.content?.setSlottedGoodConfiguration(goodType, {
 			minSlots: 0,
-			maxSlots: Math.min(1, view.remainingBudget),
+			maxSlots: 1,
 		})
 	}
 
@@ -177,28 +216,7 @@ export default function SlottedStorageConfiguration(props: SlottedStorageConfigu
 	return (
 		<div if={view.isSlotted} class="slotted-storage-config">
 			<PropertyGridRow label="General goods">
-				<div class="slotted-storage-stars">
-					<div class="slotted-storage-stars__row">
-						<Stars
-							maximum={view.remainingBudget}
-							value={view.displayedGeneralSlots}
-							onChange={(value: StarsValue) => {
-								const nextGeneralSlots = Math.min(starsValue(value), view.remainingBudget)
-								view.content?.setSlottedGeneralSlots(nextGeneralSlots)
-							}}
-							size="1rem"
-							zeroElement="□"
-							before="■"
-							after="■"
-						/>
-						<for each={unavailableSlotElements(view.bufferedSlots)}>
-							{() => <span class="slotted-storage-stars__unavailable">■</span>}
-						</for>
-					</div>
-					<span class="slotted-storage-summary">
-						{view.displayedGeneralSlots} / {view.totalSlots} slots
-					</span>
-				</div>
+				<GeneralStarsEditor content={view.content} />
 			</PropertyGridRow>
 
 			<PropertyGridRow label="Specific goods">

@@ -187,7 +187,7 @@ const HiveProperties = (props: HivePropertiesProps) => {
 						class="hive-properties__name"
 						type="text"
 						value={state.hiveName}
-						update:value={handleNameInput}
+							update:value={handleNameInput}
 					/>
 				</PropertyGridRow>
 				<PropertyGridRow label={T.hive.commands}>

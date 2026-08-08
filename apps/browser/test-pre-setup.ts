@@ -7,3 +7,4 @@ if (typeof globalThis !== 'undefined') {
 	;(globalThis as any).__sursautEventTarget = (globalThis as any).EventTarget
 	;(globalThis as any).EventTarget = undefined
 }
+}
