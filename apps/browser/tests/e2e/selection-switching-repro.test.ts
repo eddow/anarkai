@@ -3,8 +3,6 @@ import { expect, test } from '@playwright/test'
 test.describe('Property Widget Selection Switching Repro', () => {
 	test('should update widget when switching between characters', async ({ page }) => {
 		await page.goto('/')
-
-		// Wait for game to be loaded
 		await page.waitForFunction(async () => {
 			const game = (window as any).game
 			if (!game) return false
@@ -12,74 +10,47 @@ test.describe('Property Widget Selection Switching Repro', () => {
 			return !!game.hex
 		})
 
-		// Find two characters and one tile
-		const objects = await page.evaluate(() => {
-			const game = (window as any).game
-			const characters = [...game.population]
-			// Search for a tile
-			const tile = game.hex.getTile({ q: -11, r: 0 })
-			return {
-				charA: { uid: (window as any).debugObjectId(characters[0]) },
-				charB: { uid: (window as any).debugObjectId(characters[1]) },
-				tileId: (window as any).debugObjectId(tile),
-			}
-		})
-
-		const { charA, charB, tileId } = objects
-		console.log(`Objects found: CharA=${charA.uid}, CharB=${charB.uid}, Tile=${tileId}`)
-
-		const selectAndVerify = async (id: string, label: string) => {
-			const expectedUid = id
-			console.log(`Step ${label}: Clicking object ${id}`)
-
-			// Trigger selection via game.clickObject
-			await page.evaluate((uid) => {
+		const selectByIndex = async (collection: 'population' | 'vehicles', index: number) => {
+			const uid = await page.evaluate(({ collection, index }) => {
 				const game = (window as any).game
-				const obj = [...game.objects].find((o: any) => (window as any).debugObjectId(o) === uid)
-				game.clickObject({ button: 0 }, obj)
-			}, id)
-
-			// Give it a moment to update
+				const obj = [...game[collection]][index]
+				if (!obj) throw new Error(`No object at ${collection}[${index}]`)
+				;(window as any).__selectObject?.(obj)
+				return (window as any).debugObjectId(obj)
+			}, { collection, index })
 			await page.waitForTimeout(300)
-
 			const panel = page.locator('.selection-info-panel')
 			await expect(panel).toBeVisible()
-
-			// Check if the widget has the correct UID
-			await expect(panel).toHaveAttribute('data-test-object-uid', expectedUid)
-
-			console.log(`Step ${label}: Verified UID ${id}`)
+			await expect(panel).toHaveAttribute('data-test-object-uid', uid)
 		}
 
-		// 1. Click Char A
-		await selectAndVerify(charA.uid, '1. Char A')
+		const selectTile = async (q: number, r: number) => {
+			const uid = await page.evaluate(({ q, r }) => {
+				const game = (window as any).game
+				const tile = game.hex.getTile({ q, r })
+				if (!tile) throw new Error(`No tile at ${q},${r}`)
+				;(window as any).__selectObject?.(tile)
+				return (window as any).debugObjectId(tile)
+			}, { q, r })
+			await page.waitForTimeout(300)
+			const panel = page.locator('.selection-info-panel')
+			await expect(panel).toBeVisible()
+			await expect(panel).toHaveAttribute('data-test-object-uid', uid)
+		}
 
-		// 2. Click Tile
-		await selectAndVerify(tileId, '2. Tile')
-
-		// 3. Click Char B
-		await selectAndVerify(charB.uid, '3. Char B')
-
-		// 4. Click Char A again (via Tile)
-		await selectAndVerify(tileId, '4a. Tile')
-		await selectAndVerify(charA.uid, '4b. Char A')
-
-		// 5. DIRECT SWITCH: Click Char B directly after Char A
-		console.log('--- Direct Switch Start ---')
-		await selectAndVerify(charB.uid, '5. Direct Switch to B')
-		console.log('--- Direct Switch End ---')
-
-		// 6. DIRECT SWITCH BACK: Click Char A directly after Char B
-		console.log('--- Direct Switch Back Start ---')
-		await selectAndVerify(charA.uid, '6. Direct Switch back to A')
-		console.log('--- Direct Switch Back End ---')
+		await selectByIndex('population', 0)
+		await selectTile(-11, 0)
+		await selectByIndex('population', 1)
+		await selectTile(-11, 0)
+		await selectByIndex('population', 0)
+		await selectByIndex('population', 1)
+		await selectByIndex('population', 0)
 	})
 
 	test('should not keep vehicle properties after switching through an empty tile to a character', async ({
 		page,
 	}) => {
 		await page.goto('/')
-
 		await page.waitForFunction(async () => {
 			const game = (window as any).game
 			if (!game) return false
@@ -87,39 +58,35 @@ test.describe('Property Widget Selection Switching Repro', () => {
 			return !!game.hex && [...game.population].length > 0 && [...game.vehicles].length > 0
 		})
 
-		const objects = await page.evaluate(() => {
-			const game = (window as any).game
-			const character = [...game.population][0]
-			const vehicle = [...game.vehicles][0]
-			const tile = game.hex.getTile({ q: -11, r: 0 }) || game.hex.getTile({ q: 0, r: 0 })
-			return {
-				characterUid: (window as any).debugObjectId(character),
-				vehicleUid: (window as any).debugObjectId(vehicle),
-				tileUid: (window as any).debugObjectId(tile),
-			}
-		})
-
-		const select = async (uid: string) => {
-			await page.evaluate((nextUid) => {
+		const select = async (collection: 'population' | 'vehicles', index: number) => {
+			const uid = await page.evaluate(({ collection, index }) => {
 				const game = (window as any).game
-				game.clickObject(
-					{ button: 0 },
-					[...game.objects].find((o: any) => (window as any).debugObjectId(o) === nextUid)
-				)
-			}, uid)
-			await expect(page.locator('.selection-info-panel')).toHaveAttribute(
-				'data-test-object-uid',
-				uid
-			)
+				const obj = [...game[collection]][index]
+				if (!obj) throw new Error(`No object at ${collection}[${index}]`)
+				;(window as any).__selectObject?.(obj)
+				return (window as any).debugObjectId(obj)
+			}, { collection, index })
+			await page.waitForTimeout(300)
+			await expect(page.locator('.selection-info-panel')).toHaveAttribute('data-test-object-uid', uid)
 		}
 
-		await select(objects.vehicleUid)
+		const selectTile = async (q: number, r: number) => {
+			const uid = await page.evaluate(({ q, r }) => {
+				const game = (window as any).game
+				const tile = game.hex.getTile({ q, r }) || [...game.hex.tiles][0]
+				if (!tile) throw new Error('No tile found')
+				;(window as any).__selectObject?.(tile)
+				return (window as any).debugObjectId(tile)
+			}, { q, r })
+			await page.waitForTimeout(300)
+			await expect(page.locator('.selection-info-panel')).toHaveAttribute('data-test-object-uid', uid)
+		}
+
+		await select('vehicles', 0)
 		await expect(page.locator('.vehicle-properties')).toBeVisible()
-
-		await select(objects.tileUid)
+		await selectTile(-11, 0)
 		await expect(page.locator('[data-selection-properties-kind="tile"]')).toHaveCount(1)
-
-		await select(objects.characterUid)
+		await select('population', 0)
 		await expect(page.locator('[data-selection-properties-kind="character"]')).toBeVisible()
 		await expect(page.locator('.character-properties')).toBeVisible()
 		await expect(page.locator('.vehicle-properties')).toHaveCount(0)

@@ -8,6 +8,7 @@
 	},
 	"scripts": {
 		"check": "tsc",
+		"typecheck": "tsc",
 		"test": "vitest run --silent --reporter=dot"
 	},
 	"devDependencies": {

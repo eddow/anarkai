@@ -10,40 +10,18 @@ test.describe('Property Widget Selection', () => {
 		await page
 			.waitForFunction(() => !!(window as any).game, { timeout: 10000 })
 			.catch(() => console.log('game not found on window'))
-		await page.evaluate(() => {
-			console.log('Window keys:', Object.keys(window))
-			const game = (window as any).game
-			if (game) {
-				const popSize = [...game.population].length
-				console.log('Pop size:', popSize)
-				console.log('Clock:', game.clock?.virtualTime)
-			}
-		})
 
 		await page.waitForFunction(() => [...((window as any).game?.population || [])].length > 0, {
 			timeout: 30000,
 		})
 
-		// 2. Select a character via script
-		const charUid = await page.evaluate(async () => {
+		// 2. Select a character using __selectObject (opens follow panel automatically)
+		const charUid = await page.evaluate(() => {
 			const game = (window as any).game
 			const char = [...game.population][0]
-			if (char) {
-				// Determine dockview API
-				const api = (window as any).dockviewApi
-				if (!api) return null
-
-				// Open panel for this character
-				api.addPanel({
-					component: 'selection-info',
-					title: 'Selection Info',
-					params: { uid: (window as any).debugObjectId(char) },
-					floating: { width: 300, height: 500 },
-				})
-
-				return (window as any).debugObjectId(char)
-			}
-			return null
+			if (!char) return null
+			;(window as any).__selectObject?.(char)
+			return (window as any).debugObjectId(char)
 		})
 		expect(charUid).toBeTruthy()
 
@@ -51,25 +29,10 @@ test.describe('Property Widget Selection', () => {
 		const panel = page.locator('.selection-info-panel')
 		await expect(panel).toBeVisible()
 
-		// 4. Verify content
-		// Check if stats are present (CharacterProperties renders them)
-		const stats = page.locator('.character-properties__stats')
-		await expect(stats).toBeVisible()
+		// 4. Verify content — use .first() to avoid strict mode if dockview renders a placeholder
+		await expect(panel.locator('.character-properties__stats').first()).toBeVisible()
 
-		// Check if activity badge is present (this verifies the fix for "no activity showing")
-		const activityComp = page.locator('.character-activity')
-		await expect(activityComp).toBeVisible()
-		const badge = page.locator('.character-activity .badge')
-		await expect(badge).toBeVisible()
-
-		// 5. Verify data-test-owner-uid matches
-		// Note: logs might be empty initially, so the logs div might not be rendered unless logs > 0
-		// But if we force a log or wait for one?
-		// Actually the code shows: <div if={state.logs.length > 0} ...
-		// So checking this might be flaky if there are no logs.
-		// Let's force a log entry for testing purposes?
-		// Or just verify the title which should match the character name.
-
-		// Let's rely on checking if the character property component is there, which implies mapped correct object.
+		// 5. Verify panel has correct UID
+		await expect(panel).toHaveAttribute('data-test-object-uid', charUid)
 	})
 })

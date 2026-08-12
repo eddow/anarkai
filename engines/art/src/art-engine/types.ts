@@ -1,5 +1,4 @@
 export interface ArtPromptProposal {
-	readonly id: string
 	readonly title: string
 	readonly prompt: string
 }

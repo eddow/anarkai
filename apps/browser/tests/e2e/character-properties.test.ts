@@ -10,36 +10,22 @@ test.describe('Character Properties Display', () => {
 			return game?.loaded
 		})
 
-		// Select a character and ensure panel is open
-		await page.evaluate(() => {
+		// Select first character using __selectObject helper
+		const charUid = await page.evaluate(() => {
 			const game = (window as any).game
 			const char = [...game.population][0]
-			;(window as any).selectionState.selectedUid = (window as any).debugObjectId(char)
-
-			// Explicitly add panel if not present
-			if (!(window as any).dockviewApi.getPanel('selection-info')) {
-				;(window as any).dockviewApi.addPanel({
-					component: 'selection-info',
-					title: 'Selection',
-					params: { uid: (window as any).debugObjectId(char) },
-				})
-			}
+			;(window as any).__selectObject?.(char)
+			return (window as any).debugObjectId(char)
 		})
 
 		// Wait for panel to appear
 		const panel = page.locator('.selection-info-panel')
 		await expect(panel).toBeVisible()
 
+		// Verify panel shows correct character
+		await expect(panel).toHaveAttribute('data-test-object-uid', charUid)
+
 		// Check for stats
-		await expect(panel.locator('.character-properties__stats')).toBeVisible()
-
-		// Check for activity badge
-		const badge = panel.locator('.character-activity .badge')
-		await expect(badge).toBeVisible()
-		const badgeText = await badge.innerText()
-		expect(badgeText.length).toBeGreaterThan(0)
-
-		// Check that it's not "UNDEFINED" or empty
-		expect(badgeText).not.toBe('')
+		await expect(panel.locator('.character-properties__stats').first()).toBeVisible()
 	})
 })

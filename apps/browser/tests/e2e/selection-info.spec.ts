@@ -1,45 +1,27 @@
 import { expect, test } from '@playwright/test'
 
 test('selection info title update', async ({ page }) => {
-	// Navigate to the app
 	await page.goto('/')
-
-	// Wait for the app to load
 	await page.waitForSelector('.app-shell', { timeout: 10000 })
 	await page.waitForTimeout(2000)
 
-	page.on('console', (msg) => console.log(`BROWSER LOG: ${msg.text()}`))
-
-	// Open the selection-info panel directly using the exposed API
-	// This bypasses the need to select a game object which proved flaky
-	const result = await page.evaluate(async () => {
-		// @ts-expect-error
-		const api = window.dockviewApi
-		if (!api) return false
-
-		api.addPanel({
-			component: 'selection-info',
-			title: 'Initial Title',
-			params: { uid: 'dummy-uid' }, // Pass dummy UID to satisfy props
-		})
-		return true
+	// Select first character using __selectObject
+	await page.evaluate(async () => {
+		const game = (window as any).game
+		await game.loaded
+		const char = [...game.population][0]
+		if (char) {
+			;(window as any).__selectObject?.(char)
+		}
 	})
+	await page.waitForTimeout(300)
 
-	if (!result) {
-		console.log('Failed to access dockviewApi')
-		// Fail test if API not available
-		expect(result).toBe(true)
-	}
-
-	// Check if panel exists in DOM
+	// Check panel exists
 	const panel = page.locator('.selection-info-panel')
 	await expect(panel).toBeVisible({ timeout: 5000 })
 
-	// Verify title update is automatic
-	// It should be 'Selection', or character name, or Tile coordinates.
-	// We've seen 'Tile -1, 2' in the browser subagent inspection.
-	// getByText matcher with regex should work.
-	await expect(
-		page.locator('.dv-tab-content').getByText(/Selection|Tile|Object|Character/)
-	).toBeVisible({ timeout: 5000 })
+	// Panel should have a non-empty data-test-object-uid (not "null")
+	const uid = await panel.getAttribute('data-test-object-uid')
+	expect(uid).toBeTruthy()
+	expect(uid).not.toBe('null')
 })

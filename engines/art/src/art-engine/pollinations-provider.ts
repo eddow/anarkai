@@ -12,6 +12,7 @@ export function createPollinationsProvider(options: PollinationsProviderOptions 
 	const baseUrl = options.baseUrl ?? DEFAULT_BASE_URL
 
 	return {
+		id: 'pollinations',
 		label: 'Pollinations',
 		generateUrl(request: ArtGenerationRequest, context?: ArtProviderContext) {
 			const url = new URL(`/image/${encodeURIComponent(request.prompt)}`, baseUrl)

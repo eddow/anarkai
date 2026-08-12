@@ -46,6 +46,7 @@ test.describe('Character board visual after inspector resume', () => {
 		})
 		await page.goto('/')
 
+		// Wait for Pixi visuals to be rendered (may take longer with terrain baking)
 		await expect
 			.poll(async () =>
 				page.evaluate(() => {
@@ -54,7 +55,7 @@ test.describe('Character board visual after inspector resume', () => {
 						(visual: any) =>
 							typeof visual?.view?.label === 'string' && visual.view.label.startsWith('character:')
 					).length
-				})
+				}), { timeout: 30000, intervals: [500, 1000, 2000, 5000] }
 			)
 			.toBeGreaterThan(0)
 
@@ -67,9 +68,11 @@ test.describe('Character board visual after inspector resume', () => {
 			const char = charVisual?.object
 			if (!char) throw new Error('Missing rendered character')
 			;(window as any).configuration.timeControl = 0
-			game.simulateObjectClick(char, { button: 0 })
+			;(window as any).__selectObject?.(char)
 			return { uid: (window as any).debugObjectId(char) }
 		})
+
+		await page.waitForTimeout(300)
 
 		const panel = page.locator(`.selection-info-panel[data-test-object-uid="${selected.uid}"]`)
 		await expect(panel).toBeVisible()

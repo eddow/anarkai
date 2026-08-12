@@ -231,9 +231,12 @@ const SelectionInfoWidget = (
 		get uid() {
 			return props.params.uid ?? selectionState.selectedUid
 		},
-		get object() {
+		get object(): InspectorSelectableObject | InteractiveGameObject | undefined {
 			// Direct object reference — preferred path (set by showProps)
-			const direct = selectionState.selectedObject as object | undefined
+			const direct = selectionState.selectedObject as
+				| InspectorSelectableObject
+				| InteractiveGameObject
+				| undefined
 			if (direct) return direct
 
 			// Fallback: uid-based dispatch for widget params / localStorage restore

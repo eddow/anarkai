@@ -18,6 +18,7 @@ import {
 	selectionState,
 	uiConfiguration,
 } from '@app/lib/globals'
+import { mrg } from '@app/lib/interactive-state'
 import { DisplayProvider } from '@sursaut/kit'
 import { Dockview } from '@sursaut/ui/dockview'
 import type { DockviewApi } from 'dockview-core'
@@ -28,6 +29,7 @@ import {
 	stringifyDebugValue,
 } from '../../../engines/ssh/src/lib/dev/debug-game-state.ts'
 import { debugObjectId } from '../../../engines/ssh/src/lib/dev/debug-object-id'
+import { showProps } from './lib/follow-selection'
 import widgetsImport from './widgets'
 import SelectionInfoTab from './widgets/selection-info-tab'
 
@@ -49,6 +51,14 @@ if (typeof window !== 'undefined') {
 				options?: BuildGameDebugDumpOptions
 			) => ReturnType<typeof buildGameDebugDump>
 			dumpSshDebugStateJson?: (options?: BuildGameDebugDumpOptions) => string
+			/** Playwright test helper: select an object via showProps. */
+			__selectObject?: (object: unknown) => void
+			/** Exposed for pin-mechanism tests. */
+			showProps?: typeof showProps
+			/** Pin the current selection-info panel (Playwright test helper). */
+			__pinCurrentPanel?: () => void
+			/** Reactive hover/selection state for Playwright tests. */
+			mrg?: typeof mrg
 		}
 	const debugWindow = window as BrowserDebugWindow
 	debugWindow.configuration = configuration
@@ -57,6 +67,8 @@ if (typeof window !== 'undefined') {
 	// Stable per-instance debug label for Playwright identity assertions.
 	// Runtime identity is object reference; this is the serializable test key.
 	debugWindow.debugObjectId = debugObjectId
+	debugWindow.showProps = showProps
+	debugWindow.mrg = mrg
 	debugWindow.dumpSshDebugState = (options = {}) =>
 		buildGameDebugDump(game, {
 			...options,
@@ -64,6 +76,42 @@ if (typeof window !== 'undefined') {
 		})
 	debugWindow.dumpSshDebugStateJson = (options = {}) =>
 		stringifyDebugValue(debugWindow.dumpSshDebugState?.(options) ?? {})
+
+	// Playwright test helper: select a game object and open a selection-info panel.
+	// Each call destroys the previous panel and creates a fresh one.
+	// Pass { openPanel: false } to only set state without creating a panel
+	// (useful for tests that manage panels themselves, e.g. pin-mechanism).
+	debugWindow.__selectObject = (object: unknown, opts?: { openPanel?: boolean }) => {
+		const uid = debugObjectId(object)
+		if (!uid) return
+		selectionState.selectedUid = uid
+		selectionState.selectedObject = object as object
+		selectionState.titleVersion++
+
+		if (opts?.openPanel === false) return
+
+		const api = (window as any).dockviewApi as {
+			getPanel?: (id: string) => { api: { close(): void }; id: string; params?: Record<string, unknown> } | undefined
+			addPanel?: (opts: Record<string, unknown>) => { id: string } | undefined
+		} | undefined
+		if (!api?.addPanel) return
+
+		// Don't destroy pinned panels (they have params.uid set)
+		const oldId = selectionState.panelId
+		if (oldId) {
+			const oldPanel = api.getPanel?.(oldId)
+			if (oldPanel && !oldPanel.params?.uid) oldPanel.api.close()
+		}
+
+		const newId = `selection-info-${Date.now()}`
+		api.addPanel({
+			id: newId,
+			component: 'selection-info',
+			title: (object as { title?: string }).title ?? 'Selection',
+			params: { uid },
+		})
+		selectionState.panelId = newId
+	}
 }
 
 const dockviewEl = {
@@ -135,7 +183,6 @@ const App = () => {
 
 	const openGamePanel = () => ensurePanel('game', 'game-view', undefined, { floating: false })
 
-	const openCommercialPanel = () => ensurePanel('commercialOverview', 'commercial-overview')
 	const openConfigurationPanel = () => ensurePanel('configuration', 'system.configuration')
 	const openLinesPanel = () => ensurePanel('linesManagement', 'freight-lines')
 	const openPlansPanel = () => ensurePanel('planManager', 'hive-plans')
@@ -157,7 +204,6 @@ const App = () => {
 	const { PaletteIde } = getBrowserPalette()
 
 	effect`app:palette-bridge`(() => {
-		palettePanelBridge.openCommercial = openCommercialPanel
 		palettePanelBridge.openConfiguration = openConfigurationPanel
 		palettePanelBridge.openGame = openGamePanel
 		palettePanelBridge.openLines = openLinesPanel

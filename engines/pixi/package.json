@@ -19,6 +19,7 @@
 		"dev": "vite",
 		"build": "tsc",
 		"check": "tsc",
+		"typecheck": "tsc",
 		"test": "vitest run --config vitest.config.ts",
 		"generate-spritesheet": "tsx scripts/generate-spritesheet.ts",
 		"postgenerate-spritesheet": "cp -r public/pixi-assets ../../apps/browser/public/"

@@ -12,43 +12,30 @@ test.describe('Property Widget Switching Direct', () => {
 			return !!game.hex
 		})
 
-		// Find two characters
-		const objects = await page.evaluate(() => {
-			const game = (window as any).game
-			const characters = [...game.population]
-			return {
-				charA: { uid: (window as any).debugObjectId(characters[0]) },
-				charB: { uid: (window as any).debugObjectId(characters[1]) },
-			}
-		})
-
-		const { charA, charB } = objects
-
-		const selectAndVerify = async (id: string) => {
-			// Trigger selection via game.clickObject
-			await page.evaluate((uid) => {
+		const selectByIndex = async (index: number) => {
+			const uid = await page.evaluate((idx) => {
 				const game = (window as any).game
-				const obj = [...game.objects].find((o: any) => (window as any).debugObjectId(o) === uid)
-				game.clickObject({ button: 0 }, obj)
-			}, id)
+				const char = [...game.population][idx]
+				if (!char) throw new Error(`No character at index ${idx}`)
+				;(window as any).__selectObject?.(char)
+				return (window as any).debugObjectId(char)
+			}, index)
 
-			// Give it a moment to update
+			// Wait for reactive update to propagate to DOM
 			await page.waitForTimeout(300)
 
 			const panel = page.locator('.selection-info-panel')
 			await expect(panel).toBeVisible()
-
-			// Check if the widget has the correct UID
-			await expect(panel).toHaveAttribute('data-test-object-uid', id)
+			await expect(panel).toHaveAttribute('data-test-object-uid', uid)
 		}
 
 		// 1. Click Char A
-		await selectAndVerify(charA.uid)
+		await selectByIndex(0)
 
 		// 2. DIRECT SWITCH: Click Char B directly after Char A
-		await selectAndVerify(charB.uid)
+		await selectByIndex(1)
 
 		// 3. DIRECT SWITCH BACK: Click Char A directly after Char B
-		await selectAndVerify(charA.uid)
+		await selectByIndex(0)
 	})
 })

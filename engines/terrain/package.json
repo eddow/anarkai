@@ -8,6 +8,7 @@
 	},
 	"scripts": {
 		"check": "tsc",
+		"typecheck": "tsc",
 		"test": "vitest run --silent --reporter=dot"
 	},
 	"dependencies": {
@@ -18,6 +19,7 @@
 		"webgpgpu.ts": "^0.1.2"
 	},
 	"devDependencies": {
+		"@types/node": "25.0.10",
 		"vitest": "^4.1.4"
 	}
 }
