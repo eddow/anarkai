@@ -4,8 +4,8 @@ import { bumpSelectionTitleVersion } from '@app/lib/globals'
 import { resolveHiveFromAnchorTile, type SyntheticHiveObject } from '@app/lib/hive-inspector'
 import { T } from '@app/lib/i18n'
 import { InspectorSection } from '@app/ui/anarkai'
-import { goods as visualGoods } from 'engine-pixi/assets/visual-content'
 import { effect, reactive } from 'mutts'
+import { goods as visualGoods } from 'engine-pixi/assets/visual-content'
 import { collectDockedVehiclesForHive, type DockedVehicleEntry } from 'ssh/freight/docked-vehicles'
 import type { GoodType } from 'ssh/types/base'
 import type { ExchangePriority } from 'ssh/utils/advertisement'
@@ -105,8 +105,6 @@ interface HivePropertiesProps {
 
 const HiveProperties = (props: HivePropertiesProps) => {
 	const state = reactive({
-		hiveName: '',
-		working: true,
 		entries: [] as ReturnType<typeof summarizeHiveGoodsRelations>,
 		dockedVehicles: [] as DockedVehicleEntry[],
 	})
@@ -115,14 +113,10 @@ const HiveProperties = (props: HivePropertiesProps) => {
 	effect`hive-properties:ads`(() => {
 		const hive = currentHive()
 		if (!hive) {
-			state.hiveName = ''
-			state.working = false
 			state.entries = []
 			state.dockedVehicles = []
 			return
 		}
-		state.hiveName = hive.name?.trim() ?? ''
-		state.working = hive.working
 		state.entries = summarizeHiveGoodsRelations(
 			Array.from(hive.alveoli).map((alveolus) => ({
 				name: alveolus.name,
@@ -134,6 +128,29 @@ const HiveProperties = (props: HivePropertiesProps) => {
 		state.dockedVehicles = collectDockedVehiclesForHive(props.hiveObject.game, hive)
 	})
 
+	const hiveName = {
+		get value() {
+			return currentHive()?.name?.trim() ?? ''
+		},
+		set value(v: string) {
+			const hive = currentHive()
+			if (!hive) return
+			const prev = hive.name
+			hive.name = v.trim() === '' ? undefined : v
+			if ((prev ?? '') !== (hive.name ?? '')) bumpSelectionTitleVersion()
+		},
+	}
+
+	const workingChecked = {
+		get value() {
+			return currentHive()?.working ?? false
+		},
+		set value(v: boolean) {
+			const hive = currentHive()
+			if (hive) hive.working = v
+		},
+	}
+
 	function goodSprite(goodType: string): string {
 		const key = goodType as keyof typeof visualGoods
 		return visualGoods[key]?.sprites?.[0] ?? visualGoods[key]?.icon ?? ''
@@ -143,17 +160,6 @@ const HiveProperties = (props: HivePropertiesProps) => {
 		return String(T.goods[goodType as GoodType])
 	}
 
-	const handleNameInput = (value: string) => {
-		const hive = currentHive()
-		if (!hive) return
-		const previousName = hive.name
-		hive.name = value.trim() === '' ? undefined : value
-		state.hiveName = hive.name ?? ''
-		if ((previousName ?? '') !== (hive.name ?? '')) {
-			bumpSelectionTitleVersion()
-		}
-	}
-
 	const applyHover = () => {
 		zoneOverlayState.hoveredHiveAnchorTile = props.hiveObject.tile
 	}
@@ -161,17 +167,6 @@ const HiveProperties = (props: HivePropertiesProps) => {
 		if (zoneOverlayState.hoveredHiveAnchorTile === props.hiveObject.tile) {
 			zoneOverlayState.hoveredHiveAnchorTile = undefined
 		}
-	}
-
-	const workingChecked = {
-		get value() {
-			return state.working
-		},
-		set value(v: boolean) {
-			state.working = v
-			const hive = currentHive()
-			if (hive) hive.working = v
-		},
 	}
 
 	return (
@@ -186,8 +181,8 @@ const HiveProperties = (props: HivePropertiesProps) => {
 					<input
 						class="hive-properties__name"
 						type="text"
-						value={state.hiveName}
-							update:value={handleNameInput}
+						value={hiveName.value}
+						update:value={(v: string) => hiveName.value = v}
 					/>
 				</PropertyGridRow>
 				<PropertyGridRow label={T.hive.commands}>

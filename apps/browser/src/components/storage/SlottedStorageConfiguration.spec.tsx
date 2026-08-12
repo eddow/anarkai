@@ -12,15 +12,13 @@ vi.mock('@app/ui/anarkai', () => ({
 		value?: number | [number, number]
 		onChange?: (value: number | [number, number]) => void
 	}) => {
-		const value = props.value ?? 0
-		const serialized = Array.isArray(value) ? value.join(',') : String(value)
 		return (
 			<button
 				data-testid="stars"
 				data-maximum={String(props.maximum)}
-				data-value={serialized}
+				data-value={Array.isArray(props.value) ? props.value.join(',') : String(props.value ?? 0)}
 				onClick={() =>
-					props.onChange?.(Array.isArray(value) ? [value[0] + 1, value[1] + 1] : value + 1)
+					props.onChange?.(Array.isArray(props.value) ? [props.value[0] + 1, props.value[1] + 1] : (props.value || 0) + 1)
 				}
 			>
 				stars

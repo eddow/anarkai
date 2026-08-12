@@ -423,6 +423,9 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 							title={String(T.alveolus.productRatio)}
 							update:value={(v: number) => setTransformRatio({ maxProductRatio: v / 100 })}
 						/>
+						<span class="alveolus-transform-ratio__value" data-testid="transform-ratio-value">
+							{transformRatioPercent()}%
+						</span>
 					</div>
 				</div>
 			</PropertyGridRow>

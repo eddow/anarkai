@@ -3,12 +3,6 @@
 
 import { sursautOptions } from '@sursaut/core'
 
-// Restore EventTarget now that @sursaut/core has loaded (test-pre-setup.ts hid it)
-if ((globalThis as any).__sursautEventTarget) {
-	;(globalThis as any).EventTarget = (globalThis as any).__sursautEventTarget
-	delete (globalThis as any).__sursautEventTarget
-}
-
 import { mountHeadContent, setPlatform } from '@sursaut/kit'
 import { reactive } from 'mutts'
 import { vi } from 'vitest'

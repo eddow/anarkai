@@ -20,7 +20,7 @@ import {
 import { T } from '@app/lib/i18n'
 import { getZoneObject } from '@app/lib/zone-selection'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
-import { memoize } from 'mutts'
+import { memoize, reactive } from 'mutts'
 import {
 	tablerOutlineCheck,
 	tablerOutlinePencil,
@@ -480,7 +480,7 @@ const PolicySummary = (props: { policy: GoodSelectionPolicy | undefined; label: 
 }
 
 const FreightStopList = (props: FreightStopListProps) => {
-	const expandedStops = new Set<FreightStop>()
+	const expandedStops = reactive(new Set<FreightStop>())
 	const toggleExpanded = (stop: FreightStop) => {
 		if (expandedStops.has(stop)) expandedStops.delete(stop)
 		else expandedStops.add(stop)

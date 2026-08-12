@@ -32,12 +32,9 @@ const { MockForesterAlveolus, MockFreightBayAlveolus, MockStorageAlveolus, MockT
 			tile = { position: { q: 0, r: 0 } }
 			working = true
 			action = { type: 'plant', deposit: 'tree' }
-			assignedZoneIds: string[] = []
-			addAssignedZoneId(zoneId: string) {
-				if (!this.assignedZoneIds.includes(zoneId)) this.assignedZoneIds.push(zoneId)
-			}
-			removeAssignedZoneId(zoneId: string) {
-				this.assignedZoneIds = this.assignedZoneIds.filter((id) => id !== zoneId)
+			assignedZoneIndices: number[] = []
+			setAssignedZoneIndices(indices: number[]) {
+				this.assignedZoneIndices = indices
 			}
 		},
 		MockFreightBayAlveolus: class MockFreightBayAlveolus {
@@ -69,7 +66,7 @@ const { MockForesterAlveolus, MockFreightBayAlveolus, MockStorageAlveolus, MockT
 				working: true,
 				productRatio: { inputGood: 'wood', outputGood: 'planks', maxProductRatio: 0.5 },
 			})
-			processBuffers = { wood: 0.4, planks: 0.6 }
+			processBuffers = reactive({ wood: 0.4, planks: 0.6 })
 			consumedGoods = ['wood']
 			producedGoods = ['planks']
 			get rateEntries() {
@@ -480,15 +477,15 @@ describe('AlveolusProperties', () => {
 			vehicles: [],
 			hex: {
 				zoneManager: {
-					listCustomZoneDefinitions: () => [
-						{ id: 'north-grove', name: 'North Grove' },
-						{ id: 'south-grove', name: 'South Grove' },
+					definitions: [
+						{ id: 'north-grove', name: 'North Grove', type: 'custom' },
+						{ id: 'south-grove', name: 'South Grove', type: 'custom' },
 					],
-					getZoneDefinition: (zoneId: string) =>
-						({
-							'north-grove': { id: 'north-grove', name: 'North Grove' },
-							'south-grove': { id: 'south-grove', name: 'South Grove' },
-						})[zoneId],
+					zoneByIndex: (index: number) =>
+						[
+							{ id: 'north-grove', name: 'North Grove', type: 'custom' },
+							{ id: 'south-grove', name: 'South Grove', type: 'custom' },
+						][index],
 				},
 			},
 		}
@@ -511,7 +508,7 @@ describe('AlveolusProperties', () => {
 		)
 		north?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
 
-		expect(forester.assignedZoneIds).toEqual(['north-grove'])
+		expect(forester.assignedZoneIndices).toEqual([0])
 		expect(container.querySelector('[data-testid="forester-zone-chip"]')?.textContent).toContain(
 			'North Grove'
 		)
@@ -520,9 +517,9 @@ describe('AlveolusProperties', () => {
 		).not.toBeNull()
 
 		container
-			.querySelector('[data-testid="forester-zone-remove-north-grove"]')
+			.querySelector('[data-testid="forester-zone-remove-0"]')
 			?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-		expect(forester.assignedZoneIds).toEqual([])
+		expect(forester.assignedZoneIndices).toEqual([])
 	})
 
 	it('does not render assigned-zone controls for non-forester alveoli', () => {
@@ -562,7 +559,7 @@ describe('AlveolusProperties', () => {
 
 		transform.processBuffers.wood = 0.8
 		await new Promise((resolve) => setTimeout(resolve, 0))
-		expect(woodLabel()).toContain('40%')
+		expect(woodLabel()).toContain('80%')
 
 		consumePresentationEvents([{ type: 'storage.changed', owner: {} as any }])
 		await new Promise((resolve) => setTimeout(resolve, 0))

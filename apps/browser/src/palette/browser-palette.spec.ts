@@ -1,7 +1,6 @@
 import { gameTimeSpeedFactors } from 'engine-rules'
 import { reactive } from 'mutts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { AnarkaiPaletteToolbarItem } from '../ui/anarkai/palette/types'
 import defaultPalette from './palette.default.json'
 
 vi.mock('@app/lib/globals', () => ({
@@ -49,11 +48,6 @@ vi.mock('engine-pixi/assets/visual-content', () => ({
 	commands: {
 		bulldoze: { sprites: ['bulldozer-sprite'] },
 	},
-	variantBadges: {
-		'pile.wood': { sprites: ['goods.wood'], icon: 'goods.wood' },
-		'pile.wood.dry': { sprites: ['goods.wood'], icon: 'goods.wood' },
-		'pile.stone': { sprites: ['goods.stone'], icon: 'goods.stone' },
-	},
 }))
 
 import {
@@ -62,6 +56,7 @@ import {
 	getBrowserPalette,
 	palettePanelBridge,
 } from './browser-palette'
+import { AnarkaiPaletteToolbarItem } from '@app/ui/anarkai'
 
 describe('browser palette registry & palettePanelBridge', () => {
 	afterEach(() => {
@@ -124,8 +119,8 @@ describe('browser palette registry & palettePanelBridge', () => {
 			values: Array<{ value: string }>
 		}
 
-		expect(selectedAction.values.some((entry) => entry.value === 'build:pile.wood')).toBe(true)
-		expect(selectedAction.values.some((entry) => entry.value === 'build:pile.wood.dry')).toBe(true)
+		expect(selectedAction.values.some((entry) => entry.value === 'build:pile#wood')).toBe(true)
+		expect(selectedAction.values.some((entry) => entry.value === 'build:pile#wood.dry')).toBe(true)
 	})
 
 	it('exposes road tools as selected actions', () => {
@@ -172,11 +167,11 @@ describe('browser palette registry & palettePanelBridge', () => {
 	})
 
 	it('exposes build, zone, and road tools in the top toolbar', () => {
-		const acceptedKeywords = (defaultPalette.top as any)
+		const acceptedKeywords = defaultPalette.top
 			.flat(2)
-			.flatMap((entry: any) => entry.toolbar)
-			.filter((entry: any) => entry.tool === 'selectedAction')
-			.flatMap((entry: any) => entry.config.acceptedKeywords ?? [])
+			.flatMap((entry) => entry.toolbar)
+			.filter((entry) => entry.tool === 'selectedAction')
+			.flatMap((entry) => entry.config.acceptedKeywords ?? [])
 
 		expect(acceptedKeywords).toContain('select')
 		expect(acceptedKeywords).toContain('build')
@@ -186,20 +181,18 @@ describe('browser palette registry & palettePanelBridge', () => {
 	})
 
 	it('replaces the static build segment with generated building drawer items', () => {
-		const topItems = (browserPaletteIdeConfig.top as any)
-			.flat(2)
-			.flatMap((entry: any) => entry.toolbar)
+		const topItems = browserPaletteIdeConfig.top.flat(2).flatMap((entry) => entry.toolbar)
 		const pileDrawer = topItems.find(
-			(item: any) => item.editor === 'drawer' && item.config?.hint === 'Pile variants'
-		) as (AnarkaiPaletteToolbarItem & { toolbar?: AnarkaiPaletteToolbarItem[] }) | undefined
+			(item) => item.editor === 'drawer' && item.config?.label === 'Pile'
+		) as
+			| (AnarkaiPaletteToolbarItem & { toolbar?: AnarkaiPaletteToolbarItem[] })
+			| undefined
 
 		expect(pileDrawer).toBeTruthy()
-		expect(pileDrawer?.toolbar?.some((item) => item.tool === 'selectedAction|build:pile')).toBe(
-			true
-		)
+		expect(pileDrawer?.toolbar?.some((item) => item.tool === 'selectedAction|build:pile')).toBe(true)
 		expect(
 			pileDrawer?.toolbar?.some(
-				(item) => item.editor === 'drawer' && item.config?.hint === 'Pile — Wood variants'
+				(item) => item.editor === 'drawer' && item.config?.hint === 'Wood variants'
 			)
 		).toBe(true)
 	})
@@ -220,19 +213,19 @@ describe('browser palette registry & palettePanelBridge', () => {
 	})
 
 	it('keeps the account balance visible in the top toolbar preset', () => {
-		const accountItem = (defaultPalette.top as any)
+		const accountItem = defaultPalette.top
 			.flat(2)
-			.flatMap((entry: any) => entry.toolbar)
-			.find((entry: any) => entry.editor === 'account')
+			.flatMap((entry) => entry.toolbar)
+			.find((entry) => entry.editor === 'account')
 
 		expect(accountItem?.config?.label).toBe('Account')
 	})
 
 	it('keeps the lines panel in the top toolbar preset', () => {
-		const linesItem = (defaultPalette.top as any)
+		const linesItem = defaultPalette.top
 			.flat(2)
-			.flatMap((entry: any) => entry.toolbar)
-			.find((entry: any) => entry.tool === 'openLines')
+			.flatMap((entry) => entry.toolbar)
+			.find((entry) => entry.tool === 'openLines')
 
 		expect(linesItem?.config?.label).toBe('Lines')
 	})

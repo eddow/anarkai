@@ -2,6 +2,7 @@ import { document, latch } from '@sursaut/core'
 import type { DockviewWidgetProps } from '@sursaut/ui/dockview'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SelectionInfoContext } from './selection-info-tab'
+import { reactive } from 'mutts'
 
 const updateParameters = vi.fn<(params: { uid?: string }) => void>()
 const onDidRemovePanel = vi.fn((handler: (panel: { id: string }) => void) => {
@@ -39,6 +40,7 @@ const world = {
 const globals = {
 	selectionState: {
 		selectedUid: undefined as string | undefined,
+		selectedObject: undefined as object | undefined,
 		titleVersion: 0,
 	},
 	bumpSelectionTitleVersion: vi.fn(),
@@ -76,7 +78,7 @@ vi.mock('@app/lib/follow-selection', () => ({
 vi.mock('@app/lib/globals', () => ({
 	game,
 	mrg: globals.mrg,
-	selectionState: globals.selectionState,
+	selectionState: reactive(globals.selectionState),
 	bumpSelectionTitleVersion: globals.bumpSelectionTitleVersion,
 	unreactiveInfo: globals.unreactiveInfo,
 }))
@@ -115,7 +117,9 @@ vi.mock('../components/parts/WorkingIndicator', () => ({
 		<button
 			data-testid="hive-working-toggle"
 			data-checked={String(props.checked)}
-			onClick={() => props.onChange?.(!props.checked)}
+			onClick={() => {
+				(props as any).checked = !(props as any).checked
+			}}
 		/>
 	),
 }))
@@ -229,6 +233,7 @@ describe('SelectionInfoWidget hive integration', () => {
 		container = document.createElement('div')
 		document.body.appendChild(container)
 		globals.selectionState.selectedUid = hiveSyntheticUid
+		globals.selectionState.selectedObject = { kind: 'hive', tile: { q: 0, r: 0 }, game: { vehicles: [], freightLines: [] } } as any
 		globals.selectionState.titleVersion = 0
 		globals.unreactiveInfo.hasLastSelectedInfoPanel = true
 		globals.mrg.hoveredObject = undefined

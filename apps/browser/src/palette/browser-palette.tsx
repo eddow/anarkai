@@ -1,9 +1,9 @@
 import ResourceImage from '@app/components/ResourceImage'
 import {
-	type AppShellBuildVariantNode,
 	buildPaletteSelectedActionValues,
 	getAppShellBuildableAlveoli,
 	getAppShellBuildToolbarRoots,
+	type AppShellBuildVariantNode,
 } from '@app/lib/app-shell-controls'
 import { FREIGHT_ADD_STOP_ACTION } from '@app/lib/freight-map-pick'
 import type { Configuration } from '@app/lib/globals'
@@ -36,7 +36,6 @@ import {
 	palettes,
 } from '@sursaut/ui/palette'
 import {
-	variantBadges,
 	alveoli as visualAlveoli,
 	commands as visualCommands,
 } from 'engine-pixi/assets/visual-content'
@@ -45,7 +44,6 @@ import { effect, reactive, unwrap } from 'mutts'
 import {
 	tablerFilledAdjustments,
 	tablerFilledArrowBigRight,
-	tablerOutlineBuildingStore,
 	tablerOutlineLayoutGridAdd,
 	tablerOutlinePolygon,
 	tablerOutlineRoute,
@@ -53,7 +51,6 @@ import {
 import type { Game } from 'ssh/game'
 
 export const palettePanelBridge = reactive({
-	openCommercial: () => {},
 	openConfiguration: () => {},
 	openGame: () => {},
 	openLines: () => {},
@@ -67,16 +64,8 @@ const browserPaletteBuildToolbarRoots = getAppShellBuildToolbarRoots()
 function browserPaletteBuildIcon(name: string) {
 	const sprite = visualAlveoli[name]?.sprites?.[0]
 	return sprite
-		? () => <ResourceImage game={game} sprite={sprite} width={20} height={20} alt="" />
+		? () => <ResourceImage game={game} sprite={sprite} width={20} height={20} alt={name} />
 		: undefined
-}
-
-function browserPaletteVariantBadgeIcon(rootName: string, variant: string) {
-	const key = `${rootName}.${variant}`
-	const def = variantBadges[key]
-	if (!def?.sprites?.[0]) return undefined
-	const sprite = def.sprites[0]
-	return () => <ResourceImage game={game} sprite={sprite} width={18} height={18} alt="" />
 }
 
 function browserPaletteCommandIcon(name: string) {
@@ -145,17 +134,6 @@ const tools = {
 		},
 		run() {
 			palettePanelBridge.openLines()
-		},
-	},
-	openCommercial: {
-		label: 'Open commercial overview',
-		icon: typeof tablerOutlineBuildingStore === 'string' ? tablerOutlineBuildingStore : undefined,
-		keywords: ['commerce', 'market', 'trade', 'price', 'economy'],
-		get can() {
-			return true
-		},
-		run() {
-			palettePanelBridge.openCommercial()
 		},
 	},
 	openPlans: {
@@ -264,29 +242,18 @@ function createSelectedActionButton(
 function createVariantToolbarItem(
 	rootName: string,
 	variant: AppShellBuildVariantNode,
-	rootLabel: string,
 	isChild = false
 ): BrowserPaletteToolbarItem {
-	const badgeIcon = browserPaletteVariantBadgeIcon(rootName, variant.id)
 	if (variant.children.length === 0) {
-		// Leaf variant: short label, descriptive tooltip
-		const descriptiveHint = `${rootLabel} — ${variant.id
-			.split('.')
-			.map((s) => s.charAt(0).toUpperCase() + s.slice(1))
-			.join(' ')}`
-		return {
-			tool: `selectedAction|${variant.value}`,
-			editor: 'button',
-			config: {
-				label: variant.label,
-				hint: descriptiveHint,
-				icon: badgeIcon,
-				keywords: ['build', 'variant', rootName, variant.id],
-				tone: 'neutral',
-			},
-		}
+		// Leaf variant: text-only button (label is the meaningful content)
+		return createSelectedActionButton(
+			variant.value,
+			variant.label,
+			['build', 'variant', rootName, variant.id],
+			undefined
+		)
 	}
-	const triggerIcon = isChild ? badgeIcon : browserPaletteBuildIcon(rootName)
+	const badgeIcon = isChild ? '▶' : browserPaletteBuildIcon(rootName)
 	return {
 		editor: 'drawer',
 		toolbar: [
@@ -294,17 +261,15 @@ function createVariantToolbarItem(
 				variant.value,
 				`Build ${variant.label}`,
 				['build', 'variant', rootName, variant.id],
-				browserPaletteBuildIcon(rootName) ?? badgeIcon
+				badgeIcon
 			),
-			...variant.children.map((child) =>
-				createVariantToolbarItem(rootName, child, rootLabel, true)
-			),
+			...variant.children.map((child) => createVariantToolbarItem(rootName, child, true)),
 		],
 		config: {
-			icon: triggerIcon,
+			icon: badgeIcon,
 			// Child drawers: badge-only trigger (no label, hint=tooltip)
 			label: isChild ? '' : variant.label,
-			hint: `${rootLabel} — ${variant.label} variants`,
+			hint: `${variant.label} variants`,
 			tone: 'neutral',
 		},
 	}
@@ -314,19 +279,22 @@ function createBrowserPaletteBuildToolbar(): BrowserPaletteToolbarItem[] {
 	return browserPaletteBuildToolbarRoots.map((root) => {
 		const icon = browserPaletteBuildIcon(root.rootName)
 		if (root.variants.length === 0) {
-			return createSelectedActionButton(root.value, root.label, ['build', root.rootName], icon)
+			return createSelectedActionButton(
+				root.value,
+				root.label,
+				['build', root.rootName],
+				icon
+			)
 		}
 		return {
 			editor: 'drawer',
 			toolbar: [
 				createSelectedActionButton(root.value, root.label, ['build', root.rootName], icon),
-				...root.variants.map((variant) =>
-					createVariantToolbarItem(root.rootName, variant, root.label, true)
-				),
+				...root.variants.map((variant) => createVariantToolbarItem(root.rootName, variant, true)),
 			],
 			config: {
 				icon,
-				label: '',
+				label: root.label,
 				hint: `${root.label} variants`,
 				tone: 'neutral',
 			},
@@ -353,14 +321,12 @@ function createBrowserPaletteTop(): PaletteBorder<BrowserPaletteToolbarItem> {
 	const actionSection = track[actionSectionIndex]
 	const otherActionItems = actionSection.toolbar.filter(
 		(item) =>
-			!(
-				item.tool === 'selectedAction' &&
+			!(item.tool === 'selectedAction' &&
 				item.config &&
 				typeof item.config === 'object' &&
 				'acceptedKeywords' in item.config &&
 				Array.isArray((item.config as AnarkaiPaletteEnumConfig).acceptedKeywords) &&
-				(item.config as AnarkaiPaletteEnumConfig).acceptedKeywords?.includes('build')
-			)
+				(item.config as AnarkaiPaletteEnumConfig).acceptedKeywords?.includes('build'))
 	)
 	track.splice(
 		actionSectionIndex,
@@ -397,9 +363,6 @@ function ClockPaletteEditor(
 			state.time = '--:--'
 			return
 		}
-		// Touch reactive version counter so the effect re-runs on each advance().
-		// virtualTime itself is a plain number and not tracked by Mutts reactivity.
-		void game.clock.timeVersion.n
 		const seconds = Math.floor(game.clock.virtualTime)
 		const minutes = Math.floor(seconds / 60)
 		const displaySeconds = seconds % 60

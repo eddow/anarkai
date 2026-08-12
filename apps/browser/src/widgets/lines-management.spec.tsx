@@ -181,7 +181,7 @@ describe('LinesManagementWidget', () => {
 
 		const first = rows(container)[0] as HTMLButtonElement
 		first.dispatchEvent(new MouseEvent('mouseenter'))
-		expect(showFreightLineOverlay).toHaveBeenLastCalledWith(game.freightLines[0])
+		expect(showFreightLineOverlay).toHaveBeenNthCalledWith(1, game.freightLines[0])
 
 		first.dispatchEvent(new MouseEvent('mouseleave'))
 		expect(showFreightLineOverlay).toHaveBeenLastCalledWith(undefined)

@@ -1,23 +1,7 @@
 import { document, latch } from '@sursaut/core'
 import { reactive } from 'mutts'
 import { registerGlyfIconFactory } from 'pure-glyf/sursaut'
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-
-vi.mock('engine-pixi/assets/visual-content', () => ({
-	alveoli: {},
-	commands: {},
-	variantBadges: {},
-}))
-
-vi.mock('@app/lib/globals', () => ({
-	game: undefined,
-	interactionMode: reactive({ selectedAction: '' }),
-}))
-
-vi.mock('@app/components/ResourceImage', () => ({
-	default: () => null,
-}))
-
+import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { createAnarkaiPaletteEditors, paletteToolbarControlTitle } from './editors'
 import type { AnarkaiPaletteToolbarItem } from './types'
 
@@ -253,20 +237,19 @@ describe('createAnarkaiPaletteEditors enum editors', () => {
 			config: { label: 'Pile', hint: 'Pile variants' },
 		} satisfies AnarkaiPaletteToolbarItem & { toolbar: AnarkaiPaletteToolbarItem[] }
 		const mockPalette = {
+			id: 'mock-palette',
 			editing: false,
 			tool(_spec: string) {
 				return { run: () => {} }
 			},
 			renderEditor(childItem: AnarkaiPaletteToolbarItem, tool: unknown, _scope: unknown) {
 				const buttonEditor = createAnarkaiPaletteEditors().run?.button?.editor
-				return (
-					buttonEditor?.({
-						item: childItem as never,
-						tool: tool as never,
-						scope: _scope as never,
-						flags: {},
-					}) ?? ''
-				)
+				return buttonEditor?.({
+					item: childItem as never,
+					tool: tool as never,
+					scope: _scope as never,
+					flags: {},
+				}) ?? ''
 			},
 		}
 		const editor = createAnarkaiPaletteEditors().item?.drawer?.editor

@@ -28,7 +28,12 @@
 	backdrop-filter: blur(10px);
 	color: var(--ak-text);
 	overflow-x: auto;
-	overflow-y: clip;
+	overflow-y: hidden;
+}
+
+/* Suppress vertical scrollbar gutter from the overflow-x auto container */
+.app-palette-ide .toolbar-border.palette-horizontal::-webkit-scrollbar:vertical {
+	display: none;
 }
 
 .app-palette-ide .toolbar-track,
@@ -44,12 +49,15 @@
 	flex-wrap: nowrap;
 	align-items: center;
 	gap: 0.15rem;
-	overflow: hidden;
 }
 
 /* Suppress sursaut ::before overflow and phantom scrollbar */
 .app-palette-ide .toolbar::before {
-	display: none !important;
+	content: none;
+}
+
+.app-palette-ide .toolbar {
+	overflow: hidden;
 }
 
 .app-palette-ide .toolbar [role='group'] {
@@ -573,24 +581,6 @@
 	max-height: min(70vh, 24rem);
 	overflow-y: auto;
 	overflow-x: hidden;
-}
-
-/* Kill sursaut ::before overflow (inset: -6px) that creates phantom scrollbar */
-.ak-palette-drawer__popup .toolbar::before {
-	content: none;
-}
-
-/* Universal: no child of a toolbar button may capture pointer events —
-   only the button's own title/hint is the canonical tooltip. */
-.app-palette-ide .toolbar button .ak-icon,
-.app-palette-ide .toolbar button .ak-icon *,
-.app-palette-ide .toolbar button img,
-.app-palette-ide .toolbar button .ssh-resource-image,
-.ak-palette-drawer__popup .toolbar button .ak-icon,
-.ak-palette-drawer__popup .toolbar button .ak-icon *,
-.ak-palette-drawer__popup .toolbar button img,
-.ak-palette-drawer__popup .toolbar button .ssh-resource-image {
-	pointer-events: none !important;
 }
 
 .ak-palette-drawer__popup .toolbar {

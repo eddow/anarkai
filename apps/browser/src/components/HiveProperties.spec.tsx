@@ -1,4 +1,5 @@
 import { document, latch } from '@sursaut/core'
+import { reactive } from 'mutts'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 class MockBuildAlveolus {
@@ -9,8 +10,26 @@ class MockBuildAlveolus {
 	constructionWorkSecondsApplied!: number
 }
 
-const hive = {
-	name: 'North Hive',
+const buildAlveolus = Object.assign(new MockBuildAlveolus(), {
+	name: 'build.storage',
+	target: 'storage',
+	tile: { position: { q: 1, r: 0 } },
+	constructionSite: {
+		target: { kind: 'alveolus', alveolusType: 'storage' },
+		phase: 'waiting_construction',
+		workSecondsApplied: 2,
+		recipe: { workSeconds: 6, goods: {} },
+	},
+	constructionWorkSecondsApplied: 2,
+	action: { type: 'storage' },
+	goodsRelations: {
+		wood: { advertisement: 'demand', priority: '2-use' },
+	},
+	storage: { stock: { wood: 2 } },
+})
+
+const hive = reactive({
+	name: 'North Hive' as string | undefined,
 	working: true,
 	alveoli: [
 		{
@@ -29,27 +48,9 @@ const hive = {
 			},
 			storage: { stock: { wood: 1 } },
 		},
-		// Structural shape required by `isConstructionSiteShell` so the
-		// component renders the under-construction branch.
-		Object.assign(new MockBuildAlveolus(), {
-			name: 'build.storage',
-			target: 'storage',
-			tile: { position: { q: 1, r: 0 } },
-			constructionSite: {
-				target: { kind: 'alveolus', alveolusType: 'storage' },
-				phase: 'waiting_construction',
-				workSecondsApplied: 2,
-				recipe: { workSeconds: 6, goods: {} },
-			},
-			constructionWorkSecondsApplied: 2,
-			action: { type: 'storage' },
-			goodsRelations: {
-				wood: { advertisement: 'demand', priority: '2-use' },
-			},
-			storage: { stock: { wood: 2 } },
-		}),
+		buildAlveolus,
 	],
-}
+})
 
 const resolveHiveFromAnchorTile = vi.fn(() => hive)
 
@@ -141,7 +142,9 @@ vi.mock('./parts/WorkingIndicator', () => ({
 		<button
 			data-testid="hive-working-toggle"
 			data-checked={String(props.checked)}
-			onClick={() => props.onChange?.(!props.checked)}
+			onClick={() => {
+				(props as any).checked = !(props as any).checked
+			}}
 		/>
 	),
 }))
