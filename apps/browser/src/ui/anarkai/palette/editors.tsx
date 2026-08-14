@@ -329,14 +329,18 @@ function EnumChoicePreview(props: {
 	entry: AnarkaiPaletteEnumValue
 	display: AnarkaiPaletteChoiceDisplay
 }) {
-	const parts = enumChoiceParts(props.entry, props.display)
+	const view = {
+		get parts() {
+			return enumChoiceParts(props.entry, props.display)
+		},
+	}
 	return (
 		<span class="ak-palette-choice">
-			<span if={parts.icon} class="ak-palette-choice__icon">
-				{parts.icon}
+			<span if={view.parts.icon} class="ak-palette-choice__icon">
+				{view.parts.icon}
 			</span>
-			<span if={parts.showLabel} class="ak-palette-choice__label">
-				{parts.label}
+			<span if={view.parts.showLabel} class="ak-palette-choice__label">
+				{view.parts.label}
 			</span>
 		</span>
 	)

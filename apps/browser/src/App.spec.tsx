@@ -49,6 +49,11 @@ vi.mock('./app.css', () => ({}))
 
 vi.mock('../../../engines/ssh/src/lib/dev/debug.ts', () => ({
 	initConsoleTrap: vi.fn(),
+	registerTraceInvariants: vi.fn(),
+	assert: (condition: unknown, _message: string) => {
+		if (!condition) throw new Error('Assertion failure')
+	},
+	traces: {},
 }))
 
 vi.mock('../../../engines/ssh/src/lib/dev/debug-game-state.ts', () => ({
