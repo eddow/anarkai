@@ -36,8 +36,11 @@ export function setActiveWorldViewPov(pov: ActiveWorldViewPov): void {
 }
 
 export function getHoveredObject(): InteractiveGameObject | undefined {
-	const hoveredObject = mrg.hoveredObject
-	return hoveredObject ? (unwrap(hoveredObject) as InteractiveGameObject) : undefined
+	// `mrg.hoveredObject` holds the reactive proxy instance, which is the same
+	// identity stored in `game.objects` and used to key `renderer.visuals`.
+	// Unwrapping here would break that identity (raw !== proxy), so the hover
+	// highlight lookup in `VisualFactory.syncHoveredVisual` would never match.
+	return mrg.hoveredObject
 }
 
 export function isHoveredObject(object: InteractiveGameObject | undefined): boolean {

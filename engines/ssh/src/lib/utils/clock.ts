@@ -105,10 +105,15 @@ export class Clock {
 	 */
 	advance(ds: number): void {
 		this.serializationTimes = undefined
-		if (ds <= 0 || this.list.length === 0) return
+		if (ds <= 0) return
 
+		// `virtualTime` is the global simulation clock: it must advance with real
+		// time regardless of whether any steps are currently scheduled, otherwise
+		// traces/interpolation/the UI clock freeze whenever the step list is empty.
 		this.virtualTime += ds
 		this.timeVersion.n++
+
+		if (this.list.length === 0) return
 
 		let remaining = ds
 		this.partiallyProgressed = { freshEntries: new WeakMap(), partialDs: 0 }

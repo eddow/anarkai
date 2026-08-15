@@ -588,6 +588,18 @@ describe('edge cases', () => {
 		expect(clock.size).toBe(0)
 	})
 
+	it('advances virtualTime even when no steps are scheduled', () => {
+		const clock = new Clock()
+		expect(clock.virtualTime).toBe(0)
+		clock.advance(2.5)
+		expect(clock.virtualTime).toBe(2.5)
+		expect(clock.timeVersion.n).toBe(1)
+		clock.advance(0.5)
+		expect(clock.virtualTime).toBe(3.0)
+		expect(clock.timeVersion.n).toBe(2)
+		expect(clock.size).toBe(0)
+	})
+
 	it('oversized advance fires everything', () => {
 		const clock = new Clock()
 		const calls: CallRecord[] = []

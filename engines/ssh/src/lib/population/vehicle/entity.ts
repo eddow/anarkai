@@ -500,7 +500,13 @@ export class Vehicle extends withInteractive(GameObject) {
 			'anchor' in svc.stop,
 			`Vehicle ${debugObjectId(this) ?? ''}: dock requires an anchor stop`
 		)
-		if (svc.docked && !this.position) return
+		if (svc.docked && !this.position) {
+			// Already docked. Re-assert the registration anyway: a transient
+			// undock / hive rebuild may have dropped the dock while leaving
+			// `docked` set, and `dock()` is the canonical place to restore it.
+			syncFreightVehicleDockRegistration(this)
+			return
+		}
 		const dockTile = this.dockTile
 		assert(dockTile, `Vehicle ${debugObjectId(this) ?? ''}: dock requires an anchor tile`)
 		assert(

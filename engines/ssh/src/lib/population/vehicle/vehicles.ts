@@ -59,7 +59,12 @@ export function serializeVehicles(
 	characterIndex: ReadonlyMap<Character, number>
 ): SerializedVehicle[] {
 	return vehicles.map((vehicle) => {
-		const rawCoord = toAxialCoord(vehicle.position as { q: number; r: number })
+		// A docked vehicle has no world position (`vehicle.position === undefined`);
+		// its logical location is the anchor tile. Serialize that so `dock()` can
+		// restore cleanly on load instead of relying on a `{ q: 0, r: 0 }` sentinel
+		// (which previously threw in `toAxialCoord` and lost the real dock tile).
+		const sourcePosition = vehicle.position ?? vehicle.dockTile?.position
+		const rawCoord = sourcePosition ? toAxialCoord(sourcePosition) : undefined
 		const coord = rawCoord ? axial.round(rawCoord) : { q: 0, r: 0 }
 		const svc = vehicle.service
 

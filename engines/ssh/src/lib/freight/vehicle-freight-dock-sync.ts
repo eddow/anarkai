@@ -1,5 +1,8 @@
 import type { Alveolus } from 'ssh/board/content/alveolus'
+import type { Tile } from 'ssh/board/tile'
 import { debugObjectId } from 'ssh/dev/debug-object-id'
+import { recentDockRegistryEventsForVehicle } from 'ssh/freight/dock-registry-events'
+import type { Game } from 'ssh/game/game'
 import { isLineFreightVehicleType } from 'ssh/freight/line-freight-vehicles'
 import { VehicleFreightDock } from 'ssh/freight/vehicle-freight-dock'
 import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
@@ -37,10 +40,33 @@ export function ensureFreightVehicleDockRegistration(
 	if (!bay) return undefined
 	const existing = bay.hive.freightVehicleDockFor(vehicle)
 	if (existing?.bay === bay) return bay
+	// Diagnostic: report every hive that currently holds a registration for this
+	// vehicle, so a repair can distinguish "never registered" from "registered on
+	// a different hive" (the latter implies a hive topology transfer miss).
+	const registeredElsewhere: Array<{ hive: string; bay: string }> = []
+	const seen = new Set<unknown>()
+	for (const tile of vehicle.game.hex.tiles) {
+		const content = tile.content
+		const hive = content && 'hive' in content ? (content as Alveolus).hive : undefined
+		if (!hive || seen.has(hive)) continue
+		seen.add(hive)
+		const dock = hive.freightVehicleDockFor(vehicle)
+		if (dock) registeredElsewhere.push({ hive: hive.name ?? '', bay: dock.bay.name })
+	}
 	traces.vehicle.warn?.('[dock.sync] repairing missing dock registration', {
+		vehicleUid: debugObjectId(vehicle) ?? '',
 		bay: bay.name,
+		hiveName: bay.hive.name ?? '',
 		hadRegistration: !!existing,
 		registeredBay: existing?.bay.name,
+		registeredElsewhere: registeredElsewhere.map((entry) => entry.bay),
+		dockRegistryHistory: recentDockRegistryEventsForVehicle(debugObjectId(vehicle) ?? '').map(
+			(event) =>
+				`${event.kind}@${event.time.toFixed(2)} ${event.hiveName}/${event.bayName} :: ${event.stack}`
+		),
+		isDocked: vehicle.isDocked,
+		position: vehicle.position ?? undefined,
+		stack: new Error().stack?.split('\n').slice(1, 8).join(' <- '),
 	})
 	bay.hive.registerFreightVehicleDock(new VehicleFreightDock(vehicle, bay))
 	return bay
@@ -53,6 +79,23 @@ export function syncFreightVehicleDockRegistration(vehicle: Vehicle): void {
 		const content = tile.content
 		const hive = content && 'hive' in content ? (content as Alveolus).hive : undefined
 		if (bay && hive === bay.hive) continue
+		if (hive?.freightVehicleDockFor(vehicle)) {
+			// We are about to drop a LIVE registration. Log why + who, since this
+			// is the moment that produces the later "repairing missing dock" churn.
+			traces.vehicle.warn?.('[dock.sync] unregistering live dock', {
+				vehicleUid: debugObjectId(vehicle) ?? '',
+				hiveName: hive.name ?? '',
+				hasBay: !!bay,
+				bayName: bay?.name,
+				bayHiveName: bay?.hive.name ?? '',
+				isDocked: vehicle.isDocked,
+				position: vehicle.position ?? undefined,
+				serviceDocked: isVehicleLineService(vehicle.service)
+					? vehicle.service.docked
+					: undefined,
+				stack: new Error().stack?.split('\n').slice(1, 10).join(' <- '),
+			})
+		}
 		hive?.unregisterFreightVehicleDock(vehicle)
 	}
 	if (!bay) {
@@ -83,4 +126,20 @@ export function syncFreightVehicleDockRegistration(vehicle: Vehicle): void {
 		virtualGoodsCount: vehicle.storage.virtualGoodsCount,
 	})
 	bay.hive.registerFreightVehicleDock(new VehicleFreightDock(vehicle, bay))
+}
+
+/**
+ * Re-sync dock registrations for vehicles docked at a specific tile after its
+ * content transitions (e.g. a freight bay finishes construction). A vehicle can
+ * dock at a still-under-construction anchor tile: `Vehicle.dock` sets
+ * `docked = true` but `syncFreightVehicleDockRegistration` no-ops because the
+ * content is a `BuildAlveolus`, not a `FreightBayAlveolus`. When the bay then
+ * completes, this re-establishes the registration.
+ */
+export function resyncDockedVehiclesAtTile(game: Game, tile: Tile): void {
+	for (const vehicle of game.vehicles) {
+		if (!vehicle.isDocked) continue
+		if (vehicle.dockTile !== tile) continue
+		syncFreightVehicleDockRegistration(vehicle)
+	}
 }

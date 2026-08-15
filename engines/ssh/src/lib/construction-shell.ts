@@ -10,8 +10,10 @@ import {
 	setConstructionConsumedGoods,
 } from 'ssh/construction-state'
 import { assert, traces } from 'ssh/dev/debug'
+import { resyncDockedVehiclesAtTile } from 'ssh/freight/vehicle-freight-dock-sync'
 import { createAlveolus } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
+import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import { toAxialCoord } from 'ssh/utils/position'
 
 export function applyConstructionConcreteTerrain(tile: Tile): void {
@@ -128,6 +130,13 @@ export function finalizeConstructionShell(shell: ConstructionSiteShell): void {
 			}
 		}
 		shell.tile.content = alveolus
+		// A vehicle may have docked at this tile while it was still a construction
+		// shell (`Vehicle.dock` marks it docked, but the dock registration is
+		// deferred because the content was not yet a `FreightBayAlveolus`). Re-sync
+		// now that the bay is real so convey planning can resume.
+		if (alveolus instanceof FreightBayAlveolus) {
+			resyncDockedVehiclesAtTile(shell.tile.game, shell.tile)
+		}
 		return
 	}
 	if (target.kind === 'dwelling') {

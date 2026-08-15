@@ -27,6 +27,8 @@ import { AlveolusGate } from 'ssh/board/border/alveolus-gate'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
 import { Commitment } from 'ssh/commitment'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
+import { recordDockRegistryEvent } from 'ssh/freight/dock-registry-events'
 import {
 	dockedVehicleGoodsRelations,
 	type FreightMovementParty,
@@ -403,6 +405,9 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		const targetHive = hivesArray.shift()!
 		for (const hive of hivesArray) {
 			for (const alveolus of hive.alveoli) targetHive.attach(alveolus)
+			// Preserve freight vehicle dock registrations before discarding the
+			// source hive, mirroring flushTopologyRefreshBatch (see there).
+			targetHive.transferFreightVehicleDocksFrom(hive)
 			hive.destroy()
 		}
 		return targetHive
@@ -540,16 +545,41 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 
 	/** Registers a docked wheelbarrow endpoint for bay↔vehicle convey matching. */
 	registerFreightVehicleDock(dock: VehicleFreightDock): void {
-		this.freightVehicleDocks.set(dock.vehicle, dock)
+		// Key by the unwrapped object: `Vehicle` is @reactive, so `dock.vehicle` may
+		// be a proxy (planner path) or the raw target (`Vehicle.dock` runs with raw
+		// `this`). Normalizing avoids a raw/proxy identity split where lookups miss.
+		this.freightVehicleDocks.set(unwrap(dock.vehicle), dock)
+		const vehicleUid = debugObjectId(dock.vehicle) ?? ''
+		recordDockRegistryEvent(
+			{ kind: 'register', vehicleUid, hiveName: this.name ?? '', bayName: dock.bay.name },
+			this.board.game.clock.virtualTime
+		)
+		traces.vehicle.log?.('[dock.registry] register', {
+			hiveName: this.name,
+			bayName: dock.bay.name,
+			vehicleUid,
+			stack: new Error().stack?.split('\n').slice(1, 6).join(' <- '),
+		})
 		this.invalidateConveyPlanning('dock.lifecycle')
 		this.invalidateAdvertisements([dock, dock.bay], 'dock.lifecycle')
 	}
 
 	@inert
 	unregisterFreightVehicleDock(vehicle: Vehicle): void {
-		const dock = this.freightVehicleDocks.get(vehicle)
+		const dock = this.freightVehicleDocks.get(unwrap(vehicle))
 		if (!dock) return
-		this.freightVehicleDocks.delete(vehicle)
+		const vehicleUid = debugObjectId(vehicle) ?? ''
+		recordDockRegistryEvent(
+			{ kind: 'unregister', vehicleUid, hiveName: this.name ?? '', bayName: dock.bay.name },
+			this.board.game.clock.virtualTime
+		)
+		traces.vehicle.log?.('[dock.registry] unregister', {
+			hiveName: this.name,
+			bayName: dock.bay.name,
+			vehicleUid,
+			stack: new Error().stack?.split('\n').slice(1, 6).join(' <- '),
+		})
+		this.freightVehicleDocks.delete(unwrap(vehicle))
 		this.pendingAdvertisementReasons.delete(dock)
 		this.advertise(dock, {})
 		this.invalidateConveyPlanning('dock.lifecycle')
@@ -557,14 +587,18 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 	}
 
 	freightVehicleDockFor(vehicle: Vehicle): VehicleFreightDock | undefined {
-		return this.freightVehicleDocks.get(vehicle)
+		return this.freightVehicleDocks.get(unwrap(vehicle))
 	}
 
 	hasActiveFreightVehicleDockMovement(vehicle: Vehicle): boolean {
+		const rawVehicle = unwrap(vehicle)
 		for (const movement of this.activeMovements) {
 			const providerDock = isVehicleFreightDock(movement.provider) ? movement.provider : undefined
 			const demanderDock = isVehicleFreightDock(movement.demander) ? movement.demander : undefined
-			if (providerDock?.vehicle === vehicle || demanderDock?.vehicle === vehicle) {
+			if (
+				unwrap(providerDock?.vehicle) === rawVehicle ||
+				unwrap(demanderDock?.vehicle) === rawVehicle
+			) {
 				return true
 			}
 		}
@@ -616,7 +650,6 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		this.working = hive.working
 		this.configurations.clear()
 		for (const [key, value] of hive.configurations.entries()) this.configurations.set(key, value)
-		this.transferFreightVehicleDocksFrom(hive)
 		return this
 	}
 	/**
@@ -634,7 +667,6 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		for (const [key, value] of hive.configurations.entries()) {
 			if (!this.configurations.has(key)) this.configurations.set(key, value)
 		}
-		this.transferFreightVehicleDocksFrom(hive)
 		// TODO: destroying an alveolus (and its borders) should "loose" the goods and cancel all the movements going through
 		return this
 	}
@@ -644,13 +676,19 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 	 * Each dock is re-registered so the new hive owns the advertisement endpoint.
 	 */
 	private transferFreightVehicleDocksFrom(source: Hive) {
+		const transferred: VehicleFreightDock[] = []
 		for (const dock of source.freightVehicleDocks.values()) {
 			// Only transfer docks whose bay alveolus belongs to this rebuilt hive.
 			// After hive.attach() runs, dock.bay.hive already points to the new hive.
 			if (dock.bay.hive === this) {
 				this.registerFreightVehicleDock(dock)
+				transferred.push(dock)
 			}
 		}
+		// The source hive is destroyed immediately after transfer in every call
+		// site. Remove transferred docks so `destroy()`'s "hive destroyed with
+		// docks" diagnostic only fires for registrations that were genuinely lost.
+		for (const dock of transferred) source.freightVehicleDocks.delete(unwrap(dock.vehicle))
 	}
 	/**
 	 * Has to be called *after* tile.content is not a alveolus anymore
@@ -729,6 +767,14 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			const primarySourceHive = pickMetadataSourceHive(sourceHives)
 			if (sourceHives.size <= 1 && primarySourceHive) hive.copyFrom(primarySourceHive)
 			else if (primarySourceHive) hive.partOf(primarySourceHive)
+			// Freight vehicle dock registrations must transfer from EVERY source
+			// hive, not just the metadata-primary one. A docked vehicle's bay may
+			// live in any of the merged source hives; transferring only from the
+			// primary dropped the others' docks (→ "repairing missing dock
+			// registration" and stalled bay convey).
+			for (const sourceHive of sourceHives) {
+				hive.transferFreightVehicleDocksFrom(sourceHive)
+			}
 		}
 
 		traces.advertising.log?.('[HIVE] Reorganisation topology rebuilt', {
@@ -985,7 +1031,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 		if (isVehicleFreightDock(party)) {
 			return (
 				this.freightPartyUnavailableForMovement(party.bay) ||
-				this.freightVehicleDocks.get(party.vehicle) !== party
+				this.freightVehicleDocks.get(unwrap(party.vehicle)) !== party
 			)
 		}
 		return !this.alveoli.has(party as Alveolus)
@@ -3641,6 +3687,20 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 	destroy() {
 		this.destroyed = true
 		this.reconstructing = false
+		// Diagnostic: if a hive is destroyed while still holding freight dock
+		// registrations, and those docks are not transferred beforehand, docked
+		// vehicles become "docked but unregistered" (→ repair warning + stalled
+		// bay convey). This must stay quiet during topology rebuilds where
+		// `flushTopologyRefreshBatch` already transferred the docks.
+		if (this.freightVehicleDocks.size > 0) {
+			traces.vehicle.warn?.('[dock.registry] hive destroyed with docks', {
+				hiveName: this.name,
+				docks: Array.from(this.freightVehicleDocks.values()).map(
+					(dock) => debugObjectId(dock.vehicle) ?? ''
+				),
+				stack: new Error().stack?.split('\n').slice(1, 6).join(' <- '),
+			})
+		}
 		this.wakeWanderingWorkersScheduled = false
 		if (this.exchangeWatchdogTimer) {
 			clearInterval(this.exchangeWatchdogTimer)
