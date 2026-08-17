@@ -31,7 +31,7 @@ describe('demoHive example game', () => {
 		expect(game.hex.getTile({ q: -4, r: 1 })?.content).toBeInstanceOf(BasicDwelling)
 		expect(game.hex.getTile({ q: -3, r: 1 })?.content).toBeInstanceOf(BuildDwelling)
 
-		expect(game.freightLines.map((line) => line.name)).toEqual(
+		expect([...game.freightLines].map((line) => line.name)).toEqual(
 			expect.arrayContaining([
 				'HearthLoop commons exchange',
 				'HearthLoop - Melindbury comfort loop',

@@ -59,7 +59,7 @@ describe('Vehicle dock tile synchronization', () => {
 			character.role = 'worker'
 			void character.scriptsContext
 
-			const line = game.freightLines[0]!
+			const line = [...game.freightLines][0]!
 			const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 
 			// Attach line service with anchor stop at (1,0), then board
@@ -119,7 +119,7 @@ describe('Vehicle dock tile synchronization', () => {
 			character.role = 'worker'
 			void character.scriptsContext
 
-			const line = game.freightLines[0]!
+			const line = [...game.freightLines][0]!
 			const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 
 			vehicle.beginService(line, line.stops.at(-1)!, character)
@@ -171,7 +171,7 @@ describe('Vehicle dock tile synchronization', () => {
 			character.role = 'worker'
 			void character.scriptsContext
 
-			const line = game.freightLines[0]!
+			const line = [...game.freightLines][0]!
 			const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 
 			vehicle.beginService(line, line.stops.at(-1)!, character)

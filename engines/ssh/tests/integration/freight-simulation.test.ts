@@ -235,7 +235,7 @@ describe('Freight simulation (gather + distribute)', () => {
 			worker.role = 'worker'
 			void worker.scriptsContext
 
-			const line = engine.game.freightLines[0]!
+			const line = [...engine.game.freightLines][0]!
 			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 2, r: 0 }, [line])
 			vehicle.beginService(line, line.stops[0]!, worker)
 			worker.operates = vehicle
@@ -327,9 +327,9 @@ describe('Freight simulation (gather + distribute)', () => {
 			const woodNeedBefore = site.remainingNeeds.wood ?? 0
 			expect(woodNeedBefore).toBeGreaterThan(0)
 
-			expect(engine.game.freightLines.some((l) => l.name === 'Wood distribute')).toBe(true)
+			expect([...engine.game.freightLines].some((l) => l.name === 'Wood distribute')).toBe(true)
 
-			const distLine = engine.game.freightLines.find((l) => l.name === 'Wood distribute')!
+			const distLine = [...engine.game.freightLines].find((l) => l.name === 'Wood distribute')!
 			const vehicle = engine.game.vehicles.createVehicle(lineFreightVehicleType(), { q: 0, r: 0 }, [
 				distLine,
 			])
@@ -433,7 +433,9 @@ describe('Freight simulation (gather + distribute)', () => {
 				}
 			}
 			const line = defined(
-				engine.game.freightLines.find((candidate) => candidate.name === 'Build flow materials'),
+				[...engine.game.freightLines].find(
+					(candidate) => candidate.name === 'Build flow materials'
+				),
 				'build-flow freight line'
 			)
 			engine.game.vehicles.createVehicle(lineFreightVehicleType(), { q: 1, r: 0 }, [line])

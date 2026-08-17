@@ -34,7 +34,7 @@ describe('dock registration when bay completes construction', () => {
 			const shell = createConstructionShell(tile, site)
 			tile.content = shell
 
-			const storedLine = engine.game.freightLines.find((l) => l.name === 'UC gather')!
+			const storedLine = [...engine.game.freightLines].find((l) => l.name === 'UC gather')!
 			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [
 				storedLine,
 			])

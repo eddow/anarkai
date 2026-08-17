@@ -6,7 +6,7 @@ import { bumpSelectionTitleVersion } from '@app/lib/globals'
 import { T } from '@app/lib/i18n'
 import { InspectorSection } from '@app/ui/anarkai'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
-import { effect, reactive } from 'mutts'
+import { effect } from 'mutts'
 import { tablerOutlineRepeat, tablerOutlineTrash } from 'pure-glyf/icons'
 import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { FreightLineDefinition, SyntheticFreightLineObject } from 'ssh/freight/freight-line'
@@ -20,6 +20,7 @@ import { isLineFreightVehicleType } from 'ssh/freight/line-freight-vehicles'
 import type { Game, TradeTransferLogEntry } from 'ssh/game'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { type AxialCoord, toAxialCoord } from 'ssh/utils'
+import { filterSet, findInSet, mapSet } from 'ssh/utils/iter'
 import FreightStopList from '../FreightStopList'
 import HardListSearchPicker, { type HardListSearchPickerItem } from '../HardListSearchPicker'
 import InspectorObjectLink from '../InspectorObjectLink'
@@ -306,7 +307,7 @@ function assignedVehiclesForLine(
 	line: FreightLineDefinition | undefined
 ): Vehicle[] {
 	if (!game?.vehicles || !line) return []
-	return [...game.vehicles].filter((vehicle) => vehicle.servedLines?.includes(line))
+	return filterSet(game.vehicles, (vehicle) => vehicle.servedLines?.includes(line))
 }
 
 function assignableVehicleItems(
@@ -314,33 +315,23 @@ function assignableVehicleItems(
 	line: FreightLineDefinition | undefined
 ): (HardListSearchPickerItem & { item: Vehicle })[] {
 	if (!game?.vehicles || !line) return []
-	return [...game.vehicles]
-		.filter((vehicle) => isLineFreightVehicleType(vehicle.vehicleType))
-		.filter((vehicle) => !vehicle.servedLines?.includes(line))
-		.map((vehicle) => ({
-			id: debugObjectId(vehicle) ?? '',
-			item: vehicle,
-			label: vehicle.title,
-			hint: `${vehicle.vehicleType} · ${vehicleStockSummary(vehicle)}`,
-			coord: vehicleCoord(vehicle),
-		}))
+	const compatible = filterSet(
+		game.vehicles,
+		(vehicle) =>
+			isLineFreightVehicleType(vehicle.vehicleType) && !vehicle.servedLines?.includes(line)
+	)
+	return mapSet(compatible, (vehicle) => ({
+		id: debugObjectId(vehicle) ?? '',
+		item: vehicle,
+		label: vehicle.title,
+		hint: `${vehicle.vehicleType} · ${vehicleStockSummary(vehicle)}`,
+		coord: vehicleCoord(vehicle),
+	}))
 }
 
 const FreightLineProperties = (props: FreightLinePropertiesProps) => {
-	const local = reactive({ revision: 0 })
 	const currentGame = () => props.lineObject?.game
-	const currentLine = () => {
-		void local.revision
-		const fallback = props.lineObject?.line
-		if (!fallback) return fallback
-		const g = currentGame()
-		if (!g) return fallback
-		// The line reference in `freightLines` might be a newer normalized version;
-		// return the live reference if the title still matches, otherwise the fallback.
-		const idx = g.freightLines.indexOf(fallback)
-		if (idx >= 0) return g.freightLines[idx]!
-		return fallback
-	}
+	const currentLine = () => props.lineObject?.line
 	const isAvailable = () => !!props.lineObject && !!currentLine()
 	const readOnly = () => !isAvailable()
 
@@ -369,7 +360,6 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 		const current = currentLine()
 		if (!g || !current) return
 		g.replaceFreightLine(current, normalizeFreightLineDefinition(next))
-		local.revision++
 		bumpSelectionTitleVersion()
 	}
 
@@ -396,7 +386,6 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 		if (!line || !g) return
 		g.removeFreightLine(line)
 		props.onClose?.()
-		local.revision++
 		bumpSelectionTitleVersion()
 	}
 
@@ -409,7 +398,6 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 			if (g.assignVehicleToFreightLine) g.assignVehicleToFreightLine(vehicle, line)
 			else vehicle.assignFreightLine?.(line)
 		}
-		local.revision++
 		bumpSelectionTitleVersion()
 	}
 
@@ -417,25 +405,18 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 		const line = currentLine()
 		const g = currentGame()
 		if (!line || !g) return
-		const vehicle = [...g.vehicles].find((v) => debugObjectId(v) === vehicleUid)
+		const vehicle = findInSet(g.vehicles, (v) => debugObjectId(v) === vehicleUid)
 		if (vehicle) {
 			if (g.unassignVehicleFromFreightLine) g.unassignVehicleFromFreightLine(vehicle, line)
 			else vehicle.unassignFreightLine?.(line)
 		}
-		local.revision++
 		bumpSelectionTitleVersion()
 	}
 
 	const lineName = () => currentLine()?.name ?? ''
 	const assignmentText = () => lineAssignmentText()
-	const assignedVehicles = () => {
-		void local.revision
-		return assignedVehiclesForLine(currentGame(), currentLine())
-	}
-	const availableVehicleItems = () => {
-		void local.revision
-		return assignableVehicleItems(currentGame(), currentLine())
-	}
+	const assignedVehicles = () => assignedVehiclesForLine(currentGame(), currentLine())
+	const availableVehicleItems = () => assignableVehicleItems(currentGame(), currentLine())
 
 	const statusLabel = (status: FreightLineRouteStatus): string => {
 		if (status === 'active') return 'Active'

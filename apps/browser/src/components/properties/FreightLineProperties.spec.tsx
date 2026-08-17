@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { document, latch } from '@sursaut/core'
+import { reactive } from 'mutts'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@app/lib/css', () => ({
@@ -223,9 +224,9 @@ describe('FreightLineProperties', () => {
 				vehicleType: 'wheelbarrow',
 				position: { q: 1, r: 0 },
 				storage: { stock: {} },
-				servedLines: [] as FreightLineDefinition[],
+				servedLines: reactive([]) as FreightLineDefinition[],
 				unassignFreightLine: vi.fn(() => {
-					vehicleRecords[0]!.servedLines = []
+					vehicleRecords[0]!.servedLines.splice(0, vehicleRecords[0]!.servedLines.length)
 				}),
 			} as any,
 		]
@@ -254,10 +255,10 @@ describe('FreightLineProperties', () => {
 			removeFreightLine,
 			removeFreightLineById: removeFreightLine,
 			assignVehicleToFreightLine: vi.fn((vehicle: any, line: any) => {
-				vehicle.servedLines = [line]
+				vehicle.servedLines.push(line)
 			}),
 			unassignVehicleFromFreightLine: vi.fn((vehicle: any, _line: any) => {
-				vehicle.servedLines = []
+				vehicle.servedLines.splice(0, vehicle.servedLines.length)
 			}),
 			vehicles: vehicleRecords,
 			procurementDefaults: { bufferPurchaseReserveVp: 80 },

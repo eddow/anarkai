@@ -40,7 +40,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const zoneStop = line.stops[0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('HopPrep', { q: 0, r: 0 })
@@ -97,7 +97,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const zoneStop = line.stops[0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('HopFlag', { q: 0, r: 0 })
@@ -142,7 +142,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const loadStop = line.stops[0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('AnchorDock', { q: 0, r: 0 })
@@ -197,7 +197,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const loadStop = line.stops[0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 2, r: 0 }, [line])
 		const character = game.population.createCharacter('AnchorDockPosition', { q: 2, r: 0 })
@@ -213,7 +213,9 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find((candidate) => candidate.name === 'ChopSaw (0, 0) gather')
+		const line = [...game.freightLines].find(
+			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
+		)
 		// ChopSaw gather is cyclic [anchor, zone]; bay dock is the anchor at stops[0].
 		const anchorStop = line?.stops.find((stop) => 'anchor' in stop)
 		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
@@ -253,7 +255,9 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find((candidate) => candidate.name === 'ChopSaw (0, 0) gather')
+		const line = [...game.freightLines].find(
+			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
+		)
 		// ChopSaw gather unload/dock anchor is stops[0].
 		const unloadStop = line?.stops[0]
 		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
@@ -311,7 +315,9 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find((candidate) => candidate.name === 'ChopSaw (0, 0) gather')
+		const line = [...game.freightLines].find(
+			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
+		)
 		const unloadStop = line?.stops[0]
 		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		if (!line || !unloadStop || !('anchor' in unloadStop) || !vehicle)
@@ -353,7 +359,9 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find((candidate) => candidate.name === 'ChopSaw (0, 0) gather')
+		const line = [...game.freightLines].find(
+			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
+		)
 		const unloadStop = line?.stops[0]
 		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
 		if (!line || !unloadStop || !('anchor' in unloadStop) || !vehicle)
@@ -415,7 +423,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		game.ticker.stop()
 
 		// Pick the explicit non-cyclic gather line, not the bootstrap implicit cyclic one.
-		const line = game.freightLines.find((l) => l.name === 'Dock after ads')!
+		const line = [...game.freightLines].find((l) => l.name === 'Dock after ads')!
 		if (!line) throw new Error('expected explicit Dock after ads line')
 		expect(line.cyclic).toBeFalsy()
 		const unloadStop = line.stops[1]!
@@ -491,7 +499,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const unloadStop = line.stops[1]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		vehicle.storage.addGood('wood', 1)
@@ -540,7 +548,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const zoneStop = line.stops[0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('ZoneDock', { q: 0, r: 0 })
@@ -593,7 +601,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const _zoneStop = line.stops[0]!
 		const anchorStop = line.stops[1]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])

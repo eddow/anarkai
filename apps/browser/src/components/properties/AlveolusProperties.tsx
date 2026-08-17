@@ -15,8 +15,8 @@ import { collectDockedVehiclesForBay, type DockedVehicleEntry } from 'ssh/freigh
 import {
 	createExchangeFreightLineDraftForFreightBay,
 	createSyntheticFreightLineObject,
+	type FreightLineDefinition,
 	findFreightLinesForStop,
-	normalizeFreightLineDefinition,
 	type SyntheticFreightLineObject,
 } from 'ssh/freight/freight-line'
 import type { Game } from 'ssh/game'
@@ -162,8 +162,8 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 	effect`alveolus-properties:storage-check`(() => {
 		const content = props.content
 		const game = props.game ?? content?.game
-		const freightLines = game?.freightLines ?? []
-		void freightLines.length
+		const freightLines = game?.freightLines ?? new Set<FreightLineDefinition>()
+		void freightLines.size
 		state.resolvedGame = game
 		state.isStorage = content instanceof StorageAlveolus
 		state.isTransform = content instanceof TransformAlveolus
@@ -260,10 +260,8 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 		if (!game || !(content instanceof FreightBayAlveolus)) return
 		const draft = createExchangeFreightLineDraftForFreightBay(content)
 		if (!draft) return
-		game.replaceFreightLine(draft, draft)
-		const merged =
-			game.freightLines.find((line) => line === draft) ?? normalizeFreightLineDefinition(draft)
-		selectInspectorObject(createSyntheticFreightLineObject(game, merged))
+		const stored = game.addFreightLine(draft)
+		selectInspectorObject(createSyntheticFreightLineObject(game, stored))
 	}
 
 	const assignedZoneIndices = () => props.content?.assignedZoneIndices ?? []

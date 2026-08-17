@@ -41,7 +41,7 @@ export class FreightBayAlveolus extends Alveolus {
 
 	private gatherFreightLines(): FreightLineDefinition[] {
 		const freightLines = this.tile?.game?.freightLines
-		if (!freightLines?.length) return []
+		if (!freightLines?.size) return []
 		return findGatherFreightLines(freightLines, this)
 	}
 

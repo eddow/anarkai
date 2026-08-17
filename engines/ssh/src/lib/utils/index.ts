@@ -1,5 +1,6 @@
 export * from './axial'
 export * from './identity'
+export * from './iter'
 export * from './mem'
 export * from './numbers'
 export * from './pathfinding'

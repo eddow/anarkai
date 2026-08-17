@@ -1,5 +1,5 @@
 import { defaultGatherFreightRadius } from 'engine-rules'
-import { markRaw } from 'mutts'
+import { reactive } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
 import type { Game } from 'ssh/game'
 import type { InspectorSelectableObject } from 'ssh/game/object'
@@ -85,10 +85,10 @@ export type FreightStop = {
 )
 
 export interface FreightLineDefinition {
-	readonly name: string
-	readonly stops: ReadonlyArray<FreightStop>
-	readonly cyclic?: boolean
-	readonly minBalanceAfterBuyVp?: number
+	name: string
+	stops: ReadonlyArray<FreightStop>
+	cyclic?: boolean
+	minBalanceAfterBuyVp?: number
 }
 
 export const DEFAULT_GATHER_FREIGHT_RADIUS = defaultGatherFreightRadius
@@ -236,29 +236,30 @@ function normalizeFreightStop(stop: FreightStop): FreightStop {
 		stop.minBalanceAfterBuyVp === undefined
 			? {}
 			: { minBalanceAfterBuyVp: Math.max(0, Math.floor(stop.minBalanceAfterBuyVp)) }
-	// Stops are identity-bearing route nodes. Keep them (and nested anchor/zone/trade
-	// objects) raw so reactive vehicle.service / servedLines storage never breaks `===`.
+	// Stops are reactive route nodes. mutts `reactive()` is identity-stable (returns the same
+	// proxy for the same target), so `===`/`sameRef` between a stop and the copy held by
+	// vehicle.service / servedLines still holds — no raw/markRaw exemption needed.
 	if ('anchor' in stop) {
-		return markRaw({
+		return reactive({
 			loadSelection,
 			unloadSelection,
 			...reserve,
-			anchor: markRaw(normalizeBayAnchor(stop.anchor)),
+			anchor: reactive(normalizeBayAnchor(stop.anchor)),
 		})
 	}
 	if ('trade' in stop) {
-		return markRaw({
+		return reactive({
 			loadSelection,
 			unloadSelection,
 			...reserve,
-			trade: markRaw(normalizeNpcTradeStop(stop.trade)),
+			trade: reactive(normalizeNpcTradeStop(stop.trade)),
 		})
 	}
-	return markRaw({
+	return reactive({
 		loadSelection,
 		unloadSelection,
 		...reserve,
-		zone: markRaw(normalizeFreightZone(stop.zone)),
+		zone: reactive(normalizeFreightZone(stop.zone)),
 	})
 }
 
@@ -336,11 +337,12 @@ export function findDistributeRouteSegments(
 /** Normalizes anchors, zones, and goods policies. Call when persisting or replacing a line. */
 export function normalizeFreightLineDefinition(line: FreightLineDefinition): FreightLineDefinition {
 	// Freight lines are identity-bearing registry objects (servedLines, vehicle.service.line,
-	// hop job plans). Keep the line, stops array, and each stop raw so mutts reactive proxies
-	// on Vehicle/Game never wrap them and break Object.is equality.
-	const normalized = markRaw({
+	// hop job plans). They are reactive so in-place edits propagate to the UI; mutts `reactive()`
+	// is identity-stable, so the same proxy is returned for the same target and `===`/`sameRef`
+	// comparisons between a line and the copy held by vehicles still hold.
+	const normalized = reactive({
 		name: line.name,
-		stops: markRaw(line.stops.map(normalizeFreightStop)),
+		stops: reactive(line.stops.map(normalizeFreightStop)),
 		...(line.cyclic === true ? { cyclic: true as const } : {}),
 		...(line.minBalanceAfterBuyVp === undefined
 			? {}

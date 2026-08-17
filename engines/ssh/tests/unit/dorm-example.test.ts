@@ -97,11 +97,11 @@ describe('dorm example game', () => {
 		expect(freightConstructionDemandTarget(chopperSite)?.remainingNeeds.stone).toBe(
 			chopperSite.requiredGoods.stone
 		)
-		expect(game.freightLines.map((line) => line.name)).toContain('Dorm:implicit-gather:0,1')
-		expect(game.freightLines.map((line) => line.name)).not.toContain('Dorm:distribute:0,1')
-		expect(game.freightLines.find((line) => line.name === 'Dorm:implicit-gather:0,1')?.cyclic).toBe(
-			true
-		)
+		expect([...game.freightLines].map((line) => line.name)).toContain('Dorm:implicit-gather:0,1')
+		expect([...game.freightLines].map((line) => line.name)).not.toContain('Dorm:distribute:0,1')
+		expect(
+			[...game.freightLines].find((line) => line.name === 'Dorm:implicit-gather:0,1')?.cyclic
+		).toBe(true)
 
 		const burdened = game.hex.getTile({ q: 3, r: 0 })!
 		const clear = game.hex.getTile({ q: 4, r: 0 })!
@@ -213,7 +213,9 @@ describe('dorm example game', () => {
 
 		// Construction staging at the bay is distribute/exchange semantics (load at anchor,
 		// provide at zone). Implicit gather is zone→anchor and does not create bay demand.
-		const line = game.freightLines.find((candidate) => candidate.name === 'Dorm (0, 1) exchange')
+		const line = [...game.freightLines].find(
+			(candidate) => candidate.name === 'Dorm (0, 1) exchange'
+		)
 		const stop = line?.stops.find((candidate) => 'anchor' in candidate)
 		expect(line).toBeDefined()
 		expect(stop).toBeDefined()

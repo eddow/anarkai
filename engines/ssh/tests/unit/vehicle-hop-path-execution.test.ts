@@ -15,7 +15,7 @@ describe('vehicleHop execution paths', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find(
+		const line = [...game.freightLines].find(
 			(candidate) => candidate.name === 'ChopSaw (0, 0) distribute'
 		)
 		const bayStop = line?.stops[0]

@@ -32,7 +32,7 @@ describe('dock registration proxy/raw identity', () => {
 				freightLines: [line],
 			} satisfies Partial<SaveState>)
 
-			const storedLine = engine.game.freightLines.find((l) => l.name === 'Identity gather')!
+			const storedLine = [...engine.game.freightLines].find((l) => l.name === 'Identity gather')!
 			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [
 				storedLine,
 			])

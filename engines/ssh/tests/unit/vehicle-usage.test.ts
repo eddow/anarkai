@@ -235,7 +235,7 @@ describe('Vehicle usage invariant', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const stop = line.stops[0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const first = game.population.createCharacter('UsageFirst', { q: 0, r: 0 })
@@ -298,7 +298,7 @@ describe('Vehicle usage invariant', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('UsageLock', { q: 0, r: 0 })
 		vehicle.beginLineService(line, line.stops[0]!, character)

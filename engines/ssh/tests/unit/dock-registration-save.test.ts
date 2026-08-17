@@ -29,7 +29,7 @@ describe('dock registration survives save/load', () => {
 			} satisfies Partial<SaveState>)
 
 			// Use the live line reference stored in `game.freightLines` (patches may normalize).
-			const storedLine = engine.game.freightLines.find((l) => l.name === 'Dock save gather')!
+			const storedLine = [...engine.game.freightLines].find((l) => l.name === 'Dock save gather')!
 			expect(storedLine).toBeDefined()
 			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [
 				storedLine,

@@ -16,6 +16,7 @@ import {
 } from 'ssh/freight/freight-line'
 import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
 import type { AxialCoord } from 'ssh/utils'
+import { filterSet, someInSet } from 'ssh/utils/iter'
 import { toAxialCoord, toWorldCoord } from 'ssh/utils/position'
 
 css`
@@ -236,8 +237,7 @@ function lineHasVisibleStop(line: FreightLineDefinition): boolean {
 }
 
 function lineHasVisibleServingVehicle(line: FreightLineDefinition): boolean {
-	const vehicles = game.vehicles ? [...game.vehicles] : []
-	return vehicles.some((vehicle) => {
+	return someInSet(game.vehicles, (vehicle) => {
 		const service = vehicle.service
 		return (
 			isVehicleLineService(service) &&
@@ -266,7 +266,7 @@ const LinesManagementWidget = (
 	const filteredLines = () => {
 		void state.viewportTick
 		const needle = state.text.trim().toLowerCase()
-		return (game.freightLines ?? []).filter((line) => {
+		return filterSet(game.freightLines, (line) => {
 			if (needle && !line.name.toLowerCase().includes(needle)) return false
 			if (state.noBayOnly && lineHasBay(line)) return false
 			if (state.visibleOnly && !lineIsVisible(line)) return false

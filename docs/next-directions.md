@@ -12,49 +12,68 @@ See [`./current-status.md`](./current-status.md) for what is already landed.
 
 ## Details to add
 
-- alveoli configurations (ex storage buffer/allowance) should be able to be memorized, given a name and re-used with a combo-box containing all applicable configurations, "specific" = for this alveoli only or the ability to create a new configuration (no add button, just entering a text in the combo and checking for conflict)
-- We'll need to add config for: locale, measure units (1 tile-border = 3m = 10feet), decimal/duo-decimal
-- we should have bay-less roads (from zone to zone)
+### Views vs state
+
+`const state = reactive({` - in components, a view with get/set is always prefered to a state (buffered and reactively updated values) - also, if something is in the props, it does not have to appear in the view
+
+### Freight & commerce
+
 - complete the exchange-route refactor: rename gather/distribute helpers and update route summaries / UI
   vocabulary to reflect per-stop load/unload selection rather than legacy segment concepts.
-- roads & velocity calculation. Some vehicles can just not drive beside roads. There should be a multiplier somewhere as well as a `min(road-max-velocity, vehicle/character-ax-velocity)`. How to calculate exactly the velocity for it to be realistic somehow but still simple ?
-- market analysis for settlement trade: compare settlement prices and positions, surface why Melindbury is
-  or is not a good source/sink, and keep the view focused on route decisions rather than finance UI.
+- market analysis for settlement trade: prices and positions are now compared, but still surface *why*
+  Melindbury is or is not a good source/sink, and keep the view focused on route decisions rather than
+  finance UI.
 - generate material shops, cafes, and other commerces as separate trade targets beyond city halls,
-  using the same board-pick model.
-- generated settlement zoning should move from simple center/ring assignment to a rules-owned civic /
-  residential / commercial / industrial mix. Civic must stay small and central, commercial can be mixed around
-  the core and road frontage, and larger residential/commercial areas should emerge farther out. Every occupied
-  generated settlement tile should neighbor an internal road/path; generate the street skeleton before assigning
-  parcels so roads structure zones instead of deleting them after the fact.
+  using the same board-pick model. Trade should depend on the present commerces: the vehicle drives to
+  the commerce on the road, stops on the shop border, and a convey-hop-like action occurs — the character
+  reaches the center and spawns (buy) / unspawns (sell) the good.
+- When providing to an external building (residence/construction/commerce), the vehicle should indeed stop
+  on the border and unloading the vehicle in the building should indeed be a convey-hop-like action
+  (character in the center of the tile, visible moving good).
 - long freight errands and hunger. A driver stopped in an NPC city should probably keep using the vehicle
   after loading/unloading; decide whether route planning should reserve carried snacks, schedule a meal
-  before departure, or allow temporary off-route eating near a stop. Note: this could wait for commercial zones so characters could "buy a snack"
-- When providing to an external building (residence/construction/commerce), the vehicle should indeed stop on the border and unloading the vehicle in the building should indeed be a convey-hop-like action (character in the center of the tile, visible moving good)
+  before departure, or allow temporary off-route eating near a stop. Note: this could wait for commercial
+  zones so characters could "buy a snack".
+
+### Roads & routing
+
+- we should have bay-less roads (from zone to zone).
+- roads & velocity calculation. Some vehicles can just not drive beside roads. There should be a multiplier
+  somewhere as well as a `min(road-max-velocity, vehicle/character-ax-velocity)`. How to calculate exactly
+  the velocity for it to be realistic somehow but still simple ?
+- road-aware vehicle routing: SUVs and wheelbarrows are off-road; pickup trucks are road-only, so their
+  lines should have a road available and vehicle hop pathfinding should read road state.
+
+### Alveoli & configuration
+
+- add config for: locale, measure units (1 tile-border = 3m = 10feet), decimal/duo-decimal.
+- unify external-work radius across all external-work alveoli (construction, foundation laying, road work,
+  harvesting). Decide how vehicle objects extend or constrain reach as configuration/equipment attached to
+  the hive or alveolus, rather than as a variant-only field.
+- When changing the variant, the alveolus storage should be emptied before re-construction.
+
+### Physical-load model
+
 - extend the forester tile-room rule into a general physical-load rule for future crops, generated loose
-  goods, and harvesting output.
-- specific commerces will have to be generated in settlements, trade should depend on the present commerces and the vehicle using the road should go to the commerce - again (un)loading to/from a vehicle: vehicle goes on the shop border's and a convey-hop-like occur, transaction is when the character in the center of the shop spawn(buy)/unspawn(sell) good
-- SUVs and wheelbarrows are off-road vehicles. Pickup trucks are road-only, so their lines should have a road available.
-- harvesting/generation output should eventually obey the same tile physical-load model as forester
-  planting, so rock/tree/crop outputs avoid overfilling already-burdened tiles.
+  goods, and harvesting output. Harvesting/generation output should obey the same tile physical-load model
+  as forester planting, so rock/tree/crop outputs avoid overfilling already-burdened tiles.
+
+### Bay queues
+
 - add player-facing bay queue authoring: select several freight bays in the same hive, group them as
   one shared dock operating area, name that group, and see the shared approach/queue overlay. The UI
   should expose service bays, detected approach branches, and optional waiting areas/parking/sidings;
   the internal queue graph should be derived from those choices rather than authored as nodes and edges
   directly. Wire vehicle job completion and service/exit lifecycle hooks to the registry.
-- unify external-work radius across all external-work alveoli (construction, foundation laying, road work,
-  harvesting). Decide how vehicle objects extend or constrain reach as configuration/equipment attached to
-  the hive or alveolus, rather than as a variant-only field.
-- When changing the variant, the alveolus storage should be emptied before re-construction
 
 ## Recommended Next Tranche
 
-The strongest immediate tranche is commerce and freight diagnostics polish: line-level idle/done
-explanation text, line-level cargo intent rollup, market price comparison, widget reorg (collapsible
-sections, header one-liner, line-click-from-bay fix), and the standalone `CommercialOverview` widget
-are now landed. The remaining piece is exchange-route vocabulary cleanup. After that, roads/path
-infrastructure is the natural larger-map move, shops/markets deepen demand, and a small content
-chain can add immediate play texture.
+Commerce and freight diagnostics polish is now largely landed: line-level idle/done explanation text,
+cargo intent rollup, market price comparison, widget reorg (collapsible sections, header one-liner,
+line-click-from-bay fix), and the standalone `CommercialOverview` widget are all in. The one remaining
+diagnostics piece is **exchange-route vocabulary cleanup**. After that, roads/path infrastructure is the
+natural larger-map move, shops/markets deepen demand, and a small content chain adds immediate play
+texture.
 
 ## Candidate Directions
 
@@ -64,17 +83,9 @@ Roads remain a natural bridge between hive logistics and larger world management
 
 Potential next scope:
 
-- City halls are "on" the road. Though, they are buildings. Beside, settlements should have all their residential/market/civil tiles connected to the road (in a settlement, 1-lane can be allowed)
-- Treat generated settlement streets as road/path infrastructure: all civic, residential, commercial, and light
-  industrial parcels should sit beside neighboring road-carrier tiles, not have roads entering their own tile,
-  while through-roads and larger corridors should stay distinguishable from narrow local lanes.
-- Generated inter-settlement asphalt roads should pass through or directly touch the settlement center/core;
-  local `path` streets can branch around them for block and parcel access.
-- Local settlement paths should all connect back to the main road/core graph and should avoid fully roaded 2x2
-  tile blocks; roads can cross river-influenced tiles but cannot reuse the river's own tile-border.
-- Settlement size and zone fill should stay rules-tuned: villages are no longer extremely tiny by default, and
-  residential/commercial/light industrial parcels should use more available road frontage statistically without
-  forcing every eligible tile to become occupied.
+- ~~Generated settlement streets and zoning~~ — landed: inter-settlement corridors are `asphalt`, local
+  streets are `path`, connected back to the road graph with rules-tuned zone mix and parcel density (see
+  [`current-status.md`](./current-status.md#roads)).
 - Allow several-lanes roads: each lane should have his direction (one-way or both) - ex. 2-lanes = 2 one-way lane. Find a way to fill gap between lanes with markings.
 - Texture: while Alpha is calculate, u,v could just be a projection of x,y in the seamless texture
 - Builder/project workflow for road construction instead of instant placement.
@@ -142,9 +153,9 @@ trying to become Simutrans all at once.
 Important first-level boundaries:
 
 - Useful procurement status:
-  - **Next V1.x:** route/market comparison by settlement position and price, last-transfer/history
-    display, and better visibility into docked vehicle intent: retained cargo, surplus cargo, actionable
-    rotations, and why a line is idle or done.
+  - **V1.x (landed):** route/market comparison by settlement position and price, last-transfer/history
+    display, and docked vehicle intent (retained cargo, surplus cargo, actionable rotations, and why a
+    line is idle or done).
   - **Later V2:** generated shop targets beyond city halls, source/sink suggestions, commercial/resale
     points, and consumption goods delivered to residential or shop areas.
 - Project and construction views should surface missing useful goods and possible physical supply routes
@@ -250,8 +261,8 @@ Risks:
 
 ## Suggested Ordering
 
-1. Commerce/freight diagnostics polish: clean up exchange-route vocabulary (line-level idle/done
-   explanation, cargo intent rollup, and settlement price comparison are now landed).
+1. Finish freight diagnostics polish: the only remaining piece is the exchange-route vocabulary cleanup
+   (idle/done explanation, cargo intent rollup, and settlement price comparison are already landed).
 2. Roads and velocity, especially where vehicle route choice should change the commerce outcome.
 3. One small content tranche that proves roads and imported materials matter.
 4. Shops/markets or NPC villages, depending on whether the next desired feeling is "internal economy" or
@@ -275,11 +286,11 @@ Small slices worth considering:
 
 - **Roads v2:** turn instant roads into build projects, add route-benefit summaries, and add at least one
   upgraded road kind/material.
-- **Commerce polish v1:** clean up exchange-route vocabulary (price comparison widget,
-  cargo diagnostics, and collapsible line widget are now landed).
+- **Commerce polish v1:** clean up exchange-route vocabulary (the price comparison widget,
+  cargo diagnostics, and collapsible line widget are already landed).
 - **Market v1:** one shop consumes one good type and creates a visible demand/satisfaction signal.
 - **Content v1:** add one new raw resource, one transformer, one produced good, and one construction recipe that uses it.
 - **Village v1:** generate one persisted external village with one import need and one export good.
 - **Terrain v1:** add biome-weighted deposit distribution and a seed debug panel.
 - **Freight route health v1:** add road-aware vehicle routing and line-level route benefit summaries
-  (idle/done explanation and cargo rollup are now landed).
+  (idle/done explanation and cargo rollup are already landed).

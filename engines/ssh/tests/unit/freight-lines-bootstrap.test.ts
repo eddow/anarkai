@@ -30,9 +30,9 @@ describe('Freight line bootstrap', () => {
 		const gather = content as FreightBayAlveolus
 		expect(gather.hive).toBeDefined()
 		expect(gather.storage.hasRoom('wood')).toBe(0)
-		expect(engine.game.freightLines.length).toBeGreaterThan(0)
+		expect(engine.game.freightLines.size).toBeGreaterThan(0)
 		expect(gather.action).not.toHaveProperty('radius')
-		const implicit = engine.game.freightLines[0]
+		const implicit = [...engine.game.freightLines][0]
 		expect(freightLineEditorGatherRadius(implicit!)).toBe(DEFAULT_GATHER_FREIGHT_RADIUS)
 		await engine.destroy()
 	})
@@ -66,7 +66,7 @@ describe('Freight line bootstrap', () => {
 				hives: [{ name: 'H', alveoli: [{ coord: [0, 0], alveolus: 'gather' } as never] }],
 			})
 			expect(engine.game.hex.getTile({ q: 0, r: 0 })?.content?.name).not.toBe('freight_bay')
-			expect(engine.game.freightLines).toEqual([])
+			expect([...engine.game.freightLines]).toEqual([])
 		} finally {
 			await engine.destroy()
 		}
@@ -106,9 +106,9 @@ describe('Freight line bootstrap', () => {
 			for (const extra of [...engine.game.freightLines]) {
 				if (extra.name !== 'Gather radius') engine.game.removeFreightLine(extra)
 			}
-			const line = engine.game.freightLines.find((l) => l.name === 'Gather radius')
+			const line = [...engine.game.freightLines].find((l) => l.name === 'Gather radius')
 			expect(line).toBeDefined()
-			expect(engine.game.freightLines).toHaveLength(1)
+			expect(engine.game.freightLines.size).toBe(1)
 			expect(gather.hasLooseGoodsToGather).toBe(false)
 			engine.game.replaceFreightLine(line!, applyGatherRadiusFromEditor(line!, 2))
 			expect(gather.hasLooseGoodsToGather).toBe(true)
@@ -185,7 +185,7 @@ describe('Freight line bootstrap', () => {
 				hives: [{ name: 'H', alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }] }],
 			}
 			engine.loadScenario(scenario)
-			const initial = engine.game.freightLines[0]
+			const initial = [...engine.game.freightLines][0]
 			expect(initial).toBeDefined()
 			const edited = applyGatherRadiusFromEditor(
 				normalizeFreightLineDefinition({
@@ -215,7 +215,9 @@ describe('Freight line bootstrap', () => {
 			await reloaded.game.loadGameData(saved)
 
 			// Rename leaves the implicit gather name free, so reload re-merges implicit + edited.
-			const reloadedLine = reloaded.game.freightLines.find((l) => l.name === 'Edited gather line')
+			const reloadedLine = [...reloaded.game.freightLines].find(
+				(l) => l.name === 'Edited gather line'
+			)
 			expect(reloadedLine).toBeDefined()
 			const loadStop = reloadedLine!.stops[0]
 			expect(loadStop?.loadSelection).toEqual({
@@ -250,7 +252,7 @@ describe('Freight line bootstrap', () => {
 				],
 			})
 
-			const line = engine.game.freightLines.find((l) => l.name === 'Distribute with radius')
+			const line = [...engine.game.freightLines].find((l) => l.name === 'Distribute with radius')
 			expect(line).toBeDefined()
 			expect(line?.stops).toHaveLength(2)
 			expect(line?.stops[0]?.loadSelection).toEqual({
@@ -304,7 +306,7 @@ describe('Freight line bootstrap', () => {
 				],
 			})
 
-			const line = engine.game.freightLines.find((entry) => entry.name === 'Named gather')!
+			const line = [...engine.game.freightLines].find((entry) => entry.name === 'Named gather')!
 			expect(findGatherRouteSegments(line)).toEqual([{ loadStopIndex: 0, unloadStopIndex: 1 }])
 			expect(findDistributeRouteSegments(line)).toEqual([])
 			expect(measureFreightStopProvidedGoods(engine.game, line, 0).perGood).toEqual({ wood: 1 })

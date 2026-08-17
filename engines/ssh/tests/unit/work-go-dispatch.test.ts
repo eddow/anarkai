@@ -34,7 +34,7 @@ describe('work.npcs dispatch', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('Dispatch', { q: 0, r: 0 })
 		void character.scriptsContext

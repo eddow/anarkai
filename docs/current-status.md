@@ -175,6 +175,10 @@ area stats using the documented `3m` hex side scale.
 Forester inspectors can assign named zones through the existing dropdown/chip pattern; assigned-zone chips
 open the corresponding zone inspector. Job/planner rows translate forester work as "Plant trees" rather
 than exposing the raw job id.
+Alveoli storage configurations (buffer/allowance setups) can be memorized under a name and re-applied via
+an editable combo-box in `StorageConfiguration`; `"specific"` keeps the current settings scoped to a single
+alveolus, while named presets (`NamedStorageConfig` registry) are stored in the component and reused across
+applicable alveoli.
 Line inspectors show the route on the board only while the inspector itself is hovered; unpinned line
 widgets close when selection moves elsewhere, matching the rest of the lightweight inspector behavior.
 

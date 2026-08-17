@@ -24,11 +24,11 @@ describe('Game freight line lifecycle', () => {
 				'distribute'
 			)
 			expect(draft).toBeDefined()
-			engine.game.replaceFreightLine(draft!, draft!)
-			const line = engine.game.freightLines.find((entry: any) => entry.name === draft!.name)!
-			const before = engine.game.freightLines.length
+			engine.game.addFreightLine(draft!)
+			const line = [...engine.game.freightLines].find((entry: any) => entry.name === draft!.name)!
+			const before = engine.game.freightLines.size
 			expect(engine.game.removeFreightLine(line)).toBe(true)
-			expect(engine.game.freightLines.length).toBe(before - 1)
+			expect(engine.game.freightLines.size).toBe(before - 1)
 		} finally {
 			await engine.destroy()
 		}
@@ -46,8 +46,8 @@ describe('Game freight line lifecycle', () => {
 				{ hive: bay.hive, name: 'freight_bay', tile: bay.tile },
 				'distribute'
 			)!
-			engine.game.replaceFreightLine(draft, draft)
-			const line = engine.game.freightLines.find((entry: any) => entry.name === draft.name)!
+			engine.game.addFreightLine(draft)
+			const line = [...engine.game.freightLines].find((entry: any) => entry.name === draft.name)!
 			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 2, r: 0 })
 			engine.game.assignVehicleToFreightLine(vehicle, line)
 			expect(vehicle.servedLines.map((entry) => entry.name)).toContain(line.name)

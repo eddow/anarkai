@@ -97,7 +97,7 @@ describe('Gatherer Conveying Integration', () => {
 		worker.assignedAlveolus = bay
 		bay.assignedWorker = worker
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 1 }, [line])
 		vehicle.beginService(line, line.stops[0]!, worker)
 		worker.operates = vehicle
@@ -151,7 +151,7 @@ describe('Gatherer Conveying Integration', () => {
 			worker.onboard()
 			vehicle.storage.addGood('wood', 1)
 
-			const line = game.freightLines.find((l) => l.name === 'Filtered gather')!
+			const line = [...game.freightLines].find((l) => l.name === 'Filtered gather')!
 			const zoneStop = gatherZoneLoadStopForBay(line, gatherer)
 			expect(zoneStop).toBeDefined()
 			const hiveNeeds = aggregateHiveNeedTypes(game)

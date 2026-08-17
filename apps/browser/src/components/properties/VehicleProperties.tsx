@@ -27,6 +27,7 @@ import {
 } from 'ssh/population/vehicle/vehicle'
 import type { GoodType, JobType } from 'ssh/types/base'
 import { type AxialCoord, axial, toAxialCoord } from 'ssh/utils'
+import { filterSet, mapSet } from 'ssh/utils/iter'
 import EntityBadge from '../EntityBadge'
 import GoodsList from '../GoodsList'
 import HardListSearchPicker, { type HardListSearchPickerItem } from '../HardListSearchPicker'
@@ -340,15 +341,16 @@ function assignableLineItems(
 ): (HardListSearchPickerItem & { item: FreightLineDefinition })[] {
 	if (!isLineFreightVehicleType(vehicle.vehicleType)) return []
 	const assigned = new Set((vehicle.servedLines ?? []).map((line) => line.name))
-	return (vehicle.game.freightLines ?? [])
-		.filter((line) => !assigned.has(line.name))
-		.map((line) => ({
+	return mapSet(
+		filterSet(vehicle.game.freightLines, (line) => !assigned.has(line.name)),
+		(line) => ({
 			id: debugObjectId(line) ?? '',
 			item: line,
 			label: line.name,
 			hint: lineHint(vehicle.game, line),
 			coord: lineCoord(vehicle.game, line),
-		}))
+		})
+	)
 }
 
 const VehicleProperties = (
@@ -357,7 +359,6 @@ const VehicleProperties = (
 ) => {
 	const state = reactive({
 		workChoices: [] as VehicleWorkChoice[],
-		revision: 0,
 		stock: {} as Record<string, number>,
 		stockRevision: 0,
 	})
@@ -403,16 +404,11 @@ const VehicleProperties = (
 
 	const resolveWorkTarget = (choice: VehicleWorkChoice) => choice.targetTile
 	const assignmentText = () => vehicleAssignmentText()
-	const assignedLineObjects = () => {
-		void state.revision
-		return (props.vehicle?.servedLines ?? []).map((line) =>
+	const assignedLineObjects = () =>
+		(props.vehicle?.servedLines ?? []).map((line) =>
 			createSyntheticFreightLineObject(props.vehicle.game, line)
 		)
-	}
-	const availableLineItems = () => {
-		void state.revision
-		return props.vehicle ? assignableLineItems(props.vehicle) : []
-	}
+	const availableLineItems = () => (props.vehicle ? assignableLineItems(props.vehicle) : [])
 
 	const assignLine = (lineId: string) => {
 		const vehicle = props.vehicle
@@ -424,7 +420,6 @@ const VehicleProperties = (
 				vehicle.game.assignVehicleToFreightLine(vehicle, line)
 			else vehicle.assignFreightLine?.(line)
 		}
-		state.revision++
 	}
 
 	const unassignLine = (lineId: string) => {
@@ -436,7 +431,6 @@ const VehicleProperties = (
 				vehicle.game.unassignVehicleFromFreightLine(vehicle, line)
 			else vehicle.unassignFreightLine?.(line)
 		}
-		state.revision++
 	}
 
 	effect`vehicle-properties:title`(() => {

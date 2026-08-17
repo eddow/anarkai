@@ -352,7 +352,7 @@ describe('Hive Offload Scenario', () => {
 				],
 			} as any)
 
-			const line = game.freightLines[0]!
+			const line = [...game.freightLines][0]!
 			const unloadStop = line.stops[1]!
 			const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			const dockActor = engine.spawnCharacter('DockActor', { q: 0, r: 0 })
@@ -424,7 +424,7 @@ describe('Hive Offload Scenario', () => {
 			// Start gather line service at the zone (stop 0) so the worker can
 			// load loose wood onto the wheelbarrow via zoneBrowse, then deliver
 			// to the bay anchor (stop 1).
-			const line = game.freightLines[0]!
+			const line = [...game.freightLines][0]!
 			const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			vehicle.beginLineService(line, line.stops[0]!, worker)
 			worker.operates = vehicle

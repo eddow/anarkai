@@ -43,7 +43,7 @@ describe('dock registration survives hive split', () => {
 				freightLines: [line],
 			} satisfies Partial<SaveState>)
 
-			const storedLine = engine.game.freightLines.find((l) => l.name === 'Split dock gather')!
+			const storedLine = [...engine.game.freightLines].find((l) => l.name === 'Split dock gather')!
 			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [
 				storedLine,
 			])

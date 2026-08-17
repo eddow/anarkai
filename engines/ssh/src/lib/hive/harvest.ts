@@ -28,7 +28,7 @@ export class HarvestAlveolus extends TransitAlveolus {
 	@memoize
 	get hiveHasCollector() {
 		const freightLines = this.tile?.game?.freightLines
-		if (!freightLines?.length) return 0
+		if (!freightLines?.size) return 0
 		return Array.from(this.hive.alveoli).filter(
 			(alveolus) => !!findGatherFreightLine(freightLines, alveolus)
 		).length

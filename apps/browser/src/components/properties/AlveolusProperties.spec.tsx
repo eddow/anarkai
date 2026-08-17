@@ -21,7 +21,7 @@ const createExchangeFreightLineDraftForFreightBay = vi.fn(() => ({
 	stops: [],
 }))
 const queryConstructionSiteView = vi.fn()
-const replaceFreightLine = vi.fn()
+const addFreightLine = vi.fn()
 const removeFreightLineById = vi.fn()
 
 const { MockForesterAlveolus, MockFreightBayAlveolus, MockStorageAlveolus, MockTransformAlveolus } =
@@ -252,7 +252,7 @@ describe('AlveolusProperties', () => {
 		createSyntheticFreightLineObject.mockClear()
 		createExchangeFreightLineDraftForFreightBay.mockClear()
 		selectInspectorObject.mockClear()
-		replaceFreightLine.mockClear()
+		addFreightLine.mockClear()
 		removeFreightLineById.mockClear()
 		queryConstructionSiteView.mockReset()
 		queryConstructionSiteView.mockReturnValue(undefined)
@@ -299,7 +299,7 @@ describe('AlveolusProperties', () => {
 								working: true,
 							} as never
 						}
-						game={{ freightLines: [{}, {}], replaceFreightLine, removeFreightLineById } as never}
+						game={{ freightLines: [{}, {}], addFreightLine, removeFreightLineById } as never}
 					/>
 				</tbody>
 			</table>
@@ -312,8 +312,9 @@ describe('AlveolusProperties', () => {
 		const game = {
 			freightLines: [] as { id: string; name: string; stops: unknown[] }[],
 			vehicles: [],
-			replaceFreightLine(line: { id: string; name: string; stops: unknown[] }) {
+			addFreightLine(line: { id: string; name: string; stops: unknown[] }) {
 				game.freightLines = [line]
+				return line
 			},
 		}
 		const bay = new MockFreightBayAlveolus()
@@ -336,7 +337,7 @@ describe('AlveolusProperties', () => {
 		const game = reactive({
 			freightLines: [] as { id: string; name: string; stops: unknown[] }[],
 			vehicles: [],
-			replaceFreightLine,
+			addFreightLine,
 			removeFreightLineById,
 		})
 		findFreightLinesForStop.mockImplementation(() => game.freightLines as never)
@@ -367,7 +368,7 @@ describe('AlveolusProperties', () => {
 					<AlveolusProperties
 						content={bay as never}
 						game={
-							{ freightLines: [], vehicles: [], replaceFreightLine, removeFreightLineById } as never
+							{ freightLines: [], vehicles: [], addFreightLine, removeFreightLineById } as never
 						}
 					/>
 				</tbody>

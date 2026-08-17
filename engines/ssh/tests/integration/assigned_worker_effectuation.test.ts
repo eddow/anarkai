@@ -36,7 +36,7 @@ describe('Assigned worker effectuation', () => {
 			expect(gather).toBeDefined()
 			if (!gather) throw new Error('Expected gatherer to exist')
 
-			const line = engine.game.freightLines[0]
+			const line = [...engine.game.freightLines][0]
 			if (!line) throw new Error('Expected implicit gather freight line for road-fret bay')
 
 			const worker = engine.spawnCharacter('AssignedGatherWorker', { q: 0, r: 0 })

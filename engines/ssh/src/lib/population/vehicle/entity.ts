@@ -315,7 +315,7 @@ export class Vehicle extends withInteractive(GameObject) {
 			vehicleType: this.vehicleType,
 			position: this.position,
 			effectivePosition: this.effectivePosition,
-			servedLineIndices: this.servedLines.map((line) => this.game.freightLines.indexOf(line)),
+			servedLineIds: this.servedLines.map((line) => debugObjectId(line) ?? ''),
 			operatorUid: debugObjectId(this.operator),
 			service:
 				svc && isVehicleLineService(svc)
@@ -392,8 +392,7 @@ export class Vehicle extends withInteractive(GameObject) {
 								operatorUid: debugObjectId(svc.operator),
 							}
 						: undefined,
-			servedLineIndices: this.servedLines.map((line) => this.game.freightLines.indexOf(line)),
-			stock: this.storage.stock,
+			servedLineIds: this.servedLines.map((line) => debugObjectId(line) ?? ''),
 		}
 	}
 
@@ -620,38 +619,33 @@ export class Vehicle extends withInteractive(GameObject) {
 	}
 
 	/**
-	 * Rebind served-line / active-service references after a registry replace.
-	 * `original` is the previous object identity still held by vehicles; `updated` is the
-	 * normalized replacement now stored in `game.freightLines`.
+	 * Current index of this vehicle's active line-service stop within `line`,
+	 * or -1 when this vehicle has no active service on `line`.
 	 */
-	refreshFreightLineReference(
-		original: FreightLineDefinition,
-		updated: FreightLineDefinition = original
-	): void {
-		let changed = false
-		const next = this.servedLines.map((entry) => {
-			if (entry !== original && entry !== updated) return entry
-			changed = true
-			return updated
-		})
+	lineStopIndexFor(line: FreightLineDefinition): number {
 		const svc = this.service
-		if (isVehicleLineService(svc) && (svc.line === original || svc.line === updated)) {
-			const oldStopIndex = svc.line.stops.indexOf(svc.stop)
-			svc.line = updated
-			const stop = oldStopIndex >= 0 ? updated.stops[oldStopIndex] : undefined
-			if (stop) {
-				const wasDocked = this.isDocked
-				if (wasDocked && !sameAnchorStop(svc.stop, stop)) {
-					this.enqueueDockPresentationChange()
-					this.restoreWorldPositionFromDock('refresh-line')
-					svc.docked = false
-				}
-				svc.stop = stop
+		if (!isVehicleLineService(svc) || svc.line !== line) return -1
+		return svc.line.stops.indexOf(svc.stop)
+	}
+
+	/**
+	 * Re-point the active line-service stop after the line's stops were edited in
+	 * place. Line identity is unchanged; only the stops array was replaced, so
+	 * `svc.stop` is re-resolved by its previous index.
+	 */
+	rebindFreightLineStop(line: FreightLineDefinition, previousStopIndex: number): void {
+		const svc = this.service
+		if (!isVehicleLineService(svc) || svc.line !== line) return
+		const stop = previousStopIndex >= 0 ? line.stops[previousStopIndex] : undefined
+		if (stop) {
+			const wasDocked = this.isDocked
+			if (wasDocked && !sameAnchorStop(svc.stop, stop)) {
+				this.enqueueDockPresentationChange()
+				this.restoreWorldPositionFromDock('refresh-line')
+				svc.docked = false
 			}
-			changed = true
+			svc.stop = stop
 		}
-		if (changed) this.setServedLines(next, 'vehicle.refresh-line')
-		if (changed) this.game.invalidateWorkPlanning('vehicle.refresh-line')
 	}
 
 	override destroy(): void {

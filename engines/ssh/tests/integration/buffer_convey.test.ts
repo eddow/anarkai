@@ -84,7 +84,7 @@ describe('Storage Buffering', () => {
 
 			storageAlveolus.setBuffers({ wood: 10 })
 
-			const line = game.freightLines[0]!
+			const line = [...game.freightLines][0]!
 			const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 2, r: 0 }, [line])
 			vehicle.beginService(line, line.stops[0]!, gathererWorker)
 			gathererWorker.operates = vehicle
@@ -161,7 +161,7 @@ describe('Storage Buffering', () => {
 
 			woodpileAlveolus.setBuffers({ wood: 10 })
 
-			const line = game.freightLines[0]!
+			const line = [...game.freightLines][0]!
 			const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 2, r: 0 }, [line])
 			vehicle.beginService(line, line.stops[0]!, gathererWorker)
 			gathererWorker.operates = vehicle

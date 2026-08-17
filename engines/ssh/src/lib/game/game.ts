@@ -514,8 +514,15 @@ export class Game extends Eventful<GameEvents> {
 	public readonly playerAccount = reactive<PlayerAccountPatch>({
 		balanceVp: commerce.startingAccountBalanceVp,
 	})
-	/** Registered freight lines (gather/distribute); merged at bootstrap from hive patches and explicit saves. */
-	public freightLines: FreightLineDefinition[] = []
+	/**
+	 * Registered freight lines (gather/distribute); merged at bootstrap from hive patches
+	 * and explicit saves. A reactive `Set` keyed by object identity — the array form exists
+	 * only in the serialized savefile (and the transient {@link unpackedFreightLines} buffer).
+	 * Iteration order is insertion order.
+	 */
+	public freightLines = reactive(new Set<FreightLineDefinition>())
+	/** Transient unpack buffer: freight lines in serialized array order, valid only while deserializing. */
+	private unpackedFreightLines: FreightLineDefinition[] = []
 	// Dynamically loaded usage of Hive class
 	private HiveClass?: typeof Hive
 
@@ -839,26 +846,34 @@ export class Game extends Eventful<GameEvents> {
 		return current()
 	}
 
-	/** Registers or updates a freight line in the game's line registry.
+	/** Register a new freight line in the registry, returning the normalized canonical instance. */
+	addFreightLine(line: FreightLineDefinition): FreightLineDefinition {
+		const normalized = normalizeFreightLineDefinition(line)
+		this.freightLines.add(normalized)
+		return normalized
+	}
+
+	/**
+	 * Apply `updated` onto `original` in place, preserving `original`'s identity so
+	 * vehicles holding the line reference keep pointing at it. Active line services
+	 * are re-pointed to the stop at their previous index (the stops array is replaced).
 	 *
-	 * Identifies the existing line by object reference (`===`). If the line is new
-	 * (not found in `freightLines`), it's appended. If it replaces an existing entry,
-	 * all vehicles serving the old line reference are refreshed to point to the new one.
-	 *
-	 * @param original The line currently in `game.freightLines` (used for identity lookup).
-	 * @param updated  The replacement definition (will be normalized before storage).
+	 * @param original The registered line to mutate (identity preserved).
+	 * @param updated  The replacement definition (normalized before applying).
 	 */
 	replaceFreightLine(original: FreightLineDefinition, updated: FreightLineDefinition): void {
 		const normalized = normalizeFreightLineDefinition(updated)
-		const index = this.freightLines.indexOf(original)
-		if (index < 0) {
-			this.freightLines = [...this.freightLines, normalized]
-			return
+		const rebinds: Array<{ vehicle: Vehicle; stopIndex: number }> = []
+		for (const vehicle of this.vehicles) {
+			const stopIndex = vehicle.lineStopIndexFor(original)
+			if (stopIndex >= 0) rebinds.push({ vehicle, stopIndex })
 		}
-		const next = [...this.freightLines]
-		next[index] = normalized
-		this.freightLines = next
-		for (const vehicle of this.vehicles) vehicle.refreshFreightLineReference(original, normalized)
+		original.name = normalized.name
+		original.stops = normalized.stops
+		original.cyclic = normalized.cyclic
+		original.minBalanceAfterBuyVp = normalized.minBalanceAfterBuyVp
+		for (const { vehicle, stopIndex } of rebinds) vehicle.rebindFreightLineStop(original, stopIndex)
+		this.invalidateWorkPlanning('freight-line.edit')
 	}
 
 	/** Assign a vehicle to a freight line. */
@@ -876,9 +891,7 @@ export class Game extends Eventful<GameEvents> {
 	 * that were serving it.
 	 */
 	removeFreightLine(line: FreightLineDefinition): boolean {
-		const next = this.freightLines.filter((entry) => entry !== line)
-		if (next.length === this.freightLines.length) return false
-		this.freightLines = next
+		if (!this.freightLines.delete(line)) return false
 		for (const vehicle of this.vehicles) vehicle.unassignFreightLine(line)
 		return true
 	}
@@ -2231,8 +2244,11 @@ export class Game extends Eventful<GameEvents> {
 		for (const line of implicit) merged.set(line.name, normalizeFreightLineDefinition(line))
 		for (const line of patches.freightLines ?? [])
 			merged.set(line.name, normalizeFreightLineDefinition(line))
-		this.freightLines = [...merged.values()]
-		hydrateFreightLineTradeProfiles(this.freightLines, this)
+		// Keep the serialized order for index resolution during deserialization.
+		this.unpackedFreightLines = [...merged.values()]
+		this.freightLines.clear()
+		for (const line of this.unpackedFreightLines) this.freightLines.add(line)
+		hydrateFreightLineTradeProfiles(this.unpackedFreightLines, this)
 	}
 
 	private applyTilePatches(patches: NonNullable<GamePatches['tiles']>) {
@@ -2599,7 +2615,7 @@ export class Game extends Eventful<GameEvents> {
 		this.withObjectRegistrationBatch(() => {
 			for (const entry of vehicles) {
 				const servedLines = (entry.servedLineIndices ?? [])
-					.map((idx) => this.freightLines[idx])
+					.map((idx) => this.unpackedFreightLines[idx])
 					.filter((line): line is FreightLineDefinition => !!line)
 				const vehicle = this.vehicles.createVehicle(
 					entry.vehicleType,
@@ -2624,7 +2640,7 @@ export class Game extends Eventful<GameEvents> {
 				}
 				const line =
 					typeof linePayload.lineIndex === 'number'
-						? this.freightLines[linePayload.lineIndex]
+						? this.unpackedFreightLines[linePayload.lineIndex]
 						: undefined
 				if (!line) continue
 				const stop = line.stops[linePayload.stopIndex]
@@ -2856,8 +2872,10 @@ export class Game extends Eventful<GameEvents> {
 		for (const v of this.vehicles) allVehicles.push(v)
 		for (const c of this.population) allCharacters.push(c)
 
+		const serializedFreightLines = [...this.freightLines]
 		const lineIndex = new Map<FreightLineDefinition, number>()
-		for (let i = 0; i < this.freightLines.length; i++) lineIndex.set(this.freightLines[i]!, i)
+		for (let i = 0; i < serializedFreightLines.length; i++)
+			lineIndex.set(serializedFreightLines[i]!, i)
 		const characterIndex = new Map<Character, number>()
 		for (let i = 0; i < allCharacters.length; i++) characterIndex.set(allCharacters[i]!, i)
 		const vehicleIndex = new Map<Vehicle, number>()
@@ -2871,7 +2889,7 @@ export class Game extends Eventful<GameEvents> {
 					working: hive.working,
 					alveoli,
 				})),
-				freightLines: [...this.freightLines],
+				freightLines: serializedFreightLines,
 				looseGoods: looseGoodsPatches,
 				streamedFrontier,
 				zones: zoneTypePatches,
@@ -2932,7 +2950,7 @@ export class Game extends Eventful<GameEvents> {
 			materializedGameplayTiles: this.materializedGameplayCoords.size,
 			objects: this.objects.size,
 			hives: (state.hives ?? []).length,
-			freightLines: this.freightLines.length,
+			freightLines: this.freightLines.size,
 		})
 
 		this.residentialDemandTicker = new ResidentialDemandTicker(this)
@@ -2946,7 +2964,7 @@ export class Game extends Eventful<GameEvents> {
 				this,
 				state.serializedVehicles,
 				characters,
-				this.freightLines
+				this.unpackedFreightLines
 			)
 
 			// Wire character→vehicle references (characters' operatedVehicleIndex → actual Vehicle)

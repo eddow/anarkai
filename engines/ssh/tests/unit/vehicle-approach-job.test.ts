@@ -141,8 +141,8 @@ describe('findVehicleApproachJob', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const farLine = game.freightLines.find((l) => l.name === 'Far')!
-		const nearLine = game.freightLines.find((l) => l.name === 'Near')!
+		const farLine = [...game.freightLines].find((l) => l.name === 'Far')!
+		const nearLine = [...game.freightLines].find((l) => l.name === 'Near')!
 		expect(farLine).toBeDefined()
 		expect(nearLine).toBeDefined()
 

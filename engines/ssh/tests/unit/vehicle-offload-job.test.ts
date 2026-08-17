@@ -360,7 +360,7 @@ describe('findVehicleOffloadJob', () => {
 				],
 				freightLines: [lineDef],
 			} as any)
-			const line = game.freightLines.find((l) => l.name === 'Orphan gather')!
+			const line = [...game.freightLines].find((l) => l.name === 'Orphan gather')!
 			const vehicle = game.vehicles.createVehicle('wheelbarrow', center, [line])
 			vehicle.storage.addGood('mushrooms', 1)
 			const char = engine.spawnCharacter('Worker', center)
@@ -417,7 +417,7 @@ describe('findVehicleOffloadJob', () => {
 					},
 				],
 			} as any)
-			const line = game.freightLines.find((entry) => entry.name === 'Loaded gather')!
+			const line = [...game.freightLines].find((entry) => entry.name === 'Loaded gather')!
 			const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 3, r: 0 }, [line])
 			vehicle.storage.addGood('wood', 1)
 			const char = engine.spawnCharacter('Worker', { q: 3, r: 0 })
@@ -574,7 +574,7 @@ describe('findVehicleOffloadJob', () => {
 					},
 				],
 			} as any)
-			const line = game.freightLines[0]!
+			const line = [...game.freightLines][0]!
 			game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			const char = engine.spawnCharacter('Worker', { q: 0, r: 1 })
 			void char.scriptsContext
@@ -632,7 +632,7 @@ describe('findVehicleOffloadJob', () => {
 					},
 				],
 			} as any)
-			const line = game.freightLines[0]!
+			const line = [...game.freightLines][0]!
 			game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			const char = engine.spawnCharacter('Worker', { q: 0, r: 1 })
 			void char.scriptsContext
@@ -695,7 +695,7 @@ describe('findVehicleOffloadJob', () => {
 				looseGoods: [{ goodType: 'wood', position: { q: 1, r: 0 } }],
 				freightLines: [lineDef],
 			})
-			const line = game.freightLines[0]!
+			const line = [...game.freightLines][0]!
 			game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 			const char = engine.spawnCharacter('Worker', { q: 0, r: 1 })
 			void char.scriptsContext

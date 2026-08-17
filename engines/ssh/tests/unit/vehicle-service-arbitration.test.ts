@@ -88,8 +88,8 @@ describe('Vehicle begin-service arbitration', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const far = game.freightLines.find((l) => l.name === 'arb:far')!
-		const near = game.freightLines.find((l) => l.name === 'arb:near')!
+		const far = [...game.freightLines].find((l) => l.name === 'arb:far')!
+		const near = [...game.freightLines].find((l) => l.name === 'arb:near')!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [far, near])
 		const character = game.population.createCharacter('Arb', { q: 0, r: 0 })
 		bindOperatedWheelbarrowOffload(character, vehicle)
@@ -116,7 +116,7 @@ describe('Vehicle begin-service arbitration', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('Empty', { q: 0, r: 0 })
 		bindOperatedWheelbarrowOffload(character, vehicle)
@@ -162,7 +162,7 @@ describe('Vehicle begin-service arbitration', () => {
 		const siteTile = game.hex.getTile({ q: 0, r: 1 })!
 		siteTile.content = new BuildDwelling(siteTile, 'basic_dwelling')
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		vehicle.storage.addGood('wood', 1)
 
@@ -278,8 +278,8 @@ describe('Vehicle begin-service arbitration', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const berries = game.freightLines.find((l) => l.name === 'arb:berries')!
-		const wood = game.freightLines.find((l) => l.name === 'arb:wood')!
+		const berries = [...game.freightLines].find((l) => l.name === 'arb:berries')!
+		const wood = [...game.freightLines].find((l) => l.name === 'arb:wood')!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [berries, wood])
 		vehicle.storage.addGood('wood', 1)
 		const character = game.population.createCharacter('Tie', { q: 0, r: 0 })
@@ -307,7 +307,7 @@ describe('Vehicle begin-service arbitration', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('NoSite', { q: 0, r: 0 })
 		bindOperatedWheelbarrowOffload(character, vehicle)
@@ -333,7 +333,7 @@ describe('Vehicle begin-service arbitration', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		vehicle.storage.addGood('wood', 1)
 		const character = game.population.createCharacter('LoadedIdle', { q: 0, r: 0 })
@@ -372,7 +372,7 @@ describe('Vehicle begin-service arbitration', () => {
 		const idleTile = game.hex.getTile({ q: 0, r: 0 })!
 		const dockTile = game.hex.getTile({ q: 1, r: 0 })!
 		for (const good of game.hex.looseGoods.getGoodsAt(dockTile.position)) good.remove()
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const unloadStop = line.stops[1]!
 
 		game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
@@ -434,7 +434,7 @@ describe('Vehicle begin-service arbitration', () => {
 		game.ticker.stop()
 
 		// Pick the explicit non-cyclic gather line, not the bootstrap implicit cyclic one.
-		const line = game.freightLines.find((l) => l.name === 'Park after dock')!
+		const line = [...game.freightLines].find((l) => l.name === 'Park after dock')!
 		if (!line) throw new Error('expected explicit Park after dock line')
 		expect(line.cyclic).toBeFalsy()
 		const unloadStop = line.stops[1]!
@@ -502,7 +502,7 @@ describe('Vehicle begin-service arbitration', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const unloadStop = line.stops[1]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('Unload', { q: 0, r: 0 })
@@ -604,7 +604,7 @@ describe('Vehicle begin-service arbitration', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const actor = game.population.createCharacter('Replan', { q: 0, r: 0 })
 		vehicle.beginService(line, line.stops[0]!, actor)
@@ -663,7 +663,7 @@ describe('Vehicle begin-service arbitration', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const unloadStop = line.stops[1]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const actor = game.population.createCharacter('DockStepActor', { q: 0, r: 0 })
@@ -717,7 +717,7 @@ describe('Vehicle begin-service arbitration', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('ZoneFull', { q: 0, r: 0 })
 		vehicle.beginService(line, line.stops[0]!, character)
@@ -768,8 +768,8 @@ describe('Vehicle begin-service arbitration', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const noAction = game.freightLines.find((line) => line.name === 'arb:no-action')!
-		const truckAction = game.freightLines.find((line) => line.name === 'arb:truck-action')!
+		const noAction = [...game.freightLines].find((line) => line.name === 'arb:no-action')!
+		const truckAction = [...game.freightLines].find((line) => line.name === 'arb:truck-action')!
 		game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [noAction])
 		game.vehicles.createVehicle('pickup_truck', { q: 6, r: 0 }, [truckAction], 'arb-far-truck')
 		const character = game.population.createCharacter('Approach', { q: 0, r: 0 })
@@ -807,7 +807,7 @@ describe('Vehicle begin-service arbitration', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [line])
 		vehicle.storage.addGood('wood', 1)
 		vehicle.beginLineService(line, line.stops[0]!)
@@ -849,7 +849,7 @@ describe('Vehicle begin-service arbitration', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [line])
 		vehicle.beginLineService(line, line.stops[0]!)
 		vehicle.storage.addGood('wood', 1)
@@ -895,7 +895,7 @@ describe('Vehicle begin-service arbitration', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('ZoneBrowseScore', { q: 0, r: 0 })
 		vehicle.beginService(line, line.stops[0]!, character)

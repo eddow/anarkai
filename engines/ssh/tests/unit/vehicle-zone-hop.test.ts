@@ -73,7 +73,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('Test', { q: 0, r: 0 })
 		bindOperatedWheelbarrowOffload(character, vehicle)
@@ -108,7 +108,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find((candidate) => candidate.name === 'Border dock')!
+		const line = [...game.freightLines].find((candidate) => candidate.name === 'Border dock')!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0.5, r: 0 }, [line])
 		const character = game.population.createCharacter('BorderDockWorker', { q: 0, r: 0 })
 		vehicle.beginLineService(line, line.stops[0]!, character)
@@ -146,7 +146,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find((candidate) => candidate.name === 'Adjacent dock')!
+		const line = [...game.freightLines].find((candidate) => candidate.name === 'Adjacent dock')!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('AdjacentDockWorker', { q: 0, r: 0 })
 		vehicle.beginLineService(line, line.stops[0]!, character)
@@ -188,7 +188,9 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find((candidate) => candidate.name === 'Completed dock line')!
+		const line = [...game.freightLines].find(
+			(candidate) => candidate.name === 'Completed dock line'
+		)!
 		const stop = line.stops[0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('CompletedDockWorker', { q: 0, r: 0 })
@@ -236,7 +238,7 @@ describe('Vehicle zone hop semantics', () => {
 		game.ticker.stop()
 
 		const gather = game.hex.getTile({ q: 0, r: 0 })?.content as StorageAlveolus
-		const line = game.freightLines.find((l) => l.name === 'Gather')!
+		const line = [...game.freightLines].find((l) => l.name === 'Gather')!
 		const zoneStop = gatherZoneLoadStopForBay(line, gather)
 		expect(zoneStop).toBeDefined()
 
@@ -279,9 +281,9 @@ describe('Vehicle zone hop semantics', () => {
 		game.ticker.stop()
 
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
-		vehicle.servedLines = [game.freightLines[0]!]
+		vehicle.servedLines = [[...game.freightLines][0]!]
 		const preview = previewInitialVehicleService(vehicle)
-		expect(preview?.line.name).toBe(game.freightLines[0]!.name)
+		expect(preview?.line.name).toBe([...game.freightLines][0]!.name)
 		expect(preview?.stop).toBeDefined()
 	})
 
@@ -306,7 +308,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('Begin', { q: 0, r: 0 })
 		bindOperatedWheelbarrowOffload(character, vehicle)
@@ -346,7 +348,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [line])
 		vehicle.storage.addGood('wood', 1)
 		const character = game.population.createCharacter('LoadedCompatible', { q: 2, r: 0 })
@@ -378,7 +380,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		vehicle.storage.addGood('mushrooms', 1)
 		const character = game.population.createCharacter('MushNoDemand', { q: 0, r: 0 })
@@ -415,7 +417,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 4, r: 0 }, [line])
 		vehicle.storage.addGood('wood', 1)
 		const character = game.population.createCharacter('LoadedOutsideZone', { q: 4, r: 1 })
@@ -448,7 +450,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const zoneStop = line.stops[0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [line])
 		const character = game.population.createCharacter('Browse', { q: 1, r: 0 })
@@ -499,7 +501,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const zoneStop = line.stops[0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('JointBrowse', { q: 0, r: 0 })
@@ -558,7 +560,7 @@ describe('Vehicle zone hop semantics', () => {
 		const futureSiteTile = game.hex.getTile({ q: 3, r: 0 })!
 		futureSiteTile.content = new BuildDwelling(futureSiteTile, 'basic_dwelling')
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [line])
 		const character = game.population.createCharacter('Distribute', { q: 1, r: 0 })
 		vehicle.beginLineService(line, line.stops[1]!, character)
@@ -597,7 +599,7 @@ describe('Vehicle zone hop semantics', () => {
 			'basic_dwelling'
 		)
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const stop = line.stops[0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('LocalExchange', { q: 0, r: 0 })
@@ -647,7 +649,7 @@ describe('Vehicle zone hop semantics', () => {
 		const siteTile = game.hex.getTile({ q: 1, r: 0 })!
 		siteTile.content = new BuildDwelling(siteTile, 'basic_dwelling')
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const stop = line.stops[0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [line])
 		vehicle.storage.addGood('wood', 1)
@@ -706,7 +708,7 @@ describe('Vehicle zone hop semantics', () => {
 			.hive
 		expect((bayHive?.needs as { wood?: unknown } | undefined)?.wood).toBeDefined()
 
-		const line = game.freightLines.find((candidate) => candidate.name === 'Local before hive')!
+		const line = [...game.freightLines].find((candidate) => candidate.name === 'Local before hive')!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [line])
 		const character = game.population.createCharacter('LocalBeforeHive', { q: 1, r: 0 })
 		vehicle.beginLineService(line, line.stops[0]!, character)
@@ -742,7 +744,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('LocalNoSink', { q: 0, r: 0 })
 		vehicle.beginLineService(line, line.stops[0]!, character)
@@ -791,7 +793,7 @@ describe('Vehicle zone hop semantics', () => {
 			'basic_dwelling'
 		)
 
-		const line = game.freightLines.find((candidate) => candidate.name === 'Cyclic local')!
+		const line = [...game.freightLines].find((candidate) => candidate.name === 'Cyclic local')!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 2, r: 0 }, [line])
 		const character = game.population.createCharacter('CyclicLocal', { q: 2, r: 0 })
 
@@ -841,7 +843,9 @@ describe('Vehicle zone hop semantics', () => {
 			'basic_dwelling'
 		)
 
-		const line = game.freightLines.find((candidate) => candidate.name === 'Empty bay keeps zone')!
+		const line = [...game.freightLines].find(
+			(candidate) => candidate.name === 'Empty bay keeps zone'
+		)!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('EmptyBayKeepsZone', { q: 0, r: 0 })
 		vehicle.beginLineService(line, line.stops[0]!, character)
@@ -875,7 +879,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const stop = line.stops[0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('Lifecycle', { q: 0, r: 0 })
@@ -1043,7 +1047,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const stop = line.stops[0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('NativeDispatch', { q: 0, r: 0 })
@@ -1095,7 +1099,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const stop = line.stops[0]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		const character = game.population.createCharacter('NativeCancel', { q: 0, r: 0 })
@@ -1231,7 +1235,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines[0]!
+		const line = [...game.freightLines][0]!
 		const unload = line.stops[1]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		vehicle.storage.addGood('wood', 1)
@@ -1284,7 +1288,7 @@ describe('Vehicle zone hop semantics', () => {
 		game.ticker.stop()
 
 		// Pick the explicit non-cyclic gather line, not the bootstrap implicit cyclic one.
-		const line = game.freightLines.find((l) => l.name === 'No zone target')!
+		const line = [...game.freightLines].find((l) => l.name === 'No zone target')!
 		if (!line) throw new Error('expected explicit No zone target line')
 		expect(line.cyclic).toBeFalsy()
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
@@ -1305,7 +1309,9 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find((candidate) => candidate.name === 'ChopSaw (0, 0) gather')
+		const line = [...game.freightLines].find(
+			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
+		)
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
 		// ChopSaw gather is cyclic [anchor=0, zone=1]; unload/dock is the bay anchor.
 		const unload = line.stops[0]
@@ -1330,7 +1336,9 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find((candidate) => candidate.name === 'ChopSaw (0, 0) gather')
+		const line = [...game.freightLines].find(
+			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
+		)
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
 		// ChopSaw gather: load zone = stops[1], unload anchor = stops[0].
 		const unload = line.stops[0]
@@ -1368,7 +1376,9 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find((candidate) => candidate.name === 'ChopSaw (0, 0) gather')
+		const line = [...game.freightLines].find(
+			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
+		)
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
 		const load = line.stops[1]
 		if (!load || !('zone' in load)) throw new Error('expected ChopSaw load zone stop')
@@ -1426,7 +1436,7 @@ describe('Vehicle zone hop semantics', () => {
 
 		const constructionTile = game.hex.getTile({ q: 0, r: -1 })!
 		constructionTile.content = new BuildDwelling(constructionTile, 'basic_dwelling')
-		const line = game.freightLines.find((candidate) => candidate.name === 'Zone empty unload')!
+		const line = [...game.freightLines].find((candidate) => candidate.name === 'Zone empty unload')!
 		const unload = line.stops[1]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: -1 }, [line])
 		const character = game.population.createCharacter('EmptyUnload', { q: 0, r: -1 })
@@ -1473,7 +1483,9 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find((candidate) => candidate.name === 'ChopSaw (0, 0) gather')
+		const line = [...game.freightLines].find(
+			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
+		)
 		if (!line) throw new Error('expected ChopSaw implicit gather line')
 		const unload = line.stops[0]
 		const load = line.stops[1]
@@ -1532,7 +1544,7 @@ describe('Vehicle zone hop semantics', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		const line = game.freightLines.find((candidate) => candidate.name === 'Exchange')!
+		const line = [...game.freightLines].find((candidate) => candidate.name === 'Exchange')!
 		const zone = line.stops[1]!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
 		vehicle.beginLineService(line, zone)

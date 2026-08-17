@@ -265,7 +265,7 @@ function summarizeVehicleForDebug(vehicle: Vehicle, tailCount: number) {
 		position: coordSnapshot(vehicle.position),
 		effectivePosition: coordSnapshot(vehicle.effectivePosition),
 		tile: coordSnapshot(vehicle.effectiveTile.position),
-		servedLineIndices: vehicle.servedLines.map((line) => vehicle.game.freightLines.indexOf(line)),
+		servedLineIds: vehicle.servedLines.map((line) => debugObjectId(line) ?? ''),
 		service: vehicle.service ? summarizeVehicleServiceForDebug(vehicle.service) : undefined,
 		storage: safeDebugValueForDump(vehicle.storage.stock),
 		logs: logsTail(vehicle.logs, tailCount),
@@ -391,7 +391,7 @@ export function buildGameDebugDump(game: Game, options: BuildGameDebugDumpOption
 			summarizeCharacterForDebug(character, logsCount)
 		),
 		vehicles: [...game.vehicles].map((vehicle) => summarizeVehicleForDebug(vehicle, logsCount)),
-		freightLines: game.freightLines.map(summarizeFreightLineForDebug),
+		freightLines: [...game.freightLines].map(summarizeFreightLineForDebug),
 		saveState: options.includeSaveState ? game.saveGameData() : undefined,
 	}
 }
