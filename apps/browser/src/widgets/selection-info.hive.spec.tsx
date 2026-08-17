@@ -31,7 +31,6 @@ const hive = {
 	],
 }
 
-const hiveSyntheticUid = 'hive:tile%3A0%2C0'
 const world = {
 	position: { x: 0, y: 0 },
 	scale: { x: 2 },
@@ -125,13 +124,6 @@ vi.mock('../components/parts/WorkingIndicator', () => ({
 }))
 
 vi.mock('@app/lib/hive-inspector', () => ({
-	isHiveUid: (uid: string) => uid.startsWith('hive:'),
-	createSyntheticHiveObjectForUid: vi.fn((_game: unknown, uid: string) => ({
-		uid,
-		kind: 'hive' as const,
-		title: 'Hive',
-		logs: [],
-	})),
 	resolveHiveFromAnchorTile: vi.fn(() => hive),
 	hiveInspectorTitle: (currentHive: { name?: string } | undefined) => currentHive?.name ?? 'Hive',
 }))
@@ -232,7 +224,6 @@ describe('SelectionInfoWidget hive integration', () => {
 	beforeEach(() => {
 		container = document.createElement('div')
 		document.body.appendChild(container)
-		globals.selectionState.selectedUid = hiveSyntheticUid
 		globals.selectionState.selectedObject = {
 			kind: 'hive',
 			tile: { q: 0, r: 0 },

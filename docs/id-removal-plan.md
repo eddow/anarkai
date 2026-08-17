@@ -26,7 +26,7 @@
 | **Phase E** (trace `.uid` cleanup) | ✅ Completed — trace payloads use `debugObjectId()` as display |
 | **Serialization bridge** | ✅ Completed — index-based vehicle/character/line/plan refs in save/load |
 | **Final audit 2026-08-02** | ⚠️ Incomplete — swept object `.uid` only; missed `selectedUid`, `vehicleUid`, `lineId`, `zoneObjectUid`, synthetic uid keys |
-| **Phase F (F1–F14)** | ⏳ In progress — 6 done, 1 partial, 7 TODO (see snapshot) |
+| **Phase F (F1–F14)** | ⏳ In progress — 11 done, 1 partial, 2 TODO (see snapshot) |
 
 ## Principles (for removal)
 
@@ -192,10 +192,10 @@ Legend: ✅ done · ⏳ partial · ❌ TODO.
 1. ⏳ **F1**: `selectedUid: string` → `selectedObject: object` — `selectedObject` added + preferred, but `selectedUid` remains as localStorage/pinned-panel fallback.
 2. ✅ **F2**: `freight-line:${index}` → direct line object — synthetic keys gone.
 3. ✅ **F3**: `hive-plan:${index}` → direct plan object — `hivePlanPlacementState.plan` holds the `HivePlan` object; `selectedAction` is the bare marker `'hive-plan'`.
-4. ❌ **F4**: `hive:${anchorUid}` → direct hive object — `hiveUidForAnchorTile` / `createSyntheticHiveObjectForUid` still present.
+4. ✅ **F4**: `hive:${anchorUid}` → direct hive object — `createSyntheticHiveObject(game, tile)` returns `{ kind: 'hive', tile }`; dispatch by `kind === 'hive'`; `hiveUidForAnchorTile`/`isHiveUid`/`HIVE_UID_PREFIX` deleted.
 5. ✅ **F5**: `zone:` uid → direct ZoneObject — `ZoneObject` now holds the `ZoneDefinition` by reference; `zoneObjectUid`/`ZONE_UID_PREFIX` removed; paint token is name-keyed (`zone:${name}`).
-6. ❌ **F6**: `vehicleUid` → Vehicle reference — still at `build-site.ts:31`, `bay-queue-types.ts:115`, `jobs/offers.ts:14`, `types/base.ts:97,138,155,166`, `trace.ts:507,516,549`.
-7. ❌ **F7**: `lineId` → line reference — still at `types/base.ts:92`, `npc-diagnostics.ts:30`.
+6. ✅ **F6**: `vehicleUid` → Vehicle reference — `InTransitReservation.vehicle`, `FreightLineVehicleStatus.vehicle`, `VehicleDockConveyJob.vehicle`, `WorkPlan.vehicle?` all object refs; `reserveInTransit`/`cancelVehicleReservationsOnSites` keyed by `WeakMap<Vehicle, …>`. `SerializedDockRequest.vehicleUid` remains (serialization only).
+7. ✅ **F7**: `lineId` → line reference — `WorkPlan.line?: FreightLineDefinition`; `summarizeJobPlanForDiagnostics` reads `.line` and emits `debugObjectId(line)` as display. `lineId` remains only as legacy trace/display strings.
 8. ❌ **F8**: `debugObjectId` lookups → object identity — still at `FreightLineProperties.tsx:420`, `VehicleProperties.tsx`, `follow-selection.ts:106`, `selection-info.tsx:245`.
 9. ✅ **F9**: `interactiveLogObject(uid)` registry → delete — replaced with `WeakSet` (`isInteractiveLogObject`).
 10. ✅ **F10**: `.uid` display → `debugObjectId` — `InspectorSelectableObject` has no `.uid`.
@@ -211,10 +211,10 @@ Legend: ✅ done · ⏳ partial · ❌ TODO.
 | F1 `selectedUid` | ⏳ Partial | `globals.ts:23,31`, `App.tsx:75,87`, `follow-selection.ts:102,194`, `selection-info.tsx:232,268,349`, `game.tsx:114-116` |
 | F2 `freight-line:${index}` | ✅ Done | no source matches |
 | F3 `hive-plan:${index}` | ✅ Done | `hivePlanPlacementState.plan` (object ref); bare `'hive-plan'` action |
-| F4 `hive:${anchorUid}` | ❌ TODO | `hive-inspector.ts:16`, `selection-info.hive.spec.tsx:129` |
+| F4 `hive:${anchorUid}` | ✅ Done | `createSyntheticHiveObject` (object ref); `kind === 'hive'` dispatch; uid helpers deleted |
 | F5 `zoneObjectUid` | ✅ Done | `ZoneObject.definition` (object ref); `zoneObjectUid`/`ZONE_UID_PREFIX` deleted; `findZoneByName`/`removeZoneDefinition` added |
-| F6 `vehicleUid` | ❌ TODO | `build-site.ts:31`, `bay-queue-types.ts:115`, `jobs/offers.ts:14`, `types/base.ts`, `trace.ts` |
-| F7 `lineId` | ❌ TODO | `types/base.ts:92`, `npc-diagnostics.ts:30` |
+| F6 `vehicleUid` | ✅ Done | `InTransitReservation.vehicle`, `FreightLineVehicleStatus.vehicle`, `WorkPlan.vehicle?` (object refs); `SerializedDockRequest.vehicleUid` is serialization-only |
+| F7 `lineId` | ✅ Done | `WorkPlan.line?: FreightLineDefinition`; diagnostics reads `.line` → `debugObjectId` display |
 | F8 `debugObjectId` lookups | ❌ TODO | `FreightLineProperties.tsx:420`, `VehicleProperties.tsx`, `follow-selection.ts:106`, `selection-info.tsx:245` |
 | F9 `interactiveLogObject(uid)` | ✅ Done | `game/object.ts` → `WeakSet` + `isInteractiveLogObject` |
 | F10 `.uid` display | ✅ Done | `InspectorSelectableObject` (no `.uid`) |

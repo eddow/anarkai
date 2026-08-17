@@ -504,7 +504,8 @@ function isBayQueueNodeRecord(record: UnknownRecord): boolean {
 
 function isMovementGrantRecord(record: UnknownRecord): boolean {
 	return (
-		typeof record.vehicleUid === 'string' &&
+		(typeof record.vehicleUid === 'string' ||
+			(record.vehicle && typeof record.vehicle === 'object')) &&
 		typeof record.expiresAt === 'number' &&
 		'from' in record &&
 		'to' in record
@@ -545,11 +546,14 @@ function projectBayQueueNode(record: UnknownRecord): RuntimeProjection {
 }
 
 function projectMovementGrant(record: UnknownRecord): RuntimeProjection {
+	const vehicleUid = record.vehicle
+		? (debugObjectId(record.vehicle as object) ?? 'unknown')
+		: (stringValue(record.vehicleUid) ?? 'unknown')
 	return {
-		ref: `Grant:${stringValue(record.vehicleUid) ?? 'unknown'}`,
+		ref: `Grant:${vehicleUid}`,
 		body: {
 			$type: 'MovementGrant',
-			vehicleUid: stringValue(record.vehicleUid),
+			vehicleUid,
 			fromNode: nodeSummary(record.from),
 			toNode: nodeSummary(record.to),
 			expiresAt: numberValue(record.expiresAt),

@@ -368,13 +368,9 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 					const quantity = plan.quantity
 					// Expiry generous enough for wheelbarrow delivery: 60 s from now.
 					const expiresAt = character.game.ticker.elapsedMS + 60_000
-					reserveInTransit(
-						shell,
-						debugObjectId(plan.vehicle!) ?? '',
-						plan.goodType,
-						quantity,
-						expiresAt
-					)
+					const vehicle = plan.vehicle
+					assert(vehicle, 'work plan with vehicle commitment must have vehicle object')
+					reserveInTransit(shell, vehicle, plan.goodType, quantity, expiresAt)
 					;(plan as WorkPlan & { _inTransitSite?: ConstructionSiteShell })._inTransitSite = shell
 				}
 			}
@@ -417,8 +413,8 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 		// (vehicle.endService also cleans up, but plan-finalize handles earlier cancellation.)
 		const inTransitSite = (plan as WorkPlan & { _inTransitSite?: ConstructionSiteShell })
 			._inTransitSite
-		if (inTransitSite && 'vehicle' in plan) {
-			cancelVehicleInTransitReservations(inTransitSite, debugObjectId(plan.vehicle!) ?? '')
+		if (inTransitSite && 'vehicle' in plan && plan.vehicle) {
+			cancelVehicleInTransitReservations(inTransitSite, plan.vehicle)
 			delete (plan as WorkPlan & { _inTransitSite?: ConstructionSiteShell })._inTransitSite
 		}
 	},

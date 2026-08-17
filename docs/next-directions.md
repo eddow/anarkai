@@ -6,6 +6,13 @@ Hive management and vehicle/freight management are now far enough along that the
 finishing a single obvious subsystem and more about choosing the next gameplay frontier. The options below
 are deliberately broad; each one can become its own implementation plan once chosen.
 
+## Architecture
+
+- remove IDs (everywhere) and indexes out of (de)serialization - cf [removal plan](./id-removal-plan.md)
+- remove [version hack](../sandbox/version-token-hack-analysis.md)
+- change all buffered `state` in `view` made of get/set in sursaut components
+- For both first ones, add comments to make sure no new appear (llm.md, ...)
+
 ## Current Baseline
 
 See [`./current-status.md`](./current-status.md) for what is already landed.

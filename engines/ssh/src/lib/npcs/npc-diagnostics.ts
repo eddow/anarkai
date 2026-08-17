@@ -27,7 +27,13 @@ export function summarizeJobPlanForDiagnostics(
 			out[key] = v
 		}
 	}
-	copyIfPrimitive('lineId', j.lineId)
+	// Prefer .line object reference; fall back to legacy .lineId string
+	if (j.line && typeof j.line === 'object') {
+		const lineId = debugObjectId(j.line as object)
+		if (lineId) out.lineId = lineId
+	} else {
+		copyIfPrimitive('lineId', j.lineId)
+	}
 	copyIfPrimitive('stopId', j.stopId)
 	copyIfPrimitive('stopIndex', j.stopIndex)
 	copyIfPrimitive('goodType', j.goodType)

@@ -581,7 +581,7 @@ export class Vehicle extends withInteractive(GameObject) {
 			this.service.docked = false
 		}
 		// Release any in-transit reservations this vehicle holds on construction sites.
-		cancelVehicleReservationsOnSites(this.game.hex.tiles, debugObjectId(this) ?? '')
+		cancelVehicleReservationsOnSites(this.game.hex.tiles, this)
 		syncFreightVehicleDockRegistration(this)
 		this.service = undefined
 		this.game.invalidateWorkPlanning('vehicle.service')

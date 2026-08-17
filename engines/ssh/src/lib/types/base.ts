@@ -90,12 +90,14 @@ export const baseGameScope = scope({
 		'goodType?': 'GoodType',
 		'quantity?': 'number',
 		'zoneBrowseAction?': "'load' | 'provide'",
-		'lineId?': 'string',
+		'line?': 'object', // FreightLineDefinition (object ref, validated at runtime)
+		'lineId?': 'string', // Legacy string uid; use line instead
 		'bay?': 'AxialCoord',
 		'site?': 'AxialCoord',
 		'pathToBay?': 'AxialCoord[]',
 		'pathToSite?': 'AxialCoord[]',
-		'vehicleUid?': 'string',
+		'vehicle?': 'object', // Vehicle (object ref, validated at runtime)
+		'vehicleUid?': 'string', // Legacy string uid; use vehicle instead
 		'stopId?': 'string',
 		'targetCoord?': 'AxialCoord',
 		'path?': 'AxialCoord[]',
@@ -136,7 +138,8 @@ export const baseGameScope = scope({
 		fatigue: 'number',
 		/** Maintenance sub-kind hint used by `allocateVehicleServiceForJob`; scripts read from `vehicle.service`. */
 		maintenanceKind: "'loadFromBurden' | 'unloadToTile' | 'park'",
-		'vehicleUid?': 'string',
+		'vehicle?': 'object', // Vehicle (object ref, validated at runtime)
+		'vehicleUid?': 'string', // Legacy string uid; use vehicle instead
 		targetCoord: 'Position',
 		'looseGood?': 'object',
 		'path?': 'AxialCoord[]',
@@ -153,7 +156,8 @@ export const baseGameScope = scope({
 		target: 'object',
 		urgency: 'number',
 		fatigue: 'number',
-		'vehicleUid?': 'string',
+		'vehicle?': 'object', // Vehicle (object ref, validated at runtime)
+		'vehicleUid?': 'string', // Legacy string uid; use vehicle instead
 		goodType: 'GoodType',
 		path: 'AxialCoord[]',
 	},
@@ -164,7 +168,8 @@ export const baseGameScope = scope({
 		target: 'object',
 		urgency: 'number',
 		fatigue: 'number',
-		'vehicleUid?': 'string',
+		'vehicle?': 'object', // Vehicle (object ref, validated at runtime)
+		'vehicleUid?': 'string', // Legacy string uid; use vehicle instead
 		goodType: 'GoodType',
 		quantity: 'number',
 		path: 'AxialCoord[]',
@@ -176,7 +181,8 @@ export const baseGameScope = scope({
 		target: 'object',
 		urgency: 'number',
 		fatigue: 'number',
-		'vehicleUid?': 'string',
+		'vehicle?': 'object', // Vehicle (object ref, validated at runtime)
+		'vehicleUid?': 'string', // Legacy string uid; use vehicle instead
 		goodType: 'GoodType',
 		quantity: 'number',
 		path: 'AxialCoord[]',

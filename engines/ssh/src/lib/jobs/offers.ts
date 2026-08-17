@@ -11,7 +11,7 @@ export interface JobProvider {
 }
 
 export type VehicleDockConveyJob = Extract<Job, { job: 'convey' }> & {
-	readonly vehicleUid: string
+	readonly vehicle?: Vehicle
 }
 
 export type VehiclePlannerJob =

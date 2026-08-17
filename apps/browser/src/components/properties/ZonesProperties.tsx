@@ -179,7 +179,7 @@ const ZonesProperties = (_props: ZonesPropertiesProps) => {
 											class="zones-properties__icon-button"
 											title="Delete unused zone"
 											disabled={memberCount(zone) > 0}
-											onClick={() => deleteUnusedZone(zone, i)}
+											onClick={() => deleteUnusedZone(zone)}
 											data-testid={`zones-delete-${i}`}
 										>
 											{icon(tablerOutlineTrash)}

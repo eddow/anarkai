@@ -1,6 +1,5 @@
 // @ts-nocheck
 import { cancelFreightMapPick, freightMapPick } from '@app/lib/freight-map-pick'
-import { hiveUidForAnchorTile } from '@app/lib/hive-inspector'
 import { document, latch } from '@sursaut/core'
 import type { DockviewWidgetProps } from '@sursaut/ui/dockview'
 import { reactive } from 'mutts'
@@ -43,7 +42,6 @@ const secondCharacterObject = Object.assign(new CharacterForTest(), {
 	logs: [] as string[],
 }) as InstanceType<typeof Character>
 
-const hiveSyntheticUid = hiveUidForAnchorTile('tile:0,0')
 const hiveSyntheticObject = {
 	kind: 'hive' as const,
 	title: 'Test Hive',
@@ -173,9 +171,6 @@ vi.mock('@app/lib/hive-inspector', async (importOriginal) => {
 	const actual = await importOriginal<typeof import('@app/lib/hive-inspector')>()
 	return {
 		...actual,
-		createSyntheticHiveObjectForUid: vi.fn((_: unknown, uid: string) =>
-			uid === hiveSyntheticUid ? hiveSyntheticObject : undefined
-		),
 		resolveHiveFromAnchorTile: vi.fn(() => ({ name: 'Test Hive' })),
 	}
 })
@@ -279,7 +274,6 @@ describe('SelectionInfoWidget', () => {
 	})
 
 	it('renders HiveProperties for a synthetic hive uid', () => {
-		globals.selectionState.selectedUid = hiveSyntheticUid
 		globals.selectionState.selectedObject = hiveSyntheticObject as any
 		const props = createProps()
 		const scope = createScope()

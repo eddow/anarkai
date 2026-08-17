@@ -6,19 +6,9 @@ import type { Hive } from 'ssh/hive'
 import { axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
 
-export const HIVE_UID_PREFIX = 'hive:'
-
 export interface SyntheticHiveObject extends InspectorSelectableObject {
 	readonly kind: 'hive'
 	readonly tile: Tile
-}
-
-export function hiveUidForAnchorTile(tileUid: string): string {
-	return `${HIVE_UID_PREFIX}${encodeURIComponent(tileUid)}`
-}
-
-export function isHiveUid(uid: string): boolean {
-	return uid.startsWith(HIVE_UID_PREFIX)
 }
 
 export function hiveInspectorTitle(hive: Hive | undefined): string {

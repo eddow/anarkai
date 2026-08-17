@@ -1,7 +1,6 @@
 import { commerce, freightLineHiveNeedPriorityWeight } from 'engine-rules'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 import {
 	distributeSegmentAllowsGoodTypeForSegment,
 	type FreightDistributeRouteSegment,
@@ -938,7 +937,7 @@ export type FreightLineRouteStatus = 'active' | 'idle' | 'complete'
 
 /** Per-vehicle status within a freight line route summary. */
 export interface FreightLineVehicleStatus {
-	readonly vehicleUid: string
+	readonly vehicle: Vehicle
 	readonly vehicleType: string
 	readonly vehicleTitle: string
 	readonly currentStopId?: string
@@ -1030,7 +1029,7 @@ export function summarizeFreightLineRoute(args: {
 					)
 				: false
 		return {
-			vehicleUid: debugObjectId(vehicle) ?? '',
+			vehicle,
 			vehicleType: vehicle.vehicleType,
 			vehicleTitle: vehicle.title,
 			currentStopIndex:

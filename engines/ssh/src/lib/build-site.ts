@@ -6,6 +6,7 @@ import {
 	setConstructionDeliveredGoods,
 } from 'ssh/construction-state'
 import { debugObjectId } from 'ssh/dev/debug-object-id'
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import type { Storage } from 'ssh/storage/storage'
 import type { GoodType } from 'ssh/types/base'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
@@ -28,36 +29,48 @@ import { traces } from './dev/debug.ts'
  * constructors stay untouched; all reservation logic lives here.
  */
 export interface InTransitReservation {
-	readonly vehicleUid: string
+	readonly vehicle: Vehicle
 	readonly goodType: GoodType
 	readonly quantity: number
 	/** Game tick after which this reservation is considered stale (algorithm bug). */
 	readonly expiresAtTick: number
 }
 
-type ReservationMap = Map<string, InTransitReservation>
-const inTransitRegistry = new WeakMap<ConstructionSiteShell, ReservationMap>()
+type GoodReservationMap = Map<GoodType, InTransitReservation>
+type VehicleReservationMap = Map<Vehicle, GoodReservationMap>
+type ReservationRegistry = WeakMap<ConstructionSiteShell, VehicleReservationMap>
 
-function ensureRegistry(shell: ConstructionSiteShell): ReservationMap {
-	let map = inTransitRegistry.get(shell)
-	if (!map) {
-		map = new Map()
-		inTransitRegistry.set(shell, map)
+const inTransitRegistry: ReservationRegistry = new WeakMap()
+
+function ensureVehicleReservations(
+	registry: VehicleReservationMap,
+	vehicle: Vehicle
+): GoodReservationMap {
+	let goodMap = registry.get(vehicle)
+	if (!goodMap) {
+		goodMap = new Map()
+		registry.set(vehicle, goodMap)
 	}
-	return map
+	return goodMap
 }
 
-function reservationKey(vehicleUid: string, goodType: GoodType): string {
-	return `${vehicleUid}:${goodType}`
+function ensureRegistry(shell: ConstructionSiteShell): VehicleReservationMap {
+	let vehicleMap = inTransitRegistry.get(shell)
+	if (!vehicleMap) {
+		vehicleMap = new Map()
+		inTransitRegistry.set(shell, vehicleMap)
+	}
+	return vehicleMap
 }
 
 /** Sum of in-transit quantities for one good type across all reserving vehicles. */
 function inTransitQuantity(shell: ConstructionSiteShell, goodType: GoodType): number {
-	const map = inTransitRegistry.get(shell)
-	if (!map) return 0
+	const vehicleMap = inTransitRegistry.get(shell)
+	if (!vehicleMap) return 0
 	let total = 0
-	for (const res of map.values()) {
-		if (res.goodType === goodType) total += res.quantity
+	for (const goodMap of vehicleMap.values()) {
+		const res = goodMap.get(goodType)
+		if (res) total += res.quantity
 	}
 	return total
 }
@@ -82,46 +95,43 @@ export function effectiveRemainingNeeds(shell: ConstructionSiteShell): Record<st
 	return result
 }
 
-/** Reserve in-transit delivery for `vehicleUid` of `quantity` units of `goodType`. */
+/** Reserve in-transit delivery for `vehicle` of `quantity` units of `goodType`. */
 export function reserveInTransit(
 	shell: ConstructionSiteShell,
-	vehicleUid: string,
+	vehicle: Vehicle,
 	goodType: GoodType,
 	quantity: number,
 	expiresAtTick: number
 ): void {
 	if (quantity <= 0) return
-	const map = ensureRegistry(shell)
-	const key = reservationKey(vehicleUid, goodType)
-	const existing = map.get(key)
+	const vehicleMap = ensureRegistry(shell)
+	const goodMap = ensureVehicleReservations(vehicleMap, vehicle)
+	const existing = goodMap.get(goodType)
 	if (existing) {
 		// Vehicle is re-reserving the same good: update quantity and expiry.
-		map.set(key, {
-			vehicleUid,
+		goodMap.set(goodType, {
+			vehicle,
 			goodType,
 			quantity: existing.quantity + quantity,
 			expiresAtTick: Math.max(existing.expiresAtTick, expiresAtTick),
 		})
 	} else {
-		map.set(key, { vehicleUid, goodType, quantity, expiresAtTick })
+		goodMap.set(goodType, { vehicle, goodType, quantity, expiresAtTick })
 	}
 }
 
-/** Cancel all in-transit reservations from `vehicleUid` on this shell. */
+/** Cancel all in-transit reservations from `vehicle` on this shell. */
 export function cancelVehicleInTransitReservations(
 	shell: ConstructionSiteShell,
-	vehicleUid: string
+	vehicle: Vehicle
 ): number {
-	const map = inTransitRegistry.get(shell)
-	if (!map) return 0
-	let cancelled = 0
-	for (const [key, res] of map) {
-		if (res.vehicleUid === vehicleUid) {
-			map.delete(key)
-			cancelled++
-		}
-	}
-	return cancelled
+	const vehicleMap = inTransitRegistry.get(shell)
+	if (!vehicleMap) return 0
+	const goodMap = vehicleMap.get(vehicle)
+	if (!goodMap) return 0
+	const count = goodMap.size
+	vehicleMap.delete(vehicle)
+	return count
 }
 
 /** Cancel **all** in-transit reservations on this shell (e.g. construction site demolished). */
@@ -160,13 +170,17 @@ export function cleanupStaleInTransitReservations(
 ): number {
 	const stale = staleInTransitReservations(shell, nowTick)
 	if (stale.length === 0) return 0
-	const map = inTransitRegistry.get(shell)
-	if (!map) return 0
+	const vehicleMap = inTransitRegistry.get(shell)
+	if (!vehicleMap) return 0
 	for (const res of stale) {
-		map.delete(reservationKey(res.vehicleUid, res.goodType))
+		const goodMap = vehicleMap.get(res.vehicle)
+		if (goodMap) {
+			goodMap.delete(res.goodType)
+			if (goodMap.size === 0) vehicleMap.delete(res.vehicle)
+		}
 		traces.vehicle.warn?.('inTransit.stale', {
 			siteUid: debugObjectId(shell) ?? '',
-			vehicleUid: res.vehicleUid,
+			vehicleUid: debugObjectId(res.vehicle) ?? '',
 			goodType: res.goodType,
 			quantity: res.quantity,
 			expiredAtTick: res.expiresAtTick,
@@ -177,17 +191,17 @@ export function cleanupStaleInTransitReservations(
 }
 
 /**
- * Cancel all in-transit reservations associated with `vehicleUid` across all known
+ * Cancel all in-transit reservations associated with `vehicle` across all known
  * {@link ConstructionSiteShell} instances reachable from `tiles`.
  */
 export function cancelVehicleReservationsOnSites(
 	tiles: Iterable<{ content: unknown }>,
-	vehicleUid: string
+	vehicle: Vehicle
 ): number {
 	let total = 0
 	for (const tile of tiles) {
 		if (isStandaloneConstructionSiteShell(tile.content)) {
-			total += cancelVehicleInTransitReservations(tile.content, vehicleUid)
+			total += cancelVehicleInTransitReservations(tile.content, vehicle)
 		}
 	}
 	return total

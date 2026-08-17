@@ -7,16 +7,11 @@ import { describe, expect, it } from 'vitest'
 import {
 	createSyntheticHiveObject,
 	hiveInspectorTitle,
-	hiveUidForAnchorTile,
-	isHiveUid,
 	resolveHiveFromAnchorTile,
 } from './hive-inspector'
 
 function makeHiveTile(name: string): { game: Game; tile: Tile; hive: Hive } {
-	const game = {
-		objects: new Map<string, object>(),
-		enqueueInteractiveRegistration: () => undefined,
-	} as unknown as Game
+	const game = {} as Game
 	const hive = { name } as Hive
 	const alveolus = Object.create(Alveolus.prototype) as Alveolus
 	alveolus.hive = hive
@@ -26,23 +21,14 @@ function makeHiveTile(name: string): { game: Game; tile: Tile; hive: Hive } {
 		setTileContent: () => undefined,
 	} as unknown as HexBoard
 	const tile = new Tile(board, { q: 0, r: 0 })
-	;(game as any).objects.set(tile.uid, tile)
 	return { game, tile, hive }
 }
 
 describe('browser hive inspector synthetic object', () => {
-	it('encodes hive uids from anchor tile uid', () => {
-		const anchor = 'tile:0,0'
-		const uid = hiveUidForAnchorTile(anchor)
-		expect(isHiveUid(uid)).toBe(true)
-		expect(uid).toBe('hive:tile%3A0%2C0')
-	})
-
 	it('creates a browser-owned synthetic hive object for inspector panels', () => {
 		const { game, tile } = makeHiveTile('H')
 		const synthetic = createSyntheticHiveObject(game, tile)
 		expect(synthetic?.kind).toBe('hive')
-		// uid removed.toBe(hiveUidForAnchorTile(tile.uid))
 		expect(synthetic?.title).toBe('H')
 		expect(synthetic?.hoverObject).toBe(tile)
 		expect(resolveHiveFromAnchorTile(game, tile)?.name).toBe('H')
