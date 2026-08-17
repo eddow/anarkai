@@ -11,13 +11,16 @@ test.describe('Property Widget Selection Switching Repro', () => {
 		})
 
 		const selectByIndex = async (collection: 'population' | 'vehicles', index: number) => {
-			const uid = await page.evaluate(({ collection, index }) => {
-				const game = (window as any).game
-				const obj = [...game[collection]][index]
-				if (!obj) throw new Error(`No object at ${collection}[${index}]`)
-				;(window as any).__selectObject?.(obj)
-				return (window as any).debugObjectId(obj)
-			}, { collection, index })
+			const uid = await page.evaluate(
+				({ collection, index }) => {
+					const game = (window as any).game
+					const obj = [...game[collection]][index]
+					if (!obj) throw new Error(`No object at ${collection}[${index}]`)
+					;(window as any).__selectObject?.(obj)
+					return (window as any).debugObjectId(obj)
+				},
+				{ collection, index }
+			)
 			await page.waitForTimeout(300)
 			const panel = page.locator('.selection-info-panel')
 			await expect(panel).toBeVisible()
@@ -25,13 +28,16 @@ test.describe('Property Widget Selection Switching Repro', () => {
 		}
 
 		const selectTile = async (q: number, r: number) => {
-			const uid = await page.evaluate(({ q, r }) => {
-				const game = (window as any).game
-				const tile = game.hex.getTile({ q, r })
-				if (!tile) throw new Error(`No tile at ${q},${r}`)
-				;(window as any).__selectObject?.(tile)
-				return (window as any).debugObjectId(tile)
-			}, { q, r })
+			const uid = await page.evaluate(
+				({ q, r }) => {
+					const game = (window as any).game
+					const tile = game.hex.getTile({ q, r })
+					if (!tile) throw new Error(`No tile at ${q},${r}`)
+					;(window as any).__selectObject?.(tile)
+					return (window as any).debugObjectId(tile)
+				},
+				{ q, r }
+			)
 			await page.waitForTimeout(300)
 			const panel = page.locator('.selection-info-panel')
 			await expect(panel).toBeVisible()
@@ -59,27 +65,39 @@ test.describe('Property Widget Selection Switching Repro', () => {
 		})
 
 		const select = async (collection: 'population' | 'vehicles', index: number) => {
-			const uid = await page.evaluate(({ collection, index }) => {
-				const game = (window as any).game
-				const obj = [...game[collection]][index]
-				if (!obj) throw new Error(`No object at ${collection}[${index}]`)
-				;(window as any).__selectObject?.(obj)
-				return (window as any).debugObjectId(obj)
-			}, { collection, index })
+			const uid = await page.evaluate(
+				({ collection, index }) => {
+					const game = (window as any).game
+					const obj = [...game[collection]][index]
+					if (!obj) throw new Error(`No object at ${collection}[${index}]`)
+					;(window as any).__selectObject?.(obj)
+					return (window as any).debugObjectId(obj)
+				},
+				{ collection, index }
+			)
 			await page.waitForTimeout(300)
-			await expect(page.locator('.selection-info-panel')).toHaveAttribute('data-test-object-uid', uid)
+			await expect(page.locator('.selection-info-panel')).toHaveAttribute(
+				'data-test-object-uid',
+				uid
+			)
 		}
 
 		const selectTile = async (q: number, r: number) => {
-			const uid = await page.evaluate(({ q, r }) => {
-				const game = (window as any).game
-				const tile = game.hex.getTile({ q, r }) || [...game.hex.tiles][0]
-				if (!tile) throw new Error('No tile found')
-				;(window as any).__selectObject?.(tile)
-				return (window as any).debugObjectId(tile)
-			}, { q, r })
+			const uid = await page.evaluate(
+				({ q, r }) => {
+					const game = (window as any).game
+					const tile = game.hex.getTile({ q, r }) || [...game.hex.tiles][0]
+					if (!tile) throw new Error('No tile found')
+					;(window as any).__selectObject?.(tile)
+					return (window as any).debugObjectId(tile)
+				},
+				{ q, r }
+			)
 			await page.waitForTimeout(300)
-			await expect(page.locator('.selection-info-panel')).toHaveAttribute('data-test-object-uid', uid)
+			await expect(page.locator('.selection-info-panel')).toHaveAttribute(
+				'data-test-object-uid',
+				uid
+			)
 		}
 
 		await select('vehicles', 0)

@@ -1,9 +1,10 @@
 // @ts-nocheck
+
+import { unwrap } from 'mutts'
 import { namedTrace, traces } from 'ssh/dev/debug'
 import { ensureFreightVehicleDockRegistration } from 'ssh/freight/vehicle-freight-dock-sync'
 import type { SaveState } from 'ssh/game'
 import type { FreightBayAlveolus } from 'ssh/hive/freight-bay'
-import { unwrap } from 'mutts'
 import { describe, expect, it } from 'vitest'
 import { gatherFreightLine } from '../freight-fixtures'
 import { TestEngine } from '../test-engine'
@@ -23,13 +24,18 @@ describe('dock registration proxy/raw identity', () => {
 			engine.loadScenario({
 				tiles: [{ coord: [0, 0], terrain: 'concrete' }],
 				hives: [
-					{ name: 'IdentityHive', alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }] },
+					{
+						name: 'IdentityHive',
+						alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }],
+					},
 				],
 				freightLines: [line],
 			} satisfies Partial<SaveState>)
 
 			const storedLine = engine.game.freightLines.find((l) => l.name === 'Identity gather')!
-			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [storedLine])
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [
+				storedLine,
+			])
 			vehicle.storage.addGood('wood', 2)
 			vehicle.beginLineService(storedLine, storedLine.stops[1]!)
 			vehicle.dock()

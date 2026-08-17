@@ -4,8 +4,8 @@ import { bumpSelectionTitleVersion } from '@app/lib/globals'
 import { resolveHiveFromAnchorTile, type SyntheticHiveObject } from '@app/lib/hive-inspector'
 import { T } from '@app/lib/i18n'
 import { InspectorSection } from '@app/ui/anarkai'
-import { effect, reactive } from 'mutts'
 import { goods as visualGoods } from 'engine-pixi/assets/visual-content'
+import { effect, reactive } from 'mutts'
 import { collectDockedVehiclesForHive, type DockedVehicleEntry } from 'ssh/freight/docked-vehicles'
 import type { GoodType } from 'ssh/types/base'
 import type { ExchangePriority } from 'ssh/utils/advertisement'
@@ -182,7 +182,7 @@ const HiveProperties = (props: HivePropertiesProps) => {
 						class="hive-properties__name"
 						type="text"
 						value={hiveName.value}
-						update:value={(v: string) => hiveName.value = v}
+						update:value={(v: string) => (hiveName.value = v)}
 					/>
 				</PropertyGridRow>
 				<PropertyGridRow label={T.hive.commands}>

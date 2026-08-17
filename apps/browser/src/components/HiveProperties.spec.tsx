@@ -143,7 +143,7 @@ vi.mock('./parts/WorkingIndicator', () => ({
 			data-testid="hive-working-toggle"
 			data-checked={String(props.checked)}
 			onClick={() => {
-				(props as any).checked = !(props as any).checked
+				;(props as any).checked = !(props as any).checked
 			}}
 		/>
 	),

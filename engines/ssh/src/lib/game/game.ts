@@ -420,12 +420,17 @@ function terrainOverrideNeedsBroadSampleInvalidation(
 }
 
 export class Game extends Eventful<GameEvents> {
+	/** Display name of this game instance. */
 	public get name() {
 		return 'GameX'
 	}
+
+	/** The deterministic terrain seed used for world generation. */
 	public get terrainSeed() {
 		return this.generationOptions.terrainSeed
 	}
+
+	/** All currently-applied terrain terraforming/override patches. */
 	public get terrainOverrides(): ReadonlyArray<TerrainTerraformPatch> {
 		return this.terrainTerraforming
 	}
@@ -454,14 +459,20 @@ export class Game extends Eventful<GameEvents> {
 		else renderer?.invalidateTerrain?.(coord)
 	}
 
+	/** Notify that ground semantics changed at `coord`, hard-invalidating terrain presentation. */
 	public notifyGroundSemanticsChanged(coord?: AxialCoord): void {
 		this.invalidateTerrainPresentation(coord, true)
 	}
 
+	/** Emit a `roadsChanged` event for the given road coordinates. */
 	public notifyRoadsChanged(coords: AxialCoord[] = []): void {
 		this.emit('roadsChanged', coords)
 	}
 
+	/**
+	 * Upsert a terrain override at `coord`, merging with any existing override and
+	 * invalidating the affected terrain samples/presentation.
+	 */
 	public upsertTerrainOverride(
 		coord: AxialCoord,
 		override: Omit<TerrainTerraformPatch, 'coord'>
@@ -488,6 +499,8 @@ export class Game extends Eventful<GameEvents> {
 		this.invalidateTerrainPresentation(coord, true)
 	}
 	readonly random: ReturnType<typeof LCG> = LCG('gameSeed', 0)
+
+	/** Create a deterministic LCG seeded from the given value. */
 	public lcg(seed: string | number) {
 		return LCG('gameSeed', seed)
 	}
@@ -550,10 +563,12 @@ export class Game extends Eventful<GameEvents> {
 		return this.conveyRestoredAtLoad
 	}
 
+	/** Resolve the save index of a convey movement ref (for save/load linkage). */
 	conveyMovementSaveIndex(ref: MovementRef): number | undefined {
 		return this.conveySaveIndexByRef?.get(ref)
 	}
 
+	/** Set the player account balance (floored, clamped ≥ 0) and invalidate planning. */
 	public setPlayerAccountBalance(balanceVp: number): void {
 		const next = Math.max(0, Math.floor(balanceVp))
 		if (this.playerAccount.balanceVp === next) return
@@ -561,10 +576,15 @@ export class Game extends Eventful<GameEvents> {
 		this.invalidateWorkPlanning('player-account.balance.set')
 	}
 
+	/** Whether the current account balance can cover `amountVp` (ceiled). */
 	public canAffordVp(amountVp: number): boolean {
 		return this.playerAccount.balanceVp >= Math.max(0, Math.ceil(amountVp))
 	}
 
+	/**
+	 * Deduct `amountVp` from the account when affordable.
+	 * @returns `true` when the amount was spent, `false` when the balance was insufficient.
+	 */
 	public spendVp(amountVp: number): boolean {
 		const amount = Math.max(0, Math.ceil(amountVp))
 		if (!this.canAffordVp(amount)) return false
@@ -573,6 +593,7 @@ export class Game extends Eventful<GameEvents> {
 		return true
 	}
 
+	/** Add `amountVp` to the account (floored; ignores amounts ≤ 0). */
 	public creditVp(amountVp: number): void {
 		const amount = Math.max(0, Math.floor(amountVp))
 		if (amount <= 0) return
@@ -592,6 +613,7 @@ export class Game extends Eventful<GameEvents> {
 
 	// getObject removed — identity is object reference, not string lookup
 
+	/** Apply a build action to a tile, optionally targeting a variant. */
 	public applyBuildAction(tile: Tile, alveolusType: AlveolusType, variant?: string): boolean {
 		return tile.build(alveolusType, variant)
 	}
@@ -666,6 +688,10 @@ export class Game extends Eventful<GameEvents> {
 		return true
 	}
 
+	/**
+	 * Preview the placement of a working hive plan at `anchor` with the given rotation.
+	 * @returns a placement preview, or `undefined` when the plan is missing or not `working`.
+	 */
 	public previewHivePlanPlacement(
 		planIndex: number,
 		anchor: AxialCoord,
@@ -676,6 +702,12 @@ export class Game extends Eventful<GameEvents> {
 		return previewHivePlanPlacement(this, plan, anchor, rotation)
 	}
 
+	/**
+	 * Apply a validated hive plan placement, materializing construction shells on
+	 * every covered tile. Requires the preview to be valid and all cells to resolve
+	 * to concrete tiles.
+	 * @returns `true` when the placement was applied.
+	 */
 	public applyHivePlanPlacement(planIndex: number, anchor: AxialCoord, rotation: number): boolean {
 		const plan = this.hivePlans.byIndex(planIndex)
 		if (!plan || plan.stage !== 'working') return false
@@ -700,6 +732,11 @@ export class Game extends Eventful<GameEvents> {
 		return true
 	}
 
+	/**
+	 * Apply a zone action to a tile. `zoneType === 'none'` clears the zone; otherwise
+	 * the named zone is resolved or lazily defined as a passive zone.
+	 * @returns `true` when the tile accepted the action.
+	 */
 	public applyZoneAction(tile: Tile, zoneType: string): boolean {
 		if (!tile.canInteract(`zone:${zoneType}`)) return false
 		if (zoneType === 'none') {
@@ -718,6 +755,11 @@ export class Game extends Eventful<GameEvents> {
 		return true
 	}
 
+	/**
+	 * Apply a road of `roadType` along the borders spanned by `tiles` when the trace
+	 * is buildable.
+	 * @returns `true` when the road was applied.
+	 */
 	public applyRoadTrace(tiles: readonly Tile[], roadType: RoadType): boolean {
 		if (!canBuildRoadOnTrace(tiles)) return false
 		for (const border of roadBordersForTrace(tiles)) {
@@ -726,6 +768,7 @@ export class Game extends Eventful<GameEvents> {
 		return true
 	}
 
+	/** Look up a settlement trade profile by its stable id (never by display name). */
 	public getSettlementTradeProfile(id: string): NpcSettlementTradeProfile | undefined {
 		const needle = id.trim()
 		if (!needle) return undefined
@@ -737,12 +780,14 @@ export class Game extends Eventful<GameEvents> {
 		return undefined
 	}
 
+	/** Look up the settlement trade profile whose city hall sits at `coord`. */
 	public getSettlementTradeProfileAtCityHall(
 		coord: AxialCoord
 	): NpcSettlementTradeProfile | undefined {
 		return this.settlementTradeProfilesByCityHallCoord.get(axial.key(coord))
 	}
 
+	/** All registered settlement trade profiles, sorted by display name. */
 	public listSettlementTradeProfiles(): NpcSettlementTradeProfile[] {
 		return [...this.settlementTradeProfiles].sort((left, right) =>
 			left.name.localeCompare(right.name)
@@ -816,10 +861,12 @@ export class Game extends Eventful<GameEvents> {
 		for (const vehicle of this.vehicles) vehicle.refreshFreightLineReference(original, normalized)
 	}
 
+	/** Assign a vehicle to a freight line. */
 	assignVehicleToFreightLine(vehicle: Vehicle, line: FreightLineDefinition): boolean {
 		return vehicle.assignFreightLine(line)
 	}
 
+	/** Unassign a vehicle from a freight line. */
 	unassignVehicleFromFreightLine(vehicle: Vehicle, line: FreightLineDefinition): boolean {
 		return vehicle.unassignFreightLine(line)
 	}
@@ -836,18 +883,22 @@ export class Game extends Eventful<GameEvents> {
 		return true
 	}
 
+	/** Resolve a texture from the active renderer by spec key. */
 	public getTexture(spec: string) {
 		return this.renderer?.getTexture(spec)
 	}
 
+	/** Register an interactive object in the live object set. */
 	register(object: InteractiveGameObject) {
 		this.objects.add(object)
 	}
 
+	/** Remove an interactive object from the live object set. */
 	unregister(object: InteractiveGameObject) {
 		this.objects.delete(object)
 	}
 
+	/** Enqueue an interactive object for deferred registration (flushed as a batch). */
 	public enqueueInteractiveRegistration(object: InteractiveGameObject) {
 		this.pendingInteractiveUnregistrations.delete(object)
 		this.pendingInteractiveChanges.delete(object)
@@ -855,6 +906,7 @@ export class Game extends Eventful<GameEvents> {
 		this.scheduleInteractiveLifecycleFlush()
 	}
 
+	/** Enqueue an interactive object for deferred change notification (no-op if queued for reg/unreg). */
 	public enqueueInteractiveChange(object: InteractiveGameObject) {
 		if (
 			this.pendingInteractiveRegistrations.has(object) ||
@@ -867,12 +919,14 @@ export class Game extends Eventful<GameEvents> {
 		this.scheduleInteractiveLifecycleFlush()
 	}
 
+	/** Enqueue a `storage.changed` presentation event for an object. */
 	public enqueueStoragePresentationChange(owner: GameObject): void {
 		const event: GamePresentationEvent = { type: 'storage.changed', owner }
 		this.pendingPresentationEvents.set(`${event.type}:${debugObjectId(owner)}`, event)
 		this.schedulePresentationEventsFlush()
 	}
 
+	/** Enqueue a `vehicle.dock.changed` presentation event for a dock/undock transition. */
 	public enqueueVehicleDockPresentationChange(owner: GameObject, vehicle: GameObject): void {
 		const event: GamePresentationEvent = {
 			type: 'vehicle.dock.changed',
@@ -886,6 +940,7 @@ export class Game extends Eventful<GameEvents> {
 		this.schedulePresentationEventsFlush()
 	}
 
+	/** Enqueue an NPC trade transfer presentation event and accumulate its log entry. */
 	public enqueueNpcTradePresentationChange(
 		event: Omit<Extract<GamePresentationEvent, { type: 'npc-trade.transferred' }>, 'type'>
 	): void {
@@ -920,10 +975,15 @@ export class Game extends Eventful<GameEvents> {
 		return out.sort((a, b) => b.tick - a.tick)
 	}
 
+	/** Monotonic planning revision; bumped whenever world state changes enough to require re-planning. */
 	get workPlanningRevision(): number {
 		return this._workPlanningRevision
 	}
 
+	/**
+	 * Bump the work-planning revision and schedule a `work-planning.changed` presentation
+	 * event, forcing dependent planners/caches to recompute.
+	 */
 	public invalidateWorkPlanning(_reason: string): void {
 		this._workPlanningRevision++
 		const event: GamePresentationEvent = {
@@ -948,6 +1008,10 @@ export class Game extends Eventful<GameEvents> {
 		this.renderer?.invalidateTerrain?.(coord)
 	}
 
+	/**
+	 * Enqueue an interactive object for deferred unregistration. If the object was
+	 * still pending registration, that registration is cancelled instead.
+	 */
 	public enqueueInteractiveUnregistration(object: InteractiveGameObject) {
 		if (this.pendingInteractiveRegistrations.has(object)) {
 			this.pendingInteractiveRegistrations.delete(object)
@@ -961,6 +1025,7 @@ export class Game extends Eventful<GameEvents> {
 		this.scheduleInteractiveLifecycleFlush()
 	}
 
+	/** Drain pending interactive change notifications, filtered to still-registered objects. */
 	public flushInteractiveChanges(): InteractiveGameObject[] {
 		if (this.pendingInteractiveChanges.size === 0) return []
 		const changed = [...this.pendingInteractiveChanges]
@@ -968,6 +1033,7 @@ export class Game extends Eventful<GameEvents> {
 		return changed.filter((object) => this.objects.has(object))
 	}
 
+	/** Drain pending interactive unregistrations, atomically removing still-registered objects. */
 	public flushInteractiveUnregistrations(): InteractiveGameObject[] {
 		if (this.pendingInteractiveUnregistrations.size === 0) return []
 		const pending = [...this.pendingInteractiveUnregistrations]
@@ -983,6 +1049,7 @@ export class Game extends Eventful<GameEvents> {
 		return removed
 	}
 
+	/** Drain pending interactive registrations, atomically adding not-yet-registered objects. */
 	public flushInteractiveRegistrations(): InteractiveGameObject[] {
 		if (this.pendingInteractiveRegistrations.size === 0) return []
 		const pending = [...this.pendingInteractiveRegistrations]
@@ -1034,6 +1101,10 @@ export class Game extends Eventful<GameEvents> {
 		})
 	}
 
+	/**
+	 * Run `fn` inside an object-registration batch, deferring lifecycle flushes until
+	 * the outermost batch completes.
+	 */
 	public withObjectRegistrationBatch<T>(fn: () => T): T {
 		this.interactiveRegistrationBatchDepth++
 		try {
@@ -1046,14 +1117,21 @@ export class Game extends Eventful<GameEvents> {
 		}
 	}
 
+	/** Register an object that receives per-tick `update(deltaSeconds)` callbacks. */
 	registerTickedObject(object: { update(deltaSeconds: number): void }) {
 		this.tickedObjects.add(object)
 	}
 
+	/** Unregister a previously registered ticked object. */
 	unregisterTickedObject(object: { update(deltaSeconds: number): void }) {
 		this.tickedObjects.delete(object)
 	}
 
+	/**
+	 * Main simulation tick. Advances the clock by the elapsed (speed-scaled) delta,
+	 * then updates all registered ticked objects. Registered as an atomic callback on
+	 * the {@link SimulationLoop}.
+	 */
 	public tickerCallback = atomic((timer: SimulationLoop) => {
 		const controlIndex = Math.max(
 			0,
@@ -1175,6 +1253,7 @@ export class Game extends Eventful<GameEvents> {
 		})
 	}
 
+	/** Emit an object-click event (e.g. from input adapters). */
 	public simulateObjectClick(object: InteractiveGameObject, event: unknown = {}) {
 		this.emit('objectClick', event, object)
 	}
@@ -1570,14 +1649,17 @@ export class Game extends Eventful<GameEvents> {
 		return this.hex.getTileContent(coord) !== undefined
 	}
 
+	/** Whether a gameplay tile is materialized at `coord`. */
 	public hasGameplayContentAt(coord: AxialCoord): boolean {
 		return this.hasMaterializedGameplayTile(coord)
 	}
 
+	/** Whether a renderable terrain sample (gameplay or streamed) is available at `coord`. */
 	public hasRenderableTerrainAt(coord: AxialCoord): boolean {
 		return this.getRenderableTerrainAt(coord) !== undefined
 	}
 
+	/** Resolve a renderable terrain sample at `coord`, preferring gameplay state then streamed terrain. */
 	public getRenderableTerrainAt(coord: AxialCoord): RenderableTerrainTile | undefined {
 		const gameplay = this.getGameplayTerrainSample(coord)
 		if (gameplay) return this.withRenderableZone(coord, gameplay)
@@ -1640,15 +1722,18 @@ export class Game extends Eventful<GameEvents> {
 		}
 	}
 
+	/** Resolve a terrain sample at `coord` (streamed only; no gameplay override), with zone decoration. */
 	public getTerrainSample(coord: AxialCoord): TerrainSample | undefined {
 		const sample = this.terrainProvider.getTerrainSample(coord)
 		return sample ? this.withRenderableZone(coord, sample) : undefined
 	}
 
+	/** Ensure terrain samples are generated for the given coordinates. */
 	public async ensureTerrainSamples(coords: Iterable<AxialCoord>): Promise<void> {
 		await this.terrainProvider.ensureTerrainSamples(coords)
 	}
 
+	/** Ensure terrain sectors are generated for the given sector keys. */
 	public async ensureTerrainSectors(
 		sectorKeys: Iterable<string>,
 		options?: { includeHydrology?: boolean }
@@ -1656,6 +1741,11 @@ export class Game extends Eventful<GameEvents> {
 		await this.terrainProvider.ensureTerrainSectors(sectorKeys, options)
 	}
 
+	/**
+	 * Ensure gameplay tiles exist for the given sector keys, generating missing sectors
+	 * (and their settlement data).
+	 * @returns `true` when any missing gameplay content was generated.
+	 */
 	public async ensureGameplaySectors(
 		sectorKeys: Iterable<string>,
 		options: { includeHydrology?: boolean; populateInitialGoods?: boolean } = {}
@@ -1697,6 +1787,7 @@ export class Game extends Eventful<GameEvents> {
 		return results.some(Boolean)
 	}
 
+	/** Ensure macro hydrology has been computed around a center sector. */
 	public async ensureMacroHydrology(
 		centerSectorKey: string,
 		options?: { macroStep?: number; sectorRadius?: number }
@@ -1704,18 +1795,22 @@ export class Game extends Eventful<GameEvents> {
 		await this.terrainProvider.ensureMacroHydrology(centerSectorKey, options)
 	}
 
+	/** Current macro hydrology snapshot, if available. */
 	public getTerrainMacroHydrology(): TerrainMacroHydrologySnapshot | undefined {
 		return this.terrainProvider.getTerrainMacroHydrology()
 	}
 
+	/** Diagnostics for the terrain provider (queue, cache, generation state). */
 	public getTerrainProviderDiagnostics(): TerrainProviderDiagnostics {
 		return this.terrainProvider.getDiagnostics()
 	}
 
+	/** Declare the terrain coordinates a viewport currently needs to render. */
 	public updateTerrainViewportDemand(viewportId: string, coords: Iterable<AxialCoord>) {
 		this.terrainProvider.updateViewportDemand(viewportId, coords)
 	}
 
+	/** Clear a viewport's terrain demand (e.g. view closed). */
 	public clearTerrainViewportDemand(viewportId: string) {
 		this.terrainProvider.clearViewportDemand(viewportId)
 	}
@@ -1915,12 +2010,17 @@ export class Game extends Eventful<GameEvents> {
 		return this.gameplayFrontier.snapshot()
 	}
 
+	/** Ensure gameplay tiles are materialized for the given coordinates (sync). */
 	public ensureGeneratedTiles(coords: Iterable<AxialCoord>) {
 		this.materializeGameplayTiles(coords)
 	}
+
+	/** Ensure gameplay tiles are materialized for the given coordinates (async). */
 	async ensureGeneratedTilesAsync(coords: Iterable<AxialCoord>) {
 		await this.materializeGameplayTilesAsync(coords)
 	}
+
+	/** Synchronously (re)generate the world from `config` and `patches`. */
 	async generate(config: GameGenerationOptions, patches: GamePatches = {}, saveState?: SaveState) {
 		try {
 			const terrainTiles = terrainPatchesAsTiles(patches.terrains)
@@ -1971,6 +2071,7 @@ export class Game extends Eventful<GameEvents> {
 			console.error('Generation failed:', error)
 		}
 	}
+	/** Asynchronously (re)generate the world from `config` and `patches` (with optional save restore). */
 	async generateAsync(
 		config: GameGenerationOptions,
 		patches: GamePatches = {},
@@ -2051,6 +2152,7 @@ export class Game extends Eventful<GameEvents> {
 			console.error('Async generation failed:', error)
 		}
 	}
+	/** Emit an object-click event from the pixi/renderer input path. */
 	clickObject(event: any, object: InteractiveGameObject) {
 		this.emit('objectClick', event, object)
 	}
@@ -2549,6 +2651,7 @@ export class Game extends Eventful<GameEvents> {
 		}
 	}
 
+	/** Serialize the current world into a {@link SaveState} snapshot. */
 	public saveGameData(): SaveState {
 		const tiles: Array<TilePatch> = []
 		const hives = new Map<Hive, Array<AlveolusPatch>>()
@@ -2790,6 +2893,7 @@ export class Game extends Eventful<GameEvents> {
 		}
 	}
 
+	/** Restore a world from a {@link SaveState}, regenerating terrain and re-wiring references. */
 	public async loadGameData(state: SaveState) {
 		await this.loaded
 		this.conveyRestoredAtLoad = []
@@ -2989,6 +3093,7 @@ export class Game extends Eventful<GameEvents> {
 		}
 	}
 
+	/** Tear down the game: stop simulation, clear all world/reactive state, and release resources. */
 	public destroy() {
 		this.clearTraceTimeSource?.()
 		this.clearTraceTimeSource = undefined

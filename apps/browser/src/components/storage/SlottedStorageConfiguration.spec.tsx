@@ -18,7 +18,11 @@ vi.mock('@app/ui/anarkai', () => ({
 				data-maximum={String(props.maximum)}
 				data-value={Array.isArray(props.value) ? props.value.join(',') : String(props.value ?? 0)}
 				onClick={() =>
-					props.onChange?.(Array.isArray(props.value) ? [props.value[0] + 1, props.value[1] + 1] : (props.value || 0) + 1)
+					props.onChange?.(
+						Array.isArray(props.value)
+							? [props.value[0] + 1, props.value[1] + 1]
+							: (props.value || 0) + 1
+					)
 				}
 			>
 				stars

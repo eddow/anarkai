@@ -1361,7 +1361,21 @@ class WorkFunctions {
 					site.constructionSite.phase = 'waiting_construction'
 				})
 		}
-		assert(false, 'Tile must be a construction site shell')
+		// The site was finalized while this engineer was walking to it (another
+		// engineer finished it, or a variant queue advanced past the last step).
+		// This is a legitimate race, not a hard invariant violation: yield a short
+		// idle step so the script loop re-plans (`findAction`) against the freshly
+		// invalidated work-planning cache instead of throwing inside the reactive
+		// batch and breaking it.
+		traces.work.warn?.('work.constructionStep.skip', {
+			character: this[subject].name,
+			characterUid: debugObjectId(this[subject]) ?? '',
+			reason: 'site-finalized-during-approach',
+			contentType: content?.constructor?.name,
+		})
+		return new DurationStep(0.5, 'idle', 'construction.re-plan', {
+			key: 'work.construction.wait',
+		})
 	}
 
 	@contract('WorkPlan')

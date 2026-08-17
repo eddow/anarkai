@@ -244,12 +244,14 @@ describe('createAnarkaiPaletteEditors enum editors', () => {
 			},
 			renderEditor(childItem: AnarkaiPaletteToolbarItem, tool: unknown, _scope: unknown) {
 				const buttonEditor = createAnarkaiPaletteEditors().run?.button?.editor
-				return buttonEditor?.({
-					item: childItem as never,
-					tool: tool as never,
-					scope: _scope as never,
-					flags: {},
-				}) ?? ''
+				return (
+					buttonEditor?.({
+						item: childItem as never,
+						tool: tool as never,
+						scope: _scope as never,
+						flags: {},
+					}) ?? ''
+				)
 			},
 		}
 		const editor = createAnarkaiPaletteEditors().item?.drawer?.editor

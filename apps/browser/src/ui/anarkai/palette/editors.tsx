@@ -5,10 +5,10 @@ import type {
 	PaletteConfig,
 	PaletteEditorContext,
 	PaletteEditorRegistry,
-	PaletteToolbar as PaletteToolbarModel,
 	PaletteTool,
+	PaletteToolbar as PaletteToolbarModel,
 } from '@sursaut/ui/palette'
-import { paletteToolFamily, Toolbar as PaletteToolbarView } from '@sursaut/ui/palette'
+import { Toolbar as PaletteToolbarView, paletteToolFamily } from '@sursaut/ui/palette'
 import { effect, reactive } from 'mutts'
 import { Stars } from '../components/Stars'
 import { AnarkaiCommandBoxEditor } from './command-box'
@@ -652,13 +652,27 @@ function DrawerEditor(
 				ui.open = !ui.open
 			}}
 		>
-			<span if={icon} class="ak-palette-drawer__icon" style={{ fontSize: '0.65rem', color: 'var(--ak-accent, #60a5fa)', display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
+			<span
+				if={icon}
+				class="ak-palette-drawer__icon"
+				style={{
+					fontSize: '0.65rem',
+					color: 'var(--ak-accent, #60a5fa)',
+					display: 'inline-flex',
+					alignItems: 'center',
+					flexShrink: 0,
+				}}
+			>
 				{icon}
 			</span>
 			<span if={!icon || meta.label} class="ak-palette-drawer__label">
 				{meta.label}
 			</span>
-			<span class="ak-palette-drawer__chevron" aria-hidden="true" style={{ color: 'var(--ak-text-muted, #94a3b8)', fontSize: '0.6rem', flexShrink: 0 }}>
+			<span
+				class="ak-palette-drawer__chevron"
+				aria-hidden="true"
+				style={{ color: 'var(--ak-text-muted, #94a3b8)', fontSize: '0.6rem', flexShrink: 0 }}
+			>
 				{context.surface?.axis === 'vertical' ? '▸' : '▾'}
 			</span>
 		</button>

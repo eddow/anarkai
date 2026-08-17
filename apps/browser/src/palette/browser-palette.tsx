@@ -1,9 +1,9 @@
 import ResourceImage from '@app/components/ResourceImage'
 import {
+	type AppShellBuildVariantNode,
 	buildPaletteSelectedActionValues,
 	getAppShellBuildableAlveoli,
 	getAppShellBuildToolbarRoots,
-	type AppShellBuildVariantNode,
 } from '@app/lib/app-shell-controls'
 import { FREIGHT_ADD_STOP_ACTION } from '@app/lib/freight-map-pick'
 import type { Configuration } from '@app/lib/globals'
@@ -279,12 +279,7 @@ function createBrowserPaletteBuildToolbar(): BrowserPaletteToolbarItem[] {
 	return browserPaletteBuildToolbarRoots.map((root) => {
 		const icon = browserPaletteBuildIcon(root.rootName)
 		if (root.variants.length === 0) {
-			return createSelectedActionButton(
-				root.value,
-				root.label,
-				['build', root.rootName],
-				icon
-			)
+			return createSelectedActionButton(root.value, root.label, ['build', root.rootName], icon)
 		}
 		return {
 			editor: 'drawer',
@@ -321,12 +316,14 @@ function createBrowserPaletteTop(): PaletteBorder<BrowserPaletteToolbarItem> {
 	const actionSection = track[actionSectionIndex]
 	const otherActionItems = actionSection.toolbar.filter(
 		(item) =>
-			!(item.tool === 'selectedAction' &&
+			!(
+				item.tool === 'selectedAction' &&
 				item.config &&
 				typeof item.config === 'object' &&
 				'acceptedKeywords' in item.config &&
 				Array.isArray((item.config as AnarkaiPaletteEnumConfig).acceptedKeywords) &&
-				(item.config as AnarkaiPaletteEnumConfig).acceptedKeywords?.includes('build'))
+				(item.config as AnarkaiPaletteEnumConfig).acceptedKeywords?.includes('build')
+			)
 	)
 	track.splice(
 		actionSectionIndex,

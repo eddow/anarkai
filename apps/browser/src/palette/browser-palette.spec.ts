@@ -50,13 +50,13 @@ vi.mock('engine-pixi/assets/visual-content', () => ({
 	},
 }))
 
+import type { AnarkaiPaletteToolbarItem } from '@app/ui/anarkai'
 import {
 	browserPaletteIdeConfig,
 	disposeBrowserPalette,
 	getBrowserPalette,
 	palettePanelBridge,
 } from './browser-palette'
-import { AnarkaiPaletteToolbarItem } from '@app/ui/anarkai'
 
 describe('browser palette registry & palettePanelBridge', () => {
 	afterEach(() => {
@@ -184,12 +184,12 @@ describe('browser palette registry & palettePanelBridge', () => {
 		const topItems = browserPaletteIdeConfig.top.flat(2).flatMap((entry) => entry.toolbar)
 		const pileDrawer = topItems.find(
 			(item) => item.editor === 'drawer' && item.config?.label === 'Pile'
-		) as
-			| (AnarkaiPaletteToolbarItem & { toolbar?: AnarkaiPaletteToolbarItem[] })
-			| undefined
+		) as (AnarkaiPaletteToolbarItem & { toolbar?: AnarkaiPaletteToolbarItem[] }) | undefined
 
 		expect(pileDrawer).toBeTruthy()
-		expect(pileDrawer?.toolbar?.some((item) => item.tool === 'selectedAction|build:pile')).toBe(true)
+		expect(pileDrawer?.toolbar?.some((item) => item.tool === 'selectedAction|build:pile')).toBe(
+			true
+		)
 		expect(
 			pileDrawer?.toolbar?.some(
 				(item) => item.editor === 'drawer' && item.config?.hint === 'Wood variants'

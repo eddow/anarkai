@@ -43,7 +43,9 @@ describe('dock registration survives hive merge', () => {
 			} satisfies Partial<SaveState>)
 
 			const storedLine = engine.game.freightLines.find((l) => l.name === 'Merge dock gather')!
-			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 2, r: 0 }, [storedLine])
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 2, r: 0 }, [
+				storedLine,
+			])
 			vehicle.storage.addGood('wood', 2)
 			vehicle.beginLineService(storedLine, storedLine.stops[1]!)
 			vehicle.dock()

@@ -1,8 +1,8 @@
 import { document, latch } from '@sursaut/core'
 import type { DockviewWidgetProps } from '@sursaut/ui/dockview'
+import { reactive } from 'mutts'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SelectionInfoContext } from './selection-info-tab'
-import { reactive } from 'mutts'
 
 const updateParameters = vi.fn<(params: { uid?: string }) => void>()
 const onDidRemovePanel = vi.fn((handler: (panel: { id: string }) => void) => {
@@ -118,7 +118,7 @@ vi.mock('../components/parts/WorkingIndicator', () => ({
 			data-testid="hive-working-toggle"
 			data-checked={String(props.checked)}
 			onClick={() => {
-				(props as any).checked = !(props as any).checked
+				;(props as any).checked = !(props as any).checked
 			}}
 		/>
 	),
@@ -233,7 +233,11 @@ describe('SelectionInfoWidget hive integration', () => {
 		container = document.createElement('div')
 		document.body.appendChild(container)
 		globals.selectionState.selectedUid = hiveSyntheticUid
-		globals.selectionState.selectedObject = { kind: 'hive', tile: { q: 0, r: 0 }, game: { vehicles: [], freightLines: [] } } as any
+		globals.selectionState.selectedObject = {
+			kind: 'hive',
+			tile: { q: 0, r: 0 },
+			game: { vehicles: [], freightLines: [] },
+		} as any
 		globals.selectionState.titleVersion = 0
 		globals.unreactiveInfo.hasLastSelectedInfoPanel = true
 		globals.mrg.hoveredObject = undefined

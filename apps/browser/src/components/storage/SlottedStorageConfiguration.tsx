@@ -1,8 +1,8 @@
 import { css } from '@app/lib/css'
 import { Stars } from '@app/ui/anarkai'
 import type { StarsValue } from '@sursaut/ui/models'
-import { effect, reactive } from 'mutts'
 import { goods as goodsCatalog } from 'engine-pixi/assets/visual-content'
+import { effect, reactive } from 'mutts'
 import type { Game } from 'ssh/game'
 import type { StorageAlveolus } from 'ssh/hive/storage'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'
@@ -122,9 +122,7 @@ function GoodStarsEditor(props: {
 	)
 }
 
-function GeneralStarsEditor(props: {
-	content: StorageAlveolus
-}) {
+function GeneralStarsEditor(props: { content: StorageAlveolus }) {
 	const state = reactive({
 		remainingBudget: 0,
 		displayedGeneralSlots: 0,

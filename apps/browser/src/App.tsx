@@ -90,10 +90,14 @@ if (typeof window !== 'undefined') {
 
 		if (opts?.openPanel === false) return
 
-		const api = (window as any).dockviewApi as {
-			getPanel?: (id: string) => { api: { close(): void }; id: string; params?: Record<string, unknown> } | undefined
-			addPanel?: (opts: Record<string, unknown>) => { id: string } | undefined
-		} | undefined
+		const api = (window as any).dockviewApi as
+			| {
+					getPanel?: (
+						id: string
+					) => { api: { close(): void }; id: string; params?: Record<string, unknown> } | undefined
+					addPanel?: (opts: Record<string, unknown>) => { id: string } | undefined
+			  }
+			| undefined
 		if (!api?.addPanel) return
 
 		// Don't destroy pinned panels (they have params.uid set)

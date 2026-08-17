@@ -63,6 +63,12 @@ export function finalizeConstructionShell(shell: ConstructionSiteShell): void {
 	const constructionSite = normalizeConstructionSiteState(shell.constructionSite)
 	setConstructionConsumedGoods(constructionSite, constructionSite.requiredGoods)
 	applyConstructionConcreteTerrain(shell.tile)
+	// Invalidate cached engineer job picks: the tile's content changes here
+	// (shell → next shell / finished alveolus / dwelling), so any engineer who
+	// already cached a `construct` target for this tile must re-evaluate instead
+	// of walking to a site that no longer exists. Without this, a second engineer
+	// re-plans to the finalized tile and `constructionStep` trips its invariant.
+	shell.tile.game.invalidateWorkPlanning('construction.finalize')
 	const assignableShell = shell as { assignedWorker?: { assignedAlveolus?: unknown } | undefined }
 	const assignedWorker = assignableShell.assignedWorker
 	if (assignedWorker?.assignedAlveolus === shell) assignedWorker.assignedAlveolus = undefined

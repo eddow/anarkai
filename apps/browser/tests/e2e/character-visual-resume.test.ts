@@ -48,14 +48,17 @@ test.describe('Character board visual after inspector resume', () => {
 
 		// Wait for Pixi visuals to be rendered (may take longer with terrain baking)
 		await expect
-			.poll(async () =>
-				page.evaluate(() => {
-					const game = (window as any).game
-					return [...(game?.renderer?.visuals?.values?.() ?? [])].filter(
-						(visual: any) =>
-							typeof visual?.view?.label === 'string' && visual.view.label.startsWith('character:')
-					).length
-				}), { timeout: 30000, intervals: [500, 1000, 2000, 5000] }
+			.poll(
+				async () =>
+					page.evaluate(() => {
+						const game = (window as any).game
+						return [...(game?.renderer?.visuals?.values?.() ?? [])].filter(
+							(visual: any) =>
+								typeof visual?.view?.label === 'string' &&
+								visual.view.label.startsWith('character:')
+						).length
+					}),
+				{ timeout: 30000, intervals: [500, 1000, 2000, 5000] }
 			)
 			.toBeGreaterThan(0)
 

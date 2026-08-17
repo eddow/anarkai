@@ -31,7 +31,9 @@ describe('dock registration survives save/load', () => {
 			// Use the live line reference stored in `game.freightLines` (patches may normalize).
 			const storedLine = engine.game.freightLines.find((l) => l.name === 'Dock save gather')!
 			expect(storedLine).toBeDefined()
-			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [storedLine])
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [
+				storedLine,
+			])
 			// Load goods so the dock completion check does not immediately end the service.
 			vehicle.storage.addGood('wood', 2)
 			vehicle.beginLineService(storedLine, storedLine.stops[1]!)
