@@ -67,6 +67,7 @@ import { readSlottedStorageParams, usesSlottedStorageLayout } from 'ssh/hive/sto
 import { TransformAlveolus } from 'ssh/hive/transform'
 import {
 	createConstructionSiteForHivePlanEntry,
+	type HivePlan,
 	HivePlanCollection,
 	type HivePlanPlacementPreview,
 	previewHivePlanPlacement,
@@ -202,7 +203,7 @@ export interface AlveolusPatch {
 		ref: Ssh.ConfigurationReference
 		individual?: Ssh.AlveolusConfiguration
 	}
-	assignedZoneIndices?: readonly number[]
+	assignedZoneNames?: readonly string[]
 }
 
 export interface DwellingPatch {
@@ -700,11 +701,10 @@ export class Game extends Eventful<GameEvents> {
 	 * @returns a placement preview, or `undefined` when the plan is missing or not `working`.
 	 */
 	public previewHivePlanPlacement(
-		planIndex: number,
+		plan: HivePlan,
 		anchor: AxialCoord,
 		rotation: number
 	): HivePlanPlacementPreview | undefined {
-		const plan = this.hivePlans.byIndex(planIndex)
 		if (!plan || plan.stage !== 'working') return undefined
 		return previewHivePlanPlacement(this, plan, anchor, rotation)
 	}
@@ -715,8 +715,7 @@ export class Game extends Eventful<GameEvents> {
 	 * to concrete tiles.
 	 * @returns `true` when the placement was applied.
 	 */
-	public applyHivePlanPlacement(planIndex: number, anchor: AxialCoord, rotation: number): boolean {
-		const plan = this.hivePlans.byIndex(planIndex)
+	public applyHivePlanPlacement(plan: HivePlan, anchor: AxialCoord, rotation: number): boolean {
 		if (!plan || plan.stage !== 'working') return false
 		const preview = previewHivePlanPlacement(this, plan, anchor, rotation)
 		if (!preview.valid) return false
@@ -731,7 +730,7 @@ export class Game extends Eventful<GameEvents> {
 				terrain: 'concrete',
 			}
 			this.upsertTerrainOverride(cell.coord, { terrain: 'concrete' })
-			const shell = createConstructionSiteForHivePlanEntry(tile, plan, cell.entry, planIndex)
+			const shell = createConstructionSiteForHivePlanEntry(tile, plan, cell.entry)
 			this.hex.setTileContent(tile, shell)
 			tile.asGenerated = false
 		}
@@ -2066,13 +2065,13 @@ export class Game extends Eventful<GameEvents> {
 			this.vehicles.clear()
 
 			const populationLoad = this.generateInitialWorld(config, patches)
-			// Apply patches if any
+			// Apply patches if any (zones before hives so named-zone references resolve)
 			if (terrainTiles.length) this.applyTilePatches(terrainTiles)
 			if (patches.tiles?.length) this.applyTilePatches(patches.tiles)
+			if (patches.zones) this.applyZonePatches(patches.zones)
 			if (patches.hives?.length)
 				this.applyHivesPatches(patches.hives, saveState?.hiveConfigurations)
 			if (patches.looseGoods) this.applyLooseGoodsPatches(patches.looseGoods)
-			if (patches.zones) this.applyZonePatches(patches.zones)
 			if (patches.projects) this.applyProjectPatches(patches.projects)
 			if (patches.projectSites?.length) this.applyProjectSitePatches(patches.projectSites)
 			if (patches.dwellings?.length) this.applyDwellingPatches(patches.dwellings)
@@ -2151,10 +2150,10 @@ export class Game extends Eventful<GameEvents> {
 			})
 			if (terrainTiles.length) this.applyTilePatches(terrainTiles)
 			if (patches.tiles?.length) this.applyTilePatches(patches.tiles)
+			if (patches.zones) this.applyZonePatches(patches.zones)
 			if (patches.hives?.length)
 				this.applyHivesPatches(patches.hives, saveState?.hiveConfigurations)
 			if (patches.looseGoods) this.applyLooseGoodsPatches(patches.looseGoods)
-			if (patches.zones) this.applyZonePatches(patches.zones)
 			if (patches.projects) this.applyProjectPatches(patches.projects)
 			if (patches.projectSites?.length) this.applyProjectSitePatches(patches.projectSites)
 			if (patches.dwellings?.length) this.applyDwellingPatches(patches.dwellings)
@@ -2406,7 +2405,8 @@ export class Game extends Eventful<GameEvents> {
 					const build = createConstructionShell(tile, constructionSite)
 					build.constructionWorkSecondsApplied = a.constructionWorkSecondsApplied ?? 0
 					Object.assign(build, {
-						hivePlanIndex: a.hivePlanIndex,
+						hivePlan:
+							a.hivePlanIndex !== undefined ? this.hivePlans.byIndex(a.hivePlanIndex) : undefined,
 						hivePlanVersion: a.hivePlanVersion,
 						planRoleId: a.planRoleId,
 						planConfiguration: a.configuration,
@@ -2462,7 +2462,13 @@ export class Game extends Eventful<GameEvents> {
 						}
 					}
 				}
-				if (a.assignedZoneIndices) alv.setAssignedZoneIndices(a.assignedZoneIndices)
+				if (a.assignedZoneNames) {
+					alv.setAssignedZones(
+						a.assignedZoneNames
+							.map((name) => this.hex.zoneManager.findZoneByName(name))
+							.filter((zone): zone is import('ssh/board/zone').ZoneDefinition => zone !== undefined)
+					)
+				}
 				if (!alv.hive && this.HiveClass) {
 					const h = this.HiveClass.for(tile)
 					if (hive.name !== undefined) h.name = hive.name
@@ -2555,13 +2561,17 @@ export class Game extends Eventful<GameEvents> {
 				this.upsertTerrainOverride(coordObj, { terrain: 'concrete' })
 				const build = createConstructionShell(tile, constructionSite)
 				build.constructionWorkSecondsApplied = entry.constructionWorkSecondsApplied ?? 0
+				const hivePlan =
+					entry.hivePlanIndex !== undefined
+						? this.hivePlans.byIndex(entry.hivePlanIndex)
+						: undefined
 				Object.assign(build, {
-					hivePlanIndex: entry.hivePlanIndex,
+					hivePlan,
 					hivePlanVersion: entry.hivePlanVersion,
 					planRoleId: entry.planRoleId,
-					planConfiguration: this.hivePlans
-						.byIndex(entry.hivePlanIndex ?? -1)
-						?.entries.find((planEntry) => planEntry.roleId === entry.planRoleId)?.configuration,
+					planConfiguration: hivePlan?.entries.find(
+						(planEntry) => planEntry.roleId === entry.planRoleId
+					)?.configuration,
 				})
 				this.hex.setTileContent(tile, build)
 				for (const [good, qty] of Object.entries(entry.constructionGoods ?? {})) {
@@ -2770,7 +2780,9 @@ export class Game extends Eventful<GameEvents> {
 					foundationConsumedGoods: content.constructionSite.foundationConsumedGoods ?? {},
 					constructionGoods: content.storage?.stock ?? {},
 					constructionWorkSecondsApplied: content.constructionWorkSecondsApplied,
-					hivePlanIndex: (content as { hivePlanIndex?: number }).hivePlanIndex,
+					hivePlanIndex: (content as { hivePlan?: HivePlan }).hivePlan
+						? this.hivePlans.indexOf((content as { hivePlan?: HivePlan }).hivePlan!)
+						: undefined,
 					hivePlanVersion: (content as { hivePlanVersion?: number }).hivePlanVersion,
 					planRoleId: (content as { planRoleId?: string }).planRoleId,
 				})
@@ -2790,7 +2802,9 @@ export class Game extends Eventful<GameEvents> {
 								constructionWorkSecondsApplied: constructionShell.constructionWorkSecondsApplied,
 								constructionPhase: constructionShell.constructionSite.phase,
 								goods: constructionShell.storage?.stock || {},
-								hivePlanIndex: (constructionShell as { hivePlanIndex?: number }).hivePlanIndex,
+								hivePlanIndex: (constructionShell as { hivePlan?: HivePlan }).hivePlan
+									? this.hivePlans.indexOf((constructionShell as { hivePlan?: HivePlan }).hivePlan!)
+									: undefined,
 								hivePlanVersion: (constructionShell as { hivePlanVersion?: number })
 									.hivePlanVersion,
 								planRoleId: (constructionShell as { planRoleId?: string }).planRoleId,
@@ -2810,8 +2824,10 @@ export class Game extends Eventful<GameEvents> {
 						individual: content.individualConfiguration,
 					}
 				}
-				if (content.assignedZoneIndices.length > 0) {
-					patch.assignedZoneIndices = [...content.assignedZoneIndices]
+				if (content.assignedZones.length > 0) {
+					patch.assignedZoneNames = content.assignedZones
+						.map((zone) => zone.name)
+						.filter((name): name is string => !!name)
 				}
 				hives.get(content.hive)!.push(patch)
 			}

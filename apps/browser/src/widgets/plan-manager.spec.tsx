@@ -18,6 +18,7 @@ const globals = vi.hoisted(() => ({
 	hivePlanPlacementState: {
 		rotation: 0,
 		lastMessage: '',
+		plan: undefined,
 	},
 	interactionMode: {
 		selectedAction: '',

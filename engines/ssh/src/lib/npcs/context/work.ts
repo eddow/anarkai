@@ -1381,8 +1381,7 @@ class WorkFunctions {
 	@contract('WorkPlan')
 	validateHivePlanStep(workPlan: WorkPlan) {
 		const character = this[subject]
-		const planIndex = workPlan.job === 'validateHivePlan' ? workPlan.planIndex : undefined
-		const plan = character.game.hivePlans.byIndex(planIndex ?? -1)
+		const plan = workPlan.job === 'validateHivePlan' ? workPlan.plan : undefined
 		assert(plan && plan.stage === 'validating', 'A validating hive plan is required')
 		const engineer = character.assignedAlveolus
 		assert(engineer, 'An engineer alveolus must be assigned for hive-plan validation')

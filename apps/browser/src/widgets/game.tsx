@@ -86,14 +86,11 @@ export default function GameWidget(
 
 	const handleHivePlanPlacement = (_event: MouseEvent, object: InteractiveGameObject) => {
 		if (!(object instanceof Tile)) return false
-		const planIndex = Number(interactionMode.selectedAction.slice('hive-plan:'.length))
+		const plan = hivePlanPlacementState.plan
+		if (!plan) return false
 		const anchor = toAxialCoord(object.position)
 		if (!anchor) return false
-		const preview = game.previewHivePlanPlacement(
-			planIndex,
-			anchor,
-			hivePlanPlacementState.rotation
-		)
+		const preview = game.previewHivePlanPlacement(plan, anchor, hivePlanPlacementState.rotation)
 		if (!preview) {
 			hivePlanPlacementState.lastMessage = 'Plan is not available.'
 			return false
@@ -103,7 +100,7 @@ export default function GameWidget(
 			hivePlanPlacementState.lastMessage = blocked?.reason ?? 'Plan does not fit here.'
 			return false
 		}
-		const success = game.applyHivePlanPlacement(planIndex, anchor, hivePlanPlacementState.rotation)
+		const success = game.applyHivePlanPlacement(plan, anchor, hivePlanPlacementState.rotation)
 		hivePlanPlacementState.lastMessage = success ? 'Plan placed.' : 'Plan does not fit here.'
 		return success
 	}
@@ -123,9 +120,12 @@ export default function GameWidget(
 				if (applied && !event.shiftKey) interactionMode.selectedAction = ''
 				return
 			}
-			if (action.startsWith('hive-plan:')) {
+			if (action === 'hive-plan') {
 				const applied = handleHivePlanPlacement(event, object)
-				if (applied && !event.shiftKey) interactionMode.selectedAction = ''
+				if (applied && !event.shiftKey) {
+					interactionMode.selectedAction = ''
+					hivePlanPlacementState.plan = undefined
+				}
 				return
 			}
 			if (action.startsWith('zone:')) {
@@ -170,7 +170,7 @@ export default function GameWidget(
 
 	effect`game:hive-plan-rotation-keys`(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
-			if (!interactionMode.selectedAction.startsWith('hive-plan:')) return
+			if (interactionMode.selectedAction !== 'hive-plan') return
 			if (event.key !== 'r' && event.key !== 'R' && event.key !== 'q' && event.key !== 'Q') return
 			event.preventDefault()
 			const delta = event.key === 'q' || event.key === 'Q' ? -1 : 1
@@ -182,7 +182,12 @@ export default function GameWidget(
 
 	effect`game:hive-plan-hover-preview`(() => {
 		const action = interactionMode.selectedAction
-		if (!action.startsWith('hive-plan:')) {
+		if (action !== 'hive-plan') {
+			game.emit('dragPreviewClear')
+			return
+		}
+		const plan = hivePlanPlacementState.plan
+		if (!plan) {
 			game.emit('dragPreviewClear')
 			return
 		}
@@ -196,12 +201,7 @@ export default function GameWidget(
 			game.emit('dragPreviewClear')
 			return
 		}
-		const planIndex = Number(action.slice('hive-plan:'.length))
-		const preview = game.previewHivePlanPlacement(
-			planIndex,
-			anchor,
-			hivePlanPlacementState.rotation
-		)
+		const preview = game.previewHivePlanPlacement(plan, anchor, hivePlanPlacementState.rotation)
 		if (!preview) {
 			game.emit('dragPreviewClear')
 			return
@@ -230,7 +230,7 @@ export default function GameWidget(
 		} else if (action === 'bulldoze') {
 			container?.setAttribute('data-build-action', '')
 			if (canvas) canvas.style.cursor = 'not-allowed'
-		} else if (action.startsWith('hive-plan:')) {
+		} else if (action === 'hive-plan') {
 			container?.setAttribute('data-build-action', '')
 			if (canvas) canvas.style.cursor = 'crosshair'
 		} else if (action && action !== '') {

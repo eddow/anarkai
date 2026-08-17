@@ -14,6 +14,7 @@ import {
 	resolveAlveolusVariant,
 } from 'ssh/construction-state'
 import { debugObjectId } from 'ssh/dev/debug-object-id'
+import type { HivePlan } from 'ssh/hive-plan'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { AlveolusType, GoodType } from 'ssh/types/base'
 import { toAxialCoord } from 'ssh/utils/position'
@@ -44,7 +45,7 @@ export class BuildAlveolus extends TileContent {
 	public working = true
 	public destroyed = false
 	public assignedWorker: unknown
-	public hivePlanIndex?: number
+	public hivePlan?: HivePlan
 	public hivePlanVersion?: number
 	public planRoleId?: string
 	public planConfiguration?: {

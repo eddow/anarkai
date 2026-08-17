@@ -169,7 +169,7 @@ const ZonesProperties = (_props: ZonesPropertiesProps) => {
 											type="button"
 											class="zones-properties__icon-button"
 											title="Open zone"
-											onClick={() => openZone(zone, i)}
+											onClick={() => openZone(zone)}
 											data-testid={`zones-open-${i}`}
 										>
 											{icon(tablerOutlinePencil)}

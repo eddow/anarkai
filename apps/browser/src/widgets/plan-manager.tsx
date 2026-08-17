@@ -197,7 +197,7 @@ const PlanManagerWidget = (props: { title?: string }) => {
 	props.title = 'Plans'
 	const state = reactive({
 		filter: 'all' as StageFilter,
-		selectedId: '',
+		selectedPlan: undefined as HivePlan | undefined,
 		selectedRoleId: '',
 		message: '',
 	})
@@ -206,7 +206,7 @@ const PlanManagerWidget = (props: { title?: string }) => {
 		state.filter === 'all'
 			? game.hivePlans.plans
 			: game.hivePlans.plans.filter((plan) => plan.stage === state.filter)
-	const selectedPlan = () => game.hivePlans.byIndex(Number(state.selectedId))
+	const selectedPlan = () => state.selectedPlan
 	const selectedEntry = () => {
 		const plan = selectedPlan()
 		return plan?.entries.find((entry) => entry.roleId === state.selectedRoleId)
@@ -227,7 +227,7 @@ const PlanManagerWidget = (props: { title?: string }) => {
 	effect`plan-manager:selected`(() => {
 		const selected = selectedPlan()
 		const list = plansForFilter()
-		if (!selected && list[0]) state.selectedId = String(game.hivePlans.indexOf(list[0]))
+		if (!selected && list[0]) state.selectedPlan = list[0]
 		if (selected && state.selectedRoleId) {
 			const stillExists = selected.entries.some((entry) => entry.roleId === state.selectedRoleId)
 			if (!stillExists) state.selectedRoleId = ''
@@ -239,7 +239,7 @@ const PlanManagerWidget = (props: { title?: string }) => {
 		const list = plansForFilter()
 		const selected = selectedPlan()
 		if (!selected || !list.some((plan) => plan === selected)) {
-			state.selectedId = list[0] !== undefined ? String(game.hivePlans.indexOf(list[0])) : ''
+			state.selectedPlan = list[0]
 			state.selectedRoleId = ''
 		}
 	}
@@ -247,7 +247,7 @@ const PlanManagerWidget = (props: { title?: string }) => {
 	const createNewPlan = () => {
 		const plan = game.hivePlans.createDraft(uniquePlanName('New hive plan'), [])
 		state.filter = 'all'
-		state.selectedId = String(game.hivePlans.indexOf(plan))
+		state.selectedPlan = plan
 		state.selectedRoleId = ''
 		state.message = 'New draft created.'
 	}
@@ -260,9 +260,9 @@ const PlanManagerWidget = (props: { title?: string }) => {
 			state.message = 'Only draft plans can be edited.'
 			return
 		}
-		const result = game.hivePlans.updateDraft(game.hivePlans.indexOf(plan), patch)
+		const result = game.hivePlans.updateDraft(plan, patch)
 		if (result !== plan) {
-			state.selectedId = String(game.hivePlans.indexOf(result))
+			state.selectedPlan = result
 			state.selectedRoleId = ''
 			state.message = `Existing matching plan: ${result.name}`
 			return result
@@ -315,7 +315,7 @@ const PlanManagerWidget = (props: { title?: string }) => {
 	const validateSelected = () => {
 		const plan = selectedPlan()
 		if (!plan || !canValidate()) return
-		const result = game.hivePlans.sendToValidation(game.hivePlans.indexOf(plan))
+		const result = game.hivePlans.sendToValidation(plan)
 		if (!result.ok) {
 			state.message = 'Plan is not ready for validation.'
 			return
@@ -327,21 +327,22 @@ const PlanManagerWidget = (props: { title?: string }) => {
 	const archiveSelected = () => {
 		const plan = selectedPlan()
 		if (!plan) return
-		game.hivePlans.archive(game.hivePlans.indexOf(plan))
+		game.hivePlans.archive(plan)
 		state.message = `${plan.name} archived.`
 	}
 
 	const unarchiveSelected = () => {
 		const plan = selectedPlan()
 		if (!plan) return
-		game.hivePlans.unarchive(game.hivePlans.indexOf(plan))
+		game.hivePlans.unarchive(plan)
 		state.message = `${plan.name} restored as draft.`
 	}
 
 	const placeSelected = () => {
 		const plan = selectedPlan()
 		if (!plan || plan.stage !== 'working') return
-		interactionMode.selectedAction = `hive-plan:${game.hivePlans.indexOf(plan)}`
+		interactionMode.selectedAction = 'hive-plan'
+		hivePlanPlacementState.plan = plan
 		hivePlanPlacementState.rotation = 0
 		hivePlanPlacementState.lastMessage = 'Click the board to place the plan.'
 	}
@@ -374,11 +375,9 @@ const PlanManagerWidget = (props: { title?: string }) => {
 							<button
 								type="button"
 								class="plan-manager__plan"
-								data-selected={
-									state.selectedId === String(game.hivePlans.indexOf(plan)) ? 'true' : 'false'
-								}
+								data-selected={state.selectedPlan === plan ? 'true' : 'false'}
 								onClick={() => {
-									state.selectedId = String(game.hivePlans.indexOf(plan))
+									state.selectedPlan = plan
 									state.selectedRoleId = ''
 								}}
 							>

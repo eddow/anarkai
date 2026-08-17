@@ -1,5 +1,6 @@
 import { reactive, unwrap } from 'mutts'
 import type { InteractiveGameObject } from 'ssh/game/object'
+import type { HivePlan } from 'ssh/hive-plan'
 import type { AxialCoord } from 'ssh/utils'
 
 export const mrg = reactive({
@@ -13,6 +14,7 @@ export const interactionMode = reactive({
 export const hivePlanPlacementState = reactive({
 	rotation: 0,
 	lastMessage: '',
+	plan: undefined as HivePlan | undefined,
 })
 
 export interface ActiveWorldViewPov {

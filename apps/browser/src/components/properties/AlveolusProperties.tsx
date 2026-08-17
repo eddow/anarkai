@@ -8,6 +8,7 @@ import { T } from '@app/lib/i18n'
 import { presentationRevisionFor } from '@app/lib/presentation-events'
 import { effect, reactive } from 'mutts'
 import type { Alveolus } from 'ssh/board/content/alveolus'
+import type { ZoneDefinition } from 'ssh/board/zone'
 import { ZoneObject } from 'ssh/board/zone-object'
 import { isConstructionSiteShell } from 'ssh/build-site'
 import { queryConstructionSiteView } from 'ssh/construction'
@@ -264,25 +265,20 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 		selectInspectorObject(createSyntheticFreightLineObject(game, stored))
 	}
 
-	const assignedZoneIndices = () => props.content?.assignedZoneIndices ?? []
-	const zones = () => state.resolvedGame?.hex.zoneManager.definitions ?? []
-	const zoneDefinition = (index: number) => state.resolvedGame?.hex.zoneManager.zoneByIndex(index)
-	const zoneObject = (index: number) => {
-		const resolved = state.resolvedGame
-		const def = resolved?.hex.zoneManager.zoneByIndex(index)
-		return resolved && def ? new ZoneObject(resolved, def) : undefined
-	}
+	const assignedZones = () => props.content?.assignedZones ?? []
+	const zones = () => (state.resolvedGame?.hex.zoneManager.definitions ?? []).filter((z) => z.name)
+	const zoneObject = (zone: ZoneDefinition) =>
+		state.resolvedGame ? new ZoneObject(state.resolvedGame, zone) : undefined
 	const zonePickerItems = () =>
 		zones()
-			.map((zone, i) => ({ id: String(i), label: zone.name?.trim() || zone.type }))
-			.filter((item) => !assignedZoneIndices().includes(Number(item.id)))
+			.filter((zone) => !assignedZones().includes(zone))
+			.map((zone) => ({ id: zone.name ?? '', label: zone.name?.trim() || zone.type }))
 	const assignZone = (id: string) => {
-		if (props.content) {
-			props.content.setAssignedZoneIndices([...assignedZoneIndices(), Number(id)])
-		}
+		const zone = zones().find((z) => (z.name ?? '') === id)
+		if (props.content && zone) props.content.setAssignedZones([...assignedZones(), zone])
 	}
-	const removeZone = (index: number) => {
-		props.content.setAssignedZoneIndices(assignedZoneIndices().filter((i) => i !== index))
+	const removeZone = (zone: ZoneDefinition) => {
+		props.content?.setAssignedZones(assignedZones().filter((z) => z !== zone))
 	}
 
 	return (
@@ -433,22 +429,20 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 
 			<PropertyGridRow if={state.isForester && state.resolvedGame} label="Assigned zones">
 				<div class="alveolus-zone-assignment">
-					<for each={assignedZoneIndices()}>
-						{(index) => (
+					<for each={assignedZones()}>
+						{(zone) => (
 							<span class="alveolus-zone-assignment__chip" data-testid="forester-zone-chip">
 								<InspectorObjectLink
-									object={zoneObject(index)}
-									label={
-										zoneDefinition(index)?.name?.trim() || zoneDefinition(index)?.type || `${index}`
-									}
+									object={zoneObject(zone)}
+									label={zone.name?.trim() || zone.type}
 								/>
 								<button
 									type="button"
 									class="alveolus-zone-assignment__remove"
 									title="Remove zone"
-									aria-label={`Remove ${zoneDefinition(index)?.name?.trim() || `${index}`}`}
-									data-testid={`forester-zone-remove-${index}`}
-									onClick={() => removeZone(index)}
+									aria-label={`Remove ${zone.name?.trim()}`}
+									data-testid={`forester-zone-remove-${assignedZones().indexOf(zone)}`}
+									onClick={() => removeZone(zone)}
 								>
 									x
 								</button>

@@ -12,10 +12,6 @@ See [`./current-status.md`](./current-status.md) for what is already landed.
 
 ## Details to add
 
-### Views vs state
-
-`const state = reactive({` - in components, a view with get/set is always prefered to a state (buffered and reactively updated values) - also, if something is in the props, it does not have to appear in the view
-
 ### Freight & commerce
 
 - complete the exchange-route refactor: rename gather/distribute helpers and update route summaries / UI

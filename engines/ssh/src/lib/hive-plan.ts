@@ -375,11 +375,11 @@ export class HivePlanCollection {
 		return this.plans[index]
 	}
 
-	findDuplicate(entries: readonly HivePlanEntry[], exceptIndex?: number): HivePlan | undefined {
+	findDuplicate(entries: readonly HivePlanEntry[], exceptPlan?: HivePlan): HivePlan | undefined {
 		if (entries.length === 0) return undefined
 		const fingerprint = hivePlanFingerprint(entries)
 		return this.plans.find(
-			(plan, index) => index !== exceptIndex && plan.knownnessFingerprint === fingerprint
+			(plan) => plan !== exceptPlan && plan.knownnessFingerprint === fingerprint
 		)
 	}
 
@@ -400,14 +400,12 @@ export class HivePlanCollection {
 	}
 
 	updateDraft(
-		index: number,
+		plan: HivePlan,
 		patch: { name?: string; entries?: readonly HivePlanEntry[] }
 	): HivePlan {
-		const plan = this.byIndex(index)
-		if (!plan) throw new Error(`Unknown hive plan at index ${index}`)
 		if (plan.stage !== 'draft') throw new Error('Only draft plans can be edited')
 		const entries = patch.entries ?? plan.entries
-		const duplicate = this.findDuplicate(entries, index)
+		const duplicate = this.findDuplicate(entries, plan)
 		if (duplicate) return duplicate
 		if (patch.name !== undefined) plan.name = patch.name
 		if (patch.entries) plan.entries = patch.entries.map((entry) => ({ ...entry }))
@@ -420,10 +418,8 @@ export class HivePlanCollection {
 	}
 
 	sendToValidation(
-		index: number
+		plan: HivePlan
 	): { ok: true; plan: HivePlan } | { ok: false; issues: HivePlanStructuralIssue[] } {
-		const plan = this.byIndex(index)
-		if (!plan) return { ok: false, issues: [{ code: 'empty', message: 'Unknown plan.' }] }
 		const issues = validateHivePlanStructure(this.game, plan.entries)
 		if (issues.length > 0) return { ok: false, issues }
 		plan.validationProgress = hivePlanValidationRequirements(
@@ -436,12 +432,10 @@ export class HivePlanCollection {
 	}
 
 	archive(
-		index: number,
+		plan: HivePlan,
 		reason: HivePlanArchiveReason = 'manual',
 		replacedByPlanIndex?: number
 	): boolean {
-		const plan = this.byIndex(index)
-		if (!plan) return false
 		plan.stage = 'archived'
 		plan.archiveReason = reason
 		plan.replacedByPlanIndex = replacedByPlanIndex
@@ -449,9 +443,7 @@ export class HivePlanCollection {
 		return true
 	}
 
-	unarchive(index: number): boolean {
-		const plan = this.byIndex(index)
-		if (!plan) return false
+	unarchive(plan: HivePlan): boolean {
 		plan.stage = 'draft'
 		plan.archiveReason = undefined
 		plan.replacedByPlanIndex = undefined
@@ -549,8 +541,7 @@ export function previewHivePlanPlacement(
 export function createConstructionSiteForHivePlanEntry(
 	tile: Tile,
 	plan: HivePlan,
-	entry: HivePlanEntry,
-	planIndex: number
+	entry: HivePlanEntry
 ) {
 	const constructionSite: ConstructionSiteState = createConstructionSiteState({
 		kind: 'alveolus',
@@ -560,7 +551,7 @@ export function createConstructionSiteForHivePlanEntry(
 	constructionSite.phase = 'waiting_materials'
 	const shell = createConstructionShell(tile, constructionSite)
 	Object.assign(shell, {
-		hivePlanIndex: planIndex,
+		hivePlan: plan,
 		hivePlanVersion: plan.version,
 		planRoleId: entry.roleId,
 		planConfiguration: entry.configuration ? { ...entry.configuration } : undefined,

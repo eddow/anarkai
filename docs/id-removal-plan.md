@@ -191,7 +191,7 @@ Legend: ✅ done · ⏳ partial · ❌ TODO.
 
 1. ⏳ **F1**: `selectedUid: string` → `selectedObject: object` — `selectedObject` added + preferred, but `selectedUid` remains as localStorage/pinned-panel fallback.
 2. ✅ **F2**: `freight-line:${index}` → direct line object — synthetic keys gone.
-3. ❌ **F3**: `hive-plan:${index}` → direct plan object — still at `plan-manager.tsx:344`.
+3. ✅ **F3**: `hive-plan:${index}` → direct plan object — `hivePlanPlacementState.plan` holds the `HivePlan` object; `selectedAction` is the bare marker `'hive-plan'`.
 4. ❌ **F4**: `hive:${anchorUid}` → direct hive object — `hiveUidForAnchorTile` / `createSyntheticHiveObjectForUid` still present.
 5. ✅ **F5**: `zone:` uid → direct ZoneObject — `ZoneObject` now holds the `ZoneDefinition` by reference; `zoneObjectUid`/`ZONE_UID_PREFIX` removed; paint token is name-keyed (`zone:${name}`).
 6. ❌ **F6**: `vehicleUid` → Vehicle reference — still at `build-site.ts:31`, `bay-queue-types.ts:115`, `jobs/offers.ts:14`, `types/base.ts:97,138,155,166`, `trace.ts:507,516,549`.
@@ -199,7 +199,7 @@ Legend: ✅ done · ⏳ partial · ❌ TODO.
 8. ❌ **F8**: `debugObjectId` lookups → object identity — still at `FreightLineProperties.tsx:420`, `VehicleProperties.tsx`, `follow-selection.ts:106`, `selection-info.tsx:245`.
 9. ✅ **F9**: `interactiveLogObject(uid)` registry → delete — replaced with `WeakSet` (`isInteractiveLogObject`).
 10. ✅ **F10**: `.uid` display → `debugObjectId` — `InspectorSelectableObject` has no `.uid`.
-11. ❌ **F11**: `hivePlanIndex` → plan object ref — still at `plan-manager.tsx`, `hive-plan.ts:364`, `action-job-registry.ts:441`, `work.ts:1385`.
+11. ✅ **F11**: `hivePlanIndex` → plan object ref — `BuildAlveolus.hivePlan: HivePlan`; `HivePlanCollection.updateDraft/sendToValidation/archive/unarchive` take the plan object; `ValidateHivePlanJob.plan` is an object. `hivePlanIndex` remains **only** in the serialized patches (index = array position per principle #3).
 12. ❌ **F12**: Test uid data → object refs — still at `convey-rebind.test.ts:25`, `presentation_events.test.ts:20-52`, `trace.test.ts:16-26`, plus browser `selectedUid` specs.
 13. ✅ **F13**: `FreightStopList.spec.tsx` `lineId` mock — gone.
 14. ✅ **F14**: zone `parseInt` key parsing — gone (remaining `zoneObjectUid` is F5).
@@ -210,7 +210,7 @@ Legend: ✅ done · ⏳ partial · ❌ TODO.
 |---|---|---|
 | F1 `selectedUid` | ⏳ Partial | `globals.ts:23,31`, `App.tsx:75,87`, `follow-selection.ts:102,194`, `selection-info.tsx:232,268,349`, `game.tsx:114-116` |
 | F2 `freight-line:${index}` | ✅ Done | no source matches |
-| F3 `hive-plan:${index}` | ❌ TODO | `plan-manager.tsx:344` |
+| F3 `hive-plan:${index}` | ✅ Done | `hivePlanPlacementState.plan` (object ref); bare `'hive-plan'` action |
 | F4 `hive:${anchorUid}` | ❌ TODO | `hive-inspector.ts:16`, `selection-info.hive.spec.tsx:129` |
 | F5 `zoneObjectUid` | ✅ Done | `ZoneObject.definition` (object ref); `zoneObjectUid`/`ZONE_UID_PREFIX` deleted; `findZoneByName`/`removeZoneDefinition` added |
 | F6 `vehicleUid` | ❌ TODO | `build-site.ts:31`, `bay-queue-types.ts:115`, `jobs/offers.ts:14`, `types/base.ts`, `trace.ts` |
@@ -218,7 +218,7 @@ Legend: ✅ done · ⏳ partial · ❌ TODO.
 | F8 `debugObjectId` lookups | ❌ TODO | `FreightLineProperties.tsx:420`, `VehicleProperties.tsx`, `follow-selection.ts:106`, `selection-info.tsx:245` |
 | F9 `interactiveLogObject(uid)` | ✅ Done | `game/object.ts` → `WeakSet` + `isInteractiveLogObject` |
 | F10 `.uid` display | ✅ Done | `InspectorSelectableObject` (no `.uid`) |
-| F11 `hivePlanIndex` | ❌ TODO | `plan-manager.tsx`, `hive-plan.ts:364`, `action-job-registry.ts:441`, `work.ts:1385` |
+| F11 `hivePlanIndex` | ✅ Done | `BuildAlveolus.hivePlan` (object ref); `ValidateHivePlanJob.plan`; `hivePlanIndex` only in serialized patches |
 | F12 test uid data | ❌ TODO | `convey-rebind.test.ts:25`, `presentation_events.test.ts:20-52`, `trace.test.ts:16-26` |
 | F13 `lineId` mock | ✅ Done | no matches in `FreightStopList.spec.tsx` |
 | F14 zone `parseInt` | ✅ Done | no `isZoneObjectUid`/`parseInt` in `apps/browser/src` |
@@ -227,3 +227,11 @@ Legend: ✅ done · ⏳ partial · ❌ TODO.
 `Set<FreightLineDefinition>` and mutable+reactive line objects (edits mutate in place). Option (b) was chosen.
 `refreshFreightLineReference()` was deleted; `replaceFreightLine` mutates in place and `addFreightLine` is the
 add path. The `local.revision`/`state.revision` UI poke tokens were removed.
+
+**RESOLVED (2026-08-17).** Forester zone assignment `Alveolus.assignedZoneIndices: number[]` (index into
+`zoneManager.definitions`) → `Alveolus.assignedZones: ZoneDefinition[]` (object refs). Persisted as
+`assignedZoneNames: string[]`, resolved via `findZoneByName` at load. Requires zone patches applied **before**
+hive patches (reordered in `generate`/`generateAsync`). `action-job-registry.ts` now reads
+`assignedZones.flatMap(coordsForZone)`; the browser picker carries `ZoneDefinition` objects, restricted to
+named zones. Fixture `exampleGames.ts` foresters now use `assignedZoneNames: ['north-grove' | 'green-ring']`
+(the old `[2]` in HearthLoop pointed at the unnamed `commercial` zone — a latent index bug fixed by name).

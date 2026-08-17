@@ -85,14 +85,20 @@ export class Clock {
 	}
 	private serializationTimes?: WeakMap<Clocked, number>
 
-	/** Monotonically increasing elapsed virtual seconds (for interpolation, traces, etc.). */
-	virtualTime = 0
+	private readonly _time = reactive({ virtualTime: 0 })
 
 	/**
-	 * Reactive version counter bumped on each advance().
-	 * UI effects can read `timeVersion.n` to re-run when virtual time changes.
+	 * Monotonically increasing elapsed virtual seconds (for interpolation, traces, etc.).
+	 *
+	 * Backed by a reactive object so effects reading `clock.virtualTime` re-run
+	 * whenever `advance()` progresses the simulation clock.
 	 */
-	timeVersion = reactive({ n: 0 })
+	get virtualTime(): number {
+		return this._time.virtualTime
+	}
+	set virtualTime(value: number) {
+		this._time.virtualTime = value
+	}
 
 	// ── Public API ──────────────────────────────────────────────────────────
 
@@ -111,7 +117,6 @@ export class Clock {
 		// time regardless of whether any steps are currently scheduled, otherwise
 		// traces/interpolation/the UI clock freeze whenever the step list is empty.
 		this.virtualTime += ds
-		this.timeVersion.n++
 
 		if (this.list.length === 0) return
 

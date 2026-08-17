@@ -5,6 +5,7 @@ import type { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import type { LooseGood } from 'ssh/board/looseGoods'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
 import type { FreightAdSource, FreightPriorityTier } from 'ssh/freight/priority-channel'
+import type { HivePlan } from 'ssh/hive-plan'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { type AxialCoord, type Positioned, positionScope } from 'ssh/utils'
 
@@ -301,8 +302,8 @@ export interface ValidateHivePlanJob {
 	job: 'validateHivePlan'
 	urgency: number
 	fatigue: number
-	/** Register index of the plan to validate (see HivePlanCollection.byIndex). */
-	planIndex: number
+	/** The plan to validate (object reference, not register index). */
+	plan: HivePlan
 	path?: Positioned[]
 }
 

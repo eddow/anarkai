@@ -14,6 +14,7 @@ import { resyncDockedVehiclesAtTile } from 'ssh/freight/vehicle-freight-dock-syn
 import { createAlveolus } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
 import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
+import type { HivePlan } from 'ssh/hive-plan'
 import { toAxialCoord } from 'ssh/utils/position'
 
 export function applyConstructionConcreteTerrain(tile: Tile): void {
@@ -83,7 +84,7 @@ export function finalizeConstructionShell(shell: ConstructionSiteShell): void {
 			variant?: string
 			targetVariantId?: string
 			planConfiguration?: any
-			hivePlanIndex?: number
+			hivePlan?: HivePlan
 			hivePlanVersion?: number
 			planRoleId?: string
 		}
@@ -112,7 +113,7 @@ export function finalizeConstructionShell(shell: ConstructionSiteShell): void {
 			nextBuild.assignedWorker = assignedWorker
 			if (assignedWorker) assignedWorker.assignedAlveolus = nextBuild
 			Object.assign(nextBuild, {
-				hivePlanIndex: (shell as { hivePlanIndex?: number }).hivePlanIndex,
+				hivePlan: (shell as { hivePlan?: HivePlan }).hivePlan,
 				hivePlanVersion: (shell as { hivePlanVersion?: number }).hivePlanVersion,
 				planRoleId: (shell as { planRoleId?: string }).planRoleId,
 				planConfiguration: (shell as { planConfiguration?: any }).planConfiguration,

@@ -2,6 +2,7 @@ import { isConstructionSiteShell } from 'ssh/build-site'
 import { Game } from 'ssh/game/game'
 import {
 	applyHivePlanToolAction,
+	type HivePlan,
 	HivePlanCollection,
 	type HivePlanEntry,
 	hivePlanEntryAt,
@@ -70,12 +71,12 @@ describe('hive plans', () => {
 		const original = collection.createDraft('A', [entry('a', 1, 0), entry('b', 0, 0)])
 		const draft = collection.createDraft('Draft', [])
 
-		const result = collection.updateDraft(collection.indexOf(draft), {
+		const result = collection.updateDraft(draft, {
 			entries: [entry('a', 0, 1), entry('b', 0, 0)],
 		})
 
 		expect(result).toBe(original)
-		expect(collection.byIndex(collection.indexOf(draft))?.entries).toHaveLength(0)
+		expect(draft.entries).toHaveLength(0)
 	})
 
 	it('creates empty drafts immediately without treating them as duplicates', () => {
@@ -121,7 +122,7 @@ describe('hive plans', () => {
 	it('uses archived plans as known memory for novelty', () => {
 		const collection = new HivePlanCollection(mockGame())
 		const archived = collection.createDraft('Known', [entry('a', 0, 0), entry('b', 1, 0)])
-		collection.archive(collection.indexOf(archived))
+		collection.archive(archived)
 
 		const novelWithoutMemory = hivePlanNoveltyCost([entry('a', 0, 0), entry('b', 1, 0)], [])
 		const novelWithMemory = hivePlanNoveltyCost(
@@ -150,15 +151,11 @@ describe('hive plans', () => {
 			const plan = game.hivePlans.createDraft('Storage Pair', [entry('a', 0, 0), entry('b', 1, 0)])
 			plan.stage = 'working'
 
-			expect(game.applyHivePlanPlacement(game.hivePlans.indexOf(plan), { q: 0, r: 0 }, 0)).toBe(
-				true
-			)
+			expect(game.applyHivePlanPlacement(plan, { q: 0, r: 0 }, 0)).toBe(true)
 
 			const content = game.hex.getTile({ q: 0, r: 0 })?.content
 			expect(isConstructionSiteShell(content)).toBe(true)
-			expect((content as { hivePlanIndex?: number }).hivePlanIndex).toBe(
-				game.hivePlans.indexOf(plan)
-			)
+			expect((content as { hivePlan?: HivePlan }).hivePlan).toBe(plan)
 
 			const saved = game.saveGameData()
 			expect(saved.projectSites).toEqual(

@@ -48,7 +48,7 @@ export const chopSaw = {
 			alveoli: [
 				{ alveolus: 'stonecutter', coord: [-1, -1] },
 				{ alveolus: 'tree_chopper', coord: [2, 0] },
-				{ alveolus: 'forester', coord: [2, -1], assignedZoneIndices: [2] },
+				{ alveolus: 'forester', coord: [2, -1], assignedZoneNames: ['north-grove'] },
 				{
 					alveolus: 'storage',
 					coord: [0, -1],
@@ -233,7 +233,7 @@ export const demoHive = {
 				{ alveolus: 'engineer', coord: [1, -1] },
 				{ alveolus: 'sawmill', coord: [1, 0] },
 				{ alveolus: 'tree_chopper', coord: [2, 0] },
-				{ alveolus: 'forester', coord: [2, -1], assignedZoneIndices: [2] },
+				{ alveolus: 'forester', coord: [2, -1], assignedZoneNames: ['green-ring'] },
 				{ alveolus: 'stonecutter', coord: [-1, 0] },
 			],
 		},

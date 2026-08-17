@@ -1,3 +1,4 @@
+import { effect } from 'mutts'
 import { describe, expect, it } from 'vitest'
 import { Clock, type Clocked } from './clock'
 
@@ -593,11 +594,34 @@ describe('edge cases', () => {
 		expect(clock.virtualTime).toBe(0)
 		clock.advance(2.5)
 		expect(clock.virtualTime).toBe(2.5)
-		expect(clock.timeVersion.n).toBe(1)
 		clock.advance(0.5)
 		expect(clock.virtualTime).toBe(3.0)
-		expect(clock.timeVersion.n).toBe(2)
 		expect(clock.size).toBe(0)
+	})
+
+	it('virtualTime is reactive — effects re-run when the clock advances', () => {
+		const clock = new Clock()
+		let runs = 0
+		let seen = 0
+		const stop = effect(() => {
+			runs++
+			seen = clock.virtualTime
+		})
+		expect(runs).toBe(1)
+		expect(seen).toBe(0)
+
+		clock.advance(1.25)
+		expect(runs).toBe(2)
+		expect(seen).toBe(1.25)
+
+		// Direct assignment (e.g. save/load restore) is reactive too.
+		clock.virtualTime = 42
+		expect(runs).toBe(3)
+		expect(seen).toBe(42)
+
+		stop()
+		clock.advance(1)
+		expect(runs).toBe(3)
 	})
 
 	it('oversized advance fires everything', () => {

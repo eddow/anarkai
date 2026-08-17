@@ -23,7 +23,7 @@ describe('forester planted trees', () => {
 		engine = undefined
 	})
 
-	async function loadForesterScenario(assignedZoneIndices: number[] = []) {
+	async function loadForesterScenario(assignedZoneNames: string[] = []) {
 		engine = new TestEngine({ terrainSeed: 123, characterCount: 0 })
 		await engine.init()
 		engine.loadScenario({
@@ -34,7 +34,7 @@ describe('forester planted trees', () => {
 			hives: [
 				{
 					name: 'Foresters',
-					alveoli: [{ coord: [0, 0], alveolus: 'forester', assignedZoneIndices }],
+					alveoli: [{ coord: [0, 0], alveolus: 'forester', assignedZoneNames }],
 				},
 			],
 			zones: {
@@ -52,7 +52,7 @@ describe('forester planted trees', () => {
 	})
 
 	it('plants only inside assigned named zones and caps tree count to visible slots', async () => {
-		const { engine, forester } = await loadForesterScenario([0])
+		const { engine, forester } = await loadForesterScenario(['north-grove'])
 		const job = forester.nextJob()
 		expect(job?.job).toBe('forester')
 		expect((job as any)?.path?.at(-1)).toMatchObject({ q: 1, r: 0 })
@@ -80,7 +80,7 @@ describe('forester planted trees', () => {
 	})
 
 	it('counts loose goods against tree planting room', async () => {
-		const { engine, forester } = await loadForesterScenario([0])
+		const { engine, forester } = await loadForesterScenario(['north-grove'])
 		const zoneTile = engine.game.hex.getTile({ q: 1, r: 0 })!
 		const worker = engine.game.population.createCharacter(
 			'Planter',
@@ -101,7 +101,7 @@ describe('forester planted trees', () => {
 	})
 
 	it('does not propose planting jobs where loose goods leave no tree room', async () => {
-		const { engine, forester } = await loadForesterScenario([0])
+		const { engine, forester } = await loadForesterScenario(['north-grove'])
 		const zoneTile = engine.game.hex.getTile({ q: 1, r: 0 })!
 		const worker = engine.game.population.createCharacter(
 			'Planter',
@@ -118,7 +118,7 @@ describe('forester planted trees', () => {
 	})
 
 	it('advertises planting jobs at the planting tile so workers score their own distance', async () => {
-		const { engine, forester } = await loadForesterScenario([0])
+		const { engine, forester } = await loadForesterScenario(['north-grove'])
 		const zoneTile = engine.game.hex.getTile({ q: 1, r: 0 })!
 		const worker = engine.game.population.createCharacter(
 			'Planter',
@@ -141,7 +141,7 @@ describe('forester planted trees', () => {
 	})
 
 	it('plants on forest terrain only for now', async () => {
-		const { engine, forester } = await loadForesterScenario([0])
+		const { engine, forester } = await loadForesterScenario(['north-grove'])
 		const sandTile = engine.game.hex.getTile({ q: 1, r: 0 })!
 		engine.game.hex.setTileContent(sandTile, new UnBuiltLand(sandTile, 'sand'))
 		const worker = engine.game.population.createCharacter(
@@ -155,7 +155,7 @@ describe('forester planted trees', () => {
 	})
 
 	it('ages planted trees until they become mature', async () => {
-		const { engine, forester } = await loadForesterScenario([0])
+		const { engine, forester } = await loadForesterScenario(['north-grove'])
 		const zoneTile = engine.game.hex.getTile({ q: 1, r: 0 })!
 		const worker = engine.game.population.createCharacter(
 			'Planter',
@@ -248,7 +248,7 @@ describe('forester planted trees', () => {
 				{
 					name: 'Bread Basket',
 					alveoli: [
-						{ coord: [0, 0], alveolus: 'wheat_planter', assignedZoneIndices: [0] },
+						{ coord: [0, 0], alveolus: 'wheat_planter', assignedZoneNames: ['field'] },
 						{ coord: [2, 0], alveolus: 'wheat_harvester' },
 					],
 				},
@@ -279,7 +279,7 @@ describe('forester planted trees', () => {
 	})
 
 	it('saves and loads forester assignments and planted tree ages', async () => {
-		const setup = await loadForesterScenario([0])
+		const setup = await loadForesterScenario(['north-grove'])
 		const zoneTile = setup.engine.game.hex.getTile({ q: 1, r: 0 })!
 		const land = zoneTile.content as UnBuiltLand
 		land.deposit = Deposit.create('tree', 1)
@@ -287,11 +287,11 @@ describe('forester planted trees', () => {
 		setup.engine.game.notifyTerrainDepositsChanged(zoneTile)
 
 		const saved = setup.engine.game.saveGameData()
-		expect(saved.hives?.[0]?.alveoli[0]?.assignedZoneIndices).toEqual([0])
+		expect(saved.hives?.[0]?.alveoli[0]?.assignedZoneNames).toEqual(['north-grove'])
 		expect(
 			saved.tiles?.find((tile) => tile.coord[0] === 1 && tile.coord[1] === 0)?.plantedTrees
 		).toEqual({ ages: [plantedTreeMatureAgeSeconds] })
-		expect(setup.forester.assignedZoneIndices).toEqual([0])
+		expect(setup.forester.assignedZones.map((zone) => zone.name)).toEqual(['north-grove'])
 
 		await setup.engine.destroy()
 		engine = new TestEngine({ terrainSeed: 123, characterCount: 0 })
@@ -299,7 +299,7 @@ describe('forester planted trees', () => {
 		engine.loadScenario(saved)
 		const restoredForester = engine.game.hex.getTile({ q: 0, r: 0 })?.content as ForesterAlveolus
 		const restoredLand = engine.game.hex.getTile({ q: 1, r: 0 })?.content as UnBuiltLand
-		expect(restoredForester.assignedZoneIndices).toEqual([0])
+		expect(restoredForester.assignedZones.map((zone) => zone.name)).toEqual(['north-grove'])
 		expect(restoredLand.deposit?.amount).toBe(1)
 		expect(restoredLand.plantedTrees?.ages).toEqual([plantedTreeMatureAgeSeconds])
 	})

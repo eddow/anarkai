@@ -1,6 +1,7 @@
 import { configurations, harvestFatiguePremium, jobBalance } from 'engine-rules'
 import { inert, reactive, unreactive, unwrap } from 'mutts'
 import { isTileCoord } from 'ssh/board/tile-coord'
+import type { ZoneDefinition } from 'ssh/board/zone'
 import { traces } from 'ssh/dev/debug'
 import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { isVehicleFreightDock } from 'ssh/freight/vehicle-freight-dock'
@@ -46,7 +47,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	public tile: Tile
 	public declare hive: Hive
 	public storage: Storage
-	public assignedZoneIndices: readonly number[] = []
+	public assignedZones: readonly ZoneDefinition[] = []
 	private readonly conveyNearbyCache = new RevisionedCache<boolean>()
 	private readonly incomingGoodsCache = new RevisionedCache<boolean>()
 	private readonly goodMovementCache = new RevisionedCache<MovementSelection[] | undefined>()
@@ -241,13 +242,13 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		return this.working
 	}
 
-	setAssignedZoneIndices(indices: readonly number[]): void {
-		const next = [...new Set(indices)]
-		const current = this.assignedZoneIndices
-		if (current.length === next.length && current.every((idx, i) => idx === next[i])) {
+	setAssignedZones(zones: readonly ZoneDefinition[]): void {
+		const next = [...new Set(zones)]
+		const current = this.assignedZones
+		if (current.length === next.length && current.every((zone, i) => zone === next[i])) {
 			return
 		}
-		this.assignedZoneIndices = next
+		this.assignedZones = next
 		this.game.invalidateWorkPlanning('alveolus.assigned-zones')
 		this.game.enqueueInteractiveChange(this.tile)
 	}

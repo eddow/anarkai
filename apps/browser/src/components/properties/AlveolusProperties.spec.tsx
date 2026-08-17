@@ -32,9 +32,9 @@ const { MockForesterAlveolus, MockFreightBayAlveolus, MockStorageAlveolus, MockT
 			tile = { position: { q: 0, r: 0 } }
 			working = true
 			action = { type: 'plant', deposit: 'tree' }
-			assignedZoneIndices: number[] = []
-			setAssignedZoneIndices(indices: number[]) {
-				this.assignedZoneIndices = indices
+			assignedZones: unknown[] = []
+			setAssignedZones(zones: unknown[]) {
+				this.assignedZones = zones
 			}
 		},
 		MockFreightBayAlveolus: class MockFreightBayAlveolus {
@@ -509,7 +509,7 @@ describe('AlveolusProperties', () => {
 		)
 		north?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
 
-		expect(forester.assignedZoneIndices).toEqual([0])
+		expect(forester.assignedZones.map((z: any) => z.name)).toEqual(['North Grove'])
 		expect(container.querySelector('[data-testid="forester-zone-chip"]')?.textContent).toContain(
 			'North Grove'
 		)
@@ -520,7 +520,7 @@ describe('AlveolusProperties', () => {
 		container
 			.querySelector('[data-testid="forester-zone-remove-0"]')
 			?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-		expect(forester.assignedZoneIndices).toEqual([])
+		expect(forester.assignedZones).toEqual([])
 	})
 
 	it('does not render assigned-zone controls for non-forester alveoli', () => {

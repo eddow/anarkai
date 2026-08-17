@@ -218,16 +218,13 @@ registerActionJobProvider('transform', (alveolus) => {
 
 registerActionJobProvider('plant', (alveolus) => {
 	const action = alveolus.action as Ssh.PlantingAction
-	const assignedZoneIndices = alveolus.assignedZoneIndices
+	const assignedZones = alveolus.assignedZones
 
 	const findBestPath = (characterPosition: Positioned | undefined): Positioned[] | undefined => {
-		if (assignedZoneIndices.length === 0) return undefined
+		if (assignedZones.length === 0) return undefined
 		const startPos = toAxialCoord(characterPosition ?? alveolus.tile.position)
 		const hex = alveolus.tile.game.hex
-		const candidateCoords = assignedZoneIndices.flatMap((index) => {
-			const def = hex.zoneManager.zoneByIndex(index)
-			return def ? hex.zoneManager.coordsForZone(def) : []
-		})
+		const candidateCoords = assignedZones.flatMap((def) => hex.zoneManager.coordsForZone(def))
 		let bestPath: Positioned[] | undefined
 
 		for (const coord of candidateCoords) {
@@ -253,7 +250,7 @@ registerActionJobProvider('plant', (alveolus) => {
 
 	return {
 		proposedJobs:
-			assignedZoneIndices.length > 0
+			assignedZones.length > 0
 				? [
 						{
 							job: {
@@ -438,7 +435,7 @@ registerActionJobProvider('engineer', (alveolus) => {
 					tile: alveolus.tile,
 					job: {
 						job: 'validateHivePlan' as const,
-						planIndex: alveolus.tile.game.hivePlans.indexOf(plan),
+						plan,
 						urgency: jobBalance.engineer.construct * 0.8,
 						fatigue: alveolus.getFatigueCost(),
 					},
