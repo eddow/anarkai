@@ -2,6 +2,7 @@ import type { Game } from 'ssh/game/game'
 import type { InspectorSelectableObject } from 'ssh/game/object'
 import type { Position } from 'ssh/utils/position'
 import type { Tile } from './tile'
+import type { ZoneDefinition } from './zone'
 export class ZonesCollectionObject implements InspectorSelectableObject {
 	readonly logs: string[] = []
 
@@ -31,28 +32,21 @@ export class ZoneObject implements InspectorSelectableObject {
 
 	constructor(
 		readonly game: Game,
-		readonly zoneIndex: number
+		readonly definition: ZoneDefinition
 	) {}
 
-	get definition() {
-		return this.game.hex.zoneManager.zoneByIndex(this.zoneIndex)
-	}
-
 	get title(): string {
-		return this.definition?.name?.trim() || `Zone ${this.zoneIndex}`
+		return this.definition?.name?.trim() || 'Zone'
 	}
 
 	get debugInfo(): Record<string, any> {
 		return {
-			zoneIndex: this.zoneIndex,
-			tiles: this.definition ? this.game.hex.zoneManager.coordsForZone(this.definition).length : 0,
+			tiles: this.game.hex.zoneManager.coordsForZone(this.definition).length,
 		}
 	}
 
 	get position(): Position | undefined {
-		return this.definition
-			? this.game.hex.zoneManager.centralCoordForZone(this.definition)
-			: undefined
+		return this.game.hex.zoneManager.centralCoordForZone(this.definition)
 	}
 
 	get tile(): Tile {

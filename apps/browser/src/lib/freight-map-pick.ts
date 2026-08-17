@@ -1,5 +1,6 @@
 import { reactive } from 'mutts'
 import { Tile } from 'ssh/board/tile'
+import type { ZoneDefinition } from 'ssh/board/zone'
 import { SettlementTradeObject } from 'ssh/commerce/settlement-trade'
 import { traces } from 'ssh/dev/debug'
 import {
@@ -107,12 +108,12 @@ function freightBayAnchorForTile(tile: Tile): FreightStopAnchorAlveolus | undefi
 	}
 }
 
-function customZoneIdForTile(game: Game, tile: Tile): string | undefined {
+function customZoneForTile(game: Game, tile: Tile): ZoneDefinition | undefined {
 	const coord = toAxialCoord(tile.position)
 	if (!coord) return undefined
 	const zone = game.hex.zoneManager.getZone(coord)
 	if (!zone || zone.generated || zone.readonly) return undefined
-	return zone.name ?? zone.type
+	return zone
 }
 
 function settlementTradeStopForTile(game: Game, tile: Tile): FreightStop | undefined {
@@ -148,12 +149,13 @@ function stopForPickedObject(game: Game, object: InteractiveGameObject): Freight
 			anchor,
 		}
 	}
-	const zoneId = customZoneIdForTile(game, object)
-	if (zoneId) {
+	const zone = customZoneForTile(game, object)
+	if (zone) {
 		return {
 			zone: {
 				kind: 'named',
-				zoneId,
+				zoneId: zone.name,
+				definition: zone,
 			},
 		}
 	}

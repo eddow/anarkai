@@ -315,24 +315,20 @@ const stationTileForStop = (game: Game, stop: FreightStop) => {
 
 const zoneObjectForStop = (stop: FreightStop, game: Game) => {
 	if (!('zone' in stop) || stop.zone.kind !== 'named') return undefined
-	if (!stop.zone.zoneId) return undefined
-	const idx = game.hex.zoneManager.findZoneIndexByName(stop.zone.zoneId)
-	return idx >= 0 ? getZoneObject(idx) : undefined
+	const zone = stop.zone.definition ?? game.hex.zoneManager.findZoneByName(stop.zone.zoneId ?? '')
+	return zone ? getZoneObject(zone) : undefined
 }
 
 const stopLabel = (game: Game, stop: FreightStop): string => {
 	if ('anchor' in stop) return freightLineStationLabel(stop.anchor)
 	if ('trade' in stop) return stop.trade.profile.name
 	if (stop.zone.kind === 'named') {
-		const label =
+		return (
 			stop.zone.definition?.name ??
-			('zoneId' in stop.zone && stop.zone.zoneId
-				? game.hex.zoneManager.zoneByIndex(
-						game.hex.zoneManager.findZoneIndexByName(stop.zone.zoneId)
-					)?.name
-				: undefined) ??
-			stop.zone.zoneId
-		return label ?? '(unnamed zone)'
+			game.hex.zoneManager.findZoneByName(stop.zone.zoneId ?? '')?.name ??
+			stop.zone.zoneId ??
+			'(unnamed zone)'
+		)
 	}
 	return `(${stop.zone.center[0]}, ${stop.zone.center[1]}) r<=${stop.zone.radius}`
 }

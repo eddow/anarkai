@@ -267,8 +267,11 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 	const assignedZoneIndices = () => props.content?.assignedZoneIndices ?? []
 	const zones = () => state.resolvedGame?.hex.zoneManager.definitions ?? []
 	const zoneDefinition = (index: number) => state.resolvedGame?.hex.zoneManager.zoneByIndex(index)
-	const zoneObject = (index: number) =>
-		state.resolvedGame ? new ZoneObject(state.resolvedGame, index) : undefined
+	const zoneObject = (index: number) => {
+		const resolved = state.resolvedGame
+		const def = resolved?.hex.zoneManager.zoneByIndex(index)
+		return resolved && def ? new ZoneObject(resolved, def) : undefined
+	}
 	const zonePickerItems = () =>
 		zones()
 			.map((zone, i) => ({ id: String(i), label: zone.name?.trim() || zone.type }))

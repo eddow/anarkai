@@ -1,7 +1,7 @@
 import { css } from '@app/lib/css'
 import { showProps } from '@app/lib/follow-selection'
 import { bumpSelectionTitleVersion, game, interactionMode } from '@app/lib/globals'
-import { getZoneObject, unnamedZoneOwnership, zoneObjectUid } from '@app/lib/zone-selection'
+import { getZoneObject, unnamedZoneOwnership } from '@app/lib/zone-selection'
 import { InspectorSection } from '@app/ui/anarkai'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
 import { tablerOutlinePencil, tablerOutlinePlus, tablerOutlineTrash } from 'pure-glyf/icons'
@@ -108,26 +108,24 @@ const ZonesProperties = (_props: ZonesPropertiesProps) => {
 	const memberCount = (zone: ZoneDefinition) => game.hex.zoneManager.coordsForZone(zone).length
 	const createZone = () => {
 		const base = `zone-${Date.now().toString(36)}`
-		game.hex.zoneManager.defineZone({
+		const zone = game.hex.zoneManager.defineZone({
 			name: base,
 			type: 'passive',
 			color: '#4f8cff',
 		})
-		const index = game.hex.zoneManager.definitions.length - 1
-		unnamedZoneOwnership.zoneIndex = index
-		unnamedZoneOwnership.panelId = zoneObjectUid(index)
-		interactionMode.selectedAction = `zone:${base}`
+		unnamedZoneOwnership.zone = zone
+		interactionMode.selectedAction = `zone:${zone.name}`
 		bumpSelectionTitleVersion()
-		const object = getZoneObject(index)
+		const object = getZoneObject(zone)
 		if (object) showProps(object)
 	}
-	const openZone = (_zone: ZoneDefinition, index: number) => {
-		const object = getZoneObject(index)
+	const openZone = (zone: ZoneDefinition) => {
+		const object = getZoneObject(zone)
 		if (object) showProps(object)
 	}
-	const deleteUnusedZone = (_zone: ZoneDefinition, index: number) => {
-		if (memberCount(_zone) > 0) return
-		game.hex.zoneManager.removeZoneByIndex(index)
+	const deleteUnusedZone = (zone: ZoneDefinition) => {
+		if (memberCount(zone) > 0) return
+		game.hex.zoneManager.removeZoneDefinition(zone)
 		bumpSelectionTitleVersion()
 	}
 

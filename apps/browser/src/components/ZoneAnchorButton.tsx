@@ -75,10 +75,7 @@ const ZoneAnchorButton = (props: ZoneAnchorButtonProps) => {
 		const zone = currentTile()?.zone
 		const game = currentTile()?.game
 		if (zone && game) {
-			const idx = game.hex.zoneManager.definitions.indexOf(zone)
-			if (idx >= 0) {
-				void import('@app/lib/zone-selection').then(({ showZoneObject }) => showZoneObject(idx))
-			}
+			void import('@app/lib/zone-selection').then(({ showZoneObject }) => showZoneObject(zone))
 		}
 	}
 

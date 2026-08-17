@@ -20,12 +20,6 @@ export interface ZoneDefinitionPatch extends Omit<ZoneDefinition, 'generated' | 
 // ── Inspector UID helpers (Priority 4) ───────────────────────────
 
 export const ZONES_OBJECT_UID = 'zones'
-export const ZONE_UID_PREFIX = 'zone:'
-
-/** Generate a synthetic inspector UID from the zone's array index. */
-export function zoneObjectUid(index: number): string {
-	return `${ZONE_UID_PREFIX}${index}`
-}
 
 // ── Internal helpers ───────────────────────────────────────────────
 
@@ -81,6 +75,12 @@ export class ZoneManager {
 	findZoneIndexByName(name: string): number {
 		const needle = slugifyZoneName(name) ?? ''
 		return this.definitions.findIndex((def) => (def.name ?? '') === needle)
+	}
+
+	/** Resolve a named zone definition by name (case-insensitive, whitespace-normalized). */
+	findZoneByName(name: string): ZoneDefinition | undefined {
+		const needle = slugifyZoneName(name) ?? ''
+		return this.definitions.find((def) => (def.name ?? '') === needle)
 	}
 
 	/** Register a zone definition and return the object for spatial assignment. */
@@ -150,6 +150,13 @@ export class ZoneManager {
 		}
 		this.definitions.splice(index, 1)
 		return true
+	}
+
+	/** Remove a zone definition by object reference and clean up its spatial assignments. */
+	removeZoneDefinition(definition: ZoneDefinition): boolean {
+		const index = this.definitions.indexOf(definition)
+		if (index < 0) return false
+		return this.removeZoneByIndex(index)
 	}
 
 	// ── spatial map ───────────────────────────────────────────────

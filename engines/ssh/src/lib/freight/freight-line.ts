@@ -180,8 +180,13 @@ function normalizeRadiusZone(zone: FreightZoneDefinitionRadius): FreightZoneDefi
 
 function normalizeFreightZone(zone: FreightZoneDefinition): FreightZoneDefinition {
 	if (zone.kind === 'named') {
-		const zoneId = zone.zoneId?.trim().replace(/\s+/g, '-').toLowerCase() ?? ''
-		return { kind: 'named', zoneId } as FreightZoneDefinitionNamed
+		const rawId = zone.zoneId ?? zone.definition?.name
+		const zoneId = rawId?.trim().replace(/\s+/g, '-').toLowerCase() ?? ''
+		const normalized = { kind: 'named', zoneId } as FreightZoneDefinitionNamed
+		// Preserve the hydrated runtime reference through normalize so live edits keep the
+		// direct object ref; `zoneId` remains the serialization key only.
+		if (zone.definition) normalized.definition = zone.definition
+		return normalized
 	}
 	return normalizeRadiusZone(zone)
 }

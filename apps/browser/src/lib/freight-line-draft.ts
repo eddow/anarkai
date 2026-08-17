@@ -1,3 +1,4 @@
+import type { ZoneDefinition } from 'ssh/board/zone'
 import type {
 	FreightLineDefinition,
 	FreightStop,
@@ -74,7 +75,8 @@ export function cloneFreightStop(stop: FreightStop): FreightStop {
 			...base,
 			zone: {
 				kind: 'named',
-				zoneId: z.zoneId,
+				...(z.zoneId !== undefined ? { zoneId: z.zoneId } : {}),
+				...(z.definition ? { definition: z.definition } : {}),
 			},
 		}
 	}
@@ -193,7 +195,7 @@ export function setFreightDraftStopKindZone(
 export function setFreightDraftStopKindNamedZone(
 	line: FreightLineDefinition,
 	index: number,
-	zoneId: string
+	definition: ZoneDefinition
 ): FreightLineDefinition {
 	const stops = line.stops.map((s, i) => {
 		if (i !== index) return s
@@ -202,7 +204,8 @@ export function setFreightDraftStopKindNamedZone(
 			...base,
 			zone: {
 				kind: 'named' as const,
-				zoneId,
+				zoneId: definition.name,
+				definition,
 			},
 		}
 	})
