@@ -9,7 +9,7 @@ import type { AxialCoord } from 'ssh/utils/axial'
 type HivePlanCanvasProps = {
 	plan: HivePlan | undefined
 	issues: readonly HivePlanStructuralIssue[]
-	selectedRoleId?: string
+	selectedCoord?: readonly [number, number]
 	selectedAction?: string
 	readOnly?: boolean
 	onHexClick?: (coord: AxialCoord) => void
@@ -39,6 +39,8 @@ function issueCoordKeys(issues: readonly HivePlanStructuralIssue[]): Set<string>
 	for (const issue of issues) {
 		if (issue.code === 'disconnected') {
 			for (const group of issue.groups ?? []) for (const key of group) keys.add(key)
+		} else if (issue.coord) {
+			keys.add(hivePlanCoordKey(issue.coord))
 		}
 	}
 	return keys
@@ -104,8 +106,11 @@ const HivePlanCanvas = (props: HivePlanCanvasProps) => {
 			const pixel = axialToPixel(coord)
 			const x = pixel.x * scale + tx
 			const y = pixel.y * scale + ty
-			const selected = entry?.roleId && entry.roleId === props.selectedRoleId
-			const bad = badKeys.has(key) || props.issues.some((issue) => issue.roleId === entry?.roleId)
+			const selected =
+				entry && props.selectedCoord
+					? hivePlanCoordKey(entry.coord) === hivePlanCoordKey(props.selectedCoord)
+					: false
+			const bad = badKeys.has(key)
 			const fill = occupied ? 0xdbe9d4 : 0xf3f0df
 			const line = bad ? 0xc2410c : selected ? 0x2563eb : occupied ? 0x5d7b61 : 0xb7ab83
 			const alpha = occupied ? 1 : 0.56
@@ -169,7 +174,7 @@ const HivePlanCanvas = (props: HivePlanCanvasProps) => {
 
 	effect`hive-plan-canvas:draw`(() => {
 		props.plan?.entries.length
-		props.selectedRoleId
+		props.selectedCoord
 		props.selectedAction
 		props.issues.map((issue) => issue.message).join('|')
 		draw()

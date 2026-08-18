@@ -11,7 +11,6 @@ export type HivePlanStage = 'draft' | 'validating' | 'working' | 'archived'
 export type HivePlanArchiveReason = 'manual' | 'obsolete'
 
 export interface HivePlanEntry {
-	roleId: string
 	coord: readonly [number, number]
 	alveolusType: AlveolusType
 	/** Dot-separated variant path (e.g., "wood.extra") for variant-capable alveoli. */
@@ -46,9 +45,9 @@ export interface HivePlan {
 export interface SerializedHivePlan extends HivePlan {}
 
 export interface HivePlanStructuralIssue {
-	code: 'empty' | 'disconnected' | 'duplicate-role' | 'invalid-alveolus' | 'missing-configuration'
+	code: 'empty' | 'disconnected' | 'invalid-alveolus' | 'missing-configuration'
 	message: string
-	roleId?: string
+	coord?: readonly [number, number]
 	groups?: string[][]
 }
 
@@ -121,20 +120,11 @@ function cloneHivePlanEntry(entry: HivePlanEntry): HivePlanEntry {
 	}
 }
 
-function nextRoleId(entries: readonly HivePlanEntry[], alveolusType: AlveolusType): string {
-	const used = new Set(entries.map((entry) => entry.roleId))
-	const base = alveolusType.replace(/[^a-z0-9_]+/gi, '_') || 'role'
-	let index = entries.length + 1
-	let roleId = `${base}-${index}`
-	while (used.has(roleId)) roleId = `${base}-${++index}`
-	return roleId
-}
-
 export function applyHivePlanToolAction(
 	entries: readonly HivePlanEntry[],
 	action: string,
 	coord: readonly [number, number] | AxialCoord
-): { entries: HivePlanEntry[]; changed: boolean; selectedRoleId?: string } {
+): { entries: HivePlanEntry[]; changed: boolean; selectedCoord?: readonly [number, number] } {
 	const target = 'q' in coord ? ([coord.q, coord.r] as const) : ([coord[0], coord[1]] as const)
 	const targetKey = hivePlanCoordKey(target)
 	const existing = entries.find((entry) => hivePlanCoordKey(entry.coord) === targetKey)
@@ -151,7 +141,7 @@ export function applyHivePlanToolAction(
 		return {
 			entries: entries.map(cloneHivePlanEntry),
 			changed: false,
-			selectedRoleId: existing?.roleId,
+			selectedCoord: existing ? target : undefined,
 		}
 	}
 	const alveolusType = action.slice('build:'.length) as AlveolusType
@@ -167,18 +157,17 @@ export function applyHivePlanToolAction(
 					: cloneHivePlanEntry(entry)
 			),
 			changed: existing.alveolusType !== alveolusType,
-			selectedRoleId: existing.roleId,
+			selectedCoord: target,
 		}
 	}
 	const entry: HivePlanEntry = {
-		roleId: nextRoleId(entries, alveolusType),
 		coord: target,
 		alveolusType,
 	}
 	return {
 		entries: [...entries.map(cloneHivePlanEntry), entry],
 		changed: true,
-		selectedRoleId: entry.roleId,
+		selectedCoord: target,
 	}
 }
 
@@ -278,21 +267,12 @@ export function validateHivePlanStructure(
 	const issues: HivePlanStructuralIssue[] = []
 	if (entries.length === 0) issues.push({ code: 'empty', message: 'Add at least one alveolus.' })
 
-	const roleIds = new Set<string>()
 	for (const entry of entries) {
-		if (roleIds.has(entry.roleId)) {
-			issues.push({
-				code: 'duplicate-role',
-				message: `Duplicate role id "${entry.roleId}".`,
-				roleId: entry.roleId,
-			})
-		}
-		roleIds.add(entry.roleId)
 		if (!alveoli[entry.alveolusType as keyof typeof alveoli]) {
 			issues.push({
 				code: 'invalid-alveolus',
 				message: `Unknown alveolus type "${entry.alveolusType}".`,
-				roleId: entry.roleId,
+				coord: entry.coord,
 			})
 		}
 		const ref = entry.configuration?.ref
@@ -302,7 +282,7 @@ export function validateHivePlanStructure(
 				issues.push({
 					code: 'missing-configuration',
 					message: `Missing named configuration "${ref.name}".`,
-					roleId: entry.roleId,
+					coord: entry.coord,
 				})
 			}
 		}
@@ -553,7 +533,6 @@ export function createConstructionSiteForHivePlanEntry(
 	Object.assign(shell, {
 		hivePlan: plan,
 		hivePlanVersion: plan.version,
-		planRoleId: entry.roleId,
 		planConfiguration: entry.configuration ? { ...entry.configuration } : undefined,
 	})
 	return shell

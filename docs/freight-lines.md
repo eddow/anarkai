@@ -25,7 +25,7 @@ Each stop/halt has:
 
 - `anchor`: `FreightBayAnchor` — hive name + alveolus type + axial `coord` (typically `freight_bay`)
 - `zone`: `FreightZoneDefinition` — either `kind: 'radius'` with `center` + `radius`, or
-  `kind: 'named'` with a saved tile-zone `zoneId`
+  `kind: 'named'` with a saved tile-zone `zoneIndex` (resolved to the `ZoneDefinition` object at hydration)
 
 There is **no** stored `op`. Runtime behavior should be decided by exchange candidates: what the current halt can load, what it can unload/provide, what later halts can use, and what the vehicle already carries.
 

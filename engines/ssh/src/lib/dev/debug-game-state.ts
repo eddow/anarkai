@@ -302,7 +302,7 @@ export function summarizeFreightStopForDebug(stop: FreightStop) {
 			stop.zone.kind === 'named'
 				? {
 						kind: stop.zone.kind,
-						zoneDef: stop.zone.definition?.name ?? stop.zone.zoneId,
+						zoneDef: stop.zone.definition?.name ?? stop.zone.zoneIndex,
 					}
 				: {
 						kind: stop.zone.kind,

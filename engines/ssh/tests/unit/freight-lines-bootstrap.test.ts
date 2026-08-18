@@ -286,7 +286,7 @@ describe('Freight line bootstrap', () => {
 					{
 						name: 'Named gather',
 						stops: [
-							{ id: 'named-load', zone: { kind: 'named', zoneId: 'north-grove' } },
+							{ id: 'named-load', zone: { kind: 'named', zoneIndex: 0 } },
 							{
 								anchor: {
 									kind: 'alveolus',

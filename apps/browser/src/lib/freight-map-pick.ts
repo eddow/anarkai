@@ -124,7 +124,7 @@ function settlementTradeStopForTile(game: Game, tile: Tile): FreightStop | undef
 	return {
 		trade: {
 			kind: 'settlement',
-			settlementId: profile.id,
+			center: profile.center,
 			profile,
 		},
 	}
@@ -135,7 +135,7 @@ function stopForPickedObject(game: Game, object: InteractiveGameObject): Freight
 		return {
 			trade: {
 				kind: 'settlement',
-				settlementId: object.profile.id,
+				center: object.profile.center,
 				profile: object.profile,
 			},
 		}
@@ -154,7 +154,6 @@ function stopForPickedObject(game: Game, object: InteractiveGameObject): Freight
 		return {
 			zone: {
 				kind: 'named',
-				zoneId: zone.name,
 				definition: zone,
 			},
 		}

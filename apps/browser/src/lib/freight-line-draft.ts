@@ -64,7 +64,7 @@ export function cloneFreightStop(stop: FreightStop): FreightStop {
 			...base,
 			trade: {
 				kind: 'settlement',
-				settlementId: stop.trade.settlementId,
+				center: { q: stop.trade.center.q, r: stop.trade.center.r },
 				profile: stop.trade.profile,
 			},
 		}
@@ -75,7 +75,7 @@ export function cloneFreightStop(stop: FreightStop): FreightStop {
 			...base,
 			zone: {
 				kind: 'named',
-				...(z.zoneId !== undefined ? { zoneId: z.zoneId } : {}),
+				...(z.zoneIndex !== undefined ? { zoneIndex: z.zoneIndex } : {}),
 				...(z.definition ? { definition: z.definition } : {}),
 			},
 		}
@@ -204,7 +204,6 @@ export function setFreightDraftStopKindNamedZone(
 			...base,
 			zone: {
 				kind: 'named' as const,
-				zoneId: definition.name,
 				definition,
 			},
 		}

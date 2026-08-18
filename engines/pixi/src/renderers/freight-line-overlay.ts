@@ -79,10 +79,8 @@ export class FreightLineOverlay {
 					? color
 					: parseColor(
 							('definition' in stop.zone ? stop.zone.definition?.color : undefined) ??
-								('zoneId' in stop.zone && stop.zone.zoneId
-									? this.renderer.game.hex.zoneManager.zoneByIndex(
-											this.renderer.game.hex.zoneManager.findZoneIndexByName(stop.zone.zoneId)
-										)?.color
+								('zoneIndex' in stop.zone && stop.zone.zoneIndex !== undefined
+									? this.renderer.game.hex.zoneManager.zoneByIndex(stop.zone.zoneIndex)?.color
 									: undefined),
 							color
 						)

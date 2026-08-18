@@ -41,6 +41,7 @@ import {
 	collectFreightLineBootstrapCoords,
 	hydrateFreightLineTradeProfiles,
 	normalizeFreightLineDefinition,
+	serializeFreightLineForSave,
 } from 'ssh/freight/freight-line'
 import { resolveFreightNpcTradeProfile } from 'ssh/freight/freight-trade-profile'
 import {
@@ -196,7 +197,6 @@ export interface AlveolusPatch {
 	constructionPhase?: ConstructionPhase
 	hivePlanIndex?: number
 	hivePlanVersion?: number
-	planRoleId?: string
 	/** Configuration reference and individual config for this alveolus */
 	configuration?: {
 		ref: Ssh.ConfigurationReference
@@ -227,7 +227,11 @@ export interface ProjectSitePatch {
 	constructionWorkSecondsApplied?: number
 	hivePlanIndex?: number
 	hivePlanVersion?: number
-	planRoleId?: string
+	/** Plan-entry configuration for the build shell (replaces the former `planRoleId` lookup). */
+	configuration?: {
+		ref: Ssh.ConfigurationReference
+		individual?: Ssh.AlveolusConfiguration
+	}
 }
 
 export interface PlayerAccountPatch {
@@ -773,14 +777,13 @@ export class Game extends Eventful<GameEvents> {
 		return true
 	}
 
-	/** Look up a settlement trade profile by its stable id (never by display name). */
-	public getSettlementTradeProfile(id: string): NpcSettlementTradeProfile | undefined {
-		const needle = id.trim()
-		if (!needle) return undefined
+	/** Look up the settlement trade profile whose center sits at `coord`. */
+	public getSettlementTradeProfileAtCenter(
+		center: AxialCoord
+	): NpcSettlementTradeProfile | undefined {
+		const key = axial.key(center)
 		for (const profile of this.settlementTradeProfiles) {
-			// Freight stops persist generator ids (`settlement-q,r`);
-			// the id is the stable cross-save identity — never match by display name.
-			if (profile.id === needle) return profile
+			if (axial.key(profile.center) === key) return profile
 		}
 		return undefined
 	}
@@ -799,9 +802,9 @@ export class Game extends Eventful<GameEvents> {
 		)
 	}
 
-	/** Test/bootstrap seam: register a settlement trade profile by id. */
+	/** Test/bootstrap seam: register a settlement trade profile by center coord. */
 	public registerSettlementTradeProfile(profile: NpcSettlementTradeProfile): void {
-		const existing = this.getSettlementTradeProfile(profile.id)
+		const existing = this.getSettlementTradeProfileAtCenter(profile.center)
 		if (existing) this.settlementTradeProfiles.delete(existing)
 		this.settlementTradeProfiles.add(profile)
 		this.settlementTradeProfilesByCityHallCoord.set(axial.key(profile.cityHall.position), profile)
@@ -2402,7 +2405,6 @@ export class Game extends Eventful<GameEvents> {
 						hivePlan:
 							a.hivePlanIndex !== undefined ? this.hivePlans.byIndex(a.hivePlanIndex) : undefined,
 						hivePlanVersion: a.hivePlanVersion,
-						planRoleId: a.planRoleId,
 						planConfiguration: a.configuration,
 					})
 					this.hex.setTileContent(tile, build)
@@ -2562,10 +2564,7 @@ export class Game extends Eventful<GameEvents> {
 				Object.assign(build, {
 					hivePlan,
 					hivePlanVersion: entry.hivePlanVersion,
-					planRoleId: entry.planRoleId,
-					planConfiguration: hivePlan?.entries.find(
-						(planEntry) => planEntry.roleId === entry.planRoleId
-					)?.configuration,
+					planConfiguration: entry.configuration,
 				})
 				this.hex.setTileContent(tile, build)
 				for (const [good, qty] of Object.entries(entry.constructionGoods ?? {})) {
@@ -2778,7 +2777,8 @@ export class Game extends Eventful<GameEvents> {
 						? this.hivePlans.indexOf((content as { hivePlan?: HivePlan }).hivePlan!)
 						: undefined,
 					hivePlanVersion: (content as { hivePlanVersion?: number }).hivePlanVersion,
-					planRoleId: (content as { planRoleId?: string }).planRoleId,
+					configuration: (content as { planConfiguration?: ProjectSitePatch['configuration'] })
+						.planConfiguration,
 				})
 			}
 
@@ -2801,7 +2801,6 @@ export class Game extends Eventful<GameEvents> {
 									: undefined,
 								hivePlanVersion: (constructionShell as { hivePlanVersion?: number })
 									.hivePlanVersion,
-								planRoleId: (constructionShell as { planRoleId?: string }).planRoleId,
 							}
 						: {
 								coord: [q, r],
@@ -2864,7 +2863,9 @@ export class Game extends Eventful<GameEvents> {
 			}
 		}
 
+		const zoneIndexByDefinition = new Map<import('ssh/board/zone').ZoneDefinition, number>()
 		for (const definition of this.hex.zoneManager.listCustomZoneDefinitions()) {
+			zoneIndexByDefinition.set(definition, zoneTypePatches.length)
 			zoneTypePatches.push({
 				name: definition.name,
 				color: definition.color,
@@ -2882,10 +2883,12 @@ export class Game extends Eventful<GameEvents> {
 		for (const v of this.vehicles) allVehicles.push(v)
 		for (const c of this.population) allCharacters.push(c)
 
-		const serializedFreightLines = [...this.freightLines]
+		const runtimeFreightLines = [...this.freightLines]
 		const lineIndex = new Map<FreightLineDefinition, number>()
-		for (let i = 0; i < serializedFreightLines.length; i++)
-			lineIndex.set(serializedFreightLines[i]!, i)
+		for (let i = 0; i < runtimeFreightLines.length; i++) lineIndex.set(runtimeFreightLines[i]!, i)
+		const serializedFreightLines = runtimeFreightLines.map((line) =>
+			serializeFreightLineForSave(line, zoneIndexByDefinition)
+		)
 		const characterIndex = new Map<Character, number>()
 		for (let i = 0; i < allCharacters.length; i++) characterIndex.set(allCharacters[i]!, i)
 		const vehicleIndex = new Map<Vehicle, number>()

@@ -24,12 +24,10 @@ const mockGame = () =>
 	}) as any
 
 const entry = (
-	roleId: string,
 	q: number,
 	r: number,
 	alveolusType: HivePlanEntry['alveolusType'] = 'storage'
 ): HivePlanEntry => ({
-	roleId,
 	coord: [q, r],
 	alveolusType,
 })
@@ -37,7 +35,7 @@ const entry = (
 describe('hive plans', () => {
 	it('groups plans by stage as object references', () => {
 		const collection = new HivePlanCollection(mockGame())
-		const plan = collection.createDraft('Storage Pair', [entry('a', 0, 0), entry('b', 1, 0)])
+		const plan = collection.createDraft('Storage Pair', [entry(0, 0), entry(1, 0)])
 		plan.stage = 'working'
 
 		expect(collection.workingPlans).toEqual([plan])
@@ -45,22 +43,22 @@ describe('hive plans', () => {
 	})
 
 	it('rejects disconnected layouts before validation', () => {
-		const issues = validateHivePlanStructure(mockGame(), [entry('a', 0, 0), entry('b', 3, 0)])
+		const issues = validateHivePlanStructure(mockGame(), [entry(0, 0), entry(3, 0)])
 
 		expect(issues.map((issue) => issue.code)).toContain('disconnected')
 	})
 
 	it('normalizes exact duplicates across rotations', () => {
-		const original = [entry('a', 1, 0), entry('b', 0, 0)]
-		const rotated = [entry('a', 0, 1), entry('b', 0, 0)]
+		const original = [entry(1, 0), entry(0, 0)]
+		const rotated = [entry(0, 1), entry(0, 0)]
 
 		expect(hivePlanFingerprint(original)).toBe(hivePlanFingerprint(rotated))
 	})
 
 	it('does not create duplicate plans', () => {
 		const collection = new HivePlanCollection(mockGame())
-		const original = collection.createDraft('A', [entry('a', 1, 0), entry('b', 0, 0)])
-		const duplicate = collection.createDraft('B', [entry('a', 0, 1), entry('b', 0, 0)])
+		const original = collection.createDraft('A', [entry(1, 0), entry(0, 0)])
+		const duplicate = collection.createDraft('B', [entry(0, 1), entry(0, 0)])
 
 		expect(duplicate).toBe(original)
 		expect(collection.plans).toHaveLength(1)
@@ -68,11 +66,11 @@ describe('hive plans', () => {
 
 	it('returns the existing matching plan when a draft edit becomes a duplicate', () => {
 		const collection = new HivePlanCollection(mockGame())
-		const original = collection.createDraft('A', [entry('a', 1, 0), entry('b', 0, 0)])
+		const original = collection.createDraft('A', [entry(1, 0), entry(0, 0)])
 		const draft = collection.createDraft('Draft', [])
 
 		const result = collection.updateDraft(draft, {
-			entries: [entry('a', 0, 1), entry('b', 0, 0)],
+			entries: [entry(0, 1), entry(0, 0)],
 		})
 
 		expect(result).toBe(original)
@@ -109,7 +107,7 @@ describe('hive plans', () => {
 	it('shows candidate neighbor coords for visual plan expansion', () => {
 		expect(hivePlanVisibleCandidateCoords([])).toEqual([{ q: 0, r: 0 }])
 
-		const candidates = hivePlanVisibleCandidateCoords([entry('a', 0, 0)])
+		const candidates = hivePlanVisibleCandidateCoords([entry(0, 0)])
 		expect(candidates).toHaveLength(6)
 		expect(candidates).toEqual(
 			expect.arrayContaining([
@@ -121,12 +119,12 @@ describe('hive plans', () => {
 
 	it('uses archived plans as known memory for novelty', () => {
 		const collection = new HivePlanCollection(mockGame())
-		const archived = collection.createDraft('Known', [entry('a', 0, 0), entry('b', 1, 0)])
+		const archived = collection.createDraft('Known', [entry(0, 0), entry(1, 0)])
 		collection.archive(archived)
 
-		const novelWithoutMemory = hivePlanNoveltyCost([entry('a', 0, 0), entry('b', 1, 0)], [])
+		const novelWithoutMemory = hivePlanNoveltyCost([entry(0, 0), entry(1, 0)], [])
 		const novelWithMemory = hivePlanNoveltyCost(
-			[entry('a', 0, 0), entry('b', 1, 0)],
+			[entry(0, 0), entry(1, 0)],
 			collection.archivedPlans
 		)
 
@@ -148,7 +146,7 @@ describe('hive plans', () => {
 		await game.loaded
 		game.ticker.stop()
 		try {
-			const plan = game.hivePlans.createDraft('Storage Pair', [entry('a', 0, 0), entry('b', 1, 0)])
+			const plan = game.hivePlans.createDraft('Storage Pair', [entry(0, 0), entry(1, 0)])
 			plan.stage = 'working'
 
 			expect(game.applyHivePlanPlacement(plan, { q: 0, r: 0 }, 0)).toBe(true)
@@ -162,7 +160,6 @@ describe('hive plans', () => {
 				expect.arrayContaining([
 					expect.objectContaining({
 						hivePlanIndex: game.hivePlans.indexOf(plan),
-						planRoleId: 'a',
 					}),
 				])
 			)

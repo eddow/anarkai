@@ -204,7 +204,7 @@ describe('FreightLineProperties', () => {
 		procurementDefaults: { bufferPurchaseReserveVp: number }
 		getFreightLineTradeHistory: ReturnType<typeof vi.fn>
 		listSettlementTradeProfiles: ReturnType<typeof vi.fn>
-		getSettlementTradeProfile: ReturnType<typeof vi.fn>
+		getSettlementTradeProfileAtCenter: ReturnType<typeof vi.fn>
 	}
 
 	beforeAll(async () => {
@@ -267,7 +267,7 @@ describe('FreightLineProperties', () => {
 			},
 			getFreightLineTradeHistory: vi.fn(() => []),
 			listSettlementTradeProfiles: vi.fn(() => []),
-			getSettlementTradeProfile: vi.fn(() => undefined),
+			getSettlementTradeProfileAtCenter: vi.fn(() => undefined),
 		}
 	})
 

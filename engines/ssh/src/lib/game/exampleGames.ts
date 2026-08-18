@@ -111,7 +111,7 @@ export const chopSaw = {
 				{
 					loadSelection: concreteOnlySelection,
 					unloadSelection: planksOnlySelection,
-					trade: { kind: 'settlement', settlementId: 'settlement-7,19', profile: undefined! },
+					trade: { kind: 'settlement', center: { q: 7, r: 19 }, profile: undefined! },
 				},
 			],
 		},
@@ -277,7 +277,7 @@ export const demoHive = {
 				{
 					loadSelection: concreteOnlySelection,
 					unloadSelection: planksOnlySelection,
-					trade: { kind: 'settlement', settlementId: 'settlement-7,19', profile: undefined! },
+					trade: { kind: 'settlement', center: { q: 7, r: 19 }, profile: undefined! },
 				},
 			],
 		},

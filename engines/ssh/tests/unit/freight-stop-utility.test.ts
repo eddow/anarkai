@@ -73,7 +73,7 @@ function marketLoopLine(patch: Partial<FreightLineDefinition> = {}): FreightLine
 				unloadSelection: woodOnly,
 				trade: {
 					kind: 'settlement' as const,
-					settlementId: neighborMarketProfile.id,
+					center: neighborMarketProfile.center,
 					profile: undefined as any,
 				},
 			},

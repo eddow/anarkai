@@ -422,7 +422,6 @@ Alveoli never need to override `nextAlveolusJob()` or `proposedJobs` again.
 
 ```ts
 export interface HivePlanEntry {
-    roleId: string
     coord: readonly [number, number]
     alveolusType: AlveolusType
     variant?: string                                       // new

@@ -1,6 +1,7 @@
 import { defaultGatherFreightRadius } from 'engine-rules'
 import { reactive } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
+import type { ZoneDefinition } from 'ssh/board/zone'
 import type { Game } from 'ssh/game'
 import type { InspectorSelectableObject } from 'ssh/game/object'
 import type { AlveolusType, GoodType } from 'ssh/types'
@@ -51,8 +52,8 @@ export type FreightStopAnchor = FreightStopAnchorAlveolus
 
 export interface FreightNpcTradeStop {
 	readonly kind: 'settlement'
-	/** Persistence identity — survives serialization. Runtime code reads `profile` instead. */
-	readonly settlementId: string
+	/** Settlement center coord — deterministic generator identity. Runtime code reads `profile`. */
+	readonly center: AxialCoord
 	/** Resolved at line hydration time. Never null at runtime. */
 	profile: import('ssh/commerce/settlement-trade').NpcSettlementTradeProfile
 }
@@ -65,10 +66,10 @@ export interface FreightZoneDefinitionRadius {
 
 export interface FreightZoneDefinitionNamed {
 	readonly kind: 'named'
-	/** Persistence / load-time identity. Populated during normalization, consumed during hydration. */
-	readonly zoneId?: string
+	/** Serialized zone index into the `zones[]` array. Resolved to `definition` at hydration. */
+	readonly zoneIndex?: number
 	/** Runtime reference — always set after hydration. */
-	definition?: import('ssh/board/zone').ZoneDefinition
+	definition?: ZoneDefinition
 }
 
 export type FreightZoneDefinition = FreightZoneDefinitionRadius | FreightZoneDefinitionNamed
@@ -180,11 +181,9 @@ function normalizeRadiusZone(zone: FreightZoneDefinitionRadius): FreightZoneDefi
 
 function normalizeFreightZone(zone: FreightZoneDefinition): FreightZoneDefinition {
 	if (zone.kind === 'named') {
-		const rawId = zone.zoneId ?? zone.definition?.name
-		const zoneId = rawId?.trim().replace(/\s+/g, '-').toLowerCase() ?? ''
-		const normalized = { kind: 'named', zoneId } as FreightZoneDefinitionNamed
+		const normalized = { kind: 'named', zoneIndex: zone.zoneIndex } as FreightZoneDefinitionNamed
 		// Preserve the hydrated runtime reference through normalize so live edits keep the
-		// direct object ref; `zoneId` remains the serialization key only.
+		// direct object ref; `zoneIndex` remains the serialization key only.
 		if (zone.definition) normalized.definition = zone.definition
 		return normalized
 	}
@@ -194,8 +193,27 @@ function normalizeFreightZone(zone: FreightZoneDefinition): FreightZoneDefinitio
 function normalizeNpcTradeStop(trade: FreightNpcTradeStop): FreightNpcTradeStop {
 	return {
 		kind: 'settlement',
-		settlementId: trade.settlementId.trim(),
+		center: { q: Math.floor(trade.center.q), r: Math.floor(trade.center.r) },
 		profile: trade.profile,
+	}
+}
+
+/**
+ * Serialize a line's stops for the save format: named-zone stops drop the live
+ * `definition` object and carry only their `zoneIndex` into the `zones[]` array.
+ */
+export function serializeFreightLineForSave(
+	line: FreightLineDefinition,
+	zoneIndexByDefinition: ReadonlyMap<ZoneDefinition, number>
+): FreightLineDefinition {
+	return {
+		...line,
+		stops: line.stops.map((stop) => {
+			if (!('zone' in stop) || stop.zone.kind !== 'named') return stop
+			const zone = stop.zone
+			const index = zone.definition ? zoneIndexByDefinition.get(zone.definition) : zone.zoneIndex
+			return { ...stop, zone: { kind: 'named' as const, zoneIndex: index } }
+		}),
 	}
 }
 
@@ -216,12 +234,9 @@ export function hydrateFreightLineTradeProfiles(lines: FreightLineDefinition[], 
 		for (const stop of line.stops) {
 			if (!('zone' in stop) || stop.zone.kind !== 'named') continue
 			if (stop.zone.definition) continue
-			if (!stop.zone.zoneId) continue
-			const idx = game.hex.zoneManager.findZoneIndexByName(stop.zone.zoneId)
-			if (idx >= 0) {
-				;(stop.zone as { definition: FreightZoneDefinitionNamed['definition'] }).definition =
-					game.hex.zoneManager.zoneByIndex(idx)
-			}
+			if (stop.zone.zoneIndex === undefined) continue
+			;(stop.zone as { definition: FreightZoneDefinitionNamed['definition'] }).definition =
+				game.hex.zoneManager.zoneByIndex(stop.zone.zoneIndex)
 		}
 	}
 }

@@ -97,10 +97,10 @@ describe('chopSaw example game', () => {
 				goodRules: [{ goodType: 'planks', effect: 'allow' }],
 				defaultEffect: 'deny',
 			},
-			trade: { kind: 'settlement', settlementId: 'settlement-7,19' },
+			trade: { kind: 'settlement', center: { q: 7, r: 19 } },
 		})
 
-		const melindbury = game.getSettlementTradeProfile('settlement-7,19')
+		const melindbury = game.getSettlementTradeProfileAtCenter({ q: 7, r: 19 })
 		expect(melindbury?.name).toBe('Melindbury')
 		expect(melindbury?.cityHall.position).toMatchObject({ q: 6, r: 18 })
 		expect(melindbury?.offers).toEqual(
@@ -659,7 +659,7 @@ describe('chopSaw example game', () => {
 
 		const pickup = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:suv')!
 		if (!pickup) throw new Error('Expected Chopsaw SUV')
-		const melindbury = game.getSettlementTradeProfile('settlement-7,19')
+		const melindbury = game.getSettlementTradeProfileAtCenter({ q: 7, r: 19 })
 		if (!melindbury) throw new Error('Expected Melindbury trade profile')
 		expect(
 			game.hex.findPathForVehicleServiceBorder(

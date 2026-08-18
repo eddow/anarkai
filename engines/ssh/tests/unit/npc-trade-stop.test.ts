@@ -35,7 +35,7 @@ function marketLine(patch: Partial<FreightLineDefinition> = {}): FreightLineDefi
 		cyclic: true,
 		stops: [
 			{
-				trade: { kind: 'settlement', settlementId: tradeProfile.id, profile: undefined! },
+				trade: { kind: 'settlement', center: tradeProfile.center, profile: undefined! },
 			},
 			{
 				anchor: {
@@ -134,7 +134,7 @@ describe('NPC trade freight stops', () => {
 			minBalanceAfterBuyVp: 95,
 			stops: [
 				{
-					trade: { kind: 'settlement', settlementId: tradeProfile.id, profile: undefined! },
+					trade: { kind: 'settlement', center: tradeProfile.center, profile: undefined! },
 					unloadSelection: migrateV1FiltersToGoodsSelection(['wood']),
 				},
 				marketLine().stops[1]!,

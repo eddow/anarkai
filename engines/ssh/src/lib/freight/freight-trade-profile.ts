@@ -13,7 +13,7 @@ export function resolveFreightNpcTradeProfile(
 	trade: FreightNpcTradeStop
 ): FreightNpcTradeStop['profile'] | undefined {
 	if (trade.profile) return trade.profile
-	const profile = game.getSettlementTradeProfile(trade.settlementId)
+	const profile = game.getSettlementTradeProfileAtCenter(trade.center)
 	if (profile) {
 		;(trade as { profile: FreightNpcTradeStop['profile'] }).profile = profile
 	}

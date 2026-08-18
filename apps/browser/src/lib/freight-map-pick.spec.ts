@@ -50,7 +50,7 @@ const makeGame = (
 		},
 		getSettlementTradeProfileAtCityHall: (coord: { q: number; r: number }) =>
 			settlementAt && coord.q === settlementAt.coord.q && coord.r === settlementAt.coord.r
-				? { id: settlementAt.id }
+				? { id: settlementAt.id, center: settlementAt.coord }
 				: undefined,
 	}) as never
 
@@ -60,6 +60,7 @@ const makeSettlement = (settlementId = 'settlement-1'): SettlementTradeObject =>
 		value: {
 			id: settlementId,
 			name: 'Settlement One',
+			center: { q: 5, r: 0 },
 			cityHall: {
 				id: `${settlementId}:city-hall`,
 				kind: 'city_hall',
@@ -139,7 +140,7 @@ describe('freight-map-pick', () => {
 		)
 		expect(ok).toBe(true)
 		expect(apply.mock.calls[0]?.[0]).toMatchObject({
-			trade: { kind: 'settlement', settlementId: 'settlement-1' },
+			trade: { kind: 'settlement', center: { q: 5, r: 0 } },
 		})
 		expect(freightMapPick.pending).toBeUndefined()
 	})
@@ -196,7 +197,7 @@ describe('freight-map-pick', () => {
 		const ok = tryConsumeFreightMapPick(makeGame(), makeSettlement())
 		expect(ok).toBe(true)
 		expect(apply.mock.calls[0]?.[0]).toMatchObject({
-			trade: { kind: 'settlement', settlementId: 'settlement-1' },
+			trade: { kind: 'settlement', center: { q: 5, r: 0 } },
 		})
 		expect(freightMapPick.pending).toBeUndefined()
 	})
@@ -208,7 +209,7 @@ describe('freight-map-pick', () => {
 		const ok = tryConsumeFreightMapPick(makeGame('orchard'), makeTile({ q: 1, r: 2 }))
 		expect(ok).toBe(true)
 		expect(apply.mock.calls[0]?.[0]).toMatchObject({
-			zone: { kind: 'named', zoneId: 'orchard' },
+			zone: { kind: 'named', definition: { name: 'orchard' } },
 		})
 		expect(freightMapPick.pending).toBeUndefined()
 	})

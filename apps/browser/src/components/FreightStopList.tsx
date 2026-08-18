@@ -315,7 +315,11 @@ const stationTileForStop = (game: Game, stop: FreightStop) => {
 
 const zoneObjectForStop = (stop: FreightStop, game: Game) => {
 	if (!('zone' in stop) || stop.zone.kind !== 'named') return undefined
-	const zone = stop.zone.definition ?? game.hex.zoneManager.findZoneByName(stop.zone.zoneId ?? '')
+	const zone =
+		stop.zone.definition ??
+		(stop.zone.zoneIndex !== undefined
+			? game.hex.zoneManager.zoneByIndex(stop.zone.zoneIndex)
+			: undefined)
 	return zone ? getZoneObject(zone) : undefined
 }
 
@@ -325,8 +329,9 @@ const stopLabel = (game: Game, stop: FreightStop): string => {
 	if (stop.zone.kind === 'named') {
 		return (
 			stop.zone.definition?.name ??
-			game.hex.zoneManager.findZoneByName(stop.zone.zoneId ?? '')?.name ??
-			stop.zone.zoneId ??
+			(stop.zone.zoneIndex !== undefined
+				? game.hex.zoneManager.zoneByIndex(stop.zone.zoneIndex)?.name
+				: undefined) ??
 			'(unnamed zone)'
 		)
 	}

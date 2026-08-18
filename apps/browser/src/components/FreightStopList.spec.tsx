@@ -172,7 +172,7 @@ describe('FreightStopList', () => {
 				},
 			},
 			listSettlementTradeProfiles: () => [{ id: 'settlement-1', name: 'Settlement One' }],
-			getSettlementTradeProfile: () => ({
+			getSettlementTradeProfileAtCenter: () => ({
 				id: 'settlement-1',
 				name: 'Settlement One',
 				cityHall: { position: { q: 5, r: 0 } },
@@ -210,7 +210,7 @@ describe('FreightStopList', () => {
 				{
 					trade: {
 						kind: 'settlement',
-						settlementId: 'settlement-1',
+						center: { q: 7, r: 19 },
 					},
 				},
 			],
@@ -228,7 +228,7 @@ describe('FreightStopList', () => {
 					offers: [{ direction: 'sell', good: 'concrete', priceVp: 5 }],
 				},
 			],
-			getSettlementTradeProfile: () => ({
+			getSettlementTradeProfileAtCenter: () => ({
 				cityHall: { position: { q: 5, r: 0 } },
 				name: 'Settlement One',
 				offers: [{ direction: 'sell', good: 'concrete', priceVp: 5 }],
@@ -265,7 +265,7 @@ describe('FreightStopList', () => {
 				{
 					trade: {
 						kind: 'settlement',
-						settlementId: 'settlement-1',
+						center: { q: 7, r: 19 },
 					},
 				},
 			],
@@ -283,7 +283,8 @@ describe('FreightStopList', () => {
 					offers: [{ direction: 'buy', good: 'planks', priceVp: 3 }],
 				},
 			],
-			getSettlementTradeProfile: () => ({
+			getSettlementTradeProfileAtCenter: () => ({
+				center: { q: 7, r: 19 },
 				cityHall: { position: { q: 5, r: 0 } },
 				name: 'Settlement One',
 				offers: [{ direction: 'buy', good: 'planks', priceVp: 3 }],
@@ -333,7 +334,7 @@ describe('FreightStopList', () => {
 					offers: [{ direction: 'sell', good: 'concrete', priceVp: 5 }],
 				},
 			],
-			getSettlementTradeProfile: () => ({
+			getSettlementTradeProfileAtCenter: () => ({
 				cityHall: { position: { q: 5, r: 0 } },
 				name: 'Settlement One',
 				offers: [{ direction: 'sell', good: 'concrete', priceVp: 5 }],
@@ -355,12 +356,12 @@ describe('FreightStopList', () => {
 		expect(container.querySelector('[data-testid="freight-stop-add-kind"]')).toBeNull()
 		expect(freightMapPickMock.pending?.pickKind).toBe('add-stop')
 		freightMapPickMock.pending?.apply({
-			trade: { kind: 'settlement', settlementId: 'settlement-1' },
+			trade: { kind: 'settlement', center: { q: 7, r: 19 } },
 		})
 
 		const next = onChange.mock.calls.at(-1)?.[0] as {
-			stops: Array<{ trade?: { settlementId: string } }>
+			stops: Array<{ trade?: { center: { q: number; r: number } } }>
 		}
-		expect(next.stops.at(-1)?.trade?.settlementId).toBe('settlement-1')
+		expect(next.stops.at(-1)?.trade?.center).toEqual({ q: 7, r: 19 })
 	})
 })

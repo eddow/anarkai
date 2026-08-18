@@ -48,7 +48,7 @@ describe('demoHive example game', () => {
 				?.servedLines.map((line) => line.name)
 		).toEqual(['HearthLoop - Melindbury comfort loop'])
 
-		const melindbury = game.getSettlementTradeProfile('settlement-7,19')
+		const melindbury = game.getSettlementTradeProfileAtCenter({ q: 7, r: 19 })
 		expect(melindbury?.name).toBe('Melindbury')
 		expect(melindbury?.offers).toEqual(
 			expect.arrayContaining([

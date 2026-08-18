@@ -18,7 +18,7 @@ const { game, selectInspectorObject, showFreightLineOverlay } = vi.hoisted(() =>
 				position: coord,
 			})),
 		},
-		getSettlementTradeProfile: vi.fn(),
+		getSettlementTradeProfileAtCenter: vi.fn(),
 	},
 	selectInspectorObject: vi.fn(),
 	showFreightLineOverlay: vi.fn(),
@@ -88,7 +88,7 @@ describe('LinesManagementWidget', () => {
 			app: { screen: { width: 100, height: 100 } },
 			world: { position: { x: 0, y: 0 }, scale: { x: 1, y: 1 } },
 		}
-		game.getSettlementTradeProfile.mockReset()
+		game.getSettlementTradeProfileAtCenter.mockReset()
 		selectInspectorObject.mockClear()
 		showFreightLineOverlay.mockClear()
 		container = document.createElement('div')

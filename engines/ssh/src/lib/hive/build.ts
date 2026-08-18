@@ -47,7 +47,6 @@ export class BuildAlveolus extends TileContent {
 	public assignedWorker: unknown
 	public hivePlan?: HivePlan
 	public hivePlanVersion?: number
-	public planRoleId?: string
 	public planConfiguration?: {
 		ref: Ssh.ConfigurationReference
 		individual?: Ssh.AlveolusConfiguration

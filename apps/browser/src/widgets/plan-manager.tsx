@@ -6,7 +6,12 @@ import { Button, InspectorSection } from '@app/ui/anarkai'
 import { alveoli as alveoliRules } from 'engine-rules'
 import { effect, reactive } from 'mutts'
 import type { HivePlan, HivePlanEntry, HivePlanStage } from 'ssh/hive-plan'
-import { applyHivePlanToolAction, hivePlanEntryAt, validateHivePlanStructure } from 'ssh/hive-plan'
+import {
+	applyHivePlanToolAction,
+	hivePlanCoordKey,
+	hivePlanEntryAt,
+	validateHivePlanStructure,
+} from 'ssh/hive-plan'
 import type { AlveolusType } from 'ssh/types/base'
 import type { AxialCoord } from 'ssh/utils/axial'
 
@@ -198,7 +203,7 @@ const PlanManagerWidget = (props: { title?: string }) => {
 	const state = reactive({
 		filter: 'all' as StageFilter,
 		selectedPlan: undefined as HivePlan | undefined,
-		selectedRoleId: '',
+		selectedCoord: undefined as readonly [number, number] | undefined,
 		message: '',
 	})
 
@@ -209,7 +214,9 @@ const PlanManagerWidget = (props: { title?: string }) => {
 	const selectedPlan = () => state.selectedPlan
 	const selectedEntry = () => {
 		const plan = selectedPlan()
-		return plan?.entries.find((entry) => entry.roleId === state.selectedRoleId)
+		return plan && state.selectedCoord
+			? hivePlanEntryAt(plan.entries, state.selectedCoord)
+			: undefined
 	}
 	const selectedEntryConfigurationOptions = () => {
 		const entry = selectedEntry()
@@ -228,9 +235,11 @@ const PlanManagerWidget = (props: { title?: string }) => {
 		const selected = selectedPlan()
 		const list = plansForFilter()
 		if (!selected && list[0]) state.selectedPlan = list[0]
-		if (selected && state.selectedRoleId) {
-			const stillExists = selected.entries.some((entry) => entry.roleId === state.selectedRoleId)
-			if (!stillExists) state.selectedRoleId = ''
+		if (selected && state.selectedCoord) {
+			const stillExists = selected.entries.some(
+				(entry) => hivePlanCoordKey(entry.coord) === hivePlanCoordKey(state.selectedCoord!)
+			)
+			if (!stillExists) state.selectedCoord = undefined
 		}
 	})
 
@@ -240,7 +249,7 @@ const PlanManagerWidget = (props: { title?: string }) => {
 		const selected = selectedPlan()
 		if (!selected || !list.some((plan) => plan === selected)) {
 			state.selectedPlan = list[0]
-			state.selectedRoleId = ''
+			state.selectedCoord = undefined
 		}
 	}
 
@@ -248,7 +257,7 @@ const PlanManagerWidget = (props: { title?: string }) => {
 		const plan = game.hivePlans.createDraft(uniquePlanName('New hive plan'), [])
 		state.filter = 'all'
 		state.selectedPlan = plan
-		state.selectedRoleId = ''
+		state.selectedCoord = undefined
 		state.message = 'New draft created.'
 	}
 
@@ -263,7 +272,7 @@ const PlanManagerWidget = (props: { title?: string }) => {
 		const result = game.hivePlans.updateDraft(plan, patch)
 		if (result !== plan) {
 			state.selectedPlan = result
-			state.selectedRoleId = ''
+			state.selectedCoord = undefined
 			state.message = `Existing matching plan: ${result.name}`
 			return result
 		}
@@ -271,22 +280,22 @@ const PlanManagerWidget = (props: { title?: string }) => {
 		return result
 	}
 
-	const setEntry = (roleId: string, patch: Partial<HivePlanEntry>) => {
+	const setEntry = (coord: readonly [number, number], patch: Partial<HivePlanEntry>) => {
 		const plan = selectedPlan()
 		if (!plan) return
+		const key = hivePlanCoordKey(coord)
 		const entries = plan.entries.map((entry) =>
-			entry.roleId === roleId ? { ...cloneEntry(entry), ...patch } : cloneEntry(entry)
+			hivePlanCoordKey(entry.coord) === key ? { ...cloneEntry(entry), ...patch } : cloneEntry(entry)
 		)
-		const updated = applyDraftPatch(plan, { entries })
-		if (patch.roleId && updated === plan) state.selectedRoleId = patch.roleId
+		applyDraftPatch(plan, { entries })
 	}
 
-	const setEntryNamedConfiguration = (roleId: string, name: string) => {
+	const setEntryNamedConfiguration = (coord: readonly [number, number], name: string) => {
 		if (!name) {
-			setEntry(roleId, { configuration: undefined })
+			setEntry(coord, { configuration: undefined })
 			return
 		}
-		setEntry(roleId, { configuration: { ref: { scope: 'named', name } } })
+		setEntry(coord, { configuration: { ref: { scope: 'named', name } } })
 	}
 
 	const handleCanvasHex = (coord: AxialCoord) => {
@@ -298,7 +307,7 @@ const PlanManagerWidget = (props: { title?: string }) => {
 		const action = interactionMode.selectedAction
 		const entry = hivePlanEntryAt(plan.entries, coord)
 		if (!action.startsWith('build:') && action !== 'bulldoze') {
-			state.selectedRoleId = entry?.roleId ?? ''
+			state.selectedCoord = entry ? ([entry.coord[0], entry.coord[1]] as const) : undefined
 			return
 		}
 		if (plan.stage !== 'draft') {
@@ -306,10 +315,9 @@ const PlanManagerWidget = (props: { title?: string }) => {
 			return
 		}
 		const next = applyHivePlanToolAction(plan.entries, action, coord)
-		state.selectedRoleId = next.selectedRoleId ?? ''
+		state.selectedCoord = next.selectedCoord ?? undefined
 		if (!next.changed) return
-		const updated = applyDraftPatch(plan, { entries: next.entries })
-		if (updated === plan) state.selectedRoleId = next.selectedRoleId ?? ''
+		applyDraftPatch(plan, { entries: next.entries })
 	}
 
 	const validateSelected = () => {
@@ -378,7 +386,7 @@ const PlanManagerWidget = (props: { title?: string }) => {
 								data-selected={state.selectedPlan === plan ? 'true' : 'false'}
 								onClick={() => {
 									state.selectedPlan = plan
-									state.selectedRoleId = ''
+									state.selectedCoord = undefined
 								}}
 							>
 								<div>{plan.name}</div>
@@ -417,7 +425,7 @@ const PlanManagerWidget = (props: { title?: string }) => {
 							<HivePlanCanvas
 								plan={selectedPlan()}
 								issues={structuralIssues()}
-								selectedRoleId={state.selectedRoleId}
+								selectedCoord={state.selectedCoord}
 								selectedAction={interactionMode.selectedAction}
 								readOnly={selectedPlan()?.stage !== 'draft'}
 								onHexClick={handleCanvasHex}
@@ -437,18 +445,6 @@ const PlanManagerWidget = (props: { title?: string }) => {
 						Select a plan cell on the canvas.
 					</div>
 					<div if={!!selectedEntry()} class="plan-manager__selected-cell">
-						<label>Role</label>
-						<input
-							value={selectedEntry()?.roleId ?? ''}
-							disabled={selectedPlan()?.stage !== 'draft'}
-							update:value={(v: string) => {
-								const entry = selectedEntry()
-								if (!entry) return
-								setEntry(entry.roleId, {
-									roleId: v,
-								})
-							}}
-						/>
 						<label>Alveolus</label>
 						<select
 							value={selectedEntry()?.alveolusType ?? ''}
@@ -456,7 +452,7 @@ const PlanManagerWidget = (props: { title?: string }) => {
 							update:value={(v: string) => {
 								const entry = selectedEntry()
 								if (!entry) return
-								setEntry(entry.roleId, {
+								setEntry(entry.coord, {
 									alveolusType: v as AlveolusType,
 									configuration: undefined,
 									variant: undefined,
@@ -475,7 +471,7 @@ const PlanManagerWidget = (props: { title?: string }) => {
 								const entry = selectedEntry()
 								if (!entry) return
 								const newValue = v
-								setEntry(entry.roleId, {
+								setEntry(entry.coord, {
 									variant: newValue || undefined,
 								})
 							}}
@@ -502,7 +498,7 @@ const PlanManagerWidget = (props: { title?: string }) => {
 							update:value={(v: string) => {
 								const entry = selectedEntry()
 								if (!entry) return
-								setEntryNamedConfiguration(entry.roleId, v)
+								setEntryNamedConfiguration(entry.coord, v)
 							}}
 						>
 							<option value="">Hive/default config</option>

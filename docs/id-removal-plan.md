@@ -2,7 +2,7 @@
 
 > Updated 2026-08-18 — **Phase F complete.** All 14 F-items are done. Inspector dispatch now uses object identity (`selectionState.selectedObject`), `debugObjectId` is display-only, and test `.uid` fixtures were removed. Selection/layout state is no longer persisted (`stored` → `shallowReactive`). See the per-item snapshot at the bottom.
 >
-> **Final audit 2026-08-18** — runtime object ids are fully removed and **no id is saved** to `SaveState` (array-index + content-key only). 2 items remain: 2 internal `debugObjectId`/`vehicleUid` uses to fix (the 3 dead legacy shapes are now cleaned). See "What remains to remove all runtime ids".
+> **Final audit 2026-08-18** — runtime object ids are fully removed and **no id is saved** to `SaveState` (array-index + content-key only). `roleId`/`planRoleId`, `settlementId` and `zoneId` (name) are all gone — replaced by coordinate / center / array-index. 2 items remain: the in-memory `debugObjectId` Map keys and the stale `vehicleUid` literal. See "What remains to remove all runtime ids".
 
 > Updated 2026-08-06 — Phase F audit identified ~190 id/index patterns across 14 items (F1–F14). See "Phase F — 2026-08-06 audit" below.
 
@@ -89,10 +89,27 @@ and dropped the `lineId`/`stopId` string fallback in `npc-diagnostics.ts`. Objec
 ### 6. Persisted content/domain string identities (by design — not object ids) ✅
 
 Persisted but legitimate *content* keys, not runtime object ids (see "Legitimate remaining keys" above):
-`FreightNpcTradeStop.settlementId`, `FreightZoneDefinitionNamed.zoneId`, `HivePlanEntry.roleId` /
-patch `planRoleId`, `HivePlan.knownnessFingerprint`, `NpcSettlementTradeProfile.id` / `GeneratedSettlement.id` /
-`SettlementRegion.id` (`settlement-7,19` generator keys), `BayQueueConfigInput.bayGroups[].id` (authored YAML config key),
-`MovementRef.id` (opaque nonce — explicitly "not a serialization id").
+`HivePlan.knownnessFingerprint`, `NpcSettlementTradeProfile.id` / `GeneratedSettlement.id` /
+`SettlementRegion.id` (`settlement-7,19` generator keys, generator-internal), `BayQueueConfigInput.bayGroups[].id`
+(authored YAML config key), `MovementRef.id` (opaque nonce — explicitly "not a serialization id").
+
+### 8. `roleId`/`planRoleId` → removed 2026-08-18 (position is identity) ✅
+
+Deleted `roleId` from `HivePlanEntry` (coord is the unique identity via `hivePlanEntryAt`). Removed
+`nextRoleId`, the `duplicate-role` validation, `planRoleId` on `AlveolusPatch`/`ProjectSitePatch`/`BuildAlveolus`,
+and the `plan.entries.find(e => e.roleId === planRoleId)` configuration lookup — `ProjectSitePatch.configuration`
+is now serialized directly. Browser `HivePlanCanvas`/`plan-manager` selection switched `selectedRoleId` → `selectedCoord`.
+
+### 9. `settlementId` → `center` coord 2026-08-18 ✅
+
+`FreightNpcTradeStop.settlementId: string` (a stringified `settlement-q,r`) → `center: AxialCoord`. Resolved via
+`Game.getSettlementTradeProfileAtCenter(center)` (scans `profile.center`); `getSettlementTradeProfile(id)` deleted.
+
+### 10. `zoneId` (name) → `zoneIndex` 2026-08-18 ✅
+
+`FreightZoneDefinitionNamed.zoneId` (a slugified zone name) → `zoneIndex` into the serialized `zones[]` array.
+`saveGameData` builds `zoneIndexByDefinition` and `serializeFreightLineForSave` rewrites named-zone stops to
+`{ kind, zoneIndex }` (dropping the live `definition` object); hydration resolves `zoneIndex` → `zoneByIndex`.
 
 ### 7. Trace/display `*Uid`/`*Id` payload fields (display-only — acceptable) ✅
 
@@ -123,7 +140,7 @@ Acceptable under principle #4.
 
 ### Keep — by design, not runtime ids
 
-- **Content/domain keys**: `settlementId`, `zoneId`, `roleId`/`planRoleId`, `knownnessFingerprint`, `NpcSettlementTradeProfile.id`, `GeneratedSettlement.id`, `SettlementRegion.id`, `BayQueueConfigInput.bayGroups[].id`
+- **Content/domain keys**: `knownnessFingerprint`, `NpcSettlementTradeProfile.id`, `GeneratedSettlement.id`, `SettlementRegion.id` (generator-internal), `BayQueueConfigInput.bayGroups[].id`
 - **Opaque nonce**: `MovementRef.id` (number; survives object replacement; "not a serialization id")
 - **Debug/display**: `debugObjectId(...)` trace payloads, `Held.id` leak counter
 
