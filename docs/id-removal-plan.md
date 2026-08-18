@@ -1,6 +1,6 @@
 # Plan: Remove Runtime IDs from SSH Entities
 
-> Updated 2026-08-17 — **Status corrected.** Phase F is still in progress; the earlier "ALL runtime IDs removed" banner overstated completion. Core runtime `.uid` removal (Phase A+B), the serialization bridge, and trace payloads are done; inspector dispatch (`selectedUid`), synthetic uid keys, and the `vehicleUid`/`lineId` string fields are still TODO. See the per-item snapshot at the bottom.
+> Updated 2026-08-18 — **Phase F complete.** All 14 F-items are done. Inspector dispatch now uses object identity (`selectionState.selectedObject`), `debugObjectId` is display-only, and test `.uid` fixtures were removed. Selection/layout state is no longer persisted (`stored` → `shallowReactive`). See the per-item snapshot at the bottom.
 
 > Updated 2026-08-06 — Phase F audit identified ~190 id/index patterns across 14 items (F1–F14). See "Phase F — 2026-08-06 audit" below.
 
@@ -22,11 +22,11 @@
 | `engines/ssh` regression tests | ✅ bay-queue 21/21 pass |
 | **Phase A+B** (`.uid` runtime removal) | ✅ Completed |
 | **Phase C** (`FreightLineDefinition.id` removal) | ⚠️ Partial — `.id` deleted, but no stable replacement identity installed (see note) |
-| **Phase D** (browser `.uid`/`.id` cleanup) | ⚠️ Partial — `selectedUid` + `debugObjectId` lookups remain (F1, F8) |
+| **Phase D** (browser `.uid`/`.id` cleanup) | ✅ Completed — `selectedUid` removed; inspector dispatch by object identity; `debugObjectId` display-only |
 | **Phase E** (trace `.uid` cleanup) | ✅ Completed — trace payloads use `debugObjectId()` as display |
 | **Serialization bridge** | ✅ Completed — index-based vehicle/character/line/plan refs in save/load |
-| **Final audit 2026-08-02** | ⚠️ Incomplete — swept object `.uid` only; missed `selectedUid`, `vehicleUid`, `lineId`, `zoneObjectUid`, synthetic uid keys |
-| **Phase F (F1–F14)** | ⏳ In progress — 11 done, 1 partial, 2 TODO (see snapshot) |
+| **Final audit 2026-08-02** | ✅ Superseded by Phase F (all 14 items done) |
+| **Phase F (F1–F14)** | ✅ Completed — 14/14 done (see snapshot) |
 
 ## Principles (for removal)
 
@@ -189,18 +189,18 @@ Zone index → object references in `ZoneObject` via identity, not parseInt.
 
 Legend: ✅ done · ⏳ partial · ❌ TODO.
 
-1. ⏳ **F1**: `selectedUid: string` → `selectedObject: object` — `selectedObject` added + preferred, but `selectedUid` remains as localStorage/pinned-panel fallback.
+1. ✅ **F1**: `selectedUid: string` → `selectedObject: object` — `selectionState.selectedObject` is the sole dispatch path (object identity); `selectedUid` deleted everywhere.
 2. ✅ **F2**: `freight-line:${index}` → direct line object — synthetic keys gone.
 3. ✅ **F3**: `hive-plan:${index}` → direct plan object — `hivePlanPlacementState.plan` holds the `HivePlan` object; `selectedAction` is the bare marker `'hive-plan'`.
 4. ✅ **F4**: `hive:${anchorUid}` → direct hive object — `createSyntheticHiveObject(game, tile)` returns `{ kind: 'hive', tile }`; dispatch by `kind === 'hive'`; `hiveUidForAnchorTile`/`isHiveUid`/`HIVE_UID_PREFIX` deleted.
 5. ✅ **F5**: `zone:` uid → direct ZoneObject — `ZoneObject` now holds the `ZoneDefinition` by reference; `zoneObjectUid`/`ZONE_UID_PREFIX` removed; paint token is name-keyed (`zone:${name}`).
 6. ✅ **F6**: `vehicleUid` → Vehicle reference — `InTransitReservation.vehicle`, `FreightLineVehicleStatus.vehicle`, `VehicleDockConveyJob.vehicle`, `WorkPlan.vehicle?` all object refs; `reserveInTransit`/`cancelVehicleReservationsOnSites` keyed by `WeakMap<Vehicle, …>`. `SerializedDockRequest.vehicleUid` remains (serialization only).
 7. ✅ **F7**: `lineId` → line reference — `WorkPlan.line?: FreightLineDefinition`; `summarizeJobPlanForDiagnostics` reads `.line` and emits `debugObjectId(line)` as display. `lineId` remains only as legacy trace/display strings.
-8. ❌ **F8**: `debugObjectId` lookups → object identity — still at `FreightLineProperties.tsx:420`, `VehicleProperties.tsx`, `follow-selection.ts:106`, `selection-info.tsx:245`.
+8. ✅ **F8**: `debugObjectId` lookups → object identity — `HardListSearchPicker.onSelect` passes the item; assign/unassign handlers take the object directly; `debugObjectId` remains only for `data-test-*` attributes and debug dumps.
 9. ✅ **F9**: `interactiveLogObject(uid)` registry → delete — replaced with `WeakSet` (`isInteractiveLogObject`).
 10. ✅ **F10**: `.uid` display → `debugObjectId` — `InspectorSelectableObject` has no `.uid`.
 11. ✅ **F11**: `hivePlanIndex` → plan object ref — `BuildAlveolus.hivePlan: HivePlan`; `HivePlanCollection.updateDraft/sendToValidation/archive/unarchive` take the plan object; `ValidateHivePlanJob.plan` is an object. `hivePlanIndex` remains **only** in the serialized patches (index = array position per principle #3).
-12. ❌ **F12**: Test uid data → object refs — still at `convey-rebind.test.ts:25`, `presentation_events.test.ts:20-52`, `trace.test.ts:16-26`, plus browser `selectedUid` specs.
+12. ✅ **F12**: Test uid data → object refs — `convey-rebind`/`presentation_events` fixtures stripped of `.uid`; browser specs use `selectedObject` + `unwrap`. `trace.test.ts:16-26` `.uid` fields are serialization canaries (`must-not-expand`, `custom-1`), not identity lookups — kept.
 13. ✅ **F13**: `FreightStopList.spec.tsx` `lineId` mock — gone.
 14. ✅ **F14**: zone `parseInt` key parsing — gone (remaining `zoneObjectUid` is F5).
 
@@ -208,18 +208,18 @@ Legend: ✅ done · ⏳ partial · ❌ TODO.
 
 | Item | Status | Verified against |
 |---|---|---|
-| F1 `selectedUid` | ⏳ Partial | `globals.ts:23,31`, `App.tsx:75,87`, `follow-selection.ts:102,194`, `selection-info.tsx:232,268,349`, `game.tsx:114-116` |
+| F1 `selectedUid` | ✅ Done | `selectionState.selectedObject` (object ref); `selectedUid` gone from `apps/browser/src` |
 | F2 `freight-line:${index}` | ✅ Done | no source matches |
 | F3 `hive-plan:${index}` | ✅ Done | `hivePlanPlacementState.plan` (object ref); bare `'hive-plan'` action |
 | F4 `hive:${anchorUid}` | ✅ Done | `createSyntheticHiveObject` (object ref); `kind === 'hive'` dispatch; uid helpers deleted |
 | F5 `zoneObjectUid` | ✅ Done | `ZoneObject.definition` (object ref); `zoneObjectUid`/`ZONE_UID_PREFIX` deleted; `findZoneByName`/`removeZoneDefinition` added |
 | F6 `vehicleUid` | ✅ Done | `InTransitReservation.vehicle`, `FreightLineVehicleStatus.vehicle`, `WorkPlan.vehicle?` (object refs); `SerializedDockRequest.vehicleUid` is serialization-only |
 | F7 `lineId` | ✅ Done | `WorkPlan.line?: FreightLineDefinition`; diagnostics reads `.line` → `debugObjectId` display |
-| F8 `debugObjectId` lookups | ❌ TODO | `FreightLineProperties.tsx:420`, `VehicleProperties.tsx`, `follow-selection.ts:106`, `selection-info.tsx:245` |
+| F8 `debugObjectId` lookups | ✅ Done | `HardListSearchPicker.onSelect(item)`; Freight/Vehicle assign/unassign by object ref; `debugObjectId` display-only |
 | F9 `interactiveLogObject(uid)` | ✅ Done | `game/object.ts` → `WeakSet` + `isInteractiveLogObject` |
 | F10 `.uid` display | ✅ Done | `InspectorSelectableObject` (no `.uid`) |
 | F11 `hivePlanIndex` | ✅ Done | `BuildAlveolus.hivePlan` (object ref); `ValidateHivePlanJob.plan`; `hivePlanIndex` only in serialized patches |
-| F12 test uid data | ❌ TODO | `convey-rebind.test.ts:25`, `presentation_events.test.ts:20-52`, `trace.test.ts:16-26` |
+| F12 test uid data | ✅ Done | `convey-rebind`/`presentation_events` `.uid` removed; browser specs object-ref based; `trace.test.ts` canaries kept |
 | F13 `lineId` mock | ✅ Done | no matches in `FreightStopList.spec.tsx` |
 | F14 zone `parseInt` | ✅ Done | no `isZoneObjectUid`/`parseInt` in `apps/browser/src` |
 

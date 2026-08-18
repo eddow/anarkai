@@ -1,5 +1,4 @@
 import { Tile } from 'ssh/board/tile'
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 // @ts-nocheck
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,14 +17,14 @@ const globals = {
 	},
 	selectionState: {
 		panelId: undefined as string | undefined,
-		selectedUid: undefined as string | undefined,
+		selectedObject: undefined as object | undefined,
 		titleVersion: 0,
 	},
 	bumpSelectionTitleVersion: vi.fn(),
 	unreactiveInfo: {
 		hasLastSelectedInfoPanel: false,
 	},
-	validateStoredSelectionState: vi.fn(),
+	validateSelectionPanelId: vi.fn(),
 }
 
 vi.mock('./globals', () => globals)
@@ -45,11 +44,10 @@ describe('follow-selection', () => {
 		globals.game.ensureGameplaySectors.mockClear()
 		globals.game.ensureGeneratedTiles.mockClear()
 		globals.selectionState.panelId = undefined
-		globals.selectionState.selectedUid = undefined
 		globals.selectionState.selectedObject = undefined
 		globals.selectionState.titleVersion = 0
 		globals.unreactiveInfo.hasLastSelectedInfoPanel = false
-		globals.validateStoredSelectionState.mockClear()
+		globals.validateSelectionPanelId.mockClear()
 		addPanel.mockClear()
 		getPanel.mockClear()
 		focus.mockClear()
@@ -90,13 +88,12 @@ describe('follow-selection', () => {
 		Object.assign(tile, {
 			title: 'Tile 12, -3',
 		})
-		const tileUid = debugObjectId(tile)
 
 		selectInspectorObject(tile as never)
 
 		expect(globals.game.ensureGameplaySectors).toHaveBeenCalledWith(['0,-1'])
 		expect(globals.game.ensureGeneratedTiles).not.toHaveBeenCalled()
-		expect(globals.selectionState.selectedUid).toBe(tileUid)
+		expect(globals.selectionState.selectedObject).toBe(tile)
 	})
 
 	it('falls back to the resolved selected object title when no title is passed', async () => {
@@ -106,8 +103,7 @@ describe('follow-selection', () => {
 			getPanel,
 		}
 		const charObject = { title: 'Character Ada' }
-		gameObjects.add(charObject)
-		globals.selectionState.selectedUid = debugObjectId(charObject)
+		globals.selectionState.selectedObject = charObject
 
 		ensureFollowSelectionPanel()
 
@@ -138,18 +134,18 @@ describe('follow-selection', () => {
 			addPanel,
 			getPanel,
 		}
-		registerPinnedInspectorPanel('panel-pinned-vehicle', 'vehicle-1')
+		const pinnedObject = { title: 'Pinned Vehicle' }
+		registerPinnedInspectorPanel('panel-pinned-vehicle', pinnedObject)
 
 		const operatorObject = { title: 'Operator Ada' }
-		const operatorUid = debugObjectId(operatorObject)
 
 		try {
 			showProps(operatorObject as never)
 		} finally {
-			unregisterPinnedInspectorPanel('panel-pinned-vehicle', 'vehicle-1')
+			unregisterPinnedInspectorPanel('panel-pinned-vehicle', pinnedObject)
 		}
 
-		expect(globals.selectionState.selectedUid).toBe(operatorUid)
+		expect(globals.selectionState.selectedObject).toBe(operatorObject)
 		expect(addPanel).toHaveBeenCalledWith({
 			id: expect.stringMatching(/^selection-info-/),
 			component: 'selection-info',
@@ -177,13 +173,13 @@ describe('follow-selection', () => {
 			panelId === 'panel-existing-tile' ? existingPanel : undefined
 		)
 		const tileObject = { title: 'Tile 9, 9' }
-		const tileUid = debugObjectId(tileObject)
-		registerPinnedInspectorPanel('panel-existing-tile', tileUid)
-		globals.selectionState.selectedUid = 'character-1'
+		registerPinnedInspectorPanel('panel-existing-tile', tileObject)
+		const otherObject = { title: 'Character 1' }
+		globals.selectionState.selectedObject = otherObject
 
 		showProps(tileObject as never)
 
-		expect(globals.selectionState.selectedUid).toBe('character-1')
+		expect(globals.selectionState.selectedObject).toBe(otherObject)
 		expect(addPanel).not.toHaveBeenCalled()
 		expect(focus).toHaveBeenCalledTimes(1)
 	})

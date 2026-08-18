@@ -2,15 +2,16 @@
 import { cancelFreightMapPick, freightMapPick } from '@app/lib/freight-map-pick'
 import { document, latch } from '@sursaut/core'
 import type { DockviewWidgetProps } from '@sursaut/ui/dockview'
-import { reactive } from 'mutts'
+import { shallowReactive, unwrap } from 'mutts'
 import { Tile } from 'ssh/board/tile'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { Character } from 'ssh/population/character'
 import { Vehicle as VehicleEntity } from 'ssh/population/vehicle/entity'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SelectionInfoContext, SelectionInfoTool } from './selection-info-tab'
 
 const interactionModeMock = vi.hoisted(() => ({ selectedAction: '' }))
-const updateParameters = vi.fn<(params: { uid?: string }) => void>()
+const updateParameters = vi.fn<(params: { pinned?: boolean }) => void>()
 const removePanel = vi.fn()
 const onDidRemovePanel = vi.fn((handler: (panel: { id: string }) => void) => {
 	void handler
@@ -21,23 +22,17 @@ const gameObject = {
 	logs: ['log line 1', 'log line 2'],
 	position: { x: 2, y: 4 },
 }
-const tileUid = 'tile-1'
 const TileForTest = Tile as unknown as new () => Record<string, unknown>
 const tileObject = Object.assign(new TileForTest(), {
-	uid: tileUid,
 	title: 'tile tile-1',
 	logs: [] as string[],
 }) as InstanceType<typeof Tile>
-const characterUid = 'character-1'
 const CharacterForTest = Character as unknown as new () => Record<string, unknown>
 const characterObject = Object.assign(new CharacterForTest(), {
-	uid: characterUid,
 	title: 'character character-1',
 	logs: [] as string[],
 }) as InstanceType<typeof Character>
-const secondCharacterUid = 'character-2'
 const secondCharacterObject = Object.assign(new CharacterForTest(), {
-	uid: secondCharacterUid,
 	title: 'character character-2',
 	logs: [] as string[],
 }) as InstanceType<typeof Character>
@@ -46,19 +41,14 @@ const hiveSyntheticObject = {
 	kind: 'hive' as const,
 	title: 'Test Hive',
 	logs: [] as const,
-	anchorTileUid: 'tile:0,0',
 }
 
-const vehicleUid = 'vehicle-1'
 const VehicleForTest = VehicleEntity as unknown as new () => Record<string, unknown>
 const vehicleObject = Object.assign(new VehicleForTest(), {
-	uid: vehicleUid,
 	title: 'wheelbarrow vehicle-1',
 	logs: [] as string[],
 }) as InstanceType<typeof VehicleEntity>
-const secondVehicleUid = 'vehicle-2'
 const secondVehicleObject = Object.assign(new VehicleForTest(), {
-	uid: secondVehicleUid,
 	title: 'wheelbarrow vehicle-2',
 	logs: [] as string[],
 }) as InstanceType<typeof VehicleEntity>
@@ -93,7 +83,6 @@ const game = {
 const globals = {
 	game,
 	selectionState: {
-		selectedUid: undefined as string | undefined,
 		selectedObject: undefined as object | undefined,
 		titleVersion: 0,
 	},
@@ -105,7 +94,7 @@ const globals = {
 		hasLastSelectedInfoPanel: true,
 	},
 }
-globals.selectionState = reactive(globals.selectionState)
+globals.selectionState = shallowReactive(globals.selectionState)
 
 vi.mock('@app/lib/css', () => ({
 	css: () => '',
@@ -114,14 +103,14 @@ vi.mock('@app/lib/css', () => ({
 vi.mock('@app/lib/globals', () => globals)
 
 vi.mock('../components/properties/CharacterProperties', () => ({
-	default: (props: { character: Character }) => (
-		<div data-testid="character-properties">character {props.character.uid}</div>
+	default: (props: { character: { title?: string } }) => (
+		<div data-testid="character-properties">{props.character.title}</div>
 	),
 }))
 
 vi.mock('../components/properties/TileProperties', () => ({
-	default: (props: { tile: Tile }) => (
-		<div data-testid="tile-properties">tile {props.tile.uid}</div>
+	default: (props: { tile: { title?: string } }) => (
+		<div data-testid="tile-properties">{props.tile.title}</div>
 	),
 }))
 
@@ -134,8 +123,8 @@ vi.mock('../components/HiveProperties', () => ({
 }))
 
 vi.mock('../components/properties/VehicleProperties', () => ({
-	default: (props: { vehicle: VehicleEntity }) => (
-		<div data-testid="vehicle-properties">vehicle {props.vehicle.uid}</div>
+	default: (props: { vehicle: { title?: string } }) => (
+		<div data-testid="vehicle-properties">{props.vehicle.title}</div>
 	),
 }))
 
@@ -186,7 +175,7 @@ vi.mock('ssh/utils/position', async (importOriginal) => {
 let SelectionInfoWidget: typeof import('./selection-info').default
 let SelectionInfoTab: typeof import('./selection-info-tab').default
 
-type SelectionInfoParams = { uid?: string }
+type SelectionInfoParams = { pinned?: boolean }
 
 const createProps = (): DockviewWidgetProps<SelectionInfoParams, SelectionInfoContext> => ({
 	title: '',
@@ -226,7 +215,6 @@ describe('SelectionInfoWidget', () => {
 	beforeEach(() => {
 		container = document.createElement('div')
 		document.body.appendChild(container)
-		globals.selectionState.selectedUid = undefined
 		globals.selectionState.selectedObject = undefined
 		globals.selectionState.titleVersion = 0
 		globals.mrg.hoveredObject = undefined
@@ -259,7 +247,6 @@ describe('SelectionInfoWidget', () => {
 	})
 
 	it('renders the generic object summary and logs for the selected object', () => {
-		globals.selectionState.selectedUid = 'object-1'
 		globals.selectionState.selectedObject = gameObject as any
 		const props = createProps()
 		const scope = createScope()
@@ -284,7 +271,7 @@ describe('SelectionInfoWidget', () => {
 	})
 
 	it('renders VehicleProperties for a vehicle entity', () => {
-		globals.selectionState.selectedUid = vehicleUid
+		globals.selectionState.selectedObject = vehicleObject as any
 		const props = createProps()
 		const scope = createScope()
 
@@ -294,86 +281,89 @@ describe('SelectionInfoWidget', () => {
 	})
 
 	it('replaces the property widget when switching object kinds', async () => {
-		globals.selectionState.selectedUid = tileUid
+		globals.selectionState.selectedObject = tileObject as any
 		const props = createProps()
 		const scope = createScope()
 
 		stop = latch(container, <SelectionInfoWidget {...props} />, scope as never)
 
 		expect(container.querySelector('[data-testid="tile-properties"]')?.textContent).toContain(
-			tileUid
+			tileObject.title
 		)
 		expect(container.querySelector('[data-testid="character-properties"]')).toBeNull()
 
-		globals.selectionState.selectedUid = characterUid
+		globals.selectionState.selectedObject = characterObject as any
 		await Promise.resolve()
 
 		expect(container.querySelector('[data-testid="character-properties"]')?.textContent).toContain(
-			characterUid
+			characterObject.title
 		)
 		expect(container.querySelector('[data-testid="tile-properties"]')).toBeNull()
 		expect(
 			container.querySelector('.selection-info-panel')?.getAttribute('data-test-object-uid')
-		).toBe(characterUid)
+		).toBe(debugObjectId(characterObject))
 	})
 
 	it('updates the character property widget when switching between characters', async () => {
-		globals.selectionState.selectedUid = characterUid
+		globals.selectionState.selectedObject = characterObject as any
 		const props = createProps()
 		const scope = createScope()
 
 		stop = latch(container, <SelectionInfoWidget {...props} />, scope as never)
 
 		expect(container.querySelector('[data-testid="character-properties"]')?.textContent).toContain(
-			characterUid
+			characterObject.title
 		)
 
-		globals.selectionState.selectedUid = secondCharacterUid
+		globals.selectionState.selectedObject = secondCharacterObject as any
 		await Promise.resolve()
 
 		expect(container.querySelector('[data-testid="character-properties"]')?.textContent).toContain(
-			secondCharacterUid
+			secondCharacterObject.title
 		)
 		expect(
 			container.querySelector('.selection-info-panel')?.getAttribute('data-test-object-uid')
-		).toBe(secondCharacterUid)
+		).toBe(debugObjectId(secondCharacterObject))
 	})
 
 	it('updates the vehicle property widget when switching between vehicles', async () => {
-		globals.selectionState.selectedUid = vehicleUid
+		globals.selectionState.selectedObject = vehicleObject as any
 		const props = createProps()
 		const scope = createScope()
 
 		stop = latch(container, <SelectionInfoWidget {...props} />, scope as never)
 
 		expect(container.querySelector('[data-testid="vehicle-properties"]')?.textContent).toContain(
-			vehicleUid
+			vehicleObject.title
 		)
 
-		globals.selectionState.selectedUid = secondVehicleUid
+		globals.selectionState.selectedObject = secondVehicleObject as any
 		await Promise.resolve()
 
 		expect(container.querySelector('[data-testid="vehicle-properties"]')?.textContent).toContain(
-			secondVehicleUid
+			secondVehicleObject.title
 		)
 		expect(
 			container.querySelector('.selection-info-panel')?.getAttribute('data-test-object-uid')
-		).toBe(secondVehicleUid)
+		).toBe(debugObjectId(secondVehicleObject))
 	})
 
 	it('closes the panel when the inspected object disappears', () => {
-		globals.selectionState.selectedUid = 'missing-object'
+		const missingObject = Object.assign(new CharacterForTest(), {
+			title: 'Missing',
+			logs: [] as string[],
+		})
+		globals.selectionState.selectedObject = missingObject
 		const props = createProps()
 		const scope = createScope()
 
 		stop = latch(container, <SelectionInfoWidget {...props} />, scope as never)
 
 		expect(removePanel).toHaveBeenCalledTimes(1)
-		expect(globals.selectionState.selectedUid).toBeUndefined()
+		expect(globals.selectionState.selectedObject).toBeUndefined()
 	})
 
 	it('pins the currently selected object from the shared tab tools', () => {
-		globals.selectionState.selectedUid = 'object-1'
 		globals.selectionState.selectedObject = gameObject as any
 		const props = createProps()
 		const scope = createScope()
@@ -384,7 +374,6 @@ describe('SelectionInfoWidget', () => {
 	})
 
 	it('moves the renderer world from the shared tab tools', () => {
-		globals.selectionState.selectedUid = 'object-1'
 		globals.selectionState.selectedObject = gameObject as any
 		const props = createProps()
 		const scope = createScope()
@@ -398,7 +387,6 @@ describe('SelectionInfoWidget', () => {
 	})
 
 	it('keeps the inspected object in shared context for hover handling', () => {
-		globals.selectionState.selectedUid = 'object-1'
 		globals.selectionState.selectedObject = gameObject as any
 		const props = createProps()
 		const scope = createScope()
@@ -409,7 +397,6 @@ describe('SelectionInfoWidget', () => {
 	})
 
 	it('keeps rendering properties while a freight map pick is pending', () => {
-		globals.selectionState.selectedUid = 'object-1'
 		globals.selectionState.selectedObject = gameObject as any
 		freightMapPick.pending = {
 			pickKind: 'add-stop',
@@ -444,7 +431,7 @@ describe('SelectionInfoWidget', () => {
 		expect(tab).not.toBeNull()
 
 		tab!.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }))
-		expect(globals.mrg.hoveredObject?.uid).toBe(gameObject.uid)
+		expect(unwrap(globals.mrg.hoveredObject)).toBe(gameObject)
 
 		tab!.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }))
 		expect(globals.mrg.hoveredObject).toBeUndefined()

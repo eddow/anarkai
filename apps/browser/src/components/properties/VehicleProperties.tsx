@@ -344,7 +344,6 @@ function assignableLineItems(
 	return mapSet(
 		filterSet(vehicle.game.freightLines, (line) => !assigned.has(line.name)),
 		(line) => ({
-			id: debugObjectId(line) ?? '',
 			item: line,
 			label: line.name,
 			hint: lineHint(vehicle.game, line),
@@ -410,11 +409,11 @@ const VehicleProperties = (
 		)
 	const availableLineItems = () => (props.vehicle ? assignableLineItems(props.vehicle) : [])
 
-	const assignLine = (lineId: string) => {
+	const assignLine = (item: HardListSearchPickerItem & { item: FreightLineDefinition }) => {
 		const vehicle = props.vehicle
 		if (!vehicle) return
 		if (!isLineFreightVehicleType(vehicle.vehicleType)) return
-		const line = assignableLineItems(vehicle).find((entry) => entry.id === lineId)?.item
+		const line = item.item
 		if (line) {
 			if (vehicle.game.assignVehicleToFreightLine)
 				vehicle.game.assignVehicleToFreightLine(vehicle, line)
@@ -422,15 +421,12 @@ const VehicleProperties = (
 		}
 	}
 
-	const unassignLine = (lineId: string) => {
+	const unassignLine = (line: FreightLineDefinition) => {
 		const vehicle = props.vehicle
 		if (!vehicle) return
-		const line = assignableLineItems(vehicle).find((entry) => entry.id === lineId)?.item
-		if (line) {
-			if (vehicle.game.unassignVehicleFromFreightLine)
-				vehicle.game.unassignVehicleFromFreightLine(vehicle, line)
-			else vehicle.unassignFreightLine?.(line)
-		}
+		if (vehicle.game.unassignVehicleFromFreightLine)
+			vehicle.game.unassignVehicleFromFreightLine(vehicle, line)
+		else vehicle.unassignFreightLine?.(line)
 	}
 
 	effect`vehicle-properties:title`(() => {
@@ -501,7 +497,7 @@ const VehicleProperties = (
 												class="vehicle-line-assignment__remove"
 												title={assignmentText().remove}
 												aria-label={assignmentText().remove}
-												onClick={() => unassignLine(debugObjectId(lineObject.line) ?? '')}
+												onClick={() => unassignLine(lineObject.line)}
 												data-testid="vehicle-unassign-line"
 											>
 												×

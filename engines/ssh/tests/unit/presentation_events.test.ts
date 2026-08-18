@@ -17,8 +17,8 @@ describe('Game presentation events', () => {
 				},
 			})
 
-			const ownerA = { uid: 'tile:1,1' }
-			const ownerB = { uid: 'tile:2,2' }
+			const ownerA = {}
+			const ownerB = {}
 			atomic(() => {
 				engine.game.enqueueStoragePresentationChange(ownerA)
 				engine.game.enqueueStoragePresentationChange(ownerA)
@@ -47,9 +47,9 @@ describe('Game presentation events', () => {
 				},
 			})
 
-			const bay = { uid: 'tile:1,1' }
-			const vehicleA = { uid: 'vehicle:1' }
-			const vehicleB = { uid: 'vehicle:2' }
+			const bay = {}
+			const vehicleA = {}
+			const vehicleB = {}
 			atomic(() => {
 				engine.game.enqueueVehicleDockPresentationChange(bay, vehicleA)
 				engine.game.enqueueVehicleDockPresentationChange(bay, vehicleA)

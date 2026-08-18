@@ -89,7 +89,7 @@ css`
 `
 
 export interface HardListSearchPickerItem {
-	readonly id: string
+	readonly id?: string
 	readonly label: string
 	readonly hint?: string
 	readonly coord?: AxialCoord
@@ -98,7 +98,7 @@ export interface HardListSearchPickerItem {
 
 interface HardListSearchPickerProps {
 	items: readonly HardListSearchPickerItem[]
-	onSelect: (id: string) => void
+	onSelect: (item: HardListSearchPickerItem) => void
 	placeholder?: string
 	emptyMessage?: string
 	testId?: string
@@ -121,7 +121,7 @@ export default function HardListSearchPicker(props: HardListSearchPickerProps) {
 		return [...props.items]
 			.filter((item) => {
 				if (!query) return true
-				return [item.id, item.label, item.hint ?? ''].some((part) =>
+				return [item.id ?? '', item.label, item.hint ?? ''].some((part) =>
 					normalized(part).includes(query)
 				)
 			})
@@ -169,7 +169,7 @@ export default function HardListSearchPicker(props: HardListSearchPickerProps) {
 								disabled={item.disabled}
 								title={item.hint ? `${item.label} - ${item.hint}` : item.label}
 								onClick={() => {
-									if (!item.disabled) props.onSelect(item.id)
+									if (!item.disabled) props.onSelect(item)
 								}}
 								data-testid={props.testId ? `${props.testId}-item` : undefined}
 								data-item-id={item.id}

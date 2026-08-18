@@ -13,6 +13,12 @@ are deliberately broad; each one can become its own implementation plan once cho
 - change all buffered `state` in `view` made of get/set in sursaut components
 - For both first ones, add comments to make sure no new appear (llm.md, ...)
 
+- Add display settings (widgets, ...) to savegames
+- Serialize dockview layout (widget panels/params) into the savegame format. Currently no layout is
+  persisted at all — `dockviewLayout`/`getDockviewLayout` were removed; widget `params` are serializable
+  config only (e.g. `pinned: boolean`), never live game objects, so the savegame format can restore
+  panels by id + params without re-embedding runtime object references.
+
 ## Current Baseline
 
 See [`./current-status.md`](./current-status.md) for what is already landed.

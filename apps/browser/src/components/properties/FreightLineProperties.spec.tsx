@@ -10,7 +10,7 @@ vi.mock('@app/lib/css', () => ({
 vi.mock('@app/lib/globals', () => ({
 	activeWorldViewPov: { viewId: 'primary', center: { q: 0, r: 0 } },
 	bumpSelectionTitleVersion: vi.fn(),
-	selectionState: { selectedUid: undefined },
+	selectionState: { selectedObject: undefined },
 }))
 
 const showFreightLineOverlay = vi.hoisted(() => vi.fn())

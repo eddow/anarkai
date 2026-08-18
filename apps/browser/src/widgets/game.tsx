@@ -7,7 +7,7 @@ import {
 	interactionMode,
 	mrg,
 	selectionState,
-	validateStoredSelectionState,
+	validateSelectionPanelId,
 } from '@app/lib/globals'
 import { consumePresentationEvents } from '@app/lib/presentation-events'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
@@ -108,9 +108,9 @@ export default function GameWidget(
 	const gameEvents = {
 		objectClick(event: MouseEvent, object: InteractiveGameObject) {
 			if (event.button !== 0) return
-			const selectedBeforeFreightPick = selectionState.selectedUid
+			const selectedBeforeFreightPick = selectionState.selectedObject
 			if (tryConsumeFreightMapPick(game, object, event)) {
-				selectionState.selectedUid = selectedBeforeFreightPick
+				selectionState.selectedObject = selectedBeforeFreightPick
 				return
 			}
 			const action = interactionMode.selectedAction
@@ -283,7 +283,7 @@ export default function GameWidget(
 						// Fit camera to player content (if any)
 						gameView.fitViewToContent()
 
-						if (dock) validateStoredSelectionState(dock)
+						if (dock) validateSelectionPanelId(dock)
 
 						setupResizer()
 					} catch (e) {

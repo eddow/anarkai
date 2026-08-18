@@ -34,10 +34,6 @@ const { addPanel, getPanel, removePanel, dockviewApi, gameInstance, globals } = 
 		},
 		selectionState: {},
 		bumpSelectionTitleVersion: vi.fn(),
-		getDockviewLayout: vi.fn(() => undefined),
-		dockviewLayout: {
-			sshLayout: { root: 'layout' },
-		},
 		uiConfiguration: {
 			darkMode: false,
 		},
@@ -288,7 +284,6 @@ describe('App shell', () => {
 		globals.configuration.timeControl = 0
 		globals.interactionMode.selectedAction = ''
 		globals.uiConfiguration.darkMode = false
-		globals.getDockviewLayout.mockReturnValue(undefined)
 		gameInstance.clock.virtualTime = 125
 	})
 
@@ -328,7 +323,6 @@ describe('Palette IDE shell', () => {
 		globals.configuration.timeControl = 0
 		globals.interactionMode.selectedAction = ''
 		globals.uiConfiguration.darkMode = false
-		globals.getDockviewLayout.mockReturnValue(undefined)
 		gameInstance.clock.virtualTime = 125
 	})
 

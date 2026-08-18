@@ -10,14 +10,7 @@ import { initConsoleTrap } from '../../../engines/ssh/src/lib/dev/debug.ts'
 
 initConsoleTrap()
 
-import {
-	configuration,
-	dockviewLayout,
-	game,
-	getDockviewLayout,
-	selectionState,
-	uiConfiguration,
-} from '@app/lib/globals'
+import { configuration, game, selectionState, uiConfiguration } from '@app/lib/globals'
 import { mrg } from '@app/lib/interactive-state'
 import { DisplayProvider } from '@sursaut/kit'
 import { Dockview } from '@sursaut/ui/dockview'
@@ -72,7 +65,7 @@ if (typeof window !== 'undefined') {
 	debugWindow.dumpSshDebugState = (options = {}) =>
 		buildGameDebugDump(game, {
 			...options,
-			selectedUid: options.selectedUid ?? selectionState.selectedUid,
+			selectedObject: options.selectedObject ?? selectionState.selectedObject,
 		})
 	debugWindow.dumpSshDebugStateJson = (options = {}) =>
 		stringifyDebugValue(debugWindow.dumpSshDebugState?.(options) ?? {})
@@ -82,9 +75,6 @@ if (typeof window !== 'undefined') {
 	// Pass { openPanel: false } to only set state without creating a panel
 	// (useful for tests that manage panels themselves, e.g. pin-mechanism).
 	debugWindow.__selectObject = (object: unknown, opts?: { openPanel?: boolean }) => {
-		const uid = debugObjectId(object)
-		if (!uid) return
-		selectionState.selectedUid = uid
 		selectionState.selectedObject = object as object
 		selectionState.titleVersion++
 
@@ -100,11 +90,11 @@ if (typeof window !== 'undefined') {
 			| undefined
 		if (!api?.addPanel) return
 
-		// Don't destroy pinned panels (they have params.uid set)
+		// Don't destroy pinned panels (they have params.pinned set)
 		const oldId = selectionState.panelId
 		if (oldId) {
 			const oldPanel = api.getPanel?.(oldId)
-			if (oldPanel && !oldPanel.params?.uid) oldPanel.api.close()
+			if (oldPanel && !oldPanel.params?.pinned) oldPanel.api.close()
 		}
 
 		const newId = `selection-info-${Date.now()}`
@@ -112,7 +102,7 @@ if (typeof window !== 'undefined') {
 			id: newId,
 			component: 'selection-info',
 			title: (object as { title?: string }).title ?? 'Selection',
-			params: { uid },
+			params: {},
 		})
 		selectionState.panelId = newId
 	}
@@ -199,8 +189,9 @@ const App = () => {
 	}
 
 	effect`app:dockview-layout`(() => {
-		if (state.api && !getDockviewLayout()) {
-			// If no layout is saved, open a game by default
+		if (state.api) {
+			// No persisted layout yet (serialization lands with savegames).
+			// Open a game view by default on ready.
 			untracked(openGamePanel)
 		}
 	})
@@ -255,7 +246,6 @@ const App = () => {
 									onReady={handleDockviewReady}
 									widgets={widgets}
 									tabs={tabs}
-									layout={dockviewLayout.sshLayout}
 									options={dockviewOptions}
 								/>
 							</main>

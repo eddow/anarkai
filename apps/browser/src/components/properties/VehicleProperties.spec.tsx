@@ -136,8 +136,8 @@ vi.mock('@app/ui/anarkai', () => ({
 
 vi.mock('../HardListSearchPicker', () => ({
 	default: (props: {
-		items?: readonly { id: string; label?: string }[]
-		onSelect?: (id: string) => void
+		items?: readonly { item?: unknown; label?: string }[]
+		onSelect?: (item: { item?: unknown; label?: string }) => void
 		testId?: string
 	}) => (
 		<div>
@@ -145,9 +145,9 @@ vi.mock('../HardListSearchPicker', () => ({
 				<button
 					type="button"
 					data-testid={`${props.testId ?? 'search-picker'}-item`}
-					onClick={() => props.onSelect?.(item.id)}
+					onClick={() => props.onSelect?.(item)}
 				>
-					{item.label ?? item.id}
+					{item.label}
 				</button>
 			))}
 		</div>

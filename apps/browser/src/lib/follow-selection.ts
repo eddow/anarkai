@@ -1,9 +1,9 @@
 import type { DockviewWidgetScope } from '@sursaut/ui/dockview'
+import { unwrap } from 'mutts'
 import { Tile } from 'ssh/board/tile'
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { InspectorSelectableObject } from 'ssh/game/object'
 import { toAxialCoord } from 'ssh/utils/position'
-import { game, selectionState, unreactiveInfo, validateStoredSelectionState } from './globals'
+import { game, selectionState, unreactiveInfo, validateSelectionPanelId } from './globals'
 
 const GAMEPLAY_SECTOR_STEP = 17
 
@@ -13,7 +13,8 @@ type InspectorPanel = NonNullable<ReturnType<DockviewApi['getPanel']>>
 type DockviewWindow = Window & { dockviewApi?: DockviewApiLike }
 
 type SelectableObject = Pick<InspectorSelectableObject, 'title'>
-const pinnedInspectorPanelIdsByUid = new Map<string, string>()
+const pinnedInspectorPanelIdsByObject = new Map<object, string>()
+const pinnedInspectorObjectsByPanelId = new Map<string, object>()
 
 function ensureGeneratedTileContent(object: SelectableObject): void {
 	if (!(object instanceof Tile)) return
@@ -38,18 +39,24 @@ function focusPanel(panel: InspectorPanel | undefined) {
 	panel?.api?.setActive()
 }
 
-function getRegisteredInspectorPanel(uid: string, dockviewApi: DockviewApiLike | undefined) {
+function getRegisteredInspectorPanel(object: object, dockviewApi: DockviewApiLike | undefined) {
 	if (!dockviewApi) return undefined
-	const panelId = pinnedInspectorPanelIdsByUid.get(uid)
+	const raw = unwrap(object)
+	const panelId = pinnedInspectorPanelIdsByObject.get(raw)
 	if (!panelId) return undefined
 	const panel = dockviewApi.getPanel?.(panelId)
 	if (panel) return panel
-	pinnedInspectorPanelIdsByUid.delete(uid)
+	pinnedInspectorPanelIdsByObject.delete(raw)
+	pinnedInspectorObjectsByPanelId.delete(panelId)
 	return undefined
 }
 
+export function getPinnedInspectorObject(panelId: string): object | undefined {
+	return pinnedInspectorObjectsByPanelId.get(panelId)
+}
+
 function isRegisteredPinnedInspectorPanelId(panelId: string) {
-	for (const registeredPanelId of pinnedInspectorPanelIdsByUid.values()) {
+	for (const registeredPanelId of pinnedInspectorPanelIdsByObject.values()) {
 		if (registeredPanelId === panelId) return true
 	}
 	return false
@@ -67,27 +74,29 @@ export function clearFollowSelectionPanel(panelId?: string) {
 	unreactiveInfo.hasLastSelectedInfoPanel = false
 }
 
-export function registerPinnedInspectorPanel(panelId: string, uid?: string) {
-	if (!uid) return
-	for (const [mappedUid, mappedPanelId] of pinnedInspectorPanelIdsByUid) {
-		if (mappedPanelId === panelId && mappedUid !== uid) {
-			pinnedInspectorPanelIdsByUid.delete(mappedUid)
-		}
+export function registerPinnedInspectorPanel(panelId: string, object?: object) {
+	if (!object) return
+	const raw = unwrap(object)
+	const existing = pinnedInspectorObjectsByPanelId.get(panelId)
+	if (existing && existing !== raw) {
+		pinnedInspectorPanelIdsByObject.delete(existing)
 	}
-	pinnedInspectorPanelIdsByUid.set(uid, panelId)
+	pinnedInspectorPanelIdsByObject.set(raw, panelId)
+	pinnedInspectorObjectsByPanelId.set(panelId, raw)
 }
 
-export function unregisterPinnedInspectorPanel(panelId: string, uid?: string) {
-	if (uid) {
-		if (pinnedInspectorPanelIdsByUid.get(uid) === panelId) {
-			pinnedInspectorPanelIdsByUid.delete(uid)
+export function unregisterPinnedInspectorPanel(panelId: string, object?: object) {
+	if (object) {
+		if (pinnedInspectorPanelIdsByObject.get(object) === panelId) {
+			pinnedInspectorPanelIdsByObject.delete(object)
+			pinnedInspectorObjectsByPanelId.delete(panelId)
 		}
 		return
 	}
-	for (const [mappedUid, mappedPanelId] of pinnedInspectorPanelIdsByUid) {
-		if (mappedPanelId === panelId) {
-			pinnedInspectorPanelIdsByUid.delete(mappedUid)
-		}
+	const mappedObject = pinnedInspectorObjectsByPanelId.get(panelId)
+	if (mappedObject) {
+		pinnedInspectorPanelIdsByObject.delete(mappedObject)
+		pinnedInspectorObjectsByPanelId.delete(panelId)
 	}
 }
 
@@ -96,17 +105,7 @@ function resolveSelectionPanelTitle(initialTitle?: string) {
 
 	// Direct object reference — preferred path
 	const direct = selectionState.selectedObject as { title?: string } | undefined
-	if (direct?.title) return direct.title
-
-	// Fallback: uid-based lookup for localStorage restore
-	const selectedUid = selectionState.selectedUid
-	if (!selectedUid) return 'Selection'
-
-	for (const obj of game.objects) {
-		if (debugObjectId(obj) === selectedUid) return (obj as { title?: string }).title ?? 'Selection'
-	}
-
-	return 'Selection'
+	return direct?.title ?? 'Selection'
 }
 
 function addFollowSelectionPanel(
@@ -153,7 +152,7 @@ export function ensureFollowSelectionPanel(
 	const dockviewApi = preferredApi ?? getGlobalDockviewApi()
 	if (!dockviewApi) return undefined
 
-	validateStoredSelectionState(dockviewApi)
+	validateSelectionPanelId(dockviewApi)
 
 	let panel =
 		selectionState.panelId !== undefined
@@ -176,28 +175,24 @@ export function showProps(
 	object: SelectableObject,
 	preferredApi?: DockviewApiLike
 ): InspectorPanel | undefined {
-	ensureGeneratedTileContent(object)
+	const raw = unwrap(object) as SelectableObject
+	ensureGeneratedTileContent(raw)
 	const dockviewApi = preferredApi ?? getGlobalDockviewApi()
 	if (dockviewApi) {
-		validateStoredSelectionState(dockviewApi)
+		validateSelectionPanelId(dockviewApi)
 
-		const uid = debugObjectId(object)
-		const pinnedPanel = uid ? getRegisteredInspectorPanel(uid, dockviewApi) : undefined
+		const pinnedPanel = getRegisteredInspectorPanel(raw as object, dockviewApi)
 		if (pinnedPanel) {
 			focusPanel(pinnedPanel)
 			return pinnedPanel
 		}
 	}
 
-	const uid = debugObjectId(object)
-	if (uid) {
-		selectionState.selectedUid = uid
-		selectionState.selectedObject = object as object
-	}
+	selectionState.selectedObject = raw as object
 	if (!dockviewApi) return undefined
 	return ensureFollowSelectionPanel(
 		dockviewApi,
-		object.title,
+		raw.title,
 		getActivePinnedInspectorPanel(dockviewApi)
 	)
 }

@@ -22,7 +22,7 @@ describe('rebindConveyMovementRows', () => {
 
 	it('carries an active convey claim onto the canonical movement', () => {
 		const ref = {}
-		const claimedBy = { uid: 'worker-1' }
+		const claimedBy = {}
 		const canonical = { ref, claimed: false } as TrackedMovement
 		const zombie = {
 			ref,

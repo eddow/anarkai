@@ -8,7 +8,6 @@ import { InspectorSection } from '@app/ui/anarkai'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
 import { effect } from 'mutts'
 import { tablerOutlineRepeat, tablerOutlineTrash } from 'pure-glyf/icons'
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { FreightLineDefinition, SyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import { normalizeFreightLineDefinition } from 'ssh/freight/freight-line'
 import {
@@ -20,7 +19,7 @@ import { isLineFreightVehicleType } from 'ssh/freight/line-freight-vehicles'
 import type { Game, TradeTransferLogEntry } from 'ssh/game'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { type AxialCoord, toAxialCoord } from 'ssh/utils'
-import { filterSet, findInSet, mapSet } from 'ssh/utils/iter'
+import { filterSet, mapSet } from 'ssh/utils/iter'
 import FreightStopList from '../FreightStopList'
 import HardListSearchPicker, { type HardListSearchPickerItem } from '../HardListSearchPicker'
 import InspectorObjectLink from '../InspectorObjectLink'
@@ -321,7 +320,6 @@ function assignableVehicleItems(
 			isLineFreightVehicleType(vehicle.vehicleType) && !vehicle.servedLines?.includes(line)
 	)
 	return mapSet(compatible, (vehicle) => ({
-		id: debugObjectId(vehicle) ?? '',
 		item: vehicle,
 		label: vehicle.title,
 		hint: `${vehicle.vehicleType} · ${vehicleStockSummary(vehicle)}`,
@@ -389,27 +387,22 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 		bumpSelectionTitleVersion()
 	}
 
-	const handleAssignVehicle = (vehicleUid: string) => {
+	const handleAssignVehicle = (item: HardListSearchPickerItem & { item: Vehicle }) => {
 		const line = currentLine()
 		const g = currentGame()
-		if (!line || !g) return
-		const vehicle = assignableVehicleItems(g, line).find((item) => item.id === vehicleUid)?.item
-		if (vehicle) {
-			if (g.assignVehicleToFreightLine) g.assignVehicleToFreightLine(vehicle, line)
-			else vehicle.assignFreightLine?.(line)
-		}
+		const vehicle = item.item
+		if (!line || !g || !vehicle) return
+		if (g.assignVehicleToFreightLine) g.assignVehicleToFreightLine(vehicle, line)
+		else vehicle.assignFreightLine?.(line)
 		bumpSelectionTitleVersion()
 	}
 
-	const handleUnassignVehicle = (vehicleUid: string) => {
+	const handleUnassignVehicle = (vehicle: Vehicle) => {
 		const line = currentLine()
 		const g = currentGame()
 		if (!line || !g) return
-		const vehicle = findInSet(g.vehicles, (v) => debugObjectId(v) === vehicleUid)
-		if (vehicle) {
-			if (g.unassignVehicleFromFreightLine) g.unassignVehicleFromFreightLine(vehicle, line)
-			else vehicle.unassignFreightLine?.(line)
-		}
+		if (g.unassignVehicleFromFreightLine) g.unassignVehicleFromFreightLine(vehicle, line)
+		else vehicle.unassignFreightLine?.(line)
 		bumpSelectionTitleVersion()
 	}
 
@@ -521,7 +514,7 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 											class="freight-line-properties__assignment-remove"
 											title={assignmentText().remove}
 											aria-label={assignmentText().remove}
-											onClick={() => handleUnassignVehicle(debugObjectId(vehicle) ?? '')}
+											onClick={() => handleUnassignVehicle(vehicle)}
 											data-testid="line-unassign-vehicle"
 										>
 											×

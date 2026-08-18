@@ -1,10 +1,10 @@
 import { document, latch } from '@sursaut/core'
 import type { DockviewWidgetProps } from '@sursaut/ui/dockview'
-import { reactive } from 'mutts'
+import { shallowReactive } from 'mutts'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SelectionInfoContext } from './selection-info-tab'
 
-const updateParameters = vi.fn<(params: { uid?: string }) => void>()
+const updateParameters = vi.fn<(params: { pinned?: boolean }) => void>()
 const onDidRemovePanel = vi.fn((handler: (panel: { id: string }) => void) => {
 	void handler
 	return { dispose: vi.fn() }
@@ -38,7 +38,6 @@ const world = {
 
 const globals = {
 	selectionState: {
-		selectedUid: undefined as string | undefined,
 		selectedObject: undefined as object | undefined,
 		titleVersion: 0,
 	},
@@ -70,6 +69,7 @@ vi.mock('@app/lib/css', () => ({
 
 vi.mock('@app/lib/follow-selection', () => ({
 	clearFollowSelectionPanel: vi.fn(),
+	getPinnedInspectorObject: vi.fn(),
 	registerPinnedInspectorPanel: vi.fn(),
 	unregisterPinnedInspectorPanel: vi.fn(),
 }))
@@ -77,7 +77,7 @@ vi.mock('@app/lib/follow-selection', () => ({
 vi.mock('@app/lib/globals', () => ({
 	game,
 	mrg: globals.mrg,
-	selectionState: reactive(globals.selectionState),
+	selectionState: shallowReactive(globals.selectionState),
 	bumpSelectionTitleVersion: globals.bumpSelectionTitleVersion,
 	unreactiveInfo: globals.unreactiveInfo,
 }))
@@ -191,7 +191,7 @@ vi.mock('ssh/utils/position', async (importOriginal) => {
 
 let SelectionInfoWidget: typeof import('./selection-info').default
 
-type SelectionInfoParams = { uid?: string }
+type SelectionInfoParams = { pinned?: boolean }
 
 const createProps = (): DockviewWidgetProps<SelectionInfoParams, SelectionInfoContext> => ({
 	title: '',

@@ -23,7 +23,7 @@ import {
 import { type Positioned, toAxialCoord } from 'ssh/utils/position'
 
 export interface BuildGameDebugDumpOptions {
-	selectedUid?: string
+	selectedObject?: unknown
 	includeSaveState?: boolean
 	logsTail?: number
 }
@@ -379,13 +379,11 @@ function summarizeSelectedObjectForDebug(selected: unknown, tailCount: number) {
 
 export function buildGameDebugDump(game: Game, options: BuildGameDebugDumpOptions = {}) {
 	const logsCount = options.logsTail ?? 12
-	const selected = options.selectedUid
-		? [...game.objects].find((obj) => debugObjectId(obj) ?? '' === options.selectedUid)
-		: undefined
+	const selected = options.selectedObject
 	return {
 		clock: { virtualTime: game.clock.virtualTime },
 		generationOptions: safeDebugValueForDump(game.generationOptions),
-		selectedUid: options.selectedUid,
+		selectedUid: selected ? debugObjectId(selected) : undefined,
 		selected: summarizeSelectedObjectForDebug(selected, logsCount),
 		characters: [...game.population].map((character) =>
 			summarizeCharacterForDebug(character, logsCount)

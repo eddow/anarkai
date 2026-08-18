@@ -1,4 +1,5 @@
 import { document, latch } from '@sursaut/core'
+import { unwrap } from 'mutts'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const addPanel = vi.fn()
@@ -13,14 +14,14 @@ const globals = {
 	},
 	selectionState: {
 		panelId: undefined as string | undefined,
-		selectedUid: undefined as string | undefined,
+		selectedObject: undefined as object | undefined,
 		titleVersion: 0,
 	},
 	bumpSelectionTitleVersion: vi.fn(),
 	unreactiveInfo: {
 		hasLastSelectedInfoPanel: false,
 	},
-	validateStoredSelectionState: vi.fn(),
+	validateSelectionPanelId: vi.fn(),
 }
 
 class MockAlveolus {
@@ -32,13 +33,11 @@ class MockTile {
 	terrainState?: { terrain?: string }
 	baseTerrain?: string
 	board: any
-	uid: string
 	title: string
 	position: { q: number; r: number }
 	game: any
 
 	constructor(coord: { q: number; r: number }) {
-		this.uid = `tile:${coord.q},${coord.r}`
 		this.title = `Tile ${coord.q}, ${coord.r}`
 		this.position = coord
 		this.content = new MockAlveolus()
@@ -54,7 +53,6 @@ class MockTile {
 }
 
 class MockVehicleEntity {
-	uid = 'vehicle:wheelbarrow-1'
 	title = 'Wheelbarrow 1'
 	vehicleType = 'wheelbarrow'
 	game = {
@@ -64,7 +62,6 @@ class MockVehicleEntity {
 }
 
 class MockCharacter {
-	uid = 'character:ada'
 	title = 'Ada'
 	game = {
 		loaded: Promise.resolve(),
@@ -158,11 +155,11 @@ describe('LinkedEntityControl', () => {
 		document.body.appendChild(container)
 		globals.mrg.hoveredObject = undefined
 		globals.selectionState.panelId = undefined
-		globals.selectionState.selectedUid = undefined
+		globals.selectionState.selectedObject = undefined
 		globals.selectionState.titleVersion = 0
 		globals.unreactiveInfo.hasLastSelectedInfoPanel = false
 		globals.game.getObject.mockClear()
-		globals.validateStoredSelectionState.mockClear()
+		globals.validateSelectionPanelId.mockClear()
 		addPanel.mockClear()
 		getPanel.mockClear()
 		focus.mockClear()
@@ -188,7 +185,7 @@ describe('LinkedEntityControl', () => {
 		expect(button).not.toBeNull()
 
 		button!.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }))
-		expect(globals.mrg.hoveredObject?.uid).toBe(tile.uid)
+		expect(unwrap(globals.mrg.hoveredObject)).toBe(tile)
 
 		button!.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }))
 		expect(globals.mrg.hoveredObject).toBeUndefined()
@@ -204,7 +201,7 @@ describe('LinkedEntityControl', () => {
 		) as HTMLButtonElement
 		button.click()
 
-		expect(globals.selectionState.selectedUid).toBe(tile.uid)
+		expect(globals.selectionState.selectedObject).toBe(tile)
 		expect(addPanel).toHaveBeenCalledWith({
 			id: expect.stringMatching(/^selection-info-/),
 			component: 'selection-info',
@@ -230,8 +227,9 @@ describe('LinkedEntityControl', () => {
 		getPanel.mockImplementation((panelId?: string) =>
 			panelId === 'panel-existing-tile' ? existingPanel : undefined
 		)
-		registerPinnedInspectorPanel('panel-existing-tile', tile.uid)
-		globals.selectionState.selectedUid = 'tile:0,1'
+		registerPinnedInspectorPanel('panel-existing-tile', tile)
+		const otherTile = new MockTile({ q: 0, r: 1 })
+		globals.selectionState.selectedObject = otherTile
 
 		stop = latch(container, <LinkedEntityControl object={tile as never} />)
 
@@ -240,7 +238,7 @@ describe('LinkedEntityControl', () => {
 		) as HTMLButtonElement
 		button.click()
 
-		expect(globals.selectionState.selectedUid).toBe('tile:0,1')
+		expect(globals.selectionState.selectedObject).toBe(otherTile)
 		expect(addPanel).not.toHaveBeenCalled()
 		expect(focus).toHaveBeenCalledTimes(1)
 	})

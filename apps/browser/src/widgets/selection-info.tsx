@@ -1,6 +1,7 @@
 import { css } from '@app/lib/css'
 import {
 	clearFollowSelectionPanel,
+	getPinnedInspectorObject,
 	registerPinnedInspectorPanel,
 	unregisterPinnedInspectorPanel,
 } from '@app/lib/follow-selection'
@@ -16,7 +17,7 @@ import { isHoveredObject, setHoveredObject } from '@app/lib/interactive-state'
 import { InspectorSection, Panel } from '@app/ui/anarkai'
 import { latch } from '@sursaut/core'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
-import { effect, reactive, untracked } from 'mutts'
+import { effect, reactive, shallowReactive, untracked } from 'mutts'
 import { Tile } from 'ssh/board/tile'
 import { ZoneObject, ZonesCollectionObject } from 'ssh/board/zone-object'
 import { SettlementTradeObject } from 'ssh/commerce/settlement-trade'
@@ -219,7 +220,7 @@ const renderPropertiesForObject = (
 }
 
 const SelectionInfoWidget = (
-	props: DockviewWidgetProps<{ uid?: string }, SelectionInfoContext>,
+	props: DockviewWidgetProps<{ pinned?: boolean }, SelectionInfoContext>,
 	scope: DockviewWidgetScope
 ) => {
 	const api = (scope as any).panelApi
@@ -227,22 +228,19 @@ const SelectionInfoWidget = (
 	scope.setTitle = (title: string) => {
 		props.title = title
 	}
-	const current = reactive({
-		get uid() {
-			return props.params.uid ?? selectionState.selectedUid
-		},
+	const current = shallowReactive({
 		get object(): InspectorSelectableObject | InteractiveGameObject | undefined {
-			// Direct object reference — preferred path (set by showProps)
-			const direct = selectionState.selectedObject as
+			// Pinned panels hold their own object reference (set at pin time);
+			// follow panels track the live selection. `selectionState` is shallow
+			// reactive, so `selectedObject` is the raw reference (not a deep proxy).
+			const pinned = getPinnedInspectorObject(api.id)
+			if (pinned) {
+				return pinned as InspectorSelectableObject | InteractiveGameObject
+			}
+			return selectionState.selectedObject as
 				| InspectorSelectableObject
 				| InteractiveGameObject
 				| undefined
-			if (direct) return direct
-
-			// Fallback: uid-based dispatch for widget params / localStorage restore
-			const uid = this.uid
-			if (!uid) return undefined
-			return [...game.objects].find((o: any) => debugObjectId(o) === uid) ?? undefined
 		},
 		get logs() {
 			return this.object?.logs ?? []
@@ -253,7 +251,7 @@ const SelectionInfoWidget = (
 	})
 	let stopProperties: (() => void) | undefined
 	let renderedPropertiesHost: HTMLDivElement | undefined
-	let renderedPropertiesUid: string | undefined
+	let renderedPropertiesObject: object | undefined
 	const resolvePanelTitle = () => {
 		const object = current.object
 		if (!object) return 'Object'
@@ -265,11 +263,11 @@ const SelectionInfoWidget = (
 		return object.title ?? 'Object'
 	}
 	const pin = () => {
-		const uid = selectionState.selectedUid
-		if (!uid) return
-		api.updateParameters({ uid })
-		props.params.uid = uid
-		registerPinnedInspectorPanel(api.id, uid)
+		const object = current.object
+		if (!object) return
+		registerPinnedInspectorPanel(api.id, object)
+		api.updateParameters({ pinned: true })
+		props.params.pinned = true
 		props.context.tools = (props.context.tools ?? []).filter(
 			(tool) => tool.ariaLabel !== 'Pin Panel'
 		)
@@ -325,7 +323,7 @@ const SelectionInfoWidget = (
 				onClick: goTo,
 			})
 		}
-		if (!props.params.uid) {
+		if (!props.params.pinned) {
 			tools.push({
 				ariaLabel: 'Pin Panel',
 				icon: '📌',
@@ -338,26 +336,26 @@ const SelectionInfoWidget = (
 		}
 	})
 	effect`selection-info:pinned-panel-registration`(() => {
-		const uid = props.params.uid
-		if (!uid) return
-		registerPinnedInspectorPanel(api.id, uid)
-		return () => unregisterPinnedInspectorPanel(api.id, uid)
+		if (!props.params.pinned) return
+		return () => unregisterPinnedInspectorPanel(api.id)
 	})
 	effect`selection-info:close-missing-object`(() => {
-		const uid = current.uid
-		if (!uid || current.object) return
-		if (!props.params.uid && selectionState.selectedUid === uid) {
-			selectionState.selectedUid = undefined
-		}
+		const object = current.object
+		if (!object || props.params.pinned) return
+		// Synthetic inspector objects (freight-line, hive) are transient by design;
+		// real game objects must still be registered to stay inspectable.
+		if (isFreightLineObject(object) || isHiveObject(object)) return
+		if (game.objects.has(object as InteractiveGameObject)) return
+		selectionState.selectedObject = undefined
 		scope.dockviewApi?.removePanel?.(api)
 	})
 	effect`selection-info:panel-cleanup`(() => {
 		const disposable = scope.dockviewApi!.onDidRemovePanel((panel) => {
 			if (panel.id === api.id) {
-				unregisterPinnedInspectorPanel(api.id, props.params.uid)
+				unregisterPinnedInspectorPanel(api.id)
 				// If this panel was the one tracking active selection (not pinned)
 				// Reset the flag so selection in game can re-open it.
-				if (!props.params.uid) {
+				if (!props.params.pinned) {
 					clearFollowSelectionPanel(api.id)
 				}
 			}
@@ -398,12 +396,11 @@ const SelectionInfoWidget = (
 	effect`selection-info:properties-widget`(() => {
 		const host = local.propertiesHost
 		const object = current.object
-		const uid = current.uid
-		if (host === renderedPropertiesHost && uid === renderedPropertiesUid) return
+		if (host === renderedPropertiesHost && object === renderedPropertiesObject) return
 		stopProperties?.()
 		stopProperties = undefined
 		renderedPropertiesHost = host
-		renderedPropertiesUid = uid
+		renderedPropertiesObject = object
 		if (!host || !object) return
 		stopProperties = untracked`selection-info:properties-latch`(() =>
 			latch(
@@ -420,7 +417,7 @@ const SelectionInfoWidget = (
 			stopProperties?.()
 			stopProperties = undefined
 			renderedPropertiesHost = undefined
-			renderedPropertiesUid = undefined
+			renderedPropertiesObject = undefined
 		}
 	})
 	return (

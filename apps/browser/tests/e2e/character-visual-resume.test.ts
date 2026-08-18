@@ -20,12 +20,12 @@ function shiftedPosition(position: VisualSnapshot['charPosition']) {
 async function snapshotSelectedCharacter(page: Page) {
 	return page.evaluate((): VisualSnapshot => {
 		const game = (window as any).game
-		const selectedUid = (window as any).selectionState.selectedUid
+		const selectedObject = (window as any).selectionState.selectedObject
 		const visual = [...(game.renderer?.visuals?.values?.() ?? [])].find(
-			(v: any) => (window as any).debugObjectId(v?.object) === selectedUid
+			(v: any) => v?.object === selectedObject
 		)
 		const char = visual?.object
-		if (!visual || !char) throw new Error(`Missing Pixi visual for ${selectedUid}`)
+		if (!visual || !char) throw new Error('Missing Pixi visual for selected character')
 		return {
 			charUid: (window as any).debugObjectId(char),
 			charPosition: { ...char.position },
@@ -83,11 +83,7 @@ test.describe('Character board visual after inspector resume', () => {
 
 		const before = await snapshotSelectedCharacter(page)
 		await page.evaluate((nextPosition) => {
-			const game = (window as any).game
-			const selectedUid = (window as any).selectionState.selectedUid
-			const char = [...game.objects].find(
-				(o: any) => (window as any).debugObjectId(o) === selectedUid
-			)
+			const char = (window as any).selectionState.selectedObject
 			const step = char.scriptsContext.walk.moveTo(nextPosition)
 			if (!step) throw new Error('Expected a movement step')
 			char.stepExecutor?.cancel()
