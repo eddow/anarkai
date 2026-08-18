@@ -121,7 +121,7 @@ const LinkedEntityControl = (props: LinkedEntityControlProps) => {
 		backgroundStyle: '',
 		sprite: undefined as string | undefined,
 		variantBadgeSprite: undefined as string | undefined,
-		visualObjectUid: '',
+		visualObject: undefined as LinkedEntityTarget | undefined,
 		objectTitle: '',
 		objectGame: undefined as LinkedEntityTarget['game'] | undefined,
 	})
@@ -143,18 +143,17 @@ const LinkedEntityControl = (props: LinkedEntityControlProps) => {
 
 	effect`linked-entity:object-meta`(() => {
 		const object = currentObject()
-		// Stable per-instance debug label used purely as a change-detection key
-		// for visual sync. Runtime identity is the object reference itself.
-		state.visualObjectUid = object ? (debugObjectId(object) ?? '') : ''
+		// Runtime identity is the object reference itself; `debugObjectId` is
+		// only emitted for the DOM test attribute, never used as identity.
+		state.visualObject = object
 		state.objectTitle = object?.title ?? ''
 		state.objectGame = object?.game
 	})
 
 	effect`linked-entity:visual-object`(() => {
 		const object = currentObject()
-		const nextUid = object ? (debugObjectId(object) ?? '') : ''
-		if (state.visualObjectUid === nextUid) return
-		state.visualObjectUid = nextUid
+		if (state.visualObject === object) return
+		state.visualObject = object
 		state.sprite = undefined
 		state.variantBadgeSprite = undefined
 		state.backgroundStyle = ''
@@ -267,7 +266,7 @@ const LinkedEntityControl = (props: LinkedEntityControlProps) => {
 			class={['linked-entity-control', props.class]}
 			style={state.backgroundStyle}
 			data-testid="linked-entity-control"
-			data-target-uid={state.visualObjectUid}
+			data-target-uid={debugObjectId(state.visualObject)}
 			onClick={handleClick}
 		>
 			<span class="linked-entity-control__visual">

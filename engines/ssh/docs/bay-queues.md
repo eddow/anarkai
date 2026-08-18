@@ -116,8 +116,8 @@ Conceptually:
 
 ```ts
 type DockRequest = {
-	vehicleUid: string
-	bayGroupUid: string
+	vehicle: VehicleEntity
+	bayGroup: BayGroup
 	arrivedAt: number
 	priority: number
 	requirements: DockRequirement[]
@@ -136,9 +136,9 @@ Conceptually:
 
 ```ts
 type MovementGrant = {
-	vehicleUid: string
-	from: QueueNodeId
-	to: QueueNodeId
+	vehicle: VehicleEntity
+	from: RuntimeQueueNode
+	to: RuntimeQueueNode
 	expiresAt?: number
 }
 ```
@@ -362,8 +362,8 @@ cannot be safely rebuilt.
 
 Important boundary examples:
 
-- vehicles need `vehicleUid`;
-- bay groups, authored bays, and line stops need stable ids or coordinates;
+- vehicles are object references at runtime; across a save/load boundary they are recorded by array position (index), not by a string id;
+- bay groups, authored bays, and line stops use stable content ids or coordinates;
 - an active saved request may need a handle to its current holding position;
 - player-authored queue layouts may need handles for nodes that can be edited, inspected, or
   referenced by a job.
@@ -387,15 +387,6 @@ type SerializedBayQueueGraph = {
 	nodes: SerializedQueueNode[]
 	edges: Array<{ from: QueueNodeHandle; to: QueueNodeHandle; requires: string[] }>
 	mergePolicy: SerializedMergePolicy
-}
-
-type SerializedDockRequest = {
-	vehicleUid: string
-	bayGroupId: string
-	queueNode?: QueueNodeHandle
-	arrivedAt: number
-	priority: number
-	state: 'waiting' | 'servicing'
 }
 ```
 
@@ -442,7 +433,7 @@ jobs. In either case, load must check node capacity, vehicle existence, bay exis
 reachability before restoring a grant.
 
 The same split applies to authored bay groups. A line stop should point to a bay group or anchor by
-stable id/coordinate. At runtime, that stop may cache the resolved bay group object, but save/load
+stable content id/coordinate. At runtime, that stop may cache the resolved bay group object, but save/load
 and patch data should keep the stable handle as the source of truth. For internal queue nodes and
 edges that are not externally addressed, the runtime object graph can simply own them directly.
 
@@ -461,13 +452,13 @@ Pseudo-code:
 ```ts
 function advanceBayQueue(queue: BayQueue) {
 	for (const request of orderedRequests(queue)) {
-		const current = currentQueueNode(request.vehicleUid)
+		const current = currentQueueNode(request.vehicle)
 		const next = findAvailableNextNode(queue, current, request)
 
 		if (!next) continue
 
-		reserveNode(next, request.vehicleUid)
-		emitAdvanceJob(request.vehicleUid, current, next)
+		reserveNode(next, request.vehicle)
+		emitAdvanceJob(request.vehicle, current, next)
 		return
 	}
 }

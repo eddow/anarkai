@@ -3,6 +3,8 @@
 > Updated 2026-08-18 — **Phase F complete.** All 14 F-items are done. Inspector dispatch now uses object identity (`selectionState.selectedObject`), `debugObjectId` is display-only, and test `.uid` fixtures were removed. Selection/layout state is no longer persisted (`stored` → `shallowReactive`). See the per-item snapshot at the bottom.
 >
 > **Final audit 2026-08-18** — runtime object ids are fully removed and **no id is saved** to `SaveState` (array-index + content-key only). `roleId`/`planRoleId`, `settlementId` and `zoneId` (name) are all gone — replaced by coordinate / center / array-index. All in-memory `debugObjectId` Map keys and the stale `vehicleUid` literal are resolved (dedupe/accumulation now keyed on object identity). Serialization indexes live only in the `(de)serialization` layer (`IndexStore`/`SaveIndexes`).
+>
+> **Final clean-up round 2026-08-18** — a second sweep removed the last stale `.uid`/`.id` reads (`selection-info.tsx`, `lines-management.tsx`) and dead id/index shapes (`ZONES_OBJECT_UID`, `HivePlan.createdFromPlanIndexes`/`replacedByPlanIndex`), and converted `LinkedEntityControl` change-detection from a `debugObjectId` string to object identity. `debugObjectId` is now strictly a display/test string.
 
 > Updated 2026-08-06 — Phase F audit identified ~190 id/index patterns across 14 items (F1–F14). See "Phase F — 2026-08-06 audit" below.
 
@@ -23,7 +25,7 @@
 | `apps/browser` typecheck | ✅ `pnpm run check` succeeds |
 | `engines/ssh` regression tests | ✅ bay-queue 21/21 pass |
 | **Phase A+B** (`.uid` runtime removal) | ✅ Completed |
-| **Phase C** (`FreightLineDefinition.id` removal) | ⚠️ Partial — `.id` deleted, but no stable replacement identity installed (see note) |
+| **Phase C** (`FreightLineDefinition.id` removal) | ✅ Completed — `.id` deleted; replacement identity is object reference + reactive `Set<FreightLineDefinition>` (see note) |
 | **Phase D** (browser `.uid`/`.id` cleanup) | ✅ Completed — `selectedUid` removed; inspector dispatch by object identity; `debugObjectId` display-only |
 | **Phase E** (trace `.uid` cleanup) | ✅ Completed — trace payloads use `debugObjectId()` as display |
 | **Serialization bridge** | ✅ Completed — index-based vehicle/character/line/plan refs in save/load |
@@ -120,12 +122,12 @@ Acceptable under principle #4.
 
 ## What remains to remove all runtime ids (2026-08-18)
 
-### Must fix — `debugObjectId`/`vehicleUid` still used internally (2)
+### Must fix — `debugObjectId`/`vehicleUid` still used internally ✅ DONE 2026-08-18
 
 | # | Site | Action |
 |---|---|---|
-| 1 | `game.ts:936,948,959,969` — `pendingPresentationEvents` + `tradeTransferLog` Map keys built from `debugObjectId(...)` | Re-key by object identity (`WeakMap`/`Set` keyed on `GameObject`/`Vehicle`); keep the `line`/`stopIndex` prefix in the trade log via indexes, not `debugObjectId` |
-| 2 | `vehicle-work.ts:2200` — `asVehicleProposedJob({ job: 'convey', …, vehicleUid: debugObjectId(vehicle) ?? '' })` | Change to `vehicle` (the `VehicleDockConveyJob` type already dropped `vehicleUid`) |
+| 1 | `game.ts` — `pendingPresentationEvents` + `tradeTransferLog` Map keys built from `debugObjectId(...)` | ✅ Re-keyed by object identity (`Map<GameObject, …>` / nested `Map<Vehicle, …>`); `debugObjectId` import removed from `game.ts` |
+| 2 | `vehicle-work.ts` — `asVehicleProposedJob({ job: 'convey', …, vehicleUid: debugObjectId(vehicle) ?? '' })` | ✅ Changed to `vehicle` (the `VehicleDockConveyJob` type already dropped `vehicleUid`) |
 
 ### Should delete — dead/legacy shapes (3) — ✅ DONE 2026-08-18
 
@@ -141,7 +143,23 @@ Acceptable under principle #4.
 - **Opaque nonce**: `MovementRef.id` (number; survives object replacement; "not a serialization id")
 - **Debug/display**: `debugObjectId(...)` trace payloads, `Held.id` leak counter
 
-**Net:** 2 code fixes remaining (the 🔴 items above); the 3 dead/legacy shapes are cleaned up. Everything else is content identity or display-only.
+**Net:** 0 code fixes remaining. Runtime `.id`/`.uid` reads are gone; indexes exist only in the `(de)serialization` layer. Everything else is content/domain identity or `debugObjectId` display/test strings.
+
+---
+
+## Final clean-up round (2026-08-18)
+
+A second full sweep for runtime ids and out-of-serialization indexes found and fixed five more:
+
+| # | Site | Disposition |
+|---|---|---|
+| 1 | `selection-info.tsx` — `ObjectSummaryProperties`/`renderPropertiesForObject` typed `{ uid?: string }` and read `props.object?.uid` | ✅ Dropped the dead `.uid` type + read; the summary renders `debugObjectId(object)` (display-only) |
+| 2 | `zone.ts` — `ZONES_OBJECT_UID = 'zones'` leftover inspector-uid constant | ✅ Deleted (dead export) |
+| 3 | `hive-plan.ts` — `HivePlan.createdFromPlanIndexes: number[]` + `replacedByPlanIndex?: number` provenance indexes | ✅ Removed — never populated (`createDraft` seeded `[]`; `archive`/`unarchive` wrote `undefined`; nothing read them). `archive()` dropped its `replacedByPlanIndex` param |
+| 4 | `lines-management.tsx` — `data-line-id={line.id}` (stale `.id` on `FreightLineDefinition`) | ✅ → `data-line-id={debugObjectId(line)}` (test attribute); spec assertions switched to `debugObjectId` |
+| 5 | `LinkedEntityControl.tsx` — `state.visualObjectUid` used a `debugObjectId` string as a change-detection key | ✅ Replaced with object reference `state.visualObject` (`===`); `debugObjectId` emitted only for the `data-target-uid` DOM attribute |
+
+**Result:** `debugObjectId` remains only as a display/test string (never an internal identity or Map key); `IndexStore`/`SaveIndexes` are the sole index ↔ object bridge and are confined to `(de)serialization`. All package typechecks and the affected specs pass.
 
 ---
 
@@ -151,9 +169,9 @@ Acceptable under principle #4.
 
 Removed `.uid` from every runtime object: `Map<string,T>` → `Map<Vehicle,T>` (bay queue, freight docks), `DockRequest.vehicleUid`/`MovementGrant.vehicleUid` → object refs, all `.uid` comparisons → `===`, `Game.getObject()` deleted, `uid` removed from `GameObject` mixin / `InteractiveLogObject` / `InspectorSelectableObject`, cache keys → `debugObjectId()`, error/log payloads → `debugObjectId()`. Result: 270+ `.uid` refs deleted, 0 tsc errors, bay-queue 21/21.
 
-## Phase C: PARTIAL — `FreightLineDefinition.id` removal ⚠️
+## Phase C: DONE — `FreightLineDefinition.id` removal ✅
 
-*Committed as `62fcebb "b4c"`.*
+*Committed as `62fcebb "b4c"`. Replacement identity: object reference + reactive `Set<FreightLineDefinition>` (installed 2026-08-17).*
 
 Deleted `id` from `FreightLineDefinition`; removed implicit-gather line synthesis; `VehicleHopJob.lineId`/`ZoneBrowseJob.lineId` → required `line` object ref; all `line.id` trace payloads → `debugObjectId(line)`; serialization now index-based (`lineIndex`, `servedLineIndices`, `VehiclePatch.servedLineIndices`).
 
@@ -178,24 +196,25 @@ Deleted `id` from `FreightLineDefinition`; removed implicit-gather line synthesi
 > `rebindFreightLineStop`. The `local.revision`/`state.revision` UI poke tokens in `FreightLineProperties` /
 > `VehicleProperties` were removed — the reactive `Set` + reactive line object drive re-render directly.
 
-## Phase D: PARTIAL — Browser `.uid`/`.id` cleanup ⚠️
+## Phase D: DONE — Browser `.uid`/`.id` cleanup ✅
 
 *Committed as `62fcebb "b4c"`.*
 
 `DockedVehicleList`/`FreightStopList`/`AlveolusProperties`/`FreightLineProperties`/`VehicleProperties`/`lines-management`/`follow-selection`/`selection-info` use object identity (`line === draft`, `service.line === line`); `game.getObject()` gone.
 
-> **TODO — not complete.** `selectionState.selectedUid` remains (`globals.ts`, `App.tsx`, `follow-selection.ts`,
-> `selection-info.tsx`, `game.tsx`) as a localStorage/pinned-panel fallback, and `debugObjectId()`-based equality
-> lookups remain in `FreightLineProperties.handleAssign/UnassignVehicle`, `VehicleProperties.assignLine/unassignLine`,
-> `follow-selection.resolveSelectionPanelTitle`, and `selection-info` (F1 + F8).
+> **DONE (2026-08-18) — no `selectedUid` or `debugObjectId`-based equality lookups remain.**
+> `selectionState.selectedObject` replaced `selectedUid` (deleted from `globals.ts`, `App.tsx`, `follow-selection.ts`,
+> `selection-info.tsx`, `game.tsx`), and the `debugObjectId()` equality lookups in
+> `FreightLineProperties.handleAssign/UnassignVehicle`, `VehicleProperties.assignLine/unassignLine`,
+> `follow-selection.resolveSelectionPanelTitle`, and `selection-info` now dispatch by object reference (F1 + F8).
 
 ## Phase E: DONE — Trace `.uid` cleanup ✅
 
 All runtime `.uid` accesses in trace/profile/debug payloads → `debugObjectId()` or `===`; browser UI `@ts-nocheck` removed; 18 test files switched `char.operates?.uid === vehicle.uid` → `char.operates === vehicle`.
 
-## Final audit — 2026-08-02: partial sweep (object `.uid` only) ⚠️
+## Final audit — 2026-08-02: partial sweep (object `.uid` only) ✅
 
-Swept `src/` + `tests/` for object `.uid` and name-based lookups. **Result: 0 object `.uid` reads; string uid fields (`selectedUid`, `vehicleUid`, `lineId`, `zoneObjectUid`) and synthetic uid keys were out of scope and remain (see Phase F).**
+Swept `src/` + `tests/` for object `.uid` and name-based lookups. **Result: 0 object `.uid` reads.** The string uid fields and synthetic uid keys it left out of scope (`selectedUid`, `vehicleUid`, `lineId`, `zoneObjectUid`) were subsequently resolved by Phase F.
 
 | Found | Disposition |
 |---|---|

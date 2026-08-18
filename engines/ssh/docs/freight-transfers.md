@@ -98,7 +98,7 @@ Each construction site carries a module-level `WeakMap` of `InTransitReservation
 
 ```ts
 interface InTransitReservation {
-    readonly vehicleUid: string
+    readonly vehicle: Vehicle
     readonly goodType: GoodType
     readonly quantity: number
     readonly expiresAtTick: number
@@ -382,7 +382,7 @@ An advertisement is not completion state. When a hive match creates a transfer:
 
 - a `vehicleDemand` match creates a load transfer from a current provider to the vehicle dock;
 - a `vehicleProvide` match creates an unload transfer from the vehicle dock to a current demander;
-- the transfer records `vehicleUid`, `lineId`, `stopId`, `goodType`, `quantity`, `purpose`,
+- the transfer records the vehicle, line, and stop (object references), plus `goodType`, `quantity`, `purpose`,
   `blocking`, and the immediate route demand or current sink it serves;
 - only that transfer's live movement/reservation/allocation may block this stop.
 
@@ -425,8 +425,8 @@ Do not build a second transfer system beside `TrackedMovement`. Promote movement
 explicit freight transfer record.
 
 1. Add transfer metadata to dock-created tracked movements.
-2. Record `vehicleUid`, `lineId`, `stopId`, `bayUid`, `direction`, `purpose`, and `blocking`.
-3. Record local route promise data when available, such as `routeNeed`, `lineId`, or `nextStopId`;
+2. Record the vehicle, line, stop, and bay (object references), plus `direction`, `purpose`, and `blocking`.
+3. Record local route promise data when available, such as `routeNeed`, the line, or the next stop;
    do not require a final consumer id.
 4. Make vehicle advertised jobs and dock proposed jobs derive from the transfer metadata.
 5. Make stale claim cleanup operate on transfer identity, not only provider/demander.

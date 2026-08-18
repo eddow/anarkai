@@ -95,8 +95,8 @@ are not selectable named-zone objects.
 
 **Implemented**
 
-- Synthetic line objects: `freight-line:${encodeURIComponent(id)}`, `Game.getObject`.
-- Custom zone objects: `zones` opens the collection inspector; `zone:<zoneId>` opens an individual custom zone inspector with name/color editing, icon-based painting/deletion, central-tile go-to support, goods totals, and member-tile links. Built-in residential/harvest markers are not listed as named-zone objects.
+- Synthetic line objects: object references with `kind: 'freight-line'` (no string keys).
+- Custom zone objects: `zones` opens the collection inspector; `zone:<zoneName>` opens an individual custom zone inspector with name/color editing, icon-based painting/deletion, central-tile go-to support, goods totals, and member-tile links. Built-in residential/harvest markers are not listed as named-zone objects.
 - Bay inspector: list lines, add gather/distribute **presets** (`createExplicitFreightLineDraftForFreightBay` + `Game.addFreightLine`). Per-line remove was removed from the bay list; **delete** is on the **line** inspector (`FreightLineProperties`).
 - Line inspector: name, **mode** (when unambiguous) + **radius** for the first matching segment, **Delete line** (`Game.removeFreightLine(line)`). Stations list shows `load`/`unload` policy hints from `loadSelection` / `unloadSelection`.
 - Freight editor v2: compact stop table with add/remove, drag reorder, bay/radius/named-zone stop

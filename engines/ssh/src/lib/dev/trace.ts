@@ -254,11 +254,8 @@ function projectKnownRuntimeObject(
 ): RuntimeProjection | undefined {
 	const record = raw as UnknownRecord
 	if (isTrackedMovementRecord(record)) return projectTrackedMovement(record, ctx)
-	if (isFreightLineRecord(record)) return projectFreightLine(record)
-	if (isFreightStopRecord(record)) return projectFreightStop(record)
 	if (isBayQueueNodeRecord(record)) return projectBayQueueNode(record)
 	if (isMovementGrantRecord(record)) return projectMovementGrant(record)
-	if (isDockRequestRecord(record)) return projectDockRequest(record)
 	return undefined
 }
 
@@ -274,34 +271,6 @@ function projectTrackedMovement(record: UnknownRecord, ctx: ProjectionContext): 
 			claimedByUid: isObject(record.claimedBy) ? debugObjectId(record.claimedBy) : undefined,
 			provider: partySummary(record.provider),
 			demander: partySummary(record.demander),
-		},
-	}
-}
-
-function projectFreightLine(record: UnknownRecord): RuntimeProjection {
-	const id = stringValue(record.id) ?? 'unknown'
-	return {
-		ref: `FreightLine:${id}`,
-		body: {
-			$type: 'FreightLine',
-			id,
-			name: stringValue(record.name),
-			stops: Array.isArray(record.stops) ? record.stops.length : undefined,
-		},
-	}
-}
-
-function projectFreightStop(record: UnknownRecord): RuntimeProjection {
-	const id = stringValue(record.id) ?? 'unknown'
-	return {
-		ref: `FreightStop:${id}`,
-		body: {
-			$type: 'FreightStop',
-			id,
-			anchor: freightAnchorSummary(record.anchor),
-			zone: freightZoneSummary(record.zone),
-			loadSelection: selectionSummary(record.loadSelection),
-			unloadSelection: selectionSummary(record.unloadSelection),
 		},
 	}
 }
@@ -421,14 +390,6 @@ function isTrackedMovementRecord(record: UnknownRecord): boolean {
 	)
 }
 
-function isFreightLineRecord(record: UnknownRecord): boolean {
-	return typeof record.id === 'string' && Array.isArray(record.stops)
-}
-
-function isFreightStopRecord(record: UnknownRecord): boolean {
-	return typeof record.id === 'string' && ('anchor' in record || 'zone' in record)
-}
-
 function traceCoord(value: unknown): TraceValue {
 	if (Array.isArray(value) && typeof value[0] === 'number' && typeof value[1] === 'number') {
 		return [value[0], value[1]]
@@ -464,33 +425,6 @@ function partySummary(value: unknown): TraceValue {
 	}
 }
 
-function freightAnchorSummary(value: unknown): TraceValue {
-	if (!isObject(value)) return 'undefined'
-	const record = value as UnknownRecord
-	return {
-		coord: traceCoord(record.coord ?? record.position),
-		hiveName: stringValue(record.hiveName),
-	}
-}
-
-function freightZoneSummary(value: unknown): TraceValue {
-	if (!isObject(value)) return 'undefined'
-	const record = value as UnknownRecord
-	return {
-		coord: traceCoord(record.coord ?? record.center),
-		radius: numberValue(record.radius),
-	}
-}
-
-function selectionSummary(value: unknown): TraceValue {
-	if (!isObject(value)) return 'undefined'
-	const record = value as UnknownRecord
-	return {
-		goods: Array.isArray(record.goods) ? record.goods.map(String) : undefined,
-		mode: stringValue(record.mode),
-	}
-}
-
 // ─── Bay queue type detection ──────────────────────────────────────────────
 
 function isBayQueueNodeRecord(record: UnknownRecord): boolean {
@@ -509,16 +443,6 @@ function isMovementGrantRecord(record: UnknownRecord): boolean {
 		typeof record.expiresAt === 'number' &&
 		'from' in record &&
 		'to' in record
-	)
-}
-
-function isDockRequestRecord(record: UnknownRecord): boolean {
-	return (
-		typeof record.vehicleUid === 'string' &&
-		typeof record.bayGroupUid === 'string' &&
-		typeof record.arrivedAt === 'number' &&
-		'state' in record &&
-		'requirements' in record
 	)
 }
 
@@ -557,21 +481,6 @@ function projectMovementGrant(record: UnknownRecord): RuntimeProjection {
 			fromNode: nodeSummary(record.from),
 			toNode: nodeSummary(record.to),
 			expiresAt: numberValue(record.expiresAt),
-		},
-	}
-}
-
-function projectDockRequest(record: UnknownRecord): RuntimeProjection {
-	return {
-		ref: `DockReq:${stringValue(record.vehicleUid) ?? 'unknown'}`,
-		body: {
-			$type: 'DockRequest',
-			vehicleUid: stringValue(record.vehicleUid),
-			bayGroupUid: stringValue(record.bayGroupUid),
-			state: stringValue(record.state),
-			priority: numberValue(record.priority),
-			arrivedAt: numberValue(record.arrivedAt),
-			ingressBranch: stringValue(record.ingressBranch),
 		},
 	}
 }

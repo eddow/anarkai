@@ -14,7 +14,7 @@ Refer to `sursaut-ts/LLM.md` and `sursaut-ui/LLM.md` for introduction to the Sur
 When designing widgets that interact with global state (like selection), follow these principles:
 
 1.  **Single Source of Truth**: Avoid duplicating global state into local state. If a widget needs to know about a global selection, read it directly or derive it reactively from parameters.
-    - *Example (Selection Info)*: Instead of a local `isPinned` boolean, simply check if `props.params.uid` is populated.
+    - *Example (Selection Info)*: Instead of a local `isPinned` boolean, simply check if `props.params.pinned` is set.
 2.  **Avoid Redundant Synchronization**: Do not create generic "sync" effects that just copy values from A to B. `mutts` / `sursaut` reactivity allows you to use the values directly.
     - *Anti-Pattern*: `effect(() => state.localVal = globalVal)`
     - *Pattern*: `const derivedVal = () => globalVal` (or used directly in effects/JSX)
@@ -25,10 +25,10 @@ If you find yourself writing complex helper functions to manage lifecycle (regis
 
 ## Direct Parameter Usage
 For widgets that can be "pinned" or "dynamic":
-- Use widget parameters (e.g., `props.params.uid`) as the primary differentiator.
-- A widget with a specific UID parameter is "pinned".
+- Use widget parameters (e.g., `props.params.pinned`) as the primary differentiator.
+- A widget with `pinned: true` is "pinned".
 - A widget without it is "dynamic".
-- The logic then becomes a simple ternary or fallback: `const target = props.params.uid ?? globalSelection.uid`.
+- The logic then becomes a simple boolean check: `const target = props.params.pinned ? undefined : selectionState.selectedObject`.
 
 ## Reactivity
 Trust the reactive system. Components updates should be driven by reactive data sources changing, not by manual imperative `update()` calls unless absolutely necessary for interop.
@@ -68,8 +68,8 @@ Most of the time, onChange, onInput etc are useless and should be avoided. Two-w
 
 # Selection inspector (characters / vehicles)
 
-- **`VehicleProperties`** (`src/components/VehicleProperties.tsx`): selected **`VehicleEntity`** objects render here (routed from `selection-info.tsx`). Header uses **`EntityBadge`** with the base vehicle sprite from **`engine-pixi/assets/visual-content`** / **`vehicleTextureKey`**. Rows: **operator** (`LinkedEntityControl` + **`InspectorObjectLink`**), **goods** (`storage.stock` via **`GoodsList`**), **service** (idle / maintenance / line stop + docked state; line service also links the synthetic freight line from **`createSyntheticFreightLineObject`**). If **`vehicle.operator`** is set, an extra **Ranked work** block mirrors **`CharacterProperties`**: same urgency-ordered rows from **`Character.workPlannerSnapshot` / `lastWorkPlannerSnapshot`** (jobs are computed on the operator). **`CharacterProperties`** adds an **Operates** row when `character.operates` is set, linking back to that vehicle. **Sursaut rebuild fence:** do not assign `const spriteKey = f(props.vehicle…)` in the component body — `props.vehicle` tracks `selectionState.selectedUid` via the parent; a bare read retriggers the body when selection changes. Put the sprite key in JSX (e.g. `sprite={resolveVehicleSpriteKey(props.vehicle.vehicleType)}`) or an **`effect`** instead.
-- **`InspectorObjectLink`** (`src/components/InspectorObjectLink.tsx`): do not read `props.object` / `props.label` / `props.class` directly in the component body — those props often derive from the same reactive graph as **`selectionState`**, and **`showProps`** sets **`selectionState.selectedUid`**, which would hit the rebuild fence. Use a small getter-backed `view` object and read `view.class` / `view.disabled` / `view.text` inline in JSX so the Babel transform places those subscriptions in attribute/child effects instead of the fenced component body.
+- **`VehicleProperties`** (`src/components/VehicleProperties.tsx`): selected **`VehicleEntity`** objects render here (routed from `selection-info.tsx`). Header uses **`EntityBadge`** with the base vehicle sprite from **`engine-pixi/assets/visual-content`** / **`vehicleTextureKey`**. Rows: **operator** (`LinkedEntityControl` + **`InspectorObjectLink`**), **goods** (`storage.stock` via **`GoodsList`**), **service** (idle / maintenance / line stop + docked state; line service also links the synthetic freight line from **`createSyntheticFreightLineObject`**). If **`vehicle.operator`** is set, an extra **Ranked work** block mirrors **`CharacterProperties`**: same urgency-ordered rows from **`Character.workPlannerSnapshot` / `lastWorkPlannerSnapshot`** (jobs are computed on the operator). **`CharacterProperties`** adds an **Operates** row when `character.operates` is set, linking back to that vehicle. **Sursaut rebuild fence:** do not assign `const spriteKey = f(props.vehicle…)` in the component body — `props.vehicle` tracks `selectionState.selectedObject` via the parent; a bare read retriggers the body when selection changes. Put the sprite key in JSX (e.g. `sprite={resolveVehicleSpriteKey(props.vehicle.vehicleType)}`) or an **`effect`** instead.
+- **`InspectorObjectLink`** (`src/components/InspectorObjectLink.tsx`): do not read `props.object` / `props.label` / `props.class` directly in the component body — those props often derive from the same reactive graph as **`selectionState`**, and **`showProps`** sets **`selectionState.selectedObject`**, which would hit the rebuild fence. Use a small getter-backed `view` object and read `view.class` / `view.disabled` / `view.text` inline in JSX so the Babel transform places those subscriptions in attribute/child effects instead of the fenced component body.
 - **Component tests:** mock **`./InspectorObjectLink`** in **`CharacterProperties.spec.tsx`** so the spec does not import **`@sursaut/kit/dom`** via **`follow-selection`** / **`globals`** (avoids `window.addEventListener` / `EventTarget` issues under jsdom).
 
 # Inspector goods / tags UI

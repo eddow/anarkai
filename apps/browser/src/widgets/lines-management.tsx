@@ -7,6 +7,7 @@ import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
 import { effect, reactive } from 'mutts'
 import { tablerOutlineFilter, tablerOutlineFilterCheck } from 'pure-glyf/icons'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import {
 	createSyntheticFreightLineObject,
 	type FreightLineDefinition,
@@ -357,7 +358,7 @@ const LinesManagementWidget = (
 								type="button"
 								class="lines-management__row"
 								data-testid="line-management-row"
-								data-line-id={line.id}
+								data-line-id={debugObjectId(line)}
 								title={line.name}
 								onMouseenter={() => showLine(line)}
 								onMouseleave={() => showLine(undefined)}

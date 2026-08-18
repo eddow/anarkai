@@ -104,7 +104,7 @@ const icon = (source: string) => renderAnarkaiIcon(source, { size: 15 })
 const zoneLabel = (zone: ZoneDefinition) => zone.name?.trim() || zone.type
 
 const ZonesProperties = (_props: ZonesPropertiesProps) => {
-	const zones = () => game.hex.zoneManager.definitions
+	const zones = () => game.hex.zoneManager.listZoneDefinitions()
 	const memberCount = (zone: ZoneDefinition) => game.hex.zoneManager.coordsForZone(zone).length
 	const createZone = () => {
 		const base = `zone-${Date.now().toString(36)}`

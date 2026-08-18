@@ -193,18 +193,18 @@ const SettlementSelectionProperties = (props: { object?: unknown }) => (
 	</div>
 )
 
-const ObjectSummaryProperties = (props: { object?: { uid?: string; title?: string } }) => (
+const ObjectSummaryProperties = (props: { object?: unknown }) => (
 	<div data-selection-properties-kind="summary">
-		<InspectorSection class="selection-info-panel__summary" title={props.object?.title ?? 'Object'}>
-			<p>ID: {props.object?.uid ?? debugObjectId(props.object)}</p>
+		<InspectorSection
+			class="selection-info-panel__summary"
+			title={(props.object as { title?: string } | undefined)?.title ?? 'Object'}
+		>
+			<p>ID: {debugObjectId(props.object)}</p>
 		</InspectorSection>
 	</div>
 )
 
-const renderPropertiesForObject = (
-	object: { uid?: string },
-	options: { onClose?: () => void } = {}
-) => {
+const renderPropertiesForObject = (object: unknown, options: { onClose?: () => void } = {}) => {
 	if (isCharacterObject(object)) return <CharacterSelectionProperties object={object} />
 	if (isTileObject(object)) return <TileSelectionProperties object={object} />
 	if (isFreightLineObject(object))

@@ -31,7 +31,7 @@ Use stable dot-separated identifiers in diagnostics:
 ```ts
 traces.vehicle.warn?.('[vehicle.advertisedJobs] loaded docked vehicle has no advertised job', {
 	invariant: 'freight.vehicle.docked.loaded-has-advertisement',
-	vehicleUid: vehicle.uid,
+	vehicleUid: debugObjectId(vehicle),
 })
 ```
 
@@ -72,8 +72,8 @@ Then expose helpers that register channel-local invariant functions:
 ```ts
 registerTraceInvariants('vehicle', {
 	'operator-links-are-symmetric': (vehicle, character) => ({
-		ok: character.operates?.uid !== vehicle.uid || vehicle.operator?.uid === character.uid,
-		payload: { vehicleUid: vehicle.uid, characterUid: character.uid },
+		ok: character.operates !== vehicle || vehicle.operator === character,
+		payload: { vehicleUid: debugObjectId(vehicle), characterUid: debugObjectId(character) },
 	}),
 })
 ```

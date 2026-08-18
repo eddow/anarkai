@@ -45,7 +45,7 @@ enters `plan jobPlan`, `PlanFunctions.begin` runs before the vehicle script body
 (`vehicleOffload`, `vehicleHop`, `zoneBrowse`), that begin step calls
 `allocateVehicleServiceForJob(...)` and establishes the authoritative runtime link:
 
-1. resolve `jobPlan.vehicleUid` to a `VehicleEntity`;
+1. resolve `jobPlan.vehicle` (an object reference) to a `VehicleEntity`;
 2. attach or resume the appropriate `VehicleEntity.service`;
 3. set `service.operator` to the character;
 4. set `character.operates` to the same vehicle;

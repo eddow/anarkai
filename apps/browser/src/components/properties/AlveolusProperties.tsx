@@ -266,7 +266,10 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 	}
 
 	const assignedZones = () => props.content?.assignedZones ?? []
-	const zones = () => (state.resolvedGame?.hex.zoneManager.definitions ?? []).filter((z) => z.name)
+	const zones = () =>
+		(state.resolvedGame ? state.resolvedGame.hex.zoneManager.listZoneDefinitions() : []).filter(
+			(z) => z.name
+		)
 	const zoneObject = (zone: ZoneDefinition) =>
 		state.resolvedGame ? new ZoneObject(state.resolvedGame, zone) : undefined
 	const zonePickerItems = () =>

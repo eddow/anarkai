@@ -42,7 +42,7 @@ Gameplay streaming is owned by `ssh`:
 - radius zones and saved named tile zones as freight stop authority
 - named custom zones alongside built-in residential/harvest markers, with legacy save compatibility
 - named zones can carry a persisted `harvestable` flag; harvest alveoli treat harvestable named zones like the built-in harvest zone without being assigned to them
-- selectable custom-zone objects (`zones`, `zone:<zoneId>`) with a dedicated Zones palette entry and zone inspectors; residential/harvest remain built-in tile markers rather than named-zone objects
+- selectable custom-zone objects (`zones`, `zone:<zoneName>`) with a dedicated Zones palette entry and zone inspectors; residential/harvest remain built-in tile markers rather than named-zone objects
 - forester alveolus inspectors expose assigned named-zone controls, with zone chips linking back to the zone inspector
 - `freight_bay` stop content backed by a non-storage dock plus `VehicleFreightDock`
 - synthetic inspector objects for line selection and editing

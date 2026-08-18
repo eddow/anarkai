@@ -110,10 +110,6 @@ export interface SerializedBayQueueGraph {
 	readonly mergePolicy: SerializedMergePolicy
 }
 
-/** Serialized dock request — only `waiting` or `servicing` states are persisted. */
-// TODO(bay-queues): re-spec when bay-queue state is actually persisted; the
-// legacy shape keyed by `vehicleUid` was removed (runtime `DockRequest` uses a `Vehicle` ref).
-
 // ─── Runtime types (transient, live object references) ─────────────────────
 
 import type { TileBorder } from 'ssh/board/border/border'

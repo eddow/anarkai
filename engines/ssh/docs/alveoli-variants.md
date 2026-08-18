@@ -406,7 +406,7 @@ Registered providers:
 |---|---|---|
 | `harvest` | `HarvestJob` | `action.deposit`, `action.output`, zone/clearing/project status |
 | `transform` | `TransformJob` | `canWork` (has output room, below product ratio, process buffers) |
-| `plant` | `ForesterJob` | `assignedZoneIds`, `canPlantDepositOnLand` |
+| `plant` | `ForesterJob` | `assignedZones`, `canPlantDepositOnLand` |
 | `slotted-storage` | `DefragmentJob` (only when fragmented) | `storage.fragmented` |
 | `specific-storage` | *(none)* | — |
 | `storage` (unified) | `DefragmentJob` (if `kind: 'slotted'` and fragmented) | `action.kind` |

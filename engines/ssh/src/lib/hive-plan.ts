@@ -33,13 +33,9 @@ export interface HivePlan {
 	version: number
 	stage: HivePlanStage
 	entries: HivePlanEntry[]
-	/** Register indexes of plans this one was derived from (provenance only). */
-	createdFromPlanIndexes: number[]
 	validationProgress: HivePlanValidationProgress
 	knownnessFingerprint: string
 	archiveReason?: HivePlanArchiveReason
-	/** Register index of the plan that replaced this archived plan (provenance only). */
-	replacedByPlanIndex?: number
 }
 
 export interface SerializedHivePlan extends HivePlan {}
@@ -371,7 +367,6 @@ export class HivePlanCollection {
 			version: 1,
 			stage: 'draft' as HivePlanStage,
 			entries: entries.map((entry) => ({ ...entry })),
-			createdFromPlanIndexes: [],
 			validationProgress: hivePlanValidationRequirements(entries, this.plans),
 			knownnessFingerprint: hivePlanFingerprint(entries),
 		}) as HivePlan
@@ -411,14 +406,9 @@ export class HivePlanCollection {
 		return { ok: true, plan }
 	}
 
-	archive(
-		plan: HivePlan,
-		reason: HivePlanArchiveReason = 'manual',
-		replacedByPlanIndex?: number
-	): boolean {
+	archive(plan: HivePlan, reason: HivePlanArchiveReason = 'manual'): boolean {
 		plan.stage = 'archived'
 		plan.archiveReason = reason
-		plan.replacedByPlanIndex = replacedByPlanIndex
 		this.game.invalidateWorkPlanning('hive-plan.archive')
 		return true
 	}
@@ -426,7 +416,6 @@ export class HivePlanCollection {
 	unarchive(plan: HivePlan): boolean {
 		plan.stage = 'draft'
 		plan.archiveReason = undefined
-		plan.replacedByPlanIndex = undefined
 		return true
 	}
 
@@ -446,7 +435,6 @@ export class HivePlanCollection {
 		return this.plans.map((plan) => ({
 			...plan,
 			entries: plan.entries.map((entry) => ({ ...entry })),
-			createdFromPlanIndexes: [...plan.createdFromPlanIndexes],
 			validationProgress: {
 				...plan.validationProgress,
 				requiredGoods: { ...plan.validationProgress.requiredGoods },
@@ -460,7 +448,6 @@ export class HivePlanCollection {
 			reactive({
 				...plan,
 				entries: plan.entries.map((entry) => ({ ...entry })),
-				createdFromPlanIndexes: plan.createdFromPlanIndexes ?? [],
 				knownnessFingerprint: plan.knownnessFingerprint || hivePlanFingerprint(plan.entries),
 				validationProgress: {
 					...plan.validationProgress,

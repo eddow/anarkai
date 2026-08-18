@@ -1,4 +1,5 @@
 import { document, latch } from '@sursaut/core'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@app/lib/css', () => ({
@@ -43,13 +44,11 @@ vi.mock('@app/ui/anarkai', () => ({
 
 let LinesManagementWidget: typeof import('./lines-management').default
 
-const line = (id: string, name: string, stops: any[]) => ({ id, name, stops })
+const line = (name: string, stops: any[]) => ({ name, stops })
 const anchorStop = (q: number, r: number) => ({
-	id: `anchor-${q}-${r}`,
 	anchor: { kind: 'alveolus', hiveName: '', alveolusType: 'freight_bay', coord: [q, r] },
 })
 const radiusStop = (q: number, r: number) => ({
-	id: `zone-${q}-${r}`,
 	zone: { kind: 'radius', center: [q, r], radius: 1 },
 })
 
@@ -79,9 +78,9 @@ describe('LinesManagementWidget', () => {
 
 	beforeEach(() => {
 		game.freightLines = [
-			line('bay-line', 'Bay Materials', [anchorStop(0, 0)]),
-			line('zone-line', 'Remote Zone', [radiusStop(100, 100)]),
-			line('snack-line', 'Snack Shuttle', [radiusStop(120, 120)]),
+			line('Bay Materials', [anchorStop(0, 0)]),
+			line('Remote Zone', [radiusStop(100, 100)]),
+			line('Snack Shuttle', [radiusStop(120, 120)]),
 		]
 		game.vehicles = []
 		game.renderer = {
@@ -103,20 +102,25 @@ describe('LinesManagementWidget', () => {
 	})
 
 	it('renders all freight lines by default and filters names case-insensitively', () => {
+		const bay = line('Bay Materials', [anchorStop(0, 0)])
+		const zone = line('Remote Zone', [radiusStop(100, 100)])
+		const snack = line('Snack Shuttle', [radiusStop(120, 120)])
+		game.freightLines = [bay, zone, snack]
+
 		stop = latch(container, <LinesManagementWidget {...props()} />, scope())
 
-		expect(rowIds(container)).toEqual(['bay-line', 'zone-line', 'snack-line'])
+		expect(rowIds(container)).toEqual([bay, zone, snack].map((l) => debugObjectId(l)))
 
 		const input = container.querySelector('[aria-label="Filter lines by name"]') as HTMLInputElement
 		input.value = 'sNaCk'
 		input.dispatchEvent(new Event('input', { bubbles: true }))
 
-		expect(rowIds(container)).toEqual(['snack-line'])
+		expect(rowIds(container)).toEqual([debugObjectId(snack)])
 	})
 
 	it('shows exchange-route pickup and delivery summaries', () => {
 		game.freightLines = [
-			line('exchange-line', 'Material Loop', [
+			line('Material Loop', [
 				radiusStop(0, 0),
 				anchorStop(0, 0),
 				anchorStop(1, 0),
@@ -129,38 +133,44 @@ describe('LinesManagementWidget', () => {
 	})
 
 	it('filters bay-backed lines out with No bay', () => {
+		const bay = line('Bay Materials', [anchorStop(0, 0)])
+		const zone = line('Remote Zone', [radiusStop(100, 100)])
+		const snack = line('Snack Shuttle', [radiusStop(120, 120)])
+		game.freightLines = [bay, zone, snack]
+
 		stop = latch(container, <LinesManagementWidget {...props()} />, scope())
 
-		const bay = container.querySelector('[aria-label="Filter lines by bay"]') as HTMLButtonElement
-		expect(bay.getAttribute('aria-checked')).toBe('false')
-		bay.click()
+		const bayFilter = container.querySelector(
+			'[aria-label="Filter lines by bay"]'
+		) as HTMLButtonElement
+		expect(bayFilter.getAttribute('aria-checked')).toBe('false')
+		bayFilter.click()
 
-		expect(bay.getAttribute('aria-checked')).toBe('true')
-		expect(rowIds(container)).toEqual(['zone-line', 'snack-line'])
+		expect(bayFilter.getAttribute('aria-checked')).toBe('true')
+		expect(rowIds(container)).toEqual([debugObjectId(zone), debugObjectId(snack)])
 	})
 
 	it('visible filter includes visible stops and actively serving vehicles only', () => {
-		game.freightLines = [
-			line('visible-stop', 'Visible Stop', [radiusStop(0, 0)]),
-			line('served-visible', 'Served Visible', [radiusStop(120, 120)]),
-			line('assigned-idle', 'Assigned Idle', [radiusStop(130, 130)]),
-			line('serving-other', 'Serving Other', [radiusStop(140, 140)]),
-		]
+		const visibleStop = line('Visible Stop', [radiusStop(0, 0)])
+		const servedVisible = line('Served Visible', [radiusStop(120, 120)])
+		const assignedIdle = line('Assigned Idle', [radiusStop(130, 130)])
+		const servingOther = line('Serving Other', [radiusStop(140, 140)])
+		game.freightLines = [visibleStop, servedVisible, assignedIdle, servingOther]
 		game.vehicles = [
 			{
 				position: { q: 0, r: 0 },
-				servedLines: [game.freightLines[2]],
+				servedLines: [assignedIdle],
 				service: undefined,
 			},
 			{
 				position: { q: 0, r: 0 },
-				servedLines: [game.freightLines[1]],
-				service: { line: game.freightLines[1], stop: game.freightLines[1].stops[0], docked: false },
+				servedLines: [servedVisible],
+				service: { line: servedVisible, stop: servedVisible.stops[0], docked: false },
 			},
 			{
 				position: { q: 0, r: 0 },
-				servedLines: [game.freightLines[3]],
-				service: { line: game.freightLines[0], stop: game.freightLines[0].stops[0], docked: false },
+				servedLines: [servingOther],
+				service: { line: visibleStop, stop: visibleStop.stops[0], docked: false },
 			},
 		]
 		stop = latch(container, <LinesManagementWidget {...props()} />, scope())
@@ -172,7 +182,7 @@ describe('LinesManagementWidget', () => {
 		visibility.click()
 
 		expect(visibility.getAttribute('aria-checked')).toBe('true')
-		expect(rowIds(container)).toEqual(['visible-stop', 'served-visible'])
+		expect(rowIds(container)).toEqual([debugObjectId(visibleStop), debugObjectId(servedVisible)])
 	})
 
 	it('hovers and clicks rows through the freight overlay and inspector path', async () => {

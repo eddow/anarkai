@@ -17,10 +17,6 @@ export interface ZoneDefinitionPatch extends Omit<ZoneDefinition, 'generated' | 
 	readonly coords: ReadonlyArray<readonly [number, number]>
 }
 
-// ── Inspector UID helpers (Priority 4) ───────────────────────────
-
-export const ZONES_OBJECT_UID = 'zones'
-
 // ── Internal helpers ───────────────────────────────────────────────
 
 function slugifyZoneName(name: string | undefined): string | undefined {
@@ -61,15 +57,20 @@ export class ZoneManager {
 	private readonly ownerToCoord = new Map<object, AxialCoord>()
 	readonly residentialCoords: AxialCoord[] = []
 
-	/** Ordered list of zone definitions. Array index is the zone identity. */
-	definitions: ZoneDefinition[] = []
+	/**
+	 * Registered zone definitions in insertion order. Identity is the object
+	 * reference; serialization order is derived from insertion order via
+	 * {@link listCustomZoneDefinitions}.
+	 */
+	private readonly definitions = reactive(new Set<ZoneDefinition>())
 
 	// ── definition registry ──────────────────────────────────────
 
 	/** Resolve a named zone definition by name (case-insensitive, whitespace-normalized). */
 	findZoneByName(name: string): ZoneDefinition | undefined {
 		const needle = slugifyZoneName(name) ?? ''
-		return this.definitions.find((def) => (def.name ?? '') === needle)
+		for (const def of this.definitions) if ((def.name ?? '') === needle) return def
+		return undefined
 	}
 
 	/** Register a zone definition and return the object for spatial assignment. */
@@ -83,15 +84,14 @@ export class ZoneManager {
 			generated: definition.generated,
 			readonly: definition.readonly,
 		} satisfies ZoneDefinition)
-		this.definitions.push(next)
+		this.definitions.add(next)
 		return next
 	}
 
 	/** Prefer an already-registered definition object; otherwise register a raw copy. */
 	private ensureRegisteredZone(zone: ZoneDefinition): ZoneDefinition {
 		const raw = toRaw(zone) as ZoneDefinition
-		const existing = this.definitions.find((def) => toRaw(def) === raw)
-		if (existing) return existing
+		for (const def of this.definitions) if (toRaw(def) === raw) return def
 		return this.defineZone(raw)
 	}
 
@@ -109,12 +109,10 @@ export class ZoneManager {
 	 */
 	resolveZone(typeOrName: ZoneType | string): ZoneDefinition {
 		const needle = String(typeOrName).trim().replace(/\s+/g, '-').toLowerCase()
-		const byName = this.definitions.find((def) => (def.name ?? '') === needle)
-		if (byName) return byName
+		for (const def of this.definitions) if ((def.name ?? '') === needle) return def
 		const zoneTypes: ZoneType[] = ['passive', 'harvest', 'residential', 'commercial']
 		if ((zoneTypes as string[]).includes(needle)) {
-			const byType = this.definitions.find((def) => def.type === needle && !def.name)
-			if (byType) return byType
+			for (const def of this.definitions) if (def.type === needle && !def.name) return def
 			return this.defineZone({ type: needle as ZoneType })
 		}
 		return this.defineZone({ name: needle, type: 'passive' })
@@ -125,27 +123,19 @@ export class ZoneManager {
 	}
 
 	listCustomZoneDefinitions(): ZoneDefinition[] {
-		return this.definitions.filter((zone) => !zone.generated && !zone.readonly)
-	}
-
-	/** Remove a named zone by index and clean up its spatial assignments. */
-	removeZoneByIndex(index: number): boolean {
-		const definition = this.definitions[index]
-		if (!definition || definition.readonly) return false
-		const target = toRaw(definition)
-		for (const coord of [...this.zones.coords()]) {
-			const current = this.zones.get(coord)
-			if (current && toRaw(current) === target) this.zones.delete(coord)
-		}
-		this.definitions.splice(index, 1)
-		return true
+		return [...this.definitions].filter((zone) => !zone.generated && !zone.readonly)
 	}
 
 	/** Remove a zone definition by object reference and clean up its spatial assignments. */
 	removeZoneDefinition(definition: ZoneDefinition): boolean {
-		const index = this.definitions.indexOf(definition)
-		if (index < 0) return false
-		return this.removeZoneByIndex(index)
+		const target = toRaw(definition) as ZoneDefinition
+		if (target.readonly) return false
+		if (!this.definitions.delete(target)) return false
+		for (const coord of [...this.zones.coords()]) {
+			const current = this.zones.get(coord)
+			if (current && toRaw(current) === target) this.zones.delete(coord)
+		}
+		return true
 	}
 
 	// ── spatial map ───────────────────────────────────────────────
@@ -255,7 +245,7 @@ export class ZoneManager {
 	clear(): void {
 		this.zones.clear()
 		this.generatedZones.clear()
-		this.definitions.length = 0
+		this.definitions.clear()
 		this.reservationOwners.clear()
 		this.ownerToCoord.clear()
 		this.residentialCoords.length = 0
