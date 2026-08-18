@@ -40,7 +40,6 @@ import type { FreightLineDefinition } from 'ssh/freight/freight-line'
 import {
 	collectFreightLineBootstrapCoords,
 	hydrateFreightLineTradeProfiles,
-	implicitGatherFreightLinesFromHivePatches,
 	normalizeFreightLineDefinition,
 } from 'ssh/freight/freight-line'
 import { resolveFreightNpcTradeProfile } from 'ssh/freight/freight-trade-profile'
@@ -293,7 +292,7 @@ export interface GamePatches {
 		working?: boolean
 		alveoli: ReadonlyArray<AlveolusPatch>
 	}>
-	/** Explicit freight lines; implicit gather routes are merged from hive patches unless overridden by id. */
+	/** Explicit freight lines. No implicit lines are synthesized — every line in play is explicit. */
 	freightLines?: ReadonlyArray<FreightLineDefinition>
 	looseGoods?: LooseGoodsPatches
 	zones?: ZonesPatches
@@ -2232,19 +2231,14 @@ export class Game extends Eventful<GameEvents> {
 	 *
 	 * Called during `generate()` / `generateAsync()` after hive, tile, zone, project,
 	 * and dwelling patches have been applied, but before vehicle and road patches.
-	 * Merges implicit gather lines from freight bays with explicit patch lines (by name),
-	 * then hydrates trade-stop profiles and named zone references against live game state.
+	 *
+	 * All freight lines are explicit: no gather lines are synthesized from freight-bay
+	 * hive patches. The "create gather line" UI shortcut materializes an explicit line
+	 * via `createExplicitFreightLineDraftForFreightBay` + `addFreightLine`, so the
+	 * serialized array is restored 1:1 here (order preserved for index resolution).
 	 */
 	private bootstrapFreightLines(patches: GamePatches | SaveState): void {
-		const merged = new Map<string, FreightLineDefinition>()
-		const implicit = patches.hives?.length
-			? implicitGatherFreightLinesFromHivePatches(patches.hives)
-			: []
-		for (const line of implicit) merged.set(line.name, normalizeFreightLineDefinition(line))
-		for (const line of patches.freightLines ?? [])
-			merged.set(line.name, normalizeFreightLineDefinition(line))
-		// Keep the serialized order for index resolution during deserialization.
-		this.unpackedFreightLines = [...merged.values()]
+		this.unpackedFreightLines = (patches.freightLines ?? []).map(normalizeFreightLineDefinition)
 		this.freightLines.clear()
 		for (const line of this.unpackedFreightLines) this.freightLines.add(line)
 		hydrateFreightLineTradeProfiles(this.unpackedFreightLines, this)

@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
+import { Commitment } from 'ssh/commitment'
 import {
 	type FreightStop,
 	type FreightZoneDefinitionRadius,
@@ -560,7 +561,7 @@ describe('Vehicle zone hop semantics', () => {
 		const futureSiteTile = game.hex.getTile({ q: 3, r: 0 })!
 		futureSiteTile.content = new BuildDwelling(futureSiteTile, 'basic_dwelling')
 
-		const line = [...game.freightLines][0]!
+		const line = [...game.freightLines].find((candidate) => candidate.name === 'Distribute zone')!
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [line])
 		const character = game.population.createCharacter('Distribute', { q: 1, r: 0 })
 		vehicle.beginLineService(line, line.stops[1]!, character)
@@ -568,7 +569,15 @@ describe('Vehicle zone hop semantics', () => {
 		character.onboard()
 
 		vehicle.storage.addGood('wood', 1)
-		expect(findZoneBrowseJob(game, character)).toBeUndefined()
+		// The carried wood is reserved for a later stop, so zoneBrowse must not
+		// offer a provide job against the local construction demand.
+		const downstreamReservation = new Commitment('test.downstream-reserved-wood')
+		try {
+			expect(vehicle.storage.reserve({ wood: 1 }, downstreamReservation)).toBeUndefined()
+			expect(findZoneBrowseJob(game, character)).toBeUndefined()
+		} finally {
+			downstreamReservation.cancel('test cleanup')
+		}
 	})
 
 	it('zoneBrowse allows local zone exchange when the halt can load and unload', async () => {
@@ -1312,7 +1321,7 @@ describe('Vehicle zone hop semantics', () => {
 		const line = [...game.freightLines].find(
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
-		if (!line) throw new Error('expected ChopSaw implicit gather line')
+		if (!line) throw new Error('expected ChopSaw gather line')
 		// ChopSaw gather is cyclic [anchor=0, zone=1]; unload/dock is the bay anchor.
 		const unload = line.stops[0]
 		if (!unload || !('anchor' in unload)) throw new Error('expected ChopSaw unload anchor stop')
@@ -1339,7 +1348,7 @@ describe('Vehicle zone hop semantics', () => {
 		const line = [...game.freightLines].find(
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
-		if (!line) throw new Error('expected ChopSaw implicit gather line')
+		if (!line) throw new Error('expected ChopSaw gather line')
 		// ChopSaw gather: load zone = stops[1], unload anchor = stops[0].
 		const unload = line.stops[0]
 		const load = line.stops[1]
@@ -1379,7 +1388,7 @@ describe('Vehicle zone hop semantics', () => {
 		const line = [...game.freightLines].find(
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
-		if (!line) throw new Error('expected ChopSaw implicit gather line')
+		if (!line) throw new Error('expected ChopSaw gather line')
 		const load = line.stops[1]
 		if (!load || !('zone' in load)) throw new Error('expected ChopSaw load zone stop')
 		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
@@ -1486,7 +1495,7 @@ describe('Vehicle zone hop semantics', () => {
 		const line = [...game.freightLines].find(
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
-		if (!line) throw new Error('expected ChopSaw implicit gather line')
+		if (!line) throw new Error('expected ChopSaw gather line')
 		const unload = line.stops[0]
 		const load = line.stops[1]
 		if (!load || !unload) throw new Error('expected ChopSaw load/unload stops')

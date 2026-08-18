@@ -162,26 +162,26 @@ export const chopSaw = {
 			name: 'ChopSaw:wheelbarrow1',
 			vehicleType: 'wheelbarrow',
 			position: { q: -1, r: 1 },
-			// Bootstrap order: implicit gather, then explicit gather, then distribute.
-			servedLineIndices: [1],
+			// Explicit line order: gather (index 0), distribute (index 1).
+			servedLineIndices: [0],
 		},
 		{
 			name: 'ChopSaw:wheelbarrow2',
 			vehicleType: 'wheelbarrow',
 			position: { q: -1, r: 2 },
-			servedLineIndices: [1],
+			servedLineIndices: [0],
 		},
 		{
 			name: 'ChopSaw:wheelbarrow3',
 			vehicleType: 'wheelbarrow',
 			position: { q: -2, r: 2 },
-			servedLineIndices: [1],
+			servedLineIndices: [0],
 		},
 		{
 			name: 'ChopSaw:suv',
 			vehicleType: 'suv',
 			position: { q: 0, r: 0 },
-			servedLineIndices: [2],
+			servedLineIndices: [1],
 		},
 	],
 } satisfies GamePatches
@@ -353,14 +353,14 @@ export const demoHive = {
 			name: 'HearthLoop:wheelbarrow',
 			vehicleType: 'wheelbarrow',
 			position: { q: 0, r: 1 },
-			// Bootstrap order: implicit gather, commons exchange, comfort loop.
-			servedLineIndices: [1],
+			// Explicit line order: commons exchange (index 0), comfort loop (index 1).
+			servedLineIndices: [0],
 		},
 		{
 			name: 'HearthLoop:pickup-truck',
 			vehicleType: 'pickup_truck',
 			position: { q: 0, r: 1 },
-			servedLineIndices: [2],
+			servedLineIndices: [1],
 		},
 	],
 } satisfies GamePatches
@@ -390,6 +390,23 @@ export const dorm = {
 		},
 	],
 	freightLines: [
+		{
+			name: 'Dorm (0, 1) gather',
+			cyclic: true,
+			stops: [
+				{
+					zone: { kind: 'radius', center: [0, 1], radius: 9 },
+				},
+				{
+					anchor: {
+						kind: 'alveolus',
+						hiveName: 'Dorm',
+						alveolusType: 'freight_bay',
+						coord: [0, 1],
+					},
+				},
+			],
+		},
 		{
 			name: 'Dorm (0, 1) exchange',
 			cyclic: true,
@@ -437,7 +454,7 @@ export const dorm = {
 			name: 'Dorm:wheelbarrow',
 			vehicleType: 'wheelbarrow',
 			position: { q: 0, r: 1 },
-			// Bootstrap order: implicit gather first, then explicit exchange.
+			// Explicit line order: gather (index 0), exchange (index 1).
 			servedLineIndices: [0],
 		},
 	],

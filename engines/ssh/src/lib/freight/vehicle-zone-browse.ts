@@ -155,7 +155,7 @@ function pickZoneLoadSelection(
 	utility: ZoneBrowseUtilityContext
 ): VehicleZoneBrowseSelection | undefined {
 	const neededGoods = new Set(Object.keys(utility.remainingNeededGoods) as GoodType[])
-	// Implicit gather zones have no loadSelection; still treat standalone construction /
+	// Gather zones may have no loadSelection; still treat standalone construction /
 	// local halt need as selectable so begin-service and zone-load can see loose goods.
 	for (const goodType of Object.keys(utility.localNeededGoods) as GoodType[]) {
 		neededGoods.add(goodType)

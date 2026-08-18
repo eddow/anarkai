@@ -1,5 +1,6 @@
 import type { SaveState } from 'ssh/game'
 import { describe, expect, it } from 'vitest'
+import { gatherFreightLine } from '../freight-fixtures'
 import { TestEngine } from '../test-engine'
 
 async function flushDeferred(turns: number = 3) {
@@ -27,6 +28,15 @@ describe('Assigned worker effectuation', () => {
 					},
 				],
 				looseGoods: { wood: [[0, 1]] },
+				freightLines: [
+					gatherFreightLine({
+						name: 'AssignedGatherHive gather',
+						hiveName: 'AssignedGatherHive',
+						coord: [0, 0],
+						filters: ['wood'],
+						radius: 9,
+					}),
+				],
 			}
 
 			engine.loadScenario(scenario)
@@ -37,7 +47,7 @@ describe('Assigned worker effectuation', () => {
 			if (!gather) throw new Error('Expected gatherer to exist')
 
 			const line = [...engine.game.freightLines][0]
-			if (!line) throw new Error('Expected implicit gather freight line for road-fret bay')
+			if (!line) throw new Error('Expected gather freight line for road-fret bay')
 
 			const worker = engine.spawnCharacter('AssignedGatherWorker', { q: 0, r: 0 })
 			worker.role = 'worker'

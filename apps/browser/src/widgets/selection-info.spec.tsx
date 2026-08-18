@@ -348,10 +348,11 @@ describe('SelectionInfoWidget', () => {
 		).toBe(debugObjectId(secondVehicleObject))
 	})
 
-	it('closes the panel when the inspected object disappears', () => {
+	it('closes the panel when the inspected object is destroyed', () => {
 		const missingObject = Object.assign(new CharacterForTest(), {
 			title: 'Missing',
 			logs: [] as string[],
+			destroyed: true,
 		})
 		globals.selectionState.selectedObject = missingObject
 		const props = createProps()

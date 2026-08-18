@@ -364,7 +364,7 @@ function allowedGoodsNeededAtStop(
 	}
 	// Load-side zone stops still measure local construction sinks (exchange / gather zone
 	// with standalone shells). Without this, measureFreightStopNeededGoods returns empty
-	// for implicit gather zone load and begin-service cannot see loose goods as useful.
+	// for gather zone load and begin-service cannot see loose goods as useful.
 	const gatherLoad = gatherLoadSegmentForStop(line, stopIndex)
 	if (gatherLoad) {
 		return listGoodsAllowedOnGatherSegment(line, gatherLoad)

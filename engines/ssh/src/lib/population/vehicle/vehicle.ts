@@ -85,7 +85,6 @@ export type VehicleMaintenanceServiceSerialized = {
 	readonly kind: 'maintenance'
 	readonly maintenanceKind: VehicleMaintenanceKind
 	readonly targetCoord: { q: number; r: number }
-	readonly operatorUid?: string
 }
 
 export type VehicleServiceSerialized =
@@ -94,7 +93,6 @@ export type VehicleServiceSerialized =
 			readonly lineIndex: number
 			readonly stopIndex: number
 			readonly docked: boolean
-			readonly operatorUid?: string
 	  }
 	| VehicleMaintenanceServiceSerialized
 
@@ -103,7 +101,6 @@ export type LegacyLineVehicleServiceSerialized = {
 	readonly lineIndex: number
 	readonly stopIndex: number
 	readonly docked: boolean
-	readonly operatorUid?: string
 }
 
 /**
@@ -112,7 +109,6 @@ export type LegacyLineVehicleServiceSerialized = {
  */
 export type LegacyOffloadVehicleServiceSerialized = {
 	readonly kind: 'offload'
-	readonly operatorUid?: string
 }
 
 export interface VehicleSerializedState {

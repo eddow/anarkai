@@ -111,20 +111,8 @@ export interface SerializedBayQueueGraph {
 }
 
 /** Serialized dock request — only `waiting` or `servicing` states are persisted. */
-export interface SerializedDockRequest {
-	readonly vehicleUid: string
-	readonly bayGroupId: string
-	/** Handle to the node the vehicle currently occupies, if in the graph. */
-	readonly queueNode?: QueueNodeHandle
-	readonly arrivedAt: number
-	readonly priority: number
-	readonly state: 'waiting' | 'servicing'
-	/**
-	 * The ingress branch label this vehicle entered through.
-	 * Persisted so round-robin fairness survives a save/load cycle.
-	 */
-	readonly ingressBranch?: string
-}
+// TODO(bay-queues): re-spec when bay-queue state is actually persisted; the
+// legacy shape keyed by `vehicleUid` was removed (runtime `DockRequest` uses a `Vehicle` ref).
 
 // ─── Runtime types (transient, live object references) ─────────────────────
 

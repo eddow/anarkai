@@ -69,10 +69,13 @@ Custom named tile zones are saved under `GamePatches.zones.named`; legacy `zones
 `zones.residential` remain supported as built-in tile markers and keep their gameplay meaning. They
 are not selectable named-zone objects.
 
-## Bootstrap and implicit lines
+## Bootstrap
 
-- Implicit gather routes are generated per `freight_bay` hive patch (`implicitGatherFreightLinesFromHivePatches`); ids contain `:implicit-gather:`.
-- Explicit patches with the same `id` override implicit lines.
+- Freight lines are **explicit-only**: nothing is synthesized from `freight_bay` hive patches.
+  `bootstrapFreightLines` restores `GamePatches.freightLines` 1:1 (normalized, order preserved for
+  index-based serialization).
+- The "create gather line" UI shortcut is just a preset — it materializes an **explicit** line via
+  `createExplicitFreightLineDraftForFreightBay` + `Game.addFreightLine`.
 - `collectFreightLineBootstrapCoords` collects anchor tiles and zone centers for materialization.
 
 ## Runtime contracts
@@ -95,7 +98,7 @@ are not selectable named-zone objects.
 - Synthetic line objects: `freight-line:${encodeURIComponent(id)}`, `Game.getObject`.
 - Custom zone objects: `zones` opens the collection inspector; `zone:<zoneId>` opens an individual custom zone inspector with name/color editing, icon-based painting/deletion, central-tile go-to support, goods totals, and member-tile links. Built-in residential/harvest markers are not listed as named-zone objects.
 - Bay inspector: list lines, add gather/distribute **presets** (`createExplicitFreightLineDraftForFreightBay` + `Game.addFreightLine`). Per-line remove was removed from the bay list; **delete** is on the **line** inspector (`FreightLineProperties`).
-- Line inspector: name, **mode** (when unambiguous) + **radius** for the first matching segment, **Delete line** (`Game.removeFreightLineById`; implicit `:implicit-gather:` ids refused in engine). Stations list shows `load`/`unload` policy hints from `loadSelection` / `unloadSelection`.
+- Line inspector: name, **mode** (when unambiguous) + **radius** for the first matching segment, **Delete line** (`Game.removeFreightLine(line)`). Stations list shows `load`/`unload` policy hints from `loadSelection` / `unloadSelection`.
 - Freight editor v2: compact stop table with add/remove, drag reorder, bay/radius/named-zone stop
   kinds, map picking, existing zone-object selection, zone-object links, and per-stop load/unload policy configuration. Zone creation/renaming/deletion lives in the zone inspectors, not the line inspector.
 - Board preview: selected freight lines draw connectors and stop/zone highlights; hovering a stop row

@@ -697,54 +697,6 @@ export function gatherLoadRadiusForLineAtStop(
 	return undefined
 }
 
-/**
- * Bootstrap helper: one gather line per freight bay in hive patches.
- * Name uses the stable `Hive:implicit-gather:q,r` form so fixtures and tests can find it.
- */
-export function implicitGatherFreightLinesFromHivePatches(
-	hives: ReadonlyArray<{
-		name?: string
-		alveoli: ReadonlyArray<{ coord: readonly [number, number]; alveolus: string }>
-	}>
-): FreightLineDefinition[] {
-	const out: FreightLineDefinition[] = []
-	for (const hive of hives) {
-		const hiveName = freightLineStopHiveName(hive.name)
-		const displayHiveName = freightLineDisplayHiveName(hive.name)
-		for (const a of hive.alveoli) {
-			if (a.alveolus !== 'freight_bay') continue
-			const coord = [Math.floor(a.coord[0]), Math.floor(a.coord[1])] as const
-			const anchor: FreightStopAnchorAlveolus = {
-				kind: 'alveolus',
-				hiveName,
-				alveolusType: 'freight_bay',
-				coord,
-			}
-			out.push({
-				name: `${displayHiveName}:implicit-gather:${coord[0]},${coord[1]}`,
-				cyclic: true,
-				stops: [
-					{
-						zone: {
-							kind: 'radius',
-							center: coord,
-							radius: DEFAULT_GATHER_FREIGHT_RADIUS,
-						},
-					},
-					{
-						anchor,
-					},
-				],
-			})
-		}
-	}
-	return out
-}
-
-export function isImplicitGatherFreightLineName(lineName: string): boolean {
-	return lineName.includes(':implicit-gather:')
-}
-
 export type FreightBayStopAlveolus = {
 	readonly hive: { name?: string }
 	readonly name: string

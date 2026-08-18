@@ -91,14 +91,11 @@ export const baseGameScope = scope({
 		'quantity?': 'number',
 		'zoneBrowseAction?': "'load' | 'provide'",
 		'line?': 'object', // FreightLineDefinition (object ref, validated at runtime)
-		'lineId?': 'string', // Legacy string uid; use line instead
 		'bay?': 'AxialCoord',
 		'site?': 'AxialCoord',
 		'pathToBay?': 'AxialCoord[]',
 		'pathToSite?': 'AxialCoord[]',
 		'vehicle?': 'object', // Vehicle (object ref, validated at runtime)
-		'vehicleUid?': 'string', // Legacy string uid; use vehicle instead
-		'stopId?': 'string',
 		'targetCoord?': 'AxialCoord',
 		'path?': 'AxialCoord[]',
 		'currentJobPath?': 'AxialCoord[]',
@@ -139,7 +136,6 @@ export const baseGameScope = scope({
 		/** Maintenance sub-kind hint used by `allocateVehicleServiceForJob`; scripts read from `vehicle.service`. */
 		maintenanceKind: "'loadFromBurden' | 'unloadToTile' | 'park'",
 		'vehicle?': 'object', // Vehicle (object ref, validated at runtime)
-		'vehicleUid?': 'string', // Legacy string uid; use vehicle instead
 		targetCoord: 'Position',
 		'looseGood?': 'object',
 		'path?': 'AxialCoord[]',
@@ -157,7 +153,6 @@ export const baseGameScope = scope({
 		urgency: 'number',
 		fatigue: 'number',
 		'vehicle?': 'object', // Vehicle (object ref, validated at runtime)
-		'vehicleUid?': 'string', // Legacy string uid; use vehicle instead
 		goodType: 'GoodType',
 		path: 'AxialCoord[]',
 	},
@@ -169,7 +164,6 @@ export const baseGameScope = scope({
 		urgency: 'number',
 		fatigue: 'number',
 		'vehicle?': 'object', // Vehicle (object ref, validated at runtime)
-		'vehicleUid?': 'string', // Legacy string uid; use vehicle instead
 		goodType: 'GoodType',
 		quantity: 'number',
 		path: 'AxialCoord[]',
@@ -182,7 +176,6 @@ export const baseGameScope = scope({
 		urgency: 'number',
 		fatigue: 'number',
 		'vehicle?': 'object', // Vehicle (object ref, validated at runtime)
-		'vehicleUid?': 'string', // Legacy string uid; use vehicle instead
 		goodType: 'GoodType',
 		quantity: 'number',
 		path: 'AxialCoord[]',

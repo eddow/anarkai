@@ -1,4 +1,4 @@
-/** Default implicit gather freight line reach (tiles). */
+/** Default gather freight line reach (tiles), used by explicit gather-line drafts. */
 export const defaultGatherFreightRadius = 9
 
 /** Gather runs are most worthwhile when they can pick up this many goods (vehicle-driven later). */

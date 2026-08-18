@@ -1,7 +1,6 @@
 // @ts-nocheck
 import {
 	applyGatherRadiusFromEditor,
-	DEFAULT_GATHER_FREIGHT_RADIUS,
 	findDistributeFreightLine,
 	findDistributeRouteSegments,
 	findGatherFreightLine,
@@ -18,7 +17,7 @@ import { distributeFreightLine, gatherFreightLine } from '../freight-fixtures'
 import { TestEngine } from '../test-engine'
 
 describe('Freight line bootstrap', () => {
-	it('places freight bay with hive and implicit gather lines', async () => {
+	it('places a freight bay without synthesizing implicit gather lines', async () => {
 		const engine = new TestEngine({ terrainSeed: 1, characterCount: 0 })
 		await engine.init()
 		const scenario: Partial<SaveState> = {
@@ -30,10 +29,9 @@ describe('Freight line bootstrap', () => {
 		const gather = content as FreightBayAlveolus
 		expect(gather.hive).toBeDefined()
 		expect(gather.storage.hasRoom('wood')).toBe(0)
-		expect(engine.game.freightLines.size).toBeGreaterThan(0)
+		// No implicit gather line is auto-created: freight lines are explicit-only.
+		expect(engine.game.freightLines.size).toBe(0)
 		expect(gather.action).not.toHaveProperty('radius')
-		const implicit = [...engine.game.freightLines][0]
-		expect(freightLineEditorGatherRadius(implicit!)).toBe(DEFAULT_GATHER_FREIGHT_RADIUS)
 		await engine.destroy()
 	})
 
@@ -101,11 +99,7 @@ describe('Freight line bootstrap', () => {
 			}
 			engine.loadScenario(scenario)
 			const gather = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus
-			// Explicit line name does not override the implicit gather line (radius 9). Keep only
-			// the named line so hasLooseGoodsToGather reflects that line's radius authority.
-			for (const extra of [...engine.game.freightLines]) {
-				if (extra.name !== 'Gather radius') engine.game.removeFreightLine(extra)
-			}
+			// Only the explicit gather line exists — no implicit gather line is synthesized.
 			const line = [...engine.game.freightLines].find((l) => l.name === 'Gather radius')
 			expect(line).toBeDefined()
 			expect(engine.game.freightLines.size).toBe(1)
@@ -143,7 +137,7 @@ describe('Freight line bootstrap', () => {
 		expect(findDistributeFreightLine(lines, stop)?.name).toBe('Distribute first')
 	})
 
-	it('matches unnamed hives with their implicit gather lines', async () => {
+	it('does not synthesize gather lines for unnamed hives', async () => {
 		const engine = new TestEngine({ terrainSeed: 1, characterCount: 0 })
 		await engine.init()
 		try {
@@ -152,17 +146,8 @@ describe('Freight line bootstrap', () => {
 			})
 
 			const gather = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus
-			const implicit = findGatherFreightLine(engine.game.freightLines, gather)
-			expect(implicit).toBeDefined()
-			const unload = implicit?.stops[1]
-			const anchor = unload && 'anchor' in unload ? unload.anchor : undefined
-			expect(anchor).toMatchObject({
-				kind: 'alveolus',
-				hiveName: '',
-				alveolusType: 'freight_bay',
-				coord: [0, 0],
-			})
-			expect(freightLineEditorGatherRadius(implicit!)).toBe(DEFAULT_GATHER_FREIGHT_RADIUS)
+			// No implicit gather line is auto-created, even for unnamed hives.
+			expect(findGatherFreightLine(engine.game.freightLines, gather)).toBeUndefined()
 		} finally {
 			await engine.destroy()
 		}
@@ -183,6 +168,15 @@ describe('Freight line bootstrap', () => {
 		try {
 			const scenario: Partial<SaveState> = {
 				hives: [{ name: 'H', alveoli: [{ coord: [0, 0], alveolus: 'freight_bay', goods: {} }] }],
+				freightLines: [
+					gatherFreightLine({
+						name: 'Gather line',
+						hiveName: 'H',
+						coord: [0, 0],
+						filters: ['wood'],
+						radius: 9,
+					}),
+				],
 			}
 			engine.loadScenario(scenario)
 			const initial = [...engine.game.freightLines][0]
@@ -214,7 +208,7 @@ describe('Freight line bootstrap', () => {
 			const saved = engine.game.saveGameData()
 			await reloaded.game.loadGameData(saved)
 
-			// Rename leaves the implicit gather name free, so reload re-merges implicit + edited.
+			// The explicit line round-trips by array position (index-based serialization).
 			const reloadedLine = [...reloaded.game.freightLines].find(
 				(l) => l.name === 'Edited gather line'
 			)

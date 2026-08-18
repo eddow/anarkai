@@ -543,7 +543,7 @@ describe('chopSaw example game', () => {
 		const line = [...game.freightLines].find(
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
-		if (!line) throw new Error('expected ChopSaw implicit gather line')
+		if (!line) throw new Error('expected ChopSaw gather line')
 		const unload = line.stops[0]
 		const load = line.stops[1]
 		if (!unload || !load) throw new Error('expected ChopSaw load/unload stops')
@@ -578,7 +578,7 @@ describe('chopSaw example game', () => {
 		const line = [...game.freightLines].find(
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
-		if (!line) throw new Error('expected ChopSaw implicit gather line')
+		if (!line) throw new Error('expected ChopSaw gather line')
 		const unload = line.stops[0]
 		if (!unload) throw new Error('expected ChopSaw unload stop')
 		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
@@ -740,7 +740,7 @@ describe('chopSaw example game', () => {
 		const line = [...game.freightLines].find(
 			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
 		)
-		if (!line) throw new Error('expected ChopSaw implicit gather line')
+		if (!line) throw new Error('expected ChopSaw gather line')
 		const unload = line.stops[0]
 		const load = line.stops[1]
 		if (!unload || !load) throw new Error('expected ChopSaw load/unload stops')

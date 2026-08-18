@@ -342,10 +342,13 @@ const SelectionInfoWidget = (
 	effect`selection-info:close-missing-object`(() => {
 		const object = current.object
 		if (!object || props.params.pinned) return
-		// Synthetic inspector objects (freight-line, hive) are transient by design;
-		// real game objects must still be registered to stay inspectable.
+		// Synthetic inspector objects (freight-line, hive) are transient by design.
 		if (isFreightLineObject(object) || isHiveObject(object)) return
-		if (game.objects.has(object as InteractiveGameObject)) return
+		// Real game objects (characters, vehicles, tiles, alveoli, …) are "missing"
+		// once destroyed. Board content like alveoli is NOT registered in
+		// `game.objects`, so registry membership is the wrong test — use the
+		// lifecycle flag instead.
+		if (!(object as { destroyed?: boolean }).destroyed) return
 		selectionState.selectedObject = undefined
 		scope.dockviewApi?.removePanel?.(api)
 	})

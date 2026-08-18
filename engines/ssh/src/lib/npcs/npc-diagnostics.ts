@@ -27,14 +27,11 @@ export function summarizeJobPlanForDiagnostics(
 			out[key] = v
 		}
 	}
-	// Prefer .line object reference; fall back to legacy .lineId string
+	// `.line` object reference is the only line identity; emit a display label via debugObjectId.
 	if (j.line && typeof j.line === 'object') {
 		const lineId = debugObjectId(j.line as object)
 		if (lineId) out.lineId = lineId
-	} else {
-		copyIfPrimitive('lineId', j.lineId)
 	}
-	copyIfPrimitive('stopId', j.stopId)
 	copyIfPrimitive('stopIndex', j.stopIndex)
 	copyIfPrimitive('goodType', j.goodType)
 	copyIfPrimitive('quantity', j.quantity)

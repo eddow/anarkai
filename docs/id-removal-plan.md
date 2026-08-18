@@ -1,6 +1,8 @@
 # Plan: Remove Runtime IDs from SSH Entities
 
 > Updated 2026-08-18 — **Phase F complete.** All 14 F-items are done. Inspector dispatch now uses object identity (`selectionState.selectedObject`), `debugObjectId` is display-only, and test `.uid` fixtures were removed. Selection/layout state is no longer persisted (`stored` → `shallowReactive`). See the per-item snapshot at the bottom.
+>
+> **Final audit 2026-08-18** — runtime object ids are fully removed and **no id is saved** to `SaveState` (array-index + content-key only). 2 items remain: 2 internal `debugObjectId`/`vehicleUid` uses to fix (the 3 dead legacy shapes are now cleaned). See "What remains to remove all runtime ids".
 
 > Updated 2026-08-06 — Phase F audit identified ~190 id/index patterns across 14 items (F1–F14). See "Phase F — 2026-08-06 audit" below.
 
@@ -27,6 +29,7 @@
 | **Serialization bridge** | ✅ Completed — index-based vehicle/character/line/plan refs in save/load |
 | **Final audit 2026-08-02** | ✅ Superseded by Phase F (all 14 items done) |
 | **Phase F (F1–F14)** | ✅ Completed — 14/14 done (see snapshot) |
+| **Contraventions audit 2026-08-18** | ⚠️ 2 internal `debugObjectId`/`vehicleUid` fixes remain (3 legacy shapes cleaned) |
 
 ## Principles (for removal)
 
@@ -35,6 +38,96 @@
 3. **Index, not ID, in serialization**: Arrays have inherent order. Array position is the identity.
 4. **Debug labels are transient**: `WeakMap<object, string>` for trace/log only. Never part of the object's type.
 5. **Dead code dies immediately**: A removed `.uid` property must delete every line that read it.
+
+---
+
+## Remaining contraventions (2026-08-18 audit)
+
+Runtime object ids and serialized save-state ids are gone, but these violations of the principles
+remain. **None are persisted as object ids in `SaveState`** — the "no id saved" invariant holds — but
+several are dead/legacy shapes or internal `debugObjectId` uses that still need cleanup.
+
+### 1. `debugObjectId` used as an in-memory identity key (violates principle #4) ❌
+
+`engines/ssh/src/lib/game/game.ts` builds **Map keys** from `debugObjectId()` for dedupe/accumulation.
+This is *identity*, not display:
+
+- `pendingPresentationEvents` (private, ~line 540) — dedupe keys:
+  - `${event.type}:${debugObjectId(owner)}` in `enqueueStoragePresentationChange` (~937)
+  - `${event.type}:${debugObjectId(owner)}:${debugObjectId(vehicle)}` in `enqueueVehicleDockPresentationChange` (~949)
+  - `npc-trade.transferred:${event.line}:${event.stopIndex}:${debugObjectId(event.vehicle)}` in `enqueueNpcTradePresentationChange` (~960)
+- `tradeTransferLog` (private) — accumulator key `${event.line}:${event.stopIndex}:${debugObjectId(event.vehicle)}`
+  in `accumulateTradeTransferLog` (~970), read back in `getFreightLineTradeHistory` via `key.startsWith(`${line}:`)`.
+
+**Fix:** dedupe by object identity (`Map`/`Set`/`WeakMap` keyed on the `GameObject`/`Vehicle`), keeping the
+`line`/`stopIndex` string prefix only where the trade-log really needs a stable per-(line, stop, vehicle)
+grouping (which can be derived from indexes, not `debugObjectId`).
+
+### 2. `vehicleUid:` leftover on a convey job literal (violates F6) ❌
+
+`engines/ssh/src/lib/freight/vehicle-work.ts:2200` — `asVehicleProposedJob({ job: 'convey', …, vehicleUid: debugObjectId(vehicle) ?? '' }, …)`.
+The target type (`VehicleDockConveyJob`) now has `vehicle`, not `vehicleUid`; this is a stale write that no
+longer type-checks (`TS2561`). Replace with `vehicle`.
+
+### 3. Legacy serialization types with `operatorUid?` (declared, never emitted) ✅ cleaned 2026-08-18
+
+Removed `operatorUid?` from `VehicleMaintenanceServiceSerialized` / `VehicleServiceSerialized` /
+`LegacyLineVehicleServiceSerialized` / `LegacyOffloadVehicleServiceSerialized` in `vehicle.ts`, and deleted the
+entirely-dead duplicate module `vehicle-types.d.ts`. `serializeVehicles` emits the index-based
+`SerializedVehicle` / `SerializedVehicleService` (`operatorIndex`) — no string uids remain in the vehicle save types.
+
+### 4. `SerializedDockRequest.vehicleUid: string` (declared, never used) ✅ cleaned 2026-08-18
+
+Deleted the dead `SerializedDockRequest` interface from `bay-queue-types.ts` (runtime `DockRequest` uses a `Vehicle` ref; nothing serialized it).
+
+### 5. Legacy `lineId?`/`vehicleUid?`/`stopId?` arktype fields on work-plan contracts ✅ cleaned 2026-08-18
+
+Removed the optional legacy string-uid fields from `types/base.ts` arktype schemas (`GenericWorkPlan`,
+`VehicleOffloadWorkPlan`, `LoadOntoVehicleWorkPlanArk`, `UnloadFromVehicleWorkPlanArk`, `ProvideFromVehicleWorkPlanArk`),
+and dropped the `lineId`/`stopId` string fallback in `npc-diagnostics.ts`. Object-ref `line`/`vehicle` are the only identity.
+
+### 6. Persisted content/domain string identities (by design — not object ids) ✅
+
+Persisted but legitimate *content* keys, not runtime object ids (see "Legitimate remaining keys" above):
+`FreightNpcTradeStop.settlementId`, `FreightZoneDefinitionNamed.zoneId`, `HivePlanEntry.roleId` /
+patch `planRoleId`, `HivePlan.knownnessFingerprint`, `NpcSettlementTradeProfile.id` / `GeneratedSettlement.id` /
+`SettlementRegion.id` (`settlement-7,19` generator keys), `BayQueueConfigInput.bayGroups[].id` (authored YAML config key),
+`MovementRef.id` (opaque nonce — explicitly "not a serialization id").
+
+### 7. Trace/display `*Uid`/`*Id` payload fields (display-only — acceptable) ✅
+
+`characterUid`, `vehicleUid`, `operatorUid`, `lineId`, `claimedByUid`, `operatedVehicleUid`, `servedLineIds`,
+etc. throughout `dev/trace.ts`, `dev/debug-game-state.ts`, `freight/*`, `npcs/*`, `population/*` are
+`debugObjectId(...)` values keyed by `WeakMap` — display strings only, never part of an object type and
+never serialized. Also `storage/guard.ts` `Held.id` (leak-tracking counter, only in `console.error`/trace).
+Acceptable under principle #4.
+
+---
+
+## What remains to remove all runtime ids (2026-08-18)
+
+### Must fix — `debugObjectId`/`vehicleUid` still used internally (2)
+
+| # | Site | Action |
+|---|---|---|
+| 1 | `game.ts:936,948,959,969` — `pendingPresentationEvents` + `tradeTransferLog` Map keys built from `debugObjectId(...)` | Re-key by object identity (`WeakMap`/`Set` keyed on `GameObject`/`Vehicle`); keep the `line`/`stopIndex` prefix in the trade log via indexes, not `debugObjectId` |
+| 2 | `vehicle-work.ts:2200` — `asVehicleProposedJob({ job: 'convey', …, vehicleUid: debugObjectId(vehicle) ?? '' })` | Change to `vehicle` (the `VehicleDockConveyJob` type already dropped `vehicleUid`) |
+
+### Should delete — dead/legacy shapes (3) — ✅ DONE 2026-08-18
+
+| # | Site | Action |
+|---|---|---|
+| 3 | `vehicle.ts:84-118` + `vehicle-types.d.ts:8-48` — `operatorUid?` in legacy `Vehicle*Serialized` unions | ✅ Removed `operatorUid?`; `vehicle-types.d.ts` (dead duplicate module) deleted; `serializeVehicles` emits index-based `SerializedVehicle` (`operatorIndex`) |
+| 4 | `bay-queue-types.ts:114` — `SerializedDockRequest { vehicleUid: string }` | ✅ Deleted (dead shape, referenced nowhere in save/load) |
+| 5 | `types/base.ts:94,100,101,142,160,172,185` — `lineId?`/`vehicleUid?`/`stopId?` arktype fields | ✅ Removed the legacy string-uid arktype fields; `npc-diagnostics.ts` legacy `lineId`/`stopId` string fallback dropped (object-ref `line`/`vehicle` are authoritative) |
+
+### Keep — by design, not runtime ids
+
+- **Content/domain keys**: `settlementId`, `zoneId`, `roleId`/`planRoleId`, `knownnessFingerprint`, `NpcSettlementTradeProfile.id`, `GeneratedSettlement.id`, `SettlementRegion.id`, `BayQueueConfigInput.bayGroups[].id`
+- **Opaque nonce**: `MovementRef.id` (number; survives object replacement; "not a serialization id")
+- **Debug/display**: `debugObjectId(...)` trace payloads, `Held.id` leak counter
+
+**Net:** 2 code fixes remaining (the 🔴 items above); the 3 dead/legacy shapes are cleaned up. Everything else is content identity or display-only.
 
 ---
 
@@ -49,6 +142,13 @@ Removed `.uid` from every runtime object: `Map<string,T>` → `Map<Vehicle,T>` (
 *Committed as `62fcebb "b4c"`.*
 
 Deleted `id` from `FreightLineDefinition`; removed implicit-gather line synthesis; `VehicleHopJob.lineId`/`ZoneBrowseJob.lineId` → required `line` object ref; all `line.id` trace payloads → `debugObjectId(line)`; serialization now index-based (`lineIndex`, `servedLineIndices`, `VehiclePatch.servedLineIndices`).
+
+> **DONE (2026-08-18) — no implicit lines at all.** `implicitGatherFreightLinesFromHivePatches` and
+> `isImplicitGatherFreightLineName` were deleted. `bootstrapFreightLines` restores `GamePatches.freightLines`
+> 1:1 (normalized, order preserved) — nothing is synthesized from `freight_bay` hive patches. The "create
+> gather line" UI action is a preset that materializes an **explicit** line (`createExplicitFreightLineDraftForFreightBay`
+> + `addFreightLine`). Every line in play is explicit; `servedLineIndices`/`lineIndex` resolve against the
+> restored array directly (no name-keyed merge).
 
 > **DECIDED (2026-08-17) — container shape resolved.** `Game.freightLines` is now a **reactive `Set<FreightLineDefinition>`**
 > keyed by object identity. The array form exists only in the serialized savefile and a transient

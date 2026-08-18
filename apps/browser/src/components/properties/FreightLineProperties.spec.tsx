@@ -401,7 +401,7 @@ describe('FreightLineProperties', () => {
 		expect(args?.[1]?.cyclic).toBe(true)
 	})
 
-	it('allows editing and deleting an implicit gather line', () => {
+	it('allows editing and deleting a gather line', () => {
 		stop = latch(
 			container,
 			<FreightLineProperties

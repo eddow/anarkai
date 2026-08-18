@@ -359,7 +359,7 @@ describe('AlveolusProperties', () => {
 	})
 
 	it('renders freight bay line controls with bay-specific heading', () => {
-		findFreightLinesForStop.mockReturnValue([{ id: 'HiveX:implicit-gather:0,0' } as never])
+		findFreightLinesForStop.mockReturnValue([{ name: 'HiveX gather' } as never])
 		const bay = new MockFreightBayAlveolus()
 		stop = latch(
 			container,
