@@ -96,13 +96,13 @@ export interface HardListSearchPickerItem {
 	readonly disabled?: boolean
 }
 
-interface HardListSearchPickerProps {
-	items: readonly HardListSearchPickerItem[]
-	onSelect: (item: HardListSearchPickerItem) => void
+interface HardListSearchPickerProps<T extends HardListSearchPickerItem> {
+	items: readonly T[]
+	onSelect: (item: T) => void
 	placeholder?: string
 	emptyMessage?: string
 	testId?: string
-	renderItem?: (item: HardListSearchPickerItem) => JSX.Element
+	renderItem?: (item: T) => JSX.Element
 }
 
 const normalized = (value: string) => value.trim().toLowerCase()
@@ -113,7 +113,9 @@ function itemDistance(item: HardListSearchPickerItem): number | undefined {
 	return axial.distance(center, item.coord)
 }
 
-export default function HardListSearchPicker(props: HardListSearchPickerProps) {
+export default function HardListSearchPicker<T extends HardListSearchPickerItem>(
+	props: HardListSearchPickerProps<T>
+) {
 	const state = reactive({ query: '' })
 
 	const visibleItems = () => {
@@ -137,7 +139,7 @@ export default function HardListSearchPicker(props: HardListSearchPickerProps) {
 			})
 	}
 
-	const renderRow = (item: HardListSearchPickerItem) =>
+	const renderRow = (item: T) =>
 		props.renderItem ? (
 			props.renderItem(item)
 		) : (

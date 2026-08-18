@@ -4,6 +4,7 @@ import type { Tile } from 'ssh/board/tile'
 import type { ZoneDefinition } from 'ssh/board/zone'
 import type { Game } from 'ssh/game'
 import type { InspectorSelectableObject } from 'ssh/game/object'
+import { IndexStore } from 'ssh/serialization'
 import type { AlveolusType, GoodType } from 'ssh/types'
 import type { AxialCoord, Positioned } from 'ssh/utils'
 import { type Position, toAxialCoord } from 'ssh/utils/position'
@@ -201,17 +202,19 @@ function normalizeNpcTradeStop(trade: FreightNpcTradeStop): FreightNpcTradeStop 
 /**
  * Serialize a line's stops for the save format: named-zone stops drop the live
  * `definition` object and carry only their `zoneIndex` into the `zones[]` array.
+ * The index is resolved through the central {@link IndexStore} for zones.
  */
 export function serializeFreightLineForSave(
 	line: FreightLineDefinition,
-	zoneIndexByDefinition: ReadonlyMap<ZoneDefinition, number>
+	customZones: IndexStore<ZoneDefinition>
 ): FreightLineDefinition {
 	return {
 		...line,
 		stops: line.stops.map((stop) => {
 			if (!('zone' in stop) || stop.zone.kind !== 'named') return stop
 			const zone = stop.zone
-			const index = zone.definition ? zoneIndexByDefinition.get(zone.definition) : zone.zoneIndex
+			const index =
+				zone.definition !== undefined ? customZones.toIndex(zone.definition) : zone.zoneIndex
 			return { ...stop, zone: { kind: 'named' as const, zoneIndex: index } }
 		}),
 	}
@@ -226,6 +229,7 @@ import { resolveFreightNpcTradeProfile } from 'ssh/freight/freight-trade-profile
  * Call after `bootstrapFreightLines` so all lines and settlement profiles are loaded.
  */
 export function hydrateFreightLineTradeProfiles(lines: FreightLineDefinition[], game: Game): void {
+	const customZones = IndexStore.fromOrdered(game.hex.zoneManager.listCustomZoneDefinitions())
 	for (const line of lines) {
 		for (const stop of line.stops) {
 			if (!('trade' in stop)) continue
@@ -236,7 +240,7 @@ export function hydrateFreightLineTradeProfiles(lines: FreightLineDefinition[], 
 			if (stop.zone.definition) continue
 			if (stop.zone.zoneIndex === undefined) continue
 			;(stop.zone as { definition: FreightZoneDefinitionNamed['definition'] }).definition =
-				game.hex.zoneManager.zoneByIndex(stop.zone.zoneIndex)
+				customZones.fromIndex(stop.zone.zoneIndex)
 		}
 	}
 }

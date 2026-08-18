@@ -482,11 +482,6 @@ describe('AlveolusProperties', () => {
 						{ id: 'north-grove', name: 'North Grove', type: 'custom' },
 						{ id: 'south-grove', name: 'South Grove', type: 'custom' },
 					],
-					zoneByIndex: (index: number) =>
-						[
-							{ id: 'north-grove', name: 'North Grove', type: 'custom' },
-							{ id: 'south-grove', name: 'South Grove', type: 'custom' },
-						][index],
 				},
 			},
 		}

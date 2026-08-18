@@ -2,6 +2,7 @@ import { vehicles } from 'engine-rules'
 import { GcClassed } from 'ssh/board/content/utils'
 import type { LooseGood } from 'ssh/board/looseGoods'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
+import type { Serialized } from 'ssh/serialization'
 import { SlottedStorage, SpecificStorage, type Storage } from 'ssh/storage'
 import type { GoodType, PickupPlan } from 'ssh/types'
 import type { AxialCoord } from 'ssh/utils'
@@ -126,30 +127,33 @@ export interface VehicleSerializedState {
 }
 
 /**
- * Index-based save format — replaces {@link VehicleSerializedState}.
+ * Persisted data model of a vehicle. Object references (`servedLines`, `service.line`,
+ * `service.operator`) are {@link SerializationRegistry} types, so {@link SerializedVehicle}
+ * derives their serialization numbers automatically.
  *
- * Array order IS identity: `vehicles[i]` is the `i`-th vehicle. All cross-references
- * are indexes into their respective arrays (freight lines, characters) — no string uids.
+ * Array order IS identity: `vehicles[i]` is the `i`-th vehicle.
  */
-export interface SerializedVehicle {
-	readonly vehicleType: WorldVehicleType
-	readonly position: { q: number; r: number }
-	readonly goods?: Partial<Record<GoodType, number>>
-	/** Indexes into the freight lines array (position in `game.freightLines`). */
-	readonly servedLineIndexes: readonly number[]
-	readonly service?: SerializedVehicleService
+export interface VehicleState {
+	vehicleType: WorldVehicleType
+	position: { q: number; r: number }
+	goods?: Partial<Record<GoodType, number>>
+	/** Freight lines this vehicle serves — serializes to line indexes. */
+	servedLines: FreightLineDefinition[]
+	service?: VehicleLineServiceState
 }
 
-export type SerializedVehicleService = {
-	readonly kind: 'line'
-	/** Index into the freight lines array. */
-	readonly lineIndex: number
-	/** Index into `line.stops[]`. */
-	readonly stopIndex: number
-	readonly docked: boolean
-	/** Index into the characters array. */
-	readonly operatorIndex?: number
+/** Persisted line-service state. Maintenance services are transient and never persisted. */
+export interface VehicleLineServiceState {
+	kind: 'line'
+	line: FreightLineDefinition
+	/** Index into `line.stops` (a secondary index, not a registry reference). */
+	stopIndex: number
+	docked: boolean
+	operator?: Character
 }
+
+/** Serialized vehicle — derived from {@link VehicleState}; references become indexes. */
+export type SerializedVehicle = Serialized<VehicleState>
 
 export function createVehicleStorage(vehicleType: VehicleType): Storage {
 	const vehicleDefinition = vehicles[vehicleType] as Ssh.VehicleDefinition

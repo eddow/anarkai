@@ -2197,7 +2197,7 @@ export function collectVehicleProposedJobs(game: Game, vehicle: Vehicle): Vehicl
 									job: 'convey',
 									fatigue: advertisedJob.fatigue,
 									urgency: advertisedJob.urgency,
-									vehicleUid: debugObjectId(vehicle) ?? '',
+									vehicle,
 								},
 								vehicle,
 								advertisedJob.targetTile

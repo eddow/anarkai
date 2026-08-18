@@ -2,7 +2,7 @@
 
 > Updated 2026-08-18 — **Phase F complete.** All 14 F-items are done. Inspector dispatch now uses object identity (`selectionState.selectedObject`), `debugObjectId` is display-only, and test `.uid` fixtures were removed. Selection/layout state is no longer persisted (`stored` → `shallowReactive`). See the per-item snapshot at the bottom.
 >
-> **Final audit 2026-08-18** — runtime object ids are fully removed and **no id is saved** to `SaveState` (array-index + content-key only). `roleId`/`planRoleId`, `settlementId` and `zoneId` (name) are all gone — replaced by coordinate / center / array-index. 2 items remain: the in-memory `debugObjectId` Map keys and the stale `vehicleUid` literal. See "What remains to remove all runtime ids".
+> **Final audit 2026-08-18** — runtime object ids are fully removed and **no id is saved** to `SaveState` (array-index + content-key only). `roleId`/`planRoleId`, `settlementId` and `zoneId` (name) are all gone — replaced by coordinate / center / array-index. All in-memory `debugObjectId` Map keys and the stale `vehicleUid` literal are resolved (dedupe/accumulation now keyed on object identity). Serialization indexes live only in the `(de)serialization` layer (`IndexStore`/`SaveIndexes`).
 
 > Updated 2026-08-06 — Phase F audit identified ~190 id/index patterns across 14 items (F1–F14). See "Phase F — 2026-08-06 audit" below.
 
@@ -29,7 +29,7 @@
 | **Serialization bridge** | ✅ Completed — index-based vehicle/character/line/plan refs in save/load |
 | **Final audit 2026-08-02** | ✅ Superseded by Phase F (all 14 items done) |
 | **Phase F (F1–F14)** | ✅ Completed — 14/14 done (see snapshot) |
-| **Contraventions audit 2026-08-18** | ⚠️ 2 internal `debugObjectId`/`vehicleUid` fixes remain (3 legacy shapes cleaned) |
+| **Contraventions audit 2026-08-18** | ✅ Resolved — in-memory `debugObjectId` Map keys → object identity; stale `vehicleUid` → `vehicle`; legacy shapes cleaned |
 
 ## Principles (for removal)
 
@@ -47,27 +47,24 @@ Runtime object ids and serialized save-state ids are gone, but these violations 
 remain. **None are persisted as object ids in `SaveState`** — the "no id saved" invariant holds — but
 several are dead/legacy shapes or internal `debugObjectId` uses that still need cleanup.
 
-### 1. `debugObjectId` used as an in-memory identity key (violates principle #4) ❌
+### 1. `debugObjectId` used as an in-memory identity key (violates principle #4) ✅
 
-`engines/ssh/src/lib/game/game.ts` builds **Map keys** from `debugObjectId()` for dedupe/accumulation.
-This is *identity*, not display:
+`engines/ssh/src/lib/game/game.ts` built **Map keys** from `debugObjectId()` for dedupe/accumulation.
+This was *identity*, not display.
 
-- `pendingPresentationEvents` (private, ~line 540) — dedupe keys:
-  - `${event.type}:${debugObjectId(owner)}` in `enqueueStoragePresentationChange` (~937)
-  - `${event.type}:${debugObjectId(owner)}:${debugObjectId(vehicle)}` in `enqueueVehicleDockPresentationChange` (~949)
-  - `npc-trade.transferred:${event.line}:${event.stopIndex}:${debugObjectId(event.vehicle)}` in `enqueueNpcTradePresentationChange` (~960)
-- `tradeTransferLog` (private) — accumulator key `${event.line}:${event.stopIndex}:${debugObjectId(event.vehicle)}`
-  in `accumulateTradeTransferLog` (~970), read back in `getFreightLineTradeHistory` via `key.startsWith(`${line}:`)`.
+**Fixed:** dedupe/accumulation now keyed on object identity:
+- `pendingStorageEvents: Map<GameObject, GamePresentationEvent>`
+- `pendingDockEvents: Map<GameObject, Map<GameObject, GamePresentationEvent>>`
+- `pendingNpcTradeEvents: Map<FreightLineDefinition, Map<number, Map<Vehicle, GamePresentationEvent>>>`
+- `tradeTransferLog: Map<FreightLineDefinition, Map<number, Map<Vehicle, TradeTransferLogEntry[]>>>`
 
-**Fix:** dedupe by object identity (`Map`/`Set`/`WeakMap` keyed on the `GameObject`/`Vehicle`), keeping the
-`line`/`stopIndex` string prefix only where the trade-log really needs a stable per-(line, stop, vehicle)
-grouping (which can be derived from indexes, not `debugObjectId`).
+The `line`/`stopIndex` prefix survives only as map nesting levels (real grouping structure), not as string keys.
+`debugObjectId` is now display-only throughout `game.ts` (import removed).
 
-### 2. `vehicleUid:` leftover on a convey job literal (violates F6) ❌
+### 2. `vehicleUid:` leftover on a convey job literal (violates F6) ✅
 
-`engines/ssh/src/lib/freight/vehicle-work.ts:2200` — `asVehicleProposedJob({ job: 'convey', …, vehicleUid: debugObjectId(vehicle) ?? '' }, …)`.
-The target type (`VehicleDockConveyJob`) now has `vehicle`, not `vehicleUid`; this is a stale write that no
-longer type-checks (`TS2561`). Replace with `vehicle`.
+`engines/ssh/src/lib/freight/vehicle-work.ts` — `asVehicleProposedJob({ job: 'convey', …, vehicleUid: debugObjectId(vehicle) ?? '' }, …)`
+was a stale write that no longer type-checks. Replaced with `vehicle` (the target `VehicleDockConveyJob` now carries `vehicle`).
 
 ### 3. Legacy serialization types with `operatorUid?` (declared, never emitted) ✅ cleaned 2026-08-18
 

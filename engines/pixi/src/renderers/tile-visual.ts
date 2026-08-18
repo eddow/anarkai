@@ -275,9 +275,7 @@ export class TileVisual extends VisualObject<Tile> {
 			if (action && canInteract) {
 				if (action.startsWith('zone:')) {
 					const zoneType = action.replace('zone:', '')
-					const idx = this.object.board.zoneManager.findZoneIndexByName(zoneType)
-					const custom =
-						idx >= 0 ? this.object.board.zoneManager.zoneByIndex(idx)?.color : undefined
+					const custom = this.object.board.zoneManager.findZoneByName(zoneType)?.color
 					tint = custom
 						? Number.parseInt(custom.replace(/^#/, ''), 16)
 						: zoneType === 'residential'

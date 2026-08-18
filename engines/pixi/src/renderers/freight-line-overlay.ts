@@ -75,15 +75,7 @@ export class FreightLineOverlay {
 			for (const tile of freightZoneTiles(this.renderer.game, stop.zone)) {
 				const world = toWorldCoord(tile.position)
 				if (!world) continue
-				const zoneColor = emphasized
-					? color
-					: parseColor(
-							('definition' in stop.zone ? stop.zone.definition?.color : undefined) ??
-								('zoneIndex' in stop.zone && stop.zone.zoneIndex !== undefined
-									? this.renderer.game.hex.zoneManager.zoneByIndex(stop.zone.zoneIndex)?.color
-									: undefined),
-							color
-						)
+				const zoneColor = emphasized ? color : parseColor(stop.zone.definition?.color, color)
 				const points = hexPoints(world.x, world.y, emphasized ? 0 : 2)
 				this.graphics.poly(points).fill({ color: zoneColor, alpha })
 				this.graphics.poly(points).stroke({ width: strokeWidth, color: zoneColor, alpha: 0.9 })
@@ -109,10 +101,9 @@ export class FreightLineOverlay {
 	): void {
 		const color = parseColor(definition.color, 0x4f8cff)
 		const alpha = emphasized ? 0.28 : 0.14
-		const idx = this.renderer.game.hex.zoneManager.findZoneIndexByName(
+		const def = this.renderer.game.hex.zoneManager.findZoneByName(
 			definition.name ?? definition.type
 		)
-		const def = idx >= 0 ? this.renderer.game.hex.zoneManager.zoneByIndex(idx) : undefined
 		const coords = def ? this.renderer.game.hex.zoneManager.coordsForZone(def) : []
 		for (const coord of coords) {
 			const world = toWorldCoord(coord)

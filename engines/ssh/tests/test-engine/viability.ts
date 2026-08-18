@@ -139,7 +139,7 @@ export function patchesToSaveState(
 ): SaveState {
 	return {
 		...patches,
-		population: [],
+		characters: [],
 		generationOptions: generation,
 	}
 }

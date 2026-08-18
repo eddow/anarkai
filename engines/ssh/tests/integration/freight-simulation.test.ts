@@ -317,9 +317,7 @@ describe('Freight simulation (gather + distribute)', () => {
 			engine.loadScenario(scenario)
 
 			const siteTile = engine.game.hex.getTile({ q: 0, r: 0 })!
-			siteTile.zone = engine.game.hex.zoneManager.zoneByIndex(
-				engine.game.hex.zoneManager.findZoneIndexByName('residential')
-			)!
+			siteTile.zone = engine.game.hex.zoneManager.findZoneByName('residential')!
 			siteTile.content = new BuildDwelling(siteTile, 'basic_dwelling')
 			const site = siteTile.content as BuildDwelling
 			site.storage.addGood('planks', 1)

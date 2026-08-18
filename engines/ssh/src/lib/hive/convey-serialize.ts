@@ -4,6 +4,7 @@ import {
 	type VehicleFreightDock,
 } from 'ssh/freight/vehicle-freight-dock'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
+import type { IndexStore } from 'ssh/serialization'
 import type { GoodType } from 'ssh/types'
 import type { AxialCoord } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
@@ -31,7 +32,7 @@ export interface SerializedConveyMovement {
 
 export function serializeFreightParty(
 	party: FreightMovementParty,
-	vehicleIndexByVehicle?: ReadonlyMap<Vehicle, number>
+	vehicles?: IndexStore<Vehicle>
 ): SerializedFreightPartyRef {
 	const { q, r } = toAxialCoord(party.tile.position)
 	const coord = [q, r] as const
@@ -39,7 +40,7 @@ export function serializeFreightParty(
 		const dock = party as VehicleFreightDock
 		return {
 			kind: 'vehicleDock',
-			vehicleIndex: vehicleIndexByVehicle?.get(dock.vehicle) ?? -1,
+			vehicleIndex: vehicles?.toIndex(dock.vehicle) ?? -1,
 			bayCoord: coord,
 		}
 	}

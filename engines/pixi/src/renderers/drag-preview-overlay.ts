@@ -80,11 +80,7 @@ export class DragPreviewOverlay {
 		this.graphics.clear()
 
 		// Get zone-specific colors
-		const custom = parseHexColor(
-			this.renderer.game.hex.zoneManager.zoneByIndex(
-				this.renderer.game.hex.zoneManager.findZoneIndexByName(zoneType)
-			)?.color
-		)
+		const custom = parseHexColor(this.renderer.game.hex.zoneManager.findZoneByName(zoneType)?.color)
 		const colors = custom
 			? { fill: custom, stroke: custom }
 			: ZONE_COLORS[zoneType] || ZONE_COLORS['']

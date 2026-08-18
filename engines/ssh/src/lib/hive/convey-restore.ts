@@ -6,6 +6,7 @@ import { serializeFreightParty } from 'ssh/hive/convey-serialize'
 import type { Hive, TrackedMovement } from 'ssh/hive/hive'
 import { type MovementRef, movementRefId } from 'ssh/hive/movement-ref'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
+import type { SaveIndexes } from 'ssh/serialization'
 
 function isAlveolusLike(value: unknown): value is Alveolus {
 	return (
@@ -41,7 +42,10 @@ function collectDistinctHives(game: Game): Hive[] {
 	return [...hives]
 }
 
-export function collectSerializedConveyMovementsWithIndex(game: Game): {
+export function collectSerializedConveyMovementsWithIndex(
+	game: Game,
+	indexes: SaveIndexes
+): {
 	rows: SerializedConveyMovement[]
 	indexByRef: Map<MovementRef, number>
 } {
@@ -51,30 +55,27 @@ export function collectSerializedConveyMovementsWithIndex(game: Game): {
 	}
 	movements.sort((a, b) => movementRefId(a.ref) - movementRefId(b.ref))
 	const indexByRef = new Map(movements.map((m, i) => [m.ref, i]))
-	const vehicleIndexByVehicle = new Map<Vehicle, number>(
-		[...(game.vehicles as Iterable<Vehicle>)].map((vehicle, index) => [vehicle, index])
-	)
-	const characterIndexByCharacter = new Map(
-		[...(game.population as Iterable<unknown>)].map((character, index) => [character, index])
-	)
 	const rows = movements.map((movement) => ({
 		goodType: movement.goodType,
 		path: [...movement.path],
 		from: { ...movement.from },
-		provider: serializeFreightParty(movement.provider, vehicleIndexByVehicle),
-		demander: serializeFreightParty(movement.demander, vehicleIndexByVehicle),
+		provider: serializeFreightParty(movement.provider, indexes.vehicles),
+		demander: serializeFreightParty(movement.demander, indexes.vehicles),
 		claimed: movement.claimed,
 		/** Save/load uses an array index because serialized data cannot carry a live object reference. */
 		claimedByCharacterIndex: movement.claimedBy
-			? characterIndexByCharacter.get(movement.claimedBy)
+			? indexes.characters.toIndex(movement.claimedBy)
 			: undefined,
 		claimedAtMs: movement.claimedAtMs,
 	}))
 	return { rows, indexByRef }
 }
 
-export function collectSerializedConveyMovements(game: Game): SerializedConveyMovement[] {
-	return collectSerializedConveyMovementsWithIndex(game).rows
+export function collectSerializedConveyMovements(
+	game: Game,
+	indexes: SaveIndexes
+): SerializedConveyMovement[] {
+	return collectSerializedConveyMovementsWithIndex(game, indexes).rows
 }
 
 export function restoreSerializedConveyMovements(

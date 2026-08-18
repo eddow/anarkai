@@ -40,6 +40,7 @@ import {
 	type PlannerFindActionSnapshot,
 } from 'ssh/population/findNextActivity'
 import { releaseAllHomeReservations } from 'ssh/residential/housing-reservations'
+import type { SaveIndexes, Serialized } from 'ssh/serialization'
 import type { Storage } from 'ssh/storage'
 import type { GoodType, Job, WorkPlan } from 'ssh/types/base'
 import { type AxialCoord, axial, type Positioned } from 'ssh/utils'
@@ -145,22 +146,26 @@ interface RankedWorkCandidate {
 }
 
 /**
- * Index-based character save format — replaces the legacy `{ uid, operatedVehicleUid }` shape.
+ * Persisted data model of a character. Object reference {@link CharacterState.operates}
+ * is a {@link SerializationRegistry} type, so {@link SerializedCharacter} derives its
+ * serialization number automatically.
  *
- * Array order IS identity: `characters[i]` is the `i`-th character. Cross-references
- * use array indexes (not string uids).
+ * Array order IS identity: `characters[i]` is the `i`-th character.
  */
-export interface SerializedCharacter {
-	readonly name: string
-	readonly position: Position
-	readonly stats: { readonly hunger: number; readonly fatigue: number; readonly tiredness: number }
-	readonly personalInventory?: Partial<Record<GoodType, number>>
-	readonly assignedAlveolus?: { readonly q: number; readonly r: number }
-	/** Index into the vehicles array. */
-	readonly operatedVehicleIndex?: number
-	readonly driving: boolean
-	readonly scripts: any
+export interface CharacterState {
+	name: string
+	position: Position
+	stats: { hunger: number; fatigue: number; tiredness: number }
+	personalInventory?: Partial<Record<GoodType, number>>
+	assignedAlveolus?: { q: number; r: number }
+	/** Operated vehicle — serializes to a vehicle index. */
+	operates?: Vehicle
+	driving: boolean
+	scripts: unknown
 }
+
+/** Serialized character — derived from {@link CharacterState}; references become indexes. */
+export type SerializedCharacter = Serialized<CharacterState>
 
 @reactive
 export class Character extends withInteractive(withScripted(GameObject)) {
@@ -1342,14 +1347,15 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 }
 
 /**
- * Serialize characters to the index-based format.
+ * Serialize characters to the index-based format, resolving object references
+ * through the central {@link SaveIndexes}.
  *
- * @param characters    Ordered array of all characters (array position = identity).
- * @param vehicleIndex  Map from {@link Vehicle} → array index.
+ * @param characters Ordered array of all characters (array position = identity).
+ * @param indexes    Central object ↔ index stores for this save pass.
  */
 export function serializeCharacters(
 	characters: readonly Character[],
-	vehicleIndex: ReadonlyMap<Vehicle, number>
+	indexes: SaveIndexes
 ): SerializedCharacter[] {
 	return characters.map((character) => ({
 		name: character.name,
@@ -1366,27 +1372,22 @@ export function serializeCharacters(
 					r: (character.assignedAlveolus.tile.position as any).r,
 				}
 			: undefined,
-		operatedVehicleIndex:
-			character.operates && vehicleIndex.has(character.operates)
-				? vehicleIndex.get(character.operates)
-				: undefined,
+		operates: character.operates ? indexes.vehicles.toIndex(character.operates) : undefined,
 		driving: character.driving,
 		scripts: (character as any).getScriptState(),
 	}))
 }
 
 /**
- * Deserialize characters from the index-based format.
- *
- * Creates all characters first, then wires cross-references (operated vehicles) in a second pass.
- * {@link vehicles} must already exist in the same order they were serialized.
+ * Deserialize characters from the index-based format. Only materializes the
+ * character itself; the `operates` vehicle back-link is wired by the caller after
+ * vehicles are registered (see {@link Game.loadGameData}).
  */
 export function deserializeCharacters(
 	game: Game,
-	rows: readonly SerializedCharacter[],
-	vehicles: readonly Vehicle[]
+	rows: readonly SerializedCharacter[]
 ): Character[] {
-	const characters = game.withObjectRegistrationBatch(() =>
+	return game.withObjectRegistrationBatch(() =>
 		rows.map((row) => {
 			const coord = toAxialCoord(row.position)
 			const char = new Character(game, row.name, coord ?? { q: 0, r: 0 })
@@ -1415,21 +1416,6 @@ export function deserializeCharacters(
 			return char
 		})
 	)
-
-	// Second pass: wire operated vehicles
-	for (let i = 0; i < rows.length; i++) {
-		const row = rows[i]
-		const character = characters[i]
-		if (row.operatedVehicleIndex !== undefined) {
-			const vehicle = vehicles[row.operatedVehicleIndex]
-			if (vehicle) {
-				character.operates = vehicle
-				if (row.driving) character.onboard()
-			}
-		}
-	}
-
-	return characters
 }
 
 gameIsaTypes.character = (value: any) => {

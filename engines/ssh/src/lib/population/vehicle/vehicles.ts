@@ -1,7 +1,7 @@
 import type { FreightLineDefinition } from 'ssh/freight/freight-line'
 import type { Game } from 'ssh/game/game'
 import { GameObject, withContainer } from 'ssh/game/object'
-import type { Character } from 'ssh/population/character'
+import type { SaveIndexes } from 'ssh/serialization'
 import { axial } from 'ssh/utils/axial'
 import { toAxialCoord } from 'ssh/utils/position'
 import { Vehicle } from './entity'
@@ -47,16 +47,15 @@ function* iterateChildVehicles(children: Set<GameObject>): Generator<Vehicle> {
 }
 
 /**
- * Serialize vehicles to the index-based format.
+ * Serialize vehicles to the index-based format, resolving object references
+ * through the central {@link SaveIndexes}.
  *
- * @param vehicles       Ordered array of all vehicles (array position = identity).
- * @param lineIndex      Map from {@link FreightLineDefinition} → array index.
- * @param characterIndex Map from {@link Character} → array index.
+ * @param vehicles Ordered array of all vehicles (array position = identity).
+ * @param indexes  Central object ↔ index stores for this save pass.
  */
 export function serializeVehicles(
 	vehicles: readonly Vehicle[],
-	lineIndex: ReadonlyMap<FreightLineDefinition, number>,
-	characterIndex: ReadonlyMap<Character, number>
+	indexes: SaveIndexes
 ): SerializedVehicle[] {
 	return vehicles.map((vehicle) => {
 		// A docked vehicle has no world position (`vehicle.position === undefined`);
@@ -70,17 +69,14 @@ export function serializeVehicles(
 
 		let service: SerializedVehicle['service']
 		if (svc && isVehicleLineService(svc)) {
-			const lineIdx = lineIndex.get(svc.line)
-			if (lineIdx !== undefined) {
+			const line = indexes.freightLines.toIndex(svc.line)
+			if (line !== undefined) {
 				service = {
 					kind: 'line',
-					lineIndex: lineIdx,
+					line,
 					stopIndex: svc.line.stops.indexOf(svc.stop),
 					docked: vehicle.isDocked,
-					operatorIndex:
-						svc.operator && characterIndex.has(svc.operator)
-							? characterIndex.get(svc.operator)
-							: undefined,
+					operator: svc.operator ? indexes.characters.toIndex(svc.operator) : undefined,
 				}
 			}
 		}
@@ -89,8 +85,8 @@ export function serializeVehicles(
 			vehicleType: vehicle.vehicleType,
 			position: { q: coord.q, r: coord.r },
 			goods: vehicle.storage.stock,
-			servedLineIndexes: vehicle.servedLines
-				.map((line) => lineIndex.get(line))
+			servedLines: vehicle.servedLines
+				.map((line) => indexes.freightLines.toIndex(line))
 				.filter((idx): idx is number => idx !== undefined),
 			service,
 		}
@@ -98,16 +94,14 @@ export function serializeVehicles(
 }
 
 /**
- * Deserialize vehicles from the index-based format.
- *
- * Creates all vehicles first, then wires cross-references (operators) in a second pass.
- * {@link characters} must already exist in the same order they were serialized.
+ * Deserialize vehicles from the index-based format, resolving references
+ * through the central {@link SaveIndexes} (freight lines and characters must
+ * already be registered).
  */
 export function deserializeVehicles(
 	game: Game,
 	rows: readonly SerializedVehicle[],
-	characters: readonly Character[],
-	freightLines: readonly FreightLineDefinition[]
+	indexes: SaveIndexes
 ): Vehicle[] {
 	const vehicles = game.withObjectRegistrationBatch(() =>
 		rows.map((row) => {
@@ -115,8 +109,8 @@ export function deserializeVehicles(
 				game,
 				row.vehicleType,
 				row.position,
-				row.servedLineIndexes
-					.map((idx) => freightLines[idx])
+				row.servedLines
+					.map((idx) => indexes.freightLines.fromIndex(idx))
 					.filter((line): line is FreightLineDefinition => !!line)
 			)
 			for (const [goodType, qty] of Object.entries(row.goods ?? {})) {
@@ -130,12 +124,14 @@ export function deserializeVehicles(
 	for (let i = 0; i < rows.length; i++) {
 		const row = rows[i]
 		const vehicle = vehicles[i]
-		if (!row.service || row.service.kind !== 'line') continue
-		const line = freightLines[row.service.lineIndex]
+		if (!row.service) continue
+		const line = indexes.freightLines.fromIndex(row.service.line)
 		const stop = line?.stops[row.service.stopIndex]
 		if (!line || !stop) continue
 		const operator =
-			row.service.operatorIndex !== undefined ? characters[row.service.operatorIndex] : undefined
+			row.service.operator !== undefined
+				? indexes.characters.fromIndex(row.service.operator)
+				: undefined
 		vehicle.service = { line, stop, docked: false, operator } as any
 		if (row.service.docked) vehicle.dock()
 	}

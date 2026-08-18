@@ -66,17 +66,6 @@ export class ZoneManager {
 
 	// ── definition registry ──────────────────────────────────────
 
-	/** Resolve a zone by array index. */
-	zoneByIndex(index: number): ZoneDefinition | undefined {
-		return this.definitions[index]
-	}
-
-	/** Find a named zone by name (case-insensitive, whitespace-normalized). */
-	findZoneIndexByName(name: string): number {
-		const needle = slugifyZoneName(name) ?? ''
-		return this.definitions.findIndex((def) => (def.name ?? '') === needle)
-	}
-
 	/** Resolve a named zone definition by name (case-insensitive, whitespace-normalized). */
 	findZoneByName(name: string): ZoneDefinition | undefined {
 		const needle = slugifyZoneName(name) ?? ''

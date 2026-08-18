@@ -505,7 +505,7 @@ function isBayQueueNodeRecord(record: UnknownRecord): boolean {
 function isMovementGrantRecord(record: UnknownRecord): boolean {
 	return (
 		(typeof record.vehicleUid === 'string' ||
-			(record.vehicle && typeof record.vehicle === 'object')) &&
+			(record.vehicle !== null && typeof record.vehicle === 'object')) &&
 		typeof record.expiresAt === 'number' &&
 		'from' in record &&
 		'to' in record

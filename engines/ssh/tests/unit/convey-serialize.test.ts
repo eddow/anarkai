@@ -1,3 +1,4 @@
+import { IndexStore } from 'ssh/serialization'
 import { describe, expect, it, vi } from 'vitest'
 import { Alveolus } from '../../src/lib/board/content/alveolus'
 import { resolveSerializedFreightParty } from '../../src/lib/hive/convey-restore'
@@ -16,7 +17,7 @@ describe('convey serialization', () => {
 		const hive = { freightVehicleDockFor: vi.fn().mockReturnValue(dock) }
 		;(bay as any).hive = hive
 
-		const ref = serializeFreightParty(dock, new Map([[vehicle, 0]]))
+		const ref = serializeFreightParty(dock, IndexStore.fromOrdered([vehicle]))
 
 		expect(ref).toEqual({ kind: 'vehicleDock', vehicleIndex: 0, bayCoord: [1, 2] })
 

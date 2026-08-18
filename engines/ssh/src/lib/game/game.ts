@@ -9,7 +9,7 @@ import {
 	gameTimeSpeedFactors,
 } from 'engine-rules'
 import type { TerrainMacroHydrologySnapshot, TerrainSectorCoord } from 'engine-terrain'
-import { atomic, defer, Eventful, reactive, unreactive } from 'mutts'
+import { atomic, defer, Eventful, reactive, toRaw, unreactive } from 'mutts'
 import { Alveolus } from 'ssh/board'
 import { HexBoard } from 'ssh/board/board'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
@@ -74,7 +74,6 @@ import {
 	type SerializedHivePlan,
 } from 'ssh/hive-plan'
 import {
-	type Character,
 	deserializeCharacters,
 	type SerializedCharacter,
 	serializeCharacters,
@@ -89,6 +88,7 @@ import {
 } from 'ssh/population/vehicle'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { ResidentialDemandTicker } from 'ssh/residential/demand'
+import { buildSaveIndexes } from 'ssh/serialization'
 import type { AlveolusType, DepositType, GoodType, TerrainType } from 'ssh/types'
 import type { GameRenderer, InputAdapter } from 'ssh/types/engine'
 import type { AxialCoord } from 'ssh/utils'
@@ -284,8 +284,6 @@ type ZoneMapPatches = Partial<
 type ZonesPatches = ZoneArrayPatches | ZoneMapPatches
 
 export type { ZoneDefinitionPatch } from 'ssh/board/zone'
-
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 
 export interface GamePatches {
 	seed?: number
@@ -540,7 +538,14 @@ export class Game extends Eventful<GameEvents> {
 	private readonly pendingInteractiveRegistrations = new Set<InteractiveGameObject>()
 	private readonly pendingInteractiveChanges = new Set<InteractiveGameObject>()
 	private readonly pendingInteractiveUnregistrations = new Set<InteractiveGameObject>()
-	private readonly pendingPresentationEvents = new Map<string, GamePresentationEvent>()
+	/** Pending presentation events, deduplicated by object identity (no string keys). */
+	private readonly pendingStorageEvents = new Map<GameObject, GamePresentationEvent>()
+	private readonly pendingDockEvents = new Map<GameObject, Map<GameObject, GamePresentationEvent>>()
+	private readonly pendingNpcTradeEvents = new Map<
+		FreightLineDefinition,
+		Map<number, Map<Vehicle, GamePresentationEvent>>
+	>()
+	private pendingWorkPlanningEvent: GamePresentationEvent | undefined
 	private interactiveRegistrationBatchDepth = 0
 	private interactiveLifecycleFlushScheduled = false
 	private presentationEventsFlushScheduled = false
@@ -556,8 +561,11 @@ export class Game extends Eventful<GameEvents> {
 		string,
 		NpcSettlementTradeProfile
 	>()
-	/** Accumulated trade transfer events keyed by `lineId:stopIndex:vehicleUid` for inspector display. */
-	private readonly tradeTransferLog = new Map<string, TradeTransferLogEntry[]>()
+	/** Accumulated trade transfer events keyed by (line, stopIndex, vehicle) object identity. */
+	private readonly tradeTransferLog = new Map<
+		FreightLineDefinition,
+		Map<number, Map<Vehicle, TradeTransferLogEntry[]>>
+	>()
 	private readonly terrainProvider: TerrainProvider
 	private readonly gameplayFrontier = new GameplayFrontierController({
 		hasMaterializedTile: (coord) => this.hasMaterializedGameplayTile(coord),
@@ -751,14 +759,12 @@ export class Game extends Eventful<GameEvents> {
 		if (zoneType === 'none') {
 			tile.zone = undefined
 		} else {
-			const idx = this.hex.zoneManager.findZoneIndexByName(zoneType)
 			const def =
-				idx >= 0
-					? this.hex.zoneManager.zoneByIndex(idx)
-					: this.hex.zoneManager.defineZone({
-							name: zoneType,
-							type: 'passive',
-						})
+				this.hex.zoneManager.findZoneByName(zoneType) ??
+				this.hex.zoneManager.defineZone({
+					name: zoneType,
+					type: 'passive',
+				})
 			if (def) tile.zone = def
 		}
 		return true
@@ -936,7 +942,7 @@ export class Game extends Eventful<GameEvents> {
 	/** Enqueue a `storage.changed` presentation event for an object. */
 	public enqueueStoragePresentationChange(owner: GameObject): void {
 		const event: GamePresentationEvent = { type: 'storage.changed', owner }
-		this.pendingPresentationEvents.set(`${event.type}:${debugObjectId(owner)}`, event)
+		this.pendingStorageEvents.set(toRaw(owner) as GameObject, event)
 		this.schedulePresentationEventsFlush()
 	}
 
@@ -947,10 +953,12 @@ export class Game extends Eventful<GameEvents> {
 			owner,
 			vehicle,
 		}
-		this.pendingPresentationEvents.set(
-			`${event.type}:${debugObjectId(owner)}:${debugObjectId(vehicle)}`,
-			event
-		)
+		let byVehicle = this.pendingDockEvents.get(toRaw(owner) as GameObject)
+		if (!byVehicle) {
+			byVehicle = new Map()
+			this.pendingDockEvents.set(toRaw(owner) as GameObject, byVehicle)
+		}
+		byVehicle.set(toRaw(vehicle) as GameObject, event)
 		this.schedulePresentationEventsFlush()
 	}
 
@@ -958,10 +966,17 @@ export class Game extends Eventful<GameEvents> {
 	public enqueueNpcTradePresentationChange(
 		event: Omit<Extract<GamePresentationEvent, { type: 'npc-trade.transferred' }>, 'type'>
 	): void {
-		this.pendingPresentationEvents.set(
-			`npc-trade.transferred:${event.line}:${event.stopIndex}:${debugObjectId(event.vehicle)}`,
-			{ type: 'npc-trade.transferred', ...event }
-		)
+		let byStop = this.pendingNpcTradeEvents.get(toRaw(event.line))
+		if (!byStop) {
+			byStop = new Map()
+			this.pendingNpcTradeEvents.set(toRaw(event.line), byStop)
+		}
+		let byVehicle = byStop.get(event.stopIndex)
+		if (!byVehicle) {
+			byVehicle = new Map()
+			byStop.set(event.stopIndex, byVehicle)
+		}
+		byVehicle.set(toRaw(event.vehicle), { type: 'npc-trade.transferred', ...event })
 		this.schedulePresentationEventsFlush()
 		this.accumulateTradeTransferLog(event)
 	}
@@ -969,22 +984,33 @@ export class Game extends Eventful<GameEvents> {
 	private accumulateTradeTransferLog(
 		event: Omit<Extract<GamePresentationEvent, { type: 'npc-trade.transferred' }>, 'type'>
 	): void {
-		const key = `${event.line}:${event.stopIndex}:${debugObjectId(event.vehicle)}`
-		const entries = this.tradeTransferLog.get(key) ?? []
+		let byStop = this.tradeTransferLog.get(toRaw(event.line))
+		if (!byStop) {
+			byStop = new Map()
+			this.tradeTransferLog.set(toRaw(event.line), byStop)
+		}
+		let byVehicle = byStop.get(event.stopIndex)
+		if (!byVehicle) {
+			byVehicle = new Map()
+			byStop.set(event.stopIndex, byVehicle)
+		}
+		const entries = byVehicle.get(toRaw(event.vehicle)) ?? []
 		const entry: TradeTransferLogEntry = {
 			...event,
 			tick: this.ticker.elapsedMS,
 		}
 		entries.push(entry)
 		if (entries.length > 10) entries.splice(0, entries.length - 10)
-		this.tradeTransferLog.set(key, entries)
+		byVehicle.set(toRaw(event.vehicle), entries)
 	}
 
 	/** Returns trade transfer history for a freight line, most recent first. */
 	public getFreightLineTradeHistory(line: FreightLineDefinition): TradeTransferLogEntry[] {
+		const byStop = this.tradeTransferLog.get(toRaw(line))
+		if (!byStop) return []
 		const out: TradeTransferLogEntry[] = []
-		for (const [key, entries] of this.tradeTransferLog) {
-			if (key.startsWith(`${line}:`)) out.push(...entries)
+		for (const byVehicle of byStop.values()) {
+			for (const entries of byVehicle.values()) out.push(...entries)
 		}
 		return out.sort((a, b) => b.tick - a.tick)
 	}
@@ -1004,7 +1030,7 @@ export class Game extends Eventful<GameEvents> {
 			type: 'work-planning.changed',
 			revision: this._workPlanningRevision,
 		}
-		this.pendingPresentationEvents.set(event.type, event)
+		this.pendingWorkPlanningEvent = event
 		this.schedulePresentationEventsFlush()
 	}
 
@@ -1101,9 +1127,22 @@ export class Game extends Eventful<GameEvents> {
 
 	private flushPresentationEvents() {
 		this.presentationEventsFlushScheduled = false
-		if (this.pendingPresentationEvents.size === 0) return
-		const events = [...this.pendingPresentationEvents.values()]
-		this.pendingPresentationEvents.clear()
+		const events: GamePresentationEvent[] = []
+		for (const event of this.pendingStorageEvents.values()) events.push(event)
+		for (const byVehicle of this.pendingDockEvents.values()) {
+			for (const event of byVehicle.values()) events.push(event)
+		}
+		for (const byStop of this.pendingNpcTradeEvents.values()) {
+			for (const byVehicle of byStop.values()) {
+				for (const event of byVehicle.values()) events.push(event)
+			}
+		}
+		if (this.pendingWorkPlanningEvent) events.push(this.pendingWorkPlanningEvent)
+		this.pendingStorageEvents.clear()
+		this.pendingDockEvents.clear()
+		this.pendingNpcTradeEvents.clear()
+		this.pendingWorkPlanningEvent = undefined
+		if (events.length === 0) return
 		this.emit('presentationEvents', events)
 	}
 
@@ -2863,9 +2902,18 @@ export class Game extends Eventful<GameEvents> {
 			}
 		}
 
-		const zoneIndexByDefinition = new Map<import('ssh/board/zone').ZoneDefinition, number>()
-		for (const definition of this.hex.zoneManager.listCustomZoneDefinitions()) {
-			zoneIndexByDefinition.set(definition, zoneTypePatches.length)
+		// Build the central object ↔ index stores for this save pass. Order here is
+		// what assigns serialization numbers; the serialized arrays below preserve it.
+		const indexes = buildSaveIndexes({
+			freightLines: this.freightLines,
+			characters: this.population,
+			vehicles: this.vehicles,
+			customZones: this.hex.zoneManager.listCustomZoneDefinitions(),
+			hivePlans: this.hivePlans.plans,
+		})
+
+		// Serialize custom zones in the same order as `indexes.customZones`.
+		for (const definition of indexes.customZones.ordered()) {
 			zoneTypePatches.push({
 				name: definition.name,
 				color: definition.color,
@@ -2874,25 +2922,18 @@ export class Game extends Eventful<GameEvents> {
 			})
 		}
 
-		const { rows: conveyMovements, indexByRef } = collectSerializedConveyMovementsWithIndex(this)
-		this.conveySaveIndexByRef = indexByRef
+		const serializedFreightLines = indexes.freightLines
+			.ordered()
+			.map((line) => serializeFreightLineForSave(line, indexes.customZones))
 
-		// Build index maps for index-based serialization
-		const allVehicles: Vehicle[] = []
-		const allCharacters: Character[] = []
-		for (const v of this.vehicles) allVehicles.push(v)
-		for (const c of this.population) allCharacters.push(c)
+		const allVehicles = [...this.vehicles]
+		const allCharacters = [...this.population]
 
-		const runtimeFreightLines = [...this.freightLines]
-		const lineIndex = new Map<FreightLineDefinition, number>()
-		for (let i = 0; i < runtimeFreightLines.length; i++) lineIndex.set(runtimeFreightLines[i]!, i)
-		const serializedFreightLines = runtimeFreightLines.map((line) =>
-			serializeFreightLineForSave(line, zoneIndexByDefinition)
+		const { rows: conveyMovements, indexByRef } = collectSerializedConveyMovementsWithIndex(
+			this,
+			indexes
 		)
-		const characterIndex = new Map<Character, number>()
-		for (let i = 0; i < allCharacters.length; i++) characterIndex.set(allCharacters[i]!, i)
-		const vehicleIndex = new Map<Vehicle, number>()
-		for (let i = 0; i < allVehicles.length; i++) vehicleIndex.set(allVehicles[i]!, i)
+		this.conveySaveIndexByRef = indexByRef
 
 		try {
 			return {
@@ -2912,8 +2953,8 @@ export class Game extends Eventful<GameEvents> {
 				roads,
 				conveyMovements,
 				// Index-based vehicle/character references
-				serializedVehicles: serializeVehicles(allVehicles, lineIndex, characterIndex),
-				characters: serializeCharacters(allCharacters, vehicleIndex),
+				serializedVehicles: serializeVehicles(allVehicles, indexes),
+				characters: serializeCharacters(allCharacters, indexes),
 				generationOptions: this.generationOptions,
 				namedConfigurations: this.configurationManager.serialize(),
 				hiveConfigurations,
@@ -2972,20 +3013,26 @@ export class Game extends Eventful<GameEvents> {
 
 		// 4. Restore vehicles + characters (index-based format)
 		if (state.serializedVehicles && state.characters) {
-			const characters = deserializeCharacters(this, state.characters, [])
-			const vehicles = deserializeVehicles(
-				this,
-				state.serializedVehicles,
-				characters,
-				this.unpackedFreightLines
-			)
+			const indexes = buildSaveIndexes({
+				freightLines: this.unpackedFreightLines,
+				characters: [],
+				vehicles: [],
+				customZones: this.hex.zoneManager.listCustomZoneDefinitions(),
+				hivePlans: this.hivePlans.plans,
+			})
 
-			// Wire character→vehicle references (characters' operatedVehicleIndex → actual Vehicle)
+			const characters = deserializeCharacters(this, state.characters)
+			for (const character of characters) indexes.characters.register(character)
+
+			const vehicles = deserializeVehicles(this, state.serializedVehicles, indexes)
+			for (const vehicle of vehicles) indexes.vehicles.register(vehicle)
+
+			// Wire character→vehicle references (characters' operates index → actual Vehicle)
 			for (let i = 0; i < state.characters.length; i++) {
 				const row = state.characters[i]
 				const character = characters[i]
-				if (!character || row.operatedVehicleIndex === undefined) continue
-				const vehicle = vehicles[row.operatedVehicleIndex]
+				if (!character || row.operates === undefined) continue
+				const vehicle = indexes.vehicles.fromIndex(row.operates)
 				if (!vehicle) continue
 				character.operates = vehicle
 				if (row.driving) character.onboard()
@@ -3146,7 +3193,10 @@ export class Game extends Eventful<GameEvents> {
 		this.pendingInteractiveRegistrations.clear()
 		this.pendingInteractiveChanges.clear()
 		this.pendingInteractiveUnregistrations.clear()
-		this.pendingPresentationEvents.clear()
+		this.pendingStorageEvents.clear()
+		this.pendingDockEvents.clear()
+		this.pendingNpcTradeEvents.clear()
+		this.pendingWorkPlanningEvent = undefined
 		this.objects.clear()
 		this.interactiveLifecycleFlushScheduled = false
 		this.presentationEventsFlushScheduled = false

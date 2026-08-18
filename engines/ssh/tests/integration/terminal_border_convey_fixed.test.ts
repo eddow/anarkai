@@ -77,7 +77,8 @@ describe('terminal border convey (fixed)', () => {
 			expect(bayTile?.looseGoods.length).toBe(0)
 
 			// Verify no errors in traces
-			const conveyErrorRows = (traces.convey ?? []).filter((row) => row[0] === 'error')
+			const conveyRows = (traces.convey ?? []) as unknown as ReadonlyArray<[string, ...unknown[]]>
+			const conveyErrorRows = conveyRows.filter((row) => row[0] === 'error')
 			expect(conveyErrorRows).toHaveLength(0)
 		} finally {
 			await engine.destroy()
@@ -150,7 +151,8 @@ describe('terminal border convey (fixed)', () => {
 			expect(storage?.storage.stock.wood).toBe(2)
 
 			// Verify no invariant errors
-			const conveyErrorRows = (traces.convey ?? []).filter((row) => row[0] === 'error')
+			const conveyRows = (traces.convey ?? []) as unknown as ReadonlyArray<[string, ...unknown[]]>
+			const conveyErrorRows = conveyRows.filter((row) => row[0] === 'error')
 			expect(conveyErrorRows).toHaveLength(0)
 		} finally {
 			await engine.destroy()

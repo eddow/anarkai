@@ -151,11 +151,13 @@ export function staleInTransitReservations(
 	shell: ConstructionSiteShell,
 	nowTick: number
 ): InTransitReservation[] {
-	const map = inTransitRegistry.get(shell)
-	if (!map) return []
+	const vehicleMap = inTransitRegistry.get(shell)
+	if (!vehicleMap) return []
 	const stale: InTransitReservation[] = []
-	for (const res of map.values()) {
-		if (res.expiresAtTick < nowTick) stale.push(res)
+	for (const goodMap of vehicleMap.values()) {
+		for (const res of goodMap.values()) {
+			if (res.expiresAtTick < nowTick) stale.push(res)
+		}
 	}
 	return stale
 }

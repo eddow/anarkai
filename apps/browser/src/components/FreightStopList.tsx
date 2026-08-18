@@ -313,27 +313,17 @@ const stationTileForStop = (game: Game, stop: FreightStop) => {
 	return game.hex.getTile({ q: anchor.coord[0], r: anchor.coord[1] })
 }
 
-const zoneObjectForStop = (stop: FreightStop, game: Game) => {
+const zoneObjectForStop = (stop: FreightStop) => {
 	if (!('zone' in stop) || stop.zone.kind !== 'named') return undefined
-	const zone =
-		stop.zone.definition ??
-		(stop.zone.zoneIndex !== undefined
-			? game.hex.zoneManager.zoneByIndex(stop.zone.zoneIndex)
-			: undefined)
-	return zone ? getZoneObject(zone) : undefined
+	// Live stops carry the `definition` object; `zoneIndex` is save/load-only.
+	return stop.zone.definition ? getZoneObject(stop.zone.definition) : undefined
 }
 
-const stopLabel = (game: Game, stop: FreightStop): string => {
+const stopLabel = (stop: FreightStop): string => {
 	if ('anchor' in stop) return freightLineStationLabel(stop.anchor)
 	if ('trade' in stop) return stop.trade.profile.name
 	if (stop.zone.kind === 'named') {
-		return (
-			stop.zone.definition?.name ??
-			(stop.zone.zoneIndex !== undefined
-				? game.hex.zoneManager.zoneByIndex(stop.zone.zoneIndex)?.name
-				: undefined) ??
-			'(unnamed zone)'
-		)
+		return stop.zone.definition?.name ?? '(unnamed zone)'
 	}
 	return `(${stop.zone.center[0]}, ${stop.zone.center[1]}) r<=${stop.zone.radius}`
 }
@@ -370,27 +360,6 @@ const formatGoodsSnapshot = (snapshot: FreightStopGoodsSnapshot): string => {
 		.join(', ')
 }
 
-const blockReasonLabel = (reason: FreightStopCommerceBlockReason): string => {
-	switch (reason) {
-		case 'no_vehicle':
-			return 'no vehicle assigned'
-		case 'vehicle_full':
-			return 'vehicle full'
-		case 'no_downstream_demand':
-			return 'no downstream demand'
-		case 'buffer_full':
-			return 'buffer full / construction satisfied'
-		case 'no_matching_settlement_offer':
-			return 'no matching settlement offer'
-		case 'reserve_blocks_import':
-			return 'reserve blocks import'
-		case 'policy_blocks_good':
-			return 'policy blocks goods'
-		default:
-			return reason
-	}
-}
-
 const commerceReasonText = (
 	reasons: readonly FreightStopCommerceBlockReason[],
 	vehicleCount?: number,
@@ -404,12 +373,12 @@ const commerceReasonText = (
 				if (vehicleCount > 1) return `all ${vehicleCount} vehicles full`
 				return 'vehicle full'
 			}
-			return blockReasonLabel(reason)
+			return reason
 		})
 		.join(', ')
 }
 
-const tradeStopCanImport = (_game: Game, stop: FreightStop): boolean => {
+const tradeStopCanImport = (stop: FreightStop): boolean => {
 	if (!('trade' in stop)) return false
 	return stop.trade.profile.offers.some((offer) => offer.direction === 'sell')
 }
@@ -607,7 +576,7 @@ const FreightStopList = (props: FreightStopListProps) => {
 					<for each={stopsIndexed()}>
 						{({ stop, index }: { stop: FreightStop; index: number }) => {
 							const tile = () => stationTileForStop(props.game, stop)
-							const zoneObj = () => zoneObjectForStop(stop, props.game)
+							const zoneObj = () => zoneObjectForStop(stop)
 							const tradeObj = () =>
 								'trade' in stop
 									? new SettlementTradeObject(props.game, stop.trade.profile)
@@ -652,28 +621,24 @@ const FreightStopList = (props: FreightStopListProps) => {
 													{stopKindLabel(stop)}
 												</span>
 												<LinkedEntityControl if={tile()} object={tile()!} />
-												<InspectorObjectLink
-													if={tile()}
-													object={tile()!}
-													label={stopLabel(props.game, stop)}
-												/>
+												<InspectorObjectLink if={tile()} object={tile()!} label={stopLabel(stop)} />
 												<LinkedEntityControl if={zoneObj()} object={zoneObj()!} />
 												<InspectorObjectLink
 													if={zoneObj()}
 													object={zoneObj()!}
-													label={stopLabel(props.game, stop)}
+													label={stopLabel(stop)}
 												/>
 												<LinkedEntityControl if={tradeObj()} object={tradeObj()!} />
 												<InspectorObjectLink
 													if={tradeObj()}
 													object={tradeObj()!}
-													label={stopLabel(props.game, stop)}
+													label={stopLabel(stop)}
 												/>
 												<span
 													if={!tile() && !zoneObj() && !tradeObj()}
 													class="freight-stop-list__summary"
 												>
-													{stopLabel(props.game, stop)}
+													{stopLabel(stop)}
 												</span>
 											</div>
 											<div class="freight-stop-list__commerce">
@@ -723,10 +688,7 @@ const FreightStopList = (props: FreightStopListProps) => {
 											<div class="freight-stop-list__policy-summary">
 												<PolicySummary policy={stop.loadSelection} label="L" />
 												<PolicySummary policy={stop.unloadSelection} label="U" />
-												<label
-													if={tradeStopCanImport(props.game, stop)}
-													class="freight-stop-list__reserve"
-												>
+												<label if={tradeStopCanImport(stop)} class="freight-stop-list__reserve">
 													Reserve
 													<input
 														class="freight-stop-list__reserve-input"
