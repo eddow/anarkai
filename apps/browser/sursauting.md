@@ -36,9 +36,9 @@ Also `draft.presetName` and `draft.selectedPreset` are synced via `handlePresetI
 - **preset sync effect**: L255–260
 - **onChange write-back**: L467–474
 
-### 1.4 `FreightLineProperties.tsx` (L327)
+### 1.4 `FreightLineProperties.tsx` (L327) — ✅ RESOLVED (2026-08-19)
 
-`const local = reactive({ revision: 0 })` — used as a manual invalidation flag (bumped with `local.revision++` after mutations). This is a manual "tell the system to re-check" pattern that Sursaut's reactivity should handle automatically.
+~~`const local = reactive({ revision: 0 })` — used as a manual invalidation flag (bumped with `local.revision++` after mutations).~~ The `local.revision` poke token was removed; the reactive `Set<FreightLineDefinition>` + reactive line object drive re-render directly (see `sandbox/version-token-hack-analysis.md` §3.1).
 
 ---
 
@@ -121,13 +121,14 @@ const currentHive = () => resolveHiveFromAnchorTile(props.hiveObject.game, props
 ```
 The `currentHive` getter is fine (it's a closure), but `state.hiveName` is written in the effect (L125) which *partially* follows the pattern but adds redundant local state.
 
-### 4.3 `FreightLineProperties.tsx` L328–339
+### 4.3 `FreightLineProperties.tsx` L328–339 — ✅ RESOLVED (2026-08-19)
 
 ```tsx
-const local = reactive({ revision: 0 })
 const currentGame = () => props.lineObject?.game    // ok, getter
-const currentLine = () => { void local.revision; … } // manual invalidation
+const currentLine = () => props.lineObject?.line    // ok, getter (no manual invalidation)
 ```
+
+~~The `local.revision` manual invalidation was removed; `currentLine()` reads the reactive line object directly.~~
 
 ---
 

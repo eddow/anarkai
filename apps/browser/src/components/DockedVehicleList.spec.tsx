@@ -21,8 +21,8 @@ vi.mock('@app/lib/i18n', () => ({
 }))
 
 vi.mock('./InspectorObjectLink', () => ({
-	default: (props: { object: { title?: string; uid?: string } }) => (
-		<span data-testid="object-link">{props.object.title ?? props.object.uid}</span>
+	default: (props: { object: { title?: string } }) => (
+		<span data-testid="object-link">{props.object.title}</span>
 	),
 }))
 

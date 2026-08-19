@@ -84,9 +84,7 @@ const globals = {
 	game,
 	selectionState: {
 		selectedObject: undefined as object | undefined,
-		titleVersion: 0,
 	},
-	bumpSelectionTitleVersion: vi.fn(),
 	mrg: {
 		hoveredObject: undefined as typeof gameObject | undefined,
 	},
@@ -216,7 +214,6 @@ describe('SelectionInfoWidget', () => {
 		container = document.createElement('div')
 		document.body.appendChild(container)
 		globals.selectionState.selectedObject = undefined
-		globals.selectionState.titleVersion = 0
 		globals.mrg.hoveredObject = undefined
 		globals.unreactiveInfo.hasLastSelectedInfoPanel = true
 		cancelFreightMapPick()

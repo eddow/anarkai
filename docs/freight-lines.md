@@ -10,22 +10,26 @@ Historical code and some helpers still use the word **stop** and the derived lab
 
 ### Canonical shape (`FreightLineDefinition`)
 
-- `id`, `name`
-- `stops`: `ReadonlyArray<FreightStop>`
+- `name`
+- `stops`: `ReadonlyArray<FreightStop>` (mutable at runtime; lines are `reactive`)
 - planned: `cyclic?: boolean`
+
+Identity is the **object reference** (a reactive `Set<FreightLineDefinition>` in `Game.freightLines`).
+There is no `id` on lines or stops.
 
 ### Stop shape (`FreightStop`)
 
 Each stop/halt has:
 
-- `id`: string
 - optional `loadSelection` / `unloadSelection`: layered `GoodSelectionPolicy` (good rules, tag rules, default allow/deny). Omitted or unrestricted policies are stripped on normalize. A halt may have both; this means the halt can source goods and satisfy needs when runtime candidates exist.
 
 …and **exactly one** of:
 
 - `anchor`: `FreightBayAnchor` — hive name + alveolus type + axial `coord` (typically `freight_bay`)
 - `zone`: `FreightZoneDefinition` — either `kind: 'radius'` with `center` + `radius`, or
-  `kind: 'named'` with a saved tile-zone `zoneIndex` (resolved to the `ZoneDefinition` object at hydration)
+  `kind: 'named'` holding the `definition` object at runtime (`ZoneDefinition` reference). The
+  `zoneIndex` exists **only** on unhydrated patch data (serialization); it is resolved to `definition`
+  at load and not retained on live stops.
 
 There is **no** stored `op`. Runtime behavior should be decided by exchange candidates: what the current halt can load, what it can unload/provide, what later halts can use, and what the vehicle already carries.
 
@@ -88,7 +92,8 @@ are not selectable named-zone objects.
 - **Zone local exchange:** a zone halt configured for both load and unload must be treated as capable of `zone -> zone` transfer when a source and sink exist in that zone.
 - **Radius:** `distributeSegmentWithinRadius(line, segment, pathLength)` uses the **unload** stop’s zone when present; missing zone means no path-length cap for that segment.
 - **Named zones:** use `freightZoneTiles` / `freightZoneContainsPosition` for runtime authority. Named
-  zone stops search/provide only on tiles currently painted with that zone id.
+  zone stops search/provide only on tiles whose `tile.zone` matches the stop's `definition` object
+  (object identity, not name/index).
 - **Deprecated:** `freightLineWithinRadius` / `freightDistributeDeliveryWithinRadius` — prefer per-segment APIs.
 
 ## Browser UI

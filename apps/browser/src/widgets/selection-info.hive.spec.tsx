@@ -39,9 +39,7 @@ const world = {
 const globals = {
 	selectionState: {
 		selectedObject: undefined as object | undefined,
-		titleVersion: 0,
 	},
-	bumpSelectionTitleVersion: vi.fn(),
 	mrg: {
 		hoveredObject: undefined as unknown,
 	},
@@ -78,7 +76,6 @@ vi.mock('@app/lib/globals', () => ({
 	game,
 	mrg: globals.mrg,
 	selectionState: shallowReactive(globals.selectionState),
-	bumpSelectionTitleVersion: globals.bumpSelectionTitleVersion,
 	unreactiveInfo: globals.unreactiveInfo,
 }))
 
@@ -229,10 +226,8 @@ describe('SelectionInfoWidget hive integration', () => {
 			tile: { q: 0, r: 0 },
 			game: { vehicles: [], freightLines: [] },
 		} as any
-		globals.selectionState.titleVersion = 0
 		globals.unreactiveInfo.hasLastSelectedInfoPanel = true
 		globals.mrg.hoveredObject = undefined
-		globals.bumpSelectionTitleVersion.mockClear()
 		updateParameters.mockClear()
 		onDidRemovePanel.mockClear()
 		gameObjects.clear()

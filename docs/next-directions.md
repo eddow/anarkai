@@ -8,10 +8,10 @@ are deliberately broad; each one can become its own implementation plan once cho
 
 ## Architecture
 
-- remove IDs (everywhere) and indexes out of (de)serialization - cf [removal plan](./id-removal-plan.md)
-- remove [version hack](../sandbox/version-token-hack-analysis.md)
+- ✅ remove IDs (everywhere) and indexes out of (de)serialization — **DONE** (see [removal plan](./id-removal-plan.md))
+- ✅ remove [version hack](../sandbox/version-token-hack-analysis.md) — **DONE** (see the analysis doc's final status; the convey `conveyPlanningRevision` is retained by design, `workPlanningRevision` remains as a documented coarse planner invalidation token)
 - change all buffered `state` in `view` made of get/set in sursaut components
-- For both first ones, add comments to make sure no new appear (llm.md, ...)
+- Add comments/docs so no new ids or version tokens reappear (`llm.md`, `docs/convey.md`, etc.) — **DONE**
 
 - Add display settings (widgets, ...) to savegames
 - Serialize dockview layout (widget panels/params) into the savegame format. Currently no layout is

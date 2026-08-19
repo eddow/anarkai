@@ -33,7 +33,6 @@ const { addPanel, getPanel, removePanel, dockviewApi, gameInstance, globals } = 
 			selectedAction: '',
 		},
 		selectionState: {},
-		bumpSelectionTitleVersion: vi.fn(),
 		uiConfiguration: {
 			darkMode: false,
 		},

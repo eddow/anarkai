@@ -18,9 +18,7 @@ const globals = {
 	selectionState: {
 		panelId: undefined as string | undefined,
 		selectedObject: undefined as object | undefined,
-		titleVersion: 0,
 	},
-	bumpSelectionTitleVersion: vi.fn(),
 	unreactiveInfo: {
 		hasLastSelectedInfoPanel: false,
 	},
@@ -45,7 +43,6 @@ describe('follow-selection', () => {
 		globals.game.ensureGeneratedTiles.mockClear()
 		globals.selectionState.panelId = undefined
 		globals.selectionState.selectedObject = undefined
-		globals.selectionState.titleVersion = 0
 		globals.unreactiveInfo.hasLastSelectedInfoPanel = false
 		globals.validateSelectionPanelId.mockClear()
 		addPanel.mockClear()

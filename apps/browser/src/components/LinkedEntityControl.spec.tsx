@@ -15,9 +15,7 @@ const globals = {
 	selectionState: {
 		panelId: undefined as string | undefined,
 		selectedObject: undefined as object | undefined,
-		titleVersion: 0,
 	},
-	bumpSelectionTitleVersion: vi.fn(),
 	unreactiveInfo: {
 		hasLastSelectedInfoPanel: false,
 	},
@@ -156,7 +154,6 @@ describe('LinkedEntityControl', () => {
 		globals.mrg.hoveredObject = undefined
 		globals.selectionState.panelId = undefined
 		globals.selectionState.selectedObject = undefined
-		globals.selectionState.titleVersion = 0
 		globals.unreactiveInfo.hasLastSelectedInfoPanel = false
 		globals.game.getObject.mockClear()
 		globals.validateSelectionPanelId.mockClear()

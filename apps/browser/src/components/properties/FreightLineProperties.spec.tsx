@@ -9,7 +9,6 @@ vi.mock('@app/lib/css', () => ({
 
 vi.mock('@app/lib/globals', () => ({
 	activeWorldViewPov: { viewId: 'primary', center: { q: 0, r: 0 } },
-	bumpSelectionTitleVersion: vi.fn(),
 	selectionState: { selectedObject: undefined },
 }))
 

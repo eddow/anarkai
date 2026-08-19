@@ -58,6 +58,27 @@ When a worker's NPC script calls `conveyStep`:
 
 **Source commitment continuity.** A movement should always have a live, unfinished source commitment. At rest this commitment is registered as a `reserve` on storage. During a hop, the source commitment is the hop step itself. The visual `LooseGood` is only a renderer for that in-flight commitment; it is not the authoritative carrier of the good.
 
+## Reactivity model (deliberate)
+
+The convey runtime is **intentionally non-reactive**. `Hive.movingGoods` (an `AxialKeyMap<TrackedMovement[]>`)
+and `Hive.activeMovements` (a plain `Set`) are ordinary collections, and `TrackedMovement` fields
+(`path`, `claimed`, `from`, …) mutate **in place**.
+
+- **Why:** reactive proxies over in-place-mutated movement tokens produce stale `movingGoods` bucket
+  skew (`tracked-at-wrong-position`); movement identity is compared by raw `ref` identity across
+  hive topology rebinds, which a deep proxy would break.
+- **Invalidation, not derivation:** instead of reactive tracking, the convey planner invalidates
+  coarsely via `Hive.invalidateConveyPlanning(reason)` → `_conveyPlanningRevision++` (which also
+  bumps the global `Game.workPlanningRevision`). The revision is the **cache key** for the convey
+  memo caches (`conveyNearbyCache`, `goodMovementCache`, `jobByCharacterCache`, `incomingGoodsCache`)
+  on `Alveolus`, and for `Vehicle.advertisedJobsCache`.
+
+This is the legitimate "invalidation token" pattern (see `sandbox/version-token-hack-analysis.md` §5.3):
+`conveyPlanningRevision` is a coarse "the non-reactive movement graph changed — recompute" signal,
+**not** a substitute for dependency tracking where reactive state exists. It is retained by design;
+do not "migrate" the convey runtime to reactive collections without first resolving the in-place
+mutation + identity concerns above.
+
 **No separate hop allocation object.** The hop step itself (`MultiMoveStep`, which extends `Commitment`) serves as the in-flight source commitment. If the hop reserves or allocates storage capacity, that storage bookkeeping is registered on the step commitment. The movement should keep referring to that same live source commitment while the hop is active.
 ### Handoff at intermediate borders
 When a good lands on a border gate and still has hops left:

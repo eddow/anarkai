@@ -58,10 +58,6 @@ vi.mock('@app/lib/css', () => ({
 	css: () => '',
 }))
 
-vi.mock('@app/lib/globals', () => ({
-	bumpSelectionTitleVersion: vi.fn(),
-}))
-
 vi.mock('@app/ui/anarkai', () => ({
 	InspectorSection: (props: { title?: string; children?: JSX.Element }) => (
 		<section data-testid="inspector-section" data-title={props.title}>
