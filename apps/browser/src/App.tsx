@@ -76,7 +76,6 @@ if (typeof window !== 'undefined') {
 	// (useful for tests that manage panels themselves, e.g. pin-mechanism).
 	debugWindow.__selectObject = (object: unknown, opts?: { openPanel?: boolean }) => {
 		selectionState.selectedObject = object as object
-		selectionState.titleVersion++
 
 		if (opts?.openPanel === false) return
 

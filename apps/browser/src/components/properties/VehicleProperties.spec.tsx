@@ -1,9 +1,7 @@
 // @ts-nocheck
-import {
-	consumePresentationEvents,
-	resetPresentationRevisionsForTests,
-} from '@app/lib/presentation-events'
+import { resetPresentationRevisionsForTests } from '@app/lib/presentation-events'
 import { document, latch } from '@sursaut/core'
+import { reactive } from 'mutts'
 import { disconnectAllProfiles, profile, setProfileLevel } from 'ssh/dev/debug'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -222,15 +220,16 @@ describe('VehicleProperties', () => {
 		expect(container.querySelector('[data-testid="goods-list"]')).not.toBeNull()
 	})
 
-	it('refreshes storage stock when the vehicle receives a storage presentation event', async () => {
-		let stock = { berries: 3 }
+	it('refreshes storage stock when the vehicle storage changes reactively', async () => {
+		const stockSource = reactive({ berries: 3 })
 		const vehicle = {
 			title: 'wheelbarrow refresh',
 			vehicleType: 'wheelbarrow',
 			game: {},
 			storage: {
 				get stock() {
-					return stock
+					// Mirrors SlottedStorage.stock: a getter reading reactive slot state.
+					return { berries: stockSource.berries }
 				},
 			},
 			service: undefined,
@@ -242,12 +241,7 @@ describe('VehicleProperties', () => {
 
 		expect(container.querySelector('[data-testid="vehicle-good-berries"]')?.textContent).toBe('3')
 
-		stock = { berries: 4 }
-		await new Promise((resolve) => setTimeout(resolve, 0))
-		expect(container.querySelector('[data-testid="vehicle-good-berries"]')?.textContent).toBe('3')
-
-		consumePresentationEvents([{ type: 'storage.changed', owner: vehicle as any }])
-		await new Promise((resolve) => setTimeout(resolve, 0))
+		stockSource.berries = 4
 		await new Promise((resolve) => setTimeout(resolve, 0))
 
 		expect(container.querySelector('[data-testid="vehicle-good-berries"]')?.textContent).toBe('4')

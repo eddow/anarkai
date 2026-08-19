@@ -1,4 +1,5 @@
 import { goods as goodsCatalog, settlementTrade } from 'engine-rules'
+import { markRaw } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
 import type { Game } from 'ssh/game/game'
 import { GameObject, type InspectorSelectableObject, withInteractive } from 'ssh/game/object'
@@ -33,7 +34,7 @@ export interface NpcSettlementTradeProfile {
 	readonly regionSetKey: string
 	/** Stable generator id (e.g. `settlement-7,19`). Used by freight trade stops. */
 	readonly id: string
-	/** Display name (e.g. `Melindbury`). */
+	/** Display name */
 	readonly name: string
 	readonly kind: GeneratedSettlement['kind']
 	readonly center: AxialCoord
@@ -149,7 +150,10 @@ export function createNpcSettlementTradeProfile(args: {
 		...directionalOffers(buyGoods, 'buy', args.seed, args.settlement),
 	]
 	const cityHallPosition = selectSettlementCityHallPosition(args.settlement, args.tileData)
-	return {
+	// Identity-bearing value object: keep it raw so `reactive(new Set(...))` storage and
+	// iteration never break `===` comparisons against the raw profile (e.g. the registry
+	// facade + `settlementTradeProfilesByCityHallCoord`).
+	const profile: NpcSettlementTradeProfile = {
 		regionSetKey: args.regionSetKey,
 		id: args.settlement.id,
 		name: args.settlement.name,
@@ -163,6 +167,7 @@ export function createNpcSettlementTradeProfile(args: {
 		},
 		offers,
 	}
+	return markRaw(profile)
 }
 
 export class SettlementTradeObject

@@ -75,7 +75,6 @@ export class Vehicle extends withInteractive(GameObject) {
 	public service?: VehicleService
 	private readonly proposedJobsCache = new RevisionedCache<readonly VehicleProposedJob[]>()
 	private readonly advertisedJobsCache = new RevisionedCache<readonly ProposedJob[]>()
-	private readonly dockStorageCompletionLifecycle = reactive({ revision: 0 })
 	private dockStorageCompletionEffect?: () => void
 	private dockStorageCompletionScheduled = false
 	public get operator(): Character | undefined {
@@ -174,13 +173,11 @@ export class Vehicle extends withInteractive(GameObject) {
 		if (isVehicleLineService(svc) && 'anchor' in svc.stop && this.isDocked) {
 			syncFreightVehicleDockRegistration(this)
 		}
-		this.pokeDockStorageCompletionLifecycle()
 		this.scheduleDockStorageCompletionCheck()
 	}
 
 	private installDockStorageCompletionEffect(): void {
 		this.dockStorageCompletionEffect = effect`vehicle.dock.storage-completion`(() => {
-			this.dockStorageCompletionLifecycle.revision
 			const svc = this.service
 			if (!isVehicleLineService(svc) || !('anchor' in svc.stop) || !this.isDocked) return
 			if (svc.operator) return
@@ -218,10 +215,6 @@ export class Vehicle extends withInteractive(GameObject) {
 			})
 			maybeAdvanceVehicleFromCompletedAnchorStop(this.game, this)
 		}, 0)
-	}
-
-	private pokeDockStorageCompletionLifecycle(): void {
-		this.dockStorageCompletionLifecycle.revision++
 	}
 
 	get title(): string {
@@ -444,7 +437,6 @@ export class Vehicle extends withInteractive(GameObject) {
 		this.service.operator = undefined
 		this.game.invalidateWorkPlanning('vehicle.operator')
 		current?.setOperatedVehicleFromService(undefined)
-		this.pokeDockStorageCompletionLifecycle()
 	}
 
 	beginLineService(line: FreightLineDefinition, stop: FreightStop, operator?: Character): void {
@@ -454,7 +446,6 @@ export class Vehicle extends withInteractive(GameObject) {
 		this.service = next
 		this.game.invalidateWorkPlanning('vehicle.service')
 		syncFreightVehicleDockRegistration(this)
-		this.pokeDockStorageCompletionLifecycle()
 		if (operator) this.setServiceOperator(operator)
 	}
 
@@ -470,7 +461,6 @@ export class Vehicle extends withInteractive(GameObject) {
 		this.service = next
 		this.game.invalidateWorkPlanning('vehicle.service')
 		syncFreightVehicleDockRegistration(this)
-		this.pokeDockStorageCompletionLifecycle()
 		if (operator) this.setServiceOperator(operator)
 	}
 
@@ -541,7 +531,6 @@ export class Vehicle extends withInteractive(GameObject) {
 		this.traceDockPlacement('clear-position')
 		syncFreightVehicleDockRegistration(this)
 		this.enqueueDockPresentationChange()
-		this.pokeDockStorageCompletionLifecycle()
 		this.scheduleDockStorageCompletionCheck()
 	}
 
@@ -554,7 +543,6 @@ export class Vehicle extends withInteractive(GameObject) {
 		this.game.invalidateWorkPlanning('vehicle.undock')
 		this.traceDockPlacement('undock')
 		syncFreightVehicleDockRegistration(this)
-		this.pokeDockStorageCompletionLifecycle()
 	}
 
 	advanceToStop(stop: FreightStop): void {
@@ -566,7 +554,6 @@ export class Vehicle extends withInteractive(GameObject) {
 		svc.docked = false
 		this.game.invalidateWorkPlanning('vehicle.stop')
 		syncFreightVehicleDockRegistration(this)
-		this.pokeDockStorageCompletionLifecycle()
 	}
 
 	endService(): void {
@@ -585,7 +572,6 @@ export class Vehicle extends withInteractive(GameObject) {
 		syncFreightVehicleDockRegistration(this)
 		this.service = undefined
 		this.game.invalidateWorkPlanning('vehicle.service')
-		this.pokeDockStorageCompletionLifecycle()
 	}
 
 	setServedLines(lines: readonly FreightLineDefinition[], reason = 'vehicle.served-lines'): void {

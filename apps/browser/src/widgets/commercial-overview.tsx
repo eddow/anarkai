@@ -2,7 +2,7 @@ import { css } from '@app/lib/css'
 import { game } from '@app/lib/globals'
 import { activeWorldViewPov } from '@app/lib/interactive-state'
 import { InspectorSection } from '@app/ui/anarkai'
-import { effect, reactive } from 'mutts'
+import { effect } from 'mutts'
 import type { NpcSettlementTradeProfile } from 'ssh/commerce/settlement-trade'
 
 /** @deprecated Removed during ID-removal migration. Stub for compilation only. */
@@ -83,10 +83,7 @@ function distanceFrom(center: AxialCoord, profile: NpcSettlementTradeProfile): n
 }
 
 const CommercialOverviewWidget = () => {
-	const local = reactive({ revision: 0 })
-
 	const sortedProfiles = (): NpcSettlementTradeProfile[] => {
-		void local.revision
 		const center = activeWorldViewPov.center
 		if (!center) return game.listSettlementTradeProfiles()
 		const profiles = [...game.listSettlementTradeProfiles()]
@@ -126,13 +123,12 @@ const CommercialOverviewWidget = () => {
 	// Trigger settlement generation near camera when opened
 	effect`commercial-overview:ensure-settlements`(() => {
 		const center = activeWorldViewPov.center
-		void local.revision
 		if (!center) return
 		const cur = game.listSettlementTradeProfiles()
 		if (cur.length >= MAX_SETTLEMENTS) return
-		void game.ensureNearbySettlements(center, MAX_SETTLEMENTS).then(() => {
-			local.revision++
-		})
+		// `settlementTradeProfiles` is reactive, so the async generation below
+		// re-runs this effect (and the price getters) when profiles land.
+		void game.ensureNearbySettlements(center, MAX_SETTLEMENTS)
 	})
 
 	return (

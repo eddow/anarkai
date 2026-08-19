@@ -23,18 +23,12 @@ export interface SelectionState {
 	panelId?: string
 	/** Object reference (set by showProps, read by selection-info). Not persisted — computed at runtime. */
 	selectedObject?: object
-	titleVersion: number
 }
 
 export const selectionState = shallowReactive<SelectionState>({
 	panelId: undefined,
 	selectedObject: undefined,
-	titleVersion: 0,
 })
-
-export function bumpSelectionTitleVersion(): void {
-	selectionState.titleVersion++
-}
 
 /**
  * Ensure `selectionState.panelId` still refers to a live panel in the given

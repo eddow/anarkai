@@ -1,6 +1,5 @@
 import { css } from '@app/lib/css'
 import { zoneOverlayState } from '@app/lib/freight-line-overlay'
-import { bumpSelectionTitleVersion } from '@app/lib/globals'
 import { resolveHiveFromAnchorTile, type SyntheticHiveObject } from '@app/lib/hive-inspector'
 import { T } from '@app/lib/i18n'
 import { InspectorSection } from '@app/ui/anarkai'
@@ -135,9 +134,7 @@ const HiveProperties = (props: HivePropertiesProps) => {
 		set value(v: string) {
 			const hive = currentHive()
 			if (!hive) return
-			const prev = hive.name
 			hive.name = v.trim() === '' ? undefined : v
-			if ((prev ?? '') !== (hive.name ?? '')) bumpSelectionTitleVersion()
 		},
 	}
 

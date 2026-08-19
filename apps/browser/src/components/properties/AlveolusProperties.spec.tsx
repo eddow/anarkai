@@ -32,9 +32,13 @@ const { MockForesterAlveolus, MockFreightBayAlveolus, MockStorageAlveolus, MockT
 			tile = { position: { q: 0, r: 0 } }
 			working = true
 			action = { type: 'plant', deposit: 'tree' }
-			assignedZones: unknown[] = []
-			setAssignedZones(zones: unknown[]) {
-				this.assignedZones = zones
+			assignedZones: Set<unknown> = new Set()
+			setAssignedZones(zones: Iterable<unknown>) {
+				// Mirror Alveolus.setAssignedZones: mutate the same Set in place so the
+				// reactive wrapper (applied by `reactive(new MockForesterAlveolus())`)
+				// observes the content change.
+				this.assignedZones.clear()
+				for (const zone of zones) this.assignedZones.add(zone)
 			}
 		},
 		MockFreightBayAlveolus: class MockFreightBayAlveolus {
@@ -478,9 +482,9 @@ describe('AlveolusProperties', () => {
 			vehicles: [],
 			hex: {
 				zoneManager: {
-					definitions: [
-						{ id: 'north-grove', name: 'North Grove', type: 'custom' },
-						{ id: 'south-grove', name: 'South Grove', type: 'custom' },
+					listCustomZoneDefinitions: () => [
+						{ name: 'North Grove', type: 'passive' },
+						{ name: 'South Grove', type: 'passive' },
 					],
 				},
 			},
@@ -504,7 +508,7 @@ describe('AlveolusProperties', () => {
 		)
 		north?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
 
-		expect(forester.assignedZones.map((z: any) => z.name)).toEqual(['North Grove'])
+		expect([...forester.assignedZones].map((z: any) => z.name)).toEqual(['North Grove'])
 		expect(container.querySelector('[data-testid="forester-zone-chip"]')?.textContent).toContain(
 			'North Grove'
 		)
@@ -515,7 +519,7 @@ describe('AlveolusProperties', () => {
 		container
 			.querySelector('[data-testid="forester-zone-remove-0"]')
 			?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-		expect(forester.assignedZones).toEqual([])
+		expect([...forester.assignedZones]).toEqual([])
 	})
 
 	it('does not render assigned-zone controls for non-forester alveoli', () => {

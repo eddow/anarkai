@@ -1,8 +1,6 @@
-import {
-	consumePresentationEvents,
-	resetPresentationRevisionsForTests,
-} from '@app/lib/presentation-events'
+import { resetPresentationRevisionsForTests } from '@app/lib/presentation-events'
 import { document, latch } from '@sursaut/core'
+import { reactive } from 'mutts'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const classMocks = vi.hoisted(() => {
@@ -89,18 +87,13 @@ describe('StoredGoodsRow presentation refresh', () => {
 		document.body.innerHTML = ''
 	})
 
-	it('refreshes stock display when the owning tile receives a storage presentation event', async () => {
-		let stock = { wood: 1 }
-		const content = {
+	it('refreshes stock display when the owning storage changes reactively', async () => {
+		const content = reactive({
 			tile: {},
 			game: {},
-			storage: {
-				get stock() {
-					return stock
-				},
-			},
+			storage: { stock: { wood: 1 } },
 			goodsRelations: {},
-		}
+		})
 
 		stop = latch(
 			container,
@@ -109,11 +102,7 @@ describe('StoredGoodsRow presentation refresh', () => {
 
 		expect(container.querySelector('[data-testid="badge-wood"]')?.textContent).toBe('×1')
 
-		stock = { wood: 2 }
-		await flush()
-		expect(container.querySelector('[data-testid="badge-wood"]')?.textContent).toBe('×1')
-
-		consumePresentationEvents([{ type: 'storage.changed', owner: content.tile as any }])
+		content.storage.stock = { wood: 2 }
 		await flush()
 
 		expect(container.querySelector('[data-testid="badge-wood"]')?.textContent).toBe('×2')

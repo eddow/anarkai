@@ -9,7 +9,7 @@ import {
 	gameTimeSpeedFactors,
 } from 'engine-rules'
 import type { TerrainMacroHydrologySnapshot, TerrainSectorCoord } from 'engine-terrain'
-import { atomic, defer, Eventful, reactive, toRaw, unreactive } from 'mutts'
+import { atomic, defer, Eventful, markRaw, reactive, toRaw, unreactive } from 'mutts'
 import { Alveolus } from 'ssh/board'
 import { HexBoard } from 'ssh/board/board'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
@@ -88,7 +88,7 @@ import {
 } from 'ssh/population/vehicle'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { ResidentialDemandTicker } from 'ssh/residential/demand'
-import { buildSaveIndexes } from 'ssh/serialization'
+import { buildSaveIndexes, IndexStore } from 'ssh/serialization'
 import type { AlveolusType, DepositType, GoodType, TerrainType } from 'ssh/types'
 import type { GameRenderer, InputAdapter } from 'ssh/types/engine'
 import type { AxialCoord } from 'ssh/utils'
@@ -196,13 +196,12 @@ export interface AlveolusPatch {
 	constructionWorkSecondsApplied?: number
 	constructionPhase?: ConstructionPhase
 	hivePlanIndex?: number
-	hivePlanVersion?: number
 	/** Configuration reference and individual config for this alveolus */
 	configuration?: {
 		ref: Ssh.ConfigurationReference
 		individual?: Ssh.AlveolusConfiguration
 	}
-	assignedZoneNames?: readonly string[]
+	assignedZoneIndices?: readonly number[]
 }
 
 export interface DwellingPatch {
@@ -226,7 +225,6 @@ export interface ProjectSitePatch {
 	constructionGoods?: Partial<Record<GoodType, number>>
 	constructionWorkSecondsApplied?: number
 	hivePlanIndex?: number
-	hivePlanVersion?: number
 	/** Plan-entry configuration for the build shell (replaces the former `planRoleId` lookup). */
 	configuration?: {
 		ref: Ssh.ConfigurationReference
@@ -556,7 +554,7 @@ export class Game extends Eventful<GameEvents> {
 	private readonly inFlightGameplaySectors = new Map<string, Promise<boolean>>()
 	private readonly appliedSettlementRegionSets = new Set<string>()
 	private readonly inFlightSettlementRegionSets = new Map<string, Promise<void>>()
-	private readonly settlementTradeProfiles = new Set<NpcSettlementTradeProfile>()
+	private readonly settlementTradeProfiles = reactive(new Set<NpcSettlementTradeProfile>())
 	private readonly settlementTradeProfilesByCityHallCoord = new Map<
 		string,
 		NpcSettlementTradeProfile
@@ -810,10 +808,16 @@ export class Game extends Eventful<GameEvents> {
 
 	/** Test/bootstrap seam: register a settlement trade profile by center coord. */
 	public registerSettlementTradeProfile(profile: NpcSettlementTradeProfile): void {
-		const existing = this.getSettlementTradeProfileAtCenter(profile.center)
+		// Keep the profile raw so the reactive `settlementTradeProfiles` set stores it
+		// by identity — consumers (and the by-city-hall map) compare `===` against the raw object.
+		const rawProfile = markRaw(profile)
+		const existing = this.getSettlementTradeProfileAtCenter(rawProfile.center)
 		if (existing) this.settlementTradeProfiles.delete(existing)
-		this.settlementTradeProfiles.add(profile)
-		this.settlementTradeProfilesByCityHallCoord.set(axial.key(profile.cityHall.position), profile)
+		this.settlementTradeProfiles.add(rawProfile)
+		this.settlementTradeProfilesByCityHallCoord.set(
+			axial.key(rawProfile.cityHall.position),
+			rawProfile
+		)
 	}
 
 	/**
@@ -2443,7 +2447,6 @@ export class Game extends Eventful<GameEvents> {
 					Object.assign(build, {
 						hivePlan:
 							a.hivePlanIndex !== undefined ? this.hivePlans.byIndex(a.hivePlanIndex) : undefined,
-						hivePlanVersion: a.hivePlanVersion,
 						planConfiguration: a.configuration,
 					})
 					this.hex.setTileContent(tile, build)
@@ -2497,10 +2500,13 @@ export class Game extends Eventful<GameEvents> {
 						}
 					}
 				}
-				if (a.assignedZoneNames) {
+				if (a.assignedZoneIndices) {
+					const customZones = IndexStore.fromOrdered(
+						this.hex.zoneManager.listCustomZoneDefinitions()
+					)
 					alv.setAssignedZones(
-						a.assignedZoneNames
-							.map((name) => this.hex.zoneManager.findZoneByName(name))
+						a.assignedZoneIndices
+							.map((index) => customZones.fromIndex(index))
 							.filter((zone): zone is import('ssh/board/zone').ZoneDefinition => zone !== undefined)
 					)
 				}
@@ -2602,7 +2608,6 @@ export class Game extends Eventful<GameEvents> {
 						: undefined
 				Object.assign(build, {
 					hivePlan,
-					hivePlanVersion: entry.hivePlanVersion,
 					planConfiguration: entry.configuration,
 				})
 				this.hex.setTileContent(tile, build)
@@ -2723,6 +2728,11 @@ export class Game extends Eventful<GameEvents> {
 			.map((coord) => [coord.q, coord.r] as [number, number])
 		const zoneTypePatches: import('ssh/board/zone').ZoneDefinitionPatch[] = []
 		const zoneCoordMap = new Map<import('ssh/board/zone').ZoneDefinition, Array<[number, number]>>()
+		// Build the custom-zone index store up front so alveolus zone assignments (below)
+		// and the central save indexes (further down) share one index space.
+		const customZonesIndex = IndexStore.fromOrdered(
+			this.hex.zoneManager.listCustomZoneDefinitions()
+		)
 		const projectSites: ProjectSitePatch[] = []
 		const dwellings: DwellingPatch[] = []
 		const roads: RoadPatches = {}
@@ -2815,7 +2825,6 @@ export class Game extends Eventful<GameEvents> {
 					hivePlanIndex: (content as { hivePlan?: HivePlan }).hivePlan
 						? this.hivePlans.indexOf((content as { hivePlan?: HivePlan }).hivePlan!)
 						: undefined,
-					hivePlanVersion: (content as { hivePlanVersion?: number }).hivePlanVersion,
 					configuration: (content as { planConfiguration?: ProjectSitePatch['configuration'] })
 						.planConfiguration,
 				})
@@ -2838,8 +2847,6 @@ export class Game extends Eventful<GameEvents> {
 								hivePlanIndex: (constructionShell as { hivePlan?: HivePlan }).hivePlan
 									? this.hivePlans.indexOf((constructionShell as { hivePlan?: HivePlan }).hivePlan!)
 									: undefined,
-								hivePlanVersion: (constructionShell as { hivePlanVersion?: number })
-									.hivePlanVersion,
 							}
 						: {
 								coord: [q, r],
@@ -2856,10 +2863,10 @@ export class Game extends Eventful<GameEvents> {
 						individual: content.individualConfiguration,
 					}
 				}
-				if (content.assignedZones.length > 0) {
-					patch.assignedZoneNames = content.assignedZones
-						.map((zone) => zone.name)
-						.filter((name): name is string => !!name)
+				if (content.assignedZones.size > 0) {
+					patch.assignedZoneIndices = [...content.assignedZones]
+						.map((zone) => customZonesIndex.toIndex(zone))
+						.filter((index): index is number => index !== undefined)
 				}
 				hives.get(content.hive)!.push(patch)
 			}
@@ -2908,7 +2915,7 @@ export class Game extends Eventful<GameEvents> {
 			freightLines: this.freightLines,
 			characters: this.population,
 			vehicles: this.vehicles,
-			customZones: this.hex.zoneManager.listCustomZoneDefinitions(),
+			customZones: customZonesIndex.ordered(),
 			hivePlans: this.hivePlans.plans,
 		})
 

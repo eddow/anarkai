@@ -85,7 +85,6 @@ export function finalizeConstructionShell(shell: ConstructionSiteShell): void {
 			targetVariantId?: string
 			planConfiguration?: any
 			hivePlan?: HivePlan
-			hivePlanVersion?: number
 		}
 		const queue = buildShell.constructionQueue
 		const currentIdx = buildShell.constructionStepIndex ?? 0
@@ -113,7 +112,6 @@ export function finalizeConstructionShell(shell: ConstructionSiteShell): void {
 			if (assignedWorker) assignedWorker.assignedAlveolus = nextBuild
 			Object.assign(nextBuild, {
 				hivePlan: (shell as { hivePlan?: HivePlan }).hivePlan,
-				hivePlanVersion: (shell as { hivePlanVersion?: number }).hivePlanVersion,
 				planConfiguration: (shell as { planConfiguration?: any }).planConfiguration,
 			})
 			shell.tile.content = nextBuild

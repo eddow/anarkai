@@ -265,23 +265,22 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 		selectInspectorObject(createSyntheticFreightLineObject(game, stored))
 	}
 
-	const assignedZones = () => props.content?.assignedZones ?? []
+	const assignedZones = () => props.content?.assignedZones ?? new Set<ZoneDefinition>()
+	const assignedZoneList = () => [...assignedZones()]
 	const zones = () =>
-		(state.resolvedGame ? state.resolvedGame.hex.zoneManager.listZoneDefinitions() : []).filter(
-			(z) => z.name
-		)
+		state.resolvedGame ? state.resolvedGame.hex.zoneManager.listCustomZoneDefinitions() : []
 	const zoneObject = (zone: ZoneDefinition) =>
 		state.resolvedGame ? new ZoneObject(state.resolvedGame, zone) : undefined
 	const zonePickerItems = () =>
 		zones()
-			.filter((zone) => !assignedZones().includes(zone))
+			.filter((zone) => !assignedZones().has(zone))
 			.map((zone) => ({ id: zone.name ?? '', label: zone.name?.trim() || zone.type }))
 	const assignZone = (id: string) => {
 		const zone = zones().find((z) => (z.name ?? '') === id)
 		if (props.content && zone) props.content.setAssignedZones([...assignedZones(), zone])
 	}
 	const removeZone = (zone: ZoneDefinition) => {
-		props.content?.setAssignedZones(assignedZones().filter((z) => z !== zone))
+		props.content?.setAssignedZones([...assignedZones()].filter((z) => z !== zone))
 	}
 
 	return (
@@ -432,7 +431,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 
 			<PropertyGridRow if={state.isForester && state.resolvedGame} label="Assigned zones">
 				<div class="alveolus-zone-assignment">
-					<for each={assignedZones()}>
+					<for each={assignedZoneList()}>
 						{(zone) => (
 							<span class="alveolus-zone-assignment__chip" data-testid="forester-zone-chip">
 								<InspectorObjectLink
@@ -444,7 +443,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 									class="alveolus-zone-assignment__remove"
 									title="Remove zone"
 									aria-label={`Remove ${zone.name?.trim()}`}
-									data-testid={`forester-zone-remove-${assignedZones().indexOf(zone)}`}
+									data-testid={`forester-zone-remove-${assignedZoneList().indexOf(zone)}`}
 									onClick={() => removeZone(zone)}
 								>
 									x

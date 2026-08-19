@@ -47,7 +47,18 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	public tile: Tile
 	public declare hive: Hive
 	public storage: Storage
-	public assignedZones: readonly ZoneDefinition[] = []
+	/**
+	 * Named custom zones assigned to this alveolus (forester planting authority).
+	 *
+	 * **Identity invariant:** holds the **raw** `markRaw` `ZoneDefinition` reference —
+	 * the same object returned by `defineZone` / `listCustomZoneDefinitions` / `findZoneByName`
+	 * and stored on `tile.zone` and freight-line `stop.zone.definition`. Membership is tested by
+	 * `Set.has` / `===` on that raw object (never by name, never by index).
+	 *
+	 * A reactive `Set` so the UI re-renders on membership change; the array form exists only at
+	 * the (de)serialization boundary (`assignedZoneIndices`).
+	 */
+	public assignedZones = reactive(new Set<ZoneDefinition>())
 	private readonly conveyNearbyCache = new RevisionedCache<boolean>()
 	private readonly incomingGoodsCache = new RevisionedCache<boolean>()
 	private readonly goodMovementCache = new RevisionedCache<MovementSelection[] | undefined>()
@@ -242,13 +253,12 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		return this.working
 	}
 
-	setAssignedZones(zones: readonly ZoneDefinition[]): void {
-		const next = [...new Set(zones)]
+	setAssignedZones(zones: Iterable<ZoneDefinition>): void {
+		const next = new Set(zones)
 		const current = this.assignedZones
-		if (current.length === next.length && current.every((zone, i) => zone === next[i])) {
-			return
-		}
-		this.assignedZones = next
+		if (current.size === next.size && [...next].every((zone) => current.has(zone))) return
+		current.clear()
+		for (const zone of next) current.add(zone)
 		this.game.invalidateWorkPlanning('alveolus.assigned-zones')
 		this.game.enqueueInteractiveChange(this.tile)
 	}

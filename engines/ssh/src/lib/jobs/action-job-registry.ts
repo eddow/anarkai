@@ -221,10 +221,10 @@ registerActionJobProvider('plant', (alveolus) => {
 	const assignedZones = alveolus.assignedZones
 
 	const findBestPath = (characterPosition: Positioned | undefined): Positioned[] | undefined => {
-		if (assignedZones.length === 0) return undefined
+		if (assignedZones.size === 0) return undefined
 		const startPos = toAxialCoord(characterPosition ?? alveolus.tile.position)
 		const hex = alveolus.tile.game.hex
-		const candidateCoords = assignedZones.flatMap((def) => hex.zoneManager.coordsForZone(def))
+		const candidateCoords = [...assignedZones].flatMap((def) => hex.zoneManager.coordsForZone(def))
 		let bestPath: Positioned[] | undefined
 
 		for (const coord of candidateCoords) {
@@ -250,7 +250,7 @@ registerActionJobProvider('plant', (alveolus) => {
 
 	return {
 		proposedJobs:
-			assignedZones.length > 0
+			assignedZones.size > 0
 				? [
 						{
 							job: {

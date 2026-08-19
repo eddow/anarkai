@@ -2,7 +2,6 @@ import { css } from '@app/lib/css'
 import { type FreightDraftIssueCode, freightDraftIssueCodes } from '@app/lib/freight-line-draft'
 import { showFreightLineOverlay } from '@app/lib/freight-line-overlay'
 import { clearFreightMapPickForLine } from '@app/lib/freight-map-pick'
-import { bumpSelectionTitleVersion } from '@app/lib/globals'
 import { T } from '@app/lib/i18n'
 import { InspectorSection } from '@app/ui/anarkai'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
@@ -358,7 +357,6 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 		const current = currentLine()
 		if (!g || !current) return
 		g.replaceFreightLine(current, normalizeFreightLineDefinition(next))
-		bumpSelectionTitleVersion()
 	}
 
 	const onLineChange = (next: FreightLineDefinition) => {
@@ -384,7 +382,6 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 		if (!line || !g) return
 		g.removeFreightLine(line)
 		props.onClose?.()
-		bumpSelectionTitleVersion()
 	}
 
 	const handleAssignVehicle = (item: HardListSearchPickerItem & { item: Vehicle }) => {
@@ -394,7 +391,6 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 		if (!line || !g || !vehicle) return
 		if (g.assignVehicleToFreightLine) g.assignVehicleToFreightLine(vehicle, line)
 		else vehicle.assignFreightLine?.(line)
-		bumpSelectionTitleVersion()
 	}
 
 	const handleUnassignVehicle = (vehicle: Vehicle) => {
@@ -403,7 +399,6 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 		if (!line || !g) return
 		if (g.unassignVehicleFromFreightLine) g.unassignVehicleFromFreightLine(vehicle, line)
 		else vehicle.unassignFreightLine?.(line)
-		bumpSelectionTitleVersion()
 	}
 
 	const lineName = () => currentLine()?.name ?? ''

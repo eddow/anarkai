@@ -361,10 +361,11 @@ Legend: ✅ done · ⏳ partial · ❌ TODO.
 `refreshFreightLineReference()` was deleted; `replaceFreightLine` mutates in place and `addFreightLine` is the
 add path. The `local.revision`/`state.revision` UI poke tokens were removed.
 
-**RESOLVED (2026-08-17).** Forester zone assignment `Alveolus.assignedZoneIndices: number[]` (index into
+**RESOLVED (2026-08-17, revised 2026-08-19).** Forester zone assignment `Alveolus.assignedZoneIndices: number[]` (index into
 `zoneManager.definitions`) → `Alveolus.assignedZones: ZoneDefinition[]` (object refs). Persisted as
-`assignedZoneNames: string[]`, resolved via `findZoneByName` at load. Requires zone patches applied **before**
-hive patches (reordered in `generate`/`generateAsync`). `action-job-registry.ts` now reads
-`assignedZones.flatMap(coordsForZone)`; the browser picker carries `ZoneDefinition` objects, restricted to
-named zones. Fixture `exampleGames.ts` foresters now use `assignedZoneNames: ['north-grove' | 'green-ring']`
-(the old `[2]` in HearthLoop pointed at the unnamed `commercial` zone — a latent index bug fixed by name).
+`assignedZoneIndices: number[]` (index into the `zones[]` array via `IndexStore<ZoneDefinition>` — same
+index space as freight-line `zoneIndex`), resolved via `IndexStore.fromOrdered(listCustomZoneDefinitions())`
+at load. Requires zone patches applied **before** hive patches (reordered in `generate`/`generateAsync`).
+`action-job-registry.ts` now reads `assignedZones.flatMap(coordsForZone)`; the browser picker carries
+`ZoneDefinition` objects, restricted to **custom** zones (`listCustomZoneDefinitions()`, matching
+`customZoneForTile`). Fixture `exampleGames.ts` foresters now use `assignedZoneIndices: [2]` / `[3]`.

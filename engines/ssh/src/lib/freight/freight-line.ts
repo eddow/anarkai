@@ -1,5 +1,5 @@
 import { defaultGatherFreightRadius } from 'engine-rules'
-import { reactive } from 'mutts'
+import { reactive, toRaw } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
 import type { ZoneDefinition } from 'ssh/board/zone'
 import type { Game } from 'ssh/game'
@@ -182,10 +182,12 @@ function normalizeRadiusZone(zone: FreightZoneDefinitionRadius): FreightZoneDefi
 
 function normalizeFreightZone(zone: FreightZoneDefinition): FreightZoneDefinition {
 	if (zone.kind === 'named') {
-		const normalized = { kind: 'named', zoneIndex: zone.zoneIndex } as FreightZoneDefinitionNamed
-		// Preserve the hydrated runtime reference through normalize so live edits keep the
-		// direct object ref; `zoneIndex` remains the serialization key only.
-		if (zone.definition) normalized.definition = zone.definition
+		// Runtime stops carry the `definition` object only. The `zoneIndex` is retained
+		// solely on unhydrated patch data so `hydrateFreightLineTradeProfiles` can resolve
+		// it; once a `definition` exists, no serialization index is copied into runtime data.
+		const normalized: FreightZoneDefinitionNamed = zone.definition
+			? { kind: 'named', definition: zone.definition }
+			: { kind: 'named', zoneIndex: zone.zoneIndex }
 		return normalized
 	}
 	return normalizeRadiusZone(zone)
@@ -237,10 +239,21 @@ export function hydrateFreightLineTradeProfiles(lines: FreightLineDefinition[], 
 		}
 		for (const stop of line.stops) {
 			if (!('zone' in stop) || stop.zone.kind !== 'named') continue
-			if (stop.zone.definition) continue
-			if (stop.zone.zoneIndex === undefined) continue
-			;(stop.zone as { definition: FreightZoneDefinitionNamed['definition'] }).definition =
-				customZones.fromIndex(stop.zone.zoneIndex)
+			const named = stop.zone as FreightZoneDefinitionNamed
+			if (!named.definition && named.zoneIndex !== undefined) {
+				const definition = customZones.fromIndex(named.zoneIndex)
+				// Write `definition` to the raw target of the (reactive) zone object. The
+				// reactive `set` trap unwraps assigned proxies (`newValue = unwrap(value)`), so
+				// assigning through the proxy would store the raw target and break `===` against
+				// `tile.zone` (which holds the shallowReactive proxy). Writing the raw target
+				// preserves the proxy as the identity; this is a one-time hydration, so no
+				// change notification is needed.
+				if (definition) toRaw(named).definition = definition
+			}
+			// Runtime stops reference the `definition` object only. The serialization
+			// `zoneIndex` is re-derived from `definition` in `serializeFreightLineForSave`,
+			// so drop it here so no serialization index lingers on live data.
+			if (named.definition) delete (named as { zoneIndex?: number }).zoneIndex
 		}
 	}
 }

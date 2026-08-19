@@ -1,6 +1,6 @@
 import { css } from '@app/lib/css'
 import { showProps } from '@app/lib/follow-selection'
-import { bumpSelectionTitleVersion, game, interactionMode } from '@app/lib/globals'
+import { game, interactionMode } from '@app/lib/globals'
 import { getZoneObject, unnamedZoneOwnership } from '@app/lib/zone-selection'
 import { InspectorSection } from '@app/ui/anarkai'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
@@ -115,7 +115,6 @@ const ZonesProperties = (_props: ZonesPropertiesProps) => {
 		})
 		unnamedZoneOwnership.zone = zone
 		interactionMode.selectedAction = `zone:${zone.name}`
-		bumpSelectionTitleVersion()
 		const object = getZoneObject(zone)
 		if (object) showProps(object)
 	}
@@ -126,7 +125,6 @@ const ZonesProperties = (_props: ZonesPropertiesProps) => {
 	const deleteUnusedZone = (zone: ZoneDefinition) => {
 		if (memberCount(zone) > 0) return
 		game.hex.zoneManager.removeZoneDefinition(zone)
-		bumpSelectionTitleVersion()
 	}
 
 	return (

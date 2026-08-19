@@ -1,6 +1,6 @@
 import GoodsList from '@app/components/GoodsList'
 import { css } from '@app/lib/css'
-import { bumpSelectionTitleVersion, game, interactionMode } from '@app/lib/globals'
+import { game, interactionMode } from '@app/lib/globals'
 import { unnamedZoneOwnership, zoneOverlayState } from '@app/lib/zone-selection'
 import { InspectorSection } from '@app/ui/anarkai'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
@@ -152,7 +152,6 @@ const ZoneProperties = (props: ZonePropertiesProps) => {
 			if (owned && owned === definition() && !owned.name?.trim()) {
 				game.hex.zoneManager.removeZoneDefinition(owned)
 				unnamedZoneOwnership.zone = undefined
-				bumpSelectionTitleVersion()
 			}
 		}
 	})
@@ -165,14 +164,12 @@ const ZoneProperties = (props: ZonePropertiesProps) => {
 		if (patch.name?.trim()) {
 			unnamedZoneOwnership.zone = undefined
 		}
-		bumpSelectionTitleVersion()
 	}
 	const deleteZone = () => {
 		const def = definition()
 		if (!def) return
 		game.hex.zoneManager.removeZoneDefinition(def)
 		if (interactionMode.selectedAction === zonePaintAction(def)) interactionMode.selectedAction = ''
-		bumpSelectionTitleVersion()
 		props.onClose?.()
 	}
 	const painting = () => interactionMode.selectedAction === zonePaintAction(definition())

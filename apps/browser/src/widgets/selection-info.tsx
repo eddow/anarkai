@@ -292,7 +292,6 @@ const SelectionInfoWidget = (
 	}
 
 	effect`selection-info:title`(() => {
-		selectionState.titleVersion
 		props.title = resolvePanelTitle()
 	})
 

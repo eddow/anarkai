@@ -1,6 +1,5 @@
 import { css } from '@app/lib/css'
 import { T } from '@app/lib/i18n'
-import { presentationRevisionFor } from '@app/lib/presentation-events'
 import { Button } from '@app/ui/anarkai'
 import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
 import { reactive } from 'mutts'
@@ -165,15 +164,10 @@ interface StoredGoodsRowProps {
 
 export default function StoredGoodsRow(props: StoredGoodsRowProps) {
 	const view = {
-		get owner() {
-			return props.content.tile
-		},
 		get stock() {
-			void presentationRevisionFor(this.owner)
 			return props.content.storage?.stock ?? {}
 		},
 		get relations() {
-			void presentationRevisionFor(this.owner)
 			return props.content.goodsRelations ?? {}
 		},
 	}

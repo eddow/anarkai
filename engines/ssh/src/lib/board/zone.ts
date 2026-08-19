@@ -1,4 +1,4 @@
-import { markRaw, reactive, toRaw } from 'mutts'
+import { reactive, shallowReactive, toRaw } from 'mutts'
 import type { AxialCoord } from 'ssh/utils'
 import { AxialKeyMap } from 'ssh/utils/mem'
 
@@ -75,9 +75,11 @@ export class ZoneManager {
 
 	/** Register a zone definition and return the object for spatial assignment. */
 	defineZone(definition: ZoneDefinition): ZoneDefinition {
-		// Zone definitions are identity-bearing registry objects. Keep them raw so
-		// reactive map storage/retrieval never breaks `===` comparisons.
-		const next = markRaw({
+		// Zone definitions are identity-bearing registry objects. `shallowReactive` gives
+		// both a stable reference (mutts returns the same proxy for the same target, and
+		// `reactive(proxy)` round-trips it unchanged) AND reactive `name`/`color` for the UI,
+		// so `===` comparisons across `tile.zone` / `assignedZones` / freight stops keep working.
+		const next = shallowReactive({
 			name: slugifyZoneName(definition.name),
 			color: definition.color?.trim() || undefined,
 			type: definition.type,
@@ -128,9 +130,9 @@ export class ZoneManager {
 
 	/** Remove a zone definition by object reference and clean up its spatial assignments. */
 	removeZoneDefinition(definition: ZoneDefinition): boolean {
-		const target = toRaw(definition) as ZoneDefinition
-		if (target.readonly) return false
-		if (!this.definitions.delete(target)) return false
+		if (definition.readonly) return false
+		if (!this.definitions.delete(definition)) return false
+		const target = toRaw(definition)
 		for (const coord of [...this.zones.coords()]) {
 			const current = this.zones.get(coord)
 			if (current && toRaw(current) === target) this.zones.delete(coord)
@@ -164,8 +166,7 @@ export class ZoneManager {
 	}
 
 	getZone(coord: AxialCoord): ZoneDefinition | undefined {
-		const zone = this.zones.get(coord)
-		return zone ? (toRaw(zone) as ZoneDefinition) : undefined
+		return this.zones.get(coord)
 	}
 
 	isHarvestableZone(zone: ZoneDefinition | undefined): boolean {
@@ -202,8 +203,7 @@ export class ZoneManager {
 	}
 
 	getGeneratedZone(coord: AxialCoord): ZoneDefinition | undefined {
-		const zone = this.generatedZones.get(coord)
-		return zone ? (toRaw(zone) as ZoneDefinition) : undefined
+		return this.generatedZones.get(coord)
 	}
 
 	getEffectiveZone(coord: AxialCoord): ZoneDefinition | undefined {

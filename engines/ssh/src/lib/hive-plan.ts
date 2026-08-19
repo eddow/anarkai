@@ -30,7 +30,6 @@ export interface HivePlanValidationProgress {
 
 export interface HivePlan {
 	name: string
-	version: number
 	stage: HivePlanStage
 	entries: HivePlanEntry[]
 	validationProgress: HivePlanValidationProgress
@@ -364,7 +363,6 @@ export class HivePlanCollection {
 		if (existing) return existing
 		const plan = reactive({
 			name,
-			version: 1,
 			stage: 'draft' as HivePlanStage,
 			entries: entries.map((entry) => ({ ...entry })),
 			validationProgress: hivePlanValidationRequirements(entries, this.plans),
@@ -519,7 +517,6 @@ export function createConstructionSiteForHivePlanEntry(
 	const shell = createConstructionShell(tile, constructionSite)
 	Object.assign(shell, {
 		hivePlan: plan,
-		hivePlanVersion: plan.version,
 		planConfiguration: entry.configuration ? { ...entry.configuration } : undefined,
 	})
 	return shell

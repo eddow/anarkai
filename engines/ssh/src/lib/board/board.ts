@@ -40,7 +40,7 @@ export { isTileCoord } from './tile-coord'
 
 @reactive
 export class HexBoard extends GameObject {
-	private readonly contents = new AxialKeyMap<TileContent | TileBorderContent>()
+	private readonly contents = reactive(new Map<string, TileContent | TileBorderContent>())
 	private readonly tileCache = new AxialKeyMap<Tile>()
 	private readonly borderCache = new AxialKeyMap<TileBorder>()
 	private readonly roadTypes = new AxialKeyMap<RoadType>()
@@ -66,7 +66,7 @@ export class HexBoard extends GameObject {
 		const roundedCenter = axial.round(centerCoord)
 		const tileRadius = Math.max(0, Math.floor(radius))
 		for (const coord of axial.allTiles(roundedCenter, tileRadius)) {
-			const content = this.contents.get(coord)
+			const content = this.contents.get(axial.key(coord))
 			const tile = content && 'tile' in content ? content.tile : this.tileCache.get(coord)
 			if (tile) yield tile
 		}
@@ -96,19 +96,19 @@ export class HexBoard extends GameObject {
 	getTileContent(ref: Positioned): TileContent | undefined {
 		const coord = toAxialCoord(ref)
 		if (!coord || !isTileCoord(coord)) return undefined
-		return this.contents.get({ q: coord.q, r: coord.r }) as TileContent | undefined
+		return this.contents.get(axial.key(coord)) as TileContent | undefined
 	}
 
 	setTileContent(ref: Positioned, content: TileContent | undefined) {
 		const coord = toAxialCoord(ref)
 		if (!coord || !isTileCoord(coord)) return
-		const oldContent = this.contents.get({ q: coord.q, r: coord.r }) as TileContent | undefined
+		const oldContent = this.contents.get(axial.key(coord)) as TileContent | undefined
 		const changedGroundSemantics =
 			!!oldContent &&
 			!!content &&
 			oldContent instanceof UnBuiltLand !== content instanceof UnBuiltLand
-		if (!content) this.contents.delete({ q: coord.q, r: coord.r })
-		else this.contents.set({ q: coord.q, r: coord.r }, content)
+		if (!content) this.contents.delete(axial.key(coord))
+		else this.contents.set(axial.key(coord), content)
 		if (oldContent && oldContent !== content) {
 			if (oldContent instanceof Alveolus) {
 				oldContent.hive.detachAlveolusForRefresh(oldContent)
@@ -124,7 +124,6 @@ export class HexBoard extends GameObject {
 		}
 		// If a tile content is set programmatically post-generation, mark tile dirty
 		const tile = content?.tile ?? (coord ? this.getTile(coord) : undefined)
-		if (tile && oldContent !== content) tile.notifyContentChanged()
 		if (tile) tile.asGenerated = false
 		if (tile) this.game.enqueueInteractiveChange(tile)
 		if (changedGroundSemantics) {
@@ -164,7 +163,7 @@ export class HexBoard extends GameObject {
 	getTile(ref: Positioned): Tile | undefined {
 		const coord = toAxialCoord(ref)
 		if (!coord || !isTileCoord(coord)) return undefined
-		const content = this.contents.get(axial.round(coord)) as TileContent | undefined
+		const content = this.contents.get(axial.key(axial.round(coord))) as TileContent | undefined
 		if (content?.tile) {
 			this.tileCache.set(coord, content.tile)
 			return content.tile
@@ -180,13 +179,13 @@ export class HexBoard extends GameObject {
 	getBorderContent(ref: Positioned): TileBorderContent | undefined {
 		const coord = toAxialCoord(ref)
 		if (!coord || isTileCoord(coord)) return undefined
-		return this.contents.get({ q: coord.q, r: coord.r }) as TileBorderContent | undefined
+		return this.contents.get(axial.key(coord)) as TileBorderContent | undefined
 	}
 	setBorderContent(ref: Positioned, content?: TileBorderContent) {
 		const coord = toAxialCoord(ref)
 		if (!coord || isTileCoord(coord)) return
-		if (!content) this.contents.delete({ q: coord.q, r: coord.r })
-		else this.contents.set({ q: coord.q, r: coord.r }, content)
+		if (!content) this.contents.delete(axial.key(coord))
+		else this.contents.set(axial.key(coord), content)
 	}
 
 	getRoadType(ref: Positioned): RoadType | undefined {
@@ -265,7 +264,7 @@ export class HexBoard extends GameObject {
 		const coord = toAxialCoord(ref)
 		if (!coord || isTileCoord(coord)) return undefined
 		if (!this.inBound(coord)) return undefined
-		const content = this.contents.get({ q: coord.q, r: coord.r }) as TileBorderContent | undefined
+		const content = this.contents.get(axial.key(coord)) as TileBorderContent | undefined
 		if (content?.border) {
 			this.borderCache.set(coord, content.border)
 			return content.border
