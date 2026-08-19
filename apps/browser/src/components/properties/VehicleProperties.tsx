@@ -355,12 +355,8 @@ const VehicleProperties = (
 ) => {
 	const state = reactive({
 		workChoices: [] as VehicleWorkChoice[],
-		stock: {} as Record<string, number>,
-		stockRevision: 0,
 	})
-	effect`vehicle-stock-sync`(() => {
-		state.stock = props.vehicle?.storage?.stock ?? {}
-	})
+	const stock = () => props.vehicle?.storage?.stock ?? {}
 	const computed = {
 		get operator() {
 			return effectiveOperatorForVehicle(props.vehicle)
@@ -462,9 +458,9 @@ const VehicleProperties = (
 						</PropertyGridRow>
 						<PropertyGridRow label={T.goods}>
 							<GoodsList
-								goods={[...Object.keys(state.stock)] as GoodType[]}
+								goods={[...Object.keys(stock())] as GoodType[]}
 								game={props.vehicle.game}
-								getBadgeProps={(g) => ({ qty: state.stock[g] })}
+								getBadgeProps={(g) => ({ qty: stock()[g] })}
 							/>
 						</PropertyGridRow>
 						<PropertyGridRow label={T.vehicle.service}>

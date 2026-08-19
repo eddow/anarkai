@@ -8,33 +8,17 @@
 
 Sursaut says: *"Do not create generic 'sync' effects that just copy values from A to B. `mutts` reactivity allows you to use the values directly. Anti-Pattern: `effect(() => state.localVal = globalVal)`"*
 
-### 1.1 `SpecificStorageConfiguration.tsx` (L49–85)
+### 1.1 `SpecificStorageConfiguration.tsx` (L49–85) — ✅ RESOLVED
 
-Creates `draft = reactive({ bufferStars })`, then an `effect` copies `buffers[goodType]` → `draft.bufferStars[goodType]`. The `Stars onChange` manually writes back to both `draft` and the source config. Should be a two-way binding with getter/setter transforming the scale.
+~~Creates `draft = reactive({ bufferStars })`, then an `effect` copies `buffers[goodType]` → `draft.bufferStars[goodType]`.~~ The `draft` buffer is gone: the component now derives `getBufferStars` / `getBufferValue` directly from `props.configuration.buffers` and writes back through `setBufferFromStars` — direct get/set, no redundant sync effect.
 
-- **draft**: L49
-- **sync effect**: L75–85
-- **manual onChange write-back**: L138–143
+### 1.2 `SlottedStorageConfiguration.tsx` (L65–133) — ✅ RESOLVED (2026-08-19)
 
-### 1.2 `SlottedStorageConfiguration.tsx` (L65–133)
+~~Creates `draft = reactive({ generalSlots, ranges })`, then an `effect` copies `view.displayedGeneralSlots` → `draft.generalSlots` and `view.rule(goodType)` → `draft.ranges[goodType]`.~~ `GoodStarsEditor` / `GeneralStarsEditor` now derive everything from the reactive `props.content.slottedStorageConfiguration` through a `view` getter object (same pattern as the parent) — no `state` buffer, no `effect` sync. The `mutts` import is gone from this file.
 
-Creates `draft = reactive({ generalSlots, ranges })`, then an `effect` copies `view.displayedGeneralSlots` → `draft.generalSlots` and `view.rule(goodType)` → `draft.ranges[goodType]`. Two `Stars onChange` handlers manually write draft + source.
+### 1.3 `StorageConfiguration.tsx` (L125, L270–280, L467–474) — LEGITIMATE (local UI state)
 
-- **draft**: L65
-- **sync effect**: L123–133
-- **onChange write-back #1**: L156–161
-- **onChange write-back #2**: L199–209
-
-### 1.3 `StorageConfiguration.tsx` (L125, L270–280, L467–474)
-
-Creates `draft = reactive({ bufferStars, selectedPreset, presetName })`. An `effect` syncs `bufferedGoods()` → `draft.bufferStars`. `Stars onChange` does manual write-back.
-
-Also `draft.presetName` and `draft.selectedPreset` are synced via `handlePresetInput`, `handlePresetSelection`, `handlePresetCommit`, and the `effect `storage-configuration:preset-sync`` — a chain of local state mirroring.
-
-- **draft**: L125
-- **buffer sync effect**: L270–280
-- **preset sync effect**: L255–260
-- **onChange write-back**: L467–474
+The `preset = reactive({ selectedPreset, presetName })` is **local UI state** (which preset is selected + the name-input text), not a buffer of config. Derived values (`mode`, `exceptions`, `buffers`, `isSlotted`, etc.) already use `memoize(...)`, and the `effect `storage-configuration:preset-sync`` is a reactive validation (reset to `SPECIFIC_PRESET` when the settings no longer match the selected preset). This is the correct pattern, not redundant synchronization.
 
 ### 1.4 `FreightLineProperties.tsx` (L327) — ✅ RESOLVED (2026-08-19)
 

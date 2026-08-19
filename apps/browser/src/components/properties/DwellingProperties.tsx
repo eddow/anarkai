@@ -1,7 +1,6 @@
 import { css } from '@app/lib/css'
 import { T } from '@app/lib/i18n'
 import { Badge } from '@app/ui/anarkai'
-import { effect, reactive } from 'mutts'
 import type { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import PropertyGridRow from '../PropertyGridRow'
 
@@ -18,15 +17,14 @@ interface DwellingPropertiesProps {
 }
 
 const DwellingProperties = (props: DwellingPropertiesProps) => {
-	const state = reactive({
-		capacity: 0,
-		occupied: false,
-	})
-
-	effect`dwelling-properties:stats`(() => {
-		state.capacity = props.content?.capacity ?? 0
-		state.occupied = Boolean(props.content?.reservedBy)
-	})
+	const view = {
+		get capacity() {
+			return props.content?.capacity ?? 0
+		},
+		get occupied() {
+			return Boolean(props.content?.reservedBy)
+		},
+	}
 
 	return (
 		<>
@@ -39,12 +37,12 @@ const DwellingProperties = (props: DwellingPropertiesProps) => {
 			</PropertyGridRow>
 			<PropertyGridRow label={String(T.residential.dwelling.capacity)}>
 				<Badge tone="yellow" data-testid="dwelling-capacity">
-					{state.capacity}
+					{view.capacity}
 				</Badge>
 			</PropertyGridRow>
 			<PropertyGridRow label={String(T.residential.dwelling.occupied)}>
-				<Badge tone={state.occupied ? 'red' : 'green'} data-testid="dwelling-occupied">
-					{state.occupied ? T.residential.dwelling.occupied : T.residential.dwelling.vacant}
+				<Badge tone={view.occupied ? 'red' : 'green'} data-testid="dwelling-occupied">
+					{view.occupied ? T.residential.dwelling.occupied : T.residential.dwelling.vacant}
 				</Badge>
 			</PropertyGridRow>
 		</>

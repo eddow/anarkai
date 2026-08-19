@@ -1,5 +1,4 @@
 import { css } from '@app/lib/css'
-import { effect, reactive } from 'mutts'
 
 css`
 .construction-progress {
@@ -43,19 +42,15 @@ interface ConstructionProgressBarProps {
 }
 
 export default function ConstructionProgressBar(props: ConstructionProgressBarProps) {
-	const state = reactive({
-		fillStyle: 'width:0%',
-	})
-
-	effect`construction-progress:fill`(() => {
+	const fillStyle = () => {
 		const ratio = props.total > 0 ? Math.max(0, Math.min(1, props.applied / props.total)) : 0
-		state.fillStyle = `width:${ratio * 100}%`
-	})
+		return `width:${ratio * 100}%`
+	}
 
 	return (
 		<div class="construction-progress" data-testid={props.testId}>
 			<div class="construction-progress__track" aria-hidden="true">
-				<div class="construction-progress__fill" style={state.fillStyle} />
+				<div class="construction-progress__fill" style={fillStyle()} />
 			</div>
 			<span class="construction-progress__label">{props.label}</span>
 		</div>
