@@ -441,20 +441,23 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 						addTitle="Add Buffer"
 						onAdd={handleBufferAdd}
 						onRemove={handleBufferRemove}
-						renderItemExtra={(good) => (
-							<div class="buffer-stars-container">
-								<Stars
-									value={getBufferStars(good)}
-									maximum={5}
-									onChange={(v: StarsValue) => {
-										const nextStars = typeof v === 'number' ? v : v[1]
-										setBufferFromStars(good, nextStars)
-									}}
-									size="1rem"
-								/>
-								<span class="buffer-quantity">{getDisplayQuantity(good)}</span>
-							</div>
-						)}
+						renderItemExtra={(good) => {
+							const stars = {
+								get value() {
+									return getBufferStars(good)
+								},
+								set value(v: StarsValue) {
+									const nextStars = typeof v === 'number' ? v : v[1]
+									setBufferFromStars(good, nextStars)
+								},
+							}
+							return (
+								<div class="buffer-stars-container">
+									<Stars value={stars.value} maximum={5} size="1rem" />
+									<span class="buffer-quantity">{getDisplayQuantity(good)}</span>
+								</div>
+							)
+						}}
 					>
 						No active buffers
 					</GoodMultiSelect>

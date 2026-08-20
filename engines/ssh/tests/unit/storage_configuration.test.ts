@@ -84,6 +84,23 @@ describe('StorageAlveolus Configuration', () => {
 		expect(relations).toEqual({})
 	})
 
+	it('defaults a fresh slotted storage to no constraint (all slots general, no goods)', () => {
+		const alveolus = withHive(new StorageAlveolus(mockTile, slottedStorageDefinition, 'storage'))
+
+		const config = alveolus.slottedStorageConfiguration
+
+		expect(config.generalSlots).toBe(5)
+		expect(config.goods).toEqual({})
+	})
+
+	it('defaults a fresh specific storage to no constraint (empty buffers)', () => {
+		const alveolus = withHive(new StorageAlveolus(mockTile, warehouseDefinition, 'warehouse'))
+
+		const config = alveolus.specificStorageConfiguration
+
+		expect(config.buffers).toEqual({})
+	})
+
 	it('should advertise buffered goods as demand when below configured buffer', () => {
 		const alveolus = withHive(new StorageAlveolus(mockTile, slottedStorageDefinition, 'storage'))
 		alveolus.working = true
@@ -228,5 +245,40 @@ describe('StorageAlveolus Configuration', () => {
 		alveolus.storage.addGood('wood', 1)
 		expect(alveolus.canGive('wood', '0-store')).toBe(true)
 		expect(alveolus.canGive('wood', '1-buffer')).toBe(true)
+	})
+
+	it('a fresh specific storage (no buffer) demands goods up to its max amount', () => {
+		const alveolus = withHive(new StorageAlveolus(mockTile, warehouseDefinition, 'warehouse'))
+		alveolus.working = true
+
+		// No buffer configured: the pile is "no constraint" (min=0), so it should
+		// attract its goods (demand 1-buffer) while it still has room.
+		expect(alveolus.workingGoodsRelations).toMatchObject({
+			wood: { advertisement: 'demand', priority: '1-buffer' },
+			stone: { advertisement: 'demand', priority: '1-buffer' },
+		})
+
+		// Once full, it stops demanding (and, with no buffer, its stock is surplus).
+		alveolus.storage.addGood('wood', 2)
+		expect(alveolus.workingGoodsRelations.wood).toMatchObject({
+			advertisement: 'provide',
+			priority: '0-store',
+		})
+	})
+
+	it('a buffered specific storage still only demands up to its buffer, not max', () => {
+		const alveolus = withHive(new StorageAlveolus(mockTile, warehouseDefinition, 'warehouse'))
+		alveolus.working = true
+		alveolus.storageBuffers = { wood: 1 }
+
+		// maxAmount for wood is 2; with a buffer of 1 the storage must not "fill
+		// toward max" — once it holds 1 it should stop demanding.
+		expect(alveolus.workingGoodsRelations.wood).toMatchObject({
+			advertisement: 'demand',
+			priority: '1-buffer',
+		})
+
+		alveolus.storage.addGood('wood', 1)
+		expect(alveolus.workingGoodsRelations.wood).toBeUndefined()
 	})
 })

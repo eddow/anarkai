@@ -145,6 +145,13 @@ function projectTraceValue(value: unknown, ctx: ProjectionContext, depth: number
 	if (!isObject(value)) return String(value)
 
 	const raw = unwrapTraceObject(value)
+	if (raw instanceof Error) {
+		return {
+			$error: raw.name,
+			message: raw.message,
+			stack: raw.stack?.split('\n').slice(0, 8),
+		}
+	}
 	const customProjection = projectCustomTrace(raw, ctx)
 	if (customProjection) return projectRuntimeProjection(raw, customProjection, ctx, depth)
 

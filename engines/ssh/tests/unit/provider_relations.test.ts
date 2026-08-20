@@ -38,7 +38,13 @@ describe('Provider relations', () => {
 		expect(result).toBeUndefined()
 		try {
 			expect(storage.storage.available('wood')).toBe(0)
-			expect(storage.goodsRelations.wood).toBeUndefined()
+			// Reserved goods no longer count as available, so the storage stops
+			// providing. With no buffer it still has room (max=4), so it now
+			// advertises demand instead of staying silent.
+			expect(storage.goodsRelations.wood).toMatchObject({
+				advertisement: 'demand',
+				priority: '1-buffer',
+			})
 		} finally {
 			commitment.cancel('test cleanup')
 		}

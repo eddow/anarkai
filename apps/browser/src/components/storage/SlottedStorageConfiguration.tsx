@@ -86,6 +86,18 @@ function GoodStarsEditor(props: {
 		get range(): [number, number] {
 			return [this.rule.minSlots, this.rule.minSlots + this.rule.maxSlots]
 		},
+		set range(value: StarsValue) {
+			const [rawMinSlots, rawTotalSlots] = starsRangeValue(value, [
+				this.rule.minSlots,
+				this.rule.minSlots + this.rule.maxSlots,
+			])
+			const nextMinSlots = Math.min(rawMinSlots, this.maximum)
+			const nextTotalSlots = Math.min(rawTotalSlots, this.maximum)
+			props.content?.setSlottedGoodConfiguration(props.goodType, {
+				minSlots: nextMinSlots,
+				maxSlots: Math.max(0, nextTotalSlots - nextMinSlots),
+			})
+		},
 		get displayedRange(): [number, number] {
 			return [
 				Math.min(this.rule.minSlots, this.maximum),
@@ -151,6 +163,10 @@ function GeneralStarsEditor(props: { content: StorageAlveolus }) {
 		},
 		get displayedGeneralSlots() {
 			return Math.min(this.config?.generalSlots ?? 0, this.remainingBudget)
+		},
+		set displayedGeneralSlots(value: StarsValue) {
+			const nextGeneralSlots = Math.min(starsValue(value), this.remainingBudget)
+			props.content?.setSlottedGeneralSlots(nextGeneralSlots)
 		},
 	}
 

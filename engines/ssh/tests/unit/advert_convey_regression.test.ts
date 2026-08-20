@@ -369,7 +369,9 @@ describe('advert/convey regression', () => {
 		expect(
 			getWoodMovements(hive).filter((movement) => movement.demander === woodpile)
 		).toHaveLength(0)
-		expect(hive.needs.wood).toBeUndefined()
+		// buffer=0 is "no constraint": the woodpile demands wood up to its max even
+		// before an explicit keep target is configured.
+		expect(hive.needs.wood).toBe('1-buffer')
 
 		woodpile.setBuffers({ wood: 1 })
 		await flushDeferred()

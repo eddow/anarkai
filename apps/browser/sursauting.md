@@ -70,6 +70,33 @@ Sursaut says: *"DO NOT override internal component logic with event handlers to 
 - `lines-management.tsx` L368 `onBlur` — clears hover state, legitimate as it's a focus-exit gesture
 - `editors.tsx` — uses `update:value=` (correct Sursaut pattern), the `onChange` at L767 appears to be on a custom `Select` wrapper
 
+### 2.5 Double-binding setter requirement (2026-08-20)
+
+The Babel plugin compiles `prop={someMemberExpression}` into a **two-way** `r(getter, setter)` that writes back `someMemberExpression = value`. So any member-expression target needs a **setter**, and any **write-back component** that receives a **read-only** `r(() => expr)` (i.e. a call-expression value) throws `[sursaut] Cannot set read-only prop` when it writes back.
+
+Write-back props (components that assign back through the two-way setter): `Stars.value`, `CheckButton.checked`, `RadioButton.group`, `WorkingIndicator.checked`.
+
+| File:line | Binding | Target | Status |
+|-----------|---------|--------|--------|
+| `SlottedStorageConfiguration.tsx:115` | `value={view.range}` | getter-only view | ✅ FIXED (setter added) |
+| `SlottedStorageConfiguration.tsx:176` | `value={view.displayedGeneralSlots}` | getter-only view | ✅ FIXED (setter added) |
+| `SpecificStorageConfiguration.tsx` | `value={stars.value}` | getter-only view | ✅ FIXED (per-good `stars` view, 2026-08-20) |
+| `StorageConfiguration.tsx` | `value={stars.value}` | getter-only view | ✅ FIXED (per-good `stars` view, 2026-08-20) |
+| `editors.tsx:718` | `value={context.tool.value}` (Stars) | writable reactive | ✅ safe |
+| `HiveProperties.tsx:186` | `checked={workingChecked.value}` | getter + setter | ✅ safe |
+| `TileProperties.tsx:385` | `checked={model.contentCase!.content.working}` | writable property | ✅ safe |
+| `editors.tsx:692` | `checked={context.tool.value}` (CheckButton) | writable reactive | ✅ safe |
+| `editors.tsx:973, 981` | `group={context.tool.value}` (RadioButton) | writable reactive | ✅ safe |
+
+Latent (getter-only target, but the component does **not** write back today):
+
+| File:line | Binding | Component | Risk |
+|-----------|---------|-----------|------|
+| `SlottedStorageConfiguration.tsx:248` | `value={view.configuredGoods}` | `GoodMultiSelect` | throws if migrated to two-way |
+| `TileProperties.tsx:369` | `value={model.currentVariant}` | `VariantPicker` | throws if migrated to two-way |
+
+`GoodMultiSelect` and `VariantPicker` currently use `onAdd`/`onRemove`/`onChange` instead of writing back, so they are safe today (and flagged in §2.3 for migration).
+
 ---
 
 ## 3. Early `return null` in Component Body (No Reactive Guard)
@@ -128,9 +155,9 @@ No direct JSX `.map()` violations found in the non-spec source. The `.map()` cal
 
 | Priority | File | Violations |
 |----------|------|-----------|
-| 🔴 High | `storage/SpecificStorageConfiguration.tsx` | draft+sync, onChange, early return null, props body read |
-| 🔴 High | `storage/SlottedStorageConfiguration.tsx` | draft+sync, onChange |
-| 🔴 High | `storage/StorageConfiguration.tsx` | draft+sync×2, onChange, onBlur |
+| 🔴 High | `storage/SpecificStorageConfiguration.tsx` | ~~read-only `Stars`~~ FIXED §2.5; early return null (§3) |
+| 🟢 Resolved | `storage/StorageConfiguration.tsx` | read-only `Stars` FIXED §2.5 |
+| 🟢 Resolved | `storage/SlottedStorageConfiguration.tsx` | draft+sync removed (§1.2); setters added (§2.5) |
 | 🟡 Medium | `HiveProperties.tsx` | onInput, onChange, local synced state |
 | 🟡 Medium | `FreightLineProperties.tsx` | onInput, manual revision invalidation |
 | 🟡 Medium | `AlveolusProperties.tsx` | onChange (selects), onInput (range) |

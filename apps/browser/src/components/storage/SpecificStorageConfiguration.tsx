@@ -104,6 +104,15 @@ export default function SpecificStorageConfiguration(props: SpecificStorageConfi
 				{(good: GoodType) => {
 					const maxQuantity = props.action.goods[good] || 0
 					const { maxStars } = getScaleParams(maxQuantity)
+					const stars = {
+						get value() {
+							return getBufferStars(good)
+						},
+						set value(v: StarsValue) {
+							const nextStars = typeof v === 'number' ? v : v[1]
+							setBufferFromStars(good, nextStars)
+						},
+					}
 
 					return (
 						<div>
@@ -119,11 +128,7 @@ export default function SpecificStorageConfiguration(props: SpecificStorageConfi
 									<div class="buffer-stars-container">
 										<Stars
 											maximum={maxStars}
-											value={getBufferStars(good)}
-											onChange={(v: StarsValue) => {
-												const nextStars = typeof v === 'number' ? v : v[1]
-												setBufferFromStars(good, nextStars)
-											}}
+											value={stars.value}
 											size="1rem"
 											zeroElement="□"
 											before="■"

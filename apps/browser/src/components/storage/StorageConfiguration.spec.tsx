@@ -21,13 +21,15 @@ vi.mock('@app/ui/anarkai', () => ({
 			{props.children}
 		</button>
 	),
-	Stars: (props: { onChange?: (value: number) => void; value?: number }) => {
+	Stars: (props: { value?: number }) => {
 		starsCalls.push(props)
 		return (
 			<button
 				data-testid="stars"
 				data-value={String(props.value ?? 0)}
-				onClick={() => props.onChange?.(0)}
+				onClick={() => {
+					props.value = 0
+				}}
 			>
 				stars
 			</button>

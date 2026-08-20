@@ -347,6 +347,9 @@ export class StorageAlveolus extends Alveolus {
 		// General storages already participate in matching through Hive.generalStorages.canTake/canGive.
 		// They should only advertise explicit buffer shortages and excess provide, not generic "store anything"
 		// demand, otherwise they can create self-sustaining demand/provide churn.
+		// Exception: a specific storage with NO buffer (the default "no constraint" state of a newly built
+		// pile) has no keep target, so it advertises demand up to its max amount instead — otherwise a fresh
+		// pile never attracts its producers' output.
 		if (this.storage instanceof SlottedStorage) {
 			const allGoods = Object.keys(allGoodsList) as GoodType[]
 			const slotUsage = this.storage.slotUsage()
@@ -407,10 +410,12 @@ export class StorageAlveolus extends Alveolus {
 					}
 					continue
 				}
-				// Like the slotted layout, only advertise explicit buffer
-				// shortages — not generic "fill toward max" demand, which
-				// creates self-sustaining demand/provide churn.
-				if (bufferAmount > 0 && plannedQty < bufferAmount && this.canTake(goodType, '1-buffer')) {
+				// A buffered storage only demands back up to its keep target (so it
+				// never "fills toward max" and churns with general storages). An
+				// unbuffered ("no constraint") storage has no keep target, so it
+				// demands whenever it has room — up to its hard max amount.
+				const demandTarget = bufferAmount > 0 ? bufferAmount : (this.storage.maxAmounts[goodType] ?? 0)
+				if (plannedQty < demandTarget && this.canTake(goodType, '1-buffer')) {
 					relations[goodType] = {
 						advertisement: 'demand',
 						priority: '1-buffer',
