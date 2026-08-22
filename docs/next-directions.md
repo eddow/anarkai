@@ -1,304 +1,183 @@
 # Next Directions
 
-This is the central place for deciding what Anarkai should manage next.
-
-Hive management and vehicle/freight management are now far enough along that the next step is less about
-finishing a single obvious subsystem and more about choosing the next gameplay frontier. The options below
-are deliberately broad; each one can become its own implementation plan once chosen.
-
-## Architecture
+This is the central place for deciding what Anarkai should manage next. It has been reorganised to
+reflect the commerce architecture we have been designing together; the earlier "freight-diagnostics then
+roads" framing is kept as a *re-ranked* list of candidate directions further down, not dropped.
+
+Decisions live in `docs/`, open questions and the plan in `plans/`. The documents that matter now:
+
+- [`docs/commerce.md`](docs/commerce.md) + [`plans/commerce.md`](plans/commerce.md) — distribution,
+  external commerce, the net-deficit ledger, happiness→trust→freedom.
+- [`docs/energy.md`](docs/energy.md) — energy sources, topology, and distribution (decided).
+- [`plans/commerce-architecture.md`](plans/commerce-architecture.md) — open questions & plan: the
+  remaining maintenance/energy details and the implementation order.
+- [`docs/projects.md`](docs/projects.md) + [`plans/projects.md`](plans/projects.md) — construction
+  projects as forward declarations of demand and special operations.
+- [`docs/races.md`](docs/races.md) + [`plans/races.md`](plans/races.md) — philosophies ("races") and
+  the tuning-not-lock-out rule.
+
+## Where we are
+
+See [`./current-status.md`](./current-status.md) for what is landed. The short version: terrain, hive
+simulation, freight lines / exchange routes, bay queues, alveoli variants, and the *first* form of
+external commerce (settlement city-hall trade with static prices) are all in. What is **not** landed is
+the unified commerce model we have spent this pass designing — that is the frontier.
+
+## The decided architecture
+
+These are concluded (recorded in the `docs/` files); they are the shape we build toward, not open
+questions.
+
+- **Net-deficit ledger** is the organising mechanism. Demand comes from buffers, transforms, projects,
+  consumption, and (once decided) maintenance/energy; internal supply cancels internal demand; the
+  residual is a **continuous field** of need/excess per good. `Hive.needs` is its seed.
+- **Reserve is the single knob** — it caps over-export and over-import; price caps and per-good opt-ins
+  are later refinements.
+- **Internal movement before trade**; stop modes `deficit` / `surplus` / `explicit`; arbitrage never
+  feeds the ledger (profit ≠ need).
+- **Sourcing resolves the ledger** internal-first, with per-good quotas editable while a project runs;
+  `quota: 'rest'` is the automatic default.
+- **The autarky dial** (`dependency(g) = external_sourced / total_consumed`) replaces "two playstyles" —
+  it is per-good, per-hive, drifting, and "sticky in the middle". Price *reflects* the dial, never
+  creates it.
+- **Price is a field** over real finite stock (static base + the full-output/empty-input rest state, with
+  the only automated change being a slow input trickle); our trade moves it; profit exists but never
+  feeds the ledger; NPC visitors pay from our own stock.
+- **Projects = forward declarations of demand** and the primary construction surface; a project ≈ a
+  special operation (a resource commitment costing trust).
+- **Races are philosophies** (soviet / pirates / hippies) in a 4-axis space; tuning, not lock-out.
+- **Happiness → trust → freedom**: happiness is one aggregate number → trust delta → special operations;
+  drives population; too-low is a progressive loss (fewer projects), never a cliff.
+- **Money**: one immaterial currency, one wallet first; luxury consumption is budgeted by a wallet/level
+  fed by an hourly/daily transfer (an inverted tax).
+- **Maintenance & energy are decided** (see [`docs/energy.md`](docs/energy.md)): sources are ordinary
+  alveoli; hauled energy is a good, continuous energy is a cable/grid; cables are road-like tile-border
+  entities, one edge-layer per border, a centre is a 3-level stack (ground/air/underground); distribution
+  is a path-walk over a near-tree (priority + distance-decay on shortage); buildings use usePoints
+  (linear decay, engineer repair), vehicles hold a reserve.
+
+## Open questions to answer together
+
+The remaining open items are small: the architecture is largely pinned; what is left is one wallet
+question, a few races questions, and two deferred seams.
 
-- ✅ remove IDs (everywhere) and indexes out of (de)serialization — **DONE** (see [removal plan](./id-removal-plan.md))
-- ✅ remove [version hack](../sandbox/version-token-hack-analysis.md) — **DONE** (see the analysis doc's final status; the convey `conveyPlanningRevision` is retained by design, `workPlanningRevision` remains as a documented coarse planner invalidation token)
-- ✅ change all buffered `state` in `view` made of get/set in sursaut components — **DONE** (the storage editors now derive through `view` getters; see `apps/browser/sursauting.md` §1 — §1.1/§1.2 resolved, §1.3 legit local UI state)
-- Add comments/docs so no new ids or version tokens reappear (`llm.md`, `docs/convey.md`, etc.) — **DONE**
+### A. Energy leftover details (content, not architecture)
 
-- Serialize dockview layout (widget panels/params) into the savegame format. Currently no layout is
-  persisted at all — `dockviewLayout`/`getDockviewLayout` were removed; widget `params` are serializable
-  config only (e.g. `pinned: boolean`), never live game objects, so the savegame format can restore
-  panels by id + params without re-embedding runtime object references.
+From `plans/commerce-architecture.md` (M7): the per-energy crossing/elevation table, and the shortage
+presentation (brown-out / throttle / reserve-drain). Both are details; the model is decided.
 
-## Current Baseline
+### B. Salary = individual spending = the skip-SimCity lever
 
-See [`./current-status.md`](./current-status.md) for what is already landed.
+What a character is allowed to spend in NPC/other-player settlements is effectively their **salary**. At
+the commerce extreme of the autarky dial the player skips internal production entirely and lets characters
+buy their needs directly. The salary is the *same* hourly/daily drip as the luxury wallet — one mechanism
+with a scope knob (subsistence vs discretionary), not two. **Decided: one wallet for now** (multi-wallet
+later, bound to projects/rules/allowance). The allowance is always used — even a train driver stranded
+in a city buys food with it, so it is a permanent mechanic.
 
-## Details to add
+### C. Races open questions
 
-### Freight & commerce
+From `plans/races.md`: how much do races shift **happiness sources**? Is "religious" a distinct race or a
+hippie variant? How does the luxury/consumption budget (the inverted tax) differ per race? Military
+stance — deferred until defense/occupation matures. **UI identity is cosmetic + unimportant** (decide
+last-minute); **per-race tuning is deferred until after the mechanics are implemented** (find the
+average tuning first, then diverge).
+
+### D. Deferred (do not block, but keep the seam open)
+
+- **Outside carriers** (end-game): how they plug into the same trade interface (pseudo-vehicles vs an
+  abstract import/export edge).
+- **Defense & honesty** (multiplayer-only): faction "feeling" over buildings/goods; stealing; war-as-decree.
+
+## Implementation order (the actual next moves)
+
+Agreed sequence — **questions → structures/interfaces → implementation**:
+
+1. **Answer the last open items** (§A–§C): the energy leftover details and the races questions. None of
+   these block the ledger; they are all small and mostly independent (the one-wallet question is already
+   decided).
+2. **Structures & interfaces** — the commerce spine is unblocked *now* (energy no longer gates it):
+   - `Deficit = { good, quantity, origin: 'project'|'production'|'storage'|'consumption'|'energy', scope }`
+     (maintenance is **not** an origin — engineers do it as a consumer alveolus whose inputs are
+     `'production'` demand)
+   - `Hive.needs` → the net-deficit field over NPC + player structures (deficit = priority `2-use` only).
+   - `StopMode = 'deficit'|'surplus'|'explicit'`; `Reserve` as the single knob.
+   - `SourcingEntry = { good, source, quota }`; `ProjectSourcing`.
+   - `Wallet` (single for now) / `Transfer` for the salary + luxury drip.
+3. **Implementation** — the "first playable slices" below.
 
-- complete the exchange-route refactor: rename gather/distribute helpers and update route summaries / UI
-  vocabulary to reflect per-stop load/unload selection rather than legacy segment concepts.
-- market analysis for settlement trade: prices and positions are now compared, but still surface *why*
-  Melindbury is or is not a good source/sink, and keep the view focused on route decisions rather than
-  finance UI.
-- generate material shops, cafes, and other commerces as separate trade targets beyond city halls,
-  using the same board-pick model. Trade should depend on the present commerces: the vehicle drives to
-  the commerce on the road, stops on the shop border, and a convey-hop-like action occurs — the character
-  reaches the center and spawns (buy) / unspawns (sell) the good.
-- When providing to an external building (residence/construction/commerce), the vehicle should indeed stop
-  on the border and unloading the vehicle in the building should indeed be a convey-hop-like action
-  (character in the center of the tile, visible moving good).
-- long freight errands and hunger. A driver stopped in an NPC city should probably keep using the vehicle
-  after loading/unloading; decide whether route planning should reserve carried snacks, schedule a meal
-  before departure, or allow temporary off-route eating near a stop. Note: this could wait for commercial
-  zones so characters could "buy a snack".
+### Architectural hygiene (kept from the old plan)
 
-### Roads & routing
+- When the core (and conveying especially) moves to Rust, the "version" hacks will have to be revisited
+  and eliminated.
+- Serialize dockview layout (widget panels/params) into the savegame: widget `params` are already
+  serializable config (`pinned: boolean`), never live game objects, so panels restore by id + params
+  without re-embedding runtime references.
 
-- we should have bay-less roads (from zone to zone).
-- roads & velocity calculation. Some vehicles can just not drive beside roads. There should be a multiplier
-  somewhere as well as a `min(road-max-velocity, vehicle/character-ax-velocity)`. How to calculate exactly
-  the velocity for it to be realistic somehow but still simple ?
-- road-aware vehicle routing: SUVs and wheelbarrows are off-road; pickup trucks are road-only, so their
-  lines should have a road available and vehicle hop pathfinding should read road state.
+## Candidate directions (re-ranked)
 
-### Alveoli & configuration
+Ranked against the decided architecture. The old "roads next" framing is superseded: roads are
+*infrastructure for commerce*, not the frontier.
 
-- add config for: locale, measure units (1 tile-border = 3m = 10feet), decimal/duo-decimal.
-- unify external-work radius across all external-work alveoli (construction, foundation laying, road work,
-  harvesting). Decide how vehicle objects extend or constrain reach as configuration/equipment attached to
-  the hive or alveolus, rather than as a variant-only field.
-- When changing the variant, the alveolus storage should be emptied before re-construction.
+### 1. Commerce architecture → code (primary)
 
-### Physical-load model
+Turn the net-deficit ledger + sourcing into working code: replace the `HivePlan.requiredGoods` stub with
+a real recipe-sum bill + operating demand; make `Hive.needs` the net-deficit field; add the `deficit`
+stop mode; surface reserve. This is the spine every other direction plugs into.
 
-- extend the forester tile-room rule into a general physical-load rule for future crops, generated loose
-  goods, and harvesting output. Harvesting/generation output should obey the same tile physical-load model
-  as forester planting, so rock/tree/crop outputs avoid overfilling already-burdened tiles.
+### 2. Projects (supporting, in parallel)
 
-### Bay queues
+Projects are the construction surface *and* the special-operation spend. Open items live in
+`plans/projects.md`: reusable-plan model (stamp vs clone), push semantics (atomic vs per-entry),
+roads/track-as-entries, city demolition cost.
 
-- add player-facing bay queue authoring: select several freight bays in the same hive, group them as
-  one shared dock operating area, name that group, and see the shared approach/queue overlay. The UI
-  should expose service bays, detected approach branches, and optional waiting areas/parking/sidings;
-  the internal queue graph should be derived from those choices rather than authored as nodes and edges
-  directly. Wire vehicle job completion and service/exit lifecycle hooks to the registry.
+### 3. Maintenance & energy (energy is decided; wire it later)
 
-## Recommended Next Tranche
+Energy's model is fully specified in `docs/energy.md`. Implementation (cables as a tile-border layer, the
+path-walk distribution, usePoints) is a later slice; it no longer gates anything. The two leftover M7
+details (crossing/elevation table, shortage presentation) are content.
 
-Commerce and freight diagnostics polish is now largely landed: line-level idle/done explanation text,
-cargo intent rollup, market price comparison, widget reorg (collapsible sections, header one-liner,
-line-click-from-bay fix), and the standalone `CommercialOverview` widget are all in. The one remaining
-diagnostics piece is **exchange-route vocabulary cleanup**. After that, roads/path infrastructure is the
-natural larger-map move, shops/markets deepen demand, and a small content chain adds immediate play
-texture.
+### 4. Races (once the space is stable)
 
-## Candidate Directions
+Philosophies as tuning vectors; they need the commerce dial and the happiness loop to mean anything.
 
-### 1. Roads and path infrastructure
+### 5. Roads & path infrastructure (was #1, now supporting)
 
-Roads remain a natural bridge between hive logistics and larger world management.
+Still valuable — road-aware routing, lane/band metadata, builder workflow, bay-less roads — but it is
+infrastructure that *makes distance matter for commerce*. Do it when commerce needs it (outside carriers,
+trade points), or as a parallel slice once the ledger is live.
 
-Potential next scope:
+### 6. More game content
 
-- ~~Generated settlement streets and zoning~~ — landed: inter-settlement corridors are `asphalt`, local
-  streets are `path`, connected back to the road graph with rules-tuned zone mix and parcel density (see
-  [`current-status.md`](./current-status.md#roads)).
-- Allow several-lanes roads: each lane should have his direction (one-way or both) - ex. 2-lanes = 2 one-way lane. Find a way to fill gap between lanes with markings.
-- Texture: while Alpha is calculate, u,v could just be a projection of x,y in the seamless texture
-- Builder/project workflow for road construction instead of instant placement.
-- Route-benefit UI for characters and vehicles. Forbid some vehicles (not 4x4) to drive off-road (no vehicle can traverse an occupied tile: alveolus, residence, market, industry, ...) - beside bays. For (un)loading an occupied tile, the vehicle puts itself on the border of the tile and the character makes a convey-hop-like ASingleStep (he goes on the center, then move the good from the border=vehicle to the center or vice-versa)
-- More road kinds/materials and road-rank rules. The rules are for drawing (an interaction with 2 different roads show the highest-rank) One rule is that one-lane road allow crossing (a vehicle in each direction) only with 30kph (thus, not inter-settlements) Drawing should consider borders of lane: side-walks, white markings, ...
-- Road-aware vehicle routing and line summaries.
-- Lane/band metadata and markings.
+New deposits / harvesters / transformers / goods. A fill-in; the chains only make sense once the ledger
+and the maintenance ladder exist (otherwise more internal logistics puzzles without the commerce spine).
 
-Good follow-up to:
+### 7. NPC cities & villages
 
-- Gameplay streaming, because roads may span outside the current viewport.
-- Freight v1, because roads make vehicle behavior more legible and tunable.
+External settlements deepen demand once sourcing can name them as sources. Blocked on roads + commerce
+interfaces.
 
-Risks:
+### 8. Terrain generation rework
 
-- Builder workflows may need clearer rules for blocking projects on buildings, zones, and deposits.
-- Route-benefit UI can become noisy if it exposes every cost detail too early.
+Needed when settlements / roads / commerce need stronger geography. Keep as background.
 
-### 2. Shops, markets, and consumption
+## Decision prompts
 
-Describe "commercial" zoning as internal distribution, not money commerce: people take durable carry
-goods, consumables, dwelling supplements, and amusement/culture services from the commons. Actual
-commerce happens at the boundary with NPC groups: production sites, villages, towns, cities, and other
-settlements.
+- Are we answering questions (§A–§C) or writing interfaces? The commerce spine is unblocked; start
+  drafting interfaces now — the remaining questions are small and orthogonal to the ledger.
+- Does the next slice *reduce a deficit the ledger can express*, or does it just add assets?
+- Is the smallest playable slice "one shop consuming one good" or "one deficit routed to one source"?
+  The latter proves the architecture; the former proves the content.
+- Which decision becomes hardest to change after this lands? The `Deficit.origin` union and the wallet
+  shape (one wallet vs two) fork the most.
 
-Potential scope:
+## First playable slices
 
-- Distribution zones for shops, markets, cafes, canteens, amusement, and household/personal pickup.
-- Dwelling stock targets versus public shelf targets, with freight lines able to satisfy either.
-- NPC production sites and inhabited settlements that produce some goods, demand others, and expose trade
-  interfaces.
-- Local price fields based on nearest production/demand influence.
-- Import/export policies, protected reserves, and purchase orders for goods the group does not produce.
-
-Good follow-up to:
-
-- Freight v1, because trade interfaces and distribution points can reuse exchange-route concepts.
-- Roads, because distance and route quality should matter for outside commerce.
-- More game content, because imported goods can bootstrap chains before local production exists.
-
-Risks:
-
-- "Shop" language can imply internal money commerce unless UI copy keeps the commons/distribution model
-  explicit.
-- Automatic export can accidentally starve internal needs unless protected reserves are first-class.
-- Price fields need to be legible enough to guide route/source choices without becoming finance UI.
-
-See [`./commerce.md`](./commerce.md).
-
-#### Commerce levels
-
-Commerce should land in three levels, with the first one serving construction and daily play rather than
-trying to become Simutrans all at once.
-
-1. **Useful procurement for our team.** When a needed good is missing, such as concrete for a foundation,
-   storage buffers and construction/hive demand advertise the need. A freight line can visit a settlement
-   city hall, sell allowed surplus cargo, buy allowed missing materials if the stop reserve permits it, and
-   bring those goods back as ordinary vehicle cargo.
-2. **Industry commerce and arbitrage.** Once procurement is reliable, the player can buy near producers
-   where goods are cheap and sell near demanders where goods are expensive, such as buying wood near a
-   forester and selling it to an NPC sawmill complex.
-3. **People transport.** Transporting people between settlements, work, homes, and services is a later
-   system and should not block goods commerce.
-
-Important first-level boundaries:
-
-- Useful procurement status:
-  - **V1.x (landed):** route/market comparison by settlement position and price, last-transfer/history
-    display, and docked vehicle intent (retained cargo, surplus cargo, actionable rotations, and why a
-    line is idle or done).
-  - **Later V2:** generated shop targets beyond city halls, source/sink suggestions, commercial/resale
-    points, and consumption goods delivered to residential or shop areas.
-- Project and construction views should surface missing useful goods and possible physical supply routes
-  without becoming direct purchase surfaces again.
-- External building loading/unloading should use the border-parking plus convey-hop interaction already
-  planned for shops, construction, and other non-freight-bay endpoints.
-
-### 3. More game content
-
-More harvesters, producers, transformers, storage types, and goods can make the existing systems feel like a
-game faster.
-
-Potential scope:
-
-- New deposits: clay, ore, grain, berries, fish, herbs.
-- New harvesters: quarry, mine, farm, fisher, gatherer variants.
-- New zone-assigned caring actors: wheat planter, fertilizer, harvester support actors, and forester follow-ups such as tree species/terrain preferences.
-- New transformers: kiln, bakery, smelter, workshop, loom.
-- New goods: stone blocks, bricks, flour, bread, tools, textiles.
-- Tiered construction requirements.
-
-Good follow-up to:
-
-- Current hive and freight management, because the underlying loops already exist.
-
-Risks:
-
-- Pure content can expose balancing and UX gaps quickly.
-- Too many chains before roads/markets/settlements may just create larger internal logistics puzzles.
-- Planting/caring actors need clear scope rules: named zones provide spatial assignment, while harvestability remains a separate zone flag for harvesters.
-
-### 4. NPC cities and villages
-
-External settlements would make the world feel inhabited and give logistics a reason to cross distance.
-
-Potential scope:
-
-- Generated villages/cities as persisted world entities.
-- Settlement needs, exports, and reputation or affinity.
-- Trade stops or depots connected by freight lines.
-- Population growth, specialization, and simple local simulation.
-- Visual settlement generation in Pixi.
-
-Good follow-up to:
-
-- Gameplay streaming ownership.
-- Roads and shops, if settlements use them as interfaces.
-
-Risks:
-
-- Large design surface: generation, persistence, AI, economy, and UI.
-- Needs careful boundaries so settlements do not become full hives too early.
-
-### 5. Terrain generation rework
-
-Terrain quality now matters more because gameplay can spread across the map.
-
-Potential scope:
-
-- Better macro biomes and regional identity.
-- Rivers, lakes, coasts, wetlands, and mountain ranges with gameplay implications.
-- Deposit distribution tied to biome and elevation.
-- Terrain affordances for roads, settlements, production hives, trade points, and resource chains.
-- Generated road corridors that can carry NPC goods, people, and vehicle traffic between NPC groups.
-- Seed debugging tools and comparison snapshots.
-
-Good follow-up to:
-
-- Gameplay streaming, because terrain and gameplay persistence need a clean boundary.
-- NPC settlements, because villages need plausible placement.
-- Commerce/NPC groups, because background traffic needs roads before NPC entities can feel connected.
-
-Risks:
-
-- Terrain tuning can absorb a lot of time without directly improving moment-to-moment play.
-- Changing terrain semantics may require migration or test fixture updates.
-
-See [`./terrain-generation-roadmap.md`](./terrain-generation-roadmap.md).
-
-### 6. Freight-line diagnostics depth
-
-Some diagnostics are already landed (see [`current-status.md`](./current-status.md)).
-
-Remaining:
-
-- **Exchange-route vocabulary cleanup.** Rename `findGatherRouteSegments` /
-  `findDistributeRouteSegments` and update `freightLineSummary()` to reflect load/unload
-  exchange model rather than pickup/delivery.
-- **Road-aware vehicle pathfinding.** Make vehicle routing read road state so road-only vehicles
-  (`pickup_truck`) require roads and off-road vehicles (`wheelbarrow`, `suv`) are unrestricted.
-- **Vehicle compatibility explanations.** Show *why* a vehicle is or isn't compatible with a line
-  (e.g. "requires roads" / "off-road capable").
-
-Good follow-up to:
-
-- Roads, because road-aware routing needs road data before it can produce diagnostics.
-- Market analysis, because price comparison feeds directly into route decisions.
-
-Risks:
-
-- Mostly improves an existing subsystem rather than opening a new gameplay loop.
-- Diagnostics can become noisy if the route rules are still changing.
-
-## Suggested Ordering
-
-1. Finish freight diagnostics polish: the only remaining piece is the exchange-route vocabulary cleanup
-   (idle/done explanation, cargo intent rollup, and settlement price comparison are already landed).
-2. Roads and velocity, especially where vehicle route choice should change the commerce outcome.
-3. One small content tranche that proves roads and imported materials matter.
-4. Shops/markets or NPC villages, depending on whether the next desired feeling is "internal economy" or
-   "inhabited world".
-5. Terrain generation rework when settlements, roads, and resource placement need stronger geography.
-6. Freight-line authoring depth as needed whenever route complexity starts slowing playtesting.
-
-## Decision Prompts
-
-Use these when choosing the next implementation plan:
-
-- Should the next milestone make the map feel bigger, the economy feel deeper, or the UI feel more manageable?
-- Does the work require off-screen gameplay state? If yes, do streaming ownership first.
-- Does the feature create new player decisions, or mostly add new assets to existing decisions?
-- What is the smallest playable slice that proves the direction?
-- Which subsystem will become harder to change after this lands?
-
-## First Playable Slices
-
-Small slices worth considering:
-
-- **Roads v2:** turn instant roads into build projects, add route-benefit summaries, and add at least one
-  upgraded road kind/material.
-- **Commerce polish v1:** clean up exchange-route vocabulary (the price comparison widget,
-  cargo diagnostics, and collapsible line widget are already landed).
-- **Market v1:** one shop consumes one good type and creates a visible demand/satisfaction signal.
-- **Content v1:** add one new raw resource, one transformer, one produced good, and one construction recipe that uses it.
-- **Village v1:** generate one persisted external village with one import need and one export good.
-- **Terrain v1:** add biome-weighted deposit distribution and a seed debug panel.
-- **Freight route health v1:** add road-aware vehicle routing and line-level route benefit summaries
-  (idle/done explanation and cargo rollup are already landed).
+- **Ledger v1:** real `requiredGoods` bill → `Hive.needs` field → one `deficit` stop imports a shortfall.
+- **Sourcing v1:** one project with a two-source quota (own hive + NPC settlement), editable mid-run.
+- **Reserve v1:** one buffer with a reserve knob that blocks over-export and caps over-import.
+- **Price-field v1:** the d² + frontier-fade field, wired to `Hive.needs`' surplus/need.
+- **Maintenance v1:** one building with a usePoints life level engineers can top back up (decided model).
+- **Salary v1:** one wallet drip that lets a character buy food at an NPC city (the skip-SimCity probe).
+- **Race v1:** one philosophy nudging one axis + one happiness source (after the dial is live).
+- **Roads v2:** (re-ranked) turn instant roads into build projects, add route-benefit summaries.

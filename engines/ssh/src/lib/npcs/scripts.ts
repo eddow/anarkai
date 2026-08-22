@@ -28,6 +28,7 @@ export type ScriptExecutionErrorDiagnostic = {
 	readonly source?: string
 	readonly message?: string
 	readonly stack?: string
+	readonly context?: Record<string, unknown>
 }
 
 const scriptExecutionErrorDiagnostics = new WeakMap<object, ScriptExecutionErrorDiagnostic>()
@@ -221,8 +222,11 @@ export class ScriptExecution {
 					scriptModule: this.script.name,
 					executionName: this.name,
 					source: this.script.sourceLocation(error.statement),
-					message: error.error?.message,
+					message: error.error?.message ?? error.message,
 					stack: error.stack,
+					// `context` is provided by newer npc-script versions (e.g. loop-overflow state);
+					// read it defensively so this compiles against the published package too.
+					context: (error as ExecutionError & { context?: Record<string, unknown> }).context,
 				})
 			}
 			throw error

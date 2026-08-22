@@ -60,8 +60,6 @@ export default defineConfig({
 			},
 			{ find: /^ssh\/(.*)$/, replacement: `${resolvePath(projectRootDir, 'src/lib')}/$1` },
 			{ find: /^ssh$/, replacement: resolvePath(projectRootDir, 'src/lib') },
-			{ find: /^npc-script$/, replacement: resolvePath(projectRootDir, '../../../ownk/npcs/src') },
-			{ find: /^mutts$/, replacement: resolvePath(projectRootDir, '../../../ownk/mutts') },
 		],
 	},
 })

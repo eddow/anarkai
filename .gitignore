@@ -6,7 +6,6 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-plans
 node_modules
 dist
 dist-ssr
@@ -32,3 +31,4 @@ playwright-report
 *.tsbuildinfo
 .aider*
 pure-glyf-icons.d.ts
+/.*

@@ -30,14 +30,6 @@ export default defineConfig({
 				replacement: path.resolve(__dirname, '../ssh/src/lib'),
 			},
 			{
-				find: 'mutts',
-				replacement: path.resolve(__dirname, '../../../ownk/mutts'),
-			},
-			{
-				find: 'npc-script',
-				replacement: path.resolve(__dirname, '../../../ownk/npcs/ts/src'),
-			},
-			{
 				find: '@app/lib/interactive-state',
 				replacement: path.resolve(__dirname, '../../apps/browser/src/lib/interactive-state.ts'),
 			},

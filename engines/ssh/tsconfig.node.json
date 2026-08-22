@@ -39,9 +39,7 @@
 			],
 			"@sursaut/runtime/jsx-dev-runtime": [
 				"./node_modules/sursaut-ts/src/runtime/jsx-dev-runtime.ts"
-			],
-			"npc-script": ["../../../ownk/npcs/dist/index.d.ts"],
-			"npc-script/*": ["../../../ownk/npcs/dist/*"]
+			]
 		}
 	},
 	"include": ["vitest.config.ts"]
