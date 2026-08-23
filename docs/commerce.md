@@ -229,12 +229,18 @@ The important generation distinction is spatial:
   logging/sawmill and transformation hives; the "price of planks vs price of wood" spread) and one-shot
   windows (projects). The group also allocates money to household appliances and EDC luxuries — those
   purchases are consumption spending, not project spending.
-- **Luxury consumption is budgeted** through a wallet (or a level) fed by a periodic hourly/daily
-  transfer — the way to regulate daily consumption spending. It works like an *inverted tax*: instead of
-  taxing income, you drip a fixed allowance into the consumption purse.
-- **Money budgeting (decided):** **one wallet** for now; multi-wallet later, when projects / rules /
-  personal-allowance-outside-the-settlement can each be bound to a specific custom wallet. Fine-tuning is
-  opt-in.
+- **Consumption spending is budgeted** through a periodic hourly/daily **allowance** — the drip that caps
+  **how luxuriously characters may live** when paying for consumption (food, household goods, EDC — **not
+  just "luxury"**: bread and electronics count too). It works like an *inverted tax*: instead of taxing
+  income, you drip a fixed allowance. The source is the **single generic wallet** (not a multi-wallet
+  feature); "luxury" is a marginal subset, not the frame.
+- **Money budgeting (decided):** **one wallet** — even in development; multi-wallet is discussed/implemented
+  later (projects / rules / personal-allowance-outside-the-settlement bound to a specific custom wallet).
+  Fine-tuning is opt-in.
+- **Single-player forces one invisible `"general treasury"` wallet.** Multi-wallet is an **internal engine
+  capability** reserved for future multiplayer / faction diplomacy. In single-player there is exactly one
+  wallet, the default `"general treasury"`, hidden from the player — no UI/accounting overhead until it is
+  needed.
 - **Character allowance (salary) is always used.** Even at the commerce extreme of the dial (where a
   player skips the internal SimCity game), a train driver stranded in a city still buys food/lodging with
   it, so the allowance drip is a permanent mechanic, not an extreme-only one.
@@ -328,29 +334,67 @@ This allows a simple spatial trade model:
 - Logistics distance matters without needing a full economic simulation.
 - Different map starts can make different goods strategically important.
 
-**Price field (decided model):**
+**Price field (decided model — hybrid: flow anchor × stock elasticity):**
+
+Price is anchored by **flow rate** (production/consumption velocity) and modulated by **stock** (fill
+level). Neither alone is playable; the two compose.
 
 ```text
-price_g(p) = base_g × (1 + fade(p) × (demandField_g(p) − supplyField_g(p)))
+# producer (supply)
+base_supply_s(g)   = production rate (units/time)          # structural capacity
+stock_factor_s     = stock_s(g) / capacity_s(g)            # ∈ [0,1]
+effective_supply_s = base_supply_s · (0.5 + 0.5·stock_factor_s)
 
-supplyField_g(p) = Σ_surplus_s × w(dist(p, s))    storers s (NPC + players)
-demandField_g(p) = Σ_need_d × w(dist(p, d))        demanders d (transform/housing/commerce)
+# consumer (demand)
+base_demand_d(g)   = consumption rate (units/time)
+empty_factor_d     = 1 − stock_d(g) / target_d(g)          # ∈ [0,1]
+effective_demand_d = base_demand_d · (0.5 + 0.5·empty_factor_d)
 
-w(d)      = squared-distance falloff, finite support: max(0, 1 − (d/R)²)
-fade(p)   = min(1, distanceToFrontier(p) / FadeRadius)
-surplus_s = surplus weight (directional, below)          ∈ [0,1]
-need_d    = demand weight  (directional, below)          ∈ [0,1]
-dist      = road-aware travel cost
+rateField_g(p)     = Σ_s w(dist(p,s)) · effective_supply_s − Σ_d w(dist(p,d)) · effective_demand_d
+
+price_g(p)         = base_g · exp( −k · rateField_g(p) )
+
+w(d)     = squared-distance falloff, finite support: max(0, 1 − (d/R)²)
+fade(p)  = min(1, distanceToFrontier(p) / FadeRadius)
+k        = elasticity (tuning); the 0.5 floor is the stock-elasticity knob
 ```
 
-Implementation approach — the **geometry/weight split**, which is what keeps wide-area map coloring
-cheap and the field dynamic:
+- **Flow anchors, stock modulates.** A mega-factory at balance still exerts more spatial pressure than a
+  tiny workshop (bigger `base_supply`); a disrupted line (consumer stock → 0) still spikes price
+  (`empty_factor → 1`). The `0.5` floor means stock is a *valve*, never a hard on/off.
+- **Rate and content come from a separate mechanism, not the advertisement board.** A hive's
+  input/output **rate** and its **buffer content** (stored units) are *structural* facts — they are **not
+  `GoodsRelations`** and **not advertised**. The advertisement board (`demand`/`provide` with priority) is
+  for *convey/movement matching*; the price field reads `{ rate, stock, capacity }` straight from the
+  hive. The two are decoupled: advertising may be empty (nothing to move) while the price field still
+  reads a full producer buffer. *(For simplicity, count only stored units, not conveying ones.)*
+- **In-transit goods are invisible to the price field.** Origin physical storage affects the origin price;
+  goods on vehicles are invisible everywhere; destination physical storage affects the destination price
+  **only upon unloading**. This protects the price slope that justifies a route, and forbids the
+  "ghost line" exploit (routing trucks to depress a market without delivering). A running line settles
+  into a **sawtooth** margin — wide when the consumer is empty, compressed on delivery, re-expanding as
+  the consumer digests — rewarding small continuous deliveries over batch dumps.
+- **A sale is an ownership transfer into the consuming hive's buffer, not a station unload.** Unloading
+  freight at a station is **not** a sale — station storage stays "in transit/holding", invisible to the
+  field. The **selling action** happens strictly when ownership transfers from the holding entity/station
+  into the producing/consuming hive's **internal buffer**; money moves and the price field adjusts at that
+  exact boundary, nowhere else.
+- **Instant spot pricing, no smoothing.** `base·e^(−k·rateField)` is the single source of truth for all
+  actors (player, NPC, script). Artificial smoothing (EMA) is **rejected** — the natural gradual
+  consumption of a hive's buffer already produces a smooth price-recovery curve, no extra math needed.
+- **Node-scoped computation.** The field is computed only **where commerce occurs** (nodes, stations,
+  markets, trade points), not per-tile, with a **Manhattan/Euclidean radius** kernel; road-aware
+  pathfinding is reserved for actual route selection. (Open: colour-map vs sweet-spot-spotting UI — see
+  plans.)
 
-- **Distance (geometry)** changes only when roads/buildings change. Compute it once per good with a
-  **multi-source Dijkstra** over the movement-cost graph (roads = cheap edges), so proximity is travel
-  cost and the price field follows roads.
-- **Weights (`surplus`/`need`)** change with stock constantly. Apply them as a cheap multiply-add over
-  the cached distance field, invalidated by a `revision[good]` bump.
+Implementation approach — the **geometry/weight split**, which is what keeps the field cheap and
+dynamic (computed **at commerce nodes**, not per-tile):
+
+- **Distance (geometry)** changes only when roads/buildings change — a **Manhattan/Euclidean radius**
+  kernel between commerce nodes (stations/markets/trade points); road-aware pathfinding is used only for
+  actual route selection, not for the price field.
+- **Weights (effective flow)** change with stock constantly. Apply them as a cheap multiply-add
+  over the cached distance kernel, invalidated by a `revision[good]` bump.
 - **Finite support** (the R cutoff) keeps each source local, so coloring is a sparse accumulation on a
   coarse grid, memoized and lazily recomputed — never `O(tiles × goods × sources)` per frame.
 - **Squared-distance decay** (`w(d) = max(0, 1 − (d/R)²)`) is local and *smooth* at the R cutoff; a
@@ -359,9 +403,9 @@ cheap and the field dynamic:
   `price → base` at the frontier. When a neighbour sector generates, the boundary moves out and visible
   tiles relax continuously toward the true field — no price jump (reads the existing
   `Game.requestGameplayFrontier` / `streamedFrontier` machinery for the frontier distance).
-- **Directional surplus/need (decided).** A producer of good g contributes **surplus only** (never
-  demand); a consumer contributes **demand only** (never surplus) — a sawmill never has a wood surplus
-  or a plank demand. For a plain storage holding X of a capacity M: surplus = X, demand = M − X.
+- **Directional surplus/need (decided).** A producer of good g contributes **supply only** (its fullness);
+  a consumer contributes **demand only** (its emptiness) — a sawmill never has a wood *surplus* or a plank
+  *demand*. A plain storage contributes both: fullness `X/M`, emptiness `1 − X/M`.
 - **Buffered goods are invisible to the price field (decided).** Storage marked as **buffering** does
   not add to demand, and buffered goods do not add to availability, in the price calculation (and in the
   shops' balance level, which reuses the same fields). "Buffered" = protected/reserved — economically
@@ -375,6 +419,13 @@ production/demand rather than hidden global noise.
 **Price UI exposure (decided):** price is a **field** (like terrain height or temperature) derived from
 sources and sinks. The Simutrans-like commerce game will need a **tainted colour-map overlay** to plan
 transport for profit. The exact UI is to finalize later.
+
+**Player price setting (decided base, open details):** the field is the **automatic base** — NPC
+commerce uses it directly, and it is the default for player offers. The player may **override** it (a
+generic "±X% from base", or fine-grained per-good/per-place), and an override is really a **demand/offer
+rate valve**: pricing above base slows selling (keep scarce stock), pricing below dumps fast (liquidate
+surplus). Whether the override is a *price* or a *rate* (or both), whether it feeds back into the field,
+and its scope are open — see `plans/commerce-architecture.md` → "Price decision".
 
 ## Import and export interfaces
 
@@ -517,15 +568,18 @@ direction for how need and excess are computed and satisfied.
 - **Continuous field, not per-region cells.** Need/excess is computed as a continuous field out of NPC +
   player structures — both sustained (production, consumption) and exceptional (projects). No per-region
   cell bookkeeping.
-- **Reserve is the single knob.** It protects against over-export *and* caps over-import. Price caps and
-  per-good opt-ins are later refinements.
+- **Reserve is the single knob = the resting amount.** The reserve is the **keep-target** (the amount a
+  storage holds by default). It does double duty: **don't export below it** (protects the group) and
+  **don't import above it** (caps procurement). `defaultReserve` is the fallback keep-target when no
+  per-good value is set. Price caps and per-good opt-ins are later refinements.
 - **Internal movement before trade.** Meet a need internally (transport) when possible; only fall back to
   trade when internal supply/transport can't cover it.
-- **Stop modes** = `deficit` (auto-load the shortfall, default), `surplus` (sell above reserve),
-  `explicit` (hand-authored).
-- **Deficit = priority `2-use` demand.** The ledger's "deficit" is specifically the *urgent* need — not
-  the full demand, which also spans `1-buffer` (replenish toward target) and `0-store` (surplus). Lower
-  priorities are wants; only `2-use` is the deficit the ledger tracks and sources.
+- **Stop modes** = what a freight-line *stop* does (a per-stop setting, not a global policy): `deficit`
+  (auto-load the shortfall — the default "import what we're short of"), `surplus` (sell what's above
+  reserve — export), `explicit` (hand-authored load/unload rules).
+- **Needed goods carry a priority; only `2-use` drives the outside economy.** A deficit contribution is
+  tagged `0-store` / `1-buffer` / `2-use`. `0-store` and `1-buffer` are internal wants; only `2-use`
+  (urgent need) is what the ledger sources from outside.
 - **Arbitrage never feeds the ledger** — it is profit, not need. It has a "not-that-bad" default, but the
   Simutrans-like buy-here/sell-there commerce game is the **player's decision**.
 - **Source choice UX** = a "not-that-bad" automatic default + optional optimisation (the same guardrail as
@@ -593,9 +647,22 @@ self-provision: own forester 40 + NPC settlement 60).
   held **below**; growth points may go negative.
 - At a threshold, an **upgrade** is planned and — after works — the entity becomes a bigger
   (more-demanding) one; a negative threshold → shrinkage.
+- **The growth threshold scales progressively (exponentially) per level.** Hives still grow continuously
+  when over-supplied/under-delivered, but the **growth points required for the next tier rise
+  exponentially** with tier. Higher tiers demand far larger sustained supply volumes — natural diminishing
+  returns that push players to spread transport across the map instead of compounding one local hub
+  indefinitely.
 - **Transform hives are directional.** Output **below** balance is positive for growth; input **above**
   equilibrium is positive too; the inverse of each reduces growth points. A transform grows only when
   well-fed *and* under-delivered — the two signals net against each other.
+- **An upgrade is "add an alveolus to the complex", not a stat bump.** For NPC hives *and* player
+  commercial complexes (which are automated, not directly controlled), growth/shrinkage = **constructing
+  a new alveolus into the complex** (or **dismounting** one). This makes upgrades **timed** (construction
+  takes work) *without shutting down* the hive/commerce — it keeps running while the new alveolus is
+  built. Downgrade mirrors it: the removed alveolus becomes **instantly unavailable** but takes time to
+  **dismount** before its place is returned.
+- Player settlements need **NPC-like automated residential/commercial complexes** — the same
+  complex-of-alveoli model as NPC hives, so growth/shrinkage is uniform across player and NPC.
 
 ## Early concrete example
 
