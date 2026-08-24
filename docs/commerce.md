@@ -245,6 +245,21 @@ The important generation distinction is spatial:
   player skips the internal SimCity game), a train driver stranded in a city still buys food/lodging with
   it, so the allowance drip is a permanent mechanic, not an extreme-only one.
 
+### Price-field buffer semantics (decided)
+
+The fill fraction that modulates the hybrid price is **unclamped**: `stock / capacity` may exceed 1
+when a hive over-produces into a buffer whose physical capacity exceeds its buffer target (a `1-buffer`
+storage of 12 wood holding 20). A producer's effective supply then rises above its base rate — the
+stock elasticity valve working as intended — so `effectiveFlow` is never re-normalized to `[0,1]`.
+
+A hive's `stock`/`capacity` for a good aggregates **its own buffers only** (§5c), across two roles:
+
+- **Producer/consumer role buffers** — a transform's output/input buffer and a harvester's output
+  buffer (`SpecificStorage`), sized by `outputBufferSize`/`inputBufferSize`. This is the supply signal:
+  a sawmill with a full output buffer reports full `stock` even with no general-storage alveolus.
+- **Holder buffers** — a general-storage alveolus's `1-buffer` target. Its `capacity` is that target
+  (12 wood), not the physical slot capacity; `stock` is its actual held quantity (which may exceed it).
+
 ## NPC group generation model
 
 NPC generation can start from a small set of group archetypes rather than detailed per-building

@@ -26,6 +26,7 @@ import { type HexBoard, isTileCoord } from 'ssh/board/board'
 import { AlveolusGate } from 'ssh/board/border/alveolus-gate'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
+import type { Estate, EstateCommerceProfile } from 'ssh/commerce/commerce-model'
 import { Commitment } from 'ssh/commitment'
 import {
 	dockedVehicleGoodsRelations,
@@ -40,6 +41,7 @@ import type { Character } from 'ssh/population/character'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { findLiveAllocations, trackAllocation, untrackAllocation } from 'ssh/storage/guard'
 import { NoStorage } from 'ssh/storage/no-storage'
+import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { Storage } from 'ssh/storage/storage'
 import type { GoodType } from 'ssh/types'
 import { type AxialCoord, axial, findPath, type Positioned, setPop } from 'ssh/utils'
@@ -85,6 +87,31 @@ function collectSortedHiveTiles(hive: { alveoli: Iterable<Alveolus> }): AxialCoo
 	return Array.from(hive.alveoli, (alveolus) => toAxialCoord(alveolus.tile.position))
 		.filter((coord): coord is AxialCoord => !!coord)
 		.sort((a, b) => axial.key(a).localeCompare(axial.key(b)))
+}
+
+/**
+ * Merge one alveolus's signed rate AND its own role buffer into an estate's
+ * aggregated commerce profile. `rate` is signed and normalized (transform rates,
+ * harvest output): positive = produced, negative = consumed; a hive may both
+ * produce and consume the same good, so deltas sum algebraically. `storage` is
+ * the producing/consuming alveolus's own buffer (§5c) — its stock and buffer
+ * size (maxAmounts) set the fill fraction for this role.
+ */
+function accumulateEstateFlow(
+	profile: EstateCommerceProfile,
+	good: GoodType,
+	rate: number,
+	storage: Storage
+): void {
+	if (rate === 0) return
+	const prev = profile[good]
+	const stock = storage instanceof SpecificStorage ? (storage.stock[good] ?? 0) : 0
+	const capacity = storage instanceof SpecificStorage ? (storage.maxAmounts[good] ?? 0) : 0
+	profile[good] = {
+		normalizedDelta: (prev?.normalizedDelta ?? 0) + rate,
+		stock: (prev?.stock ?? 0) + stock,
+		capacity: (prev?.capacity ?? 0) + capacity,
+	}
 }
 
 function sameTileSet(a: readonly AxialCoord[], b: readonly AxialCoord[]): boolean {
@@ -330,7 +357,7 @@ type MovementMineOptions = {
 }
 
 @unreactive
-export class Hive extends AdvertisementManager<FreightMovementParty> {
+export class Hive extends AdvertisementManager<FreightMovementParty> implements Estate {
 	private constructor(public readonly board: HexBoard) {
 		super()
 		this.runtimeEffects.push(
@@ -455,6 +482,71 @@ export class Hive extends AdvertisementManager<FreightMovementParty> {
 			rv[type].push(alveolus)
 		}
 		return rv
+	}
+
+	// ── Estate (commerce) ────────────────────────────────────────────
+
+	/** @see {@link Estate.footprint} — every tile this hive occupies, sorted by axial key. */
+	get footprint(): readonly AxialCoord[] {
+		return collectSortedHiveTiles(this)
+	}
+
+	/**
+	 * @see {@link Estate.profile} — the hive's own buffers, per good: signed
+	 * producer/consumer flows (algebraic), plus each role buffer's stock and its
+	 * holder `1-buffer` target. Fill is unclamped (stock may exceed capacity).
+	 */
+	get profile(): EstateCommerceProfile {
+		const profile: EstateCommerceProfile = {}
+		// Flow + role buffers: transform/harvest contribute their signed rate AND
+		// their own output/input buffer — the producing/consuming hive's buffer (§5c).
+		for (const alveolus of this.alveoli) {
+			const action = alveolus.action
+			if (!action) continue
+			if (action.type === 'transform') {
+				for (const [good, rate] of Object.entries(action.rates)) {
+					accumulateEstateFlow(profile, good as GoodType, rate, alveolus.storage)
+				}
+			} else if (action.type === 'harvest') {
+				// HarvestAlveolus always backs a SpecificStorage (output buffer), so the
+				// `instanceof SpecificStorage` guard in `accumulateEstateFlow` never reads 0.
+				for (const [good, qty] of Object.entries(action.output)) {
+					accumulateEstateFlow(profile, good as GoodType, qty, alveolus.storage)
+				}
+			}
+		}
+		// Holder buffers: general-storage alveoli contribute their held stock
+		// against the indicated `1-buffer` target (not the physical slot capacity).
+		for (const alveolus of this.alveoli) {
+			if (!this.isGeneralStorageAlveolus(alveolus)) continue
+			for (const [good, target] of Object.entries(alveolus.storageBuffers)) {
+				if (target === undefined || target <= 0) continue
+				const prev = profile[good as GoodType]
+				profile[good as GoodType] = {
+					normalizedDelta: prev?.normalizedDelta ?? 0,
+					stock: (prev?.stock ?? 0) + (alveolus.storage.stock[good as GoodType] ?? 0),
+					capacity: (prev?.capacity ?? 0) + target,
+				}
+			}
+		}
+		return profile
+	}
+
+	/** @see {@link Estate.feedsPriceField} — industrial hive anchors the price field. */
+	get feedsPriceField(): boolean {
+		return true
+	}
+
+	/** @see {@link Estate.distanceTo} — min hex distance over footprint pairs. */
+	distanceTo(other: Estate): number {
+		let min = Number.POSITIVE_INFINITY
+		for (const a of this.footprint) {
+			for (const b of other.footprint) {
+				const d = axial.distance(a, b)
+				if (d < min) min = d
+			}
+		}
+		return Number.isFinite(min) ? min : 0
 	}
 	private readonly runtimeEffects: ScopedCallback[] = []
 	private readonly gates = new Set<AlveolusGate>()

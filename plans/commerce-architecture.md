@@ -6,6 +6,29 @@
 
 ## Open questions
 
+### Multi-tile buildings (estates) — a missing prerequisite
+
+- **An estate is one building, 1-to-several tiles.** A 1-tile house is an estate; a rural house (house
+  + garden stretching 3–6 tiles back from the road) is an estate; a 2–3 tile-wide/deep city tower is an
+  estate; a shop, a mall, and an industrial hive are each an estate. The `Estate` interface (`footprint`,
+  `profile`, `feedsPriceField`, `distanceTo`) is the per-building economic unit.
+- **A settlement is a container of estates, not an estate itself.** It holds many residential,
+  commercial, and industrial estates. Its "trade profile" is the aggregate NPC-side *interface*, not a
+  price-field actor; the price field reads each constituent estate individually.
+- **Today: 1 tile = 1 building** (1 tile = 1 house, 1 tile = 1 shop). The multi-tile-building and the
+  "add an alveolus to the complex" growth model both assume a **conglomerate** — several tiles gathered
+  into **one building** (a rural house + garden, a city tower, a mall, an industrial footprint) — and
+  that representation **does not exist yet**.
+- This is the hidden prerequisite for: (a) pricing *buildings* of any kind (a mall is one consumer
+  estate, not N shop tiles), and (b) growth/shrinkage as "add/remove a tile-unit inside a complex".
+- Open (not decided): the conglomerate representation — one owner entity spanning a tile footprint, how
+  its internal units aggregate into a single `EstateCommerceProfile`, and how construction/dismounting
+  addresses a *sub-unit* rather than a whole tile.
+- **NPC settlement trade endpoint (decided direction):** the current transfer point is the settlement's
+  **city hall** (`NpcSettlementTradeTarget.kind: 'city_hall'`) — a temporary short-circuit. Eventually
+  all load/unload/commercial transactions happen on the **corresponding estate** (the specific
+  house/shop/hive), not on the settlement container or its city hall.
+
 ### Remaining tuning (decided mechanism, open numbers)
 
 - **Price-field radius `R`** and **fade radius** — the d² shape and the ≥-generation-radius constraint
@@ -58,6 +81,9 @@ price_g(p)            = base_g · exp( −k · rateField_g(p) )
 - **The `0.5` floor.** The `(0.5 + 0.5·x)` form means a fully-empty consumer still *only* demands at
   `base_demand`, and a full producer still *offers* at `base_supply` — stock is an elasticity valve,
   never a hard on/off. This is the tuning knob (`0.5` → `α`); `k` is elasticity.
+- **Fill is unclamped (decided).** `stock_factor = stock/capacity` is not re-normalized to `[0,1]`: a
+  hive over-producing into a buffer (stock > capacity) drives `fill > 1`, so a producer's effective
+  supply can exceed `base_supply`. The `0.5` floor is the only lower bound.
 - **Directional for free**: a sawmill is a plank supplier and a wood demander.
 - **Frontier fade** scales the deviation → `price → base` at the generated edge.
 - `w(d) = max(0, 1 − (d/R)²)`, `R` ≥ generation radius; `dist` = Manhattan/Euclidean at commerce nodes.
