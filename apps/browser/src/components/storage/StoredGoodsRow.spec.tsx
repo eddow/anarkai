@@ -40,7 +40,7 @@ vi.mock('@app/ui/anarkai', () => ({
 	),
 }))
 
-vi.mock('engine-pixi/assets/visual-content', () => ({
+vi.mock('engine-rules/visual-content', () => ({
 	goods: {
 		stone: { sprites: ['goods.stone'] },
 		wood: { sprites: ['goods.wood'] },

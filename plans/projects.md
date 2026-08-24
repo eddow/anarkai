@@ -5,11 +5,18 @@
 
 ## Open questions
 
+- **Project vs `HivePlan` (a project may span several hive plans).** Today `Project` ≡ `HivePlan`: one
+  plan = one contiguous cluster = one hive. But a *project* is a higher-level undertaking ("lumber
+  industry", "residential block", "trade post") that may span **several** hive plans (several separate
+  buildings/clusters), plus roads/track and demolition entries. Is there a `Project` wrapper type holding
+  N `HivePlan`s, or is the plan itself the top-level authoring unit? How does a project-level bill
+  aggregate over its plans (+ roads + demolition)?
 - **Push semantics**: atomic (whole plan commits at once) vs per-entry (streamed construction)? The
   "git branch" language leans atomic, but per-entry lets early entries start building while later ones
   are still being funded.
-- **Does `validating` consume goods, or is it a pure time gate?** Currently a survey-good stub
-  (`charcoal`) + work-seconds. Is surveying a real resource sink?
+- **Does `validating` consume goods, or is it a pure time gate?** Now the real construction bill
+  (foundation + recipe) + work-seconds (replaced the old `charcoal` survey stub). Remaining question:
+  is *surveying* (the novelty-scaled work-seconds) a real resource sink beyond that bill?
 - **Merge semantics**: when two projects are merged, how do their bills combine/conflict (duplicate
   coords, shared configs)?
 - **Operating demand in the ledger**: on push, does only construction-recipe demand enter the deficit

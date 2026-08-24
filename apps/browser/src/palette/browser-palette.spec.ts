@@ -39,7 +39,7 @@ vi.mock('ssh/assets/game-content', () => ({
 	},
 }))
 
-vi.mock('engine-pixi/assets/visual-content', () => ({
+vi.mock('engine-rules/visual-content', () => ({
 	alveoli: {
 		house: { sprites: ['house-sprite'] },
 		freight_bay: { sprites: ['freight-bay-sprite'] },

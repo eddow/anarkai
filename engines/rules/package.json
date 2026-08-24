@@ -4,14 +4,26 @@
 	"private": true,
 	"type": "module",
 	"exports": {
-		".": "./src/index.ts"
+		".": "./src/index.ts",
+		"./visual-content": "./src/visual-content.ts",
+		"./vite-plugins": {
+			"types": "./vite-plugins.d.ts",
+			"default": "./vite-plugins.js"
+		},
+		"./package.json": "./package.json"
 	},
 	"scripts": {
 		"check": "tsc",
 		"typecheck": "tsc",
-		"test": "vitest run --silent --reporter=dot"
+		"test": "vitest run --silent --reporter=dot",
+		"generate-spritesheet": "tsx scripts/generate-spritesheet.ts",
+		"postgenerate-spritesheet": "cp -r public/rules-assets ../../apps/browser/public/"
 	},
 	"devDependencies": {
+		"@types/spritesmith": "^3.4.5",
+		"sharp": "^0.34.5",
+		"spritesmith": "^3.5.1",
+		"tsx": "^4.21.0",
 		"typescript": "~5.8.3",
 		"vitest": "^4.1.4"
 	}

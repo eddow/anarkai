@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { sursautCorePlugin } from '@sursaut/core/plugin'
 import { commonEsbuild, commonOptimizeDeps } from 'engine-pixi/vite-config'
 import { servePixiAssets } from 'engine-pixi/vite-plugins'
+import { serveRulesAssets } from 'engine-rules/vite-plugins'
 import { pureGlyfPlugin } from 'pure-glyf/plugin'
 import { type Alias, defineConfig, type Plugin, type PluginOption, type UserConfig } from 'vite'
 import { cssTagPlugin } from './src/lib/css-tag-plugin'
@@ -93,6 +94,7 @@ export const browserViteConfig: UserConfig = {
 		pureGlyfPluginOption,
 		cssTagPlugin(),
 		servePixiAssets(),
+		serveRulesAssets(),
 		sursautCorePlugin({
 			projectRoot: projectRootDir,
 			onlyRemoveTypeImports: true,

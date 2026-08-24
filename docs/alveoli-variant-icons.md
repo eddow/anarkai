@@ -13,7 +13,7 @@ Variants were introduced for two alveolus types: [`pile`](engines/rules/src/cont
 
 ## 1. Sprite Assets
 
-All badges live in [`variantBadges`](engines/pixi/assets/visual-content.ts:102).
+All badges live in [`variantBadges`](engines/rules/src/visual-content.ts:102).
 
 ### 1.1 Pile variant badges
 
@@ -42,7 +42,7 @@ All badges live in [`variantBadges`](engines/pixi/assets/visual-content.ts:102).
 
 ✅ `alveolusVariantBadgeKey()` derives the badge key as `alveolus.name + '.' + alveolus.variant`. A reactive effect creates/destroys a small `Sprite` anchored top-right with `tileSize * 0.35` scaling.
 
-### 2.2 Visual content registry — [`visual-content.ts`](engines/pixi/assets/visual-content.ts)
+### 2.2 Visual content registry — [`visual-content.ts`](engines/rules/src/visual-content.ts)
 
 ✅ Separate `variantBadges` registry with entries for all pile + engineer variants. Pile variants reuse goods icons; extra-tier variants use dedicated sprites; engineer variants use trowel/variant-building/road sprites.
 

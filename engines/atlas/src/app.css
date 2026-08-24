@@ -1,0 +1,115 @@
+html,
+body,
+#app {
+	height: 100%;
+	margin: 0;
+	background: #14181f;
+	font-family: system-ui, sans-serif;
+}
+
+.atlas-shell {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.atlas-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 6px 12px;
+	background: #1c2330;
+	color: #c8d0e0;
+	font-size: 13px;
+	border-bottom: 1px solid #2a3550;
+}
+
+.atlas-toolbar label {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	cursor: pointer;
+	user-select: none;
+}
+
+.tag-menu {
+	position: relative;
+}
+
+.tag-menu__trigger {
+	background: #232c3f;
+	color: #c8d0e0;
+	border: 1px solid #33405a;
+	border-radius: 4px;
+	padding: 3px 8px;
+	font-size: 12px;
+	cursor: pointer;
+}
+
+.tag-menu__panel {
+	position: absolute;
+	top: calc(100% + 4px);
+	left: 0;
+	z-index: 20;
+	min-width: 160px;
+	background: #1c2330;
+	border: 1px solid #33405a;
+	border-radius: 6px;
+	padding: 6px;
+	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.tag-menu__actions {
+	display: flex;
+	gap: 6px;
+	margin-bottom: 4px;
+}
+
+.tag-menu__actions button {
+	flex: 1;
+	background: #232c3f;
+	color: #c8d0e0;
+	border: 1px solid #33405a;
+	border-radius: 4px;
+	font-size: 11px;
+	padding: 2px 0;
+	cursor: pointer;
+}
+
+.tag-menu__item {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 2px 4px;
+	border-radius: 3px;
+	font-size: 12px;
+}
+
+.tag-menu__item:hover {
+	background: #232c3f;
+}
+
+.gc-badge {
+	background: #4a1d1b;
+	color: #ffb3ad;
+	border: 1px solid #7a2c28;
+	border-radius: 4px;
+	padding: 2px 8px;
+	font-size: 11px;
+	cursor: help;
+	white-space: nowrap;
+}
+
+.atlas-toolbar .hint {
+	opacity: 0.65;
+	font-size: 12px;
+	margin-left: auto;
+}
+
+.economy-atlas {
+	flex: 1;
+	min-height: 0;
+}

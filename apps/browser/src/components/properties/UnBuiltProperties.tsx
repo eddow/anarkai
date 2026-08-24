@@ -7,7 +7,7 @@ import { T } from '@app/lib/i18n'
 import { presentationRevisionFor } from '@app/lib/presentation-events'
 import { Badge } from '@app/ui/anarkai'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
-import { deposits as visualDeposits, goods as visualGoods } from 'engine-pixi/assets/visual-content'
+import { deposits as visualDeposits, goods as visualGoods } from 'engine-rules/visual-content'
 import { effect, reactive } from 'mutts'
 import {
 	tablerFilledZoomMoney,

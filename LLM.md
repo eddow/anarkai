@@ -28,11 +28,9 @@ Anarkai is a modular monorepo driven by a custom game engine (`engines/ssh`) and
  ## Content Locations
  - **Game rules (authoritative)**: `engines/rules` (`engine-rules` workspace package: terrain/deposits/alveoli/goods, job balance, character/planner tuning, terrain defaults)
  - **SSH typed re-exports**: `engines/ssh/assets/game-content.ts` (wraps `engine-rules` with `Ssh.*` contract `satisfies`)
- - **Visual Definitions**: `engines/pixi/assets/visual-content.ts` (sprites, icons)
- - **Translations**: `engines/ssh/assets/locales/*.json` (en, fr, etc.)
- - **Visual Assets**: `engines/pixi/assets/buildings/`, `engines/pixi/assets/goods/`, etc.
-
-## Palette / toolbar system
+- **Visual Definitions**: `engines/rules/src/visual-content.ts` (sprites, icons — entity → sprite key). Terrain (board backgrounds) stays in `engines/pixi/assets/terrain.ts`.
+- **Translations**: `engines/ssh/assets/locales/*.json` (en, fr, etc.)
+- **Visual Assets**: `engines/rules/assets/buildings/`, `engines/rules/assets/goods/`, etc. (all UI icons; packed into `unified-spritesheet` by `engines/rules/scripts/generate-spritesheet.ts`, served at `/rules-assets`). Terrain jpgs remain in `engines/pixi/assets/terrain/`.
 
 ### Architecture
 
@@ -44,7 +42,7 @@ The browser palette is an **Anarkai adapter** on top of **Sursaut/UI's generic p
 | Anarkai adapter | `apps/browser/src/palette/browser-palette.tsx` | Concrete tools, editor implementations, default layout, badge icons |
 | Anarkai editor impls | `apps/browser/src/ui/anarkai/palette/editors.tsx` | `ButtonEditor`, `ToggleEditor`, `DrawerEditor`, enum editors, stars editor |
 | Build-tree API | `apps/browser/src/lib/app-shell-controls.ts` | Reads `engine-rules` alveoli → toolbar roots + variant trees |
-| Visual badges | `engines/pixi/assets/visual-content.ts` | `variantBadges` map — `pile.wood`, `pile.planks`, `pile.stone`, extras |
+| Visual badges | `engines/rules/src/visual-content.ts` | `variantBadges` map — `pile.wood`, `pile.planks`, `pile.stone`, extras |
 
 ### Key types (Sursaut/UI)
 
@@ -62,7 +60,7 @@ Root alveoli without variants become simple `selectedAction` setter buttons. Roo
 
 ### Variant badges
 
-Each variant gets a badge icon from `variantBadges` in `engines/pixi/assets/visual-content.ts`. The key is `${rootName}.${variant}` (e.g. `'pile.wood'`, `'pile.wood.extra'`). The badge is rendered via `ResourceImage` using the sprite from the visual definition.
+Each variant gets a badge icon from `variantBadges` in `engines/rules/src/visual-content.ts`. The key is `${rootName}.${variant}` (e.g. `'pile.wood'`, `'pile.wood.extra'`). The badge is rendered via `ResourceImage` using the sprite from the visual definition.
 
 ### Perpendicular-direction contract
 

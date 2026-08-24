@@ -1,6 +1,6 @@
 import { css } from '@app/lib/css'
 import { T } from '@app/lib/i18n'
-import { goods as visualGoods } from 'engine-pixi/assets/visual-content'
+import { goods as visualGoods } from 'engine-rules/visual-content'
 import { reactive } from 'mutts'
 import type { Game } from 'ssh/game'
 import type { GoodType } from 'ssh/types/base'

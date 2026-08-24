@@ -1,8 +1,12 @@
-import { alveoli } from 'engine-rules'
+import { alveoli, construction } from 'engine-rules'
 import { reactive } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
 import { createConstructionShell } from 'ssh/construction-shell'
-import { type ConstructionSiteState, createConstructionSiteState } from 'ssh/construction-state'
+import {
+	type ConstructionSiteState,
+	createConstructionSiteState,
+	resolveAlveolusVariant,
+} from 'ssh/construction-state'
 import type { Game } from 'ssh/game'
 import type { AlveolusType, GoodType } from 'ssh/types/base'
 import { type AxialCoord, axial } from 'ssh/utils/axial'
@@ -242,6 +246,37 @@ export function hivePlanNoveltyCost(
 	return entries.length * 2 + unknownPatches * 3
 }
 
+/** Add `qty` of `good` into a running bill of materials. */
+function addBillGood(bill: Partial<Record<GoodType, number>>, good: GoodType, qty: number): void {
+	if (qty <= 0) return
+	bill[good] = (bill[good] ?? 0) + qty
+}
+
+/**
+ * The real bill of materials for a hive plan: construction recipes summed over
+ * every entry — the foundation concrete (one per built tile) plus the full
+ * variant `ancestorChain` (root recipe + each variant hop). This replaces the
+ * former survey-good (`charcoal`) stub so validating a plan consumes the same
+ * materials its eventual construction will.
+ */
+function hivePlanRequiredGoods(
+	entries: readonly HivePlanEntry[]
+): Partial<Record<GoodType, number>> {
+	const bill: Partial<Record<GoodType, number>> = {}
+	for (const entry of entries) {
+		for (const [good, qty] of Object.entries(construction.foundation.goods)) {
+			addBillGood(bill, good as GoodType, qty)
+		}
+		const resolved = resolveAlveolusVariant(entry.alveolusType, entry.variant)
+		for (const recipe of resolved?.ancestorChain ?? []) {
+			for (const [good, qty] of Object.entries(recipe.goods)) {
+				addBillGood(bill, good as GoodType, qty)
+			}
+		}
+	}
+	return bill
+}
+
 export function hivePlanValidationRequirements(
 	entries: readonly HivePlanEntry[],
 	knownPlans: readonly HivePlan[]
@@ -250,7 +285,7 @@ export function hivePlanValidationRequirements(
 	return {
 		workSecondsApplied: 0,
 		workSecondsRequired: Math.max(4, entries.length * 3 + novelty),
-		requiredGoods: { charcoal: Math.max(1, Math.ceil((entries.length + novelty) / 3)) as number },
+		requiredGoods: hivePlanRequiredGoods(entries),
 		deliveredGoods: {},
 	}
 }

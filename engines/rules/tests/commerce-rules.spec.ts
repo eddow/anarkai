@@ -20,7 +20,8 @@ describe('commerce and construction rules', () => {
 			settlementTrade.priceMultipliers.city
 		)
 		for (const good of settlementTrade.basicMaterialGoods) {
-			expect(goods[good].tags).toContain('basic-materials')
+			// raw (extracted) or material (processed) — the production grouping tags
+			expect(goods[good].tags.some((t) => t === 'raw' || t === 'material')).toBe(true)
 		}
 	})
 

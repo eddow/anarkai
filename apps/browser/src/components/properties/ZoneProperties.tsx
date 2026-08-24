@@ -4,7 +4,7 @@ import { game, interactionMode } from '@app/lib/globals'
 import { unnamedZoneOwnership, zoneOverlayState } from '@app/lib/zone-selection'
 import { InspectorSection } from '@app/ui/anarkai'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
-import { deposits as visualDeposits } from 'engine-pixi/assets/visual-content'
+import { deposits as visualDeposits } from 'engine-rules/visual-content'
 import { effect } from 'mutts'
 import {
 	tablerOutlineDimensions,

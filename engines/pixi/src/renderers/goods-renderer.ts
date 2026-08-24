@@ -1,6 +1,6 @@
 import { ColorMatrixFilter, Container, Graphics, Sprite } from 'pixi.js'
 import type { RenderedGoodSlot } from 'ssh/storage/types'
-import { goods as goodsCatalog } from '../../assets/visual-content'
+import { goods as goodsCatalog } from 'engine-rules/visual-content'
 import { scopedPixiName, setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
 

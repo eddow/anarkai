@@ -1,7 +1,7 @@
 import { css } from '@app/lib/css'
 import { Stars } from '@app/ui/anarkai'
 import type { StarsValue } from '@sursaut/ui/models'
-import { goods as goodsCatalog } from 'engine-pixi/assets/visual-content'
+import { goods as goodsCatalog } from 'engine-rules/visual-content'
 import type { Game } from 'ssh/game'
 import type { StorageAlveolus } from 'ssh/hive/storage'
 import { SlottedStorage } from 'ssh/storage/slotted-storage'

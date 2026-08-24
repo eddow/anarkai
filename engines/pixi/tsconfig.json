@@ -32,6 +32,8 @@
 			"engine-terrain": ["../terrain/src/index.ts"],
 			"engine-terrain/hex": ["../terrain/src/hex/index.ts"],
 			"engine-terrain/*": ["../terrain/src/*"],
+			"engine-rules": ["../rules/src/index.ts"],
+			"engine-rules/*": ["../rules/src/*"],
 			"ssh/assets/*": ["../ssh/assets/*"],
 			"ssh/*": ["../ssh/src/lib/*"],
 			// "@ssh/*": [ "../ssh/src/*" ], // Deprecated in favor of ssh package
@@ -41,7 +43,7 @@
 	"include": [
 		"src/**/*.ts",
 		"src/**/*.d.ts",
-		"assets/visual-content.ts",
+		"assets/terrain.ts",
 		"../terrain/src/**/*.d.ts",
 		"../ssh/src/**/*.d.ts"
 	],

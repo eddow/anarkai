@@ -8,7 +8,7 @@ import {
 	alveoli as visualAlveoli,
 	characters as visualCharacters,
 	vehicles as visualVehicles,
-} from 'engine-pixi/assets/visual-content'
+} from 'engine-rules/visual-content'
 import { vehicleTextureKey } from 'engine-pixi/renderers/vehicle-visual'
 import { effect, reactive } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'

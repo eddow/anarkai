@@ -1,6 +1,6 @@
 import { css } from '@app/lib/css'
 import { Button } from '@app/ui/anarkai'
-import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
+import { goods as sensoryGoods } from 'engine-rules/visual-content'
 import { tablerFilledSquareRoundedMinus } from 'pure-glyf/icons'
 import type { Game } from 'ssh/game'
 import type { GoodType } from 'ssh/types/base'

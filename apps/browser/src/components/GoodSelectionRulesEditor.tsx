@@ -10,7 +10,7 @@ import {
 	resolveLocalDragInsertion,
 	startLocalDragSession,
 } from '@sursaut/ui'
-import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
+import { goods as sensoryGoods } from 'engine-rules/visual-content'
 import { effect, reactive } from 'mutts'
 import { tablerFilledSquareRoundedMinus, tablerOutlineGripVertical } from 'pure-glyf/icons'
 import type {

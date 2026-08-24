@@ -28,6 +28,11 @@
   **city hall** (`NpcSettlementTradeTarget.kind: 'city_hall'`) — a temporary short-circuit. Eventually
   all load/unload/commercial transactions happen on the **corresponding estate** (the specific
   house/shop/hive), not on the settlement container or its city hall.
+- **Every estate has a delivery tile (freight bay).** Player hives fix it explicitly (`FreightBayAlveolus`);
+  automated residential/commercial use a road-adjacent tile (every estate must touch a road). Vehicles
+  park at the border and convey into the bay tile; once in the tile the good is in the estate, and r/c
+  have no internal conveyance. Growth/merging, spontaneous commercial spawning, and the triangular
+  capacity curve live in [`spontaneous-zones.md`](./spontaneous-zones.md).
 
 ### Remaining tuning (decided mechanism, open numbers)
 
@@ -37,6 +42,81 @@
 - **Consumption allowance rate** — the hourly/daily drip that caps **how luxuriously characters may
   live** when paying for consumption (bread, electronics, EDC — not just "luxury"). Not about
   multi-wallet: the source is the single generic wallet at first.
+
+### Demand origins — projects and spontaneous construction
+
+- The ledger is **origin-agnostic**: it aggregates `NeededGood`s, never a single "project = one bill".
+  Demand origins are: (1) player-authored plans (pushed → `ConstructionSiteShell`), (2) spontaneous
+  residential constructions (`trySpawnResidentialProject` → `UnBuiltLand` foundation → `BuildDwelling`),
+  (3) spontaneous commercial constructions (not yet implemented — will follow the same `Build*` shell
+  pattern), and (4) operating demand (transform inputs / storage buffers — a later slice).
+- `freightConstructionDemandTarget` already unifies (1) and (2) and tags them with ad-source `'project'`;
+  the ledger should reuse the same unification rather than re-enumerating contributor types.
+
+### Sourcing policy for spontaneous construction & growth/shrinkage (proposal)
+
+**Principle: spawn declares demand, sourcing resolves it.** Demand declaration (a `NeededGood` from any
+construction) and sourcing resolution (mapping needs → concrete `Source`s) are two separate layers; the
+resolution engine is **origin-blind** — it never asks who authored the construction.
+
+- **`resolveSourcing(needs, policy) → SourcingEntry[]`** is a pure, shared function: internal-first (own
+  estates after their demand + reserve), then external (NPC settlements by price × stock × distance).
+- **`SourcingPolicy`** = `Reserve` + those ranking rules — the **global default**. It already matches the
+  3-tier override cascade (global → zone/station → specific good).
+- **Where the policy comes from is the only per-kind difference:**
+  - *Player-authored project* → optional per-good `SourcingEntry[]` override (else global default).
+  - *Spontaneous residential/commercial* → global default; **no per-construction override**.
+- Open: where a contributor's *optional* sourcing override lives. For projects it is reachable via
+  `shell.hivePlan`; the resolution engine takes a nullable `sourcing` param and falls back to the global
+  default when absent — so spontaneous construction needs no per-construction hook.
+
+### Commerce happens at shops, not inside industrial hives (proposal)
+
+- **Industrial hives do not transact with outside carriers directly.** Commerce (buy/sell against NPC
+  groups / outside carriers) is the **shop's** job, not the hive's. An industrial hive sources its
+  inputs *through* a shop: the shop imports the good (outside carrier), then internal freight moves it
+  shop → hive.
+- **Shops stock both industrial and consumption goods.** Wood, stone, planks (industrial inputs) sit on
+  shelves alongside final consumption goods — a shop is the universal external-commerce interface for
+  *both* input materials and finished goods.
+- Consequence for `Estate.feedsPriceField`: commercial estates still **do not feed** the price field
+  (unchanged), but they are now the *only* boundary through which outside carriers transact — the
+  industrial estate's `profile` stays purely its own produce/consume rate + buffer, while the shop is the
+  money-facing endpoint.
+
+### Growth = a new construction, not inherited sourcing (corrected)
+
+- **Growth is adding an alveolus to an existing hive — a *new construction*.** Its materials are a fresh
+  demand that joins the ledger like any other construction; it does **not** "inherit the parent estate's
+  sourcing policy" (earlier framing, superseded). Sourcing policy is always resolved origin-blind.
+- **What growth *does* inherit is transport, not sourcing.** A growth alveolus sits inside a hive that
+  already has a freight bay + corridors, so its one-shot order rides the *existing* bay/line — no new
+  corridor. A remote spontaneous building does **not**, and needs either a temporary corridor or
+  outside-carrier delivery (see below).
+
+### Temporary corridors & one-shot transport (player vs automatic)
+
+Construction imports are **one-shot orders** — the decided model already unifies them with recurring
+lines: *"one order type, a repeat flag"* (recurring trade lines and one-shot project orders are the same
+type, `repeat = false`). Transport for a one-shot order is a **temporary corridor**: vehicles allocated
+for the duration, "a resource commitment (like special operations), not a permanent corridor".
+
+So the question is not "line vs no line" but **who authorizes the one-shot order**, and it is answered by
+the already-decided acquisition ladder — both ends exist, defaulting to automatic:
+
+1. **Manual purchase order** — player sets good/amount/source/destination/max-price (full control).
+2. **Stock-target import** — the construction declares a target; internal supply is tried first, then an
+   import up to a cap. This is the `deficit` stop mode ("auto-load the shortfall").
+3. **Trade route** — recurring (sustained volume), not one-shot.
+
+**Recommendation (open for endorsement):** the default is **automatic one-shot** (2): resolution is
+internal-first ("internal movement before trade"), then a one-shot buy, with outside carriers absorbing
+the long leg ("outside carriers come last" is the *fallback order*, not a hard block). The **temporary
+corridor is a vehicle commitment**, so it must surface as a cost — it is not silently spawned. Manual
+mode (1) is the player override for when they want to pin sources or lay a corridor themselves.
+
+The player-facing dial for how much of this is automatic (settlers vs simutrans) is its own concern —
+see [`spontaneous-lines.md`](./spontaneous-lines.md).
 
 ### Deferred (keep the seam, do not block)
 

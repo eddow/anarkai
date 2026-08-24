@@ -10,7 +10,7 @@ import {
 	variantBadges,
 	alveoli as visualAlveoli,
 	dwellings as visualDwellings,
-} from 'engine-pixi/assets/visual-content'
+} from 'engine-rules/visual-content'
 import { effect, reactive } from 'mutts'
 import * as gameContent from 'ssh/assets/game-content'
 import { Alveolus } from 'ssh/board/content/alveolus'

@@ -10,7 +10,7 @@ const PROJECT_ROOT = path.resolve(__dirname, '..')
 
 const ASSETS_DIR = path.join(PROJECT_ROOT, 'assets')
 const TEMP_DIR = path.join(PROJECT_ROOT, 'temp_sprites')
-const OUTPUT_DIR = path.join(PROJECT_ROOT, 'public', 'pixi-assets')
+const OUTPUT_DIR = path.join(PROJECT_ROOT, 'public', 'rules-assets')
 const UNIFIED_SHEET_NAME = 'unified-spritesheet'
 
 async function extractSpritesFromSheet(

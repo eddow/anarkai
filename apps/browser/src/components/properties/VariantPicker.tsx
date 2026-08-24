@@ -1,6 +1,6 @@
 import { css } from '@app/lib/css'
 import { game } from '@app/lib/globals'
-import { variantBadges } from 'engine-pixi/assets/visual-content'
+import { variantBadges } from 'engine-rules/visual-content'
 import ResourceImage from '../ResourceImage'
 
 css`

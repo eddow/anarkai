@@ -16,7 +16,7 @@ vi.mock('@app/ui/anarkai/icons/render-icon', () => ({
 	renderAnarkaiIcon: () => <span data-testid="mock-render-icon" />,
 }))
 
-vi.mock('engine-pixi/assets/visual-content', () => ({
+vi.mock('engine-rules/visual-content', () => ({
 	goods: {
 		wood: { sprites: ['wood-sprite'] },
 		berries: { sprites: ['berries-sprite'] },

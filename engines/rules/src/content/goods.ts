@@ -10,7 +10,7 @@ export const goods = {
 		halfLife: Number.POSITIVE_INFINITY,
 		massKg: 12,
 		baseValueVp: 10,
-		tags: ['bulk', 'construction/concrete', 'basic-materials'],
+		tags: ['bulk', 'construction/concrete', 'material'],
 	},
 	charcoal: {
 		halfLife: Number.POSITIVE_INFINITY,
@@ -36,13 +36,13 @@ export const goods = {
 		halfLife: 2400,
 		massKg: 2,
 		baseValueVp: 12,
-		tags: ['piece', 'personal-goods', 'commercial/clothes'],
+		tags: ['piece', 'wearable', 'personal-goods', 'commercial/clothes'],
 	},
 	sunglasses: {
 		halfLife: 3600,
 		massKg: 1,
 		baseValueVp: 10,
-		tags: ['piece', 'personal-goods', 'commercial/clothes'],
+		tags: ['piece', 'wearable', 'personal-goods', 'commercial/clothes'],
 	},
 	wheat: {
 		halfLife: 1800,
@@ -67,18 +67,18 @@ export const goods = {
 		halfLife: 1200,
 		massKg: 4,
 		baseValueVp: 8,
-		tags: ['piece', 'construction/lumber', 'basic-materials'],
+		tags: ['piece', 'construction/lumber', 'material'],
 	},
 	stone: {
 		halfLife: Number.POSITIVE_INFINITY, // infinite half-life
 		massKg: 20,
 		baseValueVp: 4,
-		tags: ['bulk', 'construction/stone', 'basic-materials'],
+		tags: ['bulk', 'construction/stone', 'raw'],
 	},
 	wood: {
 		halfLife: 900,
 		massKg: 8,
 		baseValueVp: 5,
-		tags: ['bulk', 'construction/lumber', 'basic-materials'],
+		tags: ['bulk', 'construction/lumber', 'raw'],
 	},
 } as const

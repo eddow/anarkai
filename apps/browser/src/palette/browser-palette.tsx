@@ -38,7 +38,7 @@ import {
 import {
 	alveoli as visualAlveoli,
 	commands as visualCommands,
-} from 'engine-pixi/assets/visual-content'
+} from 'engine-rules/visual-content'
 import { gameTimeSpeedFactors } from 'engine-rules'
 import { effect, reactive, unwrap } from 'mutts'
 import {

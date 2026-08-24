@@ -23,6 +23,8 @@ import {
 } from 'ssh/board/roads'
 import { Tile, type TileTerrainState } from 'ssh/board/tile'
 import { isConstructionSiteShell } from 'ssh/build-site'
+import type { NetDeficitLedger } from 'ssh/commerce/commerce-model'
+import { computeNetDeficitLedger } from 'ssh/commerce/deficit-ledger'
 import {
 	createNpcSettlementTradeProfile,
 	type NpcSettlementTradeProfile,
@@ -804,6 +806,16 @@ export class Game extends Eventful<GameEvents> {
 		return [...this.settlementTradeProfiles].sort((left, right) =>
 			left.name.localeCompare(right.name)
 		)
+	}
+
+	/**
+	 * Board/group-scoped net deficit over construction demand (player plans +
+	 * spontaneous residential/commercial foundations). Fresh on every access, like
+	 * {@link Hive.needs}; consumers that poll it per planning revision keep it cheap.
+	 * This is the read a future `deficit` stop / commerce overview consumes.
+	 */
+	get netDeficitLedger(): NetDeficitLedger {
+		return computeNetDeficitLedger(this.hex.tiles)
 	}
 
 	/** Test/bootstrap seam: register a settlement trade profile by center coord. */

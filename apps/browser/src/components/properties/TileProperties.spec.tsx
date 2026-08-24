@@ -44,7 +44,7 @@ vi.mock('@app/ui/anarkai', () => ({
 	),
 }))
 
-vi.mock('engine-pixi/assets/visual-content', () => ({
+vi.mock('engine-rules/visual-content', () => ({
 	alveoli: {
 		storage: {
 			sprites: ['buildings.store'],

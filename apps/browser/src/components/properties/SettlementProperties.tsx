@@ -1,7 +1,7 @@
 import { css } from '@app/lib/css'
 import { game } from '@app/lib/globals'
 import { InspectorSection } from '@app/ui/anarkai'
-import { goods as visualGoods } from 'engine-pixi/assets/visual-content'
+import { goods as visualGoods } from 'engine-rules/visual-content'
 import type {
 	NpcSettlementTradeOffer,
 	NpcSettlementTradeProfile,

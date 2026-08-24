@@ -69,7 +69,7 @@ vi.mock('@app/ui/anarkai/icons/render-icon', () => ({
 	),
 }))
 
-vi.mock('engine-pixi/assets/visual-content', () => ({
+vi.mock('engine-rules/visual-content', () => ({
 	deposits: {
 		'': { sprites: ['empty-deposit-sprite'] },
 		stone: { sprites: ['stone-sprite'] },

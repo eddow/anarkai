@@ -3,7 +3,7 @@ import { Container, Sprite, Texture } from 'pixi.js'
 import type { LooseGood, LooseGoods } from 'ssh/board/looseGoods'
 import { toWorldCoord } from 'ssh/utils/position' // Verify import
 import { tileSize } from 'ssh/utils/varied'
-import { goods as goodsCatalog } from '../../assets/visual-content'
+import { goods as goodsCatalog } from 'engine-rules/visual-content'
 import { scopedPixiName, setPixiName } from '../debug-names'
 import { nextVisualKey, type PixiGameRenderer } from '../renderer'
 import { VisualObject } from './visual-object'

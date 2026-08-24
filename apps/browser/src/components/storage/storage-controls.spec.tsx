@@ -39,7 +39,7 @@ vi.mock('@app/lib/css', () => ({
 	css: () => '',
 }))
 
-vi.mock('engine-pixi/assets/visual-content', () => ({
+vi.mock('engine-rules/visual-content', () => ({
 	goods: {
 		wood: { sprites: ['wood-sprite'] },
 		stone: { sprites: ['stone-sprite'] },

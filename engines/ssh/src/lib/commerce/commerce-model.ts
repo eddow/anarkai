@@ -14,6 +14,7 @@
  */
 
 import type { Alveolus } from 'ssh/board/content/alveolus'
+import type { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { ConstructionSiteShell } from 'ssh/build-site'
 import type { FreightMovementParty } from 'ssh/freight/vehicle-freight-dock'
 import type { GoodType } from 'ssh/types/base'
@@ -137,10 +138,12 @@ export interface PriceFieldTuning {
  * is distinguishable at runtime by an existing discriminator — no `kind` field:
  *   - `Alveolus`              → `instanceof Alveolus`
  *   - `ConstructionSiteShell` → `isConstructionSiteShell(source)`
- * The two are disjoint (construction shells are `TileContent`, never `Alveolus`).
- * Future contributors (dwellings, commercial zones) extend this union.
+ *   - `UnBuiltLand` (foundation phase) → `instanceof UnBuiltLand`
+ * `ConstructionSiteShell` is disjoint from both classes (a shell is a `TileContent`
+ * with `storage`, never an `Alveolus`/`UnBuiltLand`). Future contributors
+ * (dwellings, commercial zones) extend this union.
  */
-export type NeedSource = Alveolus | ConstructionSiteShell
+export type NeedSource = Alveolus | ConstructionSiteShell | UnBuiltLand
 
 /**
  * One urgent (2-use) need declared by one contributing object. The object *is*
@@ -154,7 +157,7 @@ export type NeedSource = Alveolus | ConstructionSiteShell
 export interface NeededGood {
 	readonly good: GoodType
 	readonly quantity: number
-	/** the declaring object (alveolus or construction site; future: road, dwelling, …). */
+	/** the declaring object (alveolus, construction site, or foundation; future: road, dwelling, …). */
 	readonly source: NeedSource
 }
 

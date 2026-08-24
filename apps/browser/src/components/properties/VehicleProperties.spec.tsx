@@ -42,7 +42,7 @@ vi.mock('@app/lib/css', () => ({
 	css: () => '',
 }))
 
-vi.mock('engine-pixi/assets/visual-content', () => ({
+vi.mock('engine-rules/visual-content', () => ({
 	vehicles: {
 		wheelbarrow: { sprites: ['vehicles.wheelbarrow'] },
 	},

@@ -8,6 +8,7 @@ import {
 	hivePlanEntryAt,
 	hivePlanFingerprint,
 	hivePlanNoveltyCost,
+	hivePlanValidationRequirements,
 	hivePlanVisibleCandidateCoords,
 	validateHivePlanStructure,
 } from 'ssh/hive-plan'
@@ -129,6 +130,30 @@ describe('hive plans', () => {
 		)
 
 		expect(novelWithMemory).toBeLessThan(novelWithoutMemory)
+	})
+
+	it('bills the real construction recipe (foundation + recipe) per entry', () => {
+		// Test mock storage recipe is { wood: 2, planks: 10 } (see test-engine/mocks.ts);
+		// plus the foundation { concrete: 1 } per tile.
+		const single = hivePlanValidationRequirements([entry(0, 0)], []).requiredGoods
+		expect(single).toEqual({ concrete: 1, wood: 2, planks: 10 })
+	})
+
+	it('sums the full variant ancestor chain into the bill', () => {
+		// pile.wood.extra: foundation {concrete:1} + root {wood:4} + wood {wood:8}
+		//                   + extra {steel:3, wood:5} → {concrete:1, wood:17, steel:3}
+		const pile = (variant: string): HivePlanEntry => ({
+			coord: [0, 0],
+			alveolusType: 'pile',
+			variant,
+		})
+		const bill = hivePlanValidationRequirements([pile('wood.extra')], []).requiredGoods
+		expect(bill).toEqual({ concrete: 1, wood: 17, steel: 3 })
+	})
+
+	it('aggregates identical goods across multiple entries', () => {
+		const bill = hivePlanValidationRequirements([entry(0, 0), entry(1, 0)], []).requiredGoods
+		expect(bill).toEqual({ concrete: 2, wood: 4, planks: 20 })
 	})
 
 	it('places a working plan and saves construction provenance', async () => {

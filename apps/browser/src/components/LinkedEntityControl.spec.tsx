@@ -73,7 +73,7 @@ vi.mock('@app/lib/css', () => ({
 
 vi.mock('@app/lib/globals', () => globals)
 
-vi.mock('engine-pixi/assets/visual-content', () => ({
+vi.mock('engine-rules/visual-content', () => ({
 	alveoli: {
 		tree_chopper: {
 			sprites: ['tree-chopper-sprite'],

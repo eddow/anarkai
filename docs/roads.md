@@ -130,8 +130,8 @@ Deferred:
 Current materials use these existing seamless textures:
 
 ```text
-engines/pixi/assets/roads/brick_moss.jpg
-engines/pixi/assets/roads/asphalt.jpg
+engines/rules/assets/roads/brick_moss.jpg
+engines/rules/assets/roads/asphalt.jpg
 ```
 
 This keeps the first road useful for walking and wheelbarrows without turning it into a full traffic system.

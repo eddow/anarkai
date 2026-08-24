@@ -1,7 +1,7 @@
 import { css } from '@app/lib/css'
 import { T } from '@app/lib/i18n'
 import { Button } from '@app/ui/anarkai'
-import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
+import { goods as sensoryGoods } from 'engine-rules/visual-content'
 import { reactive } from 'mutts'
 import { inputBufferSize } from 'ssh/assets/constants'
 import { Alveolus } from 'ssh/board/content/alveolus'

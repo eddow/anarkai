@@ -8,10 +8,10 @@ import {
 	goods,
 	roads,
 	settlementTargets,
-	terrain,
 	variantBadges,
 	vehicles,
-} from '../assets/visual-content'
+} from 'engine-rules/visual-content'
+import { terrain } from '../assets/terrain'
 
 const hasUsableTexture = (texture: Texture | undefined) => {
 	if (!texture || texture === Texture.WHITE) return false
@@ -34,7 +34,8 @@ export class PixiAssetManager {
 	}
 
 	private async loadAssetsInternal() {
-		const assetBase = '/pixi-assets'
+		const pixiAssetBase = '/pixi-assets'
+		const rulesAssetBase = '/rules-assets'
 
 		// Dynamically extract all asset keys from visual-content
 		const assetKeys = new Set<string>()
@@ -75,15 +76,17 @@ export class PixiAssetManager {
 
 		// Build asset bundles from extracted keys
 		const assetsToLoad: Record<string, string> = {
-			'unified-spritesheet': `${assetBase}/unified-spritesheet.json`,
+			'unified-spritesheet': `${rulesAssetBase}/unified-spritesheet.json`,
 		}
 
 		for (const key of assetKeys) {
 			const parts = key.split('.')
 			if (parts.length === 2) {
 				const [category, name] = parts
-				if (category === 'terrain' || category === 'roads') {
-					assetsToLoad[key] = `${assetBase}/${category}/${name}.jpg`
+				if (category === 'terrain') {
+					assetsToLoad[key] = `${pixiAssetBase}/${category}/${name}.jpg`
+				} else if (category === 'roads') {
+					assetsToLoad[key] = `${rulesAssetBase}/${category}/${name}.jpg`
 				}
 			}
 		}

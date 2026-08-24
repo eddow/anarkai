@@ -6,7 +6,7 @@ import type { AxialCoord } from 'ssh/utils'
 import { LCG, subSeed } from 'ssh/utils/numbers'
 import { toAxialCoord, toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
-import { deposits as visualDeposits } from '../../assets/visual-content'
+import { deposits as visualDeposits } from 'engine-rules/visual-content'
 import type { PixiGameRenderer } from '../renderer'
 
 export interface StaticResourceSpriteSpec {

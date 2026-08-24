@@ -20,11 +20,10 @@
 		"build": "tsc",
 		"check": "tsc",
 		"typecheck": "tsc",
-		"test": "vitest run --config vitest.config.ts",
-		"generate-spritesheet": "tsx scripts/generate-spritesheet.ts",
-		"postgenerate-spritesheet": "cp -r public/pixi-assets ../../apps/browser/public/"
+		"test": "vitest run --config vitest.config.ts"
 	},
 	"dependencies": {
+		"engine-rules": "workspace:*",
 		"engine-terrain": "workspace:*",
 		"mutts": "^1.0.14",
 		"pixi.js": "^8.14.3",
@@ -34,9 +33,6 @@
 		"vitest": "^4.1.4"
 	},
 	"devDependencies": {
-		"@types/node": "^24.10.4",
-		"@types/spritesmith": "^3.4.5",
-		"sharp": "^0.34.5",
-		"spritesmith": "^3.5.1"
+		"@types/node": "^24.10.4"
 	}
 }

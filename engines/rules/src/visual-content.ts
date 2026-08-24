@@ -208,16 +208,6 @@ export const vehicles: Record<string, VisualDefinition> = {
 	},
 }
 
-export const terrain: Record<string, VisualDefinition> = {
-	water: {}, // TODO: Add visual details
-	forest: {},
-	rocky: { background: 'terrain.stone' },
-	grass: {},
-	concrete: { background: 'terrain.concrete' }, // Inferred from Alveolus code
-	sand: {},
-	snow: {},
-}
-
 export interface RoadVisualDefinition {
 	tileTexturePixels: number
 	tileTextureWorldSizeTileSideMultiplier: number
@@ -322,7 +312,6 @@ export const visualContent = {
 	alveoli,
 	goods,
 	vehicles,
-	terrain,
 	roads,
 	characters,
 	commands,

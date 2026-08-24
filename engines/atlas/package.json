@@ -1,0 +1,32 @@
+{
+	"name": "engine-atlas",
+	"private": true,
+	"version": "0.0.0",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./package.json": "./package.json"
+	},
+	"scripts": {
+		"dev": "vite",
+		"build": "vite build",
+		"preview": "vite preview",
+		"check": "tsc -p tsconfig.app.json && tsc -p tsconfig.node.json",
+		"typecheck": "tsc -p tsconfig.app.json && tsc -p tsconfig.node.json"
+	},
+	"dependencies": {
+		"@sursaut/core": "^0.1.0",
+		"@sursaut/kit": "^0.1.0",
+		"cytoscape": "^3.34.0",
+		"cytoscape-elk": "^2.2.0",
+		"elkjs": "^0.10.0",
+		"engine-rules": "workspace:*",
+		"mutts": "^1.0.14",
+		"typescript": "~5.9.3",
+		"vite": "^8.0.10"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.6",
+		"@types/node": "25.0.10"
+	}
+}

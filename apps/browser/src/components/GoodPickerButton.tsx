@@ -1,4 +1,4 @@
-import { goods as sensoryGoods } from 'engine-pixi/assets/visual-content'
+import { goods as sensoryGoods } from 'engine-rules/visual-content'
 import type { Game } from 'ssh/game'
 import type { GoodType } from 'ssh/types/base'
 import ComboDropdownPicker, { goodsAddComboIcon } from './ComboDropdownPicker'
