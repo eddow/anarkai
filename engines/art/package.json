@@ -11,8 +11,9 @@
 		"dev": "vite",
 		"build": "vite build",
 		"preview": "vite preview",
-		"check": "tsc -p tsconfig.app.json && tsc -p tsconfig.node.json",
-		"typecheck": "tsc -p tsconfig.app.json && tsc -p tsconfig.node.json"
+		"art": "tsx src/cli.ts",
+		"check": "tsc -p tsconfig.app.json && tsc -p tsconfig.node.json && tsc -p tsconfig.cli.json",
+		"typecheck": "tsc -p tsconfig.app.json && tsc -p tsconfig.node.json && tsc -p tsconfig.cli.json"
 	},
 	"dependencies": {
 		"@sursaut/core": "^0.1.0",
@@ -23,6 +24,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.6",
-		"@types/node": "25.0.10"
+		"@types/node": "25.0.10",
+		"tsx": "^4.21.0"
 	}
 }

@@ -53,6 +53,27 @@
 - `freightConstructionDemandTarget` already unifies (1) and (2) and tags them with ad-source `'project'`;
   the ledger should reuse the same unification rather than re-enumerating contributor types.
 
+### Terminal goods — where building material's *continuous* demand comes from
+
+Terminal goods fall into two demand channels; the distinction is **one-shot vs continuous**, not "which
+character consumes it":
+
+- **Consumption goods** (food, wearables/EDC) → continuous demand from **housing** (pantry targets) and
+  **character presence** (personal goods, on-the-go meals).
+- **Building material** (wood, stone, planks, concrete, steel) → **two** channels:
+  1. **Construction** — one-shot, episodic: the ledger's construction bill (projects + spontaneous
+     buildings). Already wired.
+  2. **Maintenance** — continuous, rate: the **engineer alveolus is a consumer alveolus** (a
+     transform-like production site) whose *inputs are the building materials* it consumes to top up a
+     building's `usePoint` (see `docs/commerce.md` §"Maintenance & energy"). This is **not** "engineers
+     as characters eating planks" — it is a *building's degradation rate* surfacing as material demand,
+     with the engineer as the applying agent. Its inputs enter the ledger as ordinary production demand
+     (origin `'production'`), **no separate maintenance origin**.
+
+So "should engineers be consumers of building material?" → **yes, but as the engineer *alveolus*'s
+inputs (maintenance), not as character consumption.** The symmetric base load under the construction
+spikes is maintenance; both feed the same ledger/price field.
+
 ### Sourcing policy for spontaneous construction & growth/shrinkage (proposal)
 
 **Principle: spawn declares demand, sourcing resolves it.** Demand declaration (a `NeededGood` from any
@@ -389,8 +410,19 @@ Open questions and open numbers only — everything architectural is decided.
 
 **Open numbers (decided mechanism, tune later):**
 
-- Price-field radius `R` + fade radius.
+- Price-field radius `R` + fade radius. **`fadeRadius` and generation must be tuned *together***: the
+  frontier fade has to reach the generated map edge, so `fadeRadius` tracks the generation radius/frontier
+  — the two are coupled, not independent knobs. The price field is computed over the *live* generation
+  frontier, so changing generation scales must re-tune `fadeRadius` in lockstep (and `R` stays ≥ the
+  generation radius per the original constraint).
 - NPC input-trickle `τ_in` + target.
+
+**Reserve ≡ the `1-buffer` target (decided).** The sourcing `Reserve` keep-target ("don't export below
+it, don't import above it") is **the same number as a storage's `1-buffer` target** (`StorageAlveolus.
+storageBuffers`). It is one knob with two names (commerce-facing vs storage-facing), **not** a second
+field. Sourcing reads the keep-target via `internalSourceAvailability(stock, ownDemand, reserve)`;
+`reserve` resolves to `Reserve.perGood[good] ?? defaultReserve` — and for a buffer, that default falls
+back to the buffer target, not a new global.
 - Consumption **allowance rate** (the inverted-tax drip — caps how luxuriously characters live; source
   = the single generic wallet).
 - Elasticity `k` and the `0.5` stock-elasticity floor.

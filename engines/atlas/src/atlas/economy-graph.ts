@@ -24,8 +24,6 @@ export interface AtlasEdge {
 	readonly source: string
 	readonly target: string
 	readonly kind: 'consumes' | 'produces' | 'stocks' | 'harvests' | 'plants'
-	/** Quantity/rate when known (negative = consumed per cycle). */
-	readonly qty?: number
 }
 
 export interface EconomyGraph {
@@ -86,7 +84,7 @@ interface VariantDef {
  * Construction costs are deliberately NOT part of the chart.
  */
 /** Only these alveolus action types are part of the production graph. */
-const PRODUCTION_ACTIONS = new Set(['harvest', 'transform'])
+const PRODUCTION_ACTIONS = new Set(['harvest', 'transform', 'plant'])
 
 export function buildEconomyGraph(): EconomyGraph {
 	const errors: string[] = []
@@ -136,9 +134,9 @@ export function buildEconomyGraph(): EconomyGraph {
 		// Passive generation (berry_bush → berries, tree → mushrooms).
 		const gen = (def as { generation?: Readonly<Record<string, number>> }).generation
 		if (gen) {
-			for (const [g, rate] of Object.entries(gen)) {
+			for (const g of Object.keys(gen)) {
 				if (nodes.has(`good:${g}`)) {
-					pushEdge({ source: `deposit:${name}`, target: `good:${g}`, kind: 'produces', qty: rate })
+					pushEdge({ source: `deposit:${name}`, target: `good:${g}`, kind: 'produces' })
 				}
 			}
 		}
@@ -156,8 +154,8 @@ export function buildEconomyGraph(): EconomyGraph {
 				if (!nodes.has(`good:${g}`)) continue
 				pushEdge(
 					rate < 0
-						? { source: `good:${g}`, target: buildingId, kind: 'consumes', qty: -rate }
-						: { source: buildingId, target: `good:${g}`, kind: 'produces', qty: rate },
+						? { source: `good:${g}`, target: buildingId, kind: 'consumes' }
+						: { source: buildingId, target: `good:${g}`, kind: 'produces' },
 				)
 			}
 		} else if (action.type === 'harvest') {
@@ -166,9 +164,9 @@ export function buildEconomyGraph(): EconomyGraph {
 				pushEdge({ source: `deposit:${deposit}`, target: buildingId, kind: 'harvests' })
 			}
 			const output = (action as { output?: Readonly<Record<string, number>> }).output ?? {}
-			for (const [g, qty] of Object.entries(output)) {
+			for (const g of Object.keys(output)) {
 				if (nodes.has(`good:${g}`)) {
-					pushEdge({ source: buildingId, target: `good:${g}`, kind: 'produces', qty })
+					pushEdge({ source: buildingId, target: `good:${g}`, kind: 'produces' })
 				}
 			}
 		} else if (action.type === 'plant') {

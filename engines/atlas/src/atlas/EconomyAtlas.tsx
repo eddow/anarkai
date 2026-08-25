@@ -9,6 +9,7 @@
 import cytoscape from 'cytoscape'
 import elk from 'cytoscape-elk'
 import { buildEconomyGraph } from './economy-graph'
+import { nodeIcon } from './icons'
 
 cytoscape.use(elk)
 
@@ -30,6 +31,31 @@ const STYLES: cytoscape.StylesheetJson = [
 		},
 	},
 	{ selector: 'node[kind="good"]', style: { 'background-color': '#4f9dd9', shape: 'ellipse' } },
+	{
+		selector: 'node[kind="good"][icon], node[kind="building"][icon]',
+		style: {
+			'background-image': 'data(icon)',
+			'background-fit': 'contain',
+			'background-clip': 'none',
+			width: 30,
+			height: 30,
+		},
+	},
+	{
+		selector: 'node[kind="deposit"][icon]',
+		style: {
+			'background-image': 'data(icon)',
+			'background-fit': 'none',
+			'background-clip': 'node',
+			'background-repeat': 'no-repeat',
+			'background-width': 'data(bgW)',
+			'background-height': 'data(bgH)',
+			'background-position-x': 'data(bgPosX)',
+			'background-position-y': 'data(bgPosY)',
+			width: 'data(iconW)',
+			height: 'data(iconH)',
+		},
+	},
 	{
 		selector: 'node[violated]',
 		style: {
@@ -78,10 +104,6 @@ const STYLES: cytoscape.StylesheetJson = [
 			'target-arrow-shape': 'triangle',
 			'arrow-scale': 0.8,
 			'curve-style': 'bezier',
-			label: 'data(edgeLabel)',
-			'font-size': 8,
-			color: '#7f8db0',
-			'text-rotation': 'autorotate',
 		},
 	},
 	{ selector: 'edge[kind="stocks"]', style: { 'line-color': '#7ed98a', 'target-arrow-color': '#7ed98a', 'line-style': 'dotted', opacity: 0.6 } },
@@ -96,22 +118,35 @@ export default function EconomyAtlas(props: { onErrors?: (errors: readonly strin
 		const graph = buildEconomyGraph()
 		props.onErrors?.(graph.errors)
 		const els: cytoscape.ElementsDefinition = {
-			nodes: graph.nodes.map((n) => ({
-				data: {
-					id: n.id,
-					label: n.label,
-					kind: n.kind,
-					...(n.data?.violated ? { violated: true } : {}),
-					...(n.parent ? { parent: n.parent } : {}),
-				},
-			})),
+			nodes: graph.nodes.map((n) => {
+				const icon = nodeIcon(n.kind, n.id)
+				return {
+					data: {
+						id: n.id,
+						label: n.label,
+						kind: n.kind,
+						...(n.data?.violated ? { violated: true } : {}),
+						...(n.parent ? { parent: n.parent } : {}),
+						...(icon ? { icon: icon.image } : {}),
+						...(icon?.width
+							? {
+									iconW: icon.width,
+									iconH: icon.height,
+									bgW: icon.bgWidth,
+									bgH: icon.bgHeight,
+									bgPosX: icon.bgPosX,
+									bgPosY: icon.bgPosY,
+								}
+							: {}),
+					},
+				}
+			}),
 			edges: graph.edges.map((e) => ({
 				data: {
 					id: e.id,
 					source: e.source,
 					target: e.target,
 					kind: e.kind,
-					edgeLabel: e.qty !== undefined && e.qty >= 0.01 ? String(e.qty) : '',
 				},
 			})),
 		}

@@ -25,6 +25,16 @@ That keeps the first Pollinations integration simple while leaving room for prov
 
 The first provider targets `https://gen.pollinations.ai/image/{prompt}` with `model`, `size`, optional `seed`, and optional publishable `pk_` key query parameters. Secret `sk_` keys are intentionally not supported in the client path.
 
+## CLI
+
+`src/cli.ts` is a Node entry point (`tsx src/cli.ts`, or `pnpm --filter engine-art art -- ...`) so agents and scripts can generate images without a browser. It reuses the same provider registry, generation session, and prompt library as the UI, then fetches the resulting image with Node's `fetch` and writes it to disk with `node:fs`.
+
+- Provider API key comes from `--api-key` or the `POLLINATIONS_API_KEY` env var.
+- `--json` emits a single machine-readable result object (id, prompt, size, seed, `imageUrl`, and output `path`).
+- `--list` prints the curated prompt proposals; `--propose` picks one at random.
+
+The browser-only modules (`download.ts`, `settings.ts`) are intentionally not imported by the CLI, keeping it free of DOM and `localStorage` dependencies.
+
 ## Open Decisions
 
 - Prompt proposal source: local curated list, LLM text endpoint, project-aware asset brief, or a mix.

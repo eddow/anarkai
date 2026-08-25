@@ -1,6 +1,5 @@
 {
 	"compilerOptions": {
-		"composite": true,
 		"target": "ES2023",
 		"lib": ["ES2023", "DOM", "DOM.Iterable"],
 		"module": "ESNext",
@@ -10,20 +9,13 @@
 		"isolatedModules": true,
 		"noEmit": true,
 		"skipLibCheck": true,
-		"useDefineForClassFields": true,
-		"experimentalDecorators": true,
 		"strict": true,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
 		"noFallthroughCasesInSwitch": true,
-		"jsx": "react",
-		"jsxFactory": "h",
-		"jsxFragmentFactory": "Fragment",
-		"types": ["vite/client"],
-		"paths": {
-			"@art/*": ["./src/*"]
-		}
+		"verbatimModuleSyntax": true,
+		"moduleDetection": "force",
+		"types": ["node", "vite/client"]
 	},
-	"include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"],
-	"exclude": ["**/*.spec.ts", "**/*.spec.tsx", "**/*.test.ts", "**/*.test.tsx", "src/cli.ts"]
+	"include": ["src/cli.ts"]
 }

@@ -8,20 +8,52 @@ Decisions live in `docs/`, open questions and the plan in `plans/`. The document
 
 - [`docs/commerce.md`](docs/commerce.md) + [`plans/commerce.md`](plans/commerce.md) — distribution,
   external commerce, the net-deficit ledger, happiness→trust→freedom.
-- [`docs/energy.md`](docs/energy.md) — energy sources, topology, and distribution (decided).
 - [`plans/commerce-architecture.md`](plans/commerce-architecture.md) — open questions & plan: the
-  remaining maintenance/energy details and the implementation order.
+  price field, sourcing policy, reserve, and the implementation order.
+- [`plans/spontaneous-lines.md`](plans/spontaneous-lines.md) — transport automation (one-shot orders,
+  temporary corridors, the internality slider; recurring lines stay player-authored).
+- [`plans/spontaneous-zones.md`](plans/spontaneous-zones.md) — spontaneous residential/commercial,
+  growth/shrinkage (triangular capacity), the delivery-tile rule, and shop types.
+- [`docs/energy.md`](docs/energy.md) — energy sources, topology, and distribution (decided).
 - [`docs/projects.md`](docs/projects.md) + [`plans/projects.md`](plans/projects.md) — construction
   projects as forward declarations of demand and special operations.
 - [`docs/races.md`](docs/races.md) + [`plans/races.md`](plans/races.md) — philosophies ("races") and
   the tuning-not-lock-out rule.
 
+The commerce **code** lives in `engines/ssh/src/lib/commerce/` (model, ledger, sourcing, price field,
+board adapter) and its content in `engines/rules/src/content/{commerce,shops}.ts`.
+
 ## Where we are
 
 See [`./current-status.md`](./current-status.md) for what is landed. The short version: terrain, hive
 simulation, freight lines / exchange routes, bay queues, alveoli variants, and the *first* form of
-external commerce (settlement city-hall trade with static prices) are all in. What is **not** landed is
-the unified commerce model we have spent this pass designing — that is the frontier.
+external commerce (settlement city-hall trade with static prices) are all in.
+
+The **commerce spine** (the structural layer) has now been drafted and bound to live state — the pure
+core is implemented, tested, and type-clean; the *gameplay* wiring is the frontier:
+
+- **Interfaces** (`commerce-model.ts`): `GoodFlow` / `EstateCommerceProfile`, the `Estate` interface
+  (`footprint`/`profile`/`feedsPriceField`/`distanceTo`), `effectiveFlow`, `PriceNode`/`PriceFieldTuning`,
+  `NeededGood`/`NeedSource`, `NetDeficit`/`NetDeficitLedger`, `Reserve`, `Source`, `SourcingEntry`,
+  `Wallet`/`Transfer`. `Hive` now `implements Estate`.
+- **Ledger** (`deficit-ledger.ts`): `computeNetDeficitLedger` over construction demand (player plans +
+  spontaneous foundations); exposed as `Game.netDeficitLedger`. **Demand half only** — `surplus` is 0.
+- **Sourcing** (`sourcing.ts`): pure `resolveSourcing` (internal-first, then external by price→distance),
+  `SourcingPolicy`, `SourceOffer`, `internalSourceAvailability`. `Source` = `Estate |
+  NpcSettlementTradeProfile`; `Reserve` ≡ the `1-buffer` keep-target (one knob, two names).
+- **Price field** (`price-field.ts`): `priceAt` / `rateFieldAt` / `influenceWeight`, tuning in
+  `commerce.priceField`. Base price is a caller parameter; the **frontier fade** is a board-aware caller
+  concern (needs the generation frontier).
+- **Board adapter** (`board-sources.ts`): `listHives`, `measureInternalSourceOffers`,
+  `measureExternalSourceOffers` — turns live `Game` state into the `SourceOffer`s `resolveSourcing` eats.
+- **Content** (`rules`): `commerce.priceField` tuning; `shops.ts` shop definitions (`ShopDefinition`,
+  `shops`, `shopNeedTags`) — defined, **not yet consumed by a spawner**.
+- **Bill** (`hive-plan.ts`): `HivePlanValidationProgress.requiredGoods` is now the real recipe-sum bill
+  (foundation + variant chain), replacing the `charcoal` survey stub.
+
+**What is not landed** is the *gameplay* half of that spine: a live `deficit` stop that imports a
+shortfall, the `surplus` (producer-export) half of the ledger, operating demand in the bill, the
+frontier fade, and the spontaneous commercial spawner / growth-shrinkage representation.
 
 ## The decided architecture
 
@@ -96,15 +128,19 @@ Agreed sequence — **questions → structures/interfaces → implementation**:
 1. **Answer the last open items** (§A–§C): the energy leftover details and the races questions. None of
    these block the ledger; they are all small and mostly independent (the one-wallet question is already
    decided).
-2. **Structures & interfaces** — the commerce spine is unblocked *now* (energy no longer gates it):
-   - `Deficit = { good, quantity, origin: 'project'|'production'|'storage'|'consumption'|'energy', scope }`
-     (maintenance is **not** an origin — engineers do it as a consumer alveolus whose inputs are
-     `'production'` demand)
-   - `Hive.needs` → the net-deficit field over NPC + player structures (deficit = priority `2-use` only).
-   - `StopMode = 'deficit'|'surplus'|'explicit'`; `Reserve` as the single knob.
-   - `SourcingEntry = { good, source, quota }`; `ProjectSourcing`.
-   - `Wallet` (single for now) / `Transfer` for the salary + luxury drip.
-3. **Implementation** — the "first playable slices" below.
+2. **Structures & interfaces** — ✅ **done** (the `commerce/` module + `rules` content above). The
+   shapes actually landed differ slightly from the original sketch and are worth noting:
+   - `NeededGood = { good, quantity, source }` — the **object is the origin** (`source: NeedSource =
+     Alveolus | ConstructionSiteShell | UnBuiltLand`), narrowed by `instanceof`/type-guard. There is **no
+     `origin`/`Deficit.origin` enum** — the object identity replaces it (and `UnBuiltLand` covers the
+     residential foundation phase).
+   - `NetDeficit = { demand, surplus, deficit, needs }` + `NetDeficitLedger` (board-scoped).
+   - `SourcingEntry = { good, source, quota: number | 'rest' }`; `ProjectSourcing`; `Reserve`; `Wallet` /
+     `Transfer` — all landed.
+   - **Not yet landed:** `StopMode = 'deficit'|'surplus'|'explicit'` (still a doc-only concept), and
+     wiring `Hive.needs` into the ledger (the ledger currently reads construction shells directly,
+     not `Hive.needs`).
+3. **Implementation** — the "first playable slices" below (three are done, the rest remain).
 
 ### Architectural hygiene (kept from the old plan)
 
@@ -121,9 +157,12 @@ Ranked against the decided architecture. The old "roads next" framing is superse
 
 ### 1. Commerce architecture → code (primary)
 
-Turn the net-deficit ledger + sourcing into working code: replace the `HivePlan.requiredGoods` stub with
-a real recipe-sum bill + operating demand; make `Hive.needs` the net-deficit field; add the `deficit`
-stop mode; surface reserve. This is the spine every other direction plugs into.
+The structural spine is drafted (see "Where we are"); the remaining *gameplay* work here is:
+wire a live **`deficit` stop** that imports a shortfall (the consumer of the ledger + sourcing), add the
+**`surplus`** (producer-export) half of the ledger, fold **operating demand** (transform inputs / storage
+buffers) into the bill, make **`Hive.needs`** feed the ledger (today the ledger reads construction shells
+directly), and apply the **frontier fade** board-side. This is the spine every other direction plugs
+into.
 
 ### 2. Projects (supporting, in parallel)
 
@@ -163,21 +202,31 @@ Needed when settlements / roads / commerce need stronger geography. Keep as back
 
 ## Decision prompts
 
-- Are we answering questions (§A–§C) or writing interfaces? The commerce spine is unblocked; start
-  drafting interfaces now — the remaining questions are small and orthogonal to the ledger.
+- The structural spine is drafted; the next fork is **gameplay wiring** vs **content** — do we wire a
+  live `deficit` stop (proves the spine end-to-end), or add the spontaneous commercial spawner (proves
+  the content)?
 - Does the next slice *reduce a deficit the ledger can express*, or does it just add assets?
 - Is the smallest playable slice "one shop consuming one good" or "one deficit routed to one source"?
   The latter proves the architecture; the former proves the content.
-- Which decision becomes hardest to change after this lands? The `Deficit.origin` union and the wallet
-  shape (one wallet vs two) fork the most.
+- Which decision becomes hardest to change after this lands? The `NeedSource` union (object-as-origin vs
+  a discriminant) and the wallet shape (one wallet vs two) fork the most.
 
 ## First playable slices
 
-- **Ledger v1:** real `requiredGoods` bill → `Hive.needs` field → one `deficit` stop imports a shortfall.
-- **Sourcing v1:** one project with a two-source quota (own hive + NPC settlement), editable mid-run.
-- **Reserve v1:** one buffer with a reserve knob that blocks over-export and caps over-import.
-- **Price-field v1:** the d² + frontier-fade field, wired to `Hive.needs`' surplus/need.
-- **Maintenance v1:** one building with a usePoints life level engineers can top back up (decided model).
-- **Salary v1:** one wallet drip that lets a character buy food at an NPC city (the skip-SimCity probe).
-- **Race v1:** one philosophy nudging one axis + one happiness source (after the dial is live).
-- **Roads v2:** (re-ranked) turn instant roads into build projects, add route-benefit summaries.
+- **Ledger v1** — ✅ real `requiredGoods` bill → `computeNetDeficitLedger` → `Game.netDeficitLedger`
+  (demand half). ⏳ Remaining: a live `deficit` stop that imports the shortfall.
+- **Sourcing v1** — ✅ pure `resolveSourcing` + `board-sources.ts` adapter. ⏳ Remaining: a concrete
+  caller (the deficit stop / trade-stop) that invokes it end-to-end.
+- **Reserve v1** — ⏳ the data shape (`Reserve`) and `internalSourceAvailability` exist; the buffer
+  wiring (a storage buffer whose `1-buffer` target *is* the reserve knob) is not yet connected.
+- **Price-field v1** — ✅ pure `priceAt` / `rateFieldAt` + `commerce.priceField` tuning. ⏳ Remaining:
+  the board-aware frontier fade and a consumer sampling the field.
+- **Maintenance v1** — ⏳ one building with a usePoints life level engineers can top back up (decided
+  model; not implemented).
+- **Salary v1** — ⏳ one wallet drip that lets a character buy food at an NPC city (the skip-SimCity
+  probe).
+- **Spontaneous zones** — ⏳ `shops.ts` content is defined; the commercial spawner (cumulative
+  observation → shop), residential (seeded), and growth/shrinkage (triangular capacity) are not yet
+  implemented. See [`plans/spontaneous-zones.md`](plans/spontaneous-zones.md).
+- **Race v1** — ⏳ one philosophy nudging one axis + one happiness source (after the dial is live).
+- **Roads v2** — ⏳ (re-ranked) turn instant roads into build projects, add route-benefit summaries.

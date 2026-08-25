@@ -1,10 +1,10 @@
 import { createPollinationsProvider } from './pollinations-provider'
 import type { ArtProvider } from './types'
 
-export function createArtProviders(): readonly ArtProvider[] {
+export function createArtProviders(apiKey?: string): readonly ArtProvider[] {
 	return [
 		createPollinationsProvider({
-			apiKey: import.meta.env.VITE_POLLINATIONS_API_KEY,
+			apiKey: apiKey ?? import.meta.env.VITE_POLLINATIONS_API_KEY,
 		}),
 	]
 }

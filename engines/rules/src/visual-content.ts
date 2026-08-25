@@ -7,6 +7,7 @@ export interface VisualDefinition {
 export const deposits: Record<string, VisualDefinition> = {
 	berry_bush: {
 		sprites: ['objects.bushes/bush1'],
+		icon: 'objects.bushes/bush1',
 	},
 	rock: {
 		sprites: [
@@ -17,6 +18,7 @@ export const deposits: Record<string, VisualDefinition> = {
 			'objects.rocks/rock5',
 			'objects.rocks/rock6',
 		],
+		icon: 'objects.rocks/rock1',
 	},
 	tree: {
 		sprites: [
@@ -32,9 +34,11 @@ export const deposits: Record<string, VisualDefinition> = {
 			'objects.trees/tree10',
 			'objects.trees/tree11',
 		],
+		icon: 'objects.trees/tree1',
 	},
 	wheat_crop: {
-		sprites: ['objects.bushes/bush1'],
+		sprites: ['objects.wheat/wheat-3'],
+		icon: 'objects.wheat/wheat-3',
 	},
 }
 
@@ -64,8 +68,8 @@ export const alveoli: Record<string, VisualDefinition> = {
 		icon: 'buildings.wheat-planter',
 	},
 	wheat_harvester: {
-		sprites: ['buildings.chopper'],
-		icon: 'buildings.chopper',
+		sprites: ['buildings.scythe'],
+		icon: 'buildings.scythe',
 	},
 	flour_mill: {
 		sprites: ['buildings.flour-mill'],

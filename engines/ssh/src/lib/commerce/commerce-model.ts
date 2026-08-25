@@ -16,7 +16,6 @@
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import type { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { ConstructionSiteShell } from 'ssh/build-site'
-import type { FreightMovementParty } from 'ssh/freight/vehicle-freight-dock'
 import type { GoodType } from 'ssh/types/base'
 import type { AxialCoord } from 'ssh/utils/axial'
 import type { NpcSettlementTradeProfile } from './settlement-trade'
@@ -182,7 +181,11 @@ export type NetDeficitLedger = Partial<Record<GoodType, NetDeficit>>
 
 // ── Sourcing ─────────────────────────────────────────────────────────────────
 
-/** The single knob: don't export below it, don't import above it. */
+/**
+ * The single knob: don't export below it, don't import above it. The keep-target
+ * is **the same number as a storage's `1-buffer` target** (`storageBuffers`) —
+ * this `Reserve` is the commerce-facing name for it, not a second knob.
+ */
 export interface Reserve {
 	/** fallback keep-target when no per-good value is set. */
 	readonly defaultReserve: number
@@ -190,15 +193,16 @@ export interface Reserve {
 }
 
 /**
- * A source a project may buy from / sell to. Own hives/vehicles via
- * `FreightMovementParty`; NPC settlements via their trade profile. NPC
- * production hives and other-player settlements join this union later.
+ * A source a project may buy from / sell to. **Estates** are the economic units:
+ * own hives (and later houses/shops) are `Estate`s; NPC settlements trade via
+ * their profile (a container, not yet an estate). NPC production hives and
+ * other-player settlements join this union later.
  *
  * Load/unload and commercial transactions happen on the **corresponding
  * estate** (the specific house/shop/hive), not on the settlement container or
  * its city hall.
  */
-export type Source = FreightMovementParty | NpcSettlementTradeProfile
+export type Source = Estate | NpcSettlementTradeProfile
 
 /** One "buy X of good G from source S" requirement; splittable across sources. */
 export interface SourcingEntry {
