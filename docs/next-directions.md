@@ -50,10 +50,19 @@ core is implemented, tested, and type-clean; the *gameplay* wiring is the fronti
   `shops`, `shopNeedTags`) — defined, **not yet consumed by a spawner**.
 - **Bill** (`hive-plan.ts`): `HivePlanValidationProgress.requiredGoods` is now the real recipe-sum bill
   (foundation + variant chain), replacing the `charcoal` survey stub.
+- **Transport automation** (`freight/one-shot-lines.ts` + `Game.transportAutomation`): the `repeat: false`
+  one-shot line model (self-delete on fulfillment/abortion), the internal-first **spawner**
+  (`trySpawnConstructionLines` — nearest producer/holder bay → construction zone, using only *free*
+  vehicles), the external **delivery** branch (`trySpawnConstructionDeliveries` — buy from the
+  nearest/cheapest NPC settlement and credit the site; instant credit for now), the "don't
+  double-cover" guard (any line covering the good), and a **reactive, tunable config** (`autoSpawn` /
+  `autoBuy` / `internality` / `reserve` / `spawnCooldownSeconds`) seeded from
+  `commerce.transportAutomation`. See [`plans/spontaneous-lines.md`](plans/spontaneous-lines.md).
 
-**What is not landed** is the *gameplay* half of that spine: a live `deficit` stop that imports a
-shortfall, the `surplus` (producer-export) half of the ledger, operating demand in the bill, the
-frontier fade, and the spontaneous commercial spawner / growth-shrinkage representation.
+**What is not landed** is the *gameplay* half of that spine: the **physical carrier** behind delivery
+(the buy+credit is instant — no outside-carrier travel yet), the `surplus` (producer-export) half of
+the ledger, operating demand in the bill, the frontier fade, and the spontaneous commercial spawner /
+growth-shrinkage representation.
 
 ## The decided architecture
 
@@ -221,6 +230,12 @@ Needed when settlements / roads / commerce need stronger geography. Keep as back
   wiring (a storage buffer whose `1-buffer` target *is* the reserve knob) is not yet connected.
 - **Price-field v1** — ✅ pure `priceAt` / `rateFieldAt` + `commerce.priceField` tuning. ⏳ Remaining:
   the board-aware frontier fade and a consumer sampling the field.
+- **Transport automation v1** — ✅ `repeat` flag + one-shot lifecycle (self-delete), internal-first
+  spawner (`trySpawnConstructionLines`), external delivery branch (`trySpawnConstructionDeliveries`,
+  instant buy+credit), free-vehicle allocation, dedup guard, and reactive
+  `Game.transportAutomation` config. ⏳ Remaining: a physical outside carrier for delivery, and the
+  internality-slider UI that actually branches line-vs-delivery. See
+  [`plans/spontaneous-lines.md`](plans/spontaneous-lines.md).
 - **Maintenance v1** — ⏳ one building with a usePoints life level engineers can top back up (decided
   model; not implemented).
 - **Salary v1** — ⏳ one wallet drip that lets a character buy food at an NPC city (the skip-SimCity

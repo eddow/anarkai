@@ -1,6 +1,6 @@
+import { roads as roadDefinitions } from 'engine-rules/visual-content'
 import type { RoadType } from 'ssh/board/roads'
 import { tileSize } from 'ssh/utils/varied'
-import { roads as roadDefinitions } from 'engine-rules/visual-content'
 
 function colorNumber(hexColor: string): number {
 	const hex = hexColor.startsWith('#') ? hexColor.slice(1) : hexColor

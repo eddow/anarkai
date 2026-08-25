@@ -24,6 +24,12 @@ const planksOnlySelection = {
 	defaultEffect: 'deny',
 } as const
 
+const woodOnlySelection = {
+	goodRules: [{ goodType: 'wood', effect: 'allow' }],
+	tagRules: [],
+	defaultEffect: 'deny',
+} as const
+
 export const chopSaw = {
 	seed: 549,
 	terrains: {
@@ -495,4 +501,286 @@ export const saw = {
 			[17, -6],
 		],
 	},
+} satisfies GamePatches
+
+/** Axis-aligned (in axial q,r) rectangular block of coords, both bounds inclusive. */
+function axialRect(q0: number, q1: number, r0: number, r1: number): readonly [number, number][] {
+	const coords: [number, number][] = []
+	for (let q = Math.min(q0, q1); q <= Math.max(q0, q1); q++) {
+		for (let r = Math.min(r0, r1); r <= Math.max(r0, r1); r++) {
+			coords.push([q, r])
+		}
+	}
+	return coords
+}
+
+// Two parallelogram zones below the hives — residential (east) beside commercial (west),
+// separated by a vertical road running down the gap column (q = -1).
+const commonsResidential = axialRect(0, 3, 2, 6)
+const commonsCommercial = axialRect(-5, -2, 2, 6)
+const commonsGroveWood = axialRect(1, 4, -5, -4)
+const commonsGap = axialRect(-1, -1, 2, 6)
+
+/**
+ * The commerce starting point: several **unitary hives** (each a minimal, separate
+ * production loop with its own freight bay) rather than one complex hive, plus a
+ * residential zone and a commercial zone laid out **below** the hives as two
+ * parallelograms side by side (residential east, commercial west), and a first
+ * construction project. Unlike `chopSaw` (one big hive), each hive here is a small
+ * building cluster with its own delivery tile (freight bay).
+ *
+ *   - Grove  (forestry):   chopper + forester + wood pile   → produces wood
+ *   - Mill   (sawmill):    2 sawmills + wood/plank piles    → wood → planks
+ *   - Quarry (stone):      stonecutter + stone pile         → produces stone
+ *   - Depot  (infrastructure): slotted storages + building/road engineers
+ *
+ * Layout rules honoured:
+ *   - every hive and zone is separated from its neighbours by ≥1 empty tile;
+ *   - **no loose goods or generated deposits sit on used tiles** (residential /
+ *     commercial / hive) — the zones and road corridor are `concrete` (empty
+ *     generation), and explicit `looseGoods` live only in the forest, so the
+ *     gather route never triggers a gamestart offload;
+ *   - the wood zone (`Grove Wood`) has **no road**; a single road runs **between the
+ *     residential and commercial zones** as their separator, never through the wood;
+ *   - the **Depot sits west of the settlements** (leftmost hive), clear of the water.
+ *
+ * **Only inputs are buffered; output piles are "drain-me".** In engine terms this
+ * means *no `buffers` keep-target on any pile*: a keep-target makes a pile *demand*
+ * refill and *withhold* stock, which is wrong for both roles. Input piles (Mill
+ * wood) and output piles (Grove wood, Mill planks, Quarry stone) are all buffer-less
+ * specific piles that *provide* their stock when it is present.
+ *
+ * Projects, dwellings, and shops are **not** pre-placed: the residential and
+ * commercial zones start empty so spontaneous construction (housing + shops) can
+ * happen. The forest is the only resource area; the zones/gap are concrete and
+ * burden-free (no deposits, no loose goods).
+ */
+export const commons = {
+	seed: 549,
+	terrains: {
+		concrete: [
+			// Grove
+			[0, -1],
+			[1, -1],
+			[1, -2],
+			[0, -2],
+			// Mill
+			[4, -1],
+			[5, -1],
+			[4, -2],
+			[5, -2],
+			[6, -2],
+			// Quarry
+			[-4, -1],
+			[-5, -1],
+			[-4, -2],
+			// Depot (west, left of the settlements)
+			[-9, -1],
+			[-9, -2],
+			[-8, -2],
+			[-8, -1],
+			[-7, -2],
+			// Zones + gap: concrete (empty generation) so the residential/commercial
+			// zones and the road corridor start burden-free — no berry bushes / loose
+			// goods to offload at gamestart. The forest is the only resource area.
+			...commonsResidential,
+			...commonsCommercial,
+			...commonsGap,
+		],
+		forest: commonsGroveWood,
+	},
+	hives: [
+		{
+			name: 'Grove',
+			alveoli: [
+				{ alveolus: 'freight_bay', coord: [0, -1] },
+				{ alveolus: 'tree_chopper', coord: [1, -1] },
+				{ alveolus: 'forester', coord: [1, -2], assignedZoneIndices: [2] },
+				// Output-only (drain-me) pile with NO buffer keep-target: it is not configured
+				// to demand wood — the chopper fills it to shed its output, and the pile just
+				// holds it and provides it for pickup. (Absent `buffers` = keep-target 0.)
+				{ alveolus: 'pile', coord: [0, -2], variant: 'wood', goods: { wood: 6 } },
+			],
+		},
+		{
+			name: 'Mill',
+			alveoli: [
+				{ alveolus: 'freight_bay', coord: [4, -1] },
+				// 100% product ratio: transform all wood into planks (no wood left behind).
+				{
+					alveolus: 'sawmill',
+					coord: [5, -1],
+					configuration: {
+						ref: { scope: 'individual' },
+						individual: { working: true, productRatio: { maxProductRatio: 1 } },
+					},
+				},
+				{
+					alveolus: 'sawmill',
+					coord: [4, -2],
+					configuration: {
+						ref: { scope: 'individual' },
+						individual: { working: true, productRatio: { maxProductRatio: 1 } },
+					},
+				},
+				// Input holding pile: wood delivered here feeds the sawmills. NO
+				// `buffers` keep-target — a keep-target makes the pile *demand* wood
+				// (refill to 24) and *withhold* it from the sawmill, starving it. A
+				// buffer-less specific pile instead *provides* whenever it has stock,
+				// so the sawmill's 2-use demand draws from it.
+				{ alveolus: 'pile', coord: [5, -2], variant: 'wood', goods: { wood: 6 } },
+				// Output-only (drain-me) buffer.
+				{ alveolus: 'pile', coord: [6, -2], variant: 'planks', goods: { planks: 3 } },
+			],
+		},
+		{
+			name: 'Quarry',
+			alveoli: [
+				{ alveolus: 'freight_bay', coord: [-4, -1] },
+				{ alveolus: 'stonecutter', coord: [-5, -1] },
+				// Output-only (drain-me) buffer.
+				{ alveolus: 'pile', coord: [-4, -2], variant: 'stone', goods: { stone: 4 } },
+			],
+		},
+		{
+			name: 'Depot',
+			alveoli: [
+				{ alveolus: 'freight_bay', coord: [-9, -1] },
+				{ alveolus: 'storage', coord: [-9, -2], goods: { concrete: 2, wood: 3, planks: 2 } },
+				{ alveolus: 'storage', coord: [-8, -2], goods: { stone: 3 } },
+				{ alveolus: 'engineer', coord: [-8, -1], variant: 'building' },
+				{ alveolus: 'engineer', coord: [-7, -2], variant: 'road' },
+			],
+		},
+	],
+	freightLines: [
+		{
+			name: 'Grove gather',
+			cyclic: true,
+			stops: [
+				{
+					loadSelection: constructionGoodsSelection,
+					unloadSelection: constructionGoodsSelection,
+					anchor: {
+						kind: 'alveolus',
+						hiveName: 'Grove',
+						alveolusType: 'freight_bay',
+						coord: [0, -1],
+					},
+				},
+				{
+					loadSelection: constructionGoodsSelection,
+					unloadSelection: constructionGoodsSelection,
+					zone: { kind: 'radius', center: [2, -4], radius: 6 },
+				},
+			],
+		},
+		{
+			name: 'Mill wood run',
+			cyclic: true,
+			stops: [
+				{
+					loadSelection: woodOnlySelection,
+					unloadSelection: planksOnlySelection,
+					anchor: {
+						kind: 'alveolus',
+						hiveName: 'Grove',
+						alveolusType: 'freight_bay',
+						coord: [0, -1],
+					},
+				},
+				{
+					loadSelection: planksOnlySelection,
+					unloadSelection: woodOnlySelection,
+					anchor: {
+						kind: 'alveolus',
+						hiveName: 'Mill',
+						alveolusType: 'freight_bay',
+						coord: [4, -1],
+					},
+				},
+			],
+		},
+		{
+			name: 'Commerce loop',
+			cyclic: true,
+			stops: [
+				{
+					loadSelection: planksOnlySelection,
+					unloadSelection: concreteOnlySelection,
+					anchor: {
+						kind: 'alveolus',
+						hiveName: 'Mill',
+						alveolusType: 'freight_bay',
+						coord: [4, -1],
+					},
+				},
+				{
+					loadSelection: concreteOnlySelection,
+					unloadSelection: planksOnlySelection,
+					trade: { kind: 'settlement', center: { q: 7, r: 19 }, profile: undefined! },
+				},
+			],
+		},
+	],
+	zones: [
+		{ type: 'residential', coords: commonsResidential },
+		{ type: 'commercial', coords: commonsCommercial },
+		{
+			name: 'Grove Wood',
+			color: '#3f9f6b',
+			type: 'harvest',
+			coords: commonsGroveWood,
+		},
+	],
+	// The separator road between the two zones, running vertically through the gap.
+	roads: {
+		path: [
+			[-1, 2.5],
+			[-1, 3.5],
+			[-1, 4.5],
+			[-1, 5.5],
+		],
+	},
+	dwellings: [],
+	shops: [],
+	looseGoods: {
+		// Only in the forest (never on residential/commercial/hive tiles), so the
+		// gather route collects these instead of offloading onto occupied tiles.
+		wood: [
+			[2, -4],
+			[3, -4],
+			[4, -4],
+		],
+		berries: [
+			[1, -5],
+			[2, -5],
+		],
+	},
+	playerAccount: { balanceVp: 200 },
+	vehicles: [
+		{
+			name: 'commons:wheelbarrow1',
+			vehicleType: 'wheelbarrow',
+			position: { q: 0, r: -1 },
+			servedLineIndices: [0],
+		},
+		{
+			name: 'commons:wheelbarrow2',
+			vehicleType: 'wheelbarrow',
+			position: { q: 4, r: -1 },
+			servedLineIndices: [1],
+		},
+		{
+			name: 'commons:suv',
+			vehicleType: 'suv',
+			position: { q: 3, r: -1 },
+			servedLineIndices: [2],
+		},
+		// Free vehicles (no served line, no operator) — the pool the one-shot
+		// construction-line spawner draws from. Vehicles are never spawned.
+		{ name: 'commons:wheelbarrow3', vehicleType: 'wheelbarrow', position: { q: 2, r: -1 } },
+		{ name: 'commons:wheelbarrow4', vehicleType: 'wheelbarrow', position: { q: 6, r: -1 } },
+		{ name: 'commons:pickup-truck', vehicleType: 'pickup_truck', position: { q: 8, r: -1 } },
+	],
 } satisfies GamePatches

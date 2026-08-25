@@ -20,6 +20,15 @@ import type { NeededGood, Reserve, Source, SourcingEntry } from './commerce-mode
 /** Global sourcing default = the reserve keep-target + the ranking rules. */
 export interface SourcingPolicy {
 	readonly reserve: Reserve
+	/**
+	 * Internality slider `0..1` — the player's transport preference: `0` = always
+	 * buy locally (outside-carrier delivery), `1` = always self-haul (own corridor).
+	 * `0.5` is cost-neutral. This is the **seam** where the player's preference plugs
+	 * in; the cost-threshold formula that maps it to a concrete line-vs-delivery
+	 * decision lives in `plans/spontaneous-lines.md` (delivery is an instant credit
+	 * for now — the full carrier travel is a later slice).
+	 */
+	readonly internality?: number
 }
 
 /**

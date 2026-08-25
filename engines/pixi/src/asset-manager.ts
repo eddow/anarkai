@@ -1,4 +1,3 @@
-import { Assets, Spritesheet, Texture } from 'pixi.js'
 import {
 	alveoli,
 	characters,
@@ -11,6 +10,7 @@ import {
 	variantBadges,
 	vehicles,
 } from 'engine-rules/visual-content'
+import { Assets, Spritesheet, Texture } from 'pixi.js'
 import { terrain } from '../assets/terrain'
 
 const hasUsableTexture = (texture: Texture | undefined) => {

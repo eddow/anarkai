@@ -54,6 +54,26 @@ industrial hives directly (see [`commerce-architecture.md`](./commerce-architect
 
 This is the decided direction; the **spawn rule** itself is open (see below).
 
+**Shops are multi-tile estates.** A shop is an `Estate` (not an alveolus, not a hive) that can expand
+over several tiles via growth/merging — a 1-tile wood shop merging with an identical neighbour into a
+2-tile shop is the same footprint-change growth as any estate. `feedsPriceField = false`; it is the
+money-facing boundary, never the industrial producer.
+
+### Sales channels (how a hive's production gets sold)
+
+Spontaneous selling of a hive's production happens through **two** channels:
+
+1. **Retail / walk-in** — we stock our **shops**; NPCs (or our own characters, for personal/wearable
+   goods) come and **buy at the shop**, gated by *connections* (roads, bus lines, surrounding
+   cities/villages, …). This is the passive, demand-driven side.
+2. **One-off delivery line** — one of our **vehicles** delivers the goods to an **NPC shop or a
+   concurrent (other-group) shop** as a one-shot order (`repeat = false`, a temporary corridor). This is
+   the active, sell-into-their-market side.
+
+Both are commerce; retail is local and pull-based, the one-off line is push-based and freight-driven.
+The same net-deficit/sourcing resolution decides which channel is worth it (retail when local demand
+justifies a shelf; one-off line when the surplus must travel to reach a buyer).
+
 ## Geographic demand expression
 
 Need (and excess) is expressed **geographically** — the shop-spawn decision reads the *local* need/excess
@@ -106,6 +126,34 @@ content-defined (`alveoli.ts`), so shops belong in `engines/rules` alongside the
 - Do shops **merge across** the same category (wood shop + plank shop → timber shop), or only
   **identical** shops merge (wood + wood)? (Also asked under merge eligibility.)
 - Is there a **general/mixed** shop, or must every shop have a specialised type?
+
+### Customer reach (catchment) — TODO, specify later
+
+A shop's customer base is the set of people who can **physically reach** it, and the reach mode differs
+by what the shop sells:
+
+- **Personal / wearable goods** (clothes, sunglasses, EDC) — reachable by **bus (lines)** *and* **car
+  (roads)** — a character can travel to the shop either way.
+- **Materials / parts** (wood, stone, planks, components) — reachable **only by road (car/truck)**;
+  these are freight pickups, not personal errands, so no passenger-line reach.
+
+This is an explicit **open TODO** — the customer/catchment model (how reach is measured, how line vs
+road capacity caps a shop's throughput) is **not yet specified**. It is deliberately left un-decided so
+it can be designed against the transport model (bus lines + roads) once both exist.
+
+### Staffing & walkability — later (explicit TODO)
+
+Two shop behaviours are **deferred to later**, recorded now so the estate model keeps room for them:
+
+- **Staffing** — a shop is staffed by **one character per tile**. An unstaffed shop does not transact
+  (or transacts at a reduced rate). This ties shop throughput to the workforce, matching the general
+  "building needs labour" model.
+- **Walkability** — shop tiles are **enterable but not traversable**, exactly like alveoli: a character
+  can walk *into* a shop tile to buy, but cannot pass *through* it to another tile. (This is the same
+  occupancy rule alveoli already impose, so a shop's tile footprint blocks through-traffic like a hive
+  tile does.)
+
+Both are noted here as forward constraints on the `Shop` runtime representation, not built now.
 
 ## Growth & shrinkage
 
@@ -160,3 +208,7 @@ is automatic (mirror of growth) or player-confirmed.
   estate spans tiles touching multiple roads?
 - **r/c conveyance depth** — "no internal conveyance" is decided for now; when (if ever) does a larger
   commercial estate (mall) get a second internal stop?
+- **Staffing** — "one character per shop tile" is deferred (see staffing TODO); the exact throughput
+  penalty for an unstaffed shop is open.
+- **Walkability** — shops are enterable-not-traversable (like alveoli); the exact occupancy/pathing rule
+  for multi-tile shops is deferred (see walkability TODO).

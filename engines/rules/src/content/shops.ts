@@ -14,7 +14,7 @@
 
 /** One named shop type — the commercial counterpart of an alveolus definition. */
 export interface ShopDefinition {
-	/** UI label localization key (e.g. `shop.construction-materials`). */
+	/** UI label localization key (e.g. `shop.construction_materials`). */
 	readonly label: string
 	/**
 	 * Sell-side: every good carrying any of these tags is stocked on the shelves.
@@ -36,14 +36,14 @@ export interface ShopDefinition {
 
 export const shops = {
 	construction_materials: {
-		label: 'shop.construction-materials',
+		label: 'shop.construction_materials',
 		stockTags: ['raw', 'material'], // wood, stone (raw) + planks, concrete (material)
 		capacityBase: 20,
 		spawnWeight: 1,
 	},
-	food: {
-		label: 'shop.food',
-		stockTags: ['food'], // berries, mushrooms, wheat, flour, bread, sandwich
+	grocery: {
+		label: 'shop.grocery',
+		stockTags: ['food', 'ingredient', 'household'], // food + wheat/flour/oil + soap/lighting
 		capacityBase: 12,
 		spawnWeight: 1.4, // highest-urgency need → spawn first
 	},
@@ -55,7 +55,7 @@ export const shops = {
 	},
 	research: {
 		label: 'shop.research',
-		stockTags: ['research'], // charcoal
+		stockTags: ['research'], // coal
 		capacityBase: 5,
 		spawnWeight: 0.3,
 	},

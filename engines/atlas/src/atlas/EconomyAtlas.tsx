@@ -32,7 +32,7 @@ const STYLES: cytoscape.StylesheetJson = [
 	},
 	{ selector: 'node[kind="good"]', style: { 'background-color': '#4f9dd9', shape: 'ellipse' } },
 	{
-		selector: 'node[kind="good"][icon], node[kind="building"][icon]',
+		selector: 'node[standaloneIcon]',
 		style: {
 			'background-image': 'data(icon)',
 			'background-fit': 'contain',
@@ -42,7 +42,7 @@ const STYLES: cytoscape.StylesheetJson = [
 		},
 	},
 	{
-		selector: 'node[kind="deposit"][icon]',
+		selector: 'node[kind="deposit"][iconW]',
 		style: {
 			'background-image': 'data(icon)',
 			'background-fit': 'none',
@@ -67,7 +67,10 @@ const STYLES: cytoscape.StylesheetJson = [
 			'overlay-padding': 6,
 		},
 	},
-	{ selector: 'node[kind="building"]', style: { 'background-color': '#d9854f', shape: 'round-rectangle' } },
+	{
+		selector: 'node[kind="building"]',
+		style: { 'background-color': '#d9854f', shape: 'round-rectangle' },
+	},
 	{ selector: 'node[kind="shop"]', style: { 'background-color': '#7ed98a', shape: 'diamond' } },
 	{ selector: 'node[kind="deposit"]', style: { 'background-color': '#9b8bd9', shape: 'hexagon' } },
 	{
@@ -106,8 +109,19 @@ const STYLES: cytoscape.StylesheetJson = [
 			'curve-style': 'bezier',
 		},
 	},
-	{ selector: 'edge[kind="stocks"]', style: { 'line-color': '#7ed98a', 'target-arrow-color': '#7ed98a', 'line-style': 'dotted', opacity: 0.6 } },
-	{ selector: 'edge[kind="plants"], edge[kind="harvests"]', style: { 'line-color': '#9b8bd9', 'target-arrow-color': '#9b8bd9' } },
+	{
+		selector: 'edge[kind="stocks"]',
+		style: {
+			'line-color': '#7ed98a',
+			'target-arrow-color': '#7ed98a',
+			'line-style': 'dotted',
+			opacity: 0.6,
+		},
+	},
+	{
+		selector: 'edge[kind="plants"], edge[kind="harvests"]',
+		style: { 'line-color': '#9b8bd9', 'target-arrow-color': '#9b8bd9' },
+	},
 	{ selector: '.dim', style: { opacity: 0.08 } },
 	{ selector: '.spot', style: { opacity: 1 } },
 	{ selector: 'node:selected', style: { 'border-color': '#ffd166', 'border-width': 3 } },
@@ -128,6 +142,7 @@ export default function EconomyAtlas(props: { onErrors?: (errors: readonly strin
 						...(n.data?.violated ? { violated: true } : {}),
 						...(n.parent ? { parent: n.parent } : {}),
 						...(icon ? { icon: icon.image } : {}),
+						...(icon?.standalone ? { standaloneIcon: true } : {}),
 						...(icon?.width
 							? {
 									iconW: icon.width,
@@ -158,11 +173,109 @@ export default function EconomyAtlas(props: { onErrors?: (errors: readonly strin
 			// `preset` = keep positions, do NOT run the default `grid` layout (it
 			// crashes on compound/parent nodes). We run ELK explicitly after.
 			layout: { name: 'preset' },
-			wheelSensitivity: 0.2,
+			// Default wheel sensitivity (1). IMPORTANT: cytoscape gates wheel-zoom
+			// on `userPanningEnabled()` AND its wheel handler depends on a
+			// `containerBB` cache that is NaN when the flex container is 0-sized at
+			// init. So we disable cytoscape's built-in wheel zoom and implement our
+			// own (see the wheel handler below), which computes renderedPosition
+			// directly from getBoundingClientRect().
+			userZoomingEnabled: false,
+			boxSelectionEnabled: false,
 			minZoom: 0.1,
 			maxZoom: 3,
 		})
 		if (import.meta.env.DEV) (window as unknown as { __cy: cytoscape.Core }).__cy = cy
+
+		// The container is 0-sized when cytoscape inits (flex layout hasn't
+		// settled), which caches a NaN `containerBB` (scale = 0/0) and breaks
+		// wheel zoom + node hit-testing (`projectIntoViewport` bails on NaN).
+		// Re-measure once the container has a real size (and on any resize).
+		const resizeObserver = new ResizeObserver(() => {
+			if (!cy.destroyed()) cy.resize()
+		})
+		resizeObserver.observe(host)
+
+		// Middle-mouse-button panning. Cytoscape only handles the left button
+		// internally (its `mousedown` event never fires for the middle button), so
+		// we listen on the DOM element directly and drive `cy.pan()` ourselves,
+		// leaving left/right free for tap interactions.
+		let panning = false
+		let lastX = 0
+		let lastY = 0
+		const onMouseDown = (evt: MouseEvent) => {
+			if (evt.button !== 1) return
+			evt.preventDefault() // block the browser's middle-click autoscroll
+			panning = true
+			lastX = evt.clientX
+			lastY = evt.clientY
+			host.style.cursor = 'grabbing'
+		}
+		const onMouseMove = (evt: MouseEvent) => {
+			if (!panning) return
+			const dx = evt.clientX - lastX
+			const dy = evt.clientY - lastY
+			lastX = evt.clientX
+			lastY = evt.clientY
+			const pan = cy.pan()
+			cy.pan({ x: pan.x + dx, y: pan.y + dy })
+		}
+		const onMouseUp = () => {
+			if (!panning) return
+			panning = false
+			host.style.cursor = 'default'
+		}
+		host.addEventListener('mousedown', onMouseDown)
+		window.addEventListener('mousemove', onMouseMove)
+		window.addEventListener('mouseup', onMouseUp)
+
+		// Manual wheel zoom. cytoscape's built-in wheel handler is disabled
+		// (`userZoomingEnabled: false`) because its `projectIntoViewport` bails on
+		// a NaN `containerBB` cache (the flex container is 0-sized at init). We
+		// compute the zoom-around-cursor math directly from the container rect.
+		const onWheel = (evt: WheelEvent) => {
+			evt.preventDefault()
+			const rect = host.getBoundingClientRect()
+			const zoom = cy.zoom()
+			const factor = 2 ** (-evt.deltaY / 400) // deltaY<0 (up) = zoom in
+			const level = Math.min(cy.maxZoom(), Math.max(cy.minZoom(), zoom * factor))
+			cy.zoom({
+				level,
+				renderedPosition: { x: evt.clientX - rect.left, y: evt.clientY - rect.top },
+			})
+		}
+		host.addEventListener('wheel', onWheel, { passive: false })
+
+		// Spotlight state — shared by the background-click blocker and tap handlers.
+		let spotlit: string | null = null
+		const clearSpot = () => {
+			cy.elements().removeClass('dim spot')
+			spotlit = null
+		}
+
+		// Block LEFT-drag panning on the background so left stays free for node
+		// interactions (tap = spotlight, drag = move node). cytoscape starts a
+		// background pan on a left mousedown over empty space; stop it before
+		// cytoscape's own (bubble-phase) mousedown handler sees it. Middle button
+		// pans instead.
+		const isOverNode = (clientX: number, clientY: number): boolean => {
+			const rect = host.getBoundingClientRect()
+			const x = clientX - rect.left
+			const y = clientY - rect.top
+			for (const node of cy.nodes()) {
+				if (!node.visible()) continue
+				const bb = node.renderedBoundingBox({ includeLabels: false })
+				if (x >= bb.x1 && x <= bb.x2 && y >= bb.y1 && y <= bb.y2) return true
+			}
+			return false
+		}
+		const onBackgroundLeftDown = (evt: MouseEvent) => {
+			if (evt.button !== 0) return
+			if (isOverNode(evt.clientX, evt.clientY)) return
+			evt.stopImmediatePropagation()
+			evt.preventDefault()
+			clearSpot()
+		}
+		host.addEventListener('mousedown', onBackgroundLeftDown, true)
 
 		const runLayout = (fit = true) => {
 			// Defer out of the current mutts batch: cytoscape-elk's layout runs a
@@ -170,6 +283,10 @@ export default function EconomyAtlas(props: { onErrors?: (errors: readonly strin
 			// crash (`null.notify` in endBatch). setTimeout(0) escapes it.
 			setTimeout(() => {
 				if (cy.destroyed()) return
+				// Re-measure now that the container has a real size — this fixes the
+				// NaN `containerBB` cached at init (scale = 0/0), which breaks wheel
+				// zoom and node hit-testing.
+				cy.resize()
 				const layout = cy.layout({
 					name: 'elk',
 					elk: {
@@ -189,11 +306,6 @@ export default function EconomyAtlas(props: { onErrors?: (errors: readonly strin
 		runLayout()
 
 		// Spotlight: tap a node → its neighbourhood stays lit, the rest dims.
-		let spotlit: string | null = null
-		const clearSpot = () => {
-			cy.elements().removeClass('dim spot')
-			spotlit = null
-		}
 		cy.on('tap', 'node', (evt) => {
 			const node = evt.target as cytoscape.NodeSingular
 			if (spotlit === node.id()) {
@@ -224,7 +336,15 @@ export default function EconomyAtlas(props: { onErrors?: (errors: readonly strin
 			runLayout(false)
 		})
 
-		return () => cy.destroy()
+		return () => {
+			resizeObserver.disconnect()
+			host.removeEventListener('mousedown', onMouseDown)
+			host.removeEventListener('mousedown', onBackgroundLeftDown, true)
+			host.removeEventListener('wheel', onWheel)
+			window.removeEventListener('mousemove', onMouseMove)
+			window.removeEventListener('mouseup', onMouseUp)
+			cy.destroy()
+		}
 	}
 
 	return <div class="economy-atlas" use={mount} />

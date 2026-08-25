@@ -38,22 +38,36 @@ export interface EconomyGraph {
  * group goods. A well-formed good carries EXACTLY ONE of these; zero or ≥2 is
  * a game-content bug (surfaced in `errors` + rendered as a red node).
  */
-export const PRODUCTION_GROUPS = ['food', 'raw', 'material', 'research', 'wearable', 'component'] as const
+export const PRODUCTION_GROUPS = [
+	'food',
+	'raw',
+	'material',
+	'research',
+	'wearable',
+	'component',
+	'ingredient',
+	'refined',
+	'household',
+] as const
 export type ProductionGroup = (typeof PRODUCTION_GROUPS)[number]
 
 /** The production group a good belongs to, and any exclusivity violation. */
 function productionGroupOf(
 	name: string,
 	tags: readonly string[],
-	errors: string[],
+	errors: string[]
 ): ProductionGroup | undefined {
 	const hits = PRODUCTION_GROUPS.filter((g) => tags.includes(g))
 	if (hits.length > 1) {
-		errors.push(`good "${name}" has ${hits.length} production tags (${hits.join(', ')}) — expected exactly 1`)
+		errors.push(
+			`good "${name}" has ${hits.length} production tags (${hits.join(', ')}) — expected exactly 1`
+		)
 		return hits[0] // deterministic home despite the bug
 	}
 	if (hits.length === 0) {
-		errors.push(`good "${name}" has NO production tag — expected one of ${PRODUCTION_GROUPS.join(', ')}`)
+		errors.push(
+			`good "${name}" has NO production tag — expected one of ${PRODUCTION_GROUPS.join(', ')}`
+		)
 		return undefined
 	}
 	return hits[0]
@@ -91,8 +105,7 @@ export function buildEconomyGraph(): EconomyGraph {
 	const nodes = new Map<string, AtlasNode>()
 	const edges: AtlasEdge[] = []
 	let edgeSeq = 0
-	const pushEdge = (e: Omit<AtlasEdge, 'id'>) =>
-		edges.push({ id: `e${edgeSeq++}`, ...e })
+	const pushEdge = (e: Omit<AtlasEdge, 'id'>) => edges.push({ id: `e${edgeSeq++}`, ...e })
 
 	// --- Goods ------------------------------------------------------------
 	// Every good is ALWAYS emitted and grouped into its production-group box.
@@ -145,7 +158,7 @@ export function buildEconomyGraph(): EconomyGraph {
 	// --- Alveoli (buildings) + variants -----------------------------------
 	const actionGoods = (
 		action: { readonly type: string; readonly [k: string]: unknown } | undefined,
-		buildingId: string,
+		buildingId: string
 	) => {
 		if (!action) return
 		if (action.type === 'transform') {
@@ -155,7 +168,7 @@ export function buildEconomyGraph(): EconomyGraph {
 				pushEdge(
 					rate < 0
 						? { source: `good:${g}`, target: buildingId, kind: 'consumes' }
-						: { source: buildingId, target: `good:${g}`, kind: 'produces' },
+						: { source: buildingId, target: `good:${g}`, kind: 'produces' }
 				)
 			}
 		} else if (action.type === 'harvest') {
@@ -177,7 +190,12 @@ export function buildEconomyGraph(): EconomyGraph {
 		}
 	}
 
-	const walkVariants = (rootId: string, rootLabel: string, variants: Readonly<Record<string, VariantDef>> | undefined, path: string) => {
+	const walkVariants = (
+		rootId: string,
+		rootLabel: string,
+		variants: Readonly<Record<string, VariantDef>> | undefined,
+		path: string
+	) => {
 		if (!variants) return
 		for (const [vName, vDef] of Object.entries(variants)) {
 			const vId = `${rootId}.${vName}`
@@ -225,8 +243,11 @@ export function buildEconomyGraph(): EconomyGraph {
 	// Drop edges referencing a non-existent endpoint, and empty tag boxes.
 	const liveEdges = edges.filter((e) => nodes.has(e.source) && nodes.has(e.target))
 	const childCount = new Map<string, number>()
-	for (const n of nodes.values()) if (n.parent) childCount.set(n.parent, (childCount.get(n.parent) ?? 0) + 1)
-	const finalNodes = [...nodes.values()].filter((n) => n.kind !== 'tag' || (childCount.get(n.id) ?? 0) > 0)
+	for (const n of nodes.values())
+		if (n.parent) childCount.set(n.parent, (childCount.get(n.parent) ?? 0) + 1)
+	const finalNodes = [...nodes.values()].filter(
+		(n) => n.kind !== 'tag' || (childCount.get(n.id) ?? 0) > 0
+	)
 
 	return { nodes: finalNodes, edges: liveEdges, errors }
 }

@@ -29,6 +29,31 @@ It **reuses** the decided *"one order type, a repeat flag"* model, with a hard l
 
 So automation covers **ad-hoc, one-shot transport only**; the permanent network is always hand-built.
 
+### One-shot lifecycle (decided)
+
+A one-shot line (`repeat = false`) **self-deletes** after its own fulfillment, or on abortion (any
+exception / terminal reason — the deficit it was created for vanished, no source/destination, etc.).
+"Fulfillment" = the deficit this line was spawned to cover is now `0`.
+
+**Spawn rule (decided):** when a good's need (construction, operating demand, …) has **no line and no
+delivery** already covering it, the spawner either:
+
+- **creates a one-off line** (self-haul: source bay → destination zone/shell), or
+- **orders a delivery** (`buy` + an outside carrier brings it) —
+
+chosen **along configuration** (the internality slider / cost threshold decides which). Both are
+one-shot orders under the hood; a "delivery" is the external-carrier variant of the same order type.
+
+**Provisional internality rule (implemented now, pending the full cost formula).** Until the ratio
+form is wired, the slider acts as a simple preference, gated on `autoBuy`:
+
+- `internality ≥ 0.5` → **self-haul first** (one-off line with a free vehicle), delivery only as fallback;
+- `internality < 0.5` → **delivery first** (buy from the nearest/cheapest NPC settlement, spend VP,
+  credit the construction site), one-off line only as fallback.
+
+This is deliberately coarse; the log-odds cost threshold below replaces it once delivery has a real
+physical carrier (outside-carrier travel) rather than an instant credit.
+
 **One-shots always occur.** Estate growth and residential/commercial buildings are built *automatically*
 (they are not authored by hand), so a new spontaneous construction always produces a one-shot order —
 even for a player who hand-controls every aspect of transportation. The transport-automation controls

@@ -3,13 +3,13 @@ import { showProps } from '@app/lib/follow-selection'
 import { mrg } from '@app/lib/globals'
 import type { SyntheticHiveObject } from '@app/lib/hive-inspector'
 import { isHoveredObject, setHoveredObject } from '@app/lib/interactive-state'
+import { vehicleTextureKey } from 'engine-pixi/renderers/vehicle-visual'
 import {
 	variantBadges,
 	alveoli as visualAlveoli,
 	characters as visualCharacters,
 	vehicles as visualVehicles,
 } from 'engine-rules/visual-content'
-import { vehicleTextureKey } from 'engine-pixi/renderers/vehicle-visual'
 import { effect, reactive } from 'mutts'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { Tile } from 'ssh/board/tile'

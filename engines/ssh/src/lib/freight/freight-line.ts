@@ -90,6 +90,12 @@ export interface FreightLineDefinition {
 	name: string
 	stops: ReadonlyArray<FreightStop>
 	cyclic?: boolean
+	/**
+	 * `true` (default) = recurring, player-authored, persists forever. `false` =
+	 * one-shot: the line dissolves itself once the deficit it was spawned to cover
+	 * is fulfilled (or on abortion). See `plans/spontaneous-lines.md`.
+	 */
+	repeat?: boolean
 	minBalanceAfterBuyVp?: number
 }
 
@@ -381,6 +387,7 @@ export function normalizeFreightLineDefinition(line: FreightLineDefinition): Fre
 		name: line.name,
 		stops: reactive(line.stops.map(normalizeFreightStop)),
 		...(line.cyclic === true ? { cyclic: true as const } : {}),
+		...(line.repeat === false ? { repeat: false as const } : {}),
 		...(line.minBalanceAfterBuyVp === undefined
 			? {}
 			: { minBalanceAfterBuyVp: Math.max(0, Math.floor(line.minBalanceAfterBuyVp)) }),

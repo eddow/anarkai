@@ -13,6 +13,7 @@ import { Alveolus } from 'ssh/board/content/alveolus'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import type { Tile } from 'ssh/board/tile'
+import { Shop } from 'ssh/commerce/shop'
 import type { RenderedGoodSlots } from 'ssh/storage/types'
 import { toAxialCoord, toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
@@ -104,6 +105,10 @@ export class TileVisual extends VisualObject<Tile> {
 						this.contentContainer.addChild(this.currentContentVisual.view)
 						this.currentContentVisual.bind()
 					} else if (content instanceof BasicDwelling || content instanceof BuildDwelling) {
+						this.currentContentVisual = new DwellingVisual(content, this.renderer)
+						this.contentContainer.addChild(this.currentContentVisual.view)
+						this.currentContentVisual.bind()
+					} else if (content instanceof Shop) {
 						this.currentContentVisual = new DwellingVisual(content, this.renderer)
 						this.contentContainer.addChild(this.currentContentVisual.view)
 						this.currentContentVisual.bind()
@@ -306,6 +311,7 @@ export class TileVisual extends VisualObject<Tile> {
 		if (!borderColor) {
 			const zone = this.object.effectiveZone
 			if (zone?.type === 'residential') borderColor = 0x44dd44
+			else if (zone?.type === 'commercial') borderColor = 0x4488ff
 			else if (zone?.type === 'harvest') borderColor = 0xaa7744
 			else if (zone) {
 				const color = zone.color

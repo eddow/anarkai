@@ -11,7 +11,9 @@ export default function App() {
 				<span class="gc-badge" if={gcErrors.list.length > 0} title={gcErrors.list.join('\n')}>
 					⚠ {gcErrors.list.length} GC error{gcErrors.list.length === 1 ? '' : 's'}
 				</span>
-				<span class="hint">click a node to spotlight its chain · double-click a group to collapse it</span>
+				<span class="hint">
+					click a node to spotlight its chain · double-click a group to collapse it
+				</span>
 			</header>
 			<EconomyAtlas
 				onErrors={(errors) => {

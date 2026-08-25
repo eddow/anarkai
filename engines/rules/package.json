@@ -6,6 +6,7 @@
 	"exports": {
 		".": "./src/index.ts",
 		"./visual-content": "./src/visual-content.ts",
+		"./locales/*": "./assets/locales/*",
 		"./vite-plugins": {
 			"types": "./vite-plugins.d.ts",
 			"default": "./vite-plugins.js"

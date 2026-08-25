@@ -1,37 +1,4 @@
 {
-	"deposits": {
-		"berry_bush": "Buisson de Baies",
-		"rock": "Rocher",
-		"tree": "Arbre",
-		"wheat_crop": "Culture de blé"
-	},
-	"alveoli": {
-		"forester": "Sylviculteur",
-		"tree_chopper": "Bûcheron",
-		"stonecutter": "Tailleur de Pierre",
-		"sawmill": "Scierie",
-		"wheat_planter": "Semoir à blé",
-		"wheat_harvester": "Moissonneur de blé",
-		"flour_mill": "Moulin à farine",
-		"bakery": "Boulangerie",
-		"restaurant": "Restaurant",
-		"storage": "Magasin",
-		"building": "Construction",
-		"engineer": {
-			"": "Ingénieur",
-			"building": "Ingénieur (bâtiment)",
-			"research": "Ingénieur (recherche)",
-			"road": "Ingénieur (route)"
-		},
-		"pile": {
-			"": "Pile",
-			"planks": "Pile à planches",
-			"wood": "Pile à bois",
-			"stone": "Pile à pierre"
-		},
-		"woodpile": "Tas de bois",
-		"freight_bay": "Baie de fret"
-	},
 	"hive": {
 		"section": "Ruche",
 		"name": "Nom",
@@ -131,36 +98,6 @@
 		"linesAtThisBay": "Lignes à cette baie",
 		"addLine": "Ajouter une ligne",
 		"addLineHint": "Crée une route d’échange cyclique pour cette baie de fret."
-	},
-	"goodsTags": {
-		"food": "Nourriture",
-		"bulk": "Vrac",
-		"piece": "Pièces",
-		"grain": "Céréales",
-		"basic-materials": "Matériaux de base",
-		"prepared-food": "Nourriture préparée",
-		"personal-goods": "Biens personnels",
-		"research": "Recherche",
-		"commercial/clothes": "Commercial — vêtements",
-		"commercial/restaurant": "Commercial — restaurant",
-		"construction/lumber": "Construction — bois",
-		"construction/stone": "Construction — pierre",
-		"construction/concrete": "Construction — béton"
-	},
-	"goods": {
-		"berries": "Baies",
-		"sandwich": "Sandwich",
-		"concrete": "Béton",
-		"charcoal": "Charbon",
-		"clothes": "Vêtements",
-		"mushrooms": "Champignons",
-		"sunglasses": "Lunettes de soleil",
-		"wheat": "Blé",
-		"flour": "Farine",
-		"bread": "Pain",
-		"planks": "Planches",
-		"stone": "Pierre",
-		"wood": "Bois"
 	},
 	"action": {
 		"selfCare": {

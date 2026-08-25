@@ -158,7 +158,7 @@ export const goods: Record<string, VisualDefinition> = {
 		sprites: ['goods.cement'],
 		icon: 'goods.cement',
 	},
-	charcoal: {
+	coal: {
 		sprites: ['goods.stone'],
 		icon: 'goods.stone',
 	},
@@ -301,6 +301,11 @@ export const dwellings: Record<string, VisualDefinition> = {
 		sprites: ['buildings.cabin'],
 		icon: 'buildings.cabin',
 		background: 'buildings.cabin',
+	},
+	shop: {
+		sprites: ['buildings.shop'],
+		icon: 'buildings.shop',
+		background: 'buildings.shop',
 	},
 }
 

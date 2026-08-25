@@ -414,7 +414,8 @@ export class StorageAlveolus extends Alveolus {
 				// never "fills toward max" and churns with general storages). An
 				// unbuffered ("no constraint") storage has no keep target, so it
 				// demands whenever it has room — up to its hard max amount.
-				const demandTarget = bufferAmount > 0 ? bufferAmount : (this.storage.maxAmounts[goodType] ?? 0)
+				const demandTarget =
+					bufferAmount > 0 ? bufferAmount : (this.storage.maxAmounts[goodType] ?? 0)
 				if (plannedQty < demandTarget && this.canTake(goodType, '1-buffer')) {
 					relations[goodType] = {
 						advertisement: 'demand',

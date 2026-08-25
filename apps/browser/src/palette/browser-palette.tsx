@@ -35,11 +35,8 @@ import {
 	paletteCommandEntries,
 	palettes,
 } from '@sursaut/ui/palette'
-import {
-	alveoli as visualAlveoli,
-	commands as visualCommands,
-} from 'engine-rules/visual-content'
 import { gameTimeSpeedFactors } from 'engine-rules'
+import { alveoli as visualAlveoli, commands as visualCommands } from 'engine-rules/visual-content'
 import { effect, reactive, unwrap } from 'mutts'
 import {
 	tablerFilledAdjustments,

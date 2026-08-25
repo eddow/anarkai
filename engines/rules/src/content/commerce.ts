@@ -6,6 +6,27 @@ export const commerce = {
 		bufferPurchaseReserveVp: 80,
 	},
 	/**
+	 * Transport automation — the single source of truth for spontaneous one-shot
+	 * line creation. See `plans/spontaneous-lines.md`; the runtime policy is seeded
+	 * from here into `Game.transportAutomation` (reactive) so it is tunable live.
+	 */
+	transportAutomation: {
+		/** Spawn one-shot lines automatically (settlers) vs manual (simutrans). */
+		autoSpawn: true,
+		/** Auto-buy via outside delivery (the external branch of the internality slider). */
+		autoBuy: true,
+		/** Internality slider 0..1: 0 = buy locally, 1 = always self-haul. */
+		internality: 0.5,
+		/** Default reserve keep-target (stock held back from export). */
+		reserve: { defaultReserve: 0 },
+		/** Cooldown between spawn/sweep passes, seconds. */
+		spawnCooldownSeconds: 2,
+		/** Hard bound — max committed vehicle-hours (0 = no cap). Placeholder. */
+		maxInternalTransfer: 0,
+		/** Hard bound — min local provision floor (0 = no floor). Placeholder. */
+		minLocalProvision: 0,
+	},
+	/**
 	 * Hybrid automatic price field tuning (the `PriceFieldTuning` shape).
 	 * `price(p) = base_g · exp(−k · Σ effectiveFlow_s · w(dist))`, `w = max(0, 1−(d/R)²)`.
 	 * Open numbers — placeholder values pending tuning.

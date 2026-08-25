@@ -7,6 +7,8 @@ import {
 	type TextKey,
 	type Translator,
 } from 'omni18n/s-a'
+import rulesEn from 'engine-rules/locales/en.json'
+import rulesFr from 'engine-rules/locales/fr.json'
 import gameEn from 'ssh/assets/locales/en.json'
 import gameFr from 'ssh/assets/locales/fr.json'
 import { traces } from 'ssh/dev/debug'
@@ -75,8 +77,8 @@ const dictionaries = {
 		fr: baseFr as CondensedDictionary,
 	},
 	gameX: {
-		en: gameEn as CondensedDictionary,
-		fr: gameFr as CondensedDictionary,
+		en: { ...rulesEn, ...gameEn } as CondensedDictionary,
+		fr: { ...rulesFr, ...gameFr } as CondensedDictionary,
 	},
 }
 

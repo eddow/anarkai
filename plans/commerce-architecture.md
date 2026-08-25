@@ -25,9 +25,12 @@
   its internal units aggregate into a single `EstateCommerceProfile`, and how construction/dismounting
   addresses a *sub-unit* rather than a whole tile.
 - **NPC settlement trade endpoint (decided direction):** the current transfer point is the settlement's
-  **city hall** (`NpcSettlementTradeTarget.kind: 'city_hall'`) — a temporary short-circuit. Eventually
-  all load/unload/commercial transactions happen on the **corresponding estate** (the specific
-  house/shop/hive), not on the settlement container or its city hall.
+  **city hall** (`NpcSettlementTradeTarget.kind: 'city_hall'`) — a temporary short-circuit. The
+  **commercial lines to the city hall are to be removed** once shops exist: all load/unload/commercial
+  transactions happen on the **corresponding estate** (the specific shop/hive), never on the settlement
+  container or its city hall. **Sequencing guardrail:** do *not* rip out the city-hall trade before the
+  shop runtime + spawner land — the city hall is currently the only money-facing endpoint, so removing
+  it first leaves commerce with no boundary.
 - **Every estate has a delivery tile (freight bay).** Player hives fix it explicitly (`FreightBayAlveolus`);
   automated residential/commercial use a road-adjacent tile (every estate must touch a road). Vehicles
   park at the border and convey into the bay tile; once in the tile the good is in the estate, and r/c

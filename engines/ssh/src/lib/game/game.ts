@@ -1,3 +1,4 @@
+import type { ShopType } from 'engine-rules'
 import {
 	bootstrapCharacterRadiusFallback,
 	commerce,
@@ -7,6 +8,7 @@ import {
 	gameplayBootstrapMinRadius,
 	gameRootSpeed,
 	gameTimeSpeedFactors,
+	terrain as terrainDetails,
 } from 'engine-rules'
 import type { TerrainMacroHydrologySnapshot, TerrainSectorCoord } from 'engine-terrain'
 import { atomic, defer, Eventful, markRaw, reactive, toRaw, unreactive } from 'mutts'
@@ -23,12 +25,13 @@ import {
 } from 'ssh/board/roads'
 import { Tile, type TileTerrainState } from 'ssh/board/tile'
 import { isConstructionSiteShell } from 'ssh/build-site'
-import type { NetDeficitLedger } from 'ssh/commerce/commerce-model'
+import type { NetDeficitLedger, Reserve } from 'ssh/commerce/commerce-model'
 import { computeNetDeficitLedger } from 'ssh/commerce/deficit-ledger'
 import {
 	createNpcSettlementTradeProfile,
 	type NpcSettlementTradeProfile,
 } from 'ssh/commerce/settlement-trade'
+import { Shop } from 'ssh/commerce/shop'
 import { applyConstructionConcreteTerrain, createConstructionShell } from 'ssh/construction-shell'
 import {
 	type ConstructionPhase,
@@ -46,6 +49,7 @@ import {
 	serializeFreightLineForSave,
 } from 'ssh/freight/freight-line'
 import { resolveFreightNpcTradeProfile } from 'ssh/freight/freight-trade-profile'
+import { OneShotLineTicker } from 'ssh/freight/one-shot-lines'
 import {
 	GameGenerator,
 	type GeneratedCharacterData,
@@ -185,6 +189,18 @@ function hasTerrainProperty(value: unknown): value is { terrain: TerrainType } {
 	)
 }
 
+/** Whether a terrain type has any resource generation (deposits or ambient goods). */
+function terrainHasResourceGeneration(terrain: TerrainType): boolean {
+	const def = terrainDetails[terrain as keyof typeof terrainDetails] as
+		| { generation?: { deposits?: object; goods?: object } }
+		| undefined
+	const generation = def?.generation
+	if (!generation) return false
+	const hasDeposits = !!generation.deposits && Object.keys(generation.deposits).length > 0
+	const hasGoods = !!generation.goods && Object.keys(generation.goods).length > 0
+	return hasDeposits || hasGoods
+}
+
 export interface AlveolusPatch {
 	coord: readonly [number, number]
 	goods?: Partial<Record<GoodType, number>>
@@ -213,6 +229,12 @@ export interface DwellingPatch {
 	underConstruction?: boolean
 	constructionWorkSecondsApplied?: number
 	constructionPhase?: ConstructionPhase
+	goods?: Partial<Record<GoodType, number>>
+}
+
+export interface ShopPatch {
+	coord: readonly [number, number]
+	shopType: ShopType
 	goods?: Partial<Record<GoodType, number>>
 }
 
@@ -301,6 +323,7 @@ export interface GamePatches {
 	projects?: Record<string, ReadonlyArray<readonly [number, number]>>
 	projectSites?: ReadonlyArray<ProjectSitePatch>
 	dwellings?: ReadonlyArray<DwellingPatch>
+	shops?: ReadonlyArray<ShopPatch>
 	playerAccount?: PlayerAccountPatch
 	vehicles?: ReadonlyArray<VehiclePatch>
 	roads?: RoadPatchInput
@@ -517,6 +540,21 @@ export class Game extends Eventful<GameEvents> {
 		balanceVp: commerce.startingAccountBalanceVp,
 	})
 	/**
+	 * Reactive transport-automation config, seeded from `commerce.transportAutomation`
+	 * and tunable at runtime — the player-preference knob the one-shot line spawner
+	 * reads. `autoSpawn` gates whether lines are created at all; `internality` +
+	 * `reserve` feed the sourcing policy. See `plans/spontaneous-lines.md`.
+	 */
+	public readonly transportAutomation = reactive({
+		autoSpawn: commerce.transportAutomation.autoSpawn,
+		autoBuy: commerce.transportAutomation.autoBuy,
+		internality: commerce.transportAutomation.internality,
+		reserve: { ...commerce.transportAutomation.reserve } as Reserve,
+		spawnCooldownSeconds: commerce.transportAutomation.spawnCooldownSeconds,
+		maxInternalTransfer: commerce.transportAutomation.maxInternalTransfer,
+		minLocalProvision: commerce.transportAutomation.minLocalProvision,
+	})
+	/**
 	 * Registered freight lines (gather/distribute); merged at bootstrap from hive patches
 	 * and explicit saves. A reactive `Set` keyed by object identity — the array form exists
 	 * only in the serialized savefile (and the transient {@link unpackedFreightLines} buffer).
@@ -575,6 +613,7 @@ export class Game extends Eventful<GameEvents> {
 		materializedCount: () => this.materializedGameplayCoords.size,
 	})
 	private residentialDemandTicker?: ResidentialDemandTicker
+	private oneShotLineTicker?: OneShotLineTicker
 	private conveyRestoredAtLoad: TrackedMovement[] = []
 	private conveySaveIndexByRef: Map<MovementRef, number> | undefined
 	/** Active convey movements last restored from save (indexed by save order). */
@@ -894,6 +933,7 @@ export class Game extends Eventful<GameEvents> {
 		original.name = normalized.name
 		original.stops = normalized.stops
 		original.cyclic = normalized.cyclic
+		original.repeat = normalized.repeat
 		original.minBalanceAfterBuyVp = normalized.minBalanceAfterBuyVp
 		for (const { vehicle, stopIndex } of rebinds) vehicle.rebindFreightLineStop(original, stopIndex)
 		this.invalidateWorkPlanning('freight-line.edit')
@@ -1317,6 +1357,8 @@ export class Game extends Eventful<GameEvents> {
 
 			this.residentialDemandTicker?.destroy()
 			this.residentialDemandTicker = new ResidentialDemandTicker(this)
+			this.oneShotLineTicker?.destroy()
+			this.oneShotLineTicker = new OneShotLineTicker(this)
 			// Register the main ticker callback and start the game ticker after everything is built
 			this.ticker.add(this.tickerCallback)
 		})
@@ -1364,6 +1406,9 @@ export class Game extends Eventful<GameEvents> {
 		for (const dwelling of patches.dwellings ?? []) {
 			coords.push({ q: dwelling.coord[0], r: dwelling.coord[1] })
 		}
+		for (const shop of patches.shops ?? []) {
+			coords.push({ q: shop.coord[0], r: shop.coord[1] })
+		}
 		for (const [, goodCoords] of looseGoodsPatchEntries(patches.looseGoods)) {
 			for (const coord of goodCoords) coords.push({ q: coord[0], r: coord[1] })
 		}
@@ -1409,6 +1454,7 @@ export class Game extends Eventful<GameEvents> {
 		}
 		for (const site of patches.projectSites ?? []) addPatchCoord(site.coord)
 		for (const dwelling of patches.dwellings ?? []) addPatchCoord(dwelling.coord)
+		for (const shop of patches.shops ?? []) addPatchCoord(shop.coord)
 		for (const [, goodCoords] of looseGoodsPatchEntries(patches.looseGoods)) {
 			for (const coord of goodCoords) addPatchCoord(coord)
 		}
@@ -1964,6 +2010,21 @@ export class Game extends Eventful<GameEvents> {
 		)
 	}
 
+	/** Clear a tile's generated deposit + loose goods (used for authored burden-free terrain). */
+	private clearTileBurden(coord: AxialCoord): void {
+		const tile = this.hex.getTile(coord)
+		if (!tile) return
+		const content = tile.content
+		if (content instanceof UnBuiltLand && content.deposit) {
+			content.deposit = undefined
+			this.enqueueInteractiveChange(tile)
+			this.renderer?.invalidateTerrain?.(coord)
+		}
+		for (const good of [...this.hex.looseGoods.getGoodsAt(coord)]) {
+			if (!good.isRemoved) good.remove()
+		}
+	}
+
 	private clearGeneratedInfrastructureBurden(coords: Iterable<AxialCoord>): void {
 		for (const coord of coords) {
 			if (!this.tileTouchesRoad(coord) && !this.isGeneratedInfrastructureZone(coord)) continue
@@ -2132,6 +2193,7 @@ export class Game extends Eventful<GameEvents> {
 			if (patches.projects) this.applyProjectPatches(patches.projects)
 			if (patches.projectSites?.length) this.applyProjectSitePatches(patches.projectSites)
 			if (patches.dwellings?.length) this.applyDwellingPatches(patches.dwellings)
+			if (patches.shops?.length) this.applyShopPatches(patches.shops)
 			this.bootstrapFreightLines(patches)
 			if (patches.vehicles?.length) this.applyVehiclePatches(patches.vehicles)
 			if (patches.roads) this.applyRoadPatches(patches.roads)
@@ -2214,6 +2276,7 @@ export class Game extends Eventful<GameEvents> {
 			if (patches.projects) this.applyProjectPatches(patches.projects)
 			if (patches.projectSites?.length) this.applyProjectSitePatches(patches.projectSites)
 			if (patches.dwellings?.length) this.applyDwellingPatches(patches.dwellings)
+			if (patches.shops?.length) this.applyShopPatches(patches.shops)
 			this.bootstrapFreightLines(patches)
 			if (patches.vehicles?.length) this.applyVehiclePatches(patches.vehicles)
 			if (patches.roads) this.applyRoadPatches(patches.roads)
@@ -2348,6 +2411,14 @@ export class Game extends Eventful<GameEvents> {
 					sediment: terrainState.sediment,
 					waterTable: terrainState.waterTable,
 				})
+			}
+
+			// A terrain patch to a burden-free terrain (concrete/water/snow) is
+			// authoritative: the tile is clean, so clear any deposit/loose goods the
+			// seed-based generation may have placed here (the biome override has no
+			// `concrete` entry, so generation still classifies the tile by seed).
+			if (p.terrain !== undefined && !terrainHasResourceGeneration(p.terrain)) {
+				this.clearTileBurden(coord)
 			}
 
 			// If missing content and patch defines terrain, create UnBuiltLand
@@ -2665,6 +2736,26 @@ export class Game extends Eventful<GameEvents> {
 				}
 			} else {
 				this.hex.setTileContent(tile, new BasicDwelling(tile))
+			}
+			tile.asGenerated = false
+		}
+	}
+
+	private applyShopPatches(shops: NonNullable<GamePatches['shops']>) {
+		for (const entry of shops) {
+			const coordObj = { q: entry.coord[0], r: entry.coord[1] }
+			const tile = this.hex.getTile(coordObj)
+			if (!tile) continue
+			tile.baseTerrain = 'concrete'
+			tile.terrainState = {
+				...(tile.terrainState ?? {}),
+				terrain: 'concrete',
+			}
+			this.upsertTerrainOverride(coordObj, { terrain: 'concrete' })
+			const shop = new Shop(tile, entry.shopType)
+			this.hex.setTileContent(tile, shop)
+			for (const [good, qty] of Object.entries(entry.goods ?? {})) {
+				shop.storage.addGood(good as GoodType, qty as number)
 			}
 			tile.asGenerated = false
 		}
@@ -3012,6 +3103,8 @@ export class Game extends Eventful<GameEvents> {
 
 		this.residentialDemandTicker?.destroy()
 		this.residentialDemandTicker = undefined
+		this.oneShotLineTicker?.destroy()
+		this.oneShotLineTicker = undefined
 
 		this.hex.reset()
 		this.bootstrapGameplayCoords.clear()
@@ -3027,6 +3120,7 @@ export class Game extends Eventful<GameEvents> {
 		})
 
 		this.residentialDemandTicker = new ResidentialDemandTicker(this)
+		this.oneShotLineTicker = new OneShotLineTicker(this)
 
 		this.conveyRestoredAtLoad = restoreSerializedConveyMovements(this, state.conveyMovements)
 
@@ -3199,6 +3293,8 @@ export class Game extends Eventful<GameEvents> {
 		this.ticker.stop()
 		this.residentialDemandTicker?.destroy()
 		this.residentialDemandTicker = undefined
+		this.oneShotLineTicker?.destroy()
+		this.oneShotLineTicker = undefined
 		try {
 			this.vehicles.clear()
 		} catch {}

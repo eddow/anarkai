@@ -1,10 +1,11 @@
+import { dwellings } from 'engine-rules/visual-content'
 import { effect } from 'mutts'
 import { Container, Sprite, Texture } from 'pixi.js'
 import type { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
+import { Shop } from 'ssh/commerce/shop'
 import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
-import { dwellings } from 'engine-rules/visual-content'
 import { scopedPixiName, setPixiName } from '../debug-names'
 import { nextVisualKey, type PixiGameRenderer } from '../renderer'
 import { createGoodsRenderer, type GoodsRenderer } from './goods-renderer'
@@ -16,25 +17,27 @@ const hasUsableTexture = (texture: Texture | undefined) => {
 	return frame.width > 0 && frame.height > 0
 }
 
-function dwellingVisualKey(
-	content: BasicDwelling | BuildDwelling
-): keyof typeof dwellings | undefined {
-	// Construction shells should stay visible only through zoning/borders and stored goods.
+/** Non-alveolus buildings with a `tile` + `storage` (dwellings and shops). */
+export type DwellingLike = BasicDwelling | BuildDwelling | Shop
+
+function dwellingVisualKey(content: DwellingLike): keyof typeof dwellings | undefined {
+	// Construction shells stay visible only through zoning/borders and stored goods.
 	// The cabin sprite is reserved for completed dwellings.
 	if (content instanceof BuildDwelling) return undefined
+	if (content instanceof Shop) return 'shop'
 	return 'basic_dwelling'
 }
 
 let dwellingVisualInstanceCounter = 0
 
-export class DwellingVisual extends VisualObject<BasicDwelling | BuildDwelling> {
+export class DwellingVisual extends VisualObject<DwellingLike> {
 	private readonly scope: string
 	private sprite: Sprite | undefined
 	private goodsContainer: Container
 	private goodsRenderer: GoodsRenderer | undefined
 	private _disposed = false
 
-	constructor(dwelling: BasicDwelling | BuildDwelling, renderer: PixiGameRenderer) {
+	constructor(dwelling: DwellingLike, renderer: PixiGameRenderer) {
 		super(dwelling, renderer)
 		dwellingVisualInstanceCounter += 1
 		this.scope = `dwelling:${nextVisualKey()}:instance:${dwellingVisualInstanceCounter}`

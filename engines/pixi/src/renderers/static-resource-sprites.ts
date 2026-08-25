@@ -1,3 +1,4 @@
+import { deposits as visualDeposits } from 'engine-rules/visual-content'
 import type { Texture } from 'pixi.js'
 import type { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { plantedTreeMaxPerTile, plantedTreeStage } from 'ssh/board/content/unbuilt-land'
@@ -6,7 +7,6 @@ import type { AxialCoord } from 'ssh/utils'
 import { LCG, subSeed } from 'ssh/utils/numbers'
 import { toAxialCoord, toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
-import { deposits as visualDeposits } from 'engine-rules/visual-content'
 import type { PixiGameRenderer } from '../renderer'
 
 export interface StaticResourceSpriteSpec {

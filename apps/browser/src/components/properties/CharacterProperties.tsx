@@ -269,10 +269,10 @@ interface CharacterActionLabelProps {
 }
 
 const CharacterActionLabel = (props: CharacterActionLabelProps) => (
-	<>
+	<fragment>
 		{actionLabel(props.item.key, props.item.fallback)}
 		<span if={!props.item.last}> / </span>
-	</>
+	</fragment>
 )
 
 const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {

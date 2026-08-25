@@ -515,17 +515,22 @@ export class Hive extends AdvertisementManager<FreightMovementParty> implements 
 				}
 			}
 		}
-		// Holder buffers: general-storage alveoli contribute their held stock
-		// against the indicated `1-buffer` target (not the physical slot capacity).
+		// Holder buffers: general-storage alveoli contribute their **held stock**
+		// (even when buffer-less — a "drain-me" output pile still physically holds
+		// the hive's supply, §5c). `capacity` is the indicated `1-buffer` target
+		// (0 when unbuffered); `normalizedDelta` stays 0 so holders never feed the
+		// price field, only the sourcing/deficit read.
 		for (const alveolus of this.alveoli) {
 			if (!this.isGeneralStorageAlveolus(alveolus)) continue
-			for (const [good, target] of Object.entries(alveolus.storageBuffers)) {
-				if (target === undefined || target <= 0) continue
-				const prev = profile[good as GoodType]
-				profile[good as GoodType] = {
+			const buffers = alveolus.storageBuffers
+			for (const [good, stockQty] of Object.entries(alveolus.storage.stock)) {
+				if (!(stockQty > 0)) continue
+				const goodType = good as GoodType
+				const prev = profile[goodType]
+				profile[goodType] = {
 					normalizedDelta: prev?.normalizedDelta ?? 0,
-					stock: (prev?.stock ?? 0) + (alveolus.storage.stock[good as GoodType] ?? 0),
-					capacity: (prev?.capacity ?? 0) + target,
+					stock: (prev?.stock ?? 0) + stockQty,
+					capacity: (prev?.capacity ?? 0) + (buffers[goodType] ?? 0),
 				}
 			}
 		}

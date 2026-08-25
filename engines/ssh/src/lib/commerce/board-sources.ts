@@ -56,6 +56,10 @@ export function measureInternalSourceOffers(
 	for (const hive of listHives(game)) {
 		const flow = hive.profile[good]
 		if (!flow) continue
+		// A net consumer (negative delta) is a sink, not a source: its own buffer
+		// stock is being consumed, not surplus to export. Only producers (positive)
+		// and holders (0) count as internal supply.
+		if (flow.normalizedDelta < 0) continue
 		const available = internalSourceAvailability(flow.stock, 0, reserve)
 		if (available <= 0) continue
 		offers.push({

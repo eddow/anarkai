@@ -15,9 +15,22 @@ import {
 
 const RULES_ASSETS_ROOT = '/rules-assets'
 
+/**
+ * Placeholder sprite shown for content that has no real art yet, so the gap is
+ * visible in the graph instead of silently falling back to a plain shape.
+ * `commands.click` resolves to `/rules-assets/commands/click.png`.
+ */
+const MISSING_ICON = 'commands.click'
+
 export interface NodeIcon {
 	/** URL of the image to draw (standalone PNG or spritesheet). */
 	image: string
+	/**
+	 * true when the image is a standalone PNG drawn with `background-fit:
+	 * contain` (goods/buildings/missing-placeholder); false when it is a
+	 * spritesheet frame needing crop geometry (deposits).
+	 */
+	standalone: boolean
 	/** Spritesheet-crop geometry (deposits). Absent for standalone PNG icons. */
 	width?: number
 	height?: number
@@ -45,25 +58,70 @@ const OBJECT_FRAMES: Record<
 	string,
 	{ sheet: string; x: number; y: number; w: number; h: number; sheetW: number; sheetH: number }
 > = {
-	'objects.bushes/bush1': { sheet: 'objects/bushes.png', x: 56, y: 6, w: 31, h: 29, sheetW: 432, sheetH: 112 },
-	'objects.rocks/rock1': { sheet: 'objects/rocks.png', x: 22, y: 46, w: 58, h: 62, sheetW: 512, sheetH: 512 },
-	'objects.trees/tree1': { sheet: 'objects/trees.png', x: 65, y: 1, w: 62, h: 74, sheetW: 800, sheetH: 192 },
-	'objects.wheat/wheat-3': { sheet: 'objects/wheat.png', x: 0, y: 48, w: 58, h: 74, sheetW: 67, sheetH: 122 },
+	'objects.bushes/bush1': {
+		sheet: 'objects/bushes.png',
+		x: 56,
+		y: 6,
+		w: 31,
+		h: 29,
+		sheetW: 432,
+		sheetH: 112,
+	},
+	'objects.rocks/rock1': {
+		sheet: 'objects/rocks.png',
+		x: 22,
+		y: 46,
+		w: 58,
+		h: 62,
+		sheetW: 512,
+		sheetH: 512,
+	},
+	'objects.trees/tree1': {
+		sheet: 'objects/trees.png',
+		x: 65,
+		y: 1,
+		w: 62,
+		h: 74,
+		sheetW: 800,
+		sheetH: 192,
+	},
+	'objects.wheat/wheat-3': {
+		sheet: 'objects/wheat.png',
+		x: 0,
+		y: 48,
+		w: 58,
+		h: 74,
+		sheetW: 67,
+		sheetH: 122,
+	},
 }
 
 /** Resolve the icon for a projected node, or undefined if it has none. */
 export function nodeIcon(kind: string, id: string): NodeIcon | undefined {
 	let sprite: string | undefined
-	if (kind === 'good') sprite = goodsVisual[id.slice('good:'.length)]?.icon
-	else if (kind === 'building') sprite = alveoliVisual[id.slice('alveolus:'.length)]?.icon
-	else if (kind === 'deposit') sprite = depositsVisual[id.slice('deposit:'.length)]?.icon
-	if (!sprite) return undefined
+	let category: 'good' | 'building' | 'deposit' | undefined
+	if (kind === 'good') {
+		category = 'good'
+		sprite = goodsVisual[id.slice('good:'.length)]?.icon
+	} else if (kind === 'building') {
+		category = 'building'
+		sprite = alveoliVisual[id.slice('alveolus:'.length)]?.icon
+	} else if (kind === 'deposit') {
+		category = 'deposit'
+		sprite = depositsVisual[id.slice('deposit:'.length)]?.icon
+	}
+	// Shop/tag nodes have no icon by design.
+	if (!category) return undefined
+
+	// Missing real art → cursor placeholder so the gap is visible.
+	if (!sprite) return { image: iconToUrl(MISSING_ICON), standalone: true }
 
 	// Natural-resource frame → crop from the objects spritesheet.
 	const frame = OBJECT_FRAMES[sprite]
 	if (frame) {
 		return {
 			image: `${RULES_ASSETS_ROOT}/${frame.sheet}`,
+			standalone: false,
 			width: frame.w,
 			height: frame.h,
 			bgWidth: frame.sheetW,
@@ -72,5 +130,5 @@ export function nodeIcon(kind: string, id: string): NodeIcon | undefined {
 			bgPosY: -frame.y,
 		}
 	}
-	return { image: iconToUrl(sprite) }
+	return { image: iconToUrl(sprite), standalone: true }
 }
