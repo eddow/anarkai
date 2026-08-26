@@ -14,6 +14,12 @@ Decisions live in `docs/`, open questions and the plan in `plans/`. The document
   temporary corridors, the internality slider; recurring lines stay player-authored).
 - [`plans/spontaneous-zones.md`](plans/spontaneous-zones.md) — spontaneous residential/commercial,
   growth/shrinkage (triangular capacity), the delivery-tile rule, and shop types.
+- [`plans/emergent-planning-architecture.md`](plans/emergent-planning-architecture.md) — **current
+  frontier**: replace global planner optimization with local, emergent decisions (the "ants" model).
+- [`plans/rust-migration-continuation.md`](plans/rust-migration-continuation.md) — the "move only proved
+  algorithms" gate for the Rust port (the pathfinding flood is the next candidate).
+- [`plans/details-punchlist.md`](plans/details-punchlist.md) — leftover UI polish (config memorization,
+  docked-vehicle cargo, line-editor fixes).
 - [`docs/energy.md`](docs/energy.md) — energy sources, topology, and distribution (decided).
 - [`docs/projects.md`](docs/projects.md) + [`plans/projects.md`](plans/projects.md) — construction
   projects as forward declarations of demand and special operations.
@@ -63,6 +69,32 @@ core is implemented, tested, and type-clean; the *gameplay* wiring is the fronti
 (the buy+credit is instant — no outside-carrier travel yet), the `surplus` (producer-export) half of
 the ledger, operating demand in the bill, the frontier fade, and the spontaneous commercial spawner /
 growth-shrinkage representation.
+
+## Current frontier — planner scalability (emergent planning)
+
+As of 2026-08-26 the frontier has moved past the commerce spine to **planner scalability**. The commerce
+structural layer is drafted and the spontaneous-line automation is wired on both halves (self-haul and
+buy+credit); the open item is that the per-character planner (`Character.findAction` →
+`rankedWorkCandidates`) is `O(N × board × pathfind)` and cannot reach hundreds of characters regardless
+of language.
+
+Two new plans capture this:
+
+- [`plans/emergent-planning-architecture.md`](plans/emergent-planning-architecture.md) — replace the
+  global-optimum planner with **local, emergent decisions** (the "ants" model): precomputed distance
+  fields instead of per-candidate pathfinding, advertisements extended from goods to work, commitment +
+  hysteresis to kill the re-plan cascade, a small sensing radius (last-mile only), and coarse-graph
+  routing. Phased migration (fields → locality → ad-driven work → commitment → coarse-graph + Rust),
+  each phase independently shippable with a fallback.
+- [`plans/rust-migration-continuation.md`](plans/rust-migration-continuation.md) — the **"move only
+  proved algorithms"** gate. The pathfinding optimizations (target-bounded flood, blocking-tile oracle,
+  transit/candidate tokens, transit snapshot) are **proved in TS and committed** (see
+  `engines/ssh/src/lib/utils/pathfinding.ts`, `engines/ssh/src/lib/board/board.ts`,
+  `engines/ssh/tests/unit/pathfinding.test.ts`); the next steps are a determinism test, then porting the
+  *pure flood* to `engines/core` — not the policy (roads, burden, planner logic), which stays in TS.
+
+The "what survives / what is retired" split lives in the emergent-planning doc; the Rust sequence lives
+in the migration-continuation doc.
 
 ## The decided architecture
 
@@ -162,9 +194,18 @@ Agreed sequence — **questions → structures/interfaces → implementation**:
 ## Candidate directions (re-ranked)
 
 Ranked against the decided architecture. The old "roads next" framing is superseded: roads are
-*infrastructure for commerce*, not the frontier.
+*infrastructure for commerce*, not the frontier. The **planner-scalability** direction below is now the
+frontier (see "Current frontier").
 
-### 1. Commerce architecture → code (primary)
+### 1. Emergent planning → planner scalability (current frontier)
+
+Replace the global-optimum planner (`rankedWorkCandidates`) with local, emergent decisions so the
+simulation reaches hundreds of characters/vehicles. Phased: distance fields → candidate-set locality →
+advertisement-driven work → commitment/hysteresis → coarse-graph routing + Rust. See
+[`plans/emergent-planning-architecture.md`](plans/emergent-planning-architecture.md) and
+[`plans/rust-migration-continuation.md`](plans/rust-migration-continuation.md).
+
+### 2. Commerce architecture → code (primary)
 
 The structural spine is drafted (see "Where we are"); the remaining *gameplay* work here is:
 wire a live **`deficit` stop** that imports a shortfall (the consumer of the ledger + sourcing), add the
@@ -173,39 +214,39 @@ buffers) into the bill, make **`Hive.needs`** feed the ledger (today the ledger 
 directly), and apply the **frontier fade** board-side. This is the spine every other direction plugs
 into.
 
-### 2. Projects (supporting, in parallel)
+### 3. Projects (supporting, in parallel)
 
 Projects are the construction surface *and* the special-operation spend. Open items live in
 `plans/projects.md`: reusable-plan model (stamp vs clone), push semantics (atomic vs per-entry),
 roads/track-as-entries, city demolition cost.
 
-### 3. Maintenance & energy (energy is decided; wire it later)
+### 4. Maintenance & energy (energy is decided; wire it later)
 
 Energy's model is fully specified in `docs/energy.md`. Implementation (cables as a tile-border layer, the
 path-walk distribution, usePoints) is a later slice; it no longer gates anything. The two leftover M7
 details (crossing/elevation table, shortage presentation) are content.
 
-### 4. Races (once the space is stable)
+### 5. Races (once the space is stable)
 
 Philosophies as tuning vectors; they need the commerce dial and the happiness loop to mean anything.
 
-### 5. Roads & path infrastructure (was #1, now supporting)
+### 6. Roads & path infrastructure (was #1, now supporting)
 
 Still valuable — road-aware routing, lane/band metadata, builder workflow, bay-less roads — but it is
 infrastructure that *makes distance matter for commerce*. Do it when commerce needs it (outside carriers,
 trade points), or as a parallel slice once the ledger is live.
 
-### 6. More game content
+### 7. More game content
 
 New deposits / harvesters / transformers / goods. A fill-in; the chains only make sense once the ledger
 and the maintenance ladder exist (otherwise more internal logistics puzzles without the commerce spine).
 
-### 7. NPC cities & villages
+### 8. NPC cities & villages
 
 External settlements deepen demand once sourcing can name them as sources. Blocked on roads + commerce
 interfaces.
 
-### 8. Terrain generation rework
+### 9. Terrain generation rework
 
 Needed when settlements / roads / commerce need stronger geography. Keep as background.
 
@@ -219,6 +260,10 @@ Needed when settlements / roads / commerce need stronger geography. Keep as back
   The latter proves the architecture; the former proves the content.
 - Which decision becomes hardest to change after this lands? The `NeedSource` union (object-as-origin vs
   a discriminant) and the wallet shape (one wallet vs two) fork the most.
+- **Planner fork (new):** does the next slice start the emergent-planning migration (Phase 1 — distance
+  fields short-circuit `tailorProposedJob`, zero behaviour change) or finish the commerce gameplay
+  wiring (a live `deficit` stop)? The former unlocks scalability; the latter proves the commerce spine
+  end-to-end.
 
 ## First playable slices
 
@@ -236,6 +281,11 @@ Needed when settlements / roads / commerce need stronger geography. Keep as back
   `Game.transportAutomation` config. ⏳ Remaining: a physical outside carrier for delivery, and the
   internality-slider UI that actually branches line-vs-delivery. See
   [`plans/spontaneous-lines.md`](plans/spontaneous-lines.md).
+- **Emergent planning v1** — ✅ pathfinding perf rounds landed (target-bounded flood, blocking-tile
+  oracle, transit/candidate tokens, transit snapshot). ⏳ Remaining: the phased migration to local
+  decisions (fields → locality → ad-driven work → commitment → coarse-graph + Rust). See
+  [`plans/emergent-planning-architecture.md`](plans/emergent-planning-architecture.md) and
+  [`plans/rust-migration-continuation.md`](plans/rust-migration-continuation.md).
 - **Maintenance v1** — ⏳ one building with a usePoints life level engineers can top back up (decided
   model; not implemented).
 - **Salary v1** — ⏳ one wallet drip that lets a character buy food at an NPC city (the skip-SimCity

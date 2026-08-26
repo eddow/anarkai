@@ -695,19 +695,88 @@ type MaintenanceReachability = {
 	readonly reachable: AxialKeyMap<number>
 }
 
+// The flood is character-independent: it depends only on the vehicle's rounded position and the board
+// transit state (blocking / walk-cost / roads). `workPlanningRevision` is the WRONG token — it bumps
+// intra-sweep on operator/service changes that leave the transit graph untouched. `transitRevision`
+// bumps only on `setTileContent` / `setRoadType`, so the target ring + flood computed once per
+// (vehicle, transit revision) is shared across every character that evaluates the same vehicle in the
+// same sweep, collapsing C×V flood + target-building computations to V.
+const vehicleReachabilityCache = new WeakMap<
+	Game,
+	{ revision: number; entries: Map<string, { start: AxialCoord; reachable: AxialKeyMap<number> }> }
+>()
+
 function vehicleMaintenanceReachability(
 	game: Game,
 	vehicle: Vehicle,
-	_character: Character
+	_character?: Character
 ): MaintenanceReachability | undefined {
-	const from = toAxialCoord(vehicle.effectivePosition)
-	if (!from) return undefined
-	const start = axial.round(from)
-	return {
-		game,
-		start,
-		reachable: game.hex.reachableForVehicle(start, maxWalkTime),
+	const end = profile.proposedJobs.begin?.('maintenanceReachability', () => ({
+		vehicleUid: debugObjectId(vehicle) ?? '',
+	}))
+	try {
+		const from = toAxialCoord(vehicle.effectivePosition)
+		if (!from) return undefined
+		const start = axial.round(from)
+		let entry = vehicleReachabilityCache.get(game)
+		const revision = game.transitRevision
+		if (!entry || entry.revision !== revision) {
+			entry = { revision, entries: new Map() }
+			vehicleReachabilityCache.set(game, entry)
+		}
+		const cacheKey = debugObjectId(vehicle) ?? ''
+		let cached = entry.entries.get(cacheKey)
+		if (!cached) {
+			cached = { start, reachable: maintenanceReachabilityFlood(game, vehicle, start) }
+			entry.entries.set(cacheKey, cached)
+		}
+		return { game, start: cached.start, reachable: cached.reachable }
+	} finally {
+		end?.()
 	}
+}
+
+/**
+ * Builds the target ring and runs the target-bounded flood for a single vehicle. Called only on a
+ * transit-revision cache miss — the result is shared across characters.
+ *
+ * The flood is the single reachability oracle for the candidate scans. It must settle:
+ *  1. every NON-blocking tile within `offloadRange` (answered by `reachable.has(goal)`), and
+ *  2. the non-blocking neighbours of every BLOCKING tile within `offloadRange`, so that a
+ *     blocking tile's service-border reachability can be answered as "any non-blocking
+ *     neighbour reachable" — an O(6) lookup instead of a fresh board-wide A* per blocking tile.
+ *
+ * CRITICAL: never add a blocking tile itself as a target. A blocking tile is never settled by the
+ * flood (its neighbours carry `walkTime = Infinity`, so it is never added to the cost map), which
+ * would keep `pending` non-empty and degenerate the flood into a full-board exploration.
+ */
+function maintenanceReachabilityFlood(
+	game: Game,
+	vehicle: Vehicle,
+	start: AxialCoord
+): AxialKeyMap<number> {
+	const origin = toAxialCoord(vehicle.tile.position)!
+	const targets: AxialCoord[] = []
+	const seen = new Set<string>()
+	const addTarget = (coord: AxialCoord) => {
+		const key = axial.key(coord)
+		if (seen.has(key)) return
+		seen.add(key)
+		targets.push(coord)
+	}
+	for (const tile of game.hex.tilesAround(origin, offloadRange)) {
+		if (tile.isBlockingSpace) {
+			for (const neighbor of tile.neighborTiles) {
+				if (neighbor.isBlockingSpace) continue
+				const nc = toAxialCoord(neighbor.position)
+				if (nc) addTarget(axial.round(nc))
+			}
+		} else {
+			const tc = toAxialCoord(tile.position)
+			if (tc) addTarget(axial.round(tc))
+		}
+	}
+	return game.hex.reachableForVehicleTargets(start, maxWalkTime, targets)
 }
 
 function maintenanceReachabilityCanReach(
@@ -720,11 +789,17 @@ function maintenanceReachabilityCanReach(
 	const goal = axial.round(to)
 	if (axial.key(reachability.start) === axial.key(goal)) return true
 	if (tile.isBlockingSpace) {
-		return !!reachability.game.hex.findPathForVehicleServiceBorder(
-			reachability.start,
-			tile.position,
-			maxWalkTime
-		)
+		// `findPathForVehicleServiceBorder(start, blockingTile)` exists iff at least one non-blocking
+		// neighbour of the blocking tile is reachable from `start`. The flood already settled those
+		// neighbours (see `vehicleMaintenanceReachability`), and both the A* and the flood share the
+		// same `start` (an integer tile coord), so answer from the flood — O(6) lookups, no A*.
+		for (const neighbor of tile.neighborTiles) {
+			if (neighbor.isBlockingSpace) continue
+			const nc = toAxialCoord(neighbor.position)
+			if (!nc) continue
+			if (reachability.reachable.has(axial.round(nc))) return true
+		}
+		return false
 	}
 	return reachability.reachable.has(goal)
 }
@@ -740,27 +815,34 @@ function pickUnloadTargetForVehicle(
 	canReach: (tile: Tile) => boolean = () => true
 ): { tile: Tile; urgency: number } | undefined {
 	if (!vehicleHasStock(vehicle)) return undefined
-	const origin = toAxialCoord(vehicle.tile.position)!
-	let best: { tile: Tile; score: number } | undefined
-	for (const tile of game.hex.tilesAround(origin, offloadRange)) {
-		const tc = toAxialCoord(tile.position)!
-		const dist = axial.distance(origin, tc)
-		if (axial.key(tc) === axial.key(origin)) continue
-		if (!isVehicleOffloadDestinationEligible(tile)) continue
-		if (!canReach(tile)) continue
-		const looseCount = game.hex.looseGoods.getGoodsAt(tc).length
-		// Distance dominates; mild crowding penalty avoids piling on the same hex.
-		const score = 1 / (dist + 1) / (1 + 0.25 * looseCount)
-		if (
-			!best ||
-			score > best.score ||
-			(score === best.score && compareAxialCoord(tc, toAxialCoord(best.tile.position)!) > 0)
-		) {
-			best = { tile, score }
+	const end = profile.proposedJobs.begin?.('pickUnloadTarget', () => ({
+		vehicleUid: debugObjectId(vehicle) ?? '',
+	}))
+	try {
+		const origin = toAxialCoord(vehicle.tile.position)!
+		let best: { tile: Tile; score: number } | undefined
+		for (const tile of game.hex.tilesAround(origin, offloadRange)) {
+			const tc = toAxialCoord(tile.position)!
+			const dist = axial.distance(origin, tc)
+			if (axial.key(tc) === axial.key(origin)) continue
+			if (!isVehicleOffloadDestinationEligible(tile)) continue
+			if (!canReach(tile)) continue
+			const looseCount = game.hex.looseGoods.getGoodsAt(tc).length
+			// Distance dominates; mild crowding penalty avoids piling on the same hex.
+			const score = 1 / (dist + 1) / (1 + 0.25 * looseCount)
+			if (
+				!best ||
+				score > best.score ||
+				(score === best.score && compareAxialCoord(tc, toAxialCoord(best.tile.position)!) > 0)
+			) {
+				best = { tile, score }
+			}
 		}
+		if (!best) return undefined
+		return { tile: best.tile, urgency: jobBalance.offload.unloadToTile }
+	} finally {
+		end?.()
 	}
-	if (!best) return undefined
-	return { tile: best.tile, urgency: jobBalance.offload.unloadToTile }
 }
 
 export function beginLoadedVehicleUnloadMaintenance(
@@ -799,41 +881,48 @@ function pickParkingTargetForVehicle(
 ): { tile: Tile; urgency: number } | undefined {
 	if (vehicleHasStock(vehicle)) return undefined
 	if (!vehicleNeedsParkingOnCurrentTile(vehicle)) return undefined
-	const origin = toAxialCoord(vehicle.tile.position)!
-	const parkedNeighborCount = (tc: AxialCoord): number => {
-		let count = 0
-		for (const v of game.vehicles) {
-			if (v === vehicle) continue
-			if (!isLineFreightVehicleType(v.vehicleType)) continue
-			if (!v.position) continue
-			const vp = toAxialCoord(v.position)
-			if (!vp) continue
-			const vc: AxialCoord = { q: Math.round(vp.q), r: Math.round(vp.r) }
-			if (axial.distance(tc, vc) <= 1) count++
+	const end = profile.proposedJobs.begin?.('pickParkingTarget', () => ({
+		vehicleUid: debugObjectId(vehicle) ?? '',
+	}))
+	try {
+		const origin = toAxialCoord(vehicle.tile.position)!
+		const parkedNeighborCount = (tc: AxialCoord): number => {
+			let count = 0
+			for (const v of game.vehicles) {
+				if (v === vehicle) continue
+				if (!isLineFreightVehicleType(v.vehicleType)) continue
+				if (!v.position) continue
+				const vp = toAxialCoord(v.position)
+				if (!vp) continue
+				const vc: AxialCoord = { q: Math.round(vp.q), r: Math.round(vp.r) }
+				if (axial.distance(tc, vc) <= 1) count++
+			}
+			return count
 		}
-		return count
-	}
-	let best: { tile: Tile; dist: number; cluster: number } | undefined
-	for (const tile of game.hex.tilesAround(origin, offloadRange)) {
-		const tc = toAxialCoord(tile.position)!
-		const dist = axial.distance(origin, tc)
-		if (axial.key(tc) === axial.key(origin)) continue
-		if (!isVehicleOffloadDestinationEligible(tile)) continue
-		if (!canReach(tile)) continue
-		const cluster = parkedNeighborCount(tc)
-		if (
-			!best ||
-			dist < best.dist ||
-			(dist === best.dist &&
-				(cluster < best.cluster ||
-					(cluster === best.cluster &&
-						compareAxialCoord(tc, toAxialCoord(best.tile.position)!) > 0)))
-		) {
-			best = { tile, dist, cluster }
+		let best: { tile: Tile; dist: number; cluster: number } | undefined
+		for (const tile of game.hex.tilesAround(origin, offloadRange)) {
+			const tc = toAxialCoord(tile.position)!
+			const dist = axial.distance(origin, tc)
+			if (axial.key(tc) === axial.key(origin)) continue
+			if (!isVehicleOffloadDestinationEligible(tile)) continue
+			if (!canReach(tile)) continue
+			const cluster = parkedNeighborCount(tc)
+			if (
+				!best ||
+				dist < best.dist ||
+				(dist === best.dist &&
+					(cluster < best.cluster ||
+						(cluster === best.cluster &&
+							compareAxialCoord(tc, toAxialCoord(best.tile.position)!) > 0)))
+			) {
+				best = { tile, dist, cluster }
+			}
 		}
+		if (!best) return undefined
+		return { tile: best.tile, urgency: jobBalance.offload.park }
+	} finally {
+		end?.()
 	}
-	if (!best) return undefined
-	return { tile: best.tile, urgency: jobBalance.offload.park }
 }
 
 function pickOffloadForTile(
@@ -1030,6 +1119,103 @@ function vehicleServesTradeLine(vehicle: Vehicle): boolean {
 }
 
 /**
+ * Profiled wrapper around {@link pickInitialVehicleServiceCandidate}: it contains unbounded
+ * service-border pathfinding (`findPathForVehicleServiceBorder(..., Infinity)`), the most likely
+ * remaining hotspot in maintenance planning. The span lets `profile.proposedJobs` attribute that
+ * cost separately from the flood and the candidate scans.
+ */
+function profiledInitialVehicleServiceCandidate(
+	game: Game,
+	character: Character,
+	vehicle: Vehicle
+): ReturnType<typeof pickInitialVehicleServiceCandidate> {
+	const end = profile.proposedJobs.begin?.('initialVehicleServiceCandidate', () => ({
+		vehicleUid: debugObjectId(vehicle) ?? '',
+	}))
+	try {
+		return pickInitialVehicleServiceCandidate(game, character, vehicle)
+	} finally {
+		end?.()
+	}
+}
+
+/**
+ * Character-independent load + unload candidate discovery for a single vehicle. Depends only on the
+ * vehicle's storage, board loose goods, content, and the reachability flood — none of which change on
+ * intra-sweep ownership (operator/service/assignment). Cached per `(vehicle, candidateRevision)` so
+ * the scans are computed once per revision instead of once per (character × vehicle).
+ */
+type VehicleLoadUnloadCandidates = {
+	load?: LoadCandidate
+	loadDistance: number
+	unload?: UnloadCandidate
+	unloadDistance: number
+}
+
+const loadUnloadCandidatesCache = new WeakMap<
+	Game,
+	{ revision: number; entries: Map<string, VehicleLoadUnloadCandidates> }
+>()
+
+function pickLoadUnloadCandidatesForVehicle(
+	game: Game,
+	vehicle: Vehicle
+): VehicleLoadUnloadCandidates {
+	let entry = loadUnloadCandidatesCache.get(game)
+	const revision = game.candidateRevision
+	if (!entry || entry.revision !== revision) {
+		entry = { revision, entries: new Map() }
+		loadUnloadCandidatesCache.set(game, entry)
+	}
+	const key = debugObjectId(vehicle) ?? ''
+	const cached = entry.entries.get(key)
+	if (cached) return cached
+
+	const reachability = vehicleMaintenanceReachability(game, vehicle)
+	const canReach = (tile: Tile) => maintenanceReachabilityCanReach(reachability, tile)
+	const origin = toAxialCoord(vehicle.tile.position)!
+
+	const loadScanEnd = profile.proposedJobs.begin?.('pickLoadTarget', () => ({
+		vehicleUid: debugObjectId(vehicle) ?? '',
+	}))
+	let load: LoadCandidate | undefined
+	let loadDistance = Number.POSITIVE_INFINITY
+	for (const tile of game.hex.tilesAround(origin, offloadRange)) {
+		const tc = toAxialCoord(tile.position)!
+		const dist = axial.distance(origin, tc)
+		// Reorder: the cheap "is there anything to load here" check first, so the (comparatively)
+		// expensive reachability lookup only runs for tiles that can actually yield a pick.
+		const pick = pickOffloadForTile(tile, vehicle.storage)
+		if (!pick) continue
+		if (!canReach(tile)) continue
+		const candidate: LoadCandidate = { kind: 'load', tile, pick }
+		if (
+			dist < loadDistance ||
+			(load &&
+				dist === loadDistance &&
+				compareAxialCoord(tc, toAxialCoord(load.tile.position)!) > 0)
+		) {
+			load = candidate
+			loadDistance = dist
+		}
+	}
+	loadScanEnd?.()
+
+	const unloadPick = pickUnloadTargetForVehicle(game, vehicle, canReach)
+	let unload: UnloadCandidate | undefined
+	let unloadDistance = Number.POSITIVE_INFINITY
+	if (unloadPick) {
+		const tc = toAxialCoord(unloadPick.tile.position)!
+		unload = { kind: 'unload', tile: unloadPick.tile, urgency: unloadPick.urgency }
+		unloadDistance = axial.distance(origin, tc)
+	}
+
+	const result: VehicleLoadUnloadCandidates = { load, loadDistance, unload, unloadDistance }
+	entry.entries.set(key, result)
+	return result
+}
+
+/**
  * Picks the best maintenance target for `vehicle`. Load and unload candidates compete head-to-head
  * (path length is the same for both — `pathLength` is the operator's walk to the vehicle, not from
  * the vehicle to the target). Park is only considered when **no** load or unload candidate exists.
@@ -1039,135 +1225,132 @@ function pickMaintenanceForVehicle(
 	vehicle: Vehicle,
 	character: Character
 ): MaintenanceCandidate | undefined {
-	// Structural "could begin gather line from loaded cargo" must not suppress maintenance unless
-	// begin-service is actually actionable for this worker (path, unload anchor, zone load, etc.).
-	if (
-		loadedStockCanEnterServedGatherLine(game, vehicle) &&
-		pickInitialVehicleServiceCandidate(game, character, vehicle)
-	) {
-		traces.vehicle.log?.('vehicleJob.maintenance.skipLoadedCanEnterLine', {
-			characterUid: debugObjectId(character) ?? '',
-			stock: vehicle.storage.stock,
-		})
-		return undefined
-	}
-	const reachability = vehicleMaintenanceReachability(game, vehicle, character)
-	const canReach = (tile: Tile) => maintenanceReachabilityCanReach(reachability, tile)
-	const currentContent = vehicle.tile.content
-	const currentLineCandidate =
-		currentContent instanceof Alveolus && currentContent.action.type === 'road-fret'
-			? pickInitialVehicleServiceCandidate(game, character, vehicle)
-			: undefined
-	const currentDistributeLoadCandidate =
-		!!currentLineCandidate &&
-		findDistributeRouteSegments(currentLineCandidate.line).some(
-			(segment) =>
-				segment.loadStopIndex === currentLineCandidate.line.stops.indexOf(currentLineCandidate.stop)
-		)
-	if (currentDistributeLoadCandidate) {
-		traces.vehicle.log?.('vehicleJob.maintenance.skipForCurrentDistributeDock', {
-			characterUid: debugObjectId(character) ?? '',
-			// lineId removed
-			stopIndex: currentLineCandidate.line.stops.indexOf(currentLineCandidate.stop),
-		})
-		return undefined
-	}
-	const origin = toAxialCoord(vehicle.tile.position)!
-	let bestLoad: LoadCandidate | undefined
-	let bestLoadDistance = Number.POSITIVE_INFINITY
-	for (const tile of game.hex.tilesAround(origin, offloadRange)) {
-		const tc = toAxialCoord(tile.position)!
-		const dist = axial.distance(origin, tc)
-		if (!canReach(tile)) continue
-		const pick = pickOffloadForTile(tile, vehicle.storage)
-		if (!pick) continue
-		const candidate: LoadCandidate = { kind: 'load', tile, pick }
-		if (
-			dist < bestLoadDistance ||
-			(bestLoad &&
-				dist === bestLoadDistance &&
-				compareAxialCoord(tc, toAxialCoord(bestLoad.tile.position)!) > 0)
-		) {
-			bestLoad = candidate
-			bestLoadDistance = dist
+	const end = profile.proposedJobs.begin?.('pickMaintenanceForVehicle', () => ({
+		vehicleUid: debugObjectId(vehicle) ?? '',
+		characterUid: debugObjectId(character) ?? '',
+	}))
+	try {
+		// `pickInitialVehicleServiceCandidate` is pure over (game, character, vehicle) — none of
+		// which change during this call — yet it is consulted up to three times below. Evaluate it
+		// lazily and reuse the result, so the unbounded anchor reachability it contains runs at most
+		// once per (character, vehicle) instead of up to three times.
+		let initialCandidate: ReturnType<typeof pickInitialVehicleServiceCandidate> | undefined
+		let initialCandidateComputed = false
+		const initialServiceCandidate = (): ReturnType<typeof pickInitialVehicleServiceCandidate> => {
+			if (!initialCandidateComputed) {
+				initialCandidateComputed = true
+				initialCandidate = profiledInitialVehicleServiceCandidate(game, character, vehicle)
+			}
+			return initialCandidate
 		}
-	}
-	const unload = pickUnloadTargetForVehicle(game, vehicle, canReach)
-	let bestUnload: UnloadCandidate | undefined
-	let bestUnloadDistance = Number.POSITIVE_INFINITY
-	if (unload) {
-		const tc = toAxialCoord(unload.tile.position)!
-		bestUnload = { kind: 'unload', tile: unload.tile, urgency: unload.urgency }
-		bestUnloadDistance = axial.distance(origin, tc)
-	}
-	if (bestLoad || bestUnload) {
-		if (bestLoad && bestLoadDistance <= bestUnloadDistance) {
-			if (
-				vehicleServesTradeLine(vehicle) &&
-				!isJointLineLoadCandidate(character, vehicle, bestLoad)
-			) {
-				traces.vehicle.log?.('vehicleJob.maintenance.skipNonLineLoadForTradeVehicle', {
-					characterUid: debugObjectId(character) ?? '',
-					targetCoord: toAxialCoord(bestLoad.tile.position),
-					goodType: bestLoad.pick.looseGood.goodType,
-					urgency: bestLoad.pick.urgency,
-				})
-				if (!bestUnload) return undefined
-			} else {
+		// Structural "could begin gather line from loaded cargo" must not suppress maintenance unless
+		// begin-service is actually actionable for this worker (path, unload anchor, zone load, etc.).
+		if (loadedStockCanEnterServedGatherLine(game, vehicle) && initialServiceCandidate()) {
+			traces.vehicle.log?.('vehicleJob.maintenance.skipLoadedCanEnterLine', {
+				characterUid: debugObjectId(character) ?? '',
+				stock: vehicle.storage.stock,
+			})
+			return undefined
+		}
+		const currentContent = vehicle.tile.content
+		const currentLineCandidate =
+			currentContent instanceof Alveolus && currentContent.action.type === 'road-fret'
+				? initialServiceCandidate()
+				: undefined
+		const currentDistributeLoadCandidate =
+			!!currentLineCandidate &&
+			findDistributeRouteSegments(currentLineCandidate.line).some(
+				(segment) =>
+					segment.loadStopIndex ===
+					currentLineCandidate.line.stops.indexOf(currentLineCandidate.stop)
+			)
+		if (currentDistributeLoadCandidate) {
+			traces.vehicle.log?.('vehicleJob.maintenance.skipForCurrentDistributeDock', {
+				characterUid: debugObjectId(character) ?? '',
+				// lineId removed
+				stopIndex: currentLineCandidate.line.stops.indexOf(currentLineCandidate.stop),
+			})
+			return undefined
+		}
+		const {
+			load: bestLoad,
+			loadDistance: bestLoadDistance,
+			unload: bestUnload,
+			unloadDistance: bestUnloadDistance,
+		} = pickLoadUnloadCandidatesForVehicle(game, vehicle)
+		if (bestLoad || bestUnload) {
+			if (bestLoad && bestLoadDistance <= bestUnloadDistance) {
+				if (
+					vehicleServesTradeLine(vehicle) &&
+					!isJointLineLoadCandidate(character, vehicle, bestLoad)
+				) {
+					traces.vehicle.log?.('vehicleJob.maintenance.skipNonLineLoadForTradeVehicle', {
+						characterUid: debugObjectId(character) ?? '',
+						targetCoord: toAxialCoord(bestLoad.tile.position),
+						goodType: bestLoad.pick.looseGood.goodType,
+						urgency: bestLoad.pick.urgency,
+					})
+					if (!bestUnload) return undefined
+				} else {
+					traces.vehicle.log?.('vehicleJob.maintenance.pick', {
+						characterUid: debugObjectId(character) ?? '',
+						kind: 'loadFromBurden',
+						targetCoord: toAxialCoord(bestLoad.tile.position),
+						goodType: bestLoad.pick.looseGood.goodType,
+						urgency: bestLoad.pick.urgency,
+						distance: bestLoadDistance,
+						competingUnloadDistance: bestUnloadDistance,
+					})
+					return bestLoad
+				}
+			}
+			if (bestUnload) {
+				if (vehicleServesTradeLine(vehicle)) {
+					traces.vehicle.log?.('vehicleJob.maintenance.skipUnloadForTradeVehicle', {
+						characterUid: debugObjectId(character) ?? '',
+						targetCoord: toAxialCoord(bestUnload.tile.position),
+						urgency: bestUnload.urgency,
+						distance: bestUnloadDistance,
+						competingLoadDistance: bestLoadDistance,
+					})
+					return undefined
+				}
 				traces.vehicle.log?.('vehicleJob.maintenance.pick', {
 					characterUid: debugObjectId(character) ?? '',
-					kind: 'loadFromBurden',
-					targetCoord: toAxialCoord(bestLoad.tile.position),
-					goodType: bestLoad.pick.looseGood.goodType,
-					urgency: bestLoad.pick.urgency,
-					distance: bestLoadDistance,
-					competingUnloadDistance: bestUnloadDistance,
-				})
-				return bestLoad
-			}
-		}
-		if (bestUnload) {
-			if (vehicleServesTradeLine(vehicle)) {
-				traces.vehicle.log?.('vehicleJob.maintenance.skipUnloadForTradeVehicle', {
-					characterUid: debugObjectId(character) ?? '',
+					kind: 'unloadToTile',
 					targetCoord: toAxialCoord(bestUnload.tile.position),
 					urgency: bestUnload.urgency,
 					distance: bestUnloadDistance,
 					competingLoadDistance: bestLoadDistance,
 				})
-				return undefined
+				return bestUnload
 			}
+		}
+		const lineCandidate = initialServiceCandidate()
+		if (lineCandidate) {
+			traces.vehicle.log?.('vehicleJob.maintenance.skipParkForLineService', {
+				characterUid: debugObjectId(character) ?? '',
+				// lineId removed
+				stopIndex: lineCandidate.line.stops.indexOf(lineCandidate.stop),
+			})
+			return undefined
+		}
+		const reachability = vehicleMaintenanceReachability(game, vehicle, character)
+		const canReach = (tile: Tile) => maintenanceReachabilityCanReach(reachability, tile)
+		const park = pickParkingTargetForVehicle(game, vehicle, canReach)
+		if (park) {
 			traces.vehicle.log?.('vehicleJob.maintenance.pick', {
 				characterUid: debugObjectId(character) ?? '',
-				kind: 'unloadToTile',
-				targetCoord: toAxialCoord(bestUnload.tile.position),
-				urgency: bestUnload.urgency,
-				distance: bestUnloadDistance,
-				competingLoadDistance: bestLoadDistance,
+				kind: 'park',
+				targetCoord: toAxialCoord(park.tile.position),
+				urgency: park.urgency,
 			})
-			return bestUnload
+			return { kind: 'park', tile: park.tile, urgency: park.urgency }
 		}
-	}
-	const lineCandidate = pickInitialVehicleServiceCandidate(game, character, vehicle)
-	if (lineCandidate) {
-		traces.vehicle.log?.('vehicleJob.maintenance.skipParkForLineService', {
-			characterUid: debugObjectId(character) ?? '',
-			// lineId removed
-			stopIndex: lineCandidate.line.stops.indexOf(lineCandidate.stop),
-		})
 		return undefined
+	} finally {
+		end?.()
 	}
-	const park = pickParkingTargetForVehicle(game, vehicle, canReach)
-	if (park) {
-		traces.vehicle.log?.('vehicleJob.maintenance.pick', {
-			characterUid: debugObjectId(character) ?? '',
-			kind: 'park',
-			targetCoord: toAxialCoord(park.tile.position),
-			urgency: park.urgency,
-		})
-		return { kind: 'park', tile: park.tile, urgency: park.urgency }
-	}
-	return undefined
 }
 
 function maintenanceCandidateToJob(
@@ -1254,6 +1437,9 @@ function findVehicleOffloadJobApproach(
 			axial.key(axial.round(toAxialCoord(character.position)!)) ===
 			axial.key(axial.round(toAxialCoord(vehicle.effectivePosition)!))
 		const vehicleCoord = axial.round(toAxialCoord(vehicle.effectivePosition)!)
+		const approachEnd = profile.proposedJobs.begin?.('approachPath', () => ({
+			vehicleUid: debugObjectId(vehicle) ?? '',
+		}))
 		const pathToVehicle = sameVehicleHex
 			? []
 			: game.hex.findPathForCharacter(
@@ -1263,6 +1449,7 @@ function findVehicleOffloadJobApproach(
 					maxWalkTime,
 					true
 				)
+		approachEnd?.()
 		if (!pathToVehicle) continue
 
 		const service = vehicle.service
@@ -1271,8 +1458,15 @@ function findVehicleOffloadJobApproach(
 			if (!job) continue
 			const tile = game.hex.getTile(service.targetCoord)
 			if (!tile) continue
-			const reachability = vehicleMaintenanceReachability(game, vehicle, character)
-			if (!maintenanceReachabilityCanReach(reachability, tile)) continue
+			// Single arbitrary resume target — no need for a flood. A direct bounded path search is
+			// both cheaper and semantically identical to `maintenanceReachabilityCanReach` (same-hex
+			// shortcut + service-border A* for blocking targets).
+			const vehicleCoord = axial.round(toAxialCoord(vehicle.effectivePosition)!)
+			const targetCoord = axial.round(toAxialCoord(tile.position)!)
+			const reachable =
+				axial.key(vehicleCoord) === axial.key(targetCoord) ||
+				!!game.hex.findPathForVehicleServiceBorder(vehicleCoord, tile.position, maxWalkTime)
+			if (!reachable) continue
 			const candidate: MaintenanceCandidate =
 				service.kind === 'loadFromBurden'
 					? {
@@ -1828,7 +2022,7 @@ function findVehicleHopJobLineHop(game: Game, character: Character): VehicleHopJ
 		if (!targetPos) return undefined
 		const startPos = axial.round(toAxialCoord(character.position)!)
 		path =
-			game.hex.findPathForVehicleServiceBorder(startPos, targetPos, Number.POSITIVE_INFINITY) ?? []
+			game.hex.findPathForVehicleServiceBorderUnbounded(startPos, targetPos) ?? []
 		if (path.length === 0 && 'trade' in stop) {
 			traces.vehicle.log?.('vehicleJob.tradeStop.virtualPath', {
 				characterUid: debugObjectId(character) ?? '',
@@ -1960,11 +2154,7 @@ export function findVehicleHopJob(game: Game, character: Character): VehicleHopJ
 			if (targetPos) {
 				const startPos = axial.round(toAxialCoord(vehicle.effectivePosition)!)
 				const targetHex = axial.round(toAxialCoord(targetPos)!)
-				const routePath = game.hex.findPathForVehicleServiceBorder(
-					startPos,
-					targetPos,
-					Number.POSITIVE_INFINITY
-				)
+				const routePath = game.hex.findPathForVehicleServiceBorderUnbounded(startPos, targetPos)
 				if (routePath) {
 					path = routePath
 				} else if ('trade' in pick.stop) {

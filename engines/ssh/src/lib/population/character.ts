@@ -217,7 +217,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 
 		assert(!value !== !current, 'assigned alveolus mismatch')
 		this._assignedAlveolus = value
-		this.game.invalidateWorkPlanning('character.assignment')
+		this.game.invalidateWorkPlanningAllocation('character.assignment')
 	}
 	private _operatedVehicle?: Vehicle
 	public get operates(): Vehicle | undefined {

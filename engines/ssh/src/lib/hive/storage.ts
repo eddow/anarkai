@@ -62,8 +62,10 @@ export class StorageAlveolus extends Alveolus {
 			return baseConfig
 		}
 
+		const defaults = configurations['specific-storage'] as Ssh.SpecificStorageAlveolusConfiguration
 		return {
-			...(configurations['specific-storage'] as Ssh.SpecificStorageAlveolusConfiguration),
+			...defaults,
+			buffers: { ...defaults.buffers },
 			working: baseConfig.working,
 		}
 	}
@@ -501,8 +503,12 @@ export class StorageAlveolus extends Alveolus {
 			!this.individualConfiguration ||
 			!isSpecificStorageConfiguration(this.individualConfiguration)
 		) {
+			const defaults = configurations[
+				'specific-storage'
+			] as Ssh.SpecificStorageAlveolusConfiguration
 			this.individualConfiguration = reactive({
-				...(configurations['specific-storage'] as Ssh.SpecificStorageAlveolusConfiguration),
+				...defaults,
+				buffers: { ...defaults.buffers },
 				working: this.configuration.working,
 			})
 		}

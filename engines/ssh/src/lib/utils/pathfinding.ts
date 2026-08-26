@@ -205,6 +205,76 @@ export const findReachable = wrapInert(function findReachable(
 })
 
 /**
+ * Bounded Dijkstra flood from a start coordinate that stops once every target has been settled (or
+ * the frontier is exhausted under `maxTime`). Dijkstra settles nodes in non-decreasing cost, so a
+ * target that has not been settled when the search ends is genuinely unreachable within `maxTime`;
+ * the settled targets are exactly the subset of {@link findReachable} restricted to `targets`, at a
+ * fraction of the cost when the targets cluster near the start.
+ *
+ * @returns Map of every coordinate settled during the search to its cheapest walk cost. Consult
+ *          `.has(target)` to test reachability, exactly as with {@link findReachable}.
+ */
+export const findReachableTargets = wrapInert(function findReachableTargets(
+	getNeighbors: GetNeighbors,
+	start: Positioned,
+	maxTime: number,
+	targets: Iterable<AxialCoord>
+): AxialKeyMap<number> {
+	const startCoord = toAxialCoord(start)
+	const openSet = new HeapMin<AxialKey, number>()
+	const openSetMap = new AxialKeyMap<PathfindingNode>()
+	const closedSet = new AxialKeyMap<PathfindingNode>()
+	const gCosts = new AxialKeyMap<number>()
+
+	// Targets whose cheapest cost has not yet been settled. `start` is trivially reachable at cost 0.
+	const pending = new Set<string>()
+	for (const target of targets) pending.add(axial.key(target))
+	pending.delete(axial.key(startCoord))
+
+	const startNode: PathfindingNode = {
+		coord: startCoord,
+		gCost: 0,
+	}
+	openSet.set(axial.key(startCoord), startNode.gCost)
+	openSetMap.set(startCoord, startNode)
+	gCosts.set(startCoord, 0)
+
+	while (!openSet.isEmpty && pending.size > 0) {
+		const currentCoord = axial.keyAccess(openSet.pop()![0])
+		const currentNode = openSetMap.get(currentCoord)
+		if (!currentNode) continue
+
+		closedSet.set(currentCoord, currentNode)
+		openSetMap.delete(currentCoord)
+		pending.delete(axial.key(currentCoord))
+
+		for (const neighbor of getNeighbors(currentCoord)) {
+			const { coord: neighborCoord, walkTime } =
+				'coord' in neighbor ? neighbor : { coord: neighbor, walkTime: 1 }
+			if (!Number.isFinite(walkTime)) continue
+			if (closedSet.has(neighborCoord)) continue
+
+			const tentativeGCost = currentNode.gCost + walkTime
+			if (tentativeGCost > maxTime) continue
+
+			const existingGCost = gCosts.get(neighborCoord)
+			if (existingGCost !== undefined && tentativeGCost >= existingGCost) continue
+
+			const neighborNode: PathfindingNode = {
+				coord: neighborCoord,
+				gCost: tentativeGCost,
+				parent: currentCoord,
+			}
+			gCosts.set(neighborCoord, tentativeGCost)
+			openSet.set(axial.key(neighborCoord), neighborNode.gCost)
+			openSetMap.set(neighborCoord, neighborNode)
+		}
+	}
+
+	return gCosts
+})
+
+/**
  * Heuristic function for hexagonal grid (Manhattan distance approximation)
  */
 export function heuristic(a: Positioned, b: Positioned): number {

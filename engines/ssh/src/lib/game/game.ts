@@ -517,9 +517,13 @@ export class Game extends Eventful<GameEvents> {
 		if (terrainOverrideNeedsBroadSampleInvalidation(override)) {
 			// Field overrides can affect hydrology neighborhoods, so invalidate cached samples broadly.
 			this.terrainProvider.invalidateAll()
+			// Hydrology changes `effectiveWalkTime` (river channel multiplier), a first-order flood input.
+			this.invalidateTransit('terrain.hydrology')
 		} else {
 			// Terrain/biome-only overrides are visual; keep cached terrain samples outside this tile.
 			this.terrainProvider.invalidateCoord(coord)
+			// Water↔land overrides flip `effectiveWalkTime` (∞ vs 1) — a first-order flood input.
+			if ('terrain' in override) this.invalidateTransit('terrain.terrain')
 		}
 		this.invalidateTerrainPresentation(coord, true)
 	}
@@ -588,6 +592,8 @@ export class Game extends Eventful<GameEvents> {
 	private interactiveLifecycleFlushScheduled = false
 	private presentationEventsFlushScheduled = false
 	private _workPlanningRevision = 0
+	private _transitRevision = 0
+	private _candidateRevision = 0
 	private terrainTerraforming: TerrainTerraformPatch[] = []
 	private readonly bootstrapGameplayCoords = new Set<string>()
 	private readonly materializedGameplayCoords = new Map<string, AxialCoord>()
@@ -1079,8 +1085,31 @@ export class Game extends Eventful<GameEvents> {
 	/**
 	 * Bump the work-planning revision and schedule a `work-planning.changed` presentation
 	 * event, forcing dependent planners/caches to recompute.
+	 *
+	 * Also bumps the candidate revision: every work-planning change is (conservatively) a candidate
+	 * change too. The reverse is not true — {@link invalidateWorkPlanningAllocation} bumps only work
+	 * planning, for ownership changes (operator / service / assignment) that do not affect what a
+	 * vehicle can *offer* as a job (zone-browse / load / unload candidates read storage, goods, and
+	 * board state — never who currently operates the vehicle).
 	 */
 	public invalidateWorkPlanning(_reason: string): void {
+		this._workPlanningRevision++
+		this._candidateRevision++
+		const event: GamePresentationEvent = {
+			type: 'work-planning.changed',
+			revision: this._workPlanningRevision,
+		}
+		this.pendingWorkPlanningEvent = event
+		this.schedulePresentationEventsFlush()
+	}
+
+	/**
+	 * Bump work planning for an *ownership* change (operator / service / assignment) that does not
+	 * change the board, goods, or storage — i.e. does not change what jobs a vehicle can offer. These
+	 * bumps happen **intra-sweep** (e.g. `allocateVehicleServiceForJob` during `findAction`), so excluding
+	 * them from the candidate revision lets per-vehicle candidate caches survive the population sweep.
+	 */
+	public invalidateWorkPlanningAllocation(_reason: string): void {
 		this._workPlanningRevision++
 		const event: GamePresentationEvent = {
 			type: 'work-planning.changed',
@@ -1088,6 +1117,33 @@ export class Game extends Eventful<GameEvents> {
 		}
 		this.pendingWorkPlanningEvent = event
 		this.schedulePresentationEventsFlush()
+	}
+
+	/** Monotonic transit revision; bumped only when board *transit* inputs change (tile content, roads). */
+	get transitRevision(): number {
+		return this._transitRevision
+	}
+
+	/**
+	 * Monotonic candidate revision; bumped by everything that changes what a vehicle can *offer*
+	 * (board, goods, storage, lines) but **not** by ownership (operator / service / assignment).
+	 * This is the correct token for per-vehicle job-candidate caches (zone-browse, load/unload).
+	 */
+	get candidateRevision(): number {
+		return this._candidateRevision
+	}
+
+	/**
+	 * Bump the transit revision. Unlike {@link invalidateWorkPlanning}, this is a cheap counter with no
+	 * presentation event — it exists solely to key transit-derived caches (reachability floods) that must
+	 * be invalidated by real blocking / walk-cost / road changes, **not** by operator/storage changes
+	 * (which bump `workPlanningRevision` but leave the transit graph untouched).
+	 *
+	 * Also bumps the candidate revision: transit changes are a subset of candidate changes.
+	 */
+	public invalidateTransit(_reason: string): void {
+		this._transitRevision++
+		this._candidateRevision++
 	}
 
 	/**
@@ -3316,5 +3372,7 @@ export class Game extends Eventful<GameEvents> {
 		this.interactiveLifecycleFlushScheduled = false
 		this.presentationEventsFlushScheduled = false
 		this._workPlanningRevision = 0
+		this._transitRevision = 0
+		this._candidateRevision = 0
 	}
 }

@@ -321,6 +321,17 @@ function pickZoneProvideSelection(
 	return best
 }
 
+// The zone-browse selection is character-independent when `startPos` is explicit (and the default
+// `character.position` equals `vehicle.effectivePosition` for an operating character). It is recomputed
+// once per (character × vehicle) in `findVehicleOffloadJobApproach` → `pickInitialVehicleServiceCandidate`
+// → `findBeginServiceActionableWork`. Cache it per (vehicle, line, stop, rounded start, candidateRevision)
+// so the same zone evaluation collapses to one computation per revision. `candidateRevision` excludes
+// intra-sweep ownership bumps (operator/service/assignment), which zone-browse never reads.
+const zoneBrowseCache = new WeakMap<
+	Game,
+	{ revision: number; entries: Map<string, VehicleZoneBrowseSelection | undefined> }
+>()
+
 export function pickVehicleZoneBrowseSelection(
 	game: Game,
 	character: Character,
@@ -337,20 +348,54 @@ export function pickVehicleZoneBrowseSelection(
 	try {
 		if (!('zone' in stop)) return undefined
 		const zoneStop = stop as FreightStop & { zone: FreightZoneDefinition }
-		const utility = zoneBrowseUtilityContext(game, vehicle, line, stop)
-		if (!utility) return undefined
-		const load = pickZoneLoadSelection(game, character, vehicle, line, zoneStop, startPos, utility)
-		const provide = pickZoneProvideSelection(
+
+		const startCoord = toAxialCoord(startPos)
+		const startKey = startCoord ? axial.key(axial.round(startCoord)) : ''
+		let entry = zoneBrowseCache.get(game)
+		const revision = game.candidateRevision
+		if (!entry || entry.revision !== revision) {
+			entry = { revision, entries: new Map() }
+			zoneBrowseCache.set(game, entry)
+		}
+		const cacheKey =
+			`${debugObjectId(vehicle) ?? ''}:${debugObjectId(line) ?? ''}:` +
+			`${debugObjectId(stop) ?? ''}:${startKey}`
+		if (entry.entries.has(cacheKey)) return entry.entries.get(cacheKey)
+
+		const result = computeVehicleZoneBrowseSelection(
 			game,
 			character,
 			vehicle,
 			line,
 			zoneStop,
-			startPos,
-			utility
+			startPos
 		)
-		return !load ? provide : !provide ? load : provide.score >= load.score ? provide : load
+		entry.entries.set(cacheKey, result)
+		return result
 	} finally {
 		end?.()
 	}
+}
+
+function computeVehicleZoneBrowseSelection(
+	game: Game,
+	character: Character,
+	vehicle: Vehicle,
+	line: FreightLineDefinition,
+	zoneStop: FreightStop & { zone: FreightZoneDefinition },
+	startPos: Positioned
+): VehicleZoneBrowseSelection | undefined {
+	const utility = zoneBrowseUtilityContext(game, vehicle, line, zoneStop)
+	if (!utility) return undefined
+	const load = pickZoneLoadSelection(game, character, vehicle, line, zoneStop, startPos, utility)
+	const provide = pickZoneProvideSelection(
+		game,
+		character,
+		vehicle,
+		line,
+		zoneStop,
+		startPos,
+		utility
+	)
+	return !load ? provide : !provide ? load : provide.score >= load.score ? provide : load
 }

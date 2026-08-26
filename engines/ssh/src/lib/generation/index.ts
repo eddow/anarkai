@@ -583,10 +583,14 @@ export class GameGenerator {
 		const hasWaterAccess = new Uint8Array(tileCount)
 		const hasRiver = new Uint8Array(tileCount)
 
-		// Build a quick lookup for water neighbours
+		// Build quick lookups for water neighbours and coord → index resolution.
 		const tileMap = new Map<string, GeneratedTileData>()
-		for (const tile of tiles) {
-			tileMap.set(`${tile.coord.q},${tile.coord.r}`, tile)
+		const indexByCoord = new Map<string, number>()
+		for (let i = 0; i < tiles.length; i++) {
+			const tile = tiles[i]!
+			const key = `${tile.coord.q},${tile.coord.r}`
+			tileMap.set(key, tile)
+			indexByCoord.set(key, i)
 		}
 
 		for (let i = 0; i < tileCount; i++) {
@@ -624,13 +628,9 @@ export class GameGenerator {
 			const tile = tiles[i]!
 			for (const side of hexSides) {
 				const nKey = `${tile.coord.q + side.q},${tile.coord.r + side.r}`
-				const nIndex = tileMap.get(nKey)
-				if (nIndex === undefined) continue
-				// Find the index of this neighbour in the tiles array
-				const ni = tiles.findIndex(
-					(t) => t.coord.q === tile.coord.q + side.q && t.coord.r === tile.coord.r + side.r
-				)
-				if (ni >= 0) hasRiver[ni] = 1
+				const ni = indexByCoord.get(nKey)
+				if (ni === undefined) continue
+				hasRiver[ni] = 1
 			}
 		}
 

@@ -47,7 +47,7 @@ import type { GoodType } from 'ssh/types/base'
 import { axial } from 'ssh/utils/axial'
 import { sameRef } from 'ssh/utils/identity'
 import { axialDistance, type Position, toAxialCoord } from 'ssh/utils/position'
-import { assert, traces } from '../dev/debug.ts'
+import { assert, profile, traces } from '../dev/debug.ts'
 
 /**
  * `parkVehicle` is only meaningful when the current hex matters for the board independently of the
@@ -284,7 +284,7 @@ export function nextActionableVehicleLineStop(
  */
 function findBeginServiceActionableWork(
 	game: Game,
-	character: Character,
+	character: Character | undefined,
 	vehicle: Vehicle,
 	line: FreightLineDefinition
 ): BeginServiceActionableWork | undefined {
@@ -308,24 +308,36 @@ function findBeginServiceActionableWork(
 			const unloadStop = line.stops[segment.unloadStopIndex]
 			if (!loadStop || !('zone' in loadStop)) continue
 			if (!unloadStop) continue
-			for (const good of Object.keys(vehicle.storage.stock) as GoodType[]) {
-				if (vehicle.storage.available(good) <= 0) continue
-				if (!gatherSegmentAllowsGoodTypeForSegment(line, segment, good)) continue
-				if (!gatherUnloadAnchorHiveDemandsGood(game, unloadStop, good)) continue
-				const target = freightStopTargetPosition(game, unloadStop)
-				if (!target) continue
-				const path = game.hex.findPathForVehicleServiceBorder(
-					vehicle.effectivePosition,
+			// The unload anchor reachability is independent of which stock good qualifies, and the
+			// per-good `consider` arguments are identical (`target`, `stop`, `urgency` are all
+			// good-independent). Hoist both the good check and the unbounded path search out of the
+			// good loop: run the (potentially board-wide) A* at most once per segment, and only when
+			// at least one stock good actually qualifies.
+			const hasActionableGood = (Object.keys(vehicle.storage.stock) as GoodType[]).some(
+				(good) =>
+					vehicle.storage.available(good) > 0 &&
+					gatherSegmentAllowsGoodTypeForSegment(line, segment, good) &&
+					gatherUnloadAnchorHiveDemandsGood(game, unloadStop, good)
+			)
+			if (!hasActionableGood) continue
+			const target = freightStopTargetPosition(game, unloadStop)
+			if (!target) continue
+			const anchorEnd = profile.proposedJobs.begin?.('beginServiceAnchorReachability', () => ({
+				vehicleUid: debugObjectId(vehicle) ?? '',
+				lineId: debugObjectId(line),
+				stopIndex: line.stops.indexOf(unloadStop),
+			}))
+			const reachable = !!game.hex.findPathForVehicleServiceBorderUnbounded(
+				vehicle.effectivePosition,
+				target
+			)
+			anchorEnd?.()
+			if (reachable) {
+				consider({
 					target,
-					Number.POSITIVE_INFINITY
-				)
-				if (path) {
-					consider({
-						target,
-						stop: unloadStop,
-						urgency: jobBalance.vehicleBeginService,
-					})
-				}
+					stop: unloadStop,
+					urgency: jobBalance.vehicleBeginService,
+				})
 			}
 		}
 
@@ -334,7 +346,7 @@ function findBeginServiceActionableWork(
 			if (!zoneLoad || !('zone' in zoneLoad)) continue
 			const selection = pickVehicleZoneBrowseSelection(
 				game,
-				character,
+				character as Character,
 				vehicle,
 				line,
 				zoneLoad,
@@ -399,7 +411,7 @@ function findBeginServiceActionableWork(
 		if (!line.cyclic && vehicleStorageStockCount(vehicle) <= 0 && idx !== 0) continue
 		const selection = pickVehicleZoneBrowseSelection(
 			game,
-			character,
+			character as Character,
 			vehicle,
 			line,
 			stop,
@@ -432,10 +444,42 @@ function findBeginServiceActionableWork(
  * Choose initial `line` + `stop` for `vehicleBeginService`: among served lines with actionable
  * work, minimize travel distance from the vehicle to the first meaningful hop target for that
  * line's primary stop; ties favor lines whose goods policy matches current vehicle stock.
+ *
+ * This is character-independent: `findBeginServiceActionableWork` passes `vehicle.effectivePosition`
+ * (not `character.position`) to every `pickVehicleZoneBrowseSelection` it makes, and the trade-stop
+ * branch of `stopHasPotentialVehicleTransfer` never reads the character. It is recomputed once per
+ * (character × vehicle) in `pickMaintenanceForVehicle`, `findVehicleBeginServiceLeg`, and
+ * `findVehicleApproachJob`, so cache it per `(vehicle, candidateRevision)` — `candidateRevision`
+ * excludes intra-sweep operator/service/assignment bumps.
  */
+const initialServiceCandidateCache = new WeakMap<
+	Game,
+	{
+		revision: number
+		entries: Map<string, { line: FreightLineDefinition; stop: FreightStop; urgency: number } | undefined>
+	}
+>()
+
 export function pickInitialVehicleServiceCandidate(
 	game: Game,
-	character: Character,
+	_character: Character,
+	vehicle: Vehicle
+): { line: FreightLineDefinition; stop: FreightStop; urgency: number } | undefined {
+	let entry = initialServiceCandidateCache.get(game)
+	const revision = game.candidateRevision
+	if (!entry || entry.revision !== revision) {
+		entry = { revision, entries: new Map() }
+		initialServiceCandidateCache.set(game, entry)
+	}
+	const key = debugObjectId(vehicle) ?? ''
+	if (entry.entries.has(key)) return entry.entries.get(key)
+	const result = pickInitialVehicleServiceCandidateUncached(game, vehicle)
+	entry.entries.set(key, result)
+	return result
+}
+
+function pickInitialVehicleServiceCandidateUncached(
+	game: Game,
 	vehicle: Vehicle
 ): { line: FreightLineDefinition; stop: FreightStop; urgency: number } | undefined {
 	let best:
@@ -448,7 +492,7 @@ export function pickInitialVehicleServiceCandidate(
 		  }
 		| undefined
 	for (const line of vehicle.servedLines) {
-		const actionable = findBeginServiceActionableWork(game, character, vehicle, line)
+		const actionable = findBeginServiceActionableWork(game, undefined, vehicle, line)
 		if (!actionable) continue
 		const distance = axialDistance(vehicle.effectivePosition, actionable.target)
 		const score = scoreVehicleCandidate({

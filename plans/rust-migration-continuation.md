@@ -72,7 +72,7 @@ transfers.
     mutable, frame-varying state.
   - It is a genuine hotspot — but the hotspot fix is *caching + snapshotting*, which must be proven
     in TS first (see the companion analysis in
-    `engines/ssh/sandbox/vehicle-maintenance-reachability-perf.md`).
+    `engines/ssh/plans/vehicle-maintenance-reachability-perf.md`).
 
 ---
 
@@ -117,12 +117,28 @@ Only proved algorithms, in order:
    fallbacks where the Rust path is verified deterministic. This is the lowest-risk win and removes
    duplication. *Gate: existing Rust unit tests + TS integration tests already pass.*
 
-2. **Prove the pathfinding snapshot + caching in TS.** Deliver the optimizations in
-   `engines/ssh/sandbox/vehicle-maintenance-reachability-perf.md`:
-   - snapshot transit grid per revision,
-   - memoize `reachableForVehicle` per `(startKey, revision)`,
-   - hoist it out of the per-character loop,
-   - target-bounded flood (only settle the ≤ `offloadRange` candidate tiles).
+2. **Prove the pathfinding optimization in TS.** Deliver the optimizations in
+   `engines/ssh/plans/vehicle-maintenance-reachability-perf.md`:
+   - ~~target-bounded flood~~ ✅ done — `findReachableTargets` + `HexBoard.reachableForVehicleTargets`;
+     `vehicleMaintenanceReachability` floods only the `offloadRange=6` candidate ring; resume path
+     uses a single bounded A*. Parity proven in `tests/unit/pathfinding.test.ts`.
+   - ~~blocking-tile oracle + load-scan reorder~~ ✅ done — the flood settles blocking tiles' neighbours,
+     `canReach` answers blocking tiles with O(6) flood lookups (no per-tile A*), load scan runs the cheap
+     `pickOffloadForTile` before `canReach`.
+   - ~~transit token + per-vehicle flood cache~~ ✅ done — `Game.transitRevision` (bumped by content/roads/
+     terrain only, **not** operator/storage) keys a per-`(vehicle, revision)` flood cache, collapsing C×V → V.
+   - ~~candidate token + zone-browse & load/unload caches~~ ✅ done — `Game.candidateRevision` (all
+     `invalidateWorkPlanning` + transit, minus operator/service/assignment via `invalidateWorkPlanningAllocation`)
+     keys the zone-browse and load/unload candidate caches, collapsing the remaining C×V → V.
+   - ~~transit snapshot~~ ✅ done — `HexBoard.memoizedVehicleTransitNeighbors` (per-tile vehicle neighbours
+     keyed by `transitRevision`) removes per-node allocation + O(V) `isBurdened`; `findPathForVehicleServiceBorderUnbounded`
+     caches the unbounded planner searches. Flood ~6.6 → ~3.2 ms/vehicle.
+   - ~~line-service candidate cache~~ ✅ done — `pickInitialVehicleServiceCandidate` cached per
+     `(vehicle, candidateRevision)`; its distribute-segment `game.hex.tiles` (all ~120k tiles) loop was
+     the 178 ms/call `findVehicleOffloadJob` cost, now C×V → V.
+   - ⚠️ Do **not** memoize on `workPlanningRevision`: it bumps intra-sweep (`allocateVehicleServiceForJob`
+     during `findAction`, `releaseOperator` during `abandonAnd`) and for changes irrelevant to reachability —
+     measured as a net regression, reverted, then replaced by the fine-grained transit token.
    *Gate: `profile` shows the flood time collapsing; determinism is preserved (tests pass).*
 
 3. **Add a determinism test** that pins the snapshot + flood output for a fixed board (like the
@@ -156,5 +172,5 @@ migration spec.
 ## Related
 
 - `docs/rust-core.md` — existing Rust/WASM architecture + generation module reference
-- `engines/ssh/sandbox/vehicle-maintenance-reachability-perf.md` — the concrete case this gate
+- `engines/ssh/plans/vehicle-maintenance-reachability-perf.md` — the concrete case this gate
   applies to

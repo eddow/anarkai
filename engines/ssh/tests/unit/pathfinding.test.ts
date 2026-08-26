@@ -4,6 +4,7 @@ import {
 	findNearest,
 	findPath,
 	findReachable,
+	findReachableTargets,
 	type GetNeighbors,
 	heuristic,
 } from 'ssh/utils/pathfinding'
@@ -307,6 +308,52 @@ describe('Pathfinding', () => {
 
 			expect(reachable.has({ q: 1, r: 0 })).toBe(false)
 			expect(reachable.get({ q: 0, r: 1 })).toBe(1)
+		})
+	})
+
+	describe('findReachableTargets', () => {
+		it('matches findReachable for every target within budget', () => {
+			const getNeighbors = createGridNeighbors(3, new Set(['1,0']))
+			const targets = [
+				{ q: 0, r: 0 },
+				{ q: 1, r: 0 },
+				{ q: 2, r: 0 },
+				{ q: 0, r: 1 },
+				{ q: -1, r: 0 },
+			]
+			const full = findReachable(getNeighbors, { q: 0, r: 0 }, 3)
+			const targeted = findReachableTargets(getNeighbors, { q: 0, r: 0 }, 3, targets)
+
+			for (const target of targets) {
+				expect(targeted.has(target)).toBe(full.has(target))
+				expect(targeted.get(target)).toBe(full.get(target))
+			}
+		})
+
+		it('excludes a target only reachable above maxTime (search still terminates)', () => {
+			const getNeighbors = createGridNeighbors(4)
+			// {q:4,r:0} is 4 hex steps away; with budget 2 it must be unreachable.
+			const targets = [
+				{ q: 0, r: 0 },
+				{ q: 1, r: 0 },
+				{ q: 4, r: 0 },
+			]
+			const targeted = findReachableTargets(getNeighbors, { q: 0, r: 0 }, 2, targets)
+
+			expect(targeted.has({ q: 0, r: 0 })).toBe(true)
+			expect(targeted.has({ q: 1, r: 0 })).toBe(true)
+			expect(targeted.has({ q: 4, r: 0 })).toBe(false)
+		})
+
+		it('includes the start even when it is the only target', () => {
+			const targeted = findReachableTargets(
+				createGridNeighbors(3),
+				{ q: 0, r: 0 },
+				3,
+				[{ q: 0, r: 0 }]
+			)
+
+			expect(targeted.get({ q: 0, r: 0 })).toBe(0)
 		})
 	})
 

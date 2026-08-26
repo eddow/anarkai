@@ -12,6 +12,7 @@ import {
 	findNearest,
 	findPath,
 	findReachable,
+	findReachableTargets,
 	fromCartesian,
 	type NeighborInfo,
 	type Positioned,
@@ -109,6 +110,9 @@ export class HexBoard extends GameObject {
 			oldContent instanceof UnBuiltLand !== content instanceof UnBuiltLand
 		if (!content) this.contents.delete(axial.key(coord))
 		else this.contents.set(axial.key(coord), content)
+		// Any content swap can change `isBlockingSpace` / `effectiveWalkTime`, which are the flood's
+		// first-order inputs. Bump the transit revision so cached reachability is not stale.
+		if (oldContent !== content) this.game.invalidateTransit('content')
 		if (oldContent && oldContent !== content) {
 			if (oldContent instanceof Alveolus) {
 				oldContent.hive.detachAlveolusForRefresh(oldContent)
@@ -204,6 +208,8 @@ export class HexBoard extends GameObject {
 		if (type && border && !canBuildRoadAcrossBorder(border)) return
 		if (!type) this.roadTypes.delete(coord)
 		else this.roadTypes.set(coord, type)
+		// Road topology is a first-order flood input (it can open new reachable paths).
+		this.game.invalidateTransit('road')
 		this.game.notifyRoadsChanged(
 			[border?.tile.a.position, border?.tile.b.position]
 				.map((position) => (position ? toAxialCoord(position) : undefined))
@@ -408,12 +414,41 @@ export class HexBoard extends GameObject {
 	getNeighborsForVehicle(coord: Positioned): NeighborInfo[] {
 		const tile = this.getTile(coord)
 		if (!tile) return []
-		return this.getVehicleTransitNeighborsFromTile(tile)
+		return this.memoizedVehicleTransitNeighbors(tile)
+	}
+
+	// Per-tile vehicle transit neighbours, keyed by `transitRevision`. The flood / vehicle A* call this
+	// once per node; without a memo each call allocates a fresh 6-element array + 6 objects via
+	// `Tile.walkNeighbors`, and re-runs `isBurdened` (O(V)) on every road-adjacent edge. All its
+	// transit-stable inputs (content blocking / walk time, road type) bump `transitRevision`, so the
+	// memo is valid for the whole revision. The only non-transit input is `isBurdened` road-nullification
+	// (a second-order 0.7× cost nuance, not reachability) — freezing it for one revision is accepted and
+	// self-corrects next re-plan.
+	private vehicleNeighborsMemo: { revision: number; entries: Map<string, NeighborInfo[]> } | undefined
+
+	private memoizedVehicleTransitNeighbors(fromTile: Tile): NeighborInfo[] {
+		const fromCoord = toAxialCoord(fromTile.position)
+		if (!fromCoord) return []
+		const revision = this.game.transitRevision
+		if (!this.vehicleNeighborsMemo || this.vehicleNeighborsMemo.revision !== revision) {
+			this.vehicleNeighborsMemo = { revision, entries: new Map() }
+		}
+		const key = axial.key(fromCoord)
+		const cached = this.vehicleNeighborsMemo.entries.get(key)
+		if (cached) return cached
+		const computed = this.getVehicleTransitNeighborsFromTile(fromTile)
+		this.vehicleNeighborsMemo.entries.set(key, computed)
+		return computed
 	}
 
 	private getWalkNeighborsFromTile(fromTile: Tile): NeighborInfo[] {
 		const fromCoord = toAxialCoord(fromTile.position)
 		if (!fromCoord) return []
+		// No roads on the board: `Tile.walkNeighbors` already carries `effectiveWalkTime` (terrain ×
+		// river), which is exactly what `walkTimeBetween` returns without a road bonus. Skip the
+		// per-edge road lookup + axial math on the common roadless path — this is the hot neighbour
+		// getter for every flood / A* search.
+		if (this.roadTypes.size === 0) return fromTile.walkNeighbors
 		return fromTile.walkNeighbors.map((neighbor) => ({
 			coord: neighbor.coord,
 			walkTime: this.walkTimeBetween(fromCoord, neighbor.coord, neighbor.walkTime),
@@ -560,6 +595,34 @@ export class HexBoard extends GameObject {
 		return best?.path
 	}
 
+	// Unbounded service-border paths are deterministic per transit revision (blocking / walk-time /
+	// roads), yet the planner evaluates the same (vehicle → stop) pair once per character per sweep.
+	// Cache the unbounded result so it is computed once per revision instead of C×V×stops times. The
+	// first-time miss on a genuinely-unreachable target still explores the connected component — but
+	// once per revision, not per character.
+	private unboundedServicePathCache:
+		| { revision: number; entries: Map<string, AxialCoord[] | null> }
+		| undefined
+
+	findPathForVehicleServiceBorderUnbounded(
+		start: Positioned,
+		target: Positioned
+	): AxialCoord[] | undefined {
+		const startCoord = toAxialCoord(start)
+		const targetCoord = toAxialCoord(target)
+		if (!startCoord || !targetCoord) return undefined
+		const revision = this.game.transitRevision
+		if (!this.unboundedServicePathCache || this.unboundedServicePathCache.revision !== revision) {
+			this.unboundedServicePathCache = { revision, entries: new Map() }
+		}
+		const key = `${axial.key(startCoord)}|${axial.key(targetCoord)}`
+		const entries = this.unboundedServicePathCache.entries
+		if (entries.has(key)) return entries.get(key) ?? undefined
+		const result = this.findPathForVehicleServiceBorder(start, target, Number.POSITIVE_INFINITY)
+		entries.set(key, result ?? null)
+		return result
+	}
+
 	private vehicleServiceSideTileCoord(
 		borderCoord: AxialCoord,
 		target?: Positioned
@@ -588,6 +651,24 @@ export class HexBoard extends GameObject {
 			(c) => this.getNeighborsForVehicle(c),
 			axial.round(toAxialCoord(start)),
 			maxTime
+		)
+	}
+
+	/**
+	 * Like {@link reachableForVehicle}, but stops once every target has been settled. Cheaper when the
+	 * caller only needs reachability for a small, known set of nearby tiles (e.g. a maintenance
+	 * candidate ring) rather than the full `maxTime` radius.
+	 */
+	reachableForVehicleTargets(
+		start: Positioned,
+		maxTime: number,
+		targets: Iterable<AxialCoord>
+	) {
+		return findReachableTargets(
+			(c) => this.getNeighborsForVehicle(c),
+			axial.round(toAxialCoord(start)),
+			maxTime,
+			targets
 		)
 	}
 

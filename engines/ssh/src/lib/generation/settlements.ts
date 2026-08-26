@@ -323,15 +323,28 @@ function wouldCreateSolidRoadBlock(args: {
 }): boolean {
 	const nextRoadKeys = new Set(args.roadKeys)
 	nextRoadKeys.add(doubledBorderKey(args.from, args.to))
-	for (const origin of args.tiles.values()) {
+
+	// Adding one border only changes the road-carrier status of its two endpoint
+	// tiles, so any *new* solid block must contain `from` or `to` as one of its
+	// four corners. A block corner sits at most 2 axial steps from its `origin`,
+	// so we only need to scan origins within radius 2 of either endpoint instead
+	// of every tile on the board (which was O(tiles) per border).
+	const origins = new Set<string>()
+	for (const endpoint of [args.from, args.to]) {
+		for (const coord of axial.allTiles(endpoint, 2)) {
+			if (args.tiles.has(tileKey(coord))) origins.add(tileKey(coord))
+		}
+	}
+	for (const originKey of origins) {
+		const origin = axial.coord(originKey)
 		for (let direction = 0; direction < hexSides.length; direction++) {
 			const a = hexSides[direction]!
 			const b = hexSides[(direction + 1) % hexSides.length]!
 			const corners = [
-				origin.coord,
-				{ q: origin.coord.q + a.q, r: origin.coord.r + a.r },
-				{ q: origin.coord.q + b.q, r: origin.coord.r + b.r },
-				{ q: origin.coord.q + a.q + b.q, r: origin.coord.r + a.r + b.r },
+				origin,
+				{ q: origin.q + a.q, r: origin.r + a.r },
+				{ q: origin.q + b.q, r: origin.r + b.r },
+				{ q: origin.q + a.q + b.q, r: origin.r + a.r + b.r },
 			]
 			if (!corners.every((coord) => args.tiles.has(tileKey(coord)))) continue
 			if (corners.every((coord) => isRoadCarrierTile(coord, nextRoadKeys))) return true
@@ -693,11 +706,13 @@ export async function generateZonePlanForSettlements(
 		)
 		const industrialTarget = Math.ceil(total * mix.target.industrial)
 		const commercialTarget = Math.max(1, Math.ceil(total * mix.target.commercial))
-		const remainingSlots = () =>
-			Math.max(
-				0,
-				occupiedTarget - [...assigned.keys()].filter((key) => candidateKeys.has(key)).length
-			)
+		// Count already-assigned candidate tiles once (e.g. city hall), instead of
+		// rescanning the whole `assigned` map on every remaining-slots check.
+		let assignedCandidateCount = 0
+		for (const key of candidateKeys) {
+			if (assigned.has(key)) assignedCandidateCount++
+		}
+		const remainingSlots = () => Math.max(0, occupiedTarget - assignedCandidateCount)
 
 		for (const candidate of candidates
 			.filter((candidate) => candidate.industrialEligible)
@@ -712,6 +727,7 @@ export async function generateZonePlanForSettlements(
 			if (remainingSlots() <= 0) break
 			if (assigned.has(tileKey(candidate.tile.coord))) continue
 			assignZone(assigned, candidate.tile.coord, 'industrial', priority)
+			assignedCandidateCount++
 		}
 
 		for (const candidate of candidates
@@ -727,6 +743,7 @@ export async function generateZonePlanForSettlements(
 			if (remainingSlots() <= 0) break
 			if (assigned.has(tileKey(candidate.tile.coord))) continue
 			assignZone(assigned, candidate.tile.coord, 'commercial', priority)
+			assignedCandidateCount++
 		}
 
 		for (const candidate of candidates
@@ -740,6 +757,7 @@ export async function generateZonePlanForSettlements(
 			if (remainingSlots() <= 0) break
 			if (assigned.has(tileKey(candidate.tile.coord))) continue
 			assignZone(assigned, candidate.tile.coord, 'residential', priority)
+			assignedCandidateCount++
 		}
 	}
 

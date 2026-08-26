@@ -17,6 +17,19 @@
 - [`./roads.md`](./roads.md): road movement models and generated road texture notes
 - [`./next-directions.md`](./next-directions.md): central decision map for the next gameplay/management tranche
 
+## Plans (proposals & open questions)
+
+Decisions live in `docs/`, proposals in `plans/`. The active plans:
+
+- [`../plans/emergent-planning-architecture.md`](../plans/emergent-planning-architecture.md): replace
+  global planner optimization with local, emergent decisions (the "ants" model).
+- [`../plans/rust-migration-continuation.md`](../plans/rust-migration-continuation.md): the "move only
+  proved algorithms" gate for the Rust port.
+- [`../plans/spontaneous-lines.md`](../plans/spontaneous-lines.md): transport automation (one-shot orders,
+  the internality slider).
+- [`../plans/commerce-architecture.md`](../plans/commerce-architecture.md): price field, sourcing, reserve.
+- [`../plans/details-punchlist.md`](../plans/details-punchlist.md): leftover UI polish.
+
 ## Workspace Commands
 
 ```bash

@@ -1,5 +1,6 @@
 import { disconnectAllProfiles, profile, profileLevels, setProfileLevel } from 'ssh/dev/debug'
 import { namedProfile, type ProfileLevel } from 'ssh/dev/profile'
+import { findVehicleOffloadJob } from 'ssh/freight/vehicle-work'
 import { Game } from 'ssh/game/game'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { gatherFreightLine } from '../freight-fixtures'
@@ -199,6 +200,51 @@ describe('profile registry', () => {
 			const text = profile.proposedJobs.read()
 			expect(text).toContain('vehicle.advertisedJobs')
 			expect(text).not.toContain('collectVehicleWorkPicks')
+		} finally {
+			game.destroy()
+		}
+	})
+
+	it('attributes maintenance planning spans under findVehicleOffloadJob', async () => {
+		setProfileLevel('proposedJobs', 'summary')
+		const line = gatherFreightLine({
+			name: 'Profile maintenance',
+			hiveName: 'H',
+			coord: [1, 0],
+			filters: ['wood'],
+			radius: 2,
+		})
+		const game = new Game(
+			{ terrainSeed: 42_206, characterCount: 0 },
+			{
+				tiles: [
+					{ coord: [0, 0] as const, terrain: 'grass' as const },
+					{ coord: [1, 0] as const, terrain: 'grass' as const },
+				],
+				hives: [
+					{
+						name: 'H',
+						alveoli: [{ coord: [1, 0] as const, alveolus: 'sawmill' as const, goods: {} }],
+					},
+				],
+				freightLines: [line],
+				looseGoods: { wood: [[0, 0]] },
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		try {
+			const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 1, r: 0 }, [line])
+			const character = game.population.createCharacter('Worker', { q: 1, r: 0 })
+
+			findVehicleOffloadJob(game, character)
+			void vehicle
+
+			const text = profile.proposedJobs.read()
+			expect(text).toContain('findVehicleOffloadJob')
+			expect(text).toContain('pickMaintenanceForVehicle')
+			expect(text).toContain('maintenanceReachability')
 		} finally {
 			game.destroy()
 		}

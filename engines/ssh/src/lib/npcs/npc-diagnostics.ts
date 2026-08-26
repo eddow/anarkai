@@ -32,6 +32,7 @@ export function summarizeJobPlanForDiagnostics(
 		const lineId = debugObjectId(j.line as object)
 		if (lineId) out.lineId = lineId
 	}
+	copyIfPrimitive('lineId', j.lineId)
 	copyIfPrimitive('stopIndex', j.stopIndex)
 	copyIfPrimitive('goodType', j.goodType)
 	copyIfPrimitive('quantity', j.quantity)

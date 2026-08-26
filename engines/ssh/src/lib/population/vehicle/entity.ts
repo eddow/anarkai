@@ -419,7 +419,7 @@ export class Vehicle extends withInteractive(GameObject) {
 		}
 		if (previous) previous.setOperatedVehicleFromService(undefined)
 		this.service.operator = nextOperator
-		this.game.invalidateWorkPlanning('vehicle.operator')
+		this.game.invalidateWorkPlanningAllocation('vehicle.operator')
 		if (nextOperator) {
 			const currentVehicle = nextOperator.operates
 			if (currentVehicle && !sameRef(currentVehicle, self)) {
@@ -435,7 +435,7 @@ export class Vehicle extends withInteractive(GameObject) {
 		if (!this.service) return
 		if (!current) return
 		this.service.operator = undefined
-		this.game.invalidateWorkPlanning('vehicle.operator')
+		this.game.invalidateWorkPlanningAllocation('vehicle.operator')
 		current?.setOperatedVehicleFromService(undefined)
 	}
 
@@ -444,7 +444,7 @@ export class Vehicle extends withInteractive(GameObject) {
 		// character.operates / service.operator stay consistent (onboard requires operates).
 		const next: VehicleLineService = { line, stop, docked: false, operator: undefined }
 		this.service = next
-		this.game.invalidateWorkPlanning('vehicle.service')
+		this.game.invalidateWorkPlanningAllocation('vehicle.service')
 		syncFreightVehicleDockRegistration(this)
 		if (operator) this.setServiceOperator(operator)
 	}
@@ -459,7 +459,7 @@ export class Vehicle extends withInteractive(GameObject) {
 		// character.operates / service.operator stay consistent (same as beginLineService).
 		const next = { ...spec, operator: undefined } as VehicleMaintenanceService
 		this.service = next
-		this.game.invalidateWorkPlanning('vehicle.service')
+		this.game.invalidateWorkPlanningAllocation('vehicle.service')
 		syncFreightVehicleDockRegistration(this)
 		if (operator) this.setServiceOperator(operator)
 	}

@@ -1,6 +1,13 @@
 # Details Punchlist Plan
 
-Three independent items from [`docs/next-directions.md`](../docs/next-directions.md#L27) `## Details to add`, lines 29, 35, and 36–40.
+> **Status (2026-08-26):** standalone UI-polish punchlist. Originally derived from a "Details to add"
+> section in `docs/next-directions.md` that was **removed** when that doc was reorganised around the
+> commerce architecture. The items below are still worth doing but no longer flow from
+> `next-directions.md` — see `docs/next-directions.md` §"First playable slices" for the current plan.
+> Item 1 (config memorization) has since **landed** — see `docs/current-status.md`
+> ("Alveoli storage configurations … memorized under a name").
+
+Three independent UI-polish items:
 
 ---
 
