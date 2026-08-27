@@ -10,6 +10,7 @@ import {
 	trySpawnConstructionLines,
 } from 'ssh/freight/one-shot-lines'
 import { Game } from 'ssh/game/game'
+import type { SimulationLoop } from 'ssh/utils/loop'
 import { afterEach, describe, expect, it } from 'vitest'
 
 const woodOnly = {
@@ -411,5 +412,189 @@ describe('one-shot lines', () => {
 		})
 		expect(delivered).toBe(0)
 		expect(game.playerAccount.balanceVp).toBe(balanceBefore)
+	})
+
+	it('spawns one line per concurrent construction need of the same good', async () => {
+		game = new Game(
+			{ terrainSeed: 1, characterCount: 0, settlementGeneration: false },
+			{
+				terrains: {
+					concrete: [
+						[0, 0],
+						[1, 0],
+						[1, 1],
+						[2, 0],
+						[3, 0],
+						[4, 0],
+						[5, 0],
+						[6, 0],
+						[6, 1],
+					],
+				},
+				hives: [
+					{
+						name: 'Grove',
+						alveoli: [
+							{ alveolus: 'freight_bay', coord: [0, 0] },
+							{ alveolus: 'tree_chopper', coord: [1, 0] },
+							{ alveolus: 'pile', coord: [1, 1], variant: 'wood', goods: { wood: 12 } },
+						],
+					},
+				],
+				dwellings: [
+					{
+						coord: [2, 0],
+						tier: 'basic_dwelling',
+						underConstruction: true,
+						constructionPhase: 'waiting_materials',
+					},
+					// 4 hexes from the first site — outside the radius-3 unload zone, so
+					// it must get its own one-shot line.
+					{
+						coord: [6, 0],
+						tier: 'basic_dwelling',
+						underConstruction: true,
+						constructionPhase: 'waiting_materials',
+					},
+				],
+				vehicles: [
+					{ name: 'free1', vehicleType: 'wheelbarrow', position: { q: 0, r: 0 } },
+					{ name: 'free2', vehicleType: 'wheelbarrow', position: { q: 0, r: 0 } },
+				],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		// Two distinct construction sites both need wood → two needs in the ledger.
+		expect(game.netDeficitLedger.wood?.needs.length ?? 0).toBe(2)
+
+		const spawned = trySpawnConstructionLines(game, {
+			reserve: { defaultReserve: 0 },
+			internality: 0.5,
+		})
+		// One line per destination — the second site must not be blocked by the first.
+		expect(spawned).toBe(2)
+		expect([...game.freightLines].filter(isOneShotLine).length).toBe(2)
+	})
+
+	it('delivers to each concurrent construction need of the same good', async () => {
+		game = new Game(
+			{ terrainSeed: 1, characterCount: 0, settlementGeneration: false },
+			{
+				terrains: {
+					concrete: [
+						[0, 0],
+						[0, 1],
+						[2, 0],
+						[2, 1],
+					],
+				},
+				dwellings: [
+					{
+						coord: [0, 1],
+						tier: 'basic_dwelling',
+						underConstruction: true,
+						constructionPhase: 'waiting_materials',
+					},
+					{
+						coord: [2, 0],
+						tier: 'basic_dwelling',
+						underConstruction: true,
+						constructionPhase: 'waiting_materials',
+					},
+				],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		game.registerSettlementTradeProfile({
+			regionSetKey: '0,0',
+			id: 'settlement-1,0',
+			name: 'Neighbor market',
+			kind: 'village',
+			center: { q: 1, r: 0 },
+			radius: 2,
+			cityHall: { kind: 'city_hall', name: 'Neighbor market City Hall', position: { q: 1, r: 0 } },
+			offers: [{ good: 'wood', direction: 'sell', priceVp: 4 }],
+		})
+
+		expect(game.netDeficitLedger.wood?.needs.length ?? 0).toBe(2)
+
+		const delivered = trySpawnConstructionDeliveries(game, {
+			reserve: { defaultReserve: 0 },
+			internality: 0.5,
+		})
+		expect(delivered).toBe(2)
+		expect(game.netDeficitLedger.wood?.deficit ?? 0).toBe(0)
+	})
+
+	it('ticker autonomously spawns and sweeps a one-shot line end-to-end', async () => {
+		game = new Game(
+			{ terrainSeed: 1, characterCount: 0, settlementGeneration: false },
+			{
+				terrains: {
+					concrete: [
+						[0, 0],
+						[1, 0],
+						[1, 1],
+						[2, 0],
+					],
+				},
+				hives: [
+					{
+						name: 'Grove',
+						alveoli: [
+							{ alveolus: 'freight_bay', coord: [0, 0] },
+							{ alveolus: 'tree_chopper', coord: [1, 0] },
+							{ alveolus: 'pile', coord: [1, 1], variant: 'wood', goods: { wood: 6 } },
+						],
+					},
+				],
+				dwellings: [
+					{
+						coord: [2, 0],
+						tier: 'basic_dwelling',
+						underConstruction: true,
+						constructionPhase: 'waiting_materials',
+					},
+				],
+				vehicles: [{ name: 'free', vehicleType: 'wheelbarrow', position: { q: 0, r: 0 } }],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		// Make the ticker act on the next pass, self-haul only.
+		game.transportAutomation.spawnCooldownSeconds = 0
+		game.transportAutomation.autoSpawn = true
+		game.transportAutomation.autoBuy = false
+		game.transportAutomation.internality = 1
+
+		const tick = () => game.tickerCallback({ elapsedMS: 100 } as SimulationLoop)
+
+		expect(game.netDeficitLedger.wood?.deficit ?? 0).toBeGreaterThan(0)
+		expect([...game.freightLines].filter(isOneShotLine).length).toBe(0)
+
+		// First tick: the ticker (not a direct call) spawns a one-shot line.
+		tick()
+		const spawned = [...game.freightLines].filter(isOneShotLine)
+		expect(spawned.length).toBe(1)
+		expect(spawned[0]!.repeat).toBe(false)
+
+		// Fulfill the deficit (simulate the haul completing): the dwelling's wood need is met.
+		const dwelling = [...game.hex.tiles]
+			.map((tile) => tile.content)
+			.find((content): content is BuildDwelling => content instanceof BuildDwelling)
+		expect(dwelling).toBeInstanceOf(BuildDwelling)
+		for (const [good, qty] of Object.entries(dwelling!.requiredGoods)) {
+			dwelling!.storage.addGood(good as 'wood' | 'planks', qty)
+		}
+		expect(game.netDeficitLedger.wood?.deficit ?? 0).toBe(0)
+
+		// Next tick: the ticker sweeps the now-fulfilled one-shot line.
+		tick()
+		expect([...game.freightLines].filter(isOneShotLine).length).toBe(0)
 	})
 })

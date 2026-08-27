@@ -1,6 +1,10 @@
 # Rust Migration Continuation — Move Only Proved Algorithms
 
-Status: analysis (2026-08-25). Complements `docs/rust-core.md`.
+Status: analysis (2026-08-25), partially superseded (2026-08-27). Complements `docs/rust-core.md`.
+The pathfinding optimization is now **proved and committed in TS** (see
+`plans/emergent-planning-architecture.md` Phases 0/2/4); the revision *counters* this doc names
+(`workPlanningRevision` / `transitRevision` / `candidateRevision`) were **replaced by `Version` cells**
+(`workPlanningVersion` / `transitVersion` / `candidateVersion`) — see `plans/revisionless-job-planner.md`.
 
 ## TL;DR
 
@@ -102,7 +106,7 @@ The fix that serves both goals:
      with a per-revision vehicle-position index so `isBurdened` is O(1), not O(V)
 2. **Run the flood over the snapshot** (pure function of `start` + the arrays). No allocations, no
    O(V) scans inside the search (reads were already inert; this removes the *work*, not tracking).
-3. **Memoize** the flood per `(startKey, workPlanningRevision)`.
+3. **Memoize** the flood per `(startKey, transitVersion)`.
 
 This is exactly the "pure Rust module + flat binding" shape. Once the TS flood operates on a
 snapshot, the same snapshot can be passed to WASM and the flood ported verbatim.
@@ -125,18 +129,19 @@ Only proved algorithms, in order:
    - ~~blocking-tile oracle + load-scan reorder~~ ✅ done — the flood settles blocking tiles' neighbours,
      `canReach` answers blocking tiles with O(6) flood lookups (no per-tile A*), load scan runs the cheap
      `pickOffloadForTile` before `canReach`.
-   - ~~transit token + per-vehicle flood cache~~ ✅ done — `Game.transitRevision` (bumped by content/roads/
-     terrain only, **not** operator/storage) keys a per-`(vehicle, revision)` flood cache, collapsing C×V → V.
-   - ~~candidate token + zone-browse & load/unload caches~~ ✅ done — `Game.candidateRevision` (all
-     `invalidateWorkPlanning` + transit, minus operator/service/assignment via `invalidateWorkPlanningAllocation`)
-     keys the zone-browse and load/unload candidate caches, collapsing the remaining C×V → V.
+   - ~~transit token + per-vehicle flood cache~~ ✅ done — `Game.transitVersion` (a `Version` cell bumped by
+     `invalidateTransit`, content/roads/terrain only, **not** operator/storage) keys a per-`(vehicle, version)`
+     flood cache, collapsing C×V → V.
+   - ~~candidate token + zone-browse & load/unload caches~~ ✅ done — `Game.candidateVersion` (all
+     `invalidateWorkPlanning` + transit, minus operator/service/assignment) keys the zone-browse and
+     load/unload candidate caches, collapsing the remaining C×V → V.
    - ~~transit snapshot~~ ✅ done — `HexBoard.memoizedVehicleTransitNeighbors` (per-tile vehicle neighbours
-     keyed by `transitRevision`) removes per-node allocation + O(V) `isBurdened`; `findPathForVehicleServiceBorderUnbounded`
+     keyed by `transitVersion`) removes per-node allocation + O(V) `isBurdened`; `findPathForVehicleServiceBorderUnbounded`
      caches the unbounded planner searches. Flood ~6.6 → ~3.2 ms/vehicle.
    - ~~line-service candidate cache~~ ✅ done — `pickInitialVehicleServiceCandidate` cached per
-     `(vehicle, candidateRevision)`; its distribute-segment `game.hex.tiles` (all ~120k tiles) loop was
+     `(vehicle, candidateVersion)`; its distribute-segment `game.hex.tiles` (all ~120k tiles) loop was
      the 178 ms/call `findVehicleOffloadJob` cost, now C×V → V.
-   - ⚠️ Do **not** memoize on `workPlanningRevision`: it bumps intra-sweep (`allocateVehicleServiceForJob`
+   - ⚠️ Do **not** memoize on `workPlanningVersion`: it bumps intra-sweep (`allocateVehicleServiceForJob`
      during `findAction`, `releaseOperator` during `abandonAnd`) and for changes irrelevant to reachability —
      measured as a net regression, reverted, then replaced by the fine-grained transit token.
    *Gate: `profile` shows the flood time collapsing; determinism is preserved (tests pass).*

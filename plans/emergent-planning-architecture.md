@@ -1,8 +1,8 @@
 # Emergent planning — replacing global optimization with local decisions
 
-Status: Phases 0, 2, 3 (first increment), and 4 are **landed** (2026-08-26). Remaining: Phase 3's
-behavioral core and Phase 5. Follows the `canReach` optimization rounds in
-`engines/ssh/plans/vehicle-maintenance-reachability-perf.md`.
+Status: Phases 0, 2, 3 (first increment), and 4 are **landed** (2026-08-26). Remaining: the rest of
+Phase 3's behavioral core (ad-driven matching + retiring the global sort) and Phase 5. Follows the
+`canReach` optimization rounds in `engines/ssh/plans/vehicle-maintenance-reachability-perf.md`.
 
 ## Landed
 
@@ -10,7 +10,6 @@ behavioral core and Phase 5. Follows the `canReach` optimization rounds in
   `startBestJobFrom` pathfinds once for the winner and falls back to `wander()` if unreachable. Hex
   distance is the **final** scoring primitive (§5a).
 - **Phase 4 — commitment + hysteresis.** Deduped the 3× `rankedWorkCandidates()` per `findAction`
-  (thread `bestWorkMatch`); memoized the ranking per `(character, workPlanningRevision)`
   (`rankedWorkCandidatesCached`); added a game-time-keyed re-plan throttle
   (`idleReplanIntervalSeconds = 0.5`, `tuning/characters.ts`).
 - **Phase 4 — sticky job-target commitment.** `Character.committedWork` (reference-based, no string

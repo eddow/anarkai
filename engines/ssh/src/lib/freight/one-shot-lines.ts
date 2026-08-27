@@ -94,9 +94,6 @@ export function sweepOneShotLines(game: Game): number {
 	return removed
 }
 
-/** Interval between one-shot line sweeps (fulfillment/abortion). */
-export const oneShotLineSweepCooldownSeconds = 2
-
 /** The tile coord a need declares itself at (construction shell or foundation). */
 function needSourceCoord(source: NeedSource): AxialCoord | undefined {
 	return toAxialCoord(source.tile.position) ?? undefined
@@ -123,21 +120,40 @@ function findFreeVehicle(game: Game): Vehicle | undefined {
 	return undefined
 }
 
-/**
- * Whether **any** transport is already covering `good` — a one-shot line, a
- * recurring (player-authored) line, or (later) an in-flight delivery. The spawner
- * must not create a one-shot line when the need is already being served by
- * existing transport; this is the single "don't double-cover" guard.
- *
- * Deliveries are currently instant credits (no in-flight state), so they cannot
- * contribute a `true` here yet; when a physical carrier lands, in-flight delivery
- * orders will also return `true`.
- */
-function hasTransportCoveringGood(game: Game, good: GoodType): boolean {
-	for (const line of game.freightLines) {
-		if (lineUnloadGoods(line).includes(good)) return true
+/** The radius-zone destinations a line unloads into (one-shot lines route bay → radius zone). */
+function lineUnloadRadiusZones(
+	line: FreightLineDefinition
+): Array<{ center: AxialCoord; radius: number }> {
+	const zones: Array<{ center: AxialCoord; radius: number }> = []
+	for (const stop of line.stops) {
+		if ('zone' in stop && stop.zone?.kind === 'radius') {
+			zones.push({
+				center: { q: stop.zone.center[0], r: stop.zone.center[1] },
+				radius: stop.zone.radius,
+			})
+		}
 	}
-	// Delivery seam: an in-flight delivery order for `good` would also return true.
+	return zones
+}
+
+/**
+ * Whether an existing line already delivers `good` to `coord`. **Destination-aware**
+ * for radius-zone lines (the one-shot spawner's own format): a line for site A must
+ * not block a *different* construction site B, so two concurrent needs of the same
+ * good are covered independently. A line that unloads `good` with no radius-zone
+ * destination (bay↔bay or named-zone) is treated conservatively as covering, the
+ * same as the previous good-scoped guard.
+ *
+ * Deliveries are instant credits (no in-flight state), so they cannot contribute a
+ * `true` here; when a physical carrier lands, in-flight delivery orders will too.
+ */
+function hasTransportCoveringNeed(game: Game, good: GoodType, coord: AxialCoord): boolean {
+	for (const line of game.freightLines) {
+		if (!lineUnloadGoods(line).includes(good)) continue
+		const zones = lineUnloadRadiusZones(line)
+		if (zones.length === 0) return true
+		if (zones.some((zone) => axial.distance(zone.center, coord) <= zone.radius)) return true
+	}
 	return false
 }
 
@@ -148,9 +164,10 @@ function hasTransportCoveringGood(game: Game, good: GoodType): boolean {
  * Internal-first: for each deficit good, resolve own-hive supply (producer/holder
  * stock above reserve), pick the nearest source with a freight bay, and route a
  * `repeat: false` line from its bay to a radius zone over the construction site.
- * Leaves the deficit in the ledger (and skips) when there is no internal source or
- * no free vehicle — that is where {@link trySpawnConstructionDeliveries} (the
- * buy + outside-carrier branch) plugs in.
+ * One line per **need** (per destination), so two concurrent constructions of the
+ * same good each get their own line. Leaves the deficit in the ledger (and skips)
+ * when there is no internal source or no free vehicle — that is where
+ * {@link trySpawnConstructionDeliveries} (the buy + outside-carrier branch) plugs in.
  */
 export function trySpawnConstructionLines(game: Game, policy: SourcingPolicy): number {
 	const ledger = game.netDeficitLedger
@@ -160,16 +177,11 @@ export function trySpawnConstructionLines(game: Game, policy: SourcingPolicy): n
 		NonNullable<(typeof ledger)[GoodType]>,
 	][]) {
 		if ((net?.deficit ?? 0) <= 0) continue
-		// Don't spawn when any line (one-shot or recurring) or delivery already
-		// covers this good — avoid double-covering a need already in transit.
-		if (hasTransportCoveringGood(game, good)) continue
-		const firstNeed = net.needs[0]
-		if (!firstNeed) continue
-		const destCoord = needSourceCoord(firstNeed.source)
-		if (!destCoord) continue
-
 		const reserve = reserveFor(policy, good)
-		const sources: Array<{ hive: Hive; bay: Alveolus; distance: number }> = []
+
+		// Eligible self-haul sources for this good (producer/holder stock above
+		// reserve, with a freight bay). Resolved once per good, shared across needs.
+		const bays: Array<{ hive: Hive; bay: Alveolus; bayCoord: AxialCoord }> = []
 		for (const hive of listHives(game)) {
 			const flow = hive.profile[good]
 			if (!flow || flow.normalizedDelta < 0) continue
@@ -178,41 +190,47 @@ export function trySpawnConstructionLines(game: Game, policy: SourcingPolicy): n
 			if (!bay) continue
 			const bayCoord = toAxialCoord(bay.tile.position)
 			if (!bayCoord) continue
-			sources.push({ hive, bay, distance: axial.distance(bayCoord, destCoord) })
+			bays.push({ hive, bay, bayCoord })
 		}
-		sources.sort((a, b) => a.distance - b.distance)
-		const picked = sources[0]
-		if (!picked) continue
+		if (bays.length === 0) continue
 
-		const vehicle = findFreeVehicle(game)
-		if (!vehicle) continue
+		for (const need of net.needs) {
+			const destCoord = needSourceCoord(need.source)
+			if (!destCoord) continue
+			if (hasTransportCoveringNeed(game, good, destCoord)) continue
+			const picked = bays
+				.map((bay) => ({ ...bay, distance: axial.distance(bay.bayCoord, destCoord) }))
+				.sort((a, b) => a.distance - b.distance)[0]
+			if (!picked) continue
 
-		const bayCoord = toAxialCoord(picked.bay.tile.position)
-		if (!bayCoord) continue
-		const selection = migrateV1FiltersToGoodsSelection([good])
-		const line = game.addFreightLine({
-			name: `auto:${good}`,
-			repeat: false,
-			stops: [
-				{
-					loadSelection: selection,
-					unloadSelection: selection,
-					anchor: {
-						kind: 'alveolus',
-						hiveName: picked.hive.name ?? '',
-						alveolusType: 'freight_bay',
-						coord: [bayCoord.q, bayCoord.r],
+			const vehicle = findFreeVehicle(game)
+			if (!vehicle) continue
+
+			const selection = migrateV1FiltersToGoodsSelection([good])
+			const line = game.addFreightLine({
+				name: `auto:${good} @${destCoord.q},${destCoord.r}`,
+				repeat: false,
+				stops: [
+					{
+						loadSelection: selection,
+						unloadSelection: selection,
+						anchor: {
+							kind: 'alveolus',
+							hiveName: picked.hive.name ?? '',
+							alveolusType: 'freight_bay',
+							coord: [picked.bayCoord.q, picked.bayCoord.r],
+						},
 					},
-				},
-				{
-					loadSelection: selection,
-					unloadSelection: selection,
-					zone: { kind: 'radius', center: [destCoord.q, destCoord.r], radius: 3 },
-				},
-			],
-		})
-		vehicle.assignFreightLine(line)
-		spawned += 1
+					{
+						loadSelection: selection,
+						unloadSelection: selection,
+						zone: { kind: 'radius', center: [destCoord.q, destCoord.r], radius: 3 },
+					},
+				],
+			})
+			vehicle.assignFreightLine(line)
+			spawned += 1
+		}
 	}
 	return spawned
 }
@@ -227,13 +245,8 @@ export function trySpawnConstructionLines(game: Game, policy: SourcingPolicy): n
  * `spendVp(price × qty)` then `storage.addGood`. The full cost/threshold formula
  * (and a real carrier entity) is a later slice; see `plans/spontaneous-lines.md`.
  *
- * **One need per good per pass.** The loop is keyed by good, but each iteration
- * resolves `net.needs[0]` only — external offers are unbounded
- * (`Number.MAX_SAFE_INTEGER`), so one delivery fills that first need entirely and
- * the loop moves on. Any *further* needs for the same good (e.g. two concurrent
- * constructions) are left in the ledger and picked up by the next ticker pass
- * (the next cooldown). Acceptable for the instant-credit interim; a real carrier
- * will replace the per-good pass with a per-need allocation.
+ * One delivery per **need** (per destination): two concurrent constructions of the
+ * same good are each bought and credited in the same pass, subject to the wallet.
  */
 export function trySpawnConstructionDeliveries(game: Game, _policy: SourcingPolicy): number {
 	const ledger = game.netDeficitLedger
@@ -243,29 +256,29 @@ export function trySpawnConstructionDeliveries(game: Game, _policy: SourcingPoli
 		NonNullable<(typeof ledger)[GoodType]>,
 	][]) {
 		if ((net?.deficit ?? 0) <= 0) continue
-		if (hasTransportCoveringGood(game, good)) continue
-		const need = net.needs[0]
-		if (!need) continue
-		const storage = needSourceStorage(need.source)
-		if (!storage) continue
-		const destCoord = needSourceCoord(need.source)
-		if (!destCoord) continue
+		for (const need of net.needs) {
+			const storage = needSourceStorage(need.source)
+			if (!storage) continue
+			const destCoord = needSourceCoord(need.source)
+			if (!destCoord) continue
+			if (hasTransportCoveringNeed(game, good, destCoord)) continue
 
-		const offers = measureExternalSourceOffers(game, good, destCoord).sort(compareSourceOffers)
-		const offer = offers[0]
-		if (!offer) continue
+			const offers = measureExternalSourceOffers(game, good, destCoord).sort(compareSourceOffers)
+			const offer = offers[0]
+			if (!offer) continue
 
-		const quantity = Math.min(need.quantity, offer.quantity)
-		const price = offer.priceVp * quantity
-		// Only buy what we can afford (external offers are always priced; a 0-price
-		// offer would be an internal source and belongs in the self-haul branch).
-		if (price <= 0 || !game.canAffordVp(price)) continue
+			const quantity = Math.min(need.quantity, offer.quantity)
+			const price = offer.priceVp * quantity
+			// Only buy what we can afford (external offers are always priced; a 0-price
+			// offer would be an internal source and belongs in the self-haul branch).
+			if (price <= 0 || !game.canAffordVp(price)) continue
 
-		const added = storage.addGood(good, quantity)
-		if (added <= 0) continue
-		// Charge only for what was actually credited (addGood may clip to room).
-		game.spendVp(offer.priceVp * added)
-		delivered += 1
+			const added = storage.addGood(good, quantity)
+			if (added <= 0) continue
+			// Charge only for what was actually credited (addGood may clip to room).
+			game.spendVp(offer.priceVp * added)
+			delivered += 1
+		}
 	}
 	return delivered
 }

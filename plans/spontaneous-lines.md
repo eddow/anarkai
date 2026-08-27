@@ -252,3 +252,40 @@ discards — promotion to a permanent line is always a player decision.
 - **Outside-carrier vs self-haul split** for spontaneous constructions. Proposal: spontaneous =
   outside-carrier delivery by default (cheap in vehicle-hours), with the slider pulling toward
   self-haul only when the player biases internalize.
+
+---
+
+## Task summary — one-shot mechanism (done & working)
+
+The full one-shot (`repeat: false`) mechanism is implemented, wired to the ticker, and covered by
+end-to-end tests.
+
+**Landed**
+
+- **Lifecycle** (`one-shot-lines.ts`): `isOneShotLine` / `lineUnloadGoods` / `oneShotLineFulfilled` /
+  `sweepOneShotLines` — a one-shot line self-deletes once the deficit it covers is `0`, or on abortion
+  (no stops).
+- **Self-haul spawner** (`trySpawnConstructionLines`): routes a `repeat: false` line from the nearest
+  producer/holder hive bay (stock above reserve) to a radius zone over the construction site, using only
+  *free* vehicles. **One line per need/destination** — concurrent same-good constructions are served
+  independently.
+- **Delivery branch** (`trySpawnConstructionDeliveries`): the external half of the internality slider —
+  buys from the nearest/cheapest NPC settlement and credits the site (instant credit, `spendVp` +
+  `storage.addGood`). **One delivery per need**, subject to the wallet.
+- **Destination-aware dedup guard** (`hasTransportCoveringNeed`): a line for site A no longer blocks
+  site B needing the same good (the old good-scoped guard deadlocked two concurrent constructions).
+  Non-radius lines (bay↔bay / named-zone) still count conservatively as covering.
+- **Ticker** (`OneShotLineTicker`): reads `game.transportAutomation` live each pass; `autoSpawn` /
+  `autoBuy` are independent toggles, `internality` orders self-haul vs delivery, `spawnCooldownSeconds`
+  is the pass cadence; sweeps every pass. Registered on `Game` after world generation.
+- **Config** (`Game.transportAutomation`): reactive, seeded from `commerce.transportAutomation`.
+
+**Tests** (`tests/unit/one-shot-lines.test.ts`, 11 passing): identification, fulfillment/sweep, spawn,
+recurring-line dedup, reserve keep-back, config seeding, delivery, delivery dedup, **multi-need spawn**,
+**multi-need delivery**, and an **end-to-end ticker spawn→fulfill→sweep** loop.
+
+**Still open (unchanged, later slices)**
+
+- The **physical outside carrier** behind delivery (buy+credit is instant — no travel/carrier entity).
+- The **cost-threshold formula** (log-odds ratio form) once delivery has a real carrier.
+- The **internality-slider UI** (player-facing control; the config knob exists but no UI branches it).

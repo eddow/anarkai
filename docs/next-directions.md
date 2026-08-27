@@ -16,6 +16,8 @@ Decisions live in `docs/`, open questions and the plan in `plans/`. The document
   growth/shrinkage (triangular capacity), the delivery-tile rule, and shop types.
 - [`plans/emergent-planning-architecture.md`](plans/emergent-planning-architecture.md) — **current
   frontier**: replace global planner optimization with local, emergent decisions (the "ants" model).
+- [`plans/revisionless-job-planner.md`](plans/revisionless-job-planner.md) — **implemented**: the four
+  revision counters replaced by `Cell`/`Version`/`Derived` (the kernel's own mutts-free invalidation).
 - [`plans/rust-migration-continuation.md`](plans/rust-migration-continuation.md) — the "move only proved
   algorithms" gate for the Rust port (the pathfinding flood is the next candidate).
 - [`plans/details-punchlist.md`](plans/details-punchlist.md) — leftover UI polish (config memorization,
@@ -60,10 +62,12 @@ core is implemented, tested, and type-clean; the *gameplay* wiring is the fronti
   one-shot line model (self-delete on fulfillment/abortion), the internal-first **spawner**
   (`trySpawnConstructionLines` — nearest producer/holder bay → construction zone, using only *free*
   vehicles), the external **delivery** branch (`trySpawnConstructionDeliveries` — buy from the
-  nearest/cheapest NPC settlement and credit the site; instant credit for now), the "don't
-  double-cover" guard (any line covering the good), and a **reactive, tunable config** (`autoSpawn` /
-  `autoBuy` / `internality` / `reserve` / `spawnCooldownSeconds`) seeded from
-  `commerce.transportAutomation`. See [`plans/spontaneous-lines.md`](plans/spontaneous-lines.md).
+  nearest/cheapest NPC settlement and credit the site; instant credit for now), a **destination-aware**
+  "don't double-cover" guard (one line per construction site, so concurrent same-good needs are served
+  independently), and a **reactive, tunable config** (`autoSpawn` / `autoBuy` / `internality` /
+  `reserve` / `spawnCooldownSeconds`) seeded from `commerce.transportAutomation`. The ticker loop
+  (spawn → fulfill → self-sweep) is covered by an end-to-end test. See
+  [`plans/spontaneous-lines.md`](plans/spontaneous-lines.md).
 
 **What is not landed** is the *gameplay* half of that spine: the **physical carrier** behind delivery
 (the buy+credit is instant — no outside-carrier travel yet), the `surplus` (producer-export) half of
@@ -72,29 +76,27 @@ growth-shrinkage representation.
 
 ## Current frontier — planner scalability (emergent planning)
 
-As of 2026-08-26 the frontier has moved past the commerce spine to **planner scalability**. The commerce
-structural layer is drafted and the spontaneous-line automation is wired on both halves (self-haul and
-buy+credit); the open item is that the per-character planner (`Character.findAction` →
-`rankedWorkCandidates`) is `O(N × board × pathfind)` and cannot reach hundreds of characters regardless
-of language.
+As of 2026-08-27 the frontier is **planner scalability** (emergent planning). The commerce spine is
+drafted and wired; the per-character planner (`Character.findAction` → `rankedWorkCandidates`) was
+`O(N × board × pathfind)` and could not reach hundreds of characters. That is being dismantled in
+phases — see [`plans/emergent-planning-architecture.md`](plans/emergent-planning-architecture.md) for
+the design, and [`plans/revisionless-job-planner.md`](plans/revisionless-job-planner.md) for the
+already-shipped invalidation rework (the four revision counters are gone, replaced by
+`Cell`/`Version`/`Derived`).
 
-Two new plans capture this:
+**The one checklist to follow:**
 
-- [`plans/emergent-planning-architecture.md`](plans/emergent-planning-architecture.md) — replace the
-  global-optimum planner with **local, emergent decisions** (the "ants" model): precomputed distance
-  fields instead of per-candidate pathfinding, advertisements extended from goods to work, commitment +
-  hysteresis to kill the re-plan cascade, a small sensing radius (last-mile only), and coarse-graph
-  routing. Phased migration (fields → locality → ad-driven work → commitment → coarse-graph + Rust),
-  each phase independently shippable with a fallback.
-- [`plans/rust-migration-continuation.md`](plans/rust-migration-continuation.md) — the **"move only
-  proved algorithms"** gate. The pathfinding optimizations (target-bounded flood, blocking-tile oracle,
-  transit/candidate tokens, transit snapshot) are **proved in TS and committed** (see
-  `engines/ssh/src/lib/utils/pathfinding.ts`, `engines/ssh/src/lib/board/board.ts`,
-  `engines/ssh/tests/unit/pathfinding.test.ts`); the next steps are a determinism test, then porting the
-  *pure flood* to `engines/core` — not the policy (roads, burden, planner logic), which stays in TS.
-
-The "what survives / what is retired" split lives in the emergent-planning doc; the Rust sequence lives
-in the migration-continuation doc.
+- ✅ Phase 0 — hex-distance score, deferred pathfind.
+- ✅ Phase 2 — candidate-set locality (`sensingRadius`).
+- ✅ Phase 3 (first increment) — `WorkAdvertisement` publication surface + claim-at-selection.
+- ✅ Phase 4 — commitment + hysteresis.
+- ✅ Revision-less planner — `Cell`/`Version`/`Derived` replace the four revision counters.
+- ⏳ **Phase 3 (behavioral core) — the active work**: publish ads directly, consume them via ad-driven
+  matching, materialize the winner, then retire the `rankedWorkCandidates` global sort. The publication
+  surface (`Tile.workAdvertisements`) is landed; the behavioral retirement of the sort is not yet
+  started.
+- ⏳ Phase 5 — coarse-graph routing + Rust port (`engines/core`).
+- ⏳ Phase 1 (distance fields) — **cancelled** (measured unbounded-cost regression; do not reintroduce).
 
 ## The decided architecture
 
@@ -185,8 +187,9 @@ Agreed sequence — **questions → structures/interfaces → implementation**:
 
 ### Architectural hygiene (kept from the old plan)
 
-- When the core (and conveying especially) moves to Rust, the "version" hacks will have to be revisited
-  and eliminated.
+- ~~The "version" hacks~~ ✅ eliminated — the four revision counters were replaced by `Cell`/`Version`/
+  `Derived` (`plans/revisionless-job-planner.md`). The remaining Rust-port concern is the planner's
+  coarse-graph routing + pure flood (Phase 5), not the invalidation scaffolding.
 - Serialize dockview layout (widget panels/params) into the savegame: widget `params` are already
   serializable config (`pinned: boolean`), never live game objects, so panels restore by id + params
   without re-embedding runtime references.
@@ -200,9 +203,11 @@ frontier (see "Current frontier").
 ### 1. Emergent planning → planner scalability (current frontier)
 
 Replace the global-optimum planner (`rankedWorkCandidates`) with local, emergent decisions so the
-simulation reaches hundreds of characters/vehicles. Phased: distance fields → candidate-set locality →
-advertisement-driven work → commitment/hysteresis → coarse-graph routing + Rust. See
-[`plans/emergent-planning-architecture.md`](plans/emergent-planning-architecture.md) and
+simulation reaches hundreds of characters/vehicles. Phases 0/2/3-incr/4 landed; remaining is **Phase 3
+behavioral core** (consume lean work ads, materialize only the winner, retire the global sort) and
+**Phase 5** (coarse-graph + Rust). Phase 1 (distance fields) cancelled. See
+[`plans/emergent-planning-architecture.md`](plans/emergent-planning-architecture.md),
+[`plans/revisionless-job-planner.md`](plans/revisionless-job-planner.md), and
 [`plans/rust-migration-continuation.md`](plans/rust-migration-continuation.md).
 
 ### 2. Commerce architecture → code (primary)
@@ -260,10 +265,9 @@ Needed when settlements / roads / commerce need stronger geography. Keep as back
   The latter proves the architecture; the former proves the content.
 - Which decision becomes hardest to change after this lands? The `NeedSource` union (object-as-origin vs
   a discriminant) and the wallet shape (one wallet vs two) fork the most.
-- **Planner fork (new):** does the next slice start the emergent-planning migration (Phase 1 — distance
-  fields short-circuit `tailorProposedJob`, zero behaviour change) or finish the commerce gameplay
-  wiring (a live `deficit` stop)? The former unlocks scalability; the latter proves the commerce spine
-  end-to-end.
+- **Planner fork (new):** does the next slice finish **Phase 3 behavioral core** (consume lean work ads
+  → retire the `rankedWorkCandidates` global sort) or finish the commerce gameplay wiring (a live
+  `deficit` stop)? The former unlocks scalability; the latter proves the commerce spine end-to-end.
 
 ## First playable slices
 
@@ -277,14 +281,15 @@ Needed when settlements / roads / commerce need stronger geography. Keep as back
   the board-aware frontier fade and a consumer sampling the field.
 - **Transport automation v1** — ✅ `repeat` flag + one-shot lifecycle (self-delete), internal-first
   spawner (`trySpawnConstructionLines`), external delivery branch (`trySpawnConstructionDeliveries`,
-  instant buy+credit), free-vehicle allocation, dedup guard, and reactive
-  `Game.transportAutomation` config. ⏳ Remaining: a physical outside carrier for delivery, and the
-  internality-slider UI that actually branches line-vs-delivery. See
-  [`plans/spontaneous-lines.md`](plans/spontaneous-lines.md).
-- **Emergent planning v1** — ✅ pathfinding perf rounds landed (target-bounded flood, blocking-tile
-  oracle, transit/candidate tokens, transit snapshot). ⏳ Remaining: the phased migration to local
-  decisions (fields → locality → ad-driven work → commitment → coarse-graph + Rust). See
-  [`plans/emergent-planning-architecture.md`](plans/emergent-planning-architecture.md) and
+  instant buy+credit), free-vehicle allocation, destination-aware dedup guard (per-site, not per-good),
+  reactive `Game.transportAutomation` config, and an end-to-end ticker test. ⏳ Remaining: a physical
+  outside carrier for delivery, and the internality-slider UI that actually branches line-vs-delivery.
+  See [`plans/spontaneous-lines.md`](plans/spontaneous-lines.md).
+- **Emergent planning v1** — ✅ Phases 0/2/3-incr/4 + revision-less planner landed. ⏳ Remaining:
+  Phase 3 behavioral core (rank ads, materialize the winner, retire the global sort) and Phase 5
+  (coarse-graph + Rust). Phase 1 (distance fields) cancelled. See
+  [`plans/emergent-planning-architecture.md`](plans/emergent-planning-architecture.md),
+  [`plans/revisionless-job-planner.md`](plans/revisionless-job-planner.md), and
   [`plans/rust-migration-continuation.md`](plans/rust-migration-continuation.md).
 - **Maintenance v1** — ⏳ one building with a usePoints life level engineers can top back up (decided
   model; not implemented).

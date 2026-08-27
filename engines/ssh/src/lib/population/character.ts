@@ -882,6 +882,10 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 			// full `maxWalkTime` disc (24 → 1657 tiles). Tile-browsing is bounded by the *radius*; the
 			// alternative — browsing the list of job sources — is bounded by the *job count*, which is
 			// unbounded as a settlement grows. Keep it a tile scan.
+			// Phase 3 note: `tile.proposedJobs` is a memoized `Derived` (revision-less planner), so this
+			// push materializes each tile's jobs once per version and shares them across characters —
+			// no per-candidate pathfinding (removed in Phase 0). Ad-driven *matching* (retire the global
+			// sort) is the remaining Phase 3 behavioral work.
 			for (const tile of this.game.hex.tilesAround(this.position, sensingRadius)) {
 				out.push(...tile.proposedJobs)
 			}
