@@ -147,6 +147,27 @@ export class StorageAlveolus extends Alveolus {
 	}
 
 	/**
+	 * Set (or clear) the keep-target buffer for a single good on a specific-storage
+	 * alveolus. Materializes an individual configuration if none is set yet, so the
+	 * write always lands on the live reactive configuration — unlike mutating the
+	 * `specificStorageConfiguration` getter result, which returns a throwaway object
+	 * when no config is present.
+	 *
+	 * @param goodType Good whose buffer keep-target to change.
+	 * @param amount   Target buffer quantity; `<= 0` clears the keep-target.
+	 */
+	setSpecificStorageBuffer(goodType: GoodType, amount: number): void {
+		if (!usesSpecificStorageLayout(this.action)) return
+		const config = this.ensureSpecificStorageConfiguration()
+		if (amount <= 0) {
+			delete config.buffers[goodType]
+		} else {
+			config.buffers[goodType] = amount
+		}
+		this.hive?.invalidateAdvertisement?.(this, 'alveolus.config')
+	}
+
+	/**
 	 * Setter for backward compatibility with tests.
 	 */
 	set storageBuffers(buffers: Partial<Record<GoodType, number>>) {

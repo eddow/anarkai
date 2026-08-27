@@ -427,8 +427,7 @@ export default function StorageConfiguration(props: StorageConfigurationProps) {
 				{/* Buffers - SpecificStorage uses its own component */}
 				<SpecificStorageConfiguration
 					if={props.content.storage instanceof SpecificStorage}
-					action={props.content.action as Ssh.SpecificStorageAction}
-					configuration={props.content.specificStorageConfiguration}
+					content={props.content}
 					game={props.game}
 				/>
 

@@ -544,11 +544,14 @@ const commonsGap = axialRect(-1, -1, 2, 6)
  *     residential and commercial zones** as their separator, never through the wood;
  *   - the **Depot sits west of the settlements** (leftmost hive), clear of the water.
  *
- * **Only inputs are buffered; output piles are "drain-me".** In engine terms this
- * means *no `buffers` keep-target on any pile*: a keep-target makes a pile *demand*
- * refill and *withhold* stock, which is wrong for both roles. Input piles (Mill
- * wood) and output piles (Grove wood, Mill planks, Quarry stone) are all buffer-less
- * specific piles that *provide* their stock when it is present.
+ * **Inputs are buffered; output piles are "drain-me".** The chopper and stonecutter
+ * shed their output into an output pile (Grove wood, Quarry stone) that the gather and
+ * transport lines pick from — those piles stay buffer-less so they always release their
+ * stock. The **Depot** is the construction-materials buffer: its slotted storages keep
+ * a small keep-target (≈5 units) of each of wood/planks/stone/concrete for the
+ * engineers. The **Mill** buffers its *input* wood pile (so the sawmills never starve)
+ * but leaves its *output* planks pile buffer-less (drain-me), and both sawmills share
+ * one configuration at 55% planks.
  *
  * Projects, dwellings, and shops are **not** pre-placed: the residential and
  * commercial zones start empty so spontaneous construction (housing + shops) can
@@ -596,9 +599,8 @@ export const commons = {
 				{ alveolus: 'freight_bay', coord: [0, -1] },
 				{ alveolus: 'tree_chopper', coord: [1, -1] },
 				{ alveolus: 'forester', coord: [1, -2], assignedZoneIndices: [2] },
-				// Output-only (drain-me) pile with NO buffer keep-target: it is not configured
-				// to demand wood — the chopper fills it to shed its output, and the pile just
-				// holds it and provides it for pickup. (Absent `buffers` = keep-target 0.)
+				// Output (drain-me) pile: the chopper sheds its wood here; buffer-less so
+				// it always releases its stock to the gather / "Mill wood run" lines.
 				{ alveolus: 'pile', coord: [0, -2], variant: 'wood', goods: { wood: 6 } },
 			],
 		},
@@ -606,30 +608,31 @@ export const commons = {
 			name: 'Mill',
 			alveoli: [
 				{ alveolus: 'freight_bay', coord: [4, -1] },
-				// 100% product ratio: transform all wood into planks (no wood left behind).
+				// Both sawmills share one named configuration at 55% planks (product ratio).
 				{
 					alveolus: 'sawmill',
 					coord: [5, -1],
-					configuration: {
-						ref: { scope: 'individual' },
-						individual: { working: true, productRatio: { maxProductRatio: 1 } },
-					},
+					configuration: { ref: { scope: 'named', name: 'planks-55' } },
 				},
 				{
 					alveolus: 'sawmill',
 					coord: [4, -2],
+					configuration: { ref: { scope: 'named', name: 'planks-55' } },
+				},
+				// Input holding pile: buffered wood so the sawmills never starve. The
+				// keep-target makes the pile *demand* wood back up to its target, while
+				// still releasing to the sawmills' 2-use demand whenever it has stock.
+				{
+					alveolus: 'pile',
+					coord: [5, -2],
+					variant: 'wood',
+					goods: { wood: 6 },
 					configuration: {
 						ref: { scope: 'individual' },
-						individual: { working: true, productRatio: { maxProductRatio: 1 } },
+						individual: { working: true, buffers: { wood: 12 } },
 					},
 				},
-				// Input holding pile: wood delivered here feeds the sawmills. NO
-				// `buffers` keep-target — a keep-target makes the pile *demand* wood
-				// (refill to 24) and *withhold* it from the sawmill, starving it. A
-				// buffer-less specific pile instead *provides* whenever it has stock,
-				// so the sawmill's 2-use demand draws from it.
-				{ alveolus: 'pile', coord: [5, -2], variant: 'wood', goods: { wood: 6 } },
-				// Output-only (drain-me) buffer.
+				// Output-only (drain-me) pile: NOT buffered — planks are meant to leave.
 				{ alveolus: 'pile', coord: [6, -2], variant: 'planks', goods: { planks: 3 } },
 			],
 		},
@@ -638,7 +641,8 @@ export const commons = {
 			alveoli: [
 				{ alveolus: 'freight_bay', coord: [-4, -1] },
 				{ alveolus: 'stonecutter', coord: [-5, -1] },
-				// Output-only (drain-me) buffer.
+				// Output (drain-me) pile: the cutter sheds its stone here; buffer-less so
+				// it always releases its stock to the gather / transport lines.
 				{ alveolus: 'pile', coord: [-4, -2], variant: 'stone', goods: { stone: 4 } },
 			],
 		},
@@ -646,8 +650,40 @@ export const commons = {
 			name: 'Depot',
 			alveoli: [
 				{ alveolus: 'freight_bay', coord: [-9, -1] },
-				{ alveolus: 'storage', coord: [-9, -2], goods: { concrete: 2, wood: 3, planks: 2 } },
-				{ alveolus: 'storage', coord: [-8, -2], goods: { stone: 3 } },
+				// Construction-materials buffer: keep ~5 units (2 slots × 3 capacity) of
+				// wood + planks here, and stone + concrete in the sibling storage.
+				{
+					alveolus: 'storage',
+					coord: [-9, -2],
+					goods: { wood: 3, planks: 2 },
+					configuration: {
+						ref: { scope: 'individual' },
+						individual: {
+							working: true,
+							generalSlots: 2,
+							goods: {
+								wood: { minSlots: 2, maxSlots: 1 },
+								planks: { minSlots: 2, maxSlots: 1 },
+							},
+						},
+					},
+				},
+				{
+					alveolus: 'storage',
+					coord: [-8, -2],
+					goods: { stone: 3, concrete: 2 },
+					configuration: {
+						ref: { scope: 'individual' },
+						individual: {
+							working: true,
+							generalSlots: 2,
+							goods: {
+								stone: { minSlots: 2, maxSlots: 1 },
+								concrete: { minSlots: 2, maxSlots: 1 },
+							},
+						},
+					},
+				},
 				{ alveolus: 'engineer', coord: [-8, -1], variant: 'building' },
 				{ alveolus: 'engineer', coord: [-7, -2], variant: 'road' },
 			],
@@ -780,7 +816,14 @@ export const commons = {
 		// Free vehicles (no served line, no operator) — the pool the one-shot
 		// construction-line spawner draws from. Vehicles are never spawned.
 		{ name: 'commons:wheelbarrow3', vehicleType: 'wheelbarrow', position: { q: 2, r: -1 } },
-		{ name: 'commons:wheelbarrow4', vehicleType: 'wheelbarrow', position: { q: 6, r: -1 } },
-		{ name: 'commons:pickup-truck', vehicleType: 'pickup_truck', position: { q: 8, r: -1 } },
+		{ name: 'commons:wheelbarrow4', vehicleType: 'wheelbarrow', position: { q: 6, r: 1 } },
+		{ name: 'commons:pickup-truck', vehicleType: 'pickup_truck', position: { q: 8, r: 1 } },
 	],
+	// Global named configurations — reusable across alveoli/hives. The two Mill
+	// sawmills both point at `sawmill` → `planks-55`, so editing it updates both.
+	namedConfigurations: {
+		sawmill: {
+			'planks-55': { working: true, productRatio: { maxProductRatio: 0.55 } },
+		},
+	},
 } satisfies GamePatches

@@ -212,3 +212,48 @@ is automatic (mirror of growth) or player-confirmed.
   penalty for an unstaffed shop is open.
 - **Walkability** — shops are enterable-not-traversable (like alveoli); the exact occupancy/pathing rule
   for multi-tile shops is deferred (see walkability TODO).
+
+---
+
+## Task summary — current status (2026-08-27)
+
+Of the three zone-driven behaviours in §Scope, **residential is done**, **commercial has a v1 spawner
+(population-driven grocery) plus its runtime + content**, and **growth/shrinkage is not started**.
+
+### Landed
+
+- **Spontaneous residential** (`residential/demand.ts`): `trySpawnResidentialProject` (starts at most one
+  dwelling project on a clear, zoned `UnBuiltLand` tile when `people − freeSlots > 0`) +
+  `ResidentialDemandTicker` (periodic, cooldown-gated). This is the pre-existing seed the plan points at.
+- **Shop runtime** (`commerce/shop.ts`): `Shop extends TileContent implements Estate` — a non-alveolus,
+  non-hive commercial estate. `feedsPriceField = false`; a `SpecificStorage` shelf seeded from the shop
+  type's `capacityBase`; `profile` mirrors the shelf (`normalizedDelta = 0`); `footprint` is a single
+  tile (multi-tile growth to come); `distanceTo` over the footprint. `shopStockGoods` resolves a type's
+  sell-side goods by tag (empty `stockTags` = `general` stocks everything).
+- **Shop content** (`rules/content/shops.ts`): `ShopDefinition` (`label`, `stockTags`, `needTags`,
+  `capacityBase`, `spawnWeight`) + five named types — `construction_materials`, `grocery`, `clothing`,
+  `research`, `general` — plus `shopNeedTags` (buy side defaults to sell side). Shops are placeable via
+  the `shops` game patch (`shop.test.ts`; the `commons` example starts with `shops: []`).
+- **Commercial spawner v1** (`commerce/commercial-demand.ts`): `trySpawnCommercialShop` +
+  `CommercialDemandTicker` (registered on `Game` alongside residential/one-shot tickers). It places **at
+  most one** `grocery` shop per pass on a clear, zoned, **road-adjacent** `UnBuiltLand` tile, gated by
+  **cumulative observation**: `+1` evidence per pass with shoppers, `−1` per empty pass, commit when
+  evidence reaches `commercialObservationThreshold` (3). Deterministic tie-break (highest shopper count,
+  then lowest coord). Type diversification + production-seeding are the open follow-ups.
+- **Tests** (`tests/unit/shop.test.ts`, `tests/unit/commercial-demand.test.ts`): shop estate/shelf +
+  tag resolution; spawn-on-sustained-pressure, transient-no-spawn, and no-road-no-spawn.
+
+### Not landed (the actual remaining work)
+
+- **Commercial type diversification / production seeding** — the v1 spawner is population-driven
+  `grocery` only. Open items: the full spawn rule (§Open questions #1) and seeding
+  `construction_materials` (etc.) from nearby production.
+- **Growth / merge** — `capacityBase` + the triangular formula (`n(n+1)/2`) are documented and
+  `capacityBase` is content, but `footprint` is still single-tile: no identical-neighbour merge.
+- **Shrinkage** — not implemented (automatic-mirror vs player-confirmed is still open).
+
+### Deferred (unchanged)
+
+- **Customer reach / catchment** — explicit TODO, unspecified until bus-lines + roads exist.
+- **Staffing** (one character per tile) and **walkability** (enterable-not-traversable) — forward
+  constraints noted, not built.

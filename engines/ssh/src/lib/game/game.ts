@@ -26,6 +26,7 @@ import {
 import { Tile, type TileTerrainState } from 'ssh/board/tile'
 import { isConstructionSiteShell } from 'ssh/build-site'
 import type { NetDeficitLedger, Reserve } from 'ssh/commerce/commerce-model'
+import { CommercialDemandTicker } from 'ssh/commerce/commercial-demand'
 import { computeNetDeficitLedger } from 'ssh/commerce/deficit-ledger'
 import {
 	createNpcSettlementTradeProfile,
@@ -328,6 +329,8 @@ export interface GamePatches {
 	playerAccount?: PlayerAccountPatch
 	vehicles?: ReadonlyArray<VehiclePatch>
 	roads?: RoadPatchInput
+	/** Global named configurations (by alveolus type, then name) — referenced via `configuration.ref = { scope: 'named', name }`. */
+	namedConfigurations?: Partial<Record<AlveolusType, Record<string, Ssh.AlveolusConfiguration>>>
 }
 
 export interface SaveState extends GamePatches {
@@ -343,8 +346,6 @@ export interface SaveState extends GamePatches {
 	randomState?: number
 	/** Simulation clock virtual time, so throttle/traces continue deterministically. */
 	clockVirtualTime?: number
-	/** Global named configurations */
-	namedConfigurations?: Record<AlveolusType, Record<string, Ssh.AlveolusConfiguration>>
 	/** Per-hive configurations by alveolus type */
 	hiveConfigurations?: Record<string, Record<string, Ssh.AlveolusConfiguration>>
 	hivePlans?: ReadonlyArray<SerializedHivePlan>
@@ -646,6 +647,7 @@ export class Game extends Eventful<GameEvents> {
 	})
 	private residentialDemandTicker?: ResidentialDemandTicker
 	private oneShotLineTicker?: OneShotLineTicker
+	private commercialDemandTicker?: CommercialDemandTicker
 	private conveyRestoredAtLoad: TrackedMovement[] = []
 	private conveySaveIndexByRef: Map<MovementRef, number> | undefined
 	/** Active convey movements last restored from save (indexed by save order). */
@@ -1445,6 +1447,8 @@ export class Game extends Eventful<GameEvents> {
 			this.residentialDemandTicker = new ResidentialDemandTicker(this)
 			this.oneShotLineTicker?.destroy()
 			this.oneShotLineTicker = new OneShotLineTicker(this)
+			this.commercialDemandTicker?.destroy()
+			this.commercialDemandTicker = new CommercialDemandTicker(this)
 			// Register the main ticker callback and start the game ticker after everything is built
 			this.ticker.add(this.tickerCallback)
 		})
@@ -2269,6 +2273,10 @@ export class Game extends Eventful<GameEvents> {
 			this.vehicles.clear()
 
 			const populationLoad = this.generateInitialWorld(config, patches)
+			// Named configurations must be registered before hives so alveoli resolve them.
+			if (patches.namedConfigurations) {
+				this.configurationManager.deserialize(patches.namedConfigurations)
+			}
 			// Apply patches if any (zones before hives so named-zone references resolve)
 			if (terrainTiles.length) this.applyTilePatches(terrainTiles)
 			if (patches.tiles?.length) this.applyTilePatches(patches.tiles)
@@ -2353,6 +2361,10 @@ export class Game extends Eventful<GameEvents> {
 				materializedGameplayTiles: this.materializedGameplayCoords.size,
 				bootstrapGameplayTiles: this.bootstrapGameplayCoords.size,
 			})
+			// Named configurations must be registered before hives so alveoli resolve them.
+			if (patches.namedConfigurations) {
+				this.configurationManager.deserialize(patches.namedConfigurations)
+			}
 			if (terrainTiles.length) this.applyTilePatches(terrainTiles)
 			if (patches.tiles?.length) this.applyTilePatches(patches.tiles)
 			if (patches.zones) this.applyZonePatches(patches.zones)
@@ -3191,6 +3203,8 @@ export class Game extends Eventful<GameEvents> {
 
 		this.residentialDemandTicker?.destroy()
 		this.residentialDemandTicker = undefined
+		this.commercialDemandTicker?.destroy()
+		this.commercialDemandTicker = undefined
 		this.oneShotLineTicker?.destroy()
 		this.oneShotLineTicker = undefined
 
@@ -3207,6 +3221,7 @@ export class Game extends Eventful<GameEvents> {
 			freightLines: this.freightLines.size,
 		})
 
+		this.commercialDemandTicker = new CommercialDemandTicker(this)
 		this.residentialDemandTicker = new ResidentialDemandTicker(this)
 		this.oneShotLineTicker = new OneShotLineTicker(this)
 
@@ -3386,6 +3401,8 @@ export class Game extends Eventful<GameEvents> {
 		this.residentialDemandTicker?.destroy()
 		this.residentialDemandTicker = undefined
 		this.oneShotLineTicker?.destroy()
+		this.commercialDemandTicker?.destroy()
+		this.commercialDemandTicker = undefined
 		this.oneShotLineTicker = undefined
 		try {
 			this.vehicles.clear()

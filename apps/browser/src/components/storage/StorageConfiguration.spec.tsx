@@ -100,11 +100,10 @@ vi.mock('./GoodMultiSelect', () => ({
 }))
 
 vi.mock('./SpecificStorageConfiguration', () => ({
-	default: (props: { action: unknown; configuration: unknown }) => (
+	default: (props: { content: unknown }) => (
 		<div
 			data-testid="specific-storage-config"
-			data-has-action={String(Boolean(props.action))}
-			data-has-configuration={String(Boolean(props.configuration))}
+			data-has-content={String(Boolean(props.content))}
 		/>
 	),
 }))

@@ -4,6 +4,7 @@ import { listHives } from 'ssh/commerce/board-sources'
 import { Shop } from 'ssh/commerce/shop'
 import { commons } from 'ssh/game/exampleGames'
 import { Game } from 'ssh/game/game'
+import { TransformAlveolus } from 'ssh/hive/transform'
 import { afterEach, describe, expect, it } from 'vitest'
 
 describe('commons example game', () => {
@@ -31,6 +32,14 @@ describe('commons example game', () => {
 		for (const hive of hives) {
 			expect([...hive.alveoli].some((alv) => alv.action?.type === 'road-fret')).toBe(true)
 		}
+
+		// ── The two Mill sawmills both resolve the shared named config. ─────
+		const sawmillA = game.hex.getTile({ q: 5, r: -1 })?.content
+		const sawmillB = game.hex.getTile({ q: 4, r: -2 })?.content
+		expect(sawmillA).toBeInstanceOf(TransformAlveolus)
+		expect(sawmillB).toBeInstanceOf(TransformAlveolus)
+		expect((sawmillA as TransformAlveolus).transformConfiguration.productRatio?.maxProductRatio).toBe(0.55)
+		expect((sawmillB as TransformAlveolus).transformConfiguration.productRatio?.maxProductRatio).toBe(0.55)
 
 		// ── Zones exist and are EMPTY: no pre-built dwellings/shops, and no
 		//    generated deposits or loose goods on the (concrete) zone tiles. ──
@@ -60,6 +69,12 @@ describe('commons example game', () => {
 			expect.arrayContaining(['Grove gather', 'Mill wood run', 'Commerce loop'])
 		)
 		expect([...game.vehicles]).toHaveLength(6) // 3 assigned + 3 free (one-shot pool)
+		// The "Mill wood run" transport line has a dedicated vehicle.
+		expect(
+			[...game.vehicles].some((vehicle) =>
+				vehicle.servedLines.some((line) => line.name === 'Mill wood run')
+			)
+		).toBe(true)
 		// Seed 549 deterministically places Melindbury at the same spot as chopSaw.
 		expect(game.getSettlementTradeProfileAtCenter({ q: 7, r: 19 })?.name).toBe('Melindbury')
 

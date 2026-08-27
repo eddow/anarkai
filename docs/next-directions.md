@@ -295,8 +295,10 @@ Needed when settlements / roads / commerce need stronger geography. Keep as back
   model; not implemented).
 - **Salary v1** — ⏳ one wallet drip that lets a character buy food at an NPC city (the skip-SimCity
   probe).
-- **Spontaneous zones** — ⏳ `shops.ts` content is defined; the commercial spawner (cumulative
-  observation → shop), residential (seeded), and growth/shrinkage (triangular capacity) are not yet
-  implemented. See [`plans/spontaneous-zones.md`](plans/spontaneous-zones.md).
+- **Spontaneous zones** — ✅ residential spawner (seeded) + `Shop` runtime + `shops.ts` content + a v1
+  commercial spawner (`commerce/commercial-demand.ts`: population-driven grocery, cumulative
+  observation, road-adjacency, one shop per pass). ⏳ Remaining: commercial type diversification /
+  production-seeding, and growth/shrinkage (triangular capacity). See
+  [`plans/spontaneous-zones.md`](plans/spontaneous-zones.md).
 - **Race v1** — ⏳ one philosophy nudging one axis + one happiness source (after the dial is live).
 - **Roads v2** — ⏳ (re-ranked) turn instant roads into build projects, add route-benefit summaries.

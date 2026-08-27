@@ -3,6 +3,7 @@ import { Stars } from '@app/ui/anarkai'
 import type { StarsValue } from '@sursaut/ui/models'
 import { goods as visualGoods } from 'engine-rules/visual-content'
 import type { Game } from 'ssh/game'
+import type { StorageAlveolus } from 'ssh/hive/storage'
 import type { GoodType } from 'ssh/types/base'
 import PropertyGridRow from '../PropertyGridRow'
 import ResourceImage from '../ResourceImage'
@@ -36,33 +37,46 @@ css`
 `
 
 interface SpecificStorageConfigurationProps {
-	action: Ssh.SpecificStorageAction
-	configuration: Ssh.SpecificStorageAlveolusConfiguration
+	content: StorageAlveolus
 	game: Game
 }
 
+// Calculate scale parameters: { maxStars, step }
+function getScaleParams(max: number): { maxStars: number; step: number } {
+	if (max <= 0) return { maxStars: 5, step: 0 }
+
+	// Target 5, 6, 4 in that order
+	if (max % 5 === 0) return { maxStars: 5, step: max / 5 }
+	if (max % 6 === 0) return { maxStars: 6, step: max / 6 }
+	if (max % 4 === 0) return { maxStars: 4, step: max / 4 }
+
+	// Fallback: 5 stars, with ceiling step
+	return { maxStars: 5, step: Math.ceil(max / 5) }
+}
+
 export default function SpecificStorageConfiguration(props: SpecificStorageConfigurationProps) {
-	const goods = () => Object.keys(props.action?.goods ?? {}) as GoodType[]
-
-	// Calculate scale parameters: { maxStars, step }
-	const getScaleParams = (max: number) => {
-		if (max <= 0) return { maxStars: 5, step: 0 }
-
-		// Target 5, 6, 4 in that order
-		if (max % 5 === 0) return { maxStars: 5, step: max / 5 }
-		if (max % 6 === 0) return { maxStars: 6, step: max / 6 }
-		if (max % 4 === 0) return { maxStars: 4, step: max / 4 }
-
-		// Fallback: 5 stars, with ceiling step
-		return { maxStars: 5, step: Math.ceil(max / 5) }
+	// Derive directly from the reactive alveolus (same pattern as
+	// `SlottedStorageConfiguration`): reading `content.specificStorageConfiguration`
+	// through `props.content` keeps the reactive reads tracked, so the two-way `Stars`
+	// binding reports bidi (not read-only) and writes land on the live config.
+	const view = {
+		get action() {
+			return props.content?.action as Ssh.SpecificStorageAction | undefined
+		},
+		get configuration() {
+			return props.content?.specificStorageConfiguration
+		},
+		get goods() {
+			return Object.keys(this.action?.goods ?? {}) as GoodType[]
+		},
 	}
 
 	const getBufferStars = (goodType: GoodType) => {
-		const val = props.configuration?.buffers?.[goodType] ?? 0
+		const val = view.configuration?.buffers?.[goodType] ?? 0
 		// Allow 0 value (0 stars)
 		if (val <= 0) return 0
 
-		const max = props.action.goods[goodType] || 0
+		const max = view.action?.goods[goodType] || 0
 		if (max === 0) return 0
 
 		const { step } = getScaleParams(max)
@@ -73,12 +87,9 @@ export default function SpecificStorageConfiguration(props: SpecificStorageConfi
 	}
 
 	const setBufferFromStars = (goodType: GoodType, stars: number) => {
-		if (!props.configuration) return
-		const liveBuffers = props.configuration.buffers ?? (props.configuration.buffers = {})
-
 		let newVal = 0
 		if (stars > 0) {
-			const max = props.action.goods[goodType] || 0
+			const max = view.action?.goods[goodType] || 0
 			const { step, maxStars } = getScaleParams(max)
 			// Cap at maxStars just in case, though UI limits it
 			const safeStars = Math.min(stars, maxStars)
@@ -87,22 +98,18 @@ export default function SpecificStorageConfiguration(props: SpecificStorageConfi
 			if (newVal > max) newVal = max
 		}
 
-		if (newVal <= 0) {
-			delete liveBuffers[goodType]
-		} else {
-			liveBuffers[goodType] = newVal
-		}
+		props.content?.setSpecificStorageBuffer(goodType, newVal)
 	}
 
 	const getBufferValue = (goodType: GoodType) => {
-		return props.configuration?.buffers?.[goodType] ?? 0
+		return view.configuration?.buffers?.[goodType] ?? 0
 	}
 
 	return (
-		<div if={props.action} class="specific-storage-config">
-			<for each={goods()}>
+		<div if={view.action} class="specific-storage-config">
+			<for each={view.goods}>
 				{(good: GoodType) => {
-					const maxQuantity = props.action.goods[good] || 0
+					const maxQuantity = view.action?.goods[good] || 0
 					const { maxStars } = getScaleParams(maxQuantity)
 					const stars = {
 						get value() {

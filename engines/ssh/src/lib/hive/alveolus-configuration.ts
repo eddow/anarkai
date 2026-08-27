@@ -1,4 +1,4 @@
-import { reactive } from 'mutts'
+import { inert, reactive } from 'mutts'
 import type { AlveolusType } from 'ssh/types/base'
 
 /**
@@ -25,11 +25,18 @@ export function isTransformConfiguration(
 /**
  * Global manager for named configurations.
  * Named configurations are shared across all hives.
+ *
+ * The storage is a reactive Map (same pattern as `Hive.configurations`): mutts
+ * deep-wraps values on `set`/`get`, so both map mutations (add/remove/rename) and
+ * edits to a returned config object (e.g. `config.productRatio.maxProductRatio`)
+ * trigger reactive updates in any consumer that read through this manager.
  */
 @reactive
 export class AlveolusConfigurationManager {
 	/** Named configurations by alveolus type, then by name */
-	private namedConfigurations = new Map<AlveolusType, Map<string, Ssh.AlveolusConfiguration>>()
+	private namedConfigurations = reactive(
+		new Map<AlveolusType, Map<string, Ssh.AlveolusConfiguration>>()
+	)
 
 	/**
 	 * Get a named configuration for an alveolus type
@@ -70,25 +77,32 @@ export class AlveolusConfigurationManager {
 	}
 
 	/**
-	 * Serialize all named configurations for save
+	 * Serialize all named configurations for save.
+	 * Runs in an `inert` context so reading the reactive map (and its reactive
+	 * config values) does not register spurious reactive dependencies — a save
+	 * snapshot must never become a live subscription to configuration edits.
 	 */
 	serialize(): Record<AlveolusType, Record<string, Ssh.AlveolusConfiguration>> {
-		const result: Record<string, Record<string, Ssh.AlveolusConfiguration>> = {}
-		for (const [type, configs] of this.namedConfigurations) {
-			result[type] = Object.fromEntries(configs)
-		}
-		return result as Record<AlveolusType, Record<string, Ssh.AlveolusConfiguration>>
+		return inert(() => {
+			const result: Record<string, Record<string, Ssh.AlveolusConfiguration>> = {}
+			for (const [type, configs] of this.namedConfigurations) {
+				result[type] = Object.fromEntries(configs)
+			}
+			return result as Record<AlveolusType, Record<string, Ssh.AlveolusConfiguration>>
+		})
 	}
 
 	/**
-	 * Deserialize named configurations from save
+	 * Deserialize named configurations from save.
+	 * Writes into the reactive map — mutation notifications are intended here, so
+	 * no `inert` wrapper is needed (a load is a real state change consumers observe).
 	 */
-	deserialize(data: Record<AlveolusType, Record<string, Ssh.AlveolusConfiguration>>): void {
+	deserialize(data: Partial<Record<AlveolusType, Record<string, Ssh.AlveolusConfiguration>>>): void {
 		this.namedConfigurations.clear()
 		for (const [type, configs] of Object.entries(data)) {
 			const typeMap = new Map<string, Ssh.AlveolusConfiguration>()
 			for (const [name, config] of Object.entries(configs)) {
-				typeMap.set(name, config)
+				typeMap.set(name, reactive({ ...config }))
 			}
 			this.namedConfigurations.set(type as AlveolusType, typeMap)
 		}
