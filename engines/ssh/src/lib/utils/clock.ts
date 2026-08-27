@@ -15,6 +15,7 @@
 // ─── Clocked ───────────────────────────────────────────────────────────────
 
 import { reactive } from 'mutts'
+import { profile } from 'ssh/dev/debug'
 import type { Game } from 'ssh/game/game'
 
 /**
@@ -138,7 +139,17 @@ export class Clock {
 				this.partiallyProgressed!.partialDs += stepDs
 				remaining -= stepDs
 				this.list.shift()
-				head.step.complete()
+				// `complete()` triggers the character's next-step resolution (nextStep → findAction →
+				// the deferred execution pathfind). This is the one spot that can cost ~100ms in a
+				// single small-delta frame; instrument it so `profile.simulation` attributes it.
+				const completeEnd = profile.simulation.begin?.('step.complete', () => ({
+					stepType: (head.step as { constructor?: { name?: string } }).constructor?.name,
+				}))
+				try {
+					head.step.complete()
+				} finally {
+					completeEnd?.()
+				}
 			}
 		}
 		// If the `clocked` was freshly added during this advance, it shouldn't receive progress for the whole current advance, only the advance after its insertion

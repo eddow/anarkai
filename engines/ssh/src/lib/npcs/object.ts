@@ -1,10 +1,12 @@
 import { reactive, unreactive } from 'mutts'
 import type { ExecutionContext } from 'npc-script'
+import { reviveExecutionState, serializeExecutionState } from 'npc-script'
 import {
 	releaseVehicleFreightWorkOnPlanInterrupt,
 	type VehicleFreightInterruptSubject,
 } from 'ssh/freight/vehicle-run'
 import type { Game, GameObject } from 'ssh/game'
+import type { SaveIndexes } from 'ssh/serialization'
 import type { Clock, Clocked } from 'ssh/utils/clock'
 import { traces } from '../dev/debug.ts'
 import {
@@ -15,6 +17,7 @@ import {
 	summarizeScriptRunValueKind,
 } from './npc-diagnostics'
 import { getGameScript, ScriptExecution, scriptExecutionErrorDiagnostic } from './scripts'
+import { makeReviveHook, makeSerializeHook } from './serialize'
 import { AEvolutionStep, ASingleStep, PonderingStep, type TextKey } from './steps'
 
 function assertScriptExecution(value: unknown, context: string): asserts value is ScriptExecution {
@@ -131,8 +134,11 @@ export function withScripted<T extends abstract new (...args: any[]) => GameObje
 			// Wire game reference so Clocked.remainingDs works
 			;(step as { game?: Game }).game = (this as unknown as { game: Game }).game
 			if (step instanceof AEvolutionStep) {
-				// Timed step: clock drives progress & completion
-				gameClock.begin(step as unknown as Clocked, step.duration)
+				// Timed step: clock drives progress & completion. Use the *remaining*
+				// duration so a partially-evolved step restored from a save resumes from
+				// its current `evolution` instead of restarting (fresh steps have
+				// `evolution === 0`, so this is `step.duration` in the normal flow).
+				gameClock.begin(step as unknown as Clocked, step.duration * (1 - step.evolution))
 			} else {
 				// Off-clock step (QueueStep, WaitForPredicateStep): externally completed
 				gameClock.begin(step as unknown as Clocked)
@@ -279,18 +285,39 @@ export function withScripted<T extends abstract new (...args: any[]) => GameObje
 			super.destroy()
 		}
 
-		public getScriptState() {
-			return {
-				runningScripts: this.runningScripts.map((s) => ({
+		public getScriptState(indexes?: SaveIndexes) {
+			// Only build the serialize hook when there is an execution state to snapshot.
+			const hook =
+				indexes && this.runningScripts.some((s) => s.state !== undefined)
+					? makeSerializeHook(this.scriptsContext, indexes, this as unknown as object)
+					: undefined
+			try {
+				const runningScripts = this.runningScripts.map((s) => ({
 					scriptFileName: s.script.name, // The name of the GameScript module (e.g., 'work')
 					executionName: s.name, // The name of the function being executed (e.g., 'goWork')
-					state: s.state,
-				})),
-				stepExecutor: this.stepExecutor?.serialize(),
+					// Deep-snapshot the executor state at save time (a live reference would be
+					// mutated by the running game after `saveGameData()` returns).
+					state:
+						s.state !== undefined && hook !== undefined
+							? serializeExecutionState(s.state, hook)
+							: s.state,
+				}))
+				return { runningScripts, stepExecutor: this.stepExecutor?.serialize(), resumable: true }
+			} catch (error) {
+				// A native closure / unresolvable object cannot be referenced: mark this state
+				// non-resumable so the character re-plans through the normal selection path.
+				traces.script.error?.('script.serialize.failed', {
+					character: (this as unknown as { name?: string }).name,
+					error,
+				})
+				return { runningScripts: [], stepExecutor: undefined, resumable: false }
 			}
 		}
 
-		public restoreScriptState(data: { runningScripts: any[]; stepExecutor?: any }) {
+		public restoreScriptState(
+			data: { runningScripts: any[]; stepExecutor?: any; resumable?: boolean },
+			indexes?: SaveIndexes
+		) {
 			// Restore step executor
 			if (data.stepExecutor) {
 				const step = ASingleStep.deserialize(
@@ -301,25 +328,60 @@ export function withScripted<T extends abstract new (...args: any[]) => GameObje
 				if (step) this.stepExecutor = step
 			}
 
-			// Restore running scripts
+			// Restore running scripts, reviving the tokenized ExecutionState against the
+			// freshly reconstituted context and load-side save indexes.
 			if (data.runningScripts) {
 				const scriptsList = Array.isArray(data.runningScripts)
 					? data.runningScripts
 					: Object.values(data.runningScripts)
 
-				this.runningScripts = scriptsList
-					.map((s: any) => {
-						const gameScript = getGameScript(s.scriptFileName)
-						if (!gameScript) {
-							console.warn(
-								`Could not find GameScript for file: ${s.scriptFileName}. Skipping script restoration.`
+				const hook =
+					indexes && scriptsList.some((s: any) => s.state !== undefined)
+						? makeReviveHook(
+								this.scriptsContext,
+								indexes,
+								this.game as unknown as Game,
+								this as unknown as object
 							)
-							return null
-						}
-						// Assuming ScriptExecution has a constructor compatible
-						return new ScriptExecution(gameScript, s.executionName, s.state)
+						: undefined
+
+				try {
+					this.runningScripts = scriptsList
+						.map((s: any) => {
+							const gameScript = getGameScript(s.scriptFileName)
+							if (!gameScript) {
+								console.warn(
+									`Could not find GameScript for file: ${s.scriptFileName}. Skipping script restoration.`
+								)
+								return null
+							}
+							const state =
+								s.state !== undefined && hook !== undefined
+									? reviveExecutionState(s.state, hook)
+									: s.state
+							return new ScriptExecution(gameScript, s.executionName, state)
+						})
+						.filter((s): s is ScriptExecution => s !== null)
+				} catch (error) {
+					// An unresolvable reference means the script cannot be faithfully resumed.
+					traces.script.error?.('script.restore.failed', {
+						character: (this as unknown as { name?: string }).name,
+						error,
 					})
-					.filter((s) => s) as ScriptExecution[]
+					this.runningScripts = []
+					this.stepExecutor = undefined
+					return
+				}
+			}
+
+			// Auto-resume the restored execution. A non-resumable state is left idle so the
+			// character re-picks work through the normal selection path.
+			if (data.resumable === false) return
+			if (this.stepExecutor) {
+				this.beginStep(this.stepExecutor)
+			} else if (this.runningScripts.length) {
+				this.nextStep()
+				if (this.stepExecutor) this.beginStep(this.stepExecutor)
 			}
 		}
 	}

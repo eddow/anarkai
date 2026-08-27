@@ -323,8 +323,17 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 		if (gameObjectsModule.Alveolus.allows(target)) {
 			const alreadyAssigned =
 				target.assignedWorker === character && character.assignedAlveolus === (target as Alveolus)
-			;(plan as WorkPlan & { preserveAssignment?: boolean }).preserveAssignment = alreadyAssigned
-			if (!alreadyAssigned) {
+			if (alreadyAssigned) {
+				// Phase 3: the claim already happened synchronously at selection
+				// (`Character.workExecution`), which also set `preserveAssignment`. Keep it; only
+				// fall back to the old preserve-on-re-run default if it was never set.
+				if ((plan as WorkPlan & { preserveAssignment?: boolean }).preserveAssignment === undefined) {
+					;(plan as WorkPlan & { preserveAssignment?: boolean }).preserveAssignment = true
+				}
+			} else {
+				// Fallback claim (e.g. a direct `goWork` without the selection-time claim): bind here,
+				// last-writer-wins, exactly as before.
+				;(plan as WorkPlan & { preserveAssignment?: boolean }).preserveAssignment = false
 				const currentAssigned = character.assignedAlveolus
 				if (currentAssigned && currentAssigned !== target) {
 					if (currentAssigned.assignedWorker === character)

@@ -99,12 +99,13 @@ import type { AlveolusType, DepositType, GoodType, TerrainType } from 'ssh/types
 import type { GameRenderer, InputAdapter } from 'ssh/types/engine'
 import type { AxialCoord } from 'ssh/utils'
 import { axial } from 'ssh/utils/axial'
+import { Version } from 'ssh/utils/cell'
 import { Clock } from 'ssh/utils/clock'
 import { SimulationLoop } from 'ssh/utils/loop'
 import { LCG } from 'ssh/utils/numbers'
 import { toAxialCoord } from 'ssh/utils/position'
 import * as gameContent from '../../../assets/game-content'
-import { assert, setTraceTimeSource } from '../dev/debug.ts'
+import { assert, profile, setTraceTimeSource } from '../dev/debug.ts'
 import { GameplayFrontierController } from './gameplay-frontier'
 import type { GameObject, InteractiveGameObject } from './object'
 import {
@@ -338,6 +339,10 @@ export interface SaveState extends GamePatches {
 	serializedVehicles?: readonly SerializedVehicle[]
 	generationOptions: GameGenerationOptions
 	streamedFrontier?: Array<[number, number]>
+	/** Simulation RNG (`Game.random`) state, so a loaded game continues deterministically. */
+	randomState?: number
+	/** Simulation clock virtual time, so throttle/traces continue deterministically. */
+	clockVirtualTime?: number
 	/** Global named configurations */
 	namedConfigurations?: Record<AlveolusType, Record<string, Ssh.AlveolusConfiguration>>
 	/** Per-hive configurations by alveolus type */
@@ -591,9 +596,30 @@ export class Game extends Eventful<GameEvents> {
 	private interactiveRegistrationBatchDepth = 0
 	private interactiveLifecycleFlushScheduled = false
 	private presentationEventsFlushScheduled = false
-	private _workPlanningRevision = 0
-	private _transitRevision = 0
-	private _candidateRevision = 0
+	/**
+	 * Locally-owned work-planning change signal — the kernel revision for job-relevant state (goods,
+	 * hive needs, construction, deposits, operator/service/assignment). Bumped by both
+	 * `invalidateWorkPlanning` and `invalidateWorkPlanningAllocation`; every convey change also bumps
+	 * it (via `invalidateConveyPlanning` → `invalidateWorkPlanning`), so it is the single superset
+	 * signal the per-entity job caches declare as a dependency. `markRaw` keeps it out of mutts so the
+	 * kernel never pays reactive overhead on it. Read via the `workPlanningRevision` shim (tests /
+	 * presentation event).
+	 */
+	public readonly workPlanningVersion = markRaw(new Version())
+	/**
+	 * Locally-owned transit change signal — the kernel revision for geometry (blocking / walk-cost /
+	 * roads). Geometry-derived caches declare it as a `Derived` dependency and recompute lazily on
+	 * read. `markRaw` keeps it out of mutts so the kernel never pays reactive overhead on it.
+	 */
+	public readonly transitVersion = markRaw(new Version())
+	/**
+	 * Locally-owned candidate change signal — the kernel revision for what a vehicle can *offer*
+	 * (board, goods, storage, lines) but **not** ownership (operator / service / assignment). Bumped
+	 * by `invalidateWorkPlanning` and `invalidateTransit` (not `invalidateWorkPlanningAllocation`), so
+	 * per-vehicle candidate caches (zone-browse, load/unload, stop measures) recompute on offer
+	 * changes while surviving intra-sweep ownership bumps.
+	 */
+	public readonly candidateVersion = markRaw(new Version())
 	private terrainTerraforming: TerrainTerraformPatch[] = []
 	private readonly bootstrapGameplayCoords = new Set<string>()
 	private readonly materializedGameplayCoords = new Map<string, AxialCoord>()
@@ -1077,9 +1103,13 @@ export class Game extends Eventful<GameEvents> {
 		return out.sort((a, b) => b.tick - a.tick)
 	}
 
-	/** Monotonic planning revision; bumped whenever world state changes enough to require re-planning. */
+	/**
+	 * Monotonic work-planning change stamp — a read view of {@link workPlanningVersion}, retained for
+	 * the `work-planning.changed` presentation event and the invalidation-semantics tests. The manual
+	 * counter is gone; this just exposes the cell's version.
+	 */
 	get workPlanningRevision(): number {
-		return this._workPlanningRevision
+		return this.workPlanningVersion.versionOf()
 	}
 
 	/**
@@ -1093,11 +1123,11 @@ export class Game extends Eventful<GameEvents> {
 	 * board state — never who currently operates the vehicle).
 	 */
 	public invalidateWorkPlanning(_reason: string): void {
-		this._workPlanningRevision++
-		this._candidateRevision++
+		this.workPlanningVersion.bump()
+		this.candidateVersion.bump()
 		const event: GamePresentationEvent = {
 			type: 'work-planning.changed',
-			revision: this._workPlanningRevision,
+			revision: this.workPlanningVersion.versionOf(),
 		}
 		this.pendingWorkPlanningEvent = event
 		this.schedulePresentationEventsFlush()
@@ -1110,40 +1140,27 @@ export class Game extends Eventful<GameEvents> {
 	 * them from the candidate revision lets per-vehicle candidate caches survive the population sweep.
 	 */
 	public invalidateWorkPlanningAllocation(_reason: string): void {
-		this._workPlanningRevision++
+		this.workPlanningVersion.bump()
 		const event: GamePresentationEvent = {
 			type: 'work-planning.changed',
-			revision: this._workPlanningRevision,
+			revision: this.workPlanningVersion.versionOf(),
 		}
 		this.pendingWorkPlanningEvent = event
 		this.schedulePresentationEventsFlush()
 	}
 
-	/** Monotonic transit revision; bumped only when board *transit* inputs change (tile content, roads). */
-	get transitRevision(): number {
-		return this._transitRevision
-	}
-
 	/**
-	 * Monotonic candidate revision; bumped by everything that changes what a vehicle can *offer*
-	 * (board, goods, storage, lines) but **not** by ownership (operator / service / assignment).
-	 * This is the correct token for per-vehicle job-candidate caches (zone-browse, load/unload).
-	 */
-	get candidateRevision(): number {
-		return this._candidateRevision
-	}
-
-	/**
-	 * Bump the transit revision. Unlike {@link invalidateWorkPlanning}, this is a cheap counter with no
-	 * presentation event — it exists solely to key transit-derived caches (reachability floods) that must
-	 * be invalidated by real blocking / walk-cost / road changes, **not** by operator/storage changes
-	 * (which bump `workPlanningRevision` but leave the transit graph untouched).
+	 * Invalidate transit-derived caches. Unlike {@link invalidateWorkPlanning}, this emits no
+	 * presentation event — it only bumps the transit {@link Version} that geometry-derived caches
+	 * (board neighbour / service-path memos, the vehicle reachability flood) declare as a dependency.
+	 * They recompute lazily on the next read via a version compare — no global counter, and no `clear()`
+	 * the mutator could forget.
 	 *
-	 * Also bumps the candidate revision: transit changes are a subset of candidate changes.
+	 * Also bumps the candidate version: transit changes are a subset of candidate changes.
 	 */
 	public invalidateTransit(_reason: string): void {
-		this._transitRevision++
-		this._candidateRevision++
+		this.candidateVersion.bump()
+		this.transitVersion.bump()
 	}
 
 	/**
@@ -1306,14 +1323,27 @@ export class Game extends Eventful<GameEvents> {
 		const deltaSeconds = ((gameRootSpeed * timer.elapsedMS) / 1000) * speedFactor
 		if (deltaSeconds > gameMaxTickDeltaSeconds) return // debugger / tab-freeze guard
 
-		// Character steps & future off-clock periodic entries via clock
-		this.clock.advance(deltaSeconds)
+		// Execution spans — separate from the planning spans under `profile.proposedJobs`
+		// (`character-planner.work`). After the pathfind-to-score elimination, the residual lag may
+		// now live in EXECUTION (clock-driven step progress = walking/lerp) rather than planning; this
+		// span lets one `profile.simulation` summary separate the two without guessing.
+		const tickEnd = profile.simulation.begin?.('tick', () => ({ deltaSeconds }))
+		try {
+			// Character steps & future off-clock periodic entries via clock
+			const advanceEnd = profile.simulation.begin?.('clock.advance', () => ({ deltaSeconds }))
+			this.clock.advance(deltaSeconds)
+			advanceEnd?.()
 
-		// Constant evolutions (growth + decay) and legacy ticked objects (ResidentialDemandTicker)
-		// — to be migrated to clock.setInterval later
-		for (const object of this.tickedObjects) {
-			if ('destroyed' in object && object.destroyed) continue
-			object.update(deltaSeconds)
+			// Constant evolutions (growth + decay) and legacy ticked objects (ResidentialDemandTicker)
+			// — to be migrated to clock.setInterval later
+			const evolveEnd = profile.simulation.begin?.('tickedObjects.update', () => ({ deltaSeconds }))
+			for (const object of this.tickedObjects) {
+				if ('destroyed' in object && object.destroyed) continue
+				object.update(deltaSeconds)
+			}
+			evolveEnd?.()
+		} finally {
+			tickEnd?.()
 		}
 	})
 
@@ -3125,6 +3155,8 @@ export class Game extends Eventful<GameEvents> {
 				namedConfigurations: this.configurationManager.serialize(),
 				hiveConfigurations,
 				hivePlans: this.hivePlans.serialize(),
+				randomState: this.random.getState(),
+				clockVirtualTime: this.clock.virtualTime,
 			}
 		} finally {
 			this.conveySaveIndexByRef = undefined
@@ -3190,7 +3222,7 @@ export class Game extends Eventful<GameEvents> {
 				hivePlans: this.hivePlans.plans,
 			})
 
-			const characters = deserializeCharacters(this, state.characters)
+			const characters = deserializeCharacters(this, state.characters, indexes)
 			for (const character of characters) indexes.characters.register(character)
 
 			const vehicles = deserializeVehicles(this, state.serializedVehicles, indexes)
@@ -3210,6 +3242,10 @@ export class Game extends Eventful<GameEvents> {
 			for (const vehicle of vehicles) this.vehicles.add(vehicle)
 			for (const character of characters) this.population.add(character)
 		}
+		// Restore the simulation RNG + clock time so the loaded game continues deterministically from
+		// the save point (world restoration above is deterministic and does not consume `this.random`).
+		if (state.randomState !== undefined) this.random.setState(state.randomState)
+		if (state.clockVirtualTime !== undefined) this.clock.virtualTime = state.clockVirtualTime
 		console.info('[save-load][loadGameData] completed', {
 			conveyRestored: this.conveyRestoredAtLoad.length,
 		})
@@ -3371,8 +3407,5 @@ export class Game extends Eventful<GameEvents> {
 		this.objects.clear()
 		this.interactiveLifecycleFlushScheduled = false
 		this.presentationEventsFlushScheduled = false
-		this._workPlanningRevision = 0
-		this._transitRevision = 0
-		this._candidateRevision = 0
 	}
 }

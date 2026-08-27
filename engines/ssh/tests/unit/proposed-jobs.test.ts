@@ -184,4 +184,63 @@ describe('proposed jobs', () => {
 			game.destroy()
 		}
 	})
+
+	it('exposes a faithful WorkAdvertisement view on tiles (Phase 3 first increment)', async () => {
+		const engine = new TestEngine({ terrainSeed: 42_105, characterCount: 0 })
+		await engine.init()
+
+		try {
+			engine.loadScenario({
+				hives: [
+					{
+						name: 'AdHive',
+						alveoli: [{ coord: [2, 2], alveolus: 'sawmill', goods: { wood: 6 } }],
+					},
+				],
+			})
+			const tile = engine.game.hex.getTile({ q: 2, r: 2 })!
+			const jobs = tile.proposedJobs
+			const ads = tile.workAdvertisements
+
+			expect(ads).toHaveLength(jobs.length)
+			for (let i = 0; i < jobs.length; i++) {
+				const job = jobs[i]!
+				const ad = ads[i]!
+				expect(ad.kind).toBe(job.job)
+				expect(ad.urgency).toBe(job.urgency)
+				expect(ad.targetTile).toBe(job.targetTile)
+				expect(ad.source).toBe(job.source)
+			}
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('keeps a stable targetTile reference across a work-planning bump (Phase 4 commitment)', async () => {
+		const engine = new TestEngine({ terrainSeed: 42_106, characterCount: 0 })
+		await engine.init()
+
+		try {
+			engine.loadScenario({
+				hives: [
+					{
+						name: 'StableHive',
+						alveoli: [{ coord: [3, 3], alveolus: 'sawmill', goods: { wood: 4 } }],
+					},
+				],
+			})
+			const alveolus = engine.game.hex.getTile({ q: 3, r: 3 })!.content as Alveolus
+			const before = alveolus.proposedJobs[0]!.targetTile
+
+			// Bump work planning (recreates the job objects via the Derived cache).
+			engine.game.invalidateWorkPlanning('test-bump')
+			const after = alveolus.proposedJobs[0]!.targetTile
+
+			// The `Job` object is recreated, but the target tile is a stable reference.
+			expect(after).toBe(before)
+			expect(after).toBe(alveolus.tile)
+		} finally {
+			await engine.destroy()
+		}
+	})
 })

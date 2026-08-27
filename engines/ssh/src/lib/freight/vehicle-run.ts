@@ -45,6 +45,7 @@ import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService, isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
 import type { GoodType } from 'ssh/types/base'
 import { axial } from 'ssh/utils/axial'
+import { GenerationCache } from 'ssh/utils/cell'
 import { sameRef } from 'ssh/utils/identity'
 import { axialDistance, type Position, toAxialCoord } from 'ssh/utils/position'
 import { assert, profile, traces } from '../dev/debug.ts'
@@ -449,15 +450,11 @@ function findBeginServiceActionableWork(
  * (not `character.position`) to every `pickVehicleZoneBrowseSelection` it makes, and the trade-stop
  * branch of `stopHasPotentialVehicleTransfer` never reads the character. It is recomputed once per
  * (character × vehicle) in `pickMaintenanceForVehicle`, `findVehicleBeginServiceLeg`, and
- * `findVehicleApproachJob`, so cache it per `(vehicle, candidateRevision)` — `candidateRevision`
+ * `findVehicleApproachJob`, so cache it per `(vehicle, candidateVersion)` — `candidateVersion`
  * excludes intra-sweep operator/service/assignment bumps.
  */
-const initialServiceCandidateCache = new WeakMap<
-	Game,
-	{
-		revision: number
-		entries: Map<string, { line: FreightLineDefinition; stop: FreightStop; urgency: number } | undefined>
-	}
+const initialServiceCandidateCache = new GenerationCache<
+	{ line: FreightLineDefinition; stop: FreightStop; urgency: number } | undefined
 >()
 
 export function pickInitialVehicleServiceCandidate(
@@ -465,17 +462,10 @@ export function pickInitialVehicleServiceCandidate(
 	_character: Character,
 	vehicle: Vehicle
 ): { line: FreightLineDefinition; stop: FreightStop; urgency: number } | undefined {
-	let entry = initialServiceCandidateCache.get(game)
-	const revision = game.candidateRevision
-	if (!entry || entry.revision !== revision) {
-		entry = { revision, entries: new Map() }
-		initialServiceCandidateCache.set(game, entry)
-	}
 	const key = debugObjectId(vehicle) ?? ''
-	if (entry.entries.has(key)) return entry.entries.get(key)
-	const result = pickInitialVehicleServiceCandidateUncached(game, vehicle)
-	entry.entries.set(key, result)
-	return result
+	return initialServiceCandidateCache.getOrCompute(game, game.candidateVersion, key, () =>
+		pickInitialVehicleServiceCandidateUncached(game, vehicle)
+	)
 }
 
 function pickInitialVehicleServiceCandidateUncached(
@@ -517,40 +507,47 @@ export function projectedLineStopForVehicleHop(
 	character: Character,
 	vehicle: Vehicle
 ): { line: FreightLineDefinition; stop: FreightStop } | undefined {
-	const svc = vehicle.service
-	if (!isVehicleLineService(svc)) return undefined
-	const line = svc.line
-	const stop = svc.stop
-	if (!('zone' in stop)) {
-		if ('trade' in stop) {
-			if (stopHasPotentialVehicleTransfer(game, character, vehicle, line, stop)) {
-				return { line, stop }
+	const end = profile.proposedJobs.begin?.('projectedLineStopForVehicleHop', () => ({
+		vehicleUid: debugObjectId(vehicle) ?? '',
+	}))
+	try {
+		const svc = vehicle.service
+		if (!isVehicleLineService(svc)) return undefined
+		const line = svc.line
+		const stop = svc.stop
+		if (!('zone' in stop)) {
+			if ('trade' in stop) {
+				if (stopHasPotentialVehicleTransfer(game, character, vehicle, line, stop)) {
+					return { line, stop }
+				}
+				return line.cyclic
+					? nextActionableVehicleLineStop(game, vehicle, line, stop, character)
+					: { line, stop }
 			}
-			return line.cyclic
-				? nextActionableVehicleLineStop(game, vehicle, line, stop, character)
-				: { line, stop }
+			const targetPos = freightStopMovementTarget(game, character, line, stop)
+			const targetCoord = targetPos ? axial.round(toAxialCoord(targetPos)!) : undefined
+			const vehicleCoord = axial.round(toAxialCoord(vehicle.effectivePosition)!)
+			if (targetCoord && axial.key(targetCoord) !== axial.key(vehicleCoord)) return { line, stop }
+			if ('anchor' in stop && !vehicle.isDocked) return { line, stop }
+			if (!line.cyclic) return { line, stop }
+			if (stopHasPotentialVehicleTransfer(game, character, vehicle, line, stop)) return { line, stop }
+			return nextActionableVehicleLineStop(game, vehicle, line, stop, character)
 		}
-		const targetPos = freightStopMovementTarget(game, character, line, stop)
-		const targetCoord = targetPos ? axial.round(toAxialCoord(targetPos)!) : undefined
-		const vehicleCoord = axial.round(toAxialCoord(vehicle.effectivePosition)!)
-		if (targetCoord && axial.key(targetCoord) !== axial.key(vehicleCoord)) return { line, stop }
-		if ('anchor' in stop && !vehicle.isDocked) return { line, stop }
-		if (!line.cyclic) return { line, stop }
-		if (stopHasPotentialVehicleTransfer(game, character, vehicle, line, stop)) return { line, stop }
-		return nextActionableVehicleLineStop(game, vehicle, line, stop, character)
-	}
-	if (
-		!shouldAdvancePastZoneStop(
-			game,
-			character,
-			vehicle,
-			line,
-			stop as FreightStop & { zone: FreightZoneDefinition },
-			vehicle.effectivePosition
+		if (
+			!shouldAdvancePastZoneStop(
+				game,
+				character,
+				vehicle,
+				line,
+				stop as FreightStop & { zone: FreightZoneDefinition },
+				vehicle.effectivePosition
+			)
 		)
-	)
-		return { line, stop }
-	return nextActionableVehicleLineStop(game, vehicle, line, stop, character)
+			return { line, stop }
+		return nextActionableVehicleLineStop(game, vehicle, line, stop, character)
+	} finally {
+		end?.()
+	}
 }
 
 export type VehicleServiceStartCandidate = {

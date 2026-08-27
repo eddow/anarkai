@@ -1,4 +1,4 @@
-import { goods as goodsCatalog, vehicles as vehicleRules } from 'engine-rules'
+import { goods as goodsCatalog, sensingRadius, vehicles as vehicleRules } from 'engine-rules'
 import { inert, reactive, unwrap } from 'mutts'
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
@@ -21,7 +21,6 @@ import {
 	type ProposedJob,
 	proposedJobScore,
 	proposedVehicleJobIdentityKey,
-	proposedVehicleJobMatchParts,
 	type TailoredJobCandidate,
 	type VehiclePlannerJob,
 	type VehicleProposedJob,
@@ -181,6 +180,14 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 	lastPickedActivityKind: NextActivityKind | undefined
 
 	/**
+	 * Game-time (`clock.virtualTime`) of the last idle-worker re-plan requested by
+	 * `wakeWanderingWorkersNear`. Transient — not serialized. Used with
+	 * `idleReplanIntervalSeconds` to collapse the re-plan cascade in simulation-time, so game-speed
+	 * does not change how often a worker reconsiders.
+	 */
+	lastIdleReplanVirtualTime = Number.NEGATIVE_INFINITY
+
+	/**
 	 * Last `findAction` resolution: post-hysteresis ranked utilities and whether the script came
 	 * from that list (`ranked`) or from the emergency `wander()` when every ranked kind failed
 	 * `tryScript` (`fallback-wander`). See `traceIdleDiagnosis` / `blackBoxLog.idleDiagnosis`.
@@ -191,12 +198,33 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		| { revision: number; snapshot: RankedWorkPlannerSnapshot | undefined }
 		| undefined
 
+	/**
+	 * Per-character memo of the work ranking, keyed on `workPlanningRevision`. The ranking is
+	 * deterministic for a given (character, revision) except for `position` drift, which is *not*
+	 * revision-tracked. Freezing it across a revision is the Phase-4 commitment: an idle character
+	 * re-planned mid-sweep (e.g. `wakeWanderingWorkersNear`) reuses the same ranking instead of
+	 * re-scanning the board + vehicle picks. Any job-relevant change (goods, hive, construction,
+	 * operator, assignment) bumps the revision and invalidates the memo.
+	 */
+	private rankedWorkCandidatesCache:
+		| { revision: number; ranked: RankedWorkCandidate[] }
+		| undefined
+
+	/**
+	 * Sticky job-target commitment (Phase 4): the last work target this character committed to, held
+	 * as **references** (`targetTile` + `source` entity) plus the scalar `job` kind — no string keys.
+	 * Job objects are recreated every `workPlanningVersion` bump, so their identity is not stable;
+	 * the entities they point at (alveolus / vehicle / tile / target tile) *are*. `sameWorkIdentity`
+	 * compares these references, so the commitment survives re-plans. Transient — not serialized.
+	 */
+	private committedWork: Pick<RankedWorkCandidate, 'job' | 'targetTile'> | undefined
+
 	get workPlannerSnapshot(): RankedWorkPlannerSnapshot | undefined {
-		const revision = this.game.workPlanningRevision
+		const revision = this.game.workPlanningVersion.versionOf()
 		if (this.workPlannerSnapshotCache?.revision === revision) {
 			return this.workPlannerSnapshotCache.snapshot ?? this.lastWorkPlannerSnapshot
 		}
-		const ranked = this.rankedWorkCandidates()
+		const ranked = this.rankedWorkCandidatesCached()
 		const match = this.resolveBestJobMatchFrom(ranked)
 		const snapshot = this.buildRankedWorkSnapshotFrom(ranked, match)
 		this.workPlannerSnapshotCache = { revision, snapshot }
@@ -684,6 +712,29 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 				: undefined
 		const jobProvider = sourceAlveolus ? sourceAlveolus : targetTile.content!
 		const target = jobProvider
+		// Phase 3 (claim-at-selection): bind the alveolus single-slot synchronously, mirroring the
+		// vehicle path's operator claim above, so two idle workers cannot both select the same job in
+		// one sweep (previously the claim happened later, last-writer-wins, in `Plan.begin`).
+		// Claim-first-wins: if another worker already holds the slot, this worker bails to wander.
+		let preserveAssignment = false
+		if (sourceAlveolus) {
+			const preExisting =
+				sourceAlveolus.assignedWorker === this && this.assignedAlveolus === sourceAlveolus
+			if (!preExisting) {
+				if (sourceAlveolus.assignedWorker && sourceAlveolus.assignedWorker !== this) {
+					return this.scriptsContext.selfCare.wander()
+				}
+				if (this.assignedAlveolus && this.assignedAlveolus !== sourceAlveolus) {
+					if (this.assignedAlveolus.assignedWorker === this)
+						this.assignedAlveolus.assignedWorker = undefined
+					this.assignedAlveolus = undefined
+				}
+				sourceAlveolus.assignedWorker = this
+				this.assignedAlveolus = sourceAlveolus
+			} else {
+				preserveAssignment = true
+			}
+		}
 		if (
 			!currentJobPath &&
 			sourceAlveolus &&
@@ -700,6 +751,10 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 			path: safePath,
 			currentJobPath,
 		})
+		if (sourceAlveolus) {
+			;(workPlan as WorkPlan & { preserveAssignment?: boolean }).preserveAssignment =
+				preserveAssignment
+		}
 		return this.scriptsContext.work.goWork(workPlan)
 	}
 
@@ -767,21 +822,17 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		}
 
 		const executionTile = proposedJob.targetTile
-		const path = this.sameTilePath(executionTile)
-		if (path === false) {
-			return {
-				available: false,
-				proposedJob,
-				character: this,
-				blockedReason: 'no-path',
-			}
-		}
-		const pathLength = path.length
+		// Phase 0: score by hex distance, not a per-candidate pathfind. The real path is computed
+		// once, for the chosen job only, in `startBestJobFrom`. Reachability is therefore checked at
+		// execution time (the winner wanders if unreachable) instead of pre-filtering every candidate.
+		const from = axial.round(toAxialCoord(this.position)!)
+		const to = axial.round(toAxialCoord(executionTile.position)!)
+		const pathLength = axial.distance(from, to)
 		return {
 			available: true,
 			proposedJob,
 			character: this,
-			path,
+			path: [],
 			pathLength,
 			score: proposedJobScore(proposedJob, pathLength),
 		}
@@ -827,7 +878,11 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 				if (assignedJob) out.push(asAlveolusProposedJob(assignedJob, this.assignedAlveolus))
 				else out.push(...this.assignedAlveolus.proposedJobs)
 			}
-			for (const tile of this.game.hex.tilesAround(this.position, maxWalkTime)) {
+			// Locality (Phase 2): enumerate tiles within `sensingRadius` (bounded O(R²)) instead of the
+			// full `maxWalkTime` disc (24 → 1657 tiles). Tile-browsing is bounded by the *radius*; the
+			// alternative — browsing the list of job sources — is bounded by the *job count*, which is
+			// unbounded as a settlement grows. Keep it a tile scan.
+			for (const tile of this.game.hex.tilesAround(this.position, sensingRadius)) {
 				out.push(...tile.proposedJobs)
 			}
 			for (const pick of collectVehicleWorkPicks(this.game, this)) {
@@ -867,27 +922,71 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 
 	private sameWorkMatch(
 		candidate: Pick<RankedWorkCandidate, 'job' | 'targetTile'>,
-		match: { job: Job; targetTile: Tile } | false
+		match: Pick<RankedWorkCandidate, 'job' | 'targetTile'> | false
 	): boolean {
 		if (!match) return false
-		const candidateCoord = axial.key(toAxialCoord(candidate.targetTile.position)!)
-		const matchCoord = axial.key(toAxialCoord(match.targetTile.position)!)
-		if (candidateCoord !== matchCoord || candidate.job.job !== match.job.job) return false
-		if (isVehicleFreightJob(candidate.job) && isVehicleFreightJob(match.job)) {
-			return (
-				proposedVehicleJobMatchParts(candidate.job as VehiclePlannerJob).join(':') ===
-				proposedVehicleJobMatchParts(match.job as VehiclePlannerJob).join(':')
-			)
+		return this.sameWorkIdentity(candidate, match)
+	}
+
+	/**
+	 * Reference-based identity of a work candidate — no string keys. The `Job` object is ephemeral
+	 * (recreated each revision), but `targetTile` and `source` are stable references, and `job` is a
+	 * scalar discriminator. For a single entity that offers multiple distinct jobs (a vehicle on a
+	 * line, a defragmenting storage), the residual disambiguation is the *stable scalar/reference*
+	 * fields, compared by `===`.
+	 */
+	private sameWorkIdentity(
+		a: Pick<RankedWorkCandidate, 'job' | 'targetTile'>,
+		b: Pick<RankedWorkCandidate, 'job' | 'targetTile'>
+	): boolean {
+		if (a.targetTile !== b.targetTile) return false
+		if (a.job.job !== b.job.job) return false
+		const sa = a.job.source
+		const sb = b.job.source
+		if (sa.kind !== sb.kind) return false
+		if (sa.kind === 'alveolus' && sb.kind === 'alveolus' && sa.alveolus !== sb.alveolus) return false
+		if (sa.kind === 'vehicle' && sb.kind === 'vehicle' && sa.vehicle !== sb.vehicle) return false
+		if (sa.kind === 'tile' && sb.kind === 'tile' && sa.tile !== sb.tile) return false
+		if (isVehicleFreightJob(a.job) && isVehicleFreightJob(b.job)) {
+			return this.sameVehicleWorkIdentity(a.job as VehiclePlannerJob, b.job as VehiclePlannerJob)
 		}
-		if (candidate.job.job === 'defragment' && match.job.job === 'defragment') {
-			return candidate.job.goodType === match.job.goodType
+		if (a.job.job === 'defragment' && b.job.job === 'defragment') {
+			return a.job.goodType === b.job.goodType
 		}
 		return true
 	}
 
+	private sameVehicleWorkIdentity(a: VehiclePlannerJob, b: VehiclePlannerJob): boolean {
+		if (a.job === 'vehicleOffload' && b.job === 'vehicleOffload') {
+			const goodOf = (j: Extract<VehiclePlannerJob, { job: 'vehicleOffload' }>): string =>
+				j.maintenanceKind === 'loadFromBurden' ? j.looseGood.goodType : ''
+			return a.maintenanceKind === b.maintenanceKind && goodOf(a) === goodOf(b)
+		}
+		if (a.job === 'zoneBrowse' && b.job === 'zoneBrowse') {
+			return (
+				a.line === b.line &&
+				a.stopIndex === b.stopIndex &&
+				a.zoneBrowseAction === b.zoneBrowseAction &&
+				a.goodType === b.goodType
+			)
+		}
+		if (a.job === 'vehicleHop' && b.job === 'vehicleHop') {
+			return (
+				a.line === b.line &&
+				a.stopIndex === b.stopIndex &&
+				a.dockEnter === b.dockEnter &&
+				a.needsBeginService === b.needsBeginService &&
+				a.zoneBrowseAction === b.zoneBrowseAction &&
+				a.goodType === b.goodType &&
+				(a.approachPath?.length ?? 0) === (b.approachPath?.length ?? 0)
+			)
+		}
+		return true // convey
+	}
+
 	private buildRankedWorkSnapshotFrom(
 		ranked: readonly RankedWorkCandidate[],
-		match: { job: Job; targetTile: Tile } | false
+		match: Pick<RankedWorkCandidate, 'job' | 'targetTile'> | false
 	): RankedWorkPlannerSnapshot | undefined {
 		if (ranked.length === 0) return undefined
 		return {
@@ -910,16 +1009,60 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 	 * Resolve best job without starting a script (for planning / utility).
 	 */
 	@inert
-	resolveBestJobMatch(): { job: Job; targetTile: Tile; path: AxialCoord[] } | false {
-		return this.resolveBestJobMatchFrom(this.rankedWorkCandidates())
+	resolveBestJobMatch(): { job: ProposedJob; targetTile: Tile; path: AxialCoord[] } | false {
+		return this.resolveCommittedJobMatchFrom(this.rankedWorkCandidatesCached())
 	}
 
+	/** Memoized {@link rankedWorkCandidates} keyed on `workPlanningRevision` (Phase-4 commitment). */
+	@inert
+	private rankedWorkCandidatesCached(): RankedWorkCandidate[] {
+		const revision = this.game.workPlanningVersion.versionOf()
+		if (this.rankedWorkCandidatesCache?.revision === revision) {
+			return this.rankedWorkCandidatesCache.ranked
+		}
+		const ranked = this.rankedWorkCandidates()
+		this.rankedWorkCandidatesCache = { revision, ranked }
+		return ranked
+	}
+
+	/** Pure: the top-ranked candidate (no commitment). Used by the snapshot getter (read-only). */
 	private resolveBestJobMatchFrom(
 		ranked: readonly RankedWorkCandidate[]
-	): { job: Job; targetTile: Tile; path: AxialCoord[] } | false {
+	): { job: ProposedJob; targetTile: Tile; path: AxialCoord[] } | false {
 		const best = ranked[0]
 		if (!best) return false
-		return { job: best.job, targetTile: best.targetTile, path: best.path }
+		// Copy the path: `ranked` may be a memoized array reused across `findAction` calls, so the
+		// returned path must not alias the cached `best.path` reference.
+		return { job: best.job, targetTile: best.targetTile, path: [...best.path] }
+	}
+
+	/**
+	 * Sticky job-target commitment (Phase 4): the decision-path match. Keeps the previously-committed
+	 * target when it is still ranked and the new top does not beat it by more than
+	 * `jobCommitmentHysteresis` — an idle worker re-planned mid-sweep keeps its heading instead of
+	 * flipping to a marginally-better job. Falls back to the top candidate when the committed target
+	 * disappeared or a materially-better job appeared, and records the new commitment.
+	 */
+	private resolveCommittedJobMatchFrom(
+		ranked: readonly RankedWorkCandidate[]
+	): { job: ProposedJob; targetTile: Tile; path: AxialCoord[] } | false {
+		const best = ranked[0]
+		if (!best) {
+			this.committedWork = undefined
+			return false
+		}
+		const committed = this.committedWork
+			? ranked.find((candidate) => this.sameWorkIdentity(candidate, this.committedWork!))
+			: undefined
+		if (
+			committed &&
+			committed !== best &&
+			best.score - committed.score <= activityUtilityConfig.jobCommitmentHysteresis
+		) {
+			return { job: committed.job, targetTile: committed.targetTile, path: [...committed.path] }
+		}
+		this.committedWork = { job: best.job, targetTile: best.targetTile }
+		return { job: best.job, targetTile: best.targetTile, path: [...best.path] }
 	}
 
 	/**
@@ -955,11 +1098,19 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 				pathLen: match.path.length,
 				characterQ: pos?.q,
 				characterR: pos?.r,
-				workPlanningRevision: this.game.workPlanningRevision,
+				workPlanningRevision: this.game.workPlanningVersion.versionOf(),
 			})
 		}
 		this.log('character.beginJob', match.job.job)
-		return this.workExecution(match.job, match.targetTile, match.path)
+		// Phase 0: non-vehicle jobs were scored by hex distance with a deferred (empty) path. Compute
+		// the real path now, for the winner only. Vehicle jobs already carry their approachPath.
+		let path = match.path
+		if (!isVehicleFreightJob(match.job) && path.length === 0) {
+			const realPath = this.sameTilePath(match.targetTile)
+			if (realPath === false) return this.scriptsContext.selfCare.wander()
+			path = realPath
+		}
+		return this.workExecution(match.job, match.targetTile, path)
 	}
 
 	get keepWorking(): boolean {
@@ -1051,22 +1202,23 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 	findAction() {
 		releaseAllHomeReservations(this.game, this)
 
-		const rankedWorkCandidates = this.rankedWorkCandidates()
-		const bestWorkMatch = this.resolveBestJobMatchFrom(rankedWorkCandidates)
+		const rankedWorkCandidates = this.rankedWorkCandidatesCached()
+		const bestWorkMatch = this.resolveCommittedJobMatchFrom(rankedWorkCandidates)
 		const workSnapshot = this.buildRankedWorkSnapshotFrom(rankedWorkCandidates, bestWorkMatch)
 		this.workPlannerSnapshotCache = {
-			revision: this.game.workPlanningRevision,
+			revision: this.game.workPlanningVersion.versionOf(),
 			snapshot: workSnapshot,
 		}
 		if (workSnapshot) this.lastWorkPlannerSnapshot = workSnapshot
 		const ranked = excludeWanderAfterWanderWhenEmployable(
 			applyActivityHysteresis(
-				computeActivityScores(this),
+				computeActivityScores(this, bestWorkMatch),
 				this.lastPickedActivityKind,
 				activityUtilityConfig.hysteresis
 			),
 			this.lastPickedActivityKind,
-			this
+			this,
+			bestWorkMatch
 		)
 		const rankedSnapshot = ranked.map((s) => ({
 			kind: s.kind,
@@ -1374,7 +1526,7 @@ export function serializeCharacters(
 			: undefined,
 		operates: character.operates ? indexes.vehicles.toIndex(character.operates) : undefined,
 		driving: character.driving,
-		scripts: (character as any).getScriptState(),
+		scripts: (character as any).getScriptState(indexes),
 	}))
 }
 
@@ -1382,10 +1534,14 @@ export function serializeCharacters(
  * Deserialize characters from the index-based format. Only materializes the
  * character itself; the `operates` vehicle back-link is wired by the caller after
  * vehicles are registered (see {@link Game.loadGameData}).
+ *
+ * @param indexes Optional save indexes for resolving game-object references inside
+ *   a character's script state (`scripts`). Passed through to script-state revival.
  */
 export function deserializeCharacters(
 	game: Game,
-	rows: readonly SerializedCharacter[]
+	rows: readonly SerializedCharacter[],
+	indexes?: SaveIndexes
 ): Character[] {
 	return game.withObjectRegistrationBatch(() =>
 		rows.map((row) => {
@@ -1408,10 +1564,14 @@ export function deserializeCharacters(
 				const tile = game.hex.getTile(row.assignedAlveolus)
 				if (tile?.content && 'hive' in tile.content) {
 					char.assignedAlveolus = tile.content as Alveolus
+					// The save stores only the one-way `assignedAlveolus` reference; recreate the
+					// reciprocal `alveolus.assignedWorker` single-slot link from it (no reciprocal
+					// field in the save format — it is derivable).
+					;(tile.content as Alveolus).assignedWorker = char
 				}
 			}
 			if (row.scripts) {
-				;(char as any).restoreScriptState(row.scripts)
+				;(char as any).restoreScriptState(row.scripts, indexes)
 			}
 			return char
 		})

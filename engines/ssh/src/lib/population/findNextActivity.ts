@@ -2,7 +2,7 @@ import { activityUtilityConfig, goods as goodsCatalog } from 'engine-rules'
 import type { Tile } from 'ssh/board/tile'
 import type { Game } from 'ssh/game'
 import type { GoodType, Job } from 'ssh/types/base'
-import type { AxialCoord } from 'ssh/utils'
+import { type AxialCoord, axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
 import {
 	activityDurations,
@@ -150,6 +150,80 @@ function satiationForGood(good: GoodType): number {
 	return def.satiationStrength ?? 0
 }
 
+/** Best edible good type on a tile (storage stock or loose goods with satiation strength), if any. */
+function bestFoodAt(character: ActivityPlanningCharacter, coord: AxialCoord): GoodType | undefined {
+	const hex = character.game.hex
+	let best: { type: GoodType; strength: number } | undefined
+
+	const tile = hex.getTile(coord)
+	if (tile) {
+		const storage = tile.content?.storage
+		const goodsMap = storage?.stock || {}
+		for (const [good] of Object.entries(goodsMap) as [GoodType, number][]) {
+			if (!storage || storage.available(good as GoodType) < 1) continue
+			const strength = satiationForGood(good as GoodType)
+			if (strength > 0 && (!best || strength > best.strength))
+				best = { type: good as GoodType, strength }
+		}
+	}
+
+	for (const looseGood of hex.looseGoods.getGoodsAt(coord)) {
+		if (!looseGood.available || looseGood.isRemoved) continue
+		const strength = satiationForGood(looseGood.goodType)
+		if (strength > 0 && (!best || strength > best.strength))
+			best = { type: looseGood.goodType, strength }
+	}
+	return best?.type
+}
+
+/**
+ * Nearest food-bearing tile by O(1) hex distance (NO Dijkstra). Phase 0: selection only needs a walk
+ * LENGTH for the `eat` utility; `goEat` re-pathfinds the real path at execution. A near-but-walled-off
+ * food tile resolves at execution (self-correcting, same trade-off as `tailorProposedJob`).
+ */
+function nearestFood(
+	character: ActivityPlanningCharacter
+): { good: GoodType; distance: number } | undefined {
+	const hex = character.game.hex
+	const start = toAxialCoord(character.position)
+	if (!start) return undefined
+	let best: { good: GoodType; distance: number } | undefined
+	for (const tile of hex.tilesAround(start, maxWalkTime)) {
+		const coord = toAxialCoord(tile.position)
+		if (!coord) continue
+		const good = bestFoodAt(character, coord)
+		if (!good) continue
+		const distance = axial.distance(start, coord)
+		if (!best || distance < best.distance) best = { good, distance }
+	}
+	return best
+}
+
+/**
+ * Walk length for the wander activity score, computed as hex distance (no pathfinding). Phase 0: the
+ * wander projection only needs a walk length; `goWander` re-runs `find.wanderingTile()` at execution,
+ * which picks the real target and pathfinds. Mirrors `find.wanderingTile`'s 2–5-tile walkable scan so
+ * the "no walkable tile" signal is preserved.
+ */
+function wanderDistance(character: ActivityPlanningCharacter): number | undefined {
+	const hex = character.game.hex
+	const start = toAxialCoord(character.position)
+	if (!start) return undefined
+	const distance = 2 + character.game.random() * 3 // 2–5 tiles, same as find.wanderingTile
+	const walkable: AxialCoord[] = []
+	for (let q = -Math.ceil(distance); q <= Math.ceil(distance); q++) {
+		for (let r = -Math.ceil(distance); r <= Math.ceil(distance); r++) {
+			const coord = axial.linear({ q, r }, start)
+			if (axial.distance(start, coord) < 2) continue
+			const tile = hex.getTile(coord)
+			if (tile?.content && Number.isFinite(tile.effectiveWalkTime)) walkable.push(coord)
+		}
+	}
+	if (walkable.length === 0) return undefined
+	const index = Math.floor(character.game.random(walkable.length))
+	return axial.distance(start, walkable[index])
+}
+
 function nearestUnreservedHomePath(character: ActivityPlanningCharacter):
 	| {
 			pathLen: number
@@ -158,26 +232,39 @@ function nearestUnreservedHomePath(character: ActivityPlanningCharacter):
 	const hex = character.game.hex
 	const zm = hex.zoneManager
 	const start = toAxialCoord(character.position)
-	let bestLen = Number.POSITIVE_INFINITY
-	for (const coord of zm.listUnreservedResidentialCoords()) {
-		const path = hex.findPathForCharacter(start, coord, character as any, maxWalkTime, true)
-		if (path && path.length < bestLen) bestLen = path.length
+	if (!start) return undefined
+	const residential = zm.listUnreservedResidentialCoords()
+	if (residential.length === 0) return undefined
+	// Phase 0 (pathfind-to-score → hex-distance score): the home projection only needs a walk LENGTH
+	// to rank activities, and `goHome` re-pathfinds at execution (`find.homeTile`). The Dijkstra here
+	// (`findNearestForCharacter`) was the same redundant per-replan pathfind Phase 0 removed for work.
+	// Score by O(1) hex distance to the nearest unreserved residential coord; a near-but-walled-off
+	// target resolves at execution (self-correcting, same trade-off as `tailorProposedJob`).
+	let minDistance = Number.POSITIVE_INFINITY
+	for (const coord of residential) {
+		const distance = axial.distance(start, coord)
+		if (distance < minDistance) minDistance = distance
 	}
-	if (!Number.isFinite(bestLen)) return undefined
-	return { pathLen: bestLen }
+	return { pathLen: minDistance }
 }
 
 /**
  * Score feasible activities for utility (projected discomfort drop minus time cost).
  * Call inside `inert()` — uses pathfinding via character context.
+ *
+ * @param bestWorkMatch Optional precomputed best-work match (already ranked by the caller). When
+ *   provided, avoids re-running `resolveBestJobMatch()` (a full candidate scan) inside this call.
+ *   `findAction` passes it because it has already ranked candidates for the snapshot.
  */
-export function computeActivityScores(character: ActivityPlanningCharacter): ActivityScore[] {
+export function computeActivityScores(
+	character: ActivityPlanningCharacter,
+	bestWorkMatch?: { job: Job; targetTile: Tile; path: AxialCoord[] } | false
+): ActivityScore[] {
 	const c = activityUtilityConfig
 	const h0 = character.hunger
 	const f0 = character.fatigue
 	const t0 = character.tiredness
 	const scores: ActivityScore[] = []
-	const find = character.scriptsContext.find
 
 	const push = (s: ActivityScore | undefined) => {
 		if (!s) return
@@ -192,16 +279,13 @@ export function computeActivityScores(character: ActivityPlanningCharacter): Act
 	const wantsEat = h0 > characterTriggerLevels.hunger.satisfied
 	if (wantsEat) {
 		const personalFood = character.bestPersonalFood()
-		const found = find.food()
-		const foodCandidate = personalFood
-			? { good: personalFood, path: [] as AxialCoord[] }
-			: found && typeof found === 'object' && found !== null && 'path' in found && 'good' in found
-				? found
-				: undefined
-		if (foodCandidate) {
-			const candidatePath = (foodCandidate as { path?: AxialCoord[] }).path
-			const pathLen = Array.isArray(candidatePath) ? candidatePath.length : 0
-			const good = (foodCandidate as { good: GoodType }).good
+		// Phase 0 (no pathfinding in selection): score the `eat` activity by hex distance to the
+		// nearest food tile (`nearestFood` is a bounded O(R²) scan), not a `findNearestForCharacter`
+		// Dijkstra. `goEat` → `find.food()` re-pathfinds the real path at execution.
+		const nearest = personalFood ? undefined : nearestFood(character)
+		const good = personalFood ?? nearest?.good
+		if (good) {
+			const pathLen = personalFood ? 0 : (nearest?.distance ?? 0)
 			const strength = satiationForGood(good)
 			if (strength > 0) {
 				push(
@@ -264,46 +348,37 @@ export function computeActivityScores(character: ActivityPlanningCharacter): Act
 	const assignedTile = character.assignedAlveolus?.tile
 	const assignedJob = assignedTile?.content?.getJob?.(character as any)
 	if (assignedTile && assignedJob) {
-		const isSame =
-			toAxialCoord(assignedTile.position).q === toAxialCoord(character.position).q &&
-			toAxialCoord(assignedTile.position).r === toAxialCoord(character.position).r
-		const path = isSame
-			? []
-			: character.game.hex.findPathForCharacter(
-					character.position,
-					assignedTile.position,
-					character as any,
-					maxWalkTime,
-					false
-				)
-		if (path) {
-			const pathLen = path.length
-			push(
-				scoreFromProjection(
-					'assignedWork',
-					h0,
-					f0,
-					t0,
-					(h, f, t) => {
-						let hh = h
-						let ff = f
-						let tt = t
-						let time = 0
-						const walkDt = travelTimeSeconds(pathLen)
-						;({ h: hh, f: ff, t: tt } = evolveSeconds(hh, ff, tt, 'walk', walkDt))
-						time += walkDt
-						const wk = c.workHorizonSeconds
-						;({ h: hh, f: ff, t: tt } = evolveSeconds(hh, ff, tt, 'work', wk))
-						time += wk
-						return { h: hh, f: ff, t: tt, time }
-					},
-					c
-				)
+		// Phase 0 (pathfind-to-score → hex-distance score): the `assignedWork` projection only needs a
+		// walk LENGTH to rank, and `tryScriptForActivityKind` re-pathfinds at execution. Score by O(1)
+		// hex distance; a near-but-walled-off assignment resolves at execution (self-correcting).
+		const start = toAxialCoord(character.position)
+		const target = toAxialCoord(assignedTile.position)
+		const pathLen = start && target ? axial.distance(start, target) : 0
+		push(
+			scoreFromProjection(
+				'assignedWork',
+				h0,
+				f0,
+				t0,
+				(h, f, t) => {
+					let hh = h
+					let ff = f
+					let tt = t
+					let time = 0
+					const walkDt = travelTimeSeconds(pathLen)
+					;({ h: hh, f: ff, t: tt } = evolveSeconds(hh, ff, tt, 'walk', walkDt))
+					time += walkDt
+					const wk = c.workHorizonSeconds
+					;({ h: hh, f: ff, t: tt } = evolveSeconds(hh, ff, tt, 'work', wk))
+					time += wk
+					return { h: hh, f: ff, t: tt, time }
+				},
+				c
 			)
-		}
+		)
 	}
 
-	const best = character.resolveBestJobMatch()
+	const best = bestWorkMatch === undefined ? character.resolveBestJobMatch() : bestWorkMatch
 	if (best) {
 		const pathLen = best.path.length
 		push(
@@ -331,16 +406,9 @@ export function computeActivityScores(character: ActivityPlanningCharacter): Act
 	}
 
 	// Wander: walk + rest (see `workPreferenceWhenFit` — rest recovery can beat raw work scores).
-	const dest = find.wanderingTile()
-	if (
-		dest &&
-		typeof dest === 'object' &&
-		dest !== null &&
-		'path' in dest &&
-		Array.isArray((dest as { path: AxialCoord[] | false }).path)
-	) {
-		const path = (dest as { path: AxialCoord[] }).path
-		const pathLen = path.length
+	// Phase 0: score by hex distance (wanderDistance), no pathfinding; `goWander` re-pathfinds at execution.
+	const wanderPathLen = wanderDistance(character)
+	if (wanderPathLen !== undefined) {
 		push(
 			scoreFromProjection(
 				'wander',
@@ -352,7 +420,7 @@ export function computeActivityScores(character: ActivityPlanningCharacter): Act
 					let ff = f
 					let tt = t
 					let time = 0
-					const walkDt = travelTimeSeconds(pathLen)
+					const walkDt = travelTimeSeconds(wanderPathLen)
 					;({ h: hh, f: ff, t: tt } = evolveSeconds(hh, ff, tt, 'walk', walkDt))
 					time += walkDt
 					const restDt = c.wanderRestSeconds
@@ -415,9 +483,11 @@ export function applyActivityHysteresis(
 export function excludeWanderAfterWanderWhenEmployable(
 	ranked: ActivityScore[],
 	lastPicked: NextActivityKind | undefined,
-	character: Pick<ActivityPlanningCharacter, 'keepWorking' | 'resolveBestJobMatch'>
+	character: Pick<ActivityPlanningCharacter, 'keepWorking' | 'resolveBestJobMatch'>,
+	bestWorkMatch?: { job: Job; targetTile: Tile; path: AxialCoord[] } | false
 ): ActivityScore[] {
 	if (lastPicked !== 'wander' || !character.keepWorking) return ranked
-	if (!character.resolveBestJobMatch()) return ranked
+	const hasJob = bestWorkMatch === undefined ? character.resolveBestJobMatch() : bestWorkMatch
+	if (!hasJob) return ranked
 	return ranked.filter((s) => s.kind !== 'wander')
 }

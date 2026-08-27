@@ -55,38 +55,40 @@ export function getActionJobProvider(actionType: string): ActionJobProvider | un
 
 registerActionJobProvider('harvest', (alveolus) => {
 	const action = alveolus.action as Ssh.HarvestingAction
+	const hex = alveolus.tile.game.hex
+
+	const isValidDeposit = (
+		coord: Positioned,
+		priority: 'project' | 'clearing' | 'any'
+	): boolean => {
+		const tile = hex.getTile(coord)
+		if (!tile) return false
+		const content = tile.content
+		if (!(content instanceof UnBuiltLand)) return false
+		if (content.deposit?.name !== action.deposit) return false
+
+		if (priority === 'project') return !!content.project
+
+		if (priority === 'clearing') {
+			return (
+				tile.clearing ||
+				tile.neighborTiles.some(
+					(neighbor) => neighbor.content !== undefined && 'hive' in (neighbor.content as object)
+				)
+			)
+		}
+
+		if (content.plantedTrees) return hasMaturePlantedTree(content)
+		return hex.zoneManager.isHarvestableZone(tile.zone)
+	}
 
 	const findDeposit = (
 		characterPosition: Positioned | undefined,
 		priority: 'project' | 'clearing' | 'any'
 	): Positioned[] | undefined => {
 		const startPos = toAxialCoord(characterPosition ?? alveolus.tile.position)
-		const hex = alveolus.tile.game.hex
 		const searchDistance = characterPosition ? maxWalkTime : harvestNpcSearchDistance
-
-		const searchFn = (coord: Positioned) => {
-			const tile = hex.getTile(coord)
-			if (!tile) return false
-			const content = tile.content
-			if (!(content instanceof UnBuiltLand)) return false
-			if (content.deposit?.name !== action.deposit) return false
-
-			if (priority === 'project') return !!content.project
-
-			if (priority === 'clearing') {
-				return (
-					tile.clearing ||
-					tile.neighborTiles.some(
-						(neighbor) => neighbor.content !== undefined && 'hive' in (neighbor.content as object)
-					)
-				)
-			}
-
-			if (content.plantedTrees) return hasMaturePlantedTree(content)
-			return hex.zoneManager.isHarvestableZone(tile.zone)
-		}
-
-		return hex.findNearest(startPos, searchFn, searchDistance, false)
+		return hex.findNearest(startPos, (coord) => isValidDeposit(coord, priority), searchDistance, false)
 	}
 
 	const canStoreInHarvester = (() => {
@@ -106,11 +108,19 @@ registerActionJobProvider('harvest', (alveolus) => {
 	const fallbackUrgency =
 		jobBalance.harvest.clearing + (alveoliNeedingGood ? jobBalance.harvest.needsBonus : 0)
 
-	// Only propose harvest jobs when at least one valid deposit exists within
-	// search distance from the alveolus.  Without this guard the planner keeps
-	// assigning workers to the stonecutter even after every rock has been
-	// depleted or planted over, creating an endless skip→give-up→retry loop.
-	const anyDeposit = findDeposit(undefined, 'any')
+	// Only propose harvest jobs when at least one valid deposit exists within search distance from the
+	// alveolus (without this guard the planner keeps assigning workers to a depleted stonecutter,
+	// creating an endless skip→give-up→retry loop). The existence check is a bounded O(R²) hex-distance
+	// tile scan — NOT a Dijkstra. Reachability is deferred to `jobForCharacter` at execution: a walled-
+	// off deposit simply finds no path there and the worker wanders (Phase-0 trade-off).
+	const hasAnyDeposit = (() => {
+		for (const tile of hex.tilesAround(alveolus.tile.position, harvestNpcSearchDistance)) {
+			if (isValidDeposit(tile.position, 'any')) return true
+		}
+		return false
+	})()
+
+	const anyDeposit = hasAnyDeposit
 	const proposedJobs: ActionProposedJob[] = anyDeposit
 		? [
 				{
@@ -241,11 +251,32 @@ registerActionJobProvider('plant', (alveolus) => {
 		return bestPath
 	}
 
-	// Find a best target tile for proposed-jobs advertisement so workers
-	// can score distance themselves.
-	const proposedPath = findBestPath(undefined)
-	const targetTile = proposedPath
-		? alveolus.tile.game.hex.getTile(proposedPath[proposedPath.length - 1]!)
+	// Selection-time target for the ad: nearest plantable coord by O(1) hex distance (NO Dijkstra).
+	// Workers score by hex distance and `jobForCharacter` re-pathfinds the real target at execution.
+	const nearestPlantableCoord = (): Positioned | undefined => {
+		if (assignedZones.size === 0) return undefined
+		const origin = toAxialCoord(alveolus.tile.position)
+		if (!origin) return undefined
+		const hex = alveolus.tile.game.hex
+		const candidateCoords = [...assignedZones].flatMap((def) => hex.zoneManager.coordsForZone(def))
+		let best: Positioned | undefined
+		let bestDistance = Number.POSITIVE_INFINITY
+		for (const coord of candidateCoords) {
+			const tile = hex.getTile(coord)
+			if (!(tile?.content instanceof UnBuiltLand)) continue
+			if (!canPlantDepositOnLand(tile.content, action.deposit)) continue
+			const distance = axialDistance(origin, coord)
+			if (distance < bestDistance) {
+				bestDistance = distance
+				best = coord
+			}
+		}
+		return best
+	}
+
+	const targetCoord = nearestPlantableCoord()
+	const targetTile = targetCoord
+		? alveolus.tile.game.hex.getTile(targetCoord)
 		: undefined
 
 	return {

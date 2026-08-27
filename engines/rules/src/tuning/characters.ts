@@ -65,6 +65,33 @@ export const residentialRecoveryRates = {
 /** Maximum walking time accepted to choose a tile for an action */
 export const maxWalkTime = 24
 
+/**
+ * Local perception radius, in axial tiles, within which a character *senses* opportunities for any
+ * self-directed action — work, shelter, food, entertainment, buying. This is the "last mile": a
+ * character only ever considers nearby options; long-range logistics ride the goods/transport chain.
+ *
+ * It bounds the candidate *enumeration* (a `tilesAround` scan of O(R²) tiles), so it must stay a small
+ * constant — raise it back toward `maxWalkTime` and the per-decision scan explodes. It is deliberately
+ * **not** tied to the number of jobs: enumerating by job count would be unbounded as a settlement grows.
+ *
+ * Distinct from {@link maxWalkTime}, which caps the *walk* budget of a committed action (the real path
+ * can be longer than the axial sight distance due to rivers/roads/blocking).
+ */
+export const sensingRadius = 8
+
+/**
+ * Minimum *game-time* (virtual) seconds between consecutive idle-worker re-plans triggered by
+ * {@link wakeWanderingWorkersNear}. When goods move, a wandering/pondering worker is re-planned to
+ * check for newly-available work; this throttle collapses the re-plan cascade (many movement events →
+ * many `findAction()` calls per frame) into one reconsideration per window.
+ *
+ * Keyed on {@link Clock.virtualTime} (simulation time), **not** wall-clock, so game-speed settings do
+ * not change behaviour: a worker reconsiders at most once per this many *simulated* seconds regardless
+ * of 1× / 4× / fast-forward. This is the Phase-4 "commitment" throttle — an idle worker who just
+ * decided does not re-decide every tick.
+ */
+export const idleReplanIntervalSeconds = 0.5
+
 export const transformAlveolusStorageMultiplier = 3 // Transform alveoli can store input goods * this multiplier
 export const inputBufferSize = 2
 export const outputBufferSize = 3

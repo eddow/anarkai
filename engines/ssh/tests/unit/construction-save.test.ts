@@ -126,4 +126,44 @@ describe('BuildAlveolus save/load', () => {
 		expect(restored.storage).toBeInstanceOf(SpecificStorage)
 		expect(restored.storage.maxAmounts.planks).toBe(24)
 	})
+
+	it('round-trips the character↔alveolus assignment (reciprocal recreated from the one-way ref)', async () => {
+		const gen = { terrainSeed: 7777, characterCount: 0 }
+		const patches = {
+			tiles: [{ coord: [0, 0] as const, terrain: 'concrete' as const }],
+			hives: [
+				{
+					name: 'AssignHive',
+					alveoli: [{ coord: [0, 0] as const, alveolus: 'pile' as const }],
+				},
+			],
+		}
+		game = new Game(gen, patches)
+		await game.loaded
+		game.ticker.stop()
+
+		const worker = game.population.createCharacter('Assigned', { q: 1, r: 0 })
+		const alveolus = game.hex.getTile({ q: 0, r: 0 })!.content
+		expect(alveolus).toBeInstanceOf(StorageAlveolus)
+		if (!(alveolus instanceof StorageAlveolus)) return
+		worker.assignedAlveolus = alveolus
+		alveolus.assignedWorker = worker
+
+		const state = game.saveGameData()
+		// The save only carries the one-way `assignedAlveolus` coord; the reciprocal is not serialized.
+		const savedCharacters = state.characters ?? []
+		expect(savedCharacters[0]?.assignedAlveolus).toMatchObject({ q: 0, r: 0 })
+
+		game.destroy()
+
+		const game2 = new Game(gen)
+		await game2.loadGameData(state)
+		game2.ticker.stop()
+		game = game2
+
+		const worker2 = Array.from(game.population)[0]!
+		const alveolus2 = game.hex.getTile({ q: 0, r: 0 })!.content
+		expect(worker2.assignedAlveolus).toBe(alveolus2)
+		expect(alveolus2?.assignedWorker).toBe(worker2)
+	})
 })

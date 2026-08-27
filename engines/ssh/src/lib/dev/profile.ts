@@ -11,9 +11,14 @@ export type ProfileBegin = (label: string, payload?: ProfilePayloadInput) => Pro
 export interface ProfileSink {
 	begin?: ProfileBegin
 	read: () => string
-	display: () => void
+	display: () => string
 	reset: () => void
-	setLevel: (level: ProfileLevel | undefined) => void
+	/**
+	 * Set the capture level. When `autoStopSeconds` is provided, the sink arms a timer that, after
+	 * that many seconds, logs the summary (`display()`), clears the samples (`reset()`), and disables
+	 * capture (`setLevel(undefined)`) — a self-contained "sample for N seconds, then dump + stop".
+	 */
+	setLevel: (level: ProfileLevel | undefined, autoStopSeconds?: number) => void
 	readonly enabled: boolean
 	readonly level?: ProfileLevel
 	readonly stats: readonly ProfileStatSnapshot[]
@@ -60,6 +65,7 @@ export class NamedProfile implements ProfileSink {
 	private readonly byKey = new Map<string, MutableProfileStat>()
 	private readonly activeLabels: string[] = []
 	private currentLevel: ProfileLevel | undefined
+	private autoStopTimer: ReturnType<typeof setTimeout> | undefined
 
 	constructor(
 		private readonly name: string,
@@ -88,9 +94,21 @@ export class NamedProfile implements ProfileSink {
 		}))
 	}
 
-	setLevel(level: ProfileLevel | undefined): void {
+	setLevel(level: ProfileLevel | undefined, autoStopSeconds?: number): void {
+		if (this.autoStopTimer !== undefined) {
+			clearTimeout(this.autoStopTimer)
+			this.autoStopTimer = undefined
+		}
 		this.currentLevel = level
 		this.begin = level ? (label, payload) => this.start(label, payload) : undefined
+		if (level !== undefined && autoStopSeconds !== undefined && autoStopSeconds > 0) {
+			this.autoStopTimer = setTimeout(() => {
+				this.autoStopTimer = undefined
+				this.display()
+				this.reset()
+				this.setLevel(undefined)
+			}, autoStopSeconds * 1000)
+		}
 	}
 
 	reset(): void {
@@ -126,8 +144,11 @@ export class NamedProfile implements ProfileSink {
 		return lines.join('\n')
 	}
 
-	display(): void {
-		console.log(this.read())
+	/** Log the profile summary AND return it, so DevTools renders the string inline (return value). */
+	display(): string {
+		const text = this.read()
+		console.log(text)
+		return text
 	}
 
 	private start(label: string, payload?: ProfilePayloadInput): ProfileEnd {
@@ -232,9 +253,23 @@ function formatPayload(payload: ProfilePayload): string {
 	if (payload === null) return 'null'
 	if (typeof payload === 'string') return JSON.stringify(payload)
 	if (typeof payload === 'number' || typeof payload === 'boolean') return String(payload)
+	if (typeof payload === 'function') return '[function]'
 	try {
-		return JSON.stringify(payload)
+		const json = JSON.stringify(payload)
+		// `JSON.stringify` returns `undefined` (not throw) for circular refs, `Map`/`Set` etc. —
+		// fall back to a stable descriptor instead of emitting "undefined" / "[object Object]".
+		return json !== undefined ? json : describeObject(payload)
 	} catch {
-		return String(payload)
+		return describeObject(payload)
+	}
+}
+
+/** Stable, non-throwing descriptor for payloads that can't be JSON-serialized (proxies, circular). */
+function describeObject(value: object): string {
+	try {
+		const keys = Object.keys(value)
+		return keys.length ? `{${keys.join(',')}}` : String(value)
+	} catch {
+		return '[object]'
 	}
 }

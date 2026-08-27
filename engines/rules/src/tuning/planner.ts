@@ -22,4 +22,11 @@ export const activityUtilityConfig = {
 	 * Tune with playtests.
 	 */
 	workPreferenceWhenFit: 0.55,
+	/**
+	 * Sticky job-target commitment (Phase 4): keep the previously-chosen work target unless a new
+	 * best beats it by more than this *score* gap (`proposedJobScore = urgency / (distance + 1)`).
+	 * Prevents an idle worker re-planned mid-sweep from flipping to a marginally-better job — the
+	 * "ant" commitment. Absolute score units, not a fraction.
+	 */
+	jobCommitmentHysteresis: 0.15,
 } as const

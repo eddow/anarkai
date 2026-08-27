@@ -19,10 +19,12 @@ export {
 	activityDurations,
 	characterEvolutionRates,
 	characterTriggerLevels,
+	idleReplanIntervalSeconds,
 	inputBufferSize,
 	maxWalkTime,
 	outputBufferSize,
 	residentialRecoveryRates,
+	sensingRadius,
 	transformAlveolusStorageMultiplier,
 } from './tuning/characters'
 export {

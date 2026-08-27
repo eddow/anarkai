@@ -14,17 +14,29 @@ function numeric(seed: number | string): number {
 }
 
 export type RandGenerator = (max?: number, min?: number) => number
+
+/** A {@link RandGenerator} whose internal state can be snapshotted and restored (save/load). */
+export interface SeededRandom extends RandGenerator {
+	getState(): number
+	setState(state: number): void
+}
+
 /**
  * Linear Congruential Generator
  */
 const [a, c, m] = [1664525, 1013904223, 2 ** 32]
-export function LCG(...seeds: (number | string)[]): RandGenerator {
+export function LCG(...seeds: (number | string)[]): SeededRandom {
 	if (!seeds.length) throw new Error('LCG requires at least one seed for reproducibility')
 	let state = Math.abs(seeds.reduce<number>((acc, seed) => acc ^ (numeric(seed) * c), 0))
-	return (max = 1, min = 0) => {
+	const gen = ((max = 1, min = 0) => {
 		state = (a * state + c + m) % m
 		return (state / m) * (max - min) + min
+	}) as SeededRandom
+	gen.getState = () => state
+	gen.setState = (next) => {
+		state = next
 	}
+	return gen
 }
 
 /**

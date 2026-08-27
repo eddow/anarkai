@@ -321,7 +321,7 @@ class WorkFunctions {
 			pathLen: Array.isArray(path) ? path.length : undefined,
 			pathEndQ: Array.isArray(path) ? path.at(-1)?.q : undefined,
 			pathEndR: Array.isArray(path) ? path.at(-1)?.r : undefined,
-			workPlanningRevision: this[subject].game.workPlanningRevision,
+			workPlanningRevision: this[subject].game.workPlanningVersion.versionOf(),
 		})
 		return job
 	}

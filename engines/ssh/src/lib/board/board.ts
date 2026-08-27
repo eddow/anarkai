@@ -8,6 +8,7 @@ import type { Character } from 'ssh/population'
 import {
 	type AxialCoord,
 	axial,
+	Derived,
 	findBest,
 	findNearest,
 	findPath,
@@ -264,6 +265,9 @@ export class HexBoard extends GameObject {
 			this.looseGoods.goods.clear()
 			this.zoneManager.clear()
 		})
+		// Contents/roads/terrain all cleared → geometry-derived caches are stale. Bump the transit
+		// version (the mutation is the invalidation) rather than resetting a counter.
+		this.game.invalidateTransit('reset')
 	}
 
 	getBorder(ref: Positioned): TileBorder | undefined {
@@ -417,27 +421,26 @@ export class HexBoard extends GameObject {
 		return this.memoizedVehicleTransitNeighbors(tile)
 	}
 
-	// Per-tile vehicle transit neighbours, keyed by `transitRevision`. The flood / vehicle A* call this
-	// once per node; without a memo each call allocates a fresh 6-element array + 6 objects via
-	// `Tile.walkNeighbors`, and re-runs `isBurdened` (O(V)) on every road-adjacent edge. All its
-	// transit-stable inputs (content blocking / walk time, road type) bump `transitRevision`, so the
-	// memo is valid for the whole revision. The only non-transit input is `isBurdened` road-nullification
-	// (a second-order 0.7× cost nuance, not reachability) — freezing it for one revision is accepted and
-	// self-corrects next re-plan.
-	private vehicleNeighborsMemo: { revision: number; entries: Map<string, NeighborInfo[]> } | undefined
+	// Per-tile vehicle transit neighbours — a `Derived` over `transitVersion` that yields a fresh Map
+	// per geometry. The flood / vehicle A* call this once per node; without a memo each call allocates a
+	// fresh 6-element array + 6 objects via `Tile.walkNeighbors`, and re-runs `isBurdened` (O(V)) on
+	// every road-adjacent edge. The only non-transit input is `isBurdened` road-nullification (a
+	// second-order 0.7× cost nuance, not reachability) — freezing it until the next geometry change is
+	// accepted and self-corrects. Lazily constructed so the field initializer doesn't read `this.game`.
+	private vehicleNeighborsMemo: Derived<Map<string, NeighborInfo[]>> | undefined
 
 	private memoizedVehicleTransitNeighbors(fromTile: Tile): NeighborInfo[] {
 		const fromCoord = toAxialCoord(fromTile.position)
 		if (!fromCoord) return []
-		const revision = this.game.transitRevision
-		if (!this.vehicleNeighborsMemo || this.vehicleNeighborsMemo.revision !== revision) {
-			this.vehicleNeighborsMemo = { revision, entries: new Map() }
+		if (!this.vehicleNeighborsMemo) {
+			this.vehicleNeighborsMemo = new Derived(() => new Map(), [this.game.transitVersion])
 		}
+		const memo = this.vehicleNeighborsMemo.get()
 		const key = axial.key(fromCoord)
-		const cached = this.vehicleNeighborsMemo.entries.get(key)
+		const cached = memo.get(key)
 		if (cached) return cached
 		const computed = this.getVehicleTransitNeighborsFromTile(fromTile)
-		this.vehicleNeighborsMemo.entries.set(key, computed)
+		memo.set(key, computed)
 		return computed
 	}
 
@@ -595,14 +598,13 @@ export class HexBoard extends GameObject {
 		return best?.path
 	}
 
-	// Unbounded service-border paths are deterministic per transit revision (blocking / walk-time /
-	// roads), yet the planner evaluates the same (vehicle → stop) pair once per character per sweep.
-	// Cache the unbounded result so it is computed once per revision instead of C×V×stops times. The
-	// first-time miss on a genuinely-unreachable target still explores the connected component — but
-	// once per revision, not per character.
-	private unboundedServicePathCache:
-		| { revision: number; entries: Map<string, AxialCoord[] | null> }
-		| undefined
+	// Unbounded service-border paths are deterministic per geometry (blocking / walk-time / roads), yet
+	// the planner evaluates the same (vehicle → stop) pair once per character per sweep. Cache the
+	// unbounded result as a `Derived` over `transitVersion` (fresh Map per geometry) instead of
+	// recomputing C×V×stops times. The first-time miss on a genuinely-unreachable target still explores
+	// the connected component — but once per geometry, not per character. Lazily constructed so the
+	// field initializer doesn't read `this.game`.
+	private unboundedServicePathCache: Derived<Map<string, AxialCoord[] | null>> | undefined
 
 	findPathForVehicleServiceBorderUnbounded(
 		start: Positioned,
@@ -611,12 +613,11 @@ export class HexBoard extends GameObject {
 		const startCoord = toAxialCoord(start)
 		const targetCoord = toAxialCoord(target)
 		if (!startCoord || !targetCoord) return undefined
-		const revision = this.game.transitRevision
-		if (!this.unboundedServicePathCache || this.unboundedServicePathCache.revision !== revision) {
-			this.unboundedServicePathCache = { revision, entries: new Map() }
+		if (!this.unboundedServicePathCache) {
+			this.unboundedServicePathCache = new Derived(() => new Map(), [this.game.transitVersion])
 		}
+		const entries = this.unboundedServicePathCache.get()
 		const key = `${axial.key(startCoord)}|${axial.key(targetCoord)}`
-		const entries = this.unboundedServicePathCache.entries
 		if (entries.has(key)) return entries.get(key) ?? undefined
 		const result = this.findPathForVehicleServiceBorder(start, target, Number.POSITIVE_INFINITY)
 		entries.set(key, result ?? null)

@@ -1,17 +1,14 @@
 # Details Punchlist Plan
 
-> **Status (2026-08-26):** standalone UI-polish punchlist. Originally derived from a "Details to add"
-> section in `docs/next-directions.md` that was **removed** when that doc was reorganised around the
-> commerce architecture. The items below are still worth doing but no longer flow from
-> `next-directions.md` — see `docs/next-directions.md` §"First playable slices" for the current plan.
-> Item 1 (config memorization) has since **landed** — see `docs/current-status.md`
-> ("Alveoli storage configurations … memorized under a name").
+> **Status (2026-08-26):** standalone UI-polish punchlist (two remaining items). Item 1 (config
+> memorization) has landed — see `docs/current-status.md` ("Alveoli storage configurations … memorized
+> under a name"). See `docs/next-directions.md` §"First playable slices" for the broader plan.
 
 Three independent UI-polish items:
 
 ---
 
-## 1. Alveoli configuration memorization
+## 1. Alveoli configuration memorization — landed
 
 **Source:** `docs/next-directions.md:29`
 > alveoli configurations (ex storage buffer/allowance) should be able to be memorized, given a name and re-used with a combo-box containing all applicable configurations, "specific" = for this alveoli only or the ability to create a new configuration (no add button, just entering a text in the combo and checking for conflict)

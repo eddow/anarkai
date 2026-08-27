@@ -1,5 +1,5 @@
 import { configurations, harvestFatiguePremium, jobBalance } from 'engine-rules'
-import { inert, reactive, unreactive, unwrap } from 'mutts'
+import { inert, markRaw, reactive, unreactive, unwrap } from 'mutts'
 import { isTileCoord } from 'ssh/board/tile-coord'
 import type { ZoneDefinition } from 'ssh/board/zone'
 import { traces } from 'ssh/dev/debug'
@@ -13,10 +13,9 @@ import { gameIsaTypes } from 'ssh/npcs/utils'
 import type { Character } from 'ssh/population/character'
 import type { Storage } from 'ssh/storage/storage'
 import type { GoodType, Job } from 'ssh/types/base'
-import { type AxialCoord, axial, tileSize } from 'ssh/utils'
+import { type AxialCoord, axial, Derived, tileSize } from 'ssh/utils'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
 import { toAxialCoord, toWorldCoord } from 'ssh/utils/position'
-import { KeyedRevisionedCache, RevisionedCache } from 'ssh/utils/revisioned-cache'
 import { assert } from '../../dev/debug.ts'
 import { AlveolusGate } from '../border/alveolus-gate'
 import type { Tile } from '../tile'
@@ -59,11 +58,10 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	 * the (de)serialization boundary (`assignedZoneIndices`).
 	 */
 	public assignedZones = reactive(new Set<ZoneDefinition>())
-	private readonly conveyNearbyCache = new RevisionedCache<boolean>()
-	private readonly incomingGoodsCache = new RevisionedCache<boolean>()
-	private readonly goodMovementCache = new RevisionedCache<MovementSelection[] | undefined>()
-	private readonly jobByCharacterCache = new KeyedRevisionedCache<string, Job | undefined>()
-	private readonly proposedJobsCache = new RevisionedCache<readonly AlveolusProposedJob[]>()
+	private incomingGoodsMemo: Derived<boolean> | undefined
+	private goodMovementMemo: Derived<MovementSelection[] | undefined> | undefined
+	private jobByCharacterMemo: Derived<Map<string, Job | undefined>> | undefined
+	private proposedJobsMemo: Derived<readonly AlveolusProposedJob[]> | undefined
 	// Configurable properties removed - walkway and conveyor are no longer used
 
 	get titleKey(): string | undefined {
@@ -229,9 +227,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	protected get hasConveyNearby(): boolean {
 		const hive = this.hive
 		if (!hive) return false
-		return this.conveyNearbyCache.get(hive.conveyPlanningRevision, () =>
-			this.computeHasConveyNearby()
-		)
+		return this.computeHasConveyNearby()
 	}
 
 	private computeHasConveyNearby(): boolean {
@@ -264,9 +260,12 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	}
 
 	get proposedJobs(): readonly AlveolusProposedJob[] {
-		const hive = this.hive
-		const revision = `${this.game.workPlanningRevision}|${hive?.conveyPlanningRevision ?? 0}`
-		return this.proposedJobsCache.get(revision, () => this.computeProposedJobs())
+		if (!this.proposedJobsMemo) {
+			this.proposedJobsMemo = markRaw(
+				new Derived(() => this.computeProposedJobs(), [this.game.workPlanningVersion])
+			)
+		}
+		return this.proposedJobsMemo.get()
 	}
 
 	private computeProposedJobs(): readonly AlveolusProposedJob[] {
@@ -313,16 +312,22 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		const characterPosition = currentCharacter?.position
 		const characterCoord = characterPosition ? toAxialCoord(characterPosition) : undefined
 		const key = [
-			this.game.workPlanningRevision,
 			debugObjectId(currentCharacter) ?? '',
 			characterCoord ? `${characterCoord.q},${characterCoord.r}` : '',
 			debugObjectId(assignedWorker) ?? '',
 			this.tile.isBurdened ? 'burdened' : 'free',
 			this.working ? 'working' : 'stopped',
 		].join('|')
-		return this.jobByCharacterCache.get(key, hive.conveyPlanningRevision, () =>
-			this.computeJobForCharacter(currentCharacter, assignedWorker)
-		)
+		if (!this.jobByCharacterMemo) {
+			this.jobByCharacterMemo = markRaw(
+				new Derived(() => new Map<string, Job | undefined>(), [this.game.workPlanningVersion])
+			)
+		}
+		const memo = this.jobByCharacterMemo.get()
+		if (memo.has(key)) return memo.get(key)
+		const job = this.computeJobForCharacter(currentCharacter, assignedWorker)
+		memo.set(key, job)
+		return job
 	}
 
 	private computeJobForCharacter(
@@ -405,9 +410,12 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	get aGoodMovement(): MovementSelection[] | undefined {
 		const hive = this.hive
 		if (!hive) return undefined
-		const selections = this.goodMovementCache.get(hive.conveyPlanningRevision, () =>
-			this.computeGoodMovement()
-		)
+		if (!this.goodMovementMemo) {
+			this.goodMovementMemo = markRaw(
+				new Derived(() => this.computeGoodMovement(), [hive.conveyVersion])
+			)
+		}
+		const selections = this.goodMovementMemo.get()
 		if (!selections) return undefined
 		if (selections.every(({ movement }) => !movement.claimed)) return selections
 		const unclaimed = selections.filter(({ movement }) => !movement.claimed)
@@ -632,9 +640,12 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	get incomingGoods(): boolean {
 		const hive = this.hive
 		if (!hive) return false
-		return this.incomingGoodsCache.get(hive.conveyPlanningRevision, () =>
-			hive.hasIncomingMovementFor(this)
-		)
+		if (!this.incomingGoodsMemo) {
+			this.incomingGoodsMemo = markRaw(
+				new Derived(() => hive.hasIncomingMovementFor(this), [hive.conveyVersion])
+			)
+		}
+		return this.incomingGoodsMemo.get()
 	}
 
 	private conveyJob(): Job | undefined {

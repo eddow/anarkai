@@ -1,7 +1,51 @@
 # Emergent planning — replacing global optimization with local decisions
 
-Status: proposal (2026-08-26). Follows the `canReach` optimization rounds documented in
+Status: Phases 0, 2, 3 (first increment), and 4 are **landed** (2026-08-26). Remaining: Phase 3's
+behavioral core and Phase 5. Follows the `canReach` optimization rounds in
 `engines/ssh/plans/vehicle-maintenance-reachability-perf.md`.
+
+## Landed
+
+- **Phase 0 — hex-distance score, deferred pathfind.** `tailorProposedJob` scores by `axial.distance`;
+  `startBestJobFrom` pathfinds once for the winner and falls back to `wander()` if unreachable. Hex
+  distance is the **final** scoring primitive (§5a).
+- **Phase 4 — commitment + hysteresis.** Deduped the 3× `rankedWorkCandidates()` per `findAction`
+  (thread `bestWorkMatch`); memoized the ranking per `(character, workPlanningRevision)`
+  (`rankedWorkCandidatesCached`); added a game-time-keyed re-plan throttle
+  (`idleReplanIntervalSeconds = 0.5`, `tuning/characters.ts`).
+- **Phase 4 — sticky job-target commitment.** `Character.committedWork` (reference-based, no string
+  key) + `resolveCommittedJobMatchFrom` keep the last-chosen target unless a new top beats it by more
+  than `jobCommitmentHysteresis` (0.15, `tuning/planner.ts`).
+- **Phase 2 — candidate-set locality.** `proposedWorkJobs` scans `tilesAround(position, sensingRadius=8)`
+  (bounded O(R²)) instead of `maxWalkTime=24` (1657 tiles); `nearestUnreservedHomePath` now uses one
+  `findNearestForCharacter` over the residential coord set.
+- **Hot-path sweeps I & II.** Cached `pickInitialVehicleServiceCandidate` + `memoizedStopMeasure`;
+  deferred the vehicle-approach/offload pathfinds to winner-only (hex-distance score). ⚠️ Latent:
+  `findVehicleApproachJob` still pathfinds per vehicle, currently gated out of the hot path.
+- **Phase 3 — first increment.** `WorkAdvertisement` + `Tile.workAdvertisements` publication surface,
+  and claim-at-selection (`assignedWorker` ↔ `assignedAlveolus` bound synchronously, claim-first-wins).
+
+## Do not redo
+
+- **Phase 1 was cancelled** — the distance field / source index is an unbounded-cost regression. Tile
+  browsing is O(R²) (radius-tunable); job-list browsing is O(jobs) (unbounded). Keep the tile scan,
+  shrink the radius.
+- **Do not add a reachability pre-filter back into `tailorProposedJob`.** Hex-distance scoring is
+  intentional; a near-but-walled target self-corrects (character wanders, retried later). If it proves
+  bad on obstacle-dense boards, the remedy is Phase 1 *fields*, not a per-candidate pathfind.
+- **Commitment is behavioral, not CPU.** It reduces job-flapping, not the `rankedWorkCandidates` re-scan
+  (the Slice-2 memo still re-scans on `workPlanningVersion` bump).
+
+## Remaining
+
+- **Phase 3 — behavioral core:** (1) sinks publish ads directly (avoid materializing `ProposedJob` for
+  unclaimed work); (2) characters consume ads via `selectMovement`-style matching (rank by
+  `urgency/(distance+1)` over `workAdvertisements`, then materialize the winner); (3) retire
+  `rankedWorkCandidates` / `workPlannerSnapshot` global sort. Goal: merge work discovery
+  (`Tile.proposedJobs` → global sort) with goods movement (`AdvertisementManager` + `Hive.selectMovement`).
+  Design: `WorkAdvertisement = { kind, targetTile, urgency }` (priority dropped — duplicates urgency);
+  the ad is a claim token (claim-first-wins); `assignedAlveolus` is subsumed by the claim token.
+- **Phase 5 — coarse-graph routing + Rust port** (fields/routing into `engines/core`). Not started.
 
 ## TL;DR
 
@@ -223,9 +267,36 @@ distance as a first cut) instead of a full per-candidate `findPathForCharacter`,
 `pathCache`-style memo. That alone removes the per-candidate pathfind from the scoring loop — the
 single biggest constant — using only mechanisms the codebase already trusts. Fields (Phase 1) then
 become the *shared, cross-character* generalization of that cache, and commitment (Phase 4) collapses
-the frequency. Sequence: **0 (coarse/cache the score) → 1 (fields) → 4 (commitment) → 2–3 (locality +
+the frequency. Sequence: **0 (hex-distance score) → 4 (commitment) → 1 (fields) → 2–3 (locality +
 ad-driven work) → 5 (Rust)**. Phases 2–3 are the behavioral core and stay where they are; 0 and 4 are
 the cheap wins that de-risk them.
+
+#### ✅ Phase 0 implemented (2026-08-26) — hex distance is the final choice
+
+Landed the hex-distance scoring. Two edits in `engines/ssh/src/lib/population/character.ts`:
+
+1. **`tailorProposedJob`** (non-vehicle branch): scores candidates by `axial.distance(from, to)`
+   instead of `sameTilePath` (`findPathForCharacter`). Returns a deferred empty `path` and
+   `pathLength = hexDistance`. The `'no-path'` pre-filter is gone — reachability is checked at
+   execution, not per candidate.
+2. **`startBestJobFrom`**: computes the real path **once**, for the chosen non-vehicle job only, via
+   `sameTilePath(match.targetTile)`; if unreachable the character falls back to `wander()` (matching
+   the existing unreachable-handling pattern). Vehicle jobs are untouched (they already carry a cached
+   `approachPath`).
+
+**Documented decision (final):** scoring by hex distance is *intentional*, not a placeholder for a
+coarse-graph memo. The alternative — a reachability pre-filter or a coarse-graph distance with a
+`pathCache` memo — would reintroduce pathfinding (or its cost) into the decision loop, defeating the
+point of the phase. The accepted trade-off: a near-but-walled-off target can outrank a farther-but-
+reachable one, the character walks into the wall, `startBestJobFrom` finds no path, and it wanders.
+That is *emergent, self-correcting* behaviour (the walled target is retried later or another agent
+picks it), not a bug. **Do not add a reachability check back into `tailorProposedJob`**; if the
+behaviour proves visibly bad on obstacle-dense boards, the remedy is Phase 1 fields (a shared, cheap
+signal), not a per-candidate pathfind.
+
+Verified: `tsc` clean; `proposed-jobs`, `work_vs_wander_planner`, `forester`, `reactive_boundaries`
+(21 tests) and `chopsaw-example`, `vehicle-hop-path-execution`, `vehicle-approach-job`,
+`vehicle-service-arbitration`, `vehicle-offload-job` (75 tests) all pass.
 
 ---
 

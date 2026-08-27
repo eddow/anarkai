@@ -79,10 +79,9 @@ import type {
 	ZoneBrowseJob,
 } from 'ssh/types/base'
 import { isVehicleBoundJob } from 'ssh/types/base'
-import { type AxialCoord, type AxialKeyMap, axial } from 'ssh/utils'
+import { type AxialCoord, type AxialKeyMap, axial, Derived, GenerationCache } from 'ssh/utils'
 import { sameRef } from 'ssh/utils/identity'
 import { toAxialCoord } from 'ssh/utils/position'
-import { KeyedRevisionedCache } from 'ssh/utils/revisioned-cache'
 import { maxWalkTime } from '../../../assets/constants'
 import { assert, profile, traces } from '../dev/debug.ts'
 
@@ -696,15 +695,26 @@ type MaintenanceReachability = {
 }
 
 // The flood is character-independent: it depends only on the vehicle's rounded position and the board
-// transit state (blocking / walk-cost / roads). `workPlanningRevision` is the WRONG token — it bumps
-// intra-sweep on operator/service changes that leave the transit graph untouched. `transitRevision`
-// bumps only on `setTileContent` / `setRoadType`, so the target ring + flood computed once per
-// (vehicle, transit revision) is shared across every character that evaluates the same vehicle in the
-// same sweep, collapsing C×V flood + target-building computations to V.
+// transit state (blocking / walk-cost / roads). The per-game cache is a `Derived` over the game's
+// `transitVersion` — it yields a fresh Map on each geometry change and is populated lazily per vehicle,
+// so the target ring + flood computed once per (vehicle, geometry) is shared across every character
+// that evaluates the same vehicle in the same sweep, collapsing C×V flood + target-building to V.
 const vehicleReachabilityCache = new WeakMap<
 	Game,
-	{ revision: number; entries: Map<string, { start: AxialCoord; reachable: AxialKeyMap<number> }> }
+	Derived<Map<string, { start: AxialCoord; reachable: AxialKeyMap<number> }>>
 >()
+
+/** The per-game flood cache: a fresh Map per transit version, populated lazily per vehicle. */
+function vehicleFloodCache(
+	game: Game
+): Map<string, { start: AxialCoord; reachable: AxialKeyMap<number> }> {
+	let derived = vehicleReachabilityCache.get(game)
+	if (!derived) {
+		derived = new Derived(() => new Map(), [game.transitVersion])
+		vehicleReachabilityCache.set(game, derived)
+	}
+	return derived.get()
+}
 
 function vehicleMaintenanceReachability(
 	game: Game,
@@ -718,17 +728,12 @@ function vehicleMaintenanceReachability(
 		const from = toAxialCoord(vehicle.effectivePosition)
 		if (!from) return undefined
 		const start = axial.round(from)
-		let entry = vehicleReachabilityCache.get(game)
-		const revision = game.transitRevision
-		if (!entry || entry.revision !== revision) {
-			entry = { revision, entries: new Map() }
-			vehicleReachabilityCache.set(game, entry)
-		}
+		const entry = vehicleFloodCache(game)
 		const cacheKey = debugObjectId(vehicle) ?? ''
-		let cached = entry.entries.get(cacheKey)
+		let cached = entry.get(cacheKey)
 		if (!cached) {
 			cached = { start, reachable: maintenanceReachabilityFlood(game, vehicle, start) }
-			entry.entries.set(cacheKey, cached)
+			entry.set(cacheKey, cached)
 		}
 		return { game, start: cached.start, reachable: cached.reachable }
 	} finally {
@@ -1142,8 +1147,8 @@ function profiledInitialVehicleServiceCandidate(
 /**
  * Character-independent load + unload candidate discovery for a single vehicle. Depends only on the
  * vehicle's storage, board loose goods, content, and the reachability flood — none of which change on
- * intra-sweep ownership (operator/service/assignment). Cached per `(vehicle, candidateRevision)` so
- * the scans are computed once per revision instead of once per (character × vehicle).
+ * intra-sweep ownership (operator/service/assignment). Cached per `(vehicle, candidateVersion)` so
+ * the scans are computed once per version instead of once per (character × vehicle).
  */
 type VehicleLoadUnloadCandidates = {
 	load?: LoadCandidate
@@ -1152,25 +1157,22 @@ type VehicleLoadUnloadCandidates = {
 	unloadDistance: number
 }
 
-const loadUnloadCandidatesCache = new WeakMap<
-	Game,
-	{ revision: number; entries: Map<string, VehicleLoadUnloadCandidates> }
->()
+const loadUnloadCandidatesCache = new GenerationCache<VehicleLoadUnloadCandidates>()
 
 function pickLoadUnloadCandidatesForVehicle(
 	game: Game,
 	vehicle: Vehicle
 ): VehicleLoadUnloadCandidates {
-	let entry = loadUnloadCandidatesCache.get(game)
-	const revision = game.candidateRevision
-	if (!entry || entry.revision !== revision) {
-		entry = { revision, entries: new Map() }
-		loadUnloadCandidatesCache.set(game, entry)
-	}
 	const key = debugObjectId(vehicle) ?? ''
-	const cached = entry.entries.get(key)
-	if (cached) return cached
+	return loadUnloadCandidatesCache.getOrCompute(game, game.candidateVersion, key, () =>
+		pickLoadUnloadCandidatesForVehicleUncached(game, vehicle)
+	)
+}
 
+function pickLoadUnloadCandidatesForVehicleUncached(
+	game: Game,
+	vehicle: Vehicle
+): VehicleLoadUnloadCandidates {
 	const reachability = vehicleMaintenanceReachability(game, vehicle)
 	const canReach = (tile: Tile) => maintenanceReachabilityCanReach(reachability, tile)
 	const origin = toAxialCoord(vehicle.tile.position)!
@@ -1211,7 +1213,6 @@ function pickLoadUnloadCandidatesForVehicle(
 	}
 
 	const result: VehicleLoadUnloadCandidates = { load, loadDistance, unload, unloadDistance }
-	entry.entries.set(key, result)
 	return result
 }
 
@@ -1420,12 +1421,14 @@ function findVehicleOffloadJobApproach(
 	if (character.operates) return undefined
 	if (hasActiveVehicleDockMovement(game)) return undefined
 
+	const characterCoord = toAxialCoord(character.position)
+	if (!characterCoord) return undefined
+
 	let best:
 		| {
 				score: number
 				vehicle: Vehicle
 				candidate: MaintenanceCandidate
-				pathToVehicle: AxialCoord[]
 		  }
 		| undefined
 
@@ -1433,35 +1436,23 @@ function findVehicleOffloadJobApproach(
 		if (!isLineFreightVehicleType(vehicle.vehicleType)) continue
 		if (!vehicleHasNoOtherOperator(game, vehicle, character)) continue
 
-		const sameVehicleHex =
-			axial.key(axial.round(toAxialCoord(character.position)!)) ===
-			axial.key(axial.round(toAxialCoord(vehicle.effectivePosition)!))
+		// Phase 0 (pathfind-to-score → hex-distance score): the per-vehicle `findPathForCharacter`
+		// here was the dominant remaining cost (O(V) unbounded A* per re-plan, only to read `.length`
+		// for scoring). Score by O(1) hex distance and defer the real pathfind to the winner only.
 		const vehicleCoord = axial.round(toAxialCoord(vehicle.effectivePosition)!)
-		const approachEnd = profile.proposedJobs.begin?.('approachPath', () => ({
-			vehicleUid: debugObjectId(vehicle) ?? '',
-		}))
-		const pathToVehicle = sameVehicleHex
-			? []
-			: game.hex.findPathForCharacter(
-					character.tile.position,
-					vehicleCoord,
-					character,
-					maxWalkTime,
-					true
-				)
-		approachEnd?.()
-		if (!pathToVehicle) continue
+		const distance = axial.distance(characterCoord, vehicleCoord)
 
 		const service = vehicle.service
 		if (isVehicleMaintenanceService(service)) {
-			const job = maintenanceServiceToJob(service, vehicle, pathToVehicle)
+			// `maintenanceServiceToJob` is called only for its validity check + urgency; the returned
+			// job is discarded (the winner is rebuilt below). The path arg is therefore irrelevant.
+			const job = maintenanceServiceToJob(service, vehicle, [])
 			if (!job) continue
 			const tile = game.hex.getTile(service.targetCoord)
 			if (!tile) continue
 			// Single arbitrary resume target — no need for a flood. A direct bounded path search is
 			// both cheaper and semantically identical to `maintenanceReachabilityCanReach` (same-hex
 			// shortcut + service-border A* for blocking targets).
-			const vehicleCoord = axial.round(toAxialCoord(vehicle.effectivePosition)!)
 			const targetCoord = axial.round(toAxialCoord(tile.position)!)
 			const reachable =
 				axial.key(vehicleCoord) === axial.key(targetCoord) ||
@@ -1485,15 +1476,8 @@ function findVehicleOffloadJobApproach(
 								tile,
 								urgency: job.urgency,
 							}
-			const score = maintenanceCandidateScore(candidate, pathToVehicle.length)
-			if (!best || score > best.score) {
-				best = {
-					score,
-					vehicle,
-					candidate,
-					pathToVehicle,
-				}
-			}
+			const score = maintenanceCandidateScore(candidate, distance)
+			if (!best || score > best.score) best = { score, vehicle, candidate }
 			continue
 		}
 		if (isVehicleLineService(service)) {
@@ -1509,14 +1493,9 @@ function findVehicleOffloadJobApproach(
 				tile: candidate.tile,
 				urgency: candidate.urgency,
 			}
-			const score = maintenanceCandidateScore(maintenanceCandidate, pathToVehicle.length)
+			const score = maintenanceCandidateScore(maintenanceCandidate, distance)
 			if (!best || score > best.score) {
-				best = {
-					score,
-					vehicle,
-					candidate: maintenanceCandidate,
-					pathToVehicle,
-				}
+				best = { score, vehicle, candidate: maintenanceCandidate }
 			}
 			continue
 		}
@@ -1527,13 +1506,33 @@ function findVehicleOffloadJobApproach(
 		if (candidate.kind === 'load' && isJointLineLoadCandidate(character, vehicle, candidate)) {
 			continue
 		}
-		const score = maintenanceCandidateScore(candidate, pathToVehicle.length)
-		if (!best || score > best.score) {
-			best = { score, vehicle, candidate, pathToVehicle }
-		}
+		const score = maintenanceCandidateScore(candidate, distance)
+		if (!best || score > best.score) best = { score, vehicle, candidate }
 	}
 	if (!best) return undefined
-	return maintenanceCandidateToJob(best.candidate, best.vehicle, best.pathToVehicle)
+	// Deferred real path — computed once for the winner (Phase 0). If the hex-closest vehicle is
+	// walled off, this returns undefined and the character wanders (self-correcting, same trade-off
+	// as `tailorProposedJob`).
+	const vehicleCoord = axial.round(toAxialCoord(best.vehicle.effectivePosition)!)
+	const sameVehicleHex = axial.key(axial.round(characterCoord)) === axial.key(vehicleCoord)
+	const approachEnd = profile.proposedJobs.begin?.('approachPath', () => ({
+		vehicleUid: debugObjectId(best.vehicle) ?? '',
+	}))
+	try {
+		const pathToVehicle = sameVehicleHex
+			? []
+			: game.hex.findPathForCharacter(
+					character.tile.position,
+					vehicleCoord,
+					character,
+					maxWalkTime,
+					true
+				)
+		if (!pathToVehicle) return undefined
+		return maintenanceCandidateToJob(best.candidate, best.vehicle, pathToVehicle)
+	} finally {
+		approachEnd?.()
+	}
 }
 
 function findVehicleOffloadJobDriving(
@@ -1590,38 +1589,59 @@ function findAdvertisedVehicleOffloadJob(
 ): VehicleWorkPick | undefined {
 	if (character.driving) return undefined
 	if (character.operates) return undefined
-	let best: { score: number; pick: VehicleWorkPick } | undefined
+	const characterCoord = toAxialCoord(character.position)
+	if (!characterCoord) return undefined
+	let best:
+		| {
+				score: number
+				vehicle: Vehicle
+				proposed: VehicleProposedJob & { job: 'vehicleOffload' }
+		  }
+		| undefined
 	for (const vehicle of game.vehicles) {
 		if (!isLineFreightVehicleType(vehicle.vehicleType)) continue
 		if (!vehicleHasNoOtherOperator(game, vehicle, character)) continue
-		const sameVehicleHex =
-			axial.key(axial.round(toAxialCoord(character.position)!)) ===
-			axial.key(axial.round(toAxialCoord(vehicle.effectivePosition)!))
+
+		// Phase 0 (pathfind-to-score → hex-distance score): the per-vehicle `findPathForCharacter`
+		// here was the un-instrumented ~1s/call hotspot in `collectVehicleWorkPicks` (its only use was
+		// `pathToVehicle.length` for scoring). Score by O(1) hex distance and defer the real pathfind
+		// to the winner only.
 		const vehicleCoord = axial.round(toAxialCoord(vehicle.effectivePosition)!)
-		const pathToVehicle = sameVehicleHex
-			? []
-			: game.hex.findPathForCharacter(
-					character.tile.position,
-					vehicleCoord,
-					character,
-					maxWalkTime,
-					true
-				)
-		if (!pathToVehicle) continue
+		const distance = axial.distance(characterCoord, vehicleCoord)
+
 		for (const proposed of collectVehicleAdvertisedJobs(game, vehicle)) {
 			if (proposed.source.kind !== 'vehicle') continue
 			if (proposed.job !== 'vehicleOffload') continue
-			const job: VehicleOffloadJob = {
-				...proposed,
-				approachPath: pathToVehicle,
-				path: pathToVehicle,
-			}
-			const score = proposedJobScore(job, pathToVehicle.length)
-			const pick = { job, targetTile: vehicle.tile }
-			if (!best || score > best.score) best = { score, pick }
+			const score = proposedJobScore(proposed, distance)
+			if (!best || score > best.score)
+				best = {
+					score,
+					vehicle,
+					proposed: proposed as VehicleProposedJob & { job: 'vehicleOffload' },
+				}
 		}
 	}
-	return best?.pick
+	if (!best) return undefined
+	// Deferred real path — computed once for the winner (Phase 0). A walled-off winner returns
+	// undefined and the character falls through (self-correcting, same trade-off as `tailorProposedJob`).
+	const vehicleCoord = axial.round(toAxialCoord(best.vehicle.effectivePosition)!)
+	const sameVehicleHex = axial.key(axial.round(characterCoord)) === axial.key(vehicleCoord)
+	const pathToVehicle = sameVehicleHex
+		? []
+		: game.hex.findPathForCharacter(
+				character.tile.position,
+				vehicleCoord,
+				character,
+				maxWalkTime,
+				true
+			)
+	if (!pathToVehicle) return undefined
+	const job: VehicleOffloadJob = {
+		...best.proposed,
+		approachPath: pathToVehicle,
+		path: pathToVehicle,
+	}
+	return { job, targetTile: best.vehicle.tile }
 }
 
 export function lineFreightVehicleType(): LineFreightVehicleType {
@@ -2287,7 +2307,7 @@ function traceNoVehicleWorkPicks(game: Game, character: Character): void {
 }
 
 /** Planner-visible vehicle work: line-hop (incl. approach / begin-service preludes), zone-browse, loose-good offload. */
-const vehicleWorkPicksCache = new KeyedRevisionedCache<string, VehicleWorkPick[]>()
+const vehicleWorkPicksCache = new GenerationCache<VehicleWorkPick[]>()
 const vehicleWorkGameCacheIds = new WeakMap<Game, number>()
 let nextVehicleWorkGameCacheId = 1
 
@@ -2301,7 +2321,7 @@ function vehicleWorkGameCacheId(game: Game): number {
 
 export function collectVehicleWorkPicks(game: Game, character: Character): VehicleWorkPick[] {
 	const key = `${vehicleWorkGameCacheId(game)}:${debugObjectId(character) ?? ''}`
-	return vehicleWorkPicksCache.get(key, game.workPlanningRevision, () =>
+	return vehicleWorkPicksCache.getOrCompute(game, game.workPlanningVersion, key, () =>
 		collectVehicleWorkPicksUncached(game, character)
 	)
 }

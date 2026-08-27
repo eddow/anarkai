@@ -1,4 +1,5 @@
 export * from './axial'
+export * from './cell'
 export * from './identity'
 export * from './iter'
 export * from './mem'

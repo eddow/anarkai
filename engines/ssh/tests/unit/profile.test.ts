@@ -249,4 +249,26 @@ describe('profile registry', () => {
 			game.destroy()
 		}
 	})
+
+	it('separates simulation execution (clock.advance) from planning spans', async () => {
+		setProfileLevel('simulation', 'summary')
+		const game = new Game({ terrainSeed: 42_207, characterCount: 0 }, {
+			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
+		})
+		await game.loaded
+		game.ticker.stop()
+
+		try {
+			// Drive the real ticker callback directly (ticker is stopped in tests), so the
+			// `simulation.tick` / `clock.advance` / `tickedObjects.update` spans are exercised.
+			;(game.tickerCallback as (timer: { elapsedMS: number }) => void)({ elapsedMS: 16.6 })
+
+			const text = profile.simulation.read()
+			expect(text).toContain('tick:')
+			expect(text).toContain('tick > clock.advance')
+			expect(text).toContain('tick > tickedObjects.update')
+		} finally {
+			game.destroy()
+		}
+	})
 })

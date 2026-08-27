@@ -22,6 +22,7 @@
  */
 
 import { effect, inert, reactive, type ScopedCallback, unreactive, unwrap } from 'mutts'
+import { idleReplanIntervalSeconds } from 'engine-rules'
 import { type HexBoard, isTileCoord } from 'ssh/board/board'
 import { AlveolusGate } from 'ssh/board/border/alveolus-gate'
 import { Alveolus } from 'ssh/board/content/alveolus'
@@ -44,7 +45,7 @@ import { NoStorage } from 'ssh/storage/no-storage'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { Storage } from 'ssh/storage/storage'
 import type { GoodType } from 'ssh/types'
-import { type AxialCoord, axial, findPath, type Positioned, setPop } from 'ssh/utils'
+import { type AxialCoord, axial, findPath, type Positioned, setPop, Version } from 'ssh/utils'
 import {
 	type Advertisement,
 	AdvertisementManager,
@@ -380,7 +381,12 @@ export class Hive extends AdvertisementManager<FreightMovementParty> implements 
 	private pendingMovementSourceQuantities = new Map<string, number>()
 	private pendingMovementTargetQuantities = new Map<string, number>()
 	private activeMovements = new Set<TrackedMovement>()
-	private _conveyPlanningRevision = 0
+	/**
+	 * Locally-owned convey change signal — the kernel revision for the in-place-mutated movement graph
+	 * (`movingGoods`). Convey-derived caches declare it as a `Derived` dependency and recompute lazily
+	 * on read. `Hive` is `@unreactive`, so this stays a plain object — no `markRaw` needed.
+	 */
+	public readonly conveyVersion = new Version()
 	private readonly freightVehicleDocks = new Map<Vehicle, VehicleFreightDock>()
 	// Path cache for complete paths between alveoli
 	private pathCache = new Map<string, AxialCoord[]>()
@@ -557,11 +563,11 @@ export class Hive extends AdvertisementManager<FreightMovementParty> implements 
 	private readonly gates = new Set<AlveolusGate>()
 
 	get conveyPlanningRevision(): number {
-		return this._conveyPlanningRevision
+		return this.conveyVersion.versionOf()
 	}
 
 	public invalidateConveyPlanning(_reason: string): void {
-		this._conveyPlanningRevision++
+		this.conveyVersion.bump()
 		this.board.game.invalidateWorkPlanning('convey')
 	}
 
@@ -3279,6 +3285,13 @@ export class Hive extends AdvertisementManager<FreightMovementParty> implements 
 					actionDescription.length === 0 &&
 					worker.stepExecutor?.constructor?.name === 'PonderingStep'
 				if (!wandering && !waitingIncoming && !assignedPondering) continue
+				// Phase-4 commitment throttle, keyed on game time (not wall-clock): an idle worker that
+				// was already re-planned within `idleReplanIntervalSeconds` of simulation time is skipped.
+				// Collapses the per-movement-event `findAction()` cascade without changing game-speed
+				// behaviour — the worker reconsiders at most once per this many simulated seconds.
+				const now = this.board.game.clock.virtualTime
+				if (now - worker.lastIdleReplanVirtualTime < idleReplanIntervalSeconds) continue
+				worker.lastIdleReplanVirtualTime = now
 				const nextAction = worker.findAction()
 				if (!nextAction) continue
 				const running = worker.runningScript

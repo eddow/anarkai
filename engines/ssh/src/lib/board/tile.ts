@@ -3,7 +3,7 @@ import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { GameObject, withInteractive } from 'ssh/game/object'
 import type { TerrainHydrologySample } from 'ssh/game/terrain-provider'
 import { Hive } from 'ssh/hive/hive'
-import type { ProposedJob } from 'ssh/jobs/offers'
+import { toWorkAdvertisement, type ProposedJob, type WorkAdvertisement } from 'ssh/jobs/offers'
 import { gameIsaTypes } from 'ssh/npcs/utils'
 import type { Character } from 'ssh/population/character'
 import { isVehicleLineService, isVehicleMaintenanceService } from 'ssh/population/vehicle/vehicle'
@@ -125,6 +125,15 @@ export class Tile extends withInteractive(GameObject) {
 		if (this.content instanceof UnBuiltLand) return []
 		if (this.content instanceof Alveolus) return this.content.proposedJobs
 		return []
+	}
+
+	/**
+	 * The work advertisements this tile exposes (Phase 3). A lean view of {@link proposedJobs} —
+	 * `rankedWorkCandidates` still consumes the full `proposedJobs` as the fallback, but the ad is the
+	 * contract a future `selectMovement`-style consumer reads. Derived on access; no extra state.
+	 */
+	get workAdvertisements(): readonly WorkAdvertisement[] {
+		return this.proposedJobs.map(toWorkAdvertisement)
 	}
 
 	@inert

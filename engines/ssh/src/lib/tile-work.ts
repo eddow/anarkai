@@ -5,8 +5,7 @@ import type { Game } from 'ssh/game'
 import type { Character } from 'ssh/population/character'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
 import type { Job } from 'ssh/types/base'
-import { type AxialCoord, axial, toAxialCoord } from 'ssh/utils'
-import { KeyedRevisionedCache } from 'ssh/utils/revisioned-cache'
+import { type AxialCoord, axial, GenerationCache, toAxialCoord } from 'ssh/utils'
 import { maxWalkTime } from '../../assets/constants'
 
 /** Default cap for `collectTileWorkPicks`; keep in sync with tile inspector. */
@@ -55,8 +54,8 @@ function pathToTile(character: Character, tile: Tile): AxialCoord[] | undefined 
 	)
 }
 
-const pathToTileCache = new KeyedRevisionedCache<string, AxialCoord[] | undefined>()
-const tileWorkPicksCache = new KeyedRevisionedCache<string, TileWorkPick[]>()
+const pathToTileCache = new GenerationCache<AxialCoord[] | undefined>()
+const tileWorkPicksCache = new GenerationCache<TileWorkPick[]>()
 const gameCacheIds = new WeakMap<Game, number>()
 let nextGameCacheId = 1
 
@@ -75,7 +74,7 @@ function populationKey(game: Game): string {
 function cachedPathToTile(character: Character, tile: Tile): AxialCoord[] | undefined {
 	const start = axial.round(toAxialCoord(character.position)!)
 	const key = `${gameCacheId(character.game)}:${debugObjectId(character)}:${debugObjectId(tile)}:${axial.key(start)}`
-	return pathToTileCache.get(key, character.game.workPlanningRevision, () =>
+	return pathToTileCache.getOrCompute(character.game, character.game.workPlanningVersion, key, () =>
 		pathToTile(character, tile)
 	)
 }
@@ -105,7 +104,7 @@ export function collectTileWorkPicks(
 	const selectedCoord = toAxialCoord(tile.position)
 	if (!selectedCoord) return []
 	const key = `${gameCacheId(game)}:${debugObjectId(tile)}:${limit}:${populationKey(game)}`
-	return tileWorkPicksCache.get(key, game.workPlanningRevision, () =>
+	return tileWorkPicksCache.getOrCompute(game, game.workPlanningVersion, key, () =>
 		collectTileWorkPicksUncached(game, tile, limit, selectedCoord)
 	)
 }

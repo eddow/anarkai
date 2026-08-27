@@ -37,6 +37,29 @@ export type VehicleProposedJob = VehiclePlannerJob & {
 
 export type ProposedJob = AlveolusProposedJob | TileProposedJob | VehicleProposedJob
 
+/**
+ * A lean, read-only signal a sink publishes to nearby tiles (Phase 3, advertisement-driven work).
+ *
+ * It carries only what a character needs to *rank* a candidate — the ranking magnitude (`urgency`)
+ * and the target tile for O(1) hex-distance scoring — plus the `source` that can materialize the
+ * concrete {@link ProposedJob} at claim time (Q3: the ad is a claim/token, not a pre-built job).
+ * `kind` is a forward-looking tag with no current effect on selection.
+ *
+ * This is the contract a future `selectMovement`-style consumer reads; today `rankedWorkCandidates`
+ * still consumes the full `proposedJobs` and is retained as the fallback.
+ */
+export interface WorkAdvertisement {
+	readonly kind: Job['job']
+	readonly targetTile: Tile
+	readonly urgency: number
+	readonly source: ProposedJob['source']
+}
+
+/** Derive the lean advertisement from a full proposed job. */
+export function toWorkAdvertisement(job: ProposedJob): WorkAdvertisement {
+	return { kind: job.job, targetTile: job.targetTile, urgency: job.urgency, source: job.source }
+}
+
 export type TailoredJobCandidate =
 	| {
 			readonly available: true

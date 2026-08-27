@@ -21,12 +21,14 @@ import {
 } from 'ssh/freight/goods-selection-policy'
 import type { FreightAdSource } from 'ssh/freight/priority-channel'
 import type { Game } from 'ssh/game/game'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { Hive } from 'ssh/hive/hive'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
 import type { GoodType } from 'ssh/types/base'
 import type { ExchangePriority } from 'ssh/utils/advertisement'
 import type { AxialCoord } from 'ssh/utils/axial'
+import { GenerationCache } from 'ssh/utils/cell'
 import { toAxialCoord } from 'ssh/utils/position'
 import { traces } from '../dev/debug.ts'
 import { freightConstructionDemandTarget } from './construction-demand'
@@ -563,50 +565,67 @@ export function measureHiveNeedSink(
 	}
 }
 
+// ── Memoization for the pure stop/lookahead measures ─────────────────────────────
+// `measureFreightStopNeededGoods`, `measureFreightStopProvidedGoods`, and `computeLineFurtherGoods`
+// are pure w.r.t. (board loose goods, hive storage, construction needs, trade offers) and depend only
+// on `(game, line, stopIndex)` — never on the character or the operator/assignment. They are recomputed
+// per (vehicle × character × stop) in the line-service hop projection (`stopHasPotentialVehicleTransfer`
+// → `nextActionableVehicleLineStop`), which is the dominant un-cached cost in `findVehicleOffloadJob`.
+// All inputs they read bump `candidateVersion` (loose-goods/storage/construction changes all call
+// `invalidateWorkPlanning`, which bumps it), so a per-version memo is exact and collapses the
+// per-character recomputation.
+const stopMeasureCache = new GenerationCache<unknown>()
+
+function memoizedStopMeasure<T>(game: Game, key: string, compute: () => T): T {
+	return stopMeasureCache.getOrCompute(game, game.candidateVersion, key, compute) as T
+}
+
 /** Measures goods that the line can pick up at the given stop. */
 export function measureFreightStopProvidedGoods(
 	game: Game,
 	line: FreightLineDefinition,
 	stopIndex: number
 ): FreightStopGoodsSnapshot {
-	const stop = line.stops[stopIndex]
-	if (!stop) return snapshotFromGoodsCounts({})
-	const allowedGoods = allowedGoodsProvidedAtStop(line, stopIndex)
-	if (allowedGoods.length === 0) return snapshotFromGoodsCounts({})
-	const allowedGoodsSet = new Set(allowedGoods)
-	if ('trade' in stop) {
-		const profile = resolveFreightNpcTradeProfile(game, stop.trade)
-		const perGood: Partial<Record<GoodType, number>> = {}
-		for (const offer of profile?.offers ?? []) {
-			if (offer.direction !== 'sell') continue
-			if (!allowedGoodsSet.has(offer.good)) continue
-			perGood[offer.good] = Number.MAX_SAFE_INTEGER
-		}
-		return snapshotFromGoodsCounts(perGood, 'vehicle-station')
-	}
-	if ('zone' in stop) {
-		if (stop.zone.kind === 'radius') {
-			return measureZoneLooseGoodsSource(
-				game,
-				{ q: stop.zone.center[0], r: stop.zone.center[1] },
-				stop.zone.radius,
-				allowedGoodsSet
-			)
-		}
-		const perGood: Partial<Record<GoodType, number>> = {}
-		for (const tile of freightZoneTiles(game, stop.zone)) {
-			for (const loose of tile.availableGoods) {
-				if (!loose.available || loose.isRemoved) continue
-				const gt = loose.goodType as GoodType
-				if (!allowedGoodsSet.has(gt)) continue
-				perGood[gt] = (perGood[gt] ?? 0) + 1
+	return memoizedStopMeasure(game, `provided:${debugObjectId(line)}:${stopIndex}`, () => {
+		const stop = line.stops[stopIndex]
+		if (!stop) return snapshotFromGoodsCounts({})
+		const allowedGoods = allowedGoodsProvidedAtStop(line, stopIndex)
+		if (allowedGoods.length === 0) return snapshotFromGoodsCounts({})
+		const allowedGoodsSet = new Set(allowedGoods)
+		if ('trade' in stop) {
+			const profile = resolveFreightNpcTradeProfile(game, stop.trade)
+			const perGood: Partial<Record<GoodType, number>> = {}
+			for (const offer of profile?.offers ?? []) {
+				if (offer.direction !== 'sell') continue
+				if (!allowedGoodsSet.has(offer.good)) continue
+				perGood[offer.good] = Number.MAX_SAFE_INTEGER
 			}
+			return snapshotFromGoodsCounts(perGood, 'vehicle-station')
 		}
-		return snapshotFromGoodsCounts(perGood, 'vehicle-station')
-	}
-	const hive = anchorHiveForStop(game, stop)
-	if (!hive) return snapshotFromGoodsCounts({})
-	return measureHiveStoredGoodsSource(hive, allowedGoodsSet)
+		if ('zone' in stop) {
+			if (stop.zone.kind === 'radius') {
+				return measureZoneLooseGoodsSource(
+					game,
+					{ q: stop.zone.center[0], r: stop.zone.center[1] },
+					stop.zone.radius,
+					allowedGoodsSet
+				)
+			}
+			const perGood: Partial<Record<GoodType, number>> = {}
+			for (const tile of freightZoneTiles(game, stop.zone)) {
+				for (const loose of tile.availableGoods) {
+					if (!loose.available || loose.isRemoved) continue
+					const gt = loose.goodType as GoodType
+					if (!allowedGoodsSet.has(gt)) continue
+					perGood[gt] = (perGood[gt] ?? 0) + 1
+				}
+			}
+			return snapshotFromGoodsCounts(perGood, 'vehicle-station')
+		}
+		const hive = anchorHiveForStop(game, stop)
+		if (!hive) return snapshotFromGoodsCounts({})
+		return measureHiveStoredGoodsSource(hive, allowedGoodsSet)
+	})
 }
 
 /** Measures goods that the line can unload / consume at the given stop. */
@@ -615,45 +634,47 @@ export function measureFreightStopNeededGoods(
 	line: FreightLineDefinition,
 	stopIndex: number
 ): FreightStopGoodsSnapshot {
-	const stop = line.stops[stopIndex]
-	if (!stop) return snapshotFromGoodsCounts({})
-	const allowedGoods = allowedGoodsNeededAtStop(line, stopIndex, stop)
-	if (allowedGoods.length === 0) return snapshotFromGoodsCounts({})
-	const allowedGoodsSet = new Set(allowedGoods)
-	if ('trade' in stop) {
-		const profile = resolveFreightNpcTradeProfile(game, stop.trade)
-		const perGood: Partial<Record<GoodType, number>> = {}
-		for (const offer of profile?.offers ?? []) {
-			if (offer.direction !== 'buy') continue
-			if (!allowedGoodsSet.has(offer.good)) continue
-			perGood[offer.good] = Number.MAX_SAFE_INTEGER
-		}
-		return snapshotFromGoodsCounts(perGood, 'vehicle-station')
-	}
-	if ('zone' in stop) {
-		if (stop.zone.kind === 'radius') {
-			return measureZoneStandaloneConstructionNeedSink(
-				game,
-				{ q: stop.zone.center[0], r: stop.zone.center[1] },
-				stop.zone.radius,
-				allowedGoodsSet
-			)
-		}
-		const perGood: Partial<Record<GoodType, number>> = {}
-		for (const tile of freightZoneTiles(game, stop.zone)) {
-			const site = freightConstructionDemandTarget(tile.content)
-			if (!site || site.destroyed || site.isReady) continue
-			for (const g of allowedGoodsSet) {
-				const need = site.effectiveRemainingNeeds[g]
-				if (need === undefined || need <= 0) continue
-				perGood[g] = (perGood[g] ?? 0) + need
+	return memoizedStopMeasure(game, `needed:${debugObjectId(line)}:${stopIndex}`, () => {
+		const stop = line.stops[stopIndex]
+		if (!stop) return snapshotFromGoodsCounts({})
+		const allowedGoods = allowedGoodsNeededAtStop(line, stopIndex, stop)
+		if (allowedGoods.length === 0) return snapshotFromGoodsCounts({})
+		const allowedGoodsSet = new Set(allowedGoods)
+		if ('trade' in stop) {
+			const profile = resolveFreightNpcTradeProfile(game, stop.trade)
+			const perGood: Partial<Record<GoodType, number>> = {}
+			for (const offer of profile?.offers ?? []) {
+				if (offer.direction !== 'buy') continue
+				if (!allowedGoodsSet.has(offer.good)) continue
+				perGood[offer.good] = Number.MAX_SAFE_INTEGER
 			}
+			return snapshotFromGoodsCounts(perGood, 'vehicle-station')
 		}
-		return snapshotFromGoodsCounts(perGood, 'project')
-	}
-	const hive = anchorHiveForStop(game, stop)
-	if (!hive) return snapshotFromGoodsCounts({})
-	return measureHiveNeedRoomSink(hive, allowedGoodsSet)
+		if ('zone' in stop) {
+			if (stop.zone.kind === 'radius') {
+				return measureZoneStandaloneConstructionNeedSink(
+					game,
+					{ q: stop.zone.center[0], r: stop.zone.center[1] },
+					stop.zone.radius,
+					allowedGoodsSet
+				)
+			}
+			const perGood: Partial<Record<GoodType, number>> = {}
+			for (const tile of freightZoneTiles(game, stop.zone)) {
+				const site = freightConstructionDemandTarget(tile.content)
+				if (!site || site.destroyed || site.isReady) continue
+				for (const g of allowedGoodsSet) {
+					const need = site.effectiveRemainingNeeds[g]
+					if (need === undefined || need <= 0) continue
+					perGood[g] = (perGood[g] ?? 0) + need
+				}
+			}
+			return snapshotFromGoodsCounts(perGood, 'project')
+		}
+		const hive = anchorHiveForStop(game, stop)
+		if (!hive) return snapshotFromGoodsCounts({})
+		return measureHiveNeedRoomSink(hive, allowedGoodsSet)
+	})
 }
 
 /**
@@ -668,40 +689,45 @@ export function computeLineFurtherGoods(args: {
 	readonly currentStopIndex: number
 	readonly orderedStopIndices?: readonly number[]
 }): FreightLineFurtherGoodsSnapshot {
-	let furtherNeededGoods: Partial<Record<GoodType, number>> = {}
-	let furtherProvidedGoods: Partial<Record<GoodType, number>> = {}
-	let furtherTransferredGoods: Partial<Record<GoodType, number>> = {}
-	const order =
-		args.orderedStopIndices ?? freightLineStopOrder(args.line, args.currentStopIndex).slice(1)
-	for (const stopIndex of order) {
-		const neededHere = measureFreightStopNeededGoods(args.game, args.line, stopIndex).perGood
-		for (const [goodType, quantity] of Object.entries(neededHere) as [GoodType, number][]) {
-			const matchedProvided = Math.min(quantity, furtherProvidedGoods[goodType] ?? 0)
-			if (matchedProvided > 0) {
-				furtherProvidedGoods = subtractGoodsCounts(furtherProvidedGoods, {
-					[goodType]: matchedProvided,
-				})
-				furtherTransferredGoods = addGoodsCounts(furtherTransferredGoods, {
-					[goodType]: matchedProvided,
-				})
+	const key = `further:${debugObjectId(args.line)}:${args.currentStopIndex}${
+		args.orderedStopIndices ? `:${args.orderedStopIndices.join(',')}` : ''
+	}`
+	return memoizedStopMeasure(args.game, key, () => {
+		let furtherNeededGoods: Partial<Record<GoodType, number>> = {}
+		let furtherProvidedGoods: Partial<Record<GoodType, number>> = {}
+		let furtherTransferredGoods: Partial<Record<GoodType, number>> = {}
+		const order =
+			args.orderedStopIndices ?? freightLineStopOrder(args.line, args.currentStopIndex).slice(1)
+		for (const stopIndex of order) {
+			const neededHere = measureFreightStopNeededGoods(args.game, args.line, stopIndex).perGood
+			for (const [goodType, quantity] of Object.entries(neededHere) as [GoodType, number][]) {
+				const matchedProvided = Math.min(quantity, furtherProvidedGoods[goodType] ?? 0)
+				if (matchedProvided > 0) {
+					furtherProvidedGoods = subtractGoodsCounts(furtherProvidedGoods, {
+						[goodType]: matchedProvided,
+					})
+					furtherTransferredGoods = addGoodsCounts(furtherTransferredGoods, {
+						[goodType]: matchedProvided,
+					})
+				}
+				const remainingNeed = quantity - matchedProvided
+				if (remainingNeed > 0) {
+					furtherNeededGoods = addGoodsCounts(furtherNeededGoods, {
+						[goodType]: remainingNeed,
+					})
+				}
 			}
-			const remainingNeed = quantity - matchedProvided
-			if (remainingNeed > 0) {
-				furtherNeededGoods = addGoodsCounts(furtherNeededGoods, {
-					[goodType]: remainingNeed,
-				})
-			}
+			furtherProvidedGoods = addGoodsCounts(
+				furtherProvidedGoods,
+				measureFreightStopProvidedGoods(args.game, args.line, stopIndex).perGood
+			)
 		}
-		furtherProvidedGoods = addGoodsCounts(
-			furtherProvidedGoods,
-			measureFreightStopProvidedGoods(args.game, args.line, stopIndex).perGood
-		)
-	}
-	return {
-		furtherNeededGoods: snapshotFromGoodsCounts(furtherNeededGoods),
-		furtherProvidedGoods: snapshotFromGoodsCounts(furtherProvidedGoods),
-		furtherTransferredGoods: snapshotFromGoodsCounts(furtherTransferredGoods),
-	}
+		return {
+			furtherNeededGoods: snapshotFromGoodsCounts(furtherNeededGoods),
+			furtherProvidedGoods: snapshotFromGoodsCounts(furtherProvidedGoods),
+			furtherTransferredGoods: snapshotFromGoodsCounts(furtherTransferredGoods),
+		}
+	})
 }
 
 export function computeFutureFreightTransfer(args: {

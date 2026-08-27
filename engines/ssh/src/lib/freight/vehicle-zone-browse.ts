@@ -39,6 +39,7 @@ import type { Character } from 'ssh/population/character'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
 import type { GoodType } from 'ssh/types/base'
 import { type AxialCoord, axial } from 'ssh/utils'
+import { GenerationCache } from 'ssh/utils/cell'
 import { type Positioned, toAxialCoord } from 'ssh/utils/position'
 import { maxWalkTime } from '../../../assets/constants'
 
@@ -324,13 +325,10 @@ function pickZoneProvideSelection(
 // The zone-browse selection is character-independent when `startPos` is explicit (and the default
 // `character.position` equals `vehicle.effectivePosition` for an operating character). It is recomputed
 // once per (character × vehicle) in `findVehicleOffloadJobApproach` → `pickInitialVehicleServiceCandidate`
-// → `findBeginServiceActionableWork`. Cache it per (vehicle, line, stop, rounded start, candidateRevision)
-// so the same zone evaluation collapses to one computation per revision. `candidateRevision` excludes
+// → `findBeginServiceActionableWork`. Cache it per (vehicle, line, stop, rounded start, candidateVersion)
+// so the same zone evaluation collapses to one computation per version. `candidateVersion` excludes
 // intra-sweep ownership bumps (operator/service/assignment), which zone-browse never reads.
-const zoneBrowseCache = new WeakMap<
-	Game,
-	{ revision: number; entries: Map<string, VehicleZoneBrowseSelection | undefined> }
->()
+const zoneBrowseCache = new GenerationCache<VehicleZoneBrowseSelection | undefined>()
 
 export function pickVehicleZoneBrowseSelection(
 	game: Game,
@@ -351,27 +349,12 @@ export function pickVehicleZoneBrowseSelection(
 
 		const startCoord = toAxialCoord(startPos)
 		const startKey = startCoord ? axial.key(axial.round(startCoord)) : ''
-		let entry = zoneBrowseCache.get(game)
-		const revision = game.candidateRevision
-		if (!entry || entry.revision !== revision) {
-			entry = { revision, entries: new Map() }
-			zoneBrowseCache.set(game, entry)
-		}
 		const cacheKey =
 			`${debugObjectId(vehicle) ?? ''}:${debugObjectId(line) ?? ''}:` +
 			`${debugObjectId(stop) ?? ''}:${startKey}`
-		if (entry.entries.has(cacheKey)) return entry.entries.get(cacheKey)
-
-		const result = computeVehicleZoneBrowseSelection(
-			game,
-			character,
-			vehicle,
-			line,
-			zoneStop,
-			startPos
+		return zoneBrowseCache.getOrCompute(game, game.candidateVersion, cacheKey, () =>
+			computeVehicleZoneBrowseSelection(game, character, vehicle, line, zoneStop, startPos)
 		)
-		entry.entries.set(cacheKey, result)
-		return result
 	} finally {
 		end?.()
 	}

@@ -1,4 +1,4 @@
-import { effect, reactive } from 'mutts'
+import { effect, markRaw, reactive } from 'mutts'
 import type { Tile } from 'ssh/board/tile'
 import { isTileCoord } from 'ssh/board/tile-coord'
 import { cancelVehicleReservationsOnSites } from 'ssh/build-site'
@@ -18,10 +18,9 @@ import type { Game } from 'ssh/game/game'
 import { GameObject, withInteractive } from 'ssh/game/object'
 import type { ProposedJob, VehicleProposedJob } from 'ssh/jobs/offers'
 import type { Storage } from 'ssh/storage'
-import { axial } from 'ssh/utils'
+import { axial, Derived } from 'ssh/utils'
 import { publicRef, sameRef } from 'ssh/utils/identity'
 import { type Position, toAxialCoord, xyDistance } from 'ssh/utils/position'
-import { RevisionedCache } from 'ssh/utils/revisioned-cache'
 import { assert, profile, traces } from '../../dev/debug.ts'
 import { traceProjection } from '../../dev/trace.ts'
 import type { Character } from '../character'
@@ -73,8 +72,8 @@ export class Vehicle extends withInteractive(GameObject) {
 	/** Whether this vehicle currently has an active bay queue dock request. Set by the controller. */
 	public isInBayQueue = false
 	public service?: VehicleService
-	private readonly proposedJobsCache = new RevisionedCache<readonly VehicleProposedJob[]>()
-	private readonly advertisedJobsCache = new RevisionedCache<readonly ProposedJob[]>()
+	private proposedJobsMemo: Derived<readonly VehicleProposedJob[]> | undefined
+	private advertisedJobsMemo: Derived<readonly ProposedJob[]> | undefined
 	private dockStorageCompletionEffect?: () => void
 	private dockStorageCompletionScheduled = false
 	public get operator(): Character | undefined {
@@ -336,9 +335,14 @@ export class Vehicle extends withInteractive(GameObject) {
 			vehicleType: this.vehicleType,
 		}))
 		try {
-			return this.proposedJobsCache.get(this.game.workPlanningRevision, () =>
-				collectVehicleProposedJobs(this.game, this)
-			)
+			if (!this.proposedJobsMemo) {
+				this.proposedJobsMemo = markRaw(
+					new Derived(() => collectVehicleProposedJobs(this.game, this), [
+						this.game.workPlanningVersion,
+					])
+				)
+			}
+			return this.proposedJobsMemo.get()
 		} finally {
 			end?.()
 		}
@@ -349,11 +353,14 @@ export class Vehicle extends withInteractive(GameObject) {
 			vehicleType: this.vehicleType,
 		}))
 		try {
-			const dockBay = freightVehicleDockBay(this)
-			const revision = `${this.game.workPlanningRevision}|${dockBay?.hive.conveyPlanningRevision ?? 0}`
-			return this.advertisedJobsCache.get(revision, () =>
-				collectVehicleAdvertisedJobs(this.game, this)
-			)
+			if (!this.advertisedJobsMemo) {
+				this.advertisedJobsMemo = markRaw(
+					new Derived(() => collectVehicleAdvertisedJobs(this.game, this), [
+						this.game.workPlanningVersion,
+					])
+				)
+			}
+			return this.advertisedJobsMemo.get()
 		} finally {
 			end?.()
 		}
