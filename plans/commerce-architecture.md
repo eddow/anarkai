@@ -35,7 +35,7 @@
   automated residential/commercial use a road-adjacent tile (every estate must touch a road). Vehicles
   park at the border and convey into the bay tile; once in the tile the good is in the estate, and r/c
   have no internal conveyance. Growth/merging, spontaneous commercial spawning, and the triangular
-  capacity curve live in [`spontaneous-zones.md`](./spontaneous-zones.md).
+  capacity curve live in [`districts.md`](./districts.md).
 
 ### Remaining tuning (decided mechanism, open numbers)
 

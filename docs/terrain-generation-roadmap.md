@@ -142,10 +142,10 @@ For `NpcInhabitationArea`:
 - keep the settlement footprint abstract enough to stream and persist, but concrete enough that every occupied
   tile has road access.
 
-### Settlement internal zones
+### Settlement internal districts
 
 The next useful settlement slice is not a full city simulator. It is a deterministic, tunable layout pass that
-turns a chosen settlement center and radius into zones served by nearby street tiles:
+turns a chosen settlement center and radius into districts served by nearby street tiles:
 
 - `civic`: city hall, small public service anchors, and plazas/greens if needed;
 - `residential`: housing and local living space;
@@ -185,6 +185,11 @@ These ratios now live in `engines/rules` alongside settlement radii, soft parcel
 tuning so content can steer how compact or occupied villages, towns, and cities feel without changing the
 layout algorithm. The generator treats them as targets, not exact quotas: terrain suitability, street access,
 water/road edges, settlement kind, and seeded randomness can shift the final counts.
+
+> **Naming:** these generated land-use areas are **districts** (see [`./districts.md`](./districts.md)),
+> not named zones. NPC settlements may also own a few **plots** (a forest, an agricultural field),
+> generated inversely to the settlement's district footprint — but this is **deferred** (see
+> [`../plans/plots.md`](../plans/plots.md)).
 
 Important constraints:
 

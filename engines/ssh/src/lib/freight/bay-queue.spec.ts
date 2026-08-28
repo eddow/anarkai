@@ -2,6 +2,7 @@
  * Tests for bay queue core modules.
  */
 
+import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { describe, expect, it } from 'vitest'
 import { BayQueueController, defaultRoadCapabilityResolver } from './bay-queue-controller'
 import { buildRuntimeQueueGraph } from './bay-queue-graph-builder'
@@ -26,11 +27,10 @@ function makeTestBayGroup(overrides: Partial<BayGroup> = {}): BayGroup {
 }
 
 function makeRequest(
-	// TODO: make a proper type
-	overrides: Partial<DockRequest> & { vehicle: any; arrivedAt: number }
+	overrides: Partial<DockRequest> & { vehicle: Vehicle; arrivedAt: number }
 ): DockRequest {
 	return {
-		vehicle: (overrides as any).vehicle,
+		vehicle: overrides.vehicle,
 		bayGroup: overrides.bayGroup ?? makeTestBayGroup(),
 		arrivedAt: overrides.arrivedAt,
 		priority: overrides.priority ?? 0,
@@ -55,8 +55,8 @@ function makeNode(overrides: Partial<RuntimeQueueNode> = {}): RuntimeQueueNode {
 	} as RuntimeQueueNode
 }
 
-function makeVehicle(label: string) {
-	return { label, vehicleType: 'wheelbarrow' } as any
+function makeVehicle(label: string): Vehicle {
+	return { label, vehicleType: 'wheelbarrow' } as unknown as Vehicle
 }
 
 function capturedGrant(controller: BayQueueController): MovementGrant | undefined {

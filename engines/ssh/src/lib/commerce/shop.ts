@@ -39,7 +39,7 @@ export function shopStockGoods(shopType: ShopType): GoodType[] {
  * the `footprint` is a single tile for now, with multi-tile growth to come.
  *
  * Staffing (one character per tile) and walkability (enterable-not-traversable)
- * are deferred — see `plans/spontaneous-zones.md`.
+ * are deferred — see `plans/districts.md`.
  */
 @reactive
 export class Shop extends TileContent implements Estate {

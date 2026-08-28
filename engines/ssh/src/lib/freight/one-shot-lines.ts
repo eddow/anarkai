@@ -18,7 +18,12 @@ import { Alveolus } from 'ssh/board/content/alveolus'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { isConstructionSiteShell, materialRemainingNeeds } from 'ssh/build-site'
 import { listHives, measureExternalSourceOffers } from 'ssh/commerce/board-sources'
-import type { GoodFlow, NeedSource, NetDeficitLedger } from 'ssh/commerce/commerce-model'
+import type {
+	GoodFlow,
+	NeedSource,
+	NetDeficit,
+	NetDeficitLedger,
+} from 'ssh/commerce/commerce-model'
 import {
 	compareSourceOffers,
 	internalSourceAvailability,
@@ -301,11 +306,8 @@ export function trySpawnConstructionDeliveries(
 ): number {
 	const snapshot = ledger ?? game.netDeficitLedger
 	let delivered = 0
-	for (const [good, net] of Object.entries(snapshot) as [
-		GoodType,
-		NonNullable<(typeof ledger)[GoodType]>,
-	][]) {
-		if ((net?.deficit ?? 0) <= 0) continue
+	for (const [good, net] of Object.entries(snapshot) as [GoodType, NetDeficit][]) {
+		if ((net.deficit ?? 0) <= 0) continue
 		for (const need of net.needs) {
 			const storage = needSourceStorage(need.source)
 			if (!storage) continue

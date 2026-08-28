@@ -14,7 +14,7 @@ import { traces } from '../dev/debug.ts'
  *
  * Mirrors `residential/demand.ts` for housing: on local pressure, commit a shop on a
  * clear, zoned, **road-adjacent** `UnBuiltLand` tile (the road-adjacency is the
- * "every estate must touch a road" delivery-tile rule from `plans/spontaneous-zones.md`).
+ * "every estate must touch a road" delivery-tile rule from `plans/districts.md`).
  * The trigger is **cumulative observation**, not instantaneous pressure — a shop only
  * spawns after a candidate has had shoppers for {@link commercialObservationThreshold}
  * more passes than not, so a transient shortage never commits a shop and shops emerge
@@ -22,7 +22,7 @@ import { traces } from '../dev/debug.ts'
  *
  * v1 scope: population-driven `grocery` only (food is the highest-urgency need). Type
  * diversification (production-seeded `construction_materials`, etc.) and the exact
- * spawn rule remain open — see `plans/spontaneous-zones.md`.
+ * spawn rule remain open — see `plans/districts.md`.
  */
 
 /** Axial distance a candidate shop tile senses shoppers across. */

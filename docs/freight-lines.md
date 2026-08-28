@@ -1,5 +1,9 @@
 # Freight lines and routes (`engines/ssh`)
 
+> **Naming:** this document uses the historical term "zone" for freight-stop authority. Under the current
+> vocabulary these are **plots** (see [`./plots.md`](./plots.md)); a stop's `kind: 'radius'` is only an
+> authoring convenience — the runtime object is always the in-extenso plot.
+
 ## Scope
 
 Line freight routes **wheelbarrow** `VehicleEntity` instances along **freight lines**. The target model is an **exchange route**: an ordered list of **halts**, each halt being one step at a **bay tile** or in a **zone** (not both), and each halt may be configured to load, unload, or both.

@@ -8,12 +8,15 @@ Decisions live in `docs/`, open questions and the plan in `plans/`. The document
 
 - [`docs/commerce.md`](docs/commerce.md) + [`plans/commerce.md`](plans/commerce.md) — distribution,
   external commerce, the net-deficit ledger, happiness→trust→freedom.
+- [`docs/districts.md`](docs/districts.md) + [`docs/plots.md`](docs/plots.md) — the two spatial concepts:
+  districts (per-tile land-use designations) vs plots (authored, optionally-named areas).
 - [`plans/commerce-architecture.md`](plans/commerce-architecture.md) — open questions & plan: the
   price field, sourcing policy, reserve, and the implementation order.
 - [`plans/spontaneous-lines.md`](plans/spontaneous-lines.md) — transport automation (one-shot orders,
   temporary corridors, the internality slider; recurring lines stay player-authored).
-- [`plans/spontaneous-zones.md`](plans/spontaneous-zones.md) — spontaneous residential/commercial,
-  growth/shrinkage (triangular capacity), the delivery-tile rule, and shop types.
+- [`plans/districts.md`](plans/districts.md) — spontaneous residential/commercial, growth/shrinkage
+  (triangular capacity), the delivery-tile rule, and shop types.
+- [`plans/plots.md`](plans/plots.md) — authored areas: terraforming, hive plot variables, division/merge.
 - [`plans/emergent-planning-architecture.md`](plans/emergent-planning-architecture.md) — **current
   frontier**: replace global planner optimization with local, emergent decisions (the "ants" model).
 - [`plans/revisionless-job-planner.md`](plans/revisionless-job-planner.md) — **implemented**: the four
@@ -74,7 +77,7 @@ core is implemented, tested, and type-clean; the *gameplay* wiring is the fronti
 **What is not landed** is the *gameplay* half of that spine: the **physical carrier** behind delivery
 (the buy+credit is instant — no outside-carrier travel yet), the `surplus` (producer-export) half of
 the ledger, operating demand in the bill, the frontier fade, and **growth/shrinkage** (triangular
-capacity). The spontaneous commercial spawner v1 and the zone study **are** landed (see below).
+capacity). The spontaneous commercial spawner v1 and the plot study **are** landed (see below).
 
 ## Current frontier — planner scalability (emergent planning)
 
@@ -104,11 +107,19 @@ already-shipped invalidation rework (the four revision counters are gone, replac
 
 ### Deficit/surplus ledger localization
 
-The ledger shouldn't be computed for the whole board every X seconds: every deficit (character needing something it doesn't have access to, transformation building without input nor input lines, ...) and every surplus (idem) should find a "potential source" (neighbor commercial zone) and add need/surplus point for the good in question there - these points (decaying) will be the ledger
+The ledger shouldn't be computed for the whole board every X seconds: every deficit (character needing something it doesn't have access to, transformation building without input nor input lines, ...) and every surplus (idem) should find a "potential source" (neighbor commercial district) and add need/surplus point for the good in question there - these points (decaying) will be the ledger
+
+### Emergency need fulfillment across settlements
+
+When a need is **continuous and unmet** (hunger, …), a character may in an **emergency** travel to
+another settlement — **PC or NPC** — to fulfill it there, instead of only nudging its own districts
+(see [`./districts.md`](./districts.md)). Hunger can also be satisfied **in a house** (dwelling pantry),
+not only at a shop. This is the character-side pressure release; the district nudge is the building-side
+response to the *residual* unmet need.
 
 ### Hive "variables"
 
-Intent of hives (example: caring about a forest) could be translated into "hive zones": we can have a forest-care hive who define a "care-zone" and its alveoli are, in the plan and then in the built hives, alveoli like forester/planter/gatherer have their "target zone" set to "hive's wood care zone" - the setting in the alveoli do not change, and the hive allow setting values for these "hive variables"
+Now **hive plot variables** — see [`./plots.md`](./plots.md) §"Hive plot variables".
 
 ## New tile types
 
@@ -116,20 +127,18 @@ Intent of hives (example: caring about a forest) could be translated into "hive 
 - parking lot: Places where vehicles are offloaded (if near enough) (one tile could have 2~3 vehicles)
   * By the way, we cannot offload (park) vehicles on top of each another
 
-## Zones management
+## Districts & plots (spatial concepts)
 
-What happens when a residential zone is divided in 2 (removing tiles, placing a road, ....) Do we really have to go - like with hives - to zones merging? Or should we remember for each tile its "in-this-zone-participation" ?
-Isn't there a more organic way to speak about zones? Perhaps we shouldn't speak about places marked as commercial or harvest or residential as `zones` at all and just propagate unmet needs/surplus to commercial *tiles*? (then residential/commercial are not zones anymore)
+The old "zone / zoning" vocabulary is retired. Two distinct concepts now live in their own docs:
 
-For the other user-managed zones, we can have them disjointed without issue. We could have a named/user-managed zone who is decreed residential or commercial, but this zone will have no commercial info, its tile would
-We should perhaps stop speaking of commercial/residential/hive as "zones" but find another name, even if the way to draw them are the same as zones (only UI similarity)
+- **[Districts](./districts.md)** — per-tile, per-owner land-use designation
+  (`Map<owner, 'clean' | 'residential' | 'commercial'>`); drives spontaneous building spawns. No runtime
+  object.
+- **[Plots](./plots.md)** — authored, optionally-named areas of tiles (in-extenso, double-linked); work
+  authority for foresters/harvesters/terraformers; hive "plot variables".
 
-Also, beside harvesting resources in marked tiles (commercial/residential), harvesters (cutters/choppers) can be assigned a zone and only harvest at the nearest place if they have no zone defined.
-Note: foresters the same, but they should always have a zone affected
-Note: we will also create terraformers, they will have access to the zones around them who will contain terraforming information each (nothing/toward some terrain type - beside water)
-Idea: a hive can have a "variable" - imagine a chopper+forester hive who defines a "variable of type zone" named "forest", the alveoli have their zone fixed to "hive.forest" (find a nice UI way to do so, in the plan and on the board) and have the hive have its target zone selectable (from existing, create, ...)
-
-Note: when tiles receive their individual "lack signals" (unmet need/surplus + distance) they will have to cumulate them individually (while having them decay), and this will have to be refactored. Once a tile (near a road) becomes a shop, it should reset the counter in some radius (more than the demand' radius)
+Open items and remaining work live in [`plans/districts.md`](plans/districts.md) and
+[`plans/plots.md`](plans/plots.md).
 
 ## The decided architecture
 
@@ -329,13 +338,13 @@ Needed when settlements / roads / commerce need stronger geography. Keep as back
   model; not implemented).
 - **Salary v1** — ⏳ one wallet drip that lets a character buy food at an NPC city (the skip-SimCity
   probe).
-- **Spontaneous zones** — ✅ residential spawner (seeded) + `Shop` runtime + `shops.ts` content + a v1
+- **Spontaneous districts** — ✅ residential spawner (seeded) + `Shop` runtime + `shops.ts` content + a v1
   commercial spawner (`commerce/commercial-demand.ts`: population-driven grocery, cumulative
-  observation, road-adjacency, one shop per pass) + a **zone study** (`commerce/zone-tendencies.ts` +
-  `ZoneProperties`: per-zone demand/offer/commerceNeed/structure/pressure, tile→zone links for every
-  content kind, and a zone-inspector **erase-tiles** tool + **delete confirmation**). All spawners are
+  observation, road-adjacency, one shop per pass) + a **plot study** (`commerce/zone-tendencies.ts` +
+  `ZoneProperties`: per-plot demand/offer/commerceNeed/structure/pressure, tile→plot links for every
+  content kind, and a plot-inspector **erase-tiles** tool + **delete confirmation**). All spawners are
   **local** (indexed `residentialCoords`/`commercialCoords`, no board scan). ⏳ Remaining: commercial
   type diversification / production-seeding, and growth/shrinkage (triangular capacity). See
-  [`plans/spontaneous-zones.md`](plans/spontaneous-zones.md).
+  [`plans/districts.md`](plans/districts.md).
 - **Race v1** — ⏳ one philosophy nudging one axis + one happiness source (after the dial is live).
 - **Roads v2** — ⏳ (re-ranked) turn instant roads into build projects, add route-benefit summaries.

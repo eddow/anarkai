@@ -2,8 +2,6 @@ declare namespace Ssh {
 	interface SlottedStorage {
 		capacity: number
 		slots: number
-		// TODO: Buffers are not specified in the action (game content) but in the alveolus (alveolus-configuration)
-		buffers?: Record<string, number>
 	}
 	interface SpecificStorage {
 		[goodType: string]: number
@@ -43,8 +41,6 @@ declare namespace Ssh {
 	interface SpecificStorageAction {
 		type: 'specific-storage'
 		goods: SpecificStorage
-		// TODO: Buffers are not specified in the action (game content) but in the alveolus (alveolus-configuration)
-		buffers?: Record<string, number>
 	}
 
 	/** Unified storage building: role is `storage`, layout is `kind`. */
@@ -56,7 +52,6 @@ declare namespace Ssh {
 		type: 'storage'
 		kind: 'specific'
 		goods: SpecificStorage
-		buffers?: Record<string, number>
 	}
 
 	/** Roadside freight stop: dock/portal only; cargo lives in docked vehicles or real storage. */

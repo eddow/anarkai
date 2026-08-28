@@ -268,9 +268,14 @@ export interface PickupPlan {
 	}
 }
 
-// Job types - proposed by work providers and tailored by characters.
-// Each job type has common fields: job, urgency, fatigue
-// TODO: do something with urgency/fatigue?
+/**
+ * Job types — proposed by work providers and tailored by characters.
+ * Each job carries the common fields:
+ * - `urgency`: ranking weight consumed by the planner (`Character.resolveBestJobMatch`
+ *   sorts candidates by descending urgency) and by vehicle/freight candidate policies.
+ * - `fatigue`: the energy/fatigue cost of performing the job, folded into the character's
+ *   need scoring (`findNextActivity.totalNeedPenalty`) and `getFatigueCost()`.
+ */
 export interface HarvestJob {
 	job: 'harvest'
 	urgency: number

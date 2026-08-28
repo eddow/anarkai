@@ -15,10 +15,14 @@ Money-like prices enter the game only at the boundary with other groups: village
 NPC production sites. The player's group can export goods it has chosen to make available and import
 goods it does not produce, cannot yet produce, or deliberately prefers to acquire from outside.
 
-## Internal distribution zones
+> **Naming:** spatial land-use ("commercial/residential zone") is now **districts** — see
+> [`./districts.md`](./districts.md). Authored, assignable areas are **plots** — see
+> [`./plots.md`](./plots.md).
 
-Commercial zoning can exist as a map/UI concept, but internally it should behave like distribution
-zoning rather than private retail.
+## Internal distribution districts
+
+Commercial districts can exist as a map/UI concept, but internally they should behave like
+distribution districts rather than private retail.
 
 Possible uses:
 
@@ -29,7 +33,7 @@ Possible uses:
 - **Dwelling supplementation:** goods acquired while going home, based on what the destination dwelling
   already has, lacks, or is configured to stock.
 - **Amusement and culture:** games, music, theater, libraries, cafes, sports, baths, meeting places, and
-  other public attractions can live in commercial-looking zones without becoming monetary commerce.
+  other public attractions can live in commercial-looking districts without becoming monetary commerce.
 
 Design directions:
 
@@ -45,7 +49,7 @@ Design directions:
 
 Decided split — both channels exist, using the same exchange-route machinery:
 
-- **Commercial zones** carry the *personal* goods: heating panties, watches, in-city meals and coffees —
+- **Commercial districts** carry the *personal* goods: heating panties, watches, in-city meals and coffees —
   anything acquired on the spot, in person.
 - **Homes** receive the *household* goods by direct delivery: appliances, food ingredients, and other
   dwelling stock.
@@ -54,14 +58,14 @@ Decided split — both channels exist, using the same exchange-route machinery:
 - People choose which home to go to for sleep/homish/free time by what is available — the building's
   quality (level, …) and its content (is there food, games, …).
 
-**Outside visitors (decided):** NPCs can attend our commercial zones and spend money when acquiring what
-is sold; clan characters acquire the same goods **without** any money transfer. Commercial zones are
-therefore slightly configurable — whether they accept outside commerce and which types of goods they
+**Outside visitors (decided):** NPCs can attend our commercial districts and spend money when acquiring
+what is sold; clan characters acquire the same goods **without** any money transfer. Commercial districts
+are therefore slightly configurable — whether they accept outside commerce and which types of goods they
 expose.
 
-### Commercial zones (SimCity "blue" zones)
+### Commercial districts (SimCity "blue")
 
-Commercial zones are shops, restaurants, arenas, courses, and the like — the *visible* commerce surface.
+Commercial districts are shops, restaurants, arenas, courses, and the like — the *visible* commerce surface.
 
 - **The equilibrium is a field, not a constant.** The rest level is *calculated like the price*: it is
   the local **supply/demand ratio** sampled at the shop's tile,
@@ -75,7 +79,7 @@ Commercial zones are shops, restaurants, arenas, courses, and the like — the *
 - **Both directions are open to the player.** Characters (or vehicles via lines, or project sources) can
   **buy from** a shop *and* **provide to** it as part of a commercial production line. A shop is a
   sink *and* a source.
-- **Spontaneous openings.** Like residential zones, commercial zones spontaneously open shops/courses/
+- **Spontaneous openings.** Like residential districts, commercial districts spontaneously open shops/courses/
   venues according to long-term local needs — but demand is not assumed satisfied: NPC characters are
   randomly generated and *still need sunglasses if none are sold in their city*. Tourism and **personal
   transport** close that gap (the player opens bus lines), which is exactly the inbound-desirability
@@ -90,7 +94,7 @@ Commercial zones are shops, restaurants, arenas, courses, and the like — the *
   — and that headroom is the shop's **spontaneous demand** (a shop resting at 5 with a capacity grown to
   15 still fills toward 5 but now *demands* up to 15). Consequence: the player *supplying* a shop
   literally **creates demand** — a bigger shop is a stronger demand source in the price field, opening a
-  larger price gap and higher achievable prices. This is the "zone upgrades" loop: sustained provision
+  larger price gap and higher achievable prices. This is the "district upgrades" loop: sustained provision
   grows the market it feeds.
 
 ## Consumption and happiness
@@ -214,7 +218,7 @@ The important generation distinction is spatial:
   This trickle lets a player *buy from a sawmill without bringing wood* — but it is deliberately **poor**:
   the wood arrives slowly enough that, to make the sawmill commercially relevant, the player must supply
   wood themselves. The trickle keeps an idle NPC site alive; real throughput comes from real inputs.
-- **Production is elastic** (the mirror of commercial-zone elasticity): an NPC production hive's
+- **Production is elastic** (the mirror of commercial-district elasticity): an NPC production hive's
   *production capacity* grows with **cumulative input supplied**, in **steps** (see "Growth & shrinkage").
   Its rest state stays full-output/empty-input; what grows is the **throughput** (and the output ceiling
   that scales with it). So supplying a factory grows the supplier, just as supplying a shop grows the
@@ -657,7 +661,7 @@ self-provision: own forester 40 + NPC settlement 60).
 
 ## Growth & shrinkage (elasticity)
 
-- **Steps, not a continuum.** An entity (commercial-zone capacity, NPC-hive throughput) accumulates
+- **Steps, not a continuum.** An entity (commercial-district capacity, NPC-hive throughput) accumulates
   **growth points** when its input is held **above** balance; the inverse drains them (shrinkage) when
   held **below**; growth points may go negative.
 - At a threshold, an **upgrade** is planned and — after works — the entity becomes a bigger
@@ -703,7 +707,7 @@ planner needs it, and the outside economy is visible as place, distance, and dep
 
 Likely engine concepts:
 
-- `DistributionZone`: internal access area for free pickup, entertainment, and public stock targets.
+- `DistributionDistrict`: internal access area for free pickup, entertainment, and public stock targets.
 - `NpcGroup`: umbrella outside actor with produced goods, demanded goods, price influence, map footprint,
   and trade interfaces.
 - `NpcProductionHive`: bounded factory-like group; roads connect to it or run inside service areas but do

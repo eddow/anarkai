@@ -1,13 +1,14 @@
-# Spontaneous zone management — residential & commercial
+# Spontaneous district management — residential & commercial
 
-> Open questions and proposal. Decided parts migrate to `docs/` when settled. This is the **SimCity
-> half** of the game — zones that deploy and grow *without* the player authoring each building — as
-> opposed to player-authored hives (see [`projects.md`](./projects.md)) and hand-built transport
-> (see [`spontaneous-lines.md`](./spontaneous-lines.md)).
+> Open questions and proposal. Decided parts migrate to `docs/` when settled (see
+> [`../docs/districts.md`](../docs/districts.md)). This is the **SimCity half** of the game — districts
+> that deploy and grow *without* the player authoring each building — as opposed to player-authored hives
+> (see [`projects.md`](./projects.md)) and hand-built transport (see
+> [`spontaneous-lines.md`](./spontaneous-lines.md)).
 
 ## Scope
 
-Three automatic, zone-driven behaviours live here:
+Three automatic, district-driven behaviours live here:
 
 1. **Spontaneous residential** — housing spawns when population pressure rises (already seeded:
    `trySpawnResidentialProject` in `residential/demand.ts`).
@@ -45,8 +46,8 @@ reads the delivery tile's buffer as the estate's own stock (§5c "own buffer"). 
 Commerce (import/export with outside carriers / NPC groups) goes **through shops**, never through
 industrial hives directly (see [`commerce-architecture.md`](./commerce-architecture.md#commerce-happens-at-shops-not-inside-industrial-hives-proposal)).
 
-- **Production seeds the commercial zone around it.** A sawmill complex populates a *nearby commercial
-  zone* with **wood and plank shops** — the shop is the money-facing endpoint for goods the nearby
+- **Production seeds the commercial district around it.** A sawmill complex populates a *nearby commercial
+  district* with **wood and plank shops** — the shop is the money-facing endpoint for goods the nearby
   production makes (and the inputs it needs).
 - **Shops stock both industrial and consumption goods** — wood, stone, planks sit alongside final
   consumption goods on the same shelves.
@@ -75,19 +76,41 @@ Both are commerce; retail is local and pull-based, the one-off line is push-base
 The same net-deficit/sourcing resolution decides which channel is worth it (retail when local demand
 justifies a shelf; one-off line when the surplus must travel to reach a buyer).
 
-## Geographic demand expression
+## Geographic demand expression (the nudge model)
 
-Need (and excess) is expressed **geographically** — the shop-spawn decision reads the *local* need/excess
-around a candidate tile, not a board-wide aggregate. Three demand origins feed it:
+Need **and excess** are expressed **geographically** — the shop-spawn decision reads the *local* nudge
+around a candidate tile, not a board-wide aggregate. A **nudge** is a per-good, per-tile, decaying
+accumulation of unmet demand *and* unspendable surplus (see [`../docs/districts.md`](../docs/districts.md)
+§"The nudge model"). Four origins emit nudges:
 
-1. **Industries** — input/output goods (a sawmill demands wood, supplies planks).
-2. **Houses** — needs + luxury (food, soap, … → garbage).
-3. **Present characters** (clan + NPC) — clothes, on-the-go meals, sunglasses → garbage.
+1. **Industries** — an input it cannot get, an output it cannot move (a sawmill demands wood, supplies planks).
+2. **Houses** — unfilled pantry targets (food, soap, house-cloth, …).
+3. **Present characters** (clan + NPC) — personal needs (clothes, on-the-go meals, …).
+4. **Housing** — a character without a home nudges *residential* districts (a dwelling).
 
+**Shops emit nothing** — their restock shortfall is handled by freight/sourcing, not by spawning another
+shop. **Surplus is a nudge too**: "demand in wood" covers both "need wood" and "need to sell wood" —
+both directions nudge a wood-selling shop (the nudge is keyed on the **good**, not the direction).
 Garbage is **deferred** (not part of the spawn signal for now).
 
-**Shops diversify over all surrounding needs/production** (besides garbage) and are **created/removed
-when a recurring need/surplus is spotted** at a location.
+A nudge **radiates with distance** (fading beyond a sensing radius) and **decays over time**, so a deficit
+on one side and a surplus on the other **reinforce** rather than cancel. Committing a construction
+**clears, in a radius > the demand radius**, the nudges for the good it serves **and every good it
+distributes**.
+
+### Targeting: upgrade vs spawn (neighborhood shop scan)
+
+A nudge is **addressed**, not broadcast. Resolution is a **local neighborhood scan** with a greedy
+cascade:
+
+1. Scan the origin's neighborhood for a **shop estate** that sells the needed good.
+2. If one is found — increase **that shop's** demand nudge (growth/upgrade signal, triangular capacity).
+3. If none sells the good — nudge **all shops** (they could expand their stock).
+4. If there are **no shops at all** — nudge the **commercial tiles** (spawn candidate).
+
+Each shop's demand nudge **decays**, so of two nearby shops serving the same good the one that keeps
+satisfying demand survives and the other can eventually **close**. A new shop spawns only when nothing
+existing can serve the need.
 
 ### Cumulative observation (avoid building all shops at once)
 
@@ -100,6 +123,67 @@ a construction. This ensures:
 - **not all shops are built together** — they emerge one by one as each need proves itself recurring;
 - urgency (bread vs sunglasses) modulates the *observation window* (urgent goods clear faster), but the
   cumulative gating still applies.
+
+## Migration: current spawner → nudge model
+
+Today the two spawners are **population-only** — they do not read goods at all. The nudge model replaces
+their signals, one step at a time:
+
+- **Current commercial signal** (`commerce/commercial-demand.ts`): `countShoppersNear` — a *binary*
+  "≥1 character within radius 12" test — feeding a `Map<string, number>` evidence counter (`+1`/`−1` per
+  pass, commit at threshold 3), always placing `grocery`. No good, no surplus, no distance weighting, no
+  targeting.
+- **Current residential signal** (`residential/demand.ts`): `housingPressure = max(0, people − freeSlots)`
+  within a demand radius. No decay, no per-good counter.
+- **`measureZoneTendencies`** (`commerce/zone-tendencies.ts`) is a UI-only per-plot *study*, not the
+  spawn signal.
+
+### Steps (in order)
+
+1. **Add a per-tile nudge accumulator** on the board/tile: `nudge: Partial<Record<GoodType, number>>`
+   plus a housing term, decayed each tick. Plain tile data — no runtime object (consistent with
+   "districts are not objects").
+2. **Emit nudges** from the four origins (factories, houses, characters, housing) with a **local
+   neighborhood scan**: `tilesAround(origin, radius)` — the Phase 2 locality pattern already in the
+   character planner — depositing `weight(hexDistance)`, excluding shops. `O(origins × radius²)`, no board
+   scan, no per-tile reachability. For scale, keep a sparse **dirty-origin set** and only re-emit/decay
+   origins that changed, rather than touching every entity every tick.
+3. **Schedule emission in game-time** — a *continuous* unsatisfied need (e.g. hunger) re-emits every
+   `X` seconds via the `Clock` scheduler (`game.clock.begin(step, ds)`, `complete()` returns the next
+   `remainingDs`), never per tick and never wall-clock. Transient needs emit once.
+4. **Key by good, not direction** — deficit and surplus both add to `nudge[good]`.
+5. **Replace `observations` / `countShoppersNear`** with the nudge accumulator; keep the cooldown tick.
+   Threshold becomes `nudge[good] ≥ threshold` (the decay already provides the cumulative-observation
+   gating).
+6. **Pick the shop type from the nudge's good** via `rules/content/shops.ts` (good → stocking type),
+   replacing the hardcoded `grocery`.
+7. **Clear on commit**: reset `nudge[good]` and every good the new shop distributes, in a radius larger
+   than the demand radius.
+8. **Targeting cascade**: scan the neighborhood for a shop selling the good → nudge that shop; else
+   nudge all shops; else nudge commercial tiles (see §"Targeting" above).
+9. **Housing**: fold `housingPressure` into the same accumulator as a "housing" nudge keyed to
+   residential tiles.
+10. **Tunability**: expose auto-nudge strength / decay / threshold / autarky bias as **content tuning**
+    (e.g. `soviet` race defaults toward autarky).
+
+### Relationship to `netDeficitLedger` (and dropping `NeedSource`)
+
+The nudge field *is* the localized net-deficit ledger (`next-directions.md` §"Deficit/surplus ledger
+localization"; `computeNetDeficitLedger` carries a "redo out of local little increments" TODO). Once
+nudges accumulate per tile, the board-wide `game.netDeficitLedger` scan is superseded, and the
+`NeededGood.source` object (`NeedSource = Alveolus | ConstructionSiteShell | UnBuiltLand`) can be
+**dropped entirely**:
+
+- `resolveSourcing` already reads only `need.good` + `need.quantity` — never `.source`. It does not need
+  origin identity.
+- The **only** consumer of `.source` today is `trySpawnConstructionDeliveries` (`needSourceCoord` +
+  `needSourceStorage`), which uses it to credit a specific construction site.
+- The self-haul branch already shows the correct pattern: enumerate construction shells directly (live
+  `remainingNeeds`) instead of reading a `needs` list off a scan.
+
+So: `NeededGood` collapses to `{ good, quantity }` (or a plain `Partial<Record<GoodType, number>>`), and
+the delivery branch re-homes to **direct enumeration** of construction shells — no source refs carried
+through the ledger.
 
 ## Custom shop types
 
@@ -198,7 +282,7 @@ is automatic (mirror of growth) or player-confirmed.
 ## Open questions
 
 - **Spontaneous commercial spawn rule**: what triggers a shop (nearby production demand, local population,
-  both), and how does it pick a tile (road-adjacent in a zoned commercial area)?
+  both), and how does it pick a tile (road-adjacent in a designated commercial district)?
 - **Cumulative observation parameters**: the observation window / threshold, and how urgency (bread vs
   sunglasses) shortens it.
 - **Growth trigger curve** — must outpace triangular benefit; what is it (delivered volume threshold,
@@ -220,13 +304,13 @@ is automatic (mirror of growth) or player-confirmed.
 
 ## Task summary — current status (2026-08-27)
 
-Of the three zone-driven behaviours in §Scope, **residential is done**, **commercial has a v1 spawner
+Of the three district-driven behaviours in §Scope, **residential is done**, **commercial has a v1 spawner
 (population-driven grocery) plus its runtime + content**, and **growth/shrinkage is not started**.
 
 ### Landed
 
 - **Spontaneous residential** (`residential/demand.ts`): `trySpawnResidentialProject` (starts at most one
-  dwelling project on a clear, zoned `UnBuiltLand` tile when `people − freeSlots > 0`) +
+  dwelling project on a clear, designated `UnBuiltLand` tile when `people − freeSlots > 0`) +
   `ResidentialDemandTicker` (periodic, cooldown-gated). This is the pre-existing seed the plan points at.
 - **Shop runtime** (`commerce/shop.ts`): `Shop extends TileContent implements Estate` — a non-alveolus,
   non-hive commercial estate. `feedsPriceField = false`; a `SpecificStorage` shelf seeded from the shop
@@ -239,25 +323,25 @@ Of the three zone-driven behaviours in §Scope, **residential is done**, **comme
   the `shops` game patch (`shop.test.ts`; the `commons` example starts with `shops: []`).
 - **Commercial spawner v1** (`commerce/commercial-demand.ts`): `trySpawnCommercialShop` +
   `CommercialDemandTicker` (registered on `Game` alongside residential/one-shot tickers). It places **at
-  most one** `grocery` shop per pass on a clear, zoned, **road-adjacent** `UnBuiltLand` tile, gated by
-  **cumulative observation**: `+1` evidence per pass with shoppers, `−1` per empty pass, commit when
+  most one** `grocery` shop per pass on a clear, designated, **road-adjacent** `UnBuiltLand` tile, gated
+  by **cumulative observation**: `+1` evidence per pass with shoppers, `−1` per empty pass, commit when
   evidence reaches `commercialObservationThreshold` (3). Deterministic tie-break (highest shopper count,
   then lowest coord). Type diversification + production-seeding are the open follow-ups.
 - **Tests** (`tests/unit/shop.test.ts`, `tests/unit/commercial-demand.test.ts`): shop estate/shelf +
   tag resolution; spawn-on-sustained-pressure, transient-no-spawn, and no-road-no-spawn.
-- **Zone study (UI)** (`commerce/zone-tendencies.ts` + `ZoneProperties`): `measureZoneTendencies(game,
-  zone)` surfaces the per-zone tendencies the spawners accumulate — per-good demand (construction needs
-  inside the zone, computed **locally** over the zone's own tiles, not the board ledger), **commerce
-  need** (shop restock shortfall = capacity − stock for commercial zones), offer (stock inside the zone),
-  structural counts (dwellings / under-construction / shops), and the two spawn-pressure signals
-  (`housingPressure`, `shoppers`). Rendered in the zone inspector. The tile widget now links to the zone
+- **Plot study (UI)** (`commerce/zone-tendencies.ts` + `ZoneProperties`): `measureZoneTendencies(game,
+  plot)` surfaces the per-plot tendencies the spawners accumulate — per-good demand (construction needs
+  inside the plot, computed **locally** over the plot's own tiles, not the board ledger), **commerce
+  need** (shop restock shortfall = capacity − stock for commercial districts), offer (stock inside the
+  plot), structural counts (dwellings / under-construction / shops), and the two spawn-pressure signals
+  (`housingPressure`, `shoppers`). Rendered in the plot inspector. The tile widget now links to the plot
   widget for **every** content kind (alveolus, dwelling, unbuilt, and shop) — a shop tile gets its own
-  estate header (name + shelf) with a zone link, and the unbuilt zone chip is clickable. The zone
+  estate header (name + shelf) with a plot link, and the unbuilt plot chip is clickable. The plot
   inspector gained an **erase-tiles** tool (`zone:none` paint) and a **delete confirmation** (bin →
-  confirm/cancel row), fixing the accidental whole-zone-delete. See `tests/unit/zone-tendencies.test.ts`.
+  confirm/cancel row), fixing the accidental whole-plot-delete. See `tests/unit/zone-tendencies.test.ts`.
 - **Local, no board scan** — the spawners read indexed coords, not `hex.tiles`: `ZoneManager`
   `residentialCoords` + `commercialCoords` (maintained by `setZone`/`removeZone`), and
-  `measureZoneTendencies` walks only the zone's own coords.
+  `measureZoneTendencies` walks only the plot's own coords.
 
 ### Not landed (the actual remaining work)
 
@@ -267,9 +351,30 @@ Of the three zone-driven behaviours in §Scope, **residential is done**, **comme
 - **Growth / merge** — `capacityBase` + the triangular formula (`n(n+1)/2`) are documented and
   `capacityBase` is content, but `footprint` is still single-tile: no identical-neighbour merge.
 - **Shrinkage** — not implemented (automatic-mirror vs player-confirmed is still open).
+- **Lack-signal accumulation in tiles** — today the commercial spawner reads per-plot aggregates and a
+  commercial plot carries a property widget; this should move to **per-tile** cumulative need/surplus
+  (with decay), resetting a radius when a shop appears (see [`../docs/districts.md`](../docs/districts.md)).
 
 ### Deferred (unchanged)
 
 - **Customer reach / catchment** — explicit TODO, unspecified until bus-lines + roads exist.
 - **Staffing** (one character per tile) and **walkability** (enterable-not-traversable) — forward
   constraints noted, not built.
+
+---
+
+## Naming migration (obsolete terms)
+
+This file and the code still contain the pre-split vocabulary; rename as touched:
+
+| Old | New |
+| --- | --- |
+| residential/commercial/harvest "zone" | residential/commercial/**clean** **district** |
+| named zone / resource work zone | **plot** |
+| `ZoneDefinition` | `PlotDefinition` |
+| `ZoneManager` | plot registry on the board |
+| `ZoneType` (`passive`/`harvest`/`residential`/`commercial`) | split: `DistrictKind` (`clean`/`residential`/`commercial`) + plot (no type) |
+| `residentialCoords` / `commercialCoords` | district indexes |
+| `zone-tendencies.ts` / `measureZoneTendencies` / `ZoneProperties` | district/plot tendencies |
+| `FreightZoneDefinition` (`radius`/`named`) | plot + authoring radius |
+| `zone:none` paint / `setZone`/`removeZone` | district paint + plot membership |

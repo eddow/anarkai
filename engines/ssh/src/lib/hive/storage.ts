@@ -185,50 +185,18 @@ export class StorageAlveolus extends Alveolus {
 		// Build storage before `super`: branched `super(...)` plus `@reactive` / class fields can emit
 		// code that touches `this` before `super()` completes (runtime ReferenceError on some paths).
 		let storage: Storage
-		let slottedBuffersSetup: { slots: number; buffers: Record<string, number> } | undefined
-		let specificBuffers: Record<string, number> | undefined
 
 		if (usesSlottedStorageLayout(rawAction)) {
-			const { slots, capacity, buffers } = readSlottedStorageParams(rawAction)
+			const { slots, capacity } = readSlottedStorageParams(rawAction)
 			storage = new SlottedStorage(slots, capacity)
-			if (buffers) slottedBuffersSetup = { slots, buffers }
 		} else if (usesSpecificStorageLayout(rawAction)) {
-			const { goods, buffers } = readSpecificStorageParams(rawAction)
+			const { goods } = readSpecificStorageParams(rawAction)
 			storage = new SpecificStorage(goods)
-			if (buffers) specificBuffers = buffers
 		} else {
 			throw new Error(`StorageAlveolus created with invalid storage layout`)
 		}
 
 		super(tile, storage)
-
-		if (slottedBuffersSetup) {
-			const { slots, buffers } = slottedBuffersSetup
-			const goods: Record<string, Ssh.SlottedStorageGoodConfiguration> = {}
-			for (const [goodType, minSlots] of Object.entries(buffers)) {
-				const safeMin = clampSlotCount(minSlots, slots)
-				if (safeMin <= 0) continue
-				goods[goodType] = {
-					minSlots: safeMin,
-					maxSlots: 0,
-				}
-			}
-			this.individualConfiguration = reactive({
-				working: true,
-				generalSlots: slots - sumBufferedSlots(goods),
-				goods,
-			})
-			this.normalizeEditableSlottedConfiguration()
-		} else if (specificBuffers) {
-			this.individualConfiguration = reactive({
-				working: true,
-				buffers: specificBuffers,
-			})
-		}
-
-		if (this.individualConfiguration) {
-			this.configurationRef = { scope: 'individual' }
-		}
 
 		this.assignGameContent(definition, resourceName)
 	}

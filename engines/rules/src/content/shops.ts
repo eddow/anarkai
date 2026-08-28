@@ -4,7 +4,7 @@
  * A **shop** is the money-facing endpoint for external commerce: it stocks goods
  * (industrial inputs + consumption goods) and is the only boundary through which
  * outside carriers transact — never industrial hives directly
- * (see `plans/commerce-architecture.md` and `plans/spontaneous-zones.md`).
+ * (see `plans/commerce-architecture.md` and `plans/districts.md`).
  *
  * Shops are **content-defined like alveoli**: the zone spawner selects among these
  * named types rather than an abstract "a shop". Each type identifies what it

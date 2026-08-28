@@ -172,7 +172,9 @@ export class QueueStep<Entity extends ScriptedObject> extends ASingleStep {
 	get type() {
 		return 'idle' as const
 	}
-	// TODO: marche à droite
+	// TODO: marche à droite: Make sure characters passing each another - when a character waits to enter a tile not to overcrowd it, and another comes in the opposite way so they can exchange tiles, that they don't step on each another and walk on the right side of the border.
+	// Note: this is to be done really later, and left/right could be configurable
+	/** Set when this waiter reaches the front of its queue (or is explicitly passed). */
 	passed = false
 	constructor(
 		waiter: Entity,

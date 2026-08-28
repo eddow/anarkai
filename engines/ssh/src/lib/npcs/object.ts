@@ -162,23 +162,7 @@ export function withScripted<T extends abstract new (...args: any[]) => GameObje
 			const loopCount: any[] = []
 			while (this.runningScripts.length && !this.stepExecutor) {
 				const executingName = this.runningScript.name
-				let type: string
-				let value: unknown
-				try {
-					;({ type, value } = this.makeRun())
-				} catch (_error) {
-
-					// TODO! No brushing of errors under the carpet!!!
-					// A script execution error (e.g. a failed pathfind like "No path to
-					// …") must not escape into the mutts batch — the game tick runs inside
-					// an effect, and an uncaught throw here breaks the reactive system,
-					// after which every downstream write (zone deletion, settlement
-					// generation, hover) throws `ReactiveError: broken`. Drop the failing
-					// script and ponder so the NPC recovers on the next tick.
-					this.runningScripts.shift()
-					this.stepExecutor = new PonderingStep(this as any, 0.25)
-					break
-				}
+				const { type, value } = this.makeRun()
 				loopCount.push({ name: executingName, type, value })
 				if (loopCount.length > 50) {
 					console.error('High loop count in nextStep, throttling', executingName, type, value)

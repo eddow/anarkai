@@ -26,26 +26,24 @@ export function isRoadFretAction(action: Ssh.Action): action is Ssh.RoadFretActi
 export function readSlottedStorageParams(action: Ssh.AlveolusStorageAction): {
 	slots: number
 	capacity: number
-	buffers?: Record<string, number>
 } {
 	if (action.type === 'slotted-storage') {
-		return { slots: action.slots, capacity: action.capacity, buffers: action.buffers }
+		return { slots: action.slots, capacity: action.capacity }
 	}
 	if (action.type === 'storage' && action.kind === 'slotted') {
-		return { slots: action.slots, capacity: action.capacity, buffers: action.buffers }
+		return { slots: action.slots, capacity: action.capacity }
 	}
 	throw new Error(`Expected slotted storage layout, got action type ${(action as Ssh.Action).type}`)
 }
 
 export function readSpecificStorageParams(action: Ssh.AlveolusStorageAction): {
 	goods: Ssh.SpecificStorage
-	buffers?: Record<string, number>
 } {
 	if (action.type === 'specific-storage') {
-		return { goods: action.goods, buffers: action.buffers }
+		return { goods: action.goods }
 	}
 	if (action.type === 'storage' && action.kind === 'specific') {
-		return { goods: action.goods, buffers: action.buffers }
+		return { goods: action.goods }
 	}
 	throw new Error(
 		`Expected specific storage layout, got action type ${(action as Ssh.Action).type}`
