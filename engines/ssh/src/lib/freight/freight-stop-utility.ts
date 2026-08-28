@@ -1,6 +1,7 @@
 import { commerce, freightLineHiveNeedPriorityWeight } from 'engine-rules'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Tile } from 'ssh/board/tile'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
 import {
 	distributeSegmentAllowsGoodTypeForSegment,
 	type FreightDistributeRouteSegment,
@@ -21,7 +22,6 @@ import {
 } from 'ssh/freight/goods-selection-policy'
 import type { FreightAdSource } from 'ssh/freight/priority-channel'
 import type { Game } from 'ssh/game/game'
-import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { Hive } from 'ssh/hive/hive'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'

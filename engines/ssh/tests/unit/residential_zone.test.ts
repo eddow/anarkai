@@ -68,6 +68,25 @@ describe('ZoneManager residential polish', () => {
 		expect(zm.isReserved(coord)).toBe(false)
 	})
 
+	it('removeZoneDefinition clears the residential/commercial spawner indexes', () => {
+		const zm = new ZoneManager()
+		const residential = zm.defineZone({ type: 'residential' })
+		const commercial = zm.defineZone({ type: 'commercial' })
+		zm.setZone({ q: 0, r: 0 }, residential)
+		zm.setZone({ q: 1, r: 0 }, commercial)
+
+		expect(zm.residentialCoords).toHaveLength(1)
+		expect(zm.commercialCoords).toHaveLength(1)
+
+		zm.removeZoneDefinition(residential)
+		zm.removeZoneDefinition(commercial)
+
+		expect(zm.residentialCoords).toHaveLength(0)
+		expect(zm.commercialCoords).toHaveLength(0)
+		expect(zm.getZone({ q: 0, r: 0 })).toBeUndefined()
+		expect(zm.getZone({ q: 1, r: 0 })).toBeUndefined()
+	})
+
 	it('tryReserveResidentialAt moves owner to a new tile without leaking the old slot', () => {
 		const zm = new ZoneManager()
 		zm.setZone({ q: 0, r: 0 }, { type: 'residential' })

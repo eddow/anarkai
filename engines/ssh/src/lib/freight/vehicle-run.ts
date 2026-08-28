@@ -530,7 +530,8 @@ export function projectedLineStopForVehicleHop(
 			if (targetCoord && axial.key(targetCoord) !== axial.key(vehicleCoord)) return { line, stop }
 			if ('anchor' in stop && !vehicle.isDocked) return { line, stop }
 			if (!line.cyclic) return { line, stop }
-			if (stopHasPotentialVehicleTransfer(game, character, vehicle, line, stop)) return { line, stop }
+			if (stopHasPotentialVehicleTransfer(game, character, vehicle, line, stop))
+				return { line, stop }
 			return nextActionableVehicleLineStop(game, vehicle, line, stop, character)
 		}
 		if (

@@ -110,6 +110,27 @@ The ledger shouldn't be computed for the whole board every X seconds: every defi
 
 Intent of hives (example: caring about a forest) could be translated into "hive zones": we can have a forest-care hive who define a "care-zone" and its alveoli are, in the plan and then in the built hives, alveoli like forester/planter/gatherer have their "target zone" set to "hive's wood care zone" - the setting in the alveoli do not change, and the hive allow setting values for these "hive variables"
 
+## New tile types
+
+- Factory path: allow passing through for vehicles, but act as alveoli and can be occupied for conveying (blocking temporarily) - will be mostly avoided by setting it to a high price in path finding
+- parking lot: Places where vehicles are offloaded (if near enough) (one tile could have 2~3 vehicles)
+  * By the way, we cannot offload (park) vehicles on top of each another
+
+## Zones management
+
+What happens when a residential zone is divided in 2 (removing tiles, placing a road, ....) Do we really have to go - like with hives - to zones merging? Or should we remember for each tile its "in-this-zone-participation" ?
+Isn't there a more organic way to speak about zones? Perhaps we shouldn't speak about places marked as commercial or harvest or residential as `zones` at all and just propagate unmet needs/surplus to commercial *tiles*? (then residential/commercial are not zones anymore)
+
+For the other user-managed zones, we can have them disjointed without issue. We could have a named/user-managed zone who is decreed residential or commercial, but this zone will have no commercial info, its tile would
+We should perhaps stop speaking of commercial/residential/hive as "zones" but find another name, even if the way to draw them are the same as zones (only UI similarity)
+
+Also, beside harvesting resources in marked tiles (commercial/residential), harvesters (cutters/choppers) can be assigned a zone and only harvest at the nearest place if they have no zone defined.
+Note: foresters the same, but they should always have a zone affected
+Note: we will also create terraformers, they will have access to the zones around them who will contain terraforming information each (nothing/toward some terrain type - beside water)
+Idea: a hive can have a "variable" - imagine a chopper+forester hive who defines a "variable of type zone" named "forest", the alveoli have their zone fixed to "hive.forest" (find a nice UI way to do so, in the plan and on the board) and have the hive have its target zone selectable (from existing, create, ...)
+
+Note: when tiles receive their individual "lack signals" (unmet need/surplus + distance) they will have to cumulate them individually (while having them decay), and this will have to be refactored. Once a tile (near a road) becomes a shop, it should reset the counter in some radius (more than the demand' radius)
+
 ## The decided architecture
 
 These are concluded (recorded in the `docs/` files); they are the shape we build toward, not open

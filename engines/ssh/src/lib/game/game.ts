@@ -49,7 +49,6 @@ import {
 	normalizeFreightLineDefinition,
 	serializeFreightLineForSave,
 } from 'ssh/freight/freight-line'
-import { resolveFreightNpcTradeProfile } from 'ssh/freight/freight-trade-profile'
 import { OneShotLineTicker } from 'ssh/freight/one-shot-lines'
 import {
 	GameGenerator,
@@ -282,6 +281,19 @@ export interface TilePatch {
 
 export interface VehiclePatch extends VehicleSerializedState {}
 
+/** Declarative character placement for example games / authored scenarios. */
+export interface CharacterPatch {
+	name: string
+	position: { q: number; r: number }
+	/** Alveolus coordinate this worker is assigned to (resolved to the tile's alveolus content). */
+	assignedAlveolus?: readonly [number, number]
+}
+
+/** Distinguish authored {@link CharacterPatch} from a serialized save row. */
+function isCharacterPatch(entry: CharacterPatch | SerializedCharacter): entry is CharacterPatch {
+	return !('stats' in entry)
+}
+
 type CoordPatchMap<T extends string> = Partial<Record<T, ReadonlyArray<readonly [number, number]>>>
 type TerrainPatches = CoordPatchMap<TerrainType>
 /** Canonical map form: `{ wood: [[q,r], ...], ... }`. */
@@ -328,9 +340,13 @@ export interface GamePatches {
 	shops?: ReadonlyArray<ShopPatch>
 	playerAccount?: PlayerAccountPatch
 	vehicles?: ReadonlyArray<VehiclePatch>
+	/** Characters (workers) placed at explicit coords; `assignedAlveolus` links them to a building. */
+	characters?: ReadonlyArray<CharacterPatch | SerializedCharacter>
 	roads?: RoadPatchInput
 	/** Global named configurations (by alveolus type, then name) — referenced via `configuration.ref = { scope: 'named', name }`. */
 	namedConfigurations?: Partial<Record<AlveolusType, Record<string, Ssh.AlveolusConfiguration>>>
+	/** Registered hive plans (designs), resolved before hives so `hivePlanIndex` links. */
+	hivePlans?: ReadonlyArray<SerializedHivePlan>
 }
 
 export interface SaveState extends GamePatches {
@@ -348,7 +364,6 @@ export interface SaveState extends GamePatches {
 	clockVirtualTime?: number
 	/** Per-hive configurations by alveolus type */
 	hiveConfigurations?: Record<string, Record<string, Ssh.AlveolusConfiguration>>
-	hivePlans?: ReadonlyArray<SerializedHivePlan>
 }
 
 function terrainPatchesAsTiles(terrains: TerrainPatches | undefined): TilePatch[] {
@@ -825,7 +840,10 @@ export class Game extends Eventful<GameEvents> {
 
 	/**
 	 * Apply a zone action to a tile. `zoneType === 'none'` clears the zone; otherwise
-	 * the named zone is resolved or lazily defined as a passive zone.
+	 * the zone is resolved via {@link ZoneManager.resolveZone}, which handles **typed**
+	 * zone tools (`residential` / `harvest` / `commercial`) by reusing or creating the
+	 * matching `type` (not a passive zone named after the tool), and **named** custom
+	 * zones by their name.
 	 * @returns `true` when the tile accepted the action.
 	 */
 	public applyZoneAction(tile: Tile, zoneType: string): boolean {
@@ -833,12 +851,7 @@ export class Game extends Eventful<GameEvents> {
 		if (zoneType === 'none') {
 			tile.zone = undefined
 		} else {
-			const def =
-				this.hex.zoneManager.findZoneByName(zoneType) ??
-				this.hex.zoneManager.defineZone({
-					name: zoneType,
-					type: 'passive',
-				})
+			const def = this.hex.zoneManager.resolveZone(zoneType)
 			if (def) tile.zone = def
 		}
 		return true
@@ -2286,6 +2299,8 @@ export class Game extends Eventful<GameEvents> {
 			if (patches.namedConfigurations) {
 				this.configurationManager.deserialize(patches.namedConfigurations)
 			}
+			// Registered hive plans are resolved before hives so `hivePlanIndex` links.
+			this.hivePlans.deserialize(patches.hivePlans)
 			// Apply patches if any (zones before hives so named-zone references resolve)
 			if (terrainTiles.length) this.applyTilePatches(terrainTiles)
 			if (patches.tiles?.length) this.applyTilePatches(patches.tiles)
@@ -2299,6 +2314,7 @@ export class Game extends Eventful<GameEvents> {
 			if (patches.shops?.length) this.applyShopPatches(patches.shops)
 			this.bootstrapFreightLines(patches)
 			if (patches.vehicles?.length) this.applyVehiclePatches(patches.vehicles)
+			if (patches.characters?.length) this.applyCharacterPatches(patches.characters)
 			if (patches.roads) this.applyRoadPatches(patches.roads)
 			await populationLoad
 		} catch (error) {
@@ -2374,6 +2390,8 @@ export class Game extends Eventful<GameEvents> {
 			if (patches.namedConfigurations) {
 				this.configurationManager.deserialize(patches.namedConfigurations)
 			}
+			// Registered hive plans are resolved before hives so `hivePlanIndex` links.
+			this.hivePlans.deserialize(patches.hivePlans)
 			if (terrainTiles.length) this.applyTilePatches(terrainTiles)
 			if (patches.tiles?.length) this.applyTilePatches(patches.tiles)
 			if (patches.zones) this.applyZonePatches(patches.zones)
@@ -2385,6 +2403,7 @@ export class Game extends Eventful<GameEvents> {
 			if (patches.dwellings?.length) this.applyDwellingPatches(patches.dwellings)
 			if (patches.shops?.length) this.applyShopPatches(patches.shops)
 			this.bootstrapFreightLines(patches)
+			if (patches.characters?.length) this.applyCharacterPatches(patches.characters)
 			if (patches.vehicles?.length) this.applyVehiclePatches(patches.vehicles)
 			if (patches.roads) this.applyRoadPatches(patches.roads)
 		} catch (error) {
@@ -2623,6 +2642,10 @@ export class Game extends Eventful<GameEvents> {
 					terrain: 'concrete',
 				}
 				this.upsertTerrainOverride(coord, { terrain: 'concrete' })
+				// A built hive tile must be burden-free: clear any seed-generated deposit
+				// or loose goods so an alveolus doesn't sit on stray mushrooms/berries that
+				// the offload planner then tries (and fails) to clear from a building tile.
+				this.clearTileBurden(coord)
 				const alveolusType = a.alveolus
 				if (a.underConstruction) {
 					const constructionSite = createConstructionSiteState({
@@ -2790,6 +2813,9 @@ export class Game extends Eventful<GameEvents> {
 					terrain: 'concrete',
 				}
 				this.upsertTerrainOverride(coordObj, { terrain: 'concrete' })
+				// A construction shell sits on a concrete tile: clear any seed deposit/loose
+				// goods so the shell never inherits stray burden.
+				this.clearTileBurden(coordObj)
 				const build = createConstructionShell(tile, constructionSite)
 				build.constructionWorkSecondsApplied = entry.constructionWorkSecondsApplied ?? 0
 				const hivePlan =
@@ -2827,6 +2853,9 @@ export class Game extends Eventful<GameEvents> {
 				terrain: 'concrete',
 			}
 			this.upsertTerrainOverride(coordObj, { terrain: 'concrete' })
+			// A dwelling sits on a concrete tile: clear any seed deposit/loose goods so it
+			// never inherits stray burden.
+			this.clearTileBurden(coordObj)
 			if (entry.underConstruction) {
 				const constructionSite = createConstructionSiteState({
 					kind: 'dwelling',
@@ -2859,6 +2888,9 @@ export class Game extends Eventful<GameEvents> {
 				terrain: 'concrete',
 			}
 			this.upsertTerrainOverride(coordObj, { terrain: 'concrete' })
+			// A shop sits on a concrete tile: clear any seed deposit/loose goods so it never
+			// inherits stray burden.
+			this.clearTileBurden(coordObj)
 			const shop = new Shop(tile, entry.shopType)
 			this.hex.setTileContent(tile, shop)
 			for (const [good, qty] of Object.entries(entry.goods ?? {})) {
@@ -2921,6 +2953,29 @@ export class Game extends Eventful<GameEvents> {
 			for (const coord of coords ?? []) {
 				this.hex.setRoadType({ q: coord[0], r: coord[1] }, type)
 			}
+		}
+	}
+
+	/**
+	 * Place authored characters and link their building assignment. The `assignedAlveolus`
+	 * coordinate resolves to a finished alveolus on that tile, setting both the character→
+	 * alveolus link and the reciprocal single-slot `alveolus.assignedWorker` (same derivable
+	 * back-link the save/load path recreates). Vehicle operation is left to the planner.
+	 */
+	private applyCharacterPatches(characters: NonNullable<GamePatches['characters']>) {
+		for (const entry of characters) {
+			// Skip serialized save rows — those are restored separately in `loadGameData`.
+			if (!isCharacterPatch(entry)) continue
+			const character = this.population.createCharacter(entry.name, entry.position)
+			if (!entry.assignedAlveolus) continue
+			const tile = this.hex.getTile({
+				q: entry.assignedAlveolus[0],
+				r: entry.assignedAlveolus[1],
+			})
+			const content = tile?.content
+			if (!(content instanceof Alveolus)) continue
+			character.assignedAlveolus = content
+			content.assignedWorker = character
 		}
 	}
 
@@ -3309,69 +3364,12 @@ export class Game extends Eventful<GameEvents> {
 			}
 		}
 
-		// Add freight line stop coordinates
-		for (const line of this.freightLines) {
-			for (const stop of line.stops) {
-				if ('anchor' in stop) {
-					// FreightBayAnchor has coord: readonly [number, number]
-					coords.push({ q: stop.anchor.coord[0], r: stop.anchor.coord[1] })
-				} else if ('zone' in stop) {
-					const zoneDef = stop.zone
-					if (zoneDef.kind === 'radius') {
-						// Add the center and radius extent
-						coords.push({ q: zoneDef.center[0], r: zoneDef.center[1] })
-						const center = { q: zoneDef.center[0], r: zoneDef.center[1] }
-						for (const offset of axial.allTiles(center, zoneDef.radius)) {
-							coords.push(offset)
-						}
-					} else if (zoneDef.kind === 'named') {
-						if (zoneDef.definition) {
-							const zoneCoords = this.hex.zoneManager.coordsForZone(zoneDef.definition)
-							for (const coord of zoneCoords) {
-								coords.push(coord)
-							}
-						}
-					}
-				} else if ('trade' in stop) {
-					const profile = resolveFreightNpcTradeProfile(this, stop.trade)
-					if (profile) coords.push(profile.center)
-				}
-			}
-		}
-
+		// Add custom zone coordinates (the colony's defined work/area zones).
 		for (const zoneDef of this.hex.zoneManager.listCustomZoneDefinitions()) {
 			const zoneCoords = this.hex.zoneManager.coordsForZone(zoneDef)
 			for (const coord of zoneCoords) {
 				coords.push(coord)
 			}
-		}
-
-		// Add dwelling coordinates
-		for (const tile of this.hex.tiles) {
-			const content = tile.content
-			if (content instanceof BasicDwelling) {
-				const coord = toAxialCoord(tile.position)
-				if (coord) coords.push(coord)
-			} else if (isConstructionSiteShell(content)) {
-				const coord = toAxialCoord(tile.position)
-				if (coord) coords.push(coord)
-			}
-		}
-
-		// Add loose goods coordinates
-		const looseGoodsMap = (this.hex.looseGoods as any).goods as Map<
-			string,
-			Array<{ goodType: GoodType; position: { q: number; r: number } }>
-		>
-		for (const [, goodsList] of looseGoodsMap.entries()) {
-			for (const fg of goodsList) {
-				coords.push(axial.round(fg.position))
-			}
-		}
-
-		// Add road endpoint coordinates
-		for (const road of this.hex.roadSegments()) {
-			coords.push(road.coord)
 		}
 
 		if (coords.length === 0) return null

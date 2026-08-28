@@ -3,7 +3,7 @@ import { reactive, root } from 'mutts'
 import { Game } from './game'
 // import { dorm as patches } from './game/exampleGames'
 // import { chopSaw as patches } from './game/exampleGames'
-import { commons as patches } from './game/exampleGames'
+import { soviet as patches } from './game/exampleGames'
 
 // import { saw as patches } from './game/exampleGames'
 

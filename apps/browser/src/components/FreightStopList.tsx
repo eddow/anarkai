@@ -20,6 +20,7 @@ import {
 import { T } from '@app/lib/i18n'
 import { getZoneObject } from '@app/lib/zone-selection'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
+import { goods as visualGoods } from 'engine-rules/visual-content'
 import { memoize, reactive } from 'mutts'
 import {
 	tablerOutlinePencil,
@@ -27,7 +28,6 @@ import {
 	tablerOutlineSettings,
 	tablerOutlineTrash,
 } from 'pure-glyf/icons'
-import { goods as visualGoods } from 'engine-rules/visual-content'
 import { SettlementTradeObject } from 'ssh/commerce/settlement-trade'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
 import { freightLineStationLabel } from 'ssh/freight/freight-line'

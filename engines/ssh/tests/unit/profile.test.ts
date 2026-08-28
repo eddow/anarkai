@@ -252,9 +252,12 @@ describe('profile registry', () => {
 
 	it('separates simulation execution (clock.advance) from planning spans', async () => {
 		setProfileLevel('simulation', 'summary')
-		const game = new Game({ terrainSeed: 42_207, characterCount: 0 }, {
-			tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
-		})
+		const game = new Game(
+			{ terrainSeed: 42_207, characterCount: 0 },
+			{
+				tiles: [{ coord: [0, 0] as const, terrain: 'grass' as const }],
+			}
+		)
 		await game.loaded
 		game.ticker.stop()
 

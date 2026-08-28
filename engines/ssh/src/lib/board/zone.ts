@@ -148,7 +148,12 @@ export class ZoneManager {
 		const target = toRaw(definition)
 		for (const coord of [...this.zones.coords()]) {
 			const current = this.zones.get(coord)
-			if (current && toRaw(current) === target) this.zones.delete(coord)
+			if (current && toRaw(current) === target) {
+				// Route through `removeZone` so the residential/commercial indexes and
+				// residential reservations are cleaned up alongside the spatial map —
+				// `zones.delete(coord)` alone would leave stale spawner indexes behind.
+				this.removeZone(coord)
+			}
 		}
 		return true
 	}

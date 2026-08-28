@@ -1,3 +1,5 @@
+import type { HivePlan, HivePlanEntry } from 'ssh/hive-plan'
+import { hivePlanFingerprint, hivePlanValidationRequirements } from 'ssh/hive-plan'
 import { residentialBasicDwellingProject } from '../residential/constants'
 import type { GamePatches } from './game'
 
@@ -24,8 +26,17 @@ const planksOnlySelection = {
 	defaultEffect: 'deny',
 } as const
 
-const woodOnlySelection = {
-	goodRules: [{ goodType: 'wood', effect: 'allow' }],
+const stoneOnlySelection = {
+	goodRules: [{ goodType: 'stone', effect: 'allow' }],
+	tagRules: [],
+	defaultEffect: 'deny',
+} as const
+
+const woodAndPlanksSelection = {
+	goodRules: [
+		{ goodType: 'wood', effect: 'allow' },
+		{ goodType: 'planks', effect: 'allow' },
+	],
 	tagRules: [],
 	defaultEffect: 'deny',
 } as const
@@ -514,161 +525,224 @@ function axialRect(q0: number, q1: number, r0: number, r1: number): readonly [nu
 	return coords
 }
 
-// Two parallelogram zones below the hives — residential (east) beside commercial (west),
-// separated by a vertical road running down the gap column (q = -1).
-const commonsResidential = axialRect(0, 3, 2, 6)
-const commonsCommercial = axialRect(-5, -2, 2, 6)
-const commonsGroveWood = axialRect(1, 4, -5, -4)
-const commonsGap = axialRect(-1, -1, 2, 6)
+// Two 3×3 settlement zones nudged toward the hives — residential (east) beside
+// commercial (west). NOT foundationed: no concrete patch, so seed terrain (and any
+// deposits / loose goods it generates) is left untouched. The only terrain edits are
+// the resource areas (forest / rocky); the hives get their concrete footing from the
+// hive patch itself, not from `terrains`.
+const sovietResidential = axialRect(-9, -7, 1, 3)
+const sovietCommercial = axialRect(-12, -10, 1, 3)
+const sovietWoodland = axialRect(-11, -8, -6, -4)
+const sovietQuarry = axialRect(-20, -17, 7, 9)
 
 /**
- * The commerce starting point: several **unitary hives** (each a minimal, separate
- * production loop with its own freight bay) rather than one complex hive, plus a
- * residential zone and a commercial zone laid out **below** the hives as two
- * parallelograms side by side (residential east, commercial west), and a first
- * construction project. Unlike `chopSaw` (one big hive), each hive here is a small
- * building cluster with its own delivery tile (freight bay).
- *
- *   - Grove  (forestry):   chopper + forester               → produces wood (no pile: the chopper sheds its output straight to freight)
- *   - Mill   (sawmill):    2 sawmills + wood/plank piles    → wood → planks
- *   - Quarry (stone):      stonecutter                      → produces stone (no pile: the cutter sheds its output straight to freight)
- *   - Depot  (infrastructure): slotted storages + building/road engineers
- *
- * Layout rules honoured:
- *   - every hive and zone is separated from its neighbours by ≥1 empty tile;
- *   - **no loose goods or generated deposits sit on used tiles** (residential /
- *     commercial / hive) — the zones and road corridor are `concrete` (empty
- *     generation), and explicit `looseGoods` live only in the forest, so the
- *     gather route never triggers a gamestart offload;
- *   - the wood zone (`Grove Wood`) has **no road**; a single road runs **between the
- *     residential and commercial zones** as their separator, never through the wood;
- *   - the **Depot sits west of the settlements** (leftmost hive), clear of the water.
- *
- * **Inputs are buffered; outputs are "drain-me".** The chopper and stonecutter bring
- * nothing home — their output is picked up directly from their own harvest buffer, so
- * they need no output pile. The **Depot** is the construction-materials buffer: its
- * slotted storages keep a small keep-target (≈5 units) of each of wood/planks/stone/
- * concrete for the engineers. The **Mill** buffers its *input* wood pile (so the
- * sawmills never starve) but leaves its *output* planks pile buffer-less (drain-me),
- * and both sawmills share one configuration at 55% planks.
- *
- * Projects, dwellings, and shops are **not** pre-placed: the residential and
- * commercial zones start empty so spontaneous construction (housing + shops) can
- * happen. The forest is the only resource area; the zones/gap are concrete and
- * burden-free (no deposits, no loose goods).
+ * A registered hive plan in `working` stage: the canonical design for a hive, with
+ * entries expressed **relative** to the freight bay at [0,0] so the same design can
+ * be re-placed anywhere. Validation progress is marked complete.
  */
-export const commons = {
-	seed: 549,
-	terrains: {
-		concrete: [
-			// Grove
-			[0, -1],
-			[1, -1],
-			[1, -2],
-			[0, -2],
-			// Mill
-			[4, -1],
-			[5, -1],
-			[4, -2],
-			[5, -2],
-			[6, -2],
-			// Quarry
-			[-4, -1],
-			[-5, -1],
-			[-4, -2],
-			// Depot (west, left of the settlements)
-			[-9, -1],
-			[-9, -2],
-			[-8, -2],
-			[-8, -1],
-			[-7, -2],
-			// Zones + gap: concrete (empty generation) so the residential/commercial
-			// zones and the road corridor start burden-free — no berry bushes / loose
-			// goods to offload at gamestart. The forest is the only resource area.
-			...commonsResidential,
-			...commonsCommercial,
-			...commonsGap,
-		],
-		forest: commonsGroveWood,
+function registeredWorkingPlan(name: string, entries: readonly HivePlanEntry[]): HivePlan {
+	const copied = entries.map((entry) => ({ ...entry }))
+	const requirements = hivePlanValidationRequirements(copied, [])
+	return {
+		name,
+		stage: 'working',
+		entries: copied,
+		validationProgress: {
+			...requirements,
+			workSecondsApplied: requirements.workSecondsRequired,
+		},
+		knownnessFingerprint: hivePlanFingerprint(copied),
+	}
+}
+
+/**
+ * Wood design (relative to the bay at [0,0]): forester + chopper + sawmill +
+ * wood-pile (buffered to 100%) + plank-pile (drain-me) + general storage + build
+ * engineer + freight bay. The sawmill shares the named `planks-55` configuration.
+ * Laid out on **two rows** so no alveolus is fully boxed in by its neighbours (every
+ * building keeps at least one open tile for vehicle/pedestrian pathing).
+ */
+const woodPlanEntries: readonly HivePlanEntry[] = [
+	// Row 0 (r = 0): the production line.
+	{ alveolusType: 'freight_bay', coord: [0, 0] },
+	{ alveolusType: 'tree_chopper', coord: [1, 0] },
+	{ alveolusType: 'forester', coord: [2, 0] },
+	{
+		alveolusType: 'sawmill',
+		coord: [3, 0],
+		configuration: { ref: { scope: 'named', name: 'planks-55' } },
 	},
+	// Row 1 (r = 1): buffers + engineer.
+	{
+		alveolusType: 'storage',
+		coord: [0, 1],
+		configuration: {
+			ref: { scope: 'individual' },
+			individual: {
+				working: true,
+				generalSlots: 2,
+				goods: {
+					wood: { minSlots: 1, maxSlots: 1 },
+					planks: { minSlots: 1, maxSlots: 1 },
+					stone: { minSlots: 1, maxSlots: 1 },
+					concrete: { minSlots: 1, maxSlots: 1 },
+				},
+			},
+		},
+	},
+	{ alveolusType: 'engineer', coord: [1, 1], variant: 'building' },
+	{
+		alveolusType: 'pile',
+		coord: [2, 1],
+		variant: 'wood',
+		configuration: {
+			ref: { scope: 'individual' },
+			individual: { working: true, buffers: { wood: 24 } },
+		},
+	},
+	{ alveolusType: 'pile', coord: [3, 1], variant: 'planks' },
+]
+
+/**
+ * Stone design (relative to the bay at [0,0]): stonecutter + stone pile + general
+ * storage + road engineer + freight bay. Two rows, same open-perimeter rule as Wood.
+ */
+const stonePlanEntries: readonly HivePlanEntry[] = [
+	// Row 0 (r = 0): the quarrying line.
+	{ alveolusType: 'freight_bay', coord: [0, 0] },
+	{ alveolusType: 'stonecutter', coord: [1, 0] },
+	{ alveolusType: 'pile', coord: [2, 0], variant: 'stone' },
+	// Row 1 (r = 1): buffer + engineer.
+	{
+		alveolusType: 'storage',
+		coord: [0, 1],
+		configuration: {
+			ref: { scope: 'individual' },
+			individual: {
+				working: true,
+				generalSlots: 2,
+				goods: {
+					stone: { minSlots: 2, maxSlots: 1 },
+					wood: { minSlots: 2, maxSlots: 1 },
+				},
+			},
+		},
+	},
+	{ alveolusType: 'engineer', coord: [1, 1], variant: 'road' },
+]
+
+/**
+ * `soviet` — two self-contained production hive **designs**, each registered as a
+ * working hive plan, instantiated as two W+S pairs on the board.
+ *
+ *   - **Wood**  (forestry → planks): forester + chopper + sawmill + wood-pile
+ *     (buffered to 100%) + plank-pile (drain-me) + general storage + build engineer
+ *     + freight bay. The sawmill shares the named `planks-55` config (55% planks vs
+ *     wood).
+ *   - **Stone** (quarrying): stonecutter + stone pile + general storage + road
+ *     engineer + freight bay.
+ *
+ * Two pairs are placed, each `hivePlanIndex`-linked to its design (Wood→0, Stone→1):
+ *   - Pair 1: **Wood** at -9,-2, **Stone** at -18,6.
+ *   - Pair 2 (around -30,-2, wood upward / stone downward): **Wood II** at -30,-2,
+ *     **Stone II** at -30,+2.
+ *
+ * Unlike the old `commons`, the chopper and sawmill live in the **same** hive, so
+ * wood → planks flows by intra-hive convey (no inter-hive wood shuttle). The pair-1
+ * hives trade the one thing the other lacks: stone ships west-to-wood, wood/planks
+ * ship east-to-stone. Planks export for concrete (the build engineer's foundation
+ * good). Each pair has its own gather / exchange / commerce freight lines and vehicles;
+ * the duplicated pair is staffed with explicit `characters` (chopper / forester /
+ * sawyer / builder for Wood II, cutter / roadworker for Stone II), with vehicle
+ * operators picked up dynamically by the planner.
+ *
+ * The residential and commercial zones are 3×3, empty (spontaneous construction only),
+ * and **not** foundationed — the only terrain modification sits under the built hives
+ * (the hive patch lays their concrete footing). The harvest zones are position-only
+ * markers for now: their seed terrain stays untouched. Zone re-assignment comes later.
+ */
+export const soviet = {
+	seed: 549,
 	hives: [
 		{
-			name: 'Grove',
+			name: 'Wood',
 			alveoli: [
-				{ alveolus: 'freight_bay', coord: [0, -1] },
-				{ alveolus: 'tree_chopper', coord: [1, -1] },
-				{ alveolus: 'forester', coord: [1, -2], assignedZoneIndices: [2] },
-				// No output pile: the chopper "brings nothing home" — its harvested wood stays
-				// in its own output buffer and is picked up directly by the freight line.
-			],
-		},
-		{
-			name: 'Mill',
-			alveoli: [
-				{ alveolus: 'freight_bay', coord: [4, -1] },
-				// Both sawmills share one named configuration at 55% planks (product ratio).
+				// Row 0 (r = -2): the production line.
+				{ alveolus: 'freight_bay', coord: [-9, -2], hivePlanIndex: 0 },
+				{ alveolus: 'tree_chopper', coord: [-8, -2], hivePlanIndex: 0 },
+				{ alveolus: 'forester', coord: [-7, -2], assignedZoneIndices: [2], hivePlanIndex: 0 },
+				// Sawmill shares the named `planks-55` configuration (55% planks vs wood).
 				{
 					alveolus: 'sawmill',
-					coord: [5, -1],
+					coord: [-6, -2],
+					hivePlanIndex: 0,
 					configuration: { ref: { scope: 'named', name: 'planks-55' } },
 				},
-				{
-					alveolus: 'sawmill',
-					coord: [4, -2],
-					configuration: { ref: { scope: 'named', name: 'planks-55' } },
-				},
-				// Input holding pile: buffered wood so the sawmills never starve. The
-				// keep-target makes the pile *demand* wood back up to its target, while
-				// still releasing to the sawmills' 2-use demand whenever it has stock.
-				{
-					alveolus: 'pile',
-					coord: [5, -2],
-					variant: 'wood',
-					goods: { wood: 6 },
-					configuration: {
-						ref: { scope: 'individual' },
-						individual: { working: true, buffers: { wood: 12 } },
-					},
-				},
-				// Output-only (drain-me) pile: NOT buffered — planks are meant to leave.
-				{ alveolus: 'pile', coord: [6, -2], variant: 'planks', goods: { planks: 3 } },
-			],
-		},
-		{
-			name: 'Quarry',
-			alveoli: [
-				{ alveolus: 'freight_bay', coord: [-4, -1] },
-				{ alveolus: 'stonecutter', coord: [-5, -1] },
-				// No output pile: the stonecutter "brings nothing home" — its cut stone
-				// stays in its own output buffer and is picked up directly by freight.
-			],
-		},
-		{
-			name: 'Depot',
-			alveoli: [
-				{ alveolus: 'freight_bay', coord: [-9, -1] },
-				// Construction-materials buffer: keep ~5 units (2 slots × 3 capacity) of
-				// wood + planks here, and stone + concrete in the sibling storage.
+				// Row 1 (r = -1): buffers + engineer.
+				// Construction-materials buffer for the build engineer.
 				{
 					alveolus: 'storage',
-					coord: [-9, -2],
-					goods: { wood: 3, planks: 2 },
+					coord: [-9, -1],
+					goods: { wood: 3, planks: 2, stone: 2, concrete: 2 },
+					hivePlanIndex: 0,
 					configuration: {
 						ref: { scope: 'individual' },
 						individual: {
 							working: true,
 							generalSlots: 2,
 							goods: {
-								wood: { minSlots: 2, maxSlots: 1 },
-								planks: { minSlots: 2, maxSlots: 1 },
+								wood: { minSlots: 1, maxSlots: 1 },
+								planks: { minSlots: 1, maxSlots: 1 },
+								stone: { minSlots: 1, maxSlots: 1 },
+								concrete: { minSlots: 1, maxSlots: 1 },
 							},
 						},
 					},
 				},
+				{ alveolus: 'engineer', coord: [-8, -1], variant: 'building', hivePlanIndex: 0 },
+				// Input holding pile: buffered to 100% (24/24) so the sawmill never
+				// starves, while still releasing wood on demand.
+				{
+					alveolus: 'pile',
+					coord: [-7, -1],
+					variant: 'wood',
+					goods: { wood: 6 },
+					hivePlanIndex: 0,
+					configuration: {
+						ref: { scope: 'individual' },
+						individual: { working: true, buffers: { wood: 24 } },
+					},
+				},
+				// Output-only (drain-me) pile: planks are meant to leave.
+				{
+					alveolus: 'pile',
+					coord: [-6, -1],
+					variant: 'planks',
+					goods: { planks: 3 },
+					hivePlanIndex: 0,
+				},
+			],
+		},
+		{
+			name: 'Stone',
+			alveoli: [
+				// Row 0 (r = 6): the quarrying line.
+				{ alveolus: 'freight_bay', coord: [-18, 6], hivePlanIndex: 1 },
+				{ alveolus: 'stonecutter', coord: [-17, 6], hivePlanIndex: 1 },
+				{
+					alveolus: 'pile',
+					coord: [-16, 6],
+					variant: 'stone',
+					goods: { stone: 3 },
+					hivePlanIndex: 1,
+				},
+				// Row 1 (r = 7): buffer + engineer.
+				// Construction-materials buffer for the road engineer.
 				{
 					alveolus: 'storage',
-					coord: [-8, -2],
-					goods: { stone: 3, concrete: 2 },
+					coord: [-18, 7],
+					goods: { stone: 3, wood: 2 },
+					hivePlanIndex: 1,
 					configuration: {
 						ref: { scope: 'individual' },
 						individual: {
@@ -676,19 +750,107 @@ export const commons = {
 							generalSlots: 2,
 							goods: {
 								stone: { minSlots: 2, maxSlots: 1 },
-								concrete: { minSlots: 2, maxSlots: 1 },
+								wood: { minSlots: 2, maxSlots: 1 },
 							},
 						},
 					},
 				},
-				{ alveolus: 'engineer', coord: [-8, -1], variant: 'building' },
-				{ alveolus: 'engineer', coord: [-7, -2], variant: 'road' },
+				{ alveolus: 'engineer', coord: [-17, 7], variant: 'road', hivePlanIndex: 1 },
+			],
+		},
+		{
+			name: 'Wood II',
+			alveoli: [
+				// Row 0 (r = -2): the production line.
+				{ alveolus: 'freight_bay', coord: [-30, -2], hivePlanIndex: 0 },
+				{ alveolus: 'tree_chopper', coord: [-29, -2], hivePlanIndex: 0 },
+				// No assigned zone yet — zone re-affect happens later.
+				{ alveolus: 'forester', coord: [-28, -2], hivePlanIndex: 0 },
+				{
+					alveolus: 'sawmill',
+					coord: [-27, -2],
+					hivePlanIndex: 0,
+					configuration: { ref: { scope: 'named', name: 'planks-55' } },
+				},
+				// Row 1 (r = -1): buffers + engineer.
+				{
+					alveolus: 'storage',
+					coord: [-30, -1],
+					goods: { wood: 3, planks: 2, stone: 2, concrete: 2 },
+					hivePlanIndex: 0,
+					configuration: {
+						ref: { scope: 'individual' },
+						individual: {
+							working: true,
+							generalSlots: 2,
+							goods: {
+								wood: { minSlots: 1, maxSlots: 1 },
+								planks: { minSlots: 1, maxSlots: 1 },
+								stone: { minSlots: 1, maxSlots: 1 },
+								concrete: { minSlots: 1, maxSlots: 1 },
+							},
+						},
+					},
+				},
+				{ alveolus: 'engineer', coord: [-29, -1], variant: 'building', hivePlanIndex: 0 },
+				{
+					alveolus: 'pile',
+					coord: [-28, -1],
+					variant: 'wood',
+					goods: { wood: 6 },
+					hivePlanIndex: 0,
+					configuration: {
+						ref: { scope: 'individual' },
+						individual: { working: true, buffers: { wood: 24 } },
+					},
+				},
+				{
+					alveolus: 'pile',
+					coord: [-27, -1],
+					variant: 'planks',
+					goods: { planks: 3 },
+					hivePlanIndex: 0,
+				},
+			],
+		},
+		{
+			name: 'Stone II',
+			alveoli: [
+				// Row 0 (r = 2): the quarrying line.
+				{ alveolus: 'freight_bay', coord: [-30, 2], hivePlanIndex: 1 },
+				{ alveolus: 'stonecutter', coord: [-29, 2], hivePlanIndex: 1 },
+				{
+					alveolus: 'pile',
+					coord: [-28, 2],
+					variant: 'stone',
+					goods: { stone: 3 },
+					hivePlanIndex: 1,
+				},
+				// Row 1 (r = 3): buffer + engineer.
+				{
+					alveolus: 'storage',
+					coord: [-30, 3],
+					goods: { stone: 3, wood: 2 },
+					hivePlanIndex: 1,
+					configuration: {
+						ref: { scope: 'individual' },
+						individual: {
+							working: true,
+							generalSlots: 2,
+							goods: {
+								stone: { minSlots: 2, maxSlots: 1 },
+								wood: { minSlots: 2, maxSlots: 1 },
+							},
+						},
+					},
+				},
+				{ alveolus: 'engineer', coord: [-29, 3], variant: 'road', hivePlanIndex: 1 },
 			],
 		},
 	],
 	freightLines: [
 		{
-			name: 'Grove gather',
+			name: 'Wood gather',
 			cyclic: true,
 			stops: [
 				{
@@ -696,43 +858,42 @@ export const commons = {
 					unloadSelection: constructionGoodsSelection,
 					anchor: {
 						kind: 'alveolus',
-						hiveName: 'Grove',
+						hiveName: 'Wood',
 						alveolusType: 'freight_bay',
-						coord: [0, -1],
+						coord: [-9, -2],
 					},
 				},
 				{
 					loadSelection: constructionGoodsSelection,
 					unloadSelection: constructionGoodsSelection,
-					// Radius zone MUST be centered on the bay anchor (0,-1) so the engine
-					// recognises this as a *gather* route (zone→anchor at the same tile).
-					// A 6-tile radius reaches the Grove Wood forest (q 1..4, r -4..-5).
-					zone: { kind: 'radius', center: [0, -1], radius: 6 },
+					// Radius zone centred on the bay anchor (gather route); radius 6
+					// reaches the Woodland forest.
+					zone: { kind: 'radius', center: [-9, -2], radius: 6 },
 				},
 			],
 		},
 		{
-			name: 'Mill wood run',
+			name: 'Stone deliver',
 			cyclic: true,
 			stops: [
 				{
-					loadSelection: woodOnlySelection,
-					unloadSelection: planksOnlySelection,
+					loadSelection: stoneOnlySelection,
+					unloadSelection: woodAndPlanksSelection,
 					anchor: {
 						kind: 'alveolus',
-						hiveName: 'Grove',
+						hiveName: 'Stone',
 						alveolusType: 'freight_bay',
-						coord: [0, -1],
+						coord: [-18, 6],
 					},
 				},
 				{
-					loadSelection: planksOnlySelection,
-					unloadSelection: woodOnlySelection,
+					loadSelection: woodAndPlanksSelection,
+					unloadSelection: stoneOnlySelection,
 					anchor: {
 						kind: 'alveolus',
-						hiveName: 'Mill',
+						hiveName: 'Wood',
 						alveolusType: 'freight_bay',
-						coord: [4, -1],
+						coord: [-9, -2],
 					},
 				},
 			],
@@ -746,81 +907,163 @@ export const commons = {
 					unloadSelection: concreteOnlySelection,
 					anchor: {
 						kind: 'alveolus',
-						hiveName: 'Mill',
+						hiveName: 'Wood',
 						alveolusType: 'freight_bay',
-						coord: [4, -1],
+						coord: [-9, -2],
 					},
 				},
 				{
 					loadSelection: concreteOnlySelection,
 					unloadSelection: planksOnlySelection,
-					trade: { kind: 'settlement', center: { q: 7, r: 19 }, profile: undefined! },
+					trade: { kind: 'settlement', center: { q: -4, r: -17 }, profile: undefined! },
+				},
+			],
+		},
+		{
+			name: 'Wood II gather',
+			cyclic: true,
+			stops: [
+				{
+					loadSelection: constructionGoodsSelection,
+					unloadSelection: constructionGoodsSelection,
+					anchor: {
+						kind: 'alveolus',
+						hiveName: 'Wood II',
+						alveolusType: 'freight_bay',
+						coord: [-30, -2],
+					},
+				},
+				{
+					loadSelection: constructionGoodsSelection,
+					unloadSelection: constructionGoodsSelection,
+					// Radius zone centred on the bay anchor (gather route).
+					zone: { kind: 'radius', center: [-30, -2], radius: 6 },
+				},
+			],
+		},
+		{
+			name: 'Stone II deliver',
+			cyclic: true,
+			stops: [
+				{
+					loadSelection: stoneOnlySelection,
+					unloadSelection: woodAndPlanksSelection,
+					anchor: {
+						kind: 'alveolus',
+						hiveName: 'Stone II',
+						alveolusType: 'freight_bay',
+						coord: [-30, 2],
+					},
+				},
+				{
+					loadSelection: woodAndPlanksSelection,
+					unloadSelection: stoneOnlySelection,
+					anchor: {
+						kind: 'alveolus',
+						hiveName: 'Wood II',
+						alveolusType: 'freight_bay',
+						coord: [-30, -2],
+					},
+				},
+			],
+		},
+		{
+			name: 'Commerce loop II',
+			cyclic: true,
+			stops: [
+				{
+					loadSelection: planksOnlySelection,
+					unloadSelection: concreteOnlySelection,
+					anchor: {
+						kind: 'alveolus',
+						hiveName: 'Wood II',
+						alveolusType: 'freight_bay',
+						coord: [-30, -2],
+					},
+				},
+				{
+					loadSelection: concreteOnlySelection,
+					unloadSelection: planksOnlySelection,
+					trade: { kind: 'settlement', center: { q: -4, r: -17 }, profile: undefined! },
 				},
 			],
 		},
 	],
 	zones: [
-		{ type: 'residential', coords: commonsResidential },
-		{ type: 'commercial', coords: commonsCommercial },
-		{
-			name: 'Grove Wood',
-			color: '#3f9f6b',
-			type: 'harvest',
-			coords: commonsGroveWood,
-		},
+		{ type: 'residential', coords: sovietResidential },
+		{ type: 'commercial', coords: sovietCommercial },
+		// Position-only harvest markers: terrain/content is left to the seed until
+		// zones are re-affect later.
+		{ name: 'Woodland', color: '#3f9f6b', type: 'harvest', coords: sovietWoodland },
+		{ name: 'Quarry', color: '#8a8a8a', type: 'harvest', coords: sovietQuarry },
 	],
-	// The separator road between the two zones, running vertically through the gap.
-	roads: {
-		path: [
-			[-1, 2.5],
-			[-1, 3.5],
-			[-1, 4.5],
-			[-1, 5.5],
-		],
-	},
 	dwellings: [],
 	shops: [],
-	looseGoods: {
-		// Only in the forest (never on residential/commercial/hive tiles), so the
-		// gather route collects these instead of offloading onto occupied tiles.
-		wood: [
-			[2, -4],
-			[3, -4],
-			[4, -4],
-		],
-		berries: [
-			[1, -5],
-			[2, -5],
-		],
-	},
 	playerAccount: { balanceVp: 200 },
 	vehicles: [
 		{
-			name: 'commons:wheelbarrow1',
+			name: 'soviet:wheelbarrow1',
 			vehicleType: 'wheelbarrow',
-			position: { q: 0, r: -1 },
+			position: { q: -9, r: -2 },
 			servedLineIndices: [0],
 		},
 		{
-			name: 'commons:wheelbarrow2',
+			name: 'soviet:wheelbarrow2',
 			vehicleType: 'wheelbarrow',
-			position: { q: 4, r: -1 },
+			position: { q: -18, r: 6 },
 			servedLineIndices: [1],
 		},
 		{
-			name: 'commons:suv',
+			name: 'soviet:suv',
 			vehicleType: 'suv',
-			position: { q: 3, r: -1 },
+			position: { q: -10, r: -2 },
 			servedLineIndices: [2],
 		},
 		// Free vehicles (no served line, no operator) — the pool the one-shot
 		// construction-line spawner draws from. Vehicles are never spawned.
-		{ name: 'commons:wheelbarrow3', vehicleType: 'wheelbarrow', position: { q: 2, r: -1 } },
-		{ name: 'commons:wheelbarrow4', vehicleType: 'wheelbarrow', position: { q: 6, r: 1 } },
-		{ name: 'commons:pickup-truck', vehicleType: 'pickup_truck', position: { q: 8, r: 1 } },
+		{ name: 'soviet:wheelbarrow3', vehicleType: 'wheelbarrow', position: { q: -8, r: 0 } },
+		{ name: 'soviet:wheelbarrow4', vehicleType: 'wheelbarrow', position: { q: -16, r: 6 } },
+		{ name: 'soviet:pickup-truck', vehicleType: 'pickup_truck', position: { q: -17, r: 5 } },
+		// ── Pair 2 (Wood II / Stone II) ────────────────────────────────────
+		{
+			name: 'soviet:wheelbarrow5',
+			vehicleType: 'wheelbarrow',
+			position: { q: -30, r: -2 },
+			servedLineIndices: [3],
+		},
+		{
+			name: 'soviet:wheelbarrow6',
+			vehicleType: 'wheelbarrow',
+			position: { q: -30, r: 2 },
+			servedLineIndices: [4],
+		},
+		{
+			name: 'soviet:suv2',
+			vehicleType: 'suv',
+			position: { q: -29, r: -2 },
+			servedLineIndices: [5],
+		},
 	],
-	// Global named configurations — reusable across alveoli/hives. The two Mill
-	// sawmills both point at `sawmill` → `planks-55`, so editing it updates both.
+	// Workers staffing the duplicated pair (Wood II / Stone II). Vehicle operators
+	// are picked up dynamically by the planner from the free workers / generated population.
+	characters: [
+		// Wood II — chopper + forester + sawmill + build engineer.
+		{ name: 'Wood II chopper', position: { q: -29, r: -2 }, assignedAlveolus: [-29, -2] },
+		{ name: 'Wood II forester', position: { q: -28, r: -2 }, assignedAlveolus: [-28, -2] },
+		{ name: 'Wood II sawyer', position: { q: -27, r: -2 }, assignedAlveolus: [-27, -2] },
+		{ name: 'Wood II builder', position: { q: -29, r: -1 }, assignedAlveolus: [-29, -1] },
+		// Stone II — stonecutter + road engineer.
+		{ name: 'Stone II cutter', position: { q: -29, r: 2 }, assignedAlveolus: [-29, 2] },
+		{ name: 'Stone II roadworker', position: { q: -29, r: 3 }, assignedAlveolus: [-29, 3] },
+	],
+	// The two hive designs, registered as working plans. Every hive above links to
+	// one of these via `hivePlanIndex`: Wood/Wood II → 0, Stone/Stone II → 1.
+	hivePlans: [
+		registeredWorkingPlan('Wood', woodPlanEntries),
+		registeredWorkingPlan('Stone', stonePlanEntries),
+	],
+	// Global named configurations — reusable across alveoli/hives. The wood sawmill
+	// points at `sawmill` → `planks-55`.
 	namedConfigurations: {
 		sawmill: {
 			'planks-55': { working: true, productRatio: { maxProductRatio: 0.55 } },

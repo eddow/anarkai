@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { alveoli, deposits, goods, shops } from '../src'
 import en from '../assets/locales/en.json'
 import fr from '../assets/locales/fr.json'
+import { alveoli, deposits, goods, shops } from '../src'
 
 /**
  * Locale coverage guard: every piece of engine-rules content (goods, alveoli,

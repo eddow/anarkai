@@ -21,8 +21,13 @@ async function snapshotSelectedCharacter(page: Page) {
 	return page.evaluate((): VisualSnapshot => {
 		const game = (window as any).game
 		const selectedObject = (window as any).selectionState.selectedObject
+		const selectedUid = (window as any).debugObjectId(selectedObject)
+		// `selectionState.selectedObject` is the raw reference (shallowReactive
+		// unwraps on assignment), while `renderer.visuals` keys by the reactive
+		// proxy stored in `game.objects`. Match by stable debug id so the two
+		// identities resolve to the same character.
 		const visual = [...(game.renderer?.visuals?.values?.() ?? [])].find(
-			(v: any) => v?.object === selectedObject
+			(v: any) => v?.object && (window as any).debugObjectId(v.object) === selectedUid
 		)
 		const char = visual?.object
 		if (!visual || !char) throw new Error('Missing Pixi visual for selected character')

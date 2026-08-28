@@ -337,9 +337,10 @@ export class Vehicle extends withInteractive(GameObject) {
 		try {
 			if (!this.proposedJobsMemo) {
 				this.proposedJobsMemo = markRaw(
-					new Derived(() => collectVehicleProposedJobs(this.game, this), [
-						this.game.workPlanningVersion,
-					])
+					new Derived(
+						() => collectVehicleProposedJobs(this.game, this),
+						[this.game.workPlanningVersion]
+					)
 				)
 			}
 			return this.proposedJobsMemo.get()
@@ -355,9 +356,10 @@ export class Vehicle extends withInteractive(GameObject) {
 		try {
 			if (!this.advertisedJobsMemo) {
 				this.advertisedJobsMemo = markRaw(
-					new Derived(() => collectVehicleAdvertisedJobs(this.game, this), [
-						this.game.workPlanningVersion,
-					])
+					new Derived(
+						() => collectVehicleAdvertisedJobs(this.game, this),
+						[this.game.workPlanningVersion]
+					)
 				)
 			}
 			return this.advertisedJobsMemo.get()

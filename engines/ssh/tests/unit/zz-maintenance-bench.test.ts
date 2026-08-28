@@ -4,10 +4,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, it } from 'vitest'
-import { setProfileLevel, profile } from 'ssh/dev/debug'
+import { profile, setProfileLevel } from 'ssh/dev/debug'
 import { collectVehicleWorkPicks } from 'ssh/freight/vehicle-work'
 import { toAxialCoord } from 'ssh/utils/position'
+import { describe, it } from 'vitest'
 import { gatherFreightLine } from '../freight-fixtures'
 import { TestEngine } from '../test-engine'
 
@@ -62,7 +62,7 @@ describe('maintenance bench', () => {
 			}
 			const characters = []
 			for (let i = 0; i < 5; i++) {
-				characters.push(game.population.createCharacter('Worker' + i, { q: i, r: 1 }))
+				characters.push(game.population.createCharacter(`Worker${i}`, { q: i, r: 1 }))
 			}
 
 			profile.proposedJobs.reset()
@@ -139,7 +139,7 @@ describe('maintenance bench', () => {
 			}
 			const characters = []
 			for (let i = 0; i < 4; i++) {
-				characters.push(game.population.createCharacter('Worker' + i, { q: i, r: 1 }))
+				characters.push(game.population.createCharacter(`Worker${i}`, { q: i, r: 1 }))
 			}
 
 			let report = '\n--- revision sweep ---\n'
@@ -163,7 +163,9 @@ describe('maintenance bench', () => {
 		}
 	})
 
-	it('measures unbounded service-border miss cost on a large board', { timeout: 120000 }, async () => {
+	it('measures unbounded service-border miss cost on a large board', {
+		timeout: 120000,
+	}, async () => {
 		const radius = 28
 		// Concrete board, but carve a water "moat" at r == 14 so the far side is unreachable.
 		const tiles: Array<{ coord: [number, number]; terrain: 'concrete' | 'water' }> = []

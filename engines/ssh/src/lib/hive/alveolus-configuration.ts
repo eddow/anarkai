@@ -97,7 +97,9 @@ export class AlveolusConfigurationManager {
 	 * Writes into the reactive map — mutation notifications are intended here, so
 	 * no `inert` wrapper is needed (a load is a real state change consumers observe).
 	 */
-	deserialize(data: Partial<Record<AlveolusType, Record<string, Ssh.AlveolusConfiguration>>>): void {
+	deserialize(
+		data: Partial<Record<AlveolusType, Record<string, Ssh.AlveolusConfiguration>>>
+	): void {
 		this.namedConfigurations.clear()
 		for (const [type, configs] of Object.entries(data)) {
 			const typeMap = new Map<string, Ssh.AlveolusConfiguration>()

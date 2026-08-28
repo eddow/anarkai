@@ -2044,8 +2044,7 @@ function findVehicleHopJobLineHop(game: Game, character: Character): VehicleHopJ
 		const targetPos = freightStopMovementTarget(game, character, line, stop)
 		if (!targetPos) return undefined
 		const startPos = axial.round(toAxialCoord(character.position)!)
-		path =
-			game.hex.findPathForVehicleServiceBorderUnbounded(startPos, targetPos) ?? []
+		path = game.hex.findPathForVehicleServiceBorderUnbounded(startPos, targetPos) ?? []
 		if (path.length === 0 && 'trade' in stop) {
 			traces.vehicle.log?.('vehicleJob.tradeStop.virtualPath', {
 				characterUid: debugObjectId(character) ?? '',

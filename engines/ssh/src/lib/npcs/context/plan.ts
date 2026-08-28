@@ -327,7 +327,9 @@ const workPlanHandler: PlanHandler<WorkPlan> = {
 				// Phase 3: the claim already happened synchronously at selection
 				// (`Character.workExecution`), which also set `preserveAssignment`. Keep it; only
 				// fall back to the old preserve-on-re-run default if it was never set.
-				if ((plan as WorkPlan & { preserveAssignment?: boolean }).preserveAssignment === undefined) {
+				if (
+					(plan as WorkPlan & { preserveAssignment?: boolean }).preserveAssignment === undefined
+				) {
 					;(plan as WorkPlan & { preserveAssignment?: boolean }).preserveAssignment = true
 				}
 			} else {

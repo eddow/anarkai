@@ -206,9 +206,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 	 * re-scanning the board + vehicle picks. Any job-relevant change (goods, hive, construction,
 	 * operator, assignment) bumps the revision and invalidates the memo.
 	 */
-	private rankedWorkCandidatesCache:
-		| { revision: number; ranked: RankedWorkCandidate[] }
-		| undefined
+	private rankedWorkCandidatesCache: { revision: number; ranked: RankedWorkCandidate[] } | undefined
 
 	/**
 	 * Sticky job-target commitment (Phase 4): the last work target this character committed to, held
@@ -948,7 +946,8 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		const sa = a.job.source
 		const sb = b.job.source
 		if (sa.kind !== sb.kind) return false
-		if (sa.kind === 'alveolus' && sb.kind === 'alveolus' && sa.alveolus !== sb.alveolus) return false
+		if (sa.kind === 'alveolus' && sb.kind === 'alveolus' && sa.alveolus !== sb.alveolus)
+			return false
 		if (sa.kind === 'vehicle' && sb.kind === 'vehicle' && sa.vehicle !== sb.vehicle) return false
 		if (sa.kind === 'tile' && sb.kind === 'tile' && sa.tile !== sb.tile) return false
 		if (isVehicleFreightJob(a.job) && isVehicleFreightJob(b.job)) {

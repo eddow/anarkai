@@ -11,7 +11,7 @@ import { initConsoleTrap } from '../../../engines/ssh/src/lib/dev/debug.ts'
 initConsoleTrap()
 
 import { configuration, game, selectionState, uiConfiguration } from '@app/lib/globals'
-import { mrg } from '@app/lib/interactive-state'
+import { interactionMode, mrg } from '@app/lib/interactive-state'
 import { DisplayProvider } from '@sursaut/kit'
 import { Dockview } from '@sursaut/ui/dockview'
 import type { DockviewApi } from 'dockview-core'
@@ -23,6 +23,7 @@ import {
 } from '../../../engines/ssh/src/lib/dev/debug-game-state.ts'
 import { debugObjectId } from '../../../engines/ssh/src/lib/dev/debug-object-id'
 import { showProps } from './lib/follow-selection'
+import { showZoneObject, showZonesObject } from './lib/zone-selection'
 import widgetsImport from './widgets'
 import SelectionInfoTab from './widgets/selection-info-tab'
 
@@ -48,10 +49,15 @@ if (typeof window !== 'undefined') {
 			__selectObject?: (object: unknown) => void
 			/** Exposed for pin-mechanism tests. */
 			showProps?: typeof showProps
+			/** Exposed for zone tool tests. */
+			showZoneObject?: typeof showZoneObject
+			showZonesObject?: typeof showZonesObject
 			/** Pin the current selection-info panel (Playwright test helper). */
 			__pinCurrentPanel?: () => void
 			/** Reactive hover/selection state for Playwright tests. */
 			mrg?: typeof mrg
+			/** Reactive interaction mode (selectedAction) for Playwright tests. */
+			interactionMode?: typeof interactionMode
 		}
 	const debugWindow = window as BrowserDebugWindow
 	debugWindow.configuration = configuration
@@ -61,7 +67,10 @@ if (typeof window !== 'undefined') {
 	// Runtime identity is object reference; this is the serializable test key.
 	debugWindow.debugObjectId = debugObjectId
 	debugWindow.showProps = showProps
+	debugWindow.showZoneObject = showZoneObject
+	debugWindow.showZonesObject = showZonesObject
 	debugWindow.mrg = mrg
+	debugWindow.interactionMode = interactionMode
 	debugWindow.dumpSshDebugState = (options = {}) =>
 		buildGameDebugDump(game, {
 			...options,

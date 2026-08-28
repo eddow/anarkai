@@ -57,10 +57,7 @@ registerActionJobProvider('harvest', (alveolus) => {
 	const action = alveolus.action as Ssh.HarvestingAction
 	const hex = alveolus.tile.game.hex
 
-	const isValidDeposit = (
-		coord: Positioned,
-		priority: 'project' | 'clearing' | 'any'
-	): boolean => {
+	const isValidDeposit = (coord: Positioned, priority: 'project' | 'clearing' | 'any'): boolean => {
 		const tile = hex.getTile(coord)
 		if (!tile) return false
 		const content = tile.content
@@ -88,7 +85,12 @@ registerActionJobProvider('harvest', (alveolus) => {
 	): Positioned[] | undefined => {
 		const startPos = toAxialCoord(characterPosition ?? alveolus.tile.position)
 		const searchDistance = characterPosition ? maxWalkTime : harvestNpcSearchDistance
-		return hex.findNearest(startPos, (coord) => isValidDeposit(coord, priority), searchDistance, false)
+		return hex.findNearest(
+			startPos,
+			(coord) => isValidDeposit(coord, priority),
+			searchDistance,
+			false
+		)
 	}
 
 	const canStoreInHarvester = (() => {
@@ -275,9 +277,7 @@ registerActionJobProvider('plant', (alveolus) => {
 	}
 
 	const targetCoord = nearestPlantableCoord()
-	const targetTile = targetCoord
-		? alveolus.tile.game.hex.getTile(targetCoord)
-		: undefined
+	const targetTile = targetCoord ? alveolus.tile.game.hex.getTile(targetCoord) : undefined
 
 	return {
 		proposedJobs:

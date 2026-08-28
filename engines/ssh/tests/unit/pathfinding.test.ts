@@ -346,12 +346,9 @@ describe('Pathfinding', () => {
 		})
 
 		it('includes the start even when it is the only target', () => {
-			const targeted = findReachableTargets(
-				createGridNeighbors(3),
+			const targeted = findReachableTargets(createGridNeighbors(3), { q: 0, r: 0 }, 3, [
 				{ q: 0, r: 0 },
-				3,
-				[{ q: 0, r: 0 }]
-			)
+			])
 
 			expect(targeted.get({ q: 0, r: 0 })).toBe(0)
 		})

@@ -5,7 +5,7 @@ import { unnamedZoneOwnership, zoneOverlayState } from '@app/lib/zone-selection'
 import { InspectorSection } from '@app/ui/anarkai'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
 import { deposits as visualDeposits } from 'engine-rules/visual-content'
-import { reactive } from 'mutts'
+import { defer, reactive } from 'mutts'
 import {
 	tablerOutlineCheck,
 	tablerOutlineDimensions,
@@ -125,9 +125,16 @@ const formatArea = (tileCount: number) => {
 	return `${(area / 10000).toFixed(area < 100000 ? 2 : 1)} ha`
 }
 
-/** Paint action token for a custom zone, keyed by its (slugified) name so `applyZoneAction` can resolve it. */
-const zonePaintAction = (definition: ZoneDefinition | undefined): string =>
-	definition?.name ? `zone:${definition.name}` : ''
+/**
+ * Paint action token for a zone so `applyZoneAction` can resolve it.
+ * Named zones key by slugified name; typed zones (residential/harvest/commercial)
+ * key by type so the palette `zone:<type>` tool lights up instead of colliding
+ * with the empty "Select" action.
+ */
+const zonePaintAction = (definition: ZoneDefinition | undefined): string => {
+	if (!definition) return ''
+	return definition.name ? `zone:${definition.name}` : `zone:${definition.type}`
+}
 
 const ZoneProperties = (props: ZonePropertiesProps) => {
 	const definition = () => props.zoneObject.definition
@@ -195,10 +202,18 @@ const ZoneProperties = (props: ZonePropertiesProps) => {
 		const def = definition()
 		if (!def) return
 		game.hex.zoneManager.removeZoneDefinition(def)
-		if (interactionMode.selectedAction === zonePaintAction(def)) interactionMode.selectedAction = ''
-		if (unnamedZoneOwnership.zone === def) unnamedZoneOwnership.zone = undefined
-		state.confirmingDelete = false
-		props.onClose?.()
+		// Defer the follow-on state resets + panel close until the zone-removal
+		// batch has flushed. `removeZoneDefinition` invalidates the tile visuals,
+		// the palette enum, and the hover/cursor effects; running the panel close
+		// synchronously on top of that cascade (the click handler runs inside a
+		// mutts `atomic` batch) forms an effect cycle that stops the game.
+		defer(() => {
+			if (interactionMode.selectedAction === zonePaintAction(def))
+				interactionMode.selectedAction = ''
+			if (unnamedZoneOwnership.zone === def) unnamedZoneOwnership.zone = undefined
+			state.confirmingDelete = false
+			props.onClose?.()
+		})
 	}
 	const requestDelete = () => {
 		state.confirmingDelete = true

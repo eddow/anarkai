@@ -1,4 +1,6 @@
 import { lazy } from '@sursaut/core'
+import rulesEn from 'engine-rules/locales/en.json'
+import rulesFr from 'engine-rules/locales/fr.json'
 import { reactive } from 'mutts'
 import {
 	type CondensedDictionary,
@@ -7,8 +9,6 @@ import {
 	type TextKey,
 	type Translator,
 } from 'omni18n/s-a'
-import rulesEn from 'engine-rules/locales/en.json'
-import rulesFr from 'engine-rules/locales/fr.json'
 import gameEn from 'ssh/assets/locales/en.json'
 import gameFr from 'ssh/assets/locales/fr.json'
 import { traces } from 'ssh/dev/debug'

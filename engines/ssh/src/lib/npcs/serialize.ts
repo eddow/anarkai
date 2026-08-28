@@ -1,17 +1,17 @@
 import { unwrap } from 'mutts'
 import {
-	reviveExecutionState,
-	serializeExecutionState,
 	type ExecutionContext,
+	reviveExecutionState,
 	type StateValueHook,
+	serializeExecutionState,
 } from 'npc-script'
 import { TileContent } from 'ssh/board/content/content'
 import { Tile } from 'ssh/board/tile'
+import type { Game } from 'ssh/game/game'
 import { GameObject } from 'ssh/game/object'
+import type { SaveIndexes } from 'ssh/serialization'
 import { isContract } from 'ssh/types'
 import { toAxialCoord } from 'ssh/utils/position'
-import type { Game } from 'ssh/game/game'
-import type { SaveIndexes } from 'ssh/serialization'
 
 /**
  * Reference token for a native (host-provided) function. Serialized as `{ __fnRef }`.

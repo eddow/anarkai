@@ -268,6 +268,14 @@ export default function GameWidget(
 			resizeObserver.observe(container)
 		}
 
+		const fitViewToContentWhenReady = () => {
+			const view = gameView
+			if (!view) return
+			void view.ready.then(() => {
+				if (isMounted && gameView === view) view.fitViewToContent()
+			})
+		}
+
 		// Wait for game to load before creating view to ensure content is ready.
 		traces.ui.log?.('game-widget.await-loaded')
 		game.loaded
@@ -280,8 +288,10 @@ export default function GameWidget(
 						gameView = new PixiGameRenderer(game, container)
 						traces.ui.log?.('game-widget.renderer-created', { containerId })
 
-						// Fit camera to player content (if any)
-						gameView.fitViewToContent()
+						// Fit camera to player content once the renderer finishes its async
+						// initialization (a synchronous fit would no-op: world/app are not
+						// created until `initialize()` resolves).
+						fitViewToContentWhenReady()
 
 						if (dock) validateSelectionPanelId(dock)
 
@@ -299,8 +309,7 @@ export default function GameWidget(
 					traces.ui.warn?.('game-widget.emergency-renderer-init')
 					try {
 						gameView = new PixiGameRenderer(game, container)
-						// Fit camera to player content (if any)
-						gameView.fitViewToContent()
+						fitViewToContentWhenReady()
 						setupResizer()
 					} catch (e) {
 						traces.ui.error?.('game-widget.emergency-renderer-failed', { error: e })

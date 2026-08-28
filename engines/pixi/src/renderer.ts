@@ -39,6 +39,9 @@ function appScreen(app: Application | undefined): Rectangle | undefined {
 
 export class PixiGameRenderer implements GameRenderer {
 	public readonly viewId = 'primary'
+	/** Resolves once `initialize()` has finished creating `world`/`app` (or failed). */
+	public ready: Promise<void>
+	private resolveReady!: () => void
 	public app?: Application
 	public stage?: Container
 	private interactionManager?: InteractionManager
@@ -57,10 +60,15 @@ export class PixiGameRenderer implements GameRenderer {
 	) {
 		this.game.renderer = this
 		this.container = into
+		this.ready = new Promise<void>((resolve) => {
+			this.resolveReady = resolve
+		})
 		root`pixi-renderer:init`(() => {
-			this.initialize(into).catch((e) => {
-				console.error('[PixiGameRenderer] initialize failed:', e)
-			})
+			this.initialize(into)
+				.catch((e) => {
+					console.error('[PixiGameRenderer] initialize failed:', e)
+				})
+				.finally(() => this.resolveReady())
 		})
 	}
 
