@@ -20,6 +20,7 @@ import type { TileContent } from 'ssh/board/content/content'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
 import { isConstructionSiteShell } from 'ssh/build-site'
+import { Shop } from 'ssh/commerce/shop'
 import { queryConstructionSiteView } from 'ssh/construction'
 import { BuildAlveolus } from 'ssh/hive/build'
 import { TransformAlveolus } from 'ssh/hive/transform'
@@ -138,6 +139,10 @@ type TileContentCase =
 			content: UnBuiltLand
 	  }
 	| {
+			kind: 'shop'
+			content: Shop
+	  }
+	| {
 			kind: 'other'
 			content: TileContent
 	  }
@@ -189,6 +194,12 @@ const tileContentCase = (content: Tile['content']): TileContentCase | undefined 
 	if (content instanceof UnBuiltLand) {
 		return {
 			kind: 'unbuilt',
+			content,
+		}
+	}
+	if (content instanceof Shop) {
+		return {
+			kind: 'shop',
 			content,
 		}
 	}
@@ -253,6 +264,13 @@ const TileContentHeader = (props: TileContentHeaderProps) => (
 			game={props.game}
 			tile={props.tile}
 		/>
+		<ShopTileHeader
+			else
+			if={props.contentCase?.kind === 'shop'}
+			contentCase={props.contentCase as Extract<TileContentCase, { kind: 'shop' }>}
+			game={props.game}
+			tile={props.tile}
+		/>
 		<TileZoneHeaderFallback
 			else
 			if={!!customZoneTitle(props.tile)}
@@ -265,6 +283,13 @@ const TileContentHeader = (props: TileContentHeaderProps) => (
 function customZoneTitle(tile: Tile): string | undefined {
 	const zone = tile.zone
 	return zone ? zone.name?.trim() || undefined : undefined
+}
+
+function shopDisplayLabel(shopType: string): string {
+	return shopType
+		.split('_')
+		.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+		.join(' ')
 }
 
 const TileZoneHeaderFallback = (props: { game?: TileGame; tile: Tile }) => {
@@ -433,6 +458,42 @@ const BasicDwellingTileHeader = (props: BasicDwellingTileHeaderProps) => {
 	)
 }
 
+interface ShopTileHeaderProps {
+	contentCase: Extract<TileContentCase, { kind: 'shop' }>
+	game?: TileGame
+	tile: Tile
+}
+
+const ShopTileHeader = (props: ShopTileHeaderProps) => {
+	const model = {
+		get sprite() {
+			return visualDwellings.shop?.sprites?.[0]
+		},
+		get label() {
+			return shopDisplayLabel(props.contentCase.content.shopType)
+		},
+		get zoneTitle() {
+			return customZoneTitle(props.tile)
+		},
+	}
+
+	return (
+		<div if={props.game && model.sprite} class="tile-properties__header">
+			<div class="tile-properties__identity">
+				<EntityBadge
+					game={props.game!}
+					sprite={model.sprite ?? ''}
+					text={model.label}
+					height={32}
+				/>
+			</div>
+			<div if={model.zoneTitle} class="tile-properties__header-actions">
+				<ZoneAnchorButton tile={props.tile} title={model.zoneTitle} />
+			</div>
+		</div>
+	)
+}
+
 interface ZoneRowProps {
 	tile: Tile
 }
@@ -544,6 +605,12 @@ const TileContentDetails = (props: TileContentDetailsProps) => (
 			content={props.contentCase?.content as Alveolus}
 			game={props.game}
 		/>
+		<ShopTileDetails
+			else
+			if={props.contentCase?.kind === 'shop'}
+			content={props.contentCase?.content as Shop}
+			game={props.game}
+		/>
 		<UnBuiltProperties
 			else
 			if={props.contentCase?.kind === 'unbuilt'}
@@ -551,6 +618,30 @@ const TileContentDetails = (props: TileContentDetailsProps) => (
 		/>
 	</>
 )
+
+interface ShopTileDetailsProps {
+	content: Shop
+	game?: TileGame
+}
+
+const ShopTileDetails = (props: ShopTileDetailsProps) => {
+	const stock = () => props.content.storage.stock as Record<string, number>
+	const storedGoods = () => Object.keys(stock()) as GoodType[]
+
+	return (
+		<PropertyGrid>
+			<PropertyGridRow label="Shop type">
+				<Badge tone="blue">{shopDisplayLabel(props.content.shopType)}</Badge>
+			</PropertyGridRow>
+			<GenericStoredGoodsRow
+				game={props.game}
+				show={storedGoods().length > 0}
+				stock={stock()}
+				storedGoods={storedGoods()}
+			/>
+		</PropertyGrid>
+	)
+}
 
 interface BuildDwellingTileDetailsProps {
 	content: TileContent

@@ -40,3 +40,8 @@ Useful workspace commands:
 - [`docs/project-inventory.md`](./docs/project-inventory.md)
 - [`docs/architecture-overview.md`](./docs/architecture-overview.md)
 - [`docs/freight-lines.md`](./docs/freight-lines.md)
+
+## License
+
+Anark-AI is licensed under the [GNU Affero General Public License v3.0](./LICENSE).
+Trademarks, narrative lore, and official media assets are All Rights Reserved.

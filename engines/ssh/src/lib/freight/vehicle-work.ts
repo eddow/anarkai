@@ -972,7 +972,7 @@ type UnloadCandidate = { kind: 'unload'; tile: Tile; urgency: number }
 type ParkCandidate = { kind: 'park'; tile: Tile; urgency: number }
 type MaintenanceCandidate = LoadCandidate | UnloadCandidate | ParkCandidate
 
-function loadedStockCanEnterServedGatherLine(game: Game, vehicle: Vehicle): boolean {
+export function loadedStockCanEnterServedGatherLine(game: Game, vehicle: Vehicle): boolean {
 	const goods = (Object.keys(vehicle.storage.stock) as GoodType[]).filter(
 		(good) => vehicle.storage.available(good) > 0
 	)
@@ -981,7 +981,10 @@ function loadedStockCanEnterServedGatherLine(game: Game, vehicle: Vehicle): bool
 	if (!vehicleCoord) return false
 	for (const line of vehicle.servedLines) {
 		for (const segment of findGatherRouteSegments(line)) {
-			if (segment.loadStopIndex !== 0) continue
+			// On a non-cyclic line the gather load must be the first stop (index 0);
+			// on a cyclic line the load stop can be any index (e.g. [bay, zone] puts
+			// the load at index 1). Mirror `findBeginServiceActionableWork`.
+			if (!line.cyclic && segment.loadStopIndex !== 0) continue
 			const loadStop = line.stops[segment.loadStopIndex]
 			const unloadStop = line.stops[segment.unloadStopIndex]
 			if (!loadStop || !('zone' in loadStop)) continue

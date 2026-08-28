@@ -257,35 +257,42 @@ discards — promotion to a permanent line is always a player decision.
 
 ## Task summary — one-shot mechanism (done & working)
 
-The full one-shot (`repeat: false`) mechanism is implemented, wired to the ticker, and covered by
-end-to-end tests.
+The full one-shot mechanism is implemented, wired to the ticker, and covered by end-to-end tests.
 
 **Landed**
 
-- **Lifecycle** (`one-shot-lines.ts`): `isOneShotLine` / `lineUnloadGoods` / `oneShotLineFulfilled` /
-  `sweepOneShotLines` — a one-shot line self-deletes once the deficit it covers is `0`, or on abortion
-  (no stops).
-- **Self-haul spawner** (`trySpawnConstructionLines`): routes a `repeat: false` line from the nearest
-  producer/holder hive bay (stock above reserve) to a radius zone over the construction site, using only
-  *free* vehicles. **One line per need/destination** — concurrent same-good constructions are served
-  independently.
+- **Target model** (`freight/freight-line.ts`): `repeat` is now `boolean | FreightLineTarget`, where
+  `FreightLineTarget = ConstructionSiteShell | UnBuiltLand` — a **live object reference** to the temporary
+  construction structure the line feeds (a shell waiting for goods, or an `UnBuiltLand` foundation). No
+  separate `target` field and no coord: the structure *is* the target.
+- **Fulfillment** (`oneShotLineFulfilled`): O(1) — reads the target object's `remainingNeeds` directly.
+  "Materials complete", "advanced past `waiting_materials`", and "demolished" all read as fulfilled, so
+  the line self-deletes the moment the site stops wanting its goods. Untargeted `repeat: false` lines fall
+  back to scanning their own radius zone.
+- **Self-haul spawner** (`trySpawnConstructionLines`): **radius-local** — each source hive scans
+  `maxSelfHaulDistance` (default 12, `0` = self-haul disabled) around its freight bay for construction
+  sites needing a good it can export above reserve; stamps the line with `repeat: <site>`. No board scan.
 - **Delivery branch** (`trySpawnConstructionDeliveries`): the external half of the internality slider —
   buys from the nearest/cheapest NPC settlement and credits the site (instant credit, `spendVp` +
-  `storage.addGood`). **One delivery per need**, subject to the wallet.
-- **Destination-aware dedup guard** (`hasTransportCoveringNeed`): a line for site A no longer blocks
-  site B needing the same good (the old good-scoped guard deadlocked two concurrent constructions).
-  Non-radius lines (bay↔bay / named-zone) still count conservatively as covering.
+  `storage.addGood`). One delivery per need, subject to the wallet. Board-scoped (reads the ledger **once
+  per pass, only when `autoBuy` is on**) — the long-range fallback for sites the local radius missed.
+- **Target-exact dedup guard** (`hasTransportCoveringNeed`): a line covers a coord only when it *is* that
+  structure's tile, so concurrent same-good constructions are served independently (no deadlock).
 - **Ticker** (`OneShotLineTicker`): reads `game.transportAutomation` live each pass; `autoSpawn` /
   `autoBuy` are independent toggles, `internality` orders self-haul vs delivery, `spawnCooldownSeconds`
   is the pass cadence; sweeps every pass. Registered on `Game` after world generation.
 - **Config** (`Game.transportAutomation`): reactive, seeded from `commerce.transportAutomation`.
 
-**Tests** (`tests/unit/one-shot-lines.test.ts`, 11 passing): identification, fulfillment/sweep, spawn,
+**Tests** (`tests/unit/one-shot-lines.test.ts`, 13 passing): identification, fulfillment/sweep, spawn,
 recurring-line dedup, reserve keep-back, config seeding, delivery, delivery dedup, **multi-need spawn**,
-**multi-need delivery**, and an **end-to-end ticker spawn→fulfill→sweep** loop.
+**multi-need delivery**, an **end-to-end ticker spawn→fulfill→sweep** loop, the **distance cap**, and a
+**target invalidation** test (site advances past `waiting_materials` → line fulfilled).
 
 **Still open (unchanged, later slices)**
 
 - The **physical outside carrier** behind delivery (buy+credit is instant — no travel/carrier entity).
 - The **cost-threshold formula** (log-odds ratio form) once delivery has a real carrier.
 - The **internality-slider UI** (player-facing control; the config knob exists but no UI branches it).
+- **One-shot persistence** — `repeat` holds a live object reference (a construction shell is not a stable
+  save key). In-flight one-shot lines are transient today; persisting one across a save needs re-resolution
+  (re-spawn from the construction ledger, or a serialization-only coord hint).

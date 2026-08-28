@@ -1,7 +1,9 @@
 import { defaultGatherFreightRadius } from 'engine-rules'
 import { reactive, toRaw } from 'mutts'
+import type { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
 import type { ZoneDefinition } from 'ssh/board/zone'
+import type { ConstructionSiteShell } from 'ssh/build-site'
 import type { Game } from 'ssh/game'
 import type { InspectorSelectableObject } from 'ssh/game/object'
 import { IndexStore } from 'ssh/serialization'
@@ -86,16 +88,28 @@ export type FreightStop = {
 	| { readonly trade: FreightNpcTradeStop }
 )
 
+/**
+ * A one-shot line's construction target — the **temporary structure** it is feeding:
+ * a construction shell (`BuildAlveolus`/`BuildDwelling`) or an `UnBuiltLand` foundation
+ * that waits for goods before actual construction. A live object reference, not a coord.
+ *
+ * Fulfillment is read **live from the target** (option B), never a quantity on the line:
+ * the line is done the moment the structure no longer declares a need for the line's goods —
+ * materials complete, it advanced past `waiting_materials`, or it was demolished.
+ */
+export type FreightLineTarget = ConstructionSiteShell | UnBuiltLand
+
 export interface FreightLineDefinition {
 	name: string
 	stops: ReadonlyArray<FreightStop>
 	cyclic?: boolean
 	/**
-	 * `true` (default) = recurring, player-authored, persists forever. `false` =
-	 * one-shot: the line dissolves itself once the deficit it was spawned to cover
-	 * is fulfilled (or on abortion). See `plans/spontaneous-lines.md`.
+	 * Recurring (`true`, default) = persists forever, open-ended (gather / hive↔hive).
+	 * `false` = one-shot serving a sink's need (self-deletes on fulfillment). A
+	 * {@link FreightLineTarget} = one-shot fulfilling that specific construction
+	 * structure — read live from its `remainingNeeds`, no quantity on the line.
 	 */
-	repeat?: boolean
+	repeat?: boolean | FreightLineTarget
 	minBalanceAfterBuyVp?: number
 }
 
@@ -387,7 +401,7 @@ export function normalizeFreightLineDefinition(line: FreightLineDefinition): Fre
 		name: line.name,
 		stops: reactive(line.stops.map(normalizeFreightStop)),
 		...(line.cyclic === true ? { cyclic: true as const } : {}),
-		...(line.repeat === false ? { repeat: false as const } : {}),
+		...(line.repeat === undefined || line.repeat === true ? {} : { repeat: line.repeat }),
 		...(line.minBalanceAfterBuyVp === undefined
 			? {}
 			: { minBalanceAfterBuyVp: Math.max(0, Math.floor(line.minBalanceAfterBuyVp)) }),
@@ -431,13 +445,19 @@ export function findFreightLinesForStop(
 ): FreightLineDefinition[] {
 	const matches: FreightLineDefinition[] = []
 	for (const line of lines) {
-		const normalized = normalizeFreightLineDefinition(line)
+		// Match directly on the **live** line and return it as-is. Previously this
+		// matched `normalizeFreightLineDefinition(line)` and pushed that normalized
+		// copy — but that function is NOT identity-stable (it builds a fresh reactive
+		// object every call), so callers received a detached copy whose edits never
+		// reached `game.freightLines` and whose identity never matched a vehicle's
+		// `servedLines`. Registered lines are already normalized (`addFreightLine` /
+		// `bootstrapFreightLines`), so matching on `line.stops` is equivalent.
 		if (
-			normalized.stops.some(
+			line.stops.some(
 				(stop) => 'anchor' in stop && freightStopAnchorMatchesAlveolus(stop.anchor, alveolus)
 			)
 		) {
-			matches.push(normalized)
+			matches.push(line)
 		}
 	}
 	return matches

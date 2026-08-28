@@ -1,6 +1,7 @@
 import type { FreightMapPickPending } from '@app/lib/freight-map-pick'
 import { document, latch } from '@sursaut/core'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
+import { Version } from 'ssh/utils/cell'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const freightMapPickMock = vi.hoisted(() => ({
@@ -165,6 +166,7 @@ describe('FreightStopList', () => {
 			],
 		}
 		const mockGame = {
+			candidateVersion: new Version(),
 			hex: {
 				getTile: () => undefined,
 				zoneManager: {
@@ -216,6 +218,7 @@ describe('FreightStopList', () => {
 			],
 		}
 		const mockGame = {
+			candidateVersion: new Version(),
 			hex: {
 				getTile: () => undefined,
 				zoneManager: {
@@ -271,6 +274,7 @@ describe('FreightStopList', () => {
 			],
 		}
 		const mockGame = {
+			candidateVersion: new Version(),
 			hex: {
 				getTile: () => undefined,
 				zoneManager: {
@@ -321,6 +325,7 @@ describe('FreightStopList', () => {
 			],
 		}
 		const mockGame = {
+			candidateVersion: new Version(),
 			procurementDefaults: { bufferPurchaseReserveVp: 80 },
 			hex: {
 				getTile: () => undefined,

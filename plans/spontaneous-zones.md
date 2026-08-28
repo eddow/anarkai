@@ -11,7 +11,8 @@ Three automatic, zone-driven behaviours live here:
 
 1. **Spontaneous residential** — housing spawns when population pressure rises (already seeded:
    `trySpawnResidentialProject` in `residential/demand.ts`).
-2. **Spontaneous commercial** — shops spawn near production/consumption (not yet implemented).
+2. **Spontaneous commercial** — shops spawn near production/consumption (**v1 landed**: population-driven
+   `grocery` in `commerce/commercial-demand.ts`; production-seeding is the open follow-up).
 3. **Growth & shrinkage** — a building grows (merges with identical neighbours) or shrinks, changing its
    tile footprint and capacity.
 
@@ -163,6 +164,8 @@ estate, not a fresh construction (though its *materials* are still a one-shot or
 
 ### Benefit is triangular
 
+> Indeed, benefit will be hard-coded as store will have capacity per tile-size, adding small capacity of diverse other items barely related
+
 Capacity grows as the **triangular number** of the tile count `n`:
 
 ```text
@@ -242,6 +245,19 @@ Of the three zone-driven behaviours in §Scope, **residential is done**, **comme
   then lowest coord). Type diversification + production-seeding are the open follow-ups.
 - **Tests** (`tests/unit/shop.test.ts`, `tests/unit/commercial-demand.test.ts`): shop estate/shelf +
   tag resolution; spawn-on-sustained-pressure, transient-no-spawn, and no-road-no-spawn.
+- **Zone study (UI)** (`commerce/zone-tendencies.ts` + `ZoneProperties`): `measureZoneTendencies(game,
+  zone)` surfaces the per-zone tendencies the spawners accumulate — per-good demand (construction needs
+  inside the zone, computed **locally** over the zone's own tiles, not the board ledger), **commerce
+  need** (shop restock shortfall = capacity − stock for commercial zones), offer (stock inside the zone),
+  structural counts (dwellings / under-construction / shops), and the two spawn-pressure signals
+  (`housingPressure`, `shoppers`). Rendered in the zone inspector. The tile widget now links to the zone
+  widget for **every** content kind (alveolus, dwelling, unbuilt, and shop) — a shop tile gets its own
+  estate header (name + shelf) with a zone link, and the unbuilt zone chip is clickable. The zone
+  inspector gained an **erase-tiles** tool (`zone:none` paint) and a **delete confirmation** (bin →
+  confirm/cancel row), fixing the accidental whole-zone-delete. See `tests/unit/zone-tendencies.test.ts`.
+- **Local, no board scan** — the spawners read indexed coords, not `hex.tiles`: `ZoneManager`
+  `residentialCoords` + `commercialCoords` (maintained by `setZone`/`removeZone`), and
+  `measureZoneTendencies` walks only the zone's own coords.
 
 ### Not landed (the actual remaining work)
 

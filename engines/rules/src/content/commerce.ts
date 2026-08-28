@@ -21,6 +21,8 @@ export const commerce = {
 		reserve: { defaultReserve: 0 },
 		/** Cooldown between spawn/sweep passes, seconds. */
 		spawnCooldownSeconds: 2,
+		/** Local radius — a self-haul line only serves construction sites within this many hexes of a source bay (0 = self-haul disabled). */
+		maxSelfHaulDistance: 12,
 		/** Hard bound — max committed vehicle-hours (0 = no cap). Placeholder. */
 		maxInternalTransfer: 0,
 		/** Hard bound — min local provision floor (0 = no floor). Placeholder. */

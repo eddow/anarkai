@@ -853,7 +853,15 @@ export function maybeAdvanceVehiclePastCompletedZoneStop(
 	advanceVehicleLineServicePastEmptyStops(game, vehicle, character)
 }
 
-/** Advance a docked anchor stop once vehicle-side storage reservations/allocations are drained. */
+/**
+ * Advance a docked anchor stop once vehicle-side storage reservations/allocations are drained.
+ *
+ * TODO(stop-config): stop leave conditions should be configurable per stop — e.g.
+ * "don't leave the bay until the vehicle is min/max X% loaded/unloaded". Today the
+ * stop is considered complete as soon as no executable transfer candidate remains
+ * (which now correctly reflects "room in the hive + stock in the vehicle"), but the
+ * load-fraction tuning a player will eventually want is not yet modeled.
+ */
 export function maybeAdvanceVehicleFromCompletedAnchorStop(
 	game: Game,
 	vehicle: Vehicle,

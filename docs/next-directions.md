@@ -55,24 +55,26 @@ core is implemented, tested, and type-clean; the *gameplay* wiring is the fronti
 - **Board adapter** (`board-sources.ts`): `listHives`, `measureInternalSourceOffers`,
   `measureExternalSourceOffers` — turns live `Game` state into the `SourceOffer`s `resolveSourcing` eats.
 - **Content** (`rules`): `commerce.priceField` tuning; `shops.ts` shop definitions (`ShopDefinition`,
-  `shops`, `shopNeedTags`) — defined, **not yet consumed by a spawner**.
+  `shops`, `shopNeedTags`) — consumed by the commercial spawner v1 (population-driven `grocery`).
 - **Bill** (`hive-plan.ts`): `HivePlanValidationProgress.requiredGoods` is now the real recipe-sum bill
   (foundation + variant chain), replacing the `charcoal` survey stub.
-- **Transport automation** (`freight/one-shot-lines.ts` + `Game.transportAutomation`): the `repeat: false`
-  one-shot line model (self-delete on fulfillment/abortion), the internal-first **spawner**
-  (`trySpawnConstructionLines` — nearest producer/holder bay → construction zone, using only *free*
-  vehicles), the external **delivery** branch (`trySpawnConstructionDeliveries` — buy from the
-  nearest/cheapest NPC settlement and credit the site; instant credit for now), a **destination-aware**
-  "don't double-cover" guard (one line per construction site, so concurrent same-good needs are served
-  independently), and a **reactive, tunable config** (`autoSpawn` / `autoBuy` / `internality` /
-  `reserve` / `spawnCooldownSeconds`) seeded from `commerce.transportAutomation`. The ticker loop
-  (spawn → fulfill → self-sweep) is covered by an end-to-end test. See
-  [`plans/spontaneous-lines.md`](plans/spontaneous-lines.md).
+- **Transport automation** (`freight/one-shot-lines.ts` + `Game.transportAutomation`): the one-shot line
+  model — `repeat` is now `boolean | FreightLineTarget`, where `FreightLineTarget = ConstructionSiteShell |
+  UnBuiltLand` is a **live object reference** to the temporary construction structure the line feeds (read
+  live from its `remainingNeeds`, so fulfillment is O(1) and "materials complete / advanced past
+  `waiting_materials` / demolished" all self-delete the line). The internal-first **spawner**
+  (`trySpawnConstructionLines` — **radius-local**: scans `maxSelfHaulDistance` around each source hive's
+  bay, no board scan), the external **delivery** branch (`trySpawnConstructionDeliveries` — buy from the
+  nearest/cheapest NPC settlement and credit the site; instant credit, board-scoped once per pass when
+  `autoBuy` is on), a **target-exact** "don't double-cover" guard, and a **reactive, tunable config**
+  (`autoSpawn` / `autoBuy` / `internality` / `reserve` / `spawnCooldownSeconds` / `maxSelfHaulDistance`)
+  seeded from `commerce.transportAutomation`. The ticker loop (spawn → fulfill → self-sweep) is covered
+  by an end-to-end test. See [`plans/spontaneous-lines.md`](plans/spontaneous-lines.md).
 
 **What is not landed** is the *gameplay* half of that spine: the **physical carrier** behind delivery
 (the buy+credit is instant — no outside-carrier travel yet), the `surplus` (producer-export) half of
-the ledger, operating demand in the bill, the frontier fade, and the spontaneous commercial spawner /
-growth-shrinkage representation.
+the ledger, operating demand in the bill, the frontier fade, and **growth/shrinkage** (triangular
+capacity). The spontaneous commercial spawner v1 and the zone study **are** landed (see below).
 
 ## Current frontier — planner scalability (emergent planning)
 
@@ -97,6 +99,16 @@ already-shipped invalidation rework (the four revision counters are gone, replac
   started.
 - ⏳ Phase 5 — coarse-graph routing + Rust port (`engines/core`).
 - ⏳ Phase 1 (distance fields) — **cancelled** (measured unbounded-cost regression; do not reintroduce).
+
+## Diverse updates
+
+### Deficit/surplus ledger localization
+
+The ledger shouldn't be computed for the whole board every X seconds: every deficit (character needing something it doesn't have access to, transformation building without input nor input lines, ...) and every surplus (idem) should find a "potential source" (neighbor commercial zone) and add need/surplus point for the good in question there - these points (decaying) will be the ledger
+
+### Hive "variables"
+
+Intent of hives (example: caring about a forest) could be translated into "hive zones": we can have a forest-care hive who define a "care-zone" and its alveoli are, in the plan and then in the built hives, alveoli like forester/planter/gatherer have their "target zone" set to "hive's wood care zone" - the setting in the alveoli do not change, and the hive allow setting values for these "hive variables"
 
 ## The decided architecture
 
@@ -279,11 +291,12 @@ Needed when settlements / roads / commerce need stronger geography. Keep as back
   wiring (a storage buffer whose `1-buffer` target *is* the reserve knob) is not yet connected.
 - **Price-field v1** — ✅ pure `priceAt` / `rateFieldAt` + `commerce.priceField` tuning. ⏳ Remaining:
   the board-aware frontier fade and a consumer sampling the field.
-- **Transport automation v1** — ✅ `repeat` flag + one-shot lifecycle (self-delete), internal-first
-  spawner (`trySpawnConstructionLines`), external delivery branch (`trySpawnConstructionDeliveries`,
-  instant buy+credit), free-vehicle allocation, destination-aware dedup guard (per-site, not per-good),
-  reactive `Game.transportAutomation` config, and an end-to-end ticker test. ⏳ Remaining: a physical
-  outside carrier for delivery, and the internality-slider UI that actually branches line-vs-delivery.
+- **Transport automation v1** — ✅ `repeat: boolean | FreightLineTarget` (one-shot target = a live
+  construction structure reference, O(1) fulfillment read from its `remainingNeeds`), **radius-local**
+  self-haul spawner (`trySpawnConstructionLines` + `maxSelfHaulDistance`), external delivery branch
+  (`trySpawnConstructionDeliveries`, instant buy+credit), free-vehicle allocation, target-exact dedup
+  guard, reactive `Game.transportAutomation` config, and an end-to-end ticker test. ⏳ Remaining: a
+  physical outside carrier for delivery, and the internality-slider UI that branches line-vs-delivery.
   See [`plans/spontaneous-lines.md`](plans/spontaneous-lines.md).
 - **Emergent planning v1** — ✅ Phases 0/2/3-incr/4 + revision-less planner landed. ⏳ Remaining:
   Phase 3 behavioral core (rank ads, materialize the winner, retire the global sort) and Phase 5
@@ -297,8 +310,11 @@ Needed when settlements / roads / commerce need stronger geography. Keep as back
   probe).
 - **Spontaneous zones** — ✅ residential spawner (seeded) + `Shop` runtime + `shops.ts` content + a v1
   commercial spawner (`commerce/commercial-demand.ts`: population-driven grocery, cumulative
-  observation, road-adjacency, one shop per pass). ⏳ Remaining: commercial type diversification /
-  production-seeding, and growth/shrinkage (triangular capacity). See
+  observation, road-adjacency, one shop per pass) + a **zone study** (`commerce/zone-tendencies.ts` +
+  `ZoneProperties`: per-zone demand/offer/commerceNeed/structure/pressure, tile→zone links for every
+  content kind, and a zone-inspector **erase-tiles** tool + **delete confirmation**). All spawners are
+  **local** (indexed `residentialCoords`/`commercialCoords`, no board scan). ⏳ Remaining: commercial
+  type diversification / production-seeding, and growth/shrinkage (triangular capacity). See
   [`plans/spontaneous-zones.md`](plans/spontaneous-zones.md).
 - **Race v1** — ⏳ one philosophy nudging one axis + one happiness source (after the dial is live).
 - **Roads v2** — ⏳ (re-ranked) turn instant roads into build projects, add route-benefit summaries.

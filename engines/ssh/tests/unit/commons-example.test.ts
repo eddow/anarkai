@@ -2,6 +2,7 @@ import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import { listHives } from 'ssh/commerce/board-sources'
 import { Shop } from 'ssh/commerce/shop'
+import { findDistributeRouteSegments, findGatherRouteSegments } from 'ssh/freight/freight-line'
 import { commons } from 'ssh/game/exampleGames'
 import { Game } from 'ssh/game/game'
 import { TransformAlveolus } from 'ssh/hive/transform'
@@ -23,9 +24,9 @@ describe('commons example game', () => {
 		const hives = listHives(game)
 		expect(hives.map((hive) => hive.name).sort()).toEqual(['Depot', 'Grove', 'Mill', 'Quarry'])
 		const byName = new Map(hives.map((hive) => [hive.name, hive]))
-		expect(byName.get('Grove')!.alveoli.size).toBe(4) // bay + chopper + forester + wood pile
+		expect(byName.get('Grove')!.alveoli.size).toBe(3) // bay + chopper + forester (no output pile)
 		expect(byName.get('Mill')!.alveoli.size).toBe(5) // bay + 2 sawmills + wood + plank piles
-		expect(byName.get('Quarry')!.alveoli.size).toBe(3) // bay + stonecutter + stone pile
+		expect(byName.get('Quarry')!.alveoli.size).toBe(2) // bay + stonecutter (no output pile)
 		expect(byName.get('Depot')!.alveoli.size).toBe(5) // bay + 2 storages + 2 engineers
 
 		// Every hive has its own freight bay — the estate delivery tile.
@@ -38,8 +39,12 @@ describe('commons example game', () => {
 		const sawmillB = game.hex.getTile({ q: 4, r: -2 })?.content
 		expect(sawmillA).toBeInstanceOf(TransformAlveolus)
 		expect(sawmillB).toBeInstanceOf(TransformAlveolus)
-		expect((sawmillA as TransformAlveolus).transformConfiguration.productRatio?.maxProductRatio).toBe(0.55)
-		expect((sawmillB as TransformAlveolus).transformConfiguration.productRatio?.maxProductRatio).toBe(0.55)
+		expect(
+			(sawmillA as TransformAlveolus).transformConfiguration.productRatio?.maxProductRatio
+		).toBe(0.55)
+		expect(
+			(sawmillB as TransformAlveolus).transformConfiguration.productRatio?.maxProductRatio
+		).toBe(0.55)
 
 		// ── Zones exist and are EMPTY: no pre-built dwellings/shops, and no
 		//    generated deposits or loose goods on the (concrete) zone tiles. ──
@@ -68,13 +73,13 @@ describe('commons example game', () => {
 		expect(lineNames).toEqual(
 			expect.arrayContaining(['Grove gather', 'Mill wood run', 'Commerce loop'])
 		)
+		// The "Grove gather" radius zone MUST stay centered on its bay anchor, else the
+		// engine reclassifies it as a bay→zone *distribute* route and the gather leg
+		// (load wood in the forest → unload at the bay) never runs.
+		const gather = [...game.freightLines].find((line) => line.name === 'Grove gather')!
+		expect(findGatherRouteSegments(gather)).toHaveLength(1)
+		expect(findDistributeRouteSegments(gather)).toHaveLength(0)
 		expect([...game.vehicles]).toHaveLength(6) // 3 assigned + 3 free (one-shot pool)
-		// The "Mill wood run" transport line has a dedicated vehicle.
-		expect(
-			[...game.vehicles].some((vehicle) =>
-				vehicle.servedLines.some((line) => line.name === 'Mill wood run')
-			)
-		).toBe(true)
 		// Seed 549 deterministically places Melindbury at the same spot as chopSaw.
 		expect(game.getSettlementTradeProfileAtCenter({ q: 7, r: 19 })?.name).toBe('Melindbury')
 

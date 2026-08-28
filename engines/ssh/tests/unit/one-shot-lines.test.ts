@@ -149,14 +149,130 @@ describe('one-shot lines', () => {
 		expect(spawned).toBeGreaterThan(0)
 		expect([...game.freightLines].filter(isOneShotLine).length).toBe(before + spawned)
 
-		// Each spawned line is repeat:false and has a bay source + radius dest.
+		// Each spawned line is a one-shot, has a bay source + radius dest, and carries
+		// the construction structure it fulfills as its `repeat` (an object reference).
 		const spawnedLines = [...game.freightLines].filter(isOneShotLine)
 		expect(spawnedLines.length).toBe(spawned)
 		for (const line of spawnedLines) {
-			expect(line.repeat).toBe(false)
+			expect(isOneShotLine(line)).toBe(true)
 			expect(line.stops.some((stop) => 'anchor' in stop)).toBe(true)
 			expect(line.stops.some((stop) => 'zone' in stop)).toBe(true)
+			expect(line.repeat).toBeInstanceOf(BuildDwelling)
 		}
+	})
+
+	it('fulfills a stamped target line once the site advances past waiting_materials', async () => {
+		game = new Game(
+			{ terrainSeed: 1, characterCount: 0, settlementGeneration: false },
+			{
+				terrains: {
+					concrete: [
+						[0, 0],
+						[0, 1],
+					],
+				},
+				dwellings: [
+					{
+						coord: [0, 1],
+						tier: 'basic_dwelling',
+						underConstruction: true,
+						constructionPhase: 'waiting_materials',
+					},
+				],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		const dwelling = [...game.hex.tiles]
+			.map((tile) => tile.content)
+			.find((content): content is BuildDwelling => content instanceof BuildDwelling)
+		expect(dwelling).toBeInstanceOf(BuildDwelling)
+		if (!(dwelling instanceof BuildDwelling)) return
+
+		// A one-shot line whose `repeat` IS the dwelling it fulfills (object reference).
+		const line = game.addFreightLine({
+			name: 'one-shot wood',
+			repeat: dwelling,
+			stops: [
+				{
+					loadSelection: woodOnly,
+					unloadSelection: woodOnly,
+					anchor: { kind: 'alveolus', hiveName: 'H', alveolusType: 'freight_bay', coord: [0, 0] },
+				},
+				{
+					loadSelection: woodOnly,
+					unloadSelection: woodOnly,
+					zone: { kind: 'radius', center: [0, 1], radius: 3 },
+				},
+			],
+		})
+		// Materials still outstanding → not fulfilled.
+		expect(oneShotLineFulfilled(game, line)).toBe(false)
+
+		// Deliver the materials → the shell advances out of waiting_materials → fulfilled.
+		for (const [good, qty] of Object.entries(dwelling.requiredGoods)) {
+			dwelling.storage.addGood(good as 'wood' | 'planks', qty)
+		}
+		expect(oneShotLineFulfilled(game, line)).toBe(true)
+		expect(sweepOneShotLines(game)).toBe(1)
+		expect(game.freightLines.has(line)).toBe(false)
+	})
+
+	it('does not self-haul when the nearest source is beyond the distance cap', async () => {
+		game = new Game(
+			{ terrainSeed: 1, characterCount: 0, settlementGeneration: false },
+			{
+				terrains: {
+					concrete: [
+						[0, 0],
+						[1, 0],
+						[1, 1],
+						[10, 0],
+					],
+				},
+				hives: [
+					{
+						name: 'Grove',
+						alveoli: [
+							{ alveolus: 'freight_bay', coord: [0, 0] },
+							{ alveolus: 'tree_chopper', coord: [1, 0] },
+							{ alveolus: 'pile', coord: [1, 1], variant: 'wood', goods: { wood: 6 } },
+						],
+					},
+				],
+				dwellings: [
+					{
+						coord: [10, 0],
+						tier: 'basic_dwelling',
+						underConstruction: true,
+						constructionPhase: 'waiting_materials',
+					},
+				],
+				vehicles: [{ name: 'free', vehicleType: 'wheelbarrow', position: { q: 0, r: 0 } }],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		expect(game.netDeficitLedger.wood?.deficit ?? 0).toBeGreaterThan(0)
+
+		// Cap below the bay→site distance (10) → no self-haul line; the deficit stays.
+		game.transportAutomation.maxSelfHaulDistance = 5
+		const capped = trySpawnConstructionLines(game, {
+			reserve: { defaultReserve: 0 },
+			internality: 0.5,
+		})
+		expect(capped).toBe(0)
+		expect([...game.freightLines].filter(isOneShotLine).length).toBe(0)
+
+		// Lift the cap → the same need now self-hauls.
+		game.transportAutomation.maxSelfHaulDistance = 20
+		const spawned = trySpawnConstructionLines(game, {
+			reserve: { defaultReserve: 0 },
+			internality: 0.5,
+		})
+		expect(spawned).toBeGreaterThan(0)
 	})
 
 	it('does not spawn a one-shot line when a recurring line already covers the good', async () => {
@@ -577,11 +693,11 @@ describe('one-shot lines', () => {
 		expect(game.netDeficitLedger.wood?.deficit ?? 0).toBeGreaterThan(0)
 		expect([...game.freightLines].filter(isOneShotLine).length).toBe(0)
 
-		// First tick: the ticker (not a direct call) spawns a one-shot line.
+		// First tick: the ticker (not a direct call) spawns a one-shot line targeting the dwelling.
 		tick()
 		const spawned = [...game.freightLines].filter(isOneShotLine)
 		expect(spawned.length).toBe(1)
-		expect(spawned[0]!.repeat).toBe(false)
+		expect(spawned[0]!.repeat).toBeInstanceOf(BuildDwelling)
 
 		// Fulfill the deficit (simulate the haul completing): the dwelling's wood need is met.
 		const dwelling = [...game.hex.tiles]

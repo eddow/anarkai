@@ -16,16 +16,16 @@
 
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
-import { isConstructionSiteShell } from 'ssh/build-site'
+import { isConstructionSiteShell, materialRemainingNeeds } from 'ssh/build-site'
 import { listHives, measureExternalSourceOffers } from 'ssh/commerce/board-sources'
-import type { NeedSource } from 'ssh/commerce/commerce-model'
+import type { GoodFlow, NeedSource, NetDeficitLedger } from 'ssh/commerce/commerce-model'
 import {
 	compareSourceOffers,
 	internalSourceAvailability,
 	reserveFor,
 	type SourcingPolicy,
 } from 'ssh/commerce/sourcing'
-import type { FreightLineDefinition } from 'ssh/freight/freight-line'
+import type { FreightLineDefinition, FreightLineTarget } from 'ssh/freight/freight-line'
 import { migrateV1FiltersToGoodsSelection } from 'ssh/freight/goods-selection-policy'
 import type { Game } from 'ssh/game/game'
 import { GameObject } from 'ssh/game/object'
@@ -37,9 +37,9 @@ import type { AxialCoord } from 'ssh/utils/axial'
 import { axial } from 'ssh/utils/axial'
 import { toAxialCoord } from 'ssh/utils/position'
 
-/** Whether a line is a one-shot (self-deleting) order. */
+/** Whether a line is a one-shot (self-deleting) order: `repeat: false` or a construction target. */
 export function isOneShotLine(line: FreightLineDefinition): boolean {
-	return line.repeat === false
+	return line.repeat === false || (typeof line.repeat === 'object' && line.repeat !== null)
 }
 
 /**
@@ -66,21 +66,62 @@ export function oneShotLineUnloadGoods(line: FreightLineDefinition): readonly Go
 	return lineUnloadGoods(line)
 }
 
+/** The construction structure a content object is, if it declares construction demand. */
+function constructionTarget(content: unknown): FreightLineTarget | undefined {
+	if (isConstructionSiteShell(content)) return content
+	if (content instanceof UnBuiltLand && content.constructionSite && content.foundationStorage) {
+		return content
+	}
+	return undefined
+}
+
+/** The construction demand a structure declares (shell remaining needs, or foundation shortfall). */
+function tileConstructionNeeds(content: unknown): Partial<Record<GoodType, number>> {
+	const target = constructionTarget(content)
+	if (!target) return {}
+	if (isConstructionSiteShell(target)) {
+		return target.remainingNeeds as Partial<Record<GoodType, number>>
+	}
+	return materialRemainingNeeds(
+		target.constructionSite!.foundationRequiredGoods,
+		target.foundationStorage!
+	) as Partial<Record<GoodType, number>>
+}
+
+/** The construction structure a line's `repeat` targets, if it is a {@link FreightLineTarget}. */
+function lineTarget(line: FreightLineDefinition): FreightLineTarget | undefined {
+	return typeof line.repeat === 'object' && line.repeat !== null ? line.repeat : undefined
+}
+
 /**
- * A one-shot line is fulfilled when every good it unloads has no remaining
- * deficit in the board-scoped ledger (the construction/operating need it was
- * created to cover is gone).
+ * A one-shot line is fulfilled when its target construction structure no longer needs the
+ * goods it unloads. **O(1)** for targeted lines (option B — the target's own remaining needs
+ * is the authority, so "materials complete", "advanced past waiting_materials", or "demolished"
+ * all read as fulfilled). Untargeted lines fall back to scanning their own radius zone.
  */
 export function oneShotLineFulfilled(game: Game, line: FreightLineDefinition): boolean {
 	const goods = oneShotLineUnloadGoods(line)
 	if (goods.length === 0) return false
-	const ledger = game.netDeficitLedger
-	return goods.every((good) => (ledger[good]?.deficit ?? 0) <= 0)
+	const target = lineTarget(line)
+	if (target) {
+		const needs = tileConstructionNeeds(target)
+		return !goods.some((good) => (needs[good] ?? 0) > 0)
+	}
+	const zones = lineUnloadRadiusZones(line)
+	if (zones.length === 0) return false
+	return zones.every((zone) => {
+		for (const tile of game.hex.tilesAround(zone.center, zone.radius)) {
+			const needs = tileConstructionNeeds(tile.content)
+			if (goods.some((good) => (needs[good] ?? 0) > 0)) return false
+		}
+		return true
+	})
 }
 
 /**
  * Remove fulfilled or aborted one-shot lines. Returns the number removed. An
  * aborted line is one with no stops, or (defensively) no demand it can serve.
+ * Each line's fulfillment is checked against its own radius zone — no board scan.
  */
 export function sweepOneShotLines(game: Game): number {
 	let removed = 0
@@ -150,6 +191,13 @@ function lineUnloadRadiusZones(
 function hasTransportCoveringNeed(game: Game, good: GoodType, coord: AxialCoord): boolean {
 	for (const line of game.freightLines) {
 		if (!lineUnloadGoods(line).includes(good)) continue
+		// A targeted line covers `coord` only when it IS that structure's tile.
+		const target = lineTarget(line)
+		if (target) {
+			const targetCoord = toAxialCoord(target.tile.position)
+			if (targetCoord && axial.distance(targetCoord, coord) === 0) return true
+			continue
+		}
 		const zones = lineUnloadRadiusZones(line)
 		if (zones.length === 0) return true
 		if (zones.some((zone) => axial.distance(zone.center, coord) <= zone.radius)) return true
@@ -161,75 +209,73 @@ function hasTransportCoveringNeed(game: Game, good: GoodType, coord: AxialCoord)
  * Spawn one-shot lines for construction deficits that have an internal source and
  * a free vehicle. Returns the number of lines created.
  *
- * Internal-first: for each deficit good, resolve own-hive supply (producer/holder
- * stock above reserve), pick the nearest source with a freight bay, and route a
- * `repeat: false` line from its bay to a radius zone over the construction site.
- * One line per **need** (per destination), so two concurrent constructions of the
- * same good each get their own line. Leaves the deficit in the ledger (and skips)
- * when there is no internal source or no free vehicle — that is where
- * {@link trySpawnConstructionDeliveries} (the buy + outside-carrier branch) plugs in.
+ * **Local + radius**: each source hive scans `maxSelfHaulDistance` around its freight
+ * bay for construction sites needing a good it can export above reserve, and routes a
+ * `repeat: false` line bay → site. No board-wide ledger; the radius is the locality. A
+ * site beyond every hive's radius (or with no internal source / no free vehicle) is left
+ * in place — that is where {@link trySpawnConstructionDeliveries} (the buy + outside-carrier
+ * branch) plugs in.
  */
 export function trySpawnConstructionLines(game: Game, policy: SourcingPolicy): number {
-	const ledger = game.netDeficitLedger
 	let spawned = 0
-	for (const [good, net] of Object.entries(ledger) as [
-		GoodType,
-		NonNullable<(typeof ledger)[GoodType]>,
-	][]) {
-		if ((net?.deficit ?? 0) <= 0) continue
-		const reserve = reserveFor(policy, good)
+	const maxDistance = game.transportAutomation.maxSelfHaulDistance
+	if (maxDistance <= 0) return 0
 
-		// Eligible self-haul sources for this good (producer/holder stock above
-		// reserve, with a freight bay). Resolved once per good, shared across needs.
-		const bays: Array<{ hive: Hive; bay: Alveolus; bayCoord: AxialCoord }> = []
-		for (const hive of listHives(game)) {
-			const flow = hive.profile[good]
+	for (const hive of listHives(game)) {
+		const bay = hiveFreightBay(hive)
+		if (!bay) continue
+		const bayCoord = toAxialCoord(bay.tile.position)
+		if (!bayCoord) continue
+
+		// Goods this hive can export above its reserve keep-target (producer/holder).
+		const exportable: GoodType[] = []
+		for (const [good, flow] of Object.entries(hive.profile) as [GoodType, GoodFlow | undefined][]) {
 			if (!flow || flow.normalizedDelta < 0) continue
-			if (internalSourceAvailability(flow.stock, 0, reserve) <= 0) continue
-			const bay = hiveFreightBay(hive)
-			if (!bay) continue
-			const bayCoord = toAxialCoord(bay.tile.position)
-			if (!bayCoord) continue
-			bays.push({ hive, bay, bayCoord })
+			if (internalSourceAvailability(flow.stock, 0, reserveFor(policy, good)) <= 0) continue
+			exportable.push(good)
 		}
-		if (bays.length === 0) continue
+		if (exportable.length === 0) continue
 
-		for (const need of net.needs) {
-			const destCoord = needSourceCoord(need.source)
+		for (const tile of game.hex.tilesAround(bay.tile.position, maxDistance)) {
+			const content = tile.content
+			const target = content ? constructionTarget(content) : undefined
+			if (!target) continue
+			const needs = tileConstructionNeeds(target)
+			const destCoord = toAxialCoord(tile.position)
 			if (!destCoord) continue
-			if (hasTransportCoveringNeed(game, good, destCoord)) continue
-			const picked = bays
-				.map((bay) => ({ ...bay, distance: axial.distance(bay.bayCoord, destCoord) }))
-				.sort((a, b) => a.distance - b.distance)[0]
-			if (!picked) continue
+			for (const good of exportable) {
+				if ((needs[good] ?? 0) <= 0) continue
+				if (hasTransportCoveringNeed(game, good, destCoord)) continue
+				const vehicle = findFreeVehicle(game)
+				if (!vehicle) return spawned
 
-			const vehicle = findFreeVehicle(game)
-			if (!vehicle) continue
-
-			const selection = migrateV1FiltersToGoodsSelection([good])
-			const line = game.addFreightLine({
-				name: `auto:${good} @${destCoord.q},${destCoord.r}`,
-				repeat: false,
-				stops: [
-					{
-						loadSelection: selection,
-						unloadSelection: selection,
-						anchor: {
-							kind: 'alveolus',
-							hiveName: picked.hive.name ?? '',
-							alveolusType: 'freight_bay',
-							coord: [picked.bayCoord.q, picked.bayCoord.r],
+				const selection = migrateV1FiltersToGoodsSelection([good])
+				const line = game.addFreightLine({
+					name: `auto:${good} @${destCoord.q},${destCoord.r}`,
+					// The construction structure this line fulfills (read live — the line
+					// dies when the site is satisfied/advanced/demolished).
+					repeat: target,
+					stops: [
+						{
+							loadSelection: selection,
+							unloadSelection: selection,
+							anchor: {
+								kind: 'alveolus',
+								hiveName: hive.name ?? '',
+								alveolusType: 'freight_bay',
+								coord: [bayCoord.q, bayCoord.r],
+							},
 						},
-					},
-					{
-						loadSelection: selection,
-						unloadSelection: selection,
-						zone: { kind: 'radius', center: [destCoord.q, destCoord.r], radius: 3 },
-					},
-				],
-			})
-			vehicle.assignFreightLine(line)
-			spawned += 1
+						{
+							loadSelection: selection,
+							unloadSelection: selection,
+							zone: { kind: 'radius', center: [destCoord.q, destCoord.r], radius: 3 },
+						},
+					],
+				})
+				vehicle.assignFreightLine(line)
+				spawned += 1
+			}
 		}
 	}
 	return spawned
@@ -248,10 +294,14 @@ export function trySpawnConstructionLines(game: Game, policy: SourcingPolicy): n
  * One delivery per **need** (per destination): two concurrent constructions of the
  * same good are each bought and credited in the same pass, subject to the wallet.
  */
-export function trySpawnConstructionDeliveries(game: Game, _policy: SourcingPolicy): number {
-	const ledger = game.netDeficitLedger
+export function trySpawnConstructionDeliveries(
+	game: Game,
+	_policy: SourcingPolicy,
+	ledger?: NetDeficitLedger
+): number {
+	const snapshot = ledger ?? game.netDeficitLedger
 	let delivered = 0
-	for (const [good, net] of Object.entries(ledger) as [
+	for (const [good, net] of Object.entries(snapshot) as [
 		GoodType,
 		NonNullable<(typeof ledger)[GoodType]>,
 	][]) {
@@ -312,21 +362,21 @@ export class OneShotLineTicker extends GameObject {
 		if (this.cooldownSeconds < cooldown) return
 		this.cooldownSeconds = 0
 		const auto = this.game.transportAutomation
-		if (auto.autoSpawn || auto.autoBuy) {
-			const policy: SourcingPolicy = {
-				reserve: auto.reserve,
-				internality: auto.internality,
-			}
-			// Provisional internality rule: prefer self-haul at ≥0.5, delivery at <0.5.
-			// `autoSpawn` gates self-haul, `autoBuy` gates delivery — independent toggles.
-			// Both share the "no double-cover" guard, so ordering is the preference.
-			if (auto.internality >= 0.5) {
-				if (auto.autoSpawn) trySpawnConstructionLines(this.game, policy)
-				if (auto.autoBuy) trySpawnConstructionDeliveries(this.game, policy)
-			} else {
-				if (auto.autoBuy) trySpawnConstructionDeliveries(this.game, policy)
-				if (auto.autoSpawn) trySpawnConstructionLines(this.game, policy)
-			}
+		const policy: SourcingPolicy = {
+			reserve: auto.reserve,
+			internality: auto.internality,
+		}
+		// Self-haul + sweep are radius-local (no board scan). Delivery is the long-range
+		// fallback and still reads the board-wide ledger — compute it once, only when autoBuy is on.
+		const ledger = auto.autoBuy ? this.game.netDeficitLedger : undefined
+		// Provisional internality rule: prefer self-haul at ≥0.5, delivery at <0.5.
+		// `autoSpawn` gates self-haul, `autoBuy` gates delivery — independent toggles.
+		if (auto.internality >= 0.5) {
+			if (auto.autoSpawn) trySpawnConstructionLines(this.game, policy)
+			if (auto.autoBuy) trySpawnConstructionDeliveries(this.game, policy, ledger)
+		} else {
+			if (auto.autoBuy) trySpawnConstructionDeliveries(this.game, policy, ledger)
+			if (auto.autoSpawn) trySpawnConstructionLines(this.game, policy)
 		}
 		sweepOneShotLines(this.game)
 	}

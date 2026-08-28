@@ -53,6 +53,15 @@ css`
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+
+  .unbuilt-zone-title.is-clickable {
+    cursor: pointer;
+  }
+
+  .unbuilt-zone-title.is-clickable:hover {
+    border-color: color-mix(in srgb, var(--ak-accent, #6d8cff) 55%, transparent);
+    background: color-mix(in srgb, var(--unbuilt-zone-color, #4f8cff) 16%, var(--ak-surface-panel));
+  }
 `
 
 interface UnBuiltPropertiesProps {
@@ -116,6 +125,13 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 		state.showZone = state.zoneId.length > 0
 	})
 
+	const openZone = () => {
+		const zone = props.content?.tile?.zone
+		if (zone) {
+			void import('@app/lib/zone-selection').then(({ showZoneObject }) => showZoneObject(zone))
+		}
+	}
+
 	effect`unbuilt-properties:deposit`(() => {
 		const deposit = props.content?.deposit
 		const name = toDisplayText(deposit?.name)
@@ -177,10 +193,14 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 		<>
 			<PropertyGridRow if={state.showZone}>
 				<div
-					class="unbuilt-zone-title"
+					class="unbuilt-zone-title is-clickable"
 					style={{ '--unbuilt-zone-color': state.zoneColor }}
 					title={state.zoneName}
 					data-testid="unbuilt-zone-title"
+					role="button"
+					tabIndex={0}
+					aria-label={`Open zone ${state.zoneName}`}
+					onClick={openZone}
 				>
 					{renderAnarkaiIcon(state.zoneIcon, { size: 16, label: state.zoneName })}
 					<span class="unbuilt-zone-title__text">{state.zoneName}</span>

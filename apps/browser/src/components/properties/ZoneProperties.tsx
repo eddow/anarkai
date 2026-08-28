@@ -5,15 +5,19 @@ import { unnamedZoneOwnership, zoneOverlayState } from '@app/lib/zone-selection'
 import { InspectorSection } from '@app/ui/anarkai'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
 import { deposits as visualDeposits } from 'engine-rules/visual-content'
-import { effect } from 'mutts'
+import { reactive } from 'mutts'
 import {
+	tablerOutlineCheck,
 	tablerOutlineDimensions,
+	tablerOutlineEraser,
 	tablerOutlineHexagons,
 	tablerOutlinePaint,
 	tablerOutlineTrash,
+	tablerOutlineX,
 } from 'pure-glyf/icons'
 import type { ZoneDefinition } from 'ssh/board/zone'
 import type { ZoneObject } from 'ssh/board/zone-object'
+import { measureZoneTendencies } from 'ssh/commerce/zone-tendencies'
 import type { GoodType } from 'ssh/types/base'
 import EntityBadge from '../EntityBadge'
 import PropertyGrid from '../PropertyGrid'
@@ -93,6 +97,18 @@ css`
 	display: inline-flex;
 	color: var(--ak-text-muted);
 }
+
+.zone-properties__confirm {
+	align-items: center;
+}
+
+.zone-properties__confirm-label {
+	flex: 1;
+	min-width: 0;
+	color: var(--ak-danger, #c44);
+	font-weight: 600;
+	font-size: 0.8rem;
+}
 `
 
 interface ZonePropertiesProps {
@@ -146,14 +162,24 @@ const ZoneProperties = (props: ZonePropertiesProps) => {
 	}
 	const deposits = () => Object.keys(depositCounts())
 
-	effect`zone-properties:overlay`(() => {
-		return () => {
-			const owned = unnamedZoneOwnership.zone
-			if (owned && owned === definition() && !owned.name?.trim()) {
-				game.hex.zoneManager.removeZoneDefinition(owned)
-				unnamedZoneOwnership.zone = undefined
-			}
-		}
+	// ── Zone study: the aggregate tendencies the spontaneous spawners accumulate. ──
+	const tendencies = () => {
+		const def = definition()
+		return def ? measureZoneTendencies(game, def) : undefined
+	}
+	const demandGoods = () => Object.keys(tendencies()?.demand ?? {}) as GoodType[]
+	const commerceNeedGoods = () => Object.keys(tendencies()?.commerceNeed ?? {}) as GoodType[]
+	const offerGoods = () => Object.keys(tendencies()?.offer ?? {}) as GoodType[]
+	const isResidential = () => definition()?.type === 'residential'
+	const isCommercial = () => definition()?.type === 'commercial'
+	const structureCount = () => {
+		const t = tendencies()
+		if (!t) return 0
+		return t.dwellings + t.underConstruction + t.shops
+	}
+
+	const state = reactive({
+		confirmingDelete: false,
 	})
 
 	const updateZone = (patch: { name?: string; color?: string }) => {
@@ -170,11 +196,23 @@ const ZoneProperties = (props: ZonePropertiesProps) => {
 		if (!def) return
 		game.hex.zoneManager.removeZoneDefinition(def)
 		if (interactionMode.selectedAction === zonePaintAction(def)) interactionMode.selectedAction = ''
+		if (unnamedZoneOwnership.zone === def) unnamedZoneOwnership.zone = undefined
+		state.confirmingDelete = false
 		props.onClose?.()
+	}
+	const requestDelete = () => {
+		state.confirmingDelete = true
+	}
+	const cancelDelete = () => {
+		state.confirmingDelete = false
 	}
 	const painting = () => interactionMode.selectedAction === zonePaintAction(definition())
 	const togglePaint = () => {
 		interactionMode.selectedAction = painting() ? '' : zonePaintAction(definition())
+	}
+	const erasing = () => interactionMode.selectedAction === 'zone:none'
+	const toggleErase = () => {
+		interactionMode.selectedAction = erasing() ? '' : 'zone:none'
 	}
 	const applyHover = () => {
 		zoneOverlayState.hoveredZone = definition()
@@ -263,7 +301,78 @@ const ZoneProperties = (props: ZonePropertiesProps) => {
 						</for>
 					</div>
 				</PropertyGridRow>
-				<PropertyGridRow label="Actions">
+				<PropertyGridRow if={structureCount() > 0} label="Structure">
+					<div class="zone-properties__stats">
+						<span
+							if={isResidential() || (tendencies()?.dwellings ?? 0) > 0}
+							class="zone-properties__stat"
+							title="Dwellings"
+							data-testid="zone-stat-dwellings"
+						>
+							{tendencies()?.dwellings ?? 0} homes
+						</span>
+						<span
+							if={isResidential() || (tendencies()?.underConstruction ?? 0) > 0}
+							class="zone-properties__stat"
+							title="Under construction"
+							data-testid="zone-stat-building"
+						>
+							{tendencies()?.underConstruction ?? 0} building
+						</span>
+						<span
+							if={isCommercial() || (tendencies()?.shops ?? 0) > 0}
+							class="zone-properties__stat"
+							title="Shops"
+							data-testid="zone-stat-shops"
+						>
+							{tendencies()?.shops ?? 0} shops
+						</span>
+					</div>
+				</PropertyGridRow>
+				<PropertyGridRow if={isResidential()} label="Housing pressure">
+					<div class="zone-properties__stats">
+						<span
+							class="zone-properties__stat"
+							title="People nearby minus free dwelling slots"
+							data-testid="zone-stat-housing-pressure"
+						>
+							{tendencies()?.housingPressure ?? 0}
+						</span>
+					</div>
+				</PropertyGridRow>
+				<PropertyGridRow if={isCommercial()} label="Shoppers nearby">
+					<div class="zone-properties__stats">
+						<span
+							class="zone-properties__stat"
+							title="People within shop sensing radius"
+							data-testid="zone-stat-shoppers"
+						>
+							{tendencies()?.shoppers ?? 0}
+						</span>
+					</div>
+				</PropertyGridRow>
+				<PropertyGridRow if={demandGoods().length > 0} label="Demand">
+					<GoodsList
+						goods={demandGoods()}
+						game={game}
+						getBadgeProps={(good) => ({ qty: tendencies()?.demand[good] ?? 0 })}
+					/>
+				</PropertyGridRow>
+				<PropertyGridRow if={commerceNeedGoods().length > 0} label="Commerce needed">
+					<GoodsList
+						goods={commerceNeedGoods()}
+						game={game}
+						getBadgeProps={(good) => ({ qty: tendencies()?.commerceNeed[good] ?? 0 })}
+					/>
+				</PropertyGridRow>
+				<PropertyGridRow if={offerGoods().length > 0} label="Offer">
+					<GoodsList
+						goods={offerGoods()}
+						game={game}
+						getBadgeProps={(good) => ({ qty: tendencies()?.offer[good] ?? 0 })}
+					/>
+				</PropertyGridRow>
+				<PropertyGridRow if={!state.confirmingDelete} label="Actions">
 					<div class="zone-properties__actions">
 						<button
 							type="button"
@@ -279,13 +388,50 @@ const ZoneProperties = (props: ZonePropertiesProps) => {
 						<button
 							type="button"
 							class="zone-properties__button danger"
+							title="Erase tiles"
+							aria-label="Erase tiles"
+							aria-pressed={erasing() ? 'true' : 'false'}
+							onClick={toggleErase}
+							data-testid="zone-erase"
+						>
+							{icon(tablerOutlineEraser)}
+						</button>
+						<button
+							type="button"
+							class="zone-properties__button danger"
 							title="Delete zone"
 							aria-label="Delete zone"
-							disabled={false}
-							onClick={deleteZone}
+							onClick={requestDelete}
 							data-testid="zone-delete"
 						>
 							{icon(tablerOutlineTrash)}
+						</button>
+					</div>
+				</PropertyGridRow>
+				<PropertyGridRow if={state.confirmingDelete} label="Delete zone">
+					<div class="zone-properties__actions zone-properties__confirm">
+						<span class="zone-properties__confirm-label">
+							Remove this zone ({coords().length} tiles)?
+						</span>
+						<button
+							type="button"
+							class="zone-properties__button danger"
+							title="Confirm delete"
+							aria-label="Confirm delete"
+							onClick={deleteZone}
+							data-testid="zone-delete-confirm"
+						>
+							{icon(tablerOutlineCheck)}
+						</button>
+						<button
+							type="button"
+							class="zone-properties__button"
+							title="Cancel"
+							aria-label="Cancel"
+							onClick={cancelDelete}
+							data-testid="zone-delete-cancel"
+						>
+							{icon(tablerOutlineX)}
 						</button>
 					</div>
 				</PropertyGridRow>

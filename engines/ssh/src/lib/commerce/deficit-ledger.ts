@@ -17,6 +17,7 @@ import type { NeededGood, NetDeficit, NetDeficitLedger } from './commerce-model'
  * stop's own reservation system, not folded in here yet).
  */
 export function computeNetDeficitLedger(tiles: Iterable<Tile>): NetDeficitLedger {
+	// TODO: Redo completely the deficit calculation out of local little increments
 	const byGood = new Map<GoodType, NeededGood[]>()
 
 	const addNeed = (source: NeededGood['source'], good: GoodType, quantity: number): void => {

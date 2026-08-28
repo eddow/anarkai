@@ -22,13 +22,12 @@ import { getZoneObject } from '@app/lib/zone-selection'
 import { renderAnarkaiIcon } from '@app/ui/anarkai/icons/render-icon'
 import { memoize, reactive } from 'mutts'
 import {
-	tablerOutlineCheck,
 	tablerOutlinePencil,
 	tablerOutlinePlus,
 	tablerOutlineSettings,
 	tablerOutlineTrash,
-	tablerOutlineX,
 } from 'pure-glyf/icons'
+import { goods as visualGoods } from 'engine-rules/visual-content'
 import { SettlementTradeObject } from 'ssh/commerce/settlement-trade'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
 import { freightLineStationLabel } from 'ssh/freight/freight-line'
@@ -37,13 +36,19 @@ import {
 	type FreightStopCommerceBlockReason,
 	type FreightStopGoodsSnapshot,
 } from 'ssh/freight/freight-stop-utility'
-import type { GoodSelectionPolicy } from 'ssh/freight/goods-selection-policy'
+import type {
+	GoodSelectionEffect,
+	GoodSelectionGoodRule,
+	GoodSelectionPolicy,
+	GoodSelectionTagRule,
+} from 'ssh/freight/goods-selection-policy'
 import { UNRESTRICTED_GOODS_SELECTION_POLICY } from 'ssh/freight/goods-selection-policy'
 import type { Game } from 'ssh/game'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
 import GoodSelectionRulesEditor from './GoodSelectionRulesEditor'
 import InspectorObjectLink from './InspectorObjectLink'
 import LinkedEntityControl from './LinkedEntityControl'
+import ResourceImage from './ResourceImage'
 
 css`
 .freight-stop-list {
@@ -225,32 +230,55 @@ css`
 	gap: 0.25rem;
 	padding: 0.15rem 0.4rem;
 	border-radius: 0.3rem;
+	border: 1px solid color-mix(in srgb, var(--ak-text-muted) 30%, transparent);
 	background: color-mix(in srgb, var(--ak-surface-panel) 70%, transparent);
+	cursor: pointer;
+	font: inherit;
+}
+.freight-stop-list__policy-summary__item--allow {
+	border-color: color-mix(in srgb, #22c55e 55%, transparent);
+}
+.freight-stop-list__policy-summary__item--deny {
+	border-color: color-mix(in srgb, #ef4444 55%, transparent);
+}
+.freight-stop-list__policy-summary__item--expanded {
+	box-shadow: 0 0 0 1px color-mix(in srgb, var(--ak-accent, #8b5cf6) 42%, transparent);
+}
+.freight-stop-list__policy-summary__item[disabled] {
+	cursor: default;
+	opacity: 0.85;
 }
 .freight-stop-list__policy-summary__label {
 	color: var(--ak-text-muted);
 	font-weight: 600;
+	font-size: 0.68rem;
 }
-.freight-stop-list__policy-summary__icon {
+.freight-stop-list__policy-summary__unrestricted {
+	color: var(--ak-text);
+	font-size: 0.72rem;
+	font-weight: 600;
+}
+.freight-stop-list__policy-summary__good {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	width: 1.1rem;
-	height: 1.1rem;
-	border-radius: 0.25rem;
-	font-size: 0.7rem;
+	padding: 0.1rem;
+	border-radius: 0.22rem;
+	line-height: 0;
 }
-.freight-stop-list__policy-summary__icon--allow {
-	background: color-mix(in srgb, #22c55e 20%, transparent);
-	color: #22c55e;
+.freight-stop-list__policy-summary__effect--allow {
+	border: 1px solid color-mix(in srgb, #22c55e 45%, transparent);
+	background: color-mix(in srgb, #22c55e 16%, transparent);
 }
-.freight-stop-list__policy-summary__icon--deny {
-	background: color-mix(in srgb, #ef4444 20%, transparent);
-	color: #ef4444;
+.freight-stop-list__policy-summary__effect--deny {
+	border: 1px solid color-mix(in srgb, #ef4444 45%, transparent);
+	background: color-mix(in srgb, #ef4444 16%, transparent);
 }
-.freight-stop-list__policy-summary__text {
-	color: var(--ak-text);
-	font-size: 0.68rem;
+.freight-stop-list__policy-summary__tag {
+	padding: 0.05rem 0.3rem;
+	border-radius: 0.22rem;
+	font-size: 0.66rem;
+	font-weight: 600;
 }
 .freight-stop-list__reserve {
 	display: inline-flex;
@@ -360,6 +388,16 @@ const formatGoodsSnapshot = (snapshot: FreightStopGoodsSnapshot): string => {
 		.join(', ')
 }
 
+const commerceBlockReasonLabel: Record<FreightStopCommerceBlockReason, string> = {
+	no_vehicle: 'no vehicle assigned',
+	vehicle_full: 'vehicle full',
+	no_downstream_demand: 'no downstream demand',
+	buffer_full: 'buffer full',
+	no_matching_settlement_offer: 'no matching settlement offer',
+	reserve_blocks_import: 'reserve blocks import',
+	policy_blocks_good: 'policy blocks good',
+}
+
 const commerceReasonText = (
 	reasons: readonly FreightStopCommerceBlockReason[],
 	vehicleCount?: number,
@@ -368,12 +406,10 @@ const commerceReasonText = (
 	if (reasons.length === 0) return 'ready'
 	return reasons
 		.map((reason) => {
-			if (reason === 'vehicle_full' && vehicleCount !== undefined) {
-				if (vehicleCount > 1 && vehicleLabel) return `${vehicleLabel} full`
-				if (vehicleCount > 1) return `all ${vehicleCount} vehicles full`
-				return 'vehicle full'
+			if (reason === 'vehicle_full' && vehicleCount !== undefined && vehicleCount > 1) {
+				return vehicleLabel ? `${vehicleLabel} full` : `all ${vehicleCount} vehicles full`
 			}
-			return reason
+			return commerceBlockReasonLabel[reason] ?? reason
 		})
 		.join(', ')
 }
@@ -383,7 +419,16 @@ const tradeStopCanImport = (stop: FreightStop): boolean => {
 	return stop.trade.profile.offers.some((offer) => offer.direction === 'sell')
 }
 
-const PolicySummary = (props: { policy: GoodSelectionPolicy | undefined; label: string }) => {
+const goodSprite = (goodType: string) => visualGoods[goodType]?.sprites?.[0]
+
+const PolicySummary = (props: {
+	policy: GoodSelectionPolicy | undefined
+	label: string
+	game: Game
+	disabled?: boolean
+	expanded?: boolean
+	onToggle?: () => void
+}) => {
 	const policy = () => props.policy
 	const rules = () => {
 		const p = policy()
@@ -398,13 +443,13 @@ const PolicySummary = (props: { policy: GoodSelectionPolicy | undefined; label: 
 		const r = rules()
 		return r.goodRules.length === 0 && r.tagRules.length === 0 && r.defaultEffect === 'allow'
 	}
-	const defaultIcon = () => {
-		const r = rules()
-		return r.defaultEffect === 'allow' ? icon(tablerOutlineCheck) : icon(tablerOutlineX)
-	}
+	const effectClass = (effect: GoodSelectionEffect) =>
+		effect === 'allow'
+			? 'freight-stop-list__policy-summary__effect--allow'
+			: 'freight-stop-list__policy-summary__effect--deny'
 	const summaryText = () => {
 		const r = rules()
-		if (isUnrestricted()) return 'All goods'
+		if (isUnrestricted()) return 'All goods allowed'
 		const parts: string[] = []
 		if (r.goodRules.length > 0) {
 			const allowGoods = r.goodRules
@@ -413,8 +458,8 @@ const PolicySummary = (props: { policy: GoodSelectionPolicy | undefined; label: 
 			const denyGoods = r.goodRules
 				.filter((rule) => rule.effect === 'deny')
 				.map((rule) => rule.goodType)
-			if (allowGoods.length > 0) parts.push(`+${allowGoods.length}`)
-			if (denyGoods.length > 0) parts.push(`-${denyGoods.length}`)
+			if (allowGoods.length > 0) parts.push(`+${allowGoods.length} goods`)
+			if (denyGoods.length > 0) parts.push(`-${denyGoods.length} goods`)
 		}
 		if (r.tagRules.length > 0) {
 			const allowTags = r.tagRules.filter((rule) => rule.effect === 'allow').length
@@ -422,39 +467,60 @@ const PolicySummary = (props: { policy: GoodSelectionPolicy | undefined; label: 
 			if (allowTags > 0) parts.push(`+${allowTags} tags`)
 			if (denyTags > 0) parts.push(`-${denyTags} tags`)
 		}
-		if (parts.length === 0) return r.defaultEffect === 'allow' ? 'All goods' : 'Deny all'
+		if (parts.length === 0) return r.defaultEffect === 'allow' ? 'All goods allowed' : 'Deny all'
 		return parts.join(', ')
 	}
 	return (
-		<span
-			class="freight-stop-list__policy-summary__item"
-			title={
-				isUnrestricted()
-					? `${props.label}: All goods allowed`
-					: `${props.label}: ${summaryText()}, default ${rules().defaultEffect}`
-			}
+		<button
+			type="button"
+			class={[
+				'freight-stop-list__policy-summary__item',
+				`freight-stop-list__policy-summary__item--${rules().defaultEffect}`,
+				props.expanded ? 'freight-stop-list__policy-summary__item--expanded' : '',
+			]}
+			disabled={props.disabled}
+			onClick={props.onToggle}
+			title={`${props.label}: ${summaryText()}`}
 		>
 			<span class="freight-stop-list__policy-summary__label">{props.label}</span>
-			<span
-				class={`freight-stop-list__policy-summary__icon ${
-					rules().defaultEffect === 'allow'
-						? 'freight-stop-list__policy-summary__icon--allow'
-						: 'freight-stop-list__policy-summary__icon--deny'
-				}`}
-			>
-				{isUnrestricted() ? '∞' : defaultIcon()}
+			<span if={isUnrestricted()} class="freight-stop-list__policy-summary__unrestricted">
+				∞
 			</span>
-			<span class="freight-stop-list__policy-summary__text">{summaryText()}</span>
-		</span>
+			<for each={rules().goodRules}>
+				{(rule: GoodSelectionGoodRule) => (
+					<span
+						class={['freight-stop-list__policy-summary__good', effectClass(rule.effect)]}
+						title={`${rule.goodType}: ${rule.effect}`}
+					>
+						<ResourceImage
+							game={props.game}
+							sprite={goodSprite(rule.goodType)}
+							width={12}
+							height={12}
+							alt={rule.goodType}
+						/>
+					</span>
+				)}
+			</for>
+			<for each={rules().tagRules}>
+				{(rule: GoodSelectionTagRule) => (
+					<span
+						class={['freight-stop-list__policy-summary__tag', effectClass(rule.effect)]}
+						title={`tag ${rule.tag} (${rule.match}): ${rule.effect}`}
+					>
+						#{rule.tag}
+					</span>
+				)}
+			</for>
+		</button>
 	)
 }
 
 const FreightStopList = (props: FreightStopListProps) => {
-	const expandedStops = reactive(new Set<FreightStop>())
-	const toggleExpanded = (stop: FreightStop) => {
-		if (expandedStops.has(stop)) expandedStops.delete(stop)
-		else expandedStops.add(stop)
-		apply((line) => ({ ...line }))
+	const expandedStops = reactive(new Set<number>())
+	const toggleExpanded = (index: number) => {
+		if (expandedStops.has(index)) expandedStops.delete(index)
+		else expandedStops.add(index)
 	}
 	let dragFrom: number | undefined
 	const t = () => T.line.stopsEditor
@@ -581,7 +647,7 @@ const FreightStopList = (props: FreightStopListProps) => {
 								'trade' in stop
 									? new SettlementTradeObject(props.game, stop.trade.profile)
 									: undefined
-							const expandedPolicy = () => expandedStops.has(stop)
+							const expandedPolicy = () => expandedStops.has(index)
 							const commerce = () => commerceForStop(index)
 							const commerceExpl = () => commerce().explanation
 							const commerceCtx = () => ({
@@ -686,8 +752,22 @@ const FreightStopList = (props: FreightStopListProps) => {
 										</td>
 										<td class="freight-stop-list__policies">
 											<div class="freight-stop-list__policy-summary">
-												<PolicySummary policy={stop.loadSelection} label="L" />
-												<PolicySummary policy={stop.unloadSelection} label="U" />
+												<PolicySummary
+													policy={stop.loadSelection}
+													label="L"
+													game={props.game}
+													disabled={props.readOnly}
+													expanded={expandedPolicy()}
+													onToggle={() => toggleExpanded(index)}
+												/>
+												<PolicySummary
+													policy={stop.unloadSelection}
+													label="U"
+													game={props.game}
+													disabled={props.readOnly}
+													expanded={expandedPolicy()}
+													onToggle={() => toggleExpanded(index)}
+												/>
 												<label if={tradeStopCanImport(stop)} class="freight-stop-list__reserve">
 													Reserve
 													<input
@@ -708,7 +788,7 @@ const FreightStopList = (props: FreightStopListProps) => {
 													type="button"
 													class="freight-stop-list__icon-btn"
 													title="Configure policies"
-													onClick={() => toggleExpanded(stop)}
+													onClick={() => toggleExpanded(index)}
 												>
 													{icon(expandedPolicy() ? tablerOutlinePencil : tablerOutlineSettings)}
 												</button>

@@ -38,6 +38,15 @@ All previously commented-out `@memoize` decorators have been rehabilitated and i
 - The shared pathfinding utilities in `src/lib/utils/pathfinding.ts` are wrapped in `untracked(...)` so callers cannot accidentally subscribe to every visited node.
 - Do not put pathfinding-based availability checks behind `@memoize` unless they depend only on stable, coarse invalidation signals.
 - **Utility planning** (`population/findNextActivity.ts`): `ActivityPlanningCharacter` includes needs + paths + `resolveBestJobMatch` only — no `carry` / transport field (need scores do not depend on inventory state).
+## Performance — no full-board scans
+- **Rule of thumb**: a full-board scan means the algorithm is wrong — spontaneous behaviour (lines, shops, residences) is **local**, so it must be bounded by a **radius** around its trigger, or read a small index maintained at mutation time. A board scan is the symptom of "the locality wasn't expressed".
+- **`HexBoard.tiles` is a board scan, not a cheap accessor** — it iterates `contents.values()` (every materialized tile + border content). It is acceptable only for cold/one-shot passes (bootstrap, save, reset), **never** in a hot loop.
+- **Local/indexed reads (the correct shape):**
+  - `listHives` → `game.hex.listHives()` (a board-scoped `Set` maintained at `Hive` construct/destroy).
+  - Residential spawner → `zoneManager.residentialCoords`; commercial spawner → `zoneManager.commercialCoords` (indexes maintained by `setZone`/`removeZone`).
+  - One-shot self-haul spawner (`trySpawnConstructionLines`) → radius scan `hex.tilesAround(bay, maxSelfHaulDistance)` around each source hive; one-shot sweep → `hex.tilesAround(zone.center, zone.radius)` per line.
+  - `measureZoneTendencies` → local over `coordsForZone(zone)`.
+- **Remaining board-scoped read (intentional, to revisit):** `Game.netDeficitLedger` (`computeNetDeficitLedger(this.hex.tiles)`) is still walked by the **delivery** branch (`trySpawnConstructionDeliveries`) — the long-range "buy from outside" fallback, which by definition covers sites the local radius couldn't. It is computed once per pass and only when `autoBuy` is on. If it ever turns hot, the fix is a construction-site index (register/unregister `ConstructionSiteShell` + project/foundation `UnBuiltLand` at `board.setTileContent` / `setProject`), not a wider radius.
 ## Advertising / Movement
 - Movement selection is deferred in `src/lib/hive/hive.ts` to avoid reactive cycles, so anything that treats a selected partner as an already-created movement is suspect.
 - Optional stalled-exchange recovery lives in `src/lib/globals.ts` as `options`; when enabled, hives rescan for stable provide+demand pairs that still have no active `movingGoods` and re-advertise them.

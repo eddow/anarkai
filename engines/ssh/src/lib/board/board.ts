@@ -48,6 +48,8 @@ export class HexBoard extends GameObject {
 	private readonly roadTypes = new AxialKeyMap<RoadType>()
 	private readonly occupied = new AxialKeyMap<Character[]>([], () => [])
 	private readonly pendingHiveRefresh = new Set<Hive>()
+	/** Live hives on this board — the O(hives) index behind `listHives`, maintained at hive create/destroy. */
+	private readonly hives = new Set<Hive>()
 	private topologyRefreshScheduled = false
 	readonly looseGoods: LooseGoods
 	readonly zoneManager: ZoneManager
@@ -156,6 +158,21 @@ export class HexBoard extends GameObject {
 		})
 	}
 
+	/** Register a live hive on this board (called from {@link Hive}'s constructor). */
+	registerHive(hive: Hive): void {
+		this.hives.add(hive)
+	}
+
+	/** Unregister a hive (called from {@link Hive.destroy}). */
+	unregisterHive(hive: Hive): void {
+		this.hives.delete(hive)
+	}
+
+	/** All live (non-destroyed) hives on this board — O(hives), never a tile walk. */
+	listHives(): Hive[] {
+		return [...this.hives].filter((hive) => !hive.isDestroyed)
+	}
+
 	flushHiveTopologyRefresh() {
 		if (this.pendingHiveRefresh.size === 0) return
 		const pending = new Set(Array.from(this.pendingHiveRefresh).filter((hive) => !hive.isDestroyed))
@@ -262,6 +279,7 @@ export class HexBoard extends GameObject {
 			this.borderCache.clear()
 			this.roadTypes.clear()
 			this.occupied.clear()
+			this.hives.clear()
 			this.looseGoods.goods.clear()
 			this.zoneManager.clear()
 		})
@@ -660,11 +678,7 @@ export class HexBoard extends GameObject {
 	 * caller only needs reachability for a small, known set of nearby tiles (e.g. a maintenance
 	 * candidate ring) rather than the full `maxTime` radius.
 	 */
-	reachableForVehicleTargets(
-		start: Positioned,
-		maxTime: number,
-		targets: Iterable<AxialCoord>
-	) {
+	reachableForVehicleTargets(start: Positioned, maxTime: number, targets: Iterable<AxialCoord>) {
 		return findReachableTargets(
 			(c) => this.getNeighborsForVehicle(c),
 			axial.round(toAxialCoord(start)),

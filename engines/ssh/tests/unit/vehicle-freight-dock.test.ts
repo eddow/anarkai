@@ -939,4 +939,113 @@ describe('vehicle-freight-dock', () => {
 			await engine.destroy()
 		}
 	})
+
+	it('offers a gather unload into a buffered pile that still demands wood', async () => {
+		const engine = new TestEngine({ terrainSeed: 12030, characterCount: 0 })
+		await engine.init()
+		try {
+			const line = gatherFreightLine({
+				name: 'Dock gather into buffered pile',
+				hiveName: 'DockBufferedPile',
+				coord: [0, 0],
+				filters: ['wood'],
+				radius: 2,
+			})
+			engine.loadScenario({
+				hives: [
+					{
+						name: 'DockBufferedPile',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
+							// Buffered transit pile (keep-target 12) holding 1 wood: still below
+							// its keep target, so it advertises demand 1-buffer — the genuine
+							// sink a gather vehicle unloads into.
+							{
+								coord: [1, 0],
+								alveolus: 'pile',
+								variant: 'wood',
+								goods: { wood: 1 },
+								configuration: {
+									ref: { scope: 'individual' },
+									individual: { working: true, buffers: { wood: 12 } },
+								},
+							},
+						],
+					},
+				],
+				freightLines: [line],
+			} satisfies Partial<SaveState>)
+
+			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
+			expect(bay).toBeDefined()
+			if (!bay) throw new Error('Expected freight bay')
+
+			// Below keep target → still advertises demand (not surplus provide).
+			const pile = engine.game.hex.getTile({ q: 1, r: 0 })?.content as StorageAlveolus
+			expect(pile.goodsRelations.wood?.advertisement).toBe('demand')
+
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
+			vehicle.storage.addGood('wood', 2)
+			vehicle.beginLineService(line, line.stops[1]!)
+			vehicle.dock()
+
+			const candidates = collectDockedVehicleAdvertisementCandidates(vehicle, bay)
+			expect(candidates).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ goodType: 'wood', advertisement: 'provide' }),
+				])
+			)
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('does not unload into a buffer-less drain pile that stopped demanding', async () => {
+		const engine = new TestEngine({ terrainSeed: 12031, characterCount: 0 })
+		await engine.init()
+		try {
+			const line = gatherFreightLine({
+				name: 'Dock gather skip drain pile',
+				hiveName: 'DockDrainPileSkip',
+				coord: [0, 0],
+				filters: ['wood'],
+				radius: 2,
+			})
+			engine.loadScenario({
+				hives: [
+					{
+						name: 'DockDrainPileSkip',
+						alveoli: [
+							{ coord: [0, 0], alveolus: 'freight_bay', goods: {} },
+							// Buffer-less "drain-me" pile holding 1 wood: flips to provide
+							// 0-store (no demand), so it is NOT a sink for a gather unload.
+							{ coord: [1, 0], alveolus: 'pile', variant: 'wood', goods: { wood: 1 } },
+						],
+					},
+				],
+				freightLines: [line],
+			} satisfies Partial<SaveState>)
+
+			const bay = engine.game.hex.getTile({ q: 0, r: 0 })?.content as FreightBayAlveolus | undefined
+			expect(bay).toBeDefined()
+			if (!bay) throw new Error('Expected freight bay')
+
+			const pile = engine.game.hex.getTile({ q: 1, r: 0 })?.content as StorageAlveolus
+			expect(pile.goodsRelations.wood?.advertisement).toBe('provide')
+
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [line])
+			vehicle.storage.addGood('wood', 2)
+			vehicle.beginLineService(line, line.stops[1]!)
+			vehicle.dock()
+
+			// No demand sink → the vehicle must NOT advertise an unload (per the doc:
+			// "current storage room without demand is not automatically a sink").
+			const candidates = collectDockedVehicleAdvertisementCandidates(vehicle, bay)
+			expect(
+				candidates.find((c) => c.goodType === 'wood' && c.advertisement === 'provide')
+			).toBeUndefined()
+		} finally {
+			await engine.destroy()
+		}
+	})
 })

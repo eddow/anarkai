@@ -1,4 +1,9 @@
 {
+	"motos": {
+		"pirate": "«Vous ne téléchargeriez pas une voiture.» — Regardez-nous faire. Et en attendant de pouvoir imprimer le châssis, on va acheter les pièces trois fois rien et se faire de la marge sur le transport..",
+		"soviet": "Celui qui te nourrit te contrôle.» — Alors nourrissons le monde entier, récoltons tout, et assurons-nous que personne ne doive un seul centime à un maître.",
+		"hippie": "Retour à la nature.» — D'accord, mais on garde les douches chaudes, l'atelier textile et le réseau de transport. On gère un paradis ici, pas un jeu de survie."
+	},
 	"deposits": {
 		"berry_bush": "Buisson de Baies",
 		"rock": "Rocher",

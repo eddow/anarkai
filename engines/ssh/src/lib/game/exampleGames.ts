@@ -529,9 +529,9 @@ const commonsGap = axialRect(-1, -1, 2, 6)
  * construction project. Unlike `chopSaw` (one big hive), each hive here is a small
  * building cluster with its own delivery tile (freight bay).
  *
- *   - Grove  (forestry):   chopper + forester + wood pile   → produces wood
+ *   - Grove  (forestry):   chopper + forester               → produces wood (no pile: the chopper sheds its output straight to freight)
  *   - Mill   (sawmill):    2 sawmills + wood/plank piles    → wood → planks
- *   - Quarry (stone):      stonecutter + stone pile         → produces stone
+ *   - Quarry (stone):      stonecutter                      → produces stone (no pile: the cutter sheds its output straight to freight)
  *   - Depot  (infrastructure): slotted storages + building/road engineers
  *
  * Layout rules honoured:
@@ -544,14 +544,13 @@ const commonsGap = axialRect(-1, -1, 2, 6)
  *     residential and commercial zones** as their separator, never through the wood;
  *   - the **Depot sits west of the settlements** (leftmost hive), clear of the water.
  *
- * **Inputs are buffered; output piles are "drain-me".** The chopper and stonecutter
- * shed their output into an output pile (Grove wood, Quarry stone) that the gather and
- * transport lines pick from — those piles stay buffer-less so they always release their
- * stock. The **Depot** is the construction-materials buffer: its slotted storages keep
- * a small keep-target (≈5 units) of each of wood/planks/stone/concrete for the
- * engineers. The **Mill** buffers its *input* wood pile (so the sawmills never starve)
- * but leaves its *output* planks pile buffer-less (drain-me), and both sawmills share
- * one configuration at 55% planks.
+ * **Inputs are buffered; outputs are "drain-me".** The chopper and stonecutter bring
+ * nothing home — their output is picked up directly from their own harvest buffer, so
+ * they need no output pile. The **Depot** is the construction-materials buffer: its
+ * slotted storages keep a small keep-target (≈5 units) of each of wood/planks/stone/
+ * concrete for the engineers. The **Mill** buffers its *input* wood pile (so the
+ * sawmills never starve) but leaves its *output* planks pile buffer-less (drain-me),
+ * and both sawmills share one configuration at 55% planks.
  *
  * Projects, dwellings, and shops are **not** pre-placed: the residential and
  * commercial zones start empty so spontaneous construction (housing + shops) can
@@ -599,9 +598,8 @@ export const commons = {
 				{ alveolus: 'freight_bay', coord: [0, -1] },
 				{ alveolus: 'tree_chopper', coord: [1, -1] },
 				{ alveolus: 'forester', coord: [1, -2], assignedZoneIndices: [2] },
-				// Output (drain-me) pile: the chopper sheds its wood here; buffer-less so
-				// it always releases its stock to the gather / "Mill wood run" lines.
-				{ alveolus: 'pile', coord: [0, -2], variant: 'wood', goods: { wood: 6 } },
+				// No output pile: the chopper "brings nothing home" — its harvested wood stays
+				// in its own output buffer and is picked up directly by the freight line.
 			],
 		},
 		{
@@ -641,9 +639,8 @@ export const commons = {
 			alveoli: [
 				{ alveolus: 'freight_bay', coord: [-4, -1] },
 				{ alveolus: 'stonecutter', coord: [-5, -1] },
-				// Output (drain-me) pile: the cutter sheds its stone here; buffer-less so
-				// it always releases its stock to the gather / transport lines.
-				{ alveolus: 'pile', coord: [-4, -2], variant: 'stone', goods: { stone: 4 } },
+				// No output pile: the stonecutter "brings nothing home" — its cut stone
+				// stays in its own output buffer and is picked up directly by freight.
 			],
 		},
 		{
@@ -707,7 +704,10 @@ export const commons = {
 				{
 					loadSelection: constructionGoodsSelection,
 					unloadSelection: constructionGoodsSelection,
-					zone: { kind: 'radius', center: [2, -4], radius: 6 },
+					// Radius zone MUST be centered on the bay anchor (0,-1) so the engine
+					// recognises this as a *gather* route (zone→anchor at the same tile).
+					// A 6-tile radius reaches the Grove Wood forest (q 1..4, r -4..-5).
+					zone: { kind: 'radius', center: [0, -1], radius: 6 },
 				},
 			],
 		},

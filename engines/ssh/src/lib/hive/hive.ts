@@ -21,8 +21,8 @@
  *  3100-3155 destroy() & cleanup
  */
 
-import { effect, inert, reactive, type ScopedCallback, unreactive, unwrap } from 'mutts'
 import { idleReplanIntervalSeconds } from 'engine-rules'
+import { effect, inert, reactive, type ScopedCallback, unreactive, unwrap } from 'mutts'
 import { type HexBoard, isTileCoord } from 'ssh/board/board'
 import { AlveolusGate } from 'ssh/board/border/alveolus-gate'
 import { Alveolus } from 'ssh/board/content/alveolus'
@@ -361,6 +361,7 @@ type MovementMineOptions = {
 export class Hive extends AdvertisementManager<FreightMovementParty> implements Estate {
 	private constructor(public readonly board: HexBoard) {
 		super()
+		board.registerHive(this)
 		this.runtimeEffects.push(
 			effect`hive.exchange-watchdog`(() => {
 				this.configureExchangeWatchdog(options.stalledMovementScanIntervalMs)
@@ -3772,6 +3773,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> implements 
 
 	destroy() {
 		this.destroyed = true
+		this.board.unregisterHive(this)
 		this.reconstructing = false
 		this.wakeWanderingWorkersScheduled = false
 		if (this.exchangeWatchdogTimer) {

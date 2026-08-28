@@ -67,13 +67,13 @@ interface CommercialCandidate {
 
 function collectCommercialCandidates(game: Game): CommercialCandidate[] {
 	const out: CommercialCandidate[] = []
-	for (const tile of game.hex.tiles) {
-		if (tile.zone?.type !== 'commercial') continue
+	// Candidates are the indexed commercial tiles (local by construction) — not a board walk.
+	for (const coord of game.hex.zoneManager.commercialCoords) {
+		const tile = game.hex.getTile(coord)
+		if (!tile) continue
 		if (!(tile.content instanceof UnBuiltLand)) continue
 		if (tile.content.project) continue
 		if (!tile.isClear) continue
-		const coord = toAxialCoord(tile.position)
-		if (!coord) continue
 		if (!isRoadAdjacent(game, coord)) continue
 		out.push({
 			key: axial.key(coord),

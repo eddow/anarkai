@@ -37,8 +37,10 @@ function countFreeDwellingSlotsNear(
 }
 
 function hasResidentialConstructionInProgress(game: Game): boolean {
-	for (const tile of game.hex.tiles) {
-		const content = tile.content
+	// Only residential tiles can host a dwelling project/shell, so walk the indexed
+	// residential coords — not the whole board.
+	for (const coord of game.hex.zoneManager.residentialCoords) {
+		const content = game.hex.getTile(coord)?.content
 		if (content instanceof UnBuiltLand && content.project === residentialBasicDwellingProject) {
 			return true
 		}
@@ -56,8 +58,10 @@ export function trySpawnResidentialProject(game: Game): void {
 
 	const candidates: { pressure: number; q: number; r: number }[] = []
 
-	for (const tile of game.hex.tiles) {
-		if (tile.zone?.type !== 'residential') continue
+	// Candidates are the indexed residential tiles (local by construction) — not a board walk.
+	for (const coord of game.hex.zoneManager.residentialCoords) {
+		const tile = game.hex.getTile(coord)
+		if (!tile) continue
 		const content = tile.content
 		if (!(content instanceof UnBuiltLand)) continue
 		if (content.project) continue

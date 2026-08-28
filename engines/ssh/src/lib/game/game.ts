@@ -561,6 +561,7 @@ export class Game extends Eventful<GameEvents> {
 		internality: commerce.transportAutomation.internality,
 		reserve: { ...commerce.transportAutomation.reserve } as Reserve,
 		spawnCooldownSeconds: commerce.transportAutomation.spawnCooldownSeconds,
+		maxSelfHaulDistance: commerce.transportAutomation.maxSelfHaulDistance,
 		maxInternalTransfer: commerce.transportAutomation.maxInternalTransfer,
 		minLocalProvision: commerce.transportAutomation.minLocalProvision,
 	})
@@ -886,9 +887,17 @@ export class Game extends Eventful<GameEvents> {
 	 * spontaneous residential/commercial foundations). Fresh on every access, like
 	 * {@link Hive.needs}; consumers that poll it per planning revision keep it cheap.
 	 * This is the read a future `deficit` stop / commerce overview consumes.
+	 *
+	 * ⚠️ This is an O(board) scan — do **not** call it once per line / once per need.
+	 * Batch callers should compute it once per pass and thread the snapshot through.
 	 */
 	get netDeficitLedger(): NetDeficitLedger {
-		return computeNetDeficitLedger(this.hex.tiles)
+		const end = profile.commerce.begin?.('netDeficitLedger')
+		try {
+			return computeNetDeficitLedger(this.hex.tiles)
+		} finally {
+			end?.()
+		}
 	}
 
 	/** Test/bootstrap seam: register a settlement trade profile by center coord. */

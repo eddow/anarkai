@@ -13,7 +13,6 @@
  * shortfall?" from the live board with no per-construction special-casing.
  */
 
-import { Alveolus } from 'ssh/board/content/alveolus'
 import type { Game } from 'ssh/game/game'
 import type { Hive } from 'ssh/hive/hive'
 import type { GoodType } from 'ssh/types/base'
@@ -27,16 +26,9 @@ import {
 	type SourcingPolicy,
 } from './sourcing'
 
-/** Every live hive on the board, deduped by identity from the alveoli that own them. */
+/** Every live hive on the board — O(hives) via the board's hive index (never a tile walk). */
 export function listHives(game: Game): Hive[] {
-	const seen = new Set<Hive>()
-	for (const tile of game.hex.tiles) {
-		const content = tile.content
-		if (!(content instanceof Alveolus)) continue
-		const hive = content.hive
-		if (hive && !hive.isDestroyed) seen.add(hive)
-	}
-	return [...seen]
+	return game.hex.listHives()
 }
 
 /**

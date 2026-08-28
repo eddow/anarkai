@@ -56,6 +56,19 @@ export class ZoneManager {
 	private readonly reservationOwners = reactive(new AxialKeyMap<object>())
 	private readonly ownerToCoord = new Map<object, AxialCoord>()
 	readonly residentialCoords: AxialCoord[] = []
+	readonly commercialCoords: AxialCoord[] = []
+
+	/** Add/remove a coord from the residential/commercial indexes for its new `type`. */
+	private indexZoneCoord(coord: AxialCoord, type: ZoneType | undefined): void {
+		const remove = (list: AxialCoord[]) => {
+			const idx = list.findIndex((c) => c.q === coord.q && c.r === coord.r)
+			if (idx >= 0) list.splice(idx, 1)
+		}
+		remove(this.residentialCoords)
+		remove(this.commercialCoords)
+		if (type === 'residential') this.residentialCoords.push({ ...coord })
+		else if (type === 'commercial') this.commercialCoords.push({ ...coord })
+	}
 
 	/**
 	 * Registered zone definitions in insertion order. Identity is the object
@@ -149,12 +162,8 @@ export class ZoneManager {
 		}
 		const registered = this.ensureRegisteredZone(zone)
 		this.zones.set(coord, registered)
-		if (registered.type === 'residential') {
-			const dup = this.residentialCoords.some((c) => c.q === coord.q && c.r === coord.r)
-			if (!dup) this.residentialCoords.push({ ...coord })
-		} else {
-			const idx = this.residentialCoords.findIndex((c) => c.q === coord.q && c.r === coord.r)
-			if (idx >= 0) this.residentialCoords.splice(idx, 1)
+		this.indexZoneCoord(coord, registered.type)
+		if (registered.type !== 'residential') {
 			this.reservationOwners.delete(coord)
 			for (const [owner, reserved] of this.ownerToCoord.entries()) {
 				if (reserved.q === coord.q && reserved.r === coord.r) {
@@ -176,9 +185,8 @@ export class ZoneManager {
 
 	removeZone(coord: AxialCoord): boolean {
 		const zone = this.zones.get(coord)
+		if (zone) this.indexZoneCoord(coord, undefined)
 		if (zone?.type === 'residential') {
-			const idx = this.residentialCoords.findIndex((c) => c.q === coord.q && c.r === coord.r)
-			if (idx >= 0) this.residentialCoords.splice(idx, 1)
 			this.reservationOwners.delete(coord)
 			for (const [owner, reserved] of this.ownerToCoord.entries()) {
 				if (reserved.q === coord.q && reserved.r === coord.r) {
@@ -249,6 +257,7 @@ export class ZoneManager {
 		this.reservationOwners.clear()
 		this.ownerToCoord.clear()
 		this.residentialCoords.length = 0
+		this.commercialCoords.length = 0
 	}
 
 	// ── residential reservations ──────────────────────────────────
