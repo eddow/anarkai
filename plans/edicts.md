@@ -8,13 +8,13 @@ The "mana" equivalent is trust. Trust is acquired by happiness (happiness = delt
 
 ### Reorganization
 
-The clan might have several settlements. We might have decrees of population re-organization - perhaps we have a surplus of workers at a place and need some more somewhere else. (internal mass population movement)
+The clan might have several settlements. We might have needs of population re-organization - perhaps we have a surplus of workers at a place and need some more somewhere else. (internal mass population movement)
 
-This might occur also while setting up a new settlement, and be accompanied with goods and vehicles
+This might occur also while setting up a new settlement, and be accompanied with goods and vehicles displacement
 
 ### Campaigns
 
-The only one I think about is campaign of "recruitment" - to get more peeps all of a sudden `delta peep = f(happiness)` (`f` monotone, could be ~log)
+The only one I think about is campaign of "recruitment" - to get more peeps all of a sudden (usually, )`delta peep = f(happiness)` (`f` monotone, could be ~log))
 
 ### Planing
 
