@@ -3,7 +3,7 @@ import { computeNetDeficitLedger } from 'ssh/commerce/deficit-ledger'
 import { dorm } from 'ssh/game/exampleGames'
 import { Game } from 'ssh/game/game'
 import { BuildAlveolus } from 'ssh/hive/build'
-import { residentialBasicDwellingProject } from 'ssh/residential/constants'
+import { residentialBasicDwellingSite } from 'ssh/residential/constants'
 import { trySpawnResidentialProject } from 'ssh/residential/demand'
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -50,7 +50,7 @@ describe('computeNetDeficitLedger', () => {
 			.map((tile) => tile.content)
 			.find(
 				(content): content is UnBuiltLand =>
-					content instanceof UnBuiltLand && content.project === residentialBasicDwellingProject
+					content instanceof UnBuiltLand && content.site === residentialBasicDwellingSite
 			)
 		expect(land).toBeDefined()
 		if (!land) return

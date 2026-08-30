@@ -361,7 +361,7 @@ describe('Save/Load Determinism', () => {
 
 		residentialTile!.zone = { type: 'residential' }
 		expect(projectTile!.content instanceof UnBuiltLand).toBe(true)
-		;(projectTile!.content as UnBuiltLand).setProject('build:test')
+		;(projectTile!.content as UnBuiltLand).setSite('build:test')
 
 		const saveState = game.saveGameData()
 		expect(frontierHas(saveState, residentialCoord)).toBe(false)
@@ -377,7 +377,7 @@ describe('Save/Load Determinism', () => {
 		expect(game2.hex.zoneManager.getZone(residentialCoord)?.type).toBe('residential')
 		const loadedProjectTile = game2.hex.getTile(projectCoord)
 		expect(loadedProjectTile?.content instanceof UnBuiltLand).toBe(true)
-		expect((loadedProjectTile?.content as UnBuiltLand).project).toBe('build:test')
+		expect((loadedProjectTile?.content as UnBuiltLand).site).toBe('build:test')
 	})
 
 	it('preserves loose goods and deposit mutations on streamed gameplay tiles as ordinary patches', async () => {

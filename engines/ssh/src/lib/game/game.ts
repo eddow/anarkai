@@ -36,7 +36,7 @@ import { Shop } from 'ssh/commerce/shop'
 import { applyConstructionConcreteTerrain, createConstructionShell } from 'ssh/construction-shell'
 import {
 	type ConstructionPhase,
-	constructionTargetFromProject,
+	constructionTargetFromSite,
 	createConstructionSiteState,
 	type DwellingTier,
 	resolveAlveolusVariant,
@@ -239,9 +239,9 @@ export interface ShopPatch {
 	goods?: Partial<Record<GoodType, number>>
 }
 
-export interface ProjectSitePatch {
+export interface SitePatch {
 	coord: readonly [number, number]
-	project: string
+	site: string
 	/** Dot-separated variant path for variant-capable alveolus projects. */
 	variant?: string
 	constructionPhase?: ConstructionPhase
@@ -335,7 +335,7 @@ export interface GamePatches {
 	looseGoods?: LooseGoodsPatches
 	zones?: ZonesPatches
 	projects?: Record<string, ReadonlyArray<readonly [number, number]>>
-	projectSites?: ReadonlyArray<ProjectSitePatch>
+	sites?: ReadonlyArray<SitePatch>
 	dwellings?: ReadonlyArray<DwellingPatch>
 	shops?: ReadonlyArray<ShopPatch>
 	playerAccount?: PlayerAccountPatch
@@ -1512,7 +1512,7 @@ export class Game extends Eventful<GameEvents> {
 		for (const coordsForProject of Object.values(patches.projects ?? {})) {
 			for (const coord of coordsForProject) coords.push({ q: coord[0], r: coord[1] })
 		}
-		for (const site of patches.projectSites ?? []) {
+		for (const site of patches.sites ?? []) {
 			coords.push({ q: site.coord[0], r: site.coord[1] })
 		}
 		for (const dwelling of patches.dwellings ?? []) {
@@ -1564,7 +1564,7 @@ export class Game extends Eventful<GameEvents> {
 		for (const coordsForProject of Object.values(patches.projects ?? {})) {
 			for (const coord of coordsForProject) addPatchCoord(coord)
 		}
-		for (const site of patches.projectSites ?? []) addPatchCoord(site.coord)
+		for (const site of patches.sites ?? []) addPatchCoord(site.coord)
 		for (const dwelling of patches.dwellings ?? []) addPatchCoord(dwelling.coord)
 		for (const shop of patches.shops ?? []) addPatchCoord(shop.coord)
 		for (const [, goodCoords] of looseGoodsPatchEntries(patches.looseGoods)) {
@@ -2309,7 +2309,7 @@ export class Game extends Eventful<GameEvents> {
 				this.applyHivesPatches(patches.hives, saveState?.hiveConfigurations)
 			if (patches.looseGoods) this.applyLooseGoodsPatches(patches.looseGoods)
 			if (patches.projects) this.applyProjectPatches(patches.projects)
-			if (patches.projectSites?.length) this.applyProjectSitePatches(patches.projectSites)
+			if (patches.sites?.length) this.applySitePatches(patches.sites)
 			if (patches.dwellings?.length) this.applyDwellingPatches(patches.dwellings)
 			if (patches.shops?.length) this.applyShopPatches(patches.shops)
 			this.bootstrapFreightLines(patches)
@@ -2399,7 +2399,7 @@ export class Game extends Eventful<GameEvents> {
 				this.applyHivesPatches(patches.hives, saveState?.hiveConfigurations)
 			if (patches.looseGoods) this.applyLooseGoodsPatches(patches.looseGoods)
 			if (patches.projects) this.applyProjectPatches(patches.projects)
-			if (patches.projectSites?.length) this.applyProjectSitePatches(patches.projectSites)
+			if (patches.sites?.length) this.applySitePatches(patches.sites)
 			if (patches.dwellings?.length) this.applyDwellingPatches(patches.dwellings)
 			if (patches.shops?.length) this.applyShopPatches(patches.shops)
 			this.bootstrapFreightLines(patches)
@@ -2784,20 +2784,20 @@ export class Game extends Eventful<GameEvents> {
 				if (!tile) continue
 				const content = tile.content
 				if (content instanceof UnBuiltLand) {
-					content.setProject(projectType)
+					content.setSite(projectType)
 					tile.asGenerated = false
 				}
 			}
 		}
 	}
 
-	private applyProjectSitePatches(sites: NonNullable<GamePatches['projectSites']>) {
+	private applySitePatches(sites: NonNullable<GamePatches['sites']>) {
 		for (const entry of sites) {
 			const coordObj = { q: entry.coord[0], r: entry.coord[1] }
 			const tile = this.hex.getTile(coordObj)
 			if (!tile) continue
 			const content = tile.content
-			const constructionTarget = constructionTargetFromProject(entry.project)
+			const constructionTarget = constructionTargetFromSite(entry.site)
 			if (!constructionTarget) continue
 			// Attach variant from the save if not already parsed from the project string
 			if (entry.variant && constructionTarget.kind === 'alveolus' && !constructionTarget.variant) {
@@ -2834,7 +2834,7 @@ export class Game extends Eventful<GameEvents> {
 				continue
 			}
 			if (!(content instanceof UnBuiltLand)) continue
-			content.setProject(entry.project, constructionSite)
+			content.setSite(entry.site, constructionSite)
 			for (const [good, qty] of Object.entries(entry.foundationGoods ?? {})) {
 				content.foundationStorage?.addGood(good as GoodType, qty as number)
 			}
@@ -2998,7 +2998,7 @@ export class Game extends Eventful<GameEvents> {
 		const customZonesIndex = IndexStore.fromOrdered(
 			this.hex.zoneManager.listCustomZoneDefinitions()
 		)
-		const projectSites: ProjectSitePatch[] = []
+		const sites: SitePatch[] = []
 		const dwellings: DwellingPatch[] = []
 		const roads: RoadPatches = {}
 		for (const road of this.hex.roadSegments()) {
@@ -3041,15 +3041,15 @@ export class Game extends Eventful<GameEvents> {
 					plantedTrees: content.plantedTrees ? { ages: [...content.plantedTrees.ages] } : undefined,
 				})
 
-				// Save project information — `projectSites` is the single
+				// Save site information — `sites` is the single
 				// representation (carries phase, foundation stock, variant).
 				// The legacy `projects` map (project → coords) is intentionally
-				// NOT emitted: emitting both made load apply `setProject` twice
+				// NOT emitted: emitting both made load apply `setSite` twice
 				// on the same tile (two competing construction-phase effects).
-				if (content.project) {
-					projectSites.push({
+				if (content.site) {
+					sites.push({
 						coord: [q, r],
-						project: content.project,
+						site: content.site,
 						variant:
 							content.constructionSite?.target.kind === 'alveolus'
 								? content.constructionSite.target.variant
@@ -3079,9 +3079,9 @@ export class Game extends Eventful<GameEvents> {
 				const projectStr = buildVariantId
 					? `build:${target.alveolusType}${VARIANT_DELIMITER}${buildVariantId}`
 					: `build:${target.alveolusType}`
-				projectSites.push({
+				sites.push({
 					coord: [q, r],
-					project: projectStr,
+					site: projectStr,
 					variant: buildVariantId,
 					constructionPhase: content.constructionSite.phase,
 					foundationConsumedGoods: content.constructionSite.foundationConsumedGoods ?? {},
@@ -3090,7 +3090,7 @@ export class Game extends Eventful<GameEvents> {
 					hivePlanIndex: (content as { hivePlan?: HivePlan }).hivePlan
 						? this.hivePlans.indexOf((content as { hivePlan?: HivePlan }).hivePlan!)
 						: undefined,
-					configuration: (content as { planConfiguration?: ProjectSitePatch['configuration'] })
+					configuration: (content as { planConfiguration?: SitePatch['configuration'] })
 						.planConfiguration,
 				})
 			}
@@ -3219,7 +3219,7 @@ export class Game extends Eventful<GameEvents> {
 				looseGoods: looseGoodsPatches,
 				streamedFrontier,
 				zones: zoneTypePatches,
-				projectSites,
+				sites,
 				dwellings,
 				playerAccount: { balanceVp: this.playerAccount.balanceVp },
 				roads,

@@ -181,7 +181,7 @@ describe('hive plans', () => {
 			expect((content as { hivePlan?: HivePlan }).hivePlan).toBe(plan)
 
 			const saved = game.saveGameData()
-			expect(saved.projectSites).toEqual(
+			expect(saved.sites).toEqual(
 				expect.arrayContaining([
 					expect.objectContaining({
 						hivePlanIndex: game.hivePlans.indexOf(plan),

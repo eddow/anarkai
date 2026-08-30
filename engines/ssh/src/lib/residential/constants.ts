@@ -7,7 +7,7 @@ export const residentialHousingDemandRadius = 12
 export const residentialProjectSpawnCooldownSeconds = 2
 
 /** Project id placed on `UnBuiltLand` for the v1 basic dwelling construction consumer. */
-export const residentialBasicDwellingProject = 'residential:basic_dwelling' as const
+export const residentialBasicDwellingSite = 'residential:basic_dwelling' as const
 
 /** Max per-good slots for home inventory UI on completed basic dwellings (v1 placeholder). */
 export const basicDwellingHomeStorageMaxAmounts = {

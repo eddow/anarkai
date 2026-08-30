@@ -4,7 +4,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 
 const i18nState = {
 	translator: {
-		project: 'Project',
+		site: 'Site',
 		clearing: 'Clearing',
 		deposit: 'Deposit',
 		construction: {
@@ -132,9 +132,9 @@ describe('UnBuiltProperties', () => {
 		sursautOptions.checkRebuild = 'warn'
 	})
 
-	it('renders project labels through T without a hardcoded fallback', () => {
+	it('renders site labels through T without a hardcoded fallback', () => {
 		const content = {
-			project: 'build:sawmill',
+			site: 'build:sawmill',
 			tile: {
 				isClear: true,
 				board: { game: {} },
@@ -150,7 +150,7 @@ describe('UnBuiltProperties', () => {
 			</table>
 		)
 
-		expect(container.textContent).toContain('Project')
+		expect(container.textContent).toContain('Site')
 		expect(container.textContent).toContain('Sawmill')
 	})
 
@@ -161,7 +161,7 @@ describe('UnBuiltProperties', () => {
 			},
 		}
 		const content = {
-			project: undefined,
+			site: undefined,
 			deposit: {
 				amount: 3,
 				name: badKey,
@@ -190,7 +190,7 @@ describe('UnBuiltProperties', () => {
 
 	it('does not translate or render an unnamed deposit', () => {
 		const content = {
-			project: undefined,
+			site: undefined,
 			deposit: {
 				amount: 3,
 				name: '',
@@ -217,7 +217,7 @@ describe('UnBuiltProperties', () => {
 
 	it('renders deposits using the generated deposit instance name', () => {
 		const content = {
-			project: undefined,
+			site: undefined,
 			deposit: {
 				amount: 7,
 				name: 'stone',
@@ -247,7 +247,7 @@ describe('UnBuiltProperties', () => {
 
 	it('renders the tile zone as a colored unbuilt-land title', () => {
 		const content = {
-			project: undefined,
+			site: undefined,
 			tile: {
 				effectiveZone: { type: 'passive', name: 'Orchard', color: '#12ab34' },
 				isClear: true,
@@ -280,7 +280,7 @@ describe('UnBuiltProperties', () => {
 	it('does not trip the rebuild fence when deposit amount changes', () => {
 		sursautOptions.checkRebuild = 'error'
 		const content = reactive({
-			project: undefined as string | undefined,
+			site: undefined as string | undefined,
 			deposit: reactive({
 				amount: 3,
 				name: 'stone',
@@ -312,7 +312,7 @@ describe('UnBuiltProperties', () => {
 
 	it('renders construction phase and blocking labels through the shared formatter path', () => {
 		const content = {
-			project: 'build:sawmill',
+			site: 'build:sawmill',
 			constructionSite: {},
 			tile: {
 				isClear: true,
@@ -340,7 +340,7 @@ describe('UnBuiltProperties', () => {
 
 	it('renders foundation materials as delivered over required and marks missing goods', () => {
 		const content = {
-			project: 'build:sawmill',
+			site: 'build:sawmill',
 			constructionSite: {},
 			tile: {
 				position: { q: 0, r: 0 },

@@ -148,7 +148,7 @@ describe('blocking tile pedestrian pathfinding', () => {
 				const content = project.content
 				expect(content).toBeInstanceOf(UnBuiltLand)
 				if (!(content instanceof UnBuiltLand)) throw new Error('expected unbuilt land')
-				content.setProject('build:storage')
+				content.setSite('build:storage')
 
 				const path = game.hex.findPath({ q: 0, r: 0 }, { q: 2, r: 0 }, 10, true)
 

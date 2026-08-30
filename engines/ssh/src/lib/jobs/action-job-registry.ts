@@ -64,7 +64,7 @@ registerActionJobProvider('harvest', (alveolus) => {
 		if (!(content instanceof UnBuiltLand)) return false
 		if (content.deposit?.name !== action.deposit) return false
 
-		if (priority === 'project') return !!content.project
+		if (priority === 'project') return !!content.site
 
 		if (priority === 'clearing') {
 			return (
@@ -440,7 +440,7 @@ registerActionJobProvider('engineer', (alveolus) => {
 			if (
 				allowedJobs.has('foundation') &&
 				content instanceof UnBuiltLand &&
-				content.project &&
+				content.site &&
 				content.constructionSite &&
 				foundationGoodsComplete(content.constructionSite) &&
 				!tile.isBurdened

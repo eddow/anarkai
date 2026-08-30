@@ -723,7 +723,7 @@ function loadedVehicleOffloadProviderJob(game: Game, vehicle: Vehicle): Proposed
  */
 export function isVehicleOffloadDestinationEligible(tile: Tile): boolean {
 	if (!(tile.content instanceof UnBuiltLand)) return false
-	if (tile.content.project) return false
+	if (tile.content.site) return false
 	if (tile.zone?.type === 'residential') return false
 	if (tile.isBurdened) return false
 	if (tileTouchesRoad(tile)) return false
@@ -1005,7 +1005,7 @@ function pickOffloadForTile(
 		if (!looseGood) return undefined
 		return { looseGood, urgency: jobBalance.offload.residentialTile }
 	}
-	if (tile.content instanceof UnBuiltLand && tile.content.project) {
+	if (tile.content instanceof UnBuiltLand && tile.content.site) {
 		const looseGood = available.find(roomFor)
 		if (!looseGood) return undefined
 		return { looseGood, urgency: jobBalance.offload.projectTile }

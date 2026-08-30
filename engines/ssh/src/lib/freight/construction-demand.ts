@@ -49,7 +49,7 @@ export function freightConstructionDemandTarget(
 		}
 	}
 	if (!(content instanceof UnBuiltLand)) return undefined
-	if (!content.project || !content.constructionSite || !content.foundationStorage) return undefined
+	if (!content.site || !content.constructionSite || !content.foundationStorage) return undefined
 	const remainingNeeds = materialRemainingNeeds(
 		content.constructionSite.foundationRequiredGoods,
 		content.foundationStorage

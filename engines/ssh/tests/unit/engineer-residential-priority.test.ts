@@ -4,7 +4,7 @@ import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { Game } from 'ssh/game/game'
 import { EngineerAlveolus } from 'ssh/hive/engineer'
 import type { ScriptExecution } from 'ssh/npcs/scripts'
-import { residentialBasicDwellingProject } from 'ssh/residential/constants'
+import { residentialBasicDwellingSite } from 'ssh/residential/constants'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 describe('EngineerAlveolus.nextJob residential construction priority', () => {
@@ -18,7 +18,7 @@ describe('EngineerAlveolus.nextJob residential construction priority', () => {
 	}
 
 	function makeReadyResidentialFoundation(land: UnBuiltLand) {
-		land.setProject(residentialBasicDwellingProject)
+		land.setSite(residentialBasicDwellingSite)
 		land.foundationStorage?.addGood('concrete', 1)
 	}
 

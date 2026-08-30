@@ -68,7 +68,7 @@ describe('notifyTerrainDepositsChanged / sector resource refresh hooks', () => {
 		})
 	})
 
-	describe('UnBuiltLand.setProject', () => {
+	describe('UnBuiltLand.setSite', () => {
 		beforeEach(async () => {
 			game = new Game(
 				{ terrainSeed: 17, characterCount: 0 },
@@ -88,9 +88,9 @@ describe('notifyTerrainDepositsChanged / sector resource refresh hooks', () => {
 			expect(content).toBeInstanceOf(UnBuiltLand)
 			if (!(content instanceof UnBuiltLand)) return
 
-			content.setProject('build:sawmill')
+			content.setSite('build:sawmill')
 
-			expect(content.project).toBe('build:sawmill')
+			expect(content.site).toBe('build:sawmill')
 			expect(content.terrain).toBe('forest')
 			expect(tile.baseTerrain).toBe('forest')
 			expect(tile.terrainState?.terrain).toBe('forest')

@@ -103,9 +103,9 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 		depositName: '',
 		depositSprite: '',
 		showDeposit: false,
-		project: '',
-		projectName: '',
-		showProject: false,
+		site: '',
+		siteName: '',
+		showSite: false,
 		isClearing: false,
 		constructionPhase: '' as ConstructionPhase | '',
 		constructionPhaseLabel: '',
@@ -144,11 +144,11 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 		if (showDeposit) state.showDeposit = true
 	})
 
-	effect`unbuilt-properties:project`(() => {
-		const proj = props.content?.project
-		state.showProject = typeof proj === 'string'
-		state.project = typeof proj === 'string' ? proj : ''
-		state.projectName =
+	effect`unbuilt-properties:site`(() => {
+		const proj = props.content?.site
+		state.showSite = typeof proj === 'string'
+		state.site = typeof proj === 'string' ? proj : ''
+		state.siteName =
 			typeof proj === 'string'
 				? proj.startsWith('build:')
 					? proj.slice('build:'.length)
@@ -207,13 +207,13 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 				</div>
 			</PropertyGridRow>
 
-			<PropertyGridRow if={state.showProject} label={String(T.project)}>
+			<PropertyGridRow if={state.showSite} label={String(T.site)}>
 				<div class="unbuilt-project">
 					<Badge tone="blue">
 						{String(
-							state.project.startsWith('residential:')
+							state.site.startsWith('residential:')
 								? T.residential.projectBasicDwelling
-								: T.alveoli[state.projectName]
+								: T.alveoli[state.siteName]
 						)}
 					</Badge>
 					<Badge if={state.isClearing} tone="yellow">

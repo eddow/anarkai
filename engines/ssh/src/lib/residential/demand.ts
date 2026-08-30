@@ -4,7 +4,7 @@ import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Game } from 'ssh/game/game'
 import { GameObject } from 'ssh/game/object'
 import {
-	residentialBasicDwellingProject,
+	residentialBasicDwellingSite,
 	residentialHousingDemandRadius,
 	residentialProjectSpawnCooldownSeconds,
 } from 'ssh/residential/constants'
@@ -41,7 +41,7 @@ function hasResidentialConstructionInProgress(game: Game): boolean {
 	// residential coords — not the whole board.
 	for (const coord of game.hex.zoneManager.residentialCoords) {
 		const content = game.hex.getTile(coord)?.content
-		if (content instanceof UnBuiltLand && content.project === residentialBasicDwellingProject) {
+		if (content instanceof UnBuiltLand && content.site === residentialBasicDwellingSite) {
 			return true
 		}
 		if (content instanceof BuildDwelling) return true
@@ -64,7 +64,7 @@ export function trySpawnResidentialProject(game: Game): void {
 		if (!tile) continue
 		const content = tile.content
 		if (!(content instanceof UnBuiltLand)) continue
-		if (content.project) continue
+		if (content.site) continue
 		if (!tile.isClear) continue
 		const center = toAxialCoord(tile.position)
 		if (!center) continue
@@ -88,8 +88,8 @@ export function trySpawnResidentialProject(game: Game): void {
 	if (!tile) return
 	const land = tile.content
 	if (!(land instanceof UnBuiltLand)) return
-	if (land.project) return
-	land.setProject(residentialBasicDwellingProject)
+	if (land.site) return
+	land.setSite(residentialBasicDwellingSite)
 	traces.residential.log?.('[residential] spawned basic dwelling project', {
 		q: best.q,
 		r: best.r,

@@ -123,7 +123,7 @@ export function canBuildRoadThroughTile(tile: Tile): boolean {
 	if (content instanceof BasicDwelling) return false
 	if (isConstructionSiteShell(content)) return false
 	if (content instanceof UnBuiltLand) {
-		if (content.project) return false
+		if (content.site) return false
 		return true
 	}
 	return true

@@ -1,6 +1,6 @@
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { Game } from 'ssh/game/game'
-import { residentialBasicDwellingProject } from 'ssh/residential/constants'
+import { residentialBasicDwellingSite } from 'ssh/residential/constants'
 import { trySpawnResidentialProject } from 'ssh/residential/demand'
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -27,7 +27,7 @@ describe('trySpawnResidentialProject', () => {
 		const land = tile.content
 		expect(land).toBeInstanceOf(UnBuiltLand)
 		if (!(land instanceof UnBuiltLand)) return
-		expect(land.project).toBeUndefined()
+		expect(land.site).toBeUndefined()
 	})
 
 	it('starts a basic dwelling project on a clear residential tile when pressure is positive', async () => {
@@ -61,12 +61,12 @@ describe('trySpawnResidentialProject', () => {
 		const land0 = tile0.content
 		expect(land0).toBeInstanceOf(UnBuiltLand)
 		if (!(land0 instanceof UnBuiltLand)) return
-		expect(land0.project).toBe(residentialBasicDwellingProject)
+		expect(land0.site).toBe(residentialBasicDwellingSite)
 
 		const tile1 = game.hex.getTile({ q: 1, r: 0 })!
 		const land1 = tile1.content
 		expect(land1).toBeInstanceOf(UnBuiltLand)
 		if (!(land1 instanceof UnBuiltLand)) return
-		expect(land1.project).toBeUndefined()
+		expect(land1.site).toBeUndefined()
 	})
 })

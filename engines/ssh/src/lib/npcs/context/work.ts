@@ -18,7 +18,7 @@ import {
 	finalizeConstructionShell,
 } from 'ssh/construction-shell'
 import {
-	constructionTargetFromProject,
+	constructionTargetFromSite,
 	createConstructionSiteState,
 	foundationGoodsComplete,
 	setConstructionFoundationConsumedGoods,
@@ -1237,11 +1237,11 @@ class WorkFunctions {
 	}
 	@contract()
 	foundationStep() {
-		// Character must be on an UnBuiltLand tile with a project
+		// Character must be on an UnBuiltLand tile with a site
 		const character = this[subject]
 		const tileCoord = toAxialCoord(character.tile.position)
 		const content = character.tile.content
-		if (!(content instanceof UnBuiltLand) || !content.project) {
+		if (!(content instanceof UnBuiltLand) || !content.site) {
 			traces.work.warn?.('work.foundationStep.skip', {
 				character: character.name,
 				characterUid: debugObjectId(character),
@@ -1264,12 +1264,12 @@ class WorkFunctions {
 			})
 			return
 		}
-		const project = content.project
+		const site = content.site
 		// Redundant assert for TS narrowing, or just cast
 		// assert(content instanceof UnBuiltLand, 'Tile must be UnBuiltLand')
-		// assert(content.project, 'UnBuiltLand must have a project')
-		const target = constructionTargetFromProject(project)
-		assert(target, 'UnBuiltLand project must map to a construction target')
+		// assert(content.site, 'UnBuiltLand must have a site')
+		const target = constructionTargetFromSite(site)
+		assert(target, 'UnBuiltLand site must map to a construction target')
 
 		const constructionSite = content.constructionSite ?? createConstructionSiteState(target)
 
@@ -1294,7 +1294,7 @@ class WorkFunctions {
 		traces.work.log?.('work.foundationStep.start', {
 			character: character.name,
 			characterUid: debugObjectId(character),
-			project,
+			site,
 			tileQ: tileCoord?.q,
 			tileR: tileCoord?.r,
 			targetKind: target.kind,

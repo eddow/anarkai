@@ -72,7 +72,7 @@ export function vehicleNeedsParkingOnCurrentTile(vehicle: Vehicle): boolean {
 		return false
 	}
 	if (!(here.content instanceof UnBuiltLand)) return true
-	if (here.content.project) return true
+	if (here.content.site) return true
 	if (here.zone?.type === 'residential') return true
 	if (!here.isClear) return true
 	return false

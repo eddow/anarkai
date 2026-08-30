@@ -1,6 +1,6 @@
 import { alveoli, construction } from 'engine-rules'
 import { reactive } from 'mutts'
-import { residentialBasicDwellingProject } from 'ssh/residential/constants'
+import { residentialBasicDwellingSite } from 'ssh/residential/constants'
 import type { AlveolusType, GoodType } from 'ssh/types/base'
 
 export type ConstructionPhase =
@@ -146,13 +146,13 @@ export function resolveAlveolusVariant(
 }
 
 /**
- * Parse a project string like `build:pile` or `build:pile.wood.extra`
+ * Parse a site string like `build:pile` or `build:pile.wood.extra`
  * into a ConstructionTarget with optional variant.
  */
-function parseBuildProject(
-	project: string
+function parseBuildSite(
+	site: string
 ): { alveolusType: AlveolusType; variant?: string } | undefined {
-	const raw = project.slice('build:'.length)
+	const raw = site.slice('build:'.length)
 	const hashIdx = raw.indexOf(VARIANT_DELIMITER)
 	if (hashIdx >= 0) {
 		return {
@@ -191,12 +191,12 @@ const dwellingRecipeByTier: Readonly<Record<DwellingTier, ConstructionRecipe>> =
 	basic_dwelling: ruleConstructionRecipe(construction.dwellings.basic_dwelling),
 }
 
-export function constructionTargetFromProject(project: string): ConstructionTarget | undefined {
-	if (project === residentialBasicDwellingProject) {
+export function constructionTargetFromSite(site: string): ConstructionTarget | undefined {
+	if (site === residentialBasicDwellingSite) {
 		return { kind: 'dwelling', tier: 'basic_dwelling' }
 	}
-	if (!project.startsWith('build:')) return undefined
-	const parsed = parseBuildProject(project)
+	if (!site.startsWith('build:')) return undefined
+	const parsed = parseBuildSite(site)
 	if (!parsed) return undefined
 	return { kind: 'alveolus', alveolusType: parsed.alveolusType, variant: parsed.variant }
 }
@@ -234,7 +234,7 @@ export function createConstructionRecipe(
 
 /** Reconstitute a project string from a ConstructionTarget (e.g., "build:pile.wood.extra"). */
 export function projectFromConstructionTarget(target: ConstructionTarget): string {
-	if (target.kind === 'dwelling') return residentialBasicDwellingProject
+	if (target.kind === 'dwelling') return residentialBasicDwellingSite
 	if (target.variant) {
 		return `build:${target.alveolusType}${VARIANT_DELIMITER}${target.variant}`
 	}

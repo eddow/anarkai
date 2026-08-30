@@ -26,7 +26,7 @@ describe('queryConstructionSiteView', () => {
 		const land = tile.content
 		expect(land).toBeInstanceOf(UnBuiltLand)
 		if (!(land instanceof UnBuiltLand)) return
-		land.setProject('build:sawmill')
+		land.setSite('build:sawmill')
 		expect(land.constructionSite?.target.kind).toBe('alveolus')
 		if (land.constructionSite?.target.kind === 'alveolus') {
 			expect(land.constructionSite.target.alveolusType).toBe('sawmill')
@@ -58,7 +58,7 @@ describe('queryConstructionSiteView', () => {
 		const land = tile.content
 		expect(land).toBeInstanceOf(UnBuiltLand)
 		if (!(land instanceof UnBuiltLand)) return
-		land.setProject('build:sawmill')
+		land.setSite('build:sawmill')
 		game.vehicles.createVehicle('wheelbarrow', tile.position as AxialCoord)
 
 		const view = queryConstructionSiteView(game, tile)
@@ -80,10 +80,10 @@ describe('queryConstructionSiteView', () => {
 						alveoli: [{ coord: [0, 0], alveolus: 'engineer' }],
 					},
 				],
-				projectSites: [
+				sites: [
 					{
 						coord: [1, 0],
-						project: 'build:storage',
+						site: 'build:storage',
 						foundationGoods: { concrete: 1 },
 					},
 				],

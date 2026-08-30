@@ -1,6 +1,6 @@
 import type { HivePlan, HivePlanEntry } from 'ssh/hive-plan'
 import { hivePlanFingerprint, hivePlanValidationRequirements } from 'ssh/hive-plan'
-import { residentialBasicDwellingProject } from '../residential/constants'
+import { residentialBasicDwellingSite } from '../residential/constants'
 import type { GamePatches } from './game'
 
 const constructionGoodsSelection = {
@@ -337,10 +337,10 @@ export const demoHive = {
 		},
 	],
 	dwellings: [{ coord: [-4, 1], tier: 'basic_dwelling' }],
-	projectSites: [
+	sites: [
 		{
 			coord: [-3, 1],
-			project: residentialBasicDwellingProject,
+			site: residentialBasicDwellingSite,
 			constructionPhase: 'waiting_materials',
 			foundationConsumedGoods: { concrete: 1 },
 			constructionGoods: { wood: 1 },
@@ -455,10 +455,10 @@ export const dorm = {
 			],
 		},
 	],
-	projectSites: [
+	sites: [
 		{
 			coord: [0, -1],
-			project: 'build:tree_chopper',
+			site: 'build:tree_chopper',
 			constructionPhase: 'waiting_materials',
 			constructionGoods: {},
 		},

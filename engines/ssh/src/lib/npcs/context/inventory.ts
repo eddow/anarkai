@@ -130,7 +130,7 @@ export class InventoryFunctions {
 		const tile = character.tile
 		const content = tile.content
 		if (!(content instanceof UnBuiltLand)) return false
-		if (content.project) return false
+		if (content.site) return false
 		if (tile.zone?.type === 'residential') return false
 		if (!tile.isBurdened) return true
 		// Maintenance unload still needs one legal state while the operator is actively driving the

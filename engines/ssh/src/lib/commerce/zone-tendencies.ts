@@ -111,7 +111,7 @@ export function measureZoneTendencies(game: Game, zone: ZoneDefinition): ZoneTen
 			freeSlots += content.freeHomeSlots
 		} else if (
 			content instanceof BuildDwelling ||
-			(content instanceof UnBuiltLand && content.project === 'residential:basic_dwelling')
+			(content instanceof UnBuiltLand && content.site === 'residential:basic_dwelling')
 		) {
 			underConstruction += 1
 		}

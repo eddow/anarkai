@@ -72,7 +72,7 @@ function collectCommercialCandidates(game: Game): CommercialCandidate[] {
 		const tile = game.hex.getTile(coord)
 		if (!tile) continue
 		if (!(tile.content instanceof UnBuiltLand)) continue
-		if (tile.content.project) continue
+		if (tile.content.site) continue
 		if (!tile.isClear) continue
 		if (!isRoadAdjacent(game, coord)) continue
 		out.push({

@@ -15,7 +15,7 @@ import { StorageAlveolus } from 'ssh/hive/storage'
 import { WorkFunctions } from 'ssh/npcs/context/work'
 import { subject } from 'ssh/npcs/scripts'
 import { DurationStep } from 'ssh/npcs/steps'
-import { residentialBasicDwellingProject } from 'ssh/residential/constants'
+import { residentialBasicDwellingSite } from 'ssh/residential/constants'
 import { trySpawnResidentialProject } from 'ssh/residential/demand'
 import type { GoodType } from 'ssh/types/base'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -36,7 +36,7 @@ describe('dorm example game', () => {
 	function buildCurrentResidentialProject(storage: StorageAlveolus): void {
 		const tile = [...game.hex.tiles].find((candidate) => {
 			const content = candidate.content
-			return content instanceof UnBuiltLand && content.project === residentialBasicDwellingProject
+			return content instanceof UnBuiltLand && content.site === residentialBasicDwellingSite
 		})
 		expect(tile).toBeDefined()
 		if (!tile) return
@@ -114,13 +114,13 @@ describe('dorm example game', () => {
 		game.population.createCharacter('Dorm B', { q: 2, r: 1 })
 
 		trySpawnResidentialProject(game)
-		expect((clear.content as UnBuiltLand).project).toBe(residentialBasicDwellingProject)
+		expect((clear.content as UnBuiltLand).site).toBe(residentialBasicDwellingSite)
 		buildCurrentResidentialProject(storage)
 
 		for (const loose of [...burdened.looseGoods]) loose.remove()
 		expect(burdened.isBurdened).toBe(false)
 		trySpawnResidentialProject(game)
-		expect((burdened.content as UnBuiltLand).project).toBe(residentialBasicDwellingProject)
+		expect((burdened.content as UnBuiltLand).site).toBe(residentialBasicDwellingSite)
 		buildCurrentResidentialProject(storage)
 
 		expect(clear.content).toBeInstanceOf(BasicDwelling)
@@ -142,7 +142,7 @@ describe('dorm example game', () => {
 		game.population.createCharacter('Dorm resident A', { q: 2, r: 0 })
 		game.population.createCharacter('Dorm resident B', { q: 2, r: 1 })
 		trySpawnResidentialProject(game)
-		expect((buildTile.content as UnBuiltLand).project).toBe(residentialBasicDwellingProject)
+		expect((buildTile.content as UnBuiltLand).site).toBe(residentialBasicDwellingSite)
 		stageFoundationGoods(buildTile)
 
 		const builder = game.population.createCharacter(
@@ -234,7 +234,7 @@ describe('dorm example game', () => {
 		game.population.createCharacter('Dorm late resident A', { q: 2, r: 0 })
 		game.population.createCharacter('Dorm late resident B', { q: 2, r: 1 })
 		trySpawnResidentialProject(game)
-		expect((buildTile.content as UnBuiltLand).project).toBe(residentialBasicDwellingProject)
+		expect((buildTile.content as UnBuiltLand).site).toBe(residentialBasicDwellingSite)
 		stageFoundationGoods(buildTile)
 
 		const builder = game.population.createCharacter(

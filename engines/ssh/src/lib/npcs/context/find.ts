@@ -91,7 +91,7 @@ class FindFunctions {
 				const tile = hex.getTile(coord)
 				if (!(tile?.content instanceof UnBuiltLand)) return false
 				if (tile.content.deposit?.name !== deposit) return false
-				return !!tile.content.project
+				return !!tile.content.site
 			},
 			maxWalkTime,
 			false
@@ -277,7 +277,7 @@ class FindFunctions {
 				const tile = hex.getTile(coord)
 				if (!tile || !tile.content) return false
 				if (!(tile.content instanceof UnBuiltLand)) return false
-				if (tile.content.project) return false
+				if (tile.content.site) return false
 				if (tile.zone?.type === 'residential') return false
 
 				const looseCount = hex.looseGoods.getGoodsAt(coord).length

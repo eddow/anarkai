@@ -176,7 +176,7 @@ export class Tile extends withInteractive(GameObject) {
 		return (
 			this.zone?.type === 'residential' ||
 			(!!this.content &&
-				(('project' in this.content && !!this.content.project) || this.content instanceof Alveolus))
+				(('site' in this.content && !!this.content.site) || this.content instanceof Alveolus))
 		)
 	}
 
@@ -244,7 +244,7 @@ export class Tile extends withInteractive(GameObject) {
 		// The tile must be cleared first, then BuildAlveolus will be created
 		const content = this.content
 		if (content instanceof UnBuiltLand) {
-			content.setProject(project)
+			content.setSite(project)
 		}
 		return true
 	}

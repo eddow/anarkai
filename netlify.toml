@@ -1,5 +1,5 @@
 [build]
-command = "pnpm --filter ssh-browser build"
+command = "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable && . \"$HOME/.cargo/env\" && curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh && pnpm --filter anarkai-core build && pnpm --filter ssh-browser build"
 publish = "apps/browser/dist"
 
 [build.environment]

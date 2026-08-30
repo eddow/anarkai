@@ -216,7 +216,7 @@ describe('TileVisual storage goods layering', () => {
 			const visual = new TileVisual(tile, renderer)
 			visual.bind()
 
-			tile.content.setProject('build:storage')
+			tile.content.setSite('build:storage')
 			tile.content.foundationStorage?.addGood('concrete', 1)
 			visual.refreshStoredGoods()
 

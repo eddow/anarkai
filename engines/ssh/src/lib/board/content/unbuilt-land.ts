@@ -2,13 +2,13 @@ import { deposits } from 'engine-rules'
 import { effect, reactive } from 'mutts'
 import {
 	type ConstructionSiteState,
-	constructionTargetFromProject,
+	constructionTargetFromSite,
 	createConstructionSiteState,
 	setConstructionFoundationDeliveredGoods,
 } from 'ssh/construction-state'
 import { traces } from 'ssh/dev/debug'
 import { gameIsaTypes } from 'ssh/npcs/utils'
-import { residentialBasicDwellingProject } from 'ssh/residential/constants'
+import { residentialBasicDwellingSite } from 'ssh/residential/constants'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { TerrainType } from 'ssh/types'
 import type { GoodType } from 'ssh/types/base'
@@ -49,8 +49,8 @@ export class Deposit extends GcClassed<Ssh.DepositDefinition>() {
 
 @reactive
 export class UnBuiltLand extends TileContent {
-	/** Project identifier (e.g., "build:sawmill") indicating pending construction */
-	public project?: string
+	/** Site identifier (e.g., "build:sawmill") indicating pending construction */
+	public site?: string
 	public constructionSite?: ConstructionSiteState
 	public foundationStorage?: SpecificStorage
 	public plantedTrees?: PlantedTreesState
@@ -58,12 +58,12 @@ export class UnBuiltLand extends TileContent {
 	private stopConstructionPhaseEffect?: () => void
 
 	/**
-	 * Set a project and clear any existing zone
+	 * Set a site and clear any existing zone
 	 */
-	setProject(project: string, constructionSite?: ConstructionSiteState): void {
+	setSite(site: string, constructionSite?: ConstructionSiteState): void {
 		this.tile.asGenerated = false
-		this.project = project
-		const target = constructionTargetFromProject(project)
+		this.site = site
+		const target = constructionTargetFromSite(site)
 		this.constructionSite =
 			constructionSite ?? (target ? createConstructionSiteState(target) : undefined)
 		this.foundationStorage = this.constructionSite
@@ -78,8 +78,8 @@ export class UnBuiltLand extends TileContent {
 			this.game.invalidateWorkPlanning('unbuilt-land.foundation-storage')
 		)
 		const coord = toAxialCoord(this.tile.position)
-		traces.work.log?.('work.project.set', {
-			project,
+		traces.work.log?.('work.site.set', {
+			site,
 			tileQ: coord?.q,
 			tileR: coord?.r,
 			zone: this.tile.zone,
@@ -98,7 +98,7 @@ export class UnBuiltLand extends TileContent {
 			// constructionSite onto BuildDwelling/BuildAlveolus, this content is destroyed and the
 			// effect must stop — otherwise it fights the shell phase effect over `phase`.
 			this.stopConstructionPhaseEffect = effect`unbuilt-land:construction-phase`(() => {
-				if (this.destroyed || !this.project || !this.constructionSite) return
+				if (this.destroyed || !this.site || !this.constructionSite) return
 				const currentPhase = this.constructionSite.phase
 				if (currentPhase !== 'planned' && currentPhase !== 'foundation') return
 				setConstructionFoundationDeliveredGoods(
@@ -108,8 +108,8 @@ export class UnBuiltLand extends TileContent {
 				const phase = this.tile.isBurdened ? 'planned' : 'foundation'
 				if (this.constructionSite.phase === phase) return
 				this.constructionSite.phase = phase
-				traces.work.log?.('work.project.phase', {
-					project: this.project,
+				traces.work.log?.('work.site.phase', {
+					site: this.site,
 					phase,
 					tileQ: coord?.q,
 					tileR: coord?.r,
@@ -123,8 +123,8 @@ export class UnBuiltLand extends TileContent {
 				this.game.enqueueInteractiveChange(this.tile)
 			})
 		}
-		// Residential construction keeps the residential zone marker; alveolus projects clear it.
-		if (project !== residentialBasicDwellingProject) {
+		// Residential construction keeps the residential zone marker; alveolus sites clear it.
+		if (site !== residentialBasicDwellingSite) {
 			this.tile.zone = undefined
 		}
 		this.game.enqueueInteractiveChange(this.tile)
@@ -203,10 +203,10 @@ export class UnBuiltLand extends TileContent {
 	}
 
 	/**
-	 * Provide jobs for construction project
+	 * Provide jobs for construction site
 	 */
 	getJob(): any {
-		if (!this.project) return undefined
+		if (!this.site) return undefined
 
 		// Note: Foundation jobs are provided by engineer alveolus, not by UnBuiltLand
 		return undefined
@@ -249,10 +249,10 @@ export class UnBuiltLand extends TileContent {
 	}
 
 	/**
-	 * Override colorCode to show pink tint/border when there's a project
+	 * Override colorCode to show pink tint/border when there's a site
 	 */
 	colorCode(): { tint: number; borderColor?: number } {
-		if (this.project) {
+		if (this.site) {
 			return { tint: 0xffb4d9, borderColor: 0xff1493 } // pinkish tint, deep pink border
 		}
 		return super.colorCode()
@@ -276,7 +276,7 @@ export class UnBuiltLand extends TileContent {
 		}
 		// UnBuiltLand can accept zoning actions, but only if no project is set
 		if (action.startsWith('zone:')) {
-			return !this.project // Cannot zone if there's already a project
+			return !this.site // Cannot zone if there's already a project
 		}
 		// Can also accept other actions if they make sense
 		return false
@@ -334,7 +334,7 @@ export function tileHasRoomForPlantedTree(land: UnBuiltLand): boolean {
 }
 
 export function canPlantTreeOnLand(land: UnBuiltLand): boolean {
-	if (land.project) return false
+	if (land.site) return false
 	if (land.terrain !== 'forest') return false
 	if (land.deposit && land.deposit.name !== 'tree') return false
 	if (plantedTreeCountOnLand(land) >= plantedTreeMaxPerTile) return false
@@ -343,7 +343,7 @@ export function canPlantTreeOnLand(land: UnBuiltLand): boolean {
 
 export function canPlantDepositOnLand(land: UnBuiltLand, depositType: string): boolean {
 	if (depositType === 'tree') return canPlantTreeOnLand(land)
-	if (land.project) return false
+	if (land.site) return false
 	if (land.terrain !== 'grass') return false
 	if (land.deposit && land.deposit.name !== depositType) return false
 	const definition = deposits[depositType as keyof typeof deposits]

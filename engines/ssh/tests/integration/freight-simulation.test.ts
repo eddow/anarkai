@@ -14,7 +14,7 @@ import { VehicleFunctions } from 'ssh/npcs/context/vehicle'
 import { subject } from 'ssh/npcs/scripts'
 import { DurationStep } from 'ssh/npcs/steps'
 import type { Character } from 'ssh/population/character'
-import { residentialBasicDwellingProject } from 'ssh/residential/constants'
+import { residentialBasicDwellingSite } from 'ssh/residential/constants'
 import { afterEach, describe, expect, it } from 'vitest'
 import { distributeFreightLine, gatherFreightLine } from '../freight-fixtures'
 import { TestEngine } from '../test-engine'
@@ -412,10 +412,10 @@ describe('Freight simulation (gather + distribute)', () => {
 						unloadRadius: 6,
 					}),
 				],
-				projectSites: [
+				sites: [
 					{
 						coord: [3, 0],
-						project: residentialBasicDwellingProject,
+						site: residentialBasicDwellingSite,
 					},
 				],
 			}

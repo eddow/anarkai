@@ -157,7 +157,7 @@ describe('constructionStep resumable work', () => {
 		land.terrain = 'forest'
 		tileB.baseTerrain = 'forest'
 		tileB.terrainState = { ...(tileB.terrainState ?? {}), terrain: 'forest' }
-		land.setProject('build:storage')
+		land.setSite('build:storage')
 		land.foundationStorage?.addGood('concrete', 1)
 		expect(tileB.baseTerrain).toBe('forest')
 
@@ -197,7 +197,7 @@ describe('constructionStep resumable work', () => {
 		land.terrain = 'forest'
 		tileB.baseTerrain = 'forest'
 		tileB.terrainState = { ...(tileB.terrainState ?? {}), terrain: 'forest' }
-		land.setProject('build:storage')
+		land.setSite('build:storage')
 		land.foundationStorage?.addGood('concrete', 1)
 
 		const char = game.population.createCharacter('Builder', { q: 1, r: 0 })
@@ -221,7 +221,7 @@ describe('constructionStep resumable work', () => {
 		const land = tileB.content
 		expect(land).toBeInstanceOf(UnBuiltLand)
 		if (!(land instanceof UnBuiltLand)) return
-		land.setProject('build:storage')
+		land.setSite('build:storage')
 		game.hex.looseGoods.add(tileB, 'stone', { position: tileB.position })
 
 		const char = game.population.createCharacter('Builder', { q: 1, r: 0 })

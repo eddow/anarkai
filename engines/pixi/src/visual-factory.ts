@@ -203,7 +203,7 @@ export class VisualFactory {
 		if (!content) return false
 		if (content instanceof Alveolus) return true
 		if (content instanceof UnBuiltLand) {
-			return !!content.project || !!content.deposit
+			return !!content.site || !!content.deposit
 		}
 		return true
 	}
